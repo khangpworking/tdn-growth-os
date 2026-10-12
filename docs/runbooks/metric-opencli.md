@@ -23,7 +23,7 @@ adapter installed from the same repository bytes. The executor verifies
 `tools/opencli-metric/adapter-manifest.json` before each run. `whoami` reads
 only login, captcha, page-state and any displayed analysis lookup balance.
 The current manifest SHA-256 is
-`6f0e0888b74e9f1bcdb9c1bc6c9ef5dc57581f9ae13689abaf87c0c7b61d7e08`.
+`a15069bcda3f2dd54c73306d87843ae5654ee0a7ad9beaed57877a2dd0f452d5`.
 
 Install or reinstall the adapter from the checked-out repository bytes with:
 
@@ -39,6 +39,29 @@ cp tools/opencli-metric/adapter-manifest.json ~/.opencli/clis/metric/adapter-man
 scope, waits for the result page, and checks the page's applied filters. A
 missing platform, keyword, period or category mismatch fails closed. A second
 search is never attempted by the capture command.
+
+For a form-only verification, pass `--dry-run`:
+
+```text
+opencli metric capture \
+  --spec /outside/spec.json \
+  --dry-run \
+  -f json
+```
+
+Dry-run opens and closes its own ephemeral tab, applies the same native-click,
+trusted-key and checkbox paths as capture, then runs the same pre-submit
+read-back gate. It returns one JSON result with `outcome`, `startState`,
+`appliedReadBack` and `mismatches`. `startState` records platforms, keywords,
+period and category before any change. A successful result is
+`DRY_RUN_OK`; failure results use the adapter error code. The dry-run branch
+returns before the submit/Search-click function and does not start network
+capture or require an output directory.
+
+The live form loop is capped at 25 dry-runs. Record each result outside Git,
+including its start state and mismatches. Stop immediately if `whoami` is not
+`READY`, or if a captcha, warning or access restriction appears. A dry-run
+never spends a lookup.
 
 The command accepts an absolute output directory outside the repository:
 

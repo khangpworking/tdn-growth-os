@@ -161,24 +161,29 @@ function observeMetricPage(includeResults = true) {
   const locateKeywordSelect = () => {
     const root = document.querySelector('#QuerySearchBuilder');
     if (!root) return { select: null, locatedBy: 'none' };
-    const keywordLabel = [...root.querySelectorAll('.filter-label, .filter-label .label')]
-      .find(element => /^(?:keywords|từ kh(?:óa|oá))/i.test(textOf(element)));
-    const labelledContainer = keywordLabel?.closest('.ant-space-item');
-    const labelledSelect = [...(labelledContainer?.querySelectorAll('.ant-select') || [])].find(visible);
-    if (labelledSelect) return { select: labelledSelect, locatedBy: 'label' };
-    const placeholderPattern = /keywords? separated by commas|từ kh(?:óa|oá)/i;
-    const placeholderSelect = [...root.querySelectorAll('.ant-select')].find(element => visible(element) && (
-      placeholderPattern.test(textOf(element.querySelector('.ant-select-selection-placeholder')))
-      || [...element.querySelectorAll('input')].some(input => placeholderPattern.test(input.getAttribute('placeholder') || '') || placeholderPattern.test(input.getAttribute('aria-label') || ''))
-    ));
-    if (placeholderSelect) return { select: placeholderSelect, locatedBy: 'placeholder' };
     const labelledControl = pattern => {
       const label = [...root.querySelectorAll('.filter-label, .filter-label .label')].find(element => pattern.test(textOf(element)));
       const container = label?.closest('.ant-space-item');
       return [...(container?.querySelectorAll('.ant-select') || [])].find(visible) || null;
     };
+    const platformSelect = labelledControl(/^(?:platform|nền tảng)/i);
+    const placeholderPattern = /keywords? separated by commas|từ kh(?:óa|oá)/i;
+    const isKeywordCandidate = element => element.classList.contains('ant-select-multiple')
+      || placeholderPattern.test(textOf(element.querySelector('.ant-select-selection-placeholder')))
+      || [...element.querySelectorAll('input')].some(input => placeholderPattern.test(input.getAttribute('placeholder') || '') || placeholderPattern.test(input.getAttribute('aria-label') || ''));
+    const keywordLabel = [...root.querySelectorAll('.filter-label, .filter-label .label')]
+      .find(element => /^(?:keywords|từ kh(?:óa|oá))/i.test(textOf(element)));
+    const labelledContainer = keywordLabel?.closest('.ant-space-item');
+    const labelledSelect = [...(labelledContainer?.querySelectorAll('.ant-select') || [])]
+      .find(element => visible(element) && element !== platformSelect && isKeywordCandidate(element));
+    if (labelledSelect) return { select: labelledSelect, locatedBy: 'label' };
+    const placeholderSelect = [...root.querySelectorAll('.ant-select')].find(element => visible(element) && (
+      placeholderPattern.test(textOf(element.querySelector('.ant-select-selection-placeholder')))
+      || [...element.querySelectorAll('input')].some(input => placeholderPattern.test(input.getAttribute('placeholder') || '') || placeholderPattern.test(input.getAttribute('aria-label') || ''))
+    ) && element !== platformSelect);
+    if (placeholderSelect) return { select: placeholderSelect, locatedBy: 'placeholder' };
     const excluded = new Set([
-      labelledControl(/^(?:platform|nền tảng)/i),
+      platformSelect,
       labelledControl(/^(?:time period|thời gian)/i),
       labelledControl(/^(?:product category|danh mục)/i),
     ].filter(Boolean));
@@ -190,7 +195,17 @@ function observeMetricPage(includeResults = true) {
   };
   const keywordSelect = locateKeywordSelect().select;
   const selectedPlatforms = selectionTexts(platformSelect).map(platformName).filter(Boolean);
-  const keywordValues = selectionTexts(keywordSelect).filter(value => !/enter keywords separated by commas/i.test(value));
+  // Keyword chips are read only from the control resolved above. Do not use
+  // the generic select reader here: the platform select also renders chips.
+  const keywordValues = keywordSelect ? [...keywordSelect.querySelectorAll(
+    '.ant-select-selection-overflow-item:not(.ant-select-selection-overflow-item-suffix) .ant-tag.ks-chip',
+  )].map(tagText).filter(Boolean) : [];
+  if (!keywordValues.length && keywordSelect) {
+    const chips = [...keywordSelect.querySelectorAll('.ant-select-selection-item-content,[data-value]')];
+    const fallback = chips.length ? chips : [...keywordSelect.querySelectorAll('.ant-select-selection-item')];
+    keywordValues.push(...fallback.map(item => item.getAttribute?.('title') || item.getAttribute?.('data-value') || textOf(item))
+      .filter(value => value && !/^select|placeholder/i.test(value)));
+  }
   const typedKeyword = inputValue(keywordSelect);
   if (typedKeyword && !keywordValues.includes(typedKeyword)) keywordValues.push(typedKeyword);
   const selectedCategory = selectionTexts(categorySelect)[0] || '';
@@ -402,24 +417,29 @@ function readCommittedKeywords() {
   const locateKeywordSelect = () => {
     const root = document.querySelector('#QuerySearchBuilder');
     if (!root) return { select: null, locatedBy: 'none' };
-    const keywordLabel = [...root.querySelectorAll('.filter-label, .filter-label .label')]
-      .find(element => /^(?:keywords|từ kh(?:óa|oá))/i.test(textOf(element)));
-    const labelledContainer = keywordLabel?.closest('.ant-space-item');
-    const labelledSelect = [...(labelledContainer?.querySelectorAll('.ant-select') || [])].find(visible);
-    if (labelledSelect) return { select: labelledSelect, locatedBy: 'label' };
-    const placeholderPattern = /keywords? separated by commas|từ kh(?:óa|oá)/i;
-    const placeholderSelect = [...root.querySelectorAll('.ant-select')].find(element => visible(element) && (
-      placeholderPattern.test(textOf(element.querySelector('.ant-select-selection-placeholder')))
-      || [...element.querySelectorAll('input')].some(input => placeholderPattern.test(input.getAttribute('placeholder') || '') || placeholderPattern.test(input.getAttribute('aria-label') || ''))
-    ));
-    if (placeholderSelect) return { select: placeholderSelect, locatedBy: 'placeholder' };
     const labelledControl = pattern => {
       const label = [...root.querySelectorAll('.filter-label, .filter-label .label')].find(element => pattern.test(textOf(element)));
       const container = label?.closest('.ant-space-item');
       return [...(container?.querySelectorAll('.ant-select') || [])].find(visible) || null;
     };
+    const platformSelect = labelledControl(/^(?:platform|nền tảng)/i);
+    const placeholderPattern = /keywords? separated by commas|từ kh(?:óa|oá)/i;
+    const isKeywordCandidate = element => element.classList.contains('ant-select-multiple')
+      || placeholderPattern.test(textOf(element.querySelector('.ant-select-selection-placeholder')))
+      || [...element.querySelectorAll('input')].some(input => placeholderPattern.test(input.getAttribute('placeholder') || '') || placeholderPattern.test(input.getAttribute('aria-label') || ''));
+    const keywordLabel = [...root.querySelectorAll('.filter-label, .filter-label .label')]
+      .find(element => /^(?:keywords|từ kh(?:óa|oá))/i.test(textOf(element)));
+    const labelledContainer = keywordLabel?.closest('.ant-space-item');
+    const labelledSelect = [...(labelledContainer?.querySelectorAll('.ant-select') || [])]
+      .find(element => visible(element) && element !== platformSelect && isKeywordCandidate(element));
+    if (labelledSelect) return { select: labelledSelect, locatedBy: 'label' };
+    const placeholderSelect = [...root.querySelectorAll('.ant-select')].find(element => visible(element) && (
+      placeholderPattern.test(textOf(element.querySelector('.ant-select-selection-placeholder')))
+      || [...element.querySelectorAll('input')].some(input => placeholderPattern.test(input.getAttribute('placeholder') || '') || placeholderPattern.test(input.getAttribute('aria-label') || ''))
+    ) && element !== platformSelect);
+    if (placeholderSelect) return { select: placeholderSelect, locatedBy: 'placeholder' };
     const excluded = new Set([
-      labelledControl(/^(?:platform|nền tảng)/i),
+      platformSelect,
       labelledControl(/^(?:time period|thời gian)/i),
       labelledControl(/^(?:product category|danh mục)/i),
     ].filter(Boolean));
@@ -465,24 +485,29 @@ function readKeywordCommitDiagnostics(expectedKeywords = []) {
   const locateKeywordSelect = () => {
     const root = document.querySelector('#QuerySearchBuilder');
     if (!root) return { select: null, locatedBy: 'none' };
-    const keywordLabel = [...root.querySelectorAll('.filter-label, .filter-label .label')]
-      .find(element => /^(?:keywords|từ kh(?:óa|oá))/i.test(textOf(element)));
-    const labelledContainer = keywordLabel?.closest('.ant-space-item');
-    const labelledSelect = [...(labelledContainer?.querySelectorAll('.ant-select') || [])].find(visible);
-    if (labelledSelect) return { select: labelledSelect, locatedBy: 'label' };
-    const placeholderPattern = /keywords? separated by commas|từ kh(?:óa|oá)/i;
-    const placeholderSelect = [...root.querySelectorAll('.ant-select')].find(element => visible(element) && (
-      placeholderPattern.test(textOf(element.querySelector('.ant-select-selection-placeholder')))
-      || [...element.querySelectorAll('input')].some(input => placeholderPattern.test(input.getAttribute('placeholder') || '') || placeholderPattern.test(input.getAttribute('aria-label') || ''))
-    ));
-    if (placeholderSelect) return { select: placeholderSelect, locatedBy: 'placeholder' };
     const labelledControl = pattern => {
       const label = [...root.querySelectorAll('.filter-label, .filter-label .label')].find(element => pattern.test(textOf(element)));
       const container = label?.closest('.ant-space-item');
       return [...(container?.querySelectorAll('.ant-select') || [])].find(visible) || null;
     };
+    const platformSelect = labelledControl(/^(?:platform|nền tảng)/i);
+    const placeholderPattern = /keywords? separated by commas|từ kh(?:óa|oá)/i;
+    const isKeywordCandidate = element => element.classList.contains('ant-select-multiple')
+      || placeholderPattern.test(textOf(element.querySelector('.ant-select-selection-placeholder')))
+      || [...element.querySelectorAll('input')].some(input => placeholderPattern.test(input.getAttribute('placeholder') || '') || placeholderPattern.test(input.getAttribute('aria-label') || ''));
+    const keywordLabel = [...root.querySelectorAll('.filter-label, .filter-label .label')]
+      .find(element => /^(?:keywords|từ kh(?:óa|oá))/i.test(textOf(element)));
+    const labelledContainer = keywordLabel?.closest('.ant-space-item');
+    const labelledSelect = [...(labelledContainer?.querySelectorAll('.ant-select') || [])]
+      .find(element => visible(element) && element !== platformSelect && isKeywordCandidate(element));
+    if (labelledSelect) return { select: labelledSelect, locatedBy: 'label' };
+    const placeholderSelect = [...root.querySelectorAll('.ant-select')].find(element => visible(element) && (
+      placeholderPattern.test(textOf(element.querySelector('.ant-select-selection-placeholder')))
+      || [...element.querySelectorAll('input')].some(input => placeholderPattern.test(input.getAttribute('placeholder') || '') || placeholderPattern.test(input.getAttribute('aria-label') || ''))
+    ) && element !== platformSelect);
+    if (placeholderSelect) return { select: placeholderSelect, locatedBy: 'placeholder' };
     const excluded = new Set([
-      labelledControl(/^(?:platform|nền tảng)/i),
+      platformSelect,
       labelledControl(/^(?:time period|thời gian)/i),
       labelledControl(/^(?:product category|danh mục)/i),
     ].filter(Boolean));
@@ -541,6 +566,81 @@ async function waitForKeywordCommit(page, keywords) {
   });
 }
 
+function formState(appliedFilters) {
+  const filters = appliedFilters && typeof appliedFilters === 'object' ? appliedFilters : {};
+  return {
+    platforms: Array.isArray(filters.platforms) ? [...filters.platforms] : [],
+    keywords: Array.isArray(filters.keywords) ? [...filters.keywords] : [],
+    period: filters.period && typeof filters.period === 'object' ? { ...filters.period } : null,
+    category: Object.hasOwn(filters, 'category') && filters.category !== undefined ? filters.category : null,
+  };
+}
+
+function canonicalValues(values) {
+  return [...new Set((Array.isArray(values) ? values : [])
+    .map(value => String(value ?? '').normalize('NFC').trim().toLowerCase()).filter(Boolean))].sort();
+}
+
+function preSubmitMismatches(spec, appliedFilters) {
+  const actual = appliedFilters && typeof appliedFilters === 'object' ? appliedFilters : {};
+  const mismatches = [];
+  const expectedPlatforms = canonicalValues(spec.platforms);
+  const actualPlatforms = canonicalValues(actual.platforms);
+  if (JSON.stringify(actualPlatforms) !== JSON.stringify(expectedPlatforms)) {
+    mismatches.push({ field: 'platforms', expected: spec.platforms, actual: actual.platforms ?? [] });
+  }
+  const expectedKeywords = canonicalValues(spec.keywords);
+  const actualKeywords = canonicalValues(actual.keywords);
+  if (JSON.stringify(actualKeywords) !== JSON.stringify(expectedKeywords)) {
+    mismatches.push({ field: 'keywords', expected: spec.keywords, actual: actual.keywords ?? [] });
+  }
+  const expectedPeriod = { startDate: spec.period.startDate, endDate: spec.period.endDate };
+  const actualPeriod = actual.period && typeof actual.period === 'object'
+    ? { startDate: actual.period.startDate ?? null, endDate: actual.period.endDate ?? null }
+    : null;
+  if (JSON.stringify(actualPeriod) !== JSON.stringify(expectedPeriod)) {
+    mismatches.push({ field: 'period', expected: expectedPeriod, actual: actualPeriod });
+  }
+  if (actual.category !== spec.category) {
+    mismatches.push({ field: 'category', expected: spec.category, actual: actual.category ?? null });
+  }
+  for (const field of ['smartQuery', 'aiNormalisation', 'usefulFilters', 'advancedFilters', 'exclusions', 'ticks']) {
+    if (Object.hasOwn(spec, field) && JSON.stringify(actual[field] ?? null) !== JSON.stringify(spec[field] ?? null)) {
+      mismatches.push({ field, expected: spec[field] ?? null, actual: actual[field] ?? null });
+    }
+  }
+  return mismatches;
+}
+
+function assertPreSubmitReadBack(spec, ready) {
+  const mismatches = preSubmitMismatches(spec, ready?.appliedFilters);
+  if (!mismatches.length) return;
+  const platformMismatch = mismatches.find(mismatch => mismatch.field === 'platforms');
+  if (platformMismatch) {
+    throw new MetricAdapterError('METRIC_FILTER_MISMATCH', 'Metric platform selection does not match the request', {
+      platformsMatchExpected: false,
+      platformCount: Array.isArray(platformMismatch.actual) ? new Set(platformMismatch.actual).size : 0,
+      mismatches,
+    });
+  }
+  throw new MetricAdapterError('METRIC_FILTER_MISMATCH', 'Metric form read-back does not match the query spec', { mismatches });
+}
+
+async function prepareMetricForm(page, spec, onStartState = null) {
+  const before = await readObservation(page, { includeResults: false });
+  onStartState?.(before);
+  assertMetricCategoryObservation(before);
+  parseMetricForm(before);
+  await applyMetricSpec(page, spec, before);
+  await waitForKeywordCommit(page, spec.keywords);
+  // This is the last gate before the real submit action. Dry-run uses this
+  // function and returns before performSearch can reach clickVisibleText.
+  const ready = await readObservation(page, { includeResults: false });
+  assertMetricCategoryObservation(ready);
+  assertPreSubmitReadBack(spec, ready);
+  return { before, ready };
+}
+
 async function readSpec(path) {
   try {
     return normaliseSpec(JSON.parse(await readFile(path, 'utf8')));
@@ -576,6 +676,22 @@ async function clickVisibleOption(page, wanted, { skipSelected = false } = {}) {
   const index = await visibleOptionIndex(page, wanted, { skipSelected });
   if (index === -1) return;
   await page.click('[role="option"],.ant-select-item-option', { nth: index });
+}
+
+async function clickPeriodPresetIfPresent(page, wanted) {
+  const labels = [wanted];
+  if (/^30 days$/i.test(wanted)) labels.push('30 ngày');
+  if (/^7 days$/i.test(wanted)) labels.push('7 ngày');
+  if (/^90 days$/i.test(wanted)) labels.push('90 ngày');
+  for (const label of labels) {
+    try {
+      await clickVisibleOption(page, label);
+      return true;
+    } catch (error) {
+      if (!(error instanceof MetricAdapterError) || error.code !== 'METRIC_UI_CHANGED') throw error;
+    }
+  }
+  return false;
 }
 
 async function clickVisibleText(page, labels) {
@@ -629,24 +745,29 @@ function resolveKeywordSelector() {
   const locateKeywordSelect = () => {
     const root = document.querySelector('#QuerySearchBuilder');
     if (!root) return { select: null, locatedBy: 'none' };
-    const keywordLabel = [...root.querySelectorAll('.filter-label, .filter-label .label')]
-      .find(element => /^(?:keywords|từ kh(?:óa|oá))/i.test(textOf(element)));
-    const labelledContainer = keywordLabel?.closest('.ant-space-item');
-    const labelledSelect = [...(labelledContainer?.querySelectorAll('.ant-select') || [])].find(visible);
-    if (labelledSelect) return { select: labelledSelect, locatedBy: 'label' };
-    const placeholderPattern = /keywords? separated by commas|từ kh(?:óa|oá)/i;
-    const placeholderSelect = [...root.querySelectorAll('.ant-select')].find(element => visible(element) && (
-      placeholderPattern.test(textOf(element.querySelector('.ant-select-selection-placeholder')))
-      || [...element.querySelectorAll('input')].some(input => placeholderPattern.test(input.getAttribute('placeholder') || '') || placeholderPattern.test(input.getAttribute('aria-label') || ''))
-    ));
-    if (placeholderSelect) return { select: placeholderSelect, locatedBy: 'placeholder' };
     const labelledControl = pattern => {
       const label = [...root.querySelectorAll('.filter-label, .filter-label .label')].find(element => pattern.test(textOf(element)));
       const container = label?.closest('.ant-space-item');
       return [...(container?.querySelectorAll('.ant-select') || [])].find(visible) || null;
     };
+    const platformSelect = labelledControl(/^(?:platform|nền tảng)/i);
+    const placeholderPattern = /keywords? separated by commas|từ kh(?:óa|oá)/i;
+    const isKeywordCandidate = element => element.classList.contains('ant-select-multiple')
+      || placeholderPattern.test(textOf(element.querySelector('.ant-select-selection-placeholder')))
+      || [...element.querySelectorAll('input')].some(input => placeholderPattern.test(input.getAttribute('placeholder') || '') || placeholderPattern.test(input.getAttribute('aria-label') || ''));
+    const keywordLabel = [...root.querySelectorAll('.filter-label, .filter-label .label')]
+      .find(element => /^(?:keywords|từ kh(?:óa|oá))/i.test(textOf(element)));
+    const labelledContainer = keywordLabel?.closest('.ant-space-item');
+    const labelledSelect = [...(labelledContainer?.querySelectorAll('.ant-select') || [])]
+      .find(element => visible(element) && element !== platformSelect && isKeywordCandidate(element));
+    if (labelledSelect) return { select: labelledSelect, locatedBy: 'label' };
+    const placeholderSelect = [...root.querySelectorAll('.ant-select')].find(element => visible(element) && (
+      placeholderPattern.test(textOf(element.querySelector('.ant-select-selection-placeholder')))
+      || [...element.querySelectorAll('input')].some(input => placeholderPattern.test(input.getAttribute('placeholder') || '') || placeholderPattern.test(input.getAttribute('aria-label') || ''))
+    ) && element !== platformSelect);
+    if (placeholderSelect) return { select: placeholderSelect, locatedBy: 'placeholder' };
     const excluded = new Set([
-      labelledControl(/^(?:platform|nền tảng)/i),
+      platformSelect,
       labelledControl(/^(?:time period|thời gian)/i),
       labelledControl(/^(?:product category|danh mục)/i),
     ].filter(Boolean));
@@ -776,19 +897,34 @@ function dateCellState(target) {
     const style = getComputedStyle(element); const rect = element.getBoundingClientRect();
     return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
   };
-  const cells = [...document.querySelectorAll('.ant-picker-dropdown .ant-picker-cell[title]')].filter(visible);
-  const wanted = cells.findIndex(cell => cell.getAttribute('title') === target);
-  if (wanted >= 0) return { index: wanted, direction: null };
-  const dates = cells.map(cell => cell.getAttribute('title')).filter(Boolean).sort();
-  if (!dates.length) return { index: null, direction: null };
-  return { index: null, direction: target < dates[0] ? 'previous' : target > dates.at(-1) ? 'next' : null };
+  const cells = [...document.querySelectorAll('.ant-picker-dropdown .ant-picker-cell, .ant-picker-dropdown .ant-picker-cell-inner')]
+    .filter(visible).map(element => ({
+      element,
+      title: element.getAttribute('title') || element.closest('.ant-picker-cell')?.getAttribute('title') || null,
+    })).filter(cell => cell.title);
+  const wanted = cells.find(cell => cell.title === target);
+  if (wanted) return {
+    index: cells.indexOf(wanted), direction: null,
+    selector: wanted.element.matches('.ant-picker-cell-inner')
+      ? `.ant-picker-dropdown .ant-picker-cell-inner[title="${target}"]`
+      : `.ant-picker-dropdown .ant-picker-cell[title="${target}"]`,
+  };
+  const dates = cells.map(cell => cell.title).filter(Boolean).sort();
+  if (!dates.length) return { index: null, direction: null, visibleCellCount: 0, firstDate: null, lastDate: null };
+  return {
+    index: null,
+    direction: target < dates[0] ? 'previous' : target > dates.at(-1) ? 'next' : null,
+    visibleCellCount: dates.length,
+    firstDate: dates[0],
+    lastDate: dates.at(-1),
+  };
 }
 
 async function chooseDateCell(page, target) {
   for (let attempt = 0; attempt < 24; attempt += 1) {
     const state = await page.evaluate(dateCellState, target);
     if (Number.isInteger(state?.index)) {
-      await page.click(`.ant-picker-dropdown .ant-picker-cell[title="${target}"]`);
+      await page.click(state.selector || `.ant-picker-dropdown .ant-picker-cell[title="${target}"]`);
       return;
     }
     if (state?.direction === 'previous') {
@@ -796,7 +932,12 @@ async function chooseDateCell(page, target) {
     } else if (state?.direction === 'next') {
       await page.click('.ant-picker-dropdown .ant-picker-header-next-btn');
     } else {
-      throw new MetricAdapterError('METRIC_UI_CHANGED', `Metric date cell is unavailable: ${target}`);
+      throw new MetricAdapterError('METRIC_UI_CHANGED', `Metric date cell is unavailable: ${target}`, {
+        target,
+        visibleCellCount: Number.isInteger(state?.visibleCellCount) ? state.visibleCellCount : 0,
+        firstDate: state?.firstDate ?? null,
+        lastDate: state?.lastDate ?? null,
+      });
     }
   }
   throw new MetricAdapterError('METRIC_UI_CHANGED', `Metric date navigation exceeded its safe limit: ${target}`);
@@ -808,8 +949,10 @@ async function applyCustomPeriod(page, period) {
   if (!Number.isInteger(pickerCount) || pickerCount < 2) throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric custom date controls are not visible');
   await page.click(pickerSelector, { nth: 0 });
   await chooseDateCell(page, period.startDate);
+  if (typeof page.wait === 'function') await page.wait({ time: 0.25 }).catch(() => {});
   await page.click(pickerSelector, { nth: 1 });
   await chooseDateCell(page, period.endDate);
+  if (typeof page.wait === 'function') await page.wait({ time: 0.25 }).catch(() => {});
 }
 
 async function applyMetricSpec(page, spec, initialObservation) {
@@ -827,10 +970,10 @@ async function applyMetricSpec(page, spec, initialObservation) {
   if (wantedPlatforms.size > 1) {
     const platformMode = await page.evaluate(() => {
       const button = [...document.querySelectorAll('#QuerySearchBuilder button.switch-button')]
-        .find(element => /multiple platforms|single platform/i.test(element.innerText || element.textContent || ''));
-      return button ? (button.innerText || button.textContent || '').replace(/\s+/g, ' ').trim() : null;
+        .find(element => /multiple\s+platform|single\s+platform|nhiều\s+(?:nền\s+tảng|sàn)|một\s+(?:nền\s+tảng|sàn)/i.test(`${element.innerText || element.textContent || ''} ${element.getAttribute('aria-label') || ''}`));
+      return button ? `${button.innerText || button.textContent || ''} ${button.getAttribute('aria-label') || ''}`.replace(/\s+/g, ' ').trim() : null;
     });
-    if (platformMode && /multiple platforms/i.test(platformMode)) {
+    if (platformMode && /multiple\s+platform|nhiều\s+(?:nền\s+tảng|sàn)/i.test(platformMode)) {
       await page.click('#QuerySearchBuilder button.switch-button');
       await gateCurrentMetricPage(page);
     }
@@ -919,9 +1062,11 @@ async function applyMetricSpec(page, spec, initialObservation) {
         return input?.id ? `#${CSS.escape(input.id)}` : null;
       });
       if (periodSelector == null) throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric period select is not visible');
-      await page.click(periodSelector); await clickVisibleOption(page, spec.period.preset);
-      const displayed = await page.evaluate(readDisplayedPeriod);
-      presetMatched = displayed?.startDate === spec.period.startDate && displayed?.endDate === spec.period.endDate;
+      await page.click(periodSelector);
+      if (await clickPeriodPresetIfPresent(page, spec.period.preset)) {
+        const displayed = await page.evaluate(readDisplayedPeriod);
+        presetMatched = displayed?.startDate === spec.period.startDate && displayed?.endDate === spec.period.endDate;
+      }
     }
     if (!presetMatched) await applyCustomPeriod(page, spec.period);
     const displayed = await page.evaluate(readDisplayedPeriod);
@@ -941,34 +1086,35 @@ async function applyMetricSpec(page, spec, initialObservation) {
 }
 
 async function performSearch(page, spec) {
-  const before = await readObservation(page, { includeResults: false });
-  assertMetricCategoryObservation(before);
-  parseMetricForm(before); await applyMetricSpec(page, spec, before);
-  await waitForKeywordCommit(page, spec.keywords);
-  // Re-read the form before submit: a lookup is spent only when the visible
-  // platform selection matches the request.
-  const ready = await readObservation(page, { includeResults: false });
-  assertMetricCategoryObservation(ready);
-  const appliedPlatforms = new Set(ready?.appliedFilters?.platforms || []);
-  const wantedPlatforms = [...new Set(spec.platforms)];
-  if (appliedPlatforms.size !== wantedPlatforms.length || !wantedPlatforms.every(platform => appliedPlatforms.has(platform))) {
-    throw new MetricAdapterError('METRIC_FILTER_MISMATCH', 'Metric platform selection does not match the request', {
-      platformsMatchExpected: false, platformCount: appliedPlatforms.size,
-    });
-  }
-  if (ready?.appliedFilters?.period?.startDate !== spec.period.startDate || ready?.appliedFilters?.period?.endDate !== spec.period.endDate) {
-    throw new MetricAdapterError('METRIC_FILTER_MISMATCH', 'Metric displayed date range does not match the query spec', {
-      expected: { startDate: spec.period.startDate, endDate: spec.period.endDate },
-      displayed: ready?.appliedFilters?.period || null,
-    });
-  }
-  if (ready.appliedFilters.category !== spec.category) {
-    throw new MetricAdapterError('METRIC_FILTER_MISMATCH', 'Metric product category selection does not match the request', {
-      categoryMatchExpected: false, expected: spec.category, displayed: ready.appliedFilters.category,
-    });
-  }
+  const { ready } = await prepareMetricForm(page, spec);
   await clickVisibleText(page, ['Phân tích', 'Analyze', 'Analytics']); await page.wait({ time: DEFAULT_WAIT_SECONDS }).catch(() => {});
   return readObservation(page, { includeResults: true });
+}
+
+async function runDryRun(page, spec) {
+  let startState = null;
+  let appliedReadBack = null;
+  try {
+    const prepared = await prepareMetricForm(page, spec, before => { startState = formState(before.appliedFilters); });
+    appliedReadBack = prepared.ready.appliedFilters ?? null;
+    return { outcome: 'DRY_RUN_OK', startState, appliedReadBack, mismatches: [] };
+  } catch (error) {
+    const details = error?.details && typeof error.details === 'object' ? error.details : {};
+    const safeDetails = Object.fromEntries(Object.entries(details).filter(([key]) => [
+      'expected', 'displayed', 'target', 'visibleCellCount', 'firstDate', 'lastDate', 'locatedBy', 'chipCount', 'inputFound', 'inputValueMatchesExpected', 'committedMatchesExpected',
+    ].includes(key)));
+    return {
+      outcome: typeof error?.code === 'string' ? error.code : 'METRIC_UI_CHANGED',
+      startState,
+      appliedReadBack,
+      mismatches: Array.isArray(details.mismatches) ? details.mismatches : [{
+        field: '$error',
+        code: typeof error?.code === 'string' ? error.code : 'METRIC_UI_CHANGED',
+        message: String(error?.message ?? 'dry-run failed').replace(/\s+/g, ' ').slice(0, 200),
+        ...(Object.keys(safeDetails).length ? { details: safeDetails } : {}),
+      }],
+    };
+  }
 }
 
 async function runSearch(page, spec, maxRows) {
@@ -1494,14 +1640,17 @@ export const searchCommand = cli({
 
 export const captureCommand = cli({
   site: 'metric', name: 'capture', access: 'read', description: 'Run one Metric analysis lookup and archive the results page', domain: 'metric.vn', strategy: Strategy.UI, browser: true, navigateBefore: false, siteSession: 'ephemeral',
-  args: [{ name: 'spec', type: 'string', required: true, help: 'Path to metric-query-spec-v1 JSON' }, { name: 'out', type: 'string', required: true, help: 'Absolute output directory outside the repository' }, { name: 'product-cap', type: 'int', default: PRODUCT_CAP, help: 'Maximum product rows to read through pagination per platform view' }], columns: ['status', 'rowCount', 'manifestPath'],
+  args: [{ name: 'spec', type: 'string', required: true, help: 'Path to metric-query-spec-v1 JSON' }, { name: 'out', type: 'string', required: false, help: 'Absolute output directory outside the repository (required without --dry-run)' }, { name: 'product-cap', type: 'int', default: PRODUCT_CAP, help: 'Maximum product rows to read through pagination per platform view' }, { name: 'dry-run', type: 'boolean', default: false, help: 'Apply and verify the form without clicking Search' }], columns: ['status', 'rowCount', 'manifestPath', 'outcome', 'startState', 'appliedReadBack', 'mismatches'],
   func: async (page, args) => withMetricTab(page, async target => {
-    const spec = await readSpec(args.spec); await target.startNetworkCapture?.(); await target.readNetworkCapture?.();
+    const spec = await readSpec(args.spec);
+    if (Boolean(args['dry-run'])) return [await runDryRun(target, spec)];
+    if (!args.out) throw new CliError('METRIC_UI_CHANGED', 'capture output directory is required unless --dry-run is used');
+    await target.startNetworkCapture?.(); await target.readNetworkCapture?.();
     const { observation, parsed } = await runSearch(target, spec, Number.MAX_SAFE_INTEGER);
     const archive = await archiveResultsPage(target, args.out, spec, observation, parsed, Number(args['product-cap'] ?? PRODUCT_CAP));
     return [{ status: 'READY', rowCount: archive.rowCount, manifestPath: archive.manifestPath }];
   }),
 });
 
-export const __test__ = { asCliError, withMetricTab, readObservation, applyMetricSpec, performSearch, waitForKeywordCommit, observeMetricPage, observeResultPage, collectResultPages, archiveResultsPage, readCommittedKeywords };
+export const __test__ = { asCliError, withMetricTab, readObservation, applyMetricSpec, performSearch, runDryRun, prepareMetricForm, waitForKeywordCommit, observeMetricPage, observeResultPage, collectResultPages, archiveResultsPage, readCommittedKeywords };
 export { assertMetricUrl, parseMetricForm };

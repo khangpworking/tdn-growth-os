@@ -446,6 +446,48 @@ test('keyword locator uses an input-only placeholder and Vietnamese labels', asy
   assert.deepEqual(withMetricDom(vietnameseHtml, () => adapter.__test__.readCommittedKeywords()), []);
 });
 
+test('live platform chips are not observed as keywords when the keyword control is empty', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const fixture = await load('metric-live-form-states');
+  const observation = withMetricDom(fixture.singlePlatformKeywordEmpty, () => adapter.__test__.observeMetricPage(false));
+  assert.deepEqual(observation.appliedFilters.platforms, ['shopee']);
+  assert.deepEqual(observation.appliedFilters.keywords, []);
+  assert.deepEqual(withMetricDom(fixture.singlePlatformKeywordEmpty, () => adapter.__test__.readCommittedKeywords()), []);
+});
+
+test('live multiple-platform form keeps a stale keyword in the keyword control only', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const fixture = await load('metric-live-form-states');
+  const observation = withMetricDom(fixture.multiplePlatformStaleKeyword, () => adapter.__test__.observeMetricPage(false));
+  assert.deepEqual(observation.appliedFilters.platforms, ['shopee', 'tiktok']);
+  assert.deepEqual(observation.appliedFilters.keywords, ['synthetic-stale-keyword']);
+  assert.deepEqual(withMetricDom(fixture.multiplePlatformStaleKeyword, () => adapter.__test__.readCommittedKeywords()), ['synthetic-stale-keyword']);
+});
+
+test('stale keyword removal on the live multiple-platform shape uses the keyword close icon', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const fixture = await load('metric-live-form-states');
+  const calls: string[] = [];
+  const page: any = {
+    evaluate: async (fn: Function, argument?: unknown) => {
+      if (fn.toString().includes('document.activeElement === input')) return true;
+      return withMetricDom(fixture.multiplePlatformStaleKeyword, () => fn(argument));
+    },
+    click: async (selector: string) => calls.push(`click:${selector}`),
+    fillText: async (selector: string, value: string) => calls.push(`fill:${selector}:${value}`),
+    cdp: async (method: string, params: any) => calls.push(`cdp:${method}:${params.key}`),
+    pressKey: async (key: string) => calls.push(`key:${key}`),
+  };
+  const spec = { keywords: ['synthetic-current-keyword'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-01-01', endDate: '2026-01-30' }, category: null };
+  const initial = { appliedFilters: { keywords: ['synthetic-stale-keyword'], platforms: ['shopee', 'tiktok'], period: spec.period, category: null } };
+  await adapter.__test__.applyMetricSpec(page, spec, initial);
+  assert.ok(calls.some((call: string) => call.includes('#synthetic-keyword-stale') && call.includes('.ant-tag-close-icon')));
+  assert.ok(calls.includes('fill:#synthetic-keyword-stale:synthetic-current-keyword'));
+});
+
 test('uncommitted keyword input text is never read back as a committed chip', async () => {
   await installOpenCliTestStub();
   const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
@@ -568,7 +610,7 @@ const commandSpec = {
 
 function fakePage(observation: any, result: any, resultDom: any = null, networkResponses: any[] = [], behavior: any = {}) {
   let searched = false;
-  const state = { paginationClicks: 0, platformSwitches: 0 };
+  const state = { paginationClicks: 0, platformSwitches: 0, formReads: 0 };
   const calls: string[] = [];
   const clickRecords: Array<{ selector: string; options?: any }> = [];
   const screenshotCalls: any[] = [];
@@ -584,7 +626,11 @@ function fakePage(observation: any, result: any, resultDom: any = null, networkR
     wait: async () => {},
     evaluate: async (fn: Function, arg?: unknown) => {
       if (fn.name === 'observeMetricPage') {
-        if (arg === false) return behavior.gateObservation ? behavior.gateObservation(state, observation) : observation;
+        if (arg === false) {
+          state.formReads = (state.formReads || 0) + 1;
+          if (behavior.gateObservation) return behavior.gateObservation(state, observation);
+          return state.formReads > 1 && result?.appliedFilters ? { ...observation, appliedFilters: result.appliedFilters } : observation;
+        }
         return behavior.searchObservation ? behavior.searchObservation(state, result) : result;
       }
       if (fn.name === 'readCommittedKeywords') return commandSpec.keywords;
@@ -652,6 +698,37 @@ test('whoami, search, and capture commands use a fake page and clean up their ow
   await rm(directory, { recursive: true, force: true });
 });
 
+test('capture dry-run returns a matching read-back without reaching submit or search click', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const directory = await mkdtemp(join(tmpdir(), 'p6-209-dry-run-'));
+  const specPath = join(directory, 'spec.json');
+  await writeFile(specPath, `${JSON.stringify(commandSpec)}\n`);
+  const form = await load('metric-form');
+  let readCount = 0;
+  const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] } }, {}, null, [], {
+    gateObservation: (_state: any, observation: any) => {
+      readCount += 1;
+      return readCount === 1 ? observation : { ...observation, appliedFilters: commandSpec };
+    },
+  });
+  const result = await adapter.captureCommand.func(page, { spec: specPath, 'dry-run': true });
+  assert.equal(result.length, 1);
+  assert.equal(result[0].outcome, 'DRY_RUN_OK');
+  assert.deepEqual(result[0].startState, {
+    platforms: commandSpec.platforms,
+    keywords: [],
+    period: commandSpec.period,
+    category: null,
+  });
+  assert.deepEqual(result[0].appliedReadBack, commandSpec);
+  assert.deepEqual(result[0].mismatches, []);
+  assert.equal(page.searched, false);
+  assert.equal(page.calls.some((call: string) => call === 'click:button,[role="button"]'), false);
+  assert.equal(page.calls.includes('network:start'), false);
+  await rm(directory, { recursive: true, force: true });
+});
+
 test('capture archive contains no fixture identity or token in any archived file', async () => {
   await installOpenCliTestStub();
   const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
@@ -699,7 +776,9 @@ test('capture gates a redirect before reading the next pagination page and leave
   await writeFile(specPath, `${JSON.stringify(commandSpec)}\n`);
   const form = await load('metric-form'); const result = { ...(await load('metric-search')), appliedFilters: commandSpec };
   const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] } }, result, resultDomForGateTest([], true), [], {
-    gateObservation: (state: any, observation: any) => state.paginationClicks ? { ...observation, url: 'https://redirect.example.test/results', metricRootVisible: true } : observation,
+    gateObservation: (state: any, observation: any) => state.formReads > 1
+      ? state.paginationClicks ? { ...observation, url: 'https://redirect.example.test/results', metricRootVisible: true } : { ...observation, appliedFilters: commandSpec }
+      : observation,
   });
   await assert.rejects(() => adapter.captureCommand.func(page, { spec: specPath, out: captureDir, 'product-cap': 200 }), /METRIC_UI_CHANGED/);
   await assert.rejects(() => access(captureDir), /ENOENT/);
@@ -908,10 +987,14 @@ test('platform mismatch after the keyword commit blocks the search before any lo
   await installOpenCliTestStub();
   const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
   const form = await load('metric-form');
-  const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [], platforms: ['shopee'] }, quota: {} }, { ...(await load('metric-search')), appliedFilters: commandSpec });
+  const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [], platforms: ['shopee'] }, quota: {} }, { ...(await load('metric-search')), appliedFilters: commandSpec }, null, [], {
+    gateObservation: (_state: any, observation: any) => observation,
+  });
   await assert.rejects(() => adapter.__test__.performSearch(page, commandSpec), (error: any) => {
     assert.equal(error.code, 'METRIC_FILTER_MISMATCH');
-    assert.deepEqual(error.details, { platformsMatchExpected: false, platformCount: 1 });
+    assert.equal(error.details.platformsMatchExpected, false);
+    assert.equal(error.details.platformCount, 1);
+    assert.deepEqual(error.details.mismatches.map((mismatch: any) => mismatch.field), ['platforms', 'keywords']);
     return true;
   });
   assert.equal(page.searched, false);
