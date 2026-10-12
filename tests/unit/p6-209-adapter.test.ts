@@ -921,6 +921,26 @@ test('platform mismatch after the keyword commit blocks the search before any lo
   assert.ok(!page.calls.includes('key:Enter'));
 });
 
+test('missing, invisible, or blank Product category fails closed before platform typing', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const form = await load('metric-form');
+  const result = { ...(await load('metric-search')), appliedFilters: commandSpec };
+  const cases = [
+    ['missing', (controls: any[]) => controls.filter(control => control.name !== 'category')],
+    ['invisible', (controls: any[]) => controls.map(control => control.name === 'category' ? { ...control, visible: false } : control)],
+    ['blank', (controls: any[]) => controls.map(control => control.name === 'category' ? { ...control, selected: [] } : control)],
+  ] as const;
+  for (const [name, change] of cases) {
+    const page = fakePage({ ...form, controls: change(form.controls), appliedFilters: { ...commandSpec } }, result);
+    await assert.rejects(() => adapter.__test__.performSearch(page, commandSpec), (error: any) => {
+      assert.equal(error.code, 'METRIC_UI_CHANGED', name);
+      return true;
+    }, name);
+    assert.ok(!page.calls.some((call: string) => call.includes('#platform-input')), name);
+  }
+});
+
 const round6SyntheticResultsMarkup = `
   <section class="market-overview-section">
     <div class="statistic-item"><div class="statistic-item__title">Revenue</div><div class="statistic-card__value">4,0 billion</div></div>
@@ -1037,6 +1057,17 @@ test('live result markup exposes title KPIs, split tables, icon platforms, pagin
   assert.equal(unavailablePager.pagination.nextAvailable, false);
 });
 
+test('an unrelated image before the platform icon cannot win row attribution', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const html = round6SyntheticResultsMarkup.replace(
+    '<td>Synthetic product one <img class="img-platform" src="/icons/tiktok.svg"></td>',
+    '<td>Synthetic product one <img alt="Product photo" src="/images/product-thumbnail.svg"><img class="img-platform" src="/icons/tiktok.svg"></td>',
+  );
+  const dom = withMetricDom(html, () => adapter.__test__.observeResultPage());
+  assert.equal(dom.regions['top-products'].rows[0].platform, 'tiktok');
+});
+
 test('fixed-header rows without a platform icon stay unknown even when a platform column exists', async () => {
   await installOpenCliTestStub();
   const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
@@ -1071,6 +1102,36 @@ test('capture groups parse live displayed units and platform rows without summin
   assert.equal(result.snapshot.groups.W12_topProducts.rows[0].cells.platform.text, 'unknown');
   assert.equal(result.snapshot.groups.W4_monthly.reason, 'DOM_CHART_DATA_UNAVAILABLE');
   assert.equal(result.snapshot.groups.W2_kpi.revenue.current.value, 4_000_000_000);
+});
+
+test('a missing overview KPI card returns METRIC_UI_CHANGED', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const html = round6SyntheticResultsMarkup.replace(
+    '<div class="statistic-item"><div class="statistic-item__title">Revenue</div><div class="statistic-card__value">4,0 billion</div></div>',
+    '',
+  );
+  const dom = withMetricDom(html, () => adapter.__test__.observeResultPage());
+  const { extractResultsPage } = await import(captureUrl.href);
+  assert.throws(() => extractResultsPage({
+    responses: [], dom, scope: { keywords: ['synthetic-term'], platforms: ['shopee'], period: { startDate: '2026-01-01', endDate: '2026-02-02' }, category: null },
+    captureId: 'synthetic-kpi-missing', specDigest: 'a'.repeat(64), capturedAt: '2026-10-13T00:00:00.000Z', pageCap: 10,
+  }), /METRIC_UI_CHANGED/);
+});
+
+test('an absent pagination total remains null rather than becoming zero', async () => {
+  const { extractResultsPage } = await import(captureUrl.href);
+  const result = extractResultsPage({
+    responses: [],
+    dom: { regions: {
+      overview: { selector: '#overview', kpi: { revenue: { displayed: '1' }, units: { displayed: '2' }, soldListings: { displayed: '3' }, shops: { displayed: '4' } } },
+      'platform-split': { selector: '#platform', rows: [{ platform: 'shopee', revenue: '1', share: '100%' }] },
+      'top-products': { selector: '#products', rows: [{ name: 'Synthetic product', platform: 'unknown', revenue: '1' }] },
+    } },
+    scope: { keywords: ['synthetic-term'], platforms: ['shopee'], period: { startDate: '2026-01-01', endDate: '2026-02-02' }, category: null },
+    captureId: 'synthetic-pagination-total', specDigest: 'a'.repeat(64), capturedAt: '2026-10-13T00:00:00.000Z', pageCap: 10,
+  });
+  assert.equal(result.pagination.W12_topProducts.totalShown, null);
 });
 
 test('collectResultPages reads two real pages, stops on disabled next, and deduplicates rows', async () => {

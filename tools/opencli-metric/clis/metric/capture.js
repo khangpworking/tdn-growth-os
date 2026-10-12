@@ -443,6 +443,11 @@ function kpiGroup(entries, scope) {
   const kpi = entry?.payload.kpi;
   if (!entry || !kpi || typeof kpi !== 'object') return { absent: true, reason: 'NOT_ON_PAGE' };
   const metric = (field, label, unit) => {
+    // Every emitted KPI card must have been observed. In particular, do not
+    // turn a missing overview/card into a synthetic null metric.
+    if (!Object.hasOwn(kpi, field)) {
+      const error = new Error(`METRIC_UI_CHANGED: Metric KPI card is missing: ${field}`); error.code = 'METRIC_UI_CHANGED'; throw error;
+    }
     const raw = kpi[field];
     if (raw == null) return { current: metricValue(null, { label, unit, platform: 'all', period: scope.period, sourcePointer: `${entry.sourcePointer}/kpi/${field}` }), changePct: null };
     const current = raw && typeof raw === 'object' && Object.hasOwn(raw, 'current') ? raw.current : raw;
@@ -521,7 +526,12 @@ function shopTypeGroup(entries, scope) {
 function paginationFor(entries, cap) {
   const selected = entriesFor(entries, ['top-products']);
   const details = group => {
-    const totals = group.map(entry => Number(entry.payload.pagination?.total ?? entry.payload.total ?? 0)).filter(Number.isSafeInteger);
+    const totals = group.map(entry => {
+      const raw = entry.payload.pagination?.total ?? entry.payload.total;
+      if (raw === null || raw === undefined || clean(raw) === '') return null;
+      const value = Number(raw);
+      return Number.isSafeInteger(value) ? value : null;
+    }).filter(value => value !== null);
     const pages = group.map(entry => Number(entry.payload.pagination?.page ?? entry.payload.page ?? 1)).filter(Number.isSafeInteger);
     const pageSize = group.map(entry => Number(entry.payload.pagination?.pageSize ?? entry.payload.pageSize ?? 0)).find(value => value > 0) || null;
     const totalShown = totals.length ? Math.max(...totals) : null;
@@ -588,7 +598,7 @@ export function extractResultsPage({ responses = [], dom = null, scope, captureI
     W14_topBrands: tableGroup(entries, 'W14_topBrands', normalizedScope), W16_detailHistory: tableGroup(entries, 'W16_detailHistory', normalizedScope),
   };
   if (groups.W2_kpi.absent || groups.W3_platformSplit.absent) {
-    const error = new Error('Metric required results regions are missing'); error.code = 'METRIC_UI_CHANGED'; throw error;
+    const error = new Error('METRIC_UI_CHANGED: Metric required results regions are missing'); error.code = 'METRIC_UI_CHANGED'; throw error;
   }
   return {
     snapshot: {

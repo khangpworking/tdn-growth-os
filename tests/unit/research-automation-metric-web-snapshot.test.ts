@@ -36,6 +36,16 @@ test('valid synthetic fixtures pass unchanged', () => {
   }
 });
 
+test('unknown row and cell platforms are representable and pass schema validation', () => {
+  const raw = fixture('full');
+  raw.groups.W3_platformSplit[0].platform = 'unknown';
+  raw.groups.W3_platformSplit[0].revenue.platform = 'unknown';
+  raw.groups.W3_platformSplit[0].share.platform = 'unknown';
+  raw.groups.W4_monthly[0].platform = 'unknown';
+  raw.groups.W4_monthly[0].revenue.platform = 'unknown';
+  assert.equal(validateMetricWebSnapshot(raw), raw);
+});
+
 test('invalid fixtures are rejected with a clear code and message', () => {
   const absentW2 = rejection(fixture('absent-w2'));
   assert.equal(absentW2.code, 'METRIC_UI_CHANGED');

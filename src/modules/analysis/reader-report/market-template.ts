@@ -92,6 +92,7 @@ export async function buildMarketReport(d: ReaderReportData, options: MarketRepo
   const two = PLATS.length === 2;
   const N = new Narrator(B);
   const WEB = d.webFacts;
+  const webPlatformSplit = WEB?.platformSplit.filter(entry => entry.platform !== 'unknown') ?? [];
   const webRegistry = input.contractVersion !== '1.0.0' ? new CitationRegistry() : null;
   const metricSources = new Map<string, string>();
   const sampleCitation = (row?: Row): number | null => {
@@ -140,7 +141,7 @@ export async function buildMarketReport(d: ReaderReportData, options: MarketRepo
     } else if (parts[0] === 'src' && parts[1] === 'hl' && parts.length === 3) cell = kpi[parts[2] as keyof typeof kpi]?.current;
     else if (parts[1] === 'shopee' || parts[1] === 'tiktok' || (parts[0] === 'src' && parts[1] === 'hl' && parts.length === 4)) {
       const platform = parts[0] === 'src' ? parts[2] : parts[1];
-      const split = WEB.platformSplit.find(row => row.platform === platform);
+      const split = webPlatformSplit.find(row => row.platform === platform);
       const field = parts[0] === 'src' ? parts[3] : parts[2];
       if (field === 'rev') cell = split?.revenue;
       else if (field === 'share') cell = split?.share;
@@ -483,7 +484,7 @@ ${tbl('2.2', `Quy tắc phân loại (${statusLabel})`, 'số sản phẩm', ['T
         ['Đơn vị bán', n(wn('web.kpi.units', 'T3.2')), n(wn('web.kpi.units.chg', 'T3.2'))],
         ['Sản phẩm có lượt bán', n(wn('web.kpi.listings', 'T3.2')), n(wn('web.kpi.listings.chg', 'T3.2'))],
         ['Gian hàng có lượt bán', n(wn('web.kpi.shops', 'T3.2')), n(wn('web.kpi.shops.chg', 'T3.2'))],
-        ...[...WEB.platformSplit].sort((a, b) => (a.platform < b.platform ? -1 : 1)).flatMap(e => [
+        ...[...webPlatformSplit].sort((a, b) => (a.platform < b.platform ? -1 : 1)).flatMap(e => [
           [`Doanh thu ${PLATFORM_LABEL[e.platform] ?? e.platform}`, n(wn(`web.${e.platform}.rev`, 'T3.2')), ''],
           [`Tỷ trọng ${PLATFORM_LABEL[e.platform] ?? e.platform}`, n(wn(`web.${e.platform}.share`, 'T3.2')), ''],
         ]),
@@ -491,11 +492,11 @@ ${tbl('2.2', `Quy tắc phân loại (${statusLabel})`, 'số sản phẩm', ['T
         ...(roundedIn(WEB.kpi.revenue.current, WEB.kpi.revenue.changePct, WEB.kpi.units.current,
           WEB.kpi.units.changePct, WEB.kpi.soldListings.current, WEB.kpi.soldListings.changePct,
           WEB.kpi.shops.current, WEB.kpi.shops.changePct,
-          ...WEB.platformSplit.flatMap(e => [e.revenue, e.share]))
+          ...webPlatformSplit.flatMap(e => [e.revenue, e.share]))
           ? { note: `Các số ${DISPLAY_ROUNDED_NOTE}.` } : {}),
         src: `${WEB_SRC}${citeCell('kpi')}${citeCell('split')}`,
       })}`,
-      ['doanh thu', 'lượt bán', 'sản phẩm có lượt bán', 'gian hàng', ...WEB.platformSplit.map(e => e.platform)].join(' | '))
+      ['doanh thu', 'lượt bán', 'sản phẩm có lượt bán', 'gian hàng', ...webPlatformSplit.map(e => e.platform)].join(' | '))
     : '';
   secs.push(section('M03', 'Quy mô và diễn biến',
     webHasMonthly

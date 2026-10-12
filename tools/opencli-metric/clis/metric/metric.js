@@ -194,7 +194,10 @@ function observeMetricPage(includeResults = true) {
   const typedKeyword = inputValue(keywordSelect);
   if (typedKeyword && !keywordValues.includes(typedKeyword)) keywordValues.push(typedKeyword);
   const selectedCategory = selectionTexts(categorySelect)[0] || '';
-  const category = /^all$/i.test(selectedCategory) ? null : selectedCategory || null;
+  // An explicit All is the only UI state represented by null. A missing,
+  // invisible, or blank control remains unobservable and is rejected by the
+  // node-side form gate before a lookup can be spent.
+  const category = selectedCategory ? (/^all$/i.test(selectedCategory) ? null : selectedCategory) : undefined;
   const checkedLabel = label => {
     const normalise = value => String(value ?? '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
     const wanted = normalise(label);
@@ -365,6 +368,24 @@ async function readObservation(page, { includeResults = true, diagnose = false }
       error.details = { warningMatches: safeWarningMatches(observation.warningMatches) };
     }
     throw error;
+  }
+}
+
+function assertMetricCategoryObservation(observation) {
+  const control = Array.isArray(observation?.controls)
+    ? observation.controls.find(candidate => candidate?.name === 'category')
+    : null;
+  if (!control || control.visible !== true) {
+    throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric Product category control is not visible');
+  }
+  const selected = Array.isArray(control.selected)
+    ? control.selected.map(value => String(value ?? '').normalize('NFC').trim()).filter(Boolean)
+    : [];
+  if (selected.length !== 1) {
+    throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric Product category selection is blank or unavailable');
+  }
+  if (!observation.appliedFilters || !Object.hasOwn(observation.appliedFilters, 'category') || observation.appliedFilters.category === undefined) {
+    throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric Product category is not observable');
   }
 }
 
@@ -921,11 +942,13 @@ async function applyMetricSpec(page, spec, initialObservation) {
 
 async function performSearch(page, spec) {
   const before = await readObservation(page, { includeResults: false });
+  assertMetricCategoryObservation(before);
   parseMetricForm(before); await applyMetricSpec(page, spec, before);
   await waitForKeywordCommit(page, spec.keywords);
   // Re-read the form before submit: a lookup is spent only when the visible
   // platform selection matches the request.
   const ready = await readObservation(page, { includeResults: false });
+  assertMetricCategoryObservation(ready);
   const appliedPlatforms = new Set(ready?.appliedFilters?.platforms || []);
   const wantedPlatforms = [...new Set(spec.platforms)];
   if (appliedPlatforms.size !== wantedPlatforms.length || !wantedPlatforms.every(platform => appliedPlatforms.has(platform))) {
@@ -937,6 +960,11 @@ async function performSearch(page, spec) {
     throw new MetricAdapterError('METRIC_FILTER_MISMATCH', 'Metric displayed date range does not match the query spec', {
       expected: { startDate: spec.period.startDate, endDate: spec.period.endDate },
       displayed: ready?.appliedFilters?.period || null,
+    });
+  }
+  if (ready.appliedFilters.category !== spec.category) {
+    throw new MetricAdapterError('METRIC_FILTER_MISMATCH', 'Metric product category selection does not match the request', {
+      categoryMatchExpected: false, expected: spec.category, displayed: ready.appliedFilters.category,
     });
   }
   await clickVisibleText(page, ['Phân tích', 'Analyze', 'Analytics']); await page.wait({ time: DEFAULT_WAIT_SECONDS }).catch(() => {});
@@ -989,12 +1017,19 @@ function observeResultPage() {
     'top-products': 'Top Products', 'top-shops': 'Top Shops', 'top-brands': 'Top Brands',
   };
   const platformFromIcon = row => {
-    const icon = row?.querySelector('img.img-platform, .shop-platform-icon img, img[alt]');
-    if (!icon) return null;
-    const marker = normalise(`${icon.getAttribute('alt') || ''} ${icon.getAttribute('src') || ''}`);
-    if (marker.includes('shopee')) return 'shopee';
-    if (marker.includes('tiktok')) return 'tiktok';
-    return 'unknown';
+    const knownPlatform = icon => {
+      const marker = normalise(`${icon.getAttribute('alt') || ''} ${icon.getAttribute('src') || ''}`);
+      if (marker.includes('shopee')) return 'shopee';
+      if (marker.includes('tiktok')) return 'tiktok';
+      return null;
+    };
+    // Platform-specific selectors have precedence over every generic image.
+    const preferred = [...(row?.querySelectorAll('img.img-platform, .shop-platform-icon img') || [])]
+      .map(knownPlatform).find(Boolean);
+    if (preferred) return preferred;
+    // A generic image is usable only when its own alt/src identifies a known
+    // platform; unrelated images must never win by document order.
+    return [...(row?.querySelectorAll('img[alt]') || [])].map(knownPlatform).find(Boolean) || null;
   };
   const canonicalHeader = (value, index) => {
     const header = normalise(value);
@@ -1039,7 +1074,7 @@ function observeResultPage() {
     for (const card of [...element.querySelectorAll('.statistic-item')]) {
       const title = normalise(card.querySelector('.statistic-item__title')?.textContent || card.getAttribute('title'));
       const value = textOf(card.querySelector('.statistic-card__value'));
-      if (!title || !value) continue;
+      if (!title) continue;
       if (/revenue/.test(title)) kpi.revenue = { displayed: value, label: 'Revenue' };
       else if (/units sold|sold products/.test(title)) kpi.units = { displayed: value, label: 'Units' };
       else if (/^products?$/.test(title)) kpi.soldListings = { displayed: value, label: 'Sold listings' };
@@ -1187,7 +1222,8 @@ async function waitForResultsSettle(page) {
 
 async function gateCurrentMetricPage(page) {
   const observation = await page.evaluate(observeMetricPage, false);
-  return gateMetricPage(observation);
+  gateMetricPage(observation);
+  return observation;
 }
 
 // These functions run in the page. A screenshot is publishable only when a
