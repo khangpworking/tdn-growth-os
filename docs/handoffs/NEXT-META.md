@@ -83,7 +83,7 @@ Business decisions pending: no new methodology/release/recollection policy inven
 
 Task `task_809f3bc7e19d`, dispatch `ctx_55c3c90fe017`, authorized run
 `run_adc3551f8ed8`, sole coordinatorf78 generation2. Independent frozen review
-`/tmp/ultimate-meta-page-final-review-sol/report-e2dcd4e5.md`, SHA
+an outside-Git review report, SHA
 `c238b6fdabe65ad28966c02ddf7921aa6809f425b4a51f3b0af2ae087158aee6`,
 identified a genuine P2: one confirmed capture containing two included ad IDs
 rendered `2 lần đọc`. The backend correctly counts distinct confirmed
@@ -121,7 +121,7 @@ No GLOBAL copy/generation/install/default change occurred. Heavy runner remained
 held until explicit `msg_40e4e3bd32f9`; thereafter one sequential bounded tree,
 concurrency2, strict backend/direct frontend static and focused mounted/owning
 checks. Exact final commands/results/head/hashes and stable releases follow in
-outside-Git `/tmp/ultimate-meta-activity-unit-correction-sol/FINAL-REPORT.md`.
+outside-Git the outside-Git final report.
 The broader author/reviewer source-integrity/cold/history proofs remain
 supporting only while exact relevant code/inputs/environment remain unchanged;
 no redundant full-scope rerun or fresh blanket acceptance is claimed.
@@ -192,7 +192,7 @@ paid/live/provider/model action or policy/default/cap change occurred. Broader
 unchanged literal/binding adversarial controls remain supporting evidence for
 the distinct reviewer. Exact final head/direct path hashes/parent union,
 original prefixes, raw argv/exits/counts/failures, cleanup and G01-G13 states
-are in `/tmp/ultimate-meta-activity-unit-correction-sol/FINAL-REPORT.md`.
+are in the outside-Git final report.
 Source and append ownership release precedes a separate concrete original
 PR195 normal FF/body publication grant. Distinct final-head review, complete
 current hosted fullCI/readiness and normal coordinator merge remain gates;
