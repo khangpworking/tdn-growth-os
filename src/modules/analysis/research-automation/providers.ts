@@ -2,6 +2,7 @@
 // public API schemas stay owned by the backend and are not mirrored here.
 import { createKalodataProvider, KALODATA_LIMITS } from './provider-kalodata.js';
 import { createSerpApiProvider, SERPAPI_LIMITS } from './provider-serpapi.js';
+import type { ExpandedSearchRequest, SearchCallBudget } from './expanded-search-queries.js';
 import {
   ProviderInputError, defaultProviderTransport, emptyUsage, unavailableCoverage,
   type ProviderTransport,
@@ -70,6 +71,12 @@ export interface ResearchAutomationProvider {
   quickSearch(input: QuickSearchInput, options?: ProviderCallOptions): Promise<QuickSearchResult>;
   /** Approved-scope collection over the exact requested period. Never auto-retries paid requests. */
   collect(input: CollectInput, options?: ProviderCallOptions): Promise<CollectResult>;
+}
+
+/** Explicit internal P5 caller; ordinary provider collection remains v1 and unchanged. */
+export interface ExpandedSearchProvider extends ResearchAutomationProvider {
+  collectExpanded(input: CollectInput, request: ExpandedSearchRequest, queryIndex: number,
+    budget: SearchCallBudget, options?: ProviderCallOptions): Promise<CollectResult>;
 }
 
 export type ProviderOperation =

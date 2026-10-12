@@ -12,6 +12,7 @@ type Operation = { readonly body: AutomationReportRevisionRequest };
 const active = (attempt: ResearchAutomationRevisionReceipt) => attempt.state === 'QUEUED' || attempt.state === 'RUNNING';
 // Loaded on demand so its scoped stylesheet stays out of the shared bundle until the owner opens coding.
 const InsightCodingPanel = lazy(() => import('./InsightCodingPanel').catch(() => ({ default: () => <p role="alert" className="ra-problem">Chưa tải được phần mã hóa Insight. Tải lại trang.</p> })));
+const InsightPersonaPanel = lazy(() => import('./InsightPersonaPanel').catch(() => ({ default: () => <p role="alert">Chưa tải được phần chân dung đề xuất. Tải lại trang.</p> })));
 const stateLabel = (state: ResearchAutomationRevisionReceipt['state']) => ({ QUEUED: 'Đang chờ', RUNNING: 'Đang tính và dựng báo cáo', COMMITTED: 'Đã lưu phiên bản', FAILED: 'Không hoàn tất', CANCELLED: 'Đã hủy' })[state];
 
 /** Explicit immutable pair selection; rereads restore work without another write. */
@@ -36,6 +37,9 @@ export default function ReportVersionsPanel({ run, ownerToken, writesAvailable, 
   const [showInsight, setShowInsight] = useState(false);
   const [insightBusy, setInsightBusy] = useState(false);
   const insightStatus = useCallback((value: boolean) => setInsightBusy(value), []);
+  const [showPersona, setShowPersona] = useState(false);
+  const [personaBusy, setPersonaBusy] = useState(false);
+  const personaStatus = useCallback((value: boolean) => setPersonaBusy(value), []);
   const [supplementalBusy, setSupplementalBusy] = useState(false);
   const supplementalStatus = useCallback((value: boolean) => setSupplementalBusy(value), []);
   const mounted = useRef(false);
@@ -70,7 +74,7 @@ export default function ReportVersionsPanel({ run, ownerToken, writesAvailable, 
   const viewing = versions.find(pair => pair.pairId === selected);
   const running = attempts.find(active);
   const catchingUp = attempts.some(item => item.state === 'COMMITTED' && !versions.some(pair => pair.pairId === item.pairId));
-  const otherHeld = pending || uncertain || source.held || classificationBusy || insightBusy;
+  const otherHeld = pending || uncertain || source.held || classificationBusy || insightBusy || personaBusy;
   const held = otherHeld || supplementalBusy;
   const canWrite = writesAvailable && Boolean(ownerToken);
   const blocker = !canWrite ? 'Mở khóa OWNER để tạo hoặc hủy lượt bổ sung.' : error ? 'Tải lại và xác minh lịch sử trước khi tiếp tục.'
@@ -86,7 +90,7 @@ export default function ReportVersionsPanel({ run, ownerToken, writesAvailable, 
     setDialog({ body });
   };
   const submit = async (snapshot: Operation) => {
-    if (busy.current || !canWrite || source.held || supplementalBusy) return;
+    if (busy.current || !canWrite || source.held || supplementalBusy || personaBusy) return;
     if (operation.current !== snapshot && (blocker || held || snapshot.body.previousPairId !== current?.pairId)) return;
     busy.current = true; operation.current = snapshot; setPending(true); setUncertain(false); setNotice('');
     try {
@@ -102,7 +106,7 @@ export default function ReportVersionsPanel({ run, ownerToken, writesAvailable, 
     } finally { busy.current = false; if (mounted.current) setPending(false); }
   };
   const cancel = async () => {
-    if (busy.current || !canWrite || supplementalBusy || !cancelTarget) return;
+    if (busy.current || !canWrite || supplementalBusy || personaBusy || !cancelTarget) return;
     if (cancellation.current?.attemptId !== cancelTarget.attemptId) cancellation.current = { attemptId: cancelTarget.attemptId, requestKey: crypto.randomUUID() };
     const snapshot = cancellation.current;
     busy.current = true; setPending(true);
@@ -127,18 +131,26 @@ export default function ReportVersionsPanel({ run, ownerToken, writesAvailable, 
     {viewing && <>
       <button type="button" className="button" disabled={held || Boolean(dialog) || Boolean(cancelTarget)} onClick={() => setShowClassification(value => !value)}>{showClassification ? 'Đóng phân loại mẫu' : 'Duyệt phân loại mẫu'}</button>
       {showClassification && <MetricClassificationPanel key={`${run.runId}:${viewing.pairId}`} run={run} pairId={viewing.pairId} versionNumber={viewing.versionNumber}
-        ownerToken={writesAvailable ? ownerToken : null} disabled={pending || uncertain || source.held || insightBusy || supplementalBusy || Boolean(classificationSourceBlock) || Boolean(dialog) || Boolean(cancelTarget) || loading || Boolean(error) || catchingUp || Boolean(running) || viewing.pairId !== current?.pairId}
-        disabledReason={supplementalBusy ? 'Hoàn tất hoặc bỏ thao tác nguồn bổ sung đang chờ trước.' : insightBusy ? 'Đang có thao tác gán mã Insight dở dang. Hoàn tất hoặc bỏ thao tác đó trước.' : classificationSourceBlock}
+        ownerToken={writesAvailable ? ownerToken : null} disabled={pending || uncertain || source.held || insightBusy || supplementalBusy || personaBusy || Boolean(classificationSourceBlock) || Boolean(dialog) || Boolean(cancelTarget) || loading || Boolean(error) || catchingUp || Boolean(running) || viewing.pairId !== current?.pairId}
+        disabledReason={personaBusy ? 'Đang có thao tác chân dung dở dang. Hoàn tất hoặc bỏ thao tác đó trước.' : supplementalBusy ? 'Hoàn tất hoặc bỏ thao tác nguồn bổ sung đang chờ trước.' : insightBusy ? 'Đang có thao tác gán mã Insight dở dang. Hoàn tất hoặc bỏ thao tác đó trước.' : classificationSourceBlock}
         onActivityChanged={reload} onBusyChanged={classificationStatus} />}
       <button type="button" className="button" disabled={held || Boolean(dialog) || Boolean(cancelTarget)} onClick={() => setShowInsight(value => !value)}>{showInsight ? 'Đóng gán mã Insight' : 'Duyệt gán mã Insight'}</button>
       {showInsight && <Suspense fallback={<p role="status">Đang mở phần mã hóa Insight…</p>}><InsightCodingPanel key={`${run.runId}:${viewing.pairId}`} run={run} pairId={viewing.pairId} versionNumber={viewing.versionNumber}
-        ownerToken={writesAvailable ? ownerToken : null} disabled={pending || uncertain || source.held || classificationBusy || supplementalBusy || Boolean(dialog) || Boolean(cancelTarget) || loading || Boolean(error) || catchingUp || Boolean(running) || viewing.pairId !== current?.pairId}
-        disabledReason={viewing.pairId !== current?.pairId ? 'Chỉ mã hóa được trên phiên bản cuối. Bản đang xem chỉ để đọc lịch sử.' : classificationBusy ? 'Đang có thao tác phân loại mẫu dở dang. Hoàn tất hoặc bỏ thao tác đó trước.'
+        ownerToken={writesAvailable ? ownerToken : null} disabled={pending || uncertain || source.held || classificationBusy || supplementalBusy || personaBusy || Boolean(dialog) || Boolean(cancelTarget) || loading || Boolean(error) || catchingUp || Boolean(running) || viewing.pairId !== current?.pairId}
+        disabledReason={personaBusy ? 'Đang có thao tác chân dung dở dang. Hoàn tất hoặc bỏ thao tác đó trước.' : viewing.pairId !== current?.pairId ? 'Chỉ mã hóa được trên phiên bản cuối. Bản đang xem chỉ để đọc lịch sử.' : classificationBusy ? 'Đang có thao tác phân loại mẫu dở dang. Hoàn tất hoặc bỏ thao tác đó trước.'
           : supplementalBusy ? 'Hoàn tất hoặc bỏ thao tác nguồn bổ sung đang chờ trước.' : running ? 'Một lượt bổ sung đang chạy. Chờ hoàn tất hoặc hủy đúng lượt đó.' : null}
         reportBlock={classificationSourceBlock} onActivityChanged={reload} onBusyChanged={insightStatus} /></Suspense>}
+      {viewing.outputs.some(output => output.kind === 'INSIGHT') && <>
+        <button type="button" className="button" disabled={held || Boolean(dialog) || Boolean(cancelTarget)} onClick={() => setShowPersona(value => !value)}>{showPersona ? 'Đóng thẻ và chân dung đề xuất' : 'Xem thẻ và chân dung đề xuất'}</button>
+        {showPersona && <Suspense fallback={<p role="status">Đang mở phần chân dung đề xuất…</p>}><InsightPersonaPanel key={`${run.runId}:${viewing.pairId}`} run={run} pairId={viewing.pairId} versionNumber={viewing.versionNumber}
+          ownerToken={writesAvailable ? ownerToken : null} disabled={pending || uncertain || source.held || classificationBusy || insightBusy || supplementalBusy || Boolean(dialog) || Boolean(cancelTarget) || loading || Boolean(error) || catchingUp || Boolean(running) || viewing.pairId !== current?.pairId || Boolean(classificationSourceBlock)}
+          disabledReason={viewing.pairId !== current?.pairId ? 'Chỉ tạo đề xuất trên phiên bản cuối. Bản đang xem chỉ đọc lịch sử.' : classificationSourceBlock ?? (running ? 'Một lượt bổ sung đang chạy.' : 'Hoàn tất thao tác nguồn hoặc mã hóa khác trước.')}
+          reportBlock={classificationSourceBlock} onActivityChanged={reload} onBusyChanged={personaStatus} /></Suspense>}
+      </>}
+
     </>}
     {scope && <>
-      <MetricSourcePanel run={run} scope={{ definition: scope.definition, includeTerms: scope.includeTerms, excludeTerms: scope.excludeTerms, selectedProductIds: scope.selectedProductIds, peerProductIds: scope.peerProductIds, ...(scope.exactShopeeUrls ? { exactShopeeUrls: scope.exactShopeeUrls } : {}) }} selected={metric} onSelect={setMetric} onStatus={sourceStatus} ownerToken={writesAvailable ? ownerToken : null} disabled={pending || uncertain || classificationBusy || insightBusy || supplementalBusy || Boolean(running) || catchingUp || Boolean(dialog) || loading || Boolean(error)} onConflict={reload} supplemental />
+      <MetricSourcePanel run={run} scope={{ definition: scope.definition, includeTerms: scope.includeTerms, excludeTerms: scope.excludeTerms, selectedProductIds: scope.selectedProductIds, peerProductIds: scope.peerProductIds, ...(scope.exactShopeeUrls ? { exactShopeeUrls: scope.exactShopeeUrls } : {}) }} selected={metric} onSelect={setMetric} onStatus={sourceStatus} ownerToken={writesAvailable ? ownerToken : null} disabled={pending || uncertain || classificationBusy || insightBusy || supplementalBusy || personaBusy || Boolean(running) || catchingUp || Boolean(dialog) || loading || Boolean(error)} onConflict={reload} supplemental />
       <label className="ra-label" htmlFor="ra-revision-native">Review của phiên bản trước<select id="ra-revision-native" className="ra-field" value={native} disabled={held || Boolean(running) || Boolean(dialog)} onChange={event => setNative(event.target.value as typeof native)}><option value="KEEP">Giữ đúng nguồn review đã dùng</option><option value="SKIP">Chủ động bỏ qua ở phiên bản mới</option></select></label>
       <p className="ra-muted">Phạm vi không thay đổi. Muốn đổi sản phẩm, định nghĩa hoặc kỳ nghiên cứu phải tạo phiên nghiên cứu mới.</p>
       {blocker && <p className="ra-muted">{blocker}</p>}

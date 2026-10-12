@@ -1,29 +1,47 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { loadPersonas, type ResearchPersonaView } from './persona-api';
 import ConfirmDialog from '../ConfirmDialog';
 import { ResearchAutomationError, type ResearchAutomationRun } from './api';
 import { formatTime } from './run-status';
-import { buildReaderWithUnitSpecs, MAX_READER_REQUEST_BYTES, decideReaderReport, loadReaderReports, readerReportUrl } from './reader-report-api';
-import type { ResearchAutomationReaderBuildRequest, ResearchAutomationReaderRevision } from './reader-report-api';
+import { buildReaderWithUnitSpecs, buildInsightReader, MAX_READER_REQUEST_BYTES, decideReaderReportV2, loadReaderReportsV2, readerReportPdfUrl, readerReportUrl } from './reader-report-api';
+import { loadReportVersions } from './report-revisions-api';
+import type { ResearchAutomationReportVersionList } from '../../../contracts/api/research-automation-revision-api.generated';
+import type { ResearchAutomationReaderBuildRequest, ResearchAutomationReaderRevisionV2 } from './reader-report-api';
 
 interface Props {
   readonly run: ResearchAutomationRun;
   readonly ownerToken: string | null;
   readonly writesAvailable: boolean;
+  readonly refreshToken?: number;
 }
 type Decision = 'APPROVED' | 'REJECTED';
 
-const STATE_LABEL: Record<ResearchAutomationReaderRevision['state'], string> = {
+const STATE_LABEL: Record<ResearchAutomationReaderRevisionV2['state'], string> = {
   PENDING_OWNER_REVIEW: 'Chờ bạn duyệt', APPROVED: 'Đã duyệt', REJECTED: 'Đã từ chối', SUPERSEDED: 'Đã có bản mới hơn',
 };
 const PLATFORM_LABEL = { shopee: 'Shopee', tiktok: 'TikTok Shop' } as const;
 
 /** The only report surface the OWNER sees: the reader page and its Duyệt/Từ chối decision. The automated draft stays server-side. */
-export default function ReaderReportPanel({ run, ownerToken, writesAvailable }: Props) {
-  const [revisions, setRevisions] = useState<readonly ResearchAutomationReaderRevision[] | null>(null);
+export default function ReaderReportPanel({ run, ownerToken, writesAvailable, refreshToken }: Props) {
+  // An in-flight write belongs to its original run, including its retry key and dialog.
+  return <ReaderReportPanelForRun key={`${run.workspaceId}:${run.runId}`} run={run} ownerToken={ownerToken} writesAvailable={writesAvailable} {...(refreshToken === undefined ? {} : { refreshToken })} />;
+}
+
+function ReaderReportPanelForRun({ run, ownerToken, writesAvailable, refreshToken }: Props) {
+  const [revisions, setRevisions] = useState<readonly ResearchAutomationReaderRevisionV2[] | null>(null);
+  const [kind, setKind] = useState<'MARKET' | 'INSIGHT'>(run.reports.includes('MARKET') ? 'MARKET' : 'INSIGHT');
+  const [sourceVersions, setSourceVersions] = useState<ResearchAutomationReportVersionList | null>(null);
+  const [insightBuildKind, setInsightBuildKind] = useState<'HISTORICAL' | 'CROSSCHECK' | 'PRIVATE_DEFAULT' | 'PERSONA'>('HISTORICAL');
+  const [personaSourcePairId, setPersonaSourcePairId] = useState('');
+  const [personaView, setPersonaView] = useState<ResearchPersonaView | null>(null);
+  const [personaProposalId, setPersonaProposalId] = useState('');
+  const [personaError, setPersonaError] = useState('');
+  const [selectedPairId, setSelectedPairId] = useState('');
+  const [sourceError, setSourceError] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [tick, setTick] = useState(0);
-  const [dialog, setDialog] = useState<Decision | null>(null);
+  const [dialog, setDialog] = useState<{ decision: Decision; revision: ResearchAutomationReaderRevisionV2 } | null>(null);
   const [reason, setReason] = useState('');
   const [pending, setPending] = useState(false);
   const [requestFile, setRequestFile] = useState<File | null>(null);
@@ -37,16 +55,43 @@ export default function ReaderReportPanel({ run, ownerToken, writesAvailable }: 
 
   useEffect(() => {
     const controller = new AbortController();
-    loadReaderReports(run.workspaceId, run.runId, controller.signal)
+    loadReaderReportsV2(run.workspaceId, run.runId, controller.signal)
       .then(list => { if (!controller.signal.aborted) { setRevisions(list.revisions); setError(''); } })
       .catch((failure: unknown) => { if (!controller.signal.aborted) setError(failure instanceof ResearchAutomationError ? failure.message : 'Chưa tải được bản đọc.'); });
     return () => controller.abort();
-  }, [run.workspaceId, run.runId, tick]);
+  }, [run.workspaceId, run.runId, tick, refreshToken]);
 
-  const latest = revisions?.at(-1);
+  useEffect(() => {
+    if (kind !== 'INSIGHT' || run.status !== 'DRAFT_READY') return;
+    const controller = new AbortController();
+    setSourceError(''); setSelectedPairId(''); setSourceVersions(null);
+    loadReportVersions(run.workspaceId, run.runId, controller.signal)
+      .then(list => { if (!controller.signal.aborted) setSourceVersions(list); })
+      .catch((failure: unknown) => { if (!controller.signal.aborted) setSourceError(failure instanceof ResearchAutomationError ? failure.message : 'Chưa tải được phiên bản nguồn insight.'); });
+    return () => controller.abort();
+  }, [kind, run.workspaceId, run.runId, run.status]);
+  useEffect(() => {
+    setPersonaView(null); setPersonaProposalId(''); setPersonaError('');
+    if (kind !== 'INSIGHT' || insightBuildKind !== 'PERSONA' || !personaSourcePairId || run.status !== 'DRAFT_READY') return;
+    const controller = new AbortController();
+    loadPersonas(run.workspaceId, run.runId, personaSourcePairId, controller.signal)
+      .then(view => { if (!controller.signal.aborted) setPersonaView(view); })
+      .catch((failure: unknown) => { if (!controller.signal.aborted) setPersonaError(failure instanceof ResearchAutomationError ? failure.message : 'Chưa tải được đề xuất chân dung.'); });
+    return () => controller.abort();
+  }, [kind, insightBuildKind, personaSourcePairId, run.workspaceId, run.runId, run.status]);
+  const personaProposals = personaView?.binding.pairId === personaSourcePairId ? personaView.evidence.filter(entry =>
+    entry.evidence.contractVersion === 'insight-persona-proposal-evidence-v1' && entry.evidence.request.stage === 'SYNTHESIZE') : [];
+  const personaProposal = personaProposals.find(entry => entry.evidence.evidenceId === personaProposalId);
+  const history = revisions?.filter(revision => revision.reportKind === kind && revision.workspaceId === run.workspaceId && revision.runId === run.runId);
+  const latest = history?.at(-1);
+  const kindLabel = kind === 'INSIGHT' ? 'insight' : 'thị trường';
+  const pairs = sourceVersions?.workspaceId === run.workspaceId && sourceVersions.runId === run.runId
+    ? sourceVersions.versions.filter(pair => pair.outputs.some(output => output.kind === 'INSIGHT')) : [];
+  const selectedPair = pairs.find(pair => pair.pairId === selectedPairId);
+  const insightSource = selectedPair?.outputs.find(output => output.kind === 'INSIGHT');
   const canWrite = writesAvailable && ownerToken !== null;
   const buildWithSpecs = async () => {
-    if (!ownerToken || !requestFile || pending) return;
+    if (!canWrite || !ownerToken || !requestFile || pending) return;
     setPending(true); setIntakeError(''); setNotice('');
     try {
       if (!requestFile.size || requestFile.size > MAX_READER_REQUEST_BYTES) throw new ResearchAutomationError('rejected', 'Tệp yêu cầu trống hoặc vượt giới hạn 4,5 MiB.');
@@ -58,25 +103,46 @@ export default function ReaderReportPanel({ run, ownerToken, writesAvailable }: 
           if (mounted.current) setNotice('Đã lưu quy cách của phiên này. Bản đọc chưa được dựng xong và chưa được duyệt.');
         });
       if (!mounted.current) return;
-      setNotice(`Đã lưu quy cách và dựng bản đọc lần ${receipt.revision.revisionNumber}. Bản đọc vẫn chờ bạn duyệt.`); reload();
+      setNotice(`Đã lưu quy cách và dựng bản đọc lần ${receipt.revision.revisionNumber}. ${receipt.revision.state === 'PENDING_OWNER_REVIEW' ? 'Bản đọc vẫn chờ bạn duyệt.' : `Trạng thái: ${STATE_LABEL[receipt.revision.state]}.`}`); reload();
     } catch (failure) {
       if (mounted.current) setIntakeError(failure instanceof ResearchAutomationError ? failure.message : 'Chưa lưu được quy cách và dựng bản đọc. Thử lại với cùng tệp yêu cầu.');
     } finally { if (mounted.current) setPending(false); }
   };
 
+  const buildInsight = async () => {
+    if (!canWrite || !ownerToken || pending || !selectedPair || !insightSource ||
+        (insightBuildKind === 'PERSONA' && (!personaProposal || !personaView))) return;
+    const identity = `INSIGHT:${insightBuildKind}:${run.workspaceId}:${run.runId}:${selectedPair.pairId}:${insightSource.versionId}:${insightBuildKind === 'PERSONA' ? `${personaSourcePairId}:${personaProposal?.evidence.evidenceId}:${personaProposal?.sha256}:${personaView?.binding.sourceSha256}` : ''}`;
+    const requestKey = requestKeys.current.get(identity) ?? crypto.randomUUID(); requestKeys.current.set(identity, requestKey);
+    setPending(true); setSourceError('');
+    try {
+      const receipt = await buildInsightReader(run.workspaceId, run.runId, { ...(insightBuildKind === 'PERSONA' && personaView && personaProposal
+        ? { contractVersion: 'insight-reader-build-v3' as const, sourceKind: 'PERSONA' as const, personaProposalId: personaProposal.evidence.evidenceId,
+          personaProposalSha256: personaProposal.sha256, personaSourcePairId, personaSourceSha256: personaView.binding.sourceSha256 }
+        : insightBuildKind === 'HISTORICAL' ? { contractVersion: 'insight-reader-build-v1' as const }
+        : { contractVersion: 'insight-reader-build-v2' as const, sourceKind: insightBuildKind as 'CROSSCHECK' | 'PRIVATE_DEFAULT' }), reportKind: 'INSIGHT',
+        requestKey, draftPairId: selectedPair.pairId, semanticSha256: insightSource.versionId }, ownerToken);
+      if (!mounted.current) return;
+      requestKeys.current.delete(identity);
+      setNotice(`Đã dựng bản đọc insight lần ${receipt.revision.revisionNumber}. Trạng thái: ${STATE_LABEL[receipt.revision.state]}.`); reload();
+    } catch (failure) { if (mounted.current) setSourceError(failure instanceof ResearchAutomationError ? failure.message : 'Chưa dựng được bản đọc insight. Thử lại với cùng phiên bản nguồn.'); }
+    finally { if (mounted.current) setPending(false); }
+  };
+
   const submit = async () => {
-    if (!latest || !dialog || !ownerToken || pending) return;
-    const trimmed = dialog === 'REJECTED' ? reason.trim() : '';
+    if (!canWrite || !dialog || !ownerToken || pending || dialog.revision.workspaceId !== run.workspaceId || dialog.revision.runId !== run.runId) return;
+    const target = dialog.revision;
+    const trimmed = dialog.decision === 'REJECTED' ? reason.trim() : '';
     // Same revision, decision and reason reuse one request key so a retry cannot record twice.
-    const identity = `${latest.revisionId}:${dialog}:${trimmed}`;
+    const identity = `${target.reportKind}:${target.revisionId}:${target.htmlSha256}:${dialog.decision}:${trimmed}`;
     const requestKey = requestKeys.current.get(identity) ?? crypto.randomUUID();
     requestKeys.current.set(identity, requestKey);
     setPending(true);
     try {
-      await decideReaderReport(run.workspaceId, run.runId, { contractVersion: 'reader-report-decision-v1', requestKey,
-        revisionId: latest.revisionId, decision: dialog, reason: trimmed || null }, ownerToken);
+      await decideReaderReportV2(run.workspaceId, run.runId, { contractVersion: 'reader-report-decision-v2', requestKey,
+        reportKind: target.reportKind, htmlSha256: target.htmlSha256, revisionId: target.revisionId, decision: dialog.decision, reason: trimmed || null }, ownerToken);
       if (!mounted.current) return;
-      setNotice(dialog === 'APPROVED' ? 'Đã duyệt bản đọc.' : 'Đã từ chối bản đọc. Bản mới sẽ hiện ở đây khi được dựng lại.');
+      setNotice(dialog.decision === 'APPROVED' ? 'Đã duyệt bản đọc.' : 'Đã từ chối bản đọc. Bản mới sẽ hiện ở đây khi được dựng lại.');
       setDialog(null); setReason(''); reload();
     } catch (failure) {
       if (!mounted.current) return;
@@ -89,32 +155,35 @@ export default function ReaderReportPanel({ run, ownerToken, writesAvailable }: 
   return <section className="ra-block ra-reader" aria-labelledby="ra-reader-title">
     <div className="ra-section-head"><h2 id="ra-reader-title" tabIndex={-1}>Bản đọc</h2>
       <p>Bản đọc tóm tắt kết quả phiên này bằng lời dễ hiểu, kèm các giới hạn của số liệu. Bạn xem rồi chọn Duyệt hoặc Từ chối.</p></div>
+    <label className="ra-label">Loại bản đọc<select className="ra-field" value={kind} disabled={pending} onChange={event => { setKind(event.target.value as 'MARKET' | 'INSIGHT'); setDialog(null); setNotice(''); }}><option value="MARKET">Báo cáo thị trường</option><option value="INSIGHT">Báo cáo insight</option></select></label>
     {notice && <div className="ra-banner" role="status"><p>{notice}</p><button type="button" className="button" onClick={() => setNotice('')}>Đã hiểu</button></div>}
     {error ? <div className="ra-message error" role="alert"><p>{error}</p><button type="button" className="button" onClick={reload}>Thử lại</button></div>
       : revisions === null ? <p role="status">Đang tải bản đọc…</p>
       : !latest ? <div className="ra-message"><p>Bản đọc đang được chuẩn bị từ kết quả của phiên này. Khi xong, bản đọc sẽ hiện ở đây để bạn xem và duyệt.</p><button type="button" className="button" onClick={reload}>Tải lại</button></div>
       : <>
-        <article className="ra-output" aria-label={`Bản đọc lần ${latest.revisionNumber}`}>
-          <header><h3>Bản đọc lần {latest.revisionNumber}</h3><span className={`status-pill ${latest.state === 'APPROVED' ? 'good' : ''}`}>{STATE_LABEL[latest.state]}</span></header>
-          <p className="ra-muted">Sàn: {latest.platforms.map(p => PLATFORM_LABEL[p]).join(' + ')} · Dựng lúc {formatTime(latest.createdAt)}
-            {latest.profileStatus === 'proposed' ? ' · Phân loại sản phẩm do AI đề xuất, chưa được chủ duyệt.' : ''}</p>
+        <article className="ra-output" aria-label={`Bản đọc ${kindLabel} lần ${latest.revisionNumber}`}>
+          <header><h3>Bản đọc {kindLabel} lần {latest.revisionNumber}</h3><span className={`status-pill ${latest.state === 'APPROVED' ? 'good' : ''}`}>{STATE_LABEL[latest.state]}</span></header>
+          <p className="ra-muted">Loại: {kindLabel} · Phiên bản: {latest.builderVersion} · Dựng lúc {formatTime(latest.createdAt)}</p>
+          {latest.reportKind === 'MARKET' && <p className="ra-muted">Sàn: {latest.platforms.map(p => PLATFORM_LABEL[p]).join(' + ')}{latest.profileStatus === 'proposed' ? ' · Phân loại sản phẩm do AI đề xuất, chưa được chủ duyệt.' : ''}</p>}
           <div className="ra-actions">
             <a className="button primary" href={readerReportUrl(run.workspaceId, run.runId, latest.revisionId)} target="_blank" rel="noopener noreferrer">Mở bản đọc<span className="ra-sr"> lần {latest.revisionNumber} (mở tab mới)</span></a>
+            <a className="button" href={readerReportPdfUrl(run.workspaceId, run.runId, latest.revisionId)} rel="noopener noreferrer">Tải PDF<span className="ra-sr"> lần {latest.revisionNumber}</span></a>
             {latest.state === 'PENDING_OWNER_REVIEW' && <>
-              <button type="button" className="button primary" disabled={!canWrite || pending} onClick={() => setDialog('APPROVED')}>Duyệt</button>
-              <button type="button" className="button" disabled={!canWrite || pending} onClick={() => setDialog('REJECTED')}>Từ chối</button>
+              <button type="button" className="button primary" disabled={!canWrite || pending} onClick={() => setDialog({ decision: 'APPROVED', revision: latest })}>Duyệt</button>
+              <button type="button" className="button" disabled={!canWrite || pending} onClick={() => setDialog({ decision: 'REJECTED', revision: latest })}>Từ chối</button>
             </>}
           </div>
           {latest.state === 'PENDING_OWNER_REVIEW' && !canWrite && <p className="ra-muted">Mở khóa OWNER để duyệt bản đọc.</p>}
           {latest.decision && <p className="ra-muted">{latest.decision.decision === 'APPROVED' ? 'Duyệt' : 'Từ chối'} lúc {formatTime(latest.decision.decidedAt)}{latest.decision.reason ? ` · Lý do: ${latest.decision.reason}` : ''}</p>}
         </article>
-        {revisions.length > 1 && <details className="ra-reader-history"><summary>Các lần dựng trước ({revisions.length - 1})</summary><ul>
-          {revisions.slice(0, -1).reverse().map(revision => <li key={revision.revisionId}>
+        {history && history.length > 1 && <details className="ra-reader-history"><summary>Các lần dựng trước ({history.length - 1})</summary><ul>
+          {history.slice(0, -1).reverse().map(revision => <li key={revision.revisionId}>
             <a href={readerReportUrl(run.workspaceId, run.runId, revision.revisionId)} target="_blank" rel="noopener noreferrer">Bản đọc lần {revision.revisionNumber}</a>
+            {' '}<a href={readerReportPdfUrl(run.workspaceId, run.runId, revision.revisionId)} rel="noopener noreferrer">Tải PDF</a>
             {' · '}{STATE_LABEL[revision.state]}{revision.decision?.reason ? ` · Lý do: ${revision.decision.reason}` : ''}</li>)}
         </ul></details>}
       </>}
-    {run.status === 'DRAFT_READY' && latest?.state !== 'APPROVED' && <details className="ra-reader-intake">
+    {kind === 'MARKET' && run.status === 'DRAFT_READY' && latest?.state !== 'APPROVED' && <details className="ra-reader-intake">
       <summary>Bổ sung quy cách và dựng bản đọc</summary>
       <p>Lưu tệp quy cách listing và khai báo số lượng của bạn riêng biệt. Hệ thống đối chiếu đúng sản phẩm, biến thể và vị trí trong tệp; việc lưu không xác thực lời người bán hay duyệt báo cáo.</p>
       <p>Giữ nguyên tệp JSON nguồn. Mỗi tệp không quá 2 MiB, tổng không quá 8 MiB và tối đa 16 tệp. Không suy số lượng từ tiêu đề hoặc giá bán trung bình.</p>
@@ -130,13 +199,40 @@ export default function ReaderReportPanel({ run, ownerToken, writesAvailable }: 
       <button type="button" className="button" disabled={!canWrite || pending || !requestFile || !listingFiles.length} onClick={() => void buildWithSpecs()}>
         {pending ? 'Đang xử lý…' : 'Lưu quy cách và dựng bản đọc'}</button>
     </details>}
-    {dialog && latest && <ConfirmDialog titleId="ra-reader-decision-title" descriptionId="ra-reader-decision-description"
-      title={dialog === 'APPROVED' ? `Duyệt bản đọc lần ${latest.revisionNumber}?` : `Từ chối bản đọc lần ${latest.revisionNumber}?`}
-      confirmLabel={dialog === 'APPROVED' ? 'Duyệt' : 'Từ chối'} pending={pending} onCancel={() => setDialog(null)} onConfirm={() => void submit()}>
-      <p id="ra-reader-decision-description">{dialog === 'APPROVED'
+    {kind === 'INSIGHT' && run.status === 'DRAFT_READY' && latest?.state !== 'APPROVED' && <div className="ra-reader-insight-build">
+      <h3>Dựng bản đọc insight</h3><p>Chọn rõ phiên bản nguồn đã lưu. Bản đọc giữ nguyên bằng chứng, phần thiếu và trạng thái mã hóa; sau khi dựng bạn xem rồi quyết định duyệt.</p>
+      <label className="ra-label">Phiên bản nguồn insight<select className="ra-field" value={selectedPairId} disabled={!canWrite || pending} onChange={event => setSelectedPairId(event.target.value)}>
+        <option value="">Chọn phiên bản nguồn</option>{pairs.map(pair => <option key={pair.pairId} value={pair.pairId}>Phiên bản nguồn {pair.versionNumber}</option>)}
+      </select></label>
+      <label className="ra-label">Nội dung bản đọc<select className="ra-field" value={insightBuildKind} disabled={!canWrite || pending}
+        onChange={event => setInsightBuildKind(event.target.value as typeof insightBuildKind)}>
+        <option value="HISTORICAL">Nguồn và mã hóa đã lưu</option>
+        <option value="CROSSCHECK">Mẫu mã hóa bởi model thứ hai</option>
+        <option value="PRIVATE_DEFAULT">Mã hóa mặc định từ nguồn riêng</option>
+        <option value="PERSONA">Thẻ bằng chứng và chân dung đề xuất</option>
+      </select></label>
+      {insightBuildKind === 'PERSONA' && <>
+        <label className="ra-label">Phiên bản nguồn chân dung<select className="ra-field" value={personaSourcePairId} disabled={!canWrite || pending}
+          onChange={event => { setPersonaSourcePairId(event.target.value); setPersonaView(null); setPersonaProposalId(''); }}>
+          <option value="">Chọn phiên bản nguồn</option>{pairs.map(pair => <option key={pair.pairId} value={pair.pairId}>Phiên bản nguồn {pair.versionNumber}</option>)}
+        </select></label>
+        <label className="ra-label">Đề xuất chân dung đã lưu<select className="ra-field" value={personaProposalId} disabled={!canWrite || pending || !personaView}
+          onChange={event => setPersonaProposalId(event.target.value)}>
+          <option value="">Chọn chính xác đề xuất</option>{personaProposals.map(entry => <option key={entry.evidence.evidenceId} value={entry.evidence.evidenceId}>Tổng hợp chân dung · lượt {entry.evidence.sequence} · đề xuất, chờ chủ duyệt</option>)}
+        </select></label>
+        {personaError && <p role="alert" className="ra-message error">{personaError}</p>}
+      </>}
+      {!canWrite && <p className="ra-muted">Mở khóa OWNER để dựng bản đọc insight.</p>}
+      {sourceError && <p role="alert" className="ra-message error">{sourceError}</p>}
+      <button type="button" className="button" disabled={!canWrite || pending || !selectedPair || !insightSource || (insightBuildKind === 'PERSONA' && !personaProposal)} onClick={() => void buildInsight()}>{pending ? 'Đang xử lý…' : 'Dựng bản đọc insight'}</button>
+    </div>}
+    {dialog && <ConfirmDialog titleId="ra-reader-decision-title" descriptionId="ra-reader-decision-description"
+      title={dialog.decision === 'APPROVED' ? `Duyệt bản đọc ${dialog.revision.reportKind === 'INSIGHT' ? 'insight' : 'thị trường'} lần ${dialog.revision.revisionNumber}?` : `Từ chối bản đọc ${dialog.revision.reportKind === 'INSIGHT' ? 'insight' : 'thị trường'} lần ${dialog.revision.revisionNumber}?`}
+      confirmLabel={dialog.decision === 'APPROVED' ? 'Duyệt' : 'Từ chối'} pending={pending} onCancel={() => setDialog(null)} onConfirm={() => void submit()}>
+      <p id="ra-reader-decision-description">{dialog.decision === 'APPROVED'
         ? 'Bạn xác nhận đã đọc bản này. Quyết định được lưu cố định, không sửa lại được.'
         : 'Bản này sẽ không được dùng. Ghi lý do để lần dựng sau sửa đúng chỗ.'}</p>
-      {dialog === 'REJECTED' && <label className="ra-label">Lý do (không bắt buộc)<textarea className="ra-field" value={reason} maxLength={1000} rows={3} disabled={pending} onChange={event => setReason(event.target.value)} /></label>}
+      {dialog.decision === 'REJECTED' && <label className="ra-label">Lý do (không bắt buộc)<textarea className="ra-field" value={reason} maxLength={1000} rows={3} disabled={pending} onChange={event => setReason(event.target.value)} /></label>}
     </ConfirmDialog>}
   </section>;
 }

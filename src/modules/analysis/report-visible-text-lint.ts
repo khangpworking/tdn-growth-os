@@ -3,23 +3,69 @@
  * No method-module imports: Market, Insight and auto reports share this contract. */
 export type VisibleTextLintResult = { rule: string; ok: boolean; detail: string };
 
-type Chunk = { text: string; pending: boolean; own: boolean };
+type Chunk = { text: string; pending: boolean; own: boolean; cell: number | null };
 const decode = (text: string): string => text.replace(/&#x([\da-f]+);|&#(\d+);|&(amp|lt|gt|quot|apos|nbsp);/gi,
   (all, hex: string | undefined, dec: string | undefined, name: string | undefined) => {
     if (hex || dec) { const n = hex ? parseInt(hex, 16) : Number(dec); return n <= 0x10ffff ? String.fromCodePoint(n) : all; }
     return ({ amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' } as Record<string, string>)[name!.toLowerCase()]!;
   });
 
+const VOID_TAGS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
+const RAW_TEXT_TAGS = new Set(['script', 'style']);
+
+function tagAttributes(value: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const match of value.matchAll(/\s([:\w-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'`=<>]+)))?/gu)) {
+    out.set((match[1] ?? '').toLowerCase(), decode(match[2] ?? match[3] ?? match[4] ?? ''));
+  }
+  return out;
+}
+
+function isHiddenOpening(value: string): boolean {
+  const attrs = tagAttributes(value);
+  return attrs.has('hidden') || /^(?:true|1)$/iu.test(attrs.get('aria-hidden') ?? '') ||
+    /(?:^|[;\s])(?:display\s*:\s*none|visibility\s*:\s*hidden)(?:\s*!important)?(?:[;\s]|$)/iu.test(attrs.get('style') ?? '');
+}
+
+// A quote exempts text only when its own closing tag appears before an
+// enclosing element closes it implicitly; an unmatched quote quotes nothing.
+export function balancedOpenings(tokens: readonly string[]): Set<number> {
+  const open: { tag: string; index: number; hidden: boolean; raw: boolean }[] = [];
+  const balanced = new Set<number>();
+  tokens.forEach((value, index) => {
+    if (!value.startsWith('<') || value.startsWith('<!--')) return;
+    const rawFrame = open.at(-1)?.raw ? open.at(-1) : undefined;
+    const tag = /^<\/?([\w:-]+)/.exec(value)?.[1]?.toLowerCase();
+    if (!tag) return;
+    if (value.startsWith('</')) {
+      if (rawFrame) {
+        if (tag === rawFrame.tag) open.pop();
+        return;
+      }
+      const top = open.at(-1);
+      if (!top || top.tag !== tag) return;
+      open.pop();
+      if (!top.hidden) balanced.add(top.index);
+    } else if (!rawFrame && !/\/$/.test(value.slice(0, -1)) && !VOID_TAGS.has(tag)) {
+      open.push({ tag, index, hidden: open.some(item => item.hidden) || isHiddenOpening(value), raw: RAW_TEXT_TAGS.has(tag) });
+    }
+  });
+  return balanced;
+}
+
 export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
-  const blocks: { chunks: Chunk[]; region: number }[] = [], stack: { tag: string; quote: boolean; title: boolean; hidden: boolean; pending: boolean }[] = [];
+  const blocks: { chunks: Chunk[]; region: number }[] = [], stack: { tag: string; quote: boolean; title: boolean; hidden: boolean; pending: boolean; cell?: number }[] = [];
   let region = 0;
+  let nextCell = 0;
   let block: Chunk[] = [];
   const flush = (): void => { if (block.length) blocks.push({ chunks: block, region }); block = []; };
-  for (const token of html.matchAll(/<!--[\s\S]*?-->|<[^>]*>|[^<]+/g)) {
-    const value = token[0];
+  const activeCell = (): number | null => [...stack].reverse().find(frame => frame.cell !== undefined)?.cell ?? null;
+  const tokens = [...html.matchAll(/<!--[\s\S]*?-->|<[^>]*>|[^<]+/g)].map(token => token[0]);
+  const balanced = balancedOpenings(tokens);
+  for (const [tokenIndex, value] of tokens.entries()) {
     if (value.startsWith('<!--')) continue;
     if (!value.startsWith('<')) {
-      if (!stack.some(f => f.hidden)) block.push({ text: decode(value), pending: stack.some(f => f.pending), own: !stack.some(f => f.quote || f.title) });
+      if (!stack.some(f => f.hidden)) block.push({ text: decode(value), pending: stack.some(f => f.pending), own: !stack.some(f => f.quote || f.title), cell: activeCell() });
       continue;
     }
     const tag = /^<\/?([\w-]+)/.exec(value)?.[1]?.toLowerCase();
@@ -29,50 +75,102 @@ export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
     if (value.startsWith('</')) {
       const index = stack.map(f => f.tag).lastIndexOf(tag);
       if (index >= 0) stack.splice(index);
-      block.push({ text: ' ', pending: false, own: true });
-    } else if (!/\/$/.test(value.slice(0, -1)) && !['br', 'img', 'meta', 'link', 'input', 'hr'].includes(tag)) {
+      block.push({ text: ' ', pending: false, own: true, cell: activeCell() });
+    } else if (!/\/$/.test(value.slice(0, -1)) && !VOID_TAGS.has(tag)) {
       if (tag === 'section') region++;
       stack.push({ tag,
-        quote: /\bdata-quote(?:\s|=|>)/i.test(value) || tag === 'q' || tag === 'blockquote',
-        title: /^h[1-6]$/.test(tag) || tag === 'title',
+        quote: balanced.has(tokenIndex) && (/\bdata-quote(?:\s|=|>)/i.test(value) || tag === 'q' || tag === 'blockquote'),
+        title: /^h[1-6]$/.test(tag),
         hidden: ['script', 'style'].includes(tag) || /\shidden(?:\s|=|>)/i.test(value) || /aria-hidden\s*=\s*["']true["']/i.test(value)
           || /style\s*=\s*["'][^"']*(?:display\s*:\s*none|visibility\s*:\s*hidden)/i.test(value),
         pending: /data-classified\s*=\s*(?:"pending"|'pending'|pending(?=\s|>))/i.test(value),
+        ...(tag === 'td' || tag === 'th' ? { cell: nextCell++ } : {}),
       });
-      block.push({ text: ' ', pending: false, own: true });
+      block.push({ text: ' ', pending: false, own: true, cell: activeCell() });
     }
   }
   flush();
   const superlatives: string[] = [], priorities: string[] = [], drafts: string[] = [];
   const regionText = new Map<number, string[]>();
+  const isSuperlative = (text: string): boolean => {
+    if (/(?<![\p{L}\p{M}])hàng\s+đầu(?![\p{L}\p{M}])/iu.test(text)) return true;
+    for (const match of text.matchAll(/(?<![\p{L}\p{M}])nhất(?![\p{L}\p{M}])/giu)) {
+      const index = match.index ?? 0;
+      const before = text.slice(0, index).match(/([\p{L}\p{M}]+)\s*$/u)?.[1]?.toLowerCase();
+      const after = text.slice(index + match[0].length).match(/^\s*([\p{L}\p{M}]+)/u)?.[1]?.toLowerCase();
+      if (!['thống', 'đồng', 'hợp'].includes(before ?? '') && !['định', 'quán', 'trí', 'thiết'].includes(after ?? '')) return true;
+    }
+    return false;
+  };
   for (const { chunks, region } of blocks) {
     const own = chunks.map(c => c.own ? c.text : ' ').join('').replace(/\s+/g, ' ').trim();
     // Numeric lower bounds are measurement/method conditions, not a claim
     // that a product is superior (for example the frozen E11 threshold).
+    // A counted product phrase is exempt only when its own sentence names a
+    // sampling/counting context before it; a recommendation to choose top
+    // products is not, even next to a sampling sentence.
+    const countedSample = (input: string, offset: number): boolean => {
+      let start = 0;
+      for (const stop of input.slice(0, offset).matchAll(/[!?…]|\.(?!\d)/gu)) start = (stop.index ?? 0) + 1;
+      return /(?<![\p{L}\p{M}])(?:tệp|mẫu|danh sách|kết quả tìm kiếm|gồm|lấy|xem đủ|thu thập)(?![\p{L}\p{M}])[\s\S]{0,160}$/iu.test(input.slice(start, offset));
+    };
     const findings = own.replace(/ít nhất(?=\s+\d)/giu, 'tối thiểu')
-      .replace(/bản ghi duy nhất/giu, 'bản ghi phân biệt')
+      .replace(/(\d[\d.,]*(?:\s*\[\d+\])*\s+sản phẩm\s+)doanh thu cao nhất/giu, (match, prefix: string, offset: number, input: string) =>
+        countedSample(input, offset) ? `${prefix}theo ngưỡng doanh thu` : match)
+      .replace(/(bản ghi|đối tượng)\s+duy nhất/giu, (match, kind: string, offset: number, input: string) => {
+        const before = input.slice(0, offset).trimEnd();
+        const countContext = kind.toLowerCase() === 'bản ghi' || /\bsố\s*$/iu.test(before) || /\bkhông\s+phải\s*$/iu.test(before);
+        return countContext ? match.replace(/duy nhất$/iu, 'phân biệt') : match;
+      })
       .replace(/dòng trùng đồng nhất/giu, 'dòng trùng hệt');
-    if (/(?:^|\s)(?:nhất|hàng đầu|tốt nhất|rẻ nhất)(?=\s|[.,;:!?]|$)/iu.test(findings)) superlatives.push(own);
+    if (isSuperlative(findings)) superlatives.push(own);
     regionText.set(region, [...(regionText.get(region) ?? []), own]);
     // Keep decimal points intact. Sentences separated by punctuation, including
     // across inline tags, cannot borrow a draft label from their neighbour.
-    const chars = chunks.flatMap(c => [...c.text].map(ch => ({ ch, pending: c.pending })));
-    let sentence: typeof chars = [];
-    const check = (): void => {
-      const s = sentence.map(c => c.ch).join('');
-      if (sentence.some(c => c.pending && /\d/u.test(c.ch)) && !/đề xuất,\s*chờ chủ duyệt/iu.test(s)) drafts.push(s.trim());
-      sentence = [];
-    };
-    chars.forEach((c, i) => {
-      sentence.push(c);
-      if (/[!?…]/u.test(c.ch) || (c.ch === '.' && !( /\d/.test(chars[i - 1]?.ch ?? '') && /\d/.test(chars[i + 1]?.ch ?? '')))) check();
-    });
-    check();
+    // A table cell is its own scope so a sibling cell cannot provide the label.
+    const scopes = new Map<string, Chunk[]>();
+    for (const chunk of chunks) {
+      const key = chunk.cell === null ? 'block' : `cell:${chunk.cell}`;
+      scopes.set(key, [...(scopes.get(key) ?? []), chunk]);
+    }
+    for (const scopedChunks of scopes.values()) {
+      const chars = scopedChunks.flatMap(c => [...c.text].map(ch => ({ ch, pending: c.pending })));
+      let sentence: typeof chars = [];
+      const check = (): void => {
+        const s = sentence.map(c => c.ch).join('');
+        if (sentence.some(c => c.pending && /\d/u.test(c.ch)) && !/đề xuất,\s*chờ chủ duyệt/iu.test(s)) drafts.push(s.trim());
+        sentence = [];
+      };
+      chars.forEach((c, i) => {
+        sentence.push(c);
+        if (/[!?…]/u.test(c.ch) || (c.ch === '.' && !( /\d/.test(chars[i - 1]?.ch ?? '') && /\d/.test(chars[i + 1]?.ch ?? '')))) check();
+      });
+      check();
+    }
   }
   for (const parts of regionText.values()) {
-    const text = parts.join(' ');
-    if (/làm ngay[\s\S]*tiếp theo|ưu tiên\s*(?:số\s*)?\d|ưu tiên hàng đầu/iu.test(text)
-      && !/phụ thuộc|điều kiện tiên quyết|chỉ[^.!?]*sau khi/iu.test(text)) priorities.push(text);
+    for (let i = 0; i < parts.length; i++) {
+      const start = /làm ngay/iu.exec(parts[i] ?? '');
+      if (!start) continue;
+      let endBlock = i;
+      let end = -1;
+      for (; endBlock < parts.length; endBlock++) {
+        const match = /tiếp theo/iu.exec(parts[endBlock] ?? '');
+        if (match) { end = match.index + match[0].length; break; }
+      }
+      if (end < 0) continue;
+      const first = parts[i]!.slice(start.index, endBlock === i ? end : undefined);
+      const last = endBlock === i ? '' : parts[endBlock]!.slice(0, end);
+      const tail = parts[endBlock]!.slice(end);
+      const candidate = [first, ...parts.slice(i + 1, endBlock), ...(last ? [last] : [])].join(' ').replace(/\s+/g, ' ').trim();
+      const directQualifier = /^[^.!?]*chỉ[^.!?]*sau khi/iu.test(tail.trim());
+      if (!/phụ thuộc|điều kiện tiên quyết/iu.test(candidate) && !directQualifier) priorities.push(candidate);
+      i = endBlock;
+    }
+    for (const text of parts) {
+      if (/ưu tiên\s*(?:số\s*)?\d|ưu tiên hàng đầu/iu.test(text)
+        && !/phụ thuộc|điều kiện tiên quyết|chỉ[^.!?]*sau khi/iu.test(text)) priorities.push(text);
+    }
   }
   return [
     { rule: 'U13_SUPERLATIVE', ok: superlatives.length === 0, detail: superlatives.slice(0, 3).join(' | ') || 'Không có so sánh nhất trong nhận định.' },

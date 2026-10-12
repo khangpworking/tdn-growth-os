@@ -23,6 +23,15 @@
     },
     {
       "$ref": "#/$defs/defaultEvidence"
+    },
+    {
+      "$ref": "#/$defs/privateDefaultRule"
+    },
+    {
+      "$ref": "#/$defs/privateDefaultPropose"
+    },
+    {
+      "$ref": "#/$defs/privateDefaultEvidence"
     }
   ],
   "$defs": {
@@ -583,6 +592,189 @@
             },
             {
               "$ref": "#/$defs/defaultPropose"
+            }
+          ]
+        },
+        "parentSha256": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/digest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "actorId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "actorRole": {
+          "const": "OWNER"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "privateDefaultRule": {
+      "title": "InsightPrivateDefaultRuleRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "kind",
+        "status",
+        "requestKey",
+        "originatingRequestKey",
+        "binding",
+        "policyVersion",
+        "rules"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-coding-default-rule-v2"
+        },
+        "kind": {
+          "const": "DEFAULT_RULE"
+        },
+        "status": {
+          "const": "PROPOSED"
+        },
+        "requestKey": {
+          "$ref": "#/$defs/uuid"
+        },
+        "originatingRequestKey": {
+          "$ref": "#/$defs/uuid"
+        },
+        "binding": {
+          "$ref": "private-insight-source-projection.schema.json#/$defs/binding"
+        },
+        "policyVersion": {
+          "const": "source-private-default-coding-v1"
+        },
+        "rules": {
+          "$ref": "#/$defs/rules"
+        }
+      }
+    },
+    "privateDefaultPropose": {
+      "title": "InsightPrivateDefaultCodingProposeRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "status",
+        "requestKey",
+        "defaultRuleId",
+        "defaultRuleSha256",
+        "previousProposalId",
+        "previousProposalSha256",
+        "executionId",
+        "recordIndexes",
+        "rules",
+        "codebookSha256",
+        "annotations"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-coding-default-propose-v2"
+        },
+        "status": {
+          "const": "PROPOSED"
+        },
+        "requestKey": {
+          "$ref": "#/$defs/uuid"
+        },
+        "defaultRuleId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "defaultRuleSha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "previousProposalId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "previousProposalSha256": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/digest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "executionId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "recordIndexes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "rules": {
+          "$ref": "#/$defs/rules"
+        },
+        "codebookSha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "annotations": {
+          "$ref": "#/$defs/annotations"
+        }
+      }
+    },
+    "privateDefaultEvidence": {
+      "title": "InsightPrivateDefaultCodingEvidence",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "evidenceId",
+        "sequence",
+        "binding",
+        "request",
+        "parentSha256",
+        "actorId",
+        "actorRole",
+        "createdAt"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-coding-default-evidence-v2"
+        },
+        "evidenceId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
+        },
+        "binding": {
+          "$ref": "private-insight-source-projection.schema.json#/$defs/binding"
+        },
+        "request": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/privateDefaultRule"
+            },
+            {
+              "$ref": "#/$defs/privateDefaultPropose"
             }
           ]
         },

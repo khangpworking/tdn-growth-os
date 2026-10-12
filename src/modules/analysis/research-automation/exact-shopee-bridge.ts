@@ -2,6 +2,10 @@ import { createHash } from 'node:crypto';
 import type Database from 'better-sqlite3';
 import type { ShopeeExactRequest } from '../../../../contracts/foundation/shopee-exact-request.generated.js';
 import type { AutomationPrivateShopeeSource } from '../../../../contracts/analysis/automation-private-shopee-source.generated.js';
+import type { AutomationReviewCollectionPolicy } from '../../../../contracts/analysis/automation-review-collection-policy.generated.js';
+import type { AutomationReviewSample } from '../../../../contracts/analysis/automation-review-sample.generated.js';
+import type { ApifyShopeeCollector } from '../../../platform/collectors/apify-shopee.js';
+import { assertReviewPolicyCollector, buildReviewSample, reviewCollectionPolicy, verifyReviewSample } from './review-collection-policy.js';
 import type { ResearchPrivateReviewCorpus } from '../../../../contracts/analysis/research-private-review-corpus.generated.js';
 import { privateShopeeMarker } from './private-review-contracts.js';
 import { readPrivateReviewCollection, buildPrivateReviewCorpus, verifyPrivateReviewCorpus, type PrivateReviewBinding, type PrivateReviewReference } from './private-review-corpus.js';
@@ -17,9 +21,13 @@ import type { ScopeSnapshot, SourceLimitation, StartSnapshot, StepResultDocument
 
 export type ShopeeCollectorFactory = () => { collector: ShopeeCollector; requestsIssued: () => number };
 export interface PrivateShopeeConfiguration { readonly source: AutomationPrivateShopeeSource; readonly factory: ShopeeCollectorFactory }
+export interface ReviewPolicyConfiguration {
+  readonly policy: AutomationReviewCollectionPolicy;
+  readonly factory: () => { collector: ApifyShopeeCollector; requestsIssued: () => number };
+}
 export interface ExactShopeeRunInput {
   privateShopeeSource?: AutomationPrivateShopeeSource;
-  runId: string; start: StartSnapshot; scope: ScopeSnapshot; scopeConfirmedAt: string;
+  runId: string; start: StartSnapshot & { readonly reviewCollectionPolicy?: AutomationReviewCollectionPolicy }; scope: ScopeSnapshot; scopeConfirmedAt: string;
 }
 export interface ExactShopeeAttempt {
   privateReference?: PrivateReviewReference;
@@ -35,19 +43,24 @@ export interface ExactShopeeAttempt {
 }
 
 export function exactShopeeRequest(input: ExactShopeeRunInput): ShopeeExactRequest {
+  const label = input.start.reviewCollectionPolicy
+    ? `Owner-confirmed exact Shopee listing URLs; frozen policy/run binding ${createHash('sha256').update(canonicalJson([input.runId, input.start, input.scope, input.scopeConfirmedAt])).digest('hex')}`
+    : 'Owner-confirmed exact Shopee listing URLs';
   return { contractVersion: '2.0.0', runKey: `auto-${input.runId}`, topic: input.start.keyword,
-    selectionBasis: 'OWNER_EXACT_URL', source: { label: 'Owner-confirmed exact Shopee listing URLs', acquiredAt: input.scopeConfirmedAt },
+    selectionBasis: 'OWNER_EXACT_URL', source: { label, acquiredAt: input.scopeConfirmedAt },
     productUrls: [...(input.scope.exactShopeeUrls ?? [])] };
 }
 
 /** Foundation owns collection retention; Analysis binds that exact result to the frozen run. */
 export class AutomationExactShopeeBridge {
   readonly #collections: ShopeeCollectionService;
-  constructor(db: Database.Database, artifacts: ContentAddressedArtifactStore, readonly factory?: ShopeeCollectorFactory, readonly privateConfiguration?: PrivateShopeeConfiguration) {
+  constructor(db: Database.Database, artifacts: ContentAddressedArtifactStore, readonly factory?: ShopeeCollectorFactory, readonly privateConfiguration?: PrivateShopeeConfiguration,
+    readonly reviewPolicyConfiguration?: ReviewPolicyConfiguration) {
     this.#collections = new ShopeeCollectionService(db, artifacts);
   }
 
   async collect(input: ExactShopeeRunInput, signal?: AbortSignal, now: () => Date = () => new Date()): Promise<ExactShopeeAttempt> {
+    if (input.start.reviewCollectionPolicy) return this.#collectPolicy(input, signal);
     if (input.start.privateShopeeSource || input.privateShopeeSource) return this.#collectPrivate(input, signal);
     const request = exactShopeeRequest(input);
     const selection = selectExactShopeeListings(request);
@@ -99,6 +112,55 @@ export class AutomationExactShopeeBridge {
         limitation: { provider: 'apify-shopee', code: errorCode,
           message: 'Cần kiểm tra biên nhận của lượt thu trước khi thử lại; không thay dữ liệu bằng listing khác.' } };
     }
+  }
+
+  async #collectPolicy(input: ExactShopeeRunInput, signal?: AbortSignal): Promise<ExactShopeeAttempt> {
+    const policy = this.#policy(input), configuration = this.reviewPolicyConfiguration;
+    const base = { provider: 'apify-shopee', dataset: 'reviews', observedStartDate: null, observedEndDate: null, truncated: true } as const;
+    if (!configuration || canonicalJson(reviewCollectionPolicy(configuration.policy)) !== canonicalJson(policy)) return {
+      requestsIssued: 0, costUsd: '0', coverage: { ...base, state: 'UNAVAILABLE', note: 'Frozen review policy requires its explicit configured collector.' },
+      limitation: { provider: 'apify-shopee', code: 'REVIEW_POLICY_NOT_CONFIGURED', message: 'No raw/native substitution or revenue coverage admission.' } };
+    const attempt = configuration.factory();
+    try {
+      signal?.throwIfAborted();
+      assertReviewPolicyCollector(policy, attempt.collector);
+      const bytes = Buffer.from(canonicalJson(exactShopeeRequest(input)));
+      const prior = await this.#collections.existingExact(bytes, attempt.collector.mode, { privacy: true });
+      const collector: ShopeeCollector = { mode: attempt.collector.mode, privacyProfile: attempt.collector.privacyProfile,
+        collect: (...args) => { assertReviewPolicyCollector(policy, attempt.collector); return attempt.collector.collect(...args); } };
+      const source = await this.#collections.collectExact(bytes, collector, { privacy: true }, signal);
+      // Canonical accounting is produced only by a later owning hook with its confirmed source-set binding.
+      if (source.packet.actor.settings.maxReviewsPerProduct !== policy.collector.maxReviewsPerProduct ||
+          source.packet.actor.settings.maxChargeUsd !== policy.collector.maxChargeUsd ||
+          source.packet.actor.settings.contentFilter !== policy.collector.contentFilter) throw new Error('Retained collector policy differs');
+      return { privateReference: { privateVersion: '3.0.0', collectionId: source.packet.collectionId,
+        collectionSha256: source.sha256, requestSha256: source.packet.requestSha256 },
+        requestsIssued: attempt.requestsIssued(), costUsd: prior ? '0' : source.packet.actor.usageTotalUsd === null ? null : safeCost(String(source.packet.actor.usageTotalUsd)),
+        coverage: { ...base, state: 'PARTIAL', note: 'Owner-selected private reviews retained; authenticated revenue coverage is unavailable.' },
+        limitation: { provider: 'apify-shopee', code: 'AUTHENTIC_MEASUREMENT_PERIOD_UNAVAILABLE', message: 'Dataset exhaustion does not establish product population. Saturation requires source-bound coding.' } };
+    } catch {
+      return { requestsIssued: attempt.requestsIssued(), costUsd: null,
+        coverage: { ...base, state: signal?.aborted ? 'CANCELLED' : 'FAILED', note: 'No finalized policy-bound private source; incomplete pages remain diagnostics.' },
+        limitation: { provider: 'apify-shopee', code: 'REVIEW_POLICY_CAPTURE_FAILED', message: 'Verify the existing journal; no automatic replacement paid dispatch.' } };
+    }
+  }
+
+  #policy(input: ExactShopeeRunInput): AutomationReviewCollectionPolicy {
+    const policy = reviewCollectionPolicy(input.start.reviewCollectionPolicy);
+    if (input.runId !== input.scope.runId || input.start.workspaceId !== input.scope.workspaceId ||
+        canonicalJson(policy.privateSource) !== canonicalJson(privateShopeeMarker(input.start.privateShopeeSource ?? input.privateShopeeSource)))
+      throw new Error('Review policy frozen run/private source binding differs');
+    selectExactShopeeListings(exactShopeeRequest(input));
+    return policy;
+  }
+
+  async reviewSample(reference: PrivateReviewReference, input: ExactShopeeRunInput, binding: PrivateReviewBinding): Promise<AutomationReviewSample> {
+    this.#assertPrivateBinding(input, binding);
+    return buildReviewSample(await this.readPrivate(reference, input), this.#policy(input), binding);
+  }
+  async verifySample(value: unknown, reference: PrivateReviewReference, input: ExactShopeeRunInput, binding: PrivateReviewBinding): Promise<AutomationReviewSample> {
+    this.#assertPrivateBinding(input, binding);
+    return verifyReviewSample(value, await this.readPrivate(reference, input), this.#policy(input), binding);
   }
 
   async #collectPrivate(input: ExactShopeeRunInput, signal?: AbortSignal): Promise<ExactShopeeAttempt> {

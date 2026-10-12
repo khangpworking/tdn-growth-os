@@ -1,0 +1,474 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/video-reading-v1.schema.json",
+  "title": "VideoReadingV1",
+  "description": "Exact operator-supplied local segment/on-screen/frame evidence bound to the owning frozen run and video selection. Inert preparation, distinct seller/creator voice; no watch, cloud, transcription, model/coding call or source admission.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/request"
+    },
+    {
+      "$ref": "#/$defs/reading"
+    },
+    {
+      "$ref": "#/$defs/readView"
+    },
+    {
+      "$ref": "#/$defs/receipt"
+    },
+    {
+      "$ref": "#/$defs/history"
+    }
+  ],
+  "$defs": {
+    "input": {
+      "title": "OperatorVideoReading",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "videoUrl",
+        "videoKind",
+        "durationSeconds",
+        "segments",
+        "onScreenText",
+        "frames"
+      ],
+      "properties": {
+        "videoUrl": {
+          "type": "string",
+          "pattern": "^https://www\\.tiktok\\.com/@[A-Za-z0-9._]{1,64}/video/[1-9][0-9]{0,19}$"
+        },
+        "videoKind": {
+          "enum": [
+            "SELLER_VIDEO",
+            "REVIEW_VIDEO"
+          ]
+        },
+        "durationSeconds": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 86400
+        },
+        "segments": {
+          "type": "array",
+          "items": {
+            "title": "OperatorVideoSegment",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "startSeconds",
+              "endSeconds",
+              "text",
+              "captionSource"
+            ],
+            "properties": {
+              "startSeconds": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 86400
+              },
+              "endSeconds": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 86400
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              },
+              "captionSource": {
+                "enum": [
+                  "NATIVE",
+                  "SPEECH_TO_TEXT"
+                ]
+              }
+            }
+          },
+          "maxItems": 10000,
+          "minItems": 1
+        },
+        "onScreenText": {
+          "type": "array",
+          "items": {
+            "title": "OperatorVideoOnScreenText",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "startSeconds",
+              "endSeconds",
+              "text"
+            ],
+            "properties": {
+              "startSeconds": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 86400
+              },
+              "endSeconds": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 86400
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              }
+            }
+          },
+          "maxItems": 10000,
+          "minItems": 0
+        },
+        "frames": {
+          "type": "array",
+          "items": {
+            "title": "OperatorVideoFrame",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "atSeconds",
+              "logicalPath",
+              "sha256"
+            ],
+            "properties": {
+              "atSeconds": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 86400
+              },
+              "logicalPath": {
+                "type": "string",
+                "pattern": "^frames/[A-Za-z0-9_-]{1,80}\\.(png|jpg)$"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            }
+          },
+          "maxItems": 1000,
+          "minItems": 0
+        }
+      }
+    },
+    "binding": {
+      "title": "VideoReadingBinding",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workspaceId",
+        "runId",
+        "scopeSha256",
+        "sourceSetSha256",
+        "selectionSha256"
+      ],
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "scopeSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "sourceSetSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "selectionSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "sourcePackage": {
+      "title": "TikTokSourcePackageIdentity",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "packageId",
+        "manifestArtifactSha256",
+        "packageContentSha256"
+      ],
+      "properties": {
+        "packageId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "manifestArtifactSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "packageContentSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "request": {
+      "title": "VideoReadingPrepareRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "requestKey",
+        "expectedRevision",
+        "selectionPackage",
+        "input"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "video-reading-prepare-request-v1"
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "expectedRevision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "selectionPackage": {
+          "$ref": "#/$defs/sourcePackage"
+        },
+        "input": {
+          "$ref": "#/$defs/input"
+        }
+      }
+    },
+    "reading": {
+      "title": "PreparedVideoReading",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "registryId",
+        "workspaceId",
+        "runId",
+        "scopeSha256",
+        "sourceSetSha256",
+        "selectionSha256",
+        "provenance",
+        "state",
+        "voice",
+        "input",
+        "limitations"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "video-reading-v1"
+        },
+        "registryId": {
+          "const": "S14"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "scopeSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "sourceSetSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "selectionSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "provenance": {
+          "const": "OPERATOR_SUPPLIED_UNVERIFIED"
+        },
+        "state": {
+          "const": "PREPARED_NOT_ADMITTED"
+        },
+        "voice": {
+          "enum": [
+            "SELLER",
+            "CREATOR"
+          ]
+        },
+        "input": {
+          "$ref": "#/$defs/input"
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "maxItems": 20,
+          "minItems": 1
+        }
+      }
+    },
+    "readRow": {
+      "title": "VideoReadingReadRow",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "voice",
+        "captionSource",
+        "startSeconds",
+        "endSeconds",
+        "citation"
+      ],
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        },
+        "voice": {
+          "enum": [
+            "SELLER",
+            "CREATOR"
+          ]
+        },
+        "captionSource": {
+          "enum": [
+            "NATIVE",
+            "SPEECH_TO_TEXT"
+          ]
+        },
+        "startSeconds": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 86400
+        },
+        "endSeconds": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 86400
+        },
+        "citation": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "readView": {
+      "title": "VideoReadingReadView",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "registryId",
+        "rows",
+        "limitations"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "video-reading-read-v1"
+        },
+        "registryId": {
+          "const": "S14"
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/readRow"
+          },
+          "maxItems": 10000,
+          "minItems": 0
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "maxItems": 20,
+          "minItems": 1
+        }
+      }
+    },
+    "receipt": {
+      "title": "VideoReadingSourceReceipt",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "requestKey",
+        "package",
+        "readingSha256",
+        "exactRetry",
+        "state"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "video-reading-source-receipt-v1"
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "package": {
+          "$ref": "#/$defs/sourcePackage"
+        },
+        "readingSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "exactRetry": {
+          "type": "boolean"
+        },
+        "state": {
+          "const": "PREPARED_NOT_ADMITTED"
+        }
+      }
+    },
+    "history": {
+      "title": "VideoReadingSourceHistory",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "workspaceId",
+        "runId",
+        "sources"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "video-reading-source-history-v1"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/receipt"
+          },
+          "maxItems": 1000,
+          "minItems": 0
+        }
+      }
+    }
+  }
+}

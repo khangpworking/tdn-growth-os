@@ -1,0 +1,70 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "selectionBasis",
+    "targetReviews",
+    "hardMaximum",
+    "comparisonTextMinimum",
+    "saturation",
+    "privateSource",
+    "collector"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": "automation-review-collection-policy-v1"
+    },
+    "selectionBasis": {
+      "const": "OWNER_EXACT_URL"
+    },
+    "targetReviews": {
+      "const": 300
+    },
+    "hardMaximum": {
+      "const": 500
+    },
+    "comparisonTextMinimum": {
+      "const": 30
+    },
+    "saturation": {
+      "const": "SOURCE_BOUND_CODING_UNAVAILABLE"
+    },
+    "privateSource": {
+      "$ref": "automation-private-shopee-source.schema.json"
+    },
+    "collector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "actorId",
+        "maxReviewsPerProduct",
+        "contentFilter",
+        "maxChargeUsd"
+      ],
+      "properties": {
+        "actorId": {
+          "const": "zen-studio/shopee-product-reviews-scraper"
+        },
+        "maxReviewsPerProduct": {
+          "const": 300
+        },
+        "contentFilter": {
+          "enum": [
+            "all",
+            "with comments"
+          ]
+        },
+        "maxChargeUsd": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 10000
+        }
+      }
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/automation-review-collection-policy.schema.json",
+  "title": "AutomationReviewCollectionPolicy",
+  "description": "Explicit trusted injected selected-listing capture policy, frozen for new starts only. Private internal profile is not a public/model/report field; no salt."
+}

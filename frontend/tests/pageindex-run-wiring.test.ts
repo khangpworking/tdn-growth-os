@@ -39,7 +39,7 @@ test('run progress refreshes an initially empty PDF inventory and displays PDFs 
       pdfReads++; signals.push(init!.signal as AbortSignal);
       return json({ ...states(currentRun.status === 'DRAFT_READY' ? [{ fileName: 'collected-evidence.pdf', sourceSha256: sha, state: 'READY', cloudDocId: null }] : []), paused: false });
     }
-    if (String(url).endsWith('/reader-reports')) return json({ contractVersion: 'reader-report-list-v1', workspaceId, runId, revisions: [] });
+    if (String(url).endsWith('/reader-reports/v2')) return json({ contractVersion: 'reader-report-list-v2', workspaceId, runId, revisions: [] });
     return json(currentRun);
   }) as typeof fetch;
   t.after(async () => {
@@ -81,7 +81,7 @@ test('real run page loads PDF states, makes one explicit bounded attachment, and
       acknowledge();
       return json(inventory);
     }
-    if (String(url).endsWith('/reader-reports')) return json({ contractVersion: 'reader-report-list-v1', workspaceId, runId, revisions: [] });
+    if (String(url).endsWith('/reader-reports/v2')) return json({ contractVersion: 'reader-report-list-v2', workspaceId, runId, revisions: [] });
     return json(String(url).endsWith('/pageindex') ? inventory : run);
   }) as typeof fetch;
   t.after(async () => { await act(async () => root.unmount()); globalThis.fetch = prior; dom.cleanup(); });

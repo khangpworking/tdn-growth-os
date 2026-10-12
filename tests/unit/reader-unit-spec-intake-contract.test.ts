@@ -40,3 +40,16 @@ test('intake canonical contract binds new envelope without altering historical b
   assert.equal(valid('unitSpecIntakeRequest', { ...metadata, workspaceId: request.metricPackageId }), false, 'server binds route identity');
   assert.equal(valid('unitSpecIntakeRequest', { ...metadata, unitPrices: { ...packet, records: [] } }), false);
 });
+
+test('Reader v2 receipt admits the source-bound qualitative v9 revision without persona fields', () => {
+  const revision = {
+    revisionId: '11111111-1111-4111-8111-111111111111', revisionNumber: 1,
+    workspaceId: '22222222-2222-4222-8222-222222222222', runId: '33333333-3333-4333-8333-333333333333',
+    state: 'PENDING_OWNER_REVIEW', draftPairId: 'a'.repeat(64), htmlSha256: 'b'.repeat(64),
+    createdAt: '2026-10-11T12:00:00.000Z', decision: null, reportKind: 'INSIGHT',
+    builderVersion: 'reader-report-insight-v9', semanticSha256: 'c'.repeat(64), sourceReportSha256: 'd'.repeat(64),
+  };
+  assert.equal(valid('buildReceiptV2', { contractVersion: 'reader-report-build-receipt-v2', exactRetry: false, revision }), true);
+  assert.equal(valid('buildReceiptV2', { contractVersion: 'reader-report-build-receipt-v2', exactRetry: false,
+    revision: { ...revision, personaProposalId: revision.runId } }), false, 'qualitative output stays persona-free');
+});

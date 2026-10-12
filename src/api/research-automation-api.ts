@@ -2,7 +2,9 @@ import metaPageApiSchema from '../../contracts/api/research-automation-meta-page
 import metaPageSourceSchema from '../../contracts/analysis/meta-page-source-v1.schema.json' with { type: 'json' };
 import metaL9Schema from '../../contracts/analysis/keyword-meaning-filter.schema.json' with { type: 'json' };
 import { MetaPageSourceRejection } from '../modules/analysis/research-automation/meta-page-intake.js';
+import { personaReportRequestValid, personaRequestValid, personaResponseValid, personaViewValid, personaEvidenceValid } from '../modules/analysis/research-automation/insight-persona-contracts.js';
 import { createKeywordCliproxyTransport, type KeywordDraftConfiguration } from '../modules/analysis/research-automation/keyword-cliproxy-transport.js';
+import { TypesafeJevClient, type TypesafeJevConfiguration } from '../platform/ai/typesafe-jev-client.js';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -22,10 +24,13 @@ import metricRuleSchema from '../../contracts/analysis/automation-metric-rule-ad
 import membershipSchema from '../../contracts/analysis/automation-metric-membership.schema.json' with { type: 'json' };
 import membershipApiSchema from '../../contracts/api/research-automation-metric-membership-api.schema.json' with { type: 'json' };
 import insightRevisionRequestSchema from '../../contracts/analysis/automation-insight-report-revision.schema.json' with { type: 'json' };
+import qualitativeDraftSchema from '../../contracts/analysis/automation-qualitative-draft-v1.schema.json' with { type: 'json' };
 import boundedRevisionRequestSchema from '../../contracts/analysis/automation-bounded-report-revision.schema.json' with { type: 'json' };
 import quoteRevisionRequestSchema from '../../contracts/analysis/automation-quote-report-revision.schema.json' with { type: 'json' };
 import locatedInsightSchema from '../../contracts/analysis/located-insight-methods.schema.json' with { type: 'json' };
 import insightSelectionSchema from '../../contracts/analysis/automation-insight-selection.schema.json' with { type: 'json' };
+import privateInsightSourceSchema from '../../contracts/analysis/private-insight-source-projection.schema.json' with { type: 'json' };
+import { registerPrivateReviewSchemas } from '../modules/analysis/research-automation/private-review-contracts.js';
 import insightCodingSchema from '../../contracts/analysis/automation-insight-coding.schema.json' with { type: 'json' };
 import insightCodingApiSchema from '../../contracts/api/research-automation-insight-coding-api.schema.json' with { type: 'json' };
 import insightModelSchema from '../../contracts/analysis/automation-insight-model.schema.json' with { type: 'json' };
@@ -34,6 +39,18 @@ import readerInputSchema from '../../contracts/analysis/reader-report-input.sche
 import defaultPeerSchema from '../../contracts/analysis/default-market-peers.schema.json' with { type: 'json' };
 import readerApiSchema from '../../contracts/api/research-automation-reader-report-api.schema.json' with { type: 'json' };
 import sourceStatusSchema from '../../contracts/api/research-automation-source-status-api.schema.json' with { type: 'json' };
+import p9CommentsSchema from '../../contracts/analysis/tiktok-comment-collection-v1.schema.json' with { type: 'json' };
+import p9LegacyReadingSchema from '../../contracts/analysis/video-reading-v1.schema.json' with { type: 'json' };
+import p9ReadingSchema from '../../contracts/analysis/video-reading-v2.schema.json' with { type: 'json' };
+import p9KeywordSchema from '../../contracts/analysis/keyword-meaning-filter.schema.json' with { type: 'json' };
+import type { TikTokSourcePackageIdentity } from '../../contracts/analysis/tiktok-comment-collection-v1.generated.js';
+import { P9SourceError } from '../modules/analysis/research-automation/p9-source-intake.js';
+import tiktokCodingSchema from '../../contracts/analysis/tiktok-coding-proposal-v1.schema.json' with { type: 'json' };
+import { TikTokCodingError, TikTokCodingTransportError } from '../modules/analysis/research-automation/tiktok-coding.js';
+import shopeeCodingSchema from '../../contracts/analysis/shopee-review-coding-v1.schema.json' with { type: 'json' };
+import { ShopeeCodingError, ShopeeCodingTransportError } from '../modules/analysis/research-automation/shopee-coding.js';
+import type { ShopeeReviewCodingConfiguration } from '../../contracts/analysis/shopee-review-coding-configuration-v1.generated.js';
+import type { TikTokCodingConfiguration } from '../../contracts/analysis/tiktok-coding-configuration-v1.generated.js';
 import { buildResearchAutomationSourceStatus } from '../modules/analysis/research-automation/source-status.js';
 import type { ResearchInsightModelResponse } from '../../contracts/api/research-automation-insight-model-api.generated.js';
 import type { InsightModelConfiguration } from '../modules/analysis/research-automation/insight-model-execution.js';
@@ -42,6 +59,9 @@ import { LocatedInsightValidationError } from '../modules/analysis/located-insig
 import { MAX_INSIGHT_CODING_BYTES } from '../modules/analysis/research-automation/insight-coding.js';
 import { MetricSourceRejection } from '../modules/analysis/metric-source-profile.js';
 import { MAX_METRIC_UPLOAD_BYTES } from '../modules/analysis/research-automation/metric-source-intake.js';
+import worldBankSourceSchema from '../../contracts/analysis/world-bank-intake-v1.schema.json' with { type: 'json' };
+import macroIntakeApiSchema from '../../contracts/api/research-automation-macro-intake-api.schema.json' with { type: 'json' };
+import { MAX_WORLD_BANK_FILE_BYTES, WorldBankSourceRejection } from '../modules/analysis/research-automation/world-bank-intake.js';
 import { MAX_SUPPLEMENTAL_FILE_BYTES, MAX_SUPPLEMENTAL_TOTAL_BYTES, SupplementalSourceRejection } from '../modules/analysis/research-automation/supplemental-source-intake.js';
 import kalodataVideoIntakeSchema from '../../contracts/analysis/kalodata-video-intake-v1.schema.json' with { type: 'json' };
 import { AutomationKalodataVideoIntake, KalodataVideoRejection, MAX_VIDEO_UPLOAD_BYTES, readPreparedKalodataVideoSources } from '../modules/analysis/research-automation/kalodata-video-intake.js';
@@ -50,6 +70,7 @@ import { withDatabaseMutationMutex } from '../platform/db/database-mutation-mute
 import { MAX_UNIT_SPEC_FILE_BYTES, MAX_UNIT_SPEC_TOTAL_BYTES, MAX_UNIT_SPEC_FILES } from '../modules/analysis/research-automation/reader-unit-spec-intake.js';
 import { RequestScopedArtifactStore } from './request-scoped-artifact-store.js';
 import { SourcePackageRequestConflictError, SourcePackageService } from '../modules/foundation/source-package-service.js';
+import { FoundationValidationError } from '../modules/foundation/validation.js';
 import { ContentAddressedArtifactStore } from '../platform/artifacts/artifact-store.js';
 import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../modules/flow/index.js';
 import { ResearchAutomationService } from '../modules/analysis/research-automation/service.js';
@@ -60,7 +81,7 @@ import { buildResearchAutomationReport } from '../modules/analysis/research-auto
 import { createChromiumPdfRenderer } from '../modules/analysis/research-automation/pdf.js';
 import { crosscheckRequestValid, crosscheckResponseValid } from '../modules/analysis/research-automation/insight-crosscheck-contracts.js';
 import { insightCodingDigest } from '../modules/analysis/research-automation/insight-default-coding.js';
-import { createI14CliproxySynthesisAi, createDecisionCliproxySynthesisAi, createInsightCodingCliproxyAi } from '../modules/analysis/research-automation/i14-cliproxy-transport.js';
+import { createI14CliproxySynthesisAi, createDecisionCliproxySynthesisAi, createInsightCodingCliproxyAi, createTikTokCodingCliproxyAi, createShopeeCodingCliproxyAi } from '../modules/analysis/research-automation/i14-cliproxy-transport.js';
 import type { AutomationI14SynthesisConfiguration } from '../modules/analysis/research-automation/i14-synthesis-execution.js';
 import type { AutomationDecisionSynthesisConfiguration, AutomationDecisionExecutionRequest } from '../modules/analysis/research-automation/decision-synthesis-execution.js';
 import type { AutomationDecisionSectionId } from '../modules/analysis/research-automation/decision-packets.js';
@@ -70,8 +91,18 @@ import { ResearchAutomationConflictError, ResearchAutomationNotFoundError, Resea
 import { assertOwnerHttpConfiguration, EmptyBodyError, ownerAuthorized, PayloadTooLargeError, readOwnerBytes, sendApiJson, singleHeader, type OwnerHttpConfiguration } from './owner-http.js';
 
 export interface ResearchAutomationApiConfiguration {
+  /** Trusted injected optional capture policy; never accepted from an HTTP caller. */
+  readonly reviewCollection?: import('../modules/analysis/research-automation/service.js').ResearchAutomationServiceOptions['reviewCollection'];
+  /** Explicit injected collector/profile and approved cap; absent never activates P9. */
+  readonly tikTokCommentsCollector?: import('../platform/collectors/apify-tiktok-comments.js').ApifyTikTokCommentsCollector;
+  /** Explicit TikTok draft-coding model; absent refuses model dispatch, never a default model. */
+  readonly tiktokCoding?: { readonly cliproxy: CliproxyConfiguration; readonly configuration: TikTokCodingConfiguration };
+  /** Explicit Shopee draft-coding model; absent refuses model dispatch, never a default model. */
+  readonly shopeeCoding?: { readonly cliproxy: CliproxyConfiguration; readonly configuration: ShopeeReviewCodingConfiguration };
   /** Independently configured list drafting; other model flags grant no calls here. */
   readonly keywordDrafting?: { readonly cliproxy: CliproxyConfiguration; readonly configuration: KeywordDraftConfiguration };
+  /** Opt-in L9 second pass for the OWNER writer only; absent keeps the deterministic gate unchanged. */
+  readonly researchJev?: TypesafeJevConfiguration;
   readonly pageIndex?: import('../modules/analysis/research-automation/service.js').ResearchAutomationServiceOptions['pageIndex'];
   readonly databasePath: string;
   readonly artifactRoot: string;
@@ -115,18 +146,45 @@ ajv.addSchema([foundationIntakeSchema, supplementalIntakeSchema]);
 ajv.addSchema(kalodataVideoIntakeSchema);
 ajv.addSchema(metricRuleSchema);
 ajv.addSchema(membershipSchema); ajv.addSchema(membershipApiSchema);
-ajv.addSchema(insightRevisionRequestSchema);
+ajv.addSchema(qualitativeDraftSchema); ajv.addSchema(insightRevisionRequestSchema);
 ajv.addSchema(boundedRevisionRequestSchema);
 ajv.addSchema(quoteRevisionRequestSchema);
+registerPrivateReviewSchemas(ajv); ajv.addSchema(privateInsightSourceSchema);
 ajv.addSchema(locatedInsightSchema); ajv.addSchema(insightSelectionSchema); ajv.addSchema(insightCodingSchema); ajv.addSchema(insightCodingApiSchema);
 ajv.addSchema(insightModelSchema); ajv.addSchema(insightModelApiSchema);
 ajv.addSchema(readerInputSchema); ajv.addSchema(readerApiSchema);
 ajv.addSchema(sourceStatusSchema);
+ajv.addSchema([p9KeywordSchema, p9CommentsSchema, p9LegacyReadingSchema, p9ReadingSchema]);
+ajv.addSchema(tiktokCodingSchema);
+ajv.addSchema(shopeeCodingSchema);
+const historicalRevisionValid = ajv.compile({ oneOf: [{ $ref: revisionRequestSchema.$id }, { $ref: classifiedRevisionRequestSchema.$id }, { $ref: insightRevisionRequestSchema.$id }, { $ref: boundedRevisionRequestSchema.$id }, { $ref: quoteRevisionRequestSchema.$id }, { $ref: marketPresentationRevisionSchema.$id }] });
 const validates = {
+  tiktokPropose: ajv.compile({ $ref: `${tiktokCodingSchema.$id}#/$defs/proposeRequest` }),
+  tiktokReceipt: ajv.compile({ $ref: `${tiktokCodingSchema.$id}#/$defs/receipt` }),
+  tiktokHistory: ajv.compile({ $ref: `${tiktokCodingSchema.$id}#/$defs/history` }),
+  tiktokReadView: ajv.compile({ $ref: `${tiktokCodingSchema.$id}#/$defs/readView` }),
+  tiktokReport: ajv.compile({ $ref: `${tiktokCodingSchema.$id}#/$defs/report` }),
+  tiktokContext: ajv.compile({ $ref: `${tiktokCodingSchema.$id}#/$defs/context` }),
+  tiktokConsumption: ajv.compile({ $ref: `${tiktokCodingSchema.$id}#/$defs/consumptionView` }),
+  tiktokReaderBuild: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/tiktokBuildRequest` }),
+  shopeePropose: ajv.compile({ $ref: `${shopeeCodingSchema.$id}#/$defs/proposeRequest` }),
+  shopeeReceipt: ajv.compile({ $ref: `${shopeeCodingSchema.$id}#/$defs/receipt` }),
+  shopeeHistory: ajv.compile({ $ref: `${shopeeCodingSchema.$id}#/$defs/history` }),
+  shopeeReadView: ajv.compile({ $ref: `${shopeeCodingSchema.$id}#/$defs/readView` }),
+  shopeeReport: ajv.compile({ $ref: `${shopeeCodingSchema.$id}#/$defs/report` }),
+  shopeeContext: ajv.compile({ $ref: `${shopeeCodingSchema.$id}#/$defs/context` }),
+  shopeeSamples: ajv.compile({ $ref: `${shopeeCodingSchema.$id}#/$defs/sampleSelection` }),
+  shopeeConsumption: ajv.compile({ $ref: `${shopeeCodingSchema.$id}#/$defs/consumptionView` }),
+  shopeeReaderBuild: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/shopeeBuildRequest` }),
+  p9Selection: ajv.compile({ $ref: `${p9CommentsSchema.$id}#/$defs/selectionRequest` }),
+  p9Package: ajv.compile({ $ref: `${p9CommentsSchema.$id}#/$defs/sourcePackage` }),
+  p9Receipt: ajv.compile({ $ref: `${p9CommentsSchema.$id}#/$defs/receipt` }),
+  p9ReadingRequest: ajv.compile({ $ref: `${p9LegacyReadingSchema.$id}#/$defs/request` }),
+  p9ReadingReceipt: ajv.compile({ $ref: `${p9ReadingSchema.$id}#/$defs/receipt` }),
   start: ajv.compile({ $ref: `${schema.$id}#/$defs/startRequest` }),
   confirm: ajv.compile({ oneOf: [{ $ref: `${schema.$id}#/$defs/confirmRequest` }, { $ref: sourceSchema.$id }] }),
   cancel: ajv.compile({ $ref: `${schema.$id}#/$defs/cancelRequest` }),
-  revision: ajv.compile({ oneOf: [{ $ref: revisionRequestSchema.$id }, { $ref: classifiedRevisionRequestSchema.$id }, { $ref: insightRevisionRequestSchema.$id }, { $ref: boundedRevisionRequestSchema.$id }, { $ref: quoteRevisionRequestSchema.$id }, { $ref: marketPresentationRevisionSchema.$id }] }),
+  revision: (value: unknown) => personaReportRequestValid(value) || historicalRevisionValid(value),
   revisionCancel: ajv.compile({ $ref: `${revisionSchema.$id}#/$defs/cancelRequest` }),
   revisionReceipt: ajv.compile({ $ref: `${revisionSchema.$id}#/$defs/receipt` }),
   versionList: ajv.compile({ $ref: `${revisionSchema.$id}#/$defs/versionList` }),
@@ -151,8 +209,8 @@ const validates = {
   insightLiteralPropose: ajv.compile({ $ref: `${insightCodingApiSchema.$id}#/$defs/literalProposeRequest` }),
   insightAccept: ajv.compile({ $ref: `${insightCodingApiSchema.$id}#/$defs/acceptRequest` }),
   insightMutation: ajv.compile({ $ref: `${insightCodingApiSchema.$id}#/$defs/mutation` }),
-  insightView: ajv.compile({ $ref: `${insightCodingApiSchema.$id}#/$defs/anyView` }),
-  insightDefaultModelRequest: ajv.compile({ $ref: `${insightModelApiSchema.$id}#/$defs/defaultRequest` }),
+  insightView: ajv.compile({ $ref: `${insightCodingApiSchema.$id}#/$defs/versionedView` }),
+  insightDefaultModelRequest: ajv.compile({ $ref: `${insightModelApiSchema.$id}#/$defs/defaultSubmission` }),
     insightModelRequest: ajv.compile({ $ref: `${insightModelApiSchema.$id}#/$defs/request` }),
   insightModelResponse: ajv.compile({ $ref: `${insightModelApiSchema.$id}#/$defs/response` }),
   sourceStatus: ajv.compile({ $ref: `${sourceStatusSchema.$id}#/$defs/status` }),
@@ -165,9 +223,19 @@ const validates = {
   readerDecision: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/decisionRequest` }),
   readerDecisionReceipt: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/decisionReceipt` }),
   readerList: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/list` }),
+  insightReaderBuild: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/insightBuildRequest` }),
+  readerBuildReceiptV2: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/buildReceiptV2` }),
+  readerDecisionV2: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/decisionRequestV2` }),
+  readerDecisionReceiptV2: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/decisionReceiptV2` }),
+  readerListV2: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/listV2` }),
 };
 /** Inline JSON body of a reader build: profile, declared source and an optional inline cover image. */
 const MAX_READER_BUILD_BYTES = 4 * 1024 * 1024 + 512 * 1024;
+// Independent compiler: this source does not alter any historical route's AJV profile or validators.
+const macroAjv = new Ajv({ strict: true, allErrors: true }); addFormats(macroAjv);
+macroAjv.addSchema(worldBankSourceSchema); macroAjv.addSchema(macroIntakeApiSchema);
+const macroValidates = Object.fromEntries(['prepareRequest', 'prepareReceipt', 'confirmRequest', 'view', 'history'].map(name =>
+  [name, macroAjv.getSchema(`${macroIntakeApiSchema.$id}#/$defs/${name}`)!]));
 const REPORT_CSP = "default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src data:; base-uri 'none'; form-action 'none'";
 /** The reader page keeps its own small inline scripts (appendix filter); only their exact hashes may run. */
 function readerCsp(html: Buffer): string {
@@ -202,8 +270,14 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       throw new TypeError('Automation OWNER configuration must match its read application');
     }
   }
+  if (configuration.reviewCollection && !configuration.owner) throw new TypeError('Review collection policy requires the OWNER writer');
   if (configuration.i14Synthesis && !configuration.owner) throw new TypeError('Automation I14 synthesis requires the OWNER writer');
   if (configuration.keywordDrafting && !configuration.owner) throw new TypeError('Keyword drafting requires the OWNER writer');
+  if (configuration.tikTokCommentsCollector && !configuration.owner) throw new TypeError('P9 collection requires the OWNER writer');
+  if (configuration.tikTokCommentsCollector &&
+    (!Boolean(configuration.providers?.apifyTokenConfigured || configuration.providers?.apifyReviews) ||
+      configuration.providers?.apifyTikTokComments?.maxChargeUsd !== configuration.tikTokCommentsCollector.collectionConfiguration.approvedMaxTotalChargeUsd))
+    throw new TypeError('P9 collection requires the existing configured credential and the same explicitly approved cap');
   const keywordTransport = configuration.keywordDrafting ? createKeywordCliproxyTransport(configuration.keywordDrafting) : undefined;
   const sourceEvidence = { modelIdentity: configuration.keywordDrafting ? `cliproxy:${configuration.keywordDrafting.configuration.modelId}` : 'unconfigured',
     promptVersion: 'l9-keyword-prompt-v1', ...(configuration.keywordDrafting ? { configuration: configuration.keywordDrafting.configuration } : {}) };
@@ -212,6 +286,12 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
   if (configuration.insightCrosscheck && !configuration.owner) throw new TypeError('Crosscheck requires the OWNER writer');
   const insightCrosscheckAi = configuration.insightCrosscheck ? createInsightCodingCliproxyAi(configuration.insightCrosscheck) : null;
   const insightCodingAi = configuration.insightCoding ? createInsightCodingCliproxyAi(configuration.insightCoding) : null;
+  if (configuration.tiktokCoding && !configuration.owner) throw new TypeError('TikTok coding model requires the OWNER writer');
+  const tiktokCodingAi = configuration.tiktokCoding ? createTikTokCodingCliproxyAi(configuration.tiktokCoding) : null;
+  if (configuration.shopeeCoding && !configuration.owner) throw new TypeError('Shopee coding model requires the OWNER writer');
+  const shopeeCodingAi = configuration.shopeeCoding ? createShopeeCodingCliproxyAi(configuration.shopeeCoding) : null;
+  if (configuration.researchJev?.enabled && !configuration.owner) throw new TypeError('L9 second pass requires the OWNER writer');
+  const l9Jev = configuration.researchJev?.enabled ? new TypesafeJevClient(configuration.researchJev) : undefined;
   if (configuration.decisionSynthesis && !configuration.owner) throw new TypeError('Automation decision synthesis requires the OWNER writer');
   const decisionSynthesisAi: Partial<Record<AutomationDecisionSectionId, AutomationDecisionExecutionRequest['ai']>> = {};
   if (configuration.decisionSynthesis) {
@@ -249,6 +329,9 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       const webSource = configuration.providers?.serpApiKey ? bindResearchAutomationProvider(registry.get('SERPAPI')) : undefined;
       if (configuration.pdfExecutablePath) pdf = createChromiumPdfRenderer({ executablePath: configuration.pdfExecutablePath });
       writeService = create(writer, {
+        ...(configuration.reviewCollection ? { reviewCollection: configuration.reviewCollection } : {}),
+        ...(configuration.tikTokCommentsCollector ? { tikTokCommentsCollector: configuration.tikTokCommentsCollector } : {}),
+        ...(l9Jev ? { l9Jev } : {}),
         sourceEvidence: { ...sourceEvidence, ...(keywordTransport ? { transport: keywordTransport } : {}) },
         metricAttachmentStore: new RequestScopedArtifactStore(path.resolve(configuration.artifactRoot)),
         actorId: configuration.owner.actorId, source: bindResearchAutomationProvider(selected), ...(webSource ? { webSource } : {}),
@@ -312,6 +395,8 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     if (!match) return fail(response, 404, 'not_found', 'Route not found');
     const [, prefix, workspaceId, runId, action] = match;
     const originalReport = /^reports\/(market|insight)(\/pdf)?$/.exec(action ?? '');
+    const worldBankRead = /^sources\/world-bank\/([0-9a-f-]{36})\/([0-9a-f]{64})\/([0-9a-f]{64})(?:\/(display|ratio))?$/.exec(action ?? '');
+    const worldBankWrite = action === 'sources/world-bank' || action === 'sources/world-bank/confirm';
     const versionReport = /^report-versions\/([0-9a-f]{64})\/reports\/(market|insight)(\/pdf)?$/.exec(action ?? '');
     const revisionRead = /^report-attempts\/([0-9a-f-]{36})$/.exec(action ?? '');
     const revisionCancel = /^report-attempts\/([0-9a-f-]{36})\/cancel$/.exec(action ?? '');
@@ -323,21 +408,44 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     const crosscheckRead = /^insight-crosscheck-preparations\/([0-9a-f-]{36})$/.exec(action ?? '');
     const crosscheckAvailability = /^insight-crosscheck-availability\/([0-9a-f]{64})$/.exec(action ?? '');
     const insightRead = /^insight-coding\/([0-9a-f]{64})$/.exec(action ?? '');
+    const personaWrite = action === 'insight-persona-model-proposals';
+    const personaList = /^insight-personas\/([0-9a-f]{64})$/.exec(action ?? '');
+    const personaRead = /^insight-persona-evidence\/([0-9a-f-]{36})$/.exec(action ?? '');
     const insightWrite = action !== undefined && Object.hasOwn(insightWrites, action) ? insightWrites[action as keyof typeof insightWrites] : undefined;
     const insightDefaultModelWrite = action === 'insight-coding-default-model-proposals';
     const insightModelWrite = action === 'insight-coding-model-proposals' || insightDefaultModelWrite;
     const readerHtml = /^reader-reports\/([0-9a-f-]{36})\/html$/.exec(action ?? '');
     const metaRead = /^sources\/meta-page\/([0-9a-f-]{36})$/.exec(action ?? '');
     const metaWrite = action === 'sources/meta-page' || action === 'sources/meta-page/confirm';
+    const readerPdf = /^reader-reports\/([0-9a-f-]{36})\/pdf$/.exec(action ?? '');
     const readerUnitSpecIntake = action === 'reader-reports/unit-spec-intakes';
-    const readerAction = readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions' || Boolean(readerHtml);
+    const insightReaderBuild = action === 'reader-reports/insight';
+    const readerDecisionV2 = action === 'reader-reports/decisions/v2';
+    const readerListV2 = action === 'reader-reports/v2';
+    const tiktokContextRead = /^sources\/tiktok-coding\/context\/([0-9a-f-]{36})$/.exec(action ?? '');
+    const tiktokRead = /^sources\/tiktok-coding\/([0-9a-f-]{36})$/.exec(action ?? '');
+    const tiktokHistory = action === 'sources/tiktok-coding';
+    const tiktokConsumptionRead = action === 'sources/tiktok-coding/consumption';
+    const tiktokPropose = action === 'sources/tiktok-coding/proposals';
+    const tiktokReaderBuild = action === 'reader-reports/tiktok';
+    const shopeeSamples = action === 'sources/shopee-coding/samples';
+    const shopeeContextRead = action === 'sources/shopee-coding/context';
+    const shopeeRead = /^sources\/shopee-coding\/([0-9a-f-]{36})$/.exec(action ?? '');
+    const shopeeHistory = action === 'sources/shopee-coding';
+    const shopeeConsumptionRead = action === 'sources/shopee-coding/consumption';
+    const shopeePropose = action === 'sources/shopee-coding/proposals';
+    const shopeeReaderBuild = action === 'reader-reports/shopee';
+    const readerAction = insightReaderBuild || readerDecisionV2 || readerListV2 || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions' || Boolean(readerHtml) || Boolean(readerPdf) || tiktokReaderBuild || tiktokPropose || shopeeReaderBuild || shopeePropose;
     const report = originalReport?.[1] ?? versionReport?.[2];
     const pdfSuffix = originalReport?.[2] ?? versionReport?.[3];
     const mutation = prefix === 'owner-api';
+    const p9Read = /^sources\/(tiktok-comments|video-reading)\/([0-9a-f-]{36})(\/citations)?$/.exec(action ?? '');
+    const p9History = action === 'sources/tiktok-comments' || action === 'sources/video-reading';
+    const p9Write = action === 'sources/tiktok-comments/selections' || action === 'sources/tiktok-comments/collect' || action === 'sources/video-reading';
     const allowed = mutation
-      ? !runId || action === 'source-pdfs' || action === 'confirm-scope' || action === 'cancel' || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || metaWrite || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || insightDefaultModelWrite || crosscheckWrite || Boolean(revisionCancel) || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions'
-      : !action || action === 'pageindex' || action === 'reader-reports' || Boolean(readerHtml) || action === 'report-versions' || action === 'report-attempts' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'sources/meta-page' || Boolean(metaRead) || action === 'metric-rule-adoptions' || Boolean(metricRuleRead) || Boolean(membershipReview) || Boolean(membershipRead) || Boolean(insightRead) || Boolean(crosscheckRead) || Boolean(crosscheckAvailability) || Boolean(report) || Boolean(revisionRead);
-    if (!allowed) return fail(response, 404, 'not_found', 'Route not found');
+      ? !runId || action === 'source-pdfs' || action === 'confirm-scope' || action === 'cancel' || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || metaWrite || worldBankWrite || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || insightDefaultModelWrite || crosscheckWrite || personaWrite || Boolean(revisionCancel) || insightReaderBuild || readerDecisionV2 || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions' || tiktokPropose || tiktokReaderBuild || shopeePropose || shopeeReaderBuild
+      : readerListV2 || !action || action === 'pageindex' || action === 'reader-reports' || Boolean(readerHtml) || Boolean(readerPdf) || action === 'report-versions' || action === 'report-attempts' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'sources/meta-page' || Boolean(metaRead) || action === 'sources/world-bank' || Boolean(worldBankRead) || action === 'metric-rule-adoptions' || Boolean(metricRuleRead) || Boolean(membershipReview) || Boolean(membershipRead) || Boolean(insightRead) || Boolean(personaList) || Boolean(personaRead) || Boolean(crosscheckRead) || Boolean(crosscheckAvailability) || Boolean(report) || Boolean(revisionRead) || Boolean(tiktokContextRead) || Boolean(tiktokRead) || tiktokHistory || tiktokConsumptionRead || shopeeSamples || shopeeContextRead || Boolean(shopeeRead) || shopeeHistory || shopeeConsumptionRead;
+    if (!allowed && !(runId && (mutation ? p9Write : p9History || p9Read))) return fail(response, 404, 'not_found', 'Route not found');
     const method = mutation ? 'POST' : 'GET';
     response.setHeader('Allow', mutation ? 'POST, OPTIONS' : 'GET');
     if (mutation) {
@@ -361,6 +469,80 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     try {
       if (!mutation) {
         if (!runId) return sendApiJson(response, 200, await readService.listRuns(workspaceId!));
+        if (action === 'sources/world-bank') {
+          const result = await readService.listWorldBankHistory(workspaceId!, runId);
+          if (!macroValidates.history!(result)) throw new Error('Macro history failed validation');
+          return sendApiJson(response, 200, result);
+        }
+        if (worldBankRead) {
+          if (worldBankRead[4] === 'ratio') return fail(response, 400, 'macro_sample_arithmetic_forbidden', 'Không chia số liệu vĩ mô với số liệu trong mẫu.');
+          const result = await readService.readWorldBankSource(workspaceId!, runId, { packageId: worldBankRead[1]!,
+            manifestArtifactSha256: worldBankRead[2]!, packageContentSha256: worldBankRead[3]! });
+          if (!macroValidates.view!(result.view)) throw new Error('Macro retained source failed validation');
+          if (worldBankRead[4] === 'display') {
+            response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': REPORT_CSP,
+              'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store', 'Content-Length': result.display.byteLength });
+            response.end(result.display); return;
+          }
+          return sendApiJson(response, 200, result.view);
+        }
+        if (p9Read) {
+          const source = await readService.readP9Source(workspaceId!, runId, p9Read[1] === 'tiktok-comments' ? 'comments' : 'reading', p9Read[2]!);
+          return sendApiJson(response, 200, p9Read[3] ? source.citations : source.view);
+        }
+        if (p9History) {
+          const history = await readService.readP9SourceHistory(workspaceId!, runId);
+          return sendApiJson(response, 200, action === 'sources/tiktok-comments' ? history.comments : history.readings);
+        }
+        if (tiktokContextRead) {
+          const context = await readService.readTikTokCodingContext(workspaceId!, runId, tiktokContextRead[1]!);
+          if (!validates.tiktokContext(context)) throw new Error('TikTok coding context failed validation');
+          return sendApiJson(response, 200, context);
+        }
+        if (tiktokRead) {
+          const read = await readService.readTikTokCoding(workspaceId!, runId, tiktokRead[1]!);
+          const view = { contractVersion: 'tiktok-coding-read-v1', draft: read.draft, report: read.report,
+            citations: read.citations, finalizedAt: read.finalizedAt };
+          if (!validates.tiktokReadView(view)) throw new Error('TikTok coding read failed validation');
+          return sendApiJson(response, 200, view);
+        }
+        if (tiktokHistory) {
+          const history = await readService.listTikTokCodingHistory(workspaceId!, runId);
+          if (!validates.tiktokHistory(history)) throw new Error('TikTok coding history failed validation');
+          return sendApiJson(response, 200, history);
+        }
+        if (tiktokConsumptionRead) {
+          const consumption = await readService.readTikTokReportConsumption(workspaceId!, runId);
+          if (!validates.tiktokConsumption(consumption)) throw new Error('TikTok consumption ledger failed validation');
+          return sendApiJson(response, 200, consumption);
+        }
+        if (shopeeSamples) {
+          const selection = await readService.readShopeeSamples(workspaceId!, runId);
+          if (!validates.shopeeSamples(selection)) throw new Error('Shopee sample selection failed validation');
+          return sendApiJson(response, 200, selection);
+        }
+        if (shopeeContextRead) {
+          const context = await readService.readShopeeCodingContext(workspaceId!, runId);
+          if (!validates.shopeeContext(context)) throw new Error('Shopee coding context failed validation');
+          return sendApiJson(response, 200, context);
+        }
+        if (shopeeRead) {
+          const read = await readService.readShopeeCoding(workspaceId!, runId, shopeeRead[1]!);
+          const view = { contractVersion: 'shopee-coding-read-v1', draft: read.draft, report: read.report,
+            citations: read.citations, finalizedAt: read.finalizedAt };
+          if (!validates.shopeeReadView(view)) throw new Error('Shopee coding read failed validation');
+          return sendApiJson(response, 200, view);
+        }
+        if (shopeeHistory) {
+          const history = await readService.listShopeeCodingHistory(workspaceId!, runId);
+          if (!validates.shopeeHistory(history)) throw new Error('Shopee coding history failed validation');
+          return sendApiJson(response, 200, history);
+        }
+        if (shopeeConsumptionRead) {
+          const consumption = await readService.readShopeeReportConsumption(workspaceId!, runId);
+          if (!validates.shopeeConsumption(consumption)) throw new Error('Shopee consumption ledger failed validation');
+          return sendApiJson(response, 200, consumption);
+        }
         if (action === 'pageindex') {
           const result = { contractVersion: 'research-automation-run-pdfs-v1', workspaceId, runId,
             ...await readService.pageIndexStatesForRun(workspaceId!, runId) };
@@ -385,10 +567,21 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
           if (!crosscheckResponseValid(result)) throw new Error('Crosscheck retained read failed validation');
           return sendApiJson(response, 200, result);
         }
+        if (personaList || personaRead) {
+          const result = personaList ? await readService.listPersonaEvidence(workspaceId!, runId, personaList[1]!)
+            : await readService.readPersonaEvidence(workspaceId!, runId, personaRead![1]!);
+          if (personaList ? !personaViewValid(result) : !personaEvidenceValid((result as { evidence: unknown }).evidence)) throw new Error('Persona read failed validation');
+          return sendApiJson(response, 200, result);
+        }
         if (insightRead) {
           // Explicit pair only: verified history, never an implicit latest pair or a currency claim.
           const result = await readService.readInsightCoding(workspaceId!, runId, insightRead[1]!);
           if (!validates.insightView(result)) throw new Error('Insight coding projection failed validation');
+          return sendApiJson(response, 200, result);
+        }
+        if (readerListV2) {
+          const result = await readService.listReaderReportsV2(workspaceId!, runId);
+          if (!validates.readerListV2(result)) throw new Error('Reader report v2 list failed validation');
           return sendApiJson(response, 200, result);
         }
         if (action === 'reader-reports') {
@@ -402,6 +595,18 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
           response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': page.bytes.length, 'Cache-Control': 'no-store',
             'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': readerCsp(page.bytes) });
           response.end(page.bytes); return;
+        }
+        if (readerPdf) {
+          // Exact saved revision printed to PDF: verified retained HTML bytes only, never a rebuild.
+          // Unknown/invalid/cross-workspace/mutated revisions fail closed in the read above.
+          const page = await readService.readReaderReport(workspaceId!, runId, readerPdf[1]!);
+          if (!pdf) return fail(response, 503, 'service_unavailable', 'PDF renderer is not configured.');
+          let printed: Buffer;
+          try { printed = await pdf.render(page.bytes); }
+          catch { return fail(response, 503, 'service_unavailable', 'PDF render failed.'); }
+          response.writeHead(200, { 'Content-Type': 'application/pdf', 'Content-Length': printed.length, 'Cache-Control': 'no-store',
+            'X-Content-Type-Options': 'nosniff', 'Content-Disposition': `attachment; filename="reader-report-${readerPdf[1]}.pdf"` });
+          response.end(printed); return;
         }
         if (action === 'metric-rule-adoptions' || metricRuleRead) {
           const result = metricRuleRead ? await readService.getMetricRuleAdoption(workspaceId!, runId, metricRuleRead[1]!)
@@ -456,6 +661,80 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       }
       await ready;
       if (startupFailed || worker?.lastError !== undefined) return fail(response, 503, 'service_unavailable', 'Research executor is unavailable');
+      if (action === 'sources/tiktok-comments/selections' || action === 'sources/tiktok-comments/collect') {
+        let input: unknown;
+        try { input = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await readOwnerBytes(request, 64 * 1024))); }
+        catch (error) { if (error instanceof PayloadTooLargeError || error instanceof EmptyBodyError) throw error; return fail(response, 400, 'bad_request', 'Malformed P9 request'); }
+        if (!(action.endsWith('/selections') ? validates.p9Selection : validates.p9Package)(input)) return fail(response, 400, 'bad_request', 'P9 request failed validation');
+        if (action.endsWith('/selections')) {
+          const result = await writeService!.selectTikTokCommentVideos(workspaceId!, runId!, input);
+          if (!validates.p9Package(result)) throw new Error('P9 selection identity failed validation');
+          return sendApiJson(response, 200, result);
+        }
+        const controller = new AbortController();
+        const pending = writeService!.collectTikTokComments(workspaceId!, runId!, input as TikTokSourcePackageIdentity, controller.signal);
+        modelRequests.set(controller, pending);
+        try {
+          const result = await pending;
+          if (!validates.p9Receipt(result)) throw new Error('P9 collection receipt failed validation');
+          return sendApiJson(response, result.exactRetry ? 200 : 201, result);
+        } finally { modelRequests.delete(controller); }
+      }
+      if (action === 'sources/video-reading') {
+        const contentType = singleHeader(request.headers['content-type']);
+        if (!contentType?.startsWith('multipart/form-data;')) return fail(response, 400, 'bad_request', 'Video reading requires explicit JSON metadata and frame members');
+        const raw = await readOwnerBytes(request, 32 * 1024 * 1024 + 512 * 1024);
+        let form: FormData;
+        try { form = await new Request(origin.origin, { method: 'POST', headers: { 'Content-Type': contentType }, body: new Uint8Array(raw) }).formData(); }
+        catch { return fail(response, 400, 'bad_request', 'Malformed video reading upload'); }
+        const metadata = form.get('metadata');
+        if (typeof metadata !== 'string' || form.getAll('metadata').length !== 1 || Buffer.byteLength(metadata) > 512 * 1024) return fail(response, 400, 'bad_request', 'Video reading requires one bounded metadata object');
+        let input: unknown; try { input = JSON.parse(metadata); } catch { return fail(response, 400, 'bad_request', 'Malformed video reading metadata'); }
+        if (!validates.p9ReadingRequest(input)) return fail(response, 400, 'bad_request', 'Video reading request failed validation');
+        const frames = new Map<string, Uint8Array>();
+        for (const [field, value] of form.entries()) {
+          if (field === 'metadata') continue;
+          if (!field.startsWith('file:') || !(value instanceof File) || frames.has(field.slice(5)) || value.size < 1 || value.size > 8 * 1024 * 1024) return fail(response, 400, 'bad_request', 'Video frame membership failed validation');
+          frames.set(field.slice(5), new Uint8Array(await value.arrayBuffer()));
+        }
+        const result = await writeService!.prepareP9VideoReading(workspaceId!, runId!, input, frames);
+        if (!validates.p9ReadingReceipt(result)) throw new Error('P9 video receipt failed validation');
+        return sendApiJson(response, result.exactRetry ? 200 : 201, result);
+      }
+      if (tiktokPropose) {
+        let input: unknown;
+        try { input = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await readOwnerBytes(request, 64 * 1024))); }
+        catch (error) { if (error instanceof PayloadTooLargeError || error instanceof EmptyBodyError) throw error; return fail(response, 400, 'bad_request', 'Malformed TikTok coding request'); }
+        if (!validates.tiktokPropose(input)) return fail(response, 400, 'bad_request', 'TikTok coding request failed validation');
+        if (closing) return fail(response, 503, 'service_unavailable', 'Research executor is stopping');
+        const controller = new AbortController();
+        const disconnected = () => { if (!response.writableEnded) controller.abort(); };
+        response.once('close', disconnected); if (response.destroyed) controller.abort();
+        const pending = writeService!.proposeTikTokCoding(workspaceId!, runId!, input, tiktokCodingAi, controller.signal);
+        modelRequests.set(controller, pending);
+        try {
+          const result = await pending;
+          if (!validates.tiktokReceipt(result)) throw new Error('TikTok coding receipt failed validation');
+          return sendApiJson(response, result.exactRetry ? 200 : 201, result);
+        } finally { modelRequests.delete(controller); response.removeListener('close', disconnected); }
+      }
+      if (shopeePropose) {
+        let input: unknown;
+        try { input = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await readOwnerBytes(request, 64 * 1024))); }
+        catch (error) { if (error instanceof PayloadTooLargeError || error instanceof EmptyBodyError) throw error; return fail(response, 400, 'bad_request', 'Malformed Shopee coding request'); }
+        if (!validates.shopeePropose(input)) return fail(response, 400, 'bad_request', 'Shopee coding request failed validation');
+        if (closing) return fail(response, 503, 'service_unavailable', 'Research executor is stopping');
+        const controller = new AbortController();
+        const disconnected = () => { if (!response.writableEnded) controller.abort(); };
+        response.once('close', disconnected); if (response.destroyed) controller.abort();
+        const pending = writeService!.proposeShopeeCoding(workspaceId!, runId!, input, shopeeCodingAi, controller.signal);
+        modelRequests.set(controller, pending);
+        try {
+          const result = await pending;
+          if (!validates.shopeeReceipt(result)) throw new Error('Shopee coding receipt failed validation');
+          return sendApiJson(response, result.exactRetry ? 200 : 201, result);
+        } finally { modelRequests.delete(controller); response.removeListener('close', disconnected); }
+      }
       if (action === 'pageindex-recheck') {
         let input: unknown;
         try { input = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await readOwnerBytes(request, 1024))); }
@@ -534,6 +813,38 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         return sendApiJson(response, 201, result);
       }
 
+      if (action === 'sources/world-bank/confirm') {
+        let input: unknown;
+        try { input = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await readOwnerBytes(request, 32 * 1024))); }
+        catch (error) { if (error instanceof PayloadTooLargeError) throw error; return fail(response, 400, 'bad_request', 'Thông tin xác nhận nguồn phải là JSON hợp lệ.'); }
+        if (!macroValidates.confirmRequest!(input)) return fail(response, 400, 'bad_request', 'Thông tin xác nhận nguồn không đúng định dạng.');
+        const result = await writeService!.confirmWorldBankSource(workspaceId!, runId!, input);
+        if (!macroValidates.view!(result)) throw new Error('Macro confirmation failed validation');
+        return sendApiJson(response, 200, result);
+      }
+      if (action === 'sources/world-bank') {
+        const contentType = singleHeader(request.headers['content-type']);
+        if (!contentType?.startsWith('multipart/form-data;')) return fail(response, 400, 'bad_request', 'Hãy tải hai tệp dữ liệu và thông tin nguồn bằng biểu mẫu đính kèm.');
+        const bytes = await readOwnerBytes(request, 2 * MAX_WORLD_BANK_FILE_BYTES + 128 * 1024);
+        let form: FormData;
+        try { form = await new Request(origin.origin, { method: 'POST', headers: { 'Content-Type': contentType }, body: new Uint8Array(bytes) }).formData(); }
+        catch { return fail(response, 400, 'bad_request', 'Biểu mẫu tải nguồn không đúng định dạng.'); }
+        const metadata = form.get('metadata'), observations = form.get('observations'), indicator = form.get('indicator');
+        if ([...form.entries()].length !== 3 || form.getAll('metadata').length !== 1 || form.getAll('observations').length !== 1 || form.getAll('indicator').length !== 1 ||
+          typeof metadata !== 'string' || Buffer.byteLength(metadata) > 32 * 1024 || !(observations instanceof File) || !(indicator instanceof File))
+          return fail(response, 400, 'bad_request', 'Cần thông tin nguồn và đúng hai tệp JSON.');
+        for (const file of [observations, indicator]) {
+          if (file.size > MAX_WORLD_BANK_FILE_BYTES) return fail(response, 413, 'payload_too_large', 'Tệp nguồn vượt giới hạn dung lượng.');
+          if (!file.size || !['', 'application/json', 'application/octet-stream'].includes(file.type)) return fail(response, 400, 'bad_request', 'Tệp nguồn phải là JSON.');
+        }
+        let input: unknown;
+        try { input = JSON.parse(metadata); } catch { return fail(response, 400, 'bad_request', 'Thông tin nguồn phải là JSON hợp lệ.'); }
+        if (!macroValidates.prepareRequest!(input)) return fail(response, 400, 'bad_request', 'Thông tin nguồn không đúng định dạng.');
+        const result = await writeService!.prepareWorldBankSource(workspaceId!, runId!, input,
+          new Uint8Array(await observations.arrayBuffer()), new Uint8Array(await indicator.arrayBuffer()));
+        if (!macroValidates.prepareReceipt!(result)) throw new Error('Macro preparation failed validation');
+        return sendApiJson(response, result.exactRetry ? 200 : 201, result);
+      }
       if (action === 'sources/supplemental') {
         const contentType = singleHeader(request.headers['content-type']);
         if (!contentType?.startsWith('multipart/form-data;')) return fail(response, 400, 'bad_request', 'Source upload requires multipart/form-data');
@@ -614,14 +925,32 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       try { body = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await readOwnerBytes(request, insightWrite ? MAX_INSIGHT_CODING_BYTES : action === 'reader-reports' ? MAX_READER_BUILD_BYTES : 16 * 1024))); }
       catch (error) { if (error instanceof PayloadTooLargeError || error instanceof EmptyBodyError) throw error; return fail(response, 400, 'bad_request', 'Request body must be valid UTF-8 JSON'); }
       const validate = !runId ? validates.start : action === 'confirm-scope' ? validates.confirm
+        : personaWrite ? personaRequestValid
         : crosscheckWrite ? crosscheckRequestValid
         : insightModelWrite ? insightDefaultModelWrite ? validates.insightDefaultModelRequest : validates.insightModelRequest
         : insightWrite ? insightWrite.validate
         : membershipWrite ? action === 'metric-membership-proposals' ? validates.membershipPropose : validates.membershipAccept
         : action === 'metric-rule-adoptions' ? validates.metricRuleAdopt
+        : insightReaderBuild ? validates.insightReaderBuild : readerDecisionV2 ? validates.readerDecisionV2
+        : tiktokReaderBuild ? validates.tiktokReaderBuild
+        : shopeeReaderBuild ? validates.shopeeReaderBuild
         : action === 'reader-reports' ? validates.readerBuild : action === 'reader-reports/decisions' ? validates.readerDecision
         : action === 'report-revisions' ? validates.revision : revisionCancel ? validates.revisionCancel : validates.cancel;
       if (!validate(body)) return fail(response, 400, 'bad_request', 'Research request failed validation');
+      if (personaWrite) {
+        if (closing) return fail(response, 503, 'service_unavailable', 'Research executor is stopping');
+        const controller = new AbortController();
+        const disconnected = () => { if (!response.writableEnded) controller.abort(); };
+        response.once('close', disconnected); if (response.destroyed) controller.abort();
+        const pending = writeService!.proposePersonaModel(workspaceId!, runId!, body,
+          { actorId: configuration.owner!.actorId, role: 'OWNER' }, insightCodingAi, controller.signal);
+        modelRequests.set(controller, pending);
+        try {
+          const result = await pending;
+          if (!personaResponseValid(result)) throw new Error('Persona response failed validation');
+          return sendApiJson(response, result.status === 'PROPOSED' ? 201 : 200, result);
+        } finally { modelRequests.delete(controller); response.removeListener('close', disconnected); }
+      }
       if (crosscheckWrite) {
         if (closing) return fail(response, 503, 'service_unavailable', 'Research executor is stopping');
         const controller = new AbortController();
@@ -696,6 +1025,26 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         // Coding evidence is not report admission, regeneration or provider dispatch.
         return sendApiJson(response, receipt.exactRetry ? 200 : 201, receipt);
       }
+      if (insightReaderBuild || readerDecisionV2) {
+        const owner = { actorId: configuration.owner!.actorId, role: 'OWNER' as const };
+        const receipt = insightReaderBuild ? await writeService!.buildInsightReaderReport(workspaceId!, runId!, body, owner)
+          : await writeService!.decideReaderReportV2(workspaceId!, runId!, body, owner);
+        if (!(insightReaderBuild ? validates.readerBuildReceiptV2 : validates.readerDecisionReceiptV2)(receipt))
+          throw new Error('Reader v2 receipt failed validation');
+        return sendApiJson(response, receipt.exactRetry ? 200 : 201, receipt);
+      }
+      if (tiktokReaderBuild) {
+        const owner = { actorId: configuration.owner!.actorId, role: 'OWNER' as const };
+        const receipt = await writeService!.buildTikTokReaderReport(workspaceId!, runId!, body, owner);
+        if (!validates.readerBuildReceiptV2(receipt)) throw new Error('TikTok reader receipt failed validation');
+        return sendApiJson(response, receipt.exactRetry ? 200 : 201, receipt);
+      }
+      if (shopeeReaderBuild) {
+        const owner = { actorId: configuration.owner!.actorId, role: 'OWNER' as const };
+        const receipt = await writeService!.buildShopeeReaderReport(workspaceId!, runId!, body, owner);
+        if (!validates.readerBuildReceiptV2(receipt)) throw new Error('Shopee reader receipt failed validation');
+        return sendApiJson(response, receipt.exactRetry ? 200 : 201, receipt);
+      }
       if (action === 'reader-reports' || action === 'reader-reports/decisions') {
         const owner = { actorId: configuration.owner!.actorId, role: 'OWNER' as const };
         if (action === 'reader-reports') {
@@ -728,12 +1077,25 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       worker!.wake();
       sendApiJson(response, action === 'cancel' || receipt.exactRetry ? 200 : 202, receipt);
     } catch (error) {
+      if (error instanceof P9SourceError) return fail(response, 409, 'source_evidence_rejected', 'P9 source evidence or configured collection is unavailable');
+      if (error instanceof TikTokCodingError) return fail(response, 409, 'source_evidence_rejected', 'TikTok coding identity, retained evidence or request state differs.');
+      if (error instanceof TikTokCodingTransportError) {
+        if (error.code === 'MODEL_NOT_CONFIGURED') return fail(response, 400, 'bad_request', 'TikTok coding model is not configured.');
+        return fail(response, 409, 'source_evidence_rejected', 'TikTok coding dispatch outcome is unknown or invalid; retry with a new request key.');
+      }
+      if (error instanceof ShopeeCodingError) return fail(response, 409, 'source_evidence_rejected', 'Shopee coding identity, retained evidence or request state differs.');
+      if (error instanceof ShopeeCodingTransportError) {
+        if (error.code === 'MODEL_NOT_CONFIGURED') return fail(response, 400, 'bad_request', 'Shopee coding model is not configured.');
+        return fail(response, 409, 'source_evidence_rejected', 'Shopee coding dispatch outcome is unknown or invalid; retry with a new request key.');
+      }
       if (action === 'source-pdfs' && error instanceof ResearchAutomationValidationError)
         return fail(response, 400, 'bad_request', 'Tài liệu PDF không hợp lệ hoặc vượt giới hạn dung lượng.');
       if (error instanceof AutomationSynthesisExecutionError) {
         if (error.code === 'INVALID_SYNTHESIS_CONFIGURATION') return fail(response, 503, 'service_unavailable', 'Research model is unavailable');
         return fail(response, 409, 'revision_conflict', 'Research state changed or an execution is pending; refresh before submitting');
       }
+      if (personaWrite && error instanceof TypeError && /^INVALID_INSIGHT_PERSONA_/.test(error.message))
+        return fail(response, 400, 'bad_request', 'Persona source or model stage failed validation');
       if (error instanceof TypeError && ['INSIGHT_MODEL_RECORD_NOT_ELIGIBLE', 'INSIGHT_MODEL_INPUT_TOO_LARGE'].includes(error.message))
         return fail(response, 400, 'bad_request', 'Research model batch failed validation');
       if (error instanceof ResearchAutomationNotFoundError) return fail(response, 404, error.code, 'Research record or output was not found');
@@ -747,6 +1109,10 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       }
       if (error instanceof SourcePackageRequestConflictError)
         return fail(response, 409, 'request_key_conflict', 'This upload identity is already bound to different content');
+      if (error instanceof WorldBankSourceRejection) return fail(response, error.code === 'REQUEST_KEY_CONFLICT' ? 409 : mutation ? 400 : 500,
+        error.code === 'REQUEST_KEY_CONFLICT' ? 'request_key_conflict' : mutation ? 'source_input_rejected' : 'integrity_error', 'Nguồn đã chọn không vượt qua kiểm tra dữ liệu và liên kết đã lưu.');
+      if (mutation && action === 'sources/world-bank' && error instanceof FoundationValidationError)
+        return fail(response, 400, 'source_input_rejected', 'Thông tin nguồn không đáp ứng cấu trúc lưu giữ được hỗ trợ.');
       if (error instanceof KalodataVideoRejection) return fail(response, 400, 'source_input_rejected', 'Tệp video không đúng cấu trúc được hỗ trợ.');
       if (error instanceof SupplementalSourceRejection) return fail(response, 400, 'source_input_rejected', 'The source package does not match a supported method profile');
       if (error instanceof MetricSourceRejection && !['INVALID_XLSX', 'OFFLINE_READER_UNAVAILABLE_OR_LIMIT'].includes(error.code))
@@ -773,6 +1139,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
   async function sourceStatusProjection(workspaceId: string) {
     const result = buildResearchAutomationSourceStatus({ workspaceId, checkedAt: new Date().toISOString(),
       executorEnabled: Boolean(writeService), providers: configuration.providers, wired: SOURCES_WIRED_INTO_RUNS,
+      tikTokCommentsConfigured: Boolean(configuration.tikTokCommentsCollector),
       activity: await readService.readSourceActivity(workspaceId), pageindex: (writeService ?? readService).pageIndexStatusSummary() });
     if (!validates.sourceStatus(result)) throw new Error('Source status projection failed validation');
     return result;

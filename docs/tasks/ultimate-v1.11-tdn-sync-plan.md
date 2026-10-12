@@ -1,4 +1,4 @@
-# Plan: bring TDN in line with Ultimate v1.12, and show the approved data sources on the source board
+# Plan: bring TDN in line with Ultimate v1.13, and show the approved data sources on the source board
 
 Implementation evidence update (2026-10-08): PR #172, PR #174, PR #175 and PR #177 are merged after
 independent review and exact-head full hosted checks. Their bounded U-03/U-04/U-13
@@ -6,19 +6,19 @@ and reader U-29/U-34 changes, authenticated spec intake, bounded keyword/source
 integration and remaining dependencies are recorded in
 [STATUS](../STATUS.md#ultimate-alignment--implementation-run-08102026). Existing
 unchecked requirements below remain operative; these merges do not establish
-full Ultimate completion, U-11 release, U-26 policy or U-32 aggregate eligibility.
+full Ultimate completion, U-11 release or U-26 implementation. U-32 is closed with no two-platform aggregate (2026-10-11, #209).
 
 
 > **Implementation coordination update (2026-10-08):** Operative sources are Ultimate v1.12 and registry v1.9; the filename and original audit references below are retained for traceability. Shared schemas/generated outputs have one explicitly leased writer. SYNC-1 owns reader/M05 methods; SYNC-3 owns draft/Insight defaults and `reports.ts`; SYNC-6 owns source-board/history integration. Shared service/config and later Insight work are serialized. SYNC-7 depends on SYNC-1, SYNC-3 and SYNC-4 label contracts. Package handoffs and exact-head review/CI evidence determine completion, not these assignments.
 >
-> U-32 positive cross-platform totals remain **ESCALATED** pending reconciliation with R3/L5; implement per-platform correction only. U-26 revision/recollection/admission policy and U-11 family-level multi-code κ remain **ESCALATED**. Staging/provider execution under U-40 is not authorized in this implementation wave. Existing PageIndex owner POST remains unchanged: only GET is configuration/history-only, and account/global totals must be labelled separately from workspace activity. B1 contains **11 cards**; Trends is an operation in the SerpApi card.
+> **Owner decisions (2026-10-11, [#209](https://github.com/khangpworking/tdn-growth-os/issues/209)):** Operative source is now Ultimate v1.13. Order is U-32 → U-26 → U-11 phase 1 → U-40. U-32 is **CLOSED**: Shopee and TikTok Shop are never added together, even when both come from the same export, period and unit; the per-platform correction in PR #162 is sufficient and the two-platform-total exception is dropped. U-26 run-flow policy and U-11 phase 1 are **decided, implementation pending** (separate code PRs). The U-11 second-model check (κ) is **deferred**, so U-11 stays open for that part. U-40 is agreed but runs last, as a pilot first, and nothing runs until the owner gives the batch budget cap. Existing PageIndex owner POST remains unchanged: only GET is configuration/history-only, and account/global totals must be labelled separately from workspace activity. B1 contains **11 cards**; Trends is an operation in the SerpApi card.
 >
 > Task-specific authority permits the coordinator to merge only these implementation PRs after independent review and passing exact-head CI, using the normal repository method and `--match-head-commit`. Deployment, cap changes, bypass and unrelated PRs remain outside this authority. Historical baseline test failures do not waive the CI gate.
 
 ### Verified merged implementation (08/10/2026)
 
 - [PR #161](https://github.com/khangpworking/tdn-growth-os/pull/161): B-01/B-02/B-04/B-05/B-06/B-07 complete; B-03 partial (P4 retained uploads, SerpApi operation history and PageIndex workspace/account distinction complete; future collectors/readers remain with their packages). Reviewed head `5ff13b5a88508400d006c7a3afbeb77da29419f0`, full [Check](https://github.com/khangpworking/tdn-growth-os/actions/runs/37758072524) passed, merge `e306c1b757d6823c654970b738afc1f9349312e8`.
-- [PR #162](https://github.com/khangpworking/tdn-growth-os/pull/162): U-06/U-08/U-30/U-31 and Market-only U-07 complete; U-32 safe per-platform correction complete, positive-total exception still escalated. Reviewed head `116b371c1c6153b3e91c9a62400eb223d9c5848e`, full [Check](https://github.com/khangpworking/tdn-growth-os/actions/runs/37759463000) passed, merge `a2250b76ad89120d26bad0e8f288fdd8a73bb12f`.
+- [PR #162](https://github.com/khangpworking/tdn-growth-os/pull/162): U-06/U-08/U-30/U-31 and Market-only U-07 complete; U-32 safe per-platform correction complete; the positive-total exception was dropped and U-32 closed on 2026-10-11 (#209). Remaining follow-up: legacy reader contract 1.0.0/1.1.0 replay still sums platforms (see [DOCS-209](../handoffs/DOCS-209.md)). Reviewed head `116b371c1c6153b3e91c9a62400eb223d9c5848e`, full [Check](https://github.com/khangpworking/tdn-growth-os/actions/runs/37759463000) passed, merge `a2250b76ad89120d26bad0e8f288fdd8a73bb12f`.
 
 - [PR #163](https://github.com/khangpworking/tdn-growth-os/pull/163): U-12 bounded L9 core complete; AI list drafting, P5/P9/U-23 callers and M13/I17 disclosure remain pending, so U-12 and G-13 remain partial. Reviewed head `3e71c25c98d44fa0eb02c7fdf6e41876d4fae48a`, full [Check](https://github.com/khangpworking/tdn-growth-os/actions/runs/37762429133) passed, merge `abaaf6749c4ae1ccd3af46246279d8e9f342581b`. See [SYNC-5](../handoffs/SYNC-5.md).
 
@@ -28,9 +28,9 @@ full Ultimate completion, U-11 release, U-26 policy or U-32 aggregate eligibilit
 
 - [PR #166](https://github.com/khangpworking/tdn-growth-os/pull/166): U-03 bounded I02 summary and I10/I13 corpus draft counts complete through explicit retained-proposal revision without acceptance receipts. Adoption lineage remains required; unsupported-family totals and draft completion/ratios are withheld. Other families, I11 consumption and U-11 cross-checks remain pending, so U-03 stays partial. Reviewed head `503b43a089fbc2b610c02faaad946be3a0ac82d1`, full [Check](https://github.com/khangpworking/tdn-growth-os/actions/runs/37780693321) and preview passed, merge `e074dbdefbf2ae6e8d2f11cbd1bdfc8759530dbc`. See [SYNC-4](../handoffs/SYNC-4.md).
 
-The audit tables below describe the original baseline. Checked items refer to the merged packages and their linked handoffs. U-07 combines the Market and draft/Insight work. U-03, U-04, U-12, B-03 and U-32 stay unchecked while their stated remainder is unresolved.
+The audit tables below describe the original baseline. Checked items refer to the merged packages and their linked handoffs. U-07 combines the Market and draft/Insight work. U-03, U-04, U-12 and B-03 stay unchecked while their stated remainder is unresolved. U-32 is checked because the owner closed it on 2026-10-11 (#209) with the PR #162 correction.
 
-Updated: 2026-10-08 · Audited at `origin/main` `99b4fe5`; rechecked at `5152240` after P1 and P2 merged · Business source of truth: [Ultimate Method v1.12](../research/ultimate-method/ultimate-method-30-sections.md) · Sources: [Input data sources for 30 sections](../research/ultimate-method/input-data-sources-30-sections.md) v1.9 · Related packages: [research-batch-2-packages.md](research-batch-2-packages.md)
+Updated: 2026-10-08; owner decisions of 2026-10-11 (#209) recorded · Audited at `origin/main` `99b4fe5`; rechecked at `5152240` after P1 and P2 merged · Business source of truth: [Ultimate Method v1.13](../research/ultimate-method/ultimate-method-30-sections.md) · Sources: [Input data sources for 30 sections](../research/ultimate-method/input-data-sources-30-sections.md) v1.9 · Related packages: [research-batch-2-packages.md](research-batch-2-packages.md)
 
 This file is a plan with checklists. It does not assign work to agents; the owner splits it. When an item is split into a package, keep its ID (`U-..`, `B-..`) so the handoff can report it.
 
@@ -58,19 +58,19 @@ This file is a plan with checklists. It does not assign work to agents; the owne
   - lọc nghĩa từ khoá (L9) và bình luận video là lời khách (L10);
   - chân dung người bán nhắm tới (E5);
   - số tham khảo ROAS/CPA kèm câu miễn trừ (E1);
-  - kiểm chéo bộ mã bằng model thứ hai (κ);
+  - kiểm chéo bộ mã bằng model thứ hai (κ) — **hoãn** theo quyết định ngày 11/10 (#209), chưa được lên lịch;
   - số liệu Cục Thống kê và World Bank (E12, E13).
 - **Thứ tự làm:** P1 (#143) và P2 (#140) đã merge ngày 08/10, nên các đợt sau bắt đầu từ main mới. Làm theo 4 đợt:
   - **A1:** gỡ 9 chỗ đang ngược quy tắc;
-  - **A2:** các bộ kiểm tra dùng chung (nhãn bản nháp, kiểm chéo κ, lọc từ khoá, cấm so sánh bậc nhất);
+  - **A2:** các bộ kiểm tra dùng chung (nhãn bản nháp, xếp hạng chủ đề E15, lọc từ khoá, cấm so sánh bậc nhất; kiểm chéo κ đã hoãn);
   - **A3:** phương pháp mới (bảng giá theo đơn vị chuẩn, Kết luận chính dạng Nhận định / Bằng chứng / Trạng thái, bản đọc Insight, chân dung);
   - **A4:** các phần chờ nguồn dữ liệu mới. Phần này phần lớn đã có trong gói P5, P7, P9, P10, plan chỉ bổ sung chỗ còn thiếu.
-- **Nghiệm thu:** chạy lại ba case (thạch dừa, bình giữ nhiệt, quạt cầm tay) rồi đối chiếu từng quy tắc.
+- **Nghiệm thu (U-40):** chạy thử 1 ca bình giữ nhiệt trước; đạt rồi mới chạy thạch dừa và quạt cầm tay (#209). Không chạy khi chủ chưa đặt trần chi.
 
 **Phần B: thêm nguồn đã duyệt lên màn hình "Nguồn dữ liệu".**
 
 - **Hiện có 5 thẻ:** Kalodata, SerpApi, Apify review Shopee, Metric, PageIndex.
-- **Thêm 7 thẻ:**
+- **Thêm 6 thẻ và 1 dòng Trends trong thẻ SerpApi** (tổng 11 thẻ, khớp mục B1):
   - file video Kalodata;
   - bình luận TikTok;
   - đọc nội dung video;
@@ -164,7 +164,7 @@ Where things live:
   - The working question never filters or selects evidence; add a test that evidence sets are identical with and without it.
 - [ ] U-03 **L3 + E11: counts no longer wait for an owner receipt.**
   - Draft counts are computed from AI-proposed codes and rendered with "đề xuất, chờ chủ duyệt" **in the same sentence as the number**, including Kết luận chính and top tiles.
-  - Release counts need the U-11 cross-check, with the codebook version stated, not an owner receipt.
+  - Release counts state the codebook version, not an owner receipt. The U-11 second-model cross-check they used to need is **deferred** (#209); until the owner picks a release label for phase-1 counts (E15), counts stay labelled "đề xuất".
   - The owner adopt/accept flow stays available as an optional override and is recorded, but nothing waits on it.
   - Files: `insight-corpus-counts.ts:63-65,111`, `selected-insight-projection.ts`, `located-insight-methods.ts:176`, `report-located-insight-pages.ts:77,196`.
 - [ ] U-04 **E11 default I11 groups.**
@@ -185,13 +185,23 @@ Where things live:
 
 ### A2. Shared checks used by many sections
 
-- [ ] U-11 **E11 codebook cross-check by a second model (G2, G7).**
-  - An independent model re-codes every record when there are ≤200, else a random 200, with a stored seed. It does not see the first model's codes.
-  - Compute Cohen's κ per code family. If κ ≥ 0.6, label the counts "phân loại do AI, đã kiểm chéo". If κ < 0.6, label them "độ tin cậy thấp" and keep them out of Kết luận chính.
-  - List the records where the two models disagree in the appendix.
-  - Store the model ids, seed, κ and sample with the codebook version.
-  - Model calls go through the existing insight model client. Tests use fakes and a hand-computed κ fixture.
-  - Optional: the same check for the reader's profile classification (`classify.ts`, Market R8).
+- [ ] U-11 **Comment topics ranked by mention count (E15), then the deferred second-model check (E11, G2, G7).** Owner decided phase 1 on 2026-10-11 (#209); implementation pending. U-11 stays open until the deferred part is decided.
+  - [ ] U-11a **Phase 1: coding, ranking and "Khác".**
+    - One AI tags each comment with topic × khen/chê. No second model and no κ in phase 1.
+    - One table per platform (no cross-platform sums), ranked by mention count. A comment may sit in several topics but counts once per topic.
+    - Strict ranking: only exactly equal counts share a rank; no %-threshold ties.
+    - Topics with fewer than 3 mentions on a platform go into "Khác".
+    - Compute a `needsTopUp` signal when "Khác" is above 20% of that platform's coded comments. If "Khác" stays high, show it as-is with its count and a few quotes; never prompt the AI to invent topics.
+    - Keep the L10 exclusions: creator and brand/shop comments, tag-only and emoji-only comments.
+    - Do not add any caption under the table that says frequent mentions are not the same as importance (owner decision; reviewers must not re-add it).
+  - [ ] U-11b **Phase 1 top-up wiring (after U-26 merges).** When `needsTopUp` is set, collect at most 1 more round with the same scope and within the spend cap, then re-rank. This is not a scope edit, so it creates no new revision under U-26. It is logged like any other paid call (E14).
+  - **Deferred (not in phase 1, kept for history):** the second-model cross-check below. It needs a later owner decision.
+    - An independent model re-codes every record when there are ≤200, else a random 200, with a stored seed. It does not see the first model's codes.
+    - Compute Cohen's κ per code family. If κ ≥ 0.6, label the counts "phân loại do AI, đã kiểm chéo". If κ < 0.6, label them "độ tin cậy thấp" and keep them out of Kết luận chính.
+    - List the records where the two models disagree in the appendix.
+    - Store the model ids, seed, κ and sample with the codebook version.
+    - Model calls go through the existing insight model client. Tests use fakes and a hand-computed κ fixture.
+    - Optional: the same check for the reader's profile classification (`classify.ts`, Market R8).
 - [ ] U-12 **L9 keyword meaning filter (shared module).**
   - Each category has a versioned keyword list and exclusion list stored as data. The AI drafts them from product names in sales data (E11); the scope include/exclude terms seed them.
   - Matching keeps Vietnamese diacritics. Text without diacritics is resolved from the record's own context or marked "chưa rõ có đúng sản phẩm không".
@@ -233,7 +243,7 @@ Where things live:
   - official-statistics attribution (E12, E13).
 - [x] U-30 **R1 in the reader:** an unknown value is never written as 0. Fix `coh.nShare` (`market-template.ts:119`) and allow missing values in the reader input where the source can lack them.
 - [x] U-31 **R2:** remove the cross-platform "same brand" count (`market-template.ts:124-128`). Show brand names per platform side by side; any match is "tên giống nhau theo tiêu đề, chưa xác minh".
-- [ ] U-32 **R3:** a two-platform total is allowed only when both platforms come from the same export, period and unit, and the label says "cộng hai sàn trong mẫu". Otherwise show per platform only (L5). Add a test for each case.
+- [x] U-32 **R3:** never add Shopee and TikTok Shop together, even when both come from the same export, period and unit. Show per platform only (L5). Delivered by the per-platform correction in PR #162; the two-platform-total exception is dropped and U-32 closed by the owner on 2026-10-11 (#209). Legacy reader contracts 1.0.0/1.1.0 still replay their stored two-platform arithmetic; see the DOCS-209 handoff.
 
 ### A4. Items that need new data (most are already packaged)
 
@@ -269,14 +279,23 @@ Where things live:
   - Days running are counted to the capture date; a stop date is used only when the page shows one. Never claim continuous paid running, effectiveness or profit (E1, E5).
   - ≥30 s between commands; stop on captcha, block or login wall; no clicks on ads. Runs automatically (E14), free.
   - Feeds E5 check 3 (U-21) with the G6 reference markers. Tests use saved synthetic pages.
-- [ ] U-26 **E14 in the run flow: no owner approval before collection.**
-  - The scope step (`ScopeConfirm.tsx`) no longer blocks paid collection: the AI proposes the scope from the owner's request and the quick search, labels it "phạm vi do AI đề xuất", and collection starts. The owner can still edit it, which creates a new revision.
+- [ ] U-26 **E14 in the run flow: no owner approval before collection; cancel-only while collecting.** Owner decided on 2026-10-11 (#209); implementation pending in a separate code PR.
+  - The scope step (`ScopeConfirm.tsx`) no longer blocks paid collection: the AI proposes the scope from the owner's request and the quick search, labels it "phạm vi do AI đề xuất", and collection starts immediately.
+  - While collecting, the only owner action is Cancel. The scope cannot be edited during collection.
+  - Cancel deletes the partial data but keeps exactly one spend-log line (which run, how much was spent, when it was cancelled), so the source-card total still matches invoices.
+  - A scope change is a new revision that reruns from scratch.
+  - A completed run's report is never overwritten.
   - Prepared sources (Metric, supplemental files) are confirmed into the run automatically.
   - Every collector checks only its configured cap and logs usage; no "waiting for owner" state remains in the collection path.
 
 ### A5. Acceptance and records
 
-- [ ] U-40 Re-run the three acceptance cases (thạch dừa, bình giữ nhiệt, quạt cầm tay) on a staging copy (paid calls within the configured caps, logged per E14). For each section, record pass/fail against its Ultimate rules in a new `docs/research/ultimate-method/tdn-acceptance-<date>.md`.
+- [ ] U-40 Run acceptance on a staging copy, pilot first (paid calls within the configured caps, logged per E14). Owner agreed on 2026-10-11 (#209) with these conditions:
+  - It runs last, after U-26 and U-11 phase 1 (U-11a, U-11b) are merged.
+  - Pilot one case first: bình giữ nhiệt (owner's choice in #209). Only after the pilot passes, run thạch dừa and quạt cầm tay.
+  - The owner gives a total budget cap later; nothing runs without it.
+  - Check prerequisites first (for example, OpenCLI installed on the runner).
+  - For each section, record pass/fail against its Ultimate rules in a new `docs/research/ultimate-method/tdn-acceptance-<date>.md`.
 - [ ] U-41 Update the TDN column in README §4 and in every CHANGELOG row that this work closes (`Đã đồng bộ (PR …)`).
 
 ---
@@ -386,6 +405,8 @@ Suggested order:
 5. A3 next, then A4 as P5, P7, P9 and P10 land.
 6. A5 last.
 
+Owner order for the #209 items (2026-10-11): U-32 (closed) → U-26 → U-11 phase 1 (U-11a, then U-11b after U-26 merges) → U-40.
+
 ## Handing a group of items to an agent
 
 ### Ready-made groups (wave 1)
@@ -442,6 +463,9 @@ None needed to start. Already decided and recorded:
 - the P9 cap of $3 per test run;
 - L10 comments as customer voice;
 - E11 defaults;
-- no Facebook groups.
+- no Facebook groups;
+- 2026-10-11 ([#209](https://github.com/khangpworking/tdn-growth-os/issues/209)): U-32 closed (never add the two platforms); U-26 cancel-only run flow; U-11 phase 1 ranking with the second-model check deferred; U-40 last, pilot first.
+
+Still open for the owner: the U-11 second-model check, and the total budget cap for the U-40 batch.
 
 Every merge and deploy, and any change to a spending cap, still need the owner. Data collection does not (Ultimate E14, 08/10).

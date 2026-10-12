@@ -3,14 +3,14 @@ import ConfirmDialog from '../ConfirmDialog';
 import { ResearchAutomationError, type ResearchAutomationRun } from './api';
 import { loadInsightCoding, proposeDefaultInsightCodingModel } from './insight-coding-api';
 import { createReportRevision, type AutomationInsightReportRevisionRequest } from './report-revisions-api';
-import type { InsightDefaultModelRequest } from '../../../contracts/analysis/automation-insight-model.generated';
+import type { AnyInsightDefaultModelRequest } from './insight-coding-api';
 import { defaultProposals, verifiedDefaultProposal } from './insight-default-ui';
 import { modelCorpus, modelBatches } from './insight-model-batches';
 import { proposalEntries, type View } from './insight-coding-ui';
 
 type Props = { run: ResearchAutomationRun; pairId: string; view: View; ownerToken: string | null; block: string | null; reportBlock: string | null;
   inFlight: MutableRefObject<boolean>; onBusyChanged(value: boolean): void; onVerified(view: View): void; onActivityChanged(): void };
-type Plan = { binding: View['context']['binding']; batches: number[][]; at: number; request: InsightDefaultModelRequest };
+type Plan = { binding: View['context']['binding']; batches: number[][]; at: number; request: AnyInsightDefaultModelRequest };
 export default function InsightDefaultProposalPanel({ run, pairId, view, ownerToken, block, reportBlock, inFlight, onBusyChanged, onVerified, onActivityChanged }: Props) {
   const [running, setRunning] = useState(false), [held, setHeld] = useState<Plan | null>(null), [confirm, setConfirm] = useState(false);
   const [ready, setReady] = useState<Plan | null>(null);
@@ -61,9 +61,9 @@ export default function InsightDefaultProposalPanel({ run, pairId, view, ownerTo
         const newer = defaultProposals(fresh).some(item => item.request.defaultRuleId === verified.request.defaultRuleId && item.evidence.sequence > verified.evidence.sequence);
         if (newer) { say('Có đề xuất khác nối tiếp trong lúc đọc lại. Dừng trước lô sau; chọn chính xác đề xuất cần xem.'); return; }
         if (at + 1 < plan.batches.length) {
-          body = { contractVersion: 'insight-default-model-request-v1', requestKey: crypto.randomUUID(), binding: plan.binding,
+          body = { contractVersion: plan.binding.sourceKind === 'PRIVATE_SHOPEE' ? 'insight-default-model-request-v2' : 'insight-default-model-request-v1', requestKey: crypto.randomUUID(), binding: plan.binding,
             defaultRuleId: verified.request.defaultRuleId, defaultRuleSha256: verified.request.defaultRuleSha256,
-            previousProposalId: verified.evidence.evidenceId, previousProposalSha256: verified.evidence.sha256, recordIndexes: plan.batches[at + 1]! };
+            previousProposalId: verified.evidence.evidenceId, previousProposalSha256: verified.evidence.sha256, recordIndexes: plan.batches[at + 1]! } as AnyInsightDefaultModelRequest;
           if (retryOnly || stop.current) {
             setReady({ ...plan, at: at + 1, request: body });
             say(`Đã xác minh lô ${at + 1}/${plan.batches.length} bằng đúng yêu cầu cũ. Xác nhận lại trước khi gửi các lô còn lại.`); return;
@@ -73,8 +73,8 @@ export default function InsightDefaultProposalPanel({ run, pairId, view, ownerTo
       }
     } finally { inFlight.current = false; active.current = null; token.current = null; if (mounted.current) setRunning(false); }
   };
-  const start = () => send({ binding: view.context.binding, batches, at: 0, request: { contractVersion: 'insight-default-model-request-v1', requestKey: crypto.randomUUID(),
-    binding: view.context.binding, defaultRuleId: null, defaultRuleSha256: null, previousProposalId: null, previousProposalSha256: null, recordIndexes: batches[0]! } });
+  const start = () => send({ binding: view.context.binding, batches, at: 0, request: { contractVersion: view.context.binding.sourceKind === 'PRIVATE_SHOPEE' ? 'insight-default-model-request-v2' : 'insight-default-model-request-v1', requestKey: crypto.randomUUID(),
+    binding: view.context.binding, defaultRuleId: null, defaultRuleSha256: null, previousProposalId: null, previousProposalSha256: null, recordIndexes: batches[0]! } as AnyInsightDefaultModelRequest });
   const build = async (body: AutomationInsightReportRevisionRequest) => {
     if (inFlight.current || !ownerToken || block || reportBlock) return;
     inFlight.current = true; setRunning(true); setReport(null); setReportRetry(null);

@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/keyword-list-draft-record-v3.schema.json",
+  "title": "KeywordListDraftRecordV3",
+  "description": "Additive retained keyword proposal with at least one exact confirmed Metric workbook title cell. Old Kalodata capture references keep their original meaning. Package identity is not provider authentication or product admission.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "run", "scopeDigest", "sourceSetDigest", "salesNameRefs", "seeds", "dataVersion", "category", "model", "output"],
+  "properties": {
+    "contractVersion": { "const": "l9-keyword-list-draft-record-v3" },
+    "run": { "$ref": "keyword-list-draft-record.schema.json#/properties/run" },
+    "scopeDigest": { "$ref": "keyword-list-draft-record.schema.json#/properties/scopeDigest" },
+    "sourceSetDigest": { "$ref": "#/$defs/digest" },
+    "salesNameRefs": {
+      "type": "array", "minItems": 1, "maxItems": 500,
+      "items": { "oneOf": [
+        { "$ref": "keyword-list-draft-record.schema.json#/properties/salesNameRefs/items" },
+        { "$ref": "#/$defs/metricRef" }
+      ] },
+      "contains": { "$ref": "#/$defs/metricRef" }
+    },
+    "seeds": { "$ref": "keyword-list-draft-record.schema.json#/properties/seeds" },
+    "dataVersion": { "$ref": "keyword-list-draft-record.schema.json#/properties/dataVersion" },
+    "category": { "$ref": "keyword-list-draft-record.schema.json#/properties/category" },
+    "model": { "$ref": "keyword-list-draft-record.schema.json#/properties/model" },
+    "output": { "$ref": "keyword-list-draft-record.schema.json#/properties/output" }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "metricRef": {
+      "title": "MetricWorkbookTitleCellRef",
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "sourcePackage", "workbook", "row", "locator"],
+      "properties": {
+        "kind": { "const": "metric-workbook-title-cell-v1" },
+        "sourcePackage": { "$ref": "automation-confirmed-source-set.schema.json#/$defs/sourceIdentity" },
+        "workbook": {
+          "type": "object", "additionalProperties": false,
+          "required": ["logicalPath", "sha256", "byteSize"],
+          "properties": {
+            "logicalPath": { "type": "string", "minLength": 1, "maxLength": 500, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)(?!.*//)[^\\u0000]+$" },
+            "sha256": { "$ref": "#/$defs/digest" },
+            "byteSize": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "row": { "type": "integer", "minimum": 2 },
+        "locator": { "type": "string", "pattern": "^Sheet1!A[1-9][0-9]*$", "maxLength": 500 }
+      }
+    }
+  }
+}

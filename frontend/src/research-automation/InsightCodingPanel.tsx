@@ -29,7 +29,7 @@ type Operation = { kind: 'ADOPT'; body: InsightCodingAdoptRequest }
 type LoadFailure = { kind: ResearchAutomationError['kind'] | 'unknown'; message: string };
 const PAGE_SIZE = 30;
 const mismatch = () => new ResearchAutomationError('integrity', 'Phản hồi không khớp nội dung đã xác nhận. Chưa chuyển sang bước tiếp theo.');
-const sourceKinds = { NATIVE: 'Review gốc đã lưu cùng phiên bản', EXACT_SHOPEE: 'Review Shopee đúng sản phẩm đã lưu' } as const;
+const sourceKinds = { PRIVATE_SHOPEE: 'Review Shopee từ nguồn riêng đã đối chiếu, đã loại metadata định danh', NATIVE: 'Review gốc đã lưu cùng phiên bản', EXACT_SHOPEE: 'Review Shopee đúng sản phẩm đã lưu' } as const;
 const failureCopy = (failure: LoadFailure) => failure.kind === 'notFound' ? `${failure.message} Phiên bản này chưa có nguồn review lưu kèm để mã hóa; bổ sung nguồn review ở một phiên bản mới trước.`
   : failure.kind === 'integrity' ? `${failure.message} Nguồn hoặc lịch sử mã hóa không vượt qua kiểm tra toàn vẹn. Không thao tác tiếp; báo người vận hành kiểm tra.`
     : failure.kind === 'connection' || failure.kind === 'unknown' ? `${failure.message} Chưa kết nối được; tải lại khi có mạng.` : failure.message;
@@ -195,7 +195,7 @@ export default function InsightCodingPanel({ run, pairId, versionNumber, ownerTo
     setNotice(''); setDialog(operation);
   };
   const prepareRule = (next: Rules) => {
-    if (block || held || !view) return;
+    if (block || held || !view || view.context.binding.sourceKind === 'PRIVATE_SHOPEE') return;
     open({ kind: 'ADOPT', body: { contractVersion: 'insight-coding-adopt-v1', requestKey: crypto.randomUUID(), binding: structuredClone(view.context.binding), rules: next } });
   };
   const prepareProposal = () => {
@@ -249,8 +249,8 @@ export default function InsightCodingPanel({ run, pairId, versionNumber, ownerTo
       {!included && records.length > 0 && <p className="ra-muted">Không có bản ghi nào được đưa vào, nên chưa thể đề xuất mã hóa từ nguồn này.</p>}
 
       <InsightDefaultProposalPanel run={run} pairId={pairId} view={view} ownerToken={ownerToken} block={crosscheckHeld ? 'Đang xử lý lượt thứ hai; hoàn tất lượt đó trước.' : modelHeld ? 'Đang có lượt mã hóa theo quy tắc riêng; hoàn tất lượt đó trước.' : manualHeld || ruleEditing || editorEditing || draftCount || picks.size || receiptPicks.size ? 'Hoàn tất thao tác đang mở trước.' : block} reportBlock={reportBlock} inFlight={inFlight} onBusyChanged={setDefaultHeld} onVerified={setView} onActivityChanged={onActivityChanged} />
-      <InsightCrosscheckPanel run={run} view={view} ownerToken={ownerToken} block={manualHeld || modelHeld || defaultHeld || ruleEditing || editorEditing || draftCount || picks.size || receiptPicks.size ? 'Hoàn tất thao tác đang mở trước.' : block}
-        reportBlock={reportBlock} inFlight={inFlight} onBusyChanged={setCrosscheckHeld} onActivityChanged={onActivityChanged} />
+      {view.context.binding.sourceKind === 'PRIVATE_SHOPEE' ? <p>Chưa hỗ trợ kiểm chéo cho nguồn riêng này.</p> : <InsightCrosscheckPanel run={run} view={view} ownerToken={ownerToken} block={manualHeld || modelHeld || defaultHeld || ruleEditing || editorEditing || draftCount || picks.size || receiptPicks.size ? 'Hoàn tất thao tác đang mở trước.' : block}
+        reportBlock={reportBlock} inFlight={inFlight} onBusyChanged={setCrosscheckHeld} onActivityChanged={onActivityChanged} />}
       <label className="ra-label" htmlFor="ic-rule">Quy tắc mã hóa đã duyệt<select className="ra-field" id="ic-rule" value={adoptionId} disabled={held || draftLocked || ruleEditing} onChange={event => chooseAdoption(event.target.value)}>
         <option value="">Chọn quy tắc</option>{history.adoptions.map(item => <option key={item.evidence.evidenceId} value={item.evidence.evidenceId}>{item.label}{item.current ? '' : ' · đã có bản mới hơn'}</option>)}</select></label>
       {draftLocked && <p className="ra-muted">Đang có bản nháp theo {ruleLabel || 'quy tắc này'}. Lưu đề xuất hoặc bỏ bản nháp trước khi đổi quy tắc.</p>}
@@ -262,7 +262,7 @@ export default function InsightCodingPanel({ run, pairId, versionNumber, ownerTo
         {adoption.request.rules.corpora.length ? <ul>{adoption.request.rules.corpora.map((corpus, at) => <li key={at}>Kho {at + 1} · {sectionLabels[corpus.sectionId]}: {corpus.question} · {corpus.recordIndexes.length} bản ghi · {corpus.codebook.codes.length} mã ({corpus.codebook.codes.map(code => code.label).join(', ') || 'chưa có mã'}) · Kỳ: {corpus.period ?? 'chưa khai báo'} · Khung: {corpus.frame ?? 'chưa khai báo'}{corpus.sectionId === 'I13' ? ` · Kênh: ${corpus.channel ?? 'chưa khai báo'}` : ''} · {corpus.membershipComplete ? 'Danh sách đã xác nhận đầy đủ' : 'Danh sách chưa xác nhận đầy đủ'}</li>)}</ul>
           : <p className="ra-muted">Quy tắc không có kho I10/I13.</p>}</details>}
       {stale && <p className="ra-muted">{stale}</p>}
-      <button type="button" className="button" disabled={held || Boolean(block) || draftLocked || Boolean(adoption && !adoption.current)} aria-expanded={ruleOpen} onClick={() => { setRuleEditing(true); setRuleOpen(value => !value); }}>{ruleOpen ? 'Đóng soạn quy tắc mã hóa' : adoption ? 'Soạn bản quy tắc mã hóa tiếp theo' : 'Soạn quy tắc mã hóa'}</button>
+      <button type="button" className="button" disabled={view.context.binding.sourceKind === 'PRIVATE_SHOPEE' || held || Boolean(block) || draftLocked || Boolean(adoption && !adoption.current)} aria-expanded={ruleOpen} onClick={() => { setRuleEditing(true); setRuleOpen(value => !value); }}>{ruleOpen ? 'Đóng soạn quy tắc mã hóa' : adoption ? 'Soạn bản quy tắc mã hóa tiếp theo' : 'Soạn quy tắc mã hóa'}</button>
       {ruleEditing && <>
         <button type="button" className="button" disabled={held} onClick={event => { dialogOpener.current = event.currentTarget; setDiscardRule(true); }}>Bỏ bản nháp quy tắc</button>
         <div hidden={!ruleOpen}><InsightCodingRuleForm key={adoptionId || 'new'} records={records} {...(rules ? { existing: rules } : {})} disabled={Boolean(block) || held} onPrepare={prepareRule} /></div>

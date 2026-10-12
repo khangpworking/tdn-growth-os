@@ -33,12 +33,15 @@ const boundedRevisionSchema = await readSchema('contracts/analysis/automation-bo
 const quoteRevisionSchema = await readSchema('contracts/analysis/automation-quote-report-revision.schema.json');
 const locatedInsightSchema = await readSchema('contracts/analysis/located-insight-methods.schema.json');
 const insightSelectionSchema = await readSchema('contracts/analysis/automation-insight-selection.schema.json');
+const privateInsightSourceSchema = await readSchema('contracts/analysis/private-insight-source-projection.schema.json');
+const privateReviewSchemaDependencies = await Promise.all(['foundation/shopee-collection', 'foundation/shopee-private-collection', 'foundation/shopee-private-rows', 'foundation/shopee-private-projection', 'analysis/private-review-report-view'].map(async name => [await readSchema(`contracts/${name}.schema.json`), `https://tdn.local/contracts/${name}.schema.json`]));
 const insightCodingSchema = await readSchema('contracts/analysis/automation-insight-coding.schema.json');
 const insightCodingApiSchema = await readSchema('contracts/api/research-automation-insight-coding-api.schema.json');
 const insightModelSchema = await readSchema('contracts/analysis/automation-insight-model.schema.json');
 const insightModelApiSchema = await readSchema('contracts/api/research-automation-insight-model-api.schema.json');
 const insightCrosscheckSchema = await readSchema('contracts/analysis/automation-insight-crosscheck.schema.json');
 const insightCrosscheckApiSchema = await readSchema('contracts/api/research-automation-insight-crosscheck-api.schema.json');
+const qualitativeDraftSchema = await readSchema('contracts/analysis/automation-qualitative-draft-v1.schema.json');
 const insightRevisionSchema = await readSchema('contracts/analysis/automation-insight-report-revision.schema.json');
 const defaultPeerSchema = await readSchema('contracts/analysis/default-market-peers.schema.json');
 const readerInputSchema = await readSchema('contracts/analysis/reader-report-input.schema.json');
@@ -70,12 +73,15 @@ ajv.addSchema(boundedRevisionSchema);
 ajv.addSchema(quoteRevisionSchema);
 ajv.addSchema(locatedInsightSchema);
 ajv.addSchema(insightSelectionSchema);
+for (const [contract, uri] of privateReviewSchemaDependencies) ajv.addSchema(contract, uri);
+ajv.addSchema(privateInsightSourceSchema);
 ajv.addSchema(insightCodingSchema);
 ajv.addSchema(insightCodingApiSchema);
 ajv.addSchema(insightModelSchema);
 ajv.addSchema(insightModelApiSchema);
 ajv.addSchema(insightCrosscheckSchema);
 ajv.addSchema(insightCrosscheckApiSchema);
+ajv.addSchema(qualitativeDraftSchema);
 ajv.addSchema(insightRevisionSchema);
 ajv.addSchema(readerInputSchema);
 ajv.addSchema(readerApiSchema);
@@ -105,6 +111,10 @@ const validatorRefs = {
   insightDefaultModelRequest: `${insightModelApiSchema.$id}#/$defs/defaultRequest`,
   insightCodingDefaultRule: `${insightCodingApiSchema.$id}#/$defs/defaultRuleRequest`,
   insightCodingDefaultPropose: `${insightCodingApiSchema.$id}#/$defs/defaultProposeRequest`,
+  insightCodingVersionedView: `${insightCodingApiSchema.$id}#/$defs/versionedView`,
+  insightDefaultModelSubmission: `${insightModelApiSchema.$id}#/$defs/defaultSubmission`,
+  insightPrivateCodingDefaultRule: `${insightCodingApiSchema.$id}#/$defs/privateDefaultRuleRequest`,
+  insightPrivateCodingDefaultPropose: `${insightCodingApiSchema.$id}#/$defs/privateDefaultProposeRequest`,
   insightCodingAnyView: `${insightCodingApiSchema.$id}#/$defs/anyView`,
   insightModelRequest: `${insightModelApiSchema.$id}#/$defs/request`,
   insightModelResponse: `${insightModelApiSchema.$id}#/$defs/response`,
@@ -113,6 +123,11 @@ const validatorRefs = {
   insightCrosscheckResponse: `${insightCrosscheckApiSchema.$id}#/$defs/response`,
   insightReportRevision: insightRevisionSchema.$id,
   readerReportBuild: `${readerApiSchema.$id}#/$defs/buildRequest`,
+  insightReaderBuild: `${readerApiSchema.$id}#/$defs/insightBuildRequest`,
+  readerReportBuildReceiptV2: `${readerApiSchema.$id}#/$defs/buildReceiptV2`,
+  readerReportListV2: `${readerApiSchema.$id}#/$defs/listV2`,
+  readerReportDecisionV2: `${readerApiSchema.$id}#/$defs/decisionRequestV2`,
+  readerReportDecisionReceiptV2: `${readerApiSchema.$id}#/$defs/decisionReceiptV2`,
   readerReportBuildSubmission: `${readerApiSchema.$id}#/$defs/buildSubmission`,
   readerReportBuildReceipt: `${readerApiSchema.$id}#/$defs/buildReceipt`,
   readerUnitSpecIntakeReceipt: `${readerApiSchema.$id}#/$defs/unitSpecIntakeReceipt`,
@@ -209,3 +224,222 @@ const metaHeader = ['// Isolated additive U23 validators.',
 const metaExports = Object.keys(metaRefs);
 const wrappedBody = metaBody.replace(/export const (\w+) = (\w+);/g, 'const $1 = $2;');
 await fs.appendFile(outputPath, `${metaHeader}\nconst metaPageValidators = (() => {\n${wrappedBody}\nreturn { ${metaExports.join(', ')} };\n})();\n${metaExports.map(name => `export const ${name} = metaPageValidators.${name};`).join('\n')}\n`, 'utf8');
+// Persona is a new namespace. Compile it after the historical body and isolate
+// its generated names so every existing validator byte remains unchanged.
+for (const [relative, uri] of [
+  ['contracts/foundation/shopee-collection.schema.json', 'foundation/shopee-collection'],
+  ['contracts/foundation/shopee-private-collection.schema.json', 'foundation/shopee-private-collection'],
+  ['contracts/foundation/shopee-private-rows.schema.json', 'foundation/shopee-private-rows'],
+  ['contracts/foundation/shopee-private-projection.schema.json', 'foundation/shopee-private-projection'],
+]) {
+  const id = `https://tdn.local/contracts/${uri}.schema.json`;
+  if (!ajv.getSchema(id)) ajv.addSchema(await readSchema(relative), id);
+}
+const personaSchema = await readSchema('contracts/analysis/automation-insight-persona.schema.json');
+const personaApiSchema = await readSchema('contracts/api/research-automation-insight-persona-api.schema.json');
+ajv.addSchema(personaSchema);
+// Compile only the original four aliases here. New report aliases have their
+// own canonical compilation below; old persona validator bytes stay frozen.
+const personaReportAliases = new Set(['personaReportRequest', 'personaSelectedReport']);
+ajv.addSchema({ ...personaApiSchema,
+  $defs: Object.fromEntries(Object.entries(personaApiSchema.$defs).filter(([key]) => !personaReportAliases.has(key))),
+  oneOf: personaApiSchema.oneOf.filter(item => !personaReportAliases.has(item.$ref.split('/').at(-1))),
+});
+const personaRefs = {
+  insightPersonaRequest: `${personaApiSchema.$id}#/$defs/request`,
+  insightPersonaResponse: `${personaApiSchema.$id}#/$defs/response`,
+  insightPersonaView: `${personaApiSchema.$id}#/$defs/view`,
+  insightPersonaEntry: `${personaApiSchema.$id}#/$defs/entry`,
+};
+for (const ref of Object.values(personaRefs)) {
+  const validator = ajv.getSchema(ref);
+  if (!validator || '$async' in validator) throw new Error(`Persona validator unavailable: ${ref}`);
+}
+const personaRuntimeImports = new Map();
+const personaBody = standaloneCode(ajv, personaRefs)
+  .replace(/require\("([^"]+)"\)\.(\w+)/g, (_match, moduleId, member) => {
+    const key = `${moduleId}#${member}`;
+    if (!personaRuntimeImports.has(key)) personaRuntimeImports.set(key, {
+      moduleId, member, name: `personaRuntime${personaRuntimeImports.size}`,
+    });
+    return personaRuntimeImports.get(key).name;
+  }).replace(/export const /g, 'const ').replace(/^"use strict";\s*/, '');
+if (/\brequire\(|new Function|\beval\(/.test(personaBody)) throw new Error('Persona validators must be CSP-safe');
+const personaModules = [...new Set([...personaRuntimeImports.values()].map(item => item.moduleId))]
+  .map((moduleId, index) => ({ moduleId, namespace: `personaModule${index}` }));
+const personaModuleFor = new Map(personaModules.map(item => [item.moduleId, item.namespace]));
+const personaHeader = [
+  ...personaModules.map(item => `import * as ${item.namespace} from ${JSON.stringify(`${item.moduleId}.js`)};`),
+  ...[...personaRuntimeImports.values()].map(item =>
+    `const ${item.name} = ajvRuntime(${personaModuleFor.get(item.moduleId)}, ${JSON.stringify(item.member)});`),
+].join('\n');
+const personaExports = Object.keys(personaRefs);
+await fs.appendFile(outputPath, `${personaHeader}\nconst personaValidators = (() => {\n${personaBody}\nreturn { ${personaExports.join(', ')} };\n})();\n${personaExports.map(name => `export const ${name} = personaValidators.${name};`).join('\n')}\n`, 'utf8');
+
+// Selected persona reports are additive after the frozen four persona guards.
+// Their isolated scope also preserves all historical validator output bytes.
+const personaReportSchema = await readSchema('contracts/analysis/automation-insight-persona-report.schema.json');
+ajv.addSchema(personaReportSchema);
+const personaReportRefs = {
+  insightPersonaReportRevision: `${personaReportSchema.$id}#/$defs/request`,
+  insightPersonaSelectedReport: `${personaReportSchema.$id}#/$defs/selectedSnapshot`,
+};
+for (const ref of Object.values(personaReportRefs)) {
+  const validator = ajv.getSchema(ref);
+  if (!validator || '$async' in validator) throw new Error(`Persona report validator unavailable: ${ref}`);
+}
+const personaReportRuntimeImports = new Map();
+const personaReportBody = standaloneCode(ajv, personaReportRefs)
+  .replace(/require\("([^"]+)"\)\.(\w+)/g, (_match, moduleId, member) => {
+    const key = `${moduleId}#${member}`;
+    if (!personaReportRuntimeImports.has(key)) personaReportRuntimeImports.set(key, {
+      moduleId, member, name: `personaReportRuntime${personaReportRuntimeImports.size}`,
+    });
+    return personaReportRuntimeImports.get(key).name;
+  }).replace(/export const /g, 'const ').replace(/^"use strict";\s*/, '');
+if (/\brequire\(|new Function|\beval\(/.test(personaReportBody)) throw new Error('Persona report validators must be CSP-safe');
+const personaReportModules = [...new Set([...personaReportRuntimeImports.values()].map(item => item.moduleId))]
+  .map((moduleId, index) => ({ moduleId, namespace: `personaReportModule${index}` }));
+const personaReportModuleFor = new Map(personaReportModules.map(item => [item.moduleId, item.namespace]));
+const personaReportHeader = [
+  ...personaReportModules.map(item => `import * as ${item.namespace} from ${JSON.stringify(`${item.moduleId}.js`)};`),
+  ...[...personaReportRuntimeImports.values()].map(item =>
+    `const ${item.name} = ajvRuntime(${personaReportModuleFor.get(item.moduleId)}, ${JSON.stringify(item.member)});`),
+].join('\n');
+const personaReportExports = Object.keys(personaReportRefs);
+await fs.appendFile(outputPath, `${personaReportHeader}\nconst personaReportValidators = (() => {\n${personaReportBody}\nreturn { ${personaReportExports.join(', ')} };\n})();\n${personaReportExports.map(name => `export const ${name} = personaReportValidators.${name};`).join('\n')}\n`, 'utf8');
+// Macro validators use an isolated compiler and closure. The complete historical output above
+// remains a byte-identical prefix; adding this source cannot renumber old validators or schemas.
+const macroAjv = new Ajv2020({ allErrors: true, strict: true, code: { source: true, esm: true } });
+addFormats(macroAjv);
+const macroSource = await readSchema('contracts/analysis/world-bank-intake-v1.schema.json');
+const macroApi = await readSchema('contracts/api/research-automation-macro-intake-api.schema.json');
+macroAjv.addSchema(macroSource); macroAjv.addSchema(macroApi);
+const macroRefs = Object.fromEntries(['prepareRequest', 'prepareReceipt', 'confirmRequest', 'confirmed', 'view', 'history']
+  .map(name => [`worldBank${name[0].toUpperCase()}${name.slice(1)}`, `${macroApi.$id}#/$defs/${name}`]));
+macroRefs.worldBankDescriptor = macroSource.$id;
+const macroImports = new Map();
+const macroBody = standaloneCode(macroAjv, macroRefs).replace(/require\("([^"]+)"\)\.(\w+)/g, (_match, moduleId, member) => {
+  const key = `${moduleId}#${member}`;
+  if (!macroImports.has(key)) macroImports.set(key, { moduleId, member, name: `macroAjvRuntime${macroImports.size}` });
+  return macroImports.get(key).name;
+}).replace(/export const /g, 'const ');
+if (/\brequire\(|new Function|\beval\(/.test(macroBody)) throw new Error('Macro validators must be inert standalone code');
+const macroNamespaces = [...new Set([...macroImports.values()].map(entry => entry.moduleId))]
+  .map((moduleId, index) => ({ moduleId, name: `macroAjvModule${index}` }));
+const macroNamespaceFor = new Map(macroNamespaces.map(entry => [entry.moduleId, entry.name]));
+const macroHeader = [
+  '// Isolated additive macro source validators.',
+  ...macroNamespaces.map(entry => `import * as ${entry.name} from ${JSON.stringify(`${entry.moduleId}.js`)};`),
+  ...[...macroImports.values()].map(entry => `const ${entry.name} = ajvRuntime(${macroNamespaceFor.get(entry.moduleId)}, ${JSON.stringify(entry.member)});`),
+  'function createMacroValidators() {', macroBody, `return { ${Object.keys(macroRefs).join(', ')} };`, '}',
+  `export const { ${Object.keys(macroRefs).join(', ')} } = createMacroValidators();`, '',
+].join('\n');
+await fs.appendFile(outputPath, macroHeader, 'utf8');
+
+// TikTok coding/report validators use an isolated compiler and closure. The complete historical
+// output above remains a byte-identical prefix; adding this source cannot renumber old validators.
+const tiktokAjv = new Ajv2020({ allErrors: true, strict: true, code: { source: true, esm: true } });
+addFormats(tiktokAjv);
+const tiktokCodingSchema = await readSchema('contracts/analysis/tiktok-coding-proposal-v1.schema.json');
+const tiktokCommentsSchema = await readSchema('contracts/analysis/tiktok-comment-collection-v1.schema.json');
+const tiktokKeywordSchema = await readSchema('contracts/analysis/keyword-meaning-filter.schema.json');
+const tiktokReaderApiSchema = await readSchema('contracts/api/research-automation-reader-report-api.schema.json');
+const tiktokAutomationApiSchema = await readSchema('contracts/api/research-automation-api.schema.json');
+const tiktokReaderInputSchema = await readSchema('contracts/analysis/reader-report-input.schema.json');
+const tiktokDefaultPeerSchema = await readSchema('contracts/analysis/default-market-peers.schema.json');
+tiktokAjv.addSchema(tiktokDefaultPeerSchema);
+tiktokAjv.addSchema(tiktokReaderInputSchema);
+tiktokAjv.addSchema(tiktokKeywordSchema);
+tiktokAjv.addSchema(tiktokCodingSchema);
+tiktokAjv.addSchema(tiktokCommentsSchema);
+tiktokAjv.addSchema(tiktokAutomationApiSchema);
+tiktokAjv.addSchema(tiktokReaderApiSchema);
+const tiktokRefs = {
+  tiktokCodingPropose: `${tiktokCodingSchema.$id}#/$defs/proposeRequest`,
+  tiktokCodingReceipt: `${tiktokCodingSchema.$id}#/$defs/receipt`,
+  tiktokCodingHistory: `${tiktokCodingSchema.$id}#/$defs/history`,
+  tiktokCodingReadView: `${tiktokCodingSchema.$id}#/$defs/readView`,
+  tiktokCodedReport: `${tiktokCodingSchema.$id}#/$defs/report`,
+  tiktokCodingContext: `${tiktokCodingSchema.$id}#/$defs/context`,
+  tiktokReaderBuild: `${tiktokReaderApiSchema.$id}#/$defs/tiktokBuildRequest`,
+  tiktokCommentsHistory: `${tiktokCommentsSchema.$id}#/$defs/history`,
+  tiktokCommentsReadView: `${tiktokCommentsSchema.$id}#/$defs/readView`,
+};
+for (const ref of Object.values(tiktokRefs)) {
+  const validator = tiktokAjv.getSchema(ref);
+  if (!validator || '$async' in validator) throw new Error(`TikTok validator unavailable: ${ref}`);
+}
+const tiktokImports = new Map();
+const tiktokBody = standaloneCode(tiktokAjv, tiktokRefs).replace(/require\("([^"]+)"\)\.(\w+)/g, (_match, moduleId, member) => {
+  const key = `${moduleId}#${member}`;
+  if (!tiktokImports.has(key)) tiktokImports.set(key, { moduleId, member, name: `tiktokAjvRuntime${tiktokImports.size}` });
+  return tiktokImports.get(key).name;
+}).replace(/export const /g, 'const ');
+if (/\brequire\(|new Function|\beval\(/.test(tiktokBody)) throw new Error('TikTok validators must be inert standalone code');
+const tiktokNamespaces = [...new Set([...tiktokImports.values()].map(entry => entry.moduleId))]
+  .map((moduleId, index) => ({ moduleId, name: `tiktokAjvModule${index}` }));
+const tiktokNamespaceFor = new Map(tiktokNamespaces.map(entry => [entry.moduleId, entry.name]));
+const tiktokHeader = [
+  '// Isolated additive TikTok coding/report validators.',
+  ...tiktokNamespaces.map(entry => `import * as ${entry.name} from ${JSON.stringify(`${entry.moduleId}.js`)};`),
+  ...[...tiktokImports.values()].map(entry => `const ${entry.name} = ajvRuntime(${tiktokNamespaceFor.get(entry.moduleId)}, ${JSON.stringify(entry.member)});`),
+  'function createTiktokValidators() {', tiktokBody, `return { ${Object.keys(tiktokRefs).join(', ')} };`, '}',
+  `export const { ${Object.keys(tiktokRefs).join(', ')} } = createTiktokValidators();`, '',
+].join('\n');
+await fs.appendFile(outputPath, tiktokHeader, 'utf8');
+
+// Shopee coding/report validators use an isolated compiler and closure. The complete historical
+// output above remains a byte-identical prefix; adding this source cannot renumber old validators.
+const shopeeAjv = new Ajv2020({ allErrors: true, strict: true, code: { source: true, esm: true } });
+addFormats(shopeeAjv);
+const shopeeCodingSchema = await readSchema('contracts/analysis/shopee-review-coding-v1.schema.json');
+shopeeAjv.addSchema(tiktokDefaultPeerSchema);
+shopeeAjv.addSchema(tiktokReaderInputSchema);
+shopeeAjv.addSchema(tiktokAutomationApiSchema);
+shopeeAjv.addSchema(tiktokReaderApiSchema);
+shopeeAjv.addSchema(shopeeCodingSchema);
+const shopeeRefs = {
+  shopeeCodingPropose: `${shopeeCodingSchema.$id}#/$defs/proposeRequest`,
+  shopeeCodingReceipt: `${shopeeCodingSchema.$id}#/$defs/receipt`,
+  shopeeCodingHistory: `${shopeeCodingSchema.$id}#/$defs/history`,
+  shopeeCodingReadView: `${shopeeCodingSchema.$id}#/$defs/readView`,
+  shopeeCitedSynthesis: `${shopeeCodingSchema.$id}#/$defs/report`,
+  shopeeCodingContext: `${shopeeCodingSchema.$id}#/$defs/context`,
+  shopeeSampleSelection: `${shopeeCodingSchema.$id}#/$defs/sampleSelection`,
+  shopeeReaderBuild: `${tiktokReaderApiSchema.$id}#/$defs/shopeeBuildRequest`,
+};
+for (const ref of Object.values(shopeeRefs)) {
+  const validator = shopeeAjv.getSchema(ref);
+  if (!validator || '$async' in validator) throw new Error(`Shopee validator unavailable: ${ref}`);
+}
+const shopeeImports = new Map();
+const shopeeBody = standaloneCode(shopeeAjv, shopeeRefs).replace(/require\("([^"]+)"\)\.(\w+)/g, (_match, moduleId, member) => {
+  const key = `${moduleId}#${member}`;
+  if (!shopeeImports.has(key)) shopeeImports.set(key, { moduleId, member, name: `shopeeAjvRuntime${shopeeImports.size}` });
+  return shopeeImports.get(key).name;
+}).replace(/export const /g, 'const ');
+if (/\brequire\(|new Function|\beval\(/.test(shopeeBody)) throw new Error('Shopee validators must be inert standalone code');
+const shopeeNamespaces = [...new Set([...shopeeImports.values()].map(entry => entry.moduleId))]
+  .map((moduleId, index) => ({ moduleId, name: `shopeeAjvModule${index}` }));
+const shopeeNamespaceFor = new Map(shopeeNamespaces.map(entry => [entry.moduleId, entry.name]));
+const shopeeHeader = [
+  '// Isolated additive Shopee coding/report validators.',
+  ...shopeeNamespaces.map(entry => `import * as ${entry.name} from ${JSON.stringify(`${entry.moduleId}.js`)};`),
+  ...[...shopeeImports.values()].map(entry => `const ${entry.name} = ajvRuntime(${shopeeNamespaceFor.get(entry.moduleId)}, ${JSON.stringify(entry.member)});`),
+  'function createShopeeValidators() {', shopeeBody, `return { ${Object.keys(shopeeRefs).join(', ')} };`, '}',
+  `export const { ${Object.keys(shopeeRefs).join(', ')} } = createShopeeValidators();`, '',
+].join('\n');
+await fs.appendFile(outputPath, shopeeHeader, 'utf8');
+
+// Keep the declarations derived from the same registry as the executable validators.
+await fs.writeFile(outputPath.replace(/\.js$/, '.d.ts'), [
+  '// Generated by scripts/generate-report-validators.mjs. Do not edit.',
+  'export interface PrecompiledValidator {',
+  '  (data: unknown): boolean;',
+  '  errors?: unknown[] | null;',
+  '}',
+  '',
+  ...Object.keys({ ...validatorRefs, ...metaRefs, ...personaRefs, ...personaReportRefs, ...macroRefs, ...tiktokRefs, ...shopeeRefs }).map(name => `export declare const ${name}: PrecompiledValidator;`),
+  '',
+].join('\n'), 'utf8');

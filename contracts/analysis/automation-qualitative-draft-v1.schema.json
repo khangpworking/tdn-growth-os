@@ -1,0 +1,205 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/automation-qualitative-draft-v1.schema.json",
+  "title": "AutomationQualitativeDraftV1",
+  "description": "Additive source-bound qualitative draft for retained S05 Shopee reviews and S07 TikTok comments. It preserves platform/source separation, exact retained quote pointers and explicit ambiguity/unavailability. All classifications and evidence cards are pending proposals; U11 reliability, release eligibility and main-conclusion use are unavailable.",
+  "oneOf": [
+    { "$ref": "#/$defs/draft" },
+    { "$ref": "#/$defs/binding" },
+    { "$ref": "#/$defs/sourceIdentity" },
+    { "$ref": "#/$defs/record" },
+    { "$ref": "#/$defs/classification" },
+    { "$ref": "#/$defs/card" }
+  ],
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "uuid": { "type": "string", "format": "uuid" },
+    "binding": {
+      "title": "QualitativeDraftBinding",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workspaceId", "runId", "scopeSha256", "sourceSetSha256", "requestedPeriod"],
+      "properties": {
+        "workspaceId": { "$ref": "#/$defs/uuid" },
+        "runId": { "$ref": "#/$defs/uuid" },
+        "scopeSha256": { "$ref": "#/$defs/digest" },
+        "sourceSetSha256": {
+          "anyOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }]
+        },
+        "requestedPeriod": {
+          "type": "object", "additionalProperties": false,
+          "required": ["startDate", "endDate"],
+          "properties": {
+            "startDate": { "type": "string", "format": "date" },
+            "endDate": { "type": "string", "format": "date" }
+          }
+        }
+      }
+    },
+    "sourceIdentity": {
+      "title": "QualitativeDraftSourceIdentity",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["platform", "sourceType", "sourceSha256", "sourcePackageId", "sourceManifestSha256", "sourceContentSha256"],
+      "properties": {
+        "platform": { "enum": ["SHOPEE", "TIKTOK"] },
+        "sourceType": { "enum": ["S05_LOCATED_REVIEW", "S07_TIKTOK_COMMENT"] },
+        "sourceSha256": { "$ref": "#/$defs/digest" },
+        "sourcePackageId": { "anyOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] },
+        "sourceManifestSha256": { "anyOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] },
+        "sourceContentSha256": { "anyOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] }
+      }
+    },
+    "author": {
+      "title": "QualitativeDraftAuthorState",
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["state", "hash"],
+          "properties": { "state": { "const": "VERIFIED_HASHED" }, "hash": { "$ref": "#/$defs/digest" } }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["state", "hash"],
+          "properties": { "state": { "enum": ["MISSING", "INVALID", "UNAVAILABLE"] }, "hash": { "const": null } }
+        }
+      ]
+    },
+    "record": {
+      "title": "QualitativeDraftSourceRecord",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["recordIndex", "recordId", "text", "locator", "sourceHash", "author", "admission", "admissionReason"],
+      "properties": {
+        "recordIndex": { "type": "integer", "minimum": 0, "maximum": 6000 },
+        "recordId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "text": { "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 20000 }, { "type": "null" }] },
+        "locator": { "$ref": "#/$defs/locator" },
+        "sourceHash": { "$ref": "#/$defs/digest" },
+        "author": { "$ref": "#/$defs/author" },
+        "admission": { "enum": ["INCLUDED", "EXCLUDED", "UNCLEAR"] },
+        "admissionReason": { "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 500 }, { "type": "null" }] }
+      }
+    },
+    "locator": {
+      "title": "QualitativeDraftLocator",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["owner", "pageSha256", "pageIndex", "rowIndex", "textPointer"],
+      "properties": {
+        "owner": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "pageSha256": { "$ref": "#/$defs/digest" },
+        "pageIndex": { "type": "integer", "minimum": 0 },
+        "rowIndex": { "type": "integer", "minimum": 0 },
+        "textPointer": { "type": "string", "minLength": 1, "maxLength": 200 }
+      }
+    },
+    "quote": {
+      "title": "QualitativeDraftQuote",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["recordIndex", "recordId", "locator", "text", "start", "end"],
+      "properties": {
+        "recordIndex": { "type": "integer", "minimum": 0 },
+        "recordId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "locator": { "$ref": "#/$defs/locator" },
+        "text": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "start": { "type": "integer", "minimum": 0 },
+        "end": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "classification": {
+      "title": "QualitativeDraftClassification",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["recordIndex", "recordId", "status", "confidence", "situation", "journey", "topic", "statedSentiment", "quotes", "uncertainty"],
+      "properties": {
+        "recordIndex": { "type": "integer", "minimum": 0 },
+        "recordId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "status": { "enum": ["CLASSIFIED", "UNCLASSIFIED", "UNAVAILABLE"] },
+        "confidence": { "enum": ["HIGH", "MEDIUM", "LOW", "AMBIGUOUS", "UNAVAILABLE"] },
+        "situation": { "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 240 }, { "type": "null" }] },
+        "journey": { "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 120 }, { "type": "null" }] },
+        "topic": { "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 160 }, { "type": "null" }] },
+        "statedSentiment": {
+          "anyOf": [{ "enum": ["POSITIVE", "NEGATIVE", "MIXED", "NEUTRAL", "NOT_STATED", "AMBIGUOUS"] }, { "type": "null" }]
+        },
+        "quotes": { "type": "array", "maxItems": 8, "items": { "$ref": "#/$defs/quote" } },
+        "uncertainty": {
+          "anyOf": [
+            { "type": "object", "additionalProperties": false, "required": ["state", "detail"], "properties": {
+              "state": { "enum": ["AMBIGUOUS", "UNAVAILABLE"] }, "detail": { "type": "string", "minLength": 1, "maxLength": 500 }
+            } },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "attribute": {
+      "title": "QualitativeDraftAttribute",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value", "quotes"],
+      "properties": {
+        "kind": { "enum": ["SITUATION", "NEED", "WORRY", "PURCHASE_REASON", "CHANNEL"] },
+        "value": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "quotes": { "type": "array", "minItems": 1, "maxItems": 8, "items": { "$ref": "#/$defs/quote" } }
+      }
+    },
+    "card": {
+      "title": "QualitativeDraftEvidenceCard",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cardId", "situation", "journey", "recordIndexes", "quotes", "attributes", "authorEvidence", "identityLimitation", "status"],
+      "properties": {
+        "cardId": { "$ref": "#/$defs/digest" },
+        "situation": { "$ref": "#/$defs/attribute" },
+        "journey": { "anyOf": [{ "$ref": "#/$defs/attribute" }, { "type": "null" }] },
+        "recordIndexes": { "type": "array", "minItems": 2, "maxItems": 6000, "items": { "type": "integer", "minimum": 0 } },
+        "quotes": { "type": "array", "minItems": 2, "maxItems": 16, "items": { "$ref": "#/$defs/quote" } },
+        "attributes": { "type": "array", "maxItems": 8, "items": { "$ref": "#/$defs/attribute" } },
+        "authorEvidence": { "enum": ["VERIFIED_DISTINCT_AUTHORS", "NO_VERIFIED_AUTHOR_IDS", "UNAVAILABLE"] },
+        "identityLimitation": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "status": { "const": "PROPOSED" }
+      }
+    },
+    "draft": {
+      "title": "AutomationQualitativeDraft",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "draftId", "requestKey", "binding", "source", "records", "classifications", "cards", "counts", "policy", "limitations"],
+      "properties": {
+        "contractVersion": { "const": "automation-qualitative-draft-v1" },
+        "draftId": { "$ref": "#/$defs/uuid" },
+        "requestKey": { "$ref": "#/$defs/uuid" },
+        "binding": { "$ref": "#/$defs/binding" },
+        "source": { "$ref": "#/$defs/sourceIdentity" },
+        "records": { "type": "array", "minItems": 1, "maxItems": 6000, "items": { "$ref": "#/$defs/record" } },
+        "classifications": { "type": "array", "maxItems": 6000, "items": { "$ref": "#/$defs/classification" } },
+        "cards": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/card" } },
+        "counts": {
+          "type": "object", "additionalProperties": false,
+          "required": ["included", "excluded", "unclear", "classified", "unclassified"],
+          "properties": {
+            "included": { "type": "integer", "minimum": 0 }, "excluded": { "type": "integer", "minimum": 0 },
+            "unclear": { "type": "integer", "minimum": 0 }, "classified": { "type": "integer", "minimum": 0 },
+            "unclassified": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "policy": {
+          "type": "object", "additionalProperties": false,
+          "required": ["status", "reliability", "releaseEligibility", "mainConclusionUse"],
+          "properties": {
+            "status": { "const": "PROPOSED_AWAITING_REVIEW" },
+            "reliability": { "type": "object", "additionalProperties": false, "required": ["state", "code"], "properties": {
+              "state": { "const": "UNAVAILABLE" }, "code": { "const": "U11_STATISTIC_UNAVAILABLE" }
+            } },
+            "releaseEligibility": { "const": "UNAVAILABLE" },
+            "mainConclusionUse": { "const": "EXCLUDED" }
+          }
+        },
+        "limitations": { "type": "array", "minItems": 1, "maxItems": 20, "items": { "type": "string", "minLength": 1, "maxLength": 500 } }
+      }
+    }
+  }
+}

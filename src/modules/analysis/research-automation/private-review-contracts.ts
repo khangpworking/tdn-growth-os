@@ -7,6 +7,8 @@ import projection from '../../../../contracts/foundation/shopee-private-projecti
 import marker from '../../../../contracts/analysis/automation-private-shopee-source.schema.json' with { type: 'json' };
 import corpus from '../../../../contracts/analysis/research-private-review-corpus.schema.json' with { type: 'json' };
 import view from '../../../../contracts/analysis/private-review-report-view.schema.json' with { type: 'json' };
+import reviewPolicy from '../../../../contracts/analysis/automation-review-collection-policy.schema.json' with { type: 'json' };
+import reviewSample from '../../../../contracts/analysis/automation-review-sample.schema.json' with { type: 'json' };
 import type { AutomationPrivateShopeeSource } from '../../../../contracts/analysis/automation-private-shopee-source.generated.js';
 import type { ResearchPrivateReviewCorpus } from '../../../../contracts/analysis/research-private-review-corpus.generated.js';
 import type { PrivateReviewReportView } from '../../../../contracts/analysis/private-review-report-view.generated.js';
@@ -16,7 +18,8 @@ export function registerPrivateReviewSchemas(ajv: AjvType): void {
   for (const [schema, id] of [[legacy, 'foundation/shopee-collection'], [collection, 'foundation/shopee-private-collection'],
     [rows, 'foundation/shopee-private-rows'], [projection, 'foundation/shopee-private-projection'],
     [marker, 'analysis/automation-private-shopee-source'], [corpus, 'analysis/research-private-review-corpus'],
-    [view, 'analysis/private-review-report-view']] as const) {
+    [view, 'analysis/private-review-report-view'], [reviewPolicy, 'analysis/automation-review-collection-policy'],
+    [reviewSample, 'analysis/automation-review-sample']] as const) {
     const uri = `https://tdn.local/contracts/${id}.schema.json`;
     if (!ajv.getSchema(uri)) ajv.addSchema(schema, uri);
   }

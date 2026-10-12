@@ -1,22 +1,32 @@
 import { createHash, randomUUID } from 'node:crypto';
+import type { PersonaBinding, PersonaModelRequest, PersonaRuleRequest, PersonaEvidence, PersonaRuleEvidence, PersonaProposalEvidence } from '../../../../contracts/analysis/automation-insight-persona.generated.js';
+import type { ResearchPersonaModelResponse, ResearchPersonaEntry, ResearchPersonaView } from '../../../../contracts/api/research-automation-insight-persona-api.generated.js';
+import { personaRequestValid, personaEvidenceValid, personaViewValid } from './insight-persona-contracts.js';
+import { AutomationPersonaModelExecution, buildPersonaAdmission, buildPersonaModelInput } from './insight-persona-model.js';
+import type { PersonaSourceContext, PersonaStageSource } from './insight-persona-projection.js';
 import { createRequire } from 'node:module';
 import type Database from 'better-sqlite3';
 import schema from '../../../../contracts/analysis/automation-insight-coding.schema.json' with { type: 'json' };
 import locatedSchema from '../../../../contracts/analysis/located-insight-methods.schema.json' with { type: 'json' };
 import selectionSchema from '../../../../contracts/analysis/automation-insight-selection.schema.json' with { type: 'json' };
 import reportRevisionSchema from '../../../../contracts/analysis/automation-insight-report-revision.schema.json' with { type: 'json' };
+import qualitativeDraftSchema from '../../../../contracts/analysis/automation-qualitative-draft-v1.schema.json' with { type: 'json' };
 import classifiedRevisionSchema from '../../../../contracts/analysis/automation-classified-report-revision.schema.json' with { type: 'json' };
 import snapshotSchema from '../../../../contracts/analysis/automation-insight-coding-snapshot.schema.json' with { type: 'json' };
 import type {
   AutomationInsightCodingAcceptedSnapshot,
   AutomationInsightCodingDraftSnapshot,
   AutomationInsightCodingFamilyDraftSnapshot, AutomationInsightCodingDefaultDraftSnapshot,
-  AutomationInsightCodingSnapshot,
+  AutomationInsightCodingSnapshot, AutomationInsightCodingPrivateDefaultDraftSnapshot,
 } from '../../../../contracts/analysis/automation-insight-coding-snapshot.generated.js';
 import type { InsightReportSelection, InsightDraftSelection, InsightDefaultDraftSelection } from '../../../../contracts/analysis/automation-insight-report-revision.generated.js';
-import type { InsightCodingAdoptRequest, InsightCodingProposeRequest, InsightCodingAcceptRequest, InsightCodingEvidence, InsightSourceBinding, InsightDefaultCodingEvidence, InsightDefaultRuleRequest, InsightDefaultCodingProposeRequest } from '../../../../contracts/analysis/automation-insight-coding.generated.js';
+import type { InsightCodingAdoptRequest, InsightCodingProposeRequest, InsightCodingAcceptRequest, InsightCodingEvidence, InsightSourceBinding, InsightDefaultCodingEvidence, InsightDefaultRuleRequest, InsightDefaultCodingProposeRequest, InsightPrivateDefaultCodingEvidence, InsightPrivateDefaultRuleRequest, InsightPrivateDefaultCodingProposeRequest } from '../../../../contracts/analysis/automation-insight-coding.generated.js';
 import type { AutomationInsightSelection } from '../../../../contracts/analysis/automation-insight-selection.generated.js';
 import type { LocatedInsightMethods } from '../../../../contracts/analysis/located-insight-methods.generated.js';
+import type { PrivateInsightSourceProjection } from '../../../../contracts/analysis/private-insight-source-projection.generated.js';
+import privateSourceSchema from '../../../../contracts/analysis/private-insight-source-projection.schema.json' with { type: 'json' };
+import { registerPrivateReviewSchemas } from './private-review-contracts.js';
+import { DEFAULT_PRIVATE_INSIGHT_POLICY } from './insight-default-coding.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import { validateLocatedInsightInput, buildLocatedInsightMethods } from '../located-insight-methods.js';
 import { projectSelectedInsightCandidates, projectDraftInsightGroupCounts } from './selected-insight-projection.js';
@@ -32,8 +42,9 @@ const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
 const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
 const ajv = new Ajv2020({ strict: true, allErrors: false }); addFormats(ajv);
+registerPrivateReviewSchemas(ajv); ajv.addSchema(privateSourceSchema);
 ajv.addSchema(locatedSchema); ajv.addSchema(selectionSchema); ajv.addSchema(schema);
-ajv.addSchema(classifiedRevisionSchema); ajv.addSchema(reportRevisionSchema);
+ajv.addSchema(classifiedRevisionSchema); ajv.addSchema(qualitativeDraftSchema); ajv.addSchema(reportRevisionSchema);
 const snapshotValid = ajv.compile<AutomationInsightCodingSnapshot>(snapshotSchema);
 const defaultSelectionValid = ajv.compile<InsightDefaultDraftSelection>({ $ref: `${reportRevisionSchema.$id}#/$defs/defaultSelection` });
 const adoptValid = ajv.compile<InsightCodingAdoptRequest>({ $ref: `${schema.$id}#/$defs/adopt` });
@@ -41,7 +52,7 @@ const proposeValid = ajv.compile<InsightCodingProposeRequest>({ $ref: `${schema.
 type LiteralRequest = Omit<InsightCodingProposeRequest, 'contractVersion' | 'annotations'> & { contractVersion: 'insight-coding-literal-propose-v1' };
 const literalValid = ajv.compile<LiteralRequest>({ $ref: `${schema.$id}#/$defs/literalPropose` });
 const acceptValid = ajv.compile<InsightCodingAcceptRequest>({ $ref: `${schema.$id}#/$defs/accept` });
-const evidenceValid = ajv.compile<Evidence>({ oneOf: [{ $ref: `${schema.$id}#/$defs/evidence` }, { $ref: `${schema.$id}#/$defs/defaultEvidence` }] });
+const evidenceValid = ajv.compile<Evidence>({ oneOf: [{ $ref: `${schema.$id}#/$defs/evidence` }, { $ref: `${schema.$id}#/$defs/defaultEvidence` }, { $ref: `${schema.$id}#/$defs/privateDefaultEvidence` }] });
 const json = canonicalJson;
 const hash = (value: unknown): string => createHash('sha256').update(json(value)).digest('hex');
 const clone = <T>(value: T): T => JSON.parse(json(value)) as T;
@@ -54,24 +65,223 @@ function invalid(): never { throw new ResearchAutomationValidationError('Invalid
 function corrupt(): never { throw new ResearchAutomationIntegrityError('Insight coding evidence failed verification.'); }
 function conflict(): never { throw new ResearchAutomationConflictError('revision_conflict', 'Insight source, rules or proposal changed. Reload before confirming.'); }
 function tooLarge(): never { throw new ResearchAutomationConflictError('invalid_state', 'Insight coding history exceeds the bounded pair view.'); }
-type Evidence = InsightCodingEvidence | InsightDefaultCodingEvidence;
+type Evidence = InsightCodingEvidence | InsightDefaultCodingEvidence | InsightPrivateDefaultCodingEvidence;
+type DefaultRule = InsightDefaultRuleRequest | InsightPrivateDefaultRuleRequest;
+type DefaultProposal = InsightDefaultCodingProposeRequest | InsightPrivateDefaultCodingProposeRequest;
+type InsightPrivateSourceBinding = InsightPrivateDefaultRuleRequest['binding'];
+export type AnyInsightSourceBinding = InsightSourceBinding | InsightPrivateSourceBinding;
 type Request = Evidence['request'];
 type Kind = 'ADOPTION' | 'PROPOSAL' | 'RECEIPT';
 interface Row { evidence_id: string; kind: Kind; run_id: string; pair_sha256: string; parent_id: string | null; request_key: string; sequence: number | bigint; artifact_sha256: string; artifact_json: string }
 interface Owner { actorId: string; role: 'OWNER' }
 export interface InsightSourceContext { binding: InsightSourceBinding; input: LocatedInsightMethods['input']; verifiedPlatform?: 'SHOPEE' }
-type SourceReads = Map<string, Promise<InsightSourceContext>>;
+export type InsightCodingSourceContext = Omit<InsightSourceContext, 'binding'> & { binding: AnyInsightSourceBinding; privateSource?: PrivateInsightSourceProjection };
+type SourceReads = Map<string, Promise<InsightCodingSourceContext>>;
 interface Options {
   db: Database.Database; artifacts: ContentAddressedArtifactStore; staging?: RequestScopedArtifactStore;
-  context(workspaceId: string, runId: string, pairId: string): Promise<InsightSourceContext>;
-  assertCurrent(binding: InsightSourceBinding): Promise<void>; now(): Date;
+  context(workspaceId: string, runId: string, pairId: string): Promise<InsightCodingSourceContext>;
+  assertCurrent(binding: AnyInsightSourceBinding): Promise<void>; now(): Date;
+  personaSource?(workspaceId: string, runId: string, pairId: string): Promise<PersonaSourceContext>;
+  assertPersonaCurrent?(binding: PersonaBinding): Promise<void>;
 }
-const kindOf = (request: Request): Kind => request.contractVersion === 'insight-coding-adopt-v1' || request.contractVersion === 'insight-coding-default-rule-v1' ? 'ADOPTION' : request.contractVersion === 'insight-coding-propose-v1' || request.contractVersion === 'insight-coding-default-propose-v1' ? 'PROPOSAL' : 'RECEIPT';
-const publicKind = (request: Request) => request.contractVersion === 'insight-coding-default-rule-v1' ? 'DEFAULT_RULE' as const : kindOf(request);
+const isDefaultRule = (request: Request): request is DefaultRule => ['insight-coding-default-rule-v1', 'insight-coding-default-rule-v2'].includes(request.contractVersion);
+const isDefaultProposal = (request: Request): request is DefaultProposal => ['insight-coding-default-propose-v1', 'insight-coding-default-propose-v2'].includes(request.contractVersion);
+const kindOf = (request: Request): Kind => request.contractVersion === 'insight-coding-adopt-v1' || isDefaultRule(request) ? 'ADOPTION' : request.contractVersion === 'insight-coding-propose-v1' || isDefaultProposal(request) ? 'PROPOSAL' : 'RECEIPT';
+const publicKind = (request: Request) => isDefaultRule(request) ? 'DEFAULT_RULE' as const : kindOf(request);
 
 /** Owns exact Insight rules, proposals and selected receipts; never runs a provider or approves a report. */
 export class AutomationInsightCoding {
   constructor(private readonly options: Options) {}
+
+  /** New persona namespace, using this owner's existing immutable coding ledger. */
+  async proposePersonaModel(workspaceId: string, runId: string, value: unknown, owner: Owner, ai: InsightModelAI, signal?: AbortSignal): Promise<ResearchPersonaModelResponse> {
+    this.owner(owner); if (!personaRequestValid(value) || !this.options.staging) invalid();
+    signal?.throwIfAborted();
+    const request = clone(value), context = await this.personaContext(workspaceId, runId, request.binding.pairId);
+    if (json(request.binding) !== json(context.binding)) conflict();
+    const used = this.rowByRequest(request.requestKey);
+    if (used) {
+      const entry = await this.readPersonaEvidence(used.evidence_id, workspaceId, runId);
+      if (entry.evidence.contractVersion !== 'insight-persona-proposal-evidence-v1' || json(entry.evidence.request) !== json(request) || entry.evidence.actorId !== owner.actorId) conflict();
+      return { contractVersion: 'insight-persona-model-response-v1', status: 'PROPOSED', executionId: entry.evidence.executionId, proposal: entry };
+    }
+    let root: PersonaRuleEvidence | null = null, rootSha256: string | null = null;
+    let previous: PersonaProposalEvidence | null = null;
+    const rootKey = this.personaRootKey(request.requestKey);
+    if (request.stage === 'TAXONOMY') {
+      const existing = this.rowByRequest(rootKey);
+      if (existing) {
+        const entry = await this.readPersonaEvidence(existing.evidence_id, workspaceId, runId);
+        if (entry.evidence.contractVersion !== 'insight-persona-rule-evidence-v1' ||
+          json(entry.evidence.request.initiatingRequest) !== json(request) || entry.evidence.actorId !== owner.actorId) conflict();
+        root = entry.evidence; rootSha256 = entry.sha256;
+      }
+    } else {
+      const entry = await this.readPersonaEvidence(request.rootId, workspaceId, runId);
+      if (entry.evidence.contractVersion !== 'insight-persona-rule-evidence-v1' || entry.sha256 !== request.rootSha256) invalid();
+      root = entry.evidence; rootSha256 = entry.sha256;
+      const prior = await this.readPersonaEvidence(request.previousProposalId, workspaceId, runId);
+      if (prior.evidence.contractVersion !== 'insight-persona-proposal-evidence-v1' || prior.sha256 !== request.previousProposalSha256 ||
+        prior.evidence.rootId !== root.evidenceId || prior.evidence.rootSha256 !== rootSha256 || json(prior.evidence.binding) !== json(context.binding)) invalid();
+      previous = prior.evidence;
+    }
+    const source: PersonaStageSource = { ...context, request, previous: previous?.snapshot ?? null };
+    // Authenticate full source/membership/lineage and byte bounds before any root or dispatch write.
+    buildPersonaAdmission(source); buildPersonaModelInput(source);
+    if (!root) {
+      if (!ai) return { contractVersion: 'insight-persona-model-response-v1', status: 'NOT_DISPATCHED', reason: 'AI_NOT_CONFIGURED' };
+      const rule: PersonaRuleRequest = { contractVersion: 'insight-persona-rule-request-v1', requestKey: rootKey,
+        binding: context.binding, initiatingRequest: request,
+        rules: { ruleId: 'persona-source-minimums-v1', revision: 1, authority: 'APPLICATION_SOURCE_POLICY_NOT_OWNER_APPROVAL' } };
+      const entry = await this.writePersona(rule, owner, null, context, null);
+      if (entry.evidence.contractVersion !== 'insight-persona-rule-evidence-v1') corrupt();
+      root = entry.evidence; rootSha256 = entry.sha256;
+    }
+    if (json(root.binding) !== json(context.binding)) conflict();
+    const parent = { kind: 'INSIGHT_CODING' as const, runId, adoptionId: root.evidenceId, requestKey: request.requestKey,
+      previousProposalId: request.previousProposalId };
+    const execution = await new AutomationPersonaModelExecution({ db: this.options.db, artifactStore: this.options.artifacts, now: this.options.now })
+      .execute(parent, source, ai, signal);
+    if (execution.status !== 'VALID') {
+      const base = { contractVersion: 'insight-persona-model-response-v1' as const };
+      if (execution.status === 'NOT_DISPATCHED') return { ...base, status: execution.status, reason: execution.reason };
+      if (execution.status === 'PREPARED') return { ...base, status: execution.status, executionId: execution.executionId };
+      return { ...base, status: execution.status, executionId: execution.executionId,
+        code: execution.status === 'INVALID' ? execution.validationCode : execution.unknownCode };
+    }
+    const proposal = await this.writePersona(request, owner, root, context, {
+      executionId: execution.executionId, candidatesSha256: execution.candidates.sha256, snapshot: execution.candidates.artifact.snapshot,
+    });
+    return { contractVersion: 'insight-persona-model-response-v1', status: 'PROPOSED', executionId: execution.executionId, proposal };
+  }
+
+  async readPersonaEvidence(id: string, workspaceId: string, runId: string,
+    contexts = new Map<string, Promise<PersonaSourceContext>>()): Promise<ResearchPersonaEntry> {
+    const row = this.row(id);
+    if (!row || row.run_id !== runId) throw new ResearchAutomationNotFoundError('insight_coding_not_found', 'Persona evidence was not found.');
+    const value = await this.loadPersona(row);
+    if (value.binding.workspaceId !== workspaceId) throw new ResearchAutomationNotFoundError('insight_coding_not_found', 'Persona evidence was not found.');
+    let pending = contexts.get(value.binding.pairId);
+    if (!pending) { pending = this.personaContext(workspaceId, runId, value.binding.pairId); contexts.set(value.binding.pairId, pending); }
+    const context = await pending;
+    if (json(value.binding) !== json(context.binding) || json(value.request.binding) !== json(value.binding)) corrupt();
+    if (value.contractVersion === 'insight-persona-rule-evidence-v1') {
+      if (row.kind !== 'ADOPTION' || row.parent_id !== null || value.parentSha256 !== null || value.sequence !== 1 ||
+        value.request.initiatingRequest.stage !== 'TAXONOMY' || value.request.requestKey !== this.personaRootKey(value.request.initiatingRequest.requestKey) ||
+        json(value.request.initiatingRequest.binding) !== json(context.binding)) corrupt();
+      buildPersonaAdmission({ ...context, request: value.request.initiatingRequest, previous: null });
+    } else {
+      if (row.kind !== 'PROPOSAL' || row.parent_id !== value.rootId || value.parentSha256 !== value.rootSha256 || row.parent_id === id) corrupt();
+      const parentRow = this.row(value.rootId);
+      if (!parentRow || parentRow.kind !== 'ADOPTION' || parentRow.parent_id !== null) corrupt();
+      const root = await this.readPersonaEvidence(value.rootId, workspaceId, runId, contexts);
+      if (root.evidence.contractVersion !== 'insight-persona-rule-evidence-v1' || root.sha256 !== value.rootSha256 || json(root.evidence.binding) !== json(value.binding)) corrupt();
+      const priorRow = this.options.db.prepare(`SELECT * FROM analysis_insight_coding_evidence WHERE parent_id=? AND kind='PROPOSAL' AND sequence=?`)
+        .get(value.rootId, value.sequence - 1) as Row | undefined;
+      if ((priorRow?.evidence_id ?? null) !== value.request.previousProposalId || (value.sequence > 1 && !priorRow)) corrupt();
+      let previous: PersonaProposalEvidence | null = null;
+      if (priorRow) {
+        const prior = await this.readPersonaEvidence(priorRow.evidence_id, workspaceId, runId, contexts);
+        if (prior.evidence.contractVersion !== 'insight-persona-proposal-evidence-v1' || prior.sha256 !== value.request.previousProposalSha256 ||
+          value.request.rootId !== value.rootId || value.request.rootSha256 !== root.sha256) corrupt();
+        previous = prior.evidence;
+      } else if (value.request.stage !== 'TAXONOMY' || json(value.request) !== json(root.evidence.request.initiatingRequest)) corrupt();
+      const source = { ...context, request: value.request, previous: previous?.snapshot ?? null };
+      const execution = await new AutomationPersonaModelExecution({ db: this.options.db, artifactStore: this.options.artifacts, now: this.options.now })
+        .read({ kind: 'INSIGHT_CODING', runId, adoptionId: value.rootId, requestKey: value.request.requestKey,
+          previousProposalId: value.request.previousProposalId }, source);
+      if (execution.status !== 'VALID' || execution.executionId !== value.executionId || execution.candidates.sha256 !== value.candidatesSha256 ||
+        json(execution.candidates.artifact.snapshot) !== json(value.snapshot)) corrupt();
+    }
+    return { evidence: value, sha256: row.artifact_sha256 };
+  }
+
+  async personaView(workspaceId: string, runId: string, pairId: string): Promise<ResearchPersonaView> {
+    const contexts = new Map<string, Promise<PersonaSourceContext>>();
+    const pending = this.personaContext(workspaceId, runId, pairId); contexts.set(pairId, pending);
+    const context = await pending;
+    // Inspect the whole pair before namespace filtering. A tampered wrapper
+    // must not disappear from the authoritative persona history.
+    const rows = this.options.db.prepare(`SELECT * FROM analysis_insight_coding_evidence WHERE run_id=? AND pair_sha256=?
+      ORDER BY CASE kind WHEN 'ADOPTION' THEN 0 WHEN 'PROPOSAL' THEN 1 ELSE 2 END, parent_id, sequence, evidence_id LIMIT ?`).all(runId, pairId, MAX_VIEW_EVIDENCE + 1) as Row[];
+    if (rows.length > MAX_VIEW_EVIDENCE) tooLarge();
+    const evidence: ResearchPersonaEntry[] = [];
+    for (const row of rows) {
+      let wrapper: unknown; try { wrapper = JSON.parse(row.artifact_json); } catch { return corrupt(); }
+      const version = wrapper && typeof wrapper === 'object' && 'contractVersion' in wrapper ? wrapper.contractVersion : undefined;
+      if (version === 'insight-persona-rule-evidence-v1' || version === 'insight-persona-proposal-evidence-v1')
+        evidence.push(await this.readPersonaEvidence(row.evidence_id, workspaceId, runId, contexts));
+      else if (version === 'insight-coding-evidence-v1' || version === 'insight-coding-default-evidence-v1' || version === 'insight-coding-default-evidence-v2') {
+        // Authenticate the legacy envelope/CAS without interpreting it as
+        // persona evidence. Its own reader retains its independent source replay.
+        const legacy = await this.load(row, false);
+        if (legacy.binding.workspaceId !== workspaceId) corrupt();
+      } else corrupt();
+    }
+    const view: ResearchPersonaView = { contractVersion: 'insight-persona-view-v1', binding: context.binding,
+      source: context.evidence.publicSource(), evidence, releaseEligibility: 'UNAVAILABLE' };
+    if (Buffer.byteLength(json(view)) > MAX_VIEW_BYTES || !personaViewValid(view)) corrupt();
+    return view;
+  }
+  private personaRootKey(requestKey: string) {
+    const sha = hash(['insight-persona-source-policy-root-v1', requestKey]);
+    return `${sha.slice(0,8)}-${sha.slice(8,12)}-4${sha.slice(13,16)}-8${sha.slice(17,20)}-${sha.slice(20,32)}`;
+  }
+  private rowByRequest(key: string) { return this.options.db.prepare('SELECT * FROM analysis_insight_coding_evidence WHERE request_key=?').get(key) as Row | undefined; }
+  private async personaContext(workspaceId: string, runId: string, pairId: string) {
+    if (!this.options.personaSource) throw new ResearchAutomationConflictError('invalid_state', 'Persona source is unavailable.');
+    return this.options.personaSource(workspaceId, runId, pairId);
+  }
+  private async loadPersona(row: Row): Promise<PersonaEvidence> {
+    let value: unknown; try { value = JSON.parse(row.artifact_json); } catch { return corrupt(); }
+    if (!personaEvidenceValid(value) || json(value) !== row.artifact_json || hash(value) !== row.artifact_sha256 || value.evidenceId !== row.evidence_id ||
+      value.binding.runId !== row.run_id || value.binding.pairId !== row.pair_sha256 || value.request.requestKey !== row.request_key || value.sequence !== Number(row.sequence) ||
+      row.kind !== (value.contractVersion === 'insight-persona-rule-evidence-v1' ? 'ADOPTION' : 'PROPOSAL')) corrupt();
+    const manifest = this.options.db.prepare('SELECT * FROM artifact_manifests WHERE sha256=?').get(row.artifact_sha256) as Record<string, unknown> | undefined;
+    const expected = Buffer.from(row.artifact_json);
+    if (!manifest || Number(manifest.byte_size) !== expected.length || manifest.media_type !== 'application/json' || manifest.contract_version !== '1.0.0' ||
+      manifest.retention_status !== 'active' || manifest.relative_path !== `sha256/${row.artifact_sha256.slice(0, 2)}/${row.artifact_sha256}` ||
+      manifest.acquired_at !== value.createdAt || manifest.created_at !== value.createdAt) corrupt();
+    const bytes = await (this.options.staging ?? this.options.artifacts).read(row.artifact_sha256, { maxBytes: MAX_BYTES });
+    if (!bytes.equals(expected)) corrupt();
+    return value;
+  }
+  private async writePersona(request: PersonaRuleRequest | PersonaModelRequest, owner: Owner, root: PersonaRuleEvidence | null,
+    context: PersonaSourceContext, output: Pick<PersonaProposalEvidence, 'executionId' | 'candidatesSha256' | 'snapshot'> | null): Promise<ResearchPersonaEntry> {
+    const store = this.options.staging; if (!store || !this.options.assertPersonaCurrent) invalid();
+    return withDatabaseMutationMutex(this.options.db, () => store.withOwnership(async () => {
+      this.options.db.exec('BEGIN IMMEDIATE');
+      let entry: ResearchPersonaEntry;
+      try {
+        const prior = this.rowByRequest(request.requestKey);
+        if (prior) {
+          entry = await this.readPersonaEvidence(prior.evidence_id, context.binding.workspaceId, context.binding.runId);
+          if (entry.evidence.actorId !== owner.actorId || json(entry.evidence.request) !== json(request)) conflict();
+        } else {
+          await this.options.assertPersonaCurrent!(context.binding);
+          const latest = root ? this.latest(root.evidenceId, 'PROPOSAL') : null;
+          if (request.contractVersion === 'insight-persona-model-request-v1' && (latest?.evidence_id ?? null) !== request.previousProposalId) conflict();
+          const base = { evidenceId: randomUUID(), sequence: root ? Number(latest?.sequence ?? 0) + 1 : 1,
+            binding: context.binding, parentSha256: root ? hash(root) : null, actorId: owner.actorId, actorRole: 'OWNER' as const, createdAt: this.options.now().toISOString() };
+          const evidence = request.contractVersion === 'insight-persona-rule-request-v1'
+            ? { ...base, contractVersion: 'insight-persona-rule-evidence-v1' as const, request }
+            : { ...base, contractVersion: 'insight-persona-proposal-evidence-v1' as const, request, rootId: root!.evidenceId, rootSha256: hash(root), ...output! };
+          if (!personaEvidenceValid(evidence)) corrupt();
+          const bytes = Buffer.from(json(evidence)); if (bytes.length > MAX_BYTES) invalid();
+          const stored = await store.put(bytes);
+          this.options.db.prepare(`INSERT INTO artifact_manifests(sha256,byte_size,media_type,relative_path,acquired_at,contract_version,retention_status,created_at)
+            VALUES (?,?,'application/json',?,?,'1.0.0','active',?) ON CONFLICT(sha256) DO NOTHING`)
+            .run(stored.sha256, stored.byteSize, stored.relativePath, evidence.createdAt, evidence.createdAt);
+          this.options.db.prepare(`INSERT INTO analysis_insight_coding_evidence(evidence_id,kind,run_id,pair_sha256,parent_id,request_key,sequence,artifact_sha256,artifact_json)
+            VALUES (?,?,?,?,?,?,?,?,?)`).run(evidence.evidenceId, root ? 'PROPOSAL' : 'ADOPTION', context.binding.runId, context.binding.pairId,
+              root?.evidenceId ?? null, request.requestKey, evidence.sequence, stored.sha256, json(evidence));
+          entry = await this.readPersonaEvidence(evidence.evidenceId, context.binding.workspaceId, context.binding.runId);
+        }
+        this.options.db.exec('COMMIT');
+      } catch (error) { if (this.options.db.inTransaction) this.options.db.exec('ROLLBACK'); throw error; }
+      await store.publishOwned(entry.sha256); return entry;
+    }));
+  }
 
   async adopt(workspaceId: string, runId: string, value: unknown, owner: Owner) {
     this.owner(owner); if (!adoptValid(value)) invalid();
@@ -146,6 +356,7 @@ export class AutomationInsightCoding {
       previous = evidence.request;
     }
     const context = await this.context(workspaceId, runId, adoption.binding.pairId);
+    if (adoption.binding.sourceKind === 'PRIVATE_SHOPEE') invalid();
     const execution = new AutomationInsightModelExecution({ db: this.options.db, artifactStore: this.options.artifacts, now: this.options.now });
     const outcome = await execution.execute({ contractVersion: 'insight-model-source-v1', request, binding: adoption.binding,
       adoptionSha256: hash(adoption), actorId: owner.actorId, input: this.compose(context, adoption.request) }, ai, signal);
@@ -187,41 +398,44 @@ export class AutomationInsightCoding {
     for (const index of request.recordIndexes) if (!context.input.records[index] || context.input.records[index]!.disposition !== 'INCLUDED' || context.input.records[index]!.text === null) invalid();
     const used = this.options.db.prepare('SELECT evidence_id FROM analysis_insight_coding_evidence WHERE request_key=?').get(request.requestKey);
     if (used && !this.options.db.prepare('SELECT execution_id FROM analysis_research_automation_ai_executions WHERE coding_request_key=?').get(request.requestKey)) conflict();
+    const privateSource = context.binding.sourceKind === 'PRIVATE_SHOPEE';
+    if (privateSource !== (request.contractVersion === 'insight-default-model-request-v2') || privateSource !== Boolean(context.privateSource)) invalid();
+    const policy = privateSource ? DEFAULT_PRIVATE_INSIGHT_POLICY : DEFAULT_INSIGHT_POLICY;
     let root: Evidence;
     if (request.defaultRuleId === null) {
       // Stable subordinate identity shares the existing immutable request ledger, never a parallel store.
-      const digest = hash({ policy: DEFAULT_INSIGHT_POLICY, requestKey: request.requestKey });
+      const digest = hash({ policy, requestKey: request.requestKey });
       const rootKey = `${digest.slice(0,8)}-${digest.slice(8,12)}-4${digest.slice(13,16)}-8${digest.slice(17,20)}-${digest.slice(20,32)}`;
-      const rootRequest: InsightDefaultRuleRequest = { contractVersion: 'insight-coding-default-rule-v1', kind: 'DEFAULT_RULE', status: 'PROPOSED',
-        requestKey: rootKey, originatingRequestKey: request.requestKey, binding: context.binding, policyVersion: DEFAULT_INSIGHT_POLICY, rules: sourceDefaultInsightRules(context.input) };
+      const rootRequest = { contractVersion: privateSource ? 'insight-coding-default-rule-v2' : 'insight-coding-default-rule-v1', kind: 'DEFAULT_RULE', status: 'PROPOSED',
+        requestKey: rootKey, originatingRequestKey: request.requestKey, binding: context.binding, policyVersion: policy, rules: sourceDefaultInsightRules(context.input) } as DefaultRule;
       root = (await this.write(workspaceId, runId, rootRequest, owner, async () => {
         await this.options.assertCurrent(context.binding);
         return { binding: context.binding, parent: null, sequence: 1 };
       })).evidence;
     } else root = await this.read(request.defaultRuleId, workspaceId, runId);
-    if (root.request.contractVersion !== 'insight-coding-default-rule-v1' || json(root.binding) !== json(request.binding) ||
+    if (!isDefaultRule(root.request) || json(root.binding) !== json(request.binding) ||
       (request.defaultRuleSha256 !== null && hash(root) !== request.defaultRuleSha256)) invalid();
-    let previous: InsightDefaultCodingProposeRequest | undefined;
+    let previous: DefaultProposal | undefined;
     if (request.previousProposalId !== null) {
       const prior = await this.read(request.previousProposalId, workspaceId, runId);
-      if (prior.request.contractVersion !== 'insight-coding-default-propose-v1' || prior.request.defaultRuleId !== root.evidenceId || hash(prior) !== request.previousProposalSha256) invalid();
+      if (!isDefaultProposal(prior.request) || prior.request.defaultRuleId !== root.evidenceId || hash(prior) !== request.previousProposalSha256) invalid();
       previous = prior.request;
     }
     const rules = previous?.rules ?? root.request.rules;
     // Retain predecessor annotations for full continuation validation, never as model input.
     const input = composeDefaultInsightInput(context.input, rules, previous?.annotations);
-    const source = { contractVersion: 'insight-default-model-source-v1' as const, request, binding: context.binding,
-      defaultRuleId: root.evidenceId, defaultRuleSha256: hash(root), codebookSha256: hash(input.corpora.map(corpus => corpus.codebook)), actorId: owner.actorId, input };
+    const source = { contractVersion: privateSource ? 'insight-default-model-source-v2' : 'insight-default-model-source-v1', request, binding: context.binding,
+      defaultRuleId: root.evidenceId, defaultRuleSha256: hash(root), codebookSha256: hash(input.corpora.map(corpus => corpus.codebook)), actorId: owner.actorId, input, ...(privateSource ? { privateSource: context.privateSource } : {}) } as import('./insight-model-execution.js').AnyInsightDefaultModelSource;
     const execution = new AutomationInsightDefaultModelExecution({ db: this.options.db, artifactStore: this.options.artifacts, now: this.options.now });
     const outcome = await execution.execute(source, ai, signal);
     if (outcome.status !== 'VALID') return { execution: outcome };
     const coded = appendDefaultCodebooks(input, outcome.candidates.artifact.codebooks, request.recordIndexes);
     const proposedRules = clone(rules); proposedRules.corpora = coded.corpora.map(corpus => ({ ...corpus, assignments: [] as [], dispositions: [] as [] }));
     const annotations = mergeInsightBatch(outcome.candidates.artifact.annotations, previous?.annotations, request.recordIndexes);
-    const proposalRequest: InsightDefaultCodingProposeRequest = { contractVersion: 'insight-coding-default-propose-v1', status: 'PROPOSED',
+    const proposalRequest = { contractVersion: privateSource ? 'insight-coding-default-propose-v2' : 'insight-coding-default-propose-v1', status: 'PROPOSED',
       requestKey: request.requestKey, defaultRuleId: root.evidenceId, defaultRuleSha256: hash(root), previousProposalId: request.previousProposalId,
       previousProposalSha256: request.previousProposalSha256, executionId: outcome.executionId, recordIndexes: request.recordIndexes as [number, ...number[]],
-      rules: proposedRules, codebookSha256: hash(proposedRules.corpora.map(corpus => corpus.codebook)), annotations };
+      rules: proposedRules, codebookSha256: hash(proposedRules.corpora.map(corpus => corpus.codebook)), annotations } as DefaultProposal;
     const proposal = await this.write(workspaceId, runId, proposalRequest, owner, async () => {
       await this.options.assertCurrent(root.binding);
       const prior = this.latest(root.evidenceId, 'PROPOSAL');
@@ -232,35 +446,37 @@ export class AutomationInsightCoding {
     return { execution: outcome, proposal };
   }
 
-  private async verifyDefaultEvidence(value: Evidence, row: Row, context: InsightSourceContext, sourceReads: SourceReads) {
+  private async verifyDefaultEvidence(value: Evidence, row: Row, context: InsightCodingSourceContext, sourceReads: SourceReads) {
     const request = value.request;
-    if (request.contractVersion === 'insight-coding-default-rule-v1') {
+    if (isDefaultRule(request)) {
       if (row.parent_id !== null || value.parentSha256 !== null || Number(row.sequence) !== 1 || json(request.binding) !== json(value.binding) ||
         json(request.rules) !== json(sourceDefaultInsightRules(context.input))) corrupt();
       return;
     }
-    if (request.contractVersion !== 'insight-coding-default-propose-v1' || row.parent_id !== request.defaultRuleId || row.parent_id === value.evidenceId) corrupt();
+    if (!isDefaultProposal(request) || row.parent_id !== request.defaultRuleId || row.parent_id === value.evidenceId) corrupt();
     const rootRow = this.row(request.defaultRuleId);
     if (!rootRow || rootRow.kind !== 'ADOPTION' || rootRow.parent_id !== null) corrupt();
     const root = await this.read(request.defaultRuleId, value.binding.workspaceId, value.binding.runId, false, sourceReads);
-    if (root.request.contractVersion !== 'insight-coding-default-rule-v1' || hash(root) !== request.defaultRuleSha256 || value.parentSha256 !== hash(root) || json(root.binding) !== json(value.binding)) corrupt();
+    if (!isDefaultRule(root.request) || hash(root) !== request.defaultRuleSha256 || value.parentSha256 !== hash(root) || json(root.binding) !== json(value.binding)) corrupt();
     const priorRow = this.options.db.prepare(`SELECT * FROM analysis_insight_coding_evidence WHERE parent_id=? AND kind='PROPOSAL' AND sequence=?`)
       .get(root.evidenceId, Number(row.sequence) - 1) as Row | undefined;
     if ((priorRow?.evidence_id ?? null) !== request.previousProposalId || (Number(row.sequence) > 1 && !priorRow)) corrupt();
-    let previous: InsightDefaultCodingProposeRequest | undefined;
+    let previous: DefaultProposal | undefined;
     if (priorRow) {
       const prior = await this.read(priorRow.evidence_id, value.binding.workspaceId, value.binding.runId, false, sourceReads);
-      if (prior.request.contractVersion !== 'insight-coding-default-propose-v1' || hash(prior) !== request.previousProposalSha256) corrupt();
+      if (!isDefaultProposal(prior.request) || hash(prior) !== request.previousProposalSha256) corrupt();
       previous = prior.request;
     } else if (request.previousProposalSha256 !== null) corrupt();
     const rules = previous?.rules ?? root.request.rules;
     const input = composeDefaultInsightInput(context.input, rules, previous?.annotations);
     const first = root.request.originatingRequestKey === request.requestKey;
-    const source = { contractVersion: 'insight-default-model-source-v1' as const, binding: value.binding, defaultRuleId: root.evidenceId,
-      defaultRuleSha256: hash(root), codebookSha256: hash(input.corpora.map(corpus => corpus.codebook)), actorId: value.actorId, input,
-      request: { contractVersion: 'insight-default-model-request-v1' as const, requestKey: request.requestKey, binding: value.binding,
+    const privateSource = value.binding.sourceKind === 'PRIVATE_SHOPEE';
+    if (privateSource !== (request.contractVersion === 'insight-coding-default-propose-v2') || privateSource !== Boolean(context.privateSource)) corrupt();
+    const source = { contractVersion: privateSource ? 'insight-default-model-source-v2' : 'insight-default-model-source-v1', binding: value.binding, defaultRuleId: root.evidenceId,
+      defaultRuleSha256: hash(root), codebookSha256: hash(input.corpora.map(corpus => corpus.codebook)), actorId: value.actorId, input, ...(privateSource ? { privateSource: context.privateSource } : {}),
+      request: { contractVersion: privateSource ? 'insight-default-model-request-v2' : 'insight-default-model-request-v1', requestKey: request.requestKey, binding: value.binding,
         defaultRuleId: first ? null : root.evidenceId, defaultRuleSha256: first ? null : hash(root), previousProposalId: request.previousProposalId,
-        previousProposalSha256: request.previousProposalSha256, recordIndexes: request.recordIndexes } };
+        previousProposalSha256: request.previousProposalSha256, recordIndexes: request.recordIndexes } } as import('./insight-model-execution.js').AnyInsightDefaultModelSource;
     const outcome = await new AutomationInsightDefaultModelExecution({ db: this.options.db, artifactStore: this.options.artifacts, now: this.options.now }).read(source);
     if (outcome.status !== 'VALID' || outcome.executionId !== request.executionId) corrupt();
     const coded = appendDefaultCodebooks(input, outcome.candidates.artifact.codebooks, request.recordIndexes);
@@ -270,25 +486,25 @@ export class AutomationInsightCoding {
     composeDefaultInsightInput(context.input, request.rules, request.annotations);
   }
 
-  async reportDefaultDraftSnapshot(workspaceId: string, runId: string, pairId: string, draft: InsightDefaultDraftSelection, current = false): Promise<AutomationInsightCodingDefaultDraftSnapshot> {
+  async reportDefaultDraftSnapshot(workspaceId: string, runId: string, pairId: string, draft: InsightDefaultDraftSelection, current = false): Promise<AutomationInsightCodingDefaultDraftSnapshot | AutomationInsightCodingPrivateDefaultDraftSnapshot> {
     const proposal = await this.read(draft.proposalId, workspaceId, runId);
-    if (proposal.request.contractVersion !== 'insight-coding-default-propose-v1' || hash(proposal) !== draft.proposalSha256) invalid();
+    if (!isDefaultProposal(proposal.request) || hash(proposal) !== draft.proposalSha256) invalid();
     if (proposal.binding.pairId !== pairId) conflict();
     if (current) await this.options.assertCurrent(proposal.binding);
     const context = await this.context(workspaceId, runId, pairId);
     const input = composeDefaultInsightInput(context.input, proposal.request.rules, proposal.request.annotations);
     input.semanticsVersion = '1.1.0'; input.draftCountsVersion = 'draft-counts-v2';
     const { output } = buildLocatedInsightMethods(input);
-    const snapshot: AutomationInsightCodingDefaultDraftSnapshot = { contractVersion: 'automation-insight-coding-snapshot-v4', binding: proposal.binding,
+    const snapshot = { contractVersion: context.binding.sourceKind === 'PRIVATE_SHOPEE' ? 'automation-insight-coding-snapshot-v5' : 'automation-insight-coding-snapshot-v4', binding: proposal.binding,
       selection: { proposalId: proposal.evidenceId, receiptIds: [] }, proposalSha256: hash(proposal), receipts: [], draftSelection: clone(draft),
       defaultRuleId: proposal.request.defaultRuleId, defaultRuleSha256: proposal.request.defaultRuleSha256, codebookSha256: proposal.request.codebookSha256,
-      executionId: proposal.request.executionId, output, groupCounts: projectDraftInsightGroupCounts(output, context.verifiedPlatform) };
+      executionId: proposal.request.executionId, output, groupCounts: projectDraftInsightGroupCounts(output, context.verifiedPlatform), ...(context.privateSource ? { privateSource: context.privateSource } : {}) } as AutomationInsightCodingDefaultDraftSnapshot | AutomationInsightCodingPrivateDefaultDraftSnapshot;
     if (!snapshotValid(snapshot)) corrupt();
     return snapshot;
   }
   async verifyReportDefaultDraftSnapshot(value: unknown, workspaceId: string, runId: string, pairId: string, draft: InsightDefaultDraftSelection) {
     if (!snapshotValid(value) || json(value) !== json(await this.reportDefaultDraftSnapshot(workspaceId, runId, pairId, draft))) corrupt();
-    return value as AutomationInsightCodingDefaultDraftSnapshot;
+    return value as AutomationInsightCodingDefaultDraftSnapshot | AutomationInsightCodingPrivateDefaultDraftSnapshot;
   }
 
   /** Exact first default model lineage for a future blinded request; query-only and never chooses latest. */
@@ -388,7 +604,7 @@ export class AutomationInsightCoding {
     const context = await this.context(workspaceId, runId, value.binding.pairId, sourceReads);
     if (json(context.binding) !== json(value.binding)) corrupt();
     try {
-      if (value.request.contractVersion === 'insight-coding-default-rule-v1' || value.request.contractVersion === 'insight-coding-default-propose-v1') {
+      if (isDefaultRule(value.request) || isDefaultProposal(value.request)) {
         await this.verifyDefaultEvidence(value, row, context, sourceReads);
       } else if (value.request.contractVersion === 'insight-coding-adopt-v1') {
         if (row.parent_id !== null || value.parentSha256 !== null || json(value.request.binding) !== json(value.binding)) corrupt();
@@ -424,13 +640,21 @@ export class AutomationInsightCoding {
     const sourceReads: SourceReads = new Map();
     // Source context first: wrong workspace, run or pair fails before any coding row is inspected.
     const context = await this.context(workspaceId, runId, pairId, sourceReads);
+    // New known persona versions have separate history. Unexpected/corrupted
+    // wrappers still fail closed as before, never silently disappear.
+    if (this.options.db.prepare(`SELECT 1 FROM analysis_insight_coding_evidence WHERE run_id=? AND pair_sha256=?
+      AND COALESCE(json_extract(artifact_json,'$.contractVersion'),'') NOT IN
+        ('insight-coding-evidence-v1','insight-coding-default-evidence-v1','insight-coding-default-evidence-v2','insight-persona-rule-evidence-v1','insight-persona-proposal-evidence-v1') LIMIT 1`)
+      .get(runId, pairId)) corrupt();
     // Stable domain order over the full corpus (all kinds, superseded rows included); IDs only until verified.
     const rows = this.options.db.prepare(`SELECT evidence_id FROM analysis_insight_coding_evidence WHERE run_id=? AND pair_sha256=?
+      AND json_extract(artifact_json,'$.contractVersion') IN ('insight-coding-evidence-v1','insight-coding-default-evidence-v1','insight-coding-default-evidence-v2')
       ORDER BY CASE kind WHEN 'ADOPTION' THEN 0 WHEN 'PROPOSAL' THEN 1 ELSE 2 END, parent_id, sequence, evidence_id LIMIT ?`)
       .all(runId, pairId, MAX_VIEW_EVIDENCE + 1) as { evidence_id: string }[];
     if (rows.length > MAX_VIEW_EVIDENCE) tooLarge();
-    const evidence: { evidenceId: string; kind: Kind | 'DEFAULT_RULE'; sequence: number; binding: InsightSourceBinding; request: Request; createdAt: string; sha256: string }[] = [];
-    const view = { contractVersion: 'insight-coding-view-v1' as 'insight-coding-view-v1' | 'insight-coding-view-v2', context: { binding: context.binding, input: context.input }, evidence };
+    const evidence: { evidenceId: string; kind: Kind | 'DEFAULT_RULE'; sequence: number; binding: AnyInsightSourceBinding; request: Request; createdAt: string; sha256: string }[] = [];
+    const view = { contractVersion: 'insight-coding-view-v1' as 'insight-coding-view-v1' | 'insight-coding-view-v2' | 'insight-coding-view-v3', context: { binding: context.binding, input: context.input, ...(context.privateSource ? { privateSource: context.privateSource } : {}) }, evidence };
+    if (context.privateSource) view.contractVersion = 'insight-coding-view-v3';
     let viewBytes = Buffer.byteLength(json(view));
     if (viewBytes > MAX_VIEW_BYTES) tooLarge();
     for (const { evidence_id: id } of rows) {
@@ -523,16 +747,22 @@ export class AutomationInsightCoding {
     return expected;
   }
 
-  private async context(workspaceId: string, runId: string, pairId: string, sourceReads?: SourceReads): Promise<InsightSourceContext> {
+  private async context(workspaceId: string, runId: string, pairId: string, sourceReads?: SourceReads): Promise<InsightCodingSourceContext> {
     // Reuse only within this resolution. Every later request verifies storage again.
     const key = `${workspaceId}/${runId}/${pairId}`;
     let reading = sourceReads?.get(key);
     if (!reading) { reading = this.options.context(workspaceId, runId, pairId); sourceReads?.set(key, reading); }
     const context = await reading;
     if (context.binding.workspaceId !== workspaceId || context.binding.runId !== runId || context.binding.pairId !== pairId || hash(context.input) !== context.binding.inputSha256) corrupt();
+    if (context.binding.sourceKind === 'PRIVATE_SHOPEE') {
+      if (!context.privateSource || hash(context.privateSource) !== context.binding.projectionSha256 ||
+          json(context.privateSource.corpus) !== json(context.binding.corpus) ||
+          context.binding.sourcePackageSha256 !== context.binding.corpus.artifactSha256 ||
+          json(context.privateSource.input) !== json(context.input)) corrupt();
+    } else if (context.privateSource !== undefined) corrupt();
     return context;
   }
-  private compose(context: InsightSourceContext, adoption: InsightCodingAdoptRequest, proposal?: InsightCodingProposeRequest): LocatedInsightMethods['input'] {
+  private compose(context: InsightCodingSourceContext, adoption: InsightCodingAdoptRequest, proposal?: InsightCodingProposeRequest): LocatedInsightMethods['input'] {
     const input = clone(context.input);
     input.question = adoption.rules.question; input.inclusionRule = adoption.rules.inclusionRule; input.adjudicationRule = adoption.rules.adjudicationRule;
     input.corpora = clone(adoption.rules.corpora);
@@ -576,7 +806,7 @@ export class AutomationInsightCoding {
   private row(id: string): Row | undefined { return this.options.db.prepare('SELECT * FROM analysis_insight_coding_evidence WHERE evidence_id=?').get(id) as Row | undefined; }
   private latest(parent: string, kind: Kind): Row | undefined { return this.options.db.prepare('SELECT * FROM analysis_insight_coding_evidence WHERE parent_id=? AND kind=? ORDER BY sequence DESC LIMIT 1').get(parent, kind) as Row | undefined; }
   private async write(workspaceId: string, runId: string, request: Request, owner: Owner,
-    prepare: () => Promise<{ binding: InsightSourceBinding; parent: Evidence | null; sequence: number }>) {
+    prepare: () => Promise<{ binding: AnyInsightSourceBinding; parent: Evidence | null; sequence: number }>) {
     const store = this.options.staging; if (!store || Buffer.byteLength(json(request)) > MAX_BYTES) invalid();
     return withDatabaseMutationMutex(this.options.db, () => store.withOwnership(async () => {
       this.options.db.exec('BEGIN IMMEDIATE');
@@ -589,7 +819,7 @@ export class AutomationInsightCoding {
           digest = prior.artifact_sha256; exactRetry = true;
         } else {
           const context = await prepare();
-          const candidate = { contractVersion: request.contractVersion.startsWith('insight-coding-default-') ? 'insight-coding-default-evidence-v1' : 'insight-coding-evidence-v1', evidenceId: randomUUID(), sequence: context.sequence, binding: context.binding, request,
+          const candidate = { contractVersion: request.contractVersion.startsWith('insight-coding-default-') ? (context.binding.sourceKind === 'PRIVATE_SHOPEE' ? 'insight-coding-default-evidence-v2' : 'insight-coding-default-evidence-v1') : 'insight-coding-evidence-v1', evidenceId: randomUUID(), sequence: context.sequence, binding: context.binding, request,
             parentSha256: context.parent ? hash(context.parent) : null, actorId: owner.actorId, actorRole: 'OWNER', createdAt: this.options.now().toISOString() };
           if (!evidenceValid(candidate)) corrupt();
           evidence = candidate;

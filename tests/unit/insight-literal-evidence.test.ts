@@ -129,8 +129,9 @@ test('literal-only revision is closed and cannot change old selection payloads o
   const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
   const addFormats = require('ajv-formats') as typeof import('ajv-formats').default;
   const { default: revision } = await import('../../contracts/analysis/automation-insight-report-revision.schema.json', { with: { type: 'json' } });
+  const { default: qualitativeDraft } = await import('../../contracts/analysis/automation-qualitative-draft-v1.schema.json', { with: { type: 'json' } });
   const { default: classified } = await import('../../contracts/analysis/automation-classified-report-revision.schema.json', { with: { type: 'json' } });
-  const ajv = new Ajv2020({ strict: true, allErrors: true }); addFormats(ajv); ajv.addSchema(classified);
+  const ajv = new Ajv2020({ strict: true, allErrors: true }); addFormats(ajv); ajv.addSchema(classified); ajv.addSchema(qualitativeDraft);
   const validate = ajv.compile(revision);
   const common = { requestKey: literalRunId, previousPairId: binding.previousPairId,
     sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } } };

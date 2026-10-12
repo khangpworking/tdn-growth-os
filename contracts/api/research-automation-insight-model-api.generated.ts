@@ -4,7 +4,7 @@
  * Explicit OWNER model proposal, never annotation acceptance or report regeneration. Unknown dispatch must not be retried under a new identity automatically.
  */
 export type ResearchAutomationInsightModelApi =
-  InsightModelRequest | ResearchInsightModelResponse | InsightDefaultModelRequest;
+  InsightModelRequest | ResearchInsightModelResponse | InsightDefaultModelRequest | InsightPrivateDefaultModelRequest;
 export type ResearchInsightModelResponse =
   | {
       contractVersion: Version;
@@ -52,6 +52,22 @@ export type InsightDefaultModelRequest = {
 } & {
   [k: string]: unknown;
 };
+export type InsightPrivateDefaultModelRequest = {
+  contractVersion: 'insight-default-model-request-v2';
+  requestKey: Uuid;
+  binding: InsightPrivateSourceBinding;
+  defaultRuleId: Uuid | null;
+  defaultRuleSha256: string | null;
+  previousProposalId: Uuid | null;
+  previousProposalSha256: string | null;
+  /**
+   * @minItems 1
+   * @maxItems 100
+   */
+  recordIndexes: [number, ...number[]];
+} & {
+  [k: string]: unknown;
+};
 
 export interface InsightModelRequest {
   contractVersion: 'insight-model-request-v1';
@@ -79,4 +95,24 @@ export interface InsightSourceBinding {
   sourceKind: 'NATIVE' | 'EXACT_SHOPEE';
   sourcePackageSha256: string;
   inputSha256: string;
+}
+export interface InsightPrivateSourceBinding {
+  contractVersion: 'insight-source-binding-v2';
+  sourceKind: 'PRIVATE_SHOPEE';
+  workspaceId: Uuid;
+  runId: Uuid;
+  pairId: string;
+  scopeSha256: string;
+  reportSha256: string;
+  sourcePackageSha256: string;
+  inputSha256: string;
+  projectionSha256: string;
+  corpus: Corpus;
+}
+export interface Corpus {
+  artifactSha256: string;
+  corpusId: string;
+  collectionId: string;
+  collectionSha256: string;
+  requestSha256: string;
 }

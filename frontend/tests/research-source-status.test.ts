@@ -40,6 +40,8 @@ test('source state labels separate a missing key from a token without a spending
   assert.equal(sourceStateView(entry('KALODATA') as unknown as ResearchAutomationSourceStatusEntry).tone, 'ready');
   assert.equal(sourceStateView(entry('SERPAPI', { state: 'CONFIGURED_NOT_WIRED' }) as unknown as ResearchAutomationSourceStatusEntry).label, 'Có khóa, chưa dùng');
   assert.match(sourceStateView(entry('APIFY_SHOPEE', { state: 'NOT_CONFIGURED' }) as unknown as ResearchAutomationSourceStatusEntry).detail, /thiếu hạn mức chi/);
+  assert.doesNotMatch(sourceStateView(entry('APIFY_TIKTOK_COMMENTS', { state: 'NOT_CONFIGURED', spendCapUsd: 3 }) as unknown as ResearchAutomationSourceStatusEntry).detail, /thiếu hạn mức chi/);
+  assert.match(sourceStateView(entry('APIFY_TIKTOK_COMMENTS', { state: 'NOT_CONFIGURED', spendCapUsd: 3 }) as unknown as ResearchAutomationSourceStatusEntry).detail, /bộ thu chưa sẵn sàng/);
   assert.equal(sourceStateView(entry('KALODATA', { state: 'NOT_CONFIGURED', credential: 'MISSING' }) as unknown as ResearchAutomationSourceStatusEntry).detail, 'Chưa cài khóa trên máy chủ.');
   assert.equal(sourceStateView(entry('METRIC', { state: 'EXECUTOR_DISABLED' }) as unknown as ResearchAutomationSourceStatusEntry).tone, 'off');
 });

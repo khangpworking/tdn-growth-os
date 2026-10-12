@@ -5,6 +5,7 @@ import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import BetterSqlite3 from 'better-sqlite3';
 import { cliproxyConfigurationFromEnvironment, assertCliproxyConfiguration, type CliproxyConfiguration } from '../platform/ai/cliproxy-configuration.js';
+import { typesafeJevConfigurationFromEnvironment, type TypesafeJevConfiguration } from '../platform/ai/typesafe-jev-client.js';
 import { createCliproxyCreativeGateway } from '../platform/ai/cliproxy-creative-gateway.js';
 import { disabledCreativeGateway } from '../platform/ai/fake-creative-gateway.js';
 import { readMigrations } from '../platform/db/migrations.js';
@@ -19,11 +20,13 @@ import { acquireExecutorLock, canonicalDatabasePath, type ExecutorLock } from '.
 import { createR2MediaArchive } from '../platform/artifacts/r2-media-archive.js';
 import { openResearchAutomationApi, researchAutomationApiPath, type ResearchAutomationApiApplication } from './research-automation-api.js';
 import { researchAutomationProviderConfigFromEnv, type ResearchAutomationProviderConfig } from '../modules/analysis/research-automation/providers.js';
-import { i14CliproxySynthesisConfiguration, decisionCliproxySynthesisConfiguration, insightCodingCliproxyConfiguration } from '../modules/analysis/research-automation/i14-cliproxy-transport.js';
+import { i14CliproxySynthesisConfiguration, decisionCliproxySynthesisConfiguration, insightCodingCliproxyConfiguration, tiktokCodingCliproxyConfiguration, shopeeCodingCliproxyConfiguration } from '../modules/analysis/research-automation/i14-cliproxy-transport.js';
 import type { AutomationI14SynthesisConfiguration } from '../modules/analysis/research-automation/i14-synthesis-execution.js';
 import type { AutomationDecisionSynthesisConfiguration } from '../modules/analysis/research-automation/decision-synthesis-execution.js';
 import type { AutomationDecisionSectionId } from '../modules/analysis/research-automation/decision-packets.js';
 import type { InsightModelConfiguration } from '../modules/analysis/research-automation/insight-model-execution.js';
+import type { TikTokCodingConfiguration } from '../../contracts/analysis/tiktok-coding-configuration-v1.generated.js';
+import type { ShopeeReviewCodingConfiguration } from '../../contracts/analysis/shopee-review-coding-configuration-v1.generated.js';
 
 const TOKEN = /^(?=.*[A-Za-z])(?=.*\d)[\x21-\x7e]{32,512}$/;
 const ACTOR = /^[a-z][a-z0-9:_-]{2,119}$/;
@@ -65,6 +68,12 @@ export interface OperatorAppConfiguration {
   readonly researchDecisionAi?: Partial<Record<AutomationDecisionSectionId, AutomationDecisionSynthesisConfiguration>>;
   /** Opt-in Insight semantic coding proposals through `cliproxy`; never inherited from another model flag. */
   readonly researchInsightCodingAi?: InsightModelConfiguration;
+  /** Opt-in TikTok draft-coding proposals through `cliproxy`; never inherited from another model flag. */
+  readonly researchTikTokCodingAi?: TikTokCodingConfiguration;
+  /** Opt-in Shopee draft-coding proposals through `cliproxy`; never inherited from another model flag. */
+  readonly researchShopeeCodingAi?: ShopeeReviewCodingConfiguration;
+  /** Optional Jev L9 triage; the API key is retained only in process configuration. */
+  readonly researchJev?: TypesafeJevConfiguration;
 }
 export interface OperatorAppDependencies {
   readonly creativeAiTransport?: typeof fetch;
@@ -87,6 +96,7 @@ export function operatorAppConfigurationFromEnvironment(
   const rawPort = environment.TDN_OPERATOR_APP_PORT ?? '8787';
   if (!/^[1-9]\d{0,4}$/.test(rawPort)) throw new TypeError('TDN_OPERATOR_APP_PORT must be an integer from 1 to 65535');
   const cliproxy = cliproxyConfigurationFromEnvironment(environment);
+  const researchJev = typesafeJevConfigurationFromEnvironment(environment);
   if (environment.TDN_R2_ENABLED !== undefined && !['true', 'false'].includes(environment.TDN_R2_ENABLED)) throw new TypeError('TDN_R2_ENABLED must be exactly true or false');
   const i14Enabled = environment.TDN_RESEARCH_I14_AI_ENABLED;
   if (i14Enabled !== undefined && i14Enabled !== 'true' && i14Enabled !== 'false') throw new TypeError('TDN_RESEARCH_I14_AI_ENABLED must be exactly true or false');
@@ -119,6 +129,20 @@ export function operatorAppConfigurationFromEnvironment(
     try { researchInsightCodingAi = insightCodingCliproxyConfiguration(environment.TDN_RESEARCH_INSIGHT_CODING_AI_MODEL ?? ''); }
     catch { throw new TypeError('TDN_RESEARCH_INSIGHT_CODING_AI_MODEL must name an explicit CLIProxy model when TDN_RESEARCH_INSIGHT_CODING_AI_ENABLED is true'); }
   }
+  const tiktokCodingEnabled = environment.TDN_RESEARCH_TIKTOK_CODING_AI_ENABLED;
+  if (tiktokCodingEnabled !== undefined && tiktokCodingEnabled !== 'true' && tiktokCodingEnabled !== 'false') throw new TypeError('TDN_RESEARCH_TIKTOK_CODING_AI_ENABLED must be exactly true or false');
+  let researchTikTokCodingAi: TikTokCodingConfiguration | undefined;
+  if (tiktokCodingEnabled === 'true') {
+    try { researchTikTokCodingAi = tiktokCodingCliproxyConfiguration(environment.TDN_RESEARCH_TIKTOK_CODING_AI_MODEL ?? ''); }
+    catch { throw new TypeError('TDN_RESEARCH_TIKTOK_CODING_AI_MODEL must name an explicit CLIProxy model when TDN_RESEARCH_TIKTOK_CODING_AI_ENABLED is true'); }
+  }
+  const shopeeCodingEnabled = environment.TDN_RESEARCH_SHOPEE_CODING_AI_ENABLED;
+  if (shopeeCodingEnabled !== undefined && shopeeCodingEnabled !== 'true' && shopeeCodingEnabled !== 'false') throw new TypeError('TDN_RESEARCH_SHOPEE_CODING_AI_ENABLED must be exactly true or false');
+  let researchShopeeCodingAi: ShopeeReviewCodingConfiguration | undefined;
+  if (shopeeCodingEnabled === 'true') {
+    try { researchShopeeCodingAi = shopeeCodingCliproxyConfiguration(environment.TDN_RESEARCH_SHOPEE_CODING_AI_MODEL ?? ''); }
+    catch { throw new TypeError('TDN_RESEARCH_SHOPEE_CODING_AI_MODEL must name an explicit CLIProxy model when TDN_RESEARCH_SHOPEE_CODING_AI_ENABLED is true'); }
+  }
   const configuration: OperatorAppConfiguration = {
     databasePath: environment.TDN_WORKSPACE_DB ?? '', artifactRoot: environment.TDN_ARTIFACT_ROOT ?? '',
     frontendDist: defaults.frontendDist, version: defaults.version,
@@ -134,6 +158,9 @@ export function operatorAppConfigurationFromEnvironment(
     ...(researchI14Ai === undefined ? {} : { researchI14Ai }),
     ...(Object.keys(researchDecisionAi).length === 0 ? {} : { researchDecisionAi }),
     ...(researchInsightCodingAi === undefined ? {} : { researchInsightCodingAi }),
+    ...(researchTikTokCodingAi === undefined ? {} : { researchTikTokCodingAi }),
+    ...(researchShopeeCodingAi === undefined ? {} : { researchShopeeCodingAi }),
+    ...(researchJev.enabled ? { researchJev } : {}),
     ...(environment.TDN_R2_ENABLED !== 'true' ? {} : { r2: {
       TDN_R2_ENABLED: 'true', TDN_R2_ACCOUNT_ID: environment.TDN_R2_ACCOUNT_ID,
       TDN_R2_ACCESS_KEY_ID: environment.TDN_R2_ACCESS_KEY_ID,
@@ -201,6 +228,9 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
       ...(configuration.researchI14Ai ? { i14Synthesis: { cliproxy: configuration.cliproxy!, configuration: configuration.researchI14Ai } } : {}),
       ...(configuration.researchDecisionAi ? { decisionSynthesis: { cliproxy: configuration.cliproxy!, configurations: configuration.researchDecisionAi } } : {}),
       ...(configuration.researchInsightCodingAi ? { insightCoding: { cliproxy: configuration.cliproxy!, configuration: configuration.researchInsightCodingAi } } : {}),
+      ...(configuration.researchTikTokCodingAi ? { tiktokCoding: { cliproxy: configuration.cliproxy!, configuration: configuration.researchTikTokCodingAi } } : {}),
+      ...(configuration.researchShopeeCodingAi ? { shopeeCoding: { cliproxy: configuration.cliproxy!, configuration: configuration.researchShopeeCodingAi } } : {}),
+      ...(configuration.researchJev ? { researchJev: configuration.researchJev } : {}),
       ...(configuration.ownerWritesEnabled ? { owner: {
         databasePath, artifactRoot: configuration.artifactRoot, writeEnabled: true,
         token: ownerToken, actorId: configuration.ownerActorId!, allowedOrigin: origin,
@@ -333,6 +363,8 @@ function validateConfiguration(configuration: OperatorAppConfiguration): StaticF
   if (configuration.researchI14Ai !== undefined && (!configuration.cliproxy || !configuration.ownerWritesEnabled)) throw new TypeError('TDN_RESEARCH_I14_AI_ENABLED requires CLIProxy and OWNER writes to be enabled');
   if (configuration.researchDecisionAi !== undefined && (!configuration.cliproxy || !configuration.ownerWritesEnabled)) throw new TypeError('Research decision synthesis requires CLIProxy and OWNER writes to be enabled');
   if (configuration.researchInsightCodingAi !== undefined && (!configuration.cliproxy || !configuration.ownerWritesEnabled)) throw new TypeError('TDN_RESEARCH_INSIGHT_CODING_AI_ENABLED requires CLIProxy and OWNER writes to be enabled');
+  if (configuration.researchTikTokCodingAi !== undefined && (!configuration.cliproxy || !configuration.ownerWritesEnabled)) throw new TypeError('TDN_RESEARCH_TIKTOK_CODING_AI_ENABLED requires CLIProxy and OWNER writes to be enabled');
+  if (configuration.researchShopeeCodingAi !== undefined && (!configuration.cliproxy || !configuration.ownerWritesEnabled)) throw new TypeError('TDN_RESEARCH_SHOPEE_CODING_AI_ENABLED requires CLIProxy and OWNER writes to be enabled');
   return preloadFrontend(configuration.frontendDist);
 }
 

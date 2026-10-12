@@ -81,6 +81,7 @@ test('actual collection drafts from byte-verified sales, retains full prompt and
     const semantic=JSON.parse((await f.artifacts.read(saved.versionId)).toString());assert.equal(semantic.rendererVersion,'automation-report-kit-v18');
     assert.deepEqual(semantic.sourceEvidence,packet);
   }
+  assert.ok(record.contractVersion === 'l9-keyword-list-draft-record-v2');
   const sourceFile=path.join(f.root,'artifacts','sha256',record.salesNameRefs[0].digest.slice(0,2),record.salesNameRefs[0].digest);
   await fs.writeFile(sourceFile,'changed raw evidence');
   await assert.rejects(reread.readSourceKeywordDraft(workspaceId,runId,packet.draftDigest!));

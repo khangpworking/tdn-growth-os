@@ -23,6 +23,7 @@ export interface AutomationConfirmedSourceSet {
         decision: 'ABSENT' | 'SKIPPED';
       };
   privateShopeeSource?: AutomationPrivateShopeeSource;
+  reviewCollectionPolicy?: AutomationReviewCollectionPolicy;
   nativeReview:
     | {
         decision: 'RESOLVED';
@@ -58,4 +59,22 @@ export interface Privacy {
    * Domain-separated HMAC-SHA256 fixed-label key commitment. Caller must use a private random high-entropy salt, never a password. This opaque value binds actual salt continuity without retaining or reconstructing key material.
    */
   keyCommitment: string;
+}
+/**
+ * Explicit trusted injected selected-listing capture policy, frozen for new starts only. Private internal profile is not a public/model/report field; no salt.
+ */
+export interface AutomationReviewCollectionPolicy {
+  contractVersion: 'automation-review-collection-policy-v1';
+  selectionBasis: 'OWNER_EXACT_URL';
+  targetReviews: 300;
+  hardMaximum: 500;
+  comparisonTextMinimum: 30;
+  saturation: 'SOURCE_BOUND_CODING_UNAVAILABLE';
+  privateSource: AutomationPrivateShopeeSource;
+  collector: {
+    actorId: 'zen-studio/shopee-product-reviews-scraper';
+    maxReviewsPerProduct: 300;
+    contentFilter: 'all' | 'with comments';
+    maxChargeUsd: number;
+  };
 }

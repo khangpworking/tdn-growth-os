@@ -30,6 +30,13 @@ const request = (pair: string, receipt?: string) => ({ contractVersion: 'automat
   requestKey: randomUUID(), previousPairId: pair, sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } },
   ...(receipt ? { unitSpecIntakeSha256: receipt } : {}) });
 
+async function readMarketPresentation(artifacts: ContentAddressedArtifactStore, semantic: Record<string, unknown>): Promise<AutomationMarketPresentationMethod> {
+  assert.equal(semantic.marketPresentation, undefined);
+  const reference = semantic.marketPresentationArtifact as { sha256?: unknown };
+  assert.ok(reference && typeof reference.sha256 === 'string');
+  return JSON.parse((await artifacts.read(reference.sha256)).toString()) as AutomationMarketPresentationMethod;
+}
+
 function retainedSalesSource(onCall: () => void): AutomationSourcePort {
   const source = syntheticProductSource();
   return { ...source,
@@ -126,7 +133,7 @@ test('actual auto service builds source-bound findings/unit tables and immutable
   const semantic = JSON.parse((await f.artifacts.read(report.versionId)).toString());
   assert.equal(semantic.rendererVersion, 'automation-report-kit-v20');
   assert.equal(semantic.sourceEvidence.contractVersion, 'automation-source-evidence-v1');
-  const method = semantic.marketPresentation as AutomationMarketPresentationMethod;
+  const method = await readMarketPresentation(f.artifacts, semantic);
   assert.equal(method.binding.previousPairId, f.pair.pairId);
   assert.equal(method.input.unitSpec!.sha256, intake.intakeSha256);
   assert.equal(method.findings.length, 5);
@@ -149,6 +156,13 @@ test('actual auto service builds source-bound findings/unit tables and immutable
   assert.equal(metricMethodSection(metric, 'M03', undefined, citations, false), oldM03);
   assert.ok(oldM03.includes('không nhất thiết'));
   assert.equal(metricMethodSection(metric, 'M03', undefined, citations, true), oldM03.replace('không nhất thiết là', 'chưa chứng minh'));
+  const readerM03 = metricMethodSection(metric, 'M03', undefined, citations, false, true);
+  assert.equal(readerM03.includes('UNKNOWN'), false);
+  assert.ok(readerM03.includes('chưa rõ'));
+  assert.ok(readerM03.includes('không phải 0'));
+  const visibleM03Document = new JSDOM(readerM03).window.document;
+  visibleM03Document.querySelectorAll('details').forEach(node => node.remove());
+  assert.doesNotMatch(visibleM03Document.body.textContent ?? '', /\b(?:L|S)\d+\b/);
   const rendererInput: Parameters<typeof buildResearchAutomationReport>[0] = { run: await f.service.getRun(workspaceId, runId), start: { contractVersion: 'research-automation-start-snapshot-v1', workspaceId, country: 'VN', mode: 'CATEGORY', description: null, interview: null, keyword: 'synthetic jar',
     requestedPeriod: { startDate: '2026-01-01', endDate: '2026-01-30', dayCount: 30 }, reports: ['MARKET', 'INSIGHT'] }, scope: semantic.scope,
     collection: null, captures: [], marketPresentation: method };
@@ -195,11 +209,12 @@ test('auto presentation without a receipt preserves zero/missing, keeps referenc
   assert.equal(committed.state, 'COMMITTED');
   const report = await f.service.readReport(workspaceId, runId, 'MARKET', false, committed.pairId!);
   const semantic = JSON.parse((await f.artifacts.read(report.versionId)).toString());
-  assert.equal(semantic.marketPresentation.findings.length, 4);
-  assert.ok(semantic.marketPresentation.findings[1].statement.includes('0 VND'));
-  assert.ok(semantic.marketPresentation.findings[1].statement.includes('chưa có tổng đơn vị bán'));
-  assert.equal(semantic.marketPresentation.input.metric.scopes[0].units.value, null);
-  assert.equal(semantic.marketPresentation.unitPrices.length, 0);
+  const method = await readMarketPresentation(f.artifacts, semantic);
+  assert.equal(method.findings.length, 4);
+  assert.ok(method.findings[1]!.statement.includes('0 VND'));
+  assert.ok(method.findings[1]!.statement.includes('chưa có tổng đơn vị bán'));
+  assert.equal(method.input.metric!.scopes[0]!.units.value, null);
+  assert.equal(method.unitPrices.length, 0);
   assert.ok(report.bytes.toString().includes('Chưa tính giá theo đơn vị chuẩn'));
   assert.ok(report.bytes.toString().includes('Chưa có trường ROAS hoặc CPA'));
 });
@@ -223,9 +238,10 @@ test('actual auto revision composes retained literal19/Source18 with Market20 an
   assert.equal(committed.state, 'COMMITTED');
   const report = await f.service.readReport(workspaceId, runId, 'MARKET', false, committed.pairId!);
   const semantic = JSON.parse((await f.artifacts.read(report.versionId)).toString());
-  assert.equal(semantic.marketPresentation.binding.metric, null);
-  assert.deepEqual(semantic.marketPresentation.findings, []);
-  assert.deepEqual(semantic.marketPresentation.unitPrices, []);
+  const method = await readMarketPresentation(f.artifacts, semantic);
+  assert.equal(method.binding.metric, null);
+  assert.deepEqual(method.findings, []);
+  assert.deepEqual(method.unitPrices, []);
   assert.equal(semantic.rendererVersion, 'automation-report-kit-v20');
   assert.equal(semantic.sourceEvidence.contractVersion, 'automation-source-evidence-v1');
   const insight = await f.service.readReport(workspaceId, runId, 'INSIGHT', false, committed.pairId!);

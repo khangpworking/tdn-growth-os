@@ -14,6 +14,7 @@ import { buildResearchAutomationReport } from '../../src/modules/analysis/resear
 import { FixtureShopeeCollector } from '../../src/platform/collectors/apify-shopee.js';
 import { RequestScopedArtifactStore } from '../../src/platform/artifacts/request-scoped-artifact-store.js';
 import revisionSchema from '../../contracts/analysis/automation-insight-report-revision.schema.json' with { type: 'json' };
+import qualitativeDraftSchema from '../../contracts/analysis/automation-qualitative-draft-v1.schema.json' with { type: 'json' };
 import classifiedRevisionSchema from '../../contracts/analysis/automation-classified-report-revision.schema.json' with { type: 'json' };
 import { nextInsightFixture } from '../helpers/next-insight-fixture.js';
 import { AutomationInsightCoding } from '../../src/modules/analysis/research-automation/insight-coding.js';
@@ -38,6 +39,7 @@ const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).defa
 const ajv = new Ajv2020({ strict: true, allErrors: false });
 addFormats(ajv);
 ajv.addSchema(classifiedRevisionSchema);
+ajv.addSchema(qualitativeDraftSchema);
 ajv.addSchema(revisionSchema);
   return ajv.compile({ $ref: `${(revisionSchema as { $id: string }).$id}` });
 })();
@@ -275,7 +277,7 @@ test('v2 fake-model proposal flows through service revision to all draft familie
   }
   assert.equal(snapshot.groupCounts.rates, null);
   assert.equal(snapshot.groupCounts.differences, null);
-  assert.ok(snapshot.groupCounts.blockers.includes('I11_CROSS_CHECK_UNAVAILABLE'));
+  assert.ok(snapshot.groupCounts.blockers.includes('I11_RATE_REQUIRES_COMPATIBLE_DENOMINATORS_AND_30_RECORDS'));
   const rendered = report.bytes.toString('utf8');
   assert.ok(lintVisibleReportText(rendered).every(check => check.ok), 'v17 invokes the same shared visible-text lint');
   const document = new JSDOM(rendered).window.document;

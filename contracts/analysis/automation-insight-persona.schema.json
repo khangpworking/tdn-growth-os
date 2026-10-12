@@ -1,0 +1,1676 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/automation-insight-persona.schema.json",
+  "title": "AutomationInsightPersona",
+  "description": "New source-bound S05 qualitative persona namespace. All classifications/cards/personas are pending proposals; no author identity or approval, no period-wide/statistical release. Private author proofs remain in the authenticated source owner. Source verbatim text can contain personal data. Bounds300/100/3-6 derive from P7 and the existing coding transport; no new numeric confidence cutoff.",
+  "$defs": {
+    "runBinding": {
+      "title": "PersonaRunBinding",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workspaceId",
+        "runId",
+        "startSha256",
+        "scopeSha256",
+        "confirmedSourceSetSha256",
+        "scopeConfirmedAt"
+      ],
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "startSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "scopeSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "confirmedSourceSetSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "scopeConfirmedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "binding": {
+      "title": "PersonaBinding",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workspaceId",
+        "runId",
+        "startSha256",
+        "scopeSha256",
+        "confirmedSourceSetSha256",
+        "scopeConfirmedAt",
+        "pairId",
+        "semanticSha256",
+        "corpusSha256",
+        "collectionId",
+        "collectionSha256",
+        "sourceRequestSha256",
+        "viewSha256",
+        "sourceSha256"
+      ],
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "startSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "scopeSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "confirmedSourceSetSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "scopeConfirmedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "pairId": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "semanticSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "corpusSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "collectionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "collectionSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "sourceRequestSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "viewSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "sourceSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "sourceDate": {
+      "title": "PersonaSourceDate",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "literal",
+        "eligibility"
+      ],
+      "properties": {
+        "literal": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "eligibility": {
+          "const": "UNKNOWN"
+        }
+      }
+    },
+    "record": {
+      "title": "PersonaSourceRecord",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "recordIndex",
+        "recordId",
+        "locator",
+        "text",
+        "rating",
+        "sourceProduct",
+        "sourceDate",
+        "disposition",
+        "exclusionReason",
+        "aliasOfRecordIndex"
+      ],
+      "properties": {
+        "recordIndex": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "recordId": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "locator": {
+          "$ref": "../foundation/shopee-private-projection.schema.json#/properties/records/items/properties/locator"
+        },
+        "text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rating": {
+          "$ref": "../foundation/shopee-private-rows.schema.json#/items/properties/rating"
+        },
+        "sourceProduct": {
+          "title": "PersonaSourceProduct",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "shopId",
+            "itemId"
+          ],
+          "properties": {
+            "shopId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]{0,19}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "itemId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]{0,19}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "sourceDate": {
+          "$ref": "#/$defs/sourceDate"
+        },
+        "disposition": {
+          "enum": [
+            "INCLUDED",
+            "EXCLUDED",
+            "UNREADABLE"
+          ]
+        },
+        "exclusionReason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "aliasOfRecordIndex": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "source": {
+      "title": "PersonaSource",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidenceVersion",
+        "binding",
+        "corpus",
+        "viewSha256",
+        "platform",
+        "sourceType",
+        "capture",
+        "records",
+        "eligibleRecordIndexes",
+        "taxonomySample",
+        "sourceDateEligibility",
+        "limits"
+      ],
+      "properties": {
+        "evidenceVersion": {
+          "const": "persona-private-source-evidence-v1"
+        },
+        "binding": {
+          "$ref": "#/$defs/runBinding"
+        },
+        "corpus": {
+          "title": "PersonaCorpusReference",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "artifactSha256",
+            "corpusId",
+            "collectionId",
+            "collectionSha256",
+            "requestSha256"
+          ],
+          "properties": {
+            "artifactSha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "corpusId": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "collectionId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "collectionSha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "requestSha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        },
+        "viewSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "platform": {
+          "const": "SHOPEE"
+        },
+        "sourceType": {
+          "const": "S05"
+        },
+        "capture": {
+          "title": "PersonaCapture",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "retrievedAt",
+            "stopReason"
+          ],
+          "properties": {
+            "mode": {
+              "enum": [
+                "fixture",
+                "live"
+              ]
+            },
+            "retrievedAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "stopReason": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "records": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/record"
+          }
+        },
+        "eligibleRecordIndexes": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "uniqueItems": true
+        },
+        "taxonomySample": {
+          "title": "PersonaTaxonomySample",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "version",
+            "recordIndexes"
+          ],
+          "properties": {
+            "version": {
+              "const": "retained-source-order-first-300-v1"
+            },
+            "recordIndexes": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "uniqueItems": true,
+              "maxItems": 300
+            }
+          }
+        },
+        "sourceDateEligibility": {
+          "const": "UNKNOWN"
+        },
+        "limits": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "UNDATED_QUALITATIVE_CONTEXT_ONLY",
+              "VERBATIM_TEXT_MAY_CONTAIN_PERSONAL_DATA",
+              "SOURCE_REPORTED_AUTHORS_NOT_INDEPENDENTLY_VERIFIED_PEOPLE",
+              "NO_CROSS_PLATFORM_JOIN_OR_SUM",
+              "U11_RELEASE_UNAVAILABLE"
+            ]
+          },
+          "uniqueItems": true,
+          "minItems": 5,
+          "maxItems": 5
+        }
+      }
+    },
+    "quoteSelection": {
+      "title": "PersonaQuoteSelection",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "recordIndex",
+        "recordId",
+        "locator",
+        "span"
+      ],
+      "properties": {
+        "recordIndex": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "recordId": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "locator": {
+          "$ref": "../foundation/shopee-private-projection.schema.json#/properties/records/items/properties/locator"
+        },
+        "span": {
+          "$ref": "located-insight-methods.schema.json#/$defs/span"
+        }
+      }
+    },
+    "quote": {
+      "title": "PersonaQuote",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "recordIndex",
+        "recordId",
+        "locator",
+        "text",
+        "selectedSpan",
+        "sourceDate"
+      ],
+      "properties": {
+        "recordIndex": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "recordId": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "locator": {
+          "$ref": "../foundation/shopee-private-projection.schema.json#/properties/records/items/properties/locator"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "selectedSpan": {
+          "$ref": "located-insight-methods.schema.json#/$defs/span"
+        },
+        "sourceDate": {
+          "$ref": "#/$defs/sourceDate"
+        }
+      }
+    },
+    "attribute": {
+      "title": "PersonaAttribute",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "value",
+        "quotes"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "SITUATION",
+            "NEED",
+            "WORRY",
+            "PURCHASE_REASON",
+            "CHANNEL"
+          ]
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1
+        },
+        "quotes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/quoteSelection"
+          },
+          "minItems": 1
+        }
+      }
+    },
+    "taxonomyCode": {
+      "title": "PersonaTaxonomyCode",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "label",
+        "meaning",
+        "examples"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "meaning": {
+          "type": "string",
+          "minLength": 1
+        },
+        "examples": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/quoteSelection"
+          },
+          "minItems": 1
+        }
+      }
+    },
+    "taxonomy": {
+      "title": "PersonaTaxonomy",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "topics",
+        "journeys"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-persona-taxonomy-v1"
+        },
+        "topics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/taxonomyCode"
+          },
+          "minItems": 1
+        },
+        "journeys": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/taxonomyCode"
+          },
+          "minItems": 1
+        }
+      }
+    },
+    "classification": {
+      "title": "PersonaClassification",
+      "oneOf": [
+        {
+          "title": "PersonaClassifiedRecord",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "recordIndex",
+            "confidence",
+            "status",
+            "topic",
+            "journey",
+            "sentiment",
+            "quotes",
+            "uncertainty"
+          ],
+          "properties": {
+            "recordIndex": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "confidence": {
+              "enum": [
+                "HIGH",
+                "MEDIUM"
+              ]
+            },
+            "status": {
+              "const": "CLASSIFIED"
+            },
+            "topic": {
+              "type": "string",
+              "minLength": 1
+            },
+            "journey": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sentiment": {
+              "enum": [
+                "POSITIVE",
+                "NEUTRAL",
+                "NEGATIVE",
+                "MIXED"
+              ]
+            },
+            "quotes": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/quoteSelection"
+              },
+              "minItems": 1
+            },
+            "uncertainty": {
+              "type": "null"
+            }
+          }
+        },
+        {
+          "title": "PersonaUnclassifiedRecord",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "recordIndex",
+            "confidence",
+            "status",
+            "topic",
+            "journey",
+            "sentiment",
+            "quotes",
+            "uncertainty"
+          ],
+          "properties": {
+            "recordIndex": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "confidence": {
+              "enum": [
+                "LOW",
+                "AMBIGUOUS"
+              ]
+            },
+            "status": {
+              "const": "UNCLASSIFIED"
+            },
+            "topic": {
+              "const": null
+            },
+            "journey": {
+              "const": null
+            },
+            "sentiment": {
+              "const": null
+            },
+            "quotes": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/quoteSelection"
+              }
+            },
+            "uncertainty": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ]
+    },
+    "modelCard": {
+      "title": "PersonaModelCard",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cardKey",
+        "situation",
+        "quotes",
+        "attributes"
+      ],
+      "properties": {
+        "cardKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "situation": {
+          "$ref": "#/$defs/attribute"
+        },
+        "quotes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/quoteSelection"
+          },
+          "minItems": 2
+        },
+        "attributes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/attribute"
+          }
+        }
+      }
+    },
+    "modelPersona": {
+      "title": "PersonaModelCandidate",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cardKeys",
+        "attributes"
+      ],
+      "properties": {
+        "cardKeys": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 3,
+          "uniqueItems": true
+        },
+        "attributes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/attribute"
+          },
+          "minItems": 1
+        }
+      }
+    },
+    "taxonomyResponse": {
+      "title": "PersonaTaxonomyResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "taxonomy"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-persona-taxonomy-response-v1"
+        },
+        "taxonomy": {
+          "$ref": "#/$defs/taxonomy"
+        }
+      }
+    },
+    "classificationResponse": {
+      "title": "PersonaClassificationResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "codebookSha256",
+        "records"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-persona-classification-response-v1"
+        },
+        "codebookSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "records": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/classification"
+          },
+          "minItems": 1,
+          "maxItems": 100
+        }
+      }
+    },
+    "synthesisResponse": {
+      "title": "PersonaSynthesisResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "codebookSha256",
+        "cards",
+        "personas",
+        "insufficiency"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-persona-synthesis-response-v1"
+        },
+        "codebookSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "cards": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/modelCard"
+          }
+        },
+        "personas": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/modelPersona"
+          },
+          "maxItems": 6
+        },
+        "insufficiency": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "title": "PersonaModelResponse",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/taxonomyResponse"
+        },
+        {
+          "$ref": "#/$defs/classificationResponse"
+        },
+        {
+          "$ref": "#/$defs/synthesisResponse"
+        }
+      ]
+    },
+    "request": {
+      "title": "PersonaModelRequest",
+      "oneOf": [
+        {
+          "title": "PersonaTaxonomyRequest",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "contractVersion",
+            "requestKey",
+            "binding",
+            "rootId",
+            "rootSha256",
+            "previousProposalId",
+            "previousProposalSha256",
+            "stage",
+            "recordIndexes"
+          ],
+          "properties": {
+            "contractVersion": {
+              "const": "insight-persona-model-request-v1"
+            },
+            "requestKey": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "binding": {
+              "$ref": "#/$defs/binding"
+            },
+            "rootId": {
+              "type": "null"
+            },
+            "rootSha256": {
+              "type": "null"
+            },
+            "previousProposalId": {
+              "type": "null"
+            },
+            "previousProposalSha256": {
+              "type": "null"
+            },
+            "stage": {
+              "const": "TAXONOMY"
+            },
+            "recordIndexes": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "uniqueItems": true,
+              "minItems": 1,
+              "maxItems": 300
+            }
+          }
+        },
+        {
+          "title": "PersonaClassificationRequest",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "contractVersion",
+            "requestKey",
+            "binding",
+            "rootId",
+            "rootSha256",
+            "previousProposalId",
+            "previousProposalSha256",
+            "stage",
+            "recordIndexes"
+          ],
+          "properties": {
+            "contractVersion": {
+              "const": "insight-persona-model-request-v1"
+            },
+            "requestKey": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "binding": {
+              "$ref": "#/$defs/binding"
+            },
+            "rootId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "rootSha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "previousProposalId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "previousProposalSha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "stage": {
+              "const": "CLASSIFY"
+            },
+            "recordIndexes": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "uniqueItems": true,
+              "minItems": 1,
+              "maxItems": 100
+            }
+          }
+        },
+        {
+          "title": "PersonaSynthesisRequest",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "contractVersion",
+            "requestKey",
+            "binding",
+            "rootId",
+            "rootSha256",
+            "previousProposalId",
+            "previousProposalSha256",
+            "stage",
+            "recordIndexes"
+          ],
+          "properties": {
+            "contractVersion": {
+              "const": "insight-persona-model-request-v1"
+            },
+            "requestKey": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "binding": {
+              "$ref": "#/$defs/binding"
+            },
+            "rootId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "rootSha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "previousProposalId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "previousProposalSha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "stage": {
+              "const": "SYNTHESIZE"
+            },
+            "recordIndexes": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "uniqueItems": true,
+              "maxItems": 0
+            }
+          }
+        }
+      ]
+    },
+    "ruleRequest": {
+      "title": "PersonaRuleRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "requestKey",
+        "binding",
+        "initiatingRequest",
+        "rules"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-persona-rule-request-v1"
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "binding": {
+          "$ref": "#/$defs/binding"
+        },
+        "initiatingRequest": {
+          "$ref": "#/$defs/request"
+        },
+        "rules": {
+          "title": "PersonaSourcePolicy",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "ruleId",
+            "revision",
+            "authority"
+          ],
+          "properties": {
+            "ruleId": {
+              "const": "persona-source-minimums-v1"
+            },
+            "revision": {
+              "const": 1
+            },
+            "authority": {
+              "const": "APPLICATION_SOURCE_POLICY_NOT_OWNER_APPROVAL"
+            }
+          }
+        }
+      }
+    },
+    "input": {
+      "title": "PersonaModelInput",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "stage",
+        "platform",
+        "sourceType",
+        "records",
+        "taxonomy",
+        "codebookSha256",
+        "classifications",
+        "limits"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-persona-input-v1"
+        },
+        "stage": {
+          "enum": [
+            "TAXONOMY",
+            "CLASSIFY",
+            "SYNTHESIZE"
+          ]
+        },
+        "platform": {
+          "const": "SHOPEE"
+        },
+        "sourceType": {
+          "const": "S05"
+        },
+        "records": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/record"
+          }
+        },
+        "taxonomy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/taxonomy"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "codebookSha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "classifications": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/classification"
+          }
+        },
+        "limits": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        }
+      }
+    },
+    "prompt": {
+      "title": "PersonaPrompt",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "systemText"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-persona-prompt-v1"
+        },
+        "systemText": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "configuration": {
+      "title": "PersonaModelConfiguration",
+      "$ref": "automation-insight-model.schema.json#/$defs/configuration"
+    },
+    "card": {
+      "title": "PersonaEvidenceCard",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cardId",
+        "cardKey",
+        "situation",
+        "quotes",
+        "attributes",
+        "recordIndexes",
+        "authorEvidence",
+        "identityLimitation",
+        "status"
+      ],
+      "properties": {
+        "cardId": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "cardKey": {
+          "type": "string",
+          "minLength": 1
+        },
+        "situation": {
+          "$ref": "#/$defs/attribute"
+        },
+        "quotes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/quote"
+          },
+          "minItems": 2
+        },
+        "attributes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/attribute"
+          }
+        },
+        "recordIndexes": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "minItems": 2,
+          "uniqueItems": true
+        },
+        "authorEvidence": {
+          "enum": [
+            "MET_WITH_SOURCE_AUTHOR_PROOF",
+            "MET_WITH_DISTINCT_CONTENT_FALLBACK"
+          ]
+        },
+        "identityLimitation": {
+          "anyOf": [
+            {
+              "const": "nguồn không có mã người viết; chưa xác minh là 5 người"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "const": "PROPOSED"
+        }
+      }
+    },
+    "persona": {
+      "title": "PersonaProposal",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "personaId",
+        "cardIds",
+        "attributes",
+        "recordIndexes",
+        "authorEvidence",
+        "broaderScopeEligible",
+        "sampleSize",
+        "sampleSizeLabel",
+        "label",
+        "identityLimitation",
+        "status",
+        "releaseEligibility"
+      ],
+      "properties": {
+        "personaId": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "cardIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "minItems": 3,
+          "uniqueItems": true
+        },
+        "attributes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/attribute"
+          },
+          "minItems": 1
+        },
+        "recordIndexes": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "minItems": 5,
+          "uniqueItems": true
+        },
+        "authorEvidence": {
+          "enum": [
+            "MET_WITH_SOURCE_AUTHOR_PROOF",
+            "MET_WITH_DISTINCT_CONTENT_FALLBACK"
+          ]
+        },
+        "broaderScopeEligible": {
+          "const": true
+        },
+        "sampleSize": {
+          "title": "PersonaSampleSize",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "numerator",
+            "denominator"
+          ],
+          "properties": {
+            "numerator": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "denominator": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "sampleSizeLabel": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "const": "Chân dung do AI tổng hợp từ lời khách thật, không phải một khách hàng có thật"
+        },
+        "identityLimitation": {
+          "anyOf": [
+            {
+              "const": "nguồn không có mã người viết; chưa xác minh là 5 người"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "const": "PROPOSED"
+        },
+        "releaseEligibility": {
+          "const": "UNAVAILABLE"
+        }
+      }
+    },
+    "snapshot": {
+      "title": "PersonaSnapshot",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "binding",
+        "taxonomy",
+        "codebookSha256",
+        "classifications",
+        "cards",
+        "personas",
+        "insufficiency",
+        "classificationComplete",
+        "status",
+        "releaseEligibility"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-persona-snapshot-v1"
+        },
+        "binding": {
+          "$ref": "#/$defs/binding"
+        },
+        "taxonomy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/taxonomy"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "codebookSha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "classifications": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/classification"
+          }
+        },
+        "cards": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/card"
+          }
+        },
+        "personas": {
+          "oneOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/persona"
+              },
+              "maxItems": 0
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/persona"
+              },
+              "minItems": 3,
+              "maxItems": 6
+            }
+          ]
+        },
+        "insufficiency": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "classificationComplete": {
+          "type": "boolean"
+        },
+        "status": {
+          "const": "PROPOSED"
+        },
+        "releaseEligibility": {
+          "const": "UNAVAILABLE"
+        }
+      }
+    },
+    "admission": {
+      "title": "PersonaAdmission",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "request",
+        "source",
+        "previousSnapshot"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-persona-admission-v1"
+        },
+        "request": {
+          "$ref": "#/$defs/request"
+        },
+        "source": {
+          "$ref": "#/$defs/source"
+        },
+        "previousSnapshot": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/snapshot"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "candidates": {
+      "title": "PersonaRetainedCandidates",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "binding",
+        "request",
+        "response",
+        "snapshot"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-persona-candidates-v1"
+        },
+        "binding": {
+          "$ref": "#/$defs/binding"
+        },
+        "request": {
+          "$ref": "#/$defs/request"
+        },
+        "response": {
+          "$ref": "#/$defs/response"
+        },
+        "snapshot": {
+          "$ref": "#/$defs/snapshot"
+        }
+      }
+    },
+    "ruleEvidence": {
+      "title": "PersonaRuleEvidence",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "evidenceId",
+        "sequence",
+        "binding",
+        "parentSha256",
+        "actorId",
+        "actorRole",
+        "createdAt",
+        "request"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-persona-rule-evidence-v1"
+        },
+        "evidenceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "binding": {
+          "$ref": "#/$defs/binding"
+        },
+        "parentSha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "actorId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "actorRole": {
+          "const": "OWNER"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "request": {
+          "$ref": "#/$defs/ruleRequest"
+        }
+      }
+    },
+    "proposalEvidence": {
+      "title": "PersonaProposalEvidence",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "evidenceId",
+        "sequence",
+        "binding",
+        "parentSha256",
+        "actorId",
+        "actorRole",
+        "createdAt",
+        "request",
+        "rootId",
+        "rootSha256",
+        "executionId",
+        "candidatesSha256",
+        "snapshot"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-persona-proposal-evidence-v1"
+        },
+        "evidenceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "binding": {
+          "$ref": "#/$defs/binding"
+        },
+        "parentSha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "actorId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "actorRole": {
+          "const": "OWNER"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "request": {
+          "$ref": "#/$defs/request"
+        },
+        "rootId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "rootSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "executionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "candidatesSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "snapshot": {
+          "$ref": "#/$defs/snapshot"
+        }
+      }
+    },
+    "evidence": {
+      "title": "PersonaEvidence",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ruleEvidence"
+        },
+        {
+          "$ref": "#/$defs/proposalEvidence"
+        }
+      ]
+    }
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/source"
+    },
+    {
+      "$ref": "#/$defs/request"
+    },
+    {
+      "$ref": "#/$defs/ruleRequest"
+    },
+    {
+      "$ref": "#/$defs/input"
+    },
+    {
+      "$ref": "#/$defs/prompt"
+    },
+    {
+      "$ref": "#/$defs/response"
+    },
+    {
+      "$ref": "#/$defs/admission"
+    },
+    {
+      "$ref": "#/$defs/candidates"
+    },
+    {
+      "$ref": "#/$defs/snapshot"
+    },
+    {
+      "$ref": "#/$defs/evidence"
+    }
+  ]
+}

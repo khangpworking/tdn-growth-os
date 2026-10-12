@@ -1,0 +1,361 @@
+/* Generated from private-insight-source-projection.schema.json. Do not edit by hand. */
+
+/**
+ * Draft-eligibility semantics. Absent keeps the historical accepted-only output byte-identical.
+ */
+export type DraftCountsVersion = 'draft-counts-v1' | 'draft-counts-v2';
+
+/**
+ * Versioned server-derived coding source evidence, not the private corpus. Retains verbatim source text, ratings, locators and all dispositions; no author/native reviewer metadata, keys or privacy profile. Exact repeated native records do not become additional counting units; conflicting versions fail closed. No free-text PII redaction or person join.
+ */
+export interface PrivateInsightSourceProjection {
+  contractVersion: 'private-insight-source-projection-v1';
+  corpus: Corpus;
+  input: Input;
+  /**
+   * @maxItems 2500
+   */
+  records: PrivateInsightSourceRecord[];
+}
+export interface Corpus {
+  artifactSha256: string;
+  corpusId: string;
+  collectionId: string;
+  collectionSha256: string;
+  requestSha256: string;
+}
+export interface Input {
+  contractVersion: '1.0.0';
+  codebookId: 'located-evidence-v1-draft';
+  profileSha256: '6bae6b549273d163899c6a342082a84b85a11bffc69ab0d6e34131a311dfaded';
+  adoptionSha256: '5c5d1ea4d6d8b8aebfbdc3d92cb51718351890184cc290aac82411722636b7e7';
+  question: string | null;
+  inclusionRule: string;
+  codingUnit: 'LOCATED_RECORD';
+  adjudicationRule: string;
+  /**
+   * @maxItems 10000
+   */
+  sources: {
+    logicalPath: string;
+    sha256: string;
+  }[];
+  /**
+   * @maxItems 10000
+   */
+  records: Record[];
+  brief: Brief | null;
+  /**
+   * @maxItems 10000
+   */
+  i02: Context[];
+  /**
+   * @maxItems 10000
+   */
+  i04: Behavior[];
+  /**
+   * @maxItems 10000
+   */
+  i05: Attitude[];
+  /**
+   * @maxItems 10000
+   */
+  i06: Journey[];
+  /**
+   * @maxItems 10000
+   */
+  i07: Reason[];
+  /**
+   * @maxItems 10000
+   */
+  i08: Barrier[];
+  /**
+   * @maxItems 10000
+   */
+  i09: Gap[];
+  /**
+   * @maxItems 10000
+   */
+  corpora: Corpus1[];
+  /**
+   * @maxItems 10000
+   */
+  i13Mentions: {
+    recordIndex: number;
+    span: Span;
+    provenance: Provenance;
+  }[];
+  semanticsVersion?: '1.0.0' | '1.1.0';
+  draftCountsVersion?: DraftCountsVersion;
+  workingQuestionProposal?: string | null;
+}
+export interface Record {
+  sourceSha256: string;
+  locator: string;
+  text: string | null;
+  sourceAttribution: string;
+  timeText: string | null;
+  disposition: 'INCLUDED' | 'EXCLUDED' | 'UNREADABLE';
+  dispositionReason: string | null;
+}
+export interface Brief {
+  version: string;
+  questionText: OwnerField;
+  decisionToInform: OwnerField;
+  intendedAudience: OwnerField;
+  scope: OwnerField;
+  knownConstraints: OwnerField;
+  /**
+   * @maxItems 10000
+   */
+  selectedSectionIds: string[];
+}
+export interface OwnerField {
+  state: 'SUPPLIED' | 'UNSET';
+  text: string | null;
+}
+export interface Context {
+  recordIndex: number;
+  provenance: Provenance;
+  /**
+   * @maxItems 10000
+   */
+  qualifiers: Span[];
+  /**
+   * @maxItems 10000
+   */
+  counterevidence: Span[];
+  role: Field;
+  situation: Field;
+  task: Field;
+  setting: Field;
+  time: Field;
+}
+/**
+ * Declared annotation provenance, never authenticated application approval. Pointer resolution proves text location only, not semantic truth or human authority. AI suggestions remain pending.
+ */
+export interface Provenance {
+  basis: 'DECLARED' | 'HUMAN_REVIEWED' | 'PENDING_AI';
+  coderRole: string;
+  adjudication: string | null;
+  disagreement: string | null;
+}
+/**
+ * Half-open UTF-16 offsets in the exact record text, with no Unicode or whitespace normalization.
+ */
+export interface Span {
+  start: number;
+  end: number;
+  quote: string;
+}
+export interface Field {
+  state: 'SOURCE_STATED' | 'NOT_STATED' | 'UNKNOWN' | 'CONFLICTING' | 'UNLOCATED';
+  span: Span | null;
+}
+export interface Behavior {
+  recordIndex: number;
+  provenance: Provenance;
+  /**
+   * @maxItems 10000
+   */
+  qualifiers: Span[];
+  /**
+   * @maxItems 10000
+   */
+  counterevidence: Span[];
+  span: Span;
+  eventKind:
+    'ATTEMPT_REPORTED' | 'ACTION_REPORTED' | 'COMPLETION_REPORTED' | 'NO_ACTION_EXPLICIT' | 'NOT_REPORTED' | 'UNKNOWN';
+  attribution: 'SOURCE_LOGGED' | 'SELF_REPORTED' | 'OTHER_REPORTED' | 'UNKNOWN';
+}
+export interface Attitude {
+  recordIndex: number;
+  provenance: Provenance;
+  /**
+   * @maxItems 10000
+   */
+  qualifiers: Span[];
+  /**
+   * @maxItems 10000
+   */
+  counterevidence: Span[];
+  span: Span;
+  polarity: 'POSITIVE' | 'NEGATIVE' | 'MIXED' | 'NEUTRAL' | 'UNCLEAR' | 'NOT_STATED';
+  target: Field;
+  speakerAttribution: Field;
+}
+export interface Journey {
+  recordIndex: number;
+  provenance: Provenance;
+  /**
+   * @maxItems 10000
+   */
+  qualifiers: Span[];
+  /**
+   * @maxItems 10000
+   */
+  counterevidence: Span[];
+  firstEvent: Span;
+  secondEvent: Span;
+  relation: Relation | null;
+}
+export interface Relation {
+  context: Span;
+  link: Span;
+}
+export interface Reason {
+  recordIndex: number;
+  provenance: Provenance;
+  /**
+   * @maxItems 10000
+   */
+  qualifiers: Span[];
+  /**
+   * @maxItems 10000
+   */
+  counterevidence: Span[];
+  choiceText: Span;
+  reasonClause: Span;
+  relation: Relation;
+  reasonFacet:
+    | 'PRICE_COST'
+    | 'ACCESS_AVAILABILITY'
+    | 'FIT_NEED'
+    | 'PRODUCT_ATTRIBUTE'
+    | 'INFORMATION_TRUST'
+    | 'OTHER_EXPLICIT'
+    | 'UNCLEAR';
+  reasonPolarity: 'AFFIRMED' | 'NEGATED' | 'CONDITIONAL' | 'UNCLEAR';
+  speakerBasis: 'SELF_STATED' | 'OTHER_REPORTED' | 'SOURCE_ATTRIBUTED' | 'UNKNOWN';
+  resultState: Field;
+}
+export interface Barrier {
+  recordIndex: number;
+  provenance: Provenance;
+  /**
+   * @maxItems 10000
+   */
+  qualifiers: Span[];
+  /**
+   * @maxItems 10000
+   */
+  counterevidence: Span[];
+  attemptedTask: Span;
+  obstacleClause: Span;
+  relation: Relation;
+  barrierFacet:
+    | 'PRICE_COST'
+    | 'ACCESS_AVAILABILITY'
+    | 'FIT_NEED'
+    | 'PRODUCT_ATTRIBUTE'
+    | 'INFORMATION_TRUST'
+    | 'OTHER_EXPLICIT'
+    | 'UNCLEAR';
+  resolutionState: Field;
+}
+export interface Gap {
+  recordIndex: number;
+  provenance: Provenance;
+  /**
+   * @maxItems 10000
+   */
+  qualifiers: Span[];
+  /**
+   * @maxItems 10000
+   */
+  counterevidence: Span[];
+  desiredState: Span | null;
+  currentState: Span | null;
+  relation: Relation | null;
+  workaround: Field;
+}
+export interface Corpus1 {
+  sectionId: 'I10' | 'I13';
+  /**
+   * @maxItems 10000
+   */
+  recordIndexes: number[];
+  question: string;
+  unit: string;
+  period: string | null;
+  frame: string | null;
+  channel: string | null;
+  inclusionRule: string;
+  membershipComplete: boolean;
+  multiCode: boolean;
+  externalSampling: string;
+  codebook: {
+    revision: string;
+    /**
+     * @maxItems 10000
+     */
+    codes: {
+      code: string;
+      label: string;
+      phrase: string;
+      firstRecordIndex: number | null;
+      firstSpan: Span | null;
+    }[];
+  };
+  /**
+   * @maxItems 10000
+   */
+  assignments: {
+    recordIndex: number;
+    code: string;
+    span: Span;
+    provenance: Provenance;
+  }[];
+  /**
+   * @maxItems 10000
+   */
+  dispositions: {
+    recordIndex: number;
+    state: 'CODED' | 'UNCODED' | 'UNCLEAR' | 'PENDING';
+    provenance: Provenance;
+  }[];
+}
+export interface PrivateInsightSourceRecord {
+  recordId: string;
+  shopId: string | null;
+  itemId: string | null;
+  textState: 'READABLE' | 'EMPTY' | 'UNREADABLE';
+  /**
+   * Source rating presence/state; never manufacture an absent source field. Invalid finite safe numeric source values survive, arbitrary strings/nested values do not.
+   */
+  rating:
+    | {
+        fieldPresent: false;
+        state: 'ABSENT';
+        value: null;
+      }
+    | {
+        fieldPresent: true;
+        state: 'MISSING';
+        value: null;
+      }
+    | {
+        fieldPresent: true;
+        state: 'VALID';
+        value: number;
+      }
+    | {
+        fieldPresent: true;
+        state: 'INVALID';
+        value: null | number;
+      };
+  region: string | null;
+  admission: 'SELECTED_TEXT' | 'OTHER_LISTING' | 'UNRESOLVED_LISTING' | 'NO_READABLE_TEXT';
+  locator: Locator;
+  recordIndex: number;
+  duplicateOfRecordIndex: number | null;
+  disposition: 'INCLUDED' | 'EXCLUDED' | 'UNREADABLE';
+  dispositionReason: string | null;
+}
+export interface Locator {
+  collectionId: string;
+  pageSha256: string;
+  pageIndex: number;
+  rowIndex: number;
+  textPointer: string;
+}

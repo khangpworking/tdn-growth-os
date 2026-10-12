@@ -14,4 +14,8 @@ export * from './flint.js';
 export * from './market-template.js';
 export * from './source-assets.js';
 export * from './web-facts.js';
+export * from './insight-input-v1.js';
+export * from './insight-projection.js';
+export * from './insight-template.js';
+export * from './insight-build-v1.js';
 export { CSS as READER_CSS, CSS_COVER as READER_CSS_COVER, CSS_KIT as READER_CSS_KIT } from './theme.js';

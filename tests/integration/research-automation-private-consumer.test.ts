@@ -283,7 +283,7 @@ test('private source-only renderer22 and literal replay work without an adapter;
     { configuration: { contractVersion: 'insight-model-configuration-v1', providerId: 'synthetic', modelId: 'fixture-model', temperature: null,
       maxOutputTokens: 4096, timeoutMs: 1000, maxResponseBytes: 65536 }, port: { async generateText() {
       modelCalls++; throw new Error('Private source must not dispatch default coding');
-    } } }), /no verified adopted review source/);
+    } } }), /Insight source, rules or proposal changed/);
   assert.equal(modelCalls, 0); assert.deepEqual(f.db.prepare('SELECT total_changes() n').get(), before);
   await f.service.requestReportRevision(workspaceId, runId, { contractVersion: 'automation-insight-literal-report-revision-v1',
     requestKey: randomUUID(), previousPairId: first.pairId, sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } },

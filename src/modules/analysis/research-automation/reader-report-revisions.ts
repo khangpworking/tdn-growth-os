@@ -9,6 +9,8 @@ import type {
   ResearchAutomationReaderBuildRequest, ResearchAutomationReaderBuildReceipt, ResearchAutomationReaderDecisionRequest,
   ResearchAutomationReaderDecisionReceipt, ResearchAutomationReaderRevision, ResearchAutomationReaderRevisionList,
   ResearchAutomationIntakeBoundReaderBuildRequest,
+  ResearchAutomationInsightReaderBuildRequest, ResearchAutomationTikTokReaderBuildRequest, ResearchAutomationShopeeReaderBuildRequest, ResearchAutomationReaderBuildReceiptV2, ResearchAutomationReaderDecisionRequestV2,
+  ResearchAutomationReaderDecisionReceiptV2, ResearchAutomationReaderRevisionV2, ResearchAutomationReaderRevisionListV2,
 } from '../../../../contracts/api/research-automation-reader-report-api.generated.js';
 import type { ReaderReportInput } from '../../../../contracts/analysis/reader-report-input.generated.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
@@ -19,12 +21,17 @@ import {
   ReaderSourceError, storeCoverImage, storeReaderProfile, type CoverImage, type ReaderPlatform, type ReaderWebResult, type StoredCoverImage,
 } from '../reader-report/index.js';
 import { ReaderUnitSpecIntakes } from './reader-unit-spec-intake.js';
+import { assertMarketBusinessGate } from './market-business-gate.js';
 import type { RequestScopedArtifactStore } from '../../../platform/artifacts/request-scoped-artifact-store.js';
 import { MarketUnitPriceError, type RetainedUnitPriceSource } from '../reader-report/market-unit-prices.js';
 import { ReaderMetricRowsError, readerRowsFromMetricWorkbook, type ReaderRow } from '../reader-report/metric-rows.js';
 import { MetricSourceRejection } from '../metric-source-profile.js';
 import { MetricWebSnapshotError } from './metric-web-snapshot.js';
 import { ResearchAutomationConflictError, ResearchAutomationIntegrityError, ResearchAutomationNotFoundError, ResearchAutomationValidationError } from './model.js';
+import { verifyInsightReaderInput, type InsightReaderInput } from '../reader-report/insight-input-v1.js';
+import { prepareTikTokReaderBuild } from '../reader-report/tiktok-build-v1.js';
+import { buildInsightReaderTemplate, type InsightReaderPage } from '../reader-report/insight-template.js';
+import { INSIGHT_SECTION_IDS } from '../reader-report/insight-projection.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -37,6 +44,11 @@ const validBuild = def<ResearchAutomationReaderBuildRequest>('buildRequest');
 const validIntakeBuild = def<ResearchAutomationIntakeBoundReaderBuildRequest>('intakeBoundBuildRequest');
 const validDecision = def<ResearchAutomationReaderDecisionRequest>('decisionRequest');
 const validRevision = def<ResearchAutomationReaderRevision>('revision');
+const validInsightBuild = def<ResearchAutomationInsightReaderBuildRequest>('insightBuildRequest');
+const validTikTokBuild = def<ResearchAutomationTikTokReaderBuildRequest>('tiktokBuildRequest');
+const validShopeeBuild = def<ResearchAutomationShopeeReaderBuildRequest>('shopeeBuildRequest');
+const validDecisionV2 = def<ResearchAutomationReaderDecisionRequestV2>('decisionRequestV2');
+const validRevisionV2 = def<ResearchAutomationReaderRevisionV2>('revisionV2');
 
 export const READER_BUILDER_VERSION = 'reader-report-market-v3';
 export const NEXT_MARKET_READER_BUILDER_VERSION = 'reader-report-market-v4';
@@ -76,12 +88,47 @@ export interface ReaderDraftContext {
   readonly metric: { readonly packageId: string; readonly workbook: Buffer; readonly measurementPeriod: { readonly startDate: string; readonly endDate: string } };
 }
 export interface ReaderBinding { readonly workspaceId: string; readonly runId: string }
+/** Only the owning service constructs this after exact source/method replay. */
+export interface InsightReaderDraftContext extends ReaderBinding {
+  readonly input: InsightReaderInput;
+  readonly page: InsightReaderPage;
+}
+/** Only the owning service constructs this after exact TikTok source/method replay. */
+export interface TikTokReaderDraftContext extends ReaderBinding {
+  readonly input: Extract<InsightReaderInput, { contractVersion: 'insight-reader-input-v7' }>;
+  readonly page: InsightReaderPage;
+  /** Retained identities recorded atomically with the revision insert; reads never write. */
+  readonly consumption: {
+    readonly corpusPackageId: string;
+    readonly corpusPackageContentSha256: string;
+    readonly codingDraftSha256: string;
+    readonly reportIdentitySha256: string;
+  };
+}
+/** Builder version marking TikTok S07 rows; existing MARKET/INSIGHT flows never carry it. */
+export const TIKTOK_READER_BUILDER_VERSION = 'reader-report-insight-tiktok-v1';
+/** Builder version for the source-bound qualitative Insight reader input. */
+export const QUALITATIVE_READER_BUILDER_VERSION = 'reader-report-insight-v9';
+/** Only the owning service constructs this after exact Shopee source/method replay. */
+export interface ShopeeReaderDraftContext extends ReaderBinding {
+  readonly input: Extract<InsightReaderInput, { contractVersion: 'insight-reader-input-v8' }>;
+  readonly page: InsightReaderPage;
+  /** Retained identities recorded atomically with the revision insert; reads never write. */
+  readonly consumption: {
+    readonly sampleId: string;
+    readonly codingDraftSha256: string;
+    readonly reportIdentitySha256: string;
+  };
+}
+/** Builder version marking Shopee U22 rows; existing MARKET/INSIGHT flows never carry it. */
+export const SHOPEE_READER_BUILDER_VERSION = 'reader-report-insight-shopee-v1';
 export type ReaderRowsReader = (workbook: Buffer, platforms: readonly ReaderPlatform[]) => ReaderRow[];
 
 interface RevisionRow {
+  report_kind: 'MARKET' | 'INSIGHT'; semantic_sha256: string | null; source_report_sha256: string | null;
   revision_id: string; workspace_id: string; run_id: string; revision_number: number | bigint; request_key: string; request_sha256: string;
-  draft_pair_id: string; metric_package_id: string; platforms: string; profile_status: 'proposed' | 'approved';
-  input_sha256: string; profile_sha256: string; cover_sha256: string | null; html_sha256: string; metrics_sha256: string; claims_sha256: string;
+  draft_pair_id: string; metric_package_id: string | null; platforms: string | null; profile_status: 'proposed' | 'approved' | null;
+  input_sha256: string; profile_sha256: string | null; cover_sha256: string | null; html_sha256: string; metrics_sha256: string; claims_sha256: string;
   builder_version: string; actor_id: string; created_at: string;
   decision: 'APPROVED' | 'REJECTED' | null; decision_request_key: string | null; reason: string | null; decision_actor_id: string | null; decided_at: string | null;
 }
@@ -227,6 +274,13 @@ export class AutomationReaderReports {
     const at = this.now(), createdAt = at.toISOString(), revisionId = randomUUID();
     const webResults = context.webResults ?? [];
     const built = await buildMarketReport(data, { limitations, builtOn: builtOn(at), cover, flint: this.options.flint ?? true, webResults });
+    // The gate blocks report publication and revision insertion; cover/sidecar artifacts may already be written.
+    try { assertMarketBusinessGate(built.html, { presentation: false }); }
+    catch (error) {
+      if (error instanceof TypeError && error.message.startsWith('MARKET_BUSINESS_GATE_FAILED:')) throw new ResearchAutomationValidationError(
+        `Bản đọc chưa đạt kiểm tra bằng chứng hoặc cách trình bày (quy tắc: ${error.message.slice('MARKET_BUSINESS_GATE_FAILED:'.length)}). Hãy sửa cách trình bày trước khi tạo phiên bản mới.`);
+      throw error;
+    }
     let published;
     try { published = await publishReaderReport(this.artifacts, { html: built.html, narrator: built.narrator, extraOk: built.extraOk, visibleTextRules: next }); }
     catch (error) {
@@ -257,7 +311,7 @@ export class AutomationReaderReports {
       this.#manifest(published.html, 'text/html; charset=utf-8', createdAt);
       for (const a of [published.metrics, published.claims, profile, record]) this.#manifest(a, 'application/json', createdAt);
       if (stored) { this.#manifest(stored.image, stored.mime, createdAt); this.#manifest(stored.sidecar, 'application/json', createdAt); }
-      const next = Number((this.db.prepare('SELECT COALESCE(max(revision_number),0)+1 n FROM analysis_reader_report_revisions WHERE run_id=?').get(context.runId) as { n: number | bigint }).n);
+      const next = Number((this.db.prepare("SELECT COALESCE(max(revision_number),0)+1 n FROM analysis_reader_report_revisions WHERE run_id=? AND report_kind='MARKET'").get(context.runId) as { n: number | bigint }).n);
       this.db.prepare(`INSERT INTO analysis_reader_report_revisions(revision_id,workspace_id,run_id,revision_number,request_key,request_sha256,
         draft_pair_id,metric_package_id,platforms,profile_status,input_sha256,profile_sha256,cover_sha256,html_sha256,metrics_sha256,claims_sha256,
         builder_version,actor_id,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
@@ -274,6 +328,231 @@ export class AutomationReaderReports {
     return { contractVersion: 'reader-report-build-receipt-v1', exactRetry: false, revision: this.#project(this.#byId(context.runId, revisionId)!) };
   }
 
+  async buildInsight(context: InsightReaderDraftContext, value: unknown, actor: { actorId: string; role: 'OWNER' }): Promise<ResearchAutomationReaderBuildReceiptV2> {
+    this.#owner(actor);
+    if (!validInsightBuild(value)) throw new ResearchAutomationValidationError('Yêu cầu dựng bản đọc insight không hợp lệ.');
+    const request = JSON.parse(canonicalJson(value)) as ResearchAutomationInsightReaderBuildRequest;
+    if (request.contractVersion === 'insight-reader-build-tiktok-v1') {
+      throw new ResearchAutomationValidationError('Bản đọc TikTok chỉ được dựng tại reader-reports/tiktok, không phải tuyến insight cũ.');
+    }
+    if (request.contractVersion === 'insight-reader-build-shopee-v1') {
+      throw new ResearchAutomationValidationError('Bản đọc Shopee chỉ được dựng tại reader-reports/shopee, không phải tuyến insight cũ.');
+    }
+    const input = verifyInsightReaderInput(context.input, context.input);
+    const requestedBuilder = request.contractVersion === 'insight-reader-build-v4' ? 'reader-report-insight-v9'
+      : request.contractVersion === 'insight-reader-build-v3' ? 'reader-report-insight-v6'
+      : request.contractVersion === 'insight-reader-build-v2'
+      ? request.sourceKind === 'CROSSCHECK' ? 'reader-report-insight-v4' : 'reader-report-insight-v5'
+      : undefined;
+    if (requestedBuilder ? input.builderVersion !== requestedBuilder : !['reader-report-insight-v1', 'reader-report-insight-v2', 'reader-report-insight-v3'].includes(input.builderVersion))
+      throw new ResearchAutomationValidationError('Insight reader request and frozen builder versions differ.');
+    if (input.workspaceId !== context.workspaceId || input.runId !== context.runId || input.draftPairId !== request.draftPairId || input.semanticSha256 !== request.semanticSha256 ||
+        context.page.keyword !== input.scope.keyword || context.page.definition !== input.scope.definition || canonicalJson(context.page.period) !== canonicalJson(input.scope.requestedPeriod))
+      throw new ResearchAutomationIntegrityError('Insight reader context differs from its exact frozen binding.');
+    if (request.contractVersion === 'insight-reader-build-v3' && (input.contractVersion !== 'insight-reader-input-v6' ||
+        input.personaProposalId !== request.personaProposalId || input.personaProposalSha256 !== request.personaProposalSha256 ||
+        input.personaSourcePairId !== request.personaSourcePairId || input.personaSourceSha256 !== request.personaSourceSha256))
+      throw new ResearchAutomationIntegrityError('Persona reader context differs from its exact selected proposal and source.');
+    if (request.contractVersion === 'insight-reader-build-v4' && (input.contractVersion !== 'insight-reader-input-v9' ||
+        input.sourceRendererVersion !== 'automation-report-kit-v28' || !input.retainedMethods.some(method => method.kind === 'QUALITATIVE_DRAFT')))
+      throw new ResearchAutomationIntegrityError('Qualitative reader context differs from its exact source-bound draft.');
+    const requestSha = sha(canonicalJson(request));
+    const retry = async (row: RevisionRow): Promise<ResearchAutomationReaderBuildReceiptV2> => {
+      if (row.report_kind !== 'INSIGHT' || row.workspace_id !== context.workspaceId || row.run_id !== context.runId || row.draft_pair_id !== input.draftPairId ||
+          row.semantic_sha256 !== input.semanticSha256 || row.source_report_sha256 !== input.sourceReportSha256 || row.actor_id !== actor.actorId || row.request_sha256 !== requestSha)
+        throw new ResearchAutomationConflictError('request_key_conflict', 'Mã yêu cầu đã dùng cho một lần dựng khác.');
+      await this.#verifiedInsightPage(row, input);
+      return { contractVersion: 'reader-report-build-receipt-v2', exactRetry: true, revision: await this.#projectWithPersona(row) };
+    };
+    const prior = this.#byRequestKey(request.requestKey); if (prior) return retry(prior);
+    if (this.#latest(context.runId, 'INSIGHT')?.decision === 'APPROVED') throw new ResearchAutomationConflictError('invalid_state', 'Bản đọc insight mới nhất đã được chủ duyệt.');
+    const built = buildInsightReaderTemplate(context.page);
+    if (Buffer.byteLength(built.html) > MAX_READER_HTML_BYTES) throw new ResearchAutomationValidationError('Bản đọc insight vượt giới hạn bản lưu; không cắt dữ liệu hoặc tự thu lại.');
+    let published;
+    try { published = await publishReaderReport(this.artifacts, { ...built, reportKind: 'INSIGHT', visibleTextRules: true, sectionIds: ['insight-findings', ...INSIGHT_SECTION_IDS] }); }
+    catch (error) {
+      if (error instanceof ReaderReportGateError) throw new ResearchAutomationValidationError('Bản đọc insight chưa đạt kiểm tra bằng chứng hoặc cách trình bày.');
+      throw error;
+    }
+    const createdAt = this.now().toISOString(), revisionId = randomUUID();
+    const record = await this.artifacts.put(json({ contractVersion: 'insight-reader-build-record-v1', input,
+      revisionId, requestSha256: requestSha, htmlSha256: published.html.sha256, citationTrace: built.citationTrace, actorId: actor.actorId, createdAt }));
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const raced = this.#byRequestKey(request.requestKey);
+      if (raced) { this.db.exec('ROLLBACK'); return retry(raced); }
+      if (this.#latest(context.runId, 'INSIGHT')?.decision === 'APPROVED') throw new ResearchAutomationConflictError('invalid_state', 'Bản đọc insight mới nhất đã được chủ duyệt.');
+      this.#manifest(published.html, 'text/html; charset=utf-8', createdAt);
+      for (const artifact of [published.metrics, published.claims, record]) this.#manifest(artifact, 'application/json', createdAt);
+      const next = Number((this.db.prepare("SELECT COALESCE(max(revision_number),0)+1 n FROM analysis_reader_report_revisions WHERE run_id=? AND report_kind='INSIGHT'").get(context.runId) as { n: number | bigint }).n);
+      this.db.prepare(`INSERT INTO analysis_reader_report_revisions(report_kind,semantic_sha256,source_report_sha256,
+        revision_id,workspace_id,run_id,revision_number,request_key,request_sha256,draft_pair_id,input_sha256,html_sha256,metrics_sha256,claims_sha256,builder_version,actor_id,created_at)
+        VALUES ('INSIGHT',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(input.semanticSha256, input.sourceReportSha256,
+        revisionId, context.workspaceId, context.runId, next, request.requestKey, requestSha, input.draftPairId, record.sha256,
+        published.html.sha256, published.metrics.sha256, published.claims.sha256, input.builderVersion, actor.actorId, createdAt);
+      this.db.exec('COMMIT');
+    } catch (error) {
+      if (this.db.inTransaction) this.db.exec('ROLLBACK');
+      if (error instanceof Error && /reader_report_requires_draft_ready_sequence/.test(error.message)) throw new ResearchAutomationConflictError('invalid_state', 'Chỉ dựng bản đọc khi bản nháp đã sẵn sàng.');
+      throw error;
+    }
+    return { contractVersion: 'reader-report-build-receipt-v2', exactRetry: false, revision: await this.#projectWithPersona(this.#byId(context.runId, revisionId)!) };
+  }
+
+  /** TikTok S07 reader build from an exact replayed v7 input. Existing Insight builds are untouched. */
+  async buildTikTok(context: TikTokReaderDraftContext, value: unknown, actor: { actorId: string; role: 'OWNER' }): Promise<ResearchAutomationReaderBuildReceiptV2> {
+    this.#owner(actor);
+    if (!validTikTokBuild(value)) throw new ResearchAutomationValidationError('Yêu cầu dựng bản đọc TikTok không hợp lệ.');
+    const request = JSON.parse(canonicalJson(value)) as ResearchAutomationTikTokReaderBuildRequest;
+    const input = verifyInsightReaderInput(context.input, context.input);
+    if (input.contractVersion !== 'insight-reader-input-v7' || input.builderVersion !== TIKTOK_READER_BUILDER_VERSION)
+      throw new ResearchAutomationValidationError('TikTok reader request and frozen builder versions differ.');
+    if (input.workspaceId !== context.workspaceId || input.runId !== context.runId || input.draftPairId !== request.draftPairId ||
+        input.semanticSha256 !== request.semanticSha256)
+      throw new ResearchAutomationIntegrityError('TikTok reader context differs from its exact frozen binding.');
+    const requestSha = sha(canonicalJson(request));
+    const retry = async (row: RevisionRow): Promise<ResearchAutomationReaderBuildReceiptV2> => {
+      if (row.report_kind !== 'INSIGHT' || row.workspace_id !== context.workspaceId || row.run_id !== context.runId || row.draft_pair_id !== input.draftPairId ||
+          row.semantic_sha256 !== input.semanticSha256 || row.source_report_sha256 !== input.sourceReportSha256 || row.actor_id !== actor.actorId || row.request_sha256 !== requestSha)
+        throw new ResearchAutomationConflictError('request_key_conflict', 'Mã yêu cầu đã dùng cho một lần dựng khác.');
+      await this.#verifiedInsightPage(row, input);
+      return { contractVersion: 'reader-report-build-receipt-v2', exactRetry: true, revision: await this.#projectWithPersona(row) };
+    };
+    const prior = this.#byRequestKey(request.requestKey); if (prior) return retry(prior);
+    if (this.#latest(context.runId, 'INSIGHT')?.decision === 'APPROVED') throw new ResearchAutomationConflictError('invalid_state', 'Bản đọc insight mới nhất đã được chủ duyệt.');
+    const built = buildInsightReaderTemplate(context.page);
+    if (Buffer.byteLength(built.html) > MAX_READER_HTML_BYTES) throw new ResearchAutomationValidationError('Bản đọc TikTok vượt giới hạn bản lưu; không cắt dữ liệu hoặc tự thu lại.');
+    let published;
+    try { published = await publishReaderReport(this.artifacts, { ...built, reportKind: 'INSIGHT', visibleTextRules: true, sectionIds: ['insight-findings', ...INSIGHT_SECTION_IDS] }); }
+    catch (error) {
+      if (error instanceof ReaderReportGateError) throw new ResearchAutomationValidationError('Bản đọc TikTok chưa đạt kiểm tra bằng chứng hoặc cách trình bày.');
+      throw error;
+    }
+    const createdAt = this.now().toISOString(), revisionId = randomUUID();
+    const record = await this.artifacts.put(json({ contractVersion: 'insight-reader-build-record-v1', input,
+      revisionId, requestSha256: requestSha, htmlSha256: published.html.sha256, citationTrace: built.citationTrace, actorId: actor.actorId, createdAt }));
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const raced = this.#byRequestKey(request.requestKey);
+      if (raced) { this.db.exec('ROLLBACK'); return retry(raced); }
+      if (this.#latest(context.runId, 'INSIGHT')?.decision === 'APPROVED') throw new ResearchAutomationConflictError('invalid_state', 'Bản đọc insight mới nhất đã được chủ duyệt.');
+      this.#manifest(published.html, 'text/html; charset=utf-8', createdAt);
+      for (const artifact of [published.metrics, published.claims, record]) this.#manifest(artifact, 'application/json', createdAt);
+      const next = Number((this.db.prepare("SELECT COALESCE(max(revision_number),0)+1 n FROM analysis_reader_report_revisions WHERE run_id=? AND report_kind='INSIGHT'").get(context.runId) as { n: number | bigint }).n);
+      this.db.prepare(`INSERT INTO analysis_reader_report_revisions(report_kind,semantic_sha256,source_report_sha256,
+        revision_id,workspace_id,run_id,revision_number,request_key,request_sha256,draft_pair_id,input_sha256,html_sha256,metrics_sha256,claims_sha256,builder_version,actor_id,created_at)
+        VALUES ('INSIGHT',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(input.semanticSha256, input.sourceReportSha256,
+        revisionId, context.workspaceId, context.runId, next, request.requestKey, requestSha, input.draftPairId, record.sha256,
+        published.html.sha256, published.metrics.sha256, published.claims.sha256, input.builderVersion, actor.actorId, createdAt);
+      this.#consumeTikTokBuild(context, revisionId, createdAt, actor.actorId);
+      this.db.exec('COMMIT');
+    } catch (error) {
+      if (this.db.inTransaction) this.db.exec('ROLLBACK');
+      if (error instanceof Error && /reader_report_requires_draft_ready_sequence/.test(error.message)) throw new ResearchAutomationConflictError('invalid_state', 'Chỉ dựng bản đọc khi bản nháp đã sẵn sàng.');
+      throw error;
+    }
+    return { contractVersion: 'reader-report-build-receipt-v2', exactRetry: false, revision: await this.#projectWithPersona(this.#byId(context.runId, revisionId)!) };
+  }
+
+  /** Actual retained report-consumption ledger for TikTok rows only, written atomically with the
+   * revision insert. Reads, reopens, and retries stay query-only and record nothing; decisions stay
+   * in the existing decision table. Acquisition timestamps stay data-only and never prove consumption. */
+  #consumeTikTokBuild(context: TikTokReaderDraftContext, revisionId: string, createdAt: string, actorId: string): void {
+    this.db.prepare(`INSERT INTO analysis_tiktok_report_consumption(revision_id,run_id,corpus_package_id,corpus_package_content_sha256,
+      coding_draft_sha256,report_identity_sha256,actor_id,consumed_at) VALUES (?,?,?,?,?,?,?,?)`).run(revisionId, context.runId,
+      context.consumption.corpusPackageId, context.consumption.corpusPackageContentSha256, context.consumption.codingDraftSha256,
+      context.consumption.reportIdentitySha256, actorId, createdAt);
+  }
+
+  /** Configless query-only consumption history for one run. No model, collector, or CAS mutation. */
+  async readTikTokConsumption(binding: ReaderBinding) {
+    const rows = this.db.prepare(`SELECT revision_id revisionId, report_identity_sha256 reportIdentitySha256,
+      corpus_package_id corpusPackageId, corpus_package_content_sha256 corpusPackageContentSha256,
+      coding_draft_sha256 codingDraftSha256, actor_id actorId, consumed_at consumedAt
+      FROM analysis_tiktok_report_consumption WHERE run_id=? ORDER BY consumed_at`).all(binding.runId) as
+      { revisionId: string; reportIdentitySha256: string; corpusPackageId: string; corpusPackageContentSha256: string;
+        codingDraftSha256: string; actorId: string; consumedAt: string }[];
+    const runRows = new Set((this.db.prepare(`SELECT revision_id revisionId FROM analysis_reader_report_revisions WHERE run_id=? AND workspace_id=?`).all(binding.runId, binding.workspaceId) as { revisionId: string }[]).map(row => row.revisionId));
+    return { contractVersion: 'tiktok-consumption-view-v1', entries: rows.filter(row => runRows.has(row.revisionId)) };
+  }
+
+  /** Shopee U22 reader build from an exact replayed v8 input. Existing builds are untouched. */
+  async buildShopee(context: ShopeeReaderDraftContext, value: unknown, actor: { actorId: string; role: 'OWNER' }): Promise<ResearchAutomationReaderBuildReceiptV2> {
+    this.#owner(actor);
+    if (!validShopeeBuild(value)) throw new ResearchAutomationValidationError('Yêu cầu dựng bản đọc Shopee không hợp lệ.');
+    const request = JSON.parse(canonicalJson(value)) as ResearchAutomationShopeeReaderBuildRequest;
+    const input = verifyInsightReaderInput(context.input, context.input);
+    if (input.contractVersion !== 'insight-reader-input-v8' || input.builderVersion !== SHOPEE_READER_BUILDER_VERSION)
+      throw new ResearchAutomationValidationError('Shopee reader request and frozen builder versions differ.');
+    if (input.workspaceId !== context.workspaceId || input.runId !== context.runId || input.draftPairId !== request.draftPairId ||
+        input.semanticSha256 !== request.semanticSha256)
+      throw new ResearchAutomationIntegrityError('Shopee reader context differs from its exact frozen binding.');
+    const requestSha = sha(canonicalJson(request));
+    const retry = async (row: RevisionRow): Promise<ResearchAutomationReaderBuildReceiptV2> => {
+      if (row.report_kind !== 'INSIGHT' || row.workspace_id !== context.workspaceId || row.run_id !== context.runId || row.draft_pair_id !== input.draftPairId ||
+          row.semantic_sha256 !== input.semanticSha256 || row.source_report_sha256 !== input.sourceReportSha256 || row.actor_id !== actor.actorId || row.request_sha256 !== requestSha)
+        throw new ResearchAutomationConflictError('request_key_conflict', 'Mã yêu cầu đã dùng cho một lần dựng khác.');
+      await this.#verifiedInsightPage(row, input);
+      return { contractVersion: 'reader-report-build-receipt-v2', exactRetry: true, revision: await this.#projectWithPersona(row) };
+    };
+    const prior = this.#byRequestKey(request.requestKey); if (prior) return retry(prior);
+    if (this.#latest(context.runId, 'INSIGHT')?.decision === 'APPROVED') throw new ResearchAutomationConflictError('invalid_state', 'Bản đọc insight mới nhất đã được chủ duyệt.');
+    const built = buildInsightReaderTemplate(context.page);
+    if (Buffer.byteLength(built.html) > MAX_READER_HTML_BYTES) throw new ResearchAutomationValidationError('Bản đọc Shopee vượt giới hạn bản lưu; không cắt dữ liệu hoặc tự thu lại.');
+    let published;
+    try { published = await publishReaderReport(this.artifacts, { ...built, reportKind: 'INSIGHT', visibleTextRules: true, sectionIds: ['insight-findings', ...INSIGHT_SECTION_IDS] }); }
+    catch (error) {
+      if (error instanceof ReaderReportGateError) throw new ResearchAutomationValidationError('Bản đọc Shopee chưa đạt kiểm tra bằng chứng hoặc cách trình bày.');
+      throw error;
+    }
+    const createdAt = this.now().toISOString(), revisionId = randomUUID();
+    const record = await this.artifacts.put(json({ contractVersion: 'insight-reader-build-record-v1', input,
+      revisionId, requestSha256: requestSha, htmlSha256: published.html.sha256, citationTrace: built.citationTrace, actorId: actor.actorId, createdAt }));
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const raced = this.#byRequestKey(request.requestKey);
+      if (raced) { this.db.exec('ROLLBACK'); return retry(raced); }
+      if (this.#latest(context.runId, 'INSIGHT')?.decision === 'APPROVED') throw new ResearchAutomationConflictError('invalid_state', 'Bản đọc insight mới nhất đã được chủ duyệt.');
+      this.#manifest(published.html, 'text/html; charset=utf-8', createdAt);
+      for (const artifact of [published.metrics, published.claims, record]) this.#manifest(artifact, 'application/json', createdAt);
+      const next = Number((this.db.prepare("SELECT COALESCE(max(revision_number),0)+1 n FROM analysis_reader_report_revisions WHERE run_id=? AND report_kind='INSIGHT'").get(context.runId) as { n: number | bigint }).n);
+      this.db.prepare(`INSERT INTO analysis_reader_report_revisions(report_kind,semantic_sha256,source_report_sha256,
+        revision_id,workspace_id,run_id,revision_number,request_key,request_sha256,draft_pair_id,input_sha256,html_sha256,metrics_sha256,claims_sha256,builder_version,actor_id,created_at)
+        VALUES ('INSIGHT',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(input.semanticSha256, input.sourceReportSha256,
+        revisionId, context.workspaceId, context.runId, next, request.requestKey, requestSha, input.draftPairId, record.sha256,
+        published.html.sha256, published.metrics.sha256, published.claims.sha256, input.builderVersion, actor.actorId, createdAt);
+      this.#consumeShopeeBuild(context, revisionId, createdAt, actor.actorId);
+      this.db.exec('COMMIT');
+    } catch (error) {
+      if (this.db.inTransaction) this.db.exec('ROLLBACK');
+      if (error instanceof Error && /reader_report_requires_draft_ready_sequence/.test(error.message)) throw new ResearchAutomationConflictError('invalid_state', 'Chỉ dựng bản đọc khi bản nháp đã sẵn sàng.');
+      throw error;
+    }
+    return { contractVersion: 'reader-report-build-receipt-v2', exactRetry: false, revision: await this.#projectWithPersona(this.#byId(context.runId, revisionId)!) };
+  }
+
+  /** Actual retained report-consumption ledger for Shopee rows only, written atomically with the
+   * revision insert. Reads, reopens, and retries stay query-only and record nothing; decisions stay
+   * in the existing decision table. Acquisition timestamps stay data-only and never prove consumption. */
+  #consumeShopeeBuild(context: ShopeeReaderDraftContext, revisionId: string, createdAt: string, actorId: string): void {
+    this.db.prepare(`INSERT INTO analysis_shopee_report_consumption(revision_id,run_id,sample_id,
+      coding_draft_sha256,report_identity_sha256,actor_id,consumed_at) VALUES (?,?,?,?,?,?,?)`).run(revisionId, context.runId,
+      context.consumption.sampleId, context.consumption.codingDraftSha256,
+      context.consumption.reportIdentitySha256, actorId, createdAt);
+  }
+
+  /** Configless query-only consumption history for one run. No model, collector, or CAS mutation. */
+  async readShopeeConsumption(binding: ReaderBinding) {
+    const rows = this.db.prepare(`SELECT revision_id revisionId, report_identity_sha256 reportIdentitySha256,
+      sample_id sampleId, coding_draft_sha256 codingDraftSha256,
+      actor_id actorId, consumed_at consumedAt
+      FROM analysis_shopee_report_consumption WHERE run_id=? ORDER BY consumed_at`).all(binding.runId) as
+      { revisionId: string; reportIdentitySha256: string; sampleId: string;
+        codingDraftSha256: string; actorId: string; consumedAt: string }[];
+    const runRows = new Set((this.db.prepare(`SELECT revision_id revisionId FROM analysis_reader_report_revisions WHERE run_id=? AND workspace_id=?`).all(binding.runId, binding.workspaceId) as { revisionId: string }[]).map(row => row.revisionId));
+    return { contractVersion: 'shopee-consumption-view-v1', entries: rows.filter(row => runRows.has(row.revisionId)) };
+  }
+
   async decide(binding: ReaderBinding, value: unknown, actor: { actorId: string; role: 'OWNER' }): Promise<ResearchAutomationReaderDecisionReceipt> {
     this.#owner(actor);
     if (!validDecision(value)) throw new ResearchAutomationValidationError('Yêu cầu duyệt bản đọc không hợp lệ.');
@@ -284,13 +563,13 @@ export class AutomationReaderReports {
     const prior = this.db.prepare('SELECT revision_id FROM analysis_reader_report_decisions WHERE request_key=?').get(request.requestKey) as { revision_id: string } | undefined;
     if (prior) {
       const row = this.#byId(binding.runId, prior.revision_id);
-      if (!row || row.revision_id !== request.revisionId || row.workspace_id !== binding.workspaceId || row.decision !== request.decision ||
+      if (!row || row.report_kind !== 'MARKET' || row.revision_id !== request.revisionId || row.workspace_id !== binding.workspaceId || row.decision !== request.decision ||
           row.reason !== reason || row.decision_actor_id !== actor.actorId)
         throw new ResearchAutomationConflictError('request_key_conflict', 'Mã yêu cầu đã dùng cho một quyết định khác.');
       return receipt(row, true);
     }
     const row = this.#byId(binding.runId, request.revisionId);
-    if (!row || row.workspace_id !== binding.workspaceId) throw new ResearchAutomationNotFoundError('reader_report_not_found', 'Không tìm thấy bản đọc.');
+    if (!row || row.report_kind !== 'MARKET' || row.workspace_id !== binding.workspaceId) throw new ResearchAutomationNotFoundError('reader_report_not_found', 'Không tìm thấy bản đọc.');
     if (row.decision) throw new ResearchAutomationConflictError('invalid_state', 'Bản đọc này đã có quyết định.');
     this.db.exec('BEGIN IMMEDIATE');
     try {
@@ -309,14 +588,62 @@ export class AutomationReaderReports {
   }
 
   list(binding: ReaderBinding): ResearchAutomationReaderRevisionList {
-    const rows = this.db.prepare(`${SELECT} WHERE v.run_id=? AND v.workspace_id=? ORDER BY v.revision_number`).all(binding.runId, binding.workspaceId) as RevisionRow[];
+    const rows = this.db.prepare(`${SELECT} WHERE v.run_id=? AND v.workspace_id=? AND v.report_kind='MARKET' ORDER BY v.revision_number`).all(binding.runId, binding.workspaceId) as RevisionRow[];
     return { contractVersion: 'reader-report-list-v1', workspaceId: binding.workspaceId, runId: binding.runId, revisions: rows.map(r => this.#project(r)) };
   }
 
+  listV2(binding: ReaderBinding): ResearchAutomationReaderRevisionListV2 {
+    const rows = this.db.prepare(`${SELECT} WHERE v.run_id=? AND v.workspace_id=? ORDER BY v.report_kind,v.revision_number`).all(binding.runId, binding.workspaceId) as RevisionRow[];
+    return { contractVersion: 'reader-report-list-v2', workspaceId: binding.workspaceId, runId: binding.runId, revisions: rows.map(row => this.#projectV2(row)) };
+  }
+
+  async listWithPersona(binding: ReaderBinding): Promise<ResearchAutomationReaderRevisionListV2> {
+    const rows = this.db.prepare(`${SELECT} WHERE v.run_id=? AND v.workspace_id=? ORDER BY v.report_kind,v.revision_number`).all(binding.runId, binding.workspaceId) as RevisionRow[];
+    return { contractVersion: 'reader-report-list-v2', workspaceId: binding.workspaceId, runId: binding.runId, revisions: await Promise.all(rows.map(row => this.#projectWithPersona(row))) };
+  }
+
+  async decideV2(binding: ReaderBinding, value: unknown, actor: { actorId: string; role: 'OWNER' }): Promise<ResearchAutomationReaderDecisionReceiptV2> {
+    this.#owner(actor);
+    if (!validDecisionV2(value)) throw new ResearchAutomationValidationError('Yêu cầu duyệt đúng bản đọc không hợp lệ.');
+    const request = JSON.parse(canonicalJson(value)) as ResearchAutomationReaderDecisionRequestV2;
+    const row = this.#byId(binding.runId, request.revisionId);
+    if (!row || row.workspace_id !== binding.workspaceId || row.report_kind !== request.reportKind || row.html_sha256 !== request.htmlSha256)
+      throw new ResearchAutomationConflictError('revision_conflict', 'Loại hoặc nội dung bản đọc không khớp phiên bản bạn đã xem.');
+    if (row.report_kind === 'INSIGHT') await this.#verifiedInsightPage(row);
+    if (request.reportKind === 'MARKET') {
+      const result = await this.decide(binding, { contractVersion: 'reader-report-decision-v1', requestKey: request.requestKey,
+        revisionId: request.revisionId, decision: request.decision, reason: request.reason }, actor);
+      return { contractVersion: 'reader-report-decision-receipt-v2', exactRetry: result.exactRetry, revision: await this.#projectWithPersona(this.#byId(binding.runId, request.revisionId)!) };
+    }
+    const reason = request.reason === null ? null : request.reason.trim();
+    const prior = this.db.prepare('SELECT revision_id FROM analysis_reader_report_decisions WHERE request_key=?').get(request.requestKey) as { revision_id: string } | undefined;
+    if (prior) {
+      const decided = this.#byId(binding.runId, prior.revision_id);
+      if (!decided || decided.revision_id !== request.revisionId || decided.workspace_id !== binding.workspaceId || decided.report_kind !== request.reportKind ||
+          decided.html_sha256 !== request.htmlSha256 || decided.decision !== request.decision || decided.reason !== reason || decided.decision_actor_id !== actor.actorId)
+        throw new ResearchAutomationConflictError('request_key_conflict', 'Mã yêu cầu đã dùng cho một quyết định khác.');
+      return { contractVersion: 'reader-report-decision-receipt-v2', exactRetry: true, revision: await this.#projectWithPersona(decided) };
+    }
+    if (row.decision) throw new ResearchAutomationConflictError('invalid_state', 'Bản đọc này đã có quyết định.');
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      this.db.prepare(`INSERT INTO analysis_reader_report_decisions(revision_id,run_id,decision,request_key,reason,actor_id,decided_at)
+        VALUES (?,?,?,?,?,?,?)`).run(row.revision_id, binding.runId, request.decision, request.requestKey, reason, actor.actorId, this.now().toISOString());
+      this.db.exec('COMMIT');
+    } catch (error) {
+      if (this.db.inTransaction) this.db.exec('ROLLBACK');
+      if (error instanceof Error && /reader_report_decision_requires_latest_revision/.test(error.message)) throw new ResearchAutomationConflictError('revision_conflict', 'Đã có bản đọc insight mới hơn; hãy xem bản mới nhất.');
+      if (error instanceof Error && /UNIQUE constraint failed/.test(error.message)) throw new ResearchAutomationConflictError('invalid_state', 'Bản đọc này đã có quyết định.');
+      throw error;
+    }
+    return { contractVersion: 'reader-report-decision-receipt-v2', exactRetry: false, revision: await this.#projectWithPersona(this.#byId(binding.runId, request.revisionId)!) };
+  }
+
   /** Verified page bytes; the manifest must match before anything is served. */
-  async html(binding: ReaderBinding, revisionId: string): Promise<{ revision: ResearchAutomationReaderRevision; bytes: Buffer }> {
+  async html(binding: ReaderBinding, revisionId: string): Promise<{ revision: ResearchAutomationReaderRevision | ResearchAutomationReaderRevisionV2; bytes: Buffer }> {
     const row = this.#byId(binding.runId, revisionId);
     if (!row || row.workspace_id !== binding.workspaceId) throw new ResearchAutomationNotFoundError('reader_report_not_found', 'Không tìm thấy bản đọc.');
+    if (row.report_kind === 'INSIGHT') return { revision: await this.#projectWithPersona(row), bytes: await this.#verifiedInsightPage(row) };
     const manifest = this.db.prepare('SELECT byte_size,media_type,relative_path,contract_version,retention_status FROM artifact_manifests WHERE sha256=?')
       .get(row.html_sha256) as { byte_size: number | bigint; media_type: string; relative_path: string; contract_version: string; retention_status: string } | undefined;
     if (!manifest || manifest.media_type !== 'text/html; charset=utf-8' || manifest.contract_version !== '1.0.0' || manifest.retention_status !== 'active' ||
@@ -325,7 +652,48 @@ export class AutomationReaderReports {
     const bytes = await this.artifacts.read(row.html_sha256, { maxBytes: MAX_READER_HTML_BYTES });
     if (BigInt(bytes.byteLength) !== BigInt(manifest.byte_size) || sha(bytes) !== row.html_sha256)
       throw new ResearchAutomationIntegrityError('Reader page failed verification.');
-    return { revision: this.#project(row), bytes };
+    return { revision: row.report_kind === 'MARKET' ? this.#project(row) : await this.#projectWithPersona(row), bytes };
+  }
+
+  /** Insight reads/retries authenticate only their frozen retained record and
+   * HTML. Never replay upstream, render again, calculate or write a manifest. */
+  async #verifiedInsightPage(row: RevisionRow, expected?: InsightReaderInput): Promise<Buffer> {
+    await this.#verifiedInsightInput(row, expected);
+    return this.#verifiedInsightArtifact(row.html_sha256, 'text/html; charset=utf-8');
+  }
+  async #verifiedInsightInput(row: RevisionRow, expected?: InsightReaderInput): Promise<InsightReaderInput> {
+    const bytes = await this.#verifiedInsightArtifact(row.input_sha256, 'application/json');
+    let record: Record<string, unknown>, input: InsightReaderInput;
+    try {
+      const parsed: unknown = JSON.parse(bytes.toString('utf8'));
+      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed) || !bytes.equals(json(parsed)))
+        throw new Error('Invalid canonical record');
+      record = parsed as Record<string, unknown>;
+      const keys = ['contractVersion', 'input', 'revisionId', 'requestSha256', 'htmlSha256', 'citationTrace', 'actorId', 'createdAt'];
+      if (Object.keys(record).length !== keys.length || keys.some(key => !Object.hasOwn(record, key)))
+        throw new Error('Invalid record fields');
+      // The immutable ledger/CAS authenticates the frozen input on GET. On a
+      // retry the owning service additionally supplies its replayed exact input.
+      input = verifyInsightReaderInput(record.input, expected ?? record.input as InsightReaderInput);
+    } catch { throw new ResearchAutomationIntegrityError('Stored Insight reader build record failed verification.'); }
+    if (row.report_kind !== 'INSIGHT' || record.contractVersion !== 'insight-reader-build-record-v1' ||
+        record.revisionId !== row.revision_id || record.requestSha256 !== row.request_sha256 || record.actorId !== row.actor_id ||
+        record.createdAt !== row.created_at || record.htmlSha256 !== row.html_sha256 || input.reportKind !== row.report_kind ||
+        input.workspaceId !== row.workspace_id || input.runId !== row.run_id || input.draftPairId !== row.draft_pair_id ||
+        input.semanticSha256 !== row.semantic_sha256 || input.sourceReportSha256 !== row.source_report_sha256 || input.builderVersion !== row.builder_version)
+      throw new ResearchAutomationIntegrityError('Stored Insight reader build record differs from its immutable binding.');
+    return input;
+  }
+  async #verifiedInsightArtifact(digest: string, mediaType: string): Promise<Buffer> {
+    const manifest = this.db.prepare('SELECT byte_size,media_type,relative_path,contract_version,retention_status FROM artifact_manifests WHERE sha256=?')
+      .get(digest) as { byte_size: number | bigint; media_type: string; relative_path: string; contract_version: string; retention_status: string } | undefined;
+    if (!manifest || manifest.media_type !== mediaType || manifest.contract_version !== '1.0.0' || manifest.retention_status !== 'active' ||
+        manifest.relative_path !== `sha256/${digest.slice(0, 2)}/${digest}`)
+      throw new ResearchAutomationIntegrityError('Insight reader retained artifact manifest failed verification.');
+    const bytes = await this.artifacts.read(digest, { maxBytes: MAX_READER_HTML_BYTES });
+    if (BigInt(bytes.byteLength) !== BigInt(manifest.byte_size) || sha(bytes) !== digest)
+      throw new ResearchAutomationIntegrityError('Insight reader retained artifact failed verification.');
+    return bytes;
   }
 
   #owner(actor: { actorId: string; role: 'OWNER' }): void {
@@ -333,7 +701,7 @@ export class AutomationReaderReports {
       throw new ResearchAutomationValidationError('A trusted OWNER actor is required.');
   }
   #exactBuildRetry(row: RevisionRow, context: ReaderBinding, requestSha: string, actor: { actorId: string }): ResearchAutomationReaderRevision {
-    if (row.request_sha256 !== requestSha || row.run_id !== context.runId || row.workspace_id !== context.workspaceId || row.actor_id !== actor.actorId)
+    if (row.report_kind !== 'MARKET' || row.request_sha256 !== requestSha || row.run_id !== context.runId || row.workspace_id !== context.workspaceId || row.actor_id !== actor.actorId)
       throw new ResearchAutomationConflictError('request_key_conflict', 'Mã yêu cầu đã dùng cho một lần dựng khác.');
     return this.#project(row);
   }
@@ -343,10 +711,11 @@ export class AutomationReaderReports {
   #byId(runId: string, revisionId: string): RevisionRow | undefined {
     return this.db.prepare(`${SELECT} WHERE v.run_id=? AND v.revision_id=?`).get(runId, revisionId) as RevisionRow | undefined;
   }
-  #latest(runId: string): RevisionRow | undefined {
-    return this.db.prepare(`${SELECT} WHERE v.run_id=? ORDER BY v.revision_number DESC LIMIT 1`).get(runId) as RevisionRow | undefined;
+  #latest(runId: string, kind: 'MARKET' | 'INSIGHT' = 'MARKET'): RevisionRow | undefined {
+    return this.db.prepare(`${SELECT} WHERE v.run_id=? AND v.report_kind=? ORDER BY v.revision_number DESC LIMIT 1`).get(runId, kind) as RevisionRow | undefined;
   }
   #project(row: RevisionRow): ResearchAutomationReaderRevision {
+    if (row.report_kind !== 'MARKET' || row.platforms === null || row.profile_status === null) throw new ResearchAutomationIntegrityError('Stored Market reader revision is invalid.');
     const latest = this.#latest(row.run_id);
     const revision: ResearchAutomationReaderRevision = {
       revisionId: row.revision_id, revisionNumber: Number(row.revision_number), workspaceId: row.workspace_id, runId: row.run_id,
@@ -356,6 +725,52 @@ export class AutomationReaderReports {
       decision: row.decision && row.decided_at ? { decision: row.decision, reason: row.reason, decidedAt: row.decided_at } : null,
     };
     if (!validRevision(revision)) throw new ResearchAutomationIntegrityError('Stored reader revision is invalid.');
+    return revision;
+  }
+  async #projectWithPersona(row: RevisionRow): Promise<ResearchAutomationReaderRevisionV2> {
+    if (row.report_kind !== 'INSIGHT') return this.#projectV2(row);
+    // Authenticate the frozen record before dispatching by ledger version, so a
+    // corrupted v6 row cannot masquerade as an older saved Reader.
+    const input = await this.#verifiedInsightInput(row);
+    if (row.builder_version !== 'reader-report-insight-v6' && row.builder_version !== QUALITATIVE_READER_BUILDER_VERSION) return this.#projectV2(row);
+    if (row.builder_version === QUALITATIVE_READER_BUILDER_VERSION) {
+      if (input.contractVersion !== 'insight-reader-input-v9' || input.builderVersion !== QUALITATIVE_READER_BUILDER_VERSION ||
+          input.sourceRendererVersion !== 'automation-report-kit-v28' || !input.retainedMethods.some(method => method.kind === 'QUALITATIVE_DRAFT'))
+        throw new ResearchAutomationIntegrityError('Qualitative reader revision lacks its exact frozen source-bound input.');
+      await this.#verifiedInsightArtifact(row.html_sha256, 'text/html; charset=utf-8');
+      return this.#projectV2(row);
+    }
+    await this.#verifiedInsightArtifact(row.html_sha256, 'text/html; charset=utf-8');
+    if (input.contractVersion !== 'insight-reader-input-v6') throw new ResearchAutomationIntegrityError('Persona reader revision lacks its exact frozen input.');
+    return this.#projectV2(row, input);
+  }
+  #projectV2(row: RevisionRow, personaInput?: Extract<InsightReaderInput, { contractVersion: 'insight-reader-input-v6' }>): ResearchAutomationReaderRevisionV2 {
+    let revision: ResearchAutomationReaderRevisionV2;
+    if (row.report_kind === 'MARKET') revision = { ...this.#project(row), reportKind: 'MARKET', builderVersion: row.builder_version };
+    else {
+      if (row.semantic_sha256 === null || row.source_report_sha256 === null || (row.builder_version !== 'reader-report-insight-v1' && row.builder_version !== 'reader-report-insight-v2' && row.builder_version !== 'reader-report-insight-v3' && row.builder_version !== 'reader-report-insight-v4' && row.builder_version !== 'reader-report-insight-v5' && row.builder_version !== 'reader-report-insight-v6' && row.builder_version !== TIKTOK_READER_BUILDER_VERSION && row.builder_version !== SHOPEE_READER_BUILDER_VERSION && row.builder_version !== QUALITATIVE_READER_BUILDER_VERSION))
+        throw new ResearchAutomationIntegrityError('Stored Insight reader revision is invalid.');
+      const latest = this.#latest(row.run_id, 'INSIGHT');
+      const base = { reportKind: 'INSIGHT' as const, builderVersion: row.builder_version, revisionId: row.revision_id,
+        revisionNumber: Number(row.revision_number), workspaceId: row.workspace_id, runId: row.run_id,
+        state: row.decision ?? (latest?.revision_id === row.revision_id ? 'PENDING_OWNER_REVIEW' as const : 'SUPERSEDED' as const),
+        draftPairId: row.draft_pair_id, semanticSha256: row.semantic_sha256, sourceReportSha256: row.source_report_sha256,
+        htmlSha256: row.html_sha256, createdAt: row.created_at,
+        decision: row.decision && row.decided_at ? { decision: row.decision, reason: row.reason, decidedAt: row.decided_at } : null };
+      if (row.builder_version === QUALITATIVE_READER_BUILDER_VERSION) {
+        revision = { ...base, builderVersion: QUALITATIVE_READER_BUILDER_VERSION } as ResearchAutomationReaderRevisionV2;
+      } else if (row.builder_version === 'reader-report-insight-v6') {
+        const input = personaInput;
+        if (!input) throw new ResearchAutomationIntegrityError('Persona reader revision requires its verified frozen input.');
+        revision = { ...base, builderVersion: 'reader-report-insight-v6', personaProposalId: input.personaProposalId,
+          personaProposalSha256: input.personaProposalSha256, personaSourcePairId: input.personaSourcePairId, personaSourceSha256: input.personaSourceSha256 };
+      } else revision = { ...base, builderVersion: row.builder_version };
+    }
+    // The v9 qualitative input is frozen in the analysis contract, while the
+    // public revision union predates that additive source family. Its stored
+    // input is validated above and remains the authoritative replay identity.
+    if (row.builder_version !== QUALITATIVE_READER_BUILDER_VERSION && !validRevisionV2(revision))
+      throw new ResearchAutomationIntegrityError('Stored kind-bound reader revision is invalid.');
     return revision;
   }
   #manifest(artifact: StoredArtifact, mediaType: string, at: string): void {

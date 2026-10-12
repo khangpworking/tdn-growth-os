@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/l9-jev-triage.schema.json",
+  "title": "L9JevTriageSidecar",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "dataVersion", "category", "keywords", "exclusions", "model", "status", "l9Fingerprint", "auditRows", "runNotes"],
+  "properties": {
+    "contractVersion": { "const": "l9-jev-triage-v1" },
+    "dataVersion": { "type": "string", "minLength": 1, "maxLength": 80, "pattern": "\\S" },
+    "category": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "\\S" },
+    "keywords": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 200, "pattern": "\\S" }, "minItems": 1, "maxItems": 500 },
+    "exclusions": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["term", "reason"], "properties": {
+      "term": { "type": "string", "minLength": 1, "maxLength": 200, "pattern": "\\S" },
+      "reason": { "type": "string", "minLength": 1, "maxLength": 500, "pattern": "\\S" }
+    } }, "maxItems": 500 },
+    "model": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "\\S" },
+    "status": { "enum": ["DISABLED", "COMPLETED", "UNAVAILABLE"] },
+    "l9Fingerprint": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "auditRows": { "type": "array", "items": { "oneOf": [
+      { "$ref": "#/$defs/includedAudit" },
+      { "$ref": "#/$defs/excludedAudit" },
+      { "$ref": "#/$defs/unchangedAudit" },
+      { "$ref": "#/$defs/noDecisionAudit" }
+    ] }, "maxItems": 24000 },
+    "runNotes": { "type": "array", "items": { "enum": ["L9_JEV_UNAVAILABLE"] }, "maxItems": 1 }
+  },
+  "$defs": {
+    "auditBase": { "type": "object", "additionalProperties": false, "required": ["recordId", "model", "choice", "confidence", "gateOutcome", "reason"], "properties": {
+      "recordId": { "type": "string", "minLength": 1, "maxLength": 300, "pattern": "\\S" },
+      "model": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "\\S" },
+      "choice": { "anyOf": [{ "enum": ["ABOUT_PRODUCT", "NOT_ABOUT_PRODUCT", "UNRESOLVED"] }, { "type": "null" }] },
+      "confidence": { "anyOf": [{ "type": "number", "minimum": 0, "maximum": 1 }, { "type": "null" }] },
+      "gateOutcome": { "enum": ["INCLUDED", "EXCLUDED", "UNCHANGED", "NO_DECISION"] },
+      "reason": { "anyOf": [{ "enum": ["đúng sản phẩm (máy phân loại)", "không nói về sản phẩm (máy phân loại)" ] }, { "type": "null" }] }
+    } },
+    "includedAudit": { "allOf": [
+      { "$ref": "#/$defs/auditBase" },
+      { "type": "object", "properties": { "choice": { "const": "ABOUT_PRODUCT" }, "confidence": { "type": "number", "minimum": 0.9, "maximum": 1 }, "gateOutcome": { "const": "INCLUDED" }, "reason": { "const": "đúng sản phẩm (máy phân loại)" } } }
+    ] },
+    "excludedAudit": { "allOf": [
+      { "$ref": "#/$defs/auditBase" },
+      { "type": "object", "properties": { "choice": { "const": "NOT_ABOUT_PRODUCT" }, "confidence": { "type": "number", "minimum": 0.9, "maximum": 1 }, "gateOutcome": { "const": "EXCLUDED" }, "reason": { "const": "không nói về sản phẩm (máy phân loại)" } } }
+    ] },
+    "unchangedAudit": { "oneOf": [
+      { "allOf": [
+        { "$ref": "#/$defs/auditBase" },
+        { "type": "object", "properties": { "choice": { "enum": ["ABOUT_PRODUCT", "NOT_ABOUT_PRODUCT"] }, "confidence": { "type": "number", "minimum": 0, "exclusiveMaximum": 0.9 }, "gateOutcome": { "const": "UNCHANGED" }, "reason": { "type": "null" } } }
+      ] },
+      { "allOf": [
+        { "$ref": "#/$defs/auditBase" },
+        { "type": "object", "properties": { "choice": { "const": "UNRESOLVED" }, "confidence": { "type": "number", "minimum": 0, "maximum": 1 }, "gateOutcome": { "const": "UNCHANGED" }, "reason": { "type": "null" } } }
+      ] }
+    ] },
+    "noDecisionAudit": { "allOf": [
+      { "$ref": "#/$defs/auditBase" },
+      { "type": "object", "properties": { "choice": { "const": null }, "confidence": { "const": null }, "gateOutcome": { "const": "NO_DECISION" }, "reason": { "const": null } } }
+    ] }
+  }
+}

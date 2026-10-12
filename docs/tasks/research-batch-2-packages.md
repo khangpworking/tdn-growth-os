@@ -1,6 +1,6 @@
 # Research batch 2: work packages and checklists
 
-Updated: 2026-10-08 · Base: `origin/main` `d9bd883` · Plans: #124, #125, #127 · P10: Ultimate Method v1.5, E12
+Updated: 2026-10-08 · Notes synced: 2026-10-12 (#209 UC-1; owner decisions 2026-10-12 in P8, P9-07, P9-08) · Base: `origin/main` `d9bd883` · Plans: #124, #125, #127 · P10: Ultimate Method v1.5, E12
 Process: `docs/runbooks/agent-pipeline.md`. Workers check every item below and report each ID in their handoff.
 
 ## Tóm tắt (cho chủ shop)
@@ -257,7 +257,7 @@ A second run with the same PDF uploads nothing.
 No migration: reuse the existing source-package storage, the same way as the supplemental intake (`supplemental-source-intake.ts`).
 
 Checklist:
-- [ ] P4-01 The intake accepts the operator-exported CSV or XLSX for videos and creators. It is modelled on `metric-source-intake.ts`: validation, size caps, inert preparation, no automatic confirm.
+- [ ] P4-01 The intake accepts the operator-exported CSV or XLSX for videos and creators. It is modelled on `metric-source-intake.ts`: validation, size caps, inert preparation, no automatic confirm. **Superseded in part by Ultimate E14 (2026-10-08):** a prepared source is confirmed automatically at run time, with no per-run owner yes.
 - [ ] P4-02 Video fields: video, creator, revenue, views, units, ad spend, publish date, product link. Creator fields: creator, followers, revenue, video count. Headers are mapped exactly. Unknown or missing required headers are rejected with a typed error.
 - [ ] P4-03 Derived values: units per 1,000 views and ad share. A missing value stays "không có dữ liệu", never 0. Never divide by zero.
 - [ ] P4-04 Rows keep row-level lineage (`xlsx` sheet/row or CSV row) for later citations.
@@ -349,15 +349,15 @@ Checklist:
 - [ ] P7-01 Inputs are located review records (S05) and, once P9 has merged, TikTok comment records (S07), each with platform and source type. No new collector and no social bundle intake.
 - [ ] P7-02 Comments by the video creator or by brand or shop accounts, and tag-only or emoji-only comments, are excluded from customer voice with a reason (Ultimate L10). Author IDs stay hashed; authors are counted only within one platform (L2).
 - [ ] P7-03 Taxonomy drafted by the AI on a 300-record sample (no owner review), then classification of topic, journey stage, sentiment and confidence. Low-confidence records go to "unclassified".
-- [ ] P7-04 κ check per Ultimate E11, reusing sync-plan U-11: a second, independent model re-codes every record when there are ≤200, else a random 200. κ < 0.6 shows "độ tin cậy thấp" and keeps the counts out of the main conclusions.
+- [ ] P7-04 κ check per Ultimate E11, reusing sync-plan U-11: a second, independent model re-codes every record when there are ≤200, else a random 200. κ < 0.6 shows "độ tin cậy thấp" and keeps the counts out of the main conclusions. **Deferred (Ultimate v1.13 E11 and E15, owner decision 2026-10-11, #209):** phase 1 uses one AI to code and count; no second model and no κ. Kept for history; do not build it now.
 - [ ] P7-05 Every insight cites ≥2 verbatim quotes from different authors.
 - [ ] P7-06 Evidence cards per "nhóm hoàn cảnh". 3–6 personas, each with ≥3 cards and ≥5 authors (or the "≥5 distinct contents, chưa xác minh là 5 người" fallback when the source has no author ID). Every attribute cites quotes; an unsourced attribute is dropped. No inferred demographics. The label is exactly the Ultimate E4 text: "Chân dung do AI tổng hợp từ lời khách thật, không phải một khách hàng có thật". Size as "x/y bản ghi trong mẫu".
 - [ ] P7-07 Platforms side by side (L5); no person is merged across platforms and no count is summed across them.
-- [ ] P7-08 Tests with synthetic review and comment records and fake model calls: exclusions, the κ labels, the persona minimums, the fallback label, and per-platform columns.
+- [ ] P7-08 Tests with synthetic review and comment records and fake model calls: exclusions, the κ labels (deferred, see P7-04), the persona minimums, the fallback label, and per-platform columns.
 
 **Functional when:** synthetic reviews and comments produce cards, personas and journey counts ("x/y bản ghi trong mẫu") that pass every rule above.
 
-Owner decisions 2026-10-08: Facebook group posts are **not** collected. Facebook public posts are paused (S08). Agent-Reach is kept only for the Meta Ad Library (S15), and only if the Meta Ad Library test passes; otherwise it is dropped from the project.
+Owner decisions 2026-10-08: Facebook group posts are **not** collected. Facebook public posts are paused (S08). Agent-Reach is kept only for the Meta Ad Library (S15), and only if the Meta Ad Library test passes; otherwise it is dropped from the project. **Update 2026-10-08:** the test passed by reading advertiser pages through OpenCLI (ST-20261008-22), so Agent-Reach is not needed for S15 (changelog BR-20261008-17).
 
 ---
 
@@ -365,26 +365,28 @@ Owner decisions 2026-10-08: Facebook group posts are **not** collected. Facebook
 
 Checklist:
 - [ ] P8-01 Trends blocks (M05, M09, M10, I10): a line chart "mức quan tâm tìm kiếm (0–100)" and a related-queries table.
-- [ ] P8-02 Expanded search blocks (I05, I07, I08, I12, I13).
-- [ ] P8-03 Video blocks (I12, I13, M07, M09, M12): a video table and 1–2 seller-side lessons.
+- [ ] P8-02 Expanded search blocks (I05, I07, I08, I12, I13). S19 is a secondary source in these sections: a search result only points to the original page, and the original page is the evidence.
+- [ ] P8-03 Video blocks (I12, I13, M07, M09): a video table and 1–2 seller-side lessons. M12 has no video block: it is the synthesis section and cites other sections, it does not read sources directly.
 - [ ] P8-04 Social blocks:
   - journey cards (Biết đến / Cân nhắc / Mua / Sau mua), each with 2–3 quotes;
   - personas in I02 with their cards;
-  - the κ notice.
+  - the κ notice (deferred, see P7-04).
 - [ ] P8-05 PDF quotes from P3 shown with `[n]` ("Tài liệu …, trang N"). The PageIndex answer text is never used.
 - [ ] P8-06 Every block follows "Thấy gì → Dùng để → Đừng hiểu là", with dates and links, cited through `CitationRegistry`.
 - [ ] P8-07 A coverage notice when a source is missing, e.g. "Không có dữ liệu Instagram cho lần chạy này".
-- [ ] P8-08 The M13/I17 appendix lists sources, caps, sample sizes, κ, and what was not collected.
+- [ ] P8-08 The M13/I17 appendix lists sources, caps, sample sizes, κ (deferred, see P7-04), and what was not collected.
 - [ ] P8-09 Both renderers (auto draft and reader report) pass the P1-12/P1-13 visible-text rules and the P2 lint.
 - [ ] P8-10 Once P10 has merged: official-statistics blocks in M05, M08, M09, I02 and I12 follow Ultimate E12. Each block names the statistics group and says it is wider than the product category, shows the value status (ước tính / sơ bộ / chính thức) and publication date, sits beside the sample numbers without arithmetic between them, and cites "Cục Thống kê (nso.gov.vn)" with file, sheet and row.
 
 **Functional when:** a fixture run with every new source renders both reports with all blocks cited, and both lints pass.
 
+Owner decision 2026-10-12: the P8-01 to P8-03 section lists match the source table (§3) of the source catalogue. S20 was added to M10, S19 to I05, I08, I12 and I13 (secondary source), and S02 and S14 to M09; M12 was removed from P8-03.
+
 ---
 
 ## P9. Video content reading and TikTok comments (wave 2; after P4)
 
-Business rules: Ultimate Method §6.2 (reading seller videos), E5 (seller-targeted persona), E11 (default rules, codebook cross-check), L1, L2, L7. Source registry: **S07** (TikTok comments) and **S14** (video content). Test evidence: `docs/research/ultimate-method/input-data-sources-test-log.md`, ST-20261008-17 to -19. Works for **every product category**.
+Business rules: Ultimate Method §6.2 (reading seller videos), E5 (seller-targeted persona), E11 (default rules; codebook cross-check deferred, see P7-04), L1, L2, L7. Source registry: **S07** (TikTok comments) and **S14** (video content). Test evidence: `docs/research/ultimate-method/input-data-sources-test-log.md`, ST-20261008-17 to -19. Works for **every product category**.
 
 **Owned paths:**
 - new `src/platform/collectors/apify-tiktok-comments.ts` (modelled on `apify-shopee.ts`);
@@ -421,7 +423,7 @@ Checklist:
   - tag-only or emoji-only comments are excluded from counts with a reason;
   - comments by the video owner or a brand account are marked `SELLER_OR_CREATOR`, not deleted;
   - an empty comment is excluded with a reason, never counted.
-- [ ] P9-06 **Insight path:** records feed the existing coding path for I02, I04–I10 and I13 as source S07. No new coding method. The E11 codebook cross-check applies. Counts say "bình luận thu được", never "toàn bộ bình luận".
+- [ ] P9-06 **Insight path:** records feed the existing coding path for I02, I04–I10 and I13 as source S07. No new coding method. The E11 codebook cross-check is deferred (see P7-04); phase 1 follows Ultimate E15. Counts say "bình luận thu được", never "toàn bộ bình luận".
 - [ ] P9-07 **Video-reading intake:** accepts an operator-produced JSON per video, made with the `/watch` tool on the operator machine (local engine, no cloud upload unless the owner approves). Fields:
   - video URL and kind;
   - duration;
@@ -429,8 +431,8 @@ Checklist:
   - on-screen text;
   - frame references with hashes.
 
-  It is validated and stored as an S14 source package. It is read as seller voice (L7); a `REVIEW_VIDEO` reading is read as creator voice.
-- [ ] P9-08 **No model calls in this package.** Coding the §6.2 fields (hook, format, CTA, positioning) is a later step under the E11 codebook cross-check.
+  It is validated and stored as an S14 source package. It is read as seller voice (L7). A `REVIEW_VIDEO` reading is also seller voice: the creator's own spoken content is labelled "lời người làm video review" and is never mixed into customer voice, whether or not sponsorship can be detected (owner decision 2026-10-12, Ultimate L7). Comments under the video stay customer voice under L10 (P9-05).
+- [ ] P9-08 **No model calls in this package.** Coding the §6.2 fields (hook, format, CTA, positioning) is a later step under E11 (cross-check deferred, see P7-04). The format field uses the default list in Ultimate E11 (owner approved 2026-10-12): `talking_head`, `storytelling`, `educational`, `testimonial`, `trend`, `other`, each shown in reports with its Vietnamese label; reports only describe how often each format appears in the sample.
 - [ ] P9-09 **Citations** through `CitationRegistry`: "bình luận công khai dưới video TikTok, <link video>, mã bình luận <id>, ngày <date>" and "nội dung video, <link video>, giây <start>–<end>". No provider names in owner-facing text (G-08).
 - [ ] P9-10 **Tests:**
   - the selection rule under options A and C;
@@ -462,7 +464,7 @@ Business rules: Ultimate Method v1.5, exception **E12** and section **6.4**; v1.
 No migration: reuse the existing source-package storage, the same way as the supplemental intake (`supplemental-source-intake.ts`). The yearbook and the living-standards survey are PDF and go through P3, not this package.
 
 Checklist:
-- [ ] P10-01 The intake accepts operator-supplied XLSX files of two kinds: the monthly statistical tables ("Biểu") and the monthly CPI workbook. It is modelled on `metric-source-intake.ts`: validation, a size cap (≤20 MB), inert preparation, no automatic confirm.
+- [ ] P10-01 The intake accepts operator-supplied XLSX files of two kinds: the monthly statistical tables ("Biểu") and the monthly CPI workbook. It is modelled on `metric-source-intake.ts`: validation, a size cap (≤20 MB), inert preparation, no automatic confirm. **Superseded in part by Ultimate E14 (2026-10-08):** a prepared file is confirmed automatically at run time, with no per-run owner yes.
 - [ ] P10-02 Fixed sheet profiles, one per table used:
   - monthly tables: retail sales (Tổng mức bán lẻ), CPI, industrial production index, main industrial products, exports, imports;
   - CPI workbook: whole country, regions, provinces.
@@ -483,7 +485,7 @@ Checklist:
 - [ ] P10-08 The fetch script lists files through the site's public WordPress API (`/wp-json/wp/v2/media`, filtered by spreadsheet MIME type and date):
   - at least 2 s between requests and at most 20 files per run;
   - it saves each file privately with its sha256 and source URL, outside Git;
-  - it is run by the operator only. Tests use a fake transport, never the network.
+  - it is run by the operator only (**superseded by Ultimate E14, 2026-10-08:** the system runs it without a per-run owner yes, within the limits above). Tests use a fake transport, never the network.
 - [ ] P10-09 Every value is cited through `CitationRegistry` as "Cục Thống kê (nso.gov.vn), <file>, bảng <sheet>, dòng <n>, công bố <date>". The provider-name lint allows "Cục Thống kê" and "nso.gov.vn" for this source only.
 - [ ] P10-10 E12 guard: the module exposes no helper that adds, subtracts or divides a sample value with an official value. Values are returned for side-by-side display only. A test shows that an attempted ratio raises a typed error.
 - [ ] P10-11 Tests:
@@ -544,7 +546,7 @@ Every numeric cap in the packages has a reason here. Business thresholds (sample
 
 - Phase 0 spike (#124): ≤6 paid calls. **Approved 2026-10-07.** Run it with `docs/runbooks/agent-pipeline.md` §7.
 - Install the OpenCLI extension in Chrome on Fedora (unblocks P6).
-- Run the Meta Ad Library test through Agent-Reach (decides whether Agent-Reach stays for S15 or leaves the project). No cost.
+- ~~Run the Meta Ad Library test through Agent-Reach.~~ **Done 2026-10-08:** the test passed through OpenCLI page reading (ST-20261008-22); Agent-Reach is not needed for S15 (BR-20261008-17).
 - Set up OpenCLI and its Chrome extension on Fedora (P6 Phase 0). Metric searches and exports then run without a per-run yes (Ultimate E14).
 - Deploys: #125 Phase 3 (PageIndex key and `pypdf` venv on Fedora), P6 keepalive. Each deploy needs approval plus the exact merge SHA.
 - Every merge.

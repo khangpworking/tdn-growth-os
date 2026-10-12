@@ -7,7 +7,8 @@ export type AutomationInsightCodingSnapshot =
   | AutomationInsightCodingAcceptedSnapshot
   | AutomationInsightCodingDraftSnapshot
   | AutomationInsightCodingFamilyDraftSnapshot
-  | AutomationInsightCodingDefaultDraftSnapshot;
+  | AutomationInsightCodingDefaultDraftSnapshot
+  | AutomationInsightCodingPrivateDefaultDraftSnapshot;
 export type LocatedInsightMethods = {
   [k: string]: unknown;
 } & {
@@ -436,6 +437,127 @@ export type LocatedInsightMethods2 = {
   limitations: Strings;
 };
 export type LocatedInsightMethods3 = {
+  [k: string]: unknown;
+} & {
+  contractVersion: '1.0.0';
+  methodId: 'located-insight-methods';
+  methodVersion: '1.0.0' | '1.1.0';
+  methodOutputId: string;
+  input: Input;
+  sections: {
+    I01: {
+      briefPointer: '/input/brief' | null;
+      briefSha256: string | null;
+      unresolvedFields: Strings;
+      reviewState: 'DECLARED_NOT_AUTHENTICATED';
+      blockers: Strings;
+      workingQuestion?: {
+        state: 'AI_PROPOSED_AWAITING_OWNER' | 'OWNER_SUPPLIED';
+        label: string | null;
+        text: string | null;
+        /**
+         * @maxItems 10000
+         */
+        ownerFieldsToAdd: string[];
+      };
+    };
+    I02: Section;
+    I04: Section;
+    I05: {
+      recordPointers: Pointers;
+      annotationPointers: Pointers;
+      pendingAnnotationPointers: Pointers;
+      locatedRecordCount: number;
+      semanticValidation: 'DECLARED_NOT_VERIFIED';
+      blockers: Strings;
+      /**
+       * @maxItems 10000
+       */
+      recordPolarities: {
+        recordPointer: string;
+        polarity: 'POSITIVE' | 'NEGATIVE' | 'MIXED' | 'NEUTRAL' | 'UNCLEAR' | 'NOT_STATED';
+      }[];
+      draftRecordPointers?: Pointers3;
+      draftAnnotationPointers?: Pointers4;
+      draftLocatedRecordCount?: number;
+      draftLabel?: DraftCountLabel;
+      draftCountsVersion?: DraftCountsVersion;
+      /**
+       * @maxItems 10000
+       */
+      draftRecordPolarities?: {
+        recordPointer: string;
+        polarity: 'POSITIVE' | 'NEGATIVE' | 'MIXED' | 'NEUTRAL' | 'UNCLEAR' | 'NOT_STATED';
+      }[];
+    };
+    I06: {
+      recordPointers: Pointers;
+      annotationPointers: Pointers;
+      pendingAnnotationPointers: Pointers;
+      locatedRecordCount: number;
+      semanticValidation: 'DECLARED_NOT_VERIFIED';
+      blockers: Strings;
+      /**
+       * @maxItems 10000
+       */
+      sequences: {
+        annotationPointer: string;
+        sequenceBasis: 'SOURCE_EXPLICIT_SAME_RECORD';
+        identityScope: 'RECORD_LOCAL';
+        sequenceState: 'SOURCE_STATED_ORDER';
+      }[];
+      draftRecordPointers?: Pointers5;
+      draftAnnotationPointers?: Pointers6;
+      draftLocatedRecordCount?: number;
+      draftLabel?: DraftCountLabel;
+      draftCountsVersion?: DraftCountsVersion;
+      /**
+       * @maxItems 10000
+       */
+      draftSequences?: {
+        annotationPointer: string;
+        sequenceBasis: 'SOURCE_EXPLICIT_SAME_RECORD';
+        identityScope: 'RECORD_LOCAL';
+        sequenceState: 'SOURCE_STATED_ORDER';
+      }[];
+    };
+    I07: Section;
+    I08: Section;
+    I09: {
+      recordPointers: Pointers;
+      annotationPointers: Pointers;
+      pendingAnnotationPointers: Pointers;
+      locatedRecordCount: number;
+      semanticValidation: 'DECLARED_NOT_VERIFIED';
+      blockers: Strings;
+      /**
+       * @maxItems 10000
+       */
+      candidates: {
+        annotationPointer: string;
+        unmetNeedCandidate: boolean;
+        state: 'EXPLICIT_GAP' | 'DESIRE_ONLY' | 'CURRENT_STATE_ONLY' | 'RELATION_UNCLEAR' | 'UNLOCATED';
+      }[];
+      draftRecordPointers?: Pointers7;
+      draftAnnotationPointers?: Pointers8;
+      draftLocatedRecordCount?: number;
+      draftLabel?: DraftCountLabel;
+      draftCountsVersion?: DraftCountsVersion;
+      /**
+       * @maxItems 10000
+       */
+      draftCandidates?: {
+        annotationPointer: string;
+        unmetNeedCandidate: boolean;
+        state: 'EXPLICIT_GAP' | 'DESIRE_ONLY' | 'CURRENT_STATE_ONLY' | 'RELATION_UNCLEAR' | 'UNLOCATED';
+      }[];
+    };
+    I10: CorpusSection;
+    I13: CorpusSection;
+  };
+  limitations: Strings;
+};
+export type LocatedInsightMethods4 = {
   [k: string]: unknown;
 } & {
   contractVersion: '1.0.0';
@@ -1105,4 +1227,111 @@ export interface InsightDefaultDraftSelection {
   contractVersion: 'insight-default-draft-select-v1';
   proposalId: string;
   proposalSha256: string;
+}
+/**
+ * Exact unapproved source-default proposal; storage compatibility root is not human adoption.
+ */
+export interface AutomationInsightCodingPrivateDefaultDraftSnapshot {
+  contractVersion: 'automation-insight-coding-snapshot-v5';
+  binding: InsightPrivateSourceBinding;
+  selection: InsightDraftSelectionEcho3;
+  proposalSha256: string;
+  /**
+   * @maxItems 0
+   */
+  receipts: [];
+  draftSelection: InsightDefaultDraftSelection;
+  output: LocatedInsightMethods4;
+  groupCounts: InsightDraftGroupCounts;
+  defaultRuleId: string;
+  defaultRuleSha256: string;
+  codebookSha256: string;
+  executionId: string;
+  privateSource: PrivateInsightSourceProjection;
+}
+export interface InsightPrivateSourceBinding {
+  contractVersion: 'insight-source-binding-v2';
+  sourceKind: 'PRIVATE_SHOPEE';
+  workspaceId: string;
+  runId: string;
+  pairId: string;
+  scopeSha256: string;
+  reportSha256: string;
+  sourcePackageSha256: string;
+  inputSha256: string;
+  projectionSha256: string;
+  corpus: Corpus1;
+}
+export interface Corpus1 {
+  artifactSha256: string;
+  corpusId: string;
+  collectionId: string;
+  collectionSha256: string;
+  requestSha256: string;
+}
+/**
+ * Explicit empty selection echo of a versioned draft selection.
+ */
+export interface InsightDraftSelectionEcho3 {
+  proposalId: string;
+  /**
+   * @maxItems 0
+   */
+  receiptIds: [];
+}
+/**
+ * Versioned server-derived coding source evidence, not the private corpus. Retains verbatim source text, ratings, locators and all dispositions; no author/native reviewer metadata, keys or privacy profile. Exact repeated native records do not become additional counting units; conflicting versions fail closed. No free-text PII redaction or person join.
+ */
+export interface PrivateInsightSourceProjection {
+  contractVersion: 'private-insight-source-projection-v1';
+  corpus: Corpus1;
+  input: Input;
+  /**
+   * @maxItems 2500
+   */
+  records: PrivateInsightSourceRecord[];
+}
+export interface PrivateInsightSourceRecord {
+  recordId: string;
+  shopId: string | null;
+  itemId: string | null;
+  textState: 'READABLE' | 'EMPTY' | 'UNREADABLE';
+  /**
+   * Source rating presence/state; never manufacture an absent source field. Invalid finite safe numeric source values survive, arbitrary strings/nested values do not.
+   */
+  rating:
+    | {
+        fieldPresent: false;
+        state: 'ABSENT';
+        value: null;
+      }
+    | {
+        fieldPresent: true;
+        state: 'MISSING';
+        value: null;
+      }
+    | {
+        fieldPresent: true;
+        state: 'VALID';
+        value: number;
+      }
+    | {
+        fieldPresent: true;
+        state: 'INVALID';
+        value: null | number;
+      };
+  region: string | null;
+  admission: 'SELECTED_TEXT' | 'OTHER_LISTING' | 'UNRESOLVED_LISTING' | 'NO_READABLE_TEXT';
+  locator: Locator;
+  recordIndex: number;
+  duplicateOfRecordIndex: number | null;
+  disposition: 'INCLUDED' | 'EXCLUDED' | 'UNREADABLE';
+  dispositionReason: string | null;
+}
+export interface Locator {
+  collectionId: string;
+  pageSha256: string;
+  pageIndex: number;
+  rowIndex: number;
+  textPointer: string;
 }

@@ -6,6 +6,7 @@ import { canonicalJson } from '../../foundation/canonical-json.js';
 import { validateLocatedInsightInput } from '../located-insight-methods.js';
 
 export const DEFAULT_INSIGHT_POLICY = 'source-default-coding-v1';
+export const DEFAULT_PRIVATE_INSIGHT_POLICY = 'source-private-default-coding-v1';
 // No method decision authorizes multi-code when the retained corpus omits it.
 // This bounded draft constraint rejects conflicting codes rather than choosing one.
 export const DEFAULT_INSIGHT_MULTICODE_LIMIT = 'Khi nguồn chưa khai báo cho phép nhiều mã, đề xuất mặc định chỉ nhận một mã khác nhau cho mỗi bản ghi trong từng tập I10/I13. Nếu model gắn nhiều mã, lô không hợp lệ; giữ nguyên lời nguồn và kết quả không hợp lệ đã lưu, không tự chọn bỏ mã. Đây là giới hạn của bản nháp, chưa phải quyết định về mã hóa nhiều mã hay kiểm chéo U11.';

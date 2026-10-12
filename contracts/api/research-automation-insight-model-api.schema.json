@@ -12,6 +12,9 @@
     },
     {
       "$ref": "#/$defs/defaultRequest"
+    },
+    {
+      "$ref": "#/$defs/privateDefaultRequest"
     }
   ],
   "$defs": {
@@ -155,6 +158,19 @@
     },
     "defaultRequest": {
       "$ref": "../analysis/automation-insight-model.schema.json#/$defs/defaultRequest"
+    },
+    "privateDefaultRequest": {
+      "$ref": "../analysis/automation-insight-model.schema.json#/$defs/privateDefaultRequest"
+    },
+    "defaultSubmission": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/defaultRequest"
+        },
+        {
+          "$ref": "#/$defs/privateDefaultRequest"
+        }
+      ]
     }
   }
 }

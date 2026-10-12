@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/tiktok-coding-configuration-v1.schema.json",
+  "title": "TikTokCodingConfiguration",
+  "description": "Explicit TikTok draft-coding model dispatch configuration. The model id records what was requested; it is never selected automatically. Enabling TikTok coding never enables any other model path.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "providerId",
+    "modelId",
+    "temperature",
+    "maxOutputTokens",
+    "timeoutMs",
+    "maxResponseBytes"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": "tiktok-coding-configuration-v1"
+    },
+    "providerId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "modelId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "temperature": {
+      "type": "null"
+    },
+    "maxOutputTokens": {
+      "type": "integer",
+      "minimum": 1024,
+      "maximum": 65536
+    },
+    "timeoutMs": {
+      "type": "integer",
+      "minimum": 1000,
+      "maximum": 600000
+    },
+    "maxResponseBytes": {
+      "type": "integer",
+      "minimum": 1024,
+      "maximum": 1048576
+    }
+  }
+}
