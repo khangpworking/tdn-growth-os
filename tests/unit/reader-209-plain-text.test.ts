@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
 import { buildDescriptiveMarketMethods } from '../../src/modules/analysis/descriptive-market-methods.js';
-import { describeDescriptiveSection } from '../../src/modules/analysis/research-automation/descriptive-report.js';
+import { describeDescriptiveSection, descriptiveAppendix } from '../../src/modules/analysis/research-automation/descriptive-report.js';
 import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
 import { buildSourceEvidence } from '../../src/modules/analysis/research-automation/source-evidence.js';
 import type { AutomationMarketMethodSnapshot } from '../../src/modules/analysis/research-automation/market-method-bridge.js';
@@ -10,8 +10,8 @@ import type { AutomationMetricMethodSnapshot } from '../../src/modules/analysis/
 import type { AutomationMarketPresentationMethod } from '../../contracts/analysis/automation-market-presentation-method.generated.js';
 import { metricMethodSection } from '../../src/modules/analysis/research-automation/metric-method-report.js';
 import { marketInventorySection } from '../../src/modules/analysis/research-automation/market-inventory-report.js';
-import { renderAutomationMarketUnitPrices } from '../../src/modules/analysis/research-automation/market-presentation-report.js';
-import { m01InventorySection } from '../../src/modules/analysis/research-automation/synthesis-evidence-report.js';
+import { renderAutomationMarketFindings, renderAutomationMarketUnitPrices } from '../../src/modules/analysis/research-automation/market-presentation-report.js';
+import { decisionPacketSection, m01InventorySection } from '../../src/modules/analysis/research-automation/synthesis-evidence-report.js';
 import { quoteMethodSection } from '../../src/modules/analysis/research-automation/quote-method-report.js';
 import type { AutomationQuoteMethodSnapshot } from '../../contracts/analysis/automation-quote-method-snapshot.generated.js';
 import { calculateMetricScopes } from '../../src/modules/analysis/metric-scope-calculator.js';
@@ -75,6 +75,7 @@ test('reader plain text maps measures, JSON literals, prices, scope and locators
   assert.equal(readerScopeText('Source-declared M05 observation scope; not a market universe.'), 'Phạm vi quan sát do nguồn khai báo; không phải toàn bộ thị trường.');
   assert.equal(readerScopeText('Source text not approved'), 'Phạm vi và nội dung được giữ trong bản lưu nguồn');
   assert.equal(readerScopeText('Synthetic area'), 'Phạm vi và nội dung được giữ trong bản lưu nguồn');
+  assert.equal(readerScopeText('Phạm vi ALL/WIDE/CORE'), 'Phạm vi toàn bộ mẫu/phạm vi rộng/phạm vi cốt lõi');
   assert.equal(readerLocator('/data/revenue'), 'mục Doanh thu');
   assert.equal(readerLocator('/data/sales_volumn'), 'mục Sản lượng bán');
   assert.equal(readerLocator('/data/launch_date'), 'mục dữ liệu nguồn');
@@ -84,6 +85,8 @@ test('reader plain text maps measures, JSON literals, prices, scope and locators
   assert.equal(readerProductLabel('123456', null, 2), 'Sản phẩm #2');
   assert.equal(readerTextSafe('Kalodata Dami Metric TradeInt Apify SerpApi Jev TypeSafe'), false);
   assert.equal(readerTextSafe('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa /data/source.json UNKNOWN LISTED WIDE CORE'), false);
+  for (const acronym of ['ROAS', 'CPA', 'AI', 'PDF', 'SKU', 'USD', 'VND']) assert.equal(readerTextSafe(acronym), true);
+  assert.equal(readerTextSafe('source_field_name'), false);
 });
 
 test('visible reader text uses quote and metric render paths without raw IDs or states', () => {
@@ -97,7 +100,7 @@ test('visible reader text uses quote and metric render paths without raw IDs or 
   const quoteSnapshot = { output: { input: { quotes: [quoteInput] }, quotes: [{ ...Object.fromEntries([
     ['pricePerPurchasedPack', available], ['pricePerPhysicalItem', available], ['pricePer100gNet', available], ['pricePer100gDrained', available],
   ]) }] }, sourceMetadata: [{ sha256: sourceSha256, path: '', providerProvenance: 'synthetic', provenanceBasis: 'Synthetic source' }] } as unknown as AutomationQuoteMethodSnapshot;
-  const quoteHtml = quoteMethodSection(quoteSnapshot, { mark: () => '[1]' });
+  const quoteHtml = quoteMethodSection(quoteSnapshot, { mark: () => '[1]' }, true);
   assert.match(quoteHtml, /Bản ghi giá #12/);
   assert.match(quoteHtml, /85\.991\.857 VND/);
   assert.match(quoteHtml, /1\.234\.567,89/);
@@ -106,7 +109,7 @@ test('visible reader text uses quote and metric render paths without raw IDs or 
     input: { quotes: Array.from({ length: 10001 }, () => quoteInput) },
     quotes: Array.from({ length: 10001 }, () => Object.fromEntries([['pricePerPurchasedPack', available], ['pricePerPhysicalItem', available], ['pricePer100gNet', available], ['pricePer100gDrained', available]])),
   }, sourceMetadata: [{ sha256: sourceSha256, path: '', providerProvenance: 'synthetic', provenanceBasis: 'Synthetic source' }] } as unknown as AutomationQuoteMethodSnapshot;
-  assert.match(quoteMethodSection(largeQuoteSnapshot, { mark: () => '[1]' }), /20 trong 10\.001 bản ghi/);
+  assert.match(quoteMethodSection(largeQuoteSnapshot, { mark: () => '[1]' }, true), /20 trong 10\.001 bản ghi/);
 
   const metricResult = calculateMetricScopes(metricFixture());
   const metricInput = { ...metricResult.input, records: metricResult.input.records.map((row, index) => index === 0 ? { ...row, listingId: '123456', shopId: '987654', title: '' } : row) };
@@ -115,7 +118,7 @@ test('visible reader text uses quote and metric render paths without raw IDs or 
   assert.match(metricHtml, /Sản phẩm #1/);
   assert.match(metricHtml, /Gian hàng #1/);
   assert.match(metricHtml, /chưa rõ/);
-  assert.doesNotMatch(metricHtml, /123456|987654|UNKNOWN/);
+  assert.doesNotMatch(metricHtml, /123456|987654|UNKNOWN|\b(?:ALL|WIDE|CORE)\b/);
 });
 
 function inventory(): AutomationMarketMethodSnapshot {
@@ -169,6 +172,7 @@ test('Market HTML hides machine literals in visible text while retaining technic
   assert.doesNotMatch(visible, /capture-\d+/);
   assert.doesNotMatch(visible, /\/data\//);
   assert.doesNotMatch(visible, /UNKNOWN/);
+  assert.doesNotMatch(visible, /\b(?:ALL|WIDE|CORE)\b/);
   assert.doesNotMatch(visible, /Source-declared M05 observation scope; not a market universe\./);
   assert.match(visible, /Doanh thu: 111\.598\.280/);
   assert.match(visible, /Sản lượng bán: 7\.082/);
@@ -247,6 +251,24 @@ test('reader-on descriptive sections format large coverage counts', () => {
   const fixture = descriptiveMarketFixture();
   const methods = buildDescriptiveMarketMethods({ ...fixture.descriptor, sourcePackage: { packageId: '55555555-5555-4555-8555-555555555555', version: 1, manifestArtifactSha256: 'b'.repeat(64), packageContentSha256: 'c'.repeat(64) } }, { methodVersion: '1.1.0' }).output;
   const m05 = methods.sections.M05;
-  const reader = describeDescriptiveSection({ ...methods, sections: { ...methods.sections, M05: { ...m05, locatedRecordCount: 10001, partitions: m05.partitions.map(partition => ({ ...partition, coverage: { ...partition.coverage, observedCount: 10001 } })) } } } as any, 'M05', { mark: () => '[1]', readerPlainText: true }).html;
+  const reader = describeDescriptiveSection({ ...methods, sections: { ...methods.sections, M05: { ...m05, locatedRecordCount: 10001, partitions: m05.partitions.map(partition => ({ ...partition, coverage: { ...partition.coverage, observedCount: 10001 } })) } } } as any, 'M05', { mark: () => '[1]' }, true).html;
   assert.match(reader, /10\.001/);
+  assert.doesNotMatch(reader, /\b(?:UNKNOWN|LISTED|WIDE|CORE)\b/);
+});
+
+test('marker-free direct calls default to the explicit legacy projection', () => {
+  const citations = { mark: () => '[1]' };
+  const quote = { output: { input: { quotes: [] }, quotes: [] }, sourceMetadata: [] } as unknown as AutomationQuoteMethodSnapshot;
+  assert.equal(quoteMethodSection(quote, citations), quoteMethodSection(quote, citations, false));
+  const market = { input: { rows: [], metric: null }, unitPrices: [], findings: [], binding: { metric: null } } as unknown as AutomationMarketPresentationMethod;
+  assert.equal(renderAutomationMarketFindings(market, citations), renderAutomationMarketFindings(market, citations, false));
+  assert.equal(renderAutomationMarketUnitPrices(market, citations), renderAutomationMarketUnitPrices(market, citations, false));
+  const fixture = descriptiveMarketFixture();
+  const methods = buildDescriptiveMarketMethods({ ...fixture.descriptor, sourcePackage: { packageId: '66666666-6666-4666-8666-666666666666', version: 1, manifestArtifactSha256: 'd'.repeat(64), packageContentSha256: 'e'.repeat(64) } }, { methodVersion: '1.0.0' }).output;
+  assert.equal(describeDescriptiveSection(methods, 'M05', citations).html, describeDescriptiveSection(methods, 'M05', citations, false).html);
+  assert.equal(descriptiveAppendix(methods), descriptiveAppendix(methods, undefined, false, false));
+  const digest = 'f'.repeat(64);
+  const packet = { sourceClaims: { claimsSha256: digest }, sectionId: 'M11', items: [], limitations: [], methodId: 'method', methodVersion: '1.0.0', packetVersion: '1.0.0', runId: 'run', workspaceId: 'workspace', scopeSha256: digest } as any;
+  const claims = { claimsSha256: digest, claims: [] } as any;
+  assert.equal(decisionPacketSection(packet, claims), decisionPacketSection(packet, claims, undefined, undefined, false));
 });

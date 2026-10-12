@@ -1,5 +1,5 @@
 import type { DescriptiveMarketMethods } from '../../../../contracts/analysis/descriptive-market-methods.generated.js';
-import { containsForbiddenProviderName, containsTechnicalId, type CitationInput } from '../citation-registry.js';
+import { containsForbiddenProviderName, type CitationInput } from '../citation-registry.js';
 import { formatReaderCount, formatReaderValue as formatReaderPlainValue, readerDateBasis as readerPlainDateBasis, readerLocator, readerMeasureName as readerPlainMeasureName, readerScopeText as readerPlainScopeText, readerStoredOrJson as readerPlainStoredOrJson, readerTextSafe } from './reader-plain-text.js';
 
 type Input = DescriptiveMarketMethods['input'];
@@ -21,8 +21,7 @@ export const escapeHtml = (value: unknown): string => String(value).replace(/[&<
 const escape = escapeHtml;
 
 /** Reader text never names a provider and never carries a digest; those tokens stay in the retained source. */
-export const readerSafe = (text: string): boolean => !containsForbiddenProviderName(text) && !containsTechnicalId(text)
-  && !/\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/.test(text);
+export const readerSafe = (text: string): boolean => readerTextSafe(text);
 
 /** Stored literals of the retained package are reader text only while they stay clean; otherwise the part is withheld. */
 const WITHHELD = {
@@ -40,7 +39,7 @@ const readerStoredOrJsonHtml = (value: string | null | undefined, withheld: stri
 const readerDateBasis = (value: string): string => activeReaderPlainText ? readerPlainDateBasis(value) : value;
 const readerScopeText = (value: string | null | undefined, fallback: string): string => activeReaderPlainText ? readerPlainScopeText(value, fallback) : value !== null && value !== undefined && readerSafe(value) ? value : fallback;
 const formatReaderValue = (value: string | null | undefined, options: { readonly measure?: string | undefined; readonly unit?: string | null | undefined; readonly currency?: string | null | undefined } = {}): string | null => formatReaderPlainValue(value, options);
-export const storedLiteral = (value: string, withheld: string): string => readerSafe(value) ? escape(value) : withheld;
+export const storedLiteral = (value: string, withheld: string, readerPlainText = activeReaderPlainText): string => readerPlainText ? (readerSafe(value) ? escape(value) : withheld) : escape(value);
 
 /** Technical codes and digests may be displayed in disclosures; provider identity remains in the semantic artifact. */
 export const technicalLiteral = (value: string): string => containsForbiddenProviderName(value)
@@ -174,7 +173,7 @@ const scopeText = (scope: Input['scope'], readerPlainText = activeReaderPlainTex
 /** The reader sees a numbered source and its provenance gloss; the file path, family and raw locator stay technical. */
 function sourceCell(input: Input, ref: Ref, citations: ReportCitations): string {
   const source = input.sources.find(item => item.sha256 === ref.sourceSha256);
-  const pointer = readerPointer(ref.locator, citations.readerPlainText !== false);
+  const pointer = readerPointer(ref.locator, activeReaderPlainText);
   const mark = citations.mark({ sourceKind: 'CAPTURE', identity: ref.sourceSha256, locator: pointer.locator, label: 'Nguồn dữ liệu đã lưu',
     retrievedAt: null, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE',
     technical: { ...(source ? { logicalPath: source.logicalPath, evidenceFamily: source.evidenceFamily, provenance: source.providerProvenance } : {}),
@@ -284,9 +283,9 @@ function m09(methods: DescriptiveMarketMethods, citations: ReportCitations): Omi
   return { usable, locatedRecordCount: section.locatedRecordCount, unresolvedPointers: unresolved, blockers: section.blockers, body };
 }
 
-export function describeDescriptiveSection(methods: DescriptiveMarketMethods, sectionId: DescriptiveSectionId, citations: ReportCitations): DescriptiveSectionView {
+export function describeDescriptiveSection(methods: DescriptiveMarketMethods, sectionId: DescriptiveSectionId, citations: ReportCitations, readerPlainText = false): DescriptiveSectionView {
   const previous = activeReaderPlainText;
-  activeReaderPlainText = citations.readerPlainText ?? methods.methodVersion !== '1.0.0';
+  activeReaderPlainText = readerPlainText;
   try {
     const { body, ...view } = { M05: m05, M06: m06, M07: m07, M09: m09 }[sectionId](methods, citations);
     return { ...view, html: `${methodNote(view.usable)}${body}${limitations(methods, citations)}` };
@@ -296,7 +295,7 @@ export function describeDescriptiveSection(methods: DescriptiveMarketMethods, se
 }
 
 /** Package and method identity belong in the M13 appendix, not in the analytical sections. */
-export function descriptiveAppendix(methods: DescriptiveMarketMethods | undefined, failure?: 'DESCRIPTIVE_METHOD_FAILED', distinctEntityWording = false, readerPlainText = true): string {
+export function descriptiveAppendix(methods: DescriptiveMarketMethods | undefined, failure?: 'DESCRIPTIVE_METHOD_FAILED', distinctEntityWording = false, readerPlainText = false): string {
   if (methods === undefined && failure) return '<h3>Hồ sơ đối chiếu phương pháp mô tả thị trường</h3><p>Đã thử chạy phương pháp mô tả nhưng đầu vào hoặc phương pháp không vượt qua kiểm tra. Không có kết quả phương pháp dùng được cho M05, M06, M07 và M09. Bản thu nguồn vẫn được giữ trong bản kê phía trên; cần kiểm tra lỗi trước khi tạo phiên bản mới, không tự động gọi lại nguồn.</p>'
     + `<details class="evidence-trace"><summary>Mã đối chiếu của lần chạy lỗi</summary><p><code>${escape(failure)}</code></p></details>`;
   if (methods === undefined) return '<h3>Hồ sơ đối chiếu phương pháp mô tả thị trường</h3><p>Không có kết quả trong lượt này. Phương pháp chỉ chạy khi lượt có quan sát sản phẩm hợp lệ từ bản thu nguồn. Các mục M05, M06, M07 và M09 không có kết quả phương pháp.</p>';

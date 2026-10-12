@@ -272,6 +272,38 @@ Blocked / needs other lane:
 
 Coordinator disposition (round 3b): `tests/integration/research-automation-api.test.ts:480` is updated to the intended reader-on wording (`chưa rõ;` without the raw `(UNKNOWN)` code), and a negative assertion is added so the raw code cannot return. No other assertion changed.
 
+## Round 6
+
+Status: round-5 findings fixed and self-reviewed. No commit was created yet; commit is performed after this review.
+
+Changed paths:
+- `src/modules/analysis/research-automation/quote-method-report.ts`: `quoteMethodSection` now defaults to legacy mode; its false path keeps the original literal escaping.
+- `src/modules/analysis/research-automation/market-presentation-report.ts`: both Market-presentation renderers and their helper defaults now use legacy mode when the flag is omitted.
+- `src/modules/analysis/research-automation/descriptive-report.ts`: descriptive section and appendix mode are explicit positional booleans; inference from citations and method version is removed; `readerSafe` and `storedLiteral` use the shared reader sanitizer while legacy callers retain their original bytes.
+- `src/modules/analysis/research-automation/synthesis-evidence-report.ts`: decision packet reader mode is an explicit positional boolean with a legacy default.
+- `src/modules/analysis/research-automation/reports.ts`: explicit reader propagation reaches decision, descriptive, scope explanation, scope warning, and headline paths; reader scope labels are plain Vietnamese while legacy wording remains unchanged.
+- `src/modules/analysis/research-automation/market-inventory-report.ts`: legacy rows use the original raw-literal projection explicitly after the shared sanitizer was tightened.
+- `src/modules/analysis/research-automation/reader-plain-text.ts`: enum filtering now matches underscore-bearing tokens and the report’s explicit enum set only; legitimate acronyms pass unchanged; reader scope text maps `ALL`, `WIDE`, and `CORE` to Vietnamese labels.
+- `tests/unit/reader-209-plain-text.test.ts`: added acronym/snake-case checks, explicit-false replay for every round-5 function, reader enum assertions, scope-token assertions, and descriptive/decision legacy-default checks.
+- `tests/integration/research-automation-api.test.ts`: updated the reader-on classified-scope expectation from the raw `CORE` label to the Vietnamese scope label.
+
+Round-5 finding evidence:
+1. Fixed at `quote-method-report.ts:65` and `market-presentation-report.ts:7,8,83,90`; `reader-209-plain-text.test.ts` test “marker-free direct calls default to the explicit legacy projection” compares omitted calls byte-for-byte with explicit `false`.
+2. Fixed at `descriptive-report.ts:286-301` and `synthesis-evidence-report.ts:117-119`; the same direct-call test covers descriptive section, appendix, and decision packet defaults, while `reports.ts:636,729,879` passes the production flag explicitly.
+3. Fixed at `reports.ts:707,826,842` and the shared scope mapping in `reader-plain-text.ts:194-201`; reader tests assert no standalone `ALL`, `WIDE`, or `CORE` and assert Vietnamese scope labels.
+4. Fixed at `descriptive-report.ts:24,42` through `readerTextSafe`; reader inventory, synthesis, and descriptive tests assert no standalone `UNKNOWN`, `LISTED`, `WIDE`, or `CORE`.
+5. Fixed at `reader-plain-text.ts:38-51`; acronym tests prove `ROAS`, `CPA`, `AI`, `PDF`, `SKU`, `USD`, and `VND` survive while `source_field_name` is withheld.
+
+Checks:
+- `npm run typecheck`: PASS.
+- `node --import tsx --test tests/unit/reader-209-plain-text.test.ts tests/unit/research-automation-reports.test.ts`: PASS, 28 passed, 2 skipped PDF tests.
+- `node --import tsx --test tests/integration/market-presentation-report.test.ts`: PASS, 3 passed.
+- `node --import tsx --test tests/integration/research-automation-api.test.ts`: PASS, 15 passed.
+- `node --import tsx --test tests/integration/research-automation-case-contract.test.ts`: the three synthetic Market subcases still fail the pre-existing whole-document provider-name assertion (`kalodata`) after their substantive reader-text assertions; no round-6 finding depends on that assertion and no unowned producer/source contract was changed.
+- `git diff --check`: PASS.
+
+Self-review: `git diff origin/main...HEAD` plus the round-6 changes were reread against the lane brief and round-1 through round-5 findings. Stored producers, schemas, renderer versions, service verification, and read/verify paths were not changed; no read path re-renders stored HTML for byte comparison. The only expected reader-mode changes are render-time projections and their focused tests.
+
 ## Round 4 (owner-approved extra round)
 
 Fixes, per `READER-209.r4.writer.md`:

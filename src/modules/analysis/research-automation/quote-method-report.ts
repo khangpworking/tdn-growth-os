@@ -7,7 +7,7 @@ import {
 import { escapeHtml as escape, readerPointer, storedLiteral, type ReportCitations } from './descriptive-report.js';
 
 const readerText = (value: string): string => readerStoredOrJson(value, 'Nội dung được giữ trong bản lưu nguồn');
-const legacyText = (value: string): string => storedLiteral(value, 'Nội dung được giữ trong bản lưu nguồn');
+const legacyText = (value: string): string => escape(value);
 const readerCount = (value: number): string => formatReaderCount(value) ?? 'chưa rõ';
 
 const reasons: Record<Result['reasons'][number], string> = {
@@ -57,12 +57,12 @@ function legacyQuoteMethodSection(snapshot: AutomationQuoteMethodSnapshot, citat
       <p>Biến thể: ${legacyText(quote.identity.variantId ?? quote.identity.variantState)}. Điều kiện: ${legacyText(quote.price.conditions.map(condition => condition.literal).join('; ') || 'Không có điều kiện được ghi trong nguồn; chưa xác nhận vô điều kiện')}. Thuế: ${escape(quote.price.tax)}; vận chuyển: ${escape(quote.price.shipping)}.</p>
       <p>Thời điểm quan sát: ${escape(quote.observedAt ?? 'Chưa xác định, không coi là giá hiện tại')}. Thời điểm thu nhận được khai báo: ${escape(quote.acquiredAt)}.</p>
       <div class="table-wrap" role="region" aria-label="Phép tính giá chào bán ${index + 1}" tabindex="0"><table><caption>Giá theo từng cơ sở, giữ riêng khối lượng tịnh và ráo</caption><thead><tr><th scope="col">Cơ sở</th><th scope="col">Kết quả</th><th scope="col">Điều kiện và phần thiếu</th></tr></thead><tbody>${rows}</tbody></table></div>
-      <p>Nguồn: ${mark}. Xuất xứ khai báo trong gói: ${storedLiteral(source.providerProvenance, 'xuất xứ được giữ trong bản lưu nguồn')}; ${storedLiteral(source.provenanceBasis, 'cơ sở xuất xứ được giữ trong bản lưu nguồn')}. <a href="#quote-method-evidence">Xem trường nguồn và phép tính tại M13</a>.</p>`;
+      <p>Nguồn: ${mark}. Xuất xứ khai báo trong gói: ${readerText(source.providerProvenance)}; ${readerText(source.provenanceBasis)}. <a href="#quote-method-evidence">Xem trường nguồn và phép tính tại M13</a>.</p>`;
   }).join('');
   return `<p class="warning">Tính từ bản ghi có cấu trúc đã lưu, không tự suy quy cách từ tên sản phẩm. Kiểm tra này chứng minh phép tính và sự khớp trường, không xác nhận nội dung của trang bán hàng, giao dịch hay việc người dùng đã duyệt. Không tính chi phí, lợi nhuận hoặc xếp hạng chào bán.</p>${html || '<p>Gói đã chọn không có bản ghi giá.</p>'}${output.quotes.length > 20 ? `<p>Hiển thị 20 trong ${output.quotes.length} bản ghi theo thứ tự nguồn. Toàn bộ bản ghi và kết quả được giữ tại M13.</p>` : ''}<p>Số hiển thị làm tròn đến hai chữ số thập phân theo half-even; phân số chính xác được giữ riêng. Giá có điều kiện không trở thành giá thanh toán vô điều kiện.</p>`;
 }
 
-export function quoteMethodSection(snapshot: AutomationQuoteMethodSnapshot, citations: ReportCitations, readerPlainText = true): string {
+export function quoteMethodSection(snapshot: AutomationQuoteMethodSnapshot, citations: ReportCitations, readerPlainText = false): string {
   if (!readerPlainText) return legacyQuoteMethodSection(snapshot, citations);
   const output = snapshot.output;
   const html = output.quotes.slice(0, 20).map((row, index) => {
@@ -91,7 +91,7 @@ export function quoteMethodSection(snapshot: AutomationQuoteMethodSnapshot, cita
       <p>Biến thể: ${quote.identity.variantId === null ? readerQuoteValueState(quote.identity.variantState) : readerText(quote.identity.variantId)}. Điều kiện: ${readerText(quote.price.conditions.map(condition => condition.literal).join('; ') || 'Không có điều kiện được ghi trong nguồn; chưa xác nhận vô điều kiện')}. Thuế: ${escape(readerQuoteValueState(quote.price.tax))}; vận chuyển: ${escape(readerQuoteValueState(quote.price.shipping))}.</p>
       <p>Thời điểm quan sát: ${escape(quote.observedAt ?? 'Chưa xác định, không coi là giá hiện tại')}. Thời điểm thu nhận được khai báo: ${readerText(quote.acquiredAt)}.</p>
       <div class="table-wrap" role="region" aria-label="Phép tính giá chào bán ${index + 1}" tabindex="0"><table><caption>Giá theo từng cơ sở, giữ riêng khối lượng tịnh và ráo</caption><thead><tr><th scope="col">Cơ sở</th><th scope="col">Kết quả</th><th scope="col">Điều kiện và phần thiếu</th></tr></thead><tbody>${rows}</tbody></table></div>
-      <p>Nguồn: ${mark}. Xuất xứ khai báo trong gói: ${storedLiteral(source.providerProvenance, 'xuất xứ được giữ trong bản lưu nguồn')}; ${storedLiteral(source.provenanceBasis, 'cơ sở xuất xứ được giữ trong bản lưu nguồn')}. <a href="#quote-method-evidence">Xem trường nguồn và phép tính tại M13</a>.</p>`;
+      <p>Nguồn: ${mark}. Xuất xứ khai báo trong gói: ${readerText(source.providerProvenance)}; ${readerText(source.provenanceBasis)}. <a href="#quote-method-evidence">Xem trường nguồn và phép tính tại M13</a>.</p>`;
   }).join('');
   return `<p class="warning">Tính từ bản ghi có cấu trúc đã lưu, không tự suy quy cách từ tên sản phẩm. Kiểm tra này chứng minh phép tính và sự khớp trường, không xác nhận nội dung của trang bán hàng, giao dịch hay việc người dùng đã duyệt. Không tính chi phí, lợi nhuận hoặc xếp hạng chào bán.</p>${html || '<p>Gói đã chọn không có bản ghi giá.</p>'}${output.quotes.length > 20 ? `<p>Hiển thị 20 trong ${readerCount(output.quotes.length)} bản ghi theo thứ tự nguồn. Toàn bộ bản ghi và kết quả được giữ tại M13.</p>` : ''}<p>Số hiển thị làm tròn đến hai chữ số thập phân theo quy tắc nửa lên; phân số chính xác được giữ riêng. Giá có điều kiện không trở thành giá thanh toán vô điều kiện.</p>`;
 }

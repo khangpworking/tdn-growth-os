@@ -4,8 +4,8 @@ import { escapeHtml as escape, readerPointer, storedLiteral, type ReportCitation
 
 type Method = AutomationMarketPresentationMethod;
 const number = (value: number | null): string => value === null ? 'Chưa rõ' : value.toLocaleString('vi-VN', { maximumFractionDigits: 3 });
-const literal = (value: string, readerPlainText = true): string => `<span data-quote>${escape(readerPlainText ? readerStoredOrJson(value, 'Nội dung nguyên văn được giữ trong hồ sơ nguồn') : storedLiteral(value, 'Nội dung nguyên văn được giữ trong hồ sơ nguồn'))}</span>`;
-const mark = (ref: { sourceSha256: string; locator: string; label?: string }, citations: ReportCitations, readerPlainText = true): string => {
+const literal = (value: string, readerPlainText = false): string => `<span data-quote>${escape(readerPlainText ? readerStoredOrJson(value, 'Nội dung nguyên văn được giữ trong hồ sơ nguồn') : storedLiteral(value, 'Nội dung nguyên văn được giữ trong hồ sơ nguồn'))}</span>`;
+const mark = (ref: { sourceSha256: string; locator: string; label?: string }, citations: ReportCitations, readerPlainText = false): string => {
   const pointer = readerPointer(ref.locator, readerPlainText);
   return citations.mark({ sourceKind: 'CAPTURE', identity: ref.sourceSha256, locator: pointer.locator,
     label: ref.label ?? 'Quy cách và giá do người vận hành lưu', retrievedAt: null, url: null, quote: null,
@@ -80,14 +80,14 @@ export function renderAutomationMarketAdvertising(input: AdvertisingReferenceInp
 
 /** Every statement is frozen by the owning method; rendering introduces no
  * calculation, interpretation, ordering by importance or provider execution. */
-export function renderAutomationMarketFindings(method: Method, citations: ReportCitations, readerPlainText = true): string {
+export function renderAutomationMarketFindings(method: Method, citations: ReportCitations, readerPlainText = false): string {
   return '<p>Các phát hiện mô tả mẫu đã lưu, không sắp theo mức quan trọng.</p><ul class="market-findings">' + method.findings.map(finding =>
     `<li><p><b>Nhận định:</b> ${finding.pending ? `<span data-classified="pending">${escape(readerPlainText ? readerStoredOrJson(finding.statement.replace(/[.]$/, ''), 'Nhận định được giữ trong hồ sơ đối chiếu') : finding.statement.replace(/[.]$/, ''))} (đề xuất, chờ chủ duyệt).</span>` : escape(readerPlainText ? readerStoredOrJson(finding.statement, 'Nhận định được giữ trong hồ sơ đối chiếu') : finding.statement)}</p><p><b>Bằng chứng:</b> <a href="#${finding.sectionId}">Bảng ${finding.sectionId === 'M03' ? 'số liệu mẫu xuất ở phần Quy mô và diễn biến' : 'quy cách và đơn vị chuẩn ở phần Giá và kinh tế đơn vị'}</a>${finding.evidence.map(ref => mark(ref, citations, readerPlainText)).join('')}.</p><p><b>Trạng thái:</b> Bản nháp chưa được duyệt; ${finding.pending ? 'phân loại đề xuất, chờ chủ duyệt; ' : ''}${escape(readerPlainText ? readerStoredOrJson(finding.scope, 'Phạm vi được giữ trong hồ sơ đối chiếu') : finding.scope)}</p></li>`).join('') + '</ul>' +
     (method.findings.length < 4 ? '<p>Chưa đủ bằng chứng để có bốn nhận định; phần kết luận còn thiếu, không bổ sung nhận định không có nguồn.</p>' : '') +
     '<p>Số bán hàng là ước tính trong mẫu. Không suy số người mua, quy mô ngoài mẫu hoặc nguyên nhân.</p>';
 }
 
-export function renderAutomationMarketUnitPrices(method: Method, citations: ReportCitations, readerPlainText = true): string {
+export function renderAutomationMarketUnitPrices(method: Method, citations: ReportCitations, readerPlainText = false): string {
   const groups = new Map<string, Method['unitPrices']>(), missing: Method['unitPrices'] = [];
   for (const row of method.unitPrices) {
     if (row.value === null) missing.push(row);

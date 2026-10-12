@@ -114,8 +114,8 @@ function decisionSynthesisBlock(outcome: AutomationDecisionExecutionOutcome, pac
  * Source-backed inventory, not a synthesized recommendation or business decision. When the owning service supplies
  * a retained synthesis outcome it is shown beside, never instead of, the inventory; without one the historical copy stays.
  */
-export function decisionPacketSection(packet: AutomationDecisionPacket, claims: AutomationSourceClaims, synthesis?: AutomationDecisionExecutionOutcome, citations: ReportCitations = NO_CITATIONS): string {
-  activeReaderPlainText = citations.readerPlainText !== false;
+export function decisionPacketSection(packet: AutomationDecisionPacket, claims: AutomationSourceClaims, synthesis?: AutomationDecisionExecutionOutcome, citations: ReportCitations = NO_CITATIONS, readerPlainText = false): string {
+  activeReaderPlainText = readerPlainText;
   if (packet.sourceClaims.claimsSha256 !== claims.claimsSha256) throw new Error('Decision display source mismatch');
   const byId = new Map(claims.claims.map(claim => [claim.claimId, claim]));
   const proposed = synthesis?.status === 'VALID' && synthesis.candidates.artifact.aiCandidates.length > 0;
