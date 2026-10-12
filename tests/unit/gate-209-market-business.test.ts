@@ -175,6 +175,18 @@ test('round 8: distinct-record count labels are not superlatives', () => {
   assert.equal(check(reportHtml('<p>Sản phẩm A là đối tượng duy nhất đáp ứng yêu cầu.</p>'), 'U13_SUPERLATIVE').ok, false);
 });
 
+test('round 9: renderer limitation wording is not revenue ranking or a superlative', () => {
+  const html = reportHtml('<p>Không suy ra tỷ lệ, tổng thể hay thị phần.</p><p>M06 đếm bản ghi; không phải đối tượng duy nhất, tồn kho hay toàn bộ nguồn cung.</p>');
+  assert.equal(check(html, 'E2_NO_REVENUE_ORDER').ok, true);
+  assert.equal(check(html, 'U13_SUPERLATIVE').ok, true);
+  assert.equal(check(reportHtml('<p>Bản lưu không cung cấp quy mô thị trường, tăng trưởng năm hoặc thị phần toàn thị trường.</p>'), 'E2_NO_REVENUE_ORDER').ok, true);
+  assert.equal(check(reportHtml('<p>Chưa xác lập thị phần hoặc mức cạnh tranh của toàn thị trường.</p>'), 'E2_NO_REVENUE_ORDER').ok, true);
+  assert.equal(check(reportHtml('<p>Không cung cấp dữ liệu đối chiếu, thị phần của X là 30%.</p>'), 'E2_NO_REVENUE_ORDER').ok, false);
+  assert.equal(check(reportHtml('<p>Không cung cấp dữ liệu đối chiếu hay thị phần của X là 30%.</p>'), 'E2_NO_REVENUE_ORDER').ok, false);
+  assert.equal(check(reportHtml('<p>Thị phần của A là 30%.</p>'), 'E2_NO_REVENUE_ORDER').ok, false);
+  assert.equal(check(reportHtml('<p>A là đối tượng duy nhất đáp ứng yêu cầu.</p>'), 'U13_SUPERLATIVE').ok, false);
+});
+
 test('provider names in a Market build fail inside buildResearchAutomationReport', () => {
   const metric = calculateMetricScopes(metricFixture());
   const rows = sync1ReaderFixture('1.4.0').rows;

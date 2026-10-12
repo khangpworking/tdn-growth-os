@@ -160,3 +160,32 @@ Windows pre-check: the unit files that use the lint, 52 tests, 50 pass, 2 Chromi
 - Focused unit test: `node --import tsx --test tests/unit/gate-209-market-business.test.ts` — 30 passed.
 - Windows integration gate tests: 1 passed; the reader-revision fixture stopped before its assertion with `OFFLINE_READER_UNAVAILABLE_OR_LIMIT` (no provider/network call).
 - Self-review exercised deep mis-nesting, uppercase tags/attributes, hidden ARIA/style attributes, comment-split closes, entity-encoded closes, unclosed raw-text, and malformed `data-quote`; one normalization bypass was found and closed by the shared balanced-opening check, with no remaining bypass found.
+
+## Round 9 (reviewer self-fix)
+
+Reproduced the CI regression on the requested head. The Market gate was rejecting legitimate renderer limitation text emitted by non-owned report builders:
+
+- `Không suy ra tỷ lệ, tổng thể hay thị phần.`
+- `M06 đếm bản ghi; không phải đối tượng duy nhất, tồn kho hay toàn bộ nguồn cung.`
+- Metric method limitations also emitted `Bản lưu không cung cấp quy mô thị trường, tăng trưởng năm hoặc thị phần toàn thị trường.` and `Chưa xác lập thị phần hoặc mức cạnh tranh của toàn thị trường.`
+
+Decision: narrow the gate, not the renderer. These are method/limitation statements from files outside this lane's ownership. `market-business-gate.ts` now exempts only clause-ending `suy ra … hay/hoặc` and tightly shaped `cung cấp`/`xác lập` absence lists for the `thị phần` term. `report-visible-text-lint.ts` treats directly negated `không phải đối tượng duy nhất` as a limitation. Affirmative `xếp hạng`, revenue ranking, market-share claims, and affirmative uniqueness/superlatives remain failures. Added exact-phrase regression coverage plus controls proving the true positives still fail. No Insight branch or legacy renderer output was changed.
+
+Changed paths:
+
+- `src/modules/analysis/research-automation/market-business-gate.ts`
+- `src/modules/analysis/report-visible-text-lint.ts`
+- `tests/unit/gate-209-market-business.test.ts`
+- `docs/handoffs/GATE-209.md`
+
+Round-9 evidence:
+
+- `npm run -s frontend:validators` — PASS.
+- `npm run typecheck` — PASS.
+- `node --import tsx --test tests/unit/gate-209-market-business.test.ts tests/unit/report-visible-text-lint.test.ts tests/unit/u13-209-report-lint.test.ts tests/integration/research-automation-metric-report.test.ts` — 43 passed, 0 failed.
+- Required integration files, rerun individually to avoid concurrent-load timeouts: `research-automation-api.test.ts` — 15/15 passed; `research-automation-case-contract.test.ts` — 4/4 passed (J/T/F included); `research-automation-metric-report.test.ts` — 5/5 passed; `research-automation-quote-methods.test.ts` — 0/1 passed because the existing M08 fixture digest assertion expected a changed hash but received the same hash. No test reported `MARKET_BUSINESS_GATE_FAILED`; the M08 test passes 1/1 on detached `origin/main`.
+- `node --import tsx --test tests/integration/research-insight-crosscheck-gates.test.ts tests/integration/research-insight-crosscheck-lineage.test.ts` — 3 passed, 0 failed.
+- `npm run check` — frontend completed; backend integration/unit aggregate reported 294 tests, 293 passed, 1 failed. The sole failure was the load-sensitive `frontend/tests/research-insight-persona-ui.test.ts` StrictMode wait (`settled Phân loại lô kế tiếp theo bộ mã đã chọn`). The same test passes isolated on this branch (4/4) and on detached `origin/main` (4/4), so it is not a Market-gate regression and does not also fail on `origin/main`.
+- `git diff --check origin/main...HEAD` — PASS.
+
+Self-review: the gate still blocks affirmative revenue ranking (`top 3`, `Thứ tự theo doanh thu`, `xếp hạng theo doanh thu`), affirmative market share, and affirmative superlatives/unique-object claims. The new exceptions require the intended negation/limitation wording and cannot exempt a later affirmative claim after a clause break or malformed list.

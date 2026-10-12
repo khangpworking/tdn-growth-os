@@ -151,6 +151,9 @@ const CLAUSE_BREAK = /[.;:!?…\n]|(?<![\p{L}\p{N}_])(?:nhưng|tuy nhiên|tuy v�
 const NEGATION = /(?<![\p{L}\p{N}_])(?:không|chưa|chẳng)(?![\p{L}\p{N}_])/giu;
 const DIRECT_NEGATED_RANKING = /^(?:phải\s*)?(?:bảng\s*)?$/iu;
 const NEGATED_LIST_VERB = /(?:^|,|\b(?:hay|hoặc)\b)\s*(?:so sánh|cộng|tính|chấm điểm)\s*(?:,|\b(?:hay|hoặc)\b)?$/iu;
+const NEGATED_INFERENCE = /^suy\s+ra(?:\s+[^.;:!?…\n]{1,60}\b(?:hay|hoặc))?\s*$/iu;
+const NEGATED_ABSENCE = /^(?:cung cấp|xác lập)(?:\s*$|\s+[^.;:!?…]{0,80}\b(?:hay|hoặc)\s*$)/iu;
+const AFFIRMATIVE_TAIL = /\d|\b(?:là|chiếm|đạt|tăng|giảm|được|trình bày|có)\b/iu;
 
 function clauseAround(text: string, start: number, end: number): { before: string; after: string } {
   let from = 0;
@@ -165,21 +168,23 @@ function clauseAround(text: string, start: number, end: number): { before: strin
 
 /** The term is negated only when a negation in its own clause governs it directly
  * ("không phải xếp hạng") or through a closed list ("không so sánh, xếp hạng hay …"). */
-function e2Negated(text: string, start: number, end: number): boolean {
-  const { before } = clauseAround(text, start, end);
+function e2Negated(text: string, start: number, end: number, term: string): boolean {
+  const { before, after } = clauseAround(text, start, end);
   const negations = [...before.matchAll(NEGATION)];
   const last = negations.at(-1);
   if (!last) return false;
   const span = before.slice((last.index ?? 0) + last[0].length).trim().replace(/\s+/gu, ' ');
   if (span.length > 60) return false;
-  return DIRECT_NEGATED_RANKING.test(span) || NEGATED_LIST_VERB.test(span);
+  return DIRECT_NEGATED_RANKING.test(span) || NEGATED_LIST_VERB.test(span) ||
+    (after.trim().length === 0 && NEGATED_INFERENCE.test(span)) ||
+    (term.toLowerCase() === 'thị phần' && NEGATED_ABSENCE.test(span) && !AFFIRMATIVE_TAIL.test(after));
 }
 
 function e2Matches(text: string): string[] {
   const hits = matches(text, E2_ALWAYS_TERMS);
   for (const match of text.matchAll(E2_NEGATABLE_TERMS)) {
     const index = match.index ?? 0;
-    if (!e2Negated(text, index, index + match[0].length)) hits.push(match[0] ?? '');
+    if (!e2Negated(text, index, index + match[0].length, match[0] ?? '')) hits.push(match[0] ?? '');
   }
   return hits;
 }
