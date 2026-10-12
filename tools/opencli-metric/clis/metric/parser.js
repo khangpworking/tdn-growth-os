@@ -10,11 +10,60 @@ export const METRIC_FAIL_CODES = Object.freeze([
   'METRIC_ROW_CAP',
 ]);
 
+export const METRIC_RESTRICTION_PATTERN = /(?:access\s+denied|denied\s+access|unauthorized|forbidden|blocked|limit\s+(?:reached|exceeded)|(?:reached|exceeded)\s+limit|session\s+expired|suspended|quy[eề]n\s+truy\s+c[aă]p\s+b[iị]\s+t[uừ]\s+ch[oố]i|kh[oô]ng\s+c[oó]\s+quy[eề]n|t[aà]i\s+kho[aả]n\s+b[iị]\s+(?:t[aạ]m\s+)?kh[oó]a|t[aạ]m\s+th[oờ]i\s+kh[oô]ng\s+kh[aả]\s+d[uụ]ng|phi[eê]n\s+đ[aă]ng\s+nh[aậ]p\s+đ[aã]\s+h[eế]t\s+h[aạ]n|h[eế]t\s+phi[eê]n|gi[oớ]i\s+h[aạ]n|h[eế]t\s+l[uư][oợ]t|v[uư][oợ]t\s+qu[aá])/i;
+
+export function normaliseMetricText(value) {
+  return String(value ?? '').normalize('NFC').toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+export function stripMetricDiacritics(value) {
+  return normaliseMetricText(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
+}
+
+function metricWords(value) {
+  return new Set(value.split(/[^\p{L}\p{N}]+/u).filter(Boolean));
+}
+
+function restrictionMatchesNormalised(value) {
+  if (METRIC_RESTRICTION_PATTERN.test(value)) return true;
+  const words = metricWords(value);
+  return [
+    ['quyen', 'truy', 'cap', 'bi', 'tu', 'choi'],
+    ['gioi', 'han'],
+    ['het', 'luot'],
+    ['vuot', 'qua'],
+    ['phien', 'dang', 'nhap', 'het', 'han'],
+    ['het', 'phien'],
+    ['tai', 'khoan', 'bi', 'khoa'],
+    ['tai', 'khoan', 'tam', 'khoa'],
+    ['khong', 'co', 'quyen'],
+    ['tam', 'thoi', 'khong', 'kha', 'dung'],
+    ['access', 'denied'],
+    ['denied', 'access'],
+    ['limit', 'reached'],
+    ['reached', 'limit'],
+    ['limit', 'exceeded'],
+    ['exceeded', 'limit'],
+    ['session', 'expired'],
+  ].some(wordsToFind => wordsToFind.every(word => words.has(word)));
+}
+
+export function hasMetricRestrictionText(value) {
+  const normalised = normaliseMetricText(value);
+  return restrictionMatchesNormalised(normalised) || restrictionMatchesNormalised(stripMetricDiacritics(normalised));
+}
+
+export function isBareMetricWarningText(value) {
+  const normalised = stripMetricDiacritics(value);
+  return normalised === 'warning' || normalised === 'canh bao';
+}
+
 export class MetricAdapterError extends Error {
-  constructor(code, message) {
+  constructor(code, message, details) {
     super(`${code}: ${message}`);
     this.name = 'MetricAdapterError';
     this.code = code;
+    if (details !== undefined) this.details = details;
   }
 }
 
@@ -34,6 +83,42 @@ export function assertMetricUrl(rawUrl) {
 
 function clean(value) {
   return String(value ?? '').normalize('NFC').trim();
+}
+
+function hasExplicitInfoOrSuccess(match) {
+  const classes = String(match?.classSample ?? '').toLowerCase();
+  return /(?:^|[-_\s])(?:info|success)(?:$|[-_\s])/.test(classes);
+}
+
+function isTitleAnnouncer(match, title) {
+  if (match?.reason === 'title-announcer' || match?.text == null) return true;
+  const text = normaliseMetricText(match.text);
+  const pageTitle = normaliseMetricText(title);
+  return !text || Boolean(pageTitle && pageTitle.startsWith(text));
+}
+
+const ICON_OR_BADGE_TAGS = new Set(['i', 'svg', 'img', 'path', 'use']);
+const ICON_OR_BADGE_CLASS = /(?:^|[-_\s])(?:icon|anticon|badge|dot|count)(?:$|[-_\s])/i;
+const ALERT_CONTAINER_CLASS = /(?:^|\s)ant-(?:alert|message-notice|message-custom-content|notification-notice)(?:-(?:warning|error))?(?:\s|$)|(?:^|\s)ant-(?:alert|message|notification(?:-notice)?)-(?:warning|error)(?:\s|$)/i;
+
+function isIconOrBadgeMatch(match) {
+  const classSample = String(match.classSample ?? '');
+  if (String(match.role ?? '').toLowerCase() === 'alert' || ALERT_CONTAINER_CLASS.test(classSample)) return false;
+  return ICON_OR_BADGE_TAGS.has(String(match.tag ?? '').toLowerCase()) || ICON_OR_BADGE_CLASS.test(classSample);
+}
+
+function warningMatchCausesFailure(match, title) {
+  if (!match || typeof match !== 'object') return false;
+  const reason = String(match.reason ?? '');
+  if (reason === 'icon-or-badge') return !isIconOrBadgeMatch(match) || hasMetricRestrictionText(match.text);
+  if (reason === 'title-announcer' || reason === 'info-alert' || reason === 'success-alert') return false;
+  if (/^(?:warning|error)-class$/.test(reason) || /^(?:restriction-text|bare-warning-text|alert-role)$/.test(reason)) return true;
+  if (/warning|error/i.test(String(match.classSample ?? ''))) return !isIconOrBadgeMatch(match) || hasMetricRestrictionText(match.text);
+  if (String(match.role ?? '').toLowerCase() === 'alert') {
+    if (hasExplicitInfoOrSuccess(match) || isTitleAnnouncer(match, title)) return false;
+    return true;
+  }
+  return hasMetricRestrictionText(match.text) || isBareMetricWarningText(match.text);
 }
 
 function setKey(values) {
@@ -99,14 +184,18 @@ export function gateMetricPage(observation) {
   if (observation.captchaVisible === true || /captcha|verify you are human/i.test(clean(observation.bodyText))) {
     throw new MetricAdapterError('METRIC_CAPTCHA', 'captcha or human verification is visible');
   }
+  const warningMatches = Array.isArray(observation.warningMatches) ? observation.warningMatches : [];
+  if (observation.warningVisible === true
+    || hasMetricRestrictionText(observation.warningText)
+    || isBareMetricWarningText(observation.warningText)
+    || warningMatches.some(match => warningMatchCausesFailure(match, observation.title))) {
+    throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric page displays a warning or access restriction');
+  }
   if (observation.loginVisible === true || /\b(?:login|đăng nhập)\b/i.test(clean(observation.bodyText))) {
     throw new MetricAdapterError('METRIC_LOGIN_REQUIRED', 'Metric session is not logged in');
   }
   if (observation.logoutVisible === true || /\b(?:logout|log out|đăng xuất|signed out|session expired)\b/i.test(clean(observation.bodyText))) {
     throw new MetricAdapterError('METRIC_LOGIN_REQUIRED', 'Metric session is logged out or expired');
-  }
-  if (observation.warningVisible === true || /(?:warning|cảnh báo|unauthorized|access denied|blocked|tạm thời không khả dụng)/i.test(clean(observation.bodyText))) {
-    throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric page displays a warning or access restriction');
   }
   if (observation.metricRootVisible !== true) {
     throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric application root is not visible');

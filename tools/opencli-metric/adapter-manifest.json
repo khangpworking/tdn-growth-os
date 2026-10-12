@@ -3,11 +3,11 @@
   "files": [
     {
       "path": "clis/metric/metric.js",
-      "sha256": "bc1c81c6b806d256e4313f70f4c715829299eeddd2848c8a1b09a7b76a73ae58"
+      "sha256": "0604f51ed36d123660cb14e2f9ba88f78d3e478858e456b164b32abbe65cf747"
     },
     {
       "path": "clis/metric/parser.js",
-      "sha256": "0e55ee64c49e5a87dc685086f082bfbf00670be725d7211a1ef8bec83272c156"
+      "sha256": "9301f0d012b64c3ff06e70913dc7630cae1eb42a22057dde6d10b9529052f758"
     },
     {
       "path": "clis/metric/capture.js",

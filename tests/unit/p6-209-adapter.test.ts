@@ -3,6 +3,7 @@ import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:f
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import { JSDOM } from 'jsdom';
 
 const load = async (name: string): Promise<any> => JSON.parse(await readFile(new URL(`../fixtures/p6-209/${name}.json`, import.meta.url), 'utf8'));
 const parserUrl = new URL('../../tools/opencli-metric/clis/metric/parser.js', import.meta.url);
@@ -174,6 +175,188 @@ test('adapter parser fails closed for domain, login, captcha, filter and row cap
   assert.throws(() => parser.parseSearchObservation({ ...observation, appliedFilters: { ...spec, category: 'Khác' } }, spec), /METRIC_FILTER_MISMATCH/);
 });
 
+test('warning gate ignores benign alert-like UI but keeps real restrictions and dedicated auth gates', async () => {
+  const { gateMetricPage } = await import(parserUrl.href);
+  const base = {
+    url: 'https://metric.vn/analytics', bodyText: '', warningText: '', warningVisible: false, metricRootVisible: true,
+  };
+  assert.doesNotThrow(() => gateMetricPage({ ...base, bodyText: 'Metric information banner and notification badge' }));
+  assert.doesNotThrow(() => gateMetricPage({ ...base, warningMatches: [{ via: 'selector', tag: 'span', role: 'alert', classSample: 'ant-alert-info icon-alert', text: 'Information' }] }));
+  assert.throws(() => gateMetricPage({ ...base, warningVisible: true }), /METRIC_UI_CHANGED/);
+  assert.throws(() => gateMetricPage({ ...base, warningText: 'Lookup limit reached' }), /METRIC_UI_CHANGED/);
+  assert.throws(() => gateMetricPage({ ...base, captchaVisible: true }), /METRIC_CAPTCHA/);
+  assert.throws(() => gateMetricPage({ ...base, loginVisible: true }), /METRIC_LOGIN_REQUIRED/);
+});
+
+test('restriction gate fails closed for Vietnamese, reordered, normalized and English restriction phrases', async () => {
+  const { gateMetricPage } = await import(parserUrl.href);
+  const base = { url: 'https://metric.vn/analytics', bodyText: '', warningVisible: false, metricRootVisible: true };
+  const phrases = [
+    'Quyền truy cập bị từ chối',
+    'bị từ chối — truy cập quyền',
+    'Bạn đã đạt giới hạn lượt phân tích',
+    'lượt phân tích đã vượt quá giới hạn',
+    'hết lượt phân tích',
+    'Phiên đăng nhập đã hết hạn',
+    'hết hạn, phiên đăng nhập',
+    'hết phiên',
+    'tài khoản bị khóa',
+    'tạm khóa tài khoản',
+    'không có quyền',
+    'quyền không có',
+    'tạm thời không khả dụng',
+    'access denied',
+    'unauthorized',
+    'forbidden',
+    'blocked',
+    'limit reached',
+    'limit exceeded',
+    'reached limit',
+    'exceeded limit',
+    'session expired',
+    'suspended',
+  ];
+  for (const phrase of phrases) {
+    assert.throws(() => gateMetricPage({ ...base, warningText: phrase }), /METRIC_UI_CHANGED/, phrase);
+  }
+  assert.throws(() => gateMetricPage({ ...base, warningText: '  QUYỀN\nTRUY   CẬP bị từ chối  ' }), /METRIC_UI_CHANGED/);
+  assert.throws(() => gateMetricPage({ ...base, warningText: 'quyen truy cap bi tu choi' }), /METRIC_UI_CHANGED/);
+  assert.throws(() => gateMetricPage({ ...base, warningText: 'Warning' }), /METRIC_UI_CHANGED/);
+  assert.throws(() => gateMetricPage({ ...base, warningText: 'cảnh báo' }), /METRIC_UI_CHANGED/);
+});
+
+test('warning gate keeps the observed benign title announcer, info/success alerts, icons and badges', async () => {
+  const { gateMetricPage } = await import(parserUrl.href);
+  const base = { url: 'https://metric.vn/analytics', bodyText: '', warningVisible: false, metricRootVisible: true };
+  assert.doesNotThrow(() => gateMetricPage({ ...base, title: 'Metric analytics', warningMatches: [
+    { via: 'selector', tag: 'div', role: 'alert', classSample: '', text: 'Metric', reason: 'title-announcer' },
+  ] }));
+  assert.doesNotThrow(() => gateMetricPage({ ...base, warningMatches: [
+    { via: 'selector', tag: 'div', role: 'alert', classSample: 'ant-alert-info', text: null, reason: 'info-alert' },
+    { via: 'selector', tag: 'div', role: 'alert', classSample: 'ant-alert-success', text: null, reason: 'success-alert' },
+  ] }));
+  assert.doesNotThrow(() => gateMetricPage({ ...base, warningMatches: [
+    { via: 'selector', tag: 'span', role: null, classSample: 'icon-alert', text: null, reason: 'icon-or-badge' },
+    { via: 'selector', tag: 'span', role: null, classSample: 'notification-badge', text: null, reason: 'icon-or-badge' },
+  ] }));
+  assert.doesNotThrow(() => gateMetricPage({ ...base, warningMatches: [
+    { via: 'selector', tag: 'div', role: 'alert', classSample: '', text: null, reason: 'title-announcer' },
+  ] }));
+  assert.throws(() => gateMetricPage({ ...base, warningMatches: [
+    { via: 'selector', tag: 'div', role: 'alert', classSample: 'ant-alert-warning', text: null, reason: 'warning-class' },
+  ] }), /METRIC_UI_CHANGED/);
+  assert.throws(() => gateMetricPage({ ...base, warningMatches: [
+    { via: 'selector', tag: 'div', role: 'alert', classSample: '', text: 'Unexpected alert', reason: 'alert-role' },
+  ] }), /METRIC_UI_CHANGED/);
+});
+
+test('warning gate treats warning/error icons and badges as benign but keeps alert containers fail-closed', async () => {
+  const { gateMetricPage } = await import(parserUrl.href);
+  const base = { url: 'https://metric.vn/analytics', bodyText: '', warningVisible: false, metricRootVisible: true };
+  for (const match of [
+    { via: 'selector', tag: 'span', role: null, classSample: 'warning-icon', text: null, reason: 'icon-or-badge' },
+    { via: 'selector', tag: 'span', role: null, classSample: 'error-badge', text: null, reason: 'icon-or-badge' },
+    { via: 'selector', tag: 'span', role: null, classSample: 'warning-icon', text: null },
+    { via: 'selector', tag: 'span', role: null, classSample: 'error-badge', text: null },
+    { via: 'selector', tag: 'span', role: null, classSample: 'anticon anticon-warning', text: null },
+    { via: 'selector', tag: 'svg', role: null, classSample: 'error', text: null },
+  ]) {
+    assert.doesNotThrow(() => gateMetricPage({ ...base, warningMatches: [match] }), JSON.stringify(match));
+  }
+  for (const match of [
+    { via: 'selector', tag: 'div', role: null, classSample: 'ant-alert ant-alert-warning', text: null },
+    { via: 'selector', tag: 'div', role: null, classSample: 'ant-alert ant-alert-error', text: null },
+    { via: 'selector', tag: 'div', role: null, classSample: 'ant-alert ant-alert-warning ant-alert-no-icon', text: null },
+    { via: 'selector', tag: 'span', role: 'alert', classSample: 'warning-icon', text: null },
+    { via: 'selector', tag: 'div', role: null, classSample: 'warning-box', text: null },
+    { via: 'selector', tag: 'span', role: null, classSample: 'error-badge', text: 'Hết lượt phân tích' },
+    { via: 'selector', tag: 'span', role: null, classSample: 'error-badge', text: 'Hết lượt phân tích', reason: 'icon-or-badge' },
+    { via: 'selector', tag: 'div', role: null, classSample: 'ant-alert-warning icon', text: null, reason: 'icon-or-badge' },
+    { via: 'selector', tag: 'div', role: 'alert', classSample: 'warning-icon', text: null, reason: 'icon-or-badge' },
+    { via: 'selector', tag: 'div', role: null, classSample: 'warning-box', text: null, reason: 'icon-or-badge' },
+  ]) {
+    assert.throws(() => gateMetricPage({ ...base, warningMatches: [match] }), /METRIC_UI_CHANGED/, JSON.stringify(match));
+  }
+});
+
+test('page warning observation classifies warning/error icons and badges as benign', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const observe = (html: string) => {
+    const dom = new JSDOM(`<!doctype html><html><head><title>Metric analytics</title></head><body><main id="main-content"><div id="analytic-tab">${html}</div></main></body></html>`, { url: 'https://metric.vn/analytics' });
+    const previous = { document: (globalThis as any).document, location: (globalThis as any).location, window: (globalThis as any).window, getComputedStyle: (globalThis as any).getComputedStyle };
+    (globalThis as any).document = dom.window.document;
+    (globalThis as any).location = dom.window.location;
+    (globalThis as any).window = dom.window;
+    (globalThis as any).getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
+    dom.window.Element.prototype.getBoundingClientRect = () => ({ x: 0, y: 0, left: 0, top: 0, right: 100, bottom: 20, width: 100, height: 20, toJSON: () => ({}) });
+    try {
+      return adapter.__test__.observeMetricPage(false);
+    } finally {
+      if (previous.document === undefined) delete (globalThis as any).document; else (globalThis as any).document = previous.document;
+      if (previous.location === undefined) delete (globalThis as any).location; else (globalThis as any).location = previous.location;
+      if (previous.window === undefined) delete (globalThis as any).window; else (globalThis as any).window = previous.window;
+      if (previous.getComputedStyle === undefined) delete (globalThis as any).getComputedStyle; else (globalThis as any).getComputedStyle = previous.getComputedStyle;
+      dom.window.close();
+    }
+  };
+  const benign = observe('<span class="warning-icon">!</span><span class="error-badge">3</span><i class="anticon anticon-warning"></i><svg class="error-dot"></svg><i class="material-icons">warning</i><div role="alert">Metric</div>');
+  assert.equal(benign.warningVisible, false, JSON.stringify(benign.warningMatches));
+  assert.ok(benign.warningMatches.some((match: any) => match.reason === 'icon-or-badge'));
+  assert.ok(benign.warningMatches.filter((match: any) => match.reason === 'icon-or-badge').every((match: any) => match.text === null));
+  for (const html of [
+    '<div class="ant-alert ant-alert-warning ant-alert-no-icon" role="alert"><span class="anticon ant-alert-icon"></span>unrelated</div>',
+    '<div class="ant-alert ant-alert-error"><span class="anticon ant-alert-icon"></span>unrelated</div>',
+    '<span class="error-badge">Hết lượt phân tích</span>',
+  ]) {
+    assert.equal(observe(html).warningVisible, true, html);
+  }
+});
+
+test('page warning observation is scoped, classified and identity-safe', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const dom = new JSDOM(`<!doctype html><html><head><title>Metric analytics</title></head><body>
+    <header id="header"><div role="alert" class="header-alert">Nguyễn Văn A nguyen.van.a@example.test +84901234567</div></header>
+    <main id="main-content"><div id="analytic-tab">
+      <div role="alert" class="ant-alert-warning">unrelated text</div>
+      <div role="alert" class="ant-alert-error">unrelated error</div>
+      <div role="alert" class="ant-alert-info">Information</div>
+      <div role="alert">Unexpected alert</div>
+      <div role="alert">Metric</div>
+      <span class="icon-alert">icon</span><span class="notification-badge">badge</span>
+      <div>cảnh báo</div>
+    </div></main>
+  </body></html>`, { url: 'https://metric.vn/analytics' });
+  const previous = { document: (globalThis as any).document, location: (globalThis as any).location, window: (globalThis as any).window, getComputedStyle: (globalThis as any).getComputedStyle };
+  (globalThis as any).document = dom.window.document;
+  (globalThis as any).location = dom.window.location;
+  (globalThis as any).window = dom.window;
+  (globalThis as any).getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
+  dom.window.Element.prototype.getBoundingClientRect = () => ({ x: 0, y: 0, left: 0, top: 0, right: 100, bottom: 20, width: 100, height: 20, toJSON: () => ({}) });
+  try {
+    const observation = adapter.__test__.observeMetricPage(false);
+    assert.equal(observation.warningVisible, true);
+    assert.ok(observation.warningMatches.some((match: any) => match.reason === 'warning-class'));
+    assert.ok(observation.warningMatches.some((match: any) => match.reason === 'error-class'));
+    assert.ok(observation.warningMatches.some((match: any) => match.reason === 'alert-role'));
+    assert.ok(observation.warningMatches.some((match: any) => match.reason === 'title-announcer'));
+    assert.ok(observation.warningMatches.some((match: any) => match.reason === 'bare-warning-text'));
+    const serialized = JSON.stringify(observation.warningMatches);
+    assert.doesNotMatch(serialized, /Nguyễn Văn A|nguyen\.van\.a@example\.test|84901234567/);
+    for (const match of observation.warningMatches) {
+      assert.ok(match.text === null || match.text.length <= 80);
+    }
+    assert.equal(observation.warningMatches.filter((match: any) => match.classSample.includes('header-alert')).length, 0);
+  } finally {
+    if (previous.document === undefined) delete (globalThis as any).document; else (globalThis as any).document = previous.document;
+    if (previous.location === undefined) delete (globalThis as any).location; else (globalThis as any).location = previous.location;
+    if (previous.window === undefined) delete (globalThis as any).window; else (globalThis as any).window = previous.window;
+    if (previous.getComputedStyle === undefined) delete (globalThis as any).getComputedStyle; else (globalThis as any).getComputedStyle = previous.getComputedStyle;
+    dom.window.close();
+  }
+});
+
 test('whoami maps only displayed synthetic quota fields', async () => {
   const { parseWhoamiObservation } = await import(parserUrl.href);
   assert.deepEqual(parseWhoamiObservation(await load('metric-whoami')), {
@@ -210,6 +393,34 @@ async function installOpenCliTestStub(): Promise<void> {
   await writeFile(join(root, 'registry.js'), 'export const Strategy = Object.freeze({ UI: "ui" }); export function cli(options) { return options; }\n');
   await writeFile(join(root, 'errors.js'), 'export class CliError extends Error { constructor(code, message) { super(message); this.code = code; } }\n');
 }
+
+test('diagnostics are opt-in and identity-safe for warning matches', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const observation = {
+    url: 'https://metric.vn/analytics', bodyText: '', metricRootVisible: true,
+    warningVisible: true, warningMatches: [
+      { via: 'selector', tag: 'div', role: 'alert', classSample: 'header account-alert', text: 'Nguyễn Văn A nguyen.van.a@example.test +84901234567 20261012', reason: 'alert-role' },
+      { via: 'selector', tag: 'div', role: 'alert', classSample: 'ant-alert-info', text: 'Nguyễn Văn A', reason: 'info-alert' },
+      { via: 'selector', tag: 'div', role: 'alert', classSample: 'ant-alert-warning', text: 'access denied for nguyen.van.a@example.test +84901234567 on 20261012', reason: 'warning-class' },
+    ],
+  };
+  const page = { wait: async () => {}, evaluate: async () => observation };
+  await assert.rejects(() => adapter.__test__.readObservation(page, { includeResults: false }), (error: any) => {
+    assert.equal(error.details, undefined);
+    assert.doesNotMatch(error.message, /warningMatches|nguyen\.van\.a|Nguyễn Văn A|84901234567|20261012/);
+    return true;
+  });
+  await assert.rejects(() => adapter.__test__.readObservation(page, { includeResults: false, diagnose: true }), (error: any) => {
+    const serialized = JSON.stringify(error.details);
+    assert.doesNotMatch(serialized, /nguyen\.van\.a@example\.test|84901234567|20261012|Nguyễn Văn A/);
+    assert.deepEqual(error.details.warningMatches, [
+      { via: 'selector', tag: 'div', role: 'alert', classSample: 'ant-alert-info', reason: 'info-alert', text: null },
+      { via: 'selector', tag: 'div', role: 'alert', classSample: 'ant-alert-warning', reason: 'warning-class', text: 'access denied for [redacted-email] [redacted-phone] on [redacted-phone]' },
+    ]);
+    return true;
+  });
+});
 
 const commandSpec = {
   keywords: ['synthetic-keyword'], platforms: ['shopee', 'tiktok'],

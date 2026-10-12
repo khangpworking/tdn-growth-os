@@ -24,8 +24,58 @@ const DEFAULT_WAIT_SECONDS = 2;
 
 function asCliError(error) {
   if (error instanceof CliError) return error;
-  if (error instanceof MetricAdapterError) return new CliError(error.code, error.message);
+  if (error instanceof MetricAdapterError) {
+    const matches = error.details?.warningMatches;
+    const detail = Array.isArray(matches) ? `; warningMatches=${JSON.stringify(matches.slice(0, 10))}` : '';
+    return new CliError(error.code, `${error.message}${detail}`);
+  }
   return new CliError('METRIC_UI_CHANGED', error instanceof Error ? error.message : String(error));
+}
+
+const diagnosticTextLimit = 80;
+
+function diagnosticSample(value) {
+  return String(value ?? '').replace(/\d/g, '#').slice(0, diagnosticTextLimit);
+}
+
+function redactDiagnosticText(value) {
+  return String(value ?? '')
+    .normalize('NFC')
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]')
+    .replace(/(?<!\w)\+?\d[\d\s().-]{5,}\d(?!\w)/g, '[redacted-phone]')
+    .replace(/\d/g, '#')
+    .slice(0, diagnosticTextLimit);
+}
+
+function isHeaderOrAccountDiagnostic(match) {
+  const marker = `${match?.tag ?? ''} ${match?.classSample ?? ''}`;
+  return /^(?:header)$/i.test(String(match?.tag ?? ''))
+    || /header|account|profile|avatar|user[-_ ]?(?:info|widget|menu)?|nickname|shop[-_ ]?owner/i.test(marker);
+}
+
+function diagnosticMatchIsBenign(match) {
+  const reason = String(match?.reason ?? '');
+  if (['title-announcer', 'info-alert', 'success-alert', 'icon-or-badge', 'alert-like'].includes(reason)) return true;
+  if (/^(?:warning|error)-class$|^(?:restriction-text|bare-warning-text|alert-role)$/.test(reason)) return false;
+  const classes = String(match?.classSample ?? '');
+  if (/(?:^|[-_\s])(?:info|success)(?:$|[-_\s])/i.test(classes)) return true;
+  return String(match?.role ?? '').toLowerCase() !== 'alert' && !/warning|error/i.test(classes);
+}
+
+function safeWarningMatches(matches) {
+  if (!Array.isArray(matches)) return [];
+  return matches.filter(match => match && typeof match === 'object' && !isHeaderOrAccountDiagnostic(match)).map(match => {
+    const base = {
+      via: String(match.via ?? 'unknown'),
+      tag: String(match.tag ?? 'unknown').toLowerCase(),
+      role: match.role == null ? null : String(match.role),
+      classSample: diagnosticSample(match.classSample),
+      reason: String(match.reason ?? 'unspecified'),
+    };
+    return diagnosticMatchIsBenign(match)
+      ? { ...base, text: null }
+      : { ...base, text: redactDiagnosticText(match.text) };
+  });
 }
 
 async function withMetricTab(page, task) {
@@ -147,13 +197,89 @@ function observeMetricPage(includeResults = true) {
   }));
   const visibleTextContent = [...document.querySelectorAll('#header, #QuerySearchBuilder, #main-content #analytic-tab, [data-v-50902570]')]
     .filter(visible).map(textOf).filter(Boolean).join('\n');
+  const normaliseMetricTextInPage = value => String(value ?? '').normalize('NFC').toLowerCase().replace(/\s+/g, ' ').trim();
+  const stripMetricDiacriticsInPage = value => normaliseMetricTextInPage(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
+  const metricWordsInPage = value => new Set(value.split(/[^\p{L}\p{N}]+/u).filter(Boolean));
+  const hasRestrictionInPage = value => {
+    const normalised = normaliseMetricTextInPage(value);
+    const stripped = stripMetricDiacriticsInPage(normalised);
+    const matches = text => /(?:access\s+denied|denied\s+access|unauthorized|forbidden|blocked|limit\s+(?:reached|exceeded)|(?:reached|exceeded)\s+limit|session\s+expired|suspended)/i.test(text)
+      || [['quyen', 'truy', 'cap', 'bi', 'tu', 'choi'], ['gioi', 'han'], ['het', 'luot'], ['vuot', 'qua'], ['phien', 'dang', 'nhap', 'het', 'han'], ['het', 'phien'], ['tai', 'khoan', 'bi', 'khoa'], ['tai', 'khoan', 'tam', 'khoa'], ['khong', 'co', 'quyen'], ['tam', 'thoi', 'khong', 'kha', 'dung'], ['access', 'denied'], ['denied', 'access'], ['limit', 'reached'], ['reached', 'limit'], ['limit', 'exceeded'], ['exceeded', 'limit'], ['session', 'expired']]
+        .some(words => words.every(word => metricWordsInPage(text).has(word)));
+    return matches(normalised) || matches(stripped);
+  };
+  const isBareWarningInPage = value => {
+    const normalised = stripMetricDiacriticsInPage(value);
+    return normalised === 'warning' || normalised === 'canh bao';
+  };
+  const warningScopeRoots = [...document.querySelectorAll('#main-content, main, [role="main"], [role="dialog"], .ant-modal, .ant-modal-root')]
+    .filter(visible);
+  const isHeaderOrAccount = element => {
+    const marker = `${element?.tagName || ''} ${element?.id || ''} ${typeof element?.className === 'string' ? element.className : ''}`;
+    return Boolean(element?.closest?.('header,#header,[class*="header" i],[class*="account" i],[class*="profile" i],[class*="avatar" i],[class*="user" i]'))
+      || /header|account|profile|avatar|nickname|shop[-_ ]?owner|user[-_ ]?(?:info|widget|menu)?/i.test(marker);
+  };
+  const inWarningScope = element => warningScopeRoots.some(root => root === element || root.contains(element)) && !isHeaderOrAccount(element);
+  const scopedElements = [...document.querySelectorAll('body *')].filter(element => visible(element) && inWarningScope(element));
+  const classOf = element => String(element?.getAttribute?.('class') ?? (typeof element?.className === 'string' ? element.className : ''));
+  const isAlertContainer = element => element?.getAttribute?.('role') === 'alert'
+    || /(?:^|\s)ant-(?:alert|message-notice|message-custom-content|notification-notice)(?:-(?:warning|error))?(?:\s|$)|(?:^|\s)ant-(?:alert|message|notification(?:-notice)?)-(?:warning|error)(?:\s|$)/i.test(classOf(element));
+  const isIconOrBadge = element => !isAlertContainer(element)
+    && (['i', 'svg', 'img', 'path', 'use'].includes(String(element?.tagName || '').toLowerCase())
+      || /(?:^|[-_\s])(?:icon|anticon|badge|dot|count)(?:$|[-_\s])/i.test(classOf(element)));
+  const explicitAlertKind = element => {
+    const marker = `${classOf(element)} ${element?.getAttribute?.('type') || ''} ${element?.getAttribute?.('status') || ''}`;
+    if (/(?:^|[-_\s])info(?:$|[-_\s])/i.test(marker)) return 'info-alert';
+    if (/(?:^|[-_\s])success(?:$|[-_\s])/i.test(marker)) return 'success-alert';
+    return null;
+  };
+  const titleAnnouncer = element => {
+    const text = normaliseMetricTextInPage(textOf(element)); const title = normaliseMetricTextInPage(document.title);
+    return !text || Boolean(title && title.startsWith(text));
+  };
+  const redactDiagnosticTextInPage = value => String(value ?? '').normalize('NFC')
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]')
+    .replace(/(?<!\w)\+?\d[\d\s().-]{5,}\d(?!\w)/g, '[redacted-phone]')
+    .replace(/\d/g, '#').slice(0, 80);
+  const sample = (value, max = 80) => String(value ?? '').replace(/\d/g, '#').slice(0, max);
+  const describeWarning = (element, via, reason, causesFailure) => {
+    const base = {
+      via, tag: String(element?.tagName || 'unknown').toLowerCase(), role: element?.getAttribute?.('role') || null,
+      classSample: sample(classOf(element)), reason,
+    };
+    return causesFailure ? { ...base, text: redactDiagnosticTextInPage(textOf(element)) } : { ...base, text: null };
+  };
+  const warningMatchesByElement = new Map();
+  const addWarning = (element, via, reason, causesFailure) => {
+    if (!warningMatchesByElement.has(element)) warningMatchesByElement.set(element, describeWarning(element, via, reason, causesFailure));
+  };
+  for (const element of scopedElements.filter(candidate => candidate.matches('[role="alert"],[class*="warning" i],[class*="error" i],[class*="alert" i]'))) {
+    const className = classOf(element);
+    if (isIconOrBadge(element) && !hasRestrictionInPage(textOf(element))) addWarning(element, 'selector', 'icon-or-badge', false);
+    else if (/warning/i.test(className)) addWarning(element, 'selector', 'warning-class', true);
+    else if (/error/i.test(className)) addWarning(element, 'selector', 'error-class', true);
+    else if (element.getAttribute('role') === 'alert' && titleAnnouncer(element)) addWarning(element, 'selector', 'title-announcer', false);
+    else if (element.getAttribute('role') === 'alert' && explicitAlertKind(element)) addWarning(element, 'selector', explicitAlertKind(element), false);
+    else if (element.getAttribute('role') === 'alert') addWarning(element, 'selector', 'alert-role', true);
+    else if (explicitAlertKind(element)) addWarning(element, 'selector', explicitAlertKind(element), false);
+    else addWarning(element, 'selector', 'alert-like', false);
+  }
+  for (const element of scopedElements.filter(candidate => {
+    const text = textOf(candidate);
+    if (!text || (!hasRestrictionInPage(text) && !isBareWarningInPage(text))) return false;
+    return ![...candidate.children].some(child => hasRestrictionInPage(textOf(child)) || isBareWarningInPage(textOf(child)));
+  })) {
+    if (!hasRestrictionInPage(textOf(element)) && isIconOrBadge(element)) addWarning(element, 'text', 'icon-or-badge', false);
+    else addWarning(element, 'text', isBareWarningInPage(textOf(element)) ? 'bare-warning-text' : 'restriction-text', true);
+  }
+  const warningMatches = [...warningMatchesByElement.values()].slice(0, 20);
   const loginVisible = [...document.querySelectorAll('a,button,[role="button"]')]
     .some(element => visible(element) && /^(?:login|đăng nhập)$/i.test(textOf(element)));
   const captchaVisible = [...document.querySelectorAll('[id*="captcha" i],[class*="captcha" i],iframe[src*="captcha" i]')]
     .some(visible) || /captcha|verify you are human/i.test(visibleTextContent);
   const logoutVisible = /(?:logged\s*out|signed\s*out|session\s+expired|đã\s+đăng\s+xuất|phiên.*hết\s+hạn)/i.test(visibleTextContent);
-  const warningVisible = [...document.querySelectorAll('[role="alert"],[class*="warning" i],[class*="alert" i]')]
-    .some(visible) || /warning|access denied|unauthorized|blocked|session expired|cảnh báo|tạm thời không khả dụng/i.test(visibleTextContent);
+  const scopedWarningText = scopedElements.filter(element => element.children.length === 0).map(textOf).filter(Boolean).join('\n');
+  const warningVisible = [...warningMatchesByElement.entries()].some(([, match]) => ['warning-class', 'error-class', 'alert-role', 'restriction-text', 'bare-warning-text'].includes(match.reason));
   const quotaText = [...document.querySelectorAll('#QuerySearchBuilder, body *')]
     .filter(element => visible(element) && element.children.length === 0 && textOf(element).length <= 240).map(textOf);
   const number = value => {
@@ -178,18 +304,25 @@ function observeMetricPage(includeResults = true) {
   return {
     url: location.href, title: document.title, bodyText: visibleTextContent,
     metricRootVisible: visible(document.querySelector('#main-content #analytic-tab')),
-    loginVisible, captchaVisible, logoutVisible, warningVisible,
+    loginVisible, captchaVisible, logoutVisible, warningVisible, warningMatches, warningText: scopedWarningText,
     accountState: loggedInMarker ? 'logged_in' : loginVisible ? 'logged_out' : 'unknown',
     controls, appliedFilters, rowCount, snapshot,
     quota: { analysisLookupsRemaining: number(analysisQuotaText) },
   };
 }
 
-async function readObservation(page, { includeResults = true } = {}) {
+async function readObservation(page, { includeResults = true, diagnose = false } = {}) {
   await page.wait({ selector: '#QuerySearchBuilder', timeout: 15 }).catch(() => {});
   await page.wait({ selector: '#main-content #analytic-tab', timeout: 15 }).catch(() => {});
   const observation = await page.evaluate(observeMetricPage, includeResults);
-  return gateMetricPage(observation);
+  try {
+    return gateMetricPage(observation);
+  } catch (error) {
+    if (error instanceof MetricAdapterError && diagnose) {
+      error.details = { warningMatches: safeWarningMatches(observation.warningMatches) };
+    }
+    throw error;
+  }
 }
 
 function readCommittedKeywords() {
@@ -439,13 +572,90 @@ function observeResultPage() {
   };
   const platformViews = [...document.querySelectorAll('[data-metric-platform-view],[data-platform-view],[role="tab"]')]
     .filter(visible).map((element, index) => ({ label: textOf(element), selected: element.getAttribute('aria-selected') === 'true' || element.classList.contains('active'), selector: '[data-metric-platform-view],[data-platform-view],[role="tab"]', index }));
+  const normaliseMetricTextInPage = value => String(value ?? '').normalize('NFC').toLowerCase().replace(/\s+/g, ' ').trim();
+  const stripMetricDiacriticsInPage = value => normaliseMetricTextInPage(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
+  const metricWordsInPage = value => new Set(value.split(/[^\p{L}\p{N}]+/u).filter(Boolean));
+  const hasRestrictionInPage = value => {
+    const normalised = normaliseMetricTextInPage(value);
+    const stripped = stripMetricDiacriticsInPage(normalised);
+    const matches = text => /(?:access\s+denied|denied\s+access|unauthorized|forbidden|blocked|limit\s+(?:reached|exceeded)|(?:reached|exceeded)\s+limit|session\s+expired|suspended)/i.test(text)
+      || [['quyen', 'truy', 'cap', 'bi', 'tu', 'choi'], ['gioi', 'han'], ['het', 'luot'], ['vuot', 'qua'], ['phien', 'dang', 'nhap', 'het', 'han'], ['het', 'phien'], ['tai', 'khoan', 'bi', 'khoa'], ['tai', 'khoan', 'tam', 'khoa'], ['khong', 'co', 'quyen'], ['tam', 'thoi', 'khong', 'kha', 'dung'], ['access', 'denied'], ['denied', 'access'], ['limit', 'reached'], ['reached', 'limit'], ['limit', 'exceeded'], ['exceeded', 'limit'], ['session', 'expired']]
+        .some(words => words.every(word => metricWordsInPage(text).has(word)));
+    return matches(normalised) || matches(stripped);
+  };
+  const isBareWarningInPage = value => {
+    const normalised = stripMetricDiacriticsInPage(value);
+    return normalised === 'warning' || normalised === 'canh bao';
+  };
+  const warningScopeRoots = [...document.querySelectorAll('#main-content, main, [role="main"], [role="dialog"], .ant-modal, .ant-modal-root')]
+    .filter(visible);
+  const isHeaderOrAccount = element => {
+    const marker = `${element?.tagName || ''} ${element?.id || ''} ${typeof element?.className === 'string' ? element.className : ''}`;
+    return Boolean(element?.closest?.('header,#header,[class*="header" i],[class*="account" i],[class*="profile" i],[class*="avatar" i],[class*="user" i]'))
+      || /header|account|profile|avatar|nickname|shop[-_ ]?owner|user[-_ ]?(?:info|widget|menu)?/i.test(marker);
+  };
+  const inWarningScope = element => warningScopeRoots.some(root => root === element || root.contains(element)) && !isHeaderOrAccount(element);
+  const scopedElements = [...document.querySelectorAll('body *')].filter(element => visible(element) && inWarningScope(element));
+  const classOf = element => String(element?.getAttribute?.('class') ?? (typeof element?.className === 'string' ? element.className : ''));
+  const isAlertContainer = element => element?.getAttribute?.('role') === 'alert'
+    || /(?:^|\s)ant-(?:alert|message-notice|message-custom-content|notification-notice)(?:-(?:warning|error))?(?:\s|$)|(?:^|\s)ant-(?:alert|message|notification(?:-notice)?)-(?:warning|error)(?:\s|$)/i.test(classOf(element));
+  const isIconOrBadge = element => !isAlertContainer(element)
+    && (['i', 'svg', 'img', 'path', 'use'].includes(String(element?.tagName || '').toLowerCase())
+      || /(?:^|[-_\s])(?:icon|anticon|badge|dot|count)(?:$|[-_\s])/i.test(classOf(element)));
+  const explicitAlertKind = element => {
+    const marker = `${classOf(element)} ${element?.getAttribute?.('type') || ''} ${element?.getAttribute?.('status') || ''}`;
+    if (/(?:^|[-_\s])info(?:$|[-_\s])/i.test(marker)) return 'info-alert';
+    if (/(?:^|[-_\s])success(?:$|[-_\s])/i.test(marker)) return 'success-alert';
+    return null;
+  };
+  const titleAnnouncer = element => {
+    const text = normaliseMetricTextInPage(textOf(element)); const title = normaliseMetricTextInPage(document.title);
+    return !text || Boolean(title && title.startsWith(text));
+  };
+  const redactDiagnosticTextInPage = value => String(value ?? '').normalize('NFC')
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]')
+    .replace(/(?<!\w)\+?\d[\d\s().-]{5,}\d(?!\w)/g, '[redacted-phone]')
+    .replace(/\d/g, '#').slice(0, 80);
+  const sample = (value, max = 80) => String(value ?? '').replace(/\d/g, '#').slice(0, max);
+  const describeWarning = (element, via, reason, causesFailure) => {
+    const base = {
+      via, tag: String(element?.tagName || 'unknown').toLowerCase(), role: element?.getAttribute?.('role') || null,
+      classSample: sample(classOf(element)), reason,
+    };
+    return causesFailure ? { ...base, text: redactDiagnosticTextInPage(textOf(element)) } : { ...base, text: null };
+  };
+  const warningMatchesByElement = new Map();
+  const addWarning = (element, via, reason, causesFailure) => {
+    if (!warningMatchesByElement.has(element)) warningMatchesByElement.set(element, describeWarning(element, via, reason, causesFailure));
+  };
+  for (const element of scopedElements.filter(candidate => candidate.matches('[role="alert"],[class*="warning" i],[class*="error" i],[class*="alert" i]'))) {
+    const className = classOf(element);
+    if (isIconOrBadge(element) && !hasRestrictionInPage(textOf(element))) addWarning(element, 'selector', 'icon-or-badge', false);
+    else if (/warning/i.test(className)) addWarning(element, 'selector', 'warning-class', true);
+    else if (/error/i.test(className)) addWarning(element, 'selector', 'error-class', true);
+    else if (element.getAttribute('role') === 'alert' && titleAnnouncer(element)) addWarning(element, 'selector', 'title-announcer', false);
+    else if (element.getAttribute('role') === 'alert' && explicitAlertKind(element)) addWarning(element, 'selector', explicitAlertKind(element), false);
+    else if (element.getAttribute('role') === 'alert') addWarning(element, 'selector', 'alert-role', true);
+    else if (explicitAlertKind(element)) addWarning(element, 'selector', explicitAlertKind(element), false);
+    else addWarning(element, 'selector', 'alert-like', false);
+  }
+  for (const element of scopedElements.filter(candidate => {
+    const text = textOf(candidate);
+    if (!text || (!hasRestrictionInPage(text) && !isBareWarningInPage(text))) return false;
+    return ![...candidate.children].some(child => hasRestrictionInPage(textOf(child)) || isBareWarningInPage(textOf(child)));
+  })) {
+    if (!hasRestrictionInPage(textOf(element)) && isIconOrBadge(element)) addWarning(element, 'text', 'icon-or-badge', false);
+    else addWarning(element, 'text', isBareWarningInPage(textOf(element)) ? 'bare-warning-text' : 'restriction-text', true);
+  }
+  const warningMatches = [...warningMatchesByElement.values()].slice(0, 20);
+  const scopedWarningText = scopedElements.filter(element => element.children.length === 0).map(textOf).filter(Boolean).join('\n');
   return {
     url: location.href, title: document.title, html: document.documentElement.outerHTML,
     bodyText: textOf(document.body), metricRootVisible: visible(document.querySelector('#main-content #analytic-tab')),
     loginVisible: [...document.querySelectorAll('a,button,[role="button"]')].some(element => visible(element) && /^(?:login|đăng nhập)$/i.test(textOf(element))),
     captchaVisible: [...document.querySelectorAll('[id*="captcha" i],[class*="captcha" i],iframe[src*="captcha" i]')].some(visible) || /captcha|verify you are human/i.test(textOf(document.body)),
     logoutVisible: /(?:logged\s*out|signed\s*out|session\s+expired|đã\s+đăng\s+xuất|phiên.*hết\s+hạn)/i.test(textOf(document.body)),
-    warningVisible: [...document.querySelectorAll('[role="alert"],[class*="warning" i],[class*="alert" i]')].some(visible) || /warning|access denied|unauthorized|blocked|session expired|cảnh báo|tạm thời không khả dụng/i.test(textOf(document.body)),
+    warningMatches, warningVisible: [...warningMatchesByElement.entries()].some(([, match]) => ['warning-class', 'error-class', 'alert-role', 'restriction-text', 'bare-warning-text'].includes(match.reason)), warningText: scopedWarningText,
     regions, regionsHtml, screenshotRegions, pagination: regions['top-products']?.pagination || null, platformViews,
     snapshot: window.__metricWebSnapshot || window.__METRIC_WEB_SNAPSHOT__ || null,
   };
@@ -700,8 +910,12 @@ async function archiveResultsPage(page, out, spec, observation, parsed, productC
 }
 
 export const whoamiCommand = cli({
-  site: 'metric', name: 'whoami', access: 'read', description: 'Read Metric login and displayed analysis quota state', domain: 'metric.vn', strategy: Strategy.UI, browser: true, navigateBefore: false, siteSession: 'ephemeral', columns: ['status', 'plan', 'analysisLookupsRemaining'],
-  func: async page => withMetricTab(page, async target => [parseWhoamiObservation(await readObservation(target, { includeResults: false }))]),
+  site: 'metric', name: 'whoami', access: 'read', description: 'Read Metric login and displayed analysis quota state', domain: 'metric.vn', strategy: Strategy.UI, browser: true, navigateBefore: false, siteSession: 'ephemeral', args: [{ name: 'diagnose', type: 'boolean', default: false, help: 'Include warning-match diagnostics' }], columns: ['status', 'plan', 'analysisLookupsRemaining'],
+  func: async (page, args = {}) => withMetricTab(page, async target => {
+    const observation = await readObservation(target, { includeResults: false, diagnose: Boolean(args.diagnose) });
+    const result = parseWhoamiObservation(observation);
+    return [args.diagnose ? { ...result, warningMatches: safeWarningMatches(observation.warningMatches) } : result];
+  }),
 });
 
 export const searchCommand = cli({
@@ -721,5 +935,5 @@ export const captureCommand = cli({
   }),
 });
 
-export const __test__ = { withMetricTab, readObservation, applyMetricSpec, performSearch, observeResultPage, collectResultPages, archiveResultsPage, readCommittedKeywords };
+export const __test__ = { withMetricTab, readObservation, applyMetricSpec, performSearch, observeMetricPage, observeResultPage, collectResultPages, archiveResultsPage, readCommittedKeywords };
 export { assertMetricUrl, parseMetricForm };
