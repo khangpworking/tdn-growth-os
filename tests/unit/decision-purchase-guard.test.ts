@@ -78,5 +78,9 @@ test('the buyer noun "người mua" / "bên mua" is not a purchase proposal; rea
     'Ghi lại lời người mua rồi mua sản phẩm để kiểm tra',
     'Người mua tự nêu bối cảnh; mua sản phẩm đối thủ để kiểm tra',
     'Đề xuất người dùng mua sản phẩm để kiểm tra',
+    'đề xuất người mua thử sản phẩm', 'nhờ người mua sản phẩm', 'khuyến nghị người mua sản phẩm',
+    'Nên để bên mua đặt lô hàng', 'ĐỀ XUẤT NGƯỜI MUA THỬ SẢN PHẨM', 'Đề xuất  người   mua sản phẩm',
+    'Đề xuất người mua sản phẩm'.normalize('NFD'), 'Đề xuất\nngười mua sản phẩm', 'Đề xuất người mua\nsản phẩm',
+    'Ghi lại nguồn, người mua thử sản phẩm đối thủ', 'Recommend người mua một sản phẩm đối thủ',
   ]) assert.equal(hasAuthoredPurchaseProposal(text), true, text);
 });

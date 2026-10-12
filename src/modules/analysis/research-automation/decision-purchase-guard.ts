@@ -11,12 +11,15 @@ const NON_NEGATION = /(?:không chỉ|không thể không|không phải không|k
 const REPORTED_PAST = /^(?:khách hàng|người (?:dùng|viết|mua)|chủ|tôi|họ)\s+(?:đã|từng|vừa)\s*$/iu;
 const SOURCE_DESCRIPTION = /(?:nguồn(?:\s+[\p{L}'’-]+){0,3}\s+(?:ghi nhận|ghi|nêu|cho biết|tự báo cáo)|theo (?:nguồn|review)|source (?:reports|states)|review (?:reports|states))(?:\s+(?:(?!nên|cần|hãy|phải|should|must|recommend).){0,60})?$/iu;
 const DATA_NOUN = /(?:lịch sử|dữ liệu|bằng chứng|hồ sơ|hành vi|history of|records of|evidence of)\s*$/iu;
-// "người mua" / "bên mua" name the buyer (a noun), not a proposed purchase.
+// "người mua" / "bên mua" name the buyer (a noun), not a proposed purchase,
+// unless a directive governs it ("nhờ người mua ...") or a goods object follows.
 const BUYER_NOUN = /(?<![\p{L}\p{N}_])(?:người|bên)$/iu;
+const DIRECTIVE_BUYER = /(?<![\p{L}\p{N}_])(?:đề xuất|đề nghị|khuyến nghị|khuyên|nhờ|thuê|nên|hãy|cần|phải|yêu cầu|giao|cử|mời|recommend|suggest|propose|ask)(?:\s+(?:cho|để|một|các|những|mọi))?\s+(?:người|bên)$/iu;
+const GOODS_AFTER_BUYER = /^\s*(?:(?:thử|ngay|trước|luôn)(?![\p{L}\p{N}_])|(?:(?:một|hai|ba|vài|các|những|\d+)\s+)?(?:sản phẩm|hàng|mẫu|đơn|lô|gói)(?![\p{L}\p{N}_]))/iu;
 
 export function hasAuthoredPurchaseProposal(text: string): boolean {
   // Normalize a temporary matching view; never rewrite or return source/proposal bytes.
-  const view = text.normalize('NFC').replace(/[\t\r ]+/gu, ' ');
+  const view = text.normalize('NFC').replace(/[\t\r \u00a0]+/gu, ' ');
   for (const clause of view.split(CLAUSE)) {
     let prohibited: boolean = false;
     let previousEnd = 0;
@@ -33,7 +36,7 @@ export function hasAuthoredPurchaseProposal(text: string): boolean {
       if (/^purchase$/iu.test(match[0]) && /^\s*no$/iu.test(before) &&
           /^\s+(?:(?:is|was)\s+)?(?:needed|required|necessary)\b/iu.test(after)) continue;
       if (REPORTED_PAST.test(before) || SOURCE_DESCRIPTION.test(before) || DATA_NOUN.test(before)) continue;
-      if (/^mua$/iu.test(match[0]) && BUYER_NOUN.test(before)) continue;
+      if (/^mua$/iu.test(match[0]) && BUYER_NOUN.test(before) && !DIRECTIVE_BUYER.test(before) && !GOODS_AFTER_BUYER.test(after)) continue;
       // English noun phrases describing retained evidence are not proposed actions.
       if (/^(?:purchase|order)$/iu.test(match[0]) && /^\s+(?:history|records|receipts|data|evidence|behavior)\b/iu.test(after)) continue;
       // Ordering source records / "in order to" are not orders for goods.
