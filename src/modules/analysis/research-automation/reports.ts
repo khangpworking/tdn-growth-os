@@ -58,6 +58,7 @@ import type { CaptureRecord, ScopeSnapshot, StartSnapshot, StepResultDocument, S
 import { CitationRegistry, type CitationInput } from '../citation-registry.js';
 import { orderReportCitations, renderCitationMarkOrMissing, renderCitationRegister } from '../citation-register-html.js';
 import { lintVisibleReportText } from '../report-visible-text-lint.js';
+import { assertMarketBusinessGate } from './market-business-gate.js';
 import { formatReaderValue, readerProductLabel, readerShopLabel } from './reader-plain-text.js';
 import type { AutomationQualitativeDraft } from '../../../../contracts/analysis/automation-qualitative-draft-v1.generated.js';
 import { qualitativeDraftSection, qualitativeDraftSummary } from '../reader-report/qualitative-draft-report.js';
@@ -938,6 +939,8 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     const failed = lintVisibleReportText(html).filter(check => !check.ok);
     if (failed.length) throw new TypeError(`${marketPresentation ? 'MARKET' : 'INSIGHT'}_VISIBLE_TEXT_LINT_FAILED:${failed.map(check => check.rule).join(',')}`);
   }
+  // The visible-text lint keeps its own error; the business gate adds the remaining Market rules.
+  if (marketPresentation) assertMarketBusinessGate(html, { presentation: true });
   return { semantic: { ...semanticBase, citations: registry.technicalTrace(), citationEntries: registry.entries() }, html: Buffer.from(html, 'utf8') };
 }
 

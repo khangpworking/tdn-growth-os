@@ -15,7 +15,7 @@ export type LintOptions = {
 
 // Data providers that must never be named in a report (owner rule).
 export const FORBIDDEN_PROVIDER_NAMES: readonly string[] = ['Metric', 'Kalodata', 'TradeInt', 'Dami'];
-const CAPTURED_PROVIDER_NAMES: readonly string[] = [...FORBIDDEN_PROVIDER_NAMES, 'SerpApi', 'Apify', 'PageIndex', 'Agent-Reach', 'OpenCLI', 'zen-studio'];
+export const CAPTURED_PROVIDER_NAMES: readonly string[] = [...FORBIDDEN_PROVIDER_NAMES, 'SerpApi', 'Apify', 'PageIndex', 'Agent-Reach', 'OpenCLI', 'zen-studio'];
 
 export function visibleText(html: string): string {
   return html.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>|<svg[\s\S]*?<\/svg>/g, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ');
