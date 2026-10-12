@@ -1,0 +1,10 @@
+{
+  "url": "https://metric.vn/analytics",
+  "metricRootVisible": true,
+  "loginVisible": false,
+  "captchaVisible": false,
+  "bodyText": "Analytics Platform Time period Product category Keywords",
+  "accountState": "logged_in",
+  "plan": "synthetic",
+  "quota": { "analysisLookupsRemaining": 456 }
+}
