@@ -154,13 +154,15 @@ test('actual auto service builds source-bound findings/unit tables and immutable
   const metric = semantic.metricMethods;
   const oldM03 = metricMethodSection(metric, 'M03', undefined, citations);
   assert.equal(metricMethodSection(metric, 'M03', undefined, citations, false), oldM03);
-  assert.equal(oldM03.includes('UNKNOWN'), false);
-  assert.ok(oldM03.includes('chưa rõ'));
-  assert.ok(oldM03.includes('không phải 0'));
-  const visibleM03Document = new JSDOM(oldM03).window.document;
+  assert.ok(oldM03.includes('không nhất thiết'));
+  assert.equal(metricMethodSection(metric, 'M03', undefined, citations, true), oldM03.replace('không nhất thiết là', 'chưa chứng minh'));
+  const readerM03 = metricMethodSection(metric, 'M03', undefined, citations, false, true);
+  assert.equal(readerM03.includes('UNKNOWN'), false);
+  assert.ok(readerM03.includes('chưa rõ'));
+  assert.ok(readerM03.includes('không phải 0'));
+  const visibleM03Document = new JSDOM(readerM03).window.document;
   visibleM03Document.querySelectorAll('details').forEach(node => node.remove());
   assert.doesNotMatch(visibleM03Document.body.textContent ?? '', /\b(?:L|S)\d+\b/);
-  assert.equal(metricMethodSection(metric, 'M03', undefined, citations, true), oldM03.replace('không nhất thiết là', 'chưa chứng minh'));
   const rendererInput: Parameters<typeof buildResearchAutomationReport>[0] = { run: await f.service.getRun(workspaceId, runId), start: { contractVersion: 'research-automation-start-snapshot-v1', workspaceId, country: 'VN', mode: 'CATEGORY', description: null, interview: null, keyword: 'synthetic jar',
     requestedPeriod: { startDate: '2026-01-01', endDate: '2026-01-30', dayCount: 30 }, reports: ['MARKET', 'INSIGHT'] }, scope: semantic.scope,
     collection: null, captures: [], marketPresentation: method };

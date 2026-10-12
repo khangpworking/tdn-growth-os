@@ -2,7 +2,7 @@ import type { AutomationM01EvidenceInventory } from '../../../../contracts/analy
 import type { AutomationI14EvidenceAdmission, UnassignedClaim } from '../../../../contracts/analysis/automation-i14-evidence-admission.generated.js';
 import type { AutomationSourceClaims, Claim } from '../../../../contracts/analysis/automation-source-claims.generated.js';
 import { attributionText, escapeHtml as escape, readerSafe, retainedQuoteHtml, technicalLiteral, type ReportCitations } from './descriptive-report.js';
-import { formatReaderValue as formatReaderPlainValue, readerDateBasis as readerPlainDateBasis, readerMeasureName as readerPlainMeasureName, readerMethodName as readerPlainMethodName, readerScopeText as readerPlainScopeText } from './reader-plain-text.js';
+import { formatReaderCount, formatReaderValue as formatReaderPlainValue, readerDateBasis as readerPlainDateBasis, readerMeasureName as readerPlainMeasureName, readerMethodName as readerPlainMethodName, readerScopeText as readerPlainScopeText } from './reader-plain-text.js';
 import type { AutomationI14ExecutionOutcome } from './i14-synthesis-execution.js';
 import type { AutomationDecisionCandidates, AutomationDecisionPacket, DecisionCounterevidenceRelation } from '../../../../contracts/analysis/automation-decision-packets.generated.js';
 import type { AutomationDecisionExecutionOutcome } from './decision-synthesis-execution.js';
@@ -188,8 +188,8 @@ function claimById(claims: ReadonlyMap<string, Claim>, claimId: string): Claim {
   return claim;
 }
 
-export function m01InventorySection(inventory: AutomationM01EvidenceInventory, claims: AutomationSourceClaims, citations: ReportCitations = NO_CITATIONS): string {
-  activeReaderPlainText = citations.readerPlainText !== false;
+export function m01InventorySection(inventory: AutomationM01EvidenceInventory, claims: AutomationSourceClaims, citations: ReportCitations = NO_CITATIONS, readerPlainText = false): string {
+  activeReaderPlainText = readerPlainText;
   const claimIndex = new Map(claims.claims.map(claim => [claim.claimId, claim]));
   const intro = '<p>Đây là danh sách bằng chứng đã lưu, chưa xếp hạng và chưa có kết luận chính. Người dùng chưa đặt câu hỏi quyết định cụ thể; hệ thống không tự chọn ưu tiên.</p>';
   const rows = inventory.items.map(item => {
@@ -199,7 +199,8 @@ export function m01InventorySection(inventory: AutomationM01EvidenceInventory, c
     const separator = activeReaderPlainText ? ' ' : '';
     return `<tr><td><span class="evidence-cell-label" aria-hidden="true">Bằng chứng</span>${storedText(item.measure?.entityLabel ?? item.source.attribution, 'Chưa có nhãn nguồn', 'Nhãn nguồn được giữ trong bản lưu')}<br>${storedText(item.measure?.definition, 'Lời khai từ nguồn', 'Định nghĩa đo lường được giữ trong bản lưu')}<br><small>${escape(readerMethodName(item.sectionId))}</small></td>${separator}<td><span class="evidence-cell-label" aria-hidden="true">Giá trị và trạng thái</span>${value}<br><small>${item.state === 'observed_zero' ? 'Nguồn ghi nhận bằng 0' : item.state === 'DECLARED' ? 'Lời khai, không phải phép đo' : 'Giá trị nguồn'} · ${item.precision === 'non_exact' ? 'Không chính xác tuyệt đối' : item.precision === 'exact' ? 'Giá trị chính xác theo nguồn' : 'Không áp dụng độ chính xác số'}</small></td>${separator}<td><span class="evidence-cell-label" aria-hidden="true">Kỳ đo và phạm vi</span>${period}<br><small>${readerScopeText(item.scope.description, 'Phạm vi nguồn được giữ trong bản lưu')}</small></td>${separator}<td>${sourceDetails(claim, 'claim', citations)}</td></tr>`;
   }).join('');
-  return intro + (rows ? `<div class="table-wrap" role="region" aria-label="Danh sách bằng chứng chưa xếp hạng" tabindex="0"><table class="evidence-table"><caption>${inventory.items.length} mục bằng chứng, không phải số khách hàng hoặc tổng thị trường</caption><thead><tr><th scope="col">Bằng chứng</th><th scope="col">Giá trị và trạng thái</th><th scope="col">Kỳ đo và phạm vi</th><th scope="col">Truy nguồn</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="warning">Chưa có bằng chứng đầu nguồn đủ điều kiện cho M01. Không thể viết kết luận từ khoảng trống này.</p>') + methodLimits(inventory.limitations);
+  const itemCount = activeReaderPlainText ? formatReaderCount(inventory.items.length) ?? 'chưa rõ' : String(inventory.items.length);
+  return intro + (rows ? `<div class="table-wrap" role="region" aria-label="Danh sách bằng chứng chưa xếp hạng" tabindex="0"><table class="evidence-table"><caption>${itemCount} mục bằng chứng, không phải số khách hàng hoặc tổng thị trường</caption><thead><tr><th scope="col">Bằng chứng</th><th scope="col">Giá trị và trạng thái</th><th scope="col">Kỳ đo và phạm vi</th><th scope="col">Truy nguồn</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="warning">Chưa có bằng chứng đầu nguồn đủ điều kiện cho M01. Không thể viết kết luận từ khoảng trống này.</p>') + methodLimits(inventory.limitations);
 }
 
 const unassignedCopy: Readonly<Record<UnassignedClaim['reason'], string>> = {

@@ -450,7 +450,7 @@ function productLabels(input: AutomationReportInput): ReadonlyMap<string, string
   return new Map((input.collection?.productCards ?? []).flatMap(card => card.title?.trim() ? [[card.productId, card.title.trim()] as const] : []));
 }
 
-function observationTable(rows: readonly TypedComparable[], captures: ReadonlyMap<number, CaptureRecord>, citations: ReportCitations, labels: ReadonlyMap<string, string>, readerPlainText = citations.readerPlainText !== false): string {
+function observationTable(rows: readonly TypedComparable[], captures: ReadonlyMap<number, CaptureRecord>, citations: ReportCitations, labels: ReadonlyMap<string, string>, readerPlainText = false): string {
   if (!rows.length) return '';
   if (!readerPlainText) return `<div class="table-wrap" role="region" aria-label="Giá trị nguồn theo từng sản phẩm và kỳ truy vấn" tabindex="0"><table class="observations"><caption>Giá trị nguồn theo từng sản phẩm và kỳ truy vấn. Không phải tổng thị trường.</caption><thead><tr><th scope="col">Sản phẩm nguồn</th><th scope="col">Phép đo / đơn vị</th><th scope="col">Giá trị nguồn</th><th scope="col">Kỳ đo</th><th scope="col">Nguồn</th></tr></thead><tbody>${rows.map(row => `<tr><td>${escape(sourceMemberLabel(row.productId, false))}</td><td>${escape(row.metric === 'GMV_VND' ? 'Doanh thu (VND)' : 'Lượt bán')}</td><td>${escape(row.value)}</td><td>${escape(row.window.startDate)} đến ${escape(row.window.endDate)}</td><td>${captureMark(captures.get(row.captureIndex)!, citations)}</td></tr>`).join('')}</tbody></table></div>`;
   return `<div class="table-wrap" role="region" aria-label="Giá trị nguồn theo từng sản phẩm và kỳ truy vấn" tabindex="0"><table class="observations"><caption>Giá trị nguồn theo từng sản phẩm và kỳ truy vấn. Không phải tổng thị trường.</caption><thead><tr><th scope="col">Sản phẩm nguồn</th><th scope="col">Phép đo / đơn vị</th><th scope="col">Giá trị nguồn</th><th scope="col">Kỳ đo</th><th scope="col">Nguồn</th></tr></thead><tbody>${rows.map(row => { const measure = row.metric === 'GMV_VND' ? 'revenue' : 'sales_volumn'; return `<tr><td>${escape(readerProductLabel(sourceMemberLabel(row.productId), labels.get(row.productId)))}</td> <td>${escape(measureLabel[row.metric])}</td> <td>${escape(formatReaderValue(row.value, { measure, unit: row.metric === 'GMV_VND' ? 'VND' : 'đơn vị' }) ?? 'Giá trị được giữ trong bản lưu nguồn')}</td> <td>${escape(row.window.startDate)} đến ${escape(row.window.endDate)}</td> <td>${captureMark(captures.get(row.captureIndex)!, citations)}</td></tr>`; }).join('')}</tbody></table></div>`;
@@ -478,7 +478,7 @@ function peerEvidence(input: AutomationReportInput, captures: ReadonlyMap<number
   });
 }
 
-function defaultPeerSection(snapshot: DefaultMarketPeers, citations: ReportCitations, labels: ReadonlyMap<string, string>, readerPlainText = citations.readerPlainText !== false): string {
+function defaultPeerSection(snapshot: DefaultMarketPeers, citations: ReportCitations, labels: ReadonlyMap<string, string>, readerPlainText = false): string {
   const mark = (ref: DefaultMarketPeers['input']['records'][number]['source']): string => {
     if (ref === null) return 'Chưa có nguồn';
     const pointer = readerPointer(ref.locator, readerPlainText);
@@ -866,14 +866,14 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
       ? `<details open id="bounded-method-evidence"><summary>Hồ sơ phương pháp M10/I11/I12/I16 và vị trí nguồn</summary><p>Nguồn bổ sung do người dùng chọn, không phải dữ liệu tự thu hoặc xác nhận độ phủ. Hồ sơ giữ riêng kỳ, phạm vi và điều kiện còn thiếu; không cộng gộp với số liệu thị trường hoặc review.</p>${retainedEvidenceHtml(input.boundedMethods)}</details>` : '');
   const baseAppendix = (sectionId: string): string => {
     if (sourceScope && sectionId === 'M02') return marketSourceScopeSection(sourceScope, 'M02', citations);
-    if (kind === 'MARKET' && sectionId === 'M01' && input.m01Inventory && input.sourceClaims) return m01InventorySection(input.m01Inventory, input.sourceClaims, citations);
+    if (kind === 'MARKET' && sectionId === 'M01' && input.m01Inventory && input.sourceClaims) return m01InventorySection(input.m01Inventory, input.sourceClaims, citations, readerPlainText);
     if (kind === 'INSIGHT' && sectionId === 'I14' && input.i14Admission && input.sourceClaims) return i14SynthesisSection(input.i14Synthesis, citations) + i14AdmissionSection(input.i14Admission, input.sourceClaims, citations);
     if (kind === 'MARKET' && (sectionId === 'M03' || sectionId === 'M04')) {
-       if (input.metricMethods) return metricMethodSection(input.metricMethods, sectionId, input.metricClassified, citations, readerPlainText) + (sectionId === 'M03' && input.marketInventory ? '<h3>Bằng chứng riêng của nguồn sàn: không cộng vào số liệu nguồn</h3>' + marketInventorySection(input.marketInventory, sectionId, citations, labels) : '');
+       if (input.metricMethods) return metricMethodSection(input.metricMethods, sectionId, input.metricClassified, citations, false, readerPlainText) + (sectionId === 'M03' && input.marketInventory ? '<h3>Bằng chứng riêng của nguồn sàn: không cộng vào số liệu nguồn</h3>' + marketInventorySection(input.marketInventory, sectionId, citations, labels, readerPlainText) : '');
       if (input.metricMethodsFailure) return `<p class="warning">${escape(metricFailureCopy[input.metricMethodsFailure].next)}</p>` + codeNote(input.metricMethodsFailure);
     }
     if (kind === 'MARKET' && (sectionId === 'M03' || sectionId === 'M08')) {
-      if (input.marketInventory) return marketInventorySection(input.marketInventory, sectionId, citations, labels);
+      if (input.marketInventory) return marketInventorySection(input.marketInventory, sectionId, citations, labels, readerPlainText);
       if (input.marketInventoryFailure) return '<p class="warning">Đã thử xử lý inventory nhưng nguồn hoặc phương pháp không vượt qua kiểm tra; không tự gọi lại nguồn.</p>' + codeNote('MARKET_INVENTORY_FAILED');
     }
      if (sourceScope && sectionId === 'M13') return marketSourceScopeSection(sourceScope, 'M13', citations) + descriptiveAppendix(descriptive, input.descriptiveMethodFailure, readerPlainText, readerPlainText);
@@ -935,7 +935,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
 }
 
 /** Counts describe the retained capture, never a product/platform population or people. */
-function reviewSampleSection(sample: AutomationReviewSample, view: PrivateReviewReportView, citations: ReportCitations, readerPlainText = citations.readerPlainText !== false): string {
+function reviewSampleSection(sample: AutomationReviewSample, view: PrivateReviewReportView, citations: ReportCitations, readerPlainText = false): string {
   const rows = sample.products.map((product, index) => {
     const stop = product.stop === 'A_FIXED_COUNT' ? 'Đã thu được 300 bản ghi' : product.stop === 'PROVIDER_DATASET_EXHAUSTED'
       ? 'Đã đọc hết tập dữ liệu trả về của lượt thu; chưa biết tổng review của sản phẩm' : 'Lượt thu dừng trước mốc 300';

@@ -271,3 +271,23 @@ Blocked / needs other lane:
 | Required checks | DONE | Reader unit, report unit, Windows typecheck, and `git diff --check` all pass. |
 
 Coordinator disposition (round 3b): `tests/integration/research-automation-api.test.ts:480` is updated to the intended reader-on wording (`chưa rõ;` without the raw `(UNKNOWN)` code), and a negative assertion is added so the raw code cannot return. No other assertion changed.
+
+## Round 4 (owner-approved extra round)
+
+Fixes, per `READER-209.r4.writer.md`:
+
+| # | Fix | Where |
+|---|---|---|
+| 1 | `metricMethodSection` keeps the 5th parameter `neutralCopy = false` and adds a 6th `readerPlainText = false`; the legacy branch passes `neutralCopy` through, so marker-free output stays byte-identical to `origin/main`. Reader mode drops raw `ALL`/`WIDE`/`CORE` tokens (`readerScopeLabel`) and shows a short evidence-trace box instead of hashes. | `src/modules/analysis/research-automation/metric-method-report.ts:139`, `:154` |
+| 2 | Reader-mode sanitizer also rejects provider/tool names, hex hashes, file paths, JSON keys and enum tokens (currency codes allowed); `readerTextSafe` exported; `readerScopeText` uses the same check. Stored literals in reader mode go through `readerStoredOrJson` (metric, quote, market presentation, inventory). | `src/modules/analysis/research-automation/reader-plain-text.ts:35`, `:43`, `:186`; `quote-method-report.ts:9`; `market-presentation-report.ts:85`, `:108` |
+| 3 | Reader-mode counts use `readerCount`/`displayCount` (10001 → 10.001); legacy counts unchanged. | `descriptive-report.ts:33`, `:220`, `:223`, `:239`, `:263`, `:279`, `:282`; `metric-method-report.ts:12` |
+| 4 | The reader flag is passed explicitly as a positional boolean (default `false`), never inferred from `citations.readerPlainText`. | `reports.ts:453`, `:481`, `:869`, `:872`, `:938`; `market-inventory-report.ts:5` |
+
+Tests: `tests/unit/reader-209-plain-text.test.ts` adds sanitizer and explicit market-inventory propagation cases; `tests/integration/market-presentation-report.test.ts` checks the legacy M03 bytes with the explicit `neutralCopy` flag and the reader-only M03 separately.
+
+Evidence (Windows pre-check; Linux CI is the source of truth):
+- `node --import tsx --test tests/unit/reader-209-plain-text.test.ts`: PASS, 9 passed, 0 failed.
+- `node --import tsx --test tests/unit/research-automation-reports.test.ts`: PASS, 18 passed, 0 failed, 2 PDF tests skipped (no Chromium).
+- Typecheck: PASS.
+- `tests/integration/market-presentation-report.test.ts`: 3 failures on Windows, all `Python was not found` in the fixture setup before the target assertions; environment only.
+- `tests/unit/research-automation-reports.test.ts` and `tests/integration/research-automation-case-contract.test.ts` are identical to `origin/main`.

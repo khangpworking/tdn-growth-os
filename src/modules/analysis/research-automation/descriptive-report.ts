@@ -1,6 +1,6 @@
 import type { DescriptiveMarketMethods } from '../../../../contracts/analysis/descriptive-market-methods.generated.js';
 import { containsForbiddenProviderName, containsTechnicalId, type CitationInput } from '../citation-registry.js';
-import { formatReaderValue as formatReaderPlainValue, readerDateBasis as readerPlainDateBasis, readerLocator, readerMeasureName as readerPlainMeasureName, readerScopeText as readerPlainScopeText, readerStoredOrJson as readerPlainStoredOrJson } from './reader-plain-text.js';
+import { formatReaderCount, formatReaderValue as formatReaderPlainValue, readerDateBasis as readerPlainDateBasis, readerLocator, readerMeasureName as readerPlainMeasureName, readerScopeText as readerPlainScopeText, readerStoredOrJson as readerPlainStoredOrJson, readerTextSafe } from './reader-plain-text.js';
 
 type Input = DescriptiveMarketMethods['input'];
 type Observation = Input['m05'][number];
@@ -30,6 +30,8 @@ const WITHHELD = {
   status: 'trạng thái được giữ trong bản lưu', person: 'người nêu được giữ trong bản lưu', basis: 'cơ sở được giữ trong bản lưu',
 } as const;
 let activeReaderPlainText = true;
+const readerCount = (value: string | number): string => formatReaderCount(value) ?? 'chưa rõ';
+const displayCount = (value: string | number, readerPlainText = activeReaderPlainText): string => readerPlainText ? readerCount(value) : String(value);
 const readerMeasureName = (field: string | null | undefined): string => activeReaderPlainText ? readerPlainMeasureName(field) : storedLiteral(field ?? '', WITHHELD.measure);
 const readerStoredOrJson = (value: string | null | undefined, withheld: string): string => activeReaderPlainText ? readerPlainStoredOrJson(value, withheld) : value === null || value === undefined ? withheld : storedLiteral(value, withheld);
 const readerStoredOrJsonHtml = (value: string | null | undefined, withheld: string): string => activeReaderPlainText
@@ -215,11 +217,11 @@ function m05(methods: DescriptiveMarketMethods, citations: ReportCitations): Omi
       return `<tr><td>${entityCell(row)}</td><td>${readerStoredOrJsonHtml(row.sourceWording, WITHHELD.wording)}</td><td>${valueCell(row)}</td><td>${sourceCell(methods.input, row.source, citations)}</td></tr>`;
     }).join('');
     const c = partition.coverage;
-    return `<h3>${escape(`${index + 1}. `)}${escape(readerMeasureName(partition.measureLiteral))}</h3><dl><dt>Đơn vị</dt><dd>${partition.unit === null ? tag('Thiếu đơn vị', 'warn') : storedLiteral(partition.unit, 'Đơn vị được giữ trong bản lưu nguồn')}</dd><dt>Kỳ quan sát</dt><dd>${periodCell(partition.period)}</dd><dt>Phạm vi nguồn</dt><dd>${scopeText(partition.scope)}</dd><dt>Độ phủ dòng</dt><dd>Có số ${escape(c.observedCount)} · Bằng 0 ${escape(c.zeroCount)} · Thiếu ${escape(c.missingCount)} · ${activeReaderPlainText ? 'Chưa rõ' : 'UNKNOWN'} ${escape(c.unknownCount)} · Không chính xác ${escape(c.nonExactCount)}</dd></dl>${subtotalText(partition, current)}${blockerList(partition.blockers)}${table(current ? 'Thước đo nguồn theo từng dòng; doanh số đo nhu cầu trong mẫu, mức quan tâm tìm kiếm giữ riêng.' : 'Thước đo nguyên văn của nguồn theo từng dòng. Không phải nhu cầu hay quy mô thị trường.', ['Đối tượng / thước đo', 'Lời trong nguồn', 'Giá trị nguồn', 'Vị trí nguồn'], rows)}`;
+     return `<h3>${escape(`${index + 1}. `)}${escape(readerMeasureName(partition.measureLiteral))}</h3><dl><dt>Đơn vị</dt><dd>${partition.unit === null ? tag('Thiếu đơn vị', 'warn') : storedLiteral(partition.unit, 'Đơn vị được giữ trong bản lưu nguồn')}</dd><dt>Kỳ quan sát</dt><dd>${periodCell(partition.period)}</dd><dt>Phạm vi nguồn</dt><dd>${scopeText(partition.scope)}</dd><dt>Độ phủ dòng</dt><dd>Có số ${displayCount(c.observedCount)} · Bằng 0 ${displayCount(c.zeroCount)} · Thiếu ${displayCount(c.missingCount)} · ${activeReaderPlainText ? 'Chưa rõ' : 'UNKNOWN'} ${displayCount(c.unknownCount)} · Không chính xác ${displayCount(c.nonExactCount)}</dd></dl>${subtotalText(partition, current)}${blockerList(partition.blockers)}${table(current ? 'Thước đo nguồn theo từng dòng; doanh số đo nhu cầu trong mẫu, mức quan tâm tìm kiếm giữ riêng.' : 'Thước đo nguyên văn của nguồn theo từng dòng. Không phải nhu cầu hay quy mô thị trường.', ['Đối tượng / thước đo', 'Lời trong nguồn', 'Giá trị nguồn', 'Vị trí nguồn'], rows)}`;
   }).join('');
   const lead = current
-    ? `<p>${escape(section.locatedRecordCount)} bản ghi nguồn được định vị, tách theo nguồn, thước đo, đơn vị, kỳ và phạm vi đã lưu. Nhu cầu, đo bằng doanh số (ước tính) trong mẫu, chỉ đọc cho từng sàn được nguồn khai báo; chưa rõ sàn thì giữ nguyên dòng nguồn, không cộng chéo sàn. Mức quan tâm tìm kiếm ghi riêng, không trộn với doanh số.</p><p>Số bán hàng ước tính chưa đối chiếu với người bán, chỉ dùng tham khảo. Không suy ra quy mô ngoài mẫu, số người mua, nhu cầu chưa được đáp ứng hay dự báo.</p>`
-    : `<p>${escape(section.locatedRecordCount)} bản ghi nguồn được định vị, chia theo thước đo nguyên văn, đơn vị, kỳ và phạm vi của nguồn. Số tìm kiếm hay doanh số giữ đúng tên nguồn; không đổi thành nhu cầu tổng.</p>`;
+    ? `<p>${displayCount(section.locatedRecordCount)} bản ghi nguồn được định vị, tách theo nguồn, thước đo, đơn vị, kỳ và phạm vi đã lưu. Nhu cầu, đo bằng doanh số (ước tính) trong mẫu, chỉ đọc cho từng sàn được nguồn khai báo; chưa rõ sàn thì giữ nguyên dòng nguồn, không cộng chéo sàn. Mức quan tâm tìm kiếm ghi riêng, không trộn với doanh số.</p><p>Số bán hàng ước tính chưa đối chiếu với người bán, chỉ dùng tham khảo. Không suy ra quy mô ngoài mẫu, số người mua, nhu cầu chưa được đáp ứng hay dự báo.</p>`
+    : `<p>${displayCount(section.locatedRecordCount)} bản ghi nguồn được định vị, chia theo thước đo nguyên văn, đơn vị, kỳ và phạm vi của nguồn. Số tìm kiếm hay doanh số giữ đúng tên nguồn; không đổi thành nhu cầu tổng.</p>`;
   return { usable, locatedRecordCount: section.locatedRecordCount, unresolvedPointers: unresolved, blockers: section.blockers, body: `${lead}${parts}${blockerList(section.blockers)}` };
 }
 
@@ -234,7 +236,7 @@ function m06(methods: DescriptiveMarketMethods, citations: ReportCitations): Omi
     usable ||= hasSourceValue(row);
     return `<tr><td>${entityCell(row)}<br><small>${readerStoredOrJsonHtml(record.objectLiteral, WITHHELD.entity)} · ${readerStoredOrJsonHtml(row.sourceWording, WITHHELD.wording)}</small></td><td>${record.statusLiteral === null ? tag('Nguồn không nêu', 'warn') : storedLiteral(record.statusLiteral, WITHHELD.status)}</td><td>${escape(readerMeasureName(row.measureLiteral))}<br>${valueCell(row)}</td><td>${periodCell(row.period)}<br><small>Ý nghĩa ngày: ${escape(readerDateBasis(storedLiteral(record.dateMeaning, WITHHELD.basis)))}</small></td><td>${sourceCell(methods.input, row.source, citations)}</td></tr>`;
   }).join('');
-  const lead = `<p>${escape(section.locatedRecordCount)} bản ghi cung do nguồn nêu. Số đối tượng ${citations.distinctEntityWording ? 'phân biệt' : 'duy nhất'}: chưa xác định. Bản ghi listing không phải sản phẩm độc lập, tồn kho, năng lực hay toàn bộ nguồn cung.</p>`;
+  const lead = `<p>${displayCount(section.locatedRecordCount)} bản ghi cung do nguồn nêu. Số đối tượng ${citations.distinctEntityWording ? 'phân biệt' : 'duy nhất'}: chưa xác định. Bản ghi listing không phải sản phẩm độc lập, tồn kho, năng lực hay toàn bộ nguồn cung.</p>`;
   const body = `${lead}${rows ? table('Bản ghi nguồn cung theo trạng thái nguồn nêu.', ['Đối tượng nguồn nêu', 'Trạng thái theo nguồn', 'Thước đo / giá trị nguồn', 'Kỳ', 'Vị trí nguồn'], rows) : ''}${blockerList(section.blockers)}`;
   return { usable, locatedRecordCount: section.locatedRecordCount, unresolvedPointers: unresolved, blockers: section.blockers, body };
 }
@@ -258,8 +260,8 @@ function m07(methods: DescriptiveMarketMethods, citations: ReportCitations): Omi
     ? `<h3>Đặt cạnh nhau theo nhóm đối thủ đã khai báo</h3><p>Cơ sở khai báo: ${storedLiteral(methods.input.peerSet!.membershipBasis, WITHHELD.basis)} · bản ${storedLiteral(methods.input.peerSet!.membershipRevision, WITHHELD.basis)}. Không xếp hạng, chấm điểm, tính chênh lệch hay thị phần.</p>${table('Mốc và từng đối thủ đã khai báo, cùng thước đo và kỳ khi so sánh được.', ['Mốc', 'Đối thủ khai báo', 'So sánh được', 'Lý do chặn'], section.comparisons.map(item => `<tr><td>${side(item.anchorPointer, item.anchorRef)}</td><td>${side(item.peerPointer, item.peerRef)}</td><td>${item.compatibility === 'COMPARABLE' ? tag('So sánh được', 'zero') : tag('Không so sánh được', 'warn')}</td><td>${blockerList(item.blockers) || 'Không có'}</td></tr>`).join(''))}`
     : '';
   const lead = declared
-    ? `<p>${escape(section.recordPointers.length)} quan sát theo thứ tự nhóm đối thủ do người dùng khai báo. Nhóm gần giống không tự trở thành đối thủ đã duyệt.</p>`
-    : `<p>Danh mục chưa xếp hạng: ${escape(section.recordPointers.length)} quan sát theo thứ tự vị trí nguồn. Chưa có nhóm đối thủ được khai báo, nên không so sánh, xếp hạng hay tính thị phần.</p>`;
+    ? `<p>${displayCount(section.recordPointers.length)} quan sát theo thứ tự nhóm đối thủ do người dùng khai báo. Nhóm gần giống không tự trở thành đối thủ đã duyệt.</p>`
+    : `<p>Danh mục chưa xếp hạng: ${displayCount(section.recordPointers.length)} quan sát theo thứ tự vị trí nguồn. Chưa có nhóm đối thủ được khai báo, nên không so sánh, xếp hạng hay tính thị phần.</p>`;
   const inventory = rows ? `<h3>${declared ? 'Danh mục quan sát' : 'Danh mục chưa xếp hạng'}</h3>${table('Quan sát có nguồn; thứ tự không phải xếp hạng.', ['Đối tượng / thước đo', 'Giá trị nguồn', 'Kỳ', 'Phạm vi', 'Vị trí nguồn'], rows)}` : '';
   return { usable, locatedRecordCount: section.recordPointers.length, unresolvedPointers: unresolved, blockers: section.blockers, body: `${lead}${comparisons}${inventory}${blockerList(section.blockers)}` };
 }
@@ -274,10 +276,10 @@ function m09(methods: DescriptiveMarketMethods, citations: ReportCitations): Omi
     usable = true;
     const dates = `Ngày đăng: ${row.publicationDate === null ? 'chưa rõ' : escape(row.publicationDate)}<br>Ngày sự kiện: ${row.eventDate === null ? 'chưa rõ' : escape(row.eventDate)}<br><small>${escape(readerDateBasis(row.dateBasis))}</small>${activeReaderPlainText ? `<details><summary>Hồ sơ kỹ thuật ngày nguồn</summary><code>${escape(row.dateBasis)}</code></details>` : ''}`;
     const target = `${storedLiteral(row.namedScope, WITHHELD.entity)}<br><small>Chỉ số nêu: ${row.affectedMetricLiteral === null ? 'không nêu' : escape(readerMeasureName(row.affectedMetricLiteral))} · ${row.targetLink === null ? 'chưa liên kết đối tượng' : 'đã liên kết đối tượng'}</small>`;
-    const conflicts = row.conflictRefs.length ? `<br><small>${escape(row.conflictRefs.length)} bằng chứng mâu thuẫn được nguồn ghi nhận</small>` : '';
+    const conflicts = row.conflictRefs.length ? `<br><small>${displayCount(row.conflictRefs.length)} bằng chứng mâu thuẫn được nguồn ghi nhận</small>` : '';
     return `<tr><td>${escape(EVENT_TYPE[row.statementType])}<br><small>Người nêu: ${storedLiteral(row.attribution, WITHHELD.person)}</small></td><td>${readerStoredOrJsonHtml(row.sourceWording, WITHHELD.wording)}</td><td>${dates}</td><td>${target}</td><td>${sourceCell(methods.input, row.source, citations)}${conflicts}${blockerList(event.blockers)}</td></tr>`;
   }).join('');
-  const lead = `<p>${escape(section.locatedRecordCount)} phát biểu hoặc sự kiện có nguồn, ngày và người nêu. Đây là lời được quy cho nguồn; không phải nguyên nhân, xác suất hay mức tác động.</p>`;
+  const lead = `<p>${displayCount(section.locatedRecordCount)} phát biểu hoặc sự kiện có nguồn, ngày và người nêu. Đây là lời được quy cho nguồn; không phải nguyên nhân, xác suất hay mức tác động.</p>`;
   const body = `${lead}${rows ? table('Sự kiện và phát biểu có nguồn.', ['Loại / người nêu', 'Lời trong nguồn', 'Ngày', 'Phạm vi nêu tên', 'Vị trí nguồn'], rows) : ''}${blockerList(section.blockers)}`;
   return { usable, locatedRecordCount: section.locatedRecordCount, unresolvedPointers: unresolved, blockers: section.blockers, body };
 }

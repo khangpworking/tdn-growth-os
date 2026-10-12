@@ -2,13 +2,16 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
 import { buildDescriptiveMarketMethods } from '../../src/modules/analysis/descriptive-market-methods.js';
+import { describeDescriptiveSection } from '../../src/modules/analysis/research-automation/descriptive-report.js';
 import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
 import { buildSourceEvidence } from '../../src/modules/analysis/research-automation/source-evidence.js';
 import type { AutomationMarketMethodSnapshot } from '../../src/modules/analysis/research-automation/market-method-bridge.js';
 import type { AutomationMetricMethodSnapshot } from '../../src/modules/analysis/research-automation/metric-method-bridge.js';
 import type { AutomationMarketPresentationMethod } from '../../contracts/analysis/automation-market-presentation-method.generated.js';
 import { metricMethodSection } from '../../src/modules/analysis/research-automation/metric-method-report.js';
+import { marketInventorySection } from '../../src/modules/analysis/research-automation/market-inventory-report.js';
 import { renderAutomationMarketUnitPrices } from '../../src/modules/analysis/research-automation/market-presentation-report.js';
+import { m01InventorySection } from '../../src/modules/analysis/research-automation/synthesis-evidence-report.js';
 import { quoteMethodSection } from '../../src/modules/analysis/research-automation/quote-method-report.js';
 import type { AutomationQuoteMethodSnapshot } from '../../contracts/analysis/automation-quote-method-snapshot.generated.js';
 import { calculateMetricScopes } from '../../src/modules/analysis/metric-scope-calculator.js';
@@ -16,7 +19,7 @@ import { metricFixture } from '../fixtures/metric-scope-synthetic.js';
 import {
   formatReaderNumber, formatReaderValue, readerDateBasis, readerJsonLiteral, readerLocator, readerMeasureName,
   readerExactNumber, readerMethodName, readerPriceState, readerProductLabel, readerQuoteLabel, readerQuotePriceState,
-  readerQuoteRange, readerQuoteValueState, readerStoredOrJson, readerScopeText,
+  readerQuoteRange, readerQuoteValueState, readerStoredOrJson, readerScopeText, readerTextSafe,
 } from '../../src/modules/analysis/research-automation/reader-plain-text.js';
 import { descriptiveMarketFixture } from '../helpers/descriptive-market-fixture.js';
 
@@ -79,13 +82,15 @@ test('reader plain text maps measures, JSON literals, prices, scope and locators
   assert.equal(readerDateBasis('Ngày do nguồn khai báo tại launch_date, không phải ngày thu thập.'), 'Ngày do nguồn khai báo (ngày ra mắt theo nguồn), không phải ngày thu thập.');
   assert.equal(readerProductLabel('kalodata:sku_101', 'Bình giữ nhiệt tổng hợp'), 'Bình giữ nhiệt tổng hợp');
   assert.equal(readerProductLabel('123456', null, 2), 'Sản phẩm #2');
+  assert.equal(readerTextSafe('Kalodata Dami Metric TradeInt Apify SerpApi Jev TypeSafe'), false);
+  assert.equal(readerTextSafe('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa /data/source.json UNKNOWN LISTED WIDE CORE'), false);
 });
 
 test('visible reader text uses quote and metric render paths without raw IDs or states', () => {
   const sourceSha256 = 'a'.repeat(64);
   const quoteInput = {
-    quoteId: 'capture-12-unit-price', source: { sourceSha256, locator: '/offer/price', fieldPointer: '/offer/price' }, acquiredAt: '2026-01-01T00:00:00Z', observedAt: null,
-    identity: { variantId: null, variantState: 'UNKNOWN' }, offerText: null, packText: '1 item',
+    quoteId: 'capture-12-unit-price', source: { sourceSha256, locator: '/offer/price', fieldPointer: '/offer/price' }, acquiredAt: 'C:\\source\\data.json', observedAt: null,
+    identity: { variantId: null, variantState: 'UNKNOWN' }, offerText: null, packText: 'Kalodata Dami Metric TradeInt Apify SerpApi Jev TypeSafe',
     price: { value: '85991856.58', range: null, currency: 'VND', priceState: 'LISTED', conditions: [], tax: 'UNKNOWN', shipping: 'UNKNOWN' },
   };
   const available = { status: 'AVAILABLE', basis: 'SOURCED', reasons: [], exact: { numerator: '1234567', denominator: '100' }, display: '1234567.89' };
@@ -96,12 +101,17 @@ test('visible reader text uses quote and metric render paths without raw IDs or 
   assert.match(quoteHtml, /Bản ghi giá #12/);
   assert.match(quoteHtml, /85\.991\.857 VND/);
   assert.match(quoteHtml, /1\.234\.567,89/);
-  assert.doesNotMatch(quoteHtml, /capture-12|UNKNOWN|1234567/);
+  assert.doesNotMatch(quoteHtml, /capture-12|UNKNOWN|1234567|Kalodata|Dami|Metric|TradeInt|Apify|SerpApi|Jev|TypeSafe|[a-f0-9]{32,}|(?:[A-Za-z]:[\\/]|\/data\/)/i);
+  const largeQuoteSnapshot = { output: {
+    input: { quotes: Array.from({ length: 10001 }, () => quoteInput) },
+    quotes: Array.from({ length: 10001 }, () => Object.fromEntries([['pricePerPurchasedPack', available], ['pricePerPhysicalItem', available], ['pricePer100gNet', available], ['pricePer100gDrained', available]])),
+  }, sourceMetadata: [{ sha256: sourceSha256, path: '', providerProvenance: 'synthetic', provenanceBasis: 'Synthetic source' }] } as unknown as AutomationQuoteMethodSnapshot;
+  assert.match(quoteMethodSection(largeQuoteSnapshot, { mark: () => '[1]' }), /20 trong 10\.001 bản ghi/);
 
   const metricResult = calculateMetricScopes(metricFixture());
   const metricInput = { ...metricResult.input, records: metricResult.input.records.map((row, index) => index === 0 ? { ...row, listingId: '123456', shopId: '987654', title: '' } : row) };
   const metricSnapshot = { result: { ...metricResult, input: metricInput }, readiness: { sections: [{ sectionId: 'M03', state: 'BLOCKED' }, { sectionId: 'M04', state: 'BLOCKED' }] }, limitations: [], originalSourcePackage: { manifestArtifactSha256: 'b'.repeat(64) }, preparation: { normalizationReceiptSha256: 'c'.repeat(64) } } as unknown as AutomationMetricMethodSnapshot;
-  const metricHtml = metricMethodSection(metricSnapshot, 'M03', undefined, { mark: () => '[1]' });
+  const metricHtml = metricMethodSection(metricSnapshot, 'M03', undefined, { mark: () => '[1]' }, false, true);
   assert.match(metricHtml, /Sản phẩm #1/);
   assert.match(metricHtml, /Gian hàng #1/);
   assert.match(metricHtml, /chưa rõ/);
@@ -190,17 +200,53 @@ test('marker-free quote, metric and market-presentation renderers replay origin/
 
 test('reader-on market body withholds unsafe tokens and formats large values', () => {
   const market = {
-    input: { rows: [{ i: 0, platform: 'shopee', listing: 'kalodata:123', title: 'snake_case' }], metric: null },
+    input: { rows: [{ i: 0, platform: 'shopee', listing: 'kalodata:123', title: 'Kalodata Dami Metric TradeInt Apify SerpApi Jev TypeSafe' }], metric: null },
     unitPrices: [{ rowI: 0, value: 10000, comparisonKey: 'synthetic', ownerDeclared: false, missing: 'NON_EXACT', sources: [], standard: 'snake_case', observation: {
-      platform: 'shopee', listing: 'kalodata:123', variant: 'UNKNOWN', category: { label: 'snake_case' },
-      price: { value: 10000, kind: 'LISTED', conditions: [] }, quantity: { value: 10000, unit: 'units' }, period: { start: '2026-01-01', end: '2026-01-31' },
+      platform: 'shopee', listing: 'kalodata:123', variant: 'C:\\source\\data.json', category: { label: 'LISTED' },
+      price: { value: 10000, kind: 'LISTED', conditions: ['a'.repeat(64)] }, quantity: { value: 10000, unit: 'units' }, period: { start: '2026-01-01', end: '2026-01-31' },
     } }], binding: { metric: null },
   } as unknown as AutomationMarketPresentationMethod;
   const visible = renderAutomationMarketUnitPrices(market, { mark: () => '[1]' }, true);
-  assert.doesNotMatch(visible, /snake_case|UNKNOWN|kalodata:123|10000/);
+  assert.doesNotMatch(visible, /snake_case|UNKNOWN|kalodata:123|10000|Kalodata|Dami|Metric|TradeInt|Apify|SerpApi|Jev|TypeSafe|LISTED|WIDE|CORE/i);
+  assert.doesNotMatch(visible, /[a-f0-9]{32,}/i);
+  assert.doesNotMatch(visible, /(?:[A-Za-z]:[\\/]|\/data\/)/);
   assert.match(visible, /10\.000/);
   assert.match(visible, /giá ước tính, chưa chính xác tuyệt đối/);
   assert.equal(readerQuoteLabel('capture-10000-unit-price', 1), 'Bản ghi giá #10.000 · giá đơn vị');
   assert.equal(readerProductLabel('kalodata:123', 'snake_case', 10000), 'Sản phẩm #10.000');
   assert.equal(readerStoredOrJson('{"status":"UNKNOWN"}', 'Nội dung được giữ trong bản lưu'), 'Nội dung được giữ trong bản lưu');
+});
+
+test('reader-on market inventory propagates explicitly and withholds source details', () => {
+  const legacy = marketInventorySection(inventory(), 'M03', { mark: () => '[1]' });
+  const reader = marketInventorySection(inventory(), 'M03', { mark: () => '[1]' }, undefined, true);
+  assert.match(legacy, /sku_101|sales_volumn|\{"revenue"/);
+  assert.doesNotMatch(reader, /kalodata|Kalodata|aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa|\/data\/|capture-12|NON_EXACT|RANGE/i);
+  assert.match(reader, /Sản phẩm/);
+});
+
+test('reader-on synthesis inventory formats large counts and hides retained source details', () => {
+  const digest = 'a'.repeat(64);
+  const claim = {
+    claimId: digest, sectionId: 'M05', method: { methodId: 'method', methodVersion: '1', methodOutputId: digest, artifact: { packageId: '11111111-1111-4111-8111-111111111111', version: 1, manifestArtifactSha256: digest, packageContentSha256: digest }, outputPointer: '/data/source.json' },
+    source: { package: { packageId: '22222222-2222-4222-8222-222222222222', version: 1, manifestArtifactSha256: digest, packageContentSha256: digest }, logicalPath: '/data/source.json', sha256: digest, locator: '/data/LISTED', recordLocator: null, statement: 'Kalodata', attribution: 'Dami' , spans: [] },
+    observation: { basis: 'SOURCE_OBSERVED', state: 'observed_value', measure: { literal: 'LISTED', definition: '{"provider":"Kalodata"}', entityLabel: 'TradeInt' }, value: '10001', unit: 'VND', precision: 'exact', period: { start: '2026-01-01', end: '2026-01-31', timezone: 'UTC', basis: 'source' }, periodText: null, scope: { scopeSha256: digest, universe: '/data/source.json', geography: null, frame: null, inclusionRule: null, exclusionRule: null, variantRule: null, description: 'Kalodata' }, coverage: { unit: 'SOURCE_OBSERVATIONS', observedCount: 10001, zeroCount: 0, missingCount: 0, unknownCount: 0, nonExactCount: 0, description: 'LISTED' }, limitations: ['UNKNOWN'] },
+    declaration: null, limitations: ['UNKNOWN'],
+  };
+  const inventory = { contractVersion: '1.0.0', methodId: 'automation-m01-evidence-inventory', methodVersion: '1.0.0', sectionId: 'M01', runId: '33333333-3333-4333-8333-333333333333', workspaceId: '44444444-4444-4444-8444-444444444444', scopeSha256: digest, sourceClaims: { methodId: 'automation-source-claims', methodVersion: '1.0.0', claimsSha256: digest }, ownerQuestion: { state: 'UNSET', text: null }, ordering: 'CATALOG_SECTION_ORDER_M05_I02_I04_UNRANKED', status: 'UNRANKED_INVENTORY', insufficientEvidence: null, conclusion: null,
+    items: Array.from({ length: 10001 }, () => ({ claimId: digest, sectionId: 'M05', basis: 'SOURCE_OBSERVED', evidenceKind: 'SOURCE_OBSERVATION', state: 'observed_value', method: claim.method, source: claim.source, measure: claim.observation.measure, value: '10001', unit: 'VND', precision: 'exact', period: claim.observation.period, periodText: null, scope: claim.observation.scope, coverage: claim.observation.coverage, declaration: null, observationLimitations: ['UNKNOWN'], claimLimitations: ['UNKNOWN'] })), limitations: ['UNKNOWN'] } as any;
+  const claims = { contractVersion: '1.0.0', methodId: 'automation-source-claims', methodVersion: '1.0.0', runId: inventory.runId, workspaceId: inventory.workspaceId, scopeSha256: digest, claimsSha256: digest, claims: [claim], limitations: ['UNKNOWN'] } as any;
+  const reader = new JSDOM(m01InventorySection(inventory, claims, { mark: () => '[1]' }, true)).window.document;
+  reader.querySelectorAll('details').forEach(node => node.remove());
+  const visible = reader.body.textContent ?? '';
+  assert.match(visible, /10\.001 mục bằng chứng/);
+  assert.doesNotMatch(visible, /Kalodata|Dami|Metric|TradeInt|Apify|SerpApi|Jev|TypeSafe|LISTED|UNKNOWN|WIDE|CORE|[a-f0-9]{32,}|\/data\//i);
+});
+
+test('reader-on descriptive sections format large coverage counts', () => {
+  const fixture = descriptiveMarketFixture();
+  const methods = buildDescriptiveMarketMethods({ ...fixture.descriptor, sourcePackage: { packageId: '55555555-5555-4555-8555-555555555555', version: 1, manifestArtifactSha256: 'b'.repeat(64), packageContentSha256: 'c'.repeat(64) } }, { methodVersion: '1.1.0' }).output;
+  const m05 = methods.sections.M05;
+  const reader = describeDescriptiveSection({ ...methods, sections: { ...methods.sections, M05: { ...m05, locatedRecordCount: 10001, partitions: m05.partitions.map(partition => ({ ...partition, coverage: { ...partition.coverage, observedCount: 10001 } })) } } } as any, 'M05', { mark: () => '[1]', readerPlainText: true }).html;
+  assert.match(reader, /10\.001/);
 });

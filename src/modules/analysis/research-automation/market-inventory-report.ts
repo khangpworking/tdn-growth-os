@@ -2,8 +2,7 @@ import type { AutomationMarketMethodSnapshot } from './market-method-bridge.js';
 import { escapeHtml as escape, readerPointer, sourceMemberLabel, storedLiteral, type ReportCitations } from './descriptive-report.js';
 import { formatReaderValue, readerMeasureName, readerPriceState, readerProductLabel, readerQuoteLabel, readerStoredOrJson } from './reader-plain-text.js';
 
-export function marketInventorySection(snapshot: AutomationMarketMethodSnapshot, section: 'M03' | 'M08', citations: ReportCitations, productLabels?: ReadonlyMap<string, string>): string {
-  const readerPlainText = citations.readerPlainText !== false;
+export function marketInventorySection(snapshot: AutomationMarketMethodSnapshot, section: 'M03' | 'M08', citations: ReportCitations, productLabels?: ReadonlyMap<string, string>, readerPlainText = false): string {
   const trace = (ref: { sourceSha256: string; fieldPointer: string }): string => {
     const pointer = readerPointer(ref.fieldPointer, readerPlainText);
     return citations.mark({
@@ -14,7 +13,7 @@ export function marketInventorySection(snapshot: AutomationMarketMethodSnapshot,
   };
   if (section === 'M03') {
     const rows = snapshot.temporal.input.observations.map(row => readerPlainText
-      ? `<tr><td>${row.subjectMemberKeys.map(key => escape(readerProductLabel(sourceMemberLabel(key, true), productLabels?.get(key)))).join(', ')}</td> <td>${escape(readerMeasureName(row.measure.literal))} / ${storedLiteral(row.measure.unit ?? row.measure.currency ?? 'Chưa rõ đơn vị', 'Đơn vị được giữ trong bản lưu nguồn')}</td> <td>${escape(readerStoredOrJson(row.value.literal, 'Giá trị được giữ trong bản lưu nguồn'))}</td> <td>${escape(row.requestedWindow.start ?? '?')} đến ${escape(row.requestedWindow.end ?? '?')}</td> <td>${trace(row.source)}</td></tr>`
+      ? `<tr><td>${row.subjectMemberKeys.map(key => escape(readerProductLabel(sourceMemberLabel(key, true), productLabels?.get(key)))).join(', ')}</td> <td>${escape(readerMeasureName(row.measure.literal))} / ${escape(readerStoredOrJson(row.measure.unit ?? row.measure.currency, 'Đơn vị được giữ trong bản lưu nguồn'))}</td> <td>${escape(readerStoredOrJson(row.value.literal, 'Giá trị được giữ trong bản lưu nguồn'))}</td> <td>${escape(row.requestedWindow.start ?? '?')} đến ${escape(row.requestedWindow.end ?? '?')}</td> <td>${trace(row.source)}</td></tr>`
       : `<tr><td>${row.subjectMemberKeys.map(key => storedLiteral(sourceMemberLabel(key, false), 'Đối tượng được giữ trong bản lưu nguồn')).join(', ')}</td><td>${storedLiteral(row.measure.literal, 'Thước đo được giữ trong bản lưu nguồn')} / ${storedLiteral(row.measure.unit ?? row.measure.currency ?? 'Chưa rõ đơn vị', 'Đơn vị được giữ trong bản lưu nguồn')}</td><td>${storedLiteral(row.value.literal ?? 'Thiếu giá trị nguồn', 'Giá trị được giữ trong bản lưu nguồn')}</td><td>${escape(row.requestedWindow.start ?? '?')} đến ${escape(row.requestedWindow.end ?? '?')}</td><td>${trace(row.source)}</td></tr>`).join('');
     return `<p class="warning">Đã giữ số liệu theo kỳ truy vấn cho các sản phẩm được chọn. Chưa xác minh đầy đủ định nghĩa phép đo, múi giờ, biên kỳ, tính cộng được và độ phủ. Không cộng thành tổng năm, tính tăng trưởng hay gọi đây là quy mô thị trường.</p><div class="table-wrap" role="region" aria-label="Quan sát theo kỳ" tabindex="0"><table><caption>Quan sát theo kỳ, chưa phải chuỗi thời gian đủ điều kiện tính</caption><thead><tr><th>Đối tượng nguồn</th><th>Phép đo nguồn</th><th>Giá trị nguồn</th><th>Kỳ truy vấn</th><th>Nguồn</th></tr></thead><tbody>${rows || '<tr><td colspan="5">Không có số liệu theo kỳ dùng được.</td></tr>'}</tbody></table></div>`;
   }

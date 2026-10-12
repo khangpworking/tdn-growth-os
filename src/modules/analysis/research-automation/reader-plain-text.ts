@@ -32,7 +32,15 @@ const QUOTE_VALUE_STATES: Readonly<Record<string, string>> = {
 };
 
 const DECIMAL = /^([+-]?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/;
-const hasUnsafeReaderToken = (value: string): boolean => /\b[a-z][a-z0-9-]*_[a-z0-9_-]*\b|\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b|\bUNKNOWN\b|\b[a-z][a-z0-9-]*:\d+\b|\bcapture-\d+\b|\/data\//.test(value);
+const READER_PROVIDER = /\b(?:Metric|Kalodata|TradeInt|Dami|Apify|SerpApi|Jev|TypeSafe)\b/i;
+const READER_HASH = /\b(?:[a-f0-9]{32,}|sha-?256)\b/i;
+const READER_PATH = /(?:[A-Za-z]:[\\/]|\/data\/|(?:^|[\s(])(?:\.\.?[\\/]|(?:[\w.-]+[\\/]){2,})[\w.-]+)/;
+const READER_ENUM = /\b[A-Z][A-Z0-9]{2,}\b/;
+const hasUnsafeReaderToken = (value: string): boolean =>
+  /\b[a-z][a-z0-9-]*_[a-z0-9_-]*\b|\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b|\bUNKNOWN\b|\b[a-z][a-z0-9-]*:\d+\b|\bcapture-\d+\b|\/data\//.test(value) ||
+  READER_PROVIDER.test(value) || READER_HASH.test(value) || READER_PATH.test(value) || READER_ENUM.test(value.replace(/\b(?:VND|USD|EUR|GBP|JPY)\b/g, ''));
+
+export const readerTextSafe = (value: string): boolean => !hasUnsafeReaderToken(value);
 
 function increment(integer: string): string {
   const digits = integer.split('');
@@ -175,7 +183,8 @@ export function readerScopeText(value: string | null | undefined, fallback = WIT
     return 'Ph\u1ea1m vi quan s\u00e1t do ngu\u1ed3n khai b\u00e1o; kh\u00f4ng ph\u1ea3i to\u00e0n b\u1ed9 th\u1ecb tr\u01b0\u1eddng.';
   }
   const hasVietnameseLetter = value !== null && value !== undefined && /[\u00c0-\u024f\u1e00-\u1eff]/.test(value);
-  return value !== null && value !== undefined && hasVietnameseLetter && !/\b(?:source|declared|observation|scope|market|universe|not|the|of|and)\b/i.test(value) ? value : fallback;
+  return value !== null && value !== undefined && hasVietnameseLetter && !hasUnsafeReaderToken(value) &&
+    !/\b(?:source|declared|observation|scope|market|universe|not|the|of|and)\b/i.test(value) ? value : fallback;
 }
 
 export function readerLocator(pointer: string | null): string | null {
