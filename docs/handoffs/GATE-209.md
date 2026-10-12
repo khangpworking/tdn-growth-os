@@ -150,3 +150,13 @@ Astra round 5 (CHANGES) found one blocking gap: the U13 lint trusted an unclosed
 - `tests/unit/gate-209-market-business.test.ts`: a round-6 test covers unclosed `data-quote`, `<q>`, `<blockquote>` and a nested unbalanced `<q>` (must fail U13_SUPERLATIVE), plus closed forms that must still pass.
 
 Windows pre-check: the unit files that use the lint, 52 tests, 50 pass, 2 Chromium skips. Integration fixtures stop on Windows before their assertions (no Python, xlsx fixture); CI on Linux is the source of truth.
+
+## Round 7 (owner-approved, reviewer self-fix)
+
+- `src/modules/analysis/report-visible-text-lint.ts:13-53`: replaced last-match quote balancing with a strict top-of-stack helper, ignoring raw-text (`script`/`style`) and hidden (`hidden`, `aria-hidden`, `display:none`, `visibility:hidden`) descendants; expanded void-tag handling and exported the helper.
+- `src/modules/analysis/research-automation/market-business-gate.ts:1,219-255`: reuses the shared strict helper for Market balancing and inline quote normalization, including `q`, `blockquote`, and `data-quote`; malformed quote input is preserved for strict linting, so fake raw/hidden closes cannot exempt E2 or U13 text.
+- `tests/unit/gate-209-market-business.test.ts:214-237`: added round-7 coverage for mis-nested `q`/`blockquote`/`data-quote`, raw-text, hidden fake closes (must fail U13/E2) and properly nested quotes (must pass).
+- `npm run typecheck`: Windows wrapper failed before TypeScript diagnostics because `scripts/typecheck.mjs` invokes the extensionless `node_modules/.bin/tsc` path (`spawnSync ... ENOENT`). Direct targeted `tsc.cmd` checking of the changed source and focused test passed.
+- Focused unit test: `node --import tsx --test tests/unit/gate-209-market-business.test.ts` — 30 passed.
+- Windows integration gate tests: 1 passed; the reader-revision fixture stopped before its assertion with `OFFLINE_READER_UNAVAILABLE_OR_LIMIT` (no provider/network call).
+- Self-review exercised deep mis-nesting, uppercase tags/attributes, hidden ARIA/style attributes, comment-split closes, entity-encoded closes, unclosed raw-text, and malformed `data-quote`; one normalization bypass was found and closed by the shared balanced-opening check, with no remaining bypass found.

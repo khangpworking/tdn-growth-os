@@ -10,21 +10,45 @@ const decode = (text: string): string => text.replace(/&#x([\da-f]+);|&#(\d+);|&
     return ({ amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' } as Record<string, string>)[name!.toLowerCase()]!;
   });
 
-const VOID_TAGS = ['br', 'img', 'meta', 'link', 'input', 'hr'];
+const VOID_TAGS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
+const RAW_TEXT_TAGS = new Set(['script', 'style']);
+
+function tagAttributes(value: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const match of value.matchAll(/\s([:\w-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'`=<>]+)))?/gu)) {
+    out.set((match[1] ?? '').toLowerCase(), decode(match[2] ?? match[3] ?? match[4] ?? ''));
+  }
+  return out;
+}
+
+function isHiddenOpening(value: string): boolean {
+  const attrs = tagAttributes(value);
+  return attrs.has('hidden') || /^(?:true|1)$/iu.test(attrs.get('aria-hidden') ?? '') ||
+    /(?:^|[;\s])(?:display\s*:\s*none|visibility\s*:\s*hidden)(?:\s*!important)?(?:[;\s]|$)/iu.test(attrs.get('style') ?? '');
+}
 
 // A quote exempts text only when its own closing tag appears before an
 // enclosing element closes it implicitly; an unmatched quote quotes nothing.
-function balancedOpenings(tokens: readonly string[]): Set<number> {
-  const open: { tag: string; index: number }[] = [];
+export function balancedOpenings(tokens: readonly string[]): Set<number> {
+  const open: { tag: string; index: number; hidden: boolean; raw: boolean }[] = [];
   const balanced = new Set<number>();
   tokens.forEach((value, index) => {
     if (!value.startsWith('<') || value.startsWith('<!--')) return;
-    const tag = /^<\/?([\w-]+)/.exec(value)?.[1]?.toLowerCase();
+    const rawFrame = open.at(-1)?.raw ? open.at(-1) : undefined;
+    const tag = /^<\/?([\w:-]+)/.exec(value)?.[1]?.toLowerCase();
     if (!tag) return;
     if (value.startsWith('</')) {
-      const at = open.map(item => item.tag).lastIndexOf(tag);
-      if (at >= 0) { balanced.add(open[at]!.index); open.splice(at); }
-    } else if (!/\/$/.test(value.slice(0, -1)) && !VOID_TAGS.includes(tag)) open.push({ tag, index });
+      if (rawFrame) {
+        if (tag === rawFrame.tag) open.pop();
+        return;
+      }
+      const top = open.at(-1);
+      if (!top || top.tag !== tag) return;
+      open.pop();
+      if (!top.hidden) balanced.add(top.index);
+    } else if (!rawFrame && !/\/$/.test(value.slice(0, -1)) && !VOID_TAGS.has(tag)) {
+      open.push({ tag, index, hidden: open.some(item => item.hidden) || isHiddenOpening(value), raw: RAW_TEXT_TAGS.has(tag) });
+    }
   });
   return balanced;
 }
@@ -52,7 +76,7 @@ export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
       const index = stack.map(f => f.tag).lastIndexOf(tag);
       if (index >= 0) stack.splice(index);
       block.push({ text: ' ', pending: false, own: true, cell: activeCell() });
-    } else if (!/\/$/.test(value.slice(0, -1)) && !VOID_TAGS.includes(tag)) {
+    } else if (!/\/$/.test(value.slice(0, -1)) && !VOID_TAGS.has(tag)) {
       if (tag === 'section') region++;
       stack.push({ tag,
         quote: balanced.has(tokenIndex) && (/\bdata-quote(?:\s|=|>)/i.test(value) || tag === 'q' || tag === 'blockquote'),

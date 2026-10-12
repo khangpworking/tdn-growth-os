@@ -1,5 +1,5 @@
 import { CAPTURED_PROVIDER_NAMES, FORBIDDEN_PROVIDER_NAMES } from '../reader-report/lint.js';
-import { lintVisibleReportText } from '../report-visible-text-lint.js';
+import { balancedOpenings, lintVisibleReportText } from '../report-visible-text-lint.js';
 
 export type MarketBusinessGateResult = { rule: string; ok: boolean; detail: string };
 
@@ -62,23 +62,6 @@ function appendText(parts: string[], value: string, boundary = false): void {
   if (!value) return;
   if (boundary) appendBoundary(parts);
   parts.push(value);
-}
-
-// A quote exempts text only when its own closing tag appears before an
-// enclosing element closes it implicitly; an unmatched <q> quotes nothing.
-function balancedOpenings(tokens: readonly string[]): Set<number> {
-  const open: { name: string; index: number }[] = [];
-  const balanced = new Set<number>();
-  tokens.forEach((value, index) => {
-    if (!value.startsWith('<') || value.startsWith('<!')) return;
-    const name = TAG_NAME.exec(value)?.[1]?.toLowerCase();
-    if (!name) return;
-    if (/^<\//u.test(value)) {
-      const at = open.map(item => item.name).lastIndexOf(name);
-      if (at >= 0) { balanced.add(open[at]!.index); open.splice(at); }
-    } else if (!VOID_TAGS.has(name) && !/\/\s*>$/u.test(value)) open.push({ name, index });
-  });
-  return balanced;
 }
 
 function scanHtml(html: string): Scan {
@@ -233,27 +216,34 @@ function noLeakMatches(html: string, scan: Scan): string[] {
   ]);
 }
 
-function balancedQTagOffsets(html: string): Set<number> {
-  const openings: number[] = [];
-  const balanced = new Set<number>();
-  let valid = true;
-  for (const match of html.matchAll(/<q\b[^>]*>|<\/q\s*>/giu)) {
+function isQuoteOpeningToken(token: string): boolean {
+  return /^<(?:q|blockquote)\b/iu.test(token) || /\bdata-quote(?:\s|=|>)/iu.test(token);
+}
+
+function hasUnbalancedQuoteOpenings(html: string): boolean {
+  const tokenMatches = [...html.matchAll(/<!--[\s\S]*?-->|<[^>]*>|[^<]+/gu)];
+  const tokens = tokenMatches.map(match => match[0] ?? '');
+  const balanced = balancedOpenings(tokens);
+  return tokenMatches.some((match, index) => isQuoteOpeningToken(match[0] ?? '') && !balanced.has(index));
+}
+
+function balancedQuoteTagOffsets(html: string): Set<number> {
+  const tokenMatches = [...html.matchAll(/<!--[\s\S]*?-->|<[^>]*>|[^<]+/gu)];
+  const tokens = tokenMatches.map(match => match[0] ?? '');
+  const balanced = balancedOpenings(tokens);
+  return new Set(tokenMatches.flatMap((match, index) => {
     const token = match[0] ?? '';
-    const offset = match.index ?? -1;
-    if (/^<\//u.test(token)) {
-      const opening = openings.pop();
-      if (opening === undefined) valid = false;
-      else { balanced.add(opening); balanced.add(offset); }
-    } else if (!/\/\s*>$/u.test(token)) openings.push(offset);
-  }
-  if (openings.length) valid = false;
-  return valid ? balanced : new Set<number>();
+    return isQuoteOpeningToken(token)
+      ? (balanced.has(index) ? [match.index ?? -1] : [])
+      : [];
+  }));
 }
 
 /** Drops plain inline tags so split words join, but keeps balanced plain q and
  * data-quote/data-classified elements with their own closing tags. */
 function normalizeInlineTagsForLint(html: string): string {
-  const balancedQ = balancedQTagOffsets(html);
+  if (hasUnbalancedQuoteOpenings(html)) return html;
+  const balancedQuotes = balancedQuoteTagOffsets(html);
   const open = new Map<string, boolean[]>();
   return html.replace(/<!--[\s\S]*?-->|<[^>]*>/gu, (token, offset: number) => {
     const name = TAG_NAME.exec(token)?.[1]?.toLowerCase();
@@ -261,7 +251,9 @@ function normalizeInlineTagsForLint(html: string): string {
     const stack = open.get(name) ?? [];
     open.set(name, stack);
     if (/^<\//u.test(token)) return stack.pop() ? token : '';
-    const keep = name === 'q' ? balancedQ.has(offset) : /\bdata-(?:classified|quote)\b/iu.test(token);
+    const keep = name === 'q' || /\bdata-quote\b/iu.test(token)
+      ? balancedQuotes.has(offset)
+      : /\bdata-classified\b/iu.test(token);
     if (!/\/\s*>$/u.test(token)) stack.push(keep);
     return keep ? token : '';
   });

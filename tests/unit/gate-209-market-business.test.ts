@@ -210,3 +210,28 @@ test('round 6: an unclosed quote in the visible-text rules cannot hide a superla
   for (const html of ['<p><q>Sản phẩm tốt nhất.</q></p>', '<blockquote><p>Sản phẩm tốt nhất.</p></blockquote>', '<p><span data-quote>Sản phẩm tốt nhất.</span></p>'])
     assert.equal(check(reportHtml(html), 'U13_SUPERLATIVE').ok, true, html);
 });
+
+test('round 7: mis-nested, raw-text, and hidden closes cannot hide claims', () => {
+  const superlative = 'S\u1ea3n ph\u1ea9m t\u1ed1t nh\u1ea5t.';
+  const revenueOrder = 'x\u1ebfp h\u1ea1ng theo doanh thu';
+  const malformed = [
+    `<p><q><span>${superlative}</q></span></p>`,
+    `<p><q>${superlative}<script></q></script></p>`,
+    `<p><q><span hidden>fake close </q></span>${superlative}</p>`,
+    `<p><span data-quote><b>${superlative}</span></b></p>`,
+    `<p><blockquote><span>${superlative}</blockquote></span></p>`,
+  ];
+  for (const extra of malformed) {
+    assert.equal(check(reportHtml(extra), 'U13_SUPERLATIVE').ok, false, extra);
+    assert.equal(check(reportHtml(extra.replaceAll(superlative, revenueOrder)), 'E2_NO_REVENUE_ORDER').ok, false, extra);
+  }
+  for (const extra of [
+    `<p><q><span>${superlative}</span></q></p>`,
+    `<p><q>${superlative}<script>x</script></q></p>`,
+    `<p><q><span hidden>hidden</span>${superlative}</q></p>`,
+    `<p><span data-quote><b>${superlative}</b></span></p>`,
+  ]) {
+    assert.equal(check(reportHtml(extra), 'U13_SUPERLATIVE').ok, true, extra);
+    assert.equal(check(reportHtml(extra.replaceAll(superlative, revenueOrder)), 'E2_NO_REVENUE_ORDER').ok, true, extra);
+  }
+});
