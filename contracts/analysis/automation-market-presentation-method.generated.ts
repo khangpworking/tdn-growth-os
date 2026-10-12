@@ -243,6 +243,7 @@ export interface Row {
   i: number;
   platform: 'shopee' | 'tiktok';
   listing: string;
+  listingSynthetic?: boolean;
   shop: string;
   shopName?: string;
   cat: string;

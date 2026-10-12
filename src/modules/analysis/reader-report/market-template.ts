@@ -41,6 +41,8 @@ export type MarketReportOptions = {
   flint?: boolean;
   /** Web search results of the run, cited in the appendix with a link to each page. */
   webResults?: readonly ReaderWebResult[];
+  /** Capture-backed builds use wording that does not imply a complete comparison. */
+  captureSource?: boolean;
 };
 /** site and published are the page name and date as the search engine shows them; older runs have neither. */
 export type ReaderWebResult = { position: number; title: string; url: string; snippet: string | null; retrievedAt: string; site?: string | null; published?: string | null };
@@ -394,8 +396,8 @@ ${m01Trend}
           : '–'],
         ['Loại trừ', WEB.scope.exclusions.length ? L(WEB.scope.exclusions.join('; ')) : '–'],
       ], { src: `${WEB_SRC}${citeCell('scope')}` })}
-<p>${hlNum(nar(`Tệp trong mẫu {{src.rows}} sản phẩm phủ {{src.cover.listings}} số sản phẩm và {{src.cover.rev}} doanh thu ${WEB_FAMILY_LABEL}; mỗi sàn tính riêng, đây là tỷ lệ duy nhất so hai họ số.${citeRef('kpi')}`, 'M02.webcover'))}</p>
-<p class="ex-note">Cách tính các mốc tháng: ${esc(WEB_MONTHLY_METHOD)}.</p>
+<p>${hlNum(nar(`Tệp trong mẫu {{src.rows}} sản phẩm phủ {{src.cover.listings}} số sản phẩm và {{src.cover.rev}} doanh thu ${WEB_FAMILY_LABEL}; mỗi sàn tính riêng, ${options.captureSource ? 'mức đối chiếu này được giữ riêng theo nguồn.' : 'đây là tỷ lệ duy nhất so hai họ số.'}${citeRef('kpi')}`, 'M02.webcover'))}</p>
+${options.captureSource ? '' : `<p class="ex-note">Cách tính các mốc tháng: ${esc(WEB_MONTHLY_METHOD)}.</p>`}
 ${d.webReconciliation.length
     ? `<div class="box"><h3>Đối chiếu tệp mẫu với trang</h3><ul>${reconciliationItems}</ul></div>`
     : current ? '<p class="ex-note">Đối chiếu riêng từng sàn: chưa thấy doanh thu mẫu vượt số trên trang. Phép đối chiếu chéo sàn chưa được thực hiện; số thiếu không được thay bằng không.</p>' : '<p class="ex-note">Đối chiếu tệp mẫu với trang: khớp, không chênh lệch.</p>'}`,

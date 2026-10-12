@@ -61,6 +61,7 @@ import type { AutomationClassifiedReportRevisionRequest } from '../../../../cont
 import type { AutomationClassifiedMetricSnapshot } from '../../../../contracts/analysis/automation-classified-metric.generated.js';
 import { AutomationClassifiedMetric } from './classified-metric.js';
 import metricIntakeSchema from '../../../../contracts/api/research-automation-metric-intake-api.schema.json' with { type: 'json' };
+import metricCaptureIntakeSchema from '../../../../contracts/api/research-automation-metric-capture-intake-api.schema.json' with { type: 'json' };
 import supplementalIntakeSchema from '../../../../contracts/api/research-automation-supplemental-intake-api.schema.json' with { type: 'json' };
 import foundationIntakeSchema from '../../../../contracts/foundation/source-package-intake-request.schema.json' with { type: 'json' };
 import type { ResearchAutomationSupplementalPrepareRequest, ResearchAutomationSupplementalPrepareReceipt, ResearchAutomationSupplementalPreparedList } from '../../../../contracts/api/research-automation-supplemental-intake-api.generated.js';
@@ -77,6 +78,9 @@ import { automationI14AdmissionVersion, buildAutomationI14EvidenceAdmission, MAX
 import { AutomationI14SynthesisExecutions, type AutomationI14ExecutionRequest, type AutomationI14ExecutionOutcome, type AutomationI14ExecutionParent } from './i14-synthesis-execution.js';
 import type { ResearchAutomationMetricPrepareRequest, ResearchAutomationMetricPrepareReceipt, ResearchAutomationPreparedMetricList } from '../../../../contracts/api/research-automation-metric-intake-api.generated.js';
 import { AutomationMetricSourceIntake, MAX_METRIC_UPLOAD_BYTES } from './metric-source-intake.js';
+import type { ResearchAutomationMetricCapturePrepareRequest, ResearchAutomationMetricCapturePrepareReceipt, ResearchAutomationPreparedMetricCaptureList } from '../../../../contracts/api/research-automation-metric-capture-intake-api.generated.js';
+import { AutomationMetricCaptureSourceIntake, MAX_METRIC_CAPTURE_BYTES, MAX_METRIC_CAPTURE_TOTAL_BYTES, verifyMetricCaptureArchive, SNAPSHOT_PATH, MANIFEST_PATH } from './metric-capture-intake.js';
+import { readPreparedMetricCaptureSources } from './metric-capture-inventory.js';
 import { AutomationWorldBankSourceIntake, readConfirmedWorldBankSource, readWorldBankHistory } from './world-bank-intake.js';
 import type { Binding as WorldBankBinding } from '../../../../contracts/analysis/world-bank-intake-v1.generated.js';
 import type { PackageRef as WorldBankPackageRef, PrepareReceipt as WorldBankPrepareReceipt, View as WorldBankView, History as WorldBankHistory } from '../../../../contracts/api/research-automation-macro-intake-api.generated.js';
@@ -403,6 +407,8 @@ const validateM01Reference = sourceAjv.compile<AutomationM01InventoryReference>(
 const validateI14Reference = sourceAjv.compile<AutomationI14AdmissionReference>(i14ReferenceSchema);
 sourceAjv.addSchema(metricIntakeSchema);
 const validateMetricPrepare = sourceAjv.compile<ResearchAutomationMetricPrepareRequest>({ $ref: `${metricIntakeSchema.$id}#/$defs/request` });
+sourceAjv.addSchema(metricCaptureIntakeSchema);
+const validateMetricCapturePrepare = sourceAjv.compile<ResearchAutomationMetricCapturePrepareRequest>({ $ref: `${metricCaptureIntakeSchema.$id}#/$defs/request` });
 sourceAjv.addSchema([foundationIntakeSchema, supplementalIntakeSchema]);
 const validateSupplementalPrepare = sourceAjv.compile<ResearchAutomationSupplementalPrepareRequest>({ $ref: `${supplementalIntakeSchema.$id}#/$defs/request` });
 interface FrozenSources { sha256: string; value: AutomationConfirmedSourceSet; nativeReference?: NativeSourceReviewReference }
@@ -431,6 +437,7 @@ export class ResearchAutomationService {
   readonly #metricMethods: AutomationMetricMethodBridge;
   readonly #metaPageArtifacts: ContentAddressedArtifactStore;
   readonly #metricIntake: AutomationMetricSourceIntake | undefined;
+  readonly #metricCaptureIntake: AutomationMetricCaptureSourceIntake | undefined;
   readonly #worldBankIntake: AutomationWorldBankSourceIntake | undefined;
   readonly #supplementalIntake: AutomationSupplementalSourceIntake | undefined;
   readonly #metricRules: AutomationMetricRuleAdoptions;
@@ -484,6 +491,7 @@ export class ResearchAutomationService {
     this.#marketInventory = new AutomationMarketMethodBridge({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
     this.#metricMethods = new AutomationMetricMethodBridge({ db: this.#db, artifactStore: this.#artifacts, workspaces: this.#workspaces, now: this.#now });
     if (options.metricAttachmentStore) this.#metricIntake = new AutomationMetricSourceIntake(options.metricAttachmentStore, this.#db, this.#now);
+    if (options.metricAttachmentStore) this.#metricCaptureIntake = new AutomationMetricCaptureSourceIntake(options.metricAttachmentStore, this.#db, this.#now);
     if (options.metricAttachmentStore) this.#worldBankIntake = new AutomationWorldBankSourceIntake(options.metricAttachmentStore, this.#db, this.#now);
     if (options.metricAttachmentStore) this.#supplementalIntake = new AutomationSupplementalSourceIntake(options.metricAttachmentStore, this.#db, this.#now);
     this.#metricRules = new AutomationMetricRuleAdoptions(this.#db, this.#artifacts, options.metricAttachmentStore, this.#now);
@@ -1135,6 +1143,30 @@ export class ResearchAutomationService {
     });
   }
 
+  /** An inert, run-bound intake for an already gate-cleared results-page capture. */
+  async prepareMetricCapture(workspaceId: string, runId: string, value: unknown, snapshotBytes: Uint8Array, manifestBytes: Uint8Array): Promise<ResearchAutomationMetricCapturePrepareReceipt> {
+    assertUuid(workspaceId); assertUuid(runId);
+    if (!validateMetricCapturePrepare(value) || !REQUEST_KEY.test(value.requestKey)) throw new ResearchAutomationValidationError('Invalid capture preparation request.');
+    if (snapshotBytes.byteLength < 1 || snapshotBytes.byteLength > MAX_METRIC_CAPTURE_BYTES || manifestBytes.byteLength < 1 ||
+      manifestBytes.byteLength > MAX_METRIC_CAPTURE_BYTES || snapshotBytes.byteLength + manifestBytes.byteLength > MAX_METRIC_CAPTURE_TOTAL_BYTES)
+      throw new ResearchAutomationValidationError('Capture files exceed the bounded upload profile.');
+    const input = JSON.parse(canonicalJson(value)) as ResearchAutomationMetricCapturePrepareRequest;
+    if (!this.#metricCaptureIntake) throw new ResearchAutomationStateError('Capture upload is unavailable on this handle.');
+    return withDatabaseMutationMutex(this.#db, async () => {
+      const current = await this.#requireRun(workspaceId, runId);
+      const prior = this.#metricCaptureIntake!.hasRequest(runId, input.requestKey);
+      if (!prior && current.revision !== input.expectedRevision) throw new ResearchAutomationConflictError('revision_conflict', 'The run changed before capture preparation.');
+      const row = this.#current(runId)!;
+      const start = await this.#readStartSnapshot(row.startSha, workspaceId);
+      const scope: ScopeSnapshot = row.scopeSha
+        ? await this.#readScopeSnapshot(row.scopeSha, workspaceId, runId)
+        : { contractVersion: 'research-automation-scope-snapshot-v1', workspaceId, runId, definition: '', includeTerms: [], excludeTerms: [], selectedProductIds: [], peerProductIds: [] };
+      if (!row.scopeSha && !prior && ['FAILED', 'CANCELLED', 'INTERRUPTED', 'DRAFT_READY'].includes(current.status))
+        throw new ResearchAutomationStateError('This terminal run cannot receive a new prepared capture.');
+      return this.#metricCaptureIntake!.prepare(input, Buffer.from(snapshotBytes), Buffer.from(manifestBytes), { runId, start, scope });
+    });
+  }
+
   /** Explicit source intake; no collection, run transition, report rewrite or implicit admission. */
   async prepareWorldBankSource(workspaceId: string, runId: string, value: unknown,
     observations: Uint8Array, metadata: Uint8Array): Promise<WorldBankPrepareReceipt> {
@@ -1486,6 +1518,18 @@ export class ResearchAutomationService {
       sources: await readPreparedMetricSources(reader, this.#metricMethods, { runId, start }, validateMetricPrepare) };
   }
 
+  async listPreparedMetricCaptureSources(workspaceId: string, runId: string): Promise<ResearchAutomationPreparedMetricCaptureList> {
+    assertUuid(workspaceId); assertUuid(runId);
+    await this.#requireRun(workspaceId, runId);
+    const row = this.#current(runId)!;
+    const start = await this.#readStartSnapshot(row.startSha, workspaceId);
+    const scope: ScopeSnapshot = row.scopeSha
+      ? await this.#readScopeSnapshot(row.scopeSha, workspaceId, runId)
+      : { contractVersion: 'research-automation-scope-snapshot-v1', workspaceId, runId, definition: '', includeTerms: [], excludeTerms: [], selectedProductIds: [], peerProductIds: [] };
+    return { contractVersion: 'automation-prepared-metric-capture-list-v1', workspaceId, runId,
+      sources: await readPreparedMetricCaptureSources(this.#boundedSourceReader(), { runId, start, scope }) };
+  }
+
   /** OWNER reader page from the latest verified market draft and one prepared product-list file of this run. */
   async buildReaderReport(workspaceId: string, runId: string, value: unknown, actor: { actorId: string; role: 'OWNER' }) {
     assertUuid(workspaceId); assertUuid(runId);
@@ -1575,9 +1619,27 @@ export class ResearchAutomationService {
     const verified = await this.readReport(workspaceId, runId, 'MARKET', false, latest.pairId);
     const marketSemantic = await this.#readJson<Record<string, unknown>>(verified.versionId, MAX_JSON_ARTIFACT_BYTES, 'application/json');
     const prepared = (await this.listPreparedMetricSources(workspaceId, runId)).sources.find(source => source.packageId === packageId);
-    if (!prepared) throw new ResearchAutomationValidationError('Tệp danh sách sản phẩm này không thuộc lượt research.');
+    const preparedCapture = (await this.listPreparedMetricCaptureSources(workspaceId, runId)).sources.find(source => source.packageId === packageId);
+    if (!prepared && !preparedCapture) throw new ResearchAutomationValidationError('Nguồn sản phẩm này không thuộc lượt research.');
     const reader = new FoundationSourcePackageReader(new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts }));
-    const source = await reader.readFinalizedSourcePackage(packageId, { maxFileBytes: MAX_METRIC_UPLOAD_BYTES, maxTotalBytes: MAX_METRIC_UPLOAD_BYTES + 64 * 1024 });
+    const source = await reader.readFinalizedSourcePackage(packageId, preparedCapture
+      ? { maxFileBytes: MAX_METRIC_CAPTURE_BYTES, maxTotalBytes: MAX_METRIC_CAPTURE_TOTAL_BYTES + 128 * 1024 }
+      : { maxFileBytes: MAX_METRIC_UPLOAD_BYTES, maxTotalBytes: MAX_METRIC_UPLOAD_BYTES + 64 * 1024 });
+    if (preparedCapture) {
+      const snapshot = source.files.find(file => file.path === SNAPSHOT_PATH);
+      const manifest = source.files.find(file => file.path === MANIFEST_PATH);
+      if (!snapshot || !manifest) throw new ResearchAutomationIntegrityError('Prepared Metric capture is missing its archive files.');
+      const verifiedCapture = verifyMetricCaptureArchive(snapshot.bytes, manifest.bytes, { start: await this.#readStartSnapshot(this.#current(runId)!.startSha, workspaceId) });
+      const rawSnapshotSha256 = createHash('sha256').update(snapshot.bytes).digest('hex');
+      const collection = this.#db.prepare(`SELECT result_sha256 resultSha FROM analysis_research_automation_steps WHERE run_id=? AND step_id='COLLECTION'`).get(runId) as { resultSha: string | null } | undefined;
+      const webCollection = collection?.resultSha ? await this.#readStepDocument(collection.resultSha, runId, 'COLLECTION') : null;
+      const webResults = webCollection?.sourceEvidence ? admitWebResults(webCollection.sourceEvidence, webCollection.webResults ?? [], await this.#captureRecords(runId), webCollection.sourceEvidence.jevTriage ?? null) : webCollection?.webResults ?? [];
+      return { workspaceId, runId, draftPairId: latest.pairId, marketSemantic,
+        webResults: webResults.map(({ position, title, url, snippet, retrievedAt, site, published }) =>
+          ({ position, title, url, snippet, retrievedAt, site: site ?? null, published: published ?? null })),
+        metric: { packageId, capture: { snapshot: verifiedCapture.snapshot, snapshotSha256: rawSnapshotSha256, truncation: preparedCapture.capture.truncation }, measurementPeriod: preparedCapture.capture.measurementPeriod } };
+    }
+    if (!prepared) throw new ResearchAutomationValidationError('Tệp danh sách sản phẩm này không thuộc lượt research.');
     const workbook = source.files.find(file => file.path === 'metric/export.xlsx');
     if (!workbook) throw new ResearchAutomationIntegrityError('Prepared product-list workbook is missing.');
     const collection = this.#db.prepare(`SELECT result_sha256 resultSha FROM analysis_research_automation_steps WHERE run_id=? AND step_id='COLLECTION'`).get(runId) as { resultSha: string | null } | undefined;

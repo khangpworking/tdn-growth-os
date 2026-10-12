@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/api/research-automation-metric-capture-intake-api.schema.json",
+  "title": "ResearchAutomationMetricCaptureIntakeApi",
+  "description": "Owner-authenticated intake for an exact, gate-cleared Metric results-page capture. Preparation stores evidence only; it does not call Metric, wake a worker or admit a source.",
+  "oneOf": [{ "$ref": "#/$defs/request" }, { "$ref": "#/$defs/receipt" }, { "$ref": "#/$defs/preparedList" }],
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "uuid": { "type": "string", "format": "uuid" },
+    "request": {
+      "title": "ResearchAutomationMetricCapturePrepareRequest",
+      "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "requestKey", "expectedRevision", "sourceContext"],
+      "properties": {
+        "contractVersion": { "const": "automation-metric-capture-prepare-v1" },
+        "requestKey": { "$ref": "research-automation-api.schema.json#/$defs/requestKey" },
+        "expectedRevision": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+        "sourceContext": { "type": "string", "minLength": 1, "maxLength": 2000, "pattern": "\\S" }
+      }
+    },
+    "period": {
+      "type": "object", "additionalProperties": false, "required": ["startDate", "endDate"],
+      "properties": { "startDate": { "type": "string", "format": "date" }, "endDate": { "type": "string", "format": "date" } }
+    },
+    "truncation": {
+      "type": "object", "additionalProperties": false,
+      "required": ["cap", "totalShown", "pagesRead", "rowsRead", "truncated"],
+      "properties": {
+        "cap": { "type": "integer", "minimum": 1, "maximum": 200 },
+        "totalShown": { "type": ["integer", "null"], "minimum": 0 },
+        "pagesRead": { "type": "integer", "minimum": 0, "maximum": 10 },
+        "rowsRead": { "type": "integer", "minimum": 0, "maximum": 200 },
+        "truncated": { "type": "boolean" }
+      }
+    },
+    "capture": {
+      "type": "object", "additionalProperties": false,
+      "required": ["captureId", "specDigest", "keyword", "platforms", "measurementPeriod", "truncation"],
+      "properties": {
+        "captureId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$" },
+        "specDigest": { "$ref": "#/$defs/sha256" },
+        "keyword": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "platforms": { "type": "array", "minItems": 1, "maxItems": 2, "uniqueItems": true, "items": { "enum": ["shopee", "tiktok"] } },
+        "measurementPeriod": { "$ref": "#/$defs/period" },
+        "truncation": { "$ref": "#/$defs/truncation" }
+      }
+    },
+    "receipt": {
+      "title": "ResearchAutomationMetricCapturePrepareReceipt",
+      "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "requestKey", "packageId", "state", "exactRetry", "recordCount", "sourceLabel", "capture", "provenance"],
+      "properties": {
+        "contractVersion": { "const": "automation-metric-capture-prepared-v1" },
+        "requestKey": { "$ref": "research-automation-api.schema.json#/$defs/requestKey" },
+        "packageId": { "$ref": "#/$defs/uuid" },
+        "state": { "const": "PREPARED_NOT_ADMITTED" },
+        "exactRetry": { "type": "boolean" },
+        "recordCount": { "type": "integer", "minimum": 1, "maximum": 200 },
+        "sourceLabel": { "const": "results-page capture" },
+        "capture": { "$ref": "#/$defs/capture" },
+        "provenance": { "const": "RESULTS_PAGE_CAPTURE" }
+      }
+    },
+    "preparedEntry": {
+      "type": "object", "additionalProperties": false,
+      "required": ["packageId", "recordCount", "request", "capture", "provenance"],
+      "properties": {
+        "packageId": { "$ref": "#/$defs/uuid" },
+        "recordCount": { "type": "integer", "minimum": 1, "maximum": 200 },
+        "request": { "$ref": "#/$defs/request" },
+        "capture": { "$ref": "#/$defs/capture" },
+        "provenance": { "const": "RESULTS_PAGE_CAPTURE" }
+      }
+    },
+    "preparedList": {
+      "title": "ResearchAutomationPreparedMetricCaptureList",
+      "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "workspaceId", "runId", "sources"],
+      "properties": {
+        "contractVersion": { "const": "automation-prepared-metric-capture-list-v1" },
+        "workspaceId": { "$ref": "#/$defs/uuid" },
+        "runId": { "$ref": "#/$defs/uuid" },
+        "sources": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/preparedEntry" } }
+      }
+    }
+  }
+}

@@ -135,6 +135,7 @@ export interface Row {
   i: number;
   platform: Platform;
   listing: string;
+  listingSynthetic?: boolean;
   shop: string;
   shopName?: string;
   cat: string;
