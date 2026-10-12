@@ -204,3 +204,9 @@ test('round 5: a sampling sentence does not exempt a later recommendation in the
   assert.equal(check(reportHtml('<p>Đề xuất chọn 3 sản phẩm doanh thu cao nhất. Tệp gồm 3 sản phẩm doanh thu cao nhất.</p>'), 'U13_SUPERLATIVE').ok, false);
   assert.equal(check(reportHtml('<p>Tệp gồm 3 sản phẩm doanh thu cao nhất. Mẫu lấy 1.200 sản phẩm doanh thu cao nhất.</p>'), 'U13_SUPERLATIVE').ok, true);
 });
+test('round 6: an unclosed quote in the visible-text rules cannot hide a superlative', () => {
+  for (const html of ['<p><span data-quote>Sản phẩm tốt nhất.</p>', '<blockquote><p>Sản phẩm tốt nhất.</p>', '<p><q>Sản phẩm tốt nhất.</p>', '<p><q><q>trích</q> Sản phẩm tốt nhất.</p>'])
+    assert.equal(check(reportHtml(html), 'U13_SUPERLATIVE').ok, false, html);
+  for (const html of ['<p><q>Sản phẩm tốt nhất.</q></p>', '<blockquote><p>Sản phẩm tốt nhất.</p></blockquote>', '<p><span data-quote>Sản phẩm tốt nhất.</span></p>'])
+    assert.equal(check(reportHtml(html), 'U13_SUPERLATIVE').ok, true, html);
+});

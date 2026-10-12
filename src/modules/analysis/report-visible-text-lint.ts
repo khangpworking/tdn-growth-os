@@ -10,6 +10,25 @@ const decode = (text: string): string => text.replace(/&#x([\da-f]+);|&#(\d+);|&
     return ({ amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' } as Record<string, string>)[name!.toLowerCase()]!;
   });
 
+const VOID_TAGS = ['br', 'img', 'meta', 'link', 'input', 'hr'];
+
+// A quote exempts text only when its own closing tag appears before an
+// enclosing element closes it implicitly; an unmatched quote quotes nothing.
+function balancedOpenings(tokens: readonly string[]): Set<number> {
+  const open: { tag: string; index: number }[] = [];
+  const balanced = new Set<number>();
+  tokens.forEach((value, index) => {
+    if (!value.startsWith('<') || value.startsWith('<!--')) return;
+    const tag = /^<\/?([\w-]+)/.exec(value)?.[1]?.toLowerCase();
+    if (!tag) return;
+    if (value.startsWith('</')) {
+      const at = open.map(item => item.tag).lastIndexOf(tag);
+      if (at >= 0) { balanced.add(open[at]!.index); open.splice(at); }
+    } else if (!/\/$/.test(value.slice(0, -1)) && !VOID_TAGS.includes(tag)) open.push({ tag, index });
+  });
+  return balanced;
+}
+
 export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
   const blocks: { chunks: Chunk[]; region: number }[] = [], stack: { tag: string; quote: boolean; title: boolean; hidden: boolean; pending: boolean; cell?: number }[] = [];
   let region = 0;
@@ -17,8 +36,9 @@ export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
   let block: Chunk[] = [];
   const flush = (): void => { if (block.length) blocks.push({ chunks: block, region }); block = []; };
   const activeCell = (): number | null => [...stack].reverse().find(frame => frame.cell !== undefined)?.cell ?? null;
-  for (const token of html.matchAll(/<!--[\s\S]*?-->|<[^>]*>|[^<]+/g)) {
-    const value = token[0];
+  const tokens = [...html.matchAll(/<!--[\s\S]*?-->|<[^>]*>|[^<]+/g)].map(token => token[0]);
+  const balanced = balancedOpenings(tokens);
+  for (const [tokenIndex, value] of tokens.entries()) {
     if (value.startsWith('<!--')) continue;
     if (!value.startsWith('<')) {
       if (!stack.some(f => f.hidden)) block.push({ text: decode(value), pending: stack.some(f => f.pending), own: !stack.some(f => f.quote || f.title), cell: activeCell() });
@@ -32,10 +52,10 @@ export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
       const index = stack.map(f => f.tag).lastIndexOf(tag);
       if (index >= 0) stack.splice(index);
       block.push({ text: ' ', pending: false, own: true, cell: activeCell() });
-    } else if (!/\/$/.test(value.slice(0, -1)) && !['br', 'img', 'meta', 'link', 'input', 'hr'].includes(tag)) {
+    } else if (!/\/$/.test(value.slice(0, -1)) && !VOID_TAGS.includes(tag)) {
       if (tag === 'section') region++;
       stack.push({ tag,
-        quote: /\bdata-quote(?:\s|=|>)/i.test(value) || tag === 'q' || tag === 'blockquote',
+        quote: balanced.has(tokenIndex) && (/\bdata-quote(?:\s|=|>)/i.test(value) || tag === 'q' || tag === 'blockquote'),
         title: /^h[1-6]$/.test(tag),
         hidden: ['script', 'style'].includes(tag) || /\shidden(?:\s|=|>)/i.test(value) || /aria-hidden\s*=\s*["']true["']/i.test(value)
           || /style\s*=\s*["'][^"']*(?:display\s*:\s*none|visibility\s*:\s*hidden)/i.test(value),

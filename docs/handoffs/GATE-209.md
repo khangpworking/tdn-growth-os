@@ -141,3 +141,12 @@ Astra round 4 (CHANGES) found two blocking gaps; both are fixed here.
 - `tests/unit/gate-209-market-business.test.ts`: two round-5 tests cover both bypasses and the balanced or counted cases that must still pass.
 
 Windows pre-check: 9 unit files that use the gate or the lint, 80 tests, 78 pass, 2 Chromium skips. The CI failure on `6def40cc` is `frontend/tests/research-insight-crosscheck-ui.test.ts` (Insight UI, outside this lane).
+
+## Round 6 (owner-approved extra round)
+
+Astra round 5 (CHANGES) found one blocking gap: the U13 lint trusted an unclosed `data-quote`, `<q>` or `<blockquote>`.
+
+- `report-visible-text-lint.ts`: the same balanced-opening check as the gate. A quote form exempts text only when its own closing tag appears before an enclosing element closes it.
+- `tests/unit/gate-209-market-business.test.ts`: a round-6 test covers unclosed `data-quote`, `<q>`, `<blockquote>` and a nested unbalanced `<q>` (must fail U13_SUPERLATIVE), plus closed forms that must still pass.
+
+Windows pre-check: the unit files that use the lint, 52 tests, 50 pass, 2 Chromium skips. Integration fixtures stop on Windows before their assertions (no Python, xlsx fixture); CI on Linux is the source of truth.
