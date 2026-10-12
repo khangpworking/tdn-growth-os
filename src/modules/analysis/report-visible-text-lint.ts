@@ -62,11 +62,17 @@ export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
     const own = chunks.map(c => c.own ? c.text : ' ').join('').replace(/\s+/g, ' ').trim();
     // Numeric lower bounds are measurement/method conditions, not a claim
     // that a product is superior (for example the frozen E11 threshold).
-    // A counted product phrase is exempt only when the same sentence names a
-    // sampling/counting context; a recommendation to choose top products is not.
-    const countedSample = /\b(?:tệp|mẫu|danh sách|kết quả tìm kiếm|gồm|lấy|xem đủ|thu thập)\b[\s\S]{0,160}\b\d[\d.,]*(?:\s*\[\d+\])*\s+sản phẩm\s+doanh thu cao nhất\b/iu.test(own);
+    // A counted product phrase is exempt only when its own sentence names a
+    // sampling/counting context before it; a recommendation to choose top
+    // products is not, even next to a sampling sentence.
+    const countedSample = (input: string, offset: number): boolean => {
+      let start = 0;
+      for (const stop of input.slice(0, offset).matchAll(/[!?…]|\.(?!\d)/gu)) start = (stop.index ?? 0) + 1;
+      return /(?<![\p{L}\p{M}])(?:tệp|mẫu|danh sách|kết quả tìm kiếm|gồm|lấy|xem đủ|thu thập)(?![\p{L}\p{M}])[\s\S]{0,160}$/iu.test(input.slice(start, offset));
+    };
     const findings = own.replace(/ít nhất(?=\s+\d)/giu, 'tối thiểu')
-      .replace(/(\d[\d.,]*(?:\s*\[\d+\])*\s+sản phẩm\s+)doanh thu cao nhất/giu, (match, prefix: string) => countedSample ? `${prefix}theo ngưỡng doanh thu` : match)
+      .replace(/(\d[\d.,]*(?:\s*\[\d+\])*\s+sản phẩm\s+)doanh thu cao nhất/giu, (match, prefix: string, offset: number, input: string) =>
+        countedSample(input, offset) ? `${prefix}theo ngưỡng doanh thu` : match)
       .replace(/(bản ghi|đối tượng)\s+duy nhất/giu, (match, kind: string, offset: number, input: string) => {
         const before = input.slice(0, offset).trimEnd();
         const countContext = kind.toLowerCase() === 'bản ghi' ? /(?:^|\bsố)\s*$/iu.test(before) : /\bsố\s*$/iu.test(before);

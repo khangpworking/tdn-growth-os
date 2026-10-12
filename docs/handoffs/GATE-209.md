@@ -131,3 +131,13 @@ Round-4 evidence:
 | GATE-209 lifecycle | DONE | The reader comment and handoff now state the publication/revision block without claiming zero artifact persistence; typecheck and diff checks pass. |
 
 What remains: coordinator review and commit. The reader-revision integration test needs the Linux/CI environment or a working local offline workbook reader; on Windows it stops before its assertion at the exact setup error recorded above. No generated contracts, migrations, provider calls, network calls, or live data were used.
+
+## Round 5 (owner-approved final round)
+
+Astra round 4 (CHANGES) found two blocking gaps; both are fixed here.
+
+- `market-business-gate.ts`: a quote (`<q>`, `<blockquote>`, `data-quote`) exempts text only when its own closing tag is present before an enclosing element closes it. An unmatched or nested unbalanced quote no longer hides E2 text.
+- `report-visible-text-lint.ts`: the counted-sample exemption for `N sản phẩm doanh thu cao nhất` is decided per occurrence, from the start of that sentence to the phrase. A sampling sentence no longer exempts a later recommendation in the same block.
+- `tests/unit/gate-209-market-business.test.ts`: two round-5 tests cover both bypasses and the balanced or counted cases that must still pass.
+
+Windows pre-check: 9 unit files that use the gate or the lint, 80 tests, 78 pass, 2 Chromium skips. The CI failure on `6def40cc` is `frontend/tests/research-insight-crosscheck-ui.test.ts` (Insight UI, outside this lane).

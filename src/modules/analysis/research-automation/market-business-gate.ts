@@ -64,6 +64,23 @@ function appendText(parts: string[], value: string, boundary = false): void {
   parts.push(value);
 }
 
+// A quote exempts text only when its own closing tag appears before an
+// enclosing element closes it implicitly; an unmatched <q> quotes nothing.
+function balancedOpenings(tokens: readonly string[]): Set<number> {
+  const open: { name: string; index: number }[] = [];
+  const balanced = new Set<number>();
+  tokens.forEach((value, index) => {
+    if (!value.startsWith('<') || value.startsWith('<!')) return;
+    const name = TAG_NAME.exec(value)?.[1]?.toLowerCase();
+    if (!name) return;
+    if (/^<\//u.test(value)) {
+      const at = open.map(item => item.name).lastIndexOf(name);
+      if (at >= 0) { balanced.add(open[at]!.index); open.splice(at); }
+    } else if (!VOID_TAGS.has(name) && !/\/\s*>$/u.test(value)) open.push({ name, index });
+  });
+  return balanced;
+}
+
 function scanHtml(html: string): Scan {
   const stack: Frame[] = [];
   const visible: string[] = [];
@@ -89,8 +106,9 @@ function scanHtml(html: string): Scan {
     }
   };
 
-  for (const token of html.matchAll(/<!--[\s\S]*?-->|<![^>]*>|<[^>]*>|[^<]+/gu)) {
-    const value = token[0] ?? '';
+  const tokens = [...html.matchAll(/<!--[\s\S]*?-->|<![^>]*>|<[^>]*>|[^<]+/gu)].map(token => token[0] ?? '');
+  const balanced = balancedOpenings(tokens);
+  for (const [tokenIndex, value] of tokens.entries()) {
     if (value.startsWith('<!--') || value.startsWith('<!')) continue;
     if (!value.startsWith('<')) {
       if (!stack.some(frame => HIDDEN_CONTAINER_TAGS.has(frame.tag))) addText(value, stack.at(-1));
@@ -121,7 +139,7 @@ function scanHtml(html: string): Scan {
     const ownSectionId = name === 'section' && /^M(?:0[1-9]|1[0-3])$/u.test(attrs.get('id') ?? '') ? attrs.get('id')!.toUpperCase() : null;
     if (ownSectionId) sectionCounts.set(ownSectionId, (sectionCounts.get(ownSectionId) ?? 0) + 1);
     const frame: Frame = { tag: name, hidden,
-      quote: stack.some(item => item.quote) || name === 'q' || name === 'blockquote' || attrs.has('data-quote'),
+      quote: stack.some(item => item.quote) || (balanced.has(tokenIndex) && (name === 'q' || name === 'blockquote' || attrs.has('data-quote'))),
       heading: stack.some(item => item.heading) || /^h[1-6]$/u.test(name),
       sectionId: ownSectionId ?? [...stack].reverse().find(item => item.sectionId !== null)?.sectionId ?? null };
     if (!hidden) {

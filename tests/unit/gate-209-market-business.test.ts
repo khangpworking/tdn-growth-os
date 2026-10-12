@@ -190,3 +190,17 @@ test('provider names in a Market build fail inside buildResearchAutomationReport
   (bad.marketPresentation as NonNullable<AutomationReportInput['marketPresentation']>).findings[0]!.statement = 'Metric';
   assert.throws(() => buildResearchAutomationReport(bad, 'MARKET'), /MARKET_BUSINESS_GATE_FAILED:G08_PROVIDER_NAME/);
 });
+
+test('round 5: an unmatched or nested unbalanced quote cannot hide an E2 claim', () => {
+  assert.equal(check(reportHtml('<p><q>xếp hạng theo doanh thu</p>'), 'E2_NO_REVENUE_ORDER').ok, false);
+  assert.equal(check(reportHtml('<p><q><q>trích</q> xếp hạng theo doanh thu</p>'), 'E2_NO_REVENUE_ORDER').ok, false);
+  assert.equal(check(reportHtml('<p><span data-quote>top 3 sản phẩm</p>'), 'E2_NO_REVENUE_ORDER').ok, false);
+  assert.equal(check(reportHtml('<p><q>xếp hạng theo doanh thu</q></p>'), 'E2_NO_REVENUE_ORDER').ok, true);
+  assert.equal(check(reportHtml('<blockquote><p>top 3 theo doanh thu</p></blockquote>'), 'E2_NO_REVENUE_ORDER').ok, true);
+});
+
+test('round 5: a sampling sentence does not exempt a later recommendation in the same block', () => {
+  assert.equal(check(reportHtml('<p>Tệp gồm 3 sản phẩm doanh thu cao nhất. Đề xuất chọn 3 sản phẩm doanh thu cao nhất.</p>'), 'U13_SUPERLATIVE').ok, false);
+  assert.equal(check(reportHtml('<p>Đề xuất chọn 3 sản phẩm doanh thu cao nhất. Tệp gồm 3 sản phẩm doanh thu cao nhất.</p>'), 'U13_SUPERLATIVE').ok, false);
+  assert.equal(check(reportHtml('<p>Tệp gồm 3 sản phẩm doanh thu cao nhất. Mẫu lấy 1.200 sản phẩm doanh thu cao nhất.</p>'), 'U13_SUPERLATIVE').ok, true);
+});
