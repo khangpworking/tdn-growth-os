@@ -2346,14 +2346,36 @@ export class ResearchAutomationService {
       if (!validateRevision(request) || request.contractVersion !== 'automation-market-presentation-revision-v1')
         throw new ResearchAutomationIntegrityError('Market presentation lacks an explicit revision request.');
       const ref = semantic.marketPresentationArtifact;
-      if (typeof ref.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(ref.sha256) || !Number.isSafeInteger(ref.byteSize))
+      if (typeof ref.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(ref.sha256) || !Number.isSafeInteger(ref.byteSize) || ref.byteSize < 0)
         throw new ResearchAutomationIntegrityError('Market presentation artifact reference is invalid.');
+      const hasInlineMarketPresentation = semantic.marketPresentation !== undefined;
+      if ((!hasInlineMarketPresentation && ref.contractVersion !== 'automation-market-presentation-reference-v1') ||
+          (hasInlineMarketPresentation && ref.contractVersion !== undefined))
+        throw new ResearchAutomationIntegrityError('Market presentation artifact form is inconsistent.');
       const bytes = await this.#readArtifact(ref.sha256, MAX_JSON_ARTIFACT_BYTES, 'application/json');
-      if (bytes.byteLength !== ref.byteSize || !bytes.equals(Buffer.from(canonicalJson(semantic.marketPresentation))))
-        throw new ResearchAutomationIntegrityError('Market presentation differs from its retained authoritative artifact.');
-      const verified = await this.#marketPresentationInputs(frozenRun, request, false, semantic.marketPresentation as AutomationMarketPresentationMethod);
-      const method = verifyAutomationMarketPresentation(semantic.marketPresentation, verified.binding);
-      if (canonicalJson(method.input) !== canonicalJson(verified.input) || semantic.rendererVersion !== 'automation-report-kit-v20')
+      if (bytes.byteLength !== ref.byteSize)
+        throw new ResearchAutomationIntegrityError('Market presentation artifact reference size differs from its retained artifact.');
+      let method: AutomationMarketPresentationMethod;
+      let verifiedInput: MarketPresentationInput;
+      if (semantic.marketPresentation !== undefined) {
+        if (!bytes.equals(Buffer.from(canonicalJson(semantic.marketPresentation))))
+          throw new ResearchAutomationIntegrityError('Market presentation differs from its retained authoritative artifact.');
+        const verified = await this.#marketPresentationInputs(frozenRun, request, false, semantic.marketPresentation as AutomationMarketPresentationMethod);
+        verifiedInput = verified.input;
+        method = verifyAutomationMarketPresentation(semantic.marketPresentation, verified.binding);
+      } else {
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(bytes.toString('utf8'));
+          if (!Buffer.from(canonicalJson(parsed), 'utf8').equals(bytes)) throw new Error('non-canonical');
+        } catch {
+          throw new ResearchAutomationIntegrityError('Stored Market presentation artifact is invalid or non-canonical.');
+        }
+        const verified = await this.#marketPresentationInputs(frozenRun, request, false, parsed as AutomationMarketPresentationMethod);
+        verifiedInput = verified.input;
+        method = verifyAutomationMarketPresentation(parsed, verified.binding);
+      }
+      if (canonicalJson(method.input) !== canonicalJson(verifiedInput) || semantic.rendererVersion !== 'automation-report-kit-v20')
         throw new ResearchAutomationIntegrityError('Market presentation retained inputs differ.');
     } else if (kind === 'MARKET' && attempt) {
       const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
@@ -3171,7 +3193,7 @@ export class ResearchAutomationService {
             i14Admission: _untrustedI14, i14AdmissionArtifact: _untrustedI14Reference,
             i14Synthesis: _untrustedSynthesis, i14ExecutionId: _untrustedExecution, ...presentation } = (authoritative?.semantic ?? rendered.semantic) as Record<string, unknown>;
           const reportSemantic = { ...presentation, ...(kind === 'INSIGHT' && (start.privateShopeeSource || input.qualitativeDraft) ? { rendererVersion: privateRendererVersion } : {}),
-            ...(kind === 'MARKET' && marketPresentation && marketPresentationArtifact ? { marketPresentation, marketPresentationArtifact: { sha256: marketPresentationArtifact.sha256, byteSize: marketPresentationArtifact.byteSize } } : {}), ...(input.sourceEvidence ? { sourceEvidence: input.sourceEvidence } : {}), decisionPackets, decisionPairedInsightVersionId,
+            ...(kind === 'MARKET' && marketPresentation && marketPresentationArtifact ? { marketPresentationArtifact: { contractVersion: 'automation-market-presentation-reference-v1', sha256: marketPresentationArtifact.sha256, byteSize: marketPresentationArtifact.byteSize } } : {}), ...(input.sourceEvidence ? { sourceEvidence: input.sourceEvidence } : {}), decisionPackets, decisionPairedInsightVersionId,
             ...(defaultMarketPeers ? { defaultMarketPeers } : {}),
             ...(Object.keys(decisionExecutionIds).length ? { decisionExecutionIds } : {}),
             sourceClaimsArtifact: { contractVersion: 'automation-source-claims-reference-v1', sha256: claimsArtifact.sha256, byteSize: builtClaims.bytes.length },
