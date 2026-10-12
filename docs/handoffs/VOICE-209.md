@@ -37,3 +37,19 @@ Next action:
 
 Business decisions pending:
 - Whether the review-video label should also appear in report text and not only in the read API.
+
+## Round 2 — review blockers fixed
+
+Updated: 2026-10-12
+
+- Restored `video-reading-v1` and its generated TypeScript exactly to `origin/main`; added versioned `video-reading-v2` contracts. New intake writes v2, while v1 `CREATOR` readings validate and project to in-memory `SELLER` rows with the label derived from `videoKind`. Read, receipt and history identities use v2 where their shape changed.
+- Removed byte-rewriting legacy upgrade behavior. Stored `reading.json` bytes remain immutable, and citation identities plus `readingSha256` use the stored reading artifact digest for both v1 and v2 packages.
+- Added P9 end-to-end coverage for stored legacy v1 and new v2 readings, including schema validation, labels, byte preservation and citation/receipt digest binding.
+
+Checks completed for this round:
+- Full unit suite: 715 passed, 3 skipped, 0 failed.
+- `npm run typecheck`: passed.
+- `tests/unit/video-reading-intake.test.ts`: 5 passed.
+- `tests/integration/research-automation-p9-sources.test.ts`: 12 passed.
+- Contract generation and stability check: passed.
+- `git diff --check origin/main...HEAD`: passed.

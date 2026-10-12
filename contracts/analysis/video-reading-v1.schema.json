@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://tdn.local/contracts/analysis/video-reading-v1.schema.json",
   "title": "VideoReadingV1",
-  "description": "Exact operator-supplied local segment/on-screen/frame evidence bound to the owning frozen run and video selection. Inert preparation; all speech is seller voice, with review-video creator speech labelled 'lời người làm video review'; no watch, cloud, transcription, model/coding call or source admission.",
+  "description": "Exact operator-supplied local segment/on-screen/frame evidence bound to the owning frozen run and video selection. Inert preparation, distinct seller/creator voice; no watch, cloud, transcription, model/coding call or source admission.",
   "oneOf": [
     {
       "$ref": "#/$defs/request"
@@ -293,7 +293,10 @@
           "const": "PREPARED_NOT_ADMITTED"
         },
         "voice": {
-          "const": "SELLER"
+          "enum": [
+            "SELLER",
+            "CREATOR"
+          ]
         },
         "input": {
           "$ref": "#/$defs/input"
@@ -317,7 +320,6 @@
       "required": [
         "text",
         "voice",
-        "voiceLabel",
         "captionSource",
         "startSeconds",
         "endSeconds",
@@ -330,12 +332,9 @@
           "maxLength": 20000
         },
         "voice": {
-          "const": "SELLER"
-        },
-        "voiceLabel": {
           "enum": [
-            "lời người bán",
-            "lời người làm video review"
+            "SELLER",
+            "CREATOR"
           ]
         },
         "captionSource": {

@@ -4,11 +4,13 @@ import path from 'node:path';
 import { ContentAddressedArtifactStore, type ArtifactReadOptions } from '../../../platform/artifacts/artifact-store.js';
 import { RequestScopedArtifactStore } from '../../../platform/artifacts/request-scoped-artifact-store.js';
 import commentsSchema from '../../../../contracts/analysis/tiktok-comment-collection-v1.schema.json' with { type: 'json' };
-import readingSchema from '../../../../contracts/analysis/video-reading-v1.schema.json' with { type: 'json' };
+import legacyReadingSchema from '../../../../contracts/analysis/video-reading-v1.schema.json' with { type: 'json' };
+import readingSchema from '../../../../contracts/analysis/video-reading-v2.schema.json' with { type: 'json' };
 import keywordSchema from '../../../../contracts/analysis/keyword-meaning-filter.schema.json' with { type: 'json' };
 import type { TikTokVideoSelectionRequest, TikTokCommentCollectionIntent, TikTokCommentRetainedCapture, TikTokCommentSourceReceipt,
   TikTokCommentReadView, TikTokCommentSourceHistory, TikTokSourcePackageIdentity } from '../../../../contracts/analysis/tiktok-comment-collection-v1.generated.js';
-import type { VideoReadingPrepareRequest, VideoReadingSourceReceipt, VideoReadingReadView, VideoReadingSourceHistory } from '../../../../contracts/analysis/video-reading-v1.generated.js';
+import type { VideoReadingPrepareRequest } from '../../../../contracts/analysis/video-reading-v1.generated.js';
+import type { VideoReadingSourceReceipt, VideoReadingReadView, VideoReadingSourceHistory } from '../../../../contracts/analysis/video-reading-v2.generated.js';
 import type { SourcePackageIntakeRequest } from '../../../../contracts/foundation/source-package-intake-request.generated.js';
 import { SourcePackageService, type VerifiedFinalizedSourcePackage } from '../../foundation/source-package-service.js';
 import { FoundationSourcePackageReader } from '../../foundation/source-package-reader.js';
@@ -21,13 +23,13 @@ import { buildTikTokCommentCorpus, citeTikTokCommentCorpus } from './tiktok-comm
 import { l9JevTriageMatches, unavailableL9JevTriage, validatesL9JevTriageSidecar, type L9JevTriageSidecar } from './l9-jev-triage.js';
 import type { KeywordMeaningFilterData, KeywordMeaningFilterResult } from '../keyword-meaning-filter.js';
 import type { TikTokCommentCorpus } from '../../../../contracts/analysis/tiktok-comment-collection-v1.generated.js';
-import { prepareVideoReading, citeVideoReading, upgradeLegacyReadingBytes } from './video-reading-intake.js';
+import { prepareVideoReading, citeVideoReading, projectStoredVideoReading } from './video-reading-intake.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
 const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
 const ajv = new Ajv2020({ strict: true, allErrors: false }); addFormats(ajv);
-ajv.addSchema([keywordSchema, commentsSchema, readingSchema]);
+ajv.addSchema([keywordSchema, commentsSchema, legacyReadingSchema, readingSchema]);
 const validateSelectionRequest = ajv.compile<TikTokVideoSelectionRequest>({ $ref: `${commentsSchema.$id}#/$defs/selectionRequest` });
 const validateIntent = ajv.compile<TikTokCommentCollectionIntent>({ $ref: `${commentsSchema.$id}#/$defs/intent` });
 const validateCapture = ajv.compile<TikTokCommentRetainedCapture>({ $ref: `${commentsSchema.$id}#/$defs/capture` });
@@ -260,7 +262,8 @@ export class AutomationP9SourceIntake {
     const existing = await this.#lookup(p9PackagePrefix(binding.runId, 'reading') + request.requestKey);
     if (existing) {
       const read = await this.reading(binding, identity(existing));
-      if (!member(existing, 'request.json').bytes.equals(bytes(request)) || !Buffer.from(upgradeLegacyReadingBytes(member(existing, 'reading.json').bytes)).equals(prepared.bytes)) fail();
+      if (!member(existing, 'request.json').bytes.equals(bytes(request)) ||
+        canonicalJson(projectStoredVideoReading(member(existing, 'reading.json').bytes)) !== canonicalJson(prepared.reading)) fail();
       return read.receipt;
     }
     const retained = await this.#store(binding, 'reading', request.requestKey,
@@ -276,14 +279,16 @@ export class AutomationP9SourceIntake {
     if (!selected.selection.videos.some(v => v.url === request.input.videoUrl && v.kind === request.input.videoKind)) fail();
     const prepared = prepareVideoReading(request.input, new Map(request.input.frames.map(f => [f.logicalPath, member(p, f.logicalPath).bytes])),
       readingBinding(binding, selected.selectionSha256));
-    if (!Buffer.from(upgradeLegacyReadingBytes(member(p, 'reading.json').bytes)).equals(prepared.bytes)) fail();
+    const storedReading = member(p, 'reading.json');
+    const projected = projectStoredVideoReading(storedReading.bytes);
+    if (canonicalJson(projected) !== canonicalJson(prepared.reading)) fail();
     const registry = new CitationRegistry();
-    const view: VideoReadingReadView = { contractVersion: 'video-reading-read-v1', registryId: 'S14',
-      rows: citeVideoReading(prepared.reading, prepared.sha256, registry), limitations: prepared.reading.limitations };
+    const view: VideoReadingReadView = { contractVersion: 'video-reading-read-v2', registryId: 'S14',
+      rows: citeVideoReading(projected, storedReading.sha256, registry), limitations: projected.limitations };
     if (!validateReadingView(view)) fail();
-    const receipt: VideoReadingSourceReceipt = { contractVersion: 'video-reading-source-receipt-v1', requestKey: request.requestKey,
-      package: identity(p), readingSha256: prepared.sha256, exactRetry: true, state: 'PREPARED_NOT_ADMITTED' };
-    return { receipt, view, citations: registry.entries(), finalizedAt: p.manifest.finalizedAt };
+    const receipt: VideoReadingSourceReceipt = { contractVersion: 'video-reading-source-receipt-v2', requestKey: request.requestKey,
+      package: identity(p), readingSha256: storedReading.sha256, exactRetry: true, state: 'PREPARED_NOT_ADMITTED' };
+    return { receipt, view, citations: registry.entries(), citationTrace: registry.technicalTrace(), finalizedAt: p.manifest.finalizedAt };
   }
   async history(binding: TikTokVideoSelectionBinding) {
     const commentSources: TikTokCommentSourceHistory['sources'] = [];
@@ -302,7 +307,7 @@ export class AutomationP9SourceIntake {
       }
     }
     const comments: TikTokCommentSourceHistory = { contractVersion: 'tiktok-comment-source-history-v1', workspaceId: binding.workspaceId, runId: binding.runId, sources: commentSources };
-    const readings: VideoReadingSourceHistory = { contractVersion: 'video-reading-source-history-v1', workspaceId: binding.workspaceId, runId: binding.runId, sources: readingSources };
+    const readings: VideoReadingSourceHistory = { contractVersion: 'video-reading-source-history-v2', workspaceId: binding.workspaceId, runId: binding.runId, sources: readingSources };
     return { comments, readings, commentsAt, readingsAt };
   }
 }

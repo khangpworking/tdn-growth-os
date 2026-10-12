@@ -1,8 +1,10 @@
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
-import readingSchema from '../../../../contracts/analysis/video-reading-v1.schema.json' with { type: 'json' };
-import type { OperatorVideoReading, PreparedVideoReading } from '../../../../contracts/analysis/video-reading-v1.generated.js';
-export type { OperatorVideoReading, PreparedVideoReading } from '../../../../contracts/analysis/video-reading-v1.generated.js';
+import legacyReadingSchema from '../../../../contracts/analysis/video-reading-v1.schema.json' with { type: 'json' };
+import readingSchema from '../../../../contracts/analysis/video-reading-v2.schema.json' with { type: 'json' };
+import type { PreparedVideoReading as LegacyPreparedVideoReading } from '../../../../contracts/analysis/video-reading-v1.generated.js';
+import type { OperatorVideoReading, PreparedVideoReading } from '../../../../contracts/analysis/video-reading-v2.generated.js';
+export type { OperatorVideoReading, PreparedVideoReading } from '../../../../contracts/analysis/video-reading-v2.generated.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import { CitationRegistry } from '../citation-registry.js';
 import { exactTikTokVideoUrl } from './tiktok-video-selection.js';
@@ -10,9 +12,10 @@ import { exactTikTokVideoUrl } from './tiktok-video-selection.js';
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
 const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
-const ajv = new Ajv2020({ strict: true, allErrors: false }); addFormats(ajv); ajv.addSchema(readingSchema);
+const ajv = new Ajv2020({ strict: true, allErrors: false }); addFormats(ajv); ajv.addSchema([legacyReadingSchema, readingSchema]);
 const validateInput = ajv.compile<OperatorVideoReading>({ $ref: `${readingSchema.$id}#/$defs/input` });
 const validateReading = ajv.compile<PreparedVideoReading>({ $ref: `${readingSchema.$id}#/$defs/reading` });
+const validateLegacyReading = ajv.compile<LegacyPreparedVideoReading>({ $ref: `${legacyReadingSchema.$id}#/$defs/reading` });
 
 export class VideoReadingIntakeError extends Error { readonly code = 'INVALID_VIDEO_READING'; }
 function fail(): never { throw new VideoReadingIntakeError('Nội dung video chưa khớp tệp, mốc thời gian và phạm vi đã chọn.'); }
@@ -43,7 +46,7 @@ export function prepareVideoReading(input: OperatorVideoReading, frames: Readonl
       !/^frames\/[A-Za-z0-9_-]{1,80}\.(?:png|jpg)$/.test(frame.logicalPath) || paths.has(frame.logicalPath) || !/^[a-f0-9]{64}$/.test(frame.sha256)) fail();
     paths.add(frame.logicalPath); const bytes = frames.get(frame.logicalPath); if (!bytes || sha(bytes) !== frame.sha256 || bytes.byteLength > 8 * 1024 * 1024) fail();
   }
-  const reading: PreparedVideoReading = { contractVersion: 'video-reading-v1' as const, registryId: 'S14' as const, ...binding,
+  const reading: PreparedVideoReading = { contractVersion: 'video-reading-v2' as const, registryId: 'S14' as const, ...binding,
     provenance: 'OPERATOR_SUPPLIED_UNVERIFIED' as const, state: 'PREPARED_NOT_ADMITTED' as const,
     voice: 'SELLER' as const,
     input: structuredClone(input), limitations: ['Operator-produced local video reading; caption source is declared, not provider authenticated.',
@@ -54,15 +57,22 @@ export function prepareVideoReading(input: OperatorVideoReading, frames: Readonl
 // Review-video creator speech is seller voice, labelled so readers can tell it from a shop's own sales video.
 export const voiceLabelFor = (videoKind: 'SELLER_VIDEO' | 'REVIEW_VIDEO') =>
   videoKind === 'REVIEW_VIDEO' ? 'lời người làm video review' as const : 'lời người bán' as const;
-// Stored readings written before VOICE-209 say voice CREATOR for REVIEW_VIDEO; map them to the current seller voice before comparing.
-export function upgradeLegacyReadingBytes(stored: Uint8Array): Uint8Array {
-  let value: { voice?: unknown };
-  try { value = JSON.parse(Buffer.from(stored).toString('utf8')); } catch { return stored; }
-  if (value === null || typeof value !== 'object' || value.voice !== 'CREATOR') return stored;
-  return Buffer.from(canonicalJson({ ...value, voice: 'SELLER' }));
+// Stored v1 readings remain immutable; only the returned in-memory projection uses the v2 seller voice.
+export function projectStoredVideoReading(stored: Uint8Array): PreparedVideoReading {
+  let value: unknown;
+  try { value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(stored)); } catch { return fail(); }
+  if (value === null || typeof value !== 'object' || Array.isArray(value) || !Buffer.from(canonicalJson(value)).equals(Buffer.from(stored))) fail();
+  if ((value as { contractVersion?: unknown }).contractVersion === 'video-reading-v2') {
+    if (!validateReading(value)) fail();
+    return value as PreparedVideoReading;
+  }
+  if ((value as { contractVersion?: unknown }).contractVersion !== 'video-reading-v1' || !validateLegacyReading(value)) fail();
+  const projected = { ...(value as LegacyPreparedVideoReading), contractVersion: 'video-reading-v2' as const, voice: 'SELLER' as const };
+  if (!validateReading(projected)) fail();
+  return projected;
 }
 export function citeVideoReading(reading: PreparedVideoReading, readingSha256: string, registry: CitationRegistry) {
-  if (!validateReading(reading) || sha(canonicalJson(reading)) !== readingSha256) fail();
+  if (!validateReading(reading) || !/^[a-f0-9]{64}$/.test(readingSha256)) fail();
   return reading.input.segments.map(segment => ({ text: segment.text, voice: reading.voice,
     voiceLabel: voiceLabelFor(reading.input.videoKind), captionSource: segment.captionSource, startSeconds: segment.startSeconds, endSeconds: segment.endSeconds,
     citation: registry.cite({ sourceKind: 'CAPTURE', identity: readingSha256,

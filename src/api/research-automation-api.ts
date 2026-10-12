@@ -36,7 +36,8 @@ import defaultPeerSchema from '../../contracts/analysis/default-market-peers.sch
 import readerApiSchema from '../../contracts/api/research-automation-reader-report-api.schema.json' with { type: 'json' };
 import sourceStatusSchema from '../../contracts/api/research-automation-source-status-api.schema.json' with { type: 'json' };
 import p9CommentsSchema from '../../contracts/analysis/tiktok-comment-collection-v1.schema.json' with { type: 'json' };
-import p9ReadingSchema from '../../contracts/analysis/video-reading-v1.schema.json' with { type: 'json' };
+import p9LegacyReadingSchema from '../../contracts/analysis/video-reading-v1.schema.json' with { type: 'json' };
+import p9ReadingSchema from '../../contracts/analysis/video-reading-v2.schema.json' with { type: 'json' };
 import p9KeywordSchema from '../../contracts/analysis/keyword-meaning-filter.schema.json' with { type: 'json' };
 import type { TikTokSourcePackageIdentity } from '../../contracts/analysis/tiktok-comment-collection-v1.generated.js';
 import { P9SourceError } from '../modules/analysis/research-automation/p9-source-intake.js';
@@ -144,7 +145,7 @@ ajv.addSchema(locatedInsightSchema); ajv.addSchema(insightSelectionSchema); ajv.
 ajv.addSchema(insightModelSchema); ajv.addSchema(insightModelApiSchema);
 ajv.addSchema(readerInputSchema); ajv.addSchema(readerApiSchema);
 ajv.addSchema(sourceStatusSchema);
-ajv.addSchema([p9KeywordSchema, p9CommentsSchema, p9ReadingSchema]);
+ajv.addSchema([p9KeywordSchema, p9CommentsSchema, p9LegacyReadingSchema, p9ReadingSchema]);
 ajv.addSchema(tiktokCodingSchema);
 ajv.addSchema(shopeeCodingSchema);
 const historicalRevisionValid = ajv.compile({ oneOf: [{ $ref: revisionRequestSchema.$id }, { $ref: classifiedRevisionRequestSchema.$id }, { $ref: insightRevisionRequestSchema.$id }, { $ref: boundedRevisionRequestSchema.$id }, { $ref: quoteRevisionRequestSchema.$id }, { $ref: marketPresentationRevisionSchema.$id }] });
@@ -169,7 +170,7 @@ const validates = {
   p9Selection: ajv.compile({ $ref: `${p9CommentsSchema.$id}#/$defs/selectionRequest` }),
   p9Package: ajv.compile({ $ref: `${p9CommentsSchema.$id}#/$defs/sourcePackage` }),
   p9Receipt: ajv.compile({ $ref: `${p9CommentsSchema.$id}#/$defs/receipt` }),
-  p9ReadingRequest: ajv.compile({ $ref: `${p9ReadingSchema.$id}#/$defs/request` }),
+  p9ReadingRequest: ajv.compile({ $ref: `${p9LegacyReadingSchema.$id}#/$defs/request` }),
   p9ReadingReceipt: ajv.compile({ $ref: `${p9ReadingSchema.$id}#/$defs/receipt` }),
   start: ajv.compile({ $ref: `${schema.$id}#/$defs/startRequest` }),
   confirm: ajv.compile({ oneOf: [{ $ref: `${schema.$id}#/$defs/confirmRequest` }, { $ref: sourceSchema.$id }] }),

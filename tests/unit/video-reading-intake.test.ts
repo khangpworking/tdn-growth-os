@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHash } from 'node:crypto';
-import { prepareVideoReading, citeVideoReading, upgradeLegacyReadingBytes, type OperatorVideoReading } from '../../src/modules/analysis/research-automation/video-reading-intake.js';
+import { prepareVideoReading, citeVideoReading, projectStoredVideoReading, type OperatorVideoReading } from '../../src/modules/analysis/research-automation/video-reading-intake.js';
 import { CitationRegistry } from '../../src/modules/analysis/citation-registry.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 
@@ -38,12 +38,18 @@ test('REVIEW_VIDEO creator speech is seller voice carrying the review-video labe
     [['SELLER', 'lời người làm video review'], ['SELLER', 'lời người làm video review']]);
 });
 
-test('stored readings written with voice CREATOR upgrade to the current seller reading bytes', () => {
+test('stored v1 readings with voice CREATOR project to seller in memory without changing stored bytes', () => {
   const prepared = prepareVideoReading({ ...input(), videoKind: 'REVIEW_VIDEO' }, frames, binding);
-  const legacy = Buffer.from(canonicalJson({ ...JSON.parse(prepared.bytes.toString('utf8')), voice: 'CREATOR' }));
-  assert.equal(Buffer.from(upgradeLegacyReadingBytes(legacy)).equals(prepared.bytes), true);
-  assert.equal(Buffer.from(upgradeLegacyReadingBytes(prepared.bytes)).equals(prepared.bytes), true);
-  assert.equal(upgradeLegacyReadingBytes(Buffer.from('not json')).toString(), 'not json');
+  const legacy = Buffer.from(canonicalJson({ ...JSON.parse(prepared.bytes.toString('utf8')), contractVersion: 'video-reading-v1', voice: 'CREATOR' }));
+  const storedHash = createHash('sha256').update(legacy).digest('hex');
+  const projected = projectStoredVideoReading(legacy);
+  assert.deepEqual(projected, prepared.reading);
+  assert.equal(Buffer.from(canonicalJson(projected)).equals(legacy), false);
+  assert.equal(createHash('sha256').update(legacy).digest('hex'), storedHash);
+  assert.deepEqual(projectStoredVideoReading(prepared.bytes), prepared.reading);
+  const registry = new CitationRegistry(); citeVideoReading(projected, storedHash, registry);
+  assert.equal(registry.technicalTrace().entries[0]!.identity, storedHash);
+  assert.throws(() => projectStoredVideoReading(Buffer.from('not json')));
 });
 
 test('missing segment, invalid timestamps, frame digest/membership and altered cited bytes reject', () => {

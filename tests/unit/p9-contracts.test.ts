@@ -3,7 +3,8 @@ import test from 'node:test';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import collectionSchema from '../../contracts/analysis/tiktok-comment-collection-v1.schema.json' with { type: 'json' };
-import readingSchema from '../../contracts/analysis/video-reading-v1.schema.json' with { type: 'json' };
+import legacyReadingSchema from '../../contracts/analysis/video-reading-v1.schema.json' with { type: 'json' };
+import readingSchema from '../../contracts/analysis/video-reading-v2.schema.json' with { type: 'json' };
 import keywordSchema from '../../contracts/analysis/keyword-meaning-filter.schema.json' with { type: 'json' };
 import { ApifyTikTokCommentsCollector, createTikTokCommentPrivacy, retainedTikTokCapture } from '../../src/platform/collectors/apify-tiktok-comments.js';
 import { buildTikTokCommentCorpus, citeTikTokCommentCorpus } from '../../src/modules/analysis/research-automation/tiktok-comment-intake.js';
@@ -16,8 +17,8 @@ const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
 const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
 const ajv = new Ajv2020({ strict: true }); addFormats(ajv);
-ajv.addSchema(keywordSchema); ajv.addSchema(collectionSchema); ajv.addSchema(readingSchema);
-const validate = (schema: typeof collectionSchema | typeof readingSchema, def: string, value: unknown) =>
+ajv.addSchema(keywordSchema); ajv.addSchema(collectionSchema); ajv.addSchema(legacyReadingSchema); ajv.addSchema(readingSchema);
+const validate = (schema: typeof collectionSchema | typeof readingSchema | typeof legacyReadingSchema, def: string, value: unknown) =>
   ajv.compile({ $ref: `${schema.$id}#/$defs/${def}` })(value);
 const digest = (value: unknown) => createHash('sha256').update(canonicalJson(value)).digest('hex');
 const uuid = '11111111-1111-4111-8111-111111111111';
