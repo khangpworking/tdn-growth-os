@@ -5,7 +5,7 @@ export const METRIC_OPENCLI_ARGV = Object.freeze([
 ] as const);
 
 export type MetricOpenCliCode =
-  | 'METRIC_LOGIN_REQUIRED' | 'METRIC_CAPTCHA' | 'METRIC_UI_CHANGED' | 'METRIC_FILTER_MISMATCH' | 'METRIC_ROW_CAP'
+  | 'METRIC_LOGIN_REQUIRED' | 'METRIC_CAPTCHA' | 'METRIC_PERIOD_UNSUPPORTED' | 'METRIC_UI_CHANGED' | 'METRIC_FILTER_MISMATCH' | 'METRIC_ROW_CAP'
   | 'BRIDGE_DISCONNECTED' | 'EXECUTOR_DISABLED' | 'TIMEOUT' | 'MANIFEST_HASH_MISMATCH';
 
 export interface MetricOpenCliProcessResult {
@@ -59,7 +59,7 @@ export type MetricOpenCliResult =
   | { readonly ok: false; readonly code: MetricOpenCliCode; readonly message: string; readonly argv: readonly string[] };
 
 const FAIL_CLOSED_CODES = [
-  'METRIC_LOGIN_REQUIRED', 'METRIC_CAPTCHA', 'METRIC_UI_CHANGED', 'METRIC_FILTER_MISMATCH', 'METRIC_ROW_CAP',
+  'METRIC_LOGIN_REQUIRED', 'METRIC_CAPTCHA', 'METRIC_PERIOD_UNSUPPORTED', 'METRIC_UI_CHANGED', 'METRIC_FILTER_MISMATCH', 'METRIC_ROW_CAP',
 ] as const;
 
 function sha256(bytes: Uint8Array): string { return createHash('sha256').update(bytes).digest('hex'); }

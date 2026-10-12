@@ -295,14 +295,14 @@ test('page warning observation classifies warning/error icons and badges as beni
       dom.window.close();
     }
   };
-  const benign = observe('<span class="warning-icon">!</span><span class="error-badge">3</span><i class="anticon anticon-warning"></i><svg class="error-dot"></svg><i class="material-icons">warning</i><div role="alert">Metric</div>');
+  const benign = observe('<div class="ant-alert ant-alert-info"><span class="warning-icon">!</span><span class="error-badge">3</span><i class="anticon anticon-warning"></i><svg class="error-dot"></svg><i class="material-icons">warning</i><div role="alert">Metric</div></div>');
   assert.equal(benign.warningVisible, false, JSON.stringify(benign.warningMatches));
   assert.ok(benign.warningMatches.some((match: any) => match.reason === 'icon-or-badge'));
   assert.ok(benign.warningMatches.filter((match: any) => match.reason === 'icon-or-badge').every((match: any) => match.text === null));
   for (const html of [
     '<div class="ant-alert ant-alert-warning ant-alert-no-icon" role="alert"><span class="anticon ant-alert-icon"></span>unrelated</div>',
     '<div class="ant-alert ant-alert-error"><span class="anticon ant-alert-icon"></span>unrelated</div>',
-    '<span class="error-badge">Hết lượt phân tích</span>',
+    '<div role="alert" class="ant-alert-error">Hết lượt phân tích</div>',
   ]) {
     assert.equal(observe(html).warningVisible, true, html);
   }
@@ -311,10 +311,16 @@ test('page warning observation classifies warning/error icons and badges as beni
 test('page warning observation is scoped, classified and identity-safe', async () => {
   await installOpenCliTestStub();
   const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const { gateMetricPage } = await import(parserUrl.href);
+  const ordinaryCopy = withMetricDom('<nav>Plan feature: access denied is described here.</nav><footer title="tooltip">Limit reached is only footer copy.</footer>', () => adapter.__test__.observeMetricPage(false));
+  assert.equal(ordinaryCopy.warningVisible, false);
+  assert.doesNotThrow(() => gateMetricPage(ordinaryCopy));
   const dom = new JSDOM(`<!doctype html><html><head><title>Metric analytics</title></head><body>
     <header id="header"><div role="alert" class="header-alert">Nguyễn Văn A nguyen.van.a@example.test +84901234567</div></header>
+    <nav>Plan feature copy: limit reached is described here; menu tooltip: access denied is not an error.</nav>
+    <footer>Footer copy may mention access denied without representing a live alert.</footer>
     <main id="main-content"><div id="analytic-tab">
-      <div role="alert" class="ant-alert-warning">unrelated text</div>
+      <div role="alert" class="ant-alert-warning">access denied for nguyen.van.a@example.test +84901234567</div>
       <div role="alert" class="ant-alert-error">unrelated error</div>
       <div role="alert" class="ant-alert-info">Information</div>
       <div role="alert">Unexpected alert</div>
@@ -336,13 +342,18 @@ test('page warning observation is scoped, classified and identity-safe', async (
     assert.ok(observation.warningMatches.some((match: any) => match.reason === 'error-class'));
     assert.ok(observation.warningMatches.some((match: any) => match.reason === 'alert-role'));
     assert.ok(observation.warningMatches.some((match: any) => match.reason === 'title-announcer'));
-    assert.ok(observation.warningMatches.some((match: any) => match.reason === 'bare-warning-text'));
+    assert.equal(observation.warningMatches.some((match: any) => match.reason === 'bare-warning-text'), false);
+    const restriction = observation.warningMatches.find((match: any) => match.reason === 'warning-class');
+    assert.equal(restriction.phrase, 'access denied');
+    assert.equal(restriction.tag, 'div');
+    assert.equal(restriction.role, 'alert');
     const serialized = JSON.stringify(observation.warningMatches);
     assert.doesNotMatch(serialized, /Nguyễn Văn A|nguyen\.van\.a@example\.test|84901234567/);
     for (const match of observation.warningMatches) {
       assert.ok(match.text === null || match.text.length <= 80);
     }
-    assert.equal(observation.warningMatches.filter((match: any) => match.classSample.includes('header-alert')).length, 0);
+    assert.equal(observation.warningMatches.filter((match: any) => match.classSample.includes('header-alert')).length, 1);
+    assert.equal(observation.warningMatches.find((match: any) => match.classSample.includes('header-alert'))?.reason, 'alert-role');
   } finally {
     if (previous.document === undefined) delete (globalThis as any).document; else (globalThis as any).document = previous.document;
     if (previous.location === undefined) delete (globalThis as any).location; else (globalThis as any).location = previous.location;
@@ -350,6 +361,19 @@ test('page warning observation is scoped, classified and identity-safe', async (
     if (previous.getComputedStyle === undefined) delete (globalThis as any).getComputedStyle; else (globalThis as any).getComputedStyle = previous.getComputedStyle;
     dom.window.close();
   }
+});
+
+test('semantic header restrictions trip the gate while non-semantic warning classes do not', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const { gateMetricPage } = await import(parserUrl.href);
+  const classOnly = withMetricDom('<header class="account-area"><div class="ks-warning-panel">Account panel</div></header>', () => adapter.__test__.observeMetricPage(false));
+  assert.equal(classOnly.warningVisible, false);
+  assert.doesNotThrow(() => gateMetricPage(classOnly));
+  const headerAlert = withMetricDom('<header class="account-area"><div role="alert">Access denied</div></header>', () => adapter.__test__.observeMetricPage(false));
+  assert.equal(headerAlert.warningVisible, true);
+  assert.ok(headerAlert.warningMatches.some((match: any) => match.role === 'alert'));
+  assert.throws(() => gateMetricPage(headerAlert), /METRIC_UI_CHANGED/);
 });
 
 test('whoami maps only displayed synthetic quota fields', async () => {
@@ -444,6 +468,48 @@ test('keyword locator uses an input-only placeholder and Vietnamese labels', asy
   const vietnameseObservation = withMetricDom(vietnameseHtml, () => adapter.__test__.observeMetricPage(false));
   assert.equal(vietnameseObservation.controls.find((control: any) => control.name === 'keywords').selector, '#keyword-vietnamese');
   assert.deepEqual(withMetricDom(vietnameseHtml, () => adapter.__test__.readCommittedKeywords()), []);
+});
+
+test('live platform chips are not observed as keywords when the keyword control is empty', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const fixture = await load('metric-live-form-states');
+  const observation = withMetricDom(fixture.singlePlatformKeywordEmpty, () => adapter.__test__.observeMetricPage(false));
+  assert.deepEqual(observation.appliedFilters.platforms, ['shopee']);
+  assert.deepEqual(observation.appliedFilters.keywords, []);
+  assert.deepEqual(withMetricDom(fixture.singlePlatformKeywordEmpty, () => adapter.__test__.readCommittedKeywords()), []);
+});
+
+test('live multiple-platform form keeps a stale keyword in the keyword control only', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const fixture = await load('metric-live-form-states');
+  const observation = withMetricDom(fixture.multiplePlatformStaleKeyword, () => adapter.__test__.observeMetricPage(false));
+  assert.deepEqual(observation.appliedFilters.platforms, ['shopee', 'tiktok']);
+  assert.deepEqual(observation.appliedFilters.keywords, ['synthetic-stale-keyword']);
+  assert.deepEqual(withMetricDom(fixture.multiplePlatformStaleKeyword, () => adapter.__test__.readCommittedKeywords()), ['synthetic-stale-keyword']);
+});
+
+test('stale keyword removal on the live multiple-platform shape uses the keyword close icon', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const fixture = await load('metric-live-form-states');
+  const calls: string[] = [];
+  const page: any = {
+    evaluate: async (fn: Function, argument?: unknown) => {
+      if (fn.toString().includes('document.activeElement === input')) return true;
+      return withMetricDom(fixture.multiplePlatformStaleKeyword, () => fn(argument));
+    },
+    click: async (selector: string) => calls.push(`click:${selector}`),
+    fillText: async (selector: string, value: string) => calls.push(`fill:${selector}:${value}`),
+    cdp: async (method: string, params: any) => calls.push(`cdp:${method}:${params.key}`),
+    pressKey: async (key: string) => calls.push(`key:${key}`),
+  };
+  const spec = { keywords: ['synthetic-current-keyword'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-01-01', endDate: '2026-01-30' }, category: null };
+  const initial = { appliedFilters: { keywords: ['synthetic-stale-keyword'], platforms: ['shopee', 'tiktok'], period: spec.period, category: null } };
+  await adapter.__test__.applyMetricSpec(page, spec, initial);
+  assert.ok(calls.some((call: string) => call.includes('#synthetic-keyword-stale') && call.includes('.ant-tag-close-icon')));
+  assert.ok(calls.includes('fill:#synthetic-keyword-stale:synthetic-current-keyword'));
 });
 
 test('uncommitted keyword input text is never read back as a committed chip', async () => {
@@ -541,12 +607,15 @@ test('diagnostics are opt-in and identity-safe for warning matches', async () =>
     warningVisible: true, warningMatches: [
       { via: 'selector', tag: 'div', role: 'alert', classSample: 'header account-alert', text: 'Nguyễn Văn A nguyen.van.a@example.test +84901234567 20261012', reason: 'alert-role' },
       { via: 'selector', tag: 'div', role: 'alert', classSample: 'ant-alert-info', text: 'Nguyễn Văn A', reason: 'info-alert' },
-      { via: 'selector', tag: 'div', role: 'alert', classSample: 'ant-alert-warning', text: 'access denied for nguyen.van.a@example.test +84901234567 on 20261012', reason: 'warning-class' },
+      { via: 'selector', tag: 'div', role: 'alert', classSample: 'ant-alert-warning', phrase: 'access denied', text: 'access denied for nguyen.van.a@example.test +84901234567 on 20261012', reason: 'warning-class' },
     ],
   };
   const page = { wait: async () => {}, evaluate: async () => observation };
   await assert.rejects(() => adapter.__test__.readObservation(page, { includeResults: false }), (error: any) => {
-    assert.equal(error.details, undefined);
+    assert.deepEqual(error.details.warningMatches, [
+      { via: 'selector', tag: 'div', elementKind: 'div', role: 'alert', classSample: 'ant-alert-info', reason: 'info-alert', phrase: null, text: null },
+      { via: 'selector', tag: 'div', elementKind: 'div', role: 'alert', classSample: 'ant-alert-warning', reason: 'warning-class', phrase: 'access denied', text: 'access denied' },
+    ]);
     assert.doesNotMatch(error.message, /warningMatches|nguyen\.van\.a|Nguyễn Văn A|84901234567|20261012/);
     return true;
   });
@@ -554,8 +623,8 @@ test('diagnostics are opt-in and identity-safe for warning matches', async () =>
     const serialized = JSON.stringify(error.details);
     assert.doesNotMatch(serialized, /nguyen\.van\.a@example\.test|84901234567|20261012|Nguyễn Văn A/);
     assert.deepEqual(error.details.warningMatches, [
-      { via: 'selector', tag: 'div', role: 'alert', classSample: 'ant-alert-info', reason: 'info-alert', text: null },
-      { via: 'selector', tag: 'div', role: 'alert', classSample: 'ant-alert-warning', reason: 'warning-class', text: 'access denied for [redacted-email] [redacted-phone] on [redacted-phone]' },
+      { via: 'selector', tag: 'div', elementKind: 'div', role: 'alert', classSample: 'ant-alert-info', reason: 'info-alert', phrase: null, text: null },
+      { via: 'selector', tag: 'div', elementKind: 'div', role: 'alert', classSample: 'ant-alert-warning', reason: 'warning-class', phrase: 'access denied', text: 'access denied' },
     ]);
     return true;
   });
@@ -568,7 +637,7 @@ const commandSpec = {
 
 function fakePage(observation: any, result: any, resultDom: any = null, networkResponses: any[] = [], behavior: any = {}) {
   let searched = false;
-  const state = { paginationClicks: 0, platformSwitches: 0 };
+  const state = { paginationClicks: 0, platformSwitches: 0, formReads: 0 };
   const calls: string[] = [];
   const clickRecords: Array<{ selector: string; options?: any }> = [];
   const screenshotCalls: any[] = [];
@@ -584,7 +653,11 @@ function fakePage(observation: any, result: any, resultDom: any = null, networkR
     wait: async () => {},
     evaluate: async (fn: Function, arg?: unknown) => {
       if (fn.name === 'observeMetricPage') {
-        if (arg === false) return behavior.gateObservation ? behavior.gateObservation(state, observation) : observation;
+        if (arg === false) {
+          state.formReads = (state.formReads || 0) + 1;
+          if (behavior.gateObservation) return behavior.gateObservation(state, observation);
+          return state.formReads > 1 && result?.appliedFilters ? { ...observation, appliedFilters: result.appliedFilters } : observation;
+        }
         return behavior.searchObservation ? behavior.searchObservation(state, result) : result;
       }
       if (fn.name === 'readCommittedKeywords') return commandSpec.keywords;
@@ -652,6 +725,76 @@ test('whoami, search, and capture commands use a fake page and clean up their ow
   await rm(directory, { recursive: true, force: true });
 });
 
+test('capture dry-run returns a matching read-back without reaching submit or search click', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const directory = await mkdtemp(join(tmpdir(), 'p6-209-dry-run-'));
+  const specPath = join(directory, 'spec.json');
+  await writeFile(specPath, `${JSON.stringify(commandSpec)}\n`);
+  const form = await load('metric-form');
+  let readCount = 0;
+  const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] } }, {}, null, [], {
+    gateObservation: (_state: any, observation: any) => {
+      readCount += 1;
+      return readCount === 1 ? observation : { ...observation, appliedFilters: commandSpec };
+    },
+  });
+  const result = await adapter.captureCommand.func(page, { spec: specPath, 'dry-run': true });
+  assert.equal(result.length, 1);
+  assert.equal(result[0].outcome, 'DRY_RUN_OK');
+  assert.deepEqual(result[0].startState, {
+    platforms: commandSpec.platforms,
+    keywords: [],
+    period: commandSpec.period,
+    category: null,
+  });
+  assert.deepEqual(result[0].appliedReadBack, commandSpec);
+  assert.deepEqual(result[0].mismatches, []);
+  assert.equal(page.searched, false);
+  assert.equal(page.calls.some((call: string) => call === 'click:button,[role="button"]'), false);
+  assert.equal(page.calls.includes('network:start'), false);
+  await rm(directory, { recursive: true, force: true });
+});
+
+test('non-default periods fail closed in dry-run before any form action and retain both periods', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const directory = await mkdtemp(join(tmpdir(), 'p6-209-period-unsupported-dry-run-'));
+  const spec = { ...commandSpec, period: { startDate: '2026-08-01', endDate: '2026-08-31' } };
+  const specPath = join(directory, 'spec.json');
+  await writeFile(specPath, `${JSON.stringify(spec)}\n`);
+  const observedPeriod = commandSpec.period;
+  const form = await load('metric-form');
+  const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [], period: observedPeriod } }, {});
+  const result = await adapter.captureCommand.func(page, { spec: specPath, 'dry-run': true });
+  assert.equal(result[0].outcome, 'METRIC_PERIOD_UNSUPPORTED');
+  assert.deepEqual(result[0].mismatches[0].details, { observedPeriod, requestedPeriod: spec.period });
+  assert.equal(page.searched, false);
+  assert.equal(page.calls.some((call: string) => call.includes('#platform-input') || call.includes('.ant-picker')), false);
+  assert.equal(page.calls.includes('network:start'), false);
+  await rm(directory, { recursive: true, force: true });
+});
+
+test('non-default periods fail closed in capture before form actions or submit', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const directory = await mkdtemp(join(tmpdir(), 'p6-209-period-unsupported-capture-'));
+  const spec = { ...commandSpec, period: { startDate: '2026-08-01', endDate: '2026-08-31' } };
+  const specPath = join(directory, 'spec.json'); const outputDir = join(directory, 'capture');
+  await writeFile(specPath, `${JSON.stringify(spec)}\n`);
+  const form = await load('metric-form');
+  const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [], period: commandSpec.period } }, {});
+  await assert.rejects(() => adapter.captureCommand.func(page, { spec: specPath, out: outputDir }), (error: any) => {
+    assert.equal(error.code, 'METRIC_PERIOD_UNSUPPORTED');
+    assert.deepEqual(error.details, { observedPeriod: commandSpec.period, requestedPeriod: spec.period });
+    return true;
+  });
+  assert.equal(page.searched, false);
+  assert.equal(page.calls.some((call: string) => call.includes('#platform-input') || call.includes('.ant-picker')), false);
+  assert.ok(page.calls.includes('close:synthetic-tab'));
+  await rm(directory, { recursive: true, force: true });
+});
+
 test('capture archive contains no fixture identity or token in any archived file', async () => {
   await installOpenCliTestStub();
   const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
@@ -699,7 +842,9 @@ test('capture gates a redirect before reading the next pagination page and leave
   await writeFile(specPath, `${JSON.stringify(commandSpec)}\n`);
   const form = await load('metric-form'); const result = { ...(await load('metric-search')), appliedFilters: commandSpec };
   const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] } }, result, resultDomForGateTest([], true), [], {
-    gateObservation: (state: any, observation: any) => state.paginationClicks ? { ...observation, url: 'https://redirect.example.test/results', metricRootVisible: true } : observation,
+    gateObservation: (state: any, observation: any) => state.formReads > 1
+      ? state.paginationClicks ? { ...observation, url: 'https://redirect.example.test/results', metricRootVisible: true } : { ...observation, appliedFilters: commandSpec }
+      : observation,
   });
   await assert.rejects(() => adapter.captureCommand.func(page, { spec: specPath, out: captureDir, 'product-cap': 200 }), /METRIC_UI_CHANGED/);
   await assert.rejects(() => access(captureDir), /ENOENT/);
@@ -733,9 +878,10 @@ test('a tab-close failure fails the adapter command', async () => {
 
 const keywordFormHtml = `<div id="QuerySearchBuilder"><div class="ant-space-item"><div class="filter-label"><span class="label">Platform</span></div><div class="ant-select"><input id="platform-input" /></div></div><div class="ant-space-item"><div class="filter-label"><span class="label">Từ khóa</span></div><div class="ant-select ant-select-multiple"><div class="ant-select-selector"><div class="ant-select-selection-overflow"><div class="ant-select-selection-overflow-item"><span class="ant-tag ks-chip">old-term<span class="ant-tag-close-icon">×</span></span></div><div class="ant-select-selection-overflow-item ant-select-selection-overflow-item-suffix"><input id="keyword-input" /></div></div></div></div></div></div>`;
 
-function platformOptionPage(options: { selected?: string[]; missingTiktok?: boolean; removeIndex?: number } = {}) {
+function platformOptionPage(options: { selected?: string[]; missingTiktok?: boolean; removeIndex?: number; switchLag?: number } = {}) {
   const fixture = (name: string) => load('metric-platform-control').then(value => value[name]);
   let mode: 'single' | 'multi' = 'single';
+  let switchClicks = 0;
   let dropdownOpen = false;
   const selected = new Set(options.selected || ['shopee']);
   const calls: string[] = [];
@@ -760,7 +906,7 @@ function platformOptionPage(options: { selected?: string[]; missingTiktok?: bool
     click: async (selector: string, clickOptions?: any) => {
       calls.push(`click:${selector}`);
       clickRecords.push({ selector, options: clickOptions });
-      if (selector === '#QuerySearchBuilder button.switch-button') { mode = 'multi'; return; }
+      if (selector === '#QuerySearchBuilder button.switch-button') { switchClicks += 1; if (switchClicks > (options.switchLag ?? 0)) mode = 'multi'; return; }
       if (selector.includes('> .ant-select-selector')) { dropdownOpen = true; return; }
       if (selector === '[role="option"],.ant-select-item-option') {
         const labels = options.missingTiktok ? ['Shopee', 'Lazada', 'Tiki'] : ['Shopee', 'Lazada', 'Tiki', 'Tiktok'];
@@ -790,6 +936,17 @@ test('multi-platform option clicks use the re-rendered Platform root and never f
   assert.equal(page.clickRecords[2].options.nth, 3);
   assert.ok(!page.calls.some((call: string) => call.startsWith('fill:#rc_select_')));
   assert.ok(!page.calls.some((call: string) => call.includes('Enter')));
+});
+
+test('multi-platform switch waits for the re-rendered mode and retries once', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const page = platformOptionPage({ switchLag: 1 });
+  const spec = { keywords: ['synthetic-term'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-01-01', endDate: '2026-01-30' }, category: null };
+  const initial = { appliedFilters: { keywords: [], platforms: ['shopee'], period: spec.period, category: null } };
+  await adapter.__test__.applyMetricSpec(page, spec, initial);
+  assert.equal(page.calls.filter((call: string) => call === 'click:#QuerySearchBuilder button.switch-button').length, 2);
+  assert.ok(page.calls.includes('click:[role="option"],.ant-select-item-option'));
 });
 
 test('already-selected platform options are not clicked', async () => {
@@ -824,6 +981,25 @@ test('platform removal uses the scoped selected-item remove control', async () =
   assert.equal(remove.selector, '#QuerySearchBuilder .ant-select:has(#platform-input) .ant-select-selection-item-remove');
   assert.equal(remove.options.nth, 1);
   assert.ok(!remove.selector.includes(' ~ '));
+});
+
+test('unknown selected platforms remain observable, are removed before apply, and cannot pass the scope gate', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const parser = await import(parserUrl.href);
+  const fixture = await load('metric-platform-control');
+  const observation = withMetricDom(fixture.multiShopeeLazada, () => adapter.__test__.observeMetricPage(false));
+  assert.deepEqual(observation.appliedFilters.platforms, ['shopee', 'Lazada']);
+  const spec = { keywords: ['synthetic-term'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-01-01', endDate: '2026-01-30' }, category: null };
+  const search = { ...(await load('metric-search')), appliedFilters: { ...spec, platforms: ['shopee', 'Lazada'] } };
+  assert.throws(() => parser.parseSearchObservation(search, spec), /METRIC_FILTER_MISMATCH/);
+  const form = await load('metric-form');
+  const page = fakePage({ ...form, appliedFilters: { ...spec, platforms: ['shopee', 'Lazada'], keywords: [] } }, {}, null, [], { platformRemoveIndex: 1 });
+  await adapter.__test__.applyMetricSpec(page, spec, { appliedFilters: { ...spec, platforms: ['shopee', 'Lazada'], keywords: [] } });
+  const remove = page.clickRecords.find((record: any) => record.selector.endsWith('.ant-select-selection-item-remove'));
+  assert.ok(remove);
+  assert.equal(remove.options.nth, 1);
+  assert.ok(page.calls.includes('click:[role="option"],.ant-select-item-option'));
 });
 
 test('multi-platform read-back uses the selected item content from the Round 5 fixture', async () => {
@@ -908,10 +1084,14 @@ test('platform mismatch after the keyword commit blocks the search before any lo
   await installOpenCliTestStub();
   const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
   const form = await load('metric-form');
-  const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [], platforms: ['shopee'] }, quota: {} }, { ...(await load('metric-search')), appliedFilters: commandSpec });
+  const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [], platforms: ['shopee'] }, quota: {} }, { ...(await load('metric-search')), appliedFilters: commandSpec }, null, [], {
+    gateObservation: (_state: any, observation: any) => observation,
+  });
   await assert.rejects(() => adapter.__test__.performSearch(page, commandSpec), (error: any) => {
     assert.equal(error.code, 'METRIC_FILTER_MISMATCH');
-    assert.deepEqual(error.details, { platformsMatchExpected: false, platformCount: 1 });
+    assert.equal(error.details.platformsMatchExpected, false);
+    assert.equal(error.details.platformCount, 1);
+    assert.deepEqual(error.details.mismatches.map((mismatch: any) => mismatch.field), ['platforms', 'keywords']);
     return true;
   });
   assert.equal(page.searched, false);
@@ -993,14 +1173,15 @@ test('Round 6 labels support direct text and nested label forms, including prefi
 });
 
 function dateApplyPage(options: { acceptDates?: boolean } = {}) {
-  const state = { start: '01-01-2026', end: '02-01-2026', opened: 0, calls: [] as string[] };
+  const state = { start: '01-01-2026', end: '02-01-2026', opened: false, selected: [] as string[], calls: [] as string[] };
   const html = () => `<div id="QuerySearchBuilder">
     <div class="ant-space-item"><div class="filter-label">Platform</div><div class="ant-select"><input id="platform-date-test"></div></div>
     <div class="ant-space-item"><div class="filter-label"><span class="label">Keywords</span></div><div class="ant-select ant-select-multiple"><div class="ant-select-selector"><input id="keyword-date-test"></div></div></div>
     <div class="ant-space-item"><div class="filter-label">Time period</div><div class="ant-select"><input id="period-date-test"></div><div class="ant-picker"><input value="${state.start}"></div><div class="ant-picker"><input value="${state.end}"></div></div>
     <div class="ant-space-item"><div class="filter-label">Product category</div><div class="ant-select"><input id="category-date-test"><span class="ant-select-selection-item">All</span></div></div>
     <div class="ant-picker-dropdown"><button class="ant-picker-header-prev-btn"></button><button class="ant-picker-header-next-btn"></button>
-      <div class="ant-picker-cell" title="2026-01-01"></div><div class="ant-picker-cell" title="2026-01-02"></div><div class="ant-picker-cell" title="2026-02-01"></div><div class="ant-picker-cell" title="2026-02-02"></div>
+      <div class="ant-picker-panel"><div class="ant-picker-cell"><div class="ant-picker-cell-inner" title="2026-01-01">1</div></div><div class="ant-picker-cell"><div class="ant-picker-cell-inner" title="2026-01-02">2</div></div></div>
+      <div class="ant-picker-panel"><div class="ant-picker-cell"><div class="ant-picker-cell-inner" title="2026-02-01">1</div></div><div class="ant-picker-cell"><div class="ant-picker-cell-inner" title="2026-02-02">2</div></div></div>
     </div></div>`;
   const page: any = {
     calls: state.calls,
@@ -1008,10 +1189,11 @@ function dateApplyPage(options: { acceptDates?: boolean } = {}) {
     click: async (selector: string, clickOptions?: any) => {
       state.calls.push(`click:${selector}`);
       if (selector === '#platform-date-test') return;
-      if (selector === '#QuerySearchBuilder .ant-picker input') { state.opened = clickOptions?.nth ?? 0; return; }
+      if (selector === '#QuerySearchBuilder .ant-picker input') { state.opened = true; return; }
       const target = /title="([^"]+)"/.exec(selector)?.[1];
-      if (target && options.acceptDates !== false) {
-        if (state.opened === 0) state.start = target.split('-').reverse().join('-');
+      if (target && state.opened && options.acceptDates !== false) {
+        state.selected.push(target);
+        if (state.selected.length === 1) state.start = target.split('-').reverse().join('-');
         else state.end = target.split('-').reverse().join('-');
       }
     },
@@ -1028,8 +1210,9 @@ test('custom date range uses native picker clicks and fails closed on displayed 
   const initial = { appliedFilters: { ...spec, period: { startDate: '2026-01-01', endDate: '2026-01-02' } } };
   const page = dateApplyPage();
   await adapter.__test__.applyMetricSpec(page, spec, initial);
-  assert.ok(page.calls.some((call: string) => call.includes('.ant-picker-cell[title="2026-01-01"]')));
-  assert.ok(page.calls.some((call: string) => call.includes('.ant-picker-cell[title="2026-02-02"]')));
+  assert.ok(page.calls.some((call: string) => call.includes('.ant-picker-cell-inner[title="2026-01-01"]')));
+  assert.ok(page.calls.some((call: string) => call.includes('.ant-picker-cell-inner[title="2026-02-02"]')));
+  assert.equal(page.calls.filter((call: string) => call === 'click:#QuerySearchBuilder .ant-picker input').length, 1);
   await assert.rejects(() => adapter.__test__.applyMetricSpec(dateApplyPage({ acceptDates: false }), spec, initial), (error: any) => error.code === 'METRIC_FILTER_MISMATCH');
 });
 

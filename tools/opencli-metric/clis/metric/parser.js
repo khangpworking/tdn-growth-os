@@ -5,6 +5,7 @@ export const METRIC_ALLOWED_HOSTS = new Set(['metric.vn', 'www.metric.vn']);
 export const METRIC_FAIL_CODES = Object.freeze([
   'METRIC_LOGIN_REQUIRED',
   'METRIC_CAPTCHA',
+  'METRIC_PERIOD_UNSUPPORTED',
   'METRIC_UI_CHANGED',
   'METRIC_FILTER_MISMATCH',
   'METRIC_ROW_CAP',
@@ -121,6 +122,18 @@ function warningMatchCausesFailure(match, title) {
   return hasMetricRestrictionText(match.text) || isBareMetricWarningText(match.text);
 }
 
+function warningMatchDetails(matches, title) {
+  if (!Array.isArray(matches)) return [];
+  return matches.filter(match => warningMatchCausesFailure(match, title)).slice(0, 10).map(match => ({
+    phrase: match?.phrase == null ? null : clean(match.phrase)
+      .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]')
+      .replace(/(?<!\w)\+?\d[\d\s().-]{5,}\d(?!\w)/g, '[redacted-phone]')
+      .replace(/\d/g, '#').slice(0, 80),
+    elementKind: clean(match?.tag).toLowerCase().slice(0, 40) || 'unknown',
+    role: match?.role == null ? null : clean(match.role).slice(0, 80),
+  }));
+}
+
 function setKey(values) {
   return [...new Set((values ?? []).map(clean).filter(Boolean).map(value => value.toLowerCase()))].sort().join('\u0000');
 }
@@ -193,7 +206,9 @@ export function gateMetricPage(observation) {
     || hasMetricRestrictionText(observation.warningText)
     || isBareMetricWarningText(observation.warningText)
     || warningMatches.some(match => warningMatchCausesFailure(match, observation.title))) {
-    throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric page displays a warning or access restriction');
+    throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric page displays a warning or access restriction', {
+      warningMatches: warningMatchDetails(warningMatches, observation.title),
+    });
   }
   if (observation.loginVisible === true || /\b(?:login|đăng nhập)\b/i.test(clean(observation.bodyText))) {
     throw new MetricAdapterError('METRIC_LOGIN_REQUIRED', 'Metric session is not logged in');
