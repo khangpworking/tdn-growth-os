@@ -30,3 +30,21 @@ Unresolved: None.
 Next action: Review the local commit; do not push or open a PR.
 
 Business decisions pending: None.
+
+## Round 2
+
+Root cause: the Insight crosscheck test used a fixed 20 ms timer as the only way to yield between UI assertions, plus a second fixed-delay polling loop while waiting for the durable report attempt. Under Linux scheduling and worker load, those elapsed-time guesses could leave the test observing an intermediate state and eventually fail after a long wait. The test now yields through React `act` and `setImmediate`, checks the concrete UI or report-attempt state on every turn, and applies a 30 s ceiling with a state-specific failure label. No frontend source race was found or changed; the exact two blinded gateway calls and retained retry bodies were already serialized by the component and API.
+
+Changed paths:
+
+- `frontend/tests/research-insight-crosscheck-ui.test.ts:13-24` — replaced fixed-sleep polling with bounded event-loop/state waits and diagnostic labels.
+- `frontend/tests/research-insight-crosscheck-ui.test.ts:133-138` — converted the committed report-attempt loop to the same bounded asynchronous state wait.
+- `docs/handoffs/CIUI-209.md` — this round-2 evidence.
+
+Evidence:
+
+- `node --import tsx --test frontend/tests/research-insight-crosscheck-ui.test.ts` — 20/20 consecutive passes; slowest isolated wall duration 29.860 s.
+- `npm run frontend:test` — 5/5 consecutive passes, 294/294 tests each (53.22–55.98 s).
+- Concurrent load: 3 rounds with `npm run frontend:test` and the crosscheck file running together — all 6 processes passed; crosscheck durations 59.50 s, 63.77 s and 64.15 s.
+- `npm run frontend:typecheck` — PASS.
+- `npm run typecheck` — PASS.

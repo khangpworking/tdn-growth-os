@@ -10,8 +10,19 @@ import { setupDom } from './dom';
 import { crosscheckFlowFixture, crosscheckWorkspaceId as workspaceId, crosscheckRunId as runId, crosscheckOwner as owner, blankCrosscheckAnnotations } from '../../tests/helpers/crosscheck-flow-fixture';
 import { openResearchAutomationApi } from '../../src/api/research-automation-api';
 import { insightCodingCliproxyConfiguration } from '../../src/modules/analysis/research-automation/i14-cliproxy-transport';
-const settle = () => act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
-async function until(check: () => boolean, label: string) { for (let at = 0; at < 3000 && !check(); at++) await settle(); assert.ok(check(), label); }
+const nextTurn = () => act(async () => { await new Promise<void>(resolve => setImmediate(resolve)); });
+async function until(check: () => boolean, label: string, ceilingMs = 30000) {
+  const deadline = Date.now() + ceilingMs;
+  let satisfied = check();
+  while (!satisfied && Date.now() < deadline) { await nextTurn(); satisfied = check(); }
+  assert.ok(satisfied, `${label}; current UI: ${document.body.textContent?.slice(-500) ?? '(empty)'}`);
+}
+async function untilAsync(check: () => Promise<boolean>, label: string, ceilingMs = 30000) {
+  const deadline = Date.now() + ceilingMs;
+  let satisfied = await check();
+  while (!satisfied && Date.now() < deadline) { await nextTurn(); satisfied = await check(); }
+  assert.ok(satisfied, label);
+}
 function button(root: ParentNode, label: string) { const item = [...root.querySelectorAll('button')].find(button => button.textContent?.trim() === label); assert.ok(item, label); return item; }
 const click = (root: ParentNode, label: string) => act(async () => button(root, label).click());
 
@@ -119,12 +130,12 @@ test('actual StrictMode UI -> authenticated HTTP -> two blinded fake second call
     await click(dom.container, 'Thử lại đúng báo cáo đã giữ'); await until(() => activity === 1, 'exact report retry verified');
     assert.deepEqual(posts[3]!.body, posts[2]!.body); assert.equal(posts[2]!.body.defaultInsight.proposalId, f.latest.evidence.evidenceId);
     let selectedPair: string | undefined;
-    for (let at = 0; at < 500 && !selectedPair; at++) {
+    await untilAsync(async () => {
       const attempts = await f.service.listReportAttempts(workspaceId, runId);
       assert.ok(!attempts.some(item => item.state === 'FAILED'));
       selectedPair = attempts.find(item => item.state === 'COMMITTED')?.pairId ?? undefined;
-      if (!selectedPair) await settle();
-    }
+      return Boolean(selectedPair);
+    }, 'report attempt committed');
     assert.ok(selectedPair);
     const report = await f.service.readReport(workspaceId, runId, 'INSIGHT', false, selectedPair);
     const semantic = JSON.parse((await f.artifacts.read(report.versionId)).toString());
