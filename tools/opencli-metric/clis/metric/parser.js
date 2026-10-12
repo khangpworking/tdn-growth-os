@@ -97,12 +97,22 @@ function isTitleAnnouncer(match, title) {
   return !text || Boolean(pageTitle && pageTitle.startsWith(text));
 }
 
+const ICON_OR_BADGE_TAGS = new Set(['i', 'svg', 'img', 'path', 'use']);
+const ICON_OR_BADGE_CLASS = /(?:^|[-_\s])(?:icon|anticon|badge|dot|count)(?:$|[-_\s])/i;
+const ALERT_CONTAINER_CLASS = /(?:^|\s)ant-(?:alert|message-notice|message-custom-content|notification-notice)(?:-(?:warning|error))?(?:\s|$)|(?:^|\s)ant-(?:alert|message|notification(?:-notice)?)-(?:warning|error)(?:\s|$)/i;
+
+function isIconOrBadgeMatch(match) {
+  const classSample = String(match.classSample ?? '');
+  if (String(match.role ?? '').toLowerCase() === 'alert' || ALERT_CONTAINER_CLASS.test(classSample)) return false;
+  return ICON_OR_BADGE_TAGS.has(String(match.tag ?? '').toLowerCase()) || ICON_OR_BADGE_CLASS.test(classSample);
+}
+
 function warningMatchCausesFailure(match, title) {
   if (!match || typeof match !== 'object') return false;
   const reason = String(match.reason ?? '');
   if (reason === 'title-announcer' || reason === 'info-alert' || reason === 'success-alert' || reason === 'icon-or-badge') return false;
   if (/^(?:warning|error)-class$/.test(reason) || /^(?:restriction-text|bare-warning-text|alert-role)$/.test(reason)) return true;
-  if (/warning|error/i.test(String(match.classSample ?? ''))) return true;
+  if (/warning|error/i.test(String(match.classSample ?? ''))) return !isIconOrBadgeMatch(match) || hasMetricRestrictionText(match.text);
   if (String(match.role ?? '').toLowerCase() === 'alert') {
     if (hasExplicitInfoOrSuccess(match) || isTitleAnnouncer(match, title)) return false;
     return true;

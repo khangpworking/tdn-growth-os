@@ -221,7 +221,12 @@ function observeMetricPage(includeResults = true) {
   };
   const inWarningScope = element => warningScopeRoots.some(root => root === element || root.contains(element)) && !isHeaderOrAccount(element);
   const scopedElements = [...document.querySelectorAll('body *')].filter(element => visible(element) && inWarningScope(element));
-  const classOf = element => typeof element?.className === 'string' ? element.className : '';
+  const classOf = element => String(element?.getAttribute?.('class') ?? (typeof element?.className === 'string' ? element.className : ''));
+  const isAlertContainer = element => element?.getAttribute?.('role') === 'alert'
+    || /(?:^|\s)ant-(?:alert|message-notice|message-custom-content|notification-notice)(?:-(?:warning|error))?(?:\s|$)|(?:^|\s)ant-(?:alert|message|notification(?:-notice)?)-(?:warning|error)(?:\s|$)/i.test(classOf(element));
+  const isIconOrBadge = element => !isAlertContainer(element)
+    && (['i', 'svg', 'img', 'path', 'use'].includes(String(element?.tagName || '').toLowerCase())
+      || /(?:^|[-_\s])(?:icon|anticon|badge|dot|count)(?:$|[-_\s])/i.test(classOf(element)));
   const explicitAlertKind = element => {
     const marker = `${classOf(element)} ${element?.getAttribute?.('type') || ''} ${element?.getAttribute?.('status') || ''}`;
     if (/(?:^|[-_\s])info(?:$|[-_\s])/i.test(marker)) return 'info-alert';
@@ -250,7 +255,8 @@ function observeMetricPage(includeResults = true) {
   };
   for (const element of scopedElements.filter(candidate => candidate.matches('[role="alert"],[class*="warning" i],[class*="error" i],[class*="alert" i]'))) {
     const className = classOf(element);
-    if (/warning/i.test(className)) addWarning(element, 'selector', 'warning-class', true);
+    if (isIconOrBadge(element) && !hasRestrictionInPage(textOf(element))) addWarning(element, 'selector', 'icon-or-badge', false);
+    else if (/warning/i.test(className)) addWarning(element, 'selector', 'warning-class', true);
     else if (/error/i.test(className)) addWarning(element, 'selector', 'error-class', true);
     else if (element.getAttribute('role') === 'alert' && titleAnnouncer(element)) addWarning(element, 'selector', 'title-announcer', false);
     else if (element.getAttribute('role') === 'alert' && explicitAlertKind(element)) addWarning(element, 'selector', explicitAlertKind(element), false);
@@ -263,7 +269,8 @@ function observeMetricPage(includeResults = true) {
     if (!text || (!hasRestrictionInPage(text) && !isBareWarningInPage(text))) return false;
     return ![...candidate.children].some(child => hasRestrictionInPage(textOf(child)) || isBareWarningInPage(textOf(child)));
   })) {
-    addWarning(element, 'text', isBareWarningInPage(textOf(element)) ? 'bare-warning-text' : 'restriction-text', true);
+    if (!hasRestrictionInPage(textOf(element)) && isIconOrBadge(element)) addWarning(element, 'text', 'icon-or-badge', false);
+    else addWarning(element, 'text', isBareWarningInPage(textOf(element)) ? 'bare-warning-text' : 'restriction-text', true);
   }
   const warningMatches = [...warningMatchesByElement.values()].slice(0, 20);
   const loginVisible = [...document.querySelectorAll('a,button,[role="button"]')]
@@ -589,7 +596,12 @@ function observeResultPage() {
   };
   const inWarningScope = element => warningScopeRoots.some(root => root === element || root.contains(element)) && !isHeaderOrAccount(element);
   const scopedElements = [...document.querySelectorAll('body *')].filter(element => visible(element) && inWarningScope(element));
-  const classOf = element => typeof element?.className === 'string' ? element.className : '';
+  const classOf = element => String(element?.getAttribute?.('class') ?? (typeof element?.className === 'string' ? element.className : ''));
+  const isAlertContainer = element => element?.getAttribute?.('role') === 'alert'
+    || /(?:^|\s)ant-(?:alert|message-notice|message-custom-content|notification-notice)(?:-(?:warning|error))?(?:\s|$)|(?:^|\s)ant-(?:alert|message|notification(?:-notice)?)-(?:warning|error)(?:\s|$)/i.test(classOf(element));
+  const isIconOrBadge = element => !isAlertContainer(element)
+    && (['i', 'svg', 'img', 'path', 'use'].includes(String(element?.tagName || '').toLowerCase())
+      || /(?:^|[-_\s])(?:icon|anticon|badge|dot|count)(?:$|[-_\s])/i.test(classOf(element)));
   const explicitAlertKind = element => {
     const marker = `${classOf(element)} ${element?.getAttribute?.('type') || ''} ${element?.getAttribute?.('status') || ''}`;
     if (/(?:^|[-_\s])info(?:$|[-_\s])/i.test(marker)) return 'info-alert';
@@ -618,7 +630,8 @@ function observeResultPage() {
   };
   for (const element of scopedElements.filter(candidate => candidate.matches('[role="alert"],[class*="warning" i],[class*="error" i],[class*="alert" i]'))) {
     const className = classOf(element);
-    if (/warning/i.test(className)) addWarning(element, 'selector', 'warning-class', true);
+    if (isIconOrBadge(element) && !hasRestrictionInPage(textOf(element))) addWarning(element, 'selector', 'icon-or-badge', false);
+    else if (/warning/i.test(className)) addWarning(element, 'selector', 'warning-class', true);
     else if (/error/i.test(className)) addWarning(element, 'selector', 'error-class', true);
     else if (element.getAttribute('role') === 'alert' && titleAnnouncer(element)) addWarning(element, 'selector', 'title-announcer', false);
     else if (element.getAttribute('role') === 'alert' && explicitAlertKind(element)) addWarning(element, 'selector', explicitAlertKind(element), false);
@@ -631,7 +644,8 @@ function observeResultPage() {
     if (!text || (!hasRestrictionInPage(text) && !isBareWarningInPage(text))) return false;
     return ![...candidate.children].some(child => hasRestrictionInPage(textOf(child)) || isBareWarningInPage(textOf(child)));
   })) {
-    addWarning(element, 'text', isBareWarningInPage(textOf(element)) ? 'bare-warning-text' : 'restriction-text', true);
+    if (!hasRestrictionInPage(textOf(element)) && isIconOrBadge(element)) addWarning(element, 'text', 'icon-or-badge', false);
+    else addWarning(element, 'text', isBareWarningInPage(textOf(element)) ? 'bare-warning-text' : 'restriction-text', true);
   }
   const warningMatches = [...warningMatchesByElement.values()].slice(0, 20);
   const scopedWarningText = scopedElements.filter(element => element.children.length === 0).map(textOf).filter(Boolean).join('\n');
