@@ -66,3 +66,17 @@ test('every nested authored field is guarded; source evidence is not an argument
   assert.equal(hasDecisionPurchaseProposal([{ text: 'Review public evidence', citedClaimRefs: ['buy'], counterevidenceRefs: ['mua'], counterevidenceRelations: [{ claimRef: 'purchase' }] }]), false);
   assert.equal(hasDecisionPurchaseProposal([{ counterevidenceRelations: [{ compatibility: { scope: 'Order two units of the competitor product for quality assessment' } }] }]), true);
 });
+
+test('the buyer noun "người mua" / "bên mua" is not a purchase proposal; real proposals in the same text still block', () => {
+  for (const text of [
+    'Tập hợp đánh giá công khai, ghi lại nguyên văn các bối cảnh sử dụng mà người mua tự nêu kèm nguồn, không mua sản phẩm.',
+    'Chưa biết người mua có nêu bối cảnh tặng quà hay không.',
+    'Đối chiếu yêu cầu của bên mua trong nguồn công khai',
+    'Người mua phàn nàn về nắp bình',
+  ]) assert.equal(hasAuthoredPurchaseProposal(text), false, text);
+  for (const text of [
+    'Ghi lại lời người mua rồi mua sản phẩm để kiểm tra',
+    'Người mua tự nêu bối cảnh; mua sản phẩm đối thủ để kiểm tra',
+    'Đề xuất người dùng mua sản phẩm để kiểm tra',
+  ]) assert.equal(hasAuthoredPurchaseProposal(text), true, text);
+});
