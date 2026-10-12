@@ -119,7 +119,7 @@ export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
         countedSample(input, offset) ? `${prefix}theo ngưỡng doanh thu` : match)
       .replace(/(bản ghi|đối tượng)\s+duy nhất/giu, (match, kind: string, offset: number, input: string) => {
         const before = input.slice(0, offset).trimEnd();
-        const countContext = kind.toLowerCase() === 'bản ghi' ? /(?:^|\bsố)\s*$/iu.test(before) : /\bsố\s*$/iu.test(before);
+        const countContext = kind.toLowerCase() === 'bản ghi' || /\bsố\s*$/iu.test(before);
         return countContext ? match.replace(/duy nhất$/iu, 'phân biệt') : match;
       })
       .replace(/dòng trùng đồng nhất/giu, 'dòng trùng hệt');

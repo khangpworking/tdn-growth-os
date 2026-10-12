@@ -169,6 +169,12 @@ test('round 3: method wording about records is not a superlative', () => {
   assert.equal(check(reportHtml('<p>Sản phẩm A có doanh thu cao nhất.</p>'), 'U13_SUPERLATIVE').ok, false);
 });
 
+test('round 8: distinct-record count labels are not superlatives', () => {
+  assert.equal(check(reportHtml('<dl><dt>Khai báo được đưa vào</dt><dd>201</dd><dt>Bản ghi duy nhất</dt><dd>201</dd></dl>'), 'U13_SUPERLATIVE').ok, true);
+  assert.equal(check(reportHtml('<p>Đối chiếu 201 bản ghi duy nhất trong lớp mã hóa.</p>'), 'U13_SUPERLATIVE').ok, true);
+  assert.equal(check(reportHtml('<p>Sản phẩm A là đối tượng duy nhất đáp ứng yêu cầu.</p>'), 'U13_SUPERLATIVE').ok, false);
+});
+
 test('provider names in a Market build fail inside buildResearchAutomationReport', () => {
   const metric = calculateMetricScopes(metricFixture());
   const rows = sync1ReaderFixture('1.4.0').rows;
