@@ -194,6 +194,40 @@ test('round 9: renderer limitation wording is not revenue ranking or a superlati
   assert.equal(check(reportHtml('<p>A là đối tượng duy nhất đáp ứng yêu cầu.</p>'), 'U13_SUPERLATIVE').ok, false);
 });
 
+test('round 12: negated market-share lists reject every affirmative predicate tail', () => {
+  const predicates = ['cao', 'là cao', 'cao hơn B', 'lớn hơn B', 'dẫn đầu B', 'vượt B', 'đứng đầu', 'chiếm', 'tăng', 'giảm', 'ưu thế', 'nhất'];
+  for (const predicate of predicates) {
+    const phrase = `Không cung cấp dữ liệu đối chiếu hay thị phần của A ${predicate}.`;
+    assert.equal(check(reportHtml(`<p>${phrase}</p>`), 'E2_NO_REVENUE_ORDER').ok, false, phrase);
+  }
+});
+
+test('round 12: round-10 negated verb lists reject affirmative market-share tails', () => {
+  const predicates = ['cao', 'là cao', 'cao hơn B', 'lớn hơn B', 'dẫn đầu B', 'vượt B', 'đứng đầu', 'chiếm', 'tăng', 'giảm', 'ưu thế', 'nhất'];
+  for (const predicate of predicates) {
+    for (const prefix of ['Không tính chi phí hoặc', 'Không tính chi phí, lợi nhuận hoặc']) {
+      const phrase = `${prefix} thị phần của A ${predicate}.`;
+      assert.equal(check(reportHtml(`<p>${phrase}</p>`), 'E2_NO_REVENUE_ORDER').ok, false, phrase);
+    }
+  }
+});
+
+test('round 12: true absence lists and Unicode predicate boundaries remain correct', () => {
+  const accepted = [
+    'Không cung cấp dữ liệu đối chiếu hay thị phần.',
+    'Bản lưu không cung cấp quy mô thị trường, tăng trưởng năm hoặc thị phần toàn thị trường.',
+    'Chưa xác lập thị phần hoặc mức cạnh tranh của toàn thị trường.',
+    'Không tính chi phí, lợi nhuận hoặc xếp hạng chào bán.',
+  ];
+  for (const phrase of accepted) {
+    assert.equal(check(reportHtml(`<p>${phrase}</p>`), 'E2_NO_REVENUE_ORDER').ok, true, phrase);
+  }
+  for (const predicate of ['là cao', 'có cao', 'chiếm', 'chiếm ưu thế', 'tăng', 'giảm', 'nhất']) {
+    const phrase = `Không cung cấp dữ liệu đối chiếu hay thị phần của A ${predicate}.`;
+    assert.equal(check(reportHtml(`<p>${phrase}</p>`), 'E2_NO_REVENUE_ORDER').ok, false, phrase);
+  }
+});
+
 test('provider names in a Market build fail inside buildResearchAutomationReport', () => {
   const metric = calculateMetricScopes(metricFixture());
   const rows = sync1ReaderFixture('1.4.0').rows;

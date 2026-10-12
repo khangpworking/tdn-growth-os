@@ -23,8 +23,8 @@ const CROSS_PLATFORM_TOTAL_PHRASES: readonly string[] = [
   'cộng TikTok Shop và Shopee',
 ];
 
-const PROPOSAL_TERMS = /(?:phương án|lựa chọn|\boption\b|\bproposal\b|\baction_option\b)/iu;
-const E2_ALWAYS_TERMS = /(?:Thứ tự theo doanh thu|\btop\s*3\b)/giu;
+const PROPOSAL_TERMS = /(?:phương án|lựa chọn|(?<![\p{L}\p{N}_])option(?![\p{L}\p{N}_])|(?<![\p{L}\p{N}_])proposal(?![\p{L}\p{N}_])|(?<![\p{L}\p{N}_])action_option(?![\p{L}\p{N}_]))/iu;
+const E2_ALWAYS_TERMS = /(?:Thứ tự theo doanh thu|(?<![\p{L}\p{N}_])top\s*3(?![\p{L}\p{N}_]))/giu;
 const E2_NEGATABLE_TERMS = /(?:xếp hạng|thị phần)/giu;
 const COMMON_WORD_PROVIDERS = new Set(['Metric']);
 const MODEL_ID =/\b(?:gpt|claude)-[A-Za-z0-9][A-Za-z0-9._-]*\b/giu;
@@ -150,11 +150,21 @@ function matches(text: string, pattern: RegExp): string[] {
 const CLAUSE_BREAK = /[.;:!?…\n]|(?<![\p{L}\p{N}_])(?:nhưng|tuy nhiên|tuy vậy|song|mặc dù|vẫn|but|however)(?![\p{L}\p{N}_])/giu;
 const NEGATION = /(?<![\p{L}\p{N}_])(?:không|chưa|chẳng)(?![\p{L}\p{N}_])/giu;
 const DIRECT_NEGATED_RANKING = /^(?:phải\s*)?(?:bảng\s*)?$/iu;
-const NEGATED_LIST_VERB = /(?:^|,|\b(?:hay|hoặc)\b)\s*(?:so sánh|cộng|tính|chấm điểm)\s*(?:,|\b(?:hay|hoặc)\b)?$/iu;
-const NEGATED_VERB_OBJECT_LIST = /^(?:tính|so sánh|cộng|chấm điểm)\s+[^.;:!?…\d]{1,50}\s(?:hay|hoặc)$/iu;
-const NEGATED_INFERENCE = /^suy\s+ra(?:\s+[^.;:!?…\n]{1,60}\b(?:hay|hoặc))?\s*$/iu;
-const NEGATED_ABSENCE = /^(?:cung cấp|xác lập)(?:\s*$|\s+[^.;:!?…]{0,80}\b(?:hay|hoặc)\s*$)/iu;
-const AFFIRMATIVE_TAIL = /\d|\b(?:là|chiếm|đạt|tăng|giảm|được|trình bày|có)\b/iu;
+const NEGATED_LIST_VERB = /(?:^|,|(?<![\p{L}\p{N}_])(?:hay|hoặc)(?![\p{L}\p{N}_]))\s*(?:so sánh|cộng|tính|chấm điểm)\s*(?:,|(?<![\p{L}\p{N}_])(?:hay|hoặc)(?![\p{L}\p{N}_]))?$/iu;
+const NEGATED_VERB_OBJECT_LIST = /^(?:tính|so sánh|cộng|chấm điểm)\s+[^.;:!?…\d]{1,50}\s(?:(?:hay|hoặc))(?![\p{L}\p{N}_])$/iu;
+const NEGATED_INFERENCE = /^suy\s+ra(?:\s+[^.;:!?…\n]{1,60}(?<![\p{L}\p{N}_])(?:hay|hoặc)(?![\p{L}\p{N}_]))?\s*$/iu;
+const NEGATED_ABSENCE = /^(?:cung cấp|xác lập)(?:\s*$|\s+[^.;:!?…]{0,80}(?<![\p{L}\p{N}_])(?:hay|hoặc)(?![\p{L}\p{N}_])\s*$)/iu;
+
+// The text after an exempted ranking/share noun must remain a noun phrase or
+// the known continuation of the closed disclaimer list. A free-form tail is
+// deliberately rejected: it may be a predicate even when its vocabulary is
+// not in a finite affirmative-word list (for example, "cao hơn B").
+const PLAIN_NOUN_TAIL = /^\s*(?:(?:(?:hay|hoặc)\s+)?(?:toàn\s+thị\s+trường|mức\s+cạnh\s+tranh(?:\s+của\s+toàn\s+thị\s+trường)?|mức\s+ưu\s+tiên|năng\s+lực|chào\s+bán)|(?:hay|hoặc)\s+của\s+(?:[\p{Lu}\p{Lt}\p{N}][\p{L}\p{N}._-]*(?:\s+[\p{Lu}\p{Lt}\p{N}][\p{L}\p{N}._-]*){0,3})|của\s+(?:[\p{Lu}\p{Lt}\p{N}][\p{L}\p{N}._-]*(?:\s+[\p{Lu}\p{Lt}\p{N}][\p{L}\p{N}._-]*){0,3}))?\s*$/u;
+const CLOSED_LIST_TAIL = /^\s*(?:(?:hay|hoặc)\s+(?:tính\s+thị\s+phần|khuyến nghị)|,\s*chấm điểm(?:,\s*tính\s+chênh lệch\s+hay\s+(?:tỷ lệ|thị phần))?|và\s+chưa\s+có\s+kết\s+luận\s+chính)\s*$/iu;
+
+function safeNegatedTail(after: string): boolean {
+  return PLAIN_NOUN_TAIL.test(after) || CLOSED_LIST_TAIL.test(after);
+}
 
 function clauseAround(text: string, start: number, end: number): { before: string; after: string } {
   let from = 0;
@@ -176,10 +186,11 @@ function e2Negated(text: string, start: number, end: number, term: string): bool
   if (!last) return false;
   const span = before.slice((last.index ?? 0) + last[0].length).trim().replace(/\s+/gu, ' ');
   if (span.length > 60) return false;
-  return DIRECT_NEGATED_RANKING.test(span) || NEGATED_LIST_VERB.test(span) ||
-    (NEGATED_VERB_OBJECT_LIST.test(span) && !AFFIRMATIVE_TAIL.test(after)) ||
+  return (DIRECT_NEGATED_RANKING.test(span) && safeNegatedTail(after)) ||
+    (NEGATED_LIST_VERB.test(span) && safeNegatedTail(after)) ||
+    (NEGATED_VERB_OBJECT_LIST.test(span) && safeNegatedTail(after)) ||
     (after.trim().length === 0 && NEGATED_INFERENCE.test(span)) ||
-    (term.toLowerCase() === 'thị phần' && NEGATED_ABSENCE.test(span) && !AFFIRMATIVE_TAIL.test(after));
+    (term.toLowerCase() === 'thị phần' && NEGATED_ABSENCE.test(span) && safeNegatedTail(after));
 }
 
 function e2Matches(text: string): string[] {

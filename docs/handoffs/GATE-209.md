@@ -189,3 +189,11 @@ Round-9 evidence:
 - `git diff --check origin/main...HEAD` — PASS.
 
 Self-review: the gate still blocks affirmative revenue ranking (`top 3`, `Thứ tự theo doanh thu`, `xếp hạng theo doanh thu`), affirmative market share, and affirmative superlatives/unique-object claims. The new exceptions require the intended negation/limitation wording and cannot exempt a later affirmative claim after a clause break or malformed list.
+
+## Round 10
+
+Closed-list negation support was added for quote-method wording such as “không tính chi phí, lợi nhuận hoặc xếp hạng chào bán”, while affirmative ranking tails remained blocked. Focused coverage preserved the existing limitation exemptions and tested the new verb-list boundary.
+
+## Round 12
+
+Replaced the negated market-share affirmative-tail word list with a structural noun-continuation check. Exemptions now allow only clause-ending text or explicitly closed noun/list continuations; predicate tails such as “là cao”, “cao hơn B”, “dẫn đầu B”, “vượt B” and “đứng đầu” fail E2, including after round-10 verb lists. Vietnamese word matching in this gate uses Unicode-aware boundaries, and focused tests cover all reported probes plus accepted absence statements.
