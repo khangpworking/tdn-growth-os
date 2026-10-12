@@ -73,6 +73,7 @@ test('the buyer noun "người mua" / "bên mua" is not a purchase proposal; rea
     'Chưa biết người mua có nêu bối cảnh tặng quà hay không.',
     'Đối chiếu yêu cầu của bên mua trong nguồn công khai',
     'Người mua phàn nàn về nắp bình',
+    'Phân tích hành vi của người mua hàng', 'Người mua hàng phàn nàn về giao hàng chậm', 'Khảo sát người mua hàng trên Shopee',
   ]) assert.equal(hasAuthoredPurchaseProposal(text), false, text);
   for (const text of [
     'Ghi lại lời người mua rồi mua sản phẩm để kiểm tra',
@@ -82,5 +83,7 @@ test('the buyer noun "người mua" / "bên mua" is not a purchase proposal; rea
     'Nên để bên mua đặt lô hàng', 'ĐỀ XUẤT NGƯỜI MUA THỬ SẢN PHẨM', 'Đề xuất  người   mua sản phẩm',
     'Đề xuất người mua sản phẩm'.normalize('NFD'), 'Đề xuất\nngười mua sản phẩm', 'Đề xuất người mua\nsản phẩm',
     'Ghi lại nguồn, người mua thử sản phẩm đối thủ', 'Recommend người mua một sản phẩm đối thủ',
+    'đề xuất cho mỗi người mua một chiếc điện thoại để kiểm tra chất lượng', 'Giao cho từng người mua sản phẩm đối thủ',
+    'Đề xuất cho tất cả người mua thử', 'Ghi lại nguồn, người mua hai chiếc bình để thử', 'Nhờ người mua hàng mẫu đối thủ',
   ]) assert.equal(hasAuthoredPurchaseProposal(text), true, text);
 });

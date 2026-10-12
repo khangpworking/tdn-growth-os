@@ -14,8 +14,9 @@ const DATA_NOUN = /(?:lịch sử|dữ liệu|bằng chứng|hồ sơ|hành vi|h
 // "người mua" / "bên mua" name the buyer (a noun), not a proposed purchase,
 // unless a directive governs it ("nhờ người mua ...") or a goods object follows.
 const BUYER_NOUN = /(?<![\p{L}\p{N}_])(?:người|bên)$/iu;
-const DIRECTIVE_BUYER = /(?<![\p{L}\p{N}_])(?:đề xuất|đề nghị|khuyến nghị|khuyên|nhờ|thuê|nên|hãy|cần|phải|yêu cầu|giao|cử|mời|recommend|suggest|propose|ask)(?:\s+(?:cho|để|một|các|những|mọi))?\s+(?:người|bên)$/iu;
-const GOODS_AFTER_BUYER = /^\s*(?:(?:thử|ngay|trước|luôn)(?![\p{L}\p{N}_])|(?:(?:một|hai|ba|vài|các|những|\d+)\s+)?(?:sản phẩm|hàng|mẫu|đơn|lô|gói)(?![\p{L}\p{N}_]))/iu;
+const DIRECTIVE_BUYER = /(?<![\p{L}\p{N}_])(?:đề xuất|đề nghị|khuyến nghị|khuyên|nhờ|thuê|nên|hãy|cần|phải|yêu cầu|giao|cử|mời|recommend|suggest|propose|ask)(?:\s+(?:cho|để|một|các|những|mọi|mỗi|từng|tất cả|cả)){0,3}\s+(?:người|bên)$/iu;
+// "người mua hàng" alone is the shopper noun; a quantity + classifier or "hàng mẫu/thử" marks goods.
+const GOODS_AFTER_BUYER = /^\s*(?:(?:thử|ngay|trước|luôn)(?![\p{L}\p{N}_])|(?:(?:một|hai|ba|vài|các|những|mỗi|\d+)\s+)?(?:sản phẩm|mẫu|đơn|lô|gói|hàng\s+(?:mẫu|thử|đối thủ))(?![\p{L}\p{N}_])|(?:một|hai|ba|vài|mỗi|\d+)\s+(?:chiếc|cái|hộp|bộ|chai|lọ|túi|thùng|hàng)(?![\p{L}\p{N}_]))/iu;
 
 export function hasAuthoredPurchaseProposal(text: string): boolean {
   // Normalize a temporary matching view; never rewrite or return source/proposal bytes.
