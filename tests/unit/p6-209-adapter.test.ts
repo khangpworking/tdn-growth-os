@@ -174,6 +174,19 @@ test('adapter parser fails closed for domain, login, captcha, filter and row cap
   assert.throws(() => parser.parseSearchObservation({ ...observation, appliedFilters: { ...spec, category: 'Khác' } }, spec), /METRIC_FILTER_MISMATCH/);
 });
 
+test('warning gate ignores benign alert-like UI but keeps real restrictions and dedicated auth gates', async () => {
+  const { gateMetricPage } = await import(parserUrl.href);
+  const base = {
+    url: 'https://metric.vn/analytics', bodyText: '', warningText: '', warningVisible: false, metricRootVisible: true,
+  };
+  assert.doesNotThrow(() => gateMetricPage({ ...base, bodyText: 'Metric information banner and notification badge' }));
+  assert.doesNotThrow(() => gateMetricPage({ ...base, warningMatches: [{ via: 'selector', tag: 'span', role: 'alert', classSample: 'ant-alert-info icon-alert', text: 'Information' }] }));
+  assert.throws(() => gateMetricPage({ ...base, warningVisible: true }), /METRIC_UI_CHANGED/);
+  assert.throws(() => gateMetricPage({ ...base, warningText: 'Lookup limit reached' }), /METRIC_UI_CHANGED/);
+  assert.throws(() => gateMetricPage({ ...base, captchaVisible: true }), /METRIC_CAPTCHA/);
+  assert.throws(() => gateMetricPage({ ...base, loginVisible: true }), /METRIC_LOGIN_REQUIRED/);
+});
+
 test('whoami maps only displayed synthetic quota fields', async () => {
   const { parseWhoamiObservation } = await import(parserUrl.href);
   assert.deepEqual(parseWhoamiObservation(await load('metric-whoami')), {

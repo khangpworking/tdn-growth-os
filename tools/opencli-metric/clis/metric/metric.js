@@ -24,7 +24,11 @@ const DEFAULT_WAIT_SECONDS = 2;
 
 function asCliError(error) {
   if (error instanceof CliError) return error;
-  if (error instanceof MetricAdapterError) return new CliError(error.code, error.message);
+  if (error instanceof MetricAdapterError) {
+    const matches = error.details?.warningMatches;
+    const detail = Array.isArray(matches) ? `; warningMatches=${JSON.stringify(matches.slice(0, 10))}` : '';
+    return new CliError(error.code, `${error.message}${detail}`);
+  }
   return new CliError('METRIC_UI_CHANGED', error instanceof Error ? error.message : String(error));
 }
 
@@ -147,13 +151,38 @@ function observeMetricPage(includeResults = true) {
   }));
   const visibleTextContent = [...document.querySelectorAll('#header, #QuerySearchBuilder, #main-content #analytic-tab, [data-v-50902570]')]
     .filter(visible).map(textOf).filter(Boolean).join('\n');
+  const maskDigits = value => String(value ?? '').replace(/\d/g, '#');
+  const sample = (value, max = 80) => maskDigits(value).slice(0, max);
+  const describeWarning = (element, via, text = textOf(element)) => ({
+    via, tag: String(element?.tagName || 'unknown').toLowerCase(), role: element?.getAttribute?.('role') || null,
+    classSample: sample(typeof element?.className === 'string' ? element.className : ''), text: sample(text),
+  });
+  const warningSelectorMatches = [...document.querySelectorAll('[role="alert"],[class*="warning" i],[class*="alert" i]')]
+    .filter(visible).map(element => describeWarning(element, 'selector'));
+  const warningTextPattern = /warning|access denied|unauthorized|blocked|session expired|cảnh báo|tạm thời không khả dụng/i;
+  const warningTextElement = [...document.querySelectorAll('#header, #QuerySearchBuilder, #main-content #analytic-tab, [data-v-50902570] *')]
+    .filter(element => visible(element) && warningTextPattern.test(textOf(element)) && textOf(element).length <= 240)
+    .sort((left, right) => Number(left.children.length > 0) - Number(right.children.length > 0))[0];
+  const warningTextMatch = warningTextPattern.test(visibleTextContent)
+    ? describeWarning(warningTextElement || document.body, 'text', warningTextElement ? textOf(warningTextElement) : visibleTextContent)
+    : null;
+  const warningMatches = [...(warningTextMatch ? [warningTextMatch] : []), ...warningSelectorMatches].slice(0, 10);
   const loginVisible = [...document.querySelectorAll('a,button,[role="button"]')]
     .some(element => visible(element) && /^(?:login|đăng nhập)$/i.test(textOf(element)));
   const captchaVisible = [...document.querySelectorAll('[id*="captcha" i],[class*="captcha" i],iframe[src*="captcha" i]')]
     .some(visible) || /captcha|verify you are human/i.test(visibleTextContent);
   const logoutVisible = /(?:logged\s*out|signed\s*out|session\s+expired|đã\s+đăng\s+xuất|phiên.*hết\s+hạn)/i.test(visibleTextContent);
-  const warningVisible = [...document.querySelectorAll('[role="alert"],[class*="warning" i],[class*="alert" i]')]
-    .some(visible) || /warning|access denied|unauthorized|blocked|session expired|cảnh báo|tạm thời không khả dụng/i.test(visibleTextContent);
+  const warningScopeRoots = [...document.querySelectorAll('#main-content, main, [role="main"], [role="dialog"], .ant-modal, .ant-modal-root')]
+    .filter(visible);
+  const inWarningScope = element => warningScopeRoots.some(root => root === element || root.contains(element));
+  const scopedWarningText = warningScopeRoots.map(textOf).filter(Boolean).join('\n');
+  const restrictionPattern = /(?:access\s+denied|unauthorized(?:\s+access)?|access\s+(?:restricted|restriction)|blocked|session\s+expired|cảnh\s+báo|tạm\s+thời\s+không\s+khả\s+dụng|(?:analysis\s+)?(?:lookups?|queries?|points?|lượt\s+phân\s+tích).{0,40}(?:limit|quota|remaining|left|available|reached|exceeded|còn|hết|giới\s+hạn)|(?:limit|quota|restriction|giới\s+hạn).{0,40}(?:reached|exceeded|remaining|left|available|còn|hết|đã\s+đạt))/i;
+  const hasRestrictionText = value => restrictionPattern.test(String(value ?? '').normalize('NFC').trim());
+  const warningBannerVisible = [...document.querySelectorAll('.ant-alert-warning,.ant-alert-error,[class~="ant-alert-warning"],[class~="ant-alert-error"]')]
+    .some(element => visible(element) && inWarningScope(element));
+  const restrictionAlertVisible = [...document.querySelectorAll('[role="alert"]')]
+    .some(element => visible(element) && inWarningScope(element) && hasRestrictionText(textOf(element)));
+  const warningVisible = warningBannerVisible || restrictionAlertVisible || hasRestrictionText(scopedWarningText);
   const quotaText = [...document.querySelectorAll('#QuerySearchBuilder, body *')]
     .filter(element => visible(element) && element.children.length === 0 && textOf(element).length <= 240).map(textOf);
   const number = value => {
@@ -178,18 +207,25 @@ function observeMetricPage(includeResults = true) {
   return {
     url: location.href, title: document.title, bodyText: visibleTextContent,
     metricRootVisible: visible(document.querySelector('#main-content #analytic-tab')),
-    loginVisible, captchaVisible, logoutVisible, warningVisible,
+    loginVisible, captchaVisible, logoutVisible, warningVisible, warningMatches, warningText: scopedWarningText,
     accountState: loggedInMarker ? 'logged_in' : loginVisible ? 'logged_out' : 'unknown',
     controls, appliedFilters, rowCount, snapshot,
     quota: { analysisLookupsRemaining: number(analysisQuotaText) },
   };
 }
 
-async function readObservation(page, { includeResults = true } = {}) {
+async function readObservation(page, { includeResults = true, diagnose = false } = {}) {
   await page.wait({ selector: '#QuerySearchBuilder', timeout: 15 }).catch(() => {});
   await page.wait({ selector: '#main-content #analytic-tab', timeout: 15 }).catch(() => {});
   const observation = await page.evaluate(observeMetricPage, includeResults);
-  return gateMetricPage(observation);
+  try {
+    return gateMetricPage(observation);
+  } catch (error) {
+    if (error instanceof MetricAdapterError && (diagnose || (error.code === 'METRIC_UI_CHANGED' && observation.warningMatches?.length))) {
+      error.details = { warningMatches: observation.warningMatches || [] };
+    }
+    throw error;
+  }
 }
 
 function readCommittedKeywords() {
@@ -439,13 +475,39 @@ function observeResultPage() {
   };
   const platformViews = [...document.querySelectorAll('[data-metric-platform-view],[data-platform-view],[role="tab"]')]
     .filter(visible).map((element, index) => ({ label: textOf(element), selected: element.getAttribute('aria-selected') === 'true' || element.classList.contains('active'), selector: '[data-metric-platform-view],[data-platform-view],[role="tab"]', index }));
+  const maskDigits = value => String(value ?? '').replace(/\d/g, '#');
+  const sample = (value, max = 80) => maskDigits(value).slice(0, max);
+  const describeWarning = (element, via, text = textOf(element)) => ({
+    via, tag: String(element?.tagName || 'unknown').toLowerCase(), role: element?.getAttribute?.('role') || null,
+    classSample: sample(typeof element?.className === 'string' ? element.className : ''), text: sample(text),
+  });
+  const warningSelectorMatches = [...document.querySelectorAll('[role="alert"],[class*="warning" i],[class*="alert" i]')]
+    .filter(visible).map(element => describeWarning(element, 'selector'));
+  const warningTextPattern = /warning|access denied|unauthorized|blocked|session expired|cảnh báo|tạm thời không khả dụng/i;
+  const warningTextElement = [...document.querySelectorAll('body *')]
+    .filter(element => visible(element) && warningTextPattern.test(textOf(element)) && textOf(element).length <= 240)
+    .sort((left, right) => Number(left.children.length > 0) - Number(right.children.length > 0))[0];
+  const warningTextMatch = warningTextPattern.test(textOf(document.body))
+    ? describeWarning(warningTextElement || document.body, 'text', warningTextElement ? textOf(warningTextElement) : textOf(document.body))
+    : null;
+  const warningMatches = [...(warningTextMatch ? [warningTextMatch] : []), ...warningSelectorMatches].slice(0, 10);
+  const warningScopeRoots = [...document.querySelectorAll('#main-content, main, [role="main"], [role="dialog"], .ant-modal, .ant-modal-root')]
+    .filter(visible);
+  const inWarningScope = element => warningScopeRoots.some(root => root === element || root.contains(element));
+  const scopedWarningText = warningScopeRoots.map(textOf).filter(Boolean).join('\n');
+  const restrictionPattern = /(?:access\s+denied|unauthorized(?:\s+access)?|access\s+(?:restricted|restriction)|blocked|session\s+expired|cảnh\s+báo|tạm\s+thời\s+không\s+khả\s+dụng|(?:analysis\s+)?(?:lookups?|queries?|points?|lượt\s+phân\s+tích).{0,40}(?:limit|quota|remaining|left|available|reached|exceeded|còn|hết|giới\s+hạn)|(?:limit|quota|restriction|giới\s+hạn).{0,40}(?:reached|exceeded|remaining|left|available|còn|hết|đã\s+đạt))/i;
+  const hasRestrictionText = value => restrictionPattern.test(String(value ?? '').normalize('NFC').trim());
+  const warningBannerVisible = [...document.querySelectorAll('.ant-alert-warning,.ant-alert-error,[class~="ant-alert-warning"],[class~="ant-alert-error"]')]
+    .some(element => visible(element) && inWarningScope(element));
+  const restrictionAlertVisible = [...document.querySelectorAll('[role="alert"]')]
+    .some(element => visible(element) && inWarningScope(element) && hasRestrictionText(textOf(element)));
   return {
     url: location.href, title: document.title, html: document.documentElement.outerHTML,
     bodyText: textOf(document.body), metricRootVisible: visible(document.querySelector('#main-content #analytic-tab')),
     loginVisible: [...document.querySelectorAll('a,button,[role="button"]')].some(element => visible(element) && /^(?:login|đăng nhập)$/i.test(textOf(element))),
     captchaVisible: [...document.querySelectorAll('[id*="captcha" i],[class*="captcha" i],iframe[src*="captcha" i]')].some(visible) || /captcha|verify you are human/i.test(textOf(document.body)),
     logoutVisible: /(?:logged\s*out|signed\s*out|session\s+expired|đã\s+đăng\s+xuất|phiên.*hết\s+hạn)/i.test(textOf(document.body)),
-    warningVisible: [...document.querySelectorAll('[role="alert"],[class*="warning" i],[class*="alert" i]')].some(visible) || /warning|access denied|unauthorized|blocked|session expired|cảnh báo|tạm thời không khả dụng/i.test(textOf(document.body)),
+    warningMatches, warningVisible: warningBannerVisible || restrictionAlertVisible || hasRestrictionText(scopedWarningText), warningText: scopedWarningText,
     regions, regionsHtml, screenshotRegions, pagination: regions['top-products']?.pagination || null, platformViews,
     snapshot: window.__metricWebSnapshot || window.__METRIC_WEB_SNAPSHOT__ || null,
   };
@@ -700,8 +762,12 @@ async function archiveResultsPage(page, out, spec, observation, parsed, productC
 }
 
 export const whoamiCommand = cli({
-  site: 'metric', name: 'whoami', access: 'read', description: 'Read Metric login and displayed analysis quota state', domain: 'metric.vn', strategy: Strategy.UI, browser: true, navigateBefore: false, siteSession: 'ephemeral', columns: ['status', 'plan', 'analysisLookupsRemaining'],
-  func: async page => withMetricTab(page, async target => [parseWhoamiObservation(await readObservation(target, { includeResults: false }))]),
+  site: 'metric', name: 'whoami', access: 'read', description: 'Read Metric login and displayed analysis quota state', domain: 'metric.vn', strategy: Strategy.UI, browser: true, navigateBefore: false, siteSession: 'ephemeral', args: [{ name: 'diagnose', type: 'boolean', default: false, help: 'Include warning-match diagnostics' }], columns: ['status', 'plan', 'analysisLookupsRemaining'],
+  func: async (page, args = {}) => withMetricTab(page, async target => {
+    const observation = await readObservation(target, { includeResults: false, diagnose: Boolean(args.diagnose) });
+    const result = parseWhoamiObservation(observation);
+    return [args.diagnose ? { ...result, warningMatches: observation.warningMatches || [] } : result];
+  }),
 });
 
 export const searchCommand = cli({

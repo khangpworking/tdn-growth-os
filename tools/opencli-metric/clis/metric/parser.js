@@ -10,11 +10,18 @@ export const METRIC_FAIL_CODES = Object.freeze([
   'METRIC_ROW_CAP',
 ]);
 
+export const METRIC_RESTRICTION_PATTERN = /(?:access\s+denied|unauthorized(?:\s+access)?|access\s+(?:restricted|restriction)|blocked|session\s+expired|cảnh\s+báo|tạm\s+thời\s+không\s+khả\s+dụng|(?:analysis\s+)?(?:lookups?|queries?|points?|lượt\s+phân\s+tích).{0,40}(?:limit|quota|remaining|left|available|reached|exceeded|còn|hết|giới\s+hạn)|(?:limit|quota|restriction|giới\s+hạn).{0,40}(?:reached|exceeded|remaining|left|available|còn|hết|đã\s+đạt))/i;
+
+export function hasMetricRestrictionText(value) {
+  return METRIC_RESTRICTION_PATTERN.test(clean(value));
+}
+
 export class MetricAdapterError extends Error {
-  constructor(code, message) {
+  constructor(code, message, details) {
     super(`${code}: ${message}`);
     this.name = 'MetricAdapterError';
     this.code = code;
+    if (details !== undefined) this.details = details;
   }
 }
 
@@ -105,7 +112,7 @@ export function gateMetricPage(observation) {
   if (observation.logoutVisible === true || /\b(?:logout|log out|đăng xuất|signed out|session expired)\b/i.test(clean(observation.bodyText))) {
     throw new MetricAdapterError('METRIC_LOGIN_REQUIRED', 'Metric session is logged out or expired');
   }
-  if (observation.warningVisible === true || /(?:warning|cảnh báo|unauthorized|access denied|blocked|tạm thời không khả dụng)/i.test(clean(observation.bodyText))) {
+  if (observation.warningVisible === true || hasMetricRestrictionText(observation.warningText)) {
     throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric page displays a warning or access restriction');
   }
   if (observation.metricRootVisible !== true) {
