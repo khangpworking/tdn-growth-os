@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -65,10 +65,47 @@ test('results extractor prefers response JSON, captures both platforms, and reco
   assert.equal(result.pagination.W12_topProducts.byPlatform.all.totalShown, 5);
   assert.match(result.snapshot.groups.W12_topProducts.rows[0].cells.revenue.sourcePointer, /^response:/);
   assert.deepEqual(result.snapshot.groups.W11_location.rows.map((row: any) => row.cells.location.text), ['Synthetic province A', 'Synthetic province B']);
+  assert.deepEqual(result.snapshot.groups.W4_monthly.map((row: any) => row.platform), ['shopee', 'shopee', 'tiktok', 'tiktok']);
   assert.equal(result.sourceMap.W15.source, 'dom');
   assert.equal(validateMetricWebSnapshot(result.snapshot), result.snapshot);
   const raw = sanitizeNetworkResponses([{ url: 'https://metric.vn/api/synthetic?token=secret', status: 200, body: { safe: 1, accessToken: 'must-not-survive' } }]);
   assert.deepEqual(raw, [{ urlPath: '/api/synthetic', status: 200, body: { safe: 1 } }]);
+});
+
+test('unlabelled monthly rows stay all and DOM fills a platform missing from responses', async () => {
+  const { extractResultsPage, sanitizeNetworkResponses } = await import(captureUrl.href);
+  const fixture = await load('metric-results-response');
+  const monthly = fixture.responses.find((response: any) => response.body.region === 'monthly');
+  const withoutPlatform = { ...monthly, body: { ...monthly.body, items: [{ ...monthly.body.items[0], platform: undefined }] } };
+  const topProducts = fixture.responses.filter((response: any) => response.body.region === 'top-products')[0];
+  const shopeeResponse = { ...topProducts, body: { ...topProducts.body, platform: 'shopee' } };
+  const dom = {
+    regions: {
+      'top-products': {
+        platform: 'tiktok', selector: '#synthetic-tiktok-products',
+        items: [{ name: 'Synthetic TikTok item', shop: 'Synthetic TikTok shop', revenue: { value: 10, unit: 'VND' } }],
+      },
+    },
+  };
+  const responses = fixture.responses.filter((response: any) => response.body.region !== 'monthly' && response.body.region !== 'top-products');
+  responses.push(withoutPlatform, shopeeResponse);
+  const result = extractResultsPage({ responses, dom, scope: { keywords: ['x'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-07-01', endDate: '2026-08-31' }, category: null }, captureId: 'synthetic', specDigest: 'a'.repeat(64), capturedAt: '2026-10-12T00:00:00.000Z' });
+  assert.equal(result.snapshot.groups.W4_monthly[0].platform, 'all');
+  assert.deepEqual(result.snapshot.groups.W12_topProducts.rows.map((row: any) => row.cells.name.text), ['Synthetic item A', 'Synthetic item B', 'Synthetic TikTok item']);
+  assert.deepEqual(result.sourceMap.W12.platforms.sort(), ['shopee', 'tiktok']);
+  assert.deepEqual(sanitizeNetworkResponses([{ body: { userId: 'identity', tokenLike: 'Bearer identity-token', revenue: 2 } }])[0].body, { revenue: 2 });
+});
+
+test('archive sanitization removes identity and token-like values from every saved file', async () => {
+  const { sanitizeNetworkResponses, sanitizeResultsHtml } = await import(captureUrl.href);
+  const sensitive = await load('metric-sensitive-archive');
+  const clean = sanitizeNetworkResponses(sensitive.responses);
+  const serialized = JSON.stringify(clean);
+  for (const marker of ['Synthetic logged-in account', 'synthetic-owner@example.test', '+84901234567', 'Synthetic owner nickname', 'synthetic-user-id', 'synthetic-secret-token', 'synthetichead.syntheticpayload.syntheticsignature', '0123456789abcdef0123456789abcdef0123456789abcdef']) assert.doesNotMatch(serialized, new RegExp(marker.replace(/[+?.]/g, '\\$&')));
+  assert.match(JSON.stringify(clean), /"business"/);
+  const html = sanitizeResultsHtml('<html><head><meta name="identity" content="synthetic-owner@example.test"><script>Bearer synthetic-secret-token</script></head><body><header class="account-area">Synthetic logged-in account</header><main data-state="identity-state"><div data-metric-region="overview">Revenue 8</div></main></body></html>');
+  assert.doesNotMatch(html, /synthetic-owner|synthetic-secret|logged-in account|identity-state|<script|<meta|account-area/i);
+  assert.match(html, /Revenue 8/);
 });
 
 test('adapter parser fails closed for domain, login, captcha, filter and row cap', async () => {
@@ -76,6 +113,8 @@ test('adapter parser fails closed for domain, login, captcha, filter and row cap
   assert.throws(() => parser.assertMetricUrl('https://example.test/'), /METRIC_UI_CHANGED/);
   assert.throws(() => parser.gateMetricPage({ url: 'https://metric.vn/analytics', bodyText: 'Login', loginVisible: true, metricRootVisible: true }), /METRIC_LOGIN_REQUIRED/);
   assert.throws(() => parser.gateMetricPage({ url: 'https://metric.vn/analytics', bodyText: 'captcha', captchaVisible: true, metricRootVisible: true }), /METRIC_CAPTCHA/);
+  assert.throws(() => parser.gateMetricPage({ url: 'https://metric.vn/analytics', bodyText: 'Logged out', logoutVisible: true, metricRootVisible: true }), /METRIC_LOGIN_REQUIRED/);
+  assert.throws(() => parser.gateMetricPage({ url: 'https://metric.vn/analytics', bodyText: 'Warning', warningVisible: true, metricRootVisible: true }), /METRIC_UI_CHANGED/);
   assert.throws(() => parser.gateMetricPage({ url: 'https://metric.vn/analytics', bodyText: '', metricRootVisible: false }), /METRIC_UI_CHANGED/);
   const spec = { keywords: ['x'], platforms: ['shopee'], period: { startDate: '2025-01-01', endDate: '2025-01-31' }, category: null };
   const observation = { ...(await load('metric-search')), appliedFilters: spec };
@@ -125,8 +164,9 @@ const commandSpec = {
   period: { startDate: '2025-09-15', endDate: '2026-09-20' }, category: null,
 };
 
-function fakePage(observation: any, result: any, resultDom: any = null, networkResponses: any[] = []) {
+function fakePage(observation: any, result: any, resultDom: any = null, networkResponses: any[] = [], behavior: any = {}) {
   let searched = false;
+  const state = { paginationClicks: 0, platformSwitches: 0 };
   const calls: string[] = [];
   const page: any = {
     calls,
@@ -135,14 +175,23 @@ function fakePage(observation: any, result: any, resultDom: any = null, networkR
     closeTab: async (target: string) => calls.push(`close:${target}`),
     wait: async () => {},
     evaluate: async (fn: Function, arg?: unknown) => {
-      if (fn.name === 'observeMetricPage') return arg === false ? observation : result;
+      if (fn.name === 'observeMetricPage') {
+        if (arg === false) return behavior.gateObservation ? behavior.gateObservation(state, observation) : observation;
+        return behavior.searchObservation ? behavior.searchObservation(state, result) : result;
+      }
       if (fn.name === 'readCommittedKeywords') return commandSpec.keywords;
-      if (fn.name === 'observeResultPage') return resultDom || { html: '<html></html>', regions: {}, screenshotRegions: {}, platformViews: [] };
+      if (fn.name === 'observeResultPage') return behavior.resultDom ? behavior.resultDom(state, resultDom) : resultDom || { html: '<html></html>', regions: {}, screenshotRegions: {}, platformViews: [] };
       if (fn.name === 'setCheckbox') return { selector: '#synthetic', index: 0 };
       if (fn.name === 'visibleOptionIndex' || fn.name === 'clickVisibleText') return 0;
       return 0;
     },
-    click: async (selector: string) => { calls.push(`click:${selector}`); if (selector === 'button,[role="button"]') searched = true; },
+    click: async (selector: string) => {
+      calls.push(`click:${selector}`);
+      if (selector === 'button,[role="button"]') searched = true;
+      if (selector === 'next' || selector.includes('ant-pagination-next') || selector.includes('Next Page')) state.paginationClicks += 1;
+      if (selector.includes('data-metric-platform') || selector.includes('data-platform-view') || selector === 'platform-view') state.platformSwitches += 1;
+      behavior.onClick?.(selector, state);
+    },
     fillText: async (selector: string, text: string) => calls.push(`fill:${selector}:${text}`),
     pressKey: async (key: string) => calls.push(`key:${key}`),
     startNetworkCapture: async () => { calls.push('network:start'); },
@@ -174,7 +223,91 @@ test('whoami, search, and capture commands use a fake page and clean up their ow
   const captured = await adapter.captureCommand.func(fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] }, quota: {} }, searchObservation, dom, results.responses), { spec: specPath, out: captureDir, 'product-cap': 200 });
   assert.equal(captured[0].status, 'READY'); assert.match(await readFile(join(captureDir, 'manifest.json'), 'utf8'), /synthetic-keyword/);
   assert.match(await readFile(join(captureDir, 'snapshot.json'), 'utf8'), /Synthetic item A/);
-  assert.ok(await readFile(join(captureDir, 'region-overview.png')));
+  assert.ok(await readFile(join(captureDir, 'platform-all-region-overview.png')));
+  await rm(directory, { recursive: true, force: true });
+});
+
+test('capture archive contains no fixture identity or token in any archived file', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const directory = await mkdtemp(join(tmpdir(), 'p6-209-archive-sanitize-'));
+  const specPath = join(directory, 'spec.json'); const captureDir = join(directory, 'capture');
+  await writeFile(specPath, `${JSON.stringify(commandSpec)}\n`);
+  const form = await load('metric-form'); const result = { ...(await load('metric-search')), appliedFilters: commandSpec };
+  const base = await load('metric-results-response'); const sensitive = await load('metric-sensitive-archive');
+  const dom = { ...(await load('metric-results-dom')), html: '<html><head><meta name="identity" content="synthetic-owner@example.test"><script>Bearer synthetic-secret-token</script></head><body><header class="account-area">Synthetic logged-in account</header><main><div data-metric-region="overview">Revenue 8</div></main></body></html>', screenshotRegions: { overview: '#synthetic-overview' }, platformViews: [{ label: 'Shopee', selected: true, selector: 'platform-view', index: 0 }, { label: 'TikTok Shop', selected: false, selector: 'platform-view', index: 1 }] };
+  const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] } }, result, dom, [...base.responses, ...sensitive.responses]);
+  await adapter.captureCommand.func(page, { spec: specPath, out: captureDir, 'product-cap': 200 });
+  const markers = [/Synthetic logged-in account/i, /synthetic-owner@example\.test/i, /\+84901234567/, /synthetic-user-id/i, /synthetic-secret-token/i, /synthetichead\.syntheticpayload\.syntheticsignature/i, /0123456789abcdef0123456789abcdef0123456789abcdef/i];
+  for (const name of await readdir(captureDir)) {
+    const text = (await readFile(join(captureDir, name))).toString('utf8');
+    for (const marker of markers) assert.doesNotMatch(text, marker, `${name} retained sanitized fixture data`);
+  }
+  assert.ok(await readFile(join(captureDir, 'platform-shopee-region-overview.png')));
+  assert.ok(await readFile(join(captureDir, 'platform-tiktok-region-overview.png')));
+  assert.match(await readFile(join(captureDir, 'snapshot.json'), 'utf8'), /Synthetic item A/);
+  await rm(directory, { recursive: true, force: true });
+});
+
+function resultDomForGateTest(platformViews: any[] = [], paginated = false) {
+  const pagination = paginated ? { page: 1, total: 2, pageSize: 1, nextAvailable: true, nextSelector: 'next' } : { page: 1, total: 1, pageSize: 1, nextAvailable: false };
+  return {
+    html: '<html><body><main data-metric-region="overview">Synthetic results</main></body></html>',
+    screenshotRegions: { overview: '#synthetic-overview' }, platformViews, pagination,
+    regions: {
+      overview: { selector: '#synthetic-overview', kpi: { revenue: { value: 1 } } },
+      'platform-split': { selector: '#synthetic-platform', items: [{ platform: 'shopee', revenue: { value: 1 }, share: { value: 100 } }] },
+      'top-products': { selector: '#synthetic-products', items: [{ name: 'Synthetic item', shop: 'Synthetic shop', revenue: { value: 1 } }], pagination },
+    },
+  };
+}
+
+test('capture gates a redirect before reading the next pagination page and leaves no archive', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const directory = await mkdtemp(join(tmpdir(), 'p6-209-gate-redirect-'));
+  const specPath = join(directory, 'spec.json'); const captureDir = join(directory, 'capture');
+  await writeFile(specPath, `${JSON.stringify(commandSpec)}\n`);
+  const form = await load('metric-form'); const result = { ...(await load('metric-search')), appliedFilters: commandSpec };
+  const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] } }, result, resultDomForGateTest([], true), [], {
+    gateObservation: (state: any, observation: any) => state.paginationClicks ? { ...observation, url: 'https://redirect.example.test/results', metricRootVisible: true } : observation,
+  });
+  await assert.rejects(() => adapter.captureCommand.func(page, { spec: specPath, out: captureDir, 'product-cap': 200 }), /METRIC_UI_CHANGED/);
+  await assert.rejects(() => access(captureDir), /ENOENT/);
+  assert.ok(page.calls.includes('close:synthetic-tab'));
+  await rm(directory, { recursive: true, force: true });
+});
+
+test('capture gates a captcha immediately after switching platform views and leaves no archive', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const directory = await mkdtemp(join(tmpdir(), 'p6-209-gate-captcha-'));
+  const specPath = join(directory, 'spec.json'); const captureDir = join(directory, 'capture');
+  await writeFile(specPath, `${JSON.stringify(commandSpec)}\n`);
+  const form = await load('metric-form'); const result = { ...(await load('metric-search')), appliedFilters: commandSpec };
+  const views = [{ label: 'Shopee', selected: true, selector: 'platform-view', index: 0 }, { label: 'TikTok Shop', selected: false, selector: 'platform-view', index: 1 }];
+  const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] } }, result, resultDomForGateTest(views), [], {
+    gateObservation: (state: any, observation: any) => state.platformSwitches ? { ...observation, captchaVisible: true } : observation,
+  });
+  await assert.rejects(() => adapter.captureCommand.func(page, { spec: specPath, out: captureDir, 'product-cap': 200 }), /METRIC_CAPTCHA/);
+  await assert.rejects(() => access(captureDir), /ENOENT/);
+  assert.ok(page.calls.includes('close:synthetic-tab'));
+  await rm(directory, { recursive: true, force: true });
+});
+
+test('capture gates a login page after search and leaves no archive', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const directory = await mkdtemp(join(tmpdir(), 'p6-209-gate-login-'));
+  const specPath = join(directory, 'spec.json'); const captureDir = join(directory, 'capture');
+  await writeFile(specPath, `${JSON.stringify(commandSpec)}\n`);
+  const form = await load('metric-form'); const result = { ...(await load('metric-search')), appliedFilters: commandSpec };
+  const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] } }, result, resultDomForGateTest(), [], {
+    searchObservation: (_state: any, searchResult: any) => ({ ...searchResult, loginVisible: true }),
+  });
+  await assert.rejects(() => adapter.captureCommand.func(page, { spec: specPath, out: captureDir, 'product-cap': 200 }), /METRIC_LOGIN_REQUIRED/);
+  await assert.rejects(() => access(captureDir), /ENOENT/);
+  assert.ok(page.calls.includes('close:synthetic-tab'));
   await rm(directory, { recursive: true, force: true });
 });
 

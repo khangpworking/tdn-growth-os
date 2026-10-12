@@ -99,8 +99,14 @@ export function gateMetricPage(observation) {
   if (observation.captchaVisible === true || /captcha|verify you are human/i.test(clean(observation.bodyText))) {
     throw new MetricAdapterError('METRIC_CAPTCHA', 'captcha or human verification is visible');
   }
-  if (observation.loginVisible === true || /(?:^|\n)(?:login|đăng nhập)(?:\n|$)/i.test(clean(observation.bodyText))) {
+  if (observation.loginVisible === true || /\b(?:login|đăng nhập)\b/i.test(clean(observation.bodyText))) {
     throw new MetricAdapterError('METRIC_LOGIN_REQUIRED', 'Metric session is not logged in');
+  }
+  if (observation.logoutVisible === true || /\b(?:logout|log out|đăng xuất|signed out|session expired)\b/i.test(clean(observation.bodyText))) {
+    throw new MetricAdapterError('METRIC_LOGIN_REQUIRED', 'Metric session is logged out or expired');
+  }
+  if (observation.warningVisible === true || /(?:warning|cảnh báo|unauthorized|access denied|blocked|tạm thời không khả dụng)/i.test(clean(observation.bodyText))) {
+    throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric page displays a warning or access restriction');
   }
   if (observation.metricRootVisible !== true) {
     throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric application root is not visible');

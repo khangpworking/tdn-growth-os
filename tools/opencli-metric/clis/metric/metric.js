@@ -1,8 +1,9 @@
 // Metric adapter for OpenCLI 1.8.8. Every command owns one ephemeral tab.
 // Browser writes use OpenCLI actions; evaluate() is used only for read-back.
-import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { tmpdir } from 'node:os';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
 import {
@@ -14,7 +15,7 @@ import {
   parseSearchObservation,
   parseWhoamiObservation,
 } from './parser.js';
-import { extractResultsPage, sanitizeNetworkResponses } from './capture.js';
+import { extractResultsPage, sanitizeNetworkResponses, sanitizeResultsHtml } from './capture.js';
 
 const BASE_URL = 'https://metric.vn/analytics';
 const PRODUCT_CAP = 200;
@@ -150,6 +151,9 @@ function observeMetricPage(includeResults = true) {
     .some(element => visible(element) && /^(?:login|đăng nhập)$/i.test(textOf(element)));
   const captchaVisible = [...document.querySelectorAll('[id*="captcha" i],[class*="captcha" i],iframe[src*="captcha" i]')]
     .some(visible) || /captcha|verify you are human/i.test(visibleTextContent);
+  const logoutVisible = /(?:logged\s*out|signed\s*out|session\s+expired|đã\s+đăng\s+xuất|phiên.*hết\s+hạn)/i.test(visibleTextContent);
+  const warningVisible = [...document.querySelectorAll('[role="alert"],[class*="warning" i],[class*="alert" i]')]
+    .some(visible) || /warning|access denied|unauthorized|blocked|session expired|cảnh báo|tạm thời không khả dụng/i.test(visibleTextContent);
   const quotaText = [...document.querySelectorAll('#QuerySearchBuilder, body *')]
     .filter(element => visible(element) && element.children.length === 0 && textOf(element).length <= 240).map(textOf);
   const number = value => {
@@ -174,7 +178,7 @@ function observeMetricPage(includeResults = true) {
   return {
     url: location.href, title: document.title, bodyText: visibleTextContent,
     metricRootVisible: visible(document.querySelector('#main-content #analytic-tab')),
-    loginVisible, captchaVisible,
+    loginVisible, captchaVisible, logoutVisible, warningVisible,
     accountState: loggedInMarker ? 'logged_in' : loginVisible ? 'logged_out' : 'unknown',
     controls, appliedFilters, rowCount, snapshot,
     quota: { analysisLookupsRemaining: number(analysisQuotaText) },
@@ -283,7 +287,10 @@ async function applyMetricSpec(page, spec, initialObservation) {
         .find(element => /multiple platforms|single platform/i.test(element.innerText || element.textContent || ''));
       return button ? (button.innerText || button.textContent || '').replace(/\s+/g, ' ').trim() : null;
     });
-    if (platformMode && /multiple platforms/i.test(platformMode)) await page.click('button.switch-button');
+    if (platformMode && /multiple platforms/i.test(platformMode)) {
+      await page.click('button.switch-button');
+      await gateCurrentMetricPage(page);
+    }
   }
   const platformSelector = await page.evaluate(() => {
     const visible = element => {
@@ -412,6 +419,7 @@ function observeResultPage() {
   };
   const regions = {};
   const screenshotRegions = {};
+  const regionsHtml = {};
   for (const [name, selector] of Object.entries(selectors)) {
     const element = [...document.querySelectorAll(selector)].find(visible);
     if (!element) continue;
@@ -419,6 +427,7 @@ function observeResultPage() {
     const table = tableData(element);
     regions[name] = { ...(json && typeof json === 'object' ? json : table || { text: textOf(element) }), selector };
     screenshotRegions[name] = selector;
+    regionsHtml[name] = element.outerHTML;
   }
   const paginationElement = [...document.querySelectorAll('.ant-pagination,[data-metric-pagination]')].find(visible);
   const totalText = paginationElement ? textOf(paginationElement) : '';
@@ -432,7 +441,12 @@ function observeResultPage() {
     .filter(visible).map((element, index) => ({ label: textOf(element), selected: element.getAttribute('aria-selected') === 'true' || element.classList.contains('active'), selector: '[data-metric-platform-view],[data-platform-view],[role="tab"]', index }));
   return {
     url: location.href, title: document.title, html: document.documentElement.outerHTML,
-    regions, screenshotRegions, pagination: regions['top-products']?.pagination || null, platformViews,
+    bodyText: textOf(document.body), metricRootVisible: visible(document.querySelector('#main-content #analytic-tab')),
+    loginVisible: [...document.querySelectorAll('a,button,[role="button"]')].some(element => visible(element) && /^(?:login|đăng nhập)$/i.test(textOf(element))),
+    captchaVisible: [...document.querySelectorAll('[id*="captcha" i],[class*="captcha" i],iframe[src*="captcha" i]')].some(visible) || /captcha|verify you are human/i.test(textOf(document.body)),
+    logoutVisible: /(?:logged\s*out|signed\s*out|session\s+expired|đã\s+đăng\s+xuất|phiên.*hết\s+hạn)/i.test(textOf(document.body)),
+    warningVisible: [...document.querySelectorAll('[role="alert"],[class*="warning" i],[class*="alert" i]')].some(visible) || /warning|access denied|unauthorized|blocked|session expired|cảnh báo|tạm thời không khả dụng/i.test(textOf(document.body)),
+    regions, regionsHtml, screenshotRegions, pagination: regions['top-products']?.pagination || null, platformViews,
     snapshot: window.__metricWebSnapshot || window.__METRIC_WEB_SNAPSHOT__ || null,
   };
 }
@@ -442,8 +456,19 @@ async function waitForResultsSettle(page) {
   await page.wait({ time: DEFAULT_WAIT_SECONDS }).catch(() => {});
 }
 
+async function gateCurrentMetricPage(page) {
+  const observation = await page.evaluate(observeMetricPage, false);
+  return gateMetricPage(observation);
+}
+
 async function readResultPage(page) {
+  // The gate is deliberately a separate page evaluation. This keeps redirects,
+  // login/captcha screens and warnings out of both DOM and network archives.
+  const before = await page.evaluate(observeMetricPage, false);
+  gateMetricPage(before);
   const dom = await page.evaluate(observeResultPage);
+  gateMetricPage({ ...before, ...dom, url: dom.url || before.url, metricRootVisible: dom.metricRootVisible ?? before.metricRootVisible });
+  await gateCurrentMetricPage(page);
   const responses = typeof page.readNetworkCapture === 'function' ? await page.readNetworkCapture() : [];
   return { dom, responses: Array.isArray(responses) ? responses : [] };
 }
@@ -457,13 +482,34 @@ function isCombinedPlatformLabel(value) {
   return /^(?:all|all platforms|total|tất cả|tất cả nền tảng)$/i.test(String(value ?? '').normalize('NFC').trim());
 }
 
-async function collectResultPages(page, productCap, initial = null, viewPlatform = 'all') {
+async function saveViewRegionScreenshots(page, dom, screenshotDir, viewPlatform, seenScreenshots, screenshots) {
+  if (!dom?.screenshotRegions || typeof page.screenshot !== 'function') return;
+  for (const [region, selector] of Object.entries(dom.screenshotRegions)) {
+    const key = `${viewPlatform}:${region}`;
+    if (seenScreenshots.has(key)) continue;
+    await gateCurrentMetricPage(page);
+    await page.evaluate((targetSelector) => {
+      const element = document.querySelector(targetSelector);
+      element?.scrollIntoView({ block: 'start', inline: 'nearest' });
+      return Boolean(element);
+    }, selector).catch(() => false);
+    const safeView = String(viewPlatform).replace(/[^a-z0-9_-]+/gi, '-');
+    const safeRegion = String(region).replace(/[^a-z0-9_-]+/gi, '-');
+    const path = join(screenshotDir, `platform-${safeView}-region-${safeRegion}.png`);
+    await page.screenshot({ path, fullPage: false });
+    seenScreenshots.add(key);
+    screenshots.push({ platform: viewPlatform, region, path });
+  }
+}
+
+async function collectResultPages(page, productCap, initial = null, viewPlatform = 'all', screenshotDir = null, seenScreenshots = new Set(), screenshots = []) {
   const responses = []; const domSnapshots = []; const seenPages = new Set();
   let lastDom = null; let pagesRead = 0;
   for (let iteration = 0; iteration < PAGE_CAP; iteration += 1) {
     const current = initial || await readResultPage(page); initial = null; current.dom.platform = viewPlatform; lastDom = current.dom; pagesRead += 1;
     responses.push(...current.responses.map(response => ({ ...response, viewPlatform })));
     domSnapshots.push(current.dom);
+    if (screenshotDir) await saveViewRegionScreenshots(page, current.dom, screenshotDir, viewPlatform, seenScreenshots, screenshots);
     const pagination = current.dom.pagination;
     const productRegion = current.dom.regions?.['top-products'] || {};
     const items = productRegion.items || productRegion.rows;
@@ -477,35 +523,42 @@ async function collectResultPages(page, productCap, initial = null, viewPlatform
     }, 0);
     if (!pagination?.nextAvailable || observedRows >= productCap) break;
     if (!pagination.nextSelector || typeof page.click !== 'function') break;
-    await page.click(pagination.nextSelector, { nth: 0 }); await waitForResultsSettle(page);
+    await page.click(pagination.nextSelector, { nth: 0 });
+    await gateCurrentMetricPage(page);
+    await waitForResultsSettle(page);
+    await gateCurrentMetricPage(page);
   }
-  return { responses, domSnapshots, lastDom, pagesRead };
+  return { responses, domSnapshots, lastDom, pagesRead, screenshots };
 }
 
-async function collectResults(page, spec, productCap) {
+async function collectResults(page, spec, productCap, screenshotDir) {
   await waitForResultsSettle(page);
+  await gateCurrentMetricPage(page);
   const first = await readResultPage(page);
   const platformViews = Array.isArray(first.dom.platformViews) ? first.dom.platformViews : [];
   const requested = [...new Set(spec.platforms)];
   const recognizedViews = platformViews.filter(view => platformLabel(view.label) || isCombinedPlatformLabel(view.label));
   const combined = recognizedViews.find(view => isCombinedPlatformLabel(view.label));
   const batches = [];
+  const screenshots = []; const seenScreenshots = new Set();
   if (recognizedViews.length === 0 || combined) {
     if (combined && !combined.selected) {
       if (typeof page.click !== 'function') throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric combined platform view is unavailable');
-      await page.click(combined.selector, { nth: combined.index }); await waitForResultsSettle(page);
+      await page.click(combined.selector, { nth: combined.index });
+      await gateCurrentMetricPage(page); await waitForResultsSettle(page); await gateCurrentMetricPage(page);
     }
-    batches.push({ platform: 'all', ...(await collectResultPages(page, productCap, combined?.selected ? first : null, 'all')) });
+    batches.push({ platform: 'all', ...(await collectResultPages(page, productCap, combined?.selected ? first : null, 'all', screenshotDir, seenScreenshots, screenshots)) });
   }
   if (recognizedViews.length >= 2) {
     for (const wanted of requested) {
       const target = recognizedViews.find(view => platformLabel(view.label) === wanted);
       if (!target) throw new MetricAdapterError('METRIC_UI_CHANGED', `Metric platform result view is missing: ${wanted}`);
-      if (target.selected) batches.push({ platform: wanted, ...(await collectResultPages(page, productCap, first, wanted)) });
+      if (target.selected) batches.push({ platform: wanted, ...(await collectResultPages(page, productCap, first, wanted, screenshotDir, seenScreenshots, screenshots)) });
       else {
         if (typeof page.click !== 'function') throw new MetricAdapterError('METRIC_UI_CHANGED', `Metric platform result view is unavailable: ${wanted}`);
-        await page.click(target.selector, { nth: target.index }); await waitForResultsSettle(page);
-        batches.push({ platform: wanted, ...(await collectResultPages(page, productCap, null, wanted)) });
+        await page.click(target.selector, { nth: target.index });
+        await gateCurrentMetricPage(page); await waitForResultsSettle(page); await gateCurrentMetricPage(page);
+        batches.push({ platform: wanted, ...(await collectResultPages(page, productCap, null, wanted, screenshotDir, seenScreenshots, screenshots)) });
       }
     }
   } else if (recognizedViews.length === 1 && !combined) {
@@ -513,13 +566,14 @@ async function collectResults(page, spec, productCap) {
     if (!solePlatform || requested.some(platform => platform !== solePlatform)) {
       throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric result page does not expose every requested platform view');
     }
-    batches.push({ platform: solePlatform, ...(await collectResultPages(page, productCap, first, solePlatform)) });
+    batches.push({ platform: solePlatform, ...(await collectResultPages(page, productCap, first, solePlatform, screenshotDir, seenScreenshots, screenshots)) });
   }
   const allResponses = batches.flatMap(batch => batch.responses);
   const responses = [...new Map(allResponses.map(response => [JSON.stringify([response.viewPlatform, response.url, response.urlPath, response.responsePreview, response.body, response.status]), response])).values()];
   return {
     responses, domSnapshots: batches.flatMap(batch => batch.domSnapshots),
-    lastDom: batches.at(-1)?.lastDom || first.dom, views: batches.map(batch => ({ platform: batch.platform, pagesRead: batch.pagesRead })),
+    lastDom: batches.at(-1)?.lastDom || first.dom, screenshots,
+    views: batches.map(batch => ({ platform: batch.platform, pagesRead: batch.pagesRead })),
   };
 }
 
@@ -532,43 +586,43 @@ function ensureExternalCapturePath(path) {
   return candidate;
 }
 
-async function saveRegionScreenshots(page, out, selectors) {
-  if (!selectors || Object.keys(selectors).length === 0 || typeof page.screenshot !== 'function') throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric region screenshots are unavailable');
-  const files = [];
-  for (const [region, selector] of Object.entries(selectors)) {
-    const path = join(out, `region-${region}.png`);
-    await page.evaluate((targetSelector) => {
-      const element = document.querySelector(targetSelector);
-      element?.scrollIntoView({ block: 'start', inline: 'nearest' });
-      return Boolean(element);
-    }, selector).catch(() => false);
-    await page.screenshot({ path, fullPage: false });
-    files.push(await fileEntry(`screenshot:${region}`, path, 'image/png'));
-  }
-  return files;
-}
-
 async function archiveResultsPage(page, out, spec, observation, parsed, productCap) {
   if (!Number.isSafeInteger(productCap) || productCap <= 0 || productCap > PRODUCT_CAP) throw new MetricAdapterError('METRIC_ROW_CAP', `product pagination cap must be between 1 and ${PRODUCT_CAP}`);
-  const destination = ensureExternalCapturePath(out); await mkdir(destination, { recursive: true });
-  const collected = await collectResults(page, spec, productCap);
-  const captureId = `metric-${Date.now()}`;
-  const specDigest = hashBytes(Buffer.from(JSON.stringify(spec), 'utf8'));
-  const scope = { ...parsed.appliedFilters, ticks: parsed.appliedFilters.ticks || [], advancedFilters: parsed.appliedFilters.advancedFilters || [], exclusions: parsed.appliedFilters.exclusions || [] };
-  const extracted = extractResultsPage({ responses: collected.responses, dom: collected.domSnapshots, scope, captureId, specDigest, capturedAt: new Date().toISOString(), pageCap: productCap });
-  const rawPath = join(destination, 'raw-responses.json'); await writeJson(rawPath, sanitizeNetworkResponses(collected.responses));
-  const htmlPath = join(destination, 'results.html'); await writeFile(htmlPath, collected.lastDom?.html || '', 'utf8');
-  const snapshotPath = join(destination, 'snapshot.json'); await writeJson(snapshotPath, extracted.snapshot);
-  const screenshotFiles = await saveRegionScreenshots(page, destination, collected.lastDom?.screenshotRegions || {});
-  const files = [await fileEntry('raw-responses', rawPath, 'application/json'), await fileEntry('snapshot', snapshotPath, 'application/json'), await fileEntry('results-html', htmlPath, 'text/html'), ...screenshotFiles];
-  const manifest = {
-    contractVersion: 'metric-results-capture-v1', captureId, specDigest, appliedFilters: scope, resultCount: parsed.rowCount,
-    productPagination: extracted.pagination.W12_topProducts, views: collected.views, sourceMap: extracted.sourceMap, files,
-    archive: { rawResponses: 'raw-responses.json', normalizedSnapshot: 'snapshot.json', resultsHtml: 'results.html', screenshots: screenshotFiles.map(file => file.path) },
-    noReportFileRequested: true,
-  };
-  const manifestPath = join(destination, 'manifest.json'); await writeJson(manifestPath, manifest);
-  return { manifestPath, rowCount: parsed.rowCount, snapshot: extracted.snapshot, captureId };
+  const destination = ensureExternalCapturePath(out);
+  const staging = await mkdtemp(join(tmpdir(), 'metric-capture-'));
+  try {
+    const collected = await collectResults(page, spec, productCap, staging);
+    await gateCurrentMetricPage(page);
+    if (collected.screenshots.length === 0) throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric result-region screenshots are unavailable');
+    const captureId = `metric-${Date.now()}`;
+    const specDigest = hashBytes(Buffer.from(JSON.stringify(spec), 'utf8'));
+    const scope = { ...parsed.appliedFilters, ticks: parsed.appliedFilters.ticks || [], advancedFilters: parsed.appliedFilters.advancedFilters || [], exclusions: parsed.appliedFilters.exclusions || [] };
+    const extracted = extractResultsPage({ responses: collected.responses, dom: collected.domSnapshots, scope, captureId, specDigest, capturedAt: new Date().toISOString(), pageCap: productCap });
+    await mkdir(destination, { recursive: true });
+    const rawPath = join(destination, 'raw-responses.json'); await writeJson(rawPath, sanitizeNetworkResponses(collected.responses));
+    const htmlPath = join(destination, 'results.html');
+    const regionHtml = collected.domSnapshots.flatMap(snapshot => Object.values(snapshot?.regionsHtml || {})).filter(Boolean);
+    const html = regionHtml.length ? `<main data-metric-archive="results">${regionHtml.join('\n')}</main>` : collected.domSnapshots.map(snapshot => snapshot?.html).filter(Boolean).join('\n');
+    await writeFile(htmlPath, sanitizeResultsHtml(html), 'utf8');
+    const snapshotPath = join(destination, 'snapshot.json'); await writeJson(snapshotPath, extracted.snapshot);
+    const screenshotFiles = [];
+    for (const screenshot of collected.screenshots) {
+      const targetPath = join(destination, screenshot.path.split('/').at(-1));
+      await copyFile(screenshot.path, targetPath);
+      screenshotFiles.push(await fileEntry(`screenshot:${screenshot.platform}:${screenshot.region}`, targetPath, 'image/png'));
+    }
+    const files = [await fileEntry('raw-responses', rawPath, 'application/json'), await fileEntry('snapshot', snapshotPath, 'application/json'), await fileEntry('results-html', htmlPath, 'text/html'), ...screenshotFiles];
+    const manifest = {
+      contractVersion: 'metric-results-capture-v1', captureId, specDigest, appliedFilters: scope, resultCount: parsed.rowCount,
+      productPagination: extracted.pagination.W12_topProducts, views: collected.views, sourceMap: extracted.sourceMap, files,
+      archive: { rawResponses: 'raw-responses.json', normalizedSnapshot: 'snapshot.json', resultsHtml: 'results.html', screenshots: screenshotFiles.map(file => file.path) },
+      noReportFileRequested: true,
+    };
+    const manifestPath = join(destination, 'manifest.json'); await writeJson(manifestPath, manifest);
+    return { manifestPath, rowCount: parsed.rowCount, snapshot: extracted.snapshot, captureId };
+  } finally {
+    await rm(staging, { recursive: true, force: true });
+  }
 }
 
 export const whoamiCommand = cli({

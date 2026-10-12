@@ -23,7 +23,7 @@ adapter installed from the same repository bytes. The executor verifies
 `tools/opencli-metric/adapter-manifest.json` before each run. `whoami` reads
 only login, captcha, page-state and any displayed analysis lookup balance.
 The current manifest SHA-256 is
-`c3d3e05b45d45c1b722c6753b5cb99f7f475ba42555cfe3c1396fed5285ce50f`.
+`e7c33a3f8a48a85003837cb65ea26a344a6684b592e116b45ffd62f5528500e8`.
 
 ## Capture workflow
 
@@ -45,21 +45,28 @@ After the successful read-back it collects the combined result view and any
 Shopee/TikTok Shop views the page exposes. Product tables are paged until all
 shown rows are read or 200 rows per view / 10 page turns is reached. The archive
 manifest records the cap, total shown, pages read, rows read and truncation.
+The page gate is rerun before each DOM/network read and after every platform
+switch and pagination click. A redirect, login/logout screen, captcha or warning
+stops capture immediately; the tab is closed and no archive is published.
 
 The archive is written immediately outside Git and contains:
 
 - `raw-responses.json`: response bodies with only URL paths and status; headers,
-  cookies, tokens and credential-shaped fields are stripped;
+  cookies, identity fields and token-like values are stripped while business
+  fields such as products, shops, brands, revenue, units and prices remain;
 - `snapshot.json`: the normalized `automation-metric-web-snapshot-v1` W2–W14
   and W16 groups, with W1 in `scope`; every field has a `response:` or `dom:`
   source pointer;
-- `results.html`: the saved result-page HTML;
-- `region-*.png`: one screenshot for every result region discovered on the page;
+- `results.html`: sanitized result-region HTML with scripts, inline state, meta
+  tags and account/header content removed;
+- `platform-*-region-*.png`: one screenshot for every result region in each
+  platform view captured;
 - `manifest.json`: applied scope, view list, W1–W16 source map, pagination and
   exact file digests.
 
-Network JSON already received by the page is the preferred source. DOM extraction
-is used only when a region has no usable response payload. No history page is
+Network JSON already received by the page is the preferred source for each
+platform. DOM extraction remains the fallback for a platform not covered by a
+response. An unlabelled row remains `all`, never Shopee. No history page is
 opened by the adapter, and no account, settings or authentication action is
 performed.
 
@@ -68,7 +75,7 @@ performed.
 - Only the tab created by the current command is selected and closed.
 - The URL must be HTTPS on `metric.vn` or `www.metric.vn`.
 - Login prompts, captcha/human verification, missing application state, missing
-  result regions and failed archive steps stop the command.
+  result regions, warnings and failed archive steps stop the command.
 - The executor runs only when `TDN_METRIC_OPENCLI_ENABLED=1`, with fixed argv,
   no shell and a manifest hash check.
 - Search results are evidence from the page at capture time. Later intake and

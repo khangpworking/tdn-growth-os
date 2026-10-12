@@ -51,6 +51,133 @@ function platformOf(value, fallback = 'all') {
   return fallback;
 }
 
+const OMIT = Symbol('omit');
+const IDENTITY_KEY = /^(?:user|username|email|phone|account|nickname|avatar|uid|userid|profile|userinfo|loggedinuser|owner|ownername|ownerid|shopowner|loggedinshop|accountshop)$/;
+const FORBIDDEN_KEY = /authorization|cookie|token|secret|password|credential|session/i;
+const INLINE_TOKEN = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi;
+const JWT_TOKEN = /^[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}$/;
+const HEX_TOKEN = /^[a-f0-9]{32,}$/i;
+const BASE64_TOKEN = /^(?:[A-Za-z0-9+/]{40,}={0,2})$/;
+
+function normalizedKey(key) {
+  return String(key ?? '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+}
+
+function isIdentityKey(key) {
+  const normalized = normalizedKey(key);
+  return IDENTITY_KEY.test(normalized)
+    || normalized.startsWith('user') || normalized.startsWith('account')
+    || normalized.startsWith('email') || normalized.startsWith('phone')
+    || normalized.startsWith('avatar') || normalized.startsWith('userprofile')
+    || normalized.startsWith('loggedinaccount');
+}
+
+function isTokenLike(value) {
+  const text = clean(value);
+  return /^Bearer\s+/i.test(text) || JWT_TOKEN.test(text) || HEX_TOKEN.test(text) || BASE64_TOKEN.test(text);
+}
+
+function sanitizeText(value) {
+  return String(value)
+    .replace(INLINE_TOKEN, '[REDACTED_TOKEN]')
+    .replace(/\b[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g, '[REDACTED_TOKEN]')
+    .replace(/\b[a-f0-9]{32,}\b/gi, '[REDACTED_TOKEN]')
+    .replace(/\b[A-Za-z0-9+/]{40,}={0,2}\b/g, '[REDACTED_TOKEN]')
+    .replace(/([?&](?:access[_-]?token|id[_-]?token|token|session|authorization)=)[^&#\s"']+/gi, '$1[REDACTED_TOKEN]')
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[REDACTED_EMAIL]')
+    .replace(/(?:\+?84|0)\d[\d .-]{7,}\d/g, '[REDACTED_PHONE]');
+}
+
+function sanitizeValue(value, key = null) {
+  if (key !== null && (isIdentityKey(key) || FORBIDDEN_KEY.test(String(key)))) return OMIT;
+  if (typeof value === 'string') {
+    if (isTokenLike(value)) return OMIT;
+    return sanitizeText(value);
+  }
+  if (Array.isArray(value)) return value.map(child => sanitizeValue(child)).filter(child => child !== OMIT);
+  if (!value || typeof value !== 'object') return value;
+  const output = {};
+  for (const [childKey, child] of Object.entries(value)) {
+    const sanitized = sanitizeValue(child, childKey);
+    if (sanitized !== OMIT) output[childKey] = sanitized;
+  }
+  return output;
+}
+
+function htmlOpeningTag(token) {
+  const match = /^<\s*\/?\s*([a-z0-9:-]+)/i.exec(token);
+  return match?.[1]?.toLowerCase() || '';
+}
+
+function htmlAttributes(token) {
+  return token.replace(/^<\s*[a-z0-9:-]+|\/?>$/gi, ' ');
+}
+
+function isSensitiveHtmlContainer(token, tag) {
+  const attributes = htmlAttributes(token).toLowerCase();
+  return tag === 'script' || tag === 'style' || tag === 'meta' || tag === 'header' || tag === 'nav'
+    || /(?:account|header|navigation|user[-_ ]?info|user[-_ ]?profile|logged[-_ ]?in|logout|sign[-_ ]?out|avatar|profile|login)/i.test(attributes);
+}
+
+function sanitizeHtmlTag(token) {
+  if (/^<!--/.test(token) || /^<\s*meta\b/i.test(token)) return '';
+  return token
+    .replace(/\s+(?:data-metric-json|data-state|data-initial-state|data-props)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/\s+([a-z][\w:-]*)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, (_whole, name, rawValue) => {
+      const dataName = name.replace(/^data[-_:]?/i, '');
+      if (isIdentityKey(name) || isIdentityKey(dataName) || /token|secret|authorization|cookie|session|credential|password/i.test(name)) return '';
+      const quote = rawValue[0] === '"' || rawValue[0] === "'" ? rawValue[0] : '';
+      const value = quote ? rawValue.slice(1, -1) : rawValue;
+      if (isTokenLike(value)) return '';
+      return ` ${name}=${quote}${sanitizeText(value)}${quote}`;
+    })
+    .replace(INLINE_TOKEN, '[REDACTED_TOKEN]');
+}
+
+export function sanitizeResultsHtml(html) {
+  const source = String(html ?? '');
+  const tokens = /<!--[\s\S]*?-->|<\/?[^>]+>/g;
+  const voidTags = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
+  const stack = [];
+  let output = '';
+  let cursor = 0;
+  const dropped = () => stack.some(entry => entry.drop);
+  for (const match of source.matchAll(tokens)) {
+    if (!dropped()) output += sanitizeText(source.slice(cursor, match.index));
+    const token = match[0];
+    const closing = /^<\s*\//.test(token);
+    const tag = htmlOpeningTag(token);
+    if (/^<!--/.test(token)) { cursor = match.index + token.length; continue; }
+    if (closing) {
+      const entryIndex = [...stack].reverse().findIndex(entry => entry.tag === tag);
+      if (entryIndex >= 0) {
+        const index = stack.length - 1 - entryIndex;
+        const entry = stack[index];
+        stack.splice(index, 1);
+        if (!entry.drop && !dropped()) output += `</${tag}>`;
+      }
+      cursor = match.index + token.length;
+      continue;
+    }
+    const selfClosing = /\/\s*>$/.test(token) || voidTags.has(tag);
+    const drop = dropped() || isSensitiveHtmlContainer(token, tag);
+    if (!drop && !/^<\s*meta\b/i.test(token)) output += sanitizeHtmlTag(token);
+    if (!selfClosing) stack.push({ tag, drop });
+    cursor = match.index + token.length;
+  }
+  if (!dropped()) output += sanitizeText(source.slice(cursor));
+  return output;
+}
+
+function sanitizeDomSnapshots(domSnapshots) {
+  const sanitize = (value, key = null) => {
+    if (key === 'html') return sanitizeResultsHtml(value);
+    return sanitizeValue(value, key);
+  };
+  const snapshots = Array.isArray(domSnapshots) ? domSnapshots : [domSnapshots];
+  return snapshots.map(snapshot => sanitize(snapshot)).filter(snapshot => snapshot !== OMIT);
+}
+
 function periodOf(raw, fallbackPeriod) {
   return raw && typeof raw === 'object' && clean(raw.startDate) && clean(raw.endDate)
     ? { startDate: clean(raw.startDate), endDate: clean(raw.endDate) }
@@ -156,12 +283,16 @@ function payloadEntries(responses, domSnapshots) {
 function entriesFor(entries, names) {
   const wanted = new Set(names.map(normaliseRegion));
   const matching = entries.filter(entry => wanted.has(entry.region));
-  const responseEntries = matching.filter(entry => entry.sourcePointer.startsWith('response:'));
-  if (responseEntries.length > 0) {
-    const responseRegions = new Set(responseEntries.map(entry => entry.region));
-    return matching.filter(entry => entry.sourcePointer.startsWith('response:') || !responseRegions.has(entry.region));
+  const responsePlatforms = new Map();
+  for (const entry of matching.filter(entry => entry.sourcePointer.startsWith('response:'))) {
+    if (!responsePlatforms.has(entry.region)) responsePlatforms.set(entry.region, new Set());
+    responsePlatforms.get(entry.region).add(entry.platform);
   }
-  return matching;
+  return matching.filter(entry => {
+    if (entry.sourcePointer.startsWith('response:')) return true;
+    const coveredPlatforms = responsePlatforms.get(entry.region);
+    return !coveredPlatforms?.has(entry.platform) && !(entry.platform === 'all' && coveredPlatforms?.has('all'));
+  });
 }
 
 function preferredEntry(entries, names, platform = null) {
@@ -257,7 +388,7 @@ function monthlyGroup(entries, scope) {
   });
   if (!points.length) return { absent: true, reason: 'NOT_ON_PAGE' };
   return points.map(({ row, entry, index }) => ({
-    platform: platformOf(row.platform, entry.platform === 'all' ? 'shopee' : entry.platform), month: clean(row.month),
+    platform: platformOf(row.platform, entry.platform), month: clean(row.month),
     revenue: metricValue(row.revenue, { label: 'Revenue', unit: 'VND', platform: platformOf(row.platform, entry.platform), period: scope.period, sourcePointer: `${entry.sourcePointer}/items/${index}/revenue` }),
     units: row.units == null ? null : metricValue(row.units, { label: 'Units', unit: 'COUNT', platform: platformOf(row.platform, entry.platform), period: scope.period, sourcePointer: `${entry.sourcePointer}/items/${index}/units` }),
   }));
@@ -328,21 +459,15 @@ function captureSourceMap(entries, scope) {
 }
 
 export function sanitizeNetworkResponses(responses) {
-  const forbidden = /authorization|cookie|token|secret|password|credential|session/i;
-  const sanitize = value => {
-    if (Array.isArray(value)) return value.map(sanitize);
-    if (!value || typeof value !== 'object') return value;
-    return Object.fromEntries(Object.entries(value).filter(([key]) => !forbidden.test(key)).map(([key, child]) => [key, sanitize(child)]));
-  };
   return (Array.isArray(responses) ? responses : []).map((response, index) => {
     const body = rawBody(response);
-    const cleanResponse = { urlPath: responsePath(response, index), status: response?.status ?? null, body: sanitize(body) };
+    const cleanResponse = { urlPath: responsePath(response, index), status: response?.status ?? null, body: sanitizeValue(body) };
     return response?.viewPlatform ? { viewPlatform: response.viewPlatform, ...cleanResponse } : cleanResponse;
-  }).filter(response => response.body !== null);
+  }).filter(response => response.body !== null && response.body !== OMIT);
 }
 
 export function extractResultsPage({ responses = [], dom = null, scope, captureId, specDigest, capturedAt, pageCap = 100 }) {
-  const entries = payloadEntries(responses, dom);
+  const entries = payloadEntries(sanitizeNetworkResponses(responses), sanitizeDomSnapshots(dom));
   const normalizedScope = scopeFor(scope);
   const groups = {
     W2_kpi: kpiGroup(entries, normalizedScope), W3_platformSplit: platformSplitGroup(entries, normalizedScope),
