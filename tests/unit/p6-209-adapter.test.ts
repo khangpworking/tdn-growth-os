@@ -428,7 +428,7 @@ test('keyword locator follows the labelled select after a multi-platform re-rend
     <div id="QuerySearchBuilder">
       <div class="ant-space-item"><div class="filter-label"><span class="label">Platform</span></div><div class="ant-select"><input id="platform-input" /></div></div>
       <div class="ant-space-item"><div class="filter-label"><span class="label">Keywords (keywords or shop link/product link)</span></div>
-        <div class="ant-select ant-select-multiple"><div class="ant-select-selection-item" title="thạch dừa"><span class="ant-select-selection-item-content">thạch dừa</span></div><input id="rc_select_14" /></div>
+        <div class="ant-select ant-select-multiple"><div class="ant-select-selector"><div class="ant-select-selection-overflow"><div class="ant-select-selection-overflow-item"><span class="ant-tag ks-chip">thạch dừa<span class="ant-tag-close-icon">×</span></span></div><div class="ant-select-selection-overflow-item ant-select-selection-overflow-item-suffix"><input id="rc_select_14" /></div></div></div></div>
       </div>
       <div class="ant-select"><input id="rc_select_4" value="wrong-control" /></div>
     </div>`;
@@ -448,7 +448,26 @@ test('keyword locator uses an input-only placeholder and Vietnamese labels', asy
   const vietnameseHtml = `<div id="QuerySearchBuilder"><div class="ant-space-item"><div class="filter-label"><span class="label">Từ khóa</span></div><div class="ant-select ant-select-multiple"><input id="keyword-vietnamese" value="từ khóa mẫu" /></div></div><div class="ant-select ant-select-multiple"><input id="unrelated-vietnamese-multiple" /></div></div>`;
   const vietnameseObservation = withMetricDom(vietnameseHtml, () => adapter.__test__.observeMetricPage(false));
   assert.equal(vietnameseObservation.controls.find((control: any) => control.name === 'keywords').selector, '#keyword-vietnamese');
-  assert.deepEqual(withMetricDom(vietnameseHtml, () => adapter.__test__.readCommittedKeywords()), ['từ khóa mẫu']);
+  assert.deepEqual(withMetricDom(vietnameseHtml, () => adapter.__test__.readCommittedKeywords()), []);
+});
+
+test('uncommitted keyword input text is never read back as a committed chip', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const html = `
+    <div id="QuerySearchBuilder">
+      <div class="ant-space-item"><div class="filter-label"><span class="label">Keywords (keywords or shop link/product link)</span></div>
+        <div class="ant-select ant-select-multiple"><div class="ant-select-selector"><div class="ant-select-selection-overflow"><div class="ant-select-selection-overflow-item ant-select-selection-overflow-item-suffix"><input id="rc_select_4" value="thạch dừa" /></div></div></div></div>
+      </div>
+    </div>`;
+  assert.deepEqual(withMetricDom(html, () => adapter.__test__.readCommittedKeywords()), []);
+  let attempts = 0;
+  const page = {
+    evaluate: async (fn: Function, argument?: unknown) => { attempts += 1; return withMetricDom(html, () => fn(argument)); },
+    wait: async () => {},
+  };
+  await assert.rejects(adapter.__test__.waitForKeywordCommit(page, ['thạch dừa']), (error: any) => /METRIC_FILTER_MISMATCH/.test(String(error?.code || error?.message)));
+  assert.ok(attempts > 1);
 });
 
 test('keyword fill fails before fillText when no keyword select exists', async () => {
@@ -572,6 +591,9 @@ function fakePage(observation: any, result: any, resultDom: any = null, networkR
         return behavior.searchObservation ? behavior.searchObservation(state, result) : result;
       }
       if (fn.name === 'readCommittedKeywords') return commandSpec.keywords;
+      if (fn.name === 'dispatchSelectKey') { calls.push(`selectkey:${(arg as any).key}`); return true; }
+      if (fn.name === 'resolveKeywordSelector') return { inputSelector: '#keyword-input', selectSelector: '#keyword-selector' };
+      if (fn.toString().includes('document.activeElement === input')) return true;
       if (fn.name === 'observeResultPage') return behavior.resultDom ? behavior.resultDom(state, resultDom) : resultDom || { html: '<html></html>', regions: {}, screenshotRegions: {}, platformViews: [] };
       if (fn.name === 'prepareScreenshotClip') { maskCalls.push('prepare'); return behavior.screenshotClip ? behavior.screenshotClip(state) : { clip: { x: 12, y: 24, width: 320, height: 180 }, maskedCount: 1 }; }
       if (fn.name === 'restoreScreenshotMask') { maskCalls.push('restore'); return true; }
@@ -587,6 +609,7 @@ function fakePage(observation: any, result: any, resultDom: any = null, networkR
       behavior.onClick?.(selector, state, options);
     },
     fillText: async (selector: string, text: string) => calls.push(`fill:${selector}:${text}`),
+    cdp: async (method: string, params: any) => calls.push(`cdp:${method}:${params.type}:${params.key}:${params.code}:${params.windowsVirtualKeyCode}:${params.nativeVirtualKeyCode}:${params.text}`),
     pressKey: async (key: string) => calls.push(`key:${key}`),
     startNetworkCapture: async () => { calls.push('network:start'); },
     readNetworkCapture: async () => networkResponses,
@@ -716,4 +739,115 @@ test('a tab-close failure fails the adapter command', async () => {
   const page = fakePage(await load('metric-whoami'), await load('metric-search'));
   page.closeTab = async () => { throw new Error('synthetic close failure'); };
   await assert.rejects(() => adapter.whoamiCommand.func(page), /synthetic close failure/);
+});
+
+test('platform select key carries the legacy key code and cannot submit a form', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const html = `<form id="synthetic-form"><div class="ant-select"><input id="synthetic-platform" /></div><button type="submit">Analyze</button></form>`;
+  const seen = withMetricDom(html, () => {
+    const events: string[] = [];
+    const input = document.querySelector('#synthetic-platform')!;
+    for (const type of ['keydown', 'keyup']) input.addEventListener(type, (event: any) => events.push(`${event.type}:${event.key}:${event.keyCode}:${event.which}:${event.isTrusted}`));
+    document.querySelector('#synthetic-form')!.addEventListener('submit', () => events.push('submit'));
+    const results = [
+      adapter.__test__.dispatchSelectKey({ selector: '#synthetic-platform', key: 'Enter' }),
+      adapter.__test__.dispatchSelectKey({ selector: '#synthetic-platform', key: 'Backspace' }),
+      adapter.__test__.dispatchSelectKey({ selector: '#missing-input', key: 'Enter' }),
+      adapter.__test__.dispatchSelectKey({ selector: '#synthetic-platform', key: 'Tab' }),
+    ];
+    return { events, results, focused: document.activeElement?.id };
+  });
+  assert.deepEqual(seen.results, [true, false, false, false]);
+  assert.deepEqual(seen.events, ['keydown:Enter:13:13:false', 'keyup:Enter:13:13:false']);
+  assert.equal(seen.focused, 'synthetic-platform');
+});
+
+const keywordFormHtml = `<div id="QuerySearchBuilder"><div class="ant-space-item"><div class="filter-label"><span class="label">Platform</span></div><div class="ant-select"><input id="platform-input" /></div></div><div class="ant-space-item"><div class="filter-label"><span class="label">Từ khóa</span></div><div class="ant-select ant-select-multiple"><div class="ant-select-selector"><div class="ant-select-selection-overflow"><div class="ant-select-selection-overflow-item"><span class="ant-tag ks-chip">old-term<span class="ant-tag-close-icon">×</span></span></div><div class="ant-select-selection-overflow-item ant-select-selection-overflow-item-suffix"><input id="keyword-input" /></div></div></div></div></div></div>`;
+
+function keywordFormPage(fillResult: unknown, html = keywordFormHtml) {
+  const calls: string[] = [];
+  let keywordFocused = false;
+  const page = {
+    calls,
+    evaluate: async (fn: Function, argument?: unknown) => {
+      if (fn.name === 'dispatchSelectKey') calls.push(`selectkey:${(argument as any).selector}:${(argument as any).key}`);
+      if (fn.toString().includes('document.activeElement === input')) return keywordFocused;
+      return withMetricDom(html, () => fn(argument));
+    },
+    click: async (selector: string) => { calls.push(`click:${selector}`); keywordFocused = selector.includes('.ant-select-selector'); },
+    pressKey: async (key: string) => { calls.push(`key:${key}`); },
+    fillText: async (selector: string, text: string) => { calls.push(`fill:${selector}:${text}`); return fillResult; },
+    cdp: async (method: string, params: any) => { calls.push(`cdp:${method}:${params.type}:${params.key}:${params.code}:${params.windowsVirtualKeyCode}:${params.nativeVirtualKeyCode}:${params.text}`); },
+  };
+  return page;
+}
+
+test('keyword commit uses a native selector click, verified fill, and trusted comma', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const page = keywordFormPage({ filled: true, verified: true, mode: 'input' });
+  const spec = { keywords: ['synthetic-term'], platforms: ['shopee'], period: { startDate: '2026-01-01', endDate: '2026-01-30' }, category: null };
+  const initial = { appliedFilters: { keywords: [], platforms: ['shopee'], period: spec.period, category: null } };
+  await adapter.__test__.applyMetricSpec(page, spec, initial);
+  const fill = page.calls.indexOf('fill:#keyword-input:synthetic-term');
+  assert.ok(fill >= 0);
+  assert.equal(page.calls[fill - 1], 'click:#QuerySearchBuilder .ant-select:has(#keyword-input) > .ant-select-selector');
+  assert.deepEqual(page.calls.slice(fill + 1, fill + 3), [
+    'cdp:Input.dispatchKeyEvent:keyDown:,:Comma:188:188:,',
+    'cdp:Input.dispatchKeyEvent:keyUp:,:Comma:188:188:,',
+  ]);
+  assert.ok(!page.calls.some(call => call.startsWith('selectkey:')));
+  assert.ok(!page.calls.includes('key:Enter'));
+  assert.ok(!page.calls.includes('key:Backspace'));
+});
+
+test('unverified keyword text stops before any comma is dispatched', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const page = keywordFormPage({ filled: true, verified: false, expected: 'synthetic-term', actual: '', mode: 'input' });
+  const spec = { keywords: ['synthetic-term'], platforms: ['shopee'], period: { startDate: '2026-01-01', endDate: '2026-01-30' }, category: null };
+  const initial = { appliedFilters: { keywords: [], platforms: ['shopee'], period: spec.period, category: null } };
+  await assert.rejects(() => adapter.__test__.applyMetricSpec(page, spec, initial), (error: any) => {
+    assert.equal(error.code, 'METRIC_UI_CHANGED');
+    assert.deepEqual(error.details, { filled: true, verified: false });
+    return true;
+  });
+  assert.ok(!page.calls.some(call => call.startsWith('selectkey:') || call.startsWith('cdp:Input.dispatchKeyEvent')));
+});
+
+test('keyword commit stops before fill when the trusted comma path is unavailable', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const page: any = keywordFormPage({ filled: true, verified: true, mode: 'input' });
+  delete page.cdp;
+  const spec = { keywords: ['synthetic-term'], platforms: ['shopee'], period: { startDate: '2026-01-01', endDate: '2026-01-30' }, category: null };
+  const initial = { appliedFilters: { keywords: [], platforms: ['shopee'], period: spec.period, category: null } };
+  await assert.rejects(() => adapter.__test__.applyMetricSpec(page, spec, initial), (error: any) => error.code === 'METRIC_UI_CHANGED');
+  assert.ok(!page.calls.some((call: string) => call.startsWith('fill:') || call.startsWith('cdp:Input.dispatchKeyEvent')));
+});
+
+test('keyword removal clicks the matching nested close icon', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const page = keywordFormPage({ filled: true, verified: true, mode: 'input' });
+  const spec = { keywords: ['new-term'], platforms: ['shopee'], period: { startDate: '2026-01-01', endDate: '2026-01-30' }, category: null };
+  const initial = { appliedFilters: { keywords: ['old-term'], platforms: ['shopee'], period: spec.period, category: null } };
+  await adapter.__test__.applyMetricSpec(page, spec, initial);
+  assert.ok(page.calls.some(call => call.includes('.ant-tag-close-icon')));
+});
+
+test('platform mismatch after the keyword commit blocks the search before any lookup', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const form = await load('metric-form');
+  const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [], platforms: ['shopee'] }, quota: {} }, { ...(await load('metric-search')), appliedFilters: commandSpec });
+  await assert.rejects(() => adapter.__test__.performSearch(page, commandSpec), (error: any) => {
+    assert.equal(error.code, 'METRIC_FILTER_MISMATCH');
+    assert.deepEqual(error.details, { platformsMatchExpected: false, platformCount: 1 });
+    return true;
+  });
+  assert.equal(page.searched, false);
+  assert.ok(page.calls.includes('selectkey:Enter'));
+  assert.ok(!page.calls.includes('key:Enter'));
 });
