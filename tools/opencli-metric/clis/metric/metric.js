@@ -26,8 +26,12 @@ function asCliError(error) {
   if (error instanceof CliError) return error;
   if (error instanceof MetricAdapterError) {
     const matches = error.details?.warningMatches;
-    const detail = Array.isArray(matches) ? `; warningMatches=${JSON.stringify(matches.slice(0, 10))}` : '';
-    return new CliError(error.code, `${error.message}${detail}`);
+    const detail = Array.isArray(matches)
+      ? `; warningMatches=${JSON.stringify(matches.slice(0, 10))}`
+      : error.details === undefined ? '' : `; details=${JSON.stringify(error.details)}`;
+    const cliError = new CliError(error.code, `${error.message}${detail}`);
+    if (error.details !== undefined) cliError.details = error.details;
+    return cliError;
   }
   return new CliError('METRIC_UI_CHANGED', error instanceof Error ? error.message : String(error));
 }
@@ -144,10 +148,39 @@ function observeMetricPage(includeResults = true) {
   const platformSelect = labelledSelect('Platform');
   const periodSelect = labelledSelect('Time period');
   const categorySelect = labelledSelect('Product category');
-  const keywordSelect = [...document.querySelectorAll('#QuerySearchBuilder .ant-select')]
-    .find(element => element.querySelector('#rc_select_4'))
-    || [...document.querySelectorAll('#QuerySearchBuilder .ant-select')]
-      .find(element => /Enter keywords separated by commas/i.test(textOf(element)));
+  // Serialized by OpenCLI: keep this keyword locator self-contained. Its copy
+  // in readCommittedKeywords and applyMetricSpec must stay behaviorally equal.
+  const locateKeywordSelect = () => {
+    const root = document.querySelector('#QuerySearchBuilder');
+    if (!root) return { select: null, locatedBy: 'none' };
+    const keywordLabel = [...root.querySelectorAll('.filter-label .label')]
+      .find(element => /^(?:keywords|từ kh(?:óa|oá))/i.test(textOf(element)));
+    const labelledContainer = keywordLabel?.closest('.ant-space-item');
+    const labelledSelect = [...(labelledContainer?.querySelectorAll('.ant-select') || [])].find(visible);
+    if (labelledSelect) return { select: labelledSelect, locatedBy: 'label' };
+    const placeholderPattern = /keywords? separated by commas|từ kh(?:óa|oá)/i;
+    const placeholderSelect = [...root.querySelectorAll('.ant-select')].find(element => visible(element) && (
+      placeholderPattern.test(textOf(element.querySelector('.ant-select-selection-placeholder')))
+      || [...element.querySelectorAll('input')].some(input => placeholderPattern.test(input.getAttribute('placeholder') || '') || placeholderPattern.test(input.getAttribute('aria-label') || ''))
+    ));
+    if (placeholderSelect) return { select: placeholderSelect, locatedBy: 'placeholder' };
+    const labelledControl = pattern => {
+      const label = [...root.querySelectorAll('.filter-label .label')].find(element => pattern.test(textOf(element)));
+      const container = label?.closest('.ant-space-item');
+      return [...(container?.querySelectorAll('.ant-select') || [])].find(visible) || null;
+    };
+    const excluded = new Set([
+      labelledControl(/^(?:platform|nền tảng)/i),
+      labelledControl(/^(?:time period|thời gian)/i),
+      labelledControl(/^(?:product category|danh mục)/i),
+    ].filter(Boolean));
+    const structuralCandidates = [...root.querySelectorAll('.ant-select-multiple')]
+      .filter(element => visible(element) && !excluded.has(element));
+    return structuralCandidates.length === 1
+      ? { select: structuralCandidates[0], locatedBy: 'structure' }
+      : { select: null, locatedBy: 'none' };
+  };
+  const keywordSelect = locateKeywordSelect().select;
   const selectedPlatforms = selectionTexts(platformSelect).map(platformName).filter(Boolean);
   const keywordValues = selectionTexts(keywordSelect).filter(value => !/enter keywords separated by commas/i.test(value));
   const typedKeyword = inputValue(keywordSelect);
@@ -326,29 +359,145 @@ async function readObservation(page, { includeResults = true, diagnose = false }
 }
 
 function readCommittedKeywords() {
-  const select = [...document.querySelectorAll('#QuerySearchBuilder .ant-select')]
-    .find(element => element.querySelector('#rc_select_4'))
-    || [...document.querySelectorAll('#QuerySearchBuilder .ant-select')]
-      .find(element => /Enter keywords separated by commas/i.test(element.innerText || element.textContent || ''));
-  if (!select) return [];
-  const chips = [...select.querySelectorAll('.ant-select-selection-item-content,[data-value]')];
-  const values = (chips.length ? chips : [...select.querySelectorAll('.ant-select-selection-item')])
-    .map(element => element.getAttribute('title') || element.getAttribute('data-value') || element.innerText || element.textContent || '')
+  const visible = element => {
+    if (!element) return false;
+    const style = getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+  };
+  const textOf = element => (element?.innerText || element?.textContent || '').replace(/\s+/g, ' ').trim();
+  // Serialized by OpenCLI: keep this keyword locator self-contained. Its copy
+  // in observeMetricPage and applyMetricSpec must stay behaviorally equal.
+  const locateKeywordSelect = () => {
+    const root = document.querySelector('#QuerySearchBuilder');
+    if (!root) return { select: null, locatedBy: 'none' };
+    const keywordLabel = [...root.querySelectorAll('.filter-label .label')]
+      .find(element => /^(?:keywords|từ kh(?:óa|oá))/i.test(textOf(element)));
+    const labelledContainer = keywordLabel?.closest('.ant-space-item');
+    const labelledSelect = [...(labelledContainer?.querySelectorAll('.ant-select') || [])].find(visible);
+    if (labelledSelect) return { select: labelledSelect, locatedBy: 'label' };
+    const placeholderPattern = /keywords? separated by commas|từ kh(?:óa|oá)/i;
+    const placeholderSelect = [...root.querySelectorAll('.ant-select')].find(element => visible(element) && (
+      placeholderPattern.test(textOf(element.querySelector('.ant-select-selection-placeholder')))
+      || [...element.querySelectorAll('input')].some(input => placeholderPattern.test(input.getAttribute('placeholder') || '') || placeholderPattern.test(input.getAttribute('aria-label') || ''))
+    ));
+    if (placeholderSelect) return { select: placeholderSelect, locatedBy: 'placeholder' };
+    const labelledControl = pattern => {
+      const label = [...root.querySelectorAll('.filter-label .label')].find(element => pattern.test(textOf(element)));
+      const container = label?.closest('.ant-space-item');
+      return [...(container?.querySelectorAll('.ant-select') || [])].find(visible) || null;
+    };
+    const excluded = new Set([
+      labelledControl(/^(?:platform|nền tảng)/i),
+      labelledControl(/^(?:time period|thời gian)/i),
+      labelledControl(/^(?:product category|danh mục)/i),
+    ].filter(Boolean));
+    const structuralCandidates = [...root.querySelectorAll('.ant-select-multiple')]
+      .filter(element => visible(element) && !excluded.has(element));
+    return structuralCandidates.length === 1
+      ? { select: structuralCandidates[0], locatedBy: 'structure' }
+      : { select: null, locatedBy: 'none' };
+  };
+  const located = locateKeywordSelect();
+  const select = located.select;
+  const chips = select ? [...select.querySelectorAll('.ant-select-selection-item-content,[data-value]')] : [];
+  const fallbackChips = select ? [...select.querySelectorAll('.ant-select-selection-item')] : [];
+  const chipElements = chips.length ? chips : fallbackChips;
+  const values = chipElements
+    .map(element => element.getAttribute('title') || element.getAttribute('data-value') || textOf(element))
     .map(value => String(value).replace(/\s+/g, ' ').trim()).filter(Boolean);
-  const input = select.querySelector('input[id]');
-  if (input?.value?.trim()) values.push(input.value.trim());
+  const input = select?.querySelector('input[id]');
+  const inputValue = input?.value?.trim() || '';
+  if (inputValue) values.push(inputValue);
   return [...new Set(values)];
+}
+
+// Serialized by OpenCLI: keep this diagnostic locator self-contained and
+// behaviorally equal to the keyword locator used by readCommittedKeywords.
+function readKeywordCommitDiagnostics(expectedKeywords = []) {
+  const visible = element => {
+    if (!element) return false;
+    const style = getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+  };
+  const textOf = element => (element?.innerText || element?.textContent || '').replace(/\s+/g, ' ').trim();
+  const locateKeywordSelect = () => {
+    const root = document.querySelector('#QuerySearchBuilder');
+    if (!root) return { select: null, locatedBy: 'none' };
+    const keywordLabel = [...root.querySelectorAll('.filter-label .label')]
+      .find(element => /^(?:keywords|từ kh(?:óa|oá))/i.test(textOf(element)));
+    const labelledContainer = keywordLabel?.closest('.ant-space-item');
+    const labelledSelect = [...(labelledContainer?.querySelectorAll('.ant-select') || [])].find(visible);
+    if (labelledSelect) return { select: labelledSelect, locatedBy: 'label' };
+    const placeholderPattern = /keywords? separated by commas|từ kh(?:óa|oá)/i;
+    const placeholderSelect = [...root.querySelectorAll('.ant-select')].find(element => visible(element) && (
+      placeholderPattern.test(textOf(element.querySelector('.ant-select-selection-placeholder')))
+      || [...element.querySelectorAll('input')].some(input => placeholderPattern.test(input.getAttribute('placeholder') || '') || placeholderPattern.test(input.getAttribute('aria-label') || ''))
+    ));
+    if (placeholderSelect) return { select: placeholderSelect, locatedBy: 'placeholder' };
+    const labelledControl = pattern => {
+      const label = [...root.querySelectorAll('.filter-label .label')].find(element => pattern.test(textOf(element)));
+      const container = label?.closest('.ant-space-item');
+      return [...(container?.querySelectorAll('.ant-select') || [])].find(visible) || null;
+    };
+    const excluded = new Set([
+      labelledControl(/^(?:platform|nền tảng)/i),
+      labelledControl(/^(?:time period|thời gian)/i),
+      labelledControl(/^(?:product category|danh mục)/i),
+    ].filter(Boolean));
+    const structuralCandidates = [...root.querySelectorAll('.ant-select-multiple')]
+      .filter(element => visible(element) && !excluded.has(element));
+    return structuralCandidates.length === 1
+      ? { select: structuralCandidates[0], locatedBy: 'structure' }
+      : { select: null, locatedBy: 'none' };
+  };
+  const located = locateKeywordSelect();
+  const select = located.select;
+  const chips = select ? [...select.querySelectorAll('.ant-select-selection-item-content,[data-value]')] : [];
+  const fallbackChips = select ? [...select.querySelectorAll('.ant-select-selection-item')] : [];
+  const chipElements = chips.length ? chips : fallbackChips;
+  const values = chipElements
+    .map(element => element.getAttribute('title') || element.getAttribute('data-value') || textOf(element))
+    .map(value => String(value).replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const input = select?.querySelector('input[id]');
+  const inputValue = input?.value?.trim() || '';
+  if (inputValue) values.push(inputValue);
+  const expected = expectedKeywords.map(value => String(value).normalize('NFC').trim());
+  const normalizedValues = [...new Set(values)].map(value => value.normalize('NFC'));
+  const normalizedInput = inputValue.normalize('NFC');
+  return {
+    locatedBy: located.locatedBy,
+    chipCount: chipElements.length,
+    inputFound: Boolean(input),
+    inputValueMatchesExpected: expected.length > 0 && (expected.length === 1
+      ? normalizedInput === expected[0]
+      : expected.every(value => normalizedInput.includes(value))),
+    committedMatchesExpected: expected.every(value => normalizedValues.includes(value)),
+  };
 }
 
 async function waitForKeywordCommit(page, keywords) {
   const expected = keywords.map(value => String(value).normalize('NFC').trim());
-  for (let attempt = 0; attempt < 12; attempt += 1) {
+  let committedMatchesExpected = false;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
     const actual = await page.evaluate(readCommittedKeywords);
     const normalized = Array.isArray(actual) ? actual.map(value => String(value).normalize('NFC').trim()) : [];
-    if (expected.every(value => normalized.includes(value))) return;
+    committedMatchesExpected = expected.every(value => normalized.includes(value));
+    if (committedMatchesExpected) return;
     await page.wait({ time: 0.25 }).catch(() => {});
   }
-  throw new MetricAdapterError('METRIC_FILTER_MISMATCH', 'Metric keyword was not committed to the visible search control');
+  const diagnostic = await page.evaluate(readKeywordCommitDiagnostics, expected).catch(() => ({
+    locatedBy: 'none', chipCount: 0, inputFound: false,
+    inputValueMatchesExpected: false, committedMatchesExpected,
+  }));
+  throw new MetricAdapterError('METRIC_FILTER_MISMATCH', 'Metric keyword was not committed to the visible search control', {
+    locatedBy: ['label', 'placeholder', 'structure', 'none'].includes(diagnostic?.locatedBy) ? diagnostic.locatedBy : 'none',
+    chipCount: Number.isInteger(diagnostic?.chipCount) && diagnostic.chipCount >= 0 ? diagnostic.chipCount : 0,
+    inputFound: diagnostic?.inputFound === true,
+    inputValueMatchesExpected: diagnostic?.inputValueMatchesExpected === true,
+    committedMatchesExpected: diagnostic?.committedMatchesExpected === true || committedMatchesExpected,
+  });
 }
 
 async function readSpec(path) {
@@ -442,7 +591,7 @@ async function applyMetricSpec(page, spec, initialObservation) {
   if (platformSelector == null) throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric platform search input is not visible');
   if (wantedPlatforms.size > 1) {
     // In multi-platform mode the page uses a new, visible search input (for
-    // example rc_select_13). The old single-platform input is hidden, and
+    // example of a new generated id). The old single-platform input is hidden, and
     // clicking it makes the live form reject the option lookup. Selecting by
     // text and Enter also works with the virtualised option list.
     for (const platform of [...wantedPlatforms].filter(value => !currentPlatforms.has(value))) {
@@ -469,26 +618,98 @@ async function applyMetricSpec(page, spec, initialObservation) {
     await page.click(platformSelector);
     for (const platform of [...currentPlatforms].filter(value => !wantedPlatforms.has(value))) await clickVisibleOption(page, platform === 'tiktok' ? 'Tiktok' : 'Shopee');
     for (const platform of [...wantedPlatforms].filter(value => !currentPlatforms.has(value))) await clickVisibleOption(page, platform === 'tiktok' ? 'Tiktok' : 'Shopee');
-    await page.pressKey('Escape').catch(() => {});
   }
+  // Close either platform dropdown, including the re-rendered multi-platform
+  // control, before Enter is used to commit a keyword.
+  await page.pressKey('Escape').catch(() => {});
   const currentKeywords = new Set(current.keywords || []);
+  // Serialized by OpenCLI: keep this keyword locator self-contained. Its copy
+  // in observeMetricPage and readCommittedKeywords must stay behaviorally equal.
   const keywordSelector = await page.evaluate(() => {
-    const clean = value => String(value ?? '').replace(/\s+/g, ' ').trim();
-    const select = [...document.querySelectorAll('#QuerySearchBuilder .ant-select')]
-      .find(element => /Enter keywords separated by commas/i.test(clean(element.innerText || element.textContent)) || element.querySelector('input[id="rc_select_4"]'));
+    const visible = element => {
+      if (!element) return false;
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+    };
+    const textOf = element => (element?.innerText || element?.textContent || '').replace(/\s+/g, ' ').trim();
+    const locateKeywordSelect = () => {
+      const root = document.querySelector('#QuerySearchBuilder');
+      if (!root) return { select: null, locatedBy: 'none' };
+      const keywordLabel = [...root.querySelectorAll('.filter-label .label')]
+        .find(element => /^(?:keywords|từ kh(?:óa|oá))/i.test(textOf(element)));
+      const labelledContainer = keywordLabel?.closest('.ant-space-item');
+      const labelledSelect = [...(labelledContainer?.querySelectorAll('.ant-select') || [])].find(visible);
+      if (labelledSelect) return { select: labelledSelect, locatedBy: 'label' };
+      const placeholderPattern = /keywords? separated by commas|từ kh(?:óa|oá)/i;
+      const placeholderSelect = [...root.querySelectorAll('.ant-select')].find(element => visible(element) && (
+        placeholderPattern.test(textOf(element.querySelector('.ant-select-selection-placeholder')))
+        || [...element.querySelectorAll('input')].some(input => placeholderPattern.test(input.getAttribute('placeholder') || '') || placeholderPattern.test(input.getAttribute('aria-label') || ''))
+      ));
+      if (placeholderSelect) return { select: placeholderSelect, locatedBy: 'placeholder' };
+      const labelledControl = pattern => {
+        const label = [...root.querySelectorAll('.filter-label .label')].find(element => pattern.test(textOf(element)));
+        const container = label?.closest('.ant-space-item');
+        return [...(container?.querySelectorAll('.ant-select') || [])].find(visible) || null;
+      };
+      const excluded = new Set([
+        labelledControl(/^(?:platform|nền tảng)/i),
+        labelledControl(/^(?:time period|thời gian)/i),
+        labelledControl(/^(?:product category|danh mục)/i),
+      ].filter(Boolean));
+      const structuralCandidates = [...root.querySelectorAll('.ant-select-multiple')]
+        .filter(element => visible(element) && !excluded.has(element));
+      return structuralCandidates.length === 1
+        ? { select: structuralCandidates[0], locatedBy: 'structure' }
+        : { select: null, locatedBy: 'none' };
+    };
+    const select = locateKeywordSelect().select;
     const input = select?.querySelector('input[id]');
-    return input?.id ? `#${CSS.escape(input.id)}` : '#rc_select_4';
+    return input?.id ? `#${CSS.escape(input.id)}` : null;
   });
+  if (keywordSelector == null) throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric keyword search input is not visible');
   for (const keyword of [...currentKeywords].filter(value => !spec.keywords.includes(value))) await page.pressKey('Backspace');
   for (const keyword of spec.keywords.filter(value => !currentKeywords.has(value))) {
     await page.fillText(keywordSelector, keyword); await page.pressKey('Enter');
   }
   await page.pressKey('Escape').catch(() => {});
   if (spec.category !== undefined && spec.category !== current.category) {
-    await page.click('#rc_select_3'); await clickVisibleOption(page, spec.category === null ? 'All' : spec.category);
+    const categorySelector = await page.evaluate(() => {
+      const visible = element => {
+        if (!element) return false;
+        const style = getComputedStyle(element); const rect = element.getBoundingClientRect();
+        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+      };
+      const textOf = element => (element?.innerText || element?.textContent || '').replace(/\s+/g, ' ').trim();
+      const label = [...document.querySelectorAll('#QuerySearchBuilder .filter-label .label')]
+        .find(element => /^(?:product category|danh mục)/i.test(textOf(element)));
+      const container = label?.closest('.ant-space-item');
+      const select = [...(container?.querySelectorAll('.ant-select') || [])].find(visible);
+      const input = select?.querySelector('input[id]');
+      return input?.id ? `#${CSS.escape(input.id)}` : null;
+    });
+    if (categorySelector == null) throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric category select is not visible');
+    await page.click(categorySelector); await clickVisibleOption(page, spec.category === null ? 'All' : spec.category);
   }
   const periodAlreadyApplied = current.period?.startDate === spec.period.startDate && current.period?.endDate === spec.period.endDate;
-  if (spec.period.preset && !periodAlreadyApplied) { await page.click('#rc_select_2'); await clickVisibleOption(page, spec.period.preset); }
+  if (spec.period.preset && !periodAlreadyApplied) {
+    const periodSelector = await page.evaluate(() => {
+      const visible = element => {
+        if (!element) return false;
+        const style = getComputedStyle(element); const rect = element.getBoundingClientRect();
+        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+      };
+      const textOf = element => (element?.innerText || element?.textContent || '').replace(/\s+/g, ' ').trim();
+      const label = [...document.querySelectorAll('#QuerySearchBuilder .filter-label .label')]
+        .find(element => /^(?:time period|thời gian)/i.test(textOf(element)));
+      const container = label?.closest('.ant-space-item');
+      const select = [...(container?.querySelectorAll('.ant-select') || [])].find(visible);
+      const input = select?.querySelector('input[id]');
+      return input?.id ? `#${CSS.escape(input.id)}` : null;
+    });
+    if (periodSelector == null) throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric period select is not visible');
+    await page.click(periodSelector); await clickVisibleOption(page, spec.period.preset);
+  }
   if (spec.smartQuery !== undefined) await setCheckbox(page, 'Smart query', Boolean(spec.smartQuery));
   if (spec.aiNormalisation !== undefined) await setCheckbox(page, 'AI chuẩn hoá dữ liệu', Boolean(spec.aiNormalisation));
   for (const [label, value] of Object.entries(spec.usefulFilters || {})) {
@@ -935,5 +1156,5 @@ export const captureCommand = cli({
   }),
 });
 
-export const __test__ = { withMetricTab, readObservation, applyMetricSpec, performSearch, observeMetricPage, observeResultPage, collectResultPages, archiveResultsPage, readCommittedKeywords };
+export const __test__ = { asCliError, withMetricTab, readObservation, applyMetricSpec, performSearch, waitForKeywordCommit, observeMetricPage, observeResultPage, collectResultPages, archiveResultsPage, readCommittedKeywords };
 export { assertMetricUrl, parseMetricForm };

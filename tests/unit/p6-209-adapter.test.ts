@@ -394,6 +394,112 @@ async function installOpenCliTestStub(): Promise<void> {
   await writeFile(join(root, 'errors.js'), 'export class CliError extends Error { constructor(code, message) { super(message); this.code = code; } }\n');
 }
 
+function withMetricDom<T>(html: string, callback: () => T): T {
+  const dom = new JSDOM(`<!doctype html><html><head><title>Metric analytics</title></head><body><main id="main-content"><div id="analytic-tab">${html}</div></main></body></html>`, { url: 'https://metric.vn/analytics' });
+  const previous = {
+    document: (globalThis as any).document,
+    location: (globalThis as any).location,
+    window: (globalThis as any).window,
+    CSS: (globalThis as any).CSS,
+    getComputedStyle: (globalThis as any).getComputedStyle,
+  };
+  (globalThis as any).document = dom.window.document;
+  (globalThis as any).location = dom.window.location;
+  (globalThis as any).window = dom.window;
+  (globalThis as any).CSS = dom.window.CSS;
+  (globalThis as any).getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
+  dom.window.Element.prototype.getBoundingClientRect = () => ({ x: 0, y: 0, left: 0, top: 100, right: 320, bottom: 132, width: 320, height: 32, toJSON: () => ({}) });
+  try {
+    return callback();
+  } finally {
+    if (previous.document === undefined) delete (globalThis as any).document; else (globalThis as any).document = previous.document;
+    if (previous.location === undefined) delete (globalThis as any).location; else (globalThis as any).location = previous.location;
+    if (previous.window === undefined) delete (globalThis as any).window; else (globalThis as any).window = previous.window;
+    if (previous.CSS === undefined) delete (globalThis as any).CSS; else (globalThis as any).CSS = previous.CSS;
+    if (previous.getComputedStyle === undefined) delete (globalThis as any).getComputedStyle; else (globalThis as any).getComputedStyle = previous.getComputedStyle;
+    dom.window.close();
+  }
+}
+
+test('keyword locator follows the labelled select after a multi-platform re-render', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const html = `
+    <div id="QuerySearchBuilder">
+      <div class="ant-space-item"><div class="filter-label"><span class="label">Platform</span></div><div class="ant-select"><input id="platform-input" /></div></div>
+      <div class="ant-space-item"><div class="filter-label"><span class="label">Keywords (keywords or shop link/product link)</span></div>
+        <div class="ant-select ant-select-multiple"><div class="ant-select-selection-item" title="thạch dừa"><span class="ant-select-selection-item-content">thạch dừa</span></div><input id="rc_select_14" /></div>
+      </div>
+      <div class="ant-select"><input id="rc_select_4" value="wrong-control" /></div>
+    </div>`;
+  const observation = withMetricDom(html, () => adapter.__test__.observeMetricPage(false));
+  assert.equal(observation.controls.find((control: any) => control.name === 'keywords').selector, '#rc_select_14');
+  assert.deepEqual(observation.appliedFilters.keywords, ['thạch dừa']);
+  assert.deepEqual(withMetricDom(html, () => adapter.__test__.readCommittedKeywords()), ['thạch dừa']);
+});
+
+test('keyword locator uses an input-only placeholder and Vietnamese labels', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const placeholderHtml = `<div id="QuerySearchBuilder"><div class="ant-select ant-select-multiple"><input id="keyword-placeholder" placeholder="Enter keywords separated by commas" value="placeholder-term" /></div><div class="ant-select ant-select-multiple"><input id="unrelated-multiple" /></div></div>`;
+  const placeholderObservation = withMetricDom(placeholderHtml, () => adapter.__test__.observeMetricPage(false));
+  assert.equal(placeholderObservation.controls.find((control: any) => control.name === 'keywords').selector, '#keyword-placeholder');
+  assert.deepEqual(placeholderObservation.appliedFilters.keywords, ['placeholder-term']);
+  const vietnameseHtml = `<div id="QuerySearchBuilder"><div class="ant-space-item"><div class="filter-label"><span class="label">Từ khóa</span></div><div class="ant-select ant-select-multiple"><input id="keyword-vietnamese" value="từ khóa mẫu" /></div></div><div class="ant-select ant-select-multiple"><input id="unrelated-vietnamese-multiple" /></div></div>`;
+  const vietnameseObservation = withMetricDom(vietnameseHtml, () => adapter.__test__.observeMetricPage(false));
+  assert.equal(vietnameseObservation.controls.find((control: any) => control.name === 'keywords').selector, '#keyword-vietnamese');
+  assert.deepEqual(withMetricDom(vietnameseHtml, () => adapter.__test__.readCommittedKeywords()), ['từ khóa mẫu']);
+});
+
+test('keyword fill fails before fillText when no keyword select exists', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const html = `<div id="QuerySearchBuilder"><div class="ant-space-item"><div class="filter-label"><span class="label">Platform</span></div><div class="ant-select"><input id="platform-input" /></div></div></div>`;
+  let fillCalls = 0;
+  const page = {
+    evaluate: async (fn: Function, argument?: unknown) => withMetricDom(html, () => fn(argument)),
+    click: async () => {},
+    pressKey: async () => {},
+    fillText: async () => { fillCalls += 1; },
+  };
+  const spec = { keywords: ['missing-control-term'], platforms: ['shopee'], period: { startDate: '2026-01-01', endDate: '2026-01-30' }, category: null };
+  const initial = { appliedFilters: { keywords: [], platforms: ['shopee'], period: spec.period, category: null } };
+  await assert.rejects(() => adapter.__test__.applyMetricSpec(page, spec, initial), (error: any) => error.code === 'METRIC_UI_CHANGED');
+  assert.equal(fillCalls, 0);
+});
+
+test('ambiguous multiple-select structure is not treated as the keyword control', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const html = `<div id="QuerySearchBuilder"><div class="ant-select ant-select-multiple"><input id="candidate-one" /></div><div class="ant-select ant-select-multiple"><input id="candidate-two" /></div></div>`;
+  const observation = withMetricDom(html, () => adapter.__test__.observeMetricPage(false));
+  assert.equal(observation.controls.find((control: any) => control.name === 'keywords').visible, false);
+  assert.deepEqual(withMetricDom(html, () => adapter.__test__.readCommittedKeywords()), []);
+});
+
+test('keyword commit mismatch has only safe diagnostics and preserves them in CLI errors', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const page = {
+    evaluate: async (fn: Function) => fn.name === 'readCommittedKeywords' ? [] : ({
+      locatedBy: 'label', chipCount: 0, inputFound: true,
+      inputValueMatchesExpected: false, committedMatchesExpected: false,
+      secretId: 'must-not-survive', pageText: 'must-not-survive',
+    }),
+    wait: async () => {},
+  };
+  let originalError: any;
+  await assert.rejects(() => adapter.__test__.waitForKeywordCommit(page, ['expected-term']), (error: any) => {
+    originalError = error;
+    assert.deepEqual(Object.keys(error.details).sort(), ['chipCount', 'committedMatchesExpected', 'inputFound', 'inputValueMatchesExpected', 'locatedBy']);
+    assert.deepEqual(error.details, { locatedBy: 'label', chipCount: 0, inputFound: true, inputValueMatchesExpected: false, committedMatchesExpected: false });
+    return true;
+  });
+  const cliError = adapter.__test__.asCliError(originalError);
+  assert.deepEqual(cliError.details, originalError.details);
+  assert.match(cliError.message, /details=\{"locatedBy":"label","chipCount":0,"inputFound":true,"inputValueMatchesExpected":false,"committedMatchesExpected":false\}/);
+});
+
 test('diagnostics are opt-in and identity-safe for warning matches', async () => {
   await installOpenCliTestStub();
   const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
