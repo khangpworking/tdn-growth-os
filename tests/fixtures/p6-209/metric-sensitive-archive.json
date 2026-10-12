@@ -1,0 +1,22 @@
+{
+  "responses": [
+    {
+      "url": "https://metric.vn/api/synthetic-sensitive?token=not-archived",
+      "status": 200,
+      "body": {
+        "region": "overview",
+        "account": "Synthetic logged-in account",
+        "email": "synthetic-owner@example.test",
+        "phone": "+84901234567",
+        "nickname": "Synthetic owner nickname",
+        "avatar": "https://example.test/avatar.png",
+        "uid": "synthetic-user-id",
+        "shopOwner": "Synthetic shop owner",
+        "opaqueValue": "0123456789abcdef0123456789abcdef0123456789abcdef",
+        "bearerValue": "Bearer synthetic-secret-token",
+        "jwtValue": "synthetichead.syntheticpayload.syntheticsignature",
+        "business": { "products": 4, "shops": 2, "revenue": 8000000, "units": 32, "price": 250000 }
+      }
+    }
+  ]
+}

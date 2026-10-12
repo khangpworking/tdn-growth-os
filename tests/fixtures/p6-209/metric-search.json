@@ -1,0 +1,16 @@
+{
+  "url": "https://metric.vn/analytics",
+  "metricRootVisible": true,
+  "loginVisible": false,
+  "captchaVisible": false,
+  "bodyText": "Analytics results",
+  "appliedFilters": {
+    "keywords": ["synthetic-keyword"],
+    "platforms": ["shopee", "tiktok"],
+    "period": { "startDate": "2025-09-15", "endDate": "2026-09-20" },
+    "category": null
+  },
+  "rowCount": 128,
+  "quota": { "analysisLookupsRemaining": 456 },
+  "snapshot": { "contractVersion": "automation-metric-web-snapshot-v1", "synthetic": true }
+}

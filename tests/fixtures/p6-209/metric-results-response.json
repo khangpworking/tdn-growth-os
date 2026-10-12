@@ -1,0 +1,90 @@
+{
+  "responses": [
+    {
+      "urlPath": "/api/analytics/overview",
+      "status": 200,
+      "body": {
+        "region": "overview",
+        "kpi": {
+          "revenue": { "current": { "label": "Revenue", "displayed": "12,5 tỷ", "value": 12500000000, "unit": "VND", "precision": "exact" }, "changePct": { "displayed": "8,2%", "value": 8.2, "unit": "PERCENT", "precision": "exact" } },
+          "units": { "current": { "label": "Units", "displayed": "42.000", "value": 42000, "unit": "COUNT", "precision": "exact" }, "changePct": { "displayed": "4,1%", "value": 4.1, "unit": "PERCENT", "precision": "exact" } },
+          "soldListings": { "current": { "label": "Sold listings", "displayed": "2.400", "value": 2400, "unit": "COUNT", "precision": "exact" }, "changePct": null },
+          "shops": { "current": { "label": "Shops", "displayed": "310", "value": 310, "unit": "COUNT", "precision": "exact" }, "changePct": null }
+        }
+      }
+    },
+    {
+      "urlPath": "/api/analytics/platform",
+      "status": 200,
+      "body": {
+        "region": "platform-split",
+        "items": [
+          { "platform": "shopee", "revenue": { "displayed": "7,5 tỷ", "value": 7500000000, "unit": "VND", "precision": "exact" }, "share": { "displayed": "60%", "value": 60, "unit": "PERCENT", "precision": "exact" } },
+          { "platform": "tiktok", "revenue": { "displayed": "5 tỷ", "value": 5000000000, "unit": "VND", "precision": "exact" }, "share": { "displayed": "40%", "value": 40, "unit": "PERCENT", "precision": "exact" } }
+        ]
+      }
+    },
+    {
+      "urlPath": "/api/analytics/trend",
+      "status": 200,
+      "body": {
+        "region": "monthly",
+        "items": [
+          { "platform": "shopee", "month": "2026-07", "revenue": { "displayed": "3,1 tỷ", "value": 3100000000, "unit": "VND", "precision": "exact" }, "units": { "displayed": "11.000", "value": 11000, "unit": "COUNT", "precision": "exact" } },
+          { "platform": "shopee", "month": "2026-08", "revenue": { "displayed": "4,4 tỷ", "value": 4400000000, "unit": "VND", "precision": "exact" }, "units": { "displayed": "15.000", "value": 15000, "unit": "COUNT", "precision": "exact" } },
+          { "platform": "tiktok", "month": "2026-07", "revenue": { "displayed": "2,0 tỷ", "value": 2000000000, "unit": "VND", "precision": "exact" }, "units": { "displayed": "7.000", "value": 7000, "unit": "COUNT", "precision": "exact" } },
+          { "platform": "tiktok", "month": "2026-08", "revenue": { "displayed": "3,0 tỷ", "value": 3000000000, "unit": "VND", "precision": "exact" }, "units": { "displayed": "10.000", "value": 10000, "unit": "COUNT", "precision": "exact" } }
+        ]
+      }
+    },
+    {
+      "urlPath": "/api/analytics/category",
+      "status": 200,
+      "body": { "region": "category", "columns": ["category", "level", "platform", "revenue"], "rows": [
+        { "category": "Synthetic category A", "level": "L1", "platform": "shopee", "revenue": { "displayed": "7 tỷ", "value": 7000000000, "unit": "VND", "precision": "exact" } },
+        { "category": "Synthetic category B", "level": "L1", "platform": "tiktok", "revenue": { "displayed": "5 tỷ", "value": 5000000000, "unit": "VND", "precision": "exact" } }
+      ] }
+    },
+    {
+      "urlPath": "/api/analytics/price",
+      "status": 200,
+      "body": { "region": "price", "columns": ["priceLevel", "platform", "revenue"], "rows": [
+        { "priceLevel": "0-100", "platform": "shopee", "revenue": { "displayed": "4 tỷ", "value": 4000000000, "unit": "VND", "precision": "exact" } },
+        { "priceLevel": "100-200", "platform": "tiktok", "revenue": { "displayed": "3 tỷ", "value": 3000000000, "unit": "VND", "precision": "exact" } }
+      ] }
+    },
+    { "urlPath": "/api/analytics/brand-share", "status": 200, "body": { "region": "top10-brand", "top10": { "displayed": "55%", "value": 55, "unit": "PERCENT", "precision": "exact" }, "others": { "displayed": "45%", "value": 45, "unit": "PERCENT", "precision": "exact" } } },
+    { "urlPath": "/api/analytics/shop-share", "status": 200, "body": { "region": "top10-shop", "top10": { "displayed": "48%", "value": 48, "unit": "PERCENT", "precision": "exact" }, "others": { "displayed": "52%", "value": 52, "unit": "PERCENT", "precision": "exact" } } },
+    { "urlPath": "/api/analytics/brand-shop-type", "status": 200, "body": { "region": "brand-shop-type", "columns": ["brand", "revenueNormal", "revenueMall"], "rows": [
+      { "brand": "Synthetic brand A", "revenueNormal": { "displayed": "2 tỷ", "value": 2000000000, "unit": "VND", "precision": "exact" }, "revenueMall": { "displayed": "1 tỷ", "value": 1000000000, "unit": "VND", "precision": "exact" } }
+    ] } },
+    { "urlPath": "/api/analytics/shop-type", "status": 200, "body": { "region": "shop-type", "rows": [
+      { "shopType": "mall", "share": { "displayed": "30%", "value": 30, "unit": "PERCENT", "precision": "exact" } },
+      { "shopType": "normal", "share": { "displayed": "70%", "value": 70, "unit": "PERCENT", "precision": "exact" } }
+    ] } },
+    {
+      "urlPath": "/api/analytics/top-products?page=1",
+      "status": 200,
+      "body": { "region": "top-products", "platform": "all", "columns": ["name", "shop", "price", "revenue", "units", "category"], "pagination": { "page": 1, "pageSize": 2, "total": 5 }, "items": [
+        { "name": "Synthetic item A", "shop": "Synthetic shop A", "price": { "displayed": "120.000", "value": 120000, "unit": "VND", "precision": "exact" }, "revenue": { "displayed": "900 triệu", "value": 900000000, "unit": "VND", "precision": "exact" }, "units": { "displayed": "900", "value": 900, "unit": "COUNT", "precision": "exact" }, "category": "Synthetic category A" },
+        { "name": "Synthetic item B", "shop": "Synthetic shop B", "price": { "displayed": "80.000", "value": 80000, "unit": "VND", "precision": "exact" }, "revenue": { "displayed": "700 triệu", "value": 700000000, "unit": "VND", "precision": "exact" }, "units": { "displayed": "700", "value": 700, "unit": "COUNT", "precision": "exact" }, "category": "Synthetic category B" }
+      ] }
+    },
+    {
+      "urlPath": "/api/analytics/top-products?page=2",
+      "status": 200,
+      "body": { "region": "top-products", "platform": "all", "columns": ["name", "shop", "price", "revenue", "units", "category"], "pagination": { "page": 2, "pageSize": 2, "total": 5 }, "items": [
+        { "name": "Synthetic item C", "shop": "Synthetic shop C", "price": { "displayed": "60.000", "value": 60000, "unit": "VND", "precision": "exact" }, "revenue": { "displayed": "500 triệu", "value": 500000000, "unit": "VND", "precision": "exact" }, "units": { "displayed": "500", "value": 500, "unit": "COUNT", "precision": "exact" }, "category": "Synthetic category A" }
+      ] }
+    },
+    { "urlPath": "/api/analytics/top-shops", "status": 200, "body": { "region": "top-shops", "columns": ["rankNew", "rankOld", "shop", "platform", "listings", "revenue", "units"], "items": [
+      { "rankNew": { "displayed": "1", "value": 1, "unit": "RANK", "precision": "exact" }, "rankOld": { "displayed": "2", "value": 2, "unit": "RANK", "precision": "exact" }, "shop": "Synthetic shop A", "platform": "shopee", "listings": { "displayed": "12", "value": 12, "unit": "COUNT", "precision": "exact" }, "revenue": { "displayed": "1 tỷ", "value": 1000000000, "unit": "VND", "precision": "exact" }, "units": { "displayed": "1000", "value": 1000, "unit": "COUNT", "precision": "exact" } }
+    ] } },
+    { "urlPath": "/api/analytics/top-brands", "status": 200, "body": { "region": "top-brands", "columns": ["rankNew", "rankOld", "brand", "listings", "revenue", "units"], "items": [
+      { "rankNew": { "displayed": "1", "value": 1, "unit": "RANK", "precision": "exact" }, "rankOld": { "displayed": "1", "value": 1, "unit": "RANK", "precision": "exact" }, "brand": "Synthetic brand A", "listings": { "displayed": "10", "value": 10, "unit": "COUNT", "precision": "exact" }, "revenue": { "displayed": "800 triệu", "value": 800000000, "unit": "VND", "precision": "exact" }, "units": { "displayed": "800", "value": 800, "unit": "COUNT", "precision": "exact" } }
+    ] } },
+    { "urlPath": "/api/analytics/detail-history", "status": 200, "body": { "region": "detail-history", "columns": ["entityKind", "entity", "month", "revenue", "units"], "items": [
+      { "entityKind": "product", "entity": "Synthetic item A", "month": "2026-08", "revenue": { "displayed": "900 triệu", "value": 900000000, "unit": "VND", "precision": "exact" }, "units": { "displayed": "900", "value": 900, "unit": "COUNT", "precision": "exact" } }
+    ] } }
+  ]
+}

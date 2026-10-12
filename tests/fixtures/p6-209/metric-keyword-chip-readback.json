@@ -1,0 +1,24 @@
+{
+  "url": "https://metric.vn/analytics",
+  "title": "Synthetic keyword chip result",
+  "bodyText": "Synthetic analytics results",
+  "metricRootVisible": true,
+  "loginVisible": false,
+  "captchaVisible": false,
+  "accountState": "logged_in",
+  "controls": [
+    { "name": "platform", "label": "Platform", "selector": "#synthetic-platform-input", "options": ["Shopee"] },
+    { "name": "period", "label": "Time period", "selector": "#synthetic-period-input", "options": ["30 days"] },
+    { "name": "category", "label": "Product category", "selector": "#synthetic-category-input", "options": ["All"] },
+    { "name": "keywords", "label": "Keywords", "selector": "#synthetic-keyword-input", "options": [] }
+  ],
+  "appliedFilters": {
+    "keywords": ["synthetic-chip-term"],
+    "platforms": ["shopee"],
+    "period": { "startDate": "2026-08-01", "endDate": "2026-08-30" },
+    "category": null
+  },
+  "rowCount": 3,
+  "quota": { "analysisLookupsRemaining": null },
+  "snapshot": { "contractVersion": "automation-metric-web-snapshot-v1", "synthetic": true, "scope": {}, "groups": {} }
+}
