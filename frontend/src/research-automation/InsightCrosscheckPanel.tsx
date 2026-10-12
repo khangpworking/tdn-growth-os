@@ -12,6 +12,7 @@ type Props = { run: ResearchAutomationRun; view: View; ownerToken: string | null
 type Valid = Extract<ResearchInsightCrosscheckResponse, { status: 'VALID' }>;
 export default function InsightCrosscheckPanel({ run, view, ownerToken, block, reportBlock, inFlight, onBusyChanged, onActivityChanged }: Props) {
   const [availability, setAvailability] = useState<ResearchInsightCrosscheckAvailability | null>(null);
+  const [availabilityState, setAvailabilityState] = useState<'loading' | 'success' | 'error'>('loading');
   const [proposalId, setProposalId] = useState('');
   const [readKey, setReadKey] = useState('');
   const [confirm, setConfirm] = useState<InsightCrosscheckRequest | null>(null);
@@ -28,10 +29,10 @@ export default function InsightCrosscheckPanel({ run, view, ownerToken, block, r
   useEffect(() => { onBusyChanged(busy); return () => onBusyChanged(false); }, [busy, onBusyChanged]);
   const binding = canonical(view.context.binding);
   useEffect(() => {
-    const abort = new AbortController(); let alive = true;
+    const abort = new AbortController(); let alive = true; setAvailabilityState('loading');
     void loadCrosscheckAvailability(run.workspaceId, run.runId, view.context.binding.pairId, abort.signal).then(result => {
-      if (alive && canonical(result.binding) === binding) setAvailability(result);
-    }).catch(() => { if (alive) { setAvailability(null); setNotice('Chưa đọc được cấu hình độc lập cho lượt thứ hai.'); } });
+      if (alive && canonical(result.binding) === binding) { setAvailability(result); setAvailabilityState('success'); }
+    }).catch(() => { if (alive) { setAvailability(null); setAvailabilityState('error'); setNotice('Chưa đọc được cấu hình độc lập cho lượt thứ hai.'); } });
     return () => { alive = false; abort.abort(); };
   }, [binding, run.workspaceId, run.runId, view.context.binding.pairId]);
   const proposals = view.evidence.filter(item => item.request.contractVersion === 'insight-coding-default-propose-v1');
@@ -103,7 +104,7 @@ export default function InsightCrosscheckPanel({ run, view, ownerToken, block, r
   return <section className="ic-crosscheck"><h4>Chuẩn bị mẫu cho model thứ hai</h4><p>Giữ riêng hai lượt mã hóa và khác biệt nguyên dạng. Chưa có thống kê kiểm chéo U11 hay phát hành.</p>
     <label className="ra-label">Đề xuất mặc định cho lượt thứ hai<select aria-label="Đề xuất mặc định cho lượt thứ hai" className="ra-field" value={proposalId} disabled={busy || Boolean(block)} onChange={event => { setProposalId(event.target.value); setValid(null); setNotice(''); }}>
       <option value="">Chọn đề xuất đã lưu</option>{proposals.map(item => <option key={item.evidenceId} value={item.evidenceId}>Đề xuất {item.sequence} · {item.evidenceId}</option>)}</select></label>
-    <p>{availability?.secondConfiguration ? `Model thứ hai: ${availability.secondConfiguration.providerId}/${availability.secondConfiguration.modelId}. Máy chủ xác minh cấu hình này khác toàn bộ lượt đầu trước khi gọi.` : 'Chưa có cấu hình độc lập cho model thứ hai.'}</p>
+    <p data-availability-state={availabilityState}>{availability?.secondConfiguration ? `Model thứ hai: ${availability.secondConfiguration.providerId}/${availability.secondConfiguration.modelId}. Máy chủ xác minh cấu hình này khác toàn bộ lượt đầu trước khi gọi.` : 'Chưa có cấu hình độc lập cho model thứ hai.'}</p>
     <button type="button" className="button" disabled={busy || Boolean(gate)} onClick={open}>Xem lại mẫu cho model thứ hai</button>
     <label className="ra-label">Mã yêu cầu lượt thứ hai đã lưu<input className="ra-field" aria-label="Mã yêu cầu lượt thứ hai đã lưu" value={readKey} disabled={busy} onChange={event => setReadKey(event.target.value.trim())} /></label>
     <button type="button" className="button" disabled={busy || !proposal || !readKey} onClick={() => void readSaved()}>Đọc đúng bằng chứng lượt thứ hai đã lưu</button>
