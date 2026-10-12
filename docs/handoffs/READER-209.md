@@ -271,4 +271,3 @@ Blocked / needs other lane:
 | Required checks | DONE | Reader unit, report unit, Windows typecheck, and `git diff --check` all pass. |
 
 Coordinator disposition (round 3b): `tests/integration/research-automation-api.test.ts:480` is updated to the intended reader-on wording (`chưa rõ;` without the raw `(UNKNOWN)` code), and a negative assertion is added so the raw code cannot return. No other assertion changed.
-
