@@ -89,10 +89,10 @@ export function gateMetricPage(observation) {
   if (observation.captchaVisible === true || /captcha|verify you are human/i.test(clean(observation.bodyText))) {
     throw new MetricAdapterError('METRIC_CAPTCHA', 'captcha or human verification is visible');
   }
-  if (observation.loginVisible === true || /\blogin\b|đăng nhập/i.test(clean(observation.bodyText))) {
+  if (observation.loginVisible === true || /(?:^|\n)(?:login|đăng nhập)(?:\n|$)/i.test(clean(observation.bodyText))) {
     throw new MetricAdapterError('METRIC_LOGIN_REQUIRED', 'Metric session is not logged in');
   }
-  if (observation.metricRootVisible === false) {
+  if (observation.metricRootVisible !== true) {
     throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric application root is not visible');
   }
   return observation;
@@ -110,8 +110,8 @@ export function parseWhoamiObservation(observation) {
   return {
     status: 'READY',
     plan: clean(observation.plan) || null,
-    analysisLookupsRemaining: Number.isSafeInteger(quota.analysisLookupsRemaining) ? quota.analysisLookupsRemaining : null,
-    downloadRowsRemaining: Number.isSafeInteger(quota.downloadRowsRemaining) ? quota.downloadRowsRemaining : null,
+    analysisLookupsRemaining: Number.isSafeInteger(quota.analysisLookupsRemaining) && quota.analysisLookupsRemaining >= 0 ? quota.analysisLookupsRemaining : null,
+    downloadRowsRemaining: Number.isSafeInteger(quota.downloadRowsRemaining) && quota.downloadRowsRemaining >= 0 ? quota.downloadRowsRemaining : null,
   };
 }
 

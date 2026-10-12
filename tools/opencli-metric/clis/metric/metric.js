@@ -38,24 +38,72 @@ async function withMetricTab(page, task) {
 }
 
 async function readObservation(page) {
+  await page.wait({ selector: '#main-content #analytic-tab', timeout: 15 }).catch(() => {});
   const observation = await page.evaluate(() => {
-    const text = document.body?.innerText || '';
+    const visible = element => {
+      if (!element) return false;
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+    };
+    const textOf = element => (element?.innerText || element?.textContent || '').replace(/\s+/g, ' ').trim();
+    const selectorFor = element => {
+      const input = element?.querySelector('input[id]');
+      return input?.id ? `#${CSS.escape(input.id)}` : '.ant-select';
+    };
+    const labelledSelect = label => {
+      const labels = [...document.querySelectorAll('#QuerySearchBuilder .filter-label .label')];
+      const match = labels.find(element => textOf(element) === label);
+      return match?.closest('.ant-space-item')?.querySelector('.ant-select') || null;
+    };
     const controls = [
-      { name: 'platform', label: 'Platform', selector: '[role="combobox"]', options: [] },
-      { name: 'period', label: 'Time period', selector: '#rc_select_4', options: [] },
-      { name: 'category', label: 'Product category', selector: '[role="combobox"]', options: [] },
-      { name: 'keywords', label: 'Keywords', selector: 'input[type="search"]', options: [] },
-    ];
+      ['platform', 'Platform', labelledSelect('Platform')],
+      ['period', 'Time period', labelledSelect('Time period')],
+      ['category', 'Product category', labelledSelect('Product category')],
+      ['keywords', 'Keywords', [...document.querySelectorAll('#QuerySearchBuilder .ant-select')]
+        .find(element => /Enter keywords separated by commas/i.test(textOf(element)))],
+    ].map(([name, label, element]) => ({
+      name,
+      label,
+      selector: element?.querySelector('input[id]')?.id ? `#${CSS.escape(element.querySelector('input[id]').id)}` : selectorFor(element),
+      options: [],
+      visible: visible(element),
+    }));
+    const visibleText = [...document.querySelectorAll('#header, #QuerySearchBuilder, [data-v-50902570]')]
+      .filter(visible)
+      .map(textOf)
+      .filter(Boolean)
+      .join('\n');
+    const loginVisible = [...document.querySelectorAll('a,button,[role="button"]')]
+      .some(element => visible(element) && /^(?:login|đăng nhập)$/i.test(textOf(element)));
+    const captchaVisible = [...document.querySelectorAll('[id*="captcha" i],[class*="captcha" i],iframe[src*="captcha" i]')]
+      .some(visible) || /captcha|verify you are human/i.test(visibleText);
+    const quotaText = [...document.querySelectorAll('#QuerySearchBuilder, body *')]
+      .filter(element => visible(element) && element.children.length === 0 && textOf(element).length <= 240)
+      .map(textOf);
+    const number = value => {
+      const match = String(value ?? '').match(/\d[\d\s,.]*/);
+      if (!match) return null;
+      const parsed = Number(match[0].replace(/[\s,.]/g, ''));
+      return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
+    };
+    const analysisQuotaText = quotaText.find(value => /(?:analysis\s+)?(?:lookups?|queries?|points?|lượt phân tích|lượt).*(?:left|remaining|available|còn)|(?:left|remaining|available|còn).*(?:analysis\s+)?(?:lookups?|queries?|points?|lượt phân tích|lượt)/i.test(value));
+    const downloadLabel = [...document.querySelectorAll('.row-limit')].find(element => visible(element) && /download rows/i.test(textOf(element)));
+    const downloadQuotaText = downloadLabel ? textOf(downloadLabel) : null;
+    const loggedInMarker = visible(document.querySelector('#header .user-profile-btn-wrapper'));
     return {
       url: location.href,
       title: document.title,
-      bodyText: text.slice(0, 20000),
-      metricRootVisible: Boolean(document.querySelector('#QuerySearchBuilder, #analytic-tab')),
-      loginVisible: /(^|\n)Login(\n|$)|(^|\n)Đăng nhập(\n|$)/i.test(text),
-      captchaVisible: /captcha|verify you are human/i.test(text),
-      accountState: /(^|\n)Login(\n|$)|(^|\n)Đăng nhập(\n|$)/i.test(text) ? 'logged_out' : 'logged_in',
+      bodyText: visibleText,
+      metricRootVisible: visible(document.querySelector('#main-content #analytic-tab')),
+      loginVisible,
+      captchaVisible,
+      accountState: loggedInMarker ? 'logged_in' : loginVisible ? 'logged_out' : 'unknown',
       controls,
-      quota: null,
+      quota: {
+        analysisLookupsRemaining: number(analysisQuotaText),
+        downloadRowsRemaining: number(downloadQuotaText),
+      },
     };
   });
   return gateMetricPage(observation);

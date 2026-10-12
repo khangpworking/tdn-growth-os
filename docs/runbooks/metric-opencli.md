@@ -23,7 +23,10 @@ The Metric adapter is kept in `tools/opencli-metric/`. OpenCLI 1.8.8 loads user
 adapters from its user `clis/metric/` directory; the reviewed adapter and its
 parser were installed there for discovery. The installed copy must remain the
 same bytes as the repository copy. The executor checks the pinned adapter
-manifest digest before every run.
+manifest digest before every run. The repository adapter manifest is
+`tools/opencli-metric/adapter-manifest.json`; its SHA-256 pin for this round is
+`0884380927f261f29f5a3cb947288b1a6012fe66da4b7c37c97c6b8fe823382e`. The same
+manifest was installed beside the user adapter files.
 
 The adapter opens an ephemeral tab on the Metric domain and closes that tab in
 all success and failure paths. It does not inspect cookies, passwords, history,
