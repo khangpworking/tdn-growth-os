@@ -572,6 +572,7 @@ function fakePage(observation: any, result: any, resultDom: any = null, networkR
         return behavior.searchObservation ? behavior.searchObservation(state, result) : result;
       }
       if (fn.name === 'readCommittedKeywords') return commandSpec.keywords;
+      if (fn.name === 'dispatchSelectKey') { calls.push(`selectkey:${(arg as any).key}`); return true; }
       if (fn.name === 'observeResultPage') return behavior.resultDom ? behavior.resultDom(state, resultDom) : resultDom || { html: '<html></html>', regions: {}, screenshotRegions: {}, platformViews: [] };
       if (fn.name === 'prepareScreenshotClip') { maskCalls.push('prepare'); return behavior.screenshotClip ? behavior.screenshotClip(state) : { clip: { x: 12, y: 24, width: 320, height: 180 }, maskedCount: 1 }; }
       if (fn.name === 'restoreScreenshotMask') { maskCalls.push('restore'); return true; }
@@ -716,4 +717,86 @@ test('a tab-close failure fails the adapter command', async () => {
   const page = fakePage(await load('metric-whoami'), await load('metric-search'));
   page.closeTab = async () => { throw new Error('synthetic close failure'); };
   await assert.rejects(() => adapter.whoamiCommand.func(page), /synthetic close failure/);
+});
+
+test('synthetic select key carries the legacy key code and cannot submit a form', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const html = `<form id="synthetic-form"><div class="ant-select ant-select-multiple"><input id="synthetic-keyword" /></div><button type="submit">Analyze</button></form>`;
+  const seen = withMetricDom(html, () => {
+    const events: string[] = [];
+    const input = document.querySelector('#synthetic-keyword')!;
+    for (const type of ['keydown', 'keyup']) input.addEventListener(type, (event: any) => events.push(`${event.type}:${event.key}:${event.keyCode}:${event.which}:${event.isTrusted}`));
+    document.querySelector('#synthetic-form')!.addEventListener('submit', () => events.push('submit'));
+    const results = [
+      adapter.__test__.dispatchSelectKey({ selector: '#synthetic-keyword', key: 'Enter' }),
+      adapter.__test__.dispatchSelectKey({ selector: '#synthetic-keyword', key: 'Backspace' }),
+      adapter.__test__.dispatchSelectKey({ selector: '#missing-input', key: 'Enter' }),
+      adapter.__test__.dispatchSelectKey({ selector: '#synthetic-keyword', key: 'Tab' }),
+    ];
+    return { events, results, focused: document.activeElement?.id };
+  });
+  assert.deepEqual(seen.results, [true, true, false, false]);
+  assert.deepEqual(seen.events, ['keydown:Enter:13:13:false', 'keyup:Enter:13:13:false', 'keydown:Backspace:8:8:false', 'keyup:Backspace:8:8:false']);
+  assert.equal(seen.focused, 'synthetic-keyword');
+});
+
+const keywordFormHtml = `<div id="QuerySearchBuilder"><div class="ant-space-item"><div class="filter-label"><span class="label">Platform</span></div><div class="ant-select"><input id="platform-input" /></div></div><div class="ant-space-item"><div class="filter-label"><span class="label">Từ khóa</span></div><div class="ant-select ant-select-multiple"><input id="keyword-input" /></div></div></div>`;
+
+function keywordFormPage(fillResult: unknown) {
+  const calls: string[] = [];
+  const page = {
+    calls,
+    evaluate: async (fn: Function, argument?: unknown) => {
+      if (fn.name === 'dispatchSelectKey') calls.push(`selectkey:${(argument as any).selector}:${(argument as any).key}`);
+      return withMetricDom(keywordFormHtml, () => fn(argument));
+    },
+    click: async (selector: string) => { calls.push(`click:${selector}`); },
+    pressKey: async (key: string) => { calls.push(`key:${key}`); },
+    fillText: async (selector: string, text: string) => { calls.push(`fill:${selector}:${text}`); return fillResult; },
+  };
+  return page;
+}
+
+test('keyword commit uses the synthetic select key, never the native Enter', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const page = keywordFormPage({ filled: true, verified: true, mode: 'input' });
+  const spec = { keywords: ['synthetic-term'], platforms: ['shopee'], period: { startDate: '2026-01-01', endDate: '2026-01-30' }, category: null };
+  const initial = { appliedFilters: { keywords: [], platforms: ['shopee'], period: spec.period, category: null } };
+  await adapter.__test__.applyMetricSpec(page, spec, initial);
+  const fill = page.calls.indexOf('fill:#keyword-input:synthetic-term');
+  assert.ok(fill >= 0);
+  assert.equal(page.calls[fill + 1], 'selectkey:#keyword-input:Enter');
+  assert.ok(!page.calls.includes('key:Enter'));
+  assert.ok(!page.calls.includes('key:Backspace'));
+});
+
+test('unverified keyword text stops before any Enter is dispatched', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const page = keywordFormPage({ filled: true, verified: false, expected: 'synthetic-term', actual: '', mode: 'input' });
+  const spec = { keywords: ['synthetic-term'], platforms: ['shopee'], period: { startDate: '2026-01-01', endDate: '2026-01-30' }, category: null };
+  const initial = { appliedFilters: { keywords: [], platforms: ['shopee'], period: spec.period, category: null } };
+  await assert.rejects(() => adapter.__test__.applyMetricSpec(page, spec, initial), (error: any) => {
+    assert.equal(error.code, 'METRIC_UI_CHANGED');
+    assert.deepEqual(error.details, { filled: true, verified: false });
+    return true;
+  });
+  assert.ok(!page.calls.some(call => call.startsWith('selectkey:') || call === 'key:Enter'));
+});
+
+test('platform mismatch after the keyword commit blocks the search before any lookup', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const form = await load('metric-form');
+  const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [], platforms: ['shopee'] }, quota: {} }, { ...(await load('metric-search')), appliedFilters: commandSpec });
+  await assert.rejects(() => adapter.__test__.performSearch(page, commandSpec), (error: any) => {
+    assert.equal(error.code, 'METRIC_FILTER_MISMATCH');
+    assert.deepEqual(error.details, { platformsMatchExpected: false, platformCount: 1 });
+    return true;
+  });
+  assert.equal(page.searched, false);
+  assert.ok(page.calls.includes('selectkey:Enter'));
+  assert.ok(!page.calls.includes('key:Enter'));
 });

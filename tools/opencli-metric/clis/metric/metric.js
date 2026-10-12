@@ -602,6 +602,42 @@ function resolveKeywordSelector() {
   return input?.id ? `#${CSS.escape(input.id)}` : null;
 }
 
+// Serialized by OpenCLI: keep this self-contained. OpenCLI's native pressKey
+// sends CDP key events without a key code, so the page reads keyCode/which = 0
+// and the Ant Design select ignores Enter and Backspace. These synthetic events
+// carry the legacy key code the select checks. They are untrusted, so they have
+// no default action and cannot submit a form.
+function dispatchSelectKey({ selector, key }) {
+  const codes = { Enter: 13, Backspace: 8 };
+  const input = document.querySelector(selector);
+  if (!input || !Object.prototype.hasOwnProperty.call(codes, key)) return false;
+  const KeyboardEventType = input.ownerDocument?.defaultView?.KeyboardEvent;
+  if (typeof KeyboardEventType !== 'function') return false;
+  input.focus();
+  for (const type of ['keydown', 'keyup']) {
+    const event = new KeyboardEventType(type, { key, code: key, keyCode: codes[key], which: codes[key], bubbles: true, cancelable: true });
+    Object.defineProperty(event, 'keyCode', { get: () => codes[key] });
+    Object.defineProperty(event, 'which', { get: () => codes[key] });
+    input.dispatchEvent(event);
+  }
+  return true;
+}
+
+async function pressSelectKey(page, selector, key) {
+  if (await page.evaluate(dispatchSelectKey, { selector, key }) !== true) {
+    throw new MetricAdapterError('METRIC_UI_CHANGED', `Metric select input is not available for ${key}`);
+  }
+}
+
+async function fillVerified(page, selector, text) {
+  const result = await page.fillText(selector, text);
+  if (result && typeof result === 'object' && result.verified === false) {
+    throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric search text did not land in the form input', {
+      filled: result.filled === true, verified: false,
+    });
+  }
+}
+
 async function applyMetricSpec(page, spec, initialObservation) {
   const current = initialObservation.appliedFilters || {};
   const currentPlatforms = new Set(current.platforms || []); const wantedPlatforms = new Set(spec.platforms);
@@ -645,8 +681,8 @@ async function applyMetricSpec(page, spec, initialObservation) {
     // clicking it makes the live form reject the option lookup. Selecting by
     // text and Enter also works with the virtualised option list.
     for (const platform of [...wantedPlatforms].filter(value => !currentPlatforms.has(value))) {
-      await page.fillText(platformSelector, platform === 'tiktok' ? 'Tiktok' : 'Shopee');
-      await page.pressKey('Enter');
+      await fillVerified(page, platformSelector, platform === 'tiktok' ? 'Tiktok' : 'Shopee');
+      await pressSelectKey(page, platformSelector, 'Enter');
     }
     // Remove an accidentally retained platform only when the form exposes a
     // removable tag for that platform. The approved capture starts with
@@ -677,9 +713,9 @@ async function applyMetricSpec(page, spec, initialObservation) {
   // re-render the form and change the generated input ids.
   const keywordSelector = await page.evaluate(resolveKeywordSelector);
   if (keywordSelector == null) throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric keyword search input is not visible');
-  for (const keyword of [...currentKeywords].filter(value => !spec.keywords.includes(value))) await page.pressKey('Backspace');
+  for (const keyword of [...currentKeywords].filter(value => !spec.keywords.includes(value))) await pressSelectKey(page, keywordSelector, 'Backspace');
   for (const keyword of spec.keywords.filter(value => !currentKeywords.has(value))) {
-    await page.fillText(keywordSelector, keyword); await page.pressKey('Enter');
+    await fillVerified(page, keywordSelector, keyword); await pressSelectKey(page, keywordSelector, 'Enter');
   }
   await page.pressKey('Escape').catch(() => {});
   if (spec.category !== undefined && spec.category !== current.category) {
@@ -731,6 +767,16 @@ async function performSearch(page, spec) {
   const before = await readObservation(page, { includeResults: false });
   parseMetricForm(before); await applyMetricSpec(page, spec, before);
   await waitForKeywordCommit(page, spec.keywords);
+  // Re-read the form before submit: a lookup is spent only when the visible
+  // platform selection matches the request.
+  const ready = await readObservation(page, { includeResults: false });
+  const appliedPlatforms = new Set(ready?.appliedFilters?.platforms || []);
+  const wantedPlatforms = [...new Set(spec.platforms)];
+  if (appliedPlatforms.size !== wantedPlatforms.length || !wantedPlatforms.every(platform => appliedPlatforms.has(platform))) {
+    throw new MetricAdapterError('METRIC_FILTER_MISMATCH', 'Metric platform selection does not match the request', {
+      platformsMatchExpected: false, platformCount: appliedPlatforms.size,
+    });
+  }
   await clickVisibleText(page, ['Phân tích', 'Analyze', 'Analytics']); await page.wait({ time: DEFAULT_WAIT_SECONDS }).catch(() => {});
   return readObservation(page, { includeResults: true });
 }
@@ -1165,5 +1211,5 @@ export const captureCommand = cli({
   }),
 });
 
-export const __test__ = { asCliError, withMetricTab, readObservation, applyMetricSpec, performSearch, waitForKeywordCommit, observeMetricPage, observeResultPage, collectResultPages, archiveResultsPage, readCommittedKeywords };
+export const __test__ = { asCliError, withMetricTab, readObservation, applyMetricSpec, performSearch, waitForKeywordCommit, dispatchSelectKey, observeMetricPage, observeResultPage, collectResultPages, archiveResultsPage, readCommittedKeywords };
 export { assertMetricUrl, parseMetricForm };
