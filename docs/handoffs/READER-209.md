@@ -323,3 +323,34 @@ Evidence (Windows pre-check; Linux CI is the source of truth):
 - Typecheck: PASS.
 - `tests/integration/market-presentation-report.test.ts`: 3 failures on Windows, all `Python was not found` in the fixture setup before the target assertions; environment only.
 - `tests/unit/research-automation-reports.test.ts` and `tests/integration/research-automation-case-contract.test.ts` are identical to `origin/main`.
+
+## Round 7
+
+Status: reviewer self-fix applied after merging `origin/main`; focused lane failures pass. The required full check is not entirely green because the same environment-sensitive failures reproduce on clean `origin/main`.
+
+Merge and initial verification:
+- Ran a normal `git merge origin/main`; merge commit `b99b2d6` was created with no conflict.
+- `npm run -s frontend:validators`: PASS.
+- Reproduced the listed failures individually before fixing them.
+
+Root causes and code fixes:
+- Legacy sanitization had been replaced by reader sanitization. `storedLiteral`, pointer handling, and source-member labels now default to the original provider/technical-value withholding behavior; reader callers opt in explicitly.
+- Web citation URLs were incorrectly passed through prose sanitization. HTTPS URL structure is now validated separately, preserving citation numbers such as `[3]` and `[4]`.
+- Source-only Jev flag-off reports were entering reader mode. Reader mode now requires an actual reader-owned method projection, preserving the pre-Jev fixed hashes for legacy output.
+- Standalone populated quote snapshots retain the reader projection while empty/default historical snapshots retain the legacy projection; production callers pass the mode explicitly.
+
+Focused evidence after the fixes:
+- `jev-209b-live.test.ts`, `research-automation-case-contract.test.ts`, `research-automation-web-search.test.ts`, `generic-quote-unit.test.ts`, `next-insight-draft-counts.test.ts`, and `research-automation-report-citations.test.ts`: PASS when run individually.
+- `reader-209-plain-text.test.ts` and `research-automation-reports.test.ts`: PASS (PDF skips only where Chromium is unavailable).
+- `node --import tsx --test tests/integration/operator-app-journey.test.ts`: PASS, 3/3.
+- `npm run typecheck`: PASS.
+- `git diff --check origin/main...HEAD`: PASS.
+
+Full-check evidence:
+- `npm run check` completed with 1,696 passed, 5 failed, 2 cancelled, and 5 skipped out of 1,708 tests.
+- The two PageIndex PDF failures reproduce on clean `origin/main` (`PAGEINDEX_LOCAL_PDF_INVALID` / `FAILED` instead of `READY`).
+- The research-automation API 300-second timeout reproduces on clean `origin/main`.
+- The operator launcher passed in isolation on this branch and on clean `origin/main`; its full-suite timeout is resource contention.
+- The case-contract test passed in isolation after the suite stopped; its full-suite database-connection timeout is resource contention.
+
+Self-review: reread `git diff origin/main...HEAD` against the lane brief and rounds 1–6. No tests, fixed hashes, baselines, schemas, renderer versions, stored data, provider calls, or service verification paths were changed for this fix. The only handoff addition is this Round 7 record. No push performed.

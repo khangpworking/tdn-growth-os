@@ -1,5 +1,5 @@
 import type { DescriptiveMarketMethods } from '../../../../contracts/analysis/descriptive-market-methods.generated.js';
-import { containsForbiddenProviderName, type CitationInput } from '../citation-registry.js';
+import { containsForbiddenProviderName, containsTechnicalId, type CitationInput } from '../citation-registry.js';
 import { formatReaderCount, formatReaderValue as formatReaderPlainValue, readerDateBasis as readerPlainDateBasis, readerLocator, readerMeasureName as readerPlainMeasureName, readerScopeText as readerPlainScopeText, readerStoredOrJson as readerPlainStoredOrJson, readerTextSafe } from './reader-plain-text.js';
 
 type Input = DescriptiveMarketMethods['input'];
@@ -28,7 +28,7 @@ const WITHHELD = {
   entity: 'đối tượng được giữ trong bản lưu nguồn', wording: 'lời nguồn được giữ trong bản lưu', measure: 'thước đo được giữ trong bản lưu',
   status: 'trạng thái được giữ trong bản lưu', person: 'người nêu được giữ trong bản lưu', basis: 'cơ sở được giữ trong bản lưu',
 } as const;
-let activeReaderPlainText = true;
+let activeReaderPlainText = false;
 const readerCount = (value: string | number): string => formatReaderCount(value) ?? 'chưa rõ';
 const displayCount = (value: string | number, readerPlainText = activeReaderPlainText): string => readerPlainText ? readerCount(value) : String(value);
 const readerMeasureName = (field: string | null | undefined): string => activeReaderPlainText ? readerPlainMeasureName(field) : storedLiteral(field ?? '', WITHHELD.measure);
@@ -39,7 +39,11 @@ const readerStoredOrJsonHtml = (value: string | null | undefined, withheld: stri
 const readerDateBasis = (value: string): string => activeReaderPlainText ? readerPlainDateBasis(value) : value;
 const readerScopeText = (value: string | null | undefined, fallback: string): string => activeReaderPlainText ? readerPlainScopeText(value, fallback) : value !== null && value !== undefined && readerSafe(value) ? value : fallback;
 const formatReaderValue = (value: string | null | undefined, options: { readonly measure?: string | undefined; readonly unit?: string | null | undefined; readonly currency?: string | null | undefined } = {}): string | null => formatReaderPlainValue(value, options);
-export const storedLiteral = (value: string, withheld: string, readerPlainText = activeReaderPlainText): string => readerPlainText ? (readerSafe(value) ? escape(value) : withheld) : escape(value);
+const legacySafe = (text: string): boolean => !containsForbiddenProviderName(text) && !containsTechnicalId(text)
+  && !/\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/.test(text);
+export const storedLiteral = (value: string, withheld: string, readerPlainText = activeReaderPlainText): string => readerPlainText
+  ? (readerSafe(value) ? escape(value) : withheld)
+  : (legacySafe(value) ? escape(value) : withheld);
 
 /** Technical codes and digests may be displayed in disclosures; provider identity remains in the semantic artifact. */
 export const technicalLiteral = (value: string): string => containsForbiddenProviderName(value)
@@ -83,9 +87,10 @@ const READER_POINTER = /^(?:\/(?:[^/\r\n]+)(?:\/[^/\r\n]+)*|[^!\r\n]+!\$?[A-Z]{1
  * path or a pointer carrying a digest becomes a neutral phrase, and the raw
  * pointer stays in the technical trace only.
  */
-export function readerPointer(pointer: string | null, readerPlainText = true): { locator: string | null; technical: string | null } {
+export function readerPointer(pointer: string | null, readerPlainText = false): { locator: string | null; technical: string | null } {
   if (pointer === null || pointer === '') return { locator: null, technical: null };
-  return readerSafe(pointer) && READER_POINTER.test(pointer)
+  const safe = readerPlainText ? readerSafe(pointer) : legacySafe(pointer);
+  return safe && READER_POINTER.test(pointer)
     ? { locator: readerPlainText ? readerLocator(pointer) : pointer, technical: pointer }
     : { locator: 'vị trí trong nguồn', technical: pointer };
 }
@@ -101,10 +106,10 @@ export function reviewRecordMark(record: { sourceSha256: string; locator: string
 const tag = (text: string, kind = ''): string => `<span class="tag${kind ? ` ${kind}` : ''}">${escape(text)}</span>`;
 
 /** A source member key is `<provider>:<local id>`; only the source-local id is reader text. */
-export const sourceMemberLabel = (key: string, readerPlainText = true): string => {
+export const sourceMemberLabel = (key: string, readerPlainText = false): string => {
   const separator = key.indexOf(':');
   const local = separator > 0 ? key.slice(separator + 1) : key;
-  return readerSafe(local) && (!readerPlainText || !local.includes('_')) ? local : 'Đối tượng được giữ trong bản lưu nguồn';
+  return (readerPlainText ? readerSafe(local) && !local.includes('_') : legacySafe(local)) ? local : 'Đối tượng được giữ trong bản lưu nguồn';
 };
 export const isDescriptiveSectionId = (id: string): id is DescriptiveSectionId => id === 'M05' || id === 'M06' || id === 'M07' || id === 'M09';
 

@@ -39,7 +39,7 @@ const methodCopy = (id: string): string => Object.hasOwn(METHOD_COPY, id) ? METH
 
 /** One number per raw Metric row: the exact cell when it is known, otherwise "Chưa có nguồn". */
 const rowMark = (ref: EvidenceRef, citations: ReportCitations): string => {
-  const pointer = readerPointer(ref.locator);
+  const pointer = readerPointer(ref.locator, true);
   return citations.mark({
     sourceKind: 'METRIC_ROW', identity: ref.sourceSha256.trim() === '' ? null : ref.sourceSha256, locator: pointer.locator,
     label: 'Dòng số liệu nguồn', retrievedAt: null, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE',

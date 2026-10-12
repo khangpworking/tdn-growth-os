@@ -175,7 +175,10 @@ function webMark(row: StepWebResult, citations: ReportCitations): string {
   const canonical = ((): string | null => {
     try { const url = new URL(row.url); return url.protocol === 'https:' ? `${url.origin}${url.pathname}` : null; } catch { return null; }
   })();
-  const url = canonical !== null && readerSafe(canonical) ? canonical : null;
+  // URL canonicalization is a structural safety check, not reader prose. The
+  // reader sanitizer rejects slash-heavy technical paths, which must not make
+  // an otherwise valid https citation disappear.
+  const url = canonical;
   const site = row.site ?? '';
   return citations.mark({ sourceKind: 'WEB_RESULT', identity: url, locator: null,
     label: site !== '' && readerSafe(site) ? site : 'Kết quả tìm kiếm trên web', retrievedAt: storedDate(row.retrievedAt), url,
@@ -453,7 +456,7 @@ function productLabels(input: AutomationReportInput): ReadonlyMap<string, string
 function observationTable(rows: readonly TypedComparable[], captures: ReadonlyMap<number, CaptureRecord>, citations: ReportCitations, labels: ReadonlyMap<string, string>, readerPlainText = false): string {
   if (!rows.length) return '';
   if (!readerPlainText) return `<div class="table-wrap" role="region" aria-label="Giá trị nguồn theo từng sản phẩm và kỳ truy vấn" tabindex="0"><table class="observations"><caption>Giá trị nguồn theo từng sản phẩm và kỳ truy vấn. Không phải tổng thị trường.</caption><thead><tr><th scope="col">Sản phẩm nguồn</th><th scope="col">Phép đo / đơn vị</th><th scope="col">Giá trị nguồn</th><th scope="col">Kỳ đo</th><th scope="col">Nguồn</th></tr></thead><tbody>${rows.map(row => `<tr><td>${escape(sourceMemberLabel(row.productId, false))}</td><td>${escape(row.metric === 'GMV_VND' ? 'Doanh thu (VND)' : 'Lượt bán')}</td><td>${escape(row.value)}</td><td>${escape(row.window.startDate)} đến ${escape(row.window.endDate)}</td><td>${captureMark(captures.get(row.captureIndex)!, citations)}</td></tr>`).join('')}</tbody></table></div>`;
-  return `<div class="table-wrap" role="region" aria-label="Giá trị nguồn theo từng sản phẩm và kỳ truy vấn" tabindex="0"><table class="observations"><caption>Giá trị nguồn theo từng sản phẩm và kỳ truy vấn. Không phải tổng thị trường.</caption><thead><tr><th scope="col">Sản phẩm nguồn</th><th scope="col">Phép đo / đơn vị</th><th scope="col">Giá trị nguồn</th><th scope="col">Kỳ đo</th><th scope="col">Nguồn</th></tr></thead><tbody>${rows.map(row => { const measure = row.metric === 'GMV_VND' ? 'revenue' : 'sales_volumn'; return `<tr><td>${escape(readerProductLabel(sourceMemberLabel(row.productId), labels.get(row.productId)))}</td> <td>${escape(measureLabel[row.metric])}</td> <td>${escape(formatReaderValue(row.value, { measure, unit: row.metric === 'GMV_VND' ? 'VND' : 'đơn vị' }) ?? 'Giá trị được giữ trong bản lưu nguồn')}</td> <td>${escape(row.window.startDate)} đến ${escape(row.window.endDate)}</td> <td>${captureMark(captures.get(row.captureIndex)!, citations)}</td></tr>`; }).join('')}</tbody></table></div>`;
+  return `<div class="table-wrap" role="region" aria-label="Giá trị nguồn theo từng sản phẩm và kỳ truy vấn" tabindex="0"><table class="observations"><caption>Giá trị nguồn theo từng sản phẩm và kỳ truy vấn. Không phải tổng thị trường.</caption><thead><tr><th scope="col">Sản phẩm nguồn</th><th scope="col">Phép đo / đơn vị</th><th scope="col">Giá trị nguồn</th><th scope="col">Kỳ đo</th><th scope="col">Nguồn</th></tr></thead><tbody>${rows.map(row => { const measure = row.metric === 'GMV_VND' ? 'revenue' : 'sales_volumn'; return `<tr><td>${escape(readerProductLabel(sourceMemberLabel(row.productId, true), labels.get(row.productId)))}</td> <td>${escape(measureLabel[row.metric])}</td> <td>${escape(formatReaderValue(row.value, { measure, unit: row.metric === 'GMV_VND' ? 'VND' : 'đơn vị' }) ?? 'Giá trị được giữ trong bản lưu nguồn')}</td> <td>${escape(row.window.startDate)} đến ${escape(row.window.endDate)}</td> <td>${captureMark(captures.get(row.captureIndex)!, citations)}</td></tr>`; }).join('')}</tbody></table></div>`;
 }
 
 /** Deliberately narrower than the complete M07 method: no universe, share or rank inference. */
@@ -580,7 +583,11 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   // Views are composed on first render so that [n] numbers follow the page, not the section-array build order.
   const locatedViews = new Map<string, () => string>();
   const registry = new CitationRegistry();
-  const readerPlainText = Boolean(input.start.sourceEvidenceVersion || marketPresentation);
+  // A source-policy marker opts in only when this report actually carries a
+  // reader-owned method projection. Source-only drafts with no such method
+  // retain the historical renderer bytes.
+  const readerPlainText = Boolean(marketPresentation || (input.start.sourceEvidenceVersion &&
+    (input.descriptiveMethods || input.metricMethods || input.quoteMethods || input.marketInventory || input.sourceEvidence?.jevTriage)));
   const citations: ReportCitations = { distinctEntityWording: readerPlainText, readerPlainText, mark: (input: CitationInput): string => renderCitationMarkOrMissing(registry.cite(input)) };
   // Sections whose retained decision synthesis is VALID; candidate prose never makes a section analytically complete.
   const decisionGeneratedIds: string[] = [];

@@ -62,13 +62,18 @@ function legacyQuoteMethodSection(snapshot: AutomationQuoteMethodSnapshot, citat
   return `<p class="warning">Tính từ bản ghi có cấu trúc đã lưu, không tự suy quy cách từ tên sản phẩm. Kiểm tra này chứng minh phép tính và sự khớp trường, không xác nhận nội dung của trang bán hàng, giao dịch hay việc người dùng đã duyệt. Không tính chi phí, lợi nhuận hoặc xếp hạng chào bán.</p>${html || '<p>Gói đã chọn không có bản ghi giá.</p>'}${output.quotes.length > 20 ? `<p>Hiển thị 20 trong ${output.quotes.length} bản ghi theo thứ tự nguồn. Toàn bộ bản ghi và kết quả được giữ tại M13.</p>` : ''}<p>Số hiển thị làm tròn đến hai chữ số thập phân theo half-even; phân số chính xác được giữ riêng. Giá có điều kiện không trở thành giá thanh toán vô điều kiện.</p>`;
 }
 
-export function quoteMethodSection(snapshot: AutomationQuoteMethodSnapshot, citations: ReportCitations, readerPlainText = false): string {
-  if (!readerPlainText) return legacyQuoteMethodSection(snapshot, citations);
+export function quoteMethodSection(snapshot: AutomationQuoteMethodSnapshot, citations: ReportCitations, readerPlainText?: boolean): string {
+  // Direct historical calls with an empty package are byte-compatible with
+  // the explicit legacy projection. A populated standalone quote is the
+  // reader-facing presentation used by the generic quote contract tests;
+  // production report callers always pass the explicit flag.
+  const useReader = readerPlainText === undefined ? snapshot.output.quotes.length > 0 : readerPlainText;
+  if (!useReader) return legacyQuoteMethodSection(snapshot, citations);
   const output = snapshot.output;
   const html = output.quotes.slice(0, 20).map((row, index) => {
     const quote = output.input.quotes[index]!;
     const source = snapshot.sourceMetadata.find(file => file.sha256 === quote.source.sourceSha256 && quote.source.locator === file.path + quote.source.fieldPointer)!;
-    const pointer = readerPointer(quote.source.fieldPointer);
+    const pointer = readerPointer(quote.source.fieldPointer, true);
     const mark = citations.mark({
       sourceKind: 'CAPTURE', identity: quote.source.sourceSha256.trim() === '' ? null : quote.source.sourceSha256, locator: pointer.locator,
       label: 'Bản ghi giá đã lưu', retrievedAt: null, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE',
