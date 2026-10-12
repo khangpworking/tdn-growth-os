@@ -30,11 +30,12 @@ const receipt: ResearchAutomationSupplementalPrepareReceipt = {
 function entry(value = receipt) { const { contractVersion: _v, exactRetry: _r, ...item } = value; return item; }
 const inventory = (packages = [entry()], id = runId) => ({ contractVersion: 'automation-supplemental-prepared-list-v1', workspaceId, runId: id, packages });
 const original = { pairId, versionNumber: 1, attemptId: null, outputs: [{ kind: 'MARKET', versionId: 'd'.repeat(64), pdfAvailable: true }, { kind: 'INSIGHT', versionId: 'e'.repeat(64), pdfAvailable: true }] };
-async function until(check: () => boolean, label: string) {
-  for (let attempt = 0; attempt < 300 && !check(); attempt++) {
-    await act(async () => { await new Promise(resolve => setTimeout(resolve, 5)); });
-  }
-  assert.ok(check(), label);
+const nextTurn = () => act(async () => { await new Promise<void>(resolve => setTimeout(resolve, 1)); });
+async function until(check: () => boolean, label: string, ceilingMs = 30000) {
+  const deadline = Date.now() + ceilingMs;
+  let satisfied = check();
+  while (!satisfied && Date.now() < deadline) { await nextTurn(); satisfied = check(); }
+  assert.ok(satisfied, `${label}; current UI: ${document.body.textContent?.slice(-500) ?? '(empty)'}`);
 }
 function button(container: HTMLElement, label: string) { const found = [...container.querySelectorAll('button')].find(x => x.textContent?.trim() === label); assert.ok(found, label); return found; }
 async function click(container: HTMLElement, label: string) { await act(async () => { button(container, label).click(); }); }

@@ -21,6 +21,7 @@ Evidence (commands, results, relevant revision):
 - `npm ci --offline --no-audit --no-fund` — completed (Node 22.23.2 emitted the repository's existing engine warning).
 - `npm run frontend:typecheck` — PASS.
 - `npm run typecheck` — PASS.
+
 - `npm run frontend:test` after the fix — 5 consecutive green runs, each 294/294 tests passing.
 - `node --import tsx --test frontend/tests/research-supplemental-source-ui.test.ts` — 7/7 PASS.
 - `node --import tsx --test frontend/tests/research-insight-crosscheck-ui.test.ts` — 1/1 PASS.
@@ -48,3 +49,30 @@ Evidence:
 - Concurrent load: 3 rounds with `npm run frontend:test` and the crosscheck file running together — all 6 processes passed; crosscheck durations 59.50 s, 63.77 s and 64.15 s.
 - `npm run frontend:typecheck` — PASS.
 - `npm run typecheck` — PASS.
+
+## Round 3
+
+Root causes addressed:
+
+- The supplemental UI helper still used a 5 ms sleep for 300 iterations, so concrete request/UI waits had only a 1.5 s ceiling. It now yields with a 1 ms timer, checks the concrete state on every turn, and uses a 30 s deadline with a diagnostic state label.
+- The crosscheck helper used tight `setImmediate` polling, which could burn CPU under concurrent load. It now yields with a 1 ms timer between bounded state checks.
+- The crosscheck panel rendered the no-configuration text while availability was still loading or after failure. It now exposes a minimal `data-availability-state` marker (`loading`, `success`, `error`), and the test waits for `success` before asserting the no-configuration text.
+
+Changed paths:
+
+- `frontend/tests/research-supplemental-source-ui.test.ts:33-38` — deadline-based state wait with timer yield and failure diagnostics.
+- `frontend/tests/research-insight-crosscheck-ui.test.ts:13-18,107-108` — CPU-friendly bounded polling and successful availability-settlement wait.
+- `frontend/src/research-automation/InsightCrosscheckPanel.tsx:14-15,31-35,107` — availability settlement state and marker.
+- `docs/handoffs/CIUI-209.md` — this round-3 evidence.
+
+Evidence:
+
+- Crosscheck UI alone — 20/20 passes; slowest wall duration 35.125 s.
+- Supplemental UI alone — 20/20 passes; slowest wall duration 1.812 s.
+- `npm run frontend:test` — one initial invocation had an unrelated existing `research-insight-persona-ui.test.ts` timing failure (293/294; 172.399 s); that test passed alone, followed by five consecutive full-suite passes (294/294), slowest 64.228 s.
+- Concurrent load — 3 rounds running the full suite and crosscheck together; all 6 processes passed. Slowest crosscheck wall duration 75.032 s; slowest full-suite wall duration 75.031 s.
+- `npm run frontend:typecheck` — PASS.
+- `npm run typecheck` — PASS.
+- `git diff --check` — PASS.
+
+Nothing remains outstanding; no push was performed.

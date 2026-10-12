@@ -10,7 +10,7 @@ import { setupDom } from './dom';
 import { crosscheckFlowFixture, crosscheckWorkspaceId as workspaceId, crosscheckRunId as runId, crosscheckOwner as owner, blankCrosscheckAnnotations } from '../../tests/helpers/crosscheck-flow-fixture';
 import { openResearchAutomationApi } from '../../src/api/research-automation-api';
 import { insightCodingCliproxyConfiguration } from '../../src/modules/analysis/research-automation/i14-cliproxy-transport';
-const nextTurn = () => act(async () => { await new Promise<void>(resolve => setImmediate(resolve)); });
+const nextTurn = () => act(async () => { await new Promise<void>(resolve => setTimeout(resolve, 1)); });
 async function until(check: () => boolean, label: string, ceilingMs = 30000) {
   const deadline = Date.now() + ceilingMs;
   let satisfied = check();
@@ -104,6 +104,7 @@ test('actual StrictMode UI -> authenticated HTTP -> two blinded fake second call
       run: await f.service.getRun(workspaceId, runId), pairId: f.pair.pairId, versionNumber: 1,
       ownerToken: token, disabled: false, reportBlock: null, onBusyChanged: () => {}, onActivityChanged: () => { activity++; } }))));
     await until(() => Boolean(dom.container.querySelector('select[aria-label="Đề xuất mặc định cho lượt thứ hai"]')?.querySelectorAll('option').length === 5), 'retained history after removing current model configuration');
+    await until(() => dom.container.querySelector('[data-availability-state="success"]') !== null, 'second-model availability request settled successfully');
     await until(() => dom.container.textContent?.includes('Chưa có cấu hình độc lập cho model thứ hai.') ?? false, 'current second configuration absent');
     const retainedSelect = dom.container.querySelector<HTMLSelectElement>('select[aria-label="Đề xuất mặc định cho lượt thứ hai"]')!;
     const retainedKey = dom.container.querySelector<HTMLInputElement>('input[aria-label="Mã yêu cầu lượt thứ hai đã lưu"]')!;
