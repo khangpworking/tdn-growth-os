@@ -23,7 +23,7 @@ adapter installed from the same repository bytes. The executor verifies
 `tools/opencli-metric/adapter-manifest.json` before each run. `whoami` reads
 only login, captcha, page-state and any displayed analysis lookup balance.
 The current manifest SHA-256 is
-`2e56af8e00b804b01a4ac5fb933422b200004f5ab47072c151fd3c846270e580`.
+`3e1c0166b4a1247833179efc97ccb3db2cd9bbf37075367e1d544ebd587237b3`.
 
 Install or reinstall the adapter from the checked-out repository bytes with:
 

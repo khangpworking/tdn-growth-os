@@ -420,9 +420,7 @@ function readCommittedKeywords() {
   const values = chipElements
     .map(element => tagChips.length ? tagText(element) : (element.getAttribute('title') || element.getAttribute('data-value') || textOf(element)))
     .map(value => String(value).replace(/\s+/g, ' ').trim()).filter(Boolean);
-  const input = select?.querySelector('input[id]');
-  const inputValue = input?.value?.trim() || '';
-  if (inputValue) values.push(inputValue);
+  // Only rendered chips count as committed; uncommitted input text never does.
   return [...new Set(values)];
 }
 
