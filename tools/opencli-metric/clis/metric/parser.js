@@ -25,7 +25,8 @@ export function assertMetricUrl(rawUrl) {
   } catch {
     throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric target is not a valid URL');
   }
-  if (url.protocol !== 'https:' || !METRIC_ALLOWED_HOSTS.has(url.hostname.toLowerCase())) {
+  if (url.protocol !== 'https:' || !METRIC_ALLOWED_HOSTS.has(url.hostname.toLowerCase())
+    || url.username || url.password || (url.port && url.port !== '443')) {
     throw new MetricAdapterError('METRIC_UI_CHANGED', 'target is outside the Metric domain allowlist');
   }
   return url;
@@ -53,6 +54,12 @@ export function normaliseSpec(spec) {
   if (!keywords.length || !platforms.length || !platforms.every(value => value === 'shopee' || value === 'tiktok')) {
     throw new MetricAdapterError('METRIC_UI_CHANGED', 'query spec has invalid keywords or platforms');
   }
+  if (!Object.hasOwn(spec, 'category')) {
+    throw new MetricAdapterError('METRIC_FILTER_MISMATCH', 'query spec must declare category, including explicit null for All');
+  }
+  if (spec.category !== null && !clean(spec.category)) {
+    throw new MetricAdapterError('METRIC_FILTER_MISMATCH', 'query spec category is empty');
+  }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(clean(period.startDate)) || !/^\d{4}-\d{2}-\d{2}$/.test(clean(period.endDate))) {
     throw new MetricAdapterError('METRIC_UI_CHANGED', 'query spec has invalid dates');
   }
@@ -61,7 +68,10 @@ export function normaliseSpec(spec) {
     keywords,
     platforms,
     period: { startDate: clean(period.startDate), endDate: clean(period.endDate) },
-    category: spec.category == null ? null : clean(spec.category),
+    // Keep an omitted category distinct from an explicit `null` (All). The
+    // page observation is authoritative; an omitted request field must never
+    // silently widen the search scope.
+    category: Object.hasOwn(spec, 'category') ? (spec.category == null ? null : clean(spec.category)) : undefined,
   };
 }
 
@@ -118,17 +128,29 @@ export function parseWhoamiObservation(observation) {
 function sameScope(left, right) {
   const a = normaliseSpec(left);
   const b = normaliseSpec(right);
+  const optionalMatches = ['smartQuery', 'aiNormalisation', 'usefulFilters', 'advancedFilters', 'exclusions']
+    .every(key => !Object.hasOwn(b, key) || (Object.hasOwn(a, key) && JSON.stringify(a[key]) === JSON.stringify(b[key])));
   return setKey(a.keywords) === setKey(b.keywords)
     && platformKey(a.platforms) === platformKey(b.platforms)
     && a.period.startDate === b.period.startDate
     && a.period.endDate === b.period.endDate
-    && a.category === b.category;
+    && a.category === b.category
+    && optionalMatches;
+}
+
+function hasExplicitScope(value) {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    && Object.hasOwn(value, 'keywords') && Object.hasOwn(value, 'platforms')
+    && Object.hasOwn(value, 'period') && Object.hasOwn(value, 'category');
 }
 
 export function parseSearchObservation(observation, spec, maxRows = 5000) {
   gateMetricPage(observation);
   const expected = normaliseSpec(spec);
-  if (!observation.appliedFilters || !sameScope(observation.appliedFilters, expected)) {
+  let scopeMatches = false;
+  try { scopeMatches = hasExplicitScope(observation.appliedFilters) && sameScope(observation.appliedFilters, expected); }
+  catch { scopeMatches = false; }
+  if (!scopeMatches) {
     throw new MetricAdapterError('METRIC_FILTER_MISMATCH', 'Metric filters do not match the query spec');
   }
   if (!Number.isSafeInteger(observation.rowCount) || observation.rowCount < 0) {

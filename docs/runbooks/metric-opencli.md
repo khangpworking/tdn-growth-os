@@ -25,7 +25,7 @@ parser were installed there for discovery. The installed copy must remain the
 same bytes as the repository copy. The executor checks the pinned adapter
 manifest digest before every run. The repository adapter manifest is
 `tools/opencli-metric/adapter-manifest.json`; its SHA-256 pin for this round is
-`0884380927f261f29f5a3cb947288b1a6012fe66da4b7c37c97c6b8fe823382e`. The same
+`1fb6cf8c04c726f124ca34c639328568ad1f97e62e1b9a3a1f448b48337c4a81`. The same
 manifest was installed beside the user adapter files.
 
 The adapter opens an ephemeral tab on the Metric domain and closes that tab in
