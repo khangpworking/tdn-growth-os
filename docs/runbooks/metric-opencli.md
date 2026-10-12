@@ -23,7 +23,7 @@ adapter installed from the same repository bytes. The executor verifies
 `tools/opencli-metric/adapter-manifest.json` before each run. `whoami` reads
 only login, captcha, page-state and any displayed analysis lookup balance.
 The current manifest SHA-256 is
-`387f6a9e5166c243979ab3b192f61824d1e8a74b857f35bb48c9bec506d4884b`.
+`f835f0a3a8ef8d879825e80a75e40169e410a6340bebbec467175d2af5597142`.
 
 Install or reinstall the adapter from the checked-out repository bytes with:
 
@@ -120,6 +120,32 @@ extraction remains the fallback for the visible platform table and row icons.
 An otherwise unlabelled response remains `all`; a visible row without a
 platform icon is retained as `unknown`. No history page is opened by the
 adapter, and no account, settings or authentication action is performed.
+
+## Debug and replay
+
+Capture creates a `debug/` directory under the requested output directory before
+results validation or extraction. It records sanitized per-page DOM snapshots,
+per-region HTML, the sanitized network input and one masked full-page screenshot.
+The header, navigation and account-like areas are removed from saved HTML and
+masked in the screenshot. The debug directory is diagnostic evidence only and
+is never included in the published archive. If a later gate, selector or
+archive step fails, the error includes the debug directory so the page can be
+investigated without spending another lookup.
+
+Replay uses the same extraction and archive builder against those saved files;
+it does not open a tab or use the network:
+
+```text
+opencli metric capture \
+  --replay /outside/metric-captures/run-id/debug \
+  --spec /outside/spec.json \
+  --out /outside/metric-captures/run-id/replay \
+  -f json
+```
+
+Replay is the required first step for selector fixes. Iterate against the
+saved snapshots, then run the smallest synthetic fixture tests; do not repeat
+the live lookup merely to diagnose extraction.
 
 ## Safety and failure rules
 

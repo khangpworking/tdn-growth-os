@@ -140,7 +140,10 @@ test('collectResults keeps the overview combined and does not switch result tabs
   assert.ok(screenshotNames.some((name: string) => name.includes('platform-all-region-overview')));
   assert.equal(page.platformSwitches, undefined);
   assert.equal(page.calls.some((call: string) => call.includes('platform-view') || call.includes('role="tab"')), false);
-  assert.ok(screenshotNames.every((_name: string, index: number) => page.screenshotCalls[index].clip));
+  const regionScreenshots = page.screenshotCalls.filter((options: any) => options.fullPage === false);
+  assert.ok(regionScreenshots.length > 0);
+  assert.ok(regionScreenshots.every((options: any) => options.clip));
+  assert.ok(page.screenshotCalls.some((options: any) => options.fullPage === true));
   await rm(directory, { recursive: true, force: true });
 });
 
@@ -725,6 +728,24 @@ test('whoami, search, and capture commands use a fake page and clean up their ow
   await rm(directory, { recursive: true, force: true });
 });
 
+test('replay rebuilds an archive from saved debug input without touching the supplied page', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const directory = await mkdtemp(join(tmpdir(), 'p6-209-replay-'));
+  const specPath = join(directory, 'spec.json'); const captureDir = join(directory, 'capture'); const replayDir = join(directory, 'replay');
+  await writeFile(specPath, `${JSON.stringify(commandSpec)}\n`);
+  const form = await load('metric-form'); const result = { ...(await load('metric-search')), appliedFilters: commandSpec };
+  const fixture = await load('metric-results-response');
+  const dom = { ...(await load('metric-results-dom')), html: '<html><body><main>synthetic results</main></body></html>', screenshotRegions: { overview: '#synthetic-overview' } };
+  await adapter.captureCommand.func(fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] }, quota: {} }, result, dom, fixture.responses), { spec: specPath, out: captureDir, 'product-cap': 200 });
+  const calls: string[] = [];
+  const replayed = await adapter.captureCommand.func({ click: async () => calls.push('click'), evaluate: async () => calls.push('evaluate') }, { spec: specPath, replay: join(captureDir, 'debug'), out: replayDir, 'product-cap': 200 });
+  assert.equal(replayed[0].replay, true);
+  assert.equal(calls.length, 0);
+  assert.match(await readFile(join(replayDir, 'snapshot.json'), 'utf8'), /Synthetic item A/);
+  await rm(directory, { recursive: true, force: true });
+});
+
 test('capture dry-run returns a matching read-back without reaching submit or search click', async () => {
   await installOpenCliTestStub();
   const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
@@ -809,10 +830,14 @@ test('capture archive contains no fixture identity or token in any archived file
   });
   await adapter.captureCommand.func(page, { spec: specPath, out: captureDir, 'product-cap': 200 });
   assert.ok(page.screenshotCalls.length > 0);
-  assert.ok(page.screenshotCalls.every((options: any) => options.clip && options.fullPage === false));
+  assert.ok(page.screenshotCalls.some((options: any) => options.fullPage === true));
+  assert.ok(page.screenshotCalls.filter((options: any) => options.fullPage === false).every((options: any) => options.clip));
   assert.ok(page.maskCalls.includes('prepare'));
   const markers = [/Synthetic logged-in account/i, /synthetic-owner@example\.test/i, /\+84901234567/, /Synthetic owner nickname/i, /https:\/\/example\.test\/avatar\.png/i, /synthetic-user-id/i, /Synthetic shop owner/i, /synthetic-secret-token/i, /synthetichead\.syntheticpayload\.syntheticsignature/i, /0123456789abcdef0123456789abcdef0123456789abcdef/i];
-  for (const name of await readdir(captureDir)) {
+  const archiveFiles = (await readdir(captureDir)).filter(name => name !== 'debug');
+  const debugFiles = (await readdir(join(captureDir, 'debug'))).filter(name => !name.endsWith('.png'))
+    .map(name => join('debug', name));
+  for (const name of [...archiveFiles, ...debugFiles]) {
     const text = (await readFile(join(captureDir, name))).toString('utf8');
     for (const marker of markers) assert.doesNotMatch(text, marker, `${name} retained sanitized fixture data`);
   }
@@ -847,7 +872,8 @@ test('capture gates a redirect before reading the next pagination page and leave
       : observation,
   });
   await assert.rejects(() => adapter.captureCommand.func(page, { spec: specPath, out: captureDir, 'product-cap': 200 }), /METRIC_UI_CHANGED/);
-  await assert.rejects(() => access(captureDir), /ENOENT/);
+  await assert.rejects(() => access(join(captureDir, 'manifest.json')), /ENOENT/);
+  await access(join(captureDir, 'debug', 'manifest.json'));
   assert.ok(page.calls.includes('close:synthetic-tab'));
   await rm(directory, { recursive: true, force: true });
 });
@@ -1238,6 +1264,27 @@ test('live result markup exposes title KPIs, split tables, icon platforms, pagin
   assert.deepEqual(dom.platformViews, []);
   const unavailablePager = withMetricDom(round6SyntheticResultsMarkup.replace('ant-pagination-next"><button', 'ant-pagination-next ant-pagination-disabled"><button'), () => adapter.__test__.observeResultPage());
   assert.equal(unavailablePager.pagination.nextAvailable, false);
+});
+
+test('real results class fixture extracts card KPIs, platform split, and ProductTable/ShopTable rows', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const fixture = await load('metric-results-real-dom');
+  const dom = withMetricDom(fixture.html, () => adapter.__test__.observeResultPage());
+  assert.deepEqual(dom.regions.overview.kpi, {
+    revenue: { displayed: '9,4 billion', label: 'Revenue' },
+    units: { displayed: '81,2 thousand', label: 'Units' },
+    soldListings: { displayed: '2,3 thousand', label: 'Sold listings' },
+    shops: { displayed: '407', label: 'Shops' },
+  });
+  assert.deepEqual(dom.regions['platform-split'].rows.map((row: any) => [row.platform, row.revenue, row.units]), [
+    ['Synthetic Shopee', '4,1 billion', '31,0 thousand'], ['Synthetic Tiktok', '5,3 billion', '50,2 thousand'],
+  ]);
+  assert.deepEqual(dom.regions['top-products'].rows.map((row: any) => [row.name, row.platform]), [
+    ['Synthetic product A', 'tiktok'], ['Synthetic product B', 'unknown'],
+  ]);
+  assert.deepEqual(dom.regions['top-shops'].rows.map((row: any) => [row.shop, row.platform]), [['Synthetic shop A', 'shopee']]);
+  assert.deepEqual(dom.regions['top-products'].pagination, { page: 1, total: 2, pageSize: 20, nextAvailable: false, nextSelector: 'li.ant-pagination-next .ant-pagination-item-link' });
 });
 
 test('an unrelated image before the platform icon cannot win row attribution', async () => {

@@ -4,6 +4,7 @@ import { copyFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs
 import { createHash } from 'node:crypto';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { tmpdir } from 'node:os';
+import { pathToFileURL } from 'node:url';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
 import {
@@ -15,7 +16,7 @@ import {
   parseSearchObservation,
   parseWhoamiObservation,
 } from './parser.js';
-import { extractResultsPage, sanitizeNetworkResponses, sanitizeResultsHtml } from './capture.js';
+import { extractResultsPage, sanitizeDomSnapshots, sanitizeNetworkResponses, sanitizeResultsHtml } from './capture.js';
 
 const BASE_URL = 'https://metric.vn/analytics';
 const PRODUCT_CAP = 200;
@@ -699,6 +700,155 @@ async function readSpec(path) {
 
 function writeJson(path, value) { return writeFile(path, `${JSON.stringify(value, null, 2)}\n`, 'utf8'); }
 
+function safeDebugPart(value, fallback = 'unknown') {
+  const part = String(value ?? '').replace(/[^a-z0-9_-]+/gi, '-').replace(/^-+|-+$/g, '');
+  return part || fallback;
+}
+
+function prepareDebugFullPageScreenshot() {
+  const markerOf = element => `${element?.tagName || ''} ${element?.id || ''} ${typeof element?.className === 'string' ? element.className : ''}`;
+  const sensitive = element => {
+    const marker = markerOf(element);
+    return /^(?:header|nav)$/i.test(String(element?.tagName || ''))
+      || /(?:header|account|avatar|profile|nickname|shop[-_ ]?owner|user[-_ ]?(?:info|widget|menu)?|logout|sign[-_ ]?out)/i.test(marker);
+  };
+  let maskedCount = 0;
+  for (const element of document.querySelectorAll('body *')) {
+    if (!sensitive(element)) continue;
+    element.setAttribute('data-metric-debug-hidden', '1');
+    element.setAttribute('data-metric-debug-prev-visibility', element.style.visibility || '');
+    element.style.visibility = 'hidden';
+    maskedCount += 1;
+  }
+  return { maskedCount };
+}
+
+function restoreDebugFullPageScreenshot() {
+  for (const element of document.querySelectorAll('[data-metric-debug-hidden="1"]')) {
+    element.style.visibility = element.getAttribute('data-metric-debug-prev-visibility') || '';
+    element.removeAttribute('data-metric-debug-hidden');
+    element.removeAttribute('data-metric-debug-prev-visibility');
+  }
+  return true;
+}
+
+async function createDebugSession(debugDir, metadata) {
+  await mkdir(debugDir, { recursive: true });
+  const state = {
+    debugDir,
+    metadata,
+    domSnapshots: [],
+    domFiles: [],
+    regionFiles: [],
+    screenshot: null,
+    screenshotError: null,
+  };
+  const writeInput = async (responses = [], extra = {}) => writeJson(join(debugDir, 'input.json'), {
+    contractVersion: 'metric-results-debug-v1',
+    ...metadata,
+    ...extra,
+    responses: sanitizeNetworkResponses(responses),
+    domSnapshots: state.domSnapshots,
+  });
+  await writeJson(join(debugDir, 'manifest.json'), {
+    contractVersion: 'metric-results-debug-v1',
+    ...metadata,
+    files: { input: 'input.json', domSnapshots: [], regionHtml: [], fullPageScreenshot: null },
+    status: 'started',
+  });
+  return {
+    debugDir,
+    async record(page, dom, viewPlatform, pageNumber) {
+      const safeView = safeDebugPart(viewPlatform, 'all');
+      const base = `dom-${safeView}-page-${pageNumber}`;
+      const sanitized = sanitizeDomSnapshots(dom)[0] || {};
+      state.domSnapshots.push(sanitized);
+      const domPath = join(debugDir, `${base}.json`);
+      await writeJson(domPath, sanitized);
+      state.domFiles.push(domPath.split('/').at(-1));
+      if (sanitized.html) await writeFile(join(debugDir, `${base}.html`), sanitized.html, 'utf8');
+      for (const [region, html] of Object.entries(sanitized.regionsHtml || {})) {
+        const regionPath = join(debugDir, `${base}-region-${safeDebugPart(region)}.html`);
+        await writeFile(regionPath, sanitizeResultsHtml(html), 'utf8');
+        state.regionFiles.push(regionPath.split('/').at(-1));
+      }
+      if (!state.screenshot && typeof page.screenshot === 'function') {
+        const screenshotPath = join(debugDir, 'full-page.png');
+        let prepared = false;
+        try {
+          prepared = await page.evaluate(prepareDebugFullPageScreenshot);
+          await page.screenshot({ path: screenshotPath, fullPage: true });
+          state.screenshot = { path: 'full-page.png', maskedCount: Number(prepared?.maskedCount) || 0 };
+        } catch (error) {
+          state.screenshotError = String(error instanceof Error ? error.message : error);
+        } finally {
+          if (prepared !== false) await page.evaluate(restoreDebugFullPageScreenshot).catch(() => {});
+        }
+      }
+      await writeInput([], { pageCount: state.domSnapshots.length });
+    },
+    async update(responses, extra = {}) {
+      await writeInput(responses, { pageCount: state.domSnapshots.length, ...extra });
+    },
+    async finish(responses, extra = {}) {
+      await writeInput(responses, { pageCount: state.domSnapshots.length, ...extra });
+      const manifest = {
+        contractVersion: 'metric-results-debug-v1',
+        ...metadata,
+        ...extra,
+        files: {
+          input: 'input.json', domSnapshots: state.domFiles, regionHtml: state.regionFiles,
+          fullPageScreenshot: state.screenshot?.path || null,
+        },
+        screenshot: state.screenshot,
+        screenshotError: state.screenshotError,
+        status: extra.status || 'complete',
+      };
+      await writeJson(join(debugDir, 'manifest.json'), manifest);
+      return manifest;
+    },
+  };
+}
+
+async function runSavedResultObserver(html) {
+  let JSDOM;
+  try {
+    ({ JSDOM } = await import('jsdom'));
+  } catch {
+    try {
+      ({ JSDOM } = await import(pathToFileURL(join(process.cwd(), 'node_modules/jsdom/lib/api.js')).href));
+    } catch {
+      throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric replay requires the local DOM parser dependency');
+    }
+  }
+  const page = new JSDOM(String(html || ''), { url: BASE_URL });
+  const previous = {
+    window: globalThis.window, document: globalThis.document, location: globalThis.location, getComputedStyle: globalThis.getComputedStyle, CSS: globalThis.CSS,
+  };
+  const windowObject = page.window;
+  const rect = { left: 0, top: 0, right: 1200, bottom: 800, width: 1200, height: 800, x: 0, y: 0, toJSON() { return this; } };
+  windowObject.Element.prototype.getBoundingClientRect = () => ({ ...rect });
+  windowObject.HTMLElement.prototype.getBoundingClientRect = () => ({ ...rect });
+  const originalGetComputedStyle = windowObject.getComputedStyle.bind(windowObject);
+  windowObject.getComputedStyle = element => ({ ...originalGetComputedStyle(element), display: element?.style?.display || 'block', visibility: element?.style?.visibility || 'visible' });
+  if (!windowObject.CSS) windowObject.CSS = {};
+  if (!windowObject.CSS.escape) windowObject.CSS.escape = value => String(value).replace(/[^a-zA-Z0-9_-]/g, character => `\\${character}`);
+  windowObject.__metricWebSnapshot = null;
+  globalThis.window = windowObject;
+  globalThis.document = windowObject.document;
+  globalThis.location = windowObject.location;
+  globalThis.getComputedStyle = windowObject.getComputedStyle;
+  globalThis.CSS = windowObject.CSS;
+  try {
+    return observeResultPage();
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete globalThis[key];
+      else globalThis[key] = value;
+    }
+  }
+}
+
 async function visibleOptionIndex(page, wanted, { skipSelected = false } = {}) {
   const index = await page.evaluate(({ label, skipSelected: shouldSkipSelected }) => {
     const clean = value => String(value ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -1238,7 +1388,7 @@ function observeResultPage() {
   });
   const selectors = {
     overview: '[data-metric-region="overview"], [data-region="overview"], [data-testid="market-overview"], .market-overview-section, .market-overview',
-    'platform-split': '[data-metric-region="platform-split"], [data-region="platform-split"], [data-testid="platform-split"], .platforms-table',
+    'platform-split': '[data-metric-region="platform-split"], [data-region="platform-split"], [data-testid="platform-split"], .platforms-table .platform-table, .platforms-table, .main-statistic',
     monthly: '[data-metric-region="monthly"], [data-region="monthly"], [data-testid="monthly-trend"], #growth-detail-chart',
     category: '[data-metric-region="category"], [data-region="category"], [data-testid="category-chart"]',
     price: '[data-metric-region="price"], [data-region="price"], [data-testid="price-chart"]',
@@ -1247,9 +1397,9 @@ function observeResultPage() {
     'brand-shop-type': '[data-metric-region="brand-shop-type"], [data-region="brand-shop-type"], [data-testid="brand-shop-type"]',
     'shop-type': '[data-metric-region="shop-type"], [data-region="shop-type"], [data-testid="shop-type"]',
     warehouse: '[data-metric-region="warehouse"], [data-region="warehouse"], [data-testid="warehouse"]',
-    'top-products': '[data-metric-region="top-products"], [data-region="top-products"], [data-testid="top-products"]',
-    'top-shops': '[data-metric-region="top-shops"], [data-region="top-shops"], [data-testid="top-shops"]',
-    'top-brands': '[data-metric-region="top-brands"], [data-region="top-brands"], [data-testid="top-brands"]',
+    'top-products': '[data-metric-region="top-products"], [data-region="top-products"], [data-testid="top-products"], .products-list-container, .ProductTable',
+    'top-shops': '[data-metric-region="top-shops"], [data-region="top-shops"], [data-testid="top-shops"], .shop-list-container, .ShopTable',
+    'top-brands': '[data-metric-region="top-brands"], [data-region="top-brands"], [data-testid="top-brands"], .brand-list-container, .BrandTable',
     'detail-history': '[data-metric-region="detail-history"], [data-region="detail-history"], [data-testid="detail-history"]',
   };
   const titleNames = {
@@ -1312,6 +1462,18 @@ function observeResultPage() {
   };
   const kpiData = element => {
     const kpi = {};
+    const cards = [...element.querySelectorAll('.statistic-card')];
+    if (cards.length) {
+      for (const card of cards) {
+        const classes = String(card.className || '').toLowerCase();
+        const value = textOf(card.querySelector('.statistic-card__value') || card.lastElementChild || card);
+        if (/statistic-card--revenue/.test(classes)) kpi.revenue = { displayed: value, label: 'Revenue' };
+        else if (/statistic-card--order/.test(classes)) kpi.units = { displayed: value, label: 'Units' };
+        else if (/statistic-card--product/.test(classes)) kpi.soldListings = { displayed: value, label: 'Sold listings' };
+        else if (/statistic-card--shop/.test(classes)) kpi.shops = { displayed: value, label: 'Shops' };
+      }
+      return kpi;
+    }
     for (const card of [...element.querySelectorAll('.statistic-item')]) {
       const title = normalise(card.querySelector('.statistic-item__title')?.textContent || card.getAttribute('title'));
       const value = textOf(card.querySelector('.statistic-card__value'));
@@ -1348,7 +1510,16 @@ function observeResultPage() {
   const topProductsElement = findTitleRegion('Top Products') || [...document.querySelectorAll(selectors['top-products'])].find(visible);
   const paginationElement = topProductsElement?.querySelector('.ant-pagination,[data-metric-pagination]') || [...document.querySelectorAll('[data-metric-pagination]')].find(visible);
   const totalText = paginationElement ? textOf(paginationElement) : '';
-  const totalMatch = totalText.match(/(?:of|trên|total)\s+(\d[\d.,\s]*)/i);
+  // The page-number <ul> is a sibling of the total label. In DOM replay its
+  // text can be concatenated without whitespace (`...of 2` + `1`), so parse
+  // a label/span first and only fall back to the whole pager when needed.
+  const totalLabel = paginationElement
+    ? [...paginationElement.querySelectorAll('.ant-pagination-total-text,[class*="total" i],span')]
+      .map(textOf)
+      .find(value => /\d[\d.,\s]*\s*(?:-|–|to)\s*\d[\d.,\s]*\s*(?:of|trên|total)\s*\d[\d.,\s]*/i.test(value)
+        || /(?:of|trên|total)\s+\d[\d.,\s]*/i.test(value)) || totalText
+    : '';
+  const totalMatch = totalLabel.match(/(?:of|trên|total)\s+(\d[\d.,\s]*)/i);
   const current = Number(paginationElement?.querySelector('.ant-pagination-item-active')?.textContent || 1);
   const pageSizeMatch = totalText.match(/(\d+)\s+(?:products?|sản phẩm)\s*\/\s*page/i);
   const next = paginationElement?.querySelector('li.ant-pagination-next .ant-pagination-item-link, li.ant-pagination-next button, [aria-label="Next Page"]');
@@ -1540,12 +1711,15 @@ function restoreScreenshotMask() {
   return true;
 }
 
-async function readResultPage(page) {
+async function readResultPage(page, { debug = null, viewPlatform = 'all', pageNumber = 1 } = {}) {
   // The gate is deliberately a separate page evaluation. This keeps redirects,
   // login/captcha screens and warnings out of both DOM and network archives.
   const before = await page.evaluate(observeMetricPage, false);
   gateMetricPage(before);
   const dom = await page.evaluate(observeResultPage);
+  // Persist the result DOM before the second page gate, network read, or any
+  // downstream extraction can fail. The debug copy is sanitized at rest.
+  if (debug) await debug.record(page, dom, viewPlatform, pageNumber);
   gateMetricPage({ ...before, ...dom, url: dom.url || before.url, metricRootVisible: dom.metricRootVisible ?? before.metricRootVisible });
   await gateCurrentMetricPage(page);
   const responses = typeof page.readNetworkCapture === 'function' ? await page.readNetworkCapture() : [];
@@ -1619,11 +1793,11 @@ function mergePlatformUnits(revenueDom, soldDom) {
   };
 }
 
-async function collectResultPages(page, productCap, initial = null, viewPlatform = 'all', screenshotDir = null, seenScreenshots = new Set(), screenshots = [], screenshotSkips = []) {
+async function collectResultPages(page, productCap, initial = null, viewPlatform = 'all', screenshotDir = null, seenScreenshots = new Set(), screenshots = [], screenshotSkips = [], debug = null) {
   const responses = []; const domSnapshots = []; const seenPages = new Set(); const seenRows = new Set();
   let lastDom = null; let pagesRead = 0;
   for (let iteration = 0; iteration < PAGE_CAP; iteration += 1) {
-    const current = initial || await readResultPage(page); initial = null;
+    const current = initial || await readResultPage(page, { debug, viewPlatform, pageNumber: pagesRead + 1 }); initial = null;
     const productRegion = current.dom.regions?.['top-products'] || {};
     const items = productRegion.items || productRegion.rows || [];
     const pageNumber = current.dom.pagination?.page ?? iteration + 1;
@@ -1660,16 +1834,16 @@ async function collectResultPages(page, productCap, initial = null, viewPlatform
   return { responses, domSnapshots, lastDom, pagesRead, screenshots, screenshotSkips };
 }
 
-async function collectResults(page, spec, productCap, screenshotDir) {
+async function collectResults(page, spec, productCap, screenshotDir, debug = null) {
   await waitForResultsSettle(page);
   await gateCurrentMetricPage(page);
-  let first = await readResultPage(page);
+  let first = await readResultPage(page, { debug, viewPlatform: 'all', pageNumber: 1 });
   const resultToggles = Array.isArray(first.dom.resultToggles) ? first.dom.resultToggles : [];
   const hasRevenueToggle = resultToggles.some(label => /^revenue$/i.test(String(label).trim()));
   const hasSoldToggle = resultToggles.some(label => /sold products/i.test(label));
   if (hasRevenueToggle && !/^revenue$/i.test(String(first.dom.currentToggle || '').trim())) {
     await clickResultToggle(page, 'Revenue');
-    first = await readResultPage(page);
+    first = await readResultPage(page, { debug, viewPlatform: 'all', pageNumber: 1 });
   }
   const platformRegion = first.dom.regions?.['platform-split'];
   const platformRows = platformRegion?.rows || platformRegion?.items || [];
@@ -1677,15 +1851,15 @@ async function collectResults(page, spec, productCap, screenshotDir) {
     let sold;
     try {
       await clickResultToggle(page, 'Sold products');
-      sold = await readResultPage(page);
+      sold = await readResultPage(page, { debug, viewPlatform: 'sold-products', pageNumber: 1 });
     } finally {
       await clickResultToggle(page, 'Revenue');
     }
-    const restored = await readResultPage(page);
+    const restored = await readResultPage(page, { debug, viewPlatform: 'all', pageNumber: 1 });
     first = { ...restored, dom: mergePlatformUnits(restored.dom, sold?.dom) };
   }
   const screenshots = []; const screenshotSkips = []; const seenScreenshots = new Set();
-  const batches = [{ platform: 'all', ...(await collectResultPages(page, productCap, first, 'all', screenshotDir, seenScreenshots, screenshots, screenshotSkips)) }];
+  const batches = [{ platform: 'all', ...(await collectResultPages(page, productCap, first, 'all', screenshotDir, seenScreenshots, screenshots, screenshotSkips, debug)) }];
   const allResponses = batches.flatMap(batch => batch.responses);
   const responses = [...new Map(allResponses.map(response => [JSON.stringify([response.viewPlatform, response.url, response.urlPath, response.responsePreview, response.body, response.status]), response])).values()];
   return {
@@ -1704,47 +1878,119 @@ function ensureExternalCapturePath(path) {
   return candidate;
 }
 
+function withDebugFolder(error, debugDir) {
+  const code = typeof error?.code === 'string' ? error.code : 'METRIC_UI_CHANGED';
+  const details = error?.details && typeof error.details === 'object' ? { ...error.details, debugDir } : { debugDir };
+  const message = String(error?.message ?? error).replace(/; debug folder: .*$/i, '');
+  return new MetricAdapterError(code, `${message}; debug folder: ${debugDir}`, details);
+}
+
+async function archiveCollectedResults(out, spec, parsed, productCap, collected, { captureId, specDigest, capturedAt } = {}) {
+  const destination = ensureExternalCapturePath(out);
+  const scope = { ...parsed.appliedFilters, ticks: parsed.appliedFilters.ticks || [], advancedFilters: parsed.appliedFilters.advancedFilters || [], exclusions: parsed.appliedFilters.exclusions || [] };
+  const extracted = extractResultsPage({ responses: collected.responses, dom: collected.domSnapshots, scope, captureId, specDigest, capturedAt, pageCap: productCap });
+  await mkdir(destination, { recursive: true });
+  const rawPath = join(destination, 'raw-responses.json'); await writeJson(rawPath, sanitizeNetworkResponses(collected.responses));
+  const htmlPath = join(destination, 'results.html');
+  const regionHtml = collected.domSnapshots.flatMap(snapshot => Object.values(snapshot?.regionsHtml || {})).filter(Boolean);
+  const html = regionHtml.length ? `<main data-metric-archive="results">${regionHtml.join('\n')}</main>` : collected.domSnapshots.map(snapshot => snapshot?.html).filter(Boolean).join('\n');
+  await writeFile(htmlPath, sanitizeResultsHtml(html), 'utf8');
+  const snapshotPath = join(destination, 'snapshot.json'); await writeJson(snapshotPath, extracted.snapshot);
+  const screenshotFiles = [];
+  for (const screenshot of collected.screenshots || []) {
+    const targetPath = join(destination, screenshot.path.split('/').at(-1));
+    await copyFile(screenshot.path, targetPath);
+    screenshotFiles.push(await fileEntry(`screenshot:${screenshot.platform}:${screenshot.region}`, targetPath, 'image/png'));
+  }
+  const files = [await fileEntry('raw-responses', rawPath, 'application/json'), await fileEntry('snapshot', snapshotPath, 'application/json'), await fileEntry('results-html', htmlPath, 'text/html'), ...screenshotFiles];
+  const manifest = {
+    contractVersion: 'metric-results-capture-v1', captureId, specDigest, appliedFilters: scope, resultCount: parsed.rowCount,
+    productPagination: extracted.pagination.W12_topProducts, views: collected.views, sourceMap: extracted.sourceMap, files,
+    screenshotSkips: collected.screenshotSkips || [],
+    archive: { rawResponses: 'raw-responses.json', normalizedSnapshot: 'snapshot.json', resultsHtml: 'results.html', screenshots: screenshotFiles.map(file => file.path) },
+    noReportFileRequested: true,
+  };
+  const manifestPath = join(destination, 'manifest.json'); await writeJson(manifestPath, manifest);
+  return { manifestPath, rowCount: parsed.rowCount, snapshot: extracted.snapshot, captureId };
+}
+
 async function archiveResultsPage(page, out, spec, observation, parsed, productCap) {
   if (!Number.isSafeInteger(productCap) || productCap <= 0 || productCap > PRODUCT_CAP) throw new MetricAdapterError('METRIC_ROW_CAP', `product pagination cap must be between 1 and ${PRODUCT_CAP}`);
   const destination = ensureExternalCapturePath(out);
+  const captureId = `metric-${Date.now()}`;
+  const specDigest = hashBytes(Buffer.from(JSON.stringify(spec), 'utf8'));
+  const debugDir = join(destination, 'debug');
+  const debug = await createDebugSession(debugDir, {
+    captureId, specDigest, appliedFilters: parsed.appliedFilters, resultCount: parsed.rowCount, productCap,
+  });
   const staging = await mkdtemp(join(tmpdir(), 'metric-capture-'));
+  let collected = null;
   try {
-    const collected = await collectResults(page, spec, productCap, staging);
+    collected = await collectResults(page, spec, productCap, staging, debug);
+    await debug.update(collected.responses, { views: collected.views, screenshotSkips: collected.screenshotSkips || [] });
     await gateCurrentMetricPage(page);
     if (collected.screenshots.length === 0) {
       const reasons = collected.screenshotSkips?.map(skip => `${skip.platform}/${skip.region}:${skip.reason}`).join(', ') || 'none recorded';
       throw new MetricAdapterError('METRIC_UI_CHANGED', `Metric result-region screenshots are unavailable (${reasons})`);
     }
-    const captureId = `metric-${Date.now()}`;
-    const specDigest = hashBytes(Buffer.from(JSON.stringify(spec), 'utf8'));
-    const scope = { ...parsed.appliedFilters, ticks: parsed.appliedFilters.ticks || [], advancedFilters: parsed.appliedFilters.advancedFilters || [], exclusions: parsed.appliedFilters.exclusions || [] };
-    const extracted = extractResultsPage({ responses: collected.responses, dom: collected.domSnapshots, scope, captureId, specDigest, capturedAt: new Date().toISOString(), pageCap: productCap });
-    await mkdir(destination, { recursive: true });
-    const rawPath = join(destination, 'raw-responses.json'); await writeJson(rawPath, sanitizeNetworkResponses(collected.responses));
-    const htmlPath = join(destination, 'results.html');
-    const regionHtml = collected.domSnapshots.flatMap(snapshot => Object.values(snapshot?.regionsHtml || {})).filter(Boolean);
-    const html = regionHtml.length ? `<main data-metric-archive="results">${regionHtml.join('\n')}</main>` : collected.domSnapshots.map(snapshot => snapshot?.html).filter(Boolean).join('\n');
-    await writeFile(htmlPath, sanitizeResultsHtml(html), 'utf8');
-    const snapshotPath = join(destination, 'snapshot.json'); await writeJson(snapshotPath, extracted.snapshot);
-    const screenshotFiles = [];
-    for (const screenshot of collected.screenshots) {
-      const targetPath = join(destination, screenshot.path.split('/').at(-1));
-      await copyFile(screenshot.path, targetPath);
-      screenshotFiles.push(await fileEntry(`screenshot:${screenshot.platform}:${screenshot.region}`, targetPath, 'image/png'));
-    }
-    const files = [await fileEntry('raw-responses', rawPath, 'application/json'), await fileEntry('snapshot', snapshotPath, 'application/json'), await fileEntry('results-html', htmlPath, 'text/html'), ...screenshotFiles];
-    const manifest = {
-      contractVersion: 'metric-results-capture-v1', captureId, specDigest, appliedFilters: scope, resultCount: parsed.rowCount,
-      productPagination: extracted.pagination.W12_topProducts, views: collected.views, sourceMap: extracted.sourceMap, files,
-      screenshotSkips: collected.screenshotSkips,
-      archive: { rawResponses: 'raw-responses.json', normalizedSnapshot: 'snapshot.json', resultsHtml: 'results.html', screenshots: screenshotFiles.map(file => file.path) },
-      noReportFileRequested: true,
-    };
-    const manifestPath = join(destination, 'manifest.json'); await writeJson(manifestPath, manifest);
-    return { manifestPath, rowCount: parsed.rowCount, snapshot: extracted.snapshot, captureId };
+    const archive = await archiveCollectedResults(out, spec, parsed, productCap, collected, {
+      captureId, specDigest, capturedAt: new Date().toISOString(),
+    });
+    await debug.finish(collected.responses, { views: collected.views, screenshotSkips: collected.screenshotSkips || [], status: 'archived' });
+    return archive;
+  } catch (error) {
+    await debug.finish(collected?.responses || [], {
+      views: collected?.views || [], screenshotSkips: collected?.screenshotSkips || [], status: 'failed',
+      error: { code: error?.code || 'METRIC_UI_CHANGED', message: String(error?.message ?? error).slice(0, 500) },
+    }).catch(() => {});
+    throw withDebugFolder(error, debugDir);
   } finally {
     await rm(staging, { recursive: true, force: true });
   }
+}
+
+async function replayResultsPage(replayDirArg, outArg, spec, productCapArg) {
+  const replayDir = ensureExternalCapturePath(replayDirArg);
+  const manifestPath = join(replayDir, 'manifest.json');
+  const debugManifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+  if (debugManifest?.contractVersion !== 'metric-results-debug-v1') {
+    throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric replay debug manifest is not recognized');
+  }
+  const input = JSON.parse(await readFile(join(replayDir, debugManifest.files?.input || 'input.json'), 'utf8'));
+  const productCap = Number(productCapArg ?? input.productCap ?? PRODUCT_CAP);
+  if (!Number.isSafeInteger(productCap) || productCap <= 0 || productCap > PRODUCT_CAP) {
+    throw new MetricAdapterError('METRIC_ROW_CAP', `product pagination cap must be between 1 and ${PRODUCT_CAP}`);
+  }
+  const debugSnapshots = Array.isArray(input.domSnapshots) ? input.domSnapshots : [];
+  if (!debugSnapshots.length) throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric replay debug DOM snapshots are missing');
+  const domSnapshots = [];
+  for (const snapshot of debugSnapshots) {
+    const html = snapshot?.html && /<(?:body|main)\b/i.test(snapshot.html)
+      ? snapshot.html
+      : `<main id="main-content"><div id="analytic-tab">${Object.values(snapshot?.regionsHtml || {}).join('\n')}</div></main>`;
+    if (html) domSnapshots.push(await runSavedResultObserver(html));
+    else domSnapshots.push(snapshot);
+  }
+  const appliedFilters = input.appliedFilters || debugManifest.appliedFilters;
+  const rowCount = input.resultCount ?? debugManifest.resultCount;
+  const parsed = parseSearchObservation({
+    url: BASE_URL, bodyText: '', metricRootVisible: true, appliedFilters, rowCount, snapshot: {},
+  }, spec, Number.MAX_SAFE_INTEGER);
+  const screenshotName = debugManifest.files?.fullPageScreenshot;
+  const screenshots = screenshotName && await stat(join(replayDir, screenshotName)).then(() => true).catch(() => false)
+    ? [{ path: join(replayDir, screenshotName), platform: 'all', region: 'full-page', maskedCount: debugManifest.screenshot?.maskedCount || 0 }]
+    : [];
+  const collected = {
+    responses: Array.isArray(input.responses) ? input.responses : [], domSnapshots, screenshots, screenshotSkips: [],
+    views: Array.isArray(input.views) ? input.views : [{ platform: 'all', pagesRead: domSnapshots.length }],
+  };
+  const output = outArg ? ensureExternalCapturePath(outArg) : join(replayDir, 'replay');
+  const captureId = `${input.captureId || debugManifest.captureId || 'metric-replay'}-replay`;
+  const specDigest = hashBytes(Buffer.from(JSON.stringify(spec), 'utf8'));
+  const archive = await archiveCollectedResults(output, spec, parsed, productCap, collected, {
+    captureId, specDigest, capturedAt: input.capturedAt || new Date().toISOString(),
+  });
+  return { status: 'READY', rowCount: archive.rowCount, manifestPath: archive.manifestPath, replay: true };
 }
 
 export const whoamiCommand = cli({
@@ -1764,17 +2010,23 @@ export const searchCommand = cli({
 
 export const captureCommand = cli({
   site: 'metric', name: 'capture', access: 'read', description: 'Run one Metric analysis lookup and archive the results page', domain: 'metric.vn', strategy: Strategy.UI, browser: true, navigateBefore: false, siteSession: 'ephemeral',
-  args: [{ name: 'spec', type: 'string', required: true, help: 'Path to metric-query-spec-v1 JSON' }, { name: 'out', type: 'string', required: false, help: 'Absolute output directory outside the repository (required without --dry-run)' }, { name: 'product-cap', type: 'int', default: PRODUCT_CAP, help: 'Maximum product rows to read through pagination per platform view' }, { name: 'dry-run', type: 'boolean', default: false, help: 'Apply and verify the form without clicking Search' }], columns: ['status', 'rowCount', 'manifestPath', 'outcome', 'startState', 'appliedReadBack', 'mismatches'],
-  func: async (page, args) => withMetricTab(page, async target => {
+  args: [{ name: 'spec', type: 'string', required: true, help: 'Path to metric-query-spec-v1 JSON' }, { name: 'out', type: 'string', required: false, help: 'Absolute output directory outside the repository (required without --dry-run)' }, { name: 'replay', type: 'string', required: false, help: 'Replay a saved Metric debug directory without browser or network access' }, { name: 'product-cap', type: 'int', default: PRODUCT_CAP, help: 'Maximum product rows to read through pagination per platform view' }, { name: 'dry-run', type: 'boolean', default: false, help: 'Apply and verify the form without clicking Search' }], columns: ['status', 'rowCount', 'manifestPath', 'outcome', 'startState', 'appliedReadBack', 'mismatches'],
+  func: async (page, args) => {
     const spec = await readSpec(args.spec);
-    if (Boolean(args['dry-run'])) return [await runDryRun(target, spec)];
-    if (!args.out) throw new CliError('METRIC_UI_CHANGED', 'capture output directory is required unless --dry-run is used');
-    await target.startNetworkCapture?.(); await target.readNetworkCapture?.();
-    const { observation, parsed } = await runSearch(target, spec, Number.MAX_SAFE_INTEGER);
-    const archive = await archiveResultsPage(target, args.out, spec, observation, parsed, Number(args['product-cap'] ?? PRODUCT_CAP));
-    return [{ status: 'READY', rowCount: archive.rowCount, manifestPath: archive.manifestPath }];
-  }),
+    if (args.replay) {
+      if (Boolean(args['dry-run'])) throw new CliError('METRIC_UI_CHANGED', '--replay cannot be combined with --dry-run');
+      return [await replayResultsPage(args.replay, args.out, spec, args['product-cap'])];
+    }
+    return withMetricTab(page, async target => {
+      if (Boolean(args['dry-run'])) return [await runDryRun(target, spec)];
+      if (!args.out) throw new CliError('METRIC_UI_CHANGED', 'capture output directory is required unless --dry-run is used');
+      await target.startNetworkCapture?.(); await target.readNetworkCapture?.();
+      const { observation, parsed } = await runSearch(target, spec, Number.MAX_SAFE_INTEGER);
+      const archive = await archiveResultsPage(target, args.out, spec, observation, parsed, Number(args['product-cap'] ?? PRODUCT_CAP));
+      return [{ status: 'READY', rowCount: archive.rowCount, manifestPath: archive.manifestPath }];
+    });
+  },
 });
 
-export const __test__ = { asCliError, withMetricTab, readObservation, applyMetricSpec, performSearch, runDryRun, prepareMetricForm, waitForKeywordCommit, observeMetricPage, observeResultPage, collectResultPages, archiveResultsPage, readCommittedKeywords };
+export const __test__ = { asCliError, withMetricTab, readObservation, applyMetricSpec, performSearch, runDryRun, prepareMetricForm, waitForKeywordCommit, observeMetricPage, observeResultPage, collectResultPages, archiveResultsPage, replayResultsPage, readCommittedKeywords };
 export { assertMetricUrl, parseMetricForm };

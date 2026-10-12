@@ -142,8 +142,9 @@ function htmlAttributes(token) {
 
 function isSensitiveHtmlContainer(token, tag) {
   const attributes = htmlAttributes(token).toLowerCase();
+  const structuralTag = new Set(['html', 'head', 'body', 'main', 'section', 'article', 'div']).has(tag);
   return tag === 'script' || tag === 'style' || tag === 'meta' || tag === 'header' || tag === 'nav'
-    || /(?:account|header|navigation|user[-_ ]?info|user[-_ ]?profile|logged[-_ ]?in|logout|sign[-_ ]?out|avatar|profile|login)/i.test(attributes);
+    || (!structuralTag && /(?:account|header|navigation|user[-_ ]?info|user[-_ ]?profile|logged[-_ ]?in|logout|sign[-_ ]?out|avatar|profile|login)/i.test(attributes));
 }
 
 function sanitizeHtmlTag(token) {
@@ -196,13 +197,18 @@ export function sanitizeResultsHtml(html) {
   return output;
 }
 
-function sanitizeDomSnapshots(domSnapshots) {
-  const sanitize = (value, key = null) => {
+export function sanitizeDomSnapshots(domSnapshots) {
+  const rewriteHtml = (value, key = null) => {
     if (key === 'html') return sanitizeResultsHtml(value);
-    return sanitizeValue(value, key);
+    if (key === 'regionsHtml' && value && typeof value === 'object') {
+      return Object.fromEntries(Object.entries(value).map(([name, html]) => [name, sanitizeResultsHtml(html)]));
+    }
+    if (Array.isArray(value)) return value.map(child => rewriteHtml(child));
+    if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([childKey, child]) => [childKey, rewriteHtml(child, childKey)]));
+    return value;
   };
   const snapshots = Array.isArray(domSnapshots) ? domSnapshots : [domSnapshots];
-  return snapshots.map(snapshot => sanitize(snapshot)).filter(snapshot => snapshot !== OMIT);
+  return snapshots.map(snapshot => rewriteHtml(sanitizeValue(snapshot))).filter(snapshot => snapshot !== OMIT);
 }
 
 function periodOf(raw, fallbackPeriod) {
@@ -309,6 +315,71 @@ function flattenPayload(body, sourcePointer, platformFallback = 'all') {
   return [{ payload: body, region, platform: platformOf(body.platform, platformFallback), sourcePointer }];
 }
 
+function metricPlatformId(value) {
+  const id = Number(value);
+  if (id === 1) return 'shopee';
+  if (id === 2) return 'tiktok';
+  return null;
+}
+
+function metricApiPayloads(body, sourcePointer) {
+  const data = body?.data;
+  const searchBasic = data?.search_basic;
+  const aggregations = Array.isArray(searchBasic?.aggregations) ? searchBasic.aggregations : [];
+  const byAggregation = new Map(aggregations.map(item => [clean(item?.aggregation).toUpperCase(), item]));
+  const payloads = [];
+  const platformRows = name => Object.values(byAggregation.get(name)?.entity?.platforms || {})
+    .map(item => ({ platform: metricPlatformId(item?.platform_id), value: item?.value }))
+    .filter(item => item.platform && item.value != null);
+  const oneValue = name => {
+    const rows = platformRows(name);
+    return rows.length === 1 ? rows[0].value : null;
+  };
+  if (aggregations.length) {
+    const revenueRows = platformRows('REVENUE_TOTAL_CUSTOM');
+    const unitsRows = platformRows('ORDER_TOTAL_CUSTOM');
+    const products = oneValue('PRODUCT_TOTAL');
+    const shops = oneValue('SHOP_TOTAL');
+    if (oneValue('REVENUE_TOTAL_CUSTOM') != null && oneValue('ORDER_TOTAL_CUSTOM') != null && products != null && shops != null) {
+      payloads.push({ region: 'overview', kpi: {
+        revenue: oneValue('REVENUE_TOTAL_CUSTOM'), units: oneValue('ORDER_TOTAL_CUSTOM'), soldListings: products, shops,
+      } });
+    }
+    if (revenueRows.length) payloads.push({ region: 'platform-split', items: revenueRows.map((row, index) => ({
+      platform: row.platform, revenue: row.value, units: unitsRows[index]?.value ?? null,
+    })) });
+    const entities = name => Object.values(byAggregation.get(name)?.entities || {}).filter(item => item && item.value != null);
+    const price = entities('REVENUE__BY__PRICE_RANGE_CUSTOM');
+    if (price.length) payloads.push({ region: 'price', rows: price.map(item => ({ priceLevel: `${item.from ?? ''}-${item.to ?? ''}`, revenue: item.value })) });
+    const locations = entities('REVENUE__BY__LOCATION_CUSTOM');
+    if (locations.length) payloads.push({ region: 'warehouse', rows: locations.map(item => ({ location: item.key, revenue: item.value })) });
+    const shopTypes = entities('REVENUE__BY__SHOP_TYPE_CUSTOM');
+    if (shopTypes.length) payloads.push({ region: 'shop-type', rows: shopTypes.map(item => ({ shopType: item.key, revenue: item.value })) });
+  }
+  const isProductsResponse = /\/analytics\/products\/?$/i.test(sourcePointer);
+  const isShopsResponse = /\/analytics\/shops\/?$/i.test(sourcePointer);
+  const isGroupsResponse = /\/analytics\/groups\/?$/i.test(sourcePointer);
+  const products = isProductsResponse && Array.isArray(data?.products) ? data.products : [];
+  if (products.length) payloads.push({ region: 'top-products', items: products.map(product => ({
+    name: product.product_name, shop: product.shop_name, platform: metricPlatformId(product.platform_id) || 'unknown',
+    price: product.price, minPrice: product.price_min, maxPrice: product.price_max,
+    revenue: product.revenue_custom ?? product.revenue, units: product.order_custom ?? product.order_count,
+    createdDate: product.platform_created_at, category: product.final_categories?.at?.(-1)?.name || product.categories?.at?.(-1)?.name,
+  })) });
+  const shops = isShopsResponse && Array.isArray(data?.shops) ? data.shops : [];
+  if (shops.length) payloads.push({ region: 'top-shops', items: shops.map(shop => ({
+    rankNew: shop.ranking, rankOld: shop.previous_ranking, shop: shop.shop_name,
+    platform: metricPlatformId(shop.platform_id) || 'unknown', listings: shop.product_total,
+    revenue: shop.revenue_custom_sum, units: shop.order_custom_sum, price: shop.avg_price,
+  })) });
+  const groups = isGroupsResponse && Array.isArray(data?.groups) ? data.groups : [];
+  if (groups.length) payloads.push({ region: 'top-brands', items: groups.map(group => ({
+    rankNew: group.ranking, rankOld: group.previous_ranking, brand: group.brand, listings: group.product_total,
+    revenue: group.revenue_custom_sum, units: group.order_custom_sum,
+  })) });
+  return payloads.map((payload, index) => ({ payload, region: payload.region, platform: 'all', sourcePointer: `${sourcePointer}/derived/${payload.region}/${index}` }));
+}
+
 function payloadEntries(responses, domSnapshots) {
   const entries = [];
   for (const [index, response] of (Array.isArray(responses) ? responses : []).entries()) {
@@ -319,6 +390,7 @@ function payloadEntries(responses, domSnapshots) {
       ? platformOf(body.platform, 'all')
       : requestPlatform(response);
     entries.push(...flattenPayload(body, `response:${responsePath(response, index)}`, responsePlatform));
+    entries.push(...metricApiPayloads(body, `response:${responsePath(response, index)}`));
   }
   const doms = Array.isArray(domSnapshots) ? domSnapshots : [domSnapshots];
   for (const [index, dom] of doms.entries()) {
