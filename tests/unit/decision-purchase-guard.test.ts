@@ -85,5 +85,7 @@ test('the buyer noun "người mua" / "bên mua" is not a purchase proposal; rea
     'Ghi lại nguồn, người mua thử sản phẩm đối thủ', 'Recommend người mua một sản phẩm đối thủ',
     'đề xuất cho mỗi người mua một chiếc điện thoại để kiểm tra chất lượng', 'Giao cho từng người mua sản phẩm đối thủ',
     'Đề xuất cho tất cả người mua thử', 'Ghi lại nguồn, người mua hai chiếc bình để thử', 'Nhờ người mua hàng mẫu đối thủ',
+    'Đề xuất\nngười mua\nsản phẩm', 'người mua\nsản phẩm để kiểm tra', 'Đề xuất\r\nngười mua\r\nmột chiếc bình',
+    'encourage người mua a product', 'khuyến khích người mua a product', 'Ask the người mua to test', 'Ghi lại nguồn, người mua one competitor product',
   ]) assert.equal(hasAuthoredPurchaseProposal(text), true, text);
 });
