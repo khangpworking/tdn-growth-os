@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
 import { createHash, randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -14,6 +15,8 @@ import { RequestScopedArtifactStore } from '../../src/platform/artifacts/request
 import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../src/modules/flow/index.js';
 import { SourcePackageService } from '../../src/modules/foundation/source-package-service.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
+import legacyReadingSchema from '../../contracts/analysis/video-reading-v1.schema.json' with { type: 'json' };
+import currentReadingSchema from '../../contracts/analysis/video-reading-v2.schema.json' with { type: 'json' };
 import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
 import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
 import { AutomationKalodataVideoIntake } from '../../src/modules/analysis/research-automation/kalodata-video-intake.js';
@@ -24,6 +27,15 @@ import { ApifyTikTokCommentsCollector, createTikTokCommentPrivacy, type TikTokCo
 import { SYNTHETIC_CARD_ID, syntheticProductSource, syntheticWebSource } from '../helpers/research-synthetic-sources.js';
 import type { AutomationSourcePort } from '../../src/modules/analysis/research-automation/source-binding.js';
 import type { TikTokSourcePackageIdentity, TikTokCommentSourceReceipt } from '../../contracts/analysis/tiktok-comment-collection-v1.generated.js';
+import type { SourcePackageIntakeRequest } from '../../contracts/foundation/source-package-intake-request.generated.js';
+
+const require = createRequire(import.meta.url);
+const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
+const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
+const contractAjv = new Ajv2020({ strict: true }); addFormats(contractAjv);
+contractAjv.addSchema([legacyReadingSchema, currentReadingSchema]);
+const validatesLegacyReading = contractAjv.compile({ $ref: `${legacyReadingSchema.$id}#/$defs/reading` });
+const validatesCurrentReading = contractAjv.compile({ $ref: `${currentReadingSchema.$id}#/$defs/reading` });
 
 const workspaceId = '11111111-1111-4111-8111-111111111111', runId = '22222222-2222-4222-8222-222222222222';
 const now = () => new Date('2026-10-09T00:00:00Z');
@@ -281,13 +293,13 @@ test('actual OWNER accepted cancellation during awaited page read preserves usag
   assert.deepEqual(f.db.serialize(), before); assert.equal(f.calls().starts, 1);
 });
 
-test('S14 owning inert reading rejects wrong scope/video/frames and reloads exact seller/creator citations without writes', async t => {
+test('S14 owning inert reading versions v1/v2 and cites each stored reading artifact', async t => {
   const f = await fixture(t);
   const frame = Buffer.from('synthetic frame bytes');
   const readingRequest = { contractVersion: 'video-reading-prepare-request-v1', requestKey: randomUUID(),
     expectedRevision: (await f.service.getRun(workspaceId, runId)).revision, selectionPackage: f.selected,
     input: { videoUrl: url(1000), videoKind: 'SELLER_VIDEO', durationSeconds: 12,
-      segments: [{ startSeconds: 1, endSeconds: 3, text: 'Nội dung nguyên văn từ người bán', captionSource: 'NATIVE' }],
+      segments: [{ startSeconds: 1, endSeconds: 3, text: 'Nội dung nguyên văn từ người bán', captionSource: 'NATIVE' as const }],
       onScreenText: [{ startSeconds: 1, endSeconds: 2, text: '350g' }], frames: [{ atSeconds: 1, logicalPath: 'frames/synthetic.png', sha256: hash(frame) }] } };
   const frames = new Map([['frames/synthetic.png', frame]]);
   for (const input of [ { ...readingRequest.input, segments: [] }, { ...readingRequest.input, videoUrl: url(1001) },
@@ -297,15 +309,57 @@ test('S14 owning inert reading rejects wrong scope/video/frames and reloads exac
   const receipt = await f.service.prepareP9VideoReading(workspaceId, runId, readingRequest, frames);
   assert.equal(receipt.exactRetry, false); assert.equal(receipt.state, 'PREPARED_NOT_ADMITTED');
   const read = await f.service.readP9Source(workspaceId, runId, 'reading', receipt.package.packageId);
-  assert.equal(read.view.rows[0]!.voice, 'SELLER'); assert.match(read.citations[0]!.locatorText!, /1.*3/);
-  const creatorRequest = { ...readingRequest, requestKey: randomUUID(), input: { ...readingRequest.input, videoUrl: url(1090), videoKind: 'REVIEW_VIDEO' } };
+  assert.equal(read.view.rows[0]!.voice, 'SELLER'); assert.equal(read.view.rows[0]!.voiceLabel, 'lời người bán'); assert.match(read.citations[0]!.locatorText!, /1.*3/);
+  const creatorRequest = { ...readingRequest, requestKey: randomUUID(), input: { ...readingRequest.input, videoUrl: url(1090), videoKind: 'REVIEW_VIDEO' as const } };
   const creator = await f.service.prepareP9VideoReading(workspaceId, runId, creatorRequest, frames);
-  assert.equal((await f.service.readP9Source(workspaceId, runId, 'reading', creator.package.packageId)).view.rows[0]!.voice, 'CREATOR');
+  const creatorRead = await f.service.readP9Source(workspaceId, runId, 'reading', creator.package.packageId) as unknown as {
+    view: { contractVersion: string; rows: Array<{ voice: string; voiceLabel: string }> };
+    receipt: { contractVersion: string; readingSha256: string };
+    citationTrace: { entries: readonly { identity: string }[] };
+  };
+  const creatorRow = creatorRead.view.rows[0]!;
+  assert.equal(creatorRead.view.contractVersion, 'video-reading-read-v2'); assert.equal(creatorRead.receipt.contractVersion, 'video-reading-source-receipt-v2');
+  assert.equal(creatorRow.voice, 'SELLER'); assert.equal(creatorRow.voiceLabel, 'lời người làm video review');
+  const creatorStored = await f.packages.readVerified(creator.package.packageId);
+  const creatorReading = creatorStored.files.find(file => file.path === 'reading.json')!;
+  assert.equal(validatesCurrentReading(JSON.parse(creatorReading.bytes.toString())), true);
+  assert.equal(creatorRead.receipt.readingSha256, creatorReading.sha256);
+  assert.equal(creatorRead.citationTrace.entries[0]!.identity, creatorReading.sha256);
+
+  const selected = JSON.parse((await f.packages.readVerified(f.selected.packageId)).files.find(file => file.path === 'selection.json')!.bytes.toString());
+  const binding = { workspaceId, runId, scopeSha256: selected.scopeSha256, sourceSetSha256: selected.sourceSetSha256, selectionSha256: hash(canonicalJson(selected)) };
+  const attachmentBinding = { workspaceId, runId, scopeSha256: selected.scopeSha256, sourceSetSha256: selected.sourceSetSha256, requestedPeriod: selected.requestedPeriod };
+  const legacyRequest = { ...creatorRequest, requestKey: randomUUID() };
+  const legacyPrepared = prepareVideoReading(legacyRequest.input, frames, binding);
+  const legacyBytes = Buffer.from(canonicalJson({ ...legacyPrepared.reading, contractVersion: 'video-reading-v1', voice: 'CREATOR' }));
+  assert.equal(validatesLegacyReading(JSON.parse(legacyBytes.toString())), true);
+  const legacyFiles = new Map<string, Uint8Array>([['request.json', Buffer.from(canonicalJson(legacyRequest))], ['reading.json', legacyBytes], ...frames]);
+  const legacyIntake: SourcePackageIntakeRequest = { contractVersion: '1.0.0', packageKey: p9PackagePrefix(runId, 'reading') + legacyRequest.requestKey,
+    version: 1, sourceLabel: 'P9 reading: synthetic legacy v1', sourceAcquiredAt: null,
+    files: [...legacyFiles].map(([path, bytes]) => ({ path, sha256: hash(bytes), byteSize: bytes.byteLength, mediaType: path.endsWith('.png') ? 'image/png' : 'application/json',
+      evidenceFamily: 'p9-reading-v1', representationRole: 'derived', independence: 'non_independent', providerProvenance: 'operator_supplied_unverified',
+      provenanceBasis: 'Synthetic legacy v1 fixture for exact stored-byte citation testing.' })) as SourcePackageIntakeRequest['files'] };
+  const legacyPackage = await f.packages.intakeAutomationAttachment(legacyIntake, legacyFiles, hash(canonicalJson(attachmentBinding)));
+  const legacyRead = await f.service.readP9Source(workspaceId, runId, 'reading', legacyPackage.packageId) as unknown as {
+    view: { contractVersion: string; rows: Array<{ voice: string; voiceLabel: string }> };
+    receipt: { contractVersion: string; readingSha256: string };
+    citationTrace: { entries: readonly { identity: string }[] };
+  };
+  assert.equal(legacyRead.view.rows[0]!.voice, 'SELLER');
+  assert.equal(legacyRead.view.rows[0]!.voiceLabel, 'lời người làm video review');
+  const legacyStored = await f.packages.readVerified(legacyPackage.packageId);
+  const legacyReading = legacyStored.files.find(file => file.path === 'reading.json')!;
+  assert.equal(legacyRead.view.contractVersion, 'video-reading-read-v2'); assert.equal(legacyRead.receipt.contractVersion, 'video-reading-source-receipt-v2');
+  assert.deepEqual(legacyReading.bytes, legacyBytes);
+  assert.equal(legacyReading.sha256, hash(legacyBytes));
+  assert.equal(legacyRead.receipt.readingSha256, legacyReading.sha256);
+  assert.equal(legacyRead.citationTrace.entries[0]!.identity, legacyReading.sha256);
+
   const before = Buffer.from(f.db.serialize()), files = (await fs.readdir(f.artifactRoot, { recursive: true })).sort();
   f.db.pragma('query_only = ON');
   assert.equal((await f.make(false).prepareP9VideoReading(workspaceId, runId, readingRequest, frames)).exactRetry, true);
-  assert.equal((await f.make(false).readP9SourceHistory(workspaceId, runId)).readings.sources.length, 2);
-  assert.equal((await f.make(false).readSourceActivity(workspaceId))['video-reading'].dataCount, 2);
+  assert.equal((await f.make(false).readP9SourceHistory(workspaceId, runId)).readings.sources.length, 3);
+  assert.equal((await f.make(false).readSourceActivity(workspaceId))['video-reading'].dataCount, 3);
   assert.deepEqual(f.db.serialize(), before); assert.deepEqual((await fs.readdir(f.artifactRoot, { recursive: true })).sort(), files);
   assert.deepEqual(f.calls(), { modelCalls: 1, starts: 0, pages: 0 });
 });
