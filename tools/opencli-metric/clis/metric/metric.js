@@ -557,6 +557,51 @@ async function setCheckbox(page, label, checked) {
   await page.setChecked(target.selector, checked, { nth: target.index });
 }
 
+// Serialized by OpenCLI: keep this keyword locator self-contained. Its copy
+// in observeMetricPage and readCommittedKeywords must stay behaviorally equal.
+function resolveKeywordSelector() {
+  const visible = element => {
+    if (!element) return false;
+    const style = getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+  };
+  const textOf = element => (element?.innerText || element?.textContent || '').replace(/\s+/g, ' ').trim();
+  const locateKeywordSelect = () => {
+    const root = document.querySelector('#QuerySearchBuilder');
+    if (!root) return { select: null, locatedBy: 'none' };
+    const keywordLabel = [...root.querySelectorAll('.filter-label .label')]
+      .find(element => /^(?:keywords|từ kh(?:óa|oá))/i.test(textOf(element)));
+    const labelledContainer = keywordLabel?.closest('.ant-space-item');
+    const labelledSelect = [...(labelledContainer?.querySelectorAll('.ant-select') || [])].find(visible);
+    if (labelledSelect) return { select: labelledSelect, locatedBy: 'label' };
+    const placeholderPattern = /keywords? separated by commas|từ kh(?:óa|oá)/i;
+    const placeholderSelect = [...root.querySelectorAll('.ant-select')].find(element => visible(element) && (
+      placeholderPattern.test(textOf(element.querySelector('.ant-select-selection-placeholder')))
+      || [...element.querySelectorAll('input')].some(input => placeholderPattern.test(input.getAttribute('placeholder') || '') || placeholderPattern.test(input.getAttribute('aria-label') || ''))
+    ));
+    if (placeholderSelect) return { select: placeholderSelect, locatedBy: 'placeholder' };
+    const labelledControl = pattern => {
+      const label = [...root.querySelectorAll('.filter-label .label')].find(element => pattern.test(textOf(element)));
+      const container = label?.closest('.ant-space-item');
+      return [...(container?.querySelectorAll('.ant-select') || [])].find(visible) || null;
+    };
+    const excluded = new Set([
+      labelledControl(/^(?:platform|nền tảng)/i),
+      labelledControl(/^(?:time period|thời gian)/i),
+      labelledControl(/^(?:product category|danh mục)/i),
+    ].filter(Boolean));
+    const structuralCandidates = [...root.querySelectorAll('.ant-select-multiple')]
+      .filter(element => visible(element) && !excluded.has(element));
+    return structuralCandidates.length === 1
+      ? { select: structuralCandidates[0], locatedBy: 'structure' }
+      : { select: null, locatedBy: 'none' };
+  };
+  const select = locateKeywordSelect().select;
+  const input = select?.querySelector('input[id]');
+  return input?.id ? `#${CSS.escape(input.id)}` : null;
+}
+
 async function applyMetricSpec(page, spec, initialObservation) {
   const current = initialObservation.appliedFilters || {};
   const currentPlatforms = new Set(current.platforms || []); const wantedPlatforms = new Set(spec.platforms);
@@ -573,6 +618,11 @@ async function applyMetricSpec(page, spec, initialObservation) {
       await page.click('button.switch-button');
       await gateCurrentMetricPage(page);
     }
+  }
+  // Fail closed before any platform typing or option click when the keyword
+  // control cannot be located. It is resolved again after the platform step.
+  if (await page.evaluate(resolveKeywordSelector) == null) {
+    throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric keyword search input is not visible');
   }
   const platformSelector = await page.evaluate(() => {
     const visible = element => {
@@ -623,50 +673,9 @@ async function applyMetricSpec(page, spec, initialObservation) {
   // control, before Enter is used to commit a keyword.
   await page.pressKey('Escape').catch(() => {});
   const currentKeywords = new Set(current.keywords || []);
-  // Serialized by OpenCLI: keep this keyword locator self-contained. Its copy
-  // in observeMetricPage and readCommittedKeywords must stay behaviorally equal.
-  const keywordSelector = await page.evaluate(() => {
-    const visible = element => {
-      if (!element) return false;
-      const style = getComputedStyle(element);
-      const rect = element.getBoundingClientRect();
-      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
-    };
-    const textOf = element => (element?.innerText || element?.textContent || '').replace(/\s+/g, ' ').trim();
-    const locateKeywordSelect = () => {
-      const root = document.querySelector('#QuerySearchBuilder');
-      if (!root) return { select: null, locatedBy: 'none' };
-      const keywordLabel = [...root.querySelectorAll('.filter-label .label')]
-        .find(element => /^(?:keywords|từ kh(?:óa|oá))/i.test(textOf(element)));
-      const labelledContainer = keywordLabel?.closest('.ant-space-item');
-      const labelledSelect = [...(labelledContainer?.querySelectorAll('.ant-select') || [])].find(visible);
-      if (labelledSelect) return { select: labelledSelect, locatedBy: 'label' };
-      const placeholderPattern = /keywords? separated by commas|từ kh(?:óa|oá)/i;
-      const placeholderSelect = [...root.querySelectorAll('.ant-select')].find(element => visible(element) && (
-        placeholderPattern.test(textOf(element.querySelector('.ant-select-selection-placeholder')))
-        || [...element.querySelectorAll('input')].some(input => placeholderPattern.test(input.getAttribute('placeholder') || '') || placeholderPattern.test(input.getAttribute('aria-label') || ''))
-      ));
-      if (placeholderSelect) return { select: placeholderSelect, locatedBy: 'placeholder' };
-      const labelledControl = pattern => {
-        const label = [...root.querySelectorAll('.filter-label .label')].find(element => pattern.test(textOf(element)));
-        const container = label?.closest('.ant-space-item');
-        return [...(container?.querySelectorAll('.ant-select') || [])].find(visible) || null;
-      };
-      const excluded = new Set([
-        labelledControl(/^(?:platform|nền tảng)/i),
-        labelledControl(/^(?:time period|thời gian)/i),
-        labelledControl(/^(?:product category|danh mục)/i),
-      ].filter(Boolean));
-      const structuralCandidates = [...root.querySelectorAll('.ant-select-multiple')]
-        .filter(element => visible(element) && !excluded.has(element));
-      return structuralCandidates.length === 1
-        ? { select: structuralCandidates[0], locatedBy: 'structure' }
-        : { select: null, locatedBy: 'none' };
-    };
-    const select = locateKeywordSelect().select;
-    const input = select?.querySelector('input[id]');
-    return input?.id ? `#${CSS.escape(input.id)}` : null;
-  });
+  // Re-resolve after the platform step: the multi-platform switch can
+  // re-render the form and change the generated input ids.
+  const keywordSelector = await page.evaluate(resolveKeywordSelector);
   if (keywordSelector == null) throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric keyword search input is not visible');
   for (const keyword of [...currentKeywords].filter(value => !spec.keywords.includes(value))) await page.pressKey('Backspace');
   for (const keyword of spec.keywords.filter(value => !currentKeywords.has(value))) {

@@ -468,6 +468,25 @@ test('keyword fill fails before fillText when no keyword select exists', async (
   assert.equal(fillCalls, 0);
 });
 
+test('multi-platform keyword precheck fails before any platform typing', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const html = `<div id="QuerySearchBuilder"><div class="ant-space-item"><div class="filter-label"><span class="label">Platform</span></div><div class="ant-select ant-select-multiple"><input id="platform-multi-input" /></div></div></div>`;
+  let fillCalls = 0;
+  let keyCalls = 0;
+  const page = {
+    evaluate: async (fn: Function, argument?: unknown) => withMetricDom(html, () => fn(argument)),
+    click: async () => {},
+    pressKey: async () => { keyCalls += 1; },
+    fillText: async () => { fillCalls += 1; },
+  };
+  const spec = { keywords: ['missing-control-term'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-01-01', endDate: '2026-01-30' }, category: null };
+  const initial = { appliedFilters: { keywords: [], platforms: ['shopee'], period: spec.period, category: null } };
+  await assert.rejects(() => adapter.__test__.applyMetricSpec(page, spec, initial), (error: any) => error.code === 'METRIC_UI_CHANGED');
+  assert.equal(fillCalls, 0);
+  assert.equal(keyCalls, 0);
+});
+
 test('ambiguous multiple-select structure is not treated as the keyword control', async () => {
   await installOpenCliTestStub();
   const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
