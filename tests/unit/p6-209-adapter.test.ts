@@ -575,10 +575,12 @@ function fakePage(observation: any, result: any, resultDom: any = null, networkR
   let searched = false;
   const state = { paginationClicks: 0, platformSwitches: 0 };
   const calls: string[] = [];
+  const clickRecords: Array<{ selector: string; options?: any }> = [];
   const screenshotCalls: any[] = [];
   const maskCalls: string[] = [];
   const page: any = {
     calls,
+    clickRecords,
     screenshotCalls,
     maskCalls,
     newTab: async () => 'synthetic-tab',
@@ -591,8 +593,18 @@ function fakePage(observation: any, result: any, resultDom: any = null, networkR
         return behavior.searchObservation ? behavior.searchObservation(state, result) : result;
       }
       if (fn.name === 'readCommittedKeywords') return commandSpec.keywords;
-      if (fn.name === 'dispatchSelectKey') { calls.push(`selectkey:${(arg as any).key}`); return true; }
       if (fn.name === 'resolveKeywordSelector') return { inputSelector: '#keyword-input', selectSelector: '#keyword-selector' };
+      if (fn.name === 'resolvePlatformSelector') return behavior.platformSelector || {
+        inputSelector: '#platform-input', rootSelector: '#QuerySearchBuilder .ant-select:has(#platform-input)',
+        selectSelector: '#QuerySearchBuilder .ant-select:has(#platform-input) > .ant-select-selector', isMultiple: true,
+      };
+      if (fn.name === 'platformRemoveIndex') return behavior.platformRemoveIndex ?? null;
+      if (fn.toString().includes('button.switch-button')) return behavior.platformMode || 'Multiple platforms';
+      if (fn.toString().includes('optionIndex')) {
+        if (behavior.missingOption === (arg as any)?.label) return null;
+        if (behavior.selectedOption === (arg as any)?.label) return -1;
+        return behavior.optionIndex ?? 0;
+      }
       if (fn.toString().includes('document.activeElement === input')) return true;
       if (fn.name === 'observeResultPage') return behavior.resultDom ? behavior.resultDom(state, resultDom) : resultDom || { html: '<html></html>', regions: {}, screenshotRegions: {}, platformViews: [] };
       if (fn.name === 'prepareScreenshotClip') { maskCalls.push('prepare'); return behavior.screenshotClip ? behavior.screenshotClip(state) : { clip: { x: 12, y: 24, width: 320, height: 180 }, maskedCount: 1 }; }
@@ -603,6 +615,7 @@ function fakePage(observation: any, result: any, resultDom: any = null, networkR
     },
     click: async (selector: string, options?: any) => {
       calls.push(`click:${selector}`);
+      clickRecords.push({ selector, options });
       if (selector === 'button,[role="button"]') searched = true;
       if (selector === 'next' || (typeof selector === 'string' && (selector.includes('ant-pagination-next') || selector.includes('Next Page')))) state.paginationClicks += 1;
       if (typeof selector === 'string' && (selector.includes('data-metric-platform') || selector.includes('data-platform-view') || selector === 'platform-view')) state.platformSwitches += 1;
@@ -741,29 +754,108 @@ test('a tab-close failure fails the adapter command', async () => {
   await assert.rejects(() => adapter.whoamiCommand.func(page), /synthetic close failure/);
 });
 
-test('platform select key carries the legacy key code and cannot submit a form', async () => {
+const keywordFormHtml = `<div id="QuerySearchBuilder"><div class="ant-space-item"><div class="filter-label"><span class="label">Platform</span></div><div class="ant-select"><input id="platform-input" /></div></div><div class="ant-space-item"><div class="filter-label"><span class="label">Từ khóa</span></div><div class="ant-select ant-select-multiple"><div class="ant-select-selector"><div class="ant-select-selection-overflow"><div class="ant-select-selection-overflow-item"><span class="ant-tag ks-chip">old-term<span class="ant-tag-close-icon">×</span></span></div><div class="ant-select-selection-overflow-item ant-select-selection-overflow-item-suffix"><input id="keyword-input" /></div></div></div></div></div></div>`;
+
+function platformOptionPage(options: { selected?: string[]; missingTiktok?: boolean; removeIndex?: number } = {}) {
+  const fixture = (name: string) => load('metric-platform-control').then(value => value[name]);
+  let mode: 'single' | 'multi' = 'single';
+  let dropdownOpen = false;
+  const selected = new Set(options.selected || ['shopee']);
+  const calls: string[] = [];
+  const clickRecords: Array<{ selector: string; options?: any }> = [];
+  const page: any = {
+    calls,
+    clickRecords,
+    wait: async () => {},
+    evaluate: async (fn: Function, argument?: unknown) => {
+      if (fn.name === 'observeMetricPage') return { url: 'https://metric.vn/analytics', bodyText: '', metricRootVisible: true, warningVisible: false };
+      if (fn.name === 'platformRemoveIndex') return options.removeIndex ?? null;
+      if (fn.toString().includes('document.activeElement === input')) return true;
+      const controls = await fixture(mode === 'single' ? 'single' : selected.has('tiktok') ? 'multiShopeeTiktok' : 'multiShopee');
+      let html = controls;
+      if (dropdownOpen) {
+        let dropdown = await fixture(options.missingTiktok ? 'dropdownWithoutTiktok' : 'dropdown');
+        if (selected.has('tiktok')) dropdown = dropdown.replace('ant-select-item-option" aria-selected="false">Tiktok', 'ant-select-item-option ant-select-item-option-selected" aria-selected="true">Tiktok');
+        html += dropdown;
+      }
+      return withMetricDom(html, () => fn(argument));
+    },
+    click: async (selector: string, clickOptions?: any) => {
+      calls.push(`click:${selector}`);
+      clickRecords.push({ selector, options: clickOptions });
+      if (selector === '#QuerySearchBuilder button.switch-button') { mode = 'multi'; return; }
+      if (selector.includes('> .ant-select-selector')) { dropdownOpen = true; return; }
+      if (selector === '[role="option"],.ant-select-item-option') {
+        const labels = options.missingTiktok ? ['Shopee', 'Lazada', 'Tiki'] : ['Shopee', 'Lazada', 'Tiki', 'Tiktok'];
+        const label = labels[clickOptions?.nth];
+        if (label) selected.add(label.toLowerCase() === 'tiktok' ? 'tiktok' : label.toLowerCase());
+      }
+    },
+    fillText: async (selector: string, text: string) => calls.push(`fill:${selector}:${text}`),
+    cdp: async (method: string, params: any) => calls.push(`cdp:${method}:${params.type}:${params.key}`),
+    pressKey: async (key: string) => calls.push(`key:${key}`),
+  };
+  return page;
+}
+
+test('multi-platform option clicks use the re-rendered Platform root and never fill or press Enter', async () => {
   await installOpenCliTestStub();
   const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
-  const html = `<form id="synthetic-form"><div class="ant-select"><input id="synthetic-platform" /></div><button type="submit">Analyze</button></form>`;
-  const seen = withMetricDom(html, () => {
-    const events: string[] = [];
-    const input = document.querySelector('#synthetic-platform')!;
-    for (const type of ['keydown', 'keyup']) input.addEventListener(type, (event: any) => events.push(`${event.type}:${event.key}:${event.keyCode}:${event.which}:${event.isTrusted}`));
-    document.querySelector('#synthetic-form')!.addEventListener('submit', () => events.push('submit'));
-    const results = [
-      adapter.__test__.dispatchSelectKey({ selector: '#synthetic-platform', key: 'Enter' }),
-      adapter.__test__.dispatchSelectKey({ selector: '#synthetic-platform', key: 'Backspace' }),
-      adapter.__test__.dispatchSelectKey({ selector: '#missing-input', key: 'Enter' }),
-      adapter.__test__.dispatchSelectKey({ selector: '#synthetic-platform', key: 'Tab' }),
-    ];
-    return { events, results, focused: document.activeElement?.id };
-  });
-  assert.deepEqual(seen.results, [true, false, false, false]);
-  assert.deepEqual(seen.events, ['keydown:Enter:13:13:false', 'keyup:Enter:13:13:false']);
-  assert.equal(seen.focused, 'synthetic-platform');
+  const page = platformOptionPage();
+  const spec = { keywords: ['synthetic-term'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-01-01', endDate: '2026-01-30' }, category: null };
+  const initial = { appliedFilters: { keywords: [], platforms: ['shopee'], period: spec.period, category: null } };
+  await adapter.__test__.applyMetricSpec(page, spec, initial);
+  assert.deepEqual(page.calls.slice(0, 3), [
+    'click:#QuerySearchBuilder button.switch-button',
+    'click:#QuerySearchBuilder .ant-select:has(#rc_select_14) > .ant-select-selector',
+    'click:[role="option"],.ant-select-item-option',
+  ]);
+  assert.equal(page.clickRecords[2].options.nth, 3);
+  assert.ok(!page.calls.some((call: string) => call.startsWith('fill:#rc_select_')));
+  assert.ok(!page.calls.some((call: string) => call.includes('Enter')));
 });
 
-const keywordFormHtml = `<div id="QuerySearchBuilder"><div class="ant-space-item"><div class="filter-label"><span class="label">Platform</span></div><div class="ant-select"><input id="platform-input" /></div></div><div class="ant-space-item"><div class="filter-label"><span class="label">Từ khóa</span></div><div class="ant-select ant-select-multiple"><div class="ant-select-selector"><div class="ant-select-selection-overflow"><div class="ant-select-selection-overflow-item"><span class="ant-tag ks-chip">old-term<span class="ant-tag-close-icon">×</span></span></div><div class="ant-select-selection-overflow-item ant-select-selection-overflow-item-suffix"><input id="keyword-input" /></div></div></div></div></div></div>`;
+test('already-selected platform options are not clicked', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const page = platformOptionPage({ selected: ['shopee', 'tiktok'] });
+  const spec = { keywords: ['synthetic-term'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-01-01', endDate: '2026-01-30' }, category: null };
+  const initial = { appliedFilters: { keywords: [], platforms: ['shopee'], period: spec.period, category: null } };
+  await adapter.__test__.applyMetricSpec(page, spec, initial);
+  assert.equal(page.clickRecords.filter((record: any) => record.selector === '[role="option"],.ant-select-item-option').length, 0);
+});
+
+test('missing platform option fails before the keyword step', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const page = platformOptionPage({ missingTiktok: true });
+  const spec = { keywords: ['synthetic-term'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-01-01', endDate: '2026-01-30' }, category: null };
+  const initial = { appliedFilters: { keywords: [], platforms: ['shopee'], period: spec.period, category: null } };
+  await assert.rejects(() => adapter.__test__.applyMetricSpec(page, spec, initial), (error: any) => error.code === 'METRIC_UI_CHANGED');
+  assert.ok(!page.calls.some((call: string) => call.startsWith('fill:') || call.startsWith('cdp:') || call === 'key:Escape'));
+});
+
+test('platform removal uses the scoped selected-item remove control', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const form = await load('metric-form');
+  const page = fakePage({ ...form, appliedFilters: { keywords: [], platforms: ['shopee', 'lazada'], period: { startDate: '2026-01-01', endDate: '2026-01-30' }, category: null } }, {}, null, [], { platformRemoveIndex: 1 });
+  const spec = { keywords: ['synthetic-term'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-01-01', endDate: '2026-01-30' }, category: null };
+  await adapter.__test__.applyMetricSpec(page, spec, { appliedFilters: { keywords: [], platforms: ['shopee', 'lazada'], period: spec.period, category: null } });
+  const remove = page.clickRecords.find((record: any) => record.selector.endsWith('.ant-select-selection-item-remove'));
+  assert.ok(remove);
+  assert.equal(remove.selector, '#QuerySearchBuilder .ant-select:has(#platform-input) .ant-select-selection-item-remove');
+  assert.equal(remove.options.nth, 1);
+  assert.ok(!remove.selector.includes(' ~ '));
+});
+
+test('multi-platform read-back uses the selected item content from the Round 5 fixture', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const fixture = await load('metric-platform-control');
+  const observation = withMetricDom(fixture.multiShopeeTiktok, () => adapter.__test__.observeMetricPage(false));
+  assert.deepEqual(observation.appliedFilters.platforms, ['shopee', 'tiktok']);
+});
 
 function keywordFormPage(fillResult: unknown, html = keywordFormHtml) {
   const calls: string[] = [];
@@ -771,7 +863,6 @@ function keywordFormPage(fillResult: unknown, html = keywordFormHtml) {
   const page = {
     calls,
     evaluate: async (fn: Function, argument?: unknown) => {
-      if (fn.name === 'dispatchSelectKey') calls.push(`selectkey:${(argument as any).selector}:${(argument as any).key}`);
       if (fn.toString().includes('document.activeElement === input')) return keywordFocused;
       return withMetricDom(html, () => fn(argument));
     },
@@ -797,7 +888,6 @@ test('keyword commit uses a native selector click, verified fill, and trusted co
     'cdp:Input.dispatchKeyEvent:keyDown:,:Comma:188:188:,',
     'cdp:Input.dispatchKeyEvent:keyUp:,:Comma:188:188:,',
   ]);
-  assert.ok(!page.calls.some(call => call.startsWith('selectkey:')));
   assert.ok(!page.calls.includes('key:Enter'));
   assert.ok(!page.calls.includes('key:Backspace'));
 });
@@ -813,7 +903,7 @@ test('unverified keyword text stops before any comma is dispatched', async () =>
     assert.deepEqual(error.details, { filled: true, verified: false });
     return true;
   });
-  assert.ok(!page.calls.some(call => call.startsWith('selectkey:') || call.startsWith('cdp:Input.dispatchKeyEvent')));
+  assert.ok(!page.calls.some(call => call.startsWith('cdp:Input.dispatchKeyEvent')));
 });
 
 test('keyword commit stops before fill when the trusted comma path is unavailable', async () => {
@@ -848,6 +938,8 @@ test('platform mismatch after the keyword commit blocks the search before any lo
     return true;
   });
   assert.equal(page.searched, false);
-  assert.ok(page.calls.includes('selectkey:Enter'));
+  assert.ok(page.calls.includes('click:#QuerySearchBuilder .ant-select:has(#platform-input) > .ant-select-selector'));
+  assert.ok(page.calls.includes('click:[role="option"],.ant-select-item-option'));
+  assert.ok(!page.calls.some((call: string) => call.startsWith('fill:#platform-input:')));
   assert.ok(!page.calls.includes('key:Enter'));
 });

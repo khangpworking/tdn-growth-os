@@ -529,22 +529,30 @@ async function readSpec(path) {
 
 function writeJson(path, value) { return writeFile(path, `${JSON.stringify(value, null, 2)}\n`, 'utf8'); }
 
-async function visibleOptionIndex(page, wanted) {
-  const index = await page.evaluate(label => {
+async function visibleOptionIndex(page, wanted, { skipSelected = false } = {}) {
+  const index = await page.evaluate(({ label, skipSelected: shouldSkipSelected }) => {
     const clean = value => String(value ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
     const target = clean(label);
-    return [...document.querySelectorAll('[role="option"],.ant-select-item-option')].findIndex(element => {
+    const options = [...document.querySelectorAll('[role="option"],.ant-select-item-option')];
+    const optionIndex = options.findIndex(element => {
       const style = getComputedStyle(element); const rect = element.getBoundingClientRect();
       return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
         && clean(element.innerText || element.textContent) === target;
     });
-  }, wanted);
-  if (!Number.isInteger(index) || index < 0) throw new MetricAdapterError('METRIC_UI_CHANGED', `Metric option is missing: ${wanted}`);
+    if (optionIndex < 0) return null;
+    const element = options[optionIndex];
+    return shouldSkipSelected && (element.classList.contains('ant-select-item-option-selected') || element.getAttribute('aria-selected') === 'true')
+      ? -1
+      : optionIndex;
+  }, { label: wanted, skipSelected });
+  if (!Number.isInteger(index) || index < -1) throw new MetricAdapterError('METRIC_UI_CHANGED', `Metric option is missing: ${wanted}`);
   return index;
 }
 
-async function clickVisibleOption(page, wanted) {
-  await page.click('[role="option"],.ant-select-item-option', { nth: await visibleOptionIndex(page, wanted) });
+async function clickVisibleOption(page, wanted, { skipSelected = false } = {}) {
+  const index = await visibleOptionIndex(page, wanted, { skipSelected });
+  if (index === -1) return;
+  await page.click('[role="option"],.ant-select-item-option', { nth: index });
 }
 
 async function clickVisibleText(page, labels) {
@@ -625,28 +633,45 @@ function resolveKeywordSelector() {
   };
 }
 
-// Serialized by OpenCLI for the platform multi-select only. The keyword select
-// is a Vue control and is committed through the trusted comma path below.
-function dispatchSelectKey({ selector, key }) {
-  const codes = { Enter: 13 };
-  const input = document.querySelector(selector);
-  if (!input || !Object.prototype.hasOwnProperty.call(codes, key)) return false;
-  const KeyboardEventType = input.ownerDocument?.defaultView?.KeyboardEvent;
-  if (typeof KeyboardEventType !== 'function') return false;
-  input.focus();
-  for (const type of ['keydown', 'keyup']) {
-    const event = new KeyboardEventType(type, { key, code: key, keyCode: codes[key], which: codes[key], bubbles: true, cancelable: true });
-    Object.defineProperty(event, 'keyCode', { get: () => codes[key] });
-    Object.defineProperty(event, 'which', { get: () => codes[key] });
-    input.dispatchEvent(event);
-  }
-  return true;
+function resolvePlatformSelector() {
+  const visible = element => {
+    if (!element) return false;
+    const style = getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+  };
+  const label = [...document.querySelectorAll('#QuerySearchBuilder .filter-label .label')]
+    .find(element => (element.innerText || element.textContent || '').replace(/\s+/g, ' ').trim() === 'Platform');
+  const container = label?.closest('.ant-space-item');
+  const select = [...(container?.querySelectorAll('.ant-select') || [])].find(visible);
+  const input = select?.querySelector('input[id]');
+  if (!input?.id || !select) return null;
+  const inputSelector = `#${CSS.escape(input.id)}`;
+  const rootSelector = `#QuerySearchBuilder .ant-select:has(${inputSelector})`;
+  return {
+    inputSelector,
+    rootSelector,
+    selectSelector: `${rootSelector} > .ant-select-selector`,
+    isMultiple: select.classList.contains('ant-select-multiple') && !select.classList.contains('ant-select-single'),
+  };
 }
 
-async function pressSelectKey(page, selector, key) {
-  if (await page.evaluate(dispatchSelectKey, { selector, key }) !== true) {
-    throw new MetricAdapterError('METRIC_UI_CHANGED', `Metric select input is not available for ${key}`);
-  }
+function platformRemoveIndex({ inputSelector, wanted }) {
+  const input = document.querySelector(inputSelector);
+  const select = input?.closest('.ant-select');
+  if (!select) return null;
+  const clean = value => String(value ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const wantedText = { shopee: 'Shopee', tiktok: 'Tiktok', lazada: 'Lazada', tiki: 'Tiki' }[wanted];
+  if (!wantedText) return null;
+  const item = [...select.querySelectorAll('.ant-select-selection-item')].find(element => {
+    const content = element.querySelector('.ant-select-selection-item-content');
+    return clean(content?.getAttribute('title') || content?.textContent || element.textContent) === clean(wantedText);
+  });
+  const remove = item?.querySelector('.ant-select-selection-item-remove');
+  if (!remove) return null;
+  const removes = [...select.querySelectorAll('.ant-select-selection-item-remove')];
+  const index = removes.indexOf(remove);
+  return index >= 0 ? index : null;
 }
 
 async function pressTrustedComma(page, selector) {
@@ -711,6 +736,7 @@ async function applyMetricSpec(page, spec, initialObservation) {
   if (needsKeywordCommit && typeof page.cdp !== 'function') {
     throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric trusted comma input path is unavailable');
   }
+  let platformSelector = null;
   if (wantedPlatforms.size > 1) {
     const platformMode = await page.evaluate(() => {
       const button = [...document.querySelectorAll('#QuerySearchBuilder button.switch-button')]
@@ -718,8 +744,13 @@ async function applyMetricSpec(page, spec, initialObservation) {
       return button ? (button.innerText || button.textContent || '').replace(/\s+/g, ' ').trim() : null;
     });
     if (platformMode && /multiple platforms/i.test(platformMode)) {
-      await page.click('button.switch-button');
+      await page.click('#QuerySearchBuilder button.switch-button');
       await gateCurrentMetricPage(page);
+    }
+    platformSelector = await page.evaluate(resolvePlatformSelector);
+    if (platformSelector == null) throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric platform search input is not visible');
+    if (platformSelector.isMultiple !== true) {
+      throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric platform control did not switch to multiple mode');
     }
   }
   // Fail closed before any platform typing or option click when the keyword
@@ -727,48 +758,25 @@ async function applyMetricSpec(page, spec, initialObservation) {
   if (await page.evaluate(resolveKeywordSelector) == null) {
     throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric keyword search input is not visible');
   }
-  const platformSelector = await page.evaluate(() => {
-    const visible = element => {
-      if (!element) return false;
-      const style = getComputedStyle(element);
-      const rect = element.getBoundingClientRect();
-      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
-    };
-    const label = [...document.querySelectorAll('#QuerySearchBuilder .filter-label .label')]
-      .find(element => (element.innerText || element.textContent || '').trim() === 'Platform');
-    const container = label?.closest('.ant-space-item');
-    const select = [...(container?.querySelectorAll('.ant-select') || [])].find(visible);
-    const input = select?.querySelector('input[id]');
-    return input?.id ? `#${CSS.escape(input.id)}` : null;
-  });
+  platformSelector ||= await page.evaluate(resolvePlatformSelector);
   if (platformSelector == null) throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric platform search input is not visible');
+  if (wantedPlatforms.size > 1 && platformSelector.isMultiple !== true) {
+    throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric platform control did not switch to multiple mode');
+  }
   if (wantedPlatforms.size > 1) {
-    // In multi-platform mode the page uses a new, visible search input (for
-    // example of a new generated id). The old single-platform input is hidden, and
-    // clicking it makes the live form reject the option lookup. Selecting by
-    // text and Enter also works with the virtualised option list.
     for (const platform of [...wantedPlatforms].filter(value => !currentPlatforms.has(value))) {
-      await fillVerified(page, platformSelector, platform === 'tiktok' ? 'Tiktok' : 'Shopee');
-      await pressSelectKey(page, platformSelector, 'Enter');
+      await page.click(platformSelector.selectSelector);
+      await clickVisibleOption(page, platform === 'tiktok' ? 'Tiktok' : 'Shopee', { skipSelected: true });
     }
-    // Remove an accidentally retained platform only when the form exposes a
-    // removable tag for that platform. The approved capture starts with
-    // Shopee selected and adds Tiktok, so this path is not needed there.
     for (const platform of [...currentPlatforms].filter(value => !wantedPlatforms.has(value))) {
-      const tagIndex = await page.evaluate(({ selector, wanted }) => {
-        const input = document.querySelector(selector);
-        const select = input?.closest('.ant-select');
-        if (!select) return -1;
-        const clean = value => String(value ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
-        return [...select.querySelectorAll('.ant-select-selection-item')]
-          .findIndex(element => clean(element.innerText || element.textContent) === clean(wanted === 'tiktok' ? 'Tiktok' : 'Shopee'));
-      }, { selector: platformSelector, wanted: platform });
-      if (Number.isInteger(tagIndex) && tagIndex >= 0) {
-        await page.click(`${platformSelector} ~ .ant-select-selection-item-remove`, { nth: tagIndex });
+      const removeIndex = await page.evaluate(platformRemoveIndex, { inputSelector: platformSelector.inputSelector, wanted: platform });
+      if (!Number.isInteger(removeIndex) || removeIndex < 0) {
+        throw new MetricAdapterError('METRIC_UI_CHANGED', `Metric platform remove control is unavailable for ${platform}`);
       }
+      await page.click(`${platformSelector.rootSelector} .ant-select-selection-item-remove`, { nth: removeIndex });
     }
   } else {
-    await page.click(platformSelector);
+    await page.click(platformSelector.inputSelector);
     for (const platform of [...currentPlatforms].filter(value => !wantedPlatforms.has(value))) await clickVisibleOption(page, platform === 'tiktok' ? 'Tiktok' : 'Shopee');
     for (const platform of [...wantedPlatforms].filter(value => !currentPlatforms.has(value))) await clickVisibleOption(page, platform === 'tiktok' ? 'Tiktok' : 'Shopee');
   }
@@ -1280,5 +1288,5 @@ export const captureCommand = cli({
   }),
 });
 
-export const __test__ = { asCliError, withMetricTab, readObservation, applyMetricSpec, performSearch, waitForKeywordCommit, dispatchSelectKey, observeMetricPage, observeResultPage, collectResultPages, archiveResultsPage, readCommittedKeywords };
+export const __test__ = { asCliError, withMetricTab, readObservation, applyMetricSpec, performSearch, waitForKeywordCommit, observeMetricPage, observeResultPage, collectResultPages, archiveResultsPage, readCommittedKeywords };
 export { assertMetricUrl, parseMetricForm };
