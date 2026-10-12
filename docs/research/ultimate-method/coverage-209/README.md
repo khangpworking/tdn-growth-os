@@ -9,6 +9,7 @@ Cập nhật: 2026-10-12 · Gốc: `origin/main` 0b514408 · Nguồn quy tắc: 
 | [market.md](market.md) | 13 section Market: mỗi quy tắc được code kiểm, kiểm một phần, hay mới chỉ có trên giấy |
 | [insight.md](insight.md) | Kết luận chính và 17 section Insight: cùng cách đánh giá |
 | [doc-consistency.md](doc-consistency.md) | Các chỗ tài liệu mâu thuẫn nhau (use case UC-1 trong `docs/runbooks/ontology-use-cases-and-maintenance.md`) |
+| [../source-status.md](../source-status.md) | Trạng thái hiện tại của từng nguồn S01–S27 và nhật ký đổi trạng thái (lập theo phát hiện 7; chỉ để đọc, không code nào đọc) |
 
 ## Tóm tắt
 
@@ -17,7 +18,7 @@ Cập nhật: 2026-10-12 · Gốc: `origin/main` 0b514408 · Nguồn quy tắc: 
 | Market | 35 | 5 | 24 | 3 | 3 |
 | Insight | 54 | 16 | 32 | 3 | 3 |
 
-Tài liệu mâu thuẫn nhau: 40 chỗ, gồm 3 mức cao, 19 mức vừa, 18 mức thấp. Ngày 12/10/2026 đã sửa 34 chỗ (cả 3 mức cao: S03, S16 và S08 nay được đánh dấu chưa dùng được trong bảng "section nào dùng nguồn nào"; 5 chỗ sửa theo quyết định của chủ cùng ngày); 1 chỗ cần chủ quyết (bộ nhãn trạng thái nguồn); 5 chỗ để sau.
+Tài liệu mâu thuẫn nhau: 40 chỗ, gồm 3 mức cao, 19 mức vừa, 18 mức thấp. Ngày 12/10/2026 đã sửa 35 chỗ (cả 3 mức cao: S03, S16 và S08 nay được đánh dấu chưa dùng được trong bảng "section nào dùng nguồn nào"; 6 chỗ sửa theo quyết định của chủ cùng ngày, gồm bộ nhãn trạng thái nguồn nay ở `../source-status.md`); 0 chỗ cần chủ quyết; 5 chỗ để sau.
 
 ## Cách cập nhật
 

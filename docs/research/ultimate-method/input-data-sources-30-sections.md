@@ -50,7 +50,9 @@ Mỗi nguồn được chấm theo **hai trục riêng**, không gộp thành m�
 
 Cột "Công cụ" chỉ dùng trong tài liệu kỹ thuật. Trạng thái tính tới 08/10/2026; S07, S15, S21, S22 cập nhật ngày 12/10/2026.
 
-Ngày 12/10/2026 chủ duyệt S07, S15, S21, S22, ghi "Đã duyệt (chủ 12/10/2026)" ở cột trạng thái. Theo E14 của file Ultimate, hệ thống được tự thu các nguồn này trong trần chi đã cấu hình. Bộ nhãn trạng thái chung cho cả danh mục chưa chốt.
+Ngày 12/10/2026 chủ duyệt S07, S15, S21, S22, ghi "Đã duyệt (chủ 12/10/2026)" ở cột trạng thái. Theo E14 của file Ultimate, hệ thống được tự thu các nguồn này trong trần chi đã cấu hình.
+
+Nhãn hiện tại của từng nguồn (5 nhãn, chủ chốt 12/10/2026) và nhật ký đổi nhãn nằm ở [Trạng thái nguồn dữ liệu](source-status.md). Trang đó chỉ để đọc, không có code nào đọc nhãn. Cột "Trạng thái" ở đây giữ ghi chú chi tiết.
 
 **Quy ước trạng thái:**
 - **Đang dùng:** đã có trong luồng hoặc đã dùng cho báo cáo.
@@ -201,5 +203,5 @@ Lịch sử từng lần thử thu và kiểm định nằm ở **[Input data so
 1. Thêm một dòng vào mục 2 với mã S kế tiếp, kèm hạng, độ đại diện, trạng thái và ràng buộc.
 2. Cập nhật bảng section ở mục 3 nếu nguồn được dùng cho section nào.
 3. Nếu nguồn cần quy tắc mới (ví dụ phải ghi tên nguồn, như E12), thêm quy tắc vào file Ultimate.
-4. Sau mỗi lần thử hoặc kiểm định nguồn, thêm một dòng vào [nhật ký test và kiểm định](input-data-sources-test-log.md). Nếu hạng hoặc trạng thái đổi, sửa mục 2 trong cùng commit.
+4. Sau mỗi lần thử hoặc kiểm định nguồn, thêm một dòng vào [nhật ký test và kiểm định](input-data-sources-test-log.md). Nếu hạng hoặc trạng thái đổi, sửa mục 2 trong cùng commit; trạng thái đổi thì sửa cả [trang trạng thái nguồn](source-status.md) và thêm một dòng nhật ký ở đó.
 5. Ghi một dòng vào [CHANGELOG.md](CHANGELOG.md), cùng commit.
