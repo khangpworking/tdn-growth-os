@@ -124,6 +124,11 @@ function observeMetricPage(includeResults = true) {
     return input?.id ? `#${CSS.escape(input.id)}` : '.ant-select';
   };
   const labels = [...document.querySelectorAll('#QuerySearchBuilder .filter-label .label')];
+  const tagText = element => {
+    const clone = element?.cloneNode?.(true);
+    if (clone) clone.querySelectorAll('.ant-tag-close-icon').forEach(icon => icon.remove());
+    return textOf(clone || element);
+  };
   const labelledSelect = label => {
     const match = labels.find(element => textOf(element) === label);
     const container = match?.closest('.ant-space-item');
@@ -131,6 +136,9 @@ function observeMetricPage(includeResults = true) {
   };
   const selectionTexts = element => {
     if (!element) return [];
+    const tagChips = element === keywordSelect ? [...element.querySelectorAll('.ant-select-selection-overflow-item:not(.ant-select-selection-overflow-item-suffix) .ant-tag.ks-chip')]
+      .map(tagText).filter(Boolean) : [];
+    if (tagChips.length) return [...new Set(tagChips)];
     const chips = [...element.querySelectorAll('.ant-select-selection-item-content,[data-value]')];
     const values = (chips.length ? chips : [...element.querySelectorAll('.ant-select-selection-item,[aria-selected="true"]')])
       .map(item => item.getAttribute?.('title') || textOf(item)).filter(value => value && !/^select|placeholder/i.test(value));
@@ -400,11 +408,17 @@ function readCommittedKeywords() {
   };
   const located = locateKeywordSelect();
   const select = located.select;
+  const tagText = element => {
+    const clone = element?.cloneNode?.(true);
+    if (clone) clone.querySelectorAll('.ant-tag-close-icon').forEach(icon => icon.remove());
+    return textOf(clone || element);
+  };
+  const tagChips = select ? [...select.querySelectorAll('.ant-select-selection-overflow-item:not(.ant-select-selection-overflow-item-suffix) .ant-tag.ks-chip')] : [];
   const chips = select ? [...select.querySelectorAll('.ant-select-selection-item-content,[data-value]')] : [];
   const fallbackChips = select ? [...select.querySelectorAll('.ant-select-selection-item')] : [];
-  const chipElements = chips.length ? chips : fallbackChips;
+  const chipElements = tagChips.length ? tagChips : (chips.length ? chips : fallbackChips);
   const values = chipElements
-    .map(element => element.getAttribute('title') || element.getAttribute('data-value') || textOf(element))
+    .map(element => tagChips.length ? tagText(element) : (element.getAttribute('title') || element.getAttribute('data-value') || textOf(element)))
     .map(value => String(value).replace(/\s+/g, ' ').trim()).filter(Boolean);
   const input = select?.querySelector('input[id]');
   const inputValue = input?.value?.trim() || '';
@@ -422,6 +436,11 @@ function readKeywordCommitDiagnostics(expectedKeywords = []) {
     return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
   };
   const textOf = element => (element?.innerText || element?.textContent || '').replace(/\s+/g, ' ').trim();
+  const tagText = element => {
+    const clone = element?.cloneNode?.(true);
+    if (clone) clone.querySelectorAll('.ant-tag-close-icon').forEach(icon => icon.remove());
+    return textOf(clone || element);
+  };
   const locateKeywordSelect = () => {
     const root = document.querySelector('#QuerySearchBuilder');
     if (!root) return { select: null, locatedBy: 'none' };
@@ -454,11 +473,12 @@ function readKeywordCommitDiagnostics(expectedKeywords = []) {
   };
   const located = locateKeywordSelect();
   const select = located.select;
+  const tagChips = select ? [...select.querySelectorAll('.ant-select-selection-overflow-item:not(.ant-select-selection-overflow-item-suffix) .ant-tag.ks-chip')] : [];
   const chips = select ? [...select.querySelectorAll('.ant-select-selection-item-content,[data-value]')] : [];
   const fallbackChips = select ? [...select.querySelectorAll('.ant-select-selection-item')] : [];
-  const chipElements = chips.length ? chips : fallbackChips;
+  const chipElements = tagChips.length ? tagChips : (chips.length ? chips : fallbackChips);
   const values = chipElements
-    .map(element => element.getAttribute('title') || element.getAttribute('data-value') || textOf(element))
+    .map(element => tagChips.length ? tagText(element) : (element.getAttribute('title') || element.getAttribute('data-value') || textOf(element)))
     .map(value => String(value).replace(/\s+/g, ' ').trim()).filter(Boolean);
   const input = select?.querySelector('input[id]');
   const inputValue = input?.value?.trim() || '';
@@ -599,16 +619,18 @@ function resolveKeywordSelector() {
   };
   const select = locateKeywordSelect().select;
   const input = select?.querySelector('input[id]');
-  return input?.id ? `#${CSS.escape(input.id)}` : null;
+  if (!input?.id || !select?.querySelector('.ant-select-selector')) return null;
+  const inputSelector = `#${CSS.escape(input.id)}`;
+  return {
+    inputSelector,
+    selectSelector: `#QuerySearchBuilder .ant-select:has(${inputSelector}) > .ant-select-selector`,
+  };
 }
 
-// Serialized by OpenCLI: keep this self-contained. OpenCLI's native pressKey
-// sends CDP key events without a key code, so the page reads keyCode/which = 0
-// and the Ant Design select ignores Enter and Backspace. These synthetic events
-// carry the legacy key code the select checks. They are untrusted, so they have
-// no default action and cannot submit a form.
+// Serialized by OpenCLI for the platform multi-select only. The keyword select
+// is a Vue control and is committed through the trusted comma path below.
 function dispatchSelectKey({ selector, key }) {
-  const codes = { Enter: 13, Backspace: 8 };
+  const codes = { Enter: 13 };
   const input = document.querySelector(selector);
   if (!input || !Object.prototype.hasOwnProperty.call(codes, key)) return false;
   const KeyboardEventType = input.ownerDocument?.defaultView?.KeyboardEvent;
@@ -629,6 +651,48 @@ async function pressSelectKey(page, selector, key) {
   }
 }
 
+async function pressTrustedComma(page, selector) {
+  if (typeof page.cdp !== 'function') {
+    throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric trusted comma input path is unavailable');
+  }
+  const focused = await page.evaluate(inputSelector => {
+    const input = document.querySelector(inputSelector);
+    return Boolean(input && document.activeElement === input);
+  }, selector);
+  if (focused !== true) {
+    throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric keyword input is not focused for comma commit');
+  }
+  const comma = { key: ',', code: 'Comma', windowsVirtualKeyCode: 188, nativeVirtualKeyCode: 188, text: ',' };
+  try {
+    await page.cdp('Input.dispatchKeyEvent', { type: 'keyDown', ...comma });
+    await page.cdp('Input.dispatchKeyEvent', { type: 'keyUp', ...comma });
+  } catch (error) {
+    throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric trusted comma input path failed');
+  }
+}
+
+async function removeKeywordByCloseIcon(page, selectors, keyword) {
+  const target = await page.evaluate(({ inputSelector, wanted }) => {
+    const input = document.querySelector(inputSelector);
+    const select = input?.closest('.ant-select');
+    if (!select) return null;
+    const clean = value => String(value ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+    const chip = [...select.querySelectorAll('.ant-select-selection-overflow-item:not(.ant-select-selection-overflow-item-suffix) .ant-tag.ks-chip')]
+      .find(element => {
+        const clone = element.cloneNode(true);
+        clone.querySelectorAll('.ant-tag-close-icon').forEach(icon => icon.remove());
+        return clean(clone.textContent) === clean(wanted);
+      });
+    const icon = chip?.querySelector('.ant-tag-close-icon');
+    if (!icon) return null;
+    const icons = [...select.querySelectorAll('.ant-tag-close-icon')];
+    const index = icons.indexOf(icon);
+    return index >= 0 ? { index } : null;
+  }, { inputSelector: selectors.inputSelector, wanted: keyword });
+  if (!target) throw new MetricAdapterError('METRIC_UI_CHANGED', `Metric keyword remove control is unavailable for ${keyword}`);
+  await page.click(`${selectors.selectSelector} .ant-tag-close-icon`, { nth: target.index });
+}
+
 async function fillVerified(page, selector, text) {
   const result = await page.fillText(selector, text);
   if (result && typeof result === 'object' && result.verified === false) {
@@ -643,6 +707,11 @@ async function applyMetricSpec(page, spec, initialObservation) {
   const currentPlatforms = new Set(current.platforms || []); const wantedPlatforms = new Set(spec.platforms);
   if (typeof page.click !== 'function' || typeof page.fillText !== 'function' || typeof page.pressKey !== 'function') {
     throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric form actions are unavailable');
+  }
+  const currentKeywords = new Set(current.keywords || []);
+  const needsKeywordCommit = spec.keywords.some(keyword => !currentKeywords.has(keyword));
+  if (needsKeywordCommit && typeof page.cdp !== 'function') {
+    throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric trusted comma input path is unavailable');
   }
   if (wantedPlatforms.size > 1) {
     const platformMode = await page.evaluate(() => {
@@ -706,18 +775,20 @@ async function applyMetricSpec(page, spec, initialObservation) {
     for (const platform of [...wantedPlatforms].filter(value => !currentPlatforms.has(value))) await clickVisibleOption(page, platform === 'tiktok' ? 'Tiktok' : 'Shopee');
   }
   // Close either platform dropdown, including the re-rendered multi-platform
-  // control, before Enter is used to commit a keyword.
+  // control, before the keyword input is focused.
   await page.pressKey('Escape').catch(() => {});
-  const currentKeywords = new Set(current.keywords || []);
   // Re-resolve after the platform step: the multi-platform switch can
   // re-render the form and change the generated input ids.
   const keywordSelector = await page.evaluate(resolveKeywordSelector);
   if (keywordSelector == null) throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric keyword search input is not visible');
-  for (const keyword of [...currentKeywords].filter(value => !spec.keywords.includes(value))) await pressSelectKey(page, keywordSelector, 'Backspace');
-  for (const keyword of spec.keywords.filter(value => !currentKeywords.has(value))) {
-    await fillVerified(page, keywordSelector, keyword); await pressSelectKey(page, keywordSelector, 'Enter');
+  for (const keyword of [...currentKeywords].filter(value => !spec.keywords.includes(value))) {
+    await removeKeywordByCloseIcon(page, keywordSelector, keyword);
   }
-  await page.pressKey('Escape').catch(() => {});
+  for (const keyword of spec.keywords.filter(value => !currentKeywords.has(value))) {
+    await page.click(keywordSelector.selectSelector);
+    await fillVerified(page, keywordSelector.inputSelector, keyword);
+    await pressTrustedComma(page, keywordSelector.inputSelector);
+  }
   if (spec.category !== undefined && spec.category !== current.category) {
     const categorySelector = await page.evaluate(() => {
       const visible = element => {
