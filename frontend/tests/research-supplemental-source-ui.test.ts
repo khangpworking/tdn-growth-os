@@ -30,7 +30,13 @@ const receipt: ResearchAutomationSupplementalPrepareReceipt = {
 function entry(value = receipt) { const { contractVersion: _v, exactRetry: _r, ...item } = value; return item; }
 const inventory = (packages = [entry()], id = runId) => ({ contractVersion: 'automation-supplemental-prepared-list-v1', workspaceId, runId: id, packages });
 const original = { pairId, versionNumber: 1, attemptId: null, outputs: [{ kind: 'MARKET', versionId: 'd'.repeat(64), pdfAvailable: true }, { kind: 'INSIGHT', versionId: 'e'.repeat(64), pdfAvailable: true }] };
-const settled = async () => { await act(async () => { await new Promise(resolve => setTimeout(resolve, 5)); }); };
+const nextTurn = () => act(async () => { await new Promise<void>(resolve => setTimeout(resolve, 1)); });
+async function until(check: () => boolean, label: string, ceilingMs = 30000) {
+  const deadline = Date.now() + ceilingMs;
+  let satisfied = check();
+  while (!satisfied && Date.now() < deadline) { await nextTurn(); satisfied = check(); }
+  assert.ok(satisfied, `${label}; current UI: ${document.body.textContent?.slice(-500) ?? '(empty)'}`);
+}
 function button(container: HTMLElement, label: string) { const found = [...container.querySelectorAll('button')].find(x => x.textContent?.trim() === label); assert.ok(found, label); return found; }
 async function click(container: HTMLElement, label: string) { await act(async () => { button(container, label).click(); }); }
 async function input(container: HTMLElement, id: string, value: string) {
@@ -59,7 +65,10 @@ async function mount(t: test.TestContext, handler: typeof fetch, parent = false)
   const { createRoot } = await import('react-dom/client'); const root = createRoot(dom.container);
   const { default: Component } = await tsImport(parent ? '../src/research-automation/ReportVersionsPanel.tsx' : '../src/research-automation/SupplementalSourcePanel.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' });
   const props = parent ? { run, ownerToken: token, writesAvailable: true } : { run, previousPairId: pairId, previousVersion: 1, ownerToken: token, blocker: null, disabled: false, onBusyChanged: () => {}, onRevisionSettled: () => {} };
-  const render = async (changes = {}) => { await act(async () => { root.render(createElement(Component, { ...props, ...changes })); }); await settled(); };
+  const render = async (changes = {}) => {
+    await act(async () => { root.render(createElement(Component, { ...props, ...changes })); });
+    await until(() => !dom.container.querySelector('[role="status"]')?.textContent?.includes('Đang xác minh'), 'panel render settled');
+  };
   t.after(async () => { await act(async () => root.unmount()); globalThis.fetch = prior; dom.cleanup(); });
   await render(); return { ...dom, root, render };
 }
@@ -86,17 +95,18 @@ test('parent stores without selecting, blocks other actions, then explicitly adm
   assert.equal(before.length, 4); assert.match(dom.container.textContent!, /Chưa có nguồn bổ sung/);
   await fillUpload(dom.container);
   await act(async () => { button(dom.container, 'Lưu gói nguồn, chưa đưa vào báo cáo').click(); button(dom.container, 'Lưu gói nguồn, chưa đưa vào báo cáo').click(); });
-  await settled(); assert.equal(writes.length, 1);
+  await until(() => writes.length === 1, 'upload request dispatched');
   assert.equal(button(dom.container, 'Tạo phiên bản báo cáo bổ sung').disabled, true);
   assert.equal(dom.container.querySelector<HTMLSelectElement>('#ra-report-version')!.disabled, true);
   const result = await uploaded(writes[0]!.body as FormData); packages = [entry(result)];
-  await act(async () => resolveUpload(json(result, 201))); await settled();
+  await act(async () => resolveUpload(json(result, 201)));
+  await until(() => dom.container.textContent?.includes('Nguồn đã lưu. Chọn nguồn') ?? false, 'uploaded source reloaded');
   assert.match(dom.container.textContent!, /Nguồn đã lưu\. Chọn nguồn/);
   assert.equal(dom.container.querySelector<HTMLInputElement>(`input[value="${packageId}"]`)!.checked, false);
   assert.equal(writes.length, 1);
   await choose(dom.container); await click(dom.container, 'Tạo phiên bản với nguồn đã chọn');
   assert.match(dom.container.querySelector('[role="dialog"]')!.textContent!, /phiên bản 1/);
-  await click(dom.container, 'Xác nhận tạo phiên bản'); await settled();
+  await click(dom.container, 'Xác nhận tạo phiên bản'); await until(() => writes.length === 2, 'revision request dispatched');
   assert.equal(writes.length, 2);
   assert.match(dom.container.textContent!, /Đã nhận lượt tạo phiên bản/);
   const body = JSON.parse(writes[1]!.body as string);
@@ -114,11 +124,12 @@ test('uncertain upload retries the identical snapshot only on click; late respon
     if (forms.length === 1) return new Promise<Response>(resolve => { oldResolve = resolve; });
     throw new Error('Response lost');
   }) as typeof fetch);
-  await fillUpload(dom.container); await click(dom.container, 'Lưu gói nguồn, chưa đưa vào báo cáo'); await settled();
-  await click(dom.container, 'Dừng chờ tải gói'); await settled(); assert.equal(forms.length, 1);
-  await click(dom.container, 'Thử lại đúng lượt tải gói'); await settled();
+  await fillUpload(dom.container); await click(dom.container, 'Lưu gói nguồn, chưa đưa vào báo cáo'); await until(() => forms.length === 1, 'first upload request dispatched');
+  await click(dom.container, 'Dừng chờ tải gói');
+  await click(dom.container, 'Thử lại đúng lượt tải gói'); await until(() => forms.length === 2, 'upload retry dispatched');
   assert.equal(forms.length, 2); assert.equal(forms[0]!.get('metadata'), forms[1]!.get('metadata'));
-  await act(async () => oldResolve(json(await uploaded(forms[0]!), 201))); await settled();
+  await act(async () => oldResolve(json(await uploaded(forms[0]!), 201)));
+  await until(() => dom.container.textContent?.includes('Chưa biết máy chủ đã lưu') ?? false, 'late upload retained');
   assert.match(dom.container.textContent!, /Chưa biết máy chủ đã lưu/);
   assert.equal(button(dom.container, 'Thử lại đúng lượt tải gói').disabled, false);
   await click(dom.container, 'Bỏ lượt chờ, tải lại nguồn bổ sung');
@@ -132,11 +143,12 @@ test('late upload after run switch cannot clear a newly mounted form or select a
     if (init?.method === 'POST') { form = init.body as FormData; return new Promise<Response>(done => { resolve = done; }); }
     return json(inventory([], String(url).includes(runId) ? runId : workspaceId));
   }) as typeof fetch);
-  await fillUpload(dom.container); await click(dom.container, 'Lưu gói nguồn, chưa đưa vào báo cáo'); await settled();
+  await fillUpload(dom.container); await click(dom.container, 'Lưu gói nguồn, chưa đưa vào báo cáo'); await until(() => Boolean(form), 'upload request captured');
   // Parent integration keys the child by run ID; remount models that user-visible boundary.
   await act(async () => dom.root.render(null)); await dom.render({ run: { ...run, runId: workspaceId } });
   await input(dom.container, 'ra-supplemental-label', 'Phiên mới');
-  await act(async () => resolve(json(await uploaded(form), 201))); await settled();
+  await act(async () => resolve(json(await uploaded(form), 201)));
+  await until(() => dom.container.querySelector<HTMLInputElement>('#ra-supplemental-label')?.value === 'Phiên mới', 'new run remains mounted');
   assert.equal(dom.container.querySelector<HTMLInputElement>('#ra-supplemental-label')!.value, 'Phiên mới');
   assert.doesNotMatch(dom.container.textContent!, /Nguồn đã lưu\. Chọn nguồn/);
 });
@@ -150,7 +162,7 @@ test('inventory corruption, OWNER lock and changed predecessor block admission; 
   }) as typeof fetch);
   assert.ok(dom.container.querySelector('[role="alert"]'));
   assert.equal(button(dom.container, 'Tạo phiên bản với nguồn đã chọn').disabled, true);
-  bad = false; await click(dom.container, 'Tải lại nguồn bổ sung'); await settled(); await choose(dom.container);
+  bad = false; await click(dom.container, 'Tải lại nguồn bổ sung'); await until(() => !dom.container.querySelector('[role="alert"]'), 'inventory reload succeeded'); await choose(dom.container);
   await dom.render({ ownerToken: null }); assert.match(dom.container.textContent!, /Mở khóa OWNER/);
   assert.equal(button(dom.container, 'Tạo phiên bản với nguồn đã chọn').disabled, true);
   await dom.render(); await click(dom.container, 'Tạo phiên bản với nguồn đã chọn');
@@ -173,14 +185,14 @@ test('bounded revision retries its exact predecessor and selection after uncerta
   await dom.render({ onRevisionSettled: () => { reloads++; } }); await choose(dom.container);
   await click(dom.container, 'Tạo phiên bản với nguồn đã chọn');
   await act(async () => { button(dom.container, 'Xác nhận tạo phiên bản').click(); button(dom.container, 'Xác nhận tạo phiên bản').click(); });
-  await settled(); assert.equal(bodies.length, 1);
+  await until(() => bodies.length === 1, 'revision request dispatched');
   assert.equal(button(dom.container, 'Tạo phiên bản với nguồn đã chọn').disabled, true);
   const body = JSON.parse(bodies[0]!);
   assert.equal(body.contractVersion, 'automation-bounded-report-revision-v1'); assert.equal(body.previousPairId, pairId);
   assert.deepEqual(body.boundedMethods, { decision: 'USE_PACKAGE', packageId, manifestArtifactSha256: bounded.manifestArtifactSha256, packageContentSha256: bounded.packageContentSha256, descriptorPath: bounded.descriptorPath });
   assert.equal(body.quoteMethods, undefined);
   await dom.render({ previousPairId: 'f'.repeat(64), previousVersion: 2, onRevisionSettled: () => { reloads++; } });
-  await click(dom.container, 'Thử lại đúng lượt tạo phiên bản'); await settled();
+  await click(dom.container, 'Thử lại đúng lượt tạo phiên bản'); await until(() => bodies.length === 2, 'revision retry dispatched');
   assert.equal(bodies.length, 2); assert.equal(bodies[0], bodies[1]); assert.equal(reloads, 1);
   assert.match(dom.container.textContent!, /Đã nhận lượt tạo phiên bản/);
 });
@@ -217,9 +229,9 @@ test('upload acknowledgement without exact reloaded metadata keeps admission blo
     if (init?.method === 'POST') { result = await uploaded(init.body as FormData); return json(result, 201); }
     return json(inventory([entry({ ...result, acquiredAt: drift ? '2026-10-01T00:00:00.000Z' : result.acquiredAt })]));
   }) as typeof fetch);
-  await fillUpload(dom.container); await click(dom.container, 'Lưu gói nguồn, chưa đưa vào báo cáo'); await settled();
+  await fillUpload(dom.container); await click(dom.container, 'Lưu gói nguồn, chưa đưa vào báo cáo'); await until(() => Boolean(result !== receipt), 'upload acknowledgement received');
   assert.ok(dom.container.querySelector('[role="alert"]'));
   assert.equal(button(dom.container, 'Tạo phiên bản với nguồn đã chọn').disabled, true);
-  drift = false; await click(dom.container, 'Tải lại nguồn bổ sung'); await settled();
+  drift = false; await click(dom.container, 'Tải lại nguồn bổ sung'); await until(() => dom.container.textContent?.includes('Nguồn đã lưu. Chọn nguồn') ?? false, 'exact inventory reload succeeded');
   assert.match(dom.container.textContent!, /Nguồn đã lưu\. Chọn nguồn/); assert.equal(dom.container.querySelector('[role="alert"]'), null);
 });
