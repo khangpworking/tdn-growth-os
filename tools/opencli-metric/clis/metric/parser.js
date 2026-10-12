@@ -121,7 +121,6 @@ export function parseWhoamiObservation(observation) {
     status: 'READY',
     plan: clean(observation.plan) || null,
     analysisLookupsRemaining: Number.isSafeInteger(quota.analysisLookupsRemaining) && quota.analysisLookupsRemaining >= 0 ? quota.analysisLookupsRemaining : null,
-    downloadRowsRemaining: Number.isSafeInteger(quota.downloadRowsRemaining) && quota.downloadRowsRemaining >= 0 ? quota.downloadRowsRemaining : null,
   };
 }
 

@@ -11,6 +11,6 @@
     "category": null
   },
   "rowCount": 128,
-  "quota": { "analysisLookupsRemaining": 456, "downloadRowsRemaining": 5000 },
+  "quota": { "analysisLookupsRemaining": 456 },
   "snapshot": { "contractVersion": "automation-metric-web-snapshot-v1", "synthetic": true }
 }

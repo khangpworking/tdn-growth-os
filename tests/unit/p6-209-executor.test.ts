@@ -25,7 +25,7 @@ test('executor uses fixed argv, detached process group and no shell when enabled
   let seen: readonly string[] = []; let options: any;
   const result = await executeMetricOpenCli(input(), { readManifest: async () => bytes, runProcess: async (_exe, argv, received) => { seen = argv; options = received; return execution({ exitCode: 0, stdout: '[{"status":"READY"}]', stderr: '' }); } });
   assert.equal(result.ok, true); assert.equal(options.shell, false); assert.equal(options.detached, true);
-  assert.deepEqual(seen, ['metric', 'capture', '--spec', 'synthetic/spec.json', '--out', 'synthetic/out', '--export', 'true', '--pdf', 'true', '--max-rows', '5000', '-f', 'json']);
+  assert.deepEqual(seen, ['metric', 'capture', '--spec', 'synthetic/spec.json', '--out', 'synthetic/out', '--product-cap', '200', '-f', 'json']);
 });
 
 test('executor owns timeout and kills both the child and its process group', async () => {

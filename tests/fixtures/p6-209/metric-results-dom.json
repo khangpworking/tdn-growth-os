@@ -1,0 +1,12 @@
+{
+  "regions": {
+    "warehouse": {
+      "selector": "#synthetic-warehouse-region",
+      "columns": ["location", "share"],
+      "rows": [
+        { "location": "Synthetic province A", "share": { "displayed": "65%", "value": 65, "unit": "PERCENT", "precision": "exact" } },
+        { "location": "Synthetic province B", "share": { "displayed": "35%", "value": 35, "unit": "PERCENT", "precision": "exact" } }
+      ]
+    }
+  }
+}

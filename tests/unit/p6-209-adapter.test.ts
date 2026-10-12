@@ -6,6 +6,7 @@ import test from 'node:test';
 
 const load = async (name: string): Promise<any> => JSON.parse(await readFile(new URL(`../fixtures/p6-209/${name}.json`, import.meta.url), 'utf8'));
 const parserUrl = new URL('../../tools/opencli-metric/clis/metric/parser.js', import.meta.url);
+const captureUrl = new URL('../../tools/opencli-metric/clis/metric/capture.js', import.meta.url);
 
 test('adapter parser accepts the synthetic form map and preserves visible controls', async () => {
   const { parseMetricForm } = await import(parserUrl.href);
@@ -20,6 +21,54 @@ test('adapter parser maps a read-only search observation and scope', async () =>
   const parsed = parseSearchObservation(await load('metric-search'), spec, 5000);
   assert.equal(parsed.rowCount, 128);
   assert.equal(parsed.snapshot.synthetic, true);
+});
+
+test('adapter accepts the synthetic multi-platform read-back shape and rejects scope drift', async () => {
+  const { parseSearchObservation } = await import(parserUrl.href);
+  const observation = await load('metric-multi-platform-readback');
+  const spec = {
+    keywords: ['synthetic-dual-platform-term'], platforms: ['shopee', 'tiktok'],
+    period: { startDate: '2026-08-01', endDate: '2026-08-30' }, category: null,
+  };
+  const parsed = parseSearchObservation(observation, spec, 5000);
+  assert.equal(parsed.rowCount, 73);
+  assert.deepEqual(parsed.appliedFilters, observation.appliedFilters);
+  for (const appliedFilters of [
+    { ...observation.appliedFilters, platforms: ['shopee'] },
+    { ...observation.appliedFilters, keywords: ['synthetic-other-term'] },
+    { ...observation.appliedFilters, period: { startDate: '2026-08-02', endDate: '2026-08-30' } },
+  ]) {
+    assert.throws(() => parseSearchObservation({ ...observation, appliedFilters }, spec), /METRIC_FILTER_MISMATCH/);
+  }
+});
+
+test('keyword chip read-back is retained and cannot silently become empty', async () => {
+  const { parseSearchObservation } = await import(parserUrl.href);
+  const observation = await load('metric-keyword-chip-readback');
+  const spec = { keywords: ['synthetic-chip-term'], platforms: ['shopee'], period: { startDate: '2026-08-01', endDate: '2026-08-30' }, category: null };
+  assert.deepEqual(parseSearchObservation(observation, spec).appliedFilters.keywords, ['synthetic-chip-term']);
+  assert.throws(() => parseSearchObservation({ ...observation, appliedFilters: { ...observation.appliedFilters, keywords: [] } }, spec), /METRIC_FILTER_MISMATCH/);
+});
+
+test('results extractor prefers response JSON, captures both platforms, and records paginated products', async () => {
+  const { extractResultsPage, sanitizeNetworkResponses } = await import(captureUrl.href);
+  const { validateMetricWebSnapshot } = await import('../../src/modules/analysis/research-automation/metric-web-snapshot.js');
+  const fixture = await load('metric-results-response');
+  const scope = { keywords: ['synthetic-chip-term'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-07-01', endDate: '2026-08-31' }, category: null };
+  const result = extractResultsPage({ responses: fixture.responses, dom: await load('metric-results-dom'), scope, captureId: 'synthetic-capture', specDigest: 'a'.repeat(64), capturedAt: '2026-10-12T00:00:00.000Z', pageCap: 200 });
+  assert.equal(result.snapshot.groups.W2_kpi.revenue.current.value, 12500000000);
+  assert.deepEqual(result.snapshot.groups.W3_platformSplit.map((row: any) => row.platform), ['shopee', 'tiktok']);
+  assert.equal(result.snapshot.groups.W12_topProducts.rows.length, 3);
+  assert.equal(result.pagination.W12_topProducts.totalShown, 5);
+  assert.equal(result.pagination.W12_topProducts.pagesRead, 2);
+  assert.equal(result.pagination.W12_topProducts.truncated, true);
+  assert.equal(result.pagination.W12_topProducts.byPlatform.all.totalShown, 5);
+  assert.match(result.snapshot.groups.W12_topProducts.rows[0].cells.revenue.sourcePointer, /^response:/);
+  assert.deepEqual(result.snapshot.groups.W11_location.rows.map((row: any) => row.cells.location.text), ['Synthetic province A', 'Synthetic province B']);
+  assert.equal(result.sourceMap.W15.source, 'dom');
+  assert.equal(validateMetricWebSnapshot(result.snapshot), result.snapshot);
+  const raw = sanitizeNetworkResponses([{ url: 'https://metric.vn/api/synthetic?token=secret', status: 200, body: { safe: 1, accessToken: 'must-not-survive' } }]);
+  assert.deepEqual(raw, [{ urlPath: '/api/synthetic', status: 200, body: { safe: 1 } }]);
 });
 
 test('adapter parser fails closed for domain, login, captcha, filter and row cap', async () => {
@@ -37,7 +86,7 @@ test('adapter parser fails closed for domain, login, captcha, filter and row cap
 test('whoami maps only displayed synthetic quota fields', async () => {
   const { parseWhoamiObservation } = await import(parserUrl.href);
   assert.deepEqual(parseWhoamiObservation(await load('metric-whoami')), {
-    status: 'READY', plan: 'synthetic', analysisLookupsRemaining: 456, downloadRowsRemaining: 5000,
+    status: 'READY', plan: 'synthetic', analysisLookupsRemaining: 456,
   });
 });
 
@@ -45,7 +94,7 @@ test('whoami preserves an unavailable quota and rejects an unclassified session'
   const { parseWhoamiObservation } = await import(parserUrl.href);
   const observation = { ...(await load('metric-whoami')), accountState: 'logged_in', quota: {} };
   assert.deepEqual(parseWhoamiObservation(observation), {
-    status: 'READY', plan: 'synthetic', analysisLookupsRemaining: null, downloadRowsRemaining: null,
+    status: 'READY', plan: 'synthetic', analysisLookupsRemaining: null,
   });
   assert.throws(() => parseWhoamiObservation({ ...observation, accountState: 'unknown' }), /METRIC_LOGIN_REQUIRED/);
 });
@@ -76,7 +125,7 @@ const commandSpec = {
   period: { startDate: '2025-09-15', endDate: '2026-09-20' }, category: null,
 };
 
-function fakePage(observation: any, result: any) {
+function fakePage(observation: any, result: any, resultDom: any = null, networkResponses: any[] = []) {
   let searched = false;
   const calls: string[] = [];
   const page: any = {
@@ -87,6 +136,8 @@ function fakePage(observation: any, result: any) {
     wait: async () => {},
     evaluate: async (fn: Function, arg?: unknown) => {
       if (fn.name === 'observeMetricPage') return arg === false ? observation : result;
+      if (fn.name === 'readCommittedKeywords') return commandSpec.keywords;
+      if (fn.name === 'observeResultPage') return resultDom || { html: '<html></html>', regions: {}, screenshotRegions: {}, platformViews: [] };
       if (fn.name === 'setCheckbox') return { selector: '#synthetic', index: 0 };
       if (fn.name === 'visibleOptionIndex' || fn.name === 'clickVisibleText') return 0;
       return 0;
@@ -95,7 +146,8 @@ function fakePage(observation: any, result: any) {
     fillText: async (selector: string, text: string) => calls.push(`fill:${selector}:${text}`),
     pressKey: async (key: string) => calls.push(`key:${key}`),
     startNetworkCapture: async () => { calls.push('network:start'); },
-    readNetworkCapture: async () => [],
+    readNetworkCapture: async () => networkResponses,
+    screenshot: async ({ path }: { path: string }) => { await writeFile(path, Buffer.from('synthetic-png')); },
     get searched() { return searched; },
   };
   return page;
@@ -114,11 +166,15 @@ test('whoami, search, and capture commands use a fake page and clean up their ow
   await writeFile(specPath, `${JSON.stringify(commandSpec)}\n`);
   const form = await load('metric-form');
   const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] }, quota: {} }, searchObservation);
-  const searched = await adapter.searchCommand.func(page, { spec: specPath, out: snapshotPath, 'max-rows': 5000 });
+  const searched = await adapter.searchCommand.func(page, { spec: specPath, out: snapshotPath });
   assert.equal(searched[0].status, 'READY'); assert.equal(page.searched, true); assert.ok(page.calls.includes('close:synthetic-tab'));
   const captureDir = join(directory, 'capture');
-  const captured = await adapter.captureCommand.func(fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] }, quota: {} }, searchObservation), { spec: specPath, out: captureDir, export: false, pdf: false, 'max-rows': 5000 });
+  const results = await load('metric-results-response');
+  const dom = { ...(await load('metric-results-dom')), html: '<html><body>synthetic results</body></html>', screenshotRegions: { overview: '#synthetic-overview' }, platformViews: [] };
+  const captured = await adapter.captureCommand.func(fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] }, quota: {} }, searchObservation, dom, results.responses), { spec: specPath, out: captureDir, 'product-cap': 200 });
   assert.equal(captured[0].status, 'READY'); assert.match(await readFile(join(captureDir, 'manifest.json'), 'utf8'), /synthetic-keyword/);
+  assert.match(await readFile(join(captureDir, 'snapshot.json'), 'utf8'), /Synthetic item A/);
+  assert.ok(await readFile(join(captureDir, 'region-overview.png')));
   await rm(directory, { recursive: true, force: true });
 });
 

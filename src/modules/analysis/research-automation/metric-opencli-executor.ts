@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 
 export const METRIC_OPENCLI_ARGV = Object.freeze([
-  'metric', 'capture', '--spec', '__SPEC__', '--out', '__OUT__', '--export', 'true', '--pdf', 'true', '--max-rows', '5000', '-f', 'json',
+  'metric', 'capture', '--spec', '__SPEC__', '--out', '__OUT__', '--product-cap', '200', '-f', 'json',
 ] as const);
 
 export type MetricOpenCliCode =

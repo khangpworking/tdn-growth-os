@@ -1,9 +1,8 @@
 // Metric adapter for OpenCLI 1.8.8. Every command owns one ephemeral tab.
 // Browser writes use OpenCLI actions; evaluate() is used only for read-back.
-import { copyFile, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { cli, Strategy } from '@jackwener/opencli/registry';
 import { CliError } from '@jackwener/opencli/errors';
 import {
@@ -15,9 +14,11 @@ import {
   parseSearchObservation,
   parseWhoamiObservation,
 } from './parser.js';
+import { extractResultsPage, sanitizeNetworkResponses } from './capture.js';
 
 const BASE_URL = 'https://metric.vn/analytics';
-const MAX_ROWS = 5000;
+const PRODUCT_CAP = 200;
+const PAGE_CAP = 10;
 const DEFAULT_WAIT_SECONDS = 2;
 
 function asCliError(error) {
@@ -70,17 +71,19 @@ function observeMetricPage(includeResults = true) {
   const labels = [...document.querySelectorAll('#QuerySearchBuilder .filter-label .label')];
   const labelledSelect = label => {
     const match = labels.find(element => textOf(element) === label);
-    return match?.closest('.ant-space-item')?.querySelector('.ant-select') || null;
+    const container = match?.closest('.ant-space-item');
+    return [...(container?.querySelectorAll('.ant-select') || [])].find(visible) || null;
   };
   const selectionTexts = element => {
     if (!element) return [];
-    const values = [...element.querySelectorAll('.ant-select-selection-item,[aria-selected="true"]')]
-      .map(textOf).filter(value => value && !/^select|placeholder/i.test(value));
+    const chips = [...element.querySelectorAll('.ant-select-selection-item-content,[data-value]')];
+    const values = (chips.length ? chips : [...element.querySelectorAll('.ant-select-selection-item,[aria-selected="true"]')])
+      .map(item => item.getAttribute?.('title') || textOf(item)).filter(value => value && !/^select|placeholder/i.test(value));
     if (values.length) return [...new Set(values)];
     const placeholder = element.querySelector('.ant-select-selection-placeholder');
     return placeholder ? [] : [textOf(element)].filter(Boolean);
   };
-  const inputValue = element => element?.querySelector('input')?.value?.trim() || '';
+  const inputValue = element => element?.querySelector('input[id]')?.value?.trim() || '';
   const platformName = value => {
     const normalized = value.normalize('NFC').trim().toLowerCase();
     if (normalized === 'shopee') return 'shopee';
@@ -91,13 +94,20 @@ function observeMetricPage(includeResults = true) {
   const periodSelect = labelledSelect('Time period');
   const categorySelect = labelledSelect('Product category');
   const keywordSelect = [...document.querySelectorAll('#QuerySearchBuilder .ant-select')]
-    .find(element => /Enter keywords separated by commas/i.test(textOf(element)) || element.querySelector('#rc_select_4'));
+    .find(element => element.querySelector('#rc_select_4'))
+    || [...document.querySelectorAll('#QuerySearchBuilder .ant-select')]
+      .find(element => /Enter keywords separated by commas/i.test(textOf(element)));
   const selectedPlatforms = selectionTexts(platformSelect).map(platformName).filter(Boolean);
   const keywordValues = selectionTexts(keywordSelect).filter(value => !/enter keywords separated by commas/i.test(value));
   const typedKeyword = inputValue(keywordSelect);
   if (typedKeyword && !keywordValues.includes(typedKeyword)) keywordValues.push(typedKeyword);
   const selectedCategory = selectionTexts(categorySelect)[0] || '';
   const category = /^all$/i.test(selectedCategory) ? null : selectedCategory || null;
+  const checkedLabel = label => {
+    const element = [...document.querySelectorAll('#QuerySearchBuilder label,[role="checkbox"],[role="switch"]')]
+      .find(candidate => textOf(candidate).toLowerCase() === label.toLowerCase());
+    return Boolean(element?.matches(':checked,[aria-checked="true"]') || element?.querySelector(':checked,[aria-checked="true"]'));
+  };
   const dateValues = [...document.querySelectorAll('#QuerySearchBuilder input')]
     .map(input => input.value?.trim() || '')
     .map(value => {
@@ -111,6 +121,15 @@ function observeMetricPage(includeResults = true) {
     platforms: [...new Set(selectedPlatforms)],
     period,
     category,
+    smartQuery: checkedLabel('Smart query'),
+    aiNormalisation: checkedLabel('AI chuẩn hoá dữ liệu'),
+    usefulFilters: {
+      fake: checkedLabel('Filter fake/abnormal products'), gifts: checkedLabel('Exclude gifts'), deleted: checkedLabel('Exclude deleted products'),
+    },
+    ticks: [...document.querySelectorAll('#QuerySearchBuilder input[type="checkbox"]:checked,[role="checkbox"][aria-checked="true"],[role="switch"][aria-checked="true"]')]
+      .map(element => textOf(element.closest('label') || element)).filter(Boolean),
+    advancedFilters: [],
+    exclusions: [],
   };
   const controls = [
     ['platform', 'Platform', platformSelect],
@@ -140,10 +159,6 @@ function observeMetricPage(includeResults = true) {
     return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
   };
   const analysisQuotaText = quotaText.find(value => /(?:analysis\s+)?(?:lookups?|queries?|points?|lượt phân tích|lượt).*(?:left|remaining|available|còn)|(?:left|remaining|available|còn).*(?:analysis\s+)?(?:lookups?|queries?|points?|lượt phân tích|lượt)/i.test(value));
-  const downloadLabel = [...document.querySelectorAll('.row-limit')].find(element => visible(element) && /download rows|số dòng tải về/i.test(textOf(element)));
-  const downloadQuotaText = downloadLabel ? textOf(downloadLabel) : null;
-  const downloadMaximum = number(downloadQuotaText) ?? number([...document.querySelectorAll('select,.ant-select')]
-    .filter(visible).map(textOf).find(value => /5[., ]?000/.test(value)));
   const totalText = [...document.querySelectorAll('.ant-pagination-total-text,[class*="total" i]')]
     .filter(visible).map(textOf).find(Boolean) || visibleTextContent;
   const countMatches = [...String(totalText).matchAll(/(?:of|trên|total|tổng số|found|kết quả|sản phẩm)\D{0,24}(\d[\d.,\s]*)/gi)];
@@ -162,8 +177,7 @@ function observeMetricPage(includeResults = true) {
     loginVisible, captchaVisible,
     accountState: loggedInMarker ? 'logged_in' : loginVisible ? 'logged_out' : 'unknown',
     controls, appliedFilters, rowCount, snapshot,
-    quota: { analysisLookupsRemaining: number(analysisQuotaText), downloadRowsRemaining: number(downloadQuotaText) },
-    download: { maximumRows: downloadMaximum },
+    quota: { analysisLookupsRemaining: number(analysisQuotaText) },
   };
 }
 
@@ -172,6 +186,32 @@ async function readObservation(page, { includeResults = true } = {}) {
   await page.wait({ selector: '#main-content #analytic-tab', timeout: 15 }).catch(() => {});
   const observation = await page.evaluate(observeMetricPage, includeResults);
   return gateMetricPage(observation);
+}
+
+function readCommittedKeywords() {
+  const select = [...document.querySelectorAll('#QuerySearchBuilder .ant-select')]
+    .find(element => element.querySelector('#rc_select_4'))
+    || [...document.querySelectorAll('#QuerySearchBuilder .ant-select')]
+      .find(element => /Enter keywords separated by commas/i.test(element.innerText || element.textContent || ''));
+  if (!select) return [];
+  const chips = [...select.querySelectorAll('.ant-select-selection-item-content,[data-value]')];
+  const values = (chips.length ? chips : [...select.querySelectorAll('.ant-select-selection-item')])
+    .map(element => element.getAttribute('title') || element.getAttribute('data-value') || element.innerText || element.textContent || '')
+    .map(value => String(value).replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const input = select.querySelector('input[id]');
+  if (input?.value?.trim()) values.push(input.value.trim());
+  return [...new Set(values)];
+}
+
+async function waitForKeywordCommit(page, keywords) {
+  const expected = keywords.map(value => String(value).normalize('NFC').trim());
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const actual = await page.evaluate(readCommittedKeywords);
+    const normalized = Array.isArray(actual) ? actual.map(value => String(value).normalize('NFC').trim()) : [];
+    if (expected.every(value => normalized.includes(value))) return;
+    await page.wait({ time: 0.25 }).catch(() => {});
+  }
+  throw new MetricAdapterError('METRIC_FILTER_MISMATCH', 'Metric keyword was not committed to the visible search control');
 }
 
 async function readSpec(path) {
@@ -246,11 +286,20 @@ async function applyMetricSpec(page, spec, initialObservation) {
     if (platformMode && /multiple platforms/i.test(platformMode)) await page.click('button.switch-button');
   }
   const platformSelector = await page.evaluate(() => {
+    const visible = element => {
+      if (!element) return false;
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+    };
     const label = [...document.querySelectorAll('#QuerySearchBuilder .filter-label .label')]
       .find(element => (element.innerText || element.textContent || '').trim() === 'Platform');
-    const input = label?.closest('.ant-space-item')?.querySelector('input[id]');
-    return input?.id ? `#${CSS.escape(input.id)}` : '#rc_select_1';
+    const container = label?.closest('.ant-space-item');
+    const select = [...(container?.querySelectorAll('.ant-select') || [])].find(visible);
+    const input = select?.querySelector('input[id]');
+    return input?.id ? `#${CSS.escape(input.id)}` : null;
   });
+  if (platformSelector == null) throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric platform search input is not visible');
   if (wantedPlatforms.size > 1) {
     // In multi-platform mode the page uses a new, visible search input (for
     // example rc_select_13). The old single-platform input is hidden, and
@@ -311,6 +360,7 @@ async function applyMetricSpec(page, spec, initialObservation) {
 async function performSearch(page, spec) {
   const before = await readObservation(page, { includeResults: false });
   parseMetricForm(before); await applyMetricSpec(page, spec, before);
+  await waitForKeywordCommit(page, spec.keywords);
   await clickVisibleText(page, ['Phân tích', 'Analyze', 'Analytics']); await page.wait({ time: DEFAULT_WAIT_SECONDS }).catch(() => {});
   return readObservation(page, { includeResults: true });
 }
@@ -326,96 +376,222 @@ async function fileEntry(role, path, mediaType) {
   return { role, path: path.split('/').at(-1), mediaType, byteSize: details.size, sha256: hashBytes(bytes) };
 }
 
-async function saveDownload(page, out, role) {
-  if (typeof page.waitForDownload !== 'function') throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric download observation is unavailable');
-  const downloadPromise = page.waitForDownload('', 60_000);
-  await clickVisibleText(page, role === 'xlsx' ? ['Tải về ngay', 'Download now'] : ['Print', 'In']);
-  const download = await downloadPromise;
-  if (!download?.downloaded || !download.filename) throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric did not complete the requested download');
-  const source = download.path || join(homedir(), 'Downloads', download.filename); const destination = join(out, download.filename);
-  try { await copyFile(source, destination); } catch (error) {
-    throw new MetricAdapterError('METRIC_UI_CHANGED', `downloaded file could not be saved: ${error instanceof Error ? error.message : String(error)}`);
+function observeResultPage() {
+  const visible = element => {
+    if (!element) return false;
+    const style = getComputedStyle(element); const rect = element.getBoundingClientRect();
+    return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+  };
+  const textOf = element => (element?.innerText || element?.textContent || '').replace(/\s+/g, ' ').trim();
+  const parseJson = value => { try { return value ? JSON.parse(value) : null; } catch { return null; } };
+  const selectors = {
+    overview: '[data-metric-region="overview"], [data-region="overview"], [data-testid="market-overview"], .market-overview',
+    'platform-split': '[data-metric-region="platform-split"], [data-region="platform-split"], [data-testid="platform-split"]',
+    monthly: '[data-metric-region="monthly"], [data-region="monthly"], [data-testid="monthly-trend"]',
+    category: '[data-metric-region="category"], [data-region="category"], [data-testid="category-chart"]',
+    price: '[data-metric-region="price"], [data-region="price"], [data-testid="price-chart"]',
+    'top10-brand': '[data-metric-region="top10-brand"], [data-region="top10-brand"], [data-testid="top10-brand"]',
+    'top10-shop': '[data-metric-region="top10-shop"], [data-region="top10-shop"], [data-testid="top10-shop"]',
+    'brand-shop-type': '[data-metric-region="brand-shop-type"], [data-region="brand-shop-type"], [data-testid="brand-shop-type"]',
+    'shop-type': '[data-metric-region="shop-type"], [data-region="shop-type"], [data-testid="shop-type"]',
+    warehouse: '[data-metric-region="warehouse"], [data-region="warehouse"], [data-testid="warehouse"]',
+    'top-products': '[data-metric-region="top-products"], [data-region="top-products"], [data-testid="top-products"]',
+    'top-shops': '[data-metric-region="top-shops"], [data-region="top-shops"], [data-testid="top-shops"]',
+    'top-brands': '[data-metric-region="top-brands"], [data-region="top-brands"], [data-testid="top-brands"]',
+    'detail-history': '[data-metric-region="detail-history"], [data-region="detail-history"], [data-testid="detail-history"]',
+  };
+  const tableData = element => {
+    const table = element?.querySelector('table');
+    if (!table) return null;
+    const headers = [...table.querySelectorAll('thead th')].map(textOf).filter(Boolean);
+    const rows = [...table.querySelectorAll('tbody tr')].map(row => {
+      const cells = [...row.querySelectorAll('td')].map(textOf);
+      return Object.fromEntries(cells.map((value, index) => [headers[index] || `column${index + 1}`, value]));
+    });
+    return { columns: headers, rows };
+  };
+  const regions = {};
+  const screenshotRegions = {};
+  for (const [name, selector] of Object.entries(selectors)) {
+    const element = [...document.querySelectorAll(selector)].find(visible);
+    if (!element) continue;
+    const json = parseJson(element.getAttribute('data-metric-json'));
+    const table = tableData(element);
+    regions[name] = { ...(json && typeof json === 'object' ? json : table || { text: textOf(element) }), selector };
+    screenshotRegions[name] = selector;
   }
-  return { path: destination, filename: download.filename };
+  const paginationElement = [...document.querySelectorAll('.ant-pagination,[data-metric-pagination]')].find(visible);
+  const totalText = paginationElement ? textOf(paginationElement) : '';
+  const totalMatch = totalText.match(/(?:of|trên|total)\s+(\d[\d.,\s]*)/i);
+  const current = Number(paginationElement?.querySelector('.ant-pagination-item-active')?.textContent || 1);
+  const next = paginationElement?.querySelector('button.ant-pagination-next,[aria-label="Next Page"]');
+  if (paginationElement) regions['top-products'] = {
+    ...(regions['top-products'] || {}), pagination: { page: current, total: totalMatch ? Number(totalMatch[1].replace(/[.,\s]/g, '')) : null, pageSize: regions['top-products']?.items?.length || regions['top-products']?.rows?.length || null, nextAvailable: Boolean(next && !next.disabled), nextSelector: 'button.ant-pagination-next,[aria-label="Next Page"]' },
+  };
+  const platformViews = [...document.querySelectorAll('[data-metric-platform-view],[data-platform-view],[role="tab"]')]
+    .filter(visible).map((element, index) => ({ label: textOf(element), selected: element.getAttribute('aria-selected') === 'true' || element.classList.contains('active'), selector: '[data-metric-platform-view],[data-platform-view],[role="tab"]', index }));
+  return {
+    url: location.href, title: document.title, html: document.documentElement.outerHTML,
+    regions, screenshotRegions, pagination: regions['top-products']?.pagination || null, platformViews,
+    snapshot: window.__metricWebSnapshot || window.__METRIC_WEB_SNAPSHOT__ || null,
+  };
 }
 
-async function exportXlsx(page, out, maximumRows) {
-  if (!Number.isSafeInteger(maximumRows) || maximumRows <= 0 || maximumRows > MAX_ROWS) throw new MetricAdapterError('METRIC_ROW_CAP', 'Metric export row maximum is not observable or exceeds the adapter cap');
-  await clickVisibleText(page, ['Deep data download', 'Tải dữ liệu chi tiết', 'Download list']); await page.wait({ time: 0.5 }).catch(() => {});
-  const exportState = await page.evaluate(() => {
-    const visible = element => {
-      if (!element) return false;
-      const style = getComputedStyle(element); const rect = element.getBoundingClientRect();
-      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
-    };
-    const input = [...document.querySelectorAll('.row-limit input.ant-input')].find(visible);
-    const format = [...document.querySelectorAll('.ant-select')].find(element => visible(element) && /excel|xlsx|csv/i.test(element.innerText || element.textContent || ''));
-    const number = value => {
-      const match = String(value ?? '').match(/\d[\d.,\s]*/);
-      if (!match) return null;
-      const parsed = Number(match[0].replace(/[\s.,]/g, ''));
-      return Number.isSafeInteger(parsed) ? parsed : null;
-    };
-    return {
-      shownMaximum: number(input?.value),
-      currentFormat: (format?.innerText || format?.textContent || '').replace(/\s+/g, ' ').trim(),
-      formatSelector: format?.querySelector('input[id]')?.id ? `#${CSS.escape(format.querySelector('input[id]').id)}` : null,
-    };
-  });
-  const shownMaximum = exportState?.shownMaximum ?? 0;
-  const rows = Math.min(maximumRows, shownMaximum || maximumRows);
-  if (rows <= 0 || rows > MAX_ROWS) throw new MetricAdapterError('METRIC_ROW_CAP', 'Metric export row count is not usable');
-  if (shownMaximum !== rows) {
-    await page.fillText('.row-limit input.ant-input', String(rows));
-    await page.pressKey('Enter').catch(() => {});
-  }
-  if (!/excel|xlsx/i.test(exportState?.currentFormat || '')) {
-    if (!exportState?.formatSelector) throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric export format is not observable');
-    await page.click(exportState.formatSelector);
-    await clickVisibleOption(page, 'Excel').catch(async () => clickVisibleOption(page, 'XLSX'));
-  }
-  return saveDownload(page, out, 'xlsx');
+async function waitForResultsSettle(page) {
+  await page.wait({ selector: '#main-content #analytic-tab', timeout: 30 }).catch(() => {});
+  await page.wait({ time: DEFAULT_WAIT_SECONDS }).catch(() => {});
 }
 
-async function printPdf(page, out) {
-  if (typeof page.cdp !== 'function') throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric PDF printing is unavailable');
-  const result = await page.cdp('Page.printToPDF', { paperWidth: 8.5, paperHeight: 11, landscape: false, printBackground: true, displayHeaderFooter: true, preferCSSPageSize: false });
-  if (!result || typeof result.data !== 'string' || !result.data) throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric PDF response is empty');
-  const path = join(out, 'results.pdf'); await writeFile(path, Buffer.from(result.data, 'base64')); return { path, filename: 'results.pdf' };
+async function readResultPage(page) {
+  const dom = await page.evaluate(observeResultPage);
+  const responses = typeof page.readNetworkCapture === 'function' ? await page.readNetworkCapture() : [];
+  return { dom, responses: Array.isArray(responses) ? responses : [] };
 }
 
-async function saveRawResponses(page, out) {
-  if (typeof page.readNetworkCapture !== 'function') return null;
-  const responses = await page.readNetworkCapture(); if (!Array.isArray(responses) || responses.length === 0) return null;
-  const path = join(out, 'raw-responses.json'); await writeJson(path, responses); return { path, filename: 'raw-responses.json' };
+function platformLabel(value) {
+  const normalized = String(value ?? '').normalize('NFC').trim().toLowerCase();
+  return normalized === 'tiktok' || normalized === 'tiktok shop' ? 'tiktok' : normalized === 'shopee' ? 'shopee' : null;
+}
+
+function isCombinedPlatformLabel(value) {
+  return /^(?:all|all platforms|total|tất cả|tất cả nền tảng)$/i.test(String(value ?? '').normalize('NFC').trim());
+}
+
+async function collectResultPages(page, productCap, initial = null, viewPlatform = 'all') {
+  const responses = []; const domSnapshots = []; const seenPages = new Set();
+  let lastDom = null; let pagesRead = 0;
+  for (let iteration = 0; iteration < PAGE_CAP; iteration += 1) {
+    const current = initial || await readResultPage(page); initial = null; current.dom.platform = viewPlatform; lastDom = current.dom; pagesRead += 1;
+    responses.push(...current.responses.map(response => ({ ...response, viewPlatform })));
+    domSnapshots.push(current.dom);
+    const pagination = current.dom.pagination;
+    const productRegion = current.dom.regions?.['top-products'] || {};
+    const items = productRegion.items || productRegion.rows;
+    const pageNumber = pagination?.page ?? iteration + 1;
+    const itemKey = `${pageNumber}:${JSON.stringify(items?.[0] ?? null)}`;
+    if (seenPages.has(itemKey)) break;
+    seenPages.add(itemKey);
+    const observedRows = domSnapshots.reduce((sum, snapshot) => {
+      const region = snapshot.regions?.['top-products'] || {};
+      return sum + (region.items?.length || region.rows?.length || 0);
+    }, 0);
+    if (!pagination?.nextAvailable || observedRows >= productCap) break;
+    if (!pagination.nextSelector || typeof page.click !== 'function') break;
+    await page.click(pagination.nextSelector, { nth: 0 }); await waitForResultsSettle(page);
+  }
+  return { responses, domSnapshots, lastDom, pagesRead };
+}
+
+async function collectResults(page, spec, productCap) {
+  await waitForResultsSettle(page);
+  const first = await readResultPage(page);
+  const platformViews = Array.isArray(first.dom.platformViews) ? first.dom.platformViews : [];
+  const requested = [...new Set(spec.platforms)];
+  const recognizedViews = platformViews.filter(view => platformLabel(view.label) || isCombinedPlatformLabel(view.label));
+  const combined = recognizedViews.find(view => isCombinedPlatformLabel(view.label));
+  const batches = [];
+  if (recognizedViews.length === 0 || combined) {
+    if (combined && !combined.selected) {
+      if (typeof page.click !== 'function') throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric combined platform view is unavailable');
+      await page.click(combined.selector, { nth: combined.index }); await waitForResultsSettle(page);
+    }
+    batches.push({ platform: 'all', ...(await collectResultPages(page, productCap, combined?.selected ? first : null, 'all')) });
+  }
+  if (recognizedViews.length >= 2) {
+    for (const wanted of requested) {
+      const target = recognizedViews.find(view => platformLabel(view.label) === wanted);
+      if (!target) throw new MetricAdapterError('METRIC_UI_CHANGED', `Metric platform result view is missing: ${wanted}`);
+      if (target.selected) batches.push({ platform: wanted, ...(await collectResultPages(page, productCap, first, wanted)) });
+      else {
+        if (typeof page.click !== 'function') throw new MetricAdapterError('METRIC_UI_CHANGED', `Metric platform result view is unavailable: ${wanted}`);
+        await page.click(target.selector, { nth: target.index }); await waitForResultsSettle(page);
+        batches.push({ platform: wanted, ...(await collectResultPages(page, productCap, null, wanted)) });
+      }
+    }
+  } else if (recognizedViews.length === 1 && !combined) {
+    const solePlatform = platformLabel(recognizedViews[0].label);
+    if (!solePlatform || requested.some(platform => platform !== solePlatform)) {
+      throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric result page does not expose every requested platform view');
+    }
+    batches.push({ platform: solePlatform, ...(await collectResultPages(page, productCap, first, solePlatform)) });
+  }
+  const allResponses = batches.flatMap(batch => batch.responses);
+  const responses = [...new Map(allResponses.map(response => [JSON.stringify([response.viewPlatform, response.url, response.urlPath, response.responsePreview, response.body, response.status]), response])).values()];
+  return {
+    responses, domSnapshots: batches.flatMap(batch => batch.domSnapshots),
+    lastDom: batches.at(-1)?.lastDom || first.dom, views: batches.map(batch => ({ platform: batch.platform, pagesRead: batch.pagesRead })),
+  };
+}
+
+function ensureExternalCapturePath(path) {
+  if (!isAbsolute(path)) throw new MetricAdapterError('METRIC_UI_CHANGED', 'capture output must be an absolute path outside the repository');
+  const candidate = resolve(path); const workspace = resolve(process.cwd()); const relation = relative(workspace, candidate);
+  if (!relation || (!relation.startsWith(`..${sep}`) && relation !== '..')) {
+    throw new MetricAdapterError('METRIC_UI_CHANGED', 'capture output must be outside the repository');
+  }
+  return candidate;
+}
+
+async function saveRegionScreenshots(page, out, selectors) {
+  if (!selectors || Object.keys(selectors).length === 0 || typeof page.screenshot !== 'function') throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric region screenshots are unavailable');
+  const files = [];
+  for (const [region, selector] of Object.entries(selectors)) {
+    const path = join(out, `region-${region}.png`);
+    await page.evaluate((targetSelector) => {
+      const element = document.querySelector(targetSelector);
+      element?.scrollIntoView({ block: 'start', inline: 'nearest' });
+      return Boolean(element);
+    }, selector).catch(() => false);
+    await page.screenshot({ path, fullPage: false });
+    files.push(await fileEntry(`screenshot:${region}`, path, 'image/png'));
+  }
+  return files;
+}
+
+async function archiveResultsPage(page, out, spec, observation, parsed, productCap) {
+  if (!Number.isSafeInteger(productCap) || productCap <= 0 || productCap > PRODUCT_CAP) throw new MetricAdapterError('METRIC_ROW_CAP', `product pagination cap must be between 1 and ${PRODUCT_CAP}`);
+  const destination = ensureExternalCapturePath(out); await mkdir(destination, { recursive: true });
+  const collected = await collectResults(page, spec, productCap);
+  const captureId = `metric-${Date.now()}`;
+  const specDigest = hashBytes(Buffer.from(JSON.stringify(spec), 'utf8'));
+  const scope = { ...parsed.appliedFilters, ticks: parsed.appliedFilters.ticks || [], advancedFilters: parsed.appliedFilters.advancedFilters || [], exclusions: parsed.appliedFilters.exclusions || [] };
+  const extracted = extractResultsPage({ responses: collected.responses, dom: collected.domSnapshots, scope, captureId, specDigest, capturedAt: new Date().toISOString(), pageCap: productCap });
+  const rawPath = join(destination, 'raw-responses.json'); await writeJson(rawPath, sanitizeNetworkResponses(collected.responses));
+  const htmlPath = join(destination, 'results.html'); await writeFile(htmlPath, collected.lastDom?.html || '', 'utf8');
+  const snapshotPath = join(destination, 'snapshot.json'); await writeJson(snapshotPath, extracted.snapshot);
+  const screenshotFiles = await saveRegionScreenshots(page, destination, collected.lastDom?.screenshotRegions || {});
+  const files = [await fileEntry('raw-responses', rawPath, 'application/json'), await fileEntry('snapshot', snapshotPath, 'application/json'), await fileEntry('results-html', htmlPath, 'text/html'), ...screenshotFiles];
+  const manifest = {
+    contractVersion: 'metric-results-capture-v1', captureId, specDigest, appliedFilters: scope, resultCount: parsed.rowCount,
+    productPagination: extracted.pagination.W12_topProducts, views: collected.views, sourceMap: extracted.sourceMap, files,
+    archive: { rawResponses: 'raw-responses.json', normalizedSnapshot: 'snapshot.json', resultsHtml: 'results.html', screenshots: screenshotFiles.map(file => file.path) },
+    noReportFileRequested: true,
+  };
+  const manifestPath = join(destination, 'manifest.json'); await writeJson(manifestPath, manifest);
+  return { manifestPath, rowCount: parsed.rowCount, snapshot: extracted.snapshot, captureId };
 }
 
 export const whoamiCommand = cli({
-  site: 'metric', name: 'whoami', access: 'read', description: 'Read Metric login and displayed quota state', domain: 'metric.vn', strategy: Strategy.UI, browser: true, navigateBefore: false, siteSession: 'ephemeral', columns: ['status', 'plan', 'analysisLookupsRemaining', 'downloadRowsRemaining'],
+  site: 'metric', name: 'whoami', access: 'read', description: 'Read Metric login and displayed analysis quota state', domain: 'metric.vn', strategy: Strategy.UI, browser: true, navigateBefore: false, siteSession: 'ephemeral', columns: ['status', 'plan', 'analysisLookupsRemaining'],
   func: async page => withMetricTab(page, async target => [parseWhoamiObservation(await readObservation(target, { includeResults: false }))]),
 });
 
 export const searchCommand = cli({
   site: 'metric', name: 'search', access: 'read', description: 'Run one Metric analysis lookup and save its web snapshot', domain: 'metric.vn', strategy: Strategy.UI, browser: true, navigateBefore: false, siteSession: 'ephemeral',
-  args: [{ name: 'spec', type: 'string', required: true, help: 'Path to metric-query-spec-v1 JSON' }, { name: 'out', type: 'string', required: true, help: 'Output path for the snapshot JSON' }, { name: 'max-rows', type: 'int', default: MAX_ROWS, help: 'Fail closed above this result row cap' }], columns: ['status', 'rowCount', 'snapshotPath'],
-  func: async (page, args) => withMetricTab(page, async target => { const spec = await readSpec(args.spec); const { parsed } = await runSearch(target, spec, Number(args['max-rows'] ?? MAX_ROWS)); await writeJson(args.out, parsed.snapshot); return [{ status: 'READY', rowCount: parsed.rowCount, snapshotPath: String(args.out) }]; }),
+  args: [{ name: 'spec', type: 'string', required: true, help: 'Path to metric-query-spec-v1 JSON' }, { name: 'out', type: 'string', required: true, help: 'Output path for the snapshot JSON' }], columns: ['status', 'rowCount', 'snapshotPath'],
+  func: async (page, args) => withMetricTab(page, async target => { const spec = await readSpec(args.spec); const { parsed } = await runSearch(target, spec, Number.MAX_SAFE_INTEGER); await writeJson(args.out, parsed.snapshot); return [{ status: 'READY', rowCount: parsed.rowCount, snapshotPath: String(args.out) }]; }),
 });
 
 export const captureCommand = cli({
-  site: 'metric', name: 'capture', access: 'read', description: 'Run one Metric lookup and capture its native artifacts', domain: 'metric.vn', strategy: Strategy.UI, browser: true, navigateBefore: false, siteSession: 'ephemeral',
-  args: [{ name: 'spec', type: 'string', required: true, help: 'Path to metric-query-spec-v1 JSON' }, { name: 'out', type: 'string', required: true, help: 'Output directory for capture artifacts' }, { name: 'export', type: 'boolean', default: false, help: 'Download the native xlsx export' }, { name: 'pdf', type: 'boolean', default: false, help: 'Print the results page to PDF' }, { name: 'max-rows', type: 'int', default: MAX_ROWS, help: 'Fail closed above this result row cap' }], columns: ['status', 'rowCount', 'manifestPath'],
+  site: 'metric', name: 'capture', access: 'read', description: 'Run one Metric analysis lookup and archive the results page', domain: 'metric.vn', strategy: Strategy.UI, browser: true, navigateBefore: false, siteSession: 'ephemeral',
+  args: [{ name: 'spec', type: 'string', required: true, help: 'Path to metric-query-spec-v1 JSON' }, { name: 'out', type: 'string', required: true, help: 'Absolute output directory outside the repository' }, { name: 'product-cap', type: 'int', default: PRODUCT_CAP, help: 'Maximum product rows to read through pagination per platform view' }], columns: ['status', 'rowCount', 'manifestPath'],
   func: async (page, args) => withMetricTab(page, async target => {
-    const spec = await readSpec(args.spec); await mkdir(args.out, { recursive: true }); await target.startNetworkCapture?.();
-    const { observation, parsed } = await runSearch(target, spec, Number(args['max-rows'] ?? MAX_ROWS));
-    const snapshotPath = join(args.out, 'snapshot.json'); await writeJson(snapshotPath, parsed.snapshot);
-    const files = [await fileEntry('snapshot', snapshotPath, 'application/json')];
-    if (Boolean(args.export)) { const file = await exportXlsx(target, args.out, observation.download?.maximumRows ?? MAX_ROWS); files.push(await fileEntry('xlsx', file.path, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')); }
-    if (Boolean(args.pdf)) { const file = await printPdf(target, args.out); files.push(await fileEntry('pdf', file.path, 'application/pdf')); }
-    const raw = await saveRawResponses(target, args.out); if (raw) files.push(await fileEntry('raw-responses', raw.path, 'application/json'));
-    const manifest = { spec, appliedFilters: parsed.appliedFilters, rowCount: parsed.rowCount, exportRows: files.some(file => file.role === 'xlsx') ? observation.download?.maximumRows ?? null : null, files, exportRequested: Boolean(args.export), pdfRequested: Boolean(args.pdf) };
-    const manifestPath = join(args.out, 'manifest.json'); await writeJson(manifestPath, manifest); return [{ status: 'READY', rowCount: parsed.rowCount, manifestPath }];
+    const spec = await readSpec(args.spec); await target.startNetworkCapture?.(); await target.readNetworkCapture?.();
+    const { observation, parsed } = await runSearch(target, spec, Number.MAX_SAFE_INTEGER);
+    const archive = await archiveResultsPage(target, args.out, spec, observation, parsed, Number(args['product-cap'] ?? PRODUCT_CAP));
+    return [{ status: 'READY', rowCount: archive.rowCount, manifestPath: archive.manifestPath }];
   }),
 });
 
-export const __test__ = { withMetricTab, readObservation, applyMetricSpec, performSearch, exportXlsx, printPdf };
+export const __test__ = { withMetricTab, readObservation, applyMetricSpec, performSearch, observeResultPage, collectResultPages, archiveResultsPage, readCommittedKeywords };
 export { assertMetricUrl, parseMetricForm };
