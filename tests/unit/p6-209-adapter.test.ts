@@ -76,10 +76,11 @@ test('unlabelled monthly rows stay all and DOM fills a platform missing from res
   const { extractResultsPage, sanitizeNetworkResponses } = await import(captureUrl.href);
   const fixture = await load('metric-results-response');
   const monthly = fixture.responses.find((response: any) => response.body.region === 'monthly');
-  const withoutPlatform = { ...monthly, body: { ...monthly.body, items: [{ ...monthly.body.items[0], platform: undefined }] } };
+  const withoutPlatform = { ...monthly, viewPlatform: 'shopee', body: { ...monthly.body, items: [{ ...monthly.body.items[0], platform: undefined }] } };
   const topProducts = fixture.responses.filter((response: any) => response.body.region === 'top-products')[0];
   const shopeeResponse = { ...topProducts, body: { ...topProducts.body, platform: 'shopee' } };
   const dom = {
+    platform: 'shopee',
     regions: {
       'top-products': {
         platform: 'tiktok', selector: '#synthetic-tiktok-products',
@@ -96,12 +97,63 @@ test('unlabelled monthly rows stay all and DOM fills a platform missing from res
   assert.deepEqual(sanitizeNetworkResponses([{ body: { userId: 'identity', tokenLike: 'Bearer identity-token', revenue: 2 } }])[0].body, { revenue: 2 });
 });
 
+test('live capture view metadata never labels an otherwise unlabelled response', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const directory = await mkdtemp(join(tmpdir(), 'p6-209-unlabelled-live-'));
+  const spec = { keywords: ['synthetic-keyword'], platforms: ['shopee'], period: { startDate: '2025-09-15', endDate: '2026-09-09' }, category: null };
+  const specPath = join(directory, 'spec.json'); const captureDir = join(directory, 'capture');
+  await writeFile(specPath, `${JSON.stringify(spec)}\n`);
+  const form = await load('metric-form'); const result = { ...(await load('metric-search')), appliedFilters: spec };
+  const fixture = await load('metric-results-response');
+  const responses = fixture.responses.map((response: any) => response.body.region === 'monthly'
+    ? { ...response, body: { ...response.body, items: response.body.items.map((row: any) => ({ ...row, platform: undefined })) } }
+    : response);
+  const baseDom = await load('metric-results-dom');
+  const dom = {
+    ...baseDom, screenshotRegions: { overview: '#synthetic-overview' },
+    platformViews: [{ label: 'Shopee', selected: true, selector: 'platform-view', index: 0 }],
+    regions: { ...baseDom.regions, 'top-products': { platform: 'tiktok', selector: '#synthetic-tiktok-products', items: [{ name: 'Synthetic TikTok fallback', shop: 'Synthetic TikTok shop', revenue: { value: 9, unit: 'VND' } }] } },
+  };
+  const page = fakePage({ ...form, appliedFilters: { ...spec, keywords: [] }, quota: {} }, result, dom, responses);
+  await adapter.captureCommand.func(page, { spec: specPath, out: captureDir, 'product-cap': 200 });
+  const snapshot = JSON.parse(await readFile(join(captureDir, 'snapshot.json'), 'utf8'));
+  assert.equal(snapshot.groups.W4_monthly[0].platform, 'all');
+  assert.match(await readFile(join(captureDir, 'snapshot.json'), 'utf8'), /Synthetic TikTok fallback/);
+  await rm(directory, { recursive: true, force: true });
+});
+
+test('collectResults re-reads the selected tab before each platform screenshot', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const directory = await mkdtemp(join(tmpdir(), 'p6-209-combined-view-'));
+  const specPath = join(directory, 'spec.json'); const captureDir = join(directory, 'capture');
+  await writeFile(specPath, `${JSON.stringify(commandSpec)}\n`);
+  const form = await load('metric-form'); const result = { ...(await load('metric-search')), appliedFilters: commandSpec };
+  const fixture = await load('metric-results-response'); const baseDom = await load('metric-results-dom');
+  const platformViews = (active: string) => ['shopee', 'all', 'tiktok'].map((platform, index) => ({
+    label: platform === 'all' ? 'All platforms' : platform === 'tiktok' ? 'TikTok Shop' : 'Shopee',
+    selected: active === platform, selector: 'platform-view', index,
+  }));
+  const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] }, quota: {} }, result, baseDom, fixture.responses, {
+    active: 'shopee',
+    resultDom: (state: any, original: any) => ({ ...original, screenshotRegions: { overview: '#synthetic-overview' }, platformViews: platformViews(state.active || 'shopee') }),
+    onClick: (_selector: string, state: any) => { state.active = ['all', 'shopee', 'tiktok'][state.platformSwitches - 1] || state.active; },
+  });
+  await adapter.captureCommand.func(page, { spec: specPath, out: captureDir, 'product-cap': 200 });
+  const screenshotNames = page.screenshotCalls.map((options: any) => String(options.path));
+  assert.ok(screenshotNames.some((name: string) => name.includes('platform-shopee-region-overview')));
+  assert.ok(screenshotNames.some((name: string) => name.includes('platform-tiktok-region-overview')));
+  assert.ok(screenshotNames.every((_name: string, index: number) => page.screenshotCalls[index].clip));
+  await rm(directory, { recursive: true, force: true });
+});
+
 test('archive sanitization removes identity and token-like values from every saved file', async () => {
   const { sanitizeNetworkResponses, sanitizeResultsHtml } = await import(captureUrl.href);
   const sensitive = await load('metric-sensitive-archive');
   const clean = sanitizeNetworkResponses(sensitive.responses);
   const serialized = JSON.stringify(clean);
-  for (const marker of ['Synthetic logged-in account', 'synthetic-owner@example.test', '+84901234567', 'Synthetic owner nickname', 'synthetic-user-id', 'synthetic-secret-token', 'synthetichead.syntheticpayload.syntheticsignature', '0123456789abcdef0123456789abcdef0123456789abcdef']) assert.doesNotMatch(serialized, new RegExp(marker.replace(/[+?.]/g, '\\$&')));
+  for (const marker of ['Synthetic logged-in account', 'synthetic-owner@example.test', '+84901234567', 'Synthetic owner nickname', 'https://example.test/avatar.png', 'synthetic-user-id', 'Synthetic shop owner', 'synthetic-secret-token', 'synthetichead.syntheticpayload.syntheticsignature', '0123456789abcdef0123456789abcdef0123456789abcdef']) assert.doesNotMatch(serialized, new RegExp(marker.replace(/[+?.]/g, '\\$&')));
   assert.match(JSON.stringify(clean), /"business"/);
   const html = sanitizeResultsHtml('<html><head><meta name="identity" content="synthetic-owner@example.test"><script>Bearer synthetic-secret-token</script></head><body><header class="account-area">Synthetic logged-in account</header><main data-state="identity-state"><div data-metric-region="overview">Revenue 8</div></main></body></html>');
   assert.doesNotMatch(html, /synthetic-owner|synthetic-secret|logged-in account|identity-state|<script|<meta|account-area/i);
@@ -168,8 +220,12 @@ function fakePage(observation: any, result: any, resultDom: any = null, networkR
   let searched = false;
   const state = { paginationClicks: 0, platformSwitches: 0 };
   const calls: string[] = [];
+  const screenshotCalls: any[] = [];
+  const maskCalls: string[] = [];
   const page: any = {
     calls,
+    screenshotCalls,
+    maskCalls,
     newTab: async () => 'synthetic-tab',
     selectTab: async (target: string) => calls.push(`select:${target}`),
     closeTab: async (target: string) => calls.push(`close:${target}`),
@@ -181,22 +237,24 @@ function fakePage(observation: any, result: any, resultDom: any = null, networkR
       }
       if (fn.name === 'readCommittedKeywords') return commandSpec.keywords;
       if (fn.name === 'observeResultPage') return behavior.resultDom ? behavior.resultDom(state, resultDom) : resultDom || { html: '<html></html>', regions: {}, screenshotRegions: {}, platformViews: [] };
+      if (fn.name === 'prepareScreenshotClip') { maskCalls.push('prepare'); return behavior.screenshotClip ? behavior.screenshotClip(state) : { clip: { x: 12, y: 24, width: 320, height: 180 }, maskedCount: 1 }; }
+      if (fn.name === 'restoreScreenshotMask') { maskCalls.push('restore'); return true; }
       if (fn.name === 'setCheckbox') return { selector: '#synthetic', index: 0 };
       if (fn.name === 'visibleOptionIndex' || fn.name === 'clickVisibleText') return 0;
       return 0;
     },
-    click: async (selector: string) => {
+    click: async (selector: string, options?: any) => {
       calls.push(`click:${selector}`);
       if (selector === 'button,[role="button"]') searched = true;
-      if (selector === 'next' || selector.includes('ant-pagination-next') || selector.includes('Next Page')) state.paginationClicks += 1;
-      if (selector.includes('data-metric-platform') || selector.includes('data-platform-view') || selector === 'platform-view') state.platformSwitches += 1;
-      behavior.onClick?.(selector, state);
+      if (selector === 'next' || (typeof selector === 'string' && (selector.includes('ant-pagination-next') || selector.includes('Next Page')))) state.paginationClicks += 1;
+      if (typeof selector === 'string' && (selector.includes('data-metric-platform') || selector.includes('data-platform-view') || selector === 'platform-view')) state.platformSwitches += 1;
+      behavior.onClick?.(selector, state, options);
     },
     fillText: async (selector: string, text: string) => calls.push(`fill:${selector}:${text}`),
     pressKey: async (key: string) => calls.push(`key:${key}`),
     startNetworkCapture: async () => { calls.push('network:start'); },
     readNetworkCapture: async () => networkResponses,
-    screenshot: async ({ path }: { path: string }) => { await writeFile(path, Buffer.from('synthetic-png')); },
+    screenshot: async (options: any) => { screenshotCalls.push(options); await writeFile(options.path, Buffer.from('synthetic-png')); },
     get searched() { return searched; },
   };
   return page;
@@ -236,9 +294,14 @@ test('capture archive contains no fixture identity or token in any archived file
   const form = await load('metric-form'); const result = { ...(await load('metric-search')), appliedFilters: commandSpec };
   const base = await load('metric-results-response'); const sensitive = await load('metric-sensitive-archive');
   const dom = { ...(await load('metric-results-dom')), html: '<html><head><meta name="identity" content="synthetic-owner@example.test"><script>Bearer synthetic-secret-token</script></head><body><header class="account-area">Synthetic logged-in account</header><main><div data-metric-region="overview">Revenue 8</div></main></body></html>', screenshotRegions: { overview: '#synthetic-overview' }, platformViews: [{ label: 'Shopee', selected: true, selector: 'platform-view', index: 0 }, { label: 'TikTok Shop', selected: false, selector: 'platform-view', index: 1 }] };
-  const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] } }, result, dom, [...base.responses, ...sensitive.responses]);
+  const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] } }, result, dom, [...base.responses, ...sensitive.responses], {
+    resultDom: (state: any, original: any) => ({ ...original, platformViews: original.platformViews.map((view: any) => ({ ...view, selected: view.label === (state.platformSwitches ? 'TikTok Shop' : 'Shopee') })) }),
+  });
   await adapter.captureCommand.func(page, { spec: specPath, out: captureDir, 'product-cap': 200 });
-  const markers = [/Synthetic logged-in account/i, /synthetic-owner@example\.test/i, /\+84901234567/, /synthetic-user-id/i, /synthetic-secret-token/i, /synthetichead\.syntheticpayload\.syntheticsignature/i, /0123456789abcdef0123456789abcdef0123456789abcdef/i];
+  assert.ok(page.screenshotCalls.length > 0);
+  assert.ok(page.screenshotCalls.every((options: any) => options.clip && options.fullPage === false));
+  assert.ok(page.maskCalls.includes('prepare'));
+  const markers = [/Synthetic logged-in account/i, /synthetic-owner@example\.test/i, /\+84901234567/, /Synthetic owner nickname/i, /https:\/\/example\.test\/avatar\.png/i, /synthetic-user-id/i, /Synthetic shop owner/i, /synthetic-secret-token/i, /synthetichead\.syntheticpayload\.syntheticsignature/i, /0123456789abcdef0123456789abcdef0123456789abcdef/i];
   for (const name of await readdir(captureDir)) {
     const text = (await readFile(join(captureDir, name))).toString('utf8');
     for (const marker of markers) assert.doesNotMatch(text, marker, `${name} retained sanitized fixture data`);

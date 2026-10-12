@@ -461,6 +461,50 @@ async function gateCurrentMetricPage(page) {
   return gateMetricPage(observation);
 }
 
+// These functions run in the page. A screenshot is publishable only when a
+// visible result region has a finite bounding box. The account/header mask is
+// applied before capture and restored immediately afterwards.
+function prepareScreenshotClip(selector) {
+  const region = document.querySelector(selector);
+  if (!region) return { clip: null, reason: 'RESULT_REGION_NOT_FOUND' };
+  const rect = region.getBoundingClientRect();
+  if (![rect.left, rect.top, rect.width, rect.height].every(Number.isFinite) || rect.width <= 0 || rect.height <= 0) {
+    return { clip: null, reason: 'RESULT_REGION_BOUNDS_UNAVAILABLE' };
+  }
+  const clip = { x: Math.max(0, rect.left), y: Math.max(0, rect.top), width: rect.width, height: rect.height };
+  const intersects = other => {
+    const candidate = other.getBoundingClientRect();
+    return candidate.width > 0 && candidate.height > 0
+      && candidate.left < rect.right && candidate.right > rect.left
+      && candidate.top < rect.bottom && candidate.bottom > rect.top;
+  };
+  const sensitive = element => {
+    if (element === region || region.contains(element)) return false;
+    const marker = `${element.tagName || ''} ${element.id || ''} ${element.className || ''}`;
+    const style = getComputedStyle(element);
+    return /(?:header|account|avatar|profile|nickname|shop[-_ ]?owner|user[-_ ]?info|logout|sign[-_ ]?out)/i.test(marker)
+      || ((style.position === 'fixed' || style.position === 'sticky') && intersects(element));
+  };
+  let maskedCount = 0;
+  for (const element of document.querySelectorAll('body *')) {
+    if (!sensitive(element)) continue;
+    element.setAttribute('data-metric-screenshot-hidden', '1');
+    element.setAttribute('data-metric-screenshot-prev-visibility', element.style.visibility || '');
+    element.style.visibility = 'hidden';
+    maskedCount += 1;
+  }
+  return { clip, maskedCount };
+}
+
+function restoreScreenshotMask() {
+  for (const element of document.querySelectorAll('[data-metric-screenshot-hidden="1"]')) {
+    element.style.visibility = element.getAttribute('data-metric-screenshot-prev-visibility') || '';
+    element.removeAttribute('data-metric-screenshot-hidden');
+    element.removeAttribute('data-metric-screenshot-prev-visibility');
+  }
+  return true;
+}
+
 async function readResultPage(page) {
   // The gate is deliberately a separate page evaluation. This keeps redirects,
   // login/captcha screens and warnings out of both DOM and network archives.
@@ -482,7 +526,7 @@ function isCombinedPlatformLabel(value) {
   return /^(?:all|all platforms|total|tất cả|tất cả nền tảng)$/i.test(String(value ?? '').normalize('NFC').trim());
 }
 
-async function saveViewRegionScreenshots(page, dom, screenshotDir, viewPlatform, seenScreenshots, screenshots) {
+async function saveViewRegionScreenshots(page, dom, screenshotDir, viewPlatform, seenScreenshots, screenshots, screenshotSkips) {
   if (!dom?.screenshotRegions || typeof page.screenshot !== 'function') return;
   for (const [region, selector] of Object.entries(dom.screenshotRegions)) {
     const key = `${viewPlatform}:${region}`;
@@ -493,23 +537,33 @@ async function saveViewRegionScreenshots(page, dom, screenshotDir, viewPlatform,
       element?.scrollIntoView({ block: 'start', inline: 'nearest' });
       return Boolean(element);
     }, selector).catch(() => false);
+    await gateCurrentMetricPage(page);
+    const prepared = await page.evaluate(prepareScreenshotClip, selector).catch(() => ({ clip: null, reason: 'SCREENSHOT_CLIP_FAILED' }));
+    if (!prepared?.clip) {
+      screenshotSkips.push({ platform: viewPlatform, region, reason: prepared?.reason || 'SCREENSHOT_CLIP_UNAVAILABLE' });
+      continue;
+    }
     const safeView = String(viewPlatform).replace(/[^a-z0-9_-]+/gi, '-');
     const safeRegion = String(region).replace(/[^a-z0-9_-]+/gi, '-');
     const path = join(screenshotDir, `platform-${safeView}-region-${safeRegion}.png`);
-    await page.screenshot({ path, fullPage: false });
-    seenScreenshots.add(key);
-    screenshots.push({ platform: viewPlatform, region, path });
+    try {
+      await page.screenshot({ path, fullPage: false, clip: prepared.clip });
+      seenScreenshots.add(key);
+      screenshots.push({ platform: viewPlatform, region, path, maskedCount: prepared.maskedCount || 0 });
+    } finally {
+      await page.evaluate(restoreScreenshotMask).catch(() => {});
+    }
   }
 }
 
-async function collectResultPages(page, productCap, initial = null, viewPlatform = 'all', screenshotDir = null, seenScreenshots = new Set(), screenshots = []) {
+async function collectResultPages(page, productCap, initial = null, viewPlatform = 'all', screenshotDir = null, seenScreenshots = new Set(), screenshots = [], screenshotSkips = []) {
   const responses = []; const domSnapshots = []; const seenPages = new Set();
   let lastDom = null; let pagesRead = 0;
   for (let iteration = 0; iteration < PAGE_CAP; iteration += 1) {
-    const current = initial || await readResultPage(page); initial = null; current.dom.platform = viewPlatform; lastDom = current.dom; pagesRead += 1;
+    const current = initial || await readResultPage(page); initial = null; current.dom.observedInView = viewPlatform; lastDom = current.dom; pagesRead += 1;
     responses.push(...current.responses.map(response => ({ ...response, viewPlatform })));
     domSnapshots.push(current.dom);
-    if (screenshotDir) await saveViewRegionScreenshots(page, current.dom, screenshotDir, viewPlatform, seenScreenshots, screenshots);
+    if (screenshotDir) await saveViewRegionScreenshots(page, current.dom, screenshotDir, viewPlatform, seenScreenshots, screenshots, screenshotSkips);
     const pagination = current.dom.pagination;
     const productRegion = current.dom.regions?.['top-products'] || {};
     const items = productRegion.items || productRegion.rows;
@@ -528,7 +582,7 @@ async function collectResultPages(page, productCap, initial = null, viewPlatform
     await waitForResultsSettle(page);
     await gateCurrentMetricPage(page);
   }
-  return { responses, domSnapshots, lastDom, pagesRead, screenshots };
+  return { responses, domSnapshots, lastDom, pagesRead, screenshots, screenshotSkips };
 }
 
 async function collectResults(page, spec, productCap, screenshotDir) {
@@ -540,39 +594,55 @@ async function collectResults(page, spec, productCap, screenshotDir) {
   const recognizedViews = platformViews.filter(view => platformLabel(view.label) || isCombinedPlatformLabel(view.label));
   const combined = recognizedViews.find(view => isCombinedPlatformLabel(view.label));
   const batches = [];
-  const screenshots = []; const seenScreenshots = new Set();
+  const screenshots = []; const screenshotSkips = []; const seenScreenshots = new Set();
+  const selectedView = (dom, wanted) => (Array.isArray(dom?.platformViews) ? dom.platformViews : [])
+    .find(view => view.selected && (wanted === 'all' ? isCombinedPlatformLabel(view.label) : platformLabel(view.label) === wanted));
+  const requireSelectedView = (dom, wanted) => {
+    if (!selectedView(dom, wanted)) throw new MetricAdapterError('METRIC_UI_CHANGED', `Metric result view is not selected: ${wanted}`);
+    return dom;
+  };
+  const switchAndRead = async (target, wanted) => {
+    if (typeof page.click !== 'function') throw new MetricAdapterError('METRIC_UI_CHANGED', `Metric platform result view is unavailable: ${wanted}`);
+    await page.click(target.selector, { nth: target.index });
+    await gateCurrentMetricPage(page);
+    await waitForResultsSettle(page);
+    await gateCurrentMetricPage(page);
+    const switched = await readResultPage(page);
+    requireSelectedView(switched.dom, wanted);
+    return switched;
+  };
   if (recognizedViews.length === 0 || combined) {
-    if (combined && !combined.selected) {
-      if (typeof page.click !== 'function') throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric combined platform view is unavailable');
-      await page.click(combined.selector, { nth: combined.index });
-      await gateCurrentMetricPage(page); await waitForResultsSettle(page); await gateCurrentMetricPage(page);
+    let combinedPage = first;
+    if (combined) {
+      combinedPage = combined.selected ? first : await switchAndRead(combined, 'all');
+      requireSelectedView(combinedPage.dom, 'all');
     }
-    batches.push({ platform: 'all', ...(await collectResultPages(page, productCap, combined?.selected ? first : null, 'all', screenshotDir, seenScreenshots, screenshots)) });
+    batches.push({ platform: 'all', ...(await collectResultPages(page, productCap, combinedPage, 'all', screenshotDir, seenScreenshots, screenshots, screenshotSkips)) });
   }
   if (recognizedViews.length >= 2) {
     for (const wanted of requested) {
       const target = recognizedViews.find(view => platformLabel(view.label) === wanted);
       if (!target) throw new MetricAdapterError('METRIC_UI_CHANGED', `Metric platform result view is missing: ${wanted}`);
-      if (target.selected) batches.push({ platform: wanted, ...(await collectResultPages(page, productCap, first, wanted, screenshotDir, seenScreenshots, screenshots)) });
-      else {
-        if (typeof page.click !== 'function') throw new MetricAdapterError('METRIC_UI_CHANGED', `Metric platform result view is unavailable: ${wanted}`);
-        await page.click(target.selector, { nth: target.index });
-        await gateCurrentMetricPage(page); await waitForResultsSettle(page); await gateCurrentMetricPage(page);
-        batches.push({ platform: wanted, ...(await collectResultPages(page, productCap, null, wanted, screenshotDir, seenScreenshots, screenshots)) });
-      }
+      // Re-read after the previous batch (and after every switch); the
+      // initial target.selected value is stale once another tab is active.
+      let current = await readResultPage(page);
+      if (!selectedView(current.dom, wanted)) current = await switchAndRead(target, wanted);
+      requireSelectedView(current.dom, wanted);
+      batches.push({ platform: wanted, ...(await collectResultPages(page, productCap, current, wanted, screenshotDir, seenScreenshots, screenshots, screenshotSkips)) });
     }
   } else if (recognizedViews.length === 1 && !combined) {
     const solePlatform = platformLabel(recognizedViews[0].label);
     if (!solePlatform || requested.some(platform => platform !== solePlatform)) {
       throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric result page does not expose every requested platform view');
     }
-    batches.push({ platform: solePlatform, ...(await collectResultPages(page, productCap, first, solePlatform, screenshotDir, seenScreenshots, screenshots)) });
+    requireSelectedView(first.dom, solePlatform);
+    batches.push({ platform: solePlatform, ...(await collectResultPages(page, productCap, first, solePlatform, screenshotDir, seenScreenshots, screenshots, screenshotSkips)) });
   }
   const allResponses = batches.flatMap(batch => batch.responses);
   const responses = [...new Map(allResponses.map(response => [JSON.stringify([response.viewPlatform, response.url, response.urlPath, response.responsePreview, response.body, response.status]), response])).values()];
   return {
     responses, domSnapshots: batches.flatMap(batch => batch.domSnapshots),
-    lastDom: batches.at(-1)?.lastDom || first.dom, screenshots,
+    lastDom: batches.at(-1)?.lastDom || first.dom, screenshots, screenshotSkips,
     views: batches.map(batch => ({ platform: batch.platform, pagesRead: batch.pagesRead })),
   };
 }
@@ -593,7 +663,10 @@ async function archiveResultsPage(page, out, spec, observation, parsed, productC
   try {
     const collected = await collectResults(page, spec, productCap, staging);
     await gateCurrentMetricPage(page);
-    if (collected.screenshots.length === 0) throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric result-region screenshots are unavailable');
+    if (collected.screenshots.length === 0) {
+      const reasons = collected.screenshotSkips?.map(skip => `${skip.platform}/${skip.region}:${skip.reason}`).join(', ') || 'none recorded';
+      throw new MetricAdapterError('METRIC_UI_CHANGED', `Metric result-region screenshots are unavailable (${reasons})`);
+    }
     const captureId = `metric-${Date.now()}`;
     const specDigest = hashBytes(Buffer.from(JSON.stringify(spec), 'utf8'));
     const scope = { ...parsed.appliedFilters, ticks: parsed.appliedFilters.ticks || [], advancedFilters: parsed.appliedFilters.advancedFilters || [], exclusions: parsed.appliedFilters.exclusions || [] };
@@ -615,6 +688,7 @@ async function archiveResultsPage(page, out, spec, observation, parsed, productC
     const manifest = {
       contractVersion: 'metric-results-capture-v1', captureId, specDigest, appliedFilters: scope, resultCount: parsed.rowCount,
       productPagination: extracted.pagination.W12_topProducts, views: collected.views, sourceMap: extracted.sourceMap, files,
+      screenshotSkips: collected.screenshotSkips,
       archive: { rawResponses: 'raw-responses.json', normalizedSnapshot: 'snapshot.json', resultsHtml: 'results.html', screenshots: screenshotFiles.map(file => file.path) },
       noReportFileRequested: true,
     };

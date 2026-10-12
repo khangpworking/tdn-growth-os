@@ -241,6 +241,33 @@ function responsePath(entry, index) {
   try { return new URL(raw, 'https://metric.vn').pathname; } catch { return raw.split('?')[0] || `/responses/${index}`; }
 }
 
+function explicitPlatform(value) {
+  const platform = platformOf(value, null);
+  return platform === 'shopee' || platform === 'tiktok' ? platform : null;
+}
+
+function requestPlatform(response) {
+  const candidates = [
+    response?.request?.params?.platform,
+    response?.request?.query?.platform,
+    response?.requestParams?.platform,
+    response?.params?.platform,
+    response?.query?.platform,
+  ];
+  for (const candidate of candidates) {
+    const platform = explicitPlatform(candidate);
+    if (platform) return platform;
+  }
+  const rawUrl = clean(response?.request?.url || response?.requestUrl || response?.url);
+  if (rawUrl) {
+    try {
+      const platform = explicitPlatform(new URL(rawUrl, 'https://metric.vn').searchParams.get('platform'));
+      if (platform) return platform;
+    } catch { /* malformed request URLs remain unlabelled */ }
+  }
+  return 'all';
+}
+
 function flattenPayload(body, sourcePointer, platformFallback = 'all') {
   if (!body || typeof body !== 'object') return [];
   if (body.regions && typeof body.regions === 'object' && !Array.isArray(body.regions)) {
@@ -259,10 +286,12 @@ function payloadEntries(responses, domSnapshots) {
   const entries = [];
   for (const [index, response] of (Array.isArray(responses) ? responses : []).entries()) {
     const body = rawBody(response);
-    const viewPlatform = platformOf(response?.viewPlatform ?? response?.platform);
-    const payload = viewPlatform !== 'all' && body && typeof body === 'object'
-      && (!body.platform || platformOf(body.platform) === 'all') ? { ...body, platform: viewPlatform } : body;
-    entries.push(...flattenPayload(payload, `response:${responsePath(response, index)}`, viewPlatform));
+    // The selected tab is observation metadata only. It is never an
+    // attribution label for a response body that does not name a platform.
+    const responsePlatform = body && typeof body === 'object' && Object.hasOwn(body, 'platform')
+      ? platformOf(body.platform, 'all')
+      : requestPlatform(response);
+    entries.push(...flattenPayload(body, `response:${responsePath(response, index)}`, responsePlatform));
   }
   const doms = Array.isArray(domSnapshots) ? domSnapshots : [domSnapshots];
   for (const [index, dom] of doms.entries()) {
@@ -271,9 +300,9 @@ function payloadEntries(responses, domSnapshots) {
     const regions = dom.regions && typeof dom.regions === 'object' ? dom.regions : {};
     for (const [region, value] of Object.entries(regions)) {
       entries.push(...flattenPayload(
-        { ...(value && typeof value === 'object' ? value : { value }), region, platform: value?.platform ?? dom.platform ?? 'all' },
+        { ...(value && typeof value === 'object' ? value : { value }), region, platform: value?.platform ?? 'all' },
         `dom:${clean(value?.selector) || `region-${region}-${index}`}`,
-        platformOf(value?.platform ?? dom.platform),
+        platformOf(value?.platform),
       ));
     }
   }
@@ -462,7 +491,9 @@ export function sanitizeNetworkResponses(responses) {
   return (Array.isArray(responses) ? responses : []).map((response, index) => {
     const body = rawBody(response);
     const cleanResponse = { urlPath: responsePath(response, index), status: response?.status ?? null, body: sanitizeValue(body) };
-    return response?.viewPlatform ? { viewPlatform: response.viewPlatform, ...cleanResponse } : cleanResponse;
+    const requestLabel = requestPlatform(response);
+    if (requestLabel !== 'all') cleanResponse.request = { params: { platform: requestLabel } };
+    return response?.viewPlatform ? { observedInView: response.viewPlatform, ...cleanResponse } : cleanResponse;
   }).filter(response => response.body !== null && response.body !== OMIT);
 }
 

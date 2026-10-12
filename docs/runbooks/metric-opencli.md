@@ -23,7 +23,7 @@ adapter installed from the same repository bytes. The executor verifies
 `tools/opencli-metric/adapter-manifest.json` before each run. `whoami` reads
 only login, captcha, page-state and any displayed analysis lookup balance.
 The current manifest SHA-256 is
-`e7c33a3f8a48a85003837cb65ea26a344a6684b592e116b45ffd62f5528500e8`.
+`6c164443b709944111afeee98401db22427f68dabaa80de7d1757b5c8f36e594`.
 
 ## Capture workflow
 
@@ -59,16 +59,21 @@ The archive is written immediately outside Git and contains:
   source pointer;
 - `results.html`: sanitized result-region HTML with scripts, inline state, meta
   tags and account/header content removed;
-- `platform-*-region-*.png`: one screenshot for every result region in each
-  platform view captured;
+- `platform-*-region-*.png`: one clipped screenshot for every result region in
+  each verified platform view; the account/header/avatar and overlapping
+  sticky/fixed elements are hidden before capture. Unlocatable or unbounded
+  regions are skipped with a reason in `manifest.json` (and never fall back to
+  a viewport screenshot);
 - `manifest.json`: applied scope, view list, W1–W16 source map, pagination and
   exact file digests.
 
 Network JSON already received by the page is the preferred source for each
-platform. DOM extraction remains the fallback for a platform not covered by a
-response. An unlabelled row remains `all`, never Shopee. No history page is
-opened by the adapter, and no account, settings or authentication action is
-performed.
+platform when the response body or its request parameters explicitly names
+that platform. The selected tab is retained only as `observedInView` metadata;
+it never attributes an otherwise unlabelled response. DOM extraction remains
+the fallback for a platform not covered by a response. An unlabelled row
+remains `all`, never Shopee. No history page is opened by the adapter, and no
+account, settings or authentication action is performed.
 
 ## Safety and failure rules
 
