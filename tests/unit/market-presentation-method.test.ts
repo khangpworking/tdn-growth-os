@@ -135,3 +135,13 @@ test('reader sample statements use the frozen Metric row count when presentation
   assert.doesNotMatch(html, /n = 0/);
   assert.match(html, /class="lim"[^>]*><b>Chú thích:<\/b>/);
 });
+
+test('reader omits n when the stored sample count is not calculated', () => {
+  const f = fixture();
+  const method = buildAutomationMarketPresentation(f.binding, { ...f.input, rows: sync1ReaderFixture('1.4.0').rows, unitSpec: null });
+  const allScope = method.input.metric!.scopes.find(scope => scope.key === 'all')!;
+  (allScope as { status: 'CALCULATED' | 'BLOCKED_LABELS' }).status = 'BLOCKED_LABELS';
+  const html = renderAutomationMarketFindings(method, citations, true);
+  assert.doesNotMatch(html, /n\s*=\s*\d+/i);
+  assert.match(html, /chưa có số lượng mẫu/);
+});

@@ -57,9 +57,7 @@ function glossaryText(html: string): string {
 }
 
 function technicalLeaks(html: string): string[] {
-  const body = html
-    .replace(/<[^>]*\bdata-quote(?:\s|=|>)[\s\S]*?<\/[^>]+>/giu, ' ');
-  const text = visible(body);
+  const text = visible(html);
   return [
     ...(text.match(/(?:[A-Za-z]:\\[^\s<>"']+|\/(?:home|Users)\/[^\s<>"']*)/gu) ?? []),
     ...(text.match(/\b[0-9a-f]{64}\b/giu) ?? []),
@@ -87,7 +85,8 @@ function zeroSampleSizeIssues(html: string): string[] {
 }
 
 function hasSampleStatement(text: string): boolean {
-  return /\b(?:trong mẫu|mẫu|tệp)\b[^.!?]{0,160}\bn\s*=\s*\d+\b/iu.test(text) ||
+  return /\bchưa có số lượng mẫu\b/iu.test(text) ||
+    /\b(?:trong mẫu|mẫu|tệp)\b[^.!?]{0,160}\bn\s*=\s*\d+\b/iu.test(text) ||
     /\bn\s*=\s*\d+\s+(?:sản phẩm|dòng|bản ghi)\b/iu.test(text);
 }
 

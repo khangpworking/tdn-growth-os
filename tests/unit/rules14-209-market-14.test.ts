@@ -78,10 +78,17 @@ test('rule 3 rejects technical identifiers that are not legacy snake_case', () =
   ]) assert.equal(rule(valid.replace('</body>', `<p>${token}</p></body>`), '3').ok, false, token);
 });
 
+test('rule 3 scans technical identifiers inside visible quoted text', () => {
+  const quoted = valid.replace('</body>', '<p><span data-quote>normalized/observations.json</span></p></body>');
+  assert.equal(rule(quoted, '3').ok, false, 'quoted technical path must remain visible to the gate');
+});
+
 test('rule 7 requires an n = sample statement', () => {
   assert.equal(rule(valid.replace(/n = 4/gu, ''), '7').ok, false, 'no n = statement');
   assert.equal(rule(valid.replace(/n = 4/gu, '4'), '7').ok, false, 'malformed sample phrase');
   assert.equal(rule(valid.replace('<p>Trong mẫu n = 4 sản phẩm.', '<p>Trong mẫu n = 0 sản phẩm; doanh thu 10 VND.'), '7').ok, false, 'zero n beside a non-zero figure');
+  const unknown = valid.replace(/n = 4/gu, 'chưa có số lượng mẫu');
+  assert.equal(rule(unknown, '7').ok, true, 'unknown stored count is stated without inventing n');
 });
 
 test('rule 9 binds approval labels and required fields to exactly three rows', () => {

@@ -55,7 +55,8 @@ function methodLimits(limits: readonly string[], summary = 'Giới hạn và mã
 const readerText = (value: string): string => activeReaderPlainText && !readerSafe(value) ? '' : storedText(value, '', '');
 const list = (title: string, values: readonly string[]) => values.length ? `<h4>${title}</h4><ul>${values.map(value => `<li>${readerText(value)}</li>`).join('')}</ul>` : '';
 
-export function i14SynthesisSection(outcome: AutomationI14ExecutionOutcome | undefined, citations: ReportCitations = NO_CITATIONS): string {
+export function i14SynthesisSection(outcome: AutomationI14ExecutionOutcome | undefined, citations: ReportCitations = NO_CITATIONS, readerPlainText = true): string {
+  activeReaderPlainText = readerPlainText;
   if (!outcome) return '';
   if (outcome.status === 'NOT_DISPATCHED') return outcome.reason === 'AI_NOT_CONFIGURED'
     ? '<p class="warning">Đã có bối cảnh nguồn đủ điều kiện, nhưng chưa cấu hình bước đề xuất AI. Báo cáo này chỉ trình bày bằng chứng đã lưu.</p>' : '';
@@ -240,7 +241,8 @@ const unassignedCopy: Readonly<Record<UnassignedClaim['reason'], string>> = {
 };
 const contextLabels = { role: 'Vai trò', situation: 'Tình huống', task: 'Nhiệm vụ', setting: 'Nơi sử dụng', time: 'Thời điểm' } as const;
 
-export function i14AdmissionSection(admission: AutomationI14EvidenceAdmission, claims: AutomationSourceClaims, citations: ReportCitations = NO_CITATIONS): string {
+export function i14AdmissionSection(admission: AutomationI14EvidenceAdmission, claims: AutomationSourceClaims, citations: ReportCitations = NO_CITATIONS, readerPlainText = true): string {
+  activeReaderPlainText = readerPlainText;
   const claimIndex = new Map(claims.claims.map(claim => [claim.claimId, claim]));
   const intro = '<p>Phần này kiểm tra lời nguồn có nêu bối cảnh sử dụng hay không. Bối cảnh có thể giúp đặt giả thuyết để người dùng xem xét; không chứng minh nhu cầu thị trường, mức phổ biến hoặc hướng đã được chọn.</p><p>Chưa có câu hỏi quyết định của người dùng. Chưa có hướng cơ hội hoặc giả thuyết AI được duyệt trong bản này.</p>';
   const anchors = admission.anchors.map(anchor => `<article class="evidence-entry"><h3>Bối cảnh theo lời nguồn</h3><dl>${anchor.contextFields.map(field => `<dt>${contextLabels[field.field]}</dt><dd>${retainedQuoteHtml(field.span.quote)}</dd>`).join('')}</dl><p>${attributionText(anchor.declaration.sourceAttribution, 'Chưa có ghi nhận nguồn')}</p>${anchor.counterevidenceSpans.length ? `<p>Đoạn phản chứng được ghi nhận:</p><ul>${anchor.counterevidenceSpans.map(span => `<li>${retainedQuoteHtml(span.quote)}</li>`).join('')}</ul>` : '<p>Hồ sơ này chưa ghi nhận đoạn phản chứng. Điều đó không có nghĩa là không tồn tại phản chứng.</p>'}${sourceDetails(claimById(claimIndex, anchor.claimId), 'claim', citations)}</article>`).join('');

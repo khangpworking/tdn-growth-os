@@ -86,9 +86,8 @@ export function renderAutomationMarketAdvertising(input: AdvertisingReferenceInp
  * calculation, interpretation, ordering by importance or provider execution. */
 export function renderAutomationMarketFindings(method: Method, citations: ReportCitations, readerPlainText = false): string {
   const allScope = method.input.metric?.scopes.find(scope => scope.key === 'all');
-  const sampleCount = allScope?.status === 'CALCULATED' && allScope.listingCount > 0
-    ? allScope.listingCount : method.input.rows.length > 0 ? method.input.rows.length : null;
-  const sampleLabel = sampleCount === null ? 'trong mẫu (chưa rõ số dòng)' : `trong mẫu (n = ${sampleCount})`;
+  const sampleCount = allScope?.status === 'CALCULATED' ? allScope.listingCount : null;
+  const sampleLabel = sampleCount === null ? 'trong mẫu (chưa có số lượng mẫu)' : `trong mẫu (n = ${sampleCount})`;
   const withSample = (text: string): string => readerPlainText
     ? text.replace(/\btrong mẫu\b/iu, sampleLabel)
     : text;
