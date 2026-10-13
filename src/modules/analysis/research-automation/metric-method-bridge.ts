@@ -667,16 +667,16 @@ function verifyCaptureSelection(selected: CaptureSelected, input: Pick<MetricRun
 }
 
 /** The capture is uploaded before confirmation, so its page filters are
- * checked against the confirmed scope here: a capture that narrowed the
- * population with filters the owner did not confirm is refused. The keyword
- * is already bound to the run start; confirmed exclusions the page did not
- * apply stay with the later classification. */
+ * checked against the confirmed scope here. The capture path does not apply
+ * exclusions after normalization, so the page must have applied exactly the
+ * confirmed exclusions and no extra filters. Confirmed include terms only
+ * widen the scope; the observed sample stays the searched keyword. */
 export function assertCaptureFilterScope(captured: { readonly advancedFilters: readonly unknown[]; readonly exclusions: readonly string[] },
   scope: Pick<ScopeSnapshot, 'excludeTerms'> | null | undefined): void {
   if (!scope) return;
   const key = (value: string): string => value.normalize('NFC').trim().toLowerCase();
-  const excluded = new Set(scope.excludeTerms.map(key));
-  if (captured.advancedFilters.length || captured.exclusions.some(term => !excluded.has(key(term))))
+  const set = (values: readonly string[]): string => [...new Set(values.map(key).filter(Boolean))].sort().join('\u0000');
+  if (captured.advancedFilters.length || set(captured.exclusions) !== set(scope.excludeTerms))
     fail('METRIC_SOURCE_RUN_MISMATCH', 'Metric capture filters differ from the confirmed scope.');
 }
 

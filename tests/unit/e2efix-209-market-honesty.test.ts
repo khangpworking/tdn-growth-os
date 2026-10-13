@@ -33,9 +33,11 @@ test('Market appendix source rows reflect what the run actually used', () => {
 
 test('capture page filters must match the confirmed scope', () => {
   const scope = { excludeTerms: ['Nắp Thay Thế'] };
-  assert.doesNotThrow(() => assertCaptureFilterScope({ advancedFilters: [], exclusions: [] }, scope));
+  const mismatch = (error: unknown) => error instanceof MetricMethodFailure && error.code === 'METRIC_SOURCE_RUN_MISMATCH';
   assert.doesNotThrow(() => assertCaptureFilterScope({ advancedFilters: [], exclusions: ['nắp thay thế '] }, scope));
   assert.doesNotThrow(() => assertCaptureFilterScope({ advancedFilters: [{ label: 'Giá' }], exclusions: [] }, null));
-  for (const captured of [{ advancedFilters: [{ label: 'Giá' }], exclusions: [] }, { advancedFilters: [], exclusions: ['hàng cũ'] }])
-    assert.throws(() => assertCaptureFilterScope(captured, scope), (error: unknown) => error instanceof MetricMethodFailure && error.code === 'METRIC_SOURCE_RUN_MISMATCH');
+  // A confirmed exclusion the page did not apply would leave excluded rows in the figures.
+  assert.throws(() => assertCaptureFilterScope({ advancedFilters: [], exclusions: [] }, scope), mismatch);
+  for (const captured of [{ advancedFilters: [{ label: 'Giá' }], exclusions: ['nắp thay thế'] }, { advancedFilters: [], exclusions: ['nắp thay thế', 'hàng cũ'] }])
+    assert.throws(() => assertCaptureFilterScope(captured, scope), mismatch);
 });
