@@ -311,12 +311,13 @@ export function descriptiveAppendix(methods: DescriptiveMarketMethods | undefine
   if (methods === undefined && failure) return '<h3>Hồ sơ đối chiếu phương pháp mô tả thị trường</h3><p>Đã thử chạy phương pháp mô tả nhưng đầu vào hoặc phương pháp không vượt qua kiểm tra. Không có kết quả phương pháp dùng được cho M05, M06, M07 và M09. Bản thu nguồn vẫn được giữ trong bản kê phía trên; cần kiểm tra lỗi trước khi tạo phiên bản mới, không tự động gọi lại nguồn.</p>'
     + `<details class="evidence-trace"><summary>Mã đối chiếu của lần chạy lỗi</summary><p><code>${escape(failure)}</code></p></details>`;
   if (methods === undefined) return '<h3>Hồ sơ đối chiếu phương pháp mô tả thị trường</h3><p>Không có kết quả trong lượt này. Phương pháp chỉ chạy khi lượt có quan sát sản phẩm hợp lệ từ bản thu nguồn. Các mục M05, M06, M07 và M09 không có kết quả phương pháp.</p>';
-  if (readerPlainText) return '<details class="evidence-trace"><summary>Hồ sơ đối chiếu kỹ thuật của phương pháp mô tả</summary><p>Tệp nguồn, con trỏ, phiên bản phương pháp, mã kết quả và dấu kiểm được giữ trong dấu vết kỹ thuật riêng; không đưa vào bản đọc này.</p></details>';
   const pkg = methods.input.sourcePackage;
   const config = methods.input.configuration;
   // Only this owning-bridge declaration has revised display copy; retained snapshots and source words are unchanged.
   const variantRule = distinctEntityWording && methods.input.scope.variantRule === 'Giữ mã sản phẩm của nguồn; chưa hợp nhất listing hoặc chuẩn hóa biến thể.'
     ? 'Giữ mã sản phẩm của nguồn; chưa gộp listing hoặc chuẩn hóa biến thể.' : methods.input.scope.variantRule;
+  // Reader mode keeps the declared variant rule as reader-safe business wording; package, method and file identity stay in the technical trace.
+  if (readerPlainText) return `<details class="evidence-trace"><summary>Hồ sơ đối chiếu kỹ thuật của phương pháp mô tả</summary><p>Quy tắc biến thể đã khai báo: ${escape(variantRule)}</p><p>Tệp nguồn, con trỏ, phiên bản phương pháp, mã kết quả và dấu kiểm được giữ trong dấu vết kỹ thuật riêng; không đưa vào bản đọc này.</p></details>`;
   const sources = methods.input.sources.map(source => `<tr><td>${storedLiteral(source.logicalPath, 'Tệp được giữ trong bản lưu nguồn')}</td><td>${storedLiteral(source.evidenceFamily, 'Nhóm nguồn được giữ trong bản lưu')}</td><td>${escape(PROVENANCE_TEXT[source.providerProvenance])}</td><td><code>${escape(source.sha256)}</code></td></tr>`).join('');
   const previous = activeReaderPlainText;
   activeReaderPlainText = readerPlainText;
