@@ -142,7 +142,7 @@ test('capture-confirmed Market run refuses the workbook-only presentation revisi
   const pair = (await service.listReportVersions(workspaceId, runId))[0]!;
   await assert.rejects(service.requestReportRevision(workspaceId, runId, { contractVersion: 'automation-market-presentation-revision-v1',
     requestKey: '88888888-8888-4888-8888-888888888888', previousPairId: pair.pairId,
-    sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } } }),
+    sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } }, unitSpecIntakeSha256: 'f'.repeat(64) }),
   (error: unknown) => error instanceof ResearchAutomationValidationError && /results-page Metric capture/.test(error.message));
   assert.equal((await service.listReportAttempts(workspaceId, runId)).length, 0);
 });

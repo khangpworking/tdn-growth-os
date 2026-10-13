@@ -922,7 +922,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     (input.boundedMethods && (sectionId === 'M13' || sectionId === 'I17')
       ? `<details open id="bounded-method-evidence"><summary>Hồ sơ phương pháp M10/I11/I12/I16 và vị trí nguồn</summary><p>Nguồn bổ sung do người dùng chọn, không phải dữ liệu tự thu hoặc xác nhận độ phủ. Hồ sơ giữ riêng kỳ, phạm vi và điều kiện còn thiếu; không cộng gộp với số liệu thị trường hoặc review.</p>${retainedEvidenceHtml(input.boundedMethods)}</details>` : '');
   const baseAppendix = (sectionId: string): string => {
-    if (sourceScope && sectionId === 'M02') return marketSourceScopeSection(sourceScope, 'M02', citations, readerPlainText);
+    if (sourceScope && sectionId === 'M02') return marketSourceScopeSection(sourceScope, 'M02', citations);
     if (kind === 'MARKET' && sectionId === 'M01' && input.m01Inventory && input.sourceClaims) return m01InventorySection(input.m01Inventory, input.sourceClaims, citations, readerPlainText);
     if (kind === 'INSIGHT' && sectionId === 'I14' && input.i14Admission && input.sourceClaims) return i14SynthesisSection(input.i14Synthesis, citations, false) + i14AdmissionSection(input.i14Admission, input.sourceClaims, citations, false);
     if (kind === 'MARKET' && (sectionId === 'M03' || sectionId === 'M04')) {
@@ -933,7 +933,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
       if (input.marketInventory) return marketInventorySection(input.marketInventory, sectionId, citations, labels, readerPlainText);
       if (input.marketInventoryFailure) return '<p class="warning">Đã thử xử lý inventory nhưng nguồn hoặc phương pháp không vượt qua kiểm tra; không tự gọi lại nguồn.</p>' + codeNote('MARKET_INVENTORY_FAILED');
     }
-    if (sourceScope && sectionId === 'M13') return marketSourceScopeSection(sourceScope, 'M13', citations, readerPlainText) + descriptiveAppendix(descriptive, input.descriptiveMethodFailure, readerPlainText, readerPlainText);
+    if (sourceScope && sectionId === 'M13') return marketSourceScopeSection(sourceScope, 'M13', citations) + descriptiveAppendix(descriptive, input.descriptiveMethodFailure, readerPlainText, readerPlainText);
     if (kind === 'INSIGHT' && (sectionId === 'I03' || sectionId === 'I17')) {
       if (insightPersona) return insightPersonaSection(insightPersona.snapshot, insightPersona.source, sectionId, citations);
       if (privateView) return (sample && sectionId === 'I03' ? reviewSampleSection(sample, privateView, citations, readerPlainText) : '') + privateReviewCorpusSection(privateView, sectionId, citations);

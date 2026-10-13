@@ -754,9 +754,9 @@ function captureMetricInput(snapshot: AutomationMetricWebSnapshotV1, sourceSha25
   });
   if (!records.length) return undefined;
   return { contractVersion: '1.0.0', scope: { key: 'all', platform, selection: 'UNSPECIFIED', start: snapshot.scope.period.startDate,
-      end: snapshot.scope.period.endDate, periodBasis: 'Kỳ lọc của bảng kết quả tìm kiếm đã lưu; giữ nguyên, không tự kéo dài hoặc chia tỷ lệ.', acquiredAt: snapshot.capturedAt },
-    sources: [{ sha256: sourceSha256, label: 'Bảng kết quả tìm kiếm đã lưu', representationRole: 'primary', evidenceFamily: 'metric-results-page-capture',
-      provenanceBasis: 'Bảng kết quả tìm kiếm được giữ nguyên; chưa xác minh độc lập nguồn gốc thu thập và độ đầy đủ toàn thị trường.' }], records,
+      end: snapshot.scope.period.endDate, periodBasis: 'Kỳ bộ lọc của results-page capture; giữ nguyên, không tự kéo dài hoặc chia tỷ lệ.', acquiredAt: snapshot.capturedAt },
+    sources: [{ sha256: sourceSha256, label: 'Metric results-page capture snapshot', representationRole: 'primary', evidenceFamily: 'metric-results-page-capture',
+      provenanceBasis: 'Exact retained results-page snapshot; provider authenticity and market completeness are not independently established.' }], records,
     profileId: 'automation-metric-capture-v1', labelCodebookVersion: 'capture-no-labels-v1', wideUnknownPolicy: 'exclude' };
 }
 

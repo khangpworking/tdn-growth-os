@@ -4123,12 +4123,12 @@ export class ResearchAutomationService {
    * identities that disagree leave the source-lane blocker in place.
    */
   async #metricSourceAdmitted(run: RunRow): Promise<boolean> {
-    const frozen = this.#db.prepare('SELECT source_set_sha256 sha256 FROM analysis_research_automation_source_sets WHERE run_id=?')
-      .get(run.runId) as { sha256: string } | undefined;
-    if (frozen && run.sourceSetSha === frozen.sha256 && await this.#sourceSetAdmitsMetric(run, frozen.sha256)) return true;
     const latest = this.#db.prepare(`SELECT source_set_sha256 sha256 FROM analysis_research_automation_attempts
       WHERE run_id=? AND state='COMMITTED' ORDER BY attempt_number DESC LIMIT 1`).get(run.runId) as { sha256: string } | undefined;
-    return latest ? this.#sourceSetAdmitsMetric(run, latest.sha256) : false;
+    if (latest) return this.#sourceSetAdmitsMetric(run, latest.sha256);
+    const frozen = this.#db.prepare('SELECT source_set_sha256 sha256 FROM analysis_research_automation_source_sets WHERE run_id=?')
+      .get(run.runId) as { sha256: string } | undefined;
+    return frozen && run.sourceSetSha === frozen.sha256 ? this.#sourceSetAdmitsMetric(run, frozen.sha256) : false;
   }
   async #sourceSetAdmitsMetric(run: RunRow, sha256: string): Promise<boolean> {
     const value = await this.#readJson<AutomationConfirmedSourceSet>(sha256, MAX_JSON_ARTIFACT_BYTES, 'application/json');
