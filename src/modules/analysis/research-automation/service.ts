@@ -3413,7 +3413,8 @@ export class ResearchAutomationService {
         }
         outputArtifacts.push({ marketPresentation: kind === 'MARKET' ? marketPresentationArtifact : null, kind, privateCorpus: kind === 'INSIGHT' ? privateCorpusArtifact ?? null : null, claims: claimsArtifact, m01: m01Artifact, i14: i14Artifact, metricProof: kind === 'MARKET' ? metricProof : null, semantic, html: htmlArtifact, pdf, pdfCode: pdf ? null : rendered.pdfUnavailableCode ?? 'PDF_RENDERER_NOT_CONFIGURED' });
       }
-    } catch {
+    } catch (error) {
+      logReportFailure(row.runId, 'RENDER', error);
       if (attempt) { await this.#settleAttempt(attempt.attemptId, controller.signal.aborted ? 'CANCELLED' : 'FAILED'); return true; }
       const current = this.#current(row.runId);
       if (!current || TERMINAL_STATUSES.has(current.status)) return true;
@@ -3460,6 +3461,7 @@ export class ResearchAutomationService {
         })();
       });
     } catch (error) {
+      logReportFailure(row.runId, 'PUBLICATION', error);
       if (attempt) { await this.#settleAttempt(attempt.attemptId, controller.signal.aborted ? 'CANCELLED' : 'FAILED'); return true; }
       try {
         const current = this.#current(row.runId);
@@ -4455,6 +4457,17 @@ function blockerList(steps: readonly StepRow[], documents: ReadonlyMap<StepId, S
 function coverageBlocker(state: ResearchAutomationCoverageSource['state']): string { return state === 'UNAVAILABLE' ? 'PROVIDER_NOT_CONFIGURED' : `COVERAGE_${state}`; }
 function dedupeBlockers(values: ResearchAutomationRun['blockers']): ResearchAutomationRun['blockers'] { const seen = new Set<string>(); return values.filter((value) => { const key = `${value.code}:${value.scope}:${value.provider ?? ''}`; if (seen.has(key)) return false; seen.add(key); return true; }); }
 function safeStepMessage(code: string): string { try { return message(code); } catch { return 'This step has a recorded limitation; review the source coverage and run again if needed.'; } }
+/**
+ * The run and its steps keep their safe public wording, so the operator cannot
+ * see why rendering stopped. The original class and message are the only
+ * server-side record of that cause; no stack, artifact digest, owner text or
+ * report content is logged, and no report bytes are retained by this path.
+ */
+function logReportFailure(runId: string, stage: 'RENDER' | 'PUBLICATION', error: unknown): void {
+  const name = error instanceof Error ? error.name : typeof error;
+  const text = error instanceof Error ? error.message : String(error);
+  console.error(JSON.stringify({ event: 'research_automation_report_failed', runId, stage, errorName: name, errorMessage: text }));
+}
 function defaultRenderedReport(input: ResearchAutomationReportInput, kind: 'MARKET' | 'INSIGHT'): ResearchAutomationRenderedReport {
   // Explicit literal/private/default branches use the owning builder; historical fallback bytes stay unchanged.
   if (kind === 'INSIGHT' && (input.insightLiteral || input.start.privateShopeeSource || input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4'))

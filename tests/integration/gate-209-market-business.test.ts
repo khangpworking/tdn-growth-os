@@ -13,7 +13,8 @@ import { SYNTHETIC_CARD_ID, syntheticProductSource } from '../helpers/research-s
 const workspaceId = '11111111-1111-4111-8111-111111111111';
 const runId = '22222222-2222-4222-8222-222222222222';
 
-test('a provider-bearing custom Market renderer fails REPORTS before HTML persistence', async t => {
+for (const fault of ['gate', 'renderer'] as const) {
+test(`RENDERFAIL-209: ${fault} failure logs only diagnostic fields and never publishes HTML`, async t => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-gate-209-'));
   const now = () => new Date('2026-10-12T00:00:00.000Z');
   const db = openDatabase({ databasePath: path.join(root, 'db.sqlite'), now }).db;
@@ -23,9 +24,17 @@ test('a provider-bearing custom Market renderer fails REPORTS before HTML persis
   const service = new ResearchAutomationService({
     db, artifactStore: artifacts, now, uuid: () => runId, workspaceReader: new FlowDiscoveryWorkspaceReader(workspaces),
     source: syntheticProductSource(),
-    renderer: (input, kind) => ({ ...buildResearchAutomationReport(input, kind), html: Buffer.from('<p>OpenAI</p>', 'utf8') }),
+    renderer: (input, kind) => {
+      if (fault === 'renderer') throw Object.assign(new TypeError('SYNTHETIC_RENDER_FAILURE'), {
+        request: { body: 'synthetic-private-body', headers: 'synthetic-private-headers' },
+        products: ['synthetic-private-product'], cause: new Error('synthetic-private-cause'),
+      });
+      return { ...buildResearchAutomationReport(input, kind), html: Buffer.from('<p>OpenAI</p>', 'utf8') };
+    },
   });
   t.after(async () => { db.close(); await fs.rm(root, { recursive: true, force: true }); });
+  const renderFailures: string[] = [];
+  t.mock.method(console, 'error', (...args: unknown[]) => { renderFailures.push(args.map(String).join(' ')); });
 
   await service.start(workspaceId, {
     contractVersion: 'research-automation-start-v1', requestKey: '33333333-3333-4333-8333-333333333333',
@@ -54,4 +63,17 @@ test('a provider-bearing custom Market renderer fails REPORTS before HTML persis
   assert.equal(failed.outputs?.market, undefined);
   assert.equal((db.prepare("SELECT count(*) AS count FROM analysis_research_automation_outputs WHERE run_id=? AND report_kind='MARKET'").get(runId) as { count: bigint }).count, 0n);
   assert.deepEqual(await service.listReportVersions(workspaceId, runId), []);
+
+  // RENDERFAIL-209: the stored blocker keeps its safe wording, so the original
+  // class and message are the only server-side record of why rendering stopped.
+  const logged = renderFailures.filter(line => line.includes('"event":"research_automation_report_failed"'))
+    .map(line => JSON.parse(line) as { event: string; runId: string; stage: string; errorName: string; errorMessage: string });
+  assert.equal(logged.length, 1);
+  assert.deepEqual(logged[0], {
+    event: 'research_automation_report_failed', runId, stage: 'RENDER', errorName: 'TypeError',
+    errorMessage: fault === 'gate' ? 'MARKET_BUSINESS_GATE_FAILED:G08_PROVIDER_NAME' : 'SYNTHETIC_RENDER_FAILURE',
+  });
+  assert.doesNotMatch(JSON.stringify(logged), /synthetic-private/);
+  assert.doesNotMatch(JSON.stringify(failed), /SYNTHETIC_RENDER_FAILURE|MARKET_BUSINESS_GATE_FAILED|synthetic-private/);
 });
+}
