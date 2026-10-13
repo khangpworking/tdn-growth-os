@@ -164,6 +164,9 @@ test('manifest accepts the adapter page toggles in appliedFilters and keeps the 
   rejected(snapshot, { appliedFilters: { ...toggles, smartQuery: 'yes' } }, 'CAPTURE_MANIFEST_INVALID');
   // An unknown extra key in appliedFilters is refused.
   rejected(snapshot, { appliedFilters: { ...toggles, notes: 'x' } }, 'CAPTURE_MANIFEST_INVALID');
+  // Useful-filter names are the closed set emitted by the adapter.
+  rejected(snapshot, { appliedFilters: { ...toggles, usefulFilters: { fake: false, gifts: true, deleted: false, unknown: true } } }, 'CAPTURE_MANIFEST_INVALID');
+  rejected(snapshot, { appliedFilters: { ...toggles, usefulFilters: { fake: 'yes' } } }, 'CAPTURE_MANIFEST_INVALID');
   // Drift between the scope-shaped part and the snapshot scope is still a scope mismatch.
   rejected(snapshot, { appliedFilters: { ...toggles, keywords: ['synthetic-other'] } }, 'CAPTURE_SCOPE_MISMATCH');
   rejected(snapshot, { appliedFilters: { ...toggles, period: { startDate: '2025-01-01', endDate: '2025-01-29' } } }, 'CAPTURE_SCOPE_MISMATCH');
@@ -188,19 +191,19 @@ function objectLiteralKeys(node: ts.ObjectLiteralExpression): string[] {
     .filter(Boolean);
 }
 
-function assignedObjectKeys(source: ts.SourceFile, variable: string, requiredKey: string): string[] {
-  let keys: string[] | null = null;
+function assignedObject(source: ts.SourceFile, variable: string, requiredKey: string): ts.ObjectLiteralExpression {
+  let object: ts.ObjectLiteralExpression | null = null;
   const visit = (node: ts.Node): void => {
-    if (keys || !ts.isVariableDeclaration(node) || !ts.isIdentifier(node.name) || node.name.text !== variable) { ts.forEachChild(node, visit); return; }
+    if (object || !ts.isVariableDeclaration(node) || !ts.isIdentifier(node.name) || node.name.text !== variable) { ts.forEachChild(node, visit); return; }
     if (node.initializer && ts.isObjectLiteralExpression(node.initializer)) {
       const found = objectLiteralKeys(node.initializer);
-      if (found.includes(requiredKey)) keys = found;
+      if (found.includes(requiredKey)) object = node.initializer;
     }
     ts.forEachChild(node, visit);
   };
   ts.forEachChild(source, visit);
-  assert.ok(keys, `${variable} object literal with ${requiredKey} found in adapter source`);
-  return keys;
+  assert.ok(object, `${variable} object literal with ${requiredKey} found in adapter source`);
+  return object;
 }
 
 function functionObjectKeys(source: ts.SourceFile, functionName: string): string[] {
@@ -267,11 +270,16 @@ test('DRIFT GUARD: the real adapter manifest is accepted by the schema and every
 
   const metricSource = adapterSource(metricUrl);
   const captureSource = adapterSource(captureUrl);
-  const manifestKeys = assignedObjectKeys(metricSource, 'manifest', 'productPagination');
+  const manifestKeys = objectLiteralKeys(assignedObject(metricSource, 'manifest', 'productPagination'));
   for (const key of manifestKeys) assert.ok(key in manifestSchema.properties, `manifest.${key} is declared in the capture schema`);
-  const appliedFilterKeys = assignedObjectKeys(metricSource, 'appliedFilters', 'keywords');
+  const appliedFilters = assignedObject(metricSource, 'appliedFilters', 'keywords');
+  const appliedFilterKeys = objectLiteralKeys(appliedFilters);
   const appliedFilterProperties = propertyNames(manifestSchema.$defs.appliedFilters);
   for (const key of appliedFilterKeys) assert.ok(appliedFilterProperties.has(key), `appliedFilters.${key} is declared in the capture schema`);
+  const usefulFilters = appliedFilters.properties.find((property): property is ts.PropertyAssignment => ts.isPropertyAssignment(property) && property.name.getText() === 'usefulFilters');
+  assert.ok(usefulFilters && ts.isObjectLiteralExpression(usefulFilters.initializer), 'adapter usefulFilters is an object literal');
+  const usefulFilterSchema = (manifestSchema.$defs.appliedFilters!.properties!.usefulFilters) as { properties: Record<string, unknown> };
+  for (const key of objectLiteralKeys(usefulFilters.initializer)) assert.ok(key in usefulFilterSchema.properties, `usefulFilters.${key} is declared in the capture schema`);
   const chartSeriesKeys = functionObjectKeys(captureSource, 'chartSeriesFromResponses');
   const chartSeriesProperties = new Set([...propertyNames(manifestSchema.$defs.chartSeries), ...Object.keys(manifestSchema.$defs).filter(name => /^chartSeries.*Row$/.test(name)).flatMap(name => [...propertyNames(manifestSchema.$defs[name])])]);
   for (const key of chartSeriesKeys) assert.ok(chartSeriesProperties.has(key), `chartSeries row key ${key} is declared in the capture schema`);

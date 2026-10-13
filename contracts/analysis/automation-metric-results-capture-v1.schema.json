@@ -48,11 +48,14 @@
         "smartQuery": { "description": "Page toggle: the smart-query switch the adapter read. Absent on captures written before the adapter read it.", "type": "boolean" },
         "aiNormalisation": { "description": "Page toggle: the AI-normalisation switch the adapter read. Absent on captures written before the adapter read it.", "type": "boolean" },
         "usefulFilters": {
-          "description": "Page toggles the adapter maps by label; each switch is a boolean. The key pattern keeps the map inside the label namespace the adapter reads and the cap keeps it bounded.",
+          "description": "The three page toggles the adapter maps by label. The object is closed so an unrecognized toggle cannot be smuggled through intake.",
           "type": "object",
-          "maxProperties": 16,
-          "propertyNames": { "pattern": "^[A-Za-z][A-Za-z0-9]{0,31}$" },
-          "additionalProperties": { "type": "boolean" }
+          "additionalProperties": false,
+          "properties": {
+            "fake": { "type": "boolean" },
+            "gifts": { "type": "boolean" },
+            "deleted": { "type": "boolean" }
+          }
         }
       }
     },

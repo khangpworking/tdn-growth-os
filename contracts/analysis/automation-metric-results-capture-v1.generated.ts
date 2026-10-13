@@ -291,10 +291,12 @@ export interface AppliedFilters {
    */
   aiNormalisation?: boolean;
   /**
-   * Page toggles the adapter maps by label; each switch is a boolean. The key pattern keeps the map inside the label namespace the adapter reads and the cap keeps it bounded.
+   * The three page toggles the adapter maps by label. The object is closed so an unrecognized toggle cannot be smuggled through intake.
    */
   usefulFilters?: {
-    [k: string]: boolean;
+    fake?: boolean;
+    gifts?: boolean;
+    deleted?: boolean;
   };
 }
 export interface Period {
