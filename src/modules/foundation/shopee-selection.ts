@@ -104,14 +104,40 @@ export function selectShopeeListings(request: ShopeeListingRequest): {
   }
   candidates.sort((a, b) => compareRevenue(a.periodRevenueVnd, b.periodRevenueVnd) ||
     a.productKey.localeCompare(b.productKey, 'en'));
-  let selected = candidates.slice(0, MAX_PRODUCTS);
-  if (candidates[5] && selected[4]?.periodRevenueVnd === candidates[5].periodRevenueVnd) {
-    const tiedRevenue = candidates[5].periodRevenueVnd;
-    selected = selected.filter(row => row.periodRevenueVnd !== tiedRevenue);
+
+  // The ranking remains the authority for order, but a high-ranking product
+  // cannot consume a second slot for its shop or stored brand. Continue down
+  // the ranking after every skipped row; never use a repeated shop as a fill.
+  const selected: SelectedListing[] = [];
+  const shops = new Set<string>();
+  const brands = new Set<string>();
+  for (const candidate of candidates) {
+    const shop = normalizedSelectionKey(candidate.shopId);
+    const brand = typeof candidate.brand === 'string' ? normalizedSelectionKey(candidate.brand) : '';
+    if (shops.has(shop) || (brand !== '' && brands.has(brand))) continue;
+    selected.push(candidate);
+    shops.add(shop);
+    if (brand !== '') brands.add(brand);
+    if (selected.length === MAX_PRODUCTS) break;
+  }
+
+  const boundary = selected[MAX_PRODUCTS - 1];
+  const boundaryIndex = boundary === undefined ? -1 : candidates.indexOf(boundary);
+  if (boundary !== undefined && candidates.slice(boundaryIndex + 1).some(row => row.periodRevenueVnd === boundary.periodRevenueVnd)) {
+    const tiedRevenue = boundary.periodRevenueVnd;
+    selected.splice(0, selected.length, ...selected.filter(row => row.periodRevenueVnd !== tiedRevenue));
     warnings.push('top_five_boundary_revenue_tie_requires_confirmation');
   }
-  if (selected.length < MAX_PRODUCTS) warnings.push('fewer_than_five_resolved_products');
+  if (selected.length < MAX_PRODUCTS) {
+    warnings.push('fewer_than_five_resolved_products');
+    warnings.push('fewer_than_five_diverse_products');
+  }
   return { selected, warnings: warnings.sort() };
+}
+
+/** Comparison key for owner diversity rules: trim, NFC-normalize and case-fold. */
+function normalizedSelectionKey(value: string): string {
+  return value.trim().normalize('NFC').toLocaleLowerCase('und').normalize('NFC');
 }
 
 function compareRevenue(a: string, b: string): number {

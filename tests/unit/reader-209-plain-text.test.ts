@@ -232,15 +232,18 @@ test('reader-on market inventory propagates explicitly and withholds source deta
 test('reader-on synthesis inventory formats large counts and hides retained source details', () => {
   const digest = 'a'.repeat(64);
   const claim = {
-    claimId: digest, sectionId: 'M05', method: { methodId: 'method', methodVersion: '1', methodOutputId: digest, artifact: { packageId: '11111111-1111-4111-8111-111111111111', version: 1, manifestArtifactSha256: digest, packageContentSha256: digest }, outputPointer: '/data/source.json' },
-    source: { package: { packageId: '22222222-2222-4222-8222-222222222222', version: 1, manifestArtifactSha256: digest, packageContentSha256: digest }, logicalPath: '/data/source.json', sha256: digest, locator: '/data/LISTED', recordLocator: null, statement: 'Kalodata', attribution: 'Dami' , spans: [] },
+    claimId: digest, sectionId: 'M05', method: { methodId: 'method', methodVersion: '1', methodOutputId: digest, artifact: { packageId: '11111111-1111-4111-8111-111111111111', version: 1, manifestArtifactSha256: digest, packageContentSha256: digest }, outputPointer: '/input/m05/17' },
+    source: { package: { packageId: '22222222-2222-4222-8222-222222222222', version: 1, manifestArtifactSha256: digest, packageContentSha256: digest }, logicalPath: 'normalized/observations.json', sha256: digest, locator: '/observations/17', recordLocator: null, statement: 'Kalodata', attribution: 'Dami' , spans: [] },
     observation: { basis: 'SOURCE_OBSERVED', state: 'observed_value', measure: { literal: 'LISTED', definition: '{"provider":"Kalodata"}', entityLabel: 'TradeInt' }, value: '10001', unit: 'VND', precision: 'exact', period: { start: '2026-01-01', end: '2026-01-31', timezone: 'UTC', basis: 'source' }, periodText: null, scope: { scopeSha256: digest, universe: '/data/source.json', geography: null, frame: null, inclusionRule: null, exclusionRule: null, variantRule: null, description: 'Kalodata' }, coverage: { unit: 'SOURCE_OBSERVATIONS', observedCount: 10001, zeroCount: 0, missingCount: 0, unknownCount: 0, nonExactCount: 0, description: 'LISTED' }, limitations: ['UNKNOWN'] },
     declaration: null, limitations: ['UNKNOWN'],
   };
   const inventory = { contractVersion: '1.0.0', methodId: 'automation-m01-evidence-inventory', methodVersion: '1.0.0', sectionId: 'M01', runId: '33333333-3333-4333-8333-333333333333', workspaceId: '44444444-4444-4444-8444-444444444444', scopeSha256: digest, sourceClaims: { methodId: 'automation-source-claims', methodVersion: '1.0.0', claimsSha256: digest }, ownerQuestion: { state: 'UNSET', text: null }, ordering: 'CATALOG_SECTION_ORDER_M05_I02_I04_UNRANKED', status: 'UNRANKED_INVENTORY', insufficientEvidence: null, conclusion: null,
     items: Array.from({ length: 10001 }, () => ({ claimId: digest, sectionId: 'M05', basis: 'SOURCE_OBSERVED', evidenceKind: 'SOURCE_OBSERVATION', state: 'observed_value', method: claim.method, source: claim.source, measure: claim.observation.measure, value: '10001', unit: 'VND', precision: 'exact', period: claim.observation.period, periodText: null, scope: claim.observation.scope, coverage: claim.observation.coverage, declaration: null, observationLimitations: ['UNKNOWN'], claimLimitations: ['UNKNOWN'] })), limitations: ['UNKNOWN'] } as any;
   const claims = { contractVersion: '1.0.0', methodId: 'automation-source-claims', methodVersion: '1.0.0', runId: inventory.runId, workspaceId: inventory.workspaceId, scopeSha256: digest, claimsSha256: digest, claims: [claim], limitations: ['UNKNOWN'] } as any;
-  const reader = new JSDOM(m01InventorySection(inventory, claims, { mark: () => '[1]' }, true)).window.document;
+  const readerHtml = m01InventorySection(inventory, claims, { mark: () => '[1]' }, true);
+  assert.match(readerHtml, /Dòng sản phẩm 18 trong tệp số liệu bán hàng/);
+  assert.doesNotMatch(readerHtml, /normalized\/observations\.json|\/observations\/17|method · 1|Nội dung được giữ trong bản lưu/);
+  const reader = new JSDOM(readerHtml).window.document;
   reader.querySelectorAll('details').forEach(node => node.remove());
   const visible = reader.body.textContent ?? '';
   assert.match(visible, /10\.001 mục bằng chứng/);
@@ -254,6 +257,8 @@ test('reader-on descriptive sections format large coverage counts', () => {
   const reader = describeDescriptiveSection({ ...methods, sections: { ...methods.sections, M05: { ...m05, locatedRecordCount: 10001, partitions: m05.partitions.map(partition => ({ ...partition, coverage: { ...partition.coverage, observedCount: 10001 } })) } } } as any, 'M05', { mark: () => '[1]' }, true).html;
   assert.match(reader, /10\.001/);
   assert.doesNotMatch(reader, /\b(?:UNKNOWN|LISTED|WIDE|CORE)\b/);
+  const appendix = descriptiveAppendix(methods, undefined, false, true);
+  assert.doesNotMatch(appendix, /source-bound-descriptive-market|1\.1\.0|normalized\/|\/input\/m05|SHA-256|[a-f0-9]{32,}/i);
 });
 
 test('marker-free direct calls default to the explicit legacy projection', () => {

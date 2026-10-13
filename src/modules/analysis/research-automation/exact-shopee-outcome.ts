@@ -2,8 +2,15 @@ import type { SourceLimitation } from './model.js';
 
 /** Owner-facing outcome of one exact-Shopee review collection (#123). Pure: no I/O, no clock. */
 export type ExactShopeeOutcome = 'PROVIDER_BLOCKED' | 'PROVIDER_TIMEOUT_NO_REVIEWS' | 'PARTIAL_LISTINGS' | 'OK';
+export const TARGET_REVIEWS = 300 as const;
+export const SHORTFALL_REASON = 'RETURNED_COUNT_BELOW_REQUESTED' as const;
 
-export interface ExactShopeeListingCount { readonly listingUrl: string; readonly reviews: number }
+export interface ExactShopeeListingCount {
+  readonly listingUrl: string;
+  readonly reviews: number;
+  /** Present on newly stored outcomes whenever the fixed target was not met. */
+  readonly shortfallReason?: typeof SHORTFALL_REASON;
+}
 
 export interface ExactShopeeOutcomeRecord {
   readonly outcome: ExactShopeeOutcome;
@@ -39,6 +46,11 @@ export function countReviewsPerListing(selected: readonly SelectedListing[], pag
   return selected.map((listing, index) => ({ listingUrl: listing.productUrl, reviews: counts[index]! }));
 }
 
+/** Adds the fixed per-product target and a durable reason for every short set. */
+export function markReviewShortfalls(counts: readonly ExactShopeeListingCount[]): ExactShopeeListingCount[] {
+  return counts.map(row => row.reviews < TARGET_REVIEWS ? { ...row, shortfallReason: SHORTFALL_REASON } : row);
+}
+
 const TIMEOUT_MESSAGE = /time limit|timed out/i;
 
 /**
@@ -47,14 +59,14 @@ const TIMEOUT_MESSAGE = /time limit|timed out/i;
  * Edge case: no rows at all from a run that did not fail (SUCCEEDED, or a fixture)
  * also counts as PROVIDER_BLOCKED, because the reader still gets no reviews.
  */
-export function classifyExactShopee(input: { readonly actorStatus: string; readonly statusMessage: string | null; readonly counts: readonly ExactShopeeListingCount[] }): ExactShopeeOutcome {
+export function classifyExactShopee(input: { readonly actorStatus: string; readonly statusMessage: string | null; readonly counts: readonly ExactShopeeListingCount[]; readonly targetReviews?: number }): ExactShopeeOutcome {
   const total = input.counts.reduce((sum, row) => sum + row.reviews, 0);
   if (total === 0) {
     if (input.actorStatus === 'TIMED-OUT' || (input.actorStatus === 'FAILED' && input.statusMessage !== null && TIMEOUT_MESSAGE.test(input.statusMessage)))
       return 'PROVIDER_TIMEOUT_NO_REVIEWS';
     return 'PROVIDER_BLOCKED';
   }
-  return input.counts.some(row => row.reviews === 0) ? 'PARTIAL_LISTINGS' : 'OK';
+  return input.counts.some(row => row.reviews === 0 || (input.targetReviews !== undefined && row.reviews < input.targetReviews)) ? 'PARTIAL_LISTINGS' : 'OK';
 }
 
 const OUTCOME_CODES: Readonly<Record<Exclude<ExactShopeeOutcome, 'OK'>, string>> = {
@@ -64,9 +76,13 @@ const OUTCOME_CODES: Readonly<Record<Exclude<ExactShopeeOutcome, 'OK'>, string>>
 };
 
 /** The extra run-page limitation for a non-OK outcome; null when every listing has reviews. */
-export function exactShopeeOutcomeLimitation(outcome: ExactShopeeOutcome, counts: readonly ExactShopeeListingCount[]): SourceLimitation | null {
+export function exactShopeeOutcomeLimitation(outcome: ExactShopeeOutcome, counts: readonly ExactShopeeListingCount[], targetReviews?: number): SourceLimitation | null {
   if (outcome === 'OK') return null;
   const withReviews = counts.filter(row => row.reviews > 0).length;
+  const short = counts.filter(row => row.shortfallReason !== undefined || row.reviews === 0);
   return { provider: 'apify-shopee', code: OUTCOME_CODES[outcome],
-    message: `${withReviews}/${counts.length} sản phẩm có đánh giá.${outcome === 'PARTIAL_LISTINGS' ? '' : ' Không tự chạy lượt tính phí khác.'}` };
+    message: `${withReviews}/${counts.length} sản phẩm có đánh giá.${outcome === 'PARTIAL_LISTINGS'
+      ? targetReviews !== undefined ? ` Có ${short.length} sản phẩm chưa đạt mốc ${targetReviews} bình luận (${short.map(row => `${row.reviews}/${targetReviews}`).join(', ')}).`
+        : ''
+      : ' Không tự chạy lượt tính phí khác.'}` };
 }

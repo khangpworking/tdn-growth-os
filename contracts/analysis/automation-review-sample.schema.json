@@ -85,6 +85,9 @@
           "targetReviews": {
             "const": 300
           },
+          "shortfallReason": {
+            "const": "RETURNED_COUNT_BELOW_REQUESTED"
+          },
           "hardMaximum": {
             "const": 500
           },

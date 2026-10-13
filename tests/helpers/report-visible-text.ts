@@ -13,6 +13,13 @@ export function reportVisibleText(source: string | Document): string {
   return (document.body.textContent ?? '').replace(/\s+/gu, ' ').trim();
 }
 
+/** Full-report leak check, including attributes, disclosures and scripts. */
+export function reportContainsToken(source: string | Document, token: string): boolean {
+  const html = typeof source === 'string' ? source : source.documentElement.outerHTML;
+  const escaped = token.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+  return new RegExp(`(?<![A-Za-z0-9+/=_-])${escaped}(?![A-Za-z0-9+/=_-])`, 'u').test(html);
+}
+
 /** Source status codes such as AUTOMATION_PARTIAL must not reach reader text. */
 const SOURCE_CODE = /\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/g;
 

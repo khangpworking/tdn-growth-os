@@ -19,6 +19,7 @@ export interface ShopeeListingRequest {
     platform: 'shopee' | 'tiktokshop';
     shopId: string;
     itemId: string;
+    brand?: string | null;
     productKey: string | null;
     groupingBasis: string | null;
     productName: string;

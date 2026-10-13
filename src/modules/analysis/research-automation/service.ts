@@ -3529,7 +3529,9 @@ export class ResearchAutomationService {
         assertCaptureLineage(shifted, captures.map(value => value.row));
         webStep = shifted;
       } catch {
-        webStep = { ...invalidProviderStep(runId, stepId), limitations: [{ code: 'PROVIDER_OUTPUT_INVALID', provider, message: message('PROVIDER_OUTPUT_INVALID') }] };
+        webStep = { ...invalidProviderStep(runId, stepId),
+          coverage: [{ provider, dataset: 'web_discovery_current', state: 'FAILED', observedStartDate: null, observedEndDate: null, truncated: false, note: null }],
+          limitations: [{ code: 'PROVIDER_OUTPUT_INVALID', provider, message: message('PROVIDER_OUTPUT_INVALID') }] };
       }
     } else if (web) {
       webStep = { ...invalidProviderStep(runId, stepId),
@@ -3565,9 +3567,13 @@ export class ResearchAutomationService {
     const sourceStart = await this.#readStartSnapshot(rowForSources.startSha, rowForSources.workspaceId);
     let cancelledSourceEvidence: (() => AutomationSourceEvidence) | undefined;
     if (stepId === 'COLLECTION' && sourceStart.reviewCollectionPolicy && step.privateShopee) {
-      step = { ...step, reviewSample: await this.#shopee.reviewSample(step.privateShopee, { runId, start: sourceStart,
+      const reviewSample = await this.#shopee.reviewSample(step.privateShopee, { runId, start: sourceStart,
         scope: await this.#readScopeSnapshot(rowForSources.scopeSha!, rowForSources.workspaceId, runId), scopeConfirmedAt: rowForSources.scopeConfirmedAt! },
-        await this.#privateCorpusBinding(rowForSources)) };
+        await this.#privateCorpusBinding(rowForSources));
+      const shortSets = reviewSample.products.filter(product => product.shortfallReason !== undefined);
+      const shortSetLimitations = shortSets.length === 0 ? [] : [{ code: 'REVIEW_SHORT_SET', provider: null,
+        message: `${shortSets.length} sản phẩm chỉ lấy được ít hơn số bình luận yêu cầu: ${shortSets.map(product => `${product.retainedReviews}/${product.targetReviews}`).join(', ')}.` }];
+      step = { ...step, reviewSample, limitations: [...step.limitations, ...shortSetLimitations] };
     }
     if (stepId === 'COLLECTION' && sourceStart.sourceEvidenceVersion) {
       const sourceScope = await this.#readScopeSnapshot(rowForSources.scopeSha!, rowForSources.workspaceId, runId);
@@ -3943,6 +3949,10 @@ export class ResearchAutomationService {
       previousPairId: request.previousPairId, scopeSha256: run.scopeSha, metric: null };
     const input: MarketPresentationInput = { metric: metric?.result ?? null, rows: [], unitSpec: null };
     const retained: { sha256: string; bytes: Buffer }[] = [];
+    // A results-page capture has no workbook to re-read; the presentation layer
+    // is refused in plain words instead of failing as an integrity break.
+    if (metric?.capture)
+      throw new ResearchAutomationValidationError('Market presentation does not support a results-page Metric capture yet; the existing Market report stays usable.');
     if (metric) {
       const source = await this.#boundedSourceReader().readFinalizedSourcePackage(metric.originalSourcePackage.packageId,
         { maxFileBytes: MAX_METRIC_UPLOAD_BYTES, maxTotalBytes: MAX_METRIC_UPLOAD_BYTES + 64 * 1024 });
@@ -4273,7 +4283,8 @@ function assertStepDocument(value: unknown, runId: string, stepId: StepId): asse
         value.exactShopeeOutcome.providerMessage.length > MAX_PROVIDER_MESSAGE_LENGTH)) ||
       !Array.isArray(value.exactShopeeOutcome.listings) || value.exactShopeeOutcome.listings.length < 1 || value.exactShopeeOutcome.listings.length > 5 ||
       value.exactShopeeOutcome.listings.some(item => !isRecord(item) || typeof item.listingUrl !== 'string' || !item.listingUrl.startsWith('https://shopee.vn/') ||
-        item.listingUrl.length > 2000 || !Number.isSafeInteger(item.reviews) || item.reviews < 0)))
+        item.listingUrl.length > 2000 || !Number.isSafeInteger(item.reviews) || item.reviews < 0 ||
+        (item.shortfallReason !== undefined && item.shortfallReason !== 'RETURNED_COUNT_BELOW_REQUESTED'))))
     throw new ResearchAutomationIntegrityError('Stored exact review outcome is invalid.');
   if (value.webResults !== undefined && (stepId !== 'COLLECTION' || !Array.isArray(value.webResults) || value.webResults.length > MAX_WEB_RESULTS ||
       value.webResults.some(item => !isRecord(item) || !Number.isSafeInteger(item.position) || item.position < 1 ||

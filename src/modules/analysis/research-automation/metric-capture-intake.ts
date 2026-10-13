@@ -111,12 +111,11 @@ function parseJson(bytes: Buffer, locator: string): unknown {
 }
 
 function gateCleared(value: boolean | { readonly [key: string]: unknown } | undefined): boolean {
-  if (value === true) return true;
   if (typeof value !== 'object' || value === null) return false;
-  // Every marker present must agree; a false or unknown marker refuses the archive.
-  if (value.cleared !== undefined && value.cleared !== true) return false;
-  if (value.status !== undefined && value.status !== 'CLEARED') return false;
-  return value.cleared === true || value.status === 'CLEARED';
+  // The adapter's only live marker is exactly { cleared: true }.  Do not
+  // accept legacy booleans, status-only markers, or extra fields that could
+  // turn a replay/uncleared archive into a sales source.
+  return Object.keys(value).length === 1 && value.cleared === true;
 }
 
 function assertRunScope(snapshot: AutomationMetricWebSnapshotV1, start: StartSnapshot): void {

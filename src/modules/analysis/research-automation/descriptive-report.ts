@@ -153,8 +153,13 @@ function recordAt<T>(list: readonly T[], pointer: string, section: 'm05' | 'm06'
   return index >= 0 && index < list.length ? list[index]! : null;
 }
 const hasSourceValue = (row: Observation): boolean => row.observation.state === 'observed_value' || row.observation.state === 'observed_zero';
-const blockerList = (codes: readonly string[]): string => codes.length === 0 ? '' : `<ul class="limits">${[...new Set(codes)].map(code => `<li>${escape((activeReaderPlainText ? READER_BLOCKER_TEXT : BLOCKER_TEXT)[code] ?? code)}</li>`).join('')}</ul>`;
-const unresolvedRow = (pointer: string, columns: number): string => `<tr><td colspan="${columns}">${tag('Không phân giải được con trỏ', 'warn')}<code>${escape(pointer)}</code></td></tr>`;
+const blockerList = (codes: readonly string[]): string => {
+  const values = [...new Set(codes)].map(code => (activeReaderPlainText ? READER_BLOCKER_TEXT[code] : BLOCKER_TEXT[code] ?? code)).filter(Boolean);
+  return values.length === 0 ? '' : `<ul class="limits">${values.map(value => `<li>${escape(value!)}</li>`).join('')}</ul>`;
+};
+const unresolvedRow = (pointer: string, columns: number): string => activeReaderPlainText
+  ? `<tr><td colspan="${columns}">${tag('Không phân giải được bản ghi nguồn; xem dấu vết kỹ thuật.', 'warn')}</td></tr>`
+  : `<tr><td colspan="${columns}">${tag('Không phân giải được con trỏ', 'warn')}<code>${escape(pointer)}</code></td></tr>`;
 const table = (label: string, head: readonly string[], rows: string, readerPlainText = activeReaderPlainText): string =>
   `<div class="table-wrap" role="region" aria-label="${escape(label)}" tabindex="0"><table><caption>${escape(label)}</caption><thead><tr>${head.map(cell => `<th>${escape(cell)}</th>`).join(readerPlainText ? ' ' : '')}</tr></thead><tbody>${readerPlainText ? rows.replaceAll('</td><td>', '</td> <td>') : rows}</tbody></table></div>`;
 
@@ -189,7 +194,9 @@ function sourceCell(input: Input, ref: Ref, citations: ReportCitations): string 
 const entityCell = (row: Observation, readerPlainText = activeReaderPlainText): string => `${row.entityLabel === null ? tag('Nguồn không nêu đối tượng', 'warn') : storedLiteral(row.entityLabel, WITHHELD.entity)}<br><small>${readerPlainText ? escape(readerPlainMeasureName(row.measureLiteral)) : storedLiteral(row.measureLiteral, WITHHELD.measure)}</small>`;
 
 function limitations(methods: DescriptiveMarketMethods, citations: ReportCitations): string {
-  return `<h3>Giới hạn của phương pháp</h3><ul class="limits">${methods.limitations.map(code => `<li>${escape(citations.distinctEntityWording && code === 'M06_LOCATED_RECORDS_NOT_UNIQUE_ENTITIES_STOCK_OR_TOTAL_SUPPLY' ? 'M06 đếm bản ghi; không phải đối tượng phân biệt, tồn kho hay toàn bộ nguồn cung.' : LIMITATION_TEXT[code] ?? code)}</li>`).join('')}</ul>`;
+  const values = methods.limitations.map(code => citations.distinctEntityWording && code === 'M06_LOCATED_RECORDS_NOT_UNIQUE_ENTITIES_STOCK_OR_TOTAL_SUPPLY'
+    ? 'M06 đếm bản ghi; không phải đối tượng phân biệt, tồn kho hay toàn bộ nguồn cung.' : LIMITATION_TEXT[code]).filter((value): value is string => value !== undefined);
+  return values.length ? `<h3>Giới hạn của phương pháp</h3><ul class="limits">${values.map(value => `<li>${escape(value)}</li>`).join('')}</ul>` : '';
 }
 function methodNote(usable: boolean): string {
   return `<p class="sec-note">${usable ? 'Hồ sơ phương pháp và gói bằng chứng đã lưu nằm ở phụ lục M13.' : 'Không có bản ghi nguồn dùng được cho mục này; không có giá trị không đồng nghĩa với 0. Hồ sơ phương pháp nằm ở phụ lục M13.'}</p>`;
@@ -278,7 +285,7 @@ function m09(methods: DescriptiveMarketMethods, citations: ReportCitations): Omi
     const row = recordAt(methods.input.m09, event.recordPointer, 'm09');
     if (!row) { unresolved.push(event.recordPointer); return unresolvedRow(event.recordPointer, 5); }
     usable = true;
-    const dates = `Ngày đăng: ${row.publicationDate === null ? 'chưa rõ' : escape(row.publicationDate)}<br>Ngày sự kiện: ${row.eventDate === null ? 'chưa rõ' : escape(row.eventDate)}<br><small>${escape(readerDateBasis(row.dateBasis))}</small>${activeReaderPlainText ? `<details><summary>Hồ sơ kỹ thuật ngày nguồn</summary><code>${escape(row.dateBasis)}</code></details>` : ''}`;
+    const dates = `Ngày đăng: ${row.publicationDate === null ? 'chưa rõ' : escape(row.publicationDate)}<br>Ngày sự kiện: ${row.eventDate === null ? 'chưa rõ' : escape(row.eventDate)}<br><small>${escape(readerDateBasis(row.dateBasis))}</small>`;
     const target = `${storedLiteral(row.namedScope, WITHHELD.entity)}<br><small>Chỉ số nêu: ${row.affectedMetricLiteral === null ? 'không nêu' : escape(readerMeasureName(row.affectedMetricLiteral))} · ${row.targetLink === null ? 'chưa liên kết đối tượng' : 'đã liên kết đối tượng'}</small>`;
     const conflicts = row.conflictRefs.length ? `<br><small>${displayCount(row.conflictRefs.length)} bằng chứng mâu thuẫn được nguồn ghi nhận</small>` : '';
     return `<tr><td>${escape(EVENT_TYPE[row.statementType])}<br><small>Người nêu: ${storedLiteral(row.attribution, WITHHELD.person)}</small></td><td>${readerStoredOrJsonHtml(row.sourceWording, WITHHELD.wording)}</td><td>${dates}</td><td>${target}</td><td>${sourceCell(methods.input, row.source, citations)}${conflicts}${blockerList(event.blockers)}</td></tr>`;
@@ -309,6 +316,8 @@ export function descriptiveAppendix(methods: DescriptiveMarketMethods | undefine
   // Only this owning-bridge declaration has revised display copy; retained snapshots and source words are unchanged.
   const variantRule = distinctEntityWording && methods.input.scope.variantRule === 'Giữ mã sản phẩm của nguồn; chưa hợp nhất listing hoặc chuẩn hóa biến thể.'
     ? 'Giữ mã sản phẩm của nguồn; chưa gộp listing hoặc chuẩn hóa biến thể.' : methods.input.scope.variantRule;
+  // Reader mode keeps the declared variant rule as reader-safe business wording; package, method and file identity stay in the technical trace.
+  if (readerPlainText) return `<details class="evidence-trace"><summary>Hồ sơ đối chiếu kỹ thuật của phương pháp mô tả</summary><p>Quy tắc biến thể đã khai báo: ${escape(variantRule)}</p><p>Tệp nguồn, con trỏ, phiên bản phương pháp, mã kết quả và dấu kiểm được giữ trong dấu vết kỹ thuật riêng; không đưa vào bản đọc này.</p></details>`;
   const sources = methods.input.sources.map(source => `<tr><td>${storedLiteral(source.logicalPath, 'Tệp được giữ trong bản lưu nguồn')}</td><td>${storedLiteral(source.evidenceFamily, 'Nhóm nguồn được giữ trong bản lưu')}</td><td>${escape(PROVENANCE_TEXT[source.providerProvenance])}</td><td><code>${escape(source.sha256)}</code></td></tr>`).join('');
   const previous = activeReaderPlainText;
   activeReaderPlainText = readerPlainText;

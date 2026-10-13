@@ -34,7 +34,11 @@ const QUOTE_VALUE_STATES: Readonly<Record<string, string>> = {
 const DECIMAL = /^([+-]?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/;
 const READER_PROVIDER = /\b(?:Metric|Kalodata|TradeInt|Dami|Apify|SerpApi|Jev|TypeSafe)\b/i;
 const READER_HASH = /\b(?:[a-f0-9]{32,}|sha-?256)\b/i;
-const READER_PATH = /(?:[A-Za-z]:[\\/]|\/data\/|(?:^|[\s(])(?:\.\.?[\\/]|(?:[\w.-]+[\\/]){2,})[\w.-]+)/;
+const READER_PATH = /(?:[A-Za-z]:[\\/]|\/data\/|\b[\w.-]+\/[\w.-]+\.json\b|(?:^|[\s(])(?:\.\.?[\\/]|(?:[\w.-]+[\\/]){2,})[\w.-]+)/;
+const READER_JSON_OBJECT = /\{\s*"[^"\\]+"\s*:/;
+const READER_POINTER = /\/[a-z_]+\/\d+(?:\b|\/)/i;
+const READER_VERSIONED_METHOD = /\b[a-z]+(?:-[a-z]+){2,}\s+·\s+\d+\.\d+\.\d+\b/;
+const READER_UPPER_SNAKE = /\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+){2,}\b/;
 // Withhold only technical enum values used by the report, plus tokens with
 // underscores. Ordinary acronyms (ROAS, CPA, AI, PDF, SKU, USD, VND) pass.
 const READER_ENUM_VALUES = new Set([
@@ -49,7 +53,8 @@ const READER_ENUM = (value: string): boolean => value.split(/\s+/).some(token =>
 });
 const hasUnsafeReaderToken = (value: string): boolean =>
   /\b[a-z][a-z0-9-]*_[a-z0-9_-]*\b|\b[a-z][a-z0-9-]*:\d+\b|\bcapture-\d+\b|\/data\//.test(value) ||
-  READER_PROVIDER.test(value) || READER_HASH.test(value) || READER_PATH.test(value) || READER_ENUM(value);
+  READER_PROVIDER.test(value) || READER_HASH.test(value) || READER_PATH.test(value) || READER_JSON_OBJECT.test(value) ||
+  READER_POINTER.test(value) || READER_VERSIONED_METHOD.test(value) || READER_UPPER_SNAKE.test(value) || READER_ENUM(value);
 
 export const readerTextSafe = (value: string): boolean => !hasUnsafeReaderToken(value);
 
@@ -205,7 +210,9 @@ export function readerLocator(pointer: string | null): string | null {
   if (pointer === '/data/revenue') return 'm\u1ee5c Doanh thu';
   if (pointer === '/data/sales_volumn' || pointer === '/data/sales_volume') return 'm\u1ee5c S\u1ea3n l\u01b0\u1ee3ng b\u00e1n';
   if (pointer.startsWith('/data/')) return 'm\u1ee5c d\u1eef li\u1ec7u ngu\u1ed3n';
-  return pointer;
+  const observation = /\/(?:observations|input\/m\d+)\/(\d+)$/.exec(pointer);
+  if (observation) return `Dòng sản phẩm ${Number(observation[1]) + 1} trong tệp số liệu bán hàng`;
+  return 'vị trí trong nguồn số liệu bán hàng';
 }
 
 export function readerDateBasis(value: string): string {

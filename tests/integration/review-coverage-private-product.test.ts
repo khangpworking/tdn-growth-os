@@ -55,6 +55,7 @@ for (const [count, text, stop, comparable] of [
   const source = await foundation.collectExact(f.request, f.factory(), { privacy: true });
   const accounting = privateProductReviewAccounting(source);
   assert.equal(accounting.stop, stop); assert.equal(accounting.retainedReviews, count); assert.equal(accounting.textReviews, text);
+  assert.equal(accounting.shortfallReason, count < 300 ? 'RETURNED_COUNT_BELOW_REQUESTED' : undefined);
   assert.equal(accounting.meetsComparisonTextMinimum, comparable); assert.equal(accounting.hardMaximum, 500);
   assert.equal(accounting.saturation, 'SOURCE_BOUND_CODING_UNAVAILABLE');
   assert.equal(source.packet.actor.settings.maxChargeUsd, 1); assert.equal(source.packet.actor.usageTotalUsd, null);
