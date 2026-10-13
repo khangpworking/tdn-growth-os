@@ -90,6 +90,7 @@ import type { AutomationDecisionSectionId } from '../modules/analysis/research-a
 import type { CliproxyConfiguration } from '../platform/ai/cliproxy-configuration.js';
 import { ApifyShopeeCollector } from '../platform/collectors/apify-shopee.js';
 import { ResearchAutomationConflictError, ResearchAutomationNotFoundError, ResearchAutomationValidationError } from '../modules/analysis/research-automation/model.js';
+import { MetricMethodFailure } from '../modules/analysis/research-automation/metric-method-bridge.js';
 import { assertOwnerHttpConfiguration, EmptyBodyError, ownerAuthorized, PayloadTooLargeError, readOwnerBytes, sendApiJson, singleHeader, type OwnerHttpConfiguration } from './owner-http.js';
 
 export interface ResearchAutomationApiConfiguration {
@@ -366,7 +367,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
   } catch (error) { void pdf?.close(); writer?.close(); reader.close(); throw error; }
   let closePromise: Promise<void> | undefined;
   return {
-    handler: (request, response) => { void route(request, response).catch(() => { if (!response.headersSent) fail(response, 500, 'integrity_error', 'Stored research evidence failed verification'); else response.destroy(); }); },
+    handler: (request, response) => { void route(request, response).catch((error: unknown) => { logIntegrityFailure(error); if (!response.headersSent) fail(response, 500, 'integrity_error', 'Stored research evidence failed verification'); else response.destroy(); }); },
     close() {
       if (closePromise) return closePromise;
       closing = true;
@@ -1137,14 +1138,17 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       if (error instanceof ResearchAutomationConflictError) return fail(response, 409, error.code, readerAction ? error.message : 'Research state changed; refresh before submitting');
       if (readerAction && error instanceof ResearchAutomationValidationError) return fail(response, 400, 'bad_request', error.message);
       if (error instanceof MetaPageSourceRejection) {
-        if (!mutation) return fail(response, 500, 'integrity_error', 'Stored Meta evidence failed verification');
+        if (!mutation) return integrityFailure(response, error, 'Stored Meta evidence failed verification');
         if (error.code === 'META_REQUEST_CONFLICT') return fail(response, 409, 'request_key_conflict', 'Saved capture request identity changed');
         return fail(response, 400, 'source_input_rejected', 'Saved capture does not match the closed page source profile');
       }
       if (error instanceof SourcePackageRequestConflictError)
         return fail(response, 409, 'request_key_conflict', 'This upload identity is already bound to different content');
-      if (error instanceof WorldBankSourceRejection) return fail(response, error.code === 'REQUEST_KEY_CONFLICT' ? 409 : mutation ? 400 : 500,
-        error.code === 'REQUEST_KEY_CONFLICT' ? 'request_key_conflict' : mutation ? 'source_input_rejected' : 'integrity_error', 'Nguồn đã chọn không vượt qua kiểm tra dữ liệu và liên kết đã lưu.');
+      if (error instanceof WorldBankSourceRejection) {
+        const message = 'Nguồn đã chọn không vượt qua kiểm tra dữ liệu và liên kết đã lưu.';
+        if (error.code === 'REQUEST_KEY_CONFLICT') return fail(response, 409, 'request_key_conflict', message);
+        return mutation ? fail(response, 400, 'source_input_rejected', message) : integrityFailure(response, error, message);
+      }
       if (mutation && action === 'sources/world-bank' && error instanceof FoundationValidationError)
         return fail(response, 400, 'source_input_rejected', 'Thông tin nguồn không đáp ứng cấu trúc lưu giữ được hỗ trợ.');
       if (error instanceof KalodataVideoRejection) return fail(response, 400, 'source_input_rejected', 'Tệp video không đúng cấu trúc được hỗ trợ.');
@@ -1154,7 +1158,12 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         return fail(response, 400, 'source_input_rejected', 'The workbook does not match a supported source profile');
       if (error instanceof PayloadTooLargeError) return fail(response, 413, 'payload_too_large', 'Request body exceeds the limit');
       if (error instanceof ResearchAutomationValidationError || error instanceof EmptyBodyError) return fail(response, 400, 'bad_request', 'Research request failed validation');
-      return fail(response, 500, 'integrity_error', 'Stored research evidence failed verification');
+      // An OWNER-requested source that does not match this run's confirmed scope is
+      // operator input, not damaged evidence: it keeps the bridge's own closed code.
+      // Reads still treat the same mismatch as stored evidence that failed to verify.
+      if (mutation && error instanceof MetricMethodFailure && error.code === 'METRIC_SOURCE_RUN_MISMATCH')
+        return fail(response, 400, 'metric_source_run_mismatch', error.message);
+      return integrityFailure(response, error, 'Stored research evidence failed verification');
     }
   }
 
@@ -1168,7 +1177,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     } catch (error) {
       if (error instanceof ResearchAutomationNotFoundError) return fail(response, 404, error.code, 'Research record or output was not found');
       if (error instanceof ResearchAutomationValidationError) return fail(response, 400, 'bad_request', 'Research request failed validation');
-      return fail(response, 500, 'integrity_error', 'Stored research evidence failed verification');
+      return integrityFailure(response, error, 'Stored research evidence failed verification');
     }
   }
   async function sourceStatusProjection(workspaceId: string) {
@@ -1181,3 +1190,14 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
   }
 }
 function fail(response: ServerResponse, status: number, code: string, message: string): void { sendApiJson(response, status, { error: { code, message } }); }
+/** Operators need the cause of a 500; the redacted HTTP body keeps its fixed message.
+ * Never logs request bodies, headers or tokens. */
+function integrityFailure(response: ServerResponse, error: unknown, message: string): void {
+  logIntegrityFailure(error);
+  fail(response, 500, 'integrity_error', message);
+}
+function logIntegrityFailure(error: unknown): void {
+  const name = error instanceof Error ? error.constructor.name : typeof error;
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`research-automation integrity failure ${name}: ${message}`);
+}
