@@ -1,5 +1,5 @@
 import type { AutomationReportInput } from './reports.js';
-import { escapeHtml as escape, providerProvenanceLabel, storedLiteral, type ReportCitations } from './descriptive-report.js';
+import { escapeHtml as escape, providerProvenanceLabel, readerSafe, storedLiteral, type ReportCitations } from './descriptive-report.js';
 import { containsForbiddenProviderName } from '../citation-registry.js';
 import type { AutomationMetricMethodSnapshot, MetricMethodSourceFile } from './metric-method-bridge.js';
 import type { StartSnapshot } from './model.js';
@@ -78,7 +78,11 @@ export function marketSourceScopeSection(scope: MarketSourceScope, section: 'M02
   if (section === 'M13') {
     if (!metric) return '<details class="evidence-trace"><summary>Hồ sơ đối chiếu nguồn số liệu</summary><p>Chưa có gói số liệu đã xử lý trong bản báo cáo này; không có dấu vết tính toán để đối chiếu.</p></details>';
     const files = Object.values(metric.sourceFiles).filter(file => file !== null);
-    return `<details class="evidence-trace"><summary>Hồ sơ đối chiếu nguồn số liệu và phân loại</summary><dl><dt>Gói nguồn</dt><dd>${code(metric.sourcePackage.packageId)}</dd><dt>Nội dung nguồn</dt><dd>${code(metric.sourcePackage.packageContentSha256)}</dd><dt>Bản kê nguồn</dt><dd>${code(metric.sourcePackage.manifestArtifactSha256)}</dd><dt>Chuẩn hóa đầu vào</dt><dd>${code(metric.preparationSha256)}</dd><dt>Gói phương pháp</dt><dd>${code(metric.methodPackage.packageId)}</dd></dl><ul>${files.map(file => `<li>${code(file.logicalPath)}: ${code(file.sha256)}. Xuất xứ ghi trong bản kê nguồn: ${escape(providerProvenanceLabel(file.providerProvenance))}.</li>`).join('')}</ul>${metric.classification
+    // Keep archive paths in sourceScope's retained semantic, not reader prose.
+    // Project only this metadata field; never replace text in source quotations.
+    const fileLabel = (file: MetricMethodSourceFile): string => citations.readerPlainText && !readerSafe(file.logicalPath)
+      ? 'Tệp được giữ trong bản lưu nguồn' : code(file.logicalPath);
+    return `<details class="evidence-trace"><summary>Hồ sơ đối chiếu nguồn số liệu và phân loại</summary><dl><dt>Gói nguồn</dt><dd>${code(metric.sourcePackage.packageId)}</dd><dt>Nội dung nguồn</dt><dd>${code(metric.sourcePackage.packageContentSha256)}</dd><dt>Bản kê nguồn</dt><dd>${code(metric.sourcePackage.manifestArtifactSha256)}</dd><dt>Chuẩn hóa đầu vào</dt><dd>${code(metric.preparationSha256)}</dd><dt>Gói phương pháp</dt><dd>${code(metric.methodPackage.packageId)}</dd></dl><ul>${files.map(file => `<li>${fileLabel(file)}: ${code(file.sha256)}. Xuất xứ ghi trong bản kê nguồn: ${escape(providerProvenanceLabel(file.providerProvenance))}.</li>`).join('')}</ul>${metric.classification
       ? `<p>Quy tắc đã chọn: ${code(metric.classification.adoptionId)}. Bằng chứng phân loại: ${code(metric.classification.proofSha256)}.</p><ul>${metric.classification.receiptIds.map(id => `<li>Biên nhận lựa chọn: ${code(id)}</li>`).join('')}</ul>`
       : '<p>Chưa có biên nhận phân loại được chọn cho bản báo cáo này.</p>'}<p>Kiểm tra tính toàn vẹn không chứng nhận nguồn do nhà cung cấp trực tiếp thu thập. Phân loại này chỉ áp dụng cho mẫu số liệu.</p></details>`;
   }

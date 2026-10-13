@@ -154,3 +154,31 @@ POST /owner-api/workspaces/<ws>/research-automation/runs/<newRunId>/sources/metr
 - `docs/STATUS.md` was not touched; the coordinator owns the roll-up.
 - Optional follow-up (not implemented): the API answers a cross-run `USE_PREPARED` with HTTP 500
   `integrity_error`; a 4xx validation error naming the mismatch would be friendlier. The behavior itself is correct.
+
+## Current branch verification and capture presentation fix
+
+The merge at `89a12e86` retained the URL fix above, but its presentation renderer
+also regressed one capture-specific rule-3 boundary: `reports.ts:994-1000`
+sanitized hashes, `Sheet1` and snake-case names but left archive members such as
+`capture/context.json`, `capture/manifest.json` and `capture/snapshot.json` in the
+reader body. The presentation gate therefore rejected a valid capture-backed
+revision with `MARKET_14_RULES_FAILED:3`. These are technical trace members and
+belong in the semantic technical trace, not visible report prose.
+
+`market-scope-report.ts:78-84` now replaces archive-member JSON paths with the
+neutral reader phrase `Tệp được giữ trong bản lưu nguồn` only in the retained
+source metadata field; quoted source text is untouched. The presentation path
+also renders a separate retained-record chart in
+`market-presentation-report.ts:17-39`, with one bar per platform and no summed
+cross-platform total. This does not alter capture bytes, calculations, revenue
+wording or the source binding. The existing review-shortfall fix at
+`reports.ts:257-263` still keeps listing URLs in `href` only.
+
+Added `tests/integration/research-automation-metric-capture.test.ts:212-263`:
+it runs both absent-review and partial-review synthetic captures, confirms each
+run, requests the Market presentation revision, reads the committed pair, runs
+the offline audit CLI, and audits the final HTML. Rules 1, 2, 3, 5, 7, 9 and
+11 pass; no machine rule fails; capture provenance and digests are absent from
+reader text while exact archive paths remain in the separate semantic artifact.
+The test uses synthetic fixture names only and makes no provider or network
+calls.
