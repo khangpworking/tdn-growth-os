@@ -38,10 +38,12 @@ function verifyInputs(method: Method): void {
     indices.add(row.i);
   }
   const spec = input.unitSpec;
-  if (spec && (!binding.metric || spec.sha256 !== marketPresentationDigest(spec.record) ||
+  // A unit-spec receipt binds a workbook row set; a capture binding never carries one.
+  const workbookBinding = binding.metric && !('kind' in binding.metric) ? binding.metric : undefined;
+  if (spec && (!workbookBinding || spec.sha256 !== marketPresentationDigest(spec.record) ||
       spec.record.workspaceId !== binding.workspaceId || spec.record.runId !== binding.runId ||
-      spec.record.draftPairId !== binding.previousPairId || spec.record.workbookSha256 !== binding.metric.workbookSha256 ||
-      spec.record.request.metricPackageId !== binding.metric.sourcePackage.packageId))
+      spec.record.draftPairId !== binding.previousPairId || spec.record.workbookSha256 !== workbookBinding.workbookSha256 ||
+      spec.record.request.metricPackageId !== workbookBinding.sourcePackage.packageId))
     fail('Market presentation unit-spec receipt differs from the exact prior pair, workbook or source.');
   if (!spec && method.unitPrices.length) fail('Market presentation unit prices lack an authenticated receipt.');
 }

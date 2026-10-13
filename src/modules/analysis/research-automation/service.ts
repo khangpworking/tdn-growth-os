@@ -3949,11 +3949,35 @@ export class ResearchAutomationService {
       previousPairId: request.previousPairId, scopeSha256: run.scopeSha, metric: null };
     const input: MarketPresentationInput = { metric: metric?.result ?? null, rows: [], unitSpec: null };
     const retained: { sha256: string; bytes: Buffer }[] = [];
-    // A results-page capture has no workbook to re-read; the presentation layer
-    // is refused in plain words instead of failing as an integrity break.
-    if (metric?.capture)
-      throw new ResearchAutomationValidationError('Market presentation does not support a results-page Metric capture yet; the existing Market report stays usable.');
-    if (metric) {
+    // A results-page capture keeps its exact retained archive: the same bounded
+    // re-read as the workbook branch, pinned to the digests written with the
+    // frozen Metric method. Any difference is an integrity break.
+    if (metric?.capture) {
+      const source = await this.#boundedSourceReader().readFinalizedSourcePackage(metric.originalSourcePackage.packageId,
+        { maxFileBytes: MAX_METRIC_CAPTURE_BYTES, maxTotalBytes: MAX_METRIC_CAPTURE_TOTAL_BYTES + 128 * 1024 });
+      if (source.manifestArtifactSha256 !== metric.originalSourcePackage.manifestArtifactSha256 || source.packageContentSha256 !== metric.originalSourcePackage.packageContentSha256)
+        throw new ResearchAutomationIntegrityError('Market presentation source package differs.');
+      const pinned = metric.capture;
+      const requireArchiveFile = (sha256: string, role: string): void => {
+        if (!source.files.some(value => value.sha256 === sha256))
+          throw new ResearchAutomationIntegrityError(`Market presentation capture ${role} differs from retained Metric input.`);
+      };
+      // The Metric result already cites the snapshot bytes; the manifest, source
+      // context and descriptor stay pinned by the capture details.
+      if (!metric.result.input.sources.some(ref => ref.sha256 === pinned.snapshotSha256))
+        throw new ResearchAutomationIntegrityError('Market presentation capture snapshot differs from retained Metric input.');
+      requireArchiveFile(pinned.manifestSha256, 'manifest');
+      requireArchiveFile(pinned.contextSha256, 'source context');
+      requireArchiveFile(pinned.descriptorSha256, 'descriptor');
+      binding.metric = { kind: 'capture', sourcePackage: metric.originalSourcePackage, snapshotSha256: pinned.snapshotSha256,
+        manifestSha256: pinned.manifestSha256, resultSha256: digest(metric.result) };
+      input.rows = frozen?.input.rows ?? [];
+      // A capture keeps no listing identity, brand or launch date, so a unit-spec
+      // receipt cannot be matched to a real listing. Refuse in plain words; the
+      // presentation revision itself stays available without a unit spec.
+      if (request.unitSpecIntakeSha256)
+        throw new ResearchAutomationValidationError('Unit-spec receipt is not supported for a results-page Metric capture; request this revision without a unit spec.');
+    } else if (metric) {
       const source = await this.#boundedSourceReader().readFinalizedSourcePackage(metric.originalSourcePackage.packageId,
         { maxFileBytes: MAX_METRIC_UPLOAD_BYTES, maxTotalBytes: MAX_METRIC_UPLOAD_BYTES + 64 * 1024 });
       if (source.manifestArtifactSha256 !== metric.originalSourcePackage.manifestArtifactSha256 || source.packageContentSha256 !== metric.originalSourcePackage.packageContentSha256)

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Market presentation: a results-page Metric capture now re-reads and pins its retained snapshot, manifest, source-context and descriptor digests and passes the same machine rules as the workbook path; a unit-spec receipt on a capture is refused in plain words without blocking the revision. A capture page whose filters differ from the confirmed scope returns 400 `metric_source_run_mismatch` at the OWNER write boundary, and every 500 `integrity_error` response logs its cause server-side. Awaiting independent review and merge; not yet in a PR.
+
 - Insight drafts: explicit retained-proposal selection without acceptance receipts, labelled I02 summaries and I10/I13 corpus counts, and suppression of unsupported totals and raw completion/ratio claims. Required adoption lineage and historical bytes remain intact. PR #166 merged after independent review and full exact-head CI; U-03 remains partial and U-11 cross-check policy unresolved.
 
 - Default peers: reader and draft M07 select a deterministic peer set covering at least 50% of compatible in-sample revenue, with source-title labels, shop fallback and separate owner additions. The rule is frozen before discovery or sales reads; exact retained inputs/results and historical replay are verified. PR #167 merged after independent review and full exact-head CI; automatic collection and admission policy remain unresolved.
