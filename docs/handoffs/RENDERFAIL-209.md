@@ -1,7 +1,7 @@
 # Handoff — RENDERFAIL-209 Market draft render failure
 
 Updated: 2026-10-13
-Worktree/branch: `wp/renderfail-209` (HEAD `30e3adc`)
+Worktree/branch: `wp/renderfail-209` (HEAD `9b2d5fd`)
 
 Completed: the reported Market run collected every source, then ended `FAILED` at
 `REPORTS` with `REPORT_RENDER_FAILED` and no reason recorded. The real cause is
