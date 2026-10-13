@@ -3164,7 +3164,9 @@ export class ResearchAutomationService {
         throw new ResearchAutomationIntegrityError('Persona KEEP source differs from the retained selection.');
       if (start.reports.includes('MARKET')) {
         if (priorMarket && (qualitativeRevision || (revisionRequest && 'sources' in revisionRequest && revisionRequest.sources.metric.decision === 'KEEP'))) {
-          metricMethods = priorMarket.metricMethods as AutomationMetricMethodSnapshot | undefined;
+          metricMethods = priorMarket.metricMethods
+            ? await this.#metricMethods.revealCapturePlatformHeadlines(priorMarket.metricMethods as AutomationMetricMethodSnapshot)
+            : undefined;
           metricClassified = priorMarket.metricClassified as AutomationClassifiedMetricSnapshot | undefined;
           metricMethodsFailure = priorMarket.metricMethodsFailure as MetricMethodFailureCode | undefined;
         } else try {
