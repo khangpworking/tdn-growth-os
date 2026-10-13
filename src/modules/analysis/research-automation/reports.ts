@@ -260,7 +260,7 @@ function reviewOutcomeNotice(value: ReviewOutcome, kind: 'MARKET' | 'INSIGHT'): 
   // Market presentation audit fails rule 3 on its /product/<id> path). Keep it in the link
   // target only; the reader sees the same ordinal the review sample table uses.
   return `<div class="warning review-outcome-notice" role="note"><p><strong>${value.outcome === 'PARTIAL_LISTINGS' ? 'Thiếu một phần đánh giá khách hàng Shopee.' : 'Thiếu đánh giá khách hàng Shopee.'}</strong> ${escape(reviewOutcomeLead(value))}</p>`
-    + `<p>Sản phẩm chưa đạt mốc ${REVIEW_TARGET} bình luận:</p><ul>${short.map((row, index) => `<li><a href="${escape(row.listingUrl)}" rel="noopener noreferrer">Sản phẩm #${index + 1}</a> — Sản phẩm này chỉ lấy được ${row.reviews}/${REVIEW_TARGET} bình luận.</li>`).join('')}</ul>`
+    + `<p>Sản phẩm chưa đạt mốc ${REVIEW_TARGET} bình luận:</p><ul>${short.map(row => `<li><a href="${escape(row.listingUrl)}" rel="noopener noreferrer">Sản phẩm #${value.listings.indexOf(row) + 1}</a> — Sản phẩm này chỉ lấy được ${row.reviews}/${REVIEW_TARGET} bình luận.</li>`).join('')}</ul>`
     + `<p><strong>Phần bị ảnh hưởng${kind === 'MARKET' ? ' (trong báo cáo insight)' : ''}:</strong> ${escape(REVIEW_DEPENDENT_SECTIONS.map(section => `${section.sectionId} ${section.title}`).join('; '))}.</p>`
     + '<p><strong>Phần vẫn dùng được:</strong> doanh thu, giá, đối thủ, nhu cầu tìm kiếm.</p></div>';
 }

@@ -12,6 +12,7 @@ import { openDatabase } from '../../src/platform/db/index.js';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/artifact-store.js';
 import { RequestScopedArtifactStore } from '../../src/platform/artifacts/request-scoped-artifact-store.js';
 import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../src/modules/flow/index.js';
+import { AutomationMetricMethodBridge, type AutomationMetricMethodSnapshot } from '../../src/modules/analysis/research-automation/metric-method-bridge.js';
 import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
 import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
 import { ResearchAutomationValidationError } from '../../src/modules/analysis/research-automation/model.js';
@@ -240,7 +241,7 @@ test('capture-backed Market presentation passes rules 1, 2, 3, 5, 7, 9 and 11 wi
       if (partialReviews) {
         assert.ok(notice);
         assert.deepEqual([...notice.querySelectorAll('li a')].map(link => [link.textContent, link.getAttribute('href')]),
-          [['Sản phẩm #1', 'https://shopee.vn/product/100/201']]);
+          [['Sản phẩm #2', 'https://shopee.vn/product/100/201']]);
         assert.match(notice.textContent!, /0\/300 bình luận/);
         assert.doesNotMatch(notice.textContent!, /https?:|product\/\d|shopee\.vn/);
       } else {
@@ -254,4 +255,77 @@ test('capture-backed Market presentation passes rules 1, 2, 3, 5, 7, 9 and 11 wi
     const audit = spawnSync('./node_modules/.bin/tsx', ['scripts/audit-market-14.ts', output], { encoding: 'utf8' });
     assert.equal(audit.status, 0, audit.stdout + audit.stderr);
   });
+});
+
+const presentationRequest = (previousPairId: string, extra: Record<string, unknown> = {}) => ({ contractVersion: 'automation-market-presentation-revision-v1' as const, requestKey: randomUUID(), previousPairId, sources: { metric: { decision: 'KEEP' as const }, nativeReview: { decision: 'KEEP' as const } }, ...extra });
+const machineRuleFailures = (html: string): string[] => auditMarket14(html)
+  .filter(rule => rule.kind === 'machine' && !rule.ok).map(rule => `${rule.rule}: ${rule.detail}`);
+
+test('capture revenue survives presentation revision while legacy captures reveal retained platform figures', async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-metric-capture-pres-209-'));
+  const db = openDatabase({ databasePath: path.join(root, 'test.sqlite'), now }).db;
+  const artifacts = new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
+  t.after(async () => { db.close(); await fs.rm(root, { recursive: true, force: true }); });
+  const discovery = new DiscoveryWorkspaceService({ db, artifactStore: artifacts, uuid: () => workspaceId, now });
+  await discovery.createWorkspace({ contractVersion: '1.0.0', workspaceKey: 'metric-capture-pres-209', title: 'Synthetic Metric capture presentation' });
+  // The served Market draft is the same renderer the API uses; the capture
+  // fixture needs it to see what a reader actually receives.
+  let marketInput: Parameters<typeof buildResearchAutomationReport>[0] | undefined;
+  const service = new ResearchAutomationService({ db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discovery),
+    metricAttachmentStore: new RequestScopedArtifactStore(path.join(root, 'artifacts')), uuid: () => runId, now, readerReportFlint: false,
+    renderer: (input, kind) => { marketInput = input; return buildResearchAutomationReport(input, kind); } });
+  await service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: '33333333-3333-4333-8333-333333333333',
+    mode: 'CATEGORY', keyword: 'synthetic jar', requestedPeriod: { startDate: '2026-01-01', endDate: '2026-01-30' }, reports: ['MARKET'] });
+  await service.processNext();
+  const awaiting = await service.getRun(workspaceId, runId);
+  const snapshot = captureSnapshot();
+  snapshot.scope.platforms = ['shopee', 'tiktok'];
+  const metricValue = (value: number, unit: 'VND' | 'COUNT' | 'PERCENT', platform: 'shopee' | 'tiktok', sourcePointer: string,
+    displayed = String(value), raw: number | null = value) =>
+    ({ label: 'Số liệu theo nền tảng', displayed, value: raw, unit, precision: raw === null ? 'display_rounded' as const : 'exact' as const, platform, period, sourcePointer });
+  snapshot.groups.W3_platformSplit = [
+    { platform: 'shopee', revenue: metricValue(1234567890, 'VND', 'shopee', 'platform.shopee.revenue', '1,2 tỷ', null), units: metricValue(42000, 'COUNT', 'shopee', 'platform.shopee.units'), share: metricValue(65.1, 'PERCENT', 'shopee', 'platform.shopee.share') },
+    { platform: 'tiktok', revenue: metricValue(9876543210, 'VND', 'tiktok', 'platform.tiktok.revenue'), units: null, share: metricValue(34.9, 'PERCENT', 'tiktok', 'platform.tiktok.share') },
+  ];
+  const archive = captureArchive(snapshot);
+  const receipt = await service.prepareMetricCapture(workspaceId, runId, { contractVersion: 'automation-metric-capture-prepare-v1',
+    requestKey: '66666666-6666-4666-8666-666666666666', expectedRevision: awaiting.revision, sourceContext: 'Synthetic capture fixture' },
+  archive.snapshotBytes, archive.manifestBytes);
+  const scope = { definition: 'Synthetic reader scope', includeTerms: ['synthetic jar'], excludeTerms: [], selectedProductIds: [], peerProductIds: [] };
+  await service.confirmScope(workspaceId, runId, { contractVersion: 'research-automation-confirm-v2', requestKey: '55555555-5555-4555-8555-555555555555',
+    expectedRevision: awaiting.revision, ...scope, sources: { metric: { decision: 'USE_PREPARED', packageId: receipt.packageId }, nativeReview: 'SKIP' } });
+  for (let i = 0; i < 10 && (await service.getRun(workspaceId, runId)).status !== 'DRAFT_READY'; i++) await service.processNext();
+  assert.equal((await service.getRun(workspaceId, runId)).status, 'DRAFT_READY');
+  const draft = (await service.readReport(workspaceId, runId, 'MARKET')).bytes.toString('utf8');
+  for (const platform of ['Shopee', 'TikTok Shop'])
+    assert.equal((draft.match(new RegExp(`<h3>${platform}</h3><p>Doanh thu quan sát: `, 'g')) ?? []).length, 2,
+      `${platform} capture figures appear in both the M03 and M04 sections`);
+  const CITE = ' <sup class="cite">\\[\\d+\\]<\\/sup>';
+  assert.match(draft, new RegExp(`<h3>Shopee<\\/h3><p>Doanh thu quan sát: <strong>1\\.200\\.000\\.000 VND<\\/strong> <small>số làm tròn như trên trang<\\/small>${CITE}; sản lượng: <strong>42\\.000<\\/strong>${CITE}\\. Đây là số của cả tập kết quả theo bộ lọc trên trang\\. Không phải tổng của danh sách giữ bên dưới\\.`));
+  assert.match(draft, new RegExp(`<h3>TikTok Shop<\\/h3><p>Doanh thu quan sát: <strong>9\\.876\\.543\\.210 VND<\\/strong>${CITE}; sản lượng: <strong>không có số liệu<\\/strong>\\. Đây là số của cả tập kết quả theo bộ lọc trên trang\\. Bảng kết quả có chọn nền tảng này nhưng không có dòng nào gán được cho nền tảng; báo cáo không suy ra và không ghi thành 0\\.`));
+  assert.match(draft, /1\.200 VND/, 'the retained row list still shows its own row value');
+  assert.doesNotMatch(draft, /Doanh thu quan sát: <strong>1\.200 VND/);
+  const pair = (await service.listReportVersions(workspaceId, runId))[0]!;
+  // A run frozen before the per-platform figures existed still has to report the
+  // figures the retained page holds: the gap is reproduced first, then closed by
+  // reading those figures back from the retained capture.
+  const frozen = marketInput!.metricMethods!;
+  const { platformHeadlines: _figures, ...legacyCapture } = frozen.capture!;
+  const legacy = { ...frozen, capture: legacyCapture } as AutomationMetricMethodSnapshot;
+  assert.match(buildResearchAutomationReport({ ...marketInput!, metricMethods: legacy }, 'MARKET').html.toString('utf8'), /Doanh thu quan sát: <strong>1\.200 VND/);
+  const bridge = new AutomationMetricMethodBridge({ db, artifactStore: artifacts, workspaces: new FlowDiscoveryWorkspaceReader(discovery), now });
+  const revealed = await bridge.revealCapturePlatformHeadlines(legacy);
+  const revised = buildResearchAutomationReport({ ...marketInput!, metricMethods: revealed }, 'MARKET').html.toString('utf8');
+  assert.match(revised, new RegExp(`<h3>Shopee<\\/h3><p>Doanh thu quan sát: <strong>1\\.200\\.000\\.000 VND<\\/strong> <small>số làm tròn như trên trang<\\/small>${CITE}`));
+  assert.match(revised, new RegExp(`<h3>TikTok Shop<\\/h3><p>Doanh thu quan sát: <strong>9\\.876\\.543\\.210 VND<\\/strong>${CITE}`));
+  assert.doesNotMatch(revised, /Doanh thu quan sát: <strong>1\.200 VND/);
+  const revision = await service.requestReportRevision(workspaceId, runId, presentationRequest(pair.pairId));
+  await service.processNext();
+  const committed = await service.getReportRevision(workspaceId, runId, revision.attemptId);
+  assert.equal(committed.state, 'COMMITTED');
+  const presented = (await service.readReport(workspaceId, runId, 'MARKET', false, committed.pairId!)).bytes.toString('utf8');
+  assert.match(presented, /Doanh thu quan sát: <strong>1\.200\.000\.000 VND/);
+  assert.match(presented, /Doanh thu quan sát: <strong>9\.876\.543\.210 VND/);
+  assert.doesNotMatch(presented, /Doanh thu quan sát: <strong>1\.200 VND/);
+  assert.deepEqual(machineRuleFailures(presented), []);
 });
