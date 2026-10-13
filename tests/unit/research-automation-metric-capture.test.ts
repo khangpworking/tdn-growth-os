@@ -79,7 +79,7 @@ test('capture archive validates pretty JSON bytes and refuses digest, gate, sche
   const wrongValue = JSON.parse(valid.snapshot.toString('utf8')); wrongValue.capturedAt = '2026-01-01T00:00:01Z';
   const wrongSnapshot = Buffer.from(JSON.stringify(wrongValue, null, 2) + '\n');
   assert.throws(() => verifyMetricCaptureArchive(wrongSnapshot, valid.manifest), (error: unknown) => error instanceof MetricCaptureRejection && error.code === 'CAPTURE_DIGEST_MISMATCH');
-  for (const gate of [false, { cleared: false }, { cleared: false, status: 'CLEARED' }, { cleared: true, status: 'BLOCKED' }, { cleared: 'true' }, {}]) {
+  for (const gate of [true, false, { cleared: false }, { cleared: false, status: 'REPLAY' }, { cleared: false, status: 'CLEARED' }, { status: 'CLEARED' }, { cleared: true, status: 'CLEARED' }, { cleared: true, status: 'BLOCKED' }, { cleared: 'true' }, {}]) {
     const uncleared = archive(snapshotFixture(), gate);
     assert.throws(() => verifyMetricCaptureArchive(uncleared.snapshot, uncleared.manifest), (error: unknown) => error instanceof MetricCaptureRejection && ['CAPTURE_GATE_NOT_CLEARED', 'CAPTURE_MANIFEST_INVALID'].includes(error.code), JSON.stringify(gate));
   }
