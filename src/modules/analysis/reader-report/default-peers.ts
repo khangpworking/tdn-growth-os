@@ -33,13 +33,23 @@ const STATE_TEXT: Readonly<Record<DefaultMarketPeers['frames'][number]['state'],
   INCOMPLETE: 'Chưa đủ nguồn, doanh thu, nhóm hoặc danh tính; chưa chọn đối thủ',
 };
 
+/** Reader-facing wording for the retained exclusion codes; the machine code itself stays in the evidence record. */
+const REASON_TEXT: Readonly<Record<DefaultMarketPeers['frames'][number]['excluded'][number]['reason'], string>> = {
+  PLATFORM_MISMATCH: 'Bản ghi khác sàn', FRAME_MISMATCH: 'Bản ghi khác khung mẫu',
+  PERIOD_MISMATCH: 'Bản ghi khác kỳ đo', UNIT_MISMATCH: 'Bản ghi khác đơn vị tiền',
+  OTHER_GROUP: 'Bản ghi ngoài nhóm đang xét', GROUP_UNKNOWN: 'Bản ghi chưa rõ nhóm',
+  SOURCE_MISSING: 'Bản ghi thiếu vị trí nguồn', EXACT_REFERENCE_DUPLICATE: 'Dòng trùng nguồn hoàn toàn',
+  CONFLICTING_REFERENCE: 'Cùng nguồn nhưng nội dung khác nhau', LISTING_IDENTITY_AMBIGUOUS: 'Mã sản phẩm chưa rõ hoặc trùng',
+  REVENUE_MISSING: 'Thiếu doanh thu', PEER_IDENTITY_AMBIGUOUS: 'Chưa rõ danh tính đối thủ',
+};
+
 /** Shared M07 projection for complete and nullable readers; every displayed amount goes through the existing bundle. */
 export function readerPeerExhibit(
   snapshot: DefaultMarketPeers | null, bundle: Bundle,
-  options: { text: (s: string) => string; metric: (id: string) => string; sourceMark: (source: { sourceSha256: string; locator: string }) => string },
+  options: { text: (s: string) => string; metric: (id: string) => string; sourceMark: (source: { sourceSha256: string; locator: string }) => string; readerSafeText?: boolean },
 ): string {
   if (snapshot === null) return '';
-  const { text, metric, sourceMark } = options;
+  const { text, metric, sourceMark, readerSafeText = false } = options;
   const body = snapshot.frames.map((result, index) => {
     const id = `peers.${index}`;
     bundle.set(`${id}.threshold`, snapshot.input.rule.thresholdPercent, 'num');
@@ -63,6 +73,8 @@ export function readerPeerExhibit(
     : '<p>Chưa có bổ sung của chủ.</p>';
   const exclusions = snapshot.frames.flatMap(frame => frame.excluded).length;
   bundle.set('peers.excluded', exclusions, 'num');
-  const trace = snapshot.frames.flatMap(frame => frame.excluded.map(row => `<li><code>${esc(row.reason)}</code> ${row.source === null ? 'Chưa có nguồn' : sourceMark(row.source)}</li>`)).join('');
-  return `${body}<h3>Bổ sung của chủ, giữ riêng</h3>${additions}<p>Bổ sung không thay đổi mẫu số hoặc quy tắc mặc định. Không suy cùng thương hiệu hay gian hàng từ tên giống nhau giữa các sàn.</p><p>Số lần loại dòng ở các nhóm và sàn: ${n(metric('peers.excluded'))}; lý do và vị trí được giữ trong hồ sơ đối chiếu.</p><details><summary>Hồ sơ đối chiếu tập đối thủ</summary><p>Phiên bản quy tắc: <code>${esc(snapshot.input.rule.version)}</code>. Đầu vào, thành viên và kết quả chính xác được giữ trong bản lưu bất biến của báo cáo.</p><ul>${trace}</ul></details>`;
+  // Reader-safe builds show the plain Vietnamese reason; legacy reader bytes keep the machine code verbatim.
+  const trace = snapshot.frames.flatMap(frame => frame.excluded.map(row => `<li>${readerSafeText ? esc(REASON_TEXT[row.reason]) : `<code>${esc(row.reason)}</code>`} ${row.source === null ? 'Chưa có nguồn' : sourceMark(row.source)}</li>`)).join('');
+  const countSeparator = readerSafeText ? ' là' : ':';
+  return `${body}<h3>Bổ sung của chủ, giữ riêng</h3>${additions}<p>Bổ sung không thay đổi mẫu số hoặc quy tắc mặc định. Không suy cùng thương hiệu hay gian hàng từ tên giống nhau giữa các sàn.</p><p>Số lần loại dòng ở các nhóm và sàn${countSeparator} ${n(metric('peers.excluded'))}; lý do và vị trí được giữ trong hồ sơ đối chiếu.</p><details><summary>Hồ sơ đối chiếu tập đối thủ</summary><p>Phiên bản quy tắc: <code>${esc(snapshot.input.rule.version)}</code>. Đầu vào, thành viên và kết quả chính xác được giữ trong bản lưu bất biến của báo cáo.</p><ul>${trace}</ul></details>`;
 }

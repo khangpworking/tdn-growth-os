@@ -100,7 +100,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     if (units === null) B.setMissing(`${id}.units`, 'num'); else B.set(`${id}.units`, units, 'num');
     return [plat(P), label(members[0]?.shopName || shop), n(bf(`${id}.n`)), n(bf(`${id}.rev`)), n(bf(`${id}.units`))];
   }));
-  const peers = readerPeerExhibit(d.defaultMarketPeers, B, { text: label, metric: bf, sourceMark: ref => {
+  const peers = readerPeerExhibit(d.defaultMarketPeers, B, { text: label, metric: bf, readerSafeText: next, sourceMark: ref => {
     const no = registry.cite({ sourceKind: 'METRIC_ROW', identity: ref.sourceSha256,
       locator: next ? null : { kind: 'source-locator', value: ref.locator }, ...(next ? { technical: { locator: ref.locator } } : {}), label: 'Dòng doanh số nguồn đã lưu',
       retrievedAt: null, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' });
