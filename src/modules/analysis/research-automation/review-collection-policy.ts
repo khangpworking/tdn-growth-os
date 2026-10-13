@@ -56,6 +56,7 @@ export function buildReviewSample(source: VerifiedPrivateShopeeCollection, value
     return { listing: { platform: listing.platform, shopId: listing.shopId, itemId: listing.itemId },
       retainedReviews: rows.length, textReviews, targetReviews: policy.targetReviews, hardMaximum: policy.hardMaximum,
       meetsComparisonTextMinimum: textReviews >= policy.comparisonTextMinimum,
+      ...(rows.length < policy.targetReviews ? { shortfallReason: 'RETURNED_COUNT_BELOW_REQUESTED' as const } : {}),
       stop: rows.length >= policy.targetReviews ? 'A_FIXED_COUNT' : actor.stopReason === 'dataset_exhausted'
         ? 'PROVIDER_DATASET_EXHAUSTED' : 'CAPTURE_STOPPED_BEFORE_TARGET' };
   });

@@ -16,7 +16,7 @@ import { ShopeeCollectionService, type VerifiedExactShopeeCollection } from '../
 import { selectExactShopeeListings } from '../../foundation/shopee-exact-selection.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import { buildResearchReviewCorpus, verifyResearchReviewCorpus } from './review-corpus.js';
-import { classifyExactShopee, countReviewsPerListing, exactShopeeOutcomeLimitation } from './exact-shopee-outcome.js';
+import { classifyExactShopee, countReviewsPerListing, exactShopeeOutcomeLimitation, markReviewShortfalls, TARGET_REVIEWS } from './exact-shopee-outcome.js';
 import type { ScopeSnapshot, SourceLimitation, StartSnapshot, StepResultDocument } from './model.js';
 
 export type ShopeeCollectorFactory = () => { collector: ShopeeCollector; requestsIssued: () => number };
@@ -83,9 +83,11 @@ export class AutomationExactShopeeBridge {
         verified = await this.#collections.saveExact(bytes, collected);
       }
       const actor = verified.packet.actor;
-      const counts = countReviewsPerListing(selection.selected, verified.pages);
-      const outcome = classifyExactShopee({ actorStatus: actor.status, statusMessage: providerMessage, counts });
-      const outcomeLimitation = exactShopeeOutcomeLimitation(outcome, counts);
+      const rawCounts = countReviewsPerListing(selection.selected, verified.pages);
+      const targetReviews = actor.settings.maxReviewsPerProduct === TARGET_REVIEWS ? TARGET_REVIEWS : undefined;
+      const counts = targetReviews === undefined ? rawCounts : markReviewShortfalls(rawCounts);
+      const outcome = classifyExactShopee({ actorStatus: actor.status, statusMessage: providerMessage, counts, ...(targetReviews === undefined ? {} : { targetReviews }) });
+      const outcomeLimitation = exactShopeeOutcomeLimitation(outcome, counts, targetReviews);
       const cost = reused ? '0' : actor.usageTotalUsd;
       // One structured line per collection: listing ids and counts only, never the token, URLs, review text or provider message.
       console[outcome === 'OK' ? 'info' : 'warn'](JSON.stringify({ event: 'exact_shopee_collection', runId: input.runId, outcome,

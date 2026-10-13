@@ -55,6 +55,16 @@ test('actual owning start/confirm/private collection -> retained sample -> cited
   assert.equal(original.semantic.rendererVersion, 'automation-report-kit-v27');
   assert.equal(original.semantic.reviewSample.products.length, 3);
   assert.deepEqual(original.semantic.reviewSample.products.map((p: { retainedReviews: number }) => p.retainedReviews), [29, 30, 300]);
+  assert.deepEqual(original.semantic.reviewSample.products.map((p: { shortfallReason?: string }) => p.shortfallReason), [
+    'RETURNED_COUNT_BELOW_REQUESTED', 'RETURNED_COUNT_BELOW_REQUESTED', undefined,
+  ]);
+  assert.match(original.result.bytes.toString(), /Sản phẩm này chỉ lấy được 29\/300 bình luận\./);
+  assert.match(original.result.bytes.toString(), /Sản phẩm này chỉ lấy được 30\/300 bình luận\./);
+  assert.doesNotMatch(original.result.bytes.toString(), /Sản phẩm này chỉ lấy được 300\/300 bình luận/);
+  const shortSetBlocker = (await f.service.getRun(f.workspaceId, f.runId)).blockers.find(row => row.code === 'REVIEW_SHORT_SET');
+  assert.ok(shortSetBlocker);
+  assert.match(shortSetBlocker.message, /29\/300.*30\/300/);
+  assert.doesNotMatch(shortSetBlocker.message, /apify|zen-studio/i);
   assert.equal(original.semantic.reviewSample.coverageAvailable, false);
   assert.equal(original.semantic.reviewSample.receipt.usageTotalUsd, 0.23);
   assert.equal(original.semantic.sourceEvidence.sourceAppendix.rows.some((r: { registryId: string }) => r.registryId === 'S05'), true);

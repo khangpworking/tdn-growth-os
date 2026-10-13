@@ -73,6 +73,7 @@ export function privateProductReviewAccounting(source: VerifiedPrivateShopeeColl
     collectionId: source.packet.collectionId, collectionSha256: source.sha256,
     retainedReviews: records.length, textReviews, targetReviews: REVIEW_COLLECTION_THRESHOLDS.targetReviews,
     hardMaximum: REVIEW_COLLECTION_THRESHOLDS.hardMaximum, meetsComparisonTextMinimum: textReviews >= REVIEW_COLLECTION_THRESHOLDS.comparisonTextMinimum,
+    ...(records.length < REVIEW_COLLECTION_THRESHOLDS.targetReviews ? { shortfallReason: 'RETURNED_COUNT_BELOW_REQUESTED' as const } : {}),
     stop, collectorStopReason: source.packet.actor.stopReason, saturation: 'SOURCE_BOUND_CODING_UNAVAILABLE' as const,
     /** Provider dataset size is not a product's total reviews or a platform population. */
     providerDatasetRows: source.packet.actor.providerTotalRows,

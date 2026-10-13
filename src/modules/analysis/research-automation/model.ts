@@ -122,7 +122,7 @@ export interface StepResultDocument {
   /** Classified exact-Shopee review outcome; absent on runs stored before it was kept. */
   readonly exactShopeeOutcome?: {
     readonly outcome: ExactShopeeOutcome;
-    readonly listings: readonly { readonly listingUrl: string; readonly reviews: number }[];
+    readonly listings: readonly { readonly listingUrl: string; readonly reviews: number; readonly shortfallReason?: 'RETURNED_COUNT_BELOW_REQUESTED' }[];
     readonly providerMessage: string | null;
     readonly attemptedAt: string;
     readonly reused: boolean;

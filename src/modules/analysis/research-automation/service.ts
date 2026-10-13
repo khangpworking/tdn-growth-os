@@ -3567,9 +3567,13 @@ export class ResearchAutomationService {
     const sourceStart = await this.#readStartSnapshot(rowForSources.startSha, rowForSources.workspaceId);
     let cancelledSourceEvidence: (() => AutomationSourceEvidence) | undefined;
     if (stepId === 'COLLECTION' && sourceStart.reviewCollectionPolicy && step.privateShopee) {
-      step = { ...step, reviewSample: await this.#shopee.reviewSample(step.privateShopee, { runId, start: sourceStart,
+      const reviewSample = await this.#shopee.reviewSample(step.privateShopee, { runId, start: sourceStart,
         scope: await this.#readScopeSnapshot(rowForSources.scopeSha!, rowForSources.workspaceId, runId), scopeConfirmedAt: rowForSources.scopeConfirmedAt! },
-        await this.#privateCorpusBinding(rowForSources)) };
+        await this.#privateCorpusBinding(rowForSources));
+      const shortSets = reviewSample.products.filter(product => product.shortfallReason !== undefined);
+      const shortSetLimitations = shortSets.length === 0 ? [] : [{ code: 'REVIEW_SHORT_SET', provider: null,
+        message: `${shortSets.length} sản phẩm chỉ lấy được ít hơn số bình luận yêu cầu: ${shortSets.map(product => `${product.retainedReviews}/${product.targetReviews}`).join(', ')}.` }];
+      step = { ...step, reviewSample, limitations: [...step.limitations, ...shortSetLimitations] };
     }
     if (stepId === 'COLLECTION' && sourceStart.sourceEvidenceVersion) {
       const sourceScope = await this.#readScopeSnapshot(rowForSources.scopeSha!, rowForSources.workspaceId, runId);
@@ -4279,7 +4283,8 @@ function assertStepDocument(value: unknown, runId: string, stepId: StepId): asse
         value.exactShopeeOutcome.providerMessage.length > MAX_PROVIDER_MESSAGE_LENGTH)) ||
       !Array.isArray(value.exactShopeeOutcome.listings) || value.exactShopeeOutcome.listings.length < 1 || value.exactShopeeOutcome.listings.length > 5 ||
       value.exactShopeeOutcome.listings.some(item => !isRecord(item) || typeof item.listingUrl !== 'string' || !item.listingUrl.startsWith('https://shopee.vn/') ||
-        item.listingUrl.length > 2000 || !Number.isSafeInteger(item.reviews) || item.reviews < 0)))
+        item.listingUrl.length > 2000 || !Number.isSafeInteger(item.reviews) || item.reviews < 0 ||
+        (item.shortfallReason !== undefined && item.shortfallReason !== 'RETURNED_COUNT_BELOW_REQUESTED'))))
     throw new ResearchAutomationIntegrityError('Stored exact review outcome is invalid.');
   if (value.webResults !== undefined && (stepId !== 'COLLECTION' || !Array.isArray(value.webResults) || value.webResults.length > MAX_WEB_RESULTS ||
       value.webResults.some(item => !isRecord(item) || !Number.isSafeInteger(item.position) || item.position < 1 ||

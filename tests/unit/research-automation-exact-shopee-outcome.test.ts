@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import {
-  classifyExactShopee, countReviewsPerListing, exactShopeeOutcomeLimitation, type ExactShopeeListingCount,
+  classifyExactShopee, countReviewsPerListing, exactShopeeOutcomeLimitation, markReviewShortfalls, type ExactShopeeListingCount,
 } from '../../src/modules/analysis/research-automation/exact-shopee-outcome.js';
 import { REVIEW_DEPENDENT_SECTIONS } from '../../src/modules/analysis/research-automation/reports.js';
 import { ApifyShopeeCollector, FixtureShopeeCollector, providerStatusMessage } from '../../src/platform/collectors/apify-shopee.js';
@@ -68,6 +68,20 @@ test('only a non-OK outcome adds a limitation, with a plain count and no provide
   const partial = exactShopeeOutcomeLimitation('PARTIAL_LISTINGS', counts(4, 0, 2, 0, 0))!;
   assert.deepEqual([partial.code, partial.message], ['EXACT_SHOPEE_REVIEWS_PARTIAL', '2/5 sản phẩm có đánh giá.']);
   for (const value of [blocked, partial]) assert.doesNotMatch(value.message, PROVIDERS);
+});
+
+test('a configured 300-review run classifies a positive short set as partial', () => {
+  assert.equal(classifyExactShopee({ actorStatus: 'SUCCEEDED', statusMessage: null, counts: counts(42), targetReviews: 300 }), 'PARTIAL_LISTINGS');
+  const limitation = exactShopeeOutcomeLimitation('PARTIAL_LISTINGS', markReviewShortfalls(counts(42)), 300)!;
+  assert.match(limitation.message, /42\/300/);
+});
+
+test('every exact listing below the fixed target receives a stored shortfall reason', () => {
+  assert.deepEqual(markReviewShortfalls(counts(42, 300, 301)), [
+    { listingUrl: 'https://shopee.vn/product/1/1', reviews: 42, shortfallReason: 'RETURNED_COUNT_BELOW_REQUESTED' },
+    { listingUrl: 'https://shopee.vn/product/1/2', reviews: 300 },
+    { listingUrl: 'https://shopee.vn/product/1/3', reviews: 301 },
+  ]);
 });
 
 test('run page labels for the three outcomes are plain Vietnamese without provider names', async () => {

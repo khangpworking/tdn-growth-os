@@ -24,6 +24,7 @@ export interface AutomationReviewSample {
           retainedReviews: number;
           textReviews: number;
           targetReviews: 300;
+          shortfallReason?: 'RETURNED_COUNT_BELOW_REQUESTED';
           hardMaximum: 500;
           meetsComparisonTextMinimum: boolean;
           stop: 'A_FIXED_COUNT' | 'PROVIDER_DATASET_EXHAUSTED' | 'CAPTURE_STOPPED_BEFORE_TARGET';
@@ -39,6 +40,7 @@ export interface AutomationReviewSample {
           retainedReviews: number;
           textReviews: number;
           targetReviews: 300;
+          shortfallReason?: 'RETURNED_COUNT_BELOW_REQUESTED';
           hardMaximum: 500;
           meetsComparisonTextMinimum: boolean;
           stop: 'A_FIXED_COUNT' | 'PROVIDER_DATASET_EXHAUSTED' | 'CAPTURE_STOPPED_BEFORE_TARGET';
@@ -52,47 +54,7 @@ export interface AutomationReviewSample {
           retainedReviews: number;
           textReviews: number;
           targetReviews: 300;
-          hardMaximum: 500;
-          meetsComparisonTextMinimum: boolean;
-          stop: 'A_FIXED_COUNT' | 'PROVIDER_DATASET_EXHAUSTED' | 'CAPTURE_STOPPED_BEFORE_TARGET';
-        },
-      ]
-    | [
-        {
-          listing: {
-            platform: 'shopee';
-            shopId: string;
-            itemId: string;
-          };
-          retainedReviews: number;
-          textReviews: number;
-          targetReviews: 300;
-          hardMaximum: 500;
-          meetsComparisonTextMinimum: boolean;
-          stop: 'A_FIXED_COUNT' | 'PROVIDER_DATASET_EXHAUSTED' | 'CAPTURE_STOPPED_BEFORE_TARGET';
-        },
-        {
-          listing: {
-            platform: 'shopee';
-            shopId: string;
-            itemId: string;
-          };
-          retainedReviews: number;
-          textReviews: number;
-          targetReviews: 300;
-          hardMaximum: 500;
-          meetsComparisonTextMinimum: boolean;
-          stop: 'A_FIXED_COUNT' | 'PROVIDER_DATASET_EXHAUSTED' | 'CAPTURE_STOPPED_BEFORE_TARGET';
-        },
-        {
-          listing: {
-            platform: 'shopee';
-            shopId: string;
-            itemId: string;
-          };
-          retainedReviews: number;
-          textReviews: number;
-          targetReviews: 300;
+          shortfallReason?: 'RETURNED_COUNT_BELOW_REQUESTED';
           hardMaximum: 500;
           meetsComparisonTextMinimum: boolean;
           stop: 'A_FIXED_COUNT' | 'PROVIDER_DATASET_EXHAUSTED' | 'CAPTURE_STOPPED_BEFORE_TARGET';
@@ -108,6 +70,7 @@ export interface AutomationReviewSample {
           retainedReviews: number;
           textReviews: number;
           targetReviews: 300;
+          shortfallReason?: 'RETURNED_COUNT_BELOW_REQUESTED';
           hardMaximum: 500;
           meetsComparisonTextMinimum: boolean;
           stop: 'A_FIXED_COUNT' | 'PROVIDER_DATASET_EXHAUSTED' | 'CAPTURE_STOPPED_BEFORE_TARGET';
@@ -121,6 +84,7 @@ export interface AutomationReviewSample {
           retainedReviews: number;
           textReviews: number;
           targetReviews: 300;
+          shortfallReason?: 'RETURNED_COUNT_BELOW_REQUESTED';
           hardMaximum: 500;
           meetsComparisonTextMinimum: boolean;
           stop: 'A_FIXED_COUNT' | 'PROVIDER_DATASET_EXHAUSTED' | 'CAPTURE_STOPPED_BEFORE_TARGET';
@@ -134,19 +98,7 @@ export interface AutomationReviewSample {
           retainedReviews: number;
           textReviews: number;
           targetReviews: 300;
-          hardMaximum: 500;
-          meetsComparisonTextMinimum: boolean;
-          stop: 'A_FIXED_COUNT' | 'PROVIDER_DATASET_EXHAUSTED' | 'CAPTURE_STOPPED_BEFORE_TARGET';
-        },
-        {
-          listing: {
-            platform: 'shopee';
-            shopId: string;
-            itemId: string;
-          };
-          retainedReviews: number;
-          textReviews: number;
-          targetReviews: 300;
+          shortfallReason?: 'RETURNED_COUNT_BELOW_REQUESTED';
           hardMaximum: 500;
           meetsComparisonTextMinimum: boolean;
           stop: 'A_FIXED_COUNT' | 'PROVIDER_DATASET_EXHAUSTED' | 'CAPTURE_STOPPED_BEFORE_TARGET';
@@ -162,6 +114,7 @@ export interface AutomationReviewSample {
           retainedReviews: number;
           textReviews: number;
           targetReviews: 300;
+          shortfallReason?: 'RETURNED_COUNT_BELOW_REQUESTED';
           hardMaximum: 500;
           meetsComparisonTextMinimum: boolean;
           stop: 'A_FIXED_COUNT' | 'PROVIDER_DATASET_EXHAUSTED' | 'CAPTURE_STOPPED_BEFORE_TARGET';
@@ -175,6 +128,7 @@ export interface AutomationReviewSample {
           retainedReviews: number;
           textReviews: number;
           targetReviews: 300;
+          shortfallReason?: 'RETURNED_COUNT_BELOW_REQUESTED';
           hardMaximum: 500;
           meetsComparisonTextMinimum: boolean;
           stop: 'A_FIXED_COUNT' | 'PROVIDER_DATASET_EXHAUSTED' | 'CAPTURE_STOPPED_BEFORE_TARGET';
@@ -188,6 +142,7 @@ export interface AutomationReviewSample {
           retainedReviews: number;
           textReviews: number;
           targetReviews: 300;
+          shortfallReason?: 'RETURNED_COUNT_BELOW_REQUESTED';
           hardMaximum: 500;
           meetsComparisonTextMinimum: boolean;
           stop: 'A_FIXED_COUNT' | 'PROVIDER_DATASET_EXHAUSTED' | 'CAPTURE_STOPPED_BEFORE_TARGET';
@@ -201,6 +156,23 @@ export interface AutomationReviewSample {
           retainedReviews: number;
           textReviews: number;
           targetReviews: 300;
+          shortfallReason?: 'RETURNED_COUNT_BELOW_REQUESTED';
+          hardMaximum: 500;
+          meetsComparisonTextMinimum: boolean;
+          stop: 'A_FIXED_COUNT' | 'PROVIDER_DATASET_EXHAUSTED' | 'CAPTURE_STOPPED_BEFORE_TARGET';
+        },
+      ]
+    | [
+        {
+          listing: {
+            platform: 'shopee';
+            shopId: string;
+            itemId: string;
+          };
+          retainedReviews: number;
+          textReviews: number;
+          targetReviews: 300;
+          shortfallReason?: 'RETURNED_COUNT_BELOW_REQUESTED';
           hardMaximum: 500;
           meetsComparisonTextMinimum: boolean;
           stop: 'A_FIXED_COUNT' | 'PROVIDER_DATASET_EXHAUSTED' | 'CAPTURE_STOPPED_BEFORE_TARGET';
@@ -214,6 +186,49 @@ export interface AutomationReviewSample {
           retainedReviews: number;
           textReviews: number;
           targetReviews: 300;
+          shortfallReason?: 'RETURNED_COUNT_BELOW_REQUESTED';
+          hardMaximum: 500;
+          meetsComparisonTextMinimum: boolean;
+          stop: 'A_FIXED_COUNT' | 'PROVIDER_DATASET_EXHAUSTED' | 'CAPTURE_STOPPED_BEFORE_TARGET';
+        },
+        {
+          listing: {
+            platform: 'shopee';
+            shopId: string;
+            itemId: string;
+          };
+          retainedReviews: number;
+          textReviews: number;
+          targetReviews: 300;
+          shortfallReason?: 'RETURNED_COUNT_BELOW_REQUESTED';
+          hardMaximum: 500;
+          meetsComparisonTextMinimum: boolean;
+          stop: 'A_FIXED_COUNT' | 'PROVIDER_DATASET_EXHAUSTED' | 'CAPTURE_STOPPED_BEFORE_TARGET';
+        },
+        {
+          listing: {
+            platform: 'shopee';
+            shopId: string;
+            itemId: string;
+          };
+          retainedReviews: number;
+          textReviews: number;
+          targetReviews: 300;
+          shortfallReason?: 'RETURNED_COUNT_BELOW_REQUESTED';
+          hardMaximum: 500;
+          meetsComparisonTextMinimum: boolean;
+          stop: 'A_FIXED_COUNT' | 'PROVIDER_DATASET_EXHAUSTED' | 'CAPTURE_STOPPED_BEFORE_TARGET';
+        },
+        {
+          listing: {
+            platform: 'shopee';
+            shopId: string;
+            itemId: string;
+          };
+          retainedReviews: number;
+          textReviews: number;
+          targetReviews: 300;
+          shortfallReason?: 'RETURNED_COUNT_BELOW_REQUESTED';
           hardMaximum: 500;
           meetsComparisonTextMinimum: boolean;
           stop: 'A_FIXED_COUNT' | 'PROVIDER_DATASET_EXHAUSTED' | 'CAPTURE_STOPPED_BEFORE_TARGET';
