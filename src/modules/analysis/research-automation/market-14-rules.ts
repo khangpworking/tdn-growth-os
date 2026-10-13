@@ -77,9 +77,14 @@ function sampleSizeIssues(html: string): string[] {
 }
 
 function zeroSampleSizeIssues(html: string): string[] {
+  // A Vietnamese word may end in the ASCII letter `n` (for example `sàn`).
+  // Require the marker to start outside a letter/mark/number/underscore so that
+  // `sàn: 0` cannot be mistaken for the real `n = 0` declaration.
+  const zeroSampleCount = /(?<![\p{L}\p{M}\p{N}_])n\s*[=:]\s*0\b/iu;
+  const zeroSampleCountGlobal = /(?<![\p{L}\p{M}\p{N}_])n\s*[=:]\s*0\b/giu;
   return blocks(html).filter(block => {
-    if (!/\bn\s*[=:]\s*0\b/iu.test(block)) return false;
-    const withoutZero = block.replace(/\bn\s*[=:]\s*0\b/giu, ' ');
+    if (!zeroSampleCount.test(block)) return false;
+    const withoutZero = block.replace(zeroSampleCountGlobal, ' ');
     return /\b[1-9]\d*(?:[.,]\d+)*\b/gu.test(withoutZero);
   });
 }

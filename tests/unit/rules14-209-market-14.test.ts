@@ -87,6 +87,8 @@ test('rule 7 requires an n = sample statement', () => {
   assert.equal(rule(valid.replace(/n = 4/gu, ''), '7').ok, false, 'no n = statement');
   assert.equal(rule(valid.replace(/n = 4/gu, '4'), '7').ok, false, 'malformed sample phrase');
   assert.equal(rule(valid.replace('<p>Trong mẫu n = 4 sản phẩm.', '<p>Trong mẫu n = 0 sản phẩm; doanh thu 10 VND.'), '7').ok, false, 'zero n beside a non-zero figure');
+  const readerExclusionCount = valid.replace('<p>Trong mẫu n = 4 sản phẩm.', '<p>Số lần loại dòng ở các nhóm và sàn: 0; doanh thu 10 VND. Trong mẫu n = 4 sản phẩm.');
+  assert.equal(rule(readerExclusionCount, '7').ok, true, 'the n in sàn: 0 is not a sample-size declaration');
   const unknown = valid.replace(/n = 4/gu, 'chưa có số lượng mẫu');
   assert.equal(rule(unknown, '7').ok, true, 'unknown stored count is stated without inventing n');
 });
