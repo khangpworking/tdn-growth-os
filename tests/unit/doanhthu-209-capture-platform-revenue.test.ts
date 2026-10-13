@@ -61,7 +61,7 @@ test('a rounded capture figure is labelled as the rounded page figure and cited'
 test('a capture figure for a declared platform without rows is still shown, and no zero is invented', () => {
   const html = metricMethodSection(captureSnapshot({ resultPlatforms: ['shopee'],
     headlines: [{ platform: 'tiktok', revenue: figure('777'), units: null }] }), 'M04', undefined, citations);
-  assert.match(html, /<h3>TikTok Shop<\/h3><p>Doanh thu quan sát: <strong>777 VND<\/strong> \[1\]; sản lượng: <strong>không có số liệu<\/strong>\. Đây là số của cả tập kết quả theo bộ lọc trên trang\. Capture có chọn nền tảng này nhưng không có dòng nào gán được cho nền tảng; báo cáo không suy ra và không ghi thành 0\./);
+  assert.match(html, /<h3>TikTok Shop<\/h3><p>Doanh thu quan sát: <strong>777 VND<\/strong> \[1\]; sản lượng: <strong>không có số liệu<\/strong>\. Đây là số của cả tập kết quả theo bộ lọc trên trang\. Bảng kết quả có chọn nền tảng này nhưng không có dòng nào gán được cho nền tảng; báo cáo không suy ra và không ghi thành 0\./);
   assert.doesNotMatch(html, new RegExp(NO_FIGURE_SENTENCE));
 });
 

@@ -16,6 +16,7 @@ import { buildResearchAutomationReport } from '../../src/modules/analysis/resear
 import { AutomationMetricMethodBridge, type AutomationMetricMethodSnapshot } from '../../src/modules/analysis/research-automation/metric-method-bridge.js';
 import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
 import { ResearchAutomationValidationError } from '../../src/modules/analysis/research-automation/model.js';
+import { auditMarket14 } from '../../src/modules/analysis/research-automation/market-14-rules.js';
 import { webSnapshotDigest } from '../../src/modules/analysis/reader-report/web-facts.js';
 import { providerNameViolations, reportVisibleText, visibleTextViolations } from '../helpers/report-visible-text.js';
 
@@ -198,7 +199,8 @@ test('a confirmed Market run with no Metric source keeps the manual-export block
 });
 
 const presentationRequest = (previousPairId: string, extra: Record<string, unknown> = {}) => ({ contractVersion: 'automation-market-presentation-revision-v1' as const, requestKey: randomUUID(), previousPairId, sources: { metric: { decision: 'KEEP' as const }, nativeReview: { decision: 'KEEP' as const } }, ...extra });
-const machineRuleFailures = (_html: string): string[] => [];
+const machineRuleFailures = (html: string): string[] => auditMarket14(html)
+  .filter(rule => rule.kind === 'machine' && !rule.ok).map(rule => `${rule.rule}: ${rule.detail}`);
 
 test('capture revenue survives presentation revision while legacy captures reveal retained platform figures', async t => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-metric-capture-pres-209-'));
@@ -241,7 +243,7 @@ test('capture revenue survives presentation revision while legacy captures revea
       `${platform} capture figures appear in both the M03 and M04 sections`);
   const CITE = ' <sup class="cite">\\[\\d+\\]<\\/sup>';
   assert.match(draft, new RegExp(`<h3>Shopee<\\/h3><p>Doanh thu quan sát: <strong>1\\.200\\.000\\.000 VND<\\/strong> <small>số làm tròn như trên trang<\\/small>${CITE}; sản lượng: <strong>42\\.000<\\/strong>${CITE}\\. Đây là số của cả tập kết quả theo bộ lọc trên trang\\. Không phải tổng của danh sách giữ bên dưới\\.`));
-  assert.match(draft, new RegExp(`<h3>TikTok Shop<\\/h3><p>Doanh thu quan sát: <strong>9\\.876\\.543\\.210 VND<\\/strong>${CITE}; sản lượng: <strong>không có số liệu<\\/strong>\\. Đây là số của cả tập kết quả theo bộ lọc trên trang\\. Capture có chọn nền tảng này nhưng không có dòng nào gán được cho nền tảng; báo cáo không suy ra và không ghi thành 0\\.`));
+  assert.match(draft, new RegExp(`<h3>TikTok Shop<\\/h3><p>Doanh thu quan sát: <strong>9\\.876\\.543\\.210 VND<\\/strong>${CITE}; sản lượng: <strong>không có số liệu<\\/strong>\\. Đây là số của cả tập kết quả theo bộ lọc trên trang\\. Bảng kết quả có chọn nền tảng này nhưng không có dòng nào gán được cho nền tảng; báo cáo không suy ra và không ghi thành 0\\.`));
   assert.match(draft, /1\.200 VND/, 'the retained row list still shows its own row value');
   assert.doesNotMatch(draft, /Doanh thu quan sát: <strong>1\.200 VND/);
   const pair = (await service.listReportVersions(workspaceId, runId))[0]!;
