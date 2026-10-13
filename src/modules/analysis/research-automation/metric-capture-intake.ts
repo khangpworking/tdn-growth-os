@@ -41,6 +41,10 @@ const DESCRIPTOR_PATH = 'normalized/automation-metric-source-capture.json';
 const hash = (bytes: Uint8Array | string): string => createHash('sha256').update(bytes).digest('hex');
 const json = (value: unknown): Buffer => Buffer.from(canonicalJson(value), 'utf8');
 const norm = (value: string): string => value.normalize('NFC').trim().toLowerCase();
+// The adapter's manifest `appliedFilters` repeats the snapshot scope and adds
+// these page toggles, which the snapshot scope deliberately does not model.
+// The snapshot schema keeps `scope` closed, so a toggle can never appear there.
+const APPLIED_FILTER_TOGGLES = ['smartQuery', 'aiNormalisation', 'usefulFilters'] as const;
 
 export type MetricCaptureRejectionCode =
   | 'CAPTURE_OVERSIZE' | 'CAPTURE_INVALID_JSON' | 'CAPTURE_SCHEMA_INVALID' | 'CAPTURE_MANIFEST_INVALID'
@@ -75,7 +79,7 @@ export function verifyMetricCaptureArchive(snapshotBytes: Buffer, manifestBytes:
   const manifest = manifestValue as AutomationMetricResultsCaptureV1;
   if (manifest.captureId !== snapshot.captureId || manifest.specDigest !== snapshot.specDigest)
     throw new MetricCaptureRejection('CAPTURE_SCOPE_MISMATCH', 'manifest', 'captureId/specDigest');
-  if (canonicalJson(manifest.appliedFilters) !== canonicalJson(snapshot.scope))
+  if (canonicalJson(scopeShapedFilters(manifest.appliedFilters)) !== canonicalJson(snapshot.scope))
     throw new MetricCaptureRejection('CAPTURE_SCOPE_MISMATCH', 'manifest.appliedFilters');
   if (manifest.archive.normalizedSnapshot !== 'snapshot.json') throw new MetricCaptureRejection('CAPTURE_MANIFEST_INVALID', 'manifest.archive.normalizedSnapshot');
   const snapshotFile = manifest.files.find(file => file.path === 'snapshot.json');
@@ -103,6 +107,13 @@ export function verifyMetricCaptureArchive(snapshotBytes: Buffer, manifestBytes:
     measurementPeriod: { ...snapshot.scope.period }, truncation,
   };
   return { snapshot, manifest, snapshotBytes, manifestBytes, capture };
+}
+
+/** The manifest repeats the snapshot scope plus the page toggles; compare only the scope-shaped part. */
+function scopeShapedFilters(appliedFilters: AutomationMetricResultsCaptureV1['appliedFilters']): Record<string, unknown> {
+  const scope = { ...appliedFilters } as Record<string, unknown>;
+  for (const toggle of APPLIED_FILTER_TOGGLES) delete scope[toggle];
+  return scope;
 }
 
 function parseJson(bytes: Buffer, locator: string): unknown {
