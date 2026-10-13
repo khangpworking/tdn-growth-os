@@ -28,12 +28,31 @@ const claimMark = (claimId: string, citations: ReportCitations): string => citat
   retrievedAt: null, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE', technical: { claimId },
 });
 
+const READER_LIMITATION_TEXT: Readonly<Record<string, string>> = {
+  M01_ITEMS_REFERENCE_UPSTREAM_CLAIMS_AND_ARE_NOT_NEW_M01_FACTS: 'Danh sách này tham chiếu bằng chứng nguồn đã lưu; không tạo thêm sự kiện cho M01.',
+  OWNER_QUESTION_ABSENT_AI_PROPOSED_WORKING_QUESTION_AWAITS_OWNER_NO_RELEVANCE_SELECTION_OR_BUSINESS_OBJECTIVE: 'Chưa có câu hỏi quyết định và mục tiêu kinh doanh do chủ dự án xác nhận.',
+  CATALOG_SECTION_ORDER_AND_UPSTREAM_ARTIFACT_ORDER_ARE_NOT_PRIORITY_OR_RANK: 'Thứ tự mục và thứ tự bằng chứng không phải thứ tự ưu tiên hay mức cao thấp.',
+  NO_CONCLUSION_STRATEGY_OR_ACTION_IS_GENERATED: 'Bản này không tự tạo kết luận, chiến lược hoặc hành động.',
+  DECLARATIONS_ARE_ATTRIBUTED_SELF_REPORT_NOT_AUTHENTICATED_TRUTH: 'Lời khai được quy cho nguồn; chưa phải sự thật đã xác thực.',
+  EMPTY_COUNTEREVIDENCE_MEMBERSHIP_DOES_NOT_ESTABLISH_ABSENCE_OF_COUNTEREVIDENCE: 'Chưa ghi nhận phản chứng không có nghĩa là không tồn tại phản chứng.',
+  REQUESTED_DATE_WINDOW_IS_NOT_ASSUMED_TO_BE_THE_OBSERVED_PERIOD: 'Kỳ yêu cầu không được coi là kỳ quan sát nếu nguồn chưa ghi nhận.',
+  ONLY_THE_BOUND_SOURCE_CLAIMS_ARTIFACT_IS_INVENTORIED: 'Chỉ bằng chứng nguồn đã gắn với lượt này được đưa vào danh sách.',
+  NO_AI_OR_PROVIDER_CALL_WAS_MADE: 'Lượt này không gọi bước AI hoặc nguồn bên ngoài.',
+  NO_AI_OR_PROVIDER_CALL_WAS_MADE_TO_BUILD_THIS_INPUT: 'Đầu vào được dựng từ hồ sơ đã lưu, không gọi bước AI hoặc nguồn bên ngoài.',
+  M12_DECISION_IS_OPEN_WITH_NO_ACTOR_BUDGET_DEADLINE_CHOICE_OR_EXECUTION_AUTHORIZATION: 'Mục hành động vẫn mở; chưa có người phụ trách, ngân sách, hạn, lựa chọn hoặc ủy quyền thực hiện do chủ dự án xác nhận.',
+};
+const readerLimitation = (code: string): string | null => READER_LIMITATION_TEXT[code] ?? null;
+
 function methodLimits(limits: readonly string[], summary = 'Giới hạn và mã phương pháp'): string {
+  if (activeReaderPlainText) {
+    const visible = limits.map(readerLimitation).filter((text): text is string => text !== null);
+    return visible.length ? `<details class="evidence-trace evidence-method-limits"><summary>Giới hạn của phần bằng chứng</summary><ul>${visible.map(text => `<li>${escape(text)}</li>`).join('')}</ul></details>` : '';
+  }
   return `<details class="evidence-trace evidence-method-limits"><summary>${summary}</summary><ul>${limits.map(text => `<li><code>${technicalLiteral(text)}</code></li>`).join('')}</ul></details>`;
 }
 
 // Model prose is a reader projection; the validated proposal bytes remain unchanged.
-const readerText = (value: string): string => storedText(value, '', 'Nội dung được giữ trong bản lưu');
+const readerText = (value: string): string => activeReaderPlainText && !readerSafe(value) ? '' : storedText(value, '', '');
 const list = (title: string, values: readonly string[]) => values.length ? `<h4>${title}</h4><ul>${values.map(value => `<li>${readerText(value)}</li>`).join('')}</ul>` : '';
 
 export function i14SynthesisSection(outcome: AutomationI14ExecutionOutcome | undefined, citations: ReportCitations = NO_CITATIONS): string {
@@ -53,6 +72,15 @@ export function i14SynthesisSection(outcome: AutomationI14ExecutionOutcome | und
 // This renderer never selects evidence, ranks it, or calls a model.
 function sourceDetails(claim: Claim, anchorPrefix = 'claim', citations: ReportCitations = NO_CITATIONS): string {
   const limitations = [...new Set([...claim.observation.limitations, ...claim.limitations])];
+  if (activeReaderPlainText) {
+    const row = /\/(?:observations|input\/m\d+)\/(\d+)$/.exec(claim.source.locator);
+    const label = row ? `Dòng sản phẩm ${Number(row[1]) + 1} trong tệp số liệu bán hàng` : 'Dòng dữ liệu trong tệp số liệu bán hàng';
+    const visibleLimits = limitations.map(readerLimitation).filter((text): text is string => text !== null);
+    const quote = claim.source.statement === null ? '' : retainedQuoteHtml(claim.source.statement, 'blockquote');
+    const spans = claim.source.spans.length ? `<ul>${claim.source.spans.map(span => `<li>${retainedQuoteHtml(span.quote)}</li>`).join('')}</ul>` : '';
+    const limitBlock = visibleLimits.length ? `<details class="evidence-limitations"><summary>Giới hạn của bằng chứng</summary><ul>${visibleLimits.map(text => `<li>${escape(text)}</li>`).join('')}</ul></details>` : '';
+    return `<details class="evidence-trace" id="${escape(anchorPrefix)}-${claim.claimId}"><summary>Xem nguồn · ${label} ${claimMark(claim.claimId, citations)}</summary><p><b>Nguồn:</b> ${label}</p>${quote}${spans}${limitBlock}</details>`;
+  }
   return `<details class="evidence-trace" id="${escape(anchorPrefix)}-${claim.claimId}"><summary>Xem nguồn và giới hạn ${claimMark(claim.claimId, citations)}</summary><p><b>Ghi nhận nguồn:</b> ${storedText(claim.source.attribution, 'Chưa có thông tin', 'Ghi nhận nguồn được giữ trong bản lưu')}</p>${claim.source.statement === null ? '' : `${retainedQuoteHtml(claim.source.statement, 'blockquote')}`}${claim.source.spans.length ? `<ul>${claim.source.spans.map(span => `<li>${retainedQuoteHtml(span.quote)} <small>(vị trí ${span.start} đến ${span.end})</small></li>`).join('')}</ul>` : ''}<details class="evidence-metadata"><summary>Tệp nguồn và phương pháp</summary><dl><dt>Tệp nguồn</dt><dd>${technicalLiteral(claim.source.logicalPath)}</dd><dt>Vị trí</dt><dd><code>${technicalLiteral(claim.source.locator)}</code>${claim.source.recordLocator === null ? '' : `<br><code>${technicalLiteral(claim.source.recordLocator)}</code>`}</dd><dt>Phương pháp đã lưu</dt><dd>${escape(claim.method.methodId)} · ${escape(claim.method.methodVersion)}<br><code>${escape(claim.method.outputPointer)}</code></dd><dt>Dấu kiểm tệp nguồn</dt><dd><code>${escape(claim.source.sha256)}</code></dd></dl></details>${limitations.length ? `<details class="evidence-limitations"><summary>Giới hạn của bằng chứng (${limitations.length})</summary><ul>${limitations.map(text => `<li>${readerText(text)}</li>`).join('')}</ul></details>` : ''}</details>`;
 }
 

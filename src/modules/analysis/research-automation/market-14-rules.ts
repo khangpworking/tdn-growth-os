@@ -64,6 +64,11 @@ function technicalLeaks(html: string): string[] {
     ...(text.match(/(?:[A-Za-z]:\\[^\s<>"']+|\/(?:home|Users)\/[^\s<>"']*)/gu) ?? []),
     ...(text.match(/\b[0-9a-f]{64}\b/giu) ?? []),
     ...(text.match(/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/gu) ?? []),
+    ...(text.match(/\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+){2,}\b/gu) ?? []),
+    ...(text.match(/\b[a-z]+(?:-[a-z]+){2,}\s+·\s+\d+\.\d+\.\d+\b/gu) ?? []),
+    ...(text.match(/\b\w+\/\w+\.json\b/gu) ?? []),
+    ...(text.match(/\/[a-z_]+\/\d+\b/gu) ?? []),
+    ...(text.match(/\{\s*"[^"\\]+"\s*:/gu) ?? []),
     ...(text.match(/\b(?:UNKNOWN|ALL|WIDE|CORE|OUTSIDE|METHOD_OUTPUT|SOURCE_CONTEXT|EVIDENCE_INVENTORY|Sheet1)\b/gu) ?? []),
   ];
 }
@@ -71,6 +76,14 @@ function technicalLeaks(html: string): string[] {
 function sampleSizeIssues(html: string): string[] {
   return blocks(html).filter(block => /\btrong mẫu\b\s*(?:(?:\(\s*n\s*[=:]\s*\d+\s*\)\s*)?[:;,.!?]|(?:có|gồm)\s+|)\d/iu.test(block) &&
     !/(?:\bn\s*[=:]\s*\d+|mẫu\s+(?:gồm|có)\s+(?:n\s*[=:]\s*)?\d+|tệp\s+(?:gồm|có)\s+(?:n\s*[=:]\s*)?\d+)/iu.test(block));
+}
+
+function zeroSampleSizeIssues(html: string): string[] {
+  return blocks(html).filter(block => {
+    if (!/\bn\s*[=:]\s*0\b/iu.test(block)) return false;
+    const withoutZero = block.replace(/\bn\s*[=:]\s*0\b/giu, ' ');
+    return /\b[1-9]\d*(?:[.,]\d+)*\b/gu.test(withoutZero);
+  });
 }
 
 function hasSampleStatement(text: string): boolean {
@@ -190,7 +203,6 @@ export function auditMarket14(html: string, trace?: string): Market14Result[] {
   const visibleCodes = text.match(/\bM(?:0[1-9]|1[0-3])\b/gu) ?? [];
   const appendixLabels = text.match(/Bảng\s+PL\.\d+/giu) ?? [];
   const notes = noteProblems(html, text);
-  const presentationWithoutReaderNotes = /data-market-platforms=["'][^"']*["']/iu.test(html) && !/data-report-rules=["']market-visible-v1["']/iu.test(html);
   const coverTag = html.match(/<header\b[^>]*class=["'][^"']*\bcover\b[^"']*[^>]*>/iu)?.[0] ?? '';
   const image = /data:image\/(?:jpeg|png|webp);base64,/iu.test(coverTag);
   const externalCover = /(?:url\(['"]?https?:|<img\b[^>]*\bsrc=["']https?:)/iu.test(coverTag);
@@ -207,6 +219,7 @@ export function auditMarket14(html: string, trace?: string): Market14Result[] {
   const m12Structure = hasM12ProposalRows(html);
   const sources = sourceCoverage(html);
   const sampleIssues = sampleSizeIssues(html);
+  const zeroSampleIssues = zeroSampleSizeIssues(html);
   const tables = platformTableIssues(html);
   const declaredPlatforms = html.match(/data-market-platforms=["']([^"']*)["']/iu)?.[1]?.split(',').map(value => value.trim()).filter(Boolean) ?? ['shopee', 'tiktok'];
   const allPlatformsMentioned = declaredPlatforms.every(platform => platform === 'shopee' ? /\bShopee\b/iu.test(text) : /\bTikTok\s+Shop\b/iu.test(text));
@@ -216,9 +229,9 @@ export function auditMarket14(html: string, trace?: string): Market14Result[] {
     result('2', sectionLabels.length === 0 && visibleCodes.length === 0 && appendixLabels.length > 0, 'machine', sectionLabels.length || visibleCodes.length || appendixLabels.length === 0 ? `missing labels: ${sectionLabels.join(', ')}${visibleCodes.length ? `; visible codes: ${visibleCodes.join(', ')}` : ''}${appendixLabels.length === 0 ? '; no PL.x table label' : ''}` : 'Phần/Phụ lục labels and PL.x table labels are visible; technical ids are not'),
     result('3', technicalLeaks(html).length === 0, 'machine', snippets(technicalLeaks(html))),
     result('4', gateResult('G08_PROVIDER_NAME').ok && !/\bGoogle\b/iu.test(text), 'machine', /\bGoogle\b/iu.test(text) ? 'visible provider/tool name: Google' : gateResult('G08_PROVIDER_NAME').detail),
-    result('5', (notes.blocks.length > 0 || presentationWithoutReaderNotes) && notes.bad.length === 0, 'machine', notes.blocks.length === 0 && !presentationWithoutReaderNotes ? 'missing standalone Chú thích: note block' : notes.bad.length ? snippets(notes.bad) : 'notes use their own line'),
+    result('5', notes.blocks.length > 0 && notes.bad.length === 0, 'machine', notes.blocks.length === 0 ? 'missing standalone Chú thích: note block' : notes.bad.length ? snippets(notes.bad) : 'notes use their own line'),
     result('6', true, 'evidence', evidenceDetail(html, [/doanh thu|tỷ trọng|giá trung bình/iu])),
-    result('7', gateResult('U32_NO_CROSS_PLATFORM_TOTAL').ok && hasSampleStatement(text) && sampleIssues.length === 0 && !/(?:thị phần|quy mô thị trường)\s+(?:là|đạt|tăng|giảm|chiếm)\s*\d/iu.test(text), 'machine', sampleIssues.length ? snippets(sampleIssues) : hasSampleStatement(text) ? gateResult('U32_NO_CROSS_PLATFORM_TOTAL').detail : 'missing n = sample statement'),
+    result('7', gateResult('U32_NO_CROSS_PLATFORM_TOTAL').ok && hasSampleStatement(text) && sampleIssues.length === 0 && zeroSampleIssues.length === 0 && !/(?:thị phần|quy mô thị trường)\s+(?:là|đạt|tăng|giảm|chiếm)\s*\d/iu.test(text), 'machine', sampleIssues.length ? snippets(sampleIssues) : zeroSampleIssues.length ? snippets(zeroSampleIssues) : hasSampleStatement(text) ? gateResult('U32_NO_CROSS_PLATFORM_TOTAL').detail : 'missing n = sample statement'),
     result('8', true, 'evidence', evidenceDetail(html, [/nhận định|nhóm|doanh thu|giá/iu])),
     result('9', m12Structure, 'machine', m12Structure ? 'M12 has three labelled proposal rows, a quick-win label, owner and deadline fields' : 'M12 is missing the three-option, quick-win, owner, deadline or approval-label structure'),
     result('10', externalCover || malformedCover ? false : !coverRead && image, externalCover || malformedCover ? 'machine' : coverRead ? 'evidence' : 'machine', externalCover || malformedCover ? 'cover must be an embedded stored asset; external or malformed cover markup is not allowed' : coverRead ? 'READ: needs owner/asset and a trace entry with the reuse licence' : 'cover image is embedded and licensed in the trace'),

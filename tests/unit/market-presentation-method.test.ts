@@ -125,3 +125,13 @@ test('pending finding numbers carry their classification label in the same sente
   assert.ok(lintVisibleReportText(html).every(check => check.ok));
   assert.equal(lintVisibleReportText(html.replace(/ \(đề xuất, chờ chủ duyệt\)/g, '')).find(check => check.rule === 'U13_PENDING_NUMBER')!.ok, false);
 });
+
+test('reader sample statements use the frozen Metric row count when presentation rows are empty', () => {
+  const f = fixture();
+  const method = buildAutomationMarketPresentation(f.binding, { ...f.input, rows: [], unitSpec: null });
+  const expected = method.input.metric!.scopes.find(scope => scope.key === 'all')!.listingCount;
+  const html = renderAutomationMarketFindings(method, citations, true);
+  assert.match(html, new RegExp(`n = ${expected}(?:\\D|$)`));
+  assert.doesNotMatch(html, /n = 0/);
+  assert.match(html, /class="lim"[^>]*><b>Chú thích:<\/b>/);
+});
