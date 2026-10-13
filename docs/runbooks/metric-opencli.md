@@ -23,7 +23,7 @@ adapter installed from the same repository bytes. The executor verifies
 `tools/opencli-metric/adapter-manifest.json` before each run. `whoami` reads
 only login, captcha, page-state and any displayed analysis lookup balance.
 The current manifest SHA-256 is
-`deabe2a25bfc85c16be3c435b921d1a0947ede573f942f36c067627d71fa5b3e`.
+`5f3672aecaf10ba6a3c396476f11ae68b9a7ce20a76e0a539d51d19fb8dcace0`.
 
 Install or reinstall the adapter from the checked-out repository bytes with:
 
@@ -180,3 +180,30 @@ the live lookup merely to diagnose extraction.
   no shell and a manifest hash check.
 - Search results are evidence from the page at capture time. Later intake and
   archive work must use the saved files rather than reopening Metric.
+
+
+## R3 — provable native submit and network-first result data
+
+Before Search, the adapter sends Escape, blurs the keyword control, moves the
+pointer away from hover state, waits for popup exit animation, checks visible
+select/picker/dialog/popover/tooltip roots, verifies the button is enabled and
+not loading, scrolls it into view, and records `elementFromPoint` at its centre.
+Dry-run reports these preconditions without spending a lookup. The real submit
+accepts only OpenCLI `{click_method: "cdp", hit: "target"}` and stores the full
+click result in `searchGate`; JS fallback is a `METRIC_UI_CHANGED` failure.
+
+Debug capture is complete on submit failure and gate failure: sanitized full DOM
+and a masked screenshot are saved before submit and at 3 s and 15 s after it.
+The input log keeps every captured request after submit with path, method,
+status, timestamp and sanitized request/response bodies. Identity endpoint bodies
+remain dropped.
+
+The archive filters result extraction at the applied-search response baseline,
+so stale pre-search widgets cannot supply headline or table values. The
+versioned `metric-results-data-v2` manifest field contains per-platform headline,
+price-range, province, shop-type, category, previous-period, top-brand and
+top-shop series. Platforms are mapped from the live `search_basic` list; values
+are never summed. A trend series is retained only when a post-submit source
+response offers one; otherwise the manifest records `not offered by the source`.
+
+Adapter manifest SHA-256: `5f3672aecaf10ba6a3c396476f11ae68b9a7ce20a76e0a539d51d19fb8dcace0`.

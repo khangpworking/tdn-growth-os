@@ -762,6 +762,7 @@ function fakePage(observation: any, result: any, resultDom: any = null, networkR
       if (selector === 'next' || (typeof selector === 'string' && (selector.includes('ant-pagination-next') || selector.includes('Next Page')))) state.paginationClicks += 1;
       if (typeof selector === 'string' && (selector.includes('data-metric-platform') || selector.includes('data-platform-view') || selector === 'platform-view')) state.platformSwitches += 1;
       behavior.onClick?.(selector, state, options);
+      return { matches_n: 1, match_level: 'exact', click_method: 'cdp', hit: 'target', retargeted: false };
     },
     fillText: async (selector: string, text: string) => calls.push(`fill:${selector}:${text}`),
     cdp: async (method: string, params: any) => calls.push(`cdp:${method}:${params.type}:${params.key}:${params.code}:${params.windowsVirtualKeyCode}:${params.nativeVirtualKeyCode}:${params.text}`),

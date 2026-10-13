@@ -751,6 +751,7 @@ async function createDebugSession(debugDir, metadata) {
     domFiles: [],
     regionFiles: [],
     screenshot: null,
+    screenshots: [],
     screenshotError: null,
   };
   const writeInput = async (responses = [], extra = {}) => writeJson(join(debugDir, 'input.json'), {
@@ -782,13 +783,16 @@ async function createDebugSession(debugDir, metadata) {
         await writeFile(regionPath, sanitizeResultsHtml(html), 'utf8');
         state.regionFiles.push(regionPath.split('/').at(-1));
       }
-      if (!state.screenshot && typeof page.screenshot === 'function') {
-        const screenshotPath = join(debugDir, 'full-page.png');
+      if ((!state.screenshot || /^submit-/.test(safeView)) && typeof page.screenshot === 'function') {
+        const screenshotName = /^submit-/.test(safeView) ? `${base}.png` : 'full-page.png';
+        const screenshotPath = join(debugDir, screenshotName);
         let prepared = false;
         try {
           prepared = await page.evaluate(prepareDebugFullPageScreenshot);
           await page.screenshot({ path: screenshotPath, fullPage: true });
-          state.screenshot = { path: 'full-page.png', maskedCount: Number(prepared?.maskedCount) || 0 };
+          const shot = { path: screenshotName, maskedCount: Number(prepared?.maskedCount) || 0 };
+          state.screenshots.push(shot);
+          state.screenshot ||= shot;
         } catch (error) {
           state.screenshotError = String(error instanceof Error ? error.message : error);
         } finally {
@@ -810,6 +814,7 @@ async function createDebugSession(debugDir, metadata) {
           input: 'input.json', domSnapshots: state.domFiles, regionHtml: state.regionFiles,
           fullPageScreenshot: state.screenshot?.path || null,
         },
+        screenshots: state.screenshots,
         screenshot: state.screenshot,
         screenshotError: state.screenshotError,
         status: extra.status || 'complete',
@@ -967,6 +972,44 @@ function assertSearchSubmitInspection(inspection) {
     });
   }
   return inspection.descriptor;
+}
+
+// Shared by dry-run and submit; never dispatches a submit event.
+async function prepareSearchSubmit(page) {
+  await page.pressKey('Escape');
+  if (typeof page.cdp === 'function') await page.cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 0, y: 0 }).catch(() => {});
+  await page.evaluate(() => {
+    const active = document.activeElement;
+    if (active && document.querySelector('#QuerySearchBuilder')?.contains(active)) active.blur();
+  });
+  await page.wait({ time: 0.75 });
+  const inspection = await inspectSearchSubmit(page);
+  const descriptor = assertSearchSubmitInspection(inspection);
+  const preflight = await page.evaluate(selector => {
+    const button = document.querySelector(selector);
+    button?.scrollIntoView({ block: 'center', inline: 'center' });
+    const visible = el => {
+      const style = getComputedStyle(el), rect = el.getBoundingClientRect();
+      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+    };
+    const popups = [...document.querySelectorAll('.ant-select-dropdown,.ant-picker-dropdown,[role="listbox"],[role="dialog"],.ant-dropdown,.ant-popover,.ant-tooltip')]
+      .filter(el => !String(el.className || '').includes('leave-active'))
+      .filter(visible).map(el => ({ tag: el.tagName.toLowerCase(), classes: String(el.className), role: el.getAttribute('role') }));
+    const rect = button?.getBoundingClientRect();
+    const hitElement = rect ? document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2) : null;
+    return { popups, popupVisible: popups.length > 0,
+      disabled: !button || button.disabled || button.getAttribute('aria-disabled') === 'true',
+      loading: button?.classList.contains('ant-btn-loading') || false,
+      hit: hitElement && (hitElement === button || button.contains(hitElement)) ? 'target' : 'other',
+      hitElement: hitElement ? { tag: hitElement.tagName.toLowerCase(), classes: String(hitElement.className) } : null,
+
+    };
+  }, descriptor.clickSelector);
+  if (preflight && typeof preflight === 'object') preflight.candidateCount = inspection.candidateCount;
+  if (preflight && typeof preflight === 'object' && (preflight.popupVisible || preflight.disabled || preflight.loading || preflight.hit !== 'target')) {
+    throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric submit preconditions failed', { preflight });
+  }
+  return { inspection, descriptor, preflight };
 }
 
 async function readMetricPlatformOptionLabels(page) {
@@ -1488,36 +1531,52 @@ async function waitForSearchApplied(page, spec, networkState, baselineResponseOr
   assertSearchAppliedGate({ responses: networkState.all, spec, baselineResponseOrder, platformMap });
 }
 
-async function performSearch(page, spec) {
-  const { ready } = await prepareMetricForm(page, spec);
-  const inspection = await inspectSearchSubmit(page);
-  const descriptor = assertSearchSubmitInspection(inspection);
+async function performSearch(page, spec, debug = null) {
   const networkState = createNetworkState();
-  await readNetworkChunk(page, networkState);
-  const baselineResponseOrder = networkState.nextResponseOrder - 1;
-  const platformLabels = await readMetricPlatformOptionLabels(page);
-  const platformMap = buildMetricPlatformMap(networkState.all, platformLabels);
-  const expectedPlatforms = new Set(spec.platforms);
-  const mappedPlatforms = new Set(Object.values(platformMap.byId || {}));
-  if (![...expectedPlatforms].every(platform => mappedPlatforms.has(platform))) {
-    throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric platform ids could not be mapped from the live search_basic platform list', {
-      expectedPlatforms: spec.platforms, mappedPlatforms: [...mappedPlatforms], platformListIds: platformMap.platformListIds,
-      platformLabels: platformMap.labels, platformMapSource: platformMap.source,
-    });
-  }
-  const clickedAt = new Date().toISOString();
-  await page.click(descriptor.clickSelector);
-  let searchGate;
+  const searchGate = { clickResult: null, clickedAt: null };
   try {
-    searchGate = await waitForSearchApplied(page, spec, networkState, baselineResponseOrder, platformMap, clickedAt, descriptor);
+    await prepareMetricForm(page, spec);
+    const platformLabels = await readMetricPlatformOptionLabels(page);
+    const { descriptor, preflight } = await prepareSearchSubmit(page);
+    Object.assign(searchGate, { submitDescriptor: descriptor, preflight });
+    await readNetworkChunk(page, networkState);
+    const platformMap = buildMetricPlatformMap(networkState.all, platformLabels);
+    if (!spec.platforms.every(platform => Object.values(platformMap.byId || {}).includes(platform))) {
+      throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric platform ids could not be mapped from the live platform list', { platformMap });
+    }
+    if (debug) await debug.record(page, await page.evaluate(observeResultPage), 'submit-before', 0);
+    // Masking/screenshot actions may alter focus/scroll; repeat the same preconditions.
+    await prepareSearchSubmit(page);
+    const baselineResponseOrder = networkState.nextResponseOrder - 1;
+    Object.assign(searchGate, { baselineResponseOrder, platformMap, clickedAt: new Date().toISOString() });
+    let clickError = null;
+    try {
+      searchGate.clickResult = await page.click(descriptor.clickSelector);
+      if (searchGate.clickResult?.click_method !== 'cdp' || searchGate.clickResult?.hit !== 'target') {
+        throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric submit did not prove a native target click', { clickResult: searchGate.clickResult });
+      }
+    } catch (error) { clickError = error; }
+    for (const seconds of [3, 15]) {
+      const remaining = seconds - (Date.now() - Date.parse(searchGate.clickedAt)) / 1000;
+      if (remaining > 0) await page.wait({ time: remaining });
+      await readNetworkChunk(page, networkState);
+      if (debug) {
+        await debug.record(page, await page.evaluate(observeResultPage), `submit-after-${seconds}s`, 0);
+        await debug.update(networkState.all, { searchGate });
+      }
+      await readObservation(page, { includeResults: false });
+    }
+    if (clickError) throw clickError;
+    Object.assign(searchGate, await waitForSearchApplied(page, spec, networkState, baselineResponseOrder, platformMap, searchGate.clickedAt, descriptor));
+    const observation = await readObservation(page, { includeResults: true });
+    return Object.assign(observation, { searchGate, networkState });
   } catch (error) {
+    await readNetworkChunk(page, networkState).catch(() => {});
+    if (debug && !searchGate.clickedAt) await debug.record(page, await page.evaluate(observeResultPage), 'submit-precondition-failure', 0).catch(() => {});
     error.networkState = networkState;
-    error.searchGate = { clickedAt, submitDescriptor: descriptor, baselineResponseOrder, platformMap,
-      responseOrder: networkState.all.map(response => response.responseOrder) };
+    error.searchGate = searchGate;
     throw error;
   }
-  const observation = await readObservation(page, { includeResults: true });
-  return Object.assign(observation, { searchGate, networkState });
 }
 
 async function runDryRun(page, spec) {
@@ -1525,18 +1584,21 @@ async function runDryRun(page, spec) {
   let appliedReadBack = null;
   let submitDescriptor = null;
   let pageWideAnalyticsCount = null;
+  let preflight = null;
   try {
     const prepared = await prepareMetricForm(page, spec, before => { startState = formState(before.appliedFilters); });
     appliedReadBack = prepared.ready.appliedFilters ?? null;
-    const inspection = await inspectSearchSubmit(page);
+    const preparedSubmit = await prepareSearchSubmit(page);
+    const { inspection } = preparedSubmit;
+    preflight = preparedSubmit.preflight;
     pageWideAnalyticsCount = Number(inspection?.pageWideAnalyticsCount) || 0;
     submitDescriptor = inspection?.descriptor || null;
     const descriptor = assertSearchSubmitInspection(inspection);
-    return { outcome: 'DRY_RUN_OK', startState, appliedReadBack, submitDescriptor: descriptor, pageWideAnalyticsCount, mismatches: [] };
+    return { outcome: 'DRY_RUN_OK', preflight, startState, appliedReadBack, submitDescriptor: descriptor, pageWideAnalyticsCount, mismatches: [] };
   } catch (error) {
     const details = error?.details && typeof error.details === 'object' ? error.details : {};
     const safeDetails = Object.fromEntries(Object.entries(details).filter(([key]) => [
-      'expected', 'displayed', 'target', 'visibleCellCount', 'firstDate', 'lastDate', 'locatedBy', 'chipCount', 'inputFound', 'inputValueMatchesExpected', 'committedMatchesExpected', 'warningMatches', 'observedPeriod', 'requestedPeriod', 'candidateCount', 'candidates', 'pageWideAnalyticsCount',
+      'expected', 'displayed', 'target', 'visibleCellCount', 'firstDate', 'lastDate', 'locatedBy', 'chipCount', 'inputFound', 'inputValueMatchesExpected', 'committedMatchesExpected', 'warningMatches', 'observedPeriod', 'requestedPeriod', 'candidateCount', 'candidates', 'pageWideAnalyticsCount', 'preflight',
     ].includes(key)));
     return {
       outcome: typeof error?.code === 'string' ? error.code : 'METRIC_UI_CHANGED',
@@ -1544,6 +1606,7 @@ async function runDryRun(page, spec) {
       appliedReadBack,
       ...(submitDescriptor ? { submitDescriptor } : {}),
       ...(pageWideAnalyticsCount !== null ? { pageWideAnalyticsCount } : {}),
+      ...(preflight ? { preflight } : {}),
       mismatches: Array.isArray(details.mismatches) ? details.mismatches : [{
         field: '$error',
         code: typeof error?.code === 'string' ? error.code : 'METRIC_UI_CHANGED',
@@ -1554,8 +1617,8 @@ async function runDryRun(page, spec) {
   }
 }
 
-async function runSearch(page, spec, maxRows) {
-  const observation = await performSearch(page, spec);
+async function runSearch(page, spec, maxRows, debug = null) {
+  const observation = await performSearch(page, spec, debug);
   return { observation, parsed: parseSearchObservation(observation, spec, maxRows), searchGate: observation.searchGate, networkState: observation.networkState };
 }
 
@@ -2104,7 +2167,9 @@ function withDebugFolder(error, debugDir) {
 async function archiveCollectedResults(out, spec, parsed, productCap, collected, { captureId, specDigest, capturedAt, platformIdMap = null } = {}) {
   const destination = ensureExternalCapturePath(out);
   const scope = { ...parsed.appliedFilters, ticks: parsed.appliedFilters.ticks || [], advancedFilters: parsed.appliedFilters.advancedFilters || [], exclusions: parsed.appliedFilters.exclusions || [] };
-  const extracted = extractResultsPage({ responses: collected.responses, dom: collected.domSnapshots, scope, captureId, specDigest, capturedAt, pageCap: productCap, platformIdMap });
+  const baseline = Number.isSafeInteger(collected.baselineResponseOrder) ? collected.baselineResponseOrder : -1;
+  const archiveResponses = collected.responses.filter((response, index) => (Number.isSafeInteger(response?.responseOrder) ? response.responseOrder : index) > baseline);
+  const extracted = extractResultsPage({ responses: archiveResponses.length ? archiveResponses : collected.responses, dom: collected.domSnapshots, scope, captureId, specDigest, capturedAt, pageCap: productCap, platformIdMap });
   await mkdir(destination, { recursive: true });
   const rawPath = join(destination, 'raw-responses.json'); await writeJson(rawPath, sanitizeNetworkResponses(collected.responses));
   const htmlPath = join(destination, 'results.html');
@@ -2121,7 +2186,7 @@ async function archiveCollectedResults(out, spec, parsed, productCap, collected,
   const files = [await fileEntry('raw-responses', rawPath, 'application/json'), await fileEntry('snapshot', snapshotPath, 'application/json'), await fileEntry('results-html', htmlPath, 'text/html'), ...screenshotFiles];
   const manifest = {
     contractVersion: 'metric-results-capture-v1', captureId, specDigest, appliedFilters: scope, resultCount: parsed.rowCount,
-    productPagination: extracted.pagination.W12_topProducts, views: collected.views, sourceMap: extracted.sourceMap, files,
+    productPagination: extracted.pagination.W12_topProducts, views: collected.views, sourceMap: extracted.sourceMap, metricDataVersion: extracted.chartSeries?.contractVersion || 'metric-results-data-v2', chartSeries: extracted.chartSeries || { contractVersion: 'metric-results-data-v2', series: [], trendOffered: false, trendNote: 'not offered by the source' }, files,
     screenshotSkips: collected.screenshotSkips || [],
     archive: { rawResponses: 'raw-responses.json', normalizedSnapshot: 'snapshot.json', resultsHtml: 'results.html', screenshots: screenshotFiles.map(file => file.path) },
     noReportFileRequested: true,
@@ -2143,6 +2208,7 @@ async function archiveResultsPage(page, out, spec, observation, parsed, productC
   let collected = null;
   try {
     collected = await collectResults(page, spec, productCap, staging, debug, options.networkState || observation.networkState || createNetworkState());
+    collected.baselineResponseOrder = options.searchGate?.baselineResponseOrder ?? observation.searchGate?.baselineResponseOrder ?? -1;
     await debug.update(collected.responses, { appliedFilters: parsed.appliedFilters, resultCount: parsed.rowCount, views: collected.views, screenshotSkips: collected.screenshotSkips || [], searchGate: options.searchGate || observation.searchGate || null });
     await gateCurrentMetricPage(page);
     if (collected.screenshots.length === 0) {
@@ -2207,7 +2273,7 @@ async function replayResultsPage(replayDirArg, outArg, spec, productCapArg) {
     ? [{ path: join(replayDir, screenshotName), platform: 'all', region: 'full-page', maskedCount: debugManifest.screenshot?.maskedCount || 0 }]
     : [];
   const collected = {
-    responses: replayResponses, domSnapshots, screenshots, screenshotSkips: [],
+    responses: replayResponses, baselineResponseOrder: replayBaseline, domSnapshots, screenshots, screenshotSkips: [],
     views: Array.isArray(input.views) ? input.views : [{ platform: 'all', pagesRead: domSnapshots.length }],
   };
   const output = outArg ? ensureExternalCapturePath(outArg) : join(replayDir, 'replay');
@@ -2256,7 +2322,7 @@ export const captureCommand = cli({
       let networkState = createNetworkState();
       try {
         await target.startNetworkCapture?.();
-        const result = await runSearch(target, spec, Number.MAX_SAFE_INTEGER);
+        const result = await runSearch(target, spec, Number.MAX_SAFE_INTEGER, debug);
         networkState = result.networkState;
         const archive = await archiveResultsPage(target, args.out, spec, result.observation, result.parsed, Number(args['product-cap'] ?? PRODUCT_CAP), {
           debug, captureId, networkState, searchGate: result.searchGate,

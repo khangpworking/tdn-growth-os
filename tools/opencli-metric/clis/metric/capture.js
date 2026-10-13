@@ -484,55 +484,80 @@ function metricApiPayloads(body, sourcePointer, platformIdMap) {
   const aggregations = Array.isArray(searchBasic?.aggregations) ? searchBasic.aggregations : [];
   const byAggregation = new Map(aggregations.map(item => [clean(item?.aggregation).toUpperCase(), item]));
   const payloads = [];
-  const platformRows = name => Object.values(byAggregation.get(name)?.entity?.platforms || {})
+  const platformRows = name => (byAggregation.get(name)?.entity?.platforms || [])
     .map(item => ({ platform: metricPlatformId(item?.platform_id, platformIdMap), value: item?.value }))
     .filter(item => item.platform && item.value != null);
-  const oneValue = name => {
-    const rows = platformRows(name);
-    return rows.length === 1 ? rows[0].value : null;
-  };
+  const entityRows = name => (byAggregation.get(name)?.entities || []).flatMap((item, index) =>
+    (item?.platforms || []).map(platform => ({
+      platform: metricPlatformId(platform?.platform_id, platformIdMap), value: platform?.value ?? item?.value,
+      key: item?.key, from: item?.from, to: item?.to, index,
+    })).filter(row => row.platform && row.value != null));
   if (aggregations.length) {
-    const revenueRows = platformRows('REVENUE_TOTAL_CUSTOM');
-    const unitsRows = platformRows('ORDER_TOTAL_CUSTOM');
-    const products = oneValue('PRODUCT_TOTAL');
-    const shops = oneValue('SHOP_TOTAL');
-    if (oneValue('REVENUE_TOTAL_CUSTOM') != null && oneValue('ORDER_TOTAL_CUSTOM') != null && products != null && shops != null) {
+    const names = ['REVENUE_TOTAL_CUSTOM', 'ORDER_TOTAL_CUSTOM', 'PRODUCT_TOTAL', 'SHOP_TOTAL'];
+    const previous = Object.fromEntries(names.map(name => [name, platformRows(`PREVIOUS_${name}`)]));
+    const headlineRows = platformRows('REVENUE_TOTAL_CUSTOM').map((row, index) => ({
+      platform: row.platform, revenue: row.value,
+      units: platformRows('ORDER_TOTAL_CUSTOM').find(item => item.platform === row.platform)?.value ?? null,
+      soldListings: platformRows('PRODUCT_TOTAL').find(item => item.platform === row.platform)?.value ?? null,
+      shops: platformRows('SHOP_TOTAL').find(item => item.platform === row.platform)?.value ?? null,
+      previousRevenue: previous.REVENUE_TOTAL_CUSTOM.find(item => item.platform === row.platform)?.value ?? null,
+      previousUnits: previous.ORDER_TOTAL_CUSTOM.find(item => item.platform === row.platform)?.value ?? null,
+      previousSoldListings: previous.PRODUCT_TOTAL.find(item => item.platform === row.platform)?.value ?? null,
+      previousShops: previous.SHOP_TOTAL.find(item => item.platform === row.platform)?.value ?? null,
+    }));
+    if (headlineRows.length) {
+      // W2 remains a valid additive contract: when the source only provides
+      // platform rows, null combined KPIs make the no-summing boundary explicit.
+      const first = headlineRows.length === 1 ? headlineRows[0] : {};
       payloads.push({ region: 'overview', kpi: {
-        revenue: oneValue('REVENUE_TOTAL_CUSTOM'), units: oneValue('ORDER_TOTAL_CUSTOM'), soldListings: products, shops,
-      } });
+        revenue: first.revenue ?? null, units: first.units ?? null, soldListings: first.soldListings ?? null, shops: first.shops ?? null,
+      }, headlineByPlatform: headlineRows });
+      payloads.push({ region: 'platform-split', items: headlineRows.map(row => ({ platform: row.platform, revenue: row.revenue, units: row.units })) });
     }
-    if (revenueRows.length) payloads.push({ region: 'platform-split', items: revenueRows.map((row, index) => ({
-      platform: row.platform, revenue: row.value, units: unitsRows[index]?.value ?? null,
-    })) });
-    const entities = name => Object.values(byAggregation.get(name)?.entities || {}).filter(item => item && item.value != null);
-    const price = entities('REVENUE__BY__PRICE_RANGE_CUSTOM');
-    if (price.length) payloads.push({ region: 'price', rows: price.map(item => ({ priceLevel: `${item.from ?? ''}-${item.to ?? ''}`, revenue: item.value })) });
-    const locations = entities('REVENUE__BY__LOCATION_CUSTOM');
-    if (locations.length) payloads.push({ region: 'warehouse', rows: locations.map(item => ({ location: item.key, revenue: item.value })) });
-    const shopTypes = entities('REVENUE__BY__SHOP_TYPE_CUSTOM');
-    if (shopTypes.length) payloads.push({ region: 'shop-type', rows: shopTypes.map(item => ({ shopType: item.key, revenue: item.value })) });
+    const breakdown = (aggregation, region, makeRow) => {
+      const rows = entityRows(aggregation); if (rows.length) payloads.push({ region, rows: rows.map(makeRow) });
+    };
+    breakdown('REVENUE__BY__PRICE_RANGE_CUSTOM', 'price', row => ({ platform: row.platform, priceLevel: `${row.from ?? ''}-${row.to ?? ''}`, revenue: row.value }));
+    breakdown('REVENUE__BY__LOCATION_CUSTOM', 'warehouse', row => ({ platform: row.platform, location: row.key, revenue: row.value }));
+    breakdown('REVENUE__BY__SHOP_TYPE_CUSTOM', 'shop-type', row => ({ platform: row.platform, shopType: row.key === '1' ? 'mall' : 'normal', revenue: row.value }));
+    breakdown('REVENUE__BY__CATEGORIES_CUSTOM', 'category', row => ({ platform: row.platform, category: row.key, revenue: row.value }));
   }
+  const platformFromProduct = product => metricPlatformId(product?.platform_id, platformIdMap)
+    || metricPlatformId(String(product?.product_base_id || '').split('__')[0], platformIdMap) || 'unknown';
   const isProductsResponse = /\/analytics\/products\/?$/i.test(sourcePointer);
   const isShopsResponse = /\/analytics\/shops\/?$/i.test(sourcePointer);
   const isGroupsResponse = /\/analytics\/groups\/?$/i.test(sourcePointer);
   const products = isProductsResponse && Array.isArray(data?.products) ? data.products : [];
   if (products.length) payloads.push({ region: 'top-products', items: products.map(product => ({
-    name: product.product_name, shop: product.shop_name, platform: metricPlatformId(product.platform_id, platformIdMap) || 'unknown',
+    name: product.product_name, shop: product.shop_name, platform: platformFromProduct(product), brand: product.final_brand || product.brand,
     price: product.price, minPrice: product.price_min, maxPrice: product.price_max,
     revenue: product.revenue_custom ?? product.revenue, units: product.order_custom ?? product.order_count,
+    revenueChg: product.revenue_growth, unitsChg: product.order_growth, previousRevenue: product.previous_revenue_custom, previousUnits: product.previous_order_custom,
     createdDate: product.platform_created_at, category: product.final_categories?.at?.(-1)?.name || product.categories?.at?.(-1)?.name,
   })) });
   const shops = isShopsResponse && Array.isArray(data?.shops) ? data.shops : [];
   if (shops.length) payloads.push({ region: 'top-shops', items: shops.map(shop => ({
-    rankNew: shop.ranking, rankOld: shop.previous_ranking, shop: shop.shop_name,
+    rankNew: shop.ranking, rankOld: shop.previous_ranking, shop: shop.shop_name, brand: shop.top_brand,
     platform: metricPlatformId(shop.platform_id, platformIdMap) || 'unknown', listings: shop.product_total,
     revenue: shop.revenue_custom_sum, units: shop.order_custom_sum, price: shop.avg_price,
+    previousRevenue: shop.previous_revenue_custom_sum, previousUnits: shop.previous_order_custom_sum,
   })) });
   const groups = isGroupsResponse && Array.isArray(data?.groups) ? data.groups : [];
-  if (groups.length) payloads.push({ region: 'top-brands', items: groups.map(group => ({
-    rankNew: group.ranking, rankOld: group.previous_ranking, brand: group.brand, listings: group.product_total,
-    revenue: group.revenue_custom_sum, units: group.order_custom_sum,
-  })) });
+  if (groups.length) payloads.push({ region: 'top-brands', items: groups.flatMap(group => {
+    const details = Array.isArray(group.details_by_platforms) && group.details_by_platforms.length ? group.details_by_platforms : [group];
+    return details.map(detail => ({ rankNew: group.ranking, rankOld: group.previous_ranking, brand: group.brand,
+      platform: metricPlatformId(detail.platform_id, platformIdMap) || 'unknown', listings: detail.product_total,
+      revenue: detail.revenue_custom_sum, units: detail.order_custom_sum,
+      previousRevenue: detail.previous_revenue_custom_sum ?? group.previous_revenue_custom_sum,
+      previousUnits: detail.previous_order_custom_sum ?? group.previous_order_custom_sum,
+    }));
+  }) });
+  const insights = /\/analytics\/shops-insight\/?$/i.test(sourcePointer) && Array.isArray(data?.shops) ? data.shops : [];
+  const trendRows = insights.flatMap(shop => (shop.order_revenue_intervals || []).map(interval => ({
+    platform: metricPlatformId(shop.platform_id, platformIdMap) || 'unknown', shop: shop.shop_name,
+    startDate: interval.start_date, endDate: interval.end_date, revenue: interval.revenue_custom_sum, units: interval.order_custom_sum,
+  })));
+  if (trendRows.length) payloads.push({ region: 'trend', items: trendRows });
   return payloads.map((payload, index) => ({ payload, region: payload.region, platform: 'all', sourcePointer: `${sourcePointer}/derived/${payload.region}/${index}` }));
 }
 
@@ -745,9 +770,13 @@ function shopTypeGroup(entries, scope) {
     return rows.map((row, index) => ({ row, entry, index }));
   });
   if (!points.length) return { absent: true, reason: 'NOT_ON_PAGE' };
-  return points.map(({ row, entry, index }) => ({
+  const seen = new Set();
+  return points.filter(({ row }) => {
+    const type = clean(row.shopType || row.type).toLowerCase() === 'mall' ? 'mall' : 'normal';
+    if (seen.has(type)) return false; seen.add(type); return true;
+  }).slice(0, 2).map(({ row, entry, index }) => ({
     shopType: clean(row.shopType || row.type).toLowerCase() === 'mall' ? 'mall' : 'normal',
-    share: metricValue(row.share, { label: 'Share', unit: 'PERCENT', platform: entry.platform, period: scope.period, sourcePointer: `${entry.sourcePointer}/items/${index}/share` }),
+    share: metricValue(row.share ?? row.revenue, { label: 'Share', unit: row.share == null ? 'VND' : 'PERCENT', platform: entry.platform, period: scope.period, sourcePointer: `${entry.sourcePointer}/items/${index}/share` }),
   }));
 }
 
@@ -811,11 +840,42 @@ export function sanitizeNetworkResponses(responses) {
       return { urlPath, responseOrder: order, dropped: 'identity_response_body' };
     }
     const body = rawBody(response);
-    const cleanResponse = { urlPath, responseOrder: order, status: response?.status ?? null, body: sanitizeValue(body) };
+    const cleanResponse = { urlPath, responseOrder: order, status: response?.status ?? response?.responseStatus ?? null, body: sanitizeValue(body) };
+    if (response?.method != null) cleanResponse.method = String(response.method);
+    if (response?.timestamp != null) cleanResponse.timestamp = response.timestamp;
+    if (response?.durationMs != null) cleanResponse.durationMs = response.durationMs;
+    if (response?.requestBodyPreview != null || response?.requestBody != null) cleanResponse.requestBody = sanitizeValue(response.requestBodyPreview ?? response.requestBody);
     const requestLabel = requestPlatform(response);
     if (requestLabel !== 'all') cleanResponse.request = { params: { platform: requestLabel } };
     return response?.viewPlatform ? { observedInView: response.viewPlatform, ...cleanResponse } : cleanResponse;
-  }).filter(response => response.dropped || (response.body !== null && response.body !== OMIT));
+  });
+}
+
+function chartSeriesFromResponses(responses, platformIdMap) {
+  const rows = [];
+  for (const [index, response] of (Array.isArray(responses) ? responses : []).entries()) {
+    const body = rawBody(response); const path = responsePath(response, index); const data = body?.data || {};
+    const aggs = data.search_basic?.aggregations || []; const by = new Map(aggs.map(item => [clean(item.aggregation).toUpperCase(), item]));
+    const id = value => metricPlatformId(value, platformIdMap) || 'unknown';
+    const entities = name => (by.get(name)?.entities || []).flatMap(item => (item.platforms || []).map(p => ({ ...item, platform: id(p.platform_id), value: p.value })));
+    for (const [name, series] of [['REVENUE__BY__PRICE_RANGE_CUSTOM','priceRange'],['REVENUE__BY__LOCATION_CUSTOM','province'],['REVENUE__BY__SHOP_TYPE_CUSTOM','shopType'],['REVENUE__BY__CATEGORIES_CUSTOM','category']]) {
+      for (const row of entities(name)) rows.push({ series, platform: row.platform, label: row.key ?? `${row.from ?? ''}-${row.to ?? ''}`, value: row.value, source: `response:${path}` });
+    }
+    const headline = Object.fromEntries(['REVENUE_TOTAL_CUSTOM','ORDER_TOTAL_CUSTOM','PRODUCT_TOTAL','SHOP_TOTAL'].map(name => [name, (by.get(name)?.entity?.platforms || []).map(p => ({ platform: id(p.platform_id), value: p.value }))]));
+    for (const platform of new Set(Object.values(headline).flat().map(x => x.platform))) {
+      rows.push({ series:'headline', platform, revenue: headline.REVENUE_TOTAL_CUSTOM.find(x=>x.platform===platform)?.value ?? null, units: headline.ORDER_TOTAL_CUSTOM.find(x=>x.platform===platform)?.value ?? null, previousRevenue: (by.get('PREVIOUS_REVENUE_TOTAL_CUSTOM')?.entity?.platforms || []).find(x=>id(x.platform_id)===platform)?.value ?? null, previousUnits: (by.get('PREVIOUS_ORDER_TOTAL_CUSTOM')?.entity?.platforms || []).find(x=>id(x.platform_id)===platform)?.value ?? null, source:`response:${path}` });
+    }
+    if (/\/analytics\/(products|shops|groups|shops-insight)\/?$/i.test(path)) {
+      const list = data.products || data.shops || data.groups || [];
+      for (const item of list) {
+        if (data.products) rows.push({series:'topProducts',platform:id(item.platform_id || String(item.product_base_id||'').split('__')[0]),name:item.product_name,revenue:item.revenue_custom ?? item.revenue,units:item.order_custom ?? item.order_count,source:`response:${path}`});
+        else if (data.shops) rows.push({series:'topShops',platform:id(item.platform_id),name:item.shop_name,revenue:item.revenue_custom_sum,units:item.order_custom_sum,previousRevenue:item.previous_revenue_custom_sum,previousUnits:item.previous_order_custom_sum,source:`response:${path}`});
+        else { const details = Array.isArray(item.details_by_platforms) && item.details_by_platforms.length ? item.details_by_platforms : [item]; for (const detail of details) rows.push({series:'topBrands',platform:id(detail.platform_id),name:item.brand,revenue:detail.revenue_custom_sum,units:detail.order_custom_sum,previousRevenue:detail.previous_revenue_custom_sum ?? item.previous_revenue_custom_sum,previousUnits:detail.previous_order_custom_sum ?? item.previous_order_custom_sum,source:`response:${path}`}); }
+      }
+    }
+    if (/\/analytics\/shops-insight\/?$/i.test(path)) for (const shop of data.shops || []) for (const interval of shop.order_revenue_intervals || []) rows.push({series:'trend',platform:id(shop.platform_id),shop:shop.shop_name,startDate:interval.start_date,endDate:interval.end_date,revenue:interval.revenue_custom_sum,units:interval.order_custom_sum,source:`response:${path}`});
+  }
+  return { contractVersion:'metric-results-data-v2', series: rows, trendOffered: rows.some(row=>row.series==='trend'), trendNote: rows.some(row=>row.series==='trend') ? null : 'not offered by the source' };
 }
 
 export function extractResultsPage({ responses = [], dom = null, scope, captureId, specDigest, capturedAt, pageCap = 100, platformIdMap = null }) {
@@ -839,6 +899,7 @@ export function extractResultsPage({ responses = [], dom = null, scope, captureI
       scope: normalizedScope, groups,
     },
     sourceMap: captureSourceMap(entries, normalizedScope),
+    chartSeries: chartSeriesFromResponses(responses, platformMapById(platformIdMap)),
     pagination: { W12_topProducts: paginationFor(entries, pageCap) },
     views: [...new Set(entries.map(entry => entry.platform))].map(platform => ({ platform, source: sourceType(entries.filter(entry => entry.platform === platform)) })),
   };
