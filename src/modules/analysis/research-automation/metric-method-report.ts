@@ -190,7 +190,7 @@ export function metricMethodSection(snapshot: AutomationMetricMethodSnapshot, se
  * the report's sentences and never a source product title. Provider-name and
  * leak rules still scan quoted text.
  */
-const retainedSourceName = (value: string): string => `<span data-quote>${escape(value)}</span>`;
+const retainedSourceName = (value: string): string => `<q data-quote>${escape(value)}</q>`;
 
 function captureMetricMethodSection(snapshot: AutomationMetricMethodSnapshot, sectionId: 'M03' | 'M04', citations: ReportCitations): string {
   const capture = snapshot.capture!;

@@ -17,9 +17,9 @@ function assertBoth(html: string, rule: string, expectedOk: boolean, reportKind:
   }
 }
 
-test('U13 L4 flags superlatives while allowing only headings and verbatim quote blocks', () => {
+test('U13 L4 flags superlatives in authored prose, including headings, while allowing verbatim quote blocks', () => {
   assertBoth('<section><p>Sản phẩm tốt nhất trong mẫu.</p></section>', 'U13_SUPERLATIVE', false, 'MARKET', 'Sản phẩm tốt nhất');
-  assertBoth('<h2>Sản phẩm tốt nhất</h2><blockquote>Hàng đầu theo lời khách.</blockquote>', 'U13_SUPERLATIVE', true);
+  assertBoth('<h2>Sản phẩm tốt nhất</h2><blockquote>Hàng đầu theo lời khách.</blockquote>', 'U13_SUPERLATIVE', false, 'MARKET', 'Sản phẩm tốt nhất');
   assertBoth('<title>Sản phẩm tốt nhất</title>', 'U13_SUPERLATIVE', false);
   for (const wording of ['thống nhất', 'nhất định', 'nhất quán', 'nhất trí', 'đồng nhất', 'hợp nhất']) {
     assertBoth(`<p>${wording}</p>`, 'U13_SUPERLATIVE', true);

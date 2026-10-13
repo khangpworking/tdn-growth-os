@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { lintVisibleReportText } from '../../src/modules/analysis/report-visible-text-lint.js';
 const bad = (html: string): string[] => lintVisibleReportText(html).filter(r => !r.ok).map(r => r.rule);
-test('U13 inspects visible wording while preserving nested quotes and titles', () => {
-  assert.deepEqual(bad('<h2>Tốt nhất</h2><p><span data-quote><b>rẻ nhất</b></span> Lời nguồn.</p><script>hàng đầu</script>'), []);
+test('U13 inspects visible wording in headings while preserving nested quotes and titles', () => {
+  assert.deepEqual(bad('<h2>Tốt nhất</h2><p><span data-quote><b>rẻ nhất</b></span> Lời nguồn.</p><script>hàng đầu</script>'), ['U13_SUPERLATIVE']);
   assert.deepEqual(bad('<title>Sản phẩm tốt nhất</title>'), ['U13_SUPERLATIVE']);
   assert.deepEqual(bad('<p>Sản phẩm tốt <b>nhất</b>.</p>'), ['U13_SUPERLATIVE']);
   assert.deepEqual(bad('<p>h&#224;ng đầu</p>'), ['U13_SUPERLATIVE']);

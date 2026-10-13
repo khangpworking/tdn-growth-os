@@ -54,7 +54,7 @@ export function balancedOpenings(tokens: readonly string[]): Set<number> {
 }
 
 export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
-  const blocks: { chunks: Chunk[]; region: number }[] = [], stack: { tag: string; quote: boolean; title: boolean; hidden: boolean; pending: boolean; cell?: number }[] = [];
+  const blocks: { chunks: Chunk[]; region: number }[] = [], stack: { tag: string; quote: boolean; hidden: boolean; pending: boolean; cell?: number }[] = [];
   let region = 0;
   let nextCell = 0;
   let block: Chunk[] = [];
@@ -65,7 +65,7 @@ export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
   for (const [tokenIndex, value] of tokens.entries()) {
     if (value.startsWith('<!--')) continue;
     if (!value.startsWith('<')) {
-      if (!stack.some(f => f.hidden)) block.push({ text: decode(value), pending: stack.some(f => f.pending), own: !stack.some(f => f.quote || f.title), cell: activeCell() });
+      if (!stack.some(f => f.hidden)) block.push({ text: decode(value), pending: stack.some(f => f.pending), own: !stack.some(f => f.quote), cell: activeCell() });
       continue;
     }
     const tag = /^<\/?([\w-]+)/.exec(value)?.[1]?.toLowerCase();
@@ -80,7 +80,6 @@ export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
       if (tag === 'section') region++;
       stack.push({ tag,
         quote: balanced.has(tokenIndex) && (/\bdata-quote(?:\s|=|>)/i.test(value) || tag === 'q' || tag === 'blockquote'),
-        title: /^h[1-6]$/.test(tag),
         hidden: ['script', 'style'].includes(tag) || /\shidden(?:\s|=|>)/i.test(value) || /aria-hidden\s*=\s*["']true["']/i.test(value)
           || /style\s*=\s*["'][^"']*(?:display\s*:\s*none|visibility\s*:\s*hidden)/i.test(value),
         pending: /data-classified\s*=\s*(?:"pending"|'pending'|pending(?=\s|>))/i.test(value),

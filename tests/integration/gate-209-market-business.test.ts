@@ -13,7 +13,8 @@ import { SYNTHETIC_CARD_ID, syntheticProductSource } from '../helpers/research-s
 const workspaceId = '11111111-1111-4111-8111-111111111111';
 const runId = '22222222-2222-4222-8222-222222222222';
 
-test('a provider-bearing custom Market renderer fails REPORTS before HTML persistence', async t => {
+for (const fault of ['gate', 'renderer'] as const) {
+test(`RENDERFAIL-209: ${fault} failure logs only diagnostic fields and never publishes HTML`, async t => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-gate-209-'));
   const now = () => new Date('2026-10-12T00:00:00.000Z');
   const db = openDatabase({ databasePath: path.join(root, 'db.sqlite'), now }).db;
@@ -23,7 +24,13 @@ test('a provider-bearing custom Market renderer fails REPORTS before HTML persis
   const service = new ResearchAutomationService({
     db, artifactStore: artifacts, now, uuid: () => runId, workspaceReader: new FlowDiscoveryWorkspaceReader(workspaces),
     source: syntheticProductSource(),
-    renderer: (input, kind) => ({ ...buildResearchAutomationReport(input, kind), html: Buffer.from('<p>OpenAI</p>', 'utf8') }),
+    renderer: (input, kind) => {
+      if (fault === 'renderer') throw Object.assign(new TypeError('SYNTHETIC_RENDER_FAILURE'), {
+        request: { body: 'synthetic-private-body', headers: 'synthetic-private-headers' },
+        products: ['synthetic-private-product'], cause: new Error('synthetic-private-cause'),
+      });
+      return { ...buildResearchAutomationReport(input, kind), html: Buffer.from('<p>OpenAI</p>', 'utf8') };
+    },
   });
   t.after(async () => { db.close(); await fs.rm(root, { recursive: true, force: true }); });
   const renderFailures: string[] = [];
@@ -62,7 +69,11 @@ test('a provider-bearing custom Market renderer fails REPORTS before HTML persis
   const logged = renderFailures.filter(line => line.includes('"event":"research_automation_report_failed"'))
     .map(line => JSON.parse(line) as { event: string; runId: string; stage: string; errorName: string; errorMessage: string });
   assert.equal(logged.length, 1);
-  assert.deepEqual({ runId: logged[0]!.runId, stage: logged[0]!.stage }, { runId, stage: 'RENDER' });
-  assert.ok(logged[0]!.errorName.length > 0);
-  assert.match(logged[0]!.errorMessage, /MARKET_BUSINESS_GATE_FAILED:G08_PROVIDER_NAME/);
+  assert.deepEqual(logged[0], {
+    event: 'research_automation_report_failed', runId, stage: 'RENDER', errorName: 'TypeError',
+    errorMessage: fault === 'gate' ? 'MARKET_BUSINESS_GATE_FAILED:G08_PROVIDER_NAME' : 'SYNTHETIC_RENDER_FAILURE',
+  });
+  assert.doesNotMatch(JSON.stringify(logged), /synthetic-private/);
+  assert.doesNotMatch(JSON.stringify(failed), /SYNTHETIC_RENDER_FAILURE|MARKET_BUSINESS_GATE_FAILED|synthetic-private/);
 });
+}
