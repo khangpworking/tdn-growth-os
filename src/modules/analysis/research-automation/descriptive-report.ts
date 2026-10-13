@@ -142,6 +142,9 @@ const LIMITATION_TEXT: Readonly<Record<string, string>> = {
 const PROVENANCE_TEXT: Readonly<Record<Input['sources'][number]['providerProvenance'], string>> = {
   verified: 'Đã xác minh', provider_reported: 'Nhà cung cấp tự báo', operator_supplied_unverified: 'Người vận hành cung cấp, chưa xác minh', synthetic: 'Dữ liệu giả lập dùng kiểm thử',
 };
+/** Stored provenance values never reach reader text raw; an unknown value stays withheld. */
+export const providerProvenanceLabel = (value: string): string =>
+  (PROVENANCE_TEXT as Readonly<Record<string, string>>)[value] ?? 'Xuất xứ được giữ trong bản lưu nguồn';
 const EVENT_TYPE: Readonly<Record<Input['m09'][number]['statementType'], string>> = {
   DOCUMENTED_EVENT: 'Sự kiện có tài liệu', SOURCE_STATED_DIRECTION: 'Hướng do nguồn nêu', COUNTEREVIDENCE: 'Bằng chứng ngược', UNCLASSIFIED: 'Chưa phân loại',
 };

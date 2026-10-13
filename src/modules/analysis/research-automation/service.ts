@@ -3737,7 +3737,7 @@ export class ResearchAutomationService {
       const activity = await this.#decisionExecutions[sectionId].readActivity(row.workspaceId, row.runId);
       if (activity) aiActivity[key] = activity;
     }
-    const blockers = blockerList(steps, documents, scope !== null);
+    const blockers = blockerList(steps, documents, scope !== null, await this.#metricSourceAdmitted(row));
     const outputRows = this.#db.prepare(`SELECT report_kind reportKind,version_sha256 versionSha,html_sha256 htmlSha,pdf_sha256 pdfSha,pdf_unavailable_code pdfUnavailableCode FROM analysis_research_automation_outputs WHERE run_id=?`).all(row.runId) as OutputRow[];
     const outputs = outputRows.length === 0 ? undefined : Object.fromEntries(outputRows.map((value) => [value.reportKind === 'MARKET' ? 'market' : 'insight', { versionId: value.versionSha, web: true as const, pdf: { available: value.pdfSha !== null, reason: value.pdfSha ? null : message(value.pdfUnavailableCode ?? 'PDF_RENDERER_NOT_CONFIGURED') } }])) as ResearchAutomationRun['outputs'];
     return {
@@ -4116,6 +4116,27 @@ export class ResearchAutomationService {
     return { workspaceId: run.workspaceId, runId: run.runId, startSha256: run.startSha, scopeSha256: run.scopeSha,
       confirmedSourceSetSha256: sources.sha256, scopeConfirmedAt: run.scopeConfirmedAt };
   }
+  /**
+   * Read-only projection signal: the run's confirmed source set — or, once a report
+   * revision superseded it, the latest committed revision's source set — admitted a
+   * Metric package (owner workbook or run-bound results-page capture). Metric has no
+   * unattended connector, so that admission is what "Metric was executed" means for
+   * the run's own blocker list; a merely prepared attachment never counts, and
+   * identities that disagree leave the source-lane blocker in place.
+   */
+  async #metricSourceAdmitted(run: RunRow): Promise<boolean> {
+    const latest = this.#db.prepare(`SELECT source_set_sha256 sha256 FROM analysis_research_automation_attempts
+      WHERE run_id=? AND state='COMMITTED' ORDER BY attempt_number DESC LIMIT 1`).get(run.runId) as { sha256: string } | undefined;
+    if (latest) return this.#sourceSetAdmitsMetric(run, latest.sha256);
+    const frozen = this.#db.prepare('SELECT source_set_sha256 sha256 FROM analysis_research_automation_source_sets WHERE run_id=?')
+      .get(run.runId) as { sha256: string } | undefined;
+    return frozen && run.sourceSetSha === frozen.sha256 ? this.#sourceSetAdmitsMetric(run, frozen.sha256) : false;
+  }
+  async #sourceSetAdmitsMetric(run: RunRow, sha256: string): Promise<boolean> {
+    const value = await this.#readJson<AutomationConfirmedSourceSet>(sha256, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+    return validateSourceSet(value) && value.runId === run.runId && value.workspaceId === run.workspaceId &&
+      value.metric.decision === 'ADMITTED';
+  }
   async #readFrozenSources(run: RunRow): Promise<FrozenSources | undefined> {
     const row = this.#db.prepare(`SELECT execution_id executionId,source_set_sha256 sha256,request_key requestKey,request_sha256 requestSha,start_sha256 startSha,scope_sha256 scopeSha,confirmed_at confirmedAt FROM analysis_research_automation_source_sets WHERE run_id=?`)
       .get(run.runId) as { executionId: string; sha256: string; requestKey: string; requestSha: string; startSha: string; scopeSha: string; confirmedAt: string } | undefined;
@@ -4433,11 +4454,15 @@ function revisionReceipt(attempt: AttemptRow, exactRetry: boolean): ResearchAuto
 function toNumber(value: bigint | number): number { const number = typeof value === 'bigint' ? Number(value) : value; if (!Number.isSafeInteger(number)) throw new ResearchAutomationIntegrityError('Stored integer is out of bounds.'); return number; }
 function assertUuid(value: string): void { if (!UUID.test(value)) throw new ResearchAutomationValidationError('ID must be a UUID.'); }
 function captureEnvelope(capture: ProviderRawCapture): Buffer { const value = { contractVersion: 'research-automation-capture-v1', ...capture, requestBodyBytesBase64: capture.requestBodyBytes?.toString('base64') ?? null, responseBytesBase64: capture.responseBytes?.toString('base64') ?? null }; delete (value as { requestBodyBytes?: unknown }).requestBodyBytes; delete (value as { responseBytes?: unknown }).responseBytes; return Buffer.from(canonicalJson(value), 'utf8'); }
-function blockerList(steps: readonly StepRow[], documents: ReadonlyMap<StepId, StepResultDocument>, scopeConfirmed: boolean): ResearchAutomationRun['blockers'] {
+function blockerList(steps: readonly StepRow[], documents: ReadonlyMap<StepId, StepResultDocument>, scopeConfirmed: boolean,
+  metricSourceAdmitted: boolean): ResearchAutomationRun['blockers'] {
   const blockers: ResearchAutomationRun['blockers'] = [];
   if (scopeConfirmed) blockers.push({ code: 'SCOPE_FILTERS_NOT_APPLIED', scope: 'RUN', provider: null, message: message('SCOPE_FILTERS_NOT_APPLIED') });
   for (const step of steps) if (step.code) blockers.push({ code: step.code, scope: 'RUN', provider: null, message: safeStepMessage(step.code) });
   const executed = new Set<string>();
+  // Metric never runs through the provider registry: the owner attaches an export
+  // or a results-page capture, so admission of that source is the execution.
+  if (metricSourceAdmitted) executed.add('metric');
   for (const document of documents.values()) {
     for (const limitation of document.limitations) blockers.push({ code: limitation.code, scope: 'SOURCE', provider: limitation.provider, message: limitation.message });
     for (const source of document.coverage) {
