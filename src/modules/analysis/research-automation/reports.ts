@@ -219,6 +219,7 @@ export const REVIEW_DEPENDENT_SECTIONS: readonly { readonly sectionId: string; r
 ];
 
 type ReviewOutcome = NonNullable<StepResultDocument['exactShopeeOutcome']>;
+const REVIEW_TARGET = 300;
 /** A non-OK outcome bound to this report's exact collection; old runs, OK runs and replaced review sources show nothing. */
 function missingReviewOutcome(input: AutomationReportInput): ReviewOutcome | null {
   const value = input.collection?.exactShopeeOutcome;
@@ -231,14 +232,15 @@ const vietnamDate = (iso: string): string => {
 };
 const reviewOutcomeLead = (value: ReviewOutcome): string => {
   const withReviews = value.listings.filter(row => row.reviews > 0).length;
+  const short = value.listings.filter(row => row.shortfallReason !== undefined || row.reviews === 0);
   return value.outcome === 'PARTIAL_LISTINGS'
-    ? `Lần thu ngày ${vietnamDate(value.attemptedAt)} chỉ lấy được đánh giá Shopee cho ${withReviews}/${value.listings.length} sản phẩm đã chọn. Phần ý kiến khách hàng chỉ dựa trên các sản phẩm có đánh giá.`
+    ? `Lần thu ngày ${vietnamDate(value.attemptedAt)} chỉ lấy được đánh giá Shopee cho ${withReviews}/${value.listings.length} sản phẩm đã chọn. ${short.length > 0 ? `Có ${short.length} sản phẩm chưa đạt mốc ${REVIEW_TARGET} bình luận (${short.map(row => `${row.reviews}/${REVIEW_TARGET}`).join(', ')}). ` : ''}Phần ý kiến khách hàng chỉ dựa trên các sản phẩm có đánh giá.`
     : `Lần thu ngày ${vietnamDate(value.attemptedAt)} không lấy được đánh giá Shopee nào cho ${value.listings.length} sản phẩm đã chọn. Phần ý kiến khách hàng trong báo cáo này chưa có dữ liệu.`;
 };
 function reviewOutcomeNotice(value: ReviewOutcome, kind: 'MARKET' | 'INSIGHT'): string {
-  const missing = value.listings.filter(row => row.reviews === 0);
+  const short = value.listings.filter(row => row.shortfallReason !== undefined || row.reviews === 0);
   return `<div class="warning review-outcome-notice" role="note"><p><strong>${value.outcome === 'PARTIAL_LISTINGS' ? 'Thiếu một phần đánh giá khách hàng Shopee.' : 'Thiếu đánh giá khách hàng Shopee.'}</strong> ${escape(reviewOutcomeLead(value))}</p>`
-    + `<p>Sản phẩm chưa có đánh giá:</p><ul>${missing.map(row => `<li><a href="${escape(row.listingUrl)}" rel="noopener noreferrer">${escape(row.listingUrl)}</a></li>`).join('')}</ul>`
+    + `<p>Sản phẩm chưa đạt mốc ${REVIEW_TARGET} bình luận:</p><ul>${short.map(row => `<li><a href="${escape(row.listingUrl)}" rel="noopener noreferrer">${escape(row.listingUrl)}</a> — Sản phẩm này chỉ lấy được ${row.reviews}/${REVIEW_TARGET} bình luận.</li>`).join('')}</ul>`
     + `<p><strong>Phần bị ảnh hưởng${kind === 'MARKET' ? ' (trong báo cáo insight)' : ''}:</strong> ${escape(REVIEW_DEPENDENT_SECTIONS.map(section => `${section.sectionId} ${section.title}`).join('; '))}.</p>`
     + '<p><strong>Phần vẫn dùng được:</strong> doanh thu, giá, đối thủ, nhu cầu tìm kiếm.</p></div>';
 }

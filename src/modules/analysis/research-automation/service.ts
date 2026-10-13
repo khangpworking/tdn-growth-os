@@ -4277,7 +4277,8 @@ function assertStepDocument(value: unknown, runId: string, stepId: StepId): asse
         value.exactShopeeOutcome.providerMessage.length > MAX_PROVIDER_MESSAGE_LENGTH)) ||
       !Array.isArray(value.exactShopeeOutcome.listings) || value.exactShopeeOutcome.listings.length < 1 || value.exactShopeeOutcome.listings.length > 5 ||
       value.exactShopeeOutcome.listings.some(item => !isRecord(item) || typeof item.listingUrl !== 'string' || !item.listingUrl.startsWith('https://shopee.vn/') ||
-        item.listingUrl.length > 2000 || !Number.isSafeInteger(item.reviews) || item.reviews < 0)))
+        item.listingUrl.length > 2000 || !Number.isSafeInteger(item.reviews) || item.reviews < 0 ||
+        (item.shortfallReason !== undefined && item.shortfallReason !== 'RETURNED_COUNT_BELOW_REQUESTED'))))
     throw new ResearchAutomationIntegrityError('Stored exact review outcome is invalid.');
   if (value.webResults !== undefined && (stepId !== 'COLLECTION' || !Array.isArray(value.webResults) || value.webResults.length > MAX_WEB_RESULTS ||
       value.webResults.some(item => !isRecord(item) || !Number.isSafeInteger(item.position) || item.position < 1 ||
