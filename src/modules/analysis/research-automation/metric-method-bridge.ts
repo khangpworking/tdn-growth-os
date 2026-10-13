@@ -169,6 +169,16 @@ export class MetricMethodFailure extends ResearchAutomationIntegrityError {
   constructor(readonly code: ClassifiedFailure, message: string) { super(message); }
 }
 
+/**
+ * A capture whose page filters differ from the scope the owner confirmed is
+ * request input. Keep it distinct from the same closed code used for broken
+ * descriptors or missing storage bindings so the API cannot downgrade those
+ * integrity failures to a client error.
+ */
+export class MetricCaptureScopeMismatch extends MetricMethodFailure {
+  constructor(message: string) { super('METRIC_SOURCE_RUN_MISMATCH', message); }
+}
+
 /** Only the closed code crosses into reports; exception text, paths and owner messages never do. */
 export function metricMethodFailureCode(error: unknown): MetricMethodFailureCode {
   return error instanceof MetricMethodFailure ? error.code : 'METRIC_METHOD_FAILED';
@@ -677,7 +687,7 @@ export function assertCaptureFilterScope(captured: { readonly advancedFilters: r
   const key = (value: string): string => value.normalize('NFC').trim().toLowerCase();
   const set = (values: readonly string[]): string => [...new Set(values.map(key).filter(Boolean))].sort().join('\u0000');
   if (captured.advancedFilters.length || set(captured.exclusions) !== set(scope.excludeTerms))
-    fail('METRIC_SOURCE_RUN_MISMATCH', 'Metric capture filters differ from the confirmed scope.');
+    throw new MetricCaptureScopeMismatch('Metric capture filters differ from the confirmed scope.');
 }
 
 function selectBoundSource(source: VerifiedFinalizedSourcePackage, input: MetricRunInput, v1: Validator, v2?: Validator): WorkbookSelected {
