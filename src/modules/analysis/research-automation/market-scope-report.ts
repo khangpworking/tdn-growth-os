@@ -1,7 +1,7 @@
 import type { AutomationReportInput } from './reports.js';
 import { escapeHtml as escape, storedLiteral, type ReportCitations } from './descriptive-report.js';
 import { containsForbiddenProviderName } from '../citation-registry.js';
-import type { AutomationMetricMethodSnapshot } from './metric-method-bridge.js';
+import type { AutomationMetricMethodSnapshot, MetricMethodSourceFile } from './metric-method-bridge.js';
 import type { StartSnapshot } from './model.js';
 
 type Input = Pick<AutomationReportInput, 'start' | 'captures' | 'metricMethods' | 'metricClassified'>;
@@ -54,7 +54,7 @@ export interface MarketSourceScope {
     readonly methodPackage: AutomationMetricMethodSnapshot['sourcePackage'];
     readonly preparationSha256: string;
     readonly sourceRowCount: number;
-    readonly sourceFiles: AutomationMetricMethodSnapshot['preparation']['selectedSources'];
+    readonly sourceFiles: Readonly<Record<string, MetricMethodSourceFile | null>>;
     readonly classification: { readonly adoptionId: string; readonly receiptIds: readonly string[]; readonly proofSha256: string } | null;
     readonly scopes: readonly { readonly scope: string; readonly status: string }[];
   } | null;

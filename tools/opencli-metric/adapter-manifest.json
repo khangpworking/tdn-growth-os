@@ -3,7 +3,7 @@
   "files": [
     {
       "path": "clis/metric/metric.js",
-      "sha256": "1d138c5a5c32a6c46f8e958d69e96d251f43a3379241e3100ddfa753b213a0b7"
+      "sha256": "8bc2271abc5319635c6b041efd9c6d21301fcf5a5b1b4630bda500daa87cf502"
     },
     {
       "path": "clis/metric/parser.js",

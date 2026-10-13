@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/automation-metric-results-capture-v1.schema.json",
+  "title": "AutomationMetricResultsCaptureV1",
+  "description": "The exact manifest emitted beside one normalized Metric results-page snapshot. The archive is published only after the page gate clears.",
+  "type": "object", "additionalProperties": false,
+  "required": ["contractVersion", "captureId", "specDigest", "appliedFilters", "resultCount", "productPagination", "views", "sourceMap", "files", "screenshotSkips", "archive", "noReportFileRequested"],
+  "properties": {
+    "contractVersion": { "const": "metric-results-capture-v1" },
+    "captureId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$" },
+    "specDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "appliedFilters": { "$ref": "automation-metric-web-snapshot-v1.schema.json#/$defs/scope" },
+    "resultCount": { "type": "integer", "minimum": 0 },
+    "productPagination": { "$ref": "#/$defs/pagination" },
+    "views": { "type": "array", "maxItems": 3, "items": { "type": "object", "additionalProperties": false, "required": ["platform", "pagesRead"], "properties": { "platform": { "enum": ["all", "shopee", "tiktok", "unknown"] }, "pagesRead": { "type": "integer", "minimum": 0, "maximum": 10 }, "source": { "enum": ["response", "dom"] } } } },
+    "sourceMap": { "type": "object", "maxProperties": 32, "additionalProperties": true },
+    "files": { "type": "array", "minItems": 1, "maxItems": 256, "items": { "$ref": "#/$defs/file" } },
+    "screenshotSkips": { "type": "array", "maxItems": 256, "items": { "type": "object", "additionalProperties": true } },
+    "archive": { "type": "object", "additionalProperties": false, "required": ["rawResponses", "normalizedSnapshot", "resultsHtml", "screenshots"], "properties": { "rawResponses": { "type": "string", "minLength": 1 }, "normalizedSnapshot": { "const": "snapshot.json" }, "resultsHtml": { "type": "string", "minLength": 1 }, "screenshots": { "type": "array", "items": { "type": "string", "minLength": 1 } } } },
+    "noReportFileRequested": { "const": true },
+    "captureGate": { "oneOf": [{ "const": true }, { "const": false }, { "type": "object", "additionalProperties": false, "required": ["cleared"], "properties": { "cleared": { "type": "boolean" }, "status": { "type": "string", "enum": ["CLEARED", "NOT_CLEARED"] } } }, { "type": "object", "additionalProperties": false, "required": ["status"], "properties": { "cleared": { "type": "boolean" }, "status": { "type": "string", "enum": ["CLEARED", "NOT_CLEARED"] } } }] }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "file": { "type": "object", "additionalProperties": false, "required": ["path", "sha256", "byteSize", "mediaType"], "properties": { "path": { "type": "string", "minLength": 1, "maxLength": 500 }, "sha256": { "$ref": "#/$defs/sha256" }, "byteSize": { "type": "integer", "minimum": 0, "maximum": 1073741824 }, "mediaType": { "type": "string", "minLength": 1, "maxLength": 127 }, "role": { "type": "string", "minLength": 1, "maxLength": 64 } } },
+    "pagination": {
+      "type": "object", "additionalProperties": false,
+      "required": ["cap", "totalShown", "pageSize", "pagesRead", "rowsRead", "truncated"],
+      "properties": {
+        "cap": { "type": "integer", "minimum": 1, "maximum": 200 },
+        "totalShown": { "type": ["integer", "null"], "minimum": 0 },
+        "pageSize": { "type": ["integer", "null"], "minimum": 1 },
+        "pagesRead": { "type": "integer", "minimum": 0, "maximum": 10 },
+        "rowsRead": { "type": "integer", "minimum": 0, "maximum": 200 },
+        "truncated": { "type": "boolean" },
+        "byPlatform": { "type": "object", "additionalProperties": { "$ref": "#/$defs/paginationStats" } }
+      }
+    },
+    "paginationStats": {
+      "type": "object", "additionalProperties": false,
+      "required": ["cap", "totalShown", "pageSize", "pagesRead", "rowsRead", "truncated"],
+      "properties": {
+        "cap": { "type": "integer", "minimum": 1, "maximum": 200 },
+        "totalShown": { "type": ["integer", "null"], "minimum": 0 },
+        "pageSize": { "type": ["integer", "null"], "minimum": 1 },
+        "pagesRead": { "type": "integer", "minimum": 0, "maximum": 10 },
+        "rowsRead": { "type": "integer", "minimum": 0, "maximum": 200 },
+        "truncated": { "type": "boolean" }
+      }
+    }
+  }
+}

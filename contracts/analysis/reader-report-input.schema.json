@@ -415,6 +415,9 @@
           "minLength": 1,
           "maxLength": 100
         },
+        "listingSynthetic": {
+          "type": "boolean"
+        },
         "shop": {
           "type": "string",
           "minLength": 1,

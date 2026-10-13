@@ -13,6 +13,7 @@ import type {
   ResearchAutomationReaderDecisionReceiptV2, ResearchAutomationReaderRevisionV2, ResearchAutomationReaderRevisionListV2,
 } from '../../../../contracts/api/research-automation-reader-report-api.generated.js';
 import type { ReaderReportInput } from '../../../../contracts/analysis/reader-report-input.generated.js';
+import type { AutomationMetricWebSnapshotV1 } from '../../../../contracts/analysis/automation-metric-web-snapshot-v1.generated.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import { DEFAULT_MARKET_PEER_RULE } from '../default-market-peers.js';
 import type { ContentAddressedArtifactStore, StoredArtifact } from '../../../platform/artifacts/artifact-store.js';
@@ -26,8 +27,10 @@ import { assertMarket14MachineRules } from './market-14-rules.js';
 import type { RequestScopedArtifactStore } from '../../../platform/artifacts/request-scoped-artifact-store.js';
 import { MarketUnitPriceError, type RetainedUnitPriceSource } from '../reader-report/market-unit-prices.js';
 import { ReaderMetricRowsError, readerRowsFromMetricWorkbook, type ReaderRow } from '../reader-report/metric-rows.js';
+import { readerRowsFromMetricCapture } from '../reader-report/metric-capture-rows.js';
 import { MetricSourceRejection } from '../metric-source-profile.js';
 import { MetricWebSnapshotError } from './metric-web-snapshot.js';
+import { webSnapshotDigest } from '../reader-report/web-facts.js';
 import { ResearchAutomationConflictError, ResearchAutomationIntegrityError, ResearchAutomationNotFoundError, ResearchAutomationValidationError } from './model.js';
 import { verifyInsightReaderInput, type InsightReaderInput } from '../reader-report/insight-input-v1.js';
 import { prepareTikTokReaderBuild } from '../reader-report/tiktok-build-v1.js';
@@ -86,7 +89,10 @@ export interface ReaderDraftContext {
   readonly marketSemantic: Record<string, unknown>;
   /** Web search results retained by the run's collection step; empty when none ran. */
   readonly webResults?: readonly ReaderWebResult[];
-  readonly metric: { readonly packageId: string; readonly workbook: Buffer; readonly measurementPeriod: { readonly startDate: string; readonly endDate: string } };
+  readonly metric:
+    | { readonly packageId: string; readonly workbook: Buffer; readonly measurementPeriod: { readonly startDate: string; readonly endDate: string } }
+    | { readonly packageId: string; readonly capture: { readonly snapshot: AutomationMetricWebSnapshotV1; readonly snapshotSha256: string; readonly truncation: { readonly cap: number; readonly totalShown: number | null; readonly pagesRead: number; readonly rowsRead: number; readonly truncated: boolean } };
+        readonly measurementPeriod: { readonly startDate: string; readonly endDate: string } };
 }
 export interface ReaderBinding { readonly workspaceId: string; readonly runId: string }
 /** Only the owning service constructs this after exact source/method replay. */
@@ -173,14 +179,27 @@ export class AutomationReaderReports {
 
   #unitSpecContext(context: ReaderDraftContext, platforms: readonly ReaderPlatform[]) {
     let rows: ReaderRow[];
-    try { rows = this.#rows(context.metric.workbook, platforms); }
-    catch (error) {
+    let workbookSha256: string;
+    try {
+      if ('capture' in context.metric) {
+        rows = this.#captureRows(context, platforms)!.rows;
+        workbookSha256 = context.metric.capture.snapshotSha256;
+      } else {
+        rows = this.#rows(context.metric.workbook, platforms);
+        workbookSha256 = sha(context.metric.workbook);
+      }
+    } catch (error) {
       if (error instanceof ReaderMetricRowsError || error instanceof MetricSourceRejection)
-        throw new ResearchAutomationValidationError('Không đọc được tệp sản phẩm để đối chiếu quy cách.');
+        throw new ResearchAutomationValidationError('Không đọc được nguồn sản phẩm để đối chiếu quy cách.');
       throw error;
     }
     return { workspaceId: context.workspaceId, runId: context.runId, draftPairId: context.draftPairId,
-      metricPackageId: context.metric.packageId, workbookSha256: sha(context.metric.workbook), rows };
+      metricPackageId: context.metric.packageId, workbookSha256, rows };
+  }
+
+  #captureRows(context: ReaderDraftContext, platforms: readonly ReaderPlatform[]) {
+    if (!('capture' in context.metric)) return null;
+    return readerRowsFromMetricCapture(context.metric.capture.snapshot, platforms);
   }
 
   async build(context: ReaderDraftContext, value: unknown, actor: { actorId: string; role: 'OWNER' }): Promise<ResearchAutomationReaderBuildReceipt> {
@@ -210,11 +229,27 @@ export class AutomationReaderReports {
     const additions = typeof scope === 'object' && scope !== null && 'peerProductIds' in scope && Array.isArray(scope.peerProductIds)
       ? scope.peerProductIds.filter((id): id is string => typeof id === 'string') : [];
     let rows: ReaderRow[];
-    try { rows = this.#rows(context.metric.workbook, platforms); }
-    catch (error) {
-      if (error instanceof ReaderMetricRowsError || error instanceof MetricSourceRejection)
-        throw new ResearchAutomationValidationError(`Tệp danh sách sản phẩm không dùng được cho bản đọc (${error.locator}).`);
-      throw error;
+    let captureRows: ReturnType<typeof readerRowsFromMetricCapture> | null = null;
+    try {
+      if ('capture' in context.metric) {
+        captureRows = this.#captureRows(context, platforms)!;
+        rows = captureRows.rows;
+      } else {
+        rows = this.#rows(context.metric.workbook, platforms);
+      }
+    } catch (error) {
+        if (error instanceof ReaderMetricRowsError || error instanceof MetricSourceRejection)
+          throw new ResearchAutomationValidationError(`${'capture' in context.metric ? 'Nguồn capture' : 'Tệp danh sách sản phẩm'} không dùng được cho bản đọc (${error.locator}).`);
+        throw error;
+    }
+    if ('capture' in context.metric) {
+      if (request.webSnapshot !== undefined && canonicalJson(request.webSnapshot) !== canonicalJson(context.metric.capture.snapshot))
+        throw new ResearchAutomationIntegrityError('Reader request names a different retained capture snapshot.');
+      const retainedWebDigest = webSnapshotDigest(context.metric.capture.snapshot);
+      if (request.webSnapshotSha256 !== undefined && request.webSnapshotSha256 !== retainedWebDigest)
+        throw new ResearchAutomationIntegrityError('Reader request names a different retained capture snapshot digest.');
+      if (captureRows === null) captureRows = this.#captureRows(context, platforms);
+      rows = captureRows!.rows;
     }
     // computeReaderReportData re-validates the whole input against its schema.
     // A reader-report-build-v1.1 request carries a web snapshot; the effective (derived) period
@@ -233,11 +268,16 @@ export class AutomationReaderReports {
         retainedUnitPriceSources.push({ sha256: source.sha256, bytes });
       }
     }
+    const capture = 'capture' in context.metric ? context.metric.capture : null;
+    const rowLineageSha256 = 'capture' in context.metric ? context.metric.capture.snapshotSha256 : sha(context.metric.workbook);
     const input = {
       contractVersion: next ? '1.4.0' : '1.3.0', peerRule, ownerPeerProductIds: additions,
-      profile: request.profile, platforms, rows, rowLineage: { sha256: sha(context.metric.workbook) },
+      profile: request.profile, platforms, rows, rowLineage: { sha256: rowLineageSha256 },
       ...(request.source === undefined ? {} : { source: request.source }),
-      ...(request.webSnapshot === undefined ? {} : {
+      ...(capture ? {
+        webSnapshot: capture.snapshot,
+        webSnapshotSha256: webSnapshotDigest(capture.snapshot),
+      } : request.webSnapshot === undefined ? {} : {
         webSnapshot: request.webSnapshot,
         webSnapshotSha256: request.webSnapshotSha256,
       }),
@@ -272,9 +312,14 @@ export class AutomationReaderReports {
     }
     const cover: CoverImage | null = stored && coverBytes ? { bytes: coverBytes, mime: stored.mime } : null;
     const limitations = readerLimitationsFromDraft(context.marketSemantic, request.profile.status);
+    if (capture && captureRows) limitations.push(
+      `Nguồn số liệu là results-page capture; danh sách giữ ${capture.truncation.rowsRead} dòng đã đọc trong giới hạn ${capture.truncation.cap} dòng${capture.truncation.totalShown === null ? '' : ` trên ${capture.truncation.totalShown} dòng hiển thị`};${capture.truncation.truncated ? ' danh sách đã bị cắt; ' : ' '}phần còn lại không được suy ra.`,
+      `${captureRows.unattributed.length} dòng không gán được sàn được giữ riêng, không cộng vào Shopee hoặc TikTok Shop.`,
+      'Capture không có ngày bắt đầu bán ở cấp sản phẩm và không đủ trường cho một số mục; các mục đó ghi không có số liệu.',
+    );
     const at = this.now(), createdAt = at.toISOString(), revisionId = randomUUID();
     const webResults = context.webResults ?? [];
-    const built = await buildMarketReport(data, { limitations, builtOn: builtOn(at), cover, flint: this.options.flint ?? true, webResults });
+    const built = await buildMarketReport(data, { limitations, builtOn: builtOn(at), cover, flint: this.options.flint ?? true, webResults, ...(capture ? { captureSource: true } : {}) });
     // The gate blocks report publication and revision insertion; cover/sidecar artifacts may already be written.
     try { assertMarketBusinessGate(built.html, { presentation: false }); if (built.visibleTextRules) assertMarket14MachineRules(built.html); }
     catch (error) {

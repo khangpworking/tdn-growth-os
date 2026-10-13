@@ -4,13 +4,17 @@ import fs from 'node:fs/promises';
 import type Database from 'better-sqlite3';
 import descriptorSchema from '../../../../contracts/analysis/automation-metric-source.schema.json' with { type: 'json' };
 import descriptorV2Schema from '../../../../contracts/analysis/automation-metric-source-v2.schema.json' with { type: 'json' };
+import captureDescriptorSchema from '../../../../contracts/analysis/automation-metric-source-capture-v1.schema.json' with { type: 'json' };
 import manifestSchema from '../../../../contracts/analysis/metric-source-manifest.schema.json' with { type: 'json' };
 import inputSchema from '../../../../contracts/analysis/metric-scope-input.schema.json' with { type: 'json' };
 import type { AutomationMetricSource } from '../../../../contracts/analysis/automation-metric-source.generated.js';
 import type { AutomationMetricSourceV2 } from '../../../../contracts/analysis/automation-metric-source-v2.generated.js';
+import type { AutomationMetricSourceCaptureV1 } from '../../../../contracts/analysis/automation-metric-source-capture-v1.generated.js';
+import type { AutomationMetricWebSnapshotV1, Table, Value, Text } from '../../../../contracts/analysis/automation-metric-web-snapshot-v1.generated.js';
 import type { MetricInputPreparationResult } from '../../../../contracts/analysis/metric-input-preparation-result.generated.js';
 import type { MetricPreparationReadinessResult } from '../../../../contracts/analysis/metric-preparation-readiness-result.generated.js';
 import type { MetricScopeOutput } from '../../../../contracts/analysis/metric-scope-output.generated.js';
+import type { MetricScopeInput } from '../../../../contracts/analysis/metric-scope-input.generated.js';
 import type { MetricSourceManifest } from '../../../../contracts/analysis/metric-source-manifest.generated.js';
 import type { SourcePackageIntakeRequest } from '../../../../contracts/foundation/source-package-intake-request.generated.js';
 import { ArtifactIntegrityError, ContentAddressedArtifactStore } from '../../../platform/artifacts/artifact-store.js';
@@ -26,6 +30,8 @@ import { calculateMetricScopes, metricLabelFingerprint } from '../metric-scope-c
 import { METRIC_CURRENT_HEADERS, MetricSourceRejection, normalizeMetricWorkbookInput } from '../metric-source-profile.js';
 import { MAX_JSON_ARTIFACT_BYTES, ResearchAutomationIntegrityError, type ScopeSnapshot, type StartSnapshot } from './model.js';
 import { createRetainedSchemaCache } from './retained-schema-cache.js';
+import { verifyMetricCaptureArchive, CONTEXT_PATH as CAPTURE_CONTEXT_PATH, DESCRIPTOR_PATH as CAPTURE_DESCRIPTOR_PATH,
+  MANIFEST_PATH as CAPTURE_MANIFEST_PATH, SNAPSHOT_PATH as CAPTURE_SNAPSHOT_PATH } from './metric-capture-intake.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -33,8 +39,10 @@ const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).defa
 const currentAjv = new Ajv2020({ strict: true, allErrors: true });
 addFormats(currentAjv);
 currentAjv.addSchema(inputSchema);
+currentAjv.addSchema(descriptorV2Schema);
 const validateCurrentDescriptor = currentAjv.compile<AutomationMetricSource>(descriptorSchema);
 const validateCurrentDescriptorV2 = currentAjv.compile<AutomationMetricSourceV2>(descriptorV2Schema);
+const validateCaptureDescriptor = currentAjv.compile<AutomationMetricSourceCaptureV1>(captureDescriptorSchema);
 const validateCurrentManifest = currentAjv.compile<MetricSourceManifest>(manifestSchema);
 const retainedValidators = createRetainedSchemaCache({ formats: true });
 
@@ -45,6 +53,7 @@ const NORMALIZED = 'methods/metric-normalized-input.json';
 const RECEIPT = 'methods/metric-normalization-receipt.json';
 const RESULT = 'methods/metric-scope-output.json';
 const READINESS = 'methods/metric-readiness.json';
+const CAPTURE_RESULTS = 'methods/metric-capture-results.json';
 const CATALOG = 'authority/report-section-catalog-v1.json';
 const SCHEMA_NAMES = ['automation-metric-source', 'metric-source-manifest', 'metric-scope-input', 'metric-scope-output',
   'metric-input-preparation-request', 'metric-input-preparation-result', 'metric-preparation-readiness-result', 'report-section-catalog'] as const;
@@ -84,8 +93,63 @@ type Validator = (value: unknown) => boolean;
 export type MetricSourceIdentity = { readonly packageId: string; readonly manifestArtifactSha256: string; readonly packageContentSha256: string };
 type PackageIdentity = MetricSourceIdentity;
 type SourceDescriptor = AutomationMetricSource | AutomationMetricSourceV2;
-type Selected = { descriptor: SourceDescriptor; descriptorFile: VerifiedSourcePackageFile; workbook: VerifiedSourcePackageFile;
+type WorkbookSelected = { descriptor: SourceDescriptor; descriptorFile: VerifiedSourcePackageFile; workbook: VerifiedSourcePackageFile;
   manifest: VerifiedSourcePackageFile; context: VerifiedSourcePackageFile };
+type CaptureSelected = { descriptor: AutomationMetricSourceCaptureV1; descriptorFile: VerifiedSourcePackageFile;
+  snapshot: VerifiedSourcePackageFile; manifest: VerifiedSourcePackageFile; context: VerifiedSourcePackageFile };
+type Selected = WorkbookSelected | CaptureSelected;
+
+export interface MetricMethodSourceFile {
+  readonly role: string;
+  readonly logicalPath: string;
+  readonly sha256: string;
+  readonly byteSize: number;
+  readonly mediaType: string;
+  readonly evidenceFamily: string;
+  readonly representationRole: string;
+  readonly independence: string;
+  readonly providerProvenance: string;
+  readonly provenanceBasis: string;
+}
+
+export interface CaptureMetricPreparation {
+  readonly contractVersion: 'automation-metric-capture-preparation-v1';
+  readonly preparationSha256: string;
+  readonly request: Record<string, unknown>;
+  readonly requestSha256: string;
+  readonly workspace: { readonly workspaceId: string; readonly state: 'ACTIVE'; readonly snapshotSha256: string };
+  readonly sourcePackage: PackageIdentity;
+  readonly selectedSources: Readonly<Record<string, MetricMethodSourceFile>>;
+  readonly normalizedInput: { readonly artifactSha256: string; readonly valueSha256: string; readonly sourceCount: number; readonly rowCount: number };
+  readonly normalizationReceiptSha256: string;
+}
+
+export interface CaptureMetricPlatformResult {
+  readonly platform: 'shopee' | 'tiktok';
+  readonly result: MetricScopeOutput;
+}
+
+export interface CaptureMetricUnattributedRow {
+  readonly rowIndex: number;
+  readonly listingId: string;
+  readonly title: string;
+  readonly shop: string;
+  readonly revenue: string | null;
+  readonly units: string | null;
+}
+
+export interface CaptureMetricMethodDetails {
+  readonly provenance: 'RESULTS_PAGE_CAPTURE';
+  readonly snapshotSha256: string;
+  readonly manifestSha256: string;
+  readonly contextSha256: string;
+  readonly descriptorSha256: string;
+  readonly capture: { readonly captureId: string; readonly specDigest: string; readonly keyword: string;
+    readonly platforms: readonly ('shopee' | 'tiktok')[]; readonly measurementPeriod: { readonly startDate: string; readonly endDate: string };
+    readonly truncation: { readonly cap: number; readonly totalShown: number | null; readonly pagesRead: number; readonly rowsRead: number; readonly truncated: boolean } };
+  readonly platforms: readonly CaptureMetricPlatformResult[];
+  readonly unattributedRows: readonly CaptureMetricUnattributedRow[];
+}
 
 export interface MetricRunInput {
   runId: string; start: StartSnapshot; scope: ScopeSnapshot; scopeConfirmedAt: string;
@@ -117,10 +181,11 @@ export interface AutomationMetricMethodSnapshot {
   readonly runBindingSha256: string;
   readonly sourcePackage: PackageIdentity;
   readonly originalSourcePackage: PackageIdentity;
-  readonly preparation: MetricInputPreparationResult;
+  readonly preparation: MetricInputPreparationResult | CaptureMetricPreparation;
   readonly readiness: MetricPreparationReadinessResult;
   readonly result: MetricScopeOutput;
   readonly limitations: readonly string[];
+  readonly capture?: CaptureMetricMethodDetails;
 }
 
 /** Explicitly attached Metric export -> existing preparation/readiness/calculator -> frozen Foundation method package. */
@@ -144,6 +209,12 @@ export class AutomationMetricMethodBridge {
   /** Pre-confirmation admission checks the prepared bytes and owner profile; it creates no report or provider call. */
   async inspectPrepared(input: MetricRunInput, packageId: string): Promise<MetricSourceIdentity> {
     const source = await this.#reader.readFinalizedSourcePackage(packageId, BUDGET);
+    if (isCapturePackage(source)) {
+      const selected = selectCaptureSource(source, input);
+      verifyCaptureSelection(selected, input);
+      await this.#verifyPreparedOrigin(source, selected.descriptor.runBindingSha256);
+      return identity(source);
+    }
     const selected = selectSource(source, input, validateCurrentDescriptorV2, true);
     await this.#verifyPreparedOrigin(source, selected.descriptor.runBindingSha256);
     const manifest = jsonRecord(selected.manifest.bytes);
@@ -159,6 +230,12 @@ export class AutomationMetricMethodBridge {
   /** Read-only inventory verification; no normalizer, preparation or confirmation timestamp is needed. */
   async verifyPreparedSourceMetadata(input: Pick<MetricRunInput, 'runId' | 'start' | 'scope'>, packageId: string): Promise<void> {
     const source = await this.#reader.readFinalizedSourcePackage(packageId, BUDGET);
+    if (isCapturePackage(source)) {
+      const selected = selectCaptureSource(source, input);
+      verifyCaptureSelection(selected, input);
+      await this.#verifyPreparedOrigin(source, selected.descriptor.runBindingSha256);
+      return;
+    }
     const selected = selectSource(source, input, validateCurrentDescriptorV2, true);
     await this.#verifyPreparedOrigin(source, selected.descriptor.runBindingSha256);
     const manifest = jsonRecord(selected.manifest.bytes);
@@ -169,6 +246,12 @@ export class AutomationMetricMethodBridge {
 
   async verifySelection(input: MetricRunInput): Promise<void> {
     const source = await this.#resolve(input);
+    if (source && isCapturePackage(source)) {
+      const selected = selectCaptureSource(source, input);
+      verifyCaptureSelection(selected, input);
+      await this.#verifyPreparedOrigin(source, selected.descriptor.runBindingSha256);
+      return;
+    }
     if (!source) return;
     const selected = selectBoundSource(source, input, validateCurrentDescriptor, validateCurrentDescriptorV2);
     if (selected.descriptor.contractVersion === 'automation-metric-source-v2') await this.#verifyPreparedOrigin(source, selected.descriptor.runBindingSha256);
@@ -238,6 +321,12 @@ export class AutomationMetricMethodBridge {
     signal?.throwIfAborted();
     const original = await this.#resolve(input);
     if (!original) return undefined;
+    if (isCapturePackage(original)) {
+      const selected = selectCaptureSource(original, input);
+      verifyCaptureSelection(selected, input);
+      await this.#verifyPreparedOrigin(original, selected.descriptor.runBindingSha256);
+      return this.#executeCapture(input, original, selected, signal);
+    }
     const selected = selectBoundSource(original, input, validateCurrentDescriptor, validateCurrentDescriptorV2);
     const manifest = jsonRecord(selected.manifest.bytes);
     if (selected.manifest.mediaType !== 'application/json' || !validateCurrentManifest(manifest))
@@ -302,8 +391,79 @@ export class AutomationMetricMethodBridge {
     return this.verify(snapshot, input);
   }
 
+  /** Capture-native method path. It deliberately never creates an XLSX or
+   * enters the workbook normalizer: W12 rows are converted into the same
+   * canonical MetricScopeInput and replayed by the existing calculator. */
+  async #executeCapture(input: MetricRunInput, original: VerifiedFinalizedSourcePackage, selected: CaptureSelected,
+    signal?: AbortSignal): Promise<AutomationMetricMethodSnapshot> {
+    signal?.throwIfAborted();
+    const verified = verifyMetricCaptureArchive(selected.snapshot.bytes, selected.manifest.bytes, { start: input.start });
+    declaredPeriodCoverage(input, { start: verified.snapshot.scope.period.startDate, end: verified.snapshot.scope.period.endDate });
+    const catalogBytes = await fs.readFile(new URL('../../../../docs/research/report-section-catalog-v1.json', import.meta.url));
+    const platformResults: CaptureMetricPlatformResult[] = [];
+    for (const platform of verified.snapshot.scope.platforms) {
+      const captureInput = captureMetricInput(verified.snapshot, selected.snapshot.sha256, platform);
+      if (!captureInput) continue;
+      const result = calculateMetricScopes(captureInput);
+      const readiness = captureReadiness(input, result, catalogBytes);
+      assertBoundedState(result, readiness);
+      platformResults.push({ platform, result });
+    }
+    if (platformResults.length === 0) fail('METRIC_SOURCE_INPUT_REJECTED', 'Metric capture contains no attributed platform rows.');
+    const primary = platformResults[0]!.result;
+    const workspace = await this.#workspaces.readVerifiedWorkspace(input.start.workspaceId);
+    const captureDetails = captureMethodDetails(verified.snapshot, selected, platformResults);
+    const normalized = primary.input;
+    const preparation = capturePreparation(input, original, selected, workspace, primary, captureDetails);
+    const readiness = captureReadiness(input, primary, catalogBytes, preparation.preparationSha256);
+    const limitations = [...limitationsFor(periodCoverage(input, primary)), 'CAPTURE_RESULTS_PAGE_TOP_N_LIMITED'];
+    const files = new Map(original.files.map(file => [file.path, file.bytes]));
+    const preparationBytes = text(preparation);
+    const normalizedBytes = text(normalized);
+    const receipt = { contractVersion: 'automation-metric-capture-normalization-receipt-v1', inputSha256: primary.inputSha256,
+      sourceSha256: selected.snapshot.sha256, manifestSha256: selected.manifest.sha256, rowCount: normalized.records.length,
+      excludedUnattributedRows: captureDetails.unattributedRows.map(row => row.rowIndex) };
+    const receiptBytes = json(receipt);
+    const derived = new Map<string, Buffer>([
+      [PREPARATION, preparationBytes], [NORMALIZED, normalizedBytes], [RECEIPT, receiptBytes],
+      [RESULT, json(primary)], [READINESS, json(readiness)], [CAPTURE_RESULTS, json(platformResults)], [CATALOG, catalogBytes],
+    ]);
+    for (const name of schemaNames(input))
+      derived.set(profilePath(name), await fs.readFile(new URL(`../../../../contracts/analysis/${name}.schema.json`, import.meta.url)));
+    derived.set(CONFIG, json(captureRunConfig(input, original, selected, primary, readiness, catalogBytes, limitations)));
+    let totalBytes = 0;
+    for (const [filePath, bytes] of [...files, ...derived]) {
+      if (files.has(filePath) && derived.has(filePath)) integrity('Metric capture method file collides with an original source path.');
+      totalBytes += bytes.length;
+      if (bytes.length > MAX_FILE_BYTES || totalBytes > BUDGET.maxTotalBytes - 1024 * 1024) integrity('Metric capture method package exceeds its exact-byte bound.');
+    }
+    for (const [filePath, bytes] of derived) files.set(filePath, bytes);
+    const originalMetadata = new Map(original.manifest.files.map(file => [file.path, file]));
+    const request: SourcePackageIntakeRequest = { contractVersion: '1.0.0', packageKey: methodKey(input), version: 1,
+      sourceAcquiredAt: original.manifest.sourceAcquiredAt, sourceLabel: methodLabel(input.runId),
+      files: [...files].map(([filePath, bytes]) => originalMetadata.get(filePath) ?? derivedMetadata(filePath, bytes)) as SourcePackageIntakeRequest['files'] };
+    const snapshot = await withDatabaseMutationMutex(this.#db, async () => {
+      signal?.throwIfAborted();
+      const receiptStored = await this.#packages.intake(request, files);
+      const retained = await this.#packages.readVerified(receiptStored.packageId, BUDGET);
+      if (retained.files.length !== files.size || retained.files.some(file => !files.get(file.path)?.equals(file.bytes)))
+        fail('METRIC_CALCULATION_FAILED', 'Metric capture method publication differs from prepared bytes.');
+      const output: AutomationMetricMethodSnapshot = { contractVersion: snapshotVersion(input), runId: input.runId,
+        runBindingSha256: digest(input), sourcePackage: identity(retained), originalSourcePackage: identity(original),
+        preparation, readiness, result: primary, limitations, capture: captureDetails };
+      return output;
+    });
+    return this.verify(snapshot, input);
+  }
+
   /** Frozen v1 reader: no intake, normalizer, calculator, readiness, current catalog, workspace, clock or provider. */
   async verify(untrusted: unknown, input: MetricRunInput): Promise<AutomationMetricMethodSnapshot> {
+    if (!isRecord(untrusted) || json(untrusted).length > MAX_JSON_ARTIFACT_BYTES ||
+        !isIdentity(untrusted.sourcePackage) || !isIdentity(untrusted.originalSourcePackage) ||
+        !isRecord(untrusted.preparation) || !isRecord(untrusted.readiness) || !isRecord(untrusted.result) || !Array.isArray(untrusted.limitations) ||
+        untrusted.contractVersion !== snapshotVersion(input) || untrusted.runId !== input.runId || untrusted.runBindingSha256 !== digest(input))
+      integrity('Metric method snapshot identity is invalid.');
+    if (Object.hasOwn(untrusted, 'capture')) return this.#verifyCaptureSnapshot(untrusted, input);
     if (!isRecord(untrusted) || json(untrusted).length > MAX_JSON_ARTIFACT_BYTES ||
         Object.keys(untrusted).sort().join(',') !== 'contractVersion,limitations,originalSourcePackage,preparation,readiness,result,runBindingSha256,runId,sourcePackage' ||
         untrusted.contractVersion !== snapshotVersion(input) || untrusted.runId !== input.runId ||
@@ -340,7 +500,7 @@ export class AutomationMetricMethodBridge {
     if (!file(retained, PREPARATION).bytes.equals(text(preparation)) || !file(retained, NORMALIZED).bytes.equals(text(result.input)) ||
         !file(retained, RESULT).bytes.equals(json(result)) || !file(retained, READINESS).bytes.equals(json(readiness)))
       integrity('Metric snapshot differs from its frozen retained bytes.');
-    verifyFrozenPreparation(retained, original, selected, input, preparation, result);
+    verifyFrozenPreparation(retained, original, selected, input, preparation as MetricInputPreparationResult, result);
     const { readinessSha256, ...readinessContent } = readiness;
     const catalog = parse(retained, CATALOG);
     if (readinessSha256 !== digest(readinessContent) || readiness.preparationSha256 !== preparation.preparationSha256 ||
@@ -351,6 +511,66 @@ export class AutomationMetricMethodBridge {
     if (!equal(snapshot.limitations, limitations) ||
         !equal(parse(retained, CONFIG), runConfig(input, original, selected, result, file(retained, CATALOG).sha256, limitations)))
       integrity('Metric frozen run configuration differs.');
+    return snapshot;
+  }
+
+  async #verifyCaptureSnapshot(untrusted: Record<string, unknown>, input: MetricRunInput): Promise<AutomationMetricMethodSnapshot> {
+    if (Object.keys(untrusted).sort().join(',') !== 'capture,contractVersion,limitations,originalSourcePackage,preparation,readiness,result,runBindingSha256,runId,sourcePackage' ||
+        !isRecord(untrusted.capture)) integrity('Metric capture method snapshot identity is invalid.');
+    const snapshot = untrusted as unknown as AutomationMetricMethodSnapshot;
+    const retained = await this.#packages.readVerified(snapshot.sourcePackage.packageId, BUDGET);
+    const original = await this.#packages.readVerified(snapshot.originalSourcePackage.packageId, BUDGET);
+    if (!equal(snapshot.sourcePackage, identity(retained)) || retained.manifest.packageKey !== methodKey(input) ||
+        retained.manifest.version !== 1 || retained.manifest.sourceLabel !== methodLabel(input.runId) ||
+        !equal(snapshot.originalSourcePackage, identity(original)) || !input.sourceSelection ||
+        !equal(input.sourceSelection.sourcePackage, identity(original)) || retained.manifest.sourceAcquiredAt !== original.manifest.sourceAcquiredAt)
+      integrity('Metric capture method or original source package identity differs from the frozen run.');
+    const selected = selectCaptureSource(original, input);
+    verifyCaptureSelection(selected, input);
+    await this.#verifyPreparedOrigin(original, selected.descriptor.runBindingSha256);
+    const originalMetadata = new Map(original.manifest.files.map(file => [file.path, file]));
+    const expectedPaths = new Set([...originalMetadata.keys(), ...derivedPaths(input), CAPTURE_RESULTS]);
+    if (expectedPaths.size !== originalMetadata.size + derivedPaths(input).length + 1 || retained.files.length !== expectedPaths.size ||
+        retained.files.some(file => !expectedPaths.has(file.path))) integrity('Metric capture method package membership differs from its frozen roles.');
+    for (const { bytes, ...metadata } of retained.files) {
+      const originalFile = originalMetadata.get(metadata.path);
+      if (!equal(metadata, originalFile ?? derivedMetadata(metadata.path, bytes)) ||
+          (originalFile !== undefined && !bytes.equals(file(original, metadata.path).bytes)))
+        integrity('Metric capture method retained file role or original bytes differ.');
+    }
+    const validators = frozenValidators(retained, input);
+    const result = snapshot.result;
+    if (!validators['metric-scope-output'](result) || !validators['metric-preparation-readiness-result'](snapshot.readiness) ||
+        !validators['report-section-catalog'](parse(retained, CATALOG))) integrity('Metric capture output fails its retained canonical schema.');
+    const platformResults = parseArray(retained, CAPTURE_RESULTS) as CaptureMetricPlatformResult[];
+    if (!Array.isArray(platformResults) || platformResults.length === 0 || !platformResults.every(value => isRecord(value) && (value.platform === 'shopee' || value.platform === 'tiktok') && isRecord(value.result)))
+      integrity('Metric capture platform results are invalid.');
+    for (const platformResult of platformResults) {
+      if (!validators['metric-scope-output'](platformResult.result) ||
+          canonicalJson(calculateMetricScopes(platformResult.result.input)) !== canonicalJson(platformResult.result))
+        integrity('Metric capture platform result does not replay from its frozen input.');
+      assertBoundedState(platformResult.result, snapshot.readiness);
+    }
+    if (!equal(result, platformResults[0]!.result) || !file(retained, RESULT).bytes.equals(json(result)) ||
+        !file(retained, NORMALIZED).bytes.equals(text(result.input)) || !file(retained, READINESS).bytes.equals(json(snapshot.readiness)))
+      integrity('Metric capture snapshot differs from its frozen retained bytes.');
+    const verified = verifyMetricCaptureArchive(selected.snapshot.bytes, selected.manifest.bytes, { start: input.start });
+    const expectedCapture = captureMethodDetails(verified.snapshot, selected, platformResults);
+    if (!equal(snapshot.capture, expectedCapture)) integrity('Metric capture provenance or row attribution differs.');
+    const workspace = await this.#workspaces.readVerifiedWorkspace(input.start.workspaceId);
+    const catalogBytes = file(retained, CATALOG).bytes;
+    const expectedPreparation = capturePreparation(input, original, selected, workspace, result, expectedCapture);
+    if (!equal(snapshot.preparation, expectedPreparation) || !file(retained, PREPARATION).bytes.equals(text(expectedPreparation)))
+      integrity('Metric capture preparation identity differs.');
+    const expectedReadiness = captureReadiness(input, result, catalogBytes, expectedPreparation.preparationSha256);
+    if (!equal(snapshot.readiness, expectedReadiness)) integrity('Metric capture readiness identity differs.');
+    const expectedConfig = captureRunConfig(input, original, selected, result, snapshot.readiness, catalogBytes, snapshot.limitations);
+    if (!equal(parse(retained, CONFIG), expectedConfig) || !equal(snapshot.limitations, limitationsFor(periodCoverage(input, result)).concat('CAPTURE_RESULTS_PAGE_TOP_N_LIMITED')))
+      integrity('Metric capture run configuration differs.');
+    const receipt = parse(retained, RECEIPT);
+    if (!equal(receipt, { contractVersion: 'automation-metric-capture-normalization-receipt-v1', inputSha256: result.inputSha256,
+      sourceSha256: selected.snapshot.sha256, manifestSha256: selected.manifest.sha256, rowCount: result.input.records.length,
+      excludedUnattributedRows: expectedCapture.unattributedRows.map(row => row.rowIndex) })) integrity('Metric capture normalization receipt differs.');
     return snapshot;
   }
 
@@ -409,7 +629,43 @@ function assertSelection(value: NonNullable<MetricRunInput['sourceSelection']>):
 }
 function methodLabel(runId: string): string { return `Automation ${runId}: attached Metric export and frozen ALL calculation`; }
 
-function selectBoundSource(source: VerifiedFinalizedSourcePackage, input: MetricRunInput, v1: Validator, v2?: Validator): Selected {
+function isCapturePackage(source: VerifiedFinalizedSourcePackage): boolean {
+  return source.files.some(file => file.path === CAPTURE_DESCRIPTOR_PATH);
+}
+
+function selectCaptureSource(source: VerifiedFinalizedSourcePackage, input: Pick<MetricRunInput, 'runId' | 'start' | 'scope'>): CaptureSelected {
+  const descriptorFile = source.files.find(file => file.path === CAPTURE_DESCRIPTOR_PATH);
+  const descriptor = descriptorFile && jsonRecord(descriptorFile.bytes);
+  if (!descriptorFile || descriptorFile.mediaType !== 'application/json' || !validateCaptureDescriptor(descriptor) || !json(descriptor).equals(descriptorFile.bytes))
+    fail('METRIC_SOURCE_UNSUPPORTED', 'Metric capture descriptor is invalid or non-canonical.');
+  const declared = descriptor as unknown as AutomationMetricSourceCaptureV1;
+  if (input.scope.runId !== input.runId || input.scope.workspaceId !== input.start.workspaceId ||
+      declared.runId !== input.runId || declared.workspaceId !== input.start.workspaceId ||
+      declared.runBindingSha256 !== digest({ runId: input.runId, start: input.start }) || declared.keyword !== input.start.keyword)
+    fail('METRIC_SOURCE_RUN_MISMATCH', 'Metric capture descriptor is not bound to this confirmed run.');
+  const paths = [CAPTURE_DESCRIPTOR_PATH, declared.snapshotPath, declared.manifestPath, declared.sourceContextPath];
+  if (new Set(paths).size !== paths.length || source.files.length !== paths.length || source.files.some(value => !paths.includes(value.path)))
+    fail('METRIC_SOURCE_UNSUPPORTED', 'Metric capture package membership differs from its descriptor.');
+  const snapshot = file(source, declared.snapshotPath), manifest = file(source, declared.manifestPath), context = file(source, declared.sourceContextPath);
+  if (snapshot.mediaType !== 'application/json' || manifest.mediaType !== 'application/json' || context.mediaType !== 'application/json' ||
+      source.files.some(value => value.independence !== 'non_independent'))
+    fail('METRIC_SOURCE_UNSUPPORTED', 'Metric capture roles are not admitted for an operator attachment.');
+  return { descriptor: declared, descriptorFile, snapshot, manifest, context };
+}
+
+function verifyCaptureSelection(selected: CaptureSelected, input: Pick<MetricRunInput, 'runId' | 'start' | 'scope'>): void {
+  const verified = verifyMetricCaptureArchive(selected.snapshot.bytes, selected.manifest.bytes, { start: input.start });
+  if (selected.descriptor.captureId !== verified.capture.captureId || selected.descriptor.specDigest !== verified.capture.specDigest ||
+      selected.descriptor.snapshotPath !== selected.snapshot.path || selected.descriptor.manifestPath !== selected.manifest.path ||
+      selected.descriptor.sourceContextPath !== selected.context.path)
+    fail('METRIC_SOURCE_INTEGRITY_FAILED', 'Metric capture descriptor differs from its retained archive.');
+  const context = jsonRecord(selected.context.bytes);
+  if (!context || context.contractVersion !== 'automation-metric-capture-context-v1' || context.provenance !== 'results-page capture' ||
+      context.snapshotSha256 !== sha(selected.snapshot.bytes) || context.manifestSha256 !== sha(selected.manifest.bytes))
+    fail('METRIC_SOURCE_INTEGRITY_FAILED', 'Metric capture context differs from its retained archive.');
+}
+
+function selectBoundSource(source: VerifiedFinalizedSourcePackage, input: MetricRunInput, v1: Validator, v2?: Validator): WorkbookSelected {
   const declared = jsonRecord(file(source, SOURCE_DESCRIPTOR).bytes);
   if (input.sourceSelection && declared?.contractVersion === 'automation-metric-source-v2' && v2)
     return selectSource(source, input, v2, true);
@@ -418,9 +674,9 @@ function selectBoundSource(source: VerifiedFinalizedSourcePackage, input: Metric
 }
 
 /** Exact explicit attachment only; nothing is inferred from names, dates or recency. */
-function selectSource(source: VerifiedFinalizedSourcePackage, input: MetricRunInput, validate: Validator, prepared?: boolean): Selected;
-function selectSource(source: VerifiedFinalizedSourcePackage, input: Pick<MetricRunInput, 'runId' | 'start' | 'scope'>, validate: Validator, prepared: true): Selected;
-function selectSource(source: VerifiedFinalizedSourcePackage, input: Pick<MetricRunInput, 'runId' | 'start' | 'scope'> & Partial<MetricRunInput>, validate: Validator, prepared = Boolean(input.sourceSelection)): Selected {
+function selectSource(source: VerifiedFinalizedSourcePackage, input: MetricRunInput, validate: Validator, prepared?: boolean): WorkbookSelected;
+function selectSource(source: VerifiedFinalizedSourcePackage, input: Pick<MetricRunInput, 'runId' | 'start' | 'scope'>, validate: Validator, prepared: true): WorkbookSelected;
+function selectSource(source: VerifiedFinalizedSourcePackage, input: Pick<MetricRunInput, 'runId' | 'start' | 'scope'> & Partial<MetricRunInput>, validate: Validator, prepared = Boolean(input.sourceSelection)): WorkbookSelected {
   const descriptorFile = source.files.find(value => value.path === SOURCE_DESCRIPTOR);
   const descriptor = descriptorFile && jsonRecord(descriptorFile.bytes);
   if (!descriptorFile || descriptorFile.mediaType !== 'application/json' || !validate(descriptor) || !json(descriptor).equals(descriptorFile.bytes))
@@ -440,6 +696,116 @@ function selectSource(source: VerifiedFinalizedSourcePackage, input: Pick<Metric
     fail('METRIC_SOURCE_UNSUPPORTED', 'Metric source roles are not admitted for an operator attachment.');
   return { descriptor: declared, descriptorFile, workbook: file(source, declared.workbookPath), manifest: file(source, declared.manifestPath),
     context: file(source, declared.sourceContextPath) };
+}
+
+const captureCell = (row: Table['rows'][number], key: string): Value | Text | undefined => row.cells[key];
+const captureText = (value: Value | Text | undefined): string => value && 'text' in value ? value.text.trim().replace(/\s+/gu, ' ') : value && 'displayed' in value ? value.displayed.trim().replace(/\s+/gu, ' ') : '';
+const captureNumber = (value: Value | Text | undefined): number | null => value && 'value' in value && typeof value.value === 'number' && Number.isFinite(value.value) && value.value >= 0 ? value.value : null;
+const captureSyntheticId = (platform: string, title: string, shop: string): string => `synthetic-${digest([platform, title, shop]).slice(0, 40)}`;
+
+function captureMetricInput(snapshot: AutomationMetricWebSnapshotV1, sourceSha256: string, platform: 'shopee' | 'tiktok'): MetricScopeInput | undefined {
+  const table = snapshot.groups.W12_topProducts;
+  if ('absent' in table) return undefined;
+  const records = table.rows.flatMap((row, index): MetricScopeInput['records'][number][] => {
+    const platformText = captureText(captureCell(row, 'platform')).toLowerCase();
+    if (platformText !== platform) return [];
+    const title = captureText(captureCell(row, 'name'));
+    if (!title) return [];
+    const shop = captureText(captureCell(row, 'shop')) || '(không ghi)';
+    const revenueCell = captureCell(row, 'revenue'), unitsCell = captureCell(row, 'units');
+    const observation = (cell: Value | Text | undefined): MetricScopeInput['records'][number]['revenue'] => {
+      const value = captureNumber(cell);
+      const precision = (cell && 'precision' in cell ? cell.precision : 'unknown') as MetricScopeInput['records'][number]['revenue']['precision'];
+      return { state: value === null ? 'missing' : value === 0 ? 'observed_zero' : 'observed_value', value: value === null ? null : String(value),
+        precision, source: { sourceSha256, locator: `/groups/W12_topProducts/rows/${index}/${cell && 'sourcePointer' in cell ? cell.sourcePointer : 'value'}` },
+        displayedValue: cell && 'displayed' in cell ? cell.displayed : null };
+    };
+    const source = { sourceSha256, locator: `/groups/W12_topProducts/rows/${index}` };
+    return [{ shopId: shop.slice(0, 300), listingId: captureSyntheticId(platform, title, shop), title: title.slice(0, 1000),
+      category: (captureText(captureCell(row, 'category')) || '(trống)').slice(0, 300), source,
+      revenue: observation(revenueCell), units: observation(unitsCell), label: null,
+      measurement: { profileId: 'automation-metric-capture-v1', scopeKey: 'all', platform, selection: 'UNSPECIFIED',
+        start: snapshot.scope.period.startDate, end: snapshot.scope.period.endDate, currency: 'VND' } }];
+  });
+  if (!records.length) return undefined;
+  return { contractVersion: '1.0.0', scope: { key: 'all', platform, selection: 'UNSPECIFIED', start: snapshot.scope.period.startDate,
+      end: snapshot.scope.period.endDate, periodBasis: 'Kỳ bộ lọc của results-page capture; giữ nguyên, không tự kéo dài hoặc chia tỷ lệ.', acquiredAt: snapshot.capturedAt },
+    sources: [{ sha256: sourceSha256, label: 'Metric results-page capture snapshot', representationRole: 'primary', evidenceFamily: 'metric-results-page-capture',
+      provenanceBasis: 'Exact retained results-page snapshot; provider authenticity and market completeness are not independently established.' }], records,
+    profileId: 'automation-metric-capture-v1', labelCodebookVersion: 'capture-no-labels-v1', wideUnknownPolicy: 'exclude' };
+}
+
+function captureSourceFile(role: string, source: VerifiedSourcePackageFile): MetricMethodSourceFile {
+  return { role, logicalPath: source.path, sha256: source.sha256, byteSize: source.byteSize, mediaType: source.mediaType,
+    evidenceFamily: source.evidenceFamily, representationRole: source.representationRole, independence: source.independence,
+    providerProvenance: source.providerProvenance, provenanceBasis: source.provenanceBasis };
+}
+
+function captureReceipt(selected: CaptureSelected, result: MetricScopeOutput, details: CaptureMetricMethodDetails) {
+  return { contractVersion: 'automation-metric-capture-normalization-receipt-v1', inputSha256: result.inputSha256,
+    sourceSha256: selected.snapshot.sha256, manifestSha256: selected.manifest.sha256, rowCount: result.input.records.length,
+    excludedUnattributedRows: details.unattributedRows.map(row => row.rowIndex) };
+}
+
+function capturePreparation(input: MetricRunInput, original: VerifiedFinalizedSourcePackage, selected: CaptureSelected, workspace: unknown,
+  result: MetricScopeOutput, details: CaptureMetricMethodDetails): CaptureMetricPreparation {
+  const snapshotSource = captureSourceFile('snapshot', selected.snapshot);
+  const manifestSource = captureSourceFile('manifest', selected.manifest);
+  const contextSource = captureSourceFile('context', selected.context);
+  const descriptorSource = captureSourceFile('descriptor', selected.descriptorFile);
+  const receiptSha256 = sha(json(captureReceipt(selected, result, details)));
+  const normalizedInputArtifactSha256 = sha(text(result.input));
+  const request = { contractVersion: 'automation-metric-capture-preparation-request-v1', workspaceId: input.start.workspaceId,
+    packageId: original.packageId, packageManifestSha256: original.manifestArtifactSha256, snapshotPath: selected.snapshot.path,
+    manifestPath: selected.manifest.path, sourceContextPath: selected.context.path };
+  const requestSha256 = digest(request);
+  const workspaceSnapshotSha256 = digest(workspace);
+  const selectedSources = { snapshot: snapshotSource, manifest: manifestSource, context: contextSource, descriptor: descriptorSource };
+  const preparationIdentity = { contractVersion: 'automation-metric-capture-preparation-identity-v1', requestSha256, workspaceSnapshotSha256,
+    sourcePackage: identity(original), selectedSources, normalizedInputArtifactSha256, normalizedInputValueSha256: result.inputSha256,
+    normalizationReceiptSha256: receiptSha256 };
+  return { contractVersion: 'automation-metric-capture-preparation-v1', preparationSha256: digest(preparationIdentity), request, requestSha256,
+    workspace: { workspaceId: input.start.workspaceId, state: 'ACTIVE', snapshotSha256: workspaceSnapshotSha256 }, sourcePackage: identity(original),
+    selectedSources, normalizedInput: { artifactSha256: normalizedInputArtifactSha256, valueSha256: result.inputSha256,
+      sourceCount: result.input.sources.length, rowCount: result.input.records.length }, normalizationReceiptSha256: receiptSha256 };
+}
+
+function captureReadiness(_input: MetricRunInput, result: MetricScopeOutput, catalogBytes: Buffer, preparationSha256 = digest(result.input)): MetricPreparationReadinessResult {
+  const catalog = JSON.parse(catalogBytes.toString('utf8')) as { catalogId: string; catalogVersion: string; sections: { sectionId: string; title: string; methodId: string; methodVersion: string; requiredInputs?: string[] }[] };
+  const sections = catalog.sections.map(section => ({ sectionId: section.sectionId, title: section.title, methodId: 'metric-results-page-capture', methodVersion: '1.0.0',
+    state: 'BLOCKED' as const, requiredInputs: section.requiredInputs ?? ['results-page-capture'], blockingCodes: ['CAPTURE_FIELDS_LIMITED'] }));
+  const content = { contractVersion: '1.0.0', readinessProfile: 'metric-preparation-readiness-v1', preparationSha256,
+    catalog: { catalogId: catalog.catalogId, catalogVersion: catalog.catalogVersion, sha256: sha(catalogBytes) },
+    inputs: [{ inputId: 'results-page-capture', state: 'PRESENT' as const, blocking: false, codes: ['CAPTURE_SOURCE'], evidenceRefs: [{ kind: 'NORMALIZED_INPUT' as const, locator: '/', sha256: result.inputSha256 }] }],
+    sections, summary: { totalSections: sections.length, readyToCalculate: 0, blocked: sections.length, invalid: 0 } };
+  return { ...content, readinessSha256: digest(content) } as MetricPreparationReadinessResult;
+}
+
+function captureMethodDetails(snapshot: AutomationMetricWebSnapshotV1, selected: CaptureSelected, platformResults: readonly CaptureMetricPlatformResult[]): CaptureMetricMethodDetails {
+  const table = snapshot.groups.W12_topProducts;
+  const unattributedRows: CaptureMetricUnattributedRow[] = [];
+  if (!('absent' in table)) for (const [rowIndex, row] of table.rows.entries()) {
+    const platform = captureText(captureCell(row, 'platform')).toLowerCase();
+    if (platform !== 'shopee' && platform !== 'tiktok') {
+      const title = captureText(captureCell(row, 'name')), shop = captureText(captureCell(row, 'shop')) || '(không ghi)';
+      unattributedRows.push({ rowIndex, listingId: captureSyntheticId('unknown', title, shop), title, shop,
+        revenue: captureNumber(captureCell(row, 'revenue')) === null ? null : String(captureNumber(captureCell(row, 'revenue'))),
+        units: captureNumber(captureCell(row, 'units')) === null ? null : String(captureNumber(captureCell(row, 'units'))) });
+    }
+  }
+  const verified = verifyMetricCaptureArchive(selected.snapshot.bytes, selected.manifest.bytes);
+  return { provenance: 'RESULTS_PAGE_CAPTURE', snapshotSha256: selected.snapshot.sha256, manifestSha256: selected.manifest.sha256,
+    contextSha256: selected.context.sha256, descriptorSha256: selected.descriptorFile.sha256,
+    capture: verified.capture, platforms: platformResults, unattributedRows };
+}
+
+function captureRunConfig(input: MetricRunInput, original: VerifiedFinalizedSourcePackage, selected: CaptureSelected, result: MetricScopeOutput,
+  readiness: MetricPreparationReadinessResult, catalogBytes: Buffer, limitations: readonly string[]) {
+  const ref = (value: VerifiedSourcePackageFile) => ({ logicalPath: value.path, sha256: value.sha256, byteSize: value.byteSize, mediaType: value.mediaType });
+  return { contractVersion: input.sourceSelection ? 'automation-metric-run-v2' : 'automation-metric-run-v1', input, runBindingSha256: digest(input), originalSourcePackage: identity(original),
+    descriptor: ref(selected.descriptorFile), snapshot: ref(selected.snapshot), manifest: ref(selected.manifest), sourceContext: ref(selected.context),
+    period: { requested: input.start.requestedPeriod, source: { start: result.input.scope.start, end: result.input.scope.end }, coverage: periodCoverage(input, result) },
+    readinessSha256: readiness.readinessSha256, catalog: { logicalPath: CATALOG, sha256: sha(catalogBytes) }, limitations };
 }
 
 function preparationRequest(input: MetricRunInput, source: VerifiedFinalizedSourcePackage, descriptor: SourceDescriptor): MetricInputPreparationResult['request'] {
@@ -472,7 +838,7 @@ function assertBoundedState(result: MetricScopeOutput, readiness: MetricPreparat
     fail('METRIC_CALCULATION_FAILED', 'Metric labels or classified readiness are not in their bounded blocked state.');
 }
 
-function runConfig(input: MetricRunInput, original: VerifiedFinalizedSourcePackage, selected: Selected, result: MetricScopeOutput,
+function runConfig(input: MetricRunInput, original: VerifiedFinalizedSourcePackage, selected: WorkbookSelected, result: MetricScopeOutput,
   catalogSha256: string, limitations: readonly string[]) {
   const ref = (value: VerifiedSourcePackageFile) => ({ logicalPath: value.path, sha256: value.sha256, byteSize: value.byteSize, mediaType: value.mediaType });
   return { contractVersion: input.sourceSelection ? 'automation-metric-run-v2' : 'automation-metric-run-v1', input, runBindingSha256: digest(input), originalSourcePackage: identity(original),
@@ -485,7 +851,7 @@ function runConfig(input: MetricRunInput, original: VerifiedFinalizedSourcePacka
 }
 
 /** Canonical identities of the frozen preparation, receipt and normalized input; the normalizer is not rerun. */
-function verifyFrozenPreparation(retained: VerifiedFinalizedSourcePackage, original: VerifiedFinalizedSourcePackage, selected: Selected,
+function verifyFrozenPreparation(retained: VerifiedFinalizedSourcePackage, original: VerifiedFinalizedSourcePackage, selected: WorkbookSelected,
   input: MetricRunInput, preparation: MetricInputPreparationResult, result: MetricScopeOutput): void {
   const source = (role: 'workbook' | 'manifest', value: VerifiedSourcePackageFile) => ({ role, logicalPath: value.path, sha256: value.sha256,
     byteSize: value.byteSize, mediaType: value.mediaType, evidenceFamily: value.evidenceFamily, representationRole: value.representationRole,
@@ -542,6 +908,13 @@ function file(source: VerifiedFinalizedSourcePackage, filePath: string): Verifie
 }
 function parse(source: VerifiedFinalizedSourcePackage, filePath: string): Record<string, unknown> {
   return jsonRecord(file(source, filePath).bytes) ?? integrity('Metric retained JSON is invalid.');
+}
+function parseArray(source: VerifiedFinalizedSourcePackage, filePath: string): unknown[] {
+  const bytes = file(source, filePath).bytes;
+  let value: unknown;
+  try { value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); } catch { return integrity('Metric retained JSON is invalid.'); }
+  if (!Array.isArray(value) || !json(value).equals(bytes)) integrity('Metric retained JSON is invalid or non-canonical.');
+  return value;
 }
 function jsonRecord(bytes: Buffer): Record<string, unknown> | undefined {
   try {

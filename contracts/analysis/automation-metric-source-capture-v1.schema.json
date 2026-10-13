@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/automation-metric-source-capture-v1.schema.json",
+  "title": "AutomationMetricSourceCaptureV1",
+  "description": "Run-bound descriptor for a retained Metric results-page capture. It has no workbook path.",
+  "type": "object", "additionalProperties": false,
+  "required": ["contractVersion", "runId", "workspaceId", "runBindingSha256", "keyword", "captureId", "specDigest", "snapshotPath", "manifestPath", "sourceContextPath"],
+  "properties": {
+    "contractVersion": { "const": "automation-metric-source-capture-v1" },
+    "runId": { "type": "string", "format": "uuid" },
+    "workspaceId": { "type": "string", "format": "uuid" },
+    "runBindingSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "keyword": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "captureId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$" },
+    "specDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "snapshotPath": { "$ref": "automation-metric-source-v2.schema.json#/$defs/logicalPath" },
+    "manifestPath": { "$ref": "automation-metric-source-v2.schema.json#/$defs/logicalPath" },
+    "sourceContextPath": { "$ref": "automation-metric-source-v2.schema.json#/$defs/logicalPath" }
+  }
+}

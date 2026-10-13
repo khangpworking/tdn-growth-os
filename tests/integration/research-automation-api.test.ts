@@ -1730,3 +1730,108 @@ test('saved revision PDF export reports a genuine render failure distinctly from
     assert.match((await readJson(failed)).error.message, /PDF render failed/);
   }, undefined, undefined, undefined, process.execPath);
 });
+
+test('capture source runs create → upload → confirm → Market without a workbook', { timeout: 120_000 }, async () => {
+  const fixture = await createFixture();
+  await withApi(fixture, true, async base => {
+    const started = await startAndWaitForScope(base, randomUUID());
+    const runRoot = `${base}/owner-api/workspaces/${workspaceId}/research-automation/runs/${started.runId}`;
+    const snapshot = JSON.parse(fs.readFileSync(new URL('../fixtures/metric-web-snapshot/full.json', import.meta.url), 'utf8')) as any;
+    snapshot.captureId = 'capture-api-e2e-209';
+    snapshot.scope = { keywords: ['wireless earbuds'], platforms: ['shopee', 'tiktok'], period: requestedPeriod,
+      category: null, ticks: [], advancedFilters: [], exclusions: [] };
+    snapshot.groups.W4_monthly = { absent: true, reason: 'NOT_CAPTURED' };
+    const value = (label: string, displayed: string, numeric: number | null, platform: 'shopee' | 'tiktok' | 'unknown') => ({ label, displayed,
+      value: numeric, unit: 'VND' as const, precision: 'exact' as const, platform, period: requestedPeriod, sourcePointer: `${platform}.${label}` });
+    const text = (label: string, value: string, pointer: string) => ({ label, text: value, sourcePointer: pointer });
+    snapshot.groups.W12_topProducts = { columns: ['name', 'shop', 'platform', 'revenue', 'units'], rows: [
+      { cells: { name: text('Tên', 'Shopee synthetic', 'p[0].name'), shop: text('Shop', 'Shop Shopee', 'p[0].shop'), platform: text('Sàn', 'shopee', 'p[0].platform'), revenue: value('Doanh thu', '1200', 1200, 'shopee'), units: value('Lượt bán', '3', 3, 'shopee') } },
+      { cells: { name: text('Tên', 'TikTok synthetic', 'p[1].name'), shop: text('Shop', 'Shop TikTok', 'p[1].shop'), platform: text('Sàn', 'tiktok', 'p[1].platform'), revenue: value('Doanh thu', '800', 800, 'tiktok'), units: value('Lượt bán', '–', null, 'tiktok') } },
+      { cells: { name: text('Tên', 'Unknown synthetic', 'p[2].name'), shop: text('Shop', 'Shop Unknown', 'p[2].shop'), platform: text('Sàn', 'unknown', 'p[2].platform'), revenue: value('Doanh thu', '500', 500, 'unknown'), units: value('Lượt bán', '–', null, 'unknown') } },
+    ] };
+    const snapshotBytes = Buffer.from(JSON.stringify(snapshot, null, 2) + '\n');
+    const manifest = { contractVersion: 'metric-results-capture-v1', captureId: snapshot.captureId, specDigest: snapshot.specDigest,
+      appliedFilters: snapshot.scope, resultCount: 3, productPagination: { cap: 3, totalShown: 5, pageSize: 3, pagesRead: 1, rowsRead: 3, truncated: true },
+      views: [], sourceMap: {}, files: [{ path: 'snapshot.json', sha256: createHash('sha256').update(snapshotBytes).digest('hex'), byteSize: snapshotBytes.length, mediaType: 'application/json', role: 'normalized' }],
+      screenshotSkips: [], archive: { rawResponses: 'raw/', normalizedSnapshot: 'snapshot.json', resultsHtml: 'results.html', screenshots: [] }, noReportFileRequested: true,
+      captureGate: { cleared: true } };
+    const manifestBytes = Buffer.from(JSON.stringify(manifest, null, 2) + '\n');
+    const form = new FormData();
+    form.set('metadata', JSON.stringify({ contractVersion: 'automation-metric-capture-prepare-v1', requestKey: randomUUID(), expectedRevision: started.revision,
+      sourceContext: 'Synthetic results-page capture for API integration.' }));
+    form.set('snapshot', new File([snapshotBytes], 'snapshot.json', { type: 'application/json' }));
+    form.set('manifest', new File([manifestBytes], 'manifest.json', { type: 'application/json' }));
+    const upload = await fetch(`${runRoot}/sources/metric-capture`, { method: 'POST', headers: { Origin: base, Authorization: `Bearer ${ownerToken}` }, body: form });
+    assert.equal(upload.status, 201, await upload.clone().text());
+    const prepared = await readJson(upload);
+    const confirm = { contractVersion: 'research-automation-confirm-v2', requestKey: randomUUID(), expectedRevision: started.revision,
+      definition: 'Synthetic capture API scope', includeTerms: ['wireless earbuds'], excludeTerms: [], selectedProductIds: [], peerProductIds: [],
+      sources: { metric: { decision: 'USE_PREPARED', packageId: prepared.packageId }, nativeReview: 'SKIP' } };
+    const confirmed = await fetch(`${runRoot}/confirm-scope`, { method: 'POST', headers: ownerHeaders(base), body: JSON.stringify(confirm) });
+    assert.equal(confirmed.status, 202, await confirmed.clone().text());
+    const ready = await waitForRun(base, started.runId, run => run.status === 'DRAFT_READY');
+    assert.equal(ready.status, 'DRAFT_READY');
+    const market = await fetch(`${base}/api/workspaces/${workspaceId}/research-automation/runs/${started.runId}/reports/market`);
+    assert.equal(market.status, 200, await market.clone().text());
+    const html = await market.text();
+    assert.match(html, /Shopee synthetic/);
+    assert.match(html, /TikTok synthetic/);
+    assert.match(html, /1\.200/);
+    assert.match(html, /800/);
+    assert.match(html, /results-page capture/);
+    assert.match(html, /top-N/);
+    assert.match(html, /không có số liệu/);
+    assert.match(html, /không cộng vào Shopee hoặc TikTok Shop/);
+  });
+});
+
+test('capture source uploaded after scope confirmation follows the prepared-source revision path', { timeout: 120_000 }, async () => {
+  const fixture = await createFixture();
+  await withApi(fixture, true, async base => {
+    const awaiting = await startAndWaitForScope(base, randomUUID());
+    const root = `${base}/owner-api/workspaces/${workspaceId}/research-automation/runs/${awaiting.runId}`;
+    const reportRoot = `${base}/api/workspaces/${workspaceId}/research-automation/runs/${awaiting.runId}`;
+    const firstConfirm = { ...confirmBody(randomUUID(), awaiting.revision), contractVersion: 'research-automation-confirm-v2',
+      sources: { metric: { decision: 'SKIPPED' }, nativeReview: 'SKIP' } };
+    const confirmed = await fetch(`${root}/confirm-scope`, { method: 'POST', headers: ownerHeaders(base), body: JSON.stringify(firstConfirm) });
+    assert.equal(confirmed.status, 202, await confirmed.clone().text());
+    const ready = await waitForRun(base, awaiting.runId, run => run.status === 'DRAFT_READY');
+    const snapshot = JSON.parse(fs.readFileSync(new URL('../fixtures/metric-web-snapshot/full.json', import.meta.url), 'utf8')) as any;
+    snapshot.captureId = 'capture-api-late-209';
+    snapshot.scope = { keywords: ['wireless earbuds'], platforms: ['shopee'], period: requestedPeriod, category: null, ticks: [], advancedFilters: [], exclusions: [] };
+    snapshot.groups.W4_monthly = { absent: true, reason: 'NOT_CAPTURED' };
+    const period = requestedPeriod;
+    snapshot.groups.W12_topProducts = { columns: ['name', 'shop', 'platform', 'revenue', 'units'], rows: [
+      { cells: { name: { label: 'Tên', text: 'Late capture product', sourcePointer: 'p[0].name' }, shop: { label: 'Shop', text: 'Late shop', sourcePointer: 'p[0].shop' }, platform: { label: 'Sàn', text: 'shopee', sourcePointer: 'p[0].platform' }, revenue: { label: 'Doanh thu', displayed: '900', value: 900, unit: 'VND', precision: 'exact', platform: 'shopee', period, sourcePointer: 'p[0].revenue' }, units: { label: 'Lượt bán', displayed: '2', value: 2, unit: 'COUNT', precision: 'exact', platform: 'shopee', period, sourcePointer: 'p[0].units' } } },
+    ] };
+    const snapshotBytes = Buffer.from(JSON.stringify(snapshot, null, 2) + '\n');
+    const manifest = { contractVersion: 'metric-results-capture-v1', captureId: snapshot.captureId, specDigest: snapshot.specDigest, appliedFilters: snapshot.scope, resultCount: 1,
+      productPagination: { cap: 1, totalShown: 1, pageSize: 1, pagesRead: 1, rowsRead: 1, truncated: false }, views: [], sourceMap: {},
+      files: [{ path: 'snapshot.json', sha256: createHash('sha256').update(snapshotBytes).digest('hex'), byteSize: snapshotBytes.length, mediaType: 'application/json', role: 'normalized' }], screenshotSkips: [],
+      archive: { rawResponses: 'raw/', normalizedSnapshot: 'snapshot.json', resultsHtml: 'results.html', screenshots: [] }, noReportFileRequested: true, captureGate: { cleared: true } };
+    const form = new FormData();
+    form.set('metadata', JSON.stringify({ contractVersion: 'automation-metric-capture-prepare-v1', requestKey: randomUUID(), expectedRevision: ready.revision, sourceContext: 'Late synthetic capture.' }));
+    form.set('snapshot', new File([snapshotBytes], 'snapshot.json', { type: 'application/json' }));
+    form.set('manifest', new File([Buffer.from(JSON.stringify(manifest, null, 2) + '\n')], 'manifest.json', { type: 'application/json' }));
+    const uploaded = await fetch(`${root}/sources/metric-capture`, { method: 'POST', headers: { Origin: base, Authorization: `Bearer ${ownerToken}` }, body: form });
+    assert.equal(uploaded.status, 201, await uploaded.clone().text());
+    const prepared = await readJson(uploaded);
+    const previous = (await readJson(await fetch(`${reportRoot}/report-versions`))).versions[0].pairId as string;
+    const revision = await fetch(`${root}/report-revisions`, { method: 'POST', headers: ownerHeaders(base), body: JSON.stringify({ contractVersion: 'automation-report-revision-v1', requestKey: randomUUID(), previousPairId: previous,
+      sources: { metric: { decision: 'USE_PREPARED', packageId: prepared.packageId }, nativeReview: { decision: 'SKIP' } } }) });
+    assert.equal(revision.status, 202, await revision.clone().text());
+    const queued = await readJson(revision);
+    let pairId: string | undefined;
+    for (let attempt = 0; attempt < 200; attempt += 1) {
+      const response = await fetch(`${reportRoot}/report-attempts/${queued.attemptId}`);
+      const attemptView = await readJson(response);
+      if (attemptView.state === 'COMMITTED') { pairId = attemptView.pairId; break; }
+      assert.ok(['QUEUED', 'RUNNING'].includes(attemptView.state));
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    assert.ok(pairId);
+    const market = await fetch(`${reportRoot}/report-versions/${pairId}/reports/market`);
+    assert.equal(market.status, 200, await market.clone().text());
+    assert.match(await market.text(), /Late capture product/);
+  });
+});

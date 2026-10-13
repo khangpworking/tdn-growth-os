@@ -1739,6 +1739,7 @@ async function archiveResultsPage(page, out, spec, observation, parsed, productC
       screenshotSkips: collected.screenshotSkips,
       archive: { rawResponses: 'raw-responses.json', normalizedSnapshot: 'snapshot.json', resultsHtml: 'results.html', screenshots: screenshotFiles.map(file => file.path) },
       noReportFileRequested: true,
+      captureGate: { cleared: true },
     };
     const manifestPath = join(destination, 'manifest.json'); await writeJson(manifestPath, manifest);
     return { manifestPath, rowCount: parsed.rowCount, snapshot: extracted.snapshot, captureId };

@@ -18,6 +18,7 @@ import marketPresentationRevisionSchema from '../../contracts/analysis/automatio
 import classifiedRevisionRequestSchema from '../../contracts/analysis/automation-classified-report-revision.schema.json' with { type: 'json' };
 import revisionSchema from '../../contracts/api/research-automation-revision-api.schema.json' with { type: 'json' };
 import metricIntakeSchema from '../../contracts/api/research-automation-metric-intake-api.schema.json' with { type: 'json' };
+import metricCaptureIntakeSchema from '../../contracts/api/research-automation-metric-capture-intake-api.schema.json' with { type: 'json' };
 import supplementalIntakeSchema from '../../contracts/api/research-automation-supplemental-intake-api.schema.json' with { type: 'json' };
 import foundationIntakeSchema from '../../contracts/foundation/source-package-intake-request.schema.json' with { type: 'json' };
 import metricRuleSchema from '../../contracts/analysis/automation-metric-rule-adoption.schema.json' with { type: 'json' };
@@ -59,6 +60,7 @@ import { LocatedInsightValidationError } from '../modules/analysis/located-insig
 import { MAX_INSIGHT_CODING_BYTES } from '../modules/analysis/research-automation/insight-coding.js';
 import { MetricSourceRejection } from '../modules/analysis/metric-source-profile.js';
 import { MAX_METRIC_UPLOAD_BYTES } from '../modules/analysis/research-automation/metric-source-intake.js';
+import { MAX_METRIC_CAPTURE_BYTES, MAX_METRIC_CAPTURE_TOTAL_BYTES, MetricCaptureRejection } from '../modules/analysis/research-automation/metric-capture-intake.js';
 import worldBankSourceSchema from '../../contracts/analysis/world-bank-intake-v1.schema.json' with { type: 'json' };
 import macroIntakeApiSchema from '../../contracts/api/research-automation-macro-intake-api.schema.json' with { type: 'json' };
 import { MAX_WORLD_BANK_FILE_BYTES, WorldBankSourceRejection } from '../modules/analysis/research-automation/world-bank-intake.js';
@@ -142,6 +144,7 @@ ajv.addSchema(marketPresentationRevisionSchema);
 ajv.addSchema(classifiedRevisionRequestSchema);
 ajv.addSchema(revisionSchema);
 ajv.addSchema(metricIntakeSchema);
+ajv.addSchema(metricCaptureIntakeSchema);
 ajv.addSchema([foundationIntakeSchema, supplementalIntakeSchema]);
 ajv.addSchema(kalodataVideoIntakeSchema);
 ajv.addSchema(metricRuleSchema);
@@ -198,6 +201,9 @@ const validates = {
   supplementalPreparedList: ajv.compile({ $ref: `${supplementalIntakeSchema.$id}#/$defs/preparedList` }),
   metricPrepared: ajv.compile({ $ref: `${metricIntakeSchema.$id}#/$defs/receipt` }),
   metricPreparedList: ajv.compile({ $ref: `${metricIntakeSchema.$id}#/$defs/preparedList` }),
+  metricCapturePrepare: ajv.compile({ $ref: `${metricCaptureIntakeSchema.$id}#/$defs/request` }),
+  metricCapturePrepared: ajv.compile({ $ref: `${metricCaptureIntakeSchema.$id}#/$defs/receipt` }),
+  metricCapturePreparedList: ajv.compile({ $ref: `${metricCaptureIntakeSchema.$id}#/$defs/preparedList` }),
   metricRuleAdopt: ajv.compile({ $ref: `${metricRuleSchema.$id}#/$defs/request` }),
   metricRuleReceipt: ajv.compile({ $ref: `${metricRuleSchema.$id}#/$defs/receipt` }),
   metricRuleList: ajv.compile({ $ref: `${metricRuleSchema.$id}#/$defs/list` }),
@@ -443,8 +449,8 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     const p9History = action === 'sources/tiktok-comments' || action === 'sources/video-reading';
     const p9Write = action === 'sources/tiktok-comments/selections' || action === 'sources/tiktok-comments/collect' || action === 'sources/video-reading';
     const allowed = mutation
-      ? !runId || action === 'source-pdfs' || action === 'confirm-scope' || action === 'cancel' || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || metaWrite || worldBankWrite || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || insightDefaultModelWrite || crosscheckWrite || personaWrite || Boolean(revisionCancel) || insightReaderBuild || readerDecisionV2 || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions' || tiktokPropose || tiktokReaderBuild || shopeePropose || shopeeReaderBuild
-      : readerListV2 || !action || action === 'pageindex' || action === 'reader-reports' || Boolean(readerHtml) || Boolean(readerPdf) || action === 'report-versions' || action === 'report-attempts' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'sources/meta-page' || Boolean(metaRead) || action === 'sources/world-bank' || Boolean(worldBankRead) || action === 'metric-rule-adoptions' || Boolean(metricRuleRead) || Boolean(membershipReview) || Boolean(membershipRead) || Boolean(insightRead) || Boolean(personaList) || Boolean(personaRead) || Boolean(crosscheckRead) || Boolean(crosscheckAvailability) || Boolean(report) || Boolean(revisionRead) || Boolean(tiktokContextRead) || Boolean(tiktokRead) || tiktokHistory || tiktokConsumptionRead || shopeeSamples || shopeeContextRead || Boolean(shopeeRead) || shopeeHistory || shopeeConsumptionRead;
+      ? !runId || action === 'source-pdfs' || action === 'confirm-scope' || action === 'cancel' || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/metric-capture' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || metaWrite || worldBankWrite || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || insightDefaultModelWrite || crosscheckWrite || personaWrite || Boolean(revisionCancel) || insightReaderBuild || readerDecisionV2 || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions' || tiktokPropose || tiktokReaderBuild || shopeePropose || shopeeReaderBuild
+      : readerListV2 || !action || action === 'pageindex' || action === 'reader-reports' || Boolean(readerHtml) || Boolean(readerPdf) || action === 'report-versions' || action === 'report-attempts' || action === 'sources/metric' || action === 'sources/metric-capture' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'sources/meta-page' || Boolean(metaRead) || action === 'sources/world-bank' || Boolean(worldBankRead) || action === 'metric-rule-adoptions' || Boolean(metricRuleRead) || Boolean(membershipReview) || Boolean(membershipRead) || Boolean(insightRead) || Boolean(personaList) || Boolean(personaRead) || Boolean(crosscheckRead) || Boolean(crosscheckAvailability) || Boolean(report) || Boolean(revisionRead) || Boolean(tiktokContextRead) || Boolean(tiktokRead) || tiktokHistory || tiktokConsumptionRead || shopeeSamples || shopeeContextRead || Boolean(shopeeRead) || shopeeHistory || shopeeConsumptionRead;
     if (!allowed && !(runId && (mutation ? p9Write : p9History || p9Read))) return fail(response, 404, 'not_found', 'Route not found');
     const method = mutation ? 'POST' : 'GET';
     response.setHeader('Allow', mutation ? 'POST, OPTIONS' : 'GET');
@@ -623,6 +629,11 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         if (action === 'sources/metric') {
           const result = await readService.listPreparedMetricSources(workspaceId!, runId);
           if (!validates.metricPreparedList(result)) throw new Error('Prepared source inventory failed validation');
+          return sendApiJson(response, 200, result);
+        }
+        if (action === 'sources/metric-capture') {
+          const result = await readService.listPreparedMetricCaptureSources(workspaceId!, runId);
+          if (!validates.metricCapturePreparedList(result)) throw new Error('Prepared capture inventory failed validation');
           return sendApiJson(response, 200, result);
         }
         if (action === 'sources/supplemental') {
@@ -897,6 +908,29 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         // Preparation is inert: no transcription, wake, or implicit confirmation.
         return sendApiJson(response, receipt.exactRetry ? 200 : 201, receipt);
       }
+      if (action === 'sources/metric-capture') {
+        const contentType = singleHeader(request.headers['content-type']);
+        if (!contentType?.startsWith('multipart/form-data;')) return fail(response, 400, 'bad_request', 'Capture upload requires multipart/form-data');
+        const bytes = await readOwnerBytes(request, MAX_METRIC_CAPTURE_TOTAL_BYTES + 16 * 1024 + 4096);
+        let form: FormData;
+        try { form = await new Request(origin.origin, { method: 'POST', headers: { 'Content-Type': contentType }, body: new Uint8Array(bytes) }).formData(); }
+        catch { return fail(response, 400, 'bad_request', 'Malformed capture upload'); }
+        const fields = [...form.entries()];
+        const metadata = form.get('metadata'); const snapshot = form.get('snapshot'); const manifest = form.get('manifest');
+        if (fields.length !== 3 || typeof metadata !== 'string' || Buffer.byteLength(metadata) > 16 * 1024 || !(snapshot instanceof File) || !(manifest instanceof File))
+          return fail(response, 400, 'bad_request', 'Capture upload requires metadata, snapshot and manifest');
+        if (snapshot.size < 1 || manifest.size < 1 || snapshot.size > MAX_METRIC_CAPTURE_BYTES || manifest.size > MAX_METRIC_CAPTURE_BYTES || snapshot.size + manifest.size > MAX_METRIC_CAPTURE_TOTAL_BYTES)
+          return fail(response, 413, 'payload_too_large', 'Capture files exceed the upload limit');
+        const allowedMedia = ['', 'application/json', 'application/octet-stream'];
+        if (!allowedMedia.includes(snapshot.type) || !allowedMedia.includes(manifest.type)) return fail(response, 400, 'bad_request', 'Capture JSON media type is unsupported');
+        let input: unknown;
+        try { input = JSON.parse(metadata); } catch { return fail(response, 400, 'bad_request', 'Capture metadata must be valid JSON'); }
+        if (!validates.metricCapturePrepare(input)) return fail(response, 400, 'bad_request', 'Capture metadata failed validation');
+        const receipt = await writeService!.prepareMetricCapture(workspaceId!, runId!, input,
+          new Uint8Array(await snapshot.arrayBuffer()), new Uint8Array(await manifest.arrayBuffer()));
+        if (!validates.metricCapturePrepared(receipt)) throw new Error('Prepared capture projection failed validation');
+        return sendApiJson(response, receipt.exactRetry ? 200 : 201, receipt);
+      }
       if (action === 'sources/metric') {
         const contentType = singleHeader(request.headers['content-type']);
         if (!contentType?.startsWith('multipart/form-data;')) return fail(response, 400, 'bad_request', 'Source upload requires multipart/form-data');
@@ -1115,6 +1149,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         return fail(response, 400, 'source_input_rejected', 'Thông tin nguồn không đáp ứng cấu trúc lưu giữ được hỗ trợ.');
       if (error instanceof KalodataVideoRejection) return fail(response, 400, 'source_input_rejected', 'Tệp video không đúng cấu trúc được hỗ trợ.');
       if (error instanceof SupplementalSourceRejection) return fail(response, 400, 'source_input_rejected', 'The source package does not match a supported method profile');
+      if (error instanceof MetricCaptureRejection) return fail(response, error.code === 'CAPTURE_OVERSIZE' ? 413 : 400, 'source_input_rejected', error.code);
       if (error instanceof MetricSourceRejection && !['INVALID_XLSX', 'OFFLINE_READER_UNAVAILABLE_OR_LIMIT'].includes(error.code))
         return fail(response, 400, 'source_input_rejected', 'The workbook does not match a supported source profile');
       if (error instanceof PayloadTooLargeError) return fail(response, 413, 'payload_too_large', 'Request body exceeds the limit');
