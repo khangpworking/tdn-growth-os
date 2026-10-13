@@ -27,6 +27,7 @@ import type { DiscoveryWorkspaceReader } from '../../flow/discovery-workspace-re
 import { AnalysisMetricInputPreparationReader, MetricInputPreparationService } from '../metric-input-preparation-service.js';
 import { MetricPreparationReadinessService } from '../metric-preparation-readiness.js';
 import { calculateMetricScopes, metricLabelFingerprint } from '../metric-scope-calculator.js';
+import { parseVietnameseDisplayNumber } from './metric-web-facts.js';
 import { METRIC_CURRENT_HEADERS, MetricSourceRejection, normalizeMetricWorkbookInput } from '../metric-source-profile.js';
 import { MAX_JSON_ARTIFACT_BYTES, ResearchAutomationIntegrityError, type ScopeSnapshot, type StartSnapshot } from './model.js';
 import { createRetainedSchemaCache } from './retained-schema-cache.js';
@@ -845,7 +846,17 @@ function captureReadiness(_input: MetricRunInput, result: MetricScopeOutput, cat
 
 /** W3 holds the capture's own per-platform totals; the retained row list below only shows its top-N rows. */
 function capturePlatformHeadlines(snapshot: AutomationMetricWebSnapshotV1): CaptureMetricPlatformHeadline[] {
-  const figure = (field: Value): CaptureMetricHeadlineValue => ({ value: field.value === null ? null : String(field.value), precision: field.precision, locator: field.sourcePointer });
+  const figure = (field: Value): CaptureMetricHeadlineValue => {
+    if (field.value !== null && Number.isSafeInteger(field.value))
+      return { value: String(field.value), precision: field.precision, locator: field.sourcePointer };
+    // The capture retains the page's displayed number even when no raw value
+    // was available. Parse only the existing Vietnamese display forms and only
+    // when the parsed unit agrees; otherwise preserve a genuinely missing value.
+    const parsed = parseVietnameseDisplayNumber(field.displayed);
+    const unitAgrees = parsed !== null && Number.isSafeInteger(parsed.value) &&
+      (field.unit === 'PERCENT' ? parsed.unit === 'PERCENT' : parsed.unit !== 'PERCENT');
+    return { value: unitAgrees ? String(parsed!.value) : null, precision: unitAgrees ? 'display_rounded' : field.precision, locator: field.sourcePointer };
+  };
   return snapshot.groups.W3_platformSplit.flatMap(entry => entry.platform === 'shopee' || entry.platform === 'tiktok'
     ? [{ platform: entry.platform, revenue: figure(entry.revenue), units: entry.units === undefined || entry.units === null ? null : figure(entry.units) }]
     : []);

@@ -64,6 +64,14 @@ function concentration(scope: Scope, result: MetricScopeOutput, citations: Repor
     (readerPlainText ? '<p class="lim"><b>Chú thích:</b> Tỷ trọng chỉ phản ánh mức tập trung trong mẫu quan sát; không phải thị phần toàn thị trường.</p>' : '');
 }
 
+/**
+ * A capture name is text copied from the source page, not the report's own
+ * wording. It carries the same `data-quote` marker every other retained source
+ * name uses, so the owned-wording rules judge the report's sentences and never
+ * a source product title. Provider-name and leak rules still scan quoted text.
+ */
+const retainedSourceName = (value: string): string => `<q data-quote>${escape(value)}</q>`;
+
 function legacyMetricMethodSection(snapshot: AutomationMetricMethodSnapshot, sectionId: 'M03' | 'M04', classified: AutomationClassifiedMetricSnapshot | undefined, citations: ReportCitations, neutralCopy = false): string {
 const legacyInteger = (value: string | null): string => value === null ? 'Chưa có số liệu' : BigInt(value).toLocaleString('vi-VN');
 
@@ -218,14 +226,14 @@ function captureMetricMethodSection(snapshot: AutomationMetricMethodSnapshot, se
     return `<p>Doanh thu quan sát: ${headlineValue(figure.revenue, 'VND')}; sản lượng: ${headlineValue(figure.units, '')}. Đây là số của cả tập kết quả theo bộ lọc trên trang.${rows}</p>`;
   };
   const platformRows = capture.platforms.map(({ platform, result }) => {
-    const records = result.input.records.map(row => `<tr><td>${escape(platformLabel(platform))}</td><td>${escape(row.title)}</td><td>${number(row.revenue.value, 'VND')}</td><td>${number(row.units.value)}</td><td>${rowMark(row.revenue.source, citations)}<br>${rowMark(row.units.source, citations)}</td></tr>`);
+    const records = result.input.records.map(row => `<tr><td>${escape(platformLabel(platform))}</td><td>${retainedSourceName(row.title)}</td><td>${number(row.revenue.value, 'VND')}</td><td>${number(row.units.value)}</td><td>${rowMark(row.revenue.source, citations)}<br>${rowMark(row.units.source, citations)}</td></tr>`);
     return `<h3>${escape(platformLabel(platform))}</h3>${platformSummary(platform, result)}${sectionId === 'M03'
       ? table(`${platformLabel(platform)} · số liệu từ results-page capture`, ['Nền tảng', 'Tên theo capture', 'Doanh thu (VND)', 'Sản lượng', 'Nguồn'], records)
       : table(`${platformLabel(platform)} · cơ cấu trong mẫu capture`, ['Nền tảng', 'Tên theo capture', 'Doanh thu (VND)', 'Sản lượng', 'Nguồn'], records)}`;
   }).join('') + capture.capture.platforms.filter(platform => !capture.platforms.some(value => value.platform === platform))
     .map(platform => `<h3>${escape(platformLabel(platform))}</h3>${platformSummary(platform, null)}`).join('');
   const unknown = capture.unattributedRows.length
-    ? `<h3>Phụ lục: dòng không gán được sàn</h3><p>Các dòng sau có mã tổng hợp ổn định (synthetic), được giữ riêng và <strong>không cộng vào Shopee hoặc TikTok Shop</strong>.</p>${table('Dòng không gán được sàn', ['Mã synthetic', 'Tên theo capture', 'Gian hàng', 'Doanh thu (VND)', 'Sản lượng'], capture.unattributedRows.map(row => `<tr><td>${escape(row.listingId)}</td><td>${escape(row.title)}</td><td>${escape(row.shop)}</td><td>${number(row.revenue, 'VND')}</td><td>${number(row.units)}</td></tr>`))}`
+    ? `<h3>Phụ lục: dòng không gán được sàn</h3><p>Các dòng sau có mã tổng hợp ổn định (synthetic), được giữ riêng và <strong>không cộng vào Shopee hoặc TikTok Shop</strong>.</p>${table('Dòng không gán được sàn', ['Mã synthetic', 'Tên theo capture', 'Gian hàng', 'Doanh thu (VND)', 'Sản lượng'], capture.unattributedRows.map(row => `<tr><td>${escape(row.listingId)}</td><td>${retainedSourceName(row.title)}</td><td>${retainedSourceName(row.shop)}</td><td>${number(row.revenue, 'VND')}</td><td>${number(row.units)}</td></tr>`))}`
     : '<p>Không có dòng không gán được sàn.</p>';
   const truncation = capture.capture.truncation;
   const limitation = `Nguồn là <strong>results-page capture</strong>; danh sách chịu giới hạn <strong>top-N</strong> (cap ${truncation.cap}) và giữ ${truncation.rowsRead} dòng trong ${truncation.pagesRead} trang${truncation.totalShown === null ? '' : ` trên ${truncation.totalShown} dòng hiển thị`}.${truncation.truncated ? ' Phần còn lại không được suy ra.' : ''}`;
