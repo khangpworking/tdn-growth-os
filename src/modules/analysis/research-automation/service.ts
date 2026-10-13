@@ -3529,7 +3529,9 @@ export class ResearchAutomationService {
         assertCaptureLineage(shifted, captures.map(value => value.row));
         webStep = shifted;
       } catch {
-        webStep = { ...invalidProviderStep(runId, stepId), limitations: [{ code: 'PROVIDER_OUTPUT_INVALID', provider, message: message('PROVIDER_OUTPUT_INVALID') }] };
+        webStep = { ...invalidProviderStep(runId, stepId),
+          coverage: [{ provider, dataset: 'web_discovery_current', state: 'FAILED', observedStartDate: null, observedEndDate: null, truncated: false, note: null }],
+          limitations: [{ code: 'PROVIDER_OUTPUT_INVALID', provider, message: message('PROVIDER_OUTPUT_INVALID') }] };
       }
     } else if (web) {
       webStep = { ...invalidProviderStep(runId, stepId),
@@ -3943,6 +3945,10 @@ export class ResearchAutomationService {
       previousPairId: request.previousPairId, scopeSha256: run.scopeSha, metric: null };
     const input: MarketPresentationInput = { metric: metric?.result ?? null, rows: [], unitSpec: null };
     const retained: { sha256: string; bytes: Buffer }[] = [];
+    // A results-page capture has no workbook to re-read; the presentation layer
+    // is refused in plain words instead of failing as an integrity break.
+    if (metric?.capture)
+      throw new ResearchAutomationValidationError('Market presentation does not support a results-page Metric capture yet; the existing Market report stays usable.');
     if (metric) {
       const source = await this.#boundedSourceReader().readFinalizedSourcePackage(metric.originalSourcePackage.packageId,
         { maxFileBytes: MAX_METRIC_UPLOAD_BYTES, maxTotalBytes: MAX_METRIC_UPLOAD_BYTES + 64 * 1024 });

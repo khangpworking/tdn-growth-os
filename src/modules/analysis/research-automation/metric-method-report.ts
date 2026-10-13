@@ -194,7 +194,8 @@ function captureMetricMethodSection(snapshot: AutomationMetricMethodSnapshot, se
     return `<h3>${escape(platformLabel(platform))}</h3><p>Doanh thu quan sát: <strong>${number(observed.revenue.value, 'VND')}</strong>; sản lượng: <strong>${number(observed.units.value)}</strong>; ${observed.listingCount} dòng, ${observed.shopCount} gian hàng. ${source(result)}</p>${sectionId === 'M03'
       ? table(`${platformLabel(platform)} · số liệu từ results-page capture`, ['Nền tảng', 'Tên theo capture', 'Doanh thu (VND)', 'Sản lượng', 'Nguồn'], records)
       : table(`${platformLabel(platform)} · cơ cấu trong mẫu capture`, ['Nền tảng', 'Tên theo capture', 'Doanh thu (VND)', 'Sản lượng', 'Nguồn'], records)}`;
-  }).join('');
+  }).join('') + capture.capture.platforms.filter(platform => !capture.platforms.some(value => value.platform === platform))
+    .map(platform => `<h3>${escape(platformLabel(platform))}</h3><p class="warning">${escape(platformLabel(platform))}: <strong>không có số liệu</strong> trong lượt này. Capture có chọn nền tảng này nhưng không có dòng nào gán được cho nền tảng; báo cáo không suy ra và không ghi thành 0.</p>`).join('');
   const unknown = capture.unattributedRows.length
     ? `<h3>Phụ lục: dòng không gán được sàn</h3><p>Các dòng sau có mã tổng hợp ổn định (synthetic), được giữ riêng và <strong>không cộng vào Shopee hoặc TikTok Shop</strong>.</p>${table('Dòng không gán được sàn', ['Mã synthetic', 'Tên theo capture', 'Gian hàng', 'Doanh thu (VND)', 'Sản lượng'], capture.unattributedRows.map(row => `<tr><td>${escape(row.listingId)}</td><td>${escape(row.title)}</td><td>${escape(row.shop)}</td><td>${number(row.revenue, 'VND')}</td><td>${number(row.units)}</td></tr>`))}`
     : '<p>Không có dòng không gán được sàn.</p>';
