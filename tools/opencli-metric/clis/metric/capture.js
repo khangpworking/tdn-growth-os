@@ -85,6 +85,8 @@ const INLINE_TOKEN = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi;
 const JWT_TOKEN = /^[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}$/;
 const HEX_TOKEN = /^[a-f0-9]{32,}$/i;
 const BASE64_TOKEN = /^(?:[A-Za-z0-9+/]{40,}={0,2})$/;
+const IDENTITY_RESPONSE_PATH = /\/(?:users|profile|paid)(?:\/|$)/i;
+const IDENTITY_HTML_MARKER = /account|avatar|profile|user(?:[-_: ]?(?:info|profile|menu|widget))/i;
 
 function normalizedKey(key) {
   return String(key ?? '').replace(/[^a-z0-9]/gi, '').toLowerCase();
@@ -104,8 +106,24 @@ function isTokenLike(value) {
   return /^Bearer\s+/i.test(text) || JWT_TOKEN.test(text) || HEX_TOKEN.test(text) || BASE64_TOKEN.test(text);
 }
 
-function sanitizeText(value) {
-  return String(value)
+function identityValuesFromHtml(html) {
+  const source = String(html ?? '');
+  const values = [];
+  const nodePattern = /<([a-z][\w:-]*)\b([^>]*)>([\s\S]*?)<\/\1\s*>/gi;
+  for (const match of source.matchAll(nodePattern)) {
+    const marker = `${match[1]} ${match[2]}`;
+    if (!IDENTITY_HTML_MARKER.test(marker)) continue;
+    const text = String(match[3] || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    if (text.length >= 3 && text.length <= 240) values.push(text);
+    for (const attribute of String(match[2] || '').matchAll(/([a-z][\w:-]*)\s*=\s*(["'])(.*?)\2/gi)) {
+      if (isIdentityKey(attribute[1]) && attribute[3].length >= 3 && attribute[3].length <= 240) values.push(attribute[3]);
+    }
+  }
+  return [...new Set(values)].sort((left, right) => right.length - left.length);
+}
+
+function sanitizeText(value, identityValues = []) {
+  let output = String(value)
     .replace(INLINE_TOKEN, '[REDACTED_TOKEN]')
     .replace(/\b[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g, '[REDACTED_TOKEN]')
     .replace(/\b[a-f0-9]{32,}\b/gi, '[REDACTED_TOKEN]')
@@ -113,22 +131,32 @@ function sanitizeText(value) {
     .replace(/([?&](?:access[_-]?token|id[_-]?token|token|session|authorization)=)[^&#\s"']+/gi, '$1[REDACTED_TOKEN]')
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[REDACTED_EMAIL]')
     .replace(/(?:\+?84|0)\d[\d .-]{7,}\d/g, '[REDACTED_PHONE]');
+  for (const identity of identityValues) {
+    const escaped = String(identity).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (escaped) output = output.replace(new RegExp(escaped, 'gi'), '[REDACTED_IDENTITY]');
+  }
+  return output;
 }
 
-function sanitizeValue(value, key = null) {
+function sanitizeValue(value, key = null, identityValues = []) {
   if (key !== null && (isIdentityKey(key) || FORBIDDEN_KEY.test(String(key)))) return OMIT;
   if (typeof value === 'string') {
     if (isTokenLike(value)) return OMIT;
-    return sanitizeText(value);
+    return sanitizeText(value, identityValues);
   }
-  if (Array.isArray(value)) return value.map(child => sanitizeValue(child)).filter(child => child !== OMIT);
+  if (Array.isArray(value)) return value.map(child => sanitizeValue(child, null, identityValues)).filter(child => child !== OMIT);
   if (!value || typeof value !== 'object') return value;
   const output = {};
   for (const [childKey, child] of Object.entries(value)) {
-    const sanitized = sanitizeValue(child, childKey);
+    const sanitized = sanitizeValue(child, childKey, identityValues);
     if (sanitized !== OMIT) output[childKey] = sanitized;
   }
   return output;
+}
+
+export function sanitizeDebugObject(value) {
+  const sanitized = sanitizeValue(value);
+  return sanitized === OMIT ? {} : sanitized;
 }
 
 function htmlOpeningTag(token) {
@@ -143,27 +171,28 @@ function htmlAttributes(token) {
 function isSensitiveHtmlContainer(token, tag) {
   const attributes = htmlAttributes(token).toLowerCase();
   const structuralTag = new Set(['html', 'head', 'body', 'main', 'section', 'article', 'div']).has(tag);
-  return tag === 'script' || tag === 'style' || tag === 'meta' || tag === 'header' || tag === 'nav'
-    || (!structuralTag && /(?:account|header|navigation|user[-_ ]?info|user[-_ ]?profile|logged[-_ ]?in|logout|sign[-_ ]?out|avatar|profile|login)/i.test(attributes));
+  return tag === 'header' || (!structuralTag && IDENTITY_HTML_MARKER.test(attributes));
 }
 
-function sanitizeHtmlTag(token) {
-  if (/^<!--/.test(token) || /^<\s*meta\b/i.test(token)) return '';
+function sanitizeHtmlTag(token, identityValues = []) {
+  if (/^<!--/.test(token)) return '';
   return token
-    .replace(/\s+(?:data-metric-json|data-state|data-initial-state|data-props)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
     .replace(/\s+([a-z][\w:-]*)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, (_whole, name, rawValue) => {
       const dataName = name.replace(/^data[-_:]?/i, '');
       if (isIdentityKey(name) || isIdentityKey(dataName) || /token|secret|authorization|cookie|session|credential|password/i.test(name)) return '';
       const quote = rawValue[0] === '"' || rawValue[0] === "'" ? rawValue[0] : '';
       const value = quote ? rawValue.slice(1, -1) : rawValue;
       if (isTokenLike(value)) return '';
-      return ` ${name}=${quote}${sanitizeText(value)}${quote}`;
+      return ` ${name}=${quote}${sanitizeText(value, identityValues)}${quote}`;
     })
-    .replace(INLINE_TOKEN, '[REDACTED_TOKEN]');
+    .replace(INLINE_TOKEN, '[REDACTED_TOKEN]')
+    .replace(/\b[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g, '[REDACTED_TOKEN]');
 }
 
-export function sanitizeResultsHtml(html) {
+export function sanitizeResultsHtml(html, providedIdentityValues = []) {
   const source = String(html ?? '');
+  const identityValues = [...new Set([...(providedIdentityValues || []), ...identityValuesFromHtml(source)])]
+    .filter(value => String(value).length >= 3).sort((left, right) => String(right).length - String(left).length);
   const tokens = /<!--[\s\S]*?-->|<\/?[^>]+>/g;
   const voidTags = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
   const stack = [];
@@ -171,7 +200,7 @@ export function sanitizeResultsHtml(html) {
   let cursor = 0;
   const dropped = () => stack.some(entry => entry.drop);
   for (const match of source.matchAll(tokens)) {
-    if (!dropped()) output += sanitizeText(source.slice(cursor, match.index));
+    if (!dropped()) output += sanitizeText(source.slice(cursor, match.index), identityValues);
     const token = match[0];
     const closing = /^<\s*\//.test(token);
     const tag = htmlOpeningTag(token);
@@ -189,26 +218,33 @@ export function sanitizeResultsHtml(html) {
     }
     const selfClosing = /\/\s*>$/.test(token) || voidTags.has(tag);
     const drop = dropped() || isSensitiveHtmlContainer(token, tag);
-    if (!drop && !/^<\s*meta\b/i.test(token)) output += sanitizeHtmlTag(token);
+    if (!drop) output += sanitizeHtmlTag(token, identityValues);
     if (!selfClosing) stack.push({ tag, drop });
     cursor = match.index + token.length;
   }
-  if (!dropped()) output += sanitizeText(source.slice(cursor));
+  if (!dropped()) output += sanitizeText(source.slice(cursor), identityValues);
   return output;
 }
 
 export function sanitizeDomSnapshots(domSnapshots) {
+  const sourceSnapshots = Array.isArray(domSnapshots) ? domSnapshots : [domSnapshots];
+  const htmlValues = sourceSnapshots.flatMap(snapshot => {
+    const values = [];
+    if (snapshot?.html) values.push(...identityValuesFromHtml(snapshot.html));
+    for (const html of Object.values(snapshot?.regionsHtml || {})) values.push(...identityValuesFromHtml(html));
+    return values;
+  });
+  const identityValues = [...new Set(htmlValues)].sort((left, right) => String(right).length - String(left).length);
   const rewriteHtml = (value, key = null) => {
-    if (key === 'html') return sanitizeResultsHtml(value);
+    if (key === 'html') return sanitizeResultsHtml(value, identityValues);
     if (key === 'regionsHtml' && value && typeof value === 'object') {
-      return Object.fromEntries(Object.entries(value).map(([name, html]) => [name, sanitizeResultsHtml(html)]));
+      return Object.fromEntries(Object.entries(value).map(([name, html]) => [name, sanitizeResultsHtml(html, identityValues)]));
     }
     if (Array.isArray(value)) return value.map(child => rewriteHtml(child));
     if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([childKey, child]) => [childKey, rewriteHtml(child, childKey)]));
     return value;
   };
-  const snapshots = Array.isArray(domSnapshots) ? domSnapshots : [domSnapshots];
-  return snapshots.map(snapshot => rewriteHtml(sanitizeValue(snapshot))).filter(snapshot => snapshot !== OMIT);
+  return sourceSnapshots.map(snapshot => rewriteHtml(sanitizeValue(snapshot, null, identityValues))).filter(snapshot => snapshot !== OMIT);
 }
 
 function periodOf(raw, fallbackPeriod) {
@@ -274,6 +310,126 @@ function responsePath(entry, index) {
   try { return new URL(raw, 'https://metric.vn').pathname; } catch { return raw.split('?')[0] || `/responses/${index}`; }
 }
 
+function responseOrder(entry, index) {
+  return Number.isSafeInteger(entry?.responseOrder) ? entry.responseOrder : index;
+}
+
+function responseHasPath(entry, path) {
+  return responsePath(entry, 0).replace(/\/$/, '') === path.replace(/\/$/, '');
+}
+
+function responseBodyForGate(entry) {
+  return rawBody(entry);
+}
+
+function platformName(value) {
+  const normalized = clean(value).toLowerCase();
+  if (normalized === 'tiktok shop' || normalized === 'tiktok') return 'tiktok';
+  if (normalized === 'shopee') return 'shopee';
+  return normalized;
+}
+
+function platformListRows(responses) {
+  const entry = (Array.isArray(responses) ? responses : []).find(response => responseHasPath(response, '/market/search_basic'));
+  const rows = responseBodyForGate(entry)?.data?.platforms;
+  return Array.isArray(rows) ? rows : [];
+}
+
+function platformLabelFromRow(row) {
+  return platformName(row?.name || row?.label || row?.platform_name || row?.platformName || row?.platform);
+}
+
+export function buildMetricPlatformMap(responses, observedLabels = []) {
+  const rows = platformListRows(responses);
+  const byId = {};
+  const labels = Array.isArray(observedLabels) ? observedLabels.map(platformName).filter(Boolean) : [];
+  rows.forEach((row, index) => {
+    const id = Number(row?.platform_id);
+    if (!Number.isSafeInteger(id)) return;
+    const explicit = platformLabelFromRow(row);
+    const observed = labels.length === rows.length ? labels[index] : '';
+    const label = explicit || observed;
+    if (label) byId[id] = label;
+  });
+  return {
+    byId,
+    labels,
+    platformListIds: rows.map(row => Number(row?.platform_id)).filter(Number.isSafeInteger),
+    platformListResponseOrder: (Array.isArray(responses) ? responses : []).findIndex(response => responseHasPath(response, '/market/search_basic')),
+    source: Object.keys(byId).length ? (rows.some(row => platformLabelFromRow(row)) ? 'search_basic_named_platforms' : 'search_basic_order_with_live_form_labels') : 'unresolved',
+  };
+}
+
+function platformMapById(platformMap) {
+  if (platformMap?.byId && typeof platformMap.byId === 'object') return platformMap.byId;
+  return platformMap && typeof platformMap === 'object' ? platformMap : DEFAULT_PLATFORM_ID_MAP;
+}
+
+function searchBasicPlatformIds(body) {
+  const aggregations = Array.isArray(body?.data?.search_basic?.aggregations) ? body.data.search_basic.aggregations : [];
+  return [...new Set(aggregations.flatMap(item => Object.values(item?.entity?.platforms || {})
+    .map(platform => Number(platform?.platform_id)).filter(Number.isSafeInteger)))];
+}
+
+function platformSetForIds(ids, platformMap) {
+  const byId = platformMapById(platformMap);
+  return [...new Set(ids.map(id => byId[id] || `metric-id:${id}`))].sort();
+}
+
+function gateFailure(details) {
+  const error = new Error('METRIC_SEARCH_NOT_APPLIED: Metric search-applied network gate failed');
+  error.code = 'METRIC_SEARCH_NOT_APPLIED';
+  error.details = details;
+  throw error;
+}
+
+export function assertSearchAppliedGate({ responses = [], spec, baselineResponseOrder = -1, platformMap = null } = {}) {
+  const expectedPlatforms = [...new Set((spec?.platforms || []).map(platformName).filter(Boolean))].sort();
+  const ordered = (Array.isArray(responses) ? responses : [])
+    .map((response, index) => ({ response, order: responseOrder(response, index), path: responsePath(response, index) }));
+  const afterClick = ordered.filter(item => item.order > baselineResponseOrder);
+  const searchResponses = afterClick.filter(item => item.path.replace(/\/$/, '') === '/v2/market/analytics/search-basic');
+  const seenPlatformSets = searchResponses.map(item => {
+    const ids = searchBasicPlatformIds(responseBodyForGate(item.response));
+    return { responseOrder: item.order, platformIds: ids, platforms: platformSetForIds(ids, platformMap) };
+  });
+  if (!searchResponses.length) {
+    return gateFailure({
+      missingResponses: ['search-basic'], expectedPlatforms, baselineResponseOrder,
+      platformSetsSeen: seenPlatformSets,
+    });
+  }
+  const search = searchResponses[0];
+  const ids = searchBasicPlatformIds(responseBodyForGate(search.response));
+  const platforms = platformSetForIds(ids, platformMap);
+  if (JSON.stringify(platforms) !== JSON.stringify(expectedPlatforms)) {
+    return gateFailure({
+      missingResponses: [], expectedPlatforms, baselineResponseOrder,
+      searchBasicResponseOrder: search.order, searchBasicPlatformIds: ids,
+      platformSetsSeen: seenPlatformSets,
+    });
+  }
+  const products = afterClick.find(item => item.order > search.order && item.path.replace(/\/$/, '') === '/v2/market/analytics/products');
+  const shops = afterClick.find(item => item.order > search.order && item.path.replace(/\/$/, '') === '/v2/market/analytics/shops');
+  const missingResponses = [];
+  if (!products) missingResponses.push('products');
+  if (!shops) missingResponses.push('shops');
+  if (missingResponses.length) {
+    return gateFailure({
+      missingResponses, expectedPlatforms, baselineResponseOrder,
+      searchBasicResponseOrder: search.order, searchBasicPlatformIds: ids,
+      platformSetsSeen: seenPlatformSets,
+      productsResponseOrders: products ? [products.order] : [], shopsResponseOrders: shops ? [shops.order] : [],
+    });
+  }
+  return {
+    applied: true, baselineResponseOrder, searchBasicResponseOrder: search.order,
+    searchBasicPlatformIds: ids, platformSet: platforms,
+    productsResponseOrders: [products.order], shopsResponseOrders: [shops.order],
+    platformSetsSeen: seenPlatformSets,
+  };
+}
+
 function explicitPlatform(value) {
   const platform = platformOf(value, null);
   return platform === 'shopee' || platform === 'tiktok' ? platform : null;
@@ -315,21 +471,21 @@ function flattenPayload(body, sourcePointer, platformFallback = 'all') {
   return [{ payload: body, region, platform: platformOf(body.platform, platformFallback), sourcePointer }];
 }
 
-function metricPlatformId(value) {
+const DEFAULT_PLATFORM_ID_MAP = Object.freeze({ 1: 'shopee', 2: 'tiktok' });
+
+function metricPlatformId(value, platformIdMap = DEFAULT_PLATFORM_ID_MAP) {
   const id = Number(value);
-  if (id === 1) return 'shopee';
-  if (id === 2) return 'tiktok';
-  return null;
+  return platformIdMap?.[id] || null;
 }
 
-function metricApiPayloads(body, sourcePointer) {
+function metricApiPayloads(body, sourcePointer, platformIdMap) {
   const data = body?.data;
   const searchBasic = data?.search_basic;
   const aggregations = Array.isArray(searchBasic?.aggregations) ? searchBasic.aggregations : [];
   const byAggregation = new Map(aggregations.map(item => [clean(item?.aggregation).toUpperCase(), item]));
   const payloads = [];
   const platformRows = name => Object.values(byAggregation.get(name)?.entity?.platforms || {})
-    .map(item => ({ platform: metricPlatformId(item?.platform_id), value: item?.value }))
+    .map(item => ({ platform: metricPlatformId(item?.platform_id, platformIdMap), value: item?.value }))
     .filter(item => item.platform && item.value != null);
   const oneValue = name => {
     const rows = platformRows(name);
@@ -361,7 +517,7 @@ function metricApiPayloads(body, sourcePointer) {
   const isGroupsResponse = /\/analytics\/groups\/?$/i.test(sourcePointer);
   const products = isProductsResponse && Array.isArray(data?.products) ? data.products : [];
   if (products.length) payloads.push({ region: 'top-products', items: products.map(product => ({
-    name: product.product_name, shop: product.shop_name, platform: metricPlatformId(product.platform_id) || 'unknown',
+    name: product.product_name, shop: product.shop_name, platform: metricPlatformId(product.platform_id, platformIdMap) || 'unknown',
     price: product.price, minPrice: product.price_min, maxPrice: product.price_max,
     revenue: product.revenue_custom ?? product.revenue, units: product.order_custom ?? product.order_count,
     createdDate: product.platform_created_at, category: product.final_categories?.at?.(-1)?.name || product.categories?.at?.(-1)?.name,
@@ -369,7 +525,7 @@ function metricApiPayloads(body, sourcePointer) {
   const shops = isShopsResponse && Array.isArray(data?.shops) ? data.shops : [];
   if (shops.length) payloads.push({ region: 'top-shops', items: shops.map(shop => ({
     rankNew: shop.ranking, rankOld: shop.previous_ranking, shop: shop.shop_name,
-    platform: metricPlatformId(shop.platform_id) || 'unknown', listings: shop.product_total,
+    platform: metricPlatformId(shop.platform_id, platformIdMap) || 'unknown', listings: shop.product_total,
     revenue: shop.revenue_custom_sum, units: shop.order_custom_sum, price: shop.avg_price,
   })) });
   const groups = isGroupsResponse && Array.isArray(data?.groups) ? data.groups : [];
@@ -380,7 +536,7 @@ function metricApiPayloads(body, sourcePointer) {
   return payloads.map((payload, index) => ({ payload, region: payload.region, platform: 'all', sourcePointer: `${sourcePointer}/derived/${payload.region}/${index}` }));
 }
 
-function payloadEntries(responses, domSnapshots) {
+function payloadEntries(responses, domSnapshots, platformIdMap) {
   const entries = [];
   for (const [index, response] of (Array.isArray(responses) ? responses : []).entries()) {
     const body = rawBody(response);
@@ -390,7 +546,7 @@ function payloadEntries(responses, domSnapshots) {
       ? platformOf(body.platform, 'all')
       : requestPlatform(response);
     entries.push(...flattenPayload(body, `response:${responsePath(response, index)}`, responsePlatform));
-    entries.push(...metricApiPayloads(body, `response:${responsePath(response, index)}`));
+    entries.push(...metricApiPayloads(body, `response:${responsePath(response, index)}`, platformIdMap));
   }
   const doms = Array.isArray(domSnapshots) ? domSnapshots : [domSnapshots];
   for (const [index, dom] of doms.entries()) {
@@ -649,16 +805,21 @@ function captureSourceMap(entries, scope) {
 
 export function sanitizeNetworkResponses(responses) {
   return (Array.isArray(responses) ? responses : []).map((response, index) => {
+    const urlPath = responsePath(response, index);
+    const order = responseOrder(response, index);
+    if (IDENTITY_RESPONSE_PATH.test(urlPath)) {
+      return { urlPath, responseOrder: order, dropped: 'identity_response_body' };
+    }
     const body = rawBody(response);
-    const cleanResponse = { urlPath: responsePath(response, index), status: response?.status ?? null, body: sanitizeValue(body) };
+    const cleanResponse = { urlPath, responseOrder: order, status: response?.status ?? null, body: sanitizeValue(body) };
     const requestLabel = requestPlatform(response);
     if (requestLabel !== 'all') cleanResponse.request = { params: { platform: requestLabel } };
     return response?.viewPlatform ? { observedInView: response.viewPlatform, ...cleanResponse } : cleanResponse;
-  }).filter(response => response.body !== null && response.body !== OMIT);
+  }).filter(response => response.dropped || (response.body !== null && response.body !== OMIT));
 }
 
-export function extractResultsPage({ responses = [], dom = null, scope, captureId, specDigest, capturedAt, pageCap = 100 }) {
-  const entries = payloadEntries(sanitizeNetworkResponses(responses), sanitizeDomSnapshots(dom));
+export function extractResultsPage({ responses = [], dom = null, scope, captureId, specDigest, capturedAt, pageCap = 100, platformIdMap = null }) {
+  const entries = payloadEntries(sanitizeNetworkResponses(responses), sanitizeDomSnapshots(dom), platformMapById(platformIdMap));
   const normalizedScope = scopeFor(scope);
   const groups = {
     W2_kpi: kpiGroup(entries, normalizedScope), W3_platformSplit: platformSplitGroup(entries, normalizedScope),

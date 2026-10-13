@@ -23,7 +23,7 @@ adapter installed from the same repository bytes. The executor verifies
 `tools/opencli-metric/adapter-manifest.json` before each run. `whoami` reads
 only login, captcha, page-state and any displayed analysis lookup balance.
 The current manifest SHA-256 is
-`f835f0a3a8ef8d879825e80a75e40169e410a6340bebbec467175d2af5597142`.
+`deabe2a25bfc85c16be3c435b921d1a0947ede573f942f36c067627d71fa5b3e`.
 
 Install or reinstall the adapter from the checked-out repository bytes with:
 
@@ -40,6 +40,22 @@ scope, waits for the result page, and checks the page's applied filters. A
 missing platform, keyword, period or category mismatch fails closed. A second
 search is never attempted by the capture command.
 
+The submit control is resolved only inside the search form/container that owns
+the keyword input and platform chips. The adapter records its tag, classes,
+text and form-relative DOM path, and refuses to click unless exactly one
+visible candidate exists. Page-wide text matches are not a submit selector.
+
+After the click, capture records the click time and monotonically ordered
+network responses. Before any result read, pagination or toggle, the hard
+search-applied gate requires a new `/v2/market/analytics/search-basic/`
+response, a platform-id set equal to the requested platforms, and subsequent
+`/v2/market/analytics/products/` and `/shops/` responses. Metric platform IDs
+are mapped from `/market/search_basic` and the live platform labels; they are
+not guessed. A missing response or wrong set returns
+`METRIC_SEARCH_NOT_APPLIED` with the observed platform sets and response
+orders. Replay applies the same gate using the saved click baseline and
+response order.
+
 For a form-only verification, pass `--dry-run`:
 
 ```text
@@ -51,9 +67,12 @@ opencli metric capture \
 
 Dry-run opens and closes its own ephemeral tab, applies the same native-click,
 trusted-key and checkbox paths as capture, then runs the same pre-submit
-read-back gate. It returns one JSON result with `outcome`, `startState`,
-`appliedReadBack` and `mismatches`. `startState` records platforms, keywords,
-period and category before any change. A successful result is
+read-back gate. It also reports the form-scoped submit descriptor and the
+count of visible page-wide `Analytics` elements as ambiguity evidence. It
+returns one JSON result with `outcome`, `startState`, `appliedReadBack`,
+`submitDescriptor`, `pageWideAnalyticsCount` and `mismatches`.
+`startState` records platforms, keywords, period and category before any
+change. A successful result is
 `DRY_RUN_OK`; failure results use the adapter error code. The dry-run branch
 returns before the submit/Search-click function and does not start network
 capture or require an output directory.
@@ -124,13 +143,17 @@ adapter, and no account, settings or authentication action is performed.
 ## Debug and replay
 
 Capture creates a `debug/` directory under the requested output directory before
-results validation or extraction. It records sanitized per-page DOM snapshots,
-per-region HTML, the sanitized network input and one masked full-page screenshot.
-The header, navigation and account-like areas are removed from saved HTML and
-masked in the screenshot. The debug directory is diagnostic evidence only and
-is never included in the published archive. If a later gate, selector or
-archive step fails, the error includes the debug directory so the page can be
-investigated without spending another lookup.
+results validation or extraction. Each snapshot stores the full document
+`outerHTML`, sanitized per-region HTML, the sanitized network input and one
+masked full-page screenshot when available. Only header/account/avatar/profile
+nodes and inline account-identity values are removed from HTML; the app root,
+search form and result regions remain. Response bodies for `/users/`,
+`/profile/` and `/paid/` are never stored; only their path and the fact that
+the body was dropped are retained. Every saved string passes identity/token
+redaction. The debug directory is diagnostic evidence only and is never
+included in the published archive. If a later gate, selector or archive step
+fails, the error includes the debug directory so the page can be investigated
+without spending another lookup.
 
 Replay uses the same extraction and archive builder against those saved files;
 it does not open a tab or use the network:

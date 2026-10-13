@@ -70,7 +70,7 @@ test('results extractor prefers response JSON, captures both platforms, and reco
   assert.equal(result.sourceMap.W15.source, 'dom');
   assert.equal(validateMetricWebSnapshot(result.snapshot), result.snapshot);
   const raw = sanitizeNetworkResponses([{ url: 'https://metric.vn/api/synthetic?token=secret', status: 200, body: { safe: 1, accessToken: 'must-not-survive' } }]);
-  assert.deepEqual(raw, [{ urlPath: '/api/synthetic', status: 200, body: { safe: 1 } }]);
+  assert.deepEqual(raw, [{ urlPath: '/api/synthetic', responseOrder: 0, status: 200, body: { safe: 1 } }]);
 });
 
 test('unlabelled monthly rows stay all and DOM fills a platform missing from responses', async () => {
@@ -155,8 +155,62 @@ test('archive sanitization removes identity and token-like values from every sav
   for (const marker of ['Synthetic logged-in account', 'synthetic-owner@example.test', '+84901234567', 'Synthetic owner nickname', 'https://example.test/avatar.png', 'synthetic-user-id', 'Synthetic shop owner', 'synthetic-secret-token', 'synthetichead.syntheticpayload.syntheticsignature', '0123456789abcdef0123456789abcdef0123456789abcdef']) assert.doesNotMatch(serialized, new RegExp(marker.replace(/[+?.]/g, '\\$&')));
   assert.match(JSON.stringify(clean), /"business"/);
   const html = sanitizeResultsHtml('<html><head><meta name="identity" content="synthetic-owner@example.test"><script>Bearer synthetic-secret-token</script></head><body><header class="account-area">Synthetic logged-in account</header><main data-state="identity-state"><div data-metric-region="overview">Revenue 8</div></main></body></html>');
-  assert.doesNotMatch(html, /synthetic-owner|synthetic-secret|logged-in account|identity-state|<script|<meta|account-area/i);
+  assert.doesNotMatch(html, /synthetic-owner|synthetic-secret|logged-in account|account-area/i);
+  assert.match(html, /<meta|<script|data-state="identity-state"/i);
   assert.match(html, /Revenue 8/);
+});
+
+test('search submit inspection is scoped to the form and ignores the sidebar Analytics link', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const inspection = withMetricDom(`
+    <aside><a href="/analytics">Analytics</a></aside>
+    <div id="QuerySearchBuilder">
+      <div class="ant-space-item"><label>Platform</label><div class="ant-select"><span>Shopee</span></div></div>
+      <div class="ant-space-item"><label>Keywords</label><div class="ant-select ant-select-multiple"><input /></div></div>
+      <button class="ant-btn ant-btn-primary">Analytics</button>
+    </div>
+  `, () => adapter.__test__.describeSearchSubmit());
+  assert.equal(inspection.candidateCount, 1);
+  assert.equal(inspection.pageWideAnalyticsCount, 2);
+  assert.deepEqual(inspection.descriptor, {
+    candidateIndex: 0,
+    tag: 'button',
+    classes: 'ant-btn ant-btn-primary',
+    text: 'Analytics',
+    domPath: 'button:nth-child(3)',
+    clickSelector: '#QuerySearchBuilder button:nth-child(3)',
+  });
+  assert.throws(() => adapter.__test__.assertSearchSubmitInspection({ ...inspection, candidateCount: 2, descriptor: null }), /METRIC_UI_CHANGED/);
+});
+
+test('sanitized full DOM keeps the app form and results while dropping account nodes', async () => {
+  const { sanitizeResultsHtml } = await import(captureUrl.href);
+  const clean = sanitizeResultsHtml('<header class="account-area">Synthetic owner</header><nav><a>Analytics</a></nav><main id="app"><form id="QuerySearchBuilder"><input name="keyword" /></form><section data-metric-region="overview">Revenue 8</section></main>');
+  assert.match(clean, /QuerySearchBuilder/);
+  assert.match(clean, /data-metric-region="overview"/);
+  assert.match(clean, /Revenue 8/);
+  assert.match(clean, />Analytics</);
+  assert.doesNotMatch(clean, /Synthetic owner|account-area/);
+});
+
+test('search-applied gate distinguishes missing search, wrong platforms, missing result endpoints, and success', async () => {
+  const { assertSearchAppliedGate, buildMetricPlatformMap } = await import(captureUrl.href);
+  const spec = { platforms: ['shopee', 'tiktok'] };
+  const platformList = { responseOrder: 0, urlPath: '/market/search_basic', body: { data: { platforms: [{ platform_id: 1 }, { platform_id: 2 }, { platform_id: 3 }, { platform_id: 8 }] } } };
+  const map = buildMetricPlatformMap([platformList], ['Shopee', 'Lazada', 'Tiki', 'Tiktok']);
+  const body = (ids: number[]) => ({ data: { search_basic: { aggregations: [{ aggregation: 'GATE', entity: { platforms: Object.fromEntries(ids.map((id: number, index: number) => [String(index), { platform_id: id, value: index + 1 }])) } }] } } });
+  const products = { responseOrder: 3, urlPath: '/v2/market/analytics/products/', body: { data: { products: [] } } };
+  const shops = { responseOrder: 4, urlPath: '/v2/market/analytics/shops/', body: { data: { shops: [] } } };
+  assert.throws(() => assertSearchAppliedGate({ responses: [platformList, products, shops], spec, baselineResponseOrder: 0, platformMap: map }), (error: any) => error.code === 'METRIC_SEARCH_NOT_APPLIED' && error.details.missingResponses.includes('search-basic'));
+  assert.throws(() => assertSearchAppliedGate({ responses: [platformList, { responseOrder: 2, urlPath: '/v2/market/analytics/search-basic/', body: body([1]) }, products, shops], spec, baselineResponseOrder: 0, platformMap: map }), (error: any) => error.code === 'METRIC_SEARCH_NOT_APPLIED' && error.details.platformSetsSeen[0].platforms.length === 1);
+  assert.throws(() => assertSearchAppliedGate({ responses: [platformList, { responseOrder: 2, urlPath: '/v2/market/analytics/search-basic/', body: body([1, 8]) }, shops], spec, baselineResponseOrder: 0, platformMap: map }), (error: any) => error.code === 'METRIC_SEARCH_NOT_APPLIED' && error.details.missingResponses.includes('products'));
+  const applied = assertSearchAppliedGate({ responses: [platformList, { responseOrder: 2, urlPath: '/v2/market/analytics/search-basic/', body: body([1, 8]) }, products, shops], spec, baselineResponseOrder: 0, platformMap: map });
+  assert.equal(applied.applied, true);
+  assert.deepEqual(applied.platformSet, ['shopee', 'tiktok']);
+  assert.equal(applied.searchBasicResponseOrder, 2);
+  assert.deepEqual(applied.productsResponseOrders, [3]);
+  assert.deepEqual(applied.shopsResponseOrders, [4]);
 });
 
 test('adapter parser fails closed for domain, login, captcha, filter and row cap', async () => {
@@ -638,8 +692,16 @@ const commandSpec = {
   period: { startDate: '2025-09-15', endDate: '2026-09-20' }, category: null,
 };
 
+const syntheticSearchGateResponses = [
+  { urlPath: '/market/search_basic', body: { data: { platforms: [{ platform_id: 1 }, { platform_id: 2 }, { platform_id: 3 }, { platform_id: 8 }] } } },
+  { urlPath: '/v2/market/analytics/search-basic/', body: { data: { search_basic: { aggregations: [{ aggregation: 'GATE', entity: { platforms: { shopee: { platform_id: 1, value: 1 }, tiktok: { platform_id: 8, value: 1 } } } }] } } } },
+  { urlPath: '/v2/market/analytics/products/', body: { data: { products: [] } } },
+  { urlPath: '/v2/market/analytics/shops/', body: { data: { shops: [] } } },
+];
+
 function fakePage(observation: any, result: any, resultDom: any = null, networkResponses: any[] = [], behavior: any = {}) {
   let searched = false;
+  let networkReadCount = 0;
   const state = { paginationClicks: 0, platformSwitches: 0, formReads: 0 };
   const calls: string[] = [];
   const clickRecords: Array<{ selector: string; options?: any }> = [];
@@ -661,13 +723,20 @@ function fakePage(observation: any, result: any, resultDom: any = null, networkR
           if (behavior.gateObservation) return behavior.gateObservation(state, observation);
           return state.formReads > 1 && result?.appliedFilters ? { ...observation, appliedFilters: result.appliedFilters } : observation;
         }
-        return behavior.searchObservation ? behavior.searchObservation(state, result) : result;
+        if (behavior.searchObservation) return behavior.searchObservation(state, result);
+        return result;
       }
       if (fn.name === 'readCommittedKeywords') return commandSpec.keywords;
       if (fn.name === 'resolveKeywordSelector') return { inputSelector: '#keyword-input', selectSelector: '#keyword-selector' };
       if (fn.name === 'resolvePlatformSelector') return behavior.platformSelector || {
         inputSelector: '#platform-input', rootSelector: '#QuerySearchBuilder .ant-select:has(#platform-input)',
         selectSelector: '#QuerySearchBuilder .ant-select:has(#platform-input) > .ant-select-selector', isMultiple: true,
+      };
+      if (fn.name === 'describeSearchSubmit') return behavior.submitInspection || {
+        candidateCount: 1,
+        descriptor: { candidateIndex: 0, tag: 'button', classes: 'ant-btn ant-btn-primary', text: 'Analytics', domPath: 'button:nth-child(1)', clickSelector: '#QuerySearchBuilder button:nth-child(1)' },
+        candidates: [{ candidateIndex: 0, tag: 'button', classes: 'ant-btn ant-btn-primary', text: 'Analytics', domPath: 'button:nth-child(1)', clickSelector: '#QuerySearchBuilder button:nth-child(1)' }],
+        pageWideAnalyticsCount: 2,
       };
       if (fn.name === 'platformRemoveIndex') return behavior.platformRemoveIndex ?? null;
       if (fn.toString().includes('button.switch-button')) return behavior.platformMode || 'Multiple platforms';
@@ -676,9 +745,11 @@ function fakePage(observation: any, result: any, resultDom: any = null, networkR
         if (behavior.selectedOption === (arg as any)?.label) return -1;
         return behavior.optionIndex ?? 0;
       }
+      if (!fn.name && fn.toString().includes("document.querySelectorAll('[role=\"option\"],.ant-select-item-option')")) return ['Shopee', 'Lazada', 'Tiki', 'Tiktok'];
       if (fn.toString().includes('document.activeElement === input')) return true;
       if (fn.name === 'observeResultPage') return behavior.resultDom ? behavior.resultDom(state, resultDom) : resultDom || { html: '<html></html>', regions: {}, screenshotRegions: {}, platformViews: [] };
       if (fn.name === 'prepareScreenshotClip') { maskCalls.push('prepare'); return behavior.screenshotClip ? behavior.screenshotClip(state) : { clip: { x: 12, y: 24, width: 320, height: 180 }, maskedCount: 1 }; }
+      if (!fn.name && fn.toString().includes('getBoundingClientRect') && fn.toString().includes('querySelector(selector)')) return true;
       if (fn.name === 'restoreScreenshotMask') { maskCalls.push('restore'); return true; }
       if (fn.name === 'setCheckbox') return { selector: '#synthetic', index: 0 };
       if (fn.name === 'visibleOptionIndex' || fn.name === 'clickVisibleText') return 0;
@@ -687,7 +758,7 @@ function fakePage(observation: any, result: any, resultDom: any = null, networkR
     click: async (selector: string, options?: any) => {
       calls.push(`click:${selector}`);
       clickRecords.push({ selector, options });
-      if (selector === 'button,[role="button"]') searched = true;
+      if (selector === 'button,[role="button"]' || (typeof selector === 'string' && selector.includes('#QuerySearchBuilder') && selector.includes('button'))) searched = true;
       if (selector === 'next' || (typeof selector === 'string' && (selector.includes('ant-pagination-next') || selector.includes('Next Page')))) state.paginationClicks += 1;
       if (typeof selector === 'string' && (selector.includes('data-metric-platform') || selector.includes('data-platform-view') || selector === 'platform-view')) state.platformSwitches += 1;
       behavior.onClick?.(selector, state, options);
@@ -696,7 +767,21 @@ function fakePage(observation: any, result: any, resultDom: any = null, networkR
     cdp: async (method: string, params: any) => calls.push(`cdp:${method}:${params.type}:${params.key}:${params.code}:${params.windowsVirtualKeyCode}:${params.nativeVirtualKeyCode}:${params.text}`),
     pressKey: async (key: string) => calls.push(`key:${key}`),
     startNetworkCapture: async () => { calls.push('network:start'); },
-    readNetworkCapture: async () => networkResponses,
+    readNetworkCapture: async () => {
+      networkReadCount += 1;
+      if (!searched && state.paginationClicks > 0) return [{ urlPath: '/v2/market/analytics/products/', body: { data: { products: [] } } }];
+      if (!searched) return behavior.initialNetworkResponses || [{ urlPath: '/market/search_basic', body: { data: { platforms: [{ platform_id: 1 }, { platform_id: 2 }, { platform_id: 3 }, { platform_id: 8 }] } } }];
+      if (networkReadCount === 2) {
+        const wanted = behavior.gatePlatforms || observation?.appliedFilters?.platforms || result?.appliedFilters?.platforms || commandSpec.platforms;
+        const ids = wanted.includes('tiktok') ? [1, 8] : [1];
+        const gate = syntheticSearchGateResponses.map(response => response.urlPath === '/v2/market/analytics/search-basic/'
+          ? { ...response, body: { data: { search_basic: { aggregations: [{ aggregation: 'GATE', entity: { platforms: Object.fromEntries(ids.map((id, index) => [String(index), { platform_id: id, value: 1 }])) } }] } } } }
+          : response);
+        return [...gate, ...networkResponses];
+      }
+      if (state.paginationClicks > 0 && networkReadCount === 3) return [{ urlPath: '/v2/market/analytics/products/', body: { data: { products: [] } } }];
+      return behavior.networkResponsesAfterSearch || [];
+    },
     screenshot: async (options: any) => { screenshotCalls.push(options); await writeFile(options.path, Buffer.from('synthetic-png')); },
     get searched() { return searched; },
   };
@@ -807,7 +892,7 @@ test('non-default periods fail closed in capture before form actions or submit',
   const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [], period: commandSpec.period } }, {});
   await assert.rejects(() => adapter.captureCommand.func(page, { spec: specPath, out: outputDir }), (error: any) => {
     assert.equal(error.code, 'METRIC_PERIOD_UNSUPPORTED');
-    assert.deepEqual(error.details, { observedPeriod: commandSpec.period, requestedPeriod: spec.period });
+    assert.deepEqual({ observedPeriod: error.details.observedPeriod, requestedPeriod: error.details.requestedPeriod }, { observedPeriod: commandSpec.period, requestedPeriod: spec.period });
     return true;
   });
   assert.equal(page.searched, false);
@@ -878,7 +963,7 @@ test('capture gates a redirect before reading the next pagination page and leave
   await rm(directory, { recursive: true, force: true });
 });
 
-test('capture gates a login page after search and leaves no archive', async () => {
+test('capture gates a login page after search and preserves debug without an archive', async () => {
   await installOpenCliTestStub();
   const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
   const directory = await mkdtemp(join(tmpdir(), 'p6-209-gate-login-'));
@@ -889,7 +974,8 @@ test('capture gates a login page after search and leaves no archive', async () =
     searchObservation: (_state: any, searchResult: any) => ({ ...searchResult, loginVisible: true }),
   });
   await assert.rejects(() => adapter.captureCommand.func(page, { spec: specPath, out: captureDir, 'product-cap': 200 }), /METRIC_LOGIN_REQUIRED/);
-  await assert.rejects(() => access(captureDir), /ENOENT/);
+  await assert.rejects(() => access(join(captureDir, 'manifest.json')), /ENOENT/);
+  await access(join(captureDir, 'debug', 'manifest.json'));
   assert.ok(page.calls.includes('close:synthetic-tab'));
   await rm(directory, { recursive: true, force: true });
 });
