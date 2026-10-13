@@ -138,6 +138,21 @@ export interface CaptureMetricUnattributedRow {
   readonly units: string | null;
 }
 
+/** One figure the capture reports for a platform, with the exact cell it was read from. */
+export interface CaptureMetricHeadlineValue {
+  readonly value: string | null;
+  readonly precision: 'exact' | 'display_rounded';
+  readonly locator: string;
+}
+
+/** The capture's own per-platform figures (W3): observed revenue for the filtered result set.
+ * They stay per platform and are never summed across platforms. */
+export interface CaptureMetricPlatformHeadline {
+  readonly platform: 'shopee' | 'tiktok';
+  readonly revenue: CaptureMetricHeadlineValue;
+  readonly units: CaptureMetricHeadlineValue | null;
+}
+
 export interface CaptureMetricMethodDetails {
   readonly provenance: 'RESULTS_PAGE_CAPTURE';
   readonly snapshotSha256: string;
@@ -148,6 +163,8 @@ export interface CaptureMetricMethodDetails {
     readonly platforms: readonly ('shopee' | 'tiktok')[]; readonly measurementPeriod: { readonly startDate: string; readonly endDate: string };
     readonly truncation: { readonly cap: number; readonly totalShown: number | null; readonly pagesRead: number; readonly rowsRead: number; readonly truncated: boolean } };
   readonly platforms: readonly CaptureMetricPlatformResult[];
+  /** Absent on snapshots frozen before the capture's per-platform figures were read. */
+  readonly platformHeadlines?: readonly CaptureMetricPlatformHeadline[];
   readonly unattributedRows: readonly CaptureMetricUnattributedRow[];
 }
 
@@ -514,6 +531,25 @@ export class AutomationMetricMethodBridge {
     return snapshot;
   }
 
+  /**
+   * A run frozen before the per-platform figures existed carries none, but its
+   * retained page snapshot still holds them. A report revision that keeps such a
+   * frozen capture reads the figures from those retained bytes, so an observed
+   * platform total is still never replaced by the top-N row list.
+   */
+  async revealCapturePlatformHeadlines(snapshot: AutomationMetricMethodSnapshot): Promise<AutomationMetricMethodSnapshot> {
+    if (!snapshot.capture || snapshot.capture.platformHeadlines !== undefined) return snapshot;
+    const retained = await this.#packages.readVerified(snapshot.sourcePackage.packageId, BUDGET);
+    const receipt = parse(retained, RECEIPT);
+    const page = retained.files.find(file => file.path === CAPTURE_SNAPSHOT_PATH);
+    const manifest = retained.files.find(file => file.path === CAPTURE_MANIFEST_PATH);
+    if (!equal(snapshot.sourcePackage, identity(retained)) || !isRecord(receipt) || !page || !manifest ||
+        receipt.sourceSha256 !== page.sha256 || receipt.manifestSha256 !== manifest.sha256)
+      integrity('Metric capture retained page snapshot identity differs.');
+    const verified = verifyMetricCaptureArchive(page.bytes, manifest.bytes);
+    return { ...snapshot, capture: { ...snapshot.capture, platformHeadlines: capturePlatformHeadlines(verified.snapshot) } };
+  }
+
   async #verifyCaptureSnapshot(untrusted: Record<string, unknown>, input: MetricRunInput): Promise<AutomationMetricMethodSnapshot> {
     if (Object.keys(untrusted).sort().join(',') !== 'capture,contractVersion,limitations,originalSourcePackage,preparation,readiness,result,runBindingSha256,runId,sourcePackage' ||
         !isRecord(untrusted.capture)) integrity('Metric capture method snapshot identity is invalid.');
@@ -556,7 +592,8 @@ export class AutomationMetricMethodBridge {
       integrity('Metric capture snapshot differs from its frozen retained bytes.');
     const verified = verifyMetricCaptureArchive(selected.snapshot.bytes, selected.manifest.bytes, { start: input.start });
     const expectedCapture = captureMethodDetails(verified.snapshot, selected, platformResults);
-    if (!equal(snapshot.capture, expectedCapture)) integrity('Metric capture provenance or row attribution differs.');
+    if (!sameCaptureProvenance(snapshot.capture!, expectedCapture))
+      integrity('Metric capture provenance or row attribution differs.');
     const workspace = await this.#workspaces.readVerifiedWorkspace(input.start.workspaceId);
     const catalogBytes = file(retained, CATALOG).bytes;
     const expectedPreparation = capturePreparation(input, original, selected, workspace, result, expectedCapture);
@@ -796,6 +833,24 @@ function captureReadiness(_input: MetricRunInput, result: MetricScopeOutput, cat
   return { ...content, readinessSha256: digest(content) } as MetricPreparationReadinessResult;
 }
 
+/** W3 holds the capture's own per-platform totals; the retained row list below only shows its top-N rows. */
+function capturePlatformHeadlines(snapshot: AutomationMetricWebSnapshotV1): CaptureMetricPlatformHeadline[] {
+  const figure = (field: Value): CaptureMetricHeadlineValue => ({ value: field.value === null ? null : String(field.value), precision: field.precision, locator: field.sourcePointer });
+  return snapshot.groups.W3_platformSplit.flatMap(entry => entry.platform === 'shopee' || entry.platform === 'tiktok'
+    ? [{ platform: entry.platform, revenue: figure(entry.revenue), units: entry.units === undefined || entry.units === null ? null : figure(entry.units) }]
+    : []);
+}
+
+/**
+ * Snapshots frozen before the per-platform figures existed carry no
+ * `platformHeadlines`; their saved provenance and row attribution stay exactly
+ * as written. Every newly frozen capture must carry the recomputed figures.
+ */
+export function sameCaptureProvenance(retained: CaptureMetricMethodDetails, expected: CaptureMetricMethodDetails): boolean {
+  const { platformHeadlines: _platformHeadlines, ...legacy } = expected;
+  return equal(retained, Object.hasOwn(retained, 'platformHeadlines') ? expected : legacy);
+}
+
 function captureMethodDetails(snapshot: AutomationMetricWebSnapshotV1, selected: CaptureSelected, platformResults: readonly CaptureMetricPlatformResult[]): CaptureMetricMethodDetails {
   const table = snapshot.groups.W12_topProducts;
   const unattributedRows: CaptureMetricUnattributedRow[] = [];
@@ -811,7 +866,7 @@ function captureMethodDetails(snapshot: AutomationMetricWebSnapshotV1, selected:
   const verified = verifyMetricCaptureArchive(selected.snapshot.bytes, selected.manifest.bytes);
   return { provenance: 'RESULTS_PAGE_CAPTURE', snapshotSha256: selected.snapshot.sha256, manifestSha256: selected.manifest.sha256,
     contextSha256: selected.context.sha256, descriptorSha256: selected.descriptorFile.sha256,
-    capture: verified.capture, platforms: platformResults, unattributedRows };
+    capture: verified.capture, platforms: platformResults, platformHeadlines: capturePlatformHeadlines(verified.snapshot), unattributedRows };
 }
 
 function captureRunConfig(input: MetricRunInput, original: VerifiedFinalizedSourcePackage, selected: CaptureSelected, result: MetricScopeOutput,
