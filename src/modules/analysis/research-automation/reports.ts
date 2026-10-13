@@ -875,7 +875,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   const literalIds = methodIds.filter(id => isLiteralFamily(id) && !usesCodingFamily(insightCoding, id));
   const codingIds = methodIds.filter(id => usesCodingFamily(insightCoding, id));
   const headline = [
-    kind === 'MARKET' && input.metricMethods ? input.metricClassified ? (readerPlainText ? 'Đã tính các phạm vi toàn bộ mẫu, phạm vi rộng và phạm vi cốt lõi bằng phân loại đã duyệt. Kết quả giới hạn trong mẫu nguồn và kỳ đo đã lưu; chưa đánh dấu M03/M04 hoàn chỉnh.' : 'Đã tính các phạm vi ALL/WIDE/CORE bằng phân loại đã duyệt. Kết quả giới hạn trong mẫu nguồn và kỳ đo đã lưu; chưa đánh dấu M03/M04 hoàn chỉnh.') : 'Đã tính tổng và độ tập trung từ các dòng số liệu nguồn gốc của đúng lượt này. Mẫu theo keyword chưa được phân loại thành thị trường; không đánh dấu M03/M04 hoàn chỉnh.' : '',
+    kind === 'MARKET' && input.metricMethods ? input.metricClassified ? (readerPlainText ? 'Đã tính các phạm vi toàn bộ mẫu, phạm vi rộng và phạm vi cốt lõi bằng phân loại đã duyệt. Kết quả giới hạn trong mẫu nguồn và kỳ đo đã lưu; chưa đánh dấu M03/M04 hoàn chỉnh.' : 'Đã tính các phạm vi ALL/WIDE/CORE bằng phân loại đã duyệt. Kết quả giới hạn trong mẫu nguồn và kỳ đo đã lưu; chưa đánh dấu M03/M04 hoàn chỉnh.') : 'Đã tính tổng và độ tập trung từ các dòng số liệu nguồn gốc của đúng lượt này. Mẫu theo từ khóa chưa được phân loại thành thị trường; không đánh dấu M03/M04 hoàn chỉnh.' : '',
     kind === 'MARKET' && input.descriptiveMethodFailure ? 'Chưa tính được các mục mô tả thị trường vì đầu vào hoặc phương pháp không vượt qua kiểm tra. Bản nháp này chỉ giữ ngữ cảnh và dấu vết nguồn. Cần kiểm tra lỗi trước khi tạo phiên bản mới; không tự động gọi lại nguồn.' : '',
     `Mục phân tích hoàn chỉnh: ${completion.completedAnalyticalSections}.`,
     completion.evidenceInventorySectionIds.length ? `Đã kiểm tra bằng chứng, chưa có kết luận: ${completion.evidenceInventorySectionIds.join(', ')}.` : '',
@@ -925,7 +925,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     (input.boundedMethods && (sectionId === 'M13' || sectionId === 'I17')
       ? `<details open id="bounded-method-evidence"><summary>Hồ sơ phương pháp M10/I11/I12/I16 và vị trí nguồn</summary><p>Nguồn bổ sung do người dùng chọn, không phải dữ liệu tự thu hoặc xác nhận độ phủ. Hồ sơ giữ riêng kỳ, phạm vi và điều kiện còn thiếu; không cộng gộp với số liệu thị trường hoặc review.</p>${retainedEvidenceHtml(input.boundedMethods)}</details>` : '');
   const baseAppendix = (sectionId: string): string => {
-    if (sourceScope && sectionId === 'M02') return marketSourceScopeSection(sourceScope, 'M02', citations, readerPlainText);
+    if (sourceScope && sectionId === 'M02') return marketSourceScopeSection(sourceScope, 'M02', citations);
     if (kind === 'MARKET' && sectionId === 'M01' && input.m01Inventory && input.sourceClaims) return m01InventorySection(input.m01Inventory, input.sourceClaims, citations, readerPlainText);
     if (kind === 'INSIGHT' && sectionId === 'I14' && input.i14Admission && input.sourceClaims) return i14SynthesisSection(input.i14Synthesis, citations, false) + i14AdmissionSection(input.i14Admission, input.sourceClaims, citations, false);
     if (kind === 'MARKET' && (sectionId === 'M03' || sectionId === 'M04')) {
@@ -936,7 +936,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
       if (input.marketInventory) return marketInventorySection(input.marketInventory, sectionId, citations, labels, readerPlainText);
       if (input.marketInventoryFailure) return '<p class="warning">Đã thử xử lý inventory nhưng nguồn hoặc phương pháp không vượt qua kiểm tra; không tự gọi lại nguồn.</p>' + codeNote('MARKET_INVENTORY_FAILED');
     }
-    if (sourceScope && sectionId === 'M13') return marketSourceScopeSection(sourceScope, 'M13', citations, readerPlainText) + descriptiveAppendix(descriptive, input.descriptiveMethodFailure, readerPlainText, readerPlainText);
+    if (sourceScope && sectionId === 'M13') return marketSourceScopeSection(sourceScope, 'M13', citations) + descriptiveAppendix(descriptive, input.descriptiveMethodFailure, readerPlainText, readerPlainText);
     if (kind === 'INSIGHT' && (sectionId === 'I03' || sectionId === 'I17')) {
       if (insightPersona) return insightPersonaSection(insightPersona.snapshot, insightPersona.source, sectionId, citations);
       if (privateView) return (sample && sectionId === 'I03' ? reviewSampleSection(sample, privateView, citations, readerPlainText) : '') + privateReviewCorpusSection(privateView, sectionId, citations);

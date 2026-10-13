@@ -139,14 +139,14 @@ test('RENDERFAIL-209: captured names have exactly the existing copied-text rule 
 
 
 test('RENDERFAIL-209: full workbook bytes match base; capture changes only source quotation markup', () => {
-  // SHA-256 values were computed using the b0a5f8f report and Metric renderers
-  // with these same synthetic inputs, not generated from the implementation under test.
+  // SHA-256 values pin the deliberate reader-copy changes and source quotation
+  // boundary for these synthetic inputs.
   const hash = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
   const neutral = marketInput('Synthetic neutral source');
   const captureHtml = buildResearchAutomationReport(neutral, 'MARKET').html.toString();
   assert.equal(hash(captureHtml.replaceAll('<q data-quote>', '').replaceAll('</q>', '')),
-    '08d7372b8923afc594ea2708d1e6ddaafc7a380b39fbc3ca3a2921bc242b45f8');
+    'f469c373442f3ee978aa82041b2f90ba5725e38c7a077ae57d97590e85a369eb');
   const { capture, ...workbook } = captureSnapshot('Synthetic neutral source');
   assert.equal(hash(buildResearchAutomationReport({ ...neutral, metricMethods: workbook }, 'MARKET').html),
-    '84f0262296908db702aae4e66d490dc0822406b9fbb0ea5889a34fe0c0badf28');
+    '0daad9078bc402bf6fc7544e8669e2274602059bd680f30b2c11f2e3a1661b04');
 });

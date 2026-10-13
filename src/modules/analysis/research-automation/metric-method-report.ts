@@ -184,11 +184,9 @@ export function metricMethodSection(snapshot: AutomationMetricMethodSnapshot, se
 }
 
 /**
- * A capture name is text copied from the source page, not the report's own
- * wording. It carries the same `data-quote` marker every other retained source
- * name uses, so the owned-wording rules (U13 superlatives, E2 ordering) judge
- * the report's sentences and never a source product title. Provider-name and
- * leak rules still scan quoted text.
+ * Capture names are copied from the retained source page, not authored report
+ * wording. Mark them as quoted inert text so visible-text rules do not treat a
+ * source title's ranking language as a report claim.
  */
 const retainedSourceName = (value: string): string => `<q data-quote>${escape(value)}</q>`;
 
@@ -201,15 +199,15 @@ function captureMetricMethodSection(snapshot: AutomationMetricMethodSnapshot, se
     const observed = result.scopes.find(scope => scope.key === 'all')!;
     const records = result.input.records.map(row => `<tr><td>${escape(platformLabel(platform))}</td><td>${retainedSourceName(row.title)}</td><td>${number(row.revenue.value, 'VND')}</td><td>${number(row.units.value)}</td><td>${rowMark(row.revenue.source, citations)}<br>${rowMark(row.units.source, citations)}</td></tr>`);
     return `<h3>${escape(platformLabel(platform))}</h3><p>Doanh thu quan sát: <strong>${number(observed.revenue.value, 'VND')}</strong>; sản lượng: <strong>${number(observed.units.value)}</strong>; ${observed.listingCount} dòng, ${observed.shopCount} gian hàng. ${source(result)}</p>${sectionId === 'M03'
-      ? table(`${platformLabel(platform)} · số liệu từ results-page capture`, ['Nền tảng', 'Tên theo capture', 'Doanh thu (VND)', 'Sản lượng', 'Nguồn'], records)
-      : table(`${platformLabel(platform)} · cơ cấu trong mẫu capture`, ['Nền tảng', 'Tên theo capture', 'Doanh thu (VND)', 'Sản lượng', 'Nguồn'], records)}`;
+      ? table(`${platformLabel(platform)} · số liệu từ bảng kết quả tìm kiếm đã lưu`, ['Nền tảng', 'Tên trên bảng kết quả', 'Doanh thu (VND)', 'Sản lượng', 'Nguồn'], records)
+      : table(`${platformLabel(platform)} · cơ cấu trong bảng kết quả đã lưu`, ['Nền tảng', 'Tên trên bảng kết quả', 'Doanh thu (VND)', 'Sản lượng', 'Nguồn'], records)}`;
   }).join('') + capture.capture.platforms.filter(platform => !capture.platforms.some(value => value.platform === platform))
-    .map(platform => `<h3>${escape(platformLabel(platform))}</h3><p class="warning">${escape(platformLabel(platform))}: <strong>không có số liệu</strong> trong lượt này. Capture có chọn nền tảng này nhưng không có dòng nào gán được cho nền tảng; báo cáo không suy ra và không ghi thành 0.</p>`).join('');
+    .map(platform => `<h3>${escape(platformLabel(platform))}</h3><p class="warning">${escape(platformLabel(platform))}: <strong>không có số liệu</strong> trong lượt này. Bảng kết quả có chọn nền tảng này nhưng không có dòng nào gán được cho nền tảng; báo cáo không suy ra và không ghi thành 0.</p>`).join('');
   const unknown = capture.unattributedRows.length
-    ? `<h3>Phụ lục: dòng không gán được sàn</h3><p>Các dòng sau có mã tổng hợp ổn định (synthetic), được giữ riêng và <strong>không cộng vào Shopee hoặc TikTok Shop</strong>.</p>${table('Dòng không gán được sàn', ['Mã synthetic', 'Tên theo capture', 'Gian hàng', 'Doanh thu (VND)', 'Sản lượng'], capture.unattributedRows.map(row => `<tr><td>${escape(row.listingId)}</td><td>${retainedSourceName(row.title)}</td><td>${retainedSourceName(row.shop)}</td><td>${number(row.revenue, 'VND')}</td><td>${number(row.units)}</td></tr>`))}`
+    ? `<h3>Phụ lục: dòng không gán được sàn</h3><p>Các dòng sau không nêu được sàn, được đánh mã nội bộ ổn định trong bản lưu và <strong>không cộng vào Shopee hoặc TikTok Shop</strong>.</p>${table('Dòng không gán được sàn', ['Dòng nguồn', 'Tên trên bảng kết quả', 'Gian hàng', 'Doanh thu (VND)', 'Sản lượng'], capture.unattributedRows.map((row, index) => `<tr><td>${escape(readerProductLabel(row.listingId, null, index + 1))}</td><td>${retainedSourceName(row.title)}</td><td>${retainedSourceName(row.shop)}</td><td>${number(row.revenue, 'VND')}</td><td>${number(row.units)}</td></tr>`))}`
     : '<p>Không có dòng không gán được sàn.</p>';
   const truncation = capture.capture.truncation;
-  const limitation = `Nguồn là <strong>results-page capture</strong>; danh sách chịu giới hạn <strong>top-N</strong> (cap ${truncation.cap}) và giữ ${truncation.rowsRead} dòng trong ${truncation.pagesRead} trang${truncation.totalShown === null ? '' : ` trên ${truncation.totalShown} dòng hiển thị`}.${truncation.truncated ? ' Phần còn lại không được suy ra.' : ''}`;
-  const context = `<p class="warning">${limitation} Đây là số liệu quan sát theo từng nền tảng từ capture, không phải quy mô toàn thị trường. Trường không có trong capture được hiển thị là <strong>không có số liệu</strong>, không đổi thành 0.</p><dl class="reader-context"><dt>Provenance</dt><dd>results-page capture · capture ID ${escape(capture.capture.captureId)} · kỳ ${escape(capture.capture.measurementPeriod.startDate)} đến ${escape(capture.capture.measurementPeriod.endDate)}</dd><dt>Nền tảng</dt><dd>${capture.capture.platforms.map(platformLabel).map(escape).join(', ')}</dd></dl>`;
-  return context + platformRows + unknown + `<details class="evidence-trace"><summary>Hồ sơ phương pháp capture</summary><p>Không có tệp bảng tính trong nguồn này. Snapshot, manifest, context và descriptor được giữ trong gói phương pháp; các digest được kiểm tra khi dựng và mở báo cáo.</p><ul>${snapshot.limitations.map(limit => `<li>${escape(limit === 'CAPTURE_RESULTS_PAGE_TOP_N_LIMITED' ? 'Danh sách results-page capture bị giới hạn top-N; không suy ra phần còn lại.' : limitationCopy(limit))}</li>`).join('')}</ul></details>`;
+  const limitation = `Nguồn là <strong>bảng kết quả tìm kiếm đã lưu</strong>; danh sách bị giới hạn <strong>${truncation.cap} dòng đầu</strong> và giữ ${truncation.rowsRead} dòng trong ${truncation.pagesRead} trang${truncation.totalShown === null ? '' : ` trên ${truncation.totalShown} dòng hiển thị`}.${truncation.truncated ? ' Phần còn lại không được suy ra.' : ''}`;
+  const context = `<p class="warning">${limitation} Đây là số liệu quan sát theo từng nền tảng từ bảng kết quả đã lưu, không phải quy mô toàn thị trường. Trường không có trong bảng kết quả được hiển thị là <strong>không có số liệu</strong>, không đổi thành 0.</p><dl class="reader-context"><dt>Nguồn gốc số liệu</dt><dd>Bảng kết quả tìm kiếm do người vận hành lưu lại · kỳ ${escape(capture.capture.measurementPeriod.startDate)} đến ${escape(capture.capture.measurementPeriod.endDate)}</dd><dt>Nền tảng</dt><dd>${capture.capture.platforms.map(platformLabel).map(escape).join(', ')}</dd></dl>`;
+  return context + platformRows + unknown + `<details class="evidence-trace"><summary>Hồ sơ kỹ thuật của nguồn số liệu</summary><p>Không có tệp bảng tính trong nguồn này. Bảng kết quả tìm kiếm đã lưu, bản kê và mô tả nguồn được giữ trong gói phương pháp; mã kiểm tra toàn vẹn được đối chiếu khi dựng và mở báo cáo.</p><ul>${snapshot.limitations.map(limit => `<li>${escape(limit === 'CAPTURE_RESULTS_PAGE_TOP_N_LIMITED' ? 'Danh sách chỉ gồm các dòng đầu của bảng kết quả; không suy ra phần còn lại.' : limitationCopy(limit))}</li>`).join('')}</ul></details>`;
 }

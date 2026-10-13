@@ -27,7 +27,8 @@ import { citationRegisterViolations, providerNameViolations, reportVisibleText, 
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
 const runId = '22222222-2222-4222-8222-222222222222';
-const url = 'https://shopee.vn/product/78085196/17678138164';
+// Synthetic listing identities; never fetch these URLs.
+const url = 'https://shopee.vn/product/100/200';
 const now = () => new Date('2026-10-02T00:00:00.000Z');
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -67,7 +68,7 @@ test('Insight coding persists selected evidence against one exact source without
   for (const product of ['thạch dừa', 'bình giữ nhiệt', 'quạt cầm tay']) await t.test(product, async t => {
     let calls = 0;
     const texts = [`Tôi đã mua ${product} rồi dùng. Tôi muốn nhỏ hơn nhưng hiện còn to. Tôi mua vì dễ mang. Tôi muốn đặt thêm nhưng hết hàng. Tôi thích màu nhưng không thích nắp.`, `Tôi đã dùng ${product}, muốn nhỏ hơn.`, 'Tôi đã mua sản phẩm, chưa nêu chủ đề.'];
-    const raw = Buffer.from(JSON.stringify(texts.map((comment, index) => ({ shopId: '78085196', itemId: '17678138164', reviewId: `synthetic-${index}`, comment, ratingStar: 5 }))));
+    const raw = Buffer.from(JSON.stringify(texts.map((comment, index) => ({ shopId: '100', itemId: '200', reviewId: `synthetic-${index}`, comment, ratingStar: 5 }))));
     const f = await fixture(t, () => ({ requestsIssued: () => calls, collector: { mode: 'fixture', collect: async (...args) => { calls++; return new FixtureShopeeCollector(raw).collect(...args); } } }), false, `Synthetic ${product}`);
     await f.service.confirmScope(workspaceId, runId, f.confirm);
     await f.service.processNext(); await f.service.processNext();
@@ -271,7 +272,7 @@ test('Insight coding persists selected evidence against one exact source without
 
 test('model coding batches preserve other records and retain stale, invalid and unknown outcomes without repeat calls', async t => {
   const texts = ['Tôi đã mua sản phẩm.', 'Tôi đã dùng sản phẩm.'];
-  const raw = Buffer.from(JSON.stringify(texts.map((comment, index) => ({ shopId: '78085196', itemId: '17678138164', reviewId: `batch-${index}`, comment, ratingStar: 5 }))));
+  const raw = Buffer.from(JSON.stringify(texts.map((comment, index) => ({ shopId: '100', itemId: '200', reviewId: `batch-${index}`, comment, ratingStar: 5 }))));
   const f = await fixture(t, () => ({ requestsIssued: () => 0, collector: new FixtureShopeeCollector(raw) }));
   await f.service.confirmScope(workspaceId, runId, f.confirm); await f.service.processNext(); await f.service.processNext();
   const pair = (await f.service.listReportVersions(workspaceId, runId))[0]!;
@@ -361,7 +362,7 @@ test('model coding batches preserve other records and retain stale, invalid and 
 
 test('model coding timeout retains unknown and ignores a late valid response after a manual winner', async t => {
   const text = 'Tôi đã mua sản phẩm.';
-  const raw = Buffer.from(JSON.stringify([{ shopId: '78085196', itemId: '17678138164', reviewId: 'timeout-0', comment: text, ratingStar: 5 }]));
+  const raw = Buffer.from(JSON.stringify([{ shopId: '100', itemId: '200', reviewId: 'timeout-0', comment: text, ratingStar: 5 }]));
   const f = await fixture(t, () => ({ requestsIssued: () => 0, collector: new FixtureShopeeCollector(raw) }));
   await f.service.confirmScope(workspaceId, runId, f.confirm); await f.service.processNext(); await f.service.processNext();
   const pair = (await f.service.listReportVersions(workspaceId, runId))[0]!;
@@ -443,12 +444,12 @@ test('model coding timeout retains unknown and ignores a late valid response aft
 test('explicit listing scope flows through collection and frozen corpus to both reports without a discovery substitute', async t => {
   let calls = 0;
   const raw = Buffer.from(JSON.stringify([
-    { shopId: '78085196', itemId: '17678138164', reviewId: 'synthetic-1', comment: 'Tôi đã dùng sản phẩm.', ratingStar: 9, author: 'Do not project me' },
-    { shopId: '78085196', itemId: '17678138164', reviewId: 'synthetic-2', comment: '“Tôi đã mua sản phẩm. <script>bad()</script>”', ratingStar: 5 },
+    { shopId: '100', itemId: '200', reviewId: 'synthetic-1', comment: 'Tôi đã dùng sản phẩm.', ratingStar: 9, author: 'Do not project me' },
+    { shopId: '100', itemId: '200', reviewId: 'synthetic-2', comment: '“Tôi đã mua sản phẩm. <script>bad()</script>”', ratingStar: 5 },
     { shopId: '99', itemId: '1', reviewId: 'foreign', comment: 'Wrong product', ratingStar: 5 },
   ]));
   const state = await fixture(t, () => ({ requestsIssued: () => 0, collector: { mode: 'fixture', collect: async (...args) => { calls++; return new FixtureShopeeCollector(raw).collect(...args); } } }));
-  await assert.rejects(state.service.confirmScope(workspaceId, runId, { ...state.confirm, exactShopeeUrls: [url, 'https://shopee.vn/x-i.78085196.17678138164'] }), /distinct/);
+  await assert.rejects(state.service.confirmScope(workspaceId, runId, { ...state.confirm, exactShopeeUrls: [url, 'https://shopee.vn/x-i.100.200'] }), /distinct/);
   await state.service.confirmScope(workspaceId, runId, state.confirm);
   assert.equal((await state.service.confirmScope(workspaceId, runId, state.confirm)).exactRetry, true);
   assert.equal(calls, 0, 'confirmation only queues the bounded collection');
@@ -588,7 +589,7 @@ test('unconfigured or ambiguous review collection remains explicit, does not ret
 
 test('an oversized quote view preserves the independent Market report and full raw collection without truncation or recollection', async t => {
   let calls = 0;
-  const raw = Buffer.from(JSON.stringify([{ shopId: '78085196', itemId: '17678138164', comment: 'Tôi đã dùng sản phẩm.', ratingStar: 5 }]));
+  const raw = Buffer.from(JSON.stringify([{ shopId: '100', itemId: '200', comment: 'Tôi đã dùng sản phẩm.', ratingStar: 5 }]));
   const state = await fixture(t, () => ({ requestsIssued: () => 0, collector: { mode: 'fixture', collect: async (...args) => { calls++; return new FixtureShopeeCollector(raw).collect(...args); } } }), true);
   await state.service.confirmScope(workspaceId, runId, state.confirm);
   await state.service.processNext(); await state.service.processNext();
@@ -639,7 +640,7 @@ test('an oversized quote view preserves the independent Market report and full r
 test('a terminal Actor failure is not an empty-review success and any returned rows remain available without recollection', async t => {
   for (const returnedRows of [0, 1]) await t.test(`${returnedRows} retained rows`, async sub => {
     let calls = 0;
-    const raw = Buffer.from(JSON.stringify(returnedRows ? [{ shopId: '78085196', itemId: '17678138164', comment: 'Đã ăn với sữa chua.', ratingStar: 5 }] : []));
+    const raw = Buffer.from(JSON.stringify(returnedRows ? [{ shopId: '100', itemId: '200', reviewId: 'synthetic-terminal-review', comment: 'Đã ăn với sữa chua.', ratingStar: 5 }] : []));
     const state = await fixture(sub, () => ({ requestsIssued: () => calls, collector: { mode: 'fixture', collect: async (...args) => {
       calls++;
       const collected = await new FixtureShopeeCollector(raw).collect(...args);
@@ -667,26 +668,36 @@ test('a terminal Actor failure is not an empty-review success and any returned r
 
 // #123: the four real failure shapes, classified once, logged once, and explained to the owner without provider names or codes.
 test('exact review outcome is classified, logged once, shown on the run page and noticed in both reports', async t => {
-  const listings = ['17678138164', '17678138165', '17678138166', '17678138167', '17678138168'];
-  const urls = listings.map(itemId => `https://shopee.vn/product/78085196/${itemId}`);
-  const rows = (itemIds: readonly string[]) => itemIds.map((itemId, index) => ({ shopId: '78085196', itemId, reviewId: `synthetic-${index}`, comment: 'Synthetic review text', ratingStar: 5 }));
+  const listings = ['200', '201', '202', '203', '204'];
+  const urls = listings.map(itemId => `https://shopee.vn/product/100/${itemId}`);
+  const rows = (itemIds: readonly string[]) => itemIds.map((itemId, index) => ({ shopId: '100', itemId, reviewId: `synthetic-${index}`, comment: 'Synthetic review text', ratingStar: 5 }));
   const cases = [
-    { name: 'blocked', failed: true, message: 'Reviews could not be retrieved right now. Please try again later.', rows: [] as string[],
+    { name: 'blocked', failed: true, message: 'Reviews could not be retrieved right now. Please try again later.', rows: [] as string[], providerStatus: false,
       outcome: 'PROVIDER_BLOCKED', code: 'EXACT_SHOPEE_REVIEWS_BLOCKED', level: 'warn' },
-    { name: 'timeout', failed: true, message: 'This run hit its time limit before any reviews were collected', rows: [] as string[],
+    { name: 'timeout', failed: true, message: 'This run hit its time limit before any reviews were collected', rows: [] as string[], providerStatus: false,
       outcome: 'PROVIDER_TIMEOUT_NO_REVIEWS', code: 'EXACT_SHOPEE_REVIEWS_TIMEOUT', level: 'warn' },
-    { name: 'partial', failed: false, message: null, rows: [listings[0]!, listings[0]!, listings[3]!],
+    { name: 'partial', failed: false, message: null, rows: [listings[0]!, listings[0]!, listings[3]!], providerStatus: false,
       outcome: 'PARTIAL_LISTINGS', code: 'EXACT_SHOPEE_REVIEWS_PARTIAL', level: 'warn' },
-    { name: 'ok', failed: false, message: null, rows: listings, outcome: 'OK', code: null, level: 'info' },
+    { name: 'ok', failed: false, message: null, rows: listings, providerStatus: false, outcome: 'OK', code: null, level: 'info' },
+    // #209: the actor answered every requested listing with a status row carrying listing ids only.
+    { name: 'provider status rows', failed: true, message: 'Reviews could not be retrieved right now. Please try again in a few minutes.', rows: [] as string[], providerStatus: true,
+      outcome: 'PROVIDER_BLOCKED', code: 'EXACT_SHOPEE_REVIEWS_BLOCKED', level: 'warn' },
+    { name: 'successful status rows', failed: false, message: null, rows: [] as string[], providerStatus: true,
+      outcome: 'PROVIDER_BLOCKED', code: 'EXACT_SHOPEE_REVIEWS_BLOCKED', level: 'warn' },
+    { name: 'mixed reviews and status rows', failed: false, message: null, rows: [listings[0]!, listings[0]!, listings[3]!], providerStatus: true,
+      outcome: 'PARTIAL_LISTINGS', code: 'EXACT_SHOPEE_REVIEWS_PARTIAL', level: 'warn' },
   ] as const;
   for (const c of cases) await t.test(c.name, async sub => {
     const logs: Array<{ level: string; line: string }> = [];
     for (const level of ['info', 'warn'] as const) sub.mock.method(console, level, (...args: unknown[]) => { logs.push({ level, line: args.map(String).join(' ') }); });
     const rendered: Array<{ input: ReportInput; kind: 'MARKET' | 'INSIGHT' }> = [];
     let calls = 0;
+    const returned = [...rows(c.rows), ...(c.providerStatus
+      ? listings.map(itemId => ({ _warning: 'Not collected: a free run samples one product; a paid plan collects every product you provide.', shopId: '100', itemId, region: 'VN' }))
+      : [])];
     const state = await fixture(sub, () => ({ requestsIssued: () => calls, collector: { mode: 'fixture', collect: async (...args) => {
       calls++;
-      const collected = await new FixtureShopeeCollector(Buffer.from(JSON.stringify(rows(c.rows)))).collect(...args);
+      const collected = await new FixtureShopeeCollector(Buffer.from(JSON.stringify(returned))).collect(...args);
       return c.failed ? { ...collected, actor: { ...collected.actor, status: 'FAILED', stopReason: 'actor_terminal_failed', usageTotalUsd: 0.008 },
         warnings: ['actor_terminal_failed'], actorStatusMessage: c.message } : collected;
     } } }), false, 'Synthetic coconut jelly', (input, kind) => rendered.push({ input, kind }));
@@ -698,6 +709,8 @@ test('exact review outcome is classified, logged once, shown on the run page and
     const expectedCounts = urls.map((listingUrl, index) => ({ listingUrl, reviews: c.rows.filter(itemId => itemId === listings[index]).length }));
     const { resultSha } = state.db.prepare(`SELECT result_sha256 resultSha FROM analysis_research_automation_steps WHERE run_id=? AND step_id='COLLECTION'`).get(runId) as { resultSha: string };
     const step = JSON.parse((await state.artifacts.read(resultSha)).toString());
+    const expectedCoverage = c.rows.length === 0 ? (c.failed ? 'FAILED' : 'PARTIAL') : 'COLLECTED';
+    assert.equal(ready.coverage.sources.find(row => row.provider === 'apify-shopee')?.state, expectedCoverage);
     assert.equal(step.exactShopeeOutcome.outcome, c.outcome);
     assert.deepEqual(step.exactShopeeOutcome.listings, expectedCounts);
     assert.equal(step.exactShopeeOutcome.providerMessage, c.message);
@@ -709,7 +722,7 @@ test('exact review outcome is classified, logged once, shown on the run page and
     assert.equal(lines[0]!.level, c.level);
     const logged = JSON.parse(lines[0]!.line);
     assert.deepEqual(logged, { event: 'exact_shopee_collection', runId, outcome: c.outcome,
-      listings: listings.map((itemId, index) => ({ listing: `78085196:${itemId}`, reviews: expectedCounts[index]!.reviews })),
+      listings: listings.map((itemId, index) => ({ listing: `100:${itemId}`, reviews: expectedCounts[index]!.reviews })),
       actorStatus: c.failed ? 'FAILED' : 'FIXTURE', usageUsd: c.failed ? 0.008 : null, reused: false });
     assert.doesNotMatch(lines[0]!.line, /token|http|Synthetic review text|could not|time limit/i);
 
@@ -731,6 +744,7 @@ test('exact review outcome is classified, logged once, shown on the run page and
       }
       assert.ok(notice);
       assert.match(notice.textContent!, /02\/10\/2026/);
+      if (c.providerStatus) for (const row of expectedCounts.filter(row => row.reviews === 0)) assert.ok(notice.textContent!.includes(`${row.reviews}/300 bình luận`));
       assert.deepEqual([...notice.querySelectorAll('li a')].map(link => link.getAttribute('href')),
         expectedCounts.filter(row => row.reviews === 0).map(row => row.listingUrl));
       assert.match(notice.textContent!, /Phần bị ảnh hưởng/);
@@ -751,7 +765,19 @@ test('exact review outcome is classified, logged once, shown on the run page and
         assert.match(review, c.outcome === 'PARTIAL_LISTINGS' ? /chỉ lấy được đánh giá Shopee cho 2\/5 sản phẩm/ : /không lấy được đánh giá Shopee nào cho 5 sản phẩm/, id);
       }
     }
+    assert.equal(await state.service.processNext(), false, 'a blocked or partial result never queues another paid collection');
     assert.equal(calls, 1);
+    if (c.providerStatus) {
+      const bridge = new AutomationExactShopeeBridge(state.db, state.artifacts, () => ({ requestsIssued: () => 0, collector: { mode: 'fixture', collect: async () => {
+        calls++; throw new Error('status rows must be reused without a new paid collection');
+      } } }));
+      const reused = await bridge.collect({ runId, start: rendered[0]!.input.start, scope: rendered[0]!.input.scope, scopeConfirmedAt: now().toISOString() }, undefined, now);
+      assert.deepEqual(reused.exactShopeeOutcome, { outcome: c.outcome, listings: expectedCounts, providerMessage: null, attemptedAt: now().toISOString(), reused: true });
+      assert.equal(reused.coverage.state, expectedCoverage);
+      assert.equal(reused.costUsd, '0');
+      assert.equal(reused.requestsIssued, 0);
+      assert.equal(calls, 1);
+    }
     if (c.name !== 'blocked') return;
 
     // Removing the review source in a revision removes the notice from BOTH reports; the original pair keeps it.
@@ -801,8 +827,8 @@ test('exact review outcome is classified, logged once, shown on the run page and
 test('both stored drafts keep provider names, digests and status codes out while retaining original source quotations', async t => {
   let calls = 0;
   const sourceQuote = 'Tôi đã dùng sản phẩm từ Metric và Kalodata.';
-  const raw = Buffer.from(JSON.stringify([{ shopId: '78085196', itemId: '17678138164', comment: 'Tôi đã dùng sản phẩm.', ratingStar: 5 },
-    { shopId: '78085196', itemId: '17678138164', comment: sourceQuote, ratingStar: 5 }]));
+  const raw = Buffer.from(JSON.stringify([{ shopId: '100', itemId: '200', comment: 'Tôi đã dùng sản phẩm.', ratingStar: 5 },
+    { shopId: '100', itemId: '200', comment: sourceQuote, ratingStar: 5 }]));
   const retained: string[] = [];
   const state = await fixture(t, () => ({ requestsIssued: () => calls,
     collector: { mode: 'fixture', collect: async (...args: Parameters<FixtureShopeeCollector['collect']>) => { calls++; return new FixtureShopeeCollector(raw).collect(...args); } } }), false, 'Synthetic clean reader text', input => { retained.push(JSON.stringify(input)); });
