@@ -106,8 +106,59 @@ test('malformed platform entries surface and never promote one platform to a com
     captureId, specDigest: 'a'.repeat(64), capturedAt: '2026-10-13T00:00:00.000Z', platformIdMap: { 1: 'shopee', 8: 'tiktok' } });
   assert.throws(() => extractResultsPage(input({ good: { platform_id: 1, value: 10 }, malformed: { value: 20 } }, 'synthetic-platform-error')),
     (error: any) => error.code === 'METRIC_PLATFORM_ENTRY_MALFORMED' && error.details.entries.length === 4);
-  const onePlatform = extractResultsPage(input({ good: { platform_id: 1, value: 10 }, empty: { platform_id: 8, value: null } }, 'synthetic-single-platform'));
-  assert.equal(onePlatform.snapshot.groups.W2_kpi.revenue.current.value, null);
+  const onlyShopee = input({ good: { platform_id: 1, value: 10 } }, 'synthetic-single-platform');
+  const onePlatform = extractResultsPage(onlyShopee);
+  for (const field of ['revenue', 'units', 'soldListings', 'shops']) assert.equal(onePlatform.snapshot.groups.W2_kpi[field].current.value, null);
+  assert.deepEqual(onePlatform.snapshot.groups.W3_platformSplit.map((row: any) => [row.platform, row.revenue.value]), [['shopee', 10], ['tiktok', null]]);
+  const singleRequested = extractResultsPage({ ...onlyShopee, scope: { ...onlyShopee.scope, platforms: ['shopee'] } });
+  assert.equal(singleRequested.snapshot.groups.W2_kpi.revenue.current.value, 10);
+});
+
+const salesDataInput = (aggregations: any[]) => ({
+  responses: [{ urlPath: '/v2/market/analytics/search-basic/', body: { data: { search_basic: { aggregations } } } }],
+  dom: { regions: { overview: { kpi: { revenue: null, units: null, soldListings: null, shops: null } } } },
+  scope: { keywords: ['synthetic-term'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-01-01', endDate: '2026-02-02' }, category: null },
+  captureId: 'synthetic-sales-data', specDigest: 'a'.repeat(64), capturedAt: '2026-10-13T00:00:00.000Z', platformIdMap: { 1: 'shopee', 8: 'tiktok' },
+});
+
+test('sales-data validation does not depend on a non-null revenue entry', async t => {
+  const { extractResultsPage } = await import(captureUrl.href);
+  for (const aggregation of ['ORDER_TOTAL_CUSTOM', 'PRODUCT_TOTAL', 'SHOP_TOTAL']) {
+    await t.test(aggregation, () => {
+      assert.throws(() => extractResultsPage(salesDataInput([
+        { aggregation: 'REVENUE_TOTAL_CUSTOM', entity: { platforms: [{ platform_id: 1, value: null }] } },
+        { aggregation, entity: { platforms: [{ value: 7 }] } },
+      ])), (error: any) => error.code === 'METRIC_PLATFORM_ENTRY_MALFORMED');
+    });
+  }
+  for (const aggregation of ['REVENUE__BY__PRICE_RANGE_CUSTOM', 'REVENUE__BY__LOCATION_CUSTOM', 'REVENUE__BY__SHOP_TYPE_CUSTOM', 'REVENUE__BY__CATEGORIES_CUSTOM']) {
+    await t.test(aggregation, () => {
+      assert.throws(() => extractResultsPage(salesDataInput([
+        { aggregation, entities: [{ key: 'synthetic-bucket', platforms: 7 }] },
+      ])), (error: any) => error.code === 'METRIC_PLATFORM_ENTRY_MALFORMED');
+    });
+  }
+});
+
+test('sales-data keeps independent platform values when revenue or a breakdown value is missing', async t => {
+  const { extractResultsPage } = await import(captureUrl.href);
+  const result = extractResultsPage(salesDataInput([
+    { aggregation: 'REVENUE_TOTAL_CUSTOM', entity: { platforms: [{ platform_id: 1, value: 11 }, { platform_id: 8, value: null }] } },
+    { aggregation: 'ORDER_TOTAL_CUSTOM', entity: { platforms: [{ platform_id: 1, value: 3 }, { platform_id: 8, value: 4 }] } },
+    { aggregation: 'REVENUE__BY__PRICE_RANGE_CUSTOM', entities: [{ from: 0, to: 100, value: 99,
+      platforms: [{ platform_id: 1, value: 0 }, { platform_id: 8, value: null }] }] },
+  ]));
+  await t.test('units remain available without platform revenue', () => {
+    assert.deepEqual(result.snapshot.groups.W3_platformSplit.map((row: any) => [row.platform, row.revenue.value, row.units?.value ?? null]), [
+      ['shopee', 11, 3], ['tiktok', null, 4],
+    ]);
+  });
+  await t.test('a missing platform breakdown cannot inherit the parent total', () => {
+    assert.deepEqual(result.snapshot.groups.W6_priceLevel.rows.map((row: any) => [row.cells.platform.text, row.cells.revenue.value]), [
+      ['shopee', 0], ['tiktok', null],
+    ]);
+  });
+  for (const field of ['revenue', 'units', 'soldListings', 'shops']) assert.equal(result.snapshot.groups.W2_kpi[field].current.value, null);
 });
 
 test('unlabelled monthly rows stay all and DOM fills a platform missing from responses', async () => {

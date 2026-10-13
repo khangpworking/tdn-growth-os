@@ -493,38 +493,37 @@ function metricApiPayloads(body, sourcePointer, platformIdMap, requestedPlatform
   const byAggregation = new Map(aggregations.map(item => [clean(item?.aggregation).toUpperCase(), item]));
   const payloads = [];
   const malformed = [];
-  const platformRows = name => {
-    const raw = byAggregation.get(name)?.entity?.platforms;
-    if (raw != null && !Array.isArray(raw) && typeof raw !== 'object') malformed.push({ sourcePointer, aggregation: name, reason: 'platforms-is-not-an-object' });
+  const platformRows = (raw, name, pointer) => {
+    if (raw != null && !Array.isArray(raw) && typeof raw !== 'object') malformed.push({ sourcePointer: pointer, aggregation: name, reason: 'platforms-is-not-an-object' });
     // An entry with no known platform is an error; a known platform with no value stays missing, never zero.
     return platformValues(raw)
       .map((item, index) => {
         const platform = metricPlatformId(item?.platform_id, platformIdMap);
-        if (!platform) malformed.push(malformedPlatformEntry(`${sourcePointer}/data/search_basic/aggregations/${name}/entity/platforms`, name, index, item));
+        if (!platform) malformed.push(malformedPlatformEntry(pointer, name, index, item));
         return { platform, value: item?.value ?? null };
       })
-      .filter(item => item.platform && item.value != null);
+      .filter(item => item.platform);
   };
   const entityRows = name => (byAggregation.get(name)?.entities || []).flatMap((item, index) =>
-    platformValues(item?.platforms).map(platform => ({
-      platform: metricPlatformId(platform?.platform_id, platformIdMap), value: platform?.value ?? item?.value,
+    platformRows(item?.platforms, name, `${sourcePointer}/data/search_basic/aggregations/${name}/entities/${index}/platforms`).map(platform => ({
+      platform: platform.platform, value: platform.value,
       key: item?.key, from: item?.from, to: item?.to, index,
-    })).map((row, platformIndex) => {
-      if (!row.platform) malformed.push(malformedPlatformEntry(`${sourcePointer}/data/search_basic/aggregations/${name}/entities/${row.index}/platforms`, name, platformIndex, row));
-      return row;
-    }).filter(row => row.platform && row.value != null));
+    })));
   if (aggregations.length) {
     const names = ['REVENUE_TOTAL_CUSTOM', 'ORDER_TOTAL_CUSTOM', 'PRODUCT_TOTAL', 'SHOP_TOTAL'];
-    const previous = Object.fromEntries(names.map(name => [name, platformRows(`PREVIOUS_${name}`)]));
-    const headlineRows = platformRows('REVENUE_TOTAL_CUSTOM').map((row, index) => ({
-      platform: row.platform, revenue: row.value,
-      units: platformRows('ORDER_TOTAL_CUSTOM').find(item => item.platform === row.platform)?.value ?? null,
-      soldListings: platformRows('PRODUCT_TOTAL').find(item => item.platform === row.platform)?.value ?? null,
-      shops: platformRows('SHOP_TOTAL').find(item => item.platform === row.platform)?.value ?? null,
-      previousRevenue: previous.REVENUE_TOTAL_CUSTOM.find(item => item.platform === row.platform)?.value ?? null,
-      previousUnits: previous.ORDER_TOTAL_CUSTOM.find(item => item.platform === row.platform)?.value ?? null,
-      previousSoldListings: previous.PRODUCT_TOTAL.find(item => item.platform === row.platform)?.value ?? null,
-      previousShops: previous.SHOP_TOTAL.find(item => item.platform === row.platform)?.value ?? null,
+    const headlineValues = name => platformRows(byAggregation.get(name)?.entity?.platforms, name, `${sourcePointer}/data/search_basic/aggregations/${name}/entity/platforms`);
+    const current = Object.fromEntries(names.map(name => [name, headlineValues(name)]));
+    const previous = Object.fromEntries(names.map(name => [name, headlineValues(`PREVIOUS_${name}`)]));
+    const platforms = new Set(Object.values(current).flat().map(row => row.platform));
+    const headlineRows = [...platforms].map(platform => ({
+      platform, revenue: current.REVENUE_TOTAL_CUSTOM.find(item => item.platform === platform)?.value ?? null,
+      units: current.ORDER_TOTAL_CUSTOM.find(item => item.platform === platform)?.value ?? null,
+      soldListings: current.PRODUCT_TOTAL.find(item => item.platform === platform)?.value ?? null,
+      shops: current.SHOP_TOTAL.find(item => item.platform === platform)?.value ?? null,
+      previousRevenue: previous.REVENUE_TOTAL_CUSTOM.find(item => item.platform === platform)?.value ?? null,
+      previousUnits: previous.ORDER_TOTAL_CUSTOM.find(item => item.platform === platform)?.value ?? null,
+      previousSoldListings: previous.PRODUCT_TOTAL.find(item => item.platform === platform)?.value ?? null,
+      previousShops: previous.SHOP_TOTAL.find(item => item.platform === platform)?.value ?? null,
     }));
     if (headlineRows.length) {
       // W2 remains a valid additive contract: when the source only provides
