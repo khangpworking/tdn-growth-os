@@ -63,6 +63,17 @@ test('counting matches requested listings by item and shop as strings and ignore
   assert.deepEqual(countReviewsPerListing(selected, []).map(row => row.reviews), [0, 0, 0]);
 });
 
+test('review identity accepts the corpus native-id shapes and rejects missing or unresolved ids', () => {
+  const selected = [listing('100', '200')];
+  const accepted: unknown[] = ['synthetic-review', '  synthetic-review  ', '0', '9007199254740993', 'x'.repeat(2000), 1, Number.MAX_SAFE_INTEGER];
+  const rejected: unknown[] = [undefined, null, '', ' \t ', 'x'.repeat(2001), 0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, true, {}, []];
+  for (const [ids, expected] of [[accepted, 1], [rejected, 0]] as const) for (const reviewId of ids) {
+    // Textless reviews are still reviews; a comment alone does not establish a native identity.
+    const row = { shopId: '100', itemId: '200', reviewId, comment: '', ratingStar: 3 };
+    assert.equal(countReviewsPerListing(selected, [page([row])])[0]!.reviews, expected);
+  }
+});
+
 // #209: the actor answers with one provider status row per listing when it collects nothing; those rows carry
 // listing ids but no review identity, so they are not reviews returned for the listing.
 test('a provider status row is never counted as a review', () => {
