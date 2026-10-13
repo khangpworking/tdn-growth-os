@@ -991,7 +991,9 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
 /** Counts describe the retained capture, never a product/platform population or people. */
 function reviewSampleSection(sample: AutomationReviewSample, view: PrivateReviewReportView, citations: ReportCitations, readerPlainText = false): string {
   const rows = sample.products.map((product, index) => {
-    const stop = product.stop === 'A_FIXED_COUNT' ? 'Đã thu được 300 bản ghi' : product.stop === 'PROVIDER_DATASET_EXHAUSTED'
+    const stop = (product.shortfallReason === 'RETURNED_COUNT_BELOW_REQUESTED' || product.retainedReviews < product.targetReviews)
+      ? `Sản phẩm này chỉ lấy được ${product.retainedReviews}/${product.targetReviews} bình luận.`
+      : product.stop === 'A_FIXED_COUNT' ? 'Đã thu được 300 bản ghi' : product.stop === 'PROVIDER_DATASET_EXHAUSTED'
       ? 'Đã đọc hết tập dữ liệu trả về của lượt thu; chưa biết tổng review của sản phẩm' : 'Lượt thu dừng trước mốc 300';
     const mark = citations.mark({ sourceKind: 'CAPTURE', identity: sample.collection.collectionSha256,
       locator: `/selected/${index}`, label: 'Tập đánh giá của các mục sản phẩm đã chọn trên Shopee',

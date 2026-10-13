@@ -3565,9 +3565,13 @@ export class ResearchAutomationService {
     const sourceStart = await this.#readStartSnapshot(rowForSources.startSha, rowForSources.workspaceId);
     let cancelledSourceEvidence: (() => AutomationSourceEvidence) | undefined;
     if (stepId === 'COLLECTION' && sourceStart.reviewCollectionPolicy && step.privateShopee) {
-      step = { ...step, reviewSample: await this.#shopee.reviewSample(step.privateShopee, { runId, start: sourceStart,
+      const reviewSample = await this.#shopee.reviewSample(step.privateShopee, { runId, start: sourceStart,
         scope: await this.#readScopeSnapshot(rowForSources.scopeSha!, rowForSources.workspaceId, runId), scopeConfirmedAt: rowForSources.scopeConfirmedAt! },
-        await this.#privateCorpusBinding(rowForSources)) };
+        await this.#privateCorpusBinding(rowForSources));
+      const shortSets = reviewSample.products.filter(product => product.shortfallReason !== undefined);
+      const shortSetLimitations = shortSets.length === 0 ? [] : [{ code: 'REVIEW_SHORT_SET', provider: null,
+        message: `${shortSets.length} sản phẩm chỉ lấy được ít hơn số bình luận yêu cầu: ${shortSets.map(product => `${product.retainedReviews}/${product.targetReviews}`).join(', ')}.` }];
+      step = { ...step, reviewSample, limitations: [...step.limitations, ...shortSetLimitations] };
     }
     if (stepId === 'COLLECTION' && sourceStart.sourceEvidenceVersion) {
       const sourceScope = await this.#readScopeSnapshot(rowForSources.scopeSha!, rowForSources.workspaceId, runId);

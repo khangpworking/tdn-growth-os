@@ -17,6 +17,7 @@ export interface ShopeeCollection {
           platform: 'shopee';
           shopId: string;
           itemId: string;
+          brand?: string | null;
           productKey: string;
           groupingBasis: string;
           productName: string;
@@ -30,6 +31,7 @@ export interface ShopeeCollection {
           platform: 'shopee';
           shopId: string;
           itemId: string;
+          brand?: string | null;
           productKey: string;
           groupingBasis: string;
           productName: string;
@@ -41,41 +43,7 @@ export interface ShopeeCollection {
           platform: 'shopee';
           shopId: string;
           itemId: string;
-          productKey: string;
-          groupingBasis: string;
-          productName: string;
-          productUrl: string;
-          periodRevenueVnd: string;
-          revenuePrecision: 'exact';
-        },
-      ]
-    | [
-        {
-          platform: 'shopee';
-          shopId: string;
-          itemId: string;
-          productKey: string;
-          groupingBasis: string;
-          productName: string;
-          productUrl: string;
-          periodRevenueVnd: string;
-          revenuePrecision: 'exact';
-        },
-        {
-          platform: 'shopee';
-          shopId: string;
-          itemId: string;
-          productKey: string;
-          groupingBasis: string;
-          productName: string;
-          productUrl: string;
-          periodRevenueVnd: string;
-          revenuePrecision: 'exact';
-        },
-        {
-          platform: 'shopee';
-          shopId: string;
-          itemId: string;
+          brand?: string | null;
           productKey: string;
           groupingBasis: string;
           productName: string;
@@ -89,6 +57,7 @@ export interface ShopeeCollection {
           platform: 'shopee';
           shopId: string;
           itemId: string;
+          brand?: string | null;
           productKey: string;
           groupingBasis: string;
           productName: string;
@@ -100,6 +69,7 @@ export interface ShopeeCollection {
           platform: 'shopee';
           shopId: string;
           itemId: string;
+          brand?: string | null;
           productKey: string;
           groupingBasis: string;
           productName: string;
@@ -111,17 +81,7 @@ export interface ShopeeCollection {
           platform: 'shopee';
           shopId: string;
           itemId: string;
-          productKey: string;
-          groupingBasis: string;
-          productName: string;
-          productUrl: string;
-          periodRevenueVnd: string;
-          revenuePrecision: 'exact';
-        },
-        {
-          platform: 'shopee';
-          shopId: string;
-          itemId: string;
+          brand?: string | null;
           productKey: string;
           groupingBasis: string;
           productName: string;
@@ -135,6 +95,7 @@ export interface ShopeeCollection {
           platform: 'shopee';
           shopId: string;
           itemId: string;
+          brand?: string | null;
           productKey: string;
           groupingBasis: string;
           productName: string;
@@ -146,6 +107,7 @@ export interface ShopeeCollection {
           platform: 'shopee';
           shopId: string;
           itemId: string;
+          brand?: string | null;
           productKey: string;
           groupingBasis: string;
           productName: string;
@@ -157,6 +119,7 @@ export interface ShopeeCollection {
           platform: 'shopee';
           shopId: string;
           itemId: string;
+          brand?: string | null;
           productKey: string;
           groupingBasis: string;
           productName: string;
@@ -168,6 +131,21 @@ export interface ShopeeCollection {
           platform: 'shopee';
           shopId: string;
           itemId: string;
+          brand?: string | null;
+          productKey: string;
+          groupingBasis: string;
+          productName: string;
+          productUrl: string;
+          periodRevenueVnd: string;
+          revenuePrecision: 'exact';
+        },
+      ]
+    | [
+        {
+          platform: 'shopee';
+          shopId: string;
+          itemId: string;
+          brand?: string | null;
           productKey: string;
           groupingBasis: string;
           productName: string;
@@ -179,6 +157,43 @@ export interface ShopeeCollection {
           platform: 'shopee';
           shopId: string;
           itemId: string;
+          brand?: string | null;
+          productKey: string;
+          groupingBasis: string;
+          productName: string;
+          productUrl: string;
+          periodRevenueVnd: string;
+          revenuePrecision: 'exact';
+        },
+        {
+          platform: 'shopee';
+          shopId: string;
+          itemId: string;
+          brand?: string | null;
+          productKey: string;
+          groupingBasis: string;
+          productName: string;
+          productUrl: string;
+          periodRevenueVnd: string;
+          revenuePrecision: 'exact';
+        },
+        {
+          platform: 'shopee';
+          shopId: string;
+          itemId: string;
+          brand?: string | null;
+          productKey: string;
+          groupingBasis: string;
+          productName: string;
+          productUrl: string;
+          periodRevenueVnd: string;
+          revenuePrecision: 'exact';
+        },
+        {
+          platform: 'shopee';
+          shopId: string;
+          itemId: string;
+          brand?: string | null;
           productKey: string;
           groupingBasis: string;
           productName: string;

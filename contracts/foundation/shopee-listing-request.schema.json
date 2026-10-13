@@ -74,6 +74,18 @@
             "type": "string",
             "pattern": "^[1-9][0-9]{0,19}$"
           },
+          "brand": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "productKey": {
             "anyOf": [
               {
