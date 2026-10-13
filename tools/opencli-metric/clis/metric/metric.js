@@ -1470,17 +1470,27 @@ async function applyMetricSpec(page, spec, initialObservation) {
 }
 
 function createNetworkState() {
-  return { nextResponseOrder: 0, all: [] };
+  return { nextResponseOrder: 0, all: [], seenResponseKeys: new Set() };
+}
+
+function networkResponseKey(response) {
+  const eventId = response?.eventId ?? response?.responseId ?? response?.requestId;
+  if (eventId != null) return `event:${String(eventId)}`;
+  const fields = ['url', 'urlPath', 'path', 'method', 'status', 'responseStatus', 'body', 'response', 'responsePreview', 'requestBody', 'requestBodyPreview', 'request', 'requestUrl'];
+  return `body:${JSON.stringify(Object.fromEntries(fields.filter(field => response?.[field] !== undefined).map(field => [field, response[field]])))}`;
 }
 
 async function readNetworkChunk(page, networkState) {
   if (typeof page.readNetworkCapture !== 'function') return [];
   const raw = await page.readNetworkCapture();
   const entries = Array.isArray(raw) ? raw : [];
-  const chunk = entries.map(response => {
+  const chunk = entries.flatMap(response => {
+    const key = networkResponseKey(response);
+    if (networkState.seenResponseKeys?.has(key)) return [];
+    networkState.seenResponseKeys?.add(key);
     const suppliedOrder = Number.isSafeInteger(response?.responseOrder) ? response.responseOrder : networkState.nextResponseOrder;
     networkState.nextResponseOrder = Math.max(networkState.nextResponseOrder, suppliedOrder + 1);
-    return { ...response, responseOrder: suppliedOrder };
+    return [{ ...response, responseOrder: suppliedOrder }];
   });
   networkState.all.push(...chunk);
   return chunk;
@@ -2340,5 +2350,10 @@ export const captureCommand = cli({
   },
 });
 
-export const __test__ = { asCliError, withMetricTab, readObservation, applyMetricSpec, performSearch, runDryRun, prepareMetricForm, waitForKeywordCommit, observeMetricPage, observeResultPage, collectResultPages, archiveResultsPage, replayResultsPage, readCommittedKeywords, describeSearchSubmit, assertSearchSubmitInspection };
+export {
+  asCliError, withMetricTab, readObservation, applyMetricSpec, performSearch, runDryRun,
+  prepareMetricForm, waitForKeywordCommit, observeMetricPage, observeResultPage,
+  collectResultPages, archiveResultsPage, replayResultsPage, readCommittedKeywords,
+  describeSearchSubmit, assertSearchSubmitInspection, createNetworkState, readNetworkChunk,
+};
 export { assertMetricUrl, parseMetricForm };

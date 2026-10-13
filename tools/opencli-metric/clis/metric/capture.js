@@ -478,17 +478,21 @@ function metricPlatformId(value, platformIdMap = DEFAULT_PLATFORM_ID_MAP) {
   return platformIdMap?.[id] || null;
 }
 
+function platformValues(value) {
+  return Array.isArray(value) ? value : value && typeof value === 'object' ? Object.values(value) : [];
+}
+
 function metricApiPayloads(body, sourcePointer, platformIdMap) {
   const data = body?.data;
   const searchBasic = data?.search_basic;
   const aggregations = Array.isArray(searchBasic?.aggregations) ? searchBasic.aggregations : [];
   const byAggregation = new Map(aggregations.map(item => [clean(item?.aggregation).toUpperCase(), item]));
   const payloads = [];
-  const platformRows = name => (byAggregation.get(name)?.entity?.platforms || [])
+  const platformRows = name => platformValues(byAggregation.get(name)?.entity?.platforms)
     .map(item => ({ platform: metricPlatformId(item?.platform_id, platformIdMap), value: item?.value }))
     .filter(item => item.platform && item.value != null);
   const entityRows = name => (byAggregation.get(name)?.entities || []).flatMap((item, index) =>
-    (item?.platforms || []).map(platform => ({
+    platformValues(item?.platforms).map(platform => ({
       platform: metricPlatformId(platform?.platform_id, platformIdMap), value: platform?.value ?? item?.value,
       key: item?.key, from: item?.from, to: item?.to, index,
     })).filter(row => row.platform && row.value != null));
@@ -727,13 +731,29 @@ function platformSplitGroup(entries, scope) {
     seen.add(key);
     return true;
   });
-  if (!points.length) return { absent: true, reason: 'NOT_ON_PAGE' };
-  return points.map(({ row, entry, index }) => ({
-    platform: rowPlatform(row, entry.platform),
-    revenue: metricValue(row.revenue, { label: 'Revenue', unit: 'VND', platform: rowPlatform(row, entry.platform), period: scope.period, sourcePointer: `${entry.sourcePointer}/items/${index}/revenue` }),
-    units: row.units == null ? null : metricValue(row.units, { label: 'Units', unit: 'COUNT', platform: rowPlatform(row, entry.platform), period: scope.period, sourcePointer: `${entry.sourcePointer}/items/${index}/units` }),
-    share: metricValue(row.share, { label: 'Share', unit: 'PERCENT', platform: rowPlatform(row, entry.platform), period: scope.period, sourcePointer: `${entry.sourcePointer}/items/${index}/share` }),
-  }));
+  const requested = [...new Set((scope.platforms || []).map(platformOf).filter(platform => platform === 'shopee' || platform === 'tiktok'))];
+  const byPlatform = new Map(points.map(point => [rowPlatform(point.row, point.entry.platform), point]));
+  if (!requested.length && !points.length) return { absent: true, reason: 'NOT_ON_PAGE' };
+  const platforms = requested.length ? requested : [...byPlatform.keys()];
+  return platforms.map(platform => {
+    const point = byPlatform.get(platform);
+    if (!point) {
+      const sourcePointer = `scope:platforms/${platform}`;
+      return {
+        platform,
+        revenue: metricValue(null, { label: 'Revenue', unit: 'VND', platform, period: scope.period, sourcePointer: `${sourcePointer}/revenue` }),
+        units: null,
+        share: metricValue(null, { label: 'Share', unit: 'PERCENT', platform, period: scope.period, sourcePointer: `${sourcePointer}/share` }),
+      };
+    }
+    const { row, entry, index } = point;
+    return {
+      platform,
+      revenue: metricValue(row.revenue, { label: 'Revenue', unit: 'VND', platform, period: scope.period, sourcePointer: `${entry.sourcePointer}/items/${index}/revenue` }),
+      units: row.units == null ? null : metricValue(row.units, { label: 'Units', unit: 'COUNT', platform, period: scope.period, sourcePointer: `${entry.sourcePointer}/items/${index}/units` }),
+      share: metricValue(row.share, { label: 'Share', unit: 'PERCENT', platform, period: scope.period, sourcePointer: `${entry.sourcePointer}/items/${index}/share` }),
+    };
+  });
 }
 
 function monthlyGroup(entries, scope) {
@@ -857,13 +877,13 @@ function chartSeriesFromResponses(responses, platformIdMap) {
     const body = rawBody(response); const path = responsePath(response, index); const data = body?.data || {};
     const aggs = data.search_basic?.aggregations || []; const by = new Map(aggs.map(item => [clean(item.aggregation).toUpperCase(), item]));
     const id = value => metricPlatformId(value, platformIdMap) || 'unknown';
-    const entities = name => (by.get(name)?.entities || []).flatMap(item => (item.platforms || []).map(p => ({ ...item, platform: id(p.platform_id), value: p.value })));
+    const entities = name => (by.get(name)?.entities || []).flatMap(item => platformValues(item?.platforms).map(p => ({ ...item, platform: id(p.platform_id), value: p.value })));
     for (const [name, series] of [['REVENUE__BY__PRICE_RANGE_CUSTOM','priceRange'],['REVENUE__BY__LOCATION_CUSTOM','province'],['REVENUE__BY__SHOP_TYPE_CUSTOM','shopType'],['REVENUE__BY__CATEGORIES_CUSTOM','category']]) {
       for (const row of entities(name)) rows.push({ series, platform: row.platform, label: row.key ?? `${row.from ?? ''}-${row.to ?? ''}`, value: row.value, source: `response:${path}` });
     }
-    const headline = Object.fromEntries(['REVENUE_TOTAL_CUSTOM','ORDER_TOTAL_CUSTOM','PRODUCT_TOTAL','SHOP_TOTAL'].map(name => [name, (by.get(name)?.entity?.platforms || []).map(p => ({ platform: id(p.platform_id), value: p.value }))]));
+    const headline = Object.fromEntries(['REVENUE_TOTAL_CUSTOM','ORDER_TOTAL_CUSTOM','PRODUCT_TOTAL','SHOP_TOTAL'].map(name => [name, platformValues(by.get(name)?.entity?.platforms).map(p => ({ platform: id(p.platform_id), value: p.value }))]));
     for (const platform of new Set(Object.values(headline).flat().map(x => x.platform))) {
-      rows.push({ series:'headline', platform, revenue: headline.REVENUE_TOTAL_CUSTOM.find(x=>x.platform===platform)?.value ?? null, units: headline.ORDER_TOTAL_CUSTOM.find(x=>x.platform===platform)?.value ?? null, previousRevenue: (by.get('PREVIOUS_REVENUE_TOTAL_CUSTOM')?.entity?.platforms || []).find(x=>id(x.platform_id)===platform)?.value ?? null, previousUnits: (by.get('PREVIOUS_ORDER_TOTAL_CUSTOM')?.entity?.platforms || []).find(x=>id(x.platform_id)===platform)?.value ?? null, source:`response:${path}` });
+      rows.push({ series:'headline', platform, revenue: headline.REVENUE_TOTAL_CUSTOM.find(x=>x.platform===platform)?.value ?? null, units: headline.ORDER_TOTAL_CUSTOM.find(x=>x.platform===platform)?.value ?? null, previousRevenue: platformValues(by.get('PREVIOUS_REVENUE_TOTAL_CUSTOM')?.entity?.platforms).find(x=>id(x.platform_id)===platform)?.value ?? null, previousUnits: platformValues(by.get('PREVIOUS_ORDER_TOTAL_CUSTOM')?.entity?.platforms).find(x=>id(x.platform_id)===platform)?.value ?? null, source:`response:${path}` });
     }
     if (/\/analytics\/(products|shops|groups|shops-insight)\/?$/i.test(path)) {
       const list = data.products || data.shops || data.groups || [];
