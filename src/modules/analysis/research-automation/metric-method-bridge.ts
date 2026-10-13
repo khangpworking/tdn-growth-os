@@ -663,6 +663,21 @@ function verifyCaptureSelection(selected: CaptureSelected, input: Pick<MetricRun
   if (!context || context.contractVersion !== 'automation-metric-capture-context-v1' || context.provenance !== 'results-page capture' ||
       context.snapshotSha256 !== sha(selected.snapshot.bytes) || context.manifestSha256 !== sha(selected.manifest.bytes))
     fail('METRIC_SOURCE_INTEGRITY_FAILED', 'Metric capture context differs from its retained archive.');
+  assertCaptureFilterScope(verified.snapshot.scope, input.scope);
+}
+
+/** The capture is uploaded before confirmation, so its page filters are
+ * checked against the confirmed scope here. The capture path does not apply
+ * exclusions after normalization, so the page must have applied exactly the
+ * confirmed exclusions and no extra filters. Confirmed include terms only
+ * widen the scope; the observed sample stays the searched keyword. */
+export function assertCaptureFilterScope(captured: { readonly advancedFilters: readonly unknown[]; readonly exclusions: readonly string[] },
+  scope: Pick<ScopeSnapshot, 'excludeTerms'> | null | undefined): void {
+  if (!scope) return;
+  const key = (value: string): string => value.normalize('NFC').trim().toLowerCase();
+  const set = (values: readonly string[]): string => [...new Set(values.map(key).filter(Boolean))].sort().join('\u0000');
+  if (captured.advancedFilters.length || set(captured.exclusions) !== set(scope.excludeTerms))
+    fail('METRIC_SOURCE_RUN_MISMATCH', 'Metric capture filters differ from the confirmed scope.');
 }
 
 function selectBoundSource(source: VerifiedFinalizedSourcePackage, input: MetricRunInput, v1: Validator, v2?: Validator): WorkbookSelected {

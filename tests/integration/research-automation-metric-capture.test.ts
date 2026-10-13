@@ -13,6 +13,7 @@ import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/arti
 import { RequestScopedArtifactStore } from '../../src/platform/artifacts/request-scoped-artifact-store.js';
 import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../src/modules/flow/index.js';
 import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
+import { ResearchAutomationValidationError } from '../../src/modules/analysis/research-automation/model.js';
 import { webSnapshotDigest } from '../../src/modules/analysis/reader-report/web-facts.js';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
@@ -107,4 +108,34 @@ test('capture source prepares with provenance, exact retry, and capture-backed M
   assert.match(html, /không có số liệu/);
   assert.deepEqual(record.input.rows.map((entry: { platform: string }) => entry.platform), ['shopee']);
   assert.ok(row.inputSha);
+});
+
+test('capture-confirmed Market run refuses the workbook-only presentation revision in plain words before queuing', async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-metric-capture-pres-209-'));
+  const db = openDatabase({ databasePath: path.join(root, 'test.sqlite'), now }).db;
+  const artifacts = new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
+  t.after(async () => { db.close(); await fs.rm(root, { recursive: true, force: true }); });
+  const discovery = new DiscoveryWorkspaceService({ db, artifactStore: artifacts, uuid: () => workspaceId, now });
+  await discovery.createWorkspace({ contractVersion: '1.0.0', workspaceKey: 'metric-capture-pres-209', title: 'Synthetic Metric capture presentation' });
+  const service = new ResearchAutomationService({ db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discovery),
+    metricAttachmentStore: new RequestScopedArtifactStore(path.join(root, 'artifacts')), uuid: () => runId, now, readerReportFlint: false });
+  await service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: '33333333-3333-4333-8333-333333333333',
+    mode: 'CATEGORY', keyword: 'synthetic jar', requestedPeriod: { startDate: '2026-01-01', endDate: '2026-01-30' }, reports: ['MARKET'] });
+  await service.processNext();
+  const awaiting = await service.getRun(workspaceId, runId);
+  const archive = captureArchive(captureSnapshot());
+  const receipt = await service.prepareMetricCapture(workspaceId, runId, { contractVersion: 'automation-metric-capture-prepare-v1',
+    requestKey: '66666666-6666-4666-8666-666666666666', expectedRevision: awaiting.revision, sourceContext: 'Synthetic capture fixture' },
+  archive.snapshotBytes, archive.manifestBytes);
+  const scope = { definition: 'Synthetic reader scope', includeTerms: ['synthetic jar'], excludeTerms: [], selectedProductIds: [], peerProductIds: [] };
+  await service.confirmScope(workspaceId, runId, { contractVersion: 'research-automation-confirm-v2', requestKey: '55555555-5555-4555-8555-555555555555',
+    expectedRevision: awaiting.revision, ...scope, sources: { metric: { decision: 'USE_PREPARED', packageId: receipt.packageId }, nativeReview: 'SKIP' } });
+  for (let i = 0; i < 10 && (await service.getRun(workspaceId, runId)).status !== 'DRAFT_READY'; i++) await service.processNext();
+  assert.equal((await service.getRun(workspaceId, runId)).status, 'DRAFT_READY');
+  const pair = (await service.listReportVersions(workspaceId, runId))[0]!;
+  await assert.rejects(service.requestReportRevision(workspaceId, runId, { contractVersion: 'automation-market-presentation-revision-v1',
+    requestKey: '88888888-8888-4888-8888-888888888888', previousPairId: pair.pairId,
+    sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } } }),
+  (error: unknown) => error instanceof ResearchAutomationValidationError && /results-page Metric capture/.test(error.message));
+  assert.equal((await service.listReportAttempts(workspaceId, runId)).length, 0);
 });

@@ -154,6 +154,23 @@ const metricFailureCopy: Readonly<Record<MetricMethodFailureCode, { explanation:
     next: 'Chưa tính được từ gói số liệu thị trường gắn với lượt này. Kiểm tra nguồn, kỳ đo và liên kết phạm vi trước khi tạo lượt mới.',
   },
 };
+const WEB_DISCOVERY_DATASET = 'web_discovery_current';
+const WEB_SOURCE_FAILED_TEXT = 'Nguồn kết quả tìm kiếm trên web không phản hồi kịp hoặc trả về dữ liệu không dùng được; lượt này không dùng kết quả tìm kiếm web.';
+const readerPlatform = (platform: string): string => platform === 'shopee' ? 'Shopee' : platform === 'tiktok' ? 'TikTok Shop' : platform;
+/** The appendix source list states what this run actually used, so a missing or failed source is never shown as present. */
+export function marketSourceRows(input: AutomationReportInput, webResultCount: number, webFailed: boolean): readonly (readonly [string, string])[] {
+  const capture = input.metricMethods?.capture;
+  const missing = capture ? capture.capture.platforms.filter(platform => !capture.platforms.some(value => value.platform === platform)) : [];
+  const sales = input.metricMethods
+    ? missing.length ? `Dùng một phần: không có số liệu cho ${missing.map(readerPlatform).join(', ')} trong lượt này.` : 'Đã dùng số liệu của lượt này.'
+    : input.metricMethodsFailure ? 'Không dùng được trong lượt này: gói số liệu không qua kiểm tra.' : 'Chưa có trong lượt này.';
+  const native = input.nativeReview ? 'Đã dùng trong lượt này.'
+    : input.nativeReviewFailure ? 'Không dùng được trong lượt này: bước xử lý không qua kiểm tra.' : 'Chưa có trong lượt này.';
+  const web = webResultCount ? `Đã lưu ${webResultCount} kết quả trong lượt này.` : webFailed ? WEB_SOURCE_FAILED_TEXT : 'Chưa có trong lượt này.';
+  const comments = input.reviewCorpus ? 'Đã dùng trong lượt này.'
+    : input.reviewCorpusFailure ? 'Không dùng được trong lượt này: bộ bình luận không qua kiểm tra.' : 'Chưa có trong lượt này.';
+  return [['Dữ liệu bán hàng', sales], ['Dữ liệu đánh giá sản phẩm trên nền tảng', native], ['Kết quả tìm kiếm', web], ['Bình luận đã thu thập', comments]];
+}
 interface CatalogSection { sectionId: string; title: string; methodId: string; methodVersion: string; requiredInputs: string[] }
 export interface MethodOutputRef { methodOutputId: string; locatedRecordCount: number; unresolvedPointers: readonly string[]; blockers: readonly string[] }
 interface DraftSection { sectionId: string; title: string; state: 'SOURCE_CONTEXT' | 'SOURCE_TABLE' | 'EVIDENCE_INVENTORY' | 'METHOD_OUTPUT' | 'METHOD_NO_USABLE_RECORDS' | 'BLOCKED'; method: string; explanation: string; rows: readonly TypedComparable[]; methodOutput?: MethodOutputRef }
@@ -832,7 +849,11 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   const labels = productLabels(input);
   const sourceTable = `<p>Kỳ truy vấn là khoảng ngày đã gửi tới nguồn, không chứng minh đã thu đủ dữ liệu.</p><div class="table-wrap" role="region" aria-label="Bản thu từ truy vấn nguồn" tabindex="0"><table><caption>Bản thu từ truy vấn nguồn của lượt này</caption><thead><tr><th scope="col">Thao tác</th><th scope="col">Kỳ truy vấn</th><th scope="col">Lượt gọi kết thúc</th><th scope="col">Nguồn</th></tr></thead><tbody>${input.captures.map(capture => `<tr><td>${escape(stepLabel(capture.stepId))}</td><td>${capture.window ? escape(`${capture.window.startDate} đến ${capture.window.endDate}`) : 'Không áp dụng kỳ truy vấn'}</td><td>${escape(capture.retrievedAt)}</td><td>${captureMark(capture, citations)}${capture.truncated ? '<br>Bản thu bị cắt; không dùng để tính' : ''}</td></tr>`).join('') || noCaptureRow}</tbody></table></div>`;
   const webResults = input.collection?.webResults ?? [];
-  const webResultsTable = webResults.length ? `<div class="table-wrap" role="region" aria-label="Kết quả tìm kiếm trên web đã lưu" tabindex="0"><table><caption>Kết quả tìm kiếm trên web đã lưu của lượt này, theo thứ tự nguồn trả về</caption><thead><tr><th scope="col">Vị trí</th><th scope="col">Tiêu đề</th><th scope="col">Trang</th><th scope="col">Thời điểm thu</th><th scope="col">Nguồn</th></tr></thead><tbody>${webResults.map(row => `<tr><td>${row.position}</td><td>${storedLiteral(row.title, 'Tiêu đề được giữ trong bản lưu nguồn')}</td><td>${storedLiteral(row.site ?? 'Chưa rõ trang', 'Trang nguồn được giữ trong bản lưu')}</td><td>${escape(row.retrievedAt)}</td><td>${webMark(row, citations)}</td></tr>`).join('')}</tbody></table></div><p>Thứ tự trên là thứ tự kết quả nguồn trả về, không phải xếp hạng. Đoạn trích và liên kết đầy đủ được giữ trong hồ sơ thu đã lưu.</p>` : '';
+  // A web source that failed or timed out leaves no rows; the reader is told
+  // plainly instead of seeing an empty area.
+  const webSourceFailed = !webResults.length && (input.collection?.coverage ?? [])
+    .some(value => value.dataset === WEB_DISCOVERY_DATASET && value.state === 'FAILED');
+  const webResultsTable = webResults.length ? `<div class="table-wrap" role="region" aria-label="Kết quả tìm kiếm trên web đã lưu" tabindex="0"><table><caption>Kết quả tìm kiếm trên web đã lưu của lượt này, theo thứ tự nguồn trả về</caption><thead><tr><th scope="col">Vị trí</th><th scope="col">Tiêu đề</th><th scope="col">Trang</th><th scope="col">Thời điểm thu</th><th scope="col">Nguồn</th></tr></thead><tbody>${webResults.map(row => `<tr><td>${row.position}</td><td>${storedLiteral(row.title, 'Tiêu đề được giữ trong bản lưu nguồn')}</td><td>${storedLiteral(row.site ?? 'Chưa rõ trang', 'Trang nguồn được giữ trong bản lưu')}</td><td>${escape(row.retrievedAt)}</td><td>${webMark(row, citations)}</td></tr>`).join('')}</tbody></table></div><p>Thứ tự trên là thứ tự kết quả nguồn trả về, không phải xếp hạng. Đoạn trích và liên kết đầy đủ được giữ trong hồ sơ thu đã lưu.</p>` : webSourceFailed ? `<p class="warning">${WEB_SOURCE_FAILED_TEXT}</p>` : '';
   const scope = `<dl><dt>Thị trường</dt><dd>Việt Nam</dd><dt>Định nghĩa đã xác nhận</dt><dd>${storedLiteral(input.scope.definition, 'Định nghĩa được giữ trong bản lưu')}</dd><dt>Kỳ báo cáo yêu cầu</dt><dd>${escape(period)}</dd><dt>Điều kiện bao gồm</dt><dd>${storedLiteral(input.scope.includeTerms.join(', ') || 'Không thêm điều kiện', 'Điều kiện được giữ trong bản lưu')}</dd><dt>Điều kiện loại trừ</dt><dd>${storedLiteral(input.scope.excludeTerms.join(', ') || 'Không thêm điều kiện', 'Điều kiện được giữ trong bản lưu')}</dd></dl><p class="warning">Điều kiện trên là ý định nghiên cứu đã lưu. Chưa xác nhận các truy vấn nguồn áp dụng đầy đủ điều kiện này. ${input.metricClassified ? (readerPlainText ? 'Mẫu số liệu thị trường đã được phân loại theo phạm vi toàn bộ mẫu, phạm vi rộng và phạm vi cốt lõi theo quy tắc và biên nhận được chốt; không suy rộng phân loại đó sang nguồn khác.' : 'Mẫu số liệu thị trường đã được phân loại CORE/WIDE theo quy tắc và biên nhận được chốt; không suy rộng phân loại đó sang nguồn khác.') : (readerPlainText ? 'Chưa phân loại phạm vi.' : 'Chưa phân loại CORE/WIDE.')} Kỳ yêu cầu không chứng minh mọi nguồn có đủ dữ liệu trong kỳ này. Kết quả tìm kiếm hiện tại và danh sách top sản phẩm không phải tổng doanh số thị trường.</p>`;
   const stateLabel: Readonly<Record<DraftSection['state'], string>> = {
     EVIDENCE_INVENTORY: 'Kiểm tra bằng chứng · Chưa có kết luận',
@@ -879,10 +900,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
       ['Đối chiếu lời khách từ nguồn đã lưu', 'Chủ dự án (đề xuất, chờ chủ duyệt)', 'Hạn: chủ chọn', 'Bảng phản hồi được duyệt'],
     ].map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('') + '</tbody></table></div>' : '';
   const market14Appendix = `<div class="table-wrap market14-sources"><div class="exh"><span class="exn">Bảng PL.1</span><span class="ext">Nguồn dữ liệu của báo cáo</span></div><table><caption>Nguồn dữ liệu của báo cáo</caption><thead><tr><th>Hạng mục</th><th>Trạng thái</th></tr></thead><tbody>` +
-    '<tr><td>Dữ liệu bán hàng</td><td>Đã dùng số liệu của lượt này.</td></tr>' +
-    '<tr><td>Dữ liệu đánh giá sản phẩm trên nền tảng</td><td>Chưa có trong lượt này.</td></tr>' +
-    '<tr><td>Kết quả tìm kiếm</td><td>Được giữ riêng khi có đầu vào.</td></tr>' +
-    '<tr><td>Bình luận đã thu thập</td><td>Chưa có trong lượt này.</td></tr>' +
+    marketSourceRows(input, webResults.length, webSourceFailed).map(([label, status]) => `<tr><td>${label}</td><td>${escape(status)}</td></tr>`).join('') +
     '</tbody></table></div>' +
     '<div class="table-wrap market14-glossary"><div class="exh"><span class="exn">Bảng PL.2</span><span class="ext">Thuật ngữ</span></div><table data-glossary="true"><caption>Thuật ngữ</caption><thead><tr><th>Thuật ngữ</th><th>Nghĩa tiếng Việt</th></tr></thead><tbody>' +
     [['listing', 'sản phẩm'], ['review', 'đánh giá'], ['export', 'tệp dữ liệu'], ['peer set', 'nhóm đối thủ'], ['Giá TB', 'giá trung bình'], ['P25 / P75', 'mốc 25% / mốc 75%'], ['NSX', 'nhà sản xuất'], ['H1', 'giả thuyết 1'], ['ROAS', 'tỷ lệ doanh thu trên chi phí quảng cáo'], ['CPA', 'chi phí trên đơn'], ['AI', 'trí tuệ nhân tạo']]
@@ -904,7 +922,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   const baseAppendix = (sectionId: string): string => {
     if (sourceScope && sectionId === 'M02') return marketSourceScopeSection(sourceScope, 'M02', citations);
     if (kind === 'MARKET' && sectionId === 'M01' && input.m01Inventory && input.sourceClaims) return m01InventorySection(input.m01Inventory, input.sourceClaims, citations, readerPlainText);
-    if (kind === 'INSIGHT' && sectionId === 'I14' && input.i14Admission && input.sourceClaims) return i14SynthesisSection(input.i14Synthesis, citations) + i14AdmissionSection(input.i14Admission, input.sourceClaims, citations);
+    if (kind === 'INSIGHT' && sectionId === 'I14' && input.i14Admission && input.sourceClaims) return i14SynthesisSection(input.i14Synthesis, citations, false) + i14AdmissionSection(input.i14Admission, input.sourceClaims, citations, false);
     if (kind === 'MARKET' && (sectionId === 'M03' || sectionId === 'M04')) {
        if (input.metricMethods) return metricMethodSection(input.metricMethods, sectionId, input.metricClassified, citations, Boolean(marketPresentation), readerPlainText) + (sectionId === 'M03' && input.marketInventory ? '<h3>Bằng chứng riêng của nguồn sàn: không cộng vào số liệu nguồn</h3>' + marketInventorySection(input.marketInventory, sectionId, citations, labels, readerPlainText) : '');
       if (input.metricMethodsFailure) return `<p class="warning">${escape(metricFailureCopy[input.metricMethodsFailure].next)}</p>` + codeNote(input.metricMethodsFailure);
