@@ -13,8 +13,10 @@ import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/arti
 import { RequestScopedArtifactStore } from '../../src/platform/artifacts/request-scoped-artifact-store.js';
 import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../src/modules/flow/index.js';
 import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
+import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
 import { ResearchAutomationValidationError } from '../../src/modules/analysis/research-automation/model.js';
 import { webSnapshotDigest } from '../../src/modules/analysis/reader-report/web-facts.js';
+import { providerNameViolations, reportVisibleText, visibleTextViolations } from '../helpers/report-visible-text.js';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
 const runId = '22222222-2222-4222-8222-222222222222';
@@ -108,7 +110,8 @@ test('capture source prepares with provenance, exact retry, and capture-backed M
   assert.equal(record.input.rows[0].brand, '(không ghi)');
   assert.ok(build.revision.revisionId);
   const html = (await f.service.readReaderReport(workspaceId, runId, build.revision.revisionId)).bytes.toString('utf8');
-  assert.match(html, /results-page capture/);
+  assert.match(html, /bảng kết quả tìm kiếm đã lưu/);
+  assert.equal(html.includes('results-page capture'), false);
   assert.match(html, /không có số liệu/);
   assert.deepEqual(record.input.rows.map((entry: { platform: string }) => entry.platform), ['shopee']);
   assert.ok(row.inputSha);
@@ -142,4 +145,53 @@ test('capture-confirmed Market run refuses the workbook-only presentation revisi
     sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } } }),
   (error: unknown) => error instanceof ResearchAutomationValidationError && /results-page Metric capture/.test(error.message));
   assert.equal((await service.listReportAttempts(workspaceId, runId)).length, 0);
+});
+
+/** Fresh Market run confirmed either with the prepared capture or with no Metric source at all. */
+async function confirmedCaptureRun(t: TestContext, decision: 'USE_PREPARED' | 'SKIPPED') {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), `tdn-metric-capture-209-${decision.toLowerCase()}-`));
+  const db = openDatabase({ databasePath: path.join(root, 'test.sqlite'), now }).db;
+  const artifacts = new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
+  t.after(async () => { db.close(); await fs.rm(root, { recursive: true, force: true }); });
+  const discovery = new DiscoveryWorkspaceService({ db, artifactStore: artifacts, uuid: () => workspaceId, now });
+  await discovery.createWorkspace({ contractVersion: '1.0.0', workspaceKey: `metric-capture-209-${decision.toLowerCase()}`, title: 'Synthetic Metric capture confirmation' });
+  const service = new ResearchAutomationService({ db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discovery),
+    metricAttachmentStore: new RequestScopedArtifactStore(path.join(root, 'artifacts')), uuid: () => runId, now, readerReportFlint: false,
+    renderer: buildResearchAutomationReport });
+  await service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: '33333333-3333-4333-8333-333333333333',
+    mode: 'CATEGORY', keyword: 'synthetic jar', requestedPeriod: { startDate: '2026-01-01', endDate: '2026-01-30' }, reports: ['MARKET'] });
+  await service.processNext();
+  const awaiting = await service.getRun(workspaceId, runId);
+  const archive = captureArchive(captureSnapshot());
+  const receipt = await service.prepareMetricCapture(workspaceId, runId, { contractVersion: 'automation-metric-capture-prepare-v1',
+    requestKey: '66666666-6666-4666-8666-666666666666', expectedRevision: awaiting.revision, sourceContext: 'Synthetic capture fixture' },
+  archive.snapshotBytes, archive.manifestBytes);
+  await service.confirmScope(workspaceId, runId, { contractVersion: 'research-automation-confirm-v2', requestKey: '55555555-5555-4555-8555-555555555555',
+    expectedRevision: awaiting.revision, definition: 'Synthetic reader scope', includeTerms: ['synthetic jar'], excludeTerms: [], selectedProductIds: [], peerProductIds: [],
+    sources: { metric: decision === 'USE_PREPARED' ? { decision: 'USE_PREPARED', packageId: receipt.packageId } : { decision: 'SKIPPED' }, nativeReview: 'SKIP' } });
+  for (let i = 0; i < 10 && (await service.getRun(workspaceId, runId)).status !== 'DRAFT_READY'; i++) await service.processNext();
+  return service;
+}
+
+test('a capture-confirmed Market run counts Metric as executed and keeps capture jargon out of reader text', async t => {
+  const service = await confirmedCaptureRun(t, 'USE_PREPARED');
+  const run = await service.getRun(workspaceId, runId);
+  assert.equal(run.status, 'DRAFT_READY');
+  assert.equal(run.blockers.some(blocker => blocker.code === 'METRIC_MANUAL_EXPORT_REQUIRED'), false);
+  const html = (await service.readReport(workspaceId, runId, 'MARKET', false)).bytes.toString('utf8');
+  const visible = reportVisibleText(html);
+  for (const token of ['results-page capture', 'Provenance', 'top-N', 'Metric']) assert.equal(visible.includes(token), false, token);
+  assert.deepEqual(visibleTextViolations(visible), []);
+  assert.deepEqual(providerNameViolations(html), []);
+  assert.match(html, /bảng kết quả tìm kiếm đã lưu/);
+  assert.match(html, /Shopee/);
+  assert.match(html, /TikTok Shop/);
+  assert.match(html, /không có số liệu/);
+});
+
+test('a confirmed Market run with no Metric source keeps the manual-export blocker', async t => {
+  const service = await confirmedCaptureRun(t, 'SKIPPED');
+  const run = await service.getRun(workspaceId, runId);
+  assert.equal(run.status, 'DRAFT_READY');
+  assert.ok(run.blockers.some(blocker => blocker.code === 'METRIC_MANUAL_EXPORT_REQUIRED'));
 });

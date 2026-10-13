@@ -1771,6 +1771,7 @@ test('capture source runs create → upload → confirm → Market without a wor
     assert.equal(confirmed.status, 202, await confirmed.clone().text());
     const ready = await waitForRun(base, started.runId, run => run.status === 'DRAFT_READY');
     assert.equal(ready.status, 'DRAFT_READY');
+    assert.equal(ready.blockers.some((blocker: { code: string }) => blocker.code === 'METRIC_MANUAL_EXPORT_REQUIRED'), false);
     const market = await fetch(`${base}/api/workspaces/${workspaceId}/research-automation/runs/${started.runId}/reports/market`);
     assert.equal(market.status, 200, await market.clone().text());
     const html = await market.text();
@@ -1778,8 +1779,10 @@ test('capture source runs create → upload → confirm → Market without a wor
     assert.match(html, /TikTok synthetic/);
     assert.match(html, /1\.200/);
     assert.match(html, /800/);
-    assert.match(html, /results-page capture/);
-    assert.match(html, /top-N/);
+    assert.match(html, /bảng kết quả tìm kiếm đã lưu/);
+    assert.match(html, /3 dòng đầu/);
+    assert.equal(html.includes('results-page capture'), false);
+    assert.equal(html.includes('top-N'), false);
     assert.match(html, /không có số liệu/);
     assert.match(html, /không cộng vào Shopee hoặc TikTok Shop/);
   });
@@ -1833,5 +1836,6 @@ test('capture source uploaded after scope confirmation follows the prepared-sour
     const market = await fetch(`${reportRoot}/report-versions/${pairId}/reports/market`);
     assert.equal(market.status, 200, await market.clone().text());
     assert.match(await market.text(), /Late capture product/);
+    assert.equal((await getRun(base, awaiting.runId)).blockers.some((blocker: { code: string }) => blocker.code === 'METRIC_MANUAL_EXPORT_REQUIRED'), false);
   });
 });
