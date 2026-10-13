@@ -73,7 +73,7 @@ const periodBasisLabel = (value: string): string => value === 'Kỳ bộ lọc c
   ? 'Kỳ lọc của bảng kết quả tìm kiếm đã lưu; giữ nguyên, không tự kéo dài hoặc chia tỷ lệ.'
   : storedLiteral(value, 'Căn cứ kỳ được giữ trong bản lưu nguồn');
 
-export function marketSourceScopeSection(scope: MarketSourceScope, section: 'M02' | 'M13', citations: ReportCitations): string {
+export function marketSourceScopeSection(scope: MarketSourceScope, section: 'M02' | 'M13', citations: ReportCitations, _readerPlainText = false): string {
   const metric = scope.metric;
   if (section === 'M13') {
     if (!metric) return '<details class="evidence-trace"><summary>Hồ sơ đối chiếu nguồn số liệu</summary><p>Chưa có gói số liệu đã xử lý trong bản báo cáo này; không có dấu vết tính toán để đối chiếu.</p></details>';
