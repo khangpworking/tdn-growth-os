@@ -313,9 +313,9 @@ export class AutomationReaderReports {
     const cover: CoverImage | null = stored && coverBytes ? { bytes: coverBytes, mime: stored.mime } : null;
     const limitations = readerLimitationsFromDraft(context.marketSemantic, request.profile.status);
     if (capture && captureRows) limitations.push(
-      `Nguồn số liệu là results-page capture; danh sách giữ ${capture.truncation.rowsRead} dòng đã đọc trong giới hạn ${capture.truncation.cap} dòng${capture.truncation.totalShown === null ? '' : ` trên ${capture.truncation.totalShown} dòng hiển thị`};${capture.truncation.truncated ? ' danh sách đã bị cắt; ' : ' '}phần còn lại không được suy ra.`,
+      `Nguồn số liệu là bảng kết quả tìm kiếm đã lưu; danh sách giữ ${capture.truncation.rowsRead} dòng đã đọc trong giới hạn ${capture.truncation.cap} dòng đầu${capture.truncation.totalShown === null ? '' : ` trên ${capture.truncation.totalShown} dòng hiển thị`};${capture.truncation.truncated ? ' danh sách đã bị cắt; ' : ' '}phần còn lại không được suy ra.`,
       `${captureRows.unattributed.length} dòng không gán được sàn được giữ riêng, không cộng vào Shopee hoặc TikTok Shop.`,
-      'Capture không có ngày bắt đầu bán ở cấp sản phẩm và không đủ trường cho một số mục; các mục đó ghi không có số liệu.',
+      'Bảng kết quả không có ngày bắt đầu bán ở cấp sản phẩm và không đủ trường cho một số mục; các mục đó ghi không có số liệu.',
     );
     const at = this.now(), createdAt = at.toISOString(), revisionId = randomUUID();
     const webResults = context.webResults ?? [];
