@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHash, randomUUID } from 'node:crypto';
 import { insightReaderFixture, readerRunId, readerWorkspaceId, readerOwner, readerNow } from '../helpers/insight-reader-fixture.js';
-import { reportVisibleText } from '../helpers/report-visible-text.js';
+import { reportContainsToken, reportVisibleText } from '../helpers/report-visible-text.js';
 import { AutomationReaderReports, type InsightReaderDraftContext } from '../../src/modules/analysis/research-automation/reader-report-revisions.js';
 import { prepareInsightReaderBuild } from '../../src/modules/analysis/reader-report/insight-build-v1.js';
 
@@ -78,7 +78,8 @@ for (const sourceRegistry of [false, true]) test(`real reader consumes retained 
   const visibleText = reportVisibleText(html);
   assert.equal(built.revision.reportKind, 'INSIGHT'); assert.equal(built.revision.builderVersion, 'reader-report-insight-v1');
   assert.match(visibleText, /Synthetic native listing only/); assert.match(visibleText, /đề xuất, chờ chủ duyệt/);
-  assert.doesNotMatch(visibleText, /Injected scope|Injected keyword|Injected finding|99999/);
+  assert.doesNotMatch(html, /Injected scope|Injected keyword|Injected finding/);
+  assert.equal(reportContainsToken(html, '99999'), false, 'I04 count must not appear as a standalone HTML token');
   assert.match(visibleText, /Trong mẫu lời nguồn, 1 bản ghi/);
   if (sourceRegistry) assert.match(visibleText, /S05|S27/);
   else assert.match(visibleText, /chưa có bản kê nguồn/);
