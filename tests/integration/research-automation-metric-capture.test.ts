@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
+import { JSDOM } from 'jsdom';
 import type Database from 'better-sqlite3';
 import type { AutomationMetricWebSnapshotV1 } from '../../contracts/analysis/automation-metric-web-snapshot-v1.generated.js';
 import type { AutomationMarketPresentationMethod } from '../../contracts/analysis/automation-market-presentation-method.generated.js';
@@ -17,7 +18,9 @@ import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../s
 import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
 import { ResearchAutomationIntegrityError, ResearchAutomationValidationError } from '../../src/modules/analysis/research-automation/model.js';
 import { auditMarket14 } from '../../src/modules/analysis/research-automation/market-14-rules.js';
+import type { ShopeeCollectorFactory } from '../../src/modules/analysis/research-automation/exact-shopee-bridge.js';
 import { webSnapshotDigest } from '../../src/modules/analysis/reader-report/web-facts.js';
+import { FixtureShopeeCollector } from '../../src/platform/collectors/apify-shopee.js';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
 const runId = '22222222-2222-4222-8222-222222222222';
@@ -126,16 +129,23 @@ interface CaptureRun {
   receipt: { packageId: string };
 }
 
+/** Exact-Shopee collection for the capture run: one submitted URL per product, one retained page of rows. */
+interface CaptureReviews { readonly urls: readonly string[]; readonly rows: readonly Record<string, unknown>[] }
+
 /** Capture-only run: the admitted Metric source is a results-page capture. */
-async function captureRun(t: TestContext): Promise<CaptureRun> {
+async function captureRun(t: TestContext, reviews?: CaptureReviews): Promise<CaptureRun> {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-metric-capture-pres-209-'));
   const db = openDatabase({ databasePath: path.join(root, 'test.sqlite'), now }).db;
   const artifacts = new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
   t.after(async () => { db.close(); await fs.rm(root, { recursive: true, force: true }); });
   const discovery = new DiscoveryWorkspaceService({ db, artifactStore: artifacts, uuid: () => workspaceId, now });
   await discovery.createWorkspace({ contractVersion: '1.0.0', workspaceKey: 'metric-capture-pres-209', title: 'Synthetic Metric capture presentation' });
+  const raw = reviews ? Buffer.from(JSON.stringify(reviews.rows)) : null;
+  const shopeeCollectorFactory: ShopeeCollectorFactory | undefined = raw === null ? undefined
+    : () => ({ requestsIssued: () => 1, collector: { mode: 'fixture', collect: async (...args) => new FixtureShopeeCollector(raw).collect(...args) } });
   const service = new ResearchAutomationService({ db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discovery),
-    metricAttachmentStore: new RequestScopedArtifactStore(path.join(root, 'artifacts')), uuid: () => runId, now, readerReportFlint: false });
+    metricAttachmentStore: new RequestScopedArtifactStore(path.join(root, 'artifacts')), uuid: () => runId, now, readerReportFlint: false,
+    ...(shopeeCollectorFactory ? { shopeeCollectorFactory } : {}) });
   await service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: '33333333-3333-4333-8333-333333333333',
     mode: 'CATEGORY', keyword: 'synthetic jar', requestedPeriod: { startDate: '2026-01-01', endDate: '2026-01-30' }, reports: ['MARKET'] });
   await service.processNext();
@@ -146,7 +156,8 @@ async function captureRun(t: TestContext): Promise<CaptureRun> {
   archive.snapshotBytes, archive.manifestBytes);
   const scope = { definition: 'Synthetic reader scope', includeTerms: ['synthetic jar'], excludeTerms: [], selectedProductIds: [], peerProductIds: [] };
   await service.confirmScope(workspaceId, runId, { contractVersion: 'research-automation-confirm-v2', requestKey: '55555555-5555-4555-8555-555555555555',
-    expectedRevision: awaiting.revision, ...scope, sources: { metric: { decision: 'USE_PREPARED', packageId: receipt.packageId }, nativeReview: 'SKIP' } });
+    expectedRevision: awaiting.revision, ...scope, ...(reviews ? { exactShopeeUrls: [...reviews.urls] } : {}),
+    sources: { metric: { decision: 'USE_PREPARED', packageId: receipt.packageId }, nativeReview: reviews ? 'AUTO_REUSE' : 'SKIP' } });
   for (let i = 0; i < 10 && (await service.getRun(workspaceId, runId)).status !== 'DRAFT_READY'; i++) await service.processNext();
   assert.equal((await service.getRun(workspaceId, runId)).status, 'DRAFT_READY');
   const pair = (await service.listReportVersions(workspaceId, runId))[0]!;
@@ -199,6 +210,29 @@ test('capture-backed Market presentation revision passes the same machine rules 
   assert.doesNotMatch(html, /tmp\/tdn-/, 'no machine path reaches the reader page');
   // Re-reading the committed pair replays the capture binding without a provider or clock.
   assert.equal((await f.service.readReport(workspaceId, runId, 'MARKET', false, pairId)).bytes.toString('utf8'), html);
+});
+
+test('capture-backed presentation passes the machine rules with a partial Shopee review outcome and keeps the listing URL out of visible text', async t => {
+  const urls = ['https://shopee.vn/product/78085196/17678138164', 'https://shopee.vn/product/78085196/17678138165'];
+  const f = await captureRun(t, { urls, rows: [{ shopId: '78085196', itemId: '17678138164', reviewId: 'synthetic-0', comment: 'Synthetic review text', ratingStar: 5 }] });
+  const ready = await f.service.getRun(workspaceId, runId);
+  assert.equal(ready.steps.find(row => row.stepId === 'COLLECTION')?.state, 'PARTIAL');
+  assert.ok(ready.blockers.some(row => row.code === 'EXACT_SHOPEE_REVIEWS_PARTIAL'));
+  const { html } = await commitPresentation(f, f.pair.pairId);
+  // One row for the first product only: the second is short, the notice renders, and every machine rule still holds.
+  const audited: Record<string, boolean> = Object.fromEntries(auditMarket14(html).map(rule => [rule.rule, rule.ok]));
+  for (const rule of ['1', '2', '3', '5', '7', '9', '11']) assert.equal(audited[rule], true, `machine rule ${rule}`);
+  assert.deepEqual(machineRuleFailures(html), []);
+  const dom = new JSDOM(html);
+  try {
+    const notice = dom.window.document.querySelector('.review-outcome-notice')!;
+    assert.ok(notice, 'the review shortfall notice is present');
+    const links = [...notice.querySelectorAll('li a')];
+    assert.deepEqual(links.map(link => link.getAttribute('href')), [urls[1]!], 'the URL stays in the link target');
+    assert.deepEqual(links.map(link => link.textContent), ['Sản phẩm #1'], 'the reader sees an ordinal, not a source locator');
+    assert.match(notice.textContent!, /Sản phẩm này chỉ lấy được 0\/300 bình luận\./);
+    assert.doesNotMatch(notice.textContent!, /product\/\d|https?:|shopee\.vn/, 'no locator path reaches reader text');
+  } finally { dom.window.close(); }
 });
 
 test('capture presentation rejects a changed snapshot or manifest byte on read-back and on the next revision', async t => {

@@ -737,6 +737,8 @@ test('exact review outcome is classified, logged once, shown on the run page and
       for (const section of ['I02 Khách hàng và hoàn cảnh', 'I03 Phương pháp nghiên cứu', 'I17 Phụ lục và bằng chứng']) assert.ok(notice.textContent!.includes(section), section);
       assert.match(notice.textContent!, /Phần vẫn dùng được: doanh thu, giá, đối thủ, nhu cầu tìm kiếm\./);
       assert.doesNotMatch(notice.textContent!, /Apify|apify|zen-studio|SerpApi|Kalodata|Metric|EXACT_SHOPEE|PROVIDER_|FAILED/);
+      assert.doesNotMatch(notice.textContent!, /product\/\d|https?:|shopee\.vn/,
+        'the notice lists products by ordinal; the listing URL stays in the link target only');
       // Only the notice and the plain review sentence are new; the rest of the page is byte-identical.
       // (Older copy elsewhere on the page already carries method codes; this change adds none.)
       const added = /<div class="warning review-outcome-notice"[^>]*>[\s\S]*?<\/div>|<p class="warning">Lần thu ngày [^<]*<\/p>/g;
