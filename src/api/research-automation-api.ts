@@ -90,7 +90,7 @@ import type { AutomationDecisionSectionId } from '../modules/analysis/research-a
 import type { CliproxyConfiguration } from '../platform/ai/cliproxy-configuration.js';
 import { ApifyShopeeCollector } from '../platform/collectors/apify-shopee.js';
 import { ResearchAutomationConflictError, ResearchAutomationNotFoundError, ResearchAutomationValidationError } from '../modules/analysis/research-automation/model.js';
-import { MetricMethodFailure } from '../modules/analysis/research-automation/metric-method-bridge.js';
+import { MetricCaptureScopeMismatch } from '../modules/analysis/research-automation/metric-method-bridge.js';
 import { assertOwnerHttpConfiguration, EmptyBodyError, ownerAuthorized, PayloadTooLargeError, readOwnerBytes, sendApiJson, singleHeader, type OwnerHttpConfiguration } from './owner-http.js';
 
 export interface ResearchAutomationApiConfiguration {
@@ -1161,7 +1161,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       // An OWNER-requested source that does not match this run's confirmed scope is
       // operator input, not damaged evidence: it keeps the bridge's own closed code.
       // Reads still treat the same mismatch as stored evidence that failed to verify.
-      if (mutation && error instanceof MetricMethodFailure && error.code === 'METRIC_SOURCE_RUN_MISMATCH')
+      if (mutation && error instanceof MetricCaptureScopeMismatch)
         return fail(response, 400, 'metric_source_run_mismatch', error.message);
       return integrityFailure(response, error, 'Stored research evidence failed verification');
     }
