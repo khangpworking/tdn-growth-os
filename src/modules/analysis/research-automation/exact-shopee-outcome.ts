@@ -27,19 +27,32 @@ export const MAX_PROVIDER_MESSAGE_LENGTH = 300;
 
 interface SelectedListing { readonly shopId: string; readonly itemId: string; readonly productUrl: string }
 
-/** Rows per requested listing, matched by itemId (and shopId when the row has one) as strings. Unrequested rows are ignored. */
+/** Provider review identity, admitted exactly as the review corpus admits it: a non-empty review id, text or positive integer. */
+function hasReviewIdentity(record: Record<string, unknown>): boolean {
+  const reviewId = record.reviewId;
+  return (typeof reviewId === 'string' && reviewId.trim() !== '' && reviewId.length <= 2000) ||
+    (typeof reviewId === 'number' && Number.isSafeInteger(reviewId) && reviewId > 0);
+}
+
+/**
+ * Reviews per requested listing, matched by itemId and shopId as strings. Unrequested rows are ignored.
+ * Only rows carrying a review identity count: the provider also returns one status row per listing when it
+ * collects nothing, and that row has listing ids without a `reviewId`, so counting it would report a review
+ * the provider never returned.
+ */
 export function countReviewsPerListing(selected: readonly SelectedListing[], pages: readonly { readonly bytes: Buffer }[]): ExactShopeeListingCount[] {
   const counts = selected.map(() => 0);
   for (const page of pages) {
     const rows = JSON.parse(page.bytes.toString('utf8')) as unknown;
     if (!Array.isArray(rows)) throw new Error('Collection page is not a JSON array');
     for (const row of rows) {
-      if (row === null || typeof row !== 'object') continue;
+      if (row === null || typeof row !== 'object' || Array.isArray(row)) continue;
       const record = row as Record<string, unknown>;
-      if (record.itemId === undefined || record.itemId === null) continue;
+      if (!hasReviewIdentity(record) || record.itemId === undefined || record.itemId === null ||
+        record.shopId === undefined || record.shopId === null) continue;
       const itemId = String(record.itemId);
-      const shopId = record.shopId === undefined || record.shopId === null ? null : String(record.shopId);
-      const index = selected.findIndex(listing => listing.itemId === itemId && (shopId === null || listing.shopId === shopId));
+      const shopId = String(record.shopId);
+      const index = selected.findIndex(listing => listing.itemId === itemId && listing.shopId === shopId);
       if (index >= 0) counts[index]!++;
     }
   }

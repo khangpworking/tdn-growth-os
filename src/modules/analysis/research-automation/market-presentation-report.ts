@@ -130,9 +130,19 @@ export function renderAutomationMarketUnitPrices(method: Method, citations: Repo
   if (!method.unitPrices.length) html += '<p>Chưa có biên nhận quy cách và giá tương thích đã xác minh cho bản nháp này. Chưa tính giá theo đơn vị chuẩn; không đoán số lượng từ tiêu đề.</p>';
   const observed = new Set(method.unitPrices.map(row => row.rowI));
   const absent = method.input.rows.filter(row => !observed.has(row.i));
+  const metricBinding = method.binding.metric;
+  // Workbook rows cite their saved sheet row; capture rows cite the retained
+  // results-page snapshot row they were normalized from.
+  const rowMark = (i: number): { sourceSha256: string; locator: string; label: string } | null => metricBinding === null ? null
+    : 'kind' in metricBinding
+      ? { sourceSha256: metricBinding.snapshotSha256, locator: `/groups/W12_topProducts/rows/${i}`, label: 'Dòng sản phẩm trong bản lưu capture' }
+      : { sourceSha256: metricBinding.workbookSha256, locator: `Sheet1!A${i + 2}:T${i + 2}`, label: 'Dòng sản phẩm trong tệp đã lưu' };
   if (absent.length) html += table(readerPlainText ? 'Sản phẩm chưa có quy cách hoặc giá đã xác minh — không đưa vào sắp xếp' : 'Listing chưa có quy cách hoặc giá đã xác minh — không đưa vào sắp xếp', ['Sàn', readerPlainText ? 'Sản phẩm' : 'Listing', 'Tiêu đề nguồn', 'Trạng thái'],
-    absent.map(row => [row.platform === 'shopee' ? 'Shopee' : 'TikTok Shop', productLabel(row.listing), literal(row.title, readerPlainText), 'Chưa rõ số lượng và giá niêm yết' +
-      (method.binding.metric ? mark({ sourceSha256: method.binding.metric.workbookSha256, locator: `Sheet1!A${row.i + 2}:T${row.i + 2}`, label: 'Dòng sản phẩm trong tệp đã lưu' }, citations, readerPlainText) : '')]));
+    absent.map(row => {
+      const sourceMark = rowMark(row.i);
+      return [row.platform === 'shopee' ? 'Shopee' : 'TikTok Shop', productLabel(row.listing), literal(row.title, readerPlainText), 'Chưa rõ số lượng và giá niêm yết' +
+        (sourceMark ? mark(sourceMark, citations, readerPlainText) : '')];
+    }));
   const period = method.input.metric?.input.scope ?? null;
   return html + '<p>Giá hiển thị tối đa ba chữ số thập phân; sắp xếp theo giá trị chưa làm tròn. Chỉ sắp xếp cùng sàn, ngành hàng, đơn vị hoặc cơ sở, nhóm quy cách, loại giá, điều kiện và kỳ. Khối lượng tịnh và khối lượng cái giữ riêng; hàng dùng lâu và combo không chia nhỏ. Kỳ quan sát giá giữ riêng với kỳ doanh số.</p><p>Giá niêm yết, thanh toán và khuyến mãi có điều kiện giữ riêng; không thay bằng giá bán trung bình từ doanh thu và đơn vị bán. Đối chiếu khai báo với bản lưu không xác thực người bán; không suy chất lượng, giá vốn hoặc lợi nhuận.</p>' +
     renderAutomationMarketAdvertising({ period: period ? { start: period.start, end: period.end } : null,

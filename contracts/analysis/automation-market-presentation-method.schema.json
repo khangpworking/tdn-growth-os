@@ -92,6 +92,58 @@
               }
             },
             {
+              "description": "Results-page capture: the metric source has no workbook; the pinned snapshot and manifest stand in for it.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "sourcePackage",
+                "snapshotSha256",
+                "manifestSha256",
+                "resultSha256"
+              ],
+              "properties": {
+                "kind": {
+                  "const": "capture"
+                },
+                "sourcePackage": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "packageId",
+                    "manifestArtifactSha256",
+                    "packageContentSha256"
+                  ],
+                  "properties": {
+                    "packageId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "manifestArtifactSha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "packageContentSha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  }
+                },
+                "snapshotSha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "manifestSha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "resultSha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              }
+            },
+            {
               "type": "null"
             }
           ]

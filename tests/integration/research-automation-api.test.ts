@@ -1396,7 +1396,7 @@ test('OWNER model coding uses its own opt-in, safe receipt, retained retry and s
   } finally { gateway.closeAllConnections(); await closeServer(gateway); }
 });
 
-test('OWNER Insight coding round-trips over HTTP with exact source context, retries and a report revision', { timeout: 120_000 }, async () => {
+test('OWNER Insight coding round-trips over HTTP with exact source context, retries and a report revision', { timeout: 120_000 }, async t => {
   const fixture = await createFixture();
   const product = 'thạch dừa';
   const texts = [`Tôi đã mua ${product} rồi dùng. Tôi muốn nhỏ hơn nhưng hiện còn to.`, `Tôi đã dùng ${product}, muốn nhỏ hơn.`, 'Tôi đã mua sản phẩm, chưa nêu chủ đề.'];
@@ -1579,6 +1579,8 @@ test('OWNER Insight coding round-trips over HTTP with exact source context, retr
     const artifactPath = path.join(fixture.artifactRoot, 'sha256', fullSha.slice(0, 2), fullSha);
     const saved = fs.readFileSync(artifactPath);
     fs.writeFileSync(artifactPath, Buffer.from('corrupt synthetic coding'));
+    const failures: string[] = [];
+    t.mock.method(console, 'error', (...args: unknown[]) => { failures.push(args.map(String).join(' ')); });
     try {
       const failed = await fetch(target);
       assert.equal(failed.status, 500, 'corrupt coding is never shown as an empty or partial list');
@@ -1586,6 +1588,9 @@ test('OWNER Insight coding round-trips over HTTP with exact source context, retr
       assert.deepEqual(JSON.parse(text), { error: { code: 'integrity_error', message: 'Stored research evidence failed verification' } });
       for (const secret of [fullSha, fixture.root, fixture.artifactRoot, ownerToken, 'owner:research', 'SELECT', 'corrupt synthetic']) assert.equal(text.includes(secret), false);
       assert.deepEqual(fs.readFileSync(artifactPath), Buffer.from('corrupt synthetic coding'), 'GET never repairs storage');
+      assert.equal(failures.length, 1, 'operators get exactly one server-side cause for the 500');
+      assert.match(failures[0]!, /^research-automation integrity failure \w*IntegrityError: /);
+      assert.doesNotMatch(failures[0]!, /corrupt synthetic|Authorization|Bearer/);
     } finally { fs.writeFileSync(artifactPath, saved); }
     assert.deepEqual(await readJson(await fetch(target)), view);
     assert.equal(databaseDigest(fixture.databasePath), before);
@@ -1785,6 +1790,53 @@ test('capture source runs create → upload → confirm → Market without a wor
     assert.equal(html.includes('top-N'), false);
     assert.match(html, /không có số liệu/);
     assert.match(html, /không cộng vào Shopee hoặc TikTok Shop/);
+  });
+});
+
+/** The synthetic snapshot fixture is a JSON sample; only the replaced fields are typed here. */
+type CaptureFixtureSnapshot = { captureId: string; specDigest: string; scope: unknown; groups: Record<string, unknown> };
+
+test('capture page filters that differ from the confirmed scope are a 400 operator error, not a 500', { timeout: 120_000 }, async () => {
+  const fixture = await createFixture();
+  await withApi(fixture, true, async base => {
+    const started = await startAndWaitForScope(base, randomUUID());
+    const runRoot = `${base}/owner-api/workspaces/${workspaceId}/research-automation/runs/${started.runId}`;
+    const snapshot = JSON.parse(fs.readFileSync(new URL('../fixtures/metric-web-snapshot/full.json', import.meta.url), 'utf8')) as CaptureFixtureSnapshot;
+    snapshot.captureId = 'capture-api-filter-mismatch-209';
+    // The page applied an extra advanced filter the operator never confirmed.
+    snapshot.scope = { keywords: ['wireless earbuds'], platforms: ['shopee'], period: requestedPeriod, category: null, ticks: [],
+      advancedFilters: [{ label: 'Giá', displayed: 'dưới 200.000' }], exclusions: [] };
+    snapshot.groups.W4_monthly = { absent: true, reason: 'NOT_CAPTURED' };
+    snapshot.groups.W12_topProducts = { columns: ['name', 'shop', 'platform', 'revenue', 'units'], rows: [
+      { cells: { name: { label: 'Tên', text: 'Mismatch synthetic', sourcePointer: 'p[0].name' }, shop: { label: 'Shop', text: 'Mismatch shop', sourcePointer: 'p[0].shop' },
+        platform: { label: 'Sàn', text: 'shopee', sourcePointer: 'p[0].platform' },
+        revenue: { label: 'Doanh thu', displayed: '700', value: 700, unit: 'VND', precision: 'exact', platform: 'shopee', period: requestedPeriod, sourcePointer: 'p[0].revenue' },
+        units: { label: 'Lượt bán', displayed: '1', value: 1, unit: 'COUNT', precision: 'exact', platform: 'shopee', period: requestedPeriod, sourcePointer: 'p[0].units' } } },
+    ] };
+    const snapshotBytes = Buffer.from(JSON.stringify(snapshot, null, 2) + '\n');
+    const manifest = { contractVersion: 'metric-results-capture-v1', captureId: snapshot.captureId, specDigest: snapshot.specDigest,
+      appliedFilters: snapshot.scope, resultCount: 1, productPagination: { cap: 1, totalShown: 1, pageSize: 1, pagesRead: 1, rowsRead: 1, truncated: false },
+      views: [], sourceMap: {}, files: [{ path: 'snapshot.json', sha256: createHash('sha256').update(snapshotBytes).digest('hex'), byteSize: snapshotBytes.length, mediaType: 'application/json', role: 'normalized' }],
+      screenshotSkips: [], archive: { rawResponses: 'raw/', normalizedSnapshot: 'snapshot.json', resultsHtml: 'results.html', screenshots: [] }, noReportFileRequested: true,
+      captureGate: { cleared: true } };
+    const form = new FormData();
+    form.set('metadata', JSON.stringify({ contractVersion: 'automation-metric-capture-prepare-v1', requestKey: randomUUID(), expectedRevision: started.revision,
+      sourceContext: 'Synthetic results-page capture with an unconfirmed page filter.' }));
+    form.set('snapshot', new File([snapshotBytes], 'snapshot.json', { type: 'application/json' }));
+    form.set('manifest', new File([Buffer.from(JSON.stringify(manifest, null, 2) + '\n')], 'manifest.json', { type: 'application/json' }));
+    const upload = await fetch(`${runRoot}/sources/metric-capture`, { method: 'POST', headers: { Origin: base, Authorization: `Bearer ${ownerToken}` }, body: form });
+    assert.equal(upload.status, 201, await upload.clone().text());
+    const prepared = await readJson(upload);
+    const confirm = { contractVersion: 'research-automation-confirm-v2', requestKey: randomUUID(), expectedRevision: started.revision,
+      definition: 'Synthetic capture filter mismatch', includeTerms: ['wireless earbuds'], excludeTerms: [], selectedProductIds: [], peerProductIds: [],
+      sources: { metric: { decision: 'USE_PREPARED', packageId: prepared.packageId }, nativeReview: 'SKIP' } };
+    const refused = await fetch(`${runRoot}/confirm-scope`, { method: 'POST', headers: ownerHeaders(base), body: JSON.stringify(confirm) });
+    assert.equal(refused.status, 400, await refused.clone().text());
+    const body = await readJson(refused);
+    assert.equal(body.error.code, 'metric_source_run_mismatch');
+    assert.equal(body.error.message, 'Metric capture filters differ from the confirmed scope.');
+    assert.doesNotMatch(JSON.stringify(body), /200\.000|snapshot\.json|wireless/, 'the refusal carries no page or source content');
+    assert.equal((await getRun(base, started.runId)).status, 'AWAITING_SCOPE', 'a refused confirmation leaves the run awaiting scope');
   });
 });
 

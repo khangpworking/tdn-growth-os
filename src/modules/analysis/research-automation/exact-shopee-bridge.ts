@@ -95,12 +95,14 @@ export class AutomationExactShopeeBridge {
         actorStatus: actor.status, usageUsd: reused ? 0 : actor.usageTotalUsd, reused }));
       const terminalFailure = ['FAILED', 'TIMED-OUT', 'ABORTED'].includes(actor.status);
       const complete = !terminalFailure && (actor.stopReason === 'dataset_exhausted' || actor.stopReason === 'fixture_complete');
-      const hasReturnedRows = verified.pages.some(page => (JSON.parse(page.bytes.toString('utf8')) as unknown[]).length > 0);
+      // Status/warning rows are retained as raw evidence, but they are not returned reviews.
+      // Keep coverage state aligned with the same identity-admitted counts used by the outcome.
+      const hasReturnedReviews = rawCounts.some(row => row.reviews > 0);
       return { exactShopeeOutcome: { outcome, listings: counts, providerMessage, attemptedAt: now().toISOString(), reused },
         ...(outcomeLimitation ? { outcomeLimitation } : {}),
         reference: { collectionId: verified.packet.collectionId, collectionSha256: verified.sha256, requestSha256: requestSha },
         requestsIssued: attempt.requestsIssued(), costUsd: typeof cost === 'string' ? safeCost(cost) : typeof cost === 'number' ? safeCost(String(cost)) : null,
-        coverage: { ...base, state: signal?.aborted ? 'CANCELLED' : terminalFailure && !hasReturnedRows ? 'FAILED' : complete ? 'COLLECTED' : 'PARTIAL', truncated: !complete,
+        coverage: { ...base, state: signal?.aborted ? 'CANCELLED' : terminalFailure && !hasReturnedReviews ? 'FAILED' : complete && hasReturnedReviews ? 'COLLECTED' : 'PARTIAL', truncated: !complete,
           note: terminalFailure ? 'Nhà cung cấp báo lỗi. Dòng đã trả về vẫn được giữ; không có dòng không có nghĩa sản phẩm không có review.'
             : 'Review cấp listing; không xác nhận variant hay độ phủ kỳ báo cáo. Thu hết dataset không có nghĩa đủ mọi review.' },
         limitation: { provider: 'apify-shopee', code: terminalFailure ? 'EXACT_SHOPEE_ACTOR_FAILED' : 'REVIEW_PERIOD_NOT_CONSTRAINED',
