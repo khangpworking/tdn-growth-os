@@ -43,7 +43,10 @@ function captureSnapshot(): AutomationMetricWebSnapshotV1 {
 function captureArchive(snapshot: AutomationMetricWebSnapshotV1) {
   const snapshotBytes = Buffer.from(JSON.stringify(snapshot, null, 2) + '\n');
   const manifest = { contractVersion: 'metric-results-capture-v1', captureId: snapshot.captureId, specDigest: snapshot.specDigest,
-    appliedFilters: snapshot.scope, resultCount: 3, productPagination: { cap: 3, totalShown: 5, pageSize: 3, pagesRead: 1, rowsRead: 3, truncated: true },
+    appliedFilters: { ...snapshot.scope, smartQuery: true, aiNormalisation: false, usefulFilters: { fake: false, gifts: true, deleted: false } }, resultCount: 3, productPagination: { cap: 3, totalShown: 5, pageSize: 3, pagesRead: 1, rowsRead: 3, truncated: true },
+    metricDataVersion: 'metric-results-data-v2', chartSeries: { contractVersion: 'metric-results-data-v2',
+      series: [{ series: 'topProducts', platform: 'shopee', name: 'Synthetic A', revenue: 1200, units: 3, source: 'response:/v2/market/analytics/products' }],
+      trendOffered: false, trendNote: 'not offered by the source' },
     views: [], sourceMap: {}, files: [{ path: 'snapshot.json', sha256: hash(snapshotBytes), byteSize: snapshotBytes.length, mediaType: 'application/json', role: 'normalized' }], screenshotSkips: [],
     archive: { rawResponses: 'raw/', normalizedSnapshot: 'snapshot.json', resultsHtml: 'results.html', screenshots: [] }, noReportFileRequested: true,
     captureGate: { cleared: true } };
@@ -88,6 +91,7 @@ test('capture source prepares with provenance, exact retry, and capture-backed M
   assert.equal(receipt.exactRetry, false);
   const retry = await f.service.prepareMetricCapture(workspaceId, runId, request, archive.snapshotBytes, archive.manifestBytes);
   assert.equal(retry.exactRetry, true);
+  assert.deepEqual(await f.artifacts.read(hash(archive.manifestBytes)), archive.manifestBytes, 'manifest bytes retain chart series and all page toggles');
   const inventory = await f.service.listPreparedMetricCaptureSources(workspaceId, runId);
   assert.equal(inventory.sources[0]!.provenance, 'RESULTS_PAGE_CAPTURE');
   assert.deepEqual(inventory.sources[0]!.capture.truncation, { cap: 3, totalShown: 5, pagesRead: 1, rowsRead: 3, truncated: true });

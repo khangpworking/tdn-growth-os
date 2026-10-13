@@ -9,7 +9,7 @@
     "contractVersion": { "const": "metric-results-capture-v1" },
     "captureId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$" },
     "specDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-    "appliedFilters": { "$ref": "automation-metric-web-snapshot-v1.schema.json#/$defs/scope" },
+    "appliedFilters": { "$ref": "#/$defs/appliedFilters" },
     "resultCount": { "type": "integer", "minimum": 0 },
     "productPagination": { "$ref": "#/$defs/pagination" },
     "views": { "type": "array", "maxItems": 3, "items": { "type": "object", "additionalProperties": false, "required": ["platform", "pagesRead"], "properties": { "platform": { "enum": ["all", "shopee", "tiktok", "unknown"] }, "pagesRead": { "type": "integer", "minimum": 0, "maximum": 10 }, "source": { "enum": ["response", "dom"] } } } },
@@ -18,10 +18,152 @@
     "screenshotSkips": { "type": "array", "maxItems": 256, "items": { "type": "object", "additionalProperties": true } },
     "archive": { "type": "object", "additionalProperties": false, "required": ["rawResponses", "normalizedSnapshot", "resultsHtml", "screenshots"], "properties": { "rawResponses": { "type": "string", "minLength": 1 }, "normalizedSnapshot": { "const": "snapshot.json" }, "resultsHtml": { "type": "string", "minLength": 1 }, "screenshots": { "type": "array", "items": { "type": "string", "minLength": 1 } } } },
     "noReportFileRequested": { "const": true },
+    "metricDataVersion": { "$ref": "#/$defs/metricDataVersion" },
+    "chartSeries": { "$ref": "#/$defs/chartSeries" },
     "captureGate": { "oneOf": [{ "const": true }, { "const": false }, { "type": "object", "additionalProperties": false, "required": ["cleared"], "properties": { "cleared": { "type": "boolean" }, "status": { "type": "string", "enum": ["CLEARED", "NOT_CLEARED"] } } }, { "type": "object", "additionalProperties": false, "required": ["status"], "properties": { "cleared": { "type": "boolean" }, "status": { "type": "string", "enum": ["CLEARED", "NOT_CLEARED"] } } }] }
   },
   "$defs": {
     "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "appliedFilters": {
+      "description": "W1 filters as read from the page. It repeats every snapshot `scope` property and adds the three page toggles the adapter observes but the snapshot scope does not model. The extra toggles stay optional so captures written before they were read still validate, and they are allowed here and nowhere else: the snapshot schema keeps its own closed `scope`. Intake compares the scope-shaped part against the snapshot scope.",
+      "type": "object", "additionalProperties": false,
+      "required": ["keywords", "platforms", "period", "category", "ticks", "advancedFilters", "exclusions"],
+      "properties": {
+        "keywords": { "type": "array", "minItems": 1, "maxItems": 10, "items": { "type": "string", "minLength": 1, "maxLength": 120 } },
+        "platforms": { "type": "array", "minItems": 1, "maxItems": 2, "uniqueItems": true, "items": { "$ref": "automation-metric-web-snapshot-v1.schema.json#/$defs/scopePlatform" } },
+        "period": { "$ref": "automation-metric-web-snapshot-v1.schema.json#/$defs/period" },
+        "category": { "oneOf": [{ "$ref": "automation-metric-web-snapshot-v1.schema.json#/$defs/shortText" }, { "type": "null" }] },
+        "ticks": { "type": "array", "maxItems": 20, "items": { "$ref": "automation-metric-web-snapshot-v1.schema.json#/$defs/shortText" } },
+        "advancedFilters": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["label", "displayed"],
+            "properties": { "label": { "$ref": "automation-metric-web-snapshot-v1.schema.json#/$defs/shortText" }, "displayed": { "type": "string", "maxLength": 500 } }
+          }
+        },
+        "exclusions": { "type": "array", "maxItems": 50, "items": { "$ref": "automation-metric-web-snapshot-v1.schema.json#/$defs/shortText" } },
+        "smartQuery": { "description": "Page toggle: the smart-query switch the adapter read. Absent on captures written before the adapter read it.", "type": "boolean" },
+        "aiNormalisation": { "description": "Page toggle: the AI-normalisation switch the adapter read. Absent on captures written before the adapter read it.", "type": "boolean" },
+        "usefulFilters": {
+          "description": "The three page toggles the adapter maps by label. The object is closed so an unrecognized toggle cannot be smuggled through intake.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "fake": { "type": "boolean" },
+            "gifts": { "type": "boolean" },
+            "deleted": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "metricDataVersion": {
+      "description": "Version of the chart-series payload the adapter derived from the same responses as this capture. Absent on captures written before the adapter emitted it.",
+      "const": "metric-results-data-v2"
+    },
+    "chartSeries": {
+      "description": "Adapter-derived chart rows for this capture. Values are copied from provider responses without coercion, so this boundary asserts shape and provenance only; it does not assert non-negativity, units or provider authenticity.",
+      "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "series", "trendOffered"],
+      "properties": {
+        "contractVersion": { "$ref": "#/$defs/metricDataVersion" },
+        "series": {
+          "description": "One row per provider aggregation entity, per platform headline, per product/shop/brand row and per shop-revenue interval. The adapter's row sources are bounded well below this cap (at most 200 product rows per platform view, at most 3 views), and intake already rejects any manifest above 8 MiB, so the cap only rejects implausible arrays.",
+          "type": "array", "maxItems": 2000, "items": { "$ref": "#/$defs/chartSeriesItem" }
+        },
+        "trendOffered": { "type": "boolean" },
+        "trendNote": { "type": ["string", "null"], "maxLength": 200 }
+      }
+    },
+    "chartSeriesItem": {
+      "description": "Closed union of the row shapes the adapter writes. Branches are disjoint by `series`.",
+      "oneOf": [
+        { "$ref": "#/$defs/chartSeriesBreakdownRow" },
+        { "$ref": "#/$defs/chartSeriesHeadlineRow" },
+        { "$ref": "#/$defs/chartSeriesProductRow" },
+        { "$ref": "#/$defs/chartSeriesNamedRow" },
+        { "$ref": "#/$defs/chartSeriesTrendRow" }
+      ]
+    },
+    "chartSeriesPlatform": {
+      "description": "Mapped platform of the row. The adapter writes `unknown` when the provider platform id is not in the live platform map, and the live map resolves to the two marketplaces the capture scope already allows (`scope.platforms` is bounded to these same two).",
+      "enum": ["shopee", "tiktok", "unknown"]
+    },
+    "chartSeriesSource": {
+      "description": "Provenance pointer of the response the row was read from. The adapter always prefixes `response:`; the trailing path is the sanitized response path.",
+      "type": "string", "minLength": 10, "maxLength": 512, "pattern": "^response:"
+    },
+    "chartSeriesRawValue": {
+      "description": "Provider value copied verbatim: a finite number, or a displayed string when the provider reports text. Absent when the provider entity carries no value, because the adapter drops undefined keys.",
+      "anyOf": [{ "type": "number" }, { "type": "string" }, { "type": "null" }]
+    },
+    "chartSeriesBreakdownRow": {
+      "type": "object", "additionalProperties": false,
+      "required": ["series", "platform", "label", "source"],
+      "properties": {
+        "series": { "enum": ["priceRange", "province", "shopType", "category"] },
+        "platform": { "$ref": "#/$defs/chartSeriesPlatform" },
+        "label": { "anyOf": [{ "type": "string" }, { "type": "number" }] },
+        "value": { "$ref": "#/$defs/chartSeriesRawValue" },
+        "source": { "$ref": "#/$defs/chartSeriesSource" }
+      }
+    },
+    "chartSeriesHeadlineRow": {
+      "description": "Per-platform headline totals; missing provider values are explicit nulls, never summed across platforms.",
+      "type": "object", "additionalProperties": false,
+      "required": ["series", "platform", "revenue", "units", "previousRevenue", "previousUnits", "source"],
+      "properties": {
+        "series": { "const": "headline" },
+        "platform": { "$ref": "#/$defs/chartSeriesPlatform" },
+        "revenue": { "$ref": "#/$defs/chartSeriesRawValue" },
+        "units": { "$ref": "#/$defs/chartSeriesRawValue" },
+        "previousRevenue": { "$ref": "#/$defs/chartSeriesRawValue" },
+        "previousUnits": { "$ref": "#/$defs/chartSeriesRawValue" },
+        "source": { "$ref": "#/$defs/chartSeriesSource" }
+      }
+    },
+    "chartSeriesProductRow": {
+      "type": "object", "additionalProperties": false,
+      "required": ["series", "platform", "source"],
+      "properties": {
+        "series": { "const": "topProducts" },
+        "platform": { "$ref": "#/$defs/chartSeriesPlatform" },
+        "name": { "type": ["string", "null"] },
+        "revenue": { "$ref": "#/$defs/chartSeriesRawValue" },
+        "units": { "$ref": "#/$defs/chartSeriesRawValue" },
+        "source": { "$ref": "#/$defs/chartSeriesSource" }
+      }
+    },
+    "chartSeriesNamedRow": {
+      "type": "object", "additionalProperties": false,
+      "required": ["series", "platform", "source"],
+      "properties": {
+        "series": { "enum": ["topShops", "topBrands"] },
+        "platform": { "$ref": "#/$defs/chartSeriesPlatform" },
+        "name": { "type": ["string", "null"] },
+        "revenue": { "$ref": "#/$defs/chartSeriesRawValue" },
+        "units": { "$ref": "#/$defs/chartSeriesRawValue" },
+        "previousRevenue": { "$ref": "#/$defs/chartSeriesRawValue" },
+        "previousUnits": { "$ref": "#/$defs/chartSeriesRawValue" },
+        "source": { "$ref": "#/$defs/chartSeriesSource" }
+      }
+    },
+    "chartSeriesTrendRow": {
+      "type": "object", "additionalProperties": false,
+      "required": ["series", "platform", "source"],
+      "properties": {
+        "series": { "const": "trend" },
+        "platform": { "$ref": "#/$defs/chartSeriesPlatform" },
+        "shop": { "type": ["string", "null"] },
+        "startDate": { "type": ["string", "null"] },
+        "endDate": { "type": ["string", "null"] },
+        "revenue": { "$ref": "#/$defs/chartSeriesRawValue" },
+        "units": { "$ref": "#/$defs/chartSeriesRawValue" },
+        "source": { "$ref": "#/$defs/chartSeriesSource" }
+      }
+    },
     "file": { "type": "object", "additionalProperties": false, "required": ["path", "sha256", "byteSize", "mediaType"], "properties": { "path": { "type": "string", "minLength": 1, "maxLength": 500 }, "sha256": { "$ref": "#/$defs/sha256" }, "byteSize": { "type": "integer", "minimum": 0, "maximum": 1073741824 }, "mediaType": { "type": "string", "minLength": 1, "maxLength": 127 }, "role": { "type": "string", "minLength": 1, "maxLength": 64 } } },
     "pagination": {
       "type": "object", "additionalProperties": false,
