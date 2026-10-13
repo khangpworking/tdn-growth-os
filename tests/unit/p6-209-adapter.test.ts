@@ -94,6 +94,22 @@ test('results extractor accepts object-shaped response platform maps', async () 
   ]);
 });
 
+test('malformed platform entries surface and never promote one platform to a combined KPI', async () => {
+  const { extractResultsPage } = await import(captureUrl.href);
+  const aggregation = (name: string, platforms: any) => ({ aggregation: name, entity: { platforms } });
+  const response = (platforms: any) => ({ urlPath: '/v2/market/analytics/search-basic/', body: { data: { search_basic: { aggregations: [
+    aggregation('REVENUE_TOTAL_CUSTOM', platforms), aggregation('ORDER_TOTAL_CUSTOM', platforms),
+    aggregation('PRODUCT_TOTAL', platforms), aggregation('SHOP_TOTAL', platforms),
+  ] } } } });
+  const input = (platforms: any, captureId: string) => ({ responses: [response(platforms)], dom: null,
+    scope: { keywords: ['synthetic-term'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-01-01', endDate: '2026-02-02' }, category: null },
+    captureId, specDigest: 'a'.repeat(64), capturedAt: '2026-10-13T00:00:00.000Z', platformIdMap: { 1: 'shopee', 8: 'tiktok' } });
+  assert.throws(() => extractResultsPage(input({ good: { platform_id: 1, value: 10 }, malformed: { value: 20 } }, 'synthetic-platform-error')),
+    (error: any) => error.code === 'METRIC_PLATFORM_ENTRY_MALFORMED' && error.details.entries.length === 4);
+  const onePlatform = extractResultsPage(input({ good: { platform_id: 1, value: 10 }, empty: { platform_id: 8, value: null } }, 'synthetic-single-platform'));
+  assert.equal(onePlatform.snapshot.groups.W2_kpi.revenue.current.value, null);
+});
+
 test('unlabelled monthly rows stay all and DOM fills a platform missing from responses', async () => {
   const { extractResultsPage, sanitizeNetworkResponses } = await import(captureUrl.href);
   const fixture = await load('metric-results-response');

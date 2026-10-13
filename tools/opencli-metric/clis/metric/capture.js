@@ -482,20 +482,37 @@ function platformValues(value) {
   return Array.isArray(value) ? value : value && typeof value === 'object' ? Object.values(value) : [];
 }
 
-function metricApiPayloads(body, sourcePointer, platformIdMap) {
+function malformedPlatformEntry(sourcePointer, aggregation, index, item) {
+  return { sourcePointer, aggregation, index, reason: item && typeof item === 'object' ? 'unknown-platform-id' : 'entry-is-not-an-object' };
+}
+
+function metricApiPayloads(body, sourcePointer, platformIdMap, requestedPlatformCount = 0) {
   const data = body?.data;
   const searchBasic = data?.search_basic;
   const aggregations = Array.isArray(searchBasic?.aggregations) ? searchBasic.aggregations : [];
   const byAggregation = new Map(aggregations.map(item => [clean(item?.aggregation).toUpperCase(), item]));
   const payloads = [];
-  const platformRows = name => platformValues(byAggregation.get(name)?.entity?.platforms)
-    .map(item => ({ platform: metricPlatformId(item?.platform_id, platformIdMap), value: item?.value }))
-    .filter(item => item.platform && item.value != null);
+  const malformed = [];
+  const platformRows = name => {
+    const raw = byAggregation.get(name)?.entity?.platforms;
+    if (raw != null && !Array.isArray(raw) && typeof raw !== 'object') malformed.push({ sourcePointer, aggregation: name, reason: 'platforms-is-not-an-object' });
+    // An entry with no known platform is an error; a known platform with no value stays missing, never zero.
+    return platformValues(raw)
+      .map((item, index) => {
+        const platform = metricPlatformId(item?.platform_id, platformIdMap);
+        if (!platform) malformed.push(malformedPlatformEntry(`${sourcePointer}/data/search_basic/aggregations/${name}/entity/platforms`, name, index, item));
+        return { platform, value: item?.value ?? null };
+      })
+      .filter(item => item.platform && item.value != null);
+  };
   const entityRows = name => (byAggregation.get(name)?.entities || []).flatMap((item, index) =>
     platformValues(item?.platforms).map(platform => ({
       platform: metricPlatformId(platform?.platform_id, platformIdMap), value: platform?.value ?? item?.value,
       key: item?.key, from: item?.from, to: item?.to, index,
-    })).filter(row => row.platform && row.value != null));
+    })).map((row, platformIndex) => {
+      if (!row.platform) malformed.push(malformedPlatformEntry(`${sourcePointer}/data/search_basic/aggregations/${name}/entities/${row.index}/platforms`, name, platformIndex, row));
+      return row;
+    }).filter(row => row.platform && row.value != null));
   if (aggregations.length) {
     const names = ['REVENUE_TOTAL_CUSTOM', 'ORDER_TOTAL_CUSTOM', 'PRODUCT_TOTAL', 'SHOP_TOTAL'];
     const previous = Object.fromEntries(names.map(name => [name, platformRows(`PREVIOUS_${name}`)]));
@@ -512,7 +529,7 @@ function metricApiPayloads(body, sourcePointer, platformIdMap) {
     if (headlineRows.length) {
       // W2 remains a valid additive contract: when the source only provides
       // platform rows, null combined KPIs make the no-summing boundary explicit.
-      const first = headlineRows.length === 1 ? headlineRows[0] : {};
+      const first = requestedPlatformCount <= 1 && headlineRows.length === 1 ? headlineRows[0] : {};
       payloads.push({ region: 'overview', kpi: {
         revenue: first.revenue ?? null, units: first.units ?? null, soldListings: first.soldListings ?? null, shops: first.shops ?? null,
       }, headlineByPlatform: headlineRows });
@@ -525,6 +542,12 @@ function metricApiPayloads(body, sourcePointer, platformIdMap) {
     breakdown('REVENUE__BY__LOCATION_CUSTOM', 'warehouse', row => ({ platform: row.platform, location: row.key, revenue: row.value }));
     breakdown('REVENUE__BY__SHOP_TYPE_CUSTOM', 'shop-type', row => ({ platform: row.platform, shopType: row.key === '1' ? 'mall' : 'normal', revenue: row.value }));
     breakdown('REVENUE__BY__CATEGORIES_CUSTOM', 'category', row => ({ platform: row.platform, category: row.key, revenue: row.value }));
+  }
+  if (malformed.length) {
+    const error = new Error('METRIC_PLATFORM_ENTRY_MALFORMED: Metric platform entry is malformed');
+    error.code = 'METRIC_PLATFORM_ENTRY_MALFORMED';
+    error.details = { entries: malformed };
+    throw error;
   }
   const platformFromProduct = product => metricPlatformId(product?.platform_id, platformIdMap)
     || metricPlatformId(String(product?.product_base_id || '').split('__')[0], platformIdMap) || 'unknown';
@@ -565,7 +588,7 @@ function metricApiPayloads(body, sourcePointer, platformIdMap) {
   return payloads.map((payload, index) => ({ payload, region: payload.region, platform: 'all', sourcePointer: `${sourcePointer}/derived/${payload.region}/${index}` }));
 }
 
-function payloadEntries(responses, domSnapshots, platformIdMap) {
+function payloadEntries(responses, domSnapshots, platformIdMap, requestedPlatformCount = 0) {
   const entries = [];
   for (const [index, response] of (Array.isArray(responses) ? responses : []).entries()) {
     const body = rawBody(response);
@@ -575,7 +598,7 @@ function payloadEntries(responses, domSnapshots, platformIdMap) {
       ? platformOf(body.platform, 'all')
       : requestPlatform(response);
     entries.push(...flattenPayload(body, `response:${responsePath(response, index)}`, responsePlatform));
-    entries.push(...metricApiPayloads(body, `response:${responsePath(response, index)}`, platformIdMap));
+    entries.push(...metricApiPayloads(body, `response:${responsePath(response, index)}`, platformIdMap, requestedPlatformCount));
   }
   const doms = Array.isArray(domSnapshots) ? domSnapshots : [domSnapshots];
   for (const [index, dom] of doms.entries()) {
@@ -899,8 +922,8 @@ function chartSeriesFromResponses(responses, platformIdMap) {
 }
 
 export function extractResultsPage({ responses = [], dom = null, scope, captureId, specDigest, capturedAt, pageCap = 100, platformIdMap = null }) {
-  const entries = payloadEntries(sanitizeNetworkResponses(responses), sanitizeDomSnapshots(dom), platformMapById(platformIdMap));
   const normalizedScope = scopeFor(scope);
+  const entries = payloadEntries(sanitizeNetworkResponses(responses), sanitizeDomSnapshots(dom), platformMapById(platformIdMap), normalizedScope.platforms.length);
   const groups = {
     W2_kpi: kpiGroup(entries, normalizedScope), W3_platformSplit: platformSplitGroup(entries, normalizedScope),
     W4_monthly: monthlyGroup(entries, normalizedScope), W5_category: tableGroup(entries, 'W5_category', normalizedScope),
