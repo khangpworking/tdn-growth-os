@@ -1,19 +1,22 @@
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
+import type Database from 'better-sqlite3';
 import type { AutomationMetricWebSnapshotV1 } from '../../contracts/analysis/automation-metric-web-snapshot-v1.generated.js';
+import type { AutomationMarketPresentationMethod } from '../../contracts/analysis/automation-market-presentation-method.generated.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { openDatabase } from '../../src/platform/db/index.js';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/artifact-store.js';
 import { RequestScopedArtifactStore } from '../../src/platform/artifacts/request-scoped-artifact-store.js';
 import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../src/modules/flow/index.js';
 import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
-import { ResearchAutomationValidationError } from '../../src/modules/analysis/research-automation/model.js';
+import { ResearchAutomationIntegrityError, ResearchAutomationValidationError } from '../../src/modules/analysis/research-automation/model.js';
+import { auditMarket14 } from '../../src/modules/analysis/research-automation/market-14-rules.js';
 import { webSnapshotDigest } from '../../src/modules/analysis/reader-report/web-facts.js';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
@@ -114,7 +117,17 @@ test('capture source prepares with provenance, exact retry, and capture-backed M
   assert.ok(row.inputSha);
 });
 
-test('capture-confirmed Market run refuses the workbook-only presentation revision in plain words before queuing', async t => {
+interface CaptureRun {
+  service: ResearchAutomationService;
+  db: Database.Database;
+  artifacts: ContentAddressedArtifactStore;
+  pair: { pairId: string };
+  archive: { snapshotBytes: Buffer; manifestBytes: Buffer };
+  receipt: { packageId: string };
+}
+
+/** Capture-only run: the admitted Metric source is a results-page capture. */
+async function captureRun(t: TestContext): Promise<CaptureRun> {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-metric-capture-pres-209-'));
   const db = openDatabase({ databasePath: path.join(root, 'test.sqlite'), now }).db;
   const artifacts = new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
@@ -137,9 +150,82 @@ test('capture-confirmed Market run refuses the workbook-only presentation revisi
   for (let i = 0; i < 10 && (await service.getRun(workspaceId, runId)).status !== 'DRAFT_READY'; i++) await service.processNext();
   assert.equal((await service.getRun(workspaceId, runId)).status, 'DRAFT_READY');
   const pair = (await service.listReportVersions(workspaceId, runId))[0]!;
-  await assert.rejects(service.requestReportRevision(workspaceId, runId, { contractVersion: 'automation-market-presentation-revision-v1',
-    requestKey: '88888888-8888-4888-8888-888888888888', previousPairId: pair.pairId,
-    sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } } }),
-  (error: unknown) => error instanceof ResearchAutomationValidationError && /results-page Metric capture/.test(error.message));
-  assert.equal((await service.listReportAttempts(workspaceId, runId)).length, 0);
+  return { service, db, artifacts, pair, archive, receipt };
+}
+
+const presentationRequest = (previousPairId: string, extra: Record<string, unknown> = {}) => ({ contractVersion: 'automation-market-presentation-revision-v1' as const,
+  requestKey: randomUUID(), previousPairId, sources: { metric: { decision: 'KEEP' as const }, nativeReview: { decision: 'KEEP' as const } }, ...extra });
+
+/** Mirrors the workbook-backed presentation test's rule expectation, rule by rule. */
+const machineRuleFailures = (html: string): string[] => auditMarket14(html)
+  .filter(rule => rule.kind === 'machine' && !rule.ok).map(rule => `${rule.rule}: ${rule.detail}`);
+
+/** The stored report version these cases read back, limited to the fields they assert. */
+interface PresentationSemantic {
+  rendererVersion: string;
+  marketPresentationArtifact: { sha256: string };
+}
+
+async function commitPresentation(f: CaptureRun, previousPairId: string) {
+  const receipt = await f.service.requestReportRevision(workspaceId, runId, presentationRequest(previousPairId));
+  await f.service.processNext();
+  const committed = await f.service.getReportRevision(workspaceId, runId, receipt.attemptId);
+  assert.equal(committed.state, 'COMMITTED');
+  const report = await f.service.readReport(workspaceId, runId, 'MARKET', false, committed.pairId!);
+  const semantic = JSON.parse((await f.artifacts.read(report.versionId)).toString()) as PresentationSemantic;
+  const method = JSON.parse((await f.artifacts.read(semantic.marketPresentationArtifact.sha256)).toString()) as AutomationMarketPresentationMethod;
+  return { pairId: committed.pairId!, report, html: report.bytes.toString('utf8'), semantic, method };
+}
+
+test('capture-backed Market presentation revision passes the same machine rules as the workbook path', async t => {
+  const f = await captureRun(t);
+  const { pairId, html, semantic, method } = await commitPresentation(f, f.pair.pairId);
+  assert.equal(semantic.rendererVersion, 'automation-report-kit-v20');
+  // The binding pins the capture archive exactly; the workbook form stays the other shape.
+  const metric = method.binding.metric;
+  assert.ok(metric !== null && 'kind' in metric, 'a capture source stores the capture binding form');
+  assert.deepEqual(metric, { kind: 'capture', sourcePackage: metric.sourcePackage, snapshotSha256: hash(f.archive.snapshotBytes),
+    manifestSha256: hash(f.archive.manifestBytes), resultSha256: hash(Buffer.from(canonicalJson(method.input.metric))) });
+  assert.equal(metric.sourcePackage.packageId, f.receipt.packageId);
+  assert.equal(method.binding.previousPairId, f.pair.pairId);
+  // No workbook, so no unit-spec rows and no fabricated fields.
+  assert.equal(method.input.unitSpec, null);
+  assert.deepEqual(method.input.rows, []);
+  assert.equal(method.unitPrices.length, 0);
+  assert.equal(method.findings.length, 4);
+  assert.deepEqual(machineRuleFailures(html), []);
+  assert.match(html, /results-page capture/);
+  assert.doesNotMatch(html, /\b[0-9a-f]{64}\b/iu, 'no digest reaches the reader page');
+  assert.doesNotMatch(html, /tmp\/tdn-/, 'no machine path reaches the reader page');
+  // Re-reading the committed pair replays the capture binding without a provider or clock.
+  assert.equal((await f.service.readReport(workspaceId, runId, 'MARKET', false, pairId)).bytes.toString('utf8'), html);
+});
+
+test('capture presentation rejects a changed snapshot or manifest byte on read-back and on the next revision', async t => {
+  const f = await captureRun(t);
+  const { pairId, html } = await commitPresentation(f, f.pair.pairId);
+  const attempts = (await f.service.listReportAttempts(workspaceId, runId)).length;
+  assert.equal(attempts, 1);
+  for (const sha of [hash(f.archive.snapshotBytes), hash(f.archive.manifestBytes)]) {
+    const target = f.artifacts.pathForDigest(sha), original = await fs.readFile(target);
+    await fs.writeFile(target, Buffer.from('{"tampered":true}'));
+    const integrityFailure = (error: unknown) => error instanceof ResearchAutomationIntegrityError;
+    await assert.rejects(f.service.readReport(workspaceId, runId, 'MARKET', false, pairId), integrityFailure);
+    await assert.rejects(f.service.requestReportRevision(workspaceId, runId, presentationRequest(pairId)), integrityFailure);
+    await fs.writeFile(target, original);
+    assert.equal((await f.service.listReportAttempts(workspaceId, runId)).length, attempts, 'a tampered archive queues nothing');
+    assert.equal((await f.service.readReport(workspaceId, runId, 'MARKET', false, pairId)).bytes.toString('utf8'), html);
+  }
+});
+
+test('capture presentation refuses a unit-spec receipt in plain words and still runs without one', async t => {
+  const f = await captureRun(t);
+  await assert.rejects(f.service.requestReportRevision(workspaceId, runId,
+    presentationRequest(f.pair.pairId, { unitSpecIntakeSha256: 'f'.repeat(64) })),
+  (error: unknown) => error instanceof ResearchAutomationValidationError &&
+    /Unit-spec receipt is not supported for a results-page Metric capture/.test(error.message));
+  assert.equal((await f.service.listReportAttempts(workspaceId, runId)).length, 0, 'a refused unit spec queues nothing');
+  const receipt = await f.service.requestReportRevision(workspaceId, runId, presentationRequest(f.pair.pairId));
+  await f.service.processNext();
+  assert.equal((await f.service.getReportRevision(workspaceId, runId, receipt.attemptId)).state, 'COMMITTED');
 });

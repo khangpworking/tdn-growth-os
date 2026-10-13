@@ -8,15 +8,28 @@ export interface AutomationMarketPresentationMethod {
     runId: string;
     previousPairId: string;
     scopeSha256: string;
-    metric: {
-      sourcePackage: {
-        packageId: string;
-        manifestArtifactSha256: string;
-        packageContentSha256: string;
-      };
-      workbookSha256: string;
-      resultSha256: string;
-    } | null;
+    metric:
+      | {
+          sourcePackage: {
+            packageId: string;
+            manifestArtifactSha256: string;
+            packageContentSha256: string;
+          };
+          workbookSha256: string;
+          resultSha256: string;
+        }
+      | {
+          kind: 'capture';
+          sourcePackage: {
+            packageId: string;
+            manifestArtifactSha256: string;
+            packageContentSha256: string;
+          };
+          snapshotSha256: string;
+          manifestSha256: string;
+          resultSha256: string;
+        }
+      | null;
   };
   input: {
     metric: MetricScopeOutput | null;
