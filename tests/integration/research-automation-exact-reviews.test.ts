@@ -671,22 +671,28 @@ test('exact review outcome is classified, logged once, shown on the run page and
   const urls = listings.map(itemId => `https://shopee.vn/product/78085196/${itemId}`);
   const rows = (itemIds: readonly string[]) => itemIds.map((itemId, index) => ({ shopId: '78085196', itemId, reviewId: `synthetic-${index}`, comment: 'Synthetic review text', ratingStar: 5 }));
   const cases = [
-    { name: 'blocked', failed: true, message: 'Reviews could not be retrieved right now. Please try again later.', rows: [] as string[],
+    { name: 'blocked', failed: true, message: 'Reviews could not be retrieved right now. Please try again later.', rows: [] as string[], providerStatus: false,
       outcome: 'PROVIDER_BLOCKED', code: 'EXACT_SHOPEE_REVIEWS_BLOCKED', level: 'warn' },
-    { name: 'timeout', failed: true, message: 'This run hit its time limit before any reviews were collected', rows: [] as string[],
+    { name: 'timeout', failed: true, message: 'This run hit its time limit before any reviews were collected', rows: [] as string[], providerStatus: false,
       outcome: 'PROVIDER_TIMEOUT_NO_REVIEWS', code: 'EXACT_SHOPEE_REVIEWS_TIMEOUT', level: 'warn' },
-    { name: 'partial', failed: false, message: null, rows: [listings[0]!, listings[0]!, listings[3]!],
+    { name: 'partial', failed: false, message: null, rows: [listings[0]!, listings[0]!, listings[3]!], providerStatus: false,
       outcome: 'PARTIAL_LISTINGS', code: 'EXACT_SHOPEE_REVIEWS_PARTIAL', level: 'warn' },
-    { name: 'ok', failed: false, message: null, rows: listings, outcome: 'OK', code: null, level: 'info' },
+    { name: 'ok', failed: false, message: null, rows: listings, providerStatus: false, outcome: 'OK', code: null, level: 'info' },
+    // #209: the actor answered every requested listing with a status row carrying listing ids only.
+    { name: 'provider status rows', failed: true, message: 'Reviews could not be retrieved right now. Please try again in a few minutes.', rows: [] as string[], providerStatus: true,
+      outcome: 'PROVIDER_BLOCKED', code: 'EXACT_SHOPEE_REVIEWS_BLOCKED', level: 'warn' },
   ] as const;
   for (const c of cases) await t.test(c.name, async sub => {
     const logs: Array<{ level: string; line: string }> = [];
     for (const level of ['info', 'warn'] as const) sub.mock.method(console, level, (...args: unknown[]) => { logs.push({ level, line: args.map(String).join(' ') }); });
     const rendered: Array<{ input: ReportInput; kind: 'MARKET' | 'INSIGHT' }> = [];
     let calls = 0;
+    const returned = c.providerStatus
+      ? listings.map(itemId => ({ _warning: 'Not collected: a free run samples one product; a paid plan collects every product you provide.', shopId: '78085196', itemId, region: 'VN' }))
+      : rows(c.rows);
     const state = await fixture(sub, () => ({ requestsIssued: () => calls, collector: { mode: 'fixture', collect: async (...args) => {
       calls++;
-      const collected = await new FixtureShopeeCollector(Buffer.from(JSON.stringify(rows(c.rows)))).collect(...args);
+      const collected = await new FixtureShopeeCollector(Buffer.from(JSON.stringify(returned))).collect(...args);
       return c.failed ? { ...collected, actor: { ...collected.actor, status: 'FAILED', stopReason: 'actor_terminal_failed', usageTotalUsd: 0.008 },
         warnings: ['actor_terminal_failed'], actorStatusMessage: c.message } : collected;
     } } }), false, 'Synthetic coconut jelly', (input, kind) => rendered.push({ input, kind }));

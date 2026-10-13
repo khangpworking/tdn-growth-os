@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Exact Shopee review outcome: per-listing review counts admit only rows carrying a review identity, so the provider's per-listing "not collected" status rows no longer count as reviews. A run that returns status rows only is now classified `PROVIDER_BLOCKED` with `0/N sản phẩm có đánh giá` instead of reporting one review per listing as `PARTIAL_LISTINGS`. Actor input, spend caps and the no-automatic-retry rules are unchanged.
+
 - Insight drafts: explicit retained-proposal selection without acceptance receipts, labelled I02 summaries and I10/I13 corpus counts, and suppression of unsupported totals and raw completion/ratio claims. Required adoption lineage and historical bytes remain intact. PR #166 merged after independent review and full exact-head CI; U-03 remains partial and U-11 cross-check policy unresolved.
 
 - Default peers: reader and draft M07 select a deterministic peer set covering at least 50% of compatible in-sample revenue, with source-title labels, shop fallback and separate owner additions. The rule is frozen before discovery or sales reads; exact retained inputs/results and historical replay are verified. PR #167 merged after independent review and full exact-head CI; automatic collection and admission policy remain unresolved.

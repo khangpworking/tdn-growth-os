@@ -44,19 +44,37 @@ test('classification follows the rule table in order', () => {
   }
 });
 
+const reviewRow = (shopId: string | number, itemId: string | number, reviewId: string | number) =>
+  ({ shopId, itemId, reviewId, ratingStar: 5, comment: 'Synthetic review' });
+
 test('counting matches requested listings by item and shop as strings and ignores other rows', () => {
   const selected = [listing('100', '200'), listing('100', '201'), listing('300', '200')];
   const result = countReviewsPerListing(selected, [
-    page([{ shopId: 100, itemId: 200 }, { shopId: '100', itemId: '200' }, { itemId: '201' }, { shopId: '999', itemId: '201' }]),
-    page([{ shopId: '300', itemId: 200 }, { shopId: '7', itemId: '7' }, null, 'text', { comment: 'no ids' }]),
+    page([reviewRow(100, 200, 1), reviewRow('100', '200', '2'), reviewRow('100', '201', '3'), reviewRow('999', '201', '4')]),
+    page([reviewRow('300', 200, '5'), { shopId: '300', itemId: 200, reviewId: '6', ratingStar: 3, comment: '' },
+      reviewRow('7', '7', '7'), { itemId: '200', reviewId: '8', ratingStar: 3, comment: '' }, null, 'text', { comment: 'no ids' }]),
     page([]),
   ]);
   assert.deepEqual(result, [
     { listingUrl: 'https://shopee.vn/product/100/200', reviews: 2 },
     { listingUrl: 'https://shopee.vn/product/100/201', reviews: 1 },
-    { listingUrl: 'https://shopee.vn/product/300/200', reviews: 1 },
+    { listingUrl: 'https://shopee.vn/product/300/200', reviews: 2 },
   ]);
   assert.deepEqual(countReviewsPerListing(selected, []).map(row => row.reviews), [0, 0, 0]);
+});
+
+// #209: the actor answers with one provider status row per listing when it collects nothing; those rows carry
+// listing ids but no review identity, so they are not reviews returned for the listing.
+test('a provider status row is never counted as a review', () => {
+  const selected = [listing('100', '200'), listing('100', '201')];
+  const pages = [page([
+    { _warning: 'Not collected: a free run samples one product. A paid Apify plan collects every product you provide.', shopId: '100', itemId: '200', region: 'VN' },
+    { _warning: 'A free run samples one product\'s first page: at most 20 reviews (you asked for 300).', shopId: '100', itemId: '201', region: 'VN' },
+  ])];
+  const counts = markReviewShortfalls(countReviewsPerListing(selected, pages));
+  assert.deepEqual(counts.map(row => row.reviews), [0, 0]);
+  assert.equal(classifyExactShopee({ actorStatus: 'FAILED', statusMessage: 'Reviews could not be retrieved right now. Please try again in a few minutes.', counts, targetReviews: 300 }), 'PROVIDER_BLOCKED');
+  assert.match(exactShopeeOutcomeLimitation('PROVIDER_BLOCKED', counts, 300)!.message, /^0\/2 sản phẩm có đánh giá\./);
 });
 
 test('only a non-OK outcome adds a limitation, with a plain count and no provider name', () => {
