@@ -23,7 +23,7 @@ adapter installed from the same repository bytes. The executor verifies
 `tools/opencli-metric/adapter-manifest.json` before each run. `whoami` reads
 only login, captcha, page-state and any displayed analysis lookup balance.
 The current manifest SHA-256 is
-`4609d6f5af1c964184daca193092e5c3ccc9946a2ec3e65a3d8e3af78d6e6ea5`.
+`45f0b898bdd33ab67511238d2f3aee4477edd64002815fe7a7a2fedf138ed520`.
 
 Install or reinstall the adapter from the checked-out repository bytes with:
 
@@ -40,6 +40,22 @@ scope, waits for the result page, and checks the page's applied filters. A
 missing platform, keyword, period or category mismatch fails closed. A second
 search is never attempted by the capture command.
 
+The submit control is resolved only inside the search form/container that owns
+the keyword input and platform chips. The adapter records its tag, classes,
+text and form-relative DOM path, and refuses to click unless exactly one
+visible candidate exists. Page-wide text matches are not a submit selector.
+
+After the click, capture records the click time and monotonically ordered
+network responses. Before any result read, pagination or toggle, the hard
+search-applied gate requires a new `/v2/market/analytics/search-basic/`
+response, a platform-id set equal to the requested platforms, and subsequent
+`/v2/market/analytics/products/` and `/shops/` responses. Metric platform IDs
+are mapped from `/market/search_basic` and the live platform labels; they are
+not guessed. A missing response or wrong set returns
+`METRIC_SEARCH_NOT_APPLIED` with the observed platform sets and response
+orders. Replay applies the same gate using the saved click baseline and
+response order.
+
 For a form-only verification, pass `--dry-run`:
 
 ```text
@@ -51,9 +67,12 @@ opencli metric capture \
 
 Dry-run opens and closes its own ephemeral tab, applies the same native-click,
 trusted-key and checkbox paths as capture, then runs the same pre-submit
-read-back gate. It returns one JSON result with `outcome`, `startState`,
-`appliedReadBack` and `mismatches`. `startState` records platforms, keywords,
-period and category before any change. A successful result is
+read-back gate. It also reports the form-scoped submit descriptor and the
+count of visible page-wide `Analytics` elements as ambiguity evidence. It
+returns one JSON result with `outcome`, `startState`, `appliedReadBack`,
+`submitDescriptor`, `pageWideAnalyticsCount` and `mismatches`.
+`startState` records platforms, keywords, period and category before any
+change. A successful result is
 `DRY_RUN_OK`; failure results use the adapter error code. The dry-run branch
 returns before the submit/Search-click function and does not start network
 capture or require an output directory.
@@ -121,6 +140,36 @@ An otherwise unlabelled response remains `all`; a visible row without a
 platform icon is retained as `unknown`. No history page is opened by the
 adapter, and no account, settings or authentication action is performed.
 
+## Debug and replay
+
+Capture creates a `debug/` directory under the requested output directory before
+results validation or extraction. Each snapshot stores the full document
+`outerHTML`, sanitized per-region HTML, the sanitized network input and one
+masked full-page screenshot when available. Only header/account/avatar/profile
+nodes and inline account-identity values are removed from HTML; the app root,
+search form and result regions remain. Response bodies for `/users/`,
+`/profile/` and `/paid/` are never stored; only their path and the fact that
+the body was dropped are retained. Every saved string passes identity/token
+redaction. The debug directory is diagnostic evidence only and is never
+included in the published archive. If a later gate, selector or archive step
+fails, the error includes the debug directory so the page can be investigated
+without spending another lookup.
+
+Replay uses the same extraction and archive builder against those saved files;
+it does not open a tab or use the network:
+
+```text
+opencli metric capture \
+  --replay /outside/metric-captures/run-id/debug \
+  --spec /outside/spec.json \
+  --out /outside/metric-captures/run-id/replay \
+  -f json
+```
+
+Replay is the required first step for selector fixes. Iterate against the
+saved snapshots, then run the smallest synthetic fixture tests; do not repeat
+the live lookup merely to diagnose extraction.
+
 ## Safety and failure rules
 
 - Only the tab created by the current command is selected and closed.
@@ -131,3 +180,30 @@ adapter, and no account, settings or authentication action is performed.
   no shell and a manifest hash check.
 - Search results are evidence from the page at capture time. Later intake and
   archive work must use the saved files rather than reopening Metric.
+
+
+## R3 — provable native submit and network-first result data
+
+Before Search, the adapter sends Escape, blurs the keyword control, moves the
+pointer away from hover state, waits for popup exit animation, checks visible
+select/picker/dialog/popover/tooltip roots, verifies the button is enabled and
+not loading, scrolls it into view, and records `elementFromPoint` at its centre.
+Dry-run reports these preconditions without spending a lookup. The real submit
+accepts only OpenCLI `{click_method: "cdp", hit: "target"}` and stores the full
+click result in `searchGate`; JS fallback is a `METRIC_UI_CHANGED` failure.
+
+Debug capture is complete on submit failure and gate failure: sanitized full DOM
+and a masked screenshot are saved before submit and at 3 s and 15 s after it.
+The input log keeps every captured request after submit with path, method,
+status, timestamp and sanitized request/response bodies. Identity endpoint bodies
+remain dropped.
+
+The archive filters result extraction at the applied-search response baseline,
+so stale pre-search widgets cannot supply headline or table values. The
+versioned `metric-results-data-v2` manifest field contains per-platform headline,
+price-range, province, shop-type, category, previous-period, top-brand and
+top-shop series. Platforms are mapped from the live `search_basic` list; values
+are never summed. A trend series is retained only when a post-submit source
+response offers one; otherwise the manifest records `not offered by the source`.
+
+Adapter manifest SHA-256: `45f0b898bdd33ab67511238d2f3aee4477edd64002815fe7a7a2fedf138ed520`.

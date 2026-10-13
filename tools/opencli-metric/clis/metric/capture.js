@@ -85,6 +85,8 @@ const INLINE_TOKEN = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi;
 const JWT_TOKEN = /^[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}$/;
 const HEX_TOKEN = /^[a-f0-9]{32,}$/i;
 const BASE64_TOKEN = /^(?:[A-Za-z0-9+/]{40,}={0,2})$/;
+const IDENTITY_RESPONSE_PATH = /\/(?:users|profile|paid)(?:\/|$)/i;
+const IDENTITY_HTML_MARKER = /account|avatar|profile|user(?:[-_: ]?(?:info|profile|menu|widget))/i;
 
 function normalizedKey(key) {
   return String(key ?? '').replace(/[^a-z0-9]/gi, '').toLowerCase();
@@ -104,8 +106,24 @@ function isTokenLike(value) {
   return /^Bearer\s+/i.test(text) || JWT_TOKEN.test(text) || HEX_TOKEN.test(text) || BASE64_TOKEN.test(text);
 }
 
-function sanitizeText(value) {
-  return String(value)
+function identityValuesFromHtml(html) {
+  const source = String(html ?? '');
+  const values = [];
+  const nodePattern = /<([a-z][\w:-]*)\b([^>]*)>([\s\S]*?)<\/\1\s*>/gi;
+  for (const match of source.matchAll(nodePattern)) {
+    const marker = `${match[1]} ${match[2]}`;
+    if (!IDENTITY_HTML_MARKER.test(marker)) continue;
+    const text = String(match[3] || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    if (text.length >= 3 && text.length <= 240) values.push(text);
+    for (const attribute of String(match[2] || '').matchAll(/([a-z][\w:-]*)\s*=\s*(["'])(.*?)\2/gi)) {
+      if (isIdentityKey(attribute[1]) && attribute[3].length >= 3 && attribute[3].length <= 240) values.push(attribute[3]);
+    }
+  }
+  return [...new Set(values)].sort((left, right) => right.length - left.length);
+}
+
+function sanitizeText(value, identityValues = []) {
+  let output = String(value)
     .replace(INLINE_TOKEN, '[REDACTED_TOKEN]')
     .replace(/\b[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g, '[REDACTED_TOKEN]')
     .replace(/\b[a-f0-9]{32,}\b/gi, '[REDACTED_TOKEN]')
@@ -113,22 +131,32 @@ function sanitizeText(value) {
     .replace(/([?&](?:access[_-]?token|id[_-]?token|token|session|authorization)=)[^&#\s"']+/gi, '$1[REDACTED_TOKEN]')
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[REDACTED_EMAIL]')
     .replace(/(?:\+?84|0)\d[\d .-]{7,}\d/g, '[REDACTED_PHONE]');
+  for (const identity of identityValues) {
+    const escaped = String(identity).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (escaped) output = output.replace(new RegExp(escaped, 'gi'), '[REDACTED_IDENTITY]');
+  }
+  return output;
 }
 
-function sanitizeValue(value, key = null) {
+function sanitizeValue(value, key = null, identityValues = []) {
   if (key !== null && (isIdentityKey(key) || FORBIDDEN_KEY.test(String(key)))) return OMIT;
   if (typeof value === 'string') {
     if (isTokenLike(value)) return OMIT;
-    return sanitizeText(value);
+    return sanitizeText(value, identityValues);
   }
-  if (Array.isArray(value)) return value.map(child => sanitizeValue(child)).filter(child => child !== OMIT);
+  if (Array.isArray(value)) return value.map(child => sanitizeValue(child, null, identityValues)).filter(child => child !== OMIT);
   if (!value || typeof value !== 'object') return value;
   const output = {};
   for (const [childKey, child] of Object.entries(value)) {
-    const sanitized = sanitizeValue(child, childKey);
+    const sanitized = sanitizeValue(child, childKey, identityValues);
     if (sanitized !== OMIT) output[childKey] = sanitized;
   }
   return output;
+}
+
+export function sanitizeDebugObject(value) {
+  const sanitized = sanitizeValue(value);
+  return sanitized === OMIT ? {} : sanitized;
 }
 
 function htmlOpeningTag(token) {
@@ -142,27 +170,29 @@ function htmlAttributes(token) {
 
 function isSensitiveHtmlContainer(token, tag) {
   const attributes = htmlAttributes(token).toLowerCase();
-  return tag === 'script' || tag === 'style' || tag === 'meta' || tag === 'header' || tag === 'nav'
-    || /(?:account|header|navigation|user[-_ ]?info|user[-_ ]?profile|logged[-_ ]?in|logout|sign[-_ ]?out|avatar|profile|login)/i.test(attributes);
+  const structuralTag = new Set(['html', 'head', 'body', 'main', 'section', 'article', 'div']).has(tag);
+  return tag === 'header' || (!structuralTag && IDENTITY_HTML_MARKER.test(attributes));
 }
 
-function sanitizeHtmlTag(token) {
-  if (/^<!--/.test(token) || /^<\s*meta\b/i.test(token)) return '';
+function sanitizeHtmlTag(token, identityValues = []) {
+  if (/^<!--/.test(token)) return '';
   return token
-    .replace(/\s+(?:data-metric-json|data-state|data-initial-state|data-props)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
     .replace(/\s+([a-z][\w:-]*)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, (_whole, name, rawValue) => {
       const dataName = name.replace(/^data[-_:]?/i, '');
       if (isIdentityKey(name) || isIdentityKey(dataName) || /token|secret|authorization|cookie|session|credential|password/i.test(name)) return '';
       const quote = rawValue[0] === '"' || rawValue[0] === "'" ? rawValue[0] : '';
       const value = quote ? rawValue.slice(1, -1) : rawValue;
       if (isTokenLike(value)) return '';
-      return ` ${name}=${quote}${sanitizeText(value)}${quote}`;
+      return ` ${name}=${quote}${sanitizeText(value, identityValues)}${quote}`;
     })
-    .replace(INLINE_TOKEN, '[REDACTED_TOKEN]');
+    .replace(INLINE_TOKEN, '[REDACTED_TOKEN]')
+    .replace(/\b[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g, '[REDACTED_TOKEN]');
 }
 
-export function sanitizeResultsHtml(html) {
+export function sanitizeResultsHtml(html, providedIdentityValues = []) {
   const source = String(html ?? '');
+  const identityValues = [...new Set([...(providedIdentityValues || []), ...identityValuesFromHtml(source)])]
+    .filter(value => String(value).length >= 3).sort((left, right) => String(right).length - String(left).length);
   const tokens = /<!--[\s\S]*?-->|<\/?[^>]+>/g;
   const voidTags = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
   const stack = [];
@@ -170,7 +200,7 @@ export function sanitizeResultsHtml(html) {
   let cursor = 0;
   const dropped = () => stack.some(entry => entry.drop);
   for (const match of source.matchAll(tokens)) {
-    if (!dropped()) output += sanitizeText(source.slice(cursor, match.index));
+    if (!dropped()) output += sanitizeText(source.slice(cursor, match.index), identityValues);
     const token = match[0];
     const closing = /^<\s*\//.test(token);
     const tag = htmlOpeningTag(token);
@@ -188,21 +218,33 @@ export function sanitizeResultsHtml(html) {
     }
     const selfClosing = /\/\s*>$/.test(token) || voidTags.has(tag);
     const drop = dropped() || isSensitiveHtmlContainer(token, tag);
-    if (!drop && !/^<\s*meta\b/i.test(token)) output += sanitizeHtmlTag(token);
+    if (!drop) output += sanitizeHtmlTag(token, identityValues);
     if (!selfClosing) stack.push({ tag, drop });
     cursor = match.index + token.length;
   }
-  if (!dropped()) output += sanitizeText(source.slice(cursor));
+  if (!dropped()) output += sanitizeText(source.slice(cursor), identityValues);
   return output;
 }
 
-function sanitizeDomSnapshots(domSnapshots) {
-  const sanitize = (value, key = null) => {
-    if (key === 'html') return sanitizeResultsHtml(value);
-    return sanitizeValue(value, key);
+export function sanitizeDomSnapshots(domSnapshots) {
+  const sourceSnapshots = Array.isArray(domSnapshots) ? domSnapshots : [domSnapshots];
+  const htmlValues = sourceSnapshots.flatMap(snapshot => {
+    const values = [];
+    if (snapshot?.html) values.push(...identityValuesFromHtml(snapshot.html));
+    for (const html of Object.values(snapshot?.regionsHtml || {})) values.push(...identityValuesFromHtml(html));
+    return values;
+  });
+  const identityValues = [...new Set(htmlValues)].sort((left, right) => String(right).length - String(left).length);
+  const rewriteHtml = (value, key = null) => {
+    if (key === 'html') return sanitizeResultsHtml(value, identityValues);
+    if (key === 'regionsHtml' && value && typeof value === 'object') {
+      return Object.fromEntries(Object.entries(value).map(([name, html]) => [name, sanitizeResultsHtml(html, identityValues)]));
+    }
+    if (Array.isArray(value)) return value.map(child => rewriteHtml(child));
+    if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([childKey, child]) => [childKey, rewriteHtml(child, childKey)]));
+    return value;
   };
-  const snapshots = Array.isArray(domSnapshots) ? domSnapshots : [domSnapshots];
-  return snapshots.map(snapshot => sanitize(snapshot)).filter(snapshot => snapshot !== OMIT);
+  return sourceSnapshots.map(snapshot => rewriteHtml(sanitizeValue(snapshot, null, identityValues))).filter(snapshot => snapshot !== OMIT);
 }
 
 function periodOf(raw, fallbackPeriod) {
@@ -268,6 +310,126 @@ function responsePath(entry, index) {
   try { return new URL(raw, 'https://metric.vn').pathname; } catch { return raw.split('?')[0] || `/responses/${index}`; }
 }
 
+function responseOrder(entry, index) {
+  return Number.isSafeInteger(entry?.responseOrder) ? entry.responseOrder : index;
+}
+
+function responseHasPath(entry, path) {
+  return responsePath(entry, 0).replace(/\/$/, '') === path.replace(/\/$/, '');
+}
+
+function responseBodyForGate(entry) {
+  return rawBody(entry);
+}
+
+function platformName(value) {
+  const normalized = clean(value).toLowerCase();
+  if (normalized === 'tiktok shop' || normalized === 'tiktok') return 'tiktok';
+  if (normalized === 'shopee') return 'shopee';
+  return normalized;
+}
+
+function platformListRows(responses) {
+  const entry = (Array.isArray(responses) ? responses : []).find(response => responseHasPath(response, '/market/search_basic'));
+  const rows = responseBodyForGate(entry)?.data?.platforms;
+  return Array.isArray(rows) ? rows : [];
+}
+
+function platformLabelFromRow(row) {
+  return platformName(row?.name || row?.label || row?.platform_name || row?.platformName || row?.platform);
+}
+
+export function buildMetricPlatformMap(responses, observedLabels = []) {
+  const rows = platformListRows(responses);
+  const byId = {};
+  const labels = Array.isArray(observedLabels) ? observedLabels.map(platformName).filter(Boolean) : [];
+  rows.forEach((row, index) => {
+    const id = Number(row?.platform_id);
+    if (!Number.isSafeInteger(id)) return;
+    const explicit = platformLabelFromRow(row);
+    const observed = labels.length === rows.length ? labels[index] : '';
+    const label = explicit || observed;
+    if (label) byId[id] = label;
+  });
+  return {
+    byId,
+    labels,
+    platformListIds: rows.map(row => Number(row?.platform_id)).filter(Number.isSafeInteger),
+    platformListResponseOrder: (Array.isArray(responses) ? responses : []).findIndex(response => responseHasPath(response, '/market/search_basic')),
+    source: Object.keys(byId).length ? (rows.some(row => platformLabelFromRow(row)) ? 'search_basic_named_platforms' : 'search_basic_order_with_live_form_labels') : 'unresolved',
+  };
+}
+
+function platformMapById(platformMap) {
+  if (platformMap?.byId && typeof platformMap.byId === 'object') return platformMap.byId;
+  return platformMap && typeof platformMap === 'object' ? platformMap : DEFAULT_PLATFORM_ID_MAP;
+}
+
+function searchBasicPlatformIds(body) {
+  const aggregations = Array.isArray(body?.data?.search_basic?.aggregations) ? body.data.search_basic.aggregations : [];
+  return [...new Set(aggregations.flatMap(item => Object.values(item?.entity?.platforms || {})
+    .map(platform => Number(platform?.platform_id)).filter(Number.isSafeInteger)))];
+}
+
+function platformSetForIds(ids, platformMap) {
+  const byId = platformMapById(platformMap);
+  return [...new Set(ids.map(id => byId[id] || `metric-id:${id}`))].sort();
+}
+
+function gateFailure(details) {
+  const error = new Error('METRIC_SEARCH_NOT_APPLIED: Metric search-applied network gate failed');
+  error.code = 'METRIC_SEARCH_NOT_APPLIED';
+  error.details = details;
+  throw error;
+}
+
+export function assertSearchAppliedGate({ responses = [], spec, baselineResponseOrder = -1, platformMap = null } = {}) {
+  const expectedPlatforms = [...new Set((spec?.platforms || []).map(platformName).filter(Boolean))].sort();
+  const ordered = (Array.isArray(responses) ? responses : [])
+    .map((response, index) => ({ response, order: responseOrder(response, index), path: responsePath(response, index) }));
+  const afterClick = ordered.filter(item => item.order > baselineResponseOrder);
+  const searchResponses = afterClick.filter(item => item.path.replace(/\/$/, '') === '/v2/market/analytics/search-basic');
+  const seenPlatformSets = searchResponses.map(item => {
+    const ids = searchBasicPlatformIds(responseBodyForGate(item.response));
+    return { responseOrder: item.order, platformIds: ids, platforms: platformSetForIds(ids, platformMap) };
+  });
+  if (!searchResponses.length) {
+    return gateFailure({
+      missingResponses: ['search-basic'], expectedPlatforms, baselineResponseOrder,
+      platformSetsSeen: seenPlatformSets,
+    });
+  }
+  const search = searchResponses[0];
+  const ids = searchBasicPlatformIds(responseBodyForGate(search.response));
+  const platforms = platformSetForIds(ids, platformMap);
+  if (JSON.stringify(platforms) !== JSON.stringify(expectedPlatforms)) {
+    return gateFailure({
+      missingResponses: [], expectedPlatforms, baselineResponseOrder,
+      searchBasicResponseOrder: search.order, searchBasicPlatformIds: ids,
+      platformSetsSeen: seenPlatformSets,
+    });
+  }
+  const products = afterClick.find(item => item.order > search.order && item.path.replace(/\/$/, '') === '/v2/market/analytics/products');
+  const shops = afterClick.find(item => item.order > search.order && item.path.replace(/\/$/, '') === '/v2/market/analytics/shops');
+  const missingResponses = [];
+  if (!products) missingResponses.push('products');
+  if (!shops) missingResponses.push('shops');
+  if (missingResponses.length) {
+    return gateFailure({
+      missingResponses, expectedPlatforms, baselineResponseOrder,
+      searchBasicResponseOrder: search.order, searchBasicPlatformIds: ids,
+      platformSetsSeen: seenPlatformSets,
+      productsResponseOrders: products ? [products.order] : [], shopsResponseOrders: shops ? [shops.order] : [],
+    });
+  }
+  return {
+    applied: true, baselineResponseOrder, searchBasicResponseOrder: search.order,
+    searchBasicPlatformIds: ids, platformSet: platforms,
+    productsResponseOrders: [products.order], shopsResponseOrders: [shops.order],
+    platformSetsSeen: seenPlatformSets,
+  };
+}
+
 function explicitPlatform(value) {
   const platform = platformOf(value, null);
   return platform === 'shopee' || platform === 'tiktok' ? platform : null;
@@ -309,7 +471,123 @@ function flattenPayload(body, sourcePointer, platformFallback = 'all') {
   return [{ payload: body, region, platform: platformOf(body.platform, platformFallback), sourcePointer }];
 }
 
-function payloadEntries(responses, domSnapshots) {
+const DEFAULT_PLATFORM_ID_MAP = Object.freeze({ 1: 'shopee', 2: 'tiktok' });
+
+function metricPlatformId(value, platformIdMap = DEFAULT_PLATFORM_ID_MAP) {
+  const id = Number(value);
+  return platformIdMap?.[id] || null;
+}
+
+function platformValues(value) {
+  return Array.isArray(value) ? value : value && typeof value === 'object' ? Object.values(value) : [];
+}
+
+function malformedPlatformEntry(sourcePointer, aggregation, index, item) {
+  return { sourcePointer, aggregation, index, reason: item && typeof item === 'object' ? 'unknown-platform-id' : 'entry-is-not-an-object' };
+}
+
+function metricApiPayloads(body, sourcePointer, platformIdMap, requestedPlatformCount = 0) {
+  const data = body?.data;
+  const searchBasic = data?.search_basic;
+  const aggregations = Array.isArray(searchBasic?.aggregations) ? searchBasic.aggregations : [];
+  const byAggregation = new Map(aggregations.map(item => [clean(item?.aggregation).toUpperCase(), item]));
+  const payloads = [];
+  const malformed = [];
+  const platformRows = (raw, name, pointer) => {
+    if (raw != null && !Array.isArray(raw) && typeof raw !== 'object') malformed.push({ sourcePointer: pointer, aggregation: name, reason: 'platforms-is-not-an-object' });
+    // An entry with no known platform is an error; a known platform with no value stays missing, never zero.
+    return platformValues(raw)
+      .map((item, index) => {
+        const platform = metricPlatformId(item?.platform_id, platformIdMap);
+        if (!platform) malformed.push(malformedPlatformEntry(pointer, name, index, item));
+        return { platform, value: item?.value ?? null };
+      })
+      .filter(item => item.platform);
+  };
+  const entityRows = name => (byAggregation.get(name)?.entities || []).flatMap((item, index) =>
+    platformRows(item?.platforms, name, `${sourcePointer}/data/search_basic/aggregations/${name}/entities/${index}/platforms`).map(platform => ({
+      platform: platform.platform, value: platform.value,
+      key: item?.key, from: item?.from, to: item?.to, index,
+    })));
+  if (aggregations.length) {
+    const names = ['REVENUE_TOTAL_CUSTOM', 'ORDER_TOTAL_CUSTOM', 'PRODUCT_TOTAL', 'SHOP_TOTAL'];
+    const headlineValues = name => platformRows(byAggregation.get(name)?.entity?.platforms, name, `${sourcePointer}/data/search_basic/aggregations/${name}/entity/platforms`);
+    const current = Object.fromEntries(names.map(name => [name, headlineValues(name)]));
+    const previous = Object.fromEntries(names.map(name => [name, headlineValues(`PREVIOUS_${name}`)]));
+    const platforms = new Set(Object.values(current).flat().map(row => row.platform));
+    const headlineRows = [...platforms].map(platform => ({
+      platform, revenue: current.REVENUE_TOTAL_CUSTOM.find(item => item.platform === platform)?.value ?? null,
+      units: current.ORDER_TOTAL_CUSTOM.find(item => item.platform === platform)?.value ?? null,
+      soldListings: current.PRODUCT_TOTAL.find(item => item.platform === platform)?.value ?? null,
+      shops: current.SHOP_TOTAL.find(item => item.platform === platform)?.value ?? null,
+      previousRevenue: previous.REVENUE_TOTAL_CUSTOM.find(item => item.platform === platform)?.value ?? null,
+      previousUnits: previous.ORDER_TOTAL_CUSTOM.find(item => item.platform === platform)?.value ?? null,
+      previousSoldListings: previous.PRODUCT_TOTAL.find(item => item.platform === platform)?.value ?? null,
+      previousShops: previous.SHOP_TOTAL.find(item => item.platform === platform)?.value ?? null,
+    }));
+    if (headlineRows.length) {
+      // W2 remains a valid additive contract: when the source only provides
+      // platform rows, null combined KPIs make the no-summing boundary explicit.
+      const first = requestedPlatformCount <= 1 && headlineRows.length === 1 ? headlineRows[0] : {};
+      payloads.push({ region: 'overview', kpi: {
+        revenue: first.revenue ?? null, units: first.units ?? null, soldListings: first.soldListings ?? null, shops: first.shops ?? null,
+      }, headlineByPlatform: headlineRows });
+      payloads.push({ region: 'platform-split', items: headlineRows.map(row => ({ platform: row.platform, revenue: row.revenue, units: row.units })) });
+    }
+    const breakdown = (aggregation, region, makeRow) => {
+      const rows = entityRows(aggregation); if (rows.length) payloads.push({ region, rows: rows.map(makeRow) });
+    };
+    breakdown('REVENUE__BY__PRICE_RANGE_CUSTOM', 'price', row => ({ platform: row.platform, priceLevel: `${row.from ?? ''}-${row.to ?? ''}`, revenue: row.value }));
+    breakdown('REVENUE__BY__LOCATION_CUSTOM', 'warehouse', row => ({ platform: row.platform, location: row.key, revenue: row.value }));
+    breakdown('REVENUE__BY__SHOP_TYPE_CUSTOM', 'shop-type', row => ({ platform: row.platform, shopType: row.key === '1' ? 'mall' : 'normal', revenue: row.value }));
+    breakdown('REVENUE__BY__CATEGORIES_CUSTOM', 'category', row => ({ platform: row.platform, category: row.key, revenue: row.value }));
+  }
+  if (malformed.length) {
+    const error = new Error('METRIC_PLATFORM_ENTRY_MALFORMED: Metric platform entry is malformed');
+    error.code = 'METRIC_PLATFORM_ENTRY_MALFORMED';
+    error.details = { entries: malformed };
+    throw error;
+  }
+  const platformFromProduct = product => metricPlatformId(product?.platform_id, platformIdMap)
+    || metricPlatformId(String(product?.product_base_id || '').split('__')[0], platformIdMap) || 'unknown';
+  const isProductsResponse = /\/analytics\/products\/?$/i.test(sourcePointer);
+  const isShopsResponse = /\/analytics\/shops\/?$/i.test(sourcePointer);
+  const isGroupsResponse = /\/analytics\/groups\/?$/i.test(sourcePointer);
+  const products = isProductsResponse && Array.isArray(data?.products) ? data.products : [];
+  if (products.length) payloads.push({ region: 'top-products', items: products.map(product => ({
+    name: product.product_name, shop: product.shop_name, platform: platformFromProduct(product), brand: product.final_brand || product.brand,
+    price: product.price, minPrice: product.price_min, maxPrice: product.price_max,
+    revenue: product.revenue_custom ?? product.revenue, units: product.order_custom ?? product.order_count,
+    revenueChg: product.revenue_growth, unitsChg: product.order_growth, previousRevenue: product.previous_revenue_custom, previousUnits: product.previous_order_custom,
+    createdDate: product.platform_created_at, category: product.final_categories?.at?.(-1)?.name || product.categories?.at?.(-1)?.name,
+  })) });
+  const shops = isShopsResponse && Array.isArray(data?.shops) ? data.shops : [];
+  if (shops.length) payloads.push({ region: 'top-shops', items: shops.map(shop => ({
+    rankNew: shop.ranking, rankOld: shop.previous_ranking, shop: shop.shop_name, brand: shop.top_brand,
+    platform: metricPlatformId(shop.platform_id, platformIdMap) || 'unknown', listings: shop.product_total,
+    revenue: shop.revenue_custom_sum, units: shop.order_custom_sum, price: shop.avg_price,
+    previousRevenue: shop.previous_revenue_custom_sum, previousUnits: shop.previous_order_custom_sum,
+  })) });
+  const groups = isGroupsResponse && Array.isArray(data?.groups) ? data.groups : [];
+  if (groups.length) payloads.push({ region: 'top-brands', items: groups.flatMap(group => {
+    const details = Array.isArray(group.details_by_platforms) && group.details_by_platforms.length ? group.details_by_platforms : [group];
+    return details.map(detail => ({ rankNew: group.ranking, rankOld: group.previous_ranking, brand: group.brand,
+      platform: metricPlatformId(detail.platform_id, platformIdMap) || 'unknown', listings: detail.product_total,
+      revenue: detail.revenue_custom_sum, units: detail.order_custom_sum,
+      previousRevenue: detail.previous_revenue_custom_sum ?? group.previous_revenue_custom_sum,
+      previousUnits: detail.previous_order_custom_sum ?? group.previous_order_custom_sum,
+    }));
+  }) });
+  const insights = /\/analytics\/shops-insight\/?$/i.test(sourcePointer) && Array.isArray(data?.shops) ? data.shops : [];
+  const trendRows = insights.flatMap(shop => (shop.order_revenue_intervals || []).map(interval => ({
+    platform: metricPlatformId(shop.platform_id, platformIdMap) || 'unknown', shop: shop.shop_name,
+    startDate: interval.start_date, endDate: interval.end_date, revenue: interval.revenue_custom_sum, units: interval.order_custom_sum,
+  })));
+  if (trendRows.length) payloads.push({ region: 'trend', items: trendRows });
+  return payloads.map((payload, index) => ({ payload, region: payload.region, platform: 'all', sourcePointer: `${sourcePointer}/derived/${payload.region}/${index}` }));
+}
+
+function payloadEntries(responses, domSnapshots, platformIdMap, requestedPlatformCount = 0) {
   const entries = [];
   for (const [index, response] of (Array.isArray(responses) ? responses : []).entries()) {
     const body = rawBody(response);
@@ -319,6 +597,7 @@ function payloadEntries(responses, domSnapshots) {
       ? platformOf(body.platform, 'all')
       : requestPlatform(response);
     entries.push(...flattenPayload(body, `response:${responsePath(response, index)}`, responsePlatform));
+    entries.push(...metricApiPayloads(body, `response:${responsePath(response, index)}`, platformIdMap, requestedPlatformCount));
   }
   const doms = Array.isArray(domSnapshots) ? domSnapshots : [domSnapshots];
   for (const [index, dom] of doms.entries()) {
@@ -474,13 +753,29 @@ function platformSplitGroup(entries, scope) {
     seen.add(key);
     return true;
   });
-  if (!points.length) return { absent: true, reason: 'NOT_ON_PAGE' };
-  return points.map(({ row, entry, index }) => ({
-    platform: rowPlatform(row, entry.platform),
-    revenue: metricValue(row.revenue, { label: 'Revenue', unit: 'VND', platform: rowPlatform(row, entry.platform), period: scope.period, sourcePointer: `${entry.sourcePointer}/items/${index}/revenue` }),
-    units: row.units == null ? null : metricValue(row.units, { label: 'Units', unit: 'COUNT', platform: rowPlatform(row, entry.platform), period: scope.period, sourcePointer: `${entry.sourcePointer}/items/${index}/units` }),
-    share: metricValue(row.share, { label: 'Share', unit: 'PERCENT', platform: rowPlatform(row, entry.platform), period: scope.period, sourcePointer: `${entry.sourcePointer}/items/${index}/share` }),
-  }));
+  const requested = [...new Set((scope.platforms || []).map(platformOf).filter(platform => platform === 'shopee' || platform === 'tiktok'))];
+  const byPlatform = new Map(points.map(point => [rowPlatform(point.row, point.entry.platform), point]));
+  if (!requested.length && !points.length) return { absent: true, reason: 'NOT_ON_PAGE' };
+  const platforms = requested.length ? requested : [...byPlatform.keys()];
+  return platforms.map(platform => {
+    const point = byPlatform.get(platform);
+    if (!point) {
+      const sourcePointer = `scope:platforms/${platform}`;
+      return {
+        platform,
+        revenue: metricValue(null, { label: 'Revenue', unit: 'VND', platform, period: scope.period, sourcePointer: `${sourcePointer}/revenue` }),
+        units: null,
+        share: metricValue(null, { label: 'Share', unit: 'PERCENT', platform, period: scope.period, sourcePointer: `${sourcePointer}/share` }),
+      };
+    }
+    const { row, entry, index } = point;
+    return {
+      platform,
+      revenue: metricValue(row.revenue, { label: 'Revenue', unit: 'VND', platform, period: scope.period, sourcePointer: `${entry.sourcePointer}/items/${index}/revenue` }),
+      units: row.units == null ? null : metricValue(row.units, { label: 'Units', unit: 'COUNT', platform, period: scope.period, sourcePointer: `${entry.sourcePointer}/items/${index}/units` }),
+      share: metricValue(row.share, { label: 'Share', unit: 'PERCENT', platform, period: scope.period, sourcePointer: `${entry.sourcePointer}/items/${index}/share` }),
+    };
+  });
 }
 
 function monthlyGroup(entries, scope) {
@@ -517,9 +812,13 @@ function shopTypeGroup(entries, scope) {
     return rows.map((row, index) => ({ row, entry, index }));
   });
   if (!points.length) return { absent: true, reason: 'NOT_ON_PAGE' };
-  return points.map(({ row, entry, index }) => ({
+  const seen = new Set();
+  return points.filter(({ row }) => {
+    const type = clean(row.shopType || row.type).toLowerCase() === 'mall' ? 'mall' : 'normal';
+    if (seen.has(type)) return false; seen.add(type); return true;
+  }).slice(0, 2).map(({ row, entry, index }) => ({
     shopType: clean(row.shopType || row.type).toLowerCase() === 'mall' ? 'mall' : 'normal',
-    share: metricValue(row.share, { label: 'Share', unit: 'PERCENT', platform: entry.platform, period: scope.period, sourcePointer: `${entry.sourcePointer}/items/${index}/share` }),
+    share: metricValue(row.share ?? row.revenue, { label: 'Share', unit: row.share == null ? 'VND' : 'PERCENT', platform: entry.platform, period: scope.period, sourcePointer: `${entry.sourcePointer}/items/${index}/share` }),
   }));
 }
 
@@ -577,17 +876,53 @@ function captureSourceMap(entries, scope) {
 
 export function sanitizeNetworkResponses(responses) {
   return (Array.isArray(responses) ? responses : []).map((response, index) => {
+    const urlPath = responsePath(response, index);
+    const order = responseOrder(response, index);
+    if (IDENTITY_RESPONSE_PATH.test(urlPath)) {
+      return { urlPath, responseOrder: order, dropped: 'identity_response_body' };
+    }
     const body = rawBody(response);
-    const cleanResponse = { urlPath: responsePath(response, index), status: response?.status ?? null, body: sanitizeValue(body) };
+    const cleanResponse = { urlPath, responseOrder: order, status: response?.status ?? response?.responseStatus ?? null, body: sanitizeValue(body) };
+    if (response?.method != null) cleanResponse.method = String(response.method);
+    if (response?.timestamp != null) cleanResponse.timestamp = response.timestamp;
+    if (response?.durationMs != null) cleanResponse.durationMs = response.durationMs;
+    if (response?.requestBodyPreview != null || response?.requestBody != null) cleanResponse.requestBody = sanitizeValue(response.requestBodyPreview ?? response.requestBody);
     const requestLabel = requestPlatform(response);
     if (requestLabel !== 'all') cleanResponse.request = { params: { platform: requestLabel } };
     return response?.viewPlatform ? { observedInView: response.viewPlatform, ...cleanResponse } : cleanResponse;
-  }).filter(response => response.body !== null && response.body !== OMIT);
+  });
 }
 
-export function extractResultsPage({ responses = [], dom = null, scope, captureId, specDigest, capturedAt, pageCap = 100 }) {
-  const entries = payloadEntries(sanitizeNetworkResponses(responses), sanitizeDomSnapshots(dom));
+function chartSeriesFromResponses(responses, platformIdMap) {
+  const rows = [];
+  for (const [index, response] of (Array.isArray(responses) ? responses : []).entries()) {
+    const body = rawBody(response); const path = responsePath(response, index); const data = body?.data || {};
+    const aggs = data.search_basic?.aggregations || []; const by = new Map(aggs.map(item => [clean(item.aggregation).toUpperCase(), item]));
+    const id = value => metricPlatformId(value, platformIdMap) || 'unknown';
+    const entities = name => (by.get(name)?.entities || []).flatMap(item => platformValues(item?.platforms).map(p => ({ ...item, platform: id(p.platform_id), value: p.value })));
+    for (const [name, series] of [['REVENUE__BY__PRICE_RANGE_CUSTOM','priceRange'],['REVENUE__BY__LOCATION_CUSTOM','province'],['REVENUE__BY__SHOP_TYPE_CUSTOM','shopType'],['REVENUE__BY__CATEGORIES_CUSTOM','category']]) {
+      for (const row of entities(name)) rows.push({ series, platform: row.platform, label: row.key ?? `${row.from ?? ''}-${row.to ?? ''}`, value: row.value, source: `response:${path}` });
+    }
+    const headline = Object.fromEntries(['REVENUE_TOTAL_CUSTOM','ORDER_TOTAL_CUSTOM','PRODUCT_TOTAL','SHOP_TOTAL'].map(name => [name, platformValues(by.get(name)?.entity?.platforms).map(p => ({ platform: id(p.platform_id), value: p.value }))]));
+    for (const platform of new Set(Object.values(headline).flat().map(x => x.platform))) {
+      rows.push({ series:'headline', platform, revenue: headline.REVENUE_TOTAL_CUSTOM.find(x=>x.platform===platform)?.value ?? null, units: headline.ORDER_TOTAL_CUSTOM.find(x=>x.platform===platform)?.value ?? null, previousRevenue: platformValues(by.get('PREVIOUS_REVENUE_TOTAL_CUSTOM')?.entity?.platforms).find(x=>id(x.platform_id)===platform)?.value ?? null, previousUnits: platformValues(by.get('PREVIOUS_ORDER_TOTAL_CUSTOM')?.entity?.platforms).find(x=>id(x.platform_id)===platform)?.value ?? null, source:`response:${path}` });
+    }
+    if (/\/analytics\/(products|shops|groups|shops-insight)\/?$/i.test(path)) {
+      const list = data.products || data.shops || data.groups || [];
+      for (const item of list) {
+        if (data.products) rows.push({series:'topProducts',platform:id(item.platform_id || String(item.product_base_id||'').split('__')[0]),name:item.product_name,revenue:item.revenue_custom ?? item.revenue,units:item.order_custom ?? item.order_count,source:`response:${path}`});
+        else if (data.shops) rows.push({series:'topShops',platform:id(item.platform_id),name:item.shop_name,revenue:item.revenue_custom_sum,units:item.order_custom_sum,previousRevenue:item.previous_revenue_custom_sum,previousUnits:item.previous_order_custom_sum,source:`response:${path}`});
+        else { const details = Array.isArray(item.details_by_platforms) && item.details_by_platforms.length ? item.details_by_platforms : [item]; for (const detail of details) rows.push({series:'topBrands',platform:id(detail.platform_id),name:item.brand,revenue:detail.revenue_custom_sum,units:detail.order_custom_sum,previousRevenue:detail.previous_revenue_custom_sum ?? item.previous_revenue_custom_sum,previousUnits:detail.previous_order_custom_sum ?? item.previous_order_custom_sum,source:`response:${path}`}); }
+      }
+    }
+    if (/\/analytics\/shops-insight\/?$/i.test(path)) for (const shop of data.shops || []) for (const interval of shop.order_revenue_intervals || []) rows.push({series:'trend',platform:id(shop.platform_id),shop:shop.shop_name,startDate:interval.start_date,endDate:interval.end_date,revenue:interval.revenue_custom_sum,units:interval.order_custom_sum,source:`response:${path}`});
+  }
+  return { contractVersion:'metric-results-data-v2', series: rows, trendOffered: rows.some(row=>row.series==='trend'), trendNote: rows.some(row=>row.series==='trend') ? null : 'not offered by the source' };
+}
+
+export function extractResultsPage({ responses = [], dom = null, scope, captureId, specDigest, capturedAt, pageCap = 100, platformIdMap = null }) {
   const normalizedScope = scopeFor(scope);
+  const entries = payloadEntries(sanitizeNetworkResponses(responses), sanitizeDomSnapshots(dom), platformMapById(platformIdMap), normalizedScope.platforms.length);
   const groups = {
     W2_kpi: kpiGroup(entries, normalizedScope), W3_platformSplit: platformSplitGroup(entries, normalizedScope),
     W4_monthly: monthlyGroup(entries, normalizedScope), W5_category: tableGroup(entries, 'W5_category', normalizedScope),
@@ -606,6 +941,7 @@ export function extractResultsPage({ responses = [], dom = null, scope, captureI
       scope: normalizedScope, groups,
     },
     sourceMap: captureSourceMap(entries, normalizedScope),
+    chartSeries: chartSeriesFromResponses(responses, platformMapById(platformIdMap)),
     pagination: { W12_topProducts: paginationFor(entries, pageCap) },
     views: [...new Set(entries.map(entry => entry.platform))].map(platform => ({ platform, source: sourceType(entries.filter(entry => entry.platform === platform)) })),
   };

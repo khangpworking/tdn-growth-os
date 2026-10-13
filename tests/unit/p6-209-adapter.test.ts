@@ -70,7 +70,95 @@ test('results extractor prefers response JSON, captures both platforms, and reco
   assert.equal(result.sourceMap.W15.source, 'dom');
   assert.equal(validateMetricWebSnapshot(result.snapshot), result.snapshot);
   const raw = sanitizeNetworkResponses([{ url: 'https://metric.vn/api/synthetic?token=secret', status: 200, body: { safe: 1, accessToken: 'must-not-survive' } }]);
-  assert.deepEqual(raw, [{ urlPath: '/api/synthetic', status: 200, body: { safe: 1 } }]);
+  assert.deepEqual(raw, [{ urlPath: '/api/synthetic', responseOrder: 0, status: 200, body: { safe: 1 } }]);
+});
+
+test('results extractor accepts object-shaped response platform maps', async () => {
+  const { extractResultsPage } = await import(captureUrl.href);
+  const platformAggregation = (aggregation: string, first: number, second: number) => ({
+    aggregation,
+    entity: { platforms: { first: { platform_id: 1, value: first }, second: { platform_id: 8, value: second } } },
+  });
+  const result = extractResultsPage({
+    responses: [{ urlPath: '/v2/market/analytics/search-basic/', body: { data: { search_basic: { aggregations: [
+      platformAggregation('REVENUE_TOTAL_CUSTOM', 11, 22), platformAggregation('ORDER_TOTAL_CUSTOM', 3, 4),
+      platformAggregation('PRODUCT_TOTAL', 5, 6), platformAggregation('SHOP_TOTAL', 7, 8),
+    ] } } } }],
+    dom: null,
+    scope: { keywords: ['synthetic-term'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-01-01', endDate: '2026-02-02' }, category: null },
+    captureId: 'synthetic-object-platforms', specDigest: 'a'.repeat(64), capturedAt: '2026-10-13T00:00:00.000Z',
+    platformIdMap: { 1: 'shopee', 8: 'tiktok' },
+  });
+  assert.deepEqual(result.snapshot.groups.W3_platformSplit.map((row: any) => [row.platform, row.revenue.value, row.units.value]), [
+    ['shopee', 11, 3], ['tiktok', 22, 4],
+  ]);
+});
+
+test('malformed platform entries surface and never promote one platform to a combined KPI', async () => {
+  const { extractResultsPage } = await import(captureUrl.href);
+  const aggregation = (name: string, platforms: any) => ({ aggregation: name, entity: { platforms } });
+  const response = (platforms: any) => ({ urlPath: '/v2/market/analytics/search-basic/', body: { data: { search_basic: { aggregations: [
+    aggregation('REVENUE_TOTAL_CUSTOM', platforms), aggregation('ORDER_TOTAL_CUSTOM', platforms),
+    aggregation('PRODUCT_TOTAL', platforms), aggregation('SHOP_TOTAL', platforms),
+  ] } } } });
+  const input = (platforms: any, captureId: string) => ({ responses: [response(platforms)], dom: null,
+    scope: { keywords: ['synthetic-term'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-01-01', endDate: '2026-02-02' }, category: null },
+    captureId, specDigest: 'a'.repeat(64), capturedAt: '2026-10-13T00:00:00.000Z', platformIdMap: { 1: 'shopee', 8: 'tiktok' } });
+  assert.throws(() => extractResultsPage(input({ good: { platform_id: 1, value: 10 }, malformed: { value: 20 } }, 'synthetic-platform-error')),
+    (error: any) => error.code === 'METRIC_PLATFORM_ENTRY_MALFORMED' && error.details.entries.length === 4);
+  const onlyShopee = input({ good: { platform_id: 1, value: 10 } }, 'synthetic-single-platform');
+  const onePlatform = extractResultsPage(onlyShopee);
+  for (const field of ['revenue', 'units', 'soldListings', 'shops']) assert.equal(onePlatform.snapshot.groups.W2_kpi[field].current.value, null);
+  assert.deepEqual(onePlatform.snapshot.groups.W3_platformSplit.map((row: any) => [row.platform, row.revenue.value]), [['shopee', 10], ['tiktok', null]]);
+  const singleRequested = extractResultsPage({ ...onlyShopee, scope: { ...onlyShopee.scope, platforms: ['shopee'] } });
+  assert.equal(singleRequested.snapshot.groups.W2_kpi.revenue.current.value, 10);
+});
+
+const salesDataInput = (aggregations: any[]) => ({
+  responses: [{ urlPath: '/v2/market/analytics/search-basic/', body: { data: { search_basic: { aggregations } } } }],
+  dom: { regions: { overview: { kpi: { revenue: null, units: null, soldListings: null, shops: null } } } },
+  scope: { keywords: ['synthetic-term'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-01-01', endDate: '2026-02-02' }, category: null },
+  captureId: 'synthetic-sales-data', specDigest: 'a'.repeat(64), capturedAt: '2026-10-13T00:00:00.000Z', platformIdMap: { 1: 'shopee', 8: 'tiktok' },
+});
+
+test('sales-data validation does not depend on a non-null revenue entry', async t => {
+  const { extractResultsPage } = await import(captureUrl.href);
+  for (const aggregation of ['ORDER_TOTAL_CUSTOM', 'PRODUCT_TOTAL', 'SHOP_TOTAL']) {
+    await t.test(aggregation, () => {
+      assert.throws(() => extractResultsPage(salesDataInput([
+        { aggregation: 'REVENUE_TOTAL_CUSTOM', entity: { platforms: [{ platform_id: 1, value: null }] } },
+        { aggregation, entity: { platforms: [{ value: 7 }] } },
+      ])), (error: any) => error.code === 'METRIC_PLATFORM_ENTRY_MALFORMED');
+    });
+  }
+  for (const aggregation of ['REVENUE__BY__PRICE_RANGE_CUSTOM', 'REVENUE__BY__LOCATION_CUSTOM', 'REVENUE__BY__SHOP_TYPE_CUSTOM', 'REVENUE__BY__CATEGORIES_CUSTOM']) {
+    await t.test(aggregation, () => {
+      assert.throws(() => extractResultsPage(salesDataInput([
+        { aggregation, entities: [{ key: 'synthetic-bucket', platforms: 7 }] },
+      ])), (error: any) => error.code === 'METRIC_PLATFORM_ENTRY_MALFORMED');
+    });
+  }
+});
+
+test('sales-data keeps independent platform values when revenue or a breakdown value is missing', async t => {
+  const { extractResultsPage } = await import(captureUrl.href);
+  const result = extractResultsPage(salesDataInput([
+    { aggregation: 'REVENUE_TOTAL_CUSTOM', entity: { platforms: [{ platform_id: 1, value: 11 }, { platform_id: 8, value: null }] } },
+    { aggregation: 'ORDER_TOTAL_CUSTOM', entity: { platforms: [{ platform_id: 1, value: 3 }, { platform_id: 8, value: 4 }] } },
+    { aggregation: 'REVENUE__BY__PRICE_RANGE_CUSTOM', entities: [{ from: 0, to: 100, value: 99,
+      platforms: [{ platform_id: 1, value: 0 }, { platform_id: 8, value: null }] }] },
+  ]));
+  await t.test('units remain available without platform revenue', () => {
+    assert.deepEqual(result.snapshot.groups.W3_platformSplit.map((row: any) => [row.platform, row.revenue.value, row.units?.value ?? null]), [
+      ['shopee', 11, 3], ['tiktok', null, 4],
+    ]);
+  });
+  await t.test('a missing platform breakdown cannot inherit the parent total', () => {
+    assert.deepEqual(result.snapshot.groups.W6_priceLevel.rows.map((row: any) => [row.cells.platform.text, row.cells.revenue.value]), [
+      ['shopee', 0], ['tiktok', null],
+    ]);
+  });
+  for (const field of ['revenue', 'units', 'soldListings', 'shops']) assert.equal(result.snapshot.groups.W2_kpi[field].current.value, null);
 });
 
 test('unlabelled monthly rows stay all and DOM fills a platform missing from responses', async () => {
@@ -116,7 +204,7 @@ test('live capture view metadata never labels an otherwise unlabelled response',
     platformViews: [{ label: 'Shopee', selected: true, selector: 'platform-view', index: 0 }],
     regions: { ...baseDom.regions, 'top-products': { platform: 'tiktok', selector: '#synthetic-tiktok-products', items: [{ name: 'Synthetic TikTok fallback', shop: 'Synthetic TikTok shop', revenue: { value: 9, unit: 'VND' } }] } },
   };
-  const page = fakePage({ ...form, appliedFilters: { ...spec, keywords: [] }, quota: {} }, result, dom, responses);
+  const page = fakePage({ ...form, appliedFilters: { ...spec, keywords: [] }, quota: {} }, result, dom, [...gateResponsesFor(spec.platforms), ...responses]);
   await adapter.captureCommand.func(page, { spec: specPath, out: captureDir, 'product-cap': 200 });
   const snapshot = JSON.parse(await readFile(join(captureDir, 'snapshot.json'), 'utf8'));
   assert.equal(snapshot.groups.W4_monthly[0].platform, 'all');
@@ -132,7 +220,7 @@ test('collectResults keeps the overview combined and does not switch result tabs
   await writeFile(specPath, `${JSON.stringify(commandSpec)}\n`);
   const form = await load('metric-form'); const result = { ...(await load('metric-search')), appliedFilters: commandSpec };
   const fixture = await load('metric-results-response'); const baseDom = await load('metric-results-dom');
-  const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] }, quota: {} }, result, baseDom, fixture.responses, {
+  const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] }, quota: {} }, result, baseDom, [...gateResponsesFor(commandSpec.platforms), ...fixture.responses], {
     resultDom: (_state: any, original: any) => ({ ...original, screenshotRegions: { overview: '#synthetic-overview' }, platformViews: [{ label: 'Synthetic history', selected: true, selector: '[role="tab"]', index: 0 }] }),
   });
   await adapter.captureCommand.func(page, { spec: specPath, out: captureDir, 'product-cap': 200 });
@@ -140,7 +228,10 @@ test('collectResults keeps the overview combined and does not switch result tabs
   assert.ok(screenshotNames.some((name: string) => name.includes('platform-all-region-overview')));
   assert.equal(page.platformSwitches, undefined);
   assert.equal(page.calls.some((call: string) => call.includes('platform-view') || call.includes('role="tab"')), false);
-  assert.ok(screenshotNames.every((_name: string, index: number) => page.screenshotCalls[index].clip));
+  const regionScreenshots = page.screenshotCalls.filter((options: any) => options.fullPage === false);
+  assert.ok(regionScreenshots.length > 0);
+  assert.ok(regionScreenshots.every((options: any) => options.clip));
+  assert.ok(page.screenshotCalls.some((options: any) => options.fullPage === true));
   await rm(directory, { recursive: true, force: true });
 });
 
@@ -152,8 +243,89 @@ test('archive sanitization removes identity and token-like values from every sav
   for (const marker of ['Synthetic logged-in account', 'synthetic-owner@example.test', '+84901234567', 'Synthetic owner nickname', 'https://example.test/avatar.png', 'synthetic-user-id', 'Synthetic shop owner', 'synthetic-secret-token', 'synthetichead.syntheticpayload.syntheticsignature', '0123456789abcdef0123456789abcdef0123456789abcdef']) assert.doesNotMatch(serialized, new RegExp(marker.replace(/[+?.]/g, '\\$&')));
   assert.match(JSON.stringify(clean), /"business"/);
   const html = sanitizeResultsHtml('<html><head><meta name="identity" content="synthetic-owner@example.test"><script>Bearer synthetic-secret-token</script></head><body><header class="account-area">Synthetic logged-in account</header><main data-state="identity-state"><div data-metric-region="overview">Revenue 8</div></main></body></html>');
-  assert.doesNotMatch(html, /synthetic-owner|synthetic-secret|logged-in account|identity-state|<script|<meta|account-area/i);
+  assert.doesNotMatch(html, /synthetic-owner|synthetic-secret|logged-in account|account-area/i);
+  assert.match(html, /<meta|<script|data-state="identity-state"/i);
   assert.match(html, /Revenue 8/);
+});
+
+test('search submit inspection is scoped to the form and ignores the sidebar Analytics link', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const inspection = withMetricDom(`
+    <aside><a href="/analytics">Analytics</a></aside>
+    <div id="QuerySearchBuilder">
+      <div class="ant-space-item"><label>Platform</label><div class="ant-select"><span>Shopee</span></div></div>
+      <div class="ant-space-item"><label>Keywords</label><div class="ant-select ant-select-multiple"><input /></div></div>
+      <button class="ant-btn ant-btn-primary">Analytics</button>
+    </div>
+  `, () => adapter.describeSearchSubmit());
+  assert.equal(inspection.candidateCount, 1);
+  assert.equal(inspection.pageWideAnalyticsCount, 2);
+  assert.deepEqual(inspection.descriptor, {
+    candidateIndex: 0,
+    tag: 'button',
+    classes: 'ant-btn ant-btn-primary',
+    text: 'Analytics',
+    domPath: 'button:nth-child(3)',
+    clickSelector: '#QuerySearchBuilder button:nth-child(3)',
+  });
+  assert.throws(() => adapter.assertSearchSubmitInspection({ ...inspection, candidateCount: 2, descriptor: null }), /METRIC_UI_CHANGED/);
+});
+
+test('sanitized full DOM keeps the app form and results while dropping account nodes', async () => {
+  const { sanitizeResultsHtml } = await import(captureUrl.href);
+  const clean = sanitizeResultsHtml('<header class="account-area">Synthetic owner</header><nav><a>Analytics</a></nav><main id="app"><form id="QuerySearchBuilder"><input name="keyword" /></form><section data-metric-region="overview">Revenue 8</section></main>');
+  assert.match(clean, /QuerySearchBuilder/);
+  assert.match(clean, /data-metric-region="overview"/);
+  assert.match(clean, /Revenue 8/);
+  assert.match(clean, />Analytics</);
+  assert.doesNotMatch(clean, /Synthetic owner|account-area/);
+});
+
+test('search-applied gate distinguishes missing search, wrong platforms, missing result endpoints, and success', async () => {
+  const { assertSearchAppliedGate, buildMetricPlatformMap } = await import(captureUrl.href);
+  const spec = { platforms: ['shopee', 'tiktok'] };
+  const platformList = { responseOrder: 0, urlPath: '/market/search_basic', body: { data: { platforms: [{ platform_id: 1 }, { platform_id: 2 }, { platform_id: 3 }, { platform_id: 8 }] } } };
+  const map = buildMetricPlatformMap([platformList], ['Shopee', 'Lazada', 'Tiki', 'Tiktok']);
+  const body = (ids: number[]) => ({ data: { search_basic: { aggregations: [{ aggregation: 'GATE', entity: { platforms: Object.fromEntries(ids.map((id: number, index: number) => [String(index), { platform_id: id, value: index + 1 }])) } }] } } });
+  const products = { responseOrder: 3, urlPath: '/v2/market/analytics/products/', body: { data: { products: [] } } };
+  const shops = { responseOrder: 4, urlPath: '/v2/market/analytics/shops/', body: { data: { shops: [] } } };
+  assert.throws(() => assertSearchAppliedGate({ responses: [platformList, products, shops], spec, baselineResponseOrder: 0, platformMap: map }), (error: any) => error.code === 'METRIC_SEARCH_NOT_APPLIED' && error.details.missingResponses.includes('search-basic'));
+  assert.throws(() => assertSearchAppliedGate({ responses: [platformList, { responseOrder: 2, urlPath: '/v2/market/analytics/search-basic/', body: body([1]) }, products, shops], spec, baselineResponseOrder: 0, platformMap: map }), (error: any) => error.code === 'METRIC_SEARCH_NOT_APPLIED' && error.details.platformSetsSeen[0].platforms.length === 1);
+  assert.throws(() => assertSearchAppliedGate({ responses: [platformList, { responseOrder: 2, urlPath: '/v2/market/analytics/search-basic/', body: body([1, 8]) }, shops], spec, baselineResponseOrder: 0, platformMap: map }), (error: any) => error.code === 'METRIC_SEARCH_NOT_APPLIED' && error.details.missingResponses.includes('products'));
+  const applied = assertSearchAppliedGate({ responses: [platformList, { responseOrder: 2, urlPath: '/v2/market/analytics/search-basic/', body: body([1, 8]) }, products, shops], spec, baselineResponseOrder: 0, platformMap: map });
+  assert.equal(applied.applied, true);
+  assert.deepEqual(applied.platformSet, ['shopee', 'tiktok']);
+  assert.equal(applied.searchBasicResponseOrder, 2);
+  assert.deepEqual(applied.productsResponseOrders, [3]);
+  assert.deepEqual(applied.shopsResponseOrders, [4]);
+  assert.throws(() => assertSearchAppliedGate({
+    responses: [platformList, { responseOrder: 1, urlPath: '/v2/market/analytics/search-basic/', body: body([1, 8]) },
+      { ...products, responseOrder: 2 }, { ...shops, responseOrder: 3 }],
+    spec, baselineResponseOrder: 1, platformMap: map,
+  }), (error: any) => error.code === 'METRIC_SEARCH_NOT_APPLIED' && error.details.missingResponses.includes('search-basic'));
+});
+
+test('network bridge repeats without an order stay stale instead of becoming post-click responses', async () => {
+  const metric = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const { assertSearchAppliedGate, buildMetricPlatformMap } = await import(captureUrl.href);
+  const platformList = { urlPath: '/market/search_basic', body: { data: { platforms: [{ platform_id: 1 }, { platform_id: 8 }] } } };
+  const gateBody = { data: { search_basic: { aggregations: [{ aggregation: 'GATE', entity: { platforms: { first: { platform_id: 1, value: 1 }, second: { platform_id: 8, value: 1 } } } }] } } };
+  const staleBatch = [platformList, { urlPath: '/v2/market/analytics/search-basic/', body: gateBody },
+    { urlPath: '/v2/market/analytics/products/', body: { data: { products: [] } } },
+    { urlPath: '/v2/market/analytics/shops/', body: { data: { shops: [] } } }];
+  let reads = 0;
+  const page = { readNetworkCapture: async () => { reads += 1; return staleBatch; } };
+  const state = metric.createNetworkState();
+  await metric.readNetworkChunk(page, state);
+  const baseline = state.nextResponseOrder - 1;
+  const repeated = await metric.readNetworkChunk(page, state);
+  assert.equal(reads, 2);
+  assert.deepEqual(repeated, []);
+  const platformMap = buildMetricPlatformMap(state.all, ['Shopee', 'Tiktok']);
+  assert.throws(() => assertSearchAppliedGate({
+    responses: state.all, spec: { platforms: ['shopee', 'tiktok'] }, baselineResponseOrder: baseline, platformMap,
+  }), (error: any) => error.code === 'METRIC_SEARCH_NOT_APPLIED' && error.details.missingResponses.includes('search-basic'));
 });
 
 test('adapter parser fails closed for domain, login, captcha, filter and row cap', async () => {
@@ -286,7 +458,7 @@ test('page warning observation classifies warning/error icons and badges as beni
     (globalThis as any).getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
     dom.window.Element.prototype.getBoundingClientRect = () => ({ x: 0, y: 0, left: 0, top: 0, right: 100, bottom: 20, width: 100, height: 20, toJSON: () => ({}) });
     try {
-      return adapter.__test__.observeMetricPage(false);
+      return adapter.observeMetricPage(false);
     } finally {
       if (previous.document === undefined) delete (globalThis as any).document; else (globalThis as any).document = previous.document;
       if (previous.location === undefined) delete (globalThis as any).location; else (globalThis as any).location = previous.location;
@@ -312,7 +484,7 @@ test('page warning observation is scoped, classified and identity-safe', async (
   await installOpenCliTestStub();
   const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
   const { gateMetricPage } = await import(parserUrl.href);
-  const ordinaryCopy = withMetricDom('<nav>Plan feature: access denied is described here.</nav><footer title="tooltip">Limit reached is only footer copy.</footer>', () => adapter.__test__.observeMetricPage(false));
+  const ordinaryCopy = withMetricDom('<nav>Plan feature: access denied is described here.</nav><footer title="tooltip">Limit reached is only footer copy.</footer>', () => adapter.observeMetricPage(false));
   assert.equal(ordinaryCopy.warningVisible, false);
   assert.doesNotThrow(() => gateMetricPage(ordinaryCopy));
   const dom = new JSDOM(`<!doctype html><html><head><title>Metric analytics</title></head><body>
@@ -336,7 +508,7 @@ test('page warning observation is scoped, classified and identity-safe', async (
   (globalThis as any).getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
   dom.window.Element.prototype.getBoundingClientRect = () => ({ x: 0, y: 0, left: 0, top: 0, right: 100, bottom: 20, width: 100, height: 20, toJSON: () => ({}) });
   try {
-    const observation = adapter.__test__.observeMetricPage(false);
+    const observation = adapter.observeMetricPage(false);
     assert.equal(observation.warningVisible, true);
     assert.ok(observation.warningMatches.some((match: any) => match.reason === 'warning-class'));
     assert.ok(observation.warningMatches.some((match: any) => match.reason === 'error-class'));
@@ -367,10 +539,10 @@ test('semantic header restrictions trip the gate while non-semantic warning clas
   await installOpenCliTestStub();
   const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
   const { gateMetricPage } = await import(parserUrl.href);
-  const classOnly = withMetricDom('<header class="account-area"><div class="ks-warning-panel">Account panel</div></header>', () => adapter.__test__.observeMetricPage(false));
+  const classOnly = withMetricDom('<header class="account-area"><div class="ks-warning-panel">Account panel</div></header>', () => adapter.observeMetricPage(false));
   assert.equal(classOnly.warningVisible, false);
   assert.doesNotThrow(() => gateMetricPage(classOnly));
-  const headerAlert = withMetricDom('<header class="account-area"><div role="alert">Access denied</div></header>', () => adapter.__test__.observeMetricPage(false));
+  const headerAlert = withMetricDom('<header class="account-area"><div role="alert">Access denied</div></header>', () => adapter.observeMetricPage(false));
   assert.equal(headerAlert.warningVisible, true);
   assert.ok(headerAlert.warningMatches.some((match: any) => match.role === 'alert'));
   assert.throws(() => gateMetricPage(headerAlert), /METRIC_UI_CHANGED/);
@@ -451,43 +623,43 @@ test('keyword locator follows the labelled select after a multi-platform re-rend
       </div>
       <div class="ant-select"><input id="rc_select_4" value="wrong-control" /></div>
     </div>`;
-  const observation = withMetricDom(html, () => adapter.__test__.observeMetricPage(false));
+  const observation = withMetricDom(html, () => adapter.observeMetricPage(false));
   assert.equal(observation.controls.find((control: any) => control.name === 'keywords').selector, '#rc_select_14');
   assert.deepEqual(observation.appliedFilters.keywords, ['thạch dừa']);
-  assert.deepEqual(withMetricDom(html, () => adapter.__test__.readCommittedKeywords()), ['thạch dừa']);
+  assert.deepEqual(withMetricDom(html, () => adapter.readCommittedKeywords()), ['thạch dừa']);
 });
 
 test('keyword locator uses an input-only placeholder and Vietnamese labels', async () => {
   await installOpenCliTestStub();
   const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
   const placeholderHtml = `<div id="QuerySearchBuilder"><div class="ant-select ant-select-multiple"><input id="keyword-placeholder" placeholder="Enter keywords separated by commas" value="placeholder-term" /></div><div class="ant-select ant-select-multiple"><input id="unrelated-multiple" /></div></div>`;
-  const placeholderObservation = withMetricDom(placeholderHtml, () => adapter.__test__.observeMetricPage(false));
+  const placeholderObservation = withMetricDom(placeholderHtml, () => adapter.observeMetricPage(false));
   assert.equal(placeholderObservation.controls.find((control: any) => control.name === 'keywords').selector, '#keyword-placeholder');
   assert.deepEqual(placeholderObservation.appliedFilters.keywords, ['placeholder-term']);
   const vietnameseHtml = `<div id="QuerySearchBuilder"><div class="ant-space-item"><div class="filter-label"><span class="label">Từ khóa</span></div><div class="ant-select ant-select-multiple"><input id="keyword-vietnamese" value="từ khóa mẫu" /></div></div><div class="ant-select ant-select-multiple"><input id="unrelated-vietnamese-multiple" /></div></div>`;
-  const vietnameseObservation = withMetricDom(vietnameseHtml, () => adapter.__test__.observeMetricPage(false));
+  const vietnameseObservation = withMetricDom(vietnameseHtml, () => adapter.observeMetricPage(false));
   assert.equal(vietnameseObservation.controls.find((control: any) => control.name === 'keywords').selector, '#keyword-vietnamese');
-  assert.deepEqual(withMetricDom(vietnameseHtml, () => adapter.__test__.readCommittedKeywords()), []);
+  assert.deepEqual(withMetricDom(vietnameseHtml, () => adapter.readCommittedKeywords()), []);
 });
 
 test('live platform chips are not observed as keywords when the keyword control is empty', async () => {
   await installOpenCliTestStub();
   const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
   const fixture = await load('metric-live-form-states');
-  const observation = withMetricDom(fixture.singlePlatformKeywordEmpty, () => adapter.__test__.observeMetricPage(false));
+  const observation = withMetricDom(fixture.singlePlatformKeywordEmpty, () => adapter.observeMetricPage(false));
   assert.deepEqual(observation.appliedFilters.platforms, ['shopee']);
   assert.deepEqual(observation.appliedFilters.keywords, []);
-  assert.deepEqual(withMetricDom(fixture.singlePlatformKeywordEmpty, () => adapter.__test__.readCommittedKeywords()), []);
+  assert.deepEqual(withMetricDom(fixture.singlePlatformKeywordEmpty, () => adapter.readCommittedKeywords()), []);
 });
 
 test('live multiple-platform form keeps a stale keyword in the keyword control only', async () => {
   await installOpenCliTestStub();
   const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
   const fixture = await load('metric-live-form-states');
-  const observation = withMetricDom(fixture.multiplePlatformStaleKeyword, () => adapter.__test__.observeMetricPage(false));
+  const observation = withMetricDom(fixture.multiplePlatformStaleKeyword, () => adapter.observeMetricPage(false));
   assert.deepEqual(observation.appliedFilters.platforms, ['shopee', 'tiktok']);
   assert.deepEqual(observation.appliedFilters.keywords, ['synthetic-stale-keyword']);
-  assert.deepEqual(withMetricDom(fixture.multiplePlatformStaleKeyword, () => adapter.__test__.readCommittedKeywords()), ['synthetic-stale-keyword']);
+  assert.deepEqual(withMetricDom(fixture.multiplePlatformStaleKeyword, () => adapter.readCommittedKeywords()), ['synthetic-stale-keyword']);
 });
 
 test('stale keyword removal on the live multiple-platform shape uses the keyword close icon', async () => {
@@ -507,7 +679,7 @@ test('stale keyword removal on the live multiple-platform shape uses the keyword
   };
   const spec = { keywords: ['synthetic-current-keyword'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-01-01', endDate: '2026-01-30' }, category: null };
   const initial = { appliedFilters: { keywords: ['synthetic-stale-keyword'], platforms: ['shopee', 'tiktok'], period: spec.period, category: null } };
-  await adapter.__test__.applyMetricSpec(page, spec, initial);
+  await adapter.applyMetricSpec(page, spec, initial);
   assert.ok(calls.some((call: string) => call.includes('#synthetic-keyword-stale') && call.includes('.ant-tag-close-icon')));
   assert.ok(calls.includes('fill:#synthetic-keyword-stale:synthetic-current-keyword'));
 });
@@ -521,13 +693,13 @@ test('uncommitted keyword input text is never read back as a committed chip', as
         <div class="ant-select ant-select-multiple"><div class="ant-select-selector"><div class="ant-select-selection-overflow"><div class="ant-select-selection-overflow-item ant-select-selection-overflow-item-suffix"><input id="rc_select_4" value="thạch dừa" /></div></div></div></div>
       </div>
     </div>`;
-  assert.deepEqual(withMetricDom(html, () => adapter.__test__.readCommittedKeywords()), []);
+  assert.deepEqual(withMetricDom(html, () => adapter.readCommittedKeywords()), []);
   let attempts = 0;
   const page = {
     evaluate: async (fn: Function, argument?: unknown) => { attempts += 1; return withMetricDom(html, () => fn(argument)); },
     wait: async () => {},
   };
-  await assert.rejects(adapter.__test__.waitForKeywordCommit(page, ['thạch dừa']), (error: any) => /METRIC_FILTER_MISMATCH/.test(String(error?.code || error?.message)));
+  await assert.rejects(adapter.waitForKeywordCommit(page, ['thạch dừa']), (error: any) => /METRIC_FILTER_MISMATCH/.test(String(error?.code || error?.message)));
   assert.ok(attempts > 1);
 });
 
@@ -544,7 +716,7 @@ test('keyword fill fails before fillText when no keyword select exists', async (
   };
   const spec = { keywords: ['missing-control-term'], platforms: ['shopee'], period: { startDate: '2026-01-01', endDate: '2026-01-30' }, category: null };
   const initial = { appliedFilters: { keywords: [], platforms: ['shopee'], period: spec.period, category: null } };
-  await assert.rejects(() => adapter.__test__.applyMetricSpec(page, spec, initial), (error: any) => error.code === 'METRIC_UI_CHANGED');
+  await assert.rejects(() => adapter.applyMetricSpec(page, spec, initial), (error: any) => error.code === 'METRIC_UI_CHANGED');
   assert.equal(fillCalls, 0);
 });
 
@@ -562,7 +734,7 @@ test('multi-platform keyword precheck fails before any platform typing', async (
   };
   const spec = { keywords: ['missing-control-term'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-01-01', endDate: '2026-01-30' }, category: null };
   const initial = { appliedFilters: { keywords: [], platforms: ['shopee'], period: spec.period, category: null } };
-  await assert.rejects(() => adapter.__test__.applyMetricSpec(page, spec, initial), (error: any) => error.code === 'METRIC_UI_CHANGED');
+  await assert.rejects(() => adapter.applyMetricSpec(page, spec, initial), (error: any) => error.code === 'METRIC_UI_CHANGED');
   assert.equal(fillCalls, 0);
   assert.equal(keyCalls, 0);
 });
@@ -571,9 +743,9 @@ test('ambiguous multiple-select structure is not treated as the keyword control'
   await installOpenCliTestStub();
   const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
   const html = `<div id="QuerySearchBuilder"><div class="ant-select ant-select-multiple"><input id="candidate-one" /></div><div class="ant-select ant-select-multiple"><input id="candidate-two" /></div></div>`;
-  const observation = withMetricDom(html, () => adapter.__test__.observeMetricPage(false));
+  const observation = withMetricDom(html, () => adapter.observeMetricPage(false));
   assert.equal(observation.controls.find((control: any) => control.name === 'keywords').visible, false);
-  assert.deepEqual(withMetricDom(html, () => adapter.__test__.readCommittedKeywords()), []);
+  assert.deepEqual(withMetricDom(html, () => adapter.readCommittedKeywords()), []);
 });
 
 test('keyword commit mismatch has only safe diagnostics and preserves them in CLI errors', async () => {
@@ -588,13 +760,13 @@ test('keyword commit mismatch has only safe diagnostics and preserves them in CL
     wait: async () => {},
   };
   let originalError: any;
-  await assert.rejects(() => adapter.__test__.waitForKeywordCommit(page, ['expected-term']), (error: any) => {
+  await assert.rejects(() => adapter.waitForKeywordCommit(page, ['expected-term']), (error: any) => {
     originalError = error;
     assert.deepEqual(Object.keys(error.details).sort(), ['chipCount', 'committedMatchesExpected', 'inputFound', 'inputValueMatchesExpected', 'locatedBy']);
     assert.deepEqual(error.details, { locatedBy: 'label', chipCount: 0, inputFound: true, inputValueMatchesExpected: false, committedMatchesExpected: false });
     return true;
   });
-  const cliError = adapter.__test__.asCliError(originalError);
+  const cliError = adapter.asCliError(originalError);
   assert.deepEqual(cliError.details, originalError.details);
   assert.match(cliError.message, /details=\{"locatedBy":"label","chipCount":0,"inputFound":true,"inputValueMatchesExpected":false,"committedMatchesExpected":false\}/);
 });
@@ -611,7 +783,7 @@ test('diagnostics are opt-in and identity-safe for warning matches', async () =>
     ],
   };
   const page = { wait: async () => {}, evaluate: async () => observation };
-  await assert.rejects(() => adapter.__test__.readObservation(page, { includeResults: false }), (error: any) => {
+  await assert.rejects(() => adapter.readObservation(page, { includeResults: false }), (error: any) => {
     assert.deepEqual(error.details.warningMatches, [
       { via: 'selector', tag: 'div', elementKind: 'div', role: 'alert', classSample: 'ant-alert-info', reason: 'info-alert', phrase: null, text: null },
       { via: 'selector', tag: 'div', elementKind: 'div', role: 'alert', classSample: 'ant-alert-warning', reason: 'warning-class', phrase: 'access denied', text: 'access denied' },
@@ -619,7 +791,7 @@ test('diagnostics are opt-in and identity-safe for warning matches', async () =>
     assert.doesNotMatch(error.message, /warningMatches|nguyen\.van\.a|Nguyễn Văn A|84901234567|20261012/);
     return true;
   });
-  await assert.rejects(() => adapter.__test__.readObservation(page, { includeResults: false, diagnose: true }), (error: any) => {
+  await assert.rejects(() => adapter.readObservation(page, { includeResults: false, diagnose: true }), (error: any) => {
     const serialized = JSON.stringify(error.details);
     assert.doesNotMatch(serialized, /nguyen\.van\.a@example\.test|84901234567|20261012|Nguyễn Văn A/);
     assert.deepEqual(error.details.warningMatches, [
@@ -635,8 +807,23 @@ const commandSpec = {
   period: { startDate: '2025-09-15', endDate: '2026-09-20' }, category: null,
 };
 
+const syntheticSearchGateResponses = [
+  { urlPath: '/market/search_basic', body: { data: { platforms: [{ platform_id: 1 }, { platform_id: 2 }, { platform_id: 3 }, { platform_id: 8 }] } } },
+  { urlPath: '/v2/market/analytics/search-basic/', body: { data: { search_basic: { aggregations: [{ aggregation: 'GATE', entity: { platforms: { shopee: { platform_id: 1, value: 1 }, tiktok: { platform_id: 8, value: 1 } } } }] } } } },
+  { urlPath: '/v2/market/analytics/products/', body: { data: { products: [] } } },
+  { urlPath: '/v2/market/analytics/shops/', body: { data: { shops: [] } } },
+];
+
+function gateResponsesFor(platforms: string[]) {
+  const ids = platforms.includes('tiktok') ? [1, 8] : [1];
+  return syntheticSearchGateResponses.map(response => response.urlPath === '/v2/market/analytics/search-basic/'
+    ? { ...response, body: { data: { search_basic: { aggregations: [{ aggregation: 'GATE', entity: { platforms: Object.fromEntries(ids.map((id, index) => [String(index), { platform_id: id, value: index + 1 }])) } }] } } } }
+    : response);
+}
+
 function fakePage(observation: any, result: any, resultDom: any = null, networkResponses: any[] = [], behavior: any = {}) {
   let searched = false;
+  let networkReadCount = 0;
   const state = { paginationClicks: 0, platformSwitches: 0, formReads: 0 };
   const calls: string[] = [];
   const clickRecords: Array<{ selector: string; options?: any }> = [];
@@ -658,13 +845,20 @@ function fakePage(observation: any, result: any, resultDom: any = null, networkR
           if (behavior.gateObservation) return behavior.gateObservation(state, observation);
           return state.formReads > 1 && result?.appliedFilters ? { ...observation, appliedFilters: result.appliedFilters } : observation;
         }
-        return behavior.searchObservation ? behavior.searchObservation(state, result) : result;
+        if (behavior.searchObservation) return behavior.searchObservation(state, result);
+        return result;
       }
       if (fn.name === 'readCommittedKeywords') return commandSpec.keywords;
       if (fn.name === 'resolveKeywordSelector') return { inputSelector: '#keyword-input', selectSelector: '#keyword-selector' };
       if (fn.name === 'resolvePlatformSelector') return behavior.platformSelector || {
         inputSelector: '#platform-input', rootSelector: '#QuerySearchBuilder .ant-select:has(#platform-input)',
         selectSelector: '#QuerySearchBuilder .ant-select:has(#platform-input) > .ant-select-selector', isMultiple: true,
+      };
+      if (fn.name === 'describeSearchSubmit') return behavior.submitInspection || {
+        candidateCount: 1,
+        descriptor: { candidateIndex: 0, tag: 'button', classes: 'ant-btn ant-btn-primary', text: 'Analytics', domPath: 'button:nth-child(1)', clickSelector: '#QuerySearchBuilder button:nth-child(1)' },
+        candidates: [{ candidateIndex: 0, tag: 'button', classes: 'ant-btn ant-btn-primary', text: 'Analytics', domPath: 'button:nth-child(1)', clickSelector: '#QuerySearchBuilder button:nth-child(1)' }],
+        pageWideAnalyticsCount: 2,
       };
       if (fn.name === 'platformRemoveIndex') return behavior.platformRemoveIndex ?? null;
       if (fn.toString().includes('button.switch-button')) return behavior.platformMode || 'Multiple platforms';
@@ -673,9 +867,11 @@ function fakePage(observation: any, result: any, resultDom: any = null, networkR
         if (behavior.selectedOption === (arg as any)?.label) return -1;
         return behavior.optionIndex ?? 0;
       }
+      if (!fn.name && fn.toString().includes("document.querySelectorAll('[role=\"option\"],.ant-select-item-option')")) return ['Shopee', 'Lazada', 'Tiki', 'Tiktok'];
       if (fn.toString().includes('document.activeElement === input')) return true;
       if (fn.name === 'observeResultPage') return behavior.resultDom ? behavior.resultDom(state, resultDom) : resultDom || { html: '<html></html>', regions: {}, screenshotRegions: {}, platformViews: [] };
       if (fn.name === 'prepareScreenshotClip') { maskCalls.push('prepare'); return behavior.screenshotClip ? behavior.screenshotClip(state) : { clip: { x: 12, y: 24, width: 320, height: 180 }, maskedCount: 1 }; }
+      if (!fn.name && fn.toString().includes('getBoundingClientRect') && fn.toString().includes('querySelector(selector)')) return true;
       if (fn.name === 'restoreScreenshotMask') { maskCalls.push('restore'); return true; }
       if (fn.name === 'setCheckbox') return { selector: '#synthetic', index: 0 };
       if (fn.name === 'visibleOptionIndex' || fn.name === 'clickVisibleText') return 0;
@@ -684,16 +880,24 @@ function fakePage(observation: any, result: any, resultDom: any = null, networkR
     click: async (selector: string, options?: any) => {
       calls.push(`click:${selector}`);
       clickRecords.push({ selector, options });
-      if (selector === 'button,[role="button"]') searched = true;
+      if (selector === 'button,[role="button"]' || (typeof selector === 'string' && selector.includes('#QuerySearchBuilder') && selector.includes('button'))) searched = true;
       if (selector === 'next' || (typeof selector === 'string' && (selector.includes('ant-pagination-next') || selector.includes('Next Page')))) state.paginationClicks += 1;
       if (typeof selector === 'string' && (selector.includes('data-metric-platform') || selector.includes('data-platform-view') || selector === 'platform-view')) state.platformSwitches += 1;
       behavior.onClick?.(selector, state, options);
+      return { matches_n: 1, match_level: 'exact', click_method: 'cdp', hit: 'target', retargeted: false };
     },
     fillText: async (selector: string, text: string) => calls.push(`fill:${selector}:${text}`),
     cdp: async (method: string, params: any) => calls.push(`cdp:${method}:${params.type}:${params.key}:${params.code}:${params.windowsVirtualKeyCode}:${params.nativeVirtualKeyCode}:${params.text}`),
     pressKey: async (key: string) => calls.push(`key:${key}`),
     startNetworkCapture: async () => { calls.push('network:start'); },
-    readNetworkCapture: async () => networkResponses,
+    readNetworkCapture: async () => {
+      networkReadCount += 1;
+      if (!searched && state.paginationClicks > 0) return [{ urlPath: '/v2/market/analytics/products/', body: { data: { products: [] } } }];
+      if (!searched) return behavior.initialNetworkResponses || [{ urlPath: '/market/search_basic', body: { data: { platforms: [{ platform_id: 1 }, { platform_id: 2 }, { platform_id: 3 }, { platform_id: 8 }] } } }];
+      if (networkReadCount === 2) return networkResponses;
+      if (state.paginationClicks > 0 && networkReadCount === 3) return [{ urlPath: '/v2/market/analytics/products/', body: { data: { products: [] } } }];
+      return behavior.networkResponsesAfterSearch || [];
+    },
     screenshot: async (options: any) => { screenshotCalls.push(options); await writeFile(options.path, Buffer.from('synthetic-png')); },
     get searched() { return searched; },
   };
@@ -712,16 +916,37 @@ test('whoami, search, and capture commands use a fake page and clean up their ow
   const specPath = join(directory, 'spec.json'); const snapshotPath = join(directory, 'snapshot.json');
   await writeFile(specPath, `${JSON.stringify(commandSpec)}\n`);
   const form = await load('metric-form');
-  const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] }, quota: {} }, searchObservation);
+  const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] }, quota: {} }, searchObservation, null, gateResponsesFor(commandSpec.platforms));
   const searched = await adapter.searchCommand.func(page, { spec: specPath, out: snapshotPath });
   assert.equal(searched[0].status, 'READY'); assert.equal(page.searched, true); assert.ok(page.calls.includes('close:synthetic-tab'));
   const captureDir = join(directory, 'capture');
   const results = await load('metric-results-response');
   const dom = { ...(await load('metric-results-dom')), html: '<html><body>synthetic results</body></html>', screenshotRegions: { overview: '#synthetic-overview' }, platformViews: [] };
-  const captured = await adapter.captureCommand.func(fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] }, quota: {} }, searchObservation, dom, results.responses), { spec: specPath, out: captureDir, 'product-cap': 200 });
+  const captured = await adapter.captureCommand.func(fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] }, quota: {} }, searchObservation, dom, [...gateResponsesFor(commandSpec.platforms), ...results.responses]), { spec: specPath, out: captureDir, 'product-cap': 200 });
   assert.equal(captured[0].status, 'READY'); assert.match(await readFile(join(captureDir, 'manifest.json'), 'utf8'), /synthetic-keyword/);
   assert.match(await readFile(join(captureDir, 'snapshot.json'), 'utf8'), /Synthetic item A/);
   assert.ok(await readFile(join(captureDir, 'platform-all-region-overview.png')));
+  await rm(directory, { recursive: true, force: true });
+});
+
+test('replay rebuilds an archive from saved debug input without touching the supplied page', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const directory = await mkdtemp(join(tmpdir(), 'p6-209-replay-'));
+  const specPath = join(directory, 'spec.json'); const captureDir = join(directory, 'capture'); const replayDir = join(directory, 'replay');
+  await writeFile(specPath, `${JSON.stringify(commandSpec)}\n`);
+  const form = await load('metric-form'); const result = { ...(await load('metric-search')), appliedFilters: commandSpec };
+  const fixture = await load('metric-results-response');
+  const dom = { ...(await load('metric-results-dom')), html: '<html><body><main>synthetic results</main></body></html>', screenshotRegions: { overview: '#synthetic-overview' } };
+  await adapter.captureCommand.func(fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] }, quota: {} }, result, dom, [...gateResponsesFor(commandSpec.platforms), ...fixture.responses]), { spec: specPath, out: captureDir, 'product-cap': 200 });
+  const calls: string[] = [];
+  const replayed = await adapter.captureCommand.func({ click: async () => calls.push('click'), evaluate: async () => calls.push('evaluate') }, { spec: specPath, replay: join(captureDir, 'debug'), out: replayDir, 'product-cap': 200 });
+  assert.equal(replayed[0].replay, true);
+  assert.equal(calls.length, 0);
+  assert.match(await readFile(join(replayDir, 'snapshot.json'), 'utf8'), /Synthetic item A/);
+  // Only the live capture is cleared as a run's sales source; the app refuses the replay archive.
+  assert.deepEqual(JSON.parse(await readFile(join(captureDir, 'manifest.json'), 'utf8')).captureGate, { cleared: true });
+  assert.deepEqual(JSON.parse(await readFile(join(replayDir, 'manifest.json'), 'utf8')).captureGate, { cleared: false, status: 'REPLAY' });
   await rm(directory, { recursive: true, force: true });
 });
 
@@ -786,7 +1011,7 @@ test('non-default periods fail closed in capture before form actions or submit',
   const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [], period: commandSpec.period } }, {});
   await assert.rejects(() => adapter.captureCommand.func(page, { spec: specPath, out: outputDir }), (error: any) => {
     assert.equal(error.code, 'METRIC_PERIOD_UNSUPPORTED');
-    assert.deepEqual(error.details, { observedPeriod: commandSpec.period, requestedPeriod: spec.period });
+    assert.deepEqual({ observedPeriod: error.details.observedPeriod, requestedPeriod: error.details.requestedPeriod }, { observedPeriod: commandSpec.period, requestedPeriod: spec.period });
     return true;
   });
   assert.equal(page.searched, false);
@@ -804,15 +1029,19 @@ test('capture archive contains no fixture identity or token in any archived file
   const form = await load('metric-form'); const result = { ...(await load('metric-search')), appliedFilters: commandSpec };
   const base = await load('metric-results-response'); const sensitive = await load('metric-sensitive-archive');
   const dom = { ...(await load('metric-results-dom')), html: '<html><head><meta name="identity" content="synthetic-owner@example.test"><script>Bearer synthetic-secret-token</script></head><body><header class="account-area">Synthetic logged-in account</header><main><div data-metric-region="overview">Revenue 8</div></main></body></html>', screenshotRegions: { overview: '#synthetic-overview' }, platformViews: [{ label: 'Synthetic history', selected: true, selector: '[role="tab"]', index: 0 }] };
-  const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] } }, result, dom, [...base.responses, ...sensitive.responses], {
+  const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] } }, result, dom, [...gateResponsesFor(commandSpec.platforms), ...base.responses, ...sensitive.responses], {
     resultDom: (state: any, original: any) => ({ ...original, platformViews: original.platformViews.map((view: any) => ({ ...view, selected: view.label === (state.platformSwitches ? 'TikTok Shop' : 'Shopee') })) }),
   });
   await adapter.captureCommand.func(page, { spec: specPath, out: captureDir, 'product-cap': 200 });
   assert.ok(page.screenshotCalls.length > 0);
-  assert.ok(page.screenshotCalls.every((options: any) => options.clip && options.fullPage === false));
+  assert.ok(page.screenshotCalls.some((options: any) => options.fullPage === true));
+  assert.ok(page.screenshotCalls.filter((options: any) => options.fullPage === false).every((options: any) => options.clip));
   assert.ok(page.maskCalls.includes('prepare'));
   const markers = [/Synthetic logged-in account/i, /synthetic-owner@example\.test/i, /\+84901234567/, /Synthetic owner nickname/i, /https:\/\/example\.test\/avatar\.png/i, /synthetic-user-id/i, /Synthetic shop owner/i, /synthetic-secret-token/i, /synthetichead\.syntheticpayload\.syntheticsignature/i, /0123456789abcdef0123456789abcdef0123456789abcdef/i];
-  for (const name of await readdir(captureDir)) {
+  const archiveFiles = (await readdir(captureDir)).filter(name => name !== 'debug');
+  const debugFiles = (await readdir(join(captureDir, 'debug'))).filter(name => !name.endsWith('.png'))
+    .map(name => join('debug', name));
+  for (const name of [...archiveFiles, ...debugFiles]) {
     const text = (await readFile(join(captureDir, name))).toString('utf8');
     for (const marker of markers) assert.doesNotMatch(text, marker, `${name} retained sanitized fixture data`);
   }
@@ -841,29 +1070,31 @@ test('capture gates a redirect before reading the next pagination page and leave
   const specPath = join(directory, 'spec.json'); const captureDir = join(directory, 'capture');
   await writeFile(specPath, `${JSON.stringify(commandSpec)}\n`);
   const form = await load('metric-form'); const result = { ...(await load('metric-search')), appliedFilters: commandSpec };
-  const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] } }, result, resultDomForGateTest([], true), [], {
+  const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] } }, result, resultDomForGateTest([], true), gateResponsesFor(commandSpec.platforms), {
     gateObservation: (state: any, observation: any) => state.formReads > 1
       ? state.paginationClicks ? { ...observation, url: 'https://redirect.example.test/results', metricRootVisible: true } : { ...observation, appliedFilters: commandSpec }
       : observation,
   });
   await assert.rejects(() => adapter.captureCommand.func(page, { spec: specPath, out: captureDir, 'product-cap': 200 }), /METRIC_UI_CHANGED/);
-  await assert.rejects(() => access(captureDir), /ENOENT/);
+  await assert.rejects(() => access(join(captureDir, 'manifest.json')), /ENOENT/);
+  await access(join(captureDir, 'debug', 'manifest.json'));
   assert.ok(page.calls.includes('close:synthetic-tab'));
   await rm(directory, { recursive: true, force: true });
 });
 
-test('capture gates a login page after search and leaves no archive', async () => {
+test('capture gates a login page after search and preserves debug without an archive', async () => {
   await installOpenCliTestStub();
   const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
   const directory = await mkdtemp(join(tmpdir(), 'p6-209-gate-login-'));
   const specPath = join(directory, 'spec.json'); const captureDir = join(directory, 'capture');
   await writeFile(specPath, `${JSON.stringify(commandSpec)}\n`);
   const form = await load('metric-form'); const result = { ...(await load('metric-search')), appliedFilters: commandSpec };
-  const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] } }, result, resultDomForGateTest(), [], {
+  const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] } }, result, resultDomForGateTest(), gateResponsesFor(commandSpec.platforms), {
     searchObservation: (_state: any, searchResult: any) => ({ ...searchResult, loginVisible: true }),
   });
   await assert.rejects(() => adapter.captureCommand.func(page, { spec: specPath, out: captureDir, 'product-cap': 200 }), /METRIC_LOGIN_REQUIRED/);
-  await assert.rejects(() => access(captureDir), /ENOENT/);
+  await assert.rejects(() => access(join(captureDir, 'manifest.json')), /ENOENT/);
+  await access(join(captureDir, 'debug', 'manifest.json'));
   assert.ok(page.calls.includes('close:synthetic-tab'));
   await rm(directory, { recursive: true, force: true });
 });
@@ -927,7 +1158,7 @@ test('multi-platform option clicks use the re-rendered Platform root and never f
   const page = platformOptionPage();
   const spec = { keywords: ['synthetic-term'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-01-01', endDate: '2026-01-30' }, category: null };
   const initial = { appliedFilters: { keywords: [], platforms: ['shopee'], period: spec.period, category: null } };
-  await adapter.__test__.applyMetricSpec(page, spec, initial);
+  await adapter.applyMetricSpec(page, spec, initial);
   assert.deepEqual(page.calls.slice(0, 3), [
     'click:#QuerySearchBuilder button.switch-button',
     'click:#QuerySearchBuilder .ant-select:has(#rc_select_14) > .ant-select-selector',
@@ -944,7 +1175,7 @@ test('multi-platform switch waits for the re-rendered mode and retries once', as
   const page = platformOptionPage({ switchLag: 1 });
   const spec = { keywords: ['synthetic-term'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-01-01', endDate: '2026-01-30' }, category: null };
   const initial = { appliedFilters: { keywords: [], platforms: ['shopee'], period: spec.period, category: null } };
-  await adapter.__test__.applyMetricSpec(page, spec, initial);
+  await adapter.applyMetricSpec(page, spec, initial);
   assert.equal(page.calls.filter((call: string) => call === 'click:#QuerySearchBuilder button.switch-button').length, 2);
   assert.ok(page.calls.includes('click:[role="option"],.ant-select-item-option'));
 });
@@ -955,7 +1186,7 @@ test('already-selected platform options are not clicked', async () => {
   const page = platformOptionPage({ selected: ['shopee', 'tiktok'] });
   const spec = { keywords: ['synthetic-term'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-01-01', endDate: '2026-01-30' }, category: null };
   const initial = { appliedFilters: { keywords: [], platforms: ['shopee'], period: spec.period, category: null } };
-  await adapter.__test__.applyMetricSpec(page, spec, initial);
+  await adapter.applyMetricSpec(page, spec, initial);
   assert.equal(page.clickRecords.filter((record: any) => record.selector === '[role="option"],.ant-select-item-option').length, 0);
 });
 
@@ -965,7 +1196,7 @@ test('missing platform option fails before the keyword step', async () => {
   const page = platformOptionPage({ missingTiktok: true });
   const spec = { keywords: ['synthetic-term'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-01-01', endDate: '2026-01-30' }, category: null };
   const initial = { appliedFilters: { keywords: [], platforms: ['shopee'], period: spec.period, category: null } };
-  await assert.rejects(() => adapter.__test__.applyMetricSpec(page, spec, initial), (error: any) => error.code === 'METRIC_UI_CHANGED');
+  await assert.rejects(() => adapter.applyMetricSpec(page, spec, initial), (error: any) => error.code === 'METRIC_UI_CHANGED');
   assert.ok(!page.calls.some((call: string) => call.startsWith('fill:') || call.startsWith('cdp:') || call === 'key:Escape'));
 });
 
@@ -975,7 +1206,7 @@ test('platform removal uses the scoped selected-item remove control', async () =
   const form = await load('metric-form');
   const page = fakePage({ ...form, appliedFilters: { keywords: [], platforms: ['shopee', 'lazada'], period: { startDate: '2026-01-01', endDate: '2026-01-30' }, category: null } }, {}, null, [], { platformRemoveIndex: 1 });
   const spec = { keywords: ['synthetic-term'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-01-01', endDate: '2026-01-30' }, category: null };
-  await adapter.__test__.applyMetricSpec(page, spec, { appliedFilters: { keywords: [], platforms: ['shopee', 'lazada'], period: spec.period, category: null } });
+  await adapter.applyMetricSpec(page, spec, { appliedFilters: { keywords: [], platforms: ['shopee', 'lazada'], period: spec.period, category: null } });
   const remove = page.clickRecords.find((record: any) => record.selector.endsWith('.ant-select-selection-item-remove'));
   assert.ok(remove);
   assert.equal(remove.selector, '#QuerySearchBuilder .ant-select:has(#platform-input) .ant-select-selection-item-remove');
@@ -988,14 +1219,14 @@ test('unknown selected platforms remain observable, are removed before apply, an
   const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
   const parser = await import(parserUrl.href);
   const fixture = await load('metric-platform-control');
-  const observation = withMetricDom(fixture.multiShopeeLazada, () => adapter.__test__.observeMetricPage(false));
+  const observation = withMetricDom(fixture.multiShopeeLazada, () => adapter.observeMetricPage(false));
   assert.deepEqual(observation.appliedFilters.platforms, ['shopee', 'Lazada']);
   const spec = { keywords: ['synthetic-term'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-01-01', endDate: '2026-01-30' }, category: null };
   const search = { ...(await load('metric-search')), appliedFilters: { ...spec, platforms: ['shopee', 'Lazada'] } };
   assert.throws(() => parser.parseSearchObservation(search, spec), /METRIC_FILTER_MISMATCH/);
   const form = await load('metric-form');
   const page = fakePage({ ...form, appliedFilters: { ...spec, platforms: ['shopee', 'Lazada'], keywords: [] } }, {}, null, [], { platformRemoveIndex: 1 });
-  await adapter.__test__.applyMetricSpec(page, spec, { appliedFilters: { ...spec, platforms: ['shopee', 'Lazada'], keywords: [] } });
+  await adapter.applyMetricSpec(page, spec, { appliedFilters: { ...spec, platforms: ['shopee', 'Lazada'], keywords: [] } });
   const remove = page.clickRecords.find((record: any) => record.selector.endsWith('.ant-select-selection-item-remove'));
   assert.ok(remove);
   assert.equal(remove.options.nth, 1);
@@ -1006,7 +1237,7 @@ test('multi-platform read-back uses the selected item content from the Round 5 f
   await installOpenCliTestStub();
   const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
   const fixture = await load('metric-platform-control');
-  const observation = withMetricDom(fixture.multiShopeeTiktok, () => adapter.__test__.observeMetricPage(false));
+  const observation = withMetricDom(fixture.multiShopeeTiktok, () => adapter.observeMetricPage(false));
   assert.deepEqual(observation.appliedFilters.platforms, ['shopee', 'tiktok']);
 });
 
@@ -1033,7 +1264,7 @@ test('keyword commit uses a native selector click, verified fill, and trusted co
   const page = keywordFormPage({ filled: true, verified: true, mode: 'input' });
   const spec = { keywords: ['synthetic-term'], platforms: ['shopee'], period: { startDate: '2026-01-01', endDate: '2026-01-30' }, category: null };
   const initial = { appliedFilters: { keywords: [], platforms: ['shopee'], period: spec.period, category: null } };
-  await adapter.__test__.applyMetricSpec(page, spec, initial);
+  await adapter.applyMetricSpec(page, spec, initial);
   const fill = page.calls.indexOf('fill:#keyword-input:synthetic-term');
   assert.ok(fill >= 0);
   assert.equal(page.calls[fill - 1], 'click:#QuerySearchBuilder .ant-select:has(#keyword-input) > .ant-select-selector');
@@ -1051,7 +1282,7 @@ test('unverified keyword text stops before any comma is dispatched', async () =>
   const page = keywordFormPage({ filled: true, verified: false, expected: 'synthetic-term', actual: '', mode: 'input' });
   const spec = { keywords: ['synthetic-term'], platforms: ['shopee'], period: { startDate: '2026-01-01', endDate: '2026-01-30' }, category: null };
   const initial = { appliedFilters: { keywords: [], platforms: ['shopee'], period: spec.period, category: null } };
-  await assert.rejects(() => adapter.__test__.applyMetricSpec(page, spec, initial), (error: any) => {
+  await assert.rejects(() => adapter.applyMetricSpec(page, spec, initial), (error: any) => {
     assert.equal(error.code, 'METRIC_UI_CHANGED');
     assert.deepEqual(error.details, { filled: true, verified: false });
     return true;
@@ -1066,7 +1297,7 @@ test('keyword commit stops before fill when the trusted comma path is unavailabl
   delete page.cdp;
   const spec = { keywords: ['synthetic-term'], platforms: ['shopee'], period: { startDate: '2026-01-01', endDate: '2026-01-30' }, category: null };
   const initial = { appliedFilters: { keywords: [], platforms: ['shopee'], period: spec.period, category: null } };
-  await assert.rejects(() => adapter.__test__.applyMetricSpec(page, spec, initial), (error: any) => error.code === 'METRIC_UI_CHANGED');
+  await assert.rejects(() => adapter.applyMetricSpec(page, spec, initial), (error: any) => error.code === 'METRIC_UI_CHANGED');
   assert.ok(!page.calls.some((call: string) => call.startsWith('fill:') || call.startsWith('cdp:Input.dispatchKeyEvent')));
 });
 
@@ -1076,7 +1307,7 @@ test('keyword removal clicks the matching nested close icon', async () => {
   const page = keywordFormPage({ filled: true, verified: true, mode: 'input' });
   const spec = { keywords: ['new-term'], platforms: ['shopee'], period: { startDate: '2026-01-01', endDate: '2026-01-30' }, category: null };
   const initial = { appliedFilters: { keywords: ['old-term'], platforms: ['shopee'], period: spec.period, category: null } };
-  await adapter.__test__.applyMetricSpec(page, spec, initial);
+  await adapter.applyMetricSpec(page, spec, initial);
   assert.ok(page.calls.some(call => call.includes('.ant-tag-close-icon')));
 });
 
@@ -1087,7 +1318,7 @@ test('platform mismatch after the keyword commit blocks the search before any lo
   const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [], platforms: ['shopee'] }, quota: {} }, { ...(await load('metric-search')), appliedFilters: commandSpec }, null, [], {
     gateObservation: (_state: any, observation: any) => observation,
   });
-  await assert.rejects(() => adapter.__test__.performSearch(page, commandSpec), (error: any) => {
+  await assert.rejects(() => adapter.performSearch(page, commandSpec), (error: any) => {
     assert.equal(error.code, 'METRIC_FILTER_MISMATCH');
     assert.equal(error.details.platformsMatchExpected, false);
     assert.equal(error.details.platformCount, 1);
@@ -1113,7 +1344,7 @@ test('missing, invisible, or blank Product category fails closed before platform
   ] as const;
   for (const [name, change] of cases) {
     const page = fakePage({ ...form, controls: change(form.controls), appliedFilters: { ...commandSpec } }, result);
-    await assert.rejects(() => adapter.__test__.performSearch(page, commandSpec), (error: any) => {
+    await assert.rejects(() => adapter.performSearch(page, commandSpec), (error: any) => {
       assert.equal(error.code, 'METRIC_UI_CHANGED', name);
       return true;
     }, name);
@@ -1121,40 +1352,7 @@ test('missing, invisible, or blank Product category fails closed before platform
   }
 });
 
-const round6SyntheticResultsMarkup = `
-  <section class="market-overview-section">
-    <div class="statistic-item"><div class="statistic-item__title">Revenue</div><div class="statistic-card__value">4,0 billion</div></div>
-    <div class="statistic-item"><div class="statistic-item__title">Units sold</div><div class="statistic-card__value">109,8 thousand</div></div>
-    <div class="statistic-item"><div class="statistic-item__title">Products</div><div class="statistic-card__value">1,1 thousand</div></div>
-    <div class="statistic-item"><div class="statistic-item__title">Shops</div><div class="statistic-card__value">519</div></div>
-  </section>
-  <div class="platforms-chart"><svg><path d="synthetic" /></svg></div>
-  <section class="platforms-table"><div class="platform-table"><table><thead><tr><th>Platform</th><th>Revenue</th></tr></thead><tbody>
-    <tr><td>Synthetic Shopee</td><td>1,8 billion</td></tr><tr><td>Synthetic Tiktok</td><td>2,2 billion</td></tr>
-  </tbody></table></div></section>
-  <div id="growth-detail-chart" class="statistic-item"><div class="statistic-item__title">Growth over time</div><svg><path d="chart" /></svg></div>
-  <div class="main-statistic"><button class="ant-btn-primary">Revenue</button><button>Sold products</button></div>
-  <div class="statistic-item"><div class="statistic-item__title">Category</div></div>
-  <div class="statistic-item"><div class="statistic-item__title">Price range</div></div>
-  <div class="statistic-item"><div class="statistic-item__title">Top 10 Brands</div></div>
-  <div class="statistic-item"><div class="statistic-item__title">Top 10 Shops</div></div>
-  <div class="statistic-item"><div class="statistic-item__title">Top 10 brand by shop type</div></div>
-  <div class="statistic-item"><div class="statistic-item__title">Shop type</div></div>
-  <div class="statistic-item"><div class="statistic-item__title">Top Products</div>
-    <div class="ant-table-header"><table><thead><tr><th>Product</th><th>Price</th><th>Revenue in time period</th><th>Sold products in time period</th></tr></thead></table></div>
-    <div class="ant-table-body"><table><tbody>
-      <tr class="ant-table-row"><td>Synthetic product one <img class="img-platform" src="/icons/tiktok.svg"></td><td>31.461₫</td><td>317,5 million</td><td>13,5 thousand</td></tr>
-      <tr class="ant-table-row"><td>Synthetic product two</td><td>1.234₫</td><td>80,9 million</td><td>4,0 thousand</td></tr>
-    </tbody></table></div>
-    <div class="ant-pagination"><span>20 products / page</span><ul><li class="ant-pagination-item-active">1</li><li class="ant-pagination-next"><button class="ant-pagination-item-link"></button></li></ul></div>
-  </div>
-  <div class="statistic-item"><div class="statistic-item__title">Top Shops</div>
-    <div class="ant-table-header"><table><thead><tr><th>Hạng</th><th>Shop name</th><th>Platform</th><th>Revenue in time period</th><th>Sold products in time period</th><th>Avg Price</th></tr></thead></table></div>
-    <div class="ant-table-body"><table><tbody><tr class="ant-table-row"><td>1</td><td>Synthetic shop one</td><td><span class="shop-platform-icon"><img alt="Shopee" src="/icons/shopee.svg"></span></td><td>103,7 million</td><td>527</td><td>196.747₫</td></tr></tbody></table></div>
-  </div>
-  <div class="statistic-item"><div class="statistic-item__title">Top Brands</div><div class="ant-table-header"><table><thead><tr><th>Brand name</th></tr></thead></table></div><div class="ant-table-body"><table><tbody><tr><td>Synthetic brand one</td></tr></tbody></table></div></div>
-  <div role="tab" aria-selected="true">Synthetic history tab</div>
-`;
+const round6SyntheticResultsMarkup = (await load('metric-results-real-dom')).html;
 
 test('Round 6 labels support direct text and nested label forms, including prefixed controls', async () => {
   await installOpenCliTestStub();
@@ -1165,7 +1363,7 @@ test('Round 6 labels support direct text and nested label forms, including prefi
     <label><input type="checkbox" checked>Exclude gifts ( Detail )</label>
     <div role="switch" aria-checked="true">AI chuẩn hoá dữ liệu NEW</div>
   </div>`;
-  const observation = withMetricDom(html, () => adapter.__test__.observeMetricPage(false));
+  const observation = withMetricDom(html, () => adapter.observeMetricPage(false));
   assert.equal(observation.controls.find((control: any) => control.name === 'period').selector, '#period-direct');
   assert.equal(observation.controls.find((control: any) => control.name === 'category').selector, '#category-nested');
   assert.equal(observation.appliedFilters.usefulFilters.gifts, true);
@@ -1209,17 +1407,17 @@ test('custom date range uses native picker clicks and fails closed on displayed 
   const spec = { keywords: ['synthetic-term'], platforms: ['shopee'], period: { startDate: '2026-01-01', endDate: '2026-02-02' }, category: null };
   const initial = { appliedFilters: { ...spec, period: { startDate: '2026-01-01', endDate: '2026-01-02' } } };
   const page = dateApplyPage();
-  await adapter.__test__.applyMetricSpec(page, spec, initial);
+  await adapter.applyMetricSpec(page, spec, initial);
   assert.ok(page.calls.some((call: string) => call.includes('.ant-picker-cell-inner[title="2026-01-01"]')));
   assert.ok(page.calls.some((call: string) => call.includes('.ant-picker-cell-inner[title="2026-02-02"]')));
   assert.equal(page.calls.filter((call: string) => call === 'click:#QuerySearchBuilder .ant-picker input').length, 1);
-  await assert.rejects(() => adapter.__test__.applyMetricSpec(dateApplyPage({ acceptDates: false }), spec, initial), (error: any) => error.code === 'METRIC_FILTER_MISMATCH');
+  await assert.rejects(() => adapter.applyMetricSpec(dateApplyPage({ acceptDates: false }), spec, initial), (error: any) => error.code === 'METRIC_FILTER_MISMATCH');
 });
 
 test('live result markup exposes title KPIs, split tables, icon platforms, pagination and unavailable Highcharts', async () => {
   await installOpenCliTestStub();
   const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
-  const dom = withMetricDom(round6SyntheticResultsMarkup, () => adapter.__test__.observeResultPage());
+  const dom = withMetricDom(round6SyntheticResultsMarkup, () => adapter.observeResultPage());
   assert.deepEqual(dom.regions.overview.kpi, {
     revenue: { displayed: '4,0 billion', label: 'Revenue' },
     units: { displayed: '109,8 thousand', label: 'Units' },
@@ -1231,13 +1429,34 @@ test('live result markup exposes title KPIs, split tables, icon platforms, pagin
   assert.equal(dom.regions['top-products'].rows[0].platform, 'tiktok');
   assert.equal(dom.regions['top-products'].rows[1].platform, 'unknown');
   assert.equal(dom.regions['top-shops'].rows[0].platform, 'shopee');
-  assert.deepEqual(dom.regions['top-products'].pagination, { page: 1, total: null, pageSize: 20, nextAvailable: true, nextSelector: 'li.ant-pagination-next .ant-pagination-item-link' });
+  assert.deepEqual(dom.regions['top-products'].pagination, { page: 1, total: 2, pageSize: 20, nextAvailable: false, nextSelector: 'li.ant-pagination-next .ant-pagination-item-link' });
   for (const name of ['overview', 'platform-split', 'monthly', 'category', 'price', 'top10-brand', 'top10-shop', 'brand-shop-type', 'shop-type', 'top-products', 'top-shops', 'top-brands']) assert.ok(dom.regions[name], name);
   assert.equal(dom.regions.monthly.reason, 'DOM_CHART_DATA_UNAVAILABLE');
   assert.ok(dom.regions['platform-chart']);
   assert.deepEqual(dom.platformViews, []);
-  const unavailablePager = withMetricDom(round6SyntheticResultsMarkup.replace('ant-pagination-next"><button', 'ant-pagination-next ant-pagination-disabled"><button'), () => adapter.__test__.observeResultPage());
+  const unavailablePager = withMetricDom(round6SyntheticResultsMarkup.replace('ant-pagination-next"><button', 'ant-pagination-next ant-pagination-disabled"><button'), () => adapter.observeResultPage());
   assert.equal(unavailablePager.pagination.nextAvailable, false);
+});
+
+test('real results class fixture extracts card KPIs, platform split, and ProductTable/ShopTable rows', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const fixture = await load('metric-results-real-dom');
+  const dom = withMetricDom(fixture.html, () => adapter.observeResultPage());
+  assert.deepEqual(dom.regions.overview.kpi, {
+    revenue: { displayed: '4,0 billion', label: 'Revenue' },
+    units: { displayed: '109,8 thousand', label: 'Units' },
+    soldListings: { displayed: '1,1 thousand', label: 'Sold listings' },
+    shops: { displayed: '519', label: 'Shops' },
+  });
+  assert.deepEqual(dom.regions['platform-split'].rows.map((row: any) => [row.platform, row.revenue, row.units]), [
+    ['Synthetic Shopee', '1,8 billion', '31,0 thousand'], ['Synthetic Tiktok', '2,2 billion', '50,2 thousand'],
+  ]);
+  assert.deepEqual(dom.regions['top-products'].rows.map((row: any) => [row.name, row.platform]), [
+    ['Synthetic product A', 'tiktok'], ['Synthetic product B', 'unknown'],
+  ]);
+  assert.deepEqual(dom.regions['top-shops'].rows.map((row: any) => [row.shop, row.platform]), [['Synthetic shop A', 'shopee']]);
+  assert.deepEqual(dom.regions['top-products'].pagination, { page: 1, total: 2, pageSize: 20, nextAvailable: false, nextSelector: 'li.ant-pagination-next .ant-pagination-item-link' });
 });
 
 test('an unrelated image before the platform icon cannot win row attribution', async () => {
@@ -1247,7 +1466,7 @@ test('an unrelated image before the platform icon cannot win row attribution', a
     '<td>Synthetic product one <img class="img-platform" src="/icons/tiktok.svg"></td>',
     '<td>Synthetic product one <img alt="Product photo" src="/images/product-thumbnail.svg"><img class="img-platform" src="/icons/tiktok.svg"></td>',
   );
-  const dom = withMetricDom(html, () => adapter.__test__.observeResultPage());
+  const dom = withMetricDom(html, () => adapter.observeResultPage());
   assert.equal(dom.regions['top-products'].rows[0].platform, 'tiktok');
 });
 
@@ -1257,7 +1476,7 @@ test('fixed-header rows without a platform icon stay unknown even when a platfor
   const dom = withMetricDom(round6SyntheticResultsMarkup.replace(
     '<span class="shop-platform-icon"><img alt="Shopee" src="/icons/shopee.svg"></span>',
     'Synthetic platform text',
-  ), () => adapter.__test__.observeResultPage());
+  ), () => adapter.observeResultPage());
   assert.equal(dom.regions['top-shops'].rows[0].platform, 'unknown');
 });
 
@@ -1287,14 +1506,32 @@ test('capture groups parse live displayed units and platform rows without summin
   assert.equal(result.snapshot.groups.W2_kpi.revenue.current.value, 4_000_000_000);
 });
 
+test('platform split emits a null-valued row for every requested platform absent from the page', async () => {
+  const { extractResultsPage } = await import(captureUrl.href);
+  const result = extractResultsPage({
+    responses: [],
+    dom: { regions: {
+      overview: { selector: '#overview', kpi: { revenue: { displayed: '1' }, units: { displayed: '2' }, soldListings: { displayed: '3' }, shops: { displayed: '4' } } },
+      'platform-split': { selector: '#platform', rows: [{ platform: 'shopee', revenue: '1', share: '100%' }] },
+    } },
+    scope: { keywords: ['synthetic-term'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-01-01', endDate: '2026-02-02' }, category: null },
+    captureId: 'synthetic-missing-platform', specDigest: 'a'.repeat(64), capturedAt: '2026-10-13T00:00:00.000Z',
+  });
+  const tiktok = result.snapshot.groups.W3_platformSplit.find((row: any) => row.platform === 'tiktok');
+  assert.ok(tiktok);
+  assert.equal(tiktok.revenue.value, null);
+  assert.equal(tiktok.share.value, null);
+  assert.match(tiktok.revenue.sourcePointer, /scope:platforms\/tiktok\/revenue/);
+});
+
 test('a missing overview KPI card returns METRIC_UI_CHANGED', async () => {
   await installOpenCliTestStub();
   const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
   const html = round6SyntheticResultsMarkup.replace(
-    '<div class="statistic-item"><div class="statistic-item__title">Revenue</div><div class="statistic-card__value">4,0 billion</div></div>',
+    '<div class="statistic-card statistic-card--revenue"><div class="statistic-card__value">4,0 billion</div></div>',
     '',
   );
-  const dom = withMetricDom(html, () => adapter.__test__.observeResultPage());
+  const dom = withMetricDom(html, () => adapter.observeResultPage());
   const { extractResultsPage } = await import(captureUrl.href);
   assert.throws(() => extractResultsPage({
     responses: [], dom, scope: { keywords: ['synthetic-term'], platforms: ['shopee'], period: { startDate: '2026-01-01', endDate: '2026-02-02' }, category: null },
@@ -1324,7 +1561,7 @@ test('collectResultPages reads two real pages, stops on disabled next, and dedup
   const pageOne = { pagination: { page: 1, pageSize: 20, nextAvailable: true, nextSelector: 'li.ant-pagination-next .ant-pagination-item-link' }, regions: { 'top-products': { rows: [{ name: 'Synthetic page one', platform: 'unknown' }] } } };
   const pageTwo = { pagination: { page: 2, pageSize: 20, nextAvailable: false, nextSelector: 'li.ant-pagination-next .ant-pagination-item-link' }, regions: { 'top-products': { rows: [{ name: 'Synthetic page one', platform: 'unknown' }, { name: 'Synthetic page two', platform: 'tiktok' }] } } };
   const page = fakePage(base, {}, null, [], { resultDom: (state: any) => state.paginationClicks ? pageTwo : pageOne });
-  const collected = await adapter.__test__.collectResultPages(page, 10);
+  const collected = await adapter.collectResultPages(page, 10);
   assert.equal(collected.pagesRead, 2);
   assert.deepEqual(collected.domSnapshots.flatMap((snapshot: any) => snapshot.regions['top-products'].rows).map((row: any) => row.name), ['Synthetic page one', 'Synthetic page two']);
   assert.equal(page.calls.filter((call: string) => call.includes('ant-pagination-next')).length, 1);
