@@ -1427,6 +1427,149 @@ test('keyword commit stops before fill when the trusted comma path is unavailabl
   assert.ok(!page.calls.some((call: string) => call.startsWith('fill:') || call.startsWith('cdp:Input.dispatchKeyEvent')));
 });
 
+function visibilityDomPage(html: string, visibilityState: string) {
+  const dom = new JSDOM(`<!doctype html><html><body>${html}</body></html>`, { url: 'https://metric.vn/analytics' });
+  Object.defineProperty(dom.window.document, 'visibilityState', { configurable: true, get: () => visibilityState });
+  const calls: string[] = [];
+  const page: any = {
+    dom,
+    calls,
+    newTab: async () => 'synthetic-tab',
+    selectTab: async () => {},
+    closeTab: async () => {},
+    evaluate: async (fn: Function, argument?: unknown) => {
+      const previous = { document: (globalThis as any).document, window: (globalThis as any).window };
+      (globalThis as any).document = dom.window.document;
+      (globalThis as any).window = dom.window;
+      try {
+        return fn(argument);
+      } finally {
+        if (previous.document === undefined) delete (globalThis as any).document; else (globalThis as any).document = previous.document;
+        if (previous.window === undefined) delete (globalThis as any).window; else (globalThis as any).window = previous.window;
+      }
+    },
+    click: async (selector: string) => {
+      calls.push(`native-click:${selector}`);
+      return { matches_n: 1, match_level: 'exact', click_method: 'cdp', hit: 'target', retargeted: false };
+    },
+  };
+  return page;
+}
+
+const pointerSequence = ['pointerover', 'mouseover', 'pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'];
+
+test('hidden Metric tab dispatches the pointer sequence at the element centre', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const page = visibilityDomPage('<div id="QuerySearchBuilder"><button class="go"><span>Analytics</span></button><button class="go">Other</button></div>', 'hidden');
+  const document = page.dom.window.document;
+  const button = document.querySelector('button.go');
+  const label = button.querySelector('span');
+  document.elementFromPoint = () => label;
+  const events: string[] = [];
+  for (const type of pointerSequence) button.addEventListener(type, (event: any) => events.push(`${type}:${event.target === label}`));
+  const result = await adapter.withMetricTab(page, (target: any) => target.click('#QuerySearchBuilder button.go', { nth: 0 }));
+  assert.deepEqual(result, { matches_n: 2, match_level: 'exact', click_method: 'dom-background', hit: 'target', retargeted: false });
+  assert.deepEqual(events, pointerSequence.map(type => `${type}:true`));
+  assert.equal(document.activeElement, button);
+  assert.deepEqual(page.calls, []);
+});
+
+test('hidden Metric tab reports a covered target and fails closed on ambiguous or missing targets', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const page = visibilityDomPage('<button class="go">A</button><button class="go">B</button><div id="overlay"></div>', 'hidden');
+  const document = page.dom.window.document;
+  document.elementFromPoint = () => document.querySelector('#overlay');
+  const clicked: string[] = [];
+  document.querySelectorAll('button.go').forEach((button: any) => button.addEventListener('click', () => clicked.push(button.textContent)));
+  const covered = await adapter.withMetricTab(page, (target: any) => target.click('button.go', { nth: 1 }));
+  assert.equal(covered.click_method, 'dom-background');
+  assert.equal(covered.hit, 'other');
+  assert.deepEqual(clicked, ['B']);
+  for (const [selector, options] of [['button.go', undefined], ['button.go', { nth: 2 }], ['#missing', undefined]] as const) {
+    await assert.rejects(() => adapter.withMetricTab(page, (target: any) => target.click(selector, options)), (error: any) => error.code === 'METRIC_UI_CHANGED');
+  }
+  assert.deepEqual(page.calls, []);
+});
+
+test('visible or prerendered Metric tabs keep the native click path', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  for (const state of ['visible', 'prerender']) {
+    const page = visibilityDomPage('<button class="go">A</button>', state);
+    const result = await adapter.withMetricTab(page, (target: any) => target.click('button.go'));
+    assert.equal(result.click_method, 'cdp', state);
+    assert.deepEqual(page.calls, ['native-click:button.go'], state);
+  }
+});
+
+test('hidden comma commit inserts the separator through input events on the focused keyword input', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const page = visibilityDomPage('<input id="kw" value="synthetic term"><input id="other">', 'hidden');
+  const input = page.dom.window.document.querySelector('#kw');
+  const events: string[] = [];
+  for (const type of ['keydown', 'keypress', 'beforeinput', 'input', 'keyup']) input.addEventListener(type, (event: any) => events.push(`${type}:${event.data ?? event.key}`));
+  assert.deepEqual(await page.evaluate(adapter.commitMetricKeywordComma, '#kw'), { ok: false, reason: 'not-focused' });
+  assert.equal(input.value, 'synthetic term');
+  input.focus();
+  assert.deepEqual(await page.evaluate(adapter.commitMetricKeywordComma, '#kw'), { ok: true, inserted: true });
+  assert.equal(input.value, 'synthetic term,');
+  assert.deepEqual(events, ['keydown:,', 'keypress:,', 'beforeinput:,', 'input:,', 'keyup:,']);
+  events.length = 0;
+  input.addEventListener('keydown', (event: any) => event.preventDefault());
+  assert.deepEqual(await page.evaluate(adapter.commitMetricKeywordComma, '#kw'), { ok: true, inserted: false });
+  assert.equal(input.value, 'synthetic term,');
+  assert.deepEqual(events, ['keydown:,', 'keyup:,']);
+});
+
+test('hidden keyword commit uses the in-page comma instead of CDP keys and fails closed', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const spec = { keywords: ['synthetic-term'], platforms: ['shopee'], period: { startDate: '2026-01-01', endDate: '2026-01-30' }, category: null };
+  const initial = { appliedFilters: { keywords: [], platforms: ['shopee'], period: spec.period, category: null } };
+  for (const ok of [true, false]) {
+    const page: any = keywordFormPage({ filled: true, verified: true, mode: 'input' });
+    const evaluate = page.evaluate;
+    page.evaluate = async (fn: Function, argument?: unknown) => {
+      if (fn.name === 'metricDocumentHidden') return true;
+      if (fn.name === 'commitMetricKeywordComma') { page.calls.push(`comma:${argument}`); return ok ? { ok: true, inserted: true } : { ok: false, reason: 'not-focused' }; }
+      return evaluate(fn, argument);
+    };
+    if (ok) await adapter.applyMetricSpec(page, spec, initial);
+    else await assert.rejects(() => adapter.applyMetricSpec(page, spec, initial), (error: any) => error.code === 'METRIC_UI_CHANGED');
+    const fill = page.calls.indexOf('fill:#keyword-input:synthetic-term');
+    assert.equal(page.calls[fill + 1], 'comma:#keyword-input');
+    assert.ok(!page.calls.some((call: string) => call.startsWith('cdp:')));
+  }
+});
+
+test('submit gate accepts a hidden-tab DOM click only on the target', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const directory = await mkdtemp(join(tmpdir(), 'p6-209-hidden-submit-'));
+  const specPath = join(directory, 'spec.json');
+  await writeFile(specPath, `${JSON.stringify(commandSpec)}\n`);
+  const form = await load('metric-form');
+  const searchObservation = { ...(await load('metric-search')), appliedFilters: commandSpec };
+  const submitWith = (clickResult: any) => {
+    const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] }, quota: {} }, searchObservation, null, gateResponsesFor(commandSpec.platforms));
+    const click = page.click;
+    page.click = async (selector: string, options?: any) => {
+      const result = await click(selector, options);
+      return selector.includes('#QuerySearchBuilder') && selector.includes('button:nth-child') ? { ...result, ...clickResult } : result;
+    };
+    return page;
+  };
+  const accepted = await adapter.searchCommand.func(submitWith({ click_method: 'dom-background', hit: 'target' }), { spec: specPath, out: join(directory, 'snapshot.json') });
+  assert.equal(accepted[0].status, 'READY');
+  for (const clickResult of [{ click_method: 'dom-background', hit: 'other' }, { click_method: 'js', hit: 'target' }]) {
+    await assert.rejects(() => adapter.searchCommand.func(submitWith(clickResult), { spec: specPath, out: join(directory, 'rejected.json') }), /did not prove a native target click/);
+  }
+  await rm(directory, { recursive: true, force: true });
+});
+
 test('keyword removal clicks the matching nested close icon', async () => {
   await installOpenCliTestStub();
   const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);

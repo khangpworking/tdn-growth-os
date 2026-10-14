@@ -65,8 +65,9 @@ opencli metric capture \
   -f json
 ```
 
-Dry-run opens and closes its own ephemeral tab, applies the same native-click,
-trusted-key and checkbox paths as capture, then runs the same pre-submit
+Dry-run opens and closes its own ephemeral tab, applies the same click,
+comma-commit and checkbox paths as capture (native, or the hidden-tab path in
+R3), then runs the same pre-submit
 read-back gate. It also reports the form-scoped submit descriptor and the
 count of visible page-wide `Analytics` elements as ambiguity evidence. It
 returns one JSON result with `outcome`, `startState`, `appliedReadBack`,
@@ -199,8 +200,26 @@ pointer away from hover state, waits for popup exit animation, checks visible
 select/picker/dialog/popover/tooltip roots, verifies the button is enabled and
 not loading, scrolls it into view, and records `elementFromPoint` at its centre.
 Dry-run reports these preconditions without spending a lookup. The real submit
-accepts only OpenCLI `{click_method: "cdp", hit: "target"}` and stores the full
-click result in `searchGate`; JS fallback is a `METRIC_UI_CHANGED` failure.
+accepts only `{click_method: "cdp", hit: "target"}` from OpenCLI, or
+`{click_method: "dom-background", hit: "target"}` from the hidden-tab path
+below, and stores the full click result in `searchGate`. OpenCLI's JS fallback
+and any off-target hit are `METRIC_UI_CHANGED` failures. The search-applied
+network gate stays authoritative for both paths.
+
+### Hidden adapter tab
+
+The adapter tab opens in OpenCLI's automation window. When the desktop keeps
+that window behind other windows, Chrome reports `document.visibilityState` as
+`hidden`, and CDP mouse and key input has no effect there. Before every click,
+the adapter checks visibility in the page. A visible (or prerendered) document
+keeps the native OpenCLI click. A hidden document instead gets an in-page
+pointer/mouse sequence at the element centre, with the same `nth` and
+ambiguity rules as OpenCLI. That click is reported as `dom-background` with
+`hit` taken from `elementFromPoint`. The keyword comma follows the same rule:
+CDP key events when visible; when hidden, an in-page keydown, keypress,
+beforeinput, comma insertion with an input event, then keyup on the focused
+keyword input. `waitForKeywordCommit` must still read the committed chip back.
+Dry-run `preflight.documentHidden` records which path ran.
 
 Debug capture is complete on submit failure and gate failure: sanitized full DOM
 and a masked screenshot are saved before submit and at 3 s and 15 s after it.
