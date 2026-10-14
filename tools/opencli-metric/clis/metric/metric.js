@@ -104,7 +104,7 @@ async function withMetricTab(page, task) {
     target = await page.newTab(BASE_URL);
     if (!target) throw new CliError('METRIC_UI_CHANGED', 'OpenCLI did not create a Metric tab');
     await page.selectTab(target);
-    return await task(page);
+    return await task(backgroundInputPage(page));
   } catch (error) {
     taskError = error;
     throw asCliError(error);
@@ -119,6 +119,88 @@ async function withMetricTab(page, task) {
       }
     }
   }
+}
+
+// The adapter tab lives in OpenCLI's automation window. When the desktop keeps
+// that window occluded, Chrome reports the document as hidden and drops CDP
+// mouse input. These functions are serialized by OpenCLI and run in the page.
+function metricDocumentHidden() {
+  return document.visibilityState === 'hidden';
+}
+
+function dispatchMetricBackgroundClick({ selector, nth }) {
+  let list;
+  try { list = [...document.querySelectorAll(selector)]; } catch { return { ok: false, reason: 'invalid-selector', matches: 0 }; }
+  if (list.length === 0) return { ok: false, reason: 'not-found', matches: 0 };
+  if (nth === null && list.length > 1) return { ok: false, reason: 'ambiguous', matches: list.length };
+  const index = nth === null ? 0 : nth;
+  if (index < 0 || index >= list.length) return { ok: false, reason: 'nth-out-of-range', matches: list.length };
+  const element = list[index];
+  element.scrollIntoView?.({ block: 'center', inline: 'center' });
+  const rect = element.getBoundingClientRect();
+  const x = rect.left + rect.width / 2;
+  const y = rect.top + rect.height / 2;
+  const hit = typeof document.elementFromPoint === 'function' ? document.elementFromPoint(x, y) : null;
+  const inside = Boolean(hit && (hit === element || element.contains(hit)));
+  const target = inside ? hit : element;
+  const Pointer = typeof window.PointerEvent === 'function' ? window.PointerEvent : window.MouseEvent;
+  const mouse = { bubbles: true, cancelable: true, composed: true, view: window, clientX: x, clientY: y, button: 0 };
+  const pointer = { ...mouse, pointerId: 1, pointerType: 'mouse', isPrimary: true };
+  target.dispatchEvent(new Pointer('pointerover', pointer));
+  target.dispatchEvent(new window.MouseEvent('mouseover', mouse));
+  target.dispatchEvent(new Pointer('pointerdown', { ...pointer, buttons: 1 }));
+  if (target.dispatchEvent(new window.MouseEvent('mousedown', { ...mouse, buttons: 1 }))) {
+    const focusable = target.closest('input,textarea,select,button,a[href],[tabindex]');
+    if (focusable && typeof focusable.focus === 'function') focusable.focus();
+  }
+  target.dispatchEvent(new Pointer('pointerup', pointer));
+  target.dispatchEvent(new window.MouseEvent('mouseup', mouse));
+  target.dispatchEvent(new window.MouseEvent('click', mouse));
+  return { ok: true, matches: list.length, hit: inside ? 'target' : 'other' };
+}
+
+// Mirrors the native key sequence; the inserted comma is what lets the Ant
+// tokenizer commit the typed keyword.
+function commitMetricKeywordComma(inputSelector) {
+  const input = document.querySelector(inputSelector);
+  if (!input || input !== document.activeElement) return { ok: false, reason: 'not-focused' };
+  const key = { key: ',', code: 'Comma', keyCode: 188, which: 188, bubbles: true, cancelable: true, composed: true, view: window };
+  let inserted = false;
+  if (input.dispatchEvent(new window.KeyboardEvent('keydown', key))
+    && input.dispatchEvent(new window.KeyboardEvent('keypress', { ...key, keyCode: 44, which: 44, charCode: 44 }))
+    && input.dispatchEvent(new window.InputEvent('beforeinput', { inputType: 'insertText', data: ',', bubbles: true, cancelable: true, composed: true }))) {
+    Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(input, `${input.value},`);
+    input.dispatchEvent(new window.InputEvent('input', { inputType: 'insertText', data: ',', bubbles: true, composed: true }));
+    inserted = true;
+  }
+  input.dispatchEvent(new window.KeyboardEvent('keyup', key));
+  return { ok: true, inserted };
+}
+
+async function metricTabHidden(page) {
+  return (await page.evaluate(metricDocumentHidden)) === true;
+}
+
+// Native CDP clicks stay the default. Only a hidden document switches to
+// DOM-dispatched pointer events, reported as click_method "dom-background".
+function backgroundInputPage(page) {
+  return new Proxy(page, {
+    get(target, property) {
+      const value = Reflect.get(target, property, target);
+      if (property === 'click' && typeof value === 'function') {
+        return async (selector, options) => {
+          if (!(await metricTabHidden(target))) return value.call(target, selector, options);
+          const nth = Number.isInteger(options?.nth) ? options.nth : null;
+          const result = await target.evaluate(dispatchMetricBackgroundClick, { selector, nth });
+          if (result?.ok !== true) {
+            throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric background click target is unavailable', { reason: result?.reason ?? 'unknown', matches: result?.matches ?? 0 });
+          }
+          return { matches_n: result.matches, match_level: 'exact', click_method: 'dom-background', hit: result.hit, retargeted: false };
+        };
+      }
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
 }
 
 // This function is serialized by OpenCLI and runs in the page. It deliberately
@@ -1035,7 +1117,8 @@ function assertSearchSubmitInspection(inspection) {
 // Shared by dry-run and submit; never dispatches a submit event.
 async function prepareSearchSubmit(page) {
   await page.pressKey('Escape');
-  if (typeof page.cdp === 'function') await page.cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 0, y: 0 }).catch(() => {});
+  const hidden = await metricTabHidden(page);
+  if (!hidden && typeof page.cdp === 'function') await page.cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 0, y: 0 }).catch(() => {});
   await page.evaluate(() => {
     const active = document.activeElement;
     if (active && document.querySelector('#QuerySearchBuilder')?.contains(active)) active.blur();
@@ -1063,7 +1146,7 @@ async function prepareSearchSubmit(page) {
 
     };
   }, descriptor.clickSelector);
-  if (preflight && typeof preflight === 'object') preflight.candidateCount = inspection.candidateCount;
+  if (preflight && typeof preflight === 'object') Object.assign(preflight, { candidateCount: inspection.candidateCount, documentHidden: hidden });
   if (preflight && typeof preflight === 'object' && (preflight.popupVisible || preflight.disabled || preflight.loading || preflight.hit !== 'target')) {
     throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric submit preconditions failed', { preflight });
   }
@@ -1229,6 +1312,14 @@ function platformRemoveIndex({ inputSelector, wanted }) {
 async function pressTrustedComma(page, selector) {
   if (typeof page.cdp !== 'function') {
     throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric trusted comma input path is unavailable');
+  }
+  if (await metricTabHidden(page)) {
+    // Hidden documents ignore CDP key input; dispatch the same sequence in the page.
+    const committed = await page.evaluate(commitMetricKeywordComma, selector);
+    if (committed?.ok !== true) {
+      throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric keyword input is not focused for comma commit');
+    }
+    return;
   }
   const focused = await page.evaluate(inputSelector => {
     const input = document.querySelector(inputSelector);
@@ -1621,7 +1712,9 @@ async function performSearch(page, spec, debug = null) {
     let clickError = null;
     try {
       searchGate.clickResult = await page.click(descriptor.clickSelector);
-      if (searchGate.clickResult?.click_method !== 'cdp' || searchGate.clickResult?.hit !== 'target') {
+      // dom-background is only produced while the document is hidden; the
+      // search-applied network gate below still has to prove the search ran.
+      if (!['cdp', 'dom-background'].includes(searchGate.clickResult?.click_method) || searchGate.clickResult?.hit !== 'target') {
         throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric submit did not prove a native target click', { clickResult: searchGate.clickResult });
       }
     } catch (error) { clickError = error; }
@@ -2419,6 +2512,6 @@ export {
   prepareMetricForm, waitForKeywordCommit, observeMetricPage, observeResultPage,
   collectResultPages, archiveResultsPage, replayResultsPage, readCommittedKeywords,
   describeSearchSubmit, assertSearchSubmitInspection, createNetworkState, readNetworkChunk,
-  repairMetricFunctionDefaults, repairMetricPage,
+  repairMetricFunctionDefaults, repairMetricPage, commitMetricKeywordComma,
 };
 export { assertMetricUrl, parseMetricForm };
