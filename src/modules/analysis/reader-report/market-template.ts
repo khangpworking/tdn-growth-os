@@ -9,7 +9,7 @@ import { readerPeerExhibit } from './default-peers.js';
 import { Narrator } from './bundle.js';
 import type { LegacyRow as Row } from './classify.js';
 import { renderChart, type FlintChartInput, type FlintPalette } from './flint.js';
-import { marketChartRows, renderMarketCharts } from './market-charts.js';
+import { marketChartRows, renderMarketCharts, type MarketChartKind } from './market-charts.js';
 import { esc, num, sp } from './format.js';
 import { cover, hlNum, makeExhibits, n as numberCell, page, plat, platIcons, PLATFORM_LABEL, section, type CoverImage } from './layout.js';
 import { FORBIDDEN_PROVIDER_NAMES } from './lint.js';
@@ -201,18 +201,18 @@ export async function buildMarketReport(d: ReaderReportData, options: MarketRepo
     engineOf.set(r.svg, r.engine);
     return r.svg;
   };
-  // Revenue by platform and leading product rows; concentration stays the Pareto line of Hình 4.2.
+  // Revenue by platform, all-row shop concentration and leading product rows; the core-revenue
+  // Pareto line of Hình 4.2 stays beside them because the M01/M04 facts cite its core figures.
   // Legacy contracts (1.0.0/1.1.0) keep their frozen bytes, so only current builds get the new charts and markers.
   // Flint marks (required charts, engine markers, row stamp) only when Flint is on; the flint:false
   // opt-out keeps the frozen 1.2/1.3 bytes that the legacy hash fixture pins.
   const required = !flintMarks ? [] : await renderMarketCharts(rows, { flint: options.flint !== false, rowNumber: row => row.i, rowListNote: 'số dòng là cột đầu của danh sách sản phẩm ở Phụ lục' });
-  const requiredChart = (kind: 'platform-revenue' | 'product-ranking') => {
-    const found = required.find(c => c.kind === kind);
-    if (found === undefined) return undefined;
+  // Every drawn required chart is recorded, so FLINT_REQUIRED sees each one.
+  for (const found of required) {
     charts.push({ id: found.id, engine: found.engine, ...(found.error ? { error: found.error } : {}) });
     engineOf.set(found.svg, found.engine);
-    return found;
-  };
+  }
+  const requiredChart = (kind: MarketChartKind) => required.find(c => c.kind === kind);
   const keepOrder = (field: string, order: readonly string[]) => (spec: any): void => {
     const walk = (o: any): void => {
       if (!o || typeof o !== 'object') return;
@@ -591,13 +591,16 @@ ${tbl('2.2', `Quy tắc phân loại (${statusLabel})`, 'số sản phẩm', ['T
   } as FlintChartInput, () => paretoChart(PLATS.map(P => ({ name: PLATFORM_LABEL[P]!, ys: cum(P), color: COL[P] }))));
   const platformRevenue = requiredChart('platform-revenue');
   const m04PlatformRevenue = platformRevenue ? fig('4.3', platformRevenue.title, platformRevenue.unit, platformRevenue.svg, { note: platformRevenue.note }) : '';
+  const concentration = requiredChart('concentration');
+  const m04Concentration = concentration ? fig('4.4', concentration.title, concentration.unit, concentration.svg,
+    { note: `${concentration.note} Hình này tính trên mọi sản phẩm có doanh thu trong mẫu; đường cộng dồn phía trên chỉ tính phần lõi.` }) : '';
   secs.push(section('M04', 'Cơ cấu thị trường',
     hlNum(PLATS.map(P => { if (current) return `${PLATFORM_LABEL[P]}: ` + coreSegs.map(k => nar(`${L(segName(k))} chiếm {{${P}.seg.${k}.revShare}} doanh thu lõi`, `M01.k2.${P}.${k}`)).join('; ') + '.'; const k = topSeg(P); return `${nar(`Nhóm dẫn ${onP(P)} chiếm {{${P}.seg.${k}.revShare}} doanh thu lõi`, `M04.ans.${P}`)} (${L(segName(k))}).`; }).join(' ')),
     fig('4.1', 'Tỷ trọng doanh thu lõi theo nhóm, từng sàn', '% doanh thu lõi của sàn', await bars('m04-share', coreSegs.map(segName), (P, j) => B.v(`${P}.seg.${coreSegs[j]}.revShare`), 'Tỷ trọng doanh thu lõi (%)', ps)) +
     tbl('4.1', 'Số liệu theo nhóm lõi, từng sàn', 'doanh thu: tỷ đồng; giá: đồng', ['Sàn', 'Nhóm', n('Sản phẩm'), n('Gian hàng'), n('Doanh thu'), n('Tỷ trọng doanh thu'), n('Tỷ trọng đơn vị bán'), n('Giá trung bình')], segTbl) +
     fig('4.2', 'Mức tập trung doanh thu lõi theo gian hàng', '% doanh thu lõi cộng dồn', pareto,
        { fact: nar(`Top 3 gian hàng giữ ${each(P => `{{${P}.conc.3}} ${onP(P)}`)}; top 20 giữ ${each(P => `{{${P}.conc.20}} ${onP(P)}`)}.`, 'F4.2') }) +
-    m04PlatformRevenue + m04Cat + m04ShopType + m04Loc,
+    m04PlatformRevenue + m04Concentration + m04Cat + m04ShopType + m04Loc,
     'Tỷ trọng tính trong mẫu từng sàn, không phải thị phần. Gian hàng nhận diện theo đường dẫn gian hàng; một chủ có thể có nhiều gian hàng.'));
 
   // ---------- Phần 5 ----------

@@ -102,3 +102,32 @@ export async function renderMarketCharts(rows: readonly MarketChartRow[], { flin
     keepOrder('dong', order)) });
   return out;
 }
+
+export type CaptureCountChart = RenderedChart & { platform: MarketChartPlatform };
+
+/**
+ * One record-count bar per platform for a capture sample, drawn by Flint on a shared
+ * 0..largest-count axis. Counts stay per platform and are never added together.
+ * `flint: false` is the unit-test opt-out (hand-made SVG, recorded as svg-fallback).
+ */
+export async function renderCaptureCountCharts(samples: readonly { platform: MarketChartPlatform; count: number }[], { flint = true }: { flint?: boolean } = {}): Promise<CaptureCountChart[]> {
+  const maximum = Math.max(1, ...samples.map(sample => sample.count));
+  const sharedAxis = (spec: any): void => {
+    const walk = (node: any): void => {
+      if (!node || typeof node !== 'object') return;
+      if (node.encoding?.x?.field === 'so_ban_ghi') node.encoding.x.scale = { ...node.encoding.x.scale, domain: [0, maximum] };
+      for (const value of Object.values(node)) walk(value);
+    };
+    walk(spec);
+  };
+  return Promise.all(samples.map(async ({ platform, count }): Promise<CaptureCountChart> => {
+    const fallback = (): string => barChart([LABEL[platform]], [{ name: LABEL[platform], values: [count], color: COLOR[platform] }], { fmt: v => String(Math.round(v)) });
+    const drawn: RenderedChart = flint ? await renderChart({
+      data: { values: [{ san: LABEL[platform], so_ban_ghi: count }] },
+      semantic_types: { san: 'Category', so_ban_ghi: 'Number' },
+      field_display_names: { san: ' ', so_ban_ghi: 'Số bản ghi trong mẫu' },
+      chart_spec: { chartType: 'Bar Chart', encodings: { y: 'san', x: 'so_ban_ghi', color: 'san' }, chartProperties: { showValueLabels: true }, baseSize: { width: 480, height: 80 } },
+    } as FlintChartInput, fallback, { palette: PALETTE, patch: sharedAxis, legend: false }) : { svg: fallback(), engine: 'svg-fallback' };
+    return { platform, ...drawn };
+  }));
+}

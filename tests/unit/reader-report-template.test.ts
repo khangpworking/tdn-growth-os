@@ -179,14 +179,24 @@ test('Market 1.4 without monthly web facts still draws the three required charts
   assert.equal(rule11.ok, true, rule11.detail);
 });
 
-test('Market 1.2 (V1 template) draws revenue by platform and product rows beside its concentration line, all with Flint', async () => {
+test('Market 1.2 (V1 template) draws the three required charts beside its core concentration line, all with Flint', async () => {
   const r = await buildMarketReport(computeReaderReportData(sync1ReaderFixture('1.2.0')), { ...sync1Options, flint: true });
-  for (const id of ['m04-pareto', 'market.platform-revenue', 'market.product-ranking']) assert.ok(r.charts.some(c => c.id === id), id);
+  for (const id of ['m04-pareto', ...REQUIRED_CHARTS]) assert.ok(r.charts.some(c => c.id === id), id);
   assert.deepEqual(r.charts.filter(c => c.engine !== 'flint'), []);
   const divs = chartDivs(r.html);
-  assert.ok(divs.length >= 3, `chart figures: ${divs.length}`);
+  assert.ok(divs.length >= 4, `chart figures: ${divs.length}`);
   for (const div of divs) assert.match(div, /data-engine="flint"/);
-  assert.match(visibleText(r.html), /Hình 4\.3[\s\S]*Hình 7\.1/);
+  assert.match(visibleText(r.html), /Hình 4\.2[\s\S]*Hình 4\.3[\s\S]*Hình 4\.4[\s\S]{0,40}Mức tập trung doanh thu theo gian hàng, từng sàn[\s\S]*Hình 7\.1/);
+});
+
+test('V1 records every drawn required chart, so a forced Flint failure on any of them is refused', async () => {
+  const vega = await import('vega');
+  const toSVG = vega.View.prototype.toSVG;
+  vega.View.prototype.toSVG = () => { throw new Error('forced Flint failure'); };
+  let r;
+  try { r = await buildMarketReport(computeReaderReportData(sync1ReaderFixture('1.2.0')), { ...sync1Options, flint: true }); } finally { vega.View.prototype.toSVG = toSVG; }
+  for (const id of REQUIRED_CHARTS) assert.equal(r.charts.find(c => c.id === id)?.engine, 'svg-fallback', id);
+  assert.throws(() => assertFlintCharts(r.charts), (error: Error) => /^FLINT_REQUIRED:.*market\.concentration/.test(error.message));
 });
 
 test('one platform: the revenue chart shows only that platform and nothing is invented', async () => {

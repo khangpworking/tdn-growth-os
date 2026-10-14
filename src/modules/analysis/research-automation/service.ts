@@ -22,7 +22,8 @@ import defaultPeerSchema from '../../../../contracts/analysis/default-market-pee
 import readerApiSchema from '../../../../contracts/api/research-automation-reader-report-api.schema.json' with { type: 'json' };
 import type { ResearchAutomationInsightReaderBuildRequest } from '../../../../contracts/api/research-automation-reader-report-api.generated.js';
 import { readerRowsFromMetricWorkbook } from '../reader-report/metric-rows.js';
-import { renderMarketCharts, type MarketChart } from '../reader-report/market-charts.js';
+import { renderCaptureCountCharts, renderMarketCharts, type CaptureCountChart, type MarketChart } from '../reader-report/market-charts.js';
+import { captureSampleCounts } from './market-presentation-report.js';
 import { ReaderUnitSpecIntakes } from './reader-unit-spec-intake.js';
 import { buildAutomationMarketPresentation, verifyAutomationMarketPresentation, type MarketPresentationBinding, type MarketPresentationInput } from './market-presentation-method.js';
 import type { AutomationMarketPresentationMethod } from '../../../../contracts/analysis/automation-market-presentation-method.generated.js';
@@ -233,6 +234,8 @@ export interface ResearchAutomationReportInput {
   readonly marketPresentation?: AutomationMarketPresentationMethod;
   /** Market charts drawn by Flint before the synchronous report build; filled by the service. */
   readonly marketPresentationCharts?: readonly MarketChart[];
+  /** Flint record-count bars of the capture sample; filled by the service. */
+  readonly marketCaptureCharts?: readonly CaptureCountChart[];
   readonly metricMethods?: AutomationMetricMethodSnapshot;
   readonly metricClassified?: AutomationClassifiedMetricSnapshot;
   readonly insightCoding?: AutomationInsightCodingSnapshot;
@@ -3337,7 +3340,11 @@ export class ResearchAutomationService {
             : start.reviewCollectionPolicy && input.reviewSample && input.privateReviewCorpus && input.collection?.privateShopee
               ? 'automation-report-kit-v27' : 'automation-report-kit-v22';
           // Flint is asynchronous; the report builder is not, so the Market charts are drawn first.
-          if (kind === 'MARKET' && input.marketPresentation) input = { ...input, marketPresentationCharts: await renderMarketCharts(input.marketPresentation.input.rows) };
+          if (kind === 'MARKET' && input.marketPresentation) {
+            const capture = input.metricMethods?.capture;
+            input = { ...input, marketPresentationCharts: await renderMarketCharts(input.marketPresentation.input.rows),
+              ...(capture ? { marketCaptureCharts: await renderCaptureCountCharts(captureSampleCounts(capture)) } : {}) };
+          }
           const authoritative = input.qualitativeDraft || input.marketPresentation || input.insightPersona || privateDefault || (kind === 'INSIGHT' && start.reviewCollectionPolicy) ? buildResearchAutomationReport(input, kind) : undefined;
           const rendered: ResearchAutomationRenderedReport = this.#renderer ? await this.#renderer(authoritative ? structuredClone(input) : input, kind, controller.signal) : authoritative ?? defaultRenderedReport(input, kind);
           controller.signal.throwIfAborted();
