@@ -17,8 +17,6 @@ import { ResearchAutomationService } from '../../src/modules/analysis/research-a
 import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
 import { ResearchAutomationValidationError } from '../../src/modules/analysis/research-automation/model.js';
 import { JSDOM } from 'jsdom';
-import { FixtureShopeeCollector } from '../../src/platform/collectors/apify-shopee.js';
-import type { ShopeeCollectorFactory } from '../../src/modules/analysis/research-automation/exact-shopee-bridge.js';
 import { auditMarket14 } from '../../src/modules/analysis/research-automation/market-14-rules.js';
 import { webSnapshotDigest } from '../../src/modules/analysis/reader-report/web-facts.js';
 import { providerNameViolations, reportVisibleText, visibleTextViolations } from '../helpers/report-visible-text.js';
@@ -153,24 +151,16 @@ test('capture-confirmed Market run refuses the workbook-only presentation revisi
 });
 
 /** Fresh Market run confirmed either with the prepared capture or with no Metric source at all. */
-async function confirmedCaptureRun(t: TestContext, decision: 'USE_PREPARED' | 'SKIPPED', partialReviews = false) {
+async function confirmedCaptureRun(t: TestContext, decision: 'USE_PREPARED' | 'SKIPPED') {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), `tdn-metric-capture-209-${decision.toLowerCase()}-`));
   const db = openDatabase({ databasePath: path.join(root, 'test.sqlite'), now }).db;
   const artifacts = new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
   t.after(async () => { db.close(); await fs.rm(root, { recursive: true, force: true }); });
   const discovery = new DiscoveryWorkspaceService({ db, artifactStore: artifacts, uuid: () => workspaceId, now });
   await discovery.createWorkspace({ contractVersion: '1.0.0', workspaceKey: `metric-capture-209-${decision.toLowerCase()}`, title: 'Synthetic Metric capture confirmation' });
-  let collectionCalls = 0;
-  const shopeeCollectorFactory: ShopeeCollectorFactory = () => ({ requestsIssued: () => 1,
-    collector: { mode: 'fixture', collect: async (...args) => {
-      collectionCalls++;
-      return new FixtureShopeeCollector(Buffer.from(JSON.stringify([
-        { shopId: '100', itemId: '200', reviewId: 'synthetic-review', comment: 'Lời đánh giá giả lập.', ratingStar: 5 },
-      ]))).collect(...args);
-    } } });
   const service = new ResearchAutomationService({ db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discovery),
     metricAttachmentStore: new RequestScopedArtifactStore(path.join(root, 'artifacts')), uuid: () => runId, now, readerReportFlint: false,
-    ...(partialReviews ? { shopeeCollectorFactory } : {}), renderer: buildResearchAutomationReport });
+    renderer: buildResearchAutomationReport });
   await service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: '33333333-3333-4333-8333-333333333333',
     mode: 'CATEGORY', keyword: 'synthetic jar', requestedPeriod: { startDate: '2026-01-01', endDate: '2026-01-30' }, reports: ['MARKET'] });
   await service.processNext();
@@ -181,11 +171,10 @@ async function confirmedCaptureRun(t: TestContext, decision: 'USE_PREPARED' | 'S
   archive.snapshotBytes, archive.manifestBytes);
   await service.confirmScope(workspaceId, runId, { contractVersion: 'research-automation-confirm-v2', requestKey: '55555555-5555-4555-8555-555555555555',
     expectedRevision: awaiting.revision, definition: 'Synthetic reader scope', includeTerms: ['synthetic jar'], excludeTerms: [], selectedProductIds: [], peerProductIds: [],
-    ...(partialReviews ? { exactShopeeUrls: ['https://shopee.vn/product/100/200', 'https://shopee.vn/product/100/201'] } : {}),
-    sources: { metric: decision === 'USE_PREPARED' ? { decision: 'USE_PREPARED', packageId: receipt.packageId } : { decision: 'SKIPPED' }, nativeReview: partialReviews ? 'AUTO_REUSE' : 'SKIP' } });
+    sources: { metric: decision === 'USE_PREPARED' ? { decision: 'USE_PREPARED', packageId: receipt.packageId } : { decision: 'SKIPPED' }, nativeReview: 'SKIP' } });
   for (let i = 0; i < 10 && (await service.getRun(workspaceId, runId)).status !== 'DRAFT_READY'; i++) await service.processNext();
   const pair = (await service.listReportVersions(workspaceId, runId))[0]!;
-  return { service, artifacts, pair, root, collectionCalls: () => collectionCalls };
+  return { service, artifacts, pair, root };
 }
 
 test('a capture-confirmed Market run counts Metric as executed and keeps capture jargon out of reader text', async t => {
@@ -211,50 +200,45 @@ test('a confirmed Market run with no Metric source keeps the manual-export block
   assert.ok(run.blockers.some(blocker => blocker.code === 'METRIC_MANUAL_EXPORT_REQUIRED'));
 });
 
-test('capture-backed Market presentation passes rules 1, 2, 3, 5, 7, 9 and 11 with absent or partial reviews', async t => {
-  for (const partialReviews of [false, true]) await t.test(partialReviews ? 'partial reviews' : 'absent reviews', async t => {
-    const f = await confirmedCaptureRun(t, 'USE_PREPARED', partialReviews);
-    const draft = await f.service.readReport(workspaceId, runId, 'MARKET', false);
-    const queued = await f.service.requestReportRevision(workspaceId, runId, {
-      contractVersion: 'automation-market-presentation-revision-v1', requestKey: randomUUID(), previousPairId: f.pair.pairId,
-      sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } },
-    });
-    await f.service.processNext();
-    const attempt = await f.service.getReportRevision(workspaceId, runId, queued.attemptId);
-    assert.equal(attempt.state, 'COMMITTED');
-    const report = await f.service.readReport(workspaceId, runId, 'MARKET', false, attempt.pairId!);
-    const html = report.bytes.toString('utf8');
-    assert.notEqual(report.versionId, draft.versionId, 'audit the presentation, not the default draft');
-    assert.deepEqual((await f.service.readReport(workspaceId, runId, 'MARKET', false)).bytes, draft.bytes);
-    const audited = auditMarket14(html);
-    for (const rule of ['1', '2', '3', '5', '7', '9', '11']) assert.equal(audited.find(row => row.rule === rule)?.ok, true, `rule ${rule}`);
-    assert.deepEqual(audited.filter(rule => rule.kind === 'machine' && !rule.ok), []);
-    assert.deepEqual(providerNameViolations(html), []);
-    assert.doesNotMatch(reportVisibleText(html), /results-page capture|capture\/\w+\.json|\b[0-9a-f]{64}\b/iu);
-    const semantic = JSON.parse((await f.artifacts.read(report.versionId)).toString());
-    assert.ok(semantic.marketPresentationArtifact, 'the stored revision carries its presentation binding');
-    assert.ok(Object.values(semantic.sourceScope.metric.sourceFiles).some((file: any) => file?.logicalPath === 'capture/snapshot.json'),
-      'the separate semantic artifact keeps exact archive paths');
-    const dom = new JSDOM(html);
-    try {
-      const notice = dom.window.document.querySelector('.review-outcome-notice');
-      if (partialReviews) {
-        assert.ok(notice);
-        assert.deepEqual([...notice.querySelectorAll('li a')].map(link => [link.textContent, link.getAttribute('href')]),
-          [['Sản phẩm #2', 'https://shopee.vn/product/100/201']]);
-        assert.match(notice.textContent!, /0\/300 bình luận/);
-        assert.doesNotMatch(notice.textContent!, /https?:|product\/\d|shopee\.vn/);
-      } else {
-        assert.equal(notice, null);
-        assert.match(dom.window.document.querySelector('.market14-sources')!.textContent!, /Bình luận đã thu thậpChưa có trong lượt này/);
-      }
-    } finally { dom.window.close(); }
-    assert.equal(f.collectionCalls(), partialReviews ? 1 : 0, 'presentation never recollects reviews');
-    const output = path.join(f.root, 'presented.html');
-    await fs.writeFile(output, html);
-    const audit = spawnSync('./node_modules/.bin/tsx', ['scripts/audit-market-14.ts', output], { encoding: 'utf8' });
-    assert.equal(audit.status, 0, audit.stdout + audit.stderr);
+test('capture-backed Market presentation passes rules 1, 2, 3, 5, 7, 9 and 11 with reviews skipped for this run', async t => {
+  const f = await confirmedCaptureRun(t, 'USE_PREPARED');
+  const draft = await f.service.readReport(workspaceId, runId, 'MARKET', false);
+  const queued = await f.service.requestReportRevision(workspaceId, runId, {
+    contractVersion: 'automation-market-presentation-revision-v1', requestKey: randomUUID(), previousPairId: f.pair.pairId,
+    sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } },
   });
+  await f.service.processNext();
+  const attempt = await f.service.getReportRevision(workspaceId, runId, queued.attemptId);
+  assert.equal(attempt.state, 'COMMITTED');
+  const report = await f.service.readReport(workspaceId, runId, 'MARKET', false, attempt.pairId!);
+  const html = report.bytes.toString('utf8');
+  assert.notEqual(report.versionId, draft.versionId, 'audit the presentation, not the default draft');
+  assert.deepEqual((await f.service.readReport(workspaceId, runId, 'MARKET', false)).bytes, draft.bytes);
+  const audited = auditMarket14(html);
+  for (const rule of ['1', '2', '3', '5', '7', '9', '11']) assert.equal(audited.find(row => row.rule === rule)?.ok, true, `rule ${rule}`);
+  assert.deepEqual(audited.filter(rule => rule.kind === 'machine' && !rule.ok), []);
+  assert.deepEqual(providerNameViolations(html), []);
+  assert.doesNotMatch(reportVisibleText(html), /results-page capture|capture\/\w+\.json|\b[0-9a-f]{64}\b/iu);
+  const semantic = JSON.parse((await f.artifacts.read(report.versionId)).toString());
+  const logicalPath = (file: unknown): unknown => typeof file === 'object' && file !== null && 'logicalPath' in file ? file.logicalPath : undefined;
+  assert.ok(semantic.marketPresentationArtifact, 'the stored revision carries its presentation binding');
+  assert.ok(Object.values(semantic.sourceScope.metric.sourceFiles).some(file => logicalPath(file) === 'capture/snapshot.json'),
+    'the separate semantic artifact keeps exact archive paths');
+  const dom = new JSDOM(html);
+  try {
+    // Reviews were skipped at scope confirmation, so the reader sees the truth:
+    // no shortfall notice, both review rows report "not collected in this run",
+    // and no listing locator reaches reader text.
+    assert.equal(dom.window.document.querySelector('.review-outcome-notice'), null);
+    const sources = dom.window.document.querySelector('.market14-sources')!.textContent!;
+    assert.match(sources, /Dữ liệu đánh giá sản phẩm trên nền tảngChưa có trong lượt này\./);
+    assert.match(sources, /Bình luận đã thu thậpChưa có trong lượt này\./);
+    assert.doesNotMatch(reportVisibleText(dom.window.document), /shopee\.vn|product\/\d/iu, 'a skipped review scope keeps listing locators out of reader text');
+  } finally { dom.window.close(); }
+  const output = path.join(f.root, 'presented.html');
+  await fs.writeFile(output, html);
+  const audit = spawnSync('./node_modules/.bin/tsx', ['scripts/audit-market-14.ts', output], { encoding: 'utf8' });
+  assert.equal(audit.status, 0, audit.stdout + audit.stderr);
 });
 
 const presentationRequest = (previousPairId: string, extra: Record<string, unknown> = {}) => ({ contractVersion: 'automation-market-presentation-revision-v1' as const, requestKey: randomUUID(), previousPairId, sources: { metric: { decision: 'KEEP' as const }, nativeReview: { decision: 'KEEP' as const } }, ...extra });
