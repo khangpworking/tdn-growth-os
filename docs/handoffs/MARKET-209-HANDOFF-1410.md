@@ -114,12 +114,12 @@ Tất cả đã gộp vào bản chính và đang chạy trên ứng dụng.
    - Ghi rõ trong yêu cầu duyệt: "cập nhật mẫu kiểm thử khớp với thay đổi hành vi có chủ đích thì không tính là lỗi".
 3. **Nếu đạt:**
    - push, chờ CI xanh, kiểm tra PR ở trạng thái MERGEABLE;
-   - gộp: `gh pr merge 241 --repo khangpworking/tdn-growth-os --squash --match-head-commit 0e6ac06…`;
-   - triển khai: `deploy.sh prep <sha>`, rồi `activate <sha>`.
+   - gộp (chạy trong checkout của repo): `gh pr merge 241 --squash --match-head-commit <mã đầy đủ 40 ký tự của đầu nhánh đã duyệt>`;
+   - triển khai bằng quy trình triển khai của máy chạy (công cụ nằm ngoài repo), chỉ khi chủ dự án đã cho phép.
 4. **Trình bày lại thạch dừa:**
    - gửi yêu cầu tạo bản trình bày mới cho `9e76bb31`, dùng pairId **mới nhất** để tránh lỗi 409;
    - lấy HTML qua `/report-versions/<pairId>/reports/market`;
-   - chấm bằng `audit-abs.mts`, rồi chấm tay 14 quy tắc.
+   - chấm máy bằng `scripts/audit-market-14.ts` (quy tắc nằm ở `src/modules/analysis/research-automation/market-14-rules.ts`), rồi chấm tay 14 quy tắc.
 5. **Xong khi:** thạch dừa đạt ≥ 12/14, chỉ còn trượt quy tắc 10 và 13 giống hai báo cáo kia.
 
 **Phương án khác nếu cách trên vẫn kẹt**
@@ -157,13 +157,11 @@ Tất cả đã gộp vào bản chính và đang chạy trên ứng dụng.
 
 **Hiện trạng:** mọi lượt chạy đặt `nativeReview: SKIP` và `exactShopeeUrls: []`. Báo cáo ghi rõ là chưa có đánh giá.
 
-**Bước tiếp theo**
-1. Chủ dự án nạp tiền. Hạn mức mỗi lượt thử ≤ 15 USD, nhắm khoảng 10 USD.
-2. Chuyển xác nhận về chế độ `AUTO_REUSE`.
-3. Chọn link Shopee trải đều nhiều thương hiệu (không lấy toàn bộ từ 1 thương hiệu), 300 bình luận mỗi sản phẩm.
-4. Chạy lại 3 báo cáo, kiểm tra quy tắc 13 và 14.
+**Bước tiếp theo:** đây là quyết định riêng của chủ dự án.
+- Có nạp tiền nguồn đánh giá hay không, và mức chi, do chủ dự án quyết. Trợ lý không nạp tiền và không chi tiền.
+- Cho tới khi chủ dự án cho phép rõ ràng, giữ nguyên `nativeReview: SKIP` và `exactShopeeUrls: []`: không bật thu thập đánh giá, không đổi chế độ xác nhận nguồn đánh giá.
 
-**Xong khi:** quy tắc 13 đạt và quy tắc 14 được chấm (không còn "không áp dụng").
+**Xong khi:** chủ dự án đã quyết; nếu giữ chế độ bỏ qua thì báo cáo ghi rõ là chưa có đánh giá.
 
 **Phương án khác:** giữ chế độ bỏ qua, kèm dòng ghi chú rõ ràng trong báo cáo. Chủ dự án chấp nhận 12–13/14 trong giai đoạn thử.
 
@@ -232,7 +230,7 @@ Biểu tượng Shopee và TikTok thì có đủ.
 | 2 | B1, bước 3–4: gộp, triển khai, trình bày lại thạch dừa, chấm | Trợ lý điều phối | Không (triển khai đã được phép sau duyệt và gộp) |
 | 3 | Quyết định nguồn ảnh bìa (B2) | Chủ dự án | Có |
 | 4 | Làm PR ảnh bìa (B2) + biểu đồ Flint (B6), có thể gộp làm một PR | omp + Astra | Không |
-| 5 | Nạp tiền nguồn đánh giá (B3), chuyển về AUTO_REUSE | Chủ dự án, rồi trợ lý | Có |
+| 5 | Quyết định có nạp tiền nguồn đánh giá hay không (B3); trợ lý không nạp tiền, không bật thu thập đánh giá | Chủ dự án | Có |
 | 6 | Chuyển việc đưa dữ liệu thu thập vào lượt chạy mới thành bước trong ứng dụng | omp | Không |
 | 7 | Sửa lật trang của công cụ thu thập (B4), sau 14/10 | omp | Có (cầu nối OpenCLI và lượt tra cứu Metric) |
 
@@ -272,7 +270,7 @@ Biểu tượng Shopee và TikTok thì có đủ.
 - `docs/handoffs/CAPROWS-209.md`: vì sao canxi chỉ có 1 trang.
 - `docs/handoffs/PRESFIX-209.md`: bản sửa quy tắc 3 và công thức chạy lại (trên nhánh PR #241).
 
-**Lệnh gộp mẫu**
+**Lệnh gộp mẫu** (chạy trong checkout của repo; `<sha>` là mã đầy đủ 40 ký tự của đầu nhánh đã được duyệt Đạt)
 ```
-gh pr merge <n> --repo khangpworking/tdn-growth-os --squash --match-head-commit <sha>
+gh pr merge <n> --squash --match-head-commit <sha>
 ```
