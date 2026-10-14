@@ -1,4 +1,5 @@
 import type { AutomationMarketPresentationMethod } from '../../../../contracts/analysis/automation-market-presentation-method.generated.js';
+import type { CaptureMetricMethodDetails } from './metric-method-bridge.js';
 import { readerPriceState, readerProductLabel, readerStoredOrJson } from './reader-plain-text.js';
 import { escapeHtml as escape, readerPointer, storedLiteral, type ReportCitations } from './descriptive-report.js';
 
@@ -13,6 +14,25 @@ const mark = (ref: { sourceSha256: string; locator: string; label?: string }, ci
 };
 const table = (caption: string, headings: readonly string[], rows: readonly string[][]): string =>
   `<div class="table-wrap" role="region" aria-label="${escape(caption)}" tabindex="0"><table><caption>${escape(caption)}</caption><thead><tr>${headings.map(h => `<th scope="col">${escape(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+
+/** Plot frozen record counts separately by platform; never derive a population or add platforms. */
+export function renderCaptureSampleCharts(capture: CaptureMetricMethodDetails, citations: ReportCitations): string {
+  const samples = capture.platforms.flatMap(({ platform, result }) => {
+    const all = result.scopes.find(scope => scope.key === 'all');
+    return all?.status === 'CALCULATED' ? [{ platform, result, count: all.listingCount }] : [];
+  });
+  const maximum = Math.max(1, ...samples.map(sample => sample.count));
+  return samples.map(({ platform, result, count }) => {
+    const label = platform === 'shopee' ? 'Shopee' : 'TikTok Shop';
+    const source = citations.mark({ sourceKind: 'METRIC_ROW', identity: result.inputSha256, locator: null,
+      label: 'Số liệu đã tính từ nguồn đã lưu', retrievedAt: null, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' });
+    return `<figure><figcaption>Bản ghi sản phẩm — ${label}</figcaption><p>Trong mẫu ${label}: n = ${count} bản ghi; kỳ ${escape(result.input.scope.start)} đến ${escape(result.input.scope.end)}.</p>` +
+      `<div class="chart" data-engine="svg-fallback"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 80" role="img" aria-label="${count} bản ghi sản phẩm trong mẫu">` +
+      `<line x1="20" y1="55" x2="440" y2="55" stroke="currentColor"/><rect x="20" y="15" width="${420 * count / maximum}" height="32" fill="#334155"/>` +
+      `<text x="20" y="75">0</text><text x="440" y="75" text-anchor="end">${maximum}</text></svg></div>` +
+      `<p>Nguồn: ${source}</p><p class="lim"><b>Chú thích:</b> Mỗi sàn giữ riêng số bản ghi đã lưu; không suy rộng ra toàn thị trường. Bản ghi chưa chứng minh sản phẩm hoặc biến thể phân biệt.</p></figure>`;
+  }).join('');
+}
 
 export type AdvertisingReferenceInput = {
   period: { start: string; end: string } | null;
