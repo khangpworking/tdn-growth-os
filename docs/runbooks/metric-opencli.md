@@ -23,7 +23,7 @@ adapter installed from the same repository bytes. The executor verifies
 `tools/opencli-metric/adapter-manifest.json` before each run. `whoami` reads
 only login, captcha, page-state and any displayed analysis lookup balance.
 The current manifest SHA-256 is
-`45f0b898bdd33ab67511238d2f3aee4477edd64002815fe7a7a2fedf138ed520`.
+`0fa5e6e5e0289c26b64dbbffebb1add38f930ee34c72d2842471ace29f31ad40`.
 
 Install or reinstall the adapter from the checked-out repository bytes with:
 
@@ -95,6 +95,16 @@ A difference returns the typed `METRIC_PERIOD_UNSUPPORTED` result with both
 periods in `details`, in both dry-run and capture; the date-picker code remains
 in the adapter but is unreachable for non-default periods. Multiple-platform
 mode is verified after the re-render with one bounded retry.
+
+Before the first form change, the adapter repairs the Metric tab. OpenCLI's
+browser stealth replaces the page's `Function` global after Metric's bundle has
+captured the original one as a Vue prop type. Function-typed popup defaults are
+then resolved as factories, and no select or date popup opens. The repair puts
+the original `Function` back and resets mounted props that were resolved wrongly
+and that the page did not supply. Dry-run returns it as `pageRepair`
+(`restored`, `repairedProps`, `vue`) and capture records it in the debug
+search gate; it is a no-op on a clean page. If the global cannot be restored, the run stops with
+`METRIC_UI_CHANGED` before any form action.
 
 The command accepts an absolute output directory outside the repository:
 
@@ -206,4 +216,4 @@ top-shop series. Platforms are mapped from the live `search_basic` list; values
 are never summed. A trend series is retained only when a post-submit source
 response offers one; otherwise the manifest records `not offered by the source`.
 
-Adapter manifest SHA-256: `45f0b898bdd33ab67511238d2f3aee4477edd64002815fe7a7a2fedf138ed520`.
+Adapter manifest SHA-256: `0fa5e6e5e0289c26b64dbbffebb1add38f930ee34c72d2842471ace29f31ad40`.
