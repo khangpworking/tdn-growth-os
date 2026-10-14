@@ -209,6 +209,9 @@ test('a forced Flint failure is recorded as svg-fallback and the revision build 
   assert.ok(flintFallbacks().length > before, 'the fallback is logged');
   for (const div of chartDivs(r.html)) assert.match(div, /data-engine="svg-fallback"/);
   assert.equal(auditMarket14(r.html).find(item => item.rule === '11')!.ok, false, 'rule 11 rejects svg-fallback charts');
+  assert.equal(auditMarket14(r.html, undefined, { requireFlint: false }).find(item => item.rule === '11')!.ok, true, 'the explicit opt-out accepts drawn svg-fallback charts');
+  const unmarked = r.html.replace(/ data-engine="svg-fallback"/g, '');
+  assert.equal(auditMarket14(unmarked, undefined, { requireFlint: false }).find(item => item.rule === '11')!.ok, false, 'the opt-out still needs an engine marker');
   assert.throws(() => assertFlintCharts(r.charts), (error: Error) => error instanceof ResearchAutomationValidationError && /^FLINT_REQUIRED:.*market\.concentration/.test(error.message));
   assert.doesNotThrow(() => assertFlintCharts(r.charts, false), 'flint: false stays an explicit opt-out');
 });

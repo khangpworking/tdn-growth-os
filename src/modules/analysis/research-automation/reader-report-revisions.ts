@@ -333,7 +333,7 @@ export class AutomationReaderReports {
     // Every chart must be drawn by Flint unless the caller opted out explicitly; a silent fallback fails the build.
     assertFlintCharts(built.charts, this.options.flint ?? true);
     // The gate blocks report publication and revision insertion; cover/sidecar artifacts may already be written.
-    try { assertMarketBusinessGate(built.html, { presentation: false }); if (built.visibleTextRules) assertMarket14MachineRules(built.html); }
+    try { assertMarketBusinessGate(built.html, { presentation: false }); if (built.visibleTextRules) assertMarket14MachineRules(built.html, undefined, { requireFlint: this.options.flint ?? true }); }
     catch (error) {
       if (error instanceof TypeError && (error.message.startsWith('MARKET_BUSINESS_GATE_FAILED:') || error.message.startsWith('MARKET_14_RULES_FAILED:'))) throw new ResearchAutomationValidationError(
         `Bản đọc chưa đạt kiểm tra bằng chứng hoặc cách trình bày (quy tắc: ${error.message.replace(/^MARKET_(?:BUSINESS_GATE|14_RULES)_FAILED:/u, '')}). Hãy sửa cách trình bày trước khi tạo phiên bản mới.`);

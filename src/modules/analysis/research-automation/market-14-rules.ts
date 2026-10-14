@@ -193,8 +193,13 @@ function evidenceDetail(html: string, terms: readonly RegExp[]): string {
   return found.length ? `READ: ${snippets(found)}` : 'READ: reviewer must inspect the report claims and their cited number, figure or table.';
 }
 
-/** Audit the owner’s fourteen Market-report rules without fetching or parsing source data. */
-export function auditMarket14(html: string, trace?: string): Market14Result[] {
+/**
+ * Audit the owner’s fourteen Market-report rules without fetching or parsing source data.
+ * `requireFlint: false` mirrors the builder's explicit test opt-out: charts may be the
+ * hand-drawn SVG, but each still needs an engine marker, drawn content and the count of three.
+ */
+export function auditMarket14(html: string, trace?: string, options: { requireFlint?: boolean } = {}): Market14Result[] {
+  const requireFlint = options.requireFlint ?? true;
   const text = visible(html);
   const gate = auditMarketReportHtml(html, { presentation: false });
   const gateResult = (rule: string): { ok: boolean; detail: string } => {
@@ -216,7 +221,7 @@ export function auditMarket14(html: string, trace?: string): Market14Result[] {
   const chartIssues = charts.flatMap(({ tag, body }) => {
     const engine = tag.match(/data-engine=["']([^"']*)["']/iu)?.[1];
     if (engine === undefined) return ['chart missing engine marker'];
-    if (engine !== 'flint') return [`chart drawn by ${engine || 'an unnamed engine'}, not Flint`];
+    if (engine !== 'flint' && (requireFlint || engine !== 'svg-fallback')) return [`chart drawn by ${engine || 'an unnamed engine'}, not Flint`];
     return hasChartContent(tag, body) ? [] : ['chart has an engine marker but no drawn data or payload'];
   });
   // A Market report whose sample has product rows must carry the three required charts.
@@ -254,8 +259,8 @@ export function auditMarket14(html: string, trace?: string): Market14Result[] {
   ];
 }
 
-export function assertMarket14MachineRules(html: string, trace?: string): void {
-  const audited = auditMarket14(html, trace);
+export function assertMarket14MachineRules(html: string, trace?: string, options: { requireFlint?: boolean } = {}): void {
+  const audited = auditMarket14(html, trace, options);
   const failed = audited.filter(rule => rule.kind === 'machine' && !rule.ok);
   if (failed.length) throw new TypeError(`MARKET_14_RULES_FAILED:${failed.map(rule => rule.rule).join(',')}`);
 }
