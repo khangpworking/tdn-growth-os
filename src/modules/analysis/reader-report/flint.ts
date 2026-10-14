@@ -1,7 +1,7 @@
 // Charts through Microsoft Flint (flint-chart 0.5.1) → Vega-Lite 6 → Vega 6 static
 // SVG, the same engine as the approved golden reports. Everything runs in
 // process with inline data: no network, no files. The libraries load lazily so
-// pages that only use the hand-drawn SVG charts never pay for them.
+// builds that opt out (flint: false, unit tests) never pay for them.
 import type { ChartAssemblyInput } from 'flint-chart';
 
 export const FLINT_ENGINE = 'flint-chart@0.5.1 → vega-lite@6.4.3 → vega@6.4.0';
@@ -65,11 +65,28 @@ export async function renderFlintChart(
   }
 }
 
-/** Flint first; on any failure the hand-drawn SVG is used and the reason is kept for the build log. */
+export type FlintFallback = { at: string; chartType: string; error: string };
+const fallbackLog: FlintFallback[] = [];
+/** Recent Flint failures in this process (newest last, at most 100), for the build log and tests. */
+export function flintFallbacks(): readonly FlintFallback[] { return [...fallbackLog]; }
+
+/**
+ * Flint first; on any failure the hand-drawn SVG is used, the result is marked
+ * svg-fallback and the reason is recorded. Callers that require Flint check
+ * their chart list with nonFlintCharts().
+ */
 export async function renderChart(input: FlintChartInput, fallback: () => string, options?: Parameters<typeof renderFlintChart>[1]): Promise<RenderedChart> {
   try {
     return { svg: await renderFlintChart(input, options), engine: 'flint' };
   } catch (error) {
-    return { svg: fallback(), engine: 'svg-fallback', error: error instanceof Error ? error.message : String(error) };
+    const message = error instanceof Error ? error.message : String(error);
+    fallbackLog.push({ at: new Date().toISOString(), chartType: String((input.chart_spec as { chartType?: unknown }).chartType ?? ''), error: message });
+    if (fallbackLog.length > 100) fallbackLog.splice(0, fallbackLog.length - 100);
+    return { svg: fallback(), engine: 'svg-fallback', error: message };
   }
+}
+
+/** Ids of charts that were not drawn by Flint. */
+export function nonFlintCharts(charts: readonly { id: string; engine: RenderedChart['engine'] }[]): string[] {
+  return charts.filter(chart => chart.engine !== 'flint').map(chart => chart.id);
 }

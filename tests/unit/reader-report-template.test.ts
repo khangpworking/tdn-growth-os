@@ -9,6 +9,13 @@ import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/inde
 import {
   READER_SECTION_ANCHORS, buildMarketReport, computeReaderReportData, lint, publishReaderReport, readerWebResults, visibleText,
 } from '../../src/modules/analysis/reader-report/index.js';
+import { flintFallbacks } from '../../src/modules/analysis/reader-report/flint.js';
+import { auditMarket14 } from '../../src/modules/analysis/research-automation/market-14-rules.js';
+import { assertFlintCharts } from '../../src/modules/analysis/research-automation/reader-report-revisions.js';
+import { ResearchAutomationValidationError } from '../../src/modules/analysis/research-automation/model.js';
+import { DEFAULT_MARKET_PEER_RULE } from '../../src/modules/analysis/default-market-peers.js';
+import { sync1Options, sync1ReaderFixture } from '../helpers/sync1-reader-fixture.js';
+import { unitPriceFixture } from '../helpers/market-unit-price-fixture.js';
 
 type P = 'shopee' | 'tiktok';
 const titles = ['Bình nhỏ 500ml quà tặng', 'Bình lớn 1 lít', 'Bình nhỏ 350ml', 'Ly giữ nhiệt 600ml', 'Nước giặt tặng bình'];
@@ -143,4 +150,78 @@ test('charts render through the chart engine without network', async () => {
   } finally {
     globalThis.fetch = fetch0;
   }
+});
+
+// Every Market report carries three Flint charts: concentration, revenue by platform and product rows.
+const REQUIRED_CHARTS = ['market.concentration', 'market.platform-revenue', 'market.product-ranking'];
+const chartDivs = (html: string): string[] => [...html.matchAll(/<div\b[^>]*\bclass="[^"]*\bchart\b[^"]*"[^>]*>/gu)].map(match => match[0]);
+const v2Data = () => {
+  const x = sync1ReaderFixture('1.4.0');
+  x.peerRule = { ...DEFAULT_MARKET_PEER_RULE };
+  const units = unitPriceFixture(x.rows);
+  x.unitPrices = units.packet;
+  return computeReaderReportData(x, units.retained);
+};
+
+test('Market 1.4 without monthly web facts still draws the three required charts with Flint', async () => {
+  const d = v2Data();
+  assert.equal(d.webFacts, null, 'no monthly web facts in this fixture');
+  const r = await buildMarketReport(d, { ...sync1Options, flint: true });
+  assert.deepEqual(REQUIRED_CHARTS.filter(id => !r.charts.some(c => c.id === id)), []);
+  assert.deepEqual(r.charts.filter(c => c.engine !== 'flint'), []);
+  const divs = chartDivs(r.html);
+  assert.ok(divs.length >= 3, `chart figures: ${divs.length}`);
+  for (const div of divs) assert.match(div, /data-engine="flint"/);
+  for (const title of ['Doanh thu trong mẫu, từng sàn', 'Mức tập trung doanh thu theo gian hàng, từng sàn', 'Sản phẩm có doanh thu cao trong mẫu']) assert.match(visibleText(r.html), new RegExp(title));
+  assert.match(visibleText(r.html), /Hình 4\.1[\s\S]*Hình 4\.2[\s\S]*Hình 7\.1/);
+  assert.match(r.html, /data-market-chart-rows="12"/);
+  const rule11 = auditMarket14(r.html).find(item => item.rule === '11')!;
+  assert.equal(rule11.ok, true, rule11.detail);
+});
+
+test('Market 1.2 (V1 template) draws the three required charts beside its core concentration line, all with Flint', async () => {
+  const r = await buildMarketReport(computeReaderReportData(sync1ReaderFixture('1.2.0')), { ...sync1Options, flint: true });
+  for (const id of ['m04-pareto', ...REQUIRED_CHARTS]) assert.ok(r.charts.some(c => c.id === id), id);
+  assert.deepEqual(r.charts.filter(c => c.engine !== 'flint'), []);
+  const divs = chartDivs(r.html);
+  assert.ok(divs.length >= 4, `chart figures: ${divs.length}`);
+  for (const div of divs) assert.match(div, /data-engine="flint"/);
+  assert.match(visibleText(r.html), /Hình 4\.2[\s\S]*Hình 4\.3[\s\S]*Hình 4\.4[\s\S]{0,40}Mức tập trung doanh thu theo gian hàng, từng sàn[\s\S]*Hình 7\.1/);
+});
+
+test('V1 records every drawn required chart, so a forced Flint failure on any of them is refused', async () => {
+  const vega = await import('vega');
+  const toSVG = vega.View.prototype.toSVG;
+  vega.View.prototype.toSVG = () => { throw new Error('forced Flint failure'); };
+  let r;
+  try { r = await buildMarketReport(computeReaderReportData(sync1ReaderFixture('1.2.0')), { ...sync1Options, flint: true }); } finally { vega.View.prototype.toSVG = toSVG; }
+  for (const id of REQUIRED_CHARTS) assert.equal(r.charts.find(c => c.id === id)?.engine, 'svg-fallback', id);
+  assert.throws(() => assertFlintCharts(r.charts), (error: Error) => /^FLINT_REQUIRED:.*market\.concentration/.test(error.message));
+});
+
+test('one platform: the revenue chart shows only that platform and nothing is invented', async () => {
+  const x = sync1ReaderFixture('1.2.0');
+  x.platforms = ['shopee'];
+  x.rows = x.rows.filter(row => row.platform === 'shopee') as typeof x.rows;
+  const r = await buildMarketReport(computeReaderReportData(x), { ...sync1Options, flint: true });
+  assert.deepEqual(r.charts.filter(c => c.engine !== 'flint'), []);
+  assert.doesNotMatch(visibleText(r.html), /TikTok/);
+});
+
+test('a forced Flint failure is recorded as svg-fallback and the revision build refuses it', async () => {
+  const vega = await import('vega');
+  const toSVG = vega.View.prototype.toSVG;
+  const before = flintFallbacks().length;
+  vega.View.prototype.toSVG = () => { throw new Error('forced Flint failure'); };
+  let r;
+  try { r = await buildMarketReport(v2Data(), { ...sync1Options, flint: true }); } finally { vega.View.prototype.toSVG = toSVG; }
+  assert.ok(r.charts.length >= 3 && r.charts.every(c => c.engine === 'svg-fallback' && c.error === 'forced Flint failure'));
+  assert.ok(flintFallbacks().length > before, 'the fallback is logged');
+  for (const div of chartDivs(r.html)) assert.match(div, /data-engine="svg-fallback"/);
+  assert.equal(auditMarket14(r.html).find(item => item.rule === '11')!.ok, false, 'rule 11 rejects svg-fallback charts');
+  assert.equal(auditMarket14(r.html, undefined, { requireFlint: false }).find(item => item.rule === '11')!.ok, true, 'the explicit opt-out accepts drawn svg-fallback charts');
+  const unmarked = r.html.replace(/ data-engine="svg-fallback"/g, '');
+  assert.equal(auditMarket14(unmarked, undefined, { requireFlint: false }).find(item => item.rule === '11')!.ok, false, 'the opt-out still needs an engine marker');
+  assert.throws(() => assertFlintCharts(r.charts), (error: Error) => error instanceof ResearchAutomationValidationError && /^FLINT_REQUIRED:.*market\.concentration/.test(error.message));
+  assert.doesNotThrow(() => assertFlintCharts(r.charts, false), 'flint: false stays an explicit opt-out');
 });

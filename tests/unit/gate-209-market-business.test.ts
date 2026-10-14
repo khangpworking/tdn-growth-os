@@ -7,6 +7,7 @@ import { buildResearchAutomationReport, type AutomationReportInput } from '../..
 import { metricFixture } from '../fixtures/metric-scope-synthetic.js';
 import { sync1ReaderFixture } from '../helpers/sync1-reader-fixture.js';
 import { unitPriceFixture } from '../helpers/market-unit-price-fixture.js';
+import { renderMarketCharts } from '../../src/modules/analysis/reader-report/market-charts.js';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
 const runId = '22222222-2222-4222-8222-222222222222';
@@ -228,7 +229,7 @@ test('round 12: true absence lists and Unicode predicate boundaries remain corre
   }
 });
 
-test('provider names in a Market build fail inside buildResearchAutomationReport', () => {
+test('provider names in a Market build fail inside buildResearchAutomationReport', async () => {
   const metric = calculateMetricScopes(metricFixture());
   const rows = sync1ReaderFixture('1.4.0').rows;
   const unit = unitPriceFixture(rows);
@@ -243,8 +244,14 @@ test('provider names in a Market build fail inside buildResearchAutomationReport
     start: { contractVersion: 'research-automation-start-snapshot-v1', workspaceId, country: 'VN', mode: 'CATEGORY', keyword: 'synthetic jar', description: null,
       interview: null, requestedPeriod: { startDate: '2026-01-01', endDate: '2026-01-30', dayCount: 30 }, reports: ['MARKET'] },
     scope: { contractVersion: 'research-automation-scope-snapshot-v1', workspaceId, runId, definition: 'Synthetic scope', includeTerms: [], excludeTerms: [], selectedProductIds: [], peerProductIds: [] },
-    collection: null, captures: [], marketPresentation } as unknown as AutomationReportInput;
+    collection: null, captures: [], marketPresentation, marketPresentationCharts: await renderMarketCharts(marketPresentation.input.rows) } as unknown as AutomationReportInput;
   assert.doesNotThrow(() => buildResearchAutomationReport(input, 'MARKET'));
+  const html = buildResearchAutomationReport(input, 'MARKET').html.toString('utf8');
+  const charts = [...html.matchAll(/<div class="chart flint" data-engine="([^"]+)">/gu)].map(match => match[1]);
+  assert.deepEqual(charts, ['flint', 'flint', 'flint'], 'revenue by platform, concentration and product rows are Flint charts');
+  assert.doesNotMatch(html, /market-concentration/, 'the hand-drawn concentration chart is replaced');
+  const { marketPresentationCharts: _charts, ...withoutCharts } = input;
+  assert.throws(() => buildResearchAutomationReport(withoutCharts as AutomationReportInput, 'MARKET'), /MARKET_14_RULES_FAILED:.*11/u, 'a presentation without its charts fails rule 11');
   const readerSanitized = structuredClone(input);
   (readerSanitized.marketPresentation as NonNullable<AutomationReportInput['marketPresentation']>).findings[0]!.statement = 'Metric';
   assert.doesNotThrow(() => buildResearchAutomationReport(readerSanitized, 'MARKET'));

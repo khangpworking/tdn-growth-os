@@ -9,6 +9,7 @@ import { readerPeerExhibit } from './default-peers.js';
 import { Narrator } from './bundle.js';
 import type { LegacyRow as Row } from './classify.js';
 import { renderChart, type FlintChartInput, type FlintPalette } from './flint.js';
+import { marketChartRows, renderMarketCharts, type MarketChartKind } from './market-charts.js';
 import { esc, num, sp } from './format.js';
 import { cover, hlNum, makeExhibits, n as numberCell, page, plat, platIcons, PLATFORM_LABEL, section, type CoverImage } from './layout.js';
 import { FORBIDDEN_PROVIDER_NAMES } from './lint.js';
@@ -87,6 +88,7 @@ export async function buildMarketReport(d: ReaderReportData, options: MarketRepo
   if (d.input.contractVersion === '1.4.0') return buildMarketReportV2(d, options);
   if ((d.input.contractVersion === '1.2.0' || d.input.contractVersion === '1.3.0') && d.input.platforms.some(P => d.scopes[P] === undefined)) return buildMarketReportV2(d, options);
   const current = d.input.contractVersion === '1.2.0' || d.input.contractVersion === '1.3.0';
+  const flintMarks = current && options.flint !== false;
   const { input, profile: prof, bundle: B } = d;
   const rows = d.rows as Row[];
   const PLATS = input.platforms;
@@ -190,12 +192,27 @@ export async function buildMarketReport(d: ReaderReportData, options: MarketRepo
   const L = (s: string): string => { if (/\d/.test(s)) extraOk.add(s); return esc(s); };
   const segName = (k: string): string => prof.segments[k] ?? k;
   const charts: BuiltMarketReport['charts'] = [];
+  // Every drawn SVG remembers its engine, so each figure carries a data-engine marker.
+  const engineOf = new Map<string, 'flint' | 'svg-fallback'>();
   const chart = async (id: string, spec: FlintChartInput, fallback: () => string, patch?: (spec: any) => void): Promise<string> => {
-    if (options.flint === false) { charts.push({ id, engine: 'svg-fallback' }); return fallback(); }
+    if (options.flint === false) { const svg = fallback(); charts.push({ id, engine: 'svg-fallback' }); engineOf.set(svg, 'svg-fallback'); return svg; }
     const r = await renderChart(spec, fallback, { palette: PALETTE, ...(patch ? { patch } : {}) });
     charts.push({ id, engine: r.engine, ...(r.error ? { error: r.error } : {}) });
+    engineOf.set(r.svg, r.engine);
     return r.svg;
   };
+  // Revenue by platform, all-row shop concentration and leading product rows; the core-revenue
+  // Pareto line of Hình 4.2 stays beside them because the M01/M04 facts cite its core figures.
+  // Legacy contracts (1.0.0/1.1.0) keep their frozen bytes, so only current builds get the new charts and markers.
+  // Flint marks (required charts, engine markers, row stamp) only when Flint is on; the flint:false
+  // opt-out keeps the frozen 1.2/1.3 bytes that the legacy hash fixture pins.
+  const required = !flintMarks ? [] : await renderMarketCharts(rows, { flint: options.flint !== false, rowNumber: row => row.i, rowListNote: 'số dòng là cột đầu của danh sách sản phẩm ở Phụ lục' });
+  // Every drawn required chart is recorded, so FLINT_REQUIRED sees each one.
+  for (const found of required) {
+    charts.push({ id: found.id, engine: found.engine, ...(found.error ? { error: found.error } : {}) });
+    engineOf.set(found.svg, found.engine);
+  }
+  const requiredChart = (kind: MarketChartKind) => required.find(c => c.kind === kind);
   const keepOrder = (field: string, order: readonly string[]) => (spec: any): void => {
     const walk = (o: any): void => {
       if (!o || typeof o !== 'object') return;
@@ -245,8 +262,11 @@ export async function buildMarketReport(d: ReaderReportData, options: MarketRepo
   const SRC = `Dữ liệu bán hàng ước tính trên ${PLATS.map(P => PLATFORM_LABEL[P]).join(' và ')}, ${P0} – ${P1}; ${
     webRegistry === null ? 'tính trên' : 'trong mẫu'} ${num(rows.length)} sản phẩm doanh thu cao nhất.`;
   const exhibits = makeExhibits(SRC);
-  const fig: typeof exhibits.fig = (no, title, unit, svg, options = {}) => exhibits.fig(no, title, unit, svg,
-    webRegistry === null || options.src !== undefined ? options : { ...options, src: SRC + sampleMark() });
+  const fig: typeof exhibits.fig = (no, title, unit, svg, figureOptions = {}) => {
+    const engine = flintMarks ? figureOptions.engine ?? engineOf.get(svg) : undefined;
+    const withEngine = engine === undefined ? figureOptions : { ...figureOptions, engine };
+    return exhibits.fig(no, title, unit, svg, webRegistry === null || withEngine.src !== undefined ? withEngine : { ...withEngine, src: SRC + sampleMark() });
+  };
   const tbl: typeof exhibits.tbl = (no, title, unit, head, tableRows, options = {}) => {
     if (webRegistry === null || options.src?.startsWith('Trang kết quả')) return exhibits.tbl(no, title, unit, head, tableRows, options);
     const citedRows = tableRows.map(row => row.map((cell, i) => i === 0 ? String(cell) + sampleMark() : cell));
@@ -569,13 +589,18 @@ ${tbl('2.2', `Quy tắc phân loại (${statusLabel})`, 'số sản phẩm', ['T
     field_display_names: { hang: 'Số gian hàng (theo doanh thu lõi giảm dần)', san: 'Sàn', luy_ke: '% doanh thu lõi cộng dồn' },
     chart_spec: { chartType: 'Line Chart', encodings: { x: 'hang', y: 'luy_ke', color: 'san' } },
   } as FlintChartInput, () => paretoChart(PLATS.map(P => ({ name: PLATFORM_LABEL[P]!, ys: cum(P), color: COL[P] }))));
+  const platformRevenue = requiredChart('platform-revenue');
+  const m04PlatformRevenue = platformRevenue ? fig('4.3', platformRevenue.title, platformRevenue.unit, platformRevenue.svg, { note: platformRevenue.note }) : '';
+  const concentration = requiredChart('concentration');
+  const m04Concentration = concentration ? fig('4.4', concentration.title, concentration.unit, concentration.svg,
+    { note: `${concentration.note} Hình này tính trên mọi sản phẩm có doanh thu trong mẫu; đường cộng dồn phía trên chỉ tính phần lõi.` }) : '';
   secs.push(section('M04', 'Cơ cấu thị trường',
     hlNum(PLATS.map(P => { if (current) return `${PLATFORM_LABEL[P]}: ` + coreSegs.map(k => nar(`${L(segName(k))} chiếm {{${P}.seg.${k}.revShare}} doanh thu lõi`, `M01.k2.${P}.${k}`)).join('; ') + '.'; const k = topSeg(P); return `${nar(`Nhóm dẫn ${onP(P)} chiếm {{${P}.seg.${k}.revShare}} doanh thu lõi`, `M04.ans.${P}`)} (${L(segName(k))}).`; }).join(' ')),
     fig('4.1', 'Tỷ trọng doanh thu lõi theo nhóm, từng sàn', '% doanh thu lõi của sàn', await bars('m04-share', coreSegs.map(segName), (P, j) => B.v(`${P}.seg.${coreSegs[j]}.revShare`), 'Tỷ trọng doanh thu lõi (%)', ps)) +
     tbl('4.1', 'Số liệu theo nhóm lõi, từng sàn', 'doanh thu: tỷ đồng; giá: đồng', ['Sàn', 'Nhóm', n('Sản phẩm'), n('Gian hàng'), n('Doanh thu'), n('Tỷ trọng doanh thu'), n('Tỷ trọng đơn vị bán'), n('Giá trung bình')], segTbl) +
     fig('4.2', 'Mức tập trung doanh thu lõi theo gian hàng', '% doanh thu lõi cộng dồn', pareto,
        { fact: nar(`Top 3 gian hàng giữ ${each(P => `{{${P}.conc.3}} ${onP(P)}`)}; top 20 giữ ${each(P => `{{${P}.conc.20}} ${onP(P)}`)}.`, 'F4.2') }) +
-    m04Cat + m04ShopType + m04Loc,
+    m04PlatformRevenue + m04Concentration + m04Cat + m04ShopType + m04Loc,
     'Tỷ trọng tính trong mẫu từng sàn, không phải thị phần. Gian hàng nhận diện theo đường dẫn gian hàng; một chủ có thể có nhiều gian hàng.'));
 
   // ---------- Phần 5 ----------
@@ -702,13 +727,15 @@ ${tbl('2.2', `Quy tắc phân loại (${statusLabel})`, 'số sản phẩm', ['T
       retrievedAt: null, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' }) ?? null;
     return no === null ? '<span class="no-source">Chưa có nguồn</span>' : renderCitationMark(no);
   } });
+  const productRanking = requiredChart('product-ranking');
+  const m07ProductRanking = productRanking ? fig('7.1', productRanking.title, productRanking.unit, productRanking.svg, { note: productRanking.note }) : '';
   secs.push(section('M07', 'Đối thủ',
     hlNum(nar(`${current ? 'Một gian hàng có doanh thu quan sát cao' : 'Gian hàng lớn nhất'} đạt ${each(P => `{{${P}.shop.top.0.rev}} ${onP(P)}`)}; gian hàng điển hình (trung vị) đạt ${each(P => `{{${P}.shop.median}} triệu đồng ${onP(P)}`)}.`, 'M07.ans')),
     tbl('7.1', 'Top 10 gian hàng theo doanh thu lõi, từng sàn', 'doanh thu: tỷ đồng', ['Sàn', '#', 'Gian hàng', current ? 'Nhãn thương hiệu thường gặp (theo tiêu đề người bán)' : 'Thương hiệu bán nhiều nhất', n('Sản phẩm lõi'), n('Doanh thu'), n('Tỷ trọng doanh thu lõi của sàn')],
       PLATS.flatMap(P => S[P].shops.slice(0, 10).map((s, j) => [plat(P), j + 1, L(s.name), L(brandOf(s.brands)), n(s.n), n(t1(s.rev / 1e9)), n(bf(`${P}.shop.top.${j}.share`))])),
       { note: d.defaultMarketPeers === null ? 'Sắp theo doanh thu quan sát, không phải xếp hạng năng lực. Nhóm đối thủ để so trực tiếp chưa chốt (Phần 12).' : 'Sắp theo doanh thu quan sát, không phải xếp hạng năng lực. Tập đối thủ mặc định và bổ sung của chủ được ghi riêng dưới đây.' }) +
     `<p>${hlNum(nar(`Số gian hàng dưới 100 triệu đồng doanh thu lõi: ${each(P => `{{${P}.shop.under100m}}/{{${P}.core.shops}} ${onP(P)}`)}.`, 'M07.p'))}</p>` +
-    m07BrandShare + m07BrandShop + m07Products + m07Shops + m07Brands + defaultPeers,
+    m07ProductRanking + m07BrandShare + m07BrandShop + m07Products + m07Shops + m07Brands + defaultPeers,
     'Doanh thu theo gian hàng chỉ tính sản phẩm có trong tệp; gian hàng có thể còn bán sản phẩm ngoài tệp.'));
   extraOk.add('100 triệu');
 
@@ -867,5 +894,6 @@ ${tbl('2.2', `Quy tắc phân loại (${statusLabel})`, 'số sản phẩm', ['T
       (mark, old: string) => finalByOld.get(Number(old)) === undefined ? mark : renderCitationMark(finalByOld.get(Number(old))!));
     html = html.replace(webRegister, renderCitationRegister(webRegistry.entries(), { format: 'pdf' }));
   }
-  return { html: platIcons(html, COL).html, narrator: N, extraOk: [...extraOk], charts, webResults: web };
+  const chartRowsHtml = !flintMarks ? html : html.replace('<body', `<body data-market-chart-rows="${marketChartRows(rows).length}"`);
+  return { html: platIcons(chartRowsHtml, COL).html, narrator: N, extraOk: [...extraOk], charts, webResults: web };
 }

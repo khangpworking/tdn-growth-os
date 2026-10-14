@@ -2,6 +2,8 @@ import type { ReaderReportData } from './build.js';
 import { completeSum } from './nullable-metrics.js';
 import { readerPeerExhibit } from './default-peers.js';
 import { lineChart } from './svg-charts.js';
+import { renderChart, type FlintChartInput } from './flint.js';
+import { marketChartRows, renderMarketCharts } from './market-charts.js';
 import { Narrator } from './bundle.js';
 import { esc } from './format.js';
 import { cover, makeExhibits, n, page, plat, platIcons, PLATFORM_LABEL, section as legacySection } from './layout.js';
@@ -18,6 +20,9 @@ const PLATFORM_COLORS = { shopee: '#c2410c', tiktok: '#1d2327' } as const;
 export async function buildMarketReportV2(d: ReaderReportData, options: MarketReportOptions): Promise<BuiltMarketReport> {
   const { input, profile, rows, bundle: B } = d, PLATS = input.platforms;
   const next = input.contractVersion === '1.4.0';
+  // Legacy 1.2/1.3 rows that fall back to this path keep their frozen bytes under the flint:false
+  // opt-out (the legacy hash fixture pins them); Flint charts and markers apply everywhere else.
+  const flintMarks = next || options.flint !== false;
   const narrator = new Narrator(B), registry = new CitationRegistry(), extraOk = new Set<string>();
   const label = (s: string): string => { if (/\d/.test(s)) extraOk.add(s); return esc(s); };
   const source = input.source!;
@@ -25,7 +30,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   const sourceText = next
     ? `Dữ liệu bán hàng ước tính trên từng sàn, ${period}; trong mẫu gồm n = ${rows.length} sản phẩm đã lưu.`
     : `Dữ liệu bán hàng ước tính trên từng sàn, ${period}; trong mẫu sản phẩm đã lưu.`;
-  const { tbl, fig } = makeExhibits(sourceText, next ? { defaultEngine: 'svg-fallback' } : {});
+  const { tbl, fig } = makeExhibits(sourceText);
   const section = (id: string, title: string, headline: string, body: string, limits?: string): string =>
     next ? legacySection(id, title, headline, body, limits, { noteLabel: 'Chú thích' }) : legacySection(id, title, headline, body, limits);
   const cite = (i?: number): string => {
@@ -76,15 +81,33 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     const months = [...new Set(Object.values(groups).flatMap(group => Object.keys(group ?? {})))].sort();
     const no = registry.cite({ sourceKind: 'CAPTURE', identity: input.webSnapshotSha256!, locator: { kind: 'source-locator', value: 'số liệu theo tháng' }, label: 'Trang kết quả tìm kiếm: số liệu theo tháng', retrievedAt: facts.capturedAt, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' });
     const mark = no === null ? '' : renderCitationMark(no);
-    if (months.length) monthly = fig('3.1', 'Doanh thu theo tháng, từng sàn (toàn kết quả tìm kiếm)', 'tỷ đồng', lineChart(months, PLATS.map(P => ({ name: PLATFORM_LABEL[P]!, color: P === 'shopee' ? '#c2410c' : '#1d2327', values: months.map(month => { const value = groups[P]?.[month]?.revenue.value; return value === null || value === undefined ? null : value / 1e9; }) }))), { src: 'Trang kết quả tìm kiếm đã lưu (toàn kết quả tìm kiếm)' + mark, note: 'Tháng thiếu có khoảng trống; mỗi sàn giữ riêng.' }) + tbl('3.2', 'Doanh thu theo tháng (toàn kết quả tìm kiếm)', '', ['Sàn', 'Tháng', 'Doanh thu'], PLATS.flatMap(P => months.map(month => {
+    const monthValue = (P: typeof PLATS[number], month: string): number | null => { const value = groups[P]?.[month]?.revenue.value; return value === null || value === undefined ? null : value / 1e9; };
+    const fallback = (): string => lineChart(months, PLATS.map(P => ({ name: PLATFORM_LABEL[P]!, color: PLATFORM_COLORS[P], values: months.map(month => monthValue(P, month)) })));
+    const drawn = !months.length ? null : options.flint === false ? { svg: fallback(), engine: 'svg-fallback' as const } : await renderChart({
+      data: { values: PLATS.flatMap(P => months.map(month => { const value = monthValue(P, month); return { thang: month, san: PLATFORM_LABEL[P]!, doanh_thu: value === null ? null : +value.toFixed(3) }; })) },
+      semantic_types: { thang: 'Category', san: 'Category', doanh_thu: 'Number' },
+      field_display_names: { thang: 'Tháng', san: 'Sàn', doanh_thu: 'Doanh thu (tỷ đồng)' },
+      chart_spec: { chartType: 'Line Chart', encodings: { x: 'thang', y: 'doanh_thu', color: 'san' } },
+    } as FlintChartInput, fallback, { palette: { san: { Shopee: PLATFORM_COLORS.shopee, 'TikTok Shop': PLATFORM_COLORS.tiktok } } });
+    if (drawn) monthly = fig('3.1', 'Doanh thu theo tháng, từng sàn (toàn kết quả tìm kiếm)', 'tỷ đồng', drawn.svg, { ...(flintMarks ? { engine: drawn.engine } : {}), src: 'Trang kết quả tìm kiếm đã lưu (toàn kết quả tìm kiếm)' + mark, note: 'Tháng thiếu có khoảng trống; mỗi sàn giữ riêng.' }) + tbl('3.2', 'Doanh thu theo tháng (toàn kết quả tìm kiếm)', '', ['Sàn', 'Tháng', 'Doanh thu'], PLATS.flatMap(P => months.map(month => {
       const id = `web.${P}.m.${month}`;
       return [plat(P), label(month), (B.has(id) ? n(B.f(id)) : 'Chưa có dữ liệu') + mark];
     })), { src: 'Trang kết quả tìm kiếm đã lưu (toàn kết quả tìm kiếm)' + mark });
-    if (months.length) charts.push({ id: 'M03.monthly', engine: 'svg-fallback' });
+    if (drawn) charts.push({ id: 'M03.monthly', engine: drawn.engine, ...(drawn.error ? { error: drawn.error } : {}) });
   }
   sections.push(section('M03', 'Quy mô và diễn biến', monthly ? 'Doanh số trong mẫu và chuỗi trên trang nguồn giữ riêng; có số theo tháng cho từng sàn ở Hình 3.1.' : 'Chỉ mô tả doanh số trong mẫu; chưa có chuỗi phù hợp để xác định diễn biến.', salesTable(MARKET_SALES_AVERAGE_EXHIBIT) + monthly, 'Một thành viên thiếu làm tổng chưa xác định; mẫu số bằng không không tạo ra giá trung bình.'));
+  // The three required charts come from the same saved product rows as the appendix.
+  const chartRows = marketChartRows(rows);
+  const required = !flintMarks ? [] : await renderMarketCharts(rows, { flint: options.flint !== false, rowListNote: 'số dòng khớp chú dẫn “dòng sản phẩm” của nguồn' });
+  const requiredFig = (kind: 'concentration' | 'platform-revenue' | 'product-ranking', no: string): string => {
+    const found = required.find(c => c.kind === kind);
+    if (found === undefined) return '';
+    charts.push({ id: found.id, engine: found.engine, ...(found.error ? { error: found.error } : {}) });
+    return fig(no, found.title, found.unit, found.svg, { engine: found.engine, note: found.note });
+  };
+  const m04Charts = requiredFig('platform-revenue', '4.1') + requiredFig('concentration', '4.2');
   sections.push(section('M04', 'Cơ cấu thị trường', 'Các nhóm đặt cạnh nhau theo quy tắc phân loại, tính riêng từng sàn.',
-    tbl('4.1', 'Cơ cấu doanh số trong mẫu theo nhóm', '', ['Sàn', 'Nhóm', 'Doanh thu', 'Đơn vị bán', 'Tỷ trọng doanh thu lõi'], PLATS.flatMap(P => profile.core.map(k => [plat(P), label(segName(k)), n(bf(`${P}.seg.${k}.rev`)), n(bf(`${P}.seg.${k}.units`)), n(bf(`${P}.seg.${k}.revShare`))]))), 'Tỷ trọng trong mẫu; không phải thị phần.'));
+    m04Charts + tbl('4.1', 'Cơ cấu doanh số trong mẫu theo nhóm', '', ['Sàn', 'Nhóm', 'Doanh thu', 'Đơn vị bán', 'Tỷ trọng doanh thu lõi'], PLATS.flatMap(P => profile.core.map(k => [plat(P), label(segName(k)), n(bf(`${P}.seg.${k}.rev`)), n(bf(`${P}.seg.${k}.units`)), n(bf(`${P}.seg.${k}.revShare`))]))), 'Tỷ trọng trong mẫu; không phải thị phần.'));
   sections.push(section('M05', 'Nhu cầu (tín hiệu bán)', 'Nhu cầu, đo bằng doanh số (ước tính) trong mẫu.', salesTable('5.1') +
     `<p>Kỳ ${period}; nguồn: dữ liệu bán hàng ước tính trên từng sàn. Mức quan tâm tìm kiếm ghi riêng, chưa có chuỗi tìm kiếm phù hợp trong bản này.</p>`,
     'Số bán hàng ước tính chưa đối chiếu với người bán, chỉ dùng tham khảo. Không suy ra quy mô ngoài mẫu, số người mua, nhu cầu chưa được đáp ứng hay dự báo.'));
@@ -106,7 +129,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
       retrievedAt: null, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' });
     return no === null ? '<span class="no-source">Chưa có nguồn</span>' : renderCitationMark(no);
   } });
-  sections.push(section('M07', 'Đối thủ', 'Giữ số liệu của mỗi gian hàng trên từng sàn; phần thiếu không dùng để so sánh đầy đủ.', tbl('7.1', 'Gian hàng trong mẫu, theo thứ tự dòng nguồn', '', ['Sàn', 'Gian hàng', 'Dòng lõi', 'Doanh thu lõi', 'Đơn vị bán lõi'], shops) + peers, d.defaultMarketPeers === null ? 'Chưa có tập đối thủ đã đóng băng trong đầu vào bản này. Không suy danh tính chéo sàn từ tên hoặc tiêu đề.' : 'Tập mặc định giữ riêng theo sàn và nhóm; nguồn thiếu hoặc doanh thu bằng không được ghi rõ. Không suy danh tính chéo sàn từ tên hoặc tiêu đề.'));
+  sections.push(section('M07', 'Đối thủ', 'Giữ số liệu của mỗi gian hàng trên từng sàn; phần thiếu không dùng để so sánh đầy đủ.', requiredFig('product-ranking', '7.1') + tbl('7.1', 'Gian hàng trong mẫu, theo thứ tự dòng nguồn', '', ['Sàn', 'Gian hàng', 'Dòng lõi', 'Doanh thu lõi', 'Đơn vị bán lõi'], shops) + peers, d.defaultMarketPeers === null ? 'Chưa có tập đối thủ đã đóng băng trong đầu vào bản này. Không suy danh tính chéo sàn từ tên hoặc tiêu đề.' : 'Tập mặc định giữ riêng theo sàn và nhóm; nguồn thiếu hoặc doanh thu bằng không được ghi rõ. Không suy danh tính chéo sàn từ tên hoặc tiêu đề.'));
   let unitPriceTables = '';
   if (next) {
     const mark = (ref: { sourceSha256: string; locator: string }): string => {
@@ -234,6 +257,6 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     intro: `<div class="box"><p>Số ước tính trong mẫu. Mỗi sàn tính riêng. Phân loại ${status}.</p></div>`, toc: MARKET_TOC, sections, foot: `TDN · ${esc(options.builtOn)}` });
   const renderedHtml = next ? html.replace('<body', '<body data-report-rules="market-visible-v1"') : html;
   const finalHtml = next ? renderedHtml.replace(/Ghi chú:/gu, 'Chú thích:') : html;
-  const scopedHtml = finalHtml.replace('<body', `<body data-market-platforms="${PLATS.join(',')}"`);
+  const scopedHtml = finalHtml.replace('<body', `<body data-market-platforms="${PLATS.join(',')}"${flintMarks ? ` data-market-chart-rows="${chartRows.length}"` : ''}`);
   return { html: next ? platIcons(scopedHtml, PLATFORM_COLORS, undefined, { compoundPlatformLabels: true }).html : html, narrator, extraOk: [...extraOk], charts, webResults: web, ...(next ? { visibleTextRules: true } : {}) };
 }

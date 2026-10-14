@@ -15,11 +15,12 @@ const sections = [...Array.from({ length: 11 }, (_, i) => `<section id="phan-${i
   ].map(name => `<tr><td>${name} (đề xuất, chờ chủ duyệt)</td><td>Chủ dự án (đề xuất, chờ chủ duyệt)</td><td>Hạn: chủ chọn</td></tr>`).join('')}</tbody></table></section>`,
   `<section id="phu-luc"><span>Phụ lục</span>${glossary}<p>Dữ liệu bán hàng, dữ liệu đánh giá sản phẩm trên nền tảng, kết quả tìm kiếm, bình luận đã thu thập.</p><p>Bảng PL.1</p><p class="ex-note"><b>Chú thích:</b> Các số liệu trong mẫu là số ước tính.</p></section>`];
 
+const flintChart = '<div class="chart flint" data-engine="flint"><svg viewBox="0 0 10 10"><rect x="1" y="1" width="8" height="8"></rect></svg></div>';
 const valid = `<html><head><style>.pi{background-image:url(data:image/svg+xml;base64,AA==)}</style></head><body><header class="cover"></header>
 ${sections.join('')}
 <p>Trong mẫu n = 4 sản phẩm. <i class="pi s">Shopee</i> và <i class="pi t">TikTok Shop</i>.</p>
 <table><thead><tr><th>Sàn</th><th>Doanh thu</th></tr></thead><tbody><tr><td><i class="pi s">Shopee</i></td><td>10</td></tr><tr><td><i class="pi t">TikTok Shop</i></td><td>20</td></tr></tbody></table>
-<div class="chart flint" data-engine="flint"><svg viewBox="0 0 10 10"><rect x="1" y="1" width="8" height="8"></rect></svg></div></body></html>`;
+${flintChart.repeat(3)}</body></html>`;
 
 const rule = (html: string, number: string, trace?: string) => auditMarket14(html, trace).find(item => item.rule === number)!;
 
@@ -103,4 +104,18 @@ test('rule 9 binds approval labels and required fields to exactly three rows', (
 test('rule 11 rejects a flint marker with an empty or removed SVG', () => {
   assert.equal(rule(valid.replace(/<svg[\s\S]*?<\/svg>/iu, ''), '11').ok, false, 'removed SVG');
   assert.equal(rule(valid.replace(/<svg[\s\S]*?<\/svg>/iu, '<svg></svg>'), '11').ok, false, 'empty SVG');
+});
+
+test('rule 11 accepts only Flint charts and needs all three required charts', () => {
+  assert.equal(rule(valid, '11').ok, true, 'three Flint charts');
+  const fallback = valid.replace('data-engine="flint"', 'data-engine="svg-fallback"');
+  assert.equal(rule(fallback, '11').ok, false, 'svg-fallback chart');
+  assert.match(rule(fallback, '11').detail, /svg-fallback/);
+  assert.equal(rule(valid.replace(' data-engine="flint"', ''), '11').ok, false, 'missing engine marker');
+  const twoCharts = valid.replace(flintChart, '');
+  assert.equal(rule(twoCharts, '11').ok, false, 'only two charts for a sample with rows');
+  assert.match(rule(twoCharts, '11').detail, /2 of 3 required charts/);
+  assert.equal(rule(twoCharts.replace('<body>', '<body data-market-chart-rows="4">'), '11').ok, false, 'marker with rows');
+  assert.equal(rule(twoCharts.replace('<body>', '<body data-market-chart-rows="0">'), '11').ok, true, 'no usable rows: charts are skipped, not invented');
+  assert.equal(rule(valid.replace('<body>', '<body data-market-chart-rows="4">'), '11').ok, true, 'marker with three Flint charts');
 });

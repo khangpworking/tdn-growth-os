@@ -28,6 +28,7 @@ import type { RequestScopedArtifactStore } from '../../../platform/artifacts/req
 import { MarketUnitPriceError, type RetainedUnitPriceSource } from '../reader-report/market-unit-prices.js';
 import { ReaderMetricRowsError, readerRowsFromMetricWorkbook, type ReaderRow } from '../reader-report/metric-rows.js';
 import { readerRowsFromMetricCapture } from '../reader-report/metric-capture-rows.js';
+import { nonFlintCharts } from '../reader-report/flint.js';
 import { MetricSourceRejection } from '../metric-source-profile.js';
 import { MetricWebSnapshotError } from './metric-web-snapshot.js';
 import { webSnapshotDigest } from '../reader-report/web-facts.js';
@@ -150,6 +151,15 @@ const builtOn = (at: Date): string => new Date(at.getTime() + 7 * 3_600_000).toI
  * verified draft and the run's prepared product-list file; it never edits the
  * draft, admits a source, or calls a provider. Decisions are append-only.
  */
+/**
+ * Fails a reader build when Flint is required and any chart fell back to the
+ * hand-drawn SVG. `flint: false` is the explicit opt-out used by unit tests.
+ */
+export function assertFlintCharts(charts: readonly { id: string; engine: 'flint' | 'svg-fallback' }[], flint = true): void {
+  const notFlint = flint ? nonFlintCharts(charts) : [];
+  if (notFlint.length) throw new ResearchAutomationValidationError(`FLINT_REQUIRED:${notFlint.join(',')}`);
+}
+
 export class AutomationReaderReports {
   readonly #rows: ReaderRowsReader;
   readonly #unitSpecs: ReaderUnitSpecIntakes;
@@ -320,8 +330,10 @@ export class AutomationReaderReports {
     const at = this.now(), createdAt = at.toISOString(), revisionId = randomUUID();
     const webResults = context.webResults ?? [];
     const built = await buildMarketReport(data, { limitations, builtOn: builtOn(at), cover, flint: this.options.flint ?? true, webResults, ...(capture ? { captureSource: true } : {}) });
+    // Every chart must be drawn by Flint unless the caller opted out explicitly; a silent fallback fails the build.
+    assertFlintCharts(built.charts, this.options.flint ?? true);
     // The gate blocks report publication and revision insertion; cover/sidecar artifacts may already be written.
-    try { assertMarketBusinessGate(built.html, { presentation: false }); if (built.visibleTextRules) assertMarket14MachineRules(built.html); }
+    try { assertMarketBusinessGate(built.html, { presentation: false }); if (built.visibleTextRules) assertMarket14MachineRules(built.html, undefined, { requireFlint: this.options.flint ?? true }); }
     catch (error) {
       if (error instanceof TypeError && (error.message.startsWith('MARKET_BUSINESS_GATE_FAILED:') || error.message.startsWith('MARKET_14_RULES_FAILED:'))) throw new ResearchAutomationValidationError(
         `Bản đọc chưa đạt kiểm tra bằng chứng hoặc cách trình bày (quy tắc: ${error.message.replace(/^MARKET_(?:BUSINESS_GATE|14_RULES)_FAILED:/u, '')}). Hãy sửa cách trình bày trước khi tạo phiên bản mới.`);

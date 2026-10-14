@@ -19,3 +19,4 @@ export * from './insight-projection.js';
 export * from './insight-template.js';
 export * from './insight-build-v1.js';
 export { CSS as READER_CSS, CSS_COVER as READER_CSS_COVER, CSS_KIT as READER_CSS_KIT } from './theme.js';
+export * from './market-charts.js';
