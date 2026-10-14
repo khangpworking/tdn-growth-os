@@ -1,7 +1,7 @@
 # PRESFIX-209 handoff
 
 Base: `wp/presfix-209` at `31fec758` (= the deployed `origin/main` used by the failing runs). All app state
-under `~/.local/state/tdn-growth-os/` was read-only; evidence copies are in `/tmp/presfix-209/`.
+on the operator host was read-only; evidence copies stay on that host and are not part of the repository.
 
 ## Result
 
@@ -22,8 +22,8 @@ under `~/.local/state/tdn-growth-os/` was read-only; evidence copies are in `/tm
 Cause chain:
 
 - `research-automation/reports.ts:257` `reviewOutcomeNotice` rendered
-  `<a href="…shopee.vn/product/700804866/17898951031">…/product/700804866/17898951031</a>` — the URL as *link text*.
-- `market-14-rules.ts:63` `technicalLeaks` includes `/\/[a-z_]+\/\d+\b/gu`, which matches `/product/700804866`.
+  `<a href="…shopee.vn/product/<shopId>/<itemId>">…/product/<shopId>/<itemId></a>` — the URL as *link text*.
+- `market-14-rules.ts:63` `technicalLeaks` includes `/\/[a-z_]+\/\d+\b/gu`, which matches `/product/<shopId>`.
 - The presentation gate at `reports.ts:1010` (`if (marketPresentation) { … assertMarket14MachineRules(…) }`) therefore threw.
 - The notice exists only for a non-OK exact-Shopee outcome bound to the report's collection (`reports.ts:242-245`).
   Run `9e76bb31` collected 5/5 listings at 1 review each (`PARTIAL_LISTINGS`, operator log line 44), so
@@ -40,7 +40,7 @@ so rules 1, 2, 5, 7, 9, 11, 13 already pass for capture-backed presentations.
 (`Sản phẩm #n`, the same convention `readerProductLabel` uses):
 
 ```html
-<li><a href="https://shopee.vn/product/78085196/17678138164" rel="noopener noreferrer">Sản phẩm #1</a> — Sản phẩm này chỉ lấy được 0/300 bình luận.</li>
+<li><a href="https://shopee.vn/product/<shopId>/<itemId>" rel="noopener noreferrer">Sản phẩm #1</a> — Sản phẩm này chỉ lấy được 0/300 bình luận.</li>
 ```
 
 The audit was left alone on purpose: the codebase's own reader-safety rule refuses this URL as reader text.
@@ -119,7 +119,7 @@ Steps to run this capture under a new run (no new provider call; the archive byt
    `<state>/artifacts/sha256/86/86a4bd48…` and `<state>/artifacts/sha256/7d/7db8a423…`, and are listed in
    `foundation_source_package_files` for package `6ccaab48-220e-4b32-bfbd-f2707bc8c2b8`. Any retained working
    copy of the same files is equivalent.
-3. Prepare them **under the new run** (multipart, as in `rebuild-209/upload-capture-v2.mjs`):
+3. Prepare them **under the new run** (multipart, as the operator's capture-upload helper does):
 
 ```
 POST /owner-api/workspaces/<ws>/research-automation/runs/<newRunId>/sources/metric-capture
