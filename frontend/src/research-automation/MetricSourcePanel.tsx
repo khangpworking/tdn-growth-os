@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { loadPreparedMetricSources, prepareMetricSource, ResearchAutomationError } from './api';
 import type { ResearchAutomationMetricPrepareRequest, ResearchAutomationPreparedMetricEntry, ResearchAutomationRun } from './api';
 import { formatDay } from './run-status';
+import MetricCapturePanel from './MetricCapturePanel';
 
 type Scope = ResearchAutomationMetricPrepareRequest['scope'];
 type Upload = { readonly request: ResearchAutomationMetricPrepareRequest; readonly file: File };
@@ -118,6 +119,7 @@ export default function MetricSourcePanel({ run, scope, selected, onSelect, onSt
     </details>
     {notice && <p className="ra-muted" role="status">{notice}</p>}
     {!ownerToken && <p className="ra-muted">Mở khóa OWNER để tải nguồn. Xem nguồn đã lưu không cần mở khóa.</p>}
+    <MetricCapturePanel run={run} ownerToken={ownerToken} disabled={disabled} onConflict={onConflict} />
   </section>;
 }
 

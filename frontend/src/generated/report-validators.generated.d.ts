@@ -58,6 +58,8 @@ export declare const researchAutomationRunPdfs: PrecompiledValidator;
 export declare const researchAutomationAttachPdf: PrecompiledValidator;
 export declare const researchAutomationMetricPrepared: PrecompiledValidator;
 export declare const researchAutomationMetricPreparedList: PrecompiledValidator;
+export declare const researchAutomationMetricCapturePrepared: PrecompiledValidator;
+export declare const researchAutomationMetricCapturePreparedList: PrecompiledValidator;
 export declare const researchAutomationRevision: PrecompiledValidator;
 export declare const researchAutomationRevisionCancel: PrecompiledValidator;
 export declare const researchAutomationRevisionVersionList: PrecompiledValidator;
