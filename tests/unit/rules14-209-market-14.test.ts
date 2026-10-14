@@ -64,8 +64,16 @@ test('rule 10 passes an embedded AI cover with provenance and alt text, without 
   assert.equal(rule(ai, '10').ok, true);
   assert.match(rule(ai, '10').detail, /AI-generated provenance/);
   assert.doesNotMatch(rule(ai, '10').detail, /licen[cs]ed for/);
-  assert.equal(rule(ai.replace('alt="Minh hoạ chung do AI tạo"', 'alt=""'), '10').ok, false, 'empty alt');
-  assert.equal(rule(ai.replace(' alt="Minh hoạ chung do AI tạo"', ''), '10').ok, false, 'missing alt');
+  for (const [html, label] of [
+    [ai.replace('alt="Minh hoạ chung do AI tạo"', 'alt=""'), 'empty alt'],
+    [ai.replace('alt="Minh hoạ chung do AI tạo"', 'alt="   "'), 'blank alt'],
+    [ai.replace(' alt="Minh hoạ chung do AI tạo"', ''), 'missing alt'],
+    [ai.replace('<p>Báo cáo</p>', '<img src="data:image/jpeg;base64,/9j/2Q==" data-cover-provenance="ai-generated"><p>Báo cáo</p>'), 'a second AI cover without alt'],
+  ] as const) {
+    assert.equal(rule(html, '10').ok, false, label);
+    assert.equal(rule(html, '10').kind, 'machine', `${label} is a machine failure, not READ`);
+    assert.match(rule(html, '10').detail, /malformed/, label);
+  }
   const fallback = img('src="data:image/jpeg;base64,/9j/AA==" alt="Hình trang trí chung" data-cover-provenance="fallback"');
   assert.equal(rule(fallback, '10').ok, false, 'fallback stays READ');
   assert.match(rule(fallback, '10').detail, /READ/);
