@@ -159,8 +159,8 @@ function dispatchMetricBackgroundClick({ selector, nth }) {
   return { ok: true, matches: list.length, hit: inside ? 'target' : 'other' };
 }
 
-// Mirrors the native key sequence; the inserted comma is what lets the Ant
-// tokenizer commit the typed keyword.
+// Mirrors the native key press; the inserted comma is what lets the Ant
+// tokenizer commit the typed keyword. The key release is a separate call.
 function commitMetricKeywordComma(inputSelector) {
   const input = document.querySelector(inputSelector);
   if (!input || input !== document.activeElement) return { ok: false, reason: 'not-focused' };
@@ -173,8 +173,17 @@ function commitMetricKeywordComma(inputSelector) {
     input.dispatchEvent(new window.InputEvent('input', { inputType: 'insertText', data: ',', bubbles: true, composed: true }));
     inserted = true;
   }
-  input.dispatchEvent(new window.KeyboardEvent('keyup', key));
   return { ok: true, inserted };
+}
+
+// A real key release reaches the page in a later task, after the tokenizer has
+// re-rendered the cleared input. A same-task keyup lets Metric read the stale
+// "keyword," text, and its Analytics button then stays disabled.
+function releaseMetricKeywordComma(inputSelector) {
+  const input = document.querySelector(inputSelector);
+  if (!input) return { ok: false, reason: 'missing' };
+  input.dispatchEvent(new window.KeyboardEvent('keyup', { key: ',', code: 'Comma', keyCode: 188, which: 188, bubbles: true, cancelable: true, composed: true, view: window }));
+  return { ok: true };
 }
 
 async function metricTabHidden(page) {
@@ -1319,6 +1328,8 @@ async function pressTrustedComma(page, selector) {
     if (committed?.ok !== true) {
       throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric keyword input is not focused for comma commit');
     }
+    if (typeof page.wait === 'function') await page.wait({ time: 0.3 }).catch(() => {});
+    await page.evaluate(releaseMetricKeywordComma, selector);
     return;
   }
   const focused = await page.evaluate(inputSelector => {
@@ -2512,6 +2523,6 @@ export {
   prepareMetricForm, waitForKeywordCommit, observeMetricPage, observeResultPage,
   collectResultPages, archiveResultsPage, replayResultsPage, readCommittedKeywords,
   describeSearchSubmit, assertSearchSubmitInspection, createNetworkState, readNetworkChunk,
-  repairMetricFunctionDefaults, repairMetricPage, commitMetricKeywordComma,
+  repairMetricFunctionDefaults, repairMetricPage, commitMetricKeywordComma, releaseMetricKeywordComma,
 };
 export { assertMetricUrl, parseMetricForm };

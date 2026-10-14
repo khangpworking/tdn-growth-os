@@ -23,7 +23,7 @@ adapter installed from the same repository bytes. The executor verifies
 `tools/opencli-metric/adapter-manifest.json` before each run. `whoami` reads
 only login, captcha, page-state and any displayed analysis lookup balance.
 The current manifest SHA-256 is
-`ed524f61a67763f0b43794fca6135848857229cc5dea9d849015932b46cdc518`.
+`80d9bc5dfd04d992eb1fdb24e1e6dade3754cd51aa7259c751e8beea46540b68`.
 
 Install or reinstall the adapter from the checked-out repository bytes with:
 
@@ -217,8 +217,11 @@ pointer/mouse sequence at the element centre, with the same `nth` and
 ambiguity rules as OpenCLI. That click is reported as `dom-background` with
 `hit` taken from `elementFromPoint`. The keyword comma follows the same rule:
 CDP key events when visible; when hidden, an in-page keydown, keypress,
-beforeinput, comma insertion with an input event, then keyup on the focused
-keyword input. `waitForKeywordCommit` must still read the committed chip back.
+beforeinput, comma insertion with an input event on the focused keyword input.
+The keyup follows in a separate call after 0.3 s, as a real key release does.
+A keyup in the same task lets Metric read the stale `keyword,` text before the
+tokenizer re-renders, and Analytics then stays disabled.
+`waitForKeywordCommit` must still read the committed chip back.
 Dry-run `preflight.documentHidden` records which path ran.
 
 Debug capture is complete on submit failure and gate failure: sanitized full DOM
@@ -235,4 +238,4 @@ top-shop series. Platforms are mapped from the live `search_basic` list; values
 are never summed. A trend series is retained only when a post-submit source
 response offers one; otherwise the manifest records `not offered by the source`.
 
-Adapter manifest SHA-256: `ed524f61a67763f0b43794fca6135848857229cc5dea9d849015932b46cdc518`.
+Adapter manifest SHA-256: `80d9bc5dfd04d992eb1fdb24e1e6dade3754cd51aa7259c751e8beea46540b68`.

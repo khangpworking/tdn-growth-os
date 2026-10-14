@@ -1516,12 +1516,16 @@ test('hidden comma commit inserts the separator through input events on the focu
   input.focus();
   assert.deepEqual(await page.evaluate(adapter.commitMetricKeywordComma, '#kw'), { ok: true, inserted: true });
   assert.equal(input.value, 'synthetic term,');
-  assert.deepEqual(events, ['keydown:,', 'keypress:,', 'beforeinput:,', 'input:,', 'keyup:,']);
+  assert.deepEqual(events, ['keydown:,', 'keypress:,', 'beforeinput:,', 'input:,']);
+  events.length = 0;
+  assert.deepEqual(await page.evaluate(adapter.releaseMetricKeywordComma, '#kw'), { ok: true });
+  assert.deepEqual(events, ['keyup:,']);
+  assert.deepEqual(await page.evaluate(adapter.releaseMetricKeywordComma, '#missing'), { ok: false, reason: 'missing' });
   events.length = 0;
   input.addEventListener('keydown', (event: any) => event.preventDefault());
   assert.deepEqual(await page.evaluate(adapter.commitMetricKeywordComma, '#kw'), { ok: true, inserted: false });
   assert.equal(input.value, 'synthetic term,');
-  assert.deepEqual(events, ['keydown:,', 'keyup:,']);
+  assert.deepEqual(events, ['keydown:,']);
 });
 
 test('hidden keyword commit uses the in-page comma instead of CDP keys and fails closed', async () => {
@@ -1535,12 +1539,15 @@ test('hidden keyword commit uses the in-page comma instead of CDP keys and fails
     page.evaluate = async (fn: Function, argument?: unknown) => {
       if (fn.name === 'metricDocumentHidden') return true;
       if (fn.name === 'commitMetricKeywordComma') { page.calls.push(`comma:${argument}`); return ok ? { ok: true, inserted: true } : { ok: false, reason: 'not-focused' }; }
+      if (fn.name === 'releaseMetricKeywordComma') { page.calls.push(`keyup:${argument}`); return { ok: true }; }
       return evaluate(fn, argument);
     };
+    page.wait = async (options: any) => { page.calls.push(`wait:${options.time ?? options.selector}`); };
     if (ok) await adapter.applyMetricSpec(page, spec, initial);
     else await assert.rejects(() => adapter.applyMetricSpec(page, spec, initial), (error: any) => error.code === 'METRIC_UI_CHANGED');
     const fill = page.calls.indexOf('fill:#keyword-input:synthetic-term');
-    assert.equal(page.calls[fill + 1], 'comma:#keyword-input');
+    if (ok) assert.deepEqual(page.calls.slice(fill + 1, fill + 4), ['comma:#keyword-input', 'wait:0.3', 'keyup:#keyword-input']);
+    else assert.deepEqual(page.calls.slice(fill + 1), ['comma:#keyword-input']);
     assert.ok(!page.calls.some((call: string) => call.startsWith('cdp:')));
   }
 });
