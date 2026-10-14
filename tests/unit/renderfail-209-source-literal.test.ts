@@ -145,8 +145,8 @@ test('RENDERFAIL-209: full workbook bytes match base; capture changes only sourc
   const neutral = marketInput('Synthetic neutral source');
   const captureHtml = buildResearchAutomationReport(neutral, 'MARKET').html.toString();
   assert.equal(hash(captureHtml.replaceAll('<q data-quote>', '').replaceAll('</q>', '')),
-    'f469c373442f3ee978aa82041b2f90ba5725e38c7a077ae57d97590e85a369eb');
+    'fd666d8bb19c93204ecbef7fe6fa62862adc6d2acf47a6c9f8f13b0ce9d6dd2c');
   const { capture, ...workbook } = captureSnapshot('Synthetic neutral source');
   assert.equal(hash(buildResearchAutomationReport({ ...neutral, metricMethods: workbook }, 'MARKET').html),
-    '0daad9078bc402bf6fc7544e8669e2274602059bd680f30b2c11f2e3a1661b04');
+    '9846d788c23d97b629edcc9c8a2e8c9568d62ee90e740664dc69e9728049edd8');
 });

@@ -10,7 +10,7 @@ import { privateReviewReportView } from './private-review-contracts.js';
 import type { PrivateReviewReportView } from '../../../../contracts/analysis/private-review-report-view.generated.js';
 import type { AutomationMarketPresentationMethod } from '../../../../contracts/analysis/automation-market-presentation-method.generated.js';
 import { verifyAutomationMarketPresentation } from './market-presentation-method.js';
-import { renderAutomationMarketFindings, renderAutomationMarketUnitPrices } from './market-presentation-report.js';
+import { renderAutomationMarketFindings, renderAutomationMarketUnitPrices, renderCaptureSampleCharts } from './market-presentation-report.js';
 import { admitWebResults, checkSourceEvidence } from './source-evidence.js';
 import { sourceEvidenceHtml } from './source-evidence-report.js';
 import fs from 'node:fs';
@@ -259,8 +259,11 @@ const reviewOutcomeLead = (value: ReviewOutcome): string => {
 };
 function reviewOutcomeNotice(value: ReviewOutcome, kind: 'MARKET' | 'INSIGHT'): string {
   const short = value.listings.filter(row => row.shortfallReason !== undefined || row.reviews === 0);
+  // The listing URL is a source locator, not reader text (readerSafe refuses it, and the
+  // Market presentation audit fails rule 3 on its /product/<id> path). Keep it in the link
+  // target only; the reader sees the same ordinal the review sample table uses.
   return `<div class="warning review-outcome-notice" role="note"><p><strong>${value.outcome === 'PARTIAL_LISTINGS' ? 'Thiếu một phần đánh giá khách hàng Shopee.' : 'Thiếu đánh giá khách hàng Shopee.'}</strong> ${escape(reviewOutcomeLead(value))}</p>`
-    + `<p>Sản phẩm chưa đạt mốc ${REVIEW_TARGET} bình luận:</p><ul>${short.map(row => `<li><a href="${escape(row.listingUrl)}" rel="noopener noreferrer">${escape(row.listingUrl)}</a> — Sản phẩm này chỉ lấy được ${row.reviews}/${REVIEW_TARGET} bình luận.</li>`).join('')}</ul>`
+    + `<p>Sản phẩm chưa đạt mốc ${REVIEW_TARGET} bình luận:</p><ul>${short.map(row => `<li><a href="${escape(row.listingUrl)}" rel="noopener noreferrer">Sản phẩm #${value.listings.indexOf(row) + 1}</a> — Sản phẩm này chỉ lấy được ${row.reviews}/${REVIEW_TARGET} bình luận.</li>`).join('')}</ul>`
     + `<p><strong>Phần bị ảnh hưởng${kind === 'MARKET' ? ' (trong báo cáo insight)' : ''}:</strong> ${escape(REVIEW_DEPENDENT_SECTIONS.map(section => `${section.sectionId} ${section.title}`).join('; '))}.</p>`
     + '<p><strong>Phần vẫn dùng được:</strong> doanh thu, giá, đối thủ, nhu cầu tìm kiếm.</p></div>';
 }
@@ -984,7 +987,8 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     if (section.state === 'EVIDENCE_INVENTORY') return (locatedView ? locatedView() : '') + literal + qualitative;
     if (section.state !== 'METHOD_OUTPUT' && section.state !== 'METHOD_NO_USABLE_RECORDS') return literal + qualitative;
     // Metric has its own scoped tables and source trace in appendix(), not a descriptive-method view.
-    if (kind === 'MARKET' && input.metricMethods && (section.sectionId === 'M03' || section.sectionId === 'M04')) return qualitative;
+    if (kind === 'MARKET' && input.metricMethods && (section.sectionId === 'M03' || section.sectionId === 'M04')) return qualitative +
+      (marketPresentation && section.sectionId === 'M03' && input.metricMethods.capture ? renderCaptureSampleCharts(input.metricMethods.capture, citations) : '');
     return (locatedView ? locatedView() : views.get(section.sectionId)!.html) + literal + qualitative;
   };
   const body = orderReportCitations(`<p class="warning">${escape(headline)}${input.qualitativeDraft ? ` ${escape(qualitativeDraftSummary(input.qualitativeDraft))}` : ''}</p>${reviewOutcome ? reviewOutcomeNotice(reviewOutcome, kind) : ''}<p class="reader-guide">Đọc trạng thái và phần diễn giải trước khi sử dụng số liệu. Bảng trình bày những gì nguồn hoặc phép tính đã ghi nhận; phần “Hồ sơ đối chiếu” giữ nguyên nội dung nguồn và thông tin kỹ thuật. Mục còn thiếu điều kiện chưa có kết luận, không phải kết quả bằng 0.</p>` + sections.map(section => `<section class="sheet" id="${section.sectionId}"><header class="sh-head"><div><span class="sh-id">${readerPlainText && kind === 'MARKET' ? marketSectionLabel(section.sectionId) : section.sectionId}</span><h2>${escape(section.title)}</h2></div><span class="state">${escape(stateLabel[section.state])}</span></header><p class="section-reading">${escape(section.explanation)}</p>${methodBody(section)}${section.state === 'SOURCE_CONTEXT' ? scope : ''}${section.sectionId === 'M13' || section.sectionId === 'I17' ? sourceTable + webResultsTable : ''}${observationTable(section.rows, captures, citations, labels, readerPlainText)}${appendix(section.sectionId)}${section.sectionId === 'M12' ? market14Proposals : ''}${readerPlainText && kind === 'MARKET' ? '' : `<details class="method-reference"><summary>Hồ sơ đối chiếu phương pháp</summary><p><small>${fallbackIds.has(section.sectionId) ? 'Phương pháp ghi trong danh mục, chưa chạy trong lượt này' : 'Phương pháp'}: ${methodReference(section.method)}</small></p></details>`}</section>`).join(''), registry);
