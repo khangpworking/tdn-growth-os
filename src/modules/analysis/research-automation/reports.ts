@@ -64,6 +64,7 @@ import { formatReaderValue, readerProductLabel, readerShopLabel } from './reader
 import type { AutomationQualitativeDraft } from '../../../../contracts/analysis/automation-qualitative-draft-v1.generated.js';
 import { qualitativeDraftSection, qualitativeDraftSummary } from '../reader-report/qualitative-draft-report.js';
 import { platIcons } from '../reader-report/layout.js';
+import { marketChartRows, type MarketChart } from '../reader-report/market-charts.js';
 
 const reportRequire = createRequire(import.meta.url);
 const { Ajv2020 } = reportRequire('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -113,6 +114,8 @@ export interface AutomationReportInput {
   readonly marketInventory?: AutomationMarketMethodSnapshot;
   readonly marketInventoryFailure?: 'MARKET_INVENTORY_FAILED';
   readonly marketPresentation?: AutomationMarketPresentationMethod;
+  /** Flint charts drawn from `marketPresentation.input.rows` before the synchronous build (see renderMarketCharts). */
+  readonly marketPresentationCharts?: readonly MarketChart[];
   readonly metricMethods?: AutomationMetricMethodSnapshot;
   readonly metricClassified?: AutomationClassifiedMetricSnapshot;
   readonly metricMethodsFailure?: MetricMethodFailureCode;
@@ -908,7 +911,18 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     [['listing', 'sản phẩm'], ['review', 'đánh giá'], ['export', 'tệp dữ liệu'], ['peer set', 'nhóm đối thủ'], ['Giá TB', 'giá trung bình'], ['P25 / P75', 'mốc 25% / mốc 75%'], ['NSX', 'nhà sản xuất'], ['H1', 'giả thuyết 1'], ['ROAS', 'tỷ lệ doanh thu trên chi phí quảng cáo'], ['CPA', 'chi phí trên đơn'], ['AI', 'trí tuệ nhân tạo']]
       .map(([term, meaning]) => `<tr><td>${term}</td><td>${meaning}</td></tr>`).join('') +
     '</tbody></table></div>';
+  // Presentation charts: revenue by platform and concentration in Phần 4, product rows in Phần 7.
+  const presentationChart = (chartKind: MarketChart['kind'], no: string): string => {
+    const chart = marketPresentation ? input.marketPresentationCharts?.find(item => item.kind === chartKind) : undefined;
+    return chart === undefined ? '' : `<figure class="market-chart"><div class="exh"><span class="exn">Hình ${no}</span> <span class="ext">${escape(chart.title)}</span> <span class="exu">(${escape(chart.unit)})</span></div>` +
+      `<div class="chart flint" data-engine="${escape(chart.engine)}">${chart.svg}</div>` +
+      `<p class="lim"><b>Chú thích:</b> ${escape(chart.note)}</p><p class="ex-src">Nguồn: dữ liệu bán hàng đã lưu, chỉ tính trong mẫu.</p></figure>`;
+  };
+  const presentationCharts = (sectionId: string): string => sectionId === 'M04'
+    ? presentationChart('platform-revenue', '4.1') + presentationChart('concentration', '4.2')
+    : sectionId === 'M07' ? presentationChart('product-ranking', '7.1') : '';
   const appendix = (sectionId: string): string =>
+    presentationCharts(sectionId) +
     (reviewOutcome && kind === 'INSIGHT' && (sectionId === 'I03' || sectionId === 'I17') ? `<p class="warning">${escape(reviewOutcomeLead(reviewOutcome))}</p>` : '') +
     baseAppendix(sectionId) +
     (input.sourceEvidence && (sectionId === 'M13' || sectionId === 'I17') ? sourceEvidenceHtml(input.sourceEvidence) +
@@ -985,7 +999,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   const marketPlatforms = marketPresentation
     ? [...new Set(marketPresentation.input.rows.map(row => row.platform))]
     : [];
-  const scopedHtml = marketPresentation ? labelledHtml.replace('<body', `<body data-market-platforms="${marketPlatforms.join(',')}"`) : labelledHtml;
+  const scopedHtml = marketPresentation ? labelledHtml.replace('<body', `<body data-market-platforms="${marketPlatforms.join(',')}" data-market-chart-rows="${marketChartRows(marketPresentation.input.rows).length}"`) : labelledHtml;
   const renderedHtml = marketPresentation ? platIcons(scopedHtml, { shopee: '#c2410c', tiktok: '#1d2327' }, undefined, { compoundPlatformLabels: true }).html : scopedHtml;
   const readerRenderedHtml = marketPresentation
     ? renderedHtml.replace(/<span class="cite-locator">[^<]*\bSheet1\b[^<]*<\/span>/giu, '').split(/(<[^>]+>)/gu).map((part, index) => index % 2 ? part : part

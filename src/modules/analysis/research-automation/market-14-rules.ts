@@ -212,10 +212,18 @@ export function auditMarket14(html: string, trace?: string): Market14Result[] {
   const externalCover = /(?:url\(['"]?https?:|<img\b[^>]*\bsrc=["']https?:)/iu.test(coverTag);
   const malformedCover = /data:image\/(?:jpeg|png|webp);(?!base64,)/iu.test(coverTag);
   const coverRead = !image || !trace || !/(?:CC0|public-domain|owner-supplied|licensed|giấy phép)/iu.test(trace);
-  const chartIssues = chartFragments(html).flatMap(({ tag, body }) => {
-    if (!/data-engine=["'](?:flint|svg-fallback)["']/iu.test(tag)) return ['chart missing engine marker'];
+  const charts = chartFragments(html);
+  const chartIssues = charts.flatMap(({ tag, body }) => {
+    const engine = tag.match(/data-engine=["']([^"']*)["']/iu)?.[1];
+    if (engine === undefined) return ['chart missing engine marker'];
+    if (engine !== 'flint') return [`chart drawn by ${engine || 'an unnamed engine'}, not Flint`];
     return hasChartContent(tag, body) ? [] : ['chart has an engine marker but no drawn data or payload'];
   });
+  // A Market report whose sample has product rows must carry the three required charts.
+  const chartRowsMarker = html.match(/data-market-chart-rows=["'](\d+)["']/iu)?.[1];
+  const chartRows = chartRowsMarker !== undefined ? Number(chartRowsMarker)
+    : Math.max(0, ...[...text.matchAll(/\bn\s*=\s*(\d+)/gu)].map(match => Number(match[1])));
+  if (chartRows > 0 && charts.length < 3) chartIssues.push(`only ${charts.length} of 3 required charts (concentration, revenue by platform, product ranking)`);
   const iconCounts = { shopee: (text.match(/\bShopee\b/gu) ?? []).length, tiktok: (text.match(/\bTikTok\s+Shop\b/gu) ?? []).length };
   const icons = { shopee: (html.match(/<i\b[^>]*class=["'][^"']*\bpi\s+s\b[^"']*["'][^>]*>/giu) ?? []).length,
     tiktok: (html.match(/<i\b[^>]*class=["'][^"']*\bpi\s+t\b[^"']*["'][^>]*>/giu) ?? []).length };

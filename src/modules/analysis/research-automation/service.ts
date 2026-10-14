@@ -22,6 +22,7 @@ import defaultPeerSchema from '../../../../contracts/analysis/default-market-pee
 import readerApiSchema from '../../../../contracts/api/research-automation-reader-report-api.schema.json' with { type: 'json' };
 import type { ResearchAutomationInsightReaderBuildRequest } from '../../../../contracts/api/research-automation-reader-report-api.generated.js';
 import { readerRowsFromMetricWorkbook } from '../reader-report/metric-rows.js';
+import { renderMarketCharts, type MarketChart } from '../reader-report/market-charts.js';
 import { ReaderUnitSpecIntakes } from './reader-unit-spec-intake.js';
 import { buildAutomationMarketPresentation, verifyAutomationMarketPresentation, type MarketPresentationBinding, type MarketPresentationInput } from './market-presentation-method.js';
 import type { AutomationMarketPresentationMethod } from '../../../../contracts/analysis/automation-market-presentation-method.generated.js';
@@ -230,6 +231,8 @@ export interface ResearchAutomationReportInput {
   readonly marketInventory?: AutomationMarketMethodSnapshot;
   readonly marketInventoryFailure?: 'MARKET_INVENTORY_FAILED';
   readonly marketPresentation?: AutomationMarketPresentationMethod;
+  /** Market charts drawn by Flint before the synchronous report build; filled by the service. */
+  readonly marketPresentationCharts?: readonly MarketChart[];
   readonly metricMethods?: AutomationMetricMethodSnapshot;
   readonly metricClassified?: AutomationClassifiedMetricSnapshot;
   readonly insightCoding?: AutomationInsightCodingSnapshot;
@@ -3333,6 +3336,8 @@ export class ResearchAutomationService {
           const privateRendererVersion = input.qualitativeDraft ? 'automation-report-kit-v28' : input.insightPersona ? 'automation-report-kit-v26' : privateDefault ? 'automation-report-kit-v25'
             : start.reviewCollectionPolicy && input.reviewSample && input.privateReviewCorpus && input.collection?.privateShopee
               ? 'automation-report-kit-v27' : 'automation-report-kit-v22';
+          // Flint is asynchronous; the report builder is not, so the Market charts are drawn first.
+          if (kind === 'MARKET' && input.marketPresentation) input = { ...input, marketPresentationCharts: await renderMarketCharts(input.marketPresentation.input.rows) };
           const authoritative = input.qualitativeDraft || input.marketPresentation || input.insightPersona || privateDefault || (kind === 'INSIGHT' && start.reviewCollectionPolicy) ? buildResearchAutomationReport(input, kind) : undefined;
           const rendered: ResearchAutomationRenderedReport = this.#renderer ? await this.#renderer(authoritative ? structuredClone(input) : input, kind, controller.signal) : authoritative ?? defaultRenderedReport(input, kind);
           controller.signal.throwIfAborted();
