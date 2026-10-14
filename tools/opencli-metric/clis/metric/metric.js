@@ -682,12 +682,70 @@ function assertSupportedMetricPeriod(spec, startState) {
   }
 }
 
+// OpenCLI's browser stealth replaces window.Function after Metric's bundle has
+// captured the intrinsic Function as Vue prop types. Vue then compares those
+// types against the replacement, calls function-typed defaults (such as the
+// popup getDocument/getContainer) as factories, and no select or date popup
+// opens. This runs in the Metric tab only: it puts the intrinsic Function back
+// and resets mounted props that were resolved wrongly; it is a no-op when the
+// page global is already intrinsic and every prop is right.
+function repairMetricFunctionDefaults() {
+  const intrinsic = Object.getPrototypeOf(function () {}).constructor;
+  const restored = window.Function !== intrinsic;
+  if (restored) {
+    try { window.Function = intrinsic; } catch { return { restored: false, failed: true, repairedProps: 0, vue: false }; }
+    if (window.Function !== intrinsic) return { restored: false, failed: true, repairedProps: 0, vue: false };
+  }
+  const root = document.querySelector('#__nuxt');
+  const rootVnode = root && root._vnode;
+  let repairedProps = 0;
+  if (!rootVnode) return { restored, repairedProps, vue: false };
+  const seen = new Set();
+  const stack = [rootVnode];
+  while (stack.length) {
+    const vnode = stack.pop();
+    if (!vnode || typeof vnode !== 'object') continue;
+    const instance = vnode.component;
+    if (instance && !seen.has(instance)) {
+      seen.add(instance);
+      const declared = instance.type && instance.type.props;
+      const supplied = (instance.vnode && instance.vnode.props) || {};
+      if (declared && typeof declared === 'object' && !Array.isArray(declared) && instance.props) {
+        for (const key of Object.keys(declared)) {
+          const option = declared[key];
+          if (!option || option.type !== intrinsic || typeof option.default !== 'function') continue;
+          const kebab = key.replace(/\B([A-Z])/g, '-$1').toLowerCase();
+          if ((Object.hasOwn(supplied, key) && supplied[key] !== undefined) || (Object.hasOwn(supplied, kebab) && supplied[kebab] !== undefined)) continue;
+          if (instance.props[key] !== option.default) {
+            instance.props[key] = option.default;
+            repairedProps += 1;
+          }
+        }
+      }
+      stack.push(instance.subTree);
+    }
+    if (Array.isArray(vnode.children)) for (const child of vnode.children) stack.push(child);
+    if (vnode.suspense) stack.push(vnode.suspense.activeBranch);
+  }
+  return { restored, repairedProps, vue: true };
+}
+
+async function repairMetricPage(page) {
+  const repair = await page.evaluate(repairMetricFunctionDefaults);
+  if (!repair || typeof repair !== 'object') return null;
+  if (repair.failed === true) {
+    throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric page Function could not be restored before the form fill', { pageRepair: { restored: false, failed: true } });
+  }
+  return { restored: repair.restored === true, repairedProps: Number(repair.repairedProps) || 0, vue: repair.vue === true };
+}
+
 async function prepareMetricForm(page, spec, onStartState = null) {
   const before = await readObservation(page, { includeResults: false });
   onStartState?.(before);
   assertMetricCategoryObservation(before);
   parseMetricForm(before);
   assertSupportedMetricPeriod(spec, before.appliedFilters);
+  const pageRepair = await repairMetricPage(page);
   await applyMetricSpec(page, spec, before);
   await waitForKeywordCommit(page, spec.keywords);
   // This is the last gate before the real submit action. Dry-run uses this
@@ -695,7 +753,7 @@ async function prepareMetricForm(page, spec, onStartState = null) {
   const ready = await readObservation(page, { includeResults: false });
   assertMetricCategoryObservation(ready);
   assertPreSubmitReadBack(spec, ready);
-  return { before, ready };
+  return { before, ready, pageRepair };
 }
 
 async function readSpec(path) {
@@ -1545,7 +1603,8 @@ async function performSearch(page, spec, debug = null) {
   const networkState = createNetworkState();
   const searchGate = { clickResult: null, clickedAt: null };
   try {
-    await prepareMetricForm(page, spec);
+    const { pageRepair } = await prepareMetricForm(page, spec);
+    searchGate.pageRepair = pageRepair;
     const platformLabels = await readMetricPlatformOptionLabels(page);
     const { descriptor, preflight } = await prepareSearchSubmit(page);
     Object.assign(searchGate, { submitDescriptor: descriptor, preflight });
@@ -1595,8 +1654,10 @@ async function runDryRun(page, spec) {
   let submitDescriptor = null;
   let pageWideAnalyticsCount = null;
   let preflight = null;
+  let pageRepair = null;
   try {
     const prepared = await prepareMetricForm(page, spec, before => { startState = formState(before.appliedFilters); });
+    pageRepair = prepared.pageRepair;
     appliedReadBack = prepared.ready.appliedFilters ?? null;
     const preparedSubmit = await prepareSearchSubmit(page);
     const { inspection } = preparedSubmit;
@@ -1604,11 +1665,11 @@ async function runDryRun(page, spec) {
     pageWideAnalyticsCount = Number(inspection?.pageWideAnalyticsCount) || 0;
     submitDescriptor = inspection?.descriptor || null;
     const descriptor = assertSearchSubmitInspection(inspection);
-    return { outcome: 'DRY_RUN_OK', preflight, startState, appliedReadBack, submitDescriptor: descriptor, pageWideAnalyticsCount, mismatches: [] };
+    return { outcome: 'DRY_RUN_OK', preflight, startState, appliedReadBack, submitDescriptor: descriptor, pageWideAnalyticsCount, pageRepair, mismatches: [] };
   } catch (error) {
     const details = error?.details && typeof error.details === 'object' ? error.details : {};
     const safeDetails = Object.fromEntries(Object.entries(details).filter(([key]) => [
-      'expected', 'displayed', 'target', 'visibleCellCount', 'firstDate', 'lastDate', 'locatedBy', 'chipCount', 'inputFound', 'inputValueMatchesExpected', 'committedMatchesExpected', 'warningMatches', 'observedPeriod', 'requestedPeriod', 'candidateCount', 'candidates', 'pageWideAnalyticsCount', 'preflight',
+      'expected', 'displayed', 'target', 'visibleCellCount', 'firstDate', 'lastDate', 'locatedBy', 'chipCount', 'inputFound', 'inputValueMatchesExpected', 'committedMatchesExpected', 'warningMatches', 'observedPeriod', 'requestedPeriod', 'candidateCount', 'candidates', 'pageWideAnalyticsCount', 'preflight', 'pageRepair',
     ].includes(key)));
     return {
       outcome: typeof error?.code === 'string' ? error.code : 'METRIC_UI_CHANGED',
@@ -1617,6 +1678,7 @@ async function runDryRun(page, spec) {
       ...(submitDescriptor ? { submitDescriptor } : {}),
       ...(pageWideAnalyticsCount !== null ? { pageWideAnalyticsCount } : {}),
       ...(preflight ? { preflight } : {}),
+      ...(pageRepair ? { pageRepair } : {}),
       mismatches: Array.isArray(details.mismatches) ? details.mismatches : [{
         field: '$error',
         code: typeof error?.code === 'string' ? error.code : 'METRIC_UI_CHANGED',
@@ -2357,5 +2419,6 @@ export {
   prepareMetricForm, waitForKeywordCommit, observeMetricPage, observeResultPage,
   collectResultPages, archiveResultsPage, replayResultsPage, readCommittedKeywords,
   describeSearchSubmit, assertSearchSubmitInspection, createNetworkState, readNetworkChunk,
+  repairMetricFunctionDefaults, repairMetricPage,
 };
 export { assertMetricUrl, parseMetricForm };

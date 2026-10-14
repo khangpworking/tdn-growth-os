@@ -875,6 +875,11 @@ function fakePage(observation: any, result: any, resultDom: any = null, networkR
       if (fn.name === 'restoreScreenshotMask') { maskCalls.push('restore'); return true; }
       if (fn.name === 'setCheckbox') return { selector: '#synthetic', index: 0 };
       if (fn.name === 'visibleOptionIndex' || fn.name === 'clickVisibleText') return 0;
+      if (fn.name === 'repairMetricFunctionDefaults') {
+        if (behavior.pageRepair === undefined) return 0;
+        calls.push('page-repair');
+        return behavior.pageRepair;
+      }
       return 0;
     },
     click: async (selector: string, options?: any) => {
@@ -978,6 +983,127 @@ test('capture dry-run returns a matching read-back without reaching submit or se
   assert.equal(page.searched, false);
   assert.equal(page.calls.some((call: string) => call === 'click:button,[role="button"]'), false);
   assert.equal(page.calls.includes('network:start'), false);
+  await rm(directory, { recursive: true, force: true });
+});
+
+function withRepairGlobals<T>(windowValue: any, documentValue: any, callback: () => T): T {
+  const previous = { window: (globalThis as any).window, document: (globalThis as any).document };
+  (globalThis as any).window = windowValue;
+  (globalThis as any).document = documentValue;
+  try {
+    return callback();
+  } finally {
+    if (previous.window === undefined) delete (globalThis as any).window; else (globalThis as any).window = previous.window;
+    if (previous.document === undefined) delete (globalThis as any).document; else (globalThis as any).document = previous.document;
+  }
+}
+
+function replacedFunction(): Function {
+  return function Function() { /* stands in for the stealth replacement */ };
+}
+
+test('page repair restores the intrinsic Function and resets wrongly resolved function defaults only', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const getDocument = () => 'document';
+  const getPopupContainer = () => 'container';
+  const getContainer = () => 'drawer';
+  const suppliedContainer = () => 'supplied';
+  const suppliedDocument = () => 'supplied-document';
+  const childDefault = () => 'child';
+  const suspended = {
+    type: { props: { getTriggerDOMNode: { type: Function, default: childDefault } } },
+    vnode: { props: null },
+    props: { getTriggerDOMNode: 'factory-result' },
+    subTree: null,
+  };
+  const child = {
+    type: { props: { getDocument: { type: Function, default: getDocument } } },
+    vnode: { props: { getDocument: suppliedDocument } },
+    props: { getDocument: suppliedDocument },
+    subTree: { suspense: { activeBranch: { component: suspended } } },
+  };
+  const trigger = {
+    type: {
+      props: {
+        getDocument: { type: Function, default: getDocument },
+        getPopupContainer: { type: Function, default: getPopupContainer },
+        getContainer: { type: Function, default: getContainer },
+        placement: { type: String, default: () => 'bottomLeft' },
+        mixed: { type: [Function, String], default: () => 'mixed' },
+      },
+    },
+    vnode: { props: { 'get-popup-container': suppliedContainer } },
+    props: { getDocument: 'factory-result', getPopupContainer: suppliedContainer, getContainer, placement: 'bottomLeft', mixed: 'factory-result' },
+    subTree: { children: [{ component: child }, 'text', null] },
+  };
+  const root = { _vnode: { children: [{ component: trigger }, { component: trigger }] } };
+  const documentValue = { querySelector: (selector: string) => selector === '#__nuxt' ? root : null };
+  const windowValue: any = { Function: replacedFunction() };
+  const first = withRepairGlobals(windowValue, documentValue, () => adapter.repairMetricFunctionDefaults());
+  assert.deepEqual(first, { restored: true, repairedProps: 2, vue: true });
+  assert.equal(windowValue.Function, Function);
+  assert.equal(trigger.props.getDocument, getDocument);
+  assert.equal(trigger.props.getPopupContainer, suppliedContainer);
+  assert.equal(trigger.props.getContainer, getContainer);
+  assert.equal(trigger.props.mixed, 'factory-result');
+  assert.equal(child.props.getDocument, suppliedDocument);
+  assert.equal(suspended.props.getTriggerDOMNode, childDefault);
+  const second = withRepairGlobals(windowValue, documentValue, () => adapter.repairMetricFunctionDefaults());
+  assert.deepEqual(second, { restored: false, repairedProps: 0, vue: true });
+});
+
+test('page repair reports a page without a Vue root and fails when Function cannot be restored', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const noRoot = { querySelector: () => null };
+  const windowValue: any = { Function: replacedFunction() };
+  assert.deepEqual(withRepairGlobals(windowValue, noRoot, () => adapter.repairMetricFunctionDefaults()), { restored: true, repairedProps: 0, vue: false });
+  assert.deepEqual(withRepairGlobals({ Function }, noRoot, () => adapter.repairMetricFunctionDefaults()), { restored: false, repairedProps: 0, vue: false });
+  const readOnly = Object.defineProperty({}, 'Function', { value: replacedFunction(), writable: false });
+  const ignored = { get Function() { return replacedFunction(); }, set Function(_value: unknown) { /* the page keeps its replacement */ } };
+  for (const blockedWindow of [readOnly, ignored]) {
+    assert.deepEqual(withRepairGlobals(blockedWindow, noRoot, () => adapter.repairMetricFunctionDefaults()), { restored: false, failed: true, repairedProps: 0, vue: false });
+  }
+  await assert.rejects(adapter.repairMetricPage({ evaluate: async () => ({ restored: false, failed: true, repairedProps: 0, vue: false }) }), (error: any) => {
+    assert.equal(error.code, 'METRIC_UI_CHANGED');
+    assert.deepEqual(error.details.pageRepair, { restored: false, failed: true });
+    return true;
+  });
+  assert.equal(await adapter.repairMetricPage({ evaluate: async () => 0 }), null);
+  assert.deepEqual(await adapter.repairMetricPage({ evaluate: async () => ({ restored: true, repairedProps: '7', vue: true, extra: 'dropped' }) }), { restored: true, repairedProps: 7, vue: true });
+});
+
+test('dry-run repairs the page before any form action and reports the repair', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const directory = await mkdtemp(join(tmpdir(), 'p6-209-page-repair-'));
+  const specPath = join(directory, 'spec.json');
+  await writeFile(specPath, `${JSON.stringify(commandSpec)}\n`);
+  const form = await load('metric-form');
+  const dryRunPage = (pageRepair: any) => {
+    let readCount = 0;
+    return fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] } }, {}, null, [], {
+      pageRepair,
+      gateObservation: (_state: any, observation: any) => {
+        readCount += 1;
+        return readCount === 1 ? observation : { ...observation, appliedFilters: commandSpec };
+      },
+    });
+  };
+  const repaired = dryRunPage({ restored: true, repairedProps: 12, vue: true });
+  const ok = await adapter.captureCommand.func(repaired, { spec: specPath, 'dry-run': true });
+  assert.equal(ok[0].outcome, 'DRY_RUN_OK');
+  assert.deepEqual(ok[0].pageRepair, { restored: true, repairedProps: 12, vue: true });
+  const firstFormAction = repaired.calls.findIndex((call: string) => call.startsWith('click:') || call.startsWith('fill:') || call.startsWith('key:') || call.startsWith('cdp:'));
+  assert.ok(firstFormAction > repaired.calls.indexOf('page-repair'));
+  assert.ok(repaired.calls.indexOf('page-repair') >= 0);
+  const blocked = dryRunPage({ restored: false, failed: true, repairedProps: 0, vue: false });
+  const failed = await adapter.captureCommand.func(blocked, { spec: specPath, 'dry-run': true });
+  assert.equal(failed[0].outcome, 'METRIC_UI_CHANGED');
+  assert.equal(failed[0].pageRepair, undefined);
+  assert.deepEqual(failed[0].mismatches[0].details.pageRepair, { restored: false, failed: true });
+  assert.equal(blocked.calls.some((call: string) => call.startsWith('click:') || call.startsWith('fill:')), false);
   await rm(directory, { recursive: true, force: true });
 });
 
