@@ -13,7 +13,9 @@ import type { PersonaSourceContext } from './insight-persona-projection.js';
 import { ShopeeCollectionService } from '../../foundation/shopee-collection-service.js';
 import { buildPrivateReviewReportView, type PrivateReviewBinding } from './private-review-corpus.js';
 import type { PrivateReviewReportView } from '../../../../contracts/analysis/private-review-report-view.generated.js';
-import { buildResearchAutomationReport } from './reports.js';
+import { buildResearchAutomationReport, type MarketCoverInput } from './reports.js';
+import { buildMarketCover, marketCoverAlt, verifyMarketCoverRecord, type MarketCover, type MarketCoverAi } from './market-cover.js';
+import { MAX_COVER_JPEG_BYTES } from './cover-image-codec.js';
 import { assertMarketBusinessGate } from './market-business-gate.js';
 import { prepareInsightReaderBuild } from '../reader-report/insight-build-v1.js';
 import { ReaderReportInputError } from '../reader-report/build.js';
@@ -236,6 +238,8 @@ export interface ResearchAutomationReportInput {
   readonly marketPresentationCharts?: readonly MarketChart[];
   /** Flint record-count bars of the capture sample; filled by the service. */
   readonly marketCaptureCharts?: readonly CaptureCountChart[];
+  /** Build-time cover image (base64 JPEG); filled by the service for Market presentation builds. */
+  readonly marketCover?: MarketCoverInput;
   readonly metricMethods?: AutomationMetricMethodSnapshot;
   readonly metricClassified?: AutomationClassifiedMetricSnapshot;
   readonly insightCoding?: AutomationInsightCodingSnapshot;
@@ -335,6 +339,8 @@ export interface ResearchAutomationServiceOptions {
   readonly decisionSynthesisAi?: Partial<Record<AutomationDecisionSectionId, AutomationDecisionExecutionRequest['ai']>>;
   /** Reader page charts: false keeps the hand-drawn SVG fallback only. */
   readonly readerReportFlint?: boolean;
+  /** Build-time Market cover illustration; absent embeds the procedural fallback. Never called at render time. */
+  readonly marketCoverAi?: MarketCoverAi;
   /** Test seam for reader rows; defaults to the prepared product-list workbook reader. */
   readonly readerRows?: ReaderRowsReader;
   /** Optional connector configuration; absent keeps environment-backed, disabled-by-default behavior. */
@@ -460,8 +466,10 @@ export class ResearchAutomationService {
   readonly #active = new Map<string, AbortController>();
   readonly #pageIndex: ResearchAutomationServiceOptions['pageIndex'];
   readonly #sourceEvidence: ResearchAutomationServiceOptions['sourceEvidence'];
+  readonly #marketCoverAi: MarketCoverAi | undefined;
 
   constructor(options: ResearchAutomationServiceOptions) {
+    this.#marketCoverAi = options.marketCoverAi;
     this.#tikTokCommentsCollector = options.tikTokCommentsCollector;
     this.#tiktokCodingAi = options.tiktokCodingAi;
     this.#shopeeCodingAi = options.shopeeCodingAi;
@@ -2538,6 +2546,18 @@ export class ResearchAutomationService {
       if (request.contractVersion === 'automation-market-presentation-revision-v1')
         throw new ResearchAutomationIntegrityError('Market presentation revision lacks its authoritative artifact.');
     }
+    if (semantic.marketCover !== undefined) {
+      if (kind !== 'MARKET' || semantic.marketPresentationArtifact === undefined) throw new ResearchAutomationIntegrityError('Market cover lacks its presentation revision.');
+      let record: ReturnType<typeof verifyMarketCoverRecord>;
+      try { record = verifyMarketCoverRecord(semantic.marketCover); } catch { throw new ResearchAutomationIntegrityError('Stored Market cover record is invalid.'); }
+      const image = await this.#readArtifact(record.imageSha256, MAX_COVER_JPEG_BYTES, 'image/jpeg');
+      const stored = (await this.#readArtifact(output.htmlSha, MAX_HTML_BYTES, 'text/html; charset=utf-8')).toString('utf8');
+      const count = (needle: string): number => stored.split(needle).length - 1;
+      if (image.byteLength !== record.byteSize || createHash('sha256').update(image).digest('hex') !== record.imageSha256 ||
+          count(`src="data:image/jpeg;base64,${image.toString('base64')}"`) !== 1 || count('data-cover-provenance="') !== 1 ||
+          count(`data-cover-provenance="${record.provenance}"`) !== 1)
+        throw new ResearchAutomationIntegrityError('Market cover differs from its retained image.');
+    }
     const classifiedRequest = attempt ? await this.#classifiedRequest(frozenRun, attempt) : undefined;
     if (kind === 'MARKET' && classifiedRequest) {
       if (!semantic.metricMethods) throw new ResearchAutomationIntegrityError('Classified Metric result lacks its source preparation.');
@@ -3054,7 +3074,7 @@ export class ResearchAutomationService {
     const run = await this.getRun(fresh.workspaceId, fresh.runId);
     const collection = await this.#stepDocument(fresh.runId, 'COLLECTION');
     const captures = await this.#captureRecords(fresh.runId);
-    const outputArtifacts: Array<{ marketPresentation: StoredArtifact | null; kind: 'MARKET' | 'INSIGHT'; claims: StoredArtifact; privateCorpus: StoredArtifact | null; m01: StoredArtifact | null; i14: StoredArtifact | null; metricProof: StoredArtifact | null; semantic: StoredArtifact; html: StoredArtifact; pdf: StoredArtifact | null; pdfCode: 'PDF_RENDERER_NOT_CONFIGURED' | 'PDF_RENDER_FAILED' | null }> = [];
+    const outputArtifacts: Array<{ marketPresentation: StoredArtifact | null; cover: StoredArtifact | null; kind: 'MARKET' | 'INSIGHT'; claims: StoredArtifact; privateCorpus: StoredArtifact | null; m01: StoredArtifact | null; i14: StoredArtifact | null; metricProof: StoredArtifact | null; semantic: StoredArtifact; html: StoredArtifact; pdf: StoredArtifact | null; pdfCode: 'PDF_RENDERER_NOT_CONFIGURED' | 'PDF_RENDER_FAILED' | null }> = [];
     try {
       controller.signal.throwIfAborted();
       const sources = attempt ? await this.#readAttemptSources(fresh, attempt) : await this.#readFrozenSources(fresh);
@@ -3334,6 +3354,13 @@ export class ResearchAutomationService {
         // Compute before calling any optional renderer; its semantic peer payload has no authority.
         const defaultMarketPeers = kind === 'MARKET' && start.defaultPeerRule !== undefined
           ? classifiedMetricDefaultPeers(metricClassified?.result.input, start.defaultPeerRule, [...scope.peerProductIds]) : undefined;
+        // Build-time cover, once per Market presentation build; a kept AI image of the same prompt is reused without a new call.
+        const marketCover = kind === 'MARKET' && input.marketPresentation ? await buildMarketCover({ keyword: start.keyword, ai: this.#marketCoverAi,
+          reuse: await this.#previousMarketCover(priorMarket) }) : undefined;
+        const coverArtifact = marketCover ? await this.#artifacts.put(marketCover.bytes) : null;
+        if (marketCover) input = { ...input, marketCover: { mime: 'image/jpeg', base64: marketCover.bytes.toString('base64'),
+          alt: marketCoverAlt(start.keyword, marketCover.record.provenance), provenance: marketCover.record.provenance,
+          model: marketCover.record.model, width: marketCover.record.width, height: marketCover.record.height } };
         const render = async () => {
           const privateDefault = kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v5';
           const privateRendererVersion = input.qualitativeDraft ? 'automation-report-kit-v28' : input.insightPersona ? 'automation-report-kit-v26' : privateDefault ? 'automation-report-kit-v25'
@@ -3356,7 +3383,7 @@ export class ResearchAutomationService {
             insightPersona: _untrustedPersona, qualitativeDraft: _untrustedQualitativeDraft, reviewSample: _untrustedSample, privateReviewCorpus: _untrustedPrivateCorpus, marketPresentation: _untrustedMarketPresentation, marketPresentationArtifact: _untrustedMarketReference, sourceEvidence: _untrustedSourceEvidence, defaultMarketPeers: _untrustedPeers, quoteMethods: _untrustedQuote, boundedMethods: _untrustedBounded, metricClassified: _untrustedClassified, insightCoding: _untrustedCoding, insightCrosscheck: _untrustedCrosscheck, insightLiteral: _untrustedLiteral, sourceClaims: _untrustedClaims, sourceClaimsArtifact: _untrustedReference,
             m01Inventory: _untrustedM01, m01InventoryArtifact: _untrustedM01Reference,
             i14Admission: _untrustedI14, i14AdmissionArtifact: _untrustedI14Reference,
-            i14Synthesis: _untrustedSynthesis, i14ExecutionId: _untrustedExecution, ...presentation } = (authoritative?.semantic ?? rendered.semantic) as Record<string, unknown>;
+            i14Synthesis: _untrustedSynthesis, i14ExecutionId: _untrustedExecution, marketCover: _untrustedCover, ...presentation } = (authoritative?.semantic ?? rendered.semantic) as Record<string, unknown>;
           const reportSemantic = { ...presentation, ...(kind === 'INSIGHT' && (start.privateShopeeSource || input.qualitativeDraft) ? { rendererVersion: privateRendererVersion } : {}),
             ...(kind === 'MARKET' && marketPresentation && marketPresentationArtifact ? { marketPresentationArtifact: { contractVersion: 'automation-market-presentation-reference-v1', sha256: marketPresentationArtifact.sha256, byteSize: marketPresentationArtifact.byteSize } } : {}), ...(input.sourceEvidence ? { sourceEvidence: input.sourceEvidence } : {}), decisionPackets, decisionPairedInsightVersionId,
             ...(defaultMarketPeers ? { defaultMarketPeers } : {}),
@@ -3390,7 +3417,8 @@ export class ResearchAutomationService {
             ...(kind === 'MARKET' && marketInventoryFailure ? { marketInventoryFailure } : {}),
             ...(kind === 'MARKET' ? { metricMethods: metricMethods ?? null } : {}),
             ...(kind === 'MARKET' && metricClassified ? { metricClassified } : {}),
-            ...(kind === 'MARKET' && metricMethodsFailure ? { metricMethodsFailure } : {}) };
+            ...(kind === 'MARKET' && metricMethodsFailure ? { metricMethodsFailure } : {}),
+            ...(marketCover ? { marketCover: marketCover.record } : {}) };
           const semanticBytes = Buffer.from(canonicalJson(reportSemantic), 'utf8');
           const html = Buffer.from(rendered.html);
           if (authoritative) {
@@ -3426,7 +3454,7 @@ export class ResearchAutomationService {
           if (pdfBytes.byteLength > MAX_PDF_BYTES || !pdfBytes.subarray(0, 5).equals(Buffer.from('%PDF-'))) throw new ResearchAutomationIntegrityError('Research PDF output failed validation.');
           pdf = await this.#artifacts.put(pdfBytes);
         }
-        outputArtifacts.push({ marketPresentation: kind === 'MARKET' ? marketPresentationArtifact : null, kind, privateCorpus: kind === 'INSIGHT' ? privateCorpusArtifact ?? null : null, claims: claimsArtifact, m01: m01Artifact, i14: i14Artifact, metricProof: kind === 'MARKET' ? metricProof : null, semantic, html: htmlArtifact, pdf, pdfCode: pdf ? null : rendered.pdfUnavailableCode ?? 'PDF_RENDERER_NOT_CONFIGURED' });
+        outputArtifacts.push({ marketPresentation: kind === 'MARKET' ? marketPresentationArtifact : null, cover: coverArtifact, kind, privateCorpus: kind === 'INSIGHT' ? privateCorpusArtifact ?? null : null, claims: claimsArtifact, m01: m01Artifact, i14: i14Artifact, metricProof: kind === 'MARKET' ? metricProof : null, semantic, html: htmlArtifact, pdf, pdfCode: pdf ? null : rendered.pdfUnavailableCode ?? 'PDF_RENDERER_NOT_CONFIGURED' });
       }
     } catch (error) {
       logReportFailure(row.runId, 'RENDER', error);
@@ -3457,6 +3485,7 @@ export class ResearchAutomationService {
             if (output.i14) this.#registerManifest(output.i14, 'application/json', finished);
             if (output.metricProof) this.#registerManifest(output.metricProof, 'application/json', finished);
             if (output.marketPresentation) this.#registerManifest(output.marketPresentation, 'application/json', finished);
+            if (output.cover) this.#registerManifest(output.cover, 'image/jpeg', finished);
             this.#registerManifest(output.semantic, 'application/json', finished);
             this.#registerManifest(output.html, 'text/html; charset=utf-8', finished);
             if (output.pdf) this.#registerManifest(output.pdf, 'application/pdf', finished);
@@ -4022,6 +4051,14 @@ export class ResearchAutomationService {
     return { binding, input, retained };
   }
 
+  /** The prior pair's verified AI cover, when its record and retained image still verify; anything else builds anew. */
+  async #previousMarketCover(prior: Record<string, unknown> | undefined): Promise<MarketCover | undefined> {
+    if (prior?.marketCover === undefined) return undefined;
+    try {
+      const record = verifyMarketCoverRecord(prior.marketCover);
+      return record.provenance === 'ai-generated' ? { record, bytes: await this.#readArtifact(record.imageSha256, MAX_COVER_JPEG_BYTES, 'image/jpeg') } : undefined;
+    } catch { return undefined; }
+  }
   async #previousSemantic(run: RunRow, attempt: AttemptRow, kind: 'MARKET' | 'INSIGHT'): Promise<Record<string, unknown>> {
     const report = await this.readReport(run.workspaceId, run.runId, kind, false, attempt.previousPairId);
     return this.#readJson<Record<string, unknown>>(report.versionId, MAX_JSON_ARTIFACT_BYTES, 'application/json');

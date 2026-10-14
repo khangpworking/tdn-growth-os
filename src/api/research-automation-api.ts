@@ -88,6 +88,8 @@ import type { AutomationI14SynthesisConfiguration } from '../modules/analysis/re
 import type { AutomationDecisionSynthesisConfiguration, AutomationDecisionExecutionRequest } from '../modules/analysis/research-automation/decision-synthesis-execution.js';
 import type { AutomationDecisionSectionId } from '../modules/analysis/research-automation/decision-packets.js';
 import type { CliproxyConfiguration } from '../platform/ai/cliproxy-configuration.js';
+import { createCliproxyCreativeGateway } from '../platform/ai/cliproxy-creative-gateway.js';
+import { MARKET_COVER_MODEL, type MarketCoverAi } from '../modules/analysis/research-automation/market-cover.js';
 import { ApifyShopeeCollector } from '../platform/collectors/apify-shopee.js';
 import { ResearchAutomationConflictError, ResearchAutomationNotFoundError, ResearchAutomationValidationError } from '../modules/analysis/research-automation/model.js';
 import { MetricCaptureScopeMismatch } from '../modules/analysis/research-automation/metric-method-bridge.js';
@@ -123,6 +125,8 @@ export interface ResearchAutomationApiConfiguration {
     readonly cliproxy: CliproxyConfiguration;
     readonly configurations: Partial<Record<AutomationDecisionSectionId, AutomationDecisionSynthesisConfiguration>>;
   };
+  /** Opt-in generic Market cover illustration for the OWNER writer only; absent keeps the procedural fallback. */
+  readonly marketCover?: { readonly cliproxy: CliproxyConfiguration; readonly transport?: typeof fetch };
 }
 export interface ResearchAutomationApiApplication {
   handler(request: IncomingMessage, response: ServerResponse): void;
@@ -307,6 +311,8 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       decisionSynthesisAi[key as AutomationDecisionSectionId] = createDecisionCliproxySynthesisAi({ cliproxy: configuration.decisionSynthesis.cliproxy, configuration: value });
     }
   }
+  if (configuration.marketCover && !configuration.owner) throw new TypeError('Market cover AI requires the OWNER writer');
+  const marketCoverAi = configuration.marketCover ? marketCoverCliproxyAi(configuration.marketCover) : undefined;
   const reader = new BetterSqlite3(path.resolve(configuration.databasePath), { readonly: true, fileMustExist: true });
   let writer: BetterSqlite3.Database | undefined;
   let worker: ResearchAutomationWorker | undefined;
@@ -343,6 +349,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         metricAttachmentStore: new RequestScopedArtifactStore(path.resolve(configuration.artifactRoot)),
         actorId: configuration.owner.actorId, source: bindResearchAutomationProvider(selected), ...(webSource ? { webSource } : {}),
         ...(i14SynthesisAi ? { i14SynthesisAi } : {}),
+        ...(marketCoverAi ? { marketCoverAi } : {}),
         decisionSynthesisAi,
         ...(configuration.providers?.apifyReviews ? { shopeeCollectorFactory: () => {
           let requests = 0;
@@ -1200,4 +1207,16 @@ function logIntegrityFailure(error: unknown): void {
   const name = error instanceof Error ? error.constructor.name : typeof error;
   const message = error instanceof Error ? error.message : String(error);
   console.error(`research-automation integrity failure ${name}: ${message}`);
+}
+
+/** One landscape image call per cover build; a non-PNG declared type is refused before decoding. */
+export function marketCoverCliproxyAi(options: { readonly cliproxy: CliproxyConfiguration; readonly transport?: typeof fetch }): MarketCoverAi {
+  const gateway = createCliproxyCreativeGateway({ configuration: options.cliproxy, ...(options.transport ? { transport: options.transport } : {}) });
+  return {
+    async generate(prompt) {
+      const result = await gateway.generateImage({ model: MARKET_COVER_MODEL, prompt, format: 'landscape', references: [] });
+      if (result.declaredMediaType !== undefined && result.declaredMediaType !== 'image/png') throw new Error('Cover image media type is not PNG.');
+      return { bytes: Buffer.from(result.bytes), model: MARKET_COVER_MODEL };
+    },
+  };
 }

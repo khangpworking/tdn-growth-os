@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { MAX_COVER_JPEG_BYTES } from '../../src/modules/analysis/research-automation/cover-image-codec.js';
 import { auditMarket14 } from '../../src/modules/analysis/research-automation/market-14-rules.js';
 
 const glossary = `<table data-glossary="true"><tbody>${[
@@ -30,7 +31,61 @@ test('synthetic Market HTML passes all machine rules and marks review-only rules
   assert.deepEqual(results.filter(item => item.kind === 'evidence').map(item => item.rule), ['6', '8', '10', '14']);
   assert.equal(rule(valid, '10').ok, false);
   const licensed = valid.replace('<header class="cover">', '<header class="cover" style="background-image:url(\'data:image/png;base64,AAAA\')">');
-  assert.equal(rule(licensed, '10', 'owner-supplied asset; licensed for reuse').ok, true);
+  assert.equal(rule(licensed, '10', 'owner-supplied asset; licensed for reuse').ok, false, 'a licensed non-AI cover never passes automatically');
+  assert.equal(rule(licensed, '10', 'owner-supplied asset; licensed for reuse').kind, 'evidence');
+  assert.match(rule(licensed, '10', 'owner-supplied asset; licensed for reuse').detail, /READ: a licensed or owner-supplied cover needs owner review/);
+});
+
+const coverImg = (attributes: string) => valid.replace('<header class="cover"></header>', `<header class="cover"><div><img class="cv-art" ${attributes}><p>Báo cáo</p></div></header>`);
+const aiSrc = (payload: string) => coverImg(`src="${payload}" alt="Minh hoạ chung do AI tạo" data-cover-provenance="ai-generated"`);
+const jpegOf = (length: number) => { const bytes = Buffer.alloc(length, 0x11); bytes[0] = 0xff; bytes[1] = 0xd8; bytes[length - 2] = 0xff; bytes[length - 1] = 0xd9; return bytes.toString('base64'); };
+
+test('rule 10 passes only a bounded base64 JPEG (SOI..EOI) with AI provenance and alt text', () => {
+  assert.equal(rule(aiSrc('data:image/jpeg;base64,/9j/2Q=='), '10').ok, true);
+  assert.equal(rule(aiSrc(`data:image/jpeg;base64,${jpegOf(MAX_COVER_JPEG_BYTES)}`), '10').ok, true, 'exactly at the size cap');
+  const refused: Array<[string, string]> = [
+    ['data:image/png;base64,iVBORw0KGgo=', 'PNG'],
+    ['data:image/webp;base64,UklGRgAAAABXRUJQ', 'WebP'],
+    ['data:image/jpeg;base64,/9j/AA==', 'JPEG without EOI'],
+    ['data:image/jpeg;base64,iVBORw0KGgo=', 'PNG bytes labelled JPEG'],
+    ['data:image/jpeg;base64,/9j/2Q', 'unpadded base64'],
+    ['data:image/jpeg;base64,/9j/2Q==/9j/2Q==', 'padding inside the payload'],
+    [`data:image/jpeg;base64,${jpegOf(MAX_COVER_JPEG_BYTES + 3)}`, 'over the size cap'],
+  ];
+  for (const [src, label] of refused) {
+    assert.equal(rule(aiSrc(src), '10').ok, false, label);
+    assert.equal(rule(aiSrc(src), '10').kind, 'machine', label);
+  }
+});
+
+test('rule 10 passes an embedded AI cover with provenance and alt text, without any licence claim', () => {
+  const img = coverImg;
+  const ai = img('src="data:image/jpeg;base64,/9j/2Q==" alt="Minh hoạ chung do AI tạo" data-cover-provenance="ai-generated" data-cover-model="gpt-image-2"');
+  assert.equal(rule(ai, '10').ok, true);
+  assert.match(rule(ai, '10').detail, /AI-generated provenance/);
+  assert.doesNotMatch(rule(ai, '10').detail, /licen[cs]ed for/);
+  for (const [html, label] of [
+    [ai.replace('alt="Minh hoạ chung do AI tạo"', 'alt=""'), 'empty alt'],
+    [ai.replace('alt="Minh hoạ chung do AI tạo"', 'alt="   "'), 'blank alt'],
+    [ai.replace(' alt="Minh hoạ chung do AI tạo"', ''), 'missing alt'],
+    [ai.replace('<p>Báo cáo</p>', '<img src="data:image/jpeg;base64,/9j/2Q==" data-cover-provenance="ai-generated"><p>Báo cáo</p>'), 'a second AI cover without alt'],
+  ] as const) {
+    assert.equal(rule(html, '10').ok, false, label);
+    assert.equal(rule(html, '10').kind, 'machine', `${label} is a machine failure, not READ`);
+    assert.match(rule(html, '10').detail, /malformed/, label);
+  }
+  const fallback = img('src="data:image/jpeg;base64,/9j/AA==" alt="Hình trang trí chung" data-cover-provenance="fallback"');
+  assert.equal(rule(fallback, '10').ok, false, 'fallback stays READ');
+  assert.match(rule(fallback, '10').detail, /READ/);
+  assert.equal(rule(ai.replace('class="cover"', 'class="cover-in"'), '10').ok, false, 'cover-in is not the cover');
+  assert.equal(rule(img('src="https://example.test/c.jpg" alt="x" data-cover-provenance="ai-generated"'), '10').ok, false, 'external img');
+  assert.match(rule(img('src="https://example.test/c.jpg" alt="x" data-cover-provenance="ai-generated"'), '10').detail, /external|remote|malformed/i);
+  assert.equal(rule(img('src="data:image/jpeg;base64,***" alt="x" data-cover-provenance="ai-generated"'), '10').ok, false, 'malformed data');
+  const nested = valid.replace('<header class="cover"></header>',
+    '<section class="cover"><section class="inner"><p>x</p></section><div><img src="data:image/jpeg;base64,/9j/2Q==" alt="Minh hoạ" data-cover-provenance="ai-generated"></div></section>');
+  assert.equal(rule(nested, '10').ok, true, 'nested section cover form');
+  const outside = valid.replace('</body>', '<img src="data:image/jpeg;base64,/9j/2Q==" alt="x" data-cover-provenance="ai-generated"></body>');
+  assert.equal(rule(outside, '10').ok, false, 'an image outside the cover does not count');
 });
 
 test('each machine rule has a failing synthetic mutation', () => {

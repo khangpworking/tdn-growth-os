@@ -74,6 +74,8 @@ export interface OperatorAppConfiguration {
   readonly researchShopeeCodingAi?: ShopeeReviewCodingConfiguration;
   /** Optional Jev L9 triage; the API key is retained only in process configuration. */
   readonly researchJev?: TypesafeJevConfiguration;
+  /** Opt-in generic Market cover illustration through `cliproxy` (gpt-image-2 only); absent keeps the procedural fallback. */
+  readonly researchMarketCoverAi?: true;
 }
 export interface OperatorAppDependencies {
   readonly creativeAiTransport?: typeof fetch;
@@ -143,6 +145,9 @@ export function operatorAppConfigurationFromEnvironment(
     try { researchShopeeCodingAi = shopeeCodingCliproxyConfiguration(environment.TDN_RESEARCH_SHOPEE_CODING_AI_MODEL ?? ''); }
     catch { throw new TypeError('TDN_RESEARCH_SHOPEE_CODING_AI_MODEL must name an explicit CLIProxy model when TDN_RESEARCH_SHOPEE_CODING_AI_ENABLED is true'); }
   }
+  const coverEnabled = environment.TDN_RESEARCH_COVER_AI_ENABLED;
+  if (coverEnabled !== undefined && coverEnabled !== 'true' && coverEnabled !== 'false') throw new TypeError('TDN_RESEARCH_COVER_AI_ENABLED must be exactly true or false');
+  if (coverEnabled === 'true' && environment.TDN_RESEARCH_COVER_AI_MODEL !== 'gpt-image-2') throw new TypeError('TDN_RESEARCH_COVER_AI_MODEL must be exactly gpt-image-2 when TDN_RESEARCH_COVER_AI_ENABLED is true');
   const configuration: OperatorAppConfiguration = {
     databasePath: environment.TDN_WORKSPACE_DB ?? '', artifactRoot: environment.TDN_ARTIFACT_ROOT ?? '',
     frontendDist: defaults.frontendDist, version: defaults.version,
@@ -161,6 +166,7 @@ export function operatorAppConfigurationFromEnvironment(
     ...(researchTikTokCodingAi === undefined ? {} : { researchTikTokCodingAi }),
     ...(researchShopeeCodingAi === undefined ? {} : { researchShopeeCodingAi }),
     ...(researchJev.enabled ? { researchJev } : {}),
+    ...(coverEnabled === 'true' ? { researchMarketCoverAi: true as const } : {}),
     ...(environment.TDN_R2_ENABLED !== 'true' ? {} : { r2: {
       TDN_R2_ENABLED: 'true', TDN_R2_ACCOUNT_ID: environment.TDN_R2_ACCOUNT_ID,
       TDN_R2_ACCESS_KEY_ID: environment.TDN_R2_ACCESS_KEY_ID,
@@ -231,6 +237,8 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
       ...(configuration.researchTikTokCodingAi ? { tiktokCoding: { cliproxy: configuration.cliproxy!, configuration: configuration.researchTikTokCodingAi } } : {}),
       ...(configuration.researchShopeeCodingAi ? { shopeeCoding: { cliproxy: configuration.cliproxy!, configuration: configuration.researchShopeeCodingAi } } : {}),
       ...(configuration.researchJev ? { researchJev: configuration.researchJev } : {}),
+      ...(configuration.researchMarketCoverAi ? { marketCover: { cliproxy: configuration.cliproxy!,
+        ...(dependencies.creativeAiTransport ? { transport: dependencies.creativeAiTransport } : {}) } } : {}),
       ...(configuration.ownerWritesEnabled ? { owner: {
         databasePath, artifactRoot: configuration.artifactRoot, writeEnabled: true,
         token: ownerToken, actorId: configuration.ownerActorId!, allowedOrigin: origin,
@@ -365,6 +373,7 @@ function validateConfiguration(configuration: OperatorAppConfiguration): StaticF
   if (configuration.researchInsightCodingAi !== undefined && (!configuration.cliproxy || !configuration.ownerWritesEnabled)) throw new TypeError('TDN_RESEARCH_INSIGHT_CODING_AI_ENABLED requires CLIProxy and OWNER writes to be enabled');
   if (configuration.researchTikTokCodingAi !== undefined && (!configuration.cliproxy || !configuration.ownerWritesEnabled)) throw new TypeError('TDN_RESEARCH_TIKTOK_CODING_AI_ENABLED requires CLIProxy and OWNER writes to be enabled');
   if (configuration.researchShopeeCodingAi !== undefined && (!configuration.cliproxy || !configuration.ownerWritesEnabled)) throw new TypeError('TDN_RESEARCH_SHOPEE_CODING_AI_ENABLED requires CLIProxy and OWNER writes to be enabled');
+  if (configuration.researchMarketCoverAi !== undefined && (configuration.researchMarketCoverAi !== true || !configuration.cliproxy || !configuration.ownerWritesEnabled)) throw new TypeError('TDN_RESEARCH_COVER_AI_ENABLED requires CLIProxy and OWNER writes to be enabled');
   return preloadFrontend(configuration.frontendDist);
 }
 

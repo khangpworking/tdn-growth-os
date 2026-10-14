@@ -1,4 +1,15 @@
+import { MAX_COVER_JPEG_BYTES } from './cover-image-codec.js';
 import { auditMarketReportHtml } from './market-business-gate.js';
+
+const AI_COVER_PREFIX = 'data:image/jpeg;base64,';
+const MAX_AI_COVER_BASE64 = Math.ceil(MAX_COVER_JPEG_BYTES / 3) * 4;
+/** A rule-10 AI cover is a bounded, padded base64 JPEG that starts with SOI and ends with EOI. */
+const isAiCoverJpeg = (src: string): boolean => {
+  const payload = src.startsWith(AI_COVER_PREFIX) ? src.slice(AI_COVER_PREFIX.length) : '';
+  if (!payload || payload.length > MAX_AI_COVER_BASE64 || payload.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/u.test(payload)) return false;
+  const bytes = Buffer.from(payload, 'base64');
+  return bytes.length >= 4 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[bytes.length - 2] === 0xff && bytes[bytes.length - 1] === 0xd9;
+};
 
 export type Market14Result = {
   rule: string;
@@ -193,6 +204,27 @@ function evidenceDetail(html: string, terms: readonly RegExp[]): string {
   return found.length ? `READ: ${snippets(found)}` : 'READ: reviewer must inspect the report claims and their cited number, figure or table.';
 }
 
+const attribute = (tag: string, name: string): string | undefined => {
+  const match = new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'=<>\`]+))`, 'iu').exec(tag);
+  return match ? match[1] ?? match[2] ?? match[3] : undefined;
+};
+
+/** First header/section whose class list holds the exact token `cover`, through its matching close tag. */
+function coverBlock(html: string): { open: string; block: string } {
+  for (const match of html.matchAll(/<(header|section)\b[^>]*>/giu)) {
+    if (!(attribute(match[0], 'class') ?? '').split(/\s+/u).includes('cover')) continue;
+    const start = match.index, tags = new RegExp(`<(/?)${match[1]}\\b[^>]*>`, 'giu');
+    tags.lastIndex = start + match[0].length;
+    let depth = 1, end = html.length;
+    for (let tag = tags.exec(html); tag; tag = tags.exec(html)) {
+      depth += tag[1] ? -1 : 1;
+      if (!depth) { end = tag.index + tag[0].length; break; }
+    }
+    return { open: match[0], block: html.slice(start, end) };
+  }
+  return { open: '', block: '' };
+}
+
 /**
  * Audit the owner’s fourteen Market-report rules without fetching or parsing source data.
  * `requireFlint: false` mirrors the builder's explicit test opt-out: charts may be the
@@ -212,11 +244,18 @@ export function auditMarket14(html: string, trace?: string, options: { requireFl
   const visibleCodes = text.match(/\bM(?:0[1-9]|1[0-3])\b/gu) ?? [];
   const appendixLabels = text.match(/Bảng\s+PL\.\d+/giu) ?? [];
   const notes = noteProblems(html, text);
-  const coverTag = html.match(/<header\b[^>]*class=["'][^"']*\bcover\b[^"']*[^>]*>/iu)?.[0] ?? '';
-  const image = /data:image\/(?:jpeg|png|webp);base64,/iu.test(coverTag);
-  const externalCover = /(?:url\(['"]?https?:|<img\b[^>]*\bsrc=["']https?:)/iu.test(coverTag);
-  const malformedCover = /data:image\/(?:jpeg|png|webp);(?!base64,)/iu.test(coverTag);
-  const coverRead = !image || !trace || !/(?:CC0|public-domain|owner-supplied|licensed|giấy phép)/iu.test(trace);
+  const { open: coverTag, block: coverHtml } = coverBlock(html);
+  const coverImgs = coverHtml.match(/<img\b[^>]*>/giu) ?? [];
+  const dataImg = (tag: string): boolean => /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/u.test(attribute(tag, 'src') ?? '');
+  const image = /data:image\/(?:jpeg|png|webp);base64,/iu.test(coverTag) || coverImgs.some(dataImg);
+  const externalCover = /url\(\s*['"]?\s*(?:https?:)?\/\//iu.test(coverTag) || coverImgs.some(tag => !dataImg(tag) && !/^data:image\/(?:jpeg|png|webp);/iu.test(attribute(tag, 'src') ?? ''));
+  const aiProvenance = (tag: string): boolean => attribute(tag, 'data-cover-provenance') === 'ai-generated';
+  const validAiCover = (tag: string): boolean => isAiCoverJpeg(attribute(tag, 'src') ?? '') && (attribute(tag, 'alt') ?? '').trim() !== '';
+  // Any cover that claims AI provenance must meet every AI-cover requirement, or the rule fails.
+  const malformedCover = /data:image\/(?:jpeg|png|webp);(?!base64,)/iu.test(coverHtml) || coverImgs.some(tag => !dataImg(tag) && /^data:/iu.test(attribute(tag, 'src') ?? ''))
+    || coverImgs.some(tag => aiProvenance(tag) && !validAiCover(tag));
+  const aiCover = coverImgs.some(tag => aiProvenance(tag) && validAiCover(tag));
+  const licensedCover = image && Boolean(trace) && /(?:CC0|public-domain|owner-supplied|licensed|giấy phép)/iu.test(trace ?? '');
   const charts = chartFragments(html);
   const chartIssues = charts.flatMap(({ tag, body }) => {
     const engine = tag.match(/data-engine=["']([^"']*)["']/iu)?.[1];
@@ -251,7 +290,7 @@ export function auditMarket14(html: string, trace?: string, options: { requireFl
     result('7', gateResult('U32_NO_CROSS_PLATFORM_TOTAL').ok && hasSampleStatement(text) && sampleIssues.length === 0 && zeroSampleIssues.length === 0 && !/(?:thị phần|quy mô thị trường)\s+(?:là|đạt|tăng|giảm|chiếm)\s*\d/iu.test(text), 'machine', sampleIssues.length ? snippets(sampleIssues) : zeroSampleIssues.length ? snippets(zeroSampleIssues) : hasSampleStatement(text) ? gateResult('U32_NO_CROSS_PLATFORM_TOTAL').detail : 'missing n = sample statement'),
     result('8', true, 'evidence', evidenceDetail(html, [/nhận định|nhóm|doanh thu|giá/iu])),
     result('9', m12Structure, 'machine', m12Structure ? 'M12 has three labelled proposal rows, a quick-win label, owner and deadline fields' : 'M12 is missing the three-option, quick-win, owner, deadline or approval-label structure'),
-    result('10', externalCover || malformedCover ? false : !coverRead && image, externalCover || malformedCover ? 'machine' : coverRead ? 'evidence' : 'machine', externalCover || malformedCover ? 'cover must be an embedded stored asset; external or malformed cover markup is not allowed' : coverRead ? 'READ: needs owner/asset and a trace entry with the reuse licence' : 'cover image is embedded and licensed in the trace'),
+    result('10', externalCover || malformedCover ? false : aiCover, externalCover || malformedCover || aiCover ? 'machine' : 'evidence', externalCover || malformedCover ? 'cover must be an embedded stored asset; external or malformed cover markup (or an AI cover that is not a bounded base64 JPEG with alt text) is not allowed' : aiCover ? 'cover image is embedded with AI-generated provenance and alt text; a generic illustration, no licence claimed' : licensedCover ? 'READ: a licensed or owner-supplied cover needs owner review; only an embedded AI-generated JPEG with alt text passes automatically' : 'READ: no embedded AI-generated JPEG cover with alt text'),
     result('11', (!iconCounts.shopee || icons.shopee >= iconCounts.shopee) && (!iconCounts.tiktok || icons.tiktok >= iconCounts.tiktok) && localIconCss && chartIssues.length === 0, 'machine', chartIssues.length ? chartIssues.join('; ') : `platform icons: ${icons.shopee}/${iconCounts.shopee} Shopee, ${icons.tiktok}/${iconCounts.tiktok} TikTok Shop`),
     result('12', allPlatformsMentioned && tables.length === 0, 'machine', tables.length ? `tables without a platform label: ${tables.length}` : allPlatformsMentioned ? 'Shopee and TikTok Shop are labelled in platform exhibits' : 'both platforms are not labelled'),
     result('13', sources.every(source => source.ok), 'machine', sources.filter(source => !source.ok).length ? `missing source labels: ${sources.filter(source => !source.ok).map(source => source.label).join(', ')}` : 'all four neutral source labels are present'),
