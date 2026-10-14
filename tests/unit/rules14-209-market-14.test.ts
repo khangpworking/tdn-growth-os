@@ -33,6 +33,28 @@ test('synthetic Market HTML passes all machine rules and marks review-only rules
   assert.equal(rule(licensed, '10', 'owner-supplied asset; licensed for reuse').ok, true);
 });
 
+test('rule 10 passes an embedded AI cover with provenance and alt text, without any licence claim', () => {
+  const img = (attributes: string) => valid.replace('<header class="cover"></header>', `<header class="cover"><div><img class="cv-art" ${attributes}><p>Báo cáo</p></div></header>`);
+  const ai = img('src="data:image/jpeg;base64,/9j/AA==" alt="Minh hoạ chung do AI tạo" data-cover-provenance="ai-generated" data-cover-model="gpt-image-2"');
+  assert.equal(rule(ai, '10').ok, true);
+  assert.match(rule(ai, '10').detail, /AI-generated provenance/);
+  assert.doesNotMatch(rule(ai, '10').detail, /licen[cs]ed for/);
+  assert.equal(rule(ai.replace('alt="Minh hoạ chung do AI tạo"', 'alt=""'), '10').ok, false, 'empty alt');
+  assert.equal(rule(ai.replace(' alt="Minh hoạ chung do AI tạo"', ''), '10').ok, false, 'missing alt');
+  const fallback = img('src="data:image/jpeg;base64,/9j/AA==" alt="Hình trang trí chung" data-cover-provenance="fallback"');
+  assert.equal(rule(fallback, '10').ok, false, 'fallback stays READ');
+  assert.match(rule(fallback, '10').detail, /READ/);
+  assert.equal(rule(ai.replace('class="cover"', 'class="cover-in"'), '10').ok, false, 'cover-in is not the cover');
+  assert.equal(rule(img('src="https://example.test/c.jpg" alt="x" data-cover-provenance="ai-generated"'), '10').ok, false, 'external img');
+  assert.match(rule(img('src="https://example.test/c.jpg" alt="x" data-cover-provenance="ai-generated"'), '10').detail, /external|remote|malformed/i);
+  assert.equal(rule(img('src="data:image/jpeg;base64,***" alt="x" data-cover-provenance="ai-generated"'), '10').ok, false, 'malformed data');
+  const nested = valid.replace('<header class="cover"></header>',
+    '<section class="cover"><section class="inner"><p>x</p></section><div><img src="data:image/jpeg;base64,/9j/AA==" alt="Minh hoạ" data-cover-provenance="ai-generated"></div></section>');
+  assert.equal(rule(nested, '10').ok, true, 'nested section cover form');
+  const outside = valid.replace('</body>', '<img src="data:image/jpeg;base64,/9j/AA==" alt="x" data-cover-provenance="ai-generated"></body>');
+  assert.equal(rule(outside, '10').ok, false, 'an image outside the cover does not count');
+});
+
 test('each machine rule has a failing synthetic mutation', () => {
   const mutations: Record<string, string> = {
     '1': valid.replace('<td>review</td><td>đánh giá</td>', '<td>review</td><td></td>'),
