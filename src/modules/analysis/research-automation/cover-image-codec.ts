@@ -1,4 +1,4 @@
-import { inflateSync } from 'node:zlib';
+import { crc32, inflateSync } from 'node:zlib';
 
 /** Pure PNG→JPEG cover codec: no image libraries, deterministic JPEG bytes. */
 export type CoverImageErrorCode = 'COVER_AI_INVALID_IMAGE' | 'COVER_AI_TOO_LARGE';
@@ -27,6 +27,7 @@ export function decodePng(bytes: Uint8Array): RgbRaster {
     const type = String.fromCharCode(...bytes.subarray(offset + 4, offset + 8));
     const end = offset + 12 + length;
     if (length > 0x7fffffff || end > bytes.byteLength) invalid('PNG chunk exceeds the file.');
+    if (view.getUint32(offset + 8 + length) !== crc32(bytes.subarray(offset + 4, offset + 8 + length))) invalid(`PNG chunk ${JSON.stringify(type)} fails its CRC check.`);
     const data = bytes.subarray(offset + 8, offset + 8 + length);
     if (offset === 8 && type !== 'IHDR') invalid('PNG must start with IHDR.');
     if (type === 'IHDR') {

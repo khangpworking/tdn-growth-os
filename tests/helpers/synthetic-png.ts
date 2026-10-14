@@ -1,8 +1,9 @@
-import { deflateSync } from 'node:zlib';
+import { crc32, deflateSync } from 'node:zlib';
 
 export const pngChunk = (type: string, data: Uint8Array): Buffer => {
   const out = Buffer.alloc(12 + data.length);
   out.writeUInt32BE(data.length, 0); out.write(type, 4, 'latin1'); Buffer.from(data).copy(out, 8);
+  out.writeUInt32BE(crc32(out.subarray(4, 8 + data.length)), 8 + data.length);
   return out;
 };
 const paeth = (a: number, b: number, c: number): number => {
