@@ -10,12 +10,18 @@
 |---|---|
 | Luồng Market tự động (nhận yêu cầu → khóa phạm vi → dùng dữ liệu đã thu → tính toán → báo cáo → bản trình bày) | Chạy được từ đầu đến cuối khi đã có dữ liệu thu thập |
 | Bản đang chạy trên ứng dụng | `279bc62c10c01737e3d2a219a8ad71ec4c4aa2ab` |
-| Canxi | **12/14** |
-| Bình giữ nhiệt | **12/14** |
+| Canxi | **11/14** (vòng 3 chấm 12/14; đã chấm lại quy tắc 11, xem B6) |
+| Bình giữ nhiệt | **11/14** (vòng 3 chấm 12/14; đã chấm lại quy tắc 11, xem B6) |
 | Thạch dừa | **5/14**: đang kẹt, chưa trình bày lại được |
-| Mục tiêu "Market ổn định sáng 14/10" | **Chưa đạt trọn vẹn.** Hai báo cáo đạt 12/14, phần còn thiếu đều có nguyên nhân rõ ràng. Thạch dừa đang bị chặn bởi blocker B1 |
+| Mục tiêu "Market ổn định sáng 14/10" | **Chưa đạt trọn vẹn.** Hai báo cáo đạt 11/14, phần còn thiếu đều có nguyên nhân rõ ràng. Thạch dừa đang bị chặn bởi blocker B1 |
 
 Điểm chấm trên **bản trình bày cuối** (đã qua kiểm duyệt), không phải bản nháp. Những lần chấm 5/14 trước đây cho canxi và bình giữ nhiệt bị sai vì đã chấm trên bản nháp.
+
+**Cập nhật trưa 14/10: biểu đồ Flint chưa được dùng thật.** Vòng 3 chấm quy tắc 11 là Đạt cho canxi và bình giữ nhiệt, nhưng kiểm tra lại HTML cho thấy:
+- canxi không có biểu đồ nào;
+- bình giữ nhiệt có 1 biểu đồ, nhưng vẽ bằng SVG dự phòng chứ không phải Flint (`data-engine="svg-fallback"`).
+
+Vì vậy quy tắc 11 được chấm lại là Trượt. Chi tiết ở B6.
 
 ---
 
@@ -33,7 +39,7 @@
 | 8 | Đạt | Đạt | Đạt |
 | 9. Đề xuất M12 gồm 3 phương án | Đạt | Đạt | **Trượt** |
 | 10. Ảnh bìa trang 1 | **Trượt**: không có ảnh bìa | **Trượt**: không có ảnh bìa | **Trượt** |
-| 11. Biểu tượng sàn và biểu đồ | Đạt | Đạt | **Trượt** |
+| 11. Biểu tượng sàn và biểu đồ Flint | **Trượt**: có biểu tượng, không có biểu đồ | **Trượt**: có biểu tượng; 1 biểu đồ vẽ bằng SVG dự phòng, không phải Flint | **Trượt**: không có biểu đồ |
 | 12 | Đạt | Đạt | Đạt |
 | 13. Đánh giá khách hàng | **Trượt**: đang bỏ qua (chưa nạp tiền) | **Trượt**: như canxi | **Trượt**: như canxi |
 | 14. Chất lượng đánh giá | Không áp dụng | Không áp dụng | Không áp dụng |
@@ -183,6 +189,39 @@ Tất cả đã gộp vào bản chính và đang chạy trên ứng dụng.
 - Lỗi che thông tin (redaction): cần một lane điều tra riêng.
 - Đưa dữ liệu thu thập vào lượt chạy mới vẫn làm bằng script: gói dữ liệu gắn với từng lượt chạy, nên mỗi lượt mới phải tải lại. Công thức ở `docs/handoffs/PRESFIX-209.md`.
 
+### B6. Biểu đồ chưa vẽ bằng Flint (quy tắc 11)
+
+**Hiện trạng** (kiểm tra trên HTML bản trình bày cuối của vòng 3)
+
+| Báo cáo | Biểu đồ |
+|---|---|
+| Bình giữ nhiệt | 1 biểu đồ (độ tập trung thị trường). Khung là `<div class="chart flint" data-engine="svg-fallback">`: Flint không chạy, hệ thống tự vẽ SVG thay thế |
+| Canxi | Không có biểu đồ |
+| Thạch dừa (bản cũ) | Không có biểu đồ |
+
+Biểu tượng Shopee và TikTok thì có đủ.
+
+**Nguyên nhân có thể (chưa kiểm chứng trong mã)**
+- Khi làm báo cáo bằng tay, Flint chỉ chạy được khi có thiết lập `FLINT_NODE_MODULES`.
+- Bản chạy trên ứng dụng có lẽ thiếu thiết lập này, hoặc thiếu thư viện Flint trong `node_modules`, nên tự rơi về SVG dự phòng mà không báo lỗi.
+- Canxi không có biểu đồ nào, có thể vì bước dựng báo cáo chỉ vẽ biểu đồ khi đủ dữ liệu, hoặc vì lỗi riêng.
+
+**Bước tiếp theo**
+1. **Tìm nguyên nhân.** Đọc chỗ mã chọn `data-engine`: điều kiện nào dẫn tới `svg-fallback`, và vì sao canxi không có biểu đồ. Kiểm tra checkout đang triển khai có thư viện Flint không.
+2. **Sửa (một PR, lane omp):**
+   - Đưa Flint thành phụ thuộc chính thức của ứng dụng, hoặc cấu hình để bản triển khai luôn tìm thấy Flint. Không phụ thuộc biến môi trường thủ công.
+   - Mỗi báo cáo Market có đủ các biểu đồ chính: độ tập trung thị trường, doanh thu theo sàn, xếp hạng sản phẩm.
+   - Khi buộc phải dùng SVG dự phòng thì ghi cảnh báo vào log và vào kết quả kiểm duyệt; không được im lặng.
+3. **Thêm kiểm tra tự động:** quy tắc 11 chỉ Đạt khi mọi biểu đồ có `data-engine` là Flint và đủ số biểu đồ bắt buộc. Thêm bài kiểm thử cho cả hai trường hợp thiếu biểu đồ và dùng dự phòng.
+4. Duyệt Astra, CI xanh, gộp, triển khai, trình bày lại 3 báo cáo, chấm lại.
+
+**Xong khi:** cả 3 báo cáo có đủ biểu đồ vẽ bằng Flint, quy tắc 11 Đạt ở cả 3.
+
+**Phương án khác**
+- **A. Gộp chung với PR ảnh bìa (B2):** cùng sửa bước dựng giao diện báo cáo, nên duyệt và triển khai một lần.
+- **B. Vẽ biểu đồ trước, lúc tạo bản trình bày:** dựng biểu đồ Flint thành SVG tĩnh rồi nhúng vào HTML, để lúc hiển thị không cần Flint.
+- **C. Tạm chấp nhận SVG dự phòng trong giai đoạn thử:** cần chủ dự án đồng ý nới quy tắc 11, và vẫn phải có đủ biểu đồ.
+
 ---
 
 ## Phần 5. Thứ tự việc nên làm hôm nay
@@ -192,7 +231,7 @@ Tất cả đã gộp vào bản chính và đang chạy trên ứng dụng.
 | 1 | B1, bước 1–2: kiểm tra kết quả vòng 5, đổi người duyệt sang Sol 6.1 | Trợ lý điều phối | Có (đã quá quy tắc 3 lần) |
 | 2 | B1, bước 3–4: gộp, triển khai, trình bày lại thạch dừa, chấm | Trợ lý điều phối | Không (triển khai đã được phép sau duyệt và gộp) |
 | 3 | Quyết định nguồn ảnh bìa (B2) | Chủ dự án | Có |
-| 4 | Làm PR ảnh bìa | omp + Astra | Không |
+| 4 | Làm PR ảnh bìa (B2) + biểu đồ Flint (B6), có thể gộp làm một PR | omp + Astra | Không |
 | 5 | Nạp tiền nguồn đánh giá (B3), chuyển về AUTO_REUSE | Chủ dự án, rồi trợ lý | Có |
 | 6 | Chuyển việc đưa dữ liệu thu thập vào lượt chạy mới thành bước trong ứng dụng | omp | Không |
 | 7 | Sửa lật trang của công cụ thu thập (B4), sau 14/10 | omp | Có (cầu nối OpenCLI và lượt tra cứu Metric) |
