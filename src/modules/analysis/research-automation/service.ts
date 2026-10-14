@@ -23,7 +23,7 @@ import readerApiSchema from '../../../../contracts/api/research-automation-reade
 import type { ResearchAutomationInsightReaderBuildRequest } from '../../../../contracts/api/research-automation-reader-report-api.generated.js';
 import { readerRowsFromMetricWorkbook } from '../reader-report/metric-rows.js';
 import { renderCaptureCountCharts, renderMarketCharts, type CaptureCountChart, type MarketChart } from '../reader-report/market-charts.js';
-import { captureSampleCounts } from './market-presentation-report.js';
+import { captureSampleCounts, marketChartSource } from './market-presentation-report.js';
 import { ReaderUnitSpecIntakes } from './reader-unit-spec-intake.js';
 import { buildAutomationMarketPresentation, verifyAutomationMarketPresentation, type MarketPresentationBinding, type MarketPresentationInput } from './market-presentation-method.js';
 import type { AutomationMarketPresentationMethod } from '../../../../contracts/analysis/automation-market-presentation-method.generated.js';
@@ -3342,7 +3342,8 @@ export class ResearchAutomationService {
           // Flint is asynchronous; the report builder is not, so the Market charts are drawn first.
           if (kind === 'MARKET' && input.marketPresentation) {
             const capture = input.metricMethods?.capture;
-            input = { ...input, marketPresentationCharts: await renderMarketCharts(input.marketPresentation.input.rows),
+            const { rows: chartRows, ...chartOptions } = marketChartSource(input.marketPresentation.input.rows, input.metricMethods);
+            input = { ...input, marketPresentationCharts: await renderMarketCharts(chartRows, chartOptions),
               ...(capture ? { marketCaptureCharts: await renderCaptureCountCharts(captureSampleCounts(capture)) } : {}) };
           }
           const authoritative = input.qualitativeDraft || input.marketPresentation || input.insightPersona || privateDefault || (kind === 'INSIGHT' && start.reviewCollectionPolicy) ? buildResearchAutomationReport(input, kind) : undefined;

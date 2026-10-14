@@ -1,6 +1,6 @@
 import type { AutomationMarketPresentationMethod } from '../../../../contracts/analysis/automation-market-presentation-method.generated.js';
-import type { CaptureMetricMethodDetails } from './metric-method-bridge.js';
-import type { CaptureCountChart } from '../reader-report/market-charts.js';
+import type { AutomationMetricMethodSnapshot, CaptureMetricMethodDetails } from './metric-method-bridge.js';
+import type { CaptureCountChart, MarketChartRow } from '../reader-report/market-charts.js';
 import { readerPriceState, readerProductLabel, readerStoredOrJson } from './reader-plain-text.js';
 import { escapeHtml as escape, readerPointer, storedLiteral, type ReportCitations } from './descriptive-report.js';
 
@@ -15,6 +15,27 @@ const mark = (ref: { sourceSha256: string; locator: string; label?: string }, ci
 };
 const table = (caption: string, headings: readonly string[], rows: readonly string[][]): string =>
   `<div class="table-wrap" role="region" aria-label="${escape(caption)}" tabindex="0"><table><caption>${escape(caption)}</caption><thead><tr>${headings.map(h => `<th scope="col">${escape(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+
+export type MarketChartSource = { rows: MarketChartRow[]; rowListNote?: string; sampleNote?: string };
+
+/**
+ * Rows the three Market charts are drawn from. Saved presentation rows are used
+ * when there are any; otherwise the frozen Metric records are read as stored:
+ * each workbook record, or each results-page row kept for one platform (numbered
+ * by its row in the saved results table). Nothing is recalculated or inferred;
+ * a missing revenue stays missing, so that platform draws no chart.
+ */
+export function marketChartSource(presentationRows: readonly MarketChartRow[], metric: AutomationMetricMethodSnapshot | undefined): MarketChartSource {
+  if (presentationRows.length || !metric) return { rows: [...presentationRows] };
+  const revenue = (value: string | null): number | null => value === null ? null : Number(value);
+  if (metric.capture) return {
+    rows: metric.capture.platforms.flatMap(({ platform, result }) => result.input.records.map((record, index) => ({
+      i: Number(/^\/groups\/W12_topProducts\/rows\/(\d+)$/u.exec(record.source.locator)?.[1] ?? index), platform, shop: record.shopId, rev: revenue(record.revenue.value) }))),
+    rowListNote: 'số dòng là thứ tự dòng trong bảng kết quả tìm kiếm đã lưu',
+    sampleNote: ' Mẫu là các dòng đầu được giữ của bảng kết quả tìm kiếm, không phải số của cả tập kết quả theo bộ lọc.',
+  };
+  return { rows: metric.result.input.records.map((record, i) => ({ i, platform: record.measurement.platform, shop: record.shopId, rev: revenue(record.revenue.value) })) };
+}
 
 /** Frozen record counts of each platform whose whole-sample scope was calculated; never summed across platforms. */
 export function captureSampleCounts(capture: CaptureMetricMethodDetails) {
