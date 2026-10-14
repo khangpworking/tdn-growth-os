@@ -23,6 +23,7 @@ const marketPresentationRevisionSchema = await readSchema('contracts/analysis/au
 const automationReportRevisionSchema = await readSchema('contracts/analysis/automation-report-revision.schema.json');
 const researchAutomationRevisionApiSchema = await readSchema('contracts/api/research-automation-revision-api.schema.json');
 const metricIntakeSchema = await readSchema('contracts/api/research-automation-metric-intake-api.schema.json');
+const metricCaptureIntakeSchema = await readSchema('contracts/api/research-automation-metric-capture-intake-api.schema.json');
 const supplementalIntakeSchema = await readSchema('contracts/api/research-automation-supplemental-intake-api.schema.json');
 const sourcePackageIntakeSchema = await readSchema('contracts/foundation/source-package-intake-request.schema.json');
 const metricRuleSchema = await readSchema('contracts/analysis/automation-metric-rule-adoption.schema.json');
@@ -63,6 +64,7 @@ ajv.addSchema(automationReportRevisionSchema);
 ajv.addSchema(marketPresentationRevisionSchema);
 ajv.addSchema(researchAutomationRevisionApiSchema);
 ajv.addSchema(metricIntakeSchema);
+ajv.addSchema(metricCaptureIntakeSchema);
 ajv.addSchema(sourcePackageIntakeSchema);
 ajv.addSchema(supplementalIntakeSchema);
 ajv.addSchema(metricRuleSchema);
@@ -142,6 +144,8 @@ const validatorRefs = {
   researchAutomationAttachPdf: `${researchAutomationSourceStatusSchema.$id}#/$defs/attachPdfRequest`,
   researchAutomationMetricPrepared: `${metricIntakeSchema.$id}#/$defs/receipt`,
   researchAutomationMetricPreparedList: `${metricIntakeSchema.$id}#/$defs/preparedList`,
+  researchAutomationMetricCapturePrepared: `${metricCaptureIntakeSchema.$id}#/$defs/receipt`,
+  researchAutomationMetricCapturePreparedList: `${metricCaptureIntakeSchema.$id}#/$defs/preparedList`,
   researchAutomationRevision: automationReportRevisionSchema.$id,
   researchAutomationRevisionCancel: `${researchAutomationRevisionApiSchema.$id}#/$defs/cancelRequest`,
   researchAutomationRevisionVersionList: `${researchAutomationRevisionApiSchema.$id}#/$defs/versionList`,

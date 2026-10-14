@@ -10,9 +10,11 @@ import type {
 } from '../../../contracts/api/research-automation-api.generated';
 import type { ResearchAutomationSourceConfirmRequest } from '../../../contracts/api/research-automation-source-api.generated';
 import type { ResearchAutomationMetricPrepareRequest, ResearchAutomationMetricPrepareReceipt, ResearchAutomationPreparedMetricEntry, ResearchAutomationPreparedMetricList } from '../../../contracts/api/research-automation-metric-intake-api.generated';
+import type { ResearchAutomationMetricCapturePrepareRequest, ResearchAutomationMetricCapturePrepareReceipt, ResearchAutomationPreparedMetricCaptureList } from '../../../contracts/api/research-automation-metric-capture-intake-api.generated';
 import type { ResearchAutomationSupplementalPrepareRequest, ResearchAutomationSupplementalPrepareReceipt, ResearchAutomationSupplementalPreparedList } from '../../../contracts/api/research-automation-supplemental-intake-api.generated';
 import type { ResearchAutomationSourceStatus, ResearchAutomationSourceStatusEntry, ResearchAutomationRunPdfStates, ResearchAutomationAttachPdfRequest } from '../../../contracts/api/research-automation-source-status-api.generated';
 import { supplementalSourcePrepare, supplementalSourcePrepared, supplementalSourcePreparedList } from '../generated/report-validators.generated.js';
+import { researchAutomationMetricCapturePrepared, researchAutomationMetricCapturePreparedList } from '../generated/report-validators.generated.js';
 import { researchAutomationSourceStatus, researchAutomationRunPdfs, researchAutomationAttachPdf } from '../generated/report-validators.generated.js';
 import { researchAutomationReceipt, researchAutomationRun, researchAutomationRunList, researchAutomationMetricPrepared, researchAutomationMetricPreparedList } from '../generated/report-validators.generated.js';
 
@@ -22,6 +24,10 @@ export type ResearchAutomationConfirmBody = ResearchAutomationConfirmRequest | R
 export type { ResearchAutomationSourceConfirmRequest, ResearchAutomationMetricPrepareRequest, ResearchAutomationMetricPrepareReceipt, ResearchAutomationPreparedMetricEntry };
 export type { ResearchAutomationSupplementalPrepareRequest, ResearchAutomationSupplementalPrepareReceipt };
 export type { ResearchAutomationSupplementalPreparedList };
+export type { ResearchAutomationMetricCapturePrepareRequest, ResearchAutomationMetricCapturePrepareReceipt, ResearchAutomationPreparedMetricCaptureList };
+/** The generated Capture type is empty, so the fields the panel shows are narrowed here. */
+export interface MetricCaptureSummary { readonly keyword: string; readonly platforms: readonly string[]; readonly measurementPeriod: { readonly startDate: string; readonly endDate: string }; readonly truncation: { readonly truncated: boolean; readonly rowsRead: number } }
+export type ResearchAutomationPreparedMetricCaptureEntry = { readonly packageId: string; readonly recordCount: number; readonly request: ResearchAutomationMetricCapturePrepareRequest; readonly capture: MetricCaptureSummary };
 export type { ResearchAutomationSourceStatus, ResearchAutomationSourceStatusEntry };
 export type { ResearchAutomationRunPdfStates };
 export type ResearchAutomationCancelBody = ResearchAutomationCancelRequest;
@@ -132,6 +138,33 @@ export async function prepareMetricSource(workspaceId: string, runId: string, bo
       receipt.measurementPeriod.startDate !== body.measurementPeriod.startDate || receipt.measurementPeriod.endDate !== body.measurementPeriod.endDate ||
       receipt.measurementPeriod.basis !== body.measurementPeriod.basis)
     throw new ResearchAutomationError('integrity', 'Phản hồi tải nguồn không khớp yêu cầu vừa gửi.');
+  return receipt;
+}
+
+/** Read-only inventory of stored results-page captures; listing never admits or selects a source. */
+export async function loadPreparedMetricCaptureSources(workspaceId: string, runId: string, signal: AbortSignal): Promise<ResearchAutomationPreparedMetricCaptureList & { readonly sources: readonly ResearchAutomationPreparedMetricCaptureEntry[] }> {
+  const value = await request(`/api${base(workspaceId)}/${encodeURIComponent(runId)}/sources/metric-capture`, { headers: { Accept: 'application/json' }, signal });
+  if (!researchAutomationMetricCapturePreparedList(value)) throw new ResearchAutomationError('integrity', 'Danh sách bản ghi trang kết quả không vượt qua kiểm tra dữ liệu.');
+  const list = value as unknown as ResearchAutomationPreparedMetricCaptureList & { readonly workspaceId: string; readonly runId: string; readonly sources: readonly ResearchAutomationPreparedMetricCaptureEntry[] };
+  if (list.workspaceId !== workspaceId || list.runId !== runId || new Set(list.sources.map(source => source.packageId)).size !== list.sources.length)
+    throw new ResearchAutomationError('integrity', 'Danh sách bản ghi không thuộc phiên nghiên cứu đang xem.');
+  return list;
+}
+
+/** Storage only (PREPARED_NOT_ADMITTED). Aborting stops waiting for the receipt; it does not undo server storage. */
+export async function prepareMetricCapture(workspaceId: string, runId: string, body: ResearchAutomationMetricCapturePrepareRequest,
+  snapshot: File, manifest: File, token: string, signal?: AbortSignal): Promise<ResearchAutomationMetricCapturePrepareReceipt> {
+  const form = new FormData();
+  form.append('metadata', JSON.stringify(body));
+  form.append('snapshot', snapshot, snapshot.name);
+  form.append('manifest', manifest, manifest.name);
+  const value = await request(`/owner-api${base(workspaceId)}/${encodeURIComponent(runId)}/sources/metric-capture`, {
+    method: 'POST', headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }, body: form,
+    ...(signal ? { signal } : {}),
+  }, [200, 201]);
+  if (!researchAutomationMetricCapturePrepared(value)) throw new ResearchAutomationError('integrity', 'Phản hồi tải bản ghi không vượt qua kiểm tra dữ liệu.');
+  const receipt = value as ResearchAutomationMetricCapturePrepareReceipt;
+  if (receipt.requestKey !== body.requestKey) throw new ResearchAutomationError('integrity', 'Phản hồi tải bản ghi không khớp yêu cầu vừa gửi.');
   return receipt;
 }
 
