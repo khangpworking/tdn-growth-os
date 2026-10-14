@@ -234,6 +234,12 @@ test('capture-backed Market presentation passes rules 1, 2, 3, 5, 7, 9 and 11 wi
     assert.match(sources, /Dữ liệu đánh giá sản phẩm trên nền tảngChưa có trong lượt này\./);
     assert.match(sources, /Bình luận đã thu thậpChưa có trong lượt này\./);
     assert.doesNotMatch(reportVisibleText(dom.window.document), /shopee\.vn|product\/\d/iu, 'a skipped review scope keeps listing locators out of reader text');
+    // No owner-accepted classification, so M03 is a source table; the per-platform
+    // record-count figure still has to reach the reader, once, drawn by Flint.
+    assert.equal(semantic.metricClassified ?? null, null);
+    const captions = [...dom.window.document.querySelectorAll('figcaption')].filter(caption => /^Bản ghi sản phẩm — /u.test(caption.textContent!));
+    assert.deepEqual(captions.map(caption => [caption.closest('section.sheet')?.id, caption.textContent]), [['M03', 'Bản ghi sản phẩm — Shopee']]);
+    assert.equal(captions[0]!.parentElement!.querySelector('.chart')?.getAttribute('data-engine'), 'flint');
   } finally { dom.window.close(); }
   const output = path.join(f.root, 'presented.html');
   await fs.writeFile(output, html);
