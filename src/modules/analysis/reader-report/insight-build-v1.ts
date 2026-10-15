@@ -13,6 +13,7 @@ import { decisionPacketSection, i14AdmissionSection, i14SynthesisSection } from 
 import { ReaderReportInputError } from './build.js';
 import { verifyInsightReaderInput, type InsightReaderInput } from './insight-input-v1.js';
 import { insightCrosscheckAppendix } from '../research-automation/insight-crosscheck-report.js';
+import { insightWebContextSection } from './insight-web-context.js';
 import { projectRetainedInsightFindings, projectInsightFindings, type InsightSectionId } from './insight-projection.js';
 import type { InsightReaderPage, InsightReaderSection } from './insight-template.js';
 import { qualitativeDraftSection, type QualitativeDraftReportSection } from './qualitative-draft-report.js';
@@ -178,6 +179,8 @@ export function prepareInsightReaderBuild(identity: InsightReaderSourceIdentity,
   if (methods.sourceEvidence) append('I17', sourceEvidenceHtml(methods.sourceEvidence), 'Nguồn, hạng và kết quả lọc nghĩa được giữ riêng theo từng nguồn.');
   else append('I17', '<p>Phiên bản nguồn này chưa có bản kê nguồn với mã đăng ký, hạng và kết quả lọc nghĩa đã xác minh. Các vị trí nguồn đã có vẫn được giữ; không tự điền hạng hoặc kết quả lọc còn thiếu.</p>',
     'Phần còn thiếu của bản kê nguồn được giữ rõ, không thay bằng giá trị mặc định.');
+  const webContext = insightWebContextSection(methods, citations);
+  if (webContext) append('I17', webContext, 'Nguồn, hạng và kết quả lọc nghĩa được giữ riêng theo từng nguồn.');
   if (qualitativeDraft) for (const id of ['I02', 'I05', 'I06', 'I10', 'I17'] as QualitativeDraftReportSection[])
     append(id, qualitativeDraftSection(qualitativeDraft, id, citations), 'Đề xuất qualitative bám bản ghi nguồn đã lưu; chờ chủ duyệt, U11_STATISTIC_UNAVAILABLE và không dùng trong kết luận chính.');
   return { input, page: { keyword: scope.keyword, definition: scope.definition, period: scope.requestedPeriod,
