@@ -1,4 +1,4 @@
-// Search-trend reader for the research-automation lane (offline, not wired into a run yet).
+// Search-trend reader for the research-automation lane (a run reaches it only through search-interest.ts, behind its flag).
 //
 // It can only be reached through the shared provider transport, so the paid call stays bounded
 // (see SEARCH_TRENDS_LIMITS.maxCallsPerRun and SearchCallBudget in expanded-search-queries.ts).

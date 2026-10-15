@@ -10,8 +10,9 @@ import { fetchTrends, planTrendsRequests, type TrendsCallResult } from './search
 export const SEARCH_TRENDS_FLAG = 'TDN_RESEARCH_SEARCH_TRENDS_ENABLED';
 /** Usage ordinal of the trends call inside the collection step (0 Kalodata, 1 exact Shopee, 2 web, 3 trends). */
 export const SEARCH_INTEREST_USAGE_ORDINAL = 3;
-/** The provider window is fixed at the last 12 months; a longer or older period is skipped before any paid call. */
-export const SEARCH_INTEREST_WINDOW_DAYS = 360;
+/** The provider window is fixed at the last 12 months of weekly points (365 days; the first point's week may start up to 7 days
+ * earlier). A period that starts before that, or ends in the future, is skipped before any paid call. */
+export const SEARCH_INTEREST_WINDOW_DAYS = 372;
 /** A series with fewer dated, non-empty points is not drawn. */
 export const SEARCH_INTEREST_MIN_POINTS = 4;
 
