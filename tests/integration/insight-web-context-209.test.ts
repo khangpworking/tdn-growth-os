@@ -104,3 +104,27 @@ test('registered use must match the rows drawn', async t => {
   const dup: AutomationSourceEvidence = { ...packet, sourceAppendix: { ...packet.sourceAppendix, rows: [...packet.sourceAppendix.rows, packet.sourceAppendix.rows[0]!] } };
   assert.throws(() => build({ collection: withRows, sourceEvidence: dup }), /duplicated/);
 });
+
+test('provider and search-engine words in a copied title, domain or address are withheld; the full build and lint still pass', async t => {
+  const { build } = await prepared(t);
+  const base = build({ collection: { webResults: [] }, sourceEvidence: packetFor([], true) });
+  const bad = [row(1, 'Thạch dừa Metric giá tốt', 'https://metric.vn/thach-dua', 0), row(2, 'Thạch dừa Kalodata', 'https://kalodata.com/thach-dua', 0),
+    row(3, 'Thạch dừa SerpApi', 'https://blog.example.test/thach-dua-serpapi', 0), row(4, 'Thạch dừa trên Google', 'https://news.google.com/thach-dua', 0),
+    row(5, 'Thạch dừa Apify Dami TradeInt', 'https://example.test/thach-dua', 0), row(6, 'Thạch dừa sạch', 'https://clean.example.test/thach-dua', 0)];
+  const out = build({ collection: { webResults: bad }, sourceEvidence: packetFor(bad, true, [capture(0)]), caps: [capture(0)] });
+  const visible = out.html.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>|<svg[\s\S]*?<\/svg>/g, ' ').replace(/<[^>]+>/g, ' ');
+  assert.match(visible, /Thạch dừa sạch/);
+  assert.doesNotMatch(visible, /metric|kalodata|serpapi|google|apify|dami|tradeint/iu);
+  assert.deepEqual(providerNameViolations(out.html), []);
+  assert.match(out.html, /Tiêu đề được giữ trong hồ sơ nguồn/);
+  assert.match(out.html, /Trang được giữ trong hồ sơ nguồn/);
+  assert.deepEqual(out.lint.filter(r => !r.ok).map(r => r.rule), base.lint.filter(r => !r.ok).map(r => r.rule), 'publication lint adds no failure');
+  assert.equal(out.lint.find(r => r.rule.startsWith('F1'))!.ok, true);
+});
+
+test('each drawn page type needs its exact (registryId, capture) usage', async t => {
+  const { build } = await prepared(t);
+  const packet = packetFor(allRows, true);
+  const moved: AutomationSourceEvidence = { ...packet, sourceAppendix: { ...packet.sourceAppendix, rows: packet.sourceAppendix.rows.map(r => r.registryId === 'S26' ? { ...r, binding: { ...r.binding, ref: 'f'.repeat(64) } } : r) } };
+  assert.throws(() => build({ collection: withRows, sourceEvidence: moved }), /registered source usage/);
+});
