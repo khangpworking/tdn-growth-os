@@ -71,6 +71,10 @@ response is listed in `incompleteResponses`, so a lost response fails as
 `searchGate.networkIdle` records reads, untracked reads, timeouts and the
 longest wait.
 
+These waits make a full capture run longer than OpenCLI's default 60 s
+command limit. `search` and `capture` therefore declare `--timeout` (default
+1500 s). Pass a larger value only when a capture is known to need it.
+
 For a form-only verification, pass `--dry-run`:
 
 ```text
