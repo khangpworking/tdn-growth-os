@@ -322,6 +322,23 @@ function responseBodyForGate(entry) {
   return rawBody(entry);
 }
 
+// The browser capture drains its buffer on every read, so an entry read while
+// its request was still in flight never receives a status or body afterwards.
+// Only a parsed body (with a 2xx status when one is recorded) proves the page
+// actually received the response.
+export function responseCompleted(entry) {
+  const status = Number(entry?.status ?? entry?.responseStatus);
+  if (Number.isFinite(status) && (status < 200 || status > 299)) return false;
+  return rawBody(entry) !== null;
+}
+
+function incompleteResponseDetails(items) {
+  return items.filter(item => !responseCompleted(item.response)).map(item => ({
+    path: item.path, responseOrder: item.order,
+    status: item.response?.status ?? item.response?.responseStatus ?? null,
+  }));
+}
+
 function platformName(value) {
   const normalized = clean(value).toLowerCase();
   if (normalized === 'tiktok shop' || normalized === 'tiktok') return 'tiktok';
@@ -388,7 +405,9 @@ export function assertSearchAppliedGate({ responses = [], spec, baselineResponse
   const ordered = (Array.isArray(responses) ? responses : [])
     .map((response, index) => ({ response, order: responseOrder(response, index), path: responsePath(response, index) }));
   const afterClick = ordered.filter(item => item.order > baselineResponseOrder);
-  const searchResponses = afterClick.filter(item => item.path.replace(/\/$/, '') === '/v2/market/analytics/search-basic');
+  const gatePaths = ['/v2/market/analytics/search-basic', '/v2/market/analytics/products', '/v2/market/analytics/shops'];
+  const incompleteResponses = incompleteResponseDetails(afterClick.filter(item => gatePaths.includes(item.path.replace(/\/$/, ''))));
+  const searchResponses = afterClick.filter(item => item.path.replace(/\/$/, '') === '/v2/market/analytics/search-basic' && responseCompleted(item.response));
   const seenPlatformSets = searchResponses.map(item => {
     const ids = searchBasicPlatformIds(responseBodyForGate(item.response));
     return { responseOrder: item.order, platformIds: ids, platforms: platformSetForIds(ids, platformMap) };
@@ -396,7 +415,7 @@ export function assertSearchAppliedGate({ responses = [], spec, baselineResponse
   if (!searchResponses.length) {
     return gateFailure({
       missingResponses: ['search-basic'], expectedPlatforms, baselineResponseOrder,
-      platformSetsSeen: seenPlatformSets,
+      platformSetsSeen: seenPlatformSets, incompleteResponses,
     });
   }
   const search = searchResponses[0];
@@ -409,8 +428,10 @@ export function assertSearchAppliedGate({ responses = [], spec, baselineResponse
       platformSetsSeen: seenPlatformSets,
     });
   }
-  const products = afterClick.find(item => item.order > search.order && item.path.replace(/\/$/, '') === '/v2/market/analytics/products');
-  const shops = afterClick.find(item => item.order > search.order && item.path.replace(/\/$/, '') === '/v2/market/analytics/shops');
+  const completedAfterSearch = path => afterClick.find(item => item.order > search.order
+    && item.path.replace(/\/$/, '') === path && responseCompleted(item.response));
+  const products = completedAfterSearch('/v2/market/analytics/products');
+  const shops = completedAfterSearch('/v2/market/analytics/shops');
   const missingResponses = [];
   if (!products) missingResponses.push('products');
   if (!shops) missingResponses.push('shops');
@@ -418,7 +439,7 @@ export function assertSearchAppliedGate({ responses = [], spec, baselineResponse
     return gateFailure({
       missingResponses, expectedPlatforms, baselineResponseOrder,
       searchBasicResponseOrder: search.order, searchBasicPlatformIds: ids,
-      platformSetsSeen: seenPlatformSets,
+      platformSetsSeen: seenPlatformSets, incompleteResponses,
       productsResponseOrders: products ? [products.order] : [], shopsResponseOrders: shops ? [shops.order] : [],
     });
   }

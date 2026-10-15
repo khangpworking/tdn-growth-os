@@ -328,6 +328,146 @@ test('network bridge repeats without an order stay stale instead of becoming pos
   }), (error: any) => error.code === 'METRIC_SEARCH_NOT_APPLIED' && error.details.missingResponses.includes('search-basic'));
 });
 
+test('search-applied gate counts only completed responses and reports the drained ones', async () => {
+  const { assertSearchAppliedGate, buildMetricPlatformMap, responseCompleted } = await import(captureUrl.href);
+  assert.equal(responseCompleted({ urlPath: '/v2/market/analytics/products/', method: 'POST' }), false);
+  assert.equal(responseCompleted({ responseStatus: 500, responsePreview: '{"error":"synthetic"}' }), false);
+  assert.equal(responseCompleted({ responseStatus: 200, responsePreview: '{"data":{"products":[]}}' }), true);
+  assert.equal(responseCompleted({ body: { data: { shops: [] } } }), true);
+  const spec = { platforms: ['shopee', 'tiktok'] };
+  const platformList = { responseOrder: 0, urlPath: '/market/search_basic', body: { data: { platforms: [{ platform_id: 1 }, { platform_id: 8 }] } } };
+  const map = buildMetricPlatformMap([platformList], ['Shopee', 'Tiktok']);
+  const gateBody = { data: { search_basic: { aggregations: [{ aggregation: 'GATE', entity: { platforms: { first: { platform_id: 1, value: 1 }, second: { platform_id: 8, value: 1 } } } }] } } };
+  const search = { responseOrder: 2, urlPath: '/v2/market/analytics/search-basic/', responseStatus: 200, body: gateBody };
+  const drainedProducts = { responseOrder: 3, urlPath: '/v2/market/analytics/products/', method: 'POST' };
+  const failedShops = { responseOrder: 4, urlPath: '/v2/market/analytics/shops/', responseStatus: 500, responsePreview: '{"error":"synthetic"}' };
+  assert.throws(() => assertSearchAppliedGate({ responses: [platformList, search, drainedProducts, failedShops], spec, baselineResponseOrder: 0, platformMap: map }), (error: any) => {
+    assert.equal(error.code, 'METRIC_SEARCH_NOT_APPLIED');
+    assert.deepEqual(error.details.missingResponses, ['products', 'shops']);
+    assert.deepEqual(error.details.incompleteResponses, [
+      { path: '/v2/market/analytics/products/', responseOrder: 3, status: null },
+      { path: '/v2/market/analytics/shops/', responseOrder: 4, status: 500 },
+    ]);
+    return true;
+  });
+  const completedProducts = { responseOrder: 5, urlPath: '/v2/market/analytics/products/', responseStatus: 200, responsePreview: '{"data":{"products":[]}}' };
+  const completedShops = { responseOrder: 6, urlPath: '/v2/market/analytics/shops/', body: { data: { shops: [] } } };
+  const applied = assertSearchAppliedGate({ responses: [platformList, search, drainedProducts, failedShops, completedProducts, completedShops], spec, baselineResponseOrder: 0, platformMap: map });
+  assert.deepEqual(applied.productsResponseOrders, [5]);
+  assert.deepEqual(applied.shopsResponseOrders, [6]);
+  const drainedSearch = { responseOrder: 2, urlPath: '/v2/market/analytics/search-basic/' };
+  assert.throws(() => assertSearchAppliedGate({ responses: [platformList, drainedSearch, completedProducts, completedShops], spec, baselineResponseOrder: 0, platformMap: map }), (error: any) =>
+    error.code === 'METRIC_SEARCH_NOT_APPLIED' && error.details.missingResponses.includes('search-basic')
+    && error.details.incompleteResponses[0]?.path === '/v2/market/analytics/search-basic/');
+});
+
+test('network reads wait until in-flight Metric requests settle and stay quiet', async () => {
+  const metric = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const states = [
+    { inflight: 2, started: 2, settled: 0, lastSettledAt: 0, now: 1_000 },
+    { inflight: 1, started: 2, settled: 1, lastSettledAt: 1_100, now: 1_200 },
+    { inflight: 0, started: 2, settled: 2, lastSettledAt: 1_300, now: 1_500 },
+    { inflight: 0, started: 2, settled: 2, lastSettledAt: 1_300, now: 2_400 },
+  ];
+  let trackerReads = 0;
+  const calls: string[] = [];
+  const page = {
+    evaluate: async (fn: Function) => {
+      if (fn.name !== 'readMetricRequestTracker') return 0;
+      calls.push('tracker');
+      return states[Math.min(trackerReads++, states.length - 1)];
+    },
+    wait: async () => { calls.push('wait'); },
+    readNetworkCapture: async () => { calls.push('read'); return [{ urlPath: '/v2/market/analytics/products/', responseStatus: 200, body: { data: { products: [] } } }]; },
+  };
+  const state = metric.createNetworkState();
+  const chunk = await metric.readNetworkChunk(page, state);
+  assert.deepEqual(calls, ['tracker', 'wait', 'tracker', 'wait', 'tracker', 'wait', 'tracker', 'read']);
+  assert.equal(chunk.length, 1);
+  assert.deepEqual({ reads: state.idle.reads, untracked: state.idle.untracked, timeouts: state.idle.timeouts }, { reads: 1, untracked: 0, timeouts: 0 });
+
+  const quietCalls: string[] = [];
+  const neverSettled = {
+    evaluate: async (fn: Function) => fn.name === 'readMetricRequestTracker' ? (quietCalls.push('tracker'), { inflight: 0, started: 0, settled: 0, lastSettledAt: 0, now: 5 }) : 0,
+    wait: async () => { quietCalls.push('wait'); },
+    readNetworkCapture: async () => { quietCalls.push('read'); return []; },
+  };
+  await metric.readNetworkChunk(neverSettled, metric.createNetworkState());
+  assert.deepEqual(quietCalls, ['tracker', 'read']);
+
+  for (const missing of [0, null, { inflight: 'x', now: 1 }]) {
+    const untrackedCalls: string[] = [];
+    const untrackedState = metric.createNetworkState();
+    const untracked = {
+      evaluate: async () => missing,
+      wait: async () => { untrackedCalls.push('wait'); },
+      readNetworkCapture: async () => { untrackedCalls.push('read'); return []; },
+    };
+    await metric.readNetworkChunk(untracked, untrackedState);
+    assert.deepEqual(untrackedCalls, ['read']);
+    assert.equal(untrackedState.idle.untracked, 1);
+  }
+});
+
+test('a Metric request that never settles ends the idle wait at the timeout', async t => {
+  const metric = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  t.mock.timers.enable({ apis: ['Date'], now: 0 });
+  let waits = 0;
+  const page = {
+    evaluate: async (fn: Function) => fn.name === 'readMetricRequestTracker' ? { inflight: 1, started: 1, settled: 0, lastSettledAt: 0, now: Date.now() } : 0,
+    wait: async ({ time }: { time: number }) => { waits += 1; t.mock.timers.tick(time * 1000); },
+  };
+  const state = metric.createNetworkState();
+  assert.deepEqual(await metric.waitForMetricNetworkIdle(page, state), { tracked: true, idle: false, inflight: 1 });
+  assert.equal(waits, 80);
+  assert.equal(state.idle.timeouts, 1);
+  assert.equal(state.idle.maxWaitMs, 20_000);
+});
+
+test('in-page request tracker counts only Metric API requests and leaves responses readable', async () => {
+  const metric = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  class SyntheticXhr {
+    listeners: Record<string, Array<() => void>> = {};
+    sent = 0;
+    open(_method: string, _url: string) { return undefined; }
+    send(_body?: unknown) { this.sent += 1; }
+    addEventListener(type: string, listener: () => void) { (this.listeners[type] ||= []).push(listener); }
+    fire(type: string) { for (const listener of this.listeners[type] || []) listener(); }
+  }
+  let resolveFetch = () => {};
+  const syntheticWindow: any = {
+    XMLHttpRequest: SyntheticXhr,
+    fetch: () => new Promise(resolve => { resolveFetch = () => resolve(new Response('{"data":{"shops":[]}}')); }),
+  };
+  const previous = (globalThis as any).window;
+  (globalThis as any).window = syntheticWindow;
+  try {
+    assert.equal(metric.readMetricRequestTracker(), null);
+    assert.deepEqual(metric.installMetricRequestTracker(), { installed: true, existing: false });
+    assert.deepEqual(metric.installMetricRequestTracker(), { installed: true, existing: true });
+    const api = new syntheticWindow.XMLHttpRequest();
+    api.open('POST', '/v2/market/analytics/products/'); api.send('{}');
+    const asset = new syntheticWindow.XMLHttpRequest();
+    asset.open('GET', '/static/app.js'); asset.send();
+    const pending = syntheticWindow.fetch('https://metric.vn/market/search_basic');
+    assert.equal(api.sent, 1); assert.equal(asset.sent, 1);
+    let state = metric.readMetricRequestTracker();
+    assert.deepEqual({ inflight: state.inflight, started: state.started, settled: state.settled }, { inflight: 2, started: 2, settled: 0 });
+    api.fire('loadend'); api.fire('loadend');
+    state = metric.readMetricRequestTracker();
+    assert.deepEqual({ inflight: state.inflight, settled: state.settled }, { inflight: 1, settled: 1 });
+    assert.ok(state.lastSettledAt > 0);
+    resolveFetch();
+    const response = await pending;
+    assert.deepEqual(await response.json(), { data: { shops: [] } });
+    for (let tick = 0; tick < 20 && metric.readMetricRequestTracker().inflight; tick += 1) await new Promise(resolve => setImmediate(resolve));
+    state = metric.readMetricRequestTracker();
+    assert.deepEqual({ inflight: state.inflight, settled: state.settled }, { inflight: 0, settled: 2 });
+  } finally {
+    if (previous === undefined) delete (globalThis as any).window; else (globalThis as any).window = previous;
+  }
+});
+
 test('adapter parser fails closed for domain, login, captcha, filter and row cap', async () => {
   const parser = await import(parserUrl.href);
   assert.throws(() => parser.assertMetricUrl('https://example.test/'), /METRIC_UI_CHANGED/);
