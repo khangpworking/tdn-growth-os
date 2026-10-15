@@ -45,6 +45,7 @@ const workspaceId = '11111111-1111-4111-8111-111111111111';
 const ownerToken = 'owner-token-1234567890-abcdefghijklmnopqrstuvwxyz';
 const requestedPeriod = { startDate: '2026-01-01', endDate: '2026-01-30' };
 const roots: string[] = [];
+const WAIT_DEADLINE_MS = 30_000;
 
 const noProviders = {
   kalodataSecretKey: null,
@@ -241,7 +242,9 @@ async function waitForRun(
   runId: string,
   predicate: (run: Record<string, any>) => boolean,
 ): Promise<Record<string, any>> {
-  for (let attempt = 0; attempt < 200; attempt += 1) {
+  // Wall-clock deadline: a fixed poll count fails under CI load when each poll is slow.
+  const deadline = Date.now() + WAIT_DEADLINE_MS;
+  while (Date.now() < deadline) {
     const run = await getRun(base, runId);
     if (predicate(run)) return run;
     await new Promise((resolve) => setTimeout(resolve, 10));
@@ -1877,7 +1880,8 @@ test('capture source uploaded after scope confirmation follows the prepared-sour
     assert.equal(revision.status, 202, await revision.clone().text());
     const queued = await readJson(revision);
     let pairId: string | undefined;
-    for (let attempt = 0; attempt < 200; attempt += 1) {
+    const deadline = Date.now() + WAIT_DEADLINE_MS;
+    while (Date.now() < deadline) {
       const response = await fetch(`${reportRoot}/report-attempts/${queued.attemptId}`);
       const attemptView = await readJson(response);
       if (attemptView.state === 'COMMITTED') { pairId = attemptView.pairId; break; }
