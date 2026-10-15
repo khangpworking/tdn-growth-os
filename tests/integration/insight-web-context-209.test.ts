@@ -84,6 +84,9 @@ test('no admitted rows, or a stored packet without the page-type marker, leaves 
   const allExcluded = build({ collection: { webResults: [excluded] }, sourceEvidence: packetFor([excluded], true, [capture(1)]), caps: [capture(1)] });
   assert.equal(allExcluded.html.includes('insight-web-context'), false, 'no empty section and no note');
   const storedStyle = build({ collection: withRows, sourceEvidence: packetFor(allRows, false) });
+  const storedPacket = packetFor(allRows, false), markedPacket = packetFor([excluded], true, [capture(1)]);
+  assert.equal(build({ collection: withRows, sourceEvidence: storedPacket }).html, build({ collection: { webResults: [] }, sourceEvidence: storedPacket }).html, 'stored rows change nothing without the marker');
+  assert.equal(build({ collection: { webResults: [excluded] }, sourceEvidence: markedPacket, caps: [capture(1)] }).html, build({ collection: { webResults: [] }, sourceEvidence: markedPacket, caps: [capture(1)] }).html, 'no admitted row changes nothing');
   const storedNone = build({ collection: { webResults: [] }, sourceEvidence: packetFor([], false) });
   assert.equal(storedStyle.html.includes('insight-web-context'), false);
   assert.equal(none.html.includes('insight-web-context'), false);
