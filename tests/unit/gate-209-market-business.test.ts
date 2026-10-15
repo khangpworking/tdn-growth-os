@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { calculateMetricScopes } from '../../src/modules/analysis/metric-scope-calculator.js';
-import { assertMarketBusinessGate, auditMarketReportHtml } from '../../src/modules/analysis/research-automation/market-business-gate.js';
+import { assertMarketBusinessGate, auditMarketReportHtml, partialRowTotals, type PartialRowTotal } from '../../src/modules/analysis/research-automation/market-business-gate.js';
 import { buildAutomationMarketPresentation, marketPresentationDigest, type MarketPresentationBinding } from '../../src/modules/analysis/research-automation/market-presentation-method.js';
 import { buildResearchAutomationReport, type AutomationReportInput } from '../../src/modules/analysis/research-automation/reports.js';
 import { metricFixture } from '../fixtures/metric-scope-synthetic.js';
@@ -303,4 +303,88 @@ test('round 7: mis-nested, raw-text, and hidden closes cannot hide claims', () =
     assert.equal(check(reportHtml(extra), 'U13_SUPERLATIVE').ok, true, extra);
     assert.equal(check(reportHtml(extra.replaceAll(superlative, revenueOrder)), 'E2_NO_REVENUE_ORDER').ok, true, extra);
   }
+});
+
+function partialCheck(extra: string, partialTotals: readonly PartialRowTotal[]) {
+  return auditMarketReportHtml(reportHtml(extra), { partialTotals }).find(result => result.rule === 'PARTIAL_TOTAL_FORBIDDEN')!;
+}
+
+test('PARTIAL_TOTAL_FORBIDDEN: a row sum with a missing member is never stated as a revenue or units figure', () => {
+  const revenue: PartialRowTotal[] = [{ measure: 'revenue', value: '1300000000' }];
+  const statement = '<p>Doanh thu quan sát: <strong>1.300.000.000 VND</strong>; sản lượng: <strong>không có số liệu</strong>; 15 dòng, 9 gian hàng.</p>';
+  assert.equal(partialCheck(statement, revenue).ok, false);
+  assert.match(partialCheck(statement, revenue).detail, /1\.300\.000\.000 VND/u);
+  assert.equal(partialCheck(statement.replace('</p>', ' Đây là số của cả tập kết quả theo bộ lọc trên trang.</p>'), revenue).ok, false, 'a label does not make a partial sum a total');
+  assert.equal(partialCheck('<p>Doanh thu: 1300000000 VND</p>', revenue).ok, true, 'only the formatted figure the renderer prints is matched');
+  assert.equal(partialCheck('<p>Doanh thu: 21.300.000.000 VND; 1.300.000.0001 VND</p>', revenue).ok, true, 'a longer number is a different figure');
+  assert.equal(partialCheck('<table><tr><td>1.300.000.000 VND</td></tr></table>', revenue).ok, true, 'one row value in a row table is not a total');
+  assert.equal(partialCheck('<li>Bảng dòng<table><tr><td>1.300.000.000 VND</td></tr></table></li>', revenue).ok, true);
+  assert.equal(partialCheck('<!-- <p>1.300.000.000 VND</p> -->', revenue).ok, true);
+  const price: PartialRowTotal[] = [{ measure: 'revenue', value: '1300000' }];
+  assert.equal(partialCheck('<p>Giá niêm yết: 1.300.000 VND; mức giá sau giảm 1.300.000 VND.</p>', price).ok, true, 'a quoted unit price is not a total');
+  assert.equal(partialCheck('<p>Doanh thu 5.000.000 VND, giá 1.300.000 VND.</p>', price).ok, true, 'the nearest measure word since the previous number decides');
+  assert.equal(partialCheck('<p>Giá bán cao nên doanh thu 1.300.000 VND.</p>', price).ok, false, 'a revenue figure after a price word still fails');
+  assert.equal(partialCheck('<p>Giá niêm yết 1.300.000 VND; tổng 1.300.000 VND.</p>', price).ok, false, 'each occurrence is checked');
+  assert.equal(partialCheck('<p>Tổng giá trị 1.300.000 VND; đánh giá 1.300.000 VND.</p>', price).ok, false, '"giá trị" and "đánh giá" are not prices');
+
+  const demand: PartialRowTotal[] = [{ measure: 'revenue', value: '21200000' }, { measure: 'units', value: '34' }];
+  const quat = '<li><strong>Doanh số (ước tính)</strong> Mẫu lưu ghi nhận 21.200.000 VND doanh thu (ước tính); 34 đơn vị bán (ước tính) trên cả hai nền tảng.</li>';
+  assert.equal(partialCheck(quat, demand).ok, false);
+  assert.equal(partialCheck(quat.replace('21.200.000 VND doanh thu (ước tính); ', ''), [{ measure: 'units', value: '34' }]).ok, false, 'units alone');
+  assert.equal(partialCheck('<p>Doanh thu quan sát: <strong>chưa xác định</strong>; sản lượng: <strong>34</strong>; 2 dòng.</p>', [{ measure: 'units', value: '34' }]).ok, false);
+  assert.equal(partialCheck('<p>34 dòng, 34 gian hàng; giá 34.000 VND.</p>', [{ measure: 'units', value: '34' }]).ok, true, 'a count of rows or shops is not units');
+
+  const clean = auditMarketReportHtml(reportHtml(statement));
+  assert.ok(clean.some(result => result.rule === 'PARTIAL_TOTAL_FORBIDDEN' && result.ok), 'without partial totals the rule is present and passes');
+  assert.ok(auditMarketReportHtml(reportHtml(statement), { presentation: false, partialTotals: revenue }).some(result => result.rule === 'PARTIAL_TOTAL_FORBIDDEN' && !result.ok));
+  assert.throws(() => assertMarketBusinessGate(reportHtml(statement), { partialTotals: revenue }), /MARKET_BUSINESS_GATE_FAILED:PARTIAL_TOTAL_FORBIDDEN/u);
+});
+
+test('partialRowTotals keeps only non-zero row sums with a missing member, once each', () => {
+  const total = (value: string | null, missingCount: number) => ({ value, observedCount: 2, missingCount, nonExactCount: 0, complete: missingCount === 0 && value !== null });
+  const scope = (revenue: ReturnType<typeof total>, units: ReturnType<typeof total>, key = 'all', sensitivity = total('70', 1)) => ({ key, revenue, units,
+    groups: [{ revenue, units: total('9', 0) }], withoutTopShop: { revenue: sensitivity } });
+  const found = partialRowTotals([
+    { scopes: [scope(total('100', 1), total('7', 0)), scope(total('100', 1), total('0', 3))] },
+    { scopes: [scope(total('500', 0), total(null, 2))] },
+    null, undefined,
+  ] as unknown as Parameters<typeof partialRowTotals>[0]);
+  assert.deepEqual(found, [{ measure: 'revenue', value: '100' }, { measure: 'revenue', value: '70' }]);
+  const one = [{ scopes: [scope(total('100', 1), total('7', 0))] }] as unknown as Parameters<typeof partialRowTotals>[0];
+  assert.deepEqual(partialRowTotals(one, [{ measure: 'revenue', value: '100' }]), [{ measure: 'revenue', value: '70' }],
+    'a value the report also states as a complete page figure is left out');
+  assert.deepEqual(partialRowTotals(one, [{ measure: 'units', value: '100' }]), found,'only the same measure is left out');
+  assert.deepEqual(partialRowTotals([...one, { scopes: [scope(total('70', 0), total('7', 0))] }] as unknown as Parameters<typeof partialRowTotals>[0]),
+    [{ measure: 'revenue', value: '100' }], 'a value another ALL scope states as a complete total is left out');
+  assert.deepEqual(partialRowTotals([...one, { scopes: [scope(total('70', 0), total('7', 0), 'wide', total('5', 0))] }] as unknown as Parameters<typeof partialRowTotals>[0]),
+    found, 'a WIDE/CORE total is only shown in a row table, so it never clears a partial value');
+  assert.deepEqual(partialRowTotals([...one, { scopes: [scope(total('5', 0), total('7', 0), 'core', total('100', 0))] }] as unknown as Parameters<typeof partialRowTotals>[0]),
+    [{ measure: 'revenue', value: '70' }], 'a complete sensitivity revenue is stated in prose, so it is left out');
+  const complete = calculateMetricScopes(metricFixture());
+  assert.deepEqual(partialRowTotals([complete]), [], 'a fully observed fixture has no partial sums');
+});
+
+test('a Market build with a missing row states no partial sum and passes the gate', async () => {
+  const fixture = metricFixture();
+  fixture.records[0]!.revenue = { ...fixture.records[0]!.revenue, state: 'missing', value: null, displayedValue: null };
+  const metric = calculateMetricScopes(fixture);
+  const partial = partialRowTotals([metric]);
+  assert.ok(partial.some(total => total.measure === 'revenue'), JSON.stringify(partial));
+  const rows = sync1ReaderFixture('1.4.0').rows;
+  const unit = unitPriceFixture(rows);
+  const record = { contractVersion: 'reader-unit-spec-intake-record-v1' as const, workspaceId, runId, draftPairId: 'a'.repeat(64),
+    workbookSha256: 'b'.repeat(64), actorId: 'synthetic-owner', request: { contractVersion: 'reader-unit-spec-intake-v1' as const,
+      metricPackageId: runId, platforms: ['shopee', 'tiktok'] as ('shopee' | 'tiktok')[], unitPrices: unit.packet } };
+  const binding: MarketPresentationBinding = { workspaceId, runId, previousPairId: record.draftPairId, scopeSha256: 'c'.repeat(64),
+    metric: { sourcePackage: { packageId: runId, manifestArtifactSha256: 'd'.repeat(64), packageContentSha256: 'e'.repeat(64) },
+      workbookSha256: record.workbookSha256, resultSha256: marketPresentationDigest(metric) } };
+  const marketPresentation = buildAutomationMarketPresentation(binding, { metric, rows, unitSpec: { sha256: marketPresentationDigest(record), record } }, unit.retained);
+  assert.equal(marketPresentation.findings.some(finding => finding.id === 'demand' && /\d VND doanh thu/u.test(finding.statement)), false);
+  const input = { run: { runId, workspaceId, createdAt: '2026-01-01T00:00:00.000Z', coverage: [], usage: {} },
+    start: { contractVersion: 'research-automation-start-snapshot-v1', workspaceId, country: 'VN', mode: 'CATEGORY', keyword: 'synthetic jar', description: null,
+      interview: null, requestedPeriod: { startDate: '2026-01-01', endDate: '2026-01-30', dayCount: 30 }, reports: ['MARKET'] },
+    scope: { contractVersion: 'research-automation-scope-snapshot-v1', workspaceId, runId, definition: 'Synthetic scope', includeTerms: [], excludeTerms: [], selectedProductIds: [], peerProductIds: [] },
+    collection: null, captures: [], marketPresentation, marketPresentationCharts: await renderMarketCharts(marketPresentation.input.rows) } as unknown as AutomationReportInput;
+  const html = buildResearchAutomationReport(input, 'MARKET').html.toString('utf8');
+  assert.equal(auditMarketReportHtml(html, { partialTotals: partial }).find(result => result.rule === 'PARTIAL_TOTAL_FORBIDDEN')!.ok, true);
 });

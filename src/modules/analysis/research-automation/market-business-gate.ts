@@ -1,7 +1,47 @@
+import type { Total } from '../../../../contracts/analysis/metric-scope-output.generated.js';
 import { CAPTURED_PROVIDER_NAMES, FORBIDDEN_PROVIDER_NAMES } from '../reader-report/lint.js';
 import { balancedOpenings, lintVisibleReportText } from '../report-visible-text-lint.js';
 
 export type MarketBusinessGateResult = { rule: string; ok: boolean; detail: string };
+export type PartialRowTotal = { readonly measure: 'revenue' | 'units'; readonly value: string };
+export type MarketBusinessGateOptions = { presentation?: boolean; partialTotals?: readonly PartialRowTotal[] };
+type TotalsSource = { readonly scopes: readonly {
+  readonly key: string; readonly revenue: Total; readonly units: Total;
+  readonly groups: readonly { readonly revenue: Total; readonly units: Total }[];
+  readonly withoutTopShop: { readonly revenue: Total } | null;
+}[] };
+
+/**
+ * Row sums with a missing member. One missing member makes a total
+ * undetermined, so such a sum may not be stated as a figure in the report,
+ * whatever label surrounds it ("trong mẫu", "cả tập kết quả", ...).
+ *
+ * The gate matches by value, so a value the report also states in prose as a
+ * complete figure is left out: the ALL scope revenue and units (M03 summary,
+ * demand finding, capture fallback), a sensitivity revenue (M04 line per
+ * scope) with no missing member, or a verified page figure passed in `stated`.
+ * WIDE/CORE scope and group totals are only rendered in row tables, which the
+ * gate does not read, so they never clear a partial value.
+ */
+export function partialRowTotals(results: readonly (TotalsSource | null | undefined)[], stated: readonly PartialRowTotal[] = []): PartialRowTotal[] {
+  const key = (measure: PartialRowTotal['measure'], value: string): string => `${measure}:${BigInt(value)}`;
+  const found = new Map<string, PartialRowTotal>();
+  const complete = new Set(stated.filter(figure => /^\d+$/u.test(figure.value)).map(figure => key(figure.measure, figure.value)));
+  const add = (measure: PartialRowTotal['measure'], total: Total, statedWhenComplete = false): void => {
+    if (total.value === null || !/^\d+$/u.test(total.value) || BigInt(total.value) === 0n) return;
+    if (total.missingCount > 0) found.set(key(measure, total.value), { measure, value: total.value });
+    else if (statedWhenComplete) complete.add(key(measure, total.value));
+  };
+  for (const result of results) {
+    for (const scope of result?.scopes ?? []) {
+      add('revenue', scope.revenue, scope.key === 'all');
+      add('units', scope.units, scope.key === 'all');
+      for (const group of scope.groups) { add('revenue', group.revenue); add('units', group.units); }
+      if (scope.withoutTopShop) add('revenue', scope.withoutTopShop.revenue, true);
+    }
+  }
+  return [...found].filter(([value]) => !complete.has(value)).map(([, total]) => total);
+}
 
 const MARKET_SECTION_IDS = Array.from({ length: 13 }, (_, index) => `M${String(index + 1).padStart(2, '0')}`);
 
@@ -277,9 +317,40 @@ function normalizeInlineTagsForLint(html: string): string {
   });
 }
 
+/** Text of each statement block (paragraph, list item, description). Row tables
+ * inside them are dropped: a table cell states one row's own value, not a total. */
+function statementTexts(html: string): string[] {
+  const body = html.replace(/<!--[\s\S]*?-->|<(script|style|template)\b[\s\S]*?<\/\1\s*>/giu, ' ');
+  return [...body.matchAll(/<(p|li|dd)\b[^>]*>([\s\S]*?)<\/\1\s*>/giu)]
+    .map(match => decodeHtml((match[2] ?? '').replace(/<table\b[\s\S]*?<\/table\s*>/giu, ' ').replace(/<[^>]*>/gu, ' ')).replace(/\s+/gu, ' ').trim());
+}
+
+/** A VND figure whose nearest measure word since the previous number is a price
+ * ("giá niêm yết", "mức giá"; not "giá trị", "đánh giá") is a unit price. */
+function unitPriceFigure(before: string): boolean {
+  const words = [...before.replace(/^[\s\S]*\d/u, '').matchAll(/(?<![\p{L}\p{N}])(?:(?<!đánh\s)giá(?!\s*trị)|doanh thu|doanh số|tổng)(?!\p{L})/giu)];
+  return /^giá$/iu.test(words.at(-1)?.[0] ?? '');
+}
+
+/** Statements that print a known partial row sum as revenue (VND) or as units. */
+function partialTotalMatches(html: string, totals: readonly PartialRowTotal[]): string[] {
+  if (!totals.length) return [];
+  const texts = statementTexts(html).map(text => text.normalize('NFC'));
+  return totals.flatMap(total => {
+    const shown = BigInt(total.value).toLocaleString('vi-VN').replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+    const value = `(?<![\\d.,])${shown}(?![\\d]|[.,]\\d)`;
+    if (total.measure === 'revenue') {
+      const pattern = new RegExp(`${value}\\s*VND`, 'giu');
+      return texts.filter(text => [...text.matchAll(pattern)].some(match => !unitPriceFigure(text.slice(0, match.index))));
+    }
+    const pattern = new RegExp(`(?:(?:sản lượng|đơn vị bán)[^.;:\\d]{0,40}:\\s*${value}|${value}\\s+đơn vị)`, 'iu');
+    return texts.filter(text => pattern.test(text));
+  });
+}
+
 function result(rule: string, ok: boolean, detail: string): MarketBusinessGateResult { return { rule, ok, detail }; }
 
-export function auditMarketReportHtml(html: string, options: { presentation?: boolean } = {}): MarketBusinessGateResult[] {
+export function auditMarketReportHtml(html: string, options: MarketBusinessGateOptions = {}): MarketBusinessGateResult[] {
   const presentation = options.presentation ?? true;
   const scan = scanHtml(html);
   const provider = providerMatches(scan.visible);
@@ -290,11 +361,13 @@ export function auditMarketReportHtml(html: string, options: { presentation?: bo
   const m12Proposal = PROPOSAL_TERMS.test(m12);
   const m12Label = /đề xuất/iu.test(m12);
   const leaks = noLeakMatches(html, scan);
+  const partial = partialTotalMatches(html, options.partialTotals ?? []);
   const u13 = lintVisibleReportText(normalizeInlineTagsForLint(html));
   const content = [
     result('G08_PROVIDER_NAME', provider.length === 0, snippets(provider)),
     result('U32_NO_CROSS_PLATFORM_TOTAL', crossPlatform.length === 0, snippets(crossPlatform)),
     result('E2_NO_REVENUE_ORDER', e2.length === 0, snippets(e2)),
+    result('PARTIAL_TOTAL_FORBIDDEN', partial.length === 0, snippets(partial)),
     result('NO_LEAK', leaks.length === 0, snippets(leaks)),
     ...u13.map(check => result(check.rule, check.ok, check.ok ? 'clean' : snippets([check.detail]))),
   ];
@@ -307,7 +380,7 @@ export function auditMarketReportHtml(html: string, options: { presentation?: bo
   ];
 }
 
-export function assertMarketBusinessGate(html: string, options: { presentation?: boolean } = {}): void {
+export function assertMarketBusinessGate(html: string, options: MarketBusinessGateOptions = {}): void {
   const failed = auditMarketReportHtml(html, options).filter(check => !check.ok);
   if (failed.length) throw new TypeError(`MARKET_BUSINESS_GATE_FAILED:${failed.map(check => check.rule).join(',')}`);
 }

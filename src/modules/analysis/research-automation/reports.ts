@@ -59,7 +59,7 @@ import type { CaptureRecord, ScopeSnapshot, StartSnapshot, StepResultDocument, S
 import { CitationRegistry, type CitationInput } from '../citation-registry.js';
 import { orderReportCitations, renderCitationMarkOrMissing, renderCitationRegister } from '../citation-register-html.js';
 import { lintVisibleReportText } from '../report-visible-text-lint.js';
-import { assertMarketBusinessGate } from './market-business-gate.js';
+import { assertMarketBusinessGate, partialRowTotals, type PartialRowTotal } from './market-business-gate.js';
 import { assertMarket14MachineRules } from './market-14-rules.js';
 import { formatReaderValue, readerProductLabel, readerShopLabel } from './reader-plain-text.js';
 import type { AutomationQualitativeDraft } from '../../../../contracts/analysis/automation-qualitative-draft-v1.generated.js';
@@ -548,6 +548,18 @@ function defaultPeerSection(snapshot: DefaultMarketPeers, citations: ReportCitat
     ? `<ul>${snapshot.input.ownerAdditions.map(id => `<li>Đối tượng nguồn: ${escape(sourceMemberLabel(id, readerPlainText))}</li>`).join('')}</ul>`
     : '<p>Chưa có bổ sung của chủ.</p>';
   return `<p>Quy tắc đã chốt trước khi đọc doanh số: chọn theo doanh thu giảm dần tới khi đạt ít nhất ${escape(snapshot.input.rule.thresholdPercent)}% doanh thu cùng nhóm trong mẫu; khi bằng nhau dùng mã danh tính ổn định. Bảng hiển thị theo danh tính, không xếp ưu tiên.</p>${frames || '<p>Chưa có nhóm doanh số đã phân loại tương thích. Quan sát sản phẩm và thẻ tìm kiếm không cung cấp thành viên doanh số; phần thiếu không phải 0.</p>'}<p>Số bán hàng ước tính chưa đối chiếu với người bán, chỉ dùng tham khảo. Không cộng doanh thu giữa các sàn hoặc suy cùng thương hiệu từ tên giống nhau.</p><h3>Bổ sung của chủ, giữ riêng</h3>${additions}<p>Bổ sung không thay đổi mẫu số hoặc quy tắc mặc định.</p><details><summary>Hồ sơ đối chiếu tập đối thủ</summary><p>Phiên bản quy tắc: <code>${escape(snapshot.input.rule.version)}</code>. Đầu vào, thành viên, lý do loại và kết quả chính xác được giữ trong bản lưu bất biến. Số lần loại dòng ở các nhóm và sàn: ${escape(exclusions.length)}.</p><ul>${exclusions.map(row => `<li><code>${escape(row.reason)}</code> ${mark(row.source)}</li>`).join('')}</ul></details>`;
+}
+
+/**
+ * Row sums with a missing member among every calculation the Market report
+ * renders, less the values it also states as complete page figures.
+ */
+export function marketPartialRowTotals(input: Pick<AutomationReportInput, 'marketPresentation' | 'metricMethods' | 'metricClassified'>): PartialRowTotal[] {
+  const pageFigures = (input.metricMethods?.capture?.platformHeadlines ?? []).flatMap(figure => [
+    ...(figure.revenue.value === null ? [] : [{ measure: 'revenue' as const, value: figure.revenue.value }]),
+    ...(figure.units === null || figure.units.value === null ? [] : [{ measure: 'units' as const, value: figure.units.value }])]);
+  return partialRowTotals([input.marketPresentation?.input.metric, input.metricMethods?.result,
+    ...(input.metricMethods?.capture?.platforms.map(platform => platform.result) ?? []), input.metricClassified?.result], pageFigures);
 }
 
 export function buildResearchAutomationReport(input: AutomationReportInput, kind: 'MARKET' | 'INSIGHT'): { semantic: object; html: Buffer } {
@@ -1039,7 +1051,10 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     if (failed.length) throw new TypeError(`${marketPresentation ? 'MARKET' : 'INSIGHT'}_VISIBLE_TEXT_LINT_FAILED:${failed.map(check => check.rule).join(',')}`);
   }
   // The visible-text lint keeps its own error; the business gate adds the remaining Market rules.
-  if (marketPresentation) { assertMarketBusinessGate(readerRenderedHtml, { presentation: true }); assertMarket14MachineRules(readerRenderedHtml); }
+  if (marketPresentation) {
+    assertMarketBusinessGate(readerRenderedHtml, { presentation: true, partialTotals: marketPartialRowTotals(input) });
+    assertMarket14MachineRules(readerRenderedHtml);
+  }
   return { semantic: { ...semanticBase, citations: registry.technicalTrace(), citationEntries: registry.entries() }, html: Buffer.from(readerRenderedHtml, 'utf8') };
 }
 

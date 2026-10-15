@@ -68,9 +68,13 @@ export function buildAutomationMarketPresentation(binding: MarketPresentationBin
     };
     const index = metric.scopes.indexOf(all);
     add('inventory', `Mẫu xuất giữ ${all.listingCount} bản ghi sản phẩm của ${all.shopCount} gian hàng; mỗi bản ghi chưa chứng minh một sản phẩm hoặc biến thể phân biệt.`, `/scopes/${index}`);
-    if (all.revenue.value !== null || all.units.value !== null) {
-      const amounts = [all.revenue.value === null ? 'chưa có tổng doanh thu dùng được' : `${integer(all.revenue.value)} VND doanh thu (ước tính)`,
-        all.units.value === null ? 'chưa có tổng đơn vị bán dùng được' : `${integer(all.units.value)} đơn vị bán (ước tính)`];
+    // One missing member makes a row total undetermined: a sum of only the rows
+    // with values is never stated as the sample's demand.
+    const revenue = all.revenue.missingCount === 0 ? all.revenue.value : null;
+    const units = all.units.missingCount === 0 ? all.units.value : null;
+    if (revenue !== null || units !== null) {
+      const amounts = [revenue === null ? 'chưa có tổng doanh thu dùng được' : `${integer(revenue)} VND doanh thu (ước tính)`,
+        units === null ? 'chưa có tổng đơn vị bán dùng được' : `${integer(units)} đơn vị bán (ước tính)`];
       add('demand', `Doanh số (ước tính) mô tả nhu cầu trong mẫu: ${amounts.join('; ')}; không suy ra số người mua hoặc nguyên nhân.`, `/scopes/${index}`);
     }
     add('missing', `Trong mẫu có ${all.revenue.missingCount} dòng thiếu doanh thu và ${all.units.missingCount} dòng thiếu đơn vị bán; phần thiếu không thay bằng số không.`, `/scopes/${index}`);
