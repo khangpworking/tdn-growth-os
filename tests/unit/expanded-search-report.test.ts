@@ -42,7 +42,8 @@ async function presentationInput(web: StepWebResult[] = []): Promise<AutomationR
     start: { contractVersion: 'research-automation-start-snapshot-v1', workspaceId, country: 'VN', mode: 'CATEGORY', keyword: 'synthetic jar', description: null,
       interview: null, requestedPeriod: { startDate: '2026-01-01', endDate: '2026-01-30', dayCount: 30 }, reports: ['MARKET'] },
     scope: { contractVersion: 'research-automation-scope-snapshot-v1', workspaceId, runId, definition: 'Synthetic scope', includeTerms: [], excludeTerms: [], selectedProductIds: [], peerProductIds: [] },
-    collection, captures: [], marketPresentation, marketPresentationCharts: await renderMarketCharts(marketPresentation.input.rows),  } as unknown as AutomationReportInput;
+    collection, captures: [], marketPresentation, marketPresentationCharts: await renderMarketCharts(marketPresentation.input.rows),
+  } as unknown as AutomationReportInput;
 }
 
 
