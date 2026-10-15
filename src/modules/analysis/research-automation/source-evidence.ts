@@ -11,6 +11,7 @@ import { applyL9JevTriage, l9JevTriageMatches, triageL9WithJev, unavailableL9Jev
 import { TypesafeJevClient } from '../../../platform/ai/typesafe-jev-client.js';
 import type { SerpApiL9FilterOutput } from './serpapi-l9-filter.js';
 import { classifyWebPage } from './web-page-type.js';
+import { searchInterestRenderable } from './search-interest.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import { ResearchAutomationIntegrityError, type CaptureRecord, type StepWebResult } from './model.js';
 export type { AutomationSourceEvidence } from '../../../../contracts/analysis/automation-source-evidence.generated.js';
@@ -117,7 +118,7 @@ export async function triageSourceEvidenceL9(input: {
 
 /** Registry membership follows verified owning-method identity, never filenames or URL guesses. Unknown future source families remain outside this mapping. */
 export function sourceEvidenceForReport(packet: AutomationSourceEvidence, input: Pick<import('./service.js').ResearchAutomationReportInput,
-  'reviewSample' | 'privateReviewCorpus' | 'metricMethods' | 'metricClassified' | 'reviewCorpus' | 'collection' | 'nativeReview' | 'locatedReview' | 'insightLiteral'>, kind: 'MARKET' | 'INSIGHT'): AutomationSourceEvidence {
+  'reviewSample' | 'privateReviewCorpus' | 'metricMethods' | 'metricClassified' | 'reviewCorpus' | 'collection' | 'nativeReview' | 'locatedReview' | 'insightLiteral'> & { readonly captures?: readonly CaptureRecord[] }, kind: 'MARKET' | 'INSIGHT'): AutomationSourceEvidence {
   checkSourceEvidence(packet);
   const usages: SourceAppendixUsage[] = packet.sourceAppendix.rows.map(row => ({ registryId: row.registryId, binding: row.binding,
     l9: row.l9Excluded === null || row.l9Unclear === null ? null : { excluded: row.l9Excluded, unclear: row.l9Unclear, byReason: row.l9Reasons }, l10SourceType: row.l10SourceType }));
@@ -126,6 +127,13 @@ export function sourceEvidenceForReport(packet: AutomationSourceEvidence, input:
       binding: { kind, ref }, l9: null, l10SourceType: null });
   };
   if (kind === 'MARKET' && input.metricMethods) add('S01', 'package', input.metricMethods.originalSourcePackage.manifestArtifactSha256);
+  // S20 is used only when the Market report draws the stored series (same predicate as the renderers).
+  const interest = input.collection?.searchInterest;
+  if (kind === 'MARKET' && searchInterestRenderable(interest)) {
+    const capture = input.captures?.find(c => c.stepId === 'COLLECTION' && c.ordinal === interest.captureIndex);
+    if (!capture || capture.provider !== 'serpapi' || capture.operation !== 'serpapi.google.trends') throw new ResearchAutomationIntegrityError('Search interest capture lineage is unavailable');
+    add('S20', 'capture', capture.artifactSha256);
+  }
   if (kind === 'INSIGHT') {
     if (input.reviewSample && input.collection?.privateShopee && input.reviewSample.collection.collectionSha256 !== input.collection.privateShopee.collectionSha256) throw new ResearchAutomationIntegrityError('Used review sample differs from exact retained collection');
     if ((input.privateReviewCorpus || input.reviewSample) && input.collection?.privateShopee) add('S05', 'capture', input.collection.privateShopee.collectionSha256);

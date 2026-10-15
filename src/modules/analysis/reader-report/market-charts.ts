@@ -5,7 +5,7 @@
 // whose in-sample revenue is unknown.
 import { renderChart, type FlintChartInput, type FlintPalette, type RenderedChart } from './flint.js';
 import { sp } from './format.js';
-import { barChart } from './svg-charts.js';
+import { barChart, lineChart } from './svg-charts.js';
 
 export type MarketChartPlatform = 'shopee' | 'tiktok';
 export type MarketChartRow = { readonly i: number; readonly platform: string; readonly shop: string; readonly rev: number | null | undefined };
@@ -102,6 +102,22 @@ export async function renderMarketCharts(rows: readonly MarketChartRow[], { flin
     } as FlintChartInput, () => barChart(order, plats.map(P => ({ name: LABEL[P], values: ranked.map(row => row.platform === P ? row.rev! / 1e6 : 0), color: COLOR[P] })), { stacked: true, fmt: one }),
     keepOrder('dong', order)) });
   return out;
+}
+
+/**
+ * The relative search-interest line (0-100), drawn on its own axis: never beside, summed with or scaled against sales.
+ * Weeks without a number stay gaps; `flint: false` is the unit-test opt-out (hand-made SVG, recorded as svg-fallback).
+ */
+export async function renderSearchInterestChart(points: readonly { readonly label: string; readonly value: number | null }[], { flint = true }: { flint?: boolean } = {}): Promise<RenderedChart> {
+  const labels = points.map(point => point.label), tick = Math.max(1, Math.ceil(points.length / 12));
+  const fallback = (): string => lineChart(labels.map((label, i) => i % tick === 0 ? label : ''), [{ name: 'Chỉ số tương đối', color: '#1d4ed8', values: points.map(point => point.value) }]);
+  if (!flint) return { svg: fallback(), engine: 'svg-fallback' };
+  return renderChart({
+    data: { values: points.map(point => ({ tuan: point.label, chi_so: point.value })) },
+    semantic_types: { tuan: 'Category', chi_so: 'Number' },
+    field_display_names: { tuan: 'Tuần', chi_so: 'Chỉ số tương đối (0–100)' },
+    chart_spec: { chartType: 'Line Chart', encodings: { x: 'tuan', y: 'chi_so' }, baseSize: { width: 560, height: 240 } },
+  } as FlintChartInput, fallback, { patch: keepOrder('tuan', labels), legend: false });
 }
 
 export type CaptureCountChart = RenderedChart & { platform: MarketChartPlatform };

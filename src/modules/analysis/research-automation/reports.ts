@@ -66,6 +66,8 @@ import type { AutomationQualitativeDraft } from '../../../../contracts/analysis/
 import { qualitativeDraftSection, qualitativeDraftSummary } from '../reader-report/qualitative-draft-report.js';
 import { platIcons } from '../reader-report/layout.js';
 import { marketChartRows, type CaptureCountChart, type MarketChart } from '../reader-report/market-charts.js';
+import type { RenderedChart } from '../reader-report/flint.js';
+import { searchInterestRenderable, SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_LIMIT, SEARCH_INTEREST_NOTE, SEARCH_INTEREST_SOURCE_LABEL, SEARCH_INTEREST_SRC, SEARCH_INTEREST_UNIT } from './search-interest.js';
 
 const reportRequire = createRequire(import.meta.url);
 const { Ajv2020 } = reportRequire('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -125,6 +127,8 @@ export interface AutomationReportInput {
   readonly marketPresentationCharts?: readonly MarketChart[];
   /** Flint record-count bars of the capture sample, drawn before the synchronous build (see renderCaptureCountCharts). */
   readonly marketCaptureCharts?: readonly CaptureCountChart[];
+  /** Flint line of the stored search-interest series, drawn before the synchronous build; present only when that series is rendered. */
+  readonly searchInterestChart?: RenderedChart;
   /** Build-time cover (AI illustration or procedural fallback), embedded as a data URI; Market presentation only. */
   readonly marketCover?: MarketCoverInput;
   readonly metricMethods?: AutomationMetricMethodSnapshot;
@@ -183,7 +187,9 @@ export function marketSourceRows(input: AutomationReportInput, webResultCount: n
   const web = webResultCount ? `Đã lưu ${webResultCount} kết quả trong lượt này.` : webFailed ? WEB_SOURCE_FAILED_TEXT : 'Chưa có trong lượt này.';
   const comments = input.reviewCorpus ? 'Đã dùng trong lượt này.'
     : input.reviewCorpusFailure ? 'Không dùng được trong lượt này: bộ bình luận không qua kiểm tra.' : 'Chưa có trong lượt này.';
-  return [['Dữ liệu bán hàng', sales], ['Dữ liệu đánh giá sản phẩm trên nền tảng', native], ['Kết quả tìm kiếm', web], ['Bình luận đã thu thập', comments]];
+  const interest: readonly (readonly [string, string])[] = searchInterestRenderable(input.collection?.searchInterest)
+    ? [[SEARCH_INTEREST_SOURCE_LABEL, 'Đã dùng trong lượt này: chỉ số tương đối, không phải doanh số.']] : [];
+  return [['Dữ liệu bán hàng', sales], ['Dữ liệu đánh giá sản phẩm trên nền tảng', native], ['Kết quả tìm kiếm', web], ['Bình luận đã thu thập', comments], ...interest];
 }
 interface CatalogSection { sectionId: string; title: string; methodId: string; methodVersion: string; requiredInputs: string[] }
 export interface MethodOutputRef { methodOutputId: string; locatedRecordCount: number; unresolvedPointers: readonly string[]; blockers: readonly string[] }
@@ -949,8 +955,18 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   const presentationCharts = (sectionId: string): string => sectionId === 'M04'
     ? presentationChart('platform-revenue', '4.1') + presentationChart('concentration', '4.2')
     : sectionId === 'M07' ? presentationChart('product-ranking', '7.1') : '';
+  // The stored relative search-interest series sits in the demand section on its own axis, never with sales; the same predicate marks the source as used.
+  const searchInterestFigure = (sectionId: string): string => {
+    const interest = input.collection?.searchInterest;
+    if (kind !== 'MARKET' || sectionId !== 'M05' || !searchInterestRenderable(interest)) return '';
+    if (!input.searchInterestChart) throw new TypeError('SEARCH_INTEREST_CHART_MISSING');
+    const capture = input.captures.find(item => item.stepId === 'COLLECTION' && item.ordinal === interest.captureIndex);
+    return `<p>Mức quan tâm tìm kiếm của từ khóa được ghi riêng ở Hình 5.2: chỉ số tương đối, không cộng hay so với số bán.</p><figure class="market-chart"><div class="exh"><span class="exn">Hình 5.2</span> <span class="ext">${escape(SEARCH_INTEREST_FIGURE_TITLE)}</span> <span class="exu">(${escape(SEARCH_INTEREST_UNIT)})</span></div>` +
+      `<div class="chart flint" data-engine="${escape(input.searchInterestChart.engine)}">${input.searchInterestChart.svg}</div>` +
+      `<p class="lim"><b>Chú thích:</b> ${escape(SEARCH_INTEREST_NOTE)} ${escape(SEARCH_INTEREST_LIMIT)}</p><p class="ex-src">Nguồn: ${escape(SEARCH_INTEREST_SRC)}${capture ? captureMark(capture, citations) : ''}</p></figure>`;
+  };
   const appendix = (sectionId: string): string =>
-    presentationCharts(sectionId) +
+    presentationCharts(sectionId) + searchInterestFigure(sectionId) +
     (reviewOutcome && kind === 'INSIGHT' && (sectionId === 'I03' || sectionId === 'I17') ? `<p class="warning">${escape(reviewOutcomeLead(reviewOutcome))}</p>` : '') +
     baseAppendix(sectionId) +
     (input.sourceEvidence && (sectionId === 'M13' || sectionId === 'I17') ? sourceEvidenceHtml(input.sourceEvidence) +

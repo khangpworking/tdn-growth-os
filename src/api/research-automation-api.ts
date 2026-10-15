@@ -78,6 +78,7 @@ import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../modu
 import { ResearchAutomationService } from '../modules/analysis/research-automation/service.js';
 import { ResearchAutomationWorker } from '../modules/analysis/research-automation/worker.js';
 import { bindResearchAutomationProvider } from '../modules/analysis/research-automation/source-binding.js';
+import { createSearchInterestSource } from '../modules/analysis/research-automation/search-interest.js';
 import { createResearchAutomationProviderRegistry, type ResearchAutomationProviderConfig, type ProviderTransport } from '../modules/analysis/research-automation/providers.js';
 import { buildResearchAutomationReport } from '../modules/analysis/research-automation/reports.js';
 import { createChromiumPdfRenderer } from '../modules/analysis/research-automation/pdf.js';
@@ -129,6 +130,8 @@ export interface ResearchAutomationApiConfiguration {
   readonly marketCover?: { readonly cliproxy: CliproxyConfiguration; readonly transport?: typeof fetch };
   /** Market auto-runner for the OWNER writer only; present only when its flag is exactly "1". */
   readonly metricAutoRun?: { readonly captureRoot: string; readonly adapterManifestPath?: string; readonly adapterManifestSha256?: string };
+  /** Search-interest lane for the OWNER writer only; present only when its flag is exactly "1" and the existing search key is set. */
+  readonly searchTrends?: true;
 }
 export interface ResearchAutomationApiApplication {
   handler(request: IncomingMessage, response: ServerResponse): void;
@@ -259,7 +262,8 @@ function readerCsp(html: Buffer): string {
 }
 // Keep in step with the executor wiring below: the run source is KALODATA, Shopee reviews go
 // through the Apify collector when its cap is configured, and web search runs beside the product
-// source whenever its key is configured.
+// source whenever its key is configured. The search-interest lane (one trends request per run) uses that same
+// provider and key but only runs behind its own flag; the board is provider-level, so it adds no entry here.
 const SOURCES_WIRED_INTO_RUNS = { kalodata: true, serpapi: true, apifyShopee: true } as const;
 const insightWrites = {
   'insight-coding-adoptions': { kind: 'ADOPTION', validate: validates.insightAdopt },
@@ -343,6 +347,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       const selected = registry.get('KALODATA');
       // Web search runs beside the product source, only when its key is set on the server.
       const webSource = configuration.providers?.serpApiKey ? bindResearchAutomationProvider(registry.get('SERPAPI')) : undefined;
+      const trendsSource = configuration.searchTrends && configuration.providers?.serpApiKey ? createSearchInterestSource(configuration.providers.serpApiKey, transport) : undefined;
       if (configuration.pdfExecutablePath) pdf = createChromiumPdfRenderer({ executablePath: configuration.pdfExecutablePath });
       writeService = create(writer, {
         ...(configuration.reviewCollection ? { reviewCollection: configuration.reviewCollection } : {}),
@@ -351,6 +356,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         sourceEvidence: { ...sourceEvidence, ...(keywordTransport ? { transport: keywordTransport } : {}) },
         metricAttachmentStore: new RequestScopedArtifactStore(path.resolve(configuration.artifactRoot)),
         actorId: configuration.owner.actorId, source: bindResearchAutomationProvider(selected), ...(webSource ? { webSource } : {}),
+        ...(trendsSource ? { trendsSource } : {}),
         ...(i14SynthesisAi ? { i14SynthesisAi } : {}),
         ...(marketCoverAi ? { marketCoverAi } : {}),
         ...(configuration.metricAutoRun ? { autoRun: { enabled: true, onWake: () => worker?.wake(), runner: {

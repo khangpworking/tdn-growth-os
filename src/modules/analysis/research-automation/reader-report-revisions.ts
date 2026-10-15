@@ -32,7 +32,7 @@ import { nonFlintCharts } from '../reader-report/flint.js';
 import { MetricSourceRejection } from '../metric-source-profile.js';
 import { MetricWebSnapshotError } from './metric-web-snapshot.js';
 import { webSnapshotDigest } from '../reader-report/web-facts.js';
-import { ResearchAutomationConflictError, ResearchAutomationIntegrityError, ResearchAutomationNotFoundError, ResearchAutomationValidationError } from './model.js';
+import { ResearchAutomationConflictError, ResearchAutomationIntegrityError, ResearchAutomationNotFoundError, ResearchAutomationValidationError, type StepSearchInterest } from './model.js';
 import { verifyInsightReaderInput, type InsightReaderInput } from '../reader-report/insight-input-v1.js';
 import { prepareTikTokReaderBuild } from '../reader-report/tiktok-build-v1.js';
 import { buildInsightReaderTemplate, type InsightReaderPage } from '../reader-report/insight-template.js';
@@ -92,6 +92,8 @@ export interface ReaderDraftContext {
   readonly webResults?: readonly ReaderWebResult[];
   /** The run's source evidence packet carries the page-type flag; absent for older runs. */
   readonly webPageTypes?: true;
+  /** The run's stored relative search-interest series, only when it can be drawn; absent on runs without the lane. */
+  readonly searchInterest?: StepSearchInterest;
   readonly metric:
     | { readonly packageId: string; readonly workbook: Buffer; readonly measurementPeriod: { readonly startDate: string; readonly endDate: string } }
     | { readonly packageId: string; readonly capture: { readonly snapshot: AutomationMetricWebSnapshotV1; readonly snapshotSha256: string; readonly truncation: { readonly cap: number; readonly totalShown: number | null; readonly pagesRead: number; readonly rowsRead: number; readonly truncated: boolean } };
@@ -331,7 +333,7 @@ export class AutomationReaderReports {
     );
     const at = this.now(), createdAt = at.toISOString(), revisionId = randomUUID();
     const webResults = context.webResults ?? [];
-    const built = await buildMarketReport(data, { limitations, builtOn: builtOn(at), cover, flint: this.options.flint ?? true, webResults, ...(context.webPageTypes ? { webPageTypes: true as const } : {}), ...(capture ? { captureSource: true } : {}) });
+    const built = await buildMarketReport(data, { limitations, builtOn: builtOn(at), cover, flint: this.options.flint ?? true, webResults, ...(context.webPageTypes ? { webPageTypes: true as const } : {}), ...(capture ? { captureSource: true } : {}), ...(context.searchInterest ? { searchInterest: context.searchInterest } : {}) });
     // Every chart must be drawn by Flint unless the caller opted out explicitly; a silent fallback fails the build.
     assertFlintCharts(built.charts, this.options.flint ?? true);
     // The gate blocks report publication and revision insertion; cover/sidecar artifacts may already be written.

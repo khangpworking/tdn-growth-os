@@ -198,9 +198,7 @@ export async function fetchTrends(
 
   const log = new CaptureLog('SERPAPI', transport, options.onProgress, 1);
   const context: CaptureContext = {
-    // ProviderOperation has no google_trends member yet and this WP owns no provider types,
-    // so the call is recorded as a generic exchange. The engine is carried in requestParameters.
-    operation: 'none',
+    operation: 'serpapi.google.trends',
     billing: 'PAID_SEARCH_UNLESS_CACHED',
     method: 'GET',
     endpoint,
