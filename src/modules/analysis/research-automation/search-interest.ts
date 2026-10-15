@@ -56,6 +56,8 @@ export type SearchInterestAttempt =
   | { readonly kind: 'THROWN'; readonly keyword: string }
   | { readonly kind: 'CALLED'; readonly keyword: string; readonly result: TrendsCallResult };
 
+/** NFC, trimmed, single-spaced and case-folded; diacritics are kept because a different word is a different query. */
+const queryKey = (text: string): string => text.normalize('NFC').trim().replace(/\s+/gu, ' ').toLowerCase().normalize('NFC');
 const nonNull = (points: readonly StepSearchInterestPoint[]): number => points.filter(point => point.index !== null).length;
 
 /** The stored step field. A failure keeps a reason code and no points; it never changes the step outcome. */
@@ -69,9 +71,10 @@ export function searchInterestDocument(attempt: SearchInterestAttempt, captureIn
   const retrievedAt = last?.completedAt ?? null, index = last ? captureIndex : null;
   if (result.status === 'CANCELLED') return failed('CANCELLED', retrievedAt, index);
   if (result.status !== 'OK' || result.facts?.kind !== 'TIMESERIES') return failed('PROVIDER_FAILED', retrievedAt, index);
-  const wanted = attempt.keyword.normalize('NFC').trim().replace(/\s+/gu, ' ').toLowerCase();
-  const series = result.facts.series.find(item => item.keyword.normalize('NFC').toLowerCase() === wanted) ?? result.facts.series[0];
-  const points = (series?.points ?? []).slice(-MAX_SEARCH_INTEREST_POINTS).map(point => ({ period: point.period, index: point.index }));
+  // Only the series the provider echoes for the requested keyword is trusted; a different query (diacritics count) is never used instead.
+  const wanted = queryKey(attempt.keyword), matches = result.facts.series.filter(item => queryKey(item.keyword) === wanted);
+  if (matches.length !== 1) return failed('PROVIDER_FAILED', retrievedAt, index);
+  const points = matches[0]!.points.slice(-MAX_SEARCH_INTEREST_POINTS).map(point => ({ period: point.period, index: point.index }));
   if (nonNull(points) < SEARCH_INTEREST_MIN_POINTS) return failed('EMPTY_SERIES', retrievedAt, index);
   return { status: 'COLLECTED', reason: null, ...base, retrievedAt, points, captureIndex: index };
 }

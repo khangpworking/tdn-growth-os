@@ -105,14 +105,15 @@ function parseTimeseries(data: Record<string, unknown>): TrendsFacts | null {
   const interest = data.interest_over_time;
   if (!isRecord(interest) || !Array.isArray(interest.timeline_data)) return null;
   const series = new Map<string, TrendsSeriesPoint[]>();
+  const seen = new Set<string>();
   for (const entry of interest.timeline_data) {
-    if (!isRecord(entry)) continue;
-    const period = boundedText(entry.date, PERIOD_MAX_CHARS);
-    if (!period || !Array.isArray(entry.values)) continue;
+    // A point that cannot be dated, has no echoed query, or repeats a period cannot be placed on the axis or attributed: the whole answer is unrecognised.
+    const period = isRecord(entry) ? boundedText(entry.date, PERIOD_MAX_CHARS) : null;
+    if (!isRecord(entry) || !period || !Array.isArray(entry.values) || entry.values.length === 0) return null;
     for (const item of entry.values) {
-      if (!isRecord(item)) continue;
-      const keyword = boundedText(item.query, KEYWORD_MAX_CHARS);
-      if (!keyword) continue;
+      const keyword = isRecord(item) ? boundedText(item.query, KEYWORD_MAX_CHARS) : null;
+      if (!isRecord(item) || !keyword || seen.has(`${keyword}\u0000${period}`)) return null;
+      seen.add(`${keyword}\u0000${period}`);
       const points = series.get(keyword) ?? [];
       points.push({ period, index: indexOrNull(item.value, item.extracted_value) });
       series.set(keyword, points);

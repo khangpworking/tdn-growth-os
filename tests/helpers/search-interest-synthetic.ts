@@ -20,7 +20,25 @@ export function syntheticTrendsBody(keyword: string, points: readonly { period: 
   });
 }
 
-export type SyntheticTrendsMode = 'ok' | 'http-error' | 'thin' | 'invalid';
+/** `other-keyword`: a well-formed series echoed for a different query; `no-echo`: values without any echoed query;
+ * `bad-period`: one point without a date; `repeated-period`: one week listed twice. */
+export type SyntheticTrendsMode = 'ok' | 'http-error' | 'thin' | 'invalid' | 'other-keyword' | 'no-echo' | 'bad-period' | 'repeated-period';
+/** A different word, not a re-cased or re-composed form of the requested keyword. */
+export const SYNTHETIC_OTHER_KEYWORD = 'nồi chiên không dầu';
+
+type TimelineEntry = { date?: string; timestamp: string; values: { query?: string; value: string; extracted_value: number }[] };
+
+/** The synthetic answer for a mode, as the provider would send it; `null` for the modes that are not a 200 answer. */
+export function syntheticTrendsMode(mode: SyntheticTrendsMode, keyword: string): string | null {
+  if (mode === 'http-error') return null;
+  if (mode === 'other-keyword') return syntheticTrendsBody(SYNTHETIC_OTHER_KEYWORD, syntheticWeeks());
+  const body = JSON.parse(syntheticTrendsBody(keyword, mode === 'thin' ? syntheticWeeks(2) : syntheticWeeks())) as { interest_over_time: { timeline_data: TimelineEntry[] } };
+  const timeline = body.interest_over_time.timeline_data;
+  if (mode === 'no-echo') for (const entry of timeline) for (const item of entry.values) delete item.query;
+  if (mode === 'bad-period') delete timeline[10]!.date;
+  if (mode === 'repeated-period') timeline[11] = { ...timeline[11]!, date: timeline[10]!.date! };
+  return JSON.stringify(body);
+}
 
 /** The real trends client over a synthetic transport; no network, one answer per call. */
 export function syntheticTrendsSource(onCall: (url: URL) => void, mode: SyntheticTrendsMode = 'ok', keyword = SYNTHETIC_TRENDS_KEYWORD): SearchInterestSource {
@@ -29,8 +47,7 @@ export function syntheticTrendsSource(onCall: (url: URL) => void, mode: Syntheti
       onCall(new URL(String(input)));
       if (mode === 'http-error') return new Response(JSON.stringify({ error: 'synthetic failure' }), { status: 500, headers: { 'content-type': 'application/json' } });
       if (mode === 'invalid') return new Response(JSON.stringify({ interest_over_time: { timeline_data: { unexpected: true } } }), { status: 200, headers: { 'content-type': 'application/json' } });
-      const points = mode === 'thin' ? syntheticWeeks(2) : syntheticWeeks();
-      return new Response(syntheticTrendsBody(keyword, points), { status: 200, headers: { 'content-type': 'application/json' } });
+      return new Response(syntheticTrendsMode(mode, keyword), { status: 200, headers: { 'content-type': 'application/json' } });
     }) as typeof fetch,
     sleep: async () => {},
     now: () => Date.parse('2026-10-02T00:00:00.000Z'),

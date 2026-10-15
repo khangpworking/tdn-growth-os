@@ -116,6 +116,28 @@ test('parseTrends rejects an unrecognised shape instead of guessing', () => {
   for (const data of [null, 42, 'not json', [], undefined]) assert.equal(parseTrends('TIMESERIES', data), null);
 });
 
+test('parseTrends rejects a timeseries with a point that cannot be dated or attributed, or a repeated period', () => {
+  type Timeline = { date?: unknown; values?: ({ query?: unknown } | null)[] }[];
+  const mutate = (edit: (timeline: Timeline) => void): unknown => {
+    const data = structuredClone(fixture('timeseries')) as { interest_over_time: { timeline_data: Timeline } };
+    edit(data.interest_over_time.timeline_data);
+    return data;
+  };
+  assert.notEqual(parseTrends('TIMESERIES', mutate(() => {})), null, 'the unchanged fixture is accepted');
+  const cases: [string, (timeline: Timeline) => void][] = [
+    ['an entry without a date', timeline => { delete timeline[3]!.date; }],
+    ['an entry with a non-text date', timeline => { timeline[3]!.date = 20251005; }],
+    ['an entry that is not an object', timeline => { timeline[3] = null as never; }],
+    ['an entry without values', timeline => { delete timeline[3]!.values; }],
+    ['an entry with empty values', timeline => { timeline[3]!.values = []; }],
+    ['a value without an echoed query', timeline => { delete timeline[3]!.values![0]!.query; }],
+    ['a value with an empty echoed query', timeline => { timeline[3]!.values![1]!.query = '  '; }],
+    ['a value that is not an object', timeline => { timeline[3]!.values![0] = null; }],
+    ['one week listed twice for the same query', timeline => { timeline[4]!.date = timeline[3]!.date; }],
+  ];
+  for (const [name, edit] of cases) assert.equal(parseTrends('TIMESERIES', mutate(edit)), null, name);
+});
+
 test('fetchTrends makes no call without a key and none after an abort', async () => {
   const withoutKey = fakeTransport(() => jsonResponse(fixture('timeseries')));
   const notConfigured = await fetchTrends(null, withoutKey, request('TIMESERIES'), {});

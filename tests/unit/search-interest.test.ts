@@ -6,13 +6,13 @@ import {
 } from '../../src/modules/analysis/research-automation/search-interest.js';
 import type { TrendsCallResult } from '../../src/modules/analysis/research-automation/search-trends.js';
 import { MAX_SEARCH_INTEREST_POINTS } from '../../src/modules/analysis/research-automation/model.js';
-import { SYNTHETIC_TRENDS_KEYWORD, syntheticSearchInterest, syntheticTrendsSource, syntheticWeeks } from '../helpers/search-interest-synthetic.js';
+import { SYNTHETIC_OTHER_KEYWORD, SYNTHETIC_TRENDS_KEYWORD, syntheticSearchInterest, syntheticTrendsSource, syntheticWeeks, type SyntheticTrendsMode } from '../helpers/search-interest-synthetic.js';
 
 const NOW = Date.parse('2026-10-02T00:00:00.000Z');
 const DAY = 86_400_000;
 const iso = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
-async function called(mode: 'ok' | 'http-error' | 'thin' | 'invalid' = 'ok'): Promise<{ result: TrendsCallResult; calls: URL[] }> {
+async function called(mode: SyntheticTrendsMode = 'ok'): Promise<{ result: TrendsCallResult; calls: URL[] }> {
   const calls: URL[] = [];
   return { result: await syntheticTrendsSource(url => calls.push(url), mode).collect(SYNTHETIC_TRENDS_KEYWORD), calls };
 }
@@ -92,6 +92,49 @@ test('the stored series matches the keyword, ignores case and Unicode form, and 
   const long = searchInterestDocument(asCalled(facts([{ keyword: SYNTHETIC_TRENDS_KEYWORD, points: syntheticWeeks(MAX_SEARCH_INTEREST_POINTS + 20) }])), 1);
   assert.equal(long.points.length, MAX_SEARCH_INTEREST_POINTS);
   assert.equal(long.points.at(-1)!.period, syntheticWeeks(MAX_SEARCH_INTEREST_POINTS + 20).at(-1)!.period, 'the latest weeks are kept');
+});
+
+test('an answer for a different query is never stored, even when it is well formed and is the only series', async () => {
+  const { result, calls } = await called('other-keyword');
+  assert.equal(calls.length, 1);
+  assert.equal(result.status, 'OK', 'the client itself stays keyword-agnostic');
+  assert.deepEqual(result.facts?.kind === 'TIMESERIES' ? result.facts.series.map(item => item.keyword) : null, [SYNTHETIC_OTHER_KEYWORD]);
+  const stored = searchInterestDocument(asCalled(result), 3);
+  assert.deepEqual([stored.status, stored.reason, stored.captureIndex, stored.retrievedAt, stored.points], ['FAILED', 'PROVIDER_FAILED', 3, result.captures[0]!.completedAt, []]);
+  assert.equal(searchInterestRenderable(stored), false);
+});
+
+test('only an exact echoed query matches: case, Unicode form and spacing are folded, diacritics are not', async () => {
+  const { result } = await called();
+  const only = (keyword: string, wanted = SYNTHETIC_TRENDS_KEYWORD) => searchInterestDocument({ kind: 'CALLED', keyword: wanted, result: { ...result, facts: { kind: 'TIMESERIES', unit: 'INDEX_0_100', series: [{ keyword, points: syntheticWeeks(8) }] } } }, 1);
+  for (const echoed of ['BÌNH GIỮ NHIỆT', ' bình  giữ nhiệt ', SYNTHETIC_TRENDS_KEYWORD.normalize('NFD'), 'Bình Giữ Nhiệt'.normalize('NFD')]) assert.equal(only(echoed).status, 'COLLECTED', echoed);
+  assert.equal(only(SYNTHETIC_TRENDS_KEYWORD, 'BÌNH giữ  nhiệt'.normalize('NFD')).status, 'COLLECTED', 'the requested side is folded the same way');
+  for (const echoed of ['binh giu nhiet', 'bình giữ nhiệt inox', 'bình giữ', 'bình giữ nhiệt,nồi chiên', SYNTHETIC_OTHER_KEYWORD]) {
+    const stored = only(echoed);
+    assert.deepEqual([stored.status, stored.reason, stored.points, searchInterestRenderable(stored)], ['FAILED', 'PROVIDER_FAILED', [], false], echoed);
+  }
+});
+
+test('a series with no echoed keyword, or several for the same query, is never used and never replaced by another series', async () => {
+  const { result } = await called();
+  const series = (...keywords: string[]) => asCalled({ ...result, facts: { kind: 'TIMESERIES', unit: 'INDEX_0_100', series: keywords.map(keyword => ({ keyword, points: syntheticWeeks(8) })) } });
+  for (const keywords of [[''], ['', SYNTHETIC_OTHER_KEYWORD], [SYNTHETIC_OTHER_KEYWORD, 'binh giu nhiet'], []]) {
+    const stored = searchInterestDocument(series(...keywords), 2);
+    assert.deepEqual([stored.status, stored.reason, stored.points, stored.captureIndex], ['FAILED', 'PROVIDER_FAILED', [], 2], JSON.stringify(keywords));
+  }
+  const twice = searchInterestDocument(series(SYNTHETIC_TRENDS_KEYWORD, SYNTHETIC_TRENDS_KEYWORD.toUpperCase()), 2);
+  assert.deepEqual([twice.status, twice.reason, twice.points], ['FAILED', 'PROVIDER_FAILED', []], 'two series for one query are ambiguous');
+  assert.equal(searchInterestDocument(series(SYNTHETIC_OTHER_KEYWORD, SYNTHETIC_TRENDS_KEYWORD), 2).status, 'COLLECTED', 'the matching one among several still wins');
+});
+
+test('the real client turns a missing echoed query or a malformed period series into a failed answer with one capture', async () => {
+  for (const mode of ['no-echo', 'bad-period', 'repeated-period'] as const) {
+    const { result, calls } = await called(mode);
+    assert.equal(calls.length, 1, mode);
+    assert.deepEqual([result.status, result.facts, result.captures.length, result.captures[0]!.outcome], ['FAILED', null, 1, 'INVALID_PAYLOAD'], mode);
+    const stored = searchInterestDocument(asCalled(result), 4);
+    assert.deepEqual([stored.status, stored.reason, stored.captureIndex, stored.points, searchInterestRenderable(stored)], ['FAILED', 'PROVIDER_FAILED', 4, [], false], mode);
+  }
 });
 
 test('a series is rendered only when collected, anchored to a capture, and has enough real points', () => {

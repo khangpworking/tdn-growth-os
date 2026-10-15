@@ -151,7 +151,8 @@ test('a period that starts before the provider window is skipped before any paid
   assert.equal((await reportDocument(f)).html.includes('Hình 5.2'), false);
 });
 
-for (const [mode, reason] of [['http-error', 'PROVIDER_FAILED'], ['invalid', 'PROVIDER_FAILED'], ['thin', 'EMPTY_SERIES']] as [SyntheticTrendsMode, string][]) {
+for (const [mode, reason] of [['http-error', 'PROVIDER_FAILED'], ['invalid', 'PROVIDER_FAILED'], ['thin', 'EMPTY_SERIES'],
+  ['other-keyword', 'PROVIDER_FAILED'], ['no-echo', 'PROVIDER_FAILED'], ['bad-period', 'PROVIDER_FAILED'], ['repeated-period', 'PROVIDER_FAILED']] as [SyntheticTrendsMode, string][]) {
   test(`a trends answer that is ${mode} keeps the capture, records ${reason}, and never fails the run`, async t => {
     const calls: URL[] = [];
     const f = await runToDraft(t, { source: syntheticProductSource(), webSource: syntheticWebSource(() => {}, organic), trendsSource: syntheticTrendsSource(url => calls.push(url), mode) });
