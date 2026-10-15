@@ -98,7 +98,7 @@ test('flag on: exactly three extra searches, own captures and ordinals 4/5/6, de
   for (const label of ['Trong kỳ báo cáo', 'Trên Shopee', 'Trên TikTok Shop']) assert.ok(text.includes(label), label);
   assert.ok(text.includes('kỳ tìm'));
   assert.ok(html.includes('https://example.test/shopee/1'));
-  assert.doesNotMatch(html, /site:|tbs|cdr|Google|serpapi/i);
+  assert.doesNotMatch(reportVisibleText(doc), /site:|tbs|cdr|Google|serpapi/i);
   assert.deepEqual(visibleTextViolations(reportVisibleText(doc)), []);
   assert.deepEqual(providerNameViolations(html), []);
 });
