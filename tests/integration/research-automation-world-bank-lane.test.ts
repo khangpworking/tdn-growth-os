@@ -25,7 +25,7 @@ const organic = [{ position: 1, title: 'Bình giữ nhiệt chính hãng', link:
 type Sources = { source?: AutomationSourcePort; webSource?: AutomationSourcePort; worldBankSource?: WorldBankSource };
 
 const CODES = ['NE.CON.PRVT.PC.KD', 'SP.POP.TOTL'] as const;
-const VALUES: Record<string, string[]> = { 'NE.CON.PRVT.PC.KD': ['null', '1234.5', '1000'], 'SP.POP.TOTL': ['98000000', '97000000'] };
+const VALUES: Record<string, string[]> = { 'NE.CON.PRVT.PC.KD': ['null', '1234.5', '1000', ...Array.from({ length: 63 }, () => '900')], 'SP.POP.TOTL': ['98000000', '97000000'] };
 type Mode = 'ok' | 'http-error' | 'transport' | 'timeout' | 'oversize' | 'identity' | 'wrong-indicator' | 'no-rows';
 /** The real lane over a synthetic transport; `modes` picks the answer per requested URL. */
 function syntheticWorldBank(calls: { url: URL; init: RequestInit | undefined }[], modes: Record<string, Mode> = {}): WorldBankSource {
@@ -97,7 +97,7 @@ async function reportDocument(f: Awaited<ReturnType<typeof runToDraft>>) {
 test('flag on: four pinned GETs, both pairs stored as captures, one table in the demand section', async t => {
   const calls: { url: URL; init: RequestInit | undefined }[] = [];
   const f = await runToDraft(t, { source: syntheticProductSource(), worldBankSource: syntheticWorldBank(calls) });
-  assert.deepEqual(calls.map(c => c.url.href), CODES.flatMap(code => [`https://api.worldbank.org/v2/country/VN/indicator/${code}?format=json`, `https://api.worldbank.org/v2/indicator/${code}?format=json`]));
+  assert.deepEqual(calls.map(c => c.url.href), CODES.flatMap(code => [`https://api.worldbank.org/v2/country/VN/indicator/${code}?format=json&per_page=100`, `https://api.worldbank.org/v2/indicator/${code}?format=json`]));
   for (const c of calls) { assert.equal(c.init?.method, 'GET'); assert.equal(c.init?.redirect, 'error'); assert.deepEqual(c.init?.headers, { accept: 'application/json' }); }
   assert.equal(f.step.state, 'SUCCEEDED');
   assert.deepEqual(f.captures.map(c => [c.ordinal, c.provider, c.operation]), [[0, 'kalodata', 'kalodata.product.rank'],
