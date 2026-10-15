@@ -194,6 +194,7 @@ const validates = {
   start: ajv.compile({ $ref: `${schema.$id}#/$defs/startRequest` }),
   confirm: ajv.compile({ oneOf: [{ $ref: `${schema.$id}#/$defs/confirmRequest` }, { $ref: sourceSchema.$id }] }),
   cancel: ajv.compile({ $ref: `${schema.$id}#/$defs/cancelRequest` }),
+  autoRunRetry: ajv.compile({ $ref: `${schema.$id}#/$defs/autoRunRetryRequest` }),
   revision: (value: unknown) => personaReportRequestValid(value) || historicalRevisionValid(value),
   revisionCancel: ajv.compile({ $ref: `${revisionSchema.$id}#/$defs/cancelRequest` }),
   revisionReceipt: ajv.compile({ $ref: `${revisionSchema.$id}#/$defs/receipt` }),
@@ -462,7 +463,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     const p9History = action === 'sources/tiktok-comments' || action === 'sources/video-reading';
     const p9Write = action === 'sources/tiktok-comments/selections' || action === 'sources/tiktok-comments/collect' || action === 'sources/video-reading';
     const allowed = mutation
-      ? !runId || action === 'source-pdfs' || action === 'confirm-scope' || action === 'cancel' || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/metric-capture' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || metaWrite || worldBankWrite || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || insightDefaultModelWrite || crosscheckWrite || personaWrite || Boolean(revisionCancel) || insightReaderBuild || readerDecisionV2 || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions' || tiktokPropose || tiktokReaderBuild || shopeePropose || shopeeReaderBuild
+      ? !runId || action === 'source-pdfs' || action === 'confirm-scope' || action === 'cancel' || (action === 'auto-run/retry' && Boolean(configuration.metricAutoRun)) || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/metric-capture' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || metaWrite || worldBankWrite || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || insightDefaultModelWrite || crosscheckWrite || personaWrite || Boolean(revisionCancel) || insightReaderBuild || readerDecisionV2 || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions' || tiktokPropose || tiktokReaderBuild || shopeePropose || shopeeReaderBuild
       : readerListV2 || !action || action === 'pageindex' || action === 'reader-reports' || Boolean(readerHtml) || Boolean(readerPdf) || action === 'report-versions' || action === 'report-attempts' || action === 'sources/metric' || action === 'sources/metric-capture' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'sources/meta-page' || Boolean(metaRead) || action === 'sources/world-bank' || Boolean(worldBankRead) || action === 'metric-rule-adoptions' || Boolean(metricRuleRead) || Boolean(membershipReview) || Boolean(membershipRead) || Boolean(insightRead) || Boolean(personaList) || Boolean(personaRead) || Boolean(crosscheckRead) || Boolean(crosscheckAvailability) || Boolean(report) || Boolean(revisionRead) || Boolean(tiktokContextRead) || Boolean(tiktokRead) || tiktokHistory || tiktokConsumptionRead || shopeeSamples || shopeeContextRead || Boolean(shopeeRead) || shopeeHistory || shopeeConsumptionRead;
     if (!allowed && !(runId && (mutation ? p9Write : p9History || p9Read))) return fail(response, 404, 'not_found', 'Route not found');
     const method = mutation ? 'POST' : 'GET';
@@ -982,7 +983,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         : tiktokReaderBuild ? validates.tiktokReaderBuild
         : shopeeReaderBuild ? validates.shopeeReaderBuild
         : action === 'reader-reports' ? validates.readerBuild : action === 'reader-reports/decisions' ? validates.readerDecision
-        : action === 'report-revisions' ? validates.revision : revisionCancel ? validates.revisionCancel : validates.cancel;
+        : action === 'report-revisions' ? validates.revision : revisionCancel ? validates.revisionCancel : action === 'auto-run/retry' ? validates.autoRunRetry : validates.cancel;
       if (!validate(body)) return fail(response, 400, 'bad_request', 'Research request failed validation');
       if (personaWrite) {
         if (closing) return fail(response, 503, 'service_unavailable', 'Research executor is stopping');
@@ -1119,6 +1120,12 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         if (!validates.revisionReceipt(receipt)) throw new Error('Report revision receipt failed validation');
         worker!.wake();
         return sendApiJson(response, revisionCancel || receipt.exactRetry ? 200 : 202, receipt);
+      }
+      if (action === 'auto-run/retry') {
+        // Owner "Thử lại" only: re-queues one stopped capture; nothing retries a capture automatically.
+        const receipt = await writeService!.retryAutoRunCapture(workspaceId!, runId!, body);
+        if (!receipt.exactRetry) worker!.wake();
+        return sendApiJson(response, receipt.exactRetry ? 200 : 202, receipt);
       }
       const receipt = !runId ? await writeService!.start(workspaceId!, body) : action === 'confirm-scope' ? await writeService!.confirmScope(workspaceId!, runId, body) : await writeService!.cancel(workspaceId!, runId, body);
       worker!.wake();

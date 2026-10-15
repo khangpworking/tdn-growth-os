@@ -1,6 +1,8 @@
 // The only module that touches the backend-owned contract. Every type here is an alias of the generated
 // API types, so reconciling with the published schema changes this file and nothing else.
 import type {
+  ResearchAutomationAutoRun,
+  ResearchAutomationAutoRunRetryRequest,
   ResearchAutomationCancelRequest,
   ResearchAutomationConfirmRequest,
   ResearchAutomationMutationReceipt,
@@ -31,6 +33,8 @@ export type ResearchAutomationPreparedMetricCaptureEntry = { readonly packageId:
 export type { ResearchAutomationSourceStatus, ResearchAutomationSourceStatusEntry };
 export type { ResearchAutomationRunPdfStates };
 export type ResearchAutomationCancelBody = ResearchAutomationCancelRequest;
+export type ResearchAutomationAutoRunRetryBody = ResearchAutomationAutoRunRetryRequest;
+export type { ResearchAutomationAutoRun };
 export type ResearchAutomationReceipt = ResearchAutomationMutationReceipt;
 export type ResearchAutomationInterview = NonNullable<ResearchAutomationStartRequest['interview']>;
 export type ResearchAutomationProductCard = ResearchAutomationRun['productCards'][number];
@@ -111,6 +115,11 @@ export async function confirmScope(workspaceId: string, runId: string, body: Res
 
 export async function cancelRun(workspaceId: string, runId: string, body: ResearchAutomationCancelBody, token: string): Promise<ResearchAutomationRun> {
   return verifiedReceipt(await request(`/owner-api${base(workspaceId)}/${encodeURIComponent(runId)}/cancel`, ownerPost(body, token)), workspaceId, runId).run;
+}
+
+/** Owner "Thử lại" for a stopped automatic capture; it uses one more paid lookup on the server. */
+export async function retryAutoRun(workspaceId: string, runId: string, body: ResearchAutomationAutoRunRetryBody, token: string): Promise<ResearchAutomationRun> {
+  return verifiedReceipt(await request(`/owner-api${base(workspaceId)}/${encodeURIComponent(runId)}/auto-run/retry`, ownerPost(body, token)), workspaceId, runId).run;
 }
 
 export async function loadPreparedMetricSources(workspaceId: string, runId: string, signal: AbortSignal): Promise<ResearchAutomationPreparedMetricList> {

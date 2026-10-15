@@ -4,6 +4,7 @@ export type ResearchAutomationApiContract =
   | ResearchAutomationStartRequest
   | ResearchAutomationConfirmRequest
   | ResearchAutomationCancelRequest
+  | ResearchAutomationAutoRunRetryRequest
   | ResearchAutomationRun
   | ResearchAutomationRunList
   | ResearchAutomationMutationReceipt
@@ -117,6 +118,13 @@ export interface ResearchAutomationCancelRequest {
   requestKey: RequestKey;
   expectedRevision: number;
 }
+/**
+ * Owner click on "Thử lại": re-runs one stopped automatic capture (one more lookup).
+ */
+export interface ResearchAutomationAutoRunRetryRequest {
+  contractVersion: 'research-automation-autorun-retry-v1';
+  requestKey: RequestKey;
+}
 export interface ResearchAutomationRun {
   contractVersion: 'research-automation-run-v1';
   runId: Uuid;
@@ -151,6 +159,7 @@ export interface ResearchAutomationRun {
     market?: ResearchAutomationOutput;
     insight?: ResearchAutomationOutput;
   };
+  autoRun?: ResearchAutomationAutoRun;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -287,6 +296,16 @@ export interface ResearchAutomationOutput {
     available: boolean;
     reason: string | null;
   };
+}
+/**
+ * Market auto-runner state; present only for a run that has an auto-run row.
+ */
+export interface ResearchAutomationAutoRun {
+  phase: 'WAITING_SCOPE' | 'CAPTURE' | 'PREPARE' | 'PICK' | 'CONFIRM' | 'WAIT_DRAFT' | 'PRESENT' | 'DONE' | 'STOPPED';
+  state: 'QUEUED' | 'RUNNING';
+  stopCode?: string;
+  linksFound?: number;
+  canRetry: boolean;
 }
 export interface ResearchAutomationRunList {
   contractVersion: 'research-automation-run-list-v1';

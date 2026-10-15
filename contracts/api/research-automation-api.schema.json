@@ -6,6 +6,7 @@
     { "$ref": "#/$defs/startRequest" },
     { "$ref": "#/$defs/confirmRequest" },
     { "$ref": "#/$defs/cancelRequest" },
+    { "$ref": "#/$defs/autoRunRetryRequest" },
     { "$ref": "#/$defs/run" },
     { "$ref": "#/$defs/runList" },
     { "$ref": "#/$defs/receipt" },
@@ -106,6 +107,29 @@
         "contractVersion": { "const": "research-automation-cancel-v1" },
         "requestKey": { "$ref": "#/$defs/requestKey" },
         "expectedRevision": { "type": "integer", "minimum": 1, "maximum": 1000000 }
+      }
+    },
+    "autoRunRetryRequest": {
+      "title": "ResearchAutomationAutoRunRetryRequest",
+      "description": "Owner click on \"Thử lại\": re-runs one stopped automatic capture (one more lookup).",
+      "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "requestKey"],
+      "properties": {
+        "contractVersion": { "const": "research-automation-autorun-retry-v1" },
+        "requestKey": { "$ref": "#/$defs/requestKey" }
+      }
+    },
+    "autoRun": {
+      "title": "ResearchAutomationAutoRun",
+      "description": "Market auto-runner state; present only for a run that has an auto-run row.",
+      "type": "object", "additionalProperties": false,
+      "required": ["phase", "state", "canRetry"],
+      "properties": {
+        "phase": { "enum": ["WAITING_SCOPE", "CAPTURE", "PREPARE", "PICK", "CONFIRM", "WAIT_DRAFT", "PRESENT", "DONE", "STOPPED"] },
+        "state": { "enum": ["QUEUED", "RUNNING"] },
+        "stopCode": { "type": "string", "pattern": "^[A-Z0-9_]{1,64}$" },
+        "linksFound": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "canRetry": { "type": "boolean" }
       }
     },
     "runStatus": {
@@ -346,6 +370,7 @@
             "insight": { "$ref": "#/$defs/output" }
           }
         },
+        "autoRun": { "$ref": "#/$defs/autoRun" },
         "createdAt": { "$ref": "#/$defs/timestamp" },
         "updatedAt": { "$ref": "#/$defs/timestamp" }
       }
