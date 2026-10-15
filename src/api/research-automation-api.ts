@@ -127,6 +127,8 @@ export interface ResearchAutomationApiConfiguration {
   };
   /** Opt-in generic Market cover illustration for the OWNER writer only; absent keeps the procedural fallback. */
   readonly marketCover?: { readonly cliproxy: CliproxyConfiguration; readonly transport?: typeof fetch };
+  /** Market auto-runner for the OWNER writer only; present only when its flag is exactly "1". */
+  readonly metricAutoRun?: { readonly captureRoot: string; readonly adapterManifestPath?: string; readonly adapterManifestSha256?: string };
 }
 export interface ResearchAutomationApiApplication {
   handler(request: IncomingMessage, response: ServerResponse): void;
@@ -350,6 +352,9 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         actorId: configuration.owner.actorId, source: bindResearchAutomationProvider(selected), ...(webSource ? { webSource } : {}),
         ...(i14SynthesisAi ? { i14SynthesisAi } : {}),
         ...(marketCoverAi ? { marketCoverAi } : {}),
+        ...(configuration.metricAutoRun ? { autoRun: { enabled: true, onWake: () => worker?.wake(), runner: {
+          enabledEnv: '1', captureRoot: path.resolve(configuration.metricAutoRun.captureRoot),
+          adapterManifestPath: configuration.metricAutoRun.adapterManifestPath, adapterManifestSha256: configuration.metricAutoRun.adapterManifestSha256 } } } : {}),
         decisionSynthesisAi,
         ...(configuration.providers?.apifyReviews ? { shopeeCollectorFactory: () => {
           let requests = 0;

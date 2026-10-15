@@ -217,6 +217,29 @@ the live lookup merely to diagnose extraction.
 - Search results are evidence from the page at capture time. Later intake and
   archive work must use the saved files rather than reopening Metric.
 
+### Market auto-runner settings (OWNER executor)
+
+The operator app reads these once at startup. Any value of
+`TDN_METRIC_OPENCLI_ENABLED` other than exactly `1` leaves the auto-runner off:
+no capture runner, no auto-run row, no behaviour change.
+
+```sh
+TDN_METRIC_OPENCLI_ENABLED=1
+TDN_METRIC_OPENCLI_ADAPTER_MANIFEST=<path-to-adapter-manifest.json>
+TDN_METRIC_OPENCLI_ADAPTER_SHA256=<64-hex-sha256-of-that-manifest>
+# Optional; defaults to "metric-captures" next to the workspace database file.
+TDN_METRIC_CAPTURE_DIR=<capture-root-directory>
+```
+
+With the flag on, a new run that requests MARKET gets one auto-run row. After
+the run reaches scope review, the worker runs one capture at a time (never
+retried), prepares it, picks up to 5 Shopee links, and confirms the scope with
+`nativeReview: SKIP`. The row ends at DONE once the draft is ready, or STOPPED
+with a short code (for example `METRIC_LOGIN_REQUIRED`, `CANCELLED`,
+`SCOPE_CHANGED_BY_OWNER`). A login, captcha or bridge stop also stops the other
+waiting captures of the same workspace. A restart during a capture stops that
+row as `CAPTURE_INTERRUPTED`; it is never re-run automatically.
+
 
 ## R3 — provable native submit and network-first result data
 
