@@ -2047,13 +2047,16 @@ function observeResultPage() {
     if (!headerTable || !bodyTable) return null;
     const rawHeaders = [...headerTable.querySelectorAll('thead th')].map(textOf);
     const headers = rawHeaders.map(canonicalHeader);
-    const rows = [...bodyTable.querySelectorAll('tbody tr')].map(row => {
+    // Scrollable Ant tables start the body with a hidden, empty measure row; it is not data.
+    const rows = [...bodyTable.querySelectorAll('tbody tr')].flatMap(row => {
+      if (row.classList?.contains('ant-table-measure-row') || row.getAttribute('aria-hidden') === 'true') return [];
       const cells = [...row.querySelectorAll('td')].map(textOf);
+      if (!cells.some(Boolean)) return [];
       const values = Object.fromEntries(cells.map((value, index) => [headers[index] || `column${index + 1}`, value]));
       const iconPlatform = platformFromIcon(row);
       if (iconPlatform) values.platform = iconPlatform;
       else if (regionName === 'top-products' || regionName === 'top-shops') values.platform = 'unknown';
-      return values;
+      return [values];
     });
     return { columns: headers, rows };
   };

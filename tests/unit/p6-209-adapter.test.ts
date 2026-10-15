@@ -2027,6 +2027,21 @@ test('real results class fixture extracts card KPIs, platform split, and Product
   assert.deepEqual(dom.regions['top-products'].pagination, { page: 1, total: 2, pageSize: 20, nextAvailable: false, nextSelector: 'li.ant-pagination-next .ant-pagination-item-link' });
 });
 
+test('hidden Ant measure rows and blank rows are not read as table data', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const fixture = await load('metric-results-real-dom');
+  const measureRow = '<tr aria-hidden="true" class="ant-table-measure-row"><td><div>&nbsp;</div></td><td><div>&nbsp;</div></td><td><div>&nbsp;</div></td><td><div>&nbsp;</div></td></tr>';
+  const blankRow = '<tr class="ant-table-row"><td> </td><td></td><td></td><td></td></tr>';
+  const html = fixture.html.replaceAll('<div class="ant-table-body"><table><tbody>', `<div class="ant-table-body"><table><tbody>${measureRow}${blankRow}`);
+  assert.ok(html.split('ant-table-measure-row').length > 3);
+  const dom = withMetricDom(html, () => adapter.observeResultPage());
+  assert.deepEqual(dom.regions['top-products'].rows.map((row: any) => [row.name, row.platform]), [
+    ['Synthetic product A', 'tiktok'], ['Synthetic product B', 'unknown'],
+  ]);
+  assert.deepEqual(dom.regions['top-shops'].rows.map((row: any) => [row.shop, row.platform]), [['Synthetic shop A', 'shopee']]);
+});
+
 test('an unrelated image before the platform icon cannot win row attribution', async () => {
   await installOpenCliTestStub();
   const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
