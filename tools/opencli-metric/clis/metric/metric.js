@@ -31,6 +31,9 @@ const PRODUCT_CAP = 200;
 const PAGE_CAP = 10;
 const NETWORK_WAIT_TIMEOUT_MS = 30_000;
 const NETWORK_POLL_SECONDS = 0.25;
+const SUBMIT_IDLE_POLL_SECONDS = 1;
+const SUBMIT_IDLE_MAX_POLLS = 120;
+const SUBMIT_DISABLED_MAX_POLLS = 5;
 
 function asCliError(error) {
   if (error instanceof CliError) return error;
@@ -159,8 +162,8 @@ function dispatchMetricBackgroundClick({ selector, nth }) {
   return { ok: true, matches: list.length, hit: inside ? 'target' : 'other' };
 }
 
-// Mirrors the native key sequence; the inserted comma is what lets the Ant
-// tokenizer commit the typed keyword.
+// Mirrors the native key press; the inserted comma is what lets the Ant
+// tokenizer commit the typed keyword. The key release is a separate call.
 function commitMetricKeywordComma(inputSelector) {
   const input = document.querySelector(inputSelector);
   if (!input || input !== document.activeElement) return { ok: false, reason: 'not-focused' };
@@ -173,12 +176,59 @@ function commitMetricKeywordComma(inputSelector) {
     input.dispatchEvent(new window.InputEvent('input', { inputType: 'insertText', data: ',', bubbles: true, composed: true }));
     inserted = true;
   }
-  input.dispatchEvent(new window.KeyboardEvent('keyup', key));
   return { ok: true, inserted };
+}
+
+// A real key release reaches the page in a later task, after the tokenizer has
+// re-rendered the cleared input. A same-task keyup lets Metric read the stale
+// "keyword," text, and its Analytics button then stays disabled.
+function releaseMetricKeywordComma(inputSelector) {
+  const input = document.querySelector(inputSelector);
+  if (!input) return { ok: false, reason: 'missing' };
+  input.dispatchEvent(new window.KeyboardEvent('keyup', { key: ',', code: 'Comma', keyCode: 188, which: 188, bubbles: true, cancelable: true, composed: true, view: window }));
+  return { ok: true };
+}
+
+// Metric shows an inline spinner and disables Analytics while its landing
+// report or a filter lookup is still loading.
+function readMetricSubmitState(selector) {
+  const button = document.querySelector(selector);
+  return {
+    found: Boolean(button),
+    disabled: !button || button.disabled || button.getAttribute('aria-disabled') === 'true',
+    loading: Boolean(button && (button.classList.contains('ant-btn-loading') || button.querySelector('.anticon-loading'))),
+  };
+}
+
+// Hidden documents drop CDP Escape, so an opened Ant select stays open there.
+// Close it the way a user would: Escape on its input, then a press outside.
+function closeMetricOpenSelects() {
+  const builder = document.querySelector('#QuerySearchBuilder');
+  const open = [...(builder?.querySelectorAll('.ant-select-open') || [])];
+  const escape = { key: 'Escape', code: 'Escape', keyCode: 27, which: 27, bubbles: true, cancelable: true, composed: true, view: window };
+  for (const select of open) {
+    const input = select.querySelector('input');
+    if (!input) continue;
+    input.dispatchEvent(new window.KeyboardEvent('keydown', escape));
+    input.dispatchEvent(new window.KeyboardEvent('keyup', escape));
+  }
+  if (open.length > 0 && document.body) {
+    const mouse = { bubbles: true, cancelable: true, composed: true, view: window, button: 0 };
+    document.body.dispatchEvent(new window.MouseEvent('mousedown', { ...mouse, buttons: 1 }));
+    document.body.dispatchEvent(new window.MouseEvent('mouseup', mouse));
+  }
+  const active = document.activeElement;
+  if (active && builder?.contains(active)) active.blur();
+  return { open: open.length };
 }
 
 async function metricTabHidden(page) {
   return (await page.evaluate(metricDocumentHidden)) === true;
+}
+
+async function dismissMetricPopups(page) {
+  if (typeof page.pressKey === 'function') await page.pressKey('Escape').catch(() => {});
+  if (await metricTabHidden(page).catch(() => false)) await page.evaluate(closeMetricOpenSelects).catch(() => {});
 }
 
 // Native CDP clicks stay the default. Only a hidden document switches to
@@ -828,6 +878,8 @@ async function prepareMetricForm(page, spec, onStartState = null) {
   parseMetricForm(before);
   assertSupportedMetricPeriod(spec, before.appliedFilters);
   const pageRepair = await repairMetricPage(page);
+  // Let the landing report finish before the form is edited.
+  await waitForMetricSubmitIdle(page, { requireEnabled: false });
   await applyMetricSpec(page, spec, before);
   await waitForKeywordCommit(page, spec.keywords);
   // This is the last gate before the real submit action. Dry-run uses this
@@ -1114,16 +1166,38 @@ function assertSearchSubmitInspection(inspection) {
   return inspection.descriptor;
 }
 
+// A hidden tab finishes Metric's landing report later than the form fill, so
+// Analytics can still be spinning when the form is ready. Polls only; it
+// returns the last state and leaves the decision to the preflight.
+async function waitForMetricSubmitIdle(page, { requireEnabled = true } = {}) {
+  const inspection = await inspectSearchSubmit(page).catch(() => null);
+  const selector = inspection?.candidateCount === 1 ? inspection.descriptor?.clickSelector : null;
+  if (!selector) return null;
+  let state = null;
+  let polls = 0;
+  let disabledPolls = 0;
+  for (; polls < SUBMIT_IDLE_MAX_POLLS; polls += 1) {
+    state = await page.evaluate(readMetricSubmitState, selector);
+    if (!state || typeof state !== 'object' || !state.loading && (!requireEnabled || !state.disabled)) break;
+    // A disabled button without a spinner is a form problem, not a load.
+    if (!state.loading && (disabledPolls += 1) >= SUBMIT_DISABLED_MAX_POLLS) break;
+    await page.wait({ time: SUBMIT_IDLE_POLL_SECONDS }).catch(() => {});
+  }
+  return state && typeof state === 'object' ? { polls, loading: state.loading === true, disabled: state.disabled === true } : null;
+}
+
 // Shared by dry-run and submit; never dispatches a submit event.
 async function prepareSearchSubmit(page) {
   await page.pressKey('Escape');
   const hidden = await metricTabHidden(page);
+  if (hidden) await page.evaluate(closeMetricOpenSelects).catch(() => {});
   if (!hidden && typeof page.cdp === 'function') await page.cdp('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 0, y: 0 }).catch(() => {});
   await page.evaluate(() => {
     const active = document.activeElement;
     if (active && document.querySelector('#QuerySearchBuilder')?.contains(active)) active.blur();
   });
   await page.wait({ time: 0.75 });
+  const submitIdle = await waitForMetricSubmitIdle(page);
   const inspection = await inspectSearchSubmit(page);
   const descriptor = assertSearchSubmitInspection(inspection);
   const preflight = await page.evaluate(selector => {
@@ -1140,13 +1214,13 @@ async function prepareSearchSubmit(page) {
     const hitElement = rect ? document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2) : null;
     return { popups, popupVisible: popups.length > 0,
       disabled: !button || button.disabled || button.getAttribute('aria-disabled') === 'true',
-      loading: button?.classList.contains('ant-btn-loading') || false,
+      loading: Boolean(button && (button.classList.contains('ant-btn-loading') || button.querySelector('.anticon-loading'))),
       hit: hitElement && (hitElement === button || button.contains(hitElement)) ? 'target' : 'other',
       hitElement: hitElement ? { tag: hitElement.tagName.toLowerCase(), classes: String(hitElement.className) } : null,
 
     };
   }, descriptor.clickSelector);
-  if (preflight && typeof preflight === 'object') Object.assign(preflight, { candidateCount: inspection.candidateCount, documentHidden: hidden });
+  if (preflight && typeof preflight === 'object') Object.assign(preflight, { candidateCount: inspection.candidateCount, documentHidden: hidden, submitIdle });
   if (preflight && typeof preflight === 'object' && (preflight.popupVisible || preflight.disabled || preflight.loading || preflight.hit !== 'target')) {
     throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric submit preconditions failed', { preflight });
   }
@@ -1167,7 +1241,7 @@ async function readMetricPlatformOptionLabels(page) {
     return [...document.querySelectorAll('[role="option"],.ant-select-item-option')]
       .filter(visible).map(textOf).filter(Boolean);
   }).catch(() => []);
-  if (typeof page.pressKey === 'function') await page.pressKey('Escape').catch(() => {});
+  await dismissMetricPopups(page);
   return [...new Set(labels)];
 }
 
@@ -1319,6 +1393,8 @@ async function pressTrustedComma(page, selector) {
     if (committed?.ok !== true) {
       throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric keyword input is not focused for comma commit');
     }
+    if (typeof page.wait === 'function') await page.wait({ time: 0.3 }).catch(() => {});
+    await page.evaluate(releaseMetricKeywordComma, selector);
     return;
   }
   const focused = await page.evaluate(inputSelector => {
@@ -1545,7 +1621,7 @@ async function applyMetricSpec(page, spec, initialObservation) {
   }
   // Close either platform dropdown, including the re-rendered multi-platform
   // control, before the keyword input is focused.
-  await page.pressKey('Escape').catch(() => {});
+  await dismissMetricPopups(page);
   // Re-resolve after the platform step: the multi-platform switch can
   // re-render the form and change the generated input ids.
   const keywordSelector = await page.evaluate(resolveKeywordSelector);
@@ -2512,6 +2588,7 @@ export {
   prepareMetricForm, waitForKeywordCommit, observeMetricPage, observeResultPage,
   collectResultPages, archiveResultsPage, replayResultsPage, readCommittedKeywords,
   describeSearchSubmit, assertSearchSubmitInspection, createNetworkState, readNetworkChunk,
-  repairMetricFunctionDefaults, repairMetricPage, commitMetricKeywordComma,
+  repairMetricFunctionDefaults, repairMetricPage, commitMetricKeywordComma, releaseMetricKeywordComma,
+  readMetricSubmitState, closeMetricOpenSelects, waitForMetricSubmitIdle, prepareSearchSubmit,
 };
 export { assertMetricUrl, parseMetricForm };

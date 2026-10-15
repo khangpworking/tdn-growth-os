@@ -1516,12 +1516,16 @@ test('hidden comma commit inserts the separator through input events on the focu
   input.focus();
   assert.deepEqual(await page.evaluate(adapter.commitMetricKeywordComma, '#kw'), { ok: true, inserted: true });
   assert.equal(input.value, 'synthetic term,');
-  assert.deepEqual(events, ['keydown:,', 'keypress:,', 'beforeinput:,', 'input:,', 'keyup:,']);
+  assert.deepEqual(events, ['keydown:,', 'keypress:,', 'beforeinput:,', 'input:,']);
+  events.length = 0;
+  assert.deepEqual(await page.evaluate(adapter.releaseMetricKeywordComma, '#kw'), { ok: true });
+  assert.deepEqual(events, ['keyup:,']);
+  assert.deepEqual(await page.evaluate(adapter.releaseMetricKeywordComma, '#missing'), { ok: false, reason: 'missing' });
   events.length = 0;
   input.addEventListener('keydown', (event: any) => event.preventDefault());
   assert.deepEqual(await page.evaluate(adapter.commitMetricKeywordComma, '#kw'), { ok: true, inserted: false });
   assert.equal(input.value, 'synthetic term,');
-  assert.deepEqual(events, ['keydown:,', 'keyup:,']);
+  assert.deepEqual(events, ['keydown:,']);
 });
 
 test('hidden keyword commit uses the in-page comma instead of CDP keys and fails closed', async () => {
@@ -1535,14 +1539,116 @@ test('hidden keyword commit uses the in-page comma instead of CDP keys and fails
     page.evaluate = async (fn: Function, argument?: unknown) => {
       if (fn.name === 'metricDocumentHidden') return true;
       if (fn.name === 'commitMetricKeywordComma') { page.calls.push(`comma:${argument}`); return ok ? { ok: true, inserted: true } : { ok: false, reason: 'not-focused' }; }
+      if (fn.name === 'releaseMetricKeywordComma') { page.calls.push(`keyup:${argument}`); return { ok: true }; }
       return evaluate(fn, argument);
     };
+    page.wait = async (options: any) => { page.calls.push(`wait:${options.time ?? options.selector}`); };
     if (ok) await adapter.applyMetricSpec(page, spec, initial);
     else await assert.rejects(() => adapter.applyMetricSpec(page, spec, initial), (error: any) => error.code === 'METRIC_UI_CHANGED');
     const fill = page.calls.indexOf('fill:#keyword-input:synthetic-term');
-    assert.equal(page.calls[fill + 1], 'comma:#keyword-input');
+    if (ok) assert.deepEqual(page.calls.slice(fill + 1, fill + 4), ['comma:#keyword-input', 'wait:0.3', 'keyup:#keyword-input']);
+    else assert.deepEqual(page.calls.slice(fill + 1), ['comma:#keyword-input']);
     assert.ok(!page.calls.some((call: string) => call.startsWith('cdp:')));
   }
+});
+
+test('submit state reads the inline Analytics spinner as loading', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const html = `<div id="QuerySearchBuilder">
+    <button id="busy" class="ant-btn ant-btn-primary" disabled><span class="anticon anticon-loading"></span><span>Analytics</span></button>
+    <button id="ready" class="ant-btn ant-btn-primary"><span>Analytics</span></button>
+    <button id="blocked" class="ant-btn ant-btn-primary" aria-disabled="true"><span>Analytics</span></button>
+  </div>`;
+  const page = visibilityDomPage(html, 'hidden');
+  assert.deepEqual(await page.evaluate(adapter.readMetricSubmitState, '#busy'), { found: true, disabled: true, loading: true });
+  assert.deepEqual(await page.evaluate(adapter.readMetricSubmitState, '#ready'), { found: true, disabled: false, loading: false });
+  assert.deepEqual(await page.evaluate(adapter.readMetricSubmitState, '#blocked'), { found: true, disabled: true, loading: false });
+  assert.deepEqual(await page.evaluate(adapter.readMetricSubmitState, '#missing'), { found: false, disabled: true, loading: false });
+});
+
+test('hidden tab closes an open Metric select with Escape and an outside press', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const html = `<div id="QuerySearchBuilder">
+    <div class="ant-select ant-select-multiple ant-select-open ant-select-focused"><input id="platform-open"></div>
+    <div class="ant-select ant-select-multiple"><input id="keyword-closed"></div>
+  </div>`;
+  const page = visibilityDomPage(html, 'hidden');
+  const document = page.dom.window.document;
+  const events: string[] = [];
+  for (const id of ['platform-open', 'keyword-closed']) {
+    for (const type of ['keydown', 'keyup']) document.querySelector(`#${id}`).addEventListener(type, (event: any) => events.push(`${id}:${type}:${event.key}`));
+  }
+  for (const type of ['mousedown', 'mouseup']) document.body.addEventListener(type, (event: any) => events.push(`body:${type}:${event.target === document.body}`));
+  const input = document.querySelector('#platform-open');
+  input.focus();
+  assert.deepEqual(await page.evaluate(adapter.closeMetricOpenSelects), { open: 1 });
+  assert.deepEqual(events, ['platform-open:keydown:Escape', 'platform-open:keyup:Escape', 'body:mousedown:true', 'body:mouseup:true']);
+  assert.notEqual(document.activeElement, input);
+  events.length = 0;
+  document.querySelector('.ant-select-open').classList.remove('ant-select-open');
+  assert.deepEqual(await page.evaluate(adapter.closeMetricOpenSelects), { open: 0 });
+  assert.deepEqual(events, []);
+});
+
+function submitIdlePage(states: any[], preflight: any = {}) {
+  const calls: string[] = [];
+  let reads = 0;
+  const page: any = {
+    calls,
+    pressKey: async (key: string) => { calls.push(`key:${key}`); },
+    wait: async (options: any) => { calls.push(`wait:${options.time}`); },
+    evaluate: async (fn: Function, argument?: unknown) => {
+      if (fn.name === 'metricDocumentHidden') return true;
+      if (fn.name === 'closeMetricOpenSelects') { calls.push('close-selects'); return { open: 1 }; }
+      if (fn.name === 'describeSearchSubmit') {
+        const descriptor = { clickSelector: '#QuerySearchBuilder button:nth-child(1)' };
+        return { candidateCount: 1, descriptor, candidates: [descriptor], pageWideAnalyticsCount: 1 };
+      }
+      if (fn.name === 'readMetricSubmitState') {
+        calls.push(`state:${argument}`);
+        return states[Math.min(reads++, states.length - 1)];
+      }
+      if (fn.toString().includes('elementFromPoint')) {
+        const last = states[Math.min(reads, states.length) - 1] || {};
+        return { popups: [], popupVisible: false, disabled: last.disabled === true, loading: last.loading === true, hit: 'target', hitElement: null, ...preflight };
+      }
+      return undefined;
+    },
+  };
+  return page;
+}
+
+test('submit preflight waits for the landing report spinner and closes hidden-tab selects first', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const busy = { found: true, disabled: true, loading: true };
+  const ready = { found: true, disabled: false, loading: false };
+  const page = submitIdlePage([busy, busy, ready]);
+  const prepared = await adapter.prepareSearchSubmit(page);
+  assert.deepEqual(prepared.preflight.submitIdle, { polls: 2, loading: false, disabled: false });
+  assert.equal(prepared.preflight.documentHidden, true);
+  assert.ok(page.calls.indexOf('close-selects') < page.calls.findIndex((call: string) => call.startsWith('state:')));
+  assert.equal(page.calls.filter((call: string) => call === 'wait:1').length, 2);
+  const stuck = submitIdlePage([busy]);
+  await assert.rejects(() => adapter.prepareSearchSubmit(stuck), (error: any) => {
+    assert.equal(error.code, 'METRIC_UI_CHANGED');
+    assert.deepEqual(error.details.preflight.submitIdle, { polls: 120, loading: true, disabled: true });
+    return true;
+  });
+});
+
+test('a disabled Analytics button without a spinner is not waited on for long', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const blocked = { found: true, disabled: true, loading: false };
+  const page = submitIdlePage([blocked]);
+  assert.deepEqual(await adapter.waitForMetricSubmitIdle(page), { polls: 4, loading: false, disabled: true });
+  assert.equal(page.calls.filter((call: string) => call === 'wait:1').length, 4);
+  const formStart = submitIdlePage([blocked]);
+  assert.deepEqual(await adapter.waitForMetricSubmitIdle(formStart, { requireEnabled: false }), { polls: 0, loading: false, disabled: true });
+  assert.ok(!formStart.calls.some((call: string) => call.startsWith('wait:')));
 });
 
 test('submit gate accepts a hidden-tab DOM click only on the target', async () => {
