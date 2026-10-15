@@ -5,6 +5,8 @@ import { lineChart } from './svg-charts.js';
 import { renderChart, type FlintChartInput } from './flint.js';
 import { marketChartRows, renderMarketCharts, renderSearchInterestChart } from './market-charts.js';
 import { searchInterestChartPoints, searchInterestRenderable, SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_LIMIT, SEARCH_INTEREST_NOTE, SEARCH_INTEREST_SOURCE_LABEL, SEARCH_INTEREST_SRC, SEARCH_INTEREST_UNIT } from '../research-automation/search-interest.js';
+import { formatWorldBankValue, worldBankRenderableRows, worldBankSourceNote, worldBankUnitText, WORLD_BANK_LIMIT, WORLD_BANK_NOTE, WORLD_BANK_SOURCE_LABEL, WORLD_BANK_SRC, WORLD_BANK_TITLE } from '../research-automation/world-bank-lane.js';
+import { E13_ATTRIBUTION } from '../source-appendix-projection.js';
 import { Narrator } from './bundle.js';
 import { esc } from './format.js';
 import { cover, makeExhibits, n, page, plat, platIcons, PLATFORM_LABEL, section as legacySection } from './layout.js';
@@ -115,11 +117,22 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   const interest = next && searchInterestRenderable(options.searchInterest) ? options.searchInterest : undefined;
   const interestChart = interest ? await renderSearchInterestChart(searchInterestChartPoints(interest), { flint: options.flint !== false }) : undefined;
   if (interestChart) charts.push({ id: 'M05.search-interest', engine: interestChart.engine, ...(interestChart.error ? { error: interestChart.error } : {}) });
+  // Open country-level figures sit beside the sales numbers in M05 (the context section that already holds the search-interest
+  // figure). M10 is "Chưa dự báo", where a macro figure would read as a forecast basis. The same predicate marks S23 as used.
+  const worldBankRows = next ? worldBankRenderableRows(options.worldBank) : [];
+  const worldBankTable = worldBankRows.length === 0 ? '' : tbl('5.3', WORLD_BANK_TITLE, '', ['Chỉ số', 'Nguồn', 'Giá trị', 'Năm', 'Cập nhật', 'Ghi chú của nguồn'],
+    worldBankRows.map(item => {
+      const no = registry.cite({ sourceKind: 'CAPTURE', identity: item.sourceSha256, locator: { kind: 'json-pointer', pointer: item.row.locator },
+        label: `${E13_ATTRIBUTION}, ${item.row.indicatorName}, ${item.row.year}, cập nhật ${item.row.lastUpdated}`, technical: { indicator: item.code },
+        retrievedAt: item.retrievedAt, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' });
+      return [label(item.row.indicatorName), esc(E13_ATTRIBUTION), label(`${formatWorldBankValue(item.row.value)} ${worldBankUnitText(item.row)}`) + (no === null ? '' : renderCitationMark(no)),
+        label(item.row.year), label(item.row.lastUpdated), label(worldBankSourceNote(item.row))];
+    }), { src: WORLD_BANK_SRC, note: WORLD_BANK_NOTE });
   sections.push(section('M05', 'Nhu cầu (tín hiệu bán)', 'Nhu cầu, đo bằng doanh số (ước tính) trong mẫu.', salesTable('5.1') +
     (interestChart ? `<p>Kỳ ${period}; nguồn: dữ liệu bán hàng ước tính trên từng sàn. Mức quan tâm tìm kiếm ghi riêng ở Hình 5.2, là chỉ số tương đối, không cộng hay so với số bán.</p>` +
       fig('5.2', SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_UNIT, interestChart.svg, { engine: interestChart.engine, src: SEARCH_INTEREST_SRC, note: SEARCH_INTEREST_NOTE })
-      : `<p>Kỳ ${period}; nguồn: dữ liệu bán hàng ước tính trên từng sàn. Mức quan tâm tìm kiếm ghi riêng, chưa có chuỗi tìm kiếm phù hợp trong bản này.</p>`),
-    'Số bán hàng ước tính chưa đối chiếu với người bán, chỉ dùng tham khảo. Không suy ra quy mô ngoài mẫu, số người mua, nhu cầu chưa được đáp ứng hay dự báo.' + (interestChart ? ` ${SEARCH_INTEREST_LIMIT}` : '')));
+      : `<p>Kỳ ${period}; nguồn: dữ liệu bán hàng ước tính trên từng sàn. Mức quan tâm tìm kiếm ghi riêng, chưa có chuỗi tìm kiếm phù hợp trong bản này.</p>`) + worldBankTable,
+    'Số bán hàng ước tính chưa đối chiếu với người bán, chỉ dùng tham khảo. Không suy ra quy mô ngoài mẫu, số người mua, nhu cầu chưa được đáp ứng hay dự báo.' + (interestChart ? ` ${SEARCH_INTEREST_LIMIT}` : '') + (worldBankTable ? ` ${WORLD_BANK_LIMIT}` : '')));
   sections.push(section('M06', 'Nguồn cung', 'Giữ riêng nhãn thương hiệu theo tiêu đề người bán trên từng sàn.',
     tbl('6.1', 'Ngày mở bán và phần chưa rõ', '', ['Sàn', 'Có ngày', 'Thiếu ngày', 'Mở bán trong kỳ', 'Doanh thu mở bán trong kỳ'],
       PLATS.map(P => [plat(P), n(bf(`${P}.coh.known`)), n(bf(`${P}.coh.nodate`)), n(bf(`${P}.coh.n`)), n(bf(`${P}.coh.rev`))])) +
@@ -202,7 +215,8 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     ['Dữ liệu đánh giá sản phẩm trên nền tảng', 'Chưa có trong lượt này'],
     ['Kết quả tìm kiếm', d.webFacts === null && web.length === 0 ? 'Chưa có trong lượt này' : 'Đã lưu trong lượt này'],
     ['Bình luận đã thu thập', 'Chưa có trong lượt này'],
-    ...(interestChart ? [[SEARCH_INTEREST_SOURCE_LABEL, 'Đã lưu trong lượt này; chỉ số tương đối, không phải doanh số']] : [])] : [['Nguồn', sourceText], ['Kỳ', period]];
+    ...(interestChart ? [[SEARCH_INTEREST_SOURCE_LABEL, 'Đã lưu trong lượt này; chỉ số tương đối, không phải doanh số']] : []),
+    ...(worldBankTable ? [[WORLD_BANK_SOURCE_LABEL, 'Đã lưu trong lượt này; số liệu cả nước, chỉ là bối cảnh']] : [])] : [['Nguồn', sourceText], ['Kỳ', period]];
   if (d.webFacts !== null) {
     const facts = d.webFacts;
     const no = registry.cite({ sourceKind: 'CAPTURE', identity: input.webSnapshotSha256!, locator: { kind: 'source-locator', value: 'số liệu tổng quan' }, label: 'Trang kết quả tìm kiếm: số liệu tổng quan', retrievedAt: facts.capturedAt, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' });

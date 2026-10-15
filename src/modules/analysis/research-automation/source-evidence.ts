@@ -12,6 +12,7 @@ import { TypesafeJevClient } from '../../../platform/ai/typesafe-jev-client.js';
 import type { SerpApiL9FilterOutput } from './serpapi-l9-filter.js';
 import { classifyWebPage } from './web-page-type.js';
 import { searchInterestRenderable } from './search-interest.js';
+import { worldBankRenderableRows } from './world-bank-lane.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import { ResearchAutomationIntegrityError, type CaptureRecord, type StepWebResult } from './model.js';
 export type { AutomationSourceEvidence } from '../../../../contracts/analysis/automation-source-evidence.generated.js';
@@ -133,6 +134,14 @@ export function sourceEvidenceForReport(packet: AutomationSourceEvidence, input:
     const capture = input.captures?.find(c => c.stepId === 'COLLECTION' && c.ordinal === interest.captureIndex);
     if (!capture || capture.provider !== 'serpapi' || capture.operation !== 'serpapi.google.trends') throw new ResearchAutomationIntegrityError('Search interest capture lineage is unavailable');
     add('S20', 'capture', capture.artifactSha256);
+  }
+  // S23 is used only for the country-level rows the Market report draws (same predicate as both renderers); each needs both stored captures.
+  if (kind === 'MARKET') for (const item of worldBankRenderableRows(input.collection?.worldBank)) {
+    const find = (index: number) => input.captures?.find(c => c.stepId === 'COLLECTION' && c.ordinal === index);
+    const observation = find(item.captureIndex), metadata = find(item.metadataCaptureIndex);
+    if (!observation || observation.provider !== 'world-bank' || observation.operation !== 'worldbank.observations'
+      || !metadata || metadata.provider !== 'world-bank' || metadata.operation !== 'worldbank.metadata') throw new ResearchAutomationIntegrityError('World Bank capture lineage is unavailable');
+    add('S23', 'capture', observation.artifactSha256);
   }
   if (kind === 'INSIGHT') {
     if (input.reviewSample && input.collection?.privateShopee && input.reviewSample.collection.collectionSha256 !== input.collection.privateShopee.collectionSha256) throw new ResearchAutomationIntegrityError('Used review sample differs from exact retained collection');

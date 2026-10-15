@@ -21,6 +21,7 @@ import { createR2MediaArchive } from '../platform/artifacts/r2-media-archive.js'
 import { openResearchAutomationApi, researchAutomationApiPath, type ResearchAutomationApiApplication } from './research-automation-api.js';
 import { researchAutomationProviderConfigFromEnv, type ResearchAutomationProviderConfig } from '../modules/analysis/research-automation/providers.js';
 import { searchTrendsEnabled } from '../modules/analysis/research-automation/search-interest.js';
+import { worldBankEnabled } from '../modules/analysis/research-automation/world-bank-lane.js';
 import { expandedSearchEnabled } from '../modules/analysis/research-automation/expanded-search-lane.js';
 import { i14CliproxySynthesisConfiguration, decisionCliproxySynthesisConfiguration, insightCodingCliproxyConfiguration, tiktokCodingCliproxyConfiguration, shopeeCodingCliproxyConfiguration } from '../modules/analysis/research-automation/i14-cliproxy-transport.js';
 import type { AutomationI14SynthesisConfiguration } from '../modules/analysis/research-automation/i14-synthesis-execution.js';
@@ -84,6 +85,8 @@ export interface OperatorAppConfiguration {
   readonly researchSearchTrends?: true;
   /** Expanded-search lane (dated + site-scoped pointers); present only when TDN_RESEARCH_EXPANDED_SEARCH_ENABLED is exactly "1". */
   readonly researchExpandedSearch?: true;
+  /** World Bank open-data lane of the Market flow; present only when TDN_RESEARCH_WORLD_BANK_ENABLED is exactly "1". */
+  readonly researchWorldBank?: true;
 }
 export interface OperatorAppDependencies {
   readonly creativeAiTransport?: typeof fetch;
@@ -185,6 +188,7 @@ export function operatorAppConfigurationFromEnvironment(
     ...(researchMetricAutoRun === undefined ? {} : { researchMetricAutoRun }),
     ...(searchTrendsEnabled(environment) ? { researchSearchTrends: true as const } : {}),
     ...(expandedSearchEnabled(environment) ? { researchExpandedSearch: true as const } : {}),
+    ...(worldBankEnabled(environment) ? { researchWorldBank: true as const } : {}),
     ...(environment.TDN_R2_ENABLED !== 'true' ? {} : { r2: {
       TDN_R2_ENABLED: 'true', TDN_R2_ACCOUNT_ID: environment.TDN_R2_ACCOUNT_ID,
       TDN_R2_ACCESS_KEY_ID: environment.TDN_R2_ACCESS_KEY_ID,
@@ -260,6 +264,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
       ...(configuration.researchMetricAutoRun ? { metricAutoRun: configuration.researchMetricAutoRun } : {}),
       ...(configuration.researchSearchTrends ? { searchTrends: true as const } : {}),
       ...(configuration.researchExpandedSearch ? { expandedSearch: true as const } : {}),
+      ...(configuration.researchWorldBank ? { worldBank: true as const } : {}),
       ...(configuration.ownerWritesEnabled ? { owner: {
         databasePath, artifactRoot: configuration.artifactRoot, writeEnabled: true,
         token: ownerToken, actorId: configuration.ownerActorId!, allowedOrigin: origin,

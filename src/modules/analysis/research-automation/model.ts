@@ -145,6 +145,32 @@ export interface StepSearchInterest {
   readonly captureIndex: number | null;
 }
 
+/** Latest non-null World Bank observation per indicator (open country-level background, S23); source text is kept unchanged. */
+export interface StepWorldBankRow {
+  readonly indicatorName: string;
+  readonly value: string;
+  readonly unit: string | null;
+  readonly year: string;
+  readonly lastUpdated: string;
+  readonly statusLiteral: string;
+  readonly footnote: string | null;
+  readonly locator: string;
+}
+export interface StepWorldBankIndicator {
+  readonly code: string;
+  readonly status: 'COLLECTED' | 'FAILED';
+  /** Reason code of a dropped indicator; null when collected. */
+  readonly reason: string | null;
+  readonly retrievedAt: string | null;
+  /** Indexes into the same step's captures (observation response, metadata response). */
+  readonly captureIndex: number | null;
+  readonly metadataCaptureIndex: number | null;
+  readonly sourceSha256: string | null;
+  readonly metadataSha256: string | null;
+  readonly row: StepWorldBankRow | null;
+}
+export interface StepWorldBank { readonly profile: string; readonly indicators: readonly StepWorldBankIndicator[] }
+
 /** Normalized step outcome retained as canonical JSON; raw bytes are separate capture artifacts. */
 export interface StepResultDocument {
   readonly reviewSample?: import('../../../../contracts/analysis/automation-review-sample.generated.js').AutomationReviewSample;
@@ -163,6 +189,8 @@ export interface StepResultDocument {
   readonly searchInterest?: StepSearchInterest;
   /** Extra search pointers; absent unless the lane was on for the run. */
   readonly expandedSearch?: StepExpandedSearch;
+  /** Open country-level background; absent unless the World Bank lane was on for the run. */
+  readonly worldBank?: StepWorldBank;
   /** Sanitized Foundation3 reference; mutually exclusive with raw/native review. */
   readonly privateShopee?: import('./private-review-corpus.js').PrivateReviewReference;
   readonly exactShopee?: {
