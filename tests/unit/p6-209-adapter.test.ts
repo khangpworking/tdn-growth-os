@@ -186,6 +186,16 @@ test('unlabelled monthly rows stay all and DOM fills a platform missing from res
   assert.deepEqual(sanitizeNetworkResponses([{ body: { userId: 'identity', tokenLike: 'Bearer identity-token', revenue: 2 } }])[0].body, { revenue: 2 });
 });
 
+test('search and capture declare a long OpenCLI timeout so network-idle waits are not cut at 60s', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  for (const command of [adapter.searchCommand, adapter.captureCommand]) {
+    const timeout = command.args.find((arg: any) => arg.name === 'timeout');
+    assert.deepEqual({ type: timeout?.type, default: timeout?.default }, { type: 'int', default: 1500 });
+  }
+  assert.equal(adapter.whoamiCommand.args.some((arg: any) => arg.name === 'timeout'), false);
+});
+
 test('live capture view metadata never labels an otherwise unlabelled response', async () => {
   await installOpenCliTestStub();
   const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);

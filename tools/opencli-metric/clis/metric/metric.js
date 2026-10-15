@@ -37,6 +37,10 @@ const NETWORK_IDLE_TIMEOUT_MS = 20_000;
 const SUBMIT_IDLE_POLL_SECONDS = 1;
 const SUBMIT_IDLE_MAX_POLLS = 120;
 const SUBMIT_DISABLED_MAX_POLLS = 5;
+// OpenCLI stops a browser command after 60s unless it declares a `timeout`
+// arg; network-idle waits across paginated views need far longer than that.
+const COMMAND_TIMEOUT_SECONDS = 1500;
+const TIMEOUT_ARG = { name: 'timeout', type: 'int', default: COMMAND_TIMEOUT_SECONDS, help: 'Seconds before OpenCLI stops the command' };
 
 function asCliError(error) {
   if (error instanceof CliError) return error;
@@ -2637,13 +2641,13 @@ export const whoamiCommand = cli({
 
 export const searchCommand = cli({
   site: 'metric', name: 'search', access: 'read', description: 'Run one Metric analysis lookup and save its web snapshot', domain: 'metric.vn', strategy: Strategy.UI, browser: true, navigateBefore: false, siteSession: 'ephemeral',
-  args: [{ name: 'spec', type: 'string', required: true, help: 'Path to metric-query-spec-v1 JSON' }, { name: 'out', type: 'string', required: true, help: 'Output path for the snapshot JSON' }], columns: ['status', 'rowCount', 'snapshotPath'],
+  args: [{ name: 'spec', type: 'string', required: true, help: 'Path to metric-query-spec-v1 JSON' }, { name: 'out', type: 'string', required: true, help: 'Output path for the snapshot JSON' }, { ...TIMEOUT_ARG }], columns: ['status', 'rowCount', 'snapshotPath'],
   func: async (page, args) => withMetricTab(page, async target => { const spec = await readSpec(args.spec); await target.startNetworkCapture?.(); const { parsed } = await runSearch(target, spec, Number.MAX_SAFE_INTEGER); await writeJson(args.out, parsed.snapshot); return [{ status: 'READY', rowCount: parsed.rowCount, snapshotPath: String(args.out) }]; }),
 });
 
 export const captureCommand = cli({
   site: 'metric', name: 'capture', access: 'read', description: 'Run one Metric analysis lookup and archive the results page', domain: 'metric.vn', strategy: Strategy.UI, browser: true, navigateBefore: false, siteSession: 'ephemeral',
-  args: [{ name: 'spec', type: 'string', required: true, help: 'Path to metric-query-spec-v1 JSON' }, { name: 'out', type: 'string', required: false, help: 'Absolute output directory outside the repository (required without --dry-run)' }, { name: 'replay', type: 'string', required: false, help: 'Replay a saved Metric debug directory without browser or network access' }, { name: 'product-cap', type: 'int', default: PRODUCT_CAP, help: 'Maximum product rows to read through pagination per platform view' }, { name: 'dry-run', type: 'boolean', default: false, help: 'Apply and verify the form without clicking Search' }], columns: ['status', 'rowCount', 'manifestPath', 'outcome', 'startState', 'appliedReadBack', 'mismatches'],
+  args: [{ name: 'spec', type: 'string', required: true, help: 'Path to metric-query-spec-v1 JSON' }, { name: 'out', type: 'string', required: false, help: 'Absolute output directory outside the repository (required without --dry-run)' }, { name: 'replay', type: 'string', required: false, help: 'Replay a saved Metric debug directory without browser or network access' }, { name: 'product-cap', type: 'int', default: PRODUCT_CAP, help: 'Maximum product rows to read through pagination per platform view' }, { name: 'dry-run', type: 'boolean', default: false, help: 'Apply and verify the form without clicking Search' }, { ...TIMEOUT_ARG }], columns: ['status', 'rowCount', 'manifestPath', 'outcome', 'startState', 'appliedReadBack', 'mismatches'],
   func: async (page, args) => {
     const spec = await readSpec(args.spec);
     if (args.replay) {
