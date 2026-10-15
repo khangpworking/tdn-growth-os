@@ -344,6 +344,12 @@ test('partialRowTotals keeps only non-zero row sums with a missing member, once 
     null, undefined,
   ] as unknown as Parameters<typeof partialRowTotals>[0]);
   assert.deepEqual(found, [{ measure: 'revenue', value: '100' }, { measure: 'revenue', value: '70' }]);
+  const one = [{ scopes: [scope(total('100', 1), total('7', 0))] }] as unknown as Parameters<typeof partialRowTotals>[0];
+  assert.deepEqual(partialRowTotals(one, [{ measure: 'revenue', value: '100' }]), [{ measure: 'revenue', value: '70' }],
+    'a value the report also states as a complete page figure is left out');
+  assert.deepEqual(partialRowTotals(one, [{ measure: 'units', value: '100' }]), found,'only the same measure is left out');
+  assert.deepEqual(partialRowTotals([...one, { scopes: [scope(total('70', 0), total('7', 0))] }] as unknown as Parameters<typeof partialRowTotals>[0]),
+    [{ measure: 'revenue', value: '100' }], 'a value another scope states as a complete total is left out');
   const complete = calculateMetricScopes(metricFixture());
   assert.deepEqual(partialRowTotals([complete]), [], 'a fully observed fixture has no partial sums');
 });

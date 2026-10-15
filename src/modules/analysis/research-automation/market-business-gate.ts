@@ -15,22 +15,30 @@ type TotalsSource = { readonly scopes: readonly {
  * Row sums with a missing member. One missing member makes a total
  * undetermined, so such a sum may not be stated as a figure in the report,
  * whatever label surrounds it ("trong mẫu", "cả tập kết quả", ...).
+ *
+ * The gate matches by value, so a value the report also states as a complete
+ * figure is left out: a scope or sensitivity total with no missing member, or
+ * a verified page figure passed in `stated`. Group totals are only rendered in
+ * row tables, which the gate does not read.
  */
-export function partialRowTotals(results: readonly (TotalsSource | null | undefined)[]): PartialRowTotal[] {
+export function partialRowTotals(results: readonly (TotalsSource | null | undefined)[], stated: readonly PartialRowTotal[] = []): PartialRowTotal[] {
+  const key = (measure: PartialRowTotal['measure'], value: string): string => `${measure}:${BigInt(value)}`;
   const found = new Map<string, PartialRowTotal>();
-  const add = (measure: PartialRowTotal['measure'], total: Total): void => {
-    if (total.value === null || total.missingCount === 0 || !/^\d+$/u.test(total.value) || BigInt(total.value) === 0n) return;
-    found.set(`${measure}:${total.value}`, { measure, value: total.value });
+  const complete = new Set(stated.filter(figure => /^\d+$/u.test(figure.value)).map(figure => key(figure.measure, figure.value)));
+  const add = (measure: PartialRowTotal['measure'], total: Total, statedWhenComplete = false): void => {
+    if (total.value === null || !/^\d+$/u.test(total.value) || BigInt(total.value) === 0n) return;
+    if (total.missingCount > 0) found.set(key(measure, total.value), { measure, value: total.value });
+    else if (statedWhenComplete) complete.add(key(measure, total.value));
   };
   for (const result of results) {
     for (const scope of result?.scopes ?? []) {
-      add('revenue', scope.revenue);
-      add('units', scope.units);
+      add('revenue', scope.revenue, true);
+      add('units', scope.units, true);
       for (const group of scope.groups) { add('revenue', group.revenue); add('units', group.units); }
-      if (scope.withoutTopShop) add('revenue', scope.withoutTopShop.revenue);
+      if (scope.withoutTopShop) add('revenue', scope.withoutTopShop.revenue, true);
     }
   }
-  return [...found.values()];
+  return [...found].filter(([value]) => !complete.has(value)).map(([, total]) => total);
 }
 
 const MARKET_SECTION_IDS = Array.from({ length: 13 }, (_, index) => `M${String(index + 1).padStart(2, '0')}`);

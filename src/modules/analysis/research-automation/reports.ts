@@ -549,10 +549,16 @@ function defaultPeerSection(snapshot: DefaultMarketPeers, citations: ReportCitat
   return `<p>Quy tắc đã chốt trước khi đọc doanh số: chọn theo doanh thu giảm dần tới khi đạt ít nhất ${escape(snapshot.input.rule.thresholdPercent)}% doanh thu cùng nhóm trong mẫu; khi bằng nhau dùng mã danh tính ổn định. Bảng hiển thị theo danh tính, không xếp ưu tiên.</p>${frames || '<p>Chưa có nhóm doanh số đã phân loại tương thích. Quan sát sản phẩm và thẻ tìm kiếm không cung cấp thành viên doanh số; phần thiếu không phải 0.</p>'}<p>Số bán hàng ước tính chưa đối chiếu với người bán, chỉ dùng tham khảo. Không cộng doanh thu giữa các sàn hoặc suy cùng thương hiệu từ tên giống nhau.</p><h3>Bổ sung của chủ, giữ riêng</h3>${additions}<p>Bổ sung không thay đổi mẫu số hoặc quy tắc mặc định.</p><details><summary>Hồ sơ đối chiếu tập đối thủ</summary><p>Phiên bản quy tắc: <code>${escape(snapshot.input.rule.version)}</code>. Đầu vào, thành viên, lý do loại và kết quả chính xác được giữ trong bản lưu bất biến. Số lần loại dòng ở các nhóm và sàn: ${escape(exclusions.length)}.</p><ul>${exclusions.map(row => `<li><code>${escape(row.reason)}</code> ${mark(row.source)}</li>`).join('')}</ul></details>`;
 }
 
-/** Row sums with a missing member among every calculation the Market report renders. */
+/**
+ * Row sums with a missing member among every calculation the Market report
+ * renders, less the values it also states as complete page figures.
+ */
 export function marketPartialRowTotals(input: Pick<AutomationReportInput, 'marketPresentation' | 'metricMethods' | 'metricClassified'>): PartialRowTotal[] {
+  const pageFigures = (input.metricMethods?.capture?.platformHeadlines ?? []).flatMap(figure => [
+    ...(figure.revenue.value === null ? [] : [{ measure: 'revenue' as const, value: figure.revenue.value }]),
+    ...(figure.units === null || figure.units.value === null ? [] : [{ measure: 'units' as const, value: figure.units.value }])]);
   return partialRowTotals([input.marketPresentation?.input.metric, input.metricMethods?.result,
-    ...(input.metricMethods?.capture?.platforms.map(platform => platform.result) ?? []), input.metricClassified?.result]);
+    ...(input.metricMethods?.capture?.platforms.map(platform => platform.result) ?? []), input.metricClassified?.result], pageFigures);
 }
 
 export function buildResearchAutomationReport(input: AutomationReportInput, kind: 'MARKET' | 'INSIGHT'): { semantic: object; html: Buffer } {

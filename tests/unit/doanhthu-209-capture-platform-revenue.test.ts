@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { sameCaptureProvenance, type AutomationMetricMethodSnapshot, type CaptureMetricMethodDetails } from '../../src/modules/analysis/research-automation/metric-method-bridge.js';
 import { metricMethodSection } from '../../src/modules/analysis/research-automation/metric-method-report.js';
+import { auditMarketReportHtml, partialRowTotals, type PartialRowTotal } from '../../src/modules/analysis/research-automation/market-business-gate.js';
+import { marketPartialRowTotals } from '../../src/modules/analysis/research-automation/reports.js';
 import { calculateMetricScopes } from '../../src/modules/analysis/metric-scope-calculator.js';
 import { metricFixture } from '../fixtures/metric-scope-synthetic.js';
 
@@ -89,6 +91,20 @@ test('a capture platform whose retained rows miss a value states no partial sum 
     assert.match(html, /<h3>Shopee<\/h3><p>Doanh thu quan sát: <strong>chưa xác định<\/strong> \(1\/5 dòng thiếu số liệu, không cộng phần còn lại thành tổng\); sản lượng: <strong>23<\/strong>/u);
     assert.doesNotMatch(html, new RegExp(`Doanh thu quan sát: <strong>${BigInt(all.revenue.value!).toLocaleString('vi-VN')} VND`));
   }
+});
+
+test('a page figure equal to a partial retained-row sum is still stated and passes the gate', () => {
+  const fixture = metricFixture();
+  fixture.records[0]!.revenue = { ...fixture.records[0]!.revenue, state: 'missing', value: null, displayedValue: null };
+  const result = calculateMetricScopes(fixture);
+  const partial = result.scopes.find(scope => scope.key === 'all')!.revenue.value!;
+  const snapshot = captureSnapshot({ headlines: [{ platform: 'shopee', revenue: figure(partial), units: null }] });
+  (snapshot.capture as unknown as { platforms: { platform: string; result: unknown }[] }).platforms = [{ platform: 'shopee', result }];
+  const html = metricMethodSection(snapshot, 'M03', undefined, citations);
+  assert.match(html, new RegExp(`Doanh thu quan sát: <strong>${BigInt(partial).toLocaleString('vi-VN').replaceAll('.', '\\.')} VND</strong> \\[1\\]`));
+  const rule = (partialTotals: readonly PartialRowTotal[]) => auditMarketReportHtml(html, { partialTotals }).find(entry => entry.rule === 'PARTIAL_TOTAL_FORBIDDEN')!;
+  assert.equal(rule(partialRowTotals([result])).ok, false, 'the row sum alone collides with the page figure');
+  assert.equal(rule(marketPartialRowTotals({ metricMethods: snapshot })).ok, true, 'the stated page figure is left out of the forbidden values');
 });
 
 test('retained capture provenance replays: pre-figure snapshots keep their saved record and new ones must carry the figures', () => {
