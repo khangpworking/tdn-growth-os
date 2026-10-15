@@ -49,7 +49,7 @@ test('executor accepts exactly one READY adapter row and known benign stderr', a
 test('executor maps timeout, hash mismatch and every fail-closed code', async () => {
   const mismatch = await executeMetricOpenCli(input({ expectedAdapterManifestSha256: '0'.repeat(64) }), deps());
   if (mismatch.ok) assert.fail('expected manifest mismatch'); assert.equal(mismatch.code, 'MANIFEST_HASH_MISMATCH');
-  for (const code of ['METRIC_LOGIN_REQUIRED', 'METRIC_CAPTCHA', 'METRIC_PERIOD_UNSUPPORTED', 'METRIC_UI_CHANGED', 'METRIC_FILTER_MISMATCH', 'METRIC_ROW_CAP', 'BRIDGE_DISCONNECTED'] as const) {
+  for (const code of ['METRIC_LOGIN_REQUIRED', 'METRIC_CAPTCHA', 'METRIC_PERIOD_UNSUPPORTED', 'METRIC_UI_CHANGED', 'METRIC_FILTER_MISMATCH', 'METRIC_ROW_CAP', 'METRIC_SEARCH_NOT_APPLIED', 'BRIDGE_DISCONNECTED'] as const) {
     const result = await executeMetricOpenCli(input(), deps({ exitCode: 1, stdout: '', stderr: code }));
     if (result.ok) assert.fail(`expected ${code}`); assert.equal(result.code, code);
   }
