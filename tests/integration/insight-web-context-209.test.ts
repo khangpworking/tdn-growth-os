@@ -81,7 +81,7 @@ test('web pages never reach findings, coding, retained methods or other sections
 test('no admitted rows, or a stored packet without the page-type marker, leaves the page byte-identical', async t => {
   const { build } = await prepared(t);
   const none = build({ collection: { webResults: [] }, sourceEvidence: packetFor([], true) });
-  const allExcluded = build({ collection: { webResults: [excluded], expandedSearch: undefined }, sourceEvidence: packetFor([excluded], true, [capture(1)]), caps: [capture(1)] });
+  const allExcluded = build({ collection: { webResults: [excluded] }, sourceEvidence: packetFor([excluded], true, [capture(1)]), caps: [capture(1)] });
   assert.equal(allExcluded.html.includes('insight-web-context'), false, 'no empty section and no note');
   const storedStyle = build({ collection: withRows, sourceEvidence: packetFor(allRows, false) });
   const storedNone = build({ collection: { webResults: [] }, sourceEvidence: packetFor([], false) });
