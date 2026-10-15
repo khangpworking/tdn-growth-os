@@ -1747,8 +1747,12 @@ function installMetricRequestTracker() {
       let pending;
       try { pending = originalFetch.call(this, input, init); } catch (error) { end(); throw error; }
       return Promise.resolve(pending).then(response => {
-        if (!response?.clone) { end(); return response; }
-        response.clone().arrayBuffer().catch(() => {}).finally(end);
+        // A body that cannot be cloned (already read, locked) settles the
+        // request now instead of leaking it or failing the page's fetch.
+        let body = null;
+        try { body = typeof response?.clone === 'function' ? response.clone().arrayBuffer() : null; } catch { body = null; }
+        if (!body) { end(); return response; }
+        Promise.resolve(body).catch(() => {}).finally(end);
         return response;
       }, error => { end(); throw error; });
     };

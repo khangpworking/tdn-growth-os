@@ -435,9 +435,10 @@ test('in-page request tracker counts only Metric API requests and leaves respons
     fire(type: string) { for (const listener of this.listeners[type] || []) listener(); }
   }
   let resolveFetch = () => {};
+  let fetchResult: () => Promise<unknown> = () => new Promise(resolve => { resolveFetch = () => resolve(new Response('{"data":{"shops":[]}}')); });
   const syntheticWindow: any = {
     XMLHttpRequest: SyntheticXhr,
-    fetch: () => new Promise(resolve => { resolveFetch = () => resolve(new Response('{"data":{"shops":[]}}')); }),
+    fetch: () => fetchResult(),
   };
   const previous = (globalThis as any).window;
   (globalThis as any).window = syntheticWindow;
@@ -463,6 +464,11 @@ test('in-page request tracker counts only Metric API requests and leaves respons
     for (let tick = 0; tick < 20 && metric.readMetricRequestTracker().inflight; tick += 1) await new Promise(resolve => setImmediate(resolve));
     state = metric.readMetricRequestTracker();
     assert.deepEqual({ inflight: state.inflight, settled: state.settled }, { inflight: 0, settled: 2 });
+    const lockedBody = { clone() { throw new TypeError('body already used'); } };
+    fetchResult = () => Promise.resolve(lockedBody);
+    assert.equal(await syntheticWindow.fetch('/v2/market/analytics/shops/'), lockedBody);
+    state = metric.readMetricRequestTracker();
+    assert.deepEqual({ inflight: state.inflight, started: state.started, settled: state.settled }, { inflight: 0, started: 3, settled: 3 });
   } finally {
     if (previous === undefined) delete (globalThis as any).window; else (globalThis as any).window = previous;
   }
