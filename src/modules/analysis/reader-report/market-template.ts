@@ -18,7 +18,7 @@ import { barChart, lineChart, paretoChart } from './svg-charts.js';
 import { CITATION_FORBIDDEN_NAMES, CitationRegistry, containsTechnicalId, displayCitationUrl } from '../citation-registry.js';
 import { orderReportCitations, renderCitationMark, renderCitationRegister } from '../citation-register-html.js';
 import { DISPLAY_ROUNDED_NOTE, WEB_FAMILY_LABEL, WEB_MONTHLY_METHOD, webMonthlyStats } from './web-facts.js';
-import type { ExpandedSearchKind, StepSearchInterest } from '../research-automation/model.js';
+import type { ExpandedSearchKind, StepSearchInterest, StepWorldBank } from '../research-automation/model.js';
 
 export const MARKET_PRICE_BANDS: readonly (readonly [string, number, number])[] = [
   ['Dưới 100.000đ', 0, 1e5], ['100.000–199.999đ', 1e5, 2e5], ['200.000–299.999đ', 2e5, 3e5],
@@ -49,6 +49,8 @@ export type MarketReportOptions = {
   captureSource?: boolean;
   /** The run's stored relative search-interest series; drawn in the demand section when it has enough dated points. */
   searchInterest?: StepSearchInterest;
+  /** The run's stored open country-level figures; shown as a small side-by-side table in the demand section. */
+  worldBank?: StepWorldBank;
 };
 /** site and published are the page name and date as the search engine shows them; older runs have neither. */
 export type ReaderWebResult = { position: number; title: string; url: string; snippet: string | null; retrievedAt: string; site?: string | null; published?: string | null; origin?: ExpandedSearchKind };

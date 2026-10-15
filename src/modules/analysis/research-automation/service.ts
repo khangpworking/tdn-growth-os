@@ -92,7 +92,8 @@ import { AutomationMetricCaptureSourceIntake, MAX_METRIC_CAPTURE_BYTES, MAX_METR
 import { autorunRequestKey, buildConfirmValue, buildPrepareValue, buildRevisionValue, deriveIncludeTerms, isAutorunCaptureStopCode, pickShopeeLinks, planCapturePeriod, sourceContextVi, type DatePeriod as AutorunPeriod } from './autorun-derive.js';
 import { runMetricCapture, type MetricCaptureRequest, type MetricCaptureRunnerConfig, type MetricCaptureRunResult } from './metric-capture-runner.js';
 import { readPreparedMetricCaptureSources } from './metric-capture-inventory.js';
-import { AutomationWorldBankSourceIntake, readConfirmedWorldBankSource, readWorldBankHistory } from './world-bank-intake.js';
+import { AutomationWorldBankSourceIntake, readConfirmedWorldBankSource, readWorldBankHistory, WORLD_BANK_INDICATORS, WORLD_BANK_PROFILE } from './world-bank-intake.js';
+import { worldBankDocument, worldBankFailed, worldBankRenderable, worldBankUsage, WORLD_BANK_PROVIDER, WORLD_BANK_USAGE_ORDINAL, type WorldBankAttempt, type WorldBankSource } from './world-bank-lane.js';
 import type { Binding as WorldBankBinding } from '../../../../contracts/analysis/world-bank-intake-v1.generated.js';
 import type { PackageRef as WorldBankPackageRef, PrepareReceipt as WorldBankPrepareReceipt, View as WorldBankView, History as WorldBankHistory } from '../../../../contracts/api/research-automation-macro-intake-api.generated.js';
 import { AutomationMetricRuleAdoptions, type MetricRuleBinding } from './metric-rule-adoption.js';
@@ -341,6 +342,8 @@ export interface ResearchAutomationServiceOptions {
   readonly webSource?: AutomationSourcePort;
   /** Optional search-interest series, at most one paid request per collection; absent keeps every stored byte. */
   readonly trendsSource?: SearchInterestSource;
+  /** Optional World Bank open data, at most four free GET requests per collection; absent keeps every stored byte. */
+  readonly worldBankSource?: WorldBankSource;
   /** Optional extra searches (dated and per-marketplace), at most three paid requests per collection; absent keeps every stored byte. */
   readonly expandedSource?: ExpandedSearchSource;
   readonly renderer?: ResearchAutomationReportRenderer;
@@ -440,6 +443,7 @@ type WebSearchAttempt = { readonly bound: BoundCollectResult } | { readonly fail
 const WEB_USAGE_ORDINAL = 2;
 type TrendsAttempt = { readonly attempt: SearchInterestAttempt };
 type ExpandedAttempts = { readonly attempts: readonly ExpandedSearchAttempt[] };
+type WorldBankRun = { readonly attempts: readonly WorldBankAttempt[] } | { readonly thrown: true };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const REQUEST_KEY = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -491,6 +495,7 @@ export class ResearchAutomationService {
   readonly #source: AutomationSourcePort | undefined;
   readonly #webSource: AutomationSourcePort | undefined;
   readonly #trendsSource: SearchInterestSource | undefined;
+  readonly #worldBankSource: WorldBankSource | undefined;
   readonly #expandedSource: ExpandedSearchSource | undefined;
   readonly #renderer: ResearchAutomationReportRenderer | undefined;
   readonly #now: () => Date;
@@ -543,6 +548,7 @@ export class ResearchAutomationService {
     this.#source = options.source;
     this.#webSource = options.webSource;
     this.#trendsSource = options.trendsSource;
+    this.#worldBankSource = options.worldBankSource;
     this.#expandedSource = options.expandedSource;
     this.#renderer = options.renderer;
     this.#pageIndex = options.pageIndex;
@@ -1722,6 +1728,7 @@ export class ResearchAutomationService {
         webResults: webResults.map(({ position, title, url, snippet, retrievedAt, site, published, origin }) =>
           ({ position, title, url, snippet, retrievedAt, site: site ?? null, published: published ?? null, ...(origin ? { origin } : {}) })),
         ...(searchInterestRenderable(searchInterest) ? { searchInterest } : {}),
+        ...(worldBankRenderable(webCollection?.worldBank) ? { worldBank: webCollection.worldBank } : {}),
         metric: { packageId, capture: { snapshot: verifiedCapture.snapshot, snapshotSha256: rawSnapshotSha256, truncation: preparedCapture.capture.truncation }, measurementPeriod: preparedCapture.capture.measurementPeriod } };
     }
     if (!prepared) throw new ResearchAutomationValidationError('Tệp danh sách sản phẩm này không thuộc lượt research.');
@@ -1735,6 +1742,7 @@ export class ResearchAutomationService {
       webResults: webResults.map(({ position, title, url, snippet, retrievedAt, site, published, origin }) =>
         ({ position, title, url, snippet, retrievedAt, site: site ?? null, published: published ?? null, ...(origin ? { origin } : {}) })),
       ...(searchInterestRenderable(searchInterest) ? { searchInterest } : {}),
+        ...(worldBankRenderable(webCollection?.worldBank) ? { worldBank: webCollection.worldBank } : {}),
       metric: { packageId, workbook: workbook.bytes, measurementPeriod: prepared.request.measurementPeriod } };
   }
 
@@ -2864,7 +2872,7 @@ export class ResearchAutomationService {
       const collection = await this.#reportCollection(runId, sources, Boolean(attempt));
       const basePacket = (await this.#stepDocument(runId, 'COLLECTION'))?.sourceEvidence ?? buildSourceEvidence({ draft: null, draftDigest: null, unavailableReason: 'SALES_NAMES_UNAVAILABLE', webResults: [], captures: [] });
       const expected = sourceEvidenceForReport(basePacket, { collection,
-        ...(collection?.searchInterest ? { captures: await this.#captureRecords(runId) } : {}),
+        ...(collection?.searchInterest || collection?.worldBank ? { captures: await this.#captureRecords(runId) } : {}),
         ...(verifiedPrivateView ? { privateReviewCorpus: verifiedPrivateView } : {}),
         ...(verifiedReviewSample ? { reviewSample: verifiedReviewSample } : {}),
         ...(verifiedLiteral ? { insightLiteral: verifiedLiteral } : {}),
@@ -3118,8 +3126,14 @@ export class ResearchAutomationService {
         try { expanded = { attempts: await this.#expandedSource.collect(input as CollectInput, { signal: controller.signal }) }; }
         catch { expanded = { attempts: [] }; }
       }
+      // Open country-level data comes last; it is one attempt per run and is never repeated after a restart.
+      let worldBank: WorldBankRun | undefined;
+      if (stepId === 'COLLECTION' && this.#worldBankSource && !controller.signal.aborted) {
+        try { worldBank = { attempts: await this.#worldBankSource.collect({ signal: controller.signal }) }; }
+        catch { worldBank = { thrown: true }; }
+      }
       try {
-        await this.#persistSourceResult(row.runId, stepId, result, controller.signal.aborted, exact, web, controller.signal, trends, expanded);
+        await this.#persistSourceResult(row.runId, stepId, result, controller.signal.aborted, exact, web, controller.signal, trends, expanded, worldBank);
       } catch (error) {
         if (!(error instanceof ResearchAutomationProviderOutputError)) throw error;
         await this.#settleSourceFailure(row.runId, stepId, 'PROVIDER_OUTPUT_INVALID', 'FAILED');
@@ -3635,7 +3649,7 @@ export class ResearchAutomationService {
     }
   }
 
-  async #persistSourceResult(runId: string, stepId: SourceStepId, bound: PersistableSourceResult, aborted: boolean, exact?: ExactShopeeAttempt, web?: WebSearchAttempt, signal?: AbortSignal, trends?: TrendsAttempt, expanded?: ExpandedAttempts): Promise<void> {
+  async #persistSourceResult(runId: string, stepId: SourceStepId, bound: PersistableSourceResult, aborted: boolean, exact?: ExactShopeeAttempt, web?: WebSearchAttempt, signal?: AbortSignal, trends?: TrendsAttempt, expanded?: ExpandedAttempts, worldBank?: WorldBankRun): Promise<void> {
     const result = bound.result;
     let step = bound.step;
     const nativeCoverage = bound.step.coverage.filter(value => value.provider === 'apify-dami');
@@ -3763,6 +3777,24 @@ export class ResearchAutomationService {
           requestedWindow: null, retrievedAt: null, captureIndex: null, results: [] })) } };
       }
     }
+    // World Bank captures follow the extra searches. A dropped indicator keeps a reason code only and never changes the
+    // step outcome, coverage or run blockers; only responses that passed the inspector are stored.
+    const worldBankAttempts = worldBank && 'attempts' in worldBank ? worldBank.attempts : [];
+    if (worldBank) {
+      const indexes: ([number, number] | null)[] = [];
+      for (const attempt of worldBankAttempts) {
+        const envelopes = attempt.observation && attempt.metadata ? captureEnvelopes({ captures: [attempt.observation, attempt.metadata] }) : null;
+        if (!envelopes) { indexes.push(null); continue; }
+        indexes.push([captures.length, captures.length + 1]);
+        await putCaptures(envelopes);
+      }
+      const probe = { ...step, worldBank: worldBankAttempts.length ? worldBankDocument(worldBankAttempts, indexes) : worldBankFailed('PROVIDER_FAILED') };
+      try {
+        assertStepDocument(probe, runId, stepId);
+        assertCaptureLineage(probe, captures.map(value => value.row));
+        step = probe;
+      } catch { step = { ...step, worldBank: worldBankFailed('DOCUMENT_INVALID') }; }
+    }
     const rowForSources = this.#current(runId)!;
     const sourceStart = await this.#readStartSnapshot(rowForSources.startSha, rowForSources.workspaceId);
     let cancelledSourceEvidence: (() => AutomationSourceEvidence) | undefined;
@@ -3825,6 +3857,9 @@ export class ResearchAutomationService {
         for (const item of expandedCalled) if (item.result.captures.length) this.#persistUsage(runId, stepId, item.result, now, EXPANDED_SEARCH_USAGE_ORDINAL[item.kind]);
         for (const item of expandedThrown) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,'serpapi','unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
           .run(runId, stepId, EXPANDED_SEARCH_USAGE_ORDINAL[item.kind], now);
+        if (worldBankAttempts.some(item => item.requests > 0)) this.#persistUsage(runId, stepId, worldBankUsage(worldBankAttempts), now, WORLD_BANK_USAGE_ORDINAL);
+        else if (worldBank && 'thrown' in worldBank) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
+          .run(runId, stepId, WORLD_BANK_USAGE_ORDINAL, WORLD_BANK_PROVIDER.toLowerCase(), now);
         if (exact) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,1,'apify-shopee','reviews',?,?,?,?,?)`)
           .run(runId, stepId, exact.requestsIssued, exact.costUsd === null ? 'UNKNOWN' : 'KNOWN', exact.costUsd === null ? null : 'USD', exact.costUsd, now);
         const current = this.#current(runId);
@@ -4950,6 +4985,26 @@ function validSearchInterest(value: unknown): boolean {
     (point.index === null || (Number.isInteger(point.index) && point.index >= 0 && point.index <= 100)));
 }
 
+function validWorldBank(value: unknown): boolean {
+  if (!isRecord(value) || Object.keys(value).sort().join() !== 'indicators,profile' || value.profile !== WORLD_BANK_PROFILE || !Array.isArray(value.indicators) ||
+      value.indicators.length < 1 || value.indicators.length > WORLD_BANK_INDICATORS.length) return false;
+  const codes = new Set<string>(), hex = /^[a-f0-9]{64}$/, text = (v: unknown, max: number): boolean => typeof v === 'string' && v.length <= max && !CONTROL.test(v);
+  const index = (v: unknown): boolean => Number.isSafeInteger(v) && (v as number) >= 0;
+  return value.indicators.every(item => {
+    if (!isRecord(item) || !(WORLD_BANK_INDICATORS as readonly unknown[]).includes(item.code) || codes.has(item.code)) return false;
+    codes.add(item.code);
+    if (item.status === 'FAILED') return typeof item.reason === 'string' && /^[A-Z0-9_]{3,64}$/.test(item.reason) && item.row === null && item.retrievedAt === null &&
+      item.captureIndex === null && item.metadataCaptureIndex === null && item.sourceSha256 === null && item.metadataSha256 === null;
+    const row = item.row;
+    return item.status === 'COLLECTED' && item.reason === null && typeof item.retrievedAt === 'string' && Number.isFinite(Date.parse(item.retrievedAt)) &&
+      index(item.captureIndex) && index(item.metadataCaptureIndex) && item.captureIndex !== item.metadataCaptureIndex &&
+      hex.test(String(item.sourceSha256)) && hex.test(String(item.metadataSha256)) && isRecord(row) &&
+      text(row.indicatorName, 300) && typeof row.value === 'string' && /^-?\d{1,60}(\.\d{1,60})?$/.test(row.value) && (row.unit === null || text(row.unit, 300)) &&
+      typeof row.year === 'string' && /^\d{4}$/.test(row.year) && text(row.lastUpdated, 40) && text(row.statusLiteral, 300) &&
+      (row.footnote === null || text(row.footnote, 1000)) && text(row.locator, 64);
+  });
+}
+
 function validWebRow(item: unknown): boolean {
   return isRecord(item) && Number.isSafeInteger(item.position) && (item.position as number) >= 1 &&
     typeof item.title === 'string' && item.title.length >= 1 && item.title.length <= 300 &&
@@ -5016,6 +5071,8 @@ function assertStepDocument(value: unknown, runId: string, stepId: StepId): asse
     throw new ResearchAutomationIntegrityError('Stored search interest is invalid.');
   if (value.expandedSearch !== undefined && (stepId !== 'COLLECTION' || !validExpandedSearch(value.expandedSearch)))
     throw new ResearchAutomationIntegrityError('Stored extra searches are invalid.');
+  if (value.worldBank !== undefined && (stepId !== 'COLLECTION' || !validWorldBank(value.worldBank)))
+    throw new ResearchAutomationIntegrityError('Stored World Bank context is invalid.');
   if (value.sourceEvidence !== undefined) checkSourceEvidence(value.sourceEvidence);
   for (const comparable of value.comparables) {
     if (!isRecord(comparable) || typeof comparable.productId !== 'string' || typeof comparable.provider !== 'string' || (comparable.metric !== 'GMV_VND' && comparable.metric !== 'UNITS_SOLD') ||
@@ -5053,6 +5110,13 @@ function assertCaptureLineage(document: StepResultDocument, captures: readonly C
     const capture = stepCaptures.get(interest.captureIndex);
     if (!capture || capture.truncated || capture.provider !== 'serpapi' || capture.operation !== 'serpapi.google.trends' || capture.retrievedAt !== interest.retrievedAt)
       throw new ResearchAutomationIntegrityError('Stored search interest references an incompatible capture.');
+  }
+  for (const item of document.worldBank?.indicators ?? []) {
+    if (item.captureIndex === null || item.metadataCaptureIndex === null) continue;
+    const observation = stepCaptures.get(item.captureIndex), metadata = stepCaptures.get(item.metadataCaptureIndex);
+    if (!observation || observation.truncated || observation.provider !== 'world-bank' || observation.operation !== 'worldbank.observations' || observation.retrievedAt !== item.retrievedAt ||
+        !metadata || metadata.truncated || metadata.provider !== 'world-bank' || metadata.operation !== 'worldbank.metadata')
+      throw new ResearchAutomationIntegrityError('Stored World Bank context references an incompatible capture.');
   }
 }
 

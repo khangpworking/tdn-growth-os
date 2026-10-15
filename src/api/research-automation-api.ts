@@ -80,6 +80,7 @@ import { ResearchAutomationWorker } from '../modules/analysis/research-automatio
 import { bindResearchAutomationProvider } from '../modules/analysis/research-automation/source-binding.js';
 import { createSearchInterestSource } from '../modules/analysis/research-automation/search-interest.js';
 import { createExpandedSearchSource } from '../modules/analysis/research-automation/expanded-search-lane.js';
+import { createWorldBankSource } from '../modules/analysis/research-automation/world-bank-lane.js';
 import { createResearchAutomationProviderRegistry, type ResearchAutomationProviderConfig, type ProviderTransport } from '../modules/analysis/research-automation/providers.js';
 import { buildResearchAutomationReport } from '../modules/analysis/research-automation/reports.js';
 import { createChromiumPdfRenderer } from '../modules/analysis/research-automation/pdf.js';
@@ -135,6 +136,8 @@ export interface ResearchAutomationApiConfiguration {
   readonly searchTrends?: true;
   /** Expanded-search lane for the OWNER writer only; present only when its flag is exactly "1" and the existing search key is set. */
   readonly expandedSearch?: true;
+  /** World Bank open-data lane for the OWNER writer only; present only when its flag is exactly "1". Needs no key. */
+  readonly worldBank?: true;
 }
 export interface ResearchAutomationApiApplication {
   handler(request: IncomingMessage, response: ServerResponse): void;
@@ -352,6 +355,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       const webSource = configuration.providers?.serpApiKey ? bindResearchAutomationProvider(registry.get('SERPAPI')) : undefined;
       const trendsSource = configuration.searchTrends && configuration.providers?.serpApiKey ? createSearchInterestSource(configuration.providers.serpApiKey, transport) : undefined;
       const expandedSource = configuration.expandedSearch && configuration.providers?.serpApiKey ? createExpandedSearchSource(configuration.providers.serpApiKey, transport) : undefined;
+      const worldBankSource = configuration.worldBank ? createWorldBankSource(transport) : undefined;
       if (configuration.pdfExecutablePath) pdf = createChromiumPdfRenderer({ executablePath: configuration.pdfExecutablePath });
       writeService = create(writer, {
         ...(configuration.reviewCollection ? { reviewCollection: configuration.reviewCollection } : {}),
@@ -362,6 +366,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         actorId: configuration.owner.actorId, source: bindResearchAutomationProvider(selected), ...(webSource ? { webSource } : {}),
         ...(trendsSource ? { trendsSource } : {}),
         ...(expandedSource ? { expandedSource } : {}),
+        ...(worldBankSource ? { worldBankSource } : {}),
         ...(i14SynthesisAi ? { i14SynthesisAi } : {}),
         ...(marketCoverAi ? { marketCoverAi } : {}),
         ...(configuration.metricAutoRun ? { autoRun: { enabled: true, onWake: () => worker?.wake(), runner: {

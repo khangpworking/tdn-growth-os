@@ -363,6 +363,17 @@ function searchInterestMisuse(html: string, scan: Scan): string[] {
   }));
 }
 
+const WORLD_BANK_TERM = /(?<![\p{L}\p{N}_])(?:bối\s+cảnh\s+vĩ\s+mô|số\s+liệu\s+cả\s+nước|dân\s+số\s+cả\s+nước|chi\s+tiêu\s+tiêu\s+dùng\s+hộ\s+gia\s+đình)(?![\p{L}\p{N}_])/giu;
+
+/** Once the report shows country-level figures, no statement may add, divide or multiply them with a sales measure;
+ * a negation in the same clause allows the disclaimer. The check exists only when the block is drawn, so other reports keep their rule list. */
+function worldBankMisuse(html: string, scan: Scan): string[] | null {
+  if (!matches(scan.visible, WORLD_BANK_TERM).length) return null;
+  return statementTexts(html).map(text => text.normalize('NFC')).flatMap(text => text.split(CLAUSE_BREAK).filter(clause =>
+    matches(clause, WORLD_BANK_TERM).length > 0 && matches(clause, SALES_MEASURE_TERM).length > 0
+    && [...clause.matchAll(COMBINE_TERM)].some(hit => !matches(clause.slice(0, hit.index ?? 0), NEGATION).length)));
+}
+
 function result(rule: string, ok: boolean, detail: string): MarketBusinessGateResult { return { rule, ok, detail }; }
 
 export function auditMarketReportHtml(html: string, options: MarketBusinessGateOptions = {}): MarketBusinessGateResult[] {
@@ -378,6 +389,7 @@ export function auditMarketReportHtml(html: string, options: MarketBusinessGateO
   const leaks = noLeakMatches(html, scan);
   const partial = partialTotalMatches(html, options.partialTotals ?? []);
   const interestMisuse = searchInterestMisuse(html, scan);
+  const macroMisuse = worldBankMisuse(html, scan);
   const u13 = lintVisibleReportText(normalizeInlineTagsForLint(html));
   const content = [
     result('G08_PROVIDER_NAME', provider.length === 0, snippets(provider)),
@@ -386,6 +398,7 @@ export function auditMarketReportHtml(html: string, options: MarketBusinessGateO
     result('PARTIAL_TOTAL_FORBIDDEN', partial.length === 0, snippets(partial)),
     result('NO_LEAK', leaks.length === 0, snippets(leaks)),
     result('SEARCH_INTEREST_NOT_COUNT', interestMisuse.length === 0, snippets(interestMisuse)),
+    ...(macroMisuse ? [result('WORLD_BANK_NOT_ARITHMETIC', macroMisuse.length === 0, snippets(macroMisuse))] : []),
     ...u13.map(check => result(check.rule, check.ok, check.ok ? 'clean' : snippets([check.detail]))),
   ];
   if (!presentation) return content;
