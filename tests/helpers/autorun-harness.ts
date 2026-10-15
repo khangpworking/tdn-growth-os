@@ -96,17 +96,20 @@ export class SpyService extends ResearchAutomationService {
   hangAfterConfirm = false;
   hangAfterRevision = false;
   failRevision = false;
+  private markHung: () => void = () => {};
+  // Settles only once a hanging request has been accepted (its rows are written), so tests never guess with a timer.
+  readonly hung = new Promise<'hung'>(resolve => { this.markHung = () => resolve('hung'); });
   override async confirmScope(workspace: string, run: string, value: unknown) {
     this.confirms.push(value);
     const receipt = await super.confirmScope(workspace, run, value);
-    if (this.hangAfterConfirm) await new Promise(() => {}); // simulated process death after the accepted confirm
+    if (this.hangAfterConfirm) { this.markHung(); await new Promise(() => {}); } // simulated process death after the accepted confirm
     return receipt;
   }
   override async requestReportRevision(workspace: string, run: string, value: unknown) {
     this.revisions.push(value);
     if (this.failRevision) throw new Error('synthetic presentation failure');
     const receipt = await super.requestReportRevision(workspace, run, value);
-    if (this.hangAfterRevision) await new Promise(() => {}); // simulated process death after the accepted revision request
+    if (this.hangAfterRevision) { this.markHung(); await new Promise(() => {}); } // simulated process death after the accepted revision request
     return receipt;
   }
 }

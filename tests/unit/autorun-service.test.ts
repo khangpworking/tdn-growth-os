@@ -67,9 +67,8 @@ test('restart during CONFIRM replays the same request key without a duplicate co
   const runId = await startRun(f.service);
   f.service.hangAfterConfirm = true;
   // Drive until the confirm is accepted but the process "dies" before the write-back.
-  for (let i = 0; i < 50 && f.service.confirms.length === 0; i++) {
-    const step = f.service.processNext();
-    const moved = await Promise.race([step, new Promise<'hung'>(resolve => setTimeout(() => resolve('hung'), 200))]);
+  for (let i = 0; i < 50; i++) {
+    const moved = await Promise.race([f.service.processNext(), f.service.hung]);
     if (moved === 'hung') break;
     if (!moved) await f.service.settleAutoRunCaptures();
   }

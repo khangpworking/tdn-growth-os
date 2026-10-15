@@ -97,11 +97,9 @@ test('PRESENT: a restart after the request was accepted reuses that attempt and 
   const f = await fixture(t);
   const runId = await startRun(f.service);
   f.service.hangAfterRevision = true;
-  for (let i = 0; i < 80 && f.service.revisions.length === 0; i++) {
-    const step = f.service.processNext();
-    let moved = await Promise.race([step, new Promise<'hung'>(resolve => setTimeout(() => resolve('hung'), 200))]);
-    if (moved === 'hung' && f.service.revisions.length > 0) break;
-    if (moved === 'hung') moved = await step; // a slow step (e.g. rendering), not the simulated death
+  for (let i = 0; i < 80; i++) {
+    const moved = await Promise.race([f.service.processNext(), f.service.hung]);
+    if (moved === 'hung') break;
     if (!moved) await f.service.settleAutoRunCaptures();
   }
   assert.equal(f.service.revisions.length, 1);
