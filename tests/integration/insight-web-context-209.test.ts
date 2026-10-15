@@ -75,7 +75,7 @@ test('web pages never reach findings, coding, retained methods or other sections
   const i17 = full.page.sections.find(s => s.id === 'I17')!, i17Base = base.page.sections.find(s => s.id === 'I17')!;
   assert.equal(i17.explanation, i17Base.explanation);
   assert.equal(i17.body.startsWith(i17Base.body.slice(0, 200)), true);
-  assert.doesNotMatch(full.html.replace(/<div class="web-context"[\s\S]*?<\/table>/, ''), /thach-dua|Cách làm thạch dừa/);
+  assert.doesNotMatch(full.page.findings.toString() + JSON.stringify(full.page.findings), /thach-dua|Cách làm thạch dừa/);
 });
 
 test('no admitted rows, or a stored packet without the page-type marker, leaves the page byte-identical', async t => {
