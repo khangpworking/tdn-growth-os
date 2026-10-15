@@ -86,7 +86,7 @@ import type { ResearchAutomationMetricPrepareRequest, ResearchAutomationMetricPr
 import { AutomationMetricSourceIntake, MAX_METRIC_UPLOAD_BYTES } from './metric-source-intake.js';
 import type { ResearchAutomationMetricCapturePrepareRequest, ResearchAutomationMetricCapturePrepareReceipt, ResearchAutomationPreparedMetricCaptureList } from '../../../../contracts/api/research-automation-metric-capture-intake-api.generated.js';
 import { AutomationMetricCaptureSourceIntake, MAX_METRIC_CAPTURE_BYTES, MAX_METRIC_CAPTURE_TOTAL_BYTES, verifyMetricCaptureArchive, SNAPSHOT_PATH, MANIFEST_PATH, MetricCaptureRejection } from './metric-capture-intake.js';
-import { autorunRequestKey, buildConfirmValue, buildPrepareValue, deriveIncludeTerms, pickShopeeLinks, planCapturePeriod, sourceContextVi, type DatePeriod as AutorunPeriod } from './autorun-derive.js';
+import { autorunRequestKey, buildConfirmValue, buildPrepareValue, buildRevisionValue, deriveIncludeTerms, isAutorunCaptureStopCode, pickShopeeLinks, planCapturePeriod, sourceContextVi, type DatePeriod as AutorunPeriod } from './autorun-derive.js';
 import { runMetricCapture, type MetricCaptureRequest, type MetricCaptureRunnerConfig, type MetricCaptureRunResult } from './metric-capture-runner.js';
 import { readPreparedMetricCaptureSources } from './metric-capture-inventory.js';
 import { AutomationWorldBankSourceIntake, readConfirmedWorldBankSource, readWorldBankHistory } from './world-bank-intake.js';
@@ -158,6 +158,8 @@ import { EXACT_SHOPEE_OUTCOMES, MAX_PROVIDER_MESSAGE_LENGTH, type ExactShopeeOut
 import { selectExactShopeeListings } from '../../foundation/shopee-exact-selection.js';
 import type { ResearchReviewCorpus } from '../../../../contracts/analysis/research-review-corpus.generated.js';
 import type {
+  ResearchAutomationAutoRun,
+  ResearchAutomationAutoRunRetryRequest,
   ResearchAutomationCancelRequest,
   ResearchAutomationConfirmRequest,
   ResearchAutomationCoverageSource,
@@ -374,6 +376,7 @@ type AutorunPhase = 'WAITING_SCOPE' | 'CAPTURE' | 'PREPARE' | 'PICK' | 'CONFIRM'
 interface AutorunRow {
   runId: string; workspaceId: string; phase: AutorunPhase; phaseState: 'QUEUED' | 'RUNNING';
   confirmExpectedRevision: bigint | number | null; packageId: string | null; pickArtifactId: string | null;
+  revisionAttemptId: string | null; stopCode: string | null;
 }
 const AUTORUN_ENVIRONMENT_STOPS = new Set(['METRIC_LOGIN_REQUIRED', 'METRIC_CAPTCHA', 'BRIDGE_DISCONNECTED']);
 const AUTORUN_RUN_END_STATUSES = new Set<ResearchAutomationRun['status']>(['DRAFT_READY', 'FAILED', 'CANCELLED', 'INTERRUPTED']);
@@ -2247,6 +2250,7 @@ export class ResearchAutomationService {
         const changed = this.#db.prepare(`UPDATE analysis_research_automation_attempts SET state='CANCELLED',finished_at=? WHERE attempt_id=? AND state IN ('QUEUED','RUNNING')`).run(at, attemptId);
         if (changed.changes !== 1) throw new ResearchAutomationConflictError('invalid_state', 'The report revision has already settled.');
         this.#db.prepare(`INSERT INTO analysis_research_automation_attempt_requests(request_key,attempt_id,request_kind,request_sha256,accepted_at) VALUES (?,?,'CANCEL',?,?)`).run(requestKey, attemptId, sha, at);
+        this.#autorunAfterAttempt(runId, at);
       }).immediate();
       return revisionReceipt(this.#attempt(attemptId)!, false);
     });
@@ -2931,7 +2935,7 @@ export class ResearchAutomationService {
           // A capture is a paid lookup: an interrupted one stops, it is never re-run.
           this.#db.prepare(`UPDATE research_automation_autorun SET phase='STOPPED',phase_state='QUEUED',stop_code='CAPTURE_INTERRUPTED',stop_detail=?,updated_at=? WHERE phase='CAPTURE' AND phase_state='RUNNING'`)
             .run(autorunStopDetail('CAPTURE_INTERRUPTED'), at);
-          this.#db.prepare(`UPDATE research_automation_autorun SET phase_state='QUEUED',updated_at=? WHERE phase IN ('PREPARE','PICK','CONFIRM','WAIT_DRAFT') AND phase_state='RUNNING'`).run(at);
+          this.#db.prepare(`UPDATE research_automation_autorun SET phase_state='QUEUED',updated_at=? WHERE phase IN ('PREPARE','PICK','CONFIRM','WAIT_DRAFT','PRESENT') AND phase_state='RUNNING'`).run(at);
         }
       })();
     });
@@ -3559,6 +3563,7 @@ export class ResearchAutomationService {
             this.#registerManifest(pairArtifact!, 'application/json', finished);
             const change = this.#db.prepare(`UPDATE analysis_research_automation_attempts SET state='COMMITTED',version_number=?,pair_sha256=?,finished_at=? WHERE attempt_id=? AND state='RUNNING'`).run(previous!.versionNumber + 1, pairArtifact!.sha256, finished, attempt.attemptId);
             if (change.changes !== 1) throw new ResearchAutomationIntegrityError('Revision publication claim was lost.');
+            this.#autorunAfterAttempt(attempt.runId, finished);
             return;
           }
           this.#transition(row.runId, toNumber(current.revision), 'DRAFT_READY', finished);
@@ -3843,6 +3848,7 @@ export class ResearchAutomationService {
     const blockers = blockerList(steps, documents, scope !== null, await this.#metricSourceAdmitted(row));
     const outputRows = this.#db.prepare(`SELECT report_kind reportKind,version_sha256 versionSha,html_sha256 htmlSha,pdf_sha256 pdfSha,pdf_unavailable_code pdfUnavailableCode FROM analysis_research_automation_outputs WHERE run_id=?`).all(row.runId) as OutputRow[];
     const outputs = outputRows.length === 0 ? undefined : Object.fromEntries(outputRows.map((value) => [value.reportKind === 'MARKET' ? 'market' : 'insight', { versionId: value.versionSha, web: true as const, pdf: { available: value.pdfSha !== null, reason: value.pdfSha ? null : message(value.pdfUnavailableCode ?? 'PDF_RENDERER_NOT_CONFIGURED') } }])) as ResearchAutomationRun['outputs'];
+    const autoRun = await this.#autoRunProjection(row);
     return {
       contractVersion: 'research-automation-run-v1', runId: row.runId, workspaceId: row.workspaceId, revision: toNumber(row.revision), status: row.status, country: 'VN', mode: row.mode, keyword: row.keyword,
       description: start.description, interview: start.interview, requestedPeriod: start.requestedPeriod, reports: start.reports as ResearchAutomationRun['reports'],
@@ -3850,8 +3856,55 @@ export class ResearchAutomationService {
       productCards: [...cards], coverage: { requestedPeriod: start.requestedPeriod, sources: [...coverageSources] }, usage: { entries: usageEntries, requestCount: usageEntries.reduce((total, value) => total + value.requestCount, 0), knownCosts: knownCosts.slice(0, 2), hasUnknownCost: usageEntries.some((value) => value.cost.state === 'UNKNOWN') },
       ...(Object.keys(aiActivity).length ? { aiActivity } : {}),
       steps: steps.map((value) => ({ stepId: value.stepId, state: value.state, code: value.code, message: value.code ? safeStepMessage(value.code) : null, startedAt: value.startedAt, finishedAt: value.finishedAt })), blockers,
-      ...(outputs ? { outputs } : {}), createdAt: row.createdAt, updatedAt: row.updatedAt,
+      ...(outputs ? { outputs } : {}), ...(autoRun ? { autoRun } : {}), createdAt: row.createdAt, updatedAt: row.updatedAt,
     };
+  }
+
+  /** Owner-visible auto-run state; absent when the run has no auto-run row (flag off stays unchanged). */
+  async #autoRunProjection(run: RunRow): Promise<ResearchAutomationAutoRun | undefined> {
+    if (!this.#hasAutorunTable()) return undefined;
+    const row = this.#autorunRow(run.runId);
+    if (!row) return undefined;
+    let linksFound: number | undefined;
+    if (row.pickArtifactId) {
+      const pick = await this.#readJson<{ urls?: unknown }>(row.pickArtifactId, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+      if (Array.isArray(pick.urls)) linksFound = Math.min(pick.urls.length, 5);
+    }
+    const canRetry = row.phase === 'STOPPED' && isAutorunCaptureStopCode(row.stopCode) && run.status === 'AWAITING_SCOPE';
+    return { phase: row.phase, state: row.phaseState, ...(row.stopCode ? { stopCode: row.stopCode } : {}),
+      ...(linksFound !== undefined ? { linksFound } : {}), canRetry };
+  }
+
+  /**
+   * Owner "Thử lại": re-queues one stopped capture of a run still awaiting scope. Only this explicit
+   * owner request re-runs a paid lookup; the old capture folder is set aside by the capture runner.
+   */
+  async retryAutoRunCapture(workspaceId: string, runId: string, value: unknown): Promise<ResearchAutomationMutationReceipt> {
+    const input = validateAutoRunRetry(value);
+    assertUuid(workspaceId); assertUuid(runId);
+    const requestSha = digest({ kind: 'AUTORUN_RETRY', workspaceId, runId, input });
+    return withDatabaseMutationMutex(this.#db, async () => {
+      const prior = this.#hasAutorunTable()
+        ? this.#db.prepare(`SELECT run_id runId,request_sha256 sha FROM research_automation_autorun_retries WHERE request_key=?`).get(input.requestKey) as { runId: string; sha: string } | undefined
+        : undefined;
+      if (prior) {
+        if (prior.runId !== runId || prior.sha !== requestSha) throw new ResearchAutomationConflictError('request_key_conflict', 'This request key is bound to another request.');
+        return { contractVersion: 'research-automation-receipt-v1', run: await this.getRun(workspaceId, runId), exactRetry: true };
+      }
+      const run = await this.getRun(workspaceId, runId);
+      const row = this.#hasAutorunTable() ? this.#autorunRow(runId) : undefined;
+      if (!row || row.workspaceId !== workspaceId || row.phase !== 'STOPPED' || !isAutorunCaptureStopCode(row.stopCode) || run.status !== 'AWAITING_SCOPE')
+        throw new ResearchAutomationConflictError('invalid_state', 'This automatic step cannot be retried now.');
+      const at = this.#now().toISOString();
+      this.#db.transaction(() => {
+        const change = this.#db.prepare(`UPDATE research_automation_autorun SET phase='CAPTURE',phase_state='QUEUED',stop_code=NULL,stop_detail=NULL,capture_ready=0,updated_at=? WHERE run_id=? AND phase='STOPPED' AND stop_code=?`).run(at, runId, row.stopCode);
+        if (change.changes !== 1) throw new ResearchAutomationConflictError('invalid_state', 'This automatic step cannot be retried now.');
+        const number = this.#db.prepare(`SELECT coalesce(max(retry_number),0)+1 number FROM research_automation_autorun_retries WHERE run_id=?`).get(runId) as { number: number | bigint };
+        this.#db.prepare(`INSERT INTO research_automation_autorun_retries(request_key,run_id,retry_number,stop_code,request_sha256,accepted_at) VALUES (?,?,?,?,?,?)`)
+          .run(input.requestKey, runId, number.number, row.stopCode, requestSha, at);
+      }).immediate();
+      return { contractVersion: 'research-automation-receipt-v1', run: await this.getRun(workspaceId, runId), exactRetry: false };
+    });
   }
 
   async #captureRecords(runId: string): Promise<CaptureRecord[]> {
@@ -4184,7 +4237,12 @@ export class ResearchAutomationService {
   }
   async #settleAttempt(attemptId: string, state: 'FAILED' | 'CANCELLED'): Promise<void> {
     await withDatabaseMutationMutex(this.#db, async () => {
-      this.#db.prepare(`UPDATE analysis_research_automation_attempts SET state=?,finished_at=? WHERE attempt_id=? AND state='RUNNING'`).run(state, this.#now().toISOString(), attemptId);
+      const at = this.#now().toISOString();
+      this.#db.transaction(() => {
+        const change = this.#db.prepare(`UPDATE analysis_research_automation_attempts SET state=?,finished_at=? WHERE attempt_id=? AND state='RUNNING'`).run(state, at, attemptId);
+        const attempt = change.changes === 1 ? this.#attempt(attemptId) : undefined;
+        if (attempt) this.#autorunAfterAttempt(attempt.runId, at);
+      })();
     });
   }
   #current(runId: string): RunRow | undefined {
@@ -4298,8 +4356,8 @@ export class ResearchAutomationService {
     }
   }
   #autorunRow(runId: string): AutorunRow | undefined {
-    return this.#db.prepare(`SELECT run_id runId,workspace_id workspaceId,phase,phase_state phaseState,confirm_expected_revision confirmExpectedRevision,package_id packageId,pick_artifact_id pickArtifactId
-      FROM research_automation_autorun WHERE run_id=?`).get(runId) as AutorunRow | undefined;
+    return this.#db.prepare(`SELECT run_id runId,workspace_id workspaceId,phase,phase_state phaseState,confirm_expected_revision confirmExpectedRevision,package_id packageId,pick_artifact_id pickArtifactId,
+      revision_attempt_id revisionAttemptId,stop_code stopCode FROM research_automation_autorun WHERE run_id=?`).get(runId) as AutorunRow | undefined;
   }
   /** Stops a row that is still open; a row already DONE or STOPPED keeps its outcome. */
   #autorunStop(runId: string, code: string, at: string): void {
@@ -4358,7 +4416,7 @@ export class ResearchAutomationService {
     // One capture per database: a CAPTURE row waits while another is RUNNING, unless its run
     // already moved on (then it only stops). Phases are taken oldest first.
     const next = this.#db.prepare(`SELECT a.run_id runId,a.phase phase FROM research_automation_autorun a JOIN analysis_research_automation_runs r ON r.run_id=a.run_id
-      WHERE a.phase_state='QUEUED' AND (a.phase IN ('PREPARE','PICK','CONFIRM','WAIT_DRAFT') OR (a.phase='CAPTURE' AND (r.status<>'AWAITING_SCOPE' OR NOT EXISTS (
+      WHERE a.phase_state='QUEUED' AND (a.phase IN ('PREPARE','PICK','CONFIRM','WAIT_DRAFT','PRESENT') OR (a.phase='CAPTURE' AND (r.status<>'AWAITING_SCOPE' OR NOT EXISTS (
         SELECT 1 FROM research_automation_autorun b WHERE b.phase='CAPTURE' AND b.phase_state='RUNNING'))))
       ORDER BY a.created_at,a.run_id LIMIT 1`).get() as { runId: string; phase: AutorunPhase } | undefined;
     if (!next) return false;
@@ -4367,7 +4425,9 @@ export class ResearchAutomationService {
       case 'PREPARE': return this.#autorunPrepare(next.runId);
       case 'PICK': return this.#autorunPick(next.runId);
       case 'CONFIRM': return this.#autorunConfirm(next.runId);
-      default: return this.#autorunWaitDraft(next.runId);
+      case 'WAIT_DRAFT': return this.#autorunWaitDraft(next.runId);
+      case 'PRESENT': return this.#autorunPresent(next.runId);
+      default: return false;
     }
   }
 
@@ -4554,7 +4614,7 @@ export class ResearchAutomationService {
     return true;
   }
 
-  /** PR2 ends at DONE once the run's draft is ready; a later step inserts PRESENT before DONE. */
+  /** Once the run's plain draft is ready, the presentation step (cover and charts) follows. */
   async #autorunWaitDraft(runId: string): Promise<boolean> {
     let progressed = false;
     await withDatabaseMutationMutex(this.#db, async () => {
@@ -4563,13 +4623,80 @@ export class ResearchAutomationService {
       const run = this.#current(runId);
       if (!run) throw new ResearchAutomationIntegrityError('Auto-run source run is missing.');
       const at = this.#now().toISOString();
-      if (run.status === 'DRAFT_READY') this.#db.prepare(`UPDATE research_automation_autorun SET phase='DONE',phase_state='QUEUED',updated_at=? WHERE run_id=? AND phase='WAIT_DRAFT'`).run(at, runId);
+      if (run.status === 'DRAFT_READY') this.#db.prepare(`UPDATE research_automation_autorun SET phase='PRESENT',phase_state='QUEUED',updated_at=? WHERE run_id=? AND phase='WAIT_DRAFT'`).run(at, runId);
       else if (AUTORUN_RUN_END_STATUSES.has(run.status)) this.#autorunStop(runId, `RUN_${run.status}`, at);
       // Not ready yet: wait RUNNING until the run's transition hook queues the row again.
       else this.#db.prepare(`UPDATE research_automation_autorun SET phase_state='RUNNING',updated_at=? WHERE run_id=? AND phase='WAIT_DRAFT'`).run(at, runId);
       progressed = true;
     });
     return progressed;
+  }
+
+  /**
+   * PRESENT: one presentation revision (cover and charts) on the latest draft, requested with the
+   * fixed auto-run key so a replay after a restart never creates a second attempt. Our attempt is
+   * the recorded one or the one the fixed key returns; any other attempt means the owner already
+   * revised the report and the auto-run stops instead of stacking a revision.
+   */
+  async #autorunPresent(runId: string): Promise<boolean> {
+    const key = autorunRequestKey(runId, 'revision');
+    let claimed = false, progressed = false;
+    await withDatabaseMutationMutex(this.#db, async () => {
+      const row = this.#autorunRow(runId);
+      if (!row || row.phase !== 'PRESENT' || row.phaseState !== 'QUEUED') return;
+      const run = this.#current(runId);
+      if (!run) throw new ResearchAutomationIntegrityError('Auto-run source run is missing.');
+      const at = this.#now().toISOString();
+      progressed = true;
+      const ownId = row.revisionAttemptId ?? this.#attemptRequest(key)?.attemptId ?? null;
+      if (ownId) {
+        const attempt = this.#attempt(ownId);
+        if (!attempt || attempt.runId !== runId) { this.#autorunStop(runId, 'PRESENTATION_FAILED', at); return; }
+        if (attempt.state === 'QUEUED' || attempt.state === 'RUNNING')
+          this.#db.prepare(`UPDATE research_automation_autorun SET phase_state='RUNNING',revision_attempt_id=?,updated_at=? WHERE run_id=? AND phase='PRESENT'`).run(ownId, at, runId);
+        else if (attempt.state === 'COMMITTED')
+          this.#db.prepare(`UPDATE research_automation_autorun SET phase='DONE',phase_state='QUEUED',revision_attempt_id=?,updated_at=? WHERE run_id=? AND phase='PRESENT'`).run(ownId, at, runId);
+        else {
+          this.#db.prepare(`UPDATE research_automation_autorun SET revision_attempt_id=? WHERE run_id=?`).run(ownId, runId);
+          this.#autorunStop(runId, 'PRESENTATION_FAILED', at);
+        }
+        return;
+      }
+      if (run.status !== 'DRAFT_READY') { this.#autorunStop(runId, this.#autorunRunStopCode(run.status), at); return; }
+      if (this.#db.prepare(`SELECT 1 FROM analysis_research_automation_attempts WHERE run_id=? LIMIT 1`).get(runId)) {
+        this.#autorunStop(runId, 'OWNER_REVISION_EXISTS', at);
+        return;
+      }
+      claimed = this.#db.prepare(`UPDATE research_automation_autorun SET phase_state='RUNNING',updated_at=? WHERE run_id=? AND phase='PRESENT' AND phase_state='QUEUED'`).run(at, runId).changes === 1;
+    });
+    if (!claimed) return progressed;
+    let attemptId: string;
+    try {
+      const run = this.#current(runId)!;
+      const latest = (await this.listReportVersions(run.workspaceId, runId)).at(-1);
+      if (!latest) throw new ResearchAutomationIntegrityError('Auto-run draft report is missing.');
+      attemptId = (await this.requestReportRevision(run.workspaceId, runId, buildRevisionValue({ runId, previousPairId: latest.pairId }))).attemptId;
+    } catch (error) {
+      const fresh = this.#current(runId);
+      const code = error instanceof ResearchAutomationConflictError ? 'OWNER_REVISION_EXISTS'
+        : fresh && fresh.status !== 'DRAFT_READY' ? this.#autorunRunStopCode(fresh.status) : 'PRESENTATION_FAILED';
+      await this.#autorunStopRunning(runId, 'PRESENT', code);
+      return true;
+    }
+    await this.#autorunSettle(runId, 'PRESENT', at => {
+      const attempt = this.#attempt(attemptId);
+      const waiting = attempt?.state === 'QUEUED' || attempt?.state === 'RUNNING';
+      // A settled attempt (its finish hook already passed) is checked on the next pass.
+      this.#db.prepare(`UPDATE research_automation_autorun SET revision_attempt_id=?,phase_state=?,updated_at=? WHERE run_id=? AND phase='PRESENT' AND phase_state='RUNNING'`)
+        .run(attemptId, waiting ? 'RUNNING' : 'QUEUED', at, runId);
+    });
+    return true;
+  }
+
+  /** Attempt-finish hook: a PRESENT row waiting on its revision is queued to check the outcome. */
+  #autorunAfterAttempt(runId: string, at: string): void {
+    if (!this.#hasAutorunTable()) return;
+    this.#db.prepare(`UPDATE research_automation_autorun SET phase_state='QUEUED',updated_at=? WHERE run_id=? AND phase='PRESENT' AND phase_state='RUNNING'`).run(at, runId);
   }
 
   async #putJson(value: unknown, _at: string): Promise<StoredArtifact> {
@@ -4834,6 +4961,12 @@ function validateExactUrls(value: unknown): string[] {
 }
 function validateCancel(value: unknown): ResearchAutomationCancelRequest { const object = plain(value); keys(object, ['contractVersion', 'requestKey', 'expectedRevision']); if (object.contractVersion !== 'research-automation-cancel-v1' || typeof object.requestKey !== 'string' || !REQUEST_KEY.test(object.requestKey) || !Number.isSafeInteger(object.expectedRevision) || object.expectedRevision < 1) throw new ResearchAutomationValidationError('Invalid cancellation request.'); return { contractVersion: 'research-automation-cancel-v1', requestKey: object.requestKey, expectedRevision: object.expectedRevision }; }
 function validatePeriod(value: unknown): { startDate: string; endDate: string } { const object = plain(value); keys(object, ['startDate', 'endDate']); if (typeof object.startDate !== 'string' || typeof object.endDate !== 'string' || !DATE.test(object.startDate) || !DATE.test(object.endDate) || !validDate(object.startDate) || !validDate(object.endDate)) throw new ResearchAutomationValidationError('Research period must use valid calendar dates.'); const days = inclusiveDays(object as { startDate: string; endDate: string }); if (days < 1 || days > 1096 || object.endDate > todayVN()) throw new ResearchAutomationValidationError('Research period is out of bounds.'); return { startDate: object.startDate, endDate: object.endDate }; }
+function validateAutoRunRetry(value: unknown): ResearchAutomationAutoRunRetryRequest {
+  const object = plain(value); keys(object, ['contractVersion', 'requestKey']);
+  if (object.contractVersion !== 'research-automation-autorun-retry-v1' || typeof object.requestKey !== 'string' || !REQUEST_KEY.test(object.requestKey))
+    throw new ResearchAutomationValidationError('Retry request is invalid.');
+  return { contractVersion: object.contractVersion, requestKey: object.requestKey };
+}
 function validateReports(value: unknown): ResearchAutomationStartRequest['reports'] { if (!Array.isArray(value) || (value.length !== 1 && value.length !== 2) || value.some((item) => item !== 'MARKET' && item !== 'INSIGHT') || new Set(value).size !== value.length || (value.length === 2 && (value[0] !== 'MARKET' || value[1] !== 'INSIGHT'))) throw new ResearchAutomationValidationError('Choose MARKET, INSIGHT, or both in that order.'); return value as ResearchAutomationStartRequest['reports']; }
 function validateInterview(value: unknown): NonNullable<ResearchAutomationStartRequest['interview']> { const object = plain(value); keys(object, ['productType', 'audience', 'useCase', 'priceRange', 'knownProduct']); const output: Record<string, string> = {}; for (const key of ['productType', 'audience', 'useCase', 'priceRange', 'knownProduct']) if (object[key] !== undefined) output[key] = text(object[key], 200); return output; }
 function terms(value: unknown): string[] { if (!Array.isArray(value) || value.length > 30) throw new ResearchAutomationValidationError('Scope terms are out of bounds.'); const values = value.map((item) => text(item, 80)); if (new Set(values).size !== values.length) throw new ResearchAutomationValidationError('Scope terms must be unique.'); return values; }

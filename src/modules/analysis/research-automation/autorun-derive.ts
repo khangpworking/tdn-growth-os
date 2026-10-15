@@ -4,13 +4,30 @@
 // only: capture spec and period, include terms, the Shopee link pick, and the
 // three owner-route request bodies. No I/O, no clock, no randomness, no model:
 // the same input always yields the same output, so a restarted step replays the
-// exact same request. Nothing in this module is wired into the app yet.
+// exact same request.
 import { createHash } from 'node:crypto';
 import type { ResearchAutomationSourceConfirmRequest } from '../../../../contracts/api/research-automation-source-api.generated.js';
 import type { ResearchAutomationMetricCapturePrepareRequest } from '../../../../contracts/api/research-automation-metric-capture-intake-api.generated.js';
 import type { AutomationMarketPresentationRevisionRequest } from '../../../../contracts/analysis/automation-market-presentation-revision.generated.js';
 import { filterKeywordMeanings, type KeywordMeaningFilterData } from '../keyword-meaning-filter.js';
 import { MAX_PRINCIPAL_CARDS } from './model.js';
+import type { MetricCaptureStopCode } from './metric-capture-runner.js';
+
+// Every runner and executor result code: a stop in the CAPTURE phase itself. The record
+// type forces a new runner/executor code to be classified here. Only these stops may be
+// re-run, and only by the owner's explicit "Thử lại"; intake, pick, confirm, present,
+// run-end and owner stops are never retryable.
+const CAPTURE_STOP_CODE_SET: Readonly<Record<MetricCaptureStopCode, true>> = {
+  METRIC_LOGIN_REQUIRED: true, METRIC_CAPTCHA: true, METRIC_PERIOD_UNSUPPORTED: true, METRIC_UI_CHANGED: true,
+  METRIC_FILTER_MISMATCH: true, METRIC_ROW_CAP: true, METRIC_SEARCH_NOT_APPLIED: true, BRIDGE_DISCONNECTED: true,
+  EXECUTOR_DISABLED: true, TIMEOUT: true, MANIFEST_HASH_MISMATCH: true, EXECUTOR_NOT_CONFIGURED: true,
+  PERIOD_OUTSIDE_RUN: true, CAPTURE_INTERRUPTED: true, CAPTURE_INPUT_INVALID: true, CAPTURE_IO_FAILED: true,
+};
+/** CAPTURE-family stop codes: the only stops the owner's "Thử lại" may re-run. */
+export const AUTORUN_CAPTURE_STOP_CODES: readonly MetricCaptureStopCode[] = Object.freeze(Object.keys(CAPTURE_STOP_CODE_SET) as MetricCaptureStopCode[]);
+export function isAutorunCaptureStopCode(code: string | null | undefined): boolean {
+  return typeof code === 'string' && Object.prototype.hasOwnProperty.call(CAPTURE_STOP_CODE_SET, code);
+}
 
 export const AUTORUN_PICK_RULE_VERSION = 'autorun-pick-v1' as const;
 export const AUTORUN_MAX_SHOPEE_LINKS = 5;
