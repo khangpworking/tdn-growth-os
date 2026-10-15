@@ -2,6 +2,7 @@ import { AutomationMetaPageIntake, metaPagePackagePrefix, validateMetaPageBindin
 import type { DefaultMarketPeers } from '../../../../contracts/analysis/default-market-peers.generated.js';
 import { filterSerpApiResults } from './serpapi-l9-filter.js';
 import { boundedText, httpsUrl } from './provider-common.js';
+import { searchInterestChartPoints, searchInterestCoversPeriod, searchInterestDocument, searchInterestRenderable, searchInterestUsage, SEARCH_INTEREST_USAGE_ORDINAL, type SearchInterestAttempt, type SearchInterestSource } from './search-interest.js';
 import type { AutomationInsightPersonaReportRevisionRequest, PersonaReportSelection, PersonaSelectedReportSnapshot } from '../../../../contracts/analysis/automation-insight-persona-report.generated.js';
 import type { InsightModelAI } from './insight-model-execution.js';
 import { reviewCollectionPolicy } from './review-collection-policy.js';
@@ -24,7 +25,8 @@ import defaultPeerSchema from '../../../../contracts/analysis/default-market-pee
 import readerApiSchema from '../../../../contracts/api/research-automation-reader-report-api.schema.json' with { type: 'json' };
 import type { ResearchAutomationInsightReaderBuildRequest } from '../../../../contracts/api/research-automation-reader-report-api.generated.js';
 import { readerRowsFromMetricWorkbook } from '../reader-report/metric-rows.js';
-import { renderCaptureCountCharts, renderMarketCharts, type CaptureCountChart, type MarketChart } from '../reader-report/market-charts.js';
+import { renderCaptureCountCharts, renderMarketCharts, renderSearchInterestChart, type CaptureCountChart, type MarketChart } from '../reader-report/market-charts.js';
+import type { RenderedChart } from '../reader-report/flint.js';
 import { captureSampleCounts, marketChartSource } from './market-presentation-report.js';
 import { ReaderUnitSpecIntakes } from './reader-unit-spec-intake.js';
 import { buildAutomationMarketPresentation, verifyAutomationMarketPresentation, type MarketPresentationBinding, type MarketPresentationInput } from './market-presentation-method.js';
@@ -193,6 +195,8 @@ import {
   MAX_JSON_ARTIFACT_BYTES,
   MAX_PDF_BYTES,
   MAX_WEB_RESULTS,
+  MAX_SEARCH_INTEREST_POINTS,
+  SEARCH_INTEREST_REASONS,
   RUN_LIST_LIMIT,
   STEP_IDS,
   TERMINAL_STATUSES,
@@ -244,6 +248,8 @@ export interface ResearchAutomationReportInput {
   readonly marketPresentationCharts?: readonly MarketChart[];
   /** Flint record-count bars of the capture sample; filled by the service. */
   readonly marketCaptureCharts?: readonly CaptureCountChart[];
+  /** Flint line of the stored search-interest series; filled by the service only when that series is rendered. */
+  readonly searchInterestChart?: RenderedChart;
   /** Build-time cover image (base64 JPEG); filled by the service for Market presentation builds. */
   readonly marketCover?: MarketCoverInput;
   readonly metricMethods?: AutomationMetricMethodSnapshot;
@@ -329,6 +335,8 @@ export interface ResearchAutomationServiceOptions {
   readonly source?: AutomationSourcePort;
   /** Optional web search, run once per collection beside the product source. */
   readonly webSource?: AutomationSourcePort;
+  /** Optional search-interest series, at most one paid request per collection; absent keeps every stored byte. */
+  readonly trendsSource?: SearchInterestSource;
   readonly renderer?: ResearchAutomationReportRenderer;
   readonly now?: () => Date;
   readonly uuid?: () => string;
@@ -424,6 +432,7 @@ interface PersistableSourceResult {
 /** The independent web-search lane of one collection; its usage is recorded at ordinal 2. */
 type WebSearchAttempt = { readonly bound: BoundCollectResult } | { readonly failedProvider: string };
 const WEB_USAGE_ORDINAL = 2;
+type TrendsAttempt = { readonly attempt: SearchInterestAttempt };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const REQUEST_KEY = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -474,6 +483,7 @@ export class ResearchAutomationService {
   readonly #workspaces: DiscoveryWorkspaceReader;
   readonly #source: AutomationSourcePort | undefined;
   readonly #webSource: AutomationSourcePort | undefined;
+  readonly #trendsSource: SearchInterestSource | undefined;
   readonly #renderer: ResearchAutomationReportRenderer | undefined;
   readonly #now: () => Date;
   readonly #uuid: () => string;
@@ -524,6 +534,7 @@ export class ResearchAutomationService {
     this.#workspaces = options.workspaceReader;
     this.#source = options.source;
     this.#webSource = options.webSource;
+    this.#trendsSource = options.trendsSource;
     this.#renderer = options.renderer;
     this.#pageIndex = options.pageIndex;
     this.#sourceEvidence = options.sourceEvidence;
@@ -1696,10 +1707,12 @@ export class ResearchAutomationService {
       const rawSnapshotSha256 = createHash('sha256').update(snapshot.bytes).digest('hex');
       const collection = this.#db.prepare(`SELECT result_sha256 resultSha FROM analysis_research_automation_steps WHERE run_id=? AND step_id='COLLECTION'`).get(runId) as { resultSha: string | null } | undefined;
       const webCollection = collection?.resultSha ? await this.#readStepDocument(collection.resultSha, runId, 'COLLECTION') : null;
+      const searchInterest = webCollection?.searchInterest;
       const webResults = webCollection?.sourceEvidence ? admitWebResults(webCollection.sourceEvidence, webCollection.webResults ?? [], await this.#captureRecords(runId), webCollection.sourceEvidence.jevTriage ?? null) : webCollection?.webResults ?? [];
       return { workspaceId, runId, draftPairId: latest.pairId, marketSemantic, ...(webCollection?.sourceEvidence?.webPageTypes ? { webPageTypes: true } : {}),
         webResults: webResults.map(({ position, title, url, snippet, retrievedAt, site, published }) =>
           ({ position, title, url, snippet, retrievedAt, site: site ?? null, published: published ?? null })),
+        ...(searchInterestRenderable(searchInterest) ? { searchInterest } : {}),
         metric: { packageId, capture: { snapshot: verifiedCapture.snapshot, snapshotSha256: rawSnapshotSha256, truncation: preparedCapture.capture.truncation }, measurementPeriod: preparedCapture.capture.measurementPeriod } };
     }
     if (!prepared) throw new ResearchAutomationValidationError('Tệp danh sách sản phẩm này không thuộc lượt research.');
@@ -1707,10 +1720,12 @@ export class ResearchAutomationService {
     if (!workbook) throw new ResearchAutomationIntegrityError('Prepared product-list workbook is missing.');
     const collection = this.#db.prepare(`SELECT result_sha256 resultSha FROM analysis_research_automation_steps WHERE run_id=? AND step_id='COLLECTION'`).get(runId) as { resultSha: string | null } | undefined;
     const webCollection = collection?.resultSha ? await this.#readStepDocument(collection.resultSha, runId, 'COLLECTION') : null;
+    const searchInterest = webCollection?.searchInterest;
     const webResults = webCollection?.sourceEvidence ? admitWebResults(webCollection.sourceEvidence, webCollection.webResults ?? [], await this.#captureRecords(runId), webCollection.sourceEvidence.jevTriage ?? null) : webCollection?.webResults ?? [];
     return { workspaceId, runId, draftPairId: latest.pairId, marketSemantic, ...(webCollection?.sourceEvidence?.webPageTypes ? { webPageTypes: true } : {}),
       webResults: webResults.map(({ position, title, url, snippet, retrievedAt, site, published }) =>
         ({ position, title, url, snippet, retrievedAt, site: site ?? null, published: published ?? null })),
+      ...(searchInterestRenderable(searchInterest) ? { searchInterest } : {}),
       metric: { packageId, workbook: workbook.bytes, measurementPeriod: prepared.request.measurementPeriod } };
   }
 
@@ -2840,6 +2855,7 @@ export class ResearchAutomationService {
       const collection = await this.#reportCollection(runId, sources, Boolean(attempt));
       const basePacket = (await this.#stepDocument(runId, 'COLLECTION'))?.sourceEvidence ?? buildSourceEvidence({ draft: null, draftDigest: null, unavailableReason: 'SALES_NAMES_UNAVAILABLE', webResults: [], captures: [] });
       const expected = sourceEvidenceForReport(basePacket, { collection,
+        ...(collection?.searchInterest ? { captures: await this.#captureRecords(runId) } : {}),
         ...(verifiedPrivateView ? { privateReviewCorpus: verifiedPrivateView } : {}),
         ...(verifiedReviewSample ? { reviewSample: verifiedReviewSample } : {}),
         ...(verifiedLiteral ? { insightLiteral: verifiedLiteral } : {}),
@@ -3078,8 +3094,17 @@ export class ResearchAutomationService {
         try { web = { bound: await this.#webSource.collect(input as CollectInput, { signal: controller.signal }) }; }
         catch { web = { failedProvider: this.#webSource.id.toLowerCase() }; }
       }
+      let trends: TrendsAttempt | undefined;
+      if (stepId === 'COLLECTION' && this.#trendsSource && !controller.signal.aborted) {
+        const { keyword, requestedPeriod } = input as CollectInput;
+        try {
+          trends = searchInterestCoversPeriod(requestedPeriod, this.#now().getTime())
+            ? { attempt: { kind: 'CALLED', keyword, result: await this.#trendsSource.collect(keyword, { signal: controller.signal }) } }
+            : { attempt: { kind: 'SKIPPED', keyword, reason: 'PERIOD_NOT_COVERED' } };
+        } catch { trends = { attempt: { kind: 'THROWN', keyword } }; }
+      }
       try {
-        await this.#persistSourceResult(row.runId, stepId, result, controller.signal.aborted, exact, web, controller.signal);
+        await this.#persistSourceResult(row.runId, stepId, result, controller.signal.aborted, exact, web, controller.signal, trends);
       } catch (error) {
         if (!(error instanceof ResearchAutomationProviderOutputError)) throw error;
         await this.#settleSourceFailure(row.runId, stepId, 'PROVIDER_OUTPUT_INVALID', 'FAILED');
@@ -3438,6 +3463,8 @@ export class ResearchAutomationService {
             input = { ...input, marketPresentationCharts: await renderMarketCharts(chartRows, chartOptions),
               ...(capture ? { marketCaptureCharts: await renderCaptureCountCharts(captureSampleCounts(capture)) } : {}) };
           }
+          const interest = kind === 'MARKET' ? input.collection?.searchInterest : undefined;
+          if (searchInterestRenderable(interest)) input = { ...input, searchInterestChart: await renderSearchInterestChart(searchInterestChartPoints(interest)) };
           const authoritative = input.qualitativeDraft || input.marketPresentation || input.insightPersona || privateDefault || (kind === 'INSIGHT' && start.reviewCollectionPolicy) ? buildResearchAutomationReport(input, kind) : undefined;
           const rendered: ResearchAutomationRenderedReport = this.#renderer ? await this.#renderer(authoritative ? structuredClone(input) : input, kind, controller.signal) : authoritative ?? defaultRenderedReport(input, kind);
           controller.signal.throwIfAborted();
@@ -3592,7 +3619,7 @@ export class ResearchAutomationService {
     }
   }
 
-  async #persistSourceResult(runId: string, stepId: SourceStepId, bound: PersistableSourceResult, aborted: boolean, exact?: ExactShopeeAttempt, web?: WebSearchAttempt, signal?: AbortSignal): Promise<void> {
+  async #persistSourceResult(runId: string, stepId: SourceStepId, bound: PersistableSourceResult, aborted: boolean, exact?: ExactShopeeAttempt, web?: WebSearchAttempt, signal?: AbortSignal, trends?: TrendsAttempt): Promise<void> {
     const result = bound.result;
     let step = bound.step;
     const nativeCoverage = bound.step.coverage.filter(value => value.provider === 'apify-dami');
@@ -3678,6 +3705,23 @@ export class ResearchAutomationService {
         coverage: [...step.coverage, ...webStep.coverage], limitations: [...step.limitations, ...webStep.limitations],
         ...(webStep.webResults?.length ? { webResults: webStep.webResults } : {}) };
     }
+    // The search-interest capture follows the web captures. Its reason code lives only in the step's own field:
+    // a failed series never changes the step outcome, coverage or run blockers.
+    let trendsResult: Extract<SearchInterestAttempt, { kind: 'CALLED' }>['result'] | null = null;
+    if (trends) {
+      const attempt = trends.attempt, thrown: SearchInterestAttempt = { kind: 'THROWN', keyword: attempt.keyword };
+      const offset = captures.length;
+      const trendsEnvelopes = attempt.kind === 'CALLED' ? captureEnvelopes(attempt.result) : [];
+      await putCaptures(trendsEnvelopes ?? []);
+      const document = searchInterestDocument(trendsEnvelopes ? attempt : thrown, captures.length > offset ? captures.length - 1 : null);
+      const probe = { ...step, searchInterest: document };
+      try {
+        assertStepDocument(probe, runId, stepId);
+        assertCaptureLineage(probe, captures.map(value => value.row));
+        step = probe;
+      } catch { step = { ...step, searchInterest: searchInterestDocument(thrown, null) }; }
+      if (attempt.kind === 'CALLED') trendsResult = attempt.result;
+    }
     const rowForSources = this.#current(runId)!;
     const sourceStart = await this.#readStartSnapshot(rowForSources.startSha, rowForSources.workspaceId);
     let cancelledSourceEvidence: (() => AutomationSourceEvidence) | undefined;
@@ -3718,7 +3762,7 @@ export class ResearchAutomationService {
       // manifests and actual late capture/usage evidence. No transaction spans I/O.
       const statusAtPublication = this.#current(runId)?.status;
       if (cancelledSourceEvidence && step.sourceEvidence?.draftDigest && (aborted || signal?.aborted ||
-          result?.status === 'CANCELLED' || webResult?.status === 'CANCELLED' ||
+          result?.status === 'CANCELLED' || webResult?.status === 'CANCELLED' || trendsResult?.status === 'CANCELLED' ||
           !statusAtPublication || ['CANCELLING', 'CANCELLED', 'FAILED', 'INTERRUPTED'].includes(statusAtPublication))) {
         step = { ...step, sourceEvidence: cancelledSourceEvidence() };
         resultArtifact = await this.#artifacts.put(Buffer.from(canonicalJson(step), 'utf8'));
@@ -3734,6 +3778,9 @@ export class ResearchAutomationService {
         if (webResult) this.#persistUsage(runId, stepId, webResult, now, WEB_USAGE_ORDINAL);
         else if (web && 'failedProvider' in web) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
           .run(runId, stepId, WEB_USAGE_ORDINAL, web.failedProvider, now);
+        if (trendsResult?.captures.length) this.#persistUsage(runId, stepId, searchInterestUsage(trendsResult.captures), now, SEARCH_INTEREST_USAGE_ORDINAL);
+        else if (trends?.attempt.kind === 'THROWN') this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,'serpapi','unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
+          .run(runId, stepId, SEARCH_INTEREST_USAGE_ORDINAL, now);
         if (exact) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,1,'apify-shopee','reviews',?,?,?,?,?)`)
           .run(runId, stepId, exact.requestsIssued, exact.costUsd === null ? 'UNKNOWN' : 'KNOWN', exact.costUsd === null ? null : 'USD', exact.costUsd, now);
         const current = this.#current(runId);
@@ -3742,7 +3789,7 @@ export class ResearchAutomationService {
         // Keep the exact late capture and usage rows, but never reopen a
         // terminal run or mutate its interrupted step.
         if (TERMINAL_STATUSES.has(current.status)) return;
-        const outcome = aborted || signal?.aborted || result?.status === 'CANCELLED' || webResult?.status === 'CANCELLED' || current.status === 'CANCELLING' ? 'CANCELLED' : step.outcome;
+        const outcome = aborted || signal?.aborted || result?.status === 'CANCELLED' || webResult?.status === 'CANCELLED' || trendsResult?.status === 'CANCELLED' || current.status === 'CANCELLING' ? 'CANCELLED' : step.outcome;
         const code = outcome === 'CANCELLED' ? 'CANCELLED_DURING_PROVIDER_OPERATION' : outcome === 'UNAVAILABLE' ? 'PROVIDER_NOT_CONFIGURED' : outcome === 'FAILED'
           ? step.limitations.some(value => value.code === 'PROVIDER_OUTPUT_INVALID') ? 'PROVIDER_OUTPUT_INVALID' : 'PROVIDER_FAILED' : null;
         const finished = this.#now().toISOString();
@@ -4847,6 +4894,18 @@ function assertScopeSnapshot(value: unknown, workspaceId: string, runId: string)
   }
 }
 
+function validSearchInterest(value: unknown): boolean {
+  if (!isRecord(value) || !['COLLECTED', 'FAILED', 'SKIPPED'].includes(value.status) || value.geo !== 'VN' || value.unit !== 'INDEX_0_100' || value.window !== 'LAST_12_MONTHS' ||
+      (value.reason !== null && !(SEARCH_INTEREST_REASONS as readonly unknown[]).includes(value.reason)) || (value.status === 'COLLECTED') !== (value.reason === null) ||
+      typeof value.keyword !== 'string' || value.keyword.length < 1 || value.keyword.length > 200 || CONTROL.test(value.keyword) ||
+      (value.retrievedAt !== null && (typeof value.retrievedAt !== 'string' || !Number.isFinite(Date.parse(value.retrievedAt)))) ||
+      (value.captureIndex !== null && (!Number.isSafeInteger(value.captureIndex) || value.captureIndex < 0)) ||
+      !Array.isArray(value.points) || value.points.length > MAX_SEARCH_INTEREST_POINTS || (value.status !== 'COLLECTED' && value.points.length > 0) ||
+      (value.status === 'COLLECTED' && (value.captureIndex === null || value.retrievedAt === null))) return false;
+  return value.points.every(point => isRecord(point) && typeof point.period === 'string' && point.period.length >= 1 && point.period.length <= 64 && !CONTROL.test(point.period) &&
+    (point.index === null || (Number.isInteger(point.index) && point.index >= 0 && point.index <= 100)));
+}
+
 function assertStepDocument(value: unknown, runId: string, stepId: StepId): asserts value is StepResultDocument {
   const outcomes = new Set(['SUCCEEDED', 'PARTIAL', 'UNAVAILABLE', 'FAILED', 'CANCELLED', 'INTERRUPTED']);
   if (!isRecord(value) || value.contractVersion !== 'research-automation-step-result-v1' || value.runId !== runId || value.stepId !== stepId || !outcomes.has(String(value.outcome)) ||
@@ -4880,6 +4939,8 @@ function assertStepDocument(value: unknown, runId: string, stepId: StepId): asse
         typeof item.retrievedAt !== 'string' || !Number.isFinite(Date.parse(item.retrievedAt)) ||
         !Number.isSafeInteger(item.captureIndex) || item.captureIndex < 0)))
     throw new ResearchAutomationIntegrityError('Stored web results are invalid.');
+  if (value.searchInterest !== undefined && (stepId !== 'COLLECTION' || !validSearchInterest(value.searchInterest)))
+    throw new ResearchAutomationIntegrityError('Stored search interest is invalid.');
   if (value.sourceEvidence !== undefined) checkSourceEvidence(value.sourceEvidence);
   for (const comparable of value.comparables) {
     if (!isRecord(comparable) || typeof comparable.productId !== 'string' || typeof comparable.provider !== 'string' || (comparable.metric !== 'GMV_VND' && comparable.metric !== 'UNITS_SOLD') ||
@@ -4905,10 +4966,16 @@ function assertCaptureLineage(document: StepResultDocument, captures: readonly C
     const capture = stepCaptures.get(result.captureIndex);
     if (!capture || capture.truncated || capture.retrievedAt !== result.retrievedAt) throw new ResearchAutomationIntegrityError('Stored web result references an incompatible capture.');
   }
+  const interest = document.searchInterest;
+  if (interest?.captureIndex != null) {
+    const capture = stepCaptures.get(interest.captureIndex);
+    if (!capture || capture.truncated || capture.provider !== 'serpapi' || capture.operation !== 'serpapi.google.trends' || capture.retrievedAt !== interest.retrievedAt)
+      throw new ResearchAutomationIntegrityError('Stored search interest references an incompatible capture.');
+  }
 }
 
 /** Bounded capture envelopes of one source result; null rejects the source as a whole. */
-function captureEnvelopes(result: PersistableSourceResult['result']): Array<{ capture: ProviderRawCapture; body: Buffer }> | null {
+function captureEnvelopes(result: { readonly captures: readonly ProviderRawCapture[] } | null): Array<{ capture: ProviderRawCapture; body: Buffer }> | null {
   if (result && (!Array.isArray(result.captures) || result.captures.length > MAX_CAPTURES_PER_STEP)) return null;
   const out: Array<{ capture: ProviderRawCapture; body: Buffer }> = [];
   for (const capture of result?.captures ?? []) {

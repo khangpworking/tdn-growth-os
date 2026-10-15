@@ -98,6 +98,30 @@ export interface StepWebResult {
   readonly captureIndex: number;
 }
 
+/** One relative search-interest series per collection (0-100, peak = 100); never a count of searches. */
+export const MAX_SEARCH_INTEREST_POINTS = 128;
+export const SEARCH_INTEREST_REASONS = ['PERIOD_NOT_COVERED', 'PROVIDER_FAILED', 'EMPTY_SERIES', 'CANCELLED'] as const;
+export type SearchInterestReason = typeof SEARCH_INTEREST_REASONS[number];
+
+export interface StepSearchInterestPoint {
+  readonly period: string;
+  readonly index: number | null;
+}
+
+/** Present only on runs that had the search-interest lane switched on; failures keep a reason and no points. */
+export interface StepSearchInterest {
+  readonly status: 'COLLECTED' | 'FAILED' | 'SKIPPED';
+  readonly reason: SearchInterestReason | null;
+  readonly keyword: string;
+  readonly geo: 'VN';
+  readonly unit: 'INDEX_0_100';
+  readonly window: 'LAST_12_MONTHS';
+  readonly retrievedAt: string | null;
+  readonly points: readonly StepSearchInterestPoint[];
+  /** Index into the same step's captures; null when no call was made. */
+  readonly captureIndex: number | null;
+}
+
 /** Normalized step outcome retained as canonical JSON; raw bytes are separate capture artifacts. */
 export interface StepResultDocument {
   readonly reviewSample?: import('../../../../contracts/analysis/automation-review-sample.generated.js').AutomationReviewSample;
@@ -112,6 +136,8 @@ export interface StepResultDocument {
   readonly limitations: readonly SourceLimitation[];
   /** Web search results of the collection step; absent on runs without a web source. */
   readonly webResults?: readonly StepWebResult[];
+  /** Relative search interest of the collection step; absent unless the lane was on for the run. */
+  readonly searchInterest?: StepSearchInterest;
   /** Sanitized Foundation3 reference; mutually exclusive with raw/native review. */
   readonly privateShopee?: import('./private-review-corpus.js').PrivateReviewReference;
   readonly exactShopee?: {

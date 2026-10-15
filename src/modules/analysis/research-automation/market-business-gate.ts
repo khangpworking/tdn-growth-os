@@ -348,6 +348,21 @@ function partialTotalMatches(html: string, totals: readonly PartialRowTotal[]): 
   });
 }
 
+const SEARCH_INTEREST_TERM = /(?<![\p{L}\p{N}_])(?:mức\s+quan\s+tâm\s+tìm\s+kiếm|chỉ\s+số\s+tìm\s+kiếm|chỉ\s+số\s+quan\s+tâm)(?![\p{L}\p{N}_])/giu;
+const SEARCH_COUNT_PHRASE = /(?<![\p{L}\p{N}_])(?:lượt|lần)\s+tìm\s+kiếm(?![\p{L}\p{N}_])/giu;
+const SALES_MEASURE_TERM = /(?<![\p{L}\p{N}_])(?:doanh\s+thu|doanh\s+số|đơn\s+vị\s+bán|số\s+bán|sản\s+lượng)(?![\p{L}\p{N}_])/giu;
+const COMBINE_TERM = /(?<![\p{L}\p{N}_])(?:tổng|cộng|gộp|tỷ\s+lệ|chia|nhân)(?![\p{L}\p{N}_])|[÷×+]/giu;
+
+/** Once the report shows the search-interest index, no statement may call it a number of searches
+ * or add, divide or multiply it with a sales measure; a negation in the same clause allows the disclaimer. */
+function searchInterestMisuse(html: string, scan: Scan): string[] {
+  if (!matches(scan.visible, SEARCH_INTEREST_TERM).length) return [];
+  return statementTexts(html).map(text => text.normalize('NFC')).flatMap(text => text.split(CLAUSE_BREAK).filter(clause => {
+    const unnegated = (pattern: RegExp): boolean => [...clause.matchAll(pattern)].some(hit => !matches(clause.slice(0, hit.index ?? 0), NEGATION).length);
+    return unnegated(SEARCH_COUNT_PHRASE) || matches(clause, SEARCH_INTEREST_TERM).length > 0 && matches(clause, SALES_MEASURE_TERM).length > 0 && unnegated(COMBINE_TERM);
+  }));
+}
+
 function result(rule: string, ok: boolean, detail: string): MarketBusinessGateResult { return { rule, ok, detail }; }
 
 export function auditMarketReportHtml(html: string, options: MarketBusinessGateOptions = {}): MarketBusinessGateResult[] {
@@ -362,6 +377,7 @@ export function auditMarketReportHtml(html: string, options: MarketBusinessGateO
   const m12Label = /đề xuất/iu.test(m12);
   const leaks = noLeakMatches(html, scan);
   const partial = partialTotalMatches(html, options.partialTotals ?? []);
+  const interestMisuse = searchInterestMisuse(html, scan);
   const u13 = lintVisibleReportText(normalizeInlineTagsForLint(html));
   const content = [
     result('G08_PROVIDER_NAME', provider.length === 0, snippets(provider)),
@@ -369,6 +385,7 @@ export function auditMarketReportHtml(html: string, options: MarketBusinessGateO
     result('E2_NO_REVENUE_ORDER', e2.length === 0, snippets(e2)),
     result('PARTIAL_TOTAL_FORBIDDEN', partial.length === 0, snippets(partial)),
     result('NO_LEAK', leaks.length === 0, snippets(leaks)),
+    result('SEARCH_INTEREST_NOT_COUNT', interestMisuse.length === 0, snippets(interestMisuse)),
     ...u13.map(check => result(check.rule, check.ok, check.ok ? 'clean' : snippets([check.detail]))),
   ];
   if (!presentation) return content;

@@ -111,6 +111,21 @@ test('Shopee and TikTok names alone pass the cross-platform total rule', () => {
   assert.equal(check(reportHtml('<p>Shopee và TikTok Shop được hiển thị riêng.</p>'), 'U32_NO_CROSS_PLATFORM_TOTAL').ok, true);
 });
 
+test('SEARCH_INTEREST_NOT_COUNT: a shown index is never a number of searches and never combined with sales', () => {
+  const rule = 'SEARCH_INTEREST_NOT_COUNT', shown = '<p>Mức quan tâm tìm kiếm ghi riêng, là chỉ số tương đối.</p>';
+  assert.equal(check(reportHtml(shown), rule).ok, true);
+  assert.equal(check(reportHtml('<p>Trang có 20 lượt tìm kiếm.</p>'), rule).ok, true, 'without the index in the report the rule has nothing to guard');
+  for (const bad of ['Mức quan tâm tìm kiếm đạt 5.000 lượt tìm kiếm.', 'Có 80 lần tìm kiếm trong tuần.', 'Mức quan tâm tìm kiếm cộng doanh thu là 5.', 'Chỉ số tìm kiếm × số bán.',
+    'Chỉ số tìm kiếm chia đơn vị bán.', 'Tổng doanh số và mức quan tâm tìm kiếm.', 'Tỷ lệ chỉ số quan tâm trên sản lượng.', 'Mức quan tâm tìm kiếm + doanh thu.'])
+    assert.equal(check(reportHtml(shown + `<p>${bad}</p>`), rule).ok, false, bad);
+  for (const good of ['Không phải số lượt tìm kiếm, không phải doanh số.', 'Mức quan tâm tìm kiếm không phải số lượt tìm kiếm.', 'Mức quan tâm tìm kiếm và doanh thu ghi riêng, không cộng với nhau.',
+    'Không cộng doanh số với mức quan tâm tìm kiếm.', 'Chỉ số tìm kiếm là mức tương đối, chỉ cho từ khóa này; không đo số người tìm và không cộng hay so với số bán.'])
+    assert.equal(check(reportHtml(shown + `<p>${good}</p>`), rule).ok, true, good);
+  assert.ok(auditMarketReportHtml(reportHtml(shown + '<p>Mức quan tâm tìm kiếm đạt 5.000 lượt tìm kiếm.</p>'), { presentation: false }).some(item => item.rule === rule && !item.ok));
+  assert.throws(() => assertMarketBusinessGate(reportHtml(shown + '<p>Mức quan tâm tìm kiếm cộng doanh thu.</p>')), /MARKET_BUSINESS_GATE_FAILED:SEARCH_INTEREST_NOT_COUNT/u);
+  assert.equal(check(reportHtml(shown + '<p>Mức quan tâm tìm kiếm cộng doanh thu.</p>'), 'E2_NO_REVENUE_ORDER').ok, true, 'only this rule reports it');
+});
+
 test('inline tags are concatenated for every lexical gate', () => {
   assert.equal(check(reportHtml('<p>Ope<span>nAI</span></p>'), 'G08_PROVIDER_NAME').ok, false);
   assert.equal(check(reportHtml('<p>tổ<span>ng hai sàn</span></p>'), 'U32_NO_CROSS_PLATFORM_TOTAL').ok, false);
