@@ -25,7 +25,7 @@ const expandedRows = [row(1, 'trong-ky', 'WINDOW'), row(1, 'shopee', 'SHOPEE'), 
 async function reader(rows: StepWebResult[], webPageTypes = false) {
   const input = sync1ReaderFixture('1.4.0'); input.peerRule = { ...DEFAULT_MARKET_PEER_RULE };
   const units = unitPriceFixture(input.rows); input.unitPrices = units.packet;
-  return buildMarketReport(computeReaderReportData(input, units.retained), { ...sync1Options, flint: false, webResults: rows, ...(webPageTypes ? { webPageTypes: true as const } : {}) });
+  return buildMarketReport(computeReaderReportData(input, units.retained), { ...sync1Options, flint: true, webResults: rows, ...(webPageTypes ? { webPageTypes: true as const } : {}) });
 }
 async function presentationInput(web: StepWebResult[] = []): Promise<AutomationReportInput> {
   const metric = calculateMetricScopes(metricFixture());
