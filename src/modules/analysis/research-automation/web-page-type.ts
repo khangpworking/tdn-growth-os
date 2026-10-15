@@ -9,14 +9,25 @@ const DOING = 'lam|nau|dung|su dung|pha|chon|bao quan|che bien|nuong|chien|uong|
 const HOW_TO = new RegExp(`\\b(?:cach (?:${DOING})|huong dan|cong thuc|bi quyet|lam sao)\\b`);
 // "mẹo" (tip) folds to the same letters as "mèo" (cat), so it is matched with its marks.
 const HOW_TO_ACCENTED = /(?<![\p{L}])mẹo(?![\p{L}])/u;
-const HOW_TO_SLUG = new RegExp(`(?:^|/)(?:cach-(?:${DOING.replace(/ /g, '-')})|huong-dan|cong-thuc|meo-|bi-quyet)(?:[a-z-]*)(?:/|$)`);
+const HOW_TO_SLUG = new RegExp(`(?:^|/)(?:cach-(?:${DOING.replace(/ /g, '-')})|huong-dan|cong-thuc|meo-|bi-quyet)(?:[a-z0-9-]*)(?:/|$)`);
 const fold = (s: string): string => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd');
 function parts(url: string): { host: string; path: string } | null {
-  try { const u = new URL(url); return { host: u.hostname.toLowerCase().replace(/^(?:www|m|amp)\./, ''), path: fold(decodeURIComponent(u.pathname)).toLowerCase() }; } catch { return null; }
+  let parsed: URL;
+  try { parsed = new URL(url); } catch { return null; }
+  // A malformed percent-encoding must not lose the host: fall back to the raw path.
+  let raw = parsed.pathname;
+  try { raw = decodeURIComponent(raw); } catch { /* keep the raw path */ }
+  return { host: parsed.hostname.toLowerCase().replace(/^(?:www|m|amp)\./, ''), path: fold(raw).toLowerCase() };
 }
+// Shops and marketplaces sell products; a how-to phrase in a product listing is not a how-to article.
+const SHOP_HOSTS = ['shopee.vn', 'shopee.com', 'tiktok.com', 'lazada.vn', 'tiki.vn', 'sendo.vn'];
+const PRODUCT_PATH = /(?:^|\/)(?:product|products|san-pham|item|dp|p)(?:\/|$)|-i\.\d+\.\d+|(?:^|\/)product\.\d+\.\d+/;
+const onHost = (host: string, list: readonly string[]): boolean => list.some(d => host === d || host.endsWith(`.${d}`));
 export function classifyWebPage(row: { readonly url: string; readonly title: string; readonly snippet: string | null }): WebPageType {
   const u = parts(row.url);
-  if (u && (NEWS_DOMAINS.some(d => u.host === d || u.host.endsWith(`.${d}`)) || NEWS_PATH.test(u.path))) return 'S26';
-  const text = `${row.title} ${row.snippet ?? ''}`.toLowerCase().normalize('NFC');
-  return HOW_TO.test(fold(text)) || HOW_TO_ACCENTED.test(text) || (u !== null && HOW_TO_SLUG.test(u.path)) ? 'S13' : 'S19';
+  if (u && (onHost(u.host, NEWS_DOMAINS) || NEWS_PATH.test(u.path))) return 'S26';
+  if (u && (onHost(u.host, SHOP_HOSTS) || PRODUCT_PATH.test(u.path))) return 'S19';
+  // The how-to signal must be in the title or the address; a snippet alone is not enough.
+  const title = row.title.toLowerCase().normalize('NFC');
+  return HOW_TO.test(fold(title)) || HOW_TO_ACCENTED.test(title) || (u !== null && HOW_TO_SLUG.test(u.path)) ? 'S13' : 'S19';
 }

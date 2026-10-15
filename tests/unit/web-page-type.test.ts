@@ -18,7 +18,7 @@ test('news-style paths are S26 on any host', () => {
   assert.equal(kind('https://shop.example.test/san-pham/tin-tuc-thach-dua', 'Thạch dừa'), 'S19', 'only a whole path segment counts');
 });
 
-test('how-to wording in the title or snippet is S13, with and without diacritics, any case', () => {
+test('how-to wording in the title is S13, with and without diacritics, any case', () => {
   assert.equal(kind('https://blog.example.test/a', 'Cách làm thạch dừa tại nhà'), 'S13');
   assert.equal(kind('https://blog.example.test/a', 'CÁCH NẤU thạch dừa'), 'S13');
   assert.equal(kind('https://blog.example.test/a', 'Hướng dẫn pha thạch dừa'), 'S13');
@@ -27,14 +27,17 @@ test('how-to wording in the title or snippet is S13, with and without diacritics
   assert.equal(kind('https://blog.example.test/a', 'Bí quyết giữ thạch dừa'), 'S13');
   assert.equal(kind('https://blog.example.test/a', 'Làm sao để thạch dừa giòn'), 'S13');
   assert.equal(kind('https://blog.example.test/a', 'Review cách dùng thạch dừa'), 'S13');
-  assert.equal(kind('https://blog.example.test/a', 'Thạch dừa', 'Mẹo bảo quản thạch dừa lâu hơn'), 'S13', 'the snippet counts');
-  assert.equal(kind('https://blog.example.test/a', 'Thạch dừa', 'Xem cách sử dụng bên dưới'), 'S13');
+  assert.equal(kind('https://blog.example.test/a', 'Mẹo bảo quản thạch dừa'), 'S13');
+  assert.equal(kind('https://blog.example.test/a', 'Thạch dừa', 'Mẹo bảo quản thạch dừa lâu hơn'), 'S19', 'a snippet alone is not enough');
+  assert.equal(kind('https://blog.example.test/a', 'Thạch dừa', 'Xem cách sử dụng bên dưới'), 'S19');
 });
 
 test('how-to slug in the URL path is S13 when the text has no pattern', () => {
   assert.equal(kind('https://blog.example.test/cach-lam-thach-dua', 'Thạch dừa'), 'S13');
   assert.equal(kind('https://blog.example.test/huong-dan-su-dung', 'Thạch dừa'), 'S13');
   assert.equal(kind('https://blog.example.test/meo-bao-quan', 'Thạch dừa'), 'S13');
+  assert.equal(kind('https://blog.example.test/huong-dan-su-dung-2024', 'Thạch dừa'), 'S13', 'a numeric suffix is accepted');
+  assert.equal(kind('https://blog.example.test/cach-lam-thach-dua-123/', 'Thạch dừa'), 'S13');
 });
 
 test('ambiguous words do not make a how-to: mèo, cách nhiệt, cách điện', () => {
@@ -42,6 +45,20 @@ test('ambiguous words do not make a how-to: mèo, cách nhiệt, cách điện',
   assert.equal(kind('https://shop.example.test/a', 'Hộp cách nhiệt đựng thạch dừa'), 'S19');
   assert.equal(kind('https://shop.example.test/a', 'Thạch dừa', 'Khoảng cách giao hàng'), 'S19');
   assert.equal(kind('https://shop.example.test/a', 'Hộp thạch dừa giá tốt'), 'S19');
+});
+
+test('shops, marketplaces and product pages are never how-to', () => {
+  for (const url of ['https://shopee.vn/thach-dua-500g-i.123.456', 'https://www.tiktok.com/@shop/video/1', 'https://lazada.vn/products/a', 'https://tiki.vn/p/1', 'https://sendo.vn/x',
+    'https://shop.shopee.vn/a', 'https://m.lazada.vn/a', 'https://blog.example.test/san-pham/cach-lam-thach-dua', 'https://blog.example.test/product/huong-dan'])
+    assert.equal(kind(url, 'Thạch dừa 500g', 'Xem cách sử dụng bên dưới'), 'S19', url);
+  assert.equal(kind('https://shopee.vn/a', 'Cách làm thạch dừa'), 'S19', 'even a how-to title on a marketplace host');
+  assert.equal(kind('https://shopee.vn/huong-dan-su-dung', 'Thạch dừa'), 'S19');
+});
+
+test('a malformed percent-encoding keeps the host and path rules', () => {
+  assert.equal(kind('https://vnexpress.net/%E0%A4%A', 'Thạch dừa'), 'S26');
+  assert.equal(kind('https://blog.example.test/tin-tuc/%E0%A4%A', 'Thạch dừa'), 'S26');
+  assert.equal(kind('https://blog.example.test/huong-dan/%E0%A4%A', 'Thạch dừa'), 'S13');
 });
 
 test('news wins a tie with how-to wording', () => {
