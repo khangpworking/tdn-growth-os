@@ -113,7 +113,7 @@ test('the planner issues one query per kind for the exact keyword and refuses op
   for (const siteDomain of [null, 'shopee.vn', 'tiktok.com']) {
     const planned = planExpandedSearch({ ...base, siteDomain, exactKeyword: 'bình giữ nhiệt' });
     assert.equal(planned.length, 1);
-    assert.equal(planned[0]!.query, siteDomain ? `bình giữ nhiệt site:${siteDomain}` : 'bình giữ nhiệt');
+    assert.equal(planned[0]!.parameters.q, siteDomain ? `bình giữ nhiệt site:${siteDomain}` : 'bình giữ nhiệt');
   }
   assert.throws(() => planExpandedSearch({ ...base, siteDomain: null, exactKeyword: 'bình site:evil.test' }));
   assert.throws(() => planExpandedSearch({ ...base, siteDomain: null, exactKeyword: '   ' }));
