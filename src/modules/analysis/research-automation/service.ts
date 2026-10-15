@@ -3373,6 +3373,7 @@ export class ResearchAutomationService {
         };
         if (input.sourceEvidence) input = { ...input, sourceEvidence: sourceEvidenceForReport(input.sourceEvidence, input, kind) };
         if (input.sourceEvidence && input.collection) { const { expandedSearch: _expanded, ...plain } = input.collection; input = { ...input, collection: { ...plain, webResults: admitWebResults(input.sourceEvidence, collectionWebRows(input.collection), captures, input.sourceEvidence.jevTriage ?? null) } }; }
+        else if (input.collection?.expandedSearch) { const { expandedSearch: _expanded, ...plain } = input.collection; input = { ...input, collection: { ...plain, webResults: collectionWebRows(input.collection) } }; }
         const builtClaims = buildAutomationSourceClaims({ run, scope,
             ...(input.descriptiveMethods ? { descriptive: { output: input.descriptiveMethods } } : {}),
             ...(kind === 'INSIGHT' && locatedReview?.contractVersion === 'automation-located-review-snapshot-v2' ? { located: { snapshot: locatedReview } } : {}),
