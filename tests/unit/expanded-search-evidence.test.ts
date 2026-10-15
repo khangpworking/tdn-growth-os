@@ -71,8 +71,9 @@ test('rows are tagged by the query that produced them and listed after the plain
 
 test('extra rows pass the same L9 admission and page typing as the plain rows', () => {
   const packet = evidence(all, true);
-  assert.deepEqual(ids(packet), ['S19', 'S13', 'S26']);
-  assert.equal(packet.sourceAppendix.rows[0]!.l9Excluded, 1, 'the excluded extra row is an L9 exclusion, like a plain one');
+  assert.deepEqual([ids(packet).filter(id => id === 'S13').length, ids(packet).filter(id => id === 'S26').length], [1, 1], 'one how-to use and one news use');
+  assert.deepEqual(ids(packet).filter(id => id === 'S19').length, 4, 'S19 keeps one use per capture, extra captures included');
+  assert.equal(packet.sourceAppendix.rows.filter(r => r.registryId === 'S19').reduce((sum, r) => sum + (r.l9Excluded ?? 0), 0), 1, 'the excluded extra row is an L9 exclusion, like a plain one');
   const admitted = admitWebResults(packet, all, captures, null);
   assert.deepEqual(admitted.map(r => r.url), [plain.url, window.url, shopee.url, tiktok.url]);
   assert.deepEqual(admitted.map(r => r.origin), [undefined, 'WINDOW', 'SHOPEE', 'TIKTOK'], 'origin survives admission');
@@ -112,7 +113,7 @@ test('the planner issues one query per kind for the exact keyword and refuses op
   for (const siteDomain of [null, 'shopee.vn', 'tiktok.com']) {
     const planned = planExpandedSearch({ ...base, siteDomain, exactKeyword: 'bình giữ nhiệt' });
     assert.equal(planned.length, 1);
-    assert.equal(planned[0]!.q, siteDomain ? `bình giữ nhiệt site:${siteDomain}` : 'bình giữ nhiệt');
+    assert.equal(planned[0]!.query, siteDomain ? `bình giữ nhiệt site:${siteDomain}` : 'bình giữ nhiệt');
   }
   assert.throws(() => planExpandedSearch({ ...base, siteDomain: null, exactKeyword: 'bình site:evil.test' }));
   assert.throws(() => planExpandedSearch({ ...base, siteDomain: null, exactKeyword: '   ' }));

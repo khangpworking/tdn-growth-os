@@ -25,9 +25,9 @@ const expandedRows = [row(1, 'trong-ky', 'WINDOW'), row(1, 'shopee', 'SHOPEE'), 
 async function reader(rows: StepWebResult[], webPageTypes = false) {
   const input = sync1ReaderFixture('1.4.0'); input.peerRule = { ...DEFAULT_MARKET_PEER_RULE };
   const units = unitPriceFixture(input.rows); input.unitPrices = units.packet;
-  return buildMarketReport(computeReaderReportData(input, units.retained), { ...sync1Options, flint: false, webResults: rows, ...(webPageTypes ? { webPageTypes: true as const } : {}) });
+  return buildMarketReport(computeReaderReportData(input, units.retained), { ...sync1Options, flint: false, webResults: web, ...(webPageTypes ? { webPageTypes: true as const } : {}) });
 }
-async function presentationInput(rows: StepWebResult[] = []): Promise<AutomationReportInput> {
+async function presentationInput(web: StepWebResult[] = []): Promise<AutomationReportInput> {
   const metric = calculateMetricScopes(metricFixture());
   const rows = sync1ReaderFixture('1.4.0').rows, unit = unitPriceFixture(rows);
   const record = { contractVersion: 'reader-unit-spec-intake-record-v1' as const, workspaceId, runId, draftPairId: 'a'.repeat(64),
@@ -37,7 +37,7 @@ async function presentationInput(rows: StepWebResult[] = []): Promise<Automation
     metric: { sourcePackage: { packageId: runId, manifestArtifactSha256: 'd'.repeat(64), packageContentSha256: 'e'.repeat(64) },
       workbookSha256: record.workbookSha256, resultSha256: marketPresentationDigest(metric) } };
   const marketPresentation = buildAutomationMarketPresentation(binding, { metric, rows, unitSpec: { sha256: marketPresentationDigest(record), record } }, unit.retained);
-  const collection = { runId, stepId: 'COLLECTION', outcome: 'SUCCEEDED', comparables: [], productCards: [], webResults: rows, coverage: [], limitations: [] };
+  const collection = { runId, stepId: 'COLLECTION', outcome: 'SUCCEEDED', comparables: [], productCards: [], webResults: web, coverage: [], limitations: [] };
   return { run: { runId, workspaceId, createdAt: '2026-01-01T00:00:00.000Z', coverage: [], usage: {} },
     start: { contractVersion: 'research-automation-start-snapshot-v1', workspaceId, country: 'VN', mode: 'CATEGORY', keyword: 'synthetic jar', description: null,
       interview: null, requestedPeriod: { startDate: '2026-01-01', endDate: '2026-01-30', dayCount: 30 }, reports: ['MARKET'] },
