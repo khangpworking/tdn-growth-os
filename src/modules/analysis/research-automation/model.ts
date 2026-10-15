@@ -96,7 +96,30 @@ export interface StepWebResult {
   readonly published?: string | null;
   readonly retrievedAt: string;
   readonly captureIndex: number;
+  /** In-memory only (never in a stored plain row): which extra search produced this row. */
+  readonly origin?: ExpandedSearchKind;
 }
+
+/** Extra search pointers of the collection step (S19): at most one per kind per run, a fixed set decided in code. */
+export const EXPANDED_SEARCH_KINDS = ['WINDOW', 'SHOPEE', 'TIKTOK'] as const;
+export type ExpandedSearchKind = typeof EXPANDED_SEARCH_KINDS[number];
+export const EXPANDED_SEARCH_REASONS = ['NOT_PLANNED', 'PROVIDER_FAILED', 'CANCELLED', 'BUDGET_EXHAUSTED'] as const;
+export type ExpandedSearchReason = typeof EXPANDED_SEARCH_REASONS[number];
+
+export interface StepExpandedQuery {
+  readonly kind: ExpandedSearchKind;
+  readonly status: 'COLLECTED' | 'FAILED' | 'SKIPPED';
+  readonly reason: ExpandedSearchReason | null;
+  /** The report window a dated search was limited to; null for the site-scoped kinds. */
+  readonly requestedWindow: { readonly startDate: string; readonly endDate: string } | null;
+  readonly retrievedAt: string | null;
+  /** Index into the same step's captures; null when no call was made. */
+  readonly captureIndex: number | null;
+  /** Rows after URL dedupe against the plain web rows; bounded like the plain web rows. */
+  readonly results: readonly StepWebResult[];
+}
+
+export interface StepExpandedSearch { readonly queries: readonly StepExpandedQuery[] }
 
 /** One relative search-interest series per collection (0-100, peak = 100); never a count of searches. */
 export const MAX_SEARCH_INTEREST_POINTS = 128;
@@ -138,6 +161,8 @@ export interface StepResultDocument {
   readonly webResults?: readonly StepWebResult[];
   /** Relative search interest of the collection step; absent unless the lane was on for the run. */
   readonly searchInterest?: StepSearchInterest;
+  /** Extra search pointers; absent unless the lane was on for the run. */
+  readonly expandedSearch?: StepExpandedSearch;
   /** Sanitized Foundation3 reference; mutually exclusive with raw/native review. */
   readonly privateShopee?: import('./private-review-corpus.js').PrivateReviewReference;
   readonly exactShopee?: {

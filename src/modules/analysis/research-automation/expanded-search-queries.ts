@@ -66,6 +66,8 @@ export interface ExpandedSearchRequest {
   readonly confirmedBrands: readonly string[];
   readonly requestedWindow: DateWindow | null;
   readonly siteDomain: string | null;
+  /** Report-keyword mode: the only query is this exact keyword (plain words, validated like a confirmed name); templates are not used. */
+  readonly exactKeyword?: string;
 }
 
 export interface ExpandedSearchQuery {
@@ -103,7 +105,10 @@ export function planExpandedSearch(request: ExpandedSearchRequest): readonly Exp
     siteDomain = request.siteDomain.toLowerCase();
   }
   const googleDate = (date: string): string => `${date.slice(5, 7)}/${date.slice(8, 10)}/${date.slice(0, 4)}`;
-  return buildExpandedQueries({ confirmedProducts, confirmedBrands }).map(query => ({
+  const queries = request.exactKeyword === undefined ? buildExpandedQueries({ confirmedProducts, confirmedBrands })
+    : confirmedWords([request.exactKeyword]).slice(0, 1);
+  if (request.exactKeyword !== undefined && queries.length !== 1) throw new ProviderInputError('Exact keyword must contain plain words');
+  return queries.map(query => ({
     query, requestedWindow, siteDomain,
     parameters: {
       engine: 'google', q: siteDomain ? `${query} site:${siteDomain}` : query, gl: 'vn', hl: 'vi', num: 10,
