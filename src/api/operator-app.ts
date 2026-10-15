@@ -76,6 +76,8 @@ export interface OperatorAppConfiguration {
   readonly researchJev?: TypesafeJevConfiguration;
   /** Opt-in generic Market cover illustration through `cliproxy` (gpt-image-2 only); absent keeps the procedural fallback. */
   readonly researchMarketCoverAi?: true;
+  /** Market auto-runner; present only when TDN_METRIC_OPENCLI_ENABLED is exactly "1". */
+  readonly researchMetricAutoRun?: { readonly captureRoot: string; readonly adapterManifestPath?: string; readonly adapterManifestSha256?: string };
 }
 export interface OperatorAppDependencies {
   readonly creativeAiTransport?: typeof fetch;
@@ -148,6 +150,13 @@ export function operatorAppConfigurationFromEnvironment(
   const coverEnabled = environment.TDN_RESEARCH_COVER_AI_ENABLED;
   if (coverEnabled !== undefined && coverEnabled !== 'true' && coverEnabled !== 'false') throw new TypeError('TDN_RESEARCH_COVER_AI_ENABLED must be exactly true or false');
   if (coverEnabled === 'true' && environment.TDN_RESEARCH_COVER_AI_MODEL !== 'gpt-image-2') throw new TypeError('TDN_RESEARCH_COVER_AI_MODEL must be exactly gpt-image-2 when TDN_RESEARCH_COVER_AI_ENABLED is true');
+  // Read once. Any value other than exactly "1" leaves the auto-runner off: no runner, no row.
+  const autoRunManifest = environment.TDN_METRIC_OPENCLI_ADAPTER_MANIFEST, autoRunSha = environment.TDN_METRIC_OPENCLI_ADAPTER_SHA256;
+  const researchMetricAutoRun = environment.TDN_METRIC_OPENCLI_ENABLED !== '1' ? undefined : {
+    captureRoot: environment.TDN_METRIC_CAPTURE_DIR || path.join(path.dirname(path.resolve(environment.TDN_WORKSPACE_DB ?? '')), 'metric-captures'),
+    ...(autoRunManifest ? { adapterManifestPath: autoRunManifest } : {}),
+    ...(autoRunSha ? { adapterManifestSha256: autoRunSha } : {}),
+  };
   const configuration: OperatorAppConfiguration = {
     databasePath: environment.TDN_WORKSPACE_DB ?? '', artifactRoot: environment.TDN_ARTIFACT_ROOT ?? '',
     frontendDist: defaults.frontendDist, version: defaults.version,
@@ -167,6 +176,7 @@ export function operatorAppConfigurationFromEnvironment(
     ...(researchShopeeCodingAi === undefined ? {} : { researchShopeeCodingAi }),
     ...(researchJev.enabled ? { researchJev } : {}),
     ...(coverEnabled === 'true' ? { researchMarketCoverAi: true as const } : {}),
+    ...(researchMetricAutoRun === undefined ? {} : { researchMetricAutoRun }),
     ...(environment.TDN_R2_ENABLED !== 'true' ? {} : { r2: {
       TDN_R2_ENABLED: 'true', TDN_R2_ACCOUNT_ID: environment.TDN_R2_ACCOUNT_ID,
       TDN_R2_ACCESS_KEY_ID: environment.TDN_R2_ACCESS_KEY_ID,
@@ -239,6 +249,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
       ...(configuration.researchJev ? { researchJev: configuration.researchJev } : {}),
       ...(configuration.researchMarketCoverAi ? { marketCover: { cliproxy: configuration.cliproxy!,
         ...(dependencies.creativeAiTransport ? { transport: dependencies.creativeAiTransport } : {}) } } : {}),
+      ...(configuration.researchMetricAutoRun ? { metricAutoRun: configuration.researchMetricAutoRun } : {}),
       ...(configuration.ownerWritesEnabled ? { owner: {
         databasePath, artifactRoot: configuration.artifactRoot, writeEnabled: true,
         token: ownerToken, actorId: configuration.ownerActorId!, allowedOrigin: origin,

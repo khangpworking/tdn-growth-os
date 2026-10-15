@@ -41,6 +41,8 @@ import { createHash, randomUUID } from 'node:crypto';
 import { AutomationInsightLiteralEvidence } from './insight-literal-bridge.js';
 import type { InsightLiteralEvidence } from '../../../../contracts/analysis/insight-literal-evidence.generated.js';
 import { createRequire } from 'node:module';
+import { readFile } from 'node:fs/promises';
+import { join as joinPath } from 'node:path';
 import automationApiSchema from '../../../../contracts/api/research-automation-api.schema.json' with { type: 'json' };
 import sourceConfirmSchema from '../../../../contracts/api/research-automation-source-api.schema.json' with { type: 'json' };
 import sourceSetSchema from '../../../../contracts/analysis/automation-confirmed-source-set.schema.json' with { type: 'json' };
@@ -83,7 +85,9 @@ import { AutomationI14SynthesisExecutions, type AutomationI14ExecutionRequest, t
 import type { ResearchAutomationMetricPrepareRequest, ResearchAutomationMetricPrepareReceipt, ResearchAutomationPreparedMetricList } from '../../../../contracts/api/research-automation-metric-intake-api.generated.js';
 import { AutomationMetricSourceIntake, MAX_METRIC_UPLOAD_BYTES } from './metric-source-intake.js';
 import type { ResearchAutomationMetricCapturePrepareRequest, ResearchAutomationMetricCapturePrepareReceipt, ResearchAutomationPreparedMetricCaptureList } from '../../../../contracts/api/research-automation-metric-capture-intake-api.generated.js';
-import { AutomationMetricCaptureSourceIntake, MAX_METRIC_CAPTURE_BYTES, MAX_METRIC_CAPTURE_TOTAL_BYTES, verifyMetricCaptureArchive, SNAPSHOT_PATH, MANIFEST_PATH } from './metric-capture-intake.js';
+import { AutomationMetricCaptureSourceIntake, MAX_METRIC_CAPTURE_BYTES, MAX_METRIC_CAPTURE_TOTAL_BYTES, verifyMetricCaptureArchive, SNAPSHOT_PATH, MANIFEST_PATH, MetricCaptureRejection } from './metric-capture-intake.js';
+import { autorunRequestKey, buildConfirmValue, buildPrepareValue, deriveIncludeTerms, pickShopeeLinks, planCapturePeriod, sourceContextVi, type DatePeriod as AutorunPeriod } from './autorun-derive.js';
+import { runMetricCapture, type MetricCaptureRequest, type MetricCaptureRunnerConfig, type MetricCaptureRunResult } from './metric-capture-runner.js';
 import { readPreparedMetricCaptureSources } from './metric-capture-inventory.js';
 import { AutomationWorldBankSourceIntake, readConfirmedWorldBankSource, readWorldBankHistory } from './world-bank-intake.js';
 import type { Binding as WorldBankBinding } from '../../../../contracts/analysis/world-bank-intake-v1.generated.js';
@@ -352,6 +356,38 @@ export interface ResearchAutomationServiceOptions {
     readonly maxQuestionsPerRun?: number;
     readonly extractPdf?: (bytes: Uint8Array) => Promise<readonly PageIndexLocalPage[]>;
   };
+  /** Market auto-runner. Absent or not enabled: no auto-run row is written and nothing changes. */
+  readonly autoRun?: ResearchAutomationAutoRunOptions;
+}
+
+/** Composition-root configuration of the Market auto-runner (enabled only when its flag is exactly "1"). */
+export interface ResearchAutomationAutoRunOptions {
+  readonly enabled: boolean;
+  readonly runner: MetricCaptureRunnerConfig;
+  /** Test seam; defaults to the real capture runner. */
+  readonly runCapture?: (config: MetricCaptureRunnerConfig, request: MetricCaptureRequest) => Promise<MetricCaptureRunResult>;
+  /** Called after a detached capture settles, so the worker drains the next phase. */
+  readonly onWake?: () => void;
+}
+
+type AutorunPhase = 'WAITING_SCOPE' | 'CAPTURE' | 'PREPARE' | 'PICK' | 'CONFIRM' | 'WAIT_DRAFT' | 'PRESENT' | 'DONE' | 'STOPPED';
+interface AutorunRow {
+  runId: string; workspaceId: string; phase: AutorunPhase; phaseState: 'QUEUED' | 'RUNNING';
+  confirmExpectedRevision: bigint | number | null; packageId: string | null; pickArtifactId: string | null;
+}
+const AUTORUN_ENVIRONMENT_STOPS = new Set(['METRIC_LOGIN_REQUIRED', 'METRIC_CAPTCHA', 'BRIDGE_DISCONNECTED']);
+const AUTORUN_RUN_END_STATUSES = new Set<ResearchAutomationRun['status']>(['DRAFT_READY', 'FAILED', 'CANCELLED', 'INTERRUPTED']);
+const AUTORUN_PICK_RECORD_VERSION = 'autorun-pick-record-v1';
+/** Short, path-free stop detail; owner-facing wording is mapped from the code in a later step. */
+function autorunStopDetail(code: string): string {
+  return `Automatic run stopped: ${code}.`;
+}
+/** The period the capture actually used (snapshot scope), when it is readable. */
+function autorunSnapshotPeriod(bytes: Uint8Array): AutorunPeriod | null {
+  try {
+    const period = (JSON.parse(Buffer.from(bytes).toString('utf8')) as { scope?: { period?: { startDate?: unknown; endDate?: unknown } } }).scope?.period;
+    return typeof period?.startDate === 'string' && typeof period.endDate === 'string' ? { startDate: period.startDate, endDate: period.endDate } : null;
+  } catch { return null; }
 }
 
 export interface ResearchAutomationReadReport {
@@ -467,8 +503,13 @@ export class ResearchAutomationService {
   readonly #pageIndex: ResearchAutomationServiceOptions['pageIndex'];
   readonly #sourceEvidence: ResearchAutomationServiceOptions['sourceEvidence'];
   readonly #marketCoverAi: MarketCoverAi | undefined;
+  readonly #autoRun: ResearchAutomationAutoRunOptions | undefined;
+  /** Detached captures (D3): the worker drain never awaits a capture. */
+  readonly #autoCaptures = new Map<string, { readonly controller: AbortController; readonly promise: Promise<void> }>();
+  #autorunTable = false;
 
   constructor(options: ResearchAutomationServiceOptions) {
+    this.#autoRun = options.autoRun?.enabled === true ? options.autoRun : undefined;
     this.#marketCoverAi = options.marketCoverAi;
     this.#tikTokCommentsCollector = options.tikTokCommentsCollector;
     this.#tiktokCodingAi = options.tiktokCodingAi;
@@ -1116,6 +1157,11 @@ export class ResearchAutomationService {
         for (const stepId of STEP_IDS) this.#db.prepare(`INSERT INTO analysis_research_automation_steps(run_id,step_id,state) VALUES (?,?,'${stepId === 'QUICK_SEARCH' ? 'QUEUED' : 'PENDING'}')`).run(runId, stepId);
         this.#db.prepare(`INSERT INTO analysis_research_automation_requests(request_key,run_id,request_kind,request_sha256,accepted_at) VALUES (?,?,?,?,?)`)
           .run(input.requestKey, runId, 'START', requestSha, createdAt);
+        if (this.#autoRun && input.reports.includes('MARKET')) {
+          this.#db.prepare(`INSERT INTO research_automation_autorun(run_id,workspace_id,phase,phase_state,capture_dir_key,prepare_request_key,confirm_request_key,revision_request_key,created_at,updated_at)
+            VALUES (?,?,'WAITING_SCOPE','QUEUED',?,?,?,?,?,?)`).run(runId, workspaceId, runId, autorunRequestKey(runId, 'prepare'), autorunRequestKey(runId, 'confirm'),
+            autorunRequestKey(runId, 'revision'), createdAt, createdAt);
+        }
       })();
       void run;
       return { contractVersion: 'research-automation-receipt-v1', exactRetry: false, run: await this.getRun(workspaceId, runId) };
@@ -1845,8 +1891,10 @@ export class ResearchAutomationService {
         }
         this.#db.prepare(`INSERT INTO analysis_research_automation_requests(request_key,run_id,request_kind,request_sha256,accepted_at) VALUES (?,?,?,?,?)`)
           .run(input.requestKey, runId, 'CANCEL', requestSha, acceptedAt);
+        if (this.#hasAutorunTable()) this.#autorunStop(runId, 'CANCELLED', acceptedAt);
       })();
       this.#active.get(runId)?.abort();
+      this.#autoCaptures.get(runId)?.controller.abort();
       return { contractVersion: 'research-automation-receipt-v1', exactRetry: false, run: await this.getRun(workspaceId, runId) };
     });
     return receipt;
@@ -2850,7 +2898,7 @@ export class ResearchAutomationService {
       FROM analysis_research_automation_runs WHERE status IN ('QUICK_SEARCH_QUEUED','COLLECTION_QUEUED','RENDERING') ORDER BY created_at,run_id LIMIT 1`).get() as RunRow | undefined;
     if (!row) {
       const queued = this.#db.prepare(`SELECT attempt_id attemptId FROM analysis_research_automation_attempts WHERE state='QUEUED' ORDER BY created_at,attempt_id LIMIT 1`).get() as { attemptId: string } | undefined;
-      if (!queued) return false;
+      if (!queued) return this.#autoRun ? this.#processAutorun() : false;
       const attempt = this.#attempt(queued.attemptId)!;
       const parent = this.#current(attempt.runId);
       if (!parent) throw new ResearchAutomationIntegrityError('Revision source run is missing.');
@@ -2879,6 +2927,12 @@ export class ResearchAutomationService {
             this.#skipPendingSteps(row.runId, at);
           }
         }
+        if (this.#hasAutorunTable()) {
+          // A capture is a paid lookup: an interrupted one stops, it is never re-run.
+          this.#db.prepare(`UPDATE research_automation_autorun SET phase='STOPPED',phase_state='QUEUED',stop_code='CAPTURE_INTERRUPTED',stop_detail=?,updated_at=? WHERE phase='CAPTURE' AND phase_state='RUNNING'`)
+            .run(autorunStopDetail('CAPTURE_INTERRUPTED'), at);
+          this.#db.prepare(`UPDATE research_automation_autorun SET phase_state='QUEUED',updated_at=? WHERE phase IN ('PREPARE','PICK','CONFIRM','WAIT_DRAFT') AND phase_state='RUNNING'`).run(at);
+        }
       })();
     });
   }
@@ -2903,6 +2957,13 @@ export class ResearchAutomationService {
       })();
     });
     for (const controller of this.#active.values()) controller.abort();
+    for (const capture of this.#autoCaptures.values()) capture.controller.abort();
+    await this.settleAutoRunCaptures();
+  }
+
+  /** Waits until every detached capture has written back its outcome (shutdown and tests). */
+  async settleAutoRunCaptures(): Promise<void> {
+    while (this.#autoCaptures.size > 0) await Promise.allSettled([...this.#autoCaptures.values()].map(capture => capture.promise));
   }
 
   #executeQuick(row: RunRow, externalSignal?: AbortSignal): Promise<boolean> {
@@ -4216,7 +4277,301 @@ export class ResearchAutomationService {
   #transition(runId: string, expectedRevision: number, status: ResearchAutomationRun['status'], at: string): void {
     const result = this.#db.prepare('UPDATE analysis_research_automation_runs SET revision=revision+1,status=?,updated_at=? WHERE run_id=? AND revision=?').run(status, at, runId, expectedRevision);
     if (result.changes !== 1) throw new ResearchAutomationConflictError('revision_conflict', 'The run changed; reload it before continuing.');
+    if (status === 'AWAITING_SCOPE' || AUTORUN_RUN_END_STATUSES.has(status)) this.#autorunAfterTransition(runId, status, at);
   }
+
+  // ---------------------------------------------------------------------------
+  // Market auto-runner (behind TDN_METRIC_OPENCLI_ENABLED="1")
+  // ---------------------------------------------------------------------------
+
+  #hasAutorunTable(): boolean {
+    if (!this.#autorunTable) this.#autorunTable = Boolean(this.#db.prepare(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='research_automation_autorun'`).get());
+    return this.#autorunTable;
+  }
+  /** Hooks only touch an existing auto-run row; runs without one are unchanged. */
+  #autorunAfterTransition(runId: string, status: ResearchAutomationRun['status'], at: string): void {
+    if (!this.#hasAutorunTable()) return;
+    if (status === 'AWAITING_SCOPE') {
+      this.#db.prepare(`UPDATE research_automation_autorun SET phase='CAPTURE',phase_state='QUEUED',updated_at=? WHERE run_id=? AND phase='WAITING_SCOPE'`).run(at, runId);
+    } else {
+      this.#db.prepare(`UPDATE research_automation_autorun SET phase_state='QUEUED',updated_at=? WHERE run_id=? AND phase='WAIT_DRAFT'`).run(at, runId);
+    }
+  }
+  #autorunRow(runId: string): AutorunRow | undefined {
+    return this.#db.prepare(`SELECT run_id runId,workspace_id workspaceId,phase,phase_state phaseState,confirm_expected_revision confirmExpectedRevision,package_id packageId,pick_artifact_id pickArtifactId
+      FROM research_automation_autorun WHERE run_id=?`).get(runId) as AutorunRow | undefined;
+  }
+  /** Stops a row that is still open; a row already DONE or STOPPED keeps its outcome. */
+  #autorunStop(runId: string, code: string, at: string): void {
+    this.#db.prepare(`UPDATE research_automation_autorun SET phase='STOPPED',phase_state='QUEUED',stop_code=?,stop_detail=?,updated_at=? WHERE run_id=? AND phase NOT IN ('DONE','STOPPED')`)
+      .run(code, autorunStopDetail(code), at, runId);
+  }
+  /** Why the run can no longer be confirmed automatically. */
+  #autorunRunStopCode(status: ResearchAutomationRun['status']): string {
+    return status === 'FAILED' || status === 'CANCELLED' || status === 'INTERRUPTED' ? `RUN_${status}` : 'SCOPE_CHANGED_BY_OWNER';
+  }
+  #autorunCaptureDir(runId: string): string {
+    return joinPath(this.#autoRun!.runner.captureRoot, runId, 'run1');
+  }
+  /**
+   * Claims one QUEUED phase row under the mutex and marks it RUNNING. `check` runs under the same
+   * mutex against the fresh run row and may stop the auto-run instead (returns a stop code).
+   */
+  async #autorunClaim(runId: string, phase: AutorunPhase, check: (run: RunRow, row: AutorunRow) => string | undefined): Promise<{ claimed: boolean; progressed: boolean }> {
+    let claimed = false, progressed = false;
+    await withDatabaseMutationMutex(this.#db, async () => {
+      const row = this.#autorunRow(runId);
+      if (!row || row.phase !== phase || row.phaseState !== 'QUEUED') return;
+      const run = this.#current(runId);
+      if (!run) throw new ResearchAutomationIntegrityError('Auto-run source run is missing.');
+      const at = this.#now().toISOString();
+      const stop = check(run, row);
+      if (stop === '') return;
+      if (stop) { this.#autorunStop(runId, stop, at); progressed = true; return; }
+      const change = this.#db.prepare(`UPDATE research_automation_autorun SET phase_state='RUNNING',updated_at=? WHERE run_id=? AND phase=? AND phase_state='QUEUED'`).run(at, runId, phase);
+      claimed = progressed = change.changes === 1;
+    });
+    return { claimed, progressed };
+  }
+  /** Write-back after long work: only a row still RUNNING in `phase` moves (a cancel wins). */
+  async #autorunSettle(runId: string, phase: AutorunPhase, write: (at: string) => void): Promise<void> {
+    await withDatabaseMutationMutex(this.#db, async () => {
+      const row = this.#autorunRow(runId);
+      if (!row || row.phase !== phase || row.phaseState !== 'RUNNING') return;
+      const at = this.#now().toISOString();
+      this.#db.transaction(() => write(at))();
+    });
+  }
+  async #autorunStopRunning(runId: string, phase: AutorunPhase, code: string): Promise<void> {
+    await this.#autorunSettle(runId, phase, at => this.#autorunStop(runId, code, at));
+  }
+  /** After a rejected call: a run that moved on means the owner (or the run) ended the automatic path. */
+  #autorunErrorCode(runId: string, error: unknown, fallback: string): string {
+    const run = this.#current(runId);
+    if (run && run.status !== 'AWAITING_SCOPE') return this.#autorunRunStopCode(run.status);
+    if (error instanceof MetricCaptureRejection) return error.code;
+    return fallback;
+  }
+
+  async #processAutorun(): Promise<boolean> {
+    if (!this.#hasAutorunTable()) return false;
+    // One capture per database: a CAPTURE row waits while another is RUNNING, unless its run
+    // already moved on (then it only stops). Phases are taken oldest first.
+    const next = this.#db.prepare(`SELECT a.run_id runId,a.phase phase FROM research_automation_autorun a JOIN analysis_research_automation_runs r ON r.run_id=a.run_id
+      WHERE a.phase_state='QUEUED' AND (a.phase IN ('PREPARE','PICK','CONFIRM','WAIT_DRAFT') OR (a.phase='CAPTURE' AND (r.status<>'AWAITING_SCOPE' OR NOT EXISTS (
+        SELECT 1 FROM research_automation_autorun b WHERE b.phase='CAPTURE' AND b.phase_state='RUNNING'))))
+      ORDER BY a.created_at,a.run_id LIMIT 1`).get() as { runId: string; phase: AutorunPhase } | undefined;
+    if (!next) return false;
+    switch (next.phase) {
+      case 'CAPTURE': return this.#autorunCapture(next.runId);
+      case 'PREPARE': return this.#autorunPrepare(next.runId);
+      case 'PICK': return this.#autorunPick(next.runId);
+      case 'CONFIRM': return this.#autorunConfirm(next.runId);
+      default: return this.#autorunWaitDraft(next.runId);
+    }
+  }
+
+  async #principalCards(workspaceId: string, runId: string): Promise<Array<{ productId: string; title: string | null }>> {
+    const run = await this.getRun(workspaceId, runId);
+    return run.productCards.filter(card => card.role === 'PRINCIPAL').map(card => ({ productId: card.productId, title: card.title ?? null }));
+  }
+
+  async #autorunCapture(runId: string): Promise<boolean> {
+    const before = this.#current(runId);
+    if (!before) throw new ResearchAutomationIntegrityError('Auto-run source run is missing.');
+    let principal = 0;
+    let start: StartSnapshot | undefined;
+    if (before.status === 'AWAITING_SCOPE') {
+      start = await this.#readStartSnapshot(before.startSha, before.workspaceId);
+      principal = (await this.#principalCards(before.workspaceId, runId)).length;
+    }
+    const { claimed, progressed } = await this.#autorunClaim(runId, 'CAPTURE', run => {
+      if (run.status !== 'AWAITING_SCOPE') return this.#autorunRunStopCode(run.status);
+      if (!start || toNumber(run.revision) !== toNumber(before.revision)) return '';
+      if (this.#db.prepare(`SELECT 1 FROM research_automation_autorun WHERE phase='CAPTURE' AND phase_state='RUNNING'`).get()) return '';
+      // No product to confirm: stop before spending a paid lookup.
+      if (principal === 0) return 'NO_PRINCIPAL_PRODUCTS';
+      return undefined;
+    });
+    if (claimed) this.#launchCapture(runId, start!.keyword, { startDate: start!.requestedPeriod.startDate, endDate: start!.requestedPeriod.endDate });
+    return progressed;
+  }
+
+  /** D3: the capture runs detached; processNext returns at once and the drain moves on. */
+  #launchCapture(runId: string, keyword: string, requestedPeriod: AutorunPeriod): void {
+    const options = this.#autoRun!;
+    const controller = new AbortController();
+    const run = options.runCapture ?? ((config: MetricCaptureRunnerConfig, request: MetricCaptureRequest) => runMetricCapture(config, request));
+    let resolveDone!: () => void;
+    const promise = new Promise<void>(resolve => { resolveDone = resolve; });
+    this.#autoCaptures.set(runId, { controller, promise });
+    void (async () => {
+      let result: MetricCaptureRunResult;
+      try { result = await run(options.runner, { runId, keyword, requestedPeriod, signal: controller.signal }); }
+      catch { result = { ok: false, code: controller.signal.aborted ? 'CAPTURE_INTERRUPTED' : 'CAPTURE_IO_FAILED', detail: 'capture failed', executorCalls: 0 }; }
+      try { await this.#settleCapture(runId, result); }
+      catch { /* The row stays RUNNING; the next start stops it as CAPTURE_INTERRUPTED. */ }
+      finally {
+        this.#autoCaptures.delete(runId);
+        resolveDone();
+      }
+      try { options.onWake?.(); } catch { /* waking is best effort */ }
+    })();
+  }
+
+  async #settleCapture(runId: string, result: MetricCaptureRunResult): Promise<void> {
+    await this.#autorunSettle(runId, 'CAPTURE', at => {
+      if (result.ok) {
+        this.#db.prepare(`UPDATE research_automation_autorun SET phase='PREPARE',phase_state='QUEUED',capture_ready=1,updated_at=? WHERE run_id=? AND phase='CAPTURE' AND phase_state='RUNNING'`).run(at, runId);
+        return;
+      }
+      this.#autorunStop(runId, result.code, at);
+      if (AUTORUN_ENVIRONMENT_STOPS.has(result.code)) {
+        // The same login/bridge problem would stop every other waiting capture of the workspace.
+        this.#db.prepare(`UPDATE research_automation_autorun SET phase='STOPPED',phase_state='QUEUED',stop_code=?,stop_detail=?,updated_at=?
+          WHERE workspace_id=(SELECT workspace_id FROM research_automation_autorun WHERE run_id=?) AND run_id<>? AND phase='CAPTURE' AND phase_state='QUEUED'`)
+          .run(result.code, autorunStopDetail(result.code), at, runId, runId);
+      }
+    });
+  }
+
+  async #autorunPrepare(runId: string): Promise<boolean> {
+    let revision = 0;
+    const { claimed, progressed } = await this.#autorunClaim(runId, 'PREPARE', run => {
+      if (run.status !== 'AWAITING_SCOPE') return this.#autorunRunStopCode(run.status);
+      revision = toNumber(run.revision);
+      return undefined;
+    });
+    if (!claimed) return progressed;
+    const run = this.#current(runId)!;
+    const dir = this.#autorunCaptureDir(runId);
+    let snapshot: Buffer, manifest: Buffer;
+    try { [snapshot, manifest] = await Promise.all([readFile(joinPath(dir, 'snapshot.json')), readFile(joinPath(dir, 'manifest.json'))]); }
+    catch { await this.#autorunStopRunning(runId, 'PREPARE', 'CAPTURE_FILES_MISSING'); return true; }
+    let packageId: string;
+    try {
+      const start = await this.#readStartSnapshot(run.startSha, run.workspaceId);
+      const planned = planCapturePeriod(start.requestedPeriod);
+      const period = autorunSnapshotPeriod(snapshot) ?? (planned.ok ? planned.period : start.requestedPeriod);
+      const value = buildPrepareValue({ runId, expectedRevision: revision, sourceContext: sourceContextVi(start.keyword, period) });
+      packageId = (await this.prepareMetricCapture(run.workspaceId, runId, value, snapshot, manifest)).packageId;
+    } catch (error) {
+      await this.#autorunStopRunning(runId, 'PREPARE', this.#autorunErrorCode(runId, error, 'CAPTURE_PREPARE_FAILED'));
+      return true;
+    }
+    await this.#autorunSettle(runId, 'PREPARE', at => {
+      this.#db.prepare(`UPDATE research_automation_autorun SET phase='PICK',phase_state='QUEUED',package_id=?,updated_at=? WHERE run_id=? AND phase='PREPARE' AND phase_state='RUNNING'`).run(packageId, at, runId);
+    });
+    return true;
+  }
+
+  async #autorunPick(runId: string): Promise<boolean> {
+    const { claimed, progressed } = await this.#autorunClaim(runId, 'PICK', run => run.status !== 'AWAITING_SCOPE' ? this.#autorunRunStopCode(run.status) : undefined);
+    if (!claimed) return progressed;
+    const run = this.#current(runId)!;
+    const row = this.#autorunRow(runId)!;
+    let raw: unknown;
+    try { raw = JSON.parse(await readFile(joinPath(this.#autorunCaptureDir(runId), 'raw-responses.json'), 'utf8')); }
+    catch { await this.#autorunStopRunning(runId, 'PICK', 'CAPTURE_FILES_MISSING'); return true; }
+    let stored: StoredArtifact;
+    try {
+      const principal = await this.#principalCards(run.workspaceId, runId);
+      if (principal.length === 0) { await this.#autorunStopRunning(runId, 'PICK', 'NO_PRINCIPAL_PRODUCTS'); return true; }
+      const start = await this.#readStartSnapshot(run.startSha, run.workspaceId);
+      const pick = pickShopeeLinks(raw, deriveIncludeTerms(start.keyword, principal.map(card => card.title)));
+      // Audit record only: chosen ids, revenue, brand, shop, URL and counts; no raw capture content.
+      stored = await this.#putJson({ contractVersion: AUTORUN_PICK_RECORD_VERSION, runId, workspaceId: run.workspaceId, packageId: row.packageId,
+        principalProductIds: principal.map(card => card.productId), ...pick }, this.#now().toISOString());
+    } catch (error) {
+      await this.#autorunStopRunning(runId, 'PICK', this.#autorunErrorCode(runId, error, 'PICK_FAILED'));
+      return true;
+    }
+    await this.#autorunSettle(runId, 'PICK', at => {
+      this.#registerManifest(stored, 'application/json', at);
+      this.#db.prepare(`UPDATE research_automation_autorun SET phase='CONFIRM',phase_state='QUEUED',pick_artifact_id=?,updated_at=? WHERE run_id=? AND phase='PICK' AND phase_state='RUNNING'`).run(stored.sha256, at, runId);
+    });
+    return true;
+  }
+
+  async #autorunConfirm(runId: string): Promise<boolean> {
+    const confirmKey = autorunRequestKey(runId, 'confirm');
+    let expectedRevision = 0;
+    const { claimed, progressed } = await this.#autorunClaim(runId, 'CONFIRM', (run, row) => {
+      const accepted = this.#request(confirmKey);
+      if (row.confirmExpectedRevision !== null) {
+        // A replay after a restart reuses the exact recorded request.
+        if (!accepted && run.status !== 'AWAITING_SCOPE') return this.#autorunRunStopCode(run.status);
+        expectedRevision = toNumber(row.confirmExpectedRevision);
+        return undefined;
+      }
+      if (run.status !== 'AWAITING_SCOPE') return this.#autorunRunStopCode(run.status);
+      expectedRevision = toNumber(run.revision);
+      this.#db.prepare(`UPDATE research_automation_autorun SET confirm_expected_revision=? WHERE run_id=?`).run(expectedRevision, runId);
+      return undefined;
+    });
+    if (!claimed) return progressed;
+    const run = this.#current(runId)!;
+    const row = this.#autorunRow(runId)!;
+    let built: ReturnType<typeof buildConfirmValue>;
+    try {
+      if (!row.pickArtifactId || !row.packageId) throw new ResearchAutomationIntegrityError('Auto-run pick record is missing.');
+      const pick = await this.#readJson<{ runId: string; packageId: string; principalProductIds: string[]; terms: string[]; urls: string[] }>(row.pickArtifactId, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+      if (pick.runId !== runId || pick.packageId !== row.packageId) throw new ResearchAutomationIntegrityError('Auto-run pick record does not match its run.');
+      const start = await this.#readStartSnapshot(run.startSha, run.workspaceId);
+      built = buildConfirmValue({ runId, expectedRevision, keyword: start.keyword, description: start.description, includeTerms: pick.terms,
+        principalProductIds: pick.principalProductIds, exactShopeeUrls: pick.urls, packageId: row.packageId });
+    } catch (error) {
+      await this.#autorunStopRunning(runId, 'CONFIRM', this.#autorunErrorCode(runId, error, 'CONFIRM_FAILED'));
+      return true;
+    }
+    if (!built.ok) { await this.#autorunStopRunning(runId, 'CONFIRM', built.code); return true; }
+    let value = built.value;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await this.confirmScope(run.workspaceId, runId, value);
+        break;
+      } catch (error) {
+        const fresh = this.#current(runId);
+        if (attempt === 0 && error instanceof ResearchAutomationConflictError && error.code === 'revision_conflict' && fresh?.status === 'AWAITING_SCOPE') {
+          // Re-read once: still awaiting scope, so retry with the new revision and the same key.
+          const nextRevision = toNumber(fresh.revision);
+          await this.#autorunSettle(runId, 'CONFIRM', () => {
+            this.#db.prepare(`UPDATE research_automation_autorun SET confirm_expected_revision=? WHERE run_id=?`).run(nextRevision, runId);
+          });
+          value = { ...value, expectedRevision: nextRevision };
+          continue;
+        }
+        const code = error instanceof ResearchAutomationConflictError && (error.code === 'revision_conflict' || error.code === 'invalid_state')
+          ? (fresh ? this.#autorunRunStopCode(fresh.status === 'AWAITING_SCOPE' ? 'COLLECTION_QUEUED' : fresh.status) : 'SCOPE_CHANGED_BY_OWNER')
+          : this.#autorunErrorCode(runId, error, 'CONFIRM_REJECTED');
+        await this.#autorunStopRunning(runId, 'CONFIRM', code);
+        return true;
+      }
+    }
+    await this.#autorunSettle(runId, 'CONFIRM', at => {
+      this.#db.prepare(`UPDATE research_automation_autorun SET phase='WAIT_DRAFT',phase_state='QUEUED',updated_at=? WHERE run_id=? AND phase='CONFIRM' AND phase_state='RUNNING'`).run(at, runId);
+    });
+    return true;
+  }
+
+  /** PR2 ends at DONE once the run's draft is ready; a later step inserts PRESENT before DONE. */
+  async #autorunWaitDraft(runId: string): Promise<boolean> {
+    let progressed = false;
+    await withDatabaseMutationMutex(this.#db, async () => {
+      const row = this.#autorunRow(runId);
+      if (!row || row.phase !== 'WAIT_DRAFT' || row.phaseState !== 'QUEUED') return;
+      const run = this.#current(runId);
+      if (!run) throw new ResearchAutomationIntegrityError('Auto-run source run is missing.');
+      const at = this.#now().toISOString();
+      if (run.status === 'DRAFT_READY') this.#db.prepare(`UPDATE research_automation_autorun SET phase='DONE',phase_state='QUEUED',updated_at=? WHERE run_id=? AND phase='WAIT_DRAFT'`).run(at, runId);
+      else if (AUTORUN_RUN_END_STATUSES.has(run.status)) this.#autorunStop(runId, `RUN_${run.status}`, at);
+      // Not ready yet: wait RUNNING until the run's transition hook queues the row again.
+      else this.#db.prepare(`UPDATE research_automation_autorun SET phase_state='RUNNING',updated_at=? WHERE run_id=? AND phase='WAIT_DRAFT'`).run(at, runId);
+      progressed = true;
+    });
+    return progressed;
+  }
+
   async #putJson(value: unknown, _at: string): Promise<StoredArtifact> {
     const bytes = Buffer.from(canonicalJson(value), 'utf8');
     if (bytes.byteLength > MAX_JSON_ARTIFACT_BYTES) throw new ResearchAutomationValidationError('Research automation input exceeds its bound.');
