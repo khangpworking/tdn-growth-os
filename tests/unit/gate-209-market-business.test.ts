@@ -320,6 +320,12 @@ test('PARTIAL_TOTAL_FORBIDDEN: a row sum with a missing member is never stated a
   assert.equal(partialCheck('<table><tr><td>1.300.000.000 VND</td></tr></table>', revenue).ok, true, 'one row value in a row table is not a total');
   assert.equal(partialCheck('<li>Bảng dòng<table><tr><td>1.300.000.000 VND</td></tr></table></li>', revenue).ok, true);
   assert.equal(partialCheck('<!-- <p>1.300.000.000 VND</p> -->', revenue).ok, true);
+  const price: PartialRowTotal[] = [{ measure: 'revenue', value: '1300000' }];
+  assert.equal(partialCheck('<p>Giá niêm yết: 1.300.000 VND; mức giá sau giảm 1.300.000 VND.</p>', price).ok, true, 'a quoted unit price is not a total');
+  assert.equal(partialCheck('<p>Doanh thu 5.000.000 VND, giá 1.300.000 VND.</p>', price).ok, true, 'the nearest measure word since the previous number decides');
+  assert.equal(partialCheck('<p>Giá bán cao nên doanh thu 1.300.000 VND.</p>', price).ok, false, 'a revenue figure after a price word still fails');
+  assert.equal(partialCheck('<p>Giá niêm yết 1.300.000 VND; tổng 1.300.000 VND.</p>', price).ok, false, 'each occurrence is checked');
+  assert.equal(partialCheck('<p>Tổng giá trị 1.300.000 VND; đánh giá 1.300.000 VND.</p>', price).ok, false, '"giá trị" and "đánh giá" are not prices');
 
   const demand: PartialRowTotal[] = [{ measure: 'revenue', value: '21200000' }, { measure: 'units', value: '34' }];
   const quat = '<li><strong>Doanh số (ước tính)</strong> Mẫu lưu ghi nhận 21.200.000 VND doanh thu (ước tính); 34 đơn vị bán (ước tính) trên cả hai nền tảng.</li>';
@@ -336,8 +342,8 @@ test('PARTIAL_TOTAL_FORBIDDEN: a row sum with a missing member is never stated a
 
 test('partialRowTotals keeps only non-zero row sums with a missing member, once each', () => {
   const total = (value: string | null, missingCount: number) => ({ value, observedCount: 2, missingCount, nonExactCount: 0, complete: missingCount === 0 && value !== null });
-  const scope = (revenue: ReturnType<typeof total>, units: ReturnType<typeof total>) => ({ revenue, units,
-    groups: [{ revenue, units: total('9', 0) }], withoutTopShop: { revenue: total('70', 1) } });
+  const scope = (revenue: ReturnType<typeof total>, units: ReturnType<typeof total>, key = 'all', sensitivity = total('70', 1)) => ({ key, revenue, units,
+    groups: [{ revenue, units: total('9', 0) }], withoutTopShop: { revenue: sensitivity } });
   const found = partialRowTotals([
     { scopes: [scope(total('100', 1), total('7', 0)), scope(total('100', 1), total('0', 3))] },
     { scopes: [scope(total('500', 0), total(null, 2))] },
@@ -349,7 +355,11 @@ test('partialRowTotals keeps only non-zero row sums with a missing member, once 
     'a value the report also states as a complete page figure is left out');
   assert.deepEqual(partialRowTotals(one, [{ measure: 'units', value: '100' }]), found,'only the same measure is left out');
   assert.deepEqual(partialRowTotals([...one, { scopes: [scope(total('70', 0), total('7', 0))] }] as unknown as Parameters<typeof partialRowTotals>[0]),
-    [{ measure: 'revenue', value: '100' }], 'a value another scope states as a complete total is left out');
+    [{ measure: 'revenue', value: '100' }], 'a value another ALL scope states as a complete total is left out');
+  assert.deepEqual(partialRowTotals([...one, { scopes: [scope(total('70', 0), total('7', 0), 'wide', total('5', 0))] }] as unknown as Parameters<typeof partialRowTotals>[0]),
+    found, 'a WIDE/CORE total is only shown in a row table, so it never clears a partial value');
+  assert.deepEqual(partialRowTotals([...one, { scopes: [scope(total('5', 0), total('7', 0), 'core', total('100', 0))] }] as unknown as Parameters<typeof partialRowTotals>[0]),
+    [{ measure: 'revenue', value: '70' }], 'a complete sensitivity revenue is stated in prose, so it is left out');
   const complete = calculateMetricScopes(metricFixture());
   assert.deepEqual(partialRowTotals([complete]), [], 'a fully observed fixture has no partial sums');
 });

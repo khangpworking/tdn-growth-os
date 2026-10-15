@@ -6,7 +6,7 @@ export type MarketBusinessGateResult = { rule: string; ok: boolean; detail: stri
 export type PartialRowTotal = { readonly measure: 'revenue' | 'units'; readonly value: string };
 export type MarketBusinessGateOptions = { presentation?: boolean; partialTotals?: readonly PartialRowTotal[] };
 type TotalsSource = { readonly scopes: readonly {
-  readonly revenue: Total; readonly units: Total;
+  readonly key: string; readonly revenue: Total; readonly units: Total;
   readonly groups: readonly { readonly revenue: Total; readonly units: Total }[];
   readonly withoutTopShop: { readonly revenue: Total } | null;
 }[] };
@@ -16,10 +16,12 @@ type TotalsSource = { readonly scopes: readonly {
  * undetermined, so such a sum may not be stated as a figure in the report,
  * whatever label surrounds it ("trong mẫu", "cả tập kết quả", ...).
  *
- * The gate matches by value, so a value the report also states as a complete
- * figure is left out: a scope or sensitivity total with no missing member, or
- * a verified page figure passed in `stated`. Group totals are only rendered in
- * row tables, which the gate does not read.
+ * The gate matches by value, so a value the report also states in prose as a
+ * complete figure is left out: the ALL scope revenue and units (M03 summary,
+ * demand finding, capture fallback), a sensitivity revenue (M04 line per
+ * scope) with no missing member, or a verified page figure passed in `stated`.
+ * WIDE/CORE scope and group totals are only rendered in row tables, which the
+ * gate does not read, so they never clear a partial value.
  */
 export function partialRowTotals(results: readonly (TotalsSource | null | undefined)[], stated: readonly PartialRowTotal[] = []): PartialRowTotal[] {
   const key = (measure: PartialRowTotal['measure'], value: string): string => `${measure}:${BigInt(value)}`;
@@ -32,8 +34,8 @@ export function partialRowTotals(results: readonly (TotalsSource | null | undefi
   };
   for (const result of results) {
     for (const scope of result?.scopes ?? []) {
-      add('revenue', scope.revenue, true);
-      add('units', scope.units, true);
+      add('revenue', scope.revenue, scope.key === 'all');
+      add('units', scope.units, scope.key === 'all');
       for (const group of scope.groups) { add('revenue', group.revenue); add('units', group.units); }
       if (scope.withoutTopShop) add('revenue', scope.withoutTopShop.revenue, true);
     }
@@ -323,16 +325,25 @@ function statementTexts(html: string): string[] {
     .map(match => decodeHtml((match[2] ?? '').replace(/<table\b[\s\S]*?<\/table\s*>/giu, ' ').replace(/<[^>]*>/gu, ' ')).replace(/\s+/gu, ' ').trim());
 }
 
+/** A VND figure whose nearest measure word since the previous number is a price
+ * ("giá niêm yết", "mức giá"; not "giá trị", "đánh giá") is a unit price. */
+function unitPriceFigure(before: string): boolean {
+  const words = [...before.replace(/^[\s\S]*\d/u, '').matchAll(/(?<![\p{L}\p{N}])(?:(?<!đánh\s)giá(?!\s*trị)|doanh thu|doanh số|tổng)(?!\p{L})/giu)];
+  return /^giá$/iu.test(words.at(-1)?.[0] ?? '');
+}
+
 /** Statements that print a known partial row sum as revenue (VND) or as units. */
 function partialTotalMatches(html: string, totals: readonly PartialRowTotal[]): string[] {
   if (!totals.length) return [];
-  const texts = statementTexts(html);
+  const texts = statementTexts(html).map(text => text.normalize('NFC'));
   return totals.flatMap(total => {
     const shown = BigInt(total.value).toLocaleString('vi-VN').replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
     const value = `(?<![\\d.,])${shown}(?![\\d]|[.,]\\d)`;
-    const pattern = total.measure === 'revenue'
-      ? new RegExp(`${value}\\s*VND`, 'iu')
-      : new RegExp(`(?:(?:sản lượng|đơn vị bán)[^.;:\\d]{0,40}:\\s*${value}|${value}\\s+đơn vị)`, 'iu');
+    if (total.measure === 'revenue') {
+      const pattern = new RegExp(`${value}\\s*VND`, 'giu');
+      return texts.filter(text => [...text.matchAll(pattern)].some(match => !unitPriceFigure(text.slice(0, match.index))));
+    }
+    const pattern = new RegExp(`(?:(?:sản lượng|đơn vị bán)[^.;:\\d]{0,40}:\\s*${value}|${value}\\s+đơn vị)`, 'iu');
     return texts.filter(text => pattern.test(text));
   });
 }
