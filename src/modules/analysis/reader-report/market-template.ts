@@ -18,7 +18,7 @@ import { barChart, lineChart, paretoChart } from './svg-charts.js';
 import { CITATION_FORBIDDEN_NAMES, CitationRegistry, containsTechnicalId, displayCitationUrl } from '../citation-registry.js';
 import { orderReportCitations, renderCitationMark, renderCitationRegister } from '../citation-register-html.js';
 import { DISPLAY_ROUNDED_NOTE, WEB_FAMILY_LABEL, WEB_MONTHLY_METHOD, webMonthlyStats } from './web-facts.js';
-import type { StepSearchInterest } from '../research-automation/model.js';
+import type { ExpandedSearchKind, StepSearchInterest } from '../research-automation/model.js';
 
 export const MARKET_PRICE_BANDS: readonly (readonly [string, number, number])[] = [
   ['Dưới 100.000đ', 0, 1e5], ['100.000–199.999đ', 1e5, 2e5], ['200.000–299.999đ', 2e5, 3e5],
@@ -51,7 +51,7 @@ export type MarketReportOptions = {
   searchInterest?: StepSearchInterest;
 };
 /** site and published are the page name and date as the search engine shows them; older runs have neither. */
-export type ReaderWebResult = { position: number; title: string; url: string; snippet: string | null; retrievedAt: string; site?: string | null; published?: string | null };
+export type ReaderWebResult = { position: number; title: string; url: string; snippet: string | null; retrievedAt: string; site?: string | null; published?: string | null; origin?: ExpandedSearchKind };
 export type BuiltMarketReport = {
   html: string; narrator: Narrator; extraOk: string[];
   charts: { id: string; engine: 'flint' | 'svg-fallback'; error?: string }[];
@@ -79,7 +79,7 @@ export function readerWebResults(values: readonly ReaderWebResult[], citations =
   return values.filter(v => citableUrl(v.url) && (!citations ||
     (!new RegExp(citationProviders.source, 'i').test(displayCitationUrl(v.url)) && !containsTechnicalId(displayCitationUrl(v.url)))))
     .map(v => ({ position: v.position, title: safe(v.title), url: v.url, snippet: safeOrNull(v.snippet), retrievedAt: v.retrievedAt,
-      site: safeOrNull(v.site), published: safeOrNull(v.published) }))
+      site: safeOrNull(v.site), published: safeOrNull(v.published), ...(v.origin ? { origin: v.origin } : {}) }))
     .sort((a, b) => a.position - b.position);
 }
 

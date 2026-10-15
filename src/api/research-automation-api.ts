@@ -79,6 +79,7 @@ import { ResearchAutomationService } from '../modules/analysis/research-automati
 import { ResearchAutomationWorker } from '../modules/analysis/research-automation/worker.js';
 import { bindResearchAutomationProvider } from '../modules/analysis/research-automation/source-binding.js';
 import { createSearchInterestSource } from '../modules/analysis/research-automation/search-interest.js';
+import { createExpandedSearchSource } from '../modules/analysis/research-automation/expanded-search-lane.js';
 import { createResearchAutomationProviderRegistry, type ResearchAutomationProviderConfig, type ProviderTransport } from '../modules/analysis/research-automation/providers.js';
 import { buildResearchAutomationReport } from '../modules/analysis/research-automation/reports.js';
 import { createChromiumPdfRenderer } from '../modules/analysis/research-automation/pdf.js';
@@ -132,6 +133,8 @@ export interface ResearchAutomationApiConfiguration {
   readonly metricAutoRun?: { readonly captureRoot: string; readonly adapterManifestPath?: string; readonly adapterManifestSha256?: string };
   /** Search-interest lane for the OWNER writer only; present only when its flag is exactly "1" and the existing search key is set. */
   readonly searchTrends?: true;
+  /** Expanded-search lane for the OWNER writer only; present only when its flag is exactly "1" and the existing search key is set. */
+  readonly expandedSearch?: true;
 }
 export interface ResearchAutomationApiApplication {
   handler(request: IncomingMessage, response: ServerResponse): void;
@@ -348,6 +351,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       // Web search runs beside the product source, only when its key is set on the server.
       const webSource = configuration.providers?.serpApiKey ? bindResearchAutomationProvider(registry.get('SERPAPI')) : undefined;
       const trendsSource = configuration.searchTrends && configuration.providers?.serpApiKey ? createSearchInterestSource(configuration.providers.serpApiKey, transport) : undefined;
+      const expandedSource = configuration.expandedSearch && configuration.providers?.serpApiKey ? createExpandedSearchSource(configuration.providers.serpApiKey, transport) : undefined;
       if (configuration.pdfExecutablePath) pdf = createChromiumPdfRenderer({ executablePath: configuration.pdfExecutablePath });
       writeService = create(writer, {
         ...(configuration.reviewCollection ? { reviewCollection: configuration.reviewCollection } : {}),
@@ -357,6 +361,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         metricAttachmentStore: new RequestScopedArtifactStore(path.resolve(configuration.artifactRoot)),
         actorId: configuration.owner.actorId, source: bindResearchAutomationProvider(selected), ...(webSource ? { webSource } : {}),
         ...(trendsSource ? { trendsSource } : {}),
+        ...(expandedSource ? { expandedSource } : {}),
         ...(i14SynthesisAi ? { i14SynthesisAi } : {}),
         ...(marketCoverAi ? { marketCoverAi } : {}),
         ...(configuration.metricAutoRun ? { autoRun: { enabled: true, onWake: () => worker?.wake(), runner: {

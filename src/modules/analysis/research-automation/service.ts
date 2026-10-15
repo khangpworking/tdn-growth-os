@@ -3,6 +3,7 @@ import type { DefaultMarketPeers } from '../../../../contracts/analysis/default-
 import { filterSerpApiResults } from './serpapi-l9-filter.js';
 import { boundedText, httpsUrl } from './provider-common.js';
 import { searchInterestChartPoints, searchInterestCoversPeriod, searchInterestDocument, searchInterestRenderable, searchInterestUsage, SEARCH_INTEREST_USAGE_ORDINAL, type SearchInterestAttempt, type SearchInterestSource } from './search-interest.js';
+import { collectionWebRows, expandedQueryDocument, EXPANDED_SEARCH_USAGE_ORDINAL, webResultUrlKey, type ExpandedSearchAttempt, type ExpandedSearchSource } from './expanded-search-lane.js';
 import type { AutomationInsightPersonaReportRevisionRequest, PersonaReportSelection, PersonaSelectedReportSnapshot } from '../../../../contracts/analysis/automation-insight-persona-report.generated.js';
 import type { InsightModelAI } from './insight-model-execution.js';
 import { reviewCollectionPolicy } from './review-collection-policy.js';
@@ -197,10 +198,13 @@ import {
   MAX_WEB_RESULTS,
   MAX_SEARCH_INTEREST_POINTS,
   SEARCH_INTEREST_REASONS,
+  EXPANDED_SEARCH_KINDS,
+  EXPANDED_SEARCH_REASONS,
   RUN_LIST_LIMIT,
   STEP_IDS,
   TERMINAL_STATUSES,
   type CaptureRecord,
+  type StepExpandedQuery,
   type ScopeSnapshot,
   type SourceStepId,
   type StartSnapshot,
@@ -337,6 +341,8 @@ export interface ResearchAutomationServiceOptions {
   readonly webSource?: AutomationSourcePort;
   /** Optional search-interest series, at most one paid request per collection; absent keeps every stored byte. */
   readonly trendsSource?: SearchInterestSource;
+  /** Optional extra searches (dated and per-marketplace), at most three paid requests per collection; absent keeps every stored byte. */
+  readonly expandedSource?: ExpandedSearchSource;
   readonly renderer?: ResearchAutomationReportRenderer;
   readonly now?: () => Date;
   readonly uuid?: () => string;
@@ -433,6 +439,7 @@ interface PersistableSourceResult {
 type WebSearchAttempt = { readonly bound: BoundCollectResult } | { readonly failedProvider: string };
 const WEB_USAGE_ORDINAL = 2;
 type TrendsAttempt = { readonly attempt: SearchInterestAttempt };
+type ExpandedAttempts = { readonly attempts: readonly ExpandedSearchAttempt[] };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const REQUEST_KEY = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -484,6 +491,7 @@ export class ResearchAutomationService {
   readonly #source: AutomationSourcePort | undefined;
   readonly #webSource: AutomationSourcePort | undefined;
   readonly #trendsSource: SearchInterestSource | undefined;
+  readonly #expandedSource: ExpandedSearchSource | undefined;
   readonly #renderer: ResearchAutomationReportRenderer | undefined;
   readonly #now: () => Date;
   readonly #uuid: () => string;
@@ -535,6 +543,7 @@ export class ResearchAutomationService {
     this.#source = options.source;
     this.#webSource = options.webSource;
     this.#trendsSource = options.trendsSource;
+    this.#expandedSource = options.expandedSource;
     this.#renderer = options.renderer;
     this.#pageIndex = options.pageIndex;
     this.#sourceEvidence = options.sourceEvidence;
@@ -1708,10 +1717,10 @@ export class ResearchAutomationService {
       const collection = this.#db.prepare(`SELECT result_sha256 resultSha FROM analysis_research_automation_steps WHERE run_id=? AND step_id='COLLECTION'`).get(runId) as { resultSha: string | null } | undefined;
       const webCollection = collection?.resultSha ? await this.#readStepDocument(collection.resultSha, runId, 'COLLECTION') : null;
       const searchInterest = webCollection?.searchInterest;
-      const webResults = webCollection?.sourceEvidence ? admitWebResults(webCollection.sourceEvidence, webCollection.webResults ?? [], await this.#captureRecords(runId), webCollection.sourceEvidence.jevTriage ?? null) : webCollection?.webResults ?? [];
+      const webResults = webCollection?.sourceEvidence ? admitWebResults(webCollection.sourceEvidence, collectionWebRows(webCollection), await this.#captureRecords(runId), webCollection.sourceEvidence.jevTriage ?? null) : webCollection ? collectionWebRows(webCollection) : [];
       return { workspaceId, runId, draftPairId: latest.pairId, marketSemantic, ...(webCollection?.sourceEvidence?.webPageTypes ? { webPageTypes: true } : {}),
-        webResults: webResults.map(({ position, title, url, snippet, retrievedAt, site, published }) =>
-          ({ position, title, url, snippet, retrievedAt, site: site ?? null, published: published ?? null })),
+        webResults: webResults.map(({ position, title, url, snippet, retrievedAt, site, published, origin }) =>
+          ({ position, title, url, snippet, retrievedAt, site: site ?? null, published: published ?? null, ...(origin ? { origin } : {}) })),
         ...(searchInterestRenderable(searchInterest) ? { searchInterest } : {}),
         metric: { packageId, capture: { snapshot: verifiedCapture.snapshot, snapshotSha256: rawSnapshotSha256, truncation: preparedCapture.capture.truncation }, measurementPeriod: preparedCapture.capture.measurementPeriod } };
     }
@@ -1721,10 +1730,10 @@ export class ResearchAutomationService {
     const collection = this.#db.prepare(`SELECT result_sha256 resultSha FROM analysis_research_automation_steps WHERE run_id=? AND step_id='COLLECTION'`).get(runId) as { resultSha: string | null } | undefined;
     const webCollection = collection?.resultSha ? await this.#readStepDocument(collection.resultSha, runId, 'COLLECTION') : null;
     const searchInterest = webCollection?.searchInterest;
-    const webResults = webCollection?.sourceEvidence ? admitWebResults(webCollection.sourceEvidence, webCollection.webResults ?? [], await this.#captureRecords(runId), webCollection.sourceEvidence.jevTriage ?? null) : webCollection?.webResults ?? [];
+    const webResults = webCollection?.sourceEvidence ? admitWebResults(webCollection.sourceEvidence, collectionWebRows(webCollection), await this.#captureRecords(runId), webCollection.sourceEvidence.jevTriage ?? null) : webCollection ? collectionWebRows(webCollection) : [];
     return { workspaceId, runId, draftPairId: latest.pairId, marketSemantic, ...(webCollection?.sourceEvidence?.webPageTypes ? { webPageTypes: true } : {}),
-      webResults: webResults.map(({ position, title, url, snippet, retrievedAt, site, published }) =>
-        ({ position, title, url, snippet, retrievedAt, site: site ?? null, published: published ?? null })),
+      webResults: webResults.map(({ position, title, url, snippet, retrievedAt, site, published, origin }) =>
+        ({ position, title, url, snippet, retrievedAt, site: site ?? null, published: published ?? null, ...(origin ? { origin } : {}) })),
       ...(searchInterestRenderable(searchInterest) ? { searchInterest } : {}),
       metric: { packageId, workbook: workbook.bytes, measurementPeriod: prepared.request.measurementPeriod } };
   }
@@ -3103,8 +3112,14 @@ export class ResearchAutomationService {
             : { attempt: { kind: 'SKIPPED', keyword, reason: 'PERIOD_NOT_COVERED' } };
         } catch { trends = { attempt: { kind: 'THROWN', keyword } }; }
       }
+      // Extra searches run last, only when the plain web search was configured, and never repeat after a restart.
+      let expanded: ExpandedAttempts | undefined;
+      if (stepId === 'COLLECTION' && this.#expandedSource && this.#webSource && !controller.signal.aborted) {
+        try { expanded = { attempts: await this.#expandedSource.collect(input as CollectInput, { signal: controller.signal }) }; }
+        catch { expanded = { attempts: [] }; }
+      }
       try {
-        await this.#persistSourceResult(row.runId, stepId, result, controller.signal.aborted, exact, web, controller.signal, trends);
+        await this.#persistSourceResult(row.runId, stepId, result, controller.signal.aborted, exact, web, controller.signal, trends, expanded);
       } catch (error) {
         if (!(error instanceof ResearchAutomationProviderOutputError)) throw error;
         await this.#settleSourceFailure(row.runId, stepId, 'PROVIDER_OUTPUT_INVALID', 'FAILED');
@@ -3357,7 +3372,8 @@ export class ResearchAutomationService {
           ...(kind === 'MARKET' && metricMethodsFailure ? { metricMethodsFailure } : {}),
         };
         if (input.sourceEvidence) input = { ...input, sourceEvidence: sourceEvidenceForReport(input.sourceEvidence, input, kind) };
-        if (input.sourceEvidence && input.collection) input = { ...input, collection: { ...input.collection, webResults: admitWebResults(input.sourceEvidence, input.collection.webResults ?? [], captures, input.sourceEvidence.jevTriage ?? null) } };
+        if (input.sourceEvidence && input.collection) { const { expandedSearch: _expanded, ...plain } = input.collection; input = { ...input, collection: { ...plain, webResults: admitWebResults(input.sourceEvidence, collectionWebRows(input.collection), captures, input.sourceEvidence.jevTriage ?? null) } }; }
+        else if (input.collection?.expandedSearch) { const { expandedSearch: _expanded, ...plain } = input.collection; input = { ...input, collection: { ...plain, webResults: collectionWebRows(input.collection) } }; }
         const builtClaims = buildAutomationSourceClaims({ run, scope,
             ...(input.descriptiveMethods ? { descriptive: { output: input.descriptiveMethods } } : {}),
             ...(kind === 'INSIGHT' && locatedReview?.contractVersion === 'automation-located-review-snapshot-v2' ? { located: { snapshot: locatedReview } } : {}),
@@ -3619,7 +3635,7 @@ export class ResearchAutomationService {
     }
   }
 
-  async #persistSourceResult(runId: string, stepId: SourceStepId, bound: PersistableSourceResult, aborted: boolean, exact?: ExactShopeeAttempt, web?: WebSearchAttempt, signal?: AbortSignal, trends?: TrendsAttempt): Promise<void> {
+  async #persistSourceResult(runId: string, stepId: SourceStepId, bound: PersistableSourceResult, aborted: boolean, exact?: ExactShopeeAttempt, web?: WebSearchAttempt, signal?: AbortSignal, trends?: TrendsAttempt, expanded?: ExpandedAttempts): Promise<void> {
     const result = bound.result;
     let step = bound.step;
     const nativeCoverage = bound.step.coverage.filter(value => value.provider === 'apify-dami');
@@ -3722,6 +3738,31 @@ export class ResearchAutomationService {
       } catch { step = { ...step, searchInterest: searchInterestDocument(thrown, null) }; }
       if (attempt.kind === 'CALLED') trendsResult = attempt.result;
     }
+    // The extra searches' captures follow the trends capture. Rows already seen in the plain web rows are dropped (plain wins).
+    // Like the series, a failed query keeps only a reason code and never changes the step outcome, coverage or run blockers.
+    const expandedCalled: Extract<ExpandedSearchAttempt, { state: 'CALLED' }>[] = [];
+    const expandedThrown: ExpandedSearchAttempt[] = [];
+    if (expanded?.attempts.length) {
+      const seen = new Set((step.webResults ?? []).map(row => webResultUrlKey(row.url)));
+      const queries: StepExpandedQuery[] = [];
+      for (const attempt of expanded.attempts) {
+        const offset = captures.length;
+        const envelopes = attempt.state === 'CALLED' ? captureEnvelopes(attempt.result) : [];
+        await putCaptures(envelopes ?? []);
+        const thrown: ExpandedSearchAttempt = { kind: attempt.kind, state: 'THROWN' };
+        queries.push(expandedQueryDocument(envelopes ? attempt : thrown, captures.length > offset ? offset : null, seen));
+        if (attempt.state === 'CALLED') expandedCalled.push(attempt); else if (attempt.state === 'THROWN') expandedThrown.push(attempt);
+      }
+      const probe = { ...step, expandedSearch: { queries } };
+      try {
+        assertStepDocument(probe, runId, stepId);
+        assertCaptureLineage(probe, captures.map(value => value.row));
+        step = probe;
+      } catch {
+        step = { ...step, expandedSearch: { queries: queries.map(query => ({ kind: query.kind, status: 'FAILED' as const, reason: 'PROVIDER_FAILED' as const,
+          requestedWindow: null, retrievedAt: null, captureIndex: null, results: [] })) } };
+      }
+    }
     const rowForSources = this.#current(runId)!;
     const sourceStart = await this.#readStartSnapshot(rowForSources.startSha, rowForSources.workspaceId);
     let cancelledSourceEvidence: (() => AutomationSourceEvidence) | undefined;
@@ -3746,7 +3787,7 @@ export class ResearchAutomationService {
         // without promoting a late draft to successful L9 admission.
         this.#assertKeywordDraftActive(rowForSources, signal);
       } catch { drafted = { digest: null, unavailableReason: 'DRAFT_FAILED' }; draft = null; }
-      const evidenceInputs = { webResults: step.webResults ?? [], captures: allCaptures,
+      const evidenceInputs = { webResults: collectionWebRows(step), captures: allCaptures,
         usedCaptureDigests: step.comparables.map(row => captures[row.captureIndex]?.row.artifactSha256).filter((sha): sha is string => Boolean(sha)) };
       cancelledSourceEvidence = () => buildSourceEvidence({ ...evidenceInputs, draft: null, draftDigest: null, unavailableReason: 'DRAFT_FAILED' });
       const jevTriage = this.#l9Jev ? await triageSourceEvidenceL9({ draft, webResults: evidenceInputs.webResults, captures: allCaptures, client: this.#l9Jev }) : null;
@@ -3762,7 +3803,7 @@ export class ResearchAutomationService {
       // manifests and actual late capture/usage evidence. No transaction spans I/O.
       const statusAtPublication = this.#current(runId)?.status;
       if (cancelledSourceEvidence && step.sourceEvidence?.draftDigest && (aborted || signal?.aborted ||
-          result?.status === 'CANCELLED' || webResult?.status === 'CANCELLED' || trendsResult?.status === 'CANCELLED' ||
+          result?.status === 'CANCELLED' || webResult?.status === 'CANCELLED' || trendsResult?.status === 'CANCELLED' || expandedCalled.some(item => item.result.status === 'CANCELLED') ||
           !statusAtPublication || ['CANCELLING', 'CANCELLED', 'FAILED', 'INTERRUPTED'].includes(statusAtPublication))) {
         step = { ...step, sourceEvidence: cancelledSourceEvidence() };
         resultArtifact = await this.#artifacts.put(Buffer.from(canonicalJson(step), 'utf8'));
@@ -3781,6 +3822,9 @@ export class ResearchAutomationService {
         if (trendsResult?.captures.length) this.#persistUsage(runId, stepId, searchInterestUsage(trendsResult.captures), now, SEARCH_INTEREST_USAGE_ORDINAL);
         else if (trends?.attempt.kind === 'THROWN') this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,'serpapi','unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
           .run(runId, stepId, SEARCH_INTEREST_USAGE_ORDINAL, now);
+        for (const item of expandedCalled) if (item.result.captures.length) this.#persistUsage(runId, stepId, item.result, now, EXPANDED_SEARCH_USAGE_ORDINAL[item.kind]);
+        for (const item of expandedThrown) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,'serpapi','unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
+          .run(runId, stepId, EXPANDED_SEARCH_USAGE_ORDINAL[item.kind], now);
         if (exact) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,1,'apify-shopee','reviews',?,?,?,?,?)`)
           .run(runId, stepId, exact.requestsIssued, exact.costUsd === null ? 'UNKNOWN' : 'KNOWN', exact.costUsd === null ? null : 'USD', exact.costUsd, now);
         const current = this.#current(runId);
@@ -3789,7 +3833,7 @@ export class ResearchAutomationService {
         // Keep the exact late capture and usage rows, but never reopen a
         // terminal run or mutate its interrupted step.
         if (TERMINAL_STATUSES.has(current.status)) return;
-        const outcome = aborted || signal?.aborted || result?.status === 'CANCELLED' || webResult?.status === 'CANCELLED' || trendsResult?.status === 'CANCELLED' || current.status === 'CANCELLING' ? 'CANCELLED' : step.outcome;
+        const outcome = aborted || signal?.aborted || result?.status === 'CANCELLED' || webResult?.status === 'CANCELLED' || trendsResult?.status === 'CANCELLED' || expandedCalled.some(item => item.result.status === 'CANCELLED') || current.status === 'CANCELLING' ? 'CANCELLED' : step.outcome;
         const code = outcome === 'CANCELLED' ? 'CANCELLED_DURING_PROVIDER_OPERATION' : outcome === 'UNAVAILABLE' ? 'PROVIDER_NOT_CONFIGURED' : outcome === 'FAILED'
           ? step.limitations.some(value => value.code === 'PROVIDER_OUTPUT_INVALID') ? 'PROVIDER_OUTPUT_INVALID' : 'PROVIDER_FAILED' : null;
         const finished = this.#now().toISOString();
@@ -4827,7 +4871,7 @@ export class ResearchAutomationService {
         const packet = value.sourceEvidence;
         const draft = packet.draftDigest ? await this.#verifySourceKeywordDraft(row, packet.draftDigest, captures) : null;
         verifySourceEvidence(packet, { draft, draftDigest: packet.draftDigest, unavailableReason: packet.unavailableReason,
-          webResults: value.webResults ?? [], captures, usedCaptureDigests: value.comparables.map(row => captures.find(c => c.stepId === 'COLLECTION' && c.ordinal === row.captureIndex)?.artifactSha256).filter((sha): sha is string => Boolean(sha)),
+          webResults: collectionWebRows(value), captures, usedCaptureDigests: value.comparables.map(row => captures.find(c => c.stepId === 'COLLECTION' && c.ordinal === row.captureIndex)?.artifactSha256).filter((sha): sha is string => Boolean(sha)),
           ...(packet.jevTriage ? { jevTriage: packet.jevTriage } : {}) });
       } else if (value.sourceEvidence !== undefined) throw new ResearchAutomationIntegrityError('Historical collection cannot acquire a new source policy.');
     }
@@ -4906,6 +4950,35 @@ function validSearchInterest(value: unknown): boolean {
     (point.index === null || (Number.isInteger(point.index) && point.index >= 0 && point.index <= 100)));
 }
 
+function validWebRow(item: unknown): boolean {
+  return isRecord(item) && Number.isSafeInteger(item.position) && (item.position as number) >= 1 &&
+    typeof item.title === 'string' && item.title.length >= 1 && item.title.length <= 300 &&
+    typeof item.url === 'string' && item.url.length <= 2000 && item.url.startsWith('https://') &&
+    (item.snippet === null || (typeof item.snippet === 'string' && item.snippet.length <= 1000)) &&
+    (item.site == null || (typeof item.site === 'string' && item.site.length <= 200)) &&
+    (item.published == null || (typeof item.published === 'string' && item.published.length <= 100)) &&
+    typeof item.retrievedAt === 'string' && Number.isFinite(Date.parse(item.retrievedAt)) &&
+    Number.isSafeInteger(item.captureIndex) && (item.captureIndex as number) >= 0 && item.origin === undefined;
+}
+
+function validExpandedSearch(value: unknown): boolean {
+  if (!isRecord(value) || Object.keys(value).join() !== 'queries' || !Array.isArray(value.queries) || value.queries.length > EXPANDED_SEARCH_KINDS.length) return false;
+  const kinds = new Set<string>();
+  return value.queries.every(query => {
+    if (!isRecord(query) || !(EXPANDED_SEARCH_KINDS as readonly unknown[]).includes(query.kind) || kinds.has(String(query.kind))) return false;
+    kinds.add(String(query.kind));
+    const window = query.requestedWindow;
+    return ['COLLECTED', 'FAILED', 'SKIPPED'].includes(String(query.status)) &&
+      (query.reason === null ? query.status === 'COLLECTED' : query.status !== 'COLLECTED' && (EXPANDED_SEARCH_REASONS as readonly unknown[]).includes(query.reason)) &&
+      (window === null || (query.kind === 'WINDOW' && isRecord(window) && typeof window.startDate === 'string' && typeof window.endDate === 'string' && validDate(window.startDate) && validDate(window.endDate))) &&
+      (query.retrievedAt === null || (typeof query.retrievedAt === 'string' && Number.isFinite(Date.parse(query.retrievedAt)))) &&
+      (query.captureIndex === null || (Number.isSafeInteger(query.captureIndex) && (query.captureIndex as number) >= 0)) &&
+      (query.status !== 'COLLECTED' || (query.captureIndex !== null && query.retrievedAt !== null)) &&
+      Array.isArray(query.results) && query.results.length <= MAX_WEB_RESULTS && (query.status === 'COLLECTED' || query.results.length === 0) &&
+      query.results.every(row => validWebRow(row) && isRecord(row) && row.captureIndex === query.captureIndex);
+  });
+}
+
 function assertStepDocument(value: unknown, runId: string, stepId: StepId): asserts value is StepResultDocument {
   const outcomes = new Set(['SUCCEEDED', 'PARTIAL', 'UNAVAILABLE', 'FAILED', 'CANCELLED', 'INTERRUPTED']);
   if (!isRecord(value) || value.contractVersion !== 'research-automation-step-result-v1' || value.runId !== runId || value.stepId !== stepId || !outcomes.has(String(value.outcome)) ||
@@ -4941,6 +5014,8 @@ function assertStepDocument(value: unknown, runId: string, stepId: StepId): asse
     throw new ResearchAutomationIntegrityError('Stored web results are invalid.');
   if (value.searchInterest !== undefined && (stepId !== 'COLLECTION' || !validSearchInterest(value.searchInterest)))
     throw new ResearchAutomationIntegrityError('Stored search interest is invalid.');
+  if (value.expandedSearch !== undefined && (stepId !== 'COLLECTION' || !validExpandedSearch(value.expandedSearch)))
+    throw new ResearchAutomationIntegrityError('Stored extra searches are invalid.');
   if (value.sourceEvidence !== undefined) checkSourceEvidence(value.sourceEvidence);
   for (const comparable of value.comparables) {
     if (!isRecord(comparable) || typeof comparable.productId !== 'string' || typeof comparable.provider !== 'string' || (comparable.metric !== 'GMV_VND' && comparable.metric !== 'UNITS_SOLD') ||
@@ -4965,6 +5040,13 @@ function assertCaptureLineage(document: StepResultDocument, captures: readonly C
   for (const result of document.webResults ?? []) {
     const capture = stepCaptures.get(result.captureIndex);
     if (!capture || capture.truncated || capture.retrievedAt !== result.retrievedAt) throw new ResearchAutomationIntegrityError('Stored web result references an incompatible capture.');
+  }
+  for (const query of document.expandedSearch?.queries ?? []) {
+    if (query.captureIndex === null) continue;
+    const capture = stepCaptures.get(query.captureIndex);
+    if (!capture || capture.truncated || capture.provider !== 'serpapi' || capture.operation !== 'serpapi.google.search' || capture.retrievedAt !== query.retrievedAt ||
+        query.results.some(row => row.retrievedAt !== capture.retrievedAt))
+      throw new ResearchAutomationIntegrityError('Stored extra search references an incompatible capture.');
   }
   const interest = document.searchInterest;
   if (interest?.captureIndex != null) {

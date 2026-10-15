@@ -122,7 +122,7 @@ function collectStep(runId: string, result: CollectResult): StepResultDocument {
 }
 
 /** Keeps https organic results with exact capture lineage; text is bounded, never interpreted. */
-function toWebResults(result: CollectResult): StepWebResult[] {
+export function toWebResults(result: CollectResult): StepWebResult[] {
   const out: StepWebResult[] = [];
   for (const value of result.webResults) {
     const captureIndex = result.captures.findIndex(capture => capture.captureId === value.captureId);
