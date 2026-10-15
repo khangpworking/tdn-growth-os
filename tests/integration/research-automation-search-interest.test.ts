@@ -94,7 +94,7 @@ test('flag on: one trends request beside the product lane, stored as its own cap
   assert.match(figure.textContent!, /chỉ số tương đối/);
   assert.match(figure.textContent!, /Không phải số lượt tìm kiếm, không phải doanh số/);
   assert.equal(doc.querySelectorAll('#M10 figure').length, 0, 'the forecast section stays without a chart');
-  assert.match(doc.querySelector('#M10')!.textContent!, /Chưa dự báo/);
+  assert.match(doc.querySelector('#M10')!.textContent!, /Chưa đủ dữ liệu/, 'and it is not turned into a forecast');
   assert.match(figure.querySelector('.ex-src .cite')!.textContent!, /^\[\d+\]$/, 'the stored capture is cited');
   assert.doesNotMatch(html, /Google/i);
   assert.deepEqual(visibleTextViolations(reportVisibleText(doc)), []);
