@@ -63,9 +63,10 @@ test('reader report: the series gets its own source row and the gates and the 14
   assert.match(textOf(built.html), /Mức quan tâm tìm kiếm\s*Đã lưu trong lượt này; chỉ số tương đối, không phải doanh số/u);
   for (const label of ['Dữ liệu đánh giá sản phẩm trên nền tảng', 'Kết quả tìm kiếm', 'Bình luận đã thu thập']) assert.match(textOf(built.html), new RegExp(label, 'u'));
   assert.doesNotThrow(() => assertFlintCharts(built.charts, true));
-  assert.deepEqual(failing(built.html), failing(plain.html), 'the series adds no failing gate or machine rule');
-  assert.deepEqual(failing(built.html).gate.filter(rule => ['NO_LEAK', 'PARTIAL_TOTAL_FORBIDDEN', 'SEARCH_INTEREST_NOT_COUNT', 'G08_PROVIDER_NAME'].includes(rule)), []);
-  assert.deepEqual(failing(built.html).rules.filter(rule => ['4', '11', '13'].includes(rule)), []);
+  assert.deepEqual(failing(plain.html), { gate: [], rules: [] });
+  assert.deepEqual(failing(built.html), { gate: [], rules: [] }, 'the series adds no failing gate or machine rule');
+  assert.doesNotThrow(() => assertMarketBusinessGate(built.html, { presentation: false }));
+  assert.doesNotThrow(() => assertMarket14MachineRules(built.html));
 });
 
 test('reader report: a series that is absent, failed or too thin changes no byte', async () => {
