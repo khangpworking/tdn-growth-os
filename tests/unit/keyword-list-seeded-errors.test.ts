@@ -67,6 +67,21 @@ test('baseline lists with marked look-alike exclusions pass and keep thạch d�
   assert.doesNotThrow(() => filterKeywordMeanings(narrower, []));
 });
 
+test('an unmarked keyword beside its marked look-alike exclusion stays valid (son / sơn)', () => {
+  const data = baseline().sonmoi;
+  data.keywords.push('son');
+  data.exclusions.push({ term: 'sơn', reason: 'Sơn nước, không phải son môi' });
+  const result = filterKeywordMeanings(data, [
+    { recordId: 'r-1', text: 'Son kem lì Black Rouge' },
+    { recordId: 'r-2', text: 'Sơn nước nội thất 5 lít' },
+  ]);
+  assert.deepEqual(result.results.map(row => row.decision), ['INCLUDED', 'EXCLUDED']);
+});
+
+test('an unmarked exclusion inside a keyword once marks are dropped swallows unmarked titles (dua)', () => {
+  rejects('thachdua', data => { data.exclusions.push({ term: 'dua', reason: 'Lỗi gieo: mất dấu' }); }, DIACRITICS);
+});
+
 test('E01 keyword equals exclusion (exact)', () => {
   rejects('thachdua', data => { data.keywords.push('thạch dứa'); }, BOTH);
 });

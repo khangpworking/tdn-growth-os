@@ -107,9 +107,11 @@ function checkData(data: KeywordMeaningFilterData): { keywords: string[]; stripp
     }
   }
   // Diacritics carry meaning (thạch dừa ≠ thạch dứa). Two keywords that differ
-  // only by marks are two meanings in one list, and an unmarked term next to a
-  // marked one with the same letters has lost its diacritics. Marked look-alike
-  // exclusions (thạch dứa beside keyword thạch dừa) stay valid.
+  // only by marks are two meanings in one list. An unmarked exclusion inside a
+  // keyword's unmarked letters (son moi for son môi, dua for thạch dừa) has lost
+  // its diacritics and would exclude every unmarked title of the target. Marked
+  // look-alike exclusions (thạch dứa beside thạch dừa) and unmarked keywords
+  // beside marked exclusions (son beside sơn) are real Vietnamese and stay valid.
   const strippedKeywords = keywords.map(strippedKey);
   const keywordByStripped = new Map<string, string>();
   for (const [index, keyword] of keywords.entries()) {
@@ -117,11 +119,10 @@ function checkData(data: KeywordMeaningFilterData): { keywords: string[]; stripp
     if (other !== undefined) fail(`keywords differ only by diacritics: ${other} / ${keyword}`);
     keywordByStripped.set(strippedKeywords[index]!, keyword);
   }
-  const terms = [...keywords, ...exclusions.map(entry => entry.term)];
-  const markedByStripped = new Map(terms.filter(hasMarks).map(term => [strippedKey(term), term]));
-  for (const term of terms) {
-    const marked = hasMarks(term) ? undefined : markedByStripped.get(strippedKey(term));
-    if (marked !== undefined) fail(`term ${term} lost the diacritics of ${marked}`);
+  for (const exclusion of exclusions) {
+    if (hasMarks(exclusion.term)) continue;
+    const index = strippedKeywords.findIndex(stripped => stripped.includes(exclusion.folded));
+    if (index >= 0) fail(`exclusion ${exclusion.term} lost the diacritics of keyword ${keywords[index]}`);
   }
   return { keywords, strippedKeywords, exclusions };
 }
