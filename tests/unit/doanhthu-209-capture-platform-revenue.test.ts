@@ -76,6 +76,21 @@ test('a capture platform without a usable revenue figure falls back to its retai
   assert.match(html, new RegExp(`<h3>Shopee</h3><p>Doanh thu quan sát: <strong>${SAMPLE_REVENUE} VND</strong>; sản lượng: <strong>23</strong>; 5 dòng, 3 gian hàng\\.`));
 });
 
+test('a capture platform whose retained rows miss a value states no partial sum as its total', () => {
+  const fixture = metricFixture();
+  fixture.records[0]!.revenue = { ...fixture.records[0]!.revenue, state: 'missing', value: null, displayedValue: null };
+  const result = calculateMetricScopes(fixture);
+  const all = result.scopes.find(scope => scope.key === 'all')!;
+  assert.ok(all.revenue.value !== null && all.revenue.missingCount === 1);
+  const snapshot = captureSnapshot({ headlines: null });
+  (snapshot.capture as unknown as { platforms: { platform: string; result: unknown }[] }).platforms = [{ platform: 'shopee', result }];
+  for (const sectionId of ['M03', 'M04'] as const) {
+    const html = metricMethodSection(snapshot, sectionId, undefined, citations);
+    assert.match(html, /<h3>Shopee<\/h3><p>Doanh thu quan sát: <strong>chưa xác định<\/strong> \(1\/5 dòng thiếu số liệu, không cộng phần còn lại thành tổng\); sản lượng: <strong>23<\/strong>/u);
+    assert.doesNotMatch(html, new RegExp(`Doanh thu quan sát: <strong>${BigInt(all.revenue.value!).toLocaleString('vi-VN')} VND`));
+  }
+});
+
 test('retained capture provenance replays: pre-figure snapshots keep their saved record and new ones must carry the figures', () => {
   const details = { provenance: 'RESULTS_PAGE_CAPTURE', snapshotSha256: SHA, manifestSha256: SHA, contextSha256: SHA, descriptorSha256: SHA,
     capture: { captureId: 'capture-synthetic-209' }, platforms: [], platformHeadlines: [{ platform: 'shopee', revenue: figure('1'), units: null }], unattributedRows: [] } as unknown as CaptureMetricMethodDetails;

@@ -99,6 +99,34 @@ test('absence stays unavailable, observed zero survives, and missing quantities 
   assert.equal(sorted.flatMap(table => [...table.querySelectorAll('tbody tr')]).length, 4);
 });
 
+test('one missing row makes the sample total undetermined: a partial sum is never stated as demand', () => {
+  const f = fixture();
+  const build = (metric: ReturnType<typeof calculateMetricScopes>) => buildAutomationMarketPresentation(
+    { ...f.binding, metric: { ...f.binding.metric!, resultSha256: marketPresentationDigest(metric) } }, { metric, rows: [], unitSpec: null });
+  const both = metricFixture();
+  both.records[0]!.revenue = { ...both.records[0]!.revenue, state: 'missing', value: null, displayedValue: null };
+  both.records[0]!.units = { ...both.records[0]!.units, state: 'missing', value: null, displayedValue: null };
+  const partial = calculateMetricScopes(both);
+  const all = partial.scopes.find(scope => scope.key === 'all')!;
+  assert.ok(all.revenue.value !== null && all.revenue.missingCount === 1 && all.units.value !== null && all.units.missingCount === 1);
+  const method = build(partial);
+  assert.deepEqual(method.findings.map(finding => finding.id), ['inventory', 'missing', 'precision']);
+  const html = renderAutomationMarketFindings(method, citations, true);
+  const shown = (value: string) => BigInt(value).toLocaleString('vi-VN');
+  assert.ok(!html.includes(`${shown(all.revenue.value!)} VND`), html);
+  assert.ok(!html.includes(`${shown(all.units.value!)} đơn vị`), html);
+  assert.ok(html.includes('Chưa đủ bằng chứng'));
+
+  const revenueOnly = metricFixture();
+  revenueOnly.records[0]!.revenue = { ...revenueOnly.records[0]!.revenue, state: 'missing', value: null, displayedValue: null };
+  const units = calculateMetricScopes(revenueOnly);
+  const unitsAll = units.scopes.find(scope => scope.key === 'all')!;
+  const demand = build(units).findings.find(finding => finding.id === 'demand')!;
+  assert.ok(demand.statement.includes('chưa có tổng doanh thu dùng được'), demand.statement);
+  assert.ok(demand.statement.includes(`${shown(unitsAll.units.value!)} đơn vị bán (ước tính)`), demand.statement);
+  assert.ok(!demand.statement.includes(`${shown(unitsAll.revenue.value!)} VND`), demand.statement);
+});
+
 test('wrong receipt/run/pair/workbook/package and altered bytes fail before projection; replay does not recalculate', () => {
   const f = fixture();
   for (const changed of [
