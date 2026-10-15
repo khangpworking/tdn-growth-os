@@ -23,7 +23,7 @@ adapter installed from the same repository bytes. The executor verifies
 `tools/opencli-metric/adapter-manifest.json` before each run. `whoami` reads
 only login, captcha, page-state and any displayed analysis lookup balance.
 The current manifest SHA-256 is
-`15347b48e31a362e841263a4042ba3ede8e73352efc360c0889d9f77bffad28e`.
+`b202a732504bd607cc2e98b5c94f5e48e211e6087bcc257f6ffb2b50046bc610`.
 
 Install or reinstall the adapter from the checked-out repository bytes with:
 
@@ -55,6 +55,21 @@ not guessed. A missing response or wrong set returns
 `METRIC_SEARCH_NOT_APPLIED` with the observed platform sets and response
 orders. Replay applies the same gate using the saved click baseline and
 response order.
+
+Each capture read empties the browser's capture buffer. An entry read while
+its request is still in flight never receives its status or body afterwards,
+so a fast read can lose a result response. After the form is prepared, the
+adapter installs an in-page counter of in-flight Metric API requests
+(`/market/` and `/v2/market/` XHR and fetch). It observes only and changes
+no request or response. Every capture read waits until no tracked request is
+in flight and 1 s has passed since the last one settled, up to 20 s. Without
+the counter (for example after a reload) the read goes ahead at once. The
+search gate and the pagination wait count only completed responses: a parsed
+body, with a 2xx status when one is recorded. A drained entry or failed
+response is listed in `incompleteResponses`, so a lost response fails as
+`METRIC_SEARCH_NOT_APPLIED` and never becomes a thin archive.
+`searchGate.networkIdle` records reads, untracked reads, timeouts and the
+longest wait.
 
 For a form-only verification, pass `--dry-run`:
 
@@ -254,4 +269,4 @@ top-shop series. Platforms are mapped from the live `search_basic` list; values
 are never summed. A trend series is retained only when a post-submit source
 response offers one; otherwise the manifest records `not offered by the source`.
 
-Adapter manifest SHA-256: `15347b48e31a362e841263a4042ba3ede8e73352efc360c0889d9f77bffad28e`.
+Adapter manifest SHA-256: `b202a732504bd607cc2e98b5c94f5e48e211e6087bcc257f6ffb2b50046bc610`.

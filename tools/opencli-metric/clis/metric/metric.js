@@ -20,6 +20,7 @@ import {
   assertSearchAppliedGate,
   buildMetricPlatformMap,
   extractResultsPage,
+  responseCompleted,
   sanitizeDomSnapshots,
   sanitizeDebugObject,
   sanitizeNetworkResponses,
@@ -31,6 +32,8 @@ const PRODUCT_CAP = 200;
 const PAGE_CAP = 10;
 const NETWORK_WAIT_TIMEOUT_MS = 30_000;
 const NETWORK_POLL_SECONDS = 0.25;
+const NETWORK_IDLE_QUIET_MS = 1_000;
+const NETWORK_IDLE_TIMEOUT_MS = 20_000;
 const SUBMIT_IDLE_POLL_SECONDS = 1;
 const SUBMIT_IDLE_MAX_POLLS = 120;
 const SUBMIT_DISABLED_MAX_POLLS = 5;
@@ -1707,8 +1710,98 @@ function networkResponseKey(response) {
   return `body:${JSON.stringify(Object.fromEntries(fields.filter(field => response?.[field] !== undefined).map(field => [field, response[field]])))}`;
 }
 
+// These two functions run in the page. The browser capture empties its buffer
+// on every read, and an entry read while its request is in flight never gets
+// its status or body. The tracker counts in-flight Metric API requests so the
+// adapter reads the capture only after they have settled. It observes; it
+// does not change any request or response.
+function installMetricRequestTracker() {
+  if (window.__metricRequestTracker) return { installed: true, existing: true };
+  const tracker = { inflight: 0, started: 0, settled: 0, lastSettledAt: 0 };
+  const tracked = url => /\/(?:v2\/)?market\//.test(String(url || ''));
+  const begin = () => { tracker.inflight += 1; tracker.started += 1; };
+  const end = () => { tracker.inflight = Math.max(0, tracker.inflight - 1); tracker.settled += 1; tracker.lastSettledAt = Date.now(); };
+  const proto = window.XMLHttpRequest?.prototype;
+  if (proto && typeof proto.open === 'function' && typeof proto.send === 'function') {
+    const open = proto.open;
+    const send = proto.send;
+    proto.open = function metricTrackedOpen(method, url, ...rest) {
+      this.__metricTrackedUrl = url;
+      return open.call(this, method, url, ...rest);
+    };
+    proto.send = function metricTrackedSend(...args) {
+      if (!tracked(this.__metricTrackedUrl)) return send.apply(this, args);
+      begin();
+      let finished = false;
+      const finish = () => { if (!finished) { finished = true; end(); } };
+      this.addEventListener('loadend', finish);
+      try { return send.apply(this, args); } catch (error) { finish(); throw error; }
+    };
+  }
+  if (typeof window.fetch === 'function') {
+    const originalFetch = window.fetch;
+    window.fetch = function metricTrackedFetch(input, init) {
+      const url = typeof input === 'string' ? input : input?.url;
+      if (!tracked(url)) return originalFetch.call(this, input, init);
+      begin();
+      let pending;
+      try { pending = originalFetch.call(this, input, init); } catch (error) { end(); throw error; }
+      return Promise.resolve(pending).then(response => {
+        // A body that cannot be cloned (already read, locked) settles the
+        // request now instead of leaking it or failing the page's fetch.
+        let body = null;
+        try { body = typeof response?.clone === 'function' ? response.clone().arrayBuffer() : null; } catch { body = null; }
+        if (!body) { end(); return response; }
+        Promise.resolve(body).catch(() => {}).finally(end);
+        return response;
+      }, error => { end(); throw error; });
+    };
+  }
+  window.__metricRequestTracker = tracker;
+  return { installed: true, existing: false };
+}
+
+function readMetricRequestTracker() {
+  const tracker = window.__metricRequestTracker;
+  if (!tracker) return null;
+  return { inflight: tracker.inflight, started: tracker.started, settled: tracker.settled, lastSettledAt: tracker.lastSettledAt, now: Date.now() };
+}
+
+async function installRequestTracker(page) {
+  const result = await page.evaluate(installMetricRequestTracker).catch(() => null);
+  return result && typeof result === 'object' && result.installed === true ? { installed: true, existing: result.existing === true } : { installed: false };
+}
+
+async function waitForMetricNetworkIdle(page, networkState = null) {
+  const idle = networkState ? (networkState.idle ||= { reads: 0, untracked: 0, timeouts: 0, maxWaitMs: 0 }) : null;
+  if (idle) idle.reads += 1;
+  const startedAt = Date.now();
+  const deadline = startedAt + NETWORK_IDLE_TIMEOUT_MS;
+  while (true) {
+    const state = typeof page.evaluate === 'function' ? await page.evaluate(readMetricRequestTracker).catch(() => null) : null;
+    if (!state || typeof state !== 'object' || !Number.isFinite(state.inflight) || !Number.isFinite(state.now)) {
+      if (idle) idle.untracked += 1;
+      return { tracked: false };
+    }
+    const quietMs = state.lastSettledAt ? state.now - state.lastSettledAt : Infinity;
+    if (state.inflight <= 0 && quietMs >= NETWORK_IDLE_QUIET_MS) {
+      if (idle) idle.maxWaitMs = Math.max(idle.maxWaitMs, Date.now() - startedAt);
+      return { tracked: true, idle: true };
+    }
+    if (Date.now() >= deadline) {
+      // A request that never settles must not stall the run; the completed-
+      // response gates still reject any entry read before it finished.
+      if (idle) { idle.timeouts += 1; idle.maxWaitMs = Math.max(idle.maxWaitMs, Date.now() - startedAt); }
+      return { tracked: true, idle: false, inflight: state.inflight };
+    }
+    if (typeof page.wait === 'function') await page.wait({ time: NETWORK_POLL_SECONDS }).catch(() => {});
+    else await new Promise(resolve => setTimeout(resolve, NETWORK_POLL_SECONDS * 1000));
+  }
+}
+
 async function readNetworkChunk(page, networkState) {
   if (typeof page.readNetworkCapture !== 'function') return [];
+  await waitForMetricNetworkIdle(page, networkState);
   const raw = await page.readNetworkCapture();
   const entries = Array.isArray(raw) ? raw : [];
   const chunk = entries.flatMap(response => {
@@ -1774,6 +1867,8 @@ async function performSearch(page, spec, debug = null) {
   try {
     const { pageRepair } = await prepareMetricForm(page, spec);
     searchGate.pageRepair = pageRepair;
+    searchGate.requestTracker = await installRequestTracker(page);
+    searchGate.networkIdle = networkState.idle ||= { reads: 0, untracked: 0, timeouts: 0, maxWaitMs: 0 };
     const platformLabels = await readMetricPlatformOptionLabels(page);
     const { descriptor, preflight } = await prepareSearchSubmit(page);
     Object.assign(searchGate, { submitDescriptor: descriptor, preflight });
@@ -2164,7 +2259,7 @@ async function waitForMatchingResult(page, networkState, baselineResponseOrder, 
       const order = Number.isSafeInteger(response?.responseOrder) ? response.responseOrder : index;
       let path = String(response?.urlPath || response?.path || response?.url || '').split('?')[0].replace(/\/$/, '');
       try { path = new URL(path, BASE_URL).pathname.replace(/\/$/, ''); } catch { /* keep the path sample */ }
-      return order > baselineResponseOrder && wantedPaths.includes(path);
+      return order > baselineResponseOrder && wantedPaths.includes(path) && responseCompleted(response);
     });
     const regionVisible = await page.evaluate(selector => {
       const element = document.querySelector(selector);
@@ -2243,6 +2338,7 @@ async function readResultPage(page, { debug = null, viewPlatform = 'all', pageNu
   if (debug) await debug.record(page, dom, viewPlatform, pageNumber);
   gateMetricPage({ ...before, ...dom, url: dom.url || before.url, metricRootVisible: dom.metricRootVisible ?? before.metricRootVisible });
   await gateCurrentMetricPage(page);
+  if (!networkState && typeof page.readNetworkCapture === 'function') await waitForMetricNetworkIdle(page);
   const responses = networkState ? await readNetworkChunk(page, networkState)
     : typeof page.readNetworkCapture === 'function' ? await page.readNetworkCapture() : [];
   return { dom, responses: Array.isArray(responses) ? responses : [] };
@@ -2593,5 +2689,6 @@ export {
   repairMetricFunctionDefaults, repairMetricPage, commitMetricKeywordComma, releaseMetricKeywordComma,
   readMetricSubmitState, closeMetricOpenSelects, waitForMetricSubmitIdle, prepareSearchSubmit,
   readMetricSelectOptionLabels, readMetricPlatformOptionLabels,
+  installMetricRequestTracker, readMetricRequestTracker, waitForMetricNetworkIdle,
 };
 export { assertMetricUrl, parseMetricForm };
