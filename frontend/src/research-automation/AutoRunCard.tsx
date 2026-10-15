@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ResearchAutomationError, retryAutoRun } from './api';
 import type { ResearchAutomationAutoRun, ResearchAutomationRun } from './api';
 import { AUTORUN_RETRY_LABEL, autoRunLinksText, autoRunText } from './autorun-text';
@@ -28,6 +28,10 @@ export default function AutoRunCard({ workspaceId, run, ownerToken, writesAvaila
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
   const requestKey = useRef<{ readonly revision: number; readonly key: string } | null>(null);
+  // A retry does not change the run revision: once the stop is cleared, a later stop needs a fresh key,
+  // otherwise the server would answer the next "Thử lại" as an exact repeat of the accepted one.
+  const retryable = autoRun?.canRetry === true;
+  useEffect(() => { if (!retryable) requestKey.current = null; }, [retryable]);
   if (!autoRun) return null;
   const showLinks = autoRun.linksFound !== undefined && autoRun.linksFound < 5 && AFTER_PICK.has(autoRun.phase);
   const canWrite = writesAvailable && ownerToken !== null;
@@ -38,9 +42,10 @@ export default function AutoRunCard({ workspaceId, run, ownerToken, writesAvaila
     setPending(true); setError('');
     try {
       await retryAutoRun(workspaceId, run.runId, { contractVersion: 'research-automation-autorun-retry-v1', requestKey: key }, ownerToken);
+      requestKey.current = null;
       onRetried();
     } catch (failure) {
-      if (failure instanceof ResearchAutomationError && failure.kind === 'conflict') onConflict();
+      if (failure instanceof ResearchAutomationError && failure.kind === 'conflict') { requestKey.current = null; onConflict(); }
       else setError(failure instanceof ResearchAutomationError ? failure.message : 'Chưa gửi được yêu cầu thử lại. Bấm lại sẽ dùng cùng mã yêu cầu.');
     } finally { setPending(false); }
   };

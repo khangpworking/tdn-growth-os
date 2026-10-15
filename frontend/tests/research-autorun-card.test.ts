@@ -24,9 +24,10 @@ async function mount(t: test.TestContext, run: ResearchAutomationRun, handler: t
   const { createRoot } = await import('react-dom/client'); const root = createRoot(dom.container);
   const { default: Component } = await tsImport('../src/research-automation/AutoRunCard.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' });
   const events = { retried: 0, conflicts: 0 };
-  await act(async () => { root.render(createElement(Component, { workspaceId, run, ownerToken, writesAvailable: true, onRetried: () => { events.retried++; }, onConflict: () => { events.conflicts++; } })); });
+  const render = (value: ResearchAutomationRun) => act(async () => { root.render(createElement(Component, { workspaceId, run: value, ownerToken, writesAvailable: true, onRetried: () => { events.retried++; }, onConflict: () => { events.conflicts++; } })); });
+  await render(run);
   t.after(async () => { await act(async () => root.unmount()); globalThis.fetch = prior; dom.cleanup(); });
-  return { dom, events };
+  return { dom, events, render };
 }
 const retryButton = (container: HTMLElement) => [...container.querySelectorAll('button')].find(button => button.textContent === AUTORUN_RETRY_LABEL);
 
@@ -83,6 +84,29 @@ test('retry sends one owner POST with a request key and reports a conflict', asy
   assert.equal(body.contractVersion, 'research-automation-autorun-retry-v1');
   assert.match(body.requestKey, /^[0-9a-f-]{36}$/);
   assert.equal(events.conflicts, 1); assert.equal(events.retried, 0);
+});
+
+test('a failed send reuses its key; a later stop after the retry was accepted gets a fresh key', async t => {
+  const keys: string[] = [];
+  const stopped = runWith({ phase: 'STOPPED', state: 'QUEUED', stopCode: 'TIMEOUT', canRetry: true });
+  const { dom, render } = await mount(t, stopped, (async (_url, init) => {
+    keys.push(JSON.parse(String(init?.body)).requestKey);
+    return json({ error: { code: 'internal', message: 'Synthetic failure' } }, 500);
+  }) as typeof fetch);
+  const click = async () => {
+    const before = keys.length;
+    await act(async () => { retryButton(dom.container)!.click(); });
+    for (let i = 0; i < 20 && (keys.length === before || retryButton(dom.container)?.disabled); i++) await nextTurn();
+  };
+  await click(); await click();
+  assert.equal(keys.length, 2);
+  assert.equal(keys[0], keys[1], 'an unanswered retry is resent with the same key');
+  // The server accepted it after all: the capture is queued again, then stops again.
+  await render(runWith({ phase: 'CAPTURE', state: 'QUEUED', canRetry: false }));
+  await render(stopped);
+  await click();
+  assert.equal(keys.length, 3);
+  assert.notEqual(keys[2], keys[0], 'a new stop needs a new key');
 });
 
 test('retry button is disabled without an owner token', async t => {

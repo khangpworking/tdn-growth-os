@@ -278,6 +278,20 @@ test('retry route: OWNER POST returns 202, exact retry 200, and 409 when not ret
     await new Promise<void>(resolve => server.close(() => resolve()));
     await api.close();
   }
+  // Flag off: the route does not exist at all.
+  const offApi = openResearchAutomationApi({ databasePath: f.databasePath, artifactRoot: f.artifactRoot, origin: base,
+    providers: { kalodataSecretKey: null, serpApiKey: null, apifyTokenConfigured: false },
+    owner: { writeEnabled: true, databasePath: f.databasePath, artifactRoot: f.artifactRoot, token, allowedOrigin: base, actorId: 'owner:synthetic' } },
+    { now: () => Date.now(), sleep: async () => {}, fetch: async () => { throw new Error('no provider call expected'); } });
+  const offServer = http.createServer(offApi.handler); offServer.listen(port, '127.0.0.1'); await once(offServer, 'listening');
+  try {
+    const response = await fetch(`${base}/owner-api/workspaces/${workspaceId}/research-automation/runs/${runId}/auto-run/retry`, {
+      method: 'POST', headers: { Origin: base, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(retryBody()) });
+    assert.equal(response.status, 404);
+  } finally {
+    await new Promise<void>(resolve => offServer.close(() => resolve()));
+    await offApi.close();
+  }
 });
 
 // ---------- owner text ----------
