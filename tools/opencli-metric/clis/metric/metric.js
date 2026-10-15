@@ -37,6 +37,10 @@ const NETWORK_IDLE_TIMEOUT_MS = 20_000;
 const SUBMIT_IDLE_POLL_SECONDS = 1;
 const SUBMIT_IDLE_MAX_POLLS = 120;
 const SUBMIT_DISABLED_MAX_POLLS = 5;
+// OpenCLI stops a browser command after 60s unless it declares a `timeout`
+// arg; network-idle waits across paginated views need far longer than that.
+const COMMAND_TIMEOUT_SECONDS = 1500;
+const TIMEOUT_ARG = { name: 'timeout', type: 'int', default: COMMAND_TIMEOUT_SECONDS, help: 'Seconds before OpenCLI stops the command' };
 
 function asCliError(error) {
   if (error instanceof CliError) return error;
@@ -2043,13 +2047,16 @@ function observeResultPage() {
     if (!headerTable || !bodyTable) return null;
     const rawHeaders = [...headerTable.querySelectorAll('thead th')].map(textOf);
     const headers = rawHeaders.map(canonicalHeader);
-    const rows = [...bodyTable.querySelectorAll('tbody tr')].map(row => {
+    // Scrollable Ant tables start the body with a hidden, empty measure row; it is not data.
+    const rows = [...bodyTable.querySelectorAll('tbody tr')].flatMap(row => {
+      if (row.classList?.contains('ant-table-measure-row') || row.getAttribute('aria-hidden') === 'true') return [];
       const cells = [...row.querySelectorAll('td')].map(textOf);
+      if (!cells.some(Boolean)) return [];
       const values = Object.fromEntries(cells.map((value, index) => [headers[index] || `column${index + 1}`, value]));
       const iconPlatform = platformFromIcon(row);
       if (iconPlatform) values.platform = iconPlatform;
       else if (regionName === 'top-products' || regionName === 'top-shops') values.platform = 'unknown';
-      return values;
+      return [values];
     });
     return { columns: headers, rows };
   };
@@ -2445,13 +2452,40 @@ async function collectResultPages(page, productCap, initial = null, viewPlatform
     }, 0);
     if (!pagination?.nextAvailable || observedRows >= productCap) break;
     if (!pagination.nextSelector || typeof page.click !== 'function') break;
-    const baselineResponseOrder = networkState.nextResponseOrder - 1;
-    await page.click(pagination.nextSelector, { nth: 0 });
-    await gateCurrentMetricPage(page);
-    await waitForMatchingResult(page, networkState, baselineResponseOrder, '/v2/market/analytics/products/', '#main-content #analytic-tab');
+    await goToNextProductPage(page, networkState, pagination.nextSelector, { page: pageNumber, firstRow: items[0] ?? null });
     await gateCurrentMetricPage(page);
   }
   return { responses, domSnapshots, lastDom, pagesRead, screenshots, screenshotSkips };
+}
+
+// Product rows are read from the DOM; the products response only signals that
+// the next page has loaded. A slow response, or one read while still in flight,
+// gets one more wait (one more click when the pager did not move). The table
+// showing the next page with new rows is accepted as loaded.
+async function goToNextProductPage(page, networkState, nextSelector, previous) {
+  let click = true; let baselineResponseOrder = null; let lastError = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    if (click) {
+      baselineResponseOrder = networkState.nextResponseOrder - 1;
+      await page.click(nextSelector, { nth: 0 });
+      await gateCurrentMetricPage(page);
+    }
+    try {
+      return await waitForMatchingResult(page, networkState, baselineResponseOrder, '/v2/market/analytics/products/', '#main-content #analytic-tab');
+    } catch (error) {
+      if (error?.code !== 'METRIC_SEARCH_NOT_APPLIED') throw error;
+      lastError = error;
+    }
+    const dom = await page.evaluate(observeResultPage).catch(() => null);
+    const region = dom?.regions?.['top-products'] || {};
+    const firstRow = (region.items || region.rows || [])[0] ?? null;
+    const shownPage = dom?.pagination?.page;
+    if (shownPage === previous.page + 1 && firstRow && JSON.stringify(firstRow) !== JSON.stringify(previous.firstRow)) return [];
+    if (shownPage === previous.page + 1) click = false;
+    else if (shownPage === previous.page && dom?.pagination?.nextAvailable) click = true;
+    else break;
+  }
+  throw lastError;
 }
 
 async function collectResults(page, spec, productCap, screenshotDir, debug = null, networkState = createNetworkState()) {
@@ -2637,13 +2671,13 @@ export const whoamiCommand = cli({
 
 export const searchCommand = cli({
   site: 'metric', name: 'search', access: 'read', description: 'Run one Metric analysis lookup and save its web snapshot', domain: 'metric.vn', strategy: Strategy.UI, browser: true, navigateBefore: false, siteSession: 'ephemeral',
-  args: [{ name: 'spec', type: 'string', required: true, help: 'Path to metric-query-spec-v1 JSON' }, { name: 'out', type: 'string', required: true, help: 'Output path for the snapshot JSON' }], columns: ['status', 'rowCount', 'snapshotPath'],
+  args: [{ name: 'spec', type: 'string', required: true, help: 'Path to metric-query-spec-v1 JSON' }, { name: 'out', type: 'string', required: true, help: 'Output path for the snapshot JSON' }, { ...TIMEOUT_ARG }], columns: ['status', 'rowCount', 'snapshotPath'],
   func: async (page, args) => withMetricTab(page, async target => { const spec = await readSpec(args.spec); await target.startNetworkCapture?.(); const { parsed } = await runSearch(target, spec, Number.MAX_SAFE_INTEGER); await writeJson(args.out, parsed.snapshot); return [{ status: 'READY', rowCount: parsed.rowCount, snapshotPath: String(args.out) }]; }),
 });
 
 export const captureCommand = cli({
   site: 'metric', name: 'capture', access: 'read', description: 'Run one Metric analysis lookup and archive the results page', domain: 'metric.vn', strategy: Strategy.UI, browser: true, navigateBefore: false, siteSession: 'ephemeral',
-  args: [{ name: 'spec', type: 'string', required: true, help: 'Path to metric-query-spec-v1 JSON' }, { name: 'out', type: 'string', required: false, help: 'Absolute output directory outside the repository (required without --dry-run)' }, { name: 'replay', type: 'string', required: false, help: 'Replay a saved Metric debug directory without browser or network access' }, { name: 'product-cap', type: 'int', default: PRODUCT_CAP, help: 'Maximum product rows to read through pagination per platform view' }, { name: 'dry-run', type: 'boolean', default: false, help: 'Apply and verify the form without clicking Search' }], columns: ['status', 'rowCount', 'manifestPath', 'outcome', 'startState', 'appliedReadBack', 'mismatches'],
+  args: [{ name: 'spec', type: 'string', required: true, help: 'Path to metric-query-spec-v1 JSON' }, { name: 'out', type: 'string', required: false, help: 'Absolute output directory outside the repository (required without --dry-run)' }, { name: 'replay', type: 'string', required: false, help: 'Replay a saved Metric debug directory without browser or network access' }, { name: 'product-cap', type: 'int', default: PRODUCT_CAP, help: 'Maximum product rows to read through pagination per platform view' }, { name: 'dry-run', type: 'boolean', default: false, help: 'Apply and verify the form without clicking Search' }, { ...TIMEOUT_ARG }], columns: ['status', 'rowCount', 'manifestPath', 'outcome', 'startState', 'appliedReadBack', 'mismatches'],
   func: async (page, args) => {
     const spec = await readSpec(args.spec);
     if (args.replay) {
