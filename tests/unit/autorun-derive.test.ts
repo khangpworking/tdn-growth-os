@@ -45,7 +45,7 @@ test('son keyword picks son, never sơn, sonic or person', () => {
   assert.match(result.urls[0]!, /^https:\/\/shopee\.vn\/product\/11\/\d+$/);
 });
 
-test('brand and shop dedupe across pass 1 and pass 2, max five', () => {
+test('pass 1 spreads brands; pass 2 fills by unseen shop, a brand may repeat; max five', () => {
   const r = [
     row('son A1', 11, 100, { brand: 'Brand A' }),
     row('son A2', 12, 90, { brand: 'brand a ' }), // same brand after trim+lowercase
@@ -58,7 +58,8 @@ test('brand and shop dedupe across pass 1 and pass 2, max five', () => {
     row('son no brand 3', 17, 20),
   ];
   const result = pickShopeeLinks(raw(r), ['son']);
-  assert.deepEqual(result.links.map(link => link.productBaseId), [r[0], r[4], r[6], r[3], r[7]].map(x => x!.product_base_id));
+  // Pass 1: A1, C, D (B sits on A1's shop). Pass 2 by revenue: A2 (brand A again, new shop), then no-brand 1.
+  assert.deepEqual(result.links.map(link => link.productBaseId), [r[0], r[4], r[6], r[1], r[3]].map(x => x!.product_base_id));
   assert.equal(new Set(result.links.map(link => link.shopId)).size, 5);
   assert.equal(result.urls.length, 5);
   for (const link of result.links) assert.equal(link.url, `https://shopee.vn/product/${link.shopId}/${link.itemId}`);

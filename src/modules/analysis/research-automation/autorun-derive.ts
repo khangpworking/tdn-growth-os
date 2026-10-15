@@ -305,7 +305,8 @@ export function pickShopeeLinks(rawResponses: unknown, terms: readonly string[])
   }
   for (const row of eligible) {
     if (picked.length >= AUTORUN_MAX_SHOPEE_LINKS) break;
-    if (picked.includes(row) || seenShops.has(row.shopKey) || (row.brandKey && seenBrands.has(row.brandKey))) continue;
+    // Fill: a brand may repeat (owner example: 2 of one brand + 3 others), a shop may not.
+    if (picked.includes(row) || seenShops.has(row.shopKey)) continue;
     take(row);
   }
   const links = picked.map(row => ({ productBaseId: row.id, itemId: row.itemId, shopId: row.shopId, revenue: row.revenue, brand: row.brand,
