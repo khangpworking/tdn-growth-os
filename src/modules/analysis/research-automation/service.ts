@@ -13,7 +13,7 @@ import type { PersonaSourceContext } from './insight-persona-projection.js';
 import { ShopeeCollectionService } from '../../foundation/shopee-collection-service.js';
 import { buildPrivateReviewReportView, type PrivateReviewBinding } from './private-review-corpus.js';
 import type { PrivateReviewReportView } from '../../../../contracts/analysis/private-review-report-view.generated.js';
-import { buildResearchAutomationReport, type MarketCoverInput } from './reports.js';
+import { buildResearchAutomationReport, marketPartialRowTotals, type MarketCoverInput } from './reports.js';
 import { buildMarketCover, marketCoverAlt, verifyMarketCoverRecord, type MarketCover, type MarketCoverAi } from './market-cover.js';
 import { MAX_COVER_JPEG_BYTES } from './cover-image-codec.js';
 import { assertMarketBusinessGate } from './market-business-gate.js';
@@ -3510,7 +3510,10 @@ export class ResearchAutomationService {
         }
         const { rendered, semanticBytes, html } = prepared;
         if (semanticBytes.byteLength > MAX_JSON_ARTIFACT_BYTES || html.byteLength > MAX_HTML_BYTES) throw new ResearchAutomationIntegrityError('Research report output exceeds its bound.');
-        if (kind === 'MARKET') assertMarketBusinessGate(html.toString('utf8'), { presentation: Boolean(input.marketPresentation) });
+        // Partial row sums are checked on the presentation report, whose renderer never states them;
+        // the older plain renderer is kept unchanged for earlier runs.
+        if (kind === 'MARKET') assertMarketBusinessGate(html.toString('utf8'), { presentation: Boolean(input.marketPresentation),
+          ...(input.marketPresentation ? { partialTotals: marketPartialRowTotals(input) } : {}) });
         const semantic = await this.#artifacts.put(semanticBytes);
         const htmlArtifact = await this.#artifacts.put(html);
         let pdf: StoredArtifact | null = null;
