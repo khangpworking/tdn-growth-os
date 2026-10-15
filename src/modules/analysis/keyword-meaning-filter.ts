@@ -72,11 +72,21 @@ function strippedKey(text: string): string {
   return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
 }
 
+/** True when the term carries any Vietnamese mark (tone, vowel mark or đ). */
+function hasMarks(text: string): boolean {
+  return strippedKey(text) !== foldKey(text);
+}
+
 function checkData(data: KeywordMeaningFilterData): { keywords: string[]; strippedKeywords: string[]; exclusions: { term: string; folded: string; reason: string }[] } {
   if (!validateFilterData(data)) fail('filter data failed canonical schema validation');
-  // Shape and bounds are canonical (AJV); only semantic uniqueness needs code.
-  // Stored terms keep their exact input bytes: matching folds internally, but
-  // the frozen result binds the originals, never normalized copies.
+  // Shape and bounds are canonical (AJV); list semantics need code. AI-drafted
+  // lists reach the filter through this gate, so a list that would silently
+  // move records between INCLUDED and EXCLUDED is rejected here, not counted.
+  // Terms must already be NFC: a decomposed term hides overlaps from review
+  // and binds bytes that differ from what the owner reads.
+  for (const term of [...data.keywords, ...data.exclusions.map(entry => entry.term)]) {
+    if (term !== term.normalize('NFC')) fail(`term is not NFC-normalized: ${term}`);
+  }
   const seen = new Set<string>();
   const keywords = data.keywords.map(term => {
     const key = foldKey(term);
@@ -87,7 +97,33 @@ function checkData(data: KeywordMeaningFilterData): { keywords: string[]; stripp
   const exclusions = data.exclusions.map(entry => ({
     term: entry.term, folded: foldKey(entry.term), reason: entry.reason,
   }));
-  return { keywords, strippedKeywords: keywords.map(strippedKey), exclusions };
+  // Exclusions are checked before keywords, so an exclusion equal to or inside
+  // a keyword (e.g. `dừa` for `thạch dừa`) would mark every match EXCLUDED.
+  for (const exclusion of exclusions) {
+    for (const keyword of keywords) {
+      const foldedKeyword = foldKey(keyword);
+      if (foldedKeyword === exclusion.folded) fail(`term is both keyword and exclusion: ${exclusion.term}`);
+      if (foldedKeyword.includes(exclusion.folded)) fail(`exclusion ${exclusion.term} is inside keyword ${keyword}`);
+    }
+  }
+  // Diacritics carry meaning (thạch dừa ≠ thạch dứa). Two keywords that differ
+  // only by marks are two meanings in one list, and an unmarked term next to a
+  // marked one with the same letters has lost its diacritics. Marked look-alike
+  // exclusions (thạch dứa beside keyword thạch dừa) stay valid.
+  const strippedKeywords = keywords.map(strippedKey);
+  const keywordByStripped = new Map<string, string>();
+  for (const [index, keyword] of keywords.entries()) {
+    const other = keywordByStripped.get(strippedKeywords[index]!);
+    if (other !== undefined) fail(`keywords differ only by diacritics: ${other} / ${keyword}`);
+    keywordByStripped.set(strippedKeywords[index]!, keyword);
+  }
+  const terms = [...keywords, ...exclusions.map(entry => entry.term)];
+  const markedByStripped = new Map(terms.filter(hasMarks).map(term => [strippedKey(term), term]));
+  for (const term of terms) {
+    const marked = hasMarks(term) ? undefined : markedByStripped.get(strippedKey(term));
+    if (marked !== undefined) fail(`term ${term} lost the diacritics of ${marked}`);
+  }
+  return { keywords, strippedKeywords, exclusions };
 }
 
 function checkRecords(records: readonly KeywordMeaningRecord[]): void {

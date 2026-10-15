@@ -99,23 +99,22 @@ test('an explicit accented look-alike never resolves into the keyword meaning', 
   assert.equal(result.accounting.included, 0);
 });
 
-test('frozen keyword/exclusion binding preserves exact input bytes', () => {
+test('non-NFC keyword/exclusion terms fail closed; NFC terms bind their exact bytes', () => {
   const decomposedKeyword = 'thạch dừa'.normalize('NFD');
   const decomposedExclusion = 'thạch dứa'.normalize('NFD');
   assert.ok(decomposedKeyword !== decomposedKeyword.normalize('NFC'), 'fixture must be non-NFC');
-  const data: KeywordMeaningFilterData = { ...thachDuaData(),
-    keywords: [decomposedKeyword],
-    exclusions: [{ term: decomposedExclusion, reason: 'Thạch làm từ dứa' }] };
-  const result = filterKeywordMeanings(data, [
-    { recordId: 'd-1', text: 'Thạch dừa An Nhiên' },
+  assert.throws(() => filterKeywordMeanings({ ...thachDuaData(), keywords: [decomposedKeyword] }, []), KeywordMeaningFilterInputError);
+  assert.throws(() => filterKeywordMeanings({ ...thachDuaData(),
+    exclusions: [{ term: decomposedExclusion, reason: 'Thạch làm từ dứa' }] }, []), KeywordMeaningFilterInputError);
+  const result = filterKeywordMeanings(thachDuaData(), [
+    { recordId: 'd-1', text: 'Thạch dừa An Nhiên'.normalize('NFD') },
     { recordId: 'd-2', text: 'thạch dứa hộp' },
   ]);
-  assert.deepEqual(result.keywords, [decomposedKeyword]);
-  assert.deepEqual(result.exclusions, [{ term: decomposedExclusion, reason: 'Thạch làm từ dứa' }]);
+  assert.deepEqual(result.keywords, ['thạch dừa']);
   assert.equal(result.results[0]?.decision, 'INCLUDED');
-  assert.equal(result.results[0]?.matchedKeyword, decomposedKeyword);
+  assert.equal(result.results[0]?.text, 'Thạch dừa An Nhiên'.normalize('NFD'));
   assert.equal(result.results[1]?.decision, 'EXCLUDED');
-  assert.equal(result.results[1]?.excludedBy, decomposedExclusion);
+  assert.equal(result.results[1]?.excludedBy, 'thạch dứa');
   assert.equal(validatesKeywordMeaningFilterResult(result), true);
 });
 
