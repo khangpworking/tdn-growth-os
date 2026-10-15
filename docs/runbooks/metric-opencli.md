@@ -23,7 +23,7 @@ adapter installed from the same repository bytes. The executor verifies
 `tools/opencli-metric/adapter-manifest.json` before each run. `whoami` reads
 only login, captcha, page-state and any displayed analysis lookup balance.
 The current manifest SHA-256 is
-`bb33bf89b7d5c6b6d4851e4912ac5526233e53778b287019ce314db41f1ade7c`.
+`15347b48e31a362e841263a4042ba3ede8e73352efc360c0889d9f77bffad28e`.
 
 Install or reinstall the adapter from the checked-out repository bytes with:
 
@@ -226,6 +226,10 @@ A hidden document also ignores CDP Escape, so an opened select stays open
 there. Each popup close and the submit preflight therefore send an in-page
 Escape to every open select input in the search builder, press outside on the
 body and blur the focused builder input.
+A closed dropdown can stay in its leave transition in a hidden document, with
+its options still visible. The platform labels used to map Metric platform
+ids are therefore read only from the dropdown the platform input owns (its
+`aria-controls` list), never from every visible option on the page.
 Dry-run `preflight.documentHidden` records which path ran.
 
 Metric auto-loads a landing report when the page opens. While it loads,
@@ -250,4 +254,4 @@ top-shop series. Platforms are mapped from the live `search_basic` list; values
 are never summed. A trend series is retained only when a post-submit source
 response offers one; otherwise the manifest records `not offered by the source`.
 
-Adapter manifest SHA-256: `bb33bf89b7d5c6b6d4851e4912ac5526233e53778b287019ce314db41f1ade7c`.
+Adapter manifest SHA-256: `15347b48e31a362e841263a4042ba3ede8e73352efc360c0889d9f77bffad28e`.
