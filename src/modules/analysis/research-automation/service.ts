@@ -3704,7 +3704,7 @@ export class ResearchAutomationService {
       cancelledSourceEvidence = () => buildSourceEvidence({ ...evidenceInputs, draft: null, draftDigest: null, unavailableReason: 'DRAFT_FAILED' });
       const jevTriage = this.#l9Jev ? await triageSourceEvidenceL9({ draft, webResults: evidenceInputs.webResults, captures: allCaptures, client: this.#l9Jev }) : null;
       const sourceEvidence = buildSourceEvidence({ ...evidenceInputs, draft, draftDigest: drafted.digest, unavailableReason: drafted.unavailableReason,
-        ...(jevTriage ? { jevTriage } : {}) });
+        pageTypes: true, ...(jevTriage ? { jevTriage } : {}) });
       step = { ...step, sourceEvidence };
     }
     const webResult = web && 'bound' in web ? web.bound.result : null;

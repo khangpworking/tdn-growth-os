@@ -84,6 +84,9 @@
     "jevTriage": {
       "$ref": "l9-jev-triage.schema.json"
     },
+    "webPageTypes": {
+      "const": true
+    },
     "sourceAppendix": {
       "$ref": "source-appendix-projection.schema.json#/$defs/projection"
     }
