@@ -231,14 +231,33 @@ TDN_METRIC_OPENCLI_ADAPTER_SHA256=<64-hex-sha256-of-that-manifest>
 TDN_METRIC_CAPTURE_DIR=<capture-root-directory>
 ```
 
+The executor starts `opencli` by name with no shell, so it must be on the
+operator app's `PATH`. If the launcher pins `PATH`, add a directory holding a
+small `opencli` shim that runs the same Node version the adapter was installed
+with. Any stderr line the executor does not recognise (for example a Node
+version warning) fails the capture as `METRIC_UI_CHANGED`.
+
 With the flag on, a new run that requests MARKET gets one auto-run row. After
 the run reaches scope review, the worker runs one capture at a time (never
-retried), prepares it, picks up to 5 Shopee links, and confirms the scope with
-`nativeReview: SKIP`. The row ends at DONE once the draft is ready, or STOPPED
-with a short code (for example `METRIC_LOGIN_REQUIRED`, `CANCELLED`,
-`SCOPE_CHANGED_BY_OWNER`). A login, captcha or bridge stop also stops the other
-waiting captures of the same workspace. A restart during a capture stops that
-row as `CAPTURE_INTERRUPTED`; it is never re-run automatically.
+retried automatically), prepares it, picks up to 5 Shopee links, and confirms
+the scope with `nativeReview: SKIP`. Once the draft is ready it requests one
+presentation revision (cover and charts) on the latest draft. The row ends at
+DONE when that revision commits, or STOPPED with a short code (for example
+`METRIC_LOGIN_REQUIRED`, `CANCELLED`, `SCOPE_CHANGED_BY_OWNER`,
+`OWNER_REVISION_EXISTS`, `PRESENTATION_FAILED`). A login, captcha or bridge
+stop also stops the other waiting captures of the same workspace. A restart
+during a capture stops that row as `CAPTURE_INTERRUPTED`; it is never re-run
+automatically.
+
+The run page shows an owner status card while the auto-run row exists. A
+stopped capture on a run still awaiting scope can be re-run only by the
+owner's "Thử lại" (`POST .../runs/{runId}/auto-run/retry`, one more lookup).
+The previous capture folder is renamed `run1.failed-N`, never deleted, and the
+new capture never reads it. With the flag off the route does not exist.
+
+Each capture keeps its `debug/` directory under the capture root (about
+130 MB for a 10-page lookup). Nothing prunes these folders; watch disk space
+and remove old ones by hand.
 
 
 ## R3 — provable native submit and network-first result data
