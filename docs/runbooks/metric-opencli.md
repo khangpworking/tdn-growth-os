@@ -23,7 +23,7 @@ adapter installed from the same repository bytes. The executor verifies
 `tools/opencli-metric/adapter-manifest.json` before each run. `whoami` reads
 only login, captcha, page-state and any displayed analysis lookup balance.
 The current manifest SHA-256 is
-`80d9bc5dfd04d992eb1fdb24e1e6dade3754cd51aa7259c751e8beea46540b68`.
+`bb33bf89b7d5c6b6d4851e4912ac5526233e53778b287019ce314db41f1ade7c`.
 
 Install or reinstall the adapter from the checked-out repository bytes with:
 
@@ -222,7 +222,19 @@ The keyup follows in a separate call after 0.3 s, as a real key release does.
 A keyup in the same task lets Metric read the stale `keyword,` text before the
 tokenizer re-renders, and Analytics then stays disabled.
 `waitForKeywordCommit` must still read the committed chip back.
+A hidden document also ignores CDP Escape, so an opened select stays open
+there. Each popup close and the submit preflight therefore send an in-page
+Escape to every open select input in the search builder, press outside on the
+body and blur the focused builder input.
 Dry-run `preflight.documentHidden` records which path ran.
+
+Metric auto-loads a landing report when the page opens. While it loads,
+Analytics is disabled and holds an inline loading icon, without the
+`ant-btn-loading` class. `waitForMetricSubmitIdle` polls the button once a
+second, up to 120 polls while the icon shows. It runs before the form is
+edited and again in the submit preflight. A disabled button without the icon
+is a form problem, so the wait stops after 5 polls and the preflight fails as
+before. Dry-run `preflight.submitIdle` records the polls.
 
 Debug capture is complete on submit failure and gate failure: sanitized full DOM
 and a masked screenshot are saved before submit and at 3 s and 15 s after it.
@@ -238,4 +250,4 @@ top-shop series. Platforms are mapped from the live `search_basic` list; values
 are never summed. A trend series is retained only when a post-submit source
 response offers one; otherwise the manifest records `not offered by the source`.
 
-Adapter manifest SHA-256: `80d9bc5dfd04d992eb1fdb24e1e6dade3754cd51aa7259c751e8beea46540b68`.
+Adapter manifest SHA-256: `bb33bf89b7d5c6b6d4851e4912ac5526233e53778b287019ce314db41f1ade7c`.
