@@ -2452,13 +2452,40 @@ async function collectResultPages(page, productCap, initial = null, viewPlatform
     }, 0);
     if (!pagination?.nextAvailable || observedRows >= productCap) break;
     if (!pagination.nextSelector || typeof page.click !== 'function') break;
-    const baselineResponseOrder = networkState.nextResponseOrder - 1;
-    await page.click(pagination.nextSelector, { nth: 0 });
-    await gateCurrentMetricPage(page);
-    await waitForMatchingResult(page, networkState, baselineResponseOrder, '/v2/market/analytics/products/', '#main-content #analytic-tab');
+    await goToNextProductPage(page, networkState, pagination.nextSelector, { page: pageNumber, firstRow: items[0] ?? null });
     await gateCurrentMetricPage(page);
   }
   return { responses, domSnapshots, lastDom, pagesRead, screenshots, screenshotSkips };
+}
+
+// Product rows are read from the DOM; the products response only signals that
+// the next page has loaded. A slow response, or one read while still in flight,
+// gets one more wait (one more click when the pager did not move). The table
+// showing the next page with new rows is accepted as loaded.
+async function goToNextProductPage(page, networkState, nextSelector, previous) {
+  let click = true; let baselineResponseOrder = null; let lastError = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    if (click) {
+      baselineResponseOrder = networkState.nextResponseOrder - 1;
+      await page.click(nextSelector, { nth: 0 });
+      await gateCurrentMetricPage(page);
+    }
+    try {
+      return await waitForMatchingResult(page, networkState, baselineResponseOrder, '/v2/market/analytics/products/', '#main-content #analytic-tab');
+    } catch (error) {
+      if (error?.code !== 'METRIC_SEARCH_NOT_APPLIED') throw error;
+      lastError = error;
+    }
+    const dom = await page.evaluate(observeResultPage).catch(() => null);
+    const region = dom?.regions?.['top-products'] || {};
+    const firstRow = (region.items || region.rows || [])[0] ?? null;
+    const shownPage = dom?.pagination?.page;
+    if (shownPage === previous.page + 1 && firstRow && JSON.stringify(firstRow) !== JSON.stringify(previous.firstRow)) return [];
+    if (shownPage === previous.page + 1) click = false;
+    else if (shownPage === previous.page && dom?.pagination?.nextAvailable) click = true;
+    else break;
+  }
+  throw lastError;
 }
 
 async function collectResults(page, spec, productCap, screenshotDir, debug = null, networkState = createNetworkState()) {

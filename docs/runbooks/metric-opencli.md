@@ -23,7 +23,7 @@ adapter installed from the same repository bytes. The executor verifies
 `tools/opencli-metric/adapter-manifest.json` before each run. `whoami` reads
 only login, captcha, page-state and any displayed analysis lookup balance.
 The current manifest SHA-256 is
-`2a173a69b4215e5fb55cc1112a02c7358c4e5f1cd80bf815ab7758d3ccd2f0fa`.
+`ba1f60da199b8627c7870f909d605b3027cc2a2131946aa90e254308e7e1eb42`.
 
 Install or reinstall the adapter from the checked-out repository bytes with:
 
@@ -74,6 +74,12 @@ longest wait.
 These waits make a full capture run longer than OpenCLI's default 60 s
 command limit. `search` and `capture` therefore declare `--timeout` (default
 1500 s). Pass a larger value only when a capture is known to need it.
+
+Product rows are read from the page, page by page. When the products response
+for the next page does not arrive in time, the adapter checks the table: if it
+already shows the next page with new rows, the capture goes on; if the pager
+did not move, it clicks next once more; otherwise it waits once more. A page
+that still has not loaded after that fails the capture as before.
 
 For a form-only verification, pass `--dry-run`:
 
@@ -273,4 +279,4 @@ top-shop series. Platforms are mapped from the live `search_basic` list; values
 are never summed. A trend series is retained only when a post-submit source
 response offers one; otherwise the manifest records `not offered by the source`.
 
-Adapter manifest SHA-256: `2a173a69b4215e5fb55cc1112a02c7358c4e5f1cd80bf815ab7758d3ccd2f0fa`.
+Adapter manifest SHA-256: `ba1f60da199b8627c7870f909d605b3027cc2a2131946aa90e254308e7e1eb42`.

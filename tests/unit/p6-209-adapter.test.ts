@@ -2150,3 +2150,64 @@ test('collectResultPages reads two real pages, stops on disabled next, and dedup
   assert.equal(page.calls.filter((call: string) => call.includes('ant-pagination-next')).length, 1);
   assert.equal(page.calls.some((call: string) => call.includes('role="tab"')), false);
 });
+
+const pagerPage = (page: number, nextAvailable: boolean, name: string) => ({
+  pagination: { page, pageSize: 20, nextAvailable, nextSelector: 'li.ant-pagination-next .ant-pagination-item-link' },
+  regions: { 'top-products': { rows: [{ name, platform: 'unknown' }] } },
+});
+
+function pagerFakePage(t: any, base: any, resultDom: (state: any) => any, responses: (state: any) => any[]) {
+  const page = fakePage(base, {}, null, [], { resultDom });
+  const state = { clicks: 0 };
+  const click = page.click;
+  page.click = async (selector: string, options?: any) => { if (selector.includes('ant-pagination-next')) state.clicks += 1; return click(selector, options); };
+  page.readNetworkCapture = async () => responses(state);
+  page.wait = async ({ time }: { time: number }) => { t.mock.timers.tick(time * 1000); };
+  return page;
+}
+
+test('a lost products response is accepted once the table shows the next page with new rows', async t => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  t.mock.timers.enable({ apis: ['Date'], now: 0 });
+  const page = pagerFakePage(t, await load('metric-search'), (state: any) => state.paginationClicks ? pagerPage(2, false, 'Synthetic page two') : pagerPage(1, true, 'Synthetic page one'), () => []);
+  const collected = await adapter.collectResultPages(page, 10);
+  assert.equal(collected.pagesRead, 2);
+  assert.deepEqual(collected.domSnapshots.map((snapshot: any) => snapshot.regions['top-products'].rows[0].name), ['Synthetic page one', 'Synthetic page two']);
+  assert.equal(page.calls.filter((call: string) => call.includes('ant-pagination-next')).length, 1);
+});
+
+test('a next-page click the pager did not take is retried once', async t => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  t.mock.timers.enable({ apis: ['Date'], now: 0 });
+  const products = [{ urlPath: '/v2/market/analytics/products/', body: { data: { products: [] } } }];
+  const page = pagerFakePage(t, await load('metric-search'),
+    (state: any) => state.paginationClicks >= 2 ? pagerPage(2, false, 'Synthetic page two') : pagerPage(1, true, 'Synthetic page one'),
+    (state: any) => state.clicks >= 2 ? products : []);
+  const collected = await adapter.collectResultPages(page, 10);
+  assert.equal(collected.pagesRead, 2);
+  assert.equal(page.calls.filter((call: string) => call.includes('ant-pagination-next')).length, 2);
+});
+
+test('a next page that never loads still fails after one retry', async t => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  t.mock.timers.enable({ apis: ['Date'], now: 0 });
+  const page = pagerFakePage(t, await load('metric-search'), () => pagerPage(1, true, 'Synthetic page one'), () => []);
+  await assert.rejects(() => adapter.collectResultPages(page, 10), (error: any) => error.code === 'METRIC_SEARCH_NOT_APPLIED');
+  assert.equal(page.calls.filter((call: string) => call.includes('ant-pagination-next')).length, 2);
+});
+
+test('a moved pager with unchanged rows waits again without clicking twice', async t => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  t.mock.timers.enable({ apis: ['Date'], now: 0 });
+  let reads = 0;
+  const page = pagerFakePage(t, await load('metric-search'),
+    (state: any) => !state.paginationClicks ? pagerPage(1, true, 'Synthetic page one') : reads >= 150 ? pagerPage(2, false, 'Synthetic page two') : pagerPage(2, true, 'Synthetic page one'),
+    () => { reads += 1; return reads === 150 ? [{ urlPath: '/v2/market/analytics/products/', body: { data: { products: [] } } }] : []; });
+  const collected = await adapter.collectResultPages(page, 10);
+  assert.equal(collected.pagesRead, 2);
+  assert.equal(page.calls.filter((call: string) => call.includes('ant-pagination-next')).length, 1);
+});
