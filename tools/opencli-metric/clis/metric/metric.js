@@ -1227,22 +1227,24 @@ async function prepareSearchSubmit(page) {
   return { inspection, descriptor, preflight };
 }
 
+// A hidden document keeps a closed dropdown in its leave transition, so other
+// selects' options can stay visible. Read only the options this select owns.
+function readMetricSelectOptionLabels(inputSelector) {
+  const input = document.querySelector(inputSelector);
+  const listId = input?.getAttribute('aria-controls') || input?.getAttribute('aria-owns') || (input?.id ? `${input.id}_list` : '');
+  const dropdown = listId ? document.getElementById(listId)?.closest('.ant-select-dropdown') : null;
+  if (!dropdown) return [];
+  const textOf = element => (element?.innerText || element?.textContent || '').replace(/\s+/g, ' ').trim();
+  return [...dropdown.querySelectorAll('.ant-select-item-option')].map(textOf).filter(Boolean);
+}
+
 async function readMetricPlatformOptionLabels(page) {
   const selector = await page.evaluate(resolvePlatformSelector).catch(() => null);
   if (!selector) return [];
   await page.click(selector.selectSelector || selector.inputSelector).catch(() => {});
-  const labels = await page.evaluate(() => {
-    const visible = element => {
-      if (!element) return false;
-      const style = getComputedStyle(element); const rect = element.getBoundingClientRect();
-      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
-    };
-    const textOf = element => (element?.innerText || element?.textContent || '').replace(/\s+/g, ' ').trim();
-    return [...document.querySelectorAll('[role="option"],.ant-select-item-option')]
-      .filter(visible).map(textOf).filter(Boolean);
-  }).catch(() => []);
+  const labels = await page.evaluate(readMetricSelectOptionLabels, selector.inputSelector).catch(() => []);
   await dismissMetricPopups(page);
-  return [...new Set(labels)];
+  return [...new Set(Array.isArray(labels) ? labels : [])];
 }
 
 async function clickVisibleText(page, labels) {
@@ -2590,5 +2592,6 @@ export {
   describeSearchSubmit, assertSearchSubmitInspection, createNetworkState, readNetworkChunk,
   repairMetricFunctionDefaults, repairMetricPage, commitMetricKeywordComma, releaseMetricKeywordComma,
   readMetricSubmitState, closeMetricOpenSelects, waitForMetricSubmitIdle, prepareSearchSubmit,
+  readMetricSelectOptionLabels, readMetricPlatformOptionLabels,
 };
 export { assertMetricUrl, parseMetricForm };

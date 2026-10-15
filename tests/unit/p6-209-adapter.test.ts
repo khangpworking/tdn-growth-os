@@ -867,7 +867,7 @@ function fakePage(observation: any, result: any, resultDom: any = null, networkR
         if (behavior.selectedOption === (arg as any)?.label) return -1;
         return behavior.optionIndex ?? 0;
       }
-      if (!fn.name && fn.toString().includes("document.querySelectorAll('[role=\"option\"],.ant-select-item-option')")) return ['Shopee', 'Lazada', 'Tiki', 'Tiktok'];
+      if (fn.name === 'readMetricSelectOptionLabels') return ['Shopee', 'Lazada', 'Tiki', 'Tiktok'];
       if (fn.toString().includes('document.activeElement === input')) return true;
       if (fn.name === 'observeResultPage') return behavior.resultDom ? behavior.resultDom(state, resultDom) : resultDom || { html: '<html></html>', regions: {}, screenshotRegions: {}, platformViews: [] };
       if (fn.name === 'prepareScreenshotClip') { maskCalls.push('prepare'); return behavior.screenshotClip ? behavior.screenshotClip(state) : { clip: { x: 12, y: 24, width: 320, height: 180 }, maskedCount: 1 }; }
@@ -1590,6 +1590,43 @@ test('hidden tab closes an open Metric select with Escape and an outside press',
   document.querySelector('.ant-select-open').classList.remove('ant-select-open');
   assert.deepEqual(await page.evaluate(adapter.closeMetricOpenSelects), { open: 0 });
   assert.deepEqual(events, []);
+});
+
+test('platform labels come only from the platform dropdown, not a keyword dropdown stuck in its leave transition', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const { buildMetricPlatformMap } = await import(captureUrl.href);
+  const option = (label: string) => `<div class="ant-select-item ant-select-item-option"><div class="ant-select-item-option-content">${label}</div></div>`;
+  const html = `<div id="QuerySearchBuilder">
+    <div class="ant-select ant-select-multiple"><input id="platform-input" aria-controls="platform-input_list"></div>
+    <div class="ant-select ant-select-multiple"><input id="keyword-input" aria-owns="keyword-input_list"></div>
+  </div>
+  <div class="ant-select-dropdown ant-slide-up-leave ant-slide-up-leave-active"><div role="listbox" id="keyword-input_list"><div role="option">synthetic-term</div></div>${option('synthetic-term')}</div>
+  <div class="ant-select-dropdown ant-slide-up-enter ant-slide-up-enter-prepare"><div role="listbox" id="platform-input_list"><div role="option">Shopee</div></div>${['Shopee', 'Lazada', 'Tiki', 'Tiktok'].map(option).join('')}</div>`;
+  const dom = visibilityDomPage(html, 'hidden');
+  assert.deepEqual(await dom.evaluate(adapter.readMetricSelectOptionLabels, '#platform-input'), ['Shopee', 'Lazada', 'Tiki', 'Tiktok']);
+  assert.deepEqual(await dom.evaluate(adapter.readMetricSelectOptionLabels, '#keyword-input'), ['synthetic-term']);
+  assert.deepEqual(await dom.evaluate(adapter.readMetricSelectOptionLabels, '#missing'), []);
+
+  const calls: string[] = [];
+  const page: any = {
+    pressKey: async (key: string) => { calls.push(`key:${key}`); },
+    click: async (selector: string) => { calls.push(`click:${selector}`); return { click_method: 'dom-background', hit: 'target' }; },
+    evaluate: async (fn: Function, argument?: unknown) => {
+      if (fn.name === 'resolvePlatformSelector') return { inputSelector: '#platform-input', selectSelector: '#platform-root > .ant-select-selector' };
+      if (fn.name === 'metricDocumentHidden') return true;
+      if (fn.name === 'closeMetricOpenSelects') { calls.push('close-selects'); return { open: 1 }; }
+      if (fn.name === 'readMetricSelectOptionLabels') calls.push(`labels:${argument}`);
+      return dom.evaluate(fn, argument);
+    },
+  };
+  const labels = await adapter.readMetricPlatformOptionLabels(page);
+  assert.deepEqual(labels, ['Shopee', 'Lazada', 'Tiki', 'Tiktok']);
+  assert.deepEqual(calls, ['click:#platform-root > .ant-select-selector', 'labels:#platform-input', 'key:Escape', 'close-selects']);
+  const responses = [{ urlPath: '/market/search_basic', body: JSON.stringify({ data: { platforms: [1, 2, 3, 8].map(platform_id => ({ platform_id })) } }) }];
+  const platformMap = buildMetricPlatformMap(responses, labels);
+  assert.deepEqual(platformMap.byId, { 1: 'shopee', 2: 'lazada', 3: 'tiki', 8: 'tiktok' });
+  assert.equal(platformMap.source, 'search_basic_order_with_live_form_labels');
 });
 
 function submitIdlePage(states: any[], preflight: any = {}) {
