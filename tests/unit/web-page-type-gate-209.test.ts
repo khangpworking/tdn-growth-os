@@ -89,8 +89,10 @@ test('a Market presentation with how-to, news and other rows passes every gate a
   const input = await presentationInput();
   const webResults = [howTo, news, other, excludedHowTo];
   const packet = evidence(webResults, true);
-  const built = buildResearchAutomationReport({ ...input, captures: [capture], sourceEvidence: packet,
-    collection: { webResults, coverage: [], comparables: [] } } as unknown as AutomationReportInput, 'MARKET');
+  const withWeb = (sourceEvidence: ReturnType<typeof evidence>) => ({ ...input, captures: [capture], sourceEvidence,
+    start: { ...input.start, sourceEvidenceVersion: 'automation-source-evidence-v1' },
+    collection: { runId, stepId: 'COLLECTION', webResults, coverage: [], comparables: [] } }) as unknown as AutomationReportInput;
+  const built = buildResearchAutomationReport(withWeb(packet), 'MARKET');
   const html = built.html.toString('utf8');
   const document = new JSDOM(html).window.document;
   const table = [...document.querySelectorAll('table')].find(t => t.querySelector('caption')?.textContent?.startsWith('Kết quả tìm kiếm trên web'));
@@ -109,7 +111,6 @@ test('a Market presentation with how-to, news and other rows passes every gate a
   assert.deepEqual(failed, [], 'rules 4 (no search-engine or provider word) and 13 (label kết quả tìm kiếm) hold');
   assert.doesNotMatch(document.body.textContent ?? '', /google/i);
   assert.match(document.body.textContent ?? '', /Kết quả tìm kiếm/);
-  const plain = buildResearchAutomationReport({ ...input, captures: [capture], sourceEvidence: evidence(webResults, false),
-    collection: { webResults, coverage: [], comparables: [] } } as unknown as AutomationReportInput, 'MARKET').html.toString('utf8');
+  const plain = buildResearchAutomationReport(withWeb(evidence(webResults, false)), 'MARKET').html.toString('utf8');
   assert.doesNotMatch(plain, /Loại trang/, 'a packet without the flag renders as before');
 });
