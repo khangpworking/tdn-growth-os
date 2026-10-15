@@ -1697,7 +1697,7 @@ export class ResearchAutomationService {
       const collection = this.#db.prepare(`SELECT result_sha256 resultSha FROM analysis_research_automation_steps WHERE run_id=? AND step_id='COLLECTION'`).get(runId) as { resultSha: string | null } | undefined;
       const webCollection = collection?.resultSha ? await this.#readStepDocument(collection.resultSha, runId, 'COLLECTION') : null;
       const webResults = webCollection?.sourceEvidence ? admitWebResults(webCollection.sourceEvidence, webCollection.webResults ?? [], await this.#captureRecords(runId), webCollection.sourceEvidence.jevTriage ?? null) : webCollection?.webResults ?? [];
-      return { workspaceId, runId, draftPairId: latest.pairId, marketSemantic,
+      return { workspaceId, runId, draftPairId: latest.pairId, marketSemantic, ...(webCollection?.sourceEvidence?.webPageTypes ? { webPageTypes: true } : {}),
         webResults: webResults.map(({ position, title, url, snippet, retrievedAt, site, published }) =>
           ({ position, title, url, snippet, retrievedAt, site: site ?? null, published: published ?? null })),
         metric: { packageId, capture: { snapshot: verifiedCapture.snapshot, snapshotSha256: rawSnapshotSha256, truncation: preparedCapture.capture.truncation }, measurementPeriod: preparedCapture.capture.measurementPeriod } };
@@ -1708,7 +1708,7 @@ export class ResearchAutomationService {
     const collection = this.#db.prepare(`SELECT result_sha256 resultSha FROM analysis_research_automation_steps WHERE run_id=? AND step_id='COLLECTION'`).get(runId) as { resultSha: string | null } | undefined;
     const webCollection = collection?.resultSha ? await this.#readStepDocument(collection.resultSha, runId, 'COLLECTION') : null;
     const webResults = webCollection?.sourceEvidence ? admitWebResults(webCollection.sourceEvidence, webCollection.webResults ?? [], await this.#captureRecords(runId), webCollection.sourceEvidence.jevTriage ?? null) : webCollection?.webResults ?? [];
-    return { workspaceId, runId, draftPairId: latest.pairId, marketSemantic,
+    return { workspaceId, runId, draftPairId: latest.pairId, marketSemantic, ...(webCollection?.sourceEvidence?.webPageTypes ? { webPageTypes: true } : {}),
       webResults: webResults.map(({ position, title, url, snippet, retrievedAt, site, published }) =>
         ({ position, title, url, snippet, retrievedAt, site: site ?? null, published: published ?? null })),
       metric: { packageId, workbook: workbook.bytes, measurementPeriod: prepared.request.measurementPeriod } };
@@ -3707,7 +3707,7 @@ export class ResearchAutomationService {
       cancelledSourceEvidence = () => buildSourceEvidence({ ...evidenceInputs, draft: null, draftDigest: null, unavailableReason: 'DRAFT_FAILED' });
       const jevTriage = this.#l9Jev ? await triageSourceEvidenceL9({ draft, webResults: evidenceInputs.webResults, captures: allCaptures, client: this.#l9Jev }) : null;
       const sourceEvidence = buildSourceEvidence({ ...evidenceInputs, draft, draftDigest: drafted.digest, unavailableReason: drafted.unavailableReason,
-        ...(jevTriage ? { jevTriage } : {}) });
+        pageTypes: true, ...(jevTriage ? { jevTriage } : {}) });
       step = { ...step, sourceEvidence };
     }
     const webResult = web && 'bound' in web ? web.bound.result : null;

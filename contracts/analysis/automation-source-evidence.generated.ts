@@ -30,6 +30,7 @@ export interface AutomationSourceEvidence {
   } | null;
   unavailableReason: ('MODEL_NOT_CONFIGURED' | 'SALES_NAMES_UNAVAILABLE' | 'DRAFT_FAILED') | null;
   jevTriage?: L9JevTriageSidecar;
+  webPageTypes?: true;
   sourceAppendix: SourceAppendixProjection;
 }
 export interface KeywordMeaningFilterResult {

@@ -10,6 +10,7 @@ import { filterSerpApiResults } from './serpapi-l9-filter.js';
 import { applyL9JevTriage, l9JevTriageMatches, triageL9WithJev, unavailableL9JevTriage, type L9JevTriageSidecar } from './l9-jev-triage.js';
 import { TypesafeJevClient } from '../../../platform/ai/typesafe-jev-client.js';
 import type { SerpApiL9FilterOutput } from './serpapi-l9-filter.js';
+import { classifyWebPage } from './web-page-type.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import { ResearchAutomationIntegrityError, type CaptureRecord, type StepWebResult } from './model.js';
 export type { AutomationSourceEvidence } from '../../../../contracts/analysis/automation-source-evidence.generated.js';
@@ -29,6 +30,8 @@ export function buildSourceEvidence(input: {
   additionalUsages?: readonly SourceAppendixUsage[];
   usedCaptureDigests?: readonly string[];
   jevTriage?: L9JevTriageSidecar;
+  /** New builds only: split admitted search rows into S13 / S26 / S19. Stored packets omit it and replay unchanged. */
+  pageTypes?: boolean;
 }): AutomationSourceEvidence {
   const webCaptures = input.captures.filter(c => c.stepId === 'COLLECTION');
   const located = input.webResults.map(row => {
@@ -36,6 +39,7 @@ export function buildSourceEvidence(input: {
     if (!capture || capture.provider !== 'serpapi') throw new ResearchAutomationIntegrityError('Web result capture lineage is unavailable');
     return { captureId: capture.artifactSha256, position: row.position, title: row.title, snippet: row.snippet };
   });
+  const pageType = new Map(input.webResults.map((row, i) => [`${located[i]!.captureId}#${row.position}`, classifyWebPage(row)]));
   const admission = input.draft ? filterSerpApiResults({ results: located, filter: input.draft.output }) : null;
   const retainedJevTriage = admission && input.jevTriage && !l9JevTriageMatches(admission.result, input.jevTriage)
     ? unavailableL9JevTriage(input.draft!.output, admission.result) : input.jevTriage;
@@ -62,16 +66,20 @@ export function buildSourceEvidence(input: {
     usages.push({ registryId, binding: { kind: 'capture', ref: capture.artifactSha256 }, l10SourceType: null,
       l9: registryId === 'S19' && admission ? { excluded: appliedRows.filter(({ decision }) => decision.decision === 'EXCLUDED').length,
         unclear: appliedRows.filter(({ decision }) => decision.decision === 'UNCLEAR').length, byReason } : null });
+    // The same capture carries S19 for L9 accounting; a typed row adds one more use per type, never a second L9 bucket.
+    if (registryId === 'S19' && input.pageTypes) for (const typed of ['S13', 'S26'] as const)
+      if (appliedRows.some(({ row, decision }) => decision.decision === 'INCLUDED' && pageType.get(row.recordId) === typed))
+        usages.push({ registryId: typed, binding: { kind: 'capture', ref: capture.artifactSha256 }, l10SourceType: null, l9: null });
   }
   const packet: AutomationSourceEvidence = { contractVersion: 'automation-source-evidence-v1', draftDigest: input.draftDigest,
     admission, unavailableReason: input.unavailableReason, sourceAppendix: buildSourceAppendixProjection({ usages }),
-    ...(retainedJevTriage ? { jevTriage: retainedJevTriage } : {}) };
+    ...(retainedJevTriage ? { jevTriage: retainedJevTriage } : {}), ...(input.pageTypes ? { webPageTypes: true as const } : {}) };
   checkSourceEvidence(packet); return packet;
 }
 /** Recompute decisions from retained inputs, then compare the complete packet, not merely its version. */
 export function verifySourceEvidence(packet: AutomationSourceEvidence, input: Parameters<typeof buildSourceEvidence>[0]): void {
   checkSourceEvidence(packet);
-  if (canonicalJson(packet) !== canonicalJson(buildSourceEvidence(input))) throw new ResearchAutomationIntegrityError('Retained source evidence differs from exact replay');
+  if (canonicalJson(packet) !== canonicalJson(buildSourceEvidence({ ...input, pageTypes: packet.webPageTypes === true }))) throw new ResearchAutomationIntegrityError('Retained source evidence differs from exact replay');
 }
 export function admitWebResults(packet: AutomationSourceEvidence, results: readonly StepWebResult[], captures: readonly CaptureRecord[], jevTriage: L9JevTriageSidecar | null = null): StepWebResult[] {
   checkSourceEvidence(packet);

@@ -42,6 +42,8 @@ export type MarketReportOptions = {
   flint?: boolean;
   /** Web search results of the run, cited in the appendix with a link to each page. */
   webResults?: readonly ReaderWebResult[];
+  /** Show the page-type column (`next` builds whose run stored the page-type flag). */
+  webPageTypes?: true;
   /** Capture-backed builds use wording that does not imply a complete comparison. */
   captureSource?: boolean;
 };
@@ -843,19 +845,19 @@ ${tbl('2.2', `Quy tắc phân loại (${statusLabel})`, 'số sản phẩm', ['T
   // ---------- Phụ lục ----------
   const web = readerWebResults(options.webResults ?? [], webRegistry !== null);
   const webOn = web.length ? vd(new Date(Date.parse(web[0]!.retrievedAt) + 7 * 3_600_000).toISOString().slice(0, 10)) : '';
-  const webSrc = web.length ? `<li>Kết quả tìm kiếm Google tại Việt Nam cho từ khóa của báo cáo, thu ngày ${webOn}</li>` : '';
+  const webSrc = web.length ? `<li>Kết quả tìm kiếm tại Việt Nam cho từ khóa của báo cáo, thu ngày ${webOn}</li>` : '';
   const webSnapshotSrc = WEB !== null && WEB !== undefined
     ? `<li>Trang kết quả tìm kiếm (${WEB_FAMILY_LABEL}) cho từ khóa của báo cáo, thu ngày ${vd(WEB.capturedAt.slice(0, 10))}</li>`
     : '';
   const webTable = web.length ? `
-<div class="ex"><div class="exh"><span class="exn">Bảng PL.3</span><span class="ext">Kết quả tìm kiếm trên web</span></div><div class="tw"><table class="pl-web"><thead><tr><th>#</th><th>Trang tìm thấy</th><th>Đoạn mô tả Google hiển thị</th></tr></thead><tbody>${web.map(w => {
+<div class="ex"><div class="exh"><span class="exn">Bảng PL.3</span><span class="ext">Kết quả tìm kiếm trên web</span></div><div class="tw"><table class="pl-web"><thead><tr><th>#</th><th>Trang tìm thấy</th><th>Đoạn mô tả hiển thị</th></tr></thead><tbody>${web.map(w => {
     const meta = [w.site, w.published ? `đăng ${w.published}` : null].filter(Boolean).map(s => esc(s)).join(' · ');
     const number = webRegistry?.cite({ sourceKind: 'WEB_RESULT', identity: w.url, locator: null,
       label: w.site || 'Kết quả tìm kiếm trên web', retrievedAt: w.retrievedAt, url: w.url,
       quote: null, quoteVerification: 'NOT_APPLICABLE' }) ?? null;
     const mark = number === null ? '' : renderCitationMark(number);
     return `<tr><td>${w.position}</td><td class="pl-cite" data-quote><a href="${esc(w.url)}" target="_blank" rel="noopener noreferrer">${esc(w.title)}</a>${mark}${meta ? `<span class="pl-meta">${meta}</span>` : ''}<span class="pl-url">${esc(mask(w.url))}</span></td><td data-quote>${esc(w.snippet ?? '')}${w.snippet ? mark : ''}</td></tr>`;
-  }).join('')}</tbody></table></div><p class="ex-note">Bấm tiêu đề để mở trang gốc; bản in giữ địa chỉ trang dưới tiêu đề. Tên trang và ngày đăng ghi theo Google; Google không cho biết tác giả. Tiêu đề và đoạn mô tả chép theo kết quả tìm kiếm Google, không phải từ trang gốc: Google có thể cắt ngắn, tên nguồn số liệu (nếu có) được che bằng […], và báo cáo không mở trang gốc để đối chiếu. Đây không phải nhận định của báo cáo. Thứ tự theo kết quả tìm kiếm tại thời điểm thu; nội dung trang có thể đã đổi sau ngày thu.</p><p class="ex-src">Nguồn: Google, thu ngày ${webOn}.</p></div>` : '';
+  }).join('')}</tbody></table></div><p class="ex-note">Bấm tiêu đề để mở trang gốc; bản in giữ địa chỉ trang dưới tiêu đề. Tên trang và ngày đăng ghi theo kết quả tìm kiếm; kết quả không cho biết tác giả. Tiêu đề và đoạn mô tả chép theo kết quả tìm kiếm, không phải từ trang gốc: đoạn mô tả có thể bị cắt ngắn, tên nguồn số liệu (nếu có) được che bằng […], và báo cáo không mở trang gốc để đối chiếu. Đây không phải nhận định của báo cáo. Thứ tự theo kết quả tìm kiếm tại thời điểm thu; nội dung trang có thể đã đổi sau ngày thu.</p><p class="ex-src">Nguồn: kết quả tìm kiếm, thu ngày ${webOn}.</p></div>` : '';
   const listRows = [...rows].sort((a, b) => b.rev - a.rev).map(r => `<tr><td>${r.i}${sampleMark(r)}</td><td>${plat(r.platform)}</td><td>${esc(segName(r.seg ?? ''))}</td><td>${esc(r.shopName || r.shop)}</td><td>${numberCell(num(r.rev))}${sampleMark(r)}</td><td>${numberCell(num(r.units))}${sampleMark(r)}</td><td>${numberCell(num(r.asp))}${sampleMark(r)}</td><td>${esc(r.title)}</td></tr>`).join('');
   const webRegister = webRegistry !== null ? '<div data-reader-citation-register></div>' : '';
   secs.push(section('M13', 'Nguồn, thuật ngữ và danh sách sản phẩm',

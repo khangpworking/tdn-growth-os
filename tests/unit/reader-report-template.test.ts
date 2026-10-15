@@ -122,20 +122,21 @@ test('web search results are cited in the appendix with links, kept despite thei
     assert.match(r.html, /\.pl-url\{overflow-wrap:anywhere/, 'long addresses wrap instead of widening the page');
     const vis = visibleText(r.html);
     assert.match(vis, /Bảng PL\.3/);
-    assert.match(vis, /Kết quả tìm kiếm Google tại Việt Nam cho từ khóa của báo cáo, thu ngày 02\/10\/2026/, 'retrieval day is shown in Vietnam time');
+    assert.match(vis, /Kết quả tìm kiếm tại Việt Nam cho từ khóa của báo cáo, thu ngày 02\/10\/2026/, 'retrieval day is shown in Vietnam time');
     assert.ok(r.html.includes('<a href="https://example.test/b?x=1&amp;y=2" target="_blank" rel="noopener noreferrer">Bình giữ nhiệt &lt;b&gt;mẫu mới&lt;/b&gt;</a>'),
       'the title links to the page and is escaped');
     assert.match(vis, /Báo Mẫu · đăng 15 thg 3, 2026/, 'site and publish date are cited');
     assert.match(vis, /https:\/\/example\.test\/b\?x=1&amp;y=2/, 'the address stays readable on paper');
     assert.match(vis, /Thị phần bình 2026 xếp hạng toàn thị trường/, 'a page title is quoted as written');
-    assert.match(vis, /Google không cho biết tác giả/);
-    assert.match(vis, /chép theo kết quả tìm kiếm Google, không phải từ trang gốc: Google có thể cắt ngắn/, 'the note says where the text comes from');
+    assert.match(vis, /kết quả không cho biết tác giả/);
+    assert.doesNotMatch(vis, /Google/);
+    assert.match(vis, /chép theo kết quả tìm kiếm, không phải từ trang gốc: đoạn mô tả có thể bị cắt ngắn/, 'the note says where the text comes from');
     assert.doesNotMatch(vis, /nguyên văn/, 'search-result text is not claimed to be verbatim from the page');
     assert.doesNotMatch(r.html, /src="https?:/);
     assert.doesNotMatch(vis, /SerpApi|Kalodata|\bDami\b|\bmetric\b/i);
 
     const none = await buildMarketReport(computeReaderReportData(input()), options);
-    assert.doesNotMatch(none.html, /Bảng PL\.3|Kết quả tìm kiếm Google/);
+    assert.doesNotMatch(none.html, /Bảng PL\.3|Kết quả tìm kiếm tại Việt Nam/);
     assert.deepEqual(none.webResults, []);
   });
 });
@@ -162,6 +163,24 @@ const v2Data = () => {
   x.unitPrices = units.packet;
   return computeReaderReportData(x, units.retained);
 };
+
+test('Market 1.4 shows the page-type column only when the run stored the flag; no engine name is visible either way', async () => {
+  const webResults = [
+    { position: 1, title: 'Cách làm thạch dừa', url: 'https://blog.example.test/a', site: 'Blog', snippet: 'Mô tả', published: null, retrievedAt: '2026-10-02T00:00:00.000Z' },
+    { position: 2, title: 'Thạch dừa 500g', url: 'https://shopee.vn/thach-dua-i.1.2', site: 'Shopee', snippet: 'Xem cách sử dụng bên dưới', published: null, retrievedAt: '2026-10-02T00:00:00.000Z' },
+  ];
+  const base = { ...sync1Options, flint: false, webResults };
+  const flagless = await buildMarketReport(v2Data(), base);
+  const flagged = await buildMarketReport(v2Data(), { ...base, webPageTypes: true });
+  const none = await buildMarketReport(v2Data(), { ...sync1Options, flint: false });
+  assert.match(flagless.html, /Trang tìm thấy/);
+  assert.doesNotMatch(visibleText(flagless.html), /Loại trang|Bài hướng dẫn|Trang khác|Tin tức/, 'a flagless packet shows no page type');
+  assert.doesNotMatch(visibleText(none.html), /Loại trang/, 'no packet and no web results: no column');
+  assert.match(visibleText(flagged.html), /Loại trang/);
+  assert.match(visibleText(flagged.html), /Bài hướng dẫn/);
+  assert.match(visibleText(flagged.html), /Trang khác/);
+  for (const r of [flagless, flagged, none]) assert.doesNotMatch(visibleText(r.html), /Google/);
+});
 
 test('Market 1.4 without monthly web facts still draws the three required charts with Flint', async () => {
   const d = v2Data();
