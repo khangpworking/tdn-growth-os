@@ -365,13 +365,17 @@ function searchInterestMisuse(html: string, scan: Scan): string[] {
 
 const WORLD_BANK_TERM = /(?<![\p{L}\p{N}_])(?:bối\s+cảnh\s+vĩ\s+mô|số\s+liệu\s+cả\s+nước|dân\s+số\s+cả\s+nước|chi\s+tiêu\s+tiêu\s+dùng\s+hộ\s+gia\s+đình)(?![\p{L}\p{N}_])/giu;
 
-/** Once the report shows country-level figures, no statement may add, divide or multiply them with a sales measure;
- * a negation in the same clause allows the disclaimer. The check exists only when the block is drawn, so other reports keep their rule list. */
+/** Macro-only: everything the shared COMBINE_TERM catches, plus subtraction, per-person derivation and comparison words.
+ * A hyphen counts as minus only between two numbers with spaces around it, so dates and ranges do not trigger. */
+const WORLD_BANK_COMBINE_TERM = new RegExp(`${COMBINE_TERM.source}|(?<![\\p{L}\\p{N}_])(?:trừ|hiệu\\s+số|chênh\\s+lệch|bớt|bình\\s+quân|đầu\\s+người|trên\\s+mỗi\\s+người|mỗi\\s+người|thị\\s+phần|quy\\s+mô\\s+thị\\s+trường|so\\s+với|so\\s+sánh)(?![\\p{L}\\p{N}_])|\\u2212|(?<=\\d)\\s+-\\s+(?=\\d)`, 'giu');
+
+/** Once the report shows country-level figures, no statement may combine, subtract, derive from or compare them with a sales measure;
+ * a negation earlier in the same clause allows the disclaimer. The check exists only when the block is drawn, so other reports keep their rule list. */
 function worldBankMisuse(html: string, scan: Scan): string[] | null {
   if (!matches(scan.visible, WORLD_BANK_TERM).length) return null;
   return statementTexts(html).map(text => text.normalize('NFC')).flatMap(text => text.split(CLAUSE_BREAK).filter(clause =>
     matches(clause, WORLD_BANK_TERM).length > 0 && matches(clause, SALES_MEASURE_TERM).length > 0
-    && [...clause.matchAll(COMBINE_TERM)].some(hit => !matches(clause.slice(0, hit.index ?? 0), NEGATION).length)));
+    && [...clause.matchAll(WORLD_BANK_COMBINE_TERM)].some(hit => !matches(clause.slice(0, hit.index ?? 0), NEGATION).length)));
 }
 
 function result(rule: string, ok: boolean, detail: string): MarketBusinessGateResult { return { rule, ok, detail }; }

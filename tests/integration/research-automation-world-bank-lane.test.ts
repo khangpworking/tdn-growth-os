@@ -13,7 +13,8 @@ import type { AutomationSourcePort } from '../../src/modules/analysis/research-a
 import type { StepResultDocument } from '../../src/modules/analysis/research-automation/model.js';
 import type { ProviderTransport } from '../../src/modules/analysis/research-automation/providers.js';
 import { createWorldBankSource, type WorldBankSource } from '../../src/modules/analysis/research-automation/world-bank-lane.js';
-import { auditMarketReportHtml } from '../../src/modules/analysis/research-automation/market-business-gate.js';
+import { auditMarket14 } from '../../src/modules/analysis/research-automation/market-14-rules.js';
+import { assertMarketBusinessGate, auditMarketReportHtml } from '../../src/modules/analysis/research-automation/market-business-gate.js';
 import { SYNTHETIC_CARD_ID, syntheticProductSource, syntheticWebSource } from '../helpers/research-synthetic-sources.js';
 import { worldBankFixture } from '../helpers/world-bank-source-fixture.js';
 import { citationRegisterViolations, providerNameViolations, reportVisibleText, visibleTextViolations } from '../helpers/report-visible-text.js';
@@ -133,9 +134,14 @@ test('flag on: four pinned GETs, both pairs stored as captures, one table in the
   assert.deepEqual(visibleTextViolations(reportVisibleText(doc)), []);
   assert.deepEqual(providerNameViolations(html), []);
   assert.deepEqual(citationRegisterViolations(doc), []);
+  assert.doesNotThrow(() => assertMarketBusinessGate(html), 'the presentation gate passes with S23 drawn');
   const gate = auditMarketReportHtml(html);
   assert.deepEqual(gate.filter(check => !check.ok), []);
   assert.ok(gate.some(check => check.rule === 'WORLD_BANK_NOT_ARITHMETIC' && check.ok), 'the extra check runs once the block is drawn');
+  const off = await runToDraft(t, { source: syntheticProductSource() });
+  const failing = (page: string) => auditMarket14(page).filter(item => item.kind === 'machine' && !item.ok).map(item => item.rule);
+  const baseline = failing((await reportDocument(off)).html);
+  assert.deepEqual(failing(html).filter(rule => !baseline.includes(rule)), [], 'S23 adds no machine-rule failure the same synthetic report does not already have without it');
 });
 
 test('the evidence packet marks S23 as used only for what is drawn', async t => {
@@ -254,4 +260,20 @@ test('the gate refuses a sentence that adds a country figure to a sales figure',
   assert.equal(checks.find(check => check.rule === 'WORLD_BANK_NOT_ARITHMETIC')?.ok, false);
   const negated = base.replace('cộng với', 'không cộng với');
   assert.equal(auditMarketReportHtml(negated, { presentation: false }).find(check => check.rule === 'WORLD_BANK_NOT_ARITHMETIC')?.ok, true);
+});
+
+test('WORLD_BANK_NOT_ARITHMETIC: subtraction, derivation and comparison words refuse; negated disclaimers, dates and ranges pass; the search-interest rule is unchanged', () => {
+  const verdict = (rule: string, text: string) => auditMarketReportHtml(`<html><body><section id="M05"><p>${text}</p></section></body></html>`, { presentation: false }).find(check => check.rule === rule)?.ok;
+  const wb = (text: string) => verdict('WORLD_BANK_NOT_ARITHMETIC', text);
+  for (const text of ['Dân số cả nước trừ doanh thu của mẫu.', 'Dân số cả nước có hiệu số với doanh thu của mẫu.', 'Dân số cả nước chênh lệch doanh thu của mẫu.', 'Dân số cả nước bớt doanh thu của mẫu.',
+    'Dân số cả nước \u2212 doanh thu của mẫu 5.', 'Dân số cả nước 5 - 3 doanh thu của mẫu.', 'Dân số cả nước bình quân doanh thu của mẫu.', 'Dân số cả nước đầu người doanh thu của mẫu.',
+    'Dân số cả nước trên mỗi người doanh thu của mẫu.', 'Dân số cả nước mỗi người doanh thu của mẫu.', 'Dân số cả nước thị phần doanh thu của mẫu.', 'Dân số cả nước quy mô thị trường doanh thu của mẫu.',
+    'Dân số cả nước so với doanh thu của mẫu.', 'Dân số cả nước so sánh doanh thu của mẫu.'])
+    assert.equal(wb(text), false, text);
+  for (const text of ['Dân số cả nước không so sánh được với doanh thu của mẫu.', 'Dân số cả nước không trừ doanh thu của mẫu.', 'Dân số cả nước năm 2024-10 và doanh thu của mẫu 10-20 tuần.',
+    'Dân số cả nước chỉ là nền, tách khỏi doanh thu của mẫu.', 'Chi tiêu tiêu dùng hộ gia đình bình quân đầu người ghi riêng.'])
+    assert.equal(wb(text), true, text);
+  // S20 stays as it was: a subtraction word with the search index and a sales term is not newly flagged.
+  assert.equal(verdict('SEARCH_INTEREST_NOT_COUNT', 'Mức quan tâm tìm kiếm trừ doanh thu của mẫu.'), true);
+  assert.equal(verdict('SEARCH_INTEREST_NOT_COUNT', 'Mức quan tâm tìm kiếm cộng doanh thu của mẫu.'), false);
 });
