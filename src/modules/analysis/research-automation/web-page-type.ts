@@ -1,6 +1,9 @@
 /** Deterministic page type of an admitted search result: S26 news, S13 how-to article, otherwise S19. No model, no network. */
 export type WebPageType = 'S13' | 'S19' | 'S26';
 export const WEB_PAGE_TYPE_LABEL: Readonly<Record<WebPageType, string>> = { S13: 'Bài hướng dẫn', S26: 'Tin tức', S19: 'Trang khác' };
+/** Shared wording when a copied search-result title or site is withheld (Market and Insight show the same text). */
+export const WEB_TITLE_WITHHELD = 'Tiêu đề được giữ trong bản lưu nguồn';
+export const WEB_SITE_WITHHELD = 'Trang nguồn được giữ trong bản lưu';
 const NEWS_DOMAINS = ['vnexpress.net', 'tuoitre.vn', 'thanhnien.vn', 'dantri.com.vn', 'vietnamnet.vn', 'znews.vn', 'cafef.vn', 'cafebiz.vn', 'vneconomy.vn',
   'laodong.vn', 'nld.com.vn', 'baomoi.com', 'tienphong.vn', 'plo.vn', 'kenh14.vn', '24h.com.vn'];
 const NEWS_PATH = /(?:^|\/)(?:tin-tuc|tin-moi|tin-nong|thoi-su)(?:\/|$)/;

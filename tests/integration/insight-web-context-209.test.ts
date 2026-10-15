@@ -8,6 +8,7 @@ import type { RetainedKeywordListDraftRecord } from '../../src/modules/analysis/
 import type { AutomationReportInput } from '../../src/modules/analysis/research-automation/reports.js';
 import type { CaptureRecord, StepExpandedSearch, StepResultDocument, StepWebResult } from '../../src/modules/analysis/research-automation/model.js';
 import { buildSourceEvidence, type AutomationSourceEvidence } from '../../src/modules/analysis/research-automation/source-evidence.js';
+import { WEB_SITE_WITHHELD, WEB_TITLE_WITHHELD } from '../../src/modules/analysis/research-automation/web-page-type.js';
 import { prepareInsightReaderBuild } from '../../src/modules/analysis/reader-report/insight-build-v1.js';
 import { buildInsightReaderTemplate } from '../../src/modules/analysis/reader-report/insight-template.js';
 import { INSIGHT_SECTION_IDS } from '../../src/modules/analysis/reader-report/insight-projection.js';
@@ -116,8 +117,10 @@ test('provider and search-engine words in a copied title, domain or address are 
   assert.match(visible, /Thạch dừa sạch/);
   assert.doesNotMatch(visible, /metric|kalodata|serpapi|google|apify|dami|tradeint/iu);
   assert.deepEqual(providerNameViolations(out.html), []);
-  assert.match(out.html, /Tiêu đề được giữ trong hồ sơ nguồn/);
-  assert.match(out.html, /Trang được giữ trong hồ sơ nguồn/);
+  assert.ok(out.html.includes(WEB_TITLE_WITHHELD) && out.html.includes(WEB_SITE_WITHHELD), 'same withheld wording as Market');
+  const block = /<div class="web-context"[\s\S]*?<\/tbody>/.exec(out.html)?.[0] ?? '';
+  assert.match(block, /Thạch dừa sạch/);
+  assert.doesNotMatch(block, /metric|kalodata|serpapi|google|apify|dami|tradeint/iu, 'raw block incl. attributes and links');
   assert.deepEqual(out.lint.filter(r => !r.ok).map(r => r.rule), base.lint.filter(r => !r.ok).map(r => r.rule), 'publication lint adds no failure');
   assert.equal(out.lint.find(r => r.rule.startsWith('F1'))!.ok, true);
 });

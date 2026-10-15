@@ -1,7 +1,7 @@
 import { collectionWebRows } from '../research-automation/expanded-search-lane.js';
 import type { AutomationReportInput } from '../research-automation/reports.js';
 import { admitWebResults, checkSourceEvidence, type AutomationSourceEvidence } from '../research-automation/source-evidence.js';
-import { classifyWebPage, WEB_PAGE_TYPE_LABEL } from '../research-automation/web-page-type.js';
+import { classifyWebPage, WEB_PAGE_TYPE_LABEL, WEB_SITE_WITHHELD, WEB_TITLE_WITHHELD } from '../research-automation/web-page-type.js';
 import { ReaderReportInputError } from './build.js';
 import { storedLiteral, type ReportCitations } from '../research-automation/descriptive-report.js';
 import { CAPTURED_PROVIDER_NAMES } from './lint.js';
@@ -38,7 +38,7 @@ export function insightWebContextSection(methods: Pick<AutomationReportInput, 'c
     if (!cap || !registered(type, cap.artifactSha256)) throw new ReaderReportInputError('Insight web context row lacks its registered source usage.');
     // Same masking as Market: a provider name or "Google" in a copied title, domain or address never reaches the reader.
     const mark = unsafe(row.url) ? '' : citations.mark({ sourceKind: 'WEB_RESULT', identity: row.url, locator: null, label: 'Trang web liên quan', retrievedAt: row.retrievedAt, url: row.url, quote: null, quoteVerification: 'NOT_APPLICABLE' });
-    return `<tr><td><span data-quote>${shown(row.title, 'Tiêu đề được giữ trong hồ sơ nguồn')}</span>${mark}</td><td>${label}</td><td><span data-quote>${shown(domainOf(row.url), 'Trang được giữ trong hồ sơ nguồn')}</span></td><td>${unsafe(row.url) ? 'Liên kết được giữ trong hồ sơ nguồn' : `<a href="${esc(row.url)}" target="_blank" rel="noopener noreferrer">Mở trang gốc</a>`}</td></tr>`;
+    return `<tr><td><span data-quote>${shown(row.title, WEB_TITLE_WITHHELD)}</span>${mark}</td><td>${label}</td><td><span data-quote>${shown(domainOf(row.url), WEB_SITE_WITHHELD)}</span></td><td>${unsafe(row.url) ? 'Liên kết được giữ trong bản lưu nguồn' : `<a href="${esc(row.url)}" target="_blank" rel="noopener noreferrer">Mở trang gốc</a>`}</td></tr>`;
   }).join('');
   return `<div class="web-context" id="insight-web-context"><h3>Trang web liên quan</h3><p>Các trang dưới đây chỉ là ngữ cảnh để mở trang gốc đối chiếu, theo thứ tự đã lưu. Không phải lời khách hàng; không dùng trong mã hóa, tần suất, chân dung hay trích dẫn.</p><div class="table-wrap" role="region" aria-label="Trang web liên quan" tabindex="0"><table><caption>Trang web liên quan, tách khỏi lời khách hàng</caption><thead><tr><th>Tiêu đề</th><th>Loại trang</th><th>Trang</th><th>Liên kết</th></tr></thead><tbody>${body}</tbody></table></div></div>`;
 }
