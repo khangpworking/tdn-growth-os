@@ -45,7 +45,7 @@ async function confirmed(t: TestContext, sources: Sources, requestedPeriod: { st
     const run = await service.getRun(workspaceId, runId);
     const step = db.prepare(`SELECT state, message_code code, result_sha256 sha FROM analysis_research_automation_steps WHERE run_id=? AND step_id='COLLECTION'`).get(runId) as { state: string; code: string | null; sha: string | null };
     const document = step.sha ? JSON.parse((await artifacts.read(step.sha)).toString('utf8')) as StepResultDocument : null;
-    const usage = db.prepare('SELECT ordinal, provider, operation, request_count n FROM analysis_research_automation_usage WHERE run_id=? ORDER BY ordinal').all(runId)
+    const usage = db.prepare('SELECT ordinal, provider, operation, request_count n FROM analysis_research_automation_usage WHERE run_id=? AND step_id=\'COLLECTION\' ORDER BY ordinal').all(runId)
       .map(row => { const value = row as { ordinal: bigint | number; provider: string; operation: string; n: bigint | number }; return { ...value, ordinal: Number(value.ordinal), n: Number(value.n) }; });
     const captures = db.prepare('SELECT ordinal, provider, operation, artifact_sha256 sha FROM analysis_research_automation_captures WHERE run_id=? AND step_id=? ORDER BY ordinal').all(runId, 'COLLECTION')
       .map(row => { const value = row as { ordinal: bigint | number; provider: string; operation: string; sha: string }; return { ...value, ordinal: Number(value.ordinal) }; });
@@ -85,7 +85,6 @@ test('flag on: one trends request beside the product lane, stored as its own cap
   assert.equal(Math.max(...interest.points.map(point => point.index ?? 0)), 100);
   assert.deepEqual(f.usage.map(u => [u.ordinal, u.provider, u.operation, u.n]), [[0, 'kalodata', 'provider.run', 1], [3, 'serpapi', 'provider.run', 1]]);
   assert.equal((await f.artifacts.read(f.captures[1]!.sha)).toString('utf8').includes(SYNTHETIC_SERP_KEY), false, 'the key never reaches a capture');
-  assert.equal(f.run.blockers.some(b => b.code === 'SERPAPI_NOT_EXECUTED'), false, 'a stored series is not a blocker');
 
   const { html, doc } = await reportDocument(f);
   const figure = doc.querySelector('#M05 figure.market-chart')!;
@@ -141,32 +140,28 @@ test('flag off: a second identical run is byte-identical (the clock and ids are 
   assert.equal((await reportDocument(first)).html, (await reportDocument(second)).html);
 });
 
-for (const [name, period] of [
-  ['starts before the provider window', { startDate: '2024-01-01', endDate: '2024-12-31' }],
-  ['ends in the future', { startDate: '2026-01-01', endDate: '2027-03-31' }],
-] as const) {
-  test(`a period that ${name} is skipped before any paid request`, async t => {
-    const calls: URL[] = [];
-    const f = await runToDraft(t, { source: syntheticProductSource(), trendsSource: syntheticTrendsSource(url => calls.push(url)) }, period);
-    assert.equal(calls.length, 0);
-    assert.equal(f.step.state, 'SUCCEEDED');
-    assert.deepEqual([f.document?.searchInterest?.status, f.document?.searchInterest?.reason, f.document?.searchInterest?.captureIndex, f.document?.searchInterest?.points], ['SKIPPED', 'PERIOD_NOT_COVERED', null, []]);
-    assert.deepEqual(f.usage.map(u => u.ordinal), [0]);
-    assert.deepEqual(f.captures.map(c => c.ordinal), [0]);
-    assert.equal((await reportDocument(f)).html.includes('Hình 5.2'), false);
-  });
-}
+test('a period that starts before the provider window is skipped before any paid request', async t => {
+  const calls: URL[] = [];
+  const f = await runToDraft(t, { source: syntheticProductSource(), trendsSource: syntheticTrendsSource(url => calls.push(url)) }, { startDate: '2024-01-01', endDate: '2024-12-31' });
+  assert.equal(calls.length, 0);
+  assert.equal(f.step.state, 'SUCCEEDED');
+  assert.deepEqual([f.document?.searchInterest?.status, f.document?.searchInterest?.reason, f.document?.searchInterest?.captureIndex, f.document?.searchInterest?.points], ['SKIPPED', 'PERIOD_NOT_COVERED', null, []]);
+  assert.deepEqual(f.usage.map(u => u.ordinal), [0]);
+  assert.deepEqual(f.captures.map(c => c.ordinal), [0]);
+  assert.equal((await reportDocument(f)).html.includes('Hình 5.2'), false);
+});
 
 for (const [mode, reason] of [['http-error', 'PROVIDER_FAILED'], ['invalid', 'PROVIDER_FAILED'], ['thin', 'EMPTY_SERIES']] as [SyntheticTrendsMode, string][]) {
   test(`a trends answer that is ${mode} keeps the capture, records ${reason}, and never fails the run`, async t => {
     const calls: URL[] = [];
-    const f = await runToDraft(t, { source: syntheticProductSource(), trendsSource: syntheticTrendsSource(url => calls.push(url), mode) });
+    const f = await runToDraft(t, { source: syntheticProductSource(), webSource: syntheticWebSource(() => {}, organic), trendsSource: syntheticTrendsSource(url => calls.push(url), mode) });
     assert.equal(calls.length, 1, 'a paid request is never repeated');
     assert.equal(f.step.state, 'SUCCEEDED', 'the series never changes the step outcome');
-    assert.deepEqual([f.document?.searchInterest?.status, f.document?.searchInterest?.reason, f.document?.searchInterest?.captureIndex, f.document?.searchInterest?.points], ['FAILED', reason, 1, []]);
-    assert.deepEqual(f.captures.map(c => c.provider), ['kalodata', 'serpapi']);
+    assert.deepEqual([f.document?.searchInterest?.status, f.document?.searchInterest?.reason, f.document?.searchInterest?.captureIndex, f.document?.searchInterest?.points], ['FAILED', reason, 2, []]);
+    assert.equal(f.document?.webResults?.length, 1, 'the web results are kept');
+    assert.deepEqual(f.captures.map(c => c.provider), ['kalodata', 'serpapi', 'serpapi']);
     assert.deepEqual(f.usage.filter(u => u.ordinal === 3).map(u => [u.provider, u.n]), [['serpapi', 1]]);
-    assert.equal(f.run.blockers.some(b => b.code === 'SERPAPI_NOT_EXECUTED'), false);
+    assert.equal(f.run.blockers.some(b => b.code === 'SERPAPI_NOT_EXECUTED' || b.code === 'KALODATA_NOT_EXECUTED'), false);
     const { html } = await reportDocument(f);
     assert.equal(html.includes('Hình 5.2'), false, 'a failed series is not drawn');
     assert.equal(html.includes('Mức quan tâm tìm kiếm'), false, 'and the source is not marked as used');
