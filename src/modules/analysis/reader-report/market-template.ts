@@ -52,8 +52,7 @@ export type MarketReportOptions = {
   searchInterest?: StepSearchInterest;
   /** The run's stored open country-level figures; shown as a small side-by-side table in the demand section. */
   worldBank?: StepWorldBank;
-  /** The run's verified document excerpts (S25); drawn as one small block in the context section of 
-ext builds. */
+  /** The run's verified document excerpts (S25); drawn as one small block in the context section of new builds. */
   pdfExcerpts?: readonly PdfExcerpt[];
 };
 /** site and published are the page name and date as the search engine shows them; older runs have neither. */

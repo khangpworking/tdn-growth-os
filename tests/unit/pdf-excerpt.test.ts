@@ -43,6 +43,23 @@ test('selection: each left-out reason is coded, nothing is cut or reworded, at m
   assert.deepEqual(selectPdfExcerpts({ ...artifact([quote(SHA_A, 1, 'Một.')]), contractVersion: 'other' } as never, RUN, names).excerpts, []);
 });
 
+test('selection: a quote that shows a path, link, address or secret is left out whole, never cut', () => {
+  const unsafe = ['Bản gốc lưu ở /tmp/market/report.pdf trên máy.', 'Xem thư mục ~/bao-cao để biết thêm.', 'Xem ../phu-luc/bang-2.pdf.', 'Mở thư mục /tmp khi cần.',
+    'Chi tiết tại bao-cao/bang-1.html.', 'Trang thongke.gov.vn có số liệu.', 'Máy chủ 203.113.131.1.', 'Địa chỉ 2001:db8::1 dùng nội bộ.',
+    'Liên hệ nhom@example.test để nhận bản.', 'Khóa ghp_abcdefghijklmnop1234 dùng tạm.', 'Mã aB3dE5gH7jK9mN1pQ3sT5vW7 cấp cho tài khoản.', 'Ghi chú api key: xyz.',
+    'Bản lưu C:/bao-cao/a.pdf.', 'Mở trang ?id=12 để xem.', 'Bảng lấy từ bang_2025_quy.'];
+  const picked = selectPdfExcerpts(artifact(unsafe.map((text, i) => quote(SHA_A, i + 1, text))), RUN, names);
+  assert.deepEqual(picked.excerpts, []);
+  assert.deepEqual(picked.leftOut.map(item => item.reason), unsafe.map(() => 'NOT_READER_SAFE'));
+});
+
+test('selection: ordinary numbers, month-year dates, ratios and unit slashes stay verbatim', () => {
+  const plain = ['Doanh thu ngành đạt 12.345.678 triệu đồng năm 2025, tăng 5,2%.', 'Giá bình quân 250.000 đồng/chiếc trong tháng 6/2025.', 'Tỷ lệ hộ có quạt điện là 3/4 ở đô thị, 10.500.000 hộ.'];
+  const picked = selectPdfExcerpts(artifact(plain.map((text, i) => quote(SHA_A, i + 1, text))), RUN, names);
+  assert.deepEqual(picked.excerpts.map(item => item.text), plain);
+  assert.deepEqual(picked.leftOut, []);
+});
+
 test('selection: only market sections are eligible even when the section id is made up', () => {
   assert.ok(PAGEINDEX_ELIGIBLE_SECTIONS.includes('M09'));
   const picked = selectPdfExcerpts(artifact([quote(SHA_A, 1, 'Một.', 'M99'), quote(SHA_A, 2, 'Hai.', 'X09'), quote(SHA_A, 3, 'Ba.', 'I16')]), RUN, names);
@@ -50,10 +67,11 @@ test('selection: only market sections are eligible even when the section id is m
 });
 
 test('file names: empty, missing or provider-like names are withheld, never guessed', () => {
-  for (const bad of ['', '   ', 'pageindex-export.pdf', 'Google trang.pdf', 'kalodata.pdf', 'a/b.pdf', 'C:\\x\\y.pdf', 'https://example.test/a.pdf', 'a;b.pdf', 'metric-report.pdf', 'x'.repeat(130)])
+  for (const bad of ['', '   ', 'pageindex-export.pdf', 'Google trang.pdf', 'kalodata.pdf', 'a/b.pdf', 'C:\\x\\y.pdf', 'https://example.test/a.pdf', 'a;b.pdf', 'metric-report.pdf', 'x'.repeat(130), 'thongke.gov.vn.pdf', '203.113.131.1.pdf', 'bao_cao_nganh.pdf', 'aB3dE5gH7jK9mN1pQ3sT5vW7.pdf'])
     assert.equal(pdfExcerptFileNameShown(bad), false, JSON.stringify(bad));
   assert.equal(pdfExcerptFileNameShown(undefined), false);
   assert.equal(pdfExcerptFileNameShown('bao-cao-nganh.pdf'), true);
+  assert.equal(pdfExcerptFileNameShown('bao-cao-2025-quy-3-nganh-quat-dien.pdf'), true, 'a long hyphenated name is not a token');
   const withheld = excerptsOf([quote(SHA_A, 2, 'Một.'), quote(SHA_B, 3, 'Hai.')], new Map([[SHA_A, ''], [SHA_B, 'PageIndex.pdf']]));
   assert.deepEqual(withheld.map(item => item.label), ['Tài liệu số 1, không hiển thị tên tệp, trang 2', 'Tài liệu số 2, không hiển thị tên tệp, trang 3']);
 });

@@ -3,6 +3,7 @@
 import { CitationRegistry, type CitationInput } from '../citation-registry.js';
 import { PAGEINDEX_ELIGIBLE_SECTIONS, toCitationInput, type PageIndexQuotesArtifact } from '../pageindex-questions.js';
 import { CAPTURED_PROVIDER_NAMES, FORBIDDEN_PROVIDER_NAMES } from '../reader-report/lint.js';
+import { readerTextSafe } from './reader-plain-text.js';
 
 /** The Market section that holds the block: "Động lực và rủi ro" is the context section for outside documents. */
 export const PDF_EXCERPT_SECTION = 'M09' as const;
@@ -30,8 +31,22 @@ export interface PdfExcerptSelection { readonly excerpts: readonly PdfExcerpt[];
 
 const PROVIDER_WORDS = [...new Set([...FORBIDDEN_PROVIDER_NAMES, ...CAPTURED_PROVIDER_NAMES, 'PageIndex', 'Google', 'Jev', 'TypeSafe', 'CLIProxy', 'OpenAI', 'Anthropic', 'GLM'])];
 const providerPattern = new RegExp(`(?<![\\p{L}\\p{N}_])(?:${PROVIDER_WORDS.map(name => name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')).join('|')})(?![\\p{L}\\p{N}_])`, 'iu');
-/** Text that the report's leak gates would reject (path, e-mail, token, private address, link, command) is not shown. */
-const LEAK_PATTERN = /[A-Za-z]:\\|\/(?:home|Users)\/|\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b|\bBearer\s|\bsk-[A-Za-z0-9]|\b(?:10|192\.168|172\.(?:1[6-9]|2\d|3[01]))\.\d{1,3}\.\d{1,3}\b|[a-z][a-z0-9+.-]*:\/\/|\bwww\./iu;
+/**
+ * Text that could expose a path, link, address, account or secret is not shown. The report's own leak gates do not catch every
+ * shape (an ordinary `/tmp/...` path passes them), so these are checked here, beside the shared reader-text check.
+ */
+const LEAK_PATTERNS: readonly RegExp[] = [
+  /[A-Za-z]:[\\/]|\\\\[\w.-]+\\/u, // Windows drive or network path
+  /(?:^|[^\p{L}\p{N}_.\/-])(?:~|\.{1,2})?\/[\p{L}\p{N}_.-]+\/[\p{L}\p{N}_.-]/u, // absolute, home or dot-relative path with two parts
+  /(?:^|[\s(["'])(?:~|\.{1,2})\/|(?:^|[\s(["'])\/(?:tmp|etc|var|opt|usr|srv|mnt|root|home|Users|data|proc|private)\b/u, // short path
+  /\b[\w.-]+\/[\w.-]+\.(?:html?|php|aspx?|jsp|pdf|json|xml|csv|xlsx?|docx?|txt|png|jpe?g|gif|svg|js|css)\b|\b(?:href|src)\s*=|[?&][\w-]+=[\w%.-]/iu, // relative link
+  /[a-z][a-z0-9+.-]*:\/\/|\bwww\.|(?<![\p{L}\p{N}_@.-])(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:com|net|org|gov|edu|info|biz|io|vn|asia|int)\b/iu, // web address
+  /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/iu, // e-mail
+  /(?<!\d\.?)(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?!\.?\d)|(?:\b[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4}\b)?|\b(?:[0-9a-f]{1,4}:){5,}[0-9a-f]{1,4}\b/iu, // IP address
+  /\bBearer\s|\b(?:sk|pk|rk)-[A-Za-z0-9]|\b(?:ghp|gho|ghu|ghs|github_pat|xox[abprs])[_-]|\bAKIA[0-9A-Z]{12,}|\beyJ[\w-]{8,}|\b(?:api[_\s-]?key|access[_\s-]?token|secret|password|passwd)\b\s*[:=]/iu, // secret
+  /(?<![\p{L}\p{N}])(?=[\w+\/=]*\d)(?=[\w+\/=]*[A-Za-z])[\w+\/=]{24,}/u, // token-shaped run of letters and digits; hyphenated file names pass
+];
+const leaks = (text: string): boolean => LEAK_PATTERNS.some(pattern => pattern.test(text));
 
 const words = (text: string): number => text.trim().split(/\s+/u).filter(Boolean).length;
 
@@ -39,7 +54,7 @@ const words = (text: string): number => text.trim().split(/\s+/u).filter(Boolean
 export function pdfExcerptFileNameShown(fileName: unknown): fileName is string {
   if (typeof fileName !== 'string') return false;
   const name = fileName.trim();
-  return name.length > 0 && name.length <= 120 && !/[\\/|;&<>$`"'=\u0000-\u001f]/u.test(name) && !providerPattern.test(name) && !LEAK_PATTERN.test(name) && !/\.\./u.test(name);
+  return name.length > 0 && name.length <= 120 && !/[\\/|;&<>$`"'=\u0000-\u001f]/u.test(name) && !providerPattern.test(name) && !leaks(name) && readerTextSafe(name) && !/\.\./u.test(name);
 }
 
 /** The citation entry of one excerpt, built the way every PDF citation is built (`toCitationInput`). */
@@ -49,7 +64,7 @@ export function pdfExcerptCitation(excerpt: PdfExcerpt): CitationInput {
 }
 
 function readerSafe(text: string, citation: CitationInput): boolean {
-  if (providerPattern.test(text) || LEAK_PATTERN.test(text)) return false;
+  if (providerPattern.test(text) || leaks(text) || !readerTextSafe(text)) return false;
   try { new CitationRegistry().cite(citation); return true; } catch { return false; }
 }
 
