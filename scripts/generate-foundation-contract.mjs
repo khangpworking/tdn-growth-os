@@ -84,6 +84,7 @@ const contracts = [
   ['analysis', 'tiktok-comment-collection-v1'],
   ['analysis', 'video-reading-v1'],
   ['analysis', 'video-reading-v2'],
+  ['analysis', 'video-reading-v3'],
   ['analysis', 'tiktok-coding-proposal-v1'],
   ['analysis', 'tiktok-coding-model-v1'],
   ['analysis', 'tiktok-coding-configuration-v1'],
@@ -256,7 +257,7 @@ for (const [module, contract] of contracts) {
   const generated = await compileFromFile(schemaPath, {
     ...(['automation-market-presentation-method', 'research-automation-metric-intake-api', 'research-automation-reader-report-api', 'research-automation-supplemental-intake-api', 'research-automation-source-api', 'automation-i14-evidence-admission', 'automation-i14-candidates', 'automation-quote-method-snapshot', 'automation-decision-packets', 'automation-decision-synthesis-input', 'automation-decision-synthesis-prompt', 'automation-insight-model', 'automation-insight-crosscheck', 'research-automation-insight-crosscheck-api', 'default-market-peers', 'meta-page-source-v1', 'research-automation-meta-page-api'].includes(contract) ? { ignoreMinAndMaxItems: true } : {}),
     // A3 arrays are assembled incrementally; AJV enforces their canonical schema bounds.
-  ...(['private-insight-source-projection', 'report-section-catalog', 'versioned-report-packet', 'report-semantic-content', 'prepared-report-semantic-content', 'report-assembly-snapshot', 'report-review-state', 'report-interpretation-request', 'report-interpretation-output', 'report-interpretation-artifact', 'report-review-target', 'report-version-record', 'report-api', 'research-automation-api', 'research-automation-revision-api', 'generic-quote-unit', 'temporal-window-method', 'research-review-corpus', 'automation-private-shopee-source', 'research-private-review-corpus', 'private-review-report-view', 'insight-literal-evidence', 'shopee-exact-request', 'shopee-exact-collection', 'shopee-private-collection', 'shopee-private-rows', 'shopee-private-projection', 'tiktok-comment-collection-v1', 'video-reading-v1', 'video-reading-v2'].includes(contract)
+  ...(['private-insight-source-projection', 'report-section-catalog', 'versioned-report-packet', 'report-semantic-content', 'prepared-report-semantic-content', 'report-assembly-snapshot', 'report-review-state', 'report-interpretation-request', 'report-interpretation-output', 'report-interpretation-artifact', 'report-review-target', 'report-version-record', 'report-api', 'research-automation-api', 'research-automation-revision-api', 'generic-quote-unit', 'temporal-window-method', 'research-review-corpus', 'automation-private-shopee-source', 'research-private-review-corpus', 'private-review-report-view', 'insight-literal-evidence', 'shopee-exact-request', 'shopee-exact-collection', 'shopee-private-collection', 'shopee-private-rows', 'shopee-private-projection', 'tiktok-comment-collection-v1', 'video-reading-v1', 'video-reading-v2', 'video-reading-v3'].includes(contract)
       ? { ignoreMinAndMaxItems: true }
       : {}),
     bannerComment: `/* Generated from ${contract}.schema.json. Do not edit by hand. */`,

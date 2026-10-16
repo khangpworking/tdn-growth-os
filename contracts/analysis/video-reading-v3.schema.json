@@ -1,0 +1,323 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/video-reading-v3.schema.json",
+  "title": "VideoReadingV3",
+  "description": "Automated, unverified S14 seller-video speech reading made by the video-watch lane from one public video of the run's pinned candidate list. The speech is seller voice (review-video creator speech labelled separately), model transcribed and never verified; it is not customer opinion, not a fact and never admitted as a source by itself. Operator v1/v2 readings are unchanged.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/modelAnswer"
+    },
+    {
+      "$ref": "#/$defs/reading"
+    }
+  ],
+  "$defs": {
+    "modelAnswer": {
+      "title": "VideoWatchModelAnswer",
+      "description": "The exact JSON shape the model must answer with; seconds are relative to the start of the probed media.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "aboutProduct",
+        "videoKind",
+        "segments",
+        "onScreenText"
+      ],
+      "properties": {
+        "aboutProduct": {
+          "type": "boolean"
+        },
+        "videoKind": {
+          "enum": [
+            "SELLER_VIDEO",
+            "REVIEW_VIDEO",
+            "OTHER"
+          ]
+        },
+        "segments": {
+          "type": "array",
+          "items": {
+            "title": "VideoWatchAnswerSegment",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "startSecond",
+              "endSecond",
+              "speech"
+            ],
+            "properties": {
+              "startSecond": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 86400
+              },
+              "endSecond": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 86400
+              },
+              "speech": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              }
+            }
+          },
+          "maxItems": 10000,
+          "minItems": 0
+        },
+        "onScreenText": {
+          "type": "array",
+          "items": {
+            "title": "VideoWatchAnswerOnScreenText",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "startSecond",
+              "endSecond",
+              "text"
+            ],
+            "properties": {
+              "startSecond": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 86400
+              },
+              "endSecond": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 86400
+              },
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 20000
+              }
+            }
+          },
+          "maxItems": 10000,
+          "minItems": 0
+        }
+      }
+    },
+    "interval": {
+      "title": "AutomatedVideoText",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "startSeconds",
+        "endSeconds",
+        "text"
+      ],
+      "properties": {
+        "startSeconds": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 86400
+        },
+        "endSeconds": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 86400
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        }
+      }
+    },
+    "reading": {
+      "title": "AutomatedVideoReading",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "registryId",
+        "workspaceId",
+        "runId",
+        "scopeSha256",
+        "sourceSetSha256",
+        "candidatesSha256",
+        "provenance",
+        "state",
+        "voice",
+        "captionSource",
+        "video",
+        "segments",
+        "onScreenText",
+        "media",
+        "model",
+        "limitations"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "video-reading-v3"
+        },
+        "registryId": {
+          "const": "S14"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "scopeSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "sourceSetSha256": {
+          "description": "The run's frozen source set at collection time; null when the run had none yet.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "candidatesSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "provenance": {
+          "const": "AUTOMATED_MODEL_UNVERIFIED"
+        },
+        "state": {
+          "const": "PREPARED_NOT_ADMITTED"
+        },
+        "voice": {
+          "const": "SELLER"
+        },
+        "captionSource": {
+          "const": "MODEL_TRANSCRIBED"
+        },
+        "video": {
+          "title": "AutomatedVideoIdentity",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "videoUrl",
+            "videoId",
+            "origin",
+            "videoKind",
+            "aboutProduct",
+            "durationSeconds"
+          ],
+          "properties": {
+            "videoUrl": {
+              "type": "string",
+              "pattern": "^https://www\\.tiktok\\.com/@[A-Za-z0-9._]{1,64}/video/[1-9][0-9]{0,19}$"
+            },
+            "videoId": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{0,19}$"
+            },
+            "origin": {
+              "enum": [
+                "SELECTION",
+                "EXPANDED_SEARCH"
+              ]
+            },
+            "videoKind": {
+              "enum": [
+                "SELLER_VIDEO",
+                "REVIEW_VIDEO",
+                "OTHER"
+              ]
+            },
+            "aboutProduct": {
+              "type": "boolean"
+            },
+            "durationSeconds": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 180
+            }
+          }
+        },
+        "segments": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/interval"
+          },
+          "maxItems": 10000,
+          "minItems": 0
+        },
+        "onScreenText": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/interval"
+          },
+          "maxItems": 10000,
+          "minItems": 0
+        },
+        "media": {
+          "title": "AutomatedVideoMedia",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sha256",
+            "byteSize",
+            "durationSeconds",
+            "downloadedAt"
+          ],
+          "properties": {
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "byteSize": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 104857600
+            },
+            "durationSeconds": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 180
+            },
+            "downloadedAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        },
+        "model": {
+          "title": "AutomatedVideoModel",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "modelId",
+            "responseSha256"
+          ],
+          "properties": {
+            "modelId": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9.-]{0,63}$"
+            },
+            "responseSha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "maxItems": 20,
+          "minItems": 1
+        }
+      }
+    }
+  }
+}
