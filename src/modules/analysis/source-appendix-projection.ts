@@ -6,6 +6,7 @@ export type { SourceAppendixProjection, SourceAppendixProjectionInput, SourceApp
 export const SOURCE_APPENDIX_PROJECTION_CONTRACT = 'source-appendix-projection-v2' as const;
 export const E12_ATTRIBUTION = 'Cục Thống kê (nso.gov.vn)' as const;
 export const E13_ATTRIBUTION = 'Ngân hàng Thế giới (World Bank Open Data)' as const;
+export const E14_ATTRIBUTION = 'Cơ sở dữ liệu thương mại của Liên Hợp Quốc (UN Comtrade)' as const;
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
 const ajv = new Ajv2020({ strict: true }); ajv.addSchema(schema);
@@ -30,7 +31,7 @@ export function buildSourceAppendixProjection(input: SourceAppendixProjectionInp
     return { registryId: usage.registryId, tier: entry[0], tierDetail: usage.registryId === 'S19' ? 'Theo trang gốc; chưa chấm hạng' : usage.registryId === 'S25' ? 'B (báo cáo thường niên đã kiểm toán) / C (khảo sát ngành)' : null,
       group: entry[2], reportName: entry[1], binding: { ...usage.binding }, l9Excluded: usage.l9?.excluded ?? null,
       l9Unclear: usage.l9?.unclear ?? null, l9Reasons: { ...(usage.l9?.byReason ?? {}) }, l10SourceType: usage.l10SourceType,
-      attribution: ['S21', 'S22'].includes(usage.registryId) ? E12_ATTRIBUTION : usage.registryId === 'S23' ? E13_ATTRIBUTION : null };
+      attribution: ['S21', 'S22'].includes(usage.registryId) ? E12_ATTRIBUTION : usage.registryId === 'S23' ? E13_ATTRIBUTION : usage.registryId === 'S24' ? E14_ATTRIBUTION : null };
   });
   const result: SourceAppendixProjection = { contractVersion: SOURCE_APPENDIX_PROJECTION_CONTRACT, registryVersion: '1.9', rows };
   if (!outputValid(result)) fail('projection failed canonical schema validation');

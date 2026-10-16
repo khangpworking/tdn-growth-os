@@ -28,6 +28,7 @@ function status(): ResearchAutomationSourceStatus {
     ] }),
     entry('OFFICIAL_STATS', { state: 'NOT_BUILT', credential: 'NOT_REQUIRED', wiredIntoRuns: false, paid: false, pendingPackage: 'P10', group: 'MACRO' }),
     entry('WORLD_BANK', { state: 'NOT_BUILT', credential: 'NOT_REQUIRED', wiredIntoRuns: false, paid: false, pendingPackage: 'P10', group: 'MACRO' }),
+    entry('UN_COMTRADE', { state: 'READY', credential: 'NOT_REQUIRED', wiredIntoRuns: true, paid: false, pendingPackage: null, group: 'MACRO' }),
     entry('PAGEINDEX', { state: 'NOT_CONFIGURED', credential: 'MISSING', wiredIntoRuns: false, pageindex: {
       automaticState: 'DISABLED', documentsSent: 9, balanceMicroDollars: null, balanceCheckedAt: null,
       billingUrl: 'https://dash.pageindex.ai', activePages: 12, estimatedMonthlyCostMicroDollars: null, usageLimited: false,
@@ -94,9 +95,9 @@ test('source board renders grouped cards, caps, operations and registry rows, re
     const groups = [...document.querySelectorAll<HTMLElement>('.ra-sources-group')];
     assert.deepEqual(groups.map(group => group.dataset.group), ['SALES_MARKET', 'CUSTOMER_VOICE', 'SELLER_VOICE', 'MACRO', 'DOCUMENTS']);
     const cards = [...document.querySelectorAll<HTMLElement>('.ra-source')];
-    assert.equal(cards.length, 11, 'All eleven registry cards render');
+    assert.equal(cards.length, 12, 'All twelve registry cards render');
     assert.deepEqual(cards.map(card => card.dataset.source), ['METRIC', 'KALODATA', 'KALODATA_VIDEO_FILE', 'SERPAPI',
-      'APIFY_SHOPEE', 'APIFY_TIKTOK_COMMENTS', 'VIDEO_READING', 'META_AD_LIBRARY', 'OFFICIAL_STATS', 'WORLD_BANK', 'PAGEINDEX']);
+      'APIFY_SHOPEE', 'APIFY_TIKTOK_COMMENTS', 'VIDEO_READING', 'META_AD_LIBRARY', 'OFFICIAL_STATS', 'WORLD_BANK', 'UN_COMTRADE', 'PAGEINDEX']);
     const pills = new Map(cards.map(card => [card.dataset.source, card.querySelector('.status-pill')?.textContent]));
     assert.equal(pills.get('KALODATA'), 'Đã kết nối');
     assert.equal(pills.get('SERPAPI'), 'Có khóa, chưa dùng');
@@ -111,6 +112,8 @@ test('source board renders grouped cards, caps, operations and registry rows, re
     assert.match(bySource.get('APIFY_TIKTOK_COMMENTS')!.textContent!, /gói P9/);
     assert.match(bySource.get('APIFY_TIKTOK_COMMENTS')!.textContent!, /Trần chi.*Chưa cấu hình/);
     assert.match(bySource.get('WORLD_BANK')!.textContent!, /Không cần khóa/);
+    assert.match(bySource.get('UN_COMTRADE')!.textContent!, /Thương mại Liên Hợp Quốc/);
+    assert.equal(pills.get('UN_COMTRADE'), 'Đã kết nối');
     // SerpApi per-operation rows with honest units, including the unbuilt Trends row.
     assert.match(bySource.get('SERPAPI')!.textContent!, /Tìm kiếm Google mở rộng/);
     assert.match(bySource.get('SERPAPI')!.textContent!, /3 lần thu/);

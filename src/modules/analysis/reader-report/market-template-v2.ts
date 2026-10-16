@@ -6,7 +6,8 @@ import { renderChart, type FlintChartInput } from './flint.js';
 import { marketChartRows, renderMarketCharts, renderSearchInterestChart } from './market-charts.js';
 import { searchInterestChartPoints, searchInterestRenderable, SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_LIMIT, SEARCH_INTEREST_NOTE, SEARCH_INTEREST_SOURCE_LABEL, SEARCH_INTEREST_SRC, SEARCH_INTEREST_UNIT } from '../research-automation/search-interest.js';
 import { formatWorldBankValue, worldBankRenderableRows, worldBankSourceNote, worldBankUnitText, WORLD_BANK_LIMIT, WORLD_BANK_NOTE, WORLD_BANK_SOURCE_LABEL, WORLD_BANK_SRC, WORLD_BANK_TITLE } from '../research-automation/world-bank-lane.js';
-import { E13_ATTRIBUTION } from '../source-appendix-projection.js';
+import { E13_ATTRIBUTION, E14_ATTRIBUTION } from '../source-appendix-projection.js';
+import { comtradeFlowText, comtradeNotice, comtradeOfficialText, comtradeRenderableRows, comtradeRowNote, comtradeSideText, COMTRADE_LIMIT, COMTRADE_NOTE, COMTRADE_SOURCE_LABEL, COMTRADE_SRC, COMTRADE_TABLE_TITLE } from '../research-automation/comtrade-lane.js';
 import { pdfExcerptBlockHtml, pdfExcerptCitation, PDF_EXCERPT_NOTE, PDF_EXCERPT_SRC } from '../research-automation/pdf-excerpt.js';
 import { sellerVideoBlockHtml, sellerVideoNote, sellerVideoSrc } from '../research-automation/seller-video.js';
 import { metaAdCitation, metaAdDate, META_AD_NAME_WITHHELD, META_AD_NOTE, META_AD_SOURCE_LABEL, META_AD_SOURCE_NOTE, META_AD_SRC, META_AD_TEXT_WITHHELD, META_AD_TITLE } from '../research-automation/meta-ad-report.js';
@@ -136,10 +137,24 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
       fig('5.2', SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_UNIT, interestChart.svg, { engine: interestChart.engine, src: SEARCH_INTEREST_SRC, note: SEARCH_INTEREST_NOTE })
       : `<p>Kỳ ${period}; nguồn: dữ liệu bán hàng ước tính trên từng sàn. Mức quan tâm tìm kiếm ghi riêng, chưa có chuỗi tìm kiếm phù hợp trong bản này.</p>`) + worldBankTable,
     'Số bán hàng ước tính chưa đối chiếu với người bán, chỉ dùng tham khảo. Không suy ra quy mô ngoài mẫu, số người mua, nhu cầu chưa được đáp ứng hay dự báo.' + (interestChart ? ` ${SEARCH_INTEREST_LIMIT}` : '') + (worldBankTable ? ` ${WORLD_BANK_LIMIT}` : '')));
+  // Country-level trade figures sit in M06 as background; the same predicate marks S24 as used. No sums, shares or comparison with the sample.
+  const comtrade = next ? options.comtrade : undefined;
+  const comtradeRows = comtradeRenderableRows(comtrade);
+  const comtradeTable = !comtrade ? '' : comtradeRows.length === 0 ? `<p>${esc(comtradeNotice(comtrade))}</p>`
+    : (comtrade.status === 'OK' ? '' : `<p>${esc(comtradeNotice(comtrade))}</p>`) +
+      `<p>Mã hàng ước tính: ${esc(comtrade.hsCode!)}. Mô tả chính thức (tiếng Anh): ${esc(comtradeOfficialText(comtrade))}. Diễn giải tự động: ${esc(comtrade.descriptionVi!)}</p>` +
+      tbl('6.2', COMTRADE_TABLE_TITLE, '', ['Bên báo số', 'Chiều', 'Năm', 'Giá trị (USD, theo bên báo)', 'Ghi chú'],
+        comtradeRows.map(row => {
+          const call = comtrade.calls.find(item => item.captureIndex === row.captureIndex);
+          const no = call ? registry.cite({ sourceKind: 'CAPTURE', identity: call.responseSha256, locator: { kind: 'json-pointer', pointer: '/data' },
+            label: `${E14_ATTRIBUTION}, ${comtradeSideText(row)}, ${comtradeFlowText(row.flow)}, ${row.year}`, technical: { hsCode: comtrade.hsCode ?? '' },
+            retrievedAt: call.retrievedAt, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' }) : null;
+          return [label(comtradeSideText(row)), label(comtradeFlowText(row.flow)), label(row.year), label(formatWorldBankValue(row.value)) + (no === null ? '' : renderCitationMark(no)), label(comtradeRowNote(row))];
+        }), { src: COMTRADE_SRC, note: COMTRADE_NOTE + (comtrade.mirrorReporterCount === null || comtrade.mirrorReporterCount === 0 ? '' : ` Số nước báo số hàng xuất sang Việt Nam: ${comtrade.mirrorReporterCount}.`) });
   sections.push(section('M06', 'Nguồn cung', 'Giữ riêng nhãn thương hiệu theo tiêu đề người bán trên từng sàn.',
     tbl('6.1', 'Ngày mở bán và phần chưa rõ', '', ['Sàn', 'Có ngày', 'Thiếu ngày', 'Mở bán trong kỳ', 'Doanh thu mở bán trong kỳ'],
       PLATS.map(P => [plat(P), n(bf(`${P}.coh.known`)), n(bf(`${P}.coh.nodate`)), n(bf(`${P}.coh.n`)), n(bf(`${P}.coh.rev`))])) +
-    `<p>Tên giống nhau không chứng minh cùng thương hiệu, người bán hay người mua giữa các sàn. Nhãn trên dòng nguồn nằm ở Phụ lục.</p>`));
+    `<p>Tên giống nhau không chứng minh cùng thương hiệu, người bán hay người mua giữa các sàn. Nhãn trên dòng nguồn nằm ở Phụ lục.</p>` + comtradeTable, comtradeRows.length ? COMTRADE_LIMIT : undefined));
   const shops = PLATS.flatMap(P => [...new Set(rows.filter(row => row.platform === P).map(row => row.shop))].map((shop, i) => {
     const members = rows.filter(row => row.platform === P && row.shop === shop && profile.core.includes(row.seg!));
     const rev = completeSum(members, 'rev'), units = completeSum(members, 'units'), id = `shop.${P}.${i}`;
@@ -234,6 +249,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     ['Bình luận đã thu thập', 'Chưa có trong lượt này'],
     ...(interestChart ? [[SEARCH_INTEREST_SOURCE_LABEL, 'Đã lưu trong lượt này; chỉ số tương đối, không phải doanh số']] : []),
     ...(worldBankTable ? [[WORLD_BANK_SOURCE_LABEL, 'Đã lưu trong lượt này; số liệu cả nước, chỉ là bối cảnh']] : []),
+    ...(comtradeRows.length ? [[COMTRADE_SOURCE_LABEL, 'Đã lưu trong lượt này; số liệu cả nước, chỉ là bối cảnh']] : []),
     ...(metaAdTable ? [[META_AD_SOURCE_LABEL, META_AD_SOURCE_NOTE]] : [])] : [['Nguồn', sourceText], ['Kỳ', period]];
   if (d.webFacts !== null) {
     const facts = d.webFacts;

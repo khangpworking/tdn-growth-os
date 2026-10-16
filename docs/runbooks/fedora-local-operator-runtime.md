@@ -141,6 +141,10 @@ export TDN_RESEARCH_FFPROBE_BIN='/usr/bin/ffprobe'              # optional, defa
 - Media: mp4 or webm with a video stream (photo posts are skipped as `NOT_A_VIDEO`), short side at most 720 (then 480), at most 14 MB and 180 seconds; one inline request per video, 180 s timeout, at most one retry on timeout/429/5xx and one more call when the answer fails the strict check. Captures keep only digests of the video, never its bytes or the key.
 - Retention: a run folder created by the app holds a `.video-watch-run` marker; media in it is deleted 45 days after download even when the download ledger is missing or broken. Folders without the marker keep the ledger-only rule.
 
+### Market UN Comtrade (optional, flag `TDN_RESEARCH_COMTRADE_ENABLED`)
+
+Off unless `TDN_RESEARCH_COMTRADE_ENABLED=1` exactly. Off means no request, no model call, no new capture or step field, and byte-identical reports. When on, the collection step estimates one HS6 code for the product with the Insight coding CLIProxy model already configured for the operator (no separate key), confirms it against the official description, then makes at most 4 public data calls (at least 6 s apart; one 65 s wait and one repeat after a rate limit). Market section 6 shows the whole-country figures as background only, never combined with sample numbers. No key is needed; an unconfirmed code prints a plain sentence and no numbers. Without CLIProxy the step is recorded `MODEL_NOT_CONFIGURED` and the run continues.
+
 ### One executor per database
 
 An operator started with `TDN_OWNER_API_ENABLED='true'` is the **executor**. Only one executor may use a database at a time. At startup it creates `<canonical database path>.executor.lock` next to the database (the path after resolving symbolic links) and removes it on an orderly stop (Ctrl-C / `SIGTERM`). Before serving, the executor marks any AI attempt left `running` by an earlier process as `interrupted` (`interrupted_by_restart`). Nothing is retried automatically.

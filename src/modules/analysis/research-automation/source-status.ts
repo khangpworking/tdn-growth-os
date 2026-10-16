@@ -102,13 +102,15 @@ export const SOURCE_REGISTRY: Record<SourceBoardId, SourceRegistryCard> = {
     reportName: 'Cục Thống kê (nso.gov.vn)', paid: false, pendingPackage: 'P10', built: false, arrival: 'MANUAL_UPLOAD' },
   WORLD_BANK: { registryIds: ['S23'], tier: 'A', tierDetail: null, group: 'MACRO',
     reportName: 'Ngân hàng Thế giới (World Bank Open Data)', paid: false, pendingPackage: null, built: true, arrival: 'MANUAL_UPLOAD' },
+  UN_COMTRADE: { registryIds: ['S24'], tier: 'A', tierDetail: null, group: 'MACRO',
+    reportName: 'Cơ sở dữ liệu thương mại của Liên Hợp Quốc', paid: false, pendingPackage: null, built: true, arrival: 'FREE_COLLECT' },
   PAGEINDEX: { registryIds: ['S22', 'S25'], tier: null, tierDetail: 'S22: A; S25: B/C', group: 'DOCUMENTS',
     reportName: 'Cục Thống kê (nso.gov.vn); báo cáo đã công bố của nhà xuất bản', paid: true, pendingPackage: null, built: true, arrival: 'PAID_API' },
 };
 
 /** Card order follows Plan B1. */
 export const SOURCE_BOARD_ORDER: readonly SourceBoardId[] = ['METRIC', 'KALODATA', 'KALODATA_VIDEO_FILE', 'APIFY_SHOPEE',
-  'APIFY_TIKTOK_COMMENTS', 'VIDEO_READING', 'META_AD_LIBRARY', 'SERPAPI', 'OFFICIAL_STATS', 'WORLD_BANK', 'PAGEINDEX'];
+  'APIFY_TIKTOK_COMMENTS', 'VIDEO_READING', 'META_AD_LIBRARY', 'SERPAPI', 'OFFICIAL_STATS', 'WORLD_BANK', 'UN_COMTRADE', 'PAGEINDEX'];
 
 /**
  * Known SerpApi operations with their registry binding. Counts are stored
@@ -176,6 +178,10 @@ export function buildResearchAutomationSourceStatus(input: SourceStatusInput): R
     source, state: cardState(source, 'MANUAL_IMPORT'), credential: 'NOT_REQUIRED',
     wiredIntoRuns: true, paid: false, ...input.activity[key], lastUsageAt: null, ...meta(source), spendCapUsd: null, operations: null,
   });
+  const freeSource = (source: 'UN_COMTRADE', key: 'un-comtrade'): ResearchAutomationSourceStatusEntry => ({
+    source, state: cardState(source, 'READY'), credential: 'NOT_REQUIRED', wiredIntoRuns: true, paid: false,
+    ...input.activity[key], lastUsageAt: null, ...meta(source), spendCapUsd: null, operations: null,
+  });
   const sources: ResearchAutomationSourceStatus['sources'] = [
     manualSource('METRIC', 'metric'),
     paidSource('KALODATA', 'kalodata', Boolean(providers?.kalodataSecretKey), Boolean(providers?.kalodataSecretKey), input.wired.kalodata, null, null),
@@ -196,6 +202,7 @@ export function buildResearchAutomationSourceStatus(input: SourceStatusInput): R
       buildSerpApiOperations(input.activity.serpapiOperations)),
     notBuilt('OFFICIAL_STATS', 'official-stats', 'NOT_REQUIRED', null),
     manualSource('WORLD_BANK', 'world-bank'),
+    freeSource('UN_COMTRADE', 'un-comtrade'),
     {
       source: 'PAGEINDEX',
       state: cardState('PAGEINDEX', !pageindexUsable ? 'NOT_CONFIGURED' : 'READY'),

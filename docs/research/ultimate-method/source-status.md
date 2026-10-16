@@ -56,7 +56,7 @@ E14 của file Ultimate nói về "nguồn đang dùng hoặc đã duyệt". Ở
 | S21 | Cục Thống kê | Đã duyệt | 12/10/2026 | Chủ duyệt 12/10 |
 | S22 | Cục Thống kê theo tỉnh | Đã duyệt | 12/10/2026 | Chủ duyệt 12/10 |
 | S23 | Ngân hàng Thế giới (dữ liệu mở) | Đã duyệt | 08/10/2026 | Duyệt theo E13; chưa thu cho báo cáo |
-| S24 | Cơ sở dữ liệu thương mại của Liên Hợp Quốc | Đề xuất | 08/10/2026 | — |
+| S24 | Cơ sở dữ liệu thương mại của Liên Hợp Quốc | Đề xuất | 08/10/2026 | Bộ thu có sẵn sau cờ TDN_RESEARCH_COMTRADE_ENABLED (mặc định tắt); M06 là bối cảnh cả nước; chờ chủ duyệt |
 | S25 | Báo cáo ngành, báo cáo thường niên doanh nghiệp | Đã duyệt | 08/10/2026 | Đang dùng ở M09 |
 | S26 | Báo chí, tin an toàn thực phẩm | Đề xuất | 08/10/2026 | Tìm qua S19 |
 | S27 | Bản quét review của bên thứ ba | Không thu | 08/10/2026 | Thiếu số sao và người viết; đã thay bằng S05 |

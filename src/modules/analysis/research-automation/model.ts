@@ -171,6 +171,48 @@ export interface StepWorldBankIndicator {
 }
 export interface StepWorldBank { readonly profile: string; readonly indicators: readonly StepWorldBankIndicator[] }
 
+/** UN Comtrade country-level trade figures for one estimated HS6 code (S24). Background only; never combined with sample numbers. */
+export type StepComtradeStatus = 'OK' | 'HS_CODE_NOT_CONFIRMED' | 'RATE_LIMITED' | 'NO_DATA' | 'MODEL_NOT_CONFIGURED' | 'FAILED' | 'CANCELLED';
+export interface StepComtradeRow {
+  readonly side: 'OWN' | 'MIRROR';
+  readonly reporter: string;
+  readonly flow: 'M' | 'X';
+  readonly year: string;
+  /** USD value exactly as the source gave it (plain decimal). */
+  readonly value: string;
+  /** Index into the same step's captures (the response this row was read from). */
+  readonly captureIndex: number;
+}
+export interface StepComtradeCall {
+  readonly kind: 'MIRROR' | 'OWN_IMPORT' | 'OWN_EXPORT';
+  readonly year: string;
+  readonly outcome: 'ROWS' | 'EMPTY';
+  readonly captureIndex: number;
+  readonly retrievedAt: string;
+  readonly responseSha256: string;
+}
+export interface StepComtradeAttempt {
+  readonly hsCode: string;
+  readonly outcome: 'CONFIRMED' | 'REJECTED' | 'NO_DATA' | 'STOPPED';
+  readonly reason: 'OFFICIAL_DESCRIPTION_COVERED' | 'NOT_COVERED' | 'MODEL_ANSWER_INVALID' | 'NO_SOURCE_ROWS' | 'RATE_LIMITED' | 'FAILED' | 'CANCELLED' | 'BUDGET_EXHAUSTED';
+}
+export interface StepComtrade {
+  readonly profile: 'comtrade-v1';
+  readonly status: StepComtradeStatus;
+  readonly hsCode: string | null;
+  /** Official English description from the response; shown with the automatic Vietnamese gloss. */
+  readonly officialDescription: string | null;
+  readonly descriptionVi: string | null;
+  readonly reasonVi: string | null;
+  /** Candidate decisions and closed reason codes; model prose is never used as the code. */
+  readonly attempts: readonly StepComtradeAttempt[];
+  readonly calls: readonly StepComtradeCall[];
+  /** Own-side rows plus the top mirror reporters by value. */
+  readonly rows: readonly StepComtradeRow[];
+  /** Number of reporting countries in the mirror response; null when no mirror response was kept. */
+  readonly mirrorReporterCount: number | null;
+}
+
 /** One considered public TikTok video of the video-watch lane, pinned at collection time. */
 export interface StepVideoWatchCandidate { readonly videoId: string; readonly url: string; readonly origin: 'SELECTION' | 'EXPANDED_SEARCH' }
 export type StepVideoWatchReason = 'OVER_10_VIDEOS' | 'DOWNLOAD_FAILED' | 'VIDEO_TOO_LONG' | 'VIDEO_TOO_LARGE' | 'NOT_A_VIDEO'
@@ -215,6 +257,8 @@ export interface StepResultDocument {
   readonly expandedSearch?: StepExpandedSearch;
   /** Open country-level background; absent unless the World Bank lane was on for the run. */
   readonly worldBank?: StepWorldBank;
+  /** Country-level trade figures for the estimated HS code; absent unless the UN Comtrade lane was on for the run. */
+  readonly comtrade?: StepComtrade;
   /** Automated seller-video speech readings; absent unless the video-watch lane was on for the run. */
   readonly videoWatch?: StepVideoWatch;
   /** Sanitized Foundation3 reference; mutually exclusive with raw/native review. */
