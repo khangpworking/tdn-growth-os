@@ -30,7 +30,7 @@ test('selection: two documents keep stored order, Market sections only, verbatim
 });
 
 test('selection: each left-out reason is coded, nothing is cut or reworded, at most 3 per document', () => {
-  const word = (i: number): string => `từ${String.fromCharCode(97 + (i % 26))}`;
+  const word = (i: number): string => ['một', 'hai', 'ba', 'bốn', 'năm', 'sáu', 'bảy', 'tám', 'chín', 'mười'][i % 10]!;
   const long = Array.from({ length: 31 }, (_, i) => word(i)).join(' '), exactly30 = Array.from({ length: 30 }, (_, i) => word(i)).join(' ');
   const picked = selectPdfExcerpts(artifact([
     quote(SHA_A, 1, 'Một.'), quote(SHA_A, 2, 'Hai.'), quote(SHA_A, 3, 'Ba.'), quote(SHA_A, 4, 'Bốn.'),
@@ -88,6 +88,28 @@ test('number grammar: a digit is shown only inside a closed number shape and two
     'Xem example. com', 'Xem example. com.pdf', 'Lưu ở server/share.', 'Lưu ở tmp/a.', 'Mục thu-muc-bao-cao.', 'Chạy rm -rf khi dọn.', 'Tỷ lệ 1:80.', 'Theo ɢᴏᴏɢʟᴇ, nhu cầu tăng.',
     'Theo G̲o̲o̲g̲l̲e̲, nhu cầu tăng.'])
     assert.equal(shown(text), false, text);
+});
+
+test('word set: every word is written Vietnamese, so hosts, commands, English labels and spelled addresses are left out', () => {
+  const shown = (text: string): boolean => selectPdfExcerpts(artifact([quote(SHA_A, 1, text)]), RUN, names).excerpts.length === 1;
+  for (const text of ['Giá nguyên liệu inox biến động theo quý.', 'Kênh livestream trên Shopee và TikTok tăng mạnh, KOL chiếm phần lớn.', 'Thị trường FMCG ở ĐBSCL tăng đều.',
+    'Sản phẩm serum vitamin bán chạy dịp sale cuối năm.', 'Người mua chọn mẫu mini, size nhỏ, giá tốt.'])
+    assert.equal(shown(text), true, text);
+  // Round 7 blockers: a host with a port or share, spaced domains on newer top-level names, spelled-out addresses, access-code
+  // labels without accent marks, with a dash or in English, long or grouped codes and shell text.
+  for (const text of ['Máy localhost: 8080 dùng nội bộ.', 'Máy server: 443.', 'Lưu ở server: share.', 'Xem example. dev', 'Xem example. co', 'Xem example. ai',
+    'Gửi name at example dot com', 'Gửi minh at tin dot com', 'Gửi minh (at) tin (dot) com', 'Ma xac thuc: 4821', 'Nhập mã xác-thực: 4821', 'Tài khoản số 4821 dùng tạm.',
+    'Nhập verification code: 4821', 'Mã: abcdefghijklmnopqrst', 'Mã: ABCD-12', 'Chạy chmod +x file khi cài.', 'Viết bằng C++.',
+    // Round 7 follow-ups.
+    'Theo Góogle, nhu cầu tăng.', 'Mã AB12 và CD34 dùng tạm.', 'Lưu ở server slash share.', 'Gửi minh a còng tin chấm com.', 'Máy 203 chấm 0 chấm 113 chấm 7.',
+    // An English sentence is not written Vietnamese, so it is left out whole.
+    'Demand for vacuum flasks grows in big cities.'])
+    assert.equal(shown(text), false, text);
+  assert.deepEqual(selectPdfExcerpts(artifact([quote(SHA_A, 1, 'Demand grows.')]), RUN, names).leftOut.map(item => item.reason), ['NOT_READER_SAFE']);
+  for (const bad of ['example. dev.pdf', 'http:.pdf', 'C:.pdf', 'ma-xac-thuc-4821.pdf', 'minh-a-cong-tin.pdf', 'server-share.pdf', 'demand-report.pdf'])
+    assert.equal(pdfExcerptFileNameShown(bad), false, bad);
+  for (const good of ['bao-cao-quat-dien.pdf', 'thi-truong-binh-giu-nhiet-2025.pdf', 'Báo cáo ngành quạt điện.pdf'])
+    assert.equal(pdfExcerptFileNameShown(good), true, good);
 });
 
 test('selection: only market sections are eligible even when the section id is made up', () => {

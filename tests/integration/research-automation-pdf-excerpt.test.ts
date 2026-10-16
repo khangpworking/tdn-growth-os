@@ -39,14 +39,14 @@ async function fixture(options: { pdf: boolean; pageIndex: boolean }) {
     calls.other += 1;
     if (pathname === '/doc/list') return Response.json({ documents: [{ id: 'pi-fixture', name: 'fixture.pdf', pageNum: 1, status: 'completed' }] });
     if (pathname.endsWith('/metadata')) return Response.json({ id: 'pi-fixture', name: 'fixture.pdf', pageNum: 1, status: 'completed' });
-    if (pathname.endsWith('/block/p1_text_1/')) return Response.json({ doc_id: 'pi-fixture', page: 1, block_id: 'p1_text_1', block_type: 'text', bbox: [1, 1, 20, 20], text: 'Calcium 120 mg' });
+    if (pathname.endsWith('/block/p1_text_1/')) return Response.json({ doc_id: 'pi-fixture', page: 1, block_id: 'p1_text_1', block_type: 'text', bbox: [1, 1, 20, 20], text: 'Hàm lượng 120 mg' });
     throw new Error('Unexpected connector request');
   };
   const service = new ResearchAutomationService({ db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discovery), uuid: () => runId, now,
     renderer: (input, kind) => buildResearchAutomationReport(input, kind), source: syntheticProductSource(),
     sourceEvidence: { modelIdentity: 'synthetic-model', promptVersion: 'prompt-v1' },
     ...(options.pageIndex ? { pageIndex: { enabled: true, apiKey: 'synthetic-pdf-key', fetch: fakeFetch, startingCreditMicroDollars: 10_000_000, maxQuestionsPerRun: 10,
-      extractPdf: async () => [{ page: 1, text: 'Calcium 120 mg' }] } } : {}) });
+      extractPdf: async () => [{ page: 1, text: 'Hàm lượng 120 mg' }] } } : {}) });
   await service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: '33333333-3333-4333-8333-333333333333', mode: 'CATEGORY', keyword: 'bình giữ nhiệt',
     requestedPeriod: { startDate: '2025-10-01', endDate: '2026-09-30' }, reports: ['MARKET'] });
   await service.processNext();
@@ -74,7 +74,7 @@ test('a run with a verified PDF draws a capped excerpt block that verifies, regi
     const block = blockOf(html);
     assert.ok(block.length > 0 && html.includes(`<h3>${PDF_EXCERPT_TITLE}`));
     assert.equal((block.match(/<blockquote data-quote>/gu) ?? []).length, PDF_EXCERPT_MAX_PER_DOCUMENT);
-    assert.match(block, /Calcium 120 mg/u); assert.match(block, /fixture\.pdf/u);
+    assert.match(block, /Hàm lượng 120 mg/u); assert.match(block, /không hiển thị tên tệp/u); assert.doesNotMatch(block, /fixture\.pdf/u, 'an English file name is not a Vietnamese word, so it is withheld');
     assert.match(block, /nhà xuất bản: chưa ghi; năm: chưa ghi; độ tin cậy: chưa xếp hạng độ tin cậy/u);
     assert.ok(!/hạng A|grade A|S22/u.test(block));
     assert.ok(!providerWords.test(withoutDataUris(block)), 'No provider name inside the block');
