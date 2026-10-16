@@ -184,6 +184,7 @@ test('no-key collectors map usable NOT_REQUIRED credentials once built', () => {
   const disabled = bySource(buildResearchAutomationSourceStatus(input({ executorEnabled: false })));
   assert.equal(disabled('WORLD_BANK').state, 'EXECUTOR_DISABLED');
   assert.equal(status('UN_COMTRADE').credential, 'NOT_REQUIRED');
+  assert.equal(status('UN_COMTRADE').state, 'READY');
   assert.equal(status('UN_COMTRADE').wiredIntoRuns, true);
   assert.equal(status('UN_COMTRADE').paid, false);
   assert.equal(disabled('UN_COMTRADE').state, 'EXECUTOR_DISABLED');

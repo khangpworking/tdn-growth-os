@@ -187,6 +187,10 @@ test('source status reports twelve cards with registry metadata, workspace histo
     assert.equal(sources.WORLD_BANK.dataCount, 0);
     assert.equal(sources.WORLD_BANK.lastDataAt, null);
     assert.equal(sources.WORLD_BANK.lastUsageAt, null);
+    assert.equal(sources.UN_COMTRADE.state, 'READY');
+    assert.equal(sources.UN_COMTRADE.credential, 'NOT_REQUIRED');
+    assert.equal(sources.UN_COMTRADE.wiredIntoRuns, true);
+    assert.equal(sources.UN_COMTRADE.paid, false);
     assert.equal(sources.APIFY_TIKTOK_COMMENTS.credential, 'CONFIGURED', 'Shared Apify token is honest credential evidence');
     assert.equal(sources.APIFY_TIKTOK_COMMENTS.spendCapUsd, null, 'An absent TikTok cap is never defaulted to $3');
     assert.deepEqual(sources.METRIC.registryIds, ['S01', 'S04']);

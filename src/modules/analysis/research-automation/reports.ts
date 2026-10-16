@@ -1002,7 +1002,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     if (!stored) return '';
     const rows = comtradeRenderableRows(stored);
     if (rows.length === 0) return `<p>${escape(comtradeNotice(stored))}</p>`;
-    return `<div class="table-wrap"><div class="exh"><span class="exn">Bảng 6.2</span><span class="ext">${escape(COMTRADE_TABLE_TITLE)}</span></div>` +
+    return `${stored.status === 'OK' ? '' : `<p>${escape(comtradeNotice(stored))}</p>`}<div class="table-wrap"><div class="exh"><span class="exn">Bảng 6.2</span><span class="ext">${escape(COMTRADE_TABLE_TITLE)}</span></div>` +
       `<p>Mã hàng ước tính: ${escape(stored.hsCode!)}. Mô tả chính thức (tiếng Anh): ${escape(comtradeOfficialText(stored))}. Diễn giải tự động: ${escape(stored.descriptionVi!)}</p>` +
       `<table><caption>${escape(COMTRADE_TABLE_TITLE)}</caption><thead><tr><th>Bên báo số</th><th>Chiều</th><th>Năm</th><th>Giá trị (USD, theo bên báo)</th><th>Ghi chú</th></tr></thead><tbody>` +
       rows.map(row => {

@@ -174,9 +174,13 @@ export function buildResearchAutomationSourceStatus(input: SourceStatusInput): R
   const apifyToken = Boolean(providers?.apifyTokenConfigured || providers?.apifyReviews);
   const pageindex = input.pageindex;
   const pageindexUsable = Boolean(pageindex?.keyConfigured && pageindex?.enabled);
-  const manualSource = (source: 'METRIC' | 'KALODATA_VIDEO_FILE' | 'VIDEO_READING' | 'WORLD_BANK' | 'UN_COMTRADE', key: 'metric' | 'kalodata-video' | 'video-reading' | 'world-bank' | 'un-comtrade'): ResearchAutomationSourceStatusEntry => ({
+  const manualSource = (source: 'METRIC' | 'KALODATA_VIDEO_FILE' | 'VIDEO_READING' | 'WORLD_BANK', key: 'metric' | 'kalodata-video' | 'video-reading' | 'world-bank'): ResearchAutomationSourceStatusEntry => ({
     source, state: cardState(source, 'MANUAL_IMPORT'), credential: 'NOT_REQUIRED',
     wiredIntoRuns: true, paid: false, ...input.activity[key], lastUsageAt: null, ...meta(source), spendCapUsd: null, operations: null,
+  });
+  const freeSource = (source: 'UN_COMTRADE', key: 'un-comtrade'): ResearchAutomationSourceStatusEntry => ({
+    source, state: cardState(source, 'READY'), credential: 'NOT_REQUIRED', wiredIntoRuns: true, paid: false,
+    ...input.activity[key], lastUsageAt: null, ...meta(source), spendCapUsd: null, operations: null,
   });
   const sources: ResearchAutomationSourceStatus['sources'] = [
     manualSource('METRIC', 'metric'),
@@ -198,7 +202,7 @@ export function buildResearchAutomationSourceStatus(input: SourceStatusInput): R
       buildSerpApiOperations(input.activity.serpapiOperations)),
     notBuilt('OFFICIAL_STATS', 'official-stats', 'NOT_REQUIRED', null),
     manualSource('WORLD_BANK', 'world-bank'),
-    manualSource('UN_COMTRADE', 'un-comtrade'),
+    freeSource('UN_COMTRADE', 'un-comtrade'),
     {
       source: 'PAGEINDEX',
       state: cardState('PAGEINDEX', !pageindexUsable ? 'NOT_CONFIGURED' : 'READY'),

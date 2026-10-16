@@ -191,6 +191,11 @@ export interface StepComtradeCall {
   readonly retrievedAt: string;
   readonly responseSha256: string;
 }
+export interface StepComtradeAttempt {
+  readonly hsCode: string;
+  readonly outcome: 'CONFIRMED' | 'REJECTED' | 'NO_DATA' | 'STOPPED';
+  readonly reason: 'OFFICIAL_DESCRIPTION_COVERED' | 'NOT_COVERED' | 'MODEL_ANSWER_INVALID' | 'NO_SOURCE_ROWS' | 'RATE_LIMITED' | 'FAILED' | 'CANCELLED' | 'BUDGET_EXHAUSTED';
+}
 export interface StepComtrade {
   readonly profile: 'comtrade-v1';
   readonly status: StepComtradeStatus;
@@ -199,6 +204,8 @@ export interface StepComtrade {
   readonly officialDescription: string | null;
   readonly descriptionVi: string | null;
   readonly reasonVi: string | null;
+  /** Candidate decisions and closed reason codes; model prose is never used as the code. */
+  readonly attempts: readonly StepComtradeAttempt[];
   readonly calls: readonly StepComtradeCall[];
   /** Own-side rows plus the top mirror reporters by value. */
   readonly rows: readonly StepComtradeRow[];

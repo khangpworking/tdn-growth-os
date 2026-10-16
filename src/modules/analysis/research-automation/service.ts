@@ -5243,23 +5243,28 @@ function validWorldBank(value: unknown): boolean {
 
 const COMTRADE_STATUSES = new Set(['OK', 'HS_CODE_NOT_CONFIRMED', 'RATE_LIMITED', 'NO_DATA', 'MODEL_NOT_CONFIGURED', 'FAILED', 'CANCELLED']);
 function validComtrade(value: unknown): boolean {
-  if (!isRecord(value) || Object.keys(value).sort().join() !== 'calls,descriptionVi,hsCode,mirrorReporterCount,officialDescription,profile,reasonVi,rows,status' ||
+  if (!isRecord(value) || Object.keys(value).sort().join() !== 'attempts,calls,descriptionVi,hsCode,mirrorReporterCount,officialDescription,profile,reasonVi,rows,status' ||
       value.profile !== COMTRADE_PROFILE || typeof value.status !== 'string' || !COMTRADE_STATUSES.has(value.status) || !Array.isArray(value.calls) || value.calls.length > 4 ||
-      !Array.isArray(value.rows) || value.rows.length > 12) return false;
+      !Array.isArray(value.rows) || value.rows.length > 12 || !Array.isArray(value.attempts) || value.attempts.length > 2) return false;
   const text = (v: unknown, max: number): boolean => typeof v === 'string' && v.length >= 1 && v.length <= max && !CONTROL.test(v);
   const index = (v: unknown): boolean => Number.isSafeInteger(v) && (v as number) >= 0;
-  const shown = value.status === 'OK' || value.status === 'RATE_LIMITED';
+  const attemptCodes = new Set<string>(), attemptOutcomes = new Set(['CONFIRMED', 'REJECTED', 'NO_DATA', 'STOPPED']);
+  const attemptReasons = new Set(['OFFICIAL_DESCRIPTION_COVERED', 'NOT_COVERED', 'MODEL_ANSWER_INVALID', 'NO_SOURCE_ROWS', 'RATE_LIMITED', 'FAILED', 'CANCELLED', 'BUDGET_EXHAUSTED']);
+  if (!value.attempts.every(attempt => isRecord(attempt) && Object.keys(attempt).sort().join() === 'hsCode,outcome,reason' &&
+      typeof attempt.hsCode === 'string' && /^\d{6}$/.test(attempt.hsCode) && !attemptCodes.has(attempt.hsCode) && attemptCodes.add(attempt.hsCode) &&
+      typeof attempt.outcome === 'string' && attemptOutcomes.has(attempt.outcome) && typeof attempt.reason === 'string' && attemptReasons.has(attempt.reason))) return false;
+  const shown = value.status === 'OK' || (value.status === 'RATE_LIMITED' && value.rows.length > 0);
   if (!shown) return value.hsCode === null && value.officialDescription === null && value.descriptionVi === null && value.reasonVi === null &&
     value.calls.length === 0 && value.rows.length === 0 && value.mirrorReporterCount === null;
   if (typeof value.hsCode !== 'string' || !/^\d{6}$/.test(value.hsCode) || !text(value.officialDescription, 600) || !text(value.descriptionVi, 400) || !text(value.reasonVi, 400) ||
       value.calls.length < 1 || value.rows.length < 1) return false;
   if (value.mirrorReporterCount !== null && (!Number.isSafeInteger(value.mirrorReporterCount) || value.mirrorReporterCount < 0 || value.mirrorReporterCount > 500)) return false;
-  const kinds = new Set<string>(), byIndex = new Set<number>();
+  const byIndex = new Set<number>();
   for (const call of value.calls) {
     if (!isRecord(call) || Object.keys(call).sort().join() !== 'captureIndex,kind,outcome,responseSha256,retrievedAt,year' || !['MIRROR', 'OWN_IMPORT', 'OWN_EXPORT'].includes(call.kind) ||
-        call.outcome !== 'ROWS' || !index(call.captureIndex) || !/^\d{4}$/.test(String(call.year)) || !/^[a-f0-9]{64}$/.test(String(call.responseSha256)) ||
-        typeof call.retrievedAt !== 'string' || !Number.isFinite(Date.parse(call.retrievedAt)) || kinds.has(call.kind) || byIndex.has(call.captureIndex)) return false;
-    kinds.add(call.kind); byIndex.add(call.captureIndex);
+        !['ROWS', 'EMPTY'].includes(String(call.outcome)) || !index(call.captureIndex) || !/^\d{4}$/.test(String(call.year)) || !/^[a-f0-9]{64}$/.test(String(call.responseSha256)) ||
+        typeof call.retrievedAt !== 'string' || !Number.isFinite(Date.parse(call.retrievedAt)) || byIndex.has(call.captureIndex)) return false;
+    byIndex.add(call.captureIndex);
   }
   return value.rows.every(row => isRecord(row) && Object.keys(row).sort().join() === 'captureIndex,flow,reporter,side,value,year' && (row.side === 'OWN' || row.side === 'MIRROR') &&
     (row.flow === 'M' || row.flow === 'X') && text(row.reporter, 120) && typeof row.value === 'string' && /^\d{1,60}(\.\d{1,60})?$/.test(row.value) &&

@@ -121,6 +121,19 @@ export interface ResearchAutomationSourceStatus {
         ResearchAutomationSourceStatusEntry,
         ResearchAutomationSourceStatusEntry,
         ResearchAutomationSourceStatusEntry,
+      ]
+    | [
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
         ResearchAutomationSourceStatusEntry,
       ];
 }
