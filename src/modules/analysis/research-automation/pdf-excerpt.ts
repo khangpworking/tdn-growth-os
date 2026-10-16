@@ -51,7 +51,12 @@ const LEAK_PATTERNS: readonly RegExp[] = [
  */
 const PLAIN_CHARS = /^[\p{Script=Latin}0-9 \t\r\n .,;:!?()[\]"'“”‘’«»\-–—…/%+&*#~°×₫≥≤≈±→²³]*$/u;
 const FULLWIDTH = /[＀-￯]/u;
-const SECRET_LABEL = /(?<!\p{L})(?:token|password|passwd|secret|api ?key|apikey|bearer|access ?key|mật khẩu|mã truy cập|kho[áa] bí mật)(?!\p{L})/iu;
+/** Letters and digits only, lower case, so no space, dash or dot can split a name ("Page Index", "Agent–Reach", "api  key"). */
+const squash = (text: string): string => text.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+const HIDDEN_NAMES = [...PROVIDER_WORDS, 'token', 'password', 'passwd', 'secret', 'apikey', 'bearer', 'accesskey', 'mật khẩu', 'mã truy cập',
+  'khóa bí mật', 'khoá bí mật'].map(name => squash(name.normalize('NFC')));
+/** A provider name or secret label anywhere in the text once it is joined up; an ordinary word that holds one is left out too. */
+const namesHidden = (text: string): boolean => { const joined = squash(text.normalize('NFC')); return HIDDEN_NAMES.some(name => joined.includes(name)); };
 const OPENING = /^[(["'“‘«]+/u;
 const CLOSING = /[)\]"'”’»,.;:!?…]+$/u;
 /** A slash only between letters or digits, once (đồng/chiếc, 6/2025, 250.000đ/tháng); a lone spaced "/" is punctuation. */
@@ -62,24 +67,29 @@ const DOTTED_ABBREVIATION = /^(?:v\.v|T[Pp]\.\p{Lu}{2,4})$/u;
 const NUMBER_UNIT = /^[\p{N}.,]*\p{N}\p{L}{1,5}[23]?$/u;
 const SHORT_CODE = /^\p{L}{1,2}\p{N}{1,4}$/u;
 
-function plainWord(token: string): boolean {
+function plainWord(token: string, last: boolean): boolean {
   if (/^\p{L}:$/u.test(token)) return false; // drive letter, also spaced ("C: / a")
   const word = token.replace(OPENING, '').replace(CLOSING, '');
-  if (!word || /^[/\-–—&*#+]+$/u.test(word)) return true;
+  // A spaced "/" never stands alone ("/ tmp / a", "https : / / x"); a spaced "." or ":" only ends the text ("tăng mạnh .").
+  if (!word) return !token.includes('/') && (last || token === '...' || !/[.:]/u.test(token));
+  if (/^[\-–—&*#+]+$/u.test(word)) return true;
   if (word.length > 40) return false;
-  if (word.includes(':') && !/^\d{1,2}:\d{2}$/u.test(word)) return false; // scheme, drive, label:value, IPv6; a clock time passes
-  if (word.includes('%') && !/^~?[\p{N}.,]+%$/u.test(word)) return false; // only a percentage, never an encoded byte
+  if (word.includes(':') && !/^\d{1,3}:\d{1,3}$/u.test(word)) return false; // scheme, drive, label:value, IPv6; a time or ratio passes
+  if (word.includes('%') && !/^~?[\p{N}.,]+(?:[–-][\p{N}.,]+)?%$/u.test(word)) return false; // only a percentage or range, never an encoded byte
   if (word.includes('~') && !/^~\p{N}/u.test(word)) return false;
   if (word.includes('/') && !SLASH_WORD.test(word)) return false; // /secret, //server/share, ~/a, ./a, a/b/c, thu-muc/bao-cao
   if (/\.\p{L}|\p{L}\./u.test(word) && !DOTTED_ABBREVIATION.test(word)) return false; // domain, host, file name
+  // Four or more dotted digit groups are a number only when grouped by thousands (1.234.567.890), never 001.002.003.004.
+  if (/^\p{N}+(?:\.\p{N}+){3,}$/u.test(word) && !/^[1-9]\p{N}{0,2}(?:\.\p{N}{3})+$/u.test(word)) return false;
   return word.split(/[/\-–]/u).every(part => part.length <= 20 && !/\p{N}{12,}/u.test(part)
-    && (!(/\p{L}/u.test(part) && /\p{N}/u.test(part)) || NUMBER_UNIT.test(part) || SHORT_CODE.test(part)));
+    && (!(/\p{L}/u.test(part) && /\p{N}/u.test(part)) || NUMBER_UNIT.test(part) || SHORT_CODE.test(part) || /^\p{Lu}2\p{Lu}$/u.test(part)));
 }
 
 function plainProse(text: string): boolean {
   const folded = text.normalize('NFKC');
-  return PLAIN_CHARS.test(text.normalize('NFC')) && !FULLWIDTH.test(text) && PLAIN_CHARS.test(folded) && !SECRET_LABEL.test(folded)
-    && !providerPattern.test(folded) && folded.split(/\s+/u).every(plainWord);
+  const tokens = folded.trim().split(/\s+/u);
+  return PLAIN_CHARS.test(text.normalize('NFC')) && !FULLWIDTH.test(text) && PLAIN_CHARS.test(folded) && !namesHidden(folded)
+    && tokens.every((token, i) => plainWord(token, i === tokens.length - 1));
 }
 const leaks = (text: string): boolean => !plainProse(text) || LEAK_PATTERNS.some(pattern => pattern.test(text));
 
