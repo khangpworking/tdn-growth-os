@@ -19,6 +19,7 @@ import { CITATION_FORBIDDEN_NAMES, CitationRegistry, containsTechnicalId, displa
 import { orderReportCitations, renderCitationMark, renderCitationRegister } from '../citation-register-html.js';
 import { DISPLAY_ROUNDED_NOTE, WEB_FAMILY_LABEL, WEB_MONTHLY_METHOD, webMonthlyStats } from './web-facts.js';
 import type { ExpandedSearchKind, StepSearchInterest, StepWorldBank } from '../research-automation/model.js';
+import { WEB_SNIPPET_WITHHELD, WEB_TITLE_WITHHELD, webTextHidden } from '../research-automation/web-page-type.js';
 
 export const MARKET_PRICE_BANDS: readonly (readonly [string, number, number])[] = [
   ['Dưới 100.000đ', 0, 1e5], ['100.000–199.999đ', 1e5, 2e5], ['200.000–299.999đ', 2e5, 3e5],
@@ -73,15 +74,19 @@ function citableUrl(value: string): boolean {
     return url.protocol === 'https:' && !url.username && !url.password && !new RegExp(PROVIDER_NAME.source, 'i').test(url.hostname);
   } catch { return false; }
 }
-/** Results that can be cited: https pages not hosted by a provider, provider names masked, in search order. */
+/** Results that can be cited: https pages not hosted by a provider, provider names masked, in search order.
+ * Cited results (the automated report) also never show the search engine or a search operator: such an
+ * address drops the row, and such a title, snippet, site or date is withheld. */
 export function readerWebResults(values: readonly ReaderWebResult[], citations = false): ReaderWebResult[] {
   const citationProviders = new RegExp(CITATION_FORBIDDEN_NAMES.join('|'), 'gi');
   const safe = (text: string): string => citations ? mask(text).replace(citationProviders, '[.]') : mask(text);
   const safeOrNull = (text: string | null | undefined): string | null => text ? safe(text) : null;
+  // The check reads the stored text, before masking, so a cited row is withheld as a whole like Market and Insight.
+  const shown = (text: string | null | undefined, withheld: string | null): string | null => citations && text && webTextHidden(text) ? withheld : safeOrNull(text);
   return values.filter(v => citableUrl(v.url) && (!citations ||
-    (!new RegExp(citationProviders.source, 'i').test(displayCitationUrl(v.url)) && !containsTechnicalId(displayCitationUrl(v.url)))))
-    .map(v => ({ position: v.position, title: safe(v.title), url: v.url, snippet: safeOrNull(v.snippet), retrievedAt: v.retrievedAt,
-      site: safeOrNull(v.site), published: safeOrNull(v.published), ...(v.origin ? { origin: v.origin } : {}) }))
+    (!new RegExp(citationProviders.source, 'i').test(displayCitationUrl(v.url)) && !containsTechnicalId(displayCitationUrl(v.url)) && !webTextHidden(v.url))))
+    .map(v => ({ position: v.position, title: shown(v.title, WEB_TITLE_WITHHELD) ?? '', url: v.url, snippet: shown(v.snippet, WEB_SNIPPET_WITHHELD), retrievedAt: v.retrievedAt,
+      site: shown(v.site, null), published: shown(v.published, null), ...(v.origin ? { origin: v.origin } : {}) }))
     .sort((a, b) => a.position - b.position);
 }
 

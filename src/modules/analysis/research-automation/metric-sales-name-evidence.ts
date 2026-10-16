@@ -5,7 +5,7 @@ import type { ContentAddressedArtifactStore } from '../../../platform/artifacts/
 import type { FinalizedSourcePackageReader } from '../../foundation/source-package-reader.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import { METRIC_CURRENT_HEADERS, normalizeMetricWorkbookInput, readMetricSheetRows } from '../metric-source-profile.js';
-import type { AutomationMetricMethodBridge, MetricRunInput } from './metric-method-bridge.js';
+import { isCapturePackage, type AutomationMetricMethodBridge, type MetricRunInput } from './metric-method-bridge.js';
 import { ResearchAutomationIntegrityError } from './model.js';
 
 const hash = (bytes: Uint8Array | string) => createHash('sha256').update(bytes).digest('hex');
@@ -41,6 +41,9 @@ export async function readMetricSalesNameEvidence(options: {
   const retained = await options.reader.readFinalizedSourcePackage(selected.packageId, { maxFileBytes: 32 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 });
   if (retained.packageId !== selected.packageId || retained.manifestArtifactSha256 !== selected.manifestArtifactSha256 ||
       retained.packageContentSha256 !== selected.packageContentSha256) fail();
+  // A results-page capture has no workbook title cells to reference yet; the draft
+  // then proceeds from the retained sales names alone (record v2). Never read it as a workbook.
+  if (isCapturePackage(retained)) return null;
   // Descriptor/profile/authored origin were checked by the owning bridge above.
   const descriptorFile = retained.files.find(file => file.path === 'normalized/automation-metric-source.json');
   if (!descriptorFile) fail();

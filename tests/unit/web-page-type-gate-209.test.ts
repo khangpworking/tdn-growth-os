@@ -13,6 +13,7 @@ import { buildResearchAutomationReport, type AutomationReportInput } from '../..
 import { buildSourceEvidence, verifySourceEvidence, sourceEvidenceForReport } from '../../src/modules/analysis/research-automation/source-evidence.js';
 import { sourceEvidenceHtml } from '../../src/modules/analysis/research-automation/source-evidence-report.js';
 import type { CaptureRecord, StepWebResult } from '../../src/modules/analysis/research-automation/model.js';
+import { WEB_LINK_WITHHELD, WEB_SITE_WITHHELD, WEB_TITLE_WITHHELD } from '../../src/modules/analysis/research-automation/web-page-type.js';
 import { renderMarketCharts } from '../../src/modules/analysis/reader-report/market-charts.js';
 import { metricFixture } from '../fixtures/metric-scope-synthetic.js';
 import { sync1ReaderFixture } from '../helpers/sync1-reader-fixture.js';
@@ -113,4 +114,30 @@ test('a Market presentation with how-to, news and other rows passes every gate a
   assert.match(document.body.textContent ?? '', /Kết quả tìm kiếm/);
   const plain = buildResearchAutomationReport(withWeb(evidence(webResults, false)), 'MARKET').html.toString('utf8');
   assert.doesNotMatch(plain, /Loại trang/, 'a packet without the flag renders as before');
+});
+
+test('a Google, operator or spaced provider name in an admitted title, site, date or address is withheld and rule 4 still holds', async () => {
+  const input = await presentationInput();
+  const webResults = [row(1, 'Thạch dừa trên Google', 'https://blog.example.test/thach-dua-1', { site: 'Google' }),
+    row(2, 'site:shopee.vn thạch dừa', 'https://news.google.com/thach-dua', { site: 'G o o g l e News' }),
+    row(3, 'Thạch dừa Page Index', 'https://vnexpress.net/thach-dua-gia', { site: 'Báo synthetic', published: 'Google · 3 ngày trước' }),
+    row(4, 'Thạch dừa sạch', 'https://clean.example.test/thach-dua', { site: 'Cửa hàng da-min' })];
+  const html = buildResearchAutomationReport({ ...input, captures: [capture], sourceEvidence: evidence(webResults, true),
+    start: { ...input.start, sourceEvidenceVersion: 'automation-source-evidence-v1' },
+    collection: { runId, stepId: 'COLLECTION', webResults, coverage: [], comparables: [] } } as unknown as AutomationReportInput, 'MARKET').html.toString('utf8');
+  const document = new JSDOM(html).window.document;
+  const table = [...document.querySelectorAll('table')].find(t => t.querySelector('caption')?.textContent?.startsWith('Kết quả tìm kiếm trên web'))!;
+  const body = [...table.querySelectorAll('tbody tr')].map(tr => [...tr.querySelectorAll('td')].map(td => td.textContent ?? ''));
+  assert.equal(body.length, 4, 'rows stay; only their copied text is withheld');
+  assert.deepEqual(body.map(cells => cells[1]), [WEB_TITLE_WITHHELD, WEB_TITLE_WITHHELD, WEB_TITLE_WITHHELD, 'Thạch dừa sạch']);
+  assert.deepEqual(body.map(cells => cells[2]), [WEB_SITE_WITHHELD, WEB_SITE_WITHHELD, 'Báo synthetic', 'Cửa hàng da-min'], 'a look-alike word is kept');
+  assert.match(body[1]!.at(-1)!, new RegExp(WEB_LINK_WITHHELD), 'a search-engine address gets no citation');
+  assert.match(body[2]!.join(' '), /Đăng Ngày đăng được giữ trong bản lưu/);
+  const text = document.body.textContent ?? '';
+  assert.doesNotMatch(text, /google|g\s+o\s+o\s+g\s+l\s+e|site:|page\s*index/iu);
+  assert.doesNotMatch(html, /news\.google\.com/, 'the address is not printed in the register either');
+  assert.deepEqual(providerNameViolations(html), []);
+  assert.deepEqual(auditMarket14(html).filter(item => item.rule === '4' && !item.ok), [], 'rule 4 holds with these rows admitted');
+  assert.ok(lintVisibleReportText(html).every(check => check.ok), JSON.stringify(lintVisibleReportText(html).filter(check => !check.ok)));
+  assert.doesNotThrow(() => assertMarketBusinessGate(html, { presentation: true }));
 });

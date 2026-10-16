@@ -293,6 +293,10 @@ export class AutomationMetricMethodBridge {
    * package. Absence is not evidence; ambiguity/damage never falls back. */
   async readFrozenSalesNames(input: MetricRunInput) {
     if (input.sourceSelection?.sourcePackage === null) return undefined;
+    // Exact title refs exist only for workbook rows. A capture-backed method package
+    // has no workbook receipt, so its names are absent here, never guessed.
+    const selectedSource = await this.#resolve(input);
+    if (selectedSource && isCapturePackage(selectedSource)) return undefined;
     const key = methodKey(input);
     const matches = await this.#reader.findFinalizedSourcePackagesByKey(key);
     if (matches.length > 1) integrity('Metric frozen sales-name proof is ambiguous.');
@@ -677,7 +681,8 @@ function assertSelection(value: NonNullable<MetricRunInput['sourceSelection']>):
 }
 function methodLabel(runId: string): string { return `Automation ${runId}: attached Metric export and frozen ALL calculation`; }
 
-function isCapturePackage(source: VerifiedFinalizedSourcePackage): boolean {
+/** A results-page capture package holds the capture descriptor; workbook-only readers must not treat it as a workbook. */
+export function isCapturePackage(source: { readonly files: readonly { readonly path: string }[] }): boolean {
   return source.files.some(file => file.path === CAPTURE_DESCRIPTOR_PATH);
 }
 

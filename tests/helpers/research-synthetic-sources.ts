@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { createResearchAutomationProviderRegistry, type ProviderTransport } from '../../src/modules/analysis/research-automation/providers.js';
 import { bindResearchAutomationProvider, type AutomationSourcePort } from '../../src/modules/analysis/research-automation/source-binding.js';
 import type { StepResultDocument } from '../../src/modules/analysis/research-automation/model.js';
@@ -5,13 +6,16 @@ import type { StepResultDocument } from '../../src/modules/analysis/research-aut
 export const SYNTHETIC_CARD_ID = 'kalodata:12345';
 export const SYNTHETIC_SERP_KEY = 'synthetic-serp-key-not-live';
 
-/** A product source with one quick-search card and one successful period collection; no network. */
-export function syntheticProductSource(): AutomationSourcePort {
+/** A product source with one quick-search card and one successful period collection; no network.
+ * Pass salesBytes for a sales capture with real bytes and digest (keyword drafting reads it); the default keeps the historical placeholder. */
+export function syntheticProductSource(options: { readonly salesBytes?: Buffer } = {}): AutomationSourcePort {
+  const sales = options.salesBytes;
   const capture = {
     captureId: 'kalodata-0001', provider: 'KALODATA', operation: 'kalodata.product.rank', billing: 'FREE_ACCOUNT_QUERY', method: 'POST',
     endpoint: 'https://www.kalodata.com/openapi/product/rank', requestParameters: { keyword: 'synthetic' }, requestBodyBytes: Buffer.from('{"keyword":"synthetic"}'),
     queryWindow: { startDate: '2026-09-01', endDate: '2026-09-30' }, pageNumber: 1, productRef: SYNTHETIC_CARD_ID, requestedAt: '2026-10-02T00:00:00.000Z', completedAt: '2026-10-02T00:00:01.000Z',
-    outcome: 'OK', httpStatus: 200, responseBytes: Buffer.from('{"data":[]}'), responseSha256: 'a'.repeat(64), responseByteLength: 13, providerCode: null,
+    outcome: 'OK', httpStatus: 200, responseBytes: sales ?? Buffer.from('{"data":[]}'), responseSha256: sales ? createHash('sha256').update(sales).digest('hex') : 'a'.repeat(64),
+    responseByteLength: sales ? sales.length : 13, providerCode: null,
   } as const;
   const card = {
     productId: SYNTHETIC_CARD_ID, provider: 'kalodata', sourceProductId: '12345', role: 'PRINCIPAL', title: 'Synthetic product', sourceUrl: 'https://www.kalodata.com/products/12345', imageUrl: null,

@@ -81,6 +81,20 @@
         }
       ]
     },
+    "draftFailureCode": {
+      "description": "Closed cause of DRAFT_FAILED, mapped from error classes only. Messages, paths and model text never appear here.",
+      "enum": [
+        "METRIC_NAMES_UNSUPPORTED_SOURCE",
+        "METRIC_NAMES_INTEGRITY",
+        "SALES_NAMES_INTEGRITY",
+        "MODEL_TRANSPORT_FAILED",
+        "MODEL_OUTPUT_INVALID",
+        "DRAFT_DATA_INVALID",
+        "DRAFT_REPLAY_FAILED",
+        "CANCELLED",
+        "UNKNOWN"
+      ]
+    },
     "jevTriage": {
       "$ref": "l9-jev-triage.schema.json"
     },

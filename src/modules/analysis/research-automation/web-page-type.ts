@@ -1,9 +1,31 @@
+import { CAPTURED_PROVIDER_NAMES } from '../reader-report/lint.js';
+
 /** Deterministic page type of an admitted search result: S26 news, S13 how-to article, otherwise S19. No model, no network. */
 export type WebPageType = 'S13' | 'S19' | 'S26';
 export const WEB_PAGE_TYPE_LABEL: Readonly<Record<WebPageType, string>> = { S13: 'Bài hướng dẫn', S26: 'Tin tức', S19: 'Trang khác' };
 /** Shared wording when a copied search-result title or site is withheld (Market and Insight show the same text). */
 export const WEB_TITLE_WITHHELD = 'Tiêu đề được giữ trong bản lưu nguồn';
 export const WEB_SITE_WITHHELD = 'Trang nguồn được giữ trong bản lưu';
+export const WEB_SNIPPET_WITHHELD = 'Đoạn mô tả được giữ trong bản lưu nguồn';
+export const WEB_LINK_WITHHELD = 'Liên kết được giữ trong bản lưu nguồn';
+// Every name the report gates reject, plus the search engine itself. A name matches as a whole word even when
+// spaces, dots, dashes or invisible marks sit between its letters; "Google" also matches as a word prefix (googleplay).
+const HIDDEN_WEB_NAME = new RegExp([...CAPTURED_PROVIDER_NAMES, 'Google', 'Jev', 'TypeSafe', 'CLIProxy', 'OpenAI', 'Anthropic', 'GLM'].map(name => {
+  const letters = [...name.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '')].join('[^\\p{L}\\p{N}]*');
+  return `(?<![\\p{L}\\p{N}])${letters}${name === 'Google' ? '' : '(?![\\p{L}\\p{N}])'}`;
+}).join('|'), 'iu');
+const SEARCH_OPERATOR = /(?<![\p{L}\p{N}])(?:site|inurl|intitle|intext|allintitle|allinurl|allintext|filetype|cache|related|cdr|tbs)\s*:/iu;
+const MODEL_ID = /(?<![\p{L}\p{N}])(?:gpt|claude)\s*-\s*[\p{L}\p{N}]/iu;
+/** Text copied from a search result (title, site, snippet, date, address) is hidden when it names a provider or
+ * the search engine, or carries a search operator or model id — also after percent-decoding. */
+export function webTextHidden(text: string): boolean {
+  let decoded = text;
+  try { decoded = decodeURIComponent(text); } catch { /* keep the raw text */ }
+  return [text, decoded].some(value => {
+    const folded = value.normalize('NFKC');
+    return HIDDEN_WEB_NAME.test(folded) || SEARCH_OPERATOR.test(folded) || MODEL_ID.test(folded);
+  });
+}
 const NEWS_DOMAINS = ['vnexpress.net', 'tuoitre.vn', 'thanhnien.vn', 'dantri.com.vn', 'vietnamnet.vn', 'znews.vn', 'cafef.vn', 'cafebiz.vn', 'vneconomy.vn',
   'laodong.vn', 'nld.com.vn', 'baomoi.com', 'tienphong.vn', 'plo.vn', 'kenh14.vn', '24h.com.vn'];
 const NEWS_PATH = /(?:^|\/)(?:tin-tuc|tin-moi|tin-nong|thoi-su)(?:\/|$)/;
