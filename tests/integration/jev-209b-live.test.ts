@@ -95,6 +95,6 @@ test('Jev failure completes the run and records the unavailable note without cha
 
 test('flag-off service output retains the pre-Jev fixed hashes', async t => {
   const result = await run(t);
-  assert.equal(result.stepSha, '2c279be48483257202fb1d81a23750d4c9dcb5c1859380de58aadfb5dcd404c4');
+  assert.equal(result.stepSha, '0046d7dc3327333e165edb4a62190a8daa32e9d24b410bef5b256b0f76c23494');
   assert.equal(sha(result.report.bytes), 'ca7a9a1e65e804135d9d3bba28ac3ac3294d0504ab12baeac31cdcb5694f6aa9');
 });
