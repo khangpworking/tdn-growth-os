@@ -1,7 +1,8 @@
 import { AutomationMetaPageIntake, metaPagePackagePrefix, validateMetaPageBinding, type MetaPageBinding, type MetaPageSelection, type MetaPageSourceView } from './meta-page-intake.js';
 import type { DefaultMarketPeers } from '../../../../contracts/analysis/default-market-peers.generated.js';
 import { filterSerpApiResults } from './serpapi-l9-filter.js';
-import { boundedText, httpsUrl } from './provider-common.js';
+import { boundedText, httpsUrl, parseProviderProductRef, splitPeriodIntoWindows } from './provider-common.js';
+import { KALODATA_LIMITS } from './provider-kalodata.js';
 import { searchInterestChartPoints, searchInterestCoversPeriod, searchInterestDocument, searchInterestRenderable, searchInterestUsage, SEARCH_INTEREST_USAGE_ORDINAL, type SearchInterestAttempt, type SearchInterestSource } from './search-interest.js';
 import { collectionWebRows, expandedQueryDocument, EXPANDED_SEARCH_USAGE_ORDINAL, webResultUrlKey, type ExpandedSearchAttempt, type ExpandedSearchSource } from './expanded-search-lane.js';
 import type { AutomationInsightPersonaReportRevisionRequest, PersonaReportSelection, PersonaSelectedReportSnapshot } from '../../../../contracts/analysis/automation-insight-persona-report.generated.js';
@@ -214,6 +215,8 @@ import {
   type StepResultDocument,
   type StepId,
   message,
+  marketSourceWindowsMissingCode,
+  marketSourceWindowsMissingMessage,
   ResearchAutomationConflictError,
   ResearchAutomationIntegrityError,
   ResearchAutomationProviderOutputError,
@@ -1732,6 +1735,12 @@ export class ResearchAutomationService {
     const latest = pairs.at(-1);
     const market = latest?.outputs.find(output => output.kind === 'MARKET');
     if (!latest || !market) throw new ResearchAutomationStateError('Lượt này chưa có bản nháp thị trường.');
+    // A run saved before the completeness gate may hold an incomplete paid
+    // collection; it must not feed a new reader report either.
+    const row = this.#current(runId)!;
+    const scope = row.scopeSha ? await this.#readScopeSnapshot(row.scopeSha, row.workspaceId, row.runId) : null;
+    const missing = scope ? await this.#marketCollectionMissingProducts(runId, { startDate: row.periodStart, endDate: row.periodEnd }, scope.selectedProductIds) : 0;
+    if (missing > 0) throw new ResearchAutomationValidationError(marketSourceWindowsMissingMessage(missing));
     // Full verification of the exact draft pair before its semantic content is restated.
     const verified = await this.readReport(workspaceId, runId, 'MARKET', false, latest.pairId);
     const marketSemantic = await this.#readJson<Record<string, unknown>>(verified.versionId, MAX_JSON_ARTIFACT_BYTES, 'application/json');
@@ -3235,6 +3244,12 @@ export class ResearchAutomationService {
     const outputArtifacts: Array<{ marketPresentation: StoredArtifact | null; cover: StoredArtifact | null; kind: 'MARKET' | 'INSIGHT'; claims: StoredArtifact; privateCorpus: StoredArtifact | null; m01: StoredArtifact | null; i14: StoredArtifact | null; metricProof: StoredArtifact | null; semantic: StoredArtifact; html: StoredArtifact; pdf: StoredArtifact | null; pdfCode: 'PDF_RENDERER_NOT_CONFIGURED' | 'PDF_RENDER_FAILED' | null }> = [];
     try {
       controller.signal.throwIfAborted();
+      // Completeness gate before any Market draft is built from the stored
+      // collection: fresh runs and revision/regeneration attempts alike.
+      if (start.reports.includes('MARKET')) {
+        const missing = await this.#marketCollectionMissingProducts(fresh.runId, start.requestedPeriod, scope.selectedProductIds);
+        if (missing > 0) throw new MarketSourceWindowsMissingError(missing);
+      }
       const sources = attempt ? await this.#readAttemptSources(fresh, attempt) : await this.#readFrozenSources(fresh);
       const reviewCollection = attempt ? await this.#reportCollection(fresh.runId, sources, true) : collection;
       // The Market report reads the full collection, but a revision that skips or replaces the
@@ -3631,7 +3646,8 @@ export class ResearchAutomationService {
       if (attempt) { await this.#settleAttempt(attempt.attemptId, controller.signal.aborted ? 'CANCELLED' : 'FAILED'); return true; }
       const current = this.#current(row.runId);
       if (!current || TERMINAL_STATUSES.has(current.status)) return true;
-      await this.#settleSourceFailure(row.runId, 'REPORTS', controller.signal.aborted ? 'CANCELLED_DURING_REPORT_RENDERING' : 'REPORT_RENDER_FAILED', controller.signal.aborted ? 'CANCELLED' : 'FAILED');
+      const failureCode = error instanceof MarketSourceWindowsMissingError ? marketSourceWindowsMissingCode(error.products) : 'REPORT_RENDER_FAILED';
+      await this.#settleSourceFailure(row.runId, 'REPORTS', controller.signal.aborted ? 'CANCELLED_DURING_REPORT_RENDERING' : failureCode, controller.signal.aborted ? 'CANCELLED' : 'FAILED');
       return true;
     }
     const beforeSave = this.#current(row.runId);
@@ -4097,6 +4113,38 @@ export class ResearchAutomationService {
       output.push({ stepId: value.stepId, ordinal: toNumber(value.ordinal), artifactSha256: value.artifactSha, mediaType: value.mediaType, provider: value.provider, operation: value.operation, retrievedAt: value.retrievedAt, window: value.windowStart ? { startDate: value.windowStart, endDate: value.windowEnd! } : null, truncated: value.truncated === 1 || value.truncated === 1n });
     }
     return output;
+  }
+
+  /**
+   * Market completeness gate over the stored COLLECTION captures. Returns the
+   * number of selected products (SELECTED and SELECTED_AND_PEER; both are in
+   * selectedProductIds) that miss at least one planned product-period window.
+   * A window is complete only when a product-detail capture for that product
+   * and window ended OK (OK and EMPTY both settle as an OK capture). Returns 0
+   * when no paid collection was attempted (not configured, nothing selected),
+   * keeping that behaviour unchanged. PEER-only products are not gated: they
+   * are shown per window and never summed unless complete. Reads only stored
+   * envelopes, so old runs are judged the same way on regeneration or reuse.
+   */
+  async #marketCollectionMissingProducts(runId: string, requestedPeriod: { startDate: string; endDate: string },
+    selectedProductIds: readonly string[]): Promise<number> {
+    const rows = this.#db.prepare(`SELECT step_id stepId,ordinal,artifact_sha256 artifactSha,media_type mediaType,provider,operation,retrieved_at retrievedAt,window_start windowStart,window_end windowEnd,truncated FROM analysis_research_automation_captures WHERE run_id=? AND step_id='COLLECTION' AND provider='kalodata' ORDER BY ordinal`).all(runId) as CaptureRow[];
+    // A collection counts as attempted only when it reached the paid detail
+    // lane: a product-detail capture or a balance receipt (a zero balance
+    // stops before any detail call). Other captures do not start the gate.
+    if (!rows.some(row => row.operation === 'kalodata.product.detail' || row.operation === 'kalodata.credit.balance')) return 0;
+    const refs = [...new Set(selectedProductIds.filter(ref => parseProviderProductRef(ref) !== null))];
+    if (refs.length === 0) return 0;
+    const complete = new Set<string>();
+    for (const row of rows) {
+      if (row.operation !== 'kalodata.product.detail' || !row.windowStart || !row.windowEnd) continue;
+      const envelope = await this.#readJson<Record<string, unknown>>(row.artifactSha, MAX_CAPTURE_ENVELOPE_BYTES, row.mediaType);
+      assertCaptureEnvelope(envelope, row);
+      if (envelope.outcome === 'OK' && typeof envelope.productRef === 'string')
+        complete.add(`${envelope.productRef}|${row.windowStart}~${row.windowEnd}`);
+    }
+    const windows = splitPeriodIntoWindows(requestedPeriod, KALODATA_LIMITS.rankWindowMaxDays);
+    return refs.filter(ref => windows.some(window => !complete.has(`${ref}|${window.startDate}~${window.endDate}`))).length;
   }
 
   async #stepDocument(runId: string, stepId: StepId): Promise<StepResultDocument | null> {
@@ -5320,6 +5368,14 @@ function keywordDraftFailureCode(error: unknown, aborted: boolean): KeywordDraft
 function logKeywordDraftFailure(runId: string, code: KeywordDraftFailureCode): void {
   console.error(JSON.stringify({ event: 'research_automation_keyword_draft_failed', runId, code }));
 }
+/** Market completeness gate failure; settles REPORTS with a counted owner-facing code. */
+class MarketSourceWindowsMissingError extends Error {
+  constructor(readonly products: number) {
+    super(`MARKET_SOURCE_WINDOWS_MISSING: ${products} selected product(s) miss a planned window`);
+    this.name = 'MarketSourceWindowsMissingError';
+  }
+}
+
 function logReportFailure(runId: string, stage: 'RENDER' | 'PUBLICATION', error: unknown): void {
   const name = error instanceof Error ? error.name : typeof error;
   const text = error instanceof Error ? error.message : String(error);
