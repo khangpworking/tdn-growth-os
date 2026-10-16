@@ -50,7 +50,11 @@ test('selection: a quote that shows a path, link, address or secret is left out 
     'Bản lưu C:/bao-cao/a.pdf.', 'Mở trang ?id=12 để xem.', 'Bảng lấy từ bang_2025_quy.',
     'Bản gốc lưu ở /secret.', 'Tệp /foo.txt đính kèm.', 'Mở \\secret để xem.', 'Bản lưu C:report.pdf.', 'Xem (/bang) phía dưới.',
     'Lưu tại //server/share/report.', 'Lưu tại \\\\server/share/report.', 'Lưu tại \\\\server\\share.', 'Xem thu-muc/bao-cao.', 'Mục a/b/c.', 'Từ ./a hoặc ~/a.', 'Ngày /12/2025.',
-    'Lưu ở ∕tmp∕a.', 'Lưu ở ／tmp／a.', 'Lưu ở ⁄tmp.', 'Mở %2Ftmp%2Fa.', 'Mở file:/tmp.'];
+    'Lưu ở ∕tmp∕a.', 'Lưu ở ／tmp／a.', 'Lưu ở ⁄tmp.', 'Mở %2Ftmp%2Fa.', 'Mở file:/tmp.',
+    'Tài liệu được lưu tại file:report.pdf.', 'Lưu tại %252Ftmp%252Fa', 'Lưu tại ╱tmp╱a', 'Lưu tại ╲server╲share', 'Mã truy cập glpat-abc12345678901234567',
+    'Dùng token=abc123 khi gọi.', 'Dán token: abcdefghijklmnop1234 vào ô.', 'Xem example.dev hoặc server.local.', 'Trang 例子.公司 có bảng.', 'Gửi tên@example.com.',
+    'Gửi user@例子.公司.', 'Theo G​oogle, nhu cầu tăng.', 'Theo Goog­le, nhu cầu tăng.', 'Theo Page​Index.', 'Theo Ｇｏｏｇｌｅ.', 'Lưu ở C: / secret.',
+    'Mã 550e8400-e29b-41d4-a716-446655440000 cấp riêng.', 'Mã abc123 dùng tạm.', 'Chuỗi AbCdEfGhIjKlMnOpQrStUvWxYz dùng tạm.', 'Số tài khoản 0123456789012.'];
   const picked = selectPdfExcerpts(artifact(unsafe.map((text, i) => quote(SHA_A, i + 1, text))), RUN, names);
   assert.deepEqual(picked.excerpts, []);
   assert.deepEqual(picked.leftOut.map(item => item.reason), unsafe.map(() => 'NOT_READER_SAFE'));
@@ -58,8 +62,9 @@ test('selection: a quote that shows a path, link, address or secret is left out 
 
 test('selection: ordinary numbers, month-year dates, ratios and unit slashes stay verbatim', () => {
   const plain = ['Doanh thu ngành đạt 12.345.678 triệu đồng năm 2025, tăng 5,2%.', 'Giá bình quân 250.000 đồng/chiếc trong tháng 6/2025.', 'Tỷ lệ hộ có quạt điện là 3/4 ở đô thị, 10.500.000 hộ.',
-    'Giá 250.000đ/tháng, bán 24/7, tính theo (cái/hộp) và/hoặc thùng / két.'];
-  const picked = selectPdfExcerpts(artifact(plain.map((text, i) => quote(i < 3 ? SHA_A : SHA_B, i + 1, text))), RUN, names);
+    'Giá 250.000đ/tháng, bán 24/7, tính theo (cái/hộp) và/hoặc thùng / két.', 'Tại TP.HCM, quạt 5G, pin 5000mAh, phòng 50m², quý Q3/2025, sau COVID-19, v.v.',
+    'Cửa hàng mở lúc 10:30, giảm ~30% cho mẫu S24 (“bán chạy”) – theo khảo sát…'];
+  const picked = selectPdfExcerpts(artifact(plain.map((text, i) => quote([SHA_A, SHA_A, SHA_A, SHA_B, SHA_B, SHA_B][i]!, i + 1, text))), RUN, names);
   assert.deepEqual(picked.excerpts.map(item => item.text), plain);
   assert.deepEqual(picked.leftOut, []);
 });
@@ -71,7 +76,8 @@ test('selection: only market sections are eligible even when the section id is m
 });
 
 test('file names: empty, missing or provider-like names are withheld, never guessed', () => {
-  for (const bad of ['', '   ', 'pageindex-export.pdf', 'Google trang.pdf', 'kalodata.pdf', 'a/b.pdf', 'C:\\x\\y.pdf', 'https://example.test/a.pdf', 'a;b.pdf', 'metric-report.pdf', 'x'.repeat(130), 'solieu.example.vn.pdf', '203.0.113.7.pdf', 'bao_cao_nganh.pdf', 'aB3dE5gH7jK9mN1pQ3sT5vW7.pdf', '/secret.pdf', '\\secret.pdf', 'C:report.pdf', '~/a.pdf', 'tmp∕a.pdf', '%2Fa.pdf'])
+  for (const bad of ['', '   ', 'pageindex-export.pdf', 'Google trang.pdf', 'kalodata.pdf', 'a/b.pdf', 'C:\\x\\y.pdf', 'https://example.test/a.pdf', 'a;b.pdf', 'metric-report.pdf', 'x'.repeat(130), 'solieu.example.vn.pdf', '203.0.113.7.pdf', 'bao_cao_nganh.pdf', 'aB3dE5gH7jK9mN1pQ3sT5vW7.pdf', '/secret.pdf', '\\secret.pdf', 'C:report.pdf', '~/a.pdf', 'tmp∕a.pdf', '%2Fa.pdf',
+    '%252Fa.pdf', 'file:report.pdf', 'glpat-abc12345678901234567.pdf', 'example.dev.pdf', '╱tmp╱a.pdf', 'Ｇｏｏｇｌｅ.pdf', 'G​oogle.pdf'])
     assert.equal(pdfExcerptFileNameShown(bad), false, JSON.stringify(bad));
   assert.equal(pdfExcerptFileNameShown(undefined), false);
   assert.equal(pdfExcerptFileNameShown('bao-cao-nganh.pdf'), true);

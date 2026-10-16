@@ -44,11 +44,44 @@ const LEAK_PATTERNS: readonly RegExp[] = [
   /\bBearer\s|\b(?:sk|pk|rk)-[A-Za-z0-9]|\b(?:ghp|gho|ghu|ghs|github_pat|xox[abprs])[_-]|\bAKIA[0-9A-Z]{12,}|\beyJ[\w-]{8,}|\b(?:api[_\s-]?key|access[_\s-]?token|secret|password|passwd)\b\s*[:=]/iu, // secret
   /(?<![\p{L}\p{N}])(?=[\w+\/=]*\d)(?=[\w+\/=]*[A-Za-z])[\w+\/=]{24,}/u, // token-shaped run of letters and digits; hyphenated file names pass
 ];
-/** A slash is shown only as a lone "/" or once inside a word, between letters or digits (đồng/chiếc, 6/2025, 250.000đ/tháng). */
-const SLASH_WORD = /^[(\["'“‘]*[\p{N}.,]*[\p{L}\p{N}]+\/[\p{L}\p{N}]+[)\]"'”’,.;:!?%]*$/u;
-/** Paths are allowed out, not hunted: any backslash and any other slash (/secret, //server/share, ~/a, ./a, a/b/c, thu-muc/bao-cao) may be a path. */
-const pathLike = (text: string): boolean => /[\\⁄∕∖⧸⧹﹨／＼]|%(?:2f|5c)/iu.test(text) || text.split(/\s+/u).some(word => word.includes('/') && word !== '/' && !SLASH_WORD.test(word));
-const leaks = (text: string): boolean => pathLike(text) || LEAK_PATTERNS.some(pattern => pattern.test(text));
+/**
+ * Leak shapes are allowed out, not hunted: four review rounds each found one more shape a deny-list missed. Text is shown only when
+ * it is plain prose: Latin letters, ASCII digits, spaces and ordinary punctuation (no backslash, "@", "=", "_", look-alike slash,
+ * format character or other script), and every word passes `plainWord`. A quote that is not plain prose is left out whole.
+ */
+const PLAIN_CHARS = /^[\p{Script=Latin}0-9 \t\r\n .,;:!?()[\]"'“”‘’«»\-–—…/%+&*#~°×₫≥≤≈±→²³]*$/u;
+const FULLWIDTH = /[＀-￯]/u;
+const SECRET_LABEL = /(?<!\p{L})(?:token|password|passwd|secret|api ?key|apikey|bearer|access ?key|mật khẩu|mã truy cập|kho[áa] bí mật)(?!\p{L})/iu;
+const OPENING = /^[(["'“‘«]+/u;
+const CLOSING = /[)\]"'”’»,.;:!?…]+$/u;
+/** A slash only between letters or digits, once (đồng/chiếc, 6/2025, 250.000đ/tháng); a lone spaced "/" is punctuation. */
+const SLASH_WORD = /^[\p{N}.,]*[\p{L}\p{N}]+\/[\p{L}\p{N}]+$/u;
+/** Dotted abbreviations that are not addresses (v.v = "and so on", TP.HCM). */
+const DOTTED_ABBREVIATION = /^(?:v\.v|T[Pp]\.\p{Lu}{2,4})$/u;
+/** Letters may sit beside digits only as a number with a unit (250.000đ, 24h, 100ml, 5G, 50m²) or a short code (Q3, A4, S24). */
+const NUMBER_UNIT = /^[\p{N}.,]*\p{N}\p{L}{1,5}[23]?$/u;
+const SHORT_CODE = /^\p{L}{1,2}\p{N}{1,4}$/u;
+
+function plainWord(token: string): boolean {
+  if (/^\p{L}:$/u.test(token)) return false; // drive letter, also spaced ("C: / a")
+  const word = token.replace(OPENING, '').replace(CLOSING, '');
+  if (!word || /^[/\-–—&*#+]+$/u.test(word)) return true;
+  if (word.length > 40) return false;
+  if (word.includes(':') && !/^\d{1,2}:\d{2}$/u.test(word)) return false; // scheme, drive, label:value, IPv6; a clock time passes
+  if (word.includes('%') && !/^~?[\p{N}.,]+%$/u.test(word)) return false; // only a percentage, never an encoded byte
+  if (word.includes('~') && !/^~\p{N}/u.test(word)) return false;
+  if (word.includes('/') && !SLASH_WORD.test(word)) return false; // /secret, //server/share, ~/a, ./a, a/b/c, thu-muc/bao-cao
+  if (/\.\p{L}|\p{L}\./u.test(word) && !DOTTED_ABBREVIATION.test(word)) return false; // domain, host, file name
+  return word.split(/[/\-–]/u).every(part => part.length <= 20 && !/\p{N}{12,}/u.test(part)
+    && (!(/\p{L}/u.test(part) && /\p{N}/u.test(part)) || NUMBER_UNIT.test(part) || SHORT_CODE.test(part)));
+}
+
+function plainProse(text: string): boolean {
+  const folded = text.normalize('NFKC');
+  return PLAIN_CHARS.test(text.normalize('NFC')) && !FULLWIDTH.test(text) && PLAIN_CHARS.test(folded) && !SECRET_LABEL.test(folded)
+    && !providerPattern.test(folded) && folded.split(/\s+/u).every(plainWord);
+}
+const leaks = (text: string): boolean => !plainProse(text) || LEAK_PATTERNS.some(pattern => pattern.test(text));
 
 const words = (text: string): number => text.trim().split(/\s+/u).filter(Boolean).length;
 
@@ -56,7 +89,9 @@ const words = (text: string): number => text.trim().split(/\s+/u).filter(Boolean
 export function pdfExcerptFileNameShown(fileName: unknown): fileName is string {
   if (typeof fileName !== 'string') return false;
   const name = fileName.trim();
-  return name.length > 0 && name.length <= 120 && !/[\\/|;&<>$`"'=\u0000-\u001f]/u.test(name) && !providerPattern.test(name) && !leaks(name) && readerTextSafe(name) && !/\.\./u.test(name);
+  const base = name.replace(/\.pdf$/iu, ''); // the extension is the only dot a shown name may hold
+  return name.length > 0 && name.length <= 120 && !/[\\/|;&<>$`"'=\u0000-\u001f]/u.test(name) && !providerPattern.test(name)
+    && !leaks(base) && !LEAK_PATTERNS.some(pattern => pattern.test(name)) && readerTextSafe(name) && !/\.\./u.test(name);
 }
 
 /** The citation entry of one excerpt, built the way every PDF citation is built (`toCitationInput`). */
