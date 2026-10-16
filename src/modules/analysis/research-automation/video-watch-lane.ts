@@ -204,7 +204,7 @@ export async function verifyAutomatedVideoReading(reader: Reader, ref: VideoWatc
     const reading = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(member.bytes)) as unknown;
     if (!validateReading(reading) || canonicalJson(reading) !== Buffer.from(member.bytes).toString('utf8')) return 'NOT_VERIFIED';
     if (reading.workspaceId !== expected.workspaceId || reading.runId !== expected.runId || reading.scopeSha256 !== expected.scopeSha256
-      || reading.candidatesSha256 !== expected.candidatesSha256 || (reading.sourceSetSha256 !== null && reading.sourceSetSha256 !== expected.sourceSetSha256)
+      || reading.candidatesSha256 !== expected.candidatesSha256 || reading.sourceSetSha256 !== expected.sourceSetSha256
       || source.manifest.packageKey !== videoWatchPackageKey(expected.runId, reading.video.videoId, readingSha256)) return 'NOT_VERIFIED';
     const origin = await reader.readAutomationAttachmentOrigin(ref.packageId, VIDEO_WATCH_READ_BUDGET);
     if (!origin || origin.manifestArtifactSha256 !== source.manifestArtifactSha256 || origin.bindingSha256 !== videoWatchBindingSha256(reading)) return 'NOT_VERIFIED';

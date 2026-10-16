@@ -90,7 +90,14 @@ async function regularFile(file: string): Promise<import('node:fs').Stats | null
 async function removeCandidateFiles(runDir: string, videoId: string): Promise<void> {
   let names: string[] = [];
   try { names = await fs.readdir(runDir); } catch { return; }
-  for (const name of names) if (name.startsWith(`${videoId}.`) && await regularFile(path.join(runDir, name))) await fs.unlink(path.join(runDir, name)).catch(() => {});
+  for (const name of names) if (name.startsWith(`${videoId}.`)) {
+    const file = path.join(runDir, name);
+    const stat = await fs.lstat(file).catch(() => null);
+    // Remove a stale link itself, never the target it points at. This also
+    // prevents yt-dlp from opening a pre-existing candidate path through a
+    // symlink on the next download.
+    if (stat?.isFile() || stat?.isSymbolicLink()) await fs.unlink(file).catch(() => {});
+  }
 }
 
 async function readLedger(runDir: string): Promise<Record<string, string>> {
@@ -103,7 +110,12 @@ async function readLedger(runDir: string): Promise<Record<string, string>> {
   } catch { return {}; }
 }
 async function writeLedger(runDir: string, ledger: Record<string, string>): Promise<void> {
-  await fs.writeFile(path.join(runDir, LEDGER), JSON.stringify(ledger));
+  const file = path.join(runDir, LEDGER);
+  const prior = await fs.lstat(file).catch(() => null);
+  // Never follow a ledger symlink outside the media directory. A malformed
+  // or linked ledger fails the current candidate closed and is retried later.
+  if (prior && !prior.isFile()) throw new Error('video-watch ledger is not a regular file');
+  await fs.writeFile(file, JSON.stringify(ledger));
 }
 
 /** Reads duration and stream kinds; anything that is not one readable video stream with a finite length is NOT_A_VIDEO. */
@@ -176,10 +188,14 @@ export async function sweepVideoMedia(mediaDir: string, now: Date): Promise<{ re
     const children = await fs.readdir(runDir, { withFileTypes: true }).catch(() => []);
     for (const child of children) {
       if (!child.isFile() || !MEDIA_FILE.test(child.name)) continue;
+      // Retention is ledger-driven. Filename-shaped files that were never
+      // admitted to the ledger may be operator data and are left untouched.
+      if (!Object.hasOwn(ledger, child.name)) continue;
       const file = path.join(runDir, child.name), stat = await regularFile(file);
       if (!stat) continue;
-      const recorded = ledger[child.name] !== undefined ? Date.parse(ledger[child.name]!) : Number.NaN;
-      const at = Number.isFinite(recorded) ? recorded : stat.mtimeMs;
+      const recorded = Date.parse(ledger[child.name]!);
+      if (!Number.isFinite(recorded)) continue;
+      const at = recorded;
       if (now.getTime() - at <= RETENTION_MS) continue;
       try { await fs.unlink(file); deleted++; if (ledger[child.name] !== undefined) { delete ledger[child.name]; changed = true; } } catch { /* left for the next sweep */ }
     }
