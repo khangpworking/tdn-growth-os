@@ -486,3 +486,101 @@ test('provider input validation rejects non-Vietnam and malformed product refs b
   await assert.rejects(() => registry.get('KALODATA').collect(collectInput({ selectedProductRefs: ['https://169.254.169.254/latest'] })), { code: 'INVALID_PROVIDER_INPUT' });
   assert.equal(calls, 0);
 });
+
+// ---- credit exhausted (provider code 2016) and zero-balance pre-check ----
+
+const THREE_WINDOWS = { startDate: '2026-01-01', endDate: '2026-03-31' } as const;
+
+function creditFixture(options: { balance: number | null; failDetailAt?: number; failCode?: number }) {
+  const calls = { balance: 0, rank: 0, detail: 0 };
+  const fixture = transport(async (url, init) => {
+    if (url.pathname.endsWith('/credit/balance')) {
+      calls.balance++;
+      return options.balance === null ? response({ success: false, code: 500 }, 500) : response({ success: true, data: { totalRemain: options.balance } });
+    }
+    if (url.pathname.endsWith('/product/rank')) {
+      calls.rank++;
+      return response({ success: true, data: [
+        { product_id: '101', product_name: 'Calcium A' }, { product_id: '102', product_name: 'Calcium B' },
+        { product_id: '103', product_name: 'Calcium C' },
+      ] });
+    }
+    calls.detail++;
+    if (calls.detail === options.failDetailAt) return response({ success: false, code: options.failCode ?? 2016, message: 'Insufficient credit balance' });
+    const body = JSON.parse(String(init.body)) as { product_id: string };
+    return response({ success: true, data: { product_id: body.product_id, product_region: 'vn', product_name: 'Calcium', revenue: 1000, sales_volumn: 2 } });
+  });
+  const provider = createResearchAutomationProviderRegistry({
+    kalodataSecretKey: 'synthetic-kalo-key', serpApiKey: null, apifyTokenConfigured: false,
+  }, fixture).get('KALODATA');
+  return { provider, calls };
+}
+
+test('Kalodata collection stops every later window after an insufficient-credit answer and keeps them missing', async () => {
+  const { provider, calls } = creditFixture({ balance: 50, failDetailAt: 3 });
+  const result = await provider.collect(collectInput({ requestedPeriod: THREE_WINDOWS, selectedProductRefs: ['kalodata:101', 'kalodata:102'] }));
+  const windows = result.coverage[0]!.queryWindows;
+  assert.equal(windows.length, 6);
+  assert.equal(calls.detail, 3, 'no paid call after the credit-exhausted answer');
+  // k paid calls plus the balance checks before and after the phase.
+  assert.equal(result.captures.length, 3 + 2);
+  assert.equal(calls.balance, 2);
+  const rejected = result.captures.find(capture => capture.providerCode === '2016');
+  assert.equal(rejected?.outcome, 'PROVIDER_REJECTED', 'the rejected exchange is retained as captured');
+  assert.deepEqual(windows.map(row => row.status), ['OK', 'OK', 'NOT_RUN_CREDIT_EXHAUSTED', 'NOT_RUN_CREDIT_EXHAUSTED', 'NOT_RUN_CREDIT_EXHAUSTED', 'NOT_RUN_CREDIT_EXHAUSTED']);
+  assert.deepEqual(windows[2]!.captureIds, [rejected!.captureId]);
+  assert.ok(windows.slice(3).every(row => row.captureIds.length === 0));
+  assert.equal(result.coverage[0]!.status, 'PARTIAL');
+  assert.equal(result.coverage[0]!.continuation.required, true);
+  assert.deepEqual(result.coverage[0]!.continuation.remainingProductRefs, ['kalodata:101', 'kalodata:102']);
+  assert.ok(result.productPeriodSummaries.every(row => row.revenue.status === 'UNAVAILABLE'));
+});
+
+test('Kalodata quick search stops the remaining detail calls after an insufficient-credit answer', async () => {
+  const { provider, calls } = creditFixture({ balance: 50, failDetailAt: 1 });
+  const result = await provider.quickSearch(quickInput());
+  assert.equal(calls.rank, 1);
+  assert.equal(calls.detail, 1);
+  assert.equal(result.captures.length, 1 + 1 + 2, 'rank, one detail and both balance checks');
+  const detailWindows = result.coverage[0]!.queryWindows.slice(1);
+  assert.equal(detailWindows.length, 3);
+  assert.ok(detailWindows.every(row => row.status === 'NOT_RUN_CREDIT_EXHAUSTED'));
+  assert.equal(result.coverage[0]!.queryWindows[0]!.status, 'OK');
+  assert.ok(result.cards.every(card => card.description.status === 'NOT_FETCHED'));
+});
+
+test('an observed zero balance before a paid phase makes no paid call and marks every planned window missing', async () => {
+  const collect = creditFixture({ balance: 0 });
+  const collected = await collect.provider.collect(collectInput({ requestedPeriod: THREE_WINDOWS }));
+  assert.equal(collect.calls.detail, 0);
+  assert.equal(collected.captures.length, 1, 'only the free balance check');
+  assert.equal(collected.usage.paidRequestsIssued, 0);
+  assert.deepEqual(collected.coverage[0]!.queryWindows.map(row => row.status), ['NOT_RUN_CREDIT_EXHAUSTED', 'NOT_RUN_CREDIT_EXHAUSTED', 'NOT_RUN_CREDIT_EXHAUSTED']);
+  assert.equal(collected.coverage[0]!.continuation.required, true);
+  assert.equal(collected.coverage[0]!.status, 'FAILED');
+
+  const quick = creditFixture({ balance: 0 });
+  const searched = await quick.provider.quickSearch(quickInput());
+  assert.deepEqual([quick.calls.rank, quick.calls.detail], [0, 0]);
+  assert.equal(searched.captures.length, 1);
+  assert.deepEqual(searched.cards, []);
+  assert.equal(searched.coverage[0]!.queryWindows[0]!.status, 'NOT_RUN_CREDIT_EXHAUSTED');
+});
+
+test('an unobserved balance keeps the normal collection path', async () => {
+  const { provider, calls } = creditFixture({ balance: null });
+  const result = await provider.collect(collectInput({ requestedPeriod: THREE_WINDOWS, selectedProductRefs: ['kalodata:101', 'kalodata:102'] }));
+  assert.equal(calls.detail, 6);
+  assert.equal(calls.balance, 1, 'no after-balance without an observed before-balance');
+  assert.equal(result.captures.length, 7);
+  assert.ok(result.coverage[0]!.queryWindows.every(row => row.status === 'OK'));
+  assert.equal(result.usage.credits.status, 'UNKNOWN');
+});
+
+test('success:false with another provider code stays a non-stopping provider rejection', async () => {
+  const { provider, calls } = creditFixture({ balance: 50, failDetailAt: 3, failCode: 1001 });
+  const result = await provider.collect(collectInput({ requestedPeriod: THREE_WINDOWS, selectedProductRefs: ['kalodata:101', 'kalodata:102'] }));
+  assert.equal(calls.detail, 6, 'the loop keeps calling after an ordinary rejection');
+  assert.equal(result.captures.find(capture => capture.providerCode === '1001')?.outcome, 'PROVIDER_REJECTED');
+  assert.deepEqual(result.coverage[0]!.queryWindows.map(row => row.status), ['OK', 'OK', 'FAILED', 'OK', 'OK', 'OK']);
+});
