@@ -149,7 +149,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
             label: `${E14_ATTRIBUTION}, ${comtradeSideText(row)}, ${comtradeFlowText(row.flow)}, ${row.year}`, technical: { hsCode: comtrade.hsCode ?? '' },
             retrievedAt: call.retrievedAt, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' }) : null;
           return [label(comtradeSideText(row)), label(comtradeFlowText(row.flow)), label(row.year), label(formatWorldBankValue(row.value)) + (no === null ? '' : renderCitationMark(no)), label(comtradeRowNote(row))];
-        }), { src: COMTRADE_SRC, note: COMTRADE_NOTE + (comtrade.mirrorReporterCount === null ? '' : ` Số nước báo số hàng xuất sang Việt Nam: ${comtrade.mirrorReporterCount}.`) });
+        }), { src: COMTRADE_SRC, note: COMTRADE_NOTE + (comtrade.mirrorReporterCount === null || comtrade.mirrorReporterCount === 0 ? '' : ` Số nước báo số hàng xuất sang Việt Nam: ${comtrade.mirrorReporterCount}.`) });
   sections.push(section('M06', 'Nguồn cung', 'Giữ riêng nhãn thương hiệu theo tiêu đề người bán trên từng sàn.',
     tbl('6.1', 'Ngày mở bán và phần chưa rõ', '', ['Sàn', 'Có ngày', 'Thiếu ngày', 'Mở bán trong kỳ', 'Doanh thu mở bán trong kỳ'],
       PLATS.map(P => [plat(P), n(bf(`${P}.coh.known`)), n(bf(`${P}.coh.nodate`)), n(bf(`${P}.coh.n`)), n(bf(`${P}.coh.rev`))])) +

@@ -5252,7 +5252,11 @@ function validComtrade(value: unknown): boolean {
   const attemptReasons = new Set(['OFFICIAL_DESCRIPTION_COVERED', 'NOT_COVERED', 'MODEL_ANSWER_INVALID', 'NO_SOURCE_ROWS', 'RATE_LIMITED', 'FAILED', 'CANCELLED', 'BUDGET_EXHAUSTED']);
   if (!value.attempts.every(attempt => isRecord(attempt) && Object.keys(attempt).sort().join() === 'hsCode,outcome,reason' &&
       typeof attempt.hsCode === 'string' && /^\d{6}$/.test(attempt.hsCode) && !attemptCodes.has(attempt.hsCode) && attemptCodes.add(attempt.hsCode) &&
-      typeof attempt.outcome === 'string' && attemptOutcomes.has(attempt.outcome) && typeof attempt.reason === 'string' && attemptReasons.has(attempt.reason))) return false;
+      typeof attempt.outcome === 'string' && attemptOutcomes.has(attempt.outcome) && typeof attempt.reason === 'string' && attemptReasons.has(attempt.reason) &&
+      ((attempt.outcome === 'CONFIRMED' && attempt.reason === 'OFFICIAL_DESCRIPTION_COVERED') ||
+        (attempt.outcome === 'REJECTED' && (attempt.reason === 'NOT_COVERED' || attempt.reason === 'MODEL_ANSWER_INVALID')) ||
+        (attempt.outcome === 'NO_DATA' && attempt.reason === 'NO_SOURCE_ROWS') ||
+        (attempt.outcome === 'STOPPED' && (attempt.reason === 'RATE_LIMITED' || attempt.reason === 'FAILED' || attempt.reason === 'CANCELLED' || attempt.reason === 'BUDGET_EXHAUSTED'))))) return false;
   const shown = value.status === 'OK' || (value.status === 'RATE_LIMITED' && value.rows.length > 0);
   if (!shown) return value.hsCode === null && value.officialDescription === null && value.descriptionVi === null && value.reasonVi === null &&
     value.calls.length === 0 && value.rows.length === 0 && value.mirrorReporterCount === null;

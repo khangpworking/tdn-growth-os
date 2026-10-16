@@ -23,7 +23,7 @@ const INPUT = { keyword: 'bình giữ nhiệt', description: null, mode: 'CATEGO
 const OFFICIAL = 'Vacuum flasks and other vacuum vessels, complete with cases; parts thereof other than glass inners';
 
 type Row = { reporter: string; value: number };
-type Answer = { status?: number; rows?: Row[] };
+type Answer = { status?: number; rows?: Row[]; description?: string };
 /** Fake data endpoint plus fake clock: requests are answered from `answer(url, index)` and every wait is recorded, never slept. */
 function fake(answer: (url: URL, index: number) => Answer, options: { abortOnSleep?: number } = {}) {
   const urls: URL[] = [], at: number[] = [], sleeps: number[] = [];
@@ -35,7 +35,7 @@ function fake(answer: (url: URL, index: number) => Answer, options: { abortOnSle
       urls.push(url); at.push(clock);
       const a = answer(url, urls.length - 1);
       const rows = (a.rows ?? []).map(r => ({ period: Number(url.searchParams.get('period')), reporterDesc: r.reporter, flowCode: url.searchParams.get('flowCode'),
-        cmdCode: url.searchParams.get('cmdCode'), cmdDesc: OFFICIAL, primaryValue: r.value }));
+        cmdCode: url.searchParams.get('cmdCode'), cmdDesc: a.description ?? OFFICIAL, primaryValue: r.value }));
       clock += 200;
       return new Response(new Uint8Array(Buffer.from(JSON.stringify({ count: rows.length, data: rows }))), { status: a.status ?? 200, headers: { 'content-type': 'application/json' } });
     }) as typeof fetch,
@@ -143,6 +143,19 @@ test('product text and official source text are quoted in explicit untrusted-dat
   assert.ok(model.asked[0]!.userText.includes(JSON.stringify(keyword)), 'JSON quoting preserves the product text as data');
   assert.match(model.asked[1]!.userText, /END_UNTRUSTED_PRODUCT_DATA\nBEGIN_UNTRUSTED_OFFICIAL_DESCRIPTION_DATA/u);
   assert.ok(model.asked[1]!.userText.includes(JSON.stringify(OFFICIAL)), 'the official description is quoted as source data');
+});
+
+test('an ordinary lowercase metric word in the official description does not invalidate the source response', async () => {
+  const f = fake(() => ({ rows: [{ reporter: 'Viet Nam', value: 1 }], description: 'Other metric instruments and goods' }));
+  const result = await createComtradeSource({ model: fakeModel(), transport: f.transport }).collect(INPUT);
+  assert.equal(result.status, 'OK');
+  assert.equal(result.officialDescription, 'Other metric instruments and goods');
+});
+
+test('provider-style initial-capital and all-caps Metric descriptions are rejected', async () => {
+  const f = fake(() => ({ rows: [{ reporter: 'Viet Nam', value: 1 }], description: 'METRIC instruments and goods' }));
+  const result = await createComtradeSource({ model: fakeModel(), transport: f.transport }).collect(INPUT);
+  assert.equal(result.status, 'FAILED');
 });
 
 test('each invalid model answer gets one retry and is never repaired', async () => {

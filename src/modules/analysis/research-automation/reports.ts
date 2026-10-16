@@ -1008,7 +1008,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
       rows.map(row => {
         const capture = input.captures.find(entry => entry.stepId === 'COLLECTION' && entry.ordinal === row.captureIndex);
         return `<tr><td>${escape(comtradeSideText(row))}</td><td>${escape(comtradeFlowText(row.flow))}</td><td>${escape(row.year)}</td><td>${escape(formatWorldBankValue(row.value))}${capture ? captureMark(capture, citations) : ''}</td><td>${escape(comtradeRowNote(row))}</td></tr>`;
-      }).join('') + `</tbody></table><p class="lim"><b>Chú thích:</b> ${escape(COMTRADE_NOTE)}${stored.mirrorReporterCount === null ? '' : ` Số nước báo số hàng xuất sang Việt Nam: ${stored.mirrorReporterCount}.`}</p><p class="ex-src">Nguồn: ${escape(COMTRADE_SRC)}</p></div>`;
+      }).join('') + `</tbody></table><p class="lim"><b>Chú thích:</b> ${escape(COMTRADE_NOTE)}${stored.mirrorReporterCount === null || stored.mirrorReporterCount === 0 ? '' : ` Số nước báo số hàng xuất sang Việt Nam: ${stored.mirrorReporterCount}.`}</p><p class="ex-src">Nguồn: ${escape(COMTRADE_SRC)}</p></div>`;
   };
   // Verified document excerpts sit in the context section; the same predicate marks S25 as used.
   const pdfExcerptBlock = (sectionId: string): string => kind === 'MARKET' && sectionId === PDF_EXCERPT_SECTION && input.pdfExcerpts?.length && input.sourceEvidence?.pdfExcerpts === true
