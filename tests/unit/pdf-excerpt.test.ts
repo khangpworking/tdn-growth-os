@@ -49,7 +49,8 @@ test('selection: a quote that shows a path, link, address or secret is left out 
     'Liên hệ nhom@example.test để nhận bản.', 'Khóa ghp_abcdefghijklmnop1234 dùng tạm.', 'Mã aB3dE5gH7jK9mN1pQ3sT5vW7 cấp cho tài khoản.', 'Ghi chú api key: xyz.',
     'Bản lưu C:/bao-cao/a.pdf.', 'Mở trang ?id=12 để xem.', 'Bảng lấy từ bang_2025_quy.',
     'Bản gốc lưu ở /secret.', 'Tệp /foo.txt đính kèm.', 'Mở \\secret để xem.', 'Bản lưu C:report.pdf.', 'Xem (/bang) phía dưới.',
-    'Lưu tại //server/share/report.', 'Lưu tại \\\\server/share/report.', 'Lưu tại \\\\server\\share.', 'Xem thu-muc/bao-cao.', 'Mục a/b/c.', 'Từ ./a hoặc ~/a.', 'Ngày /12/2025.'];
+    'Lưu tại //server/share/report.', 'Lưu tại \\\\server/share/report.', 'Lưu tại \\\\server\\share.', 'Xem thu-muc/bao-cao.', 'Mục a/b/c.', 'Từ ./a hoặc ~/a.', 'Ngày /12/2025.',
+    'Lưu ở ∕tmp∕a.', 'Lưu ở ／tmp／a.', 'Lưu ở ⁄tmp.', 'Mở %2Ftmp%2Fa.', 'Mở file:/tmp.'];
   const picked = selectPdfExcerpts(artifact(unsafe.map((text, i) => quote(SHA_A, i + 1, text))), RUN, names);
   assert.deepEqual(picked.excerpts, []);
   assert.deepEqual(picked.leftOut.map(item => item.reason), unsafe.map(() => 'NOT_READER_SAFE'));
@@ -70,7 +71,7 @@ test('selection: only market sections are eligible even when the section id is m
 });
 
 test('file names: empty, missing or provider-like names are withheld, never guessed', () => {
-  for (const bad of ['', '   ', 'pageindex-export.pdf', 'Google trang.pdf', 'kalodata.pdf', 'a/b.pdf', 'C:\\x\\y.pdf', 'https://example.test/a.pdf', 'a;b.pdf', 'metric-report.pdf', 'x'.repeat(130), 'solieu.example.vn.pdf', '203.0.113.7.pdf', 'bao_cao_nganh.pdf', 'aB3dE5gH7jK9mN1pQ3sT5vW7.pdf', '/secret.pdf', '\\secret.pdf', 'C:report.pdf', '~/a.pdf'])
+  for (const bad of ['', '   ', 'pageindex-export.pdf', 'Google trang.pdf', 'kalodata.pdf', 'a/b.pdf', 'C:\\x\\y.pdf', 'https://example.test/a.pdf', 'a;b.pdf', 'metric-report.pdf', 'x'.repeat(130), 'solieu.example.vn.pdf', '203.0.113.7.pdf', 'bao_cao_nganh.pdf', 'aB3dE5gH7jK9mN1pQ3sT5vW7.pdf', '/secret.pdf', '\\secret.pdf', 'C:report.pdf', '~/a.pdf', 'tmp∕a.pdf', '%2Fa.pdf'])
     assert.equal(pdfExcerptFileNameShown(bad), false, JSON.stringify(bad));
   assert.equal(pdfExcerptFileNameShown(undefined), false);
   assert.equal(pdfExcerptFileNameShown('bao-cao-nganh.pdf'), true);

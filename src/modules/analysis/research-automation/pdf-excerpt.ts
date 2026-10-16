@@ -47,7 +47,7 @@ const LEAK_PATTERNS: readonly RegExp[] = [
 /** A slash is shown only as a lone "/" or once inside a word, between letters or digits (đồng/chiếc, 6/2025, 250.000đ/tháng). */
 const SLASH_WORD = /^[(\["'“‘]*[\p{N}.,]*[\p{L}\p{N}]+\/[\p{L}\p{N}]+[)\]"'”’,.;:!?%]*$/u;
 /** Paths are allowed out, not hunted: any backslash and any other slash (/secret, //server/share, ~/a, ./a, a/b/c, thu-muc/bao-cao) may be a path. */
-const pathLike = (text: string): boolean => text.includes('\\') || text.split(/\s+/u).some(word => word.includes('/') && word !== '/' && !SLASH_WORD.test(word));
+const pathLike = (text: string): boolean => /[\\⁄∕∖⧸⧹﹨／＼]|%(?:2f|5c)/iu.test(text) || text.split(/\s+/u).some(word => word.includes('/') && word !== '/' && !SLASH_WORD.test(word));
 const leaks = (text: string): boolean => pathLike(text) || LEAK_PATTERNS.some(pattern => pattern.test(text));
 
 const words = (text: string): number => text.trim().split(/\s+/u).filter(Boolean).length;
