@@ -146,7 +146,7 @@ test('product text and official source text are quoted in explicit untrusted-dat
 });
 
 test('an ordinary lowercase metric word in the official description does not invalidate the source response', async () => {
-  const f = fake(() => ({ rows: [{ reporter: 'Viet Nam', value: 1 }], description: 'Other metric instruments and goods' }));
+  const f = fake(() => ({ rows: [{ reporter: 'Synthetic Own Reporter', value: 1 }], description: 'Other metric instruments and goods' }));
   const result = await createComtradeSource({ model: fakeModel(), transport: f.transport }).collect(INPUT);
   assert.equal(result.status, 'OK');
   assert.equal(result.officialDescription, 'Other metric instruments and goods');
