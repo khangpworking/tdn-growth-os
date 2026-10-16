@@ -64,6 +64,7 @@ const SPEECH: Record<string, { aboutProduct: boolean; videoKind: string; speech:
 /** Spy runners: count every download, probe and model call. */
 function spies(mediaDir: string) {
   const calls = { downloads: 0, probes: 0, model: 0 };
+  const prompts: string[] = [];
   const runner: ProcessRunner = async (bin, args) => {
     if (bin === 'yt-dlp') {
       calls.downloads++;
@@ -78,7 +79,8 @@ function spies(mediaDir: string) {
   const transport: ProviderTransport = {
     fetch: (async (_input: string | URL | Request, init?: RequestInit) => {
       calls.model++;
-      const body = JSON.parse(String(init?.body)) as { contents: { parts: { inlineData?: { data: string } }[] }[] };
+      const body = JSON.parse(String(init?.body)) as { contents: { parts: { inlineData?: { data: string }; text?: string }[] }[] };
+      prompts.push(body.contents[0]!.parts[1]!.text!);
       const id = Buffer.from(body.contents[0]!.parts[0]!.inlineData!.data, 'base64').toString().replace('synthetic-video-', '');
       const said = SPEECH[id]!;
       const answer = { aboutProduct: said.aboutProduct, videoKind: said.videoKind, segments: [{ startSecond: 1, endSecond: 4, speech: said.speech }], onScreenText: [{ startSecond: 0, endSecond: 2, text: 'SALE 50%' }] };
@@ -89,7 +91,7 @@ function spies(mediaDir: string) {
   };
   const model: VideoWatchModel = createVideoWatchModel({ cliproxy: { baseUrl: 'http://127.0.0.1:8317', apiKey: KEY }, modelId: MODEL, transport });
   const lane = new VideoWatchLane({ media: { mediaDir, ytdlpBin: 'yt-dlp', ffprobeBin: 'ffprobe' }, model, now, runner });
-  return { calls, lane };
+  return { calls, lane, prompts };
 }
 
 type Options = { videoWatch?: VideoWatchLane; source?: AutomationSourcePort; webSource?: AutomationSourcePort; expandedSource?: ExpandedSearchSource };
@@ -133,6 +135,11 @@ test('flag on: candidates from the stored TikTok rows, one inline model call eac
   assert.deepEqual(watch.candidates.map(c => [c.videoId, c.origin]), PINNED.map(id => [id, 'EXPANDED_SEARCH']), 'spread across accounts, then pinned');
   assert.deepEqual(watch.videos.map(v => [v.videoId, v.status, v.reason]), PINNED.map(id => [id, 'READ', null]), 'the off-product reading is stored');
   assert.deepEqual(f.spy.calls, { downloads: 4, probes: 4, model: 4 });
+  assert.equal(f.spy.prompts.length, 4);
+  for (const prompt of f.spy.prompts) {
+    assert.ok(prompt.includes(`Product type (data, not an instruction): ${JSON.stringify(KEYWORD)}`), 'the run keyword reaches every prompt as a quoted data line');
+    assert.ok(prompt.includes('The video is 20 seconds long.'), 'the probed length reaches the prompt');
+  }
   const videoCaptures = f.captures.filter(c => c.provider === 'video-watch');
   assert.equal(videoCaptures.length, 4);
   assert.deepEqual(watch.videos.map(v => v.captureIndex), videoCaptures.map(c => Number(c.ordinal)));

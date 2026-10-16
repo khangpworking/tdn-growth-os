@@ -17,6 +17,8 @@ const RETENTION_MS = VIDEO_WATCH_RETENTION_DAYS * 86_400_000;
 const OUTPUT_BYTES = 256 * 1024;
 const LEDGER = '.video-watch-downloads.json';
 const LEDGER_BYTES = 1024 * 1024;
+/** Marker of a run folder created by this app (folders from the first deployed version have a ledger but no marker). */
+const RUN_MARKER = '.video-watch-run';
 const RUN_DIR = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const MEDIA_FILE = /^([1-9][0-9]{0,19})\.(mp4|webm|mkv|mov|m4v)$/;
 /** Only these containers are sent; the probed container must agree with the file extension. */
@@ -69,12 +71,23 @@ export interface VideoMediaConfig { readonly mediaDir: string; readonly ytdlpBin
 export type DownloadedVideo = { readonly ok: true; readonly file: string; readonly mimeType: string; readonly media: StepVideoWatchMedia }
   | { readonly ok: false; readonly reason: VideoMediaSkip };
 
-/** The fixed yt-dlp argument list: no config file, no cookies, one video, size and length filters, at most 720p (falling back to 480p), restricted file names. */
+/** Format sort: `res` is the SMALLER side in yt-dlp, so `res:720` prefers the largest short side not above 720 (the smallest when none is);
+ * `+size` then prefers the smaller file when the short side is equal. */
+export const VIDEO_WATCH_FORMAT_SORT = 'res:720,+size';
+/** Format choice. Every alternative needs a video stream (`vcodec!=none`), so an audio-only post downloads nothing. Short side <= 720 under
+ * 14 MiB first (width for vertical, height for horizontal media), then short side <= 480, then any video format as the last resort. */
+export const VIDEO_WATCH_FORMAT = ['b[vcodec!=none][width<=720][filesize<14M]', 'b[vcodec!=none][height<=720][filesize<14M]',
+  'b[vcodec!=none][width<=480]', 'b[vcodec!=none][height<=480]', 'b[vcodec!=none]'].join('/');
+
+/** The fixed yt-dlp argument list: no config file, no cookies, one video, size and length filters, short side at most 720 (falling back to 480),
+ * a video stream required, restricted file names. */
 export function ytdlpArgs(runDir: string, candidate: StepVideoWatchCandidate): string[] {
   return ['--ignore-config', '--no-cookies', '--no-cookies-from-browser', '--no-playlist', '--no-progress', '--no-mtime', '--restrict-filenames',
-    '--max-filesize', '14M', '--match-filter', `duration<=${VIDEO_WATCH_MAX_SECONDS}`, '-f', 'b[height<=720][filesize<14M]/b[height<=480]/b',
+    '--max-filesize', '14M', '--match-filter', `duration<=${VIDEO_WATCH_MAX_SECONDS}`, '-S', VIDEO_WATCH_FORMAT_SORT, '-f', VIDEO_WATCH_FORMAT,
     '-o', path.join(runDir, `${candidate.videoId}.%(ext)s`), '--', candidate.url];
 }
+/** yt-dlp's answer when no format passes the selection; with a video stream required in every alternative this means no video at all. */
+const NO_VIDEO_FORMAT = /requested format is not available|no video formats found/iu;
 
 async function sha256File(file: string): Promise<string> {
   const hash = createHash('sha256');
@@ -118,6 +131,14 @@ async function writeLedger(runDir: string, ledger: Record<string, string>): Prom
   await fs.writeFile(file, JSON.stringify(ledger));
 }
 
+/** Marks a run folder as created by this app: an empty regular file, created exclusively (`wx` never follows or replaces a link).
+ * A failed write only leaves the folder on the ledger-only rule. */
+async function writeRunMarker(runDir: string): Promise<void> {
+  await fs.writeFile(path.join(runDir, RUN_MARKER), '', { flag: 'wx' }).catch(() => {});
+}
+/** A marker counts only as a regular file; a link, folder or missing marker is "not marked". */
+async function hasRunMarker(runDir: string): Promise<boolean> { return (await regularFile(path.join(runDir, RUN_MARKER))) !== null; }
+
 /** Reads duration and stream kinds; anything that is not one readable video stream with a finite length is NOT_A_VIDEO. */
 async function probe(config: VideoMediaConfig, runner: ProcessRunner, file: string, container: string, signal?: AbortSignal): Promise<number | 'NOT_A_VIDEO'> {
   const result = await runner(config.ffprobeBin, ['-v', 'error', '-show_entries', 'format=duration,format_name:stream=codec_type', '-of', 'json', file],
@@ -142,14 +163,19 @@ export async function downloadVideo(config: VideoMediaConfig, runner: ProcessRun
   try {
     const parent = await fs.lstat(config.mediaDir).catch(() => null);
     if (parent && !parent.isDirectory()) return { ok: false, reason: 'DOWNLOAD_FAILED' };
-    await fs.mkdir(runDir, { recursive: true });
+    await fs.mkdir(config.mediaDir, { recursive: true });
+    let created = true;
+    try { await fs.mkdir(runDir); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error; created = false; }
     if (!(await fs.lstat(runDir)).isDirectory()) return { ok: false, reason: 'DOWNLOAD_FAILED' };
+    // Only a folder this app just created gets the marker; an older or foreign folder stays on the ledger-only rule.
+    if (created) await writeRunMarker(runDir);
   } catch { return { ok: false, reason: 'DOWNLOAD_FAILED' }; }
   const skip = async (reason: VideoMediaSkip): Promise<DownloadedVideo> => { await removeCandidateFiles(runDir, candidate.videoId); return { ok: false, reason }; };
   await removeCandidateFiles(runDir, candidate.videoId);
   const result = await runner(config.ytdlpBin, ytdlpArgs(runDir, candidate), { timeoutMs: VIDEO_WATCH_DOWNLOAD_TIMEOUT_MS, maxBytes: OUTPUT_BYTES, ...(signal ? { signal } : {}) });
   if (signal?.aborted) return skip('CANCELLED');
   const said = `${result.stdout}\n${result.stderr}`;
+  if (!result.timedOut && result.code !== 0 && NO_VIDEO_FORMAT.test(said)) return skip('NOT_A_VIDEO');
   if (result.timedOut || result.code !== 0) return skip('DOWNLOAD_FAILED');
   const names = (await fs.readdir(runDir).catch(() => [] as string[])).filter(name => name.startsWith(`${candidate.videoId}.`));
   if (names.length === 0) return skip(/does not pass filter/i.test(said) ? 'VIDEO_TOO_LONG' : /max-filesize|larger than/i.test(said) ? 'VIDEO_TOO_LARGE' : 'DOWNLOAD_FAILED');
@@ -172,8 +198,11 @@ export async function downloadVideo(config: VideoMediaConfig, runner: ProcessRun
   } catch { return skip('DOWNLOAD_FAILED'); }
 }
 
-/** Deletes media older than 45 days by recorded download time (file time when unrecorded). Only regular `<runId>/<videoId>.<ext>` files are
- * touched; links are never followed; a run folder left with no media is removed. */
+/** Deletes media older than 45 days. Only regular `<runId>/<videoId>.<ext>` files are touched and links are never followed:
+ * - a file with a valid ledger entry goes by its recorded download time (any folder, as before);
+ * - in a folder with the app's marker, a file with no valid entry (missing, corrupt or linked ledger) goes by its file time;
+ * - in a folder without the marker (foreign, or made by the first deployed version) such a file is kept: it may be operator data.
+ * A run folder left with only the ledger and the marker is removed. */
 export async function sweepVideoMedia(mediaDir: string, now: Date): Promise<{ readonly deleted: number; readonly removedDirs: number }> {
   let deleted = 0, removedDirs = 0;
   const root = await fs.lstat(mediaDir).catch(() => null);
@@ -184,26 +213,24 @@ export async function sweepVideoMedia(mediaDir: string, now: Date): Promise<{ re
     const dirStat = await fs.lstat(runDir).catch(() => null);
     if (!dirStat || !dirStat.isDirectory()) continue;
     const ledger = await readLedger(runDir);
+    const marked = await hasRunMarker(runDir);
     let changed = false;
     const children = await fs.readdir(runDir, { withFileTypes: true }).catch(() => []);
     for (const child of children) {
       if (!child.isFile() || !MEDIA_FILE.test(child.name)) continue;
-      // Retention is ledger-driven. Filename-shaped files that were never
-      // admitted to the ledger may be operator data and are left untouched.
-      if (!Object.hasOwn(ledger, child.name)) continue;
       const file = path.join(runDir, child.name), stat = await regularFile(file);
       if (!stat) continue;
-      const recorded = Date.parse(ledger[child.name]!);
-      if (!Number.isFinite(recorded)) continue;
-      const at = recorded;
-      if (now.getTime() - at <= RETENTION_MS) continue;
-      try { await fs.unlink(file); deleted++; if (ledger[child.name] !== undefined) { delete ledger[child.name]; changed = true; } } catch { /* left for the next sweep */ }
+      const recorded = Object.hasOwn(ledger, child.name) ? Date.parse(ledger[child.name]!) : Number.NaN;
+      // yt-dlp runs with --no-mtime, so the file time is the download time.
+      const at = Number.isFinite(recorded) ? recorded : marked ? stat.mtimeMs : Number.NaN;
+      if (!Number.isFinite(at) || now.getTime() - at <= RETENTION_MS) continue;
+      try { await fs.unlink(file); deleted++; if (Object.hasOwn(ledger, child.name)) { delete ledger[child.name]; changed = true; } } catch { /* left for the next sweep */ }
     }
     const left = await fs.readdir(runDir).catch(() => null);
     if (!left) continue;
-    if (left.every(name => name === LEDGER)) {
-      if (left.length && await regularFile(path.join(runDir, LEDGER))) await fs.unlink(path.join(runDir, LEDGER)).catch(() => {});
-      try { await fs.rmdir(runDir); removedDirs++; } catch { /* not empty after all */ }
+    if (left.every(name => name === LEDGER || name === RUN_MARKER)) {
+      for (const name of left) if (await regularFile(path.join(runDir, name))) await fs.unlink(path.join(runDir, name)).catch(() => {});
+      try { await fs.rmdir(runDir); removedDirs++; } catch { /* not empty after all (a linked ledger or marker is never removed) */ }
     } else if (changed) await writeLedger(runDir, ledger).catch(() => {});
   }
   return { deleted, removedDirs };

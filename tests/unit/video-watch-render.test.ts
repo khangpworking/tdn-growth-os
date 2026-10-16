@@ -5,7 +5,7 @@ import { DEFAULT_MARKET_PEER_RULE } from '../../src/modules/analysis/default-mar
 import { buildMarketReport, computeReaderReportData } from '../../src/modules/analysis/reader-report/index.js';
 import { assertMarketBusinessGate, auditMarketReportHtml } from '../../src/modules/analysis/research-automation/market-business-gate.js';
 import { readSellerVideoInputs, selectSellerVideos, sellerVideoBlockHtml, sellerVideoNote, sellerVideoPackages, sellerVideoSrc, SELLER_VIDEO_AUTO_NOTE,
-  SELLER_VIDEO_AUTO_PROVENANCE, SELLER_VIDEO_AUTO_SRC, SELLER_VIDEO_AUTO_TITLE, SELLER_VIDEO_NOTE, SELLER_VIDEO_PROVENANCE, SELLER_VIDEO_READING_TITLE, SELLER_VIDEO_SRC,
+  SELLER_VIDEO_AUTO_PROVENANCE, SELLER_VIDEO_AUTO_SRC, SELLER_VIDEO_AUTO_TITLE, SELLER_VIDEO_AUTO_TITLE_V1, SELLER_VIDEO_NOTE, SELLER_VIDEO_PROVENANCE, SELLER_VIDEO_READING_TITLE, SELLER_VIDEO_SRC,
   type AutomatedReadingInput, type SellerVideoAutomatedRef, type SellerVideoRef } from '../../src/modules/analysis/research-automation/seller-video.js';
 import { sync1Options, sync1ReaderFixture } from '../helpers/sync1-reader-fixture.js';
 import { unitPriceFixture } from '../helpers/market-unit-price-fixture.js';
@@ -48,7 +48,10 @@ test('block: automated speech has its own title and provenance; operator wording
   assert.deepEqual([...doc.querySelectorAll('h3')].map(h => h.textContent), [SELLER_VIDEO_READING_TITLE, SELLER_VIDEO_AUTO_TITLE]);
   const footers = [...doc.querySelectorAll('blockquote[data-quote] footer')].map(f => f.textContent);
   assert.deepEqual(footers, [`Lời người bán; giây 1–3; ${SELLER_VIDEO_PROVENANCE}.`, `Lời người làm video review; giây 1–3,5; ${SELLER_VIDEO_AUTO_PROVENANCE}.`]);
-  assert.equal(SELLER_VIDEO_AUTO_TITLE, 'Lời nói trong video bán hàng');
+  assert.equal(SELLER_VIDEO_AUTO_TITLE, 'Lời nói trong video bán hàng và video đánh giá sản phẩm', 'the automated block holds seller and reviewer videos');
+  assert.match(SELLER_VIDEO_AUTO_NOTE, /video bán hàng và video đánh giá sản phẩm/u);
+  assert.doesNotMatch(SELLER_VIDEO_AUTO_NOTE, /tự nói để bán hàng/u, 'a creator review is not called selling');
+  assert.doesNotMatch(SELLER_VIDEO_AUTO_NOTE, /video review/iu, 'automated owner-facing wording is Vietnamese');
   assert.equal(SELLER_VIDEO_AUTO_PROVENANCE, 'ghi lại tự động từ video, chưa xác minh');
   assert.doesNotMatch(html, /https?:|tiktok\.com|@nguoiban|Google|Gemini|model|yt-dlp|sha|GIẢM/iu);
   assert.equal(sellerVideoNote(both), `${SELLER_VIDEO_NOTE} ${SELLER_VIDEO_AUTO_NOTE}`);
@@ -97,12 +100,16 @@ test('reader report: the automated block sits once in M09 with its note and pass
   assert.doesNotMatch(noData, /PageIndex|Google|Gemini|Kalodata|Metric\b|SerpApi|Apify|TradeInt|Dami\b|yt-dlp/iu);
 });
 
-const withAutoBlock = (statement: string): string => `<html><body><section id="M09"><h3>${SELLER_VIDEO_AUTO_TITLE}</h3><ul><li><blockquote data-quote><p>Câu gốc.</p></blockquote></li></ul><p>${statement}</p></section></body></html>`;
-const verdict = (statement: string): boolean | undefined => auditMarketReportHtml(withAutoBlock(statement), { presentation: false }).find(item => item.rule === 'SELLER_VIDEO_NOT_CUSTOMER_OR_TOTAL')?.ok;
+const withAutoBlock = (statement: string, title = SELLER_VIDEO_AUTO_TITLE): string => `<html><body><section id="M09"><h3>${title}</h3><ul><li><blockquote data-quote><p>Câu gốc.</p></blockquote></li></ul><p>${statement}</p></section></body></html>`;
+const verdict = (statement: string, title?: string): boolean | undefined => auditMarketReportHtml(withAutoBlock(statement, title), { presentation: false }).find(item => item.rule === 'SELLER_VIDEO_NOT_CUSTOMER_OR_TOTAL')?.ok;
 
 test('gate: SELLER_VIDEO_NOT_CUSTOMER_OR_TOTAL applies to the automated block wording', () => {
   for (const text of ['Nội dung video là ý kiến của khách hàng.', 'Lời trong video đã được kiểm chứng.', 'Tổng doanh thu các video là 5 triệu.', 'Doanh thu video cộng với doanh thu của mẫu.'])
     assert.equal(verdict(text), false, text);
   for (const text of [SELLER_VIDEO_AUTO_NOTE, `${SELLER_VIDEO_NOTE} ${SELLER_VIDEO_AUTO_NOTE}`, 'Video chưa được kiểm chứng.'])
     assert.equal(verdict(text), true, text);
+  // A draft built before VW2 carries the old automated title: the gate still finds that block and applies the rule.
+  assert.equal(SELLER_VIDEO_AUTO_TITLE_V1, 'Lời nói trong video bán hàng');
+  assert.equal(verdict('Nội dung video là ý kiến của khách hàng.', SELLER_VIDEO_AUTO_TITLE_V1), false, 'old title still gated');
+  assert.equal(verdict('Video chưa được kiểm chứng.', SELLER_VIDEO_AUTO_TITLE_V1), true);
 });
