@@ -14,6 +14,7 @@ import { classifyWebPage } from './web-page-type.js';
 import { searchInterestRenderable } from './search-interest.js';
 import { worldBankRenderableRows } from './world-bank-lane.js';
 import { pdfExcerptDocuments, type PdfExcerpt } from './pdf-excerpt.js';
+import { sellerVideoPackages, type SellerVideos } from './seller-video.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import { ResearchAutomationIntegrityError, type CaptureRecord, type StepWebResult } from './model.js';
 export type { AutomationSourceEvidence } from '../../../../contracts/analysis/automation-source-evidence.generated.js';
@@ -123,7 +124,7 @@ export async function triageSourceEvidenceL9(input: {
 
 /** Registry membership follows verified owning-method identity, never filenames or URL guesses. Unknown future source families remain outside this mapping. */
 export function sourceEvidenceForReport(packet: AutomationSourceEvidence, input: Pick<import('./service.js').ResearchAutomationReportInput,
-  'reviewSample' | 'privateReviewCorpus' | 'metricMethods' | 'metricClassified' | 'reviewCorpus' | 'collection' | 'nativeReview' | 'locatedReview' | 'insightLiteral'> & { readonly captures?: readonly CaptureRecord[]; readonly pdfExcerpts?: readonly PdfExcerpt[] }, kind: 'MARKET' | 'INSIGHT'): AutomationSourceEvidence {
+  'reviewSample' | 'privateReviewCorpus' | 'metricMethods' | 'metricClassified' | 'reviewCorpus' | 'collection' | 'nativeReview' | 'locatedReview' | 'insightLiteral'> & { readonly captures?: readonly CaptureRecord[]; readonly pdfExcerpts?: readonly PdfExcerpt[]; readonly sellerVideos?: SellerVideos | null }, kind: 'MARKET' | 'INSIGHT'): AutomationSourceEvidence {
   checkSourceEvidence(packet);
   const usages: SourceAppendixUsage[] = packet.sourceAppendix.rows.map(row => ({ registryId: row.registryId, binding: row.binding,
     l9: row.l9Excluded === null || row.l9Unclear === null ? null : { excluded: row.l9Excluded, unclear: row.l9Unclear, byReason: row.l9Reasons }, l10SourceType: row.l10SourceType }));
@@ -150,6 +151,10 @@ export function sourceEvidenceForReport(packet: AutomationSourceEvidence, input:
   // S25 is used only when the Market report draws at least one verified document excerpt, once per document; the marker lets older packets verify unchanged.
   const excerpts = kind === 'MARKET' ? input.pdfExcerpts ?? [] : [];
   for (const sha of pdfExcerptDocuments(excerpts)) add('S25', 'package', sha);
+  // S02/S14 are used only when the Market report draws the owner/operator video uploads (table, seller speech), once per package.
+  const videos = kind === 'MARKET' ? sellerVideoPackages(input.sellerVideos) : { table: [], readings: [] };
+  for (const sha of videos.table) add('S02', 'package', sha);
+  for (const sha of videos.readings) add('S14', 'package', sha);
   if (kind === 'INSIGHT') {
     if (input.reviewSample && input.collection?.privateShopee && input.reviewSample.collection.collectionSha256 !== input.collection.privateShopee.collectionSha256) throw new ResearchAutomationIntegrityError('Used review sample differs from exact retained collection');
     if ((input.privateReviewCorpus || input.reviewSample) && input.collection?.privateShopee) add('S05', 'capture', input.collection.privateShopee.collectionSha256);
@@ -166,5 +171,5 @@ export function sourceEvidenceForReport(packet: AutomationSourceEvidence, input:
       add('S02', 'capture', statement.sourceSha256);
     }
   }
-  return { ...packet, ...(excerpts.length ? { pdfExcerpts: true as const } : {}), sourceAppendix: buildSourceAppendixProjection({ usages }) };
+  return { ...packet, ...(excerpts.length ? { pdfExcerpts: true as const } : {}), ...(videos.table.length || videos.readings.length ? { sellerVideos: true as const } : {}), sourceAppendix: buildSourceAppendixProjection({ usages }) };
 }

@@ -69,6 +69,7 @@ import { platIcons } from '../reader-report/layout.js';
 import { marketChartRows, type CaptureCountChart, type MarketChart } from '../reader-report/market-charts.js';
 import type { RenderedChart } from '../reader-report/flint.js';
 import { pdfExcerptBlockHtml, PDF_EXCERPT_NOTE, PDF_EXCERPT_SECTION, PDF_EXCERPT_SRC } from './pdf-excerpt.js';
+import { sellerVideoBlockHtml, SELLER_VIDEO_NOTE, SELLER_VIDEO_SECTION, SELLER_VIDEO_SRC } from './seller-video.js';
 import { formatWorldBankValue, worldBankRenderable, worldBankRenderableRows, worldBankSourceNote, worldBankUnitText, WORLD_BANK_LIMIT, WORLD_BANK_NOTE, WORLD_BANK_SOURCE_LABEL, WORLD_BANK_SRC, WORLD_BANK_TITLE } from './world-bank-lane.js';
 import { E13_ATTRIBUTION } from '../source-appendix-projection.js';
 import { searchInterestRenderable,SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_LIMIT, SEARCH_INTEREST_NOTE, SEARCH_INTEREST_SOURCE_LABEL, SEARCH_INTEREST_SRC, SEARCH_INTEREST_UNIT } from './search-interest.js';
@@ -93,6 +94,8 @@ export interface AutomationReportInput {
   readonly sourceEvidence?: import('./source-evidence.js').AutomationSourceEvidence;
   /** Verified document excerpts (Market only); present only when the packet carries the pdfExcerpts marker. */
   readonly pdfExcerpts?: readonly import('./pdf-excerpt.js').PdfExcerpt[];
+  /** Owner/operator video uploads (Market only); present only when the packet carries the sellerVideos marker. */
+  readonly sellerVideos?: import('./seller-video.js').SellerVideos;
   readonly boundedMethods?: AutomationBoundedMethodSnapshot;
   readonly quoteMethods?: AutomationQuoteMethodSnapshot;
   readonly run: ResearchAutomationRun;
@@ -993,8 +996,10 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   // Verified document excerpts sit in the context section; the same predicate marks S25 as used.
   const pdfExcerptBlock = (sectionId: string): string => kind === 'MARKET' && sectionId === PDF_EXCERPT_SECTION && input.pdfExcerpts?.length && input.sourceEvidence?.pdfExcerpts === true
     ? pdfExcerptBlockHtml(input.pdfExcerpts, escape) + `<p class="lim"><b>Chú thích:</b> ${escape(PDF_EXCERPT_NOTE)}</p><p class="ex-src">Nguồn: ${escape(PDF_EXCERPT_SRC)}</p>` : '';
+  const sellerVideoBlock = (sectionId: string): string => kind === 'MARKET' && sectionId === SELLER_VIDEO_SECTION && input.sellerVideos && input.sourceEvidence?.sellerVideos === true
+    ? sellerVideoBlockHtml(input.sellerVideos, escape) + `<p class="lim"><b>Chú thích:</b> ${escape(SELLER_VIDEO_NOTE)}</p><p class="ex-src">Nguồn: ${escape(SELLER_VIDEO_SRC)}</p>` : '';
   const appendix = (sectionId: string): string =>
-    presentationCharts(sectionId) + searchInterestFigure(sectionId) + worldBankTable(sectionId) + pdfExcerptBlock(sectionId) +
+    presentationCharts(sectionId) + searchInterestFigure(sectionId) + worldBankTable(sectionId) + pdfExcerptBlock(sectionId) + sellerVideoBlock(sectionId) +
     (reviewOutcome && kind === 'INSIGHT' && (sectionId === 'I03' || sectionId === 'I17') ? `<p class="warning">${escape(reviewOutcomeLead(reviewOutcome))}</p>` : '') +
     baseAppendix(sectionId) +
     (input.sourceEvidence && (sectionId === 'M13' || sectionId === 'I17') ? sourceEvidenceHtml(input.sourceEvidence) +

@@ -94,6 +94,7 @@ import { runMetricCapture, type MetricCaptureRequest, type MetricCaptureRunnerCo
 import { readPreparedMetricCaptureSources } from './metric-capture-inventory.js';
 import { AutomationWorldBankSourceIntake, readConfirmedWorldBankSource, readWorldBankHistory, WORLD_BANK_INDICATORS, WORLD_BANK_PROFILE } from './world-bank-intake.js';
 import { selectPdfExcerpts, storedPdfExcerpts, type PdfExcerpt } from './pdf-excerpt.js';
+import { readSellerVideoInputs, selectSellerVideos, storedSellerVideos, type SellerVideos, type SellerVideoSources } from './seller-video.js';
 import { worldBankDocument, worldBankFailed, worldBankRenderable, worldBankUsage, WORLD_BANK_PROVIDER, WORLD_BANK_USAGE_ORDINAL, type WorldBankAttempt, type WorldBankSource } from './world-bank-lane.js';
 import type { Binding as WorldBankBinding } from '../../../../contracts/analysis/world-bank-intake-v1.generated.js';
 import type { PackageRef as WorldBankPackageRef, PrepareReceipt as WorldBankPrepareReceipt, View as WorldBankView, History as WorldBankHistory } from '../../../../contracts/api/research-automation-macro-intake-api.generated.js';
@@ -258,6 +259,8 @@ export interface ResearchAutomationReportInput {
   readonly searchInterestChart?: RenderedChart;
   /** Verified document excerpts drawn in the Market report (S25); selected from the run's stored quotes, never requested again. */
   readonly pdfExcerpts?: readonly PdfExcerpt[];
+  /** Owner/operator video uploads drawn in the Market report (S02/S14); decided at the first build, then re-read from the pinned packages. */
+  readonly sellerVideos?: SellerVideos;
   /** Build-time cover image (base64 JPEG); filled by the service for Market presentation builds. */
   readonly marketCover?: MarketCoverInput;
   readonly metricMethods?: AutomationMetricMethodSnapshot;
@@ -1539,6 +1542,16 @@ export class ResearchAutomationService {
     catch { return []; }
   }
 
+  /** Owner/operator video uploads for the Market report: stored packages only (or exactly the pinned ones), never a network, AI or paid call. */
+  async #sellerVideos(row: RunRow, pinned?: SellerVideoSources): Promise<SellerVideos | null> {
+    let context: { row: RunRow; binding: Parameters<AutomationP9SourceIntake['reading']>[0] } | undefined;
+    try {
+      return selectSellerVideos(await readSellerVideoInputs({ reader: this.#boundedSourceReader(), workspaceId: row.workspaceId, runId: row.runId,
+        reading: async ref => { context ??= await this.#p9Context(row.workspaceId, row.runId);
+          const read = await this.#p9Intake(context.row).reading(context.binding, ref); return { readingSha256: read.receipt.readingSha256, rows: read.view.rows }; } }, pinned));
+    } catch { return null; }
+  }
+
   /** The run worker alone performs bounded indexing waits and durable no-retry questions. */
   async #processRunPdfs(runId: string, reports: readonly string[]): Promise<void> {
     if (!this.#pageIndexEnabled()) return;
@@ -1743,7 +1756,7 @@ export class ResearchAutomationService {
         webResults: webResults.map(({ position, title, url, snippet, retrievedAt, site, published, origin }) =>
           ({ position, title, url, snippet, retrievedAt, site: site ?? null, published: published ?? null, ...(origin ? { origin } : {}) })),
         ...(searchInterestRenderable(searchInterest) ? { searchInterest } : {}),
-        ...(worldBankRenderable(webCollection?.worldBank) ? { worldBank: webCollection.worldBank } : {}), ...(storedPdfExcerpts(marketSemantic).length ? { pdfExcerpts: storedPdfExcerpts(marketSemantic) } : {}),
+        ...(worldBankRenderable(webCollection?.worldBank) ? { worldBank: webCollection.worldBank } : {}), ...(storedPdfExcerpts(marketSemantic).length ? { pdfExcerpts: storedPdfExcerpts(marketSemantic) } : {}), ...(storedSellerVideos(marketSemantic) ? { sellerVideos: storedSellerVideos(marketSemantic)! } : {}),
         metric: { packageId, capture: { snapshot: verifiedCapture.snapshot, snapshotSha256: rawSnapshotSha256, truncation: preparedCapture.capture.truncation }, measurementPeriod: preparedCapture.capture.measurementPeriod } };
     }
     if (!prepared) throw new ResearchAutomationValidationError('Tệp danh sách sản phẩm này không thuộc lượt research.');
@@ -1757,7 +1770,7 @@ export class ResearchAutomationService {
       webResults: webResults.map(({ position, title, url, snippet, retrievedAt, site, published, origin }) =>
         ({ position, title, url, snippet, retrievedAt, site: site ?? null, published: published ?? null, ...(origin ? { origin } : {}) })),
       ...(searchInterestRenderable(searchInterest) ? { searchInterest } : {}),
-        ...(worldBankRenderable(webCollection?.worldBank) ? { worldBank: webCollection.worldBank } : {}), ...(storedPdfExcerpts(marketSemantic).length ? { pdfExcerpts: storedPdfExcerpts(marketSemantic) } : {}),
+        ...(worldBankRenderable(webCollection?.worldBank) ? { worldBank: webCollection.worldBank } : {}), ...(storedPdfExcerpts(marketSemantic).length ? { pdfExcerpts: storedPdfExcerpts(marketSemantic) } : {}), ...(storedSellerVideos(marketSemantic) ? { sellerVideos: storedSellerVideos(marketSemantic)! } : {}),
       metric: { packageId, workbook: workbook.bytes, measurementPeriod: prepared.request.measurementPeriod } };
   }
 
@@ -2476,12 +2489,12 @@ export class ResearchAutomationService {
       const collection = await this.#stepDocument(runId, 'COLLECTION');
       if (collection?.sourceEvidence) {
         checkSourceEvidence(semantic.sourceEvidence);
-        const { pdfExcerpts: _excerptMarker, ...collected } = semantic.sourceEvidence;
+        const { pdfExcerpts: _excerptMarker, sellerVideos: _videoMarker, ...collected } = semantic.sourceEvidence;
         if (digest({ ...collected, sourceAppendix: collection.sourceEvidence.sourceAppendix }) !== digest(collection.sourceEvidence)) throw new ResearchAutomationIntegrityError('Report source admission differs from retained collection.');
       } else {
         checkSourceEvidence(semantic.sourceEvidence);
         const empty = buildSourceEvidence({ draft: null, draftDigest: null, unavailableReason: 'SALES_NAMES_UNAVAILABLE', webResults: [], captures: [] });
-        const { pdfExcerpts: _emptyMarker, ...unmarked } = semantic.sourceEvidence;
+        const { pdfExcerpts: _emptyMarker, sellerVideos: _emptyVideoMarker, ...unmarked } = semantic.sourceEvidence;
         if (digest({ ...unmarked, sourceAppendix: empty.sourceAppendix }) !== digest(empty)) throw new ResearchAutomationIntegrityError('Report source admission differs from unavailable collection.');
       }
     } else if (semantic.sourceEvidence !== undefined) throw new ResearchAutomationIntegrityError('Historical report cannot acquire source admission.');
@@ -2893,7 +2906,11 @@ export class ResearchAutomationService {
       const storedExcerpts = (Array.isArray(semantic.pdfExcerpts) ? semantic.pdfExcerpts : []) as PdfExcerpt[];
       if (marked ? kind !== 'MARKET' || !storedExcerpts.length || digest(storedExcerpts) !== digest(await this.#pdfExcerpts(runId)) : semantic.pdfExcerpts !== undefined)
         throw new ResearchAutomationIntegrityError('Report document excerpts differ from the run stored quotes.');
-      const expected = sourceEvidenceForReport(basePacket, { collection, ...(marked ? { pdfExcerpts: storedExcerpts } : {}),
+      // Video uploads are re-read from exactly the packages the stored list pinned; a later upload never changes a stored version.
+      const videosMarked = (semantic.sourceEvidence as { sellerVideos?: unknown }).sellerVideos === true, storedVideos = storedSellerVideos(semantic);
+      if (videosMarked ? kind !== 'MARKET' || !storedVideos || digest(storedVideos) !== digest(await this.#sellerVideos(frozenRun, storedVideos.sources)) : semantic.sellerVideos !== undefined)
+        throw new ResearchAutomationIntegrityError('Report video uploads differ from the pinned stored packages.');
+      const expected = sourceEvidenceForReport(basePacket, { collection, ...(marked ? { pdfExcerpts: storedExcerpts } : {}), ...(videosMarked ? { sellerVideos: storedVideos } : {}),
         ...(collection?.searchInterest || collection?.worldBank ? { captures: await this.#captureRecords(runId) } : {}),
         ...(verifiedPrivateView ? { privateReviewCorpus: verifiedPrivateView } : {}),
         ...(verifiedReviewSample ? { reviewSample: verifiedReviewSample } : {}),
@@ -3378,6 +3395,9 @@ export class ResearchAutomationService {
       // Market decision packets can cite the paired Insight. Render the sibling
       // first to bind its exact immutable version without a circular reference.
       const pdfExcerpts = start.reports.includes('MARKET') ? await this.#pdfExcerpts(fresh.runId) : [];
+      // The video uploads are decided at the first build; a revision re-reads exactly the packages its previous Market version pinned.
+      const priorVideos = priorMarket ? storedSellerVideos(priorMarket) : null;
+      const sellerVideos = start.reports.includes('MARKET') && start.sourceEvidenceVersion && (!attempt || priorVideos) ? await this.#sellerVideos(fresh, priorVideos?.sources) : null;
       for (const kind of (['INSIGHT', 'MARKET'] as const).filter(kind => start.reports.includes(kind))) {
         if (controller.signal.aborted) throw new Error('aborted');
         let input: ResearchAutomationReportInput = { run, start, scope, captures,
@@ -3408,6 +3428,7 @@ export class ResearchAutomationService {
           ...(kind === 'MARKET' && metricClassified ? { metricClassified } : {}),
           ...(kind === 'MARKET' && metricMethodsFailure ? { metricMethodsFailure } : {}),
           ...(kind === 'MARKET' && start.sourceEvidenceVersion && pdfExcerpts.length ? { pdfExcerpts } : {}),
+          ...(kind === 'MARKET' && start.sourceEvidenceVersion && sellerVideos ? { sellerVideos } : {}),
         };
         if (input.sourceEvidence) input = { ...input, sourceEvidence: sourceEvidenceForReport(input.sourceEvidence, input, kind) };
         if (input.sourceEvidence && input.collection) { const { expandedSearch: _expanded, ...plain } = input.collection; input = { ...input, collection: { ...plain, webResults: admitWebResults(input.sourceEvidence, collectionWebRows(input.collection), captures, input.sourceEvidence.jevTriage ?? null) } }; }
@@ -3526,12 +3547,12 @@ export class ResearchAutomationService {
           // Method persistence is owned here, not delegated to an optional presentation adapter.
           const { decisionPackets: _untrustedPackets, decisionSourceClaims: _untrustedDecisionClaims, decisionPairedInsightVersionId: _untrustedPair,
             decisionSynthesis: _untrustedDecisionSynthesis, decisionExecutionIds: _untrustedDecisionExecutions,
-            insightPersona: _untrustedPersona, qualitativeDraft: _untrustedQualitativeDraft, reviewSample: _untrustedSample, privateReviewCorpus: _untrustedPrivateCorpus, marketPresentation: _untrustedMarketPresentation, marketPresentationArtifact: _untrustedMarketReference, sourceEvidence: _untrustedSourceEvidence, pdfExcerpts: _untrustedExcerpts, defaultMarketPeers: _untrustedPeers, quoteMethods: _untrustedQuote, boundedMethods: _untrustedBounded, metricClassified: _untrustedClassified, insightCoding: _untrustedCoding, insightCrosscheck: _untrustedCrosscheck, insightLiteral: _untrustedLiteral, sourceClaims: _untrustedClaims, sourceClaimsArtifact: _untrustedReference,
+            insightPersona: _untrustedPersona, qualitativeDraft: _untrustedQualitativeDraft, reviewSample: _untrustedSample, privateReviewCorpus: _untrustedPrivateCorpus, marketPresentation: _untrustedMarketPresentation, marketPresentationArtifact: _untrustedMarketReference, sourceEvidence: _untrustedSourceEvidence, pdfExcerpts: _untrustedExcerpts, sellerVideos: _untrustedSellerVideos, defaultMarketPeers: _untrustedPeers, quoteMethods: _untrustedQuote, boundedMethods: _untrustedBounded, metricClassified: _untrustedClassified, insightCoding: _untrustedCoding, insightCrosscheck: _untrustedCrosscheck, insightLiteral: _untrustedLiteral, sourceClaims: _untrustedClaims, sourceClaimsArtifact: _untrustedReference,
             m01Inventory: _untrustedM01, m01InventoryArtifact: _untrustedM01Reference,
             i14Admission: _untrustedI14, i14AdmissionArtifact: _untrustedI14Reference,
             i14Synthesis: _untrustedSynthesis, i14ExecutionId: _untrustedExecution, marketCover: _untrustedCover, ...presentation } = (authoritative?.semantic ?? rendered.semantic) as Record<string, unknown>;
           const reportSemantic = { ...presentation, ...(kind === 'INSIGHT' && (start.privateShopeeSource || input.qualitativeDraft) ? { rendererVersion: privateRendererVersion } : {}),
-            ...(kind === 'MARKET' && marketPresentation && marketPresentationArtifact ? { marketPresentationArtifact: { contractVersion: 'automation-market-presentation-reference-v1', sha256: marketPresentationArtifact.sha256, byteSize: marketPresentationArtifact.byteSize } } : {}), ...(input.sourceEvidence ? { sourceEvidence: input.sourceEvidence } : {}), ...(kind === 'MARKET' && input.pdfExcerpts?.length ? { pdfExcerpts: input.pdfExcerpts } : {}), decisionPackets, decisionPairedInsightVersionId,
+            ...(kind === 'MARKET' && marketPresentation && marketPresentationArtifact ? { marketPresentationArtifact: { contractVersion: 'automation-market-presentation-reference-v1', sha256: marketPresentationArtifact.sha256, byteSize: marketPresentationArtifact.byteSize } } : {}), ...(input.sourceEvidence ? { sourceEvidence: input.sourceEvidence } : {}), ...(kind === 'MARKET' && input.pdfExcerpts?.length ? { pdfExcerpts: input.pdfExcerpts } : {}), ...(kind === 'MARKET' && input.sellerVideos ? { sellerVideos: input.sellerVideos } : {}), decisionPackets, decisionPairedInsightVersionId,
             ...(defaultMarketPeers ? { defaultMarketPeers } : {}),
             ...(Object.keys(decisionExecutionIds).length ? { decisionExecutionIds } : {}),
             sourceClaimsArtifact: { contractVersion: 'automation-source-claims-reference-v1', sha256: claimsArtifact.sha256, byteSize: builtClaims.bytes.length },

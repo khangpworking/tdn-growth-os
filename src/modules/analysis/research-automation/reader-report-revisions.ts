@@ -98,6 +98,7 @@ export interface ReaderDraftContext {
   readonly worldBank?: StepWorldBank;
   /** The Market draft's stored document excerpts (S25), present only when its packet carries the marker. */
   readonly pdfExcerpts?: readonly PdfExcerpt[];
+  readonly sellerVideos?: import('./seller-video.js').SellerVideos;
   readonly metric:
     | { readonly packageId: string; readonly workbook: Buffer; readonly measurementPeriod: { readonly startDate: string; readonly endDate: string } }
     | { readonly packageId: string; readonly capture: { readonly snapshot: AutomationMetricWebSnapshotV1; readonly snapshotSha256: string; readonly truncation: { readonly cap: number; readonly totalShown: number | null; readonly pagesRead: number; readonly rowsRead: number; readonly truncated: boolean } };
@@ -337,7 +338,7 @@ export class AutomationReaderReports {
     );
     const at = this.now(), createdAt = at.toISOString(), revisionId = randomUUID();
     const webResults = context.webResults ?? [];
-    const built = await buildMarketReport(data, { limitations, builtOn: builtOn(at), cover, flint: this.options.flint ?? true, webResults, ...(context.webPageTypes ? { webPageTypes: true as const } : {}), ...(capture ? { captureSource: true } : {}), ...(context.searchInterest ? { searchInterest: context.searchInterest } : {}), ...(context.worldBank ? { worldBank: context.worldBank } : {}), ...(context.pdfExcerpts?.length ? { pdfExcerpts: context.pdfExcerpts } : {}) });
+    const built = await buildMarketReport(data, { limitations, builtOn: builtOn(at), cover, flint: this.options.flint ?? true, webResults, ...(context.webPageTypes ? { webPageTypes: true as const } : {}), ...(capture ? { captureSource: true } : {}), ...(context.searchInterest ? { searchInterest: context.searchInterest } : {}), ...(context.worldBank ? { worldBank: context.worldBank } : {}), ...(context.pdfExcerpts?.length ? { pdfExcerpts: context.pdfExcerpts } : {}), ...(context.sellerVideos ? { sellerVideos: context.sellerVideos } : {}) });
     // Every chart must be drawn by Flint unless the caller opted out explicitly; a silent fallback fails the build.
     assertFlintCharts(built.charts, this.options.flint ?? true);
     // The gate blocks report publication and revision insertion; cover/sidecar artifacts may already be written.

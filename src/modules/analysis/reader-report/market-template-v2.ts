@@ -8,6 +8,7 @@ import { searchInterestChartPoints, searchInterestRenderable, SEARCH_INTEREST_FI
 import { formatWorldBankValue, worldBankRenderableRows, worldBankSourceNote, worldBankUnitText, WORLD_BANK_LIMIT, WORLD_BANK_NOTE, WORLD_BANK_SOURCE_LABEL, WORLD_BANK_SRC, WORLD_BANK_TITLE } from '../research-automation/world-bank-lane.js';
 import { E13_ATTRIBUTION } from '../source-appendix-projection.js';
 import { pdfExcerptBlockHtml, pdfExcerptCitation, PDF_EXCERPT_NOTE, PDF_EXCERPT_SRC } from '../research-automation/pdf-excerpt.js';
+import { sellerVideoBlockHtml, SELLER_VIDEO_NOTE, SELLER_VIDEO_SRC } from '../research-automation/seller-video.js';
 import { Narrator } from './bundle.js';
 import { esc } from './format.js';
 import { cover, makeExhibits, n, page, plat, platIcons, PLATFORM_LABEL, section as legacySection } from './layout.js';
@@ -199,7 +200,9 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   // Verified document excerpts (S25) sit in the context section, as copied text with a fixed note; the same list marks the source as used.
   const pdfExcerpts = next ? options.pdfExcerpts ?? [] : [];
   const pdfExcerptHtml = pdfExcerptBlockHtml(pdfExcerpts, esc, excerpt => { const no = registry.cite(pdfExcerptCitation(excerpt)); return no === null ? '' : renderCitationMark(no); }) + (pdfExcerpts.length ? `<p class="ex-src">Nguồn: ${esc(PDF_EXCERPT_SRC)}</p>` : '');
-  sections.push(section('M09', 'Động lực và rủi ro', 'Chưa đủ bằng chứng để kết luận nguyên nhân.', tbl('9.1', 'Ngày mở bán do nguồn ghi, giữ riêng từng dòng', '', ['Sàn', 'Tiêu đề nguồn', 'Ngày mở bán'], rows.map(row => [plat(row.platform), `<span data-quote>${esc(row.title)}</span>`, row.start === null || row.start === undefined ? 'Chưa rõ ngày' : label(row.start)])) + pdfExcerptHtml, pdfExcerpts.length ? esc(PDF_EXCERPT_NOTE) : undefined));
+  const sellerVideos = next ? options.sellerVideos : undefined;
+  const sellerVideoHtml = sellerVideos ? sellerVideoBlockHtml(sellerVideos, esc) + `<p class="ex-src">Nguồn: ${esc(SELLER_VIDEO_SRC)}</p>` : '';
+  sections.push(section('M09', 'Động lực và rủi ro', 'Chưa đủ bằng chứng để kết luận nguyên nhân.', tbl('9.1', 'Ngày mở bán do nguồn ghi, giữ riêng từng dòng', '', ['Sàn', 'Tiêu đề nguồn', 'Ngày mở bán'], rows.map(row => [plat(row.platform), `<span data-quote>${esc(row.title)}</span>`, row.start === null || row.start === undefined ? 'Chưa rõ ngày' : label(row.start)])) + pdfExcerptHtml + sellerVideoHtml, [pdfExcerpts.length ? esc(PDF_EXCERPT_NOTE) : '', sellerVideos ? esc(SELLER_VIDEO_NOTE) : ''].filter(Boolean).join(' ') || undefined));
   sections.push(section('M10', 'Dự báo và kịch bản', 'Chưa dự báo.', '<p>Cần chuỗi phù hợp và giả định đã kiểm chứng trước khi lập kịch bản.</p>'));
   const proposals = currentProposals({ PLATS, coreSegs: profile.core, segName, bf, tbl, SRC: sourceText });
   sections.push(...(next ? proposals.map((html, index) => index === 1

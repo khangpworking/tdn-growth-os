@@ -104,6 +104,9 @@
     "pdfExcerpts": {
       "const": true
     },
+    "sellerVideos": {
+      "const": true
+    },
     "sourceAppendix": {
       "$ref": "source-appendix-projection.schema.json#/$defs/projection"
     }
