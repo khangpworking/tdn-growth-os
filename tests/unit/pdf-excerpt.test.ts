@@ -55,7 +55,7 @@ test('selection: a quote that shows a path, link, address or secret is left out 
     'Tài liệu được lưu tại file:report.pdf.', 'Lưu tại %252Ftmp%252Fa', 'Lưu tại ╱tmp╱a', 'Lưu tại ╲server╲share', 'Mã truy cập glpat-abc12345678901234567',
     'Dùng token=abc123 khi gọi.', 'Dán token: abcdefghijklmnop1234 vào ô.', 'Xem example.dev hoặc server.local.', 'Trang 例子.公司 có bảng.', 'Gửi tên@example.com.',
     'Gửi user@例子.公司.', 'Theo G​oogle, nhu cầu tăng.', 'Theo Goog­le, nhu cầu tăng.', 'Theo Page​Index.', 'Theo Ｇｏｏｇｌｅ.', 'Lưu ở C: / secret.',
-    'Mã 550e8400-e29b-41d4-a716-446655440000 cấp riêng.', 'Mã abc123 dùng tạm.', 'Chuỗi AbCdEfGhIjKlMnOpQrStUvWxYz dùng tạm.', 'Số tài khoản 0123456789012.',
+    'Mã 550e8400-e29b-41d4-a716-446655440000 cấp riêng.', 'Mã abc123 dùng tạm.', 'pin 4821.', 'Mã khóa: 4821.', 'Mã số: 4821.', 'Chuỗi AbCdEfGhIjKlMnOpQrStUvWxYz dùng tạm.', 'Số tài khoản 0123456789012.',
     'Lưu tại / tmp / a', 'Ghi chú api  key: a1-b2', 'Ghi chú mật  khẩu: x2-ab12', 'Theo Page Index, nhu cầu tăng.', 'Theo Agent–Reach.', 'Theo Kalo-data.',
     'Xem https : / / example . com', 'Xem example . dev', 'Máy 001.002.003.004 nội bộ.', 'Xếp theo thùng / két.'];
   const picked = selectPdfExcerpts(artifact(unsafe.map((text, i) => quote(SHA_A, i + 1, text))), RUN, names);
@@ -106,7 +106,7 @@ test('word set: every word is written Vietnamese, so hosts, commands, English la
     'Demand for vacuum flasks grows in big cities.'])
     assert.equal(shown(text), false, text);
   assert.deepEqual(selectPdfExcerpts(artifact([quote(SHA_A, 1, 'Demand grows.')]), RUN, names).leftOut.map(item => item.reason), ['NOT_READER_SAFE']);
-  for (const bad of ['example. dev.pdf', 'http:.pdf', 'C:.pdf', 'ma-xac-thuc-4821.pdf', 'minh-a-cong-tin.pdf', 'server-share.pdf', 'demand-report.pdf'])
+  for (const bad of ['example. dev.pdf', 'http:.pdf', 'C:.pdf', '.pdf', '-.pdf', '123.pdf', 'pin.pdf', 'ma-so-4821.pdf', 'ma-khoa-4821.pdf', 'ma-xac-thuc-4821.pdf', 'minh-a-cong-tin.pdf', 'server-share.pdf', 'demand-report.pdf'])
     assert.equal(pdfExcerptFileNameShown(bad), false, bad);
   for (const good of ['bao-cao-quat-dien.pdf', 'thi-truong-binh-giu-nhiet-2025.pdf', 'Báo cáo ngành quạt điện.pdf'])
     assert.equal(pdfExcerptFileNameShown(good), true, good);

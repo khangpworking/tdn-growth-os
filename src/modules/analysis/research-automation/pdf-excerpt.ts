@@ -65,7 +65,10 @@ const namesHidden = (text: string): boolean => { const joined = squash(text.norm
 const OPENING = /^[(["'“‘«]+/u;
 const CLOSING = /[)\]"'”’»,.;:!?…]+$/u;
 /** A label that names an access code, card or account is never shown, whatever the value after it looks like (dashes read as spaces). */
-const SECRET_LABEL = /(?<![\p{L}\p{N}])(?:mã\s*(?:xác\s*(?:thực|nhận|minh)|bảo\s*mật|otp|pin|kích\s*hoạt|đăng\s*nhập|khôi\s*phục|giao\s*dịch|thẻ)|otp|cvv|cvc|số\s*(?:tài\s*khoản|thẻ|serial|sê\s*ri)|tài\s*khoản\s*số|serial|license\s*key|mật\s*mã)(?![\p{L}\p{N}])/iu;
+const SECRET_LABEL = /(?<![\p{L}\p{N}])(?:mã\s*(?:xác\s*(?:thực|nhận|minh)|bảo\s*mật|số|khóa|otp|pin|kích\s*hoạt|đăng\s*nhập|khôi\s*phục|giao\s*dịch|thẻ)|otp|cvv|cvc|số\s*(?:tài\s*khoản|thẻ|serial|sê\s*ri)|tài\s*khoản\s*số|serial|license\s*key|mật\s*mã)(?![\p{L}\p{N}])/iu;
+/** Lowercase "pin" is also an ordinary Vietnamese battery word; block it as a secret only when it carries a bare code number. */
+const PIN_CODE = /(?<![\p{L}\p{N}])pin\s*[:#-]?\s*\d{1,8}(?!\s*(?:mAh|mah|V|v)\b)(?![\p{L}\p{N}])/iu;
+const PIN_NAME = /(?<![\p{L}\p{N}])pin(?:[\s-]|$)/iu;
 /** An address spelled out in words ("a còng", "chấm com", "203 chấm 0"). */
 const SPELLED_ADDRESS = /(?<![\p{L}\p{N}])(?:a\s+còng|chấm\s+(?:com|vn|net|org)|\d+\s+chấm\s+\d)(?![\p{L}])/iu;
 /** Dotted abbreviations that are not addresses (v.v = "and so on", TP.HCM). */
@@ -180,7 +183,7 @@ function plainProse(text: string, tones: boolean): boolean {
   const folded = text.normalize('NFKC');
   const tokens = folded.trim().split(/\s+/u);
   const spaced = folded.replace(/[-–—_]/gu, ' ');
-  return plainLetters(text) && !FULLWIDTH.test(text) && plainLetters(folded) && !namesHidden(folded) && !SECRET_LABEL.test(spaced)
+  return plainLetters(text) && !FULLWIDTH.test(text) && plainLetters(folded) && !namesHidden(folded) && !SECRET_LABEL.test(spaced) && !PIN_CODE.test(spaced)
     && !SPELLED_ADDRESS.test(spaced) && (tones || (!SECRET_LABEL_BARE.test(bare(spaced)) && !SPELLED_ADDRESS_BARE.test(bare(spaced))))
     && tokens.every((token, i) => plainWord(token, i === tokens.length - 1, tones)) && numbersApart(tokens) && !spacedDomain(tokens);
 }
@@ -195,8 +198,8 @@ export function pdfExcerptFileNameShown(fileName: unknown): fileName is string {
   const name = fileName.trim();
   const base = name.replace(/\.pdf$/iu, ''); // the extension is the only dot a shown name may hold
   // Hyphens in a file name join words (bao-cao-2025-quy-3), so each part is read as a word: a grouped code still fails (x2-ab12, 1234-5678).
-  return name.length > 0 && name.length <= 120 && !/[\\/|;&<>$`"'=\u0000-\u001f]/u.test(name) && !providerPattern.test(name)
-    && !leaks(base.replace(/[-–—]/gu, ' '), false) && !LEAK_PATTERNS.some(pattern => pattern.test(name)) && readerTextSafe(name) && !/\.\./u.test(name);
+  return name.length > 0 && base.trim().length > 0 && /\p{L}/u.test(base) && name.length <= 120 && !/[\\/|;&<>$`"'=\u0000-\u001f]/u.test(name) && !providerPattern.test(name)
+    && !leaks(base.replace(/[-–—]/gu, ' '), false) && !PIN_NAME.test(base.replace(/[-–—]/gu, ' ')) && !LEAK_PATTERNS.some(pattern => pattern.test(name)) && readerTextSafe(name) && !/\.\./u.test(name);
 }
 
 /** The citation entry of one excerpt, built the way every PDF citation is built (`toCitationInput`). */
