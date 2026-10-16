@@ -24,11 +24,14 @@ const validate = ajv.compile<AutomationSourceEvidence>(schema);
 export function checkSourceEvidence(value: unknown): asserts value is AutomationSourceEvidence {
   if (!validate(value)) throw new ResearchAutomationIntegrityError('Source evidence packet failed canonical schema validation');
   if (value.draftDigest === null ? value.admission !== null || value.unavailableReason === null : value.admission === null || value.unavailableReason !== null) throw new ResearchAutomationIntegrityError('Source evidence availability is inconsistent');
+  if (value.draftFailureCode !== undefined && value.unavailableReason !== 'DRAFT_FAILED') throw new ResearchAutomationIntegrityError('Source evidence failure code is inconsistent');
   if (value.admission && (value.admission.dataVersion !== value.admission.result.dataVersion || canonicalJson(value.admission.includedRecordIds) !== canonicalJson(value.admission.result.results.filter(r => r.decision === 'INCLUDED').map(r => r.recordId)))) throw new ResearchAutomationIntegrityError('Source evidence admitted IDs differ from decisions');
 }
 export function buildSourceEvidence(input: {
   draft: RetainedKeywordListDraftRecord | null; draftDigest: string | null;
   unavailableReason: AutomationSourceEvidence['unavailableReason'];
+  /** Diagnostic only: the closed cause of DRAFT_FAILED. It is not derived from inputs, so replay carries it from the packet. */
+  draftFailureCode?: AutomationSourceEvidence['draftFailureCode'];
   webResults: readonly StepWebResult[]; captures: readonly CaptureRecord[];
   additionalUsages?: readonly SourceAppendixUsage[];
   usedCaptureDigests?: readonly string[];
@@ -75,14 +78,14 @@ export function buildSourceEvidence(input: {
         usages.push({ registryId: typed, binding: { kind: 'capture', ref: capture.artifactSha256 }, l10SourceType: null, l9: null });
   }
   const packet: AutomationSourceEvidence = { contractVersion: 'automation-source-evidence-v1', draftDigest: input.draftDigest,
-    admission, unavailableReason: input.unavailableReason, sourceAppendix: buildSourceAppendixProjection({ usages }),
+    admission, unavailableReason: input.unavailableReason, ...(input.draftFailureCode ? { draftFailureCode: input.draftFailureCode } : {}), sourceAppendix: buildSourceAppendixProjection({ usages }),
     ...(retainedJevTriage ? { jevTriage: retainedJevTriage } : {}), ...(input.pageTypes ? { webPageTypes: true as const } : {}) };
   checkSourceEvidence(packet); return packet;
 }
 /** Recompute decisions from retained inputs, then compare the complete packet, not merely its version. */
 export function verifySourceEvidence(packet: AutomationSourceEvidence, input: Parameters<typeof buildSourceEvidence>[0]): void {
   checkSourceEvidence(packet);
-  if (canonicalJson(packet) !== canonicalJson(buildSourceEvidence({ ...input, pageTypes: packet.webPageTypes === true }))) throw new ResearchAutomationIntegrityError('Retained source evidence differs from exact replay');
+  if (canonicalJson(packet) !== canonicalJson(buildSourceEvidence({ ...input, pageTypes: packet.webPageTypes === true, ...(packet.draftFailureCode ? { draftFailureCode: packet.draftFailureCode } : {}) }))) throw new ResearchAutomationIntegrityError('Retained source evidence differs from exact replay');
 }
 export function admitWebResults(packet: AutomationSourceEvidence, results: readonly StepWebResult[], captures: readonly CaptureRecord[], jevTriage: L9JevTriageSidecar | null = null): StepWebResult[] {
   checkSourceEvidence(packet);

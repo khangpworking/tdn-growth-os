@@ -3,7 +3,9 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
-import { buildMarketReport, computeReaderReportData, lint, publishReaderReport, verifyReaderReportInput } from '../../src/modules/analysis/reader-report/index.js';
+import { buildMarketReport, computeReaderReportData, lint, publishReaderReport, readerWebResults, verifyReaderReportInput } from '../../src/modules/analysis/reader-report/index.js';
+import { auditMarket14 } from '../../src/modules/analysis/research-automation/market-14-rules.js';
+import { WEB_SNIPPET_WITHHELD, WEB_TITLE_WITHHELD } from '../../src/modules/analysis/research-automation/web-page-type.js';
 import { marketFindings } from '../../src/modules/analysis/reader-report/market-findings.js';
 import { lintVisibleReportText } from '../../src/modules/analysis/report-visible-text-lint.js';
 import { DEFAULT_MARKET_PEER_RULE } from '../../src/modules/analysis/default-market-peers.js';
@@ -65,6 +67,33 @@ test('Market1.4 has six unordered scoped findings, strict unit tables and same-s
   await assert.rejects(publishReaderReport({ put: async () => { writes++; throw new Error('should not write'); } } as never,
     { html: forged, narrator: built.narrator, extraOk: built.extraOk, visibleTextRules: true }), /cổng kiểm/);
   assert.equal(writes, 0);
+});
+
+test('cited web rows never show the search engine, an operator or a spaced provider name; rule 4 holds', async () => {
+  const at = '2026-10-01T00:00:00.000Z';
+  const webResults = [
+    { position: 1, title: 'Thạch dừa trên Google', url: 'https://blog.example.test/a', snippet: 'site:shopee.vn thạch dừa', retrievedAt: at, site: 'Google', published: '3 ngày trước' },
+    { position: 2, title: 'Thạch dừa giá tốt', url: 'https://news.google.com/a', snippet: null, retrievedAt: at },
+    { position: 3, title: 'Thạch dừa G o o g l e', url: 'https://vnexpress.net/a', snippet: 'Theo Page Index', retrievedAt: at, site: 'Báo synthetic', published: 'Google · hôm qua' },
+    { position: 4, title: 'Thạch dừa sạch', url: 'https://clean.example.test/da-min', snippet: 'Hàng mới về', retrievedAt: at, site: 'Cửa hàng da-min' },
+  ];
+  const cited = readerWebResults(webResults, true);
+  assert.deepEqual(cited.map(w => w.position), [1, 3, 4], 'a search-engine address drops the row');
+  assert.deepEqual(cited.map(w => [w.title, w.snippet, w.site, w.published]), [
+    [WEB_TITLE_WITHHELD, WEB_SNIPPET_WITHHELD, null, '3 ngày trước'], [WEB_TITLE_WITHHELD, WEB_SNIPPET_WITHHELD, 'Báo synthetic', null],
+    ['Thạch dừa sạch', 'Hàng mới về', 'Cửa hàng da-min', null]]);
+  assert.deepEqual(readerWebResults(webResults).map(w => w.title), webResults.map(w => w.title), 'the uncited legacy mode is unchanged');
+  const f = data();
+  const built = await buildMarketReport(computeReaderReportData(f.input, f.retained), { ...sync1Options, webResults, webPageTypes: true });
+  const doc = new JSDOM(built.html).window.document;
+  const text = doc.body.textContent ?? '';
+  assert.match(text, /Thạch dừa sạch/);
+  assert.doesNotMatch(text, /google|g\s+o\s+o\s+g\s+l\s+e|site:|page\s*index/iu);
+  assert.doesNotMatch(built.html, /google\.com/, 'neither the link nor the register prints the address');
+  const typeCells = [...doc.querySelectorAll('table')].find(t => t.textContent?.includes('Loại trang'))!.querySelectorAll('tbody tr');
+  assert.equal([...typeCells].some(tr => tr.textContent?.includes('Tin tức')), true, 'the page type reads the stored row');
+  assert.deepEqual(auditMarket14(built.html).filter(item => item.rule === '4' && !item.ok), []);
+  assert.ok(lint(built.html, { visibleTextRules: true }).every(item => item.ok), JSON.stringify(lint(built.html, { visibleTextRules: true }).filter(item => !item.ok)));
 });
 
 test('old reader1.2/1.3 HTML and metrics match independent assigned-base bytes in both paths', async () => {

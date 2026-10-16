@@ -3,7 +3,7 @@ import metaPageSourceSchema from '../../contracts/analysis/meta-page-source-v1.s
 import metaL9Schema from '../../contracts/analysis/keyword-meaning-filter.schema.json' with { type: 'json' };
 import { MetaPageSourceRejection } from '../modules/analysis/research-automation/meta-page-intake.js';
 import { personaReportRequestValid, personaRequestValid, personaResponseValid, personaViewValid, personaEvidenceValid } from '../modules/analysis/research-automation/insight-persona-contracts.js';
-import { createKeywordCliproxyTransport, type KeywordDraftConfiguration } from '../modules/analysis/research-automation/keyword-cliproxy-transport.js';
+import { createKeywordCliproxyTransport, KEYWORD_PROMPT_VERSION, type KeywordDraftConfiguration } from '../modules/analysis/research-automation/keyword-cliproxy-transport.js';
 import { TypesafeJevClient, type TypesafeJevConfiguration } from '../platform/ai/typesafe-jev-client.js';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -304,7 +304,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     throw new TypeError('P9 collection requires the existing configured credential and the same explicitly approved cap');
   const keywordTransport = configuration.keywordDrafting ? createKeywordCliproxyTransport(configuration.keywordDrafting) : undefined;
   const sourceEvidence = { modelIdentity: configuration.keywordDrafting ? `cliproxy:${configuration.keywordDrafting.configuration.modelId}` : 'unconfigured',
-    promptVersion: 'l9-keyword-prompt-v1', ...(configuration.keywordDrafting ? { configuration: configuration.keywordDrafting.configuration } : {}) };
+    promptVersion: KEYWORD_PROMPT_VERSION, ...(configuration.keywordDrafting ? { configuration: configuration.keywordDrafting.configuration } : {}) };
   const i14SynthesisAi = configuration.i14Synthesis ? createI14CliproxySynthesisAi(configuration.i14Synthesis) : undefined;
   if (configuration.insightCoding && !configuration.owner) throw new TypeError('Automation Insight coding requires the OWNER writer');
   if (configuration.insightCrosscheck && !configuration.owner) throw new TypeError('Crosscheck requires the OWNER writer');

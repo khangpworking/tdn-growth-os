@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { classifyWebPage, WEB_PAGE_TYPE_LABEL } from '../../src/modules/analysis/research-automation/web-page-type.js';
+import { classifyWebPage, WEB_PAGE_TYPE_LABEL, webTextHidden } from '../../src/modules/analysis/research-automation/web-page-type.js';
 
 const kind = (url: string, title: string, snippet: string | null = null) => classifyWebPage({ url, title, snippet });
 
@@ -75,4 +75,19 @@ test('unparseable or empty input falls back to S19 and the snippet may be null',
 
 test('labels are neutral Vietnamese and never name a search engine', () => {
   assert.deepEqual(WEB_PAGE_TYPE_LABEL, { S13: 'Bài hướng dẫn', S26: 'Tin tức', S19: 'Trang khác' });
+});
+
+test('copied web text naming a provider, the search engine, an operator or a model id is hidden', () => {
+  for (const text of ['Thạch dừa trên Google', 'GOOGLE News', 'Thạch dừa G o o g l e', 'G.o.o.g.l.e', 'googleplay thạch dừa', 'https://news.google.com/a',
+    'Ｇｏｏｇｌｅ', 'site:shopee.vn thạch dừa', 'thạch dừa SITE : shopee.vn', 'inurl:thach-dua', 'tbs:qdr', 'Thạch dừa Kalodata', 'Page Index thạch dừa',
+    'Serp-Api', 'Agent Reach', 'zen studio', 'Số liệu Metric', 'Dami blog', 'Trade-Int', 'Open CLI', 'gpt-5 viết', 'Claude - Opus', 'https://example.test/%47oogle',
+    'https://example.test/a%20site%3Ax', 'Jev', 'OpenAI', 'Anthropic', 'GLM', 'CLIProxy', 'TypeSafe'])
+    assert.equal(webTextHidden(text), true, text);
+});
+
+test('ordinary titles, look-alike words and malformed encodings are not hidden', () => {
+  for (const text of ['Thạch dừa 500g giá tốt', 'Cách làm thạch dừa tại nhà', 'https://shop.example.test/da-min-thach-dua', 'Máy đo biometric',
+    'Hệ metrics nội bộ', 'Damian thạch dừa', 'Thạch dừa trade international', 'gpt thạch dừa', 'Claude Monet', 'Website: shop thạch dừa', 'Lúc 10:30 sáng',
+    'https://vnexpress.net/thach-dua-tang-gia', 'https://shop.example.test/%E0%A4%A', 'Đa Mi', ''])
+    assert.equal(webTextHidden(text), false, text);
 });

@@ -29,6 +29,19 @@ export interface AutomationSourceEvidence {
     result: KeywordMeaningFilterResult;
   } | null;
   unavailableReason: ('MODEL_NOT_CONFIGURED' | 'SALES_NAMES_UNAVAILABLE' | 'DRAFT_FAILED') | null;
+  /**
+   * Closed cause of DRAFT_FAILED, mapped from error classes only. Messages, paths and model text never appear here.
+   */
+  draftFailureCode?:
+    | 'METRIC_NAMES_UNSUPPORTED_SOURCE'
+    | 'METRIC_NAMES_INTEGRITY'
+    | 'SALES_NAMES_INTEGRITY'
+    | 'MODEL_TRANSPORT_FAILED'
+    | 'MODEL_OUTPUT_INVALID'
+    | 'DRAFT_DATA_INVALID'
+    | 'DRAFT_REPLAY_FAILED'
+    | 'CANCELLED'
+    | 'UNKNOWN';
   jevTriage?: L9JevTriageSidecar;
   webPageTypes?: true;
   pdfExcerpts?: true;

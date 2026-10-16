@@ -111,11 +111,15 @@ test('provider and search-engine words in a copied title, domain or address are 
   const base = build({ collection: { webResults: [] }, sourceEvidence: packetFor([], true) });
   const bad = [row(1, 'Thạch dừa Metric giá tốt', 'https://metric.vn/thach-dua', 0), row(2, 'Thạch dừa Kalodata', 'https://kalodata.com/thach-dua', 0),
     row(3, 'Thạch dừa SerpApi', 'https://blog.example.test/thach-dua-serpapi', 0), row(4, 'Thạch dừa trên Google', 'https://news.google.com/thach-dua', 0),
-    row(5, 'Thạch dừa Apify Dami TradeInt', 'https://example.test/thach-dua', 0), row(6, 'Thạch dừa sạch', 'https://clean.example.test/thach-dua', 0)];
+    row(5, 'Thạch dừa Apify Dami TradeInt', 'https://example.test/thach-dua', 0), row(6, 'Thạch dừa sạch', 'https://clean.example.test/thach-dua', 0),
+    row(7, 'site:shopee.vn thạch dừa', 'https://shop.example.test/thach-dua-7', 0), row(8, 'Thạch dừa G o o g l e', 'https://shop.example.test/thach-dua-8', 0),
+    row(9, 'Thạch dừa Page Index', 'https://shop.example.test/%47oogle-thach-dua', 0)];
   const out = build({ collection: { webResults: bad }, sourceEvidence: packetFor(bad, true, [capture(0)]), caps: [capture(0)] });
   const visible = out.html.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>|<svg[\s\S]*?<\/svg>/g, ' ').replace(/<[^>]+>/g, ' ');
   assert.match(visible, /Thạch dừa sạch/);
   assert.doesNotMatch(visible, /metric|kalodata|serpapi|google|apify|dami|tradeint/iu);
+  assert.doesNotMatch(visible, /site:|g\s+o\s+o\s+g\s+l\s+e|page\s+index/iu, 'operators and spaced names are withheld too');
+  assert.equal(out.html.includes('%47oogle'), false, 'an encoded search-engine address is not linked');
   assert.deepEqual(providerNameViolations(out.html), []);
   assert.ok(out.html.includes(WEB_TITLE_WITHHELD) && out.html.includes(WEB_SITE_WITHHELD), 'same withheld wording as Market');
   const block = /<div class="web-context"[\s\S]*?<\/tbody>/.exec(out.html)?.[0] ?? '';

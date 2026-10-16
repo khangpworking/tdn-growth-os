@@ -1,8 +1,18 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createKeywordCliproxyTransport, keywordDraftConfiguration } from '../../src/modules/analysis/research-automation/keyword-cliproxy-transport.js';
+import { KEYWORD_PROMPT_VERSION, createKeywordCliproxyTransport, keywordDraftConfiguration, parseKeywordModelText } from '../../src/modules/analysis/research-automation/keyword-cliproxy-transport.js';
+import { KeywordModelOutputError } from '../../src/modules/analysis/keyword-list-drafting.js';
 const configuration = keywordDraftConfiguration('synthetic-model');
-const input: Parameters<ReturnType<typeof createKeywordCliproxyTransport>['draftLists']>[0] = { productNames: ['Tên nguồn'], includeTerms: ['thạch dừa'], excludeTerms: [], prompt: 'Retained exact synthetic prompt', promptVersion: 'l9-keyword-prompt-v1', modelIdentity: 'cliproxy:synthetic-model' };
+const input: Parameters<ReturnType<typeof createKeywordCliproxyTransport>['draftLists']>[0] = { productNames: ['Tên nguồn'], includeTerms: ['thạch dừa'], excludeTerms: [], prompt: 'Retained exact synthetic prompt', promptVersion: KEYWORD_PROMPT_VERSION, modelIdentity: 'cliproxy:synthetic-model' };
+const lists = { keywords: ['thạch dừa'], exclusions: [{ term: 'dừa tươi', reason: 'khác sản phẩm' }] };
+test('keyword model text accepts plain or one fenced JSON object and rejects prose', () => {
+  assert.deepEqual(parseKeywordModelText(JSON.stringify(lists)), lists);
+  assert.deepEqual(parseKeywordModelText('```json\n' + JSON.stringify(lists) + '\n```'), lists);
+  assert.deepEqual(parseKeywordModelText('```\r\n' + JSON.stringify(lists) + '\r\n```\n'), lists);
+  for (const text of ['Here are the lists: ' + JSON.stringify(lists), 'Sure!\n```json\n' + JSON.stringify(lists) + '\n```',
+    '```json\n```json\n' + JSON.stringify(lists) + '\n```\n```', '[]', '{"keywords":[]}', '{"keywords":[],"exclusions":[],"extra":1}'])
+    assert.throws(() => parseKeywordModelText(text), KeywordModelOutputError, text);
+});
 const transport = () => createKeywordCliproxyTransport({ cliproxy: { baseUrl: 'http://127.0.0.1:9876', apiKey: 'synthetic-secret' }, configuration });
 test('keyword transport fails identity mismatch and pre-cancellation before HTTP', async t => {
   let calls = 0;
