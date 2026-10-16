@@ -1583,10 +1583,16 @@ export class ResearchAutomationService {
     return out;
   }
 
-  /** The video-watch binding and the run's stored selection videos (when any); a missing or unreadable selection just gives none. */
-  async #videoWatchContext(runId: string): Promise<{ binding: { workspaceId: string; runId: string; scopeSha256: string; sourceSetSha256: string | null }; selectionVideos: readonly { url: string }[] }> {
+  /** The video-watch binding, the run's frozen product keyword and its stored selection videos (when any); a missing or unreadable selection just gives none.
+   * The keyword is the start snapshot's (`startSha`), checked against the run row; the confirmed scope snapshot has no keyword field of its own. */
+  async #videoWatchContext(runId: string): Promise<{ binding: { workspaceId: string; runId: string; scopeSha256: string; sourceSetSha256: string | null }; productKeyword: string;
+    selectionVideos: readonly { url: string }[] }> {
     const row = this.#current(runId);
     if (!row?.scopeSha) throw new ResearchAutomationStateError('Video watch needs a confirmed scope.');
+    await this.#readScopeSnapshot(row.scopeSha, row.workspaceId, row.runId);
+    const start = await this.#readStartSnapshot(row.startSha, row.workspaceId);
+    if (start.keyword !== row.keyword) throw new ResearchAutomationIntegrityError('Run row does not match its frozen start snapshot.');
+    const productKeyword = start.keyword;
     const sources = await this.#readFrozenSources(row).catch(() => undefined);
     const binding = { workspaceId: row.workspaceId, runId: row.runId, scopeSha256: row.scopeSha, sourceSetSha256: sources?.sha256 ?? null };
     const selectionVideos: { url: string }[] = [];
@@ -1604,7 +1610,7 @@ export class ResearchAutomationService {
         }
       } catch { /* no P9 context: TikTok rows only */ }
     }
-    return { binding, selectionVideos };
+    return { binding, productKeyword, selectionVideos };
   }
 
   /** The run worker alone performs bounded indexing waits and durable no-retry questions. */
@@ -3920,7 +3926,7 @@ export class ResearchAutomationService {
         plan = videoWatchCandidates(context.selectionVideos, step.expandedSearch?.queries);
         const binding = { ...context.binding, candidatesSha256: plan.candidatesSha256 };
         const writer = new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
-        videoWatchAttempts = await this.#videoWatch.run({ binding, candidates: plan.candidates, ...(signal ? { signal } : {}),
+        videoWatchAttempts = await this.#videoWatch.run({ binding, productKeyword: context.productKeyword, candidates: plan.candidates, ...(signal ? { signal } : {}),
           publish: prepared => withDatabaseMutationMutex(this.#db, async () => {
             const current = this.#current(runId);
             if (!current || signal?.aborted || ['FAILED', 'CANCELLING', 'CANCELLED', 'INTERRUPTED'].includes(current.status)) throw new ResearchAutomationStateError('This run cannot publish a video reading.');
