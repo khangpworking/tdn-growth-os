@@ -48,6 +48,14 @@ test('selection: at most 5 videos and 3 segments each, verbatim, every other ite
   assert.equal(tooMany, null);
 });
 
+test('selection and rendering reject arbitrary voice labels instead of exposing operator text', () => {
+  const unsafe = selectSellerVideos({ tables: [], readings: [reading(1, [seg('Nội dung an toàn')], 'Google')] });
+  assert.equal(unsafe, null);
+  const rendered = sellerVideoBlockHtml({ ...sample(), readings: [{ ...sample().readings[0]!, voiceLabel: 'Google' }] }, value => value);
+  assert.doesNotMatch(rendered, /Google/iu);
+  assert.doesNotMatch(rendered, /blockquote/iu);
+});
+
 test('segments: provider names, platform names, links, paths, secrets and report-own markers are not reader safe', () => {
   for (const bad of ['Theo Kalodata thì bán chạy', 'Mua trên TikTok Shop', 'Shopee giảm giá', 'Xem tại example.dev', 'Lưu ở /tmp/a', 'Mã ghp_abcdefghijklmnop1234', 'Chú thích: hàng mới',
     'Doanh thu trong mẫu 5', 'Phần M09 nói rõ', 'n = 30 người', 'Liên hệ nhom@example.test', 'Theo Google'])

@@ -21,6 +21,9 @@ export const SELLER_VIDEO_ESTIMATE = 'ước tính';
 export const SELLER_VIDEO_NOTE = 'Các tệp video này do chủ hoặc người vận hành tải lên cho lượt này. Nội dung video là lời người bán hoặc người làm video review tự nói để bán hàng, không phải ý kiến khách hàng và không phải sự thật đã kiểm chứng. Số liệu video là số ước tính của công cụ, không cộng lại, không so sánh được với số liệu mẫu; kỳ của tệp chưa được kiểm tra nên không coi là cùng kỳ với báo cáo.';
 export const SELLER_VIDEO_SRC = 'Tệp số liệu video và bản ghi lời nói trong video do chủ hoặc người vận hành tải lên cho lượt này.';
 
+const SELLER_VIDEO_VOICE_LABELS = new Set(['lời người bán', 'lời người làm video review']);
+const sellerVideoVoiceLabelSafe = (value: string): value is 'lời người bán' | 'lời người làm video review' => SELLER_VIDEO_VOICE_LABELS.has(value);
+
 export type SellerVideoLeftOutReason = 'OVER_10_ROWS' | 'OVER_5_VIDEOS' | 'OVER_3_SEGMENTS' | 'OVER_30_WORDS' | 'NOT_READER_SAFE' | 'EMPTY_SEGMENT'
   | 'NOT_VERIFIED' | 'NOT_VIDEO_TABLE' | 'NOT_FIRST_TABLE' | 'NO_SHOWN_SEGMENT' | 'SAME_READING' | 'TOO_MANY_PACKAGES';
 export interface SellerVideoRef { readonly packageId: string; readonly manifestArtifactSha256: string; readonly packageContentSha256: string }
@@ -71,6 +74,7 @@ export function selectSellerVideos(inputs: SellerVideoInputs): SellerVideos | nu
   else for (const item of inputs.readings) {
     const id = item.ref.packageId;
     if (item.reading === 'NOT_VERIFIED') { out('reading', id, 'NOT_VERIFIED'); continue; }
+    if (!sellerVideoVoiceLabelSafe(item.reading.voiceLabel)) { out('reading', id, 'NOT_READER_SAFE'); continue; }
     if (readings.some(shown => shown.readingSha256 === (item.reading as { readingSha256: string }).readingSha256)) { out('reading', id, 'SAME_READING'); continue; }
     if (readings.length >= SELLER_VIDEO_MAX_VIDEOS) { out('reading', id, 'OVER_5_VIDEOS'); continue; }
     const excerpts: SellerVideoExcerpt[] = [];
@@ -136,7 +140,7 @@ export async function readSellerVideoInputs(deps: SellerVideoReadDeps, pinned?: 
       ref = (await open(candidate, readingPrefix, { maxFileBytes: 32 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 })).ref;
       const read = await deps.reading(ref);
       const voiceLabel = read.rows[0]?.voiceLabel;
-      if (!voiceLabel || read.rows.some(row => row.voiceLabel !== voiceLabel)) return { ref, reading: 'NOT_VERIFIED' };
+      if (!voiceLabel || !sellerVideoVoiceLabelSafe(voiceLabel) || read.rows.some(row => row.voiceLabel !== voiceLabel)) return { ref, reading: 'NOT_VERIFIED' };
       return { ref, reading: { readingSha256: read.readingSha256, voiceLabel, segments: read.rows.map(({ text, startSeconds, endSeconds }) => ({ text, startSeconds, endSeconds })) } };
     } catch { return { ref, reading: 'NOT_VERIFIED' }; }
   }));
@@ -154,7 +158,8 @@ export function sellerVideoBlockHtml(videos: SellerVideos, esc: (value: string) 
   const cell = (value: string | null): string => esc(formatMissingVideoValue(value));
   const table = videos.table ? `<h3>${esc(SELLER_VIDEO_TABLE_TITLE)}</h3><div class="table-wrap"><table class="seller-videos"><thead><tr><th>Video</th><th>Doanh thu (${SELLER_VIDEO_ESTIMATE})</th><th>Lượt xem (${SELLER_VIDEO_ESTIMATE})</th><th>Đơn vị bán (${SELLER_VIDEO_ESTIMATE})</th><th>Ngày đăng</th></tr></thead><tbody>${
     videos.table.rows.map((row, index) => `<tr><td>Video ${index + 1}</td><td>${cell(row.revenue)}</td><td>${cell(row.views)}</td><td>${cell(row.units)}</td><td>${cell(row.publishDate)}</td></tr>`).join('')}</tbody></table></div>` : '';
-  const speech = videos.readings.length ? `<h3>${esc(SELLER_VIDEO_READING_TITLE)}</h3><ul class="seller-video-speech">${videos.readings.map(reading => reading.excerpts.map(excerpt =>
+  const speechReadings = videos.readings.filter(reading => sellerVideoVoiceLabelSafe(reading.voiceLabel));
+  const speech = speechReadings.length ? `<h3>${esc(SELLER_VIDEO_READING_TITLE)}</h3><ul class="seller-video-speech">${speechReadings.map(reading => reading.excerpts.map(excerpt =>
     `<li><blockquote data-quote><p>${esc(excerpt.text)}</p><footer>${esc(reading.voiceLabel.charAt(0).toUpperCase() + reading.voiceLabel.slice(1))}; giây ${seconds(excerpt.startSeconds)}–${seconds(excerpt.endSeconds)}; ${SELLER_VIDEO_PROVENANCE}.</footer></blockquote></li>`).join('')).join('')}</ul>` : '';
   return table + speech;
 }
