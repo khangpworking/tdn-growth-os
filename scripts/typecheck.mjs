@@ -19,28 +19,32 @@ for (const relativeRoot of roots) {
 // `.bin/tsc` shell shim, and the file list is longer than the Windows command-line limit.
 const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), 'typecheck-'));
 const project = path.join(projectDir, 'tsconfig.json');
-fs.writeFileSync(project, JSON.stringify({
-  compilerOptions: {
-    noEmit: true,
-    strict: true,
-    noUncheckedIndexedAccess: true,
-    exactOptionalPropertyTypes: true,
-    target: 'ES2023',
-    module: 'NodeNext',
-    moduleResolution: 'NodeNext',
-    resolveJsonModule: true,
-    allowJs: false,
-    types: ['node'],
-    typeRoots: [path.join(root, 'node_modules/@types')],
-  },
-  files,
-}));
+let result;
+try {
+  fs.writeFileSync(project, JSON.stringify({
+    compilerOptions: {
+      noEmit: true,
+      strict: true,
+      noUncheckedIndexedAccess: true,
+      exactOptionalPropertyTypes: true,
+      target: 'ES2023',
+      module: 'NodeNext',
+      moduleResolution: 'NodeNext',
+      resolveJsonModule: true,
+      allowJs: false,
+      types: ['node'],
+      typeRoots: [path.join(root, 'node_modules/@types')],
+    },
+    files,
+  }));
 
-const result = spawnSync(
-  process.execPath,
-  [path.join(root, 'node_modules/typescript/bin/tsc'), '--project', project],
-  { cwd: root, stdio: 'inherit' },
-);
-fs.rmSync(projectDir, { recursive: true, force: true });
+  result = spawnSync(
+    process.execPath,
+    [path.join(root, 'node_modules/typescript/bin/tsc'), '--project', project],
+    { cwd: root, stdio: 'inherit' },
+  );
+} finally {
+  fs.rmSync(projectDir, { recursive: true, force: true });
+}
 if (result.error) console.error(`typecheck: ${result.error.message}`);
 process.exit(result.status ?? 1);
