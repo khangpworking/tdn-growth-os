@@ -4,6 +4,7 @@
 // into extraOk so the number gate can tell them from measurements.
 import type { PdfExcerpt } from '../research-automation/pdf-excerpt.js';
 import type { SellerVideos } from '../research-automation/seller-video.js';
+import type { MetaAdPage } from '../research-automation/meta-ad-report.js';
 import type { ReaderPlatform, ReaderReportData } from './build.js';
 import { currentProposals } from './market-proposals.js';
 import { buildMarketReportV2 } from './market-template-v2.js';
@@ -59,6 +60,8 @@ export type MarketReportOptions = {
   pdfExcerpts?: readonly PdfExcerpt[];
   /** The run's pinned owner/operator video uploads (S02 table, S14 seller speech); drawn in M09 of new builds only. */
   sellerVideos?: SellerVideos;
+  /** The run's confirmed Meta ad-library pages (S15); drawn as one table in the competitor section of new builds. */
+  metaAds?: readonly MetaAdPage[];
 };
 /** site and published are the page name and date as the search engine shows them; older runs have neither. */
 export type ReaderWebResult = { position: number; title: string; url: string; snippet: string | null; retrievedAt: string; site?: string | null; published?: string | null; origin?: ExpandedSearchKind };

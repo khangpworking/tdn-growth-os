@@ -97,6 +97,8 @@ export interface AutomationReportInput {
   readonly pdfExcerpts?: readonly import('./pdf-excerpt.js').PdfExcerpt[];
   /** Owner/operator video uploads (Market only); present only when the packet carries the sellerVideos marker. */
   readonly sellerVideos?: import('./seller-video.js').SellerVideos;
+  /** Confirmed Meta ad-library pages (S15), read when the Insight reader is built. Seller voice only; never an input to coding, personas or counts. */
+  readonly metaAds?: readonly import('./meta-ad-report.js').MetaAdPage[];
   readonly boundedMethods?: AutomationBoundedMethodSnapshot;
   readonly quoteMethods?: AutomationQuoteMethodSnapshot;
   readonly run: ResearchAutomationRun;

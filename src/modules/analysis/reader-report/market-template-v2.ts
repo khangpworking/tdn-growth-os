@@ -10,6 +10,7 @@ import { E13_ATTRIBUTION, E14_ATTRIBUTION } from '../source-appendix-projection.
 import { comtradeFlowText, comtradeNotice, comtradeOfficialText, comtradeRenderableRows, comtradeRowNote, comtradeSideText, COMTRADE_LIMIT, COMTRADE_NOTE, COMTRADE_SOURCE_LABEL, COMTRADE_SRC, COMTRADE_TABLE_TITLE } from '../research-automation/comtrade-lane.js';
 import { pdfExcerptBlockHtml, pdfExcerptCitation, PDF_EXCERPT_NOTE, PDF_EXCERPT_SRC } from '../research-automation/pdf-excerpt.js';
 import { sellerVideoBlockHtml, sellerVideoNote, sellerVideoSrc } from '../research-automation/seller-video.js';
+import { metaAdCitation, metaAdDate, META_AD_NAME_WITHHELD, META_AD_NOTE, META_AD_SOURCE_LABEL, META_AD_SOURCE_NOTE, META_AD_SRC, META_AD_TEXT_WITHHELD, META_AD_TITLE } from '../research-automation/meta-ad-report.js';
 import { Narrator } from './bundle.js';
 import { esc } from './format.js';
 import { cover, makeExhibits, n, page, plat, platIcons, PLATFORM_LABEL, section as legacySection } from './layout.js';
@@ -168,7 +169,16 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
       retrievedAt: null, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' });
     return no === null ? '<span class="no-source">Chưa có nguồn</span>' : renderCitationMark(no);
   } });
-  sections.push(section('M07', 'Đối thủ', 'Giữ số liệu của mỗi gian hàng trên từng sàn; phần thiếu không dùng để so sánh đầy đủ.', requiredFig('product-ranking', '7.1') + tbl('7.1', 'Gian hàng trong mẫu, theo thứ tự dòng nguồn', '', ['Sàn', 'Gian hàng', 'Dòng lõi', 'Doanh thu lõi', 'Đơn vị bán lõi'], shops) + peers, d.defaultMarketPeers === null ? 'Chưa có tập đối thủ đã đóng băng trong đầu vào bản này. Không suy danh tính chéo sàn từ tên hoặc tiêu đề.' : 'Tập mặc định giữ riêng theo sàn và nhóm; nguồn thiếu hoặc doanh thu bằng không được ghi rõ. Không suy danh tính chéo sàn từ tên hoặc tiêu đề.'));
+  // Confirmed Meta ad-library pages (S15) sit beside the competitor sample. Ad copy is seller text, so it stays a quotation with its capture mark;
+  // with no confirmed page nothing is drawn. The same predicate marks the source as used in the source list.
+  const metaAdPages = next ? options.metaAds ?? [] : [];
+  const metaAdTable = metaAdPages.length === 0 ? '' : tbl('7.2', META_AD_TITLE, '', ['Trang', 'Số quảng cáo đã xác nhận', 'Ngày bắt đầu đầu tiên', 'Số ngày đã chạy (tính tới ngày thu)', 'Trích nội dung'],
+    metaAdPages.map(item => {
+      const marks = item.captures.map(capture => registry.cite(metaAdCitation(capture))).map(no => no === null ? '' : renderCitationMark(no)).join('');
+      return [item.pageName === null ? esc(META_AD_NAME_WITHHELD) : `<span data-quote>${esc(item.pageName)}</span>`, label(String(item.adCount)), label(metaAdDate(item.earliestStart)), label(String(item.daysRun)),
+        (item.excerpt === null ? esc(META_AD_TEXT_WITHHELD) : `<span data-quote>${esc(item.excerpt)}</span>${item.excerptCut ? '…' : ''}`) + marks];
+    }), { src: esc(META_AD_SRC), note: esc(META_AD_NOTE) });
+  sections.push(section('M07', 'Đối thủ', 'Giữ số liệu của mỗi gian hàng trên từng sàn; phần thiếu không dùng để so sánh đầy đủ.', requiredFig('product-ranking', '7.1') + tbl('7.1', 'Gian hàng trong mẫu, theo thứ tự dòng nguồn', '', ['Sàn', 'Gian hàng', 'Dòng lõi', 'Doanh thu lõi', 'Đơn vị bán lõi'], shops) + peers + metaAdTable, d.defaultMarketPeers === null ? 'Chưa có tập đối thủ đã đóng băng trong đầu vào bản này. Không suy danh tính chéo sàn từ tên hoặc tiêu đề.' : 'Tập mặc định giữ riêng theo sàn và nhóm; nguồn thiếu hoặc doanh thu bằng không được ghi rõ. Không suy danh tính chéo sàn từ tên hoặc tiêu đề.'));
   let unitPriceTables = '';
   if (next) {
     const mark = (ref: { sourceSha256: string; locator: string }): string => {
@@ -239,7 +249,8 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     ['Bình luận đã thu thập', 'Chưa có trong lượt này'],
     ...(interestChart ? [[SEARCH_INTEREST_SOURCE_LABEL, 'Đã lưu trong lượt này; chỉ số tương đối, không phải doanh số']] : []),
     ...(worldBankTable ? [[WORLD_BANK_SOURCE_LABEL, 'Đã lưu trong lượt này; số liệu cả nước, chỉ là bối cảnh']] : []),
-    ...(comtradeRows.length ? [[COMTRADE_SOURCE_LABEL, 'Đã lưu trong lượt này; số liệu cả nước, chỉ là bối cảnh']] : [])] : [['Nguồn', sourceText], ['Kỳ', period]];
+    ...(comtradeRows.length ? [[COMTRADE_SOURCE_LABEL, 'Đã lưu trong lượt này; số liệu cả nước, chỉ là bối cảnh']] : []),
+    ...(metaAdTable ? [[META_AD_SOURCE_LABEL, META_AD_SOURCE_NOTE]] : [])] : [['Nguồn', sourceText], ['Kỳ', period]];
   if (d.webFacts !== null) {
     const facts = d.webFacts;
     const no = registry.cite({ sourceKind: 'CAPTURE', identity: input.webSnapshotSha256!, locator: { kind: 'source-locator', value: 'số liệu tổng quan' }, label: 'Trang kết quả tìm kiếm: số liệu tổng quan', retrievedAt: facts.capturedAt, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' });
