@@ -17,7 +17,7 @@ const productId = 'kalodata:101';
 // 60 days: two planned 30-day windows per product.
 const period = { startDate: '2026-07-01', endDate: '2026-08-29' } as const;
 const now = () => new Date('2026-10-02T00:00:00.000Z');
-const BLOCKED = 'Báo cáo bị chặn: nguồn dữ liệu TikTok Shop hết lượt truy vấn giữa chừng, thiếu doanh thu theo tháng của 1 sản phẩm. Cần nạp thêm lượt rồi chạy lại.';
+const BLOCKED = 'Báo cáo bị chặn: nguồn dữ liệu TikTok Shop không trả đủ doanh thu theo tháng của 1 sản phẩm. Cần kiểm tra nguồn dữ liệu và lượt truy vấn còn lại rồi chạy lại.';
 
 type Detail = 'OK' | 'EMPTY' | 'CREDIT_EXHAUSTED' | 'OTHER_REJECTION';
 

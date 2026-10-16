@@ -253,7 +253,7 @@ export function marketSourceWindowsMissingCode(products: number): string {
   return MARKET_SOURCE_WINDOWS_MISSING_PREFIX + String(products);
 }
 export function marketSourceWindowsMissingMessage(products: number): string {
-  return `Báo cáo bị chặn: nguồn dữ liệu TikTok Shop hết lượt truy vấn giữa chừng, thiếu doanh thu theo tháng của ${products} sản phẩm. Cần nạp thêm lượt rồi chạy lại.`;
+  return `Báo cáo bị chặn: nguồn dữ liệu TikTok Shop không trả đủ doanh thu theo tháng của ${products} sản phẩm. Cần kiểm tra nguồn dữ liệu và lượt truy vấn còn lại rồi chạy lại.`;
 }
 
 export function message(code: string): string {
