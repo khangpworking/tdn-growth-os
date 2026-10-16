@@ -18,6 +18,14 @@ export const WORLD_BANK_INDICATORS = ['NE.CON.PRVT.PC.KD', 'SP.POP.TOTL'] as con
 export const MAX_WORLD_BANK_FILE_BYTES = 8 * 1024 * 1024;
 export const WORLD_BANK_PROFILE = 'world-bank-vn-two-indicators-v1';
 
+/** The URLs ever used for one indicator. `sourceUrl` is what the automated lane fetches (one page of up to 100 rows); `legacySourceUrl` is the
+ * manual-intake form, still accepted so stored descriptors verify unchanged. Nothing else is accepted. */
+export const worldBankUrls = (code: string): { readonly sourceUrl: string; readonly legacySourceUrl: string; readonly metadataUrl: string } => ({
+  sourceUrl: `https://api.worldbank.org/v2/country/VN/indicator/${code}?format=json&per_page=100`,
+  legacySourceUrl: `https://api.worldbank.org/v2/country/VN/indicator/${code}?format=json`,
+  metadataUrl: `https://api.worldbank.org/v2/indicator/${code}?format=json`,
+});
+
 export class WorldBankSourceRejection extends Error {
   constructor(readonly code: string, readonly locator: string) { super(`${locator}: ${code}`); }
 }
@@ -313,9 +321,8 @@ export function inspectWorldBankSource(observationBytes: Uint8Array, metadataByt
   const indicator = object(metadata.records[0], 'metadata/0');
   const code = text(indicator.id, 'metadata/0/id');
   if (!(WORLD_BANK_INDICATORS as readonly string[]).includes(code)) reject('INDICATOR_NOT_ALLOWED', 'metadata/0/id');
-  const expectedSource = `https://api.worldbank.org/v2/country/VN/indicator/${code}?format=json`;
-  const expectedMetadata = `https://api.worldbank.org/v2/indicator/${code}?format=json`;
-  if (sourceUrl !== expectedSource || metadataUrl !== expectedMetadata) reject('SOURCE_URL_MISMATCH', 'source');
+  const expected = worldBankUrls(code);
+  if ((sourceUrl !== expected.sourceUrl && sourceUrl !== expected.legacySourceUrl) || metadataUrl !== expected.metadataUrl) reject('SOURCE_URL_MISMATCH', 'source');
   const name = text(indicator.name, 'metadata/0/name');
   const unitLiteral = text(indicator.unit, 'metadata/0/unit', true);
   const sourceNote = text(indicator.sourceNote, 'metadata/0/sourceNote', true);

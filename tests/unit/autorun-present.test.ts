@@ -257,6 +257,9 @@ test('retry route: OWNER POST returns 202, exact retry 200, and 409 when not ret
     metricAutoRun: { captureRoot: path.join(f.root, 'api-captures') } },
     { now: () => Date.now(), sleep: async () => {}, fetch: async () => { throw new Error('no provider call expected'); } });
   const server = http.createServer(api.handler); server.listen(port, '127.0.0.1'); await once(server, 'listening');
+  // Closed last: while it holds its port, the flag-off server below gets another one. Reopening the same address
+  // let fetch reuse a pooled keep-alive socket of the closed server, which reset the request.
+  t.after(() => new Promise<void>(resolve => server.close(() => resolve())));
   try {
     const post = (id: string, body: unknown, authorization = true) => fetch(`${base}/owner-api/workspaces/${workspaceId}/research-automation/runs/${id}/auto-run/retry`, {
       method: 'POST', headers: { Origin: base, ...(authorization ? { Authorization: `Bearer ${token}` } : {}), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -273,18 +276,20 @@ test('retry route: OWNER POST returns 202, exact retry 200, and 409 when not ret
     assert.equal((await repeat.json() as { exactRetry: boolean }).exactRetry, true);
     assert.equal((f.db.prepare('SELECT count(*) n FROM research_automation_autorun_retries WHERE run_id=?').get(runId) as { n: bigint }).n, 1n);
   } finally {
-    await new Promise<void>(resolve => server.close(() => resolve()));
     await api.close();
   }
   // Flag off: the route does not exist at all.
-  const offApi = openResearchAutomationApi({ databasePath: f.databasePath, artifactRoot: f.artifactRoot, origin: base,
+  let offHandler: http.RequestListener | undefined;
+  const offServer = http.createServer((request, response) => offHandler!(request, response)); offServer.listen(0, '127.0.0.1'); await once(offServer, 'listening');
+  const offBase = `http://127.0.0.1:${(offServer.address() as AddressInfo).port}`;
+  const offApi = openResearchAutomationApi({ databasePath: f.databasePath, artifactRoot: f.artifactRoot, origin: offBase,
     providers: { kalodataSecretKey: null, serpApiKey: null, apifyTokenConfigured: false },
-    owner: { writeEnabled: true, databasePath: f.databasePath, artifactRoot: f.artifactRoot, token, allowedOrigin: base, actorId: 'owner:synthetic' } },
+    owner: { writeEnabled: true, databasePath: f.databasePath, artifactRoot: f.artifactRoot, token, allowedOrigin: offBase, actorId: 'owner:synthetic' } },
     { now: () => Date.now(), sleep: async () => {}, fetch: async () => { throw new Error('no provider call expected'); } });
-  const offServer = http.createServer(offApi.handler); offServer.listen(port, '127.0.0.1'); await once(offServer, 'listening');
+  offHandler = offApi.handler;
   try {
-    const response = await fetch(`${base}/owner-api/workspaces/${workspaceId}/research-automation/runs/${runId}/auto-run/retry`, {
-      method: 'POST', headers: { Origin: base, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(retryBody()) });
+    const response = await fetch(`${offBase}/owner-api/workspaces/${workspaceId}/research-automation/runs/${runId}/auto-run/retry`, {
+      method: 'POST', headers: { Origin: offBase, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(retryBody()) });
     assert.equal(response.status, 404);
   } finally {
     await new Promise<void>(resolve => offServer.close(() => resolve()));
