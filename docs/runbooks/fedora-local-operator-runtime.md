@@ -124,6 +124,21 @@ export TDN_CLIPROXY_API_KEY='<cliproxy-client-api-key>'
 - Where the key is kept persistently on Fedora (for example a systemd `EnvironmentFile=` outside the repository, mode 600) is decided in Task 053. Until then, never write it into `.env` or any repository file.
 - Task 049 makes no real provider call. The first real call needs its own owner authorization (Task 053).
 
+### Market video watch (optional, flag `TDN_RESEARCH_VIDEO_WATCH_ENABLED`)
+
+Off unless `TDN_RESEARCH_VIDEO_WATCH_ENABLED=1` exactly. Off means no download, no model call, no new capture or step field, and byte-identical reports. When on, the collection step reads up to 10 exact public TikTok video links already stored for the run (selection videos first, then the stored TikTok search rows; spread round-robin across accounts before the cap) and stores one automated reading per video. Market section 9 shows at most 5 videos, 3 segments of at most 30 words each, labelled "ghi lại tự động từ video, chưa xác minh". Replay and revision re-read the stored readings and never download or call the model again.
+
+```bash
+export TDN_RESEARCH_VIDEO_WATCH_ENABLED=1
+export TDN_RESEARCH_VIDEO_MEDIA_DIR='/srv/tdn/video-media'      # absolute path; media kept 45 days, then swept
+export TDN_RESEARCH_VIDEO_WATCH_MODEL='gemini-<model-id>'      # plain gemini-* id, no "/"
+export TDN_RESEARCH_YTDLP_BIN='/usr/local/bin/yt-dlp'
+export TDN_RESEARCH_FFPROBE_BIN='/usr/bin/ffprobe'              # optional, default ffprobe
+```
+
+- The model call uses the existing CLIProxy settings (`TDN_CLIPROXY_BASE_URL`, `TDN_CLIPROXY_API_KEY`, above); there is no separate model key. Without CLIProxy each video is recorded `VIDEO_MODEL_NOT_CONFIGURED` and the run continues.
+- A missing or invalid media dir, model id or yt-dlp path fails at startup with the setting name only.
+- Media: mp4 or webm, at most 14 MB and 180 seconds; one inline request per video, 180 s timeout, at most one retry. Captures keep only digests of the video, never its bytes or the key.
 ### One executor per database
 
 An operator started with `TDN_OWNER_API_ENABLED='true'` is the **executor**. Only one executor may use a database at a time. At startup it creates `<canonical database path>.executor.lock` next to the database (the path after resolving symbolic links) and removes it on an orderly stop (Ctrl-C / `SIGTERM`). Before serving, the executor marks any AI attempt left `running` by an earlier process as `interrupted` (`interrupted_by_restart`). Nothing is retried automatically.

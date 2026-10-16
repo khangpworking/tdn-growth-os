@@ -95,8 +95,10 @@ import { runMetricCapture, type MetricCaptureRequest, type MetricCaptureRunnerCo
 import { readPreparedMetricCaptureSources } from './metric-capture-inventory.js';
 import { AutomationWorldBankSourceIntake, readConfirmedWorldBankSource, readWorldBankHistory, WORLD_BANK_INDICATORS, WORLD_BANK_PROFILE } from './world-bank-intake.js';
 import { selectPdfExcerpts, storedPdfExcerpts, type PdfExcerpt } from './pdf-excerpt.js';
-import { readSellerVideoInputs, selectSellerVideos, storedSellerVideos, type SellerVideos, type SellerVideoSources } from './seller-video.js';
+import { readSellerVideoInputs, selectSellerVideos, storedSellerVideos, type AutomatedReadingInput, type SellerVideoAutomatedRef, type SellerVideos, type SellerVideoSources } from './seller-video.js';
 import { worldBankDocument, worldBankFailed, worldBankRenderable, worldBankUsage, WORLD_BANK_PROVIDER, WORLD_BANK_USAGE_ORDINAL, type WorldBankAttempt, type WorldBankSource } from './world-bank-lane.js';
+import { publishAutomatedVideoReading, verifyAutomatedVideoReading, videoWatchCandidates, videoWatchDocument, videoWatchFailed, videoWatchReadingRefs, videoWatchUsage, VIDEO_WATCH_MAX_VIDEOS, VIDEO_WATCH_PROFILE, VIDEO_WATCH_USAGE_ORDINAL, type VideoWatchAttempt, type VideoWatchLane, type VideoWatchPlan } from './video-watch-lane.js';
+import { VIDEO_WATCH_PROVIDER } from './video-watch-gemini.js';
 import type { Binding as WorldBankBinding } from '../../../../contracts/analysis/world-bank-intake-v1.generated.js';
 import type { PackageRef as WorldBankPackageRef, PrepareReceipt as WorldBankPrepareReceipt, View as WorldBankView, History as WorldBankHistory } from '../../../../contracts/api/research-automation-macro-intake-api.generated.js';
 import { AutomationMetricRuleAdoptions, type MetricRuleBinding } from './metric-rule-adoption.js';
@@ -353,6 +355,8 @@ export interface ResearchAutomationServiceOptions {
   readonly trendsSource?: SearchInterestSource;
   /** Optional World Bank open data, at most four free GET requests per collection; absent keeps every stored byte. */
   readonly worldBankSource?: WorldBankSource;
+  /** Automated seller-video watching (S14); only set when its flag is exactly "1". */
+  readonly videoWatch?: VideoWatchLane;
   /** Optional extra searches (dated and per-marketplace), at most three paid requests per collection; absent keeps every stored byte. */
   readonly expandedSource?: ExpandedSearchSource;
   readonly renderer?: ResearchAutomationReportRenderer;
@@ -505,6 +509,7 @@ export class ResearchAutomationService {
   readonly #webSource: AutomationSourcePort | undefined;
   readonly #trendsSource: SearchInterestSource | undefined;
   readonly #worldBankSource: WorldBankSource | undefined;
+  readonly #videoWatch: VideoWatchLane | undefined;
   readonly #expandedSource: ExpandedSearchSource | undefined;
   readonly #renderer: ResearchAutomationReportRenderer | undefined;
   readonly #now: () => Date;
@@ -558,6 +563,7 @@ export class ResearchAutomationService {
     this.#webSource = options.webSource;
     this.#trendsSource = options.trendsSource;
     this.#worldBankSource = options.worldBankSource;
+    this.#videoWatch = options.videoWatch;
     this.#expandedSource = options.expandedSource;
     this.#renderer = options.renderer;
     this.#pageIndex = options.pageIndex;
@@ -1551,8 +1557,54 @@ export class ResearchAutomationService {
     try {
       return selectSellerVideos(await readSellerVideoInputs({ reader: this.#boundedSourceReader(), workspaceId: row.workspaceId, runId: row.runId,
         reading: async ref => { context ??= await this.#p9Context(row.workspaceId, row.runId);
-          const read = await this.#p9Intake(context.row).reading(context.binding, ref); return { readingSha256: read.receipt.readingSha256, rows: read.view.rows }; } }, pinned));
+          const read = await this.#p9Intake(context.row).reading(context.binding, ref); return { readingSha256: read.receipt.readingSha256, rows: read.view.rows }; },
+        automated: kept => this.#automatedSellerVideos(row, kept) }, pinned));
     } catch { return null; }
+  }
+
+  /** Automated readings the collection step stored (or exactly the pinned ones, which must still be among them); re-read and re-verified, never a download or model call. */
+  async #automatedSellerVideos(row: RunRow, pinned?: readonly SellerVideoAutomatedRef[]): Promise<readonly AutomatedReadingInput[]> {
+    const document = await this.#stepDocument(row.runId, 'COLLECTION').catch(() => null);
+    const watch = document?.videoWatch;
+    if (!watch) return [];
+    const stored = videoWatchReadingRefs(watch);
+    const refs = pinned ?? stored;
+    if (!refs.length || !row.scopeSha) return [];
+    const sources = await this.#readFrozenSources(row).catch(() => undefined);
+    const reader = this.#boundedSourceReader();
+    const out: AutomatedReadingInput[] = [];
+    for (const ref of refs) {
+      const known = stored.some(item => item.packageId === ref.packageId && item.manifestArtifactSha256 === ref.manifestArtifactSha256
+        && item.packageContentSha256 === ref.packageContentSha256 && item.readingSha256 === ref.readingSha256);
+      const reading = !known ? 'NOT_VERIFIED' as const : await verifyAutomatedVideoReading(reader, ref, { workspaceId: row.workspaceId, runId: row.runId,
+        scopeSha256: row.scopeSha, sourceSetSha256: sources?.sha256 ?? null, candidates: watch.candidates, candidatesSha256: watch.candidatesSha256, readingSha256: ref.readingSha256 });
+      out.push({ ref: { packageId: ref.packageId, manifestArtifactSha256: ref.manifestArtifactSha256, packageContentSha256: ref.packageContentSha256, readingSha256: ref.readingSha256 }, reading });
+    }
+    return out;
+  }
+
+  /** The video-watch binding and the run's stored selection videos (when any); a missing or unreadable selection just gives none. */
+  async #videoWatchContext(runId: string): Promise<{ binding: { workspaceId: string; runId: string; scopeSha256: string; sourceSetSha256: string | null }; selectionVideos: readonly { url: string }[] }> {
+    const row = this.#current(runId);
+    if (!row?.scopeSha) throw new ResearchAutomationStateError('Video watch needs a confirmed scope.');
+    const sources = await this.#readFrozenSources(row).catch(() => undefined);
+    const binding = { workspaceId: row.workspaceId, runId: row.runId, scopeSha256: row.scopeSha, sourceSetSha256: sources?.sha256 ?? null };
+    const selectionVideos: { url: string }[] = [];
+    if (sources) {
+      try {
+        const p9 = await this.#p9Context(row.workspaceId, row.runId);
+        const entries = await this.#boundedSourceReader().findAutomationAttachmentPackagesByKeyPrefix(p9PackagePrefix(runId, 'selection'));
+        for (const entry of entries.slice(0, 100)) {
+          try {
+            const source = await this.#boundedSourceReader().readFinalizedSourcePackage(entry.packageId, { maxFileBytes: 32 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 });
+            if (source.manifestArtifactSha256 !== entry.manifestArtifactSha256) continue;
+            const selected = await this.#p9Intake(p9.row).selection(p9.binding, { packageId: source.packageId, manifestArtifactSha256: source.manifestArtifactSha256, packageContentSha256: source.packageContentSha256 });
+            for (const video of selected.selection.videos) selectionVideos.push({ url: video.url });
+          } catch { /* an unreadable selection is left out */ }
+        }
+      } catch { /* no P9 context: TikTok rows only */ }
+    }
+    return { binding, selectionVideos };
   }
 
   /** The run worker alone performs bounded indexing waits and durable no-retry questions. */
@@ -3856,6 +3908,39 @@ export class ResearchAutomationService {
         step = probe;
       } catch { step = { ...step, worldBank: worldBankFailed('DOCUMENT_INVALID') }; }
     }
+    // Video readings come last: candidates are the run's stored selection and the stored TikTok search rows (no new search),
+    // and their model-answer captures follow the World Bank captures. A skipped video keeps a reason code only and never
+    // changes the step outcome, coverage or run blockers.
+    let videoWatchAttempts: VideoWatchAttempt[] | undefined;
+    let videoWatchThrown = false;
+    if (stepId === 'COLLECTION' && this.#videoWatch) {
+      let plan: VideoWatchPlan = videoWatchCandidates([], undefined);
+      try {
+        const context = await this.#videoWatchContext(runId);
+        plan = videoWatchCandidates(context.selectionVideos, step.expandedSearch?.queries);
+        const binding = { ...context.binding, candidatesSha256: plan.candidatesSha256 };
+        const writer = new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
+        videoWatchAttempts = await this.#videoWatch.run({ binding, candidates: plan.candidates, ...(signal ? { signal } : {}),
+          publish: prepared => withDatabaseMutationMutex(this.#db, async () => {
+            const current = this.#current(runId);
+            if (!current || signal?.aborted || ['FAILED', 'CANCELLING', 'CANCELLED', 'INTERRUPTED'].includes(current.status)) throw new ResearchAutomationStateError('This run cannot publish a video reading.');
+            return publishAutomatedVideoReading(writer, binding, prepared);
+          }) });
+      } catch { videoWatchThrown = true; }
+      const indexes: (number | null)[] = [];
+      for (const attempt of videoWatchAttempts ?? []) {
+        const envelopes = attempt.captures.length ? captureEnvelopes({ captures: attempt.captures }) : null;
+        if (!envelopes?.length) { indexes.push(null); continue; }
+        await putCaptures(envelopes);
+        indexes.push(captures.length - 1);
+      }
+      const probe = { ...step, videoWatch: videoWatchAttempts ? videoWatchDocument(plan, videoWatchAttempts, indexes) : videoWatchFailed(plan, 'PROVIDER_FAILED') };
+      try {
+        assertStepDocument(probe, runId, stepId);
+        assertCaptureLineage(probe, captures.map(value => value.row));
+        step = probe;
+      } catch { step = { ...step, videoWatch: videoWatchFailed(plan, 'DOCUMENT_INVALID') }; }
+    }
     const rowForSources = this.#current(runId)!;
     const sourceStart = await this.#readStartSnapshot(rowForSources.startSha, rowForSources.workspaceId);
     let cancelledSourceEvidence: (() => AutomationSourceEvidence) | undefined;
@@ -3928,6 +4013,9 @@ export class ResearchAutomationService {
         if (worldBankAttempts.some(item => item.requests > 0)) this.#persistUsage(runId, stepId, worldBankUsage(worldBankAttempts), now, WORLD_BANK_USAGE_ORDINAL);
         else if (worldBank && 'thrown' in worldBank) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
           .run(runId, stepId, WORLD_BANK_USAGE_ORDINAL, WORLD_BANK_PROVIDER.toLowerCase(), now);
+        if (videoWatchAttempts?.some(item => item.requests > 0)) this.#persistUsage(runId, stepId, videoWatchUsage(videoWatchAttempts), now, VIDEO_WATCH_USAGE_ORDINAL);
+        else if (videoWatchThrown) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
+          .run(runId, stepId, VIDEO_WATCH_USAGE_ORDINAL, VIDEO_WATCH_PROVIDER.toLowerCase(), now);
         if (exact) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,1,'apify-shopee','reviews',?,?,?,?,?)`)
           .run(runId, stepId, exact.requestsIssued, exact.costUsd === null ? 'UNKNOWN' : 'KNOWN', exact.costUsd === null ? null : 'USD', exact.costUsd, now);
         const current = this.#current(runId);
@@ -5105,6 +5193,40 @@ function validWorldBank(value: unknown): boolean {
   });
 }
 
+const VIDEO_WATCH_REASONS = new Set(['OVER_10_VIDEOS', 'DOWNLOAD_FAILED', 'VIDEO_TOO_LONG', 'VIDEO_TOO_LARGE', 'NOT_A_VIDEO', 'MODEL_FAILED', 'MODEL_ANSWER_INVALID',
+  'CREDENTIAL_ECHO_REFUSED', 'PUBLICATION_FAILED', 'CANCELLED', 'PROVIDER_FAILED', 'DOCUMENT_INVALID', 'VIDEO_MODEL_NOT_CONFIGURED']);
+function validVideoWatch(value: unknown): boolean {
+  const hex = /^[a-f0-9]{64}$/, id = /^[1-9][0-9]{0,19}$/;
+  if (!isRecord(value) || Object.keys(value).sort().join() !== 'candidates,candidatesSha256,profile,skipped,videos' || value.profile !== VIDEO_WATCH_PROFILE ||
+      typeof value.candidatesSha256 !== 'string' || !hex.test(value.candidatesSha256) || !Array.isArray(value.candidates) || value.candidates.length > VIDEO_WATCH_MAX_VIDEOS ||
+      !Array.isArray(value.skipped) || value.skipped.length > MAX_WEB_RESULTS * EXPANDED_SEARCH_KINDS.length + 1000 || !Array.isArray(value.videos) || value.videos.length !== value.candidates.length) return false;
+  const seen = new Set<string>();
+  const candidatesOk = value.candidates.every(item => {
+    if (!isRecord(item) || Object.keys(item).sort().join() !== 'origin,url,videoId' || typeof item.videoId !== 'string' || !id.test(item.videoId) || seen.has(item.videoId) ||
+      (item.origin !== 'SELECTION' && item.origin !== 'EXPANDED_SEARCH') || typeof item.url !== 'string' ||
+      !/^https:\/\/www\.tiktok\.com\/@[A-Za-z0-9._]{1,64}\/video\/[1-9][0-9]{0,19}$/.test(item.url) || !item.url.endsWith(`/video/${item.videoId}`)) return false;
+    seen.add(item.videoId); return true;
+  });
+  if (!candidatesOk || createHash('sha256').update(canonicalJson(value.candidates)).digest('hex') !== value.candidatesSha256) return false;
+  if (!value.skipped.every(item => isRecord(item) && Object.keys(item).sort().join() === 'reason,videoId' && item.reason === 'OVER_10_VIDEOS' &&
+    typeof item.videoId === 'string' && id.test(item.videoId) && !seen.has(item.videoId))) return false;
+  return value.videos.every((video, i) => {
+    if (!isRecord(video) || Object.keys(video).sort().join() !== 'captureIndex,media,reading,reason,retrievedAt,status,videoId' ||
+      video.videoId !== (value.candidates[i] as { videoId: string }).videoId) return false;
+    if ((video.captureIndex === null) !== (video.retrievedAt === null) || (video.captureIndex !== null && (!Number.isSafeInteger(video.captureIndex) || (video.captureIndex as number) < 0)) ||
+      (video.retrievedAt !== null && (typeof video.retrievedAt !== 'string' || !Number.isFinite(Date.parse(video.retrievedAt))))) return false;
+    const media = video.media;
+    if (media !== null && (!isRecord(media) || Object.keys(media).sort().join() !== 'byteSize,downloadedAt,durationSeconds,sha256' || typeof media.sha256 !== 'string' || !hex.test(media.sha256) ||
+      !Number.isSafeInteger(media.byteSize) || (media.byteSize as number) < 1 || (media.byteSize as number) > 100 * 1024 * 1024 || typeof media.durationSeconds !== 'number' ||
+      !(media.durationSeconds > 0 && media.durationSeconds <= 180) || typeof media.downloadedAt !== 'string' || !Number.isFinite(Date.parse(media.downloadedAt)))) return false;
+    if (video.status === 'SKIPPED') return typeof video.reason === 'string' && VIDEO_WATCH_REASONS.has(video.reason) && video.reason !== 'OVER_10_VIDEOS' && video.reading === null;
+    const reading = video.reading;
+    return video.status === 'READ' && video.reason === null && video.captureIndex !== null && media !== null && isRecord(reading) &&
+      Object.keys(reading).sort().join() === 'manifestArtifactSha256,packageContentSha256,packageId,readingSha256' && UUID.test(String(reading.packageId)) &&
+      hex.test(String(reading.manifestArtifactSha256)) && hex.test(String(reading.packageContentSha256)) && hex.test(String(reading.readingSha256));
+  });
+}
+
 function validWebRow(item: unknown): boolean {
   return isRecord(item) && Number.isSafeInteger(item.position) && (item.position as number) >= 1 &&
     typeof item.title === 'string' && item.title.length >= 1 && item.title.length <= 300 &&
@@ -5173,6 +5295,8 @@ function assertStepDocument(value: unknown, runId: string, stepId: StepId): asse
     throw new ResearchAutomationIntegrityError('Stored extra searches are invalid.');
   if (value.worldBank !== undefined && (stepId !== 'COLLECTION' || !validWorldBank(value.worldBank)))
     throw new ResearchAutomationIntegrityError('Stored World Bank context is invalid.');
+  if (value.videoWatch !== undefined && (stepId !== 'COLLECTION' || !validVideoWatch(value.videoWatch)))
+    throw new ResearchAutomationIntegrityError('Stored video readings are invalid.');
   if (value.sourceEvidence !== undefined) checkSourceEvidence(value.sourceEvidence);
   for (const comparable of value.comparables) {
     if (!isRecord(comparable) || typeof comparable.productId !== 'string' || typeof comparable.provider !== 'string' || (comparable.metric !== 'GMV_VND' && comparable.metric !== 'UNITS_SOLD') ||
@@ -5217,6 +5341,12 @@ function assertCaptureLineage(document: StepResultDocument, captures: readonly C
     if (!observation || observation.truncated || observation.provider !== 'world-bank' || observation.operation !== 'worldbank.observations' || observation.retrievedAt !== item.retrievedAt ||
         !metadata || metadata.truncated || metadata.provider !== 'world-bank' || metadata.operation !== 'worldbank.metadata')
       throw new ResearchAutomationIntegrityError('Stored World Bank context references an incompatible capture.');
+  }
+  for (const video of document.videoWatch?.videos ?? []) {
+    if (video.captureIndex === null) continue;
+    const capture = stepCaptures.get(video.captureIndex);
+    if (!capture || capture.truncated || capture.provider !== 'video-watch' || capture.operation !== 'videowatch.generate' || capture.retrievedAt !== video.retrievedAt)
+      throw new ResearchAutomationIntegrityError('Stored video reading references an incompatible capture.');
   }
 }
 

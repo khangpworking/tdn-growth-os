@@ -171,6 +171,30 @@ export interface StepWorldBankIndicator {
 }
 export interface StepWorldBank { readonly profile: string; readonly indicators: readonly StepWorldBankIndicator[] }
 
+/** One considered public TikTok video of the video-watch lane, pinned at collection time. */
+export interface StepVideoWatchCandidate { readonly videoId: string; readonly url: string; readonly origin: 'SELECTION' | 'EXPANDED_SEARCH' }
+export type StepVideoWatchReason = 'OVER_10_VIDEOS' | 'DOWNLOAD_FAILED' | 'VIDEO_TOO_LONG' | 'VIDEO_TOO_LARGE' | 'NOT_A_VIDEO'
+  | 'MODEL_FAILED' | 'MODEL_ANSWER_INVALID' | 'CREDENTIAL_ECHO_REFUSED' | 'PUBLICATION_FAILED' | 'CANCELLED' | 'PROVIDER_FAILED' | 'DOCUMENT_INVALID' | 'VIDEO_MODEL_NOT_CONFIGURED';
+export interface StepVideoWatchMedia { readonly sha256: string; readonly byteSize: number; readonly durationSeconds: number; readonly downloadedAt: string }
+export interface StepVideoWatchVideo {
+  readonly videoId: string;
+  readonly status: 'READ' | 'SKIPPED';
+  readonly reason: StepVideoWatchReason | null;
+  /** Step capture ordinal of the stored model answer; null when no answer was stored. */
+  readonly captureIndex: number | null;
+  readonly retrievedAt: string | null;
+  readonly media: StepVideoWatchMedia | null;
+  readonly reading: { readonly packageId: string; readonly manifestArtifactSha256: string; readonly packageContentSha256: string; readonly readingSha256: string } | null;
+}
+/** Automated seller-video watching; absent unless the video-watch lane was on for the run. */
+export interface StepVideoWatch {
+  readonly profile: 'video-watch-v1';
+  readonly candidatesSha256: string;
+  readonly candidates: readonly StepVideoWatchCandidate[];
+  readonly skipped: readonly { readonly videoId: string; readonly reason: 'OVER_10_VIDEOS' }[];
+  readonly videos: readonly StepVideoWatchVideo[];
+}
+
 /** Normalized step outcome retained as canonical JSON; raw bytes are separate capture artifacts. */
 export interface StepResultDocument {
   readonly reviewSample?: import('../../../../contracts/analysis/automation-review-sample.generated.js').AutomationReviewSample;
@@ -191,6 +215,8 @@ export interface StepResultDocument {
   readonly expandedSearch?: StepExpandedSearch;
   /** Open country-level background; absent unless the World Bank lane was on for the run. */
   readonly worldBank?: StepWorldBank;
+  /** Automated seller-video speech readings; absent unless the video-watch lane was on for the run. */
+  readonly videoWatch?: StepVideoWatch;
   /** Sanitized Foundation3 reference; mutually exclusive with raw/native review. */
   readonly privateShopee?: import('./private-review-corpus.js').PrivateReviewReference;
   readonly exactShopee?: {

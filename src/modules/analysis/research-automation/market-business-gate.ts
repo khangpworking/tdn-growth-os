@@ -395,7 +395,7 @@ function pdfExcerptMisuse(html: string, scan: Scan): string[] | null {
   }));
 }
 
-const SELLER_VIDEO_BLOCK_TITLE = /Số liệu video do chủ tải lên cho lượt này|Lời nói trong video bán hàng do người vận hành ghi lại/giu;
+const SELLER_VIDEO_BLOCK_TITLE = /Số liệu video do chủ tải lên cho lượt này|Lời nói trong video bán hàng/giu;
 const SELLER_VIDEO_SUBJECT = /(?<![\p{L}\p{N}_])video(?![\p{L}\p{N}_])/giu;
 const SELLER_VIDEO_CUSTOMER_TERM = new RegExp(`${PDF_CUSTOMER_VOICE_TERM.source}|(?<![\\p{L}\\p{N}_])(?:review\\s+của\\s+(?:khách|người\\s+mua)|lời\\s+(?:của\\s+)?(?:khách|người\\s+mua)|khách(?:\\s+hàng)?\\s+(?:chia\\s+sẻ|kể|khen|chê)|người\\s+mua\\s+(?:đánh\\s+giá|chia\\s+sẻ|kể|khen|chê))(?![\\p{L}\\p{N}_])`, 'giu');
 const SELLER_VIDEO_VERIFIED_TERM = /(?<![\p{L}\p{N}_])(?:đã\s+(?:được\s+)?(?:kiểm\s+chứng|xác\s+minh|chứng\s+minh|chứng\s+thực)|là\s+sự\s+thật|chứng\s+minh|bằng\s+chứng\s+chắc\s+chắn)(?![\p{L}\p{N}_])/giu;

@@ -20,21 +20,32 @@ export const SELLER_VIDEO_PROVENANCE = 'do người vận hành ghi lại từ v
 export const SELLER_VIDEO_ESTIMATE = 'ước tính';
 export const SELLER_VIDEO_NOTE = 'Các tệp video này do chủ hoặc người vận hành tải lên cho lượt này. Nội dung video là lời người bán hoặc người làm video review tự nói để bán hàng, không phải ý kiến khách hàng và không phải sự thật đã kiểm chứng. Số liệu video là số ước tính của công cụ, không cộng lại, không so sánh được với số liệu mẫu; kỳ của tệp chưa được kiểm tra nên không coi là cùng kỳ với báo cáo.';
 export const SELLER_VIDEO_SRC = 'Tệp số liệu video và bản ghi lời nói trong video do chủ hoặc người vận hành tải lên cho lượt này.';
+/** Automated (video-watch) readings: own title, provenance, note and source line; operator wording above stays unchanged. */
+export const SELLER_VIDEO_AUTO_TITLE = 'Lời nói trong video bán hàng';
+export const SELLER_VIDEO_AUTO_PROVENANCE = 'ghi lại tự động từ video, chưa xác minh';
+export const SELLER_VIDEO_AUTO_NOTE = 'Lời nói trong video bán hàng được ghi lại tự động từ video công khai liên quan tới sản phẩm, chưa có người kiểm tra. Đây là lời người bán hoặc người làm video review tự nói để bán hàng, không phải ý kiến khách hàng và không phải sự thật đã kiểm chứng.';
+export const SELLER_VIDEO_AUTO_SRC = 'Lời nói được ghi lại tự động từ video công khai của lượt này.';
 
 const SELLER_VIDEO_VOICE_LABELS = new Set(['lời người bán', 'lời người làm video review']);
 const sellerVideoVoiceLabelSafe = (value: string): value is 'lời người bán' | 'lời người làm video review' => SELLER_VIDEO_VOICE_LABELS.has(value);
 
 export type SellerVideoLeftOutReason = 'OVER_10_ROWS' | 'OVER_5_VIDEOS' | 'OVER_3_SEGMENTS' | 'OVER_30_WORDS' | 'NOT_READER_SAFE' | 'EMPTY_SEGMENT'
-  | 'NOT_VERIFIED' | 'NOT_VIDEO_TABLE' | 'NOT_FIRST_TABLE' | 'NO_SHOWN_SEGMENT' | 'SAME_READING' | 'TOO_MANY_PACKAGES';
+  | 'NOT_VERIFIED' | 'NOT_VIDEO_TABLE' | 'NOT_FIRST_TABLE' | 'NO_SHOWN_SEGMENT' | 'SAME_READING' | 'TOO_MANY_PACKAGES' | 'NOT_ABOUT_PRODUCT';
 export interface SellerVideoRef { readonly packageId: string; readonly manifestArtifactSha256: string; readonly packageContentSha256: string }
+/** An automated reading reference as the collection step stored it (readingSha256 pins the exact bytes). */
+export interface SellerVideoAutomatedRef extends SellerVideoRef { readonly readingSha256: string }
 /** One stored video row: only these four values, exactly as stored (decimal text or null). */
 export interface SellerVideoRow { readonly revenue: string | null; readonly views: string | null; readonly units: string | null; readonly publishDate: string | null }
 export interface SellerVideoExcerpt { readonly text: string; readonly startSeconds: number; readonly endSeconds: number }
-export interface SellerVideoReading { readonly package: SellerVideoRef; readonly readingSha256: string; readonly voiceLabel: string; readonly excerpts: readonly SellerVideoExcerpt[] }
+export interface SellerVideoReading { readonly package: SellerVideoRef; readonly readingSha256: string; readonly voiceLabel: string; readonly excerpts: readonly SellerVideoExcerpt[];
+  /** Present (true) only for an automated, model-transcribed reading; absent for operator readings. */
+  readonly automated?: true }
 /** Counted per package and reason, so a long table or reading stays a bounded record. */
 export interface SellerVideoLeftOut { readonly kind: 'table' | 'reading'; readonly packageId: string | null; readonly reason: SellerVideoLeftOutReason; readonly count: number }
 /** Every package considered at the first build, in package-key order; later builds re-read exactly these. */
-export interface SellerVideoSources { readonly tables: readonly SellerVideoRef[] | 'TOO_MANY'; readonly readings: readonly SellerVideoRef[] | 'TOO_MANY' }
+export interface SellerVideoSources { readonly tables: readonly SellerVideoRef[] | 'TOO_MANY'; readonly readings: readonly SellerVideoRef[] | 'TOO_MANY';
+  /** Automated readings considered, in candidate order; present only when there was at least one. */
+  readonly automated?: readonly SellerVideoAutomatedRef[] }
 export interface SellerVideos {
   readonly contractVersion: 'seller-videos-v1';
   readonly sources: SellerVideoSources;
@@ -45,7 +56,8 @@ export interface SellerVideos {
 
 type TableInput = { readonly ref: SellerVideoRef; readonly rows: readonly SellerVideoRow[] | 'NOT_VIDEO_TABLE' | 'NOT_VERIFIED' };
 type ReadingInput = { readonly ref: SellerVideoRef; readonly reading: { readonly readingSha256: string; readonly voiceLabel: string; readonly segments: readonly SellerVideoExcerpt[] } | 'NOT_VERIFIED' };
-export interface SellerVideoInputs { readonly tables: readonly TableInput[] | 'TOO_MANY'; readonly readings: readonly ReadingInput[] | 'TOO_MANY' }
+export type AutomatedReadingInput = { readonly ref: SellerVideoAutomatedRef; readonly reading: Exclude<ReadingInput['reading'], 'NOT_VERIFIED'> | 'NOT_VERIFIED' | 'NOT_ABOUT_PRODUCT' };
+export interface SellerVideoInputs { readonly tables: readonly TableInput[] | 'TOO_MANY'; readonly readings: readonly ReadingInput[] | 'TOO_MANY'; readonly automated?: readonly AutomatedReadingInput[] }
 
 const words = (text: string): number => text.trim().split(/\s+/u).filter(Boolean).length;
 /** Visible-text rules of the report that plain prose alone does not cover: a platform name needs its icon, notes and section codes are the report's own. */
@@ -70,27 +82,33 @@ export function selectSellerVideos(inputs: SellerVideoInputs): SellerVideos | nu
   }
   if (table && table.rows.length === 0) table = null;
   const readings: SellerVideoReading[] = [];
-  if (inputs.readings === 'TOO_MANY') out('reading', null, 'TOO_MANY_PACKAGES');
-  else for (const item of inputs.readings) {
-    const id = item.ref.packageId;
-    if (item.reading === 'NOT_VERIFIED') { out('reading', id, 'NOT_VERIFIED'); continue; }
-    if (!sellerVideoVoiceLabelSafe(item.reading.voiceLabel)) { out('reading', id, 'NOT_READER_SAFE'); continue; }
-    if (readings.some(shown => shown.readingSha256 === (item.reading as { readingSha256: string }).readingSha256)) { out('reading', id, 'SAME_READING'); continue; }
-    if (readings.length >= SELLER_VIDEO_MAX_VIDEOS) { out('reading', id, 'OVER_5_VIDEOS'); continue; }
+  const take = (ref: SellerVideoRef, reading: ReadingInput['reading'] | 'NOT_ABOUT_PRODUCT', automated: boolean): void => {
+    const id = ref.packageId;
+    if (reading === 'NOT_VERIFIED' || reading === 'NOT_ABOUT_PRODUCT') { out('reading', id, reading); return; }
+    if (!sellerVideoVoiceLabelSafe(reading.voiceLabel)) { out('reading', id, 'NOT_READER_SAFE'); return; }
+    if (readings.some(shown => shown.readingSha256 === reading.readingSha256)) { out('reading', id, 'SAME_READING'); return; }
+    if (readings.length >= SELLER_VIDEO_MAX_VIDEOS) { out('reading', id, 'OVER_5_VIDEOS'); return; }
     const excerpts: SellerVideoExcerpt[] = [];
-    for (const segment of item.reading.segments) {
+    for (const segment of reading.segments) {
       if (excerpts.length >= SELLER_VIDEO_MAX_SEGMENTS) out('reading', id, 'OVER_3_SEGMENTS');
       else if (!segment.text.trim()) out('reading', id, 'EMPTY_SEGMENT');
       else if (words(segment.text) > SELLER_VIDEO_MAX_WORDS) out('reading', id, 'OVER_30_WORDS');
       else if (!sellerVideoSegmentSafe(segment.text)) out('reading', id, 'NOT_READER_SAFE');
       else excerpts.push({ text: segment.text, startSeconds: segment.startSeconds, endSeconds: segment.endSeconds });
     }
-    if (!excerpts.length) { out('reading', id, 'NO_SHOWN_SEGMENT'); continue; }
-    readings.push({ package: item.ref, readingSha256: item.reading.readingSha256, voiceLabel: item.reading.voiceLabel, excerpts });
-  }
+    if (!excerpts.length) { out('reading', id, 'NO_SHOWN_SEGMENT'); return; }
+    const package_ = { packageId: ref.packageId, manifestArtifactSha256: ref.manifestArtifactSha256, packageContentSha256: ref.packageContentSha256 };
+    readings.push({ package: package_, readingSha256: reading.readingSha256, voiceLabel: reading.voiceLabel, excerpts, ...(automated ? { automated: true as const } : {}) });
+  };
+  if (inputs.readings === 'TOO_MANY') out('reading', null, 'TOO_MANY_PACKAGES');
+  else for (const item of inputs.readings) take(item.ref, item.reading, false);
+  // Automated readings come after the operator ones, under the same 5-video cap and segment rules.
+  const automated = inputs.automated ?? [];
+  for (const item of automated) take(item.ref, item.reading, true);
   if (!table && !readings.length) return null;
   const refs = <T extends { ref: SellerVideoRef }>(list: readonly T[] | 'TOO_MANY') => list === 'TOO_MANY' ? 'TOO_MANY' as const : list.map(item => item.ref);
-  return { contractVersion: 'seller-videos-v1', sources: { tables: refs(inputs.tables), readings: refs(inputs.readings) }, table, readings, leftOut };
+  const automatedRefs = automated.map(({ ref }) => ({ packageId: ref.packageId, manifestArtifactSha256: ref.manifestArtifactSha256, packageContentSha256: ref.packageContentSha256, readingSha256: ref.readingSha256 }));
+  return { contractVersion: 'seller-videos-v1', sources: { tables: refs(inputs.tables), readings: refs(inputs.readings), ...(automatedRefs.length ? { automated: automatedRefs } : {}) }, table, readings, leftOut };
 }
 
 export interface SellerVideoReadDeps {
@@ -99,6 +117,8 @@ export interface SellerVideoReadDeps {
   readonly runId: string;
   /** The run's own network-free reading view (`AutomationP9SourceIntake.reading`), which projects stored v1 readings in memory. */
   readonly reading: (ref: SellerVideoRef) => Promise<{ readonly readingSha256: string; readonly rows: readonly { readonly text: string; readonly voiceLabel: string; readonly startSeconds: number; readonly endSeconds: number }[] }>;
+  /** Automated (video-watch) readings: re-verifies exactly `pinned` when given, otherwise the collection step's stored refs. Absent = none. */
+  readonly automated?: (pinned?: readonly SellerVideoAutomatedRef[]) => Promise<readonly AutomatedReadingInput[]>;
 }
 const sha = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex');
 const sameRef = (a: SellerVideoRef, b: SellerVideoRef): boolean => a.packageId === b.packageId && a.manifestArtifactSha256 === b.manifestArtifactSha256 && a.packageContentSha256 === b.packageContentSha256;
@@ -144,7 +164,9 @@ export async function readSellerVideoInputs(deps: SellerVideoReadDeps, pinned?: 
       return { ref, reading: { readingSha256: read.readingSha256, voiceLabel, segments: read.rows.map(({ text, startSeconds, endSeconds }) => ({ text, startSeconds, endSeconds })) } };
     } catch { return { ref, reading: 'NOT_VERIFIED' }; }
   }));
-  return { tables, readings };
+  // A pinned draft without automated refs never gains any later; the first build takes what the collection step stored.
+  const automated = !deps.automated ? [] : pinned ? (pinned.automated ? await deps.automated(pinned.automated) : []) : await deps.automated();
+  return automated.length ? { tables, readings, automated } : { tables, readings };
 }
 
 /** The S02 and S14 registry bindings: the shown table's and each shown reading's package manifest. */
@@ -158,10 +180,23 @@ export function sellerVideoBlockHtml(videos: SellerVideos, esc: (value: string) 
   const cell = (value: string | null): string => esc(formatMissingVideoValue(value));
   const table = videos.table ? `<h3>${esc(SELLER_VIDEO_TABLE_TITLE)}</h3><div class="table-wrap"><table class="seller-videos"><thead><tr><th>Video</th><th>Doanh thu (${SELLER_VIDEO_ESTIMATE})</th><th>Lượt xem (${SELLER_VIDEO_ESTIMATE})</th><th>Đơn vị bán (${SELLER_VIDEO_ESTIMATE})</th><th>Ngày đăng</th></tr></thead><tbody>${
     videos.table.rows.map((row, index) => `<tr><td>Video ${index + 1}</td><td>${cell(row.revenue)}</td><td>${cell(row.views)}</td><td>${cell(row.units)}</td><td>${cell(row.publishDate)}</td></tr>`).join('')}</tbody></table></div>` : '';
-  const speechReadings = videos.readings.filter(reading => sellerVideoVoiceLabelSafe(reading.voiceLabel));
-  const speech = speechReadings.length ? `<h3>${esc(SELLER_VIDEO_READING_TITLE)}</h3><ul class="seller-video-speech">${speechReadings.map(reading => reading.excerpts.map(excerpt =>
-    `<li><blockquote data-quote><p>${esc(excerpt.text)}</p><footer>${esc(reading.voiceLabel.charAt(0).toUpperCase() + reading.voiceLabel.slice(1))}; giây ${seconds(excerpt.startSeconds)}–${seconds(excerpt.endSeconds)}; ${SELLER_VIDEO_PROVENANCE}.</footer></blockquote></li>`).join('')).join('')}</ul>` : '';
-  return table + speech;
+  const block = (title: string, provenance: string, list: readonly SellerVideoReading[]): string => list.length ? `<h3>${esc(title)}</h3><ul class="seller-video-speech">${list.map(reading => reading.excerpts.map(excerpt =>
+    `<li><blockquote data-quote><p>${esc(excerpt.text)}</p><footer>${esc(reading.voiceLabel.charAt(0).toUpperCase() + reading.voiceLabel.slice(1))}; giây ${seconds(excerpt.startSeconds)}–${seconds(excerpt.endSeconds)}; ${provenance}.</footer></blockquote></li>`).join('')).join('')}</ul>` : '';
+  const safe = videos.readings.filter(reading => sellerVideoVoiceLabelSafe(reading.voiceLabel));
+  const speech = block(SELLER_VIDEO_READING_TITLE, SELLER_VIDEO_PROVENANCE, safe.filter(reading => reading.automated !== true));
+  const automated = block(SELLER_VIDEO_AUTO_TITLE, SELLER_VIDEO_AUTO_PROVENANCE, safe.filter(reading => reading.automated === true));
+  return table + speech + automated;
+}
+
+const hasOperator = (videos: SellerVideos): boolean => Boolean(videos.table) || videos.readings.some(reading => reading.automated !== true);
+const hasAutomated = (videos: SellerVideos): boolean => videos.readings.some(reading => reading.automated === true);
+/** The one M09 note for the shown blocks: operator wording unchanged when only uploads are shown. */
+export function sellerVideoNote(videos: SellerVideos): string {
+  return [hasOperator(videos) ? SELLER_VIDEO_NOTE : '', hasAutomated(videos) ? SELLER_VIDEO_AUTO_NOTE : ''].filter(Boolean).join(' ');
+}
+/** The source line for the shown blocks: operator wording unchanged when only uploads are shown. */
+export function sellerVideoSrc(videos: SellerVideos): string {
+  return [hasOperator(videos) ? SELLER_VIDEO_SRC : '', hasAutomated(videos) ? SELLER_VIDEO_AUTO_SRC : ''].filter(Boolean).join(' ');
 }
 
 /** The uploads stored with a verified Market draft; only a draft whose packet carries the marker has any. */
