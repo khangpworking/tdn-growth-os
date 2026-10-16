@@ -48,7 +48,8 @@ test('selection: a quote that shows a path, link, address or secret is left out 
     'Chi tiết tại bao-cao/bang-1.html.', 'Trang solieu.example.vn có số liệu.', 'Máy chủ 203.0.113.7.', 'Địa chỉ 2001:db8::1 dùng nội bộ.',
     'Liên hệ nhom@example.test để nhận bản.', 'Khóa ghp_abcdefghijklmnop1234 dùng tạm.', 'Mã aB3dE5gH7jK9mN1pQ3sT5vW7 cấp cho tài khoản.', 'Ghi chú api key: xyz.',
     'Bản lưu C:/bao-cao/a.pdf.', 'Mở trang ?id=12 để xem.', 'Bảng lấy từ bang_2025_quy.',
-    'Bản gốc lưu ở /secret.', 'Tệp /foo.txt đính kèm.', 'Mở \\secret để xem.', 'Bản lưu C:report.pdf.', 'Xem (/bang) phía dưới.'];
+    'Bản gốc lưu ở /secret.', 'Tệp /foo.txt đính kèm.', 'Mở \\secret để xem.', 'Bản lưu C:report.pdf.', 'Xem (/bang) phía dưới.',
+    'Lưu tại //server/share/report.', 'Lưu tại \\\\server/share/report.', 'Lưu tại \\\\server\\share.', 'Xem thu-muc/bao-cao.', 'Mục a/b/c.', 'Từ ./a hoặc ~/a.', 'Ngày /12/2025.'];
   const picked = selectPdfExcerpts(artifact(unsafe.map((text, i) => quote(SHA_A, i + 1, text))), RUN, names);
   assert.deepEqual(picked.excerpts, []);
   assert.deepEqual(picked.leftOut.map(item => item.reason), unsafe.map(() => 'NOT_READER_SAFE'));
@@ -56,7 +57,7 @@ test('selection: a quote that shows a path, link, address or secret is left out 
 
 test('selection: ordinary numbers, month-year dates, ratios and unit slashes stay verbatim', () => {
   const plain = ['Doanh thu ngành đạt 12.345.678 triệu đồng năm 2025, tăng 5,2%.', 'Giá bình quân 250.000 đồng/chiếc trong tháng 6/2025.', 'Tỷ lệ hộ có quạt điện là 3/4 ở đô thị, 10.500.000 hộ.',
-    'Giá 250.000 đ./tháng, bán 24/7, tính theo cái/hộp và/hoặc thùng / két.'];
+    'Giá 250.000đ/tháng, bán 24/7, tính theo (cái/hộp) và/hoặc thùng / két.'];
   const picked = selectPdfExcerpts(artifact(plain.map((text, i) => quote(i < 3 ? SHA_A : SHA_B, i + 1, text))), RUN, names);
   assert.deepEqual(picked.excerpts.map(item => item.text), plain);
   assert.deepEqual(picked.leftOut, []);

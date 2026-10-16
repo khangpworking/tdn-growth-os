@@ -37,7 +37,6 @@ const providerPattern = new RegExp(`(?<![\\p{L}\\p{N}_])(?:${PROVIDER_WORDS.map(
  */
 const LEAK_PATTERNS: readonly RegExp[] = [
   /[A-Za-z]:[\\/]|\\\\[\w.-]+\\|(?<![\p{L}\p{N}])[A-Za-z]:(?=[\p{L}\p{N}_.~-])/u, // Windows drive, drive-relative or network path
-  /(?:^|[^\p{L}\p{N}_.\/\\-])(?:~|\.{1,2})?[\/\\](?=[\p{L}\p{N}_.~-])|(?:^|[\s(["'])(?:~|\.{1,2})[\/\\]/u, // absolute, home or dot-relative path, one part is enough; a slash between words or numbers (đồng/chiếc, 6/2025) passes
   /\b[\w.-]+\/[\w.-]+\.(?:html?|php|aspx?|jsp|pdf|json|xml|csv|xlsx?|docx?|txt|png|jpe?g|gif|svg|js|css)\b|\b(?:href|src)\s*=|[?&][\w-]+=[\w%.-]/iu, // relative link
   /[a-z][a-z0-9+.-]*:\/\/|\bwww\.|(?<![\p{L}\p{N}_@.-])(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:com|net|org|gov|edu|info|biz|io|vn|asia|int)\b/iu, // web address
   /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/iu, // e-mail
@@ -45,7 +44,11 @@ const LEAK_PATTERNS: readonly RegExp[] = [
   /\bBearer\s|\b(?:sk|pk|rk)-[A-Za-z0-9]|\b(?:ghp|gho|ghu|ghs|github_pat|xox[abprs])[_-]|\bAKIA[0-9A-Z]{12,}|\beyJ[\w-]{8,}|\b(?:api[_\s-]?key|access[_\s-]?token|secret|password|passwd)\b\s*[:=]/iu, // secret
   /(?<![\p{L}\p{N}])(?=[\w+\/=]*\d)(?=[\w+\/=]*[A-Za-z])[\w+\/=]{24,}/u, // token-shaped run of letters and digits; hyphenated file names pass
 ];
-const leaks = (text: string): boolean => LEAK_PATTERNS.some(pattern => pattern.test(text));
+/** A slash is shown only as a lone "/" or once inside a word, between letters or digits (đồng/chiếc, 6/2025, 250.000đ/tháng). */
+const SLASH_WORD = /^[(\["'“‘]*[\p{N}.,]*[\p{L}\p{N}]+\/[\p{L}\p{N}]+[)\]"'”’,.;:!?%]*$/u;
+/** Paths are allowed out, not hunted: any backslash and any other slash (/secret, //server/share, ~/a, ./a, a/b/c, thu-muc/bao-cao) may be a path. */
+const pathLike = (text: string): boolean => text.includes('\\') || text.split(/\s+/u).some(word => word.includes('/') && word !== '/' && !SLASH_WORD.test(word));
+const leaks = (text: string): boolean => pathLike(text) || LEAK_PATTERNS.some(pattern => pattern.test(text));
 
 const words = (text: string): number => text.trim().split(/\s+/u).filter(Boolean).length;
 
