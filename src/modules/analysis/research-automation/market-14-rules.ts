@@ -67,7 +67,7 @@ function glossaryText(html: string): string {
   return visible(match?.[0] ?? '');
 }
 
-function technicalLeaks(html: string): string[] {
+export function technicalLeaks(html: string): string[] {
   const text = visible(html);
   return [
     ...(text.match(/(?:[A-Za-z]:\\[^\s<>"']+|\/(?:home|Users)\/[^\s<>"']*)/gu) ?? []),

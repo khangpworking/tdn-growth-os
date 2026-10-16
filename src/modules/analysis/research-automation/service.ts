@@ -1,3 +1,4 @@
+import { selectMetaAdPages, type MetaAdPage } from './meta-ad-report.js';
 import { AutomationMetaPageIntake, metaPagePackagePrefix, validateMetaPageBinding, type MetaPageBinding, type MetaPageSelection, type MetaPageSourceView } from './meta-page-intake.js';
 import type { DefaultMarketPeers } from '../../../../contracts/analysis/default-market-peers.generated.js';
 import { filterSerpApiResults } from './serpapi-l9-filter.js';
@@ -755,6 +756,10 @@ export class ResearchAutomationService {
   }
   async listMetaPageSources(workspaceId: string, runId: string): Promise<MetaPageSourceView[]> {
     await this.getRun(workspaceId, runId); return this.#metaPageIntake(workspaceId, runId).history(runId);
+  }
+  /** The confirmed Meta ad-library pages (S15) the reader reports print, chosen by the board activity rule; [] when the run has none. */
+  async #metaAdPages(workspaceId: string, runId: string): Promise<MetaAdPage[]> {
+    return selectMetaAdPages(await this.listMetaPageSources(workspaceId, runId));
   }
   #metaPageIntake(workspaceId: string, runId: string): AutomationMetaPageIntake {
     return new AutomationMetaPageIntake(this.#metaPageArtifacts, this.#db, this.#now,
@@ -1742,7 +1747,9 @@ export class ResearchAutomationService {
           throw new ResearchAutomationValidationError('Selected Persona reader differs from the exact retained source and final proposal.');
       }
       let context;
-      try { context = prepareInsightReaderBuild(verified.insightReader.identity, verified.insightReader.methods); }
+      // Confirmed Meta ad pages are read now, like the Market reader: they are seller-voice text, never a retained method input.
+      const metaAds = await this.#metaAdPages(workspaceId, runId);
+      try { context = prepareInsightReaderBuild(verified.insightReader.identity, metaAds.length ? { ...verified.insightReader.methods, metaAds } : verified.insightReader.methods); }
       catch (error) {
         if (error instanceof ReaderReportInputError) throw new ResearchAutomationValidationError('Phiên bản nguồn chưa có phương pháp đọc insight được hỗ trợ.');
         throw error;
@@ -1802,6 +1809,8 @@ export class ResearchAutomationService {
     // Full verification of the exact draft pair before its semantic content is restated.
     const verified = await this.readReport(workspaceId, runId, 'MARKET', false, latest.pairId);
     const marketSemantic = await this.#readJson<Record<string, unknown>>(verified.versionId, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+    // Meta pages are confirmed after the draft, so the draft cannot carry them; the confirmed set is read now and printed in the stored page.
+    const metaAds = await this.#metaAdPages(workspaceId, runId);
     const prepared = (await this.listPreparedMetricSources(workspaceId, runId)).sources.find(source => source.packageId === packageId);
     const preparedCapture = (await this.listPreparedMetricCaptureSources(workspaceId, runId)).sources.find(source => source.packageId === packageId);
     if (!prepared && !preparedCapture) throw new ResearchAutomationValidationError('Nguồn sản phẩm này không thuộc lượt research.');
@@ -1824,6 +1833,7 @@ export class ResearchAutomationService {
           ({ position, title, url, snippet, retrievedAt, site: site ?? null, published: published ?? null, ...(origin ? { origin } : {}) })),
         ...(searchInterestRenderable(searchInterest) ? { searchInterest } : {}),
         ...(worldBankRenderable(webCollection?.worldBank) ? { worldBank: webCollection.worldBank } : {}), ...(storedPdfExcerpts(marketSemantic).length ? { pdfExcerpts: storedPdfExcerpts(marketSemantic) } : {}), ...(storedSellerVideos(marketSemantic) ? { sellerVideos: storedSellerVideos(marketSemantic)! } : {}),
+        ...(metaAds.length ? { metaAds } : {}),
         metric: { packageId, capture: { snapshot: verifiedCapture.snapshot, snapshotSha256: rawSnapshotSha256, truncation: preparedCapture.capture.truncation }, measurementPeriod: preparedCapture.capture.measurementPeriod } };
     }
     if (!prepared) throw new ResearchAutomationValidationError('Tệp danh sách sản phẩm này không thuộc lượt research.');
@@ -1838,6 +1848,7 @@ export class ResearchAutomationService {
         ({ position, title, url, snippet, retrievedAt, site: site ?? null, published: published ?? null, ...(origin ? { origin } : {}) })),
       ...(searchInterestRenderable(searchInterest) ? { searchInterest } : {}),
         ...(worldBankRenderable(webCollection?.worldBank) ? { worldBank: webCollection.worldBank } : {}), ...(storedPdfExcerpts(marketSemantic).length ? { pdfExcerpts: storedPdfExcerpts(marketSemantic) } : {}), ...(storedSellerVideos(marketSemantic) ? { sellerVideos: storedSellerVideos(marketSemantic)! } : {}),
+      ...(metaAds.length ? { metaAds } : {}),
       metric: { packageId, workbook: workbook.bytes, measurementPeriod: prepared.request.measurementPeriod } };
   }
 

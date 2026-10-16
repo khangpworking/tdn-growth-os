@@ -14,6 +14,7 @@ import { ReaderReportInputError } from './build.js';
 import { verifyInsightReaderInput, type InsightReaderInput } from './insight-input-v1.js';
 import { insightCrosscheckAppendix } from '../research-automation/insight-crosscheck-report.js';
 import { insightWebContextSection } from './insight-web-context.js';
+import { INSIGHT_META_AD_EXPLANATION, INSIGHT_META_AD_SECTIONS, insightMetaAdSection } from './insight-meta-ads.js';
 import { projectRetainedInsightFindings, projectInsightFindings, type InsightSectionId } from './insight-projection.js';
 import type { InsightReaderPage, InsightReaderSection } from './insight-template.js';
 import { qualitativeDraftSection, type QualitativeDraftReportSection } from './qualitative-draft-report.js';
@@ -33,6 +34,8 @@ export function prepareInsightReaderBuild(identity: InsightReaderSourceIdentity,
       methods.scope.workspaceId !== identity.workspaceId || methods.scope.runId !== identity.runId || !methods.start.reports.includes('INSIGHT') ||
       digest(methods.start) !== identity.frozenStartSha256 || digest(methods.scope) !== identity.frozenScopeSha256)
     throw new ReaderReportInputError('Insight reader methods differ from authenticated frozen scope.');
+  // Seller-voice ad pages sit outside every method view below: they are never part of a retained method, coding, persona or count.
+  const metaAds = methods.metaAds ?? [];
   const qualitativeDraft: AutomationQualitativeDraft | undefined = methods.qualitativeDraft;
   const qualitative28 = identity.sourceRendererVersion === 'automation-report-kit-v28';
   if (qualitative28 !== Boolean(qualitativeDraft))
@@ -181,6 +184,10 @@ export function prepareInsightReaderBuild(identity: InsightReaderSourceIdentity,
     'Phần còn thiếu của bản kê nguồn được giữ rõ, không thay bằng giá trị mặc định.');
   const webContext = insightWebContextSection(methods, citations);
   if (webContext) append('I17', webContext, 'Nguồn, hạng và kết quả lọc nghĩa được giữ riêng theo từng nguồn.');
+  for (const id of INSIGHT_META_AD_SECTIONS) {
+    const body = insightMetaAdSection(metaAds, id, citations);
+    if (body) append(id, body, INSIGHT_META_AD_EXPLANATION);
+  }
   if (qualitativeDraft) for (const id of ['I02', 'I05', 'I06', 'I10', 'I17'] as QualitativeDraftReportSection[])
     append(id, qualitativeDraftSection(qualitativeDraft, id, citations), 'Đề xuất qualitative bám bản ghi nguồn đã lưu; chờ chủ duyệt, U11_STATISTIC_UNAVAILABLE và không dùng trong kết luận chính.');
   return { input, page: { keyword: scope.keyword, definition: scope.definition, period: scope.requestedPeriod,
