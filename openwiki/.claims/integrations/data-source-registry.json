@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:1d658e1cdff14df03e61ef9143eabbac3f908471306ca65ce133b1ee3c8feb18",
+  "claims": [
+    {
+      "id": "claim_e41e509f7c8a4419942439ee0dc5cb6b",
+      "statement": "The canonical S01–S27 registry assigns each source a separate tier and representativeness value, a report-facing name, a registry status, and primary/secondary allocations across the Market and Insight sections.",
+      "evidence": [
+        {
+          "resource": "repo://docs/research/ultimate-method/input-data-sources-30-sections.md#L16-L35",
+          "version": "repo-lines-v1:sha256:b514598dd50d8c24ae7efc6069fffcc1a4227c5f9812a5e0b9dd5747ce0e8904:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM5NDg5YTE0YzRkYmZmZWVmODU3MWQ4NTc5NWI2MzliNTcyMzU1MmE1NTZjMmViMzAxNDhiOTg1YzY1Yzc3MzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJkODhjMmM2ODZiYWQ0MzBhMWU2NjI3NTQ1ZTg1NjIwMzJkZmI0Y2RkODMwZmNmZDY2NTE0NDg3ZWE4YjA2NjgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAwMWYyZWMxNzU5M2MxMDU0ZWI0NjM2N2Q4NDUzZWYyNGExNzNjZTk2YjcxMTdkOTFmOWE2OGQ0NGZlZjhiMDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImEwZDVhMTk1YmFmODdjZmZmMmYxZDc2ZTVjMGFiNjc0NGZhY2ZlNjc0YWRkYzA1M2Y3OTQ4MDY5MzgxNzU4NzYifQ"
+        },
+        {
+          "resource": "repo://docs/research/ultimate-method/input-data-sources-30-sections.md#L60-L155",
+          "version": "repo-lines-v1:sha256:e6accac35177b9e3f20fa47675070838ff11c9855be0c91d8955a042a9811718:eyJzZWxlY3RlZExpbmVDb3VudCI6OTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhkOGM1YmU4OWFiOTI0MDAzNTA2NDFkODY2ODUxZWJjODgzZGYxMWVkYTU1ZmZjYjIzY2FiZTZjNWQ5MzE3MTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY5YjFiNDgyNjA2YThkNzMwMTkyZGJhOWE4YmI1ZTdhYTJhZjViZTYxM2I5YjhlYWM0Nzk4MTE4MmM1N2QwMjgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRiNzU0NGRiZWZkNGM5YjU1YTJjMzUxZTNmMjZhZDljNzE2N2RjMjEyMGNhYjQ4NDc3ZjE2YTIxODg2MDMzNjMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAwMWYyZWMxNzU5M2MxMDU0ZWI0NjM2N2Q4NDUzZWYyNGExNzNjZTk2YjcxMTdkOTFmOWE2OGQ0NGZlZjhiMDEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_881283b090954a28b5a47111d33a34ae",
+      "statement": "The internal source-status board mirrors a bounded subset of registry metadata, separates collector build state from run wiring, and keeps future integrations such as TikTok comments, video reading, official statistics, and World Bank data in NOT_BUILT state until their owning package implements them.",
+      "evidence": [
+        {
+          "resource": "repo://src/modules/analysis/research-automation/source-status.ts#L147-L193",
+          "version": "repo-lines-v1:sha256:01b7ed06018adf78a103b67e9402ae49144fc7570d781d77699a6e2404b47d44:eyJzZWxlY3RlZExpbmVDb3VudCI6NDcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkzZTQ3NDc1YzU5NTBmMGIwOTJiYjZiYTI3ZTg0MGYwYjk5Mzc2ZmZjMTZmNGFlNWMxNmI1M2FiZTE4ODljN2UiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUzMDQ3YzQ4ZmY2Y2QzOGM1YjA0MWIzOTViYTA1NzFhNGM5MTQyY2NlNDFiZTBkMGYyMjQwNTZjYWJmNDc2ZTkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE2Njg2ODkwOTUzZGI3YjljZDViMjkxYjdhMGMxZTk1MTZhMGYwYzlkMDBhMjUwZDhhODM4N2MxYWIzZWJiOGIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE0NTA0ZmI4YzhmYmI1MzZmZjgwZWY0MmNjNjNlMTIzNzI3MjFmNGFkMjAwMDc3MzFkMDk2MmVjYTVhNDliNDYifQ"
+        },
+        {
+          "resource": "repo://src/modules/analysis/research-automation/source-status.ts#L37-L50",
+          "version": "repo-lines-v1:sha256:df12df588d536af8295eb2f6d816f6760e560eea6fce7b6c253708f998f3c75e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVhZjIyY2YwNzMyNTkyYzI0NzE0MWNiZTYxZWZhMTEwMTI2MTJmNWEzMTIyYjlhZjliYmFmNTJmNTcyNGQxOTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZmNjA5N2YwYzA2MWZjZjdjODdjNmY2Nzk1YjNlODY3ODc1MGI0NTVlOGQ1ZDRhODQ3MzcyMWU2MTc2NjhjNjkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjIzZGQyYjk3Y2JiZTMyNjRiY2ZlNjk1MTQxZTYxM2NkMmUyMTlhNTNiNWNjYTgwMDc3Yjg4N2RhYjAyMTgxY2MifQ"
+        },
+        {
+          "resource": "repo://src/modules/analysis/research-automation/source-status.ts#L78-L121",
+          "version": "repo-lines-v1:sha256:be51a031218577b562c35d3210eb50d2e3e273982ac54213fe9f8fc67df9e783:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVhZjIyY2YwNzMyNTkyYzI0NzE0MWNiZTYxZWZhMTEwMTI2MTJmNWEzMTIyYjlhZjliYmFmNTJmNTcyNGQxOTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIwMmQyYzBkNmRjNWU3NGQ5MmZhMTRiOTFkYmVhMjY0MDkwYmViMzVmZGI5MTg4ZDliMzQxMTgxZGNlOWY0Y2UiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUyZWIyZDQxZjQxY2Y2OWFmYTQwMzQ5Njk2MWE0MGNkNzM4MjEyZmQ1MjFkZmNmNGJjN2Y1MWZlMzE0N2M1MmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM0MmY2OTU4MzA4YjdhOGM3MGY0NjhhMDAxMTJlYWQyMmViYTA4NjZmNTUyMzdiZWJkN2VhNjEyYzBiNzM2YzEifQ"
+        },
+        {
+          "resource": "repo://tests/integration/research-automation-source-status.test.ts#L161-L195",
+          "version": "repo-lines-v1:sha256:2554d7bc4019bea9e11810974cb092063d92ee39fd5eb45ac10045abe6c33e89:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjliMjEwZTVkYjhkYTZlMjJhNDFkYjQ4YzA1Nzg1MjI1NDUxM2EyNjBhNWExZmEyZDJjYTM4YTE4NjNkZGNmZWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVlMjJkMDJmNTIxYzg4NjkwNTczYjA2YWNmMTMzYzhmNWM4ZmEwMWQwNmY2NWVlYzJjNTM5NzQ5MmEwMjYyNGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk4Y2ZlYTNkNDEyMTIxZDkyYmJhNDEwOGY4NTUwZmM0NmI1MjAyOTY2NmUyNzJiZmNjOTUzNDRlMDM0ODU1NWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAyODVlNDFiMzdjMWVhMzg4NDZkNzEwODM4NzlhYjg1ZjUzMjIzODA4ZTVjNDMzZDNjNzEyMzliY2ZjMGNmZTcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_d20bcfdc836042089ae0539220fe47d7",
+      "statement": "The provider contract distinguishes recent quick-search snapshots from exact-period collection, disallows automatic retries of paid requests, and records ambiguous paid requests for reconciliation; source binding converts validated provider results into lifecycle step documents while preserving the completed exchange when normalized projection validation fails.",
+      "evidence": [
+        {
+          "resource": "repo://src/modules/analysis/research-automation/providers.ts#L171-L180",
+          "version": "repo-lines-v1:sha256:a906db19526f3eee444a9b8b0ae513dc2e7518903c54b6b0fcabd897136272b9:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUzODg1ZTg3NWYzOGNlYWZlZTQ5ZWEwOWE0NTk2MTNhN2Q4NzRlNTljMDgwNGY4YzRlZDM0OTExZDY2YTZlZTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE5NzI2ZjJlN2FiODc3YWQwYzA1NDcwMTVjM2ZhODk3YTlkZWI4YzQ1MTJlNzlkMjViNWU5OGU3NDBjZmZiZWYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM3NmNhOTg2ZjBkMzQ4NTJiZGFhMDgxMmZkMzU4MDc2NjJkMGVhNmMyN2ZhMGMwYTBlNzk0OTgzNDZmY2Y3ZmQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVhYzAzMzBkZjgyZDA5MjczN2U2ZWM4NTg5NzQxZWM0MDBjMjRlODRjYjAwZTYxYWI1OGIwZDUxNzIxMzU1YTkifQ"
+        },
+        {
+          "resource": "repo://src/modules/analysis/research-automation/providers.ts#L66-L81",
+          "version": "repo-lines-v1:sha256:e6e7508750544c149e1751e5180f3dfe6b9e672908565c3bfa1109f314b870b9:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhkNTBiNWQ3MDgxZjA2MWU1MTAzZTM0YmQwNTEyMjc4MjhmYjNiMTBmYTRiMWVlMTFhMWY1YTliMWM0ZjUwODQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZhZWI2ZjNlNTg1YjZkZTU0ZDNiZTE0NzY3MDA5NmM3OWUwMDYzYThiN2IwZGUyMzE1M2EzYWQyNWMzMzUyOTUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRmNDVhMWMyZWE4N2MyNDc4YWU2YzRhZWM5Y2M1ODMzMjQ5N2VlMmU1NzVjNTM2ZDhiZGQ5ZDVjYWJiODIzOWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY2YTU1OTdjNjBjZjJlMTdhMzkyM2UxZGM3MGNlYzg5ZDkyNzgwZjRkNThiZGQyZmI4OWJmNzhkYmMxYzk3MDYifQ"
+        },
+        {
+          "resource": "repo://src/modules/analysis/research-automation/source-binding.ts#L32-L65",
+          "version": "repo-lines-v1:sha256:1f3bcdd6eb9e85f60a24fde9841f1ca1ecd1e0a5286cf959fc477b6a00abf595:eyJzZWxlY3RlZExpbmVDb3VudCI6MzQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVhZjIyY2YwNzMyNTkyYzI0NzE0MWNiZTYxZWZhMTEwMTI2MTJmNWEzMTIyYjlhZjliYmFmNTJmNTcyNGQxOTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQyYTJjYjI1YTEyMmI0NDIyMWE2MjM0ZWM2NjBhN2I1ZmI3ZjliZGU3YjNiOWUyYjNjNTU5YTBkOTZmYWM3MzkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI2ZGNhODJiMTM1OGUwNDYzMTY5ZmE2ZDY1NTczNDQyYjUzNzI2OWY2ZTUyOWZjYjc3Zjk1NWZkZmNkZTViYWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBjNTMyZTQ0NGM0MWZhNzRjNzFkMjU5ZmIxZDJiMzM4Mzc0Zjk1ODE0ZjgzMTE2YTcyNWFmODVkOWQwOTg5YmUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e0c67d206e434bfd8c558dc21ad18af3",
+      "statement": "The merged Shopee review collector requires a positive approved charge cap for live collection, persists a receipt before spending, avoids automatically retrying an uncertain start, and can sanitize source pages by HMAC-hashing author IDs without retaining a raw-ID mapping.",
+      "evidence": [
+        {
+          "resource": "repo://src/platform/collectors/apify-shopee.ts#L119-L161",
+          "version": "repo-lines-v1:sha256:6558f046ca5a142f55c71dccd5d04a0cbb7912591685492fab31f6bd6e5aa58b:eyJzZWxlY3RlZExpbmVDb3VudCI6NDMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ5ZjhhOWMyZmU1ZDVjZWU4N2VhMTU4NmYzZDU3NTQ3MDVmZmY5Zjc5ODYzMjRlZDJmNTJmMTM4ZGI2NWE5NjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU2YjA0NDkxNDY5NzIyZTgzNjNhOTRlNDA0NDUzOGUwMTNhMmEyMTdlMzZiMWU1NjhiYTYwYWNiN2I0YzhmMmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNiNzJlZjMzY2MzNzdlMzhiYWRkYTdiMjVjYjE2ZTNjMWJmMDgxNGM5MzA3NmNjMzc4MDEzZjI0ZjY0ODA2YjQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImEyYTFhNTk1MTA4YTZkOWRiZjQ1MTJkY2Y0MDA3YWEyYWZkZWQ2NWJlYzU1MjVjN2U3MGMxMWIyOGNmMTQ3ZTcifQ"
+        },
+        {
+          "resource": "repo://src/platform/collectors/apify-shopee.ts#L74-L104",
+          "version": "repo-lines-v1:sha256:8ad65060f551a8585729c8e0d8ec6ce7269acc821fc9df1a2c2bf7b70bc7743d:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFjMGEyMzUzNTkzNmY3Y2ZhYTQxMzkyMGNkMTIxY2EyYzE0MTJkYWI5YzVmYTBiM2M4NWRlYWE3ODFkOTQ0ZmYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ0OTlmZjI4Njg3N2I4NTkwMTBkOGYzMjJmMDI0MmVkOWE5NWU2ZGExNzdiZDJlMThlYWRjZWQyMTYwYTdiMjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRlOWUxYmM3ZDllZjVkOGI1OGI3MzhiMzBmMGI3OTc1ZGM0YTNhMDY2OTk0MjJmNTMyZjllZGE3ZTkyOGUxYTUifQ"
+        },
+        {
+          "resource": "repo://src/platform/collectors/shopee-private-intake.ts#L17-L57",
+          "version": "repo-lines-v1:sha256:a6db92cac3a6327e68ef94f929920123b634470d63687d68c877987c425e1e48:eyJzZWxlY3RlZExpbmVDb3VudCI6NDEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcwOGVlNDEzNzlkN2M4MGRiNWJkM2IzNTdiY2NlMWQxNmYyYzgwYmRjMzMyMzRjODg4ZDJmMmQzMWVmMzk2OTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgyMTE0ODUxYjgwMjQ3YjIxYzgwZmNjZDg5MzcwMzgyYWRjOGQxOGMwZWQyYzdkMTljMGRiY2ViOWIyOTMzNWUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA2Y2E4ZmEwMGRkM2IzZTBiMTQwNDJhZTFjNzBmOTAxZWJjNWY1YTU2OTg0YjkwNzM0NTQ5YjFkNGMxZjQ2MWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNjZTZmM2E3OGQ3ZjBjNGJiNTU2ZmIyZmI1MDlhMTc3MjBjNzQzNmIyM2ZkYmMxMTg2YTkxMzFjNTdkZjZlMDcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_ec098859dc1044bfa9a57d1767cb66e7",
+      "statement": "The merged video/creator export intake uses exact required headers, preserves missing derived values rather than converting them to zero, prevents division by zero, and declares preparation inert rather than automatic source admission.",
+      "evidence": [
+        {
+          "resource": "repo://src/modules/analysis/research-automation/kalodata-video-intake.ts#L127-L143",
+          "version": "repo-lines-v1:sha256:12285584bd901d8f5698ccb7d5f0916601f8c58139221a7a5bc975e4291328da:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVhZjIyY2YwNzMyNTkyYzI0NzE0MWNiZTYxZWZhMTEwMTI2MTJmNWEzMTIyYjlhZjliYmFmNTJmNTcyNGQxOTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY3NWQ1MWVmZWQ1NTdiMjgzMDNjZWI2ZGY0MTIxMjE3YzIwMzdjNjQ3NmY2M2Q1NDFjNzJmMzg5Mjc0MzBkOWUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImExYjgwZmU0MWYyMTdlYjQ0ODQ0MzI3ZDYyZTRmYWJhMzFjNDRlMDBiMDI2ZWJiMjVhYjc1NWQzZTBiYTIxNDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJhMmJmNDgwMjU1M2ZmYmU2ZTNjZDlhOTgxYTdkY2Y0MjM2ODE1NzZlNTNlNzY1MDBjMTgxN2U4MmZlZDMzMGUifQ"
+        },
+        {
+          "resource": "repo://src/modules/analysis/research-automation/kalodata-video-intake.ts#L40-L60",
+          "version": "repo-lines-v1:sha256:5a0a8e0d3b1b547a1b72781c7c73db51de5149167d0d958f7c6a282c1079ca36:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJlYTM2OTZiOWZlM2NlMjA4OWQzZjA2NTJiNWMyMTViMWE2NWM3MGVjYTFkNjg0MTNmNzdhZGIxYjU2ZjI3YmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA3NzQzMTVkZjEwYTllYmRkMDM4YzZiMTMxN2VjNDk1NmNhOWY5MDRiNDFjMTg1NThhYWFmZTk0MzRmY2RiYTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc4ODQyZDYwNTU3NGM5ZTEzNjk4YTk3MzNiNDAxZjJkY2ZhMzNlZDA2OTVmYjY4YTg0NjY2ODMwOGYzNDMyNzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdmZmIwNjA5OTI3NzdkMWI1YjIzNGM4NmFmMTg3ODFmZWNjZWM0MjBjZjJjNWIwNGY2YjYwNWE0NWIyYzRkMjUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e87e878d27ec4fac878f2975f26c4151",
+      "statement": "Search Trends and expanded-search helpers are present but explicitly offline and not wired into runs: Trends plans at most four calls over at most five keywords, while SearchCallBudget skips exhausted calls without queueing, deferral, or retry.",
+      "evidence": [
+        {
+          "resource": "repo://src/modules/analysis/research-automation/expanded-search-queries.ts#L1-L8",
+          "version": "repo-lines-v1:sha256:632fa92df94aec6ff194791565e535a196d56975979647f0342b0b403949258c:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYWE0MmE5ODU0ZmRhNWQ5OTljZGNmNWQ0MmRiOTE0ZDUxMzU5NzFmMzFmNzkwYjZkOWQ3OTBmZmM3OGYzMGRlOCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZDlmYjIwNDNkODg0ZTJmZjVkOGNhY2RjNGE4NmJkMmJkYzk5NTY1OTg3MTZlZjY3ODgzYzAwMDQ4NDVmY2I0YSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZGJhMzJlM2YxYjgyOGFiMTk2M2MyMWFkMTc0N2Q4NzhiNjhhNTY2YjZlZGNlMTg2OTU0MDVlZThhNWEyNTMyNSJ9"
+        },
+        {
+          "resource": "repo://src/modules/analysis/research-automation/expanded-search-queries.ts#L60-L83",
+          "version": "repo-lines-v1:sha256:4197c5c714a43e1eb37aa657ba8cccba73e7eccf4e62488f306b5f996ae5880e:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE1YWJmNGE0NDk5Mzc0NWM4NjIzNjk2NTEwYjI3NjIyYjQ0NTMyY2Y2Y2YxMmZjMWMxY2JiODljYmJkYTkwYWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRjM2M1NmQzMmI2YWMyYTI3YTBiODYzMTkxZWYyY2JjODQ4YjJkMDdjZDJjZDI5NjQ0NTJiZWIwZWIzMTk2ODQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://src/modules/analysis/research-automation/search-trends.ts#L1-L19",
+          "version": "repo-lines-v1:sha256:de804a4345c4860d336eb6c282d45edc19d55a891a199fbfa3725dd99e7985cd:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg2ZDcxOTRiNjRlZGU3ZmJhMzgzMzM2NDI1NWU1N2MzMjUxOGVjNGNlNjQzM2UxN2QyODIwNTA3Y2Y0ZWJiNGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY2ZjViNDBiMTU4NDU3ZDE3ODY0ZjIxNzkwNzg2ZGQ1YTJlY2RiNjRiNjZhNjUxZjc4OGQ0ZTI1Y2QzMzAzZDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg4YzVhZjc4NThhNTNlY2RiZWIzOTdjYzYwODkzN2I1NzViNzZiODVmYTBiOTNmOTEwMDQ3MTI4MzRkMzZkNTgifQ"
+        },
+        {
+          "resource": "repo://src/modules/analysis/research-automation/search-trends.ts#L62-L84",
+          "version": "repo-lines-v1:sha256:868c1d316299a9209ced1ea3452a174efd7391f60be07f0b0e98773112ad2776:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVhZjIyY2YwNzMyNTkyYzI0NzE0MWNiZTYxZWZhMTEwMTI2MTJmNWEzMTIyYjlhZjliYmFmNTJmNTcyNGQxOTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijg1YjdkMDA5ODVmMTZmNjY1YzY4MTRiOThjNjBjMGQ3NTZmMmRkZTYyMGRlMDZjN2VmODRmOTU0YTI2MzkzODYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBlMjNkNzYyMTgzNTRjYzBkMDcwNjJjMThkYTI3YTZhZGZiMTY5ZDc2Yjc3NzdlN2Q2OTA2ZGIyOGViZmQzZDMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f880da2fff534027aacccf0074f98ce4",
+      "statement": "PR #161 merged the source-board foundation at `e306c1b757d6823c654970b738afc1f9349312e8`; it completed board metadata, state, cap, frontend, and test work while leaving activity-reader work partial for future packages.",
+      "evidence": [
+        {
+          "resource": "repo://docs/STATUS.md#L3-L10",
+          "version": "repo-lines-v1:sha256:42a015b08f505634e21758eec47044d09f3964addd8940d7e44e77d883613328:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZTMyNmNhNzlhMGFmODlkMjUyMGE0MjNmNzM1NTNhMmY2NjFhMmE3NDBlZDNlYzczZGM0OWQ3MzM2NTZkNmVkYiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMmZiMjRlYWRmYWUwYmU1NDIyYjhhYmY0ZGMxYzY3MDUxMTRkNzZmM2Q2YjU1OTY5YWMwYTRmZTJkOGJjYzhmMCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjIsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzM1ZDc2MDFkMmUwM2I0OThiZjRiZThlNmJjOWJlMjhjZmI4MGNhY2MyMWMzNmY0MDVhZWFmYmM1ZDNkZmM0OCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjRmMWFjMzA2NzUwMWYxOGViZWEyOTc1MmZhMGQyNzZjMjYxNWFiMWUwZDQzYTRjNTgwM2Q2ZmQyNzA0MzQ0OCJ9"
+        },
+        {
+          "resource": "repo://docs/tasks/ultimate-v1.11-tdn-sync-plan.md#L18-L21",
+          "version": "repo-lines-v1:sha256:7c3c27a30d6c068642536fd18a0067570e76241781608c977f6f9632ef11708f:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTIwYzNiOTAwYzM2Y2U5NTgxZThjZDUzNGZlMzNiMzI2NTYyM2I3M2IyMmViMjQzYTAwNWE2ZGM0ZDAzOWUzMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYTdhZjIwZWRkYThjMzkwNzc0Zjc3ZGViYjYzYTA3OTI2NjEwZjFiZDc4ZjFmYWQ5NTlkYWFjZDE5MzFhMGNhZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTE0YzA3MDRiNjM5YTAzMDI2Y2JiNTIzOWFmOGM4ZWFmZWE1OTc2YzU5MTQwZjhhZTYxMGNkOTg4YmJhNjIyZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNGM3MTk0ZGQ3ZjhiMTgyOTQ0MDBiNzNiYzg3NDMwOWI2YTJmNzY0MmExMTgxODI3NTY0OTJiMGRjY2QyYTdiZCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_3d6293fc3b904d2c9baf7d171cdc2996",
+      "statement": "The report appendix projection is independent of source-board readiness: it resolves only known registry IDs to their tier, report name, and group, emits special tier detail for S19 and S25, and adds official attribution for S21–S23.",
+      "evidence": [
+        {
+          "resource": "repo://src/modules/analysis/source-appendix-projection.ts#L16-L37",
+          "version": "repo-lines-v1:sha256:6d9f32fe8484ec775e0d453638b3b0d3e87fd36404440b3484e314d781a04cda:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFkNzM5NzMzMTE5YTU0ZWFjZTliNmVjNjA1ODMyNzgxMjQ5NGQ3MWRhOWZhMWRjZDBjNWY3M2EzOGRjNzlmNzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNhOGM2MDMzYjk1MmI5MGI0ZmFmMDk3MGQzMDk4MWE4MDk2NmM1NzJlYWZhNGE1NTQyYmNiYjEzMGY0NGNjOTUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ3MWZhYmRjYTBkN2I2YjJlMGZjMGZmZjZiY2U0YTA1NjhkNzMzNmM5YWUyNTM1MmYxYjczYTMzNjliZGIyNGEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEifQ"
+        },
+        {
+          "resource": "repo://src/modules/analysis/source-registry.ts#L1-L30",
+          "version": "repo-lines-v1:sha256:fe744a20446553ea4f5fc0c753c8153a1fa1780da8abad44bf025f35d17a6000:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMyMDgyMWU0Y2M2MWJjZmZjOTkzMzQ3YjdhN2ZhMWU5NDU1MmQzMzNhMTkzZWFhODMyMzAzMjVkNDllMDFlY2UiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE3NGVlOGE4ZDFhYTg0NTM5MWJjNjc5ZWI3MGNlN2Y0NmEzY2Q2ZmIyZDE2ZmNjYTY3ZmExNzhmNGY4YzFlMGUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.7.1",
+    "at": "2026-10-09T02:26:52.838Z"
+  }
+}

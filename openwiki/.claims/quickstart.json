@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:93facc12aacb8708e55b2d87eeef26682a575f77019d5d593ace90203813e791",
+  "claims": [
+    {
+      "id": "claim_0471baea7cd84a1081036981d762a31f",
+      "statement": "Project working rules require choosing the simplest solution that preserves evidence correctness and human authorization, classify work as Lean, Standard, or Controlled, and use Controlled handling for production, valuable migrations, credentials/auth boundaries, destructive actions, or major architecture changes.",
+      "evidence": [
+        {
+          "resource": "repo://AGENTS.md#L3-L25",
+          "version": "repo-lines-v1:sha256:e621283579597bdef9e32a1e844defd7b0702881f3938d572a7cba4c7eadc8c9:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVhYzA4ZWZkOWUwY2M5MWUyM2IwODAxNzRhNzIzZjYzZWIwZTliMmM5NjRiMmU4NmI4ZTY5ZmM1MzdkODJhMWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMzNmZiYjY2YTExM2VhMTdkNzgyYmJhNTNmZjljOGZlYTYwNTI5NjI3ZDg5ZWIwMWYzZmFmODRjZGM0NmRlZDQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjoyLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI4YmRiYTcyOTBhZjM1ODllZGFjYzkzMjRlMTFmMjllZDBjNmM1OGMyMGU0NDJkYTBiZjA1NDUyMGE5ZWRhYjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE3YTc1Nzk5NzNmYjA2ZGRhM2Y3MGMyMjM4YzQyMWExZTAwZGYxNjIxMGRlMzI2N2RiYWE4MmQ0YWU2ZjYyZGEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_8d283c0466794f8a876c5de736dfe326",
+      "statement": "The v1 architecture is a TypeScript modular monolith with one authoritative SQLite database: cross-module mutations use typed application services and cross-module reads use declared interfaces.",
+      "evidence": [
+        {
+          "resource": "repo://AGENTS.md#L27-L35",
+          "version": "repo-lines-v1:sha256:93b88a0caab83c98bacdfc182f0eea5f179f14f1234524abaaa1153e12c339c3:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTEwNTFiZGUyY2MyM2MwN2JkNDk1MWIwZmEzYjdjZTM4YTI5ZGExMjk0Mzc2MDZjMmQ1ZTA1NjM1NDYxNWY1MSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZThmNDY4YzkzMTY3ZjcwY2MwN2YxMDJkNDcxMmYyOTMzZDc1OWQyZTkwOWVkNGU3ZGNmM2EwMTRkYWE5ODNhMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTE1MTdmZWYyYWEyOGIxZTVhYjFhNWRmMWUwZTExYjg0MTg3YzRlY2U1NjYwM2JlNDEyY2Y2YjRjNDdjNTIyNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOTVmODUwNzcyYzYwZmNmZjc5ZGVkMDE0MTVlMGY3ZTZlNGM4ODhlNTFlNjljZDA3NzRkZTQ4N2RiY2IzYzRjMSJ9"
+        },
+        {
+          "resource": "repo://ARCHITECTURE.md#L96-L123",
+          "version": "repo-lines-v1:sha256:68f187505f37eb72d4a138b21489ee823e5d5be43def5940aa12d05305363937:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMxZmNmNjY5ZTIyZTdkMGE0YmE5YjZlYjcxNTA3NjAyZTFkNTMxNjAxYzUyZGUwOTVmOWE0ZTJjOTI5ZDJjN2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU1Y2RhYTgzNDc1NThjMzFhMDIzYmVkYjI4OTVmNWEwNTBlOWZjNjkzOGIxYjg0N2Q5MWEzODc5YjFhNGNmNjIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImVlNDIwYzk5YzBmYjkyYjAzMTc0MWNjN2IzMjViZDk0ZGRmMGRlOTA4YTMyYWRjMTg4MDk0OWRjOTYyZmNlNTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI3ZDM1NjBmNTAyZDgxZDdlYTQzNjBhMzU5YzNhM2YxMmMxNzFhNTU2MTAzMjJmZDljNWE3NDNhMWNiZmFhOGYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_b59921288503452ab234fd12bb25ef7f",
+      "statement": "The architecture keeps AI proposal activity separate from approval authority: the application gateway governs AI execution and application services validate state changes, while human capability authorization is required for governed decisions.",
+      "evidence": [
+        {
+          "resource": "repo://ARCHITECTURE.md#L365-L390",
+          "version": "repo-lines-v1:sha256:c1d02c647569f665ef0257afaf96a670cd3d88f95240b2ee45924f0ea456da9e:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImViNjIzZmUwODFjYjE5MThhMzlhOGU0ZjQ5MTAxOWNlZTc3OGQxYzQ5NzMzYzIxZGUwYjI3Yzc1ZjIwMGQ2ODUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFiMDU1OTc1Y2IyMDU5NjAyODg3YTU1MjY2YjQ3YmI1MzdjZWE0YzQ4YjZiOTRkMDcwNDc0ZGU3NWY5OGRjNWIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRhZDBkNzdkMGIxMzdmZTc5YTk4ZDQxOWU5NzUxOWEzNjk3OTBmNTg3NDI3NmM5NzgzMjM0NzExMTI4M2JkYWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJlYmI3N2MyMGM4MDk1ZDY4NmIxYjNiZjBhZmI5NGFlMThlMWZiZWIzODNkZDNjZTc2YzQ1ZTc0N2RmNGU1NDAifQ"
+        },
+        {
+          "resource": "repo://ARCHITECTURE.md#L422-L452",
+          "version": "repo-lines-v1:sha256:9c32af4603b1920801427ea5b9fea9e67860509059b1176171a564d533f0d0c9:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY0N2ExN2UzNDYzY2M3YjRmMzgwOGFlZTYwYjA3NjllZmYxYTY2NzI5Yjc3YTAwZTM1YmExOTQ4NzE3ZWY0ODAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRlMGYxNDU3OWZiNjIwODhhNWI0ODcyMDYzZDBhZmMxZDE3ZmM5ODQ2MTAxZjM1MDJkZjg4OTUwZTQwZmJhYzIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ3MWJhY2RhZWVlM2JjMmIyYTZiNmM1NzAwM2ViMjIwNDQ2ZDg1MDA1YWMwNzE4N2U5YzMyMTJkOTE5MjQ3ZmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZiNTI0MGYwZThkNzcwMTYxZTc2OTJjNjgwMmU2NDY5MDIyNzRkNTkyYmUyMmEyNmJhODM3NGUzZGM1YTdmYzQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e3cffd7b3e9549b38b26b987611aeba9",
+      "statement": "The operator application composition root opens read applications, conditionally opens owner-write applications when owner writes are enabled, acquires the executor lock for a write-enabled operator, and routes read and owner API paths separately.",
+      "evidence": [
+        {
+          "resource": "repo://src/api/operator-app.ts#L147-L208",
+          "version": "repo-lines-v1:sha256:2babfee5e6f7bfecfe86f53479e1867dcf5ddcb06889349390702b7d2473085a:eyJzZWxlY3RlZExpbmVDb3VudCI6NjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIwYTQzMzE3NTM3MjczOWY3MDE0Mzg2MDI0Zjc2NmI2YzA1ZGY4NWEwYzZkMjIwZWNmZGJiZDU3MjdkYWExYzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIyZDExY2FmNDNlOTdlZjM2OWU2YmVlZDFhMjY4YmQwNTgzOGYyOWI5ZGQyNTRiZjY5YmE2NDg4NDE0NzIzNGEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjdkY2YxMWE0MTIyYjUwMTk2Y2E4OTM5OGZkYWFiOTJmMWJjN2YzODE2OTA1YjdmOTBiNGNiN2MwYWU2ZGQ4MmQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQxMzE1OWY1MDAyM2FmOTZlY2I3NzY4ZjM4ODViOTY1MDlmZDlmYWIxYTM2OTdmYzJmNmYwNTcyZDgyYzU3ZWMifQ"
+        },
+        {
+          "resource": "repo://src/api/operator-app.ts#L229-L247",
+          "version": "repo-lines-v1:sha256:83df15d20908d24f99d20bd22c88195216bf6a8e279811bf136d33e26bceab78:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFhYjcyZmIwZmE2ZTk1YzFjMWY4YWZmMjgzYTE3OWM5YWYwMjVkNzg0YWNiNDAwZTA3MWVlN2YxYTg0ODVjZWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEzYWE3YTExNTAwZGE1OTFhMWUzNWNjY2JjMTQ4YTI2ZjNjOTNlNTU3ZmFkOGZmNTczOWMwOWIyYzVkOTJmMjEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBmZTMyYmQ2YWI3MWQ0NTY5ZDI0M2I5Y2NkNzAwMjFlZDA4ZTIxOTk4YTg2ODY1NWI4OTE4ZDU0ZjI0MjUyZWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImMxMjdlZGQ4NmI3ZGRlMzBlZjNhMTU4YWVlNTYwODQxOGIyZDM5Nzk0ODM2MzJjZGE2YzE1MzBkM2JlODc0ZGUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_fd317d53175e4f8f91adb9dd28cfe286",
+      "statement": "The migration mechanism requires contiguous numbered SQL migrations, verifies applied migration ledger checksums and user_version consistency, and applies each pending migration with its ledger entry and user_version update in one transaction.",
+      "evidence": [
+        {
+          "resource": "repo://src/platform/db/migrations.ts#L24-L107",
+          "version": "repo-lines-v1:sha256:2bbcc37c3551be64c0ea04e076810cd7a0582ed9cf31cce4d6ab12504285f6ec:eyJzZWxlY3RlZExpbmVDb3VudCI6ODQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM0ZjgzNmQzNzJjMDIwNTEwYjE2MmZhZDc4YmUzNDU2OTU3ZDA5NWY2Y2Y4OWViZDVkMjI5MGNmODIzZGE2NzkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdkMmMxYTI5YzRmNjUzYjA5Y2FlNzVhNjk2ZGQ3N2ExYzhmNzE4MDNkZWE4YTRmY2ExZjJkZTNmZDI4ZWI1ZjQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjljYmE2OTIzMzBkYTNmYTEzYWZiYThkNTZmODJhZTA1MmVhYTU1YzFhMTRiNDA5YzVmNjM3ODBmZjZhYmY1YzkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_1cc7096f8f55473a9c52d98c55eda560",
+      "statement": "The package defines commands for contract generation, backend/frontend type checking, frontend build/tests, unit/integration tests, and an aggregate check that chains those steps.",
+      "evidence": [
+        {
+          "resource": "repo://package.json#L35-L49",
+          "version": "repo-lines-v1:sha256:cb4b3977ef89b082749105e2ae404ccd034283a55d8de82aa94fb441825c4b17:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRiMmVhMzdmZGZjMzA4NzY0ZTFiZDVmMGFmMjA3MzdmNDg5ZTYzZWQ2N2FlMzVhYTFhZDcyODAzYjNiODg2ODAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNlZTc2N2Q1MDc1MGFhZjJkYWFjM2M3NGNhNTZiZDRlN2ZlOGU2Mzg2ZDQ3MTVkNTM4YjgwY2VhNjYwMmQ5YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM0NWRjMTQ1ODY3ZjUzMTk3NTE4ZGNiODE0NGZlOTU5YWZmYzM0YjZjZWQxNTZhMTMyYmNlNDdkOWZhZTUwNWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg4YmNiZDE3ZjgwZjViYzU2ZGY1MzIyMWFmYWZiOTVkYTUyMWY2MTUxOTE4NGRlZTkwZjM1ZDA4NWMyNjEwOWIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f4a9c3f299d24fe0984bc293893ff02c",
+      "statement": "The repository's status ledger records several bounded Ultimate-alignment PRs as merged and explicitly says that future collector activation/history readers and multiple policy or acceptance gaps remain unresolved, so merge evidence must not be treated as full alignment completion.",
+      "evidence": [
+        {
+          "resource": "repo://docs/STATUS.md#L121-L126",
+          "version": "repo-lines-v1:sha256:469add0bdfe4f084283886d6b7aa80d8b18da1e6d4fc22518e615ae160258b17:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOWYyYmY2NGI4NmI0ODI4ZmJkODdhOWUwNjY5NGEyNjIxYjBiOGJlNWM5OGVkYjg5NzczNThjYzRhZDQ5YTFmZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiM2FhMmZkM2RlYjVjNzNjNGRhZjBkYjRlMDYzOTJiOWJkNGIyYWIwMTY4YzM5Zjk4MTZhZmRlYTE3NDM2ZmQxNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWY2MDgxZGJlZTY4NzIzZWZiN2YzN2QxYjFhNzM3ZTZhN2FiYThiMGU0NWNkNjA4NDJhYzYxMzA1MzZmMzBjYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNmQ1ZWQ2OWY4NTI3MWYxY2VhYzI4Y2VmZTMyMzM5YTYyMzI0Yjg0NjliMDY1MmFkMDAwNTVmZDZkYzE4MDhlZiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_821e90b914104015a8a61c96b15b1ccc",
+      "statement": "Source-backed report versions, research-automation draft pairs, and Market Reader revisions are separate report flows with distinct state and review boundaries; a reader decision applies only to its reader revision.",
+      "evidence": [
+        {
+          "resource": "repo://src/modules/analysis/report-version-service.ts",
+          "version": "repo-file-v1:sha256:744c160af5fa4ff54439bf2d8ae243134e8b03f05308df469450b68b404ddc91"
+        },
+        {
+          "resource": "repo://src/modules/analysis/research-automation/reader-report-revisions.ts",
+          "version": "repo-file-v1:sha256:0e8c2c6121f36569653e3df068b09154a0b681e0beade656a077fa0242acb69a"
+        },
+        {
+          "resource": "repo://src/modules/analysis/research-automation/service.ts",
+          "version": "repo-file-v1:sha256:1a2d902bd8b085bb93ea6f52435e9955d560a254e27e6a8b33e787a05c9da566"
+        }
+      ]
+    },
+    {
+      "id": "claim_c8bb3b8f12cc4a9a925c04afbfc22164",
+      "statement": "An approved source registry or source-board card is distinct from a collector being built and wired, retained input being available, or report use; status evidence keeps future collector activation and policy or acceptance gaps unresolved.",
+      "evidence": [
+        {
+          "resource": "repo://docs/STATUS.md#L121-L126",
+          "version": "repo-lines-v1:sha256:469add0bdfe4f084283886d6b7aa80d8b18da1e6d4fc22518e615ae160258b17:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOWYyYmY2NGI4NmI0ODI4ZmJkODdhOWUwNjY5NGEyNjIxYjBiOGJlNWM5OGVkYjg5NzczNThjYzRhZDQ5YTFmZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiM2FhMmZkM2RlYjVjNzNjNGRhZjBkYjRlMDYzOTJiOWJkNGIyYWIwMTY4YzM5Zjk4MTZhZmRlYTE3NDM2ZmQxNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWY2MDgxZGJlZTY4NzIzZWZiN2YzN2QxYjFhNzM3ZTZhN2FiYThiMGU0NWNkNjA4NDJhYzYxMzA1MzZmMzBjYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNmQ1ZWQ2OWY4NTI3MWYxY2VhYzI4Y2VmZTMyMzM5YTYyMzI0Yjg0NjliMDY1MmFkMDAwNTVmZDZkYzE4MDhlZiJ9"
+        },
+        {
+          "resource": "repo://docs/research/ultimate-method/input-data-sources-30-sections.md",
+          "version": "repo-file-v1:sha256:d41193a07d1844711a85879fcae84dc5f9871f5d55423339860953b08ef0df65"
+        },
+        {
+          "resource": "repo://src/modules/analysis/research-automation/source-status.ts",
+          "version": "repo-file-v1:sha256:92277376c91025196ac0b7d8c0caede877d40a03eebda4bfd5e9abd389d6959a"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.7.1",
+    "at": "2026-10-09T02:26:52.838Z"
+  }
+}

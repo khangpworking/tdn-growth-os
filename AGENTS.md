@@ -79,3 +79,17 @@ Read old source selectively for reuse; do not copy secrets, runtime databases, p
 Runtime data belongs outside Git. Tests use synthetic fixtures.
 External publication, provider calls and deployment require task-specific authorization.
 
+<!-- OPENWIKI:START -->
+
+## OpenWiki
+
+Use `openwiki/quickstart.md` and relevant pages as optional context after the
+required repository startup reading. Use `codegraph explore` for symbols and
+callers; if its index is absent, inspect source directly without initializing it.
+The wiki is derivative. Written owner decisions and Ultimate govern business
+rules; source code establishes implementation behavior and may differ from rules.
+Verify page claims against the checked SHA and authoritative sources. Do not
+hand-edit generated pages: append evidenced corrections to the owner brief and
+regenerate. No scheduled workflow is enabled or authorized.
+
+<!-- OPENWIKI:END -->

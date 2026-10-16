@@ -1,0 +1,242 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:4543f1b696bde182be084d60c123fa1ee821a9462f7300b555e4b7fc7386fe5f",
+  "claims": [
+    {
+      "id": "claim_308d8654042541c993fff4cc679bdd2a",
+      "statement": "The active Ultimate alignment program separates bounded implementation evidence from business-method authority and real-data acceptance: plans and checklists do not themselves establish completion, and STATUS/handoffs are the evidence for merged scope and remaining gaps.",
+      "evidence": [
+        {
+          "resource": "repo://docs/STATUS.md#L121-L126",
+          "version": "repo-lines-v1:sha256:469add0bdfe4f084283886d6b7aa80d8b18da1e6d4fc22518e615ae160258b17:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOWYyYmY2NGI4NmI0ODI4ZmJkODdhOWUwNjY5NGEyNjIxYjBiOGJlNWM5OGVkYjg5NzczNThjYzRhZDQ5YTFmZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiM2FhMmZkM2RlYjVjNzNjNGRhZjBkYjRlMDYzOTJiOWJkNGIyYWIwMTY4YzM5Zjk4MTZhZmRlYTE3NDM2ZmQxNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWY2MDgxZGJlZTY4NzIzZWZiN2YzN2QxYjFhNzM3ZTZhN2FiYThiMGU0NWNkNjA4NDJhYzYxMzA1MzZmMzBjYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNmQ1ZWQ2OWY4NTI3MWYxY2VhYzI4Y2VmZTMyMzM5YTYyMzI0Yjg0NjliMDY1MmFkMDAwNTVmZDZkYzE4MDhlZiJ9"
+        },
+        {
+          "resource": "repo://docs/research/ultimate-method/CHANGELOG.md#L5-L19",
+          "version": "repo-lines-v1:sha256:5e543882d69ca1f95bdd01a8eaaed36af31aa0018c2d8ffc30d7269bb39ae088:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY3MTUxZTVkZjI4NjdjYTJkY2I2YTI4ZTIxNjYxOTI4M2ZjZjkyM2QzNWM1ZDIwMDM5ZGJmZDE2YTgwZmI2MjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJlNGNkODc2MDVhYTNhNzUwZDI1MmNlNTc3NTJlYzFlN2VlZWIzOTQxMjhjNDgyMzQyYjRjMjcxZGUwOTI3YjMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjlhNjY2ZjRkMGFjODdhYmVhOWJiYjExZThiNzhkYWQzNThiOTM2NTNhNzRhNWI5NGRiMWRiNjE3NjVhMDIxODIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU2NmUyOTQ4ZTA2MWJiM2IwNWQ5NThhNDhhNjI4M2NmYzcwOWNlZDAxODA2NTNhZDQ2YmY3M2Y1NDNjNDhmYTkifQ"
+        },
+        {
+          "resource": "repo://docs/tasks/ultimate-v1.11-tdn-sync-plan.md#L31-L35",
+          "version": "repo-lines-v1:sha256:16a7624d1b816020f4e5c32b85ca372afebbcad0e8bc9164f774c07e748b5e6a:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjFjYWU2Yjg3MjQxNmIxZjQyMDEzZjZjMGE5NDNmNTM1ZTA2MzYzYjI3OTE2Nzc4YjdmM2EzMjRhODJkYTFiZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjQxNTE4NzZhMmMzMzU1YTI1NTdhMmMwMWM1MTY1NGFiYWJlMmMyMmU3YTM1YzMyNTk0OWVhYjQ1NjgxNjVjMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYmVmYzI3OTk3MmExYjQxZTUxMWZkMTRjNWMxOWFlYTFkYTQ4ZTZmNTNhODljYmJiOGQ4ZGYxODMzMmI2YjRmOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOGNhNTQzMTA2MTc3MTA4ZjE1ODdiMDM5ZjUyOGUzYzJmYmViODUwNTg4ZDlkMDQ4MDJiNTNhNDUxNzk5ZjBlOCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_12001143f76b46d89d659de235db820c",
+      "statement": "The status ledger records the source-board foundation (PR #161), Market reader corrections (PR #162), L9 core (PR #163), Insight defaults (PR #164), receipt-free draft counts (PR #166), and default peers (PR #167) as merged on main with exact reviewed heads and merge commits, while preserving named limitations for each slice.",
+      "evidence": [
+        {
+          "resource": "repo://docs/STATUS.md#L12-L18",
+          "version": "repo-lines-v1:sha256:f34e50b69abf3f4f267a730c169843770d30957cf3bedcee0ba4726668cbe99d:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNTc1MDgwYjhiZjcxZWRkMzRjODY2MzQ4ZjNiMTFlMGFiMTg4YTZkMjJlNWEzMzM3NDA4NTNiNWI2MWE1NzFkNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2IzN2E4OTBhYjYzNTc4MDgxMTk0ZjMzZDg4YTM1MTY4NjU3Mjc3NTc5Zjg1ZjYwZGJjNTdjMTBjYTU1NTRjMCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNDlhMzcyNWUyZmI2NWI3ZmRlODk5ZGMxMzQ2MjQ1YzQxOTY0OWYwNDY4Yjk3MzdkOTY2ZDRjZGViNzFkOWRhYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzkyMDc5M2E1NjY1NjQzZGZkODZkNGQ1YzlhMjEyYzA3MTNkMmE0MjA3ZGZmZTRmOGZiMGI3ODAxZjBkNTk3NCJ9"
+        },
+        {
+          "resource": "repo://docs/STATUS.md#L20-L28",
+          "version": "repo-lines-v1:sha256:733713858081b1570b047c2a94bc948a2c8ed79c3c711898c8ee228c67eef62b:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMThhN2M3YjExNDg1OTUyMjlhMzAyOGYyYTJjMGZjNGM0ZDNmZGE3MDFmODIyMDBjYzIzNDA0Mjk4ZGI5MDcxZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOTMyMmU1ZGJkOWRmNDQwZjcwOTU4ZjQwMDM0ZGM3ZWI2NGZiODkzMTNhMzZjNDA4Njg0ZTRhNjc3MjMwZTA0NiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOWQ3YjVkMzFhOTkxNzg0OTJjODAzNzgwOTUyYTEzNTFmMzZkMDJmMTI5ZmU3MjNjZDYyNmNkNThmNWMwMTBmMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYTMxNDJjMjkwZGQ4Yzg4NTgxMTAwM2IyMDZmNWExZjU5YmMyNzgzYTFlYmI4NzU3YmE4MDM2ZjYyM2E4ZjcyNiJ9"
+        },
+        {
+          "resource": "repo://docs/STATUS.md#L30-L41",
+          "version": "repo-lines-v1:sha256:f516196398f44e07d7e0b436e0ebc6452bee4e4c87e345cd2e80e830ee35aa56:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2NTU1ZWQ5ZjA1YTUxMjlhNTA3YTgzYWRiYTIwNDIzM2Q5ZDE5NGM1ZWYyMTAwOTBhYjFhZTMyNDA1YjMxNWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhlMjc2MDFiMDQ5ZDFlZjMyYTE1YzY3YjEyY2Q5NGNjZTI5NmRhZWFlNDI1YzYxMDI5Y2NjMDc3YzE1OTAzNWMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU4NWNjZWQzODVmMDA0OGZkZDZkOWZlYzI3Yjc5ZGNmNmNkZTQxNzljNWRjNGZjZjE5NmIxMGUwODRhZmIzNmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjcyZDkzMjUxNWE5YWY0Mjc3MTk2MjYzOTJmNzRlZGFiNTEzZjZiNTk3MWU1MDVlNGQyMGY2YmNhODAwMzgxYzQifQ"
+        },
+        {
+          "resource": "repo://docs/STATUS.md#L43-L66",
+          "version": "repo-lines-v1:sha256:7f3649465863d81aa60e4fdcfe48f04c291eca0d28b148dea20b9899b05fa41a:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIxNDU3MTliMzY0MWQxYThlYmE5NTgyYmRlNzc4YTJkNDZiOTRiY2I4OTVkYmQ4NzgyMDA4OTgzMWVmYzA0ODQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVmYTc5MjczMmE4Nzg5NGQwZTdhNTIxZTFiYjM5MmM5MWRhZjZjM2YxZTEyYmU5ZDllZGM4ZmRjNjAxOTM0OTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjdiODYzMjA2YjBkNWU4OTRkZjVlNmIyOWUzNjI4ZTJhNmVmYWY2NWJkNjk4ZWNmNTJjYmY1NDM0NGQ3ZjUxNDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNiNGNkMTgyZGU0ODkzM2EzMWE2YzMzM2M1MzAwYTdiN2ZmMTU4MTExYmFmODY5ODMyNzliMTFjZDQwYWJjNDQifQ"
+        },
+        {
+          "resource": "repo://docs/STATUS.md#L5-L10",
+          "version": "repo-lines-v1:sha256:f7f15aa7dc77db9f2749c05aa2100ab6c2a44aeddd28ac41646dbbc485d55a83:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjk3NmViOGYwOGI0ZjA0ODcwODVlZGQyYTdiYWVlNmQ2NWU0MzliNDZiMzI5ZjE5ZTI5OTc1MGMxMWIxYzU1NCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMmZiMjRlYWRmYWUwYmU1NDIyYjhhYmY0ZGMxYzY3MDUxMTRkNzZmM2Q2YjU1OTY5YWMwYTRmZTJkOGJjYzhmMCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODUxMzQxNzk2ZTBhZjJhNDcwYjMwN2JjYmVlODYzNjlhNjFjZTE4ZGEyZWJkOWZhMjkxZjZiYzM3MDViMzQ4OCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjRmMWFjMzA2NzUwMWYxOGViZWEyOTc1MmZhMGQyNzZjMjYxNWFiMWUwZDQzYTRjNTgwM2Q2ZmQyNzA0MzQ0OCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_d61ebd560546467b9fbf02fb0ee4b624",
+      "statement": "PR #174 extends versioned Insight family drafts and provides an I11 count bridge, but withholds draft rates/differences and does not claim buyer-type evidence, receipt-free UI, or U-11 release eligibility.",
+      "evidence": [
+        {
+          "resource": "repo://docs/STATUS.md#L68-L77",
+          "version": "repo-lines-v1:sha256:25da49692dd6f298de5a57b1b60c5e391830a77ab6ab4ab92d2caac67e1a2469:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc1NmQ0NDgxYzVkNzhmYzE4YzVkNjk1YTdjYzgwZWU5ZjY0MjIzMThhYmFjNTM5ZWRhMTRkYTA1NzkwYjFiYjIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZhMWM3ZjE0NzU4ZTg1MDhjMGI4ZWFkZGEzYjBmMmM1OTY4M2JhOTUwMGIzYzk1ZWU1ZTcyMWZkOGI3YzY2YzEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA3NzMyNWViODg5NmE3ZmM5Yzc0NjY0ZjY4NzI2NGJkOGJjYzhlMTg5MmU2NjcwOWZlNjk3NjkwYmYzOGFjYmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY2OGI2OTQwZDE4Yjk1ZGMyYTE2NzY2MzgyYjliODdiY2JiOGQ1ZmRmMzU2MjI1ZDAxODA2YTNkNjQ5MDk1OTgifQ"
+        },
+        {
+          "resource": "repo://docs/handoffs/NEXT-INSIGHT-SOL.md#L30-L40",
+          "version": "repo-lines-v1:sha256:7ab3b185f531e2cc5c76716b2f5ff15f4a1dc250679fcd0e1535e2ab475a450b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMyODZhNDQ4ODUwNmY3OGYyYWUyZTM3OTNlNzhmMTBkNzU0ZWQ1YWM1Yjg2NjFiMzc0MDRmMGM4ZDMzZDM2NTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY4YTE4YzI1MjQyMmI5NWYwZDk3NzM2MWVmODJhYTI4YzZkNjc2NzRjOTViZjQzNmJkNmRkMTYyNjIxODFmYmQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjIxNzljNmY3ODJhNGE4ZjAzZDhiMzQxZDg1Y2ZhMTUyOTJmNzdjMWI1ODIyOWE0YWQ4YmFiMGVlYWIzZTY5OTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFkMWM4ZjM4NGU0NjdmNDBhZWE5NzdjMWIxOTdmYzAyMTFmMzFmODY5MWMyZWExNjAyYTBmYzc2NDA5ODA2NWIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7d0726fd64a44919a12c2ac57e304fd0",
+      "statement": "PR #175 adds an opt-in Market reader path for scoped findings, retained-spec unit-price tables, and shared visible-text lint, while native extraction, automatic report integration, and confirmed ROAS/CPA provenance remain follow-up work.",
+      "evidence": [
+        {
+          "resource": "repo://docs/STATUS.md#L79-L91",
+          "version": "repo-lines-v1:sha256:479b0e9c6f38acf397fb92a181d3f9d7233bfca32e8fbfab37e65879562e7a1c:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0ZDlmYzc5MTJjYWVhZTZlNTllOGFkMmY2MWNiN2U2NDc5ZjA2YzQ3YjIzODIxN2QyMDBjOWNkOTVlYTc2NzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM5MjM1NmMzZTQ3ZTA5OTc3ZDAxOTc5MjEwY2QzY2I4OTBkMDRjZTQ2ZTI3MGU3MWQxYTc3Y2VkMWJkZTVlZWQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjliMDJhNzkwNDJkMzI1ODQ2YjNhMjg2MzMwOGE1OGQzYmJmMmU4NWU3YzMwZGVlM2MzMWJlZGRhMDhjZTk2MWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNjN2JkMjg3OThjODczMjVlMmUyYjg0MGQ5NzdlZjMyZDc0MDFiYjQzNzE4YjBhMDNjNzg0NjMyOGIzZGQyNTcifQ"
+        },
+        {
+          "resource": "repo://docs/handoffs/NEXT-MARKET.md#L18-L30",
+          "version": "repo-lines-v1:sha256:dd83ee35c222e2faba4cd7e7a844c8bd1c1ad6298c6e73ad67190821dd8d20f9:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM2ZGU0MDM1MTBjODhiNDJiNmE2ZTgxZDBlZmZhY2I4ZTIxNmU0ODgwZWM1MmFmN2NlOGJmMWRjODJkNWFmNmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY3MjhhM2E3MzIzNTBmNjI5ZjZmNmI4NWM2NDA4NDhiNjQ1YzgyYmYzMzYxYWNjNjJmMGMwNTY2YmVhMGE2ZmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYTBjNDMxNjhjYmQ4N2VhYTg0Mzc3ODgzZWY1NTExMWU2MmJlMDNjNzVlMDAwNmE5OTYxYzA5NjJkOTFhYmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU1MTJlNGMwOWVjNTgzMTdkNzlhNjZmMDA2OTc4ZDNmYjEzMDNlMmM0NzhmYzU3Zjk2NDVlMTBmZjMxNTIzMzQifQ"
+        },
+        {
+          "resource": "repo://docs/handoffs/NEXT-MARKET.md#L59-L63",
+          "version": "repo-lines-v1:sha256:585a3523a3411d2e2ede933720b403b810ac47c64e389133aed83b8f7c419a8d:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjZmYTJkNjg2ZTIyYWUyMmE2MThkODkxNzFmMzc4NGEwODkyOTkyODQ1Y2RhZDljMzEzOWRmODkzYjkyNmQ5MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYzkwMTQwZDM4YzIxODllYzA1NzBhMTNmMDU5NzM4MDJlNzRlMGY4ODJiNjFkYzUwOGVmMWRiNTBiMDkwYmUzNyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZjM4NTExZjRlMGUxOGZkNmFmZjEwZDNmNWZjMmI0ZWU3ZWUwYWYwOTVlMTYwNzk3NzI5MmIxMzZiMjY2ODcxMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDUzNDIzNDBiNGM3ODg5MWU4MTI5ZWU5N2FkZGE0ZmYxNmVlYWJkYzcxYmFjZmY5YjY3MmUyYTUxNDczNTU4NiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_cc6d0a4c261e48c7bb63b103604fa7cf",
+      "statement": "PR #177 adds authenticated operator listing-spec intake that binds retained bytes to the workspace, run, draft pair, and exact Metric workbook; the receipt authenticates the owner submission rather than seller claims, and native extraction/automatic integration remain open.",
+      "evidence": [
+        {
+          "resource": "repo://docs/STATUS.md#L93-L103",
+          "version": "repo-lines-v1:sha256:21f313f3ccaf86c2bab223b5cf5f74e588865639f9baa0245cbba3087aef0083:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMzZmJiNmU5MjRmNDgxNzlmM2MxZWVkZWYxMTg2NjdjMjYwNjNiNDIxODcyNGY5YjU4MTQxNWVlNTQ1YzY3ZTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg1YmYxNzY0MTBlMWM2MjNmMTUwZjgwOThmMTlkYmU4N2VmOTEyZmYwNGQwNWQ1N2Q5MmNhYmJiM2FkODMxMDUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNlZTQ5YTBhZWYxNzc1NGViYWI5MGQwMGRhM2JmMWVhMDNhZWYxZTQxNThlNTVhNjk2YjJiNDI3M2NmMmI2ZTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU1OWVkZGIzOWY4Njc1OWMxNmI0MGI3YjZkN2U4NmQwNTg5NTQwZDc1NWM2NWY1Zjg1MGYwYTNkY2NhOWMwNGQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_26b6ad29627a4fabb4017405cf7c5cf0",
+      "statement": "PR #172 integrates retained keyword drafting and L9 admission for the authenticated Kalodata sales-name and existing web lane plus M13/I17 source disclosure, but Metric-only drafting, other mappings, and not-yet-built collectors/consumers remain partial.",
+      "evidence": [
+        {
+          "resource": "repo://docs/STATUS.md#L105-L119",
+          "version": "repo-lines-v1:sha256:06663af6de182d85c8e65049e45d2d57c3f0ae4b3110e7e67ee2c5ef42f28126:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM0YThhMjkyY2U2MGUxZDk5YWM3ZmM1ZTAzOWMyZDUxZDNmMWRmNzdmYjU5MzJmYjYwNGY5MzJkZjAwZTJiNDQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZjMzQxMjEyZTkzMzJlN2VhZDEwYTdiYzE2NTQxNTgxZDU3ZGVmNjUxZjc5MTlmMDUwOTk5NmU3MjRlMmYzMDYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgwMjExMGFlMDYzODdjYjQ5NmYyZGU0NTkzNTI2NGJmOGYyMGQ1NjI1M2RiYmQ5MDg3NGY4NjI4NjgxOWViN2YiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI2ZDkzNzIxNTA1YTBhM2E1Y2E4MWM5NTljY2ZiM2M2ZGYzZjE4Mjg2YzE4ZmI2OTMyYTY5ZmY5MmMwOTUwNDcifQ"
+        },
+        {
+          "resource": "repo://docs/handoffs/NEXT-SOURCES.md#L36-L40",
+          "version": "repo-lines-v1:sha256:7240e6f8a0c15fa04e8731abb85a9e8445fcb83f4120510d6fd7acf7d14d54f3:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzI4NmE0NDg4NTA2Zjc4ZjJhZTJlMzc5M2U3OGYxMGQ3NTRlZDVhYzViODY2MWIzNzQwNGYwYzhkMzNkMzY1NSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMGRlMzBmYzBhYmY0NmQyYzY5ODZmMTZiNDUxZjIyYjE4ZDg5ODE1NGYyOWMwMWI5YzUzNGIxNzM4ZTljZWIyZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiM2E5NTM4ZTI4NjEyNTY5ZGE1OGIxNDQ4MTQ4MGZhNzVmNWRlODlkYzQ4M2RkNTk3Y2M5ZjYxOGI3MTQxNzQ0NyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzQ5YTcxMzlkMmExNmQ1MWUxMWJhZTMzMjJhZjZmZTYwZmUzYTM4ODJiODAwNTJhMDUzYThiYTlkOWViZDdmNSJ9"
+        },
+        {
+          "resource": "repo://docs/handoffs/NEXT-SOURCES.md#L53-L69",
+          "version": "repo-lines-v1:sha256:5166e50b6359d91dd8594b00999fca3808241eaac6a205387ff26cab04a570f8:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgzODc1ZWYwY2VkNjE0NjBjMGU3NGViYzkwMzk4MDQ4MWM3OGFkYzNkZmI2N2Q1MjZjYWU5MDAwOTZkYmU3ZGQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU0ZmQxMDllYTkzYjVhNDMzNjYyN2UyOTE1MDY5YjkzZjE3MmFmOGExNzE3NDE5MDMxN2M0YWI2NjM1M2I5ZjgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIzMTgxODRlZGYyNTJiYTEzZTkwYTUxY2JhMDVmOTg2MjFlYzY0MWUwNzY2M2IyYzg3OGQ3NTBmMWI4ZWU0ODEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU1NTlmNjc4MzZmMDI4Y2U5ZDI1OWM3YjBmY2NjZmQ1NmY4MWVmNTQzZmE4ZGFkZDZlY2Q4ZTJlMGY3NjAyMjcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_ff2e6e893df24d07bfc904fb88a4b4d7",
+      "statement": "U-11 family-level multi-code kappa, U-26 collection/revision/admission policy, and U-32 positive cross-platform aggregation are explicitly escalated; the implementation wave does not authorize paid staging under U-40.",
+      "evidence": [
+        {
+          "resource": "repo://docs/STATUS.md#L121-L126",
+          "version": "repo-lines-v1:sha256:469add0bdfe4f084283886d6b7aa80d8b18da1e6d4fc22518e615ae160258b17:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOWYyYmY2NGI4NmI0ODI4ZmJkODdhOWUwNjY5NGEyNjIxYjBiOGJlNWM5OGVkYjg5NzczNThjYzRhZDQ5YTFmZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiM2FhMmZkM2RlYjVjNzNjNGRhZjBkYjRlMDYzOTJiOWJkNGIyYWIwMTY4YzM5Zjk4MTZhZmRlYTE3NDM2ZmQxNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWY2MDgxZGJlZTY4NzIzZWZiN2YzN2QxYjFhNzM3ZTZhN2FiYThiMGU0NWNkNjA4NDJhYzYxMzA1MzZmMzBjYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNmQ1ZWQ2OWY4NTI3MWYxY2VhYzI4Y2VmZTMyMzM5YTYyMzI0Yjg0NjliMDY1MmFkMDAwNTVmZDZkYzE4MDhlZiJ9"
+        },
+        {
+          "resource": "repo://docs/handoffs/SYNC-4.md#L34-L39",
+          "version": "repo-lines-v1:sha256:b2434161cfe68f2c35c21447c4960d6e3f5984bfd0dffcd7593a86fedada2b1c:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzI4NmE0NDg4NTA2Zjc4ZjJhZTJlMzc5M2U3OGYxMGQ3NTRlZDVhYzViODY2MWIzNzQwNGYwYzhkMzNkMzY1NSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZGRjNGJiZTUyZDI0ZjIwZmJjNWZkZDhjMGFiYzc1M2NlNGI3MmIxNjQ3OTk0YTQyOGMyYWY5ODIxMDg0YTZhZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODEzZDNmOGUxNTA0NjUwNDA4Y2Y1NDE3MDcwMTFiN2Y5ZjFhZTlhOGJhMDQ5ZDQ3ZGFlYjRkN2Y0Yjg4MTNjNCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjMxODE4NGVkZjI1MmJhMTNlOTBhNTFjYmEwNWY5ODYyMWVjNjQxZTA3NjYzYjJjODc4ZDc1MGYxYjhlZTQ4MSJ9"
+        },
+        {
+          "resource": "repo://docs/tasks/ultimate-v1.11-tdn-sync-plan.md#L12-L16",
+          "version": "repo-lines-v1:sha256:a1fbafd94c905a45f2ee26aefa162b24d3df6180d9ea1199f002723a0e3cdf25:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjAzNTU2ZjVmODNhNjgwMmU2YTI1MzExN2VmZTE1MTI0ZDI4YjU5NGVjNTdhYzQ3OTFmOTJiYjA1NmVjNmNmMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNTk5MjQ0ZjQxZDE3ZWZlMTA3ZDk5NDcxMThlN2Q3YWFhNDJkNjRhNTM0ZjcwMTU3MmZlNzdmMDVkMjk4NzdhYSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZGViNTIyYjFmMGI0NzU4NjFkOGYwMTAxZGRkMmY0MTVjYWVhNDg3ZDUxMmZhMjRlYzNiMzZkNGU0ZDc2NGFjOCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNmJkYzY3YTgwODY3ZWZlYWIyOTZiMDE3NWRhY2ZhYmJmNWY1NTlhMjQwZTcwMWU1MWNkYmQzNDIxY2Q3MjI2YSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_1d0f7fb21564431f8b950c4021003080",
+      "statement": "The source-status board is a configuration/history-only read surface: it distinguishes PageIndex account totals from workspace activity, preserves future collector placeholders, and leaves future source activity readers and activation with their owning P5/P9/P10/U-23 packages.",
+      "evidence": [
+        {
+          "resource": "repo://docs/STATUS.md#L5-L10",
+          "version": "repo-lines-v1:sha256:f7f15aa7dc77db9f2749c05aa2100ab6c2a44aeddd28ac41646dbbc485d55a83:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjk3NmViOGYwOGI0ZjA0ODcwODVlZGQyYTdiYWVlNmQ2NWU0MzliNDZiMzI5ZjE5ZTI5OTc1MGMxMWIxYzU1NCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMmZiMjRlYWRmYWUwYmU1NDIyYjhhYmY0ZGMxYzY3MDUxMTRkNzZmM2Q2YjU1OTY5YWMwYTRmZTJkOGJjYzhmMCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODUxMzQxNzk2ZTBhZjJhNDcwYjMwN2JjYmVlODYzNjlhNjFjZTE4ZGEyZWJkOWZhMjkxZjZiYzM3MDViMzQ4OCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjRmMWFjMzA2NzUwMWYxOGViZWEyOTc1MmZhMGQyNzZjMjYxNWFiMWUwZDQzYTRjNTgwM2Q2ZmQyNzA0MzQ0OCJ9"
+        },
+        {
+          "resource": "repo://docs/handoffs/SYNC-6.md#L35-L41",
+          "version": "repo-lines-v1:sha256:3e81fc3378a7dd2c0f385db09c6b177fdad919cc23a89e9d4113ebe9834a682e:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTZjNmJiZTE0NzgyMGIxNTdlYjU0MTY0MTMyNDk0ZmNlMWZjNWFkYTJlODdjODI0OTY1ODFhZTdkYjQ3ZDA3NSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNjA1MWI0NmU1Nzk2MTlhOWI0MWVlM2EwNTljYTQ2MTk2NzdkNzdjZWYyNzM4ODQyZTE4YzdjNGNhMzc0NWM1MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMmYyMGI3NjcxODI3MjA2Zjc3ZGMzMmM3NzQ4OTMyOTkxZWI5Mjg5N2Q0NTdkMjYxMTVkNGJiMWFlYTA0MGNmZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDJhYjFiODliZmE4NmQ0ZTkzMzcyNDQ1MjVhZTg1MzMwNTk2ZmFjMmIyNjQxNDQ5NDRjMjZlMjQ3MTFiYzcxMyJ9"
+        },
+        {
+          "resource": "repo://docs/handoffs/SYNC-6.md#L56-L60",
+          "version": "repo-lines-v1:sha256:b41f90531c9aa098bb83a4681200ca1fd4f4860ca385cc091997ed4824fbba47:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzRlMGRmZTM3ZmUwNDAxYzU4MDcyNzJlNTc4ZGRjZGM1MTk2MTVhNTkwZjY1YjA4NDViOWMzMDg3MjU3ZjZmYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTE3MmY5YzVjYzViMWUwMTU5NmFlYzg3ZGM3YjQ1MDhiNzViMmI3NTk4NDBkMmE3NGQ3Mjg4YjRhZmQ1YzhkNCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTJlYzQ3N2MyOGEzN2E2MTc1MGI1MTYxZjNiNjliODQ3NzAxNjE5NDEzNjEyNTUzMjBjZWYyMzQ3YWI5Zjg1ZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjAsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_cd2028eb89ea4824b76d2d6c0257ffcd",
+      "statement": "Shared ownership is intentionally serialized: P3 owns the first migration, P6/P7 take later migration numbers after it merges, P4 first edits the contract registry, and P5/SYNC-6 have narrowly assigned shared service responsibilities.",
+      "evidence": [
+        {
+          "resource": "repo://docs/tasks/research-batch-2-packages.md#L30-L36",
+          "version": "repo-lines-v1:sha256:ee1cc57c296fd01ec611996f8de6fa0f43e1f067b7b82a17084ca32e6f555569:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzYzNmY0ODUxZTI1OTM4MDhlNDU1YjZhMmQ2YjBhNjJjMjRiOGNiZmE5MjEyNjc0OGU0MGUxMGNjZDIyY2U5MiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYmY2MjQ3MjgxNmVkOWI5OWNmNzI5MTk4MjNiZjZlMzQ0MTE1MTg2YmQ0NmY4ZGNlNDc4ZjhhNjcyMGY1MDcxNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMmQ4MTkwOGYwMmE5YzhkNmZkMTM5MjU1MzVhZjIzODNmMjY0NzQxOWIwYzMzMzhmY2I5MjYwY2Q5ZTYwOWE2NCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZjE1ODg5MmQ1NDAwY2VhODU1ZjY0ODJjYWJhM2MwZjBlNzRmZDA3ZTA2NWNhZDgyYjZiN2VmZThlMjNlNzEzOCJ9"
+        },
+        {
+          "resource": "repo://docs/tasks/ultimate-v1.11-tdn-sync-plan.md#L361-L404",
+          "version": "repo-lines-v1:sha256:30c31c98c81605ab0637aa1bc3b56bcd76a0e566099c495da9ed736c36aebadc:eyJzZWxlY3RlZExpbmVDb3VudCI6NDQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY5NTEyNDk4MzliNWRjMWM4MjU5ZWEzZDUyZTZmMTg0NzliMmMyZDE2N2I0ZTViZTYzNDFhNDc4ZmZhN2I1NTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI5NjJmNmYyMDAxNjZhNmJmM2U3MTc4MTk3ZWQ0ZmIzZjdlNzI1MDMxNDY3NTliNGM3MGM2YjdkNDViYjZjNWYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAwMWYyZWMxNzU5M2MxMDU0ZWI0NjM2N2Q4NDUzZWYyNGExNzNjZTk2YjcxMTdkOTFmOWE2OGQ0NGZlZjhiMDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBkNzk0NzMwZmFhZjNkNjA1YjU3N2QxOWY2ODQ0M2I0MDA4NWUxNmE0YjUwNTBjNmRmYzliYzZiNmVlNDczODkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_2973e86f128942dda73d7dab01390755",
+      "statement": "The program requires versioned compatibility and focused boundary tests: stored report versions must read back byte-identically, tests use synthetic data without live provider/model calls, and report changes must preserve retained historical branches rather than rerender old artifacts under new semantics.",
+      "evidence": [
+        {
+          "resource": "repo://docs/handoffs/SYNC-1.md#L12-L21",
+          "version": "repo-lines-v1:sha256:1e3e0caa2db6a71724b551a7b12690aee990ff3265530ee61202551619b00875:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYwNjRiNWY5MDgyNzE3YTgyMzU5OGExYTJmN2VjNmQ5ZWM1ODMyNzE4MzNkNDJiOTA1Yzc5ZTdmOWJmMmU0OTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM4N2YyYmI5OGFjNGU4OTgyODIzNzA5N2IyZGVlNjU0OWJkY2ZkZTZlOGZiZjQ5ZTE4MGJlYzY1YjQ1YWU0ZTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImVkYjA0NzYxOTAzOWE5MDM5ODlhYTZhZGZhYzcwNmUwM2E4NGY2ZDUxZDI3YzQxN2ZjYWUzOWFlMjMyNmZlM2MiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE5YzFiZGY3ZDA2YmE4Y2NhYjEzNDg5ZTJmYWFiOTA4MzMyYjExMDFkNjlmMmZmNDQ3MzgxNjk2N2VhMzk3NTcifQ"
+        },
+        {
+          "resource": "repo://docs/handoffs/SYNC-3.md#L6-L10",
+          "version": "repo-lines-v1:sha256:c39f6481f2474b5ed6a62d40b69a3fac709fdf032d11981bd81bd0bdf05048fa:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZTJhYTQ3Njc4ODg1YmUzZjJlZGIzYmE5N2Q5OTQwODdiMmM1MTA1MzU2MzI5OGY0MTIxMThkZGZjYzU1OWFjMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiODkyNjQ2YzM3NGVmNmI4YWM4NTdlOGRjNGVmOTRlNGVjNzEyZmFlMWY4YjRmM2FlOWYxNGY4ZTkwMTYzZWYzYyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNGY2YzE0MDg0YmQ4ZTQ5MDA0NzhjYWNkZGZkMDE0ZTFhMTY3MjFmNGVmZjI1MTUxMzVjYmUxYzFhZWY3YzFkMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMGJkMzRhOTY1YWJmZGUwYzI5Y2MzM2YzMDE1NWNlMTg5NzdjMzcwODEyMDJmNTY2MWUyMWVmYWNkY2I1ZWQzYiJ9"
+        },
+        {
+          "resource": "repo://docs/tasks/research-batch-2-packages.md#L38-L57",
+          "version": "repo-lines-v1:sha256:b6a632da0339c1310857105cc60ed5616e3ff9c740c0ff6a0b622aca3d8a9c34:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNiZmE0Yzg3OGQyMzEwYjU3NWU2ZWRmMmQ0NmQxMWU5NjBkYWRmMGQxYTQ4YmY3M2JhODRiMmRiMmM2YjA1ZmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjMyNTYwODQ5Mzc2OTNlMDI2MTBhZjNkNzkzNDljOGQxMzk3YmIwZDRlYzBiYmU2ZTEzYmQxMTY4NzNlODJjZjMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM0YjQxYTdlMWE1ZjJiODFjOWQyNjA2NTZiNTEyYzdkNmFlODUzY2YyY2Y4NjA4ZmRlMzZlODU4ZDRiNGM5YzAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_ade26357fc3a48659f52cd5bd8431df2",
+      "statement": "The L9 keyword-meaning filter is a deterministic, schema-validated admission boundary: it classifies records as included, excluded, or unclear; gives exclusions precedence; preserves Vietnamese diacritics; requires context to resolve undiacritized candidates; and retains result accounting without provider, model, I/O, or random calls.",
+      "evidence": [
+        {
+          "resource": "repo://src/modules/analysis/keyword-meaning-filter.ts#L1-L14",
+          "version": "repo-lines-v1:sha256:a5fe091b70863a770422eec54d1942dc3d9b5816d3cf08e666eb3492399b95f1:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZiMjUyNTMxMDRhNjBhZGYwZjQzODk3OWM4ZTUwZDgwOWZlM2E4NDY0OTViYzM0MTE5ZDY3OTNiMDkyOWQzYWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdhN2JlYzA0N2I3YmUwMzc4ZTNkZTJiNThhNmVjZTVkMzYyMmUxZmM1NTA1YWE3ZDNlMGU5MjI1NWFjYmU3NTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM3NzFjZDA5YmZmMTlkZGJlODcxOGE1OGU3NjhjZmViYjcwZjMyNzAyZmEyYzdmOGJkODFmODkzN2E0MmVlYmQifQ"
+        },
+        {
+          "resource": "repo://src/modules/analysis/keyword-meaning-filter.ts#L140-L217",
+          "version": "repo-lines-v1:sha256:e310f05a99edb3244e695460f6d364575bc2382f209c4a46c2b9794ab9801f6e:eyJzZWxlY3RlZExpbmVDb3VudCI6NzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAyYjQ4ZjE2MDdiZGFkYzBkNzAzMGIyYTczNTQ0OGNhMzk4ZDFhNzhjMzc4OGFiZTc5MWYzNzk1NTc2ZGFlMTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM2YzY5MjY3YTViY2E0Y2MwZGZhMDRjNjliNDgwMDgyMTBhMDE4M2JhNjUxNmFmZDljOTk0MDM4MzA1YmMxMzEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM3OTI5ZTkxZTBmOTljM2U4MjVkZTY5YjQzNWZiNjQ4NGQxYjBhMWRmMmY0NjU2MWFiZjFhMjlmMDQxODhiODgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_42f2d94baa0641f1b54915a6776feefc",
+      "statement": "Located Insight method construction validates source and span integrity and included-record membership, distinguishes pending/disagreed coding from accepted coding, and verifies replay by rebuilding from retained input and rejecting canonical-output mismatches.",
+      "evidence": [
+        {
+          "resource": "repo://src/modules/analysis/located-insight-methods.ts#L175-L197",
+          "version": "repo-lines-v1:sha256:1ff1756bf433aa62e8824f3a1e457b945f1e544c57c1de453499965ef89b9945:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJhNjM2ODViYzgzZjkzOWEyZTEwNGQ2NjgzNGIxMGY3ODkxMTQ4ZmU2NTI0OWU4NzU0MDQzZGJkOWE0ZDUzNjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlhNWUzZGQxM2M1ODE5OTg0YmY3NmFlMTE0ZDA0MWJlMThhOWVkZGE3ZDBkZDgyY2U3MzNhYTc4Y2QzNzM5MDEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJkMGYyZDNhM2FhZGEyNzU4NjQ1NzhkMGE0MzkxNTYzOGQ1NDNmZWNhMmM5NDg1OGRiOTQxMjExZTg2Y2VmMmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjlhZDE1NWVlOWEwMDA3OGUyMDA1ODcwNDdjYTcxMGEwNWNjYzRjNzk5ZTgwOWI1NjY3NmJkNWRmMTM2M2FiZjIifQ"
+        },
+        {
+          "resource": "repo://src/modules/analysis/located-insight-methods.ts#L325-L329",
+          "version": "repo-lines-v1:sha256:93141eefe8fecc271111d3487f045ab6fb914ac824a3f48965816c6647e38ac9:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTUwN2ViMDUxMWE2MzgwZTEyY2I3ZmNlY2U3M2MxODExY2M1OGRkMmQxYjU2NDRjOTg2Yjg2OWQ2OGI0MTRkNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYTkxYmMwYTA4MjM2NDdiZGM1NjU1N2I1YjM1NzdlNTU5ZmFkNTNiZTViNjI0NjJiMWQ4ZTZhNGFkZjFmZGViYSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjlmZTNhMTVjZmRmZTE3NmJjYTY2Njg1ZWRhZjgzMjFiMWU5ZjQ3MTJiYzI5MGJiYTdjYzUwMzhjMWE2ZjYwZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjEsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDEyY2EzNDVjY2Y3NWJmOWMwODA2YmNlNjk1YmU4ZGU4MDhiNzk5ODQyNTFhN2E1NGQyMDJjZjYxMDFkZDQ1MSJ9"
+        },
+        {
+          "resource": "repo://src/modules/analysis/located-insight-methods.ts#L58-L135",
+          "version": "repo-lines-v1:sha256:6f4f9af0713af5c298b803ee5d51ca5e6b0b04784a3b6dce4ef57933bd793b76:eyJzZWxlY3RlZExpbmVDb3VudCI6NzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVlYTczZTk1NzRhY2NhOGVmMzEzZDQ1NjU4NzQ2YWM3MjNjYjYxN2NlZTZkYTFjYzRiNTc1ODFiNjFjNDc0M2MiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZiNTgwZTk2NGY4M2E0NzNmNDNkNDQzODQ2Mjk0OWQ2OGI1NjAwZmRhNzg3ZjE2Mzc0NWQwMGRlODljYmYzNmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg4OGVmNTc3YTAzYjBkZjMwNmNiMTIwNWJlZGViNDcxYTNjYmE0M2I5ZjQ5ZDVmNjVlOTQyMTg4YzVhOTVjYWEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_fbecbbfdf5e04d829ffb79c75f4dda61",
+      "statement": "For current reader input versions, reader computation uses per-platform scopes and per-platform reconciliation, while legacy inputs retain their historical aggregation branch; publication fails before artifacts are written when lint, narrative-number, or metric-bundle gates fail.",
+      "evidence": [
+        {
+          "resource": "repo://src/modules/analysis/reader-report/build.ts#L131-L199",
+          "version": "repo-lines-v1:sha256:3817ebda3ee5314fa368589ff2ebf0d6e444bccb1b6a9b0b655a8dec16f939f1:eyJzZWxlY3RlZExpbmVDb3VudCI6NjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVhZjIyY2YwNzMyNTkyYzI0NzE0MWNiZTYxZWZhMTEwMTI2MTJmNWEzMTIyYjlhZjliYmFmNTJmNTcyNGQxOTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJlOGJlMjNlZjE4ZmIxMTgyY2E2MTVhNWZlMjg3NDhkN2QzZGIwMjU4OGExMTE1MjgyZWNmY2Q3ZjZlNWU5YTAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM2OTBlYjU5ZWZjN2RjZDEzMmYyOGJhZTBlODI1OWRlOGRjZjVmZGVkMGQ1ZGJjYTQ2MzVmYTA5NTFlOGZmNDIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVmZjM1MjE0NTVjZjNjM2Q4YmYxMDJkN2Q1ZDkwMTdjZTk2MGY5ZGUzZmY4NjEzZTBlMTNiM2QzMWNlYWYwYTIifQ"
+        },
+        {
+          "resource": "repo://src/modules/analysis/reader-report/build.ts#L206-L237",
+          "version": "repo-lines-v1:sha256:77a333fa4edcda48aec0e0d74f574e79c5185005087910b8e620a566676ce609:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVhZjIyY2YwNzMyNTkyYzI0NzE0MWNiZTYxZWZhMTEwMTI2MTJmNWEzMTIyYjlhZjliYmFmNTJmNTcyNGQxOTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM5YTlmZWRlYjFlNDUwMzA0MDdlM2UyZjc1NTY2MTgyMDkxNzgwNmQzYWFlNWVlNmFmMGE5ZmE0MmFmYWQ2NWEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk0MGY1M2RlNzc2NTQzODdjNzQ2ZDY1NWY3NTkwMzgzZmJhNjVjMjljNzJjOGJkZmZiNGZhODc5OTk2NTQ0ZTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c8d109552e134b29b1ea4f71fa1b3860",
+      "statement": "U-40 remains a planned acceptance phase: the sync plan specifies staging reruns for coconut jelly, thermos, and handheld fan with section-level pass/fail evidence, and STATUS states that paid staging was not run.",
+      "evidence": [
+        {
+          "resource": "repo://docs/STATUS.md#L121-L126",
+          "version": "repo-lines-v1:sha256:469add0bdfe4f084283886d6b7aa80d8b18da1e6d4fc22518e615ae160258b17:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOWYyYmY2NGI4NmI0ODI4ZmJkODdhOWUwNjY5NGEyNjIxYjBiOGJlNWM5OGVkYjg5NzczNThjYzRhZDQ5YTFmZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiM2FhMmZkM2RlYjVjNzNjNGRhZjBkYjRlMDYzOTJiOWJkNGIyYWIwMTY4YzM5Zjk4MTZhZmRlYTE3NDM2ZmQxNiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMWY2MDgxZGJlZTY4NzIzZWZiN2YzN2QxYjFhNzM3ZTZhN2FiYThiMGU0NWNkNjA4NDJhYzYxMzA1MzZmMzBjYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNmQ1ZWQ2OWY4NTI3MWYxY2VhYzI4Y2VmZTMyMzM5YTYyMzI0Yjg0NjliMDY1MmFkMDAwNTVmZDZkYzE4MDhlZiJ9"
+        },
+        {
+          "resource": "repo://docs/tasks/ultimate-v1.11-tdn-sync-plan.md#L277-L280",
+          "version": "repo-lines-v1:sha256:26a35df6358c29ecc5ee7edcfcd5034b23647efe0a88f6bffbd2dc942278a3d0:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDU2MGE2ODE4OTZjYmY1ZDkzYTBiYzE0M2Q0YzlhOTM4NzhhZDg0MmEyZTAyYTBlYTUxMzdhNWQ3ODk4OWQzMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNGI4OWVkZmM3YmEyMWNlMWI5MWM1NmZhMTY0MWNlMDhiNmM5YzIwMzc1MTEzY2YzNGQ2ZWI3MDU1ZDdjZDRlYyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMjg1MDNkYjkwNzBiZmQ4ZTk4ODFkNmZiNzhjMDA4YzRmY2M0YTlmYzI4ODkwYzc2M2RmMDdmMDIyZDdhMjdiZCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDAxZjJlYzE3NTkzYzEwNTRlYjQ2MzY3ZDg0NTNlZjI0YTE3M2NlOTZiNzExN2Q5MWY5YTY4ZDQ0ZmVmOGIwMSJ9"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.7.1",
+    "at": "2026-10-09T02:26:52.838Z"
+  }
+}
