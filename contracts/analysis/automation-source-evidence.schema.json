@@ -101,6 +101,9 @@
     "webPageTypes": {
       "const": true
     },
+    "pdfExcerpts": {
+      "const": true
+    },
     "sourceAppendix": {
       "$ref": "source-appendix-projection.schema.json#/$defs/projection"
     }

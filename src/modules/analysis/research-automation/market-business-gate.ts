@@ -378,6 +378,23 @@ function worldBankMisuse(html: string, scan: Scan): string[] | null {
     && [...clause.matchAll(WORLD_BANK_COMBINE_TERM)].some(hit => !matches(clause.slice(0, hit.index ?? 0), NEGATION).length)));
 }
 
+const PDF_EXCERPT_BLOCK_TITLE = /Trích đoạn nguyên văn từ tài liệu PDF/giu;
+const PDF_EXCERPT_SUBJECT = /(?<![\p{L}\p{N}_])(?:trích\s+đoạn|đoạn\s+trích|tài\s+liệu\s+PDF|tệp\s+PDF)(?![\p{L}\p{N}_])/giu;
+const PDF_MARKET_SIZE_TERM = /(?<![\p{L}\p{N}_])(?:tổng\s+thị\s+trường|quy\s+mô\s+thị\s+trường|toàn\s+thị\s+trường|thị\s+phần|tổng\s+cầu|tổng\s+doanh\s+thu)(?![\p{L}\p{N}_])/giu;
+const PDF_CUSTOMER_VOICE_TERM = /(?<![\p{L}\p{N}_])(?:khách\s+hàng\s+(?:nói|nhận\s+xét|phản\s+hồi|đánh\s+giá)|người\s+mua\s+(?:nói|nhận\s+xét|phản\s+hồi)|(?:đánh\s+giá|ý\s+kiến|bình\s+luận|tiếng\s+nói)\s+(?:của\s+)?(?:người\s+mua|khách\s+hàng))(?![\p{L}\p{N}_])/giu;
+
+/** Once the report shows document excerpts, no statement about them may present a number in them as a market total or size, combine or compare
+ * it with a sales measure, or call it customer voice; a negation earlier in the same clause allows the disclaimer. The copied excerpts
+ * themselves (blockquote) are not statements. The check exists only when the block is drawn, so other reports keep their rule list. */
+function pdfExcerptMisuse(html: string, scan: Scan): string[] | null {
+  if (!matches(scan.visible, PDF_EXCERPT_BLOCK_TITLE).length) return null;
+  return statementTexts(html.replace(/<blockquote\b[\s\S]*?<\/blockquote\s*>/giu, ' ')).map(text => text.normalize('NFC')).flatMap(text => text.split(CLAUSE_BREAK).filter(clause => {
+    if (!matches(clause, PDF_EXCERPT_SUBJECT).length) return false;
+    const unnegated = (pattern: RegExp): boolean => [...clause.matchAll(pattern)].some(hit => !matches(clause.slice(0, hit.index ?? 0), NEGATION).length);
+    return unnegated(PDF_MARKET_SIZE_TERM) || unnegated(PDF_CUSTOMER_VOICE_TERM) || matches(clause, SALES_MEASURE_TERM).length > 0 && unnegated(WORLD_BANK_COMBINE_TERM);
+  }));
+}
+
 function result(rule: string, ok: boolean, detail: string): MarketBusinessGateResult { return { rule, ok, detail }; }
 
 export function auditMarketReportHtml(html: string, options: MarketBusinessGateOptions = {}): MarketBusinessGateResult[] {
@@ -394,6 +411,7 @@ export function auditMarketReportHtml(html: string, options: MarketBusinessGateO
   const partial = partialTotalMatches(html, options.partialTotals ?? []);
   const interestMisuse = searchInterestMisuse(html, scan);
   const macroMisuse = worldBankMisuse(html, scan);
+  const excerptMisuse = pdfExcerptMisuse(html, scan);
   const u13 = lintVisibleReportText(normalizeInlineTagsForLint(html));
   const content = [
     result('G08_PROVIDER_NAME', provider.length === 0, snippets(provider)),
@@ -403,6 +421,7 @@ export function auditMarketReportHtml(html: string, options: MarketBusinessGateO
     result('NO_LEAK', leaks.length === 0, snippets(leaks)),
     result('SEARCH_INTEREST_NOT_COUNT', interestMisuse.length === 0, snippets(interestMisuse)),
     ...(macroMisuse ? [result('WORLD_BANK_NOT_ARITHMETIC', macroMisuse.length === 0, snippets(macroMisuse))] : []),
+    ...(excerptMisuse ? [result('PDF_EXCERPT_NOT_MARKET_NUMBER', excerptMisuse.length === 0, snippets(excerptMisuse))] : []),
     ...u13.map(check => result(check.rule, check.ok, check.ok ? 'clean' : snippets([check.detail]))),
   ];
   if (!presentation) return content;

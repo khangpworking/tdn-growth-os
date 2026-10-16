@@ -68,6 +68,7 @@ import { qualitativeDraftSection, qualitativeDraftSummary } from '../reader-repo
 import { platIcons } from '../reader-report/layout.js';
 import { marketChartRows, type CaptureCountChart, type MarketChart } from '../reader-report/market-charts.js';
 import type { RenderedChart } from '../reader-report/flint.js';
+import { pdfExcerptBlockHtml, PDF_EXCERPT_NOTE, PDF_EXCERPT_SECTION, PDF_EXCERPT_SRC } from './pdf-excerpt.js';
 import { formatWorldBankValue, worldBankRenderable, worldBankRenderableRows, worldBankSourceNote, worldBankUnitText, WORLD_BANK_LIMIT, WORLD_BANK_NOTE, WORLD_BANK_SOURCE_LABEL, WORLD_BANK_SRC, WORLD_BANK_TITLE } from './world-bank-lane.js';
 import { E13_ATTRIBUTION } from '../source-appendix-projection.js';
 import { searchInterestRenderable,SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_LIMIT, SEARCH_INTEREST_NOTE, SEARCH_INTEREST_SOURCE_LABEL, SEARCH_INTEREST_SRC, SEARCH_INTEREST_UNIT } from './search-interest.js';
@@ -90,6 +91,8 @@ export interface MarketCoverInput {
 
 export interface AutomationReportInput {
   readonly sourceEvidence?: import('./source-evidence.js').AutomationSourceEvidence;
+  /** Verified document excerpts (Market only); present only when the packet carries the pdfExcerpts marker. */
+  readonly pdfExcerpts?: readonly import('./pdf-excerpt.js').PdfExcerpt[];
   readonly boundedMethods?: AutomationBoundedMethodSnapshot;
   readonly quoteMethods?: AutomationQuoteMethodSnapshot;
   readonly run: ResearchAutomationRun;
@@ -987,8 +990,11 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
           `<td>${escape(item.row.year)}</td><td>${escape(item.row.lastUpdated)}</td><td>${escape(worldBankSourceNote(item.row))}</td></tr>`;
       }).join('') + `</tbody></table><p class="lim"><b>Chú thích:</b> ${escape(WORLD_BANK_NOTE)} ${escape(WORLD_BANK_LIMIT)}</p><p class="ex-src">Nguồn: ${escape(WORLD_BANK_SRC)}</p></div>`;
   };
+  // Verified document excerpts sit in the context section; the same predicate marks S25 as used.
+  const pdfExcerptBlock = (sectionId: string): string => kind === 'MARKET' && sectionId === PDF_EXCERPT_SECTION && input.pdfExcerpts?.length && input.sourceEvidence?.pdfExcerpts === true
+    ? pdfExcerptBlockHtml(input.pdfExcerpts, escape) + `<p class="lim"><b>Chú thích:</b> ${escape(PDF_EXCERPT_NOTE)}</p><p class="ex-src">Nguồn: ${escape(PDF_EXCERPT_SRC)}</p>` : '';
   const appendix = (sectionId: string): string =>
-    presentationCharts(sectionId) + searchInterestFigure(sectionId) + worldBankTable(sectionId) +
+    presentationCharts(sectionId) + searchInterestFigure(sectionId) + worldBankTable(sectionId) + pdfExcerptBlock(sectionId) +
     (reviewOutcome && kind === 'INSIGHT' && (sectionId === 'I03' || sectionId === 'I17') ? `<p class="warning">${escape(reviewOutcomeLead(reviewOutcome))}</p>` : '') +
     baseAppendix(sectionId) +
     (input.sourceEvidence && (sectionId === 'M13' || sectionId === 'I17') ? sourceEvidenceHtml(input.sourceEvidence) +

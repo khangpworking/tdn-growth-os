@@ -44,6 +44,7 @@ export interface AutomationSourceEvidence {
     | 'UNKNOWN';
   jevTriage?: L9JevTriageSidecar;
   webPageTypes?: true;
+  pdfExcerpts?: true;
   sourceAppendix: SourceAppendixProjection;
 }
 export interface KeywordMeaningFilterResult {
