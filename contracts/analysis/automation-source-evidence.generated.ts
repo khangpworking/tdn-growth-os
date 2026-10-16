@@ -31,6 +31,7 @@ export interface AutomationSourceEvidence {
   unavailableReason: ('MODEL_NOT_CONFIGURED' | 'SALES_NAMES_UNAVAILABLE' | 'DRAFT_FAILED') | null;
   jevTriage?: L9JevTriageSidecar;
   webPageTypes?: true;
+  pdfExcerpts?: true;
   sourceAppendix: SourceAppendixProjection;
 }
 export interface KeywordMeaningFilterResult {

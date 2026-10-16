@@ -2,6 +2,7 @@
 // marketplaces. Narrative reaches numbers only through the bundle; labels that
 // carry digits (segment names, price bands, brand or shop names) are collected
 // into extraOk so the number gate can tell them from measurements.
+import type { PdfExcerpt } from '../research-automation/pdf-excerpt.js';
 import type { ReaderPlatform, ReaderReportData } from './build.js';
 import { currentProposals } from './market-proposals.js';
 import { buildMarketReportV2 } from './market-template-v2.js';
@@ -51,6 +52,9 @@ export type MarketReportOptions = {
   searchInterest?: StepSearchInterest;
   /** The run's stored open country-level figures; shown as a small side-by-side table in the demand section. */
   worldBank?: StepWorldBank;
+  /** The run's verified document excerpts (S25); drawn as one small block in the context section of 
+ext builds. */
+  pdfExcerpts?: readonly PdfExcerpt[];
 };
 /** site and published are the page name and date as the search engine shows them; older runs have neither. */
 export type ReaderWebResult = { position: number; title: string; url: string; snippet: string | null; retrievedAt: string; site?: string | null; published?: string | null; origin?: ExpandedSearchKind };
