@@ -4026,7 +4026,8 @@ export class ResearchAutomationService {
         if (TERMINAL_STATUSES.has(current.status)) return;
         const outcome = aborted || signal?.aborted || result?.status === 'CANCELLED' || webResult?.status === 'CANCELLED' || trendsResult?.status === 'CANCELLED' || expandedCalled.some(item => item.result.status === 'CANCELLED') || current.status === 'CANCELLING' ? 'CANCELLED' : step.outcome;
         const code = outcome === 'CANCELLED' ? 'CANCELLED_DURING_PROVIDER_OPERATION' : outcome === 'UNAVAILABLE' ? 'PROVIDER_NOT_CONFIGURED' : outcome === 'FAILED'
-          ? step.limitations.some(value => value.code === 'PROVIDER_OUTPUT_INVALID') ? 'PROVIDER_OUTPUT_INVALID' : 'PROVIDER_FAILED' : null;
+          ? step.limitations.some(value => value.code === 'PROVIDER_OUTPUT_INVALID') ? 'PROVIDER_OUTPUT_INVALID'
+            : step.limitations.some(value => value.code === 'PROVIDER_CREDIT_EXHAUSTED') ? 'PROVIDER_CREDIT_EXHAUSTED' : 'PROVIDER_FAILED' : null;
         const finished = this.#now().toISOString();
         this.#db.prepare(`UPDATE analysis_research_automation_steps SET state=?,message_code=?,result_sha256=?,finished_at=? WHERE run_id=? AND step_id=? AND state='RUNNING'`)
           .run(outcome, code, resultArtifact.sha256, finished, runId, stepId);
