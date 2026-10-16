@@ -395,6 +395,26 @@ function pdfExcerptMisuse(html: string, scan: Scan): string[] | null {
   }));
 }
 
+const SELLER_VIDEO_BLOCK_TITLE = /Số liệu video do chủ tải lên cho lượt này|Lời nói trong video bán hàng do người vận hành ghi lại/giu;
+const SELLER_VIDEO_SUBJECT = /(?<![\p{L}\p{N}_])video(?![\p{L}\p{N}_])/giu;
+const SELLER_VIDEO_CUSTOMER_TERM = new RegExp(`${PDF_CUSTOMER_VOICE_TERM.source}|(?<![\\p{L}\\p{N}_])(?:review\\s+của\\s+(?:khách|người\\s+mua)|lời\\s+(?:của\\s+)?(?:khách|người\\s+mua)|khách(?:\\s+hàng)?\\s+(?:chia\\s+sẻ|kể|khen|chê)|người\\s+mua\\s+(?:đánh\\s+giá|chia\\s+sẻ|kể|khen|chê))(?![\\p{L}\\p{N}_])`, 'giu');
+const SELLER_VIDEO_VERIFIED_TERM = /(?<![\p{L}\p{N}_])(?:đã\s+(?:được\s+)?(?:kiểm\s+chứng|xác\s+minh|chứng\s+minh|chứng\s+thực)|là\s+sự\s+thật|chứng\s+minh|bằng\s+chứng\s+chắc\s+chắn)(?![\p{L}\p{N}_])/giu;
+const SELLER_VIDEO_MEASURE_TERM = new RegExp(`${SALES_MEASURE_TERM.source}|(?<![\\p{L}\\p{N}_])(?:lượt\\s+xem|số\\s+liệu\\s+mẫu|số\\s+liệu\\s+bán)(?![\\p{L}\\p{N}_])`, 'giu');
+const SELLER_VIDEO_COMBINE_TERM = new RegExp(`${WORLD_BANK_COMBINE_TERM.source}|(?<![\\p{L}\\p{N}_])(?:trung\\s+bình|xếp\\s+hạng)(?![\\p{L}\\p{N}_])`, 'giu');
+
+/** Once the report shows owner-uploaded video numbers or seller speech, no statement about the videos may call them customer voice,
+ * claim they are verified, present them as a market total or size, or total, average, rank or combine them with sample or sales
+ * numbers; a negation earlier in the same clause allows the disclaimer. Copied speech (blockquote) and tables are not statements. */
+function sellerVideoMisuse(html: string, scan: Scan): string[] | null {
+  if (!matches(scan.visible, SELLER_VIDEO_BLOCK_TITLE).length) return null;
+  return statementTexts(html.replace(/<blockquote\b[\s\S]*?<\/blockquote\s*>/giu, ' ')).map(text => text.normalize('NFC')).flatMap(text => text.split(CLAUSE_BREAK).filter(clause => {
+    if (!matches(clause, SELLER_VIDEO_SUBJECT).length) return false;
+    const unnegated = (pattern: RegExp): boolean => [...clause.matchAll(pattern)].some(hit => !matches(clause.slice(0, hit.index ?? 0), NEGATION).length);
+    return unnegated(SELLER_VIDEO_CUSTOMER_TERM) || unnegated(SELLER_VIDEO_VERIFIED_TERM) || unnegated(PDF_MARKET_SIZE_TERM)
+      || matches(clause, SELLER_VIDEO_MEASURE_TERM).length > 0 && unnegated(SELLER_VIDEO_COMBINE_TERM);
+  }));
+}
+
 function result(rule: string, ok: boolean, detail: string): MarketBusinessGateResult { return { rule, ok, detail }; }
 
 export function auditMarketReportHtml(html: string, options: MarketBusinessGateOptions = {}): MarketBusinessGateResult[] {
@@ -412,6 +432,7 @@ export function auditMarketReportHtml(html: string, options: MarketBusinessGateO
   const interestMisuse = searchInterestMisuse(html, scan);
   const macroMisuse = worldBankMisuse(html, scan);
   const excerptMisuse = pdfExcerptMisuse(html, scan);
+  const videoMisuse = sellerVideoMisuse(html, scan);
   const u13 = lintVisibleReportText(normalizeInlineTagsForLint(html));
   const content = [
     result('G08_PROVIDER_NAME', provider.length === 0, snippets(provider)),
@@ -422,6 +443,7 @@ export function auditMarketReportHtml(html: string, options: MarketBusinessGateO
     result('SEARCH_INTEREST_NOT_COUNT', interestMisuse.length === 0, snippets(interestMisuse)),
     ...(macroMisuse ? [result('WORLD_BANK_NOT_ARITHMETIC', macroMisuse.length === 0, snippets(macroMisuse))] : []),
     ...(excerptMisuse ? [result('PDF_EXCERPT_NOT_MARKET_NUMBER', excerptMisuse.length === 0, snippets(excerptMisuse))] : []),
+    ...(videoMisuse ? [result('SELLER_VIDEO_NOT_CUSTOMER_OR_TOTAL', videoMisuse.length === 0, snippets(videoMisuse))] : []),
     ...u13.map(check => result(check.rule, check.ok, check.ok ? 'clean' : snippets([check.detail]))),
   ];
   if (!presentation) return content;

@@ -3,6 +3,7 @@
 // carry digits (segment names, price bands, brand or shop names) are collected
 // into extraOk so the number gate can tell them from measurements.
 import type { PdfExcerpt } from '../research-automation/pdf-excerpt.js';
+import type { SellerVideos } from '../research-automation/seller-video.js';
 import type { ReaderPlatform, ReaderReportData } from './build.js';
 import { currentProposals } from './market-proposals.js';
 import { buildMarketReportV2 } from './market-template-v2.js';
@@ -55,6 +56,8 @@ export type MarketReportOptions = {
   worldBank?: StepWorldBank;
   /** The run's verified document excerpts (S25); drawn as one small block in the context section of new builds. */
   pdfExcerpts?: readonly PdfExcerpt[];
+  /** The run's pinned owner/operator video uploads (S02 table, S14 seller speech); drawn in M09 of new builds only. */
+  sellerVideos?: SellerVideos;
 };
 /** site and published are the page name and date as the search engine shows them; older runs have neither. */
 export type ReaderWebResult = { position: number; title: string; url: string; snippet: string | null; retrievedAt: string; site?: string | null; published?: string | null; origin?: ExpandedSearchKind };

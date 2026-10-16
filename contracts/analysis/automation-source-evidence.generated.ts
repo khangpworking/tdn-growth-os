@@ -45,6 +45,7 @@ export interface AutomationSourceEvidence {
   jevTriage?: L9JevTriageSidecar;
   webPageTypes?: true;
   pdfExcerpts?: true;
+  sellerVideos?: true;
   sourceAppendix: SourceAppendixProjection;
 }
 export interface KeywordMeaningFilterResult {

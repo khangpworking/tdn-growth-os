@@ -191,6 +191,8 @@ function plainProse(text: string, tones: boolean): boolean {
 const leaks = (text: string, tones = true): boolean => !plainProse(text, tones) || LEAK_PATTERNS.some(pattern => pattern.test(text));
 
 const words = (text: string): number => text.trim().split(/\s+/u).filter(Boolean).length;
+/** The same closed plain-prose, leak and provider checks, for other verbatim operator text (seller video speech). */
+export const pdfPlainTextSafe = (text: string): boolean => !providerPattern.test(text) && !leaks(text) && readerTextSafe(text);
 
 /** A file name is shown only when it is plain text: no provider, link, path separator or operator text. */
 export function pdfExcerptFileNameShown(fileName: unknown): fileName is string {
