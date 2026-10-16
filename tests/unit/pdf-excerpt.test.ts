@@ -30,7 +30,8 @@ test('selection: two documents keep stored order, Market sections only, verbatim
 });
 
 test('selection: each left-out reason is coded, nothing is cut or reworded, at most 3 per document', () => {
-  const long = Array.from({ length: 31 }, (_, i) => `từ${i}`).join(' '), exactly30 = Array.from({ length: 30 }, (_, i) => `từ${i}`).join(' ');
+  const word = (i: number): string => `từ${String.fromCharCode(97 + (i % 26))}`;
+  const long = Array.from({ length: 31 }, (_, i) => word(i)).join(' '), exactly30 = Array.from({ length: 30 }, (_, i) => word(i)).join(' ');
   const picked = selectPdfExcerpts(artifact([
     quote(SHA_A, 1, 'Một.'), quote(SHA_A, 2, 'Hai.'), quote(SHA_A, 3, 'Ba.'), quote(SHA_A, 4, 'Bốn.'),
     quote(SHA_B, 1, long), quote(SHA_B, 2, exactly30), quote(SHA_B, 3, 'Thuộc phần insight.', 'I02'), quote(SHA_B, 4, 'Chưa kiểm.', 'M09', { quoteVerification: 'UNVERIFIED' as never }),
@@ -73,6 +74,22 @@ test('selection: ordinary numbers, month-year dates, ratios and unit slashes sta
   assert.deepEqual(selectPdfExcerpts(artifact(spaced.map((text, i) => quote(SHA_A, i + 1, text))), RUN, names).excerpts.map(item => item.text), spaced);
 });
 
+test('number grammar: a digit is shown only inside a closed number shape and two numbers never stand side by side', () => {
+  const shown = (text: string): boolean => selectPdfExcerpts(artifact([quote(SHA_A, 1, text)]), RUN, names).excerpts.length === 1;
+  for (const text of ['Thị trường tăng 25% năm 2025.', 'Quy mô đạt 1,2 tỷ USD, tăng 8,5% trong 2024–2025.', 'Doanh thu 1.234 tỷ đồng, 6/2025.', 'Bán 1.000+ đơn, giá 250.000đ/tháng.',
+    'Dung tích 10-20ml, pin 5000mAh, nhiệt độ 30°C, dùng 3 lần/ngày.', 'Sau COVID-19, quý Q3 tăng, mẫu S24 dẫn đầu.', 'Khung giờ 09:30 – 11:00, tỷ lệ 1:2.',
+    'Giảm ~30%, đạt ≥40% vào 15/6, gói 50.000đ/kg, tổng 1.234.567,5 đồng.', 'Có 1500 cửa hàng ở 63 tỉnh, màn 4K, mạng 5G, mô hình B2C.'])
+    assert.equal(shown(text), true, text);
+  // Round 6 blockers: a spaced machine address and grouped codes.
+  for (const text of ['Máy 001. 002. 003. 004 nội bộ.', 'Máy 203. 0. 113. 7.', 'Máy 203 . 0 . 113 . 7', 'Máy 203, 0, 113, 7.', 'Máy 203 – 0 – 113 – 7.', 'Máy 192.168.100.200 nội bộ.',
+    'Mã xác thực: 1234 5678 9012 3456', 'Dãy 1234 5678 9012 3456 dùng một lần.', 'Mã x2-ab12 dùng tạm.', 'Mã AB12-CD34-EF56-GH78.', 'Mã AB12 CD34 dùng tạm.', 'Dãy 1234–5678 cấp riêng.',
+    'Mã 12345 dùng tạm.', 'Lô 0012 xuất kho.', 'Mã OTP 4821.', 'Nhập mã bảo mật 4821.', 'Số thẻ 4821 dùng tạm.', 'Mã 203-0-113-7.',
+    // Follow-ups of the same rounds: spaced domain, one-slash path, slug, command flag, port-like ratio, small capitals.
+    'Xem example. com', 'Xem example. com.pdf', 'Lưu ở server/share.', 'Lưu ở tmp/a.', 'Mục thu-muc-bao-cao.', 'Chạy rm -rf khi dọn.', 'Tỷ lệ 1:80.', 'Theo ɢᴏᴏɢʟᴇ, nhu cầu tăng.',
+    'Theo G̲o̲o̲g̲l̲e̲, nhu cầu tăng.'])
+    assert.equal(shown(text), false, text);
+});
+
 test('selection: only market sections are eligible even when the section id is made up', () => {
   assert.ok(PAGEINDEX_ELIGIBLE_SECTIONS.includes('M09'));
   const picked = selectPdfExcerpts(artifact([quote(SHA_A, 1, 'Một.', 'M99'), quote(SHA_A, 2, 'Hai.', 'X09'), quote(SHA_A, 3, 'Ba.', 'I16')]), RUN, names);
@@ -81,7 +98,8 @@ test('selection: only market sections are eligible even when the section id is m
 
 test('file names: empty, missing or provider-like names are withheld, never guessed', () => {
   for (const bad of ['', '   ', 'pageindex-export.pdf', 'Google trang.pdf', 'kalodata.pdf', 'a/b.pdf', 'C:\\x\\y.pdf', 'https://example.test/a.pdf', 'a;b.pdf', 'metric-report.pdf', 'x'.repeat(130), 'solieu.example.vn.pdf', '203.0.113.7.pdf', 'bao_cao_nganh.pdf', 'aB3dE5gH7jK9mN1pQ3sT5vW7.pdf', '/secret.pdf', '\\secret.pdf', 'C:report.pdf', '~/a.pdf', 'tmp∕a.pdf', '%2Fa.pdf',
-    '%252Fa.pdf', 'file:report.pdf', 'glpat-abc12345678901234567.pdf', 'example.dev.pdf', '╱tmp╱a.pdf', 'Ｇｏｏｇｌｅ.pdf', 'G​oogle.pdf', 'page index.pdf', 'Agent–Reach.pdf', 'api  key.pdf'])
+    '%252Fa.pdf', 'file:report.pdf', 'glpat-abc12345678901234567.pdf', 'example.dev.pdf', '╱tmp╱a.pdf', 'Ｇｏｏｇｌｅ.pdf', 'G​oogle.pdf', 'page index.pdf', 'Agent–Reach.pdf', 'api  key.pdf',
+    'x2-ab12.pdf', '1234-5678-9012-3456.pdf', '192-168-1-1.pdf', 'AB12-CD34-EF56.pdf'])
     assert.equal(pdfExcerptFileNameShown(bad), false, JSON.stringify(bad));
   assert.equal(pdfExcerptFileNameShown(undefined), false);
   assert.equal(pdfExcerptFileNameShown('bao-cao-nganh.pdf'), true);

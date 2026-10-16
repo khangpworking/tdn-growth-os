@@ -45,11 +45,15 @@ const LEAK_PATTERNS: readonly RegExp[] = [
   /(?<![\p{L}\p{N}])(?=[\w+\/=]*\d)(?=[\w+\/=]*[A-Za-z])[\w+\/=]{24,}/u, // token-shaped run of letters and digits; hyphenated file names pass
 ];
 /**
- * Leak shapes are allowed out, not hunted: four review rounds each found one more shape a deny-list missed. Text is shown only when
- * it is plain prose: Latin letters, ASCII digits, spaces and ordinary punctuation (no backslash, "@", "=", "_", look-alike slash,
- * format character or other script), and every word passes `plainWord`. A quote that is not plain prose is left out whole.
+ * Leak shapes are allowed out, not hunted: six review rounds each found one more shape a deny-list missed. Text is shown only when
+ * it is plain prose: every letter is an ASCII letter or "đ" once the Vietnamese accent marks are taken off (so no small capital,
+ * look-alike or extra mark), digits are ASCII, punctuation is ordinary (no backslash, "@", "=", "_", look-alike slash or format
+ * character), every word passes `plainWord`, two numbers never stand side by side and no access-code label is shown. A digit is
+ * shown only inside one closed number shape (`NUMBER_SHAPES`). A quote that is not plain prose is left out whole.
  */
-const PLAIN_CHARS = /^[\p{Script=Latin}0-9 \t\r\n .,;:!?()[\]"'“”‘’«»\-–—…/%+&*#~°×₫≥≤≈±→²³]*$/u;
+const PLAIN_BASE = /^[A-Za-zĐđ0-9 \t\r\n .,;:!?()[\]"'“”‘’«»\-–—…/%+&*#~°×₫≥≤≈±→²³]*$/u;
+const VIETNAMESE_MARKS = /[\u0300\u0301\u0302\u0303\u0306\u0309\u031B\u0323]/gu;
+const plainLetters = (text: string): boolean => PLAIN_BASE.test(text.normalize('NFD').replace(VIETNAMESE_MARKS, ''));
 const FULLWIDTH = /[＀-￯]/u;
 /** Letters and digits only, lower case, so no space, dash or dot can split a name ("Page Index", "Agent–Reach", "api  key"). */
 const squash = (text: string): string => text.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
@@ -59,13 +63,44 @@ const HIDDEN_NAMES = [...PROVIDER_WORDS, 'token', 'password', 'passwd', 'secret'
 const namesHidden = (text: string): boolean => { const joined = squash(text.normalize('NFC')); return HIDDEN_NAMES.some(name => joined.includes(name)); };
 const OPENING = /^[(["'“‘«]+/u;
 const CLOSING = /[)\]"'”’»,.;:!?…]+$/u;
-/** A slash only between letters or digits, once (đồng/chiếc, 6/2025, 250.000đ/tháng); a lone spaced "/" is punctuation. */
-const SLASH_WORD = /^[\p{N}.,]*[\p{L}\p{N}]+\/[\p{L}\p{N}]+$/u;
+/** A label that names an access code, card or account is never shown, whatever the value after it looks like. */
+const SECRET_LABEL = /(?<![\p{L}\p{N}])(?:mã\s*(?:xác\s*(?:thực|nhận|minh)|bảo\s*mật|otp|pin|kích\s*hoạt|đăng\s*nhập|khôi\s*phục|giao\s*dịch|thẻ)|otp|cvv|cvc|số\s*(?:tài\s*khoản|thẻ|serial|sê-ri)|serial|license\s*key|mật\s*mã)(?![\p{L}\p{N}])/iu;
 /** Dotted abbreviations that are not addresses (v.v = "and so on", TP.HCM). */
 const DOTTED_ABBREVIATION = /^(?:v\.v|T[Pp]\.\p{Lu}{2,4})$/u;
-/** Letters may sit beside digits only as a number with a unit (250.000đ, 24h, 100ml, 5G, 50m²) or a short code (Q3, A4, S24). */
-const NUMBER_UNIT = /^[\p{N}.,]*\p{N}\p{L}{1,5}[23]?$/u;
-const SHORT_CODE = /^\p{L}{1,2}\p{N}{1,4}$/u;
+/** Words that may follow a slash as "per" (đồng/chiếc, 250.000đ/tháng, lần/ngày). */
+const PER_WORD = 'tháng|năm|ngày|tuần|quý|giờ|phút|lần|người|hộp|chai|gói|chiếc|cái|đơn|kg|g|ml|l|lít|m|m2|cm|km|ha|tấn|đồng|suất|ly|cốc|lon|túi|hũ|thùng|lốc|két|bộ|đôi|sp';
+const PER = new RegExp(`^(?:${PER_WORD})$`, 'iu');
+/** A slash between two words only as "per", or between two Vietnamese words (và/hoặc); server/share, tmp/a are paths. */
+function letterSlash(word: string): boolean {
+  const parts = /^(\p{L}+)\/(\p{L}+)$/u.exec(word);
+  return parts !== null && (PER.test(parts[2]!) || (/[^\u0000-\u007f]/u.test(parts[1]!) && /[^\u0000-\u007f]/u.test(parts[2]!)));
+}
+
+/**
+ * The closed number grammar. A word that holds a digit is shown only when the whole word is one of these shapes: no leading zero,
+ * at most four ungrouped digits, thousands groups, a short decimal, a percentage, a closed unit, a range of two, a date, a time, a
+ * one-digit ratio or a short upper-case code. Everything else with a digit (an address, a grouped code, a token) is left out.
+ */
+const UNITS = 'vnđ|vnd|usd|₫|đ|tr|k|kg|mg|g|ml|l|cm|mm|km|m2|m3|m|ha|kwh|kw|w|mah|v|gb|mb|tb|h|ph|p|s|x|t|d|°c|°';
+const NUMBER = '(?:[1-9]\\d{0,2}(?:\\.\\d{3}){1,3}(?:,\\d{1,2})?|[1-9]\\d{0,2}(?:,\\d{3}){1,3}(?:\\.\\d{1,2})?|(?:0|[1-9]\\d{0,2})[.,]\\d{1,2}|0|[1-9]\\d{0,3})';
+const AMOUNT = `${NUMBER}(?:${UNITS}|%)?`;
+const YEAR = '(?:19|20)\\d{2}';
+const NUMBER_SHAPES: readonly RegExp[] = [
+  new RegExp(`^[+~±≥≤≈-]?${AMOUNT}\\+?$`, 'iu'), // 2025, 12.345.678, 5,2%, 250.000đ, 5000mAh, ~30%, 1.000+
+  new RegExp(`^~?${AMOUNT}[–-]${AMOUNT}$`, 'iu'), // a range of two: 10–20%, 10-20ml, 2024–2025
+  new RegExp(`^(?:0?[1-9]|[12]\\d|3[01])/(?:0?[1-9]|1[0-2]|${YEAR})$`, 'u'), // 15/6, 6/2025, 3/4, 24/7 (a full date fails the shared reader check)
+  new RegExp(`^${AMOUNT}/(?:${PER_WORD})$`, 'iu'), // 250.000đ/tháng, 50.000đ/kg
+  new RegExp(`^Q[1-4]/${YEAR}$`, 'u'), // Q3/2025
+  /^(?:[01]?\d|2[0-3]):[0-5]\d$|^[1-9]:[1-9]$/u, // 10:30, 1:2
+  /^\p{Lu}{1,2}\d{1,2}$|^\p{Lu}\d\p{Lu}$|^\p{Lu}{2,8}-\d{1,2}$/u, // Q3, A4, S24, B2B, COVID-19
+];
+function numberWord(word: string): boolean {
+  if (!NUMBER_SHAPES.some(shape => shape.test(word))) return false;
+  // Four dotted groups that each fit an address part read as a machine address (192.168.100.200), not as thousands.
+  if ((word.match(/\d+(?:\.\d+)+/gu) ?? []).some(run => { const groups = run.split('.'); return groups.length >= 4 && groups.every(group => Number(group) <= 255); })) return false;
+  // Two four-digit numbers joined are a split code (1234–5678) unless they are years (2024–2025).
+  return !/[–-]/u.test(word) || (word.match(/(?<![\d.,])\d{4}(?![\d.,])/gu) ?? []).every(digits => new RegExp(`^${YEAR}$`, 'u').test(digits));
+}
 
 function plainWord(token: string, last: boolean): boolean {
   if (/^\p{L}:$/u.test(token)) return false; // drive letter, also spaced ("C: / a")
@@ -74,22 +109,39 @@ function plainWord(token: string, last: boolean): boolean {
   if (!word) return !token.includes('/') && (last || token === '...' || !/[.:]/u.test(token));
   if (/^[\-–—&*#+]+$/u.test(word)) return true;
   if (word.length > 40) return false;
-  if (word.includes(':') && !/^\d{1,3}:\d{1,3}$/u.test(word)) return false; // scheme, drive, label:value, IPv6; a time or ratio passes
-  if (word.includes('%') && !/^~?[\p{N}.,]+(?:[–-][\p{N}.,]+)?%$/u.test(word)) return false; // only a percentage or range, never an encoded byte
-  if (word.includes('~') && !/^~\p{N}/u.test(word)) return false;
-  if (word.includes('/') && !SLASH_WORD.test(word)) return false; // /secret, //server/share, ~/a, ./a, a/b/c, thu-muc/bao-cao
-  if (/\.\p{L}|\p{L}\./u.test(word) && !DOTTED_ABBREVIATION.test(word)) return false; // domain, host, file name
-  // Four or more dotted digit groups are a number only when grouped by thousands (1.234.567.890), never 001.002.003.004.
-  if (/^\p{N}+(?:\.\p{N}+){3,}$/u.test(word) && !/^[1-9]\p{N}{0,2}(?:\.\p{N}{3})+$/u.test(word)) return false;
-  return word.split(/[/\-–]/u).every(part => part.length <= 20 && !/\p{N}{12,}/u.test(part)
-    && (!(/\p{L}/u.test(part) && /\p{N}/u.test(part)) || NUMBER_UNIT.test(part) || SHORT_CODE.test(part) || /^\p{Lu}2\p{Lu}$/u.test(part)));
+  if (/\p{N}/u.test(word)) return numberWord(word);
+  if (/[:%~]/u.test(word)) return false; // scheme, drive, label:value, encoded byte; a time, ratio or percentage holds a digit
+  if (word.includes('/') && !letterSlash(word)) return false; // /secret, //server/share, ~/a, ./a, a/b/c, tmp/a
+  if (word.includes('.') && !DOTTED_ABBREVIATION.test(word)) return false; // domain, host, file name
+  // A leading hyphen is a command flag (rm -rf); three or more hyphenated parts are a slug or code (thu-muc-bao-cao); a part over
+  // 20 letters is a token, not a word.
+  return !word.startsWith('-') && (word.match(/[-–—]/gu) ?? []).length <= 1 && word.split(/[-–—]/u).every(part => part.length <= 20);
 }
+
+/** Two numbers side by side are a spaced address or a grouped code ("203. 0. 113. 7", "1234 5678 9012"); only one spaced range ("10 – 20") joins two. */
+function numbersApart(tokens: readonly string[]): boolean {
+  let previous = -1, joined = false;
+  for (const [i, token] of tokens.entries()) {
+    if (!/\p{N}/u.test(token)) continue;
+    const between = tokens.slice(previous + 1, i);
+    if (previous >= 0 && !between.some(word => /\p{L}/u.test(word))) {
+      if (joined || between.length !== 1 || !/^[–—-]$/u.test(between[0]!) || CLOSING.test(tokens[previous]!)) return false;
+      joined = true;
+    } else joined = false;
+    previous = i;
+  }
+  return true;
+}
+const TOP_LEVEL = /^(?:com|net|org|gov|edu|info|biz|io|vn|asia|int)$/iu;
+/** A spaced domain: a word that ends in a dot, then a top-level domain ("example. com"). */
+const spacedDomain = (tokens: readonly string[]): boolean =>
+  tokens.some((token, i) => /[\p{L}\p{N}]\.$/u.test(token) && i + 1 < tokens.length && TOP_LEVEL.test(tokens[i + 1]!.replace(OPENING, '').replace(CLOSING, '')));
 
 function plainProse(text: string): boolean {
   const folded = text.normalize('NFKC');
   const tokens = folded.trim().split(/\s+/u);
-  return PLAIN_CHARS.test(text.normalize('NFC')) && !FULLWIDTH.test(text) && PLAIN_CHARS.test(folded) && !namesHidden(folded)
-    && tokens.every((token, i) => plainWord(token, i === tokens.length - 1));
+  return plainLetters(text) && !FULLWIDTH.test(text) && plainLetters(folded) && !namesHidden(folded) && !SECRET_LABEL.test(folded)
+    && tokens.every((token, i) => plainWord(token, i === tokens.length - 1)) && numbersApart(tokens) && !spacedDomain(tokens);
 }
 const leaks = (text: string): boolean => !plainProse(text) || LEAK_PATTERNS.some(pattern => pattern.test(text));
 
@@ -100,8 +152,9 @@ export function pdfExcerptFileNameShown(fileName: unknown): fileName is string {
   if (typeof fileName !== 'string') return false;
   const name = fileName.trim();
   const base = name.replace(/\.pdf$/iu, ''); // the extension is the only dot a shown name may hold
+  // Hyphens in a file name join words (bao-cao-2025-quy-3), so each part is read as a word: a grouped code still fails (x2-ab12, 1234-5678).
   return name.length > 0 && name.length <= 120 && !/[\\/|;&<>$`"'=\u0000-\u001f]/u.test(name) && !providerPattern.test(name)
-    && !leaks(base) && !LEAK_PATTERNS.some(pattern => pattern.test(name)) && readerTextSafe(name) && !/\.\./u.test(name);
+    && !leaks(base.replace(/[-–—]/gu, ' ')) &&!LEAK_PATTERNS.some(pattern => pattern.test(name)) && readerTextSafe(name) && !/\.\./u.test(name);
 }
 
 /** The citation entry of one excerpt, built the way every PDF citation is built (`toCitationInput`). */
