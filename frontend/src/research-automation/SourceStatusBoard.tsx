@@ -46,6 +46,7 @@ const SOURCE_COPY: Record<BoardSource, { readonly name: string; readonly role: s
   SERPAPI: { name: 'SerpApi', role: 'Tìm kiếm Google và Google Trends', unit: 'lần thu' },
   OFFICIAL_STATS: { name: 'Cục Thống kê', role: 'Số liệu vĩ mô từ nso.gov.vn', unit: 'file' },
   WORLD_BANK: { name: 'Ngân hàng Thế giới', role: 'Số liệu vĩ mô mở, không cần khóa', unit: 'lần lấy' },
+  UN_COMTRADE: { name: 'Thương mại Liên Hợp Quốc', role: 'Số liệu thương mại cả nước theo mã hàng, không cần khóa', unit: 'lần lấy' },
   PAGEINDEX: { name: 'PageIndex', role: 'Tự lập chỉ mục cho PDF', unit: 'tài liệu' },
 };
 

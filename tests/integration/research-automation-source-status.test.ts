@@ -127,7 +127,7 @@ async function readStatus(base: string): Promise<{ text: string; body: Record<st
 
 const bySource = (body: Record<string, any>) => Object.fromEntries((body.sources as Array<Record<string, any>>).map(item => [item.source, item]));
 
-test('source status reports eleven cards with registry metadata, workspace history and no credential values', async () => {
+test('source status reports twelve cards with registry metadata, workspace history and no credential values', async () => {
   const fixture = await createFixture();
   seedHistory(fixture.databasePath);
   const providers: ResearchAutomationProviderConfig = { kalodataSecretKey: kalodataSecret, serpApiKey: serpApiSecret, apifyTokenConfigured: true };
@@ -138,7 +138,7 @@ test('source status reports eleven cards with registry metadata, workspace histo
     assert.equal(body.workspaceId, workspaceId);
     assert.equal(body.executorEnabled, true);
     assert.deepEqual(body.sources.map((item: Record<string, any>) => item.source), ['METRIC', 'KALODATA', 'KALODATA_VIDEO_FILE',
-      'APIFY_SHOPEE', 'APIFY_TIKTOK_COMMENTS', 'VIDEO_READING', 'META_AD_LIBRARY', 'SERPAPI', 'OFFICIAL_STATS', 'WORLD_BANK', 'PAGEINDEX']);
+      'APIFY_SHOPEE', 'APIFY_TIKTOK_COMMENTS', 'VIDEO_READING', 'META_AD_LIBRARY', 'SERPAPI', 'OFFICIAL_STATS', 'WORLD_BANK', 'UN_COMTRADE', 'PAGEINDEX']);
     const sources = bySource(body);
     assert.deepEqual(sources.KALODATA, { source: 'KALODATA', state: 'READY', credential: 'CONFIGURED', wiredIntoRuns: true, paid: true,
       lastDataAt: '2026-02-03T00:00:00.000Z', dataCount: 2, lastUsageAt: '2026-02-03T00:00:01.000Z',
@@ -187,6 +187,10 @@ test('source status reports eleven cards with registry metadata, workspace histo
     assert.equal(sources.WORLD_BANK.dataCount, 0);
     assert.equal(sources.WORLD_BANK.lastDataAt, null);
     assert.equal(sources.WORLD_BANK.lastUsageAt, null);
+    assert.equal(sources.UN_COMTRADE.state, 'READY');
+    assert.equal(sources.UN_COMTRADE.credential, 'NOT_REQUIRED');
+    assert.equal(sources.UN_COMTRADE.wiredIntoRuns, true);
+    assert.equal(sources.UN_COMTRADE.paid, false);
     assert.equal(sources.APIFY_TIKTOK_COMMENTS.credential, 'CONFIGURED', 'Shared Apify token is honest credential evidence');
     assert.equal(sources.APIFY_TIKTOK_COMMENTS.spendCapUsd, null, 'An absent TikTok cap is never defaulted to $3');
     assert.deepEqual(sources.METRIC.registryIds, ['S01', 'S04']);
@@ -215,7 +219,7 @@ test('source status reports eleven cards with registry metadata, workspace histo
   await withApi(fixture, false, providers, async base => {
     const { body } = await readStatus(base);
     assert.equal(body.executorEnabled, false);
-    assert.equal(body.sources.length, 11);
+    assert.equal(body.sources.length, 12);
     assert.ok(body.sources.every((item: Record<string, any>) => item.state === 'EXECUTOR_DISABLED'),
       'Executor-disabled keeps precedence over every card including NOT_BUILT');
     assert.equal(bySource(body).KALODATA.credential, 'CONFIGURED');

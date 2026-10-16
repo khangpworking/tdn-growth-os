@@ -13,6 +13,7 @@ import type { SerpApiL9FilterOutput } from './serpapi-l9-filter.js';
 import { classifyWebPage } from './web-page-type.js';
 import { searchInterestRenderable } from './search-interest.js';
 import { worldBankRenderableRows } from './world-bank-lane.js';
+import { comtradeRenderable } from './comtrade-lane.js';
 import { pdfExcerptDocuments, type PdfExcerpt } from './pdf-excerpt.js';
 import { sellerVideoPackages, type SellerVideos } from './seller-video.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
@@ -147,6 +148,12 @@ export function sourceEvidenceForReport(packet: AutomationSourceEvidence, input:
     if (!observation || observation.provider !== 'world-bank' || observation.operation !== 'worldbank.observations'
       || !metadata || metadata.provider !== 'world-bank' || metadata.operation !== 'worldbank.metadata') throw new ResearchAutomationIntegrityError('World Bank capture lineage is unavailable');
     add('S23', 'capture', observation.artifactSha256);
+  }
+  // S24 is used only when the Market report draws the country-level trade table (same predicate as both renderers), once per stored response.
+  if (kind === 'MARKET' && comtradeRenderable(input.collection?.comtrade)) for (const call of input.collection!.comtrade!.calls) {
+    const capture = input.captures?.find(c => c.stepId === 'COLLECTION' && c.ordinal === call.captureIndex);
+    if (!capture || capture.provider !== 'comtrade' || capture.operation !== 'comtrade.data') throw new ResearchAutomationIntegrityError('UN Comtrade capture lineage is unavailable');
+    add('S24', 'capture', capture.artifactSha256);
   }
   // S25 is used only when the Market report draws at least one verified document excerpt, once per document; the marker lets older packets verify unchanged.
   const excerpts = kind === 'MARKET' ? input.pdfExcerpts ?? [] : [];

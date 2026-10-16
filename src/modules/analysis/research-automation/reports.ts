@@ -70,6 +70,7 @@ import { marketChartRows, type CaptureCountChart, type MarketChart } from '../re
 import type { RenderedChart } from '../reader-report/flint.js';
 import { pdfExcerptBlockHtml, PDF_EXCERPT_NOTE, PDF_EXCERPT_SECTION, PDF_EXCERPT_SRC } from './pdf-excerpt.js';
 import { sellerVideoBlockHtml, sellerVideoNote, sellerVideoSrc, SELLER_VIDEO_SECTION } from './seller-video.js';
+import { comtradeFlowText, comtradeNotice, comtradeOfficialText, comtradeRenderable, comtradeRenderableRows, comtradeRowNote, comtradeSideText, COMTRADE_NOTE, COMTRADE_SOURCE_LABEL, COMTRADE_SRC, COMTRADE_TABLE_TITLE } from './comtrade-lane.js';
 import { formatWorldBankValue, worldBankRenderable, worldBankRenderableRows, worldBankSourceNote, worldBankUnitText, WORLD_BANK_LIMIT, WORLD_BANK_NOTE, WORLD_BANK_SOURCE_LABEL, WORLD_BANK_SRC, WORLD_BANK_TITLE } from './world-bank-lane.js';
 import { E13_ATTRIBUTION } from '../source-appendix-projection.js';
 import { searchInterestRenderable,SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_LIMIT, SEARCH_INTEREST_NOTE, SEARCH_INTEREST_SOURCE_LABEL, SEARCH_INTEREST_SRC, SEARCH_INTEREST_UNIT } from './search-interest.js';
@@ -200,7 +201,9 @@ export function marketSourceRows(input: AutomationReportInput, webResultCount: n
     ? [[SEARCH_INTEREST_SOURCE_LABEL, 'Đã dùng trong lượt này: chỉ số tương đối, không phải doanh số.']] : [];
   const macro: readonly (readonly [string, string])[] = worldBankRenderable(input.collection?.worldBank)
     ? [[WORLD_BANK_SOURCE_LABEL, 'Đã dùng trong lượt này: số liệu cả nước, chỉ là bối cảnh.']] : [];
-  return [['Dữ liệu bán hàng', sales], ['Dữ liệu đánh giá sản phẩm trên nền tảng', native], ['Kết quả tìm kiếm', web], ['Bình luận đã thu thập', comments], ...interest, ...macro];
+  const trade: readonly (readonly [string, string])[] = comtradeRenderable(input.collection?.comtrade)
+    ? [[COMTRADE_SOURCE_LABEL, 'Đã dùng trong lượt này: số liệu cả nước, chỉ là bối cảnh.']] : [];
+  return [['Dữ liệu bán hàng', sales], ['Dữ liệu đánh giá sản phẩm trên nền tảng', native], ['Kết quả tìm kiếm', web], ['Bình luận đã thu thập', comments], ...interest, ...macro, ...trade];
 }
 interface CatalogSection { sectionId: string; title: string; methodId: string; methodVersion: string; requiredInputs: string[] }
 export interface MethodOutputRef { methodOutputId: string; locatedRecordCount: number; unresolvedPointers: readonly string[]; blockers: readonly string[] }
@@ -993,13 +996,27 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
           `<td>${escape(item.row.year)}</td><td>${escape(item.row.lastUpdated)}</td><td>${escape(worldBankSourceNote(item.row))}</td></tr>`;
       }).join('') + `</tbody></table><p class="lim"><b>Chú thích:</b> ${escape(WORLD_BANK_NOTE)} ${escape(WORLD_BANK_LIMIT)}</p><p class="ex-src">Nguồn: ${escape(WORLD_BANK_SRC)}</p></div>`;
   };
+  // Country-level trade figures sit in the supply section as background; the same predicate marks S24 as used. Never summed or compared with sample numbers.
+  const comtradeTable = (sectionId: string): string => {
+    const stored = kind === 'MARKET' && sectionId === 'M06' ? input.collection?.comtrade : undefined;
+    if (!stored) return '';
+    const rows = comtradeRenderableRows(stored);
+    if (rows.length === 0) return `<p>${escape(comtradeNotice(stored))}</p>`;
+    return `${stored.status === 'OK' ? '' : `<p>${escape(comtradeNotice(stored))}</p>`}<div class="table-wrap"><div class="exh"><span class="exn">Bảng 6.2</span><span class="ext">${escape(COMTRADE_TABLE_TITLE)}</span></div>` +
+      `<p>Mã hàng ước tính: ${escape(stored.hsCode!)}. Mô tả chính thức (tiếng Anh): ${escape(comtradeOfficialText(stored))}. Diễn giải tự động: ${escape(stored.descriptionVi!)}</p>` +
+      `<table><caption>${escape(COMTRADE_TABLE_TITLE)}</caption><thead><tr><th>Bên báo số</th><th>Chiều</th><th>Năm</th><th>Giá trị (USD, theo bên báo)</th><th>Ghi chú</th></tr></thead><tbody>` +
+      rows.map(row => {
+        const capture = input.captures.find(entry => entry.stepId === 'COLLECTION' && entry.ordinal === row.captureIndex);
+        return `<tr><td>${escape(comtradeSideText(row))}</td><td>${escape(comtradeFlowText(row.flow))}</td><td>${escape(row.year)}</td><td>${escape(formatWorldBankValue(row.value))}${capture ? captureMark(capture, citations) : ''}</td><td>${escape(comtradeRowNote(row))}</td></tr>`;
+      }).join('') + `</tbody></table><p class="lim"><b>Chú thích:</b> ${escape(COMTRADE_NOTE)}${stored.mirrorReporterCount === null || stored.mirrorReporterCount === 0 ? '' : ` Số nước báo số hàng xuất sang Việt Nam: ${stored.mirrorReporterCount}.`}</p><p class="ex-src">Nguồn: ${escape(COMTRADE_SRC)}</p></div>`;
+  };
   // Verified document excerpts sit in the context section; the same predicate marks S25 as used.
   const pdfExcerptBlock = (sectionId: string): string => kind === 'MARKET' && sectionId === PDF_EXCERPT_SECTION && input.pdfExcerpts?.length && input.sourceEvidence?.pdfExcerpts === true
     ? pdfExcerptBlockHtml(input.pdfExcerpts, escape) + `<p class="lim"><b>Chú thích:</b> ${escape(PDF_EXCERPT_NOTE)}</p><p class="ex-src">Nguồn: ${escape(PDF_EXCERPT_SRC)}</p>` : '';
   const sellerVideoBlock = (sectionId: string): string => kind === 'MARKET' && sectionId === SELLER_VIDEO_SECTION && input.sellerVideos && input.sourceEvidence?.sellerVideos === true
     ? sellerVideoBlockHtml(input.sellerVideos, escape) + `<p class="lim"><b>Chú thích:</b> ${escape(sellerVideoNote(input.sellerVideos))}</p><p class="ex-src">Nguồn: ${escape(sellerVideoSrc(input.sellerVideos))}</p>` : '';
   const appendix = (sectionId: string): string =>
-    presentationCharts(sectionId) + searchInterestFigure(sectionId) + worldBankTable(sectionId) + pdfExcerptBlock(sectionId) + sellerVideoBlock(sectionId) +
+    presentationCharts(sectionId) + searchInterestFigure(sectionId) + worldBankTable(sectionId) + comtradeTable(sectionId) + pdfExcerptBlock(sectionId) + sellerVideoBlock(sectionId) +
     (reviewOutcome && kind === 'INSIGHT' && (sectionId === 'I03' || sectionId === 'I17') ? `<p class="warning">${escape(reviewOutcomeLead(reviewOutcome))}</p>` : '') +
     baseAppendix(sectionId) +
     (input.sourceEvidence && (sectionId === 'M13' || sectionId === 'I17') ? sourceEvidenceHtml(input.sourceEvidence) +
