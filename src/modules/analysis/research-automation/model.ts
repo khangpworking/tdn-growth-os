@@ -242,7 +242,23 @@ export const MESSAGES: Readonly<Record<string, string>> = {
   PDF_RENDER_FAILED: 'PDF rendering failed on this operator; the web version is unaffected.',
 };
 
+/**
+ * Market completeness gate: a paid product-period collection was attempted
+ * and n selected products miss at least one planned window. The count is the
+ * only parameter; the owner-facing text names no provider and no code.
+ */
+export const MARKET_SOURCE_WINDOWS_MISSING_PREFIX = 'MARKET_SOURCE_WINDOWS_MISSING_';
+export function marketSourceWindowsMissingCode(products: number): string {
+  if (!Number.isSafeInteger(products) || products < 1 || products > 999) throw new TypeError('Missing product count is out of range.');
+  return MARKET_SOURCE_WINDOWS_MISSING_PREFIX + String(products);
+}
+export function marketSourceWindowsMissingMessage(products: number): string {
+  return `Báo cáo bị chặn: nguồn dữ liệu TikTok Shop hết lượt truy vấn giữa chừng, thiếu doanh thu theo tháng của ${products} sản phẩm. Cần nạp thêm lượt rồi chạy lại.`;
+}
+
 export function message(code: string): string {
+  const missing = /^MARKET_SOURCE_WINDOWS_MISSING_([1-9]\d{0,2})$/.exec(code);
+  if (missing) return marketSourceWindowsMissingMessage(Number(missing[1]));
   const text = MESSAGES[code];
   if (text === undefined) throw new TypeError(`Unknown research automation message code: ${code}`);
   return text;

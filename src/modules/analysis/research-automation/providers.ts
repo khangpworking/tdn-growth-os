@@ -133,7 +133,9 @@ export type CoverageSemantics =
   | 'RECENT_RANKING_SNAPSHOT' | 'PRODUCT_PERIOD_WINDOWS' | 'CURRENT_WEB_SNAPSHOT' | 'NONE';
 
 export type QueryWindowStatus =
-  | 'OK' | 'EMPTY' | 'FAILED' | 'AMBIGUOUS_NO_RETRY' | 'NOT_RUN_BOUND' | 'NOT_RUN_CANCELLED';
+  | 'OK' | 'EMPTY' | 'FAILED' | 'AMBIGUOUS_NO_RETRY' | 'NOT_RUN_BOUND' | 'NOT_RUN_CANCELLED'
+  /** Not completed because the provider reported the credit balance exhausted, or a zero balance was observed before the phase. */
+  | 'NOT_RUN_CREDIT_EXHAUSTED';
 
 export interface QueryWindowCoverage {
   readonly window: DateWindow | null;

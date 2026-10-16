@@ -44,7 +44,13 @@ const COLLECT_LIMITATIONS = [
   'HISTORICAL_AVAILABILITY_UNVERIFIED', 'TIKTOK_SHOP_ONLY',
 ] as const;
 
-type Rejection = 'AUTH_OR_RATE_REJECTED' | null;
+/**
+ * A stopping rejection: no further planned paid call is made in the phase.
+ * CREDIT_EXHAUSTED is the documented "Insufficient credit balance" answer
+ * (HTTP 200, success:false, code 2016).
+ */
+type Rejection = 'AUTH_OR_RATE_REJECTED' | 'CREDIT_EXHAUSTED' | null;
+const CREDIT_EXHAUSTED_PROVIDER_CODE = '2016';
 
 export function createKalodataProvider(secretKey: string | null, transport: ProviderTransport): ResearchAutomationProvider {
   const limiters = {
@@ -114,7 +120,8 @@ export function createKalodataProvider(secretKey: string | null, transport: Prov
       return { capture: log.record(context, requestedAt, 'INVALID_PAYLOAD', result.status, result.bytes, null), data: null, rejection: null };
     }
     if (payload.success !== true) {
-      return { capture: log.record(context, requestedAt, 'PROVIDER_REJECTED', result.status, result.bytes, providerCode), data: null, rejection: null };
+      return { capture: log.record(context, requestedAt, 'PROVIDER_REJECTED', result.status, result.bytes, providerCode), data: null,
+        rejection: providerCode === CREDIT_EXHAUSTED_PROVIDER_CODE ? 'CREDIT_EXHAUSTED' : null };
     }
     const data = parse(payload.data);
     if (data === undefined) {
@@ -173,7 +180,10 @@ export function createKalodataProvider(secretKey: string | null, transport: Prov
       const rankBody = { ...COMMON, keyword, date_range: `${window.startDate}~${window.endDate}`,
         sort_field: { field: 'revenue', type: 'DESC' }, page_size: KALODATA_LIMITS.quickSearchPageSize, page_number: 1,
         need_all: false, need_image: 1, need_extra: false };
-      const rank = await call(log, secretKey, options, {
+      // An observed zero balance means no paid call in this phase; an unobserved
+      // balance keeps the normal path.
+      const zeroBalance = before?.value === 0;
+      const rank = zeroBalance ? null : await call(log, secretKey, options, {
         operation: 'kalodata.product.rank', path: '/openapi/v1/tiktok/product/rank', method: 'POST', body: rankBody,
         queryWindow: window, productRef: null,
       }, data => Array.isArray(data) && data.length <= KALODATA_LIMITS.quickSearchPageSize ? data : undefined);
@@ -194,13 +204,15 @@ export function createKalodataProvider(secretKey: string | null, transport: Prov
 
       const windows: QueryWindowCoverage[] = [{
         window, productRef: null,
-        status: !rank ? 'NOT_RUN_CANCELLED' : rank.capture.outcome === 'OK' ? (pool.rowsReturned ? 'OK' : 'EMPTY')
+        status: zeroBalance || rank?.rejection === 'CREDIT_EXHAUSTED' ? 'NOT_RUN_CREDIT_EXHAUSTED'
+          : !rank ? 'NOT_RUN_CANCELLED' : rank.capture.outcome === 'OK' ? (pool.rowsReturned ? 'OK' : 'EMPTY')
           : isAmbiguous(rank.capture.outcome) ? 'AMBIGUOUS_NO_RETRY' : 'FAILED',
         captureIds: rank ? [rank.capture.captureId] : [], rows: rank?.data ? pool.rowsReturned : null,
         truncated: pool.rowsReturned >= KALODATA_LIMITS.quickSearchPageSize,
       }];
       const cards: ProductCard[] = [];
       let stopped = rank?.rejection != null;
+      let creditStop = rank?.rejection === 'CREDIT_EXHAUSTED';
       for (const pick of picked) {
         const ref = formatProviderProductRef('KALODATA', pick.id);
         const detail = stopped ? null : await call(log, secretKey, options, {
@@ -208,11 +220,13 @@ export function createKalodataProvider(secretKey: string | null, transport: Prov
           body: detailRequest(pick.id, window), queryWindow: window, productRef: ref,
         }, data => parseDetail(data, pick.id));
         if (detail?.rejection) stopped = true;
+        if (detail?.rejection === 'CREDIT_EXHAUSTED') creditStop = true;
           windows.push({ window, productRef: ref, captureIds: detail ? [detail.capture.captureId] : [], rows: null, truncated: false,
-            // The provider may reject the request after a paid call. There is no
-            // QueryWindowStatus for "not attempted after rejection"; retain the
-            // failed operation as FAILED rather than relabelling it cancellation.
-            status: !detail ? (options.signal?.aborted ? 'NOT_RUN_CANCELLED' : 'FAILED')
+            // After an auth/rate rejection the remaining calls are not made and
+            // keep FAILED. After a credit-exhausted answer the rejected call and
+            // every skipped call are NOT_RUN_CREDIT_EXHAUSTED (missing, resumable).
+            status: creditStop && (!detail || detail.rejection === 'CREDIT_EXHAUSTED') ? 'NOT_RUN_CREDIT_EXHAUSTED'
+            : !detail ? (options.signal?.aborted ? 'NOT_RUN_CANCELLED' : 'FAILED')
             : detail.capture.outcome === 'OK' ? (detail.data?.record ? 'OK' : 'EMPTY')
             : isAmbiguous(detail.capture.outcome) ? 'AMBIGUOUS_NO_RETRY' : 'FAILED' });
         cards.push(buildCard(ref, pick, window, rank!.capture.captureId, detail?.capture ?? null, detail?.data?.record ?? null));
@@ -266,7 +280,10 @@ export function createKalodataProvider(secretKey: string | null, transport: Prov
       const before = executable.length ? await balance(log, secretKey, options) : null;
       const windows: QueryWindowCoverage[] = [];
       const observations: ProductWindowObservation[] = [];
-      let stopped = false;
+      // An observed zero balance means no paid call in this phase: every planned
+      // window is missing with the credit reason. Unobserved keeps the normal path.
+      let creditStop = before?.value === 0;
+      let stopped = creditStop;
       for (const task of executable) {
         const id = parseProviderProductRef(task.ref)!.sourceProductId;
         const detail = stopped ? null : await call(log, secretKey, options, {
@@ -274,11 +291,13 @@ export function createKalodataProvider(secretKey: string | null, transport: Prov
           body: detailRequest(id, task.window), queryWindow: task.window, productRef: task.ref,
         }, data => parseDetail(data, id));
         if (detail?.rejection) stopped = true;
+        if (detail?.rejection === 'CREDIT_EXHAUSTED') creditStop = true;
         const record = detail?.data?.record ?? null;
         if (detail && record) observations.push(observation(task.ref, task.window, detail.capture.captureId, record));
           windows.push({ window: task.window, productRef: task.ref, captureIds: detail ? [detail.capture.captureId] : [],
           rows: detail?.data ? (record ? 1 : 0) : null, truncated: false,
-          status: !detail ? (options.signal?.aborted ? 'NOT_RUN_CANCELLED' : 'FAILED')
+          status: creditStop && (!detail || detail.rejection === 'CREDIT_EXHAUSTED') ? 'NOT_RUN_CREDIT_EXHAUSTED'
+            : !detail ? (options.signal?.aborted ? 'NOT_RUN_CANCELLED' : 'FAILED')
             : detail.capture.outcome === 'OK' ? (record ? 'OK' : 'EMPTY')
             : isAmbiguous(detail.capture.outcome) ? 'AMBIGUOUS_NO_RETRY' : 'FAILED' });
       }
