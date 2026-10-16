@@ -41,7 +41,7 @@ const PROVENANCE_BASIS = 'Automated model transcription of one public video of t
 const SOURCE_LABEL = 'Lời nói trong video bán hàng và video đánh giá sản phẩm (ghi lại tự động)';
 export const VIDEO_WATCH_LIMITATIONS: readonly string[] = [
   'Ghi lại tự động từ video, chưa có người kiểm tra.',
-  'Đây là lời người bán hoặc người làm video review, không phải ý kiến khách hàng và không phải sự thật đã kiểm chứng.',
+  'Đây là lời người bán hoặc người làm video đánh giá, không phải ý kiến khách hàng và không phải sự thật đã kiểm chứng.',
   'Chữ trên màn hình chỉ được lưu lại, không đưa vào báo cáo.',
 ];
 

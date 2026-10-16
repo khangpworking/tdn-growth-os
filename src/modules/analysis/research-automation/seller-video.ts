@@ -26,7 +26,7 @@ export const SELLER_VIDEO_AUTO_TITLE = 'Lời nói trong video bán hàng và vi
 /** The automated title used before VW2; old drafts still carry it and must still be found by the gate. */
 export const SELLER_VIDEO_AUTO_TITLE_V1 = 'Lời nói trong video bán hàng';
 export const SELLER_VIDEO_AUTO_PROVENANCE = 'ghi lại tự động từ video, chưa xác minh';
-export const SELLER_VIDEO_AUTO_NOTE = 'Lời nói trong video bán hàng và video đánh giá sản phẩm được ghi lại tự động từ video công khai liên quan tới sản phẩm, chưa có người kiểm tra. Đây là lời người bán hoặc người làm video review tự nói về sản phẩm, không phải ý kiến khách hàng và không phải sự thật đã kiểm chứng.';
+export const SELLER_VIDEO_AUTO_NOTE = 'Lời nói trong video bán hàng và video đánh giá sản phẩm được ghi lại tự động từ video công khai liên quan tới sản phẩm, chưa có người kiểm tra. Đây là lời người bán hoặc người làm video đánh giá tự nói về sản phẩm, không phải ý kiến khách hàng và không phải sự thật đã kiểm chứng.';
 export const SELLER_VIDEO_AUTO_SRC = 'Lời nói được ghi lại tự động từ video công khai của lượt này.';
 
 const SELLER_VIDEO_VOICE_LABELS = new Set(['lời người bán', 'lời người làm video review']);

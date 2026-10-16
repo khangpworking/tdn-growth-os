@@ -51,6 +51,7 @@ test('block: automated speech has its own title and provenance; operator wording
   assert.equal(SELLER_VIDEO_AUTO_TITLE, 'Lời nói trong video bán hàng và video đánh giá sản phẩm', 'the automated block holds seller and reviewer videos');
   assert.match(SELLER_VIDEO_AUTO_NOTE, /video bán hàng và video đánh giá sản phẩm/u);
   assert.doesNotMatch(SELLER_VIDEO_AUTO_NOTE, /tự nói để bán hàng/u, 'a creator review is not called selling');
+  assert.doesNotMatch(SELLER_VIDEO_AUTO_NOTE, /video review/iu, 'automated owner-facing wording is Vietnamese');
   assert.equal(SELLER_VIDEO_AUTO_PROVENANCE, 'ghi lại tự động từ video, chưa xác minh');
   assert.doesNotMatch(html, /https?:|tiktok\.com|@nguoiban|Google|Gemini|model|yt-dlp|sha|GIẢM/iu);
   assert.equal(sellerVideoNote(both), `${SELLER_VIDEO_NOTE} ${SELLER_VIDEO_AUTO_NOTE}`);
