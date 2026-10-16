@@ -36,9 +36,8 @@ const providerPattern = new RegExp(`(?<![\\p{L}\\p{N}_])(?:${PROVIDER_WORDS.map(
  * shape (an ordinary `/tmp/...` path passes them), so these are checked here, beside the shared reader-text check.
  */
 const LEAK_PATTERNS: readonly RegExp[] = [
-  /[A-Za-z]:[\\/]|\\\\[\w.-]+\\/u, // Windows drive or network path
-  /(?:^|[^\p{L}\p{N}_.\/-])(?:~|\.{1,2})?\/[\p{L}\p{N}_.-]+\/[\p{L}\p{N}_.-]/u, // absolute, home or dot-relative path with two parts
-  /(?:^|[\s(["'])(?:~|\.{1,2})\/|(?:^|[\s(["'])\/(?:tmp|etc|var|opt|usr|srv|mnt|root|home|Users|data|proc|private)\b/u, // short path
+  /[A-Za-z]:[\\/]|\\\\[\w.-]+\\|(?<![\p{L}\p{N}])[A-Za-z]:(?=[\p{L}\p{N}_.~-])/u, // Windows drive, drive-relative or network path
+  /(?:^|[^\p{L}\p{N}_.\/\\-])(?:~|\.{1,2})?[\/\\](?=[\p{L}\p{N}_.~-])|(?:^|[\s(["'])(?:~|\.{1,2})[\/\\]/u, // absolute, home or dot-relative path, one part is enough; a slash between words or numbers (đồng/chiếc, 6/2025) passes
   /\b[\w.-]+\/[\w.-]+\.(?:html?|php|aspx?|jsp|pdf|json|xml|csv|xlsx?|docx?|txt|png|jpe?g|gif|svg|js|css)\b|\b(?:href|src)\s*=|[?&][\w-]+=[\w%.-]/iu, // relative link
   /[a-z][a-z0-9+.-]*:\/\/|\bwww\.|(?<![\p{L}\p{N}_@.-])(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:com|net|org|gov|edu|info|biz|io|vn|asia|int)\b/iu, // web address
   /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/iu, // e-mail
