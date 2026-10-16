@@ -9,7 +9,7 @@ import type {
   ResearchAutomationProvider,
 } from './providers.js';
 import type { ResearchAutomationProductCard } from '../../../../contracts/api/research-automation-api.generated.js';
-import { MAX_WEB_RESULTS, message, ResearchAutomationProviderOutputError, type SourceLimitation, type SourceStepId, type StepResultDocument, type StepWebResult, type TypedComparable } from './model.js';
+import { MAX_WEB_RESULTS, message, PROVIDER_CREDIT_EXHAUSTED, ResearchAutomationProviderOutputError, type SourceLimitation, type SourceStepId, type StepResultDocument, type StepWebResult, type TypedComparable } from './model.js';
 import type { DateWindow } from './providers.js';
 
 /** The backend-facing source port. Provider-specific credentials and transport stay behind this port. */
@@ -74,13 +74,19 @@ function quickSearchStep(runId: string, result: QuickSearchResult): StepResultDo
     productCards: result.cards.map((card) => toPublicCard(card, result.captures)),
     comparables: [],
     coverage: result.coverage.map(toCoverage),
-    limitations: result.limitations.map((code) => limitation(code, result.provider)),
+    limitations: [...result.limitations.map((code) => limitation(code, result.provider)), ...creditLimitation(result)],
   };
+}
+
+/** Marks a step whose provider stopped for credit, so the stored step says why. */
+function creditLimitation(result: { readonly provider: string; readonly coverage: readonly { readonly queryWindows: readonly { readonly status: string }[] }[] }): SourceLimitation[] {
+  return result.coverage.some(item => item.queryWindows.some(window => window.status === 'NOT_RUN_CREDIT_EXHAUSTED'))
+    ? [{ code: PROVIDER_CREDIT_EXHAUSTED, provider: result.provider.toLowerCase(), message: message(PROVIDER_CREDIT_EXHAUSTED) }] : [];
 }
 
 function collectStep(runId: string, result: CollectResult): StepResultDocument {
   const comparables: TypedComparable[] = [];
-  const limitations = result.limitations.map((code) => limitation(code, result.provider));
+  const limitations = [...result.limitations.map((code) => limitation(code, result.provider)), ...creditLimitation(result)];
   const seen = new Set<string>();
   for (const observation of result.productObservations) {
     const captureIndex = result.captures.findIndex(capture => capture.captureId === observation.captureId);

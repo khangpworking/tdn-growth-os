@@ -248,10 +248,14 @@ export interface CaptureRecord {
   readonly truncated: boolean;
 }
 
+/** Step message and limitation code when the sales-data source stopped for credit. */
+export const PROVIDER_CREDIT_EXHAUSTED = 'PROVIDER_CREDIT_EXHAUSTED';
+
 /** Fixed, server-authored, safe step/blocker messages. Provider text never reaches these. */
 export const MESSAGES: Readonly<Record<string, string>> = {
   PROVIDER_NOT_CONFIGURED: 'No research data provider is configured on this operator; nothing was collected.',
   PROVIDER_FAILED: 'The provider operation failed and was not retried automatically.',
+  PROVIDER_CREDIT_EXHAUSTED: 'The provider stopped because its credit balance is used up; nothing more was requested. Top up and start a new run; it was not retried automatically.',
   PROVIDER_OUTPUT_INVALID: 'The provider returned data that failed validation; the result was rejected and nothing was inferred from it.',
   SCOPE_FILTERS_NOT_APPLIED: 'The confirmed scope definition and terms were retained, but provider-side filtering for those criteria is not implemented in this run.',
   STEP_TIMEOUT: 'The provider operation exceeded the operator time bound and was stopped; it was not retried.',
