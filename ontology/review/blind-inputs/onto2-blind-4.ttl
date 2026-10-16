@@ -1,0 +1,3 @@
+@prefix ex: <urn:onto:> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+ex:Check4 a sh:NodeShape; sh:targetClass ex:GuideRecord; sh:property [ sh:path ex:marker; sh:maxCount 1; sh:hasValue "two" ] .

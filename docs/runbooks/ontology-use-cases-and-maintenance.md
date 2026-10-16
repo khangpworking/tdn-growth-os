@@ -2,7 +2,7 @@
 
 Updated: 2026-10-08 · Tool: [Open Ontologies](https://github.com/fabio-rovai/open-ontologies) 2.0.1 on Fedora · First experiment: ONTO-1 (PR #173, folder `ontology/`) · Setup: [wiki-and-ontology.md](wiki-and-ontology.md)
 
-Everything here is **proposed**. The use cases are suggestions, not tested ones, and the SPARQL and SHACL snippets are sketches. Only the commands in section 3.5 were run by a worker (ONTO-1); the rest of the tool's behaviour comes from its README and has not been tried in this project.
+Everything here is **proposed**. The use cases are suggestions, not tested ones, and the SPARQL and SHACL snippets are sketches. ONTO-2 exercised sections 3.3–3.5 with a throwaway rule and a simulated change; see `ontology/results/2026-10-08-guide-exercises.md`. UC-1/2/4/5/6 remain proposals.
 
 ## Tóm tắt (cho chủ shop)
 
@@ -157,16 +157,16 @@ Always write the reviewer honestly, for example "reviewed by model, not by a dom
 2. One shape file `shapes/<RULE>.ttl` with `ex:ruleId`, `ex:source`, `ex:status "proposed"` and a Vietnamese message that names the broken condition.
 3. Datasets: one valid control and, for **each** condition, one invalid dataset that breaks only that condition (from its valid control).
 4. A **different** model, given only the rule text and the vocabulary (not the shape), writes extra valid and invalid cases into `tests/independent/` with provenance.
-5. A third step: a different model reads the shape cold and describes in Vietnamese what it enforces; compare with the rule and record differences in `review/<RULE>.md`.
-6. Add rows to `tests/manifest.json` and run (3.5). A shape counts as checked only when every invalid dataset is rejected.
+5. A separate review agent using a model different from the shape author reads only a masked copy (remove rule ID, source links and ID-bearing names), then describes in Vietnamese what it enforces; compare with the rule and record differences in `review/<RULE>.md`.
+6. Add rows to `tests/manifest.json` and run (3.5). For each negative row add `path` (property name) or `sourceShape` (reported IRI) when its filename is not already handled by the runner. Require the intended violation, not just any rejection. Keep independent expected results unchanged. A shape counts as fully checked only when every invalid dataset is rejected; record unsupported cases as ESCALATED, never passes.
 7. If a part of the rule cannot be expressed, write it down in `review/<RULE>.md` as ESCALATED. Do not force it.
-8. Open a PR that changes only `ontology/` and `docs/handoffs/`.
+8. Follow the assigned path/branch scope. ONTO-2 permits `ontology/`, this runbook and `docs/handoffs/ONTO-2.md`; push only the task branch and open a draft PR. Do not merge or deploy.
 
 ### 3.4 When a rule in the Ultimate file changes
 
-1. Every rule change already has a CHANGELOG row (`business-rule:` commit). That row is the trigger.
+1. Start from the actual written rule change and its source revision. Use its CHANGELOG row when present; do not assume a commit-name convention or invent a business decision. For a throwaway rehearsal, record the hypothetical change in the exercise receipt without editing Ultimate or CHANGELOG.
 2. Find the shapes: search `ex:ruleId "<ID>"` in `ontology/shapes/`.
-3. Update the shape and the datasets, move the status back to `proposed`, and update the pinned source link to the new commit.
+3. Update the shape and datasets, keep status `proposed`, and pin a real source change to its new commit. For a rehearsal, change only the throwaway constraint; keep the real source untouched. A retired shape must be explicitly removed from the active manifest or it will still run.
 4. Re-run the independent cases and the blind review (3.3, steps 4 and 5).
 5. Add a note in the CHANGELOG row's "TDN" column or in the PR that the ontology was updated.
 6. If the rule was removed, mark the shape `retired`; do not silently delete it.
@@ -175,27 +175,27 @@ The pinned source link can go stale. A later check (UC-1) should compare the pin
 
 ### 3.5 Running and recording
 
-Run from the repository root: `./ontology/run-checks.sh`. It needs `open-ontologies`, `oo-shacl`, Python 3 and Bash installed. These facts come from ONTO-1:
+Run from the repository root: `./ontology/run-checks.sh`. The runner exports `OPENWIKI_TELEMETRY_DISABLED=1`; use that setting for every manual OpenWiki-related command too. Rehearsal: `OPENWIKI_TELEMETRY_DISABLED=1 python3 ontology/guide-checks.py`. It needs `open-ontologies`, `oo-shacl`, Python 3 and Bash installed. These facts come from ONTO-1:
 
 - Set `OPEN_ONTOLOGIES_STORAGE_MODE=persistent` and pass `--data-dir <scratch>` on every command that must see an earlier load. Without both, `load` and the next command do not share state.
 - Pass `--no-connect`, so no daemon or network is used.
 - `--version` is not supported. Record the installed release (2.0.1), the executable SHA-256 and the checker versions instead.
 - Validation uses `shacl --verified <shapes>`, and the checker is selected with `OO_SHACL=<path of oo-shacl>`. The default SHACL evaluator skipped `sh:node` and returned `conforms:null`.
-- `open-ontologies validate <file.ttl>` checks syntax only.
+- `OPENWIKI_TELEMETRY_DISABLED=1 OPEN_ONTOLOGIES_STORAGE_MODE=persistent open-ontologies --no-connect --data-dir <scratch> validate <file.ttl>` checks syntax only. All manual load/check commands need the same environment, `--no-connect`, explicit data directory, and `OO_SHACL` for verified checks.
 - The checker ignores `sh:message`. The runner matches the reported shape, path and constraint instead.
 - The command exits with 0 even on some errors, so the runner also fails on errors, undetermined or skipped verdicts, and unexpected accept or reject. Do not rely on the exit code alone.
-- Each run stores `results/<date>-<sha>.md` (commands, expected and actual per dataset) and the `.json` (full tool output, input and shape hashes).
+- The task runner stores `ontology/results/2026-10-08-<HEAD-prefix>.md` (commands, expected and actual per dataset) and `.json` (tool output, inputs, shape hashes). It uses the actual HEAD at execution, not origin/main. ONTO-1 hard-coded a historical SHA; its unchanged baseline is preserved separately. For later dates update the run date before recording a new task. A receipt commit can follow the tested implementation commit; compare hashes, not an impossible self-referential commit hash.
 
 ### 3.6 Reading results
 
-- "Rejected" means the data violates the shape. For an invalid dataset also check the *reason*. Where a rule is an "or" of alternatives, the tool reports only `OrConstraintComponent`, not which alternative failed. For those cases, split the condition or add a check on the message.
+- "Rejected" means the data violates the shape. Also check the reason: E4 now reports `OrConstraintComponent` on named `E4AuthorIDs` or `E4UnverifiedContent` shapes, so the mode is identifiable. Do not match `sh:message`: the checker ignores it. Match sourceShape/path/constraint. UNDETERMINED is not a pass; the escaped-control-whitespace limitation remains explicitly ESCALATED.
 - Duplicate literals in RDF collapse into one. A test with the same value twice is the same test as with one value.
 - A passing smoke test (load, reason with RDFS, query) proves the tool works. It is not a business check.
 - Certificates (`reason --certificate`, `oo-cert`) show an inference matches the asserted triples, nothing more.
 
 ### 3.7 Review
 
-- The owner has said they cannot review technical thresholds. Use different models for writing the shape, writing independent cases and the cold review, and say so in the file.
+- The owner has said they cannot review technical thresholds. Use a model different from the shape author for independent cases and cold review; keep case authoring and blind review in separate agents with restricted inputs, and record model/date/provenance. ONTO-2 uses Codex for shapes and separate GPT-6-astra agents for those two reviews.
 - A person with domain knowledge may review later; record the date and name only if they agree to be named.
 
 ### 3.8 Rules that never change
@@ -206,18 +206,36 @@ Run from the repository root: `./ontology/run-checks.sh`. It needs `open-ontolog
 - Not connected to the app, the report pipeline or CI until the owner decides so, using `adopted` shapes only.
 - Paid or live data collection is never part of an ontology run.
 
-### 3.9 Known gaps from ONTO-1 (backlog)
+### 3.9 ONTO-2 corrections and remaining limits
 
-1. E12 and E13 shapes are identical. They check that an attribution exists but not its exact text; E13 does not check the indicator code, year or update date.
-2. Required text fields accept whitespace-only strings.
-3. E4: authors are not linked to evidence cards, so three cards can repeat one quote.
-4. Test `E4-duplicate-author.ttl` duplicates `E4-four-authors.ttl` (RDF collapses the repeated literal).
-5. Four E4 cases are only known to be rejected by the "or" constraint, not by which branch.
-6. Shapes were not compared line by line with the Ultimate wording by anyone other than the author and one blind model review.
+The six ONTO-1 gaps were addressed with separate exact-source E12/E13 shapes,
+required E13 metadata, whitespace range constraints, persona-scoped author/card
+links, deletion of the duplicate-author case, named E4 identity-mode verdicts and
+fresh independent cases/cold reviews. All shapes stay proposed.
+
+ESCALATED: escaped tabs/newlines/CR in data cause the verified checker to decline
+judgment. Their expected REJECT stays frozen. Invisible formatting characters are
+not all whitespace. Authenticity, individual card-to-author provenance, E4 group
+size/demographic claims, PDF traces and wider E12/E13 semantic obligations remain
+outside the bounded metadata projection; see the per-rule reviews.
+
+Corrections found by the 3.3–3.5 rehearsal:
+
+1. Record exercised guide sections separately from proposed use cases.
+2. Mask IDs/sources and restrict cold-review inputs; distinguish reviewer agents.
+3. Add intended path/sourceShape selectors for new negative rows.
+4. Honor actual task path scope and draft-only PR authorization.
+5. Trigger changes from written evidence rather than assumed commit naming.
+6. Keep simulations out of real Ultimate/CHANGELOG and remove retired rules from active manifests.
+7. Include telemetry-off, persistent state, no-connect and data-dir in manual commands.
+8. Record actual HEAD and task date; preserve the old runner's baseline naming caveat.
+9. Match E4 named mode shapes, never ignored messages; distinguish escalation from pass.
+10. Document checker regex subset and unsupported escaped data, not just minLength.
+
 
 ## 4. Suggested order
 
-1. Merge ONTO-1 (#173) as `proposed`, then fix section 3.9 in a follow-up (ONTO-2, with independent cases).
+1. ONTO-1 is in the assigned main baseline. Review ONTO-2 evidence and remaining escalations; shapes stay `proposed`. Merge remains the owner’s action.
 2. Build UC-1 (script, graph, queries, shapes) as ONTO-3. Success looks like a list of real mismatches in the existing documents, each confirmed by reading the documents.
 3. Do UC-2 together with package P6-08, using a synthetic ledger first.
 4. UC-4 after UC-1 works, by reusing its graph.
