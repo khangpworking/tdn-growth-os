@@ -21,9 +21,12 @@ export const SELLER_VIDEO_ESTIMATE = 'ước tính';
 export const SELLER_VIDEO_NOTE = 'Các tệp video này do chủ hoặc người vận hành tải lên cho lượt này. Nội dung video là lời người bán hoặc người làm video review tự nói để bán hàng, không phải ý kiến khách hàng và không phải sự thật đã kiểm chứng. Số liệu video là số ước tính của công cụ, không cộng lại, không so sánh được với số liệu mẫu; kỳ của tệp chưa được kiểm tra nên không coi là cùng kỳ với báo cáo.';
 export const SELLER_VIDEO_SRC = 'Tệp số liệu video và bản ghi lời nói trong video do chủ hoặc người vận hành tải lên cho lượt này.';
 /** Automated (video-watch) readings: own title, provenance, note and source line; operator wording above stays unchanged. */
-export const SELLER_VIDEO_AUTO_TITLE = 'Lời nói trong video bán hàng';
+/** Covers both kinds the automated block holds (SELLER_VIDEO and REVIEW_VIDEO); each quote keeps its own voice label. */
+export const SELLER_VIDEO_AUTO_TITLE = 'Lời nói trong video bán hàng và video đánh giá sản phẩm';
+/** The automated title used before VW2; old drafts still carry it and must still be found by the gate. */
+export const SELLER_VIDEO_AUTO_TITLE_V1 = 'Lời nói trong video bán hàng';
 export const SELLER_VIDEO_AUTO_PROVENANCE = 'ghi lại tự động từ video, chưa xác minh';
-export const SELLER_VIDEO_AUTO_NOTE = 'Lời nói trong video bán hàng được ghi lại tự động từ video công khai liên quan tới sản phẩm, chưa có người kiểm tra. Đây là lời người bán hoặc người làm video review tự nói để bán hàng, không phải ý kiến khách hàng và không phải sự thật đã kiểm chứng.';
+export const SELLER_VIDEO_AUTO_NOTE = 'Lời nói trong video bán hàng và video đánh giá sản phẩm được ghi lại tự động từ video công khai liên quan tới sản phẩm, chưa có người kiểm tra. Đây là lời người bán hoặc người làm video review tự nói về sản phẩm, không phải ý kiến khách hàng và không phải sự thật đã kiểm chứng.';
 export const SELLER_VIDEO_AUTO_SRC = 'Lời nói được ghi lại tự động từ video công khai của lượt này.';
 
 const SELLER_VIDEO_VOICE_LABELS = new Set(['lời người bán', 'lời người làm video review']);

@@ -19,7 +19,7 @@ import { exactTikTokVideoUrl } from './tiktok-video-selection.js';
 import { voiceLabelFor } from './video-reading-intake.js';
 import { cliproxyConfigurationFromEnvironment, type CliproxyConfiguration } from '../../../platform/ai/cliproxy-configuration.js';
 import type { ProviderTransport } from './provider-common.js';
-import { createVideoWatchModel, VIDEO_WATCH_MODEL_ID, VIDEO_WATCH_PROVIDER, type VideoWatchModel } from './video-watch-gemini.js';
+import { createVideoWatchModel, VIDEO_WATCH_MODEL_ID, VIDEO_WATCH_PROVIDER, type VideoWatchModel, type VideoWatchModelResult } from './video-watch-gemini.js';
 import { defaultProcessRunner, downloadVideo, sweepVideoMedia, VIDEO_WATCH_MAX_SECONDS, type ProcessRunner, type VideoMediaConfig } from './video-watch-media.js';
 
 const require = createRequire(import.meta.url);
@@ -38,7 +38,7 @@ export const VIDEO_WATCH_READING_PATH = 'reading.json';
 export const VIDEO_WATCH_EVIDENCE_FAMILY = 'video-watch-reading-v3';
 export const VIDEO_WATCH_READ_BUDGET = { maxFileBytes: 32 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 } as const;
 const PROVENANCE_BASIS = 'Automated model transcription of one public video of the run; unverified seller voice, not customer opinion and not a fact.';
-const SOURCE_LABEL = 'Lời nói trong video bán hàng (ghi lại tự động)';
+const SOURCE_LABEL = 'Lời nói trong video bán hàng và video đánh giá sản phẩm (ghi lại tự động)';
 export const VIDEO_WATCH_LIMITATIONS: readonly string[] = [
   'Ghi lại tự động từ video, chưa có người kiểm tra.',
   'Đây là lời người bán hoặc người làm video review, không phải ý kiến khách hàng và không phải sự thật đã kiểm chứng.',
@@ -242,7 +242,8 @@ export class VideoWatchLane {
   get modelId(): string | null { return this.#options.model?.modelId ?? null; }
   sweep(): Promise<{ readonly deleted: number; readonly removedDirs: number }> { return sweepVideoMedia(this.#options.media.mediaDir, this.#options.now()); }
 
-  async run(input: { readonly binding: VideoWatchBinding; readonly candidates: readonly StepVideoWatchCandidate[]; readonly signal?: AbortSignal;
+  /** `productKeyword` is the run's frozen product keyword (start snapshot); the model judges "about this product" against it. */
+  async run(input: { readonly binding: VideoWatchBinding; readonly productKeyword: string; readonly candidates:readonly StepVideoWatchCandidate[]; readonly signal?: AbortSignal;
     readonly publish: (prepared: PreparedAutomatedVideoReading) => Promise<VideoWatchRef> }): Promise<VideoWatchAttempt[]> {
     try { await this.sweep(); } catch { /* a failed sweep never blocks the lane; the next start sweeps again */ }
     const out: VideoWatchAttempt[] = [];
@@ -259,11 +260,23 @@ export class VideoWatchLane {
       let bytes: Uint8Array;
       try { bytes = await read(downloaded.file); } catch { out.push(skip('DOWNLOAD_FAILED', base)); continue; }
       if (bytes.byteLength !== downloaded.media.byteSize || sha(bytes) !== downloaded.media.sha256) { out.push(skip('DOWNLOAD_FAILED', base)); continue; }
-      const watched = await model.watch({ bytes, mimeType: downloaded.mimeType, videoId: candidate.videoId }, input.signal);
-      const called = { ...base, captures: watched.captures, requests: watched.requests, paidRequests: watched.paidRequests };
-      if (watched.kind === 'FAILED') { out.push(skip(watched.reason, called)); continue; }
-      const answer = validateModelAnswer(watched.answer, Math.min(downloaded.media.durationSeconds, VIDEO_WATCH_MAX_SECONDS));
-      if (!answer) { out.push(skip('MODEL_ANSWER_INVALID', called)); continue; }
+      const durationSeconds = Math.min(downloaded.media.durationSeconds, VIDEO_WATCH_MAX_SECONDS);
+      const ask = { productKeyword: input.productKeyword, durationSeconds };
+      // An answer that fails the strict check (for example a time past the end) gets ONE more model call, counted like any request.
+      // Times are never clamped, shifted or repaired; a second invalid answer is MODEL_ANSWER_INVALID.
+      const captures: ProviderRawCapture[] = [];
+      let requests = 0, paidRequests = 0;
+      let watched: VideoWatchModelResult | null = null, answer: VideoWatchModelAnswer | null = null;
+      for (let pass = 0; pass < 2 && !answer; pass++) {
+        if (pass > 0 && input.signal?.aborted) break;
+        watched = await model.watch({ bytes, mimeType: downloaded.mimeType, videoId: candidate.videoId }, ask, input.signal);
+        captures.push(...watched.captures); requests += watched.requests; paidRequests += watched.paidRequests;
+        if (watched.kind === 'FAILED') break;
+        answer = validateModelAnswer(watched.answer, durationSeconds);
+      }
+      const called = { ...base, captures, requests, paidRequests };
+      if (watched?.kind === 'FAILED') { out.push(skip(watched.reason, called)); continue; }
+      if (!answer || watched?.kind !== 'ANSWER') { out.push(skip(input.signal?.aborted ? 'CANCELLED' : 'MODEL_ANSWER_INVALID', called)); continue; }
       let prepared: PreparedAutomatedVideoReading;
       try { prepared = buildAutomatedVideoReading(input.binding, candidate, answer, downloaded.media, { modelId: model.modelId, responseSha256: watched.responseSha256 }); }
       catch { out.push(skip('MODEL_ANSWER_INVALID', called)); continue; }
