@@ -14,7 +14,7 @@ import { marketChartSource, renderAutomationMarketFindings, renderAutomationMark
 import { admitWebResults, checkSourceEvidence } from './source-evidence.js';
 import { collectionWebRows, EXPANDED_SEARCH_COLUMN, EXPANDED_SEARCH_LABEL, EXPANDED_SEARCH_NOTE } from './expanded-search-lane.js';
 import { sourceEvidenceHtml } from './source-evidence-report.js';
-import { classifyWebPage, WEB_PAGE_TYPE_LABEL, WEB_SITE_WITHHELD, WEB_TITLE_WITHHELD } from './web-page-type.js';
+import { classifyWebPage, WEB_LINK_WITHHELD, WEB_PAGE_TYPE_LABEL, WEB_SITE_WITHHELD, WEB_TITLE_WITHHELD, webTextHidden } from './web-page-type.js';
 import fs from 'node:fs';
 import type { AutomationBoundedMethodSnapshot } from '../../../../contracts/analysis/automation-bounded-method-snapshot.generated.js';
 import type { AutomationQuoteMethodSnapshot } from '../../../../contracts/analysis/automation-quote-method-snapshot.generated.js';
@@ -224,12 +224,16 @@ function webMark(row: StepWebResult, citations: ReportCitations): string {
   // reader sanitizer rejects slash-heavy technical paths, which must not make
   // an otherwise valid https citation disappear.
   const url = canonical;
+  // An address naming a provider or the search engine is never cited: the register would print it.
+  if (url !== null && webTextHidden(url)) return escape(WEB_LINK_WITHHELD);
   const site = row.site ?? '';
   return citations.mark({ sourceKind: 'WEB_RESULT', identity: url, locator: null,
-    label: site !== '' && readerSafe(site) ? site : 'Kết quả tìm kiếm trên web', retrievedAt: storedDate(row.retrievedAt), url,
+    label: site !== '' && readerSafe(site) && !webTextHidden(site) ? site : 'Kết quả tìm kiếm trên web', retrievedAt: storedDate(row.retrievedAt), url,
     quote: null, quoteVerification: 'NOT_APPLICABLE',
     technical: { position: String(row.position), capture: String(row.captureIndex), ...(site === '' ? {} : { site }) } });
 }
+/** Copied search-result text follows the stored-literal rule and is also withheld when it names a provider or the search engine. */
+const webText = (value: string, withheld: string): string => webTextHidden(value) ? withheld : storedLiteral(value, withheld);
 /** A closed machine code stays in the report's technical trace without sitting in the reader's sentence. */
 const codeNote = (code: string): string => `<details class="evidence-trace"><summary>Mã đối chiếu của trạng thái này</summary><p><code>${escape(code)}</code></p></details>`;
 const literalFamilies: readonly LiteralFamily[] = ['I02', 'I04', 'I05', 'I07', 'I08'];
@@ -893,12 +897,12 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   const webResults = input.collection?.webResults ?? [];
   const pageTypes = input.sourceEvidence?.webPageTypes === true;
   const expandedRows = webResults.some(row => row.origin !== undefined);
-  const pageTypeCell = (row: StepWebResult): string => { const type = classifyWebPage(row); return `${WEB_PAGE_TYPE_LABEL[type]}${type === 'S26' && row.published ? `<br>Đăng ${storedLiteral(row.published, 'Ngày đăng được giữ trong bản lưu')}` : ''}`; };
+  const pageTypeCell = (row: StepWebResult): string => { const type = classifyWebPage(row); return `${WEB_PAGE_TYPE_LABEL[type]}${type === 'S26' && row.published ? `<br>Đăng ${webText(row.published, 'Ngày đăng được giữ trong bản lưu')}` : ''}`; };
   // A web source that failed or timed out leaves no rows; the reader is told
   // plainly instead of seeing an empty area.
   const webSourceFailed = !webResults.length && (input.collection?.coverage ?? [])
     .some(value => value.dataset === WEB_DISCOVERY_DATASET && value.state === 'FAILED');
-  const webResultsTable = webResults.length ? `<div class="table-wrap" role="region" aria-label="Kết quả tìm kiếm trên web đã lưu" tabindex="0"><table><caption>Kết quả tìm kiếm trên web đã lưu của lượt này, theo thứ tự nguồn trả về</caption><thead><tr><th scope="col">Vị trí</th><th scope="col">Tiêu đề</th><th scope="col">Trang</th>${expandedRows ? `<th scope="col">${EXPANDED_SEARCH_COLUMN}</th>` : ''}${pageTypes ? '<th scope="col">Loại trang</th>' : ''}<th scope="col">Thời điểm thu</th><th scope="col">Nguồn</th></tr></thead><tbody>${webResults.map(row => `<tr><td>${row.position}</td><td>${storedLiteral(row.title, WEB_TITLE_WITHHELD)}</td><td>${storedLiteral(row.site ?? 'Chưa rõ trang', WEB_SITE_WITHHELD)}</td>${expandedRows ? `<td>${row.origin ? EXPANDED_SEARCH_LABEL[row.origin] : ''}</td>` : ''}${pageTypes ? `<td>${pageTypeCell(row)}</td>` : ''}<td>${escape(row.retrievedAt)}</td><td>${webMark(row, citations)}</td></tr>`).join('')}</tbody></table></div><p>Thứ tự trên là thứ tự kết quả nguồn trả về, không phải xếp hạng. Đoạn trích và liên kết đầy đủ được giữ trong hồ sơ thu đã lưu.</p>${expandedRows ? `<p>${EXPANDED_SEARCH_NOTE}</p>` : ''}` : webSourceFailed ? `<p class="warning">${WEB_SOURCE_FAILED_TEXT}</p>` : '';
+  const webResultsTable = webResults.length ? `<div class="table-wrap" role="region" aria-label="Kết quả tìm kiếm trên web đã lưu" tabindex="0"><table><caption>Kết quả tìm kiếm trên web đã lưu của lượt này, theo thứ tự nguồn trả về</caption><thead><tr><th scope="col">Vị trí</th><th scope="col">Tiêu đề</th><th scope="col">Trang</th>${expandedRows ? `<th scope="col">${EXPANDED_SEARCH_COLUMN}</th>` : ''}${pageTypes ? '<th scope="col">Loại trang</th>' : ''}<th scope="col">Thời điểm thu</th><th scope="col">Nguồn</th></tr></thead><tbody>${webResults.map(row => `<tr><td>${row.position}</td><td>${webText(row.title, WEB_TITLE_WITHHELD)}</td><td>${webText(row.site ?? 'Chưa rõ trang', WEB_SITE_WITHHELD)}</td>${expandedRows ? `<td>${row.origin ? EXPANDED_SEARCH_LABEL[row.origin] : ''}</td>` : ''}${pageTypes ? `<td>${pageTypeCell(row)}</td>` : ''}<td>${escape(row.retrievedAt)}</td><td>${webMark(row, citations)}</td></tr>`).join('')}</tbody></table></div><p>Thứ tự trên là thứ tự kết quả nguồn trả về, không phải xếp hạng. Đoạn trích và liên kết đầy đủ được giữ trong hồ sơ thu đã lưu.</p>${expandedRows ? `<p>${EXPANDED_SEARCH_NOTE}</p>` : ''}` : webSourceFailed ? `<p class="warning">${WEB_SOURCE_FAILED_TEXT}</p>` : '';
   const scope = `<dl><dt>Thị trường</dt><dd>Việt Nam</dd><dt>Định nghĩa đã xác nhận</dt><dd>${storedLiteral(input.scope.definition, 'Định nghĩa được giữ trong bản lưu')}</dd><dt>Kỳ báo cáo yêu cầu</dt><dd>${escape(period)}</dd><dt>Điều kiện bao gồm</dt><dd>${storedLiteral(input.scope.includeTerms.join(', ') || 'Không thêm điều kiện', 'Điều kiện được giữ trong bản lưu')}</dd><dt>Điều kiện loại trừ</dt><dd>${storedLiteral(input.scope.excludeTerms.join(', ') || 'Không thêm điều kiện', 'Điều kiện được giữ trong bản lưu')}</dd></dl><p class="warning">Điều kiện trên là ý định nghiên cứu đã lưu. Chưa xác nhận các truy vấn nguồn áp dụng đầy đủ điều kiện này. ${input.metricClassified ? (readerPlainText ? 'Mẫu số liệu thị trường đã được phân loại theo phạm vi toàn bộ mẫu, phạm vi rộng và phạm vi cốt lõi theo quy tắc và biên nhận được chốt; không suy rộng phân loại đó sang nguồn khác.' : 'Mẫu số liệu thị trường đã được phân loại CORE/WIDE theo quy tắc và biên nhận được chốt; không suy rộng phân loại đó sang nguồn khác.') : (readerPlainText ? 'Chưa phân loại phạm vi.' : 'Chưa phân loại CORE/WIDE.')} Kỳ yêu cầu không chứng minh mọi nguồn có đủ dữ liệu trong kỳ này. Kết quả tìm kiếm hiện tại và danh sách top sản phẩm không phải tổng doanh số thị trường.</p>`;
   const stateLabel: Readonly<Record<DraftSection['state'], string>> = {
     EVIDENCE_INVENTORY: 'Kiểm tra bằng chứng · Chưa có kết luận',
