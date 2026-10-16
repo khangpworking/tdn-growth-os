@@ -13,7 +13,14 @@ const validateGeneration = ajv.compile({ $ref: `${schema.$id}#/$defs/generation`
 export interface KeywordListDraftTransport {
   draftLists(input: KeywordListDraftSeeds & { readonly prompt?: string; readonly promptVersion?: string; readonly modelIdentity?: string; readonly signal?: AbortSignal }): Promise<{ readonly keywords: readonly unknown[]; readonly exclusions: readonly unknown[] }>;
 }
-export class KeywordListDraftError extends Error { readonly code = 'INVALID_KEYWORD_LIST_DRAFT'; }
+/** Closed cause split; the message stays server-side and never crosses into packets. */
+export type KeywordListDraftFailureReason = 'REQUEST_INVALID' | 'TRANSPORT_FAILED' | 'OUTPUT_INVALID' | 'DATA_INVALID';
+export class KeywordListDraftError extends Error {
+  readonly code = 'INVALID_KEYWORD_LIST_DRAFT';
+  constructor(message: string, readonly reason?: KeywordListDraftFailureReason) { super(message); }
+}
+/** A transport throws this when the model replied but its text is not the bound list object. */
+export class KeywordModelOutputError extends Error {}
 
 function foldedTerm(value: string): string {
   return value.normalize('NFC').toLowerCase();
@@ -47,18 +54,21 @@ function retainScopeSeeds(seeds: KeywordListDraftSeeds, drafted: {
 
 export async function draftKeywordLists(transport: KeywordListDraftTransport, request: KeywordListDraftRequest,
   generation?: { prompt: string; promptVersion: string; modelIdentity: string }, signal?: AbortSignal): Promise<KeywordMeaningFilterData> {
-  if (!validate(request)) throw new KeywordListDraftError('request failed canonical schema validation');
-  if (generation && (!validateGeneration(generation) || Buffer.byteLength(generation.prompt) > 65536)) throw new KeywordListDraftError('generation identity or prompt exceeds transport safety budget');
+  if (!validate(request)) throw new KeywordListDraftError('request failed canonical schema validation', 'REQUEST_INVALID');
+  if (generation && (!validateGeneration(generation) || Buffer.byteLength(generation.prompt) > 65536)) throw new KeywordListDraftError('generation identity or prompt exceeds transport safety budget', 'REQUEST_INVALID');
   let drafted: Awaited<ReturnType<KeywordListDraftTransport['draftLists']>>;
   try { drafted = await transport.draftLists({ ...structuredClone(request.seeds), ...(generation ?? {}), ...(signal ? { signal } : {}) }); }
-  catch { throw new KeywordListDraftError('draft transport failed without retaining a list'); }
+  catch (error) {
+    if (error instanceof KeywordModelOutputError) throw new KeywordListDraftError('draft model returned no valid list object', 'OUTPUT_INVALID');
+    throw new KeywordListDraftError('draft transport failed without retaining a list', 'TRANSPORT_FAILED');
+  }
   if (!drafted || typeof drafted !== 'object' || Array.isArray(drafted)
     || !Array.isArray((drafted as { keywords?: unknown }).keywords)
     || !Array.isArray((drafted as { exclusions?: unknown }).exclusions))
-    throw new KeywordListDraftError('draft transport returned a malformed list object');
+    throw new KeywordListDraftError('draft transport returned a malformed list object', 'OUTPUT_INVALID');
   const seeded = retainScopeSeeds(request.seeds, drafted);
   const output = { contractVersion: 'l9-keyword-data-v1', dataVersion: request.dataVersion, category: request.category,
     provenance: 'MODEL_DRAFTED', keywords: seeded.keywords, exclusions: seeded.exclusions } as KeywordMeaningFilterData;
-  try { filterKeywordMeanings(output, []); } catch { throw new KeywordListDraftError('drafted lists failed canonical data validation'); }
+  try { filterKeywordMeanings(output, []); } catch { throw new KeywordListDraftError('drafted lists failed canonical data validation', 'DATA_INVALID'); }
   return structuredClone(output);
 }

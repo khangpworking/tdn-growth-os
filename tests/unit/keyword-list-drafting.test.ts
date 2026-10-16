@@ -4,6 +4,7 @@ import {
   draftKeywordLists,
   KEYWORD_LIST_DRAFT_CONTRACT,
   KeywordListDraftError,
+  KeywordModelOutputError,
   type KeywordListDraftRequest,
   type KeywordListDraftTransport,
 } from '../../src/modules/analysis/keyword-list-drafting.js';
@@ -102,4 +103,14 @@ test('drafting rejects invalid requests and seeds without calling transport', as
 test('drafting is deterministic across reruns', async () => {
   const fake = transport({ keywords: ['thạch dừa'], exclusions: [] });
   assert.deepEqual(await draftKeywordLists(fake, request()), await draftKeywordLists(fake, request()));
+});
+
+test('drafting failures carry a closed reason split by error class', async () => {
+  const reason = async (t: KeywordListDraftTransport) => (await draftKeywordLists(t, request()).then(() => undefined, (error: unknown) => error)) as KeywordListDraftError;
+  assert.equal((await reason({ draftLists: async () => { throw new Error('synthetic dispatch failure'); } })).reason, 'TRANSPORT_FAILED');
+  assert.equal((await reason({ draftLists: async () => { throw new KeywordModelOutputError('synthetic prose'); } })).reason, 'OUTPUT_INVALID');
+  assert.equal((await reason({ draftLists: async () => ({ keywords: 'x' } as never) })).reason, 'OUTPUT_INVALID');
+  assert.equal((await reason(transport({ keywords: [''], exclusions: [] }))).reason, 'DATA_INVALID');
+  const invalid = await draftKeywordLists(transport({ keywords: [], exclusions: [] }), { ...request(), category: '' }).then(() => undefined, (error: unknown) => error) as KeywordListDraftError;
+  assert.equal(invalid.reason, 'REQUEST_INVALID');
 });
