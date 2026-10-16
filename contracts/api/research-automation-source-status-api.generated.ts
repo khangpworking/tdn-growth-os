@@ -18,7 +18,8 @@ export type ResearchAutomationSourceId =
   | 'VIDEO_READING'
   | 'META_AD_LIBRARY'
   | 'OFFICIAL_STATS'
-  | 'WORLD_BANK';
+  | 'WORLD_BANK'
+  | 'UN_COMTRADE';
 /**
  * READY: configured and used by runs. CONFIGURED_NOT_WIRED: credential present but runs do not call it yet. NOT_CONFIGURED: credential or spending cap missing. MANUAL_IMPORT: data arrives only as an owner upload. NOT_BUILT: the collector does not exist on this build yet; pendingPackage names the owning package. EXECUTOR_DISABLED: this server cannot run research at all.
  */
@@ -38,7 +39,7 @@ export interface ResearchAutomationSourceStatus {
   checkedAt: Timestamp;
   executorEnabled: boolean;
   /**
-   * @maxItems 11
+   * @maxItems 12
    */
   sources:
     | []
@@ -109,6 +110,7 @@ export interface ResearchAutomationSourceStatus {
         ResearchAutomationSourceStatusEntry,
       ]
     | [
+        ResearchAutomationSourceStatusEntry,
         ResearchAutomationSourceStatusEntry,
         ResearchAutomationSourceStatusEntry,
         ResearchAutomationSourceStatusEntry,

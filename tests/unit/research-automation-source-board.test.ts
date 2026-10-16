@@ -28,6 +28,7 @@ function activity(overrides: Record<string, { lastDataAt: string | null; dataCou
     'meta-ad-library': { lastDataAt: null, dataCount: 0, lastUsageAt: null },
     'official-stats': { lastDataAt: null, dataCount: 0, lastUsageAt: null },
     'world-bank': { lastDataAt: null, dataCount: 0, lastUsageAt: null },
+    'un-comtrade': { lastDataAt: null, dataCount: 0, lastUsageAt: null },
     pageindex: { lastDataAt: null, dataCount: 0, lastUsageAt: null },
     ...overrides,
   };
@@ -59,9 +60,9 @@ test('every registry ID on the board exists in the source registry v1.9', () => 
   for (const id of cardIds) {
     assert.match(doc, new RegExp(`^\\| ${id} \\|`, 'm'), `registry ID ${id} must exist in input-data-sources-30-sections.md`);
   }
-  // The roster is exactly the eleven approved cards: the existing five plus the six additions.
+  // The roster is exactly the twelve approved cards: the existing five plus the seven additions.
   assert.deepEqual([...SOURCE_BOARD_ORDER], ['METRIC', 'KALODATA', 'KALODATA_VIDEO_FILE', 'APIFY_SHOPEE',
-    'APIFY_TIKTOK_COMMENTS', 'VIDEO_READING', 'META_AD_LIBRARY', 'SERPAPI', 'OFFICIAL_STATS', 'WORLD_BANK', 'PAGEINDEX']);
+    'APIFY_TIKTOK_COMMENTS', 'VIDEO_READING', 'META_AD_LIBRARY', 'SERPAPI', 'OFFICIAL_STATS', 'WORLD_BANK', 'UN_COMTRADE', 'PAGEINDEX']);
 });
 
 test('mixed connectors carry per-ID tiers, never a fabricated aggregate', () => {
@@ -73,11 +74,13 @@ test('mixed connectors carry per-ID tiers, never a fabricated aggregate', () => 
   assert.equal(SOURCE_REGISTRY.KALODATA.tier, 'C');
   assert.equal(SOURCE_REGISTRY.OFFICIAL_STATS.tier, 'A');
   assert.equal(SOURCE_REGISTRY.WORLD_BANK.tier, 'A');
+  assert.equal(SOURCE_REGISTRY.UN_COMTRADE.tier, 'A');
+  assert.equal(SOURCE_REGISTRY.UN_COMTRADE.group, 'MACRO');
 });
 
-test('board emits all eleven cards with registry metadata and truthful build states', () => {
+test('board emits all twelve cards with registry metadata and truthful build states', () => {
   const status = buildResearchAutomationSourceStatus(input());
-  assert.equal(status.sources.length, 11);
+  assert.equal(status.sources.length, 12);
   assert.deepEqual(status.sources.map(item => item.source), [...SOURCE_BOARD_ORDER]);
   const sources = bySource(status);
   for (const id of SOURCE_BOARD_ORDER) {
@@ -180,6 +183,10 @@ test('no-key collectors map usable NOT_REQUIRED credentials once built', () => {
   assert.equal(status('WORLD_BANK').lastUsageAt, null);
   const disabled = bySource(buildResearchAutomationSourceStatus(input({ executorEnabled: false })));
   assert.equal(disabled('WORLD_BANK').state, 'EXECUTOR_DISABLED');
+  assert.equal(status('UN_COMTRADE').credential, 'NOT_REQUIRED');
+  assert.equal(status('UN_COMTRADE').wiredIntoRuns, true);
+  assert.equal(status('UN_COMTRADE').paid, false);
+  assert.equal(disabled('UN_COMTRADE').state, 'EXECUTOR_DISABLED');
 });
 
 test('SerpApi operations list known rows with observed counts and pass unknown operations through', () => {

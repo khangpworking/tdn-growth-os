@@ -96,6 +96,7 @@ import { readPreparedMetricCaptureSources } from './metric-capture-inventory.js'
 import { AutomationWorldBankSourceIntake, readConfirmedWorldBankSource, readWorldBankHistory, WORLD_BANK_INDICATORS, WORLD_BANK_PROFILE } from './world-bank-intake.js';
 import { selectPdfExcerpts, storedPdfExcerpts, type PdfExcerpt } from './pdf-excerpt.js';
 import { readSellerVideoInputs, selectSellerVideos, storedSellerVideos, type AutomatedReadingInput, type SellerVideoAutomatedRef, type SellerVideos, type SellerVideoSources } from './seller-video.js';
+import { COMTRADE_PROFILE, COMTRADE_PROVIDER, COMTRADE_USAGE_ORDINAL, comtradeDocument, comtradeFailed, comtradeRenderable, comtradeUsage, type ComtradeCollection, type ComtradeSource } from './comtrade-lane.js';
 import { worldBankDocument, worldBankFailed, worldBankRenderable, worldBankUsage, WORLD_BANK_PROVIDER, WORLD_BANK_USAGE_ORDINAL, type WorldBankAttempt, type WorldBankSource } from './world-bank-lane.js';
 import { publishAutomatedVideoReading, verifyAutomatedVideoReading, videoWatchCandidates, videoWatchDocument, videoWatchFailed, videoWatchReadingRefs, videoWatchUsage, VIDEO_WATCH_MAX_VIDEOS, VIDEO_WATCH_PROFILE, VIDEO_WATCH_USAGE_ORDINAL, type VideoWatchAttempt, type VideoWatchLane, type VideoWatchPlan } from './video-watch-lane.js';
 import { VIDEO_WATCH_PROVIDER } from './video-watch-gemini.js';
@@ -283,7 +284,7 @@ export interface ResearchAutomationReportInput {
 /** Alias retained for the report module's public renderer signature. */
 export type AutomationReportInput = ResearchAutomationReportInput;
 export type ResearchAutomationSourceActivityKey = 'kalodata' | 'serpapi' | 'apify-shopee' | 'metric'
-  | 'kalodata-video' | 'apify-tiktok-comments' | 'video-reading' | 'meta-ad-library' | 'official-stats' | 'world-bank' | 'pageindex';
+  | 'kalodata-video' | 'apify-tiktok-comments' | 'video-reading' | 'meta-ad-library' | 'official-stats' | 'world-bank' | 'un-comtrade' | 'pageindex';
 export interface ResearchAutomationSourceActivity { readonly lastDataAt: string | null; readonly dataCount: number; readonly lastUsageAt: string | null }
 /** One stored-capture row per SerpApi operation. Count unit is stored captures, never mixed with uploads or usage rows. lastUsageAt stays null: usage rows are a provider-level aggregate, never per-operation evidence. */
 export interface ResearchAutomationSerpApiOperation { readonly operation: string; readonly count: number; readonly lastDataAt: string | null; readonly lastUsageAt: string | null }
@@ -355,6 +356,8 @@ export interface ResearchAutomationServiceOptions {
   readonly trendsSource?: SearchInterestSource;
   /** Optional World Bank open data, at most four free GET requests per collection; absent keeps every stored byte. */
   readonly worldBankSource?: WorldBankSource;
+  /** UN Comtrade lane; absent unless its flag is on. */
+  readonly comtradeSource?: ComtradeSource;
   /** Automated seller-video watching (S14); only set when its flag is exactly "1". */
   readonly videoWatch?: VideoWatchLane;
   /** Optional extra searches (dated and per-marketplace), at most three paid requests per collection; absent keeps every stored byte. */
@@ -457,6 +460,7 @@ const WEB_USAGE_ORDINAL = 2;
 type TrendsAttempt = { readonly attempt: SearchInterestAttempt };
 type ExpandedAttempts = { readonly attempts: readonly ExpandedSearchAttempt[] };
 type WorldBankRun = { readonly attempts: readonly WorldBankAttempt[] } | { readonly thrown: true };
+type ComtradeRun = { readonly collection: ComtradeCollection } | { readonly thrown: true };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const REQUEST_KEY = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -509,6 +513,7 @@ export class ResearchAutomationService {
   readonly #webSource: AutomationSourcePort | undefined;
   readonly #trendsSource: SearchInterestSource | undefined;
   readonly #worldBankSource: WorldBankSource | undefined;
+  readonly #comtradeSource: ComtradeSource | undefined;
   readonly #videoWatch: VideoWatchLane | undefined;
   readonly #expandedSource: ExpandedSearchSource | undefined;
   readonly #renderer: ResearchAutomationReportRenderer | undefined;
@@ -563,6 +568,7 @@ export class ResearchAutomationService {
     this.#webSource = options.webSource;
     this.#trendsSource = options.trendsSource;
     this.#worldBankSource = options.worldBankSource;
+    this.#comtradeSource = options.comtradeSource;
     this.#videoWatch = options.videoWatch;
     this.#expandedSource = options.expandedSource;
     this.#renderer = options.renderer;
@@ -1817,7 +1823,7 @@ export class ResearchAutomationService {
         webResults: webResults.map(({ position, title, url, snippet, retrievedAt, site, published, origin }) =>
           ({ position, title, url, snippet, retrievedAt, site: site ?? null, published: published ?? null, ...(origin ? { origin } : {}) })),
         ...(searchInterestRenderable(searchInterest) ? { searchInterest } : {}),
-        ...(worldBankRenderable(webCollection?.worldBank) ? { worldBank: webCollection.worldBank } : {}), ...(storedPdfExcerpts(marketSemantic).length ? { pdfExcerpts: storedPdfExcerpts(marketSemantic) } : {}), ...(storedSellerVideos(marketSemantic) ? { sellerVideos: storedSellerVideos(marketSemantic)! } : {}),
+        ...(worldBankRenderable(webCollection?.worldBank) ? { worldBank: webCollection.worldBank } : {}), ...(webCollection?.comtrade ? { comtrade: webCollection.comtrade } : {}), ...(storedPdfExcerpts(marketSemantic).length ? { pdfExcerpts: storedPdfExcerpts(marketSemantic) } : {}), ...(storedSellerVideos(marketSemantic) ? { sellerVideos: storedSellerVideos(marketSemantic)! } : {}),
         metric: { packageId, capture: { snapshot: verifiedCapture.snapshot, snapshotSha256: rawSnapshotSha256, truncation: preparedCapture.capture.truncation }, measurementPeriod: preparedCapture.capture.measurementPeriod } };
     }
     if (!prepared) throw new ResearchAutomationValidationError('Tệp danh sách sản phẩm này không thuộc lượt research.');
@@ -1831,7 +1837,7 @@ export class ResearchAutomationService {
       webResults: webResults.map(({ position, title, url, snippet, retrievedAt, site, published, origin }) =>
         ({ position, title, url, snippet, retrievedAt, site: site ?? null, published: published ?? null, ...(origin ? { origin } : {}) })),
       ...(searchInterestRenderable(searchInterest) ? { searchInterest } : {}),
-        ...(worldBankRenderable(webCollection?.worldBank) ? { worldBank: webCollection.worldBank } : {}), ...(storedPdfExcerpts(marketSemantic).length ? { pdfExcerpts: storedPdfExcerpts(marketSemantic) } : {}), ...(storedSellerVideos(marketSemantic) ? { sellerVideos: storedSellerVideos(marketSemantic)! } : {}),
+        ...(worldBankRenderable(webCollection?.worldBank) ? { worldBank: webCollection.worldBank } : {}), ...(webCollection?.comtrade ? { comtrade: webCollection.comtrade } : {}), ...(storedPdfExcerpts(marketSemantic).length ? { pdfExcerpts: storedPdfExcerpts(marketSemantic) } : {}), ...(storedSellerVideos(marketSemantic) ? { sellerVideos: storedSellerVideos(marketSemantic)! } : {}),
       metric: { packageId, workbook: workbook.bytes, measurementPeriod: prepared.request.measurementPeriod } };
   }
 
@@ -2041,7 +2047,7 @@ export class ResearchAutomationService {
     assertUuid(workspaceId);
     await this.#readWorkspace(workspaceId);
     const activity = Object.fromEntries((['kalodata', 'serpapi', 'apify-shopee', 'metric', 'kalodata-video',
-      'apify-tiktok-comments', 'video-reading', 'meta-ad-library', 'official-stats', 'world-bank', 'pageindex'] as const)
+      'apify-tiktok-comments', 'video-reading', 'meta-ad-library', 'official-stats', 'world-bank', 'un-comtrade', 'pageindex'] as const)
       .map(key => [key, { lastDataAt: null, dataCount: 0, lastUsageAt: null }])) as Record<ResearchAutomationSourceActivityKey, { lastDataAt: string | null; dataCount: number; lastUsageAt: string | null }>;
     const captures = this.#db.prepare(`SELECT c.provider provider,MAX(c.retrieved_at) lastAt,COUNT(*) total FROM analysis_research_automation_captures c
       JOIN analysis_research_automation_runs r ON r.run_id=c.run_id WHERE r.workspace_id=? AND c.provider IN ('kalodata','serpapi','apify-shopee') GROUP BY c.provider`).all(workspaceId) as Array<{ provider: 'kalodata' | 'serpapi' | 'apify-shopee'; lastAt: string; total: bigint | number }>;
@@ -2065,6 +2071,14 @@ export class ResearchAutomationService {
     for (const { runId } of runIds) {
       // Metadata-only historical runs need no lineage replay; retained private samples still authenticate fully.
       const collection = await this.#stepDocument(runId, 'COLLECTION');
+      // UN Comtrade: one stored step document per run; the time is the latest stored response, null when none was kept.
+      if (collection?.comtrade) {
+        activity['un-comtrade'].dataCount++;
+        for (const call of collection.comtrade.calls) {
+          const previous = activity['un-comtrade'].lastDataAt;
+          if (previous === null || Date.parse(call.retrievedAt) > Date.parse(previous)) activity['un-comtrade'].lastDataAt = call.retrievedAt;
+        }
+      }
       if (collection?.privateShopee && collection.reviewSample) {
         const run = this.#current(runId)!;
         const start = await this.#readStartSnapshot(run.startSha, workspaceId);
@@ -2972,7 +2986,7 @@ export class ResearchAutomationService {
       if (videosMarked ? kind !== 'MARKET' || !storedVideos || digest(storedVideos) !== digest(await this.#sellerVideos(frozenRun, storedVideos.sources)) : semantic.sellerVideos !== undefined)
         throw new ResearchAutomationIntegrityError('Report video uploads differ from the pinned stored packages.');
       const expected = sourceEvidenceForReport(basePacket, { collection, ...(marked ? { pdfExcerpts: storedExcerpts } : {}), ...(videosMarked ? { sellerVideos: storedVideos } : {}),
-        ...(collection?.searchInterest || collection?.worldBank ? { captures: await this.#captureRecords(runId) } : {}),
+        ...(collection?.searchInterest || collection?.worldBank || collection?.comtrade ? { captures: await this.#captureRecords(runId) } : {}),
         ...(verifiedPrivateView ? { privateReviewCorpus: verifiedPrivateView } : {}),
         ...(verifiedReviewSample ? { reviewSample: verifiedReviewSample } : {}),
         ...(verifiedLiteral ? { insightLiteral: verifiedLiteral } : {}),
@@ -3232,8 +3246,15 @@ export class ResearchAutomationService {
         try { worldBank = { attempts: await this.#worldBankSource.collect({ signal: controller.signal }) }; }
         catch { worldBank = { thrown: true }; }
       }
+      // UN Comtrade follows World Bank: one attempt per run, never repeated after a restart.
+      let comtrade: ComtradeRun | undefined;
+      if (stepId === 'COLLECTION' && this.#comtradeSource && !controller.signal.aborted) {
+        const { keyword, requestedPeriod } = input as CollectInput;
+        try { comtrade = { collection: await this.#comtradeSource.collect({ keyword, description: start.description ?? null, mode: start.mode, periodEndDate: requestedPeriod.endDate }, { signal: controller.signal }) }; }
+        catch { comtrade = { thrown: true }; }
+      }
       try {
-        await this.#persistSourceResult(row.runId, stepId, result, controller.signal.aborted, exact, web, controller.signal, trends, expanded, worldBank);
+        await this.#persistSourceResult(row.runId, stepId, result, controller.signal.aborted, exact, web, controller.signal, trends, expanded, worldBank, comtrade);
       } catch (error) {
         if (!(error instanceof ResearchAutomationProviderOutputError)) throw error;
         await this.#settleSourceFailure(row.runId, stepId, 'PROVIDER_OUTPUT_INVALID', 'FAILED');
@@ -3762,7 +3783,7 @@ export class ResearchAutomationService {
     }
   }
 
-  async #persistSourceResult(runId: string, stepId: SourceStepId, bound: PersistableSourceResult, aborted: boolean, exact?: ExactShopeeAttempt, web?: WebSearchAttempt, signal?: AbortSignal, trends?: TrendsAttempt, expanded?: ExpandedAttempts, worldBank?: WorldBankRun): Promise<void> {
+  async #persistSourceResult(runId: string, stepId: SourceStepId, bound: PersistableSourceResult, aborted: boolean, exact?: ExactShopeeAttempt, web?: WebSearchAttempt, signal?: AbortSignal, trends?: TrendsAttempt, expanded?: ExpandedAttempts, worldBank?: WorldBankRun, comtrade?: ComtradeRun): Promise<void> {
     const result = bound.result;
     let step = bound.step;
     const nativeCoverage = bound.step.coverage.filter(value => value.provider === 'apify-dami');
@@ -3908,6 +3929,24 @@ export class ResearchAutomationService {
         step = probe;
       } catch { step = { ...step, worldBank: worldBankFailed('DOCUMENT_INVALID') }; }
     }
+    // UN Comtrade captures follow World Bank. Only responses of the confirmed code are stored; without a confirmed code the
+    // document is a status only and no number is kept.
+    const comtradeCollection = comtrade && 'collection' in comtrade ? comtrade.collection : undefined;
+    if (comtrade) {
+      const indexes: (number | null)[] = [];
+      for (const item of comtradeCollection?.calls ?? []) {
+        const envelopes = captureEnvelopes({ captures: [item.capture] });
+        if (!envelopes) { indexes.push(null); continue; }
+        indexes.push(captures.length);
+        await putCaptures(envelopes);
+      }
+      const probe = { ...step, comtrade: comtradeCollection ? comtradeDocument(comtradeCollection, indexes) : comtradeFailed('FAILED') };
+      try {
+        assertStepDocument(probe, runId, stepId);
+        assertCaptureLineage(probe, captures.map(value => value.row));
+        step = probe;
+      } catch { step = { ...step, comtrade: comtradeFailed('FAILED') }; }
+    }
     // Video readings come last: candidates are the run's stored selection and the stored TikTok search rows (no new search),
     // and their model-answer captures follow the World Bank captures. A skipped video keeps a reason code only and never
     // changes the step outcome, coverage or run blockers.
@@ -4013,6 +4052,9 @@ export class ResearchAutomationService {
         if (worldBankAttempts.some(item => item.requests > 0)) this.#persistUsage(runId, stepId, worldBankUsage(worldBankAttempts), now, WORLD_BANK_USAGE_ORDINAL);
         else if (worldBank && 'thrown' in worldBank) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
           .run(runId, stepId, WORLD_BANK_USAGE_ORDINAL, WORLD_BANK_PROVIDER.toLowerCase(), now);
+        if (comtradeCollection && comtradeCollection.requests > 0) this.#persistUsage(runId, stepId, comtradeUsage(comtradeCollection), now, COMTRADE_USAGE_ORDINAL);
+        else if (comtrade && 'thrown' in comtrade) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
+          .run(runId, stepId, COMTRADE_USAGE_ORDINAL, COMTRADE_PROVIDER.toLowerCase(), now);
         if (videoWatchAttempts?.some(item => item.requests > 0)) this.#persistUsage(runId, stepId, videoWatchUsage(videoWatchAttempts), now, VIDEO_WATCH_USAGE_ORDINAL);
         else if (videoWatchThrown) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
           .run(runId, stepId, VIDEO_WATCH_USAGE_ORDINAL, VIDEO_WATCH_PROVIDER.toLowerCase(), now);
@@ -5193,7 +5235,32 @@ function validWorldBank(value: unknown): boolean {
   });
 }
 
-const VIDEO_WATCH_REASONS = new Set(['OVER_10_VIDEOS', 'DOWNLOAD_FAILED', 'VIDEO_TOO_LONG', 'VIDEO_TOO_LARGE', 'NOT_A_VIDEO', 'MODEL_FAILED', 'MODEL_ANSWER_INVALID',
+const COMTRADE_STATUSES = new Set(['OK', 'HS_CODE_NOT_CONFIRMED', 'RATE_LIMITED', 'NO_DATA', 'MODEL_NOT_CONFIGURED', 'FAILED', 'CANCELLED']);
+function validComtrade(value: unknown): boolean {
+  if (!isRecord(value) || Object.keys(value).sort().join() !== 'calls,descriptionVi,hsCode,mirrorReporterCount,officialDescription,profile,reasonVi,rows,status' ||
+      value.profile !== COMTRADE_PROFILE || typeof value.status !== 'string' || !COMTRADE_STATUSES.has(value.status) || !Array.isArray(value.calls) || value.calls.length > 4 ||
+      !Array.isArray(value.rows) || value.rows.length > 12) return false;
+  const text = (v: unknown, max: number): boolean => typeof v === 'string' && v.length >= 1 && v.length <= max && !CONTROL.test(v);
+  const index = (v: unknown): boolean => Number.isSafeInteger(v) && (v as number) >= 0;
+  const shown = value.status === 'OK' || value.status === 'RATE_LIMITED';
+  if (!shown) return value.hsCode === null && value.officialDescription === null && value.descriptionVi === null && value.reasonVi === null &&
+    value.calls.length === 0 && value.rows.length === 0 && value.mirrorReporterCount === null;
+  if (typeof value.hsCode !== 'string' || !/^\d{6}$/.test(value.hsCode) || !text(value.officialDescription, 600) || !text(value.descriptionVi, 400) || !text(value.reasonVi, 400) ||
+      value.calls.length < 1 || value.rows.length < 1) return false;
+  if (value.mirrorReporterCount !== null && (!Number.isSafeInteger(value.mirrorReporterCount) || value.mirrorReporterCount < 0 || value.mirrorReporterCount > 500)) return false;
+  const kinds = new Set<string>(), byIndex = new Set<number>();
+  for (const call of value.calls) {
+    if (!isRecord(call) || Object.keys(call).sort().join() !== 'captureIndex,kind,outcome,responseSha256,retrievedAt,year' || !['MIRROR', 'OWN_IMPORT', 'OWN_EXPORT'].includes(call.kind) ||
+        call.outcome !== 'ROWS' || !index(call.captureIndex) || !/^\d{4}$/.test(String(call.year)) || !/^[a-f0-9]{64}$/.test(String(call.responseSha256)) ||
+        typeof call.retrievedAt !== 'string' || !Number.isFinite(Date.parse(call.retrievedAt)) || kinds.has(call.kind) || byIndex.has(call.captureIndex)) return false;
+    kinds.add(call.kind); byIndex.add(call.captureIndex);
+  }
+  return value.rows.every(row => isRecord(row) && Object.keys(row).sort().join() === 'captureIndex,flow,reporter,side,value,year' && (row.side === 'OWN' || row.side === 'MIRROR') &&
+    (row.flow === 'M' || row.flow === 'X') && text(row.reporter, 120) && typeof row.value === 'string' && /^\d{1,60}(\.\d{1,60})?$/.test(row.value) &&
+    typeof row.year === 'string' && /^\d{4}$/.test(row.year) && index(row.captureIndex) && byIndex.has(row.captureIndex));
+}
+
+const VIDEO_WATCH_REASONS =new Set(['OVER_10_VIDEOS', 'DOWNLOAD_FAILED', 'VIDEO_TOO_LONG', 'VIDEO_TOO_LARGE', 'NOT_A_VIDEO', 'MODEL_FAILED', 'MODEL_ANSWER_INVALID',
   'CREDENTIAL_ECHO_REFUSED', 'PUBLICATION_FAILED', 'CANCELLED', 'PROVIDER_FAILED', 'DOCUMENT_INVALID', 'VIDEO_MODEL_NOT_CONFIGURED']);
 function validVideoWatch(value: unknown): boolean {
   const hex = /^[a-f0-9]{64}$/, id = /^[1-9][0-9]{0,19}$/;
@@ -5295,6 +5362,8 @@ function assertStepDocument(value: unknown, runId: string, stepId: StepId): asse
     throw new ResearchAutomationIntegrityError('Stored extra searches are invalid.');
   if (value.worldBank !== undefined && (stepId !== 'COLLECTION' || !validWorldBank(value.worldBank)))
     throw new ResearchAutomationIntegrityError('Stored World Bank context is invalid.');
+  if (value.comtrade !== undefined && (stepId !== 'COLLECTION' || !validComtrade(value.comtrade)))
+    throw new ResearchAutomationIntegrityError('Stored UN Comtrade context is invalid.');
   if (value.videoWatch !== undefined && (stepId !== 'COLLECTION' || !validVideoWatch(value.videoWatch)))
     throw new ResearchAutomationIntegrityError('Stored video readings are invalid.');
   if (value.sourceEvidence !== undefined) checkSourceEvidence(value.sourceEvidence);
@@ -5341,6 +5410,11 @@ function assertCaptureLineage(document: StepResultDocument, captures: readonly C
     if (!observation || observation.truncated || observation.provider !== 'world-bank' || observation.operation !== 'worldbank.observations' || observation.retrievedAt !== item.retrievedAt ||
         !metadata || metadata.truncated || metadata.provider !== 'world-bank' || metadata.operation !== 'worldbank.metadata')
       throw new ResearchAutomationIntegrityError('Stored World Bank context references an incompatible capture.');
+  }
+  for (const call of document.comtrade?.calls ?? []) {
+    const capture = stepCaptures.get(call.captureIndex);
+    if (!capture || capture.truncated || capture.provider !== 'comtrade' || capture.operation !== 'comtrade.data' || capture.retrievedAt !== call.retrievedAt)
+      throw new ResearchAutomationIntegrityError('Stored UN Comtrade context references an incompatible capture.');
   }
   for (const video of document.videoWatch?.videos ?? []) {
     if (video.captureIndex === null) continue;

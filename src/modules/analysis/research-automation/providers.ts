@@ -16,7 +16,7 @@ export { KALODATA_LIMITS, SERPAPI_LIMITS };
 
 export const RESEARCH_AUTOMATION_PROVIDER_CONTRACT = 'research-automation-provider-v1' as const;
 
-export type ResearchAutomationProviderId = 'KALODATA' | 'SERPAPI' | 'METRIC' | 'APIFY_SHOPEE' | 'WORLD-BANK' | 'VIDEO-WATCH';
+export type ResearchAutomationProviderId = 'KALODATA' | 'SERPAPI' | 'METRIC' | 'APIFY_SHOPEE' | 'WORLD-BANK' | 'VIDEO-WATCH' | 'COMTRADE';
 export type ResearchMode = 'PRODUCT' | 'CATEGORY';
 
 /** Inclusive calendar dates, `YYYY-MM-DD`, interpreted in Vietnam (UTC+7). */
@@ -81,7 +81,7 @@ export interface ExpandedSearchProvider extends ResearchAutomationProvider {
 
 export type ProviderOperation =
   | 'kalodata.product.rank' | 'kalodata.product.detail' | 'kalodata.credit.balance'
-  | 'serpapi.google.search' | 'serpapi.google.trends' | 'worldbank.observations' | 'worldbank.metadata' | 'videowatch.generate' | 'none';
+  | 'serpapi.google.search' | 'serpapi.google.trends' | 'worldbank.observations' | 'worldbank.metadata' | 'videowatch.generate' | 'comtrade.data' | 'none';
 
 export type CaptureOutcome =
   | 'OK' | 'PROVIDER_REJECTED' | 'HTTP_ERROR' | 'INVALID_PAYLOAD' | 'OVERSIZE'

@@ -108,7 +108,7 @@ export const defaultProviderTransport: ProviderTransport = {
 };
 
 /** Fixed provider hosts. URLs are built from constants only; no caller-supplied URL is ever fetched. */
-const ALLOWED_HOSTS = new Set(['www.kalodata.com', 'serpapi.com', 'api.worldbank.org']);
+const ALLOWED_HOSTS = new Set(['www.kalodata.com', 'serpapi.com', 'api.worldbank.org', 'comtradeapi.un.org']);
 
 export type HttpOutcome =
   | { kind: 'RECEIVED'; status: number; bytes: Buffer }

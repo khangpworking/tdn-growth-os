@@ -139,6 +139,9 @@ export TDN_RESEARCH_FFPROBE_BIN='/usr/bin/ffprobe'              # optional, defa
 - The model call uses the existing CLIProxy settings (`TDN_CLIPROXY_BASE_URL`, `TDN_CLIPROXY_API_KEY`, above); there is no separate model key. Without CLIProxy each video is recorded `VIDEO_MODEL_NOT_CONFIGURED` and the run continues.
 - A missing or invalid media dir, model id or yt-dlp path fails at startup with the setting name only.
 - Media: mp4 or webm, at most 14 MB and 180 seconds; one inline request per video, 180 s timeout, at most one retry. Captures keep only digests of the video, never its bytes or the key.
+### Market UN Comtrade (optional, flag `TDN_RESEARCH_COMTRADE_ENABLED`)
+
+Off unless `TDN_RESEARCH_COMTRADE_ENABLED=1` exactly. Off means no request, no model call, no new capture or step field, and byte-identical reports. When on, the collection step estimates one HS6 code for the product with the Insight coding CLIProxy model already configured for the operator (no separate key), confirms it against the official description, then makes at most 4 public data calls (at least 6 s apart; one 65 s wait and one repeat after a rate limit). Market section 6 shows the whole-country figures as background only, never combined with sample numbers. No key is needed; an unconfirmed code prints a plain sentence and no numbers. Without CLIProxy the step is recorded `MODEL_NOT_CONFIGURED` and the run continues.
 ### One executor per database
 
 An operator started with `TDN_OWNER_API_ENABLED='true'` is the **executor**. Only one executor may use a database at a time. At startup it creates `<canonical database path>.executor.lock` next to the database (the path after resolving symbolic links) and removes it on an orderly stop (Ctrl-C / `SIGTERM`). Before serving, the executor marks any AI attempt left `running` by an earlier process as `interrupted` (`interrupted_by_restart`). Nothing is retried automatically.
