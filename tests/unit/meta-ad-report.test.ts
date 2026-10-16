@@ -62,6 +62,18 @@ test('selection: an ad seen in two confirmed captures counts once and is read fr
   assert.deepEqual(byStart.map(item => item.pageId), ['3001', '3002'], 'earliest start first, never by count');
 });
 
+test('selection: uses the full retained literal when the projection only carries its bounded prefix', () => {
+  const fullText = 'a'.repeat(160) + ' phần còn lại của bản lưu';
+  const projectionOnly = view('3501', SHA('7'), TAKEN, [{ libraryId: 'L1', startDate: '2026-03-01', age: 184, text: 'a'.repeat(160) }], 'all');
+  const withCapture = Object.assign(projectionOnly, {
+    capture: { ads: [{ libraryId: { value: 'L1' }, pageName: { value: 'Tên giữ nguyên' }, text: { value: fullText } }] },
+  }) as unknown as MetaPageSourceView;
+  const [page] = selectMetaAdPages([withCapture]);
+  assert.equal(page!.pageName, 'Tên giữ nguyên');
+  assert.equal(page!.excerpt, 'a'.repeat(160));
+  assert.equal(page!.excerptCut, true);
+});
+
 test('excerpt: byte-exact prefix, cut at 160 characters on a character boundary', () => {
   const short = metaAdExcerpt(COPY_ONE);
   assert.deepEqual(short, { text: COPY_ONE, cut: false });
@@ -97,7 +109,7 @@ test('selection: the excerpt of a long ad is the first 160 characters of its tex
 });
 
 test('copied text that a report rule would reject is withheld, never reworded', () => {
-  for (const text of ['Xem thêm trên Google Shopping', 'Theo Kalodata, bán chạy', 'Metric cho thấy', 'Ghi chú: giảm giá', 'Chú thích: ưu đãi', 'Mục M07 của báo cáo', 'Theo Page Index', 'Tìm site:shopee.vn', ''])
+  for (const text of ['Xem thêm trên Google Shopping', 'Theo Kalodata, bán chạy', 'Metric cho thấy', 'Ghi chú: giảm giá', 'Chú thích: ưu đãi', 'Mục M07 của báo cáo', 'Theo Page Index', 'Tìm site:shopee.vn', 'Giảm 20% hôm nay', 'Giảm 20％ hôm nay', ''])
     assert.equal(metaTextReportSafe(text), false, text);
   for (const text of [COPY_ONE, COPY_TWO, 'Cửa hàng Bình Nhiệt Việt', 'Giảm giá cuối tuần cho khách mới.'])
     assert.equal(metaTextReportSafe(text), true, text);

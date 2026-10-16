@@ -60,14 +60,21 @@ let baseline: ReadonlySet<string> | undefined;
 const RESERVED_WORDING = /Ghi chú\s*:|Chú thích\s*:|Chú thích mang|(?<![\p{L}\p{N}])M(?:0[1-9]|1[0-3])(?![\p{L}\p{N}])|(?:thị phần|quy mô thị trường)\s+(?:là|đạt|tăng|giảm|chiếm)\s*\d/iu;
 /** Copied third-party text is shown only when the Market gates would accept it as a quotation; otherwise the report says it is kept in the saved capture. */
 export function metaTextReportSafe(text: string): boolean {
-  if (text.trim() === '' || webTextHidden(text) || RESERVED_WORDING.test(text.normalize('NFKC'))) return false;
+  const normalized = text.normalize('NFKC');
+  if (text.trim() === '' || normalized.includes('%') || webTextHidden(text) || RESERVED_WORDING.test(normalized)) return false;
   const quoted = `<p><span data-quote>${esc(text)}</span></p>`;
   if (technicalLeaks(quoted).length > 0) return false;
   baseline ??= new Set(failingRules(BENIGN));
   return failingRules(quoted).every(rule => baseline!.has(rule));
 }
 
-interface Counted { readonly ad: MetaPageSourceView['projection']['observations'][number]; readonly capture: MetaAdCapture }
+interface Counted {
+  readonly ad: MetaPageSourceView['projection']['observations'][number];
+  readonly capture: MetaAdCapture;
+  /** The retained literal is the byte-exact source; synthetic/unit views may only provide the projection. */
+  readonly pageName: string;
+  readonly text: string;
+}
 
 /**
  * Confirmed pages with their L9-included ads. A (page, ad) pair seen in several confirmed captures counts once and is read from the
@@ -79,10 +86,14 @@ export function selectMetaAdPages(views: readonly MetaPageSourceView[]): MetaAdP
     if (view.state !== 'CONFIRMED') continue;
     const { projection } = view, included = new Set(projection.includedLibraryIds);
     const capture: MetaAdCapture = { sha256: projection.captureSha256, capturedAt: projection.capturedAt };
+    const savedAds = new Map((view.capture?.ads ?? []).map(ad => [ad.libraryId.value, ad]));
     for (const ad of projection.observations) {
       if (!included.has(ad.libraryId)) continue;
+      const saved = savedAds.get(ad.libraryId);
       const key = `${projection.pageId}#${ad.libraryId}`, prior = pairs.get(key);
-      if (prior === undefined || newer(capture, prior.capture)) pairs.set(key, { ad, capture });
+      if (prior === undefined || newer(capture, prior.capture)) pairs.set(key, {
+        ad, capture, pageName: saved?.pageName.value ?? ad.pageName, text: saved?.text.value ?? ad.textFirst200,
+      });
     }
   }
   const pages = new Map<string, Counted[]>();
@@ -92,10 +103,10 @@ export function selectMetaAdPages(views: readonly MetaPageSourceView[]): MetaAdP
   }
   return [...pages].map(([pageId, ads]): MetaAdPage => {
     ads.sort((a, b) => a.ad.startDate.localeCompare(b.ad.startDate) || b.ad.ageDaysToCapture - a.ad.ageDaysToCapture || a.ad.libraryId.localeCompare(b.ad.libraryId));
-    const first = ads[0]!, cut = metaAdExcerpt(first.ad.textFirst200);
+    const first = ads[0]!, cut = metaAdExcerpt(first.text);
     const captures = [...new Map(ads.map(item => [item.capture.sha256, item.capture])).values()]
       .sort((a, b) => Date.parse(a.capturedAt) - Date.parse(b.capturedAt) || a.sha256.localeCompare(b.sha256));
-    return { pageId, pageName: metaTextReportSafe(first.ad.pageName) ? first.ad.pageName : null, adCount: ads.length, earliestStart: first.ad.startDate,
+    return { pageId, pageName: metaTextReportSafe(first.pageName) ? first.pageName : null, adCount: ads.length, earliestStart: first.ad.startDate,
       daysRun: first.ad.ageDaysToCapture, excerpt: metaTextReportSafe(cut.text) ? cut.text : null, excerptCut: cut.cut, captures };
   }).sort((a, b) => a.earliestStart.localeCompare(b.earliestStart) || a.pageId.localeCompare(b.pageId));
 }
