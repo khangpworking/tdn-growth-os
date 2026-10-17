@@ -133,7 +133,7 @@ export interface SourceStatusInput {
   readonly executorEnabled: boolean;
   readonly providers: ResearchAutomationProviderConfig | undefined;
   /** Sources the executor actually calls during a run. Web search is configured separately from run wiring. */
-  readonly wired: { readonly kalodata: boolean; readonly serpapi: boolean; readonly apifyShopee: boolean };
+  readonly wired: { readonly kalodata: boolean; readonly serpapi: boolean; readonly apifyShopee: boolean; readonly searchAds?: boolean };
   readonly activity: Record<ResearchAutomationSourceActivityKey, ResearchAutomationSourceActivity> & { readonly serpapiOperations: readonly ResearchAutomationSerpApiOperation[] };
   /** Absent until the API route passes live connector state; the card then shows the not-connected copy. */
   readonly pageindex?: PageIndexStatusSummary;
@@ -201,7 +201,7 @@ export function buildResearchAutomationSourceStatus(input: SourceStatusInput): R
     manualSource('VIDEO_READING', 'video-reading'),
     notBuilt('META_AD_LIBRARY', 'meta-ad-library', 'NOT_REQUIRED', null),
     // Same key as web search; the lane itself stays off unless its own flag is on.
-    paidSource('SEARCH_ADS_LIBRARY', 'search-ads-library', Boolean(providers?.serpApiKey), Boolean(providers?.serpApiKey), input.wired.serpapi, null, null),
+    paidSource('SEARCH_ADS_LIBRARY', 'search-ads-library', Boolean(providers?.serpApiKey), Boolean(providers?.serpApiKey), input.wired.searchAds === true, null, null),
     paidSource('SERPAPI', 'serpapi', Boolean(providers?.serpApiKey), Boolean(providers?.serpApiKey), input.wired.serpapi, null,
       buildSerpApiOperations(input.activity.serpapiOperations)),
     notBuilt('OFFICIAL_STATS', 'official-stats', 'NOT_REQUIRED', null),

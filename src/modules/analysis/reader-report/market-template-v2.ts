@@ -184,17 +184,18 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   const searchAdsOk = searchAdsOkBrands(searchAds);
   const adsNum = (v: number | null): string => v === null || v === 0 ? 'không có' : String(v);
   const adsDay = (v: string | null): string => v === null ? 'không có' : v.split('-').reverse().join('/');
+  const adsNotice = (brand: typeof searchAdsOk[number]): string => `<p><span data-quote>${label(brand.label)}</span>: ${label(searchAdsBrandNotice(brand))}</p>`;
   const searchAdsTable = !searchAds ? '' : searchAdsOk.length === 0
-    ? `<p>${label(searchAdsNotice(searchAds))}</p>` + searchAds.brands.map(brand => `<p>${label(searchAdsBrandNotice(brand))}</p>`).join('')
+    ? `<p>${label(searchAdsNotice(searchAds))}</p>` + searchAds.brands.map(adsNotice).join('')
     : tbl('7.3', SEARCH_ADS_TABLE_TITLE, '', ['Thương hiệu', 'Trang web', 'Số mẫu quảng cáo', 'Chữ / Hình / Video', 'Hiện lần đầu – lần cuối', 'Số ngày hiện của mẫu dài ngày'],
       searchAdsOk.map(brand => {
-        const no = registry.cite({ sourceKind: 'CAPTURE', identity: brand.responseSha256!, locator: { kind: 'json-pointer', pointer: '/ad_creatives' },
+        const no = registry.cite({ sourceKind: 'CAPTURE', identity: brand.responseSha256!, locator: null,
           label: SEARCH_ADS_SOURCE_LABEL, retrievedAt: brand.retrievedAt, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' });
         const f = brand.formats!;
-        return [label(brand.label), label(brand.domain!), label(adsNum(brand.creativeCount)) + (no === null ? '' : renderCitationMark(no)),
+        return [`<span data-quote>${label(brand.label)}</span>`, label(brand.domain!), label(adsNum(brand.creativeCount)) + (no === null ? '' : renderCitationMark(no)),
           label(`${adsNum(f.text)} / ${adsNum(f.image)} / ${adsNum(f.video)}`), label(`${adsDay(brand.firstShown)} – ${adsDay(brand.lastShown)}`), label(adsNum(brand.maxDaysShown))];
       }), { src: esc(SEARCH_ADS_SOURCE_LABEL), note: esc(SEARCH_ADS_NOTE) }) +
-      searchAds.brands.filter(brand => brand.status !== 'OK').map(brand => `<p>${label(searchAdsBrandNotice(brand))}</p>`).join('');
+      searchAds.brands.filter(brand => brand.status !== 'OK').map(adsNotice).join('');
   sections.push(section('M07', 'Đối thủ', 'Giữ số liệu của mỗi gian hàng trên từng sàn; phần thiếu không dùng để so sánh đầy đủ.', requiredFig('product-ranking', '7.1') + tbl('7.1', 'Gian hàng trong mẫu, theo thứ tự dòng nguồn', '', ['Sàn', 'Gian hàng', 'Dòng lõi', 'Doanh thu lõi', 'Đơn vị bán lõi'], shops) + peers + metaAdTable + searchAdsTable, d.defaultMarketPeers === null ? 'Chưa có tập đối thủ đã đóng băng trong đầu vào bản này. Không suy danh tính chéo sàn từ tên hoặc tiêu đề.' : 'Tập mặc định giữ riêng theo sàn và nhóm; nguồn thiếu hoặc doanh thu bằng không được ghi rõ. Không suy danh tính chéo sàn từ tên hoặc tiêu đề.'));
   let unitPriceTables = '';
   if (next) {

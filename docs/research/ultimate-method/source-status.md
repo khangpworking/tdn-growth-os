@@ -49,7 +49,7 @@ E14 của file Ultimate nói về "nguồn đang dùng hoặc đã duyệt". Ở
 | S14 | Nội dung video bán hàng | Chạy thử | 08/10/2026 | Gói P9, đã có checklist |
 | S15 | Thư viện quảng cáo Meta | Đã duyệt | 12/10/2026 | Chủ duyệt 12/10; chỉ đọc theo trang |
 | S16 | Quảng cáo nổi bật trên TikTok | Không thu | 08/10/2026 | Test không đạt, không trả quảng cáo nào |
-| S17 | Thư viện quảng cáo Google | Đã duyệt | 17/10/2026 | Chủ duyệt 17/10; chỉ đếm quảng cáo theo trang web của tối đa 3 thương hiệu đầu (cờ TDN_RESEARCH_GOOGLE_ADS_ENABLED); chưa dùng cho phép kiểm 3 của E5 |
+| S17 | Thư viện quảng cáo công khai của công cụ tìm kiếm | Đã duyệt | 17/10/2026 | Chủ duyệt 17/10; chỉ đếm quảng cáo theo trang web của tối đa 3 thương hiệu đầu (cờ TDN_RESEARCH_GOOGLE_ADS_ENABLED); chưa dùng cho phép kiểm 3 của E5 |
 | S18 | Trang thương hiệu Facebook | Đề xuất | 08/10/2026 | — |
 | S19 | Kết quả tìm kiếm Google mở rộng | Chạy thử | 08/10/2026 | Chờ chạy thử Phase 0 |
 | S20 | Mức quan tâm tìm kiếm trên Google (Trends) | Chạy thử | 08/10/2026 | Chờ chạy thử Phase 0 |

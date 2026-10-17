@@ -11,9 +11,15 @@ import { ResearchAutomationService } from '../../src/modules/analysis/research-a
 import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
 import type { StepResultDocument } from '../../src/modules/analysis/research-automation/model.js';
 import type { ProviderTransport } from '../../src/modules/analysis/research-automation/providers.js';
-import { brandsFromPick, chooseDomain, createGoogleAdsSource, googleAdsEnabled, type SearchAdsInput, type SearchAdsSource } from '../../src/modules/analysis/research-automation/google-ads-lane.js';
+import { brandsFromPick, chooseDomain, createGoogleAdsSource, googleAdsEnabled, searchAdsDocument, summarizeResponse, SEARCH_ADS_SOURCE_LABEL, type SearchAdsInput, type SearchAdsSource } from '../../src/modules/analysis/research-automation/google-ads-lane.js';
+import { sourceEvidenceForReport, buildSourceEvidence } from '../../src/modules/analysis/research-automation/source-evidence.js';
+import { buildMarketReport, computeReaderReportData, lint } from '../../src/modules/analysis/reader-report/index.js';
+import { sync1Options, sync1ReaderFixture } from '../helpers/sync1-reader-fixture.js';
+import { DEFAULT_MARKET_PEER_RULE } from '../../src/modules/analysis/default-market-peers.js';
+import { auditMarket14 } from '../../src/modules/analysis/research-automation/market-14-rules.js';
 import { assertMarketBusinessGate, auditMarketReportHtml } from '../../src/modules/analysis/research-automation/market-business-gate.js';
-import { SYNTHETIC_CARD_ID, syntheticProductSource } from '../helpers/research-synthetic-sources.js';
+import { SYNTHETIC_CARD_ID, syntheticProductSource, syntheticWebSource } from '../helpers/research-synthetic-sources.js';
+import { fixture as autorunFixture, startRun as startAutorun, driveUntil, now as autorunNow } from '../helpers/autorun-harness.js';
 import { providerNameViolations, reportVisibleText, visibleTextViolations } from '../helpers/report-visible-text.js';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
@@ -133,6 +139,36 @@ test('marketplace, social and deny-listed hosts are never picked', () => {
   assert.deepEqual(chooseDomain('thuonghieumaua', urls), { kind: 'DOMAIN', domain: 'thuonghieumaua.example.vn' });
   assert.deepEqual(chooseDomain('thuonghieumaua', urls, ['thuonghieumaua.example.vn']), { kind: 'NONE' });
   assert.deepEqual(chooseDomain('thuonghieumaua', urls.slice(0, 5)), { kind: 'NONE' });
+  for (const suffix of ['vnexpress.net', 'tuoitre.vn', 'dantri.com.vn', 'sendo.vn', 'youtube.com', 'instagram.com', 'wikipedia.org', 'edu.vn', 'gov.vn'])
+    assert.deepEqual(chooseDomain('thuonghieumaua', [`https://thuonghieumaua.${suffix}/`]), { kind: 'NONE' }, suffix);
+  assert.deepEqual(chooseDomain('thuonghieumaua', [...urls.slice(0, 5), ...Array(2).fill(urls[5]), 'https://thuonghieumaua.example.com/']),
+    { kind: 'DOMAIN', domain: 'thuonghieumaua.example.vn' }, 'the host with more web rows wins');
+});
+
+test('provider names in brand labels and hosts cannot enter the table', () => {
+  for (const name of ['Google', 'SerpApi', 'Metric', 'Kalodata', 'TradeInt', 'Dami', 'Apify', 'PageIndex', 'Gemini', 'OpenCLI', 'G o o g l e']) {
+    assert.deepEqual(brandsFromPick({ links: [{ brand: `Thương hiệu ${name}`, revenue: 1 }] }), [], name);
+    assert.deepEqual(chooseDomain('thuonghieu', [`https://thuonghieu.${name.toLowerCase().replaceAll(' ', '-')}.example/`]), { kind: 'NONE' }, name);
+  }
+});
+
+test('response values stay strict, invalid creatives are counted, and dates use the Vietnam calendar day', () => {
+  const start = String(Date.parse('2026-09-30T17:00:00Z') / 1000);
+  const end = String(Date.parse('2026-10-01T16:59:59Z') / 1000);
+  const valid = creative('text', { first_shown: start, last_shown: end, total_days_shown: '1' });
+  const invalid = [null, creative('banner'), creative('text', { first_shown: Number(start) }), creative('text', { first_shown: ` ${start}` }),
+    creative('text', { last_shown: '1' }), creative('text', { total_days_shown: '1.5' }), creative('text', { total_days_shown: '-1' })];
+  const summary = summarizeResponse(Buffer.from(JSON.stringify(okBody([valid, ...invalid]))), '2026-10-01', '2026-10-01')!;
+  assert.equal(summary.creativeCount, 1);
+  assert.equal(summary.invalidCount, invalid.length);
+  assert.equal(summary.firstShown, '2026-10-01');
+  assert.equal(summary.lastShown, '2026-10-01');
+  assert.equal(summary.overlapCount, 1);
+  for (const value of [null, [], { search_metadata: { status: 'Error' } }, { ...okBody(), ad_creatives: null },
+    { ...okBody(), search_information: { total_results: '3' } }])
+    assert.equal(summarizeResponse(Buffer.from(JSON.stringify(value)), '2026-10-01', '2026-10-01'), null);
+  assert.equal(summarizeResponse(Buffer.from('{bad'), '2026-10-01', '2026-10-01'), null);
+  assert.equal(summarizeResponse(Buffer.from('{"search_metadata":{"status":"Success"}}'), '2026-10-01', '2026-10-01')!.creativeCount, 0);
 });
 
 test('a non-200, bad JSON and a bad creative each continue with the next brand', async () => {
@@ -154,13 +190,20 @@ test('an abort during the spacing wait gives CANCELLED and no further call', asy
 });
 
 test('a response that echoes the key is refused', async () => {
-  const f = fake(() => ({ raw: JSON.stringify({ ...okBody(), note: API_KEY }) }));
-  const result = await createGoogleAdsSource(API_KEY, f.transport).collect({ ...INPUT, brands: [BRANDS[0]!] });
-  assert.equal(result.brands[0]!.status, 'FAILED');
-  assert.equal(result.brands[0]!.reason, 'CREDENTIAL_ECHO_REFUSED');
+  const escaped = [...API_KEY].map(char => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`).join('');
+  const encoded = [...API_KEY].map(char => `%${char.charCodeAt(0).toString(16)}`).join('');
+  for (const raw of [JSON.stringify({ ...okBody(), note: API_KEY }), `{"note":"${escaped}"}`, `{"error":"${encoded}"}`]) {
+    const f = fake(() => ({ raw }));
+    const result = await createGoogleAdsSource(API_KEY, f.transport).collect({ ...INPUT, brands: [BRANDS[0]!] });
+    assert.equal(result.brands[0]!.status, 'FAILED');
+    assert.equal(result.brands[0]!.reason, 'CREDENTIAL_ECHO_REFUSED');
+    assert.equal(result.brands[0]!.capture!.responseBytes, null);
+    assert.equal(result.brands[0]!.capture!.providerCode, null);
+    assert.equal(JSON.stringify(result).includes(API_KEY), false);
+  }
 });
 
-async function runToDraft(t: TestContext, make?: (transport: ProviderTransport) => SearchAdsSource) {
+async function runToDraft(t: TestContext, make?: (transport: ProviderTransport) => SearchAdsSource, usePick = true) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-search-ads-run-'));
   const db = openDatabase({ databasePath: path.join(root, 'test.sqlite'), now }).db;
   const artifacts = new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
@@ -169,9 +212,10 @@ async function runToDraft(t: TestContext, make?: (transport: ProviderTransport) 
   t.after(async () => { db.close(); await fs.rm(root, { recursive: true, force: true }); });
   const f = fake(() => ({}));
   // The run has no auto-run pick record, so a wrapper supplies the synthetic brands and web rows to the real lane.
-  const searchAdsSource: SearchAdsSource | undefined = make ? { collect: (input, options) => make(f.transport).collect({ ...input, brands: BRANDS, webUrls: WEB }, options) } : undefined;
+  const searchAdsSource: SearchAdsSource | undefined = make ? { collect: (input, options) => make(f.transport).collect(usePick ? { ...input, brands: BRANDS, webUrls: WEB } : input, options) } : undefined;
   const service = new ResearchAutomationService({ db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discovery),
-    uuid: () => runId, now, renderer: (input, kind) => buildResearchAutomationReport(input, kind), source: syntheticProductSource(), ...(searchAdsSource ? { searchAdsSource } : {}) });
+    uuid: () => runId, now, renderer: (input, kind) => buildResearchAutomationReport(input, kind), source: syntheticProductSource(),
+    sourceEvidence: { modelIdentity: 'synthetic', promptVersion: 'v1' }, ...(searchAdsSource ? { searchAdsSource } : {}) });
   await service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: '33333333-3333-4333-8333-333333333333',
     mode: 'CATEGORY', keyword: 'synthetic insulated container', requestedPeriod: { startDate: '2025-10-01', endDate: '2026-09-30' }, reports: ['MARKET'] });
   await service.processNext();
@@ -185,8 +229,15 @@ async function runToDraft(t: TestContext, make?: (transport: ProviderTransport) 
   const document = JSON.parse(stepBytes) as StepResultDocument;
   const usage = db.prepare(`SELECT ordinal, provider FROM analysis_research_automation_usage WHERE run_id=? AND step_id='COLLECTION' ORDER BY ordinal`).all(runId)
     .map(row => { const v = row as { ordinal: bigint | number; provider: string }; return [Number(v.ordinal), v.provider]; });
+  const adCaptures = Number((db.prepare("SELECT count(*) n FROM analysis_research_automation_captures WHERE run_id=? AND operation='serpapi.google_ads.transparency'").get(runId) as { n: bigint }).n);
   const html = (await service.readReport(workspaceId, runId, 'MARKET')).bytes.toString();
-  return { document, stepBytes, usage, html, stepSha: step.sha, doc: new JSDOM(html).window.document, requests: f.urls.length };
+  assert.equal((await service.readReport(workspaceId, runId, 'MARKET')).bytes.toString(), html, 'stored reports replay without another request');
+  // Inspect every persisted artifact, including capture envelopes and exact response bytes.
+  for (const relative of await fs.readdir(path.join(root, 'artifacts'), { recursive: true })) {
+    const file = path.join(root, 'artifacts', relative);
+    if ((await fs.stat(file)).isFile()) assert.equal((await fs.readFile(file)).includes(Buffer.from(API_KEY)), false, 'no key in retained artifacts');
+  }
+  return { document, stepBytes, usage, html, stepSha: step.sha, doc: new JSDOM(html).window.document, requests: f.urls.length, adCaptures };
 }
 
 test('flag off: no field, no usage row, no table, byte-identical reruns', async t => {
@@ -198,6 +249,8 @@ test('flag off: no field, no usage row, no table, byte-identical reruns', async 
   assert.equal(first.html.includes('Quảng cáo trên công cụ tìm kiếm'), false);
   assert.equal(first.stepSha, second.stepSha);
   assert.equal(first.html, second.html);
+  assert.equal(first.requests, 0);
+  assert.equal(first.adCaptures, 0);
 });
 
 test('flag on: the step stores no advertiser detail and M07 shows table 7.3 after the Meta table position', async t => {
@@ -207,6 +260,11 @@ test('flag on: the step stores no advertiser detail and M07 shows table 7.3 afte
   assert.ok(on.usage.some(([ordinal, provider]) => ordinal === 10 && provider === 'serpapi'));
   for (const secret of [ADVERTISER, 'AR000001', 'CR000001', 'img.example', 'ads.example', API_KEY]) assert.equal(on.stepBytes.includes(secret), false, secret);
   assert.equal(on.html.includes(ADVERTISER), false);
+  assert.equal(on.requests, 3);
+  assert.equal(on.adCaptures, 3);
+  assert.ok(on.doc.querySelector('#M13')!.textContent!.includes(SEARCH_ADS_SOURCE_LABEL));
+  const s17 = [...on.doc.querySelectorAll('#M13 .source-evidence tbody tr')].filter(row => row.firstElementChild?.textContent === 'S17');
+  assert.equal(s17.length, 3, 'each retained ad response has its S17 source binding');
   const section = on.doc.querySelector('#M07')!;
   const table = [...section.querySelectorAll('.table-wrap, figure')].find(node => /Bảng 7\.3/u.test(node.textContent!));
   assert.ok(table, 'table 7.3 sits in M07');
@@ -224,10 +282,114 @@ test('flag on: the step stores no advertiser detail and M07 shows table 7.3 afte
   assert.deepEqual(auditMarketReportHtml(on.html).filter(check => !check.ok), []);
 });
 
+test('manual runs have NO_BRANDS, no paid call, and a clear notice without a table or used source', async t => {
+  const run = await runToDraft(t, transport => createGoogleAdsSource(API_KEY, transport), false);
+  assert.equal(run.document.searchAds?.status, 'NO_BRANDS');
+  assert.equal(run.requests, 0);
+  assert.equal(run.usage.some(([ordinal]) => ordinal === 10), false);
+  assert.doesNotMatch(run.doc.querySelector('#M07')!.textContent!, /Bảng 7\.3/u);
+  assert.match(run.doc.querySelector('#M07')!.textContent!, /chưa có thương hiệu/u);
+  assert.doesNotMatch(run.doc.querySelector('#M13')!.textContent!, /S17/u);
+});
+
+test('collection reads the real auto-run pick and only this run\'s plain web rows', async t => {
+  const fixture = await autorunFixture(t);
+  const autoRunId = await startAutorun(fixture.service);
+  await driveUntil(fixture.service, () => (fixture.db.prepare('SELECT status FROM analysis_research_automation_runs WHERE run_id=?').get(autoRunId) as { status: string }).status === 'COLLECTION_QUEUED');
+  const artifacts = new ContentAddressedArtifactStore(fixture.artifactRoot);
+  const discovery = new DiscoveryWorkspaceService({ db: fixture.db, artifactStore: artifacts });
+  const f = fake(() => ({}));
+  const urls = ['https://branda.example/own', 'https://brandb.example/own', 'https://brandc.example/own', 'https://brandd.example/unused'];
+  const lane = createGoogleAdsSource(API_KEY, f.transport);
+  const service = new ResearchAutomationService({ db: fixture.db, artifactStore: artifacts, now: autorunNow,
+    workspaceReader: new FlowDiscoveryWorkspaceReader(discovery), source: syntheticProductSource(),
+    webSource: syntheticWebSource(() => {}, urls.map((link, i) => ({ position: i + 1, title: 'Trang thử', link }))),
+    searchAdsSource: { collect: async (input, options) => {
+      assert.deepEqual(input.brands.map(brand => [brand.label, brand.key]), [['Brand A', 'branda'], ['Brand B', 'brandb'], ['Brand C', 'brandc']]);
+      assert.deepEqual(input.webUrls, urls);
+      return lane.collect(input, options);
+    } },
+  });
+  await service.processNext();
+  assert.equal(f.urls.length, 3);
+  assert.deepEqual(f.urls.map(url => url.searchParams.get('text')), ['branda.example', 'brandb.example', 'brandc.example']);
+  const step = fixture.db.prepare("SELECT result_sha256 sha FROM analysis_research_automation_steps WHERE run_id=? AND step_id='COLLECTION'").get(autoRunId) as { sha: string };
+  assert.equal(JSON.parse((await artifacts.read(step.sha)).toString()).searchAds.status, 'OK');
+  const activity = await service.readSourceActivity(workspaceId);
+  assert.equal(activity['search-ads-library'].dataCount, 1, 'activity counts stored steps, not brands');
+  assert.equal(activity['search-ads-library'].lastUsageAt, autorunNow().toISOString());
+  await service.recoverOnStart();
+  assert.equal(f.urls.length, 3, 'restart never repeats paid calls');
+});
+
+test('provider failures cannot persist key-bearing errors or response bytes', async t => {
+  for (const failure of ['ECHO', 'THROW'] as const) {
+    const run = await runToDraft(t, transport => createGoogleAdsSource(API_KEY, {
+      ...transport,
+      fetch: (async () => {
+        if (failure === 'THROW') throw new Error(`request failed: api_key=${API_KEY}`);
+        return new Response(JSON.stringify({ error: API_KEY }), { status: 403 });
+      }) as typeof fetch,
+    }));
+    assert.equal(run.document.searchAds?.status, 'NO_DATA');
+    assert.ok(run.document.searchAds?.brands.every(brand => brand.status === 'FAILED'));
+    assert.equal(run.html.includes(API_KEY), false);
+  }
+});
+
+test('S17 evidence requires its own capture and only adds sources for drawn Market rows', async () => {
+  const f = fake(() => ({}));
+  const collected = await createGoogleAdsSource(API_KEY, f.transport).collect(INPUT);
+  const searchAds = searchAdsDocument(collected, [0, 1, 2]);
+  const packet = buildSourceEvidence({ draft: null, draftDigest: null, unavailableReason: 'SALES_NAMES_UNAVAILABLE', webResults: [], captures: [] });
+  const input = { collection: { searchAds }, captures: collected.brands.map((brand, ordinal) => ({ stepId: 'COLLECTION', ordinal,
+    artifactSha256: String(ordinal + 1).repeat(64), mediaType: 'application/json', provider: 'serpapi', operation: 'serpapi.google_ads.transparency',
+    retrievedAt: brand.capture!.completedAt, window: null, truncated: false })) } as unknown as Parameters<typeof sourceEvidenceForReport>[1];
+  const market = sourceEvidenceForReport(packet, input, 'MARKET');
+  assert.deepEqual(market.sourceAppendix.rows.map(row => [row.registryId, row.reportName, row.tier]), Array(3).fill(['S17', SEARCH_ADS_SOURCE_LABEL, 'B']));
+  assert.deepEqual(sourceEvidenceForReport(market, input, 'MARKET'), market);
+  assert.deepEqual(sourceEvidenceForReport(packet, input, 'INSIGHT'), packet);
+  for (const captures of [[], input.captures!.map(c => ({ ...c, operation: 'serpapi.google.search' })), input.captures!.map(c => ({ ...c, truncated: true }))])
+    assert.throws(() => sourceEvidenceForReport(packet, { ...input, captures }, 'MARKET'), /Search ads capture lineage/);
+  const failed = { ...searchAds, status: 'NO_DATA' as const, brands: [] };
+  assert.deepEqual(sourceEvidenceForReport(packet, { collection: { searchAds: failed } } as unknown as Parameters<typeof sourceEvidenceForReport>[1], 'MARKET'), packet);
+});
+
+test('current reader template shows table 7.3 and the M13 source with clean empty values', async () => {
+  const f = fake(() => ({ body: { search_metadata: { status: 'Success' } } }));
+  const searchAds = searchAdsDocument(await createGoogleAdsSource(API_KEY, f.transport).collect({ ...INPUT,
+    brands: INPUT.brands.map(brand => ({ ...brand, label: `${brand.label} Nhất` })) }), [0, 1, 2]);
+  const input = sync1ReaderFixture('1.4.0');
+  input.peerRule = { ...DEFAULT_MARKET_PEER_RULE };
+  const report = await buildMarketReport(computeReaderReportData(input), { ...sync1Options, searchAds });
+  const baseline = await buildMarketReport(computeReaderReportData(input), sync1Options);
+  const doc = new JSDOM(report.html).window.document;
+  const table = [...doc.querySelectorAll('#phan-7 .ex')].find(node => node.querySelector('.exn')?.textContent === 'Bảng 7.3')!;
+  assert.ok(table);
+  assert.match(table.textContent!, /không có/u);
+  assert.doesNotMatch(table.textContent!, /\b0\b|%|Google|SerpApi/iu);
+  assert.ok(doc.querySelector('#phu-luc')!.textContent!.includes(SEARCH_ADS_SOURCE_LABEL));
+  assert.ok(lint(report.html, { visibleTextRules: true }).every(check => check.ok));
+  assert.deepEqual(providerNameViolations(report.html), []);
+  assert.deepEqual(auditMarket14(report.html).filter(check => !check.ok).map(check => check.rule),
+    auditMarket14(baseline.html).filter(check => !check.ok).map(check => check.rule), 'S17 introduces no fourteen-rule failures');
+});
+
 test('flag on, nothing readable: one plain sentence, no table', async t => {
   const f = fake(() => ({ status: 500, raw: '{}' }));
   const on = await runToDraft(t, () => createGoogleAdsSource(API_KEY, f.transport));
   assert.equal(on.document.searchAds?.status, 'NO_DATA');
   assert.equal(on.html.includes('Bảng 7.3'), false);
   assert.match(on.doc.querySelector('#M07')!.textContent!, /chưa lấy được số liệu/u);
+});
+
+test('original brand names containing comparative words remain quoted in rows and skip notices', async t => {
+  const run = await runToDraft(t, transport => {
+    const lane = createGoogleAdsSource(API_KEY, transport);
+    return { collect: (input, options) => lane.collect({ ...input, brands: [
+      { label: 'Thương hiệu Mẫu Nhất', key: BRANDS[0]!.key }, { label: 'Thương hiệu Mẫu Nhất Nhất', key: 'missingbrand' },
+    ] }, options) };
+  });
+  assert.match(run.doc.querySelector('#M07')!.textContent!, /Thương hiệu Mẫu Nhất Nhất: chưa tìm thấy/u);
+  assert.deepEqual(auditMarketReportHtml(run.html).filter(check => !check.ok), []);
 });

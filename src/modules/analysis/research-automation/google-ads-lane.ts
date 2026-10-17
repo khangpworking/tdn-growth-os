@@ -3,10 +3,11 @@
 // For the run's top brands, count the ads a brand's own website has in the public search-ads transparency library, shown in
 // M07 as table 7.3 beside the Meta table. At most 3 paid calls per run, spaced at least 2 seconds apart, never retried.
 // The brand's website comes only from the run's own web search rows; nothing is searched for. Advertiser names, advertiser
-// ids, images, links and ad ids are never stored: the library often lists an agency, so only counts, formats and dates are kept.
+// ids, images, links and ad ids stay out of the step document: the library often lists an agency, so it keeps only counts, formats and dates.
 import { boundedRequest, bytesContainSecret, CaptureLog, defaultProviderTransport, isRecord, parseJson, safeProviderCode, type ProviderTransport } from './provider-common.js';
 import type { ProviderCallOptions, ProviderRawCapture } from './providers.js';
 import type { StepSearchAds, StepSearchAdsBrand, StepSearchAdsBrandStatus, StepSearchAdsStatus } from './model.js';
+import { NEWS_DOMAINS, webTextHidden } from './web-page-type.js';
 
 export const GOOGLE_ADS_FLAG = 'TDN_RESEARCH_GOOGLE_ADS_ENABLED';
 /** Usage ordinal inside the collection step (9 Comtrade; 11 is taken by the official-statistics package). */
@@ -72,9 +73,9 @@ export function normalizedKey(value: string): string | null {
 }
 
 const CONTROL = /[\u0000-\u001f\u007f]/u;
-const FORBIDDEN_NAME = /\b(?:google|serpapi|kalodata|tradeint|dami|apify|metric|pageindex|gemini)\b/iu;
+const FORBIDDEN_NAME = /\bgemini\b/iu;
 /** Brand text may be printed; refuse control characters, percent signs and provider names. */
-export const brandLabelOk = (value: unknown): value is string => typeof value === 'string' && value.trim() === value && value.length >= 1 && value.length <= 120 && !CONTROL.test(value) && !value.includes('%') && !FORBIDDEN_NAME.test(value);
+export const brandLabelOk = (value: unknown): value is string => typeof value === 'string' && value.trim() === value && value.length >= 1 && value.length <= 120 && !CONTROL.test(value) && !value.includes('%') && !FORBIDDEN_NAME.test(value) && !webTextHidden(value);
 
 /** The top distinct brands of an auto-run pick record, by revenue (a missing revenue sorts last); empty when the record has no usable brand. */
 export function brandsFromPick(pick: unknown): SearchAdsBrandInput[] {
@@ -97,7 +98,7 @@ export function brandsFromPick(pick: unknown): SearchAdsBrandInput[] {
   return out;
 }
 
-const DENIED_NAMES = new Set(['shopee', 'lazada', 'tiki', 'tiktok', 'facebook', 'instagram', 'youtube', 'wikipedia']);
+const DENIED_NAMES = new Set(['shopee', 'lazada', 'tiki', 'sendo', 'tiktok', 'facebook', 'instagram', 'youtube', 'wikipedia', 'youtu', 'fb', 'threads', 'twitter', 'x']);
 export function hostOf(url: string): string | null {
   try {
     const host = new URL(url).hostname.toLowerCase().replace(/\.$/u, '').replace(/^www\./u, '');
@@ -107,6 +108,7 @@ export function hostOf(url: string): string | null {
 export function hostDenied(host: string, extra: readonly string[] = []): boolean {
   if (host.endsWith('.gov.vn') || host.endsWith('.edu.vn')) return true;
   if (host.split('.').some(label => DENIED_NAMES.has(label))) return true;
+  if (webTextHidden(host) || FORBIDDEN_NAME.test(host) || NEWS_DOMAINS.some(value => host === value || host.endsWith(`.${value}`))) return true;
   return extra.some(value => { const other = value.toLowerCase().replace(/^www\./u, ''); return other.length > 0 && (host === other || host.endsWith(`.${other}`)); });
 }
 
@@ -268,13 +270,13 @@ export const searchAdsOkBrands = (value: StepSearchAds | null | undefined): Step
 /** The one predicate shared by the renderers and the evidence packet: S17 is used only when at least one brand row is drawn. */
 export const searchAdsRenderable = (value: StepSearchAds | null | undefined): value is StepSearchAds => searchAdsOkBrands(value).length > 0;
 
-/** One plain sentence per brand whose figures are not drawn, and one for a run without any: no digits, no percent sign. */
+/** Status wording only; renderers quote the original brand label separately. */
 export function searchAdsBrandNotice(brand: StepSearchAdsBrand): string {
   switch (brand.status) {
-    case 'SKIPPED_NO_DOMAIN': return `${brand.label}: chưa tìm thấy trang web của thương hiệu trong kết quả tìm kiếm của lần chạy này.`;
-    case 'SKIPPED_AMBIGUOUS_DOMAIN': return `${brand.label}: có nhiều trang web có thể là của thương hiệu, không chọn được trang nào nên bỏ qua.`;
-    case 'CANCELLED': return `${brand.label}: lượt tra bị dừng nên chưa có số liệu.`;
-    default: return `${brand.label}: lần này chưa lấy được số liệu từ thư viện quảng cáo công khai.`;
+    case 'SKIPPED_NO_DOMAIN': return 'chưa tìm thấy trang web của thương hiệu trong kết quả tìm kiếm của lần chạy này.';
+    case 'SKIPPED_AMBIGUOUS_DOMAIN': return 'có nhiều trang web có thể là của thương hiệu, không chọn được trang nào nên bỏ qua.';
+    case 'CANCELLED': return 'lượt tra bị dừng nên chưa có số liệu.';
+    default: return 'lần này chưa lấy được số liệu từ thư viện quảng cáo công khai.';
   }
 }
 export function searchAdsNotice(value: StepSearchAds): string {

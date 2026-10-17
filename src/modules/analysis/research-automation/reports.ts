@@ -70,7 +70,7 @@ import { marketChartRows, type CaptureCountChart, type MarketChart } from '../re
 import type { RenderedChart } from '../reader-report/flint.js';
 import { pdfExcerptBlockHtml, PDF_EXCERPT_NOTE, PDF_EXCERPT_SECTION, PDF_EXCERPT_SRC } from './pdf-excerpt.js';
 import { sellerVideoBlockHtml, sellerVideoNote, sellerVideoSrc, SELLER_VIDEO_SECTION } from './seller-video.js';
-import { searchAdsBrandNotice, searchAdsNotice, searchAdsOkBrands, SEARCH_ADS_NOTE, SEARCH_ADS_SOURCE_LABEL, SEARCH_ADS_TABLE_TITLE } from './google-ads-lane.js';
+import { searchAdsBrandNotice, searchAdsNotice, searchAdsOkBrands, SEARCH_ADS_NOTE, SEARCH_ADS_SOURCE_LABEL, SEARCH_ADS_SOURCE_NOTE, SEARCH_ADS_TABLE_TITLE } from './google-ads-lane.js';
 import { comtradeFlowText, comtradeNotice, comtradeOfficialText, comtradeRenderable, comtradeRenderableRows, comtradeRowNote, comtradeSideText, COMTRADE_NOTE, COMTRADE_SOURCE_LABEL, COMTRADE_SRC, COMTRADE_TABLE_TITLE } from './comtrade-lane.js';
 import { formatWorldBankValue, worldBankRenderable, worldBankRenderableRows, worldBankSourceNote, worldBankUnitText, WORLD_BANK_LIMIT, WORLD_BANK_NOTE, WORLD_BANK_SOURCE_LABEL, WORLD_BANK_SRC, WORLD_BANK_TITLE } from './world-bank-lane.js';
 import { E13_ATTRIBUTION } from '../source-appendix-projection.js';
@@ -206,7 +206,9 @@ export function marketSourceRows(input: AutomationReportInput, webResultCount: n
     ? [[WORLD_BANK_SOURCE_LABEL, 'Đã dùng trong lượt này: số liệu cả nước, chỉ là bối cảnh.']] : [];
   const trade: readonly (readonly [string, string])[] = comtradeRenderable(input.collection?.comtrade)
     ? [[COMTRADE_SOURCE_LABEL, 'Đã dùng trong lượt này: số liệu cả nước, chỉ là bối cảnh.']] : [];
-  return [['Dữ liệu bán hàng', sales], ['Dữ liệu đánh giá sản phẩm trên nền tảng', native], ['Kết quả tìm kiếm', web], ['Bình luận đã thu thập', comments], ...interest, ...macro, ...trade];
+  const searchAds: readonly (readonly [string, string])[] = searchAdsOkBrands(input.collection?.searchAds).length
+    ? [[SEARCH_ADS_SOURCE_LABEL, SEARCH_ADS_SOURCE_NOTE]] : [];
+  return [['Dữ liệu bán hàng', sales], ['Dữ liệu đánh giá sản phẩm trên nền tảng', native], ['Kết quả tìm kiếm', web], ['Bình luận đã thu thập', comments], ...interest, ...macro, ...trade, ...searchAds];
 }
 interface CatalogSection { sectionId: string; title: string; methodId: string; methodVersion: string; requiredInputs: string[] }
 export interface MethodOutputRef { methodOutputId: string; locatedRecordCount: number; unresolvedPointers: readonly string[]; blockers: readonly string[] }
@@ -222,9 +224,9 @@ const STORED_ISO_DATE = /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(
 const storedDate = (value: string | null): string | null =>
   value !== null && STORED_ISO_DATE.test(value) && !Number.isNaN(Date.parse(value)) ? value : null;
 /** One number per stored capture: provider, operation and step stay in the technical trace only. */
-function captureMark(capture: CaptureRecord, citations: ReportCitations): string {
+function captureMark(capture: CaptureRecord, citations: ReportCitations, label = 'Bản thu dữ liệu nguồn'): string {
   return citations.mark({ sourceKind: 'CAPTURE', identity: capture.artifactSha256.trim() === '' ? null : capture.artifactSha256, locator: null,
-    label: 'Bản thu dữ liệu nguồn', retrievedAt: storedDate(capture.retrievedAt), url: null, quote: null, quoteVerification: 'NOT_APPLICABLE',
+    label, retrievedAt: storedDate(capture.retrievedAt), url: null, quote: null, quoteVerification: 'NOT_APPLICABLE',
     technical: { provider: capture.provider, operation: capture.operation, step: capture.stepId } });
 }
 /** Only a canonical https URL can be linked; anything else keeps no lineage and shows "Chưa có nguồn". */
@@ -1018,7 +1020,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     const stored = kind === 'MARKET' && sectionId === 'M07' ? input.collection?.searchAds : undefined;
     if (!stored) return '';
     const okBrands = searchAdsOkBrands(stored);
-    const notices = (brands: typeof stored.brands) => brands.map(brand => `<p>${escape(searchAdsBrandNotice(brand))}</p>`).join('');
+    const notices = (brands: typeof stored.brands) => brands.map(brand => `<p><span data-quote>${escape(brand.label)}</span>: ${escape(searchAdsBrandNotice(brand))}</p>`).join('');
     if (okBrands.length === 0) return `<p>${escape(searchAdsNotice(stored))}</p>` + notices(stored.brands);
     const num = (v: number | null): string => v === null || v === 0 ? 'không có' : String(v);
     const day = (v: string | null): string => v === null ? 'không có' : v.split('-').reverse().join('/');
@@ -1027,7 +1029,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
       okBrands.map(brand => {
         const capture = input.captures.find(entry => entry.stepId === 'COLLECTION' && entry.ordinal === brand.captureIndex);
         const f = brand.formats!;
-        return `<tr><td>${escape(brand.label)}</td><td>${escape(brand.domain!)}</td><td>${escape(num(brand.creativeCount))}${capture ? captureMark(capture, citations) : ''}</td><td>${escape(`${num(f.text)} / ${num(f.image)} / ${num(f.video)}`)}</td><td>${escape(`${day(brand.firstShown)} – ${day(brand.lastShown)}`)}</td><td>${escape(num(brand.maxDaysShown))}</td></tr>`;
+        return `<tr><td data-quote>${escape(brand.label)}</td><td>${escape(brand.domain!)}</td><td>${escape(num(brand.creativeCount))}${capture ? captureMark(capture, citations, SEARCH_ADS_SOURCE_LABEL) : ''}</td><td>${escape(`${num(f.text)} / ${num(f.image)} / ${num(f.video)}`)}</td><td>${escape(`${day(brand.firstShown)} – ${day(brand.lastShown)}`)}</td><td>${escape(num(brand.maxDaysShown))}</td></tr>`;
       }).join('') + `</tbody></table><p class="lim"><b>Chú thích:</b> ${escape(SEARCH_ADS_NOTE)}</p><p class="ex-src">Nguồn: ${escape(SEARCH_ADS_SOURCE_LABEL)}</p></div>` +
       notices(stored.brands.filter(brand => brand.status !== 'OK'));
   };
@@ -1048,6 +1050,8 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     (insightCoding && (sectionId === 'I03' || sectionId === 'I17') ? insightCodingTrace(insightCoding, sectionId) : '') +
     (insightCrosscheck && sectionId === 'I17' ? insightCrosscheckAppendix(insightCrosscheck) : '') +
     (marketPresentation && sectionId === 'M13' ? market14Appendix : '') +
+    (kind === 'MARKET' && sectionId === 'M13' && !marketPresentation && searchAdsOkBrands(input.collection?.searchAds).length
+      ? `<p>Nguồn: ${escape(SEARCH_ADS_SOURCE_LABEL)}. ${escape(SEARCH_ADS_SOURCE_NOTE)}</p>` : '') +
     (input.boundedMethods && (sectionId === 'M13' || sectionId === 'I17')
       ? `<details open id="bounded-method-evidence"><summary>Hồ sơ phương pháp M10/I11/I12/I16 và vị trí nguồn</summary><p>Nguồn bổ sung do người dùng chọn, không phải dữ liệu tự thu hoặc xác nhận độ phủ. Hồ sơ giữ riêng kỳ, phạm vi và điều kiện còn thiếu; không cộng gộp với số liệu thị trường hoặc review.</p>${retainedEvidenceHtml(input.boundedMethods)}</details>` : '');
   const baseAppendix = (sectionId: string): string => {

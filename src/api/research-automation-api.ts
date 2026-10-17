@@ -1238,7 +1238,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
   }
   async function sourceStatusProjection(workspaceId: string) {
     const result = buildResearchAutomationSourceStatus({ workspaceId, checkedAt: new Date().toISOString(),
-      executorEnabled: Boolean(writeService), providers: configuration.providers, wired: SOURCES_WIRED_INTO_RUNS,
+      executorEnabled: Boolean(writeService), providers: configuration.providers, wired: { ...SOURCES_WIRED_INTO_RUNS, searchAds: configuration.searchAds === true },
       tikTokCommentsConfigured: Boolean(configuration.tikTokCommentsCollector),
       activity: await readService.readSourceActivity(workspaceId), pageindex: (writeService ?? readService).pageIndexStatusSummary() });
     if (!validates.sourceStatus(result)) throw new Error('Source status projection failed validation');

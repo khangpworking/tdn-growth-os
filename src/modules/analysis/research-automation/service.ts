@@ -2078,6 +2078,10 @@ export class ResearchAutomationService {
     const usage = this.#db.prepare(`SELECT u.provider provider,MAX(u.recorded_at) lastAt FROM analysis_research_automation_usage u
       JOIN analysis_research_automation_runs r ON r.run_id=u.run_id WHERE r.workspace_id=? AND u.provider IN ('kalodata','serpapi','apify-shopee') GROUP BY u.provider`).all(workspaceId) as Array<{ provider: 'kalodata' | 'serpapi' | 'apify-shopee'; lastAt: string }>;
     for (const row of usage) activity[row.provider].lastUsageAt = row.lastAt;
+    const searchAdsUsageAt = this.#db.prepare(`SELECT MAX(u.recorded_at) lastAt FROM analysis_research_automation_usage u
+      JOIN analysis_research_automation_runs r ON r.run_id=u.run_id
+      WHERE r.workspace_id=? AND u.step_id='COLLECTION' AND u.ordinal=? AND u.provider='serpapi' AND u.request_count>0`).get(workspaceId, GOOGLE_ADS_USAGE_ORDINAL) as { lastAt: string | null };
+    activity['search-ads-library'].lastUsageAt = searchAdsUsageAt.lastAt;
     // Metric workbooks are owner uploads stored as finalized attachment packages keyed `automation-upload:<runId>-…`.
     const metric = this.#db.prepare(`SELECT MAX(p.finalized_at) lastAt,COUNT(*) total FROM foundation_source_packages p
       JOIN foundation_source_attachment_origins o ON o.package_id=p.package_id
