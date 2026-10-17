@@ -57,7 +57,7 @@ E14 của file Ultimate nói về "nguồn đang dùng hoặc đã duyệt". Ở
 | S22 | Cục Thống kê theo tỉnh | Đã duyệt | 17/10/2026 | Chủ duyệt 12/10; máy tự đọc bảng chỉ số giá theo tỉnh trong cùng file CPI của S21, sau cờ TDN_RESEARCH_OFFICIAL_STATS_PROVINCE_ENABLED (mặc định tắt, cần bật cả cờ S21); khi bật cờ, file CPI được tải ở mọi lượt Market (tổng vẫn tối đa 3 lần gọi, không thử lại); Bảng 5.4 không đổi; M05 Bảng 5.5 chỉ là bối cảnh theo tỉnh |
 | S23 | Ngân hàng Thế giới (dữ liệu mở) | Đã duyệt | 17/10/2026 | Duyệt theo E13; bộ thu đã vào hệ thống, chạy sau cờ TDN_RESEARCH_WORLD_BANK_ENABLED (mặc định tắt); bối cảnh cả nước |
 | S24 | Cơ sở dữ liệu thương mại của Liên Hợp Quốc | Đã duyệt | 17/10/2026 | Chủ duyệt; bộ thu đã vào hệ thống, chạy sau cờ TDN_RESEARCH_COMTRADE_ENABLED (mặc định tắt); M06 là bối cảnh cả nước |
-| S25 | Báo cáo ngành, báo cáo thường niên doanh nghiệp | Đã duyệt | 08/10/2026 | Đang dùng ở M09 |
+| S25 | Báo cáo ngành, báo cáo thường niên doanh nghiệp | Đã duyệt | 17/10/2026 | Đang dùng ở M09; tự tìm và tải tối đa 2 tệp PDF mỗi lượt sau cờ TDN_RESEARCH_PDF_DISCOVERY_ENABLED (mặc định tắt) |
 | S26 | Báo chí, tin an toàn thực phẩm | Đề xuất | 08/10/2026 | Tìm qua S19 |
 | S27 | Bản quét review của bên thứ ba | Không thu | 08/10/2026 | Thiếu số sao và người viết; đã thay bằng S05 |
 
@@ -71,6 +71,7 @@ Dòng trước 12/10/2026 ghi lại từ danh mục nguồn, nhật ký test và
 
 | Ngày | Mã nguồn | Nhãn cũ → nhãn mới | Lý do | Ai quyết |
 |---|---|---|---|---|
+| 17/10/2026 | S25 | Đã duyệt → Đã duyệt | Thêm bộ máy tự tìm báo cáo ngành dạng PDF cho báo cáo Market (M09): lấy liên kết PDF trong kết quả tìm của lượt, thêm tối đa 1 lần tìm, tải tối đa 2 tệp qua lớp chặn địa chỉ nội bộ; sau cờ TDN_RESEARCH_PDF_DISCOVERY_ENABLED, mặc định tắt; tệp chủ gửi vẫn dùng được; nhãn không đổi | Chủ (duyệt 17/10) |
 | 17/10/2026 | S22 | Đã duyệt → Đã duyệt | Thêm bộ máy tự đọc bảng chỉ số giá theo tỉnh cho báo cáo Market (Bảng 5.5), từ file CPI của S21, sau cờ TDN_RESEARCH_OFFICIAL_STATS_PROVINCE_ENABLED, mặc định tắt; khi bật cờ, file CPI được tải ở mọi lượt Market (tối đa 3 lần gọi), Bảng 5.4 không đổi; nhãn không đổi | Chủ (duyệt 12/10, 17/10) |
 | 17/10/2026 | S24 | Đề xuất → Đã duyệt | Sửa dòng cũ: chủ đã duyệt và bộ thu đã vào hệ thống, chạy sau cờ TDN_RESEARCH_COMTRADE_ENABLED, mặc định tắt | Chủ |
 | 17/10/2026 | S23 | Đã duyệt → Đã duyệt | Sửa ghi chú cũ "chưa thu cho báo cáo": bộ thu đã vào hệ thống, chạy sau cờ TDN_RESEARCH_WORLD_BANK_ENABLED, mặc định tắt; nhãn không đổi | Chủ (duyệt 08/10) |
@@ -106,3 +107,15 @@ Dòng trước 12/10/2026 ghi lại từ danh mục nguồn, nhật ký test và
 - Nhãn mới của một nguồn phải là một trong 5 nhãn ở mục 1. Nhãn **Không thu** luôn có lý do ở cột ghi chú.
 - Ghi chú ngắn, tối đa một dòng. Không ghi tên nhà cung cấp dữ liệu, khoá, đường dẫn máy hay tên tài khoản.
 - Nhật ký chỉ ghi thay đổi có căn cứ: mã ST, mã BR/DS, PR hoặc lời chủ. Không sửa dòng cũ; muốn đính chính thì thêm dòng mới.
+
+### S25 implementation review (PR #282, 17/10/2026)
+
+Automatic collection is limited to Market runs and stays off by default. The extra
+search uses ordinal 14 (at most one request); ordinal 15 counts at most two file
+download attempts, with at most three checked redirects per file and no retries.
+Every HTTPS socket is pinned to a checked DNS answer. Optional captures are
+skipped with `BRIDGE_BUDGET_LIMIT` before reader retention if they exceed the
+market-method bridge's existing capture budget. Owner uploads keep their current
+storage, question cap and package lineage. Discovery-only receipts are technical
+records: no kept/quoted PDF means no visible S25 block or provenance addition.
+The first live canary remains pending; this review uses synthetic fixtures only.

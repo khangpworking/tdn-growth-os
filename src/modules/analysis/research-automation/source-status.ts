@@ -135,7 +135,7 @@ export interface SourceStatusInput {
   readonly executorEnabled: boolean;
   readonly providers: ResearchAutomationProviderConfig | undefined;
   /** Sources the executor actually calls during a run. Web search is configured separately from run wiring. */
-  readonly wired: { readonly kalodata: boolean; readonly serpapi: boolean; readonly apifyShopee: boolean; readonly searchAds?: boolean; readonly metaAuto?: boolean; readonly tiktokTopAds?: boolean };
+  readonly wired: { readonly kalodata: boolean; readonly serpapi: boolean; readonly apifyShopee: boolean; readonly searchAds?: boolean; readonly metaAuto?: boolean; readonly tiktokTopAds?: boolean; readonly pdfDiscovery?: boolean };
   readonly activity: Record<ResearchAutomationSourceActivityKey, ResearchAutomationSourceActivity> & { readonly serpapiOperations: readonly ResearchAutomationSerpApiOperation[] };
   /** Absent until the API route passes live connector state; the card then shows the not-connected copy. */
   readonly pageindex?: PageIndexStatusSummary;

@@ -77,3 +77,33 @@ Reviewed `d85c97f03ed49926ddbb9be4857d4a59d8055c17` on `rv280c`, including the w
 - Only this handoff changed in the head review: corrected committed-change status and earlier totals, and recorded current evidence. No machine paths, browser launch, external request, provider/config change, push, merge or deployment. Every test command unset the four browser environment variables required by the review brief.
 
 Unresolved application/test defects: none. Follow-ups remain an unrestricted loopback HTTP run and the separately authorized first canary. The handoff correction is uncommitted.
+
+## Final confirmation after merging main — 2026-10-17
+
+Worktree/branch: assigned review worktree, `rv280d`. Reviewed actual HEAD `dd388b6c6000a255dd7ca454614070edb0c03040` using `git diff 312fb10f...HEAD`; detached baseline created with `git worktree add ../base 312fb10f`. The preceding handoff correction is already committed in `acdd78b9`, included in this merge head.
+
+Completed:
+
+- No application defect found. Both renderers retain Bảng 5.3, World Bank Hình 5.3/5.4, Bảng 5.4, Bảng 5.5, then Comtrade Bảng 6.2 and Hình 6.1/6.2 in that order.
+- Added the missing small combined regression with synthetic World Bank series, Comtrade rows and province rows present together. It checks the exhibit order, numbering lint, limitation sentences, province appendix wording and explicit Flint rule 11 in both renderers, plus the presentation business gate and machine-rule regressions.
+- Rechecked the request cap, flag gating, pinned parsing, old documents, unchanged national rows, S22 capture lineage and owner text rules. S22/S23/S24 source-status rows and the canary instructions remain accurate.
+- Fresh flag-off replay against `312fb10f` confirmed identical request sequences, exact stored collection artifact bytes and both report HTML streams for monthly-only and CPI-fallback paths. Requests remain two and three respectively. No earlier replay artifacts were used as evidence for this comparison.
+
+Changed paths (uncommitted in this review):
+
+- `tests/unit/macro-charts-report.test.ts`
+- `docs/handoffs/NEXT-S22.md`
+
+Evidence:
+
+- Node 24.15.0 first on PATH; `npm run typecheck` passed before and after the test edit; `git diff --check` passed.
+- Across 27 browser-free files: **236 tests, 227 passed, 8 failed, 1 skipped**. Official-statistics lane **43/43**, World Bank lane **20/20**, Comtrade lane **18/18**, macro-chart units/report **13/13**. Template/build/golden, Market presentation and gates, fourteen rules, reader revisions, source evidence/appendix, World Bank intake/contracts and frontend source-status checks were included.
+- All eight failures are loopback `listen EPERM`: four World Bank HTTP cases, three source-status HTTP cases and one reader HTTP case. All three affected files were rerun against `312fb10f`; every failing test name and error matched. The baseline S21 lane also passed **33/33**. The single skip requires the optional retained golden-data directory.
+- The initial Python stdin pipe timeout reproduced on the unmodified baseline reader test. Final runs used `--test-isolation=none` and the inspected temporary stdin-file-descriptor preload, outside Git. Real Python reader execution, outputs, exit status and assertions were preserved; all Python tests ran. Local frontend validator generation supplied the existing prerequisite on both revisions without changing tracked generated declarations.
+- Every test command unset `TDN_CHROMIUM_PATH`, `TDN_RESEARCH_PDF_CHROMIUM`, `TDN_REQUIRE_BROWSER` and `TDN_BROWSER_EXECUTABLE`; selected test files and helpers were checked for browser imports/launches before execution. No browser, external network/provider request, push, merge, rebase, commit, deployment or configuration change was performed in this review.
+
+Unresolved: no confirmed application or test defect; the eight loopback checks remain constrained by the sandbox.
+
+Next action: review the uncommitted combined regression and handoff; rerun the loopback HTTP checks in an unrestricted environment. The first live canary still requires its separate authorization.
+
+Business decisions pending: none for this review.

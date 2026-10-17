@@ -68,6 +68,8 @@ export interface ExpandedSearchRequest {
   readonly siteDomain: string | null;
   /** Report-keyword mode: the only query is this exact keyword (plain words, validated like a confirmed name); templates are not used. */
   readonly exactKeyword?: string;
+  /** Report-PDF mode (S25): appends the fixed words `báo cáo filetype:pdf` to the exact keyword. Requires `exactKeyword`. */
+  readonly fileType?: 'pdf';
 }
 
 export interface ExpandedSearchQuery {
@@ -108,10 +110,12 @@ export function planExpandedSearch(request: ExpandedSearchRequest): readonly Exp
   const queries = request.exactKeyword === undefined ? buildExpandedQueries({ confirmedProducts, confirmedBrands })
     : confirmedWords([request.exactKeyword]).slice(0, 1);
   if (request.exactKeyword !== undefined && queries.length !== 1) throw new ProviderInputError('Exact keyword must contain plain words');
+  if (request.fileType !== undefined && (request.fileType !== 'pdf' || request.exactKeyword === undefined)) throw new ProviderInputError('File type search needs the exact keyword');
+  const withFileType = (q: string): string => request.fileType === 'pdf' ? `${q} báo cáo filetype:pdf` : q;
   return queries.map(query => ({
     query, requestedWindow, siteDomain,
     parameters: {
-      engine: 'google', q: siteDomain ? `${query} site:${siteDomain}` : query, gl: 'vn', hl: 'vi', num: 10,
+      engine: 'google', q: withFileType(siteDomain ? `${query} site:${siteDomain}` : query), gl: 'vn', hl: 'vi', num: 10,
       ...(requestedWindow ? { tbs: `cdr:1,cd_min:${googleDate(requestedWindow.startDate)},cd_max:${googleDate(requestedWindow.endDate)}` } : {}),
     },
   }));
