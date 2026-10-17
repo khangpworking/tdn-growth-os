@@ -1,5 +1,6 @@
 import { MAX_COVER_JPEG_BYTES } from './cover-image-codec.js';
 import { auditMarketReportHtml } from './market-business-gate.js';
+import { isMacroChartId } from '../reader-report/macro-charts.js';
 
 const AI_COVER_PREFIX = 'data:image/jpeg;base64,';
 const MAX_AI_COVER_BASE64 = Math.ceil(MAX_COVER_JPEG_BYTES / 3) * 4;
@@ -227,6 +228,7 @@ function coverBlock(html: string): { open: string; block: string } {
 
 /**
  * Audit the owner’s fourteen Market-report rules without fetching or parsing source data.
+ * Country-background figures may retain their registered SVG fallback after a Flint failure.
  * `requireFlint: false` mirrors the builder's explicit test opt-out: charts may be the
  * hand-drawn SVG, but each still needs an engine marker, drawn content and the count of three.
  */
@@ -260,14 +262,16 @@ export function auditMarket14(html: string, trace?: string, options: { requireFl
   const chartIssues = charts.flatMap(({ tag, body }) => {
     const engine = tag.match(/data-engine=["']([^"']*)["']/iu)?.[1];
     if (engine === undefined) return ['chart missing engine marker'];
-    if (engine !== 'flint' && (requireFlint || engine !== 'svg-fallback')) return [`chart drawn by ${engine || 'an unnamed engine'}, not Flint`];
+    const macroFallback = engine === 'svg-fallback' && isMacroChartId(attribute(tag, 'data-chart-id') ?? '');
+    if (engine !== 'flint' && !macroFallback && (requireFlint || engine !== 'svg-fallback')) return [`chart drawn by ${engine || 'an unnamed engine'}, not Flint`];
     return hasChartContent(tag, body) ? [] : ['chart has an engine marker but no drawn data or payload'];
   });
   // A Market report whose sample has product rows must carry the three required charts.
   const chartRowsMarker = html.match(/data-market-chart-rows=["'](\d+)["']/iu)?.[1];
   const chartRows = chartRowsMarker !== undefined ? Number(chartRowsMarker)
     : Math.max(0, ...[...text.matchAll(/\bn\s*=\s*(\d+)/gu)].map(match => Number(match[1])));
-  if (chartRows > 0 && charts.length < 3) chartIssues.push(`only ${charts.length} of 3 required charts (concentration, revenue by platform, product ranking)`);
+  const sampleCharts = charts.filter(({ tag }) => !isMacroChartId(attribute(tag, 'data-chart-id') ?? ''));
+  if (chartRows > 0 && sampleCharts.length < 3) chartIssues.push(`only ${sampleCharts.length} of 3 required charts (concentration, revenue by platform, product ranking)`);
   const iconCounts = { shopee: (text.match(/\bShopee\b/gu) ?? []).length, tiktok: (text.match(/\bTikTok\s+Shop\b/gu) ?? []).length };
   const icons = { shopee: (html.match(/<i\b[^>]*class=["'][^"']*\bpi\s+s\b[^"']*["'][^>]*>/giu) ?? []).length,
     tiktok: (html.match(/<i\b[^>]*class=["'][^"']*\bpi\s+t\b[^"']*["'][^>]*>/giu) ?? []).length };

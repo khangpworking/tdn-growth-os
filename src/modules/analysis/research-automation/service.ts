@@ -29,6 +29,7 @@ import readerApiSchema from '../../../../contracts/api/research-automation-reade
 import type { ResearchAutomationInsightReaderBuildRequest } from '../../../../contracts/api/research-automation-reader-report-api.generated.js';
 import { readerRowsFromMetricWorkbook } from '../reader-report/metric-rows.js';
 import { renderCaptureCountCharts, renderMarketCharts, renderSearchInterestChart, type CaptureCountChart, type MarketChart } from '../reader-report/market-charts.js';
+import { comtradeChartCount, renderComtradeCharts, renderWorldBankCharts, worldBankChartCount, type MacroChart } from '../reader-report/macro-charts.js';
 import type { RenderedChart } from '../reader-report/flint.js';
 import { captureSampleCounts, marketChartSource } from './market-presentation-report.js';
 import { ReaderUnitSpecIntakes } from './reader-unit-spec-intake.js';
@@ -100,7 +101,7 @@ import { readSellerVideoInputs, selectSellerVideos, storedSellerVideos, type Aut
 import { OFFICIAL_STATS_PROVIDER, OFFICIAL_STATS_USAGE_ORDINAL, officialStatsDocument, officialStatsFailed, officialStatsUsage, validOfficialStats, type OfficialStatsCollection, type OfficialStatsSource } from './official-statistics-lane.js';
 import { COMTRADE_PROFILE, COMTRADE_PROVIDER, COMTRADE_USAGE_ORDINAL, comtradeDocument, comtradeFailed, comtradeRenderable, comtradeUsage, type ComtradeCollection, type ComtradeSource } from './comtrade-lane.js';
 import { brandsFromPick, GOOGLE_ADS_PROFILE, GOOGLE_ADS_USAGE_ORDINAL, searchAdsDocument, searchAdsFailed, searchAdsUsage, type SearchAdsCollection, type SearchAdsSource } from './google-ads-lane.js';
-import { worldBankDocument, worldBankFailed, worldBankRenderable, worldBankUsage, WORLD_BANK_PROVIDER, WORLD_BANK_USAGE_ORDINAL, type WorldBankAttempt, type WorldBankSource } from './world-bank-lane.js';
+import { WORLD_BANK_SERIES_YEARS, worldBankDocument, worldBankFailed, worldBankRenderable, worldBankUsage, WORLD_BANK_PROVIDER, WORLD_BANK_USAGE_ORDINAL, type WorldBankAttempt, type WorldBankSource } from './world-bank-lane.js';
 import { publishAutomatedVideoReading, verifyAutomatedVideoReading, videoWatchCandidates, videoWatchDocument, videoWatchFailed, videoWatchReadingRefs, videoWatchUsage, VIDEO_WATCH_MAX_VIDEOS, VIDEO_WATCH_PROFILE, VIDEO_WATCH_USAGE_ORDINAL, type VideoWatchAttempt, type VideoWatchLane, type VideoWatchPlan } from './video-watch-lane.js';
 import { VIDEO_WATCH_PROVIDER } from './video-watch-gemini.js';
 import { META_AUTO_PROVIDER, META_AUTO_USAGE_ORDINAL, metaBrandsFromPick, metaAutoDocument, metaAutoFailed, metaAutoHasEvidence, metaAutoReportView, metaAutoUsage, publishMetaAutoEvidence, validMetaAuto, verifyMetaAutoEvidence, type MetaAutoCollection, type MetaAutoReportView, type MetaAutoSource } from './meta-auto-lane.js';
@@ -268,6 +269,9 @@ export interface ResearchAutomationReportInput {
   readonly marketCaptureCharts?: readonly CaptureCountChart[];
   /** Flint line of the stored search-interest series; filled by the service only when that series is rendered. */
   readonly searchInterestChart?: RenderedChart;
+  /** Flint yearly lines of the stored World Bank series and bars of the stored UN Comtrade rows; filled by the service only when one is drawn. */
+  readonly worldBankCharts?: readonly MacroChart[];
+  readonly comtradeCharts?: readonly MacroChart[];
   /** Verified document excerpts drawn in the Market report (S25); selected from the run's stored quotes, never requested again. */
   readonly pdfExcerpts?: readonly PdfExcerpt[];
   /** Owner/operator video uploads drawn in the Market report (S02/S14); decided at the first build, then re-read from the pinned packages. */
@@ -3757,6 +3761,10 @@ export class ResearchAutomationService {
           }
           const interest = kind === 'MARKET' ? input.collection?.searchInterest : undefined;
           if (searchInterestRenderable(interest)) input = { ...input, searchInterestChart: await renderSearchInterestChart(searchInterestChartPoints(interest)) };
+          // Country-level figures (S23 yearly lines, S24 bars per reporting side), drawn only from stored rows that the tables also show.
+          const worldBank = kind === 'MARKET' ? input.collection?.worldBank : undefined, comtrade = kind === 'MARKET' ? input.collection?.comtrade : undefined;
+          if (worldBankChartCount(worldBank) > 0) input = { ...input, worldBankCharts: await renderWorldBankCharts(worldBank) };
+          if (comtradeChartCount(comtrade) > 0) input = { ...input, comtradeCharts: await renderComtradeCharts(comtrade) };
           const authoritative = input.qualitativeDraft || input.marketPresentation || input.insightPersona || privateDefault || (kind === 'INSIGHT' && start.reviewCollectionPolicy) ? buildResearchAutomationReport(input, kind) : undefined;
           const rendered: ResearchAutomationRenderedReport = this.#renderer ? await this.#renderer(authoritative ? structuredClone(input) : input, kind, controller.signal) : authoritative ?? defaultRenderedReport(input, kind);
           controller.signal.throwIfAborted();
@@ -5437,7 +5445,8 @@ function validSearchInterest(value: unknown): boolean {
     (point.index === null || (Number.isInteger(point.index) && point.index >= 0 && point.index <= 100)));
 }
 
-function validWorldBank(value: unknown): boolean {
+/** Stored-document check of the S23 field; exported for tests only. */
+export function validWorldBank(value: unknown): boolean {
   if (!isRecord(value) || Object.keys(value).sort().join() !== 'indicators,profile' || value.profile !== WORLD_BANK_PROFILE || !Array.isArray(value.indicators) ||
       value.indicators.length < 1 || value.indicators.length > WORLD_BANK_INDICATORS.length) return false;
   const codes = new Set<string>(), hex = /^[a-f0-9]{64}$/, text = (v: unknown, max: number): boolean => typeof v === 'string' && v.length <= max && !CONTROL.test(v);
@@ -5446,15 +5455,25 @@ function validWorldBank(value: unknown): boolean {
     if (!isRecord(item) || !(WORLD_BANK_INDICATORS as readonly unknown[]).includes(item.code) || codes.has(item.code)) return false;
     codes.add(item.code);
     if (item.status === 'FAILED') return typeof item.reason === 'string' && /^[A-Z0-9_]{3,64}$/.test(item.reason) && item.row === null && item.retrievedAt === null &&
-      item.captureIndex === null && item.metadataCaptureIndex === null && item.sourceSha256 === null && item.metadataSha256 === null;
+      item.captureIndex === null && item.metadataCaptureIndex === null && item.sourceSha256 === null && item.metadataSha256 === null && !('series' in item);
     const row = item.row;
     return item.status === 'COLLECTED' && item.reason === null && typeof item.retrievedAt === 'string' && Number.isFinite(Date.parse(item.retrievedAt)) &&
+      (!('series' in item) || validWorldBankSeries(item.series, row)) &&
       index(item.captureIndex) && index(item.metadataCaptureIndex) && item.captureIndex !== item.metadataCaptureIndex &&
       hex.test(String(item.sourceSha256)) && hex.test(String(item.metadataSha256)) && isRecord(row) &&
       text(row.indicatorName, 300) && typeof row.value === 'string' && /^-?\d{1,60}(\.\d{1,60})?$/.test(row.value) && (row.unit === null || text(row.unit, 300)) &&
       typeof row.year === 'string' && /^\d{4}$/.test(row.year) && text(row.lastUpdated, 40) && text(row.statusLiteral, 300) &&
       (row.footnote === null || text(row.footnote, 1000)) && text(row.locator, 64);
   });
+}
+/** Optional yearly window (absent on documents stored before it existed): 1-10 consecutive ascending years ending at the row's year and value. */
+function validWorldBankSeries(series: unknown, row: unknown): boolean {
+  if (!Array.isArray(series) || series.length < 1 || series.length > WORLD_BANK_SERIES_YEARS || !isRecord(row)) return false;
+  const ok = series.every((point, i) => isRecord(point) && Object.keys(point).sort().join() === 'value,year' && typeof point.year === 'string' &&
+    /^\d{4}$/.test(point.year) && (point.value === null || (typeof point.value === 'string' && /^-?\d{1,60}(\.\d{1,60})?$/.test(point.value))) &&
+    (i === 0 || Number(point.year) === Number((series[i - 1] as { year: string }).year) + 1));
+  const last = series[series.length - 1] as { year?: unknown; value?: unknown } | undefined;
+  return ok && last !== undefined && last.year === row.year && last.value === row.value;
 }
 
 const SEARCH_ADS_STATUSES = new Set(['OK', 'NO_BRANDS', 'NO_DATA', 'FAILED', 'CANCELLED']);

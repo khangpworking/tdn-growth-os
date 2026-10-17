@@ -68,6 +68,7 @@ import { qualitativeDraftSection, qualitativeDraftSummary } from '../reader-repo
 import { platIcons } from '../reader-report/layout.js';
 import { marketChartRows, type CaptureCountChart, type MarketChart } from '../reader-report/market-charts.js';
 import type { RenderedChart } from '../reader-report/flint.js';
+import { comtradeChartCount, worldBankChartCount, type MacroChart } from '../reader-report/macro-charts.js';
 import { pdfExcerptBlockHtml, PDF_EXCERPT_NOTE, PDF_EXCERPT_SECTION, PDF_EXCERPT_SRC } from './pdf-excerpt.js';
 import { sellerVideoBlockHtml, sellerVideoNote, sellerVideoSrc, SELLER_VIDEO_SECTION } from './seller-video.js';
 import { searchAdsBrandNotice, searchAdsNotice, searchAdsOkBrands, SEARCH_ADS_NOTE, SEARCH_ADS_SOURCE_LABEL, SEARCH_ADS_SOURCE_NOTE, SEARCH_ADS_TABLE_TITLE } from './google-ads-lane.js';
@@ -143,6 +144,10 @@ export interface AutomationReportInput {
   readonly marketCaptureCharts?: readonly CaptureCountChart[];
   /** Flint line of the stored search-interest series, drawn before the synchronous build; present only when that series is rendered. */
   readonly searchInterestChart?: RenderedChart;
+  /** Flint yearly lines of the stored World Bank series (S23), drawn before the synchronous build; present only when one is drawn. */
+  readonly worldBankCharts?: readonly MacroChart[];
+  /** Flint bars of the stored UN Comtrade rows (S24), drawn before the synchronous build; present only when one is drawn. */
+  readonly comtradeCharts?: readonly MacroChart[];
   /** Build-time cover (AI illustration or procedural fallback), embedded as a data URI; Market presentation only. */
   readonly marketCover?: MarketCoverInput;
   readonly metricMethods?: AutomationMetricMethodSnapshot;
@@ -1003,9 +1008,19 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
         const capture = input.captures.find(entry => entry.stepId === 'COLLECTION' && entry.ordinal === item.captureIndex);
         return `<tr><td>${escape(item.row.indicatorName)}</td><td>${escape(E13_ATTRIBUTION)}</td><td>${escape(`${formatWorldBankValue(item.row.value)} ${worldBankUnitText(item.row)}`)}${capture ? captureMark(capture, citations) : ''}</td>` +
           `<td>${escape(item.row.year)}</td><td>${escape(item.row.lastUpdated)}</td><td>${escape(worldBankSourceNote(item.row))}</td></tr>`;
-      }).join('') + `</tbody></table><p class="lim"><b>Chú thích:</b> ${escape(WORLD_BANK_NOTE)} ${escape(WORLD_BANK_LIMIT)}</p><p class="ex-src">Nguồn: ${escape(WORLD_BANK_SRC)}</p></div>`;
+      }).join('') + `</tbody></table><p class="lim"><b>Chú thích:</b> ${escape(WORLD_BANK_NOTE)} ${escape(WORLD_BANK_LIMIT)}</p><p class="ex-src">Nguồn: ${escape(WORLD_BANK_SRC)}</p></div>` +
+      macroFigures(input.worldBankCharts, worldBankChartCount(input.collection?.worldBank), 'WORLD_BANK_CHARTS_MISSING', 5, 3);
+  };
+  // Pre-drawn country-level figures (S23 lines after table 5.3, S24 bars after table 6.2), each on its own axis; none is drawn without its table.
+  const macroFigures = (drawn: readonly MacroChart[] | undefined, expected: number, missing: string, sectionNo: number, first: number): string => {
+    if (expected === 0) return '';
+    if (!drawn || drawn.length !== expected) throw new TypeError(missing);
+    return drawn.map((chart, i) => `<figure class="market-chart"><div class="exh"><span class="exn">Hình ${sectionNo}.${first + i}</span> <span class="ext">${escape(chart.title)}</span> <span class="exu">(${escape(chart.unit)})</span></div>` +
+      `<div class="chart flint" data-engine="${escape(chart.engine)}" data-chart-id="${escape(chart.id)}">${chart.svg}</div>` +
+      `<p class="lim"><b>Chú thích:</b> ${escape(chart.note)}</p><p class="ex-src">Nguồn: ${escape(chart.src)}</p></figure>`).join('');
   };
   // Cục Thống kê figures (S21) follow table 5.3; the same predicate marks S21 as used. Never combined with sample numbers.
+  // No chart for table 5.4: each run reads one month only, so there is no series to draw.
   const officialStatsTable = (sectionId: string): string => {
     const stored = kind === 'MARKET' && sectionId === 'M05' ? input.collection?.officialStats : undefined;
     if (!stored) return '';
@@ -1032,7 +1047,8 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
       rows.map(row => {
         const capture = input.captures.find(entry => entry.stepId === 'COLLECTION' && entry.ordinal === row.captureIndex);
         return `<tr><td>${escape(comtradeSideText(row))}</td><td>${escape(comtradeFlowText(row.flow))}</td><td>${escape(row.year)}</td><td>${escape(formatWorldBankValue(row.value))}${capture ? captureMark(capture, citations) : ''}</td><td>${escape(comtradeRowNote(row))}</td></tr>`;
-      }).join('') + `</tbody></table><p class="lim"><b>Chú thích:</b> ${escape(COMTRADE_NOTE)}${stored.mirrorReporterCount === null || stored.mirrorReporterCount === 0 ? '' : ` Số nước báo số hàng xuất sang Việt Nam: ${stored.mirrorReporterCount}.`}</p><p class="ex-src">Nguồn: ${escape(COMTRADE_SRC)}</p></div>`;
+      }).join('') + `</tbody></table><p class="lim"><b>Chú thích:</b> ${escape(COMTRADE_NOTE)}${stored.mirrorReporterCount === null || stored.mirrorReporterCount === 0 ? '' : ` Số nước báo số hàng xuất sang Việt Nam: ${stored.mirrorReporterCount}.`}</p><p class="ex-src">Nguồn: ${escape(COMTRADE_SRC)}</p></div>` +
+      macroFigures(input.comtradeCharts, comtradeChartCount(stored), 'COMTRADE_CHARTS_MISSING', 6, 1);
   };
   // Public search-ads library counts (S17) for the top brands' own websites sit in the competitor section. Empty values read "không có"; no advertiser detail exists to print.
   const searchAdsTable = (sectionId: string): string => {
