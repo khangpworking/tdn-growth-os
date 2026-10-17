@@ -29,6 +29,7 @@ function activity(overrides: Record<string, { lastDataAt: string | null; dataCou
     'official-stats': { lastDataAt: null, dataCount: 0, lastUsageAt: null },
     'world-bank': { lastDataAt: null, dataCount: 0, lastUsageAt: null },
     'un-comtrade': { lastDataAt: null, dataCount: 0, lastUsageAt: null },
+    'search-ads-library': { lastDataAt: null, dataCount: 0, lastUsageAt: null },
     pageindex: { lastDataAt: null, dataCount: 0, lastUsageAt: null },
     ...overrides,
   };
@@ -62,7 +63,7 @@ test('every registry ID on the board exists in the source registry v1.9', () => 
   }
   // The roster is exactly the twelve approved cards: the existing five plus the seven additions.
   assert.deepEqual([...SOURCE_BOARD_ORDER], ['METRIC', 'KALODATA', 'KALODATA_VIDEO_FILE', 'APIFY_SHOPEE',
-    'APIFY_TIKTOK_COMMENTS', 'VIDEO_READING', 'META_AD_LIBRARY', 'SERPAPI', 'OFFICIAL_STATS', 'WORLD_BANK', 'UN_COMTRADE', 'PAGEINDEX']);
+    'APIFY_TIKTOK_COMMENTS', 'VIDEO_READING', 'META_AD_LIBRARY', 'SEARCH_ADS_LIBRARY', 'SERPAPI', 'OFFICIAL_STATS', 'WORLD_BANK', 'UN_COMTRADE', 'PAGEINDEX']);
 });
 
 test('mixed connectors carry per-ID tiers, never a fabricated aggregate', () => {
@@ -80,7 +81,7 @@ test('mixed connectors carry per-ID tiers, never a fabricated aggregate', () => 
 
 test('board emits all twelve cards with registry metadata and truthful build states', () => {
   const status = buildResearchAutomationSourceStatus(input());
-  assert.equal(status.sources.length, 12);
+  assert.equal(status.sources.length, 13);
   assert.deepEqual(status.sources.map(item => item.source), [...SOURCE_BOARD_ORDER]);
   const sources = bySource(status);
   for (const id of SOURCE_BOARD_ORDER) {

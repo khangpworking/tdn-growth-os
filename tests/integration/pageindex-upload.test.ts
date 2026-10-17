@@ -163,6 +163,7 @@ test('low balance pauses automatic indexing on the status card', () => {
       'official-stats': { lastDataAt: null, dataCount: 0, lastUsageAt: null },
       'world-bank': { lastDataAt: null, dataCount: 0, lastUsageAt: null },
       'un-comtrade': { lastDataAt: null, dataCount: 0, lastUsageAt: null },
+      'search-ads-library': { lastDataAt: null, dataCount: 0, lastUsageAt: null },
       pageindex: { lastDataAt: null, dataCount: 0, lastUsageAt: null },
       serpapiOperations: [],
     },

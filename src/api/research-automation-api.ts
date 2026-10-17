@@ -82,6 +82,7 @@ import { createSearchInterestSource } from '../modules/analysis/research-automat
 import { createExpandedSearchSource } from '../modules/analysis/research-automation/expanded-search-lane.js';
 import { createWorldBankSource } from '../modules/analysis/research-automation/world-bank-lane.js';
 import { createComtradeSource } from '../modules/analysis/research-automation/comtrade-lane.js';
+import { createGoogleAdsSource } from '../modules/analysis/research-automation/google-ads-lane.js';
 import { videoWatchLaneFromConfig, type VideoWatchConfig } from '../modules/analysis/research-automation/video-watch-lane.js';
 import { createResearchAutomationProviderRegistry, type ResearchAutomationProviderConfig, type ProviderTransport } from '../modules/analysis/research-automation/providers.js';
 import { buildResearchAutomationReport } from '../modules/analysis/research-automation/reports.js';
@@ -142,6 +143,8 @@ export interface ResearchAutomationApiConfiguration {
   readonly worldBank?: true;
   /** UN Comtrade lane for the OWNER writer only; present only when its flag is exactly "1". Needs no key; HS selection uses the configured Insight coding model. */
   readonly comtrade?: true;
+  /** Public search-ads library lane for the OWNER writer only; present only when its flag is exactly "1". Uses the configured web-search key. */
+  readonly searchAds?: true;
   /** Video-watch lane for the OWNER writer only; present only when its flag is exactly "1". Model calls go through the existing CLIProxy. */
   readonly videoWatch?: VideoWatchConfig;
 }
@@ -366,6 +369,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       const comtradeModel = insightCodingAi ? { generateText: async (request: { readonly systemText: string; readonly userText: string; readonly signal?: AbortSignal }): Promise<string> =>
         (await insightCodingAi.port.generateText({ configuration: insightCodingAi.configuration, systemText: request.systemText, userText: request.userText,
           signal: request.signal as AbortSignal })).text } : undefined;
+      const searchAdsSource = configuration.searchAds && configuration.providers?.serpApiKey ? createGoogleAdsSource(configuration.providers.serpApiKey, transport) : undefined;
       const comtradeSource = configuration.comtrade ? createComtradeSource({ ...(comtradeModel ? { model: comtradeModel } : {}), ...(transport ? { transport } : {}) }) : undefined;
       const videoWatch = configuration.videoWatch ? videoWatchLaneFromConfig(configuration.videoWatch, () => new Date()) : undefined;
       // Start-up retention sweep (45 days); a failure never blocks start-up and the lane sweeps again when it runs.
@@ -382,6 +386,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         ...(expandedSource ? { expandedSource } : {}),
         ...(worldBankSource ? { worldBankSource } : {}),
         ...(comtradeSource ? { comtradeSource } : {}),
+        ...(searchAdsSource ? { searchAdsSource } : {}),
         ...(videoWatch ? { videoWatch } : {}),
         ...(i14SynthesisAi ? { i14SynthesisAi } : {}),
         ...(marketCoverAi ? { marketCoverAi } : {}),

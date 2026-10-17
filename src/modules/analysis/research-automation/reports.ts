@@ -70,6 +70,7 @@ import { marketChartRows, type CaptureCountChart, type MarketChart } from '../re
 import type { RenderedChart } from '../reader-report/flint.js';
 import { pdfExcerptBlockHtml, PDF_EXCERPT_NOTE, PDF_EXCERPT_SECTION, PDF_EXCERPT_SRC } from './pdf-excerpt.js';
 import { sellerVideoBlockHtml, sellerVideoNote, sellerVideoSrc, SELLER_VIDEO_SECTION } from './seller-video.js';
+import { searchAdsBrandNotice, searchAdsNotice, searchAdsOkBrands, SEARCH_ADS_NOTE, SEARCH_ADS_SOURCE_LABEL, SEARCH_ADS_TABLE_TITLE } from './google-ads-lane.js';
 import { comtradeFlowText, comtradeNotice, comtradeOfficialText, comtradeRenderable, comtradeRenderableRows, comtradeRowNote, comtradeSideText, COMTRADE_NOTE, COMTRADE_SOURCE_LABEL, COMTRADE_SRC, COMTRADE_TABLE_TITLE } from './comtrade-lane.js';
 import { formatWorldBankValue, worldBankRenderable, worldBankRenderableRows, worldBankSourceNote, worldBankUnitText, WORLD_BANK_LIMIT, WORLD_BANK_NOTE, WORLD_BANK_SOURCE_LABEL, WORLD_BANK_SRC, WORLD_BANK_TITLE } from './world-bank-lane.js';
 import { E13_ATTRIBUTION } from '../source-appendix-projection.js';
@@ -1012,13 +1013,31 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
         return `<tr><td>${escape(comtradeSideText(row))}</td><td>${escape(comtradeFlowText(row.flow))}</td><td>${escape(row.year)}</td><td>${escape(formatWorldBankValue(row.value))}${capture ? captureMark(capture, citations) : ''}</td><td>${escape(comtradeRowNote(row))}</td></tr>`;
       }).join('') + `</tbody></table><p class="lim"><b>Chú thích:</b> ${escape(COMTRADE_NOTE)}${stored.mirrorReporterCount === null || stored.mirrorReporterCount === 0 ? '' : ` Số nước báo số hàng xuất sang Việt Nam: ${stored.mirrorReporterCount}.`}</p><p class="ex-src">Nguồn: ${escape(COMTRADE_SRC)}</p></div>`;
   };
+  // Public search-ads library counts (S17) for the top brands' own websites sit in the competitor section. Empty values read "không có"; no advertiser detail exists to print.
+  const searchAdsTable = (sectionId: string): string => {
+    const stored = kind === 'MARKET' && sectionId === 'M07' ? input.collection?.searchAds : undefined;
+    if (!stored) return '';
+    const okBrands = searchAdsOkBrands(stored);
+    const notices = (brands: typeof stored.brands) => brands.map(brand => `<p>${escape(searchAdsBrandNotice(brand))}</p>`).join('');
+    if (okBrands.length === 0) return `<p>${escape(searchAdsNotice(stored))}</p>` + notices(stored.brands);
+    const num = (v: number | null): string => v === null || v === 0 ? 'không có' : String(v);
+    const day = (v: string | null): string => v === null ? 'không có' : v.split('-').reverse().join('/');
+    return `<div class="table-wrap"><div class="exh"><span class="exn">Bảng 7.3</span><span class="ext">${escape(SEARCH_ADS_TABLE_TITLE)}</span></div>` +
+      `<table><caption>${escape(SEARCH_ADS_TABLE_TITLE)}</caption><thead><tr><th>Thương hiệu</th><th>Trang web</th><th>Số mẫu quảng cáo</th><th>Chữ / Hình / Video</th><th>Hiện lần đầu – lần cuối</th><th>Số ngày hiện của mẫu dài ngày</th></tr></thead><tbody>` +
+      okBrands.map(brand => {
+        const capture = input.captures.find(entry => entry.stepId === 'COLLECTION' && entry.ordinal === brand.captureIndex);
+        const f = brand.formats!;
+        return `<tr><td>${escape(brand.label)}</td><td>${escape(brand.domain!)}</td><td>${escape(num(brand.creativeCount))}${capture ? captureMark(capture, citations) : ''}</td><td>${escape(`${num(f.text)} / ${num(f.image)} / ${num(f.video)}`)}</td><td>${escape(`${day(brand.firstShown)} – ${day(brand.lastShown)}`)}</td><td>${escape(num(brand.maxDaysShown))}</td></tr>`;
+      }).join('') + `</tbody></table><p class="lim"><b>Chú thích:</b> ${escape(SEARCH_ADS_NOTE)}</p><p class="ex-src">Nguồn: ${escape(SEARCH_ADS_SOURCE_LABEL)}</p></div>` +
+      notices(stored.brands.filter(brand => brand.status !== 'OK'));
+  };
   // Verified document excerpts sit in the context section; the same predicate marks S25 as used.
   const pdfExcerptBlock = (sectionId: string): string => kind === 'MARKET' && sectionId === PDF_EXCERPT_SECTION && input.pdfExcerpts?.length && input.sourceEvidence?.pdfExcerpts === true
     ? pdfExcerptBlockHtml(input.pdfExcerpts, escape) + `<p class="lim"><b>Chú thích:</b> ${escape(PDF_EXCERPT_NOTE)}</p><p class="ex-src">Nguồn: ${escape(PDF_EXCERPT_SRC)}</p>` : '';
   const sellerVideoBlock = (sectionId: string): string => kind === 'MARKET' && sectionId === SELLER_VIDEO_SECTION && input.sellerVideos && input.sourceEvidence?.sellerVideos === true
     ? sellerVideoBlockHtml(input.sellerVideos, escape) + `<p class="lim"><b>Chú thích:</b> ${escape(sellerVideoNote(input.sellerVideos))}</p><p class="ex-src">Nguồn: ${escape(sellerVideoSrc(input.sellerVideos))}</p>` : '';
   const appendix = (sectionId: string): string =>
-    presentationCharts(sectionId) + searchInterestFigure(sectionId) + worldBankTable(sectionId) + comtradeTable(sectionId) + pdfExcerptBlock(sectionId) + sellerVideoBlock(sectionId) +
+    presentationCharts(sectionId) + searchInterestFigure(sectionId) + worldBankTable(sectionId) + comtradeTable(sectionId) + searchAdsTable(sectionId) + pdfExcerptBlock(sectionId) + sellerVideoBlock(sectionId) +
     (reviewOutcome && kind === 'INSIGHT' && (sectionId === 'I03' || sectionId === 'I17') ? `<p class="warning">${escape(reviewOutcomeLead(reviewOutcome))}</p>` : '') +
     baseAppendix(sectionId) +
     (input.sourceEvidence && (sectionId === 'M13' || sectionId === 'I17') ? sourceEvidenceHtml(input.sourceEvidence) +

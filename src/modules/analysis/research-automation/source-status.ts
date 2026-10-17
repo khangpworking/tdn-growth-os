@@ -95,6 +95,8 @@ export const SOURCE_REGISTRY: Record<SourceBoardId, SourceRegistryCard> = {
     reportName: 'nội dung video của người bán', paid: false, pendingPackage: null, built: true, arrival: 'MANUAL_UPLOAD' },
   META_AD_LIBRARY: { registryIds: ['S15'], tier: 'B', tierDetail: null, group: 'SELLER_VOICE',
     reportName: 'thư viện quảng cáo công khai của Meta', paid: false, pendingPackage: null, built: true, arrival: 'MANUAL_UPLOAD' },
+  SEARCH_ADS_LIBRARY: { registryIds: ['S17'], tier: 'B', tierDetail: null, group: 'SELLER_VOICE',
+    reportName: 'thư viện quảng cáo công khai của công cụ tìm kiếm', paid: true, pendingPackage: null, built: true, arrival: 'PAID_API' },
   SERPAPI: { registryIds: ['S19', 'S13', 'S26', 'S20'], tier: null, tierDetail: 'S19: theo trang gốc; S13: C; S26: C; S20: B',
     group: 'SALES_MARKET', reportName: 'kết quả tìm kiếm Google; mức quan tâm tìm kiếm trên Google',
     paid: true, pendingPackage: null, built: true, arrival: 'PAID_API' },
@@ -110,7 +112,7 @@ export const SOURCE_REGISTRY: Record<SourceBoardId, SourceRegistryCard> = {
 
 /** Card order follows Plan B1. */
 export const SOURCE_BOARD_ORDER: readonly SourceBoardId[] = ['METRIC', 'KALODATA', 'KALODATA_VIDEO_FILE', 'APIFY_SHOPEE',
-  'APIFY_TIKTOK_COMMENTS', 'VIDEO_READING', 'META_AD_LIBRARY', 'SERPAPI', 'OFFICIAL_STATS', 'WORLD_BANK', 'UN_COMTRADE', 'PAGEINDEX'];
+  'APIFY_TIKTOK_COMMENTS', 'VIDEO_READING', 'META_AD_LIBRARY', 'SEARCH_ADS_LIBRARY', 'SERPAPI', 'OFFICIAL_STATS', 'WORLD_BANK', 'UN_COMTRADE', 'PAGEINDEX'];
 
 /**
  * Known SerpApi operations with their registry binding. Counts are stored
@@ -151,7 +153,7 @@ export function buildResearchAutomationSourceStatus(input: SourceStatusInput): R
   /** EXECUTOR_DISABLED wins over every card; an unbuilt module reads NOT_BUILT. The flag decides, not the call site. */
   const cardState = (source: SourceBoardId, operational: ResearchAutomationSourceStatusEntry['state']): ResearchAutomationSourceStatusEntry['state'] =>
     !input.executorEnabled ? 'EXECUTOR_DISABLED' : !SOURCE_REGISTRY[source].built ? 'NOT_BUILT' : operational;
-  const paidSource = (source: 'KALODATA' | 'SERPAPI' | 'APIFY_SHOPEE', key: 'kalodata' | 'serpapi' | 'apify-shopee',
+  const paidSource = (source: 'KALODATA' | 'SERPAPI' | 'APIFY_SHOPEE' | 'SEARCH_ADS_LIBRARY', key: 'kalodata' | 'serpapi' | 'apify-shopee' | 'search-ads-library',
     credentialPresent: boolean, usable: boolean, wired: boolean, spendCapUsd: number | null,
     operations: SourceBoardOperations | null): ResearchAutomationSourceStatusEntry => ({
     source,
@@ -198,6 +200,8 @@ export function buildResearchAutomationSourceStatus(input: SourceStatusInput): R
       spendCapUsd: providers?.apifyTikTokComments?.maxChargeUsd ?? null, operations: null },
     manualSource('VIDEO_READING', 'video-reading'),
     notBuilt('META_AD_LIBRARY', 'meta-ad-library', 'NOT_REQUIRED', null),
+    // Same key as web search; the lane itself stays off unless its own flag is on.
+    paidSource('SEARCH_ADS_LIBRARY', 'search-ads-library', Boolean(providers?.serpApiKey), Boolean(providers?.serpApiKey), input.wired.serpapi, null, null),
     paidSource('SERPAPI', 'serpapi', Boolean(providers?.serpApiKey), Boolean(providers?.serpApiKey), input.wired.serpapi, null,
       buildSerpApiOperations(input.activity.serpapiOperations)),
     notBuilt('OFFICIAL_STATS', 'official-stats', 'NOT_REQUIRED', null),
