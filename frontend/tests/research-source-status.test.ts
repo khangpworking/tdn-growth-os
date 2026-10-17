@@ -27,7 +27,7 @@ function status(): ResearchAutomationSourceStatus {
       { operation: 'serpapi.google.search', count: 3, lastDataAt: '2026-02-03T00:00:00.000Z', lastUsageAt: null, registryIds: ['S19'], tier: null },
       { operation: 'serpapi.google.trends', count: 0, lastDataAt: null, lastUsageAt: null, registryIds: ['S20'], tier: 'B' },
     ] }),
-    entry('OFFICIAL_STATS', { state: 'NOT_BUILT', credential: 'NOT_REQUIRED', wiredIntoRuns: false, paid: false, pendingPackage: 'P10', group: 'MACRO' }),
+    entry('OFFICIAL_STATS', { state: 'READY', credential: 'NOT_REQUIRED', wiredIntoRuns: true, paid: false, pendingPackage: null, group: 'MACRO' }),
     entry('WORLD_BANK', { state: 'NOT_BUILT', credential: 'NOT_REQUIRED', wiredIntoRuns: false, paid: false, pendingPackage: 'P10', group: 'MACRO' }),
     entry('UN_COMTRADE', { state: 'READY', credential: 'NOT_REQUIRED', wiredIntoRuns: true, paid: false, pendingPackage: null, group: 'MACRO' }),
     entry('PAGEINDEX', { state: 'NOT_CONFIGURED', credential: 'MISSING', wiredIntoRuns: false, pageindex: {
@@ -105,6 +105,7 @@ test('source board renders grouped cards, caps, operations and registry rows, re
     assert.equal(pills.get('APIFY_SHOPEE'), 'Chưa kết nối');
     assert.equal(pills.get('METRIC'), 'Nhập tay');
     assert.equal(pills.get('APIFY_TIKTOK_COMMENTS'), 'Chưa có bộ thu');
+    assert.equal(pills.get('OFFICIAL_STATS'), 'Đã kết nối', 'The free official statistics lane is built and needs no key');
     const bySource = new Map(cards.map(card => [card.dataset.source, card]));
     assert.match(bySource.get('SEARCH_ADS_LIBRARY')!.textContent!, /1 lần chạy đã lưu/);
     assert.match(bySource.get('SEARCH_ADS_LIBRARY')!.textContent!, /S17/);

@@ -1,78 +1,222 @@
 {
-  "contractVersion": "official-statistics-category-map-v1",
-  "basis": "Ultimate 6.4 literal labels; authentic source workbook labels not yet confirmed",
+  "contractVersion": "official-statistics-category-map-v2",
+  "basis": "CONFIRMED labels are printed exactly so (NFC, whitespace collapsed) as row labels in published Cục Thống kê monthly and CPI workbooks; the v1 literal labels stay as UNCONFIRMED text and are never used",
   "groups": [
     {
       "categoryGroup": "Thực phẩm chế biến, đồ ngọt, ăn vặt",
-      "sourceLabelsState": "UNCONFIRMED",
-      "cpiLabel": "Thực phẩm",
-      "retailLabel": "Lương thực, thực phẩm",
-      "householdExpenditureLabel": "Đường, mật, sữa, bánh, mứt kẹo; Quả chín",
-      "productionTradeLabel": "Sản xuất, chế biến thực phẩm; xuất khẩu bánh kẹo và sản phẩm từ ngũ cốc"
+      "sourceLabelsState": "CONFIRMED",
+      "labels": [
+        {
+          "table": "CPI",
+          "label": "Thực phẩm"
+        },
+        {
+          "table": "CPI_WORKBOOK",
+          "label": "2 - Thực phẩm"
+        },
+        {
+          "table": "EXPORT",
+          "label": "Bánh kẹo và các sản phẩm từ ngũ cốc"
+        }
+      ],
+      "unconfirmedLiteralLabels": {
+        "cpiLabel": "Thực phẩm",
+        "retailLabel": "Lương thực, thực phẩm",
+        "householdExpenditureLabel": "Đường, mật, sữa, bánh, mứt kẹo; Quả chín",
+        "productionTradeLabel": "Sản xuất, chế biến thực phẩm; xuất khẩu bánh kẹo và sản phẩm từ ngũ cốc"
+      }
     },
     {
       "categoryGroup": "Sữa và sản phẩm sữa",
-      "sourceLabelsState": "UNCONFIRMED",
-      "cpiLabel": "Thực phẩm",
-      "retailLabel": "Lương thực, thực phẩm",
-      "householdExpenditureLabel": "Đường, mật, sữa, bánh, mứt kẹo",
-      "productionTradeLabel": "Sản lượng sữa tươi, sữa bột; nhập khẩu sữa và sản phẩm sữa"
+      "sourceLabelsState": "CONFIRMED",
+      "labels": [
+        {
+          "table": "CPI",
+          "label": "Thực phẩm"
+        },
+        {
+          "table": "CPI_WORKBOOK",
+          "label": "2 - Thực phẩm"
+        },
+        {
+          "table": "IMPORT",
+          "label": "Sữa và sản phẩm sữa"
+        }
+      ],
+      "unconfirmedLiteralLabels": {
+        "cpiLabel": "Thực phẩm",
+        "retailLabel": "Lương thực, thực phẩm",
+        "householdExpenditureLabel": "Đường, mật, sữa, bánh, mứt kẹo",
+        "productionTradeLabel": "Sản lượng sữa tươi, sữa bột; nhập khẩu sữa và sản phẩm sữa"
+      }
     },
     {
       "categoryGroup": "Đồ uống",
-      "sourceLabelsState": "UNCONFIRMED",
-      "cpiLabel": "Đồ uống và thuốc lá",
-      "retailLabel": "Lương thực, thực phẩm",
-      "householdExpenditureLabel": "Chè, cà phê; Đồ uống khác; Rượu, bia",
-      "productionTradeLabel": "Sản xuất đồ uống"
+      "sourceLabelsState": "CONFIRMED",
+      "labels": [
+        {
+          "table": "CPI",
+          "label": "Đồ uống và thuốc lá"
+        },
+        {
+          "table": "CPI_WORKBOOK",
+          "label": "II. Đồ uống và thuốc lá"
+        }
+      ],
+      "unconfirmedLiteralLabels": {
+        "cpiLabel": "Đồ uống và thuốc lá",
+        "retailLabel": "Lương thực, thực phẩm",
+        "householdExpenditureLabel": "Chè, cà phê; Đồ uống khác; Rượu, bia",
+        "productionTradeLabel": "Sản xuất đồ uống"
+      }
     },
     {
       "categoryGroup": "Nguyên liệu cho quán ăn uống (khách mua sỉ)",
-      "sourceLabelsState": "UNCONFIRMED",
-      "cpiLabel": "Ăn uống ngoài gia đình",
-      "retailLabel": "Dịch vụ lưu trú, ăn uống (bảng tháng)",
-      "householdExpenditureLabel": "Ăn uống ngoài gia đình",
-      "productionTradeLabel": "—"
+      "sourceLabelsState": "CONFIRMED",
+      "labels": [
+        {
+          "table": "CPI",
+          "label": "Ăn uống ngoài gia đình"
+        },
+        {
+          "table": "CPI_WORKBOOK",
+          "label": "3 - Ăn uống ngoài gia đình"
+        },
+        {
+          "table": "RETAIL",
+          "label": "Dịch vụ lưu trú, ăn uống"
+        }
+      ],
+      "unconfirmedLiteralLabels": {
+        "cpiLabel": "Ăn uống ngoài gia đình",
+        "retailLabel": "Dịch vụ lưu trú, ăn uống (bảng tháng)",
+        "householdExpenditureLabel": "Ăn uống ngoài gia đình",
+        "productionTradeLabel": "—"
+      }
     },
     {
       "categoryGroup": "Đồ gia dụng, đồ dùng nhà bếp, thiết bị nhỏ",
-      "sourceLabelsState": "UNCONFIRMED",
-      "cpiLabel": "Thiết bị và đồ dùng gia đình",
-      "retailLabel": "Đồ dùng, dụng cụ trang thiết bị gia đình",
-      "householdExpenditureLabel": "Thiết bị và đồ dùng gia đình",
-      "productionTradeLabel": "Chỉ số sản xuất ngành tương ứng, nếu có"
+      "sourceLabelsState": "CONFIRMED",
+      "labels": [
+        {
+          "table": "CPI",
+          "label": "Thiết bị và đồ dùng gia đình"
+        },
+        {
+          "table": "CPI_WORKBOOK",
+          "label": "V. Thiết bị và đồ dùng gia đình"
+        }
+      ],
+      "unconfirmedLiteralLabels": {
+        "cpiLabel": "Thiết bị và đồ dùng gia đình",
+        "retailLabel": "Đồ dùng, dụng cụ trang thiết bị gia đình",
+        "householdExpenditureLabel": "Thiết bị và đồ dùng gia đình",
+        "productionTradeLabel": "Chỉ số sản xuất ngành tương ứng, nếu có"
+      }
     },
     {
       "categoryGroup": "Thời trang",
-      "sourceLabelsState": "UNCONFIRMED",
-      "cpiLabel": "May mặc, mũ nón và giày dép",
-      "retailLabel": "Hàng may mặc, giày dép",
-      "householdExpenditureLabel": "May mặc, mũ nón, giày dép",
-      "productionTradeLabel": "Xuất nhập khẩu dệt may, giày dép"
+      "sourceLabelsState": "CONFIRMED",
+      "labels": [
+        {
+          "table": "CPI",
+          "label": "May mặc, mũ nón và giày dép"
+        },
+        {
+          "table": "CPI_WORKBOOK",
+          "label": "III. May mặc, mũ nón, giày dép"
+        },
+        {
+          "table": "EXPORT",
+          "label": "Hàng dệt, may"
+        },
+        {
+          "table": "EXPORT",
+          "label": "Giày dép"
+        },
+        {
+          "table": "IMPORT",
+          "label": "Nguyên PL dệt, may, giày dép"
+        }
+      ],
+      "unconfirmedLiteralLabels": {
+        "cpiLabel": "May mặc, mũ nón và giày dép",
+        "retailLabel": "Hàng may mặc, giày dép",
+        "householdExpenditureLabel": "May mặc, mũ nón, giày dép",
+        "productionTradeLabel": "Xuất nhập khẩu dệt may, giày dép"
+      }
     },
     {
       "categoryGroup": "Văn phòng phẩm, sách, đồ chơi",
-      "sourceLabelsState": "UNCONFIRMED",
-      "cpiLabel": "Giáo dục; Văn hoá, giải trí và du lịch",
-      "retailLabel": "Vật phẩm, văn hoá, giáo dục",
-      "householdExpenditureLabel": "Giáo dục; Văn hoá, thể thao, giải trí",
-      "productionTradeLabel": "—"
+      "sourceLabelsState": "CONFIRMED",
+      "labels": [
+        {
+          "table": "CPI",
+          "label": "Giáo dục"
+        },
+        {
+          "table": "CPI",
+          "label": "Văn hoá, giải trí và du lịch"
+        },
+        {
+          "table": "CPI_WORKBOOK",
+          "label": "IX. Giáo dục"
+        },
+        {
+          "table": "CPI_WORKBOOK",
+          "label": "X. Văn hoá, giải trí và du lịch"
+        }
+      ],
+      "unconfirmedLiteralLabels": {
+        "cpiLabel": "Giáo dục; Văn hoá, giải trí và du lịch",
+        "retailLabel": "Vật phẩm, văn hoá, giáo dục",
+        "householdExpenditureLabel": "Giáo dục; Văn hoá, thể thao, giải trí",
+        "productionTradeLabel": "—"
+      }
     },
     {
       "categoryGroup": "Mỹ phẩm, chăm sóc cá nhân, đồ dùng khác",
-      "sourceLabelsState": "UNCONFIRMED",
-      "cpiLabel": "Hàng hoá và dịch vụ khác (nhóm rất rộng)",
-      "retailLabel": "Hàng hoá khác (nhóm rất rộng)",
-      "householdExpenditureLabel": "Chi phí về đồ dùng và dịch vụ khác",
-      "productionTradeLabel": "—"
+      "sourceLabelsState": "CONFIRMED",
+      "labels": [
+        {
+          "table": "CPI",
+          "label": "Hàng hóa và dịch vụ khác"
+        },
+        {
+          "table": "CPI_WORKBOOK",
+          "label": "XI. Hàng hoá và dịch vụ khác"
+        },
+        {
+          "table": "IMPORT",
+          "label": "Chất thơm, mỹ phẩm và chế phẩm vệ sinh"
+        }
+      ],
+      "unconfirmedLiteralLabels": {
+        "cpiLabel": "Hàng hoá và dịch vụ khác (nhóm rất rộng)",
+        "retailLabel": "Hàng hoá khác (nhóm rất rộng)",
+        "householdExpenditureLabel": "Chi phí về đồ dùng và dịch vụ khác",
+        "productionTradeLabel": "—"
+      }
     },
     {
       "categoryGroup": "Mọi ngành hàng",
-      "sourceLabelsState": "UNCONFIRMED",
-      "cpiLabel": "CPI chung, theo vùng",
-      "retailLabel": "Bán lẻ theo tỉnh",
-      "householdExpenditureLabel": "Thu nhập; dùng internet, mạng xã hội theo tuổi, vùng",
-      "productionTradeLabel": "—"
+      "sourceLabelsState": "CONFIRMED",
+      "labels": [
+        {
+          "table": "CPI",
+          "label": "CHỈ SỐ GIÁ TIÊU DÙNG"
+        },
+        {
+          "table": "CPI_WORKBOOK",
+          "label": "CHỈ SỐ GIÁ TIÊU DÙNG"
+        }
+      ],
+      "unconfirmedLiteralLabels": {
+        "cpiLabel": "CPI chung, theo vùng",
+        "retailLabel": "Bán lẻ theo tỉnh",
+        "householdExpenditureLabel": "Thu nhập; dùng internet, mạng xã hội theo tuổi, vùng",
+        "productionTradeLabel": "—"
+      }
     }
   ]
 }

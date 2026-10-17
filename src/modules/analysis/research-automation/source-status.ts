@@ -101,7 +101,7 @@ export const SOURCE_REGISTRY: Record<SourceBoardId, SourceRegistryCard> = {
     group: 'SALES_MARKET', reportName: 'kết quả tìm kiếm Google; mức quan tâm tìm kiếm trên Google',
     paid: true, pendingPackage: null, built: true, arrival: 'PAID_API' },
   OFFICIAL_STATS: { registryIds: ['S21'], tier: 'A', tierDetail: null, group: 'MACRO',
-    reportName: 'Cục Thống kê (nso.gov.vn)', paid: false, pendingPackage: 'P10', built: false, arrival: 'MANUAL_UPLOAD' },
+    reportName: 'Cục Thống kê (nso.gov.vn)', paid: false, pendingPackage: null, built: true, arrival: 'FREE_COLLECT' },
   WORLD_BANK: { registryIds: ['S23'], tier: 'A', tierDetail: null, group: 'MACRO',
     reportName: 'Ngân hàng Thế giới (World Bank Open Data)', paid: false, pendingPackage: null, built: true, arrival: 'MANUAL_UPLOAD' },
   UN_COMTRADE: { registryIds: ['S24'], tier: 'A', tierDetail: null, group: 'MACRO',
@@ -180,7 +180,7 @@ export function buildResearchAutomationSourceStatus(input: SourceStatusInput): R
     source, state: cardState(source, 'MANUAL_IMPORT'), credential: 'NOT_REQUIRED',
     wiredIntoRuns: true, paid: false, ...input.activity[key], lastUsageAt: null, ...meta(source), spendCapUsd: null, operations: null,
   });
-  const freeSource = (source: 'UN_COMTRADE', key: 'un-comtrade'): ResearchAutomationSourceStatusEntry => ({
+  const freeSource = (source: 'UN_COMTRADE' | 'OFFICIAL_STATS', key: 'un-comtrade' | 'official-stats'): ResearchAutomationSourceStatusEntry => ({
     source, state: cardState(source, 'READY'), credential: 'NOT_REQUIRED', wiredIntoRuns: true, paid: false,
     ...input.activity[key], lastUsageAt: null, ...meta(source), spendCapUsd: null, operations: null,
   });
@@ -204,7 +204,7 @@ export function buildResearchAutomationSourceStatus(input: SourceStatusInput): R
     paidSource('SEARCH_ADS_LIBRARY', 'search-ads-library', Boolean(providers?.serpApiKey), Boolean(providers?.serpApiKey), input.wired.searchAds === true, null, null),
     paidSource('SERPAPI', 'serpapi', Boolean(providers?.serpApiKey), Boolean(providers?.serpApiKey), input.wired.serpapi, null,
       buildSerpApiOperations(input.activity.serpapiOperations)),
-    notBuilt('OFFICIAL_STATS', 'official-stats', 'NOT_REQUIRED', null),
+    freeSource('OFFICIAL_STATS', 'official-stats'),
     manualSource('WORLD_BANK', 'world-bank'),
     freeSource('UN_COMTRADE', 'un-comtrade'),
     {

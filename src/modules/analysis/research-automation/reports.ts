@@ -71,6 +71,7 @@ import type { RenderedChart } from '../reader-report/flint.js';
 import { pdfExcerptBlockHtml, PDF_EXCERPT_NOTE, PDF_EXCERPT_SECTION, PDF_EXCERPT_SRC } from './pdf-excerpt.js';
 import { sellerVideoBlockHtml, sellerVideoNote, sellerVideoSrc, SELLER_VIDEO_SECTION } from './seller-video.js';
 import { searchAdsBrandNotice, searchAdsNotice, searchAdsOkBrands, SEARCH_ADS_NOTE, SEARCH_ADS_SOURCE_LABEL, SEARCH_ADS_SOURCE_NOTE, SEARCH_ADS_TABLE_TITLE } from './google-ads-lane.js';
+import { officialStatsCitation, officialStatsNotice, officialStatsRenderable, officialStatsRenderableRows, officialStatsRowLabel, officialStatsStatusText, officialStatsUnitText, officialStatsValueText, OFFICIAL_STATS_LIMIT, OFFICIAL_STATS_NOTE, OFFICIAL_STATS_SOURCE_LABEL, OFFICIAL_STATS_SRC, OFFICIAL_STATS_TABLE_TEXT, OFFICIAL_STATS_TABLE_TITLE } from './official-statistics-lane.js';
 import { comtradeFlowText, comtradeNotice, comtradeOfficialText, comtradeRenderable, comtradeRenderableRows, comtradeRowNote, comtradeSideText, COMTRADE_NOTE, COMTRADE_SOURCE_LABEL, COMTRADE_SRC, COMTRADE_TABLE_TITLE } from './comtrade-lane.js';
 import { formatWorldBankValue, worldBankRenderable, worldBankRenderableRows, worldBankSourceNote, worldBankUnitText, WORLD_BANK_LIMIT, WORLD_BANK_NOTE, WORLD_BANK_SOURCE_LABEL, WORLD_BANK_SRC, WORLD_BANK_TITLE } from './world-bank-lane.js';
 import { E13_ATTRIBUTION } from '../source-appendix-projection.js';
@@ -208,7 +209,9 @@ export function marketSourceRows(input: AutomationReportInput, webResultCount: n
     ? [[COMTRADE_SOURCE_LABEL, 'Đã dùng trong lượt này: số liệu cả nước, chỉ là bối cảnh.']] : [];
   const searchAds: readonly (readonly [string, string])[] = searchAdsOkBrands(input.collection?.searchAds).length
     ? [[SEARCH_ADS_SOURCE_LABEL, SEARCH_ADS_SOURCE_NOTE]] : [];
-  return [['Dữ liệu bán hàng', sales], ['Dữ liệu đánh giá sản phẩm trên nền tảng', native], ['Kết quả tìm kiếm', web], ['Bình luận đã thu thập', comments], ...interest, ...macro, ...trade, ...searchAds];
+  const official: readonly (readonly [string, string])[] = officialStatsRenderable(input.collection?.officialStats)
+    ? [[OFFICIAL_STATS_SOURCE_LABEL, 'Đã dùng trong lượt này: số liệu thống kê cả nước theo nhóm hàng, chỉ là bối cảnh.']] : [];
+  return [['Dữ liệu bán hàng', sales], ['Dữ liệu đánh giá sản phẩm trên nền tảng', native], ['Kết quả tìm kiếm', web], ['Bình luận đã thu thập', comments], ...interest, ...macro, ...trade, ...searchAds, ...official];
 }
 interface CatalogSection { sectionId: string; title: string; methodId: string; methodVersion: string; requiredInputs: string[] }
 export interface MethodOutputRef { methodOutputId: string; locatedRecordCount: number; unresolvedPointers: readonly string[]; blockers: readonly string[] }
@@ -962,9 +965,10 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
       ['Kiểm tra phân loại trên dòng nguồn', 'Chủ dự án; TDN hỗ trợ (đề xuất, chờ chủ duyệt)', 'Hạn: chủ chọn', 'Nhãn phân loại đã xem'],
       ['Đối chiếu lời khách từ nguồn đã lưu', 'Chủ dự án (đề xuất, chờ chủ duyệt)', 'Hạn: chủ chọn', 'Bảng phản hồi được duyệt'],
     ].map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('') + '</tbody></table></div>' : '';
-  const market14Appendix = `<div class="table-wrap market14-sources"><div class="exh"><span class="exn">Bảng PL.1</span><span class="ext">Nguồn dữ liệu của báo cáo</span></div><table><caption>Nguồn dữ liệu của báo cáo</caption><thead><tr><th>Hạng mục</th><th>Trạng thái</th></tr></thead><tbody>` +
+  const marketSourceList = `<div class="table-wrap market14-sources"><div class="exh"><span class="exn">Bảng PL.1</span><span class="ext">Nguồn dữ liệu của báo cáo</span></div><table><caption>Nguồn dữ liệu của báo cáo</caption><thead><tr><th>Hạng mục</th><th>Trạng thái</th></tr></thead><tbody>` +
     marketSourceRows(input, webResults.length, webSourceFailed).map(([label, status]) => `<tr><td>${label}</td><td>${escape(status)}</td></tr>`).join('') +
-    '</tbody></table></div>' +
+    '</tbody></table></div>';
+  const market14Appendix = marketSourceList +
     '<div class="table-wrap market14-glossary"><div class="exh"><span class="exn">Bảng PL.2</span><span class="ext">Thuật ngữ</span></div><table data-glossary="true"><caption>Thuật ngữ</caption><thead><tr><th>Thuật ngữ</th><th>Nghĩa tiếng Việt</th></tr></thead><tbody>' +
     [['listing', 'sản phẩm'], ['review', 'đánh giá'], ['export', 'tệp dữ liệu'], ['peer set', 'nhóm đối thủ'], ['Giá TB', 'giá trung bình'], ['P25 / P75', 'mốc 25% / mốc 75%'], ['NSX', 'nhà sản xuất'], ['H1', 'giả thuyết 1'], ['ROAS', 'tỷ lệ doanh thu trên chi phí quảng cáo'], ['CPA', 'chi phí trên đơn'], ['AI', 'trí tuệ nhân tạo']]
       .map(([term, meaning]) => `<tr><td>${term}</td><td>${meaning}</td></tr>`).join('') +
@@ -1000,6 +1004,21 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
         return `<tr><td>${escape(item.row.indicatorName)}</td><td>${escape(E13_ATTRIBUTION)}</td><td>${escape(`${formatWorldBankValue(item.row.value)} ${worldBankUnitText(item.row)}`)}${capture ? captureMark(capture, citations) : ''}</td>` +
           `<td>${escape(item.row.year)}</td><td>${escape(item.row.lastUpdated)}</td><td>${escape(worldBankSourceNote(item.row))}</td></tr>`;
       }).join('') + `</tbody></table><p class="lim"><b>Chú thích:</b> ${escape(WORLD_BANK_NOTE)} ${escape(WORLD_BANK_LIMIT)}</p><p class="ex-src">Nguồn: ${escape(WORLD_BANK_SRC)}</p></div>`;
+  };
+  // Cục Thống kê figures (S21) follow table 5.3; the same predicate marks S21 as used. Never combined with sample numbers.
+  const officialStatsTable = (sectionId: string): string => {
+    const stored = kind === 'MARKET' && sectionId === 'M05' ? input.collection?.officialStats : undefined;
+    if (!stored) return '';
+    const rows = officialStatsRenderableRows(stored);
+    if (rows.length === 0) return `<p>${escape(officialStatsNotice(stored))}</p>`;
+    return `${stored.status === 'OK' ? '' : `<p>${escape(officialStatsNotice(stored))}</p>`}<div class="table-wrap"><div class="exh"><span class="exn">Bảng 5.4</span><span class="ext">${escape(OFFICIAL_STATS_TABLE_TITLE)}</span></div>` +
+      `<table><caption>${escape(OFFICIAL_STATS_TABLE_TITLE)}</caption><thead><tr><th>Bảng</th><th>Dòng</th><th>Kỳ</th><th>Giá trị</th><th>Đơn vị</th><th>Trạng thái</th></tr></thead><tbody>` +
+      rows.map(row => {
+        const capture = input.captures.find(entry => entry.stepId === 'COLLECTION' && entry.ordinal === row.captureIndex);
+        return `<tr><td>${escape(OFFICIAL_STATS_TABLE_TEXT[row.table])}</td><td>${escape(officialStatsRowLabel(row))}</td><td>${escape(row.period)}</td><td>${escape(officialStatsValueText(row))}${capture ? captureMark(capture, citations) : ''}</td>` +
+          `<td>${escape(officialStatsUnitText(row))}</td><td>${escape(officialStatsStatusText(stored, row))}</td></tr>`;
+      }).join('') + `</tbody></table><p class="lim"><b>Chú thích:</b> ${escape(OFFICIAL_STATS_NOTE)} ${escape(OFFICIAL_STATS_LIMIT)}</p>` +
+      `<p class="ex-src">Nguồn: ${escape(OFFICIAL_STATS_SRC)}; ${rows.map(row => escape(officialStatsCitation(stored, row))).filter((text, i, all) => all.indexOf(text) === i).join('; ')}</p></div>`;
   };
   // Country-level trade figures sit in the supply section as background; the same predicate marks S24 as used. Never summed or compared with sample numbers.
   const comtradeTable = (sectionId: string): string => {
@@ -1039,7 +1058,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   const sellerVideoBlock = (sectionId: string): string => kind === 'MARKET' && sectionId === SELLER_VIDEO_SECTION && input.sellerVideos && input.sourceEvidence?.sellerVideos === true
     ? sellerVideoBlockHtml(input.sellerVideos, escape) + `<p class="lim"><b>Chú thích:</b> ${escape(sellerVideoNote(input.sellerVideos))}</p><p class="ex-src">Nguồn: ${escape(sellerVideoSrc(input.sellerVideos))}</p>` : '';
   const appendix = (sectionId: string): string =>
-    presentationCharts(sectionId) + searchInterestFigure(sectionId) + worldBankTable(sectionId) + comtradeTable(sectionId) + searchAdsTable(sectionId) + pdfExcerptBlock(sectionId) + sellerVideoBlock(sectionId) +
+    presentationCharts(sectionId) + searchInterestFigure(sectionId) + worldBankTable(sectionId) + officialStatsTable(sectionId) + comtradeTable(sectionId) + searchAdsTable(sectionId) + pdfExcerptBlock(sectionId) + sellerVideoBlock(sectionId) +
     (reviewOutcome && kind === 'INSIGHT' && (sectionId === 'I03' || sectionId === 'I17') ? `<p class="warning">${escape(reviewOutcomeLead(reviewOutcome))}</p>` : '') +
     baseAppendix(sectionId) +
     (input.sourceEvidence && (sectionId === 'M13' || sectionId === 'I17') ? sourceEvidenceHtml(input.sourceEvidence) +
@@ -1049,7 +1068,8 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
       ? `<details open id="quote-method-evidence"><summary>Hồ sơ giá M08: nguồn, điều kiện và phép tính</summary><p>Xuất xứ trong manifest là khai báo đã lưu, không phải chứng nhận độc lập. Dữ liệu tổng hợp thủ công hoặc giả lập không trở thành dữ liệu nhà cung cấp đã xác minh.</p>${retainedEvidenceHtml(input.quoteMethods)}</details>` : '') +
     (insightCoding && (sectionId === 'I03' || sectionId === 'I17') ? insightCodingTrace(insightCoding, sectionId) : '') +
     (insightCrosscheck && sectionId === 'I17' ? insightCrosscheckAppendix(insightCrosscheck) : '') +
-    (marketPresentation && sectionId === 'M13' ? market14Appendix : '') +
+    (kind === 'MARKET' && sectionId === 'M13' ? marketPresentation ? market14Appendix
+      : officialStatsRenderable(input.collection?.officialStats) ? marketSourceList : '' : '') +
     (kind === 'MARKET' && sectionId === 'M13' && !marketPresentation && searchAdsOkBrands(input.collection?.searchAds).length
       ? `<p>Nguồn: ${escape(SEARCH_ADS_SOURCE_LABEL)}. ${escape(SEARCH_ADS_SOURCE_NOTE)}</p>` : '') +
     (input.boundedMethods && (sectionId === 'M13' || sectionId === 'I17')

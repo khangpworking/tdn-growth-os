@@ -77,6 +77,10 @@ test('mixed connectors carry per-ID tiers, never a fabricated aggregate', () => 
   assert.equal(SOURCE_REGISTRY.WORLD_BANK.tier, 'A');
   assert.equal(SOURCE_REGISTRY.UN_COMTRADE.tier, 'A');
   assert.equal(SOURCE_REGISTRY.UN_COMTRADE.group, 'MACRO');
+  // Cục Thống kê is a free automatic lane (S21): built, no owning package.
+  assert.equal(SOURCE_REGISTRY.OFFICIAL_STATS.built, true);
+  assert.equal(SOURCE_REGISTRY.OFFICIAL_STATS.pendingPackage, null);
+  assert.equal(SOURCE_REGISTRY.OFFICIAL_STATS.arrival, 'FREE_COLLECT');
 });
 
 test('search ads has S17 metadata and becomes ready only with its own flag and the shared key', () => {

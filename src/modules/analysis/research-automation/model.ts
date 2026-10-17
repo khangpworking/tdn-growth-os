@@ -239,6 +239,65 @@ export interface StepSearchAdsBrand {
   readonly usageOrdinal: number | null;
 }
 export interface StepSearchAds { readonly profile: 'search-ads-v1'; readonly status: StepSearchAdsStatus; readonly brands: readonly StepSearchAdsBrand[] }
+/** Cục Thống kê monthly workbook figures for one product category group (S21). Background only; never combined with sample numbers. */
+export type StepOfficialStatsStatus = 'OK' | 'PARTIAL' | 'NO_DATA' | 'LIST_FAILED' | 'NO_MONTHLY_WORKBOOK' | 'DOWNLOAD_FAILED' | 'READER_UNAVAILABLE'
+  | 'LAYOUT_UNKNOWN' | 'CATEGORY_NOT_MAPPED' | 'MODEL_NOT_CONFIGURED' | 'FAILED' | 'CANCELLED';
+export type StepOfficialStatsTableId = 'RETAIL' | 'CPI' | 'EXPORT' | 'IMPORT' | 'CPI_WORKBOOK';
+/** The status word printed in the table header: Ước tính, Sơ bộ, Chính thức; NOT_STATED when the table prints none. */
+export type StepOfficialStatsValueStatus = 'UOC_TINH' | 'SO_BO' | 'CHINH_THUC' | 'NOT_STATED';
+export interface StepOfficialStatsFile {
+  readonly role: 'MONTHLY' | 'CPI';
+  /** Step capture ordinal of the stored workbook bytes. */
+  readonly captureIndex: number;
+  readonly url: string;
+  readonly title: string;
+  /** Publication date from the listing (`date` field). */
+  readonly listedAt: string;
+  readonly retrievedAt: string;
+  readonly sha256: string;
+  /** True when the listing held an older file for the same month: this file is the newer revision. */
+  readonly revised: boolean;
+}
+export interface StepOfficialStatsTable {
+  readonly table: StepOfficialStatsTableId;
+  readonly captureIndex: number;
+  readonly outcome: 'READ' | 'LAYOUT_UNKNOWN' | 'NOT_FOUND';
+  readonly sheet: string | null;
+  /** The pinned layout variant the header matched; null unless READ. */
+  readonly variant: string | null;
+}
+export interface StepOfficialStatsValue {
+  readonly table: StepOfficialStatsTableId;
+  readonly captureIndex: number;
+  readonly sheet: string;
+  readonly row: number;
+  readonly cell: string;
+  /** The row label exactly as the sheet prints it (NFC, whitespace collapsed). */
+  readonly label: string;
+  /** Period from the table header, e.g. "Tháng 9 năm 2026" (digits are the source's own). */
+  readonly period: string;
+  readonly measure: 'LEVEL' | 'INDEX';
+  /** The stored cell value exactly as written in the workbook (plain decimal); null when the cell is blank, "-", ".." or not a number. */
+  readonly value: string | null;
+  /** The same value rounded to the cell's own display precision (plain decimal, shown with a decimal comma); null when missing. */
+  readonly shown: string | null;
+  /** Unit of a level, e.g. "tỷ đồng"; null for an index. */
+  readonly unit: string | null;
+  /** Comparison base of an index taken from the header, e.g. "cùng kỳ năm trước"; null for a level. */
+  readonly base: string | null;
+  readonly status: StepOfficialStatsValueStatus;
+}
+export interface StepOfficialStats {
+  readonly profile: 'official-stats-v1';
+  readonly status: StepOfficialStatsStatus;
+  /** One category group of the versioned map; null when none was confirmed. */
+  readonly categoryGroup: string | null;
+  readonly reasonVi: string | null;
+  readonly listCaptureIndex: number | null;
+  readonly files: readonly StepOfficialStatsFile[];
+  readonly tables: readonly StepOfficialStatsTable[];
+  readonly values: readonly StepOfficialStatsValue[];
+}
 
 /** One considered public TikTok video of the video-watch lane, pinned at collection time. */
 export interface StepVideoWatchCandidate { readonly videoId: string; readonly url: string; readonly origin: 'SELECTION' | 'EXPANDED_SEARCH' }
@@ -288,6 +347,8 @@ export interface StepResultDocument {
   readonly comtrade?: StepComtrade;
   /** Search-ads library counts of the top brands' websites; absent unless the lane was on for the run. */
   readonly searchAds?: StepSearchAds;
+  /** Cục Thống kê monthly figures for the product's category group; absent unless the official-statistics lane was on for the run. */
+  readonly officialStats?: StepOfficialStats;
   /** Automated seller-video speech readings; absent unless the video-watch lane was on for the run. */
   readonly videoWatch?: StepVideoWatch;
   /** Sanitized Foundation3 reference; mutually exclusive with raw/native review. */

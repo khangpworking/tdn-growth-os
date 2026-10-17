@@ -15,6 +15,7 @@ import { searchInterestRenderable } from './search-interest.js';
 import { worldBankRenderableRows } from './world-bank-lane.js';
 import { comtradeRenderable } from './comtrade-lane.js';
 import { searchAdsOkBrands } from './google-ads-lane.js';
+import { officialStatsRenderableRows } from './official-statistics-lane.js';
 import { pdfExcerptDocuments, type PdfExcerpt } from './pdf-excerpt.js';
 import { sellerVideoPackages, type SellerVideos } from './seller-video.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
@@ -149,6 +150,12 @@ export function sourceEvidenceForReport(packet: AutomationSourceEvidence, input:
     if (!observation || observation.provider !== 'world-bank' || observation.operation !== 'worldbank.observations'
       || !metadata || metadata.provider !== 'world-bank' || metadata.operation !== 'worldbank.metadata') throw new ResearchAutomationIntegrityError('World Bank capture lineage is unavailable');
     add('S23', 'capture', observation.artifactSha256);
+  }
+  // S21 is used only when the Market report draws table 5.4 (same predicate as both renderers), once per stored workbook that has a drawn row.
+  if (kind === 'MARKET') for (const index of new Set(officialStatsRenderableRows(input.collection?.officialStats).map(row => row.captureIndex))) {
+    const capture = input.captures?.find(c => c.stepId === 'COLLECTION' && c.ordinal === index);
+    if (!capture || capture.provider !== 'official-stats' || capture.operation !== 'officialstats.download') throw new ResearchAutomationIntegrityError('Official statistics capture lineage is unavailable');
+    add('S21', 'capture', capture.artifactSha256);
   }
   // S24 is used only when the Market report draws the country-level trade table (same predicate as both renderers), once per stored response.
   if (kind === 'MARKET' && comtradeRenderable(input.collection?.comtrade)) for (const call of input.collection!.comtrade!.calls) {

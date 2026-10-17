@@ -6,7 +6,8 @@ import { renderChart, type FlintChartInput } from './flint.js';
 import { marketChartRows, renderMarketCharts, renderSearchInterestChart } from './market-charts.js';
 import { searchInterestChartPoints, searchInterestRenderable, SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_LIMIT, SEARCH_INTEREST_NOTE, SEARCH_INTEREST_SOURCE_LABEL, SEARCH_INTEREST_SRC, SEARCH_INTEREST_UNIT } from '../research-automation/search-interest.js';
 import { formatWorldBankValue, worldBankRenderableRows, worldBankSourceNote, worldBankUnitText, WORLD_BANK_LIMIT, WORLD_BANK_NOTE, WORLD_BANK_SOURCE_LABEL, WORLD_BANK_SRC, WORLD_BANK_TITLE } from '../research-automation/world-bank-lane.js';
-import { E13_ATTRIBUTION, E14_ATTRIBUTION } from '../source-appendix-projection.js';
+import { E12_ATTRIBUTION, E13_ATTRIBUTION, E14_ATTRIBUTION } from '../source-appendix-projection.js';
+import { officialStatsCitation, officialStatsCitationSheet, officialStatsNotice, officialStatsRenderableRows, officialStatsRowLabel, officialStatsStatusText, officialStatsUnitText, officialStatsValueText, OFFICIAL_STATS_LIMIT, OFFICIAL_STATS_NOTE, OFFICIAL_STATS_SRC, OFFICIAL_STATS_TABLE_TEXT, OFFICIAL_STATS_TABLE_TITLE } from '../research-automation/official-statistics-lane.js';
 import { comtradeFlowText, comtradeNotice, comtradeOfficialText, comtradeRenderableRows, comtradeRowNote, comtradeSideText, COMTRADE_LIMIT, COMTRADE_NOTE, COMTRADE_SOURCE_LABEL, COMTRADE_SRC, COMTRADE_TABLE_TITLE } from '../research-automation/comtrade-lane.js';
 import { searchAdsBrandNotice, searchAdsNotice, searchAdsOkBrands, SEARCH_ADS_NOTE, SEARCH_ADS_SOURCE_LABEL, SEARCH_ADS_SOURCE_NOTE, SEARCH_ADS_TABLE_TITLE } from '../research-automation/google-ads-lane.js';
 import { pdfExcerptBlockHtml, pdfExcerptCitation, PDF_EXCERPT_NOTE, PDF_EXCERPT_SRC } from '../research-automation/pdf-excerpt.js';
@@ -133,11 +134,25 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
       return [label(item.row.indicatorName), esc(E13_ATTRIBUTION), label(`${formatWorldBankValue(item.row.value)} ${worldBankUnitText(item.row)}`) + (no === null ? '' : renderCitationMark(no)),
         label(item.row.year), label(item.row.lastUpdated), label(worldBankSourceNote(item.row))];
     }), { src: WORLD_BANK_SRC, note: WORLD_BANK_NOTE });
+  // Cục Thống kê figures (S21) follow table 5.3 as country background; the same predicate marks S21 as used. Never combined with sample numbers.
+  const officialStats = next ? options.officialStats : undefined;
+  const officialRows = officialStatsRenderableRows(officialStats);
+  const officialTable = !officialStats ? '' : officialRows.length === 0 ? `<p>${esc(officialStatsNotice(officialStats))}</p>`
+    : (officialStats.status === 'OK' ? '' : `<p>${esc(officialStatsNotice(officialStats))}</p>`) +
+      tbl('5.4', OFFICIAL_STATS_TABLE_TITLE, '', ['Bảng', 'Dòng', 'Kỳ', 'Giá trị', 'Đơn vị', 'Trạng thái'],
+        officialRows.map(row => {
+          const file = officialStats.files.find(item => item.captureIndex === row.captureIndex);
+          const citation = officialStatsCitation(officialStats, row).replace(/^[^,]+/u, E12_ATTRIBUTION);
+          const no = file ? registry.cite({ sourceKind: 'CAPTURE', identity: file.sha256, locator: { kind: 'xlsx', sheet: officialStatsCitationSheet(row), cell: row.cell }, technical: { sheet: row.sheet },
+            label: citation, retrievedAt: file.retrievedAt, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' }) : null;
+          return [label(OFFICIAL_STATS_TABLE_TEXT[row.table]), label(officialStatsRowLabel(row)), label(row.period), label(officialStatsValueText(row)) + (no === null ? '' : renderCitationMark(no)),
+            label(officialStatsUnitText(row)), label(officialStatsStatusText(officialStats, row))];
+        }), { src: OFFICIAL_STATS_SRC, note: OFFICIAL_STATS_NOTE });
   sections.push(section('M05', 'Nhu cầu (tín hiệu bán)', 'Nhu cầu, đo bằng doanh số (ước tính) trong mẫu.', salesTable('5.1') +
     (interestChart ? `<p>Kỳ ${period}; nguồn: dữ liệu bán hàng ước tính trên từng sàn. Mức quan tâm tìm kiếm ghi riêng ở Hình 5.2, là chỉ số tương đối, không cộng hay so với số bán.</p>` +
       fig('5.2', SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_UNIT, interestChart.svg, { engine: interestChart.engine, src: SEARCH_INTEREST_SRC, note: SEARCH_INTEREST_NOTE })
-      : `<p>Kỳ ${period}; nguồn: dữ liệu bán hàng ước tính trên từng sàn. Mức quan tâm tìm kiếm ghi riêng, chưa có chuỗi tìm kiếm phù hợp trong bản này.</p>`) + worldBankTable,
-    'Số bán hàng ước tính chưa đối chiếu với người bán, chỉ dùng tham khảo. Không suy ra quy mô ngoài mẫu, số người mua, nhu cầu chưa được đáp ứng hay dự báo.' + (interestChart ? ` ${SEARCH_INTEREST_LIMIT}` : '') + (worldBankTable ? ` ${WORLD_BANK_LIMIT}` : '')));
+      : `<p>Kỳ ${period}; nguồn: dữ liệu bán hàng ước tính trên từng sàn. Mức quan tâm tìm kiếm ghi riêng, chưa có chuỗi tìm kiếm phù hợp trong bản này.</p>`) + worldBankTable + officialTable,
+    'Số bán hàng ước tính chưa đối chiếu với người bán, chỉ dùng tham khảo. Không suy ra quy mô ngoài mẫu, số người mua, nhu cầu chưa được đáp ứng hay dự báo.' + (interestChart ? ` ${SEARCH_INTEREST_LIMIT}` : '') + (worldBankTable ? ` ${WORLD_BANK_LIMIT}` : '') + (officialRows.length ? ` ${OFFICIAL_STATS_LIMIT}` : '')));
   // Country-level trade figures sit in M06 as background; the same predicate marks S24 as used. No sums, shares or comparison with the sample.
   const comtrade = next ? options.comtrade : undefined;
   const comtradeRows = comtradeRenderableRows(comtrade);
@@ -269,7 +284,8 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     ...(worldBankTable ? [[WORLD_BANK_SOURCE_LABEL, 'Đã lưu trong lượt này; số liệu cả nước, chỉ là bối cảnh']] : []),
     ...(comtradeRows.length ? [[COMTRADE_SOURCE_LABEL, 'Đã lưu trong lượt này; số liệu cả nước, chỉ là bối cảnh']] : []),
     ...(metaAdTable ? [[META_AD_SOURCE_LABEL, META_AD_SOURCE_NOTE]] : []),
-    ...(searchAdsOk.length ? [[SEARCH_ADS_SOURCE_LABEL, SEARCH_ADS_SOURCE_NOTE]] : [])] : [['Nguồn', sourceText], ['Kỳ', period]];
+    ...(searchAdsOk.length ? [[SEARCH_ADS_SOURCE_LABEL, SEARCH_ADS_SOURCE_NOTE]] : []),
+    ...(officialRows.length ? [[E12_ATTRIBUTION, 'Đã lưu trong lượt này; số liệu thống kê cả nước theo nhóm hàng, chỉ là bối cảnh']] : [])] : [['Nguồn', sourceText], ['Kỳ', period]];
   if (d.webFacts !== null) {
     const facts = d.webFacts;
     const no = registry.cite({ sourceKind: 'CAPTURE', identity: input.webSnapshotSha256!, locator: { kind: 'source-locator', value: 'số liệu tổng quan' }, label: 'Trang kết quả tìm kiếm: số liệu tổng quan', retrievedAt: facts.capturedAt, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' });
