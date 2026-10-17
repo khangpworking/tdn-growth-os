@@ -4,17 +4,18 @@ import { JSDOM } from 'jsdom';
 import { containsTechnicalId } from '../../src/modules/analysis/citation-registry.js';
 import { calculateMetricScopes } from '../../src/modules/analysis/metric-scope-calculator.js';
 import { DEFAULT_MARKET_PEER_RULE } from '../../src/modules/analysis/default-market-peers.js';
-import { buildMarketReport, computeReaderReportData } from '../../src/modules/analysis/reader-report/index.js';
+import { buildMarketReport, computeReaderReportData, lint } from '../../src/modules/analysis/reader-report/index.js';
 import { COMTRADE_MIRROR_NOTE, COMTRADE_OWN_NOTE, renderComtradeCharts, renderWorldBankCharts, WORLD_BANK_CHART_NOTE } from '../../src/modules/analysis/reader-report/macro-charts.js';
 import { renderMarketCharts } from '../../src/modules/analysis/reader-report/market-charts.js';
 import { COMTRADE_SRC } from '../../src/modules/analysis/research-automation/comtrade-lane.js';
 import { auditMarket14 } from '../../src/modules/analysis/research-automation/market-14-rules.js';
 import { assertMarketBusinessGate, auditMarketReportHtml } from '../../src/modules/analysis/research-automation/market-business-gate.js';
 import { buildAutomationMarketPresentation, marketPresentationDigest, type MarketPresentationBinding } from '../../src/modules/analysis/research-automation/market-presentation-method.js';
-import type { StepComtrade, StepComtradeRow, StepWorldBank, StepWorldBankIndicator } from '../../src/modules/analysis/research-automation/model.js';
+import type { StepComtrade, StepComtradeRow, StepOfficialStats, StepWorldBank, StepWorldBankIndicator } from '../../src/modules/analysis/research-automation/model.js';
+import { OFFICIAL_STATS_LIMIT, OFFICIAL_STATS_PROVINCE_LIMIT, OFFICIAL_STATS_PROVINCE_NOTE, validOfficialStats } from '../../src/modules/analysis/research-automation/official-statistics-lane.js';
 import { assertFlintCharts } from '../../src/modules/analysis/research-automation/reader-report-revisions.js';
 import { buildResearchAutomationReport, type AutomationReportInput } from '../../src/modules/analysis/research-automation/reports.js';
-import { WORLD_BANK_SRC } from '../../src/modules/analysis/research-automation/world-bank-lane.js';
+import { WORLD_BANK_LIMIT, WORLD_BANK_SRC } from '../../src/modules/analysis/research-automation/world-bank-lane.js';
 import { metricFixture } from '../fixtures/metric-scope-synthetic.js';
 import { sync1Options, sync1ReaderFixture } from '../helpers/sync1-reader-fixture.js';
 import { unitPriceFixture } from '../helpers/market-unit-price-fixture.js';
@@ -47,7 +48,7 @@ const figure = (html: string, no: string) => figures(html).find(item => item.no 
 const machineFailures = (html: string) => auditMarket14(html, undefined, { requireFlint: true }).filter(item => item.kind === 'machine' && !item.ok).map(item => item.rule);
 
 // v2 reader renderer
-async function reader(extra: { worldBank?: StepWorldBank; comtrade?: StepComtrade } = {}, flint = true) {
+async function reader(extra: { worldBank?: StepWorldBank; comtrade?: StepComtrade; officialStats?: StepOfficialStats } = {}, flint = true) {
   const input = sync1ReaderFixture('1.4.0'); input.peerRule = { ...DEFAULT_MARKET_PEER_RULE };
   const units = unitPriceFixture(input.rows); input.unitPrices = units.packet;
   return buildMarketReport(computeReaderReportData(input, units.retained), { ...sync1Options, flint, ...extra });
@@ -93,7 +94,7 @@ function stripFigures(html: string, no: RegExp): string {
 }
 
 // Automation (presentation) renderer
-async function presentationInput(extra: { worldBank?: StepWorldBank; comtrade?: StepComtrade } = {}, draw = true): Promise<AutomationReportInput> {
+async function presentationInput(extra: { worldBank?: StepWorldBank; comtrade?: StepComtrade; officialStats?: StepOfficialStats } = {}, draw = true): Promise<AutomationReportInput> {
   const metric = calculateMetricScopes(metricFixture());
   const rows = sync1ReaderFixture('1.4.0').rows, unit = unitPriceFixture(rows);
   const record = { contractVersion: 'reader-unit-spec-intake-record-v1' as const, workspaceId, runId, draftPairId: 'a'.repeat(64),
@@ -114,6 +115,49 @@ async function presentationInput(extra: { worldBank?: StepWorldBank; comtrade?: 
     ...(worldBankCharts.length ? { worldBankCharts } : {}), ...(comtradeCharts.length ? { comtradeCharts } : {}) } as unknown as AutomationReportInput;
 }
 const draftHtml = (input: AutomationReportInput): string => buildResearchAutomationReport(input, 'MARKET').html.toString('utf8');
+
+test('both renderers: World Bank figures, national and province tables, and Comtrade figures coexist with valid numbering and Flint', async () => {
+  const officialStats: StepOfficialStats = {
+    profile: 'official-stats-v1', status: 'OK', categoryGroup: 'Đồ uống', reasonVi: null, listCaptureIndex: null,
+    files: [{ role: 'CPI', captureIndex: 30, sha256: SHA, title: 'Tệp giả lập', revised: false,
+      url: 'https://www.nso.gov.vn/wp-content/uploads/2026/10/CPI-synthetic.xlsx', listedAt: '2026-10-01T00:00:00', retrievedAt: '2026-10-01T00:00:00.000Z' }],
+    tables: [{ table: 'CPI_WORKBOOK', captureIndex: 30, outcome: 'READ', sheet: 'Cả nước', variant: 'binh-quan-luy-ke' }],
+    values: [{ table: 'CPI_WORKBOOK', captureIndex: 30, sheet: 'Cả nước', row: 14, cell: 'C14', label: 'II. Đồ uống và thuốc lá',
+      period: 'Tháng 9 năm 2026', measure: 'INDEX', unit: null, base: 'tháng trước', value: '102.25', shown: '102.25', status: 'NOT_STATED' }],
+    provinces: { captureIndex: 30, outcome: 'READ', sheet: 'Địa phương', variant: 'thang-truoc', period: 'Tháng 9 năm 2026', base: 'tháng trước',
+      provinces: ['Tỉnh A', 'Thành phố B'], values: [
+        { row: 9, cell: 'B9', label: 'CHỈ SỐ GIÁ TIÊU DÙNG', province: 'Tỉnh A', value: '100.25', shown: '100.25' },
+        { row: 9, cell: 'C9', label: 'CHỈ SỐ GIÁ TIÊU DÙNG', province: 'Thành phố B', value: '101.25', shown: '101.25' },
+        { row: 11, cell: 'B11', label: 'II. Đồ uống và thuốc lá', province: 'Tỉnh A', value: '102.25', shown: '102.25' },
+        { row: 11, cell: 'C11', label: 'II. Đồ uống và thuốc lá', province: 'Thành phố B', value: '103.25', shown: '103.25' },
+      ] },
+  };
+  assert.equal(validOfficialStats(officialStats), true);
+  const extra = { worldBank: worldBank(true), comtrade: fullTrade, officialStats };
+  const readerHtml = (await reader(extra)).html;
+  const automationHtml = draftHtml(await presentationInput(extra));
+  for (const html of [readerHtml, automationHtml]) {
+    const doc = new JSDOM(html).window.document;
+    const exhibits = [...doc.querySelectorAll('.exn')].map(node => node.textContent!.trim());
+    const start = exhibits.indexOf('Bảng 5.3');
+    assert.ok(start >= 0);
+    assert.deepEqual(exhibits.slice(start, start + 5), ['Bảng 5.3', 'Hình 5.3', 'Hình 5.4', 'Bảng 5.4', 'Bảng 5.5']);
+    const trade = exhibits.indexOf('Bảng 6.2');
+    assert.ok(trade > start + 4);
+    assert.deepEqual(exhibits.slice(trade, trade + 3), ['Bảng 6.2', 'Hình 6.1', 'Hình 6.2']);
+    for (const no of ['Hình 5.3', 'Hình 5.4', 'Hình 6.1', 'Hình 6.2']) assert.equal(figure(html, no)?.engine, 'flint', no);
+    const m05 = doc.querySelector('#phan-5, #M05')!.textContent!;
+    for (const text of [WORLD_BANK_LIMIT, OFFICIAL_STATS_LIMIT, OFFICIAL_STATS_PROVINCE_NOTE, OFFICIAL_STATS_PROVINCE_LIMIT]) assert.ok(m05.includes(text), text);
+    assert.match(doc.querySelector('#phu-luc, #M13')!.textContent!, /chỉ số giá theo tỉnh, thành phố/u);
+    const numbering = lint(html).find(check => check.rule.startsWith('F7 '))!;
+    assert.equal(numbering.ok, true, numbering.detail);
+    const rule11 = auditMarket14(html, undefined, { requireFlint: true }).find(check => check.rule === '11')!;
+    assert.equal(rule11.ok, true, rule11.detail);
+  }
+  assert.deepEqual(machineFailures(readerHtml), machineFailures((await reader()).html));
+  assert.deepEqual(machineFailures(automationHtml), []);
+  assert.doesNotThrow(() => assertMarketBusinessGate(automationHtml, { presentation: true, partialTotals: [] }));
+});
 
 test('automation report: the four macro figures are Flint, numbered after their tables, and pass the gates and the 14 rules with requireFlint', async () => {
   const html = draftHtml(await presentationInput({ worldBank: worldBank(true), comtrade: fullTrade }));
