@@ -14,6 +14,7 @@ import { classifyWebPage } from './web-page-type.js';
 import { searchInterestRenderable } from './search-interest.js';
 import { worldBankRenderableRows } from './world-bank-lane.js';
 import { comtradeRenderable } from './comtrade-lane.js';
+import { searchAdsOkBrands } from './google-ads-lane.js';
 import { pdfExcerptDocuments, type PdfExcerpt } from './pdf-excerpt.js';
 import { sellerVideoPackages, type SellerVideos } from './seller-video.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
@@ -154,6 +155,13 @@ export function sourceEvidenceForReport(packet: AutomationSourceEvidence, input:
     const capture = input.captures?.find(c => c.stepId === 'COLLECTION' && c.ordinal === call.captureIndex);
     if (!capture || capture.provider !== 'comtrade' || capture.operation !== 'comtrade.data') throw new ResearchAutomationIntegrityError('UN Comtrade capture lineage is unavailable');
     add('S24', 'capture', capture.artifactSha256);
+  }
+  // S17 is used only for brand rows drawn in Market, once per stored response.
+  if (kind === 'MARKET') for (const brand of searchAdsOkBrands(input.collection?.searchAds)) {
+    const capture = input.captures?.find(c => c.stepId === 'COLLECTION' && c.ordinal === brand.captureIndex);
+    if (!capture || capture.truncated || capture.provider !== 'serpapi' || capture.operation !== 'serpapi.google_ads.transparency' || capture.retrievedAt !== brand.retrievedAt)
+      throw new ResearchAutomationIntegrityError('Search ads capture lineage is unavailable');
+    add('S17', 'capture', capture.artifactSha256);
   }
   // S25 is used only when the Market report draws at least one verified document excerpt, once per document; the marker lets older packets verify unchanged.
   const excerpts = kind === 'MARKET' ? input.pdfExcerpts ?? [] : [];

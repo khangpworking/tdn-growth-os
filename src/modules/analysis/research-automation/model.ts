@@ -213,6 +213,33 @@ export interface StepComtrade {
   readonly mirrorReporterCount: number | null;
 }
 
+/** Ad counts of each top brand's own website in the public search-ads library (S17). Advertiser names, ids, images, links and ad ids are never stored. */
+export type StepSearchAdsStatus = 'OK' | 'NO_BRANDS' | 'NO_DATA' | 'FAILED' | 'CANCELLED';
+export type StepSearchAdsBrandStatus = 'OK' | 'SKIPPED_NO_DOMAIN' | 'SKIPPED_AMBIGUOUS_DOMAIN' | 'FAILED' | 'CANCELLED';
+export interface StepSearchAdsBrand {
+  readonly label: string;
+  /** The brand's website host taken from the run's own web rows; null when none was chosen. */
+  readonly domain: string | null;
+  readonly status: StepSearchAdsBrandStatus;
+  /** Closed reason code for a status other than OK. */
+  readonly reason: string | null;
+  readonly totalResults: number | null;
+  readonly creativeCount: number | null;
+  readonly formats: { readonly text: number; readonly image: number; readonly video: number } | null;
+  /** Asia/Ho_Chi_Minh calendar days, YYYY-MM-DD. */
+  readonly firstShown: string | null;
+  readonly lastShown: string | null;
+  readonly maxDaysShown: number | null;
+  /** Creatives whose shown range overlaps the run period. */
+  readonly overlapCount: number | null;
+  readonly invalidCount: number | null;
+  readonly captureIndex: number | null;
+  readonly retrievedAt: string | null;
+  readonly responseSha256: string | null;
+  readonly usageOrdinal: number | null;
+}
+export interface StepSearchAds { readonly profile: 'search-ads-v1'; readonly status: StepSearchAdsStatus; readonly brands: readonly StepSearchAdsBrand[] }
+
 /** One considered public TikTok video of the video-watch lane, pinned at collection time. */
 export interface StepVideoWatchCandidate { readonly videoId: string; readonly url: string; readonly origin: 'SELECTION' | 'EXPANDED_SEARCH' }
 export type StepVideoWatchReason = 'OVER_10_VIDEOS' | 'DOWNLOAD_FAILED' | 'VIDEO_TOO_LONG' | 'VIDEO_TOO_LARGE' | 'NOT_A_VIDEO'
@@ -259,6 +286,8 @@ export interface StepResultDocument {
   readonly worldBank?: StepWorldBank;
   /** Country-level trade figures for the estimated HS code; absent unless the UN Comtrade lane was on for the run. */
   readonly comtrade?: StepComtrade;
+  /** Search-ads library counts of the top brands' websites; absent unless the lane was on for the run. */
+  readonly searchAds?: StepSearchAds;
   /** Automated seller-video speech readings; absent unless the video-watch lane was on for the run. */
   readonly videoWatch?: StepVideoWatch;
   /** Sanitized Foundation3 reference; mutually exclusive with raw/native review. */

@@ -26,7 +26,7 @@ export function webTextHidden(text: string): boolean {
     return HIDDEN_WEB_NAME.test(folded) || SEARCH_OPERATOR.test(folded) || MODEL_ID.test(folded);
   });
 }
-const NEWS_DOMAINS = ['vnexpress.net', 'tuoitre.vn', 'thanhnien.vn', 'dantri.com.vn', 'vietnamnet.vn', 'znews.vn', 'cafef.vn', 'cafebiz.vn', 'vneconomy.vn',
+export const NEWS_DOMAINS = ['vnexpress.net', 'tuoitre.vn', 'thanhnien.vn', 'dantri.com.vn', 'vietnamnet.vn', 'znews.vn', 'cafef.vn', 'cafebiz.vn', 'vneconomy.vn',
   'laodong.vn', 'nld.com.vn', 'baomoi.com', 'tienphong.vn', 'plo.vn', 'kenh14.vn', '24h.com.vn'];
 const NEWS_PATH = /(?:^|\/)(?:tin-tuc|tin-moi|tin-nong|thoi-su)(?:\/|$)/;
 // "cách" alone also means insulation or distance, so it only counts with a doing-verb after it.
