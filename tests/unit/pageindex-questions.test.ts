@@ -97,3 +97,13 @@ test('owner uploads are planned before captured PDFs, each group in sha order', 
   assert.deepEqual([perFile(sha('9')), perFile(sha('0')), perFile(sha('1'))], [7, 3, 0]);
   assert.deepEqual(plan.filter(q => q.pdfIndex === 0).map(q => q.sectionId), market);
 });
+
+test('without captured PDFs the ordered inputs and every planned question are unchanged', () => {
+  const files = ['a', 'c', 'f'].map(c => ({ sha256: c.repeat(64), origin: 'UPLOAD' as const }));
+  const ordered = orderRunPdfsForQuestions(files);
+  assert.deepEqual(ordered, files, 'the run inventory already uses ascending SHA order');
+  for (const maxPerRun of [0, 1, 10, 100]) {
+    const input = { sections: PAGEINDEX_ELIGIBLE_SECTIONS, pdfCount: files.length, maxPerRun };
+    assert.deepEqual(planPageIndexQuestions({ ...input, pdfCount: ordered.length }), planPageIndexQuestions(input));
+  }
+});

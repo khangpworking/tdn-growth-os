@@ -1432,6 +1432,13 @@ export class ResearchAutomationService {
     return Number.isSafeInteger(rawCap) && rawCap >= 0 ? Math.min(rawCap, 100) : 0;
   }
 
+  /** Each existing PDF consumes a full section plan before another PDF can get its first question. */
+  #remainingCapturePdfSlots(runId: string, reports: readonly string[]): number {
+    if (!this.#pageIndexEnabled()) return 0;
+    const sections = PAGEINDEX_ELIGIBLE_SECTIONS.filter(id => reports.includes(id.startsWith('M') ? 'MARKET' : 'INSIGHT')).length;
+    return sections ? Math.max(0, Math.ceil(this.#pageIndexQuestionCap() / sections) - this.#runPdfs(runId).length) : 0;
+  }
+
   /** Local page count against the captured-PDF cap (free; never a provider call). An unreadable file cannot be read for the report either. */
   async #capturePageCheck(bytes: Uint8Array): Promise<'OK' | 'PAGE_LIMIT' | 'DOCUMENT_INVALID'> {
     try {
@@ -3958,6 +3965,8 @@ export class ResearchAutomationService {
     const nativeCoverage = bound.step.coverage.filter(value => value.provider === 'apify-dami');
     const nativeLimitations = bound.step.limitations.filter(value => value.provider === 'apify-dami');
     const now = this.#now().toISOString();
+    const rowForSources = this.#current(runId)!;
+    const sourceStart = await this.#readStartSnapshot(rowForSources.startSha, rowForSources.workspaceId);
     const captures: Array<{ row: CaptureRecord; artifact: StoredArtifact }> = [];
     let envelopes = captureEnvelopes(result);
     if (!envelopes) {
@@ -3970,8 +3979,12 @@ export class ResearchAutomationService {
       for (const { capture, body } of values) {
         if (retainPdf && stepId === 'COLLECTION' && capture.responseBytes && !aborted &&
           Buffer.from(capture.responseBytes.subarray(0, 5)).toString('utf8') === '%PDF-') {
-          // A provider PDF over the captured-PDF page cap (or unreadable) stays an ordinary capture, never a run PDF to index.
-          try { if (await this.#capturePageCheck(capture.responseBytes) === 'OK') await this.#retainRunPdf(runId, `source-${captures.length + 1}.pdf`, capture.responseBytes, 'CAPTURE'); }
+          // Discovery off preserves the original generic intake. When on, all automatic PDFs share the page and question limits.
+          try {
+            if (!this.#pdfDiscoverySource || (this.#remainingCapturePdfSlots(runId, sourceStart.reports) > 0 &&
+                await this.#capturePageCheck(capture.responseBytes) === 'OK'))
+              await this.#retainRunPdf(runId, `source-${captures.length + 1}.pdf`, capture.responseBytes, 'CAPTURE');
+          }
           catch { /* Source retention/indexing failure never invents a citation. */ }
         }
         const artifact = await this.#artifacts.put(body);
@@ -4230,8 +4243,6 @@ export class ResearchAutomationService {
         step = probe;
       } catch { step = { ...step, tiktokTopAds: tiktokTopAdsFailed(keyword, 'FAILED', tiktokTopAdsCollection?.opens ?? 0) }; }
     }
-    const rowForSources = this.#current(runId)!;
-    const sourceStart = await this.#readStartSnapshot(rowForSources.startSha, rowForSources.workspaceId);
     let cancelledSourceEvidence: (() => AutomationSourceEvidence) | undefined;
     if (stepId === 'COLLECTION' && sourceStart.reviewCollectionPolicy && step.privateShopee) {
       const reviewSample = await this.#shopee.reviewSample(step.privateShopee, { runId, start: sourceStart,
@@ -4292,9 +4303,8 @@ export class ResearchAutomationService {
         // so neither the extra search nor any download is made. With it on, owner uploads planned first may already fill the
         // question cap: then an automatic PDF could never be asked either. Later uploads stay first by ordering.
         const readerOff = !this.#pageIndexEnabled();
-        const ownerUploads = readerOff ? 0 : this.#runPdfs(runId).filter(pdf => pdf.origin === 'UPLOAD').length;
-        const sectionCount = PAGEINDEX_ELIGIBLE_SECTIONS.filter(id => sourceStart.reports.includes(id.startsWith('M') ? 'MARKET' : 'INSIGHT')).length;
-        const noQuestionBudget = !readerOff && ownerUploads * sectionCount >= this.#pageIndexQuestionCap();
+        const downloadSlots = Math.min(PDF_DISCOVERY_MAX_FILES, this.#remainingCapturePdfSlots(runId, sourceStart.reports));
+        const noQuestionBudget = !readerOff && downloadSlots === 0;
         if (!readerOff && !noQuestionBudget) try {
           const runRows = step.sourceEvidence
             ? admitWebResults(step.sourceEvidence, collectionWebRows(step), [...await this.#captureRecords(runId), ...captures.map(c => c.row)], step.sourceEvidence.jevTriage ?? null)
@@ -4303,7 +4313,7 @@ export class ResearchAutomationService {
         } catch { candidates = []; }
         if (readerOff) search = { status: 'SKIPPED', reason: 'SKIPPED_READER_OFF', captureIndex: null, retrievedAt: null };
         else if (noQuestionBudget) search ={ status: 'SKIPPED', reason: 'SKIPPED_NO_QUESTION_BUDGET', captureIndex: null, retrievedAt: null };
-        else if (candidates.length >= PDF_DISCOVERY_MAX_FILES) search = { status: 'SKIPPED', reason: 'SEARCH_SKIPPED_ENOUGH', captureIndex: null, retrievedAt: null };
+        else if (candidates.length >= downloadSlots) search = { status: 'SKIPPED', reason: 'SEARCH_SKIPPED_ENOUGH', captureIndex: null, retrievedAt: null };
         else if (!keywordDraft) search = { status: 'SKIPPED', reason: 'SEARCH_NO_ADMISSION', captureIndex: null, retrievedAt: null };
         else {
           let attempt: PdfSearchAttempt;
@@ -4329,10 +4339,17 @@ export class ResearchAutomationService {
         }
         const fileIndexes: (number | null)[] = [];
         if (candidates.length && !signal?.aborted) {
-          pdfDownloads = await source.download(candidates, signal ? { signal } : {});
+          pdfDownloads = { requests: 0, items: [] };
           const items: PdfDownloadRun['items'][number][] = [];
           const knownPdfs = new Set(this.#runPdfs(runId).map(pdf => pdf.sha256));
-          for (const item of pdfDownloads.items) {
+          // Download sequentially: a duplicate or refused file consumes an attempt, not a question slot.
+          // Never try beyond the original two candidates, and stop before fetching a file that cannot be asked.
+          for (const candidate of candidates.slice(0, PDF_DISCOVERY_MAX_FILES)) {
+            if (signal?.aborted || this.#remainingCapturePdfSlots(runId, sourceStart.reports) === 0) break;
+            const downloaded = await source.download([candidate], signal ? { signal } : {});
+            pdfDownloads = { requests: pdfDownloads.requests + downloaded.requests, items: [...pdfDownloads.items, ...downloaded.items] };
+            const item = downloaded.items[0];
+            if (!item) continue;
             const envelopes = item.kind === 'DOWNLOADED' ? captureEnvelopes({ captures: [item.capture] }) : null;
             if (!envelopes?.length) { fileIndexes.push(null); items.push(item); continue; }
             if (item.kind === 'DOWNLOADED' && knownPdfs.has(item.sha256)) {

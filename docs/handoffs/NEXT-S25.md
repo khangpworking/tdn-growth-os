@@ -26,13 +26,14 @@ Failures record a reason code only; they never fail the run and never draw an em
 - Downloads: 2 public-file GETs (usage ordinal 15, provider `pdf-discovery`, no credit).
 - Document reading: at most 2 extra PDFs per run go to the existing reader, inside its existing per-run question cap.
 
-## Page cap and question budget (S25b)
+## Giới hạn trang và câu hỏi (S25b)
 
-- `TDN_RESEARCH_PDF_DISCOVERY_MAX_PAGES`: page cap for captured PDFs only, default `60`, a safe integer clamped to 1..1000; anything else gives the default. Pages are counted locally (python3 `pypdf`, no reader call) before the file is stored. An over-cap S25 file is recorded as `FAILED` / `PAGE_LIMIT` and is not stored as a capture, not retained as a run PDF and not indexed; it still counts as one of the 2 download attempts and is not replaced by another candidate. A file whose pages cannot be counted is `FAILED` / `DOCUMENT_INVALID`. The generic capture→run-PDF path applies the same cap (the capture is kept, the run PDF is not). Owner uploads (`attachRunPdf`, package import) are never page-capped.
-- Question order: owner uploads first, then automatic captures, each group by `source_sha256`. Origin lives in `analysis_pageindex_run_pdfs.origin` (`UPLOAD` | `CAPTURE`, migration `0057`; older rows default to `UPLOAD`; an owner upload of bytes already captured turns the row into `UPLOAD`). Files left without a planned question are not indexed.
-- When the document reader is enabled and owner uploads × eligible Market sections ≥ the per-run question cap, S25 skips the extra search and all downloads: `pdfDiscovery.search.reason` and `pdfDiscovery.reason` are `SKIPPED_NO_QUESTION_BUDGET`, no usage rows 14/15.
-- When the document reader is disabled (`#pageIndexEnabled()` false: no injected config and `TDN_PAGEINDEX_CLOUD_ENABLED` not `true`), S25 skips the extra search and all downloads before any call: reason `SKIPPED_READER_OFF`, no usage rows 14/15. The M09 excerpt block shows only stored reader quotes, so an automatic PDF could add nothing then. Owner uploads are unaffected.
-- New reason codes: `PAGE_LIMIT`, `SKIPPED_NO_QUESTION_BUDGET`, `SKIPPED_READER_OFF`.
+- `TDN_RESEARCH_PDF_DISCOVERY_MAX_PAGES`: giới hạn riêng cho tệp tự thu, mặc định `60`; nhận số nguyên an toàn, giới hạn trong khoảng 1–1000; giá trị không hợp lệ dùng mặc định. Máy đếm trang tại chỗ bằng python3 và `pypdf`, không gọi dịch vụ trả phí. Tệp S25 vượt giới hạn được ghi `FAILED` / `PAGE_LIMIT`, không lưu bản thu, không giữ trong lượt và không gửi đi lập chỉ mục. Tệp đó vẫn chiếm một trong tối đa 2 lần tải, không thử tệp thay thế. Không đếm được trang thì ghi `FAILED` / `DOCUMENT_INVALID`.
+- Khi bật cờ S25, PDF từ luồng thu chung cũng phải qua giới hạn trang và còn chỗ trong kế hoạch hỏi; bản thu gốc vẫn được giữ, tệp không đạt thì không giữ làm PDF của lượt. Khi tắt cờ, luồng thu chung giữ hành vi cũ. Tệp chủ gửi trực tiếp hoặc qua gói nguồn không chịu giới hạn mới, vẫn theo quy tắc 1–1000 trang của bộ đọc.
+- Hỏi tài liệu chủ gửi trước, rồi tài liệu tự thu; trong mỗi nhóm xếp theo `source_sha256`. Cột `analysis_pageindex_run_pdfs.origin` lưu `UPLOAD` hoặc `CAPTURE` qua migration `0057`; hàng cũ mặc định `UPLOAD`. Chủ gửi lại tệp đã thu thì hàng đó trở thành `UPLOAD`.
+- Trước khi tìm hoặc tải, trừ số PDF đã có trong lượt (cả `UPLOAD` và `CAPTURE`) khỏi số tệp có thể nhận ít nhất một câu hỏi trong kế hoạch. Chỉ tải tối đa số chỗ còn lại, không quá 2 tệp. Nếu kết quả đã có đủ liên kết cho số chỗ đó thì bỏ lần tìm thêm. Hết chỗ thì ghi `SKIPPED_NO_QUESTION_BUDGET`, không tìm, không tải, không thêm hàng sử dụng 14/15.
+- Khi chưa bật bộ đọc (`TDN_PAGEINDEX_CLOUD_ENABLED` khác `true`, không có cấu hình ghi đè), S25 ghi `SKIPPED_READER_OFF` rồi bỏ tìm và tải, không thêm hàng sử dụng 14/15. Khối trích dẫn M09 chỉ dùng câu trích đã lưu từ bộ đọc. Tệp chủ gửi vẫn giữ luồng cũ.
+- Mã lý do mới: `PAGE_LIMIT`, `SKIPPED_NO_QUESTION_BUDGET`, `SKIPPED_READER_OFF`.
 
 ## First canary check
 
