@@ -108,7 +108,9 @@ export const defaultProviderTransport: ProviderTransport = {
 };
 
 /** Fixed provider hosts. URLs are built from constants only; no caller-supplied URL is ever fetched. */
-const ALLOWED_HOSTS = new Set(['www.kalodata.com', 'serpapi.com', 'api.worldbank.org', 'comtradeapi.un.org']);
+const ALLOWED_HOSTS = new Set(['www.kalodata.com', 'serpapi.com', 'api.worldbank.org', 'comtradeapi.un.org', 'www.nso.gov.vn']);
+/** Per-host response ceiling on top of the caller's own limit. The statistics office host serves workbooks of at most 20 MiB. */
+const HOST_MAX_BYTES: ReadonlyMap<string, number> = new Map([['www.nso.gov.vn', 20 * 1024 * 1024]]);
 
 export type HttpOutcome =
   | { kind: 'RECEIVED'; status: number; bytes: Buffer }
@@ -146,7 +148,7 @@ export async function boundedRequest(transport: ProviderTransport, request: {
       const part = await reader.read();
       if (part.done) break;
       size += part.value.byteLength;
-      if (size > request.maxBytes) return { kind: 'OVERSIZE', status: response.status };
+      if (size > Math.min(request.maxBytes, HOST_MAX_BYTES.get(url.hostname) ?? Number.POSITIVE_INFINITY)) return { kind: 'OVERSIZE', status: response.status };
       chunks.push(part.value);
     }
   } catch {

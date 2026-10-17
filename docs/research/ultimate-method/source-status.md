@@ -53,7 +53,7 @@ E14 của file Ultimate nói về "nguồn đang dùng hoặc đã duyệt". Ở
 | S18 | Trang thương hiệu Facebook | Đề xuất | 08/10/2026 | — |
 | S19 | Kết quả tìm kiếm Google mở rộng | Chạy thử | 08/10/2026 | Chờ chạy thử Phase 0 |
 | S20 | Mức quan tâm tìm kiếm trên Google (Trends) | Chạy thử | 08/10/2026 | Chờ chạy thử Phase 0 |
-| S21 | Cục Thống kê | Đã duyệt | 12/10/2026 | Chủ duyệt 12/10 |
+| S21 | Cục Thống kê | Đã duyệt | 17/10/2026 | Chủ duyệt 12/10; bộ thu tự động sau cờ TDN_RESEARCH_OFFICIAL_STATS_ENABLED (mặc định tắt); M05 Bảng 5.4 chỉ là bối cảnh cả nước |
 | S22 | Cục Thống kê theo tỉnh | Đã duyệt | 12/10/2026 | Chủ duyệt 12/10 |
 | S23 | Ngân hàng Thế giới (dữ liệu mở) | Đã duyệt | 08/10/2026 | Duyệt theo E13; chưa thu cho báo cáo |
 | S24 | Cơ sở dữ liệu thương mại của Liên Hợp Quốc | Đề xuất | 08/10/2026 | Bộ thu có sẵn sau cờ TDN_RESEARCH_COMTRADE_ENABLED (mặc định tắt); M06 là bối cảnh cả nước; chờ chủ duyệt |
@@ -71,6 +71,7 @@ Dòng trước 12/10/2026 ghi lại từ danh mục nguồn, nhật ký test và
 
 | Ngày | Mã nguồn | Nhãn cũ → nhãn mới | Lý do | Ai quyết |
 |---|---|---|---|---|
+| 17/10/2026 | S21 | Đã duyệt → Đã duyệt | Thêm bộ thu tự động cho báo cáo Market, sau cờ TDN_RESEARCH_OFFICIAL_STATS_ENABLED, mặc định tắt; nhãn không đổi | Chủ (duyệt 12/10) |
 | 12/10/2026 | Mọi nguồn | Nhiều cách ghi → 5 nhãn | Lập trang này; nhãn chỉ để đọc, không bật tắt gì trong code (DS-20261012-03) | Chủ |
 | 12/10/2026 | S22 | Đã test ("đã kiểm 08/10") → Đã duyệt | Chủ duyệt (BR-20261012-01) | Chủ |
 | 12/10/2026 | S21 | Đã test ("đã kiểm 08/10") → Đã duyệt | Chủ duyệt (BR-20261012-01) | Chủ |

@@ -163,12 +163,12 @@ test('source status reports twelve cards with registry metadata, workspace histo
     assert.equal(sources.APIFY_SHOPEE.credential, 'CONFIGURED');
     assert.equal(sources.APIFY_SHOPEE.dataCount, 1);
     assert.equal(sources.APIFY_SHOPEE.spendCapUsd, null);
-    // Unbuilt cards name their owning package and show honest zeros.
-    for (const id of ['OFFICIAL_STATS']) {
-      assert.equal(sources[id].state, 'NOT_BUILT', `${id} must not pretend its collector exists`);
-      assert.equal(sources[id].dataCount, 0);
-      assert.ok(sources[id].pendingPackage, `${id} names its owning package`);
-    }
+    // Cục Thống kê is a free automatic lane: built, no owning package, honest zeros until a run stores its step.
+    assert.equal(sources.OFFICIAL_STATS.state, 'READY');
+    assert.equal(sources.OFFICIAL_STATS.dataCount, 0);
+    assert.equal(sources.OFFICIAL_STATS.pendingPackage ?? null, null);
+    assert.equal(sources.OFFICIAL_STATS.credential, 'NOT_REQUIRED');
+    assert.equal(sources.OFFICIAL_STATS.paid, false);
     assert.equal(sources.META_AD_LIBRARY.state, 'MANUAL_IMPORT');
     assert.equal(sources.META_AD_LIBRARY.dataCount, 0);
     assert.equal(sources.META_AD_LIBRARY.pendingPackage ?? null, null);

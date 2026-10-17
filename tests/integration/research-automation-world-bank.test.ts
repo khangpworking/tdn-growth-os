@@ -131,7 +131,7 @@ test('actual OWNER HTTP upload/confirm/history/display retains two revisions, de
   board = await (await fetch(`${f.origin}/api/workspaces/${workspaceId}/research-automation/source-status`)).json() as typeof board;
   const card = board.sources.find(row => row.source === 'WORLD_BANK')!;
   assert.equal(card.state, 'MANUAL_IMPORT'); assert.equal(card.dataCount, 6); assert.equal(card.lastUsageAt, null); assert.equal(card.lastDataAt, newer.confirmation.confirmedAt);
-  assert.equal(board.sources.find(row => row.source === 'OFFICIAL_STATS')!.state, 'NOT_BUILT');
+  assert.equal(board.sources.find(row => row.source === 'OFFICIAL_STATS')!.state, 'READY');
   const anotherRun = await f.createRun();
   const anotherPrepared = await (await f.upload(anotherRun, f.prepareInput('another-run'))).json() as PrepareReceipt;
   assert.equal((await f.post(anotherRun, 'sources/world-bank/confirm', { ...confirm, requestKey: 'confirm-another-run', source: anotherPrepared.source })).status, 200);

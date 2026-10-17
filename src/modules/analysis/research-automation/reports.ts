@@ -70,6 +70,7 @@ import { marketChartRows, type CaptureCountChart, type MarketChart } from '../re
 import type { RenderedChart } from '../reader-report/flint.js';
 import { pdfExcerptBlockHtml, PDF_EXCERPT_NOTE, PDF_EXCERPT_SECTION, PDF_EXCERPT_SRC } from './pdf-excerpt.js';
 import { sellerVideoBlockHtml, sellerVideoNote, sellerVideoSrc, SELLER_VIDEO_SECTION } from './seller-video.js';
+import { officialStatsCitation, officialStatsNotice, officialStatsRenderable, officialStatsRenderableRows, officialStatsStatusText, officialStatsUnitText, officialStatsValueText, OFFICIAL_STATS_LIMIT, OFFICIAL_STATS_NOTE, OFFICIAL_STATS_SOURCE_LABEL, OFFICIAL_STATS_SRC, OFFICIAL_STATS_TABLE_TEXT, OFFICIAL_STATS_TABLE_TITLE } from './official-statistics-lane.js';
 import { comtradeFlowText, comtradeNotice, comtradeOfficialText, comtradeRenderable, comtradeRenderableRows, comtradeRowNote, comtradeSideText, COMTRADE_NOTE, COMTRADE_SOURCE_LABEL, COMTRADE_SRC, COMTRADE_TABLE_TITLE } from './comtrade-lane.js';
 import { formatWorldBankValue, worldBankRenderable, worldBankRenderableRows, worldBankSourceNote, worldBankUnitText, WORLD_BANK_LIMIT, WORLD_BANK_NOTE, WORLD_BANK_SOURCE_LABEL, WORLD_BANK_SRC, WORLD_BANK_TITLE } from './world-bank-lane.js';
 import { E13_ATTRIBUTION } from '../source-appendix-projection.js';
@@ -205,7 +206,9 @@ export function marketSourceRows(input: AutomationReportInput, webResultCount: n
     ? [[WORLD_BANK_SOURCE_LABEL, 'Đã dùng trong lượt này: số liệu cả nước, chỉ là bối cảnh.']] : [];
   const trade: readonly (readonly [string, string])[] = comtradeRenderable(input.collection?.comtrade)
     ? [[COMTRADE_SOURCE_LABEL, 'Đã dùng trong lượt này: số liệu cả nước, chỉ là bối cảnh.']] : [];
-  return [['Dữ liệu bán hàng', sales], ['Dữ liệu đánh giá sản phẩm trên nền tảng', native], ['Kết quả tìm kiếm', web], ['Bình luận đã thu thập', comments], ...interest, ...macro, ...trade];
+  const official: readonly (readonly [string, string])[] = officialStatsRenderable(input.collection?.officialStats)
+    ? [[OFFICIAL_STATS_SOURCE_LABEL, 'Đã dùng trong lượt này: số liệu thống kê cả nước theo nhóm hàng, chỉ là bối cảnh.']] : [];
+  return [['Dữ liệu bán hàng', sales], ['Dữ liệu đánh giá sản phẩm trên nền tảng', native], ['Kết quả tìm kiếm', web], ['Bình luận đã thu thập', comments], ...interest, ...macro, ...official, ...trade];
 }
 interface CatalogSection { sectionId: string; title: string; methodId: string; methodVersion: string; requiredInputs: string[] }
 export interface MethodOutputRef { methodOutputId: string; locatedRecordCount: number; unresolvedPointers: readonly string[]; blockers: readonly string[] }
@@ -998,6 +1001,21 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
           `<td>${escape(item.row.year)}</td><td>${escape(item.row.lastUpdated)}</td><td>${escape(worldBankSourceNote(item.row))}</td></tr>`;
       }).join('') + `</tbody></table><p class="lim"><b>Chú thích:</b> ${escape(WORLD_BANK_NOTE)} ${escape(WORLD_BANK_LIMIT)}</p><p class="ex-src">Nguồn: ${escape(WORLD_BANK_SRC)}</p></div>`;
   };
+  // Cục Thống kê figures (S21) follow table 5.3; the same predicate marks S21 as used. Never combined with sample numbers.
+  const officialStatsTable = (sectionId: string): string => {
+    const stored = kind === 'MARKET' && sectionId === 'M05' ? input.collection?.officialStats : undefined;
+    if (!stored) return '';
+    const rows = officialStatsRenderableRows(stored);
+    if (rows.length === 0) return `<p>${escape(officialStatsNotice(stored))}</p>`;
+    return `${stored.status === 'OK' ? '' : `<p>${escape(officialStatsNotice(stored))}</p>`}<div class="table-wrap"><div class="exh"><span class="exn">Bảng 5.4</span><span class="ext">${escape(OFFICIAL_STATS_TABLE_TITLE)}</span></div>` +
+      `<table><caption>${escape(OFFICIAL_STATS_TABLE_TITLE)}</caption><thead><tr><th>Bảng</th><th>Dòng</th><th>Kỳ</th><th>Giá trị</th><th>Đơn vị</th><th>Trạng thái</th></tr></thead><tbody>` +
+      rows.map(row => {
+        const capture = input.captures.find(entry => entry.stepId === 'COLLECTION' && entry.ordinal === row.captureIndex);
+        return `<tr><td>${escape(OFFICIAL_STATS_TABLE_TEXT[row.table])}</td><td>${escape(row.label)}</td><td>${escape(row.period)}</td><td>${escape(officialStatsValueText(row))}${capture ? captureMark(capture, citations) : ''}</td>` +
+          `<td>${escape(officialStatsUnitText(row))}</td><td>${escape(officialStatsStatusText(stored, row))}</td></tr>`;
+      }).join('') + `</tbody></table><p class="lim"><b>Chú thích:</b> ${escape(OFFICIAL_STATS_NOTE)} ${escape(OFFICIAL_STATS_LIMIT)}</p>` +
+      `<p class="ex-src">Nguồn: ${escape(OFFICIAL_STATS_SRC)}; ${rows.map(row => escape(officialStatsCitation(stored, row))).filter((text, i, all) => all.indexOf(text) === i).join('; ')}</p></div>`;
+  };
   // Country-level trade figures sit in the supply section as background; the same predicate marks S24 as used. Never summed or compared with sample numbers.
   const comtradeTable = (sectionId: string): string => {
     const stored = kind === 'MARKET' && sectionId === 'M06' ? input.collection?.comtrade : undefined;
@@ -1018,7 +1036,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   const sellerVideoBlock = (sectionId: string): string => kind === 'MARKET' && sectionId === SELLER_VIDEO_SECTION && input.sellerVideos && input.sourceEvidence?.sellerVideos === true
     ? sellerVideoBlockHtml(input.sellerVideos, escape) + `<p class="lim"><b>Chú thích:</b> ${escape(sellerVideoNote(input.sellerVideos))}</p><p class="ex-src">Nguồn: ${escape(sellerVideoSrc(input.sellerVideos))}</p>` : '';
   const appendix = (sectionId: string): string =>
-    presentationCharts(sectionId) + searchInterestFigure(sectionId) + worldBankTable(sectionId) + comtradeTable(sectionId) + pdfExcerptBlock(sectionId) + sellerVideoBlock(sectionId) +
+    presentationCharts(sectionId) + searchInterestFigure(sectionId) + worldBankTable(sectionId) + officialStatsTable(sectionId) + comtradeTable(sectionId) + pdfExcerptBlock(sectionId) + sellerVideoBlock(sectionId) +
     (reviewOutcome && kind === 'INSIGHT' && (sectionId === 'I03' || sectionId === 'I17') ? `<p class="warning">${escape(reviewOutcomeLead(reviewOutcome))}</p>` : '') +
     baseAppendix(sectionId) +
     (input.sourceEvidence && (sectionId === 'M13' || sectionId === 'I17') ? sourceEvidenceHtml(input.sourceEvidence) +
