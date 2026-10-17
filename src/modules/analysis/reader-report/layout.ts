@@ -18,13 +18,13 @@ export function table(head: readonly string[], rows: readonly (readonly unknown[
   return `<div class="tw"><table class="${cls}"${width}><thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 
-export type FigureOptions = { fact?: string; src?: string; note?: string; engine?: 'flint' | 'svg-fallback' };
+export type FigureOptions = { fact?: string; src?: string; note?: string; engine?: 'flint' | 'svg-fallback'; chartId?: string };
 export type TableOptions = { src?: string; note?: string; cls?: string };
 /** Figure/table builders that always carry "Nguồn:" and keep "Chú thích:" on its own line. */
 export function makeExhibits(defaultSource: string, { defaultEngine }: { defaultEngine?: FigureOptions['engine'] } = {}) {
-  const fig = (no: string, title: string, unit: string, svg: string, { fact, src = defaultSource, note, engine }: FigureOptions = {}): string => {
+  const fig = (no: string, title: string, unit: string, svg: string, { fact, src = defaultSource, note, engine, chartId }: FigureOptions = {}): string => {
     const effectiveEngine = engine ?? defaultEngine;
-    const marker = effectiveEngine === undefined ? '' : ` data-engine="${effectiveEngine}"`;
+    const marker = (effectiveEngine === undefined ? '' : ` data-engine="${effectiveEngine}"`) + (chartId ? ` data-chart-id="${esc(chartId)}"` : '');
     return `<figure class="ex">${exHead('Hình', no, title, unit)}<div class="chart flint"${marker}>${svg}</div>${note ? `<p class="ex-note"><b>Chú thích:</b> ${note}</p>` : ''}<p class="ex-src">Nguồn: ${src}</p></figure>${fact ? `<p class="fact"><b>Nhận định</b><span>${hlNum(fact)}</span></p>` : ''}`;
   };
   const tbl = (no: string, title: string, unit: string, head: readonly string[], rows: readonly (readonly unknown[])[], { src = defaultSource, note, cls = '' }: TableOptions = {}): string =>

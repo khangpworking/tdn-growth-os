@@ -4,6 +4,7 @@ import { readerPeerExhibit } from './default-peers.js';
 import { lineChart } from './svg-charts.js';
 import { renderChart, type FlintChartInput } from './flint.js';
 import { marketChartRows, renderMarketCharts, renderSearchInterestChart } from './market-charts.js';
+import { renderComtradeCharts, renderWorldBankCharts, type MacroChart } from './macro-charts.js';
 import { searchInterestChartPoints, searchInterestRenderable, SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_LIMIT, SEARCH_INTEREST_NOTE, SEARCH_INTEREST_SOURCE_LABEL, SEARCH_INTEREST_SRC, SEARCH_INTEREST_UNIT } from '../research-automation/search-interest.js';
 import { formatWorldBankValue, worldBankRenderableRows, worldBankSourceNote, worldBankUnitText, WORLD_BANK_LIMIT, WORLD_BANK_NOTE, WORLD_BANK_SOURCE_LABEL, WORLD_BANK_SRC, WORLD_BANK_TITLE } from '../research-automation/world-bank-lane.js';
 import { E12_ATTRIBUTION, E13_ATTRIBUTION, E14_ATTRIBUTION } from '../source-appendix-projection.js';
@@ -136,7 +137,15 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
       return [label(item.row.indicatorName), esc(E13_ATTRIBUTION), label(`${formatWorldBankValue(item.row.value)} ${worldBankUnitText(item.row)}`) + (no === null ? '' : renderCitationMark(no)),
         label(item.row.year), label(item.row.lastUpdated), label(worldBankSourceNote(item.row))];
     }), { src: WORLD_BANK_SRC, note: WORLD_BANK_NOTE });
+  // One yearly line per drawn indicator follows table 5.3 (Hình 5.3, 5.4 in indicator order), only from the stored series; never on a sample axis.
+  const macroFig = (chart: MacroChart, no: string): string => {
+    charts.push({ id: chart.id, engine: chart.engine, ...(chart.error ? { error: chart.error } : {}) });
+    return fig(no, esc(chart.title), esc(chart.unit), chart.svg, { engine: chart.engine, chartId: chart.id, src: esc(chart.src), note: esc(chart.note) });
+  };
+  const worldBankFigures = worldBankRows.length === 0 ? '' : (await renderWorldBankCharts(options.worldBank, { flint: options.flint !== false }))
+    .map((chart, i) => macroFig(chart, `5.${3 + i}`)).join('');
   // Cục Thống kê figures (S21) follow table 5.3 as country background; the same predicate marks S21 as used. Never combined with sample numbers.
+  // No chart for table 5.4: each run reads one month only, so there is no series to draw.
   const officialStats = next ? options.officialStats : undefined;
   const officialRows = officialStatsRenderableRows(officialStats);
   const officialTable = !officialStats ? '' : officialRows.length === 0 ? `<p>${esc(officialStatsNotice(officialStats))}</p>`
@@ -168,7 +177,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   sections.push(section('M05', 'Nhu cầu (tín hiệu bán)', 'Nhu cầu, đo bằng doanh số (ước tính) trong mẫu.', salesTable('5.1') +
     (interestChart ? `<p>Kỳ ${period}; nguồn: dữ liệu bán hàng ước tính trên từng sàn. Mức quan tâm tìm kiếm ghi riêng ở Hình 5.2, là chỉ số tương đối, không cộng hay so với số bán.</p>` +
       fig('5.2', SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_UNIT, interestChart.svg, { engine: interestChart.engine, src: SEARCH_INTEREST_SRC, note: SEARCH_INTEREST_NOTE })
-      : `<p>Kỳ ${period}; nguồn: dữ liệu bán hàng ước tính trên từng sàn. Mức quan tâm tìm kiếm ghi riêng, chưa có chuỗi tìm kiếm phù hợp trong bản này.</p>`) + worldBankTable + officialTable,
+      : `<p>Kỳ ${period}; nguồn: dữ liệu bán hàng ước tính trên từng sàn. Mức quan tâm tìm kiếm ghi riêng, chưa có chuỗi tìm kiếm phù hợp trong bản này.</p>`) + worldBankTable + worldBankFigures + officialTable,
     'Số bán hàng ước tính chưa đối chiếu với người bán, chỉ dùng tham khảo. Không suy ra quy mô ngoài mẫu, số người mua, nhu cầu chưa được đáp ứng hay dự báo.' + (interestChart ? ` ${SEARCH_INTEREST_LIMIT}` : '') + (worldBankTable ? ` ${WORLD_BANK_LIMIT}` : '') + (officialRows.length ? ` ${OFFICIAL_STATS_LIMIT}` : '') + (officialStatsProvinceRows(officialStats).length ? ` ${OFFICIAL_STATS_PROVINCE_LIMIT}` : '')));
   // Country-level trade figures sit in M06 as background; the same predicate marks S24 as used. No sums, shares or comparison with the sample.
   const comtrade = next ? options.comtrade : undefined;
@@ -184,10 +193,13 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
             retrievedAt: call.retrievedAt, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' }) : null;
           return [label(comtradeSideText(row)), label(comtradeFlowText(row.flow)), label(row.year), label(formatWorldBankValue(row.value)) + (no === null ? '' : renderCitationMark(no)), label(comtradeRowNote(row))];
         }), { src: COMTRADE_SRC, note: COMTRADE_NOTE + (comtrade.mirrorReporterCount === null || comtrade.mirrorReporterCount === 0 ? '' : ` Số nước báo số hàng xuất sang Việt Nam: ${comtrade.mirrorReporterCount}.`) });
+  // Bars per reporting side follow table 6.2 (Hình 6.1, 6.2 in drawn order): mirror reporters of one year, then Việt Nam's own two flows of one year. Never summed.
+  const comtradeFigures = comtradeRows.length === 0 ? '' : (await renderComtradeCharts(comtrade, { flint: options.flint !== false }))
+    .map((chart, i) => macroFig(chart, `6.${1 + i}`)).join('');
   sections.push(section('M06', 'Nguồn cung', 'Giữ riêng nhãn thương hiệu theo tiêu đề người bán trên từng sàn.',
     tbl('6.1', 'Ngày mở bán và phần chưa rõ', '', ['Sàn', 'Có ngày', 'Thiếu ngày', 'Mở bán trong kỳ', 'Doanh thu mở bán trong kỳ'],
       PLATS.map(P => [plat(P), n(bf(`${P}.coh.known`)), n(bf(`${P}.coh.nodate`)), n(bf(`${P}.coh.n`)), n(bf(`${P}.coh.rev`))])) +
-    `<p>Tên giống nhau không chứng minh cùng thương hiệu, người bán hay người mua giữa các sàn. Nhãn trên dòng nguồn nằm ở Phụ lục.</p>` + comtradeTable, comtradeRows.length ? COMTRADE_LIMIT : undefined));
+    `<p>Tên giống nhau không chứng minh cùng thương hiệu, người bán hay người mua giữa các sàn. Nhãn trên dòng nguồn nằm ở Phụ lục.</p>` + comtradeTable + comtradeFigures, comtradeRows.length ? COMTRADE_LIMIT : undefined));
   const shops = PLATS.flatMap(P => [...new Set(rows.filter(row => row.platform === P).map(row => row.shop))].map((shop, i) => {
     const members = rows.filter(row => row.platform === P && row.shop === shop && profile.core.includes(row.seg!));
     const rev = completeSum(members, 'rev'), units = completeSum(members, 'units'), id = `shop.${P}.${i}`;

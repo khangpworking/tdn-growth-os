@@ -168,7 +168,11 @@ export interface StepWorldBankIndicator {
   readonly sourceSha256: string | null;
   readonly metadataSha256: string | null;
   readonly row: StepWorldBankRow | null;
+  /** Up to the last 10 years ending at `row.year`, read from the same projection; null is a gap (never carried forward).
+   * Optional: documents stored before this field have no series and draw no chart. */
+  readonly series?: readonly StepWorldBankPoint[];
 }
+export interface StepWorldBankPoint { readonly year: string; readonly value: string | null }
 export interface StepWorldBank { readonly profile: string; readonly indicators: readonly StepWorldBankIndicator[] }
 
 /** UN Comtrade country-level trade figures for one estimated HS6 code (S24). Background only; never combined with sample numbers. */

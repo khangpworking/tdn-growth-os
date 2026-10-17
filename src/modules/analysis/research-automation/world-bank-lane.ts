@@ -4,7 +4,7 @@
 // intake inspector already accepts (so at most 4 GET requests), and shown beside the sample numbers, never combined with them.
 import { boundedRequest, CaptureLog, defaultProviderTransport, ProviderInputError, type ProviderTransport } from './provider-common.js';
 import type { ProviderCallOptions, ProviderRawCapture } from './providers.js';
-import type { StepWorldBank, StepWorldBankIndicator, StepWorldBankRow } from './model.js';
+import type { StepWorldBank, StepWorldBankIndicator, StepWorldBankPoint, StepWorldBankRow } from './model.js';
 import { inspectWorldBankSource, MAX_WORLD_BANK_FILE_BYTES, WORLD_BANK_INDICATORS, WORLD_BANK_PROFILE, worldBankUrls, WorldBankSourceRejection } from './world-bank-intake.js';
 import type { Projection } from '../../../../contracts/analysis/world-bank-intake-v1.generated.js';
 
@@ -97,6 +97,20 @@ function latestRow(projection: Projection, code: string): StepWorldBankRow | nul
       statusLiteral: best.statusLiteral, footnote: best.footnote, locator: best.locator };
 }
 
+export const WORLD_BANK_SERIES_YEARS = 10;
+/** Up to the last 10 years ending at the latest year with a value (the table row's year). A year the source does not list, or lists
+ * without a value, is a null gap: nothing is carried forward or interpolated, and value strings are kept exactly. */
+export function worldBankSeries(projection: Projection, code: string, latest: StepWorldBankRow): StepWorldBankPoint[] {
+  const rows = projection.rows.filter(row => row.indicatorCode === code);
+  const end = Number(latest.year), first = Math.max(end - WORLD_BANK_SERIES_YEARS + 1, Math.min(...rows.map(row => Number(row.year))));
+  const out: StepWorldBankPoint[] = [];
+  for (let year = first; year <= end; year++) {
+    const text = String(year).padStart(4, '0');
+    out.push({ year: text, value: rows.find(row => row.year === text)?.value ?? null });
+  }
+  return out;
+}
+
 /** The stored step field. `indexes` are the step capture ordinals of each stored attempt (observation, metadata), null when none was stored. */
 export function worldBankDocument(attempts: readonly WorldBankAttempt[], indexes: readonly (readonly [number, number] | null)[]): StepWorldBank {
   return { profile: WORLD_BANK_PROFILE, indicators: attempts.map((attempt, i): StepWorldBankIndicator => {
@@ -104,8 +118,17 @@ export function worldBankDocument(attempts: readonly WorldBankAttempt[], indexes
     if (!attempt.projection || !attempt.observation || !attempt.metadata || !index || !row) return { code: attempt.code, status: 'FAILED',
       reason: attempt.reason ?? 'DOCUMENT_INVALID', retrievedAt: null, captureIndex: null, metadataCaptureIndex: null, sourceSha256: null, metadataSha256: null, row: null };
     return { code: attempt.code, status: 'COLLECTED', reason: null, retrievedAt: attempt.observation.completedAt, captureIndex: index[0], metadataCaptureIndex: index[1],
-      sourceSha256: attempt.projection.sourceSha256, metadataSha256: attempt.projection.metadataSha256, row };
+      sourceSha256: attempt.projection.sourceSha256, metadataSha256: attempt.projection.metadataSha256, row, series: worldBankSeries(attempt.projection, attempt.code, row) };
   }) };
+}
+
+/** The chart window of one drawn indicator: its stored series when it ends at the table row and has at least 2 values; otherwise null (no chart). */
+export function worldBankChartSeries(item: StepWorldBankIndicator): readonly StepWorldBankPoint[] | null {
+  const series = item.series, row = item.row;
+  if (!series || !row || series.length === 0) return null;
+  const last = series[series.length - 1]!;
+  if (last.year !== row.year || last.value !== row.value) return null;
+  return series.filter(point => point.value !== null).length >= 2 ? series : null;
 }
 
 /** Every attempt failed with one reason (thrown run, storage refusal). */
