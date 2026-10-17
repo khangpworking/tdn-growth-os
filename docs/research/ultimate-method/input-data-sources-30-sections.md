@@ -109,7 +109,7 @@ Nhãn hiện tại của từng nguồn (5 nhãn, chủ chốt 12/10/2026) và n
 | S22 | Số liệu Cục Thống kê theo tỉnh (chuyên mục địa phương trên nso.gov.vn) | Thị trường (vĩ mô) | PDF qua gói P3 | "Cục Thống kê (nso.gov.vn)" | A | Cao (theo tỉnh) | Đã duyệt (chủ 12/10/2026); đã kiểm 08/10 | Không | E12 |
 | S23 | World Bank Data (API mở) | Thị trường (vĩ mô) | API World Bank | "Ngân hàng Thế giới (World Bank Open Data)" | A | Cao | Đã duyệt (E13, 08/10/2026); đã kiểm API, chưa thu cho báo cáo | Không | E13: ghi nguồn; không coi là xác nhận độc lập với S21 |
 | S24 | UN Comtrade (API chính thức) | Thị trường (xuất nhập khẩu) | API UN Comtrade (cần đăng ký miễn phí) | "Cơ sở dữ liệu thương mại của Liên Hợp Quốc" | A | Cao (theo mã hàng) | Đề xuất | Không | M06, M09 |
-| S25 | Báo cáo ngành và báo cáo thường niên doanh nghiệp đã công bố | Bối cảnh | Tải tay; PDF qua gói P3 | "báo cáo đã công bố của …" | B (báo cáo thường niên đã kiểm toán) / C (khảo sát ngành) | Vừa | Đang dùng ở M09 (v1.0) | Không | Khung M09; không gắn nhãn số liệu toàn thị trường |
+| S25 | Báo cáo ngành và báo cáo thường niên doanh nghiệp đã công bố | Bối cảnh | Tải tay; PDF qua gói P3; tự tìm và tải tối đa 2 tệp PDF mỗi lượt (sau cờ, mặc định tắt) | "báo cáo đã công bố của …" | B (báo cáo thường niên đã kiểm toán) / C (khảo sát ngành) | Vừa | Đang dùng ở M09 (v1.0); tự tìm PDF sau cờ TDN_RESEARCH_PDF_DISCOVERY_ENABLED | Không | Khung M09; không gắn nhãn số liệu toàn thị trường |
 | S26 | Báo chí, tin an toàn thực phẩm | Bối cảnh | Tìm kiếm mở rộng (S19) | "tin đã đăng trên …" | C | Thấp | Đề xuất | Theo S19 | M09: tách ngày phát hành với ngày sự kiện |
 
 ### 2.6 Nguồn đã dùng trước đây

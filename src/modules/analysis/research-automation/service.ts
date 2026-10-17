@@ -105,6 +105,7 @@ import { publishAutomatedVideoReading, verifyAutomatedVideoReading, videoWatchCa
 import { VIDEO_WATCH_PROVIDER } from './video-watch-gemini.js';
 import { META_AUTO_PROVIDER, META_AUTO_USAGE_ORDINAL, metaBrandsFromPick, metaAutoDocument, metaAutoFailed, metaAutoHasEvidence, metaAutoReportView, metaAutoUsage, publishMetaAutoEvidence, validMetaAuto, verifyMetaAutoEvidence, type MetaAutoCollection, type MetaAutoReportView, type MetaAutoSource } from './meta-auto-lane.js';
 import { TIKTOK_TOP_ADS_PROVIDER, TIKTOK_TOP_ADS_USAGE_ORDINAL, publishTikTokTopAdsEvidence, tiktokTopAdsDocument, tiktokTopAdsFailed, tiktokTopAdsHasEvidence, tiktokTopAdsReportView, tiktokTopAdsUsage, validTikTokTopAds, verifyTikTokTopAdsEvidence, type TikTokTopAdsCollection, type TikTokTopAdsReportView, type TikTokTopAdsSource } from './tiktok-top-ads-lane.js';
+import { PDF_DISCOVERY_DOWNLOAD_USAGE_ORDINAL, PDF_DISCOVERY_MAX_FILES, PDF_DISCOVERY_PROVIDER, PDF_DISCOVERY_SEARCH_USAGE_ORDINAL, isPdfPath, pdfCandidates, pdfDiscoveryDocument, pdfDiscoveryDownloaded, pdfDiscoveryFailed, pdfDiscoveryUsage, validPdfDiscovery, type PdfCandidate, type PdfDiscoverySource, type PdfDownloadRun, type PdfSearchAttempt } from './pdf-discovery-lane.js';
 import type { Binding as WorldBankBinding } from '../../../../contracts/analysis/world-bank-intake-v1.generated.js';
 import type { PackageRef as WorldBankPackageRef, PrepareReceipt as WorldBankPrepareReceipt, View as WorldBankView, History as WorldBankHistory } from '../../../../contracts/api/research-automation-macro-intake-api.generated.js';
 import { AutomationMetricRuleAdoptions, type MetricRuleBinding } from './metric-rule-adoption.js';
@@ -190,12 +191,14 @@ import { withDatabaseMutationMutex } from '../../../platform/db/database-mutatio
 import { ContentAddressedArtifactStore, type StoredArtifact } from '../../../platform/artifacts/artifact-store.js';
 import type {
   CollectInput,
+  CollectResult,
   ProviderCallOptions,
   ProviderRawCapture,
   QuickSearchInput,
 } from './providers.js';
 import {
   invalidProviderStep,
+  toWebResults,
   type AutomationSourcePort,
   type BoundCollectResult,
   type BoundQuickSearchResult,
@@ -217,6 +220,7 @@ import {
   TERMINAL_STATUSES,
   type CaptureRecord,
   type StepExpandedQuery,
+  type StepPdfDiscovery,
   type ScopeSnapshot,
   type SourceStepId,
   type StartSnapshot,
@@ -372,6 +376,8 @@ export interface ResearchAutomationServiceOptions {
   /** Meta ad library auto-read (S15 AUTO); only set when its flag is exactly "1". */
   readonly metaAutoSource?: MetaAutoSource;
   readonly tiktokTopAdsSource?: TikTokTopAdsSource;
+  /** Automatic industry-report PDFs (S25 AUTO): at most one extra search and two downloads per run; only set when its flag is exactly "1". */
+  readonly pdfDiscoverySource?: PdfDiscoverySource;
   /** Optional extra searches (dated and per-marketplace), at most three paid requests per collection; absent keeps every stored byte. */
   readonly expandedSource?: ExpandedSearchSource;
   readonly renderer?: ResearchAutomationReportRenderer;
@@ -535,6 +541,7 @@ export class ResearchAutomationService {
   readonly #videoWatch: VideoWatchLane | undefined;
   readonly #metaAutoSource: MetaAutoSource | undefined;
   readonly #tiktokTopAdsSource: TikTokTopAdsSource | undefined;
+  readonly #pdfDiscoverySource: PdfDiscoverySource | undefined;
   readonly #expandedSource: ExpandedSearchSource | undefined;
   readonly #renderer: ResearchAutomationReportRenderer | undefined;
   readonly #now: () => Date;
@@ -594,6 +601,7 @@ export class ResearchAutomationService {
     this.#videoWatch = options.videoWatch;
     this.#metaAutoSource = options.metaAutoSource;
     this.#tiktokTopAdsSource = options.tiktokTopAdsSource;
+    this.#pdfDiscoverySource = options.pdfDiscoverySource;
     this.#expandedSource = options.expandedSource;
     this.#renderer = options.renderer;
     this.#pageIndex = options.pageIndex;
@@ -3075,7 +3083,7 @@ export class ResearchAutomationService {
       if (videosMarked ? kind !== 'MARKET' || !storedVideos || digest(storedVideos) !== digest(await this.#sellerVideos(frozenRun, storedVideos.sources)) : semantic.sellerVideos !== undefined)
         throw new ResearchAutomationIntegrityError('Report video uploads differ from the pinned stored packages.');
       const expected = sourceEvidenceForReport(basePacket, { collection, ...(marked ? { pdfExcerpts: storedExcerpts } : {}), ...(videosMarked ? { sellerVideos: storedVideos } : {}),
-        ...(collection?.searchInterest || collection?.worldBank || collection?.comtrade || collection?.searchAds || collection?.officialStats ? { captures: await this.#captureRecords(runId) } : {}),
+        ...(collection?.searchInterest || collection?.worldBank || collection?.comtrade || collection?.searchAds || collection?.officialStats || collection?.pdfDiscovery ? { captures: await this.#captureRecords(runId) } : {}),
         ...(verifiedPrivateView ? { privateReviewCorpus: verifiedPrivateView } : {}),
         ...(verifiedReviewSample ? { reviewSample: verifiedReviewSample } : {}),
         ...(verifiedLiteral ? { insightLiteral: verifiedLiteral } : {}),
@@ -3383,7 +3391,9 @@ export class ResearchAutomationService {
         catch { tiktokTopAds = { thrown: true, keyword }; }
       }
       try {
-        await this.#persistSourceResult(row.runId, stepId, result, controller.signal.aborted, exact, web, controller.signal, trends, expanded, worldBank, comtrade, searchAds, officialStats, metaAuto, tiktokTopAds);
+        // The report-PDF lane runs inside the save step, after L9 admission of this run's rows, so its candidates are admitted rows only.
+        await this.#persistSourceResult(row.runId, stepId, result, controller.signal.aborted, exact, web, controller.signal, trends, expanded, worldBank, comtrade, searchAds, officialStats, metaAuto, tiktokTopAds,
+          stepId === 'COLLECTION' && this.#pdfDiscoverySource ? input as CollectInput : undefined);
       } catch (error) {
         if (!(error instanceof ResearchAutomationProviderOutputError)) throw error;
         await this.#settleSourceFailure(row.runId, stepId, 'PROVIDER_OUTPUT_INVALID', 'FAILED');
@@ -3912,7 +3922,7 @@ export class ResearchAutomationService {
     }
   }
 
-  async #persistSourceResult(runId: string, stepId: SourceStepId, bound: PersistableSourceResult, aborted: boolean, exact?: ExactShopeeAttempt, web?: WebSearchAttempt, signal?: AbortSignal, trends?: TrendsAttempt, expanded?: ExpandedAttempts, worldBank?: WorldBankRun, comtrade?: ComtradeRun, searchAds?: SearchAdsRun, officialStats?: OfficialStatsRun, metaAuto?: MetaAutoRun, tiktokTopAds?: TikTokTopAdsRun): Promise<void> {
+  async #persistSourceResult(runId: string, stepId: SourceStepId, bound: PersistableSourceResult, aborted: boolean, exact?: ExactShopeeAttempt, web?: WebSearchAttempt, signal?: AbortSignal, trends?: TrendsAttempt, expanded?: ExpandedAttempts, worldBank?: WorldBankRun, comtrade?: ComtradeRun, searchAds?: SearchAdsRun, officialStats?: OfficialStatsRun, metaAuto?: MetaAutoRun, tiktokTopAds?: TikTokTopAdsRun, pdfInput?: CollectInput): Promise<void> {
     const result = bound.result;
     let step = bound.step;
     const nativeCoverage = bound.step.coverage.filter(value => value.provider === 'apify-dami');
@@ -4201,6 +4211,7 @@ export class ResearchAutomationService {
         message: `${shortSets.length} sản phẩm chỉ lấy được ít hơn số bình luận yêu cầu: ${shortSets.map(product => `${product.retainedReviews}/${product.targetReviews}`).join(', ')}.` }];
       step = { ...step, reviewSample, limitations: [...step.limitations, ...shortSetLimitations] };
     }
+    let keywordDraft: RetainedKeywordListDraftRecord | null = null;
     if (stepId === 'COLLECTION' && sourceStart.sourceEvidenceVersion) {
       const sourceScope = await this.#readScopeSnapshot(rowForSources.scopeSha!, rowForSources.workspaceId, runId);
       const allCaptures = [...await this.#captureRecords(runId), ...captures.map(c => c.row)];
@@ -4227,6 +4238,62 @@ export class ResearchAutomationService {
         ...(draftFailureCode ? { draftFailureCode } : {}),
         pageTypes: true, ...(jevTriage ? { jevTriage } : {}) });
       step = { ...step, sourceEvidence };
+      keywordDraft = draft;
+    }
+    // Report PDFs (S25 AUTO) come after L9 admission: candidates are admitted rows of this run, then at most one extra search whose
+    // rows pass the same draft's L9 filter, then at most two guarded downloads. Each stored file is an ordinary COLLECTION capture
+    // starting with `%PDF-`, so putCaptures retains it as a run PDF. A failure keeps a reason code only and never changes the step.
+    let pdfSearchResult: CollectResult | null = null;
+    let pdfSearchThrown = false;
+    let pdfDownloads: PdfDownloadRun | null = null;
+    if (stepId === 'COLLECTION' && this.#pdfDiscoverySource && pdfInput && !aborted && !signal?.aborted) {
+      const source = this.#pdfDiscoverySource;
+      const seen = new Set<string>();
+      let candidates: PdfCandidate[] = [];
+      try {
+        const runRows = step.sourceEvidence
+          ? admitWebResults(step.sourceEvidence, collectionWebRows(step), [...await this.#captureRecords(runId), ...captures.map(c => c.row)], step.sourceEvidence.jevTriage ?? null)
+          : collectionWebRows(step);
+        candidates = pdfCandidates(runRows, 'RUN_ROWS', seen);
+      } catch { candidates = []; }
+      let search: StepPdfDiscovery['search'];
+      if (candidates.length >= PDF_DISCOVERY_MAX_FILES) search = { status: 'SKIPPED', reason: 'SEARCH_SKIPPED_ENOUGH', captureIndex: null, retrievedAt: null };
+      else if (!keywordDraft) search = { status: 'SKIPPED', reason: 'SEARCH_NO_ADMISSION', captureIndex: null, retrievedAt: null };
+      else {
+        const attempt: PdfSearchAttempt = await source.search(pdfInput, signal ? { signal } : {});
+        const offset = captures.length;
+        const envelopes = attempt.state === 'CALLED' ? captureEnvelopes(attempt.result) : null;
+        if (attempt.state === 'CALLED') pdfSearchResult = attempt.result; else pdfSearchThrown = true;
+        if (envelopes?.length) await putCaptures(envelopes);
+        const stored = captures.length > offset ? captures[offset]!.row : null;
+        if (attempt.state === 'CALLED' && stored && stored.provider === 'serpapi' && stored.operation === 'serpapi.google.search' && attempt.result.status === 'SUCCEEDED') {
+          search = { status: 'CALLED', reason: null, captureIndex: offset, retrievedAt: stored.retrievedAt };
+          try {
+            const rows = toWebResults(attempt.result).filter(row => row.captureIndex === 0).map(row => ({ ...row, captureIndex: offset }));
+            const admitted = new Set(filterSerpApiResults({ results: rows.map(row => ({ captureId: stored.artifactSha256, position: row.position, title: row.title, snippet: row.snippet })),
+              filter: keywordDraft.output }).includedRecordIds);
+            const found = pdfCandidates(rows.filter(row => admitted.has(`${stored.artifactSha256}#${row.position}`)), 'PDF_SEARCH', seen);
+            if (!found.length && rows.some(row => isPdfPath(row.url))) search = { ...search, reason: 'NOT_ADMITTED' };
+            candidates = [...candidates, ...found];
+          } catch { search = { ...search, reason: 'SEARCH_FAILED' }; }
+        } else search = { status: 'FAILED', reason: 'SEARCH_FAILED', captureIndex: null, retrievedAt: null };
+      }
+      const fileIndexes: (number | null)[] = [];
+      if (candidates.length && !signal?.aborted) {
+        pdfDownloads = await source.download(candidates, signal ? { signal } : {});
+        for (const item of pdfDownloads.items) {
+          const envelopes = item.kind === 'DOWNLOADED' ? captureEnvelopes({ captures: [item.capture] }) : null;
+          if (!envelopes?.length) { fileIndexes.push(null); continue; }
+          fileIndexes.push(captures.length);
+          await putCaptures(envelopes);
+        }
+      }
+      const probe = { ...step, pdfDiscovery: pdfDiscoveryDocument(search, pdfDownloads, fileIndexes, search.reason ?? 'NO_CANDIDATE') };
+      try {
+        assertStepDocument(probe, runId, stepId);
+        assertCaptureLineage(probe, captures.map(value => value.row));
+        step = probe;
+      } catch { step = { ...step, pdfDiscovery: pdfDiscoveryFailed('DOCUMENT_INVALID') }; }
     }
     const webResult = web && 'bound' in web ? web.bound.result : null;
     let resultArtifact = await this.#artifacts.put(Buffer.from(canonicalJson(step), 'utf8'));
@@ -4279,6 +4346,10 @@ export class ResearchAutomationService {
         if (tiktokTopAdsCollection && tiktokTopAdsCollection.opens > 0) this.#persistUsage(runId, stepId, tiktokTopAdsUsage(tiktokTopAdsCollection.opens), now, TIKTOK_TOP_ADS_USAGE_ORDINAL);
         else if (tiktokTopAds && 'thrown' in tiktokTopAds) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
           .run(runId, stepId, TIKTOK_TOP_ADS_USAGE_ORDINAL, TIKTOK_TOP_ADS_PROVIDER.toLowerCase(), now);
+        if (pdfSearchResult?.captures.length) this.#persistUsage(runId, stepId, pdfSearchResult, now, PDF_DISCOVERY_SEARCH_USAGE_ORDINAL);
+        else if (pdfSearchThrown) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,'serpapi','unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
+          .run(runId, stepId, PDF_DISCOVERY_SEARCH_USAGE_ORDINAL, now);
+        if (pdfDownloads && pdfDownloads.requests > 0) this.#persistUsage(runId, stepId, pdfDiscoveryUsage(pdfDownloads.requests), now, PDF_DISCOVERY_DOWNLOAD_USAGE_ORDINAL);
         if (exact) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,1,'apify-shopee','reviews',?,?,?,?,?)`)
           .run(runId, stepId, exact.requestsIssued, exact.costUsd === null ? 'UNKNOWN' : 'KNOWN', exact.costUsd === null ? null : 'USD', exact.costUsd, now);
         const current = this.#current(runId);
@@ -5637,6 +5708,8 @@ function assertStepDocument(value: unknown, runId: string, stepId: StepId): asse
     throw new ResearchAutomationIntegrityError('Stored Meta ad library read is invalid.');
   if (value.tiktokTopAds !== undefined && (stepId !== 'COLLECTION' || !validTikTokTopAds(value.tiktokTopAds)))
     throw new ResearchAutomationIntegrityError('Stored TikTok top-ads read is invalid.');
+  if (value.pdfDiscovery !== undefined && (stepId !== 'COLLECTION' || !validPdfDiscovery(value.pdfDiscovery)))
+    throw new ResearchAutomationIntegrityError('Stored report file discovery is invalid.');
   if (value.sourceEvidence !== undefined) checkSourceEvidence(value.sourceEvidence);
   for (const comparable of value.comparables) {
     if (!isRecord(comparable) || typeof comparable.productId !== 'string' || typeof comparable.provider !== 'string' || (comparable.metric !== 'GMV_VND' && comparable.metric !== 'UNITS_SOLD') ||
@@ -5709,6 +5782,17 @@ function assertCaptureLineage(document: StepResultDocument, captures: readonly C
     const capture = stepCaptures.get(video.captureIndex);
     if (!capture || capture.truncated || capture.provider !== 'video-watch' || capture.operation !== 'videowatch.generate' || capture.retrievedAt !== video.retrievedAt)
       throw new ResearchAutomationIntegrityError('Stored video reading references an incompatible capture.');
+  }
+  const pdf = document.pdfDiscovery;
+  if (pdf?.search.captureIndex != null) {
+    const capture = stepCaptures.get(pdf.search.captureIndex);
+    if (!capture || capture.truncated || capture.provider !== 'serpapi' || capture.operation !== 'serpapi.google.search' || capture.retrievedAt !== pdf.search.retrievedAt)
+      throw new ResearchAutomationIntegrityError('Stored report search references an incompatible capture.');
+  }
+  for (const file of pdfDiscoveryDownloaded(pdf)) {
+    const capture = stepCaptures.get(file.captureIndex);
+    if (!capture || capture.truncated || capture.provider !== PDF_DISCOVERY_PROVIDER.toLowerCase() || capture.operation !== 'pdfdiscovery.download' || capture.retrievedAt !== file.retrievedAt)
+      throw new ResearchAutomationIntegrityError('Stored report file references an incompatible capture.');
   }
 }
 

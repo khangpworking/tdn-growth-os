@@ -172,7 +172,16 @@ export function sourceEvidenceForReport(packet: AutomationSourceEvidence, input:
   }
   // S25 is used only when the Market report draws at least one verified document excerpt, once per document; the marker lets older packets verify unchanged.
   const excerpts = kind === 'MARKET' ? input.pdfExcerpts ?? [] : [];
-  for (const sha of pdfExcerptDocuments(excerpts)) add('S25', 'package', sha);
+  // A document the run found and downloaded itself cites its stored download capture; an uploaded document keeps its package lineage.
+  const autoFiles = (input.collection?.pdfDiscovery?.files ?? []).filter(file => file.status === 'DOWNLOADED' && file.captureIndex !== null && file.sourceSha256 !== null);
+  for (const sha of pdfExcerptDocuments(excerpts)) {
+    const file = autoFiles.find(item => item.sourceSha256 === sha);
+    if (!file) { add('S25', 'package', sha); continue; }
+    const capture = input.captures?.find(c => c.stepId === 'COLLECTION' && c.ordinal === file.captureIndex);
+    if (!capture || capture.truncated || capture.provider !== 'pdf-discovery' || capture.operation !== 'pdfdiscovery.download' || capture.retrievedAt !== file.retrievedAt)
+      throw new ResearchAutomationIntegrityError('Report file capture lineage is unavailable');
+    add('S25', 'capture', capture.artifactSha256);
+  }
   // S02/S14 are used only when the Market report draws the owner/operator video uploads (table, seller speech), once per package.
   const videos = kind === 'MARKET' ? sellerVideoPackages(input.sellerVideos) : { table: [], readings: [] };
   for (const sha of videos.table) add('S02', 'package', sha);

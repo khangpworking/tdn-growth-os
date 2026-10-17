@@ -27,6 +27,7 @@ import { googleAdsEnabled } from '../modules/analysis/research-automation/google
 import { officialStatsEnabled } from '../modules/analysis/research-automation/official-statistics-lane.js';
 import { metaAutoEnabled } from '../modules/analysis/research-automation/meta-auto-lane.js';
 import { tiktokTopAdsEnabled } from '../modules/analysis/research-automation/tiktok-top-ads-lane.js';
+import { pdfDiscoveryEnabled } from '../modules/analysis/research-automation/pdf-discovery-lane.js';
 import { videoWatchConfigFromEnv, videoWatchEnabled, type VideoWatchConfig } from '../modules/analysis/research-automation/video-watch-lane.js';
 import { expandedSearchEnabled } from '../modules/analysis/research-automation/expanded-search-lane.js';
 import { i14CliproxySynthesisConfiguration, decisionCliproxySynthesisConfiguration, insightCodingCliproxyConfiguration, tiktokCodingCliproxyConfiguration, shopeeCodingCliproxyConfiguration } from '../modules/analysis/research-automation/i14-cliproxy-transport.js';
@@ -103,6 +104,7 @@ export interface OperatorAppConfiguration {
   readonly researchMetaAuto?: true;
   /** Public TikTok top-ads lane of the Market flow; present only when TDN_RESEARCH_TIKTOK_TOPADS_ENABLED is exactly "1". Reads public pages only, never logs in. */
   readonly researchTikTokTopAds?: true;
+  readonly researchPdfDiscovery?: true;
   /** Video-watch lane of the Market flow; present only when TDN_RESEARCH_VIDEO_WATCH_ENABLED is exactly "1". Uses the existing CLIProxy settings. */
   readonly researchVideoWatch?: VideoWatchConfig;
 }
@@ -212,6 +214,7 @@ export function operatorAppConfigurationFromEnvironment(
     ...(officialStatsEnabled(environment) ? { researchOfficialStats: true as const } : {}),
     ...(metaAutoEnabled(environment) ? { researchMetaAuto: true as const } : {}),
     ...(tiktokTopAdsEnabled(environment) ? { researchTikTokTopAds: true as const } : {}),
+    ...(pdfDiscoveryEnabled(environment) ? { researchPdfDiscovery: true as const } : {}),
     ...(videoWatchEnabled(environment) ? { researchVideoWatch: videoWatchConfigFromEnv(environment) } : {}),
     ...(environment.TDN_R2_ENABLED !== 'true' ? {} : { r2: {
       TDN_R2_ENABLED: 'true', TDN_R2_ACCOUNT_ID: environment.TDN_R2_ACCOUNT_ID,
@@ -294,6 +297,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
       ...(configuration.researchOfficialStats ? { officialStats: true as const } : {}),
       ...(configuration.researchMetaAuto ? { metaAuto: true as const } : {}),
       ...(configuration.researchTikTokTopAds ? { tiktokTopAds: true as const } : {}),
+      ...(configuration.researchPdfDiscovery ? { pdfDiscovery: true as const } : {}),
       ...(configuration.researchVideoWatch ? { videoWatch: configuration.researchVideoWatch } : {}),
       ...(configuration.ownerWritesEnabled ? { owner: {
         databasePath, artifactRoot: configuration.artifactRoot, writeEnabled: true,

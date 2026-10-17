@@ -420,6 +420,38 @@ export interface StepVideoWatch {
   readonly videos: readonly StepVideoWatchVideo[];
 }
 
+/** Closed reason codes of the automatic report-PDF lane (S25); a reason never fails the run. */
+export type PdfDiscoveryReason =
+  | 'NO_CANDIDATE' | 'SEARCH_SKIPPED_ENOUGH' | 'SEARCH_NO_ADMISSION' | 'SEARCH_FAILED' | 'NOT_ADMITTED'
+  | 'URL_REFUSED' | 'PRIVATE_ADDRESS' | 'DNS_FAILED' | 'TOO_MANY_REDIRECTS' | 'FILE_SIZE_LIMIT' | 'NOT_A_PDF'
+  | 'TIMEOUT' | 'HTTP_ERROR' | 'DUPLICATE' | 'TRANSPORT' | 'CANCELLED' | 'DOCUMENT_INVALID';
+
+/** One downloaded (or refused) report PDF. `captureIndex` is the step capture ordinal of the stored file. */
+export interface StepPdfDiscoveryFile {
+  readonly origin: 'RUN_ROWS' | 'PDF_SEARCH';
+  readonly url: string;
+  readonly status: 'DOWNLOADED' | 'FAILED';
+  readonly reason: PdfDiscoveryReason | null;
+  readonly captureIndex: number | null;
+  readonly retrievedAt: string | null;
+  /** sha256 of the exact PDF bytes (the same identity the retained run PDF and its excerpts carry). */
+  readonly sourceSha256: string | null;
+  readonly byteSize: number | null;
+}
+
+/** Automatic report-PDF discovery of the collection step; absent unless the lane was on for the run. */
+export interface StepPdfDiscovery {
+  readonly search: {
+    readonly status: 'CALLED' | 'SKIPPED' | 'FAILED';
+    readonly reason: PdfDiscoveryReason | null;
+    readonly captureIndex: number | null;
+    readonly retrievedAt: string | null;
+  };
+  readonly files: readonly StepPdfDiscoveryFile[];
+  /** Set when no file was downloaded. */
+  readonly reason: PdfDiscoveryReason | null;
+}
+
 /** Normalized step outcome retained as canonical JSON; raw bytes are separate capture artifacts. */
 export interface StepResultDocument {
   readonly reviewSample?: import('../../../../contracts/analysis/automation-review-sample.generated.js').AutomationReviewSample;
@@ -452,6 +484,8 @@ export interface StepResultDocument {
   readonly tiktokTopAds?: StepTikTokTopAds;
   /** Automated seller-video speech readings; absent unless the video-watch lane was on for the run. */
   readonly videoWatch?: StepVideoWatch;
+  /** Automatically found industry-report PDFs; absent unless the report-PDF lane was on for the run. */
+  readonly pdfDiscovery?: StepPdfDiscovery;
   /** Sanitized Foundation3 reference; mutually exclusive with raw/native review. */
   readonly privateShopee?: import('./private-review-corpus.js').PrivateReviewReference;
   readonly exactShopee?: {
