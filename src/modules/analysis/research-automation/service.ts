@@ -150,7 +150,7 @@ import type Database from 'better-sqlite3';
 import type { DescriptiveMarketMethods } from '../../../../contracts/analysis/descriptive-market-methods.generated.js';
 import { AutomationDescriptiveMethodBridge } from './descriptive-method-bridge.js';
 import { DEFAULT_MARKET_PEER_RULE, classifiedMetricDefaultPeers, verifyDefaultMarketPeerRule } from '../default-market-peers.js';
-import { AutomationMarketMethodBridge, type AutomationMarketMethodSnapshot } from './market-method-bridge.js';
+import { AutomationMarketMethodBridge, MARKET_CAPTURE_READ_BUDGET_BYTES, type AutomationMarketMethodSnapshot } from './market-method-bridge.js';
 import { AutomationMetricMethodBridge, MetricMethodFailure, metricMethodFailureCode, type AutomationMetricMethodSnapshot, type MetricMethodFailureCode } from './metric-method-bridge.js';
 import { PageIndexCloudClient } from '../pageindex-cloud.js';
 import { estimatePageIndexBalance, estimatePageIndexLedgerBalance } from '../pageindex-balance.js';
@@ -3936,9 +3936,9 @@ export class ResearchAutomationService {
       envelopes = [];
       step = invalidProviderStep(runId, stepId);
     }
-    const putCaptures = async (values: NonNullable<ReturnType<typeof captureEnvelopes>>): Promise<void> => {
+    const putCaptures = async (values: NonNullable<ReturnType<typeof captureEnvelopes>>, retainPdf = true): Promise<void> => {
       for (const { capture, body } of values) {
-        if (stepId === 'COLLECTION' && capture.responseBytes && !aborted &&
+        if (retainPdf && stepId === 'COLLECTION' && capture.responseBytes && !aborted &&
           Buffer.from(capture.responseBytes.subarray(0, 5)).toString('utf8') === '%PDF-') {
           try { await this.#retainRunPdf(runId, `source-${captures.length + 1}.pdf`, capture.responseBytes); }
           catch { /* Source retention/indexing failure never invents a citation. */ }
@@ -4246,54 +4246,98 @@ export class ResearchAutomationService {
     let pdfSearchResult: CollectResult | null = null;
     let pdfSearchThrown = false;
     let pdfDownloads: PdfDownloadRun | null = null;
-    if (stepId === 'COLLECTION' && this.#pdfDiscoverySource && pdfInput && !aborted && !signal?.aborted) {
-      const source = this.#pdfDiscoverySource;
-      const seen = new Set<string>();
-      let candidates: PdfCandidate[] = [];
+    if (stepId === 'COLLECTION' && sourceStart.reports.includes('MARKET') && this.#pdfDiscoverySource && pdfInput && !aborted && !signal?.aborted) {
+      let search: StepPdfDiscovery['search'] = { status: 'FAILED', reason: 'SEARCH_FAILED', captureIndex: null, retrievedAt: null };
       try {
-        const runRows = step.sourceEvidence
-          ? admitWebResults(step.sourceEvidence, collectionWebRows(step), [...await this.#captureRecords(runId), ...captures.map(c => c.row)], step.sourceEvidence.jevTriage ?? null)
-          : collectionWebRows(step);
-        candidates = pdfCandidates(runRows, 'RUN_ROWS', seen);
-      } catch { candidates = []; }
-      let search: StepPdfDiscovery['search'];
-      if (candidates.length >= PDF_DISCOVERY_MAX_FILES) search = { status: 'SKIPPED', reason: 'SEARCH_SKIPPED_ENOUGH', captureIndex: null, retrievedAt: null };
-      else if (!keywordDraft) search = { status: 'SKIPPED', reason: 'SEARCH_NO_ADMISSION', captureIndex: null, retrievedAt: null };
-      else {
-        const attempt: PdfSearchAttempt = await source.search(pdfInput, signal ? { signal } : {});
-        const offset = captures.length;
-        const envelopes = attempt.state === 'CALLED' ? captureEnvelopes(attempt.result) : null;
-        if (attempt.state === 'CALLED') pdfSearchResult = attempt.result; else pdfSearchThrown = true;
-        if (envelopes?.length) await putCaptures(envelopes);
-        const stored = captures.length > offset ? captures[offset]!.row : null;
-        if (attempt.state === 'CALLED' && stored && stored.provider === 'serpapi' && stored.operation === 'serpapi.google.search' && attempt.result.status === 'SUCCEEDED') {
-          search = { status: 'CALLED', reason: null, captureIndex: offset, retrievedAt: stored.retrievedAt };
-          try {
-            const rows = toWebResults(attempt.result).filter(row => row.captureIndex === 0).map(row => ({ ...row, captureIndex: offset }));
-            const admitted = new Set(filterSerpApiResults({ results: rows.map(row => ({ captureId: stored.artifactSha256, position: row.position, title: row.title, snippet: row.snippet })),
-              filter: keywordDraft.output }).includedRecordIds);
-            const found = pdfCandidates(rows.filter(row => admitted.has(`${stored.artifactSha256}#${row.position}`)), 'PDF_SEARCH', seen);
-            if (!found.length && rows.some(row => isPdfPath(row.url))) search = { ...search, reason: 'NOT_ADMITTED' };
-            candidates = [...candidates, ...found];
-          } catch { search = { ...search, reason: 'SEARCH_FAILED' }; }
-        } else search = { status: 'FAILED', reason: 'SEARCH_FAILED', captureIndex: null, retrievedAt: null };
-      }
-      const fileIndexes: (number | null)[] = [];
-      if (candidates.length && !signal?.aborted) {
-        pdfDownloads = await source.download(candidates, signal ? { signal } : {});
-        for (const item of pdfDownloads.items) {
-          const envelopes = item.kind === 'DOWNLOADED' ? captureEnvelopes({ captures: [item.capture] }) : null;
-          if (!envelopes?.length) { fileIndexes.push(null); continue; }
-          fileIndexes.push(captures.length);
-          await putCaptures(envelopes);
+        // All optional envelopes, including the extra search, share the bridge's exact capture budget.
+        // Owner uploads remain in their existing packages and do not consume this inventory.
+        const fits = (values: NonNullable<ReturnType<typeof captureEnvelopes>>): boolean =>
+          captures.length + values.length <= MAX_CAPTURES_PER_STEP &&
+          captures.reduce((sum, value) => sum + value.artifact.byteSize, 0) + values.reduce((sum, value) => sum + value.body.byteLength, 0) <= MARKET_CAPTURE_READ_BUDGET_BYTES;
+        const source = this.#pdfDiscoverySource;
+        const seen = new Set<string>();
+        let candidates: PdfCandidate[] = [];
+        try {
+          const runRows = step.sourceEvidence
+            ? admitWebResults(step.sourceEvidence, collectionWebRows(step), [...await this.#captureRecords(runId), ...captures.map(c => c.row)], step.sourceEvidence.jevTriage ?? null)
+            : [];
+          candidates = pdfCandidates(runRows, 'RUN_ROWS', seen);
+        } catch { candidates = []; }
+        if (candidates.length >= PDF_DISCOVERY_MAX_FILES) search = { status: 'SKIPPED', reason: 'SEARCH_SKIPPED_ENOUGH', captureIndex: null, retrievedAt: null };
+        else if (!keywordDraft) search = { status: 'SKIPPED', reason: 'SEARCH_NO_ADMISSION', captureIndex: null, retrievedAt: null };
+        else {
+          let attempt: PdfSearchAttempt;
+          try { attempt = await source.search(pdfInput, signal ? { signal } : {}); } catch { attempt = { state: 'THROWN' }; }
+          const offset = captures.length;
+          const envelopes = attempt.state === 'CALLED' ? captureEnvelopes(attempt.result) : null;
+          if (attempt.state === 'CALLED') pdfSearchResult = attempt.result; else pdfSearchThrown = true;
+          if (envelopes?.length && fits(envelopes)) await putCaptures(envelopes);
+          const stored = captures.length > offset ? captures[offset]!.row : null;
+          if (attempt.state === 'CALLED' && stored && stored.provider === 'serpapi' && stored.operation === 'serpapi.google.search') {
+            search = { status: 'CALLED', reason: attempt.result.status === 'SUCCEEDED' ? null : 'SEARCH_FAILED', captureIndex: offset, retrievedAt: stored.retrievedAt };
+            if (attempt.result.status === 'SUCCEEDED') {
+              try {
+                const rows = toWebResults(attempt.result).filter(row => row.captureIndex === 0).map(row => ({ ...row, captureIndex: offset }));
+                const admitted = new Set(filterSerpApiResults({ results: rows.map(row => ({ captureId: stored.artifactSha256, position: row.position, title: row.title, snippet: row.snippet })),
+                  filter: keywordDraft.output }).includedRecordIds);
+                const found = pdfCandidates(rows.filter(row => admitted.has(`${stored.artifactSha256}#${row.position}`)), 'PDF_SEARCH', seen);
+                if (!found.length && rows.some(row => isPdfPath(row.url))) search = { ...search, reason: 'NOT_ADMITTED' };
+                candidates = [...candidates, ...found];
+              } catch { search = { ...search, reason: 'SEARCH_FAILED' }; }
+            }
+          } else search = { status: 'FAILED', reason: envelopes?.length && !fits(envelopes) ? 'BRIDGE_BUDGET_LIMIT' : 'SEARCH_FAILED', captureIndex: null, retrievedAt: null };
         }
-      }
-      const probe = { ...step, pdfDiscovery: pdfDiscoveryDocument(search, pdfDownloads, fileIndexes, search.reason ?? 'NO_CANDIDATE') };
-      try {
-        assertStepDocument(probe, runId, stepId);
-        assertCaptureLineage(probe, captures.map(value => value.row));
-        step = probe;
-      } catch { step = { ...step, pdfDiscovery: pdfDiscoveryFailed('DOCUMENT_INVALID') }; }
+        const fileIndexes: (number | null)[] = [];
+        if (candidates.length && !signal?.aborted) {
+          pdfDownloads = await source.download(candidates, signal ? { signal } : {});
+          const items: PdfDownloadRun['items'][number][] = [];
+          const knownPdfs = new Set(this.#runPdfs(runId).map(pdf => pdf.sha256));
+          for (const item of pdfDownloads.items) {
+            const envelopes = item.kind === 'DOWNLOADED' ? captureEnvelopes({ captures: [item.capture] }) : null;
+            if (!envelopes?.length) { fileIndexes.push(null); items.push(item); continue; }
+            if (item.kind === 'DOWNLOADED' && knownPdfs.has(item.sha256)) {
+              fileIndexes.push(null);
+              items.push({ candidate: item.candidate, kind: 'FAILED', reason: 'DUPLICATE', requested: true });
+              continue;
+            }
+            if (!fits(envelopes)) {
+              fileIndexes.push(null);
+              items.push({ candidate: item.candidate, kind: 'FAILED', reason: 'BRIDGE_BUDGET_LIMIT', requested: true });
+              continue;
+            }
+            // Persist the capture before reader retention so a failed optional write cannot leave an uncited run PDF.
+            const index = captures.length;
+            try { await putCaptures(envelopes, false); }
+            catch {
+              fileIndexes.push(null);
+              items.push({ candidate: item.candidate, kind: 'FAILED', reason: 'TRANSPORT', requested: true });
+              continue;
+            }
+            if (item.kind === 'DOWNLOADED') {
+              try { await this.#retainRunPdf(runId, `source-${captures.length}.pdf`, item.bytes); }
+              catch {
+                // Indexing may fail after source retention; that follows the upload path's existing reader state.
+                if (!this.#runPdfs(runId).some(pdf => pdf.sha256 === item.sha256)) {
+                  fileIndexes.push(null);
+                  items.push({ candidate: item.candidate, kind: 'FAILED', reason: 'DOCUMENT_INVALID', requested: true });
+                  continue;
+                }
+              }
+              knownPdfs.add(item.sha256);
+            }
+            fileIndexes.push(index);
+            items.push(item);
+            step = { ...step, pdfDiscovery: pdfDiscoveryDocument(search, { ...pdfDownloads, items }, fileIndexes, search.reason ?? 'NO_CANDIDATE') };
+          }
+          pdfDownloads = { ...pdfDownloads, items };
+        }
+        const probe = { ...step, pdfDiscovery: pdfDiscoveryDocument(search, pdfDownloads, fileIndexes, search.reason ?? 'NO_CANDIDATE') };
+        try {
+          assertStepDocument(probe, runId, stepId);
+          assertCaptureLineage(probe, captures.map(value => value.row));
+          step = probe;
+        } catch { step = { ...step, pdfDiscovery: { ...pdfDiscoveryFailed('DOCUMENT_INVALID'), search } }; }
+      } catch { step = { ...step, pdfDiscovery: step.pdfDiscovery ?? { ...pdfDiscoveryFailed('TRANSPORT'), search } }; }
     }
     const webResult = web && 'bound' in web ? web.bound.result : null;
     let resultArtifact = await this.#artifacts.put(Buffer.from(canonicalJson(step), 'utf8'));

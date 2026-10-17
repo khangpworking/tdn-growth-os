@@ -424,7 +424,7 @@ export interface StepVideoWatch {
 export type PdfDiscoveryReason =
   | 'NO_CANDIDATE' | 'SEARCH_SKIPPED_ENOUGH' | 'SEARCH_NO_ADMISSION' | 'SEARCH_FAILED' | 'NOT_ADMITTED'
   | 'URL_REFUSED' | 'PRIVATE_ADDRESS' | 'DNS_FAILED' | 'TOO_MANY_REDIRECTS' | 'FILE_SIZE_LIMIT' | 'NOT_A_PDF'
-  | 'TIMEOUT' | 'HTTP_ERROR' | 'DUPLICATE' | 'TRANSPORT' | 'CANCELLED' | 'DOCUMENT_INVALID';
+  | 'BRIDGE_BUDGET_LIMIT' | 'TIMEOUT' | 'HTTP_ERROR' | 'DUPLICATE' | 'TRANSPORT' | 'CANCELLED' | 'DOCUMENT_INVALID';
 
 /** One downloaded (or refused) report PDF. `captureIndex` is the step capture ordinal of the stored file. */
 export interface StepPdfDiscoveryFile {

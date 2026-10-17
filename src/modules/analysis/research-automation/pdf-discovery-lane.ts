@@ -6,6 +6,8 @@
 // whose bytes start with `%PDF-`, so the existing run-PDF retention path keeps and reads it. Nothing here fails a run.
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
+import { request as httpsRequest } from 'node:https';
+import { Readable } from 'node:stream';
 import { CaptureLog, defaultProviderTransport, sha256, type ProviderTransport } from './provider-common.js';
 import { createSerpApiProvider } from './provider-serpapi.js';
 import { SearchCallBudget, type ExpandedSearchRequest } from './expanded-search-queries.js';
@@ -46,7 +48,7 @@ export const isPdfPath = (url: string): boolean => {
 /** A URL may be fetched only over https on the default port, with no credentials and a DNS name (never an IP literal). */
 export function checkPdfUrl(raw: string): URL | null {
   let url: URL;
-  try { url = new URL(raw); } catch { return null; }
+  try { if (raw.length > 2000) return null; url = new URL(raw); } catch { return null; }
   const host = url.hostname.replace(/^\[|\]$/gu, '');
   if (url.protocol !== 'https:' || (url.port !== '' && url.port !== '443') || url.username || url.password) return null;
   if (host === '' || isIP(host) !== 0 || /^[0-9.]+$/u.test(host) || !host.includes('.') || host.toLowerCase() === 'localhost' || host.toLowerCase().endsWith('.localhost')) return null;
@@ -63,10 +65,12 @@ function ipv4Blocked(ip: string): boolean {
 
 /** Loopback, private, link-local, CGNAT, multicast/reserved, IPv6 ULA and link-local answers are refused; so is anything unparsable. */
 export function isBlockedAddress(address: string): boolean {
-  const ip = address.toLowerCase().replace(/%.*$/u, '');
+  let ip = address.toLowerCase().replace(/%.*$/u, '');
   const kind = isIP(ip);
   if (kind === 4) return ipv4Blocked(ip);
   if (kind !== 6) return true;
+  // Canonicalize zero padding/compression before checking mapped and reserved forms.
+  ip = new URL(`https://[${ip}]/`).hostname.slice(1, -1);
   const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/u.exec(ip);
   if (mapped) return ipv4Blocked(mapped[1]!);
   const hexMapped = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/u.exec(ip);
@@ -77,11 +81,57 @@ export function isBlockedAddress(address: string): boolean {
   // `::`, `::1`, IPv4-compatible and every other address starting with a zero group is refused.
   if (ip.startsWith('::') || ip.startsWith('0:')) return true;
   const first = parseInt(ip.split(':')[0]!, 16);
-  return (first & 0xfe00) === 0xfc00 || (first & 0xffc0) === 0xfe80 || (first & 0xff00) === 0xff00 || ip.startsWith('2001:db8:') || ip.startsWith('64:ff9b:');
+  // Only global unicast. This also rejects expanded spellings of zero/mapped,
+  // compatible, site-local and translation addresses, regardless of padding.
+  return (first & 0xe000) !== 0x2000 || ip.startsWith('2001:db8:');
 }
 
 export type PdfResolver = (hostname: string) => Promise<readonly string[]>;
 export const defaultPdfResolver: PdfResolver = async hostname => (await lookup(hostname, { all: true, verbatim: true })).map(answer => answer.address);
+
+export type PdfDownloadFetch = (url: URL, init: RequestInit & { readonly checkedAddresses: readonly string[] }) => Promise<Response>;
+
+/** Fresh socket per hop; TLS still authenticates the original hostname. No second DNS lookup or proxy. */
+export function createPinnedPdfFetch(request: typeof httpsRequest = httpsRequest): PdfDownloadFetch {
+  return (url, init) => new Promise((resolve, reject) => {
+    const addresses = init.checkedAddresses.map(address => ({ address, family: isIP(address) }));
+    if (!addresses.length || addresses.some(answer => isBlockedAddress(answer.address))) { reject(new Error('Unchecked address')); return; }
+    const req = request(url, {
+      method: 'GET', agent: false, signal: init.signal ?? undefined,
+      headers: { accept: 'application/pdf' },
+      lookup: (hostname, options, callback) => {
+        if (hostname !== url.hostname) { callback(new Error('Unexpected hostname'), '', 4); return; }
+        const selected = addresses[0]!;
+        if (options.all) callback(null, addresses);
+        else callback(null, selected.address, selected.family);
+      },
+    }, response => {
+      try {
+        const headers = new Headers();
+        for (const [name, value] of Object.entries(response.headers)) {
+          if (value !== undefined) headers.set(name, Array.isArray(value) ? value.join(', ') : value);
+        }
+        const status = response.statusCode ?? 502;
+        const body = [204, 205, 304].includes(status) ? null : Readable.toWeb(response) as ReadableStream<Uint8Array>;
+        if (body === null) response.destroy();
+        resolve(new Response(body, { status, headers }));
+      } catch (error) { response.destroy(); reject(error); }
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+const pinnedPdfFetch = createPinnedPdfFetch();
+
+/** DNS, headers and body all share the file deadline, even if a port ignores cancellation. */
+function beforeDeadline<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const abort = () => reject(signal.reason);
+    if (signal.aborted) { void pending.catch(() => {}); reject(signal.reason); return; }
+    signal.addEventListener('abort', abort, { once: true });
+    pending.then(resolve, reject).finally(() => signal.removeEventListener('abort', abort));
+  });
+}
 
 export interface PdfCandidate { readonly url: string; readonly origin: StepPdfDiscoveryFile['origin'] }
 
@@ -110,6 +160,7 @@ export type PdfDownloadOutcome =
  */
 export async function guardedPdfDownload(input: {
   readonly transport: ProviderTransport; readonly resolve: PdfResolver; readonly log: CaptureLog; readonly url: string;
+  readonly download?: PdfDownloadFetch;
   readonly signal?: AbortSignal | undefined; readonly timeoutMs?: number; readonly maxBytes?: number;
 }): Promise<PdfDownloadOutcome> {
   const maxBytes = Math.min(input.maxBytes ?? PDF_DISCOVERY_MAX_BYTES, PDF_DISCOVERY_MAX_BYTES);
@@ -125,18 +176,18 @@ export async function guardedPdfDownload(input: {
     if (!url) return { kind: 'FAILED', reason: 'URL_REFUSED', requested };
     if (isBlockedHost(url.hostname)) return { kind: 'FAILED', reason: 'URL_REFUSED', requested };
     let answers: readonly string[];
-    try { answers = await input.resolve(url.hostname); } catch { return { kind: 'FAILED', reason: signal.aborted ? stopped() : 'DNS_FAILED', requested }; }
+    try { answers = await beforeDeadline(input.resolve(url.hostname), signal); } catch { return { kind: 'FAILED', reason: signal.aborted ? stopped() : 'DNS_FAILED', requested }; }
     if (signal.aborted) return { kind: 'FAILED', reason: stopped(), requested };
     if (!answers.length) return { kind: 'FAILED', reason: 'DNS_FAILED', requested };
     if (answers.some(isBlockedAddress)) return { kind: 'FAILED', reason: 'PRIVATE_ADDRESS', requested };
     let response: Response;
     requested = true;
     try {
-      response = await input.transport.fetch(url, { method: 'GET', redirect: 'manual', credentials: 'omit', signal,
-        headers: { accept: 'application/pdf' } });
+      response = await beforeDeadline((input.download ?? pinnedPdfFetch)(url, { method: 'GET', redirect: 'manual', credentials: 'omit', signal,
+        headers: { accept: 'application/pdf' }, checkedAddresses: answers }), signal);
     } catch { return { kind: 'FAILED', reason: stopped(), requested }; }
     if (response.status >= 300 && response.status < 400) {
-      await response.body?.cancel().catch(() => {});
+      if (response.body) await beforeDeadline(response.body.cancel(), signal).catch(() => {});
       const location = response.headers.get('location');
       if (!location) return { kind: 'FAILED', reason: 'HTTP_ERROR', requested };
       if (hop >= PDF_DISCOVERY_MAX_REDIRECTS) return { kind: 'FAILED', reason: 'TOO_MANY_REDIRECTS', requested };
@@ -144,12 +195,12 @@ export async function guardedPdfDownload(input: {
       continue;
     }
     if (response.status !== 200 || !response.body) {
-      await response.body?.cancel().catch(() => {});
+      if (response.body) await beforeDeadline(response.body.cancel(), signal).catch(() => {});
       return { kind: 'FAILED', reason: 'HTTP_ERROR', requested };
     }
     const declared = Number(response.headers.get('content-length'));
     if (Number.isFinite(declared) && declared > maxBytes) {
-      await response.body.cancel().catch(() => {});
+      await beforeDeadline(response.body.cancel(), signal).catch(() => {});
       return { kind: 'FAILED', reason: 'FILE_SIZE_LIMIT', requested };
     }
     const reader = response.body.getReader();
@@ -157,14 +208,14 @@ export async function guardedPdfDownload(input: {
     let size = 0;
     try {
       while (true) {
-        const part = await reader.read();
+        const part = await beforeDeadline(reader.read(), signal);
         if (part.done) break;
         size += part.value.byteLength;
         if (size > maxBytes) return { kind: 'FAILED', reason: 'FILE_SIZE_LIMIT', requested };
         chunks.push(part.value);
       }
     } catch { return { kind: 'FAILED', reason: stopped(), requested }; }
-    finally { await reader.cancel().catch(() => {}); }
+    finally { await beforeDeadline(reader.cancel(), signal).catch(() => {}); }
     const bytes = Buffer.concat(chunks);
     if (bytes.subarray(0, 5).toString('latin1') !== '%PDF-') return { kind: 'FAILED', reason: 'NOT_A_PDF', requested };
     const capture = input.log.record({ operation: 'pdfdiscovery.download', billing: 'FREE_ACCOUNT_QUERY', method: 'GET', endpoint: `${url.origin}${url.pathname}`,
@@ -190,7 +241,7 @@ export interface PdfDownloadRun {
   readonly items: readonly ({ readonly candidate: PdfCandidate } & PdfDownloadOutcome)[];
 }
 
-export function createPdfDiscoverySource(apiKey: string | null, transport: ProviderTransport = defaultProviderTransport, resolve: PdfResolver = defaultPdfResolver): PdfDiscoverySource {
+export function createPdfDiscoverySource(apiKey: string | null, transport: ProviderTransport = defaultProviderTransport, resolve: PdfResolver = defaultPdfResolver, download: PdfDownloadFetch = pinnedPdfFetch): PdfDiscoverySource {
   const provider = createSerpApiProvider(apiKey, transport);
   return {
     async search(input, options = {}) {
@@ -206,9 +257,9 @@ export function createPdfDiscoverySource(apiKey: string | null, transport: Provi
       const shas = new Set<string>();
       let requests = 0, kept = 0;
       for (const candidate of candidates) {
-        if (kept >= PDF_DISCOVERY_MAX_FILES || requests >= PDF_DISCOVERY_MAX_FILES) break;
+        if (items.length >= PDF_DISCOVERY_MAX_FILES || kept >= PDF_DISCOVERY_MAX_FILES || requests >= PDF_DISCOVERY_MAX_FILES) break;
         let outcome: PdfDownloadOutcome;
-        try { outcome = await guardedPdfDownload({ transport, resolve, log, url: candidate.url, signal: options.signal }); }
+        try { outcome = await guardedPdfDownload({ transport, resolve, download, log, url: candidate.url, signal: options.signal }); }
         catch { outcome = { kind: 'FAILED', reason: 'TRANSPORT', requested: true }; }
         if (outcome.kind === 'DOWNLOADED' || outcome.requested) requests += 1;
         if (outcome.kind === 'DOWNLOADED' && shas.has(outcome.sha256)) { items.push({ candidate, kind: 'FAILED', reason: 'DUPLICATE', requested: true }); continue; }
@@ -244,7 +295,7 @@ export function pdfDiscoveryDownloaded(value: StepPdfDiscovery | null | undefine
 }
 
 const REASONS: ReadonlySet<string> = new Set<PdfDiscoveryReason>(['NO_CANDIDATE', 'SEARCH_SKIPPED_ENOUGH', 'SEARCH_NO_ADMISSION', 'SEARCH_FAILED', 'NOT_ADMITTED',
-  'URL_REFUSED', 'PRIVATE_ADDRESS', 'DNS_FAILED', 'TOO_MANY_REDIRECTS', 'FILE_SIZE_LIMIT', 'NOT_A_PDF', 'TIMEOUT', 'HTTP_ERROR', 'DUPLICATE', 'TRANSPORT', 'CANCELLED', 'DOCUMENT_INVALID']);
+  'BRIDGE_BUDGET_LIMIT', 'URL_REFUSED', 'PRIVATE_ADDRESS', 'DNS_FAILED', 'TOO_MANY_REDIRECTS', 'FILE_SIZE_LIMIT', 'NOT_A_PDF', 'TIMEOUT', 'HTTP_ERROR', 'DUPLICATE', 'TRANSPORT', 'CANCELLED', 'DOCUMENT_INVALID']);
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const reasonOk = (value: unknown): boolean => value === null || (typeof value === 'string' && REASONS.has(value));
 const indexOk = (value: unknown): boolean => value === null || (Number.isSafeInteger(value) && (value as number) >= 0);

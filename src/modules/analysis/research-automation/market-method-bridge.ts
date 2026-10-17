@@ -25,6 +25,8 @@ const QUOTE_INPUT = 'methods/quote-input.json';
 const TEMPORAL_PROFILE = 'profiles/temporal-window.schema.json';
 const QUOTE_PROFILE = 'profiles/generic-quote-unit.schema.json';
 const READ_BUDGET = { maxFileBytes: MAX_CAPTURE_ENVELOPE_BYTES, maxTotalBytes: 128 * 1024 * 1024 };
+/** Leave the bridge's existing eight JSON-artifact reserve intact when admitting optional captures. */
+export const MARKET_CAPTURE_READ_BUDGET_BYTES = READ_BUDGET.maxTotalBytes - 8 * MAX_JSON_ARTIFACT_BYTES;
 const sha = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex');
 const json = (value: unknown): Buffer => Buffer.from(canonicalJson(value));
 const digest = (value: unknown): string => sha(json(value));
@@ -164,7 +166,7 @@ export class AutomationMarketMethodBridge {
     for (const capture of captures) {
       const bytes = await this.#artifacts.read(capture.artifactSha256, { maxBytes: MAX_CAPTURE_ENVELOPE_BYTES });
       totalBytes += bytes.length;
-      if (totalBytes > READ_BUDGET.maxTotalBytes - 8 * MAX_JSON_ARTIFACT_BYTES) integrity('Market capture evidence exceeds its read bound.');
+      if (totalBytes > MARKET_CAPTURE_READ_BUDGET_BYTES) integrity('Market capture evidence exceeds its read bound.');
       captureBytes.set(capture.artifactSha256, bytes);
     }
     const verified = verifyAutomationObservations({ ...input, captureBytes });

@@ -104,3 +104,15 @@ Dòng trước 12/10/2026 ghi lại từ danh mục nguồn, nhật ký test và
 - Nhãn mới của một nguồn phải là một trong 5 nhãn ở mục 1. Nhãn **Không thu** luôn có lý do ở cột ghi chú.
 - Ghi chú ngắn, tối đa một dòng. Không ghi tên nhà cung cấp dữ liệu, khoá, đường dẫn máy hay tên tài khoản.
 - Nhật ký chỉ ghi thay đổi có căn cứ: mã ST, mã BR/DS, PR hoặc lời chủ. Không sửa dòng cũ; muốn đính chính thì thêm dòng mới.
+
+### S25 implementation review (PR #282, 17/10/2026)
+
+Automatic collection is limited to Market runs and stays off by default. The extra
+search uses ordinal 14 (at most one request); ordinal 15 counts at most two file
+download attempts, with at most three checked redirects per file and no retries.
+Every HTTPS socket is pinned to a checked DNS answer. Optional captures are
+skipped with `BRIDGE_BUDGET_LIMIT` before reader retention if they exceed the
+market-method bridge's existing capture budget. Owner uploads keep their current
+storage, question cap and package lineage. Discovery-only receipts are technical
+records: no kept/quoted PDF means no visible S25 block or provenance addition.
+The first live canary remains pending; this review uses synthetic fixtures only.
