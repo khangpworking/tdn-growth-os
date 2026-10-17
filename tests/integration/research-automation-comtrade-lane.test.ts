@@ -246,6 +246,15 @@ test('flag on: M06 shows the table with no total, no percent sign, no provider n
   assert.deepEqual(visibleTextViolations(reportVisibleText(on.doc)), []);
   assert.doesNotThrow(() => assertMarketBusinessGate(on.html));
   assert.deepEqual(auditMarketReportHtml(on.html).filter(check => !check.ok), []);
+  const figures = [...section.querySelectorAll('figure')].filter(node => /Hình 6\.[12]/u.test(node.textContent!));
+  assert.deepEqual(figures.map(node => node.querySelector('.exn')!.textContent), ['Hình 6.1', 'Hình 6.2'], 'mirror bars, then the own pair, after Bảng 6.2');
+  for (const node of figures) {
+    assert.equal(node.querySelector('.chart')!.getAttribute('data-engine'), 'flint');
+    assert.ok(node.textContent!.includes('Cơ sở dữ liệu thương mại của Liên Hợp Quốc (UN Comtrade)'));
+    assert.match(node.textContent!, /không cộng/u);
+    assert.equal(/tổng|%/u.test(node.textContent!), false);
+  }
+  assert.ok(on.html.indexOf('Bảng 6.2') < on.html.indexOf('Hình 6.1'));
 });
 
 test('flag on, HS rejected: the report prints no numbers from this source', async t => {

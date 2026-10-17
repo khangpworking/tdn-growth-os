@@ -7,7 +7,7 @@ import { JSDOM } from 'jsdom';
 import { openDatabase } from '../../src/platform/db/index.js';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/artifact-store.js';
 import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../src/modules/flow/index.js';
-import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
+import { ResearchAutomationService, validWorldBank } from '../../src/modules/analysis/research-automation/service.js';
 import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
 import type { AutomationSourcePort } from '../../src/modules/analysis/research-automation/source-binding.js';
 import type { StepResultDocument } from '../../src/modules/analysis/research-automation/model.js';
@@ -142,6 +142,42 @@ test('flag on: four pinned GETs, both pairs stored as captures, one table in the
   const failing = (page: string) => auditMarket14(page).filter(item => item.kind === 'machine' && !item.ok).map(item => item.rule);
   const baseline = failing((await reportDocument(off)).html);
   assert.deepEqual(failing(html).filter(rule => !baseline.includes(rule)), [], 'S23 adds no machine-rule failure the same synthetic report does not already have without it');
+});
+
+test('flag on: a 10-year series is stored with gaps kept, ends at the table row, and is drawn as Flint Hình 5.3/5.4 after Bảng 5.3', async t => {
+  const f = await runToDraft(t, { source: syntheticProductSource(), worldBankSource: syntheticWorldBank([]) });
+  const [pc, pop] = f.document!.worldBank!.indicators;
+  assert.deepEqual(pc!.series, Array.from({ length: 10 }, (_, i) => ({ year: String(2015 + i), value: i === 9 ? '1234.5' : i === 8 ? '1000' : '900' })), 'ten years ending at the latest non-null year; the null 2025 is outside the window');
+  assert.deepEqual(pop!.series, [{ year: '2024', value: '97000000' }, { year: '2025', value: '98000000' }]);
+  for (const item of [pc!, pop!]) assert.deepEqual(item.series!.at(-1), { year: item.row!.year, value: item.row!.value });
+  const bank = f.document!.worldBank!;
+  assert.equal(validWorldBank(bank), true);
+  const old = { ...bank, indicators: bank.indicators.map(({ series: _series, ...rest }) => rest) };
+  assert.equal(validWorldBank(old), true, 'a document stored before the series existed still validates');
+  const gap = { ...bank, indicators: bank.indicators.map(item => ({ ...item, series: item.series!.map((point, i) => i === 0 ? { ...point, value: null } : point) })) };
+  assert.equal(validWorldBank(gap), true, 'a null year inside the window is kept');
+  const off = (series: unknown) => validWorldBank({ ...bank, indicators: [{ ...bank.indicators[0]!, series }, bank.indicators[1]] });
+  assert.equal(off([...pc!.series!.slice(0, 9), { year: '2024', value: '1' }]), false, 'the last point must equal the table row');
+  assert.equal(off([{ year: '2013', value: '1' }, ...pc!.series!]), false, 'never more than ten years');
+  assert.equal(off([pc!.series![0], pc!.series![9]]), false, 'years are consecutive');
+  assert.equal(off([]), false);
+  assert.equal(validWorldBank({ ...bank, indicators: [{ ...bank.indicators[0]!, status: 'FAILED', reason: 'HTTP_ERROR', row: null, retrievedAt: null, captureIndex: null, metadataCaptureIndex: null, sourceSha256: null, metadataSha256: null }] }), false, 'a failed indicator carries no series');
+  const { html, doc } = await reportDocument(f);
+  const figs = [...doc.querySelectorAll('#M05 figure')].filter(node => /Hình 5\.[34]/u.test(node.textContent!));
+  assert.equal(figs.length, 2);
+  for (const node of figs) {
+    assert.equal(node.querySelector('.chart')!.getAttribute('data-engine'), 'flint');
+    assert.match(node.textContent!, /Ngân hàng Thế giới/u);
+    assert.match(node.textContent!, /không so sánh được với số liệu mẫu/u);
+    assert.doesNotMatch(node.textContent!, /%|Google/u);
+  }
+  assert.ok(html.indexOf('Bảng 5.3') < html.indexOf('Hình 5.3'));
+  assert.deepEqual(visibleTextViolations(reportVisibleText(doc)), [], 'tick labels never read as a long digit run');
+  assert.deepEqual(auditMarketReportHtml(html).filter(check => !check.ok), []);
+  // This synthetic run has no presentation block (rule 11 already fails on its icons), so compare with the same run without S23.
+  const failing = (page: string) => auditMarket14(page, undefined, { requireFlint: true }).filter(item => item.kind === 'machine' && !item.ok).map(item => item.rule);
+  const baseline = failing((await reportDocument(await runToDraft(t, { source: syntheticProductSource() }))).html);
+  assert.deepEqual(failing(html).filter(rule => !baseline.includes(rule)), [], 'the figures add no machine-rule failure under requireFlint');
 });
 
 test('the evidence packet marks S23 as used only for what is drawn', async t => {

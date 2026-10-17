@@ -1,0 +1,148 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { JSDOM } from 'jsdom';
+import { containsTechnicalId } from '../../src/modules/analysis/citation-registry.js';
+import { calculateMetricScopes } from '../../src/modules/analysis/metric-scope-calculator.js';
+import { DEFAULT_MARKET_PEER_RULE } from '../../src/modules/analysis/default-market-peers.js';
+import { buildMarketReport, computeReaderReportData } from '../../src/modules/analysis/reader-report/index.js';
+import { COMTRADE_MIRROR_NOTE, COMTRADE_OWN_NOTE, renderComtradeCharts, renderWorldBankCharts, WORLD_BANK_CHART_NOTE } from '../../src/modules/analysis/reader-report/macro-charts.js';
+import { renderMarketCharts } from '../../src/modules/analysis/reader-report/market-charts.js';
+import { COMTRADE_SRC } from '../../src/modules/analysis/research-automation/comtrade-lane.js';
+import { auditMarket14 } from '../../src/modules/analysis/research-automation/market-14-rules.js';
+import { assertMarketBusinessGate, auditMarketReportHtml } from '../../src/modules/analysis/research-automation/market-business-gate.js';
+import { buildAutomationMarketPresentation, marketPresentationDigest, type MarketPresentationBinding } from '../../src/modules/analysis/research-automation/market-presentation-method.js';
+import type { StepComtrade, StepComtradeRow, StepWorldBank, StepWorldBankIndicator } from '../../src/modules/analysis/research-automation/model.js';
+import { assertFlintCharts } from '../../src/modules/analysis/research-automation/reader-report-revisions.js';
+import { buildResearchAutomationReport, type AutomationReportInput } from '../../src/modules/analysis/research-automation/reports.js';
+import { WORLD_BANK_SRC } from '../../src/modules/analysis/research-automation/world-bank-lane.js';
+import { metricFixture } from '../fixtures/metric-scope-synthetic.js';
+import { sync1Options, sync1ReaderFixture } from '../helpers/sync1-reader-fixture.js';
+import { unitPriceFixture } from '../helpers/market-unit-price-fixture.js';
+
+const SHA = 'a'.repeat(64);
+const workspaceId = '11111111-1111-4111-8111-111111111111';
+const runId = '22222222-2222-4222-8222-222222222222';
+
+function indicator(code: string, name: string, series: readonly { year: string; value: string | null }[] | undefined, value = '123.5', year = '2024'): StepWorldBankIndicator {
+  const last = series?.[series.length - 1];
+  return { code, status: 'COLLECTED', reason: null, retrievedAt: '2026-01-01T00:00:00.000Z', captureIndex: 10, metadataCaptureIndex: 11, sourceSha256: SHA, metadataSha256: SHA,
+    row: { indicatorName: name, value: last?.value ?? value, unit: null, year: last?.year ?? year, lastUpdated: '2026-01-01', statusLiteral: '', footnote: null, locator: '/1/0' },
+    ...(series ? { series } : {}) };
+}
+const years = (from: number, values: readonly (string | null)[]) => values.map((value, i) => ({ year: String(from + i), value }));
+const worldBank = (withSeries: boolean): StepWorldBank => ({ profile: 'p', indicators: [
+  indicator('SP.POP.TOTL', 'Chỉ số tổng hợp A', withSeries ? years(2015, ['91000000', null, '93000000', '94000000', '95000000', '96000000', '97000000', '98000000', '99000000', '100300000']) : undefined, '100300000'),
+  indicator('NE.CON.PRVT.PC.KD', 'Chỉ số tổng hợp B', withSeries ? years(2022, ['2000', '2050.5', '2100.5']) : undefined, '2100.5'),
+] });
+const row = (side: 'OWN' | 'MIRROR', reporter: string, flow: 'M' | 'X', year: string, value: string): StepComtradeRow => ({ side, reporter, flow, year, value, captureIndex: 20 });
+const comtrade = (rows: readonly StepComtradeRow[]): StepComtrade => ({ profile: 'comtrade-v1', status: 'OK', hsCode: '999999', officialDescription: 'Synthetic goods',
+  descriptionVi: 'Hàng tổng hợp', reasonVi: null, attempts: [], calls: [], rows, mirrorReporterCount: rows.filter(r => r.side === 'MIRROR').length });
+const fullTrade = comtrade([row('OWN', 'Việt Nam', 'M', '2023', '5130000'), row('OWN', 'Việt Nam', 'X', '2023', '1270000'),
+  row('MIRROR', 'Nước A', 'X', '2023', '3410000'), row('MIRROR', 'Nước B', 'X', '2023', '1270000')]);
+const thinTrade = comtrade([row('MIRROR', 'Nước A', 'X', '2023', '3410000')]);
+
+const figures = (html: string) => [...new JSDOM(html).window.document.querySelectorAll('figure')].map(figure => ({
+  no: figure.querySelector('.exn')?.textContent ?? '', engine: figure.querySelector('.chart')?.getAttribute('data-engine') ?? '', text: figure.textContent!.replace(/\s+/gu, ' ') }));
+const figure = (html: string, no: string) => figures(html).find(item => item.no === no);
+const machineFailures = (html: string) => auditMarket14(html, undefined, { requireFlint: true }).filter(item => item.kind === 'machine' && !item.ok).map(item => item.rule);
+
+// v2 reader renderer
+async function reader(extra: { worldBank?: StepWorldBank; comtrade?: StepComtrade } = {}, flint = true) {
+  const input = sync1ReaderFixture('1.4.0'); input.peerRule = { ...DEFAULT_MARKET_PEER_RULE };
+  const units = unitPriceFixture(input.rows); input.unitPrices = units.packet;
+  return buildMarketReport(computeReaderReportData(input, units.retained), { ...sync1Options, flint, ...extra });
+}
+
+test('v2 reader: World Bank lines are Hình 5.3/5.4 after Bảng 5.3 and Comtrade bars are Hình 6.1/6.2 after Bảng 6.2, all Flint', async () => {
+  const built = await reader({ worldBank: worldBank(true), comtrade: fullTrade });
+  const wb1 = figure(built.html, 'Hình 5.3'), wb2 = figure(built.html, 'Hình 5.4'), mirror = figure(built.html, 'Hình 6.1'), own = figure(built.html, 'Hình 6.2');
+  for (const [item, src, note] of [[wb1, WORLD_BANK_SRC, WORLD_BANK_CHART_NOTE], [wb2, WORLD_BANK_SRC, WORLD_BANK_CHART_NOTE], [mirror, COMTRADE_SRC, COMTRADE_MIRROR_NOTE], [own, COMTRADE_SRC, COMTRADE_OWN_NOTE]] as const) {
+    assert.ok(item, 'figure present');
+    assert.equal(item.engine, 'flint');
+    assert.ok(item.text.includes(src), 'source line');
+    assert.ok(item.text.includes(note), 'note');
+    assert.doesNotMatch(item.text, /%|Google/u);
+    assert.equal(containsTechnicalId(item.text), false, 'tick labels never read as a long digit run');
+  }
+  assert.match(wb1!.text, /Chỉ số tổng hợp A, cả nước Việt Nam/u);
+  assert.match(wb1!.text, /\(triệu/u);
+  assert.match(wb2!.text, /\(nghìn/u);
+  assert.match(mirror!.text, /năm 2023/u);
+  assert.match(own!.text, /triệu USD/u);
+  const doc = new JSDOM(built.html).window.document;
+  assert.equal([...doc.querySelectorAll('#phan-5 figure')].filter(item => /Hình 5\.[34]/u.test(item.textContent!)).length, 2, 'World Bank figures sit in the demand section');
+  assert.deepEqual(built.charts.filter(chart => /^M0[56]\.(world-bank|comtrade)/u.test(chart.id)).map(chart => chart.engine), ['flint', 'flint', 'flint', 'flint']);
+  assert.doesNotThrow(() => assertFlintCharts(built.charts, true));
+  assert.deepEqual(machineFailures(built.html), machineFailures((await reader()).html), 'the figures add no failing machine rule');
+  assert.equal(auditMarket14(built.html, undefined, { requireFlint: true }).find(item => item.rule === '11')!.ok, true);
+});
+
+test('v2 reader: absent data, old documents without a series and one mirror row change no byte', async () => {
+  const plain = (await reader()).html;
+  assert.equal((await reader({ worldBank: { profile: 'p', indicators: [] } })).html, plain, 'no rows, no bytes');
+  const tables = (await reader({ worldBank: worldBank(false), comtrade: thinTrade })).html;
+  assert.doesNotMatch(tables, /Hình 5\.3|Hình 6\.1/u);
+  assert.notEqual(tables, plain, 'the tables still render');
+  // Same table rows with a stored series: the figures are the only difference.
+  const drawn = (await reader({ worldBank: worldBank(true), comtrade: thinTrade })).html;
+  assert.equal(stripFigures(drawn, /Hình 5\.[34]/u), tables);
+  assert.equal((await reader({ worldBank: worldBank(true), comtrade: thinTrade }, false)).html.includes('data-engine="flint"'), false, 'the opt-out draws no Flint chart');
+});
+function stripFigures(html: string, no: RegExp): string {
+  return html.replace(/<figure\b[\s\S]*?<\/figure>/gu, block => no.test(block) ? '' : block);
+}
+
+// Automation (presentation) renderer
+async function presentationInput(extra: { worldBank?: StepWorldBank; comtrade?: StepComtrade } = {}, draw = true): Promise<AutomationReportInput> {
+  const metric = calculateMetricScopes(metricFixture());
+  const rows = sync1ReaderFixture('1.4.0').rows, unit = unitPriceFixture(rows);
+  const record = { contractVersion: 'reader-unit-spec-intake-record-v1' as const, workspaceId, runId, draftPairId: 'a'.repeat(64),
+    workbookSha256: 'b'.repeat(64), actorId: 'synthetic-owner', request: { contractVersion: 'reader-unit-spec-intake-v1' as const,
+      metricPackageId: runId, platforms: ['shopee', 'tiktok'] as ('shopee' | 'tiktok')[], unitPrices: unit.packet } };
+  const binding: MarketPresentationBinding = { workspaceId, runId, previousPairId: record.draftPairId, scopeSha256: 'c'.repeat(64),
+    metric: { sourcePackage: { packageId: runId, manifestArtifactSha256: 'd'.repeat(64), packageContentSha256: 'e'.repeat(64) },
+      workbookSha256: record.workbookSha256, resultSha256: marketPresentationDigest(metric) } };
+  const marketPresentation = buildAutomationMarketPresentation(binding, { metric, rows, unitSpec: { sha256: marketPresentationDigest(record), record } }, unit.retained);
+  const collection = { runId, stepId: 'COLLECTION', outcome: 'SUCCEEDED', comparables: [], productCards: [], webResults: [], coverage: [], limitations: [], ...extra };
+  const worldBankCharts = draw && extra.worldBank ? await renderWorldBankCharts(extra.worldBank) : [];
+  const comtradeCharts = draw && extra.comtrade ? await renderComtradeCharts(extra.comtrade) : [];
+  return { run: { runId, workspaceId, createdAt: '2026-01-01T00:00:00.000Z', coverage: [], usage: {} },
+    start: { contractVersion: 'research-automation-start-snapshot-v1', workspaceId, country: 'VN', mode: 'CATEGORY', keyword: 'synthetic jar', description: null,
+      interview: null, requestedPeriod: { startDate: '2026-01-01', endDate: '2026-01-30', dayCount: 30 }, reports: ['MARKET'] },
+    scope: { contractVersion: 'research-automation-scope-snapshot-v1', workspaceId, runId, definition: 'Synthetic scope', includeTerms: [], excludeTerms: [], selectedProductIds: [], peerProductIds: [] },
+    collection, captures: [], marketPresentation, marketPresentationCharts: await renderMarketCharts(marketPresentation.input.rows),
+    ...(worldBankCharts.length ? { worldBankCharts } : {}), ...(comtradeCharts.length ? { comtradeCharts } : {}) } as unknown as AutomationReportInput;
+}
+const draftHtml = (input: AutomationReportInput): string => buildResearchAutomationReport(input, 'MARKET').html.toString('utf8');
+
+test('automation report: the four macro figures are Flint, numbered after their tables, and pass the gates and the 14 rules with requireFlint', async () => {
+  const html = draftHtml(await presentationInput({ worldBank: worldBank(true), comtrade: fullTrade }));
+  const list = figures(html);
+  for (const no of ['Hình 5.3', 'Hình 5.4', 'Hình 6.1', 'Hình 6.2']) assert.equal(list.find(item => item.no === no)?.engine, 'flint', no);
+  assert.ok(figure(html, 'Hình 5.3')!.text.includes(WORLD_BANK_SRC) && figure(html, 'Hình 5.3')!.text.includes(WORLD_BANK_CHART_NOTE));
+  assert.ok(figure(html, 'Hình 6.1')!.text.includes(COMTRADE_SRC) && figure(html, 'Hình 6.1')!.text.includes(COMTRADE_MIRROR_NOTE));
+  assert.ok(figure(html, 'Hình 6.2')!.text.includes(COMTRADE_OWN_NOTE));
+  const doc = new JSDOM(html).window.document;
+  assert.ok(doc.querySelector('#M05')!.textContent!.indexOf('Bảng 5.3') < doc.querySelector('#M05')!.textContent!.indexOf('Hình 5.3'));
+  assert.ok(doc.querySelector('#M06')!.textContent!.indexOf('Bảng 6.2') < doc.querySelector('#M06')!.textContent!.indexOf('Hình 6.1'));
+  assert.doesNotThrow(() => assertMarketBusinessGate(html, { presentation: true, partialTotals: [] }));
+  const gate = auditMarketReportHtml(html, { presentation: true, partialTotals: [] });
+  for (const rule of ['NO_LEAK', 'G08_PROVIDER_NAME', 'WORLD_BANK_NOT_ARITHMETIC']) { const hit = gate.find(item => item.rule === rule); if (hit) assert.equal(hit.ok, true, rule); }
+  assert.deepEqual(machineFailures(html), []);
+});
+
+test('automation report: no data or no drawable series changes no byte, and a drawable series needs its pre-drawn figure', async () => {
+  const none = draftHtml(await presentationInput());
+  assert.equal(draftHtml(await presentationInput({ worldBank: worldBank(false), comtrade: thinTrade })), draftHtml(await presentationInput({ worldBank: worldBank(false), comtrade: thinTrade }, false)));
+  assert.doesNotMatch(none, /Hình 5\.3|Hình 6\.1/u);
+  assert.doesNotMatch(draftHtml(await presentationInput({ worldBank: worldBank(false), comtrade: thinTrade })), /Hình 5\.3|Hình 6\.1/u);
+  // Same tables, figures withdrawn: the WB and Comtrade figures are the only difference.
+  const drawnWb = draftHtml(await presentationInput({ worldBank: worldBank(true) }));
+  assert.equal(stripFigures(drawnWb, /Hình 5\.[34]/u), draftHtml(await presentationInput({ worldBank: worldBank(false) })));
+});
+test('automation report: a drawable series without its pre-drawn figure throws', async () => {
+  const wb = await presentationInput({ worldBank: worldBank(true) }, false);
+  assert.throws(() => draftHtml(wb), /WORLD_BANK_CHARTS_MISSING/u);
+  const trade = await presentationInput({ comtrade: fullTrade }, false);
+  assert.throws(() => draftHtml(trade), /COMTRADE_CHARTS_MISSING/u);
+});
