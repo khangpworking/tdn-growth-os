@@ -13,6 +13,7 @@ import { searchAdsBrandNotice, searchAdsNotice, searchAdsOkBrands, SEARCH_ADS_NO
 import { pdfExcerptBlockHtml, pdfExcerptCitation, PDF_EXCERPT_NOTE, PDF_EXCERPT_SRC } from '../research-automation/pdf-excerpt.js';
 import { sellerVideoBlockHtml, sellerVideoNote, sellerVideoSrc } from '../research-automation/seller-video.js';
 import { metaAdCitation, metaAdDate, META_AD_NAME_WITHHELD, META_AD_NOTE, META_AD_SOURCE_LABEL, META_AD_SOURCE_NOTE, META_AD_SRC, META_AD_TEXT_WITHHELD, META_AD_TITLE } from '../research-automation/meta-ad-report.js';
+import { metaAutoNote, META_AUTO_CITATION_LABEL, META_AUTO_EXCERPT, META_AUTO_MISSING, META_AUTO_NAME_SUFFIX, META_AUTO_SAME_DAY, META_AUTO_SOURCE_LABEL, META_AUTO_SOURCE_NOTE, META_AUTO_SRC, META_AUTO_TABLE_TITLE } from '../research-automation/meta-auto-lane.js';
 import { Narrator } from './bundle.js';
 import { esc } from './format.js';
 import { cover, makeExhibits, n, page, plat, platIcons, PLATFORM_LABEL, section as legacySection } from './layout.js';
@@ -188,12 +189,27 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   // Confirmed Meta ad-library pages (S15) sit beside the competitor sample. Ad copy is seller text, so it stays a quotation with its capture mark;
   // with no confirmed page nothing is drawn. The same predicate marks the source as used in the source list.
   const metaAdPages = next ? options.metaAds ?? [] : [];
-  const metaAdTable = metaAdPages.length === 0 ? '' : tbl('7.2', META_AD_TITLE, '', ['Trang', 'Số quảng cáo đã xác nhận', 'Ngày bắt đầu đầu tiên', 'Số ngày đã chạy (tính tới ngày thu)', 'Trích nội dung'],
-    metaAdPages.map(item => {
-      const marks = item.captures.map(capture => registry.cite(metaAdCitation(capture))).map(no => no === null ? '' : renderCitationMark(no)).join('');
-      return [item.pageName === null ? esc(META_AD_NAME_WITHHELD) : `<span data-quote>${esc(item.pageName)}</span>`, label(String(item.adCount)), label(metaAdDate(item.earliestStart)), label(String(item.daysRun)),
-        (item.excerpt === null ? esc(META_AD_TEXT_WITHHELD) : `<span data-quote>${esc(item.excerpt)}</span>${item.excerptCut ? '…' : ''}`) + marks];
-    }), { src: esc(META_AD_SRC), note: esc(META_AD_NOTE) });
+  const ownerMetaRows = metaAdPages.map(item => {
+    const marks = item.captures.map(capture => registry.cite(metaAdCitation(capture))).map(no => no === null ? '' : renderCitationMark(no)).join('');
+    return [item.pageName === null ? esc(META_AD_NAME_WITHHELD) : `<span data-quote>${esc(item.pageName)}</span>`, label(String(item.adCount)), label(metaAdDate(item.earliestStart)), label(String(item.daysRun)),
+      (item.excerpt === null ? esc(META_AD_TEXT_WITHHELD) : `<span data-quote>${esc(item.excerpt)}</span>${item.excerptCut ? '…' : ''}`) + marks];
+  });
+  // The app's own logged-out read (S15 AUTO) adds rows to the same table; with none, the owner-only table keeps its exact bytes.
+  const metaAuto = next ? options.metaAuto : undefined;
+  const autoMetaRows = (metaAuto?.rows ?? []).map(row => {
+    const page = `<span data-quote>${label(row.label)}</span> ${esc(META_AUTO_NAME_SUFFIX)}`;
+    if (!row.ok) return [page, esc(META_AUTO_MISSING), esc(META_AUTO_MISSING), esc(META_AUTO_MISSING), label(row.notice ?? '')];
+    const no = registry.cite({ sourceKind: 'CAPTURE', identity: row.textSha256!, locator: null, label: META_AUTO_CITATION_LABEL, retrievedAt: row.readAt,
+      url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' });
+    return [page, label(String(row.adCount)) + (no === null ? '' : renderCitationMark(no)), row.earliestStart === null ? esc(META_AUTO_MISSING) : label(metaAdDate(row.earliestStart)),
+      row.daysRun === null ? esc(META_AUTO_MISSING) : row.daysRun === 0 ? esc(META_AUTO_SAME_DAY) : label(String(row.daysRun)), esc(META_AUTO_EXCERPT)];
+  });
+  const metaAdTable = autoMetaRows.length === 0
+    ? (metaAdPages.length === 0 ? '' : tbl('7.2', META_AD_TITLE, '', ['Trang', 'Số quảng cáo đã xác nhận', 'Ngày bắt đầu đầu tiên', 'Số ngày đã chạy (tính tới ngày thu)', 'Trích nội dung'],
+      ownerMetaRows, { src: esc(META_AD_SRC), note: esc(META_AD_NOTE) }))
+    : tbl('7.2', metaAdPages.length ? `${META_AD_TITLE} và trang máy tự đọc` : META_AUTO_TABLE_TITLE, '',
+      ['Trang', 'Số quảng cáo', 'Ngày bắt đầu đầu tiên', 'Số ngày đã chạy (tính tới ngày thu hoặc ngày đọc)', 'Trích nội dung'], [...ownerMetaRows, ...autoMetaRows],
+      { src: esc(metaAdPages.length ? `${META_AD_SRC} ${META_AUTO_SRC}` : META_AUTO_SRC), note: label(`${metaAdPages.length ? `${META_AD_NOTE} ` : ''}${metaAutoNote(metaAdDate(metaAuto!.readDate))}`) });
   // Public search-ads library counts (S17) for the top brands' own websites. Empty values read "không có", never a bare zero; no advertiser detail exists to print.
   const searchAds = next ? options.searchAds : undefined;
   const searchAdsOk = searchAdsOkBrands(searchAds);
@@ -283,7 +299,8 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     ...(interestChart ? [[SEARCH_INTEREST_SOURCE_LABEL, 'Đã lưu trong lượt này; chỉ số tương đối, không phải doanh số']] : []),
     ...(worldBankTable ? [[WORLD_BANK_SOURCE_LABEL, 'Đã lưu trong lượt này; số liệu cả nước, chỉ là bối cảnh']] : []),
     ...(comtradeRows.length ? [[COMTRADE_SOURCE_LABEL, 'Đã lưu trong lượt này; số liệu cả nước, chỉ là bối cảnh']] : []),
-    ...(metaAdTable ? [[META_AD_SOURCE_LABEL, META_AD_SOURCE_NOTE]] : []),
+    ...(metaAdPages.length ? [[META_AD_SOURCE_LABEL, META_AD_SOURCE_NOTE]] : []),
+    ...(autoMetaRows.length ? [[META_AUTO_SOURCE_LABEL, META_AUTO_SOURCE_NOTE]] : []),
     ...(searchAdsOk.length ? [[SEARCH_ADS_SOURCE_LABEL, SEARCH_ADS_SOURCE_NOTE]] : []),
     ...(officialRows.length ? [[E12_ATTRIBUTION, 'Đã lưu trong lượt này; số liệu thống kê cả nước theo nhóm hàng, chỉ là bối cảnh']] : [])] : [['Nguồn', sourceText], ['Kỳ', period]];
   if (d.webFacts !== null) {

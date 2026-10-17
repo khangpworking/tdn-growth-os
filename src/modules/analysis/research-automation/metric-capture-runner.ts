@@ -11,6 +11,7 @@ import { isAbsolute, join } from 'node:path';
 import { buildCaptureSpec, decidePeriodRetry, planCapturePeriod, type DatePeriod } from './autorun-derive.js';
 import { executeMetricOpenCli, type MetricOpenCliCode, type MetricOpenCliProcessRunner, type MetricOpenCliResult } from './metric-opencli-executor.js';
 import { createMetricOpenCliProcessRunner } from './metric-opencli-process-runner.js';
+import { withOpenCliBrowserLock } from './opencli-browser-lock.js';
 
 /** 1500 s adapter budget plus 120 s margin. The executor default (120 s) is far too short. */
 export const METRIC_CAPTURE_TIMEOUT_MS = 1_620_000;
@@ -62,30 +63,8 @@ export function metricCaptureEnv(source: Readonly<Record<string, string | undefi
   return env;
 }
 
-// One capture per process: a promise chain whose links never reject.
-let captureChain: Promise<void> = Promise.resolve();
-
-async function waitTurn(previous: Promise<void>, signal?: AbortSignal): Promise<boolean> {
-  if (!signal) { await previous; return true; }
-  if (signal.aborted) return false;
-  let onAbort: (() => void) | undefined;
-  const aborted = new Promise<boolean>(resolve => { onAbort = () => resolve(false); signal.addEventListener('abort', onAbort, { once: true }); });
-  try { return await Promise.race([previous.then(() => true), aborted]); }
-  finally { if (onAbort) signal.removeEventListener('abort', onAbort); }
-}
-
-async function withCaptureLock<T>(signal: AbortSignal | undefined, work: () => Promise<T>, onAbort: () => T): Promise<T> {
-  const previous = captureChain;
-  let release!: () => void;
-  const mine = new Promise<void>(resolve => { release = resolve; });
-  captureChain = previous.then(() => mine);
-  try {
-    if (!(await waitTurn(previous, signal))) return onAbort();
-    return await work();
-  } finally {
-    release();
-  }
-}
+// One browser-CLI user per process, shared with the Meta ad library lane.
+const withCaptureLock = withOpenCliBrowserLock;
 
 async function exists(path: string): Promise<boolean> {
   try { await stat(path); return true; } catch { return false; }

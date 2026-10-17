@@ -94,7 +94,7 @@ export const SOURCE_REGISTRY: Record<SourceBoardId, SourceRegistryCard> = {
   VIDEO_READING: { registryIds: ['S14'], tier: 'B', tierDetail: null, group: 'SELLER_VOICE',
     reportName: 'nội dung video của người bán', paid: false, pendingPackage: null, built: true, arrival: 'MANUAL_UPLOAD' },
   META_AD_LIBRARY: { registryIds: ['S15'], tier: 'B', tierDetail: null, group: 'SELLER_VOICE',
-    reportName: 'thư viện quảng cáo công khai của Meta', paid: false, pendingPackage: null, built: true, arrival: 'MANUAL_UPLOAD' },
+    reportName: 'thư viện quảng cáo công khai của Meta', paid: false, pendingPackage: null, built: true, arrival: 'FREE_COLLECT' },
   SEARCH_ADS_LIBRARY: { registryIds: ['S17'], tier: 'B', tierDetail: null, group: 'SELLER_VOICE',
     reportName: 'thư viện quảng cáo công khai của công cụ tìm kiếm', paid: true, pendingPackage: null, built: true, arrival: 'PAID_API' },
   SERPAPI: { registryIds: ['S19', 'S13', 'S26', 'S20'], tier: null, tierDetail: 'S19: theo trang gốc; S13: C; S26: C; S20: B',
@@ -133,7 +133,7 @@ export interface SourceStatusInput {
   readonly executorEnabled: boolean;
   readonly providers: ResearchAutomationProviderConfig | undefined;
   /** Sources the executor actually calls during a run. Web search is configured separately from run wiring. */
-  readonly wired: { readonly kalodata: boolean; readonly serpapi: boolean; readonly apifyShopee: boolean; readonly searchAds?: boolean };
+  readonly wired: { readonly kalodata: boolean; readonly serpapi: boolean; readonly apifyShopee: boolean; readonly searchAds?: boolean; readonly metaAuto?: boolean };
   readonly activity: Record<ResearchAutomationSourceActivityKey, ResearchAutomationSourceActivity> & { readonly serpapiOperations: readonly ResearchAutomationSerpApiOperation[] };
   /** Absent until the API route passes live connector state; the card then shows the not-connected copy. */
   readonly pageindex?: PageIndexStatusSummary;
@@ -161,18 +161,6 @@ export function buildResearchAutomationSourceStatus(input: SourceStatusInput): R
     credential: credentialPresent ? 'CONFIGURED' : 'MISSING',
     wiredIntoRuns: wired, paid: true, ...input.activity[key], ...meta(source), spendCapUsd, operations,
   });
-  /** Placeholder for a source whose collector is owned by a future package. Never pretends it is built or wired. */
-  const notBuilt = (source: SourceBoardId, key: ResearchAutomationSourceActivityKey, credential: 'MISSING' | 'NOT_REQUIRED' | 'CONFIGURED',
-    spendCapUsd: number | null): ResearchAutomationSourceStatusEntry => {
-    const card = SOURCE_REGISTRY[source];
-    return {
-      source,
-      state: !input.executorEnabled ? 'EXECUTOR_DISABLED' : futureCollectorState({ built: card.built, kind: card.arrival,
-        credentialPresent: collectorCredentialUsable(credential), capUsable: spendCapUsd !== null }),
-      credential, wiredIntoRuns: false, paid: card.paid, ...input.activity[key],
-      ...meta(source), spendCapUsd, operations: null,
-    };
-  };
   const apifyToken = Boolean(providers?.apifyTokenConfigured || providers?.apifyReviews);
   const pageindex = input.pageindex;
   const pageindexUsable = Boolean(pageindex?.keyConfigured && pageindex?.enabled);
@@ -199,7 +187,9 @@ export function buildResearchAutomationSourceStatus(input: SourceStatusInput): R
       paid: true, ...input.activity['apify-tiktok-comments'], ...meta('APIFY_TIKTOK_COMMENTS'),
       spendCapUsd: providers?.apifyTikTokComments?.maxChargeUsd ?? null, operations: null },
     manualSource('VIDEO_READING', 'video-reading'),
-    notBuilt('META_AD_LIBRARY', 'meta-ad-library', 'NOT_REQUIRED', null),
+    // The app reads the public library itself only when its flag is on; owner-confirmed captures keep working either way.
+    { source: 'META_AD_LIBRARY', state: cardState('META_AD_LIBRARY', input.wired.metaAuto === true ? 'READY' : 'MANUAL_IMPORT'), credential: 'NOT_REQUIRED',
+      wiredIntoRuns: input.wired.metaAuto === true, paid: false, ...input.activity['meta-ad-library'], ...meta('META_AD_LIBRARY'), spendCapUsd: null, operations: null },
     // Same key as web search; the lane itself stays off unless its own flag is on.
     paidSource('SEARCH_ADS_LIBRARY', 'search-ads-library', Boolean(providers?.serpApiKey), Boolean(providers?.serpApiKey), input.wired.searchAds === true, null, null),
     paidSource('SERPAPI', 'serpapi', Boolean(providers?.serpApiKey), Boolean(providers?.serpApiKey), input.wired.serpapi, null,
