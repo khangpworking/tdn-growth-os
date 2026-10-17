@@ -31,6 +31,17 @@ export function pdfDiscoveryEnabled(env: Readonly<Record<string, string | undefi
   return env[PDF_DISCOVERY_FLAG] === '1';
 }
 
+/** Page cap for automatically captured PDFs (never owner uploads), counted locally before any retention or indexing. */
+export const PDF_DISCOVERY_MAX_PAGES_ENV = 'TDN_RESEARCH_PDF_DISCOVERY_MAX_PAGES';
+export const PDF_DISCOVERY_DEFAULT_MAX_PAGES = 60;
+/** Integer clamped to 1..1000 (the reader's own page range); unset, blank or not an integer gives the default. */
+export function pdfDiscoveryMaxPages(env: Readonly<Record<string, string | undefined>>): number {
+  const raw = env[PDF_DISCOVERY_MAX_PAGES_ENV]?.trim();
+  if (!raw || !/^[+-]?\d{1,16}$/u.test(raw)) return PDF_DISCOVERY_DEFAULT_MAX_PAGES;
+  const value = Number(raw);
+  return Number.isSafeInteger(value) ? Math.min(Math.max(value, 1), 1000) : PDF_DISCOVERY_DEFAULT_MAX_PAGES;
+}
+
 /** Marketplace, social and video hosts: their pages are listings or posts, never an industry report. */
 const BLOCKED_HOST_SUFFIXES = ['shopee.vn', 'shopee.com', 'shopee', 'tiktok.com', 'tiktokcdn.com', 'facebook.com', 'fb.com', 'fbcdn.net', 'instagram.com',
   'youtube.com', 'youtu.be', 'lazada.vn', 'lazada.com', 'tiki.vn', 'sendo.vn', 'zalo.me', 'zalo.vn', 'x.com', 'twitter.com', 'threads.net'];
@@ -295,7 +306,8 @@ export function pdfDiscoveryDownloaded(value: StepPdfDiscovery | null | undefine
 }
 
 const REASONS: ReadonlySet<string> = new Set<PdfDiscoveryReason>(['NO_CANDIDATE', 'SEARCH_SKIPPED_ENOUGH', 'SEARCH_NO_ADMISSION', 'SEARCH_FAILED', 'NOT_ADMITTED',
-  'BRIDGE_BUDGET_LIMIT', 'URL_REFUSED', 'PRIVATE_ADDRESS', 'DNS_FAILED', 'TOO_MANY_REDIRECTS', 'FILE_SIZE_LIMIT', 'NOT_A_PDF', 'TIMEOUT', 'HTTP_ERROR', 'DUPLICATE', 'TRANSPORT', 'CANCELLED', 'DOCUMENT_INVALID']);
+  'BRIDGE_BUDGET_LIMIT', 'URL_REFUSED', 'PRIVATE_ADDRESS', 'DNS_FAILED', 'TOO_MANY_REDIRECTS', 'FILE_SIZE_LIMIT', 'NOT_A_PDF', 'TIMEOUT', 'HTTP_ERROR', 'DUPLICATE', 'TRANSPORT', 'CANCELLED', 'DOCUMENT_INVALID',
+  'PAGE_LIMIT', 'SKIPPED_NO_QUESTION_BUDGET', 'SKIPPED_READER_OFF']);
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const reasonOk = (value: unknown): boolean => value === null || (typeof value === 'string' && REASONS.has(value));
 const indexOk = (value: unknown): boolean => value === null || (Number.isSafeInteger(value) && (value as number) >= 0);

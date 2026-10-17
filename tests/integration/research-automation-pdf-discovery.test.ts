@@ -60,7 +60,7 @@ function pdfTransport(searchRows: unknown[], large = false, failSearch = false) 
 /** PageIndex fake that keeps each uploaded file name, so citations name the retained `source-N.pdf`. */
 function pageIndexFake() {
   const docs = new Map<string, string>();
-  const calls = { upload: 0, question: 0 };
+  const calls = { upload: 0, question: 0, localReads: 0 };
   const fetchFake: typeof fetch = async (input, init) => {
     const pathname = new URL(String(input)).pathname;
     const body = typeof init?.body === 'string' ? JSON.parse(init.body) as Record<string, unknown> : {};
@@ -84,6 +84,9 @@ interface RunOptions {
   readonly organic: unknown[]; readonly searchRows?: unknown[]; readonly resolve?: PdfResolver; readonly lane: boolean;
   readonly large?: boolean; readonly failSearch?: boolean; readonly throwDownload?: boolean; readonly throwSearch?: boolean; readonly failCaptureWrite?: boolean; readonly failPdfRetention?: boolean; readonly ownerPdf?: boolean;
   readonly ownerPdfLabel?: string; readonly questionCap?: number; readonly noAdmission?: boolean;
+  /** Local page count per file (default 1); a file whose bytes contain `longLabel` reports `longPages`. */
+  readonly longLabel?: string; readonly longPages?: number; readonly maxPages?: number; readonly readerOff?: boolean;
+  readonly genericPdfLabel?: string; readonly uncountableLabel?: string;
   readonly reports?: ('MARKET' | 'INSIGHT')[];
 }
 async function runToDraft(t: TestContext, options: RunOptions) {
@@ -116,15 +119,22 @@ async function runToDraft(t: TestContext, options: RunOptions) {
     const padding = options.large ? [0, 1].map(() => log.record({ operation: 'none', billing: 'FREE_ACCOUNT_QUERY',
       method: 'POST', endpoint: 'https://sales.example/padding', requestParameters: {}, requestBodyBytes: null,
       queryWindow: null, pageNumber: null, productRef: null }, log.timestamp(), 'OK', 200, Buffer.alloc(14 * 1024 * 1024, 32), null)) : [];
-    return { ...result, result: { ...result.result, captures: padding } };
+    const generic = options.genericPdfLabel ? [log.record({ operation: 'none', billing: 'FREE_ACCOUNT_QUERY',
+      method: 'GET', endpoint: 'https://sales.example/report.pdf', requestParameters: {}, requestBodyBytes: null,
+      queryWindow: null, pageNumber: null, productRef: null }, log.timestamp(), 'OK', 200, pdfBytes(options.genericPdfLabel), null)] : [];
+    return { ...result, result: { ...result.result, captures: [...padding, ...generic] } };
   } };
   const reportInputs = new Map<string, AutomationReportInput>();
   const source: PdfDiscoverySource = createPdfDiscoverySource(SYNTHETIC_SERP_KEY, pdf.transport, options.resolve ?? publicDns, pdf.transport.fetch);
   const service = new ResearchAutomationService({ db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discovery), uuid: () => runId, now,
     renderer: (input, kind) => { reportInputs.set(kind, input); return buildResearchAutomationReport(input, kind); }, source: sales, webSource: syntheticWebSource(() => {}, options.organic),
     sourceEvidence: { modelIdentity: 'synthetic-model', promptVersion: 'synthetic-v1', transport: { draftLists: async () => { if (options.noAdmission) throw new Error('synthetic admission failure'); return { keywords: [KEYWORD], exclusions: [] }; } } },
-    pageIndex: { enabled: true, apiKey: 'synthetic-pdf-key', fetch: pageIndex.fetchFake, startingCreditMicroDollars: 10_000_000, maxQuestionsPerRun: options.questionCap ?? 10,
-      extractPdf: async () => [{ page: 1, text: 'Thị trường tăng đều theo quý' }] },
+    pageIndex: { enabled: !options.readerOff, apiKey: 'synthetic-pdf-key', fetch: pageIndex.fetchFake, startingCreditMicroDollars: 10_000_000, maxQuestionsPerRun: options.questionCap ?? 10,
+      extractPdf: async bytes => { pageIndex.calls.localReads += 1;
+        if (options.uncountableLabel && Buffer.from(bytes).includes(Buffer.from(options.uncountableLabel))) throw new Error('synthetic local reader unavailable');
+        const pages = options.longLabel && Buffer.from(bytes).includes(Buffer.from(options.longLabel)) ? options.longPages ?? 61 : 1;
+        return Array.from({ length: pages }, (_, i) => ({ page: i + 1, text: 'Thị trường tăng đều theo quý' })); } },
+    ...(options.maxPages !== undefined ? { pdfCaptureMaxPages: options.maxPages } : {}),
     ...(options.lane ? { pdfDiscoverySource: { ...source,
       ...(options.throwDownload ? { download: async () => { throw new Error('synthetic port failure'); } } : {}),
       ...(options.throwSearch ? { search: async () => { throw new Error('synthetic pre-send failure'); } } : {}) } } : {}) });
@@ -287,7 +297,7 @@ test('Insight-only runs never enter the Market PDF lane', async t => {
 });
 
 test('bridge budget skips the second full-size PDF before capture and reader retention; owner upload is preserved', async t => {
-  const f = await runToDraft(t, { lane: true, large: true, ownerPdf: true, organic: [row(1, RUN_PDF), row(2, RUN_PDF_2)] });
+  const f = await runToDraft(t, { lane: true, large: true, ownerPdf: true, questionCap: 21, organic: [row(1, RUN_PDF), row(2, RUN_PDF_2)] });
   assert.deepEqual(f.document.pdfDiscovery!.files.map(file => [file.status, file.reason]),
     [['DOWNLOADED', null], ['FAILED', 'BRIDGE_BUDGET_LIMIT']]);
   assert.equal(f.pdf.calls.download, 2);
@@ -302,11 +312,116 @@ test('bridge budget skips the second full-size PDF before capture and reader ret
 });
 
 
-test('owner uploads and automatic PDFs share the existing run question cap', async t => {
-  const f = await runToDraft(t, { lane: true, ownerPdf: true, questionCap: 1, organic: [row(1, RUN_PDF), row(2, RUN_PDF_2)] });
-  assert.equal(f.runPdfs.length, 3);
-  assert.equal(f.pageIndex.calls.upload, 3);
-  assert.equal(f.pageIndex.calls.question, 1);
+test('owner uploads are asked first; automatic PDFs share only what the cap leaves', async t => {
+  const f = await runToDraft(t, { lane: true, ownerPdf: true, organic: [row(1, RUN_PDF), row(2, RUN_PDF_2)] });
+  assert.equal(f.runPdfs.length, 2, 'only one automatic PDF can still get a question');
+  assert.equal(f.pdf.calls.download, 1, 'the other automatic PDF is never downloaded');
+  assert.equal(f.pageIndex.calls.upload, 2, 'only the owner upload and the usable automatic PDF are indexed');
+  assert.equal(f.captures.filter(c => c.provider === 'pdf-discovery').length, 1);
+  const ownerSha = createHash('sha256').update(pdfBytes('owner')).digest('hex');
+  const origins = f.db.prepare('SELECT source_sha256 sha, origin FROM analysis_pageindex_run_pdfs WHERE run_id=?').all(runId) as { sha: string; origin: string }[];
+  assert.deepEqual(origins.map(o => [o.sha === ownerSha, o.origin]).sort(), [[false, 'CAPTURE'], [true, 'UPLOAD']]);
+  const asked = f.db.prepare('SELECT source_sha256 sha, count(*) n FROM analysis_pageindex_questions WHERE run_id=? GROUP BY source_sha256').all(runId) as { sha: string; n: number | bigint }[];
+  assert.equal(f.pageIndex.calls.question, 10);
+  assert.equal(Number(asked.find(a => a.sha === ownerSha)?.n), 7, 'the upload gets all seven Market sections whatever its sha order');
+  assert.equal(asked.filter(a => a.sha !== ownerSha).reduce((sum, a) => sum + Number(a.n), 0), 3);
+});
+
+test('existing generic captures consume question slots before discovery searches or downloads', async t => {
+  for (const [ownerPdf, questionCap, downloads] of [[false, 10, 1], [true, 10, 0]] as const) {
+    const f = await runToDraft(t, { lane: true, ownerPdf, questionCap, genericPdfLabel: 'generic',
+      organic: [row(1, RUN_PDF)], searchRows: [row(1, SEARCH_PDF)] });
+    assert.equal(f.pdf.calls.search, 0, 'existing admitted candidates fill the remaining slots, or none remain');
+    assert.equal(f.pdf.calls.download, downloads);
+    assert.equal(f.runPdfs.length, 2);
+    assert.equal(f.pageIndex.calls.upload, 2);
+    assert.equal(f.pageIndex.calls.question, 10);
+    assert.equal(f.document.pdfDiscovery?.search.reason, downloads ? 'SEARCH_SKIPPED_ENOUGH' : 'SKIPPED_NO_QUESTION_BUDGET');
+    const asked = f.db.prepare('SELECT DISTINCT source_sha256 sha FROM analysis_pageindex_questions WHERE run_id=?').all(runId) as { sha: string }[];
+    assert.ok(f.runPdfs.every(pdf => asked.some(question => question.sha === pdf.sha)));
+  }
+});
+
+test('generic capture intake shares the limits only with discovery on; uncountable PDFs fail closed', async t => {
+  for (const uncountable of [false, true]) {
+    const options = { genericPdfLabel: 'generic', organic: [], longLabel: 'generic', longPages: 61,
+      ...(uncountable ? { uncountableLabel: 'generic' } : {}) };
+    const on = await runToDraft(t, { ...options, lane: true });
+    assert.equal(on.runPdfs.length, 0);
+    assert.equal(on.pageIndex.calls.upload, 0);
+    assert.ok(on.captures.some(c => c.provider === 'kalodata'), 'the original generic exchange remains evidence');
+    const off = await runToDraft(t, { ...options, lane: false });
+    assert.equal(off.runPdfs.length, 1, 'flag off retains the generic PDF just as the base does');
+    assert.equal(off.pageIndex.calls.upload, uncountable ? 0 : 1);
+    assert.equal(off.document.pdfDiscovery, undefined);
+  }
+  const full = await runToDraft(t, { lane: true, ownerPdf: true, questionCap: 7, genericPdfLabel: 'generic', organic: [] });
+  assert.deepEqual(full.runPdfs.map(pdf => pdf.name), ['owner.pdf']);
+  assert.equal(full.pageIndex.calls.upload, 1);
+});
+
+test('an owner re-upload of captured bytes changes origin to UPLOAD without another indexing upload', async t => {
+  const f = await runToDraft(t, { lane: true, organic: [row(1, RUN_PDF), row(2, RUN_PDF_2)] });
+  const bytes = pdfBytes(new URL(RUN_PDF).pathname);
+  const sha = createHash('sha256').update(bytes).digest('hex');
+  const origin = () => (f.db.prepare('SELECT origin FROM analysis_pageindex_run_pdfs WHERE run_id=? AND source_sha256=?').get(runId, sha) as { origin: string }).origin;
+  assert.equal(origin(), 'CAPTURE');
+  const uploads = f.pageIndex.calls.upload;
+  await f.service.attachRunPdf(workspaceId, runId, 'owner.pdf', bytes);
+  assert.equal(origin(), 'UPLOAD');
+  assert.equal(f.pageIndex.calls.upload, uploads);
+});
+
+test('owner uploads already filling the question cap: no extra search, no download, nothing indexed', async t => {
+  // One upload × seven Market sections ≥ cap 7. One run-row candidate alone would otherwise trigger the extra search.
+  const f = await runToDraft(t, { lane: true, ownerPdf: true, questionCap: 7, organic: [row(1, RUN_PDF)], searchRows: [row(1, SEARCH_PDF)] });
+  const found = f.document.pdfDiscovery!;
+  assert.deepEqual(found.search, { status: 'SKIPPED', reason: 'SKIPPED_NO_QUESTION_BUDGET', captureIndex: null, retrievedAt: null });
+  assert.deepEqual(found.files, []);
+  assert.equal(found.reason, 'SKIPPED_NO_QUESTION_BUDGET');
+  assert.deepEqual({ search: f.pdf.calls.search, download: f.pdf.calls.download }, { search: 0, download: 0 });
+  assert.equal(f.usage.some(u => u[0] === 14 || u[0] === 15), false);
+  assert.deepEqual(f.runPdfs.map(p => p.name), ['owner.pdf']);
+  assert.equal(f.pageIndex.calls.upload, 1);
+  assert.equal(f.pageIndex.calls.question, 7);
+});
+
+test('a captured PDF over the page cap is neither stored, retained nor indexed; the next one is kept', async t => {
+  const label = new URL(RUN_PDF).pathname;
+  const f = await runToDraft(t, { lane: true, longLabel: label, organic: [row(1, RUN_PDF), row(2, RUN_PDF_2)] });
+  const found = f.document.pdfDiscovery!;
+  assert.deepEqual(found.files.map(file => [file.url, file.status, file.reason]), [[RUN_PDF, 'FAILED', 'PAGE_LIMIT'], [RUN_PDF_2, 'DOWNLOADED', null]]);
+  assert.equal(found.reason, null);
+  assert.equal(f.pdf.calls.download, 2);
+  assert.equal(f.usage.find(u => u[0] === 15)?.[2], 2, 'the refused file still counts as an attempted download');
+  assert.equal(f.captures.filter(c => c.provider === 'pdf-discovery').length, 1, 'no capture for the over-cap file');
+  const longSha = createHash('sha256').update(pdfBytes(label)).digest('hex');
+  assert.equal(f.runPdfs.length, 1);
+  assert.equal(f.runPdfs.some(p => p.sha === longSha), false);
+  assert.equal(f.pageIndex.calls.upload, 1, 'the over-cap file never reaches the reader');
+  const rows = ((await f.semantic()).sourceEvidence as Appendix).sourceAppendix.rows.filter(r => r.registryId === 'S25');
+  assert.ok(rows.every(r => r.binding.kind === 'capture'));
+  // A raised cap (option, as the env would) keeps the same 61-page file.
+  const raised = await runToDraft(t, { lane: true, longLabel: label, maxPages: 61, organic: [row(1, RUN_PDF), row(2, RUN_PDF_2)] });
+  assert.deepEqual(raised.document.pdfDiscovery!.files.map(file => file.status), ['DOWNLOADED', 'DOWNLOADED']);
+});
+
+test('document reader off: automatic PDFs could add no excerpt, so no extra search and no download', async t => {
+  const f = await runToDraft(t, { lane: true, readerOff: true, organic: [row(1, RUN_PDF)], searchRows: [row(1, SEARCH_PDF)] });
+  const found = f.document.pdfDiscovery!;
+  assert.deepEqual(found.search, { status: 'SKIPPED', reason: 'SKIPPED_READER_OFF', captureIndex: null, retrievedAt: null });
+  assert.deepEqual(found.files, []);
+  assert.equal(found.reason, 'SKIPPED_READER_OFF');
+  assert.deepEqual({ search: f.pdf.calls.search, download: f.pdf.calls.download }, { search: 0, download: 0 });
+  assert.equal(f.usage.some(u => u[0] === 14 || u[0] === 15), false);
+  assert.deepEqual(f.runPdfs, []);
+  assert.equal(f.captures.filter(c => c.provider === 'pdf-discovery').length, 0);
+  assert.equal(f.pageIndex.calls.upload, 0);
+});
+test('owner uploads are never page-capped', async t => {
+  const f = await runToDraft(t, { lane: false, ownerPdf: true, longLabel: 'owner', longPages: 500, organic: [row(1, 'https://example.test/brand')] });
+  assert.deepEqual(f.runPdfs.map(p => p.name), ['owner.pdf']);
+  assert.equal(f.pageIndex.calls.upload, 1);
 });
 
 test('unadmitted run rows neither suppress the extra search nor become PDF candidates', async t => {

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   buildVerifiedQuotesArtifact,
   fixedPageIndexQuestion,
+  orderRunPdfsForQuestions,
   planPageIndexQuestions,
   toCitationInput,
   verifyPageIndexQuotes,
@@ -76,4 +77,33 @@ test('artifacts carry verified quotes only and cite as PDF_PAGE without answer t
   assert.equal(registry.entries()[0]?.locatorText, 'trang 3');
   assert.throws(() => buildVerifiedQuotesArtifact('', [quote]),
     error => error instanceof PageIndexQuestionError && error.code === 'INVALID_QUOTE_INPUT');
+});
+
+test('owner uploads are planned before captured PDFs, each group in sha order', () => {
+  const sha = (c: string) => c.repeat(64);
+  const files = [
+    { sha256: sha('a'), origin: 'CAPTURE' as const }, { sha256: sha('b'), origin: 'CAPTURE' as const },
+    { sha256: sha('f'), origin: 'UPLOAD' as const }, { sha256: sha('c'), origin: 'UPLOAD' as const },
+  ];
+  const ordered = orderRunPdfsForQuestions(files);
+  assert.deepEqual(ordered.map(file => file.sha256[0]), ['c', 'f', 'a', 'b']);
+  assert.deepEqual(files.map(file => file.sha256[0]), ['a', 'b', 'f', 'c'], 'input untouched');
+  // Two automatic PDFs sorting first by sha and one upload, cap 10, seven Market sections: the upload gets its seven.
+  const market = PAGEINDEX_ELIGIBLE_SECTIONS.filter(id => id.startsWith('M'));
+  const run = orderRunPdfsForQuestions([{ sha256: sha('0'), origin: 'CAPTURE' as const }, { sha256: sha('1'), origin: 'CAPTURE' as const }, { sha256: sha('9'), origin: 'UPLOAD' as const }]);
+  const plan = planPageIndexQuestions({ sections: market, pdfCount: run.length, maxPerRun: 10 });
+  const perFile = (s: string) => plan.filter(q => run[q.pdfIndex]!.sha256 === s).length;
+  assert.equal(plan.length, 10);
+  assert.deepEqual([perFile(sha('9')), perFile(sha('0')), perFile(sha('1'))], [7, 3, 0]);
+  assert.deepEqual(plan.filter(q => q.pdfIndex === 0).map(q => q.sectionId), market);
+});
+
+test('without captured PDFs the ordered inputs and every planned question are unchanged', () => {
+  const files = ['a', 'c', 'f'].map(c => ({ sha256: c.repeat(64), origin: 'UPLOAD' as const }));
+  const ordered = orderRunPdfsForQuestions(files);
+  assert.deepEqual(ordered, files, 'the run inventory already uses ascending SHA order');
+  for (const maxPerRun of [0, 1, 10, 100]) {
+    const input = { sections: PAGEINDEX_ELIGIBLE_SECTIONS, pdfCount: files.length, maxPerRun };
+    assert.deepEqual(planPageIndexQuestions({ ...input, pdfCount: ordered.length }), planPageIndexQuestions(input));
+  }
 });

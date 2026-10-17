@@ -126,6 +126,17 @@ export function planPageIndexQuestions(input: PageIndexQuestionPlanInput): reado
   return planned;
 }
 
+/** Where a run PDF came from: an owner upload or an automatic capture of this run. */
+export type RunPdfOrigin = 'UPLOAD' | 'CAPTURE';
+
+/**
+ * Question-planning order for `planPageIndexQuestions` (whose `pdfIndex` indexes this list): owner uploads before
+ * captured PDFs, each group by `sha256`, so automatic PDFs never crowd an upload out of the per-run cap.
+ */
+export function orderRunPdfsForQuestions<T extends { readonly sha256: string; readonly origin: RunPdfOrigin }>(files: readonly T[]): T[] {
+  return [...files].sort((a, b) => (a.origin === b.origin ? 0 : a.origin === 'UPLOAD' ? -1 : 1) || (a.sha256 < b.sha256 ? -1 : a.sha256 > b.sha256 ? 1 : 0));
+}
+
 export type PageIndexQuestionErrorCode = 'INVALID_QUESTION_PLAN' | 'INVALID_QUOTE_INPUT';
 
 export class PageIndexQuestionError extends Error {

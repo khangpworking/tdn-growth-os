@@ -57,7 +57,7 @@ E14 của file Ultimate nói về "nguồn đang dùng hoặc đã duyệt". Ở
 | S22 | Cục Thống kê theo tỉnh | Đã duyệt | 17/10/2026 | Chủ duyệt 12/10; máy tự đọc bảng chỉ số giá theo tỉnh trong cùng file CPI của S21, sau cờ TDN_RESEARCH_OFFICIAL_STATS_PROVINCE_ENABLED (mặc định tắt, cần bật cả cờ S21); khi bật cờ, file CPI được tải ở mọi lượt Market (tổng vẫn tối đa 3 lần gọi, không thử lại); Bảng 5.4 không đổi; M05 Bảng 5.5 chỉ là bối cảnh theo tỉnh |
 | S23 | Ngân hàng Thế giới (dữ liệu mở) | Đã duyệt | 17/10/2026 | Duyệt theo E13; bộ thu đã vào hệ thống, chạy sau cờ TDN_RESEARCH_WORLD_BANK_ENABLED (mặc định tắt); bối cảnh cả nước |
 | S24 | Cơ sở dữ liệu thương mại của Liên Hợp Quốc | Đã duyệt | 17/10/2026 | Chủ duyệt; bộ thu đã vào hệ thống, chạy sau cờ TDN_RESEARCH_COMTRADE_ENABLED (mặc định tắt); M06 là bối cảnh cả nước |
-| S25 | Báo cáo ngành, báo cáo thường niên doanh nghiệp | Đã duyệt | 17/10/2026 | Đang dùng ở M09; tự tìm và tải tối đa 2 tệp PDF mỗi lượt sau cờ TDN_RESEARCH_PDF_DISCOVERY_ENABLED (mặc định tắt) |
+| S25 | Báo cáo ngành, báo cáo thường niên doanh nghiệp | Đã duyệt | 17/10/2026 | Đang dùng ở M09; tự tìm và tải tối đa 2 tệp PDF mỗi lượt sau cờ TDN_RESEARCH_PDF_DISCOVERY_ENABLED (mặc định tắt); mỗi tệp tự tải mặc định dài tối đa 60 trang (TDN_RESEARCH_PDF_DISCOVERY_MAX_PAGES), tệp dài hơn bị bỏ, không lưu; tài liệu chủ gửi được hỏi trước, vẫn theo giới hạn 1–1000 trang của bộ đọc; chỉ tải thêm tệp có chỗ trong kế hoạch hỏi, tính cả tài liệu đã thu; khi chưa bật bộ đọc tài liệu hoặc hết chỗ thì không tự tìm, không tự tải |
 | S26 | Báo chí, tin an toàn thực phẩm | Đề xuất | 08/10/2026 | Tìm qua S19 |
 | S27 | Bản quét review của bên thứ ba | Không thu | 08/10/2026 | Thiếu số sao và người viết; đã thay bằng S05 |
 
@@ -71,6 +71,7 @@ Dòng trước 12/10/2026 ghi lại từ danh mục nguồn, nhật ký test và
 
 | Ngày | Mã nguồn | Nhãn cũ → nhãn mới | Lý do | Ai quyết |
 |---|---|---|---|---|
+| 17/10/2026 | S25 | Đã duyệt → Đã duyệt | Thêm giới hạn cho tệp tự tải: mặc định tối đa 60 trang mỗi tệp, tệp dài hơn bị bỏ, không lưu; tài liệu chủ gửi được hỏi trước; chỉ tải thêm tệp có chỗ trong kế hoạch hỏi, tính cả tài liệu đã thu; khi chưa bật bộ đọc tài liệu hoặc hết chỗ thì không tự tìm, không tự tải; nhãn không đổi | Chủ (duyệt 17/10) |
 | 17/10/2026 | S25 | Đã duyệt → Đã duyệt | Thêm bộ máy tự tìm báo cáo ngành dạng PDF cho báo cáo Market (M09): lấy liên kết PDF trong kết quả tìm của lượt, thêm tối đa 1 lần tìm, tải tối đa 2 tệp qua lớp chặn địa chỉ nội bộ; sau cờ TDN_RESEARCH_PDF_DISCOVERY_ENABLED, mặc định tắt; tệp chủ gửi vẫn dùng được; nhãn không đổi | Chủ (duyệt 17/10) |
 | 17/10/2026 | S22 | Đã duyệt → Đã duyệt | Thêm bộ máy tự đọc bảng chỉ số giá theo tỉnh cho báo cáo Market (Bảng 5.5), từ file CPI của S21, sau cờ TDN_RESEARCH_OFFICIAL_STATS_PROVINCE_ENABLED, mặc định tắt; khi bật cờ, file CPI được tải ở mọi lượt Market (tối đa 3 lần gọi), Bảng 5.4 không đổi; nhãn không đổi | Chủ (duyệt 12/10, 17/10) |
 | 17/10/2026 | S24 | Đề xuất → Đã duyệt | Sửa dòng cũ: chủ đã duyệt và bộ thu đã vào hệ thống, chạy sau cờ TDN_RESEARCH_COMTRADE_ENABLED, mặc định tắt | Chủ |
