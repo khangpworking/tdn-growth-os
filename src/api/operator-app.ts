@@ -21,6 +21,7 @@ import { createR2MediaArchive } from '../platform/artifacts/r2-media-archive.js'
 import { openResearchAutomationApi, researchAutomationApiPath, type ResearchAutomationApiApplication } from './research-automation-api.js';
 import { researchAutomationProviderConfigFromEnv, type ResearchAutomationProviderConfig } from '../modules/analysis/research-automation/providers.js';
 import { searchTrendsEnabled } from '../modules/analysis/research-automation/search-interest.js';
+import { searchGeoEnabled } from '../modules/analysis/research-automation/search-geo.js';
 import { worldBankEnabled } from '../modules/analysis/research-automation/world-bank-lane.js';
 import { comtradeEnabled } from '../modules/analysis/research-automation/comtrade-lane.js';
 import { googleAdsEnabled } from '../modules/analysis/research-automation/google-ads-lane.js';
@@ -90,6 +91,7 @@ export interface OperatorAppConfiguration {
   readonly researchMetricAutoRun?: { readonly captureRoot: string; readonly adapterManifestPath?: string; readonly adapterManifestSha256?: string };
   /** Search-interest lane of the Market flow; present only when TDN_RESEARCH_SEARCH_TRENDS_ENABLED is exactly "1". */
   readonly researchSearchTrends?: true;
+  readonly researchSearchTrendsGeo?: true;
   /** Expanded-search lane (dated + site-scoped pointers); present only when TDN_RESEARCH_EXPANDED_SEARCH_ENABLED is exactly "1". */
   readonly researchExpandedSearch?: true;
   /** World Bank open-data lane of the Market flow; present only when TDN_RESEARCH_WORLD_BANK_ENABLED is exactly "1". */
@@ -209,6 +211,7 @@ export function operatorAppConfigurationFromEnvironment(
     ...(coverEnabled === 'true' ? { researchMarketCoverAi: true as const } : {}),
     ...(researchMetricAutoRun === undefined ? {} : { researchMetricAutoRun }),
     ...(searchTrendsEnabled(environment) ? { researchSearchTrends: true as const } : {}),
+    ...(searchTrendsEnabled(environment) && searchGeoEnabled(environment) ? { researchSearchTrendsGeo: true as const } : {}),
     ...(expandedSearchEnabled(environment) ? { researchExpandedSearch: true as const } : {}),
     ...(worldBankEnabled(environment) ? { researchWorldBank: true as const } : {}),
     ...(comtradeEnabled(environment) ? { researchComtrade: true as const } : {}),
@@ -293,6 +296,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
         ...(dependencies.creativeAiTransport ? { transport: dependencies.creativeAiTransport } : {}) } } : {}),
       ...(configuration.researchMetricAutoRun ? { metricAutoRun: configuration.researchMetricAutoRun } : {}),
       ...(configuration.researchSearchTrends ? { searchTrends: true as const } : {}),
+      ...(configuration.researchSearchTrendsGeo ? { searchTrendsGeo: true as const } : {}),
       ...(configuration.researchExpandedSearch ? { expandedSearch: true as const } : {}),
       ...(configuration.researchWorldBank ? { worldBank: true as const } : {}),
       ...(configuration.researchComtrade ? { comtrade: true as const } : {}),

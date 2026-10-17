@@ -12,6 +12,7 @@ import { TypesafeJevClient } from '../../../platform/ai/typesafe-jev-client.js';
 import type { SerpApiL9FilterOutput } from './serpapi-l9-filter.js';
 import { classifyWebPage } from './web-page-type.js';
 import { searchInterestRenderable } from './search-interest.js';
+import { searchGeoRenderable } from './search-geo.js';
 import { worldBankRenderableRows } from './world-bank-lane.js';
 import { comtradeRenderable } from './comtrade-lane.js';
 import { searchAdsOkBrands } from './google-ads-lane.js';
@@ -141,6 +142,13 @@ export function sourceEvidenceForReport(packet: AutomationSourceEvidence, input:
   if (kind === 'MARKET' && searchInterestRenderable(interest)) {
     const capture = input.captures?.find(c => c.stepId === 'COLLECTION' && c.ordinal === interest.captureIndex);
     if (!capture || capture.provider !== 'serpapi' || capture.operation !== 'serpapi.google.trends') throw new ResearchAutomationIntegrityError('Search interest capture lineage is unavailable');
+    add('S20', 'capture', capture.artifactSha256);
+  }
+  // The province map is S20 too, used only when the Market report draws its region table (same predicate as both renderers).
+  const geo = input.collection?.searchGeo;
+  if (kind === 'MARKET' && searchGeoRenderable(geo)) {
+    const capture = input.captures?.find(c => c.stepId === 'COLLECTION' && c.ordinal === geo.captureIndex);
+    if (!capture || geo.captureIndex === interest?.captureIndex || capture.truncated || capture.retrievedAt !== geo.retrievedAt || capture.provider !== 'serpapi' || capture.operation !== 'serpapi.google.trends') throw new ResearchAutomationIntegrityError('Search interest by province capture lineage is unavailable');
     add('S20', 'capture', capture.artifactSha256);
   }
   // S23 is used only for the country-level rows the Market report draws (same predicate as both renderers); each needs both stored captures.

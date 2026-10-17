@@ -5,6 +5,7 @@ import { filterSerpApiResults } from './serpapi-l9-filter.js';
 import { boundedText, httpsUrl, parseProviderProductRef, splitPeriodIntoWindows } from './provider-common.js';
 import { KALODATA_LIMITS } from './provider-kalodata.js';
 import { searchInterestChartPoints, searchInterestCoversPeriod, searchInterestDocument, searchInterestRenderable, searchInterestUsage, SEARCH_INTEREST_USAGE_ORDINAL, type SearchInterestAttempt, type SearchInterestSource } from './search-interest.js';
+import { normalizeProvince, searchGeoDocument, searchGeoRenderable, SEARCH_GEO_USAGE_ORDINAL, type SearchGeoAttempt, type SearchGeoSource } from './search-geo.js';
 import { collectionWebRows, expandedQueryDocument, EXPANDED_SEARCH_USAGE_ORDINAL, webResultUrlKey, type ExpandedSearchAttempt, type ExpandedSearchSource } from './expanded-search-lane.js';
 import type { AutomationInsightPersonaReportRevisionRequest, PersonaReportSelection, PersonaSelectedReportSnapshot } from '../../../../contracts/analysis/automation-insight-persona-report.generated.js';
 import type { InsightModelAI } from './insight-model-execution.js';
@@ -214,6 +215,8 @@ import {
   MAX_WEB_RESULTS,
   MAX_SEARCH_INTEREST_POINTS,
   SEARCH_INTEREST_REASONS,
+  MAX_SEARCH_GEO_PROVINCES,
+  SEARCH_GEO_REASONS,
   EXPANDED_SEARCH_KINDS,
   EXPANDED_SEARCH_REASONS,
   RUN_LIST_LIMIT,
@@ -367,6 +370,8 @@ export interface ResearchAutomationServiceOptions {
   readonly webSource?: AutomationSourcePort;
   /** Optional search-interest series, at most one paid request per collection; absent keeps every stored byte. */
   readonly trendsSource?: SearchInterestSource;
+  /** Optional search interest by province: one paid request per collection, only beside the trends source. */
+  readonly trendsGeoSource?: SearchGeoSource;
   /** Optional World Bank open data, at most four free GET requests per collection; absent keeps every stored byte. */
   readonly worldBankSource?: WorldBankSource;
   /** UN Comtrade lane; absent unless its flag is on. */
@@ -481,7 +486,7 @@ interface PersistableSourceResult {
 /** The independent web-search lane of one collection; its usage is recorded at ordinal 2. */
 type WebSearchAttempt = { readonly bound: BoundCollectResult } | { readonly failedProvider: string };
 const WEB_USAGE_ORDINAL = 2;
-type TrendsAttempt = { readonly attempt: SearchInterestAttempt };
+type TrendsAttempt = { readonly attempt: SearchInterestAttempt; readonly geo?: SearchGeoAttempt };
 type ExpandedAttempts = { readonly attempts: readonly ExpandedSearchAttempt[] };
 type WorldBankRun = { readonly attempts: readonly WorldBankAttempt[] } | { readonly thrown: true };
 type ComtradeRun = { readonly collection: ComtradeCollection } | { readonly thrown: true };
@@ -540,6 +545,7 @@ export class ResearchAutomationService {
   readonly #source: AutomationSourcePort | undefined;
   readonly #webSource: AutomationSourcePort | undefined;
   readonly #trendsSource: SearchInterestSource | undefined;
+  readonly #trendsGeoSource: SearchGeoSource | undefined;
   readonly #worldBankSource: WorldBankSource | undefined;
   readonly #comtradeSource: ComtradeSource | undefined;
   readonly #searchAdsSource: SearchAdsSource | undefined;
@@ -601,6 +607,7 @@ export class ResearchAutomationService {
     this.#source = options.source;
     this.#webSource = options.webSource;
     this.#trendsSource = options.trendsSource;
+    this.#trendsGeoSource = options.trendsGeoSource;
     this.#worldBankSource = options.worldBankSource;
     this.#comtradeSource = options.comtradeSource;
     this.#searchAdsSource = options.searchAdsSource;
@@ -1901,7 +1908,7 @@ export class ResearchAutomationService {
       return { workspaceId, runId, draftPairId: latest.pairId, marketSemantic, ...(webCollection?.sourceEvidence?.webPageTypes ? { webPageTypes: true } : {}),
         webResults: webResults.map(({ position, title, url, snippet, retrievedAt, site, published, origin }) =>
           ({ position, title, url, snippet, retrievedAt, site: site ?? null, published: published ?? null, ...(origin ? { origin } : {}) })),
-        ...(searchInterestRenderable(searchInterest) ? { searchInterest } : {}),
+        ...(searchInterestRenderable(searchInterest) ? { searchInterest } : {}), ...(searchGeoRenderable(webCollection?.searchGeo) ? { searchGeo: webCollection.searchGeo, searchGeoCapture: (await this.#captureRecords(runId)).find(c => c.stepId === 'COLLECTION' && c.ordinal === webCollection.searchGeo!.captureIndex)! } : {}),
         ...(worldBankRenderable(webCollection?.worldBank) ? { worldBank: webCollection.worldBank } : {}), ...(webCollection?.comtrade ? { comtrade: webCollection.comtrade } : {}), ...(webCollection?.searchAds ? { searchAds: webCollection.searchAds } : {}), ...(webCollection?.officialStats ? { officialStats: webCollection.officialStats } : {}), ...(storedPdfExcerpts(marketSemantic).length ? { pdfExcerpts: storedPdfExcerpts(marketSemantic) } : {}), ...(storedSellerVideos(marketSemantic) ? { sellerVideos: storedSellerVideos(marketSemantic)! } : {}),
         ...(metaAds.length ? { metaAds } : {}), ...await this.#metaAutoContext(webCollection, runId), ...await this.#tiktokTopAdsContext(webCollection, runId),
         metric: { packageId, capture: { snapshot: verifiedCapture.snapshot, snapshotSha256: rawSnapshotSha256, truncation: preparedCapture.capture.truncation }, measurementPeriod: preparedCapture.capture.measurementPeriod } };
@@ -1916,7 +1923,7 @@ export class ResearchAutomationService {
     return { workspaceId, runId, draftPairId: latest.pairId, marketSemantic, ...(webCollection?.sourceEvidence?.webPageTypes ? { webPageTypes: true } : {}),
       webResults: webResults.map(({ position, title, url, snippet, retrievedAt, site, published, origin }) =>
         ({ position, title, url, snippet, retrievedAt, site: site ?? null, published: published ?? null, ...(origin ? { origin } : {}) })),
-      ...(searchInterestRenderable(searchInterest) ? { searchInterest } : {}),
+      ...(searchInterestRenderable(searchInterest) ? { searchInterest } : {}), ...(searchGeoRenderable(webCollection?.searchGeo) ? { searchGeo: webCollection.searchGeo, searchGeoCapture: (await this.#captureRecords(runId)).find(c => c.stepId === 'COLLECTION' && c.ordinal === webCollection.searchGeo!.captureIndex)! } : {}),
         ...(worldBankRenderable(webCollection?.worldBank) ? { worldBank: webCollection.worldBank } : {}), ...(webCollection?.comtrade ? { comtrade: webCollection.comtrade } : {}), ...(webCollection?.searchAds ? { searchAds: webCollection.searchAds } : {}), ...(webCollection?.officialStats ? { officialStats: webCollection.officialStats } : {}), ...(storedPdfExcerpts(marketSemantic).length ? { pdfExcerpts: storedPdfExcerpts(marketSemantic) } : {}), ...(storedSellerVideos(marketSemantic) ? { sellerVideos: storedSellerVideos(marketSemantic)! } : {}),
       ...(metaAds.length ? { metaAds } : {}), ...await this.#metaAutoContext(webCollection, runId), ...await this.#tiktokTopAdsContext(webCollection, runId),
       metric: { packageId, workbook: workbook.bytes, measurementPeriod: prepared.request.measurementPeriod } };
@@ -3116,7 +3123,7 @@ export class ResearchAutomationService {
       if (videosMarked ? kind !== 'MARKET' || !storedVideos || digest(storedVideos) !== digest(await this.#sellerVideos(frozenRun, storedVideos.sources)) : semantic.sellerVideos !== undefined)
         throw new ResearchAutomationIntegrityError('Report video uploads differ from the pinned stored packages.');
       const expected = sourceEvidenceForReport(basePacket, { collection, ...(marked ? { pdfExcerpts: storedExcerpts } : {}), ...(videosMarked ? { sellerVideos: storedVideos } : {}),
-        ...(collection?.searchInterest || collection?.worldBank || collection?.comtrade || collection?.searchAds || collection?.officialStats || collection?.pdfDiscovery ? { captures: await this.#captureRecords(runId) } : {}),
+        ...(collection?.searchInterest || collection?.searchGeo || collection?.worldBank || collection?.comtrade || collection?.searchAds || collection?.officialStats || collection?.pdfDiscovery ? { captures: await this.#captureRecords(runId) } : {}),
         ...(verifiedPrivateView ? { privateReviewCorpus: verifiedPrivateView } : {}),
         ...(verifiedReviewSample ? { reviewSample: verifiedReviewSample } : {}),
         ...(verifiedLiteral ? { insightLiteral: verifiedLiteral } : {}),
@@ -3363,6 +3370,15 @@ export class ResearchAutomationService {
             ? { attempt: { kind: 'CALLED', keyword, result: await this.#trendsSource.collect(keyword, { signal: controller.signal }) } }
             : { attempt: { kind: 'SKIPPED', keyword, reason: 'PERIOD_NOT_COVERED' } };
         } catch { trends = { attempt: { kind: 'THROWN', keyword } }; }
+        // One province map follows the series under the same period check; it is never repeated after a restart.
+        if (this.#trendsGeoSource && !controller.signal.aborted) {
+          let geo: SearchGeoAttempt;
+          try {
+            geo = trends.attempt.kind === 'SKIPPED' ? { kind: 'SKIPPED', keyword, reason: 'PERIOD_NOT_COVERED' }
+              : { kind: 'CALLED', keyword, result: await this.#trendsGeoSource.collect(keyword, { signal: controller.signal }) };
+          } catch { geo = { kind: 'THROWN', keyword }; }
+          trends = { ...trends, geo };
+        }
       }
       // Extra searches run last, only when the plain web search was configured, and never repeat after a restart.
       let expanded: ExpandedAttempts | undefined;
@@ -4069,6 +4085,22 @@ export class ResearchAutomationService {
       } catch { step = { ...step, searchInterest: searchInterestDocument(thrown, null) }; }
       if (attempt.kind === 'CALLED') trendsResult = attempt.result;
     }
+    // The province-map capture follows the series capture; a failure keeps only its own reason code.
+    let geoResult: Extract<SearchGeoAttempt, { kind: 'CALLED' }>['result'] | null = null;
+    if (trends?.geo) {
+      const attempt = trends.geo, thrown: SearchGeoAttempt = { kind: 'THROWN', keyword: attempt.keyword };
+      const offset = captures.length;
+      const geoEnvelopes = attempt.kind === 'CALLED' ? captureEnvelopes(attempt.result) : [];
+      await putCaptures(geoEnvelopes ?? []);
+      try {
+        const document = searchGeoDocument(geoEnvelopes ? attempt : thrown, captures.length > offset ? captures.length - 1 : null);
+        const probe = { ...step, searchGeo: document };
+        assertStepDocument(probe, runId, stepId);
+        assertCaptureLineage(probe, captures.map(value => value.row));
+        step = probe;
+      } catch { step = { ...step, searchGeo: searchGeoDocument(thrown, null) }; }
+      if (attempt.kind === 'CALLED') geoResult = attempt.result;
+    }
     // The extra searches' captures follow the trends capture. Rows already seen in the plain web rows are dropped (plain wins).
     // Like the series, a failed query keeps only a reason code and never changes the step outcome, coverage or run blockers.
     const expandedCalled: Extract<ExpandedSearchAttempt, { state: 'CALLED' }>[] = [];
@@ -4431,6 +4463,9 @@ export class ResearchAutomationService {
         if (trendsResult?.captures.length) this.#persistUsage(runId, stepId, searchInterestUsage(trendsResult.captures), now, SEARCH_INTEREST_USAGE_ORDINAL);
         else if (trends?.attempt.kind === 'THROWN') this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,'serpapi','unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
           .run(runId, stepId, SEARCH_INTEREST_USAGE_ORDINAL, now);
+        if (geoResult?.captures.length) this.#persistUsage(runId, stepId, searchInterestUsage(geoResult.captures), now, SEARCH_GEO_USAGE_ORDINAL);
+        else if (trends?.geo?.kind === 'THROWN') this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,'serpapi','unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
+          .run(runId, stepId, SEARCH_GEO_USAGE_ORDINAL, now);
         for (const item of expandedCalled) if (item.result.captures.length) this.#persistUsage(runId, stepId, item.result, now, EXPANDED_SEARCH_USAGE_ORDINAL[item.kind]);
         for (const item of expandedThrown) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,'serpapi','unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
           .run(runId, stepId, EXPANDED_SEARCH_USAGE_ORDINAL[item.kind], now);
@@ -5617,6 +5652,28 @@ function validSearchInterest(value: unknown): boolean {
     (point.index === null || (Number.isInteger(point.index) && point.index >= 0 && point.index <= 100)));
 }
 
+/** Stored-document check of the province map; exported for tests only. */
+export function validSearchGeo(value: unknown): boolean {
+  if (!isRecord(value) || Object.keys(value).sort().join() !== 'captureIndex,geo,keyword,provinces,reason,retrievedAt,status,unit,window' ||
+      !['COLLECTED', 'FAILED', 'SKIPPED'].includes(value.status as string) || value.geo !== 'VN' || value.unit !== 'INDEX_0_100' || value.window !== 'LAST_12_MONTHS' ||
+      (value.reason !== null && !(SEARCH_GEO_REASONS as readonly unknown[]).includes(value.reason)) || (value.status === 'COLLECTED') !== (value.reason === null) ||
+      (value.status === 'SKIPPED') !== (value.reason === 'PERIOD_NOT_COVERED') ||
+      typeof value.keyword !== 'string' || value.keyword.trim().length < 1 || value.keyword.length > 200 || CONTROL.test(value.keyword) ||
+      (value.retrievedAt !== null && (typeof value.retrievedAt !== 'string' || !Number.isFinite(Date.parse(value.retrievedAt)))) ||
+      (value.captureIndex !== null && (!Number.isSafeInteger(value.captureIndex) || (value.captureIndex as number) < 0 || value.captureIndex >= MAX_CAPTURES_PER_STEP)) ||
+      (value.captureIndex === null) !== (value.retrievedAt === null) ||
+      !Array.isArray(value.provinces) || value.provinces.length > MAX_SEARCH_GEO_PROVINCES || (value.status !== 'COLLECTED' && value.provinces.length > 0) ||
+      (value.status === 'COLLECTED' && (value.captureIndex === null || value.retrievedAt === null || !value.provinces.some((item: unknown) => isRecord(item) && item.index !== null))) ||
+      (value.status === 'SKIPPED' && (value.captureIndex !== null || value.retrievedAt !== null))) return false;
+  const names = new Set<string>();
+  return value.provinces.every((item: unknown) => {
+    if (!isRecord(item) || Object.keys(item).sort().join() !== 'index,name' || typeof item.name !== 'string' || item.name.trim().length < 1 || item.name.length > 120 ||
+        CONTROL.test(item.name) || names.has(normalizeProvince(item.name)) || (item.index !== null && (!Number.isInteger(item.index) || (item.index as number) < 0 || (item.index as number) > 100))) return false;
+    names.add(normalizeProvince(item.name));
+    return true;
+  });
+}
+
 /** Stored-document check of the S23 field; exported for tests only. */
 export function validWorldBank(value: unknown): boolean {
   if (!isRecord(value) || Object.keys(value).sort().join() !== 'indicators,profile' || value.profile !== WORLD_BANK_PROFILE || !Array.isArray(value.indicators) ||
@@ -5812,6 +5869,8 @@ function assertStepDocument(value: unknown, runId: string, stepId: StepId): asse
     throw new ResearchAutomationIntegrityError('Stored web results are invalid.');
   if (value.searchInterest !== undefined && (stepId !== 'COLLECTION' || !validSearchInterest(value.searchInterest)))
     throw new ResearchAutomationIntegrityError('Stored search interest is invalid.');
+  if (value.searchGeo !== undefined && (stepId !== 'COLLECTION' || !validSearchGeo(value.searchGeo)))
+    throw new ResearchAutomationIntegrityError('Stored search interest by province is invalid.');
   if (value.expandedSearch !== undefined && (stepId !== 'COLLECTION' || !validExpandedSearch(value.expandedSearch)))
     throw new ResearchAutomationIntegrityError('Stored extra searches are invalid.');
   if (value.worldBank !== undefined && (stepId !== 'COLLECTION' || !validWorldBank(value.worldBank)))
@@ -5867,6 +5926,12 @@ function assertCaptureLineage(document: StepResultDocument, captures: readonly C
     const capture = stepCaptures.get(interest.captureIndex);
     if (!capture || capture.truncated || capture.provider !== 'serpapi' || capture.operation !== 'serpapi.google.trends' || capture.retrievedAt !== interest.retrievedAt)
       throw new ResearchAutomationIntegrityError('Stored search interest references an incompatible capture.');
+  }
+  const geo = document.searchGeo;
+  if (geo?.captureIndex != null) {
+    const capture = stepCaptures.get(geo.captureIndex);
+    if (!capture || geo.captureIndex === interest?.captureIndex || capture.truncated || capture.provider !== 'serpapi' || capture.operation !== 'serpapi.google.trends' || capture.retrievedAt !== geo.retrievedAt)
+      throw new ResearchAutomationIntegrityError('Stored search interest by province references an incompatible capture.');
   }
   for (const item of document.worldBank?.indicators ?? []) {
     if (item.captureIndex === null || item.metadataCaptureIndex === null) continue;

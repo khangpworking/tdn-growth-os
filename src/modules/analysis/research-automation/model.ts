@@ -145,6 +145,30 @@ export interface StepSearchInterest {
   readonly captureIndex: number | null;
 }
 
+/** One relative search-interest map by province per collection (0-100, top place = 100); never a count of searches or buyers. */
+export const MAX_SEARCH_GEO_PROVINCES = 80;
+export const SEARCH_GEO_REASONS = ['PERIOD_NOT_COVERED', 'PROVIDER_FAILED', 'EMPTY_MAP', 'CANCELLED'] as const;
+export type SearchGeoReason = typeof SEARCH_GEO_REASONS[number];
+
+export interface StepSearchGeoProvince {
+  readonly name: string;
+  readonly index: number | null;
+}
+
+/** Present only on runs that had the province lane switched on; regions and the choice are computed at render time. */
+export interface StepSearchGeo {
+  readonly status: 'COLLECTED' | 'FAILED' | 'SKIPPED';
+  readonly reason: SearchGeoReason | null;
+  readonly keyword: string;
+  readonly geo: 'VN';
+  readonly unit: 'INDEX_0_100';
+  readonly window: 'LAST_12_MONTHS';
+  readonly retrievedAt: string | null;
+  readonly provinces: readonly StepSearchGeoProvince[];
+  /** Index into the same step's captures; null when no call was made. */
+  readonly captureIndex: number | null;
+}
+
 /** Latest non-null World Bank observation per indicator (open country-level background, S23); source text is kept unchanged. */
 export interface StepWorldBankRow {
   readonly indicatorName: string;
@@ -504,6 +528,8 @@ export interface StepResultDocument {
   readonly webResults?: readonly StepWebResult[];
   /** Relative search interest of the collection step; absent unless the lane was on for the run. */
   readonly searchInterest?: StepSearchInterest;
+  /** Relative search interest by province of the collection step; absent unless the province lane was on for the run. */
+  readonly searchGeo?: StepSearchGeo;
   /** Extra search pointers; absent unless the lane was on for the run. */
   readonly expandedSearch?: StepExpandedSearch;
   /** Open country-level background; absent unless the World Bank lane was on for the run. */

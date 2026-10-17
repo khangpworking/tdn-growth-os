@@ -79,6 +79,7 @@ import { ResearchAutomationService } from '../modules/analysis/research-automati
 import { ResearchAutomationWorker } from '../modules/analysis/research-automation/worker.js';
 import { bindResearchAutomationProvider } from '../modules/analysis/research-automation/source-binding.js';
 import { createSearchInterestSource } from '../modules/analysis/research-automation/search-interest.js';
+import { createSearchGeoSource } from '../modules/analysis/research-automation/search-geo.js';
 import { createExpandedSearchSource } from '../modules/analysis/research-automation/expanded-search-lane.js';
 import { createWorldBankSource } from '../modules/analysis/research-automation/world-bank-lane.js';
 import { createComtradeSource } from '../modules/analysis/research-automation/comtrade-lane.js';
@@ -141,6 +142,8 @@ export interface ResearchAutomationApiConfiguration {
   readonly metricAutoRun?: { readonly captureRoot: string; readonly adapterManifestPath?: string; readonly adapterManifestSha256?: string };
   /** Search-interest lane for the OWNER writer only; present only when its flag is exactly "1" and the existing search key is set. */
   readonly searchTrends?: true;
+  /** Search interest by province beside the search-interest lane; present only when its own flag is exactly "1". */
+  readonly searchTrendsGeo?: true;
   /** Expanded-search lane for the OWNER writer only; present only when its flag is exactly "1" and the existing search key is set. */
   readonly expandedSearch?: true;
   /** World Bank open-data lane for the OWNER writer only; present only when its flag is exactly "1". Needs no key. */
@@ -377,6 +380,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       // Web search runs beside the product source, only when its key is set on the server.
       const webSource = configuration.providers?.serpApiKey ? bindResearchAutomationProvider(registry.get('SERPAPI')) : undefined;
       const trendsSource = configuration.searchTrends && configuration.providers?.serpApiKey ? createSearchInterestSource(configuration.providers.serpApiKey, transport) : undefined;
+      const trendsGeoSource = trendsSource && configuration.searchTrendsGeo ? createSearchGeoSource(configuration.providers!.serpApiKey!, transport) : undefined;
       const expandedSource = configuration.expandedSearch && configuration.providers?.serpApiKey ? createExpandedSearchSource(configuration.providers.serpApiKey, transport) : undefined;
       const worldBankSource = configuration.worldBank ? createWorldBankSource(transport) : undefined;
       // UN Comtrade lane: HS selection reuses the already configured CLIProxy text model (no new provider config); without one it reports MODEL_NOT_CONFIGURED.
@@ -400,7 +404,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         sourceEvidence: { ...sourceEvidence, ...(keywordTransport ? { transport: keywordTransport } : {}) },
         metricAttachmentStore: new RequestScopedArtifactStore(path.resolve(configuration.artifactRoot)),
         actorId: configuration.owner.actorId, source: bindResearchAutomationProvider(selected), ...(webSource ? { webSource } : {}),
-        ...(trendsSource ? { trendsSource } : {}),
+        ...(trendsSource ? { trendsSource } : {}), ...(trendsGeoSource ? { trendsGeoSource } : {}),
         ...(expandedSource ? { expandedSource } : {}),
         ...(worldBankSource ? { worldBankSource } : {}),
         ...(comtradeSource ? { comtradeSource } : {}),

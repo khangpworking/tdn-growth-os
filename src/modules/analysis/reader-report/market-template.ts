@@ -23,7 +23,7 @@ import { barChart, lineChart, paretoChart } from './svg-charts.js';
 import { CITATION_FORBIDDEN_NAMES, CitationRegistry, containsTechnicalId, displayCitationUrl } from '../citation-registry.js';
 import { orderReportCitations, renderCitationMark, renderCitationRegister } from '../citation-register-html.js';
 import { DISPLAY_ROUNDED_NOTE, WEB_FAMILY_LABEL, WEB_MONTHLY_METHOD, webMonthlyStats } from './web-facts.js';
-import type { ExpandedSearchKind, StepComtrade, StepSearchAds, StepOfficialStats, StepSearchInterest, StepWorldBank } from '../research-automation/model.js';
+import type { CaptureRecord, ExpandedSearchKind, StepComtrade, StepSearchAds, StepOfficialStats, StepSearchInterest, StepSearchGeo, StepWorldBank } from '../research-automation/model.js';
 import { WEB_SNIPPET_WITHHELD, WEB_TITLE_WITHHELD, webTextHidden } from '../research-automation/web-page-type.js';
 
 export const MARKET_PRICE_BANDS: readonly (readonly [string, number, number])[] = [
@@ -55,6 +55,8 @@ export type MarketReportOptions = {
   captureSource?: boolean;
   /** The run's stored relative search-interest series; drawn in the demand section when it has enough dated points. */
   searchInterest?: StepSearchInterest;
+  searchGeo?: StepSearchGeo;
+  searchGeoCapture?: CaptureRecord;
   /** The run's stored open country-level figures; shown as a small side-by-side table in the demand section. */
   worldBank?: StepWorldBank;
   comtrade?: StepComtrade;
