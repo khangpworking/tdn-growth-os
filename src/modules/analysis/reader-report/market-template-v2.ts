@@ -14,6 +14,7 @@ import { pdfExcerptBlockHtml, pdfExcerptCitation, PDF_EXCERPT_NOTE, PDF_EXCERPT_
 import { sellerVideoBlockHtml, sellerVideoNote, sellerVideoSrc } from '../research-automation/seller-video.js';
 import { metaAdCitation, metaAdDate, META_AD_NAME_WITHHELD, META_AD_NOTE, META_AD_SOURCE_LABEL, META_AD_SOURCE_NOTE, META_AD_SRC, META_AD_TEXT_WITHHELD, META_AD_TITLE } from '../research-automation/meta-ad-report.js';
 import { metaAutoNote, META_AUTO_CITATION_LABEL, META_AUTO_EXCERPT, META_AUTO_MISSING, META_AUTO_NAME_SUFFIX, META_AUTO_SAME_DAY, META_AUTO_SOURCE_LABEL, META_AUTO_SOURCE_NOTE, META_AUTO_SRC, META_AUTO_TABLE_TITLE } from '../research-automation/meta-auto-lane.js';
+import { tiktokTopAdsNote, TIKTOK_TOP_ADS_CITATION_LABEL, TIKTOK_TOP_ADS_HEADERS, TIKTOK_TOP_ADS_MISSING, TIKTOK_TOP_ADS_SOURCE_LABEL, TIKTOK_TOP_ADS_SOURCE_NOTE, TIKTOK_TOP_ADS_SRC, TIKTOK_TOP_ADS_TABLE_TITLE } from '../research-automation/tiktok-top-ads-lane.js';
 import { Narrator } from './bundle.js';
 import { esc } from './format.js';
 import { cover, makeExhibits, n, page, plat, platIcons, PLATFORM_LABEL, section as legacySection } from './layout.js';
@@ -227,7 +228,23 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
           label(`${adsNum(f.text)} / ${adsNum(f.image)} / ${adsNum(f.video)}`), label(`${adsDay(brand.firstShown)} – ${adsDay(brand.lastShown)}`), label(adsNum(brand.maxDaysShown))];
       }), { src: esc(SEARCH_ADS_SOURCE_LABEL), note: esc(SEARCH_ADS_NOTE) }) +
       searchAds.brands.filter(brand => brand.status !== 'OK').map(adsNotice).join('');
-  sections.push(section('M07', 'Đối thủ', 'Giữ số liệu của mỗi gian hàng trên từng sàn; phần thiếu không dùng để so sánh đầy đủ.', requiredFig('product-ranking', '7.1') + tbl('7.1', 'Gian hàng trong mẫu, theo thứ tự dòng nguồn', '', ['Sàn', 'Gian hàng', 'Dòng lõi', 'Doanh thu lõi', 'Đơn vị bán lõi'], shops) + peers + metaAdTable + searchAdsTable, d.defaultMarketPeers === null ? 'Chưa có tập đối thủ đã đóng băng trong đầu vào bản này. Không suy danh tính chéo sàn từ tên hoặc tiêu đề.' : 'Tập mặc định giữ riêng theo sàn và nhóm; nguồn thiếu hoặc doanh thu bằng không được ghi rõ. Không suy danh tính chéo sàn từ tên hoặc tiêu đề.'));
+  // TikTok top-ads page read by the app (S16 AUTO). Captions and labels are page text, so they stay quotations with a capture mark;
+  // likes stay the page's own words. No spend, reach or rate is ever shown, and nothing is combined with sample numbers.
+  const tiktok = next ? options.tiktokTopAds : undefined;
+  const tiktokQuote = (text: string | null): string => text === null ? esc(TIKTOK_TOP_ADS_MISSING) : `<span data-quote>${label(text)}</span>`;
+  const tiktokRows = !tiktok ? [] : tiktok.rows.length === 0
+    ? [[label(tiktok.notice ?? ''), esc(TIKTOK_TOP_ADS_MISSING), esc(TIKTOK_TOP_ADS_MISSING), esc(TIKTOK_TOP_ADS_MISSING), esc(TIKTOK_TOP_ADS_MISSING)]]
+    : tiktok.rows.map(row => {
+      const no = registry.cite({ sourceKind: 'CAPTURE', identity: row.textSha256, locator: null, label: TIKTOK_TOP_ADS_CITATION_LABEL, retrievedAt: row.readAt,
+        url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' });
+      return [tiktokQuote(row.caption) + (no === null ? '' : renderCitationMark(no)), tiktokQuote(row.account), tiktokQuote(row.industry), tiktokQuote(row.objective),
+        row.likes === null ? esc(TIKTOK_TOP_ADS_MISSING) : label(`${row.likes} lượt thích`)];
+    });
+  const tiktokTable = !tiktok ? '' : tbl('7.4', TIKTOK_TOP_ADS_TABLE_TITLE, '', [...TIKTOK_TOP_ADS_HEADERS], tiktokRows,
+    { src: esc(TIKTOK_TOP_ADS_SRC), note: label(tiktok.readDate === null ? 'Lượt này chưa có bản đọc trang quảng cáo nổi bật của TikTok để kiểm tra.' : tiktokTopAdsNote(metaAdDate(tiktok.readDate))) })
+    + (tiktok.moreCards > 0 ? `<p>${label(`Còn ${tiktok.moreCards} quảng cáo khớp nghĩa khác trên trang, không liệt kê thêm.`)}</p>` : '')
+    + (tiktok.droppedCards > 0 ? `<p>${label(`Có ${tiktok.droppedCards} quảng cáo không khớp nghĩa với từ khoá sản phẩm nên không đưa vào bảng.`)}</p>` : '');
+  sections.push(section('M07', 'Đối thủ', 'Giữ số liệu của mỗi gian hàng trên từng sàn; phần thiếu không dùng để so sánh đầy đủ.', requiredFig('product-ranking', '7.1') + tbl('7.1', 'Gian hàng trong mẫu, theo thứ tự dòng nguồn', '', ['Sàn', 'Gian hàng', 'Dòng lõi', 'Doanh thu lõi', 'Đơn vị bán lõi'], shops) + peers + metaAdTable + searchAdsTable + tiktokTable, d.defaultMarketPeers === null ? 'Chưa có tập đối thủ đã đóng băng trong đầu vào bản này. Không suy danh tính chéo sàn từ tên hoặc tiêu đề.' : 'Tập mặc định giữ riêng theo sàn và nhóm; nguồn thiếu hoặc doanh thu bằng không được ghi rõ. Không suy danh tính chéo sàn từ tên hoặc tiêu đề.'));
   let unitPriceTables = '';
   if (next) {
     const mark = (ref: { sourceSha256: string; locator: string }): string => {
@@ -302,6 +319,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     ...(metaAdPages.length ? [[META_AD_SOURCE_LABEL, META_AD_SOURCE_NOTE]] : []),
     ...(autoMetaRows.length ? [[META_AUTO_SOURCE_LABEL, META_AUTO_SOURCE_NOTE]] : []),
     ...(searchAdsOk.length ? [[SEARCH_ADS_SOURCE_LABEL, SEARCH_ADS_SOURCE_NOTE]] : []),
+    ...(tiktok ? [[TIKTOK_TOP_ADS_SOURCE_LABEL, tiktok.notice ?? TIKTOK_TOP_ADS_SOURCE_NOTE]] : []),
     ...(officialRows.length ? [[E12_ATTRIBUTION, 'Đã lưu trong lượt này; số liệu thống kê cả nước theo nhóm hàng, chỉ là bối cảnh']] : [])] : [['Nguồn', sourceText], ['Kỳ', period]];
   if (d.webFacts !== null) {
     const facts = d.webFacts;

@@ -22,6 +22,7 @@ function status(): ResearchAutomationSourceStatus {
     entry('APIFY_TIKTOK_COMMENTS', { state: 'NOT_BUILT', credential: 'MISSING', wiredIntoRuns: false, pendingPackage: 'P9', registryIds: ['S07'], tier: 'B', group: 'CUSTOMER_VOICE', reportName: 'bình luận công khai dưới video', spendCapUsd: null }),
     entry('VIDEO_READING', { state: 'NOT_BUILT', credential: 'NOT_REQUIRED', wiredIntoRuns: false, paid: false, pendingPackage: 'P9', group: 'SELLER_VOICE' }),
     entry('META_AD_LIBRARY', { state: 'NOT_BUILT', credential: 'NOT_REQUIRED', wiredIntoRuns: false, paid: false, pendingPackage: 'U-23', group: 'SELLER_VOICE' }),
+    entry('TIKTOK_TOP_ADS', { state: 'CONFIGURED_NOT_WIRED', credential: 'NOT_REQUIRED', wiredIntoRuns: false, paid: false, pendingPackage: null, registryIds: ['S16'], tier: 'B', group: 'SELLER_VOICE' }),
     entry('SEARCH_ADS_LIBRARY', { registryIds: ['S17'], tier: 'B', group: 'SELLER_VOICE', reportName: 'thư viện quảng cáo công khai của công cụ tìm kiếm', dataCount: 1 }),
     entry('SERPAPI', { state: 'CONFIGURED_NOT_WIRED', wiredIntoRuns: false, operations: [
       { operation: 'serpapi.google.search', count: 3, lastDataAt: '2026-02-03T00:00:00.000Z', lastUsageAt: null, registryIds: ['S19'], tier: null },
@@ -96,9 +97,9 @@ test('source board renders grouped cards, caps, operations and registry rows, re
     const groups = [...document.querySelectorAll<HTMLElement>('.ra-sources-group')];
     assert.deepEqual(groups.map(group => group.dataset.group), ['SALES_MARKET', 'CUSTOMER_VOICE', 'SELLER_VOICE', 'MACRO', 'DOCUMENTS']);
     const cards = [...document.querySelectorAll<HTMLElement>('.ra-source')];
-    assert.equal(cards.length, 13, 'All thirteen registry cards render');
+    assert.equal(cards.length, 14, 'All fourteen registry cards render');
     assert.deepEqual(cards.map(card => card.dataset.source), ['METRIC', 'KALODATA', 'KALODATA_VIDEO_FILE', 'SERPAPI',
-      'APIFY_SHOPEE', 'APIFY_TIKTOK_COMMENTS', 'VIDEO_READING', 'META_AD_LIBRARY', 'SEARCH_ADS_LIBRARY', 'OFFICIAL_STATS', 'WORLD_BANK', 'UN_COMTRADE', 'PAGEINDEX']);
+      'APIFY_SHOPEE', 'APIFY_TIKTOK_COMMENTS', 'VIDEO_READING', 'META_AD_LIBRARY', 'TIKTOK_TOP_ADS', 'SEARCH_ADS_LIBRARY', 'OFFICIAL_STATS', 'WORLD_BANK', 'UN_COMTRADE', 'PAGEINDEX']);
     const pills = new Map(cards.map(card => [card.dataset.source, card.querySelector('.status-pill')?.textContent]));
     assert.equal(pills.get('KALODATA'), 'Đã kết nối');
     assert.equal(pills.get('SERPAPI'), 'Có khóa, chưa dùng');

@@ -44,6 +44,7 @@ const SOURCE_COPY: Record<BoardSource, { readonly name: string; readonly role: s
   VIDEO_READING: { name: 'Đọc nội dung video', role: 'Lời thoại và chữ trên video bán hàng', unit: 'file' },
   SEARCH_ADS_LIBRARY: { name: 'Quảng cáo trên công cụ tìm kiếm', role: 'Số mẫu quảng cáo công khai trên trang web của thương hiệu', unit: 'lần chạy đã lưu' },
   META_AD_LIBRARY: { name: 'Thư viện quảng cáo Meta', role: 'Ngày bắt đầu và trạng thái quảng cáo', unit: 'quảng cáo đã xác nhận theo trang' },
+  TIKTOK_TOP_ADS: { name: 'Quảng cáo nổi bật trên TikTok', role: 'Quảng cáo TikTok chọn hiển thị, máy tự đọc', unit: 'lần đọc' },
   SERPAPI: { name: 'SerpApi', role: 'Tìm kiếm Google và Google Trends', unit: 'lần thu' },
   OFFICIAL_STATS: { name: 'Cục Thống kê', role: 'Số liệu vĩ mô từ nso.gov.vn', unit: 'file' },
   WORLD_BANK: { name: 'Ngân hàng Thế giới', role: 'Số liệu vĩ mô mở, không cần khóa', unit: 'lần lấy' },

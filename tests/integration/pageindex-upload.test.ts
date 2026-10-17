@@ -160,6 +160,7 @@ test('low balance pauses automatic indexing on the status card', () => {
       'apify-tiktok-comments': { lastDataAt: null, dataCount: 0, lastUsageAt: null },
       'video-reading': { lastDataAt: null, dataCount: 0, lastUsageAt: null },
       'meta-ad-library': { lastDataAt: null, dataCount: 0, lastUsageAt: null },
+      'tiktok-top-ads': { lastDataAt: null, dataCount: 0, lastUsageAt: null },
       'official-stats': { lastDataAt: null, dataCount: 0, lastUsageAt: null },
       'world-bank': { lastDataAt: null, dataCount: 0, lastUsageAt: null },
       'un-comtrade': { lastDataAt: null, dataCount: 0, lastUsageAt: null },

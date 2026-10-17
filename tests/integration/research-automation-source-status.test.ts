@@ -138,7 +138,7 @@ test('source status reports twelve cards with registry metadata, workspace histo
     assert.equal(body.workspaceId, workspaceId);
     assert.equal(body.executorEnabled, true);
     assert.deepEqual(body.sources.map((item: Record<string, any>) => item.source), ['METRIC', 'KALODATA', 'KALODATA_VIDEO_FILE',
-      'APIFY_SHOPEE', 'APIFY_TIKTOK_COMMENTS', 'VIDEO_READING', 'META_AD_LIBRARY', 'SEARCH_ADS_LIBRARY', 'SERPAPI', 'OFFICIAL_STATS', 'WORLD_BANK', 'UN_COMTRADE', 'PAGEINDEX']);
+      'APIFY_SHOPEE', 'APIFY_TIKTOK_COMMENTS', 'VIDEO_READING', 'META_AD_LIBRARY', 'TIKTOK_TOP_ADS', 'SEARCH_ADS_LIBRARY', 'SERPAPI', 'OFFICIAL_STATS', 'WORLD_BANK', 'UN_COMTRADE', 'PAGEINDEX']);
     const sources = bySource(body);
     assert.deepEqual(sources.KALODATA, { source: 'KALODATA', state: 'READY', credential: 'CONFIGURED', wiredIntoRuns: true, paid: true,
       lastDataAt: '2026-02-03T00:00:00.000Z', dataCount: 2, lastUsageAt: '2026-02-03T00:00:01.000Z',
@@ -219,7 +219,7 @@ test('source status reports twelve cards with registry metadata, workspace histo
   await withApi(fixture, false, providers, async base => {
     const { body } = await readStatus(base);
     assert.equal(body.executorEnabled, false);
-    assert.equal(body.sources.length, 13);
+    assert.equal(body.sources.length, 14);
     assert.ok(body.sources.every((item: Record<string, any>) => item.state === 'EXECUTOR_DISABLED'),
       'Executor-disabled keeps precedence over every card including NOT_BUILT');
     assert.equal(bySource(body).KALODATA.credential, 'CONFIGURED');

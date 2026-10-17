@@ -17,6 +17,7 @@ export type ResearchAutomationSourceId =
   | 'APIFY_TIKTOK_COMMENTS'
   | 'VIDEO_READING'
   | 'META_AD_LIBRARY'
+  | 'TIKTOK_TOP_ADS'
   | 'SEARCH_ADS_LIBRARY'
   | 'OFFICIAL_STATS'
   | 'WORLD_BANK'
@@ -40,7 +41,7 @@ export interface ResearchAutomationSourceStatus {
   checkedAt: Timestamp;
   executorEnabled: boolean;
   /**
-   * @maxItems 13
+   * @maxItems 14
    */
   sources:
     | []
@@ -138,6 +139,22 @@ export interface ResearchAutomationSourceStatus {
         ResearchAutomationSourceStatusEntry,
       ]
     | [
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+      ]
+    | [
+        ResearchAutomationSourceStatusEntry,
         ResearchAutomationSourceStatusEntry,
         ResearchAutomationSourceStatusEntry,
         ResearchAutomationSourceStatusEntry,

@@ -106,6 +106,7 @@ export interface ReaderDraftContext {
   readonly metaAds?: readonly import('./meta-ad-report.js').MetaAdPage[];
   /** The app's own Meta ad library read (S15 AUTO), re-verified from stored evidence when the report is built. */
   readonly metaAuto?: import('./meta-auto-lane.js').MetaAutoReportView;
+  readonly tiktokTopAds?: import('./tiktok-top-ads-lane.js').TikTokTopAdsReportView;
   readonly metric:
     | { readonly packageId: string; readonly workbook: Buffer; readonly measurementPeriod: { readonly startDate: string; readonly endDate: string } }
     | { readonly packageId: string; readonly capture: { readonly snapshot: AutomationMetricWebSnapshotV1; readonly snapshotSha256: string; readonly truncation: { readonly cap: number; readonly totalShown: number | null; readonly pagesRead: number; readonly rowsRead: number; readonly truncated: boolean } };
@@ -345,7 +346,7 @@ export class AutomationReaderReports {
     );
     const at = this.now(), createdAt = at.toISOString(), revisionId = randomUUID();
     const webResults = context.webResults ?? [];
-    const built = await buildMarketReport(data, { limitations, builtOn: builtOn(at), cover, flint: this.options.flint ?? true, webResults, ...(context.webPageTypes ? { webPageTypes: true as const } : {}), ...(capture ? { captureSource: true } : {}), ...(context.searchInterest ? { searchInterest: context.searchInterest } : {}), ...(context.worldBank ? { worldBank: context.worldBank } : {}), ...(context.comtrade ? { comtrade: context.comtrade } : {}), ...(context.searchAds ? { searchAds: context.searchAds } : {}), ...(context.officialStats ? { officialStats: context.officialStats } : {}), ...(context.pdfExcerpts?.length ? { pdfExcerpts: context.pdfExcerpts } : {}), ...(context.sellerVideos ? { sellerVideos: context.sellerVideos } : {}), ...(context.metaAds?.length ? { metaAds: context.metaAds } : {}), ...(context.metaAuto ? { metaAuto: context.metaAuto } : {}) });
+    const built = await buildMarketReport(data, { limitations, builtOn: builtOn(at), cover, flint: this.options.flint ?? true, webResults, ...(context.webPageTypes ? { webPageTypes: true as const } : {}), ...(capture ? { captureSource: true } : {}), ...(context.searchInterest ? { searchInterest: context.searchInterest } : {}), ...(context.worldBank ? { worldBank: context.worldBank } : {}), ...(context.comtrade ? { comtrade: context.comtrade } : {}), ...(context.searchAds ? { searchAds: context.searchAds } : {}), ...(context.officialStats ? { officialStats: context.officialStats } : {}), ...(context.pdfExcerpts?.length ? { pdfExcerpts: context.pdfExcerpts } : {}), ...(context.sellerVideos ? { sellerVideos: context.sellerVideos } : {}), ...(context.metaAds?.length ? { metaAds: context.metaAds } : {}), ...(context.metaAuto ? { metaAuto: context.metaAuto } : {}), ...(context.tiktokTopAds ? { tiktokTopAds: context.tiktokTopAds } : {}) });
     // Every chart must be drawn by Flint unless the caller opted out explicitly; a silent fallback fails the build.
     assertFlintCharts(built.charts, this.options.flint ?? true);
     // The gate blocks report publication and revision insertion; cover/sidecar artifacts may already be written.
