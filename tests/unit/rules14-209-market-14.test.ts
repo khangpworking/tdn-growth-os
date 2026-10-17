@@ -173,4 +173,9 @@ test('rule 11 accepts only Flint charts and needs all three required charts', ()
   assert.equal(rule(twoCharts.replace('<body>', '<body data-market-chart-rows="4">'), '11').ok, false, 'marker with rows');
   assert.equal(rule(twoCharts.replace('<body>', '<body data-market-chart-rows="0">'), '11').ok, true, 'no usable rows: charts are skipped, not invented');
   assert.equal(rule(valid.replace('<body>', '<body data-market-chart-rows="4">'), '11').ok, true, 'marker with three Flint charts');
+  const macroFallback = flintChart.replace('data-engine="flint"', 'data-engine="svg-fallback" data-chart-id="M06.comtrade.mirror"');
+  assert.equal(rule(valid + macroFallback, '11').ok, true, 'country-background fallback is allowed beside the required Flint charts');
+  assert.equal(rule(twoCharts + macroFallback, '11').ok, false, 'country-background figures cannot replace a required sample chart');
+  assert.equal(rule(valid + macroFallback.replace('M06.comtrade.mirror', 'market.concentration'), '11').ok, false, 'sample fallbacks remain refused');
+  assert.equal(rule(valid + macroFallback.replace(/<svg[\s\S]*?<\/svg>/u, ''), '11').ok, false, 'a macro marker without drawn data is still refused');
 });

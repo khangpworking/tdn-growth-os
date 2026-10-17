@@ -290,6 +290,35 @@ test('a stored run replays without a fetch and gives the same report bytes with 
   assert.equal(calls.length, before, 'reading never fetches');
 });
 
+test('initial render, revisions and exact retries pre-render stored World Bank charts even when Flint fails', async t => {
+  const vega = await import('vega');
+  t.mock.method(vega.View.prototype, 'toSVG', () => { throw new Error('SYNTHETIC_FLINT_FAILURE'); });
+  const calls: { url: URL; init: RequestInit | undefined }[] = [];
+  const f = await runToDraft(t, { source: syntheticProductSource(), worldBankSource: syntheticWorldBank(calls) });
+  const check = (html: string) => {
+    const doc = new JSDOM(html).window.document;
+    const charts = [...doc.querySelectorAll('[data-chart-id^="M05.world-bank."]')];
+    assert.equal(charts.length, 2);
+    assert.ok(charts.every(chart => chart.getAttribute('data-engine') === 'svg-fallback' && chart.querySelector('circle')));
+  };
+  check((await reportDocument(f)).html);
+  const before = calls.length;
+  const service = f.open({});
+  for (const n of [1, 2]) {
+    const pair = (await service.listReportVersions(workspaceId, runId)).at(-1)!;
+    const request = { contractVersion: 'automation-report-revision-v1', requestKey: `10000000-0000-4000-8000-00000000000${n}`,
+      previousPairId: pair.pairId, sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } } };
+    const receipt = await service.requestReportRevision(workspaceId, runId, request);
+    await service.processNext();
+    assert.equal((await service.getReportRevision(workspaceId, runId, receipt.attemptId)).state, 'COMMITTED');
+    const bytes = (await service.readReport(workspaceId, runId, 'MARKET')).bytes;
+    check(bytes.toString());
+    assert.equal((await service.requestReportRevision(workspaceId, runId, request)).exactRetry, true);
+    assert.deepEqual((await service.readReport(workspaceId, runId, 'MARKET')).bytes, bytes);
+  }
+  assert.equal(calls.length, before, 'revisions and retries use stored series without refetching');
+});
+
 test('the gate refuses a sentence that adds a country figure to a sales figure', () => {
   const base = `<html><body><section id="M05"><p>Dân số cả nước cộng với doanh thu của mẫu là một con số.</p></section></body></html>`;
   const checks = auditMarketReportHtml(base, { presentation: false });

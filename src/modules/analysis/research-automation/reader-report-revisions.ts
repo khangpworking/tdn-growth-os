@@ -30,6 +30,7 @@ import { MarketUnitPriceError, type RetainedUnitPriceSource } from '../reader-re
 import { ReaderMetricRowsError, readerRowsFromMetricWorkbook, type ReaderRow } from '../reader-report/metric-rows.js';
 import { readerRowsFromMetricCapture } from '../reader-report/metric-capture-rows.js';
 import { nonFlintCharts } from '../reader-report/flint.js';
+import { isMacroChartId } from '../reader-report/macro-charts.js';
 import { MetricSourceRejection } from '../metric-source-profile.js';
 import { MetricWebSnapshotError } from './metric-web-snapshot.js';
 import { webSnapshotDigest } from '../reader-report/web-facts.js';
@@ -169,11 +170,11 @@ const builtOn = (at: Date): string => new Date(at.getTime() + 7 * 3_600_000).toI
  * draft, admits a source, or calls a provider. Decisions are append-only.
  */
 /**
- * Fails a reader build when Flint is required and any chart fell back to the
- * hand-drawn SVG. `flint: false` is the explicit opt-out used by unit tests.
+ * Requires Flint for existing charts. Country-background figures retain their
+ * required SVG fallback on failure. `flint: false` is the unit-test opt-out.
  */
 export function assertFlintCharts(charts: readonly { id: string; engine: 'flint' | 'svg-fallback' }[], flint = true): void {
-  const notFlint = flint ? nonFlintCharts(charts) : [];
+  const notFlint = flint ? nonFlintCharts(charts).filter(id => !isMacroChartId(id)) : [];
   if (notFlint.length) throw new ResearchAutomationValidationError(`FLINT_REQUIRED:${notFlint.join(',')}`);
 }
 
@@ -347,7 +348,7 @@ export class AutomationReaderReports {
     const at = this.now(), createdAt = at.toISOString(), revisionId = randomUUID();
     const webResults = context.webResults ?? [];
     const built = await buildMarketReport(data, { limitations, builtOn: builtOn(at), cover, flint: this.options.flint ?? true, webResults, ...(context.webPageTypes ? { webPageTypes: true as const } : {}), ...(capture ? { captureSource: true } : {}), ...(context.searchInterest ? { searchInterest: context.searchInterest } : {}), ...(context.worldBank ? { worldBank: context.worldBank } : {}), ...(context.comtrade ? { comtrade: context.comtrade } : {}), ...(context.searchAds ? { searchAds: context.searchAds } : {}), ...(context.officialStats ? { officialStats: context.officialStats } : {}), ...(context.pdfExcerpts?.length ? { pdfExcerpts: context.pdfExcerpts } : {}), ...(context.sellerVideos ? { sellerVideos: context.sellerVideos } : {}), ...(context.metaAds?.length ? { metaAds: context.metaAds } : {}), ...(context.metaAuto ? { metaAuto: context.metaAuto } : {}), ...(context.tiktokTopAds ? { tiktokTopAds: context.tiktokTopAds } : {}) });
-    // Every chart must be drawn by Flint unless the caller opted out explicitly; a silent fallback fails the build.
+    // Sample charts require Flint; country-background charts retain their explicit SVG fallback.
     assertFlintCharts(built.charts, this.options.flint ?? true);
     // The gate blocks report publication and revision insertion; cover/sidecar artifacts may already be written.
     try { assertMarketBusinessGate(built.html, { presentation: false }); if (built.visibleTextRules) assertMarket14MachineRules(built.html, undefined, { requireFlint: this.options.flint ?? true }); }

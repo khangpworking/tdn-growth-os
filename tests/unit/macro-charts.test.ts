@@ -2,6 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { comtradeMirrorChartRows, comtradeOwnChartRows, macroScale, renderComtradeCharts, renderWorldBankCharts } from '../../src/modules/analysis/reader-report/macro-charts.js';
 import type { StepComtrade, StepComtradeRow, StepWorldBank, StepWorldBankIndicator } from '../../src/modules/analysis/research-automation/model.js';
+import { inspectWorldBankSource } from '../../src/modules/analysis/research-automation/world-bank-intake.js';
+import { worldBankSeries } from '../../src/modules/analysis/research-automation/world-bank-lane.js';
+import { worldBankFixture } from '../helpers/world-bank-source-fixture.js';
 
 const SHA = 'a'.repeat(64);
 function syntheticWorldBankIndicator(code: string, series: readonly { year: string; value: string | null }[] | undefined, name = 'Chỉ số tổng hợp A'): StepWorldBankIndicator {
@@ -27,6 +30,17 @@ test('macroScale names nghìn/triệu/tỷ and leaves small values unscaled', ()
   assert.deepEqual(macroScale([4_200_000_000]), { divisor: 1e9, word: 'tỷ' });
 });
 
+test('World Bank: the verified projection supplies a ten-year window with explicit and absent-year gaps and exact decimals', () => {
+  const raw = worldBankFixture('SP.POP.TOTL', ['null', '1234.5000', 'null', '1111.2500', '99', '88', '77', '66', '55', '44', '33', '22']);
+  const bytes = Buffer.from(raw.observations.toString().replace('"date":"2021"', '"date":"1998"').replaceAll('Viet Nam', 'Nước C'));
+  const projection = inspectWorldBankSource(bytes, raw.metadata, raw.sourceUrl, raw.metadataUrl);
+  const row = projection.rows.find(point => point.year === '2024')!;
+  assert.ok(row.value !== null);
+  const series = worldBankSeries(projection, 'SP.POP.TOTL', { ...row, value: row.value });
+  assert.deepEqual(series, years(2015, ['33', '44', '55', '66', '77', '88', null, '1111.2500', null, '1234.5000']));
+  assert.deepEqual(series.at(-1), { year: row.year, value: row.value });
+});
+
 test('World Bank: one Flint line per indicator with ≥2 values, gaps kept, no SI suffix; <2 values or no series draws nothing', async () => {
   const value: StepWorldBank = { profile: 'p', indicators: [
     syntheticWorldBankIndicator('SP.POP.TOTL', years(2015, ['91000000', null, '93000000', '94000000', null, '96000000', '97000000', '98000000', '99000000', '100300000']), 'Dân số cả nước'),
@@ -47,6 +61,23 @@ test('World Bank: one Flint line per indicator with ≥2 values, gaps kept, no S
   const fallback = await renderWorldBankCharts(value, { flint: false });
   assert.equal(fallback[0]!.engine, 'svg-fallback');
   assertNoSi(fallback[0]!.svg);
+  assert.ok(svgText(fallback[0]!.svg).includes(`Giá trị (${fallback[0]!.unit})`), 'fallback axis names its scale');
+});
+
+test('World Bank: isolated values remain visible and a null year breaks the Flint and fallback paths', async () => {
+  const value = { profile: 'p', indicators: [syntheticWorldBankIndicator('SP.POP.TOTL', years(2021, ['12', null, '24']))] };
+  const [chart] = await renderWorldBankCharts(value);
+  assert.equal(chart!.engine, 'flint');
+  const points = [...chart!.svg.matchAll(/<path[^>]*aria-roledescription="point"[^>]*>/gu)].map(hit => hit[0]);
+  assert.equal(points.length, 2, 'both isolated observations have point marks');
+  assert.ok(points.some(point => point.includes('2021')) && points.some(point => point.includes('2023')));
+  assert.ok(points.every(point => !point.includes('2022')), 'no zero placeholder at the gap');
+  const path = chart!.svg.match(/<path[^>]*aria-roledescription="line mark"[^>]*\bd="([^"]+)"/u)![1]!;
+  assert.equal((path.match(/M/gu) ?? []).length, 2, 'two disconnected subpaths');
+  assert.doesNotMatch(path, /L/u, 'no connecting line through the missing year');
+  const [fallback] = await renderWorldBankCharts(value, { flint: false });
+  assert.equal((fallback!.svg.match(/<circle\b/gu) ?? []).length, 2);
+  assert.doesNotMatch(fallback!.svg, /<polyline\b/u);
 });
 
 test('World Bank: a series that does not end at the table row draws nothing', async () => {
@@ -63,7 +94,7 @@ function syntheticComtrade(rows: readonly StepComtradeRow[]): StepComtrade {
 
 test('Comtrade: mirror figure needs ≥2 rows, sorted by value; own figure needs both flows of one year; no sum anywhere', async () => {
   const many = syntheticComtrade([
-    row('OWN', 'Việt Nam', 'M', '2023', '5130000'), row('OWN', 'Việt Nam', 'X', '2023', '1270000'),
+    row('OWN', 'Nước C', 'M', '2023', '5130000'), row('OWN', 'Nước C', 'X', '2023', '1270000'),
     row('MIRROR', 'Nước B', 'X', '2023', '1270000'), row('MIRROR', 'Nước A', 'X', '2023', '3410000'),
   ]);
   assert.deepEqual(comtradeMirrorChartRows(many).map(r => r.reporter), ['Nước A', 'Nước B']);
@@ -82,10 +113,14 @@ test('Comtrade: mirror figure needs ≥2 rows, sorted by value; own figure needs
   assert.match(svgText(charts[0]!.svg).join(' '), /3,41/u);
   assert.match(svgText(charts[1]!.svg).join(' '), /5,13/u);
 
-  const single = syntheticComtrade([row('MIRROR', 'Nước A', 'X', '2023', '3400000'), row('OWN', 'Việt Nam', 'M', '2023', '10'), row('OWN', 'Việt Nam', 'X', '2021', '20')]);
+  const single = syntheticComtrade([row('MIRROR', 'Nước A', 'X', '2023', '3400000'), row('OWN', 'Nước C', 'M', '2023', '10'), row('OWN', 'Nước C', 'X', '2021', '20')]);
   assert.deepEqual(await renderComtradeCharts(single), []);
   assert.deepEqual(await renderComtradeCharts(undefined), []);
   const fallback = await renderComtradeCharts(many, { flint: false });
   assert.deepEqual(fallback.map(c => c.engine), ['svg-fallback', 'svg-fallback']);
-  for (const chart of fallback) assertNoSi(chart.svg);
+  for (const chart of fallback) {
+    assertNoSi(chart.svg);
+    assert.ok(svgText(chart.svg).includes(`Giá trị (${chart.unit})`), 'fallback axis names its scale');
+    assert.doesNotMatch(svgText(chart.svg).join(' '), /4,68|6,4|3,86/u, 'fallback never displays sums or differences');
+  }
 });

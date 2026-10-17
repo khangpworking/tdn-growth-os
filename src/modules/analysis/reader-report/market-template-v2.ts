@@ -140,7 +140,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   // One yearly line per drawn indicator follows table 5.3 (Hình 5.3, 5.4 in indicator order), only from the stored series; never on a sample axis.
   const macroFig = (chart: MacroChart, no: string): string => {
     charts.push({ id: chart.id, engine: chart.engine, ...(chart.error ? { error: chart.error } : {}) });
-    return fig(no, esc(chart.title), esc(chart.unit), chart.svg, { engine: chart.engine, src: esc(chart.src), note: esc(chart.note) });
+    return fig(no, esc(chart.title), esc(chart.unit), chart.svg, { engine: chart.engine, chartId: chart.id, src: esc(chart.src), note: esc(chart.note) });
   };
   const worldBankFigures = worldBankRows.length === 0 ? '' : (await renderWorldBankCharts(options.worldBank, { flint: options.flint !== false }))
     .map((chart, i) => macroFig(chart, `5.${3 + i}`)).join('');

@@ -47,6 +47,10 @@ export interface MacroChart extends RenderedChart {
   readonly src: string;
 }
 
+/** Only these country-background figures permit the required SVG fallback in production. */
+export const isMacroChartId = (id: string): boolean =>
+  /^(?:M05\.world-bank\.(?:NE\.CON\.PRVT\.PC\.KD|SP\.POP\.TOTL)|M06\.comtrade\.(?:mirror|own))$/u.test(id);
+
 export const WORLD_BANK_CHART_NOTE = 'Số liệu của cả nước Việt Nam theo từng năm, chỉ để làm nền: không nói về sản phẩm này và không so sánh được với số liệu mẫu trong báo cáo. Năm nguồn không có số để trống, không lấy số năm khác bù vào.';
 export const COMTRADE_MIRROR_NOTE = 'Mỗi thanh là số một nước tự báo về hàng xuất sang Việt Nam theo mã hàng ước tính; các thanh không cộng với nhau. Đây không phải quy mô thị trường của sản phẩm này và không so sánh được với số liệu mẫu trong báo cáo.';
 export const COMTRADE_OWN_NOTE = 'Mỗi thanh là số Việt Nam tự báo cho một chiều theo mã hàng ước tính; hai chiều không cộng, không trừ với nhau. Đây không phải quy mô thị trường của sản phẩm này và không so sánh được với số liệu mẫu trong báo cáo.';
@@ -72,14 +76,14 @@ async function renderWorldBankChart(item: StepWorldBankIndicator, row: StepWorld
   const unit = unitWithScale(word, worldBankUnitText(row), known);
   const years = series.map(point => point.year);
   const values = series.map(point => point.value === null ? null : Number(point.value) / divisor);
-  const fallback = (): string => lineChart(years, [{ name: row.indicatorName, color: '#1d4ed8', values }]);
+  const fallback = (): string => lineChart(years, [{ name: row.indicatorName, color: '#1d4ed8', values }], { yTitle: `Giá trị (${unit})` });
   const meta = { id: `M05.world-bank.${item.code}`, title: `Diễn biến theo năm: ${row.indicatorName}, cả nước Việt Nam`, unit, note: WORLD_BANK_CHART_NOTE, src: WORLD_BANK_SRC };
   if (!flint) return { ...meta, svg: fallback(), engine: 'svg-fallback' };
   return { ...meta, ...await renderChart({
     data: { values: series.map((point, i) => ({ nam: point.year, gia_tri: values[i] })) },
     semantic_types: { nam: 'Category', gia_tri: 'Number' },
     field_display_names: { nam: 'Năm', gia_tri: `Giá trị (${unit})` },
-    chart_spec: { chartType: 'Line Chart', encodings: { x: 'nam', y: 'gia_tri' }, baseSize: { width: 560, height: 240 } },
+    chart_spec: { chartType: 'Line Chart', encodings: { x: 'nam', y: 'gia_tri' }, chartProperties: { showPoints: true }, baseSize: { width: 560, height: 240 } },
   } as FlintChartInput, fallback, { patch: patches(keepOrder('nam', years), plainNumbers), legend: false }) };
 }
 
@@ -102,7 +106,7 @@ async function bars(meta: Omit<MacroChart, 'svg' | 'engine' | 'error' | 'unit'>,
   const { divisor, word } = macroScale(raw);
   const unit = word === null ? 'USD' : `${word} USD`;
   const values = raw.map(v => v / divisor);
-  const fallback = (): string => barChart(cats, [{ name: 'Giá trị', values, color: '#0f766e' }], { fmt: plain });
+  const fallback = (): string => barChart(cats, [{ name: 'Giá trị', values, color: '#0f766e' }], { fmt: plain, xTitle: `Giá trị (${unit})` });
   const full = { ...meta, unit };
   if (!flint) return separateLabels<MacroChart>({ ...full, svg: fallback(), engine: 'svg-fallback' });
   return separateLabels({ ...full, ...await renderChart({

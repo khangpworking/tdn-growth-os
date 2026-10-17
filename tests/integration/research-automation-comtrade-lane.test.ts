@@ -210,7 +210,7 @@ async function runToDraft(t: TestContext, comtradeSource?: ComtradeSource) {
   const usage = db.prepare(`SELECT ordinal, provider FROM analysis_research_automation_usage WHERE run_id=? AND step_id='COLLECTION' ORDER BY ordinal`).all(runId)
     .map(row => { const v = row as { ordinal: bigint | number; provider: string }; return [Number(v.ordinal), v.provider]; });
   const html = (await service.readReport(workspaceId, runId, 'MARKET')).bytes.toString();
-  return { document, usage, html, stepSha: step.sha, doc: new JSDOM(html).window.document };
+  return { service, document, usage, html, stepSha: step.sha, doc: new JSDOM(html).window.document };
 }
 
 test('flag off: no field, no usage row, no table', async t => {
@@ -225,6 +225,34 @@ test('flag off: identical runs keep byte-identical step documents and reports', 
   const second = await runToDraft(t);
   assert.equal(first.stepSha, second.stepSha);
   assert.equal(first.html, second.html);
+});
+
+test('initial render, revisions and exact retries pre-render stored Comtrade charts even when Flint fails', async t => {
+  const vega = await import('vega');
+  t.mock.method(vega.View.prototype, 'toSVG', () => { throw new Error('SYNTHETIC_FLINT_FAILURE'); });
+  const source = fake(standard);
+  const f = await runToDraft(t, createComtradeSource({ model: fakeModel(), transport: source.transport }));
+  const check = (html: string) => {
+    const doc = new JSDOM(html).window.document;
+    const charts = [...doc.querySelectorAll('[data-chart-id^="M06.comtrade."]')];
+    assert.equal(charts.length, 2);
+    assert.ok(charts.every(chart => chart.getAttribute('data-engine') === 'svg-fallback' && chart.querySelector('rect')));
+  };
+  check(f.html);
+  const before = source.urls.length;
+  for (const n of [1, 2]) {
+    const pair = (await f.service.listReportVersions(workspaceId, runId)).at(-1)!;
+    const request = { contractVersion: 'automation-report-revision-v1', requestKey: `10000000-0000-4000-8000-00000000000${n}`,
+      previousPairId: pair.pairId, sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } } };
+    const receipt = await f.service.requestReportRevision(workspaceId, runId, request);
+    await f.service.processNext();
+    assert.equal((await f.service.getReportRevision(workspaceId, runId, receipt.attemptId)).state, 'COMMITTED');
+    const bytes = (await f.service.readReport(workspaceId, runId, 'MARKET')).bytes;
+    check(bytes.toString());
+    assert.equal((await f.service.requestReportRevision(workspaceId, runId, request)).exactRetry, true);
+    assert.deepEqual((await f.service.readReport(workspaceId, runId, 'MARKET')).bytes, bytes);
+  }
+  assert.equal(source.urls.length, before, 'revisions and retries use stored rows without refetching');
 });
 
 test('flag on: M06 shows the table with no total, no percent sign, no provider name and no "Google"', async t => {

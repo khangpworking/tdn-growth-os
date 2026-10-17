@@ -1016,7 +1016,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     if (expected === 0) return '';
     if (!drawn || drawn.length !== expected) throw new TypeError(missing);
     return drawn.map((chart, i) => `<figure class="market-chart"><div class="exh"><span class="exn">Hình ${sectionNo}.${first + i}</span> <span class="ext">${escape(chart.title)}</span> <span class="exu">(${escape(chart.unit)})</span></div>` +
-      `<div class="chart flint" data-engine="${escape(chart.engine)}">${chart.svg}</div>` +
+      `<div class="chart flint" data-engine="${escape(chart.engine)}" data-chart-id="${escape(chart.id)}">${chart.svg}</div>` +
       `<p class="lim"><b>Chú thích:</b> ${escape(chart.note)}</p><p class="ex-src">Nguồn: ${escape(chart.src)}</p></figure>`).join('');
   };
   // Cục Thống kê figures (S21) follow table 5.3; the same predicate marks S21 as used. Never combined with sample numbers.

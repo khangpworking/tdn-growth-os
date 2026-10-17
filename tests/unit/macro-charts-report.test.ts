@@ -37,7 +37,7 @@ const worldBank = (withSeries: boolean): StepWorldBank => ({ profile: 'p', indic
 const row = (side: 'OWN' | 'MIRROR', reporter: string, flow: 'M' | 'X', year: string, value: string): StepComtradeRow => ({ side, reporter, flow, year, value, captureIndex: 20 });
 const comtrade = (rows: readonly StepComtradeRow[]): StepComtrade => ({ profile: 'comtrade-v1', status: 'OK', hsCode: '999999', officialDescription: 'Synthetic goods',
   descriptionVi: 'Hàng tổng hợp', reasonVi: null, attempts: [], calls: [], rows, mirrorReporterCount: rows.filter(r => r.side === 'MIRROR').length });
-const fullTrade = comtrade([row('OWN', 'Việt Nam', 'M', '2023', '5130000'), row('OWN', 'Việt Nam', 'X', '2023', '1270000'),
+const fullTrade = comtrade([row('OWN', 'Nước C', 'M', '2023', '5130000'), row('OWN', 'Nước C', 'X', '2023', '1270000'),
   row('MIRROR', 'Nước A', 'X', '2023', '3410000'), row('MIRROR', 'Nước B', 'X', '2023', '1270000')]);
 const thinTrade = comtrade([row('MIRROR', 'Nước A', 'X', '2023', '3410000')]);
 
@@ -145,4 +145,29 @@ test('automation report: a drawable series without its pre-drawn figure throws',
   assert.throws(() => draftHtml(wb), /WORLD_BANK_CHARTS_MISSING/u);
   const trade = await presentationInput({ comtrade: fullTrade }, false);
   assert.throws(() => draftHtml(trade), /COMTRADE_CHARTS_MISSING/u);
+});
+
+test('a Flint failure in country-background figures retains fallbacks in both renderers and passes revision checks', async t => {
+  const vega = await import('vega');
+  const toSVG = vega.View.prototype.toSVG;
+  t.mock.method(vega.View.prototype, 'toSVG', async function (this: InstanceType<typeof vega.View>, ...args: Parameters<typeof toSVG>) {
+    await this.runAsync();
+    const data = this.getState({ data: () => true }).data as Record<string, Record<string, unknown>[] | null>;
+    if (Object.values(data).some(rows => Array.isArray(rows) && rows.some(row => row && ('nam' in row || 'ben' in row)))) throw new Error('SYNTHETIC_MACRO_FLINT_FAILURE');
+    return toSVG.apply(this, args);
+  });
+  const built = await reader({ worldBank: worldBank(true), comtrade: fullTrade });
+  const macro = built.charts.filter(chart => /^M0[56]\.(world-bank|comtrade)/u.test(chart.id));
+  assert.equal(macro.length, 4);
+  for (const chart of macro) {
+    assert.equal(chart.engine, 'svg-fallback', chart.id);
+    assert.equal(chart.error, 'SYNTHETIC_MACRO_FLINT_FAILURE', chart.id);
+  }
+  for (const chart of built.charts.filter(chart => !macro.includes(chart))) assert.equal(chart.engine, 'flint', `${chart.id}: ${chart.error ?? ''}`);
+  assert.doesNotThrow(() => assertFlintCharts(built.charts, true), 'revision accepts macro fallbacks');
+  assert.deepEqual(machineFailures(built.html), machineFailures((await reader()).html));
+  assert.equal(auditMarket14(built.html, undefined, { requireFlint: true }).find(item => item.rule === '11')!.ok, true);
+  const html = draftHtml(await presentationInput({ worldBank: worldBank(true), comtrade: fullTrade }));
+  for (const no of ['Hình 5.3', 'Hình 5.4', 'Hình 6.1', 'Hình 6.2']) assert.equal(figure(html, no)!.engine, 'svg-fallback');
+  assert.deepEqual(machineFailures(html), []);
 });
