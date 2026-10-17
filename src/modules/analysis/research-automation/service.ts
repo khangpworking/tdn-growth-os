@@ -106,7 +106,7 @@ import { publishAutomatedVideoReading, verifyAutomatedVideoReading, videoWatchCa
 import { VIDEO_WATCH_PROVIDER } from './video-watch-gemini.js';
 import { META_AUTO_PROVIDER, META_AUTO_USAGE_ORDINAL, metaBrandsFromPick, metaAutoDocument, metaAutoFailed, metaAutoHasEvidence, metaAutoReportView, metaAutoUsage, publishMetaAutoEvidence, validMetaAuto, verifyMetaAutoEvidence, type MetaAutoCollection, type MetaAutoReportView, type MetaAutoSource } from './meta-auto-lane.js';
 import { TIKTOK_TOP_ADS_PROVIDER, TIKTOK_TOP_ADS_USAGE_ORDINAL, publishTikTokTopAdsEvidence, tiktokTopAdsDocument, tiktokTopAdsFailed, tiktokTopAdsHasEvidence, tiktokTopAdsReportView, tiktokTopAdsUsage, validTikTokTopAds, verifyTikTokTopAdsEvidence, type TikTokTopAdsCollection, type TikTokTopAdsReportView, type TikTokTopAdsSource } from './tiktok-top-ads-lane.js';
-import { PDF_DISCOVERY_DOWNLOAD_USAGE_ORDINAL, PDF_DISCOVERY_MAX_FILES, PDF_DISCOVERY_PROVIDER, PDF_DISCOVERY_SEARCH_USAGE_ORDINAL, isPdfPath, pdfCandidates, pdfDiscoveryDocument, pdfDiscoveryDownloaded, pdfDiscoveryFailed, pdfDiscoveryUsage, validPdfDiscovery, type PdfCandidate, type PdfDiscoverySource, type PdfDownloadRun, type PdfSearchAttempt } from './pdf-discovery-lane.js';
+import { PDF_DISCOVERY_DOWNLOAD_USAGE_ORDINAL, PDF_DISCOVERY_MAX_FILES, PDF_DISCOVERY_PROVIDER, PDF_DISCOVERY_SEARCH_USAGE_ORDINAL, isPdfPath, pdfCandidates, pdfDiscoveryDocument, pdfDiscoveryDownloaded, pdfDiscoveryFailed, pdfDiscoveryMaxPages, PDF_DISCOVERY_MAX_PAGES_ENV, pdfDiscoveryUsage, validPdfDiscovery, type PdfCandidate, type PdfDiscoverySource, type PdfDownloadRun, type PdfSearchAttempt } from './pdf-discovery-lane.js';
 import type { Binding as WorldBankBinding } from '../../../../contracts/analysis/world-bank-intake-v1.generated.js';
 import type { PackageRef as WorldBankPackageRef, PrepareReceipt as WorldBankPrepareReceipt, View as WorldBankView, History as WorldBankHistory } from '../../../../contracts/api/research-automation-macro-intake-api.generated.js';
 import { AutomationMetricRuleAdoptions, type MetricRuleBinding } from './metric-rule-adoption.js';
@@ -155,8 +155,8 @@ import { AutomationMarketMethodBridge, MARKET_CAPTURE_READ_BUDGET_BYTES, type Au
 import { AutomationMetricMethodBridge, MetricMethodFailure, metricMethodFailureCode, type AutomationMetricMethodSnapshot, type MetricMethodFailureCode } from './metric-method-bridge.js';
 import { PageIndexCloudClient } from '../pageindex-cloud.js';
 import { estimatePageIndexBalance, estimatePageIndexLedgerBalance } from '../pageindex-balance.js';
-import { extractPageIndexPdf, planPageIndexQuestions, verifyPageIndexQuotes, buildVerifiedQuotesArtifact,
-  PAGEINDEX_ELIGIBLE_SECTIONS, type PageIndexLocalPage, type PageIndexQuotesArtifact, type PageIndexVerifiedQuote } from '../pageindex-questions.js';
+import { extractPageIndexPdf, planPageIndexQuestions, orderRunPdfsForQuestions, verifyPageIndexQuotes, buildVerifiedQuotesArtifact,
+  PAGEINDEX_ELIGIBLE_SECTIONS, type RunPdfOrigin, type PageIndexLocalPage, type PageIndexQuotesArtifact, type PageIndexVerifiedQuote } from '../pageindex-questions.js';
 import type { PageIndexStatusSummary } from './source-status.js';
 import {
   indexRunPdfsForPageIndex,
@@ -320,7 +320,7 @@ export interface PageIndexRunPdfStates {
   readonly usageLimited: boolean;
   readonly documents: readonly PageIndexRunPdfDocument[];
 }
-interface RunPdfRow { sha256: string; fileName: string; packageId: string; manifestSha256: string; logicalPath: string }
+interface RunPdfRow { sha256: string; fileName: string; packageId: string; manifestSha256: string; logicalPath: string; origin: RunPdfOrigin }
 
 /** Best-effort ledger read that never throws; unreadable rows degrade to INDEXING. */
 function safeReadPageIndex(db: Database.Database, sourceSha256: string): {
@@ -413,6 +413,8 @@ export interface ResearchAutomationServiceOptions {
     readonly maxQuestionsPerRun?: number;
     readonly extractPdf?: (bytes: Uint8Array) => Promise<readonly PageIndexLocalPage[]>;
   };
+  /** Page cap for automatically captured PDFs; absent reads TDN_RESEARCH_PDF_DISCOVERY_MAX_PAGES (default 60). Owner uploads are never capped by it. */
+  readonly pdfCaptureMaxPages?: number;
   /** Market auto-runner. Absent or not enabled: no auto-run row is written and nothing changes. */
   readonly autoRun?: ResearchAutomationAutoRunOptions;
 }
@@ -546,6 +548,7 @@ export class ResearchAutomationService {
   readonly #metaAutoSource: MetaAutoSource | undefined;
   readonly #tiktokTopAdsSource: TikTokTopAdsSource | undefined;
   readonly #pdfDiscoverySource: PdfDiscoverySource | undefined;
+  readonly #pdfCaptureMaxPages: number;
   readonly #expandedSource: ExpandedSearchSource | undefined;
   readonly #renderer: ResearchAutomationReportRenderer | undefined;
   readonly #now: () => Date;
@@ -606,6 +609,7 @@ export class ResearchAutomationService {
     this.#metaAutoSource = options.metaAutoSource;
     this.#tiktokTopAdsSource = options.tiktokTopAdsSource;
     this.#pdfDiscoverySource = options.pdfDiscoverySource;
+    this.#pdfCaptureMaxPages = pdfDiscoveryMaxPages(options.pdfCaptureMaxPages === undefined ? process.env : { [PDF_DISCOVERY_MAX_PAGES_ENV]: String(options.pdfCaptureMaxPages) });
     this.#expandedSource = options.expandedSource;
     this.#renderer = options.renderer;
     this.#pageIndex = options.pageIndex;
@@ -1419,7 +1423,21 @@ export class ResearchAutomationService {
 
   #runPdfs(runId: string): RunPdfRow[] {
     return this.#db.prepare(`SELECT source_sha256 sha256, file_name fileName, package_id packageId,
-      manifest_sha256 manifestSha256, logical_path logicalPath FROM analysis_pageindex_run_pdfs WHERE run_id=? ORDER BY source_sha256`).all(runId) as RunPdfRow[];
+      manifest_sha256 manifestSha256, logical_path logicalPath, origin FROM analysis_pageindex_run_pdfs WHERE run_id=? ORDER BY source_sha256`).all(runId) as RunPdfRow[];
+  }
+
+  /** The run's question cap, as `#processRunPdfs` applies it. */
+  #pageIndexQuestionCap(): number {
+    const rawCap = this.#pageIndex?.maxQuestionsPerRun ?? Number(process.env.TDN_PAGEINDEX_MAX_QUESTIONS_PER_RUN ?? 10);
+    return Number.isSafeInteger(rawCap) && rawCap >= 0 ? Math.min(rawCap, 100) : 0;
+  }
+
+  /** Local page count against the captured-PDF cap (free; never a provider call). An unreadable file cannot be read for the report either. */
+  async #capturePageCheck(bytes: Uint8Array): Promise<'OK' | 'PAGE_LIMIT' | 'DOCUMENT_INVALID'> {
+    try {
+      const pages = (await (this.#pageIndex?.extractPdf ?? extractPageIndexPdf)(bytes)).length;
+      return pages > this.#pdfCaptureMaxPages ? 'PAGE_LIMIT' : 'OK';
+    } catch { return 'DOCUMENT_INVALID'; }
   }
 
   /** Explicit PDF attachment: immutable source bytes and a run binding precede indexing. */
@@ -1434,12 +1452,13 @@ export class ResearchAutomationService {
       const prior = this.#runPdfs(runId).find(pdf => pdf.sha256 === sha);
       if (!prior && !['AWAITING_SCOPE', 'DRAFT_READY'].includes(run.status))
         throw new ResearchAutomationConflictError('revision_conflict', 'Đính kèm PDF khi đang chọn phạm vi hoặc đã có bản nháp.');
-      await this.#retainRunPdf(runId, fileName, Buffer.from(bytes));
+      await this.#retainRunPdf(runId, fileName, Buffer.from(bytes), 'UPLOAD');
     });
     return this.pageIndexStatesForRun(workspaceId, runId);
   }
 
-  async #retainRunPdf(runId: string, fileName: string, bytes: Uint8Array): Promise<void> {
+  /** `origin` orders question planning; an owner upload of bytes already captured marks the row UPLOAD (upload wins, never the reverse). */
+  async #retainRunPdf(runId: string, fileName: string, bytes: Uint8Array, origin: RunPdfOrigin): Promise<void> {
     const sha256 = createHash('sha256').update(bytes).digest('hex');
     const source = new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
     const logicalPath = 'source.pdf';
@@ -1447,8 +1466,9 @@ export class ResearchAutomationService {
       sourceAcquiredAt: null, sourceLabel: 'Tài liệu PDF đính kèm', files: [{ path: logicalPath, sha256, byteSize: bytes.length,
         mediaType: 'application/pdf', evidenceFamily: 'run-pdf', representationRole: 'primary', independence: 'independent',
         providerProvenance: 'operator_supplied_unverified', provenanceBasis: 'Exact source bytes attached to this run; content remains unreviewed.' }] }, new Map([[logicalPath, bytes]]));
-    this.#db.prepare(`INSERT INTO analysis_pageindex_run_pdfs(run_id,source_sha256,file_name,package_id,manifest_sha256,logical_path)
-      VALUES (?,?,?,?,?,?) ON CONFLICT(run_id,source_sha256) DO NOTHING`).run(runId, sha256, fileName, receipt.packageId, receipt.manifestArtifactSha256, logicalPath);
+    this.#db.prepare(`INSERT INTO analysis_pageindex_run_pdfs(run_id,source_sha256,file_name,package_id,manifest_sha256,logical_path,origin)
+      VALUES (?,?,?,?,?,?,?) ON CONFLICT(run_id,source_sha256) DO UPDATE SET origin='UPLOAD' WHERE excluded.origin='UPLOAD'`)
+      .run(runId, sha256, fileName, receipt.packageId, receipt.manifestArtifactSha256, logicalPath, origin);
     if (!this.#pageIndexEnabled()) return;
     await indexRunPdfsForPageIndex([{ sha256, fileName, bytes }], this.#pageIndexDeps());
   }
@@ -1525,7 +1545,7 @@ export class ResearchAutomationService {
           bytes: Buffer.from(bytes),
         }));
       if (pdfs.length === 0) return;
-      for (const pdf of pdfs) await this.#retainRunPdf(runId, pdf.fileName, pdf.bytes);
+      for (const pdf of pdfs) await this.#retainRunPdf(runId, pdf.fileName, pdf.bytes, 'UPLOAD');
     } catch {
       // Automatic indexing never breaks intake.
     }
@@ -1664,14 +1684,16 @@ export class ResearchAutomationService {
     if (!this.#pageIndexEnabled()) return;
     const transport = this.#pageIndexTransport();
     if (!transport) return;
-    const files = this.#runPdfs(runId);
+    // Owner uploads are planned first, so automatic PDFs never take the cap from them.
+    const files = orderRunPdfsForQuestions(this.#runPdfs(runId));
     const sections = PAGEINDEX_ELIGIBLE_SECTIONS.filter(id => reports.includes(id.startsWith('M') ? 'MARKET' : 'INSIGHT'));
-    const rawCap = this.#pageIndex?.maxQuestionsPerRun ?? Number(process.env.TDN_PAGEINDEX_MAX_QUESTIONS_PER_RUN ?? 10);
-    const cap = Number.isSafeInteger(rawCap) && rawCap >= 0 ? Math.min(rawCap, 100) : 0;
+    const cap = this.#pageIndexQuestionCap();
     const plan = planPageIndexQuestions({ sections, pdfCount: files.length, maxPerRun: cap });
     const reader = new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts });
     const local = new Map<number, { bytes: Buffer; pages: readonly PageIndexLocalPage[] }>();
     for (const [index, file] of files.entries()) {
+      // A file with no planned question is never sent (or re-sent) for indexing here.
+      if (!plan.some(question => question.pdfIndex === index)) continue;
       try {
         const packageValue = await reader.readVerified(file.packageId, {
           maxFileBytes: 32 * 1024 * 1024,
@@ -3948,7 +3970,8 @@ export class ResearchAutomationService {
       for (const { capture, body } of values) {
         if (retainPdf && stepId === 'COLLECTION' && capture.responseBytes && !aborted &&
           Buffer.from(capture.responseBytes.subarray(0, 5)).toString('utf8') === '%PDF-') {
-          try { await this.#retainRunPdf(runId, `source-${captures.length + 1}.pdf`, capture.responseBytes); }
+          // A provider PDF over the captured-PDF page cap (or unreadable) stays an ordinary capture, never a run PDF to index.
+          try { if (await this.#capturePageCheck(capture.responseBytes) === 'OK') await this.#retainRunPdf(runId, `source-${captures.length + 1}.pdf`, capture.responseBytes, 'CAPTURE'); }
           catch { /* Source retention/indexing failure never invents a citation. */ }
         }
         const artifact = await this.#artifacts.put(body);
@@ -4265,13 +4288,22 @@ export class ResearchAutomationService {
         const source = this.#pdfDiscoverySource;
         const seen = new Set<string>();
         let candidates: PdfCandidate[] = [];
-        try {
+        // The M09 excerpt block shows only stored reader quotes: with the document reader off an automatic PDF adds nothing,
+        // so neither the extra search nor any download is made. With it on, owner uploads planned first may already fill the
+        // question cap: then an automatic PDF could never be asked either. Later uploads stay first by ordering.
+        const readerOff = !this.#pageIndexEnabled();
+        const ownerUploads = readerOff ? 0 : this.#runPdfs(runId).filter(pdf => pdf.origin === 'UPLOAD').length;
+        const sectionCount = PAGEINDEX_ELIGIBLE_SECTIONS.filter(id => sourceStart.reports.includes(id.startsWith('M') ? 'MARKET' : 'INSIGHT')).length;
+        const noQuestionBudget = !readerOff && ownerUploads * sectionCount >= this.#pageIndexQuestionCap();
+        if (!readerOff && !noQuestionBudget) try {
           const runRows = step.sourceEvidence
             ? admitWebResults(step.sourceEvidence, collectionWebRows(step), [...await this.#captureRecords(runId), ...captures.map(c => c.row)], step.sourceEvidence.jevTriage ?? null)
             : [];
           candidates = pdfCandidates(runRows, 'RUN_ROWS', seen);
         } catch { candidates = []; }
-        if (candidates.length >= PDF_DISCOVERY_MAX_FILES) search = { status: 'SKIPPED', reason: 'SEARCH_SKIPPED_ENOUGH', captureIndex: null, retrievedAt: null };
+        if (readerOff) search = { status: 'SKIPPED', reason: 'SKIPPED_READER_OFF', captureIndex: null, retrievedAt: null };
+        else if (noQuestionBudget) search ={ status: 'SKIPPED', reason: 'SKIPPED_NO_QUESTION_BUDGET', captureIndex: null, retrievedAt: null };
+        else if (candidates.length >= PDF_DISCOVERY_MAX_FILES) search = { status: 'SKIPPED', reason: 'SEARCH_SKIPPED_ENOUGH', captureIndex: null, retrievedAt: null };
         else if (!keywordDraft) search = { status: 'SKIPPED', reason: 'SEARCH_NO_ADMISSION', captureIndex: null, retrievedAt: null };
         else {
           let attempt: PdfSearchAttempt;
@@ -4308,6 +4340,14 @@ export class ResearchAutomationService {
               items.push({ candidate: item.candidate, kind: 'FAILED', reason: 'DUPLICATE', requested: true });
               continue;
             }
+            // Page cap before any persistence: an over-cap file is neither stored as a capture nor retained, so it is
+            // never indexed and never cited as a file the report cannot read.
+            const pageCheck = item.kind === 'DOWNLOADED' ? await this.#capturePageCheck(item.bytes) : 'OK';
+            if (pageCheck !== 'OK') {
+              fileIndexes.push(null);
+              items.push({ candidate: item.candidate, kind: 'FAILED', reason: pageCheck, requested: true });
+              continue;
+            }
             if (!fits(envelopes)) {
               fileIndexes.push(null);
               items.push({ candidate: item.candidate, kind: 'FAILED', reason: 'BRIDGE_BUDGET_LIMIT', requested: true });
@@ -4322,7 +4362,7 @@ export class ResearchAutomationService {
               continue;
             }
             if (item.kind === 'DOWNLOADED') {
-              try { await this.#retainRunPdf(runId, `source-${captures.length}.pdf`, item.bytes); }
+              try { await this.#retainRunPdf(runId, `source-${captures.length}.pdf`, item.bytes, 'CAPTURE'); }
               catch {
                 // Indexing may fail after source retention; that follows the upload path's existing reader state.
                 if (!this.#runPdfs(runId).some(pdf => pdf.sha256 === item.sha256)) {

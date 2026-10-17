@@ -8,7 +8,7 @@ import { CaptureLog, type ProviderTransport } from '../../src/modules/analysis/r
 import { planExpandedSearch } from '../../src/modules/analysis/research-automation/expanded-search-queries.js';
 import {
   PDF_DISCOVERY_MAX_BYTES, createPinnedPdfFetch, checkPdfUrl, createPdfDiscoverySource, guardedPdfDownload, isBlockedAddress, isBlockedHost, pdfCandidates,
-  pdfDiscoveryDocument, pdfDiscoveryEnabled, pdfDiscoveryFailed, pdfDiscoveryUsage, validPdfDiscovery, type PdfResolver,
+  pdfDiscoveryDocument, pdfDiscoveryEnabled, pdfDiscoveryFailed, pdfDiscoveryMaxPages, pdfDiscoveryUsage, validPdfDiscovery, type PdfResolver,
 } from '../../src/modules/analysis/research-automation/pdf-discovery-lane.js';
 
 const PDF = (label: string) => Buffer.from(`%PDF-1.4\n% synthetic ${label}\n%%EOF\n`, 'latin1');
@@ -280,4 +280,16 @@ test('response cancellation cannot extend the whole-file deadline', async t => {
     download: async () => new Response(new ReadableStream({ cancel: () => new Promise(() => {}) }), { status: 302, headers: { location: '/next.pdf' } }) });
   assert.equal(outcome.kind, 'FAILED');
   if (outcome.kind === 'FAILED') assert.equal(outcome.reason, 'TIMEOUT');
+});
+
+test('captured-PDF page cap: default 60, integer clamped to 1..1000, anything else gives the default', () => {
+  const cap = (value?: string) => pdfDiscoveryMaxPages(value === undefined ? {} : { TDN_RESEARCH_PDF_DISCOVERY_MAX_PAGES: value });
+  assert.equal(cap(), 60);
+  for (const value of ['', '  ', 'abc', '12.5', '1e3', '0x10', '99999999999999999', 'NaN']) assert.equal(cap(value), 60, value);
+  assert.deepEqual(['1', ' 40 ', '+80', '1000'].map(cap), [1, 40, 80, 1000]);
+  assert.deepEqual(['0', '-5', '1001', '5000000'].map(cap), [1, 1, 1000, 1000]);
+  assert.equal(validPdfDiscovery({ search: { status: 'SKIPPED', reason: 'SKIPPED_NO_QUESTION_BUDGET', captureIndex: null, retrievedAt: null }, files: [], reason: 'SKIPPED_NO_QUESTION_BUDGET' }), true);
+  assert.equal(validPdfDiscovery({ search: { status: 'SKIPPED', reason: 'SKIPPED_READER_OFF', captureIndex: null, retrievedAt: null }, files: [], reason: 'SKIPPED_READER_OFF' }), true);
+  assert.equal(validPdfDiscovery({ search: { status: 'SKIPPED', reason: 'SEARCH_SKIPPED_ENOUGH', captureIndex: null, retrievedAt: null }, files: [{ origin: 'RUN_ROWS', url: 'https://bao-cao.example/a.pdf',
+    status: 'FAILED', reason: 'PAGE_LIMIT', captureIndex: null, retrievedAt: null, sourceSha256: null, byteSize: null }], reason: 'PAGE_LIMIT' }), true);
 });

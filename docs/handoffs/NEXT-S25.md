@@ -18,13 +18,21 @@ Failures record a reason code only; they never fail the run and never draw an em
 
 ## Flag
 
-`TDN_RESEARCH_PDF_DISCOVERY_ENABLED=1` (exactly `1`; anything else is off). It also needs the search key that the web lane already uses. Off: no call, no field, no capture, no usage row; Market and Insight HTML are byte-identical to base `e009d9ee`.
+`TDN_RESEARCH_PDF_DISCOVERY_ENABLED=1` (exactly `1`; anything else is off). It also needs the search key that the web lane already uses and, since S25b, the document reader enabled (otherwise `SKIPPED_READER_OFF`). Off: no call, no field, no capture, no usage row; Market and Insight HTML are byte-identical to base `e009d9ee`.
 
 ## Per-run maximum
 
 - Searches: 1 paid search (usage ordinal 14, provider `serpapi`), only when run rows give fewer than 2 PDFs.
 - Downloads: 2 public-file GETs (usage ordinal 15, provider `pdf-discovery`, no credit).
 - Document reading: at most 2 extra PDFs per run go to the existing reader, inside its existing per-run question cap.
+
+## Page cap and question budget (S25b)
+
+- `TDN_RESEARCH_PDF_DISCOVERY_MAX_PAGES`: page cap for captured PDFs only, default `60`, a safe integer clamped to 1..1000; anything else gives the default. Pages are counted locally (python3 `pypdf`, no reader call) before the file is stored. An over-cap S25 file is recorded as `FAILED` / `PAGE_LIMIT` and is not stored as a capture, not retained as a run PDF and not indexed; it still counts as one of the 2 download attempts and is not replaced by another candidate. A file whose pages cannot be counted is `FAILED` / `DOCUMENT_INVALID`. The generic capture→run-PDF path applies the same cap (the capture is kept, the run PDF is not). Owner uploads (`attachRunPdf`, package import) are never page-capped.
+- Question order: owner uploads first, then automatic captures, each group by `source_sha256`. Origin lives in `analysis_pageindex_run_pdfs.origin` (`UPLOAD` | `CAPTURE`, migration `0057`; older rows default to `UPLOAD`; an owner upload of bytes already captured turns the row into `UPLOAD`). Files left without a planned question are not indexed.
+- When the document reader is enabled and owner uploads × eligible Market sections ≥ the per-run question cap, S25 skips the extra search and all downloads: `pdfDiscovery.search.reason` and `pdfDiscovery.reason` are `SKIPPED_NO_QUESTION_BUDGET`, no usage rows 14/15.
+- When the document reader is disabled (`#pageIndexEnabled()` false: no injected config and `TDN_PAGEINDEX_CLOUD_ENABLED` not `true`), S25 skips the extra search and all downloads before any call: reason `SKIPPED_READER_OFF`, no usage rows 14/15. The M09 excerpt block shows only stored reader quotes, so an automatic PDF could add nothing then. Owner uploads are unaffected.
+- New reason codes: `PAGE_LIMIT`, `SKIPPED_NO_QUESTION_BUDGET`, `SKIPPED_READER_OFF`.
 
 ## First canary check
 
