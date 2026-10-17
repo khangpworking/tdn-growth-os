@@ -47,7 +47,7 @@ E14 của file Ultimate nói về "nguồn đang dùng hoặc đã duyệt". Ở
 | S12 | Dữ liệu của chính shop chủ | Không thu | 08/10/2026 | Chưa có dữ liệu |
 | S13 | Công thức, bài hướng dẫn dùng sản phẩm | Đề xuất | 08/10/2026 | Tìm qua S19 |
 | S14 | Nội dung video bán hàng | Chạy thử | 08/10/2026 | Gói P9, đã có checklist |
-| S15 | Thư viện quảng cáo Meta | Đã duyệt | 12/10/2026 | Chủ duyệt 12/10; chỉ đọc theo trang |
+| S15 | Thư viện quảng cáo Meta | Đã duyệt | 17/10/2026 | Chủ duyệt 12/10; chỉ đọc theo trang; máy tự đọc trang công khai sau cờ TDN_RESEARCH_META_AUTO_ENABLED (mặc định tắt), cách đọc chưa được kiểm chứng trên trang thật |
 | S16 | Quảng cáo nổi bật trên TikTok | Không thu | 08/10/2026 | Test không đạt, không trả quảng cáo nào |
 | S17 | Thư viện quảng cáo công khai của công cụ tìm kiếm | Đã duyệt | 17/10/2026 | Chủ duyệt 17/10; chỉ đếm quảng cáo theo trang web của tối đa 3 thương hiệu đầu (cờ TDN_RESEARCH_GOOGLE_ADS_ENABLED); chưa dùng cho phép kiểm 3 của E5 |
 | S18 | Trang thương hiệu Facebook | Đề xuất | 08/10/2026 | — |
@@ -71,6 +71,7 @@ Dòng trước 12/10/2026 ghi lại từ danh mục nguồn, nhật ký test và
 
 | Ngày | Mã nguồn | Nhãn cũ → nhãn mới | Lý do | Ai quyết |
 |---|---|---|---|---|
+| 17/10/2026 | S15 | Đã duyệt → Đã duyệt | Thêm bộ máy tự đọc trang công khai cho báo cáo Market (Bảng 7.2), sau cờ TDN_RESEARCH_META_AUTO_ENABLED, mặc định tắt; tải trang chủ gửi vẫn dùng được; nhãn không đổi | Chủ (duyệt 12/10, 17/10) |
 | 17/10/2026 | S21 | Đã duyệt → Đã duyệt | Thêm bộ thu tự động cho báo cáo Market, sau cờ TDN_RESEARCH_OFFICIAL_STATS_ENABLED, mặc định tắt; nhãn không đổi | Chủ (duyệt 12/10) |
 | 12/10/2026 | Mọi nguồn | Nhiều cách ghi → 5 nhãn | Lập trang này; nhãn chỉ để đọc, không bật tắt gì trong code (DS-20261012-03) | Chủ |
 | 12/10/2026 | S22 | Đã test ("đã kiểm 08/10") → Đã duyệt | Chủ duyệt (BR-20261012-01) | Chủ |

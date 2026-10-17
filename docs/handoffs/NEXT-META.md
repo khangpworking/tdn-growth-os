@@ -198,3 +198,25 @@ PR195 normal FF/body publication grant. Distinct final-head review, complete
 current hosted fullCI/readiness and normal coordinator merge remain gates;
 no runtime OpenCLI/DOM/U21/statistics/fullU23/Ultimate closure is claimed.
 U11/U26/U32/U40 remain unresolved.
+
+## 8B: automatic read (17/10/2026)
+
+The runtime now exists. Branch `wp/meta-auto-209` adds `src/modules/analysis/research-automation/meta-auto-lane.ts` behind
+`TDN_RESEARCH_META_AUTO_ENABLED=1` (default off; off is byte-identical). At COLLECTION it reads the public Meta ad library for
+the top 2 distinct brands by revenue of the auto-run pick (the search-ads lane's input): search page, then the one matching page, at most 5 opens per run, at least 30 s apart,
+session `tdnmeta`, `--window background` on every call, never a login, typed text or click. A login wall, checkpoint, captcha
+or block stops the lane; a logged-in browser stops it and keeps nothing. The lane shares the OpenCLI browser lock with the Metric
+capture. Kept texts become a finalized evidence package `automation-meta-auto:<runId>-...`; Market table 7.2 prints AUTO rows
+next to the 8A OWNER rows; usage ordinal 12, provider `meta-ad-library`, open count only, no cost. The S15 card is
+FREE_COLLECT and READY when the flag is on; MANUAL_IMPORT (8A uploads) keeps working.
+
+The reading profile `meta-ad-library-visible-text-v1` is UNWITNESSED: its markers, labels and date pattern are written from
+synthetic fixtures only. It fails closed (unknown layout = UI_CHANGED, evidence kept, plain row). The first canary run is the
+witness; compare its kept texts with the profile before trusting the counts. The 8A POLICY literal
+`runtime: 'UNAVAILABLE_OPENCLI_CONTRACT_MISSING'` in meta-page-intake is left unchanged on purpose because it is hashed into
+retained 8A packages.
+
+Brand input: COLLECTION runs before the first Market pair, and E11 peers are computed only at REPORTS, so the lane cannot use
+them. It takes the pick brands, as the search-ads lane does; without a pick record it records `NO_BRANDS` and makes no browser
+call. These AUTO rows are not the 8A peer binding: a page is matched to a brand by exact name only and is not verified as the
+brand's own page, which table 7.2 says. No live witness exists yet.

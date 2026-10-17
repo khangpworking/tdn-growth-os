@@ -299,6 +299,60 @@ export interface StepOfficialStats {
   readonly values: readonly StepOfficialStatsValue[];
 }
 
+/** Automatic Meta ad-library reading (S15, AUTO origin). Spans are UTF-8 byte offsets into the retained read text. */
+export type StepMetaAutoStatus = 'OK' | 'NO_DATA' | 'NO_BRANDS' | 'STOPPED' | 'FAILED' | 'CANCELLED';
+export type StepMetaAutoStop = 'CAPTCHA' | 'LOGIN_REQUIRED' | 'BLOCKED' | 'UI_CHANGED' | 'LOGGED_IN_SESSION_PRESENT';
+export type StepMetaAutoBrandStatus = 'OK' | 'PAGE_NOT_FOUND' | 'PAGE_AMBIGUOUS' | 'UI_CHANGED' | 'READ_FAILED' | 'STOPPED' | 'NOT_READ' | 'CANCELLED';
+export interface StepMetaAutoSpan { readonly start: number; readonly end: number }
+export interface StepMetaAutoAd {
+  readonly libraryId: string;
+  readonly idSpan: StepMetaAutoSpan;
+  readonly status: 'ACTIVE' | 'INACTIVE' | 'UNKNOWN';
+  readonly statusSpan: StepMetaAutoSpan | null;
+  /** YYYY-MM-DD; null when the start label or its date could not be read (never guessed). */
+  readonly startedOn: string | null;
+  readonly startSpan: StepMetaAutoSpan | null;
+}
+export interface StepMetaAutoRead {
+  readonly kind: 'SEARCH' | 'PAGE';
+  readonly brandIndex: number;
+  readonly requestedUrl: string;
+  readonly finalUrl: string | null;
+  readonly outcome: 'READ' | 'UI_CHANGED' | 'STOPPED' | 'FAILED' | 'CANCELLED';
+  readonly stop: StepMetaAutoStop | null;
+  /** False when nothing of this read was kept (a logged-in browser, or a failed command). */
+  readonly retained: boolean;
+  readonly textSha256: string | null;
+  readonly textBytes: number | null;
+  readonly readAt: string;
+}
+export interface StepMetaAutoBrand {
+  readonly label: string;
+  readonly key: string;
+  readonly status: StepMetaAutoBrandStatus;
+  /** Chosen by an exact normalized name match on the keyword-search page; not ownership-verified. */
+  readonly pageId: string | null;
+  readonly searchRead: number | null;
+  readonly pageRead: number | null;
+  /** The page's own "~n results" wording, kept as a literal only. */
+  readonly resultCount: string | null;
+  readonly resultCountSpan: StepMetaAutoSpan | null;
+  /** Library ids seen more than once with conflicting fields; refused and not counted. */
+  readonly refusedIds: number;
+  readonly ads: readonly StepMetaAutoAd[];
+}
+export interface StepMetaAuto {
+  readonly profile: 'meta-ad-library-visible-text-v1';
+  readonly status: StepMetaAutoStatus;
+  readonly stop: StepMetaAutoStop | null;
+  readonly reasonVi: string | null;
+  /** Page opens issued (keyword search and page opens together). */
+  readonly opens: number;
+  readonly evidence: { readonly packageId: string; readonly manifestArtifactSha256: string; readonly packageContentSha256: string } | null;
+  readonly reads: readonly StepMetaAutoRead[];
+  readonly brands: readonly StepMetaAutoBrand[];
+}
+
 /** One considered public TikTok video of the video-watch lane, pinned at collection time. */
 export interface StepVideoWatchCandidate { readonly videoId: string; readonly url: string; readonly origin: 'SELECTION' | 'EXPANDED_SEARCH' }
 export type StepVideoWatchReason = 'OVER_10_VIDEOS' | 'DOWNLOAD_FAILED' | 'VIDEO_TOO_LONG' | 'VIDEO_TOO_LARGE' | 'NOT_A_VIDEO'
@@ -349,6 +403,8 @@ export interface StepResultDocument {
   readonly searchAds?: StepSearchAds;
   /** Cục Thống kê monthly figures for the product's category group; absent unless the official-statistics lane was on for the run. */
   readonly officialStats?: StepOfficialStats;
+  /** Automatic Meta ad-library reading of the selected brands; absent unless the Meta auto lane was on for the run. */
+  readonly metaAuto?: StepMetaAuto;
   /** Automated seller-video speech readings; absent unless the video-watch lane was on for the run. */
   readonly videoWatch?: StepVideoWatch;
   /** Sanitized Foundation3 reference; mutually exclusive with raw/native review. */

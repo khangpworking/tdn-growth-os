@@ -103,6 +103,7 @@ import { brandsFromPick, GOOGLE_ADS_PROFILE, GOOGLE_ADS_USAGE_ORDINAL, searchAds
 import { worldBankDocument, worldBankFailed, worldBankRenderable, worldBankUsage, WORLD_BANK_PROVIDER, WORLD_BANK_USAGE_ORDINAL, type WorldBankAttempt, type WorldBankSource } from './world-bank-lane.js';
 import { publishAutomatedVideoReading, verifyAutomatedVideoReading, videoWatchCandidates, videoWatchDocument, videoWatchFailed, videoWatchReadingRefs, videoWatchUsage, VIDEO_WATCH_MAX_VIDEOS, VIDEO_WATCH_PROFILE, VIDEO_WATCH_USAGE_ORDINAL, type VideoWatchAttempt, type VideoWatchLane, type VideoWatchPlan } from './video-watch-lane.js';
 import { VIDEO_WATCH_PROVIDER } from './video-watch-gemini.js';
+import { META_AUTO_PROVIDER, META_AUTO_USAGE_ORDINAL, metaBrandsFromPick, metaAutoDocument, metaAutoFailed, metaAutoHasEvidence, metaAutoReportView, metaAutoUsage, publishMetaAutoEvidence, validMetaAuto, verifyMetaAutoEvidence, type MetaAutoCollection, type MetaAutoReportView, type MetaAutoSource } from './meta-auto-lane.js';
 import type { Binding as WorldBankBinding } from '../../../../contracts/analysis/world-bank-intake-v1.generated.js';
 import type { PackageRef as WorldBankPackageRef, PrepareReceipt as WorldBankPrepareReceipt, View as WorldBankView, History as WorldBankHistory } from '../../../../contracts/api/research-automation-macro-intake-api.generated.js';
 import { AutomationMetricRuleAdoptions, type MetricRuleBinding } from './metric-rule-adoption.js';
@@ -367,6 +368,8 @@ export interface ResearchAutomationServiceOptions {
   readonly officialStatsSource?: OfficialStatsSource;
   /** Automated seller-video watching (S14); only set when its flag is exactly "1". */
   readonly videoWatch?: VideoWatchLane;
+  /** Meta ad library auto-read (S15 AUTO); only set when its flag is exactly "1". */
+  readonly metaAutoSource?: MetaAutoSource;
   /** Optional extra searches (dated and per-marketplace), at most three paid requests per collection; absent keeps every stored byte. */
   readonly expandedSource?: ExpandedSearchSource;
   readonly renderer?: ResearchAutomationReportRenderer;
@@ -470,6 +473,7 @@ type WorldBankRun = { readonly attempts: readonly WorldBankAttempt[] } | { reado
 type ComtradeRun = { readonly collection: ComtradeCollection } | { readonly thrown: true };
 type SearchAdsRun = { readonly collection: SearchAdsCollection } | { readonly thrown: true };
 type OfficialStatsRun = { readonly collection: OfficialStatsCollection } | { readonly thrown: true };
+type MetaAutoRun = { readonly collection: MetaAutoCollection } | { readonly thrown: true };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const REQUEST_KEY = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -526,6 +530,7 @@ export class ResearchAutomationService {
   readonly #searchAdsSource: SearchAdsSource | undefined;
   readonly #officialStatsSource: OfficialStatsSource | undefined;
   readonly #videoWatch: VideoWatchLane | undefined;
+  readonly #metaAutoSource: MetaAutoSource | undefined;
   readonly #expandedSource: ExpandedSearchSource | undefined;
   readonly #renderer: ResearchAutomationReportRenderer | undefined;
   readonly #now: () => Date;
@@ -583,6 +588,7 @@ export class ResearchAutomationService {
     this.#searchAdsSource = options.searchAdsSource;
     this.#officialStatsSource = options.officialStatsSource;
     this.#videoWatch = options.videoWatch;
+    this.#metaAutoSource = options.metaAutoSource;
     this.#expandedSource = options.expandedSource;
     this.#renderer = options.renderer;
     this.#pageIndex = options.pageIndex;
@@ -1851,7 +1857,7 @@ export class ResearchAutomationService {
           ({ position, title, url, snippet, retrievedAt, site: site ?? null, published: published ?? null, ...(origin ? { origin } : {}) })),
         ...(searchInterestRenderable(searchInterest) ? { searchInterest } : {}),
         ...(worldBankRenderable(webCollection?.worldBank) ? { worldBank: webCollection.worldBank } : {}), ...(webCollection?.comtrade ? { comtrade: webCollection.comtrade } : {}), ...(webCollection?.searchAds ? { searchAds: webCollection.searchAds } : {}), ...(webCollection?.officialStats ? { officialStats: webCollection.officialStats } : {}), ...(storedPdfExcerpts(marketSemantic).length ? { pdfExcerpts: storedPdfExcerpts(marketSemantic) } : {}), ...(storedSellerVideos(marketSemantic) ? { sellerVideos: storedSellerVideos(marketSemantic)! } : {}),
-        ...(metaAds.length ? { metaAds } : {}),
+        ...(metaAds.length ? { metaAds } : {}), ...await this.#metaAutoContext(webCollection, runId),
         metric: { packageId, capture: { snapshot: verifiedCapture.snapshot, snapshotSha256: rawSnapshotSha256, truncation: preparedCapture.capture.truncation }, measurementPeriod: preparedCapture.capture.measurementPeriod } };
     }
     if (!prepared) throw new ResearchAutomationValidationError('Tệp danh sách sản phẩm này không thuộc lượt research.');
@@ -1866,8 +1872,18 @@ export class ResearchAutomationService {
         ({ position, title, url, snippet, retrievedAt, site: site ?? null, published: published ?? null, ...(origin ? { origin } : {}) })),
       ...(searchInterestRenderable(searchInterest) ? { searchInterest } : {}),
         ...(worldBankRenderable(webCollection?.worldBank) ? { worldBank: webCollection.worldBank } : {}), ...(webCollection?.comtrade ? { comtrade: webCollection.comtrade } : {}), ...(webCollection?.searchAds ? { searchAds: webCollection.searchAds } : {}), ...(webCollection?.officialStats ? { officialStats: webCollection.officialStats } : {}), ...(storedPdfExcerpts(marketSemantic).length ? { pdfExcerpts: storedPdfExcerpts(marketSemantic) } : {}), ...(storedSellerVideos(marketSemantic) ? { sellerVideos: storedSellerVideos(marketSemantic)! } : {}),
-      ...(metaAds.length ? { metaAds } : {}),
+      ...(metaAds.length ? { metaAds } : {}), ...await this.#metaAutoContext(webCollection, runId),
       metric: { packageId, workbook: workbook.bytes, measurementPeriod: prepared.request.measurementPeriod } };
+  }
+
+  /** The automatic Meta ad library read for M07 7.2, re-verified from its stored evidence; unverified figures become plain rows. */
+  async #metaAutoContext(collection: StepResultDocument | null, runId: string): Promise<{ metaAuto?: MetaAutoReportView }> {
+    const doc = collection?.metaAuto;
+    if (!doc) return {};
+    const reader = new FoundationSourcePackageReader(new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts }));
+    const verified = doc.evidence ? await verifyMetaAutoEvidence(reader, doc, runId) : false;
+    const view = metaAutoReportView(doc, verified);
+    return view ? { metaAuto: view } : {};
   }
 
   async listPreparedSupplementalSources(workspaceId: string, runId: string): Promise<ResearchAutomationSupplementalPreparedList> {
@@ -2088,6 +2104,10 @@ export class ResearchAutomationService {
       JOIN analysis_research_automation_runs r ON r.run_id=u.run_id
       WHERE r.workspace_id=? AND u.step_id='COLLECTION' AND u.ordinal=? AND u.provider='serpapi' AND u.request_count>0`).get(workspaceId, GOOGLE_ADS_USAGE_ORDINAL) as { lastAt: string | null };
     activity['search-ads-library'].lastUsageAt = searchAdsUsageAt.lastAt;
+    const metaAutoUsageAt = this.#db.prepare(`SELECT MAX(u.recorded_at) lastAt FROM analysis_research_automation_usage u
+      JOIN analysis_research_automation_runs r ON r.run_id=u.run_id
+      WHERE r.workspace_id=? AND u.step_id='COLLECTION' AND u.provider='meta-ad-library'`).get(workspaceId) as { lastAt: string | null };
+    activity['meta-ad-library'].lastUsageAt = metaAutoUsageAt.lastAt;
     // Metric workbooks are owner uploads stored as finalized attachment packages keyed `automation-upload:<runId>-…`.
     const metric = this.#db.prepare(`SELECT MAX(p.finalized_at) lastAt,COUNT(*) total FROM foundation_source_packages p
       JOIN foundation_source_attachment_origins o ON o.package_id=p.package_id
@@ -3305,13 +3325,15 @@ export class ResearchAutomationService {
       }
       // Search-ads library comes last: at most three paid calls, never repeated after a restart. Brands come only from the auto-run pick record.
       let searchAds: SearchAdsRun | undefined;
-      if (stepId === 'COLLECTION' && this.#searchAdsSource && !controller.signal.aborted) {
-        const { requestedPeriod } = input as CollectInput;
-        let brands: ReturnType<typeof brandsFromPick> = [];
+      const readPick = async (): Promise<unknown> => {
         try {
           const pickId = this.#hasAutorunTable() ? this.#autorunRow(row.runId)?.pickArtifactId : null;
-          if (pickId) brands = brandsFromPick(await this.#readJson<unknown>(pickId, MAX_JSON_ARTIFACT_BYTES, 'application/json'));
-        } catch { brands = []; }
+          return pickId ? await this.#readJson<unknown>(pickId, MAX_JSON_ARTIFACT_BYTES, 'application/json') : null;
+        } catch { return null; }
+      };
+      if (stepId === 'COLLECTION' && this.#searchAdsSource && !controller.signal.aborted) {
+        const { requestedPeriod } = input as CollectInput;
+        const brands = brandsFromPick(await readPick());
         const webUrls = web && 'bound' in web ? (web.bound.step.webResults ?? []).map(item => item.url) : [];
         try { searchAds = { collection: await this.#searchAdsSource.collect({ brands, webUrls, periodStartDate: requestedPeriod.startDate, periodEndDate: requestedPeriod.endDate }, { signal: controller.signal }) }; }
         catch { searchAds = { thrown: true }; }
@@ -3323,8 +3345,18 @@ export class ResearchAutomationService {
         try { officialStats = { collection: await this.#officialStatsSource.collect({ keyword, description: start.description ?? null, mode: start.mode }, { signal: controller.signal }) }; }
         catch { officialStats = { thrown: true }; }
       }
+      // Meta ad library auto-read comes after the paid lanes: at most five logged-out page opens for the top two pick brands
+      // (the search-ads input; E11 peers exist only after REPORTS), never repeated after a restart. It shares the one browser-CLI lock with the Metric capture.
+      let metaAuto: MetaAutoRun | undefined;
+      if (stepId === 'COLLECTION' && this.#metaAutoSource && !controller.signal.aborted) {
+        try {
+          const brands = metaBrandsFromPick(await readPick());
+          metaAuto = { collection: await this.#metaAutoSource.collect({ brands }, { signal: controller.signal }) };
+        }
+        catch { metaAuto = { thrown: true }; }
+      }
       try {
-        await this.#persistSourceResult(row.runId, stepId, result, controller.signal.aborted, exact, web, controller.signal, trends, expanded, worldBank, comtrade, searchAds, officialStats);
+        await this.#persistSourceResult(row.runId, stepId, result, controller.signal.aborted, exact, web, controller.signal, trends, expanded, worldBank, comtrade, searchAds, officialStats, metaAuto);
       } catch (error) {
         if (!(error instanceof ResearchAutomationProviderOutputError)) throw error;
         await this.#settleSourceFailure(row.runId, stepId, 'PROVIDER_OUTPUT_INVALID', 'FAILED');
@@ -3853,7 +3885,7 @@ export class ResearchAutomationService {
     }
   }
 
-  async #persistSourceResult(runId: string, stepId: SourceStepId, bound: PersistableSourceResult, aborted: boolean, exact?: ExactShopeeAttempt, web?: WebSearchAttempt, signal?: AbortSignal, trends?: TrendsAttempt, expanded?: ExpandedAttempts, worldBank?: WorldBankRun, comtrade?: ComtradeRun, searchAds?: SearchAdsRun, officialStats?: OfficialStatsRun): Promise<void> {
+  async #persistSourceResult(runId: string, stepId: SourceStepId, bound: PersistableSourceResult, aborted: boolean, exact?: ExactShopeeAttempt, web?: WebSearchAttempt, signal?: AbortSignal, trends?: TrendsAttempt, expanded?: ExpandedAttempts, worldBank?: WorldBankRun, comtrade?: ComtradeRun, searchAds?: SearchAdsRun, officialStats?: OfficialStatsRun, metaAuto?: MetaAutoRun): Promise<void> {
     const result = bound.result;
     let step = bound.step;
     const nativeCoverage = bound.step.coverage.filter(value => value.provider === 'apify-dami');
@@ -4088,6 +4120,27 @@ export class ResearchAutomationService {
         step = probe;
       } catch { step = { ...step, videoWatch: videoWatchFailed(plan, 'DOCUMENT_INVALID') }; }
     }
+    // Meta ad library auto-read: retained reads (final URL, capped text, fingerprint; never raw HTML) go into one Foundation
+    // attachment bound to this run. Without stored evidence the document keeps no figures.
+    const metaAutoCollection = metaAuto && 'collection' in metaAuto ? metaAuto.collection : undefined;
+    if (metaAuto) {
+      let document = metaAutoCollection ? metaAutoDocument(metaAutoCollection, null) : metaAutoFailed('FAILED');
+      if (metaAutoCollection && metaAutoHasEvidence(metaAutoCollection)) {
+        try {
+          const writer = new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
+          document = await withDatabaseMutationMutex(this.#db, async () => {
+            const current = this.#current(runId);
+            if (!current || ['FAILED', 'CANCELLING', 'CANCELLED', 'INTERRUPTED'].includes(current.status)) throw new ResearchAutomationStateError('This run cannot publish a Meta ad library read.');
+            return publishMetaAutoEvidence(writer, runId, metaAutoCollection);
+          });
+        } catch { /* keeps the evidence-free document */ }
+      }
+      const probe = { ...step, metaAuto: document };
+      try {
+        assertStepDocument(probe, runId, stepId);
+        step = probe;
+      } catch { step = { ...step, metaAuto: metaAutoFailed('FAILED', metaAutoCollection?.opens ?? 0) }; }
+    }
     const rowForSources = this.#current(runId)!;
     const sourceStart = await this.#readStartSnapshot(rowForSources.startSha, rowForSources.workspaceId);
     let cancelledSourceEvidence: (() => AutomationSourceEvidence) | undefined;
@@ -4172,6 +4225,9 @@ export class ResearchAutomationService {
         if (videoWatchAttempts?.some(item => item.requests > 0)) this.#persistUsage(runId, stepId, videoWatchUsage(videoWatchAttempts), now, VIDEO_WATCH_USAGE_ORDINAL);
         else if (videoWatchThrown) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
           .run(runId, stepId, VIDEO_WATCH_USAGE_ORDINAL, VIDEO_WATCH_PROVIDER.toLowerCase(), now);
+        if (metaAutoCollection && metaAutoCollection.opens > 0) this.#persistUsage(runId, stepId, metaAutoUsage(metaAutoCollection.opens), now, META_AUTO_USAGE_ORDINAL);
+        else if (metaAuto && 'thrown' in metaAuto) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
+          .run(runId, stepId, META_AUTO_USAGE_ORDINAL, META_AUTO_PROVIDER.toLowerCase(), now);
         if (exact) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,1,'apify-shopee','reviews',?,?,?,?,?)`)
           .run(runId, stepId, exact.requestsIssued, exact.costUsd === null ? 'UNKNOWN' : 'KNOWN', exact.costUsd === null ? null : 'USD', exact.costUsd, now);
         const current = this.#current(runId);
@@ -5526,6 +5582,8 @@ function assertStepDocument(value: unknown, runId: string, stepId: StepId): asse
     throw new ResearchAutomationIntegrityError('Stored official statistics context is invalid.');
   if (value.videoWatch !== undefined && (stepId !== 'COLLECTION' || !validVideoWatch(value.videoWatch)))
     throw new ResearchAutomationIntegrityError('Stored video readings are invalid.');
+  if (value.metaAuto !== undefined && (stepId !== 'COLLECTION' || !validMetaAuto(value.metaAuto)))
+    throw new ResearchAutomationIntegrityError('Stored Meta ad library read is invalid.');
   if (value.sourceEvidence !== undefined) checkSourceEvidence(value.sourceEvidence);
   for (const comparable of value.comparables) {
     if (!isRecord(comparable) || typeof comparable.productId !== 'string' || typeof comparable.provider !== 'string' || (comparable.metric !== 'GMV_VND' && comparable.metric !== 'UNITS_SOLD') ||

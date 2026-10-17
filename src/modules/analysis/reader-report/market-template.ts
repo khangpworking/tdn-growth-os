@@ -5,6 +5,7 @@
 import type { PdfExcerpt } from '../research-automation/pdf-excerpt.js';
 import type { SellerVideos } from '../research-automation/seller-video.js';
 import type { MetaAdPage } from '../research-automation/meta-ad-report.js';
+import type { MetaAutoReportView } from '../research-automation/meta-auto-lane.js';
 import type { ReaderPlatform, ReaderReportData } from './build.js';
 import { currentProposals } from './market-proposals.js';
 import { buildMarketReportV2 } from './market-template-v2.js';
@@ -66,6 +67,8 @@ export type MarketReportOptions = {
   sellerVideos?: SellerVideos;
   /** The run's confirmed Meta ad-library pages (S15); drawn as one table in the competitor section of new builds. */
   metaAds?: readonly MetaAdPage[];
+  /** The app's own verified Meta ad library read (S15 AUTO); extra rows in the same table, new builds only. */
+  metaAuto?: MetaAutoReportView;
 };
 /** site and published are the page name and date as the search engine shows them; older runs have neither. */
 export type ReaderWebResult = { position: number; title: string; url: string; snippet: string | null; retrievedAt: string; site?: string | null; published?: string | null; origin?: ExpandedSearchKind };

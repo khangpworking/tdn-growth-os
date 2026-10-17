@@ -77,15 +77,19 @@ const FORBIDDEN_NAME = /\bgemini\b/iu;
 /** Brand text may be printed; refuse control characters, percent signs and provider names. */
 export const brandLabelOk = (value: unknown): value is string => typeof value === 'string' && value.trim() === value && value.length >= 1 && value.length <= 120 && !CONTROL.test(value) && !value.includes('%') && !FORBIDDEN_NAME.test(value) && !webTextHidden(value);
 
-/** The top distinct brands of an auto-run pick record, by revenue (a missing revenue sorts last); empty when the record has no usable brand. */
-export function brandsFromPick(pick: unknown): SearchAdsBrandInput[] {
+/**
+ * Top distinct pick brands by revenue; empty when none is usable. The default preserves search-ads ranking.
+ * Meta requests missingRevenueLast so missing values sort below every finite revenue.
+ */
+export function brandsFromPick(pick: unknown, options: { readonly missingRevenueLast?: boolean } = {}): SearchAdsBrandInput[] {
   if (!isRecord(pick) || !Array.isArray(pick.links)) return [];
   const rows: { label: string; key: string; revenue: number; order: number }[] = [];
   pick.links.forEach((link, order) => {
     if (!isRecord(link) || typeof link.brand !== 'string') return;
     const label = link.brand.normalize('NFC').trim();
     const key = brandLabelOk(label) ? normalizedKey(label) : null;
-    if (key) rows.push({ label, key, revenue: typeof link.revenue === 'number' && Number.isFinite(link.revenue) ? link.revenue : -1, order });
+    // Keep the search-ads lane's existing ranking; Meta explicitly puts missing values below every finite revenue.
+    if (key) rows.push({ label, key, revenue: typeof link.revenue === 'number' && Number.isFinite(link.revenue) ? link.revenue : options.missingRevenueLast ? Number.NEGATIVE_INFINITY : -1, order });
   });
   rows.sort((a, b) => b.revenue - a.revenue || a.order - b.order);
   const seen = new Set<string>(), out: SearchAdsBrandInput[] = [];
