@@ -16,6 +16,7 @@ import { SourcePackageService } from '../../src/modules/foundation/source-packag
 import type { MetricOpenCliProcessRunner } from '../../src/modules/analysis/research-automation/metric-opencli-executor.js';
 import { SYNTHETIC_CARD_ID, syntheticProductSource } from '../helpers/research-synthetic-sources.js';
 import { providerNameViolations, reportVisibleText, visibleTextViolations } from '../helpers/report-visible-text.js';
+import { fixture as autorunFixture, startRun as startAutorun, driveUntil, now as autorunNow } from '../helpers/autorun-harness.js';
 
 // Synthetic pages only. The fake runner never starts a process and nothing leaves the machine.
 const workspaceId = '11111111-1111-4111-8111-111111111111';
@@ -97,6 +98,57 @@ test('without an auto-run pick record COLLECTION has no brands: NO_BRANDS and no
   assert.deepEqual(on.document.metaAuto?.brands, []);
   assert.equal(on.calls.length, 0);
   assert.equal(on.usage.some(([ordinal]) => ordinal === 12), false);
+});
+
+for (const readError of [false, true]) test(`COLLECTION reads the actual pick once per lane${readError ? ', with read errors yielding NO_BRANDS' : ' and keeps search-ads input unchanged'}`, async t => {
+  const fixture = await autorunFixture(t);
+  const autoRunId = await startAutorun(fixture.service);
+  await driveUntil(fixture.service, () => (fixture.db.prepare('SELECT status FROM analysis_research_automation_runs WHERE run_id=?').get(autoRunId) as { status: string }).status === 'COLLECTION_QUEUED');
+  const pick = fixture.db.prepare('SELECT pick_artifact_id sha FROM research_automation_autorun WHERE run_id=?').get(autoRunId) as { sha: string };
+  let reads = 0, searchCalls = 0, metaCalls = 0;
+  const inputs: Array<readonly { label: string; key: string }[]> = [], readsAtCall: number[] = [];
+  const artifacts = new class extends ContentAddressedArtifactStore {
+    override async read(...args: Parameters<ContentAddressedArtifactStore['read']>): Promise<Buffer> {
+      if (args[0] === pick.sha) {
+        reads++;
+        if (readError) throw new Error('Synthetic pick read failure');
+      }
+      return super.read(...args);
+    }
+  }(fixture.artifactRoot);
+  const discovery = new DiscoveryWorkspaceService({ db: fixture.db, artifactStore: artifacts });
+  const calls: string[][] = [];
+  const lane = fakeLane(calls, false);
+  const service = new ResearchAutomationService({ db: fixture.db, artifactStore: artifacts, now: autorunNow,
+    workspaceReader: new FlowDiscoveryWorkspaceReader(discovery), source: syntheticProductSource(),
+    searchAdsSource: { collect: async input => {
+      searchCalls++;
+      inputs.push(input.brands); readsAtCall.push(reads);
+      return { status: 'NO_DATA', brands: [], requests: 0, ambiguousRequests: 0 };
+    } },
+    metaAutoSource: { collect: async (input, options) => {
+      metaCalls++;
+      inputs.push(input.brands); readsAtCall.push(reads);
+      return lane.collect(input, options);
+    } },
+  });
+  await service.processNext();
+  assert.equal(reads, 2);
+  assert.equal(searchCalls, 1);
+  assert.equal(metaCalls, 1);
+  assert.deepEqual(readsAtCall, [1, 2]);
+  assert.deepEqual(inputs, readError ? [[], []] : [
+    [{ label: 'Brand A', key: 'branda' }, { label: 'Brand B', key: 'brandb' }, { label: 'Brand C', key: 'brandc' }],
+    [{ label: 'Brand A', key: 'brand a' }, { label: 'Brand B', key: 'brand b' }],
+  ]);
+  assert.equal(calls.filter(c => c[2] === 'open').length, readError ? 0 : 2);
+  const step = fixture.db.prepare("SELECT result_sha256 sha FROM analysis_research_automation_steps WHERE run_id=? AND step_id='COLLECTION'").get(autoRunId) as { sha: string };
+  const document = JSON.parse((await artifacts.read(step.sha)).toString()) as StepResultDocument;
+  assert.equal(document.metaAuto?.status, readError ? 'NO_BRANDS' : 'NO_DATA');
+  assert.deepEqual(document.metaAuto?.brands.map(b => b.label), readError ? [] : ['Brand A', 'Brand B']);
+  await service.recoverOnStart();
+  assert.equal(searchCalls, 1, 'restart never repeats the search-ads lane');
+  assert.equal(metaCalls, 1, 'restart never repeats the Meta lane');
 });
 
 test('flag on: the step stores the read, usage 12 counts opens, and the stored evidence re-verifies offline', async t => {

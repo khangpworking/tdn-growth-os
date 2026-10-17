@@ -215,7 +215,7 @@ export const metaBrandKey = (value: string): string => value.normalize('NFC').tr
  */
 export function metaBrandsFromPick(pick: unknown): SearchAdsBrandInput[] {
   const out: SearchAdsBrandInput[] = [], seen = new Set<string>();
-  for (const { label } of brandsFromPick(pick)) {
+  for (const { label } of brandsFromPick(pick, { missingRevenueLast: true })) {
     const key = metaBrandKey(label);
     if (seen.has(key)) continue;
     seen.add(key); out.push({ label, key });

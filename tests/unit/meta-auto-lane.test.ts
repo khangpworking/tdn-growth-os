@@ -231,6 +231,21 @@ test('brand selection takes the top two distinct pick brands by revenue, with a 
   for (const missing of [null, undefined, {}, { links: 'x' }, { links: [] }]) assert.deepEqual(metaBrandsFromPick(missing), []);
 });
 
+test('pick revenue ties keep pick order and missing revenue sorts after every finite revenue', () => {
+  for (const revenue of [undefined, null, NaN, Infinity, '100']) {
+    assert.deepEqual(metaBrandsFromPick({ links: [
+      { brand: C.label, revenue }, { brand: B.label, revenue: -2 }, { brand: A.label, revenue: -2 },
+    ] }).map(b => b.label), [B.label, A.label]);
+  }
+});
+
+test('pick brands refuse unsafe report labels before applying the two-brand cap', () => {
+  const refused = ['Google', 'SerpApi', 'Metric', 'Kalodata', 'TradeInt', 'Dami', 'Apify', 'PageIndex', 'Gemini', 'OpenCLI', 'Có 50% giảm', 'Nhãn\u0000thử'];
+  assert.deepEqual(metaBrandsFromPick({ links: [
+    ...refused.map(brand => ({ brand, revenue: 999 })), { brand: B.label, revenue: 2 }, { brand: A.label, revenue: 1 },
+  ] }).map(b => b.label), [B.label, A.label]);
+});
+
 test('parser retains literal UTF-8 spans and refuses conflicting repeated ids', () => {
   const text = 'Nhãn tiếng Việt\nĐang hoạt động\nID thư viện: 000001\nBắt đầu chạy từ 12 tháng 10, 2026\n';
   const result = parseMetaAdPage(text + text);
