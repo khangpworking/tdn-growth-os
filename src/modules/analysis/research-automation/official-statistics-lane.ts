@@ -12,9 +12,9 @@ import { containsForbiddenProviderName, containsTechnicalId } from '../citation-
 import { lintVisibleReportText } from '../report-visible-text-lint.js';
 import { webTextHidden } from './web-page-type.js';
 import { MAX_CAPTURE_BYTES } from './model.js';
-import type { StepOfficialStats, StepOfficialStatsFile, StepOfficialStatsStatus, StepOfficialStatsTable, StepOfficialStatsTableId, StepOfficialStatsValue } from './model.js';
+import type { StepOfficialStats, StepOfficialStatsFile, StepOfficialStatsProvinces, StepOfficialStatsProvinceValue, StepOfficialStatsStatus, StepOfficialStatsTable, StepOfficialStatsTableId, StepOfficialStatsValue } from './model.js';
 import {
-  defaultOfficialStatsWorkbookReader, OFFICIAL_STATS_CATEGORY_GROUPS, OFFICIAL_STATS_STATUS_TEXT, officialStatsGroupLabels, readOfficialStatsTable,
+  defaultOfficialStatsWorkbookReader, OFFICIAL_STATS_CATEGORY_GROUPS, OFFICIAL_STATS_STATUS_TEXT, officialStatsGroupLabels, readOfficialStatsProvinces, readOfficialStatsTable,
   vietnameseDecimal, type OfficialStatsTableRead, type OfficialStatsWorkbookReader,
 } from './official-statistics-workbook.js';
 
@@ -47,6 +47,15 @@ export function officialStatsEnabled(env: Readonly<Record<string, string | undef
   return env[OFFICIAL_STATS_FLAG] === '1';
 }
 
+/** S22: the province sheet of the CPI workbook the S21 lane already stores. Own flag, exactly "1", and only with the S21 flag on. */
+export const OFFICIAL_STATS_PROVINCE_FLAG = 'TDN_RESEARCH_OFFICIAL_STATS_PROVINCE_ENABLED';
+export function officialStatsProvinceEnabled(env: Readonly<Record<string, string | undefined>>): boolean {
+  return officialStatsEnabled(env) && env[OFFICIAL_STATS_PROVINCE_FLAG] === '1';
+}
+export const OFFICIAL_STATS_PROVINCE_TITLE = 'Chỉ số giá tiêu dùng theo tỉnh, thành phố (Cục Thống kê)';
+export const OFFICIAL_STATS_PROVINCE_NOTE = 'Chỉ số giá tiêu dùng theo tỉnh, thành phố do Cục Thống kê công bố, tính cho mọi thương hiệu; không phải quy mô thị trường hay giá bán của sản phẩm này; không so sánh hay cộng với số bán trong mẫu.';
+export const OFFICIAL_STATS_PROVINCE_LIMIT = 'Chỉ số giá theo tỉnh, thành phố chỉ là bối cảnh về giá chung ở từng nơi; không dùng để ước lượng thị trường của sản phẩm ở nơi đó.';
+
 /** The text-model port: the existing CLIProxy text gateway behind a one-method interface. Never receives a credential. */
 export interface OfficialStatsModelPort {
   generateText(request: { readonly systemText: string; readonly userText: string; readonly signal?: AbortSignal }): Promise<string>;
@@ -77,6 +86,8 @@ export interface OfficialStatsCollection {
   readonly values: readonly (Omit<StepOfficialStatsValue, 'captureIndex'> & { readonly file: number })[];
   /** Data requests issued. Model calls are not counted. */
   readonly requests: number;
+  /** S22: the province sheet of the downloaded CPI workbook (`file` is the position in `files`); absent when not read. */
+  readonly provinces?: Omit<StepOfficialStatsProvinces, 'captureIndex'> & { readonly file: number };
 }
 
 export interface OfficialStatsSource {
@@ -182,7 +193,10 @@ export function pickCpiWorkbook(items: readonly OfficialStatsListing[]): Officia
 
 const MONTHLY_TABLES: readonly StepOfficialStatsTableId[] = ['RETAIL', 'CPI', 'EXPORT', 'IMPORT'];
 
-export function createOfficialStatsSource(options: { readonly model?: OfficialStatsModelPort; readonly transport?: ProviderTransport; readonly timeoutMs?: number; readonly readWorkbook?: OfficialStatsWorkbookReader } = {}): OfficialStatsSource {
+export function createOfficialStatsSource(options: { readonly model?: OfficialStatsModelPort; readonly transport?: ProviderTransport; readonly timeoutMs?: number; readonly readWorkbook?: OfficialStatsWorkbookReader;
+  /** S22: also read the province sheet of the CPI workbook; fetches that workbook even when the monthly rows cover the group
+   *  (still within OFFICIAL_STATS_MAX_CALLS, no retry), without changing table 5.4 or the S21 status. */
+  readonly provinces?: boolean } = {}): OfficialStatsSource {
   const transport = options.transport ?? defaultProviderTransport, timeoutMs = options.timeoutMs ?? OFFICIAL_STATS_TIMEOUT_MS, model = options.model;
   const readWorkbook = options.readWorkbook ?? defaultOfficialStatsWorkbookReader;
   return {
@@ -190,11 +204,12 @@ export function createOfficialStatsSource(options: { readonly model?: OfficialSt
       const signal = callOptions.signal;
       const log = new CaptureLog(OFFICIAL_STATS_PROVIDER, transport, undefined, OFFICIAL_STATS_MAX_CALLS);
       let requests = 0, lastEnd: number | null = null;
-      const state: { group: string | null; reasonVi: string | null; list: ProviderRawCapture | null } = { group: null, reasonVi: null, list: null };
+      const state: { group: string | null; reasonVi: string | null; list: ProviderRawCapture | null; provinces: OfficialStatsCollection['provinces'] } = { group: null, reasonVi: null, list: null, provinces: undefined };
       const files: OfficialStatsFileResult[] = [];
       const tables: (Omit<StepOfficialStatsTable, 'captureIndex'> & { file: number })[] = [];
       const values: (Omit<StepOfficialStatsValue, 'captureIndex'> & { file: number })[] = [];
-      const result = (status: StepOfficialStatsStatus): OfficialStatsCollection => ({ status, categoryGroup: state.group, reasonVi: state.reasonVi, list: state.list, files, tables, values, requests });
+      const result = (status: StepOfficialStatsStatus): OfficialStatsCollection => ({ status, categoryGroup: state.group, reasonVi: state.reasonVi, list: state.list, files, tables, values, requests,
+        ...(state.provinces ? { provinces: state.provinces } : {}) });
       if (!model) return result('MODEL_NOT_CONFIGURED');
       if (signal?.aborted) return result('CANCELLED');
 
@@ -275,7 +290,17 @@ export function createOfficialStatsSource(options: { readonly model?: OfficialSt
         const bytes = files[file]!.capture.responseBytes!;
         const parsed = readWorkbook(bytes);
         if (parsed.kind === 'UNAVAILABLE') return 'UNAVAILABLE';
-        if (parsed.kind === 'REJECTED') { unreadable = true; return wanted.map(table => ({ table, outcome: 'LAYOUT_UNKNOWN', sheet: null, variant: null, headerHash: null, values: [] })); }
+        // S22 reads the province sheet of the same parsed CPI workbook; its outcome never changes the national tables or the status.
+        const withProvinces = options.provinces === true && files[file]!.role === 'CPI';
+        if (parsed.kind === 'REJECTED') {
+          unreadable = true;
+          if (withProvinces) state.provinces = { file, outcome: 'LAYOUT_UNKNOWN', sheet: null, variant: null, period: null, base: null, provinces: [], values: [] };
+          return wanted.map(table => ({ table, outcome: 'LAYOUT_UNKNOWN', sheet: null, variant: null, headerHash: null, values: [] }));
+        }
+        if (withProvinces) {
+          const { outcome, sheet, variant, period, base, provinces, values: cells } = readOfficialStatsProvinces(parsed.sheets, labelsOf('CPI_WORKBOOK'));
+          state.provinces = { file, outcome, sheet, variant, period, base, provinces, values: cells };
+        }
         return wanted.map(table => readOfficialStatsTable(parsed.sheets, table, labelsOf(table)));
       };
       const keep = (file: number, reads: readonly OfficialStatsTableRead[]): void => {
@@ -317,11 +342,28 @@ export function createOfficialStatsSource(options: { readonly model?: OfficialSt
       const allRead = files.length > 0 && !downloadFailed && groupLabels.filter(item => item.table !== 'CPI_WORKBOOK')
         .every(item => item.table === 'CPI' ? groupCpiRead : hasValue(item.table, item.label));
       const unknown = unreadable || tables.some(item => item.outcome === 'LAYOUT_UNKNOWN') || !tables.some(item => item.outcome === 'READ');
-      if (found) return result(allRead ? 'OK' : 'PARTIAL');
-      if (downloadFailed && files.length === 0) return result('DOWNLOAD_FAILED');
-      if (unknown) return result('LAYOUT_UNKNOWN');
-      if (downloadFailed) return result('DOWNLOAD_FAILED');
-      return result('NO_DATA');
+      const status: StepOfficialStatsStatus = found ? (allRead ? 'OK' : 'PARTIAL') : downloadFailed && files.length === 0 ? 'DOWNLOAD_FAILED'
+        : unknown ? 'LAYOUT_UNKNOWN' : downloadFailed ? 'DOWNLOAD_FAILED' : 'NO_DATA';
+
+      // S22 (owner decision 17/10): with the province flag on, the CPI workbook is fetched for the province sheet even when the
+      // monthly rows already cover the group. It runs after the S21 status is settled, inside the same call cap, spacing and
+      // timeout, with no retry, and keeps no national table or value: table 5.4 and the status are exactly as without it.
+      if (options.provinces === true && state.provinces === undefined && first !== null && labelsOf('CPI_WORKBOOK').length > 0) {
+        const cpi = pickCpiWorkbook(items);
+        if (cpi) {
+          const extra = await download('CPI', cpi, false);
+          if (extra === 'CANCELLED') return result('CANCELLED');
+          if (extra !== null) {
+            const parsed = readWorkbook(files[extra]!.capture.responseBytes!);
+            if (parsed.kind === 'REJECTED') state.provinces = { file: extra, outcome: 'LAYOUT_UNKNOWN', sheet: null, variant: null, period: null, base: null, provinces: [], values: [] };
+            else if (parsed.kind !== 'UNAVAILABLE') {
+              const { outcome, sheet, variant, period, base, provinces, values: cells } = readOfficialStatsProvinces(parsed.sheets, labelsOf('CPI_WORKBOOK'));
+              state.provinces = { file: extra, outcome, sheet, variant, period, base, provinces, values: cells };
+            }
+          }
+        }
+      }
+      return result(status);
     },
   };
 }
@@ -338,8 +380,14 @@ export function officialStatsDocument(collection: OfficialStatsCollection, listI
   const tables = collection.tables.flatMap(({ file, ...item }) => stored(file) === null ? [] : [{ ...item, captureIndex: stored(file)! }]);
   const values = collection.values.flatMap(({ file, ...item }) => stored(file) === null ? [] : [{ ...item, captureIndex: stored(file)! }]);
   const status: StepOfficialStatsStatus = (collection.status === 'OK' || collection.status === 'PARTIAL') && !values.some(value => value.value !== null) ? 'FAILED' : collection.status;
+  // S22 is kept only beside its stored CPI workbook; without the flag the field is absent and the document is unchanged.
+  const province = collection.provinces;
+  const provinceIndex = province ? stored(province.file) : null;
+  const provinces: StepOfficialStatsProvinces | undefined = province && provinceIndex !== null && collection.files[province.file]?.role === 'CPI'
+    ? { captureIndex: provinceIndex, outcome: province.outcome, sheet: province.sheet, variant: province.variant, period: province.period, base: province.base, provinces: province.provinces, values: province.values }
+    : undefined;
   if (status === 'OK' || status === 'PARTIAL' || status === 'LAYOUT_UNKNOWN' || status === 'NO_DATA')
-    return { profile: OFFICIAL_STATS_PROFILE, status, categoryGroup: collection.categoryGroup, reasonVi: collection.reasonVi, listCaptureIndex: listIndex, files, tables, values };
+    return { profile: OFFICIAL_STATS_PROFILE, status, categoryGroup: collection.categoryGroup, reasonVi: collection.reasonVi, listCaptureIndex: listIndex, files, tables, values, ...(provinces ? { provinces } : {}) };
   return officialStatsFailed(status, collection.categoryGroup, collection.reasonVi);
 }
 
@@ -355,6 +403,36 @@ export function officialStatsRenderableRows(value: StepOfficialStats | null | un
   return value.values.filter(row => row.value !== null && row.shown !== null && files.has(row.captureIndex));
 }
 export const officialStatsRenderable = (value: StepOfficialStats | null | undefined): value is StepOfficialStats => officialStatsRenderableRows(value).length > 0;
+
+/** One drawn row of the province table: a CPI group row, with one cell per province column (null when the sheet has no number). */
+export interface OfficialStatsProvinceRow { readonly label: string; readonly row: number; readonly cells: readonly (StepOfficialStatsProvinceValue | null)[] }
+/** The one S22 predicate shared by both renderers and the evidence packet. The province table is drawn only right after a drawn
+ *  table 5.4, from the stored CPI workbook, with the rows that hold at least one number. */
+export function officialStatsProvinceRows(value: StepOfficialStats | null | undefined): OfficialStatsProvinceRow[] {
+  if (!officialStatsRenderable(value)) return [];
+  const sheet = value.provinces;
+  if (!sheet || sheet.outcome !== 'READ' || sheet.sheet === null || sheet.period === null || sheet.base === null || sheet.provinces.length === 0) return [];
+  if (!value.files.some(file => file.role === 'CPI' && file.captureIndex === sheet.captureIndex)) return [];
+  return [...new Set(sheet.values.map(item => item.label))].flatMap(label => {
+    const cells = sheet.provinces.map(name => sheet.values.find(item => item.label === label && item.province === name && item.value !== null && item.shown !== null) ?? null);
+    return cells.some(cell => cell !== null) ? [{ label, row: sheet.values.find(item => item.label === label)!.row, cells }] : [];
+  });
+}
+/** The overall row is the reference line beside the picked group, as in table 5.4. */
+export const officialStatsProvinceRowLabel = (label: string): string =>
+  officialStatsGroupLabels(ALL_GROUPS).some(item => item.table === 'CPI_WORKBOOK' && item.label === label) ? `${label} (Mọi ngành hàng; dòng tham chiếu)` : label;
+/** "100,23"; a province column without a number reads "không có số", never 0. */
+export const officialStatsProvinceCellText = (cell: StepOfficialStatsProvinceValue | null): string => cell === null || cell.shown === null ? 'không có số' : vietnameseDecimal(cell.shown);
+/** Period, the base as the sheet states it, and the data status, as table 5.4 shows them. */
+export function officialStatsProvinceContext(value: StepOfficialStats): string {
+  const sheet = value.provinces!;
+  return `Kỳ: ${sheet.period}. Kỳ gốc: ${sheet.base} = 100. Trạng thái: ${officialStatsStatusText(value, { status: 'NOT_STATED', captureIndex: sheet.captureIndex })}.`;
+}
+/** "Cục Thống kê (nso.gov.vn), <file>, bảng <sheet>, dòng <n>, công bố <date>" for one province row. */
+export function officialStatsProvinceCitation(value: StepOfficialStats, row: Pick<OfficialStatsProvinceRow, 'row'>): string {
+  const sheet = value.provinces!;
+  return officialStatsCitation(value, { captureIndex: sheet.captureIndex, sheet: sheet.sheet!, row: row.row });
+}
 
 /** One plain sentence for a run whose figures are not drawn (or are drawn only in part): no digits, no percent sign. */
 export function officialStatsNotice(value: StepOfficialStats): string {
@@ -423,7 +501,8 @@ export function officialStatsCitation(value: StepOfficialStats, row: Pick<StepOf
 export function validOfficialStats(value: unknown): boolean {
   if (!isRecord(value) || value.profile !== OFFICIAL_STATS_PROFILE) return false;
   const keys = Object.keys(value).sort().join();
-  if (keys !== 'categoryGroup,files,listCaptureIndex,profile,reasonVi,status,tables,values') return false;
+  // `provinces` (S22) is optional: documents stored before it, or with its flag off, carry no such key.
+  if (keys !== 'categoryGroup,files,listCaptureIndex,profile,reasonVi,status,tables,values' && keys !== 'categoryGroup,files,listCaptureIndex,profile,provinces,reasonVi,status,tables,values') return false;
   const statuses: readonly StepOfficialStatsStatus[] = ['OK', 'PARTIAL', 'NO_DATA', 'LIST_FAILED', 'NO_MONTHLY_WORKBOOK', 'DOWNLOAD_FAILED', 'READER_UNAVAILABLE', 'LAYOUT_UNKNOWN', 'CATEGORY_NOT_MAPPED', 'MODEL_NOT_CONFIGURED', 'FAILED', 'CANCELLED'];
   const tableIds: readonly StepOfficialStatsTableId[] = ['RETAIL', 'CPI', 'EXPORT', 'IMPORT', 'CPI_WORKBOOK'];
   const index = (v: unknown): v is number => Number.isSafeInteger(v) && (v as number) >= 0;
@@ -453,6 +532,21 @@ export function validOfficialStats(value: unknown): boolean {
       || (row.measure !== 'LEVEL' && row.measure !== 'INDEX') || !decimal(row.value) || !decimal(row.shown) || ((row.value === null) !== (row.shown === null))
       || !nullable(row.unit, 60) || !nullable(row.base, 120) || (row.measure === 'INDEX' ? row.base === null : row.unit === null)
       || !['UOC_TINH', 'SO_BO', 'CHINH_THUC', 'NOT_STATED'].includes(row.status as string)) return false;
+  }
+  if ('provinces' in value) {
+    const sheet = value.provinces;
+    if (!isRecord(sheet) || Object.keys(sheet).sort().join() !== 'base,captureIndex,outcome,period,provinces,sheet,values,variant') return false;
+    if (!value.files.some(file => isRecord(file) && file.role === 'CPI' && file.captureIndex === sheet.captureIndex) || !['READ', 'LAYOUT_UNKNOWN', 'NOT_FOUND'].includes(sheet.outcome as string)
+      || !nullable(sheet.sheet, 100) || !nullable(sheet.variant, 60) || !nullable(sheet.period, 60) || !nullable(sheet.base, 60)
+      || ((sheet.outcome === 'READ') !== (sheet.variant !== null)) || (sheet.outcome === 'READ' && (sheet.sheet === null || sheet.period === null || sheet.base === null))) return false;
+    if (!Array.isArray(sheet.provinces) || sheet.provinces.length > 25 || !sheet.provinces.every(name => short(name, 60))
+      || new Set(sheet.provinces).size !== sheet.provinces.length || (sheet.outcome !== 'READ' && sheet.provinces.length > 0)) return false;
+    if (!Array.isArray(sheet.values) || sheet.values.length > 200 || (sheet.outcome !== 'READ' && sheet.values.length > 0)) return false;
+    for (const cell of sheet.values) {
+      if (!isRecord(cell) || Object.keys(cell).sort().join() !== 'cell,label,province,row,shown,value') return false;
+      if (!index(cell.row) || typeof cell.cell !== 'string' || !/^[A-Z]{1,3}\d{1,7}$/u.test(cell.cell) || !short(cell.label) || !(sheet.provinces as unknown[]).includes(cell.province)
+        || !decimal(cell.value) || !decimal(cell.shown) || ((cell.value === null) !== (cell.shown === null))) return false;
+    }
   }
   if ((value.status === 'OK' || value.status === 'PARTIAL') && (value.categoryGroup === null || value.files.length === 0)) return false;
   if (!['OK', 'PARTIAL', 'NO_DATA', 'LAYOUT_UNKNOWN'].includes(value.status as string) && (value.files.length || value.tables.length || value.values.length)) return false;

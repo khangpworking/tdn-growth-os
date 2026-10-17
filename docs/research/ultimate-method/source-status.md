@@ -29,7 +29,7 @@ E14 của file Ultimate nói về "nguồn đang dùng hoặc đã duyệt". Ở
 
 ## 2. Trạng thái hiện tại
 
-"Ngày cập nhật" là ngày trạng thái được ghi lần gần nhất. Danh mục nguồn ghi trạng thái tính tới 08/10/2026; S07, S15, S21, S22 cập nhật ngày 12/10/2026.
+"Ngày cập nhật" là ngày trạng thái được ghi lần gần nhất. Danh mục nguồn ghi trạng thái tính tới 08/10/2026; S07, S15, S21, S22 cập nhật ngày 12/10/2026; dòng nào ghi ngày mới hơn thì theo ngày đó.
 
 | Mã | Nguồn | Nhãn | Ngày cập nhật | Ghi chú |
 |---|---|---|---|---|
@@ -54,9 +54,9 @@ E14 của file Ultimate nói về "nguồn đang dùng hoặc đã duyệt". Ở
 | S19 | Kết quả tìm kiếm Google mở rộng | Chạy thử | 08/10/2026 | Chờ chạy thử Phase 0 |
 | S20 | Mức quan tâm tìm kiếm trên Google (Trends) | Chạy thử | 08/10/2026 | Chờ chạy thử Phase 0 |
 | S21 | Cục Thống kê | Đã duyệt | 17/10/2026 | Chủ duyệt 12/10; bộ thu tự động sau cờ TDN_RESEARCH_OFFICIAL_STATS_ENABLED (mặc định tắt); M05 Bảng 5.4 chỉ là bối cảnh cả nước |
-| S22 | Cục Thống kê theo tỉnh | Đã duyệt | 12/10/2026 | Chủ duyệt 12/10 |
-| S23 | Ngân hàng Thế giới (dữ liệu mở) | Đã duyệt | 08/10/2026 | Duyệt theo E13; chưa thu cho báo cáo |
-| S24 | Cơ sở dữ liệu thương mại của Liên Hợp Quốc | Đề xuất | 08/10/2026 | Bộ thu có sẵn sau cờ TDN_RESEARCH_COMTRADE_ENABLED (mặc định tắt); M06 là bối cảnh cả nước; chờ chủ duyệt |
+| S22 | Cục Thống kê theo tỉnh | Đã duyệt | 17/10/2026 | Chủ duyệt 12/10; máy tự đọc bảng chỉ số giá theo tỉnh trong cùng file CPI của S21, sau cờ TDN_RESEARCH_OFFICIAL_STATS_PROVINCE_ENABLED (mặc định tắt, cần bật cả cờ S21); khi bật cờ, file CPI được tải ở mọi lượt Market (tổng vẫn tối đa 3 lần gọi, không thử lại); Bảng 5.4 không đổi; M05 Bảng 5.5 chỉ là bối cảnh theo tỉnh |
+| S23 | Ngân hàng Thế giới (dữ liệu mở) | Đã duyệt | 17/10/2026 | Duyệt theo E13; bộ thu đã vào hệ thống, chạy sau cờ TDN_RESEARCH_WORLD_BANK_ENABLED (mặc định tắt); bối cảnh cả nước |
+| S24 | Cơ sở dữ liệu thương mại của Liên Hợp Quốc | Đã duyệt | 17/10/2026 | Chủ duyệt; bộ thu đã vào hệ thống, chạy sau cờ TDN_RESEARCH_COMTRADE_ENABLED (mặc định tắt); M06 là bối cảnh cả nước |
 | S25 | Báo cáo ngành, báo cáo thường niên doanh nghiệp | Đã duyệt | 08/10/2026 | Đang dùng ở M09 |
 | S26 | Báo chí, tin an toàn thực phẩm | Đề xuất | 08/10/2026 | Tìm qua S19 |
 | S27 | Bản quét review của bên thứ ba | Không thu | 08/10/2026 | Thiếu số sao và người viết; đã thay bằng S05 |
@@ -71,6 +71,9 @@ Dòng trước 12/10/2026 ghi lại từ danh mục nguồn, nhật ký test và
 
 | Ngày | Mã nguồn | Nhãn cũ → nhãn mới | Lý do | Ai quyết |
 |---|---|---|---|---|
+| 17/10/2026 | S22 | Đã duyệt → Đã duyệt | Thêm bộ máy tự đọc bảng chỉ số giá theo tỉnh cho báo cáo Market (Bảng 5.5), từ file CPI của S21, sau cờ TDN_RESEARCH_OFFICIAL_STATS_PROVINCE_ENABLED, mặc định tắt; khi bật cờ, file CPI được tải ở mọi lượt Market (tối đa 3 lần gọi), Bảng 5.4 không đổi; nhãn không đổi | Chủ (duyệt 12/10, 17/10) |
+| 17/10/2026 | S24 | Đề xuất → Đã duyệt | Sửa dòng cũ: chủ đã duyệt và bộ thu đã vào hệ thống, chạy sau cờ TDN_RESEARCH_COMTRADE_ENABLED, mặc định tắt | Chủ |
+| 17/10/2026 | S23 | Đã duyệt → Đã duyệt | Sửa ghi chú cũ "chưa thu cho báo cáo": bộ thu đã vào hệ thống, chạy sau cờ TDN_RESEARCH_WORLD_BANK_ENABLED, mặc định tắt; nhãn không đổi | Chủ (duyệt 08/10) |
 | 17/10/2026 | S16 | Không thu → Chạy thử | Thêm bộ máy tự đọc trang quảng cáo nổi bật công khai cho báo cáo Market (Bảng 7.4), sau cờ TDN_RESEARCH_TIKTOK_TOPADS_ENABLED, mặc định tắt; chưa có trang mẫu thật nên lượt chạy thử đầu là bản kiểm chứng | Chủ (duyệt 17/10) |
 | 17/10/2026 | S15 | Đã duyệt → Đã duyệt | Thêm bộ máy tự đọc trang công khai cho báo cáo Market (Bảng 7.2), sau cờ TDN_RESEARCH_META_AUTO_ENABLED, mặc định tắt; tải trang chủ gửi vẫn dùng được; nhãn không đổi | Chủ (duyệt 12/10, 17/10) |
 | 17/10/2026 | S21 | Đã duyệt → Đã duyệt | Thêm bộ thu tự động cho báo cáo Market, sau cờ TDN_RESEARCH_OFFICIAL_STATS_ENABLED, mặc định tắt; nhãn không đổi | Chủ (duyệt 12/10) |
