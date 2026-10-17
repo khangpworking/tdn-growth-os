@@ -1015,7 +1015,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
       `<thead><tr>${SEARCH_GEO_HEADERS.map(head => `<th>${escape(head)}</th>`).join('')}</tr></thead><tbody>` +
       summary.regions.map(row => `<tr><td>${escape(row.region)}</td><td>${escape(searchGeoAverageText(row.average))}</td><td>${row.inTop}</td></tr>`).join('') +
       `</tbody></table><p class="lim"><b>Chú thích:</b> ${escape(SEARCH_GEO_NOTE)}</p><p class="ex-src">Nguồn: ${escape(SEARCH_INTEREST_SRC)}${capture ? captureMark(capture, citations) : ''}</p></div>` +
-      [text.topLine, text.result, text.seen, text.use, text.dont].map(line => `<p>${escape(line)}</p>`).join('');
+      [text.topLine, text.result, text.seen, text.use, text.dont].filter(Boolean).map(line => `<p>${escape(line)}</p>`).join('');
   };
   // Open country-level figures sit beside the sales numbers in the same demand section; the same predicate marks S23 as used.
   const worldBankTable = (sectionId: string): string => {

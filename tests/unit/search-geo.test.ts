@@ -29,6 +29,14 @@ test('provider spellings are cleaned up before the lookup', () => {
   assert.equal(provinceRegion('Thừa Thiên - Huế'), 'Bắc Trung Bộ và Duyên hải miền Trung');
   assert.equal(provinceRegion('Thành phố Hà Nội'.normalize('NFD')), 'Đồng bằng sông Hồng', 'decomposed input is NFC-normalised');
   assert.equal(provinceRegion('Atlantis'), null);
+  for (const name of ['TP.HCM', 'Ho Chi Minh City', 'Hồ Chí Minh']) assert.equal(provinceRegion(name), 'Đông Nam Bộ', name);
+  for (const name of ['Hanoi', 'Ha Noi', 'Hà Nội']) assert.equal(provinceRegion(name), 'Đồng bằng sông Hồng', name);
+  assert.equal(provinceRegion('Thua Thien Hue'), 'Bắc Trung Bộ và Duyên hải miền Trung');
+  assert.equal(provinceRegion('Ba Ria - Vung Tau'), 'Đông Nam Bộ');
+  for (const name of ['Bình Phước', 'Tây Ninh']) assert.equal(provinceRegion(name), 'Đông Nam Bộ', name);
+  assert.equal(provinceRegion('Quảng Ninh'), 'Đồng bằng sông Hồng');
+  assert.equal(provinceRegion('Long An'), 'Đồng bằng sông Cửu Long');
+  assert.equal(provinceRegion('Lâm Đồng'), 'Tây Nguyên');
 });
 
 test('fixture quạt điện: six of the top ten in the Red River Delta picks that region', () => {
@@ -70,7 +78,8 @@ test('an unmapped name in the top ten gives no choice, even with a clear majorit
   const provinces = [{ name: 'Atlantis', index: 100 }, ...syntheticGeoProvinces(GEO_FIXTURES['quạt điện'])];
   const summary = summarizeSearchGeo(provinces);
   assert.deepEqual(summary.choice, { kind: 'NATIONWIDE', why: 'UNMAPPED', unmapped: ['Atlantis'] });
-  assert.match(searchGeoText(summary).seen, /Atlantis/);
+  assert.match(searchGeoText(summary).seen, /không khớp danh sách 63 tỉnh/u);
+  assert.doesNotMatch(searchGeoText(summary).seen, /Atlantis/);
 });
 
 test('ties in the index are broken by name, so the top ten is stable', () => {
@@ -80,13 +89,20 @@ test('ties in the index are broken by name, so the top ten is stable', () => {
   assert.deepEqual(a.top.map(row => row.name), [...VN_PROVINCES].sort((x, y) => x < y ? -1 : x > y ? 1 : 0).slice(0, 10));
 });
 
+test('two regions with five provinces each do not imply that neither reached five', () => {
+  const names = ['Hà Nội', 'Hải Phòng', 'Bắc Ninh', 'Hải Dương', 'Quảng Ninh', 'Hồ Chí Minh', 'Bình Dương', 'Đồng Nai', 'Tây Ninh', 'Bình Phước'];
+  const summary = summarizeSearchGeo(names.map((name, i) => ({ name, index: 100 - i })));
+  assert.equal(summary.choice.kind, 'NATIONWIDE');
+  assert.doesNotMatch(searchGeoText(summary).seen, /không vùng nào có từ 5 tỉnh trở lên/u);
+});
+
 test('region averages count only provinces with a value and use a Vietnamese comma', () => {
   const summary = summarizeSearchGeo([{ name: 'Kon Tum', index: 10 }, { name: 'Gia Lai', index: 15 }, { name: 'Lâm Đồng', index: null }, { name: 'Đắk Nông', index: 0 }]);
   const row = summary.regions.find(item => item.region === 'Tây Nguyên')!;
   assert.equal(row.average, 8.3);
   assert.equal(row.provincesWithValue, 3);
   assert.equal(searchGeoAverageText(row.average), '8,3');
-  assert.equal(searchGeoAverageText(null), 'không có số');
+  assert.equal(searchGeoAverageText(null), '');
 });
 
 test('stored document: reasons, renderable predicate and strict validation', () => {
@@ -106,6 +122,15 @@ test('stored document: reasons, renderable predicate and strict validation', () 
   assert.equal(validSearchGeo({ ...collected, reason: 'PROVIDER_FAILED' }), false);
   assert.equal(validSearchGeo({ ...thrown, provinces: collected.provinces }), false);
   assert.equal(validSearchGeo({ ...collected, geo: 'US' }), false);
+  for (const value of [
+    { ...skipped, reason: 'PROVIDER_FAILED' }, { ...thrown, reason: 'PERIOD_NOT_COVERED' },
+    { ...collected, extra: true }, { ...collected, keyword: ' ' },
+    { ...collected, captureIndex: 512 }, { ...collected, captureIndex: -1 }, { ...collected, captureIndex: 0.5 },
+    { ...thrown, retrievedAt: collected.retrievedAt },
+    { ...collected, provinces: [{ name: ' ', index: 20 }] },
+    { ...collected, provinces: [{ name: 'Hà Nội', index: null }] },
+    { ...collected, provinces: [{ name: 'Thanh Hóa', index: 80 }, { name: 'Tỉnh Thanh Hoá', index: 70 }] },
+  ]) assert.equal(validSearchGeo(value), false, JSON.stringify(value));
   assert.equal(SEARCH_GEO_USAGE_ORDINAL, 16);
 });
 

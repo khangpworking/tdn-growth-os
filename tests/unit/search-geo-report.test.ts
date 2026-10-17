@@ -43,7 +43,7 @@ function assertBlock(html: string, choice: RegExp) {
   const rows = [...table!.querySelectorAll('tbody tr')].map(row => [...row.querySelectorAll('td')].map(cell => cell.textContent!.trim()));
   assert.deepEqual(rows.map(row => row[0]), REGIONS);
   assert.equal(rows.reduce((sum, row) => sum + Number(row[2]), 0), 10, 'the top ten are counted once');
-  assert.ok(rows.every(row => /^\d+(,\d)?$|^không có số$/u.test(row[1]!)), 'averages use a comma');
+  assert.ok(rows.every(row => /^\d+(,\d)?$|^$/u.test(row[1]!)), 'averages use a comma; missing stays blank');
   assert.match(text, /5 tỉnh, thành phố đứng đầu về mức quan tâm: /u);
   assert.match(text, choice);
   for (const lead of ['Thấy gì:', 'Dùng để:', 'Đừng hiểu là:']) assert.ok(text.includes(lead), lead);
@@ -56,7 +56,7 @@ function assertBlock(html: string, choice: RegExp) {
 async function reader(searchGeo?: StepSearchGeo, searchInterest?: StepSearchInterest) {
   const input = sync1ReaderFixture('1.4.0'); input.peerRule = { ...DEFAULT_MARKET_PEER_RULE };
   const units = unitPriceFixture(input.rows); input.unitPrices = units.packet;
-  return buildMarketReport(computeReaderReportData(input, units.retained), { ...sync1Options, flint: true, ...(searchInterest ? { searchInterest } : {}), ...(searchGeo ? { searchGeo } : {}) });
+  return buildMarketReport(computeReaderReportData(input, units.retained), { ...sync1Options, flint: true, ...(searchInterest ? { searchInterest } : {}), ...(searchGeo ? { searchGeo, searchGeoCapture: capture(2) } : {}) });
 }
 
 const capture = (ordinal: number): CaptureRecord => ({ stepId: 'COLLECTION', ordinal, artifactSha256: String(ordinal).repeat(64), mediaType: 'application/json', provider: 'serpapi',
@@ -93,6 +93,8 @@ for (const [keyword, choice] of CASES) {
   test(`reader report (${keyword}): the region table follows Hình 5.2 and the gates stay green`, async () => {
     const built = await reader(syntheticSearchGeo(GEO_FIXTURES[keyword]), syntheticSearchInterest());
     assertBlock(built.html, choice);
+    const { head } = geoBlock(built.html);
+    assert.match(head!.closest('.ex')!.querySelector('.ex-src .cite')!.textContent!, /^\[\d+\]$/u, 'the reader cites the stored map');
     assert.deepEqual(auditMarketReportHtml(built.html, { presentation: false }).filter(item => !item.ok).map(item => item.rule), []);
     assert.doesNotThrow(() => assertMarketBusinessGate(built.html, { presentation: false }));
     assert.doesNotThrow(() => assertMarket14MachineRules(built.html));
@@ -131,6 +133,20 @@ test('a map the report cannot use changes no byte in either renderer', async () 
   assert.doesNotMatch(plainDraft, /Bảng 5\.2/u);
 });
 
+test('unknown provider labels never enter visible text or break either report gate; missing averages stay blank', async () => {
+  for (const name of ['Metric', 'SerpApi', 'https://example.test/source', '/tmp/synthetic-map', '192.0.2.1']) {
+    const geo = syntheticSearchGeo(undefined, { provinces: [{ name, index: 100 }, { name: 'Hà Nội', index: 90 }] });
+    for (const html of [(await reader(geo)).html, draftHtml(await presentationInput(geo))]) {
+      const { table, text } = geoBlock(html);
+      assert.doesNotMatch(text, /Metric|SerpApi|https:|\/tmp\/|192\.0\.2\.1|không có số/u);
+      assert.match(text, /Kết quả: toàn quốc, không lọc/u);
+      assert.equal([...table!.querySelectorAll('tbody tr')].filter(row => row.children[1]!.textContent === '').length, 5);
+      assert.doesNotThrow(() => assertMarketBusinessGate(html, { presentation: html.includes('id="M05"'), partialTotals: [] }));
+      assert.doesNotThrow(() => assertMarket14MachineRules(html));
+    }
+  }
+});
+
 test('source evidence: the drawn map binds its own trends capture as S20, beside the series', () => {
   const empty = buildSourceEvidence({ draft: null, draftDigest: null, unavailableReason: 'SALES_NAMES_UNAVAILABLE', webResults: [], captures: [] });
   const input = (searchGeo: StepSearchGeo, captures: readonly CaptureRecord[], searchInterest?: StepSearchInterest) =>
@@ -139,6 +155,10 @@ test('source evidence: the drawn map binds its own trends capture as S20, beside
   assert.deepEqual(geoOnly.sourceAppendix.rows.map(row => [row.registryId, row.binding.kind, row.binding.ref]), [['S20', 'capture', '2'.repeat(64)]]);
   const both = sourceEvidenceForReport(empty, input(syntheticSearchGeo(), [capture(1), capture(2)], syntheticSearchInterest()), 'MARKET');
   assert.deepEqual(both.sourceAppendix.rows.map(row => [row.registryId, row.binding.ref]), [['S20', '1'.repeat(64)], ['S20', '2'.repeat(64)]]);
+  assert.deepEqual(sourceEvidenceForReport(both, input(syntheticSearchGeo(), [capture(1), capture(2)], syntheticSearchInterest()), 'MARKET'), both, 'idempotent S20 bindings');
+  assert.throws(() => sourceEvidenceForReport(empty, input(syntheticSearchGeo(undefined, { captureIndex: 1 }), [capture(1)], syntheticSearchInterest()), 'MARKET'), /capture lineage/u);
+  for (const invalid of [{ ...capture(2), truncated: true }, { ...capture(2), retrievedAt: '2026-10-01T00:00:00.000Z' }, { ...capture(2), provider: 'other' }])
+    assert.throws(() => sourceEvidenceForReport(empty, input(syntheticSearchGeo(), [invalid]), 'MARKET'), /capture lineage/u);
   assert.deepEqual(sourceEvidenceForReport(empty, input(syntheticSearchGeo(), [capture(2)]), 'INSIGHT'), empty, 'Insight draws no map');
   for (const unused of unusable) assert.deepEqual(sourceEvidenceForReport(empty, input(unused, [capture(2)]), 'MARKET'), empty, `${unused.status}`);
   assert.throws(() => sourceEvidenceForReport(empty, input(syntheticSearchGeo(), [{ ...capture(2), operation: 'serpapi.google.search' }]), 'MARKET'), /by province capture lineage/u);

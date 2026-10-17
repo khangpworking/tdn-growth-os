@@ -158,6 +158,52 @@ test('a throwing province-map source is recorded as unsettled usage and the run 
   assert.deepEqual(f.captures.map(c => c.ordinal), [0, 1]);
 });
 
+test('a CANCELLED provider answer without an owner abort only fails the map', async t => {
+  let calls = 0;
+  const underlying = syntheticGeoSource(() => { calls++; });
+  const source: SearchGeoSource = { id: 'SERPAPI', collect: async (keyword, options) => ({ ...await underlying.collect(keyword, options), status: 'CANCELLED', facts: null }) };
+  const f = await runToDraft(t, { source: syntheticProductSource(), trendsSource: syntheticTrendsSource(() => {}), trendsGeoSource: source });
+  assert.equal(calls, 1);
+  assert.equal(f.step.state, 'SUCCEEDED');
+  assert.deepEqual([f.document?.searchGeo?.status, f.document?.searchGeo?.reason], ['FAILED', 'CANCELLED']);
+  assert.deepEqual(f.usage.filter(row => row.ordinal === 16).map(row => row.n), [1]);
+});
+
+test('an owner cancellation during the map still cancels collection and retains the one paid attempt', async t => {
+  let calls = 0, started!: () => void;
+  const reached = new Promise<void>(resolve => { started = resolve; });
+  const underlying = syntheticGeoSource(() => { calls++; });
+  const source: SearchGeoSource = { id: 'SERPAPI', collect: async (keyword, options) => {
+    const result = await underlying.collect(keyword, options);
+    started();
+    await new Promise<void>(resolve => options!.signal!.addEventListener('abort', () => resolve(), { once: true }));
+    return { ...result, status: 'CANCELLED', facts: null };
+  } };
+  const f = await confirmed(t, { source: syntheticProductSource(), trendsSource: syntheticTrendsSource(() => {}), trendsGeoSource: source });
+  const collecting = f.service.processNext();
+  await reached;
+  const running = await f.service.getRun(workspaceId, runId);
+  await f.service.cancel(workspaceId, runId, { contractVersion: 'research-automation-cancel-v1', requestKey: '55555555-5555-4555-8555-555555555555', expectedRevision: running.revision });
+  await collecting;
+  const state = await f.read();
+  assert.equal(state.run.status, 'CANCELLED');
+  assert.equal(state.step.state, 'CANCELLED');
+  assert.equal(state.run.steps.find(step => step.stepId === 'REPORTS')?.state, 'SKIPPED');
+  assert.equal(calls, 1);
+  assert.deepEqual(state.usage.filter(row => row.ordinal === 16).map(row => row.n), [1]);
+});
+
+test('malformed normalized map data keeps its capture and usage without failing collection', async t => {
+  const underlying = syntheticGeoSource(() => {});
+  const source: SearchGeoSource = { id: 'SERPAPI', collect: async (keyword, options) => ({ ...await underlying.collect(keyword, options),
+    facts: { kind: 'GEO_MAP_0', unit: 'INDEX_0_100', keyword, regions: [{ region: null, index: 40 }] } } as unknown as Awaited<ReturnType<SearchGeoSource['collect']>>) };
+  const f = await runToDraft(t, { source: syntheticProductSource(), trendsSource: syntheticTrendsSource(() => {}), trendsGeoSource: source });
+  assert.equal(f.step.state, 'SUCCEEDED');
+  assert.deepEqual([f.document?.searchGeo?.status, f.document?.searchGeo?.reason], ['FAILED', 'PROVIDER_FAILED']);
+  assert.equal(f.captures.length, 3);
+  assert.deepEqual(f.usage.filter(row => row.ordinal === 16).map(row => row.n), [1]);
+});
+
 test('a restart during the province-map request marks the run interrupted and never repeats the paid request', async t => {
   let calls = 0, release!: () => void, started!: () => void;
   const reached = new Promise<void>(resolve => { started = resolve; });

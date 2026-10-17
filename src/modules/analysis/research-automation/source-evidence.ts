@@ -148,7 +148,7 @@ export function sourceEvidenceForReport(packet: AutomationSourceEvidence, input:
   const geo = input.collection?.searchGeo;
   if (kind === 'MARKET' && searchGeoRenderable(geo)) {
     const capture = input.captures?.find(c => c.stepId === 'COLLECTION' && c.ordinal === geo.captureIndex);
-    if (!capture || capture.provider !== 'serpapi' || capture.operation !== 'serpapi.google.trends') throw new ResearchAutomationIntegrityError('Search interest by province capture lineage is unavailable');
+    if (!capture || geo.captureIndex === interest?.captureIndex || capture.truncated || capture.retrievedAt !== geo.retrievedAt || capture.provider !== 'serpapi' || capture.operation !== 'serpapi.google.trends') throw new ResearchAutomationIntegrityError('Search interest by province capture lineage is unavailable');
     add('S20', 'capture', capture.artifactSha256);
   }
   // S23 is used only for the country-level rows the Market report draws (same predicate as both renderers); each needs both stored captures.

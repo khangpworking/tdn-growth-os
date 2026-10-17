@@ -66,7 +66,11 @@ const REGION_PROVINCES: Readonly<Record<VnRegion, readonly string[]>> = {
 };
 
 /** Spelling variants the provider may use, after the prefix and accent clean-up. */
-const PROVINCE_ALIASES: Readonly<Record<string, string>> = { 'Thừa Thiên - Huế': 'Thừa Thiên Huế', 'Huế': 'Thừa Thiên Huế' };
+const PROVINCE_ALIASES: ReadonlyMap<string, string> = new Map([
+  ['thừa thiên - huế', 'Thừa Thiên Huế'], ['huế', 'Thừa Thiên Huế'], ['thua thien hue', 'Thừa Thiên Huế'],
+  ['tp.hcm', 'Hồ Chí Minh'], ['hcm', 'Hồ Chí Minh'], ['ho chi minh city', 'Hồ Chí Minh'],
+  ['hanoi', 'Hà Nội'], ['ha noi', 'Hà Nội'], ['ba ria - vung tau', 'Bà Rịa - Vũng Tàu'],
+]);
 
 /** NFC, old-style accent placement, no leading "tỉnh "/"thành phố ", one spelling of the dash. */
 export function normalizeProvince(name: string): string {
@@ -74,7 +78,7 @@ export function normalizeProvince(name: string): string {
     .replace(/^(?:tỉnh|thành phố|tp\.?)\s+/iu, '')
     .replace(/Hoá/gu, 'Hóa').replace(/Hoà/gu, 'Hòa').replace(/Đăk/gu, 'Đắk').replace(/Lăk/gu, 'Lắk')
     .replace(/\s*[-–—]\s*/gu, ' - ').trim();
-  return PROVINCE_ALIASES[cleaned] ?? cleaned;
+  return PROVINCE_ALIASES.get(cleaned.toLowerCase()) ?? cleaned;
 }
 
 const PROVINCE_REGION: ReadonlyMap<string, VnRegion> = new Map(VN_REGIONS.flatMap(region => REGION_PROVINCES[region].map(province => [normalizeProvince(province), region] as const)));
@@ -186,7 +190,7 @@ export function summarizeSearchGeo(provinces: readonly StepSearchGeoProvince[]):
 
 /** One decimal with a Vietnamese comma; empty cell text when no province of the region has a value. */
 export function searchGeoAverageText(value: number | null): string {
-  return value === null ? 'không có số' : value.toFixed(1).replace('.', ',');
+  return value === null ? '' : value.toFixed(1).replace('.', ',');
 }
 
 export interface SearchGeoText {
@@ -198,8 +202,10 @@ export interface SearchGeoText {
 }
 
 export function searchGeoText(summary: SearchGeoSummary): SearchGeoText {
-  const top5 = summary.top.slice(0, 5).map(row => `${row.name} (${row.index})`).join(', ');
-  const topLine = `${Math.min(5, summary.top.length)} tỉnh, thành phố đứng đầu về mức quan tâm: ${top5}.`;
+  // Unknown provider labels remain retained evidence, never visible report prose.
+  const top5 = summary.top.slice(0, 5);
+  const topLine = top5.length && top5.every(row => row.region !== null)
+    ? `${top5.length} tỉnh, thành phố đứng đầu về mức quan tâm: ${top5.map(row => `${row.name} (${row.index})`).join(', ')}.` : '';
   const { choice } = summary;
   if (choice.kind === 'REGION') return { topLine,
     result: `Kết quả: vùng nổi bật là ${choice.region} (${choice.inTop} trong 10 tỉnh đứng đầu).`,
@@ -211,10 +217,12 @@ export function searchGeoText(summary: SearchGeoSummary): SearchGeoText {
     const lead = choice.leading.length <= 2 && choice.leadingInTop >= 2
       ? ` Dẫn đầu: ${choice.leading.join(' và ')} (${choice.leading.length > 1 ? 'mỗi vùng ' : ''}${choice.leadingInTop} tỉnh), không đủ để lọc.` : '';
     return { topLine, result: `Kết quả: toàn quốc, không lọc.${lead}`,
-      seen: `Thấy gì: 10 tỉnh, thành phố đứng đầu về mức quan tâm trải trên nhiều vùng; không vùng nào có từ ${SEARCH_GEO_MIN_IN_TOP} tỉnh trở lên.`, use, dont: SEARCH_GEO_DONT };
+      seen: choice.leadingInTop >= SEARCH_GEO_MIN_IN_TOP
+        ? `Thấy gì: hai vùng cùng có ${choice.leadingInTop} tỉnh trong 10 tỉnh, thành phố đứng đầu về mức quan tâm; không chọn riêng một vùng.`
+        : `Thấy gì: 10 tỉnh, thành phố đứng đầu về mức quan tâm trải trên nhiều vùng; không vùng nào có từ ${SEARCH_GEO_MIN_IN_TOP} tỉnh trở lên.`, use, dont: SEARCH_GEO_DONT };
   }
   if (choice.why === 'TOO_FEW') return { topLine, result: 'Kết quả: toàn quốc, không lọc.',
     seen: `Thấy gì: chỉ ${choice.valued} tỉnh, thành phố có số; chưa đủ 10 tỉnh để so các vùng.`, use, dont: SEARCH_GEO_DONT };
   return { topLine, result: 'Kết quả: toàn quốc, không lọc.',
-    seen: `Thấy gì: có nơi trong 10 tỉnh đứng đầu không khớp danh sách 63 tỉnh, thành phố (${choice.unmapped.join(', ')}); không chọn vùng.`, use, dont: SEARCH_GEO_DONT };
+    seen: 'Thấy gì: có nơi trong 10 tỉnh đứng đầu không khớp danh sách 63 tỉnh, thành phố; không chọn vùng.', use, dont: SEARCH_GEO_DONT };
 }

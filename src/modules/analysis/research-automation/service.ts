@@ -5,7 +5,7 @@ import { filterSerpApiResults } from './serpapi-l9-filter.js';
 import { boundedText, httpsUrl, parseProviderProductRef, splitPeriodIntoWindows } from './provider-common.js';
 import { KALODATA_LIMITS } from './provider-kalodata.js';
 import { searchInterestChartPoints, searchInterestCoversPeriod, searchInterestDocument, searchInterestRenderable, searchInterestUsage, SEARCH_INTEREST_USAGE_ORDINAL, type SearchInterestAttempt, type SearchInterestSource } from './search-interest.js';
-import { searchGeoDocument, searchGeoRenderable, SEARCH_GEO_USAGE_ORDINAL, type SearchGeoAttempt, type SearchGeoSource } from './search-geo.js';
+import { normalizeProvince, searchGeoDocument, searchGeoRenderable, SEARCH_GEO_USAGE_ORDINAL, type SearchGeoAttempt, type SearchGeoSource } from './search-geo.js';
 import { collectionWebRows, expandedQueryDocument, EXPANDED_SEARCH_USAGE_ORDINAL, webResultUrlKey, type ExpandedSearchAttempt, type ExpandedSearchSource } from './expanded-search-lane.js';
 import type { AutomationInsightPersonaReportRevisionRequest, PersonaReportSelection, PersonaSelectedReportSnapshot } from '../../../../contracts/analysis/automation-insight-persona-report.generated.js';
 import type { InsightModelAI } from './insight-model-execution.js';
@@ -1879,7 +1879,7 @@ export class ResearchAutomationService {
       return { workspaceId, runId, draftPairId: latest.pairId, marketSemantic, ...(webCollection?.sourceEvidence?.webPageTypes ? { webPageTypes: true } : {}),
         webResults: webResults.map(({ position, title, url, snippet, retrievedAt, site, published, origin }) =>
           ({ position, title, url, snippet, retrievedAt, site: site ?? null, published: published ?? null, ...(origin ? { origin } : {}) })),
-        ...(searchInterestRenderable(searchInterest) ? { searchInterest } : {}), ...(searchGeoRenderable(webCollection?.searchGeo) ? { searchGeo: webCollection.searchGeo } : {}),
+        ...(searchInterestRenderable(searchInterest) ? { searchInterest } : {}), ...(searchGeoRenderable(webCollection?.searchGeo) ? { searchGeo: webCollection.searchGeo, searchGeoCapture: (await this.#captureRecords(runId)).find(c => c.stepId === 'COLLECTION' && c.ordinal === webCollection.searchGeo!.captureIndex)! } : {}),
         ...(worldBankRenderable(webCollection?.worldBank) ? { worldBank: webCollection.worldBank } : {}), ...(webCollection?.comtrade ? { comtrade: webCollection.comtrade } : {}), ...(webCollection?.searchAds ? { searchAds: webCollection.searchAds } : {}), ...(webCollection?.officialStats ? { officialStats: webCollection.officialStats } : {}), ...(storedPdfExcerpts(marketSemantic).length ? { pdfExcerpts: storedPdfExcerpts(marketSemantic) } : {}), ...(storedSellerVideos(marketSemantic) ? { sellerVideos: storedSellerVideos(marketSemantic)! } : {}),
         ...(metaAds.length ? { metaAds } : {}), ...await this.#metaAutoContext(webCollection, runId), ...await this.#tiktokTopAdsContext(webCollection, runId),
         metric: { packageId, capture: { snapshot: verifiedCapture.snapshot, snapshotSha256: rawSnapshotSha256, truncation: preparedCapture.capture.truncation }, measurementPeriod: preparedCapture.capture.measurementPeriod } };
@@ -1894,7 +1894,7 @@ export class ResearchAutomationService {
     return { workspaceId, runId, draftPairId: latest.pairId, marketSemantic, ...(webCollection?.sourceEvidence?.webPageTypes ? { webPageTypes: true } : {}),
       webResults: webResults.map(({ position, title, url, snippet, retrievedAt, site, published, origin }) =>
         ({ position, title, url, snippet, retrievedAt, site: site ?? null, published: published ?? null, ...(origin ? { origin } : {}) })),
-      ...(searchInterestRenderable(searchInterest) ? { searchInterest } : {}), ...(searchGeoRenderable(webCollection?.searchGeo) ? { searchGeo: webCollection.searchGeo } : {}),
+      ...(searchInterestRenderable(searchInterest) ? { searchInterest } : {}), ...(searchGeoRenderable(webCollection?.searchGeo) ? { searchGeo: webCollection.searchGeo, searchGeoCapture: (await this.#captureRecords(runId)).find(c => c.stepId === 'COLLECTION' && c.ordinal === webCollection.searchGeo!.captureIndex)! } : {}),
         ...(worldBankRenderable(webCollection?.worldBank) ? { worldBank: webCollection.worldBank } : {}), ...(webCollection?.comtrade ? { comtrade: webCollection.comtrade } : {}), ...(webCollection?.searchAds ? { searchAds: webCollection.searchAds } : {}), ...(webCollection?.officialStats ? { officialStats: webCollection.officialStats } : {}), ...(storedPdfExcerpts(marketSemantic).length ? { pdfExcerpts: storedPdfExcerpts(marketSemantic) } : {}), ...(storedSellerVideos(marketSemantic) ? { sellerVideos: storedSellerVideos(marketSemantic)! } : {}),
       ...(metaAds.length ? { metaAds } : {}), ...await this.#metaAutoContext(webCollection, runId), ...await this.#tiktokTopAdsContext(webCollection, runId),
       metric: { packageId, workbook: workbook.bytes, measurementPeriod: prepared.request.measurementPeriod } };
@@ -4056,9 +4056,9 @@ export class ResearchAutomationService {
       const offset = captures.length;
       const geoEnvelopes = attempt.kind === 'CALLED' ? captureEnvelopes(attempt.result) : [];
       await putCaptures(geoEnvelopes ?? []);
-      const document = searchGeoDocument(geoEnvelopes ? attempt : thrown, captures.length > offset ? captures.length - 1 : null);
-      const probe = { ...step, searchGeo: document };
       try {
+        const document = searchGeoDocument(geoEnvelopes ? attempt : thrown, captures.length > offset ? captures.length - 1 : null);
+        const probe = { ...step, searchGeo: document };
         assertStepDocument(probe, runId, stepId);
         assertCaptureLineage(probe, captures.map(value => value.row));
         step = probe;
@@ -4387,7 +4387,7 @@ export class ResearchAutomationService {
       // manifests and actual late capture/usage evidence. No transaction spans I/O.
       const statusAtPublication = this.#current(runId)?.status;
       if (cancelledSourceEvidence && step.sourceEvidence?.draftDigest && (aborted || signal?.aborted ||
-          result?.status === 'CANCELLED' || webResult?.status === 'CANCELLED' || trendsResult?.status === 'CANCELLED' || geoResult?.status === 'CANCELLED' || expandedCalled.some(item => item.result.status === 'CANCELLED') ||
+          result?.status === 'CANCELLED' || webResult?.status === 'CANCELLED' || trendsResult?.status === 'CANCELLED' || expandedCalled.some(item => item.result.status === 'CANCELLED') ||
           !statusAtPublication || ['CANCELLING', 'CANCELLED', 'FAILED', 'INTERRUPTED'].includes(statusAtPublication))) {
         step = { ...step, sourceEvidence: cancelledSourceEvidence() };
         resultArtifact = await this.#artifacts.put(Buffer.from(canonicalJson(step), 'utf8'));
@@ -4445,7 +4445,7 @@ export class ResearchAutomationService {
         // Keep the exact late capture and usage rows, but never reopen a
         // terminal run or mutate its interrupted step.
         if (TERMINAL_STATUSES.has(current.status)) return;
-        const outcome = aborted || signal?.aborted || result?.status === 'CANCELLED' || webResult?.status === 'CANCELLED' || trendsResult?.status === 'CANCELLED' || geoResult?.status === 'CANCELLED' || expandedCalled.some(item => item.result.status === 'CANCELLED') || current.status === 'CANCELLING' ? 'CANCELLED' : step.outcome;
+        const outcome = aborted || signal?.aborted || result?.status === 'CANCELLED' || webResult?.status === 'CANCELLED' || trendsResult?.status === 'CANCELLED' || expandedCalled.some(item => item.result.status === 'CANCELLED') || current.status === 'CANCELLING' ? 'CANCELLED' : step.outcome;
         const code = outcome === 'CANCELLED' ? 'CANCELLED_DURING_PROVIDER_OPERATION' : outcome === 'UNAVAILABLE' ? 'PROVIDER_NOT_CONFIGURED' : outcome === 'FAILED'
           ? step.limitations.some(value => value.code === 'PROVIDER_OUTPUT_INVALID') ? 'PROVIDER_OUTPUT_INVALID'
             : step.limitations.some(value => value.code === 'PROVIDER_CREDIT_EXHAUSTED') ? 'PROVIDER_CREDIT_EXHAUSTED' : 'PROVIDER_FAILED' : null;
@@ -5597,19 +5597,22 @@ function validSearchInterest(value: unknown): boolean {
 
 /** Stored-document check of the province map; exported for tests only. */
 export function validSearchGeo(value: unknown): boolean {
-  if (!isRecord(value) || !['COLLECTED', 'FAILED', 'SKIPPED'].includes(value.status as string) || value.geo !== 'VN' || value.unit !== 'INDEX_0_100' || value.window !== 'LAST_12_MONTHS' ||
+  if (!isRecord(value) || Object.keys(value).sort().join() !== 'captureIndex,geo,keyword,provinces,reason,retrievedAt,status,unit,window' ||
+      !['COLLECTED', 'FAILED', 'SKIPPED'].includes(value.status as string) || value.geo !== 'VN' || value.unit !== 'INDEX_0_100' || value.window !== 'LAST_12_MONTHS' ||
       (value.reason !== null && !(SEARCH_GEO_REASONS as readonly unknown[]).includes(value.reason)) || (value.status === 'COLLECTED') !== (value.reason === null) ||
-      typeof value.keyword !== 'string' || value.keyword.length < 1 || value.keyword.length > 200 || CONTROL.test(value.keyword) ||
+      (value.status === 'SKIPPED') !== (value.reason === 'PERIOD_NOT_COVERED') ||
+      typeof value.keyword !== 'string' || value.keyword.trim().length < 1 || value.keyword.length > 200 || CONTROL.test(value.keyword) ||
       (value.retrievedAt !== null && (typeof value.retrievedAt !== 'string' || !Number.isFinite(Date.parse(value.retrievedAt)))) ||
-      (value.captureIndex !== null && (!Number.isSafeInteger(value.captureIndex) || (value.captureIndex as number) < 0)) ||
+      (value.captureIndex !== null && (!Number.isSafeInteger(value.captureIndex) || (value.captureIndex as number) < 0 || value.captureIndex >= MAX_CAPTURES_PER_STEP)) ||
+      (value.captureIndex === null) !== (value.retrievedAt === null) ||
       !Array.isArray(value.provinces) || value.provinces.length > MAX_SEARCH_GEO_PROVINCES || (value.status !== 'COLLECTED' && value.provinces.length > 0) ||
-      (value.status === 'COLLECTED' && (value.captureIndex === null || value.retrievedAt === null || value.provinces.length === 0)) ||
+      (value.status === 'COLLECTED' && (value.captureIndex === null || value.retrievedAt === null || !value.provinces.some((item: unknown) => isRecord(item) && item.index !== null))) ||
       (value.status === 'SKIPPED' && (value.captureIndex !== null || value.retrievedAt !== null))) return false;
   const names = new Set<string>();
   return value.provinces.every((item: unknown) => {
-    if (!isRecord(item) || Object.keys(item).sort().join() !== 'index,name' || typeof item.name !== 'string' || item.name.length < 1 || item.name.length > 120 ||
-        CONTROL.test(item.name) || names.has(item.name) || (item.index !== null && (!Number.isInteger(item.index) || (item.index as number) < 0 || (item.index as number) > 100))) return false;
-    names.add(item.name);
+    if (!isRecord(item) || Object.keys(item).sort().join() !== 'index,name' || typeof item.name !== 'string' || item.name.trim().length < 1 || item.name.length > 120 ||
+        CONTROL.test(item.name) || names.has(normalizeProvince(item.name)) || (item.index !== null && (!Number.isInteger(item.index) || (item.index as number) < 0 || (item.index as number) > 100))) return false;
+    names.add(normalizeProvince(item.name));
     return true;
   });
 }
@@ -5870,7 +5873,7 @@ function assertCaptureLineage(document: StepResultDocument, captures: readonly C
   const geo = document.searchGeo;
   if (geo?.captureIndex != null) {
     const capture = stepCaptures.get(geo.captureIndex);
-    if (!capture || capture.truncated || capture.provider !== 'serpapi' || capture.operation !== 'serpapi.google.trends' || capture.retrievedAt !== geo.retrievedAt)
+    if (!capture || geo.captureIndex === interest?.captureIndex || capture.truncated || capture.provider !== 'serpapi' || capture.operation !== 'serpapi.google.trends' || capture.retrievedAt !== geo.retrievedAt)
       throw new ResearchAutomationIntegrityError('Stored search interest by province references an incompatible capture.');
   }
   for (const item of document.worldBank?.indicators ?? []) {

@@ -129,10 +129,13 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   if (interestChart) charts.push({ id: 'M05.search-interest', engine: interestChart.engine, ...(interestChart.error ? { error: interestChart.error } : {}) });
   // The stored province map follows Hình 5.2 as six region rows; a pure rule picks a region or says nationwide. Never with sales.
   const geo = next && searchGeoRenderable(options.searchGeo) ? options.searchGeo : undefined;
+  const geoCapture = geo ? options.searchGeoCapture : undefined;
+  const geoCitation = geoCapture ? registry.cite({ sourceKind: 'CAPTURE', identity: geoCapture.artifactSha256, locator: null,
+    label: SEARCH_INTEREST_SRC, retrievedAt: geoCapture.retrievedAt, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' }) : null;
   const geoSummary = geo ? summarizeSearchGeo(geo.provinces) : undefined;
   const geoBlock = !geoSummary ? '' : tbl(SEARCH_GEO_TABLE_NO, SEARCH_GEO_TABLE_TITLE, '', [...SEARCH_GEO_HEADERS],
-    geoSummary.regions.map(row => [esc(row.region), label(searchGeoAverageText(row.average)), label(String(row.inTop))]), { src: label(SEARCH_INTEREST_SRC), note: label(SEARCH_GEO_NOTE) }) +
-    (({ topLine, result, seen, use, dont }) => [topLine, result, seen, use, dont].map(line => `<p>${label(line)}</p>`).join(''))(searchGeoText(geoSummary));
+    geoSummary.regions.map(row => [esc(row.region), label(searchGeoAverageText(row.average)), label(String(row.inTop))]), { src: label(SEARCH_INTEREST_SRC) + (geoCitation === null ? '' : renderCitationMark(geoCitation)), note: label(SEARCH_GEO_NOTE) }) +
+    (({ topLine, result, seen, use, dont }) => [topLine, result, seen, use, dont].filter(Boolean).map(line => `<p>${label(line)}</p>`).join(''))(searchGeoText(geoSummary));
   // Open country-level figures sit beside the sales numbers in M05 (the context section that already holds the search-interest
   // figure). M10 is "Chưa dự báo", where a macro figure would read as a forecast basis. The same predicate marks S23 as used.
   const worldBankRows = next ? worldBankRenderableRows(options.worldBank) : [];
