@@ -168,7 +168,11 @@ export interface StepWorldBankIndicator {
   readonly sourceSha256: string | null;
   readonly metadataSha256: string | null;
   readonly row: StepWorldBankRow | null;
+  /** Up to the last 10 years ending at `row.year`, read from the same projection; null is a gap (never carried forward).
+   * Optional: documents stored before this field have no series and draw no chart. */
+  readonly series?: readonly StepWorldBankPoint[];
 }
+export interface StepWorldBankPoint { readonly year: string; readonly value: string | null }
 export interface StepWorldBank { readonly profile: string; readonly indicators: readonly StepWorldBankIndicator[] }
 
 /** UN Comtrade country-level trade figures for one estimated HS6 code (S24). Background only; never combined with sample numbers. */
@@ -297,6 +301,37 @@ export interface StepOfficialStats {
   readonly files: readonly StepOfficialStatsFile[];
   readonly tables: readonly StepOfficialStatsTable[];
   readonly values: readonly StepOfficialStatsValue[];
+  /** Province sheet of the same stored CPI workbook (S22). Absent unless the province flag was on and that workbook was stored. */
+  readonly provinces?: StepOfficialStatsProvinces;
+}
+/** One cell of the province sheet: a requested CPI group row at one province/city column. */
+export interface StepOfficialStatsProvinceValue {
+  readonly row: number;
+  readonly cell: string;
+  /** The row label exactly as the sheet prints it (NFC, whitespace collapsed). */
+  readonly label: string;
+  /** The column's province/city name exactly as the header prints it. */
+  readonly province: string;
+  /** The stored cell value exactly as written in the workbook (plain decimal); null when blank or not a number. */
+  readonly value: string | null;
+  /** The same value rounded to the cell's display precision; null when missing. */
+  readonly shown: string | null;
+}
+/** Cục Thống kê consumer price index by province/city (S22), read from the stored CPI workbook of the S21 lane; no extra request. */
+export interface StepOfficialStatsProvinces {
+  /** Step capture ordinal of the stored CPI workbook (the `files` entry with role CPI). */
+  readonly captureIndex: number;
+  readonly outcome: 'READ' | 'LAYOUT_UNKNOWN' | 'NOT_FOUND';
+  readonly sheet: string | null;
+  /** The pinned layout variant the header matched; null unless READ. */
+  readonly variant: string | null;
+  /** "Tháng 9 năm 2026"; null unless READ. */
+  readonly period: string | null;
+  /** The comparison base as stated by the sheet ("tháng trước"); null unless READ. */
+  readonly base: string | null;
+  /** Province/city names in sheet order. */
+  readonly provinces: readonly string[];
+  readonly values: readonly StepOfficialStatsProvinceValue[];
 }
 
 /** Automatic Meta ad-library reading (S15, AUTO origin). Spans are UTF-8 byte offsets into the retained read text. */

@@ -28,7 +28,7 @@ export function marketChartRows<R extends MarketChartRow>(rows: readonly R[]): (
   return rows.filter((row): row is R & { readonly platform: MarketChartPlatform } => usable.has(row.platform as MarketChartPlatform));
 }
 
-const keepOrder = (field: string, order: readonly string[]) => (spec: any): void => {
+export const keepOrder = (field: string, order: readonly string[]) => (spec: any): void => {
   const walk = (node: any): void => {
     if (!node || typeof node !== 'object') return;
     for (const channel of ['x', 'y']) if (node.encoding?.[channel]?.field === field) node.encoding[channel].sort = order;

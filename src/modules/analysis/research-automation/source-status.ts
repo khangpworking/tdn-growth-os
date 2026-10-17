@@ -102,7 +102,7 @@ export const SOURCE_REGISTRY: Record<SourceBoardId, SourceRegistryCard> = {
   SERPAPI: { registryIds: ['S19', 'S13', 'S26', 'S20'], tier: null, tierDetail: 'S19: theo trang gốc; S13: C; S26: C; S20: B',
     group: 'SALES_MARKET', reportName: 'kết quả tìm kiếm Google; mức quan tâm tìm kiếm trên Google',
     paid: true, pendingPackage: null, built: true, arrival: 'PAID_API' },
-  OFFICIAL_STATS: { registryIds: ['S21'], tier: 'A', tierDetail: null, group: 'MACRO',
+  OFFICIAL_STATS: { registryIds: ['S21', 'S22'], tier: 'A', tierDetail: null, group: 'MACRO',
     reportName: 'Cục Thống kê (nso.gov.vn)', paid: false, pendingPackage: null, built: true, arrival: 'FREE_COLLECT' },
   WORLD_BANK: { registryIds: ['S23'], tier: 'A', tierDetail: null, group: 'MACRO',
     reportName: 'Ngân hàng Thế giới (World Bank Open Data)', paid: false, pendingPackage: null, built: true, arrival: 'MANUAL_UPLOAD' },

@@ -7,7 +7,7 @@
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import type { StepOfficialStatsTable, StepOfficialStatsTableId, StepOfficialStatsValue, StepOfficialStatsValueStatus } from './model.js';
+import type { StepOfficialStatsProvinceValue, StepOfficialStatsTable, StepOfficialStatsTableId, StepOfficialStatsValue, StepOfficialStatsValueStatus } from './model.js';
 
 export const OFFICIAL_STATS_READER_MAX_BYTES = 20 * 1024 * 1024;
 export const OFFICIAL_STATS_READER_TIMEOUT_MS = 30_000;
@@ -357,6 +357,94 @@ export function officialStatsHeaderProbe(sheets: readonly OfficialStatsSheet[], 
   if (titled.length !== 1) return null;
   const sheet = titled[0]!;
   return { sheet: sheet.name, headerHash: officialHeaderHash(sheet, profile.header.first, profile.header.last, profile.header.lastCol), meaningOk: profile.meaning(sheet, '') !== null };
+}
+
+// ---- province sheet (S22) ----
+
+/** Pinned header of the province sheet of the CPI workbook ("Biểu 5 … MỘT SỐ ĐỊA PHƯƠNG"): rows 1–7 up to column M (title,
+ *  month, the stated base and the unit line). The province names on row 8 are read, not pinned, so a renamed or added
+ *  province is read as printed. Seen in the CPI workbooks of months 5, 7, 8 and 9 of 2026 (the 30- and 84-row editions share
+ *  one header). */
+export const OFFICIAL_STATS_PROVINCE_VARIANTS: Readonly<Record<string, string>> = {
+  'thang-truoc': '2959eb9f15aee5cf11e0e6ca5d8e754ca1c82af980104d57c06ef74523a07323',
+};
+const PROVINCE_HEADER = { first: 1, last: 7, lastCol: 'M' } as const;
+const PROVINCE_NAME_ROW = 8;
+const PROVINCE_DATA_ROWS = { first: 9, last: 60 } as const;
+const PROVINCE_MAX_COLUMNS = 25;
+const provinceTitled = (sheet: OfficialStatsSheet): boolean => /^Biểu \d{1,2}$/u.test(text(sheet, 'A1')) && text(sheet, 'A2') === 'CHỈ SỐ GIÁ TIÊU DÙNG,'
+  && text(sheet, 'A3') === 'CHỈ SỐ GIÁ VÀNG VÀ CHỈ SỐ GIÁ ĐÔ LA MỸ MỘT SỐ ĐỊA PHƯƠNG';
+
+export interface OfficialStatsProvinceRead {
+  readonly outcome: 'READ' | 'LAYOUT_UNKNOWN' | 'NOT_FOUND';
+  readonly sheet: string | null;
+  readonly variant: string | null;
+  readonly headerHash: string | null;
+  readonly period: string | null;
+  /** The comparison base as the sheet states it, e.g. "tháng trước"; the sheet prints "(Tháng trước = 100)". */
+  readonly base: string | null;
+  /** Province/city names from the header row, in sheet order, as printed (NFC, whitespace collapsed). */
+  readonly provinces: readonly string[];
+  /** One entry per requested label found exactly once and per province column, in label order then column order. */
+  readonly values: readonly StepOfficialStatsProvinceValue[];
+}
+
+/** Reads the requested CPI group rows across every province column of the province sheet. Only this table is affected by an
+ *  unknown layout; the national tables are read separately. */
+export function readOfficialStatsProvinces(sheets: readonly OfficialStatsSheet[], labels: readonly string[]): OfficialStatsProvinceRead {
+  const none = (outcome: OfficialStatsProvinceRead['outcome'], sheet: string | null = null, headerHash: string | null = null): OfficialStatsProvinceRead =>
+    ({ outcome, sheet, variant: null, headerHash, period: null, base: null, provinces: [], values: [] });
+  const titled = sheets.filter(sheet => sheet.state === 'visible' && provinceTitled(sheet));
+  if (titled.length === 0) return none('NOT_FOUND');
+  if (titled.length > 1) return none('LAYOUT_UNKNOWN');
+  const sheet = titled[0]!;
+  const hash = officialHeaderHash(sheet, PROVINCE_HEADER.first, PROVINCE_HEADER.last, PROVINCE_HEADER.lastCol);
+  const variant = Object.entries(OFFICIAL_STATS_PROVINCE_VARIANTS).find(([, pinned]) => pinned === hash)?.[0] ?? null;
+  if (variant === null) return none('LAYOUT_UNKNOWN', sheet.name, hash);
+  const period = /^Tháng (\d{1,2}) năm (\d{4})$/u.exec(text(sheet, 'A4'));
+  const base = /^\(Tháng trước = 100\)$/u.exec(text(sheet, 'A5'));
+  if (!period || !base || Number(period[1]) < 1 || Number(period[1]) > 12) return none('LAYOUT_UNKNOWN', sheet.name, hash);
+  // Province names: one contiguous run of text cells from column B; the label column and anything after the run stay empty.
+  const columns: { readonly col: string; readonly name: string }[] = [];
+  for (let c = 2; c <= 26; c++) {
+    const ref = `${colLetters(c)}${PROVINCE_NAME_ROW}`, cell = sheet.cells.get(ref);
+    if (!cell) { if (columns.length === 0) return none('LAYOUT_UNKNOWN', sheet.name, hash); break; }
+    const name = cell.kind === 't' ? normalizeOfficialText(cell.text) : '';
+    if (name === '' || name.length > 60 || /[\d%]/u.test(name) || columns.some(item => item.name === name)) return none('LAYOUT_UNKNOWN', sheet.name, hash);
+    columns.push({ col: colLetters(c), name });
+  }
+  if (sheet.cells.has(`A${PROVINCE_NAME_ROW}`) || columns.length === 0 || columns.length > PROVINCE_MAX_COLUMNS
+    || [...sheet.cells.keys()].some(ref => {
+      const m = REF.exec(ref)!;
+      return Number(m[2]) === PROVINCE_NAME_ROW && colNumber(m[1]!) > columns.length + 1;
+    })) return none('LAYOUT_UNKNOWN', sheet.name, hash);
+  // Display precision: a cell's own plain format; for cells in an accounting format (no plain precision) the single
+  // precision every plain-format number cell of the data block states, when they all agree; else the stored text.
+  const stated = new Set<number>();
+  for (let r = PROVINCE_DATA_ROWS.first; r <= PROVINCE_DATA_ROWS.last; r++) for (const { col } of columns) {
+    const cell = sheet.cells.get(`${col}${r}`);
+    if (cell && cell.kind === 'n' && cell.decimals !== null) stated.add(cell.decimals);
+  }
+  const blockDecimals = stated.size === 1 ? [...stated][0]! : null;
+  const values: StepOfficialStatsProvinceValue[] = [];
+  for (const wanted of [...new Set(labels.map(normalizeOfficialText))]) {
+    const rows: number[] = [];
+    for (let r = PROVINCE_DATA_ROWS.first; r <= PROVINCE_DATA_ROWS.last; r++) if (text(sheet, `A${r}`) === wanted) rows.push(r);
+    if (rows.length !== 1) continue; // absent or printed twice: no value is taken
+    const row = rows[0]!;
+    for (const { col, name } of columns) {
+      const ref = `${col}${row}`, cell = sheet.cells.get(ref);
+      let value: string | null = null, shown: string | null = null;
+      if (cell && cell.kind === 'n' && PLAIN_NUMBER.test(cell.text)) {
+        value = cell.text;
+        const decimals = cell.decimals ?? blockDecimals;
+        shown = decimals === null ? cell.text : roundDecimalText(cell.text, decimals);
+      }
+      values.push({ row, cell: ref, label: wanted, province: name, value, shown });
+    }
+  }
+  return { outcome: 'READ', sheet: sheet.name, variant, headerHash: hash, period: monthYear(period[1]!, period[2]!), base: 'tháng trước',
+    provinces: columns.map(item => item.name), values };
 }
 
 export const OFFICIAL_STATS_STATUS_TEXT: Readonly<Record<StepOfficialStatsValueStatus, string>> = {

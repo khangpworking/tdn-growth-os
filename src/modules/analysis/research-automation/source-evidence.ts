@@ -15,7 +15,7 @@ import { searchInterestRenderable } from './search-interest.js';
 import { worldBankRenderableRows } from './world-bank-lane.js';
 import { comtradeRenderable } from './comtrade-lane.js';
 import { searchAdsOkBrands } from './google-ads-lane.js';
-import { officialStatsRenderableRows } from './official-statistics-lane.js';
+import { officialStatsProvinceRows, officialStatsRenderableRows } from './official-statistics-lane.js';
 import { pdfExcerptDocuments, type PdfExcerpt } from './pdf-excerpt.js';
 import { sellerVideoPackages, type SellerVideos } from './seller-video.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
@@ -156,6 +156,13 @@ export function sourceEvidenceForReport(packet: AutomationSourceEvidence, input:
     const capture = input.captures?.find(c => c.stepId === 'COLLECTION' && c.ordinal === index);
     if (!capture || capture.provider !== 'official-stats' || capture.operation !== 'officialstats.download') throw new ResearchAutomationIntegrityError('Official statistics capture lineage is unavailable');
     add('S21', 'capture', capture.artifactSha256);
+  }
+  // S22 is used only when the Market report draws table 5.5 (same predicate as both renderers), from the same stored CPI workbook as S21.
+  if (kind === 'MARKET' && officialStatsProvinceRows(input.collection?.officialStats).length) {
+    const index = input.collection!.officialStats!.provinces!.captureIndex;
+    const capture = input.captures?.find(c => c.stepId === 'COLLECTION' && c.ordinal === index);
+    if (!capture || capture.provider !== 'official-stats' || capture.operation !== 'officialstats.download') throw new ResearchAutomationIntegrityError('Official statistics province capture lineage is unavailable');
+    add('S22', 'capture', capture.artifactSha256);
   }
   // S24 is used only when the Market report draws the country-level trade table (same predicate as both renderers), once per stored response.
   if (kind === 'MARKET' && comtradeRenderable(input.collection?.comtrade)) for (const call of input.collection!.comtrade!.calls) {

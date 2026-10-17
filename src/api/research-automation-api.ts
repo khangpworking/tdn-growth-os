@@ -151,6 +151,8 @@ export interface ResearchAutomationApiConfiguration {
   readonly searchAds?: true;
   /** Cục Thống kê lane for the OWNER writer only; present only when its flag is exactly "1". Needs no key; the category group uses the configured Insight coding model. */
   readonly officialStats?: true;
+  /** S22: also read the province sheet of the CPI workbook the Cục Thống kê lane already downloads; only with officialStats. No extra request. */
+  readonly officialStatsProvinces?: true;
   /** Public Meta ad library lane for the OWNER writer only; present only when its flag is exactly "1". Needs no key; reads public pages through the shared browser lock. */
   readonly metaAuto?: true;
   /** Public TikTok top-ads lane for the OWNER writer only; present only when its flag is exactly "1". Needs no key; reads one public page through the shared browser lock. */
@@ -383,7 +385,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
           signal: request.signal as AbortSignal })).text } : undefined;
       const searchAdsSource = configuration.searchAds && configuration.providers?.serpApiKey ? createGoogleAdsSource(configuration.providers.serpApiKey, transport) : undefined;
       const comtradeSource = configuration.comtrade ? createComtradeSource({ ...(comtradeModel ? { model: comtradeModel } : {}), ...(transport ? { transport } : {}) }) : undefined;
-      const officialStatsSource = configuration.officialStats ? createOfficialStatsSource({ ...(comtradeModel ? { model: comtradeModel } : {}), ...(transport ? { transport } : {}) }) : undefined;
+      const officialStatsSource = configuration.officialStats ? createOfficialStatsSource({ ...(comtradeModel ? { model: comtradeModel } : {}), ...(transport ? { transport } : {}), ...(configuration.officialStatsProvinces ? { provinces: true } : {}) }) : undefined;
       const metaAutoSource = configuration.metaAuto ? createMetaAutoSource() : undefined;
       const tiktokTopAdsSource = configuration.tiktokTopAds ? createTikTokTopAdsSource() : undefined;
       const pdfDiscoverySource = configuration.pdfDiscovery && configuration.providers?.serpApiKey ? createPdfDiscoverySource(configuration.providers.serpApiKey, transport) : undefined;

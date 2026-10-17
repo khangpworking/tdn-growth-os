@@ -24,7 +24,7 @@ import { searchTrendsEnabled } from '../modules/analysis/research-automation/sea
 import { worldBankEnabled } from '../modules/analysis/research-automation/world-bank-lane.js';
 import { comtradeEnabled } from '../modules/analysis/research-automation/comtrade-lane.js';
 import { googleAdsEnabled } from '../modules/analysis/research-automation/google-ads-lane.js';
-import { officialStatsEnabled } from '../modules/analysis/research-automation/official-statistics-lane.js';
+import { officialStatsEnabled, officialStatsProvinceEnabled } from '../modules/analysis/research-automation/official-statistics-lane.js';
 import { metaAutoEnabled } from '../modules/analysis/research-automation/meta-auto-lane.js';
 import { tiktokTopAdsEnabled } from '../modules/analysis/research-automation/tiktok-top-ads-lane.js';
 import { pdfDiscoveryEnabled } from '../modules/analysis/research-automation/pdf-discovery-lane.js';
@@ -100,6 +100,8 @@ export interface OperatorAppConfiguration {
   readonly researchSearchAds?: true;
   /** Cục Thống kê lane of the Market flow; present only when TDN_RESEARCH_OFFICIAL_STATS_ENABLED is exactly "1". */
   readonly researchOfficialStats?: true;
+  /** S22 province table of the Cục Thống kê lane; present only when TDN_RESEARCH_OFFICIAL_STATS_PROVINCE_ENABLED and the S21 flag are both exactly "1". */
+  readonly researchOfficialStatsProvinces?: true;
   /** Public Meta ad library lane of the Market flow; present only when TDN_RESEARCH_META_AUTO_ENABLED is exactly "1". Reads public pages only, never logs in. */
   readonly researchMetaAuto?: true;
   /** Public TikTok top-ads lane of the Market flow; present only when TDN_RESEARCH_TIKTOK_TOPADS_ENABLED is exactly "1". Reads public pages only, never logs in. */
@@ -212,6 +214,7 @@ export function operatorAppConfigurationFromEnvironment(
     ...(comtradeEnabled(environment) ? { researchComtrade: true as const } : {}),
     ...(googleAdsEnabled(environment) ? { researchSearchAds: true as const } : {}),
     ...(officialStatsEnabled(environment) ? { researchOfficialStats: true as const } : {}),
+    ...(officialStatsProvinceEnabled(environment) ? { researchOfficialStatsProvinces: true as const } : {}),
     ...(metaAutoEnabled(environment) ? { researchMetaAuto: true as const } : {}),
     ...(tiktokTopAdsEnabled(environment) ? { researchTikTokTopAds: true as const } : {}),
     ...(pdfDiscoveryEnabled(environment) ? { researchPdfDiscovery: true as const } : {}),
@@ -295,6 +298,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
       ...(configuration.researchComtrade ? { comtrade: true as const } : {}),
       ...(configuration.researchSearchAds ? { searchAds: true as const } : {}),
       ...(configuration.researchOfficialStats ? { officialStats: true as const } : {}),
+      ...(configuration.researchOfficialStats && configuration.researchOfficialStatsProvinces ? { officialStatsProvinces: true as const } : {}),
       ...(configuration.researchMetaAuto ? { metaAuto: true as const } : {}),
       ...(configuration.researchTikTokTopAds ? { tiktokTopAds: true as const } : {}),
       ...(configuration.researchPdfDiscovery ? { pdfDiscovery: true as const } : {}),

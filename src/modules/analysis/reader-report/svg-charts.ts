@@ -9,7 +9,7 @@ const svgWrap = (w: number, h: number, body: string): string =>
   `<svg class="kc" viewBox="0 0 ${w} ${h}" role="img" xmlns="http://www.w3.org/2000/svg" style="background:#fff">${body}</svg>`;
 
 export type BarSeries = { name: string; values: number[]; color?: string };
-export type BarOptions = { stacked?: boolean; fmt?: (v: number) => string; labelW?: number; w?: number; barH?: number; gap?: number };
+export type BarOptions = { stacked?: boolean; fmt?: (v: number) => string; labelW?: number; w?: number; barH?: number; gap?: number; xTitle?: string };
 
 /** Horizontal bars; series are side by side, or stacked. */
 export function barChart(cats: readonly string[], series: readonly BarSeries[], options: BarOptions = {}): string {
@@ -35,19 +35,20 @@ export function barChart(cats: readonly string[], series: readonly BarSeries[], 
     });
     if (stacked) b += tx(X(tot[i]!) + 4, y0 + barH - 4, fmt(tot[i]!), 'vl');
   });
-  return svgWrap(w, h, b);
+  if (options.xTitle) b += tx(labelW + plotW / 2, h + 12, options.xTitle, 'ax', 'middle');
+  return svgWrap(w, h + (options.xTitle ? 26 : 0), b);
 }
 
 export type ParetoLine = { name: string; ys: number[]; color?: string };
 
 /** Calendar line chart. Missing points break the line and are never drawn at zero. */
-export function lineChart(months: readonly string[], series: readonly { name: string; values: readonly (number | null)[]; color: string }[]): string {
-  const w = 760, h = 300, left = 58, right = 24, top = 34, bottom = 55;
+export function lineChart(months: readonly string[], series: readonly { name: string; values: readonly (number | null)[]; color: string }[], { yTitle }: { yTitle?: string } = {}): string {
+  const w = 760, h = 300, left = 58, right = 24, top = yTitle ? 52 : 34, bottom = 55;
   const present = series.flatMap(s => s.values.filter((v): v is number => v !== null));
   const max = Math.max(0, ...present) || 1;
   const X = (i: number) => left + i * (w - left - right) / Math.max(1, months.length - 1);
   const Y = (value: number) => top + (h - top - bottom) * (1 - value / max);
-  let body = '';
+  let body = yTitle ? tx(left, top - 10, yTitle, 'ax') : '';
   for (let i = 0; i <= 4; i++) {
     const value = max * i / 4;
     body += `<line x1="${left}" x2="${w - right}" y1="${Y(value)}" y2="${Y(value)}" class="gl"/>` + tx(left - 6, Y(value) + 4, sp(value.toFixed(1)), 'ax', 'end');
