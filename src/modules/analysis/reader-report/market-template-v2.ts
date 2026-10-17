@@ -7,7 +7,7 @@ import { marketChartRows, renderMarketCharts, renderSearchInterestChart } from '
 import { searchInterestChartPoints, searchInterestRenderable, SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_LIMIT, SEARCH_INTEREST_NOTE, SEARCH_INTEREST_SOURCE_LABEL, SEARCH_INTEREST_SRC, SEARCH_INTEREST_UNIT } from '../research-automation/search-interest.js';
 import { formatWorldBankValue, worldBankRenderableRows, worldBankSourceNote, worldBankUnitText, WORLD_BANK_LIMIT, WORLD_BANK_NOTE, WORLD_BANK_SOURCE_LABEL, WORLD_BANK_SRC, WORLD_BANK_TITLE } from '../research-automation/world-bank-lane.js';
 import { E12_ATTRIBUTION, E13_ATTRIBUTION, E14_ATTRIBUTION } from '../source-appendix-projection.js';
-import { officialStatsCitation, officialStatsNotice, officialStatsRenderableRows, officialStatsStatusText, officialStatsUnitText, officialStatsValueText, OFFICIAL_STATS_LIMIT, OFFICIAL_STATS_NOTE, OFFICIAL_STATS_SRC, OFFICIAL_STATS_TABLE_TEXT, OFFICIAL_STATS_TABLE_TITLE } from '../research-automation/official-statistics-lane.js';
+import { officialStatsCitation, officialStatsCitationSheet, officialStatsNotice, officialStatsRenderableRows, officialStatsRowLabel, officialStatsStatusText, officialStatsUnitText, officialStatsValueText, OFFICIAL_STATS_LIMIT, OFFICIAL_STATS_NOTE, OFFICIAL_STATS_SRC, OFFICIAL_STATS_TABLE_TEXT, OFFICIAL_STATS_TABLE_TITLE } from '../research-automation/official-statistics-lane.js';
 import { comtradeFlowText, comtradeNotice, comtradeOfficialText, comtradeRenderableRows, comtradeRowNote, comtradeSideText, COMTRADE_LIMIT, COMTRADE_NOTE, COMTRADE_SOURCE_LABEL, COMTRADE_SRC, COMTRADE_TABLE_TITLE } from '../research-automation/comtrade-lane.js';
 import { pdfExcerptBlockHtml, pdfExcerptCitation, PDF_EXCERPT_NOTE, PDF_EXCERPT_SRC } from '../research-automation/pdf-excerpt.js';
 import { sellerVideoBlockHtml, sellerVideoNote, sellerVideoSrc } from '../research-automation/seller-video.js';
@@ -142,9 +142,9 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
         officialRows.map(row => {
           const file = officialStats.files.find(item => item.captureIndex === row.captureIndex);
           const citation = officialStatsCitation(officialStats, row).replace(/^[^,]+/u, E12_ATTRIBUTION);
-          const no = file ? registry.cite({ sourceKind: 'CAPTURE', identity: file.sha256, locator: { kind: 'xlsx', sheet: row.sheet, cell: row.cell },
+          const no = file ? registry.cite({ sourceKind: 'CAPTURE', identity: file.sha256, locator: { kind: 'xlsx', sheet: officialStatsCitationSheet(row), cell: row.cell }, technical: { sheet: row.sheet },
             label: citation, retrievedAt: file.retrievedAt, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' }) : null;
-          return [label(OFFICIAL_STATS_TABLE_TEXT[row.table]), label(row.label), label(row.period), label(officialStatsValueText(row)) + (no === null ? '' : renderCitationMark(no)),
+          return [label(OFFICIAL_STATS_TABLE_TEXT[row.table]), label(officialStatsRowLabel(row)), label(row.period), label(officialStatsValueText(row)) + (no === null ? '' : renderCitationMark(no)),
             label(officialStatsUnitText(row)), label(officialStatsStatusText(officialStats, row))];
         }), { src: OFFICIAL_STATS_SRC, note: OFFICIAL_STATS_NOTE });
   sections.push(section('M05', 'Nhu cầu (tín hiệu bán)', 'Nhu cầu, đo bằng doanh số (ước tính) trong mẫu.', salesTable('5.1') +

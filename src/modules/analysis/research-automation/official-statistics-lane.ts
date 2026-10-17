@@ -7,6 +7,10 @@
 // labels confirmed in a published workbook are read, by exact match.
 import { boundedRequest, CaptureLog, defaultProviderTransport, isRecord, type ProviderTransport } from './provider-common.js';
 import type { ProviderCallOptions, ProviderRawCapture } from './providers.js';
+import { E12_ATTRIBUTION } from '../source-appendix-projection.js';
+import { containsForbiddenProviderName, containsTechnicalId } from '../citation-registry.js';
+import { lintVisibleReportText } from '../report-visible-text-lint.js';
+import { webTextHidden } from './web-page-type.js';
 import { MAX_CAPTURE_BYTES } from './model.js';
 import type { StepOfficialStats, StepOfficialStatsFile, StepOfficialStatsStatus, StepOfficialStatsTable, StepOfficialStatsTableId, StepOfficialStatsValue } from './model.js';
 import {
@@ -33,7 +37,7 @@ const UPLOADS = '/wp-content/uploads/';
 /** The overall consumer price row is printed beside any confirmed group as the national reference line. */
 const ALL_GROUPS = 'Mọi ngành hàng';
 
-export const OFFICIAL_STATS_SOURCE_LABEL = 'Cục Thống kê (nso.gov.vn)';
+export const OFFICIAL_STATS_SOURCE_LABEL = E12_ATTRIBUTION;
 export const OFFICIAL_STATS_TABLE_TITLE = 'Bối cảnh cả nước theo nhóm hàng (Cục Thống kê)';
 export const OFFICIAL_STATS_SRC = OFFICIAL_STATS_SOURCE_LABEL;
 export const OFFICIAL_STATS_NOTE = 'Số cả nước, tính cho mọi thương hiệu; không phải quy mô thị trường của sản phẩm này; không so sánh hay cộng với số bán trong mẫu.';
@@ -80,7 +84,7 @@ export interface OfficialStatsSource {
 }
 
 const CONTROL = /[\u0000-\u001f\u007f]/u;
-const forbiddenOwnerName = (value: string): boolean => /\b(?:google|kalodata|tradeint|dami|apify|serpapi|pageindex|gemini|metric)\b/iu.test(value);
+const forbiddenOwnerName = (value: string): boolean => /\b(?:google|kalodata|tradeint|dami|apify|serpapi|pageindex|gemini|metric|opencli)\b/iu.test(value);
 const ownerText = (v: unknown): v is string => typeof v === 'string' && v.length >= 1 && v.length <= 400 && !CONTROL.test(v) && !v.includes('%') && !forbiddenOwnerName(v);
 const dataBlock = (name: 'PRODUCT_DATA' | 'CATEGORY_DATA', value: unknown): string => `BEGIN_UNTRUSTED_${name}\n${JSON.stringify(value)}\nEND_UNTRUSTED_${name}`;
 function parseObject(text: string): Record<string, unknown> | null {
@@ -125,9 +129,11 @@ const LISTED_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/u;
 /** A workbook link is used only when it is https on the office's own host, under its uploads folder, with no query. */
 export function officialStatsUrlAllowed(value: string): boolean {
   let url: URL;
-  try { url = new URL(value); } catch { return false; }
+  let path: string;
+  try { url = new URL(value); path = decodeURIComponent(url.pathname); } catch { return false; }
   return url.protocol === 'https:' && url.hostname === OFFICIAL_STATS_HOST && url.port === '' && !url.username && !url.password
-    && url.search === '' && url.hash === '' && url.pathname.startsWith(UPLOADS) && !url.pathname.includes('..') && /\.xlsx$/iu.test(url.pathname);
+    && url.search === '' && url.hash === '' && url.pathname.startsWith(UPLOADS) && !CONTROL.test(path) && !path.includes('\\')
+    && !path.split('/').some(part => part === '.' || part === '..') && /\.xlsx$/iu.test(url.pathname);
 }
 
 /** Parses the listing; entries that are not plain spreadsheet uploads on the office host are dropped. Null when the shape is wrong. */
@@ -162,7 +168,7 @@ const newestFirst = (a: OfficialStatsListing, b: OfficialStatsListing): number =
 
 /** The newest monthly workbook, and whether an older file for the same month was also listed (a revision). */
 export function pickMonthlyWorkbook(items: readonly OfficialStatsListing[]): { readonly item: OfficialStatsListing; readonly revised: boolean } | null {
-  const monthly = items.filter(item => isMonthly(fileName(item.url))).sort(newestFirst);
+  const monthly = items.filter(item => isMonthly(fileName(item.url)) && officialStatsMonthKey(fileName(item.url)) !== null).sort(newestFirst);
   const item = monthly[0];
   if (!item) return null;
   const key = officialStatsMonthKey(fileName(item.url));
@@ -207,11 +213,12 @@ export function createOfficialStatsSource(options: { readonly model?: OfficialSt
       const picked = await ask(SYSTEM_PICK, dataBlock('PRODUCT_DATA', productData), validateGroupPick);
       if (picked === 'CANCELLED') return result('CANCELLED');
       if (picked === null || picked === 'NONE') return result('CATEGORY_NOT_MAPPED');
-      const verdict = await ask(SYSTEM_VERIFY, `${dataBlock('PRODUCT_DATA', productData)}\n${dataBlock('CATEGORY_DATA', { categoryGroup: picked })}`, validateGroupVerification);
+      const groupLabels = officialStatsGroupLabels(picked);
+      const verdict = await ask(SYSTEM_VERIFY, `${dataBlock('PRODUCT_DATA', productData)}\n${dataBlock('CATEGORY_DATA', { categoryGroup: picked, labels: groupLabels })}`, validateGroupVerification);
       if (verdict === 'CANCELLED') return result('CANCELLED');
       if (verdict === null || !verdict.covers) return result('CATEGORY_NOT_MAPPED');
       state.group = picked; state.reasonVi = verdict.reasonVi;
-      const labels = [...officialStatsGroupLabels(picked), ...officialStatsGroupLabels(ALL_GROUPS)];
+      const labels = [...groupLabels, ...officialStatsGroupLabels(ALL_GROUPS)];
       const labelsOf = (table: StepOfficialStatsTableId): string[] => [...new Set(labels.filter(item => item.table === table).map(item => item.label))];
 
       // One GET with spacing from the previous call's end; no retry. Null on any failure.
@@ -287,8 +294,10 @@ export function createOfficialStatsSource(options: { readonly model?: OfficialSt
         if (reads === 'UNAVAILABLE') return result('READER_UNAVAILABLE');
         keep(first, reads);
       }
-      // The national CPI workbook is fetched only when the monthly CPI table gave nothing and the group has a CPI line.
-      const cpiRead = tables.some(item => item.table === 'CPI' && item.outcome === 'READ');
+      // Recognizing the table (or finding its all-goods reference) does not prove it contains the selected group.
+      const hasValue = (table: StepOfficialStatsTableId, label: string): boolean =>
+        values.some(value => value.table === table && value.label === label && value.value !== null);
+      const cpiRead = groupLabels.filter(item => item.table === 'CPI').every(item => hasValue(item.table, item.label));
       if (!cpiRead && labelsOf('CPI_WORKBOOK').length > 0) {
         const cpi = pickCpiWorkbook(items);
         if (cpi) {
@@ -304,10 +313,10 @@ export function createOfficialStatsSource(options: { readonly model?: OfficialSt
       }
 
       const found = values.some(value => value.value !== null);
-      const satisfied = (table: StepOfficialStatsTableId): boolean => tables.some(item => item.outcome === 'READ'
-        && (item.table === table || (table === 'CPI' && item.table === 'CPI_WORKBOOK')));
-      const allRead = files.length > 0 && !downloadFailed && monthlyWanted.every(satisfied);
-      const unknown = unreadable || tables.some(item => item.outcome === 'LAYOUT_UNKNOWN');
+      const groupCpiRead = cpiRead || groupLabels.filter(item => item.table === 'CPI_WORKBOOK').every(item => hasValue(item.table, item.label));
+      const allRead = files.length > 0 && !downloadFailed && groupLabels.filter(item => item.table !== 'CPI_WORKBOOK')
+        .every(item => item.table === 'CPI' ? groupCpiRead : hasValue(item.table, item.label));
+      const unknown = unreadable || tables.some(item => item.outcome === 'LAYOUT_UNKNOWN') || !tables.some(item => item.outcome === 'READ');
       if (found) return result(allRead ? 'OK' : 'PARTIAL');
       if (downloadFailed && files.length === 0) return result('DOWNLOAD_FAILED');
       if (unknown) return result('LAYOUT_UNKNOWN');
@@ -381,6 +390,10 @@ export const OFFICIAL_STATS_TABLE_TEXT: Readonly<Record<StepOfficialStatsTableId
   IMPORT: 'Hàng hóa nhập khẩu',
   CPI_WORKBOOK: 'Chỉ số giá tiêu dùng cả nước',
 };
+/** Keep the source row label intact and explicitly distinguish the overall reference from the selected group. */
+export const officialStatsRowLabel = (row: Pick<StepOfficialStatsValue, 'table' | 'label'>): string =>
+  officialStatsGroupLabels(ALL_GROUPS).some(item => item.table === row.table && item.label === row.label)
+    ? `${row.label} (Mọi ngành hàng; tham chiếu cả nước)` : row.label;
 /** "chỉ số 103,5 (kỳ gốc = 100)" for an index, never a percent sign; "1.234,5" for a level. */
 export function officialStatsValueText(value: Pick<StepOfficialStatsValue, 'measure' | 'shown'>): string {
   const shown = value.shown === null ? '' : vietnameseDecimal(value.shown);
@@ -392,11 +405,18 @@ export function officialStatsStatusText(value: StepOfficialStats, row: Pick<Step
   const revised = value.files.some(file => file.captureIndex === row.captureIndex && file.revised);
   return `${OFFICIAL_STATS_STATUS_TEXT[row.status]}${revised ? '; đã cập nhật' : ''}`;
 }
+/** Internet-supplied file/sheet names remain in the stored evidence; unsafe reader wording is withheld. */
+const citationName = (name: string, fallback: string): string => {
+  const escaped = name.replace(/&/gu, '&amp;').replace(/</gu, '&lt;').replace(/>/gu, '&gt;');
+  return ownerText(name) && !webTextHidden(name) && !containsForbiddenProviderName(name) && !containsTechnicalId(name)
+    && lintVisibleReportText(`<p>${escaped}</p>`).every(check => check.ok) ? name : fallback;
+};
+export const officialStatsCitationSheet = (row: Pick<StepOfficialStatsValue, 'sheet'>): string => citationName(row.sheet, 'bảng số liệu đã lưu');
 /** "Cục Thống kê (nso.gov.vn), <file>, bảng <sheet>, dòng <n>, công bố <date>". */
 export function officialStatsCitation(value: StepOfficialStats, row: Pick<StepOfficialStatsValue, 'captureIndex' | 'sheet' | 'row'>): string {
   const file = value.files.find(item => item.captureIndex === row.captureIndex);
-  const name = file ? fileName(file.url) : '';
-  return `${OFFICIAL_STATS_SOURCE_LABEL}, ${name}, bảng ${row.sheet}, dòng ${row.row}, công bố ${file ? file.listedAt.slice(0, 10) : ''}`;
+  const name = file ? citationName(fileName(file.url), 'tệp số liệu đã lưu') : '';
+  return `${OFFICIAL_STATS_SOURCE_LABEL}, ${name}, bảng ${officialStatsCitationSheet(row)}, dòng ${row.row}, công bố ${file ? file.listedAt.slice(0, 10) : ''}`;
 }
 
 /** Shape check of a stored document, used by the step validator. */

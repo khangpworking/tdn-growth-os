@@ -6,7 +6,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
-import { crc32 } from 'node:zlib';
+import { crc32, deflateRawSync } from 'node:zlib';
 import { JSDOM } from 'jsdom';
 import { openDatabase } from '../../src/platform/db/index.js';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/artifact-store.js';
@@ -17,7 +17,7 @@ import type { StepResultDocument } from '../../src/modules/analysis/research-aut
 import type { ProviderTransport } from '../../src/modules/analysis/research-automation/providers.js';
 import {
   createOfficialStatsSource, officialStatsDocument, officialStatsEnabled, officialStatsMonthKey, officialStatsUrlAllowed, parseOfficialStatsListing,
-  pickCpiWorkbook, pickMonthlyWorkbook, validateGroupPick, validOfficialStats, OFFICIAL_STATS_PICKABLE_GROUPS, type OfficialStatsModelPort, type OfficialStatsSource,
+  pickCpiWorkbook, pickMonthlyWorkbook, validateGroupPick, validateGroupVerification, validOfficialStats, OFFICIAL_STATS_PICKABLE_GROUPS, type OfficialStatsModelPort, type OfficialStatsSource,
 } from '../../src/modules/analysis/research-automation/official-statistics-lane.js';
 import {
   defaultOfficialStatsWorkbookReader, officialStatsFigure, readOfficialStatsTable, refuseOfficialStatsArithmetic, OfficialStatisticsCombinationError,
@@ -26,6 +26,11 @@ import {
 import { assertMarketBusinessGate } from '../../src/modules/analysis/research-automation/market-business-gate.js';
 import { SYNTHETIC_CARD_ID, syntheticProductSource } from '../helpers/research-synthetic-sources.js';
 import { providerNameViolations } from '../helpers/report-visible-text.js';
+import { buildMarketReport, computeReaderReportData, lint } from '../../src/modules/analysis/reader-report/index.js';
+import { sync1Options, sync1ReaderFixture } from '../helpers/sync1-reader-fixture.js';
+import { auditMarket14 } from '../../src/modules/analysis/research-automation/market-14-rules.js';
+import { DEFAULT_MARKET_PEER_RULE } from '../../src/modules/analysis/default-market-peers.js';
+import { unitPriceFixture } from '../helpers/market-unit-price-fixture.js';
 
 // ---- synthetic workbooks ----
 
@@ -60,22 +65,24 @@ function sheetXml(spec: SheetSpec): string {
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="${MAIN}"><sheetData>${body}</sheetData></worksheet>`;
 }
 /** A tiny store-only zip writer: local headers, central directory, end record. */
-function zip(entries: readonly (readonly [string, string])[]): Buffer {
+function zip(entries: readonly (readonly [string, string | Buffer])[], compressed = false): Buffer {
   const locals: Buffer[] = [], centrals: Buffer[] = [];
   let offset = 0;
   for (const [name, content] of entries) {
-    const data = Buffer.from(content, 'utf8'), fileName = Buffer.from(name, 'utf8'), crc = crc32(data);
+    const data = typeof content === 'string' ? Buffer.from(content, 'utf8') : content, fileName = Buffer.from(name, 'utf8'), crc = crc32(data);
+    const packed = compressed ? deflateRawSync(data) : data;
     const local = Buffer.alloc(30);
     local.writeUInt32LE(0x04034b50, 0); local.writeUInt16LE(20, 4); local.writeUInt16LE(0x0800, 6); local.writeUInt16LE(0, 8);
-    local.writeUInt16LE(0, 10); local.writeUInt16LE(0x21, 12); local.writeUInt32LE(crc, 14); local.writeUInt32LE(data.length, 18);
+    local.writeUInt16LE(compressed ? 8 : 0, 8);
+    local.writeUInt16LE(0, 10); local.writeUInt16LE(0x21, 12); local.writeUInt32LE(crc, 14); local.writeUInt32LE(packed.length, 18);
     local.writeUInt32LE(data.length, 22); local.writeUInt16LE(fileName.length, 26); local.writeUInt16LE(0, 28);
     const central = Buffer.alloc(46);
     central.writeUInt32LE(0x02014b50, 0); central.writeUInt16LE(20, 4); central.writeUInt16LE(20, 6); central.writeUInt16LE(0x0800, 8);
-    central.writeUInt16LE(0, 10); central.writeUInt16LE(0, 12); central.writeUInt16LE(0x21, 14); central.writeUInt32LE(crc, 16);
-    central.writeUInt32LE(data.length, 20); central.writeUInt32LE(data.length, 24); central.writeUInt16LE(fileName.length, 28);
+    central.writeUInt16LE(compressed ? 8 : 0, 10); central.writeUInt16LE(0, 12); central.writeUInt16LE(0x21, 14); central.writeUInt32LE(crc, 16);
+    central.writeUInt32LE(packed.length, 20); central.writeUInt32LE(data.length, 24); central.writeUInt16LE(fileName.length, 28);
     central.writeUInt32LE(offset, 42);
-    locals.push(local, fileName, data); centrals.push(central, fileName);
-    offset += local.length + fileName.length + data.length;
+    locals.push(local, fileName, packed); centrals.push(central, fileName);
+    offset += local.length + fileName.length + packed.length;
   }
   const directory = Buffer.concat(centrals), end = Buffer.alloc(22);
   end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(entries.length, 8); end.writeUInt16LE(entries.length, 10);
@@ -247,6 +254,10 @@ test('a workbook link must be https on the office host, under uploads, an .xlsx 
     'https://www.nso.gov.vn/wp-content/uploads/2026/10/Bieu-thang-9.2026.xlsx?x=1',
     'https://www.nso.gov.vn/wp-content/uploads/2026/10/Bieu-thang-9.2026.xlsx#a',
     'https://www.nso.gov.vn/wp-content/uploads/2026/10/Bieu-thang-9.2026.pdf',
+    `${UP}Bieu-thang-9.2026-%.xlsx`,
+    `${UP}Bieu-thang-9.2026-%00.xlsx`,
+    `${UP}%2f..%2fBieu-thang-9.2026.xlsx`,
+    `${UP}Bieu-thang-9.2026-%5c.xlsx`,
   ]) assert.equal(officialStatsUrlAllowed(bad), false, bad);
 });
 
@@ -266,6 +277,8 @@ test('the newest Vietnamese revision is picked and English files are skipped', (
   assert.equal(officialStatsMonthKey('Bieu-thang-9.2026.xlsx'), '2026-09');
   assert.equal(officialStatsMonthKey('Bieu-T7.2026.xlsx'), '2026-07');
   assert.equal(pickMonthlyWorkbook(items.filter(item => item.id !== 880))!.revised, false);
+  const newerAnnual = { id: 999, date: '2026-10-09T00:00:00', title: 'Biểu năm giả lập', url: `${UP}Bieu-nam-2025.xlsx` };
+  assert.equal(pickMonthlyWorkbook([newerAnnual, ...items])!.item.url, MONTHLY_URL, 'a newer annual table is not a monthly workbook');
 });
 
 test('model answers outside the fixed list are invalid; NONE is its own answer', () => {
@@ -274,6 +287,7 @@ test('model answers outside the fixed list are invalid; NONE is its own answer',
   assert.equal(validateGroupPick(JSON.stringify({ categoryGroup: 'Mọi ngành hàng' })), null, 'the reference line is never picked');
   assert.equal(validateGroupPick(JSON.stringify({ categoryGroup: 'Đồ uống', extra: 1 })), null);
   assert.equal(OFFICIAL_STATS_PICKABLE_GROUPS.includes('Mọi ngành hàng'), false);
+  assert.equal(validateGroupVerification(JSON.stringify({ covers: true, reasonVi: 'OpenCLI xác nhận.' })), null);
 });
 
 test('the category map JSON mirrors the code map', async () => {
@@ -338,6 +352,7 @@ test('a blank or "-" cell is missing, never 0; a label printed twice gives no va
   assert.deepEqual(cpi.values.map(v => [v.cell, v.value]), [['E16', '109.99'], ['G16', null], ['E17', '111.12'], ['G17', null]]);
   const twice = toSheets(monthlyWorkbook({ sheets: 20, exportOverrides: { B12: 'Bánh kẹo và các sản phẩm từ ngũ cốc', D12: { n: '1.5' } } }));
   assert.deepEqual(readOfficialStatsTable(twice, 'EXPORT', ['Bánh kẹo và các sản phẩm từ ngũ cốc']).values, []);
+  assert.deepEqual(readOfficialStatsTable(sheets, 'CPI', ['thực phẩm', 'Thực phẩm gần đúng']).values, [], 'only exact labels match');
 });
 
 // ---- E12 guard ----
@@ -387,6 +402,72 @@ test('no CPI table in the monthly workbook: the national CPI workbook is the thi
   assert.deepEqual(result.values.map(v => [v.label, v.cell]), [['II. Đồ uống và thuốc lá', 'C14'], ['II. Đồ uống và thuốc lá', 'E14'], ['CHỈ SỐ GIÁ TIÊU DÙNG', 'C10'], ['CHỈ SỐ GIÁ TIÊU DÙNG', 'E10']]);
 });
 
+test('a recognized monthly CPI table without the selected group still triggers the CPI download', async () => {
+  for (const missing of [true, false]) {
+    const monthly = monthlyWorkbook({ sheets: 20 }).map(sheet => sheet.name === '15.CPI'
+      ? { ...sheet, cells: { ...sheet.cells, ...(missing ? { C14: 'thực phẩm' } : { E14: '-', G14: '..' }) } } : sheet);
+    const mem = memoryReader([monthly, cpiWorkbook('binh-quan-luy-ke')]);
+    const f = fake({ [MONTHLY_URL]: mem.bytes[0]!, [CPI_URL]: mem.bytes[1]! });
+    const model = fakeModel();
+    const result = await createOfficialStatsSource({ model, transport: f.transport, readWorkbook: mem.reader }).collect(INPUT);
+    assert.equal(result.requests, 3);
+    assert.equal(result.status, 'OK');
+    assert.ok(result.values.some(row => row.table === 'CPI_WORKBOOK' && row.label === '2 - Thực phẩm' && row.value !== null));
+    for (let i = 1; i < f.at.length; i++) assert.ok(f.at[i]! - f.at[i - 1]! >= 2_000);
+  }
+});
+
+test('an all-goods reference alone never makes the selected group complete', async () => {
+  const monthly = monthlyWorkbook({ sheets: 20 }).map(sheet => sheet.name === '15.CPI'
+    ? { ...sheet, cells: { ...sheet.cells, B16: 'Đồ uống gần đúng' } } : sheet);
+  const mem = memoryReader([monthly]);
+  const f = fake({ [MONTHLY_URL]: mem.bytes[0]! }, { listing: [media(1, '2026-10-06T09:00:00', MONTHLY_URL)] });
+  const result = await createOfficialStatsSource({ model: fakeModel({ group: 'Đồ uống' }), transport: f.transport, readWorkbook: mem.reader }).collect(INPUT);
+  assert.equal(result.status, 'PARTIAL');
+  assert.ok(result.values.every(row => row.label === 'CHỈ SỐ GIÁ TIÊU DÙNG'));
+});
+
+test('verification receives the selected group and its exact official labels', async () => {
+  const model: OfficialStatsModelPort = { generateText: async request => {
+    if (request.systemText.includes('You place a product')) return JSON.stringify({ categoryGroup: 'Đồ uống' });
+    assert.match(request.userText, /"table":"CPI","label":"Đồ uống và thuốc lá"/u);
+    return JSON.stringify({ covers: false, reasonVi: 'Chưa xác nhận nhóm hàng.' });
+  } };
+  const f = fake({});
+  assert.equal((await createOfficialStatsSource({ model, transport: f.transport }).collect(INPUT)).status, 'CATEGORY_NOT_MAPPED');
+  assert.equal(f.urls.length, 0);
+});
+
+test('redirects and HTTP failures stop without a retry or off-host request', async () => {
+  for (const status of [301, 302, 307, 308, 429, 500]) {
+    const f = fake({});
+    let calls = 0;
+    const transport: ProviderTransport = { ...f.transport, fetch: (async (url, init) => {
+      calls++;
+      assert.equal(new URL(String(url)).hostname, 'www.nso.gov.vn');
+      assert.equal(init?.redirect, 'error');
+      return new Response(null, { status, headers: { location: 'https://example.test/untrusted.xlsx' } });
+    }) as typeof fetch };
+    const result = await createOfficialStatsSource({ model: fakeModel(), transport }).collect(INPUT);
+    assert.equal(result.status, 'LIST_FAILED');
+    assert.equal(result.requests, 1);
+    assert.equal(calls, 1);
+  }
+});
+
+test('an oversized HTTP body is cancelled and rejected without a retry', async () => {
+  const f = fake({});
+  let cancelled = false, calls = 0;
+  const transport: ProviderTransport = { ...f.transport, fetch: (async () => {
+    calls++;
+    return new Response(new ReadableStream({ start(controller) { controller.enqueue(new Uint8Array(2 * 1024 * 1024 + 1)); }, cancel() { cancelled = true; } }));
+  }) as typeof fetch };
+  const result = await createOfficialStatsSource({ model: fakeModel(), transport }).collect(INPUT);
+  assert.equal(result.status, 'LIST_FAILED');
+  assert.equal(calls, 1);
+  assert.equal(cancelled, true);
+});
+
 test('an unknown export header leaves the rest of the run: PARTIAL with the CPI rows', async () => {
   const mem = memoryReader([monthlyWorkbook({ sheets: 45, exportOverrides: { J7: 'Giá trị' } })]);
   const f = fake({ [MONTHLY_URL]: mem.bytes[0]! });
@@ -394,6 +475,14 @@ test('an unknown export header leaves the rest of the run: PARTIAL with the CPI 
   assert.equal(result.status, 'PARTIAL');
   assert.deepEqual(result.tables.map(t => [t.table, t.outcome]), [['CPI', 'READ'], ['EXPORT', 'LAYOUT_UNKNOWN']]);
   assert.equal(result.values.some(v => v.table === 'EXPORT'), false);
+});
+
+test('a workbook with no recognized title is LAYOUT_UNKNOWN, never an empty known layout', async () => {
+  const mem = memoryReader([[{ name: 'Unknown', cells: { A1: 'Bảng giả lập khác', B10: { n: '456.78' } } }]]);
+  const f = fake({ [MONTHLY_URL]: mem.bytes[0]! }, { listing: [media(1, '2026-10-06T09:00:00', MONTHLY_URL)] });
+  const result = await createOfficialStatsSource({ model: fakeModel(), transport: f.transport, readWorkbook: mem.reader }).collect(INPUT);
+  assert.equal(result.status, 'LAYOUT_UNKNOWN');
+  assert.deepEqual(result.values, []);
 });
 
 test('NONE or a failed check: CATEGORY_NOT_MAPPED, no request, no numbers', async () => {
@@ -445,7 +534,8 @@ test('a reader that cannot start gives READER_UNAVAILABLE and no numbers', async
 // ---- stdlib reader (needs python3; skipped otherwise) ----
 
 const python3 = spawnSync('python3', ['--version'], { windowsHide: true });
-const noPython = python3.error !== undefined || python3.status !== 0 ? 'python3 is not available' : false;
+// Missing Python may skip on Windows; a present but failing reader must fail the test.
+const noPython = (python3.error as NodeJS.ErrnoException | undefined)?.code === 'ENOENT' ? 'python3 is not available' : false;
 
 test('reader: synthetic workbooks read the same as the in-memory sheets', { skip: noPython }, () => {
   for (const book of [monthlyWorkbook({ sheets: 20 }), monthlyWorkbook({ sheets: 45 }), cpiWorkbook('don-vi-o-dong-7')]) {
@@ -466,6 +556,41 @@ test('reader: synthetic workbooks read the same as the in-memory sheets', { skip
 test('reader: a damaged archive is rejected, never read', { skip: noPython }, () => {
   assert.equal(defaultOfficialStatsWorkbookReader(Buffer.from('PK\u0003\u0004 not a workbook')).kind, 'REJECTED');
   assert.equal(defaultOfficialStatsWorkbookReader(Buffer.alloc(0)).kind, 'REJECTED');
+});
+
+test('reader: ZIP expansion, aggregate size and entry-count limits reject synthetic bombs', { skip: noPython }, () => {
+  const oversizedPart = zip([['xl/workbook.xml', Buffer.alloc(48 * 1024 * 1024 + 1, 32)]], true);
+  const many = zip(Array.from({ length: 2001 }, (_, i) => [`entry${i}`, ''] as const));
+  const aggregate = zip(Array.from({ length: 5 }, (_, i) => [`part${i}`, ''] as const));
+  const directory = aggregate.readUInt32LE(aggregate.length - 22 + 16);
+  let pos = directory;
+  for (let i = 0; i < 5; i++) {
+    aggregate.writeUInt32LE(40 * 1024 * 1024, pos + 24);
+    pos += 46 + aggregate.readUInt16LE(pos + 28);
+  }
+  for (const bytes of [oversizedPart, many, aggregate]) {
+    assert.deepEqual(defaultOfficialStatsWorkbookReader(bytes), { kind: 'REJECTED', code: 'ZIP_STRUCTURE_OR_SIZE' });
+  }
+  assert.deepEqual(defaultOfficialStatsWorkbookReader(Buffer.alloc(20 * 1024 * 1024 + 1)), { kind: 'REJECTED', code: 'WORKBOOK_SIZE_LIMIT' });
+});
+
+test('reader: XML entities and external resources are rejected; formulas use cached values only', { skip: noPython }, () => {
+  for (const xml of [
+    '<!DOCTYPE workbook [<!ENTITY x "expanded">]><workbook>&x;</workbook>',
+    '<!DOCTYPE workbook SYSTEM "https://example.test/untrusted.dtd"><workbook/>',
+    '<!DOCTYPE workbook [<!ENTITY x SYSTEM "https://example.test/untrusted.xml">]><workbook>&x;</workbook>',
+  ]) assert.deepEqual(defaultOfficialStatsWorkbookReader(zip([['xl/workbook.xml', xml]])), { kind: 'REJECTED', code: 'UNSUPPORTED_XML' });
+  const formula = `<worksheet xmlns="${MAIN}"><sheetData><row r="1"><c r="A1"><f>1+2</f></c><c r="B1"><f>1+2</f><v>789.125</v></c></row></sheetData></worksheet>`;
+  const bytes = zip([
+    ['xl/workbook.xml', `<workbook xmlns="${MAIN}" xmlns:r="${OFFICE_REL}"><sheets><sheet name="Synthetic" r:id="rId1"/></sheets></workbook>`],
+    ['xl/_rels/workbook.xml.rels', `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${OFFICE_REL}/worksheet" Target="worksheets/synthetic.xml"/></Relationships>`],
+    ['xl/worksheets/synthetic.xml', formula],
+  ]);
+  const read = defaultOfficialStatsWorkbookReader(bytes);
+  assert.equal(read.kind, 'OK');
+  if (read.kind !== 'OK') return;
+  assert.equal(read.sheets[0]!.cells.has('A1'), false);
+  assert.equal(read.sheets[0]!.cells.get('B1')!.text, '789.125');
 });
 
 // ---- through the run and the Market report ----
@@ -518,6 +643,8 @@ test('flag on: table 5.4 in M05 has no percent sign, no bare 0, no provider name
   assert.ok(text.includes('chỉ số 105,55 (kỳ gốc = 100)'));
   assert.ok(text.includes('Cục Thống kê (nso.gov.vn)'));
   assert.ok(text.includes('Bieu-thang-9.2026.xlsx'));
+  assert.ok(text.includes('Mọi ngành hàng; tham chiếu cả nước'));
+  assert.match(on.doc.querySelector('#M13')!.textContent!, /Cục Thống kê \(nso.gov.vn\)/u);
   assert.equal(text.includes('%'), false);
   assert.doesNotMatch(text, /(?<![\p{L}\p{N}.,])0(?![\p{N}.,])/u, 'no bare 0');
   assert.doesNotMatch(text, /\b(?:tổng|total)\b/iu);
@@ -533,4 +660,42 @@ test('flag on, category not mapped: the report prints no number from this source
   assert.deepEqual(on.document.officialStats?.values, []);
   assert.equal(on.html.includes('Bảng 5.4'), false);
   assert.match(on.doc.querySelector('#M05')!.textContent!, /chưa ánh xạ được vào nhóm hàng của Cục Thống kê/u);
+});
+
+test('reader report: table 5.4 retains periods, statuses, E12 attribution and the M13 source line', async () => {
+  const mem = memoryReader([monthlyWorkbook({ sheets: 45 })]);
+  const f = fake({ [MONTHLY_URL]: mem.bytes[0]! });
+  const result = await createOfficialStatsSource({ model: fakeModel(), transport: f.transport, readWorkbook: mem.reader }).collect(INPUT);
+  const officialStats = officialStatsDocument(result, 0, [1]);
+  const input = sync1ReaderFixture('1.4.0');
+  input.peerRule = { ...DEFAULT_MARKET_PEER_RULE };
+  const units = unitPriceFixture(input.rows);
+  input.unitPrices = units.packet;
+  const data = computeReaderReportData(input, units.retained);
+  const off = await buildMarketReport(data, sync1Options);
+  const on = await buildMarketReport(data, { ...sync1Options, officialStats });
+  const doc = new JSDOM(on.html).window.document;
+  const table = [...doc.querySelectorAll('table')].find(node => node.textContent!.includes('Mọi ngành hàng; tham chiếu cả nước'));
+  assert.ok(table);
+  assert.match(table.textContent!, /Tháng 9 năm 2026/u);
+  assert.match(table.textContent!, /sơ bộ; đã cập nhật/u);
+  assert.match(table.textContent!, /chỉ số 105,55 \(kỳ gốc = 100\)/u);
+  assert.doesNotMatch(table.textContent!, /%/u);
+  assert.deepEqual(providerNameViolations(on.html), []);
+  assert.doesNotMatch(on.html, /Google/u);
+  assert.match(doc.querySelector('#phu-luc')!.textContent!, /Cục Thống kê \(nso.gov.vn\)/u);
+  assert.match(doc.querySelector('#danh-muc-nguon')?.textContent ?? doc.body.textContent!, /công bố 2026-10-06/u);
+  const failedRules = (html: string) => auditMarket14(html).filter(check => check.kind === 'machine' && !check.ok).map(check => check.rule);
+  assert.deepEqual(failedRules(on.html), failedRules(off.html), 'the new table adds no machine-rule failure');
+  const failedLint = (html: string) => lint(html).filter(check => !check.ok).map(check => check.rule);
+  assert.deepEqual(failedLint(on.html), failedLint(off.html));
+  assert.equal(validOfficialStats({ ...officialStats, files: officialStats.files.map(file => Object.fromEntries(Object.entries(file).reverse())) }), true, 'file key order does not affect validation');
+  const unsafe = { ...officialStats, files: officialStats.files.map(file => ({ ...file, url: file.url.replace('.xlsx', '-Google.xlsx') })),
+    values: officialStats.values.map(row => ({ ...row, sheet: 'Google OpenCLI rẻ nhất 50%' })) };
+  const hidden = await buildMarketReport(data, { ...sync1Options, officialStats: unsafe });
+  assert.doesNotMatch(hidden.html, /Google|OpenCLI|rẻ nhất/u);
+  assert.doesNotMatch(new JSDOM(hidden.html).window.document.querySelector('.citation-register')!.textContent!, /%/u);
+  assert.match(hidden.html, /tệp số liệu đã lưu/u);
+  assert.match(hidden.html, /bảng số liệu đã lưu/u);
+  assert.equal(unsafe.values[0]!.sheet, 'Google OpenCLI rẻ nhất 50%', 'source metadata stays intact');
 });

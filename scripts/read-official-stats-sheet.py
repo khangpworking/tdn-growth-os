@@ -69,7 +69,11 @@ def read_workbook(data):
         def xml(name):
             if name not in names:
                 raise Rejected(name, 'MISSING_XML_PART')
-            raw = z.read(name)
+            # Enforce the allocation bound too, rather than trusting only ZIP directory sizes.
+            with z.open(name) as part:
+                raw = part.read(MAX_PART + 1)
+            if len(raw) > MAX_PART:
+                raise Rejected(name, 'ZIP_STRUCTURE_OR_SIZE')
             upper = raw.upper()
             if b'\x00' in raw or b'<!DOCTYPE' in upper or b'<!ENTITY' in upper:
                 raise Rejected(name, 'UNSUPPORTED_XML')
