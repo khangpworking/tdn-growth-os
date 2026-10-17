@@ -32,9 +32,9 @@ Branch: `wp/nso-province-209` (from main `e009d9ee`). Draft PR; not merged, not 
 ## Follow-ups (not in this package)
 
 - Vùng (regional) table.
-- Python reader tests skip/fail on Windows because `python3` is the Store stub; run them on Fedora/CI.
+- Windows environments whose `python3` is the Store stub still need a real Python installation. The Linux reader checks passed in the reviews below.
 
-## PR #280 writable review — 2026-10-17
+## Earlier PR #280 writable review — 2026-10-17
 
 Worktree/branch: assigned review worktree, `rv280`; reviewed head `80263b469ea9ba355f81fa5928949078ce620000` against `e009d9ee`.
 
@@ -45,7 +45,7 @@ Completed:
 - Added explicit coverage for the 30-row and 84-row province editions, reordered province headers, blank-cell preservation, both renderers' numbering and S22-only CPI lineage when S21 still cites the monthly workbook.
 - Direct replay against a detached base worktree confirmed identical request URLs, stored collection document bytes and both report HTML byte streams with S22 off, for both the monthly-only and CPI-fallback paths.
 
-Changed paths (uncommitted):
+Changed paths (committed in `d85c97f0`):
 
 - `tests/integration/research-automation-official-stats-lane.test.ts`
 - `docs/handoffs/NEXT-S22.md`
@@ -55,12 +55,25 @@ Evidence:
 - Node 24.15.0 first on PATH; `npm run typecheck` passed after the test edits.
 - All requested browser-free files ran: official statistics; World Bank lane/intake; source status/evidence; reader template/build/golden; Market presentation, business gates and fourteen rules; reader revisions; source evidence/appendix units; next-Market reader and honesty regressions.
 - Official-statistics lane: **43/43 passed**, including Python, both province editions and the explicit Flint check.
-- Across the 18 selected files: **177 tests, 168 passed, 8 failed, 1 skipped**. Base: **167 tests, 158 passed, the same 8 failed, the same 1 skipped**. Every failure is `listen EPERM` on loopback: four World Bank HTTP tests, three source-status HTTP tests and one reader HTTP test. No new assertion failure.
+- Across the 18 selected files: **179 tests, 170 passed, 8 failed, 1 skipped**. Base: **169 tests, 160 passed, the same 8 failed, the same 1 skipped**. Every failure is `listen EPERM` on loopback: four World Bank HTTP tests, three source-status HTTP tests and one reader HTTP test. No new assertion failure. Totals corrected during the head review below: the earlier aggregate omitted two passing integration gate cases because unit and integration logs shared a filename.
 - Restricted Node child-process pipes initially produced `EPERM` or hung Python fixture generation on both revisions. Final reader/revision runs used `--test-isolation=none` and an external temporary preload that passes Python stdin through a temporary file descriptor. It executes the original Python scripts and preserves their real output, exit status and every assertion; it changes no repository code. Direct shell execution of the Python reader also matched the in-memory national/province results for both editions.
 - All test commands unset `TDN_CHROMIUM_PATH`, `TDN_RESEARCH_PDF_CHROMIUM`, `TDN_REQUIRE_BROWSER` and `TDN_BROWSER_EXECUTABLE`. Test imports were checked before execution. No browser, external provider request, push, merge, deployment or configuration change was performed.
 
 Unresolved: no confirmed application defect. Loopback HTTP checks remain limited by the sandbox, identically on base.
 
-Next action: review the uncommitted test/handoff changes; an unrestricted HTTP test run and the separately authorized first canary remain follow-ups.
+Next action: review commit `d85c97f0`; an unrestricted HTTP test run and the separately authorized first canary remain follow-ups.
 
 Business decisions pending: none for this review.
+
+## Head review — 2026-10-17
+
+Reviewed `d85c97f03ed49926ddbb9be4857d4a59d8055c17` on `rv280c`, including the whole PR against a fresh detached base at `e009d9ee`.
+
+- The committed regression tests use synthetic workbooks and relative imports, cover both sheet extents, header order and blank cells, and explicitly require Flint rule 11 and both renderers' numbering checks to pass. No application or test defect found. S22/S23/S24 source-status rows match the implemented flags and the owner decisions supplied for this review.
+- Node 24.15.0 first on PATH; typecheck passed. Official-statistics lane: **43/43 passed**, with every Python reader test executed.
+- Across **23 browser-free files**: **200 tests, 191 passed, 8 failed, 1 skipped**. Base: **190 tests, 181 passed, the same 8 failed, the same 1 skipped**. The eight failures are the loopback `listen EPERM` cases listed above. This includes the original 18 files plus World Bank source intake, intake/contract units, Market presentation report and frontend source-status checks.
+- Missing generated frontend validators initially failed identically on head and base; local validator generation resolved all five affected checks on both. Generated declaration bytes were unchanged. The Python stdin pipe timeout also reproduced on an unmodified base reader test; final runs used the inspected temporary stdin-file-descriptor preload and `--test-isolation=none`, preserving real Python execution and assertions.
+- Fresh synthetic replay with S22 off confirmed exact request URLs, stored collection document bytes and both report HTML streams against base, for monthly-only and CPI-fallback paths; the reader replay used Flint.
+- Only this handoff changed in the head review: corrected committed-change status and earlier totals, and recorded current evidence. No machine paths, browser launch, external request, provider/config change, push, merge or deployment. Every test command unset the four browser environment variables required by the review brief.
+
+Unresolved application/test defects: none. Follow-ups remain an unrestricted loopback HTTP run and the separately authorized first canary. The handoff correction is uncommitted.
