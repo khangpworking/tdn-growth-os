@@ -77,6 +77,7 @@ import { comtradeFlowText, comtradeNotice, comtradeOfficialText, comtradeRendera
 import { formatWorldBankValue, worldBankRenderable, worldBankRenderableRows, worldBankSourceNote, worldBankUnitText, WORLD_BANK_LIMIT, WORLD_BANK_NOTE, WORLD_BANK_SOURCE_LABEL, WORLD_BANK_SRC, WORLD_BANK_TITLE } from './world-bank-lane.js';
 import { E13_ATTRIBUTION } from '../source-appendix-projection.js';
 import { searchInterestRenderable,SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_LIMIT, SEARCH_INTEREST_NOTE, SEARCH_INTEREST_SOURCE_LABEL, SEARCH_INTEREST_SRC, SEARCH_INTEREST_UNIT } from './search-interest.js';
+import { searchGeoAverageText, searchGeoRenderable, searchGeoText, summarizeSearchGeo, SEARCH_GEO_DONT, SEARCH_GEO_HEADERS, SEARCH_GEO_NOTE, SEARCH_GEO_TABLE_NO, SEARCH_GEO_TABLE_TITLE } from './search-geo.js';
 
 const reportRequire = createRequire(import.meta.url);
 const { Ajv2020 } = reportRequire('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -206,7 +207,7 @@ export function marketSourceRows(input: AutomationReportInput, webResultCount: n
   const web = webResultCount ? `Đã lưu ${webResultCount} kết quả trong lượt này.` : webFailed ? WEB_SOURCE_FAILED_TEXT : 'Chưa có trong lượt này.';
   const comments = input.reviewCorpus ? 'Đã dùng trong lượt này.'
     : input.reviewCorpusFailure ? 'Không dùng được trong lượt này: bộ bình luận không qua kiểm tra.' : 'Chưa có trong lượt này.';
-  const interest: readonly (readonly [string, string])[] = searchInterestRenderable(input.collection?.searchInterest)
+  const interest: readonly (readonly [string, string])[] = searchInterestRenderable(input.collection?.searchInterest) || searchGeoRenderable(input.collection?.searchGeo)
     ? [[SEARCH_INTEREST_SOURCE_LABEL, 'Đã dùng trong lượt này: chỉ số tương đối, không phải doanh số.']] : [];
   const macro: readonly (readonly [string, string])[] = worldBankRenderable(input.collection?.worldBank)
     ? [[WORLD_BANK_SOURCE_LABEL, 'Đã dùng trong lượt này: số liệu cả nước, chỉ là bối cảnh.']] : [];
@@ -1004,6 +1005,18 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
       `<div class="chart flint" data-engine="${escape(input.searchInterestChart.engine)}">${input.searchInterestChart.svg}</div>` +
       `<p class="lim"><b>Chú thích:</b> ${escape(SEARCH_INTEREST_NOTE)} ${escape(SEARCH_INTEREST_LIMIT)}</p><p class="ex-src">Nguồn: ${escape(SEARCH_INTEREST_SRC)}${capture ? captureMark(capture, citations) : ''}</p></figure>`;
   };
+  // The stored province map sits right after Hình 5.2, as regions only; a pure rule picks a region or says nationwide. Never with sales.
+  const searchGeoBlock = (sectionId: string): string => {
+    const geo = input.collection?.searchGeo;
+    if (kind !== 'MARKET' || sectionId !== 'M05' || !searchGeoRenderable(geo)) return '';
+    const summary = summarizeSearchGeo(geo.provinces), text = searchGeoText(summary);
+    const capture = input.captures.find(item => item.stepId === 'COLLECTION' && item.ordinal === geo.captureIndex);
+    return `<div class="table-wrap"><div class="exh"><span class="exn">Bảng ${SEARCH_GEO_TABLE_NO}</span><span class="ext">${escape(SEARCH_GEO_TABLE_TITLE)}</span></div><table><caption>${escape(SEARCH_GEO_TABLE_TITLE)}</caption>` +
+      `<thead><tr>${SEARCH_GEO_HEADERS.map(head => `<th>${escape(head)}</th>`).join('')}</tr></thead><tbody>` +
+      summary.regions.map(row => `<tr><td>${escape(row.region)}</td><td>${escape(searchGeoAverageText(row.average))}</td><td>${row.inTop}</td></tr>`).join('') +
+      `</tbody></table><p class="lim"><b>Chú thích:</b> ${escape(SEARCH_GEO_NOTE)}</p><p class="ex-src">Nguồn: ${escape(SEARCH_INTEREST_SRC)}${capture ? captureMark(capture, citations) : ''}</p></div>` +
+      [text.topLine, text.result, text.seen, text.use, text.dont].map(line => `<p>${escape(line)}</p>`).join('');
+  };
   // Open country-level figures sit beside the sales numbers in the same demand section; the same predicate marks S23 as used.
   const worldBankTable = (sectionId: string): string => {
     const rows = kind === 'MARKET' && sectionId === 'M05' ? worldBankRenderableRows(input.collection?.worldBank) : [];
@@ -1093,7 +1106,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   const sellerVideoBlock = (sectionId: string): string => kind === 'MARKET' && sectionId === SELLER_VIDEO_SECTION && input.sellerVideos && input.sourceEvidence?.sellerVideos === true
     ? sellerVideoBlockHtml(input.sellerVideos, escape) + `<p class="lim"><b>Chú thích:</b> ${escape(sellerVideoNote(input.sellerVideos))}</p><p class="ex-src">Nguồn: ${escape(sellerVideoSrc(input.sellerVideos))}</p>` : '';
   const appendix = (sectionId: string): string =>
-    presentationCharts(sectionId) + searchInterestFigure(sectionId) + worldBankTable(sectionId) + officialStatsTable(sectionId) + comtradeTable(sectionId) + searchAdsTable(sectionId) + pdfExcerptBlock(sectionId) + sellerVideoBlock(sectionId) +
+    presentationCharts(sectionId) + searchInterestFigure(sectionId) + searchGeoBlock(sectionId) + worldBankTable(sectionId) + officialStatsTable(sectionId) + comtradeTable(sectionId) + searchAdsTable(sectionId) + pdfExcerptBlock(sectionId) + sellerVideoBlock(sectionId) +
     (reviewOutcome && kind === 'INSIGHT' && (sectionId === 'I03' || sectionId === 'I17') ? `<p class="warning">${escape(reviewOutcomeLead(reviewOutcome))}</p>` : '') +
     baseAppendix(sectionId) +
     (input.sourceEvidence && (sectionId === 'M13' || sectionId === 'I17') ? sourceEvidenceHtml(input.sourceEvidence) +
