@@ -177,7 +177,7 @@ function cpiWorkbook(variant: CpiBookVariant): SheetSpec[] {
 }
 /** The province sheet ("Biểu 5"): the published header rows 1–7, synthetic province names on row 8 and synthetic numbers.
  *  Column C is in an accounting format (no stated precision), as some published months are. */
-function provinceSheet(overrides: Readonly<Record<string, Cell>> = {}): SheetSpec {
+function provinceSheet(overrides: Readonly<Record<string, Cell>> = {}, rows: 30 | 84 = 30): SheetSpec {
   return { name: 'Địa phương', cells: {
     A1: 'Biểu 5', A2: 'CHỈ SỐ GIÁ TIÊU DÙNG,', A3: 'CHỈ SỐ GIÁ VÀNG VÀ CHỈ SỐ GIÁ ĐÔ LA MỸ MỘT SỐ ĐỊA PHƯƠNG', A4: 'Tháng 9 năm 2026', A5: '(Tháng trước = 100)',
     J7: 'Đơn vị tính: %', B8: 'Tỉnh A', C8: 'Tỉnh B', D8: 'Thành phố C',
@@ -185,6 +185,7 @@ function provinceSheet(overrides: Readonly<Record<string, Cell>> = {}): SheetSpe
     A10: 'I. Hàng ăn và dịch vụ ăn uống', B10: { n: '101.25', s: 2 }, C10: { n: '100.75' }, D10: '-',
     A11: 'II. Đồ uống và thuốc lá', B11: { n: '102.375', s: 2 }, C11: { n: '99.125' },
     A12: 'Vàng', B12: { n: '105.5', s: 2 },
+    [`M${rows}`]: '', // Both published sheet extents share the same pinned header; trailing cells carry no data.
     ...overrides,
   } };
 }
@@ -756,6 +757,15 @@ test('S22 province sheet: pinned header, provinces in sheet order, group and ref
   const twice = readOfficialStatsProvinces(toSheets(withProvinces(cpiWorkbook('binh-quan-luy-ke'), provinceSheet({ A12: 'II. Đồ uống và thuốc lá' }))), PROVINCE_LABELS);
   assert.deepEqual(twice.values.map(v => v.label), ['CHỈ SỐ GIÁ TIÊU DÙNG', 'CHỈ SỐ GIÁ TIÊU DÙNG', 'CHỈ SỐ GIÁ TIÊU DÙNG']);
   assert.equal(readOfficialStatsProvinces(toSheets(cpiWorkbook('binh-quan-luy-ke')), PROVINCE_LABELS).outcome, 'NOT_FOUND');
+  for (const rows of [30, 84] as const) {
+    const variant = toSheets(withProvinces(cpiWorkbook('binh-quan-luy-ke'), provinceSheet({}, rows)));
+    assert.deepEqual(readOfficialStatsProvinces(variant, PROVINCE_LABELS), read, `${rows}-row edition uses the same pinned profile`);
+  }
+  const reordered = readOfficialStatsProvinces(toSheets([provinceSheet({ B8: 'Thành phố C', D8: 'Tỉnh A' })]), PROVINCE_LABELS);
+  assert.deepEqual(reordered.provinces, ['Thành phố C', 'Tỉnh B', 'Tỉnh A']);
+  assert.deepEqual(reordered.values.slice(0, 3).map(cell => [cell.province, cell.cell, cell.value]), [
+    ['Thành phố C', 'B11', '102.375'], ['Tỉnh B', 'C11', '99.125'], ['Tỉnh A', 'D11', null],
+  ], 'province membership follows each header column; a blank does not inherit another row or column');
 });
 
 test('S22 unknown province header: LAYOUT_UNKNOWN for the province table only; table 5.4 is unaffected', () => {
@@ -862,11 +872,12 @@ test('S22 reader report: table 5.5 follows 5.4 with title, source, note, period,
   const units = unitPriceFixture(input.rows);
   input.unitPrices = units.packet;
   const data = computeReaderReportData(input, units.retained);
-  const offHtml = (await buildMarketReport(data, { ...sync1Options, officialStats: off })).html;
-  assert.equal((await buildMarketReport(data, { ...sync1Options, officialStats: withoutProvinces(on) })).html, offHtml, 'no province field: same bytes');
+  const options = { ...sync1Options, flint: true };
+  const offHtml = (await buildMarketReport(data, { ...options, officialStats: off })).html;
+  assert.equal((await buildMarketReport(data, { ...options, officialStats: withoutProvinces(on) })).html, offHtml, 'no province field: same bytes');
   const unknownDoc = officialStatsDocument((await provinceRun({ provinces: true, sheet: provinceSheet({ J7: 'Đơn vị tính: chỉ số' }) })).result, 0, [1, 2]);
   assert.equal((await buildMarketReport(data, { ...sync1Options, officialStats: unknownDoc })).html.includes(OFFICIAL_STATS_PROVINCE_TITLE), false, 'LAYOUT_UNKNOWN draws no province table');
-  const html = (await buildMarketReport(data, { ...sync1Options, officialStats: on })).html;
+  const html = (await buildMarketReport(data, { ...options, officialStats: on })).html;
   const doc = new JSDOM(html).window.document;
   const m05 = [...doc.querySelectorAll('section')].find(node => node.querySelector('h2')?.textContent === 'Nhu cầu (tín hiệu bán)')!.textContent!;
   assert.ok(m05.indexOf(OFFICIAL_STATS_PROVINCE_TITLE) > m05.indexOf('Bối cảnh cả nước theo nhóm hàng') && m05.indexOf('Bối cảnh cả nước theo nhóm hàng') >= 0, 'table 5.5 follows table 5.4');
@@ -886,6 +897,10 @@ test('S22 reader report: table 5.5 follows 5.4 with title, source, note, period,
   assert.match(doc.querySelector('#phu-luc')!.textContent!, /chỉ số giá theo tỉnh, thành phố/u);
   const failedRules = (value: string) => auditMarket14(value).filter(check => check.kind === 'machine' && !check.ok).map(check => check.rule);
   assert.deepEqual(failedRules(html), failedRules(offHtml), 'the province table adds no machine-rule failure (requireFlint)');
+  const rule11 = auditMarket14(html, undefined, { requireFlint: true }).find(check => check.rule === '11')!;
+  assert.equal(rule11.ok, true, rule11.detail);
+  const numbering = lint(html).find(check => check.rule.startsWith('F7 '))!;
+  assert.equal(numbering.ok, true, numbering.detail);
   const failedLint = (value: string) => lint(value).filter(check => !check.ok).map(check => check.rule);
   assert.deepEqual(failedLint(html), failedLint(offHtml));
 });
@@ -901,6 +916,11 @@ test('S22 source evidence: cited only when table 5.5 is drawn, bound to the same
   assert.deepEqual(market.sourceAppendix.rows.map(row => [row.registryId, row.binding.kind, row.binding.ref]), [['S21', 'capture', 'b'.repeat(64)], ['S22', 'capture', 'b'.repeat(64)]]);
   assert.deepEqual(sourceEvidenceForReport(market, input(on), 'MARKET'), market, 'idempotent');
   assert.deepEqual(sourceEvidenceForReport(empty, input(withoutProvinces(on)), 'MARKET').sourceAppendix.rows.map(row => row.registryId), ['S21']);
+  const mem = memoryReader([monthlyWorkbook({ sheets: 20 }), withProvinces(cpiWorkbook('binh-quan-luy-ke'))]);
+  const f = fake({ [MONTHLY_URL]: mem.bytes[0]!, [CPI_URL]: mem.bytes[1]! });
+  const monthly = officialStatsDocument(await createOfficialStatsSource({ model: fakeModel(), transport: f.transport, readWorkbook: mem.reader, provinces: true }).collect(INPUT), 0, [1, 2]);
+  assert.deepEqual(sourceEvidenceForReport(empty, input(monthly), 'MARKET').sourceAppendix.rows.map(row => [row.registryId, row.binding.ref]),
+    [['S21', 'a'.repeat(64)], ['S22', 'b'.repeat(64)]], 'the extra CPI download binds S22 without changing S21 monthly lineage');
   assert.deepEqual(sourceEvidenceForReport(empty, input(on), 'INSIGHT'), empty);
   assert.throws(() => sourceEvidenceForReport(empty, { collection: { officialStats: on }, captures: [captures[0]!, { ...capture(2, 'c'.repeat(64)), operation: 'officialstats.list' }] } as unknown as Parameters<typeof sourceEvidenceForReport>[1], 'MARKET'),
     /Official statistics/u);
@@ -933,12 +953,16 @@ test('S22 run: flag off stores nothing; flag on draws table 5.5 in M05 after 5.4
   assert.doesNotMatch(on.html, /Google/iu);
   assert.deepEqual(providerNameViolations(on.html), []);
   assert.doesNotThrow(() => assertMarketBusinessGate(on.html));
+  const numbering = lint(on.html).find(check => check.rule.startsWith('F7 '))!;
+  assert.equal(numbering.ok, true, numbering.detail);
 });
 
 test('reader: the province sheet reads the same as the in-memory sheet', { skip: noPython }, () => {
-  const book = withProvinces(cpiWorkbook('binh-quan-luy-ke'));
-  const read = defaultOfficialStatsWorkbookReader(xlsx(book));
-  assert.equal(read.kind, 'OK');
-  if (read.kind !== 'OK') return;
-  assert.deepEqual(readOfficialStatsProvinces(read.sheets, PROVINCE_LABELS), readOfficialStatsProvinces(toSheets(book), PROVINCE_LABELS));
+  for (const rows of [30, 84] as const) {
+    const book = withProvinces(cpiWorkbook('binh-quan-luy-ke'), provinceSheet({}, rows));
+    const read = defaultOfficialStatsWorkbookReader(xlsx(book));
+    assert.equal(read.kind, 'OK', `${rows}-row edition`);
+    if (read.kind !== 'OK') return;
+    assert.deepEqual(readOfficialStatsProvinces(read.sheets, PROVINCE_LABELS), readOfficialStatsProvinces(toSheets(book), PROVINCE_LABELS));
+  }
 });
