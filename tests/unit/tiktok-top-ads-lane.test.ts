@@ -14,9 +14,9 @@ import type { MetricOpenCliProcessRunner } from '../../src/modules/analysis/rese
 import { runMetricCapture } from '../../src/modules/analysis/research-automation/metric-capture-runner.js';
 import { withOpenCliBrowserLock } from '../../src/modules/analysis/research-automation/opencli-browser-lock.js';
 import {
-  classifyTikTokFinalUrl, createTikTokTopAdsSource, parseTikTokTopAds, tiktokTopAdsDocument, tiktokTopAdsEnabled, tiktokTopAdsReportView, tiktokTopAdsUrl,
+  classifyTikTokFinalUrl, createTikTokTopAdsSource, parseTikTokTopAds, tiktokTopAdsDocument, tiktokTopAdsEnabled, tiktokTopAdsFailed, tiktokTopAdsReportView, tiktokTopAdsUrl,
   tiktokTopAdsUrlKeyword, tiktokTopAdsUsage, validTikTokTopAds, TIKTOK_TOP_ADS_LOGGED_IN_REASON, TIKTOK_TOP_ADS_MAX_OPENS, TIKTOK_TOP_ADS_SESSION,
-  TIKTOK_TOP_ADS_SOURCE_LABEL, TIKTOK_TOP_ADS_SPACING_MS, TIKTOK_TOP_ADS_TABLE_TITLE, type TikTokTopAdsReportView,
+  TIKTOK_TOP_ADS_SOURCE_LABEL, TIKTOK_TOP_ADS_SPACING_MS, TIKTOK_TOP_ADS_TABLE_TITLE, TIKTOK_TOP_ADS_TEXT_CAP_BYTES, type TikTokTopAdsReportView,
 } from '../../src/modules/analysis/research-automation/tiktok-top-ads-lane.js';
 import { sync1Options, sync1ReaderFixture } from '../helpers/sync1-reader-fixture.js';
 import { unitPriceFixture } from '../helpers/market-unit-price-fixture.js';
@@ -193,14 +193,16 @@ test('each stop marker stops the lane at once with no further open', async () =>
 });
 
 test('script and navigation words are not walls', async () => {
-  const ordinary = '<a href="/login">Log in</a><script>const captcha_verify = "<div class=\'captcha_verify\'>"; const f = \'<form id="login">\';</script>';
-  const w = world({ [URL_VI]: { html: ordinary, text: `Log in\n${LIST_TEXT}` } });
+  const ordinary = '<a href="/login">Log in to TikTok</a><script>const captcha_verify = "<div class=\'captcha_verify\'>"; const f = \'<form id="login">\';'
+    + ' const advertiser = {"uid":"7000000001","user_id":42,"core_user_id":"9"};</script>';
+  const w = world({ [URL_VI]: { html: ordinary, text: `Log in to TikTok\nĐăng nhập vào TikTok\nVerify\nCaptcha\n${LIST_TEXT}` } });
   const result = await source(w, () => [URL_VI]).collect({ keyword: KEYWORD });
   assert.equal(result.status, 'OK');
 });
 
 test('a logged-in browser stops the lane and keeps nothing', async () => {
-  for (const html of ['<script>{"uid":"7000000001"}</script>', '<script>{"user_id":42}</script>', '<script>{"core_user_id":"9"}</script>']) {
+  for (const html of ['<script>{"viewer":{"uid":"7000000001"}}</script>', '<script>{"currentUser":{"user_id":42}}</script>',
+    '<script>{"viewerInfo":{"core_user_id":"9"}}</script>', '<script>{"viewer_id":"9"}</script>', '<script>{"isLogin":true}</script>']) {
     const w = world({ [URL_VI]: { html, text: `secret feed text\n${LIST_TEXT}` } });
     const result = await source(w).collect({ keyword: KEYWORD });
     assert.equal(result.stop, 'LOGGED_IN_SESSION_PRESENT');
@@ -235,6 +237,41 @@ test('UI_CHANGED keeps the evidence, stops the lane and becomes a plain row', as
   assert.ok(view.notice && !/\d|%/u.test(view.notice));
 });
 
+test('extract text is capped on a UTF-8 boundary and an incomplete read keeps evidence without listing cards', async () => {
+  const text = `${card('Bình giữ nhiệt mẫu A')}\n${'ế'.repeat(TIKTOK_TOP_ADS_TEXT_CAP_BYTES)}`;
+  const calls: string[][] = [];
+  const runner: MetricOpenCliProcessRunner = async (_executable, argv) => {
+    calls.push([...argv]);
+    const stdout = argv[2] === 'extract' ? JSON.stringify({ url: URL_VI, content: text, next_start_char: null })
+      : argv[2] === 'get' && argv[3] === 'url' ? URL_VI : '';
+    return { child: { kill: () => true }, completion: Promise.resolve({ exitCode: 0, stdout, stderr: '' }) };
+  };
+  const result = await createTikTokTopAdsSource({ createRunner: () => runner, now: () => NOW }).collect({ keyword: KEYWORD });
+  assert.equal(result.stop, 'UI_CHANGED');
+  assert.deepEqual(result.cards, []);
+  const capture = result.reads[0]!;
+  assert.ok(capture.read.retained);
+  assert.ok(Buffer.byteLength(capture.text!) <= TIKTOK_TOP_ADS_TEXT_CAP_BYTES);
+  assert.doesNotMatch(capture.text!, /\uFFFD/u);
+  assert.equal(capture.fingerprint!.textTruncated, true);
+  assert.equal(capture.fingerprint!.textBytes, Buffer.byteLength(capture.text!));
+  assert.equal(calls.at(-1)![2], 'close');
+});
+
+test('each extract chunk checks the final URL before keeping its text', async () => {
+  const runner: MetricOpenCliProcessRunner = async (_executable, argv) => {
+    const stdout = argv[2] === 'extract' ? JSON.stringify(Number(argv[4]) === 0
+      ? { url: URL_VI, content: card('Bình giữ nhiệt mẫu A'), next_start_char: 100 }
+      : { url: 'https://example.com/', content: 'OFF_TARGET_PRIVATE_TEXT', next_start_char: null })
+      : argv[2] === 'get' && argv[3] === 'url' ? URL_VI : '';
+    return { child: { kill: () => true }, completion: Promise.resolve({ exitCode: 0, stdout, stderr: '' }) };
+  };
+  const result = await createTikTokTopAdsSource({ createRunner: () => runner }).collect({ keyword: KEYWORD });
+  assert.equal(result.stop, 'BLOCKED');
+  assert.deepEqual(result.cards, []);
+  assert.equal(JSON.stringify(result).includes('OFF_TARGET_PRIVATE_TEXT'), false);
+});
+
 test('CTR and budget lines never surface, and a caption carrying a figure is refused', () => {
   const parsed = parseTikTokTopAds(`${card('Bình giữ nhiệt giảm 50% hôm nay')}\n${card('Bình giữ nhiệt CTR cao')}\n${card('Bình giữ nhiệt mẫu D')}`);
   assert.ok(parsed.ok);
@@ -248,6 +285,19 @@ test('CTR and budget lines never surface, and a caption carrying a figure is ref
   if (!odd.ok) return;
   assert.equal(odd.read.cards[0]!.likes, null, 'a like value that is not a count literal is not kept');
   assert.equal(odd.read.cards[0]!.objective, null, 'an effectiveness word is not kept');
+});
+
+test('unsafe figures, provider names and markdown syntax never become visible literals', () => {
+  for (const value of ['Cost 123 USD', 'Spend 456 USD', 'Google mẫu', 'G o o g l e mẫu', 'Gemini mẫu', 'Metric mẫu',
+    '[mẫu](https://example.com)', '[mẫu][nguồn]', '**mẫu**', '*mẫu*', '_mẫu_', '~~mẫu~~', '<b>mẫu</b>']) {
+    const parsed = parseTikTokTopAds(card(`Bình giữ nhiệt ${value}`));
+    assert.ok(parsed.ok);
+    assert.equal(parsed.read.cards.length, 0, value);
+    assert.equal(parsed.read.refusedCards, 1);
+  }
+  const parsed = parseTikTokTopAds('Ad caption: Bình giữ nhiệt mẫu\nBrand: Google mẫu\nIndustry: Metric mẫu\nObjective: Spend 456 USD\n');
+  assert.ok(parsed.ok);
+  assert.deepEqual([parsed.read.cards[0]!.account, parsed.read.cards[0]!.industry, parsed.read.cards[0]!.objective], [null, null, null]);
 });
 
 test('captions that do not match the keyword meaning are counted and never listed', async () => {
@@ -402,7 +452,7 @@ test('Market 7.4 AUTO rows: no %, no bare 0, no provider names, the M13 source l
     assert.match(text, /không phải chi tiêu hay hiệu quả/u);
     const noData = built.html.replace(/data:[a-z/+-]+;base64,[A-Za-z0-9+/=]+/gu, 'data:');
     assert.doesNotMatch(noData, /Google|Kalodata|Metric\b|SerpApi|OpenCLI|opencli|Apify|PageIndex|Gemini|tdnmeta|tdntiktok/iu);
-    assert.equal(visible(built.html).includes(TIKTOK_TOP_ADS_SOURCE_LABEL), view === okView, 'the M13 source line only with listed rows');
+    assert.equal(visible(built.html).includes(TIKTOK_TOP_ADS_SOURCE_LABEL), true, 'M13 also discloses a stopped or unverified read');
     assert.doesNotThrow(() => assertMarketBusinessGate(built.html, { presentation: false }));
     assert.doesNotThrow(() => assertMarket14MachineRules(built.html));
     assert.deepEqual(auditMarketReportHtml(built.html, { presentation: false }).filter(item => !item.ok), []);
@@ -418,4 +468,19 @@ test('Market 7.4 AUTO rows: no %, no bare 0, no provider names, the M13 source l
   const okText = table74((await reader(okView)).html)!.parentElement!.textContent!;
   assert.match(okText, /không khớp nghĩa với từ khoá sản phẩm/u);
   assert.match(visible((await reader(unverifiedView)).html), /chưa kiểm lại được/u);
+});
+
+test('a failure before reading still renders a plain table and M13 without an invented date', async () => {
+  for (const doc of [tiktokTopAdsFailed(KEYWORD), tiktokTopAdsFailed(null, 'NO_KEYWORD')]) {
+    const view = tiktokTopAdsReportView(doc, false);
+    assert.ok(view);
+    assert.equal(view.readDate, null);
+    assert.deepEqual(view.rows, []);
+    const built = await reader(view);
+    assert.ok(table74(built.html));
+    assert.match(visible(built.html), /Lượt này chưa có bản đọc trang quảng cáo nổi bật của TikTok để kiểm tra/u);
+    assert.ok(visible(built.html).includes(TIKTOK_TOP_ADS_SOURCE_LABEL));
+    assert.doesNotThrow(() => assertMarketBusinessGate(built.html, { presentation: false }));
+    assert.doesNotThrow(() => assertMarket14MachineRules(built.html));
+  }
 });

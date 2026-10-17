@@ -13,6 +13,7 @@
 import { createHash } from 'node:crypto';
 import type { SourcePackageIntakeRequest } from '../../../../contracts/foundation/source-package-intake-request.generated.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
+import { containsTechnicalId } from '../citation-registry.js';
 import type { FoundationSourcePackageReader } from '../../foundation/source-package-reader.js';
 import { filterKeywordMeanings } from '../keyword-meaning-filter.js';
 import type { MetricOpenCliProcessRunner } from './metric-opencli-executor.js';
@@ -21,6 +22,7 @@ import { realMetaAutoClock, type MetaAutoClock } from './meta-auto-lane.js';
 import type { StepTikTokTopAds, StepTikTokTopAdsCard, StepTikTokTopAdsField, StepTikTokTopAdsRead, StepTikTokTopAdsSpan, StepTikTokTopAdsStatus, StepTikTokTopAdsStop } from './model.js';
 import { withOpenCliBrowserLock } from './opencli-browser-lock.js';
 import { isRecord } from './provider-common.js';
+import { webTextHidden } from './web-page-type.js';
 
 export const TIKTOK_TOP_ADS_FLAG = 'TDN_RESEARCH_TIKTOK_TOPADS_ENABLED';
 /** Usage ordinal inside the collection step (11 official statistics, 12 Meta auto-read). */
@@ -130,7 +132,9 @@ export const TIKTOK_TOP_ADS_PROFILE_TABLE = {
   /** Labels whose lines are counted in the fingerprint and never kept. */
   forbiddenLabels: ['CTR', 'Budget', 'Ngân sách', 'Conversion', 'CVR', 'Chuyển đổi', 'Effectiveness', 'Hiệu quả', 'Cost', 'Chi phí', 'CPA', 'CPM', 'CPC', 'ROAS', 'Spend', 'Chi tiêu'],
   /** A kept value must not carry any of these (case-insensitive); a caption that does refuses its card. */
-  forbiddenValuePattern: String.raw`%|(?<!\p{L})(?:ctr|cvr|cpa|cpm|cpc|roas|budget|conversions?|effectiveness)(?!\p{L})|ngân sách|chuyển đổi|hiệu quả|chi phí|chi tiêu`,
+  forbiddenValuePattern: String.raw`[%％٪]|(?<!\p{L})(?:ctr|cvr|cpa|cpm|cpc|roas|budget|conversions?|effectiveness|cost|spend|google|gemini)(?!\p{L})|ngân sách|chuyển đổi|hiệu quả|chi phí|chi tiêu`,
+  /** Unwitnessed markdown formatting is refused rather than copied as if it were visible text. */
+  nonLiteralPattern: String.raw`\*|__|(?<![\p{L}\p{N}])_[^_\n]+_(?![\p{L}\p{N}])|~~|\x60|!?\[[^\]]*\](?:\(|\[)|<[^>]*>|&(?:#\w+|\w+);`,
   /** The like-count literal as shown; anything else is not kept. */
   likeValuePattern: String.raw`^\d{1,4}(?:[.,]\d{1,3})*(?:\s?(?:K|M|B|N|Tr|nghìn|triệu))?$`,
   /** A labelled line: optional list mark and bold around the label, then a colon. */
@@ -138,16 +142,17 @@ export const TIKTOK_TOP_ADS_PROFILE_TABLE = {
   /** Case-insensitive patterns for actual forms/interstitials, not navigation or script vocabulary. */
   stopMarkers: [
     { id: 'login-form', where: 'html', pattern: String.raw`<form\b[^>]*\b(?:id|name|class)\s*=\s*["'][^"']*login`, stop: 'LOGIN_REQUIRED' },
-    { id: 'login-wall-en', where: 'text', pattern: 'log in to continue|log in to tiktok|please log in|you need to log in', stop: 'LOGIN_REQUIRED' },
-    { id: 'login-wall-vi', where: 'text', pattern: 'đăng nhập để tiếp tục|đăng nhập vào tiktok|vui lòng đăng nhập|bạn cần đăng nhập', stop: 'LOGIN_REQUIRED' },
+    { id: 'login-wall-en', where: 'text', pattern: '(?:log in|please log in|you (?:need to|must) log in)(?: to tiktok)? to (?:continue|access|view)|(?:^|\n)[ \\t]*please log in[ \\t]*(?=\r?\n|$)', stop: 'LOGIN_REQUIRED' },
+    { id: 'login-wall-vi', where: 'text', pattern: '(?:đăng nhập|vui lòng đăng nhập|bạn cần đăng nhập)(?: vào tiktok)? để (?:tiếp tục|truy cập|xem)|(?:^|\n)[ \\t]*vui lòng đăng nhập[ \\t]*(?=\r?\n|$)', stop: 'LOGIN_REQUIRED' },
     { id: 'captcha-box', where: 'html', pattern: String.raw`<(?:div|iframe|form)\b[^>]*\b(?:id|class)\s*=\s*["'][^"']*(?:captcha_verify|captcha-verify|secsdk-captcha|verify-bar)`, stop: 'CAPTCHA' },
     { id: 'verify-en', where: 'text', pattern: 'verify to continue|drag the slider|drag the puzzle|complete the puzzle|select 2 objects|confirm you[\'’]re human', stop: 'CAPTCHA' },
     { id: 'verify-vi', where: 'text', pattern: 'xác minh để tiếp tục|kéo thanh trượt|kéo mảnh ghép|hoàn thành câu đố|xác nhận bạn là con người', stop: 'CAPTCHA' },
     { id: 'blocked-en', where: 'text', pattern: 'temporarily blocked|access denied|too many requests|rate limit exceeded|visiting too frequently|not available in your region', stop: 'BLOCKED' },
     { id: 'blocked-vi', where: 'text', pattern: 'tạm thời bị chặn|bị từ chối truy cập|quá nhiều yêu cầu|truy cập quá thường xuyên|không khả dụng ở khu vực', stop: 'BLOCKED' },
   ],
-  /** A viewer id other than 0 means the shared browser is logged in to TikTok. */
-  viewerIdPatterns: ['"uid"\\s*:\\s*"?(\\d+)', '"user_id"\\s*:\\s*"?(\\d+)', '"core_user_id"\\s*:\\s*"?(\\d+)'],
+  /** Viewer-scoped ids only: generic uid/user_id can belong to an advertiser on a logged-out page. */
+  viewerIdPatterns: [String.raw`"viewer_id"\s*:\s*"?(\d+)`, String.raw`"(?:viewer|viewerInfo|currentUser|current_user)"\s*:\s*\{[^{}]*?"(?:uid|user_id|core_user_id|id)"\s*:\s*"?(\d+)`],
+  viewerStatePatterns: [String.raw`"(?:isLogin|isLoggedIn|is_login|is_logged_in)"\s*:\s*true\b`],
 } as const;
 
 type StopMarker = (typeof TIKTOK_TOP_ADS_PROFILE_TABLE.stopMarkers)[number];
@@ -162,10 +167,14 @@ const labelKey = (s: string): string => s.normalize('NFC').trim().toLowerCase();
 const LABEL_BY_KEY = new Map(LABELS.map(l => [labelKey(l.text), l.kind]));
 const LINE_RE = new RegExp(T.labelLinePattern, 'dgmu');
 const FORBIDDEN_RE = new RegExp(T.forbiddenValuePattern, 'iu');
+const NON_LITERAL_RE = new RegExp(T.nonLiteralPattern, 'u');
+const safeLiteral = (value: string): boolean => !FORBIDDEN_RE.test(value) && !NON_LITERAL_RE.test(value)
+  && !webTextHidden(value) && !containsTechnicalId(value);
 const LIKE_RE = new RegExp(T.likeValuePattern, 'u');
 const VIEWER_RES = T.viewerIdPatterns.map(p => new RegExp(p, 'gu'));
 
 export function tiktokViewerLoggedIn(html: string): boolean {
+  if (T.viewerStatePatterns.some(pattern => new RegExp(pattern, 'u').test(html))) return true;
   for (const re of VIEWER_RES) {
     re.lastIndex = 0;
     for (const m of html.matchAll(re)) if (/[1-9]/u.test(m[1]!)) return true;
@@ -214,7 +223,7 @@ export function parseTikTokTopAds(text: string): TikTokReadParseResult {
     labels[kind]!++;
     if (kind === 'forbidden') continue;
     const value = m[2]!, valueStart = m.indices![2]![0];
-    const field: StepTikTokTopAdsField | null = value === '' || value.length > TIKTOK_TOP_ADS_MAX_FIELD_CHARS || FORBIDDEN_RE.test(value)
+    const field: StepTikTokTopAdsField | null = value === '' || value.length > TIKTOK_TOP_ADS_MAX_FIELD_CHARS || !safeLiteral(value)
       ? null : { text: value, span: span(text, valueStart, valueStart + value.length) };
     if (kind === 'caption') {
       flush(); skipping = false;
@@ -404,7 +413,7 @@ export function createTikTokTopAdsSource(options: TikTokTopAdsSourceOptions = {}
         const reads: TikTokTopAdsReadCapture[] = [], cards: StepTikTokTopAdsCard[] = [];
         let opens = 0, lastOpenAt: number | null = null, stop: StepTikTokTopAdsStop | null = null, cancelled = false, spawned = false, dropped = 0, refused = 0, readOk = 0;
 
-        type ReadDone = { kind: 'READ'; index: number; text: string } | { kind: 'STOP' } | { kind: 'FAILED' } | { kind: 'CANCELLED' };
+        type ReadDone = { kind: 'READ'; index: number; text: string; truncated: boolean } | { kind: 'STOP' } | { kind: 'FAILED' } | { kind: 'CANCELLED' };
         const record = (capture: TikTokTopAdsReadCapture): number => { reads.push(capture); return reads.length - 1; };
         const bare = (requestedUrl: string, outcome: StepTikTokTopAdsRead['outcome']): StepTikTokTopAdsRead => ({
           requestedUrl, finalUrl: null, outcome, stop: null, retained: false, textSha256: null, textBytes: null, readAt: now().toISOString() });
@@ -466,7 +475,7 @@ export function createTikTokTopAdsSource(options: TikTokTopAdsSourceOptions = {}
             record({ read: { ...bare(url, 'STOPPED'), ...retained, stop: halt }, text, fingerprint });
             return { kind: 'STOP' };
           }
-          return { kind: 'READ', index: record({ read: { ...bare(url, 'READ'), ...retained }, text, fingerprint }), text };
+          return { kind: 'READ', index: record({ read: { ...bare(url, 'READ'), ...retained }, text, fingerprint }), text, truncated: extracted.truncated };
         };
 
         try {
@@ -476,7 +485,8 @@ export function createTikTokTopAdsSource(options: TikTokTopAdsSourceOptions = {}
             if (done.kind === 'CANCELLED') { cancelled = true; break; }
             if (done.kind !== 'READ') continue;
             const parsed = parseTikTokTopAds(done.text);
-            if (!parsed.ok) {
+            // A cut-off field or card cannot be treated as a complete visible literal.
+            if (!parsed.ok || done.truncated) {
               stop = 'UI_CHANGED';
               const prior = reads[done.index]!;
               reads[done.index] = { ...prior, read: { ...prior.read, outcome: 'UI_CHANGED', stop: 'UI_CHANGED' } };
@@ -619,7 +629,7 @@ const strOrNull = (v: unknown, max: number): boolean => v === null || (typeof v 
 
 function validField(v: unknown, likes = false): boolean {
   if (!isRecord(v) || !keysExactly(v, ['text', 'span']) || typeof v.text !== 'string' || v.text === '' || v.text.length > TIKTOK_TOP_ADS_MAX_FIELD_CHARS) return false;
-  if (FORBIDDEN_RE.test(v.text) || (likes && !LIKE_RE.test(v.text))) return false;
+  if (!safeLiteral(v.text) || (likes && !LIKE_RE.test(v.text))) return false;
   const s = v.span;
   return isRecord(s) && keysExactly(s, ['start', 'end']) && nat(s.start) && nat(s.end) && s.end - s.start === Buffer.byteLength(v.text, 'utf8');
 }
@@ -694,7 +704,7 @@ export interface TikTokTopAdsReportRow {
   readonly readAt: string;
 }
 export interface TikTokTopAdsReportView {
-  readonly readDate: string;
+  readonly readDate: string | null;
   readonly rows: readonly TikTokTopAdsReportRow[];
   /** Matching cards beyond the listed rows. */
   readonly moreCards: number;
@@ -707,9 +717,7 @@ export interface TikTokTopAdsReportView {
 /** OK rows need verified evidence; otherwise the table shows one plain row. Never combined with sample numbers. */
 export function tiktokTopAdsReportView(doc: StepTikTokTopAds | null | undefined, verified: boolean): TikTokTopAdsReportView | null {
   if (!doc) return null;
-  const firstRead = doc.reads[0]?.readAt;
-  if (!firstRead) return null;
-  const readDate = firstRead.slice(0, 10);
+  const readDate = doc.reads[0]?.readAt.slice(0, 10) ?? null;
   if (doc.status !== 'OK' || !verified) {
     const notice = doc.status === 'OK' || (doc.status === 'NO_DATA' && !verified) ? 'Bản tự đọc chưa kiểm lại được nên không dùng trong lượt này.' : tiktokTopAdsNotice(doc.status, doc.stop);
     return { readDate, rows: [], moreCards: 0, droppedCards: verified ? doc.droppedCards : 0, notice };

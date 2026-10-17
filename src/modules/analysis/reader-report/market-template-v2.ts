@@ -241,7 +241,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
         row.likes === null ? esc(TIKTOK_TOP_ADS_MISSING) : label(`${row.likes} lượt thích`)];
     });
   const tiktokTable = !tiktok ? '' : tbl('7.4', TIKTOK_TOP_ADS_TABLE_TITLE, '', [...TIKTOK_TOP_ADS_HEADERS], tiktokRows,
-    { src: esc(TIKTOK_TOP_ADS_SRC), note: label(tiktokTopAdsNote(metaAdDate(tiktok.readDate))) })
+    { src: esc(TIKTOK_TOP_ADS_SRC), note: label(tiktok.readDate === null ? 'Lượt này chưa có bản đọc trang quảng cáo nổi bật của TikTok để kiểm tra.' : tiktokTopAdsNote(metaAdDate(tiktok.readDate))) })
     + (tiktok.moreCards > 0 ? `<p>${label(`Còn ${tiktok.moreCards} quảng cáo khớp nghĩa khác trên trang, không liệt kê thêm.`)}</p>` : '')
     + (tiktok.droppedCards > 0 ? `<p>${label(`Có ${tiktok.droppedCards} quảng cáo không khớp nghĩa với từ khoá sản phẩm nên không đưa vào bảng.`)}</p>` : '');
   sections.push(section('M07', 'Đối thủ', 'Giữ số liệu của mỗi gian hàng trên từng sàn; phần thiếu không dùng để so sánh đầy đủ.', requiredFig('product-ranking', '7.1') + tbl('7.1', 'Gian hàng trong mẫu, theo thứ tự dòng nguồn', '', ['Sàn', 'Gian hàng', 'Dòng lõi', 'Doanh thu lõi', 'Đơn vị bán lõi'], shops) + peers + metaAdTable + searchAdsTable + tiktokTable, d.defaultMarketPeers === null ? 'Chưa có tập đối thủ đã đóng băng trong đầu vào bản này. Không suy danh tính chéo sàn từ tên hoặc tiêu đề.' : 'Tập mặc định giữ riêng theo sàn và nhóm; nguồn thiếu hoặc doanh thu bằng không được ghi rõ. Không suy danh tính chéo sàn từ tên hoặc tiêu đề.'));
@@ -319,7 +319,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     ...(metaAdPages.length ? [[META_AD_SOURCE_LABEL, META_AD_SOURCE_NOTE]] : []),
     ...(autoMetaRows.length ? [[META_AUTO_SOURCE_LABEL, META_AUTO_SOURCE_NOTE]] : []),
     ...(searchAdsOk.length ? [[SEARCH_ADS_SOURCE_LABEL, SEARCH_ADS_SOURCE_NOTE]] : []),
-    ...(tiktok && tiktok.rows.length ? [[TIKTOK_TOP_ADS_SOURCE_LABEL, TIKTOK_TOP_ADS_SOURCE_NOTE]] : []),
+    ...(tiktok ? [[TIKTOK_TOP_ADS_SOURCE_LABEL, tiktok.notice ?? TIKTOK_TOP_ADS_SOURCE_NOTE]] : []),
     ...(officialRows.length ? [[E12_ATTRIBUTION, 'Đã lưu trong lượt này; số liệu thống kê cả nước theo nhóm hàng, chỉ là bối cảnh']] : [])] : [['Nguồn', sourceText], ['Kỳ', period]];
   if (d.webFacts !== null) {
     const facts = d.webFacts;
