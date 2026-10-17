@@ -194,7 +194,8 @@ export function pickCpiWorkbook(items: readonly OfficialStatsListing[]): Officia
 const MONTHLY_TABLES: readonly StepOfficialStatsTableId[] = ['RETAIL', 'CPI', 'EXPORT', 'IMPORT'];
 
 export function createOfficialStatsSource(options: { readonly model?: OfficialStatsModelPort; readonly transport?: ProviderTransport; readonly timeoutMs?: number; readonly readWorkbook?: OfficialStatsWorkbookReader;
-  /** S22: also read the province sheet of the CPI workbook when the lane downloads it. Never adds a request. */
+  /** S22: also read the province sheet of the CPI workbook; fetches that workbook even when the monthly rows cover the group
+   *  (still within OFFICIAL_STATS_MAX_CALLS, no retry), without changing table 5.4 or the S21 status. */
   readonly provinces?: boolean } = {}): OfficialStatsSource {
   const transport = options.transport ?? defaultProviderTransport, timeoutMs = options.timeoutMs ?? OFFICIAL_STATS_TIMEOUT_MS, model = options.model;
   const readWorkbook = options.readWorkbook ?? defaultOfficialStatsWorkbookReader;
@@ -341,11 +342,28 @@ export function createOfficialStatsSource(options: { readonly model?: OfficialSt
       const allRead = files.length > 0 && !downloadFailed && groupLabels.filter(item => item.table !== 'CPI_WORKBOOK')
         .every(item => item.table === 'CPI' ? groupCpiRead : hasValue(item.table, item.label));
       const unknown = unreadable || tables.some(item => item.outcome === 'LAYOUT_UNKNOWN') || !tables.some(item => item.outcome === 'READ');
-      if (found) return result(allRead ? 'OK' : 'PARTIAL');
-      if (downloadFailed && files.length === 0) return result('DOWNLOAD_FAILED');
-      if (unknown) return result('LAYOUT_UNKNOWN');
-      if (downloadFailed) return result('DOWNLOAD_FAILED');
-      return result('NO_DATA');
+      const status: StepOfficialStatsStatus = found ? (allRead ? 'OK' : 'PARTIAL') : downloadFailed && files.length === 0 ? 'DOWNLOAD_FAILED'
+        : unknown ? 'LAYOUT_UNKNOWN' : downloadFailed ? 'DOWNLOAD_FAILED' : 'NO_DATA';
+
+      // S22 (owner decision 17/10): with the province flag on, the CPI workbook is fetched for the province sheet even when the
+      // monthly rows already cover the group. It runs after the S21 status is settled, inside the same call cap, spacing and
+      // timeout, with no retry, and keeps no national table or value: table 5.4 and the status are exactly as without it.
+      if (options.provinces === true && state.provinces === undefined && first !== null && labelsOf('CPI_WORKBOOK').length > 0) {
+        const cpi = pickCpiWorkbook(items);
+        if (cpi) {
+          const extra = await download('CPI', cpi, false);
+          if (extra === 'CANCELLED') return result('CANCELLED');
+          if (extra !== null) {
+            const parsed = readWorkbook(files[extra]!.capture.responseBytes!);
+            if (parsed.kind === 'REJECTED') state.provinces = { file: extra, outcome: 'LAYOUT_UNKNOWN', sheet: null, variant: null, period: null, base: null, provinces: [], values: [] };
+            else if (parsed.kind !== 'UNAVAILABLE') {
+              const { outcome, sheet, variant, period, base, provinces, values: cells } = readOfficialStatsProvinces(parsed.sheets, labelsOf('CPI_WORKBOOK'));
+              state.provinces = { file: extra, outcome, sheet, variant, period, base, provinces, values: cells };
+            }
+          }
+        }
+      }
+      return result(status);
     },
   };
 }

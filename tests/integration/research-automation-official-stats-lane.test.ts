@@ -17,7 +17,7 @@ import type { StepResultDocument } from '../../src/modules/analysis/research-aut
 import type { ProviderTransport } from '../../src/modules/analysis/research-automation/providers.js';
 import {
   createOfficialStatsSource, officialStatsDocument, officialStatsEnabled, officialStatsMonthKey, officialStatsProvinceEnabled, officialStatsProvinceRows, officialStatsUrlAllowed, parseOfficialStatsListing,
-  OFFICIAL_STATS_PROVINCE_NOTE, OFFICIAL_STATS_PROVINCE_TITLE,
+  OFFICIAL_STATS_MAX_CALLS, OFFICIAL_STATS_PROVINCE_NOTE, OFFICIAL_STATS_PROVINCE_TITLE, officialStatsRenderableRows,
   pickCpiWorkbook, pickMonthlyWorkbook, validateGroupPick, validateGroupVerification, validOfficialStats, OFFICIAL_STATS_PICKABLE_GROUPS, type OfficialStatsModelPort, type OfficialStatsSource,
 } from '../../src/modules/analysis/research-automation/official-statistics-lane.js';
 import {
@@ -801,10 +801,48 @@ test('S22 lane: the province rows come from the CPI workbook already downloaded;
   assert.deepEqual([docUnknown.provinces?.outcome, docUnknown.provinces?.values], ['LAYOUT_UNKNOWN', []]);
   assert.equal(validOfficialStats(docUnknown), true);
   assert.deepEqual(officialStatsProvinceRows(docUnknown), []);
-  // A run that reads CPI from the monthly workbook downloads no CPI workbook, so nothing is stored for provinces.
-  const mem = memoryReader([monthlyWorkbook({ sheets: 20 })]);
-  const monthlyOnly = await createOfficialStatsSource({ model: fakeModel(), transport: fake({ [MONTHLY_URL]: mem.bytes[0]! }).transport, readWorkbook: mem.reader, provinces: true }).collect(INPUT);
-  assert.equal('provinces' in officialStatsDocument(monthlyOnly, 0, [1]), false);
+});
+
+test('S22 owner decision 17/10: flag on fetches the CPI workbook even when the monthly rows cover the group; ≤3 requests; table 5.4 and status unchanged', async () => {
+  const mem = memoryReader([monthlyWorkbook({ sheets: 20 }), withProvinces(cpiWorkbook('binh-quan-luy-ke'))]);
+  const run = async (provinces: boolean, files: Readonly<Record<string, Buffer>> = { [MONTHLY_URL]: mem.bytes[0]!, [CPI_URL]: mem.bytes[1]! }) => {
+    const f = fake(files);
+    const result = await createOfficialStatsSource({ model: fakeModel(), transport: f.transport, readWorkbook: mem.reader, ...(provinces ? { provinces: true } : {}) }).collect(INPUT);
+    return { f, result };
+  };
+  const paths = (f: ReturnType<typeof fake>) => f.urls.map(url => url.href.split('?')[0]);
+  const off = await run(false);
+  const on = await run(true);
+  // Flag off: exactly as main — listing and monthly workbook only, no CPI download, no province field.
+  assert.equal(off.result.requests, 2);
+  assert.deepEqual(paths(off.f), ['https://www.nso.gov.vn/wp-json/wp/v2/media', MONTHLY_URL]);
+  assert.equal('provinces' in off.result, false);
+  // Flag on: one more GET for the CPI workbook, within the call cap, spaced, no retry.
+  assert.equal(on.result.requests, 3);
+  assert.ok(on.result.requests <= OFFICIAL_STATS_MAX_CALLS && on.f.urls.length <= OFFICIAL_STATS_MAX_CALLS);
+  assert.deepEqual(paths(on.f), ['https://www.nso.gov.vn/wp-json/wp/v2/media', MONTHLY_URL, CPI_URL]);
+  for (let i = 1; i < on.f.at.length; i++) assert.ok(on.f.at[i]! - on.f.at[i - 1]! >= 2_000, `gap ${i}`);
+  // Table 5.4 keeps the monthly rows: same status, tables and values; the CPI workbook is kept only for the province sheet.
+  assert.deepEqual([on.result.status, on.result.tables, on.result.values], [off.result.status, off.result.tables, off.result.values]);
+  assert.deepEqual(on.result.files.map(file => file.role), ['MONTHLY', 'CPI']);
+  assert.deepEqual([on.result.provinces?.outcome, on.result.provinces?.file], ['READ', 1]);
+  const docOn = officialStatsDocument(on.result, 0, [1, 2]), docOff = officialStatsDocument(off.result, 0, [1]);
+  assert.equal(validOfficialStats(docOn), true);
+  assert.deepEqual([docOn.status, docOn.tables, docOn.values], [docOff.status, docOff.tables, docOff.values]);
+  assert.deepEqual(officialStatsRenderableRows(docOn), officialStatsRenderableRows(docOff), 'table 5.4 rows are identical');
+  assert.ok(officialStatsRenderableRows(docOn).every(row => row.captureIndex === 1), 'table 5.4 still cites the monthly workbook only');
+  assert.equal(docOn.provinces?.captureIndex, 2);
+  assert.ok(officialStatsProvinceRows(docOn).length > 0, 'table 5.5 is drawn');
+  // A failed CPI download changes nothing for S21 and is never retried.
+  const failed = await run(true, { [MONTHLY_URL]: mem.bytes[0]! });
+  assert.equal(failed.result.requests, 3);
+  assert.deepEqual(paths(failed.f), ['https://www.nso.gov.vn/wp-json/wp/v2/media', MONTHLY_URL, CPI_URL]);
+  assert.deepEqual([failed.result.status, failed.result.files, failed.result.tables, failed.result.values], [off.result.status, off.result.files, off.result.tables, off.result.values]);
+  assert.equal('provinces' in failed.result, false);
+  // When S21 already needs the CPI workbook, the province sheet reuses that download: still 3 calls, never a fourth.
+  const fallback = await provinceRun({ provinces: true });
+  assert.equal(fallback.result.requests, 3);
+  assert.equal(fallback.f.urls.length, 3);
 });
 
 test('S22 NONE or an unverified group: nothing is downloaded and nothing is stored for provinces', async () => {
