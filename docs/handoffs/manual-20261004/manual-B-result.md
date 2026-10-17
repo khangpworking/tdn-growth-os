@@ -67,7 +67,7 @@ result and `B-screenshots/`. No shared status or global completion counts were e
 ## Verification actually performed
 
 Disposable Linux scratch only:
-`/home/pkhang/.cache/tdn-p1-isolation-20261003-ZVXHsB`.
+`<scratch-dir>`.
 Node 24.15.0 / npm 11.12.1, pinned existing toolchain.
 
 - Linux frontend typecheck: PASS on final bytes.
