@@ -1,7 +1,7 @@
 # Handoff — NEXT-CROSSCHECK-PREP
 
 Updated: 2026-10-09
-Worktree/branch: `/home/pkhang/Applications/Orca.home/orca/workspaces/tdn-growth-os/ultimate-next-insight-sol` / `khangpworking/ultimate-crosscheck-prep-sol`
+Worktree/branch: `<orca-workspaces>/tdn-growth-os/ultimate-next-insight-sol` / `khangpworking/ultimate-crosscheck-prep-sol`
 Task/Dispatch: `task_972ca7d00921` / `ctx_793ce088f699`; sole coordinator run `run_adc3551f8ed8`.
 Base: `b6b6911fd9cec16cc41cf24e7d8ae4abd8f6233b` (reviewed merged default path).
 Checkpoint commits: `a190d2fe3025b40fcb0a3eb58136a1cad1008d3c` (pure first-lineage hooks), `335ff583bc538dd5ff6fafae5b75442e239e230b` (closed contracts/projection).
