@@ -16,11 +16,12 @@ import { buildResearchAutomationReport } from '../../src/modules/analysis/resear
 import type { StepResultDocument } from '../../src/modules/analysis/research-automation/model.js';
 import type { ProviderTransport } from '../../src/modules/analysis/research-automation/providers.js';
 import {
-  createOfficialStatsSource, officialStatsDocument, officialStatsEnabled, officialStatsMonthKey, officialStatsUrlAllowed, parseOfficialStatsListing,
+  createOfficialStatsSource, officialStatsDocument, officialStatsEnabled, officialStatsMonthKey, officialStatsProvinceEnabled, officialStatsProvinceRows, officialStatsUrlAllowed, parseOfficialStatsListing,
+  OFFICIAL_STATS_PROVINCE_NOTE, OFFICIAL_STATS_PROVINCE_TITLE,
   pickCpiWorkbook, pickMonthlyWorkbook, validateGroupPick, validateGroupVerification, validOfficialStats, OFFICIAL_STATS_PICKABLE_GROUPS, type OfficialStatsModelPort, type OfficialStatsSource,
 } from '../../src/modules/analysis/research-automation/official-statistics-lane.js';
 import {
-  defaultOfficialStatsWorkbookReader, officialStatsFigure, readOfficialStatsTable, refuseOfficialStatsArithmetic, OfficialStatisticsCombinationError,
+  defaultOfficialStatsWorkbookReader, officialStatsFigure, readOfficialStatsProvinces, readOfficialStatsTable, refuseOfficialStatsArithmetic, OfficialStatisticsCombinationError, OFFICIAL_STATS_PROVINCE_VARIANTS,
   OFFICIAL_STATS_CATEGORY_MAP, type OfficialStatsSheet, type OfficialStatsWorkbookReader,
 } from '../../src/modules/analysis/research-automation/official-statistics-workbook.js';
 import { assertMarketBusinessGate } from '../../src/modules/analysis/research-automation/market-business-gate.js';
@@ -31,6 +32,9 @@ import { sync1Options, sync1ReaderFixture } from '../helpers/sync1-reader-fixtur
 import { auditMarket14 } from '../../src/modules/analysis/research-automation/market-14-rules.js';
 import { DEFAULT_MARKET_PEER_RULE } from '../../src/modules/analysis/default-market-peers.js';
 import { unitPriceFixture } from '../helpers/market-unit-price-fixture.js';
+import { buildSourceEvidence, sourceEvidenceForReport } from '../../src/modules/analysis/research-automation/source-evidence.js';
+import { SOURCE_REGISTRY } from '../../src/modules/analysis/research-automation/source-status.js';
+import type { CaptureRecord } from '../../src/modules/analysis/research-automation/model.js';
 
 // ---- synthetic workbooks ----
 
@@ -171,6 +175,20 @@ function cpiWorkbook(variant: CpiBookVariant): SheetSpec[] {
   return [{ name: 'Cả nước', cells }, { name: 'Thành thị', cells: { A1: 'Biểu 2', A2: 'CHỈ SỐ GIÁ TIÊU DÙNG,' } }, { name: 'Nông thôn', cells: { A1: 'Biểu 3' } },
     { name: 'Vùng', cells: { A1: 'Biểu 4' } }, { name: 'Ẩn', hidden: true, cells }];
 }
+/** The province sheet ("Biểu 5"): the published header rows 1–7, synthetic province names on row 8 and synthetic numbers.
+ *  Column C is in an accounting format (no stated precision), as some published months are. */
+function provinceSheet(overrides: Readonly<Record<string, Cell>> = {}): SheetSpec {
+  return { name: 'Địa phương', cells: {
+    A1: 'Biểu 5', A2: 'CHỈ SỐ GIÁ TIÊU DÙNG,', A3: 'CHỈ SỐ GIÁ VÀNG VÀ CHỈ SỐ GIÁ ĐÔ LA MỸ MỘT SỐ ĐỊA PHƯƠNG', A4: 'Tháng 9 năm 2026', A5: '(Tháng trước = 100)',
+    J7: 'Đơn vị tính: %', B8: 'Tỉnh A', C8: 'Tỉnh B', D8: 'Thành phố C',
+    A9: 'CHỈ SỐ GIÁ TIÊU DÙNG', B9: { n: '100.123', s: 2 }, C9: { n: '99.876543210987654' }, D9: { n: '100.5', s: 2 },
+    A10: 'I. Hàng ăn và dịch vụ ăn uống', B10: { n: '101.25', s: 2 }, C10: { n: '100.75' }, D10: '-',
+    A11: 'II. Đồ uống và thuốc lá', B11: { n: '102.375', s: 2 }, C11: { n: '99.125' },
+    A12: 'Vàng', B12: { n: '105.5', s: 2 },
+    ...overrides,
+  } };
+}
+const withProvinces = (book: SheetSpec[], sheet: SheetSpec = provinceSheet()): SheetSpec[] => [...book.slice(0, 4), sheet, ...book.slice(4)];
 
 /** In-memory reader for lane tests: looks the synthetic bytes up instead of spawning the stdlib reader. */
 function memoryReader(books: readonly (readonly SheetSpec[])[]): { readonly reader: OfficialStatsWorkbookReader; readonly bytes: Buffer[] } {
@@ -698,4 +716,191 @@ test('reader report: table 5.4 retains periods, statuses, E12 attribution and th
   assert.match(hidden.html, /tệp số liệu đã lưu/u);
   assert.match(hidden.html, /bảng số liệu đã lưu/u);
   assert.equal(unsafe.values[0]!.sheet, 'Google OpenCLI rẻ nhất 50%', 'source metadata stays intact');
+});
+
+// ---- S22: consumer price index by province, from the same CPI workbook ----
+
+const PROVINCE_LABELS = ['II. Đồ uống và thuốc lá', 'CHỈ SỐ GIÁ TIÊU DÙNG'];
+/** The run that downloads the CPI workbook: no CPI table in the monthly workbook, group "Đồ uống". */
+async function provinceRun(options: { readonly provinces?: boolean; readonly sheet?: SheetSpec | null } = {}) {
+  const cpiBook = options.sheet === null ? cpiWorkbook('binh-quan-luy-ke') : withProvinces(cpiWorkbook('binh-quan-luy-ke'), options.sheet);
+  const mem = memoryReader([monthlyWorkbook({ sheets: 20, cpi: false }), cpiBook]);
+  const f = fake({ [MONTHLY_URL]: mem.bytes[0]!, [CPI_URL]: mem.bytes[1]! });
+  const source = createOfficialStatsSource({ model: fakeModel({ group: 'Đồ uống' }), transport: f.transport, readWorkbook: mem.reader, ...(options.provinces ? { provinces: true } : {}) });
+  return { result: await source.collect(INPUT), f, mem };
+}
+const withoutProvinces = <T extends object>(value: T): Omit<T, 'provinces'> => { const { provinces: _drop, ...rest } = value as T & { provinces?: unknown }; return rest; };
+
+test('S22 flag: on only when both the province flag and the S21 flag are exactly "1"', () => {
+  assert.equal(officialStatsProvinceEnabled({ TDN_RESEARCH_OFFICIAL_STATS_ENABLED: '1', TDN_RESEARCH_OFFICIAL_STATS_PROVINCE_ENABLED: '1' }), true);
+  for (const [s21, s22] of [['1', undefined], ['1', '0'], ['1', 'true'], ['1', ' 1'], [undefined, '1'], ['0', '1'], ['', '1']] as const)
+    assert.equal(officialStatsProvinceEnabled({ TDN_RESEARCH_OFFICIAL_STATS_ENABLED: s21, TDN_RESEARCH_OFFICIAL_STATS_PROVINCE_ENABLED: s22 }), false, `${s21}/${s22}`);
+  assert.deepEqual(SOURCE_REGISTRY.OFFICIAL_STATS.registryIds, ['S21', 'S22']);
+});
+
+test('S22 province sheet: pinned header, provinces in sheet order, group and reference rows, stored values unchanged', () => {
+  const read = readOfficialStatsProvinces(toSheets(withProvinces(cpiWorkbook('binh-quan-luy-ke'))), PROVINCE_LABELS);
+  assert.deepEqual([read.outcome, read.sheet, read.variant, read.headerHash], ['READ', 'Địa phương', 'thang-truoc', OFFICIAL_STATS_PROVINCE_VARIANTS['thang-truoc']]);
+  assert.deepEqual([read.period, read.base], ['Tháng 9 năm 2026', 'tháng trước']);
+  assert.deepEqual(read.provinces, ['Tỉnh A', 'Tỉnh B', 'Thành phố C']);
+  assert.deepEqual(read.values.map(v => [v.label, v.province, v.cell, v.value, v.shown]), [
+    ['II. Đồ uống và thuốc lá', 'Tỉnh A', 'B11', '102.375', '102.38'],
+    ['II. Đồ uống và thuốc lá', 'Tỉnh B', 'C11', '99.125', '99.13'],
+    ['II. Đồ uống và thuốc lá', 'Thành phố C', 'D11', null, null],
+    ['CHỈ SỐ GIÁ TIÊU DÙNG', 'Tỉnh A', 'B9', '100.123', '100.12'],
+    ['CHỈ SỐ GIÁ TIÊU DÙNG', 'Tỉnh B', 'C9', '99.876543210987654', '99.88'],
+    ['CHỈ SỐ GIÁ TIÊU DÙNG', 'Thành phố C', 'D9', '100.5', '100.50'],
+  ]);
+  // Other rows of the sheet (gold) are never taken; a label printed twice gives no value.
+  assert.equal(read.values.some(v => v.label === 'Vàng'), false);
+  const twice = readOfficialStatsProvinces(toSheets(withProvinces(cpiWorkbook('binh-quan-luy-ke'), provinceSheet({ A12: 'II. Đồ uống và thuốc lá' }))), PROVINCE_LABELS);
+  assert.deepEqual(twice.values.map(v => v.label), ['CHỈ SỐ GIÁ TIÊU DÙNG', 'CHỈ SỐ GIÁ TIÊU DÙNG', 'CHỈ SỐ GIÁ TIÊU DÙNG']);
+  assert.equal(readOfficialStatsProvinces(toSheets(cpiWorkbook('binh-quan-luy-ke')), PROVINCE_LABELS).outcome, 'NOT_FOUND');
+});
+
+test('S22 unknown province header: LAYOUT_UNKNOWN for the province table only; table 5.4 is unaffected', () => {
+  for (const overrides of [{ J7: 'Đơn vị tính: chỉ số' }, { A5: '(Kỳ gốc năm 2019 = 100)' }, { A4: 'Quý III năm 2026' }, { E8: { n: '2026' } }, { C8: 'Tỉnh A' }, { A8: 'Địa phương' }] as const) {
+    const sheets = toSheets(withProvinces(cpiWorkbook('binh-quan-luy-ke'), provinceSheet(overrides)));
+    const read = readOfficialStatsProvinces(sheets, PROVINCE_LABELS);
+    assert.equal(read.outcome, 'LAYOUT_UNKNOWN', JSON.stringify(overrides));
+    assert.deepEqual([read.provinces, read.values], [[], []]);
+    assert.equal(readOfficialStatsTable(sheets, 'CPI_WORKBOOK', ['II. Đồ uống và thuốc lá']).outcome, 'READ', 'the national table still reads');
+  }
+});
+
+test('S22 lane: the province rows come from the CPI workbook already downloaded; no extra request; old documents validate', async () => {
+  const off = await provinceRun();
+  const on = await provinceRun({ provinces: true });
+  assert.deepEqual([on.result.requests, off.result.requests], [3, 3], 'no extra request');
+  assert.deepEqual(on.f.urls.map(url => url.href.split('?')[0]), off.f.urls.map(url => url.href.split('?')[0]));
+  assert.equal(on.result.provinces?.outcome, 'READ');
+  assert.equal(on.result.provinces?.file, 1);
+  assert.equal('provinces' in off.result, false);
+  const docOn = officialStatsDocument(on.result, 0, [1, 2]);
+  const docOff = officialStatsDocument(off.result, 0, [1, 2]);
+  assert.equal(docOn.provinces?.captureIndex, 2, 'same stored CPI workbook as table 5.4');
+  assert.deepEqual(docOn.provinces?.provinces, ['Tỉnh A', 'Tỉnh B', 'Thành phố C']);
+  assert.equal(docOn.provinces?.values.find(v => v.cell === 'C9')?.value, '99.876543210987654', 'stored exactly as read');
+  assert.equal('provinces' in docOff, false);
+  assert.equal(JSON.stringify(withoutProvinces(docOn)), JSON.stringify(docOff), 'everything else is byte-identical');
+  assert.equal(validOfficialStats(docOn), true);
+  assert.equal(validOfficialStats(docOff), true, 'an old document without the field validates');
+  const p = docOn.provinces!;
+  for (const bad of [
+    { ...p, provinces: [...p.provinces, 'Tỉnh A'] },
+    { ...p, captureIndex: 1 },
+    { ...p, outcome: 'LAYOUT_UNKNOWN' },
+    { ...p, values: p.values.map((v, i) => i === 0 ? { ...v, province: 'Tỉnh Z' } : v) },
+    { ...p, values: p.values.map((v, i) => i === 0 ? { ...v, shown: null } : v) },
+    { ...p, extra: 1 },
+  ]) assert.equal(validOfficialStats({ ...docOn, provinces: bad }), false, JSON.stringify(bad).slice(0, 80));
+  // Unknown province header: the national table and status are unchanged.
+  const unknown = await provinceRun({ provinces: true, sheet: provinceSheet({ J7: 'Đơn vị tính: chỉ số' }) });
+  const docUnknown = officialStatsDocument(unknown.result, 0, [1, 2]);
+  assert.equal(docUnknown.status, 'OK');
+  assert.deepEqual([docUnknown.provinces?.outcome, docUnknown.provinces?.values], ['LAYOUT_UNKNOWN', []]);
+  assert.equal(validOfficialStats(docUnknown), true);
+  assert.deepEqual(officialStatsProvinceRows(docUnknown), []);
+  // A run that reads CPI from the monthly workbook downloads no CPI workbook, so nothing is stored for provinces.
+  const mem = memoryReader([monthlyWorkbook({ sheets: 20 })]);
+  const monthlyOnly = await createOfficialStatsSource({ model: fakeModel(), transport: fake({ [MONTHLY_URL]: mem.bytes[0]! }).transport, readWorkbook: mem.reader, provinces: true }).collect(INPUT);
+  assert.equal('provinces' in officialStatsDocument(monthlyOnly, 0, [1]), false);
+});
+
+test('S22 NONE or an unverified group: nothing is downloaded and nothing is stored for provinces', async () => {
+  for (const model of [fakeModel({ group: 'NONE' }), fakeModel({ covers: false })]) {
+    const f = fake({});
+    const result = await createOfficialStatsSource({ model, transport: f.transport, provinces: true }).collect(INPUT);
+    assert.equal(result.status, 'CATEGORY_NOT_MAPPED');
+    assert.equal('provinces' in officialStatsDocument(result, null, []), false);
+  }
+});
+
+test('S22 reader report: table 5.5 follows 5.4 with title, source, note, period, base and status; flag off is byte-identical', async () => {
+  const on = officialStatsDocument((await provinceRun({ provinces: true })).result, 0, [1, 2]);
+  const off = officialStatsDocument((await provinceRun()).result, 0, [1, 2]);
+  const input = sync1ReaderFixture('1.4.0');
+  input.peerRule = { ...DEFAULT_MARKET_PEER_RULE };
+  const units = unitPriceFixture(input.rows);
+  input.unitPrices = units.packet;
+  const data = computeReaderReportData(input, units.retained);
+  const offHtml = (await buildMarketReport(data, { ...sync1Options, officialStats: off })).html;
+  assert.equal((await buildMarketReport(data, { ...sync1Options, officialStats: withoutProvinces(on) })).html, offHtml, 'no province field: same bytes');
+  const unknownDoc = officialStatsDocument((await provinceRun({ provinces: true, sheet: provinceSheet({ J7: 'Đơn vị tính: chỉ số' }) })).result, 0, [1, 2]);
+  assert.equal((await buildMarketReport(data, { ...sync1Options, officialStats: unknownDoc })).html.includes(OFFICIAL_STATS_PROVINCE_TITLE), false, 'LAYOUT_UNKNOWN draws no province table');
+  const html = (await buildMarketReport(data, { ...sync1Options, officialStats: on })).html;
+  const doc = new JSDOM(html).window.document;
+  const m05 = [...doc.querySelectorAll('section')].find(node => node.querySelector('h2')?.textContent === 'Nhu cầu (tín hiệu bán)')!.textContent!;
+  assert.ok(m05.indexOf(OFFICIAL_STATS_PROVINCE_TITLE) > m05.indexOf('Bối cảnh cả nước theo nhóm hàng') && m05.indexOf('Bối cảnh cả nước theo nhóm hàng') >= 0, 'table 5.5 follows table 5.4');
+  const table = [...doc.querySelectorAll('table')].find(node => node.textContent!.includes('Tỉnh A'))!;
+  assert.ok(table);
+  assert.deepEqual([...table.querySelectorAll('th')].map(th => th.textContent!.trim()), ['Dòng', 'Tỉnh A', 'Tỉnh B', 'Thành phố C']);
+  assert.match(table.textContent!, /II\. Đồ uống và thuốc lá/u);
+  assert.match(table.textContent!, /CHỈ SỐ GIÁ TIÊU DÙNG \(Mọi ngành hàng; dòng tham chiếu\)/u);
+  assert.match(table.textContent!, /102,38/u);
+  assert.match(table.textContent!, /không có số/u);
+  assert.doesNotMatch(table.textContent!, /%/u);
+  for (const text of [OFFICIAL_STATS_PROVINCE_TITLE, OFFICIAL_STATS_PROVINCE_NOTE, 'Kỳ: Tháng 9 năm 2026. Kỳ gốc: tháng trước = 100. Trạng thái: bảng không ghi.'])
+    assert.ok(m05.includes(text), text);
+  assert.doesNotMatch(m05, /(?<![\p{L}\p{N}.,])0(?![\p{N}.,])/u, 'no bare 0');
+  assert.deepEqual(providerNameViolations(html), []);
+  assert.doesNotMatch(html, /Google/u);
+  assert.match(doc.querySelector('#phu-luc')!.textContent!, /chỉ số giá theo tỉnh, thành phố/u);
+  const failedRules = (value: string) => auditMarket14(value).filter(check => check.kind === 'machine' && !check.ok).map(check => check.rule);
+  assert.deepEqual(failedRules(html), failedRules(offHtml), 'the province table adds no machine-rule failure (requireFlint)');
+  const failedLint = (value: string) => lint(value).filter(check => !check.ok).map(check => check.rule);
+  assert.deepEqual(failedLint(html), failedLint(offHtml));
+});
+
+test('S22 source evidence: cited only when table 5.5 is drawn, bound to the same CPI workbook capture as S21', async () => {
+  const on = officialStatsDocument((await provinceRun({ provinces: true })).result, 0, [1, 2]);
+  const capture = (ordinal: number, sha: string): CaptureRecord => ({ stepId: 'COLLECTION', ordinal, artifactSha256: sha, mediaType: XLSX_MIME,
+    provider: 'official-stats', operation: 'officialstats.download', retrievedAt: '2026-10-08T00:00:00.000Z', window: null, truncated: false });
+  const captures = [capture(1, 'a'.repeat(64)), capture(2, 'b'.repeat(64))];
+  const empty = buildSourceEvidence({ draft: null, draftDigest: null, unavailableReason: 'SALES_NAMES_UNAVAILABLE', webResults: [], captures: [] });
+  const input = (officialStats: unknown) => ({ collection: { officialStats }, captures }) as unknown as Parameters<typeof sourceEvidenceForReport>[1];
+  const market = sourceEvidenceForReport(empty, input(on), 'MARKET');
+  assert.deepEqual(market.sourceAppendix.rows.map(row => [row.registryId, row.binding.kind, row.binding.ref]), [['S21', 'capture', 'b'.repeat(64)], ['S22', 'capture', 'b'.repeat(64)]]);
+  assert.deepEqual(sourceEvidenceForReport(market, input(on), 'MARKET'), market, 'idempotent');
+  assert.deepEqual(sourceEvidenceForReport(empty, input(withoutProvinces(on)), 'MARKET').sourceAppendix.rows.map(row => row.registryId), ['S21']);
+  assert.deepEqual(sourceEvidenceForReport(empty, input(on), 'INSIGHT'), empty);
+  assert.throws(() => sourceEvidenceForReport(empty, { collection: { officialStats: on }, captures: [captures[0]!, { ...capture(2, 'c'.repeat(64)), operation: 'officialstats.list' }] } as unknown as Parameters<typeof sourceEvidenceForReport>[1], 'MARKET'),
+    /Official statistics/u);
+});
+
+test('S22 run: flag off stores nothing; flag on draws table 5.5 in M05 after 5.4 and passes the market gate', async t => {
+  const build = (provinces: boolean) => {
+    const mem = memoryReader([monthlyWorkbook({ sheets: 20, cpi: false }), withProvinces(cpiWorkbook('binh-quan-luy-ke'))]);
+    const f = fake({ [MONTHLY_URL]: mem.bytes[0]!, [CPI_URL]: mem.bytes[1]! });
+    return createOfficialStatsSource({ model: fakeModel({ group: 'Đồ uống' }), transport: f.transport, readWorkbook: mem.reader, ...(provinces ? { provinces: true } : {}) });
+  };
+  const off = await runToDraft(t, build(false));
+  assert.equal(off.document.officialStats?.status, 'OK');
+  assert.equal('provinces' in off.document.officialStats!, false);
+  assert.equal(off.html.includes('Bảng 5.5'), false);
+  const on = await runToDraft(t, build(true));
+  assert.equal(on.document.officialStats?.provinces?.outcome, 'READ');
+  assert.deepEqual(on.usage.filter(([, provider]) => provider === 'official-stats'), off.usage.filter(([, provider]) => provider === 'official-stats'), 'same usage row, no new ordinal');
+  const m05 = on.doc.querySelector('#M05')!;
+  const tables = [...m05.querySelectorAll('.table-wrap')].map(node => node.textContent!);
+  const i54 = tables.findIndex(text => /Bảng 5\.4/u.test(text)), i55 = tables.findIndex(text => /Bảng 5\.5/u.test(text));
+  assert.ok(i54 >= 0 && i55 === i54 + 1, 'table 5.5 directly follows 5.4');
+  const text = tables[i55]!;
+  for (const part of [OFFICIAL_STATS_PROVINCE_TITLE, OFFICIAL_STATS_PROVINCE_NOTE, 'Cục Thống kê (nso.gov.vn)', 'So-lieu-CPI-T9.2026.xlsx', 'Tỉnh A', 'Thành phố C', '102,38', 'không có số'])
+    assert.ok(text.includes(part), part);
+  assert.match(m05.textContent!, /Kỳ: Tháng 9 năm 2026\. Kỳ gốc: tháng trước = 100\. Trạng thái: bảng không ghi\./u);
+  assert.equal(text.includes('%'), false);
+  assert.doesNotMatch(text, /(?<![\p{L}\p{N}.,])0(?![\p{N}.,])/u, 'no bare 0');
+  assert.match(on.doc.querySelector('#M13')!.textContent!, /chỉ số giá theo tỉnh, thành phố/u);
+  assert.doesNotMatch(on.html, /Google/iu);
+  assert.deepEqual(providerNameViolations(on.html), []);
+  assert.doesNotThrow(() => assertMarketBusinessGate(on.html));
+});
+
+test('reader: the province sheet reads the same as the in-memory sheet', { skip: noPython }, () => {
+  const book = withProvinces(cpiWorkbook('binh-quan-luy-ke'));
+  const read = defaultOfficialStatsWorkbookReader(xlsx(book));
+  assert.equal(read.kind, 'OK');
+  if (read.kind !== 'OK') return;
+  assert.deepEqual(readOfficialStatsProvinces(read.sheets, PROVINCE_LABELS), readOfficialStatsProvinces(toSheets(book), PROVINCE_LABELS));
 });
