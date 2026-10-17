@@ -104,6 +104,7 @@ import { worldBankDocument, worldBankFailed, worldBankRenderable, worldBankUsage
 import { publishAutomatedVideoReading, verifyAutomatedVideoReading, videoWatchCandidates, videoWatchDocument, videoWatchFailed, videoWatchReadingRefs, videoWatchUsage, VIDEO_WATCH_MAX_VIDEOS, VIDEO_WATCH_PROFILE, VIDEO_WATCH_USAGE_ORDINAL, type VideoWatchAttempt, type VideoWatchLane, type VideoWatchPlan } from './video-watch-lane.js';
 import { VIDEO_WATCH_PROVIDER } from './video-watch-gemini.js';
 import { META_AUTO_PROVIDER, META_AUTO_USAGE_ORDINAL, metaBrandsFromPick, metaAutoDocument, metaAutoFailed, metaAutoHasEvidence, metaAutoReportView, metaAutoUsage, publishMetaAutoEvidence, validMetaAuto, verifyMetaAutoEvidence, type MetaAutoCollection, type MetaAutoReportView, type MetaAutoSource } from './meta-auto-lane.js';
+import { TIKTOK_TOP_ADS_PROVIDER, TIKTOK_TOP_ADS_USAGE_ORDINAL, publishTikTokTopAdsEvidence, tiktokTopAdsDocument, tiktokTopAdsFailed, tiktokTopAdsHasEvidence, tiktokTopAdsReportView, tiktokTopAdsUsage, validTikTokTopAds, verifyTikTokTopAdsEvidence, type TikTokTopAdsCollection, type TikTokTopAdsReportView, type TikTokTopAdsSource } from './tiktok-top-ads-lane.js';
 import type { Binding as WorldBankBinding } from '../../../../contracts/analysis/world-bank-intake-v1.generated.js';
 import type { PackageRef as WorldBankPackageRef, PrepareReceipt as WorldBankPrepareReceipt, View as WorldBankView, History as WorldBankHistory } from '../../../../contracts/api/research-automation-macro-intake-api.generated.js';
 import { AutomationMetricRuleAdoptions, type MetricRuleBinding } from './metric-rule-adoption.js';
@@ -288,7 +289,7 @@ export interface ResearchAutomationReportInput {
 /** Alias retained for the report module's public renderer signature. */
 export type AutomationReportInput = ResearchAutomationReportInput;
 export type ResearchAutomationSourceActivityKey = 'kalodata' | 'serpapi' | 'apify-shopee' | 'metric'
-  | 'kalodata-video' | 'apify-tiktok-comments' | 'video-reading' | 'meta-ad-library' | 'official-stats' | 'world-bank' | 'un-comtrade' | 'search-ads-library' | 'pageindex';
+  | 'kalodata-video' | 'apify-tiktok-comments' | 'video-reading' | 'meta-ad-library' | 'tiktok-top-ads' | 'official-stats' | 'world-bank' | 'un-comtrade' | 'search-ads-library' | 'pageindex';
 export interface ResearchAutomationSourceActivity { readonly lastDataAt: string | null; readonly dataCount: number; readonly lastUsageAt: string | null }
 /** One stored-capture row per SerpApi operation. Count unit is stored captures, never mixed with uploads or usage rows. lastUsageAt stays null: usage rows are a provider-level aggregate, never per-operation evidence. */
 export interface ResearchAutomationSerpApiOperation { readonly operation: string; readonly count: number; readonly lastDataAt: string | null; readonly lastUsageAt: string | null }
@@ -370,6 +371,7 @@ export interface ResearchAutomationServiceOptions {
   readonly videoWatch?: VideoWatchLane;
   /** Meta ad library auto-read (S15 AUTO); only set when its flag is exactly "1". */
   readonly metaAutoSource?: MetaAutoSource;
+  readonly tiktokTopAdsSource?: TikTokTopAdsSource;
   /** Optional extra searches (dated and per-marketplace), at most three paid requests per collection; absent keeps every stored byte. */
   readonly expandedSource?: ExpandedSearchSource;
   readonly renderer?: ResearchAutomationReportRenderer;
@@ -474,6 +476,7 @@ type ComtradeRun = { readonly collection: ComtradeCollection } | { readonly thro
 type SearchAdsRun = { readonly collection: SearchAdsCollection } | { readonly thrown: true };
 type OfficialStatsRun = { readonly collection: OfficialStatsCollection } | { readonly thrown: true };
 type MetaAutoRun = { readonly collection: MetaAutoCollection } | { readonly thrown: true };
+type TikTokTopAdsRun = { readonly collection: TikTokTopAdsCollection } | { readonly thrown: true; readonly keyword: string | null };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const REQUEST_KEY = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -531,6 +534,7 @@ export class ResearchAutomationService {
   readonly #officialStatsSource: OfficialStatsSource | undefined;
   readonly #videoWatch: VideoWatchLane | undefined;
   readonly #metaAutoSource: MetaAutoSource | undefined;
+  readonly #tiktokTopAdsSource: TikTokTopAdsSource | undefined;
   readonly #expandedSource: ExpandedSearchSource | undefined;
   readonly #renderer: ResearchAutomationReportRenderer | undefined;
   readonly #now: () => Date;
@@ -589,6 +593,7 @@ export class ResearchAutomationService {
     this.#officialStatsSource = options.officialStatsSource;
     this.#videoWatch = options.videoWatch;
     this.#metaAutoSource = options.metaAutoSource;
+    this.#tiktokTopAdsSource = options.tiktokTopAdsSource;
     this.#expandedSource = options.expandedSource;
     this.#renderer = options.renderer;
     this.#pageIndex = options.pageIndex;
@@ -1857,7 +1862,7 @@ export class ResearchAutomationService {
           ({ position, title, url, snippet, retrievedAt, site: site ?? null, published: published ?? null, ...(origin ? { origin } : {}) })),
         ...(searchInterestRenderable(searchInterest) ? { searchInterest } : {}),
         ...(worldBankRenderable(webCollection?.worldBank) ? { worldBank: webCollection.worldBank } : {}), ...(webCollection?.comtrade ? { comtrade: webCollection.comtrade } : {}), ...(webCollection?.searchAds ? { searchAds: webCollection.searchAds } : {}), ...(webCollection?.officialStats ? { officialStats: webCollection.officialStats } : {}), ...(storedPdfExcerpts(marketSemantic).length ? { pdfExcerpts: storedPdfExcerpts(marketSemantic) } : {}), ...(storedSellerVideos(marketSemantic) ? { sellerVideos: storedSellerVideos(marketSemantic)! } : {}),
-        ...(metaAds.length ? { metaAds } : {}), ...await this.#metaAutoContext(webCollection, runId),
+        ...(metaAds.length ? { metaAds } : {}), ...await this.#metaAutoContext(webCollection, runId), ...await this.#tiktokTopAdsContext(webCollection, runId),
         metric: { packageId, capture: { snapshot: verifiedCapture.snapshot, snapshotSha256: rawSnapshotSha256, truncation: preparedCapture.capture.truncation }, measurementPeriod: preparedCapture.capture.measurementPeriod } };
     }
     if (!prepared) throw new ResearchAutomationValidationError('Tệp danh sách sản phẩm này không thuộc lượt research.');
@@ -1872,7 +1877,7 @@ export class ResearchAutomationService {
         ({ position, title, url, snippet, retrievedAt, site: site ?? null, published: published ?? null, ...(origin ? { origin } : {}) })),
       ...(searchInterestRenderable(searchInterest) ? { searchInterest } : {}),
         ...(worldBankRenderable(webCollection?.worldBank) ? { worldBank: webCollection.worldBank } : {}), ...(webCollection?.comtrade ? { comtrade: webCollection.comtrade } : {}), ...(webCollection?.searchAds ? { searchAds: webCollection.searchAds } : {}), ...(webCollection?.officialStats ? { officialStats: webCollection.officialStats } : {}), ...(storedPdfExcerpts(marketSemantic).length ? { pdfExcerpts: storedPdfExcerpts(marketSemantic) } : {}), ...(storedSellerVideos(marketSemantic) ? { sellerVideos: storedSellerVideos(marketSemantic)! } : {}),
-      ...(metaAds.length ? { metaAds } : {}), ...await this.#metaAutoContext(webCollection, runId),
+      ...(metaAds.length ? { metaAds } : {}), ...await this.#metaAutoContext(webCollection, runId), ...await this.#tiktokTopAdsContext(webCollection, runId),
       metric: { packageId, workbook: workbook.bytes, measurementPeriod: prepared.request.measurementPeriod } };
   }
 
@@ -1884,6 +1889,16 @@ export class ResearchAutomationService {
     const verified = doc.evidence ? await verifyMetaAutoEvidence(reader, doc, runId) : false;
     const view = metaAutoReportView(doc, verified);
     return view ? { metaAuto: view } : {};
+  }
+
+  /** The automatic TikTok top-ads read for M07 7.4, re-verified from its stored evidence; unverified cards become one plain row. */
+  async #tiktokTopAdsContext(collection: StepResultDocument | null, runId: string): Promise<{ tiktokTopAds?: TikTokTopAdsReportView }> {
+    const doc = collection?.tiktokTopAds;
+    if (!doc) return {};
+    const reader = new FoundationSourcePackageReader(new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts }));
+    const verified = doc.evidence ? await verifyTikTokTopAdsEvidence(reader, doc, runId) : false;
+    const view = tiktokTopAdsReportView(doc, verified);
+    return view ? { tiktokTopAds: view } : {};
   }
 
   async listPreparedSupplementalSources(workspaceId: string, runId: string): Promise<ResearchAutomationSupplementalPreparedList> {
@@ -2092,7 +2107,7 @@ export class ResearchAutomationService {
     assertUuid(workspaceId);
     await this.#readWorkspace(workspaceId);
     const activity = Object.fromEntries((['kalodata', 'serpapi', 'apify-shopee', 'metric', 'kalodata-video',
-      'apify-tiktok-comments', 'video-reading', 'meta-ad-library', 'official-stats', 'world-bank', 'un-comtrade', 'search-ads-library', 'pageindex'] as const)
+      'apify-tiktok-comments', 'video-reading', 'meta-ad-library', 'tiktok-top-ads', 'official-stats', 'world-bank', 'un-comtrade', 'search-ads-library', 'pageindex'] as const)
       .map(key => [key, { lastDataAt: null, dataCount: 0, lastUsageAt: null }])) as Record<ResearchAutomationSourceActivityKey, { lastDataAt: string | null; dataCount: number; lastUsageAt: string | null }>;
     const captures = this.#db.prepare(`SELECT c.provider provider,MAX(c.retrieved_at) lastAt,COUNT(*) total FROM analysis_research_automation_captures c
       JOIN analysis_research_automation_runs r ON r.run_id=c.run_id WHERE r.workspace_id=? AND c.provider IN ('kalodata','serpapi','apify-shopee') GROUP BY c.provider`).all(workspaceId) as Array<{ provider: 'kalodata' | 'serpapi' | 'apify-shopee'; lastAt: string; total: bigint | number }>;
@@ -2108,6 +2123,10 @@ export class ResearchAutomationService {
       JOIN analysis_research_automation_runs r ON r.run_id=u.run_id
       WHERE r.workspace_id=? AND u.step_id='COLLECTION' AND u.provider='meta-ad-library'`).get(workspaceId) as { lastAt: string | null };
     activity['meta-ad-library'].lastUsageAt = metaAutoUsageAt.lastAt;
+    const tiktokTopAdsUsageAt = this.#db.prepare(`SELECT MAX(u.recorded_at) lastAt FROM analysis_research_automation_usage u
+      JOIN analysis_research_automation_runs r ON r.run_id=u.run_id
+      WHERE r.workspace_id=? AND u.step_id='COLLECTION' AND u.provider='tiktok-top-ads'`).get(workspaceId) as { lastAt: string | null };
+    activity['tiktok-top-ads'].lastUsageAt = tiktokTopAdsUsageAt.lastAt;
     // Metric workbooks are owner uploads stored as finalized attachment packages keyed `automation-upload:<runId>-…`.
     const metric = this.#db.prepare(`SELECT MAX(p.finalized_at) lastAt,COUNT(*) total FROM foundation_source_packages p
       JOIN foundation_source_attachment_origins o ON o.package_id=p.package_id
@@ -3355,8 +3374,16 @@ export class ResearchAutomationService {
         }
         catch { metaAuto = { thrown: true }; }
       }
+      // TikTok top-ads auto-read follows the Meta read: one logged-out open of the public top-ads list for the product keyword
+      // (at most five, 30 s apart), never repeated after a restart. It shares the one browser-CLI lock with Metric and Meta.
+      let tiktokTopAds: TikTokTopAdsRun | undefined;
+      if (stepId === 'COLLECTION' && this.#tiktokTopAdsSource && !controller.signal.aborted) {
+        const { keyword } = input as CollectInput;
+        try { tiktokTopAds = { collection: await this.#tiktokTopAdsSource.collect({ keyword }, { signal: controller.signal }) }; }
+        catch { tiktokTopAds = { thrown: true, keyword }; }
+      }
       try {
-        await this.#persistSourceResult(row.runId, stepId, result, controller.signal.aborted, exact, web, controller.signal, trends, expanded, worldBank, comtrade, searchAds, officialStats, metaAuto);
+        await this.#persistSourceResult(row.runId, stepId, result, controller.signal.aborted, exact, web, controller.signal, trends, expanded, worldBank, comtrade, searchAds, officialStats, metaAuto, tiktokTopAds);
       } catch (error) {
         if (!(error instanceof ResearchAutomationProviderOutputError)) throw error;
         await this.#settleSourceFailure(row.runId, stepId, 'PROVIDER_OUTPUT_INVALID', 'FAILED');
@@ -3885,7 +3912,7 @@ export class ResearchAutomationService {
     }
   }
 
-  async #persistSourceResult(runId: string, stepId: SourceStepId, bound: PersistableSourceResult, aborted: boolean, exact?: ExactShopeeAttempt, web?: WebSearchAttempt, signal?: AbortSignal, trends?: TrendsAttempt, expanded?: ExpandedAttempts, worldBank?: WorldBankRun, comtrade?: ComtradeRun, searchAds?: SearchAdsRun, officialStats?: OfficialStatsRun, metaAuto?: MetaAutoRun): Promise<void> {
+  async #persistSourceResult(runId: string, stepId: SourceStepId, bound: PersistableSourceResult, aborted: boolean, exact?: ExactShopeeAttempt, web?: WebSearchAttempt, signal?: AbortSignal, trends?: TrendsAttempt, expanded?: ExpandedAttempts, worldBank?: WorldBankRun, comtrade?: ComtradeRun, searchAds?: SearchAdsRun, officialStats?: OfficialStatsRun, metaAuto?: MetaAutoRun, tiktokTopAds?: TikTokTopAdsRun): Promise<void> {
     const result = bound.result;
     let step = bound.step;
     const nativeCoverage = bound.step.coverage.filter(value => value.provider === 'apify-dami');
@@ -4141,6 +4168,27 @@ export class ResearchAutomationService {
         step = probe;
       } catch { step = { ...step, metaAuto: metaAutoFailed('FAILED', metaAutoCollection?.opens ?? 0) }; }
     }
+    // TikTok top-ads auto-read: same evidence rule as the Meta read (final URL, capped text, fingerprint; never raw HTML).
+    const tiktokTopAdsCollection = tiktokTopAds && 'collection' in tiktokTopAds ? tiktokTopAds.collection : undefined;
+    if (tiktokTopAds) {
+      const keyword = tiktokTopAdsCollection ? tiktokTopAdsCollection.keyword : 'keyword' in tiktokTopAds ? tiktokTopAds.keyword : null;
+      let document = tiktokTopAdsCollection ? tiktokTopAdsDocument(tiktokTopAdsCollection, null) : tiktokTopAdsFailed(keyword);
+      if (tiktokTopAdsCollection && tiktokTopAdsHasEvidence(tiktokTopAdsCollection)) {
+        try {
+          const writer = new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
+          document = await withDatabaseMutationMutex(this.#db, async () => {
+            const current = this.#current(runId);
+            if (!current || ['FAILED', 'CANCELLING', 'CANCELLED', 'INTERRUPTED'].includes(current.status)) throw new ResearchAutomationStateError('This run cannot publish a TikTok top-ads read.');
+            return publishTikTokTopAdsEvidence(writer, runId, tiktokTopAdsCollection);
+          });
+        } catch { /* keeps the evidence-free document */ }
+      }
+      const probe = { ...step, tiktokTopAds: document };
+      try {
+        assertStepDocument(probe, runId, stepId);
+        step = probe;
+      } catch { step = { ...step, tiktokTopAds: tiktokTopAdsFailed(keyword, 'FAILED', tiktokTopAdsCollection?.opens ?? 0) }; }
+    }
     const rowForSources = this.#current(runId)!;
     const sourceStart = await this.#readStartSnapshot(rowForSources.startSha, rowForSources.workspaceId);
     let cancelledSourceEvidence: (() => AutomationSourceEvidence) | undefined;
@@ -4228,6 +4276,9 @@ export class ResearchAutomationService {
         if (metaAutoCollection && metaAutoCollection.opens > 0) this.#persistUsage(runId, stepId, metaAutoUsage(metaAutoCollection.opens), now, META_AUTO_USAGE_ORDINAL);
         else if (metaAuto && 'thrown' in metaAuto) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
           .run(runId, stepId, META_AUTO_USAGE_ORDINAL, META_AUTO_PROVIDER.toLowerCase(), now);
+        if (tiktokTopAdsCollection && tiktokTopAdsCollection.opens > 0) this.#persistUsage(runId, stepId, tiktokTopAdsUsage(tiktokTopAdsCollection.opens), now, TIKTOK_TOP_ADS_USAGE_ORDINAL);
+        else if (tiktokTopAds && 'thrown' in tiktokTopAds) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
+          .run(runId, stepId, TIKTOK_TOP_ADS_USAGE_ORDINAL, TIKTOK_TOP_ADS_PROVIDER.toLowerCase(), now);
         if (exact) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,1,'apify-shopee','reviews',?,?,?,?,?)`)
           .run(runId, stepId, exact.requestsIssued, exact.costUsd === null ? 'UNKNOWN' : 'KNOWN', exact.costUsd === null ? null : 'USD', exact.costUsd, now);
         const current = this.#current(runId);
@@ -5584,6 +5635,8 @@ function assertStepDocument(value: unknown, runId: string, stepId: StepId): asse
     throw new ResearchAutomationIntegrityError('Stored video readings are invalid.');
   if (value.metaAuto !== undefined && (stepId !== 'COLLECTION' || !validMetaAuto(value.metaAuto)))
     throw new ResearchAutomationIntegrityError('Stored Meta ad library read is invalid.');
+  if (value.tiktokTopAds !== undefined && (stepId !== 'COLLECTION' || !validTikTokTopAds(value.tiktokTopAds)))
+    throw new ResearchAutomationIntegrityError('Stored TikTok top-ads read is invalid.');
   if (value.sourceEvidence !== undefined) checkSourceEvidence(value.sourceEvidence);
   for (const comparable of value.comparables) {
     if (!isRecord(comparable) || typeof comparable.productId !== 'string' || typeof comparable.provider !== 'string' || (comparable.metric !== 'GMV_VND' && comparable.metric !== 'UNITS_SOLD') ||

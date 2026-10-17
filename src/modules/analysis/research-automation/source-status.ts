@@ -95,6 +95,8 @@ export const SOURCE_REGISTRY: Record<SourceBoardId, SourceRegistryCard> = {
     reportName: 'nội dung video của người bán', paid: false, pendingPackage: null, built: true, arrival: 'MANUAL_UPLOAD' },
   META_AD_LIBRARY: { registryIds: ['S15'], tier: 'B', tierDetail: null, group: 'SELLER_VOICE',
     reportName: 'thư viện quảng cáo công khai của Meta', paid: false, pendingPackage: null, built: true, arrival: 'FREE_COLLECT' },
+  TIKTOK_TOP_ADS: { registryIds: ['S16'], tier: 'B', tierDetail: null, group: 'SELLER_VOICE',
+    reportName: 'quảng cáo nổi bật công khai trên TikTok', paid: false, pendingPackage: null, built: true, arrival: 'FREE_COLLECT' },
   SEARCH_ADS_LIBRARY: { registryIds: ['S17'], tier: 'B', tierDetail: null, group: 'SELLER_VOICE',
     reportName: 'thư viện quảng cáo công khai của công cụ tìm kiếm', paid: true, pendingPackage: null, built: true, arrival: 'PAID_API' },
   SERPAPI: { registryIds: ['S19', 'S13', 'S26', 'S20'], tier: null, tierDetail: 'S19: theo trang gốc; S13: C; S26: C; S20: B',
@@ -112,7 +114,7 @@ export const SOURCE_REGISTRY: Record<SourceBoardId, SourceRegistryCard> = {
 
 /** Card order follows Plan B1. */
 export const SOURCE_BOARD_ORDER: readonly SourceBoardId[] = ['METRIC', 'KALODATA', 'KALODATA_VIDEO_FILE', 'APIFY_SHOPEE',
-  'APIFY_TIKTOK_COMMENTS', 'VIDEO_READING', 'META_AD_LIBRARY', 'SEARCH_ADS_LIBRARY', 'SERPAPI', 'OFFICIAL_STATS', 'WORLD_BANK', 'UN_COMTRADE', 'PAGEINDEX'];
+  'APIFY_TIKTOK_COMMENTS', 'VIDEO_READING', 'META_AD_LIBRARY', 'TIKTOK_TOP_ADS', 'SEARCH_ADS_LIBRARY', 'SERPAPI', 'OFFICIAL_STATS', 'WORLD_BANK', 'UN_COMTRADE', 'PAGEINDEX'];
 
 /**
  * Known SerpApi operations with their registry binding. Counts are stored
@@ -133,7 +135,7 @@ export interface SourceStatusInput {
   readonly executorEnabled: boolean;
   readonly providers: ResearchAutomationProviderConfig | undefined;
   /** Sources the executor actually calls during a run. Web search is configured separately from run wiring. */
-  readonly wired: { readonly kalodata: boolean; readonly serpapi: boolean; readonly apifyShopee: boolean; readonly searchAds?: boolean; readonly metaAuto?: boolean };
+  readonly wired: { readonly kalodata: boolean; readonly serpapi: boolean; readonly apifyShopee: boolean; readonly searchAds?: boolean; readonly metaAuto?: boolean; readonly tiktokTopAds?: boolean };
   readonly activity: Record<ResearchAutomationSourceActivityKey, ResearchAutomationSourceActivity> & { readonly serpapiOperations: readonly ResearchAutomationSerpApiOperation[] };
   /** Absent until the API route passes live connector state; the card then shows the not-connected copy. */
   readonly pageindex?: PageIndexStatusSummary;
@@ -190,6 +192,9 @@ export function buildResearchAutomationSourceStatus(input: SourceStatusInput): R
     // The app reads the public library itself only when its flag is on; owner-confirmed captures keep working either way.
     { source: 'META_AD_LIBRARY', state: cardState('META_AD_LIBRARY', input.wired.metaAuto === true ? 'READY' : 'MANUAL_IMPORT'), credential: 'NOT_REQUIRED',
       wiredIntoRuns: input.wired.metaAuto === true, paid: false, ...input.activity['meta-ad-library'], ...meta('META_AD_LIBRARY'), spendCapUsd: null, operations: null },
+    // The app reads the public top-ads list itself only when its flag is on; there is no manual path for this source.
+    { source: 'TIKTOK_TOP_ADS', state: cardState('TIKTOK_TOP_ADS', input.wired.tiktokTopAds === true ? 'READY' : 'CONFIGURED_NOT_WIRED'), credential: 'NOT_REQUIRED',
+      wiredIntoRuns: input.wired.tiktokTopAds === true, paid: false, ...input.activity['tiktok-top-ads'], ...meta('TIKTOK_TOP_ADS'), spendCapUsd: null, operations: null },
     // Same key as web search; the lane itself stays off unless its own flag is on.
     paidSource('SEARCH_ADS_LIBRARY', 'search-ads-library', Boolean(providers?.serpApiKey), Boolean(providers?.serpApiKey), input.wired.searchAds === true, null, null),
     paidSource('SERPAPI', 'serpapi', Boolean(providers?.serpApiKey), Boolean(providers?.serpApiKey), input.wired.serpapi, null,

@@ -85,6 +85,7 @@ import { createComtradeSource } from '../modules/analysis/research-automation/co
 import { createGoogleAdsSource } from '../modules/analysis/research-automation/google-ads-lane.js';
 import { createOfficialStatsSource } from '../modules/analysis/research-automation/official-statistics-lane.js';
 import { createMetaAutoSource } from '../modules/analysis/research-automation/meta-auto-lane.js';
+import { createTikTokTopAdsSource } from '../modules/analysis/research-automation/tiktok-top-ads-lane.js';
 import { videoWatchLaneFromConfig, type VideoWatchConfig } from '../modules/analysis/research-automation/video-watch-lane.js';
 import { createResearchAutomationProviderRegistry, type ResearchAutomationProviderConfig, type ProviderTransport } from '../modules/analysis/research-automation/providers.js';
 import { buildResearchAutomationReport } from '../modules/analysis/research-automation/reports.js';
@@ -151,6 +152,8 @@ export interface ResearchAutomationApiConfiguration {
   readonly officialStats?: true;
   /** Public Meta ad library lane for the OWNER writer only; present only when its flag is exactly "1". Needs no key; reads public pages through the shared browser lock. */
   readonly metaAuto?: true;
+  /** Public TikTok top-ads lane for the OWNER writer only; present only when its flag is exactly "1". Needs no key; reads one public page through the shared browser lock. */
+  readonly tiktokTopAds?: true;
   /** Video-watch lane for the OWNER writer only; present only when its flag is exactly "1". Model calls go through the existing CLIProxy. */
   readonly videoWatch?: VideoWatchConfig;
 }
@@ -379,6 +382,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       const comtradeSource = configuration.comtrade ? createComtradeSource({ ...(comtradeModel ? { model: comtradeModel } : {}), ...(transport ? { transport } : {}) }) : undefined;
       const officialStatsSource = configuration.officialStats ? createOfficialStatsSource({ ...(comtradeModel ? { model: comtradeModel } : {}), ...(transport ? { transport } : {}) }) : undefined;
       const metaAutoSource = configuration.metaAuto ? createMetaAutoSource() : undefined;
+      const tiktokTopAdsSource = configuration.tiktokTopAds ? createTikTokTopAdsSource() : undefined;
       const videoWatch = configuration.videoWatch ? videoWatchLaneFromConfig(configuration.videoWatch, () => new Date()) : undefined;
       // Start-up retention sweep (45 days); a failure never blocks start-up and the lane sweeps again when it runs.
       if (videoWatch) void videoWatch.sweep().catch(() => undefined);
@@ -397,6 +401,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         ...(searchAdsSource ? { searchAdsSource } : {}),
         ...(officialStatsSource ? { officialStatsSource } : {}),
         ...(metaAutoSource ? { metaAutoSource } : {}),
+        ...(tiktokTopAdsSource ? { tiktokTopAdsSource } : {}),
         ...(videoWatch ? { videoWatch } : {}),
         ...(i14SynthesisAi ? { i14SynthesisAi } : {}),
         ...(marketCoverAi ? { marketCoverAi } : {}),
@@ -1248,7 +1253,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
   }
   async function sourceStatusProjection(workspaceId: string) {
     const result = buildResearchAutomationSourceStatus({ workspaceId, checkedAt: new Date().toISOString(),
-      executorEnabled: Boolean(writeService), providers: configuration.providers, wired: { ...SOURCES_WIRED_INTO_RUNS, searchAds: configuration.searchAds === true, metaAuto: configuration.metaAuto === true },
+      executorEnabled: Boolean(writeService), providers: configuration.providers, wired: { ...SOURCES_WIRED_INTO_RUNS, searchAds: configuration.searchAds === true, metaAuto: configuration.metaAuto === true, tiktokTopAds: configuration.tiktokTopAds === true },
       tikTokCommentsConfigured: Boolean(configuration.tikTokCommentsCollector),
       activity: await readService.readSourceActivity(workspaceId), pageindex: (writeService ?? readService).pageIndexStatusSummary() });
     if (!validates.sourceStatus(result)) throw new Error('Source status projection failed validation');

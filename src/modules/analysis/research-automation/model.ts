@@ -353,6 +353,49 @@ export interface StepMetaAuto {
   readonly brands: readonly StepMetaAutoBrand[];
 }
 
+/** Automatic TikTok top-ads reading (S16, AUTO origin). Spans are UTF-8 byte offsets into the retained read text. */
+export type StepTikTokTopAdsStatus = 'OK' | 'NO_DATA' | 'NO_KEYWORD' | 'STOPPED' | 'FAILED' | 'CANCELLED';
+export type StepTikTokTopAdsStop = 'CAPTCHA' | 'LOGIN_REQUIRED' | 'BLOCKED' | 'UI_CHANGED' | 'LOGGED_IN_SESSION_PRESENT';
+export interface StepTikTokTopAdsSpan { readonly start: number; readonly end: number }
+/** A visible literal kept exactly as shown on the page. */
+export interface StepTikTokTopAdsField { readonly text: string; readonly span: StepTikTokTopAdsSpan }
+export interface StepTikTokTopAdsRead {
+  readonly requestedUrl: string;
+  readonly finalUrl: string | null;
+  readonly outcome: 'READ' | 'UI_CHANGED' | 'STOPPED' | 'FAILED' | 'CANCELLED';
+  readonly stop: StepTikTokTopAdsStop | null;
+  /** False when nothing of this read was kept (a logged-in browser, or a failed command). */
+  readonly retained: boolean;
+  readonly textSha256: string | null;
+  readonly textBytes: number | null;
+  readonly readAt: string;
+}
+export interface StepTikTokTopAdsCard {
+  readonly read: number;
+  readonly caption: StepTikTokTopAdsField;
+  readonly account: StepTikTokTopAdsField | null;
+  readonly industry: StepTikTokTopAdsField | null;
+  readonly objective: StepTikTokTopAdsField | null;
+  /** The page's like-count wording, kept as a literal only. */
+  readonly likes: StepTikTokTopAdsField | null;
+}
+export interface StepTikTokTopAds {
+  readonly profile: 'tiktok-top-ads-visible-text-v1';
+  readonly status: StepTikTokTopAdsStatus;
+  readonly stop: StepTikTokTopAdsStop | null;
+  readonly reasonVi: string | null;
+  readonly keyword: string | null;
+  readonly opens: number;
+  readonly evidence: { readonly packageId: string; readonly manifestArtifactSha256: string; readonly packageContentSha256: string } | null;
+  readonly reads: readonly StepTikTokTopAdsRead[];
+  /** Cards whose caption matches the product keyword meaning. */
+  readonly cards: readonly StepTikTokTopAdsCard[];
+  /** Cards whose caption did not match the keyword meaning; counted, never listed. */
+  readonly droppedCards: number;
+  /** Cards refused because the caption carried a forbidden figure or was too long. */
+  readonly refusedCards: number;
+}
+
 /** One considered public TikTok video of the video-watch lane, pinned at collection time. */
 export interface StepVideoWatchCandidate { readonly videoId: string; readonly url: string; readonly origin: 'SELECTION' | 'EXPANDED_SEARCH' }
 export type StepVideoWatchReason = 'OVER_10_VIDEOS' | 'DOWNLOAD_FAILED' | 'VIDEO_TOO_LONG' | 'VIDEO_TOO_LARGE' | 'NOT_A_VIDEO'
@@ -405,6 +448,8 @@ export interface StepResultDocument {
   readonly officialStats?: StepOfficialStats;
   /** Automatic Meta ad-library reading of the selected brands; absent unless the Meta auto lane was on for the run. */
   readonly metaAuto?: StepMetaAuto;
+  /** Automatic TikTok top-ads reading for the product keyword; absent unless the TikTok top-ads lane was on for the run. */
+  readonly tiktokTopAds?: StepTikTokTopAds;
   /** Automated seller-video speech readings; absent unless the video-watch lane was on for the run. */
   readonly videoWatch?: StepVideoWatch;
   /** Sanitized Foundation3 reference; mutually exclusive with raw/native review. */
