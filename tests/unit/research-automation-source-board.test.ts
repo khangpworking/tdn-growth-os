@@ -101,6 +101,19 @@ test('search ads has S17 metadata and becomes ready only with its own flag and t
   assert.equal(bySource(buildResearchAutomationSourceStatus(input({ wired })))('SEARCH_ADS_LIBRARY').state, 'NOT_CONFIGURED');
 });
 
+test('Meta keeps manual import and declares free collection ready only with its own flag', () => {
+  assert.equal(SOURCE_REGISTRY.META_AD_LIBRARY.arrival, 'FREE_COLLECT');
+  const off = bySource(buildResearchAutomationSourceStatus(input()))('META_AD_LIBRARY');
+  assert.equal(off.state, 'MANUAL_IMPORT');
+  assert.equal(off.wiredIntoRuns, false);
+  const wired = { kalodata: true, serpapi: true, apifyShopee: true, metaAuto: true };
+  const on = bySource(buildResearchAutomationSourceStatus(input({ wired })))('META_AD_LIBRARY');
+  assert.equal(on.state, 'READY');
+  assert.equal(on.wiredIntoRuns, true);
+  assert.equal(on.credential, 'NOT_REQUIRED');
+  assert.equal(on.paid, false);
+});
+
 test('board emits all twelve cards with registry metadata and truthful build states', () => {
   const status = buildResearchAutomationSourceStatus(input());
   assert.equal(status.sources.length, 13);

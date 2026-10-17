@@ -4,13 +4,13 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
-import { DEFAULT_MARKET_PEER_RULE } from '../../src/modules/analysis/default-market-peers.js';
+import { DEFAULT_MARKET_PEER_RULE, deriveDefaultMarketPeers } from '../../src/modules/analysis/default-market-peers.js';
 import { buildMarketReport, computeReaderReportData } from '../../src/modules/analysis/reader-report/index.js';
 import { normalizedKey } from '../../src/modules/analysis/research-automation/google-ads-lane.js';
 import { assertMarket14MachineRules, auditMarket14 } from '../../src/modules/analysis/research-automation/market-14-rules.js';
 import { assertMarketBusinessGate, auditMarketReportHtml } from '../../src/modules/analysis/research-automation/market-business-gate.js';
 import {
-  classifyFinalUrl, createMetaAutoSource, META_AUTO_LOGGED_IN_REASON, META_AUTO_MAX_OPENS, META_AUTO_SAME_DAY, META_AUTO_SESSION, META_AUTO_SOURCE_LABEL,
+  classifyFinalUrl, chooseMetaPage, metaBrandKey, metaBrandsFromE11, metaPageCandidates, createMetaAutoSource, META_AUTO_LOGGED_IN_REASON, META_AUTO_MAX_OPENS, META_AUTO_SAME_DAY, META_AUTO_SESSION, META_AUTO_SOURCE_LABEL,
   META_AUTO_SPACING_MS, META_AUTO_TABLE_TITLE, metaAutoDocument, metaAutoEnabled, metaAutoReportView, metaAutoUsage, metaLibraryUrlKind, metaPageUrl, metaSearchUrl,
   parseMetaAdPage, validMetaAuto, type MetaAutoClock, type MetaAutoReportView,
 } from '../../src/modules/analysis/research-automation/meta-auto-lane.js';
@@ -28,7 +28,7 @@ const C = brand('Thương hiệu Mẫu C');
 const NOW = new Date('2026-10-17T03:00:00.000Z');
 
 const searchHtml = (pages: ReadonlyArray<{ id: string; name: string }>): string => `<html><body>${pages.map(p =>
-  `<div><a href="/ads/library/?view_all_page_id=${p.id}">x</a><script>{"page_name":"${p.name}"}</script></div>`).join('<hr>')}</body></html>`;
+  `<div><a href="/ads/library/?view_all_page_id=${p.id}&country=VN">${p.name}</a><script>{"page_name":"${p.name}"}</script></div>`).join('<hr>')}</body></html>`;
 const pageText = (ads: ReadonlyArray<{ id: string; status?: string; start?: string }>): string => `~${ads.length} results\n${ads.map(ad =>
   `${ad.status ?? 'Active'}\nLibrary ID: ${ad.id}\nStarted running on ${ad.start ?? '1 Mar 2026'}\nPlatforms\n`).join('\n')}`;
 
@@ -42,13 +42,15 @@ interface World {
   readonly options: Array<{ shell: unknown; detached: unknown }>;
   failOn?: (argv: readonly string[]) => 'EXIT' | 'ENVELOPE' | 'THROW' | null;
   onSleep?: () => void;
+  chunkSize?: number;
+  extractUrl?: string;
   t: number;
 }
 function world(pages: Record<string, Page> = {}): World {
   return { pages: new Map(Object.entries(pages)), calls: [], opensAt: [], sleeps: [], envs: [], options: [], t: 1_000_000 };
 }
 function source(w: World, extra: { maxBrands?: number } = {}) {
-  let current: Page | null = null;
+  let current: Page | null = null, currentUrl = '';
   const runner: MetricOpenCliProcessRunner = async (executable, argv, options) => {
     assert.equal(executable, 'opencli');
     w.calls.push([...argv]); w.envs.push(options.env); w.options.push({ shell: options.shell, detached: options.detached });
@@ -56,13 +58,14 @@ function source(w: World, extra: { maxBrands?: number } = {}) {
     if (fail === 'THROW') throw new Error('spawn failed');
     const args = argv.slice(2, -2);
     let stdout = '';
-    if (args[0] === 'open') { w.opensAt.push(w.t); current = w.pages.get(args[1]!) ?? { html: '<html></html>', text: '' }; }
-    else if (args[0] === 'get' && args[1] === 'url') stdout = current?.finalUrl ?? 'https://www.facebook.com/ads/library/?x=1';
+    if (args[0] === 'open') { w.opensAt.push(w.t); currentUrl = args[1]!; current = w.pages.get(args[1]!) ?? { html: '<html></html>', text: '' }; }
+    else if (args[0] === 'get' && args[1] === 'url') stdout = current?.finalUrl ?? currentUrl;
     else if (args[0] === 'get' && args[1] === 'html') stdout = current?.html ?? '';
     else if (args[0] === 'extract') {
       const start = Number(args[2]); const text = current?.text ?? '';
-      const chunk = text.slice(start, start + 50);
-      stdout = JSON.stringify({ content: chunk, next_start_char: start + 50 < text.length ? start + 50 : null });
+      const size = w.chunkSize ?? 50;
+      const chunk = text.slice(start, start + size);
+      stdout = JSON.stringify({ url: w.extractUrl ?? current?.finalUrl ?? currentUrl, content: chunk, next_start_char: start + size < text.length ? start + size : null });
     }
     if (fail === 'ENVELOPE') stdout = JSON.stringify({ error: { code: 'X', message: 'synthetic' } });
     return { child: { kill: () => true }, completion: Promise.resolve({ exitCode: fail === 'EXIT' ? 1 : 0, stdout, stderr: '' }) };
@@ -158,11 +161,128 @@ test('a wrong host, path, scheme or extra key is rejected', () => {
   assert.equal(classifyFinalUrl(metaPageUrl('1')), null);
 });
 
+test('final URLs enforce the full allow-list and stay bound to the requested page, including extract chunks', async () => {
+  for (const finalUrl of [`${metaSearchUrl(A.label)}&extra=1`, metaPageUrl('999'),
+    metaSearchUrl(A.label).replace('/ads/library/', '/ads/library-other/'), 'https://example.com/login/']) {
+    assert.equal(classifyFinalUrl(finalUrl), finalUrl === metaPageUrl('999') ? null : 'BLOCKED');
+    const w = twoBrandWorld({ [metaSearchUrl(A.label)]: { finalUrl, html: '', text: 'diagnostic' } });
+    const result = await source(w).collect({ brands: [A, B] });
+    assert.equal(result.stop, 'BLOCKED');
+    assert.equal(result.opens, 1);
+    assert.equal(closes(w), 1);
+  }
+  const w = twoBrandWorld();
+  w.extractUrl = `${metaSearchUrl(A.label)}&unexpected=1`;
+  const result = await source(w).collect({ brands: [A, B] });
+  assert.equal(result.stop, 'BLOCKED');
+  assert.equal(result.opens, 1);
+});
+
+test('logged-out navigation and script tokens are not login or captcha walls', async () => {
+  const ordinary = '<button name="login">Log in</button><script>const captcha = { checkpoint: "/checkpoint/", name: "login" }; const markup = \'<form id="login_form">\';</script>';
+  const w = twoBrandWorld({ [metaPageUrl('111')]: { html: ordinary, text: `Log in\n${pageText([{ id: '5000000001' }])}` } });
+  const result = await source(w).collect({ brands: [A, B] });
+  assert.equal(result.status, 'OK');
+  assert.equal(result.opens, 4);
+});
+
+test('a known wall or redirect still stops if a later diagnostic command fails', async () => {
+  const cases: Array<[Page, string, (argv: readonly string[]) => boolean]> = [
+    [{ html: '<form id="login_form"></form>', text: '' }, 'LOGIN_REQUIRED', argv => argv[2] === 'extract'],
+    [{ finalUrl: 'https://example.com/', html: '', text: '' }, 'BLOCKED', argv => argv[2] === 'get' && argv[3] === 'html'],
+    [{ html: '', text: 'Please solve this captcha\n' + 'x'.repeat(100) }, 'CAPTCHA', argv => argv[2] === 'extract' && argv[4] !== '0'],
+  ];
+  for (const [page, stop, fails] of cases) {
+    const w = twoBrandWorld({ [metaSearchUrl(A.label)]: page });
+    w.failOn = argv => fails(argv) ? 'EXIT' : null;
+    const result = await source(w).collect({ brands: [A, B] });
+    assert.equal(result.stop, stop);
+    assert.equal(result.status, 'STOPPED');
+    assert.equal(result.opens, 1);
+    assert.equal(closes(w), 1);
+  }
+});
+
+test('page discovery binds names to their own ids and preserves Vietnamese diacritics', () => {
+  const markup = '<a href="/ads/library/?view_all_page_id=111&country=VN">Thương hiệu Mẫu Khác</a>'
+    + '<script>{"page_name":"Thương hiệu Mẫu A"}</script>';
+  assert.deepEqual(chooseMetaPage(metaBrandKey(A.label), metaPageCandidates(markup)), { kind: 'NONE' });
+  const paired = '<script>{"page_id":"111","page_name":"Thương hiệu Mẫu A"}</script>';
+  assert.deepEqual(chooseMetaPage(metaBrandKey(A.label), metaPageCandidates(paired)), { kind: 'PAGE', pageId: '111' });
+  assert.deepEqual(chooseMetaPage(metaBrandKey('Thạch dừa'), [{ pageId: '111', name: 'Thạch dứa' }]), { kind: 'NONE' });
+  assert.deepEqual(chooseMetaPage(metaBrandKey('Thạch dừa'), [{ pageId: '111', name: 'Thach dua' }]), { kind: 'NONE' });
+});
+
+test('brand selection uses only replayed E11 selected brand identities, never a second top-revenue pick', () => {
+  const frame = { platform: 'shopee', group: 'synthetic', sampleKey: 'fixture', period: { start: '2026-09-01', end: '2026-09-30' },
+    unit: 'VND', membershipBasis: 'synthetic-classification' };
+  const snapshot = deriveDefaultMarketPeers({ rule: DEFAULT_MARKET_PEER_RULE, frames: [frame], ownerAdditions: [],
+    records: [A, B].map((brand, i) => ({ platform: frame.platform, group: frame.group, sampleKey: frame.sampleKey, period: frame.period, unit: frame.unit,
+      membership: 'IN_GROUP', listingId: String(i + 1), title: `${brand.label} sản phẩm mẫu`,
+      brandLabel: brand.label, shopId: String(i + 1), shopLabel: null, revenue: i === 0 ? '90' : '10',
+      source: { sourceSha256: 'a'.repeat(64), locator: `synthetic:${i}` } })) });
+  assert.deepEqual(metaBrandsFromE11(snapshot), [{ label: A.label, key: metaBrandKey(A.label) }]);
+  const empty = deriveDefaultMarketPeers({ rule: DEFAULT_MARKET_PEER_RULE, frames: [], records: [], ownerAdditions: [] });
+  assert.deepEqual(metaBrandsFromE11(empty), []);
+  assert.throws(() => metaBrandsFromE11({ ...snapshot, frames: snapshot.frames.map(f => ({ ...f, selected: f.members })) }));
+});
+
+test('parser retains literal UTF-8 spans and refuses conflicting repeated ids', () => {
+  const text = 'Nhãn tiếng Việt\nĐang hoạt động\nID thư viện: 000001\nBắt đầu chạy từ 12 tháng 10, 2026\n';
+  const result = parseMetaAdPage(text + text);
+  assert.ok(result.ok);
+  const ad = result.page.ads[0]!;
+  assert.equal(result.page.ads.length, 1);
+  const bytes = Buffer.from(text + text);
+  assert.equal(bytes.subarray(ad.idSpan.start, ad.idSpan.end).toString(), '000001');
+  assert.equal(bytes.subarray(ad.statusSpan!.start, ad.statusSpan!.end).toString(), 'Đang hoạt động');
+  assert.equal(bytes.subarray(ad.startSpan!.start, ad.startSpan!.end).toString(), '12 tháng 10, 2026');
+  assert.equal(ad.startedOn, '2026-10-12');
+  const conflicting = parseMetaAdPage(text + text.replace('12 tháng', '13 tháng'));
+  assert.ok(conflicting.ok);
+  assert.equal(conflicting.page.ads.length, 0);
+  assert.equal(conflicting.page.refusedIds, 1);
+  assert.equal(parseMetaAdPage('Library ID: 12345678901234567890123456').ok, false, 'never retain a numeric prefix');
+});
+
+test('extract retention has a UTF-8 byte cap and a fingerprint without raw HTML', async () => {
+  const w = twoBrandWorld({ [metaPageUrl('111')]: { html: '<html>synthetic</html>', text: pageText([{ id: '5000000001' }]) + 'ế'.repeat(600_000) } });
+  w.chunkSize = 2_000_000;
+  const result = await source(w).collect({ brands: [A] });
+  const read = result.reads[1]!;
+  assert.equal(result.status, 'OK');
+  assert.ok(Buffer.byteLength(read.text!) <= 1024 * 1024);
+  assert.equal(read.fingerprint!.textTruncated, true);
+  assert.equal(read.fingerprint!.textBytes, Buffer.byteLength(read.text!));
+  assert.equal(read.text!.includes('�'), false);
+  assert.equal(JSON.stringify(result).includes('<html>synthetic</html>'), false);
+});
+
+test('cancel during a running process kills the group and child, closes, and returns CANCELLED', async () => {
+  const controller = new AbortController();
+  const calls: string[] = [], killed: string[] = [];
+  let started!: () => void;
+  const ready = new Promise<void>(resolve => { started = resolve; });
+  const runner: MetricOpenCliProcessRunner = async (_executable, argv) => {
+    calls.push(argv[2]!);
+    if (argv[2] === 'close') return { child: { kill: () => true }, completion: Promise.resolve({ exitCode: 0, stdout: '', stderr: '' }) };
+    started();
+    return { child: { kill: () => { killed.push('child'); return true; }, killGroup: () => { killed.push('group'); return true; } }, completion: new Promise(() => {}) };
+  };
+  const collecting = createMetaAutoSource({ createRunner: () => runner }).collect({ brands: [A, B] }, { signal: controller.signal });
+  await ready;
+  controller.abort();
+  const result = await collecting;
+  assert.equal(result.status, 'CANCELLED');
+  assert.deepEqual(killed, ['group', 'child']);
+  assert.deepEqual(calls, ['open', 'close']);
+});
+
 test('each stop marker stops the lane at once with no further open', async () => {
   const cases: Array<[Page, string]> = [
     [{ html: '<form id="login_form"></form>', text: 'x' }, 'LOGIN_REQUIRED'],
-    [{ html: '<input name="login">', text: 'x' }, 'LOGIN_REQUIRED'],
-    [{ html: '<a href="/checkpoint/1">', text: 'x' }, 'CAPTCHA'],
+    [{ html: "<form name='login'></form>", text: 'x' }, 'LOGIN_REQUIRED'],
+    [{ html: '<form action="/checkpoint/1">', text: 'x' }, 'CAPTCHA'],
     [{ html: '', text: 'Security checkpoint' }, 'CAPTCHA'],
     [{ html: '', text: 'Please solve this captcha' }, 'CAPTCHA'],
     [{ html: '', text: "You're Temporarily Blocked" }, 'BLOCKED'],
@@ -231,6 +351,11 @@ test('partial or unknown dates are missing, never guessed', () => {
   assert.deepEqual(parsed.page.ads.map(ad => ad.startedOn), [null, null, null, '2026-03-12']);
   assert.ok(parsed.page.ads.slice(0, 3).every(ad => ad.startSpan === null));
   assert.equal(parsed.page.resultCount, '~4 results');
+  for (const start of ['2026-10-12', '12 thg 10 2026', 'Oct. 12, 2026', '12 Oct 2026/2027', '12 Oct 2026 approximately']) {
+    const invalid = parseMetaAdPage(pageText([{ id: '6000000001', start }]));
+    assert.ok(invalid.ok);
+    assert.equal(invalid.page.ads[0]!.startedOn, null, start);
+  }
 });
 
 test('NOT_FOUND and AMBIGUOUS open no page', async () => {

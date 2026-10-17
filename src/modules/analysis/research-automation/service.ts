@@ -103,7 +103,7 @@ import { brandsFromPick, GOOGLE_ADS_PROFILE, GOOGLE_ADS_USAGE_ORDINAL, searchAds
 import { worldBankDocument, worldBankFailed, worldBankRenderable, worldBankUsage, WORLD_BANK_PROVIDER, WORLD_BANK_USAGE_ORDINAL, type WorldBankAttempt, type WorldBankSource } from './world-bank-lane.js';
 import { publishAutomatedVideoReading, verifyAutomatedVideoReading, videoWatchCandidates, videoWatchDocument, videoWatchFailed, videoWatchReadingRefs, videoWatchUsage, VIDEO_WATCH_MAX_VIDEOS, VIDEO_WATCH_PROFILE, VIDEO_WATCH_USAGE_ORDINAL, type VideoWatchAttempt, type VideoWatchLane, type VideoWatchPlan } from './video-watch-lane.js';
 import { VIDEO_WATCH_PROVIDER } from './video-watch-gemini.js';
-import { META_AUTO_PROVIDER, META_AUTO_USAGE_ORDINAL, metaAutoDocument, metaAutoFailed, metaAutoHasEvidence, metaAutoReportView, metaAutoUsage, publishMetaAutoEvidence, validMetaAuto, verifyMetaAutoEvidence, type MetaAutoCollection, type MetaAutoReportView, type MetaAutoSource } from './meta-auto-lane.js';
+import { META_AUTO_PROVIDER, META_AUTO_USAGE_ORDINAL, metaBrandsFromE11, metaAutoDocument, metaAutoFailed, metaAutoHasEvidence, metaAutoReportView, metaAutoUsage, publishMetaAutoEvidence, validMetaAuto, verifyMetaAutoEvidence, type MetaAutoCollection, type MetaAutoReportView, type MetaAutoSource } from './meta-auto-lane.js';
 import type { Binding as WorldBankBinding } from '../../../../contracts/analysis/world-bank-intake-v1.generated.js';
 import type { PackageRef as WorldBankPackageRef, PrepareReceipt as WorldBankPrepareReceipt, View as WorldBankView, History as WorldBankHistory } from '../../../../contracts/api/research-automation-macro-intake-api.generated.js';
 import { AutomationMetricRuleAdoptions, type MetricRuleBinding } from './metric-rule-adoption.js';
@@ -1876,6 +1876,15 @@ export class ResearchAutomationService {
       metric: { packageId, workbook: workbook.bytes, measurementPeriod: prepared.request.measurementPeriod } };
   }
 
+  /** Same exact verified Market pair as 8A; no top-pick substitute before an E11 selection exists. */
+  async #metaAutoBrands(workspaceId: string, runId: string) {
+    const pair = (await this.listReportVersions(workspaceId, runId)).at(-1);
+    if (!pair?.outputs.some(output => output.kind === 'MARKET')) return [];
+    const report = await this.readReport(workspaceId, runId, 'MARKET', false, pair.pairId);
+    const semantic = await this.#readJson<Record<string, unknown>>(report.versionId, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+    return semantic.defaultMarketPeers === undefined ? [] : metaBrandsFromE11(semantic.defaultMarketPeers);
+  }
+
   /** The automatic Meta ad library read for M07 7.2, re-verified from its stored evidence; unverified figures become plain rows. */
   async #metaAutoContext(collection: StepResultDocument | null, runId: string): Promise<{ metaAuto?: MetaAutoReportView }> {
     const doc = collection?.metaAuto;
@@ -3345,12 +3354,14 @@ export class ResearchAutomationService {
         try { officialStats = { collection: await this.#officialStatsSource.collect({ keyword, description: start.description ?? null, mode: start.mode }, { signal: controller.signal }) }; }
         catch { officialStats = { thrown: true }; }
       }
-      // Meta ad library auto-read comes after the paid lanes: at most five logged-out page opens for the first two pick brands,
+      // Meta ad library auto-read comes after the paid lanes: at most five logged-out page opens for selected E11 brands,
       // never repeated after a restart. It shares the one browser-CLI lock with the Metric capture.
       let metaAuto: MetaAutoRun | undefined;
       if (stepId === 'COLLECTION' && this.#metaAutoSource && !controller.signal.aborted) {
-        const brands = await pickBrands();
-        try { metaAuto = { collection: await this.#metaAutoSource.collect({ brands }, { signal: controller.signal }) }; }
+        try {
+          const brands = await this.#metaAutoBrands(row.workspaceId, row.runId);
+          metaAuto = { collection: await this.#metaAutoSource.collect({ brands }, { signal: controller.signal }) };
+        }
         catch { metaAuto = { thrown: true }; }
       }
       try {

@@ -13,7 +13,9 @@ import { createHash } from 'node:crypto';
 import type { SourcePackageIntakeRequest } from '../../../../contracts/foundation/source-package-intake-request.generated.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import type { FoundationSourcePackageReader } from '../../foundation/source-package-reader.js';
-import { normalizedKey, type SearchAdsBrandInput } from './google-ads-lane.js';
+import { brandLabelOk, type SearchAdsBrandInput } from './google-ads-lane.js';
+import { filterKeywordMeanings } from '../keyword-meaning-filter.js';
+import { verifyDefaultMarketPeers } from '../default-market-peers.js';
 import type { MetricOpenCliProcessRunner } from './metric-opencli-executor.js';
 import { createMetricOpenCliProcessRunner } from './metric-opencli-process-runner.js';
 import type { StepMetaAuto, StepMetaAutoAd, StepMetaAutoBrand, StepMetaAutoBrandStatus, StepMetaAutoRead, StepMetaAutoSpan, StepMetaAutoStatus, StepMetaAutoStop } from './model.js';
@@ -40,7 +42,7 @@ const ENV_ALLOW_LIST = ['PATH', 'HOME', 'DISPLAY', 'WAYLAND_DISPLAY', 'XDG_RUNTI
 const LIBRARY_HOST = 'www.facebook.com';
 const LIBRARY_PATH = '/ads/library/';
 const EVIDENCE_FAMILY = 'meta-ad-library-auto-read-v1';
-const SOURCE_LABEL = 'Meta ad library, automatic logged-out read';
+const SOURCE_LABEL = 'Thư viện quảng cáo Meta, máy tự đọc khi không đăng nhập';
 const PROVENANCE_BASIS = 'Visible text of the public Meta ad library read by the app without logging in; page chosen by an exact normalized name match, not ownership-verified.';
 
 export function metaAutoEnabled(env: Readonly<Record<string, string | undefined>>): boolean {
@@ -62,20 +64,28 @@ export const META_AUTO_PROFILE_TABLE = {
   ],
   monthsEn: { jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3, apr: 4, april: 4, may: 5, jun: 6, june: 6, jul: 7, july: 7, aug: 8, august: 8,
     sep: 9, sept: 9, september: 9, oct: 10, october: 10, nov: 11, november: 11, dec: 12, december: 12 },
-  monthWordsVi: ['thg', 'tháng'],
+  dateFormats: [
+    { order: 'DMY_EN', pattern: String.raw`(\d{1,2}) ([a-z]+) (\d{4})` },
+    { order: 'MDY_EN', pattern: String.raw`([a-z]+) (\d{1,2}), (\d{4})` },
+    { order: 'DMY_VI', pattern: String.raw`(\d{1,2}) (?:thg|tháng) (\d{1,2}), (\d{4})` },
+  ],
   resultCountWords: ['results', 'result', 'kết quả'],
-  /** Case-insensitive substrings. Any hit stops the lane before parsing. */
+  candidateAnchorPattern: String.raw`<a\b[^>]*\bhref\s*=\s*["']([^"']+)["'][^>]*>([^]*?)</a\s*>`,
+  candidateObjectPattern: String.raw`\{[^{}]*"page_id"\s*:[^{}]*\}`,
+  /** Case-insensitive patterns for actual forms/interstitials, not navigation or script vocabulary. */
   stopMarkers: [
-    { id: 'login-form-id', where: 'html', text: 'id="login_form"', stop: 'LOGIN_REQUIRED' },
-    { id: 'login-form-name', where: 'html', text: 'name="login"', stop: 'LOGIN_REQUIRED' },
-    { id: 'checkpoint-path', where: 'html', text: '/checkpoint/', stop: 'CAPTCHA' },
-    { id: 'checkpoint-text', where: 'text', text: 'checkpoint', stop: 'CAPTCHA' },
-    { id: 'captcha', where: 'both', text: 'captcha', stop: 'CAPTCHA' },
-    { id: 'blocked-en', where: 'text', text: 'temporarily blocked', stop: 'BLOCKED' },
-    { id: 'too-many-en', where: 'text', text: 'too many requests', stop: 'BLOCKED' },
-    { id: 'rate-limit-en', where: 'text', text: 'rate limit exceeded', stop: 'BLOCKED' },
-    { id: 'blocked-vi', where: 'text', text: 'tạm thời bị chặn', stop: 'BLOCKED' },
-    { id: 'too-many-vi', where: 'text', text: 'quá nhiều yêu cầu', stop: 'BLOCKED' },
+    { id: 'login-form-id', where: 'html', pattern: String.raw`<form\b[^>]*\bid\s*=\s*["']login_form["']`, stop: 'LOGIN_REQUIRED' },
+    { id: 'login-form-name', where: 'html', pattern: String.raw`<form\b[^>]*\bname\s*=\s*["']login["']`, stop: 'LOGIN_REQUIRED' },
+    { id: 'login-wall', where: 'text', pattern: 'log in to continue|you must log in|đăng nhập để tiếp tục', stop: 'LOGIN_REQUIRED' },
+    { id: 'checkpoint-form', where: 'html', pattern: String.raw`<form\b[^>]*\baction\s*=\s*["'][^"']*/checkpoint/`, stop: 'CAPTCHA' },
+    { id: 'checkpoint-text', where: 'text', pattern: 'security checkpoint|kiểm tra bảo mật', stop: 'CAPTCHA' },
+    { id: 'captcha-form', where: 'html', pattern: String.raw`<(?:form|iframe)\b[^>]*\b(?:id|name)\s*=\s*["'](?:captcha|captcha_form|captcha-challenge)["']`, stop: 'CAPTCHA' },
+    { id: 'captcha', where: 'text', pattern: "please solve this captcha|complete the captcha|confirm you['’]re human|xác nhận bạn là con người|hoàn thành mã xác minh", stop: 'CAPTCHA' },
+    { id: 'blocked-en', where: 'text', pattern: 'temporarily blocked', stop: 'BLOCKED' },
+    { id: 'too-many-en', where: 'text', pattern: 'too many requests', stop: 'BLOCKED' },
+    { id: 'rate-limit-en', where: 'text', pattern: 'rate limit exceeded', stop: 'BLOCKED' },
+    { id: 'blocked-vi', where: 'text', pattern: 'tạm thời bị chặn', stop: 'BLOCKED' },
+    { id: 'too-many-vi', where: 'text', pattern: 'quá nhiều yêu cầu', stop: 'BLOCKED' },
   ],
   /** A viewer id other than 0 means the shared browser is logged in to Facebook. */
   viewerIdPatterns: ['"USER_ID"\\s*:\\s*"?(\\d+)', '"actorID"\\s*:\\s*"?(\\d+)'],
@@ -83,13 +93,10 @@ export const META_AUTO_PROFILE_TABLE = {
 
 type StopMarker = (typeof META_AUTO_PROFILE_TABLE.stopMarkers)[number];
 const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
-const ID_RE = new RegExp(`(?:${META_AUTO_PROFILE_TABLE.idLabels.map(escapeRe).join('|')})\\s*:\\s*(\\d{5,25})`, 'gu');
+const ID_RE = new RegExp(`(?:${META_AUTO_PROFILE_TABLE.idLabels.map(escapeRe).join('|')})\\s*:\\s*(\\d{1,25})(?!\\d)`, 'gu');
 const START_RE = new RegExp(`(?:${META_AUTO_PROFILE_TABLE.startLabels.map(escapeRe).join('|')})\\s+`, 'gu');
 const STATUS_RE = new RegExp(`(?<!\\p{L})(${META_AUTO_PROFILE_TABLE.statusWords.map(w => escapeRe(w.text)).join('|')})(?!\\p{L})`, 'gu');
-const MONTHS_EN = Object.keys(META_AUTO_PROFILE_TABLE.monthsEn).sort((a, b) => b.length - a.length).join('|');
-const DATE_DMY_EN = new RegExp(`(\\d{1,2}) (${MONTHS_EN})\\.? (\\d{4})(?!\\d)`, 'iuy');
-const DATE_MDY_EN = new RegExp(`(${MONTHS_EN})\\.? (\\d{1,2}), (\\d{4})(?!\\d)`, 'iuy');
-const DATE_VI = new RegExp(`(\\d{1,2}) (?:${META_AUTO_PROFILE_TABLE.monthWordsVi.map(escapeRe).join('|')}) (\\d{1,2}),? (\\d{4})(?!\\d)`, 'iuy');
+const DATE_RES = META_AUTO_PROFILE_TABLE.dateFormats.map(format => ({ ...format, re: new RegExp(`${format.pattern}(?=[ \\t]*(?:\\r?\\n|$))`, 'iuy') }));
 const RESULT_RE = new RegExp(`~\\s?\\d[\\d.,]*\\s+(?:${META_AUTO_PROFILE_TABLE.resultCountWords.map(escapeRe).join('|')})(?!\\p{L})`, 'iu');
 const VIEWER_RES = META_AUTO_PROFILE_TABLE.viewerIdPatterns.map(p => new RegExp(p, 'gu'));
 
@@ -131,11 +138,19 @@ export function metaLibraryUrlKind(value: string): 'SEARCH' | 'PAGE' | null {
 export function classifyFinalUrl(value: string): StepMetaAutoStop | null {
   let url: URL;
   try { url = new URL(value.trim()); } catch { return 'BLOCKED'; }
+  if (url.protocol !== 'https:' || url.hostname !== LIBRARY_HOST) return 'BLOCKED';
   const path = url.pathname.toLowerCase();
   if (path.includes('checkpoint')) return 'CAPTCHA';
   if (path.includes('login')) return 'LOGIN_REQUIRED';
-  if (url.protocol !== 'https:' || url.hostname !== LIBRARY_HOST || !url.pathname.startsWith('/ads/library')) return 'BLOCKED';
-  return null;
+  return metaLibraryUrlKind(value.trim()) === null ? 'BLOCKED' : null;
+}
+
+/** A permitted redirect must still describe the requested brand search or the chosen page. */
+function sameMetaTarget(requested: string, observed: string): boolean {
+  const kind = metaLibraryUrlKind(requested);
+  if (!kind || metaLibraryUrlKind(observed) !== kind) return false;
+  const key = kind === 'SEARCH' ? 'q' : 'view_all_page_id';
+  return new URL(requested).searchParams.get(key) === new URL(observed).searchParams.get(key);
 }
 
 export function viewerLoggedIn(html: string): boolean {
@@ -152,10 +167,9 @@ const countOf = (haystack: string, needle: string): number => {
   return n;
 };
 export function markerCounts(html: string, text: string): Record<string, number> {
-  const h = html.toLowerCase(), t = text.toLowerCase(), out: Record<string, number> = {};
+  const h = html.replace(/<!--[^]*?-->|<(script|style|template)\b[^>]*>[^]*?<\/\1\s*>/giu, ''), out: Record<string, number> = {};
   for (const m of META_AUTO_PROFILE_TABLE.stopMarkers as readonly StopMarker[]) {
-    const needle = m.text.toLowerCase();
-    out[m.id] = (m.where === 'text' ? 0 : countOf(h, needle)) + (m.where === 'html' ? 0 : countOf(t, needle));
+    out[m.id] = [...(m.where === 'html' ? h : text).matchAll(new RegExp(m.pattern, 'giu'))].length;
   }
   return out;
 }
@@ -167,33 +181,58 @@ export function markerStop(counts: Readonly<Record<string, number>>): StepMetaAu
 // ---- search page: candidate page ids ----
 
 export interface MetaPageCandidate { readonly pageId: string; readonly name: string | null }
-const PAGE_ID_RES = [/view_all_page_id=(\d{1,25})/gu, /"page_id"\s*:\s*"(\d{1,25})"/gu];
-const PAGE_NAME_RE = /"page_name"\s*:\s*"((?:[^"\\]|\\.){1,400})"/gu;
-const NAME_WINDOW = 2000;
+const htmlText = (value: string): string => value.replace(/<[^>]*>/gu, '').replace(/&(?:amp|quot|apos|lt|gt|nbsp);/gu,
+  entity => ({ '&amp;': '&', '&quot;': '"', '&apos;': "'", '&lt;': '<', '&gt;': '>', '&nbsp;': ' ' })[entity]!).trim();
 
 export function metaPageCandidates(html: string): MetaPageCandidate[] {
-  const names: { at: number; name: string }[] = [];
-  for (const m of html.matchAll(PAGE_NAME_RE)) {
-    try { const name = JSON.parse(`"${m[1]!}"`) as unknown; if (typeof name === 'string') names.push({ at: m.index!, name }); } catch { /* not a JSON string */ }
-  }
   const out: MetaPageCandidate[] = [];
-  for (const re of PAGE_ID_RES) {
-    for (const m of html.matchAll(re)) {
-      let best: { d: number; name: string } | null = null;
-      for (const n of names) {
-        const d = Math.abs(n.at - m.index!);
-        if (d <= NAME_WINDOW && (best === null || d < best.d)) best = { d, name: n.name };
-      }
-      out.push({ pageId: m[1]!, name: best?.name ?? null });
-    }
+  // A link's own visible label or fields in the same JSON object supply the name.
+  // Nearby unrelated names must never lend their identity to another page id.
+  const markup = html.replace(/<!--[^]*?-->|<(script|style|template)\b[^>]*>[^]*?<\/\1\s*>/giu, '');
+  for (const m of markup.matchAll(new RegExp(META_AUTO_PROFILE_TABLE.candidateAnchorPattern, 'giu'))) {
+    try {
+      const url = new URL(htmlText(m[1]!), `https://${LIBRARY_HOST}`);
+      if (metaLibraryUrlKind(url.toString()) !== 'PAGE') continue;
+      const name = htmlText(m[2]!);
+      out.push({ pageId: url.searchParams.get('view_all_page_id')!, name: name || null });
+    } catch { /* not a permitted page link */ }
+  }
+  for (const m of html.matchAll(new RegExp(META_AUTO_PROFILE_TABLE.candidateObjectPattern, 'gu'))) {
+    try {
+      const value: unknown = JSON.parse(m[0]);
+      if (isRecord(value) && typeof value.page_id === 'string' && /^\d{1,25}$/u.test(value.page_id))
+        out.push({ pageId: value.page_id, name: typeof value.page_name === 'string' ? value.page_name : null });
+    } catch { /* not an unambiguous object */ }
   }
   return out;
 }
 
 export type MetaPageChoice = { readonly kind: 'PAGE'; readonly pageId: string } | { readonly kind: 'NONE' } | { readonly kind: 'AMBIGUOUS' };
+/** L9 preserves Vietnamese diacritics. Whitespace and case alone do not distinguish names. */
+export const metaBrandKey = (value: string): string => value.normalize('NFC').trim().replace(/\s+/gu, ' ').toLowerCase();
+/** Only replayed E11 selections authorize brand searches. Quick-search picks and shop fallbacks are not brand identities. */
+export function metaBrandsFromE11(value: unknown): SearchAdsBrandInput[] {
+  const peers = verifyDefaultMarketPeers(value);
+  const out: SearchAdsBrandInput[] = [], seen = new Set<string>();
+  for (const frame of peers.frames) {
+    if (frame.state !== 'SELECTED') continue;
+    for (const member of frame.selected) {
+      if (member.identity.kind !== 'TITLE_LABEL' || !brandLabelOk(member.identity.label)) continue;
+      const key = metaBrandKey(member.identity.label);
+      if (seen.has(key)) continue;
+      seen.add(key); out.push({ label: member.identity.label, key });
+      if (out.length === META_AUTO_MAX_BRANDS) return out;
+    }
+  }
+  return out;
+}
 /** The one page id whose nearby page name normalizes exactly to the brand key. A name match is not proof of ownership. */
 export function chooseMetaPage(brandKey: string, candidates: readonly MetaPageCandidate[]): MetaPageChoice {
-  const ids = new Set(candidates.filter(c => c.name !== null && normalizedKey(c.name) === brandKey).map(c => c.pageId));
+  const exact = candidates.filter(c => c.name !== null && metaBrandKey(c.name) === brandKey);
+  const admitted = filterKeywordMeanings({ contractVersion: 'l9-keyword-data-v1', dataVersion: META_AUTO_PROFILE,
+    category: 'meta-page-name', provenance: 'OPERATOR_SUPPLIED', keywords: [brandKey], exclusions: [] },
+    exact.map((c, i) => ({ recordId: String(i), text: metaBrandKey(c.name!), contextText: null })));
+  const ids = new Set(exact.filter((_, i) => admitted.results[i]?.decision === 'INCLUDED').map(c => c.pageId));
   if (ids.size === 0) return { kind: 'NONE' };
   if (ids.size > 1) return { kind: 'AMBIGUOUS' };
   return { kind: 'PAGE', pageId: [...ids][0]! };
@@ -210,11 +249,11 @@ const isoDate = (y: number, m: number, d: number): string | null => {
 };
 const monthEn = (word: string): number => (META_AUTO_PROFILE_TABLE.monthsEn as Record<string, number>)[word.toLowerCase()] ?? 0;
 function dateAt(text: string, at: number, limit: number): { iso: string; end: number } | null {
-  for (const re of [DATE_DMY_EN, DATE_MDY_EN, DATE_VI]) {
+  for (const { re, order } of DATE_RES) {
     re.lastIndex = at;
     const m = re.exec(text);
     if (!m || m.index + m[0].length > limit) continue;
-    const iso = re === DATE_DMY_EN ? isoDate(+m[3]!, monthEn(m[2]!), +m[1]!) : re === DATE_MDY_EN ? isoDate(+m[3]!, monthEn(m[1]!), +m[2]!) : isoDate(+m[3]!, +m[2]!, +m[1]!);
+    const iso = order === 'DMY_EN' ? isoDate(+m[3]!, monthEn(m[2]!), +m[1]!) : order === 'MDY_EN' ? isoDate(+m[3]!, monthEn(m[1]!), +m[2]!) : isoDate(+m[3]!, +m[2]!, +m[1]!);
     return iso ? { iso, end: m.index + m[0].length } : null;
   }
   return null;
@@ -364,7 +403,7 @@ export function createMetaAutoSource(options: MetaAutoSourceOptions = {}): MetaA
   return {
     async collect(input, callOptions = {}) {
       const signal = callOptions.signal;
-      const brands = input.brands.slice(0, maxBrands);
+      const brands = input.brands.filter(b => brandLabelOk(b.label)).map(b => ({ label: b.label, key: metaBrandKey(b.label) })).slice(0, maxBrands);
       const empty = (status: StepMetaAutoStatus): MetaAutoCollection => ({ status, stop: null, reasonVi: null, opens: 0, reads: [], brands: brands.map(b => blankBrand(b, status === 'CANCELLED' ? 'CANCELLED' : 'NOT_READ')) });
       if (brands.length === 0) return { ...empty('NO_BRANDS'), brands: [] };
       if (signal?.aborted) return empty('CANCELLED');
@@ -376,43 +415,63 @@ export function createMetaAutoSource(options: MetaAutoSourceOptions = {}): MetaA
         try {
           execution = await createRunner(commandSignal)(executable, ['browser', META_AUTO_SESSION, ...args, '--window', 'background'], { shell: false, detached: true, env });
         } catch (error) { return isAbort(error) ? { kind: 'CANCELLED' } : { kind: 'FAILED' }; }
+        const kill = (): void => {
+          try { execution.child.killGroup?.('SIGKILL'); } catch { /* gone */ }
+          try { execution.child.kill('SIGKILL'); } catch { /* gone */ }
+        };
+        let onAbort: (() => void) | undefined;
+        const aborted = new Promise<'ABORTED'>(resolve => {
+          onAbort = () => { kill(); resolve('ABORTED'); };
+          commandSignal?.addEventListener('abort', onAbort, { once: true });
+          if (commandSignal?.aborted) onAbort();
+        });
         let timer: ReturnType<typeof setTimeout> | undefined;
         const timedOut = new Promise<'TIMEOUT'>(resolve => { timer = setTimeout(() => resolve('TIMEOUT'), timeoutMs); timer.unref?.(); });
         try {
-          const result = await Promise.race([execution.completion, timedOut]);
+          const result = await Promise.race([execution.completion, timedOut, aborted]);
+          if (result === 'ABORTED') return { kind: 'CANCELLED' };
           if (result === 'TIMEOUT') {
-            try { execution.child.killGroup?.('SIGKILL'); } catch { /* gone */ }
-            try { execution.child.kill('SIGKILL'); } catch { /* gone */ }
+            kill();
             return { kind: 'FAILED' };
           }
           if (commandSignal?.aborted) return { kind: 'CANCELLED' };
           return result.exitCode === 0 && !errorEnvelope(result.stdout) ? { kind: 'OK', stdout: result.stdout } : { kind: 'FAILED' };
         } catch (error) {
           return isAbort(error) || commandSignal?.aborted ? { kind: 'CANCELLED' } : { kind: 'FAILED' };
-        } finally { if (timer) clearTimeout(timer); }
+        } finally {
+          if (timer) clearTimeout(timer);
+          if (onAbort) commandSignal?.removeEventListener('abort', onAbort);
+        }
       };
 
-      const extractText = async (): Promise<{ text: string; truncated: boolean } | CommandOutcome> => {
+      const extractText = async (requestedUrl: string): Promise<{ text: string; truncated: boolean; finalUrl: string; stop: StepMetaAutoStop | null } | CommandOutcome> => {
         let text = '', start = 0;
+        let finalUrl = requestedUrl;
         for (let chunk = 0; chunk < MAX_EXTRACT_CHUNKS; chunk++) {
           const out = await command(['extract', '--start', String(start)], signal);
           if (out.kind !== 'OK') return out;
           let json: unknown;
           try { json = JSON.parse(out.stdout); } catch { return { kind: 'FAILED' }; }
-          if (!isRecord(json) || typeof json.content !== 'string') return { kind: 'FAILED' };
+          if (!isRecord(json) || typeof json.content !== 'string' || typeof json.url !== 'string') return { kind: 'FAILED' };
+          finalUrl = json.url.trim();
+          const stop = classifyFinalUrl(finalUrl) ?? (sameMetaTarget(requestedUrl, finalUrl) ? null : 'BLOCKED');
+          if (stop) return { text, truncated: false, finalUrl, stop };
           text += json.content;
           const full = Buffer.from(text, 'utf8');
           if (full.byteLength > META_AUTO_TEXT_CAP_BYTES) {
             let end = META_AUTO_TEXT_CAP_BYTES;
             while (end > 0 && (full[end]! & 0xc0) === 0x80) end--;
-            return { text: full.subarray(0, end).toString('utf8'), truncated: true };
+            text = full.subarray(0, end).toString('utf8');
+            return { text, truncated: true, finalUrl, stop: markerStop(markerCounts('', text)) };
           }
+          const textStop = markerStop(markerCounts('', text));
+          if (textStop) return { text, truncated: false, finalUrl, stop: textStop };
           const next = json.next_start_char;
-          if (next === null || next === undefined) return { text, truncated: false };
+          if (next === null || next === undefined) return { text, truncated: false, finalUrl, stop: null };
           if (typeof next !== 'number' || !Number.isSafeInteger(next) || next <= start) return { kind: 'FAILED' };
           start = next;
         }
-        return { text, truncated: true };
+        return { text, truncated: true, finalUrl, stop: null };
       };
 
       return withOpenCliBrowserLock(signal, async () => {
@@ -426,36 +485,55 @@ export function createMetaAutoSource(options: MetaAutoSourceOptions = {}): MetaA
 
         const readOnce = async (kind: 'SEARCH' | 'PAGE', brandIndex: number, url: string): Promise<ReadDone> => {
           if (metaLibraryUrlKind(url) !== kind) return { kind: 'FAILED', index: null };
+          if (!Number.isFinite(clock.monotonicMs())) return { kind: 'FAILED', index: null };
           if (lastOpenAt !== null) {
             const wait = lastOpenAt + META_AUTO_SPACING_MS - clock.monotonicMs();
             if (wait > 0) { try { await clock.sleep(wait, signal); } catch { /* treated as abort below */ } }
             if (signal?.aborted || clock.monotonicMs() < lastOpenAt + META_AUTO_SPACING_MS) return { kind: 'CANCELLED', index: null };
           }
           if (signal?.aborted) return { kind: 'CANCELLED', index: null };
-          lastOpenAt = clock.monotonicMs(); opens++; spawned = true;
+          const openAt = clock.monotonicMs();
+          if (!Number.isFinite(openAt) || (lastOpenAt !== null && openAt < lastOpenAt + META_AUTO_SPACING_MS)) return { kind: 'FAILED', index: null };
+          lastOpenAt = openAt; opens++; spawned = true;
           const steps: (readonly string[])[] = [['open', url], ['wait', 'time', '10'], ['get', 'url'], ['get', 'html', '--max', String(META_AUTO_HTML_MAX_CHARS)]];
           const outputs: string[] = [];
+          let urlStop: StepMetaAutoStop | null = null;
           for (const args of steps) {
             const res = await command(args, signal);
-            if (res.kind !== 'OK') return { kind: res.kind, index: record({ read: bare(kind, brandIndex, url, res.kind), text: null, fingerprint: null }) };
+            if (res.kind !== 'OK') {
+              if (urlStop && res.kind !== 'CANCELLED') return { kind: 'STOP', index: record({ read: { ...bare(kind, brandIndex, url, 'STOPPED'), stop: urlStop }, text: null, fingerprint: null }) };
+              return { kind: res.kind, index: record({ read: bare(kind, brandIndex, url, res.kind), text: null, fingerprint: null }) };
+            }
             outputs.push(res.stdout);
+            if (args[0] === 'get' && args[1] === 'url') {
+              const observedUrl = res.stdout.trim();
+              urlStop = classifyFinalUrl(observedUrl) ?? (sameMetaTarget(url, observedUrl) ? null : 'BLOCKED');
+              if (urlStop) stop = urlStop;
+            }
           }
-          const extracted = await extractText();
-          if ('kind' in extracted) {
-            const k = extracted.kind === 'CANCELLED' ? 'CANCELLED' : 'FAILED';
-            return { kind: k, index: record({ read: bare(kind, brandIndex, url, k), text: null, fingerprint: null }) };
-          }
-          const html = outputs[3]!, finalUrl = outputs[2]!.trim(), text = extracted.text;
+          const html = outputs[3]!;
+          // Check the viewer before extracting any visible text from a signed-in session.
           if (viewerLoggedIn(html)) {
             stop = 'LOGGED_IN_SESSION_PRESENT';
             return { kind: 'STOP', index: record({ read: { ...bare(kind, brandIndex, url, 'STOPPED'), stop }, text: null, fingerprint: null }) };
           }
+          const observedUrl = outputs[2]!.trim();
+          const htmlStop = markerStop(markerCounts(html, ''));
+          if (htmlStop && !urlStop) stop = htmlStop;
+          const extracted = await extractText(urlStop ? observedUrl : url);
+          if ('kind' in extracted) {
+            const k = extracted.kind === 'CANCELLED' ? 'CANCELLED' : 'FAILED';
+            const halt = urlStop ?? htmlStop;
+            if (halt && k !== 'CANCELLED') return { kind: 'STOP', index: record({ read: { ...bare(kind, brandIndex, url, 'STOPPED'), stop: halt }, text: null, fingerprint: null }) };
+            return { kind: k, index: record({ read: bare(kind, brandIndex, url, k), text: null, fingerprint: null }) };
+          }
+          const finalUrl = extracted.finalUrl, text = extracted.text;
           const markers = markerCounts(html, text);
           const textBytes = Buffer.byteLength(text, 'utf8');
           const fingerprint: MetaAutoFingerprint = { profile: META_AUTO_PROFILE, htmlBytes: Buffer.byteLength(html, 'utf8'), textBytes, textTruncated: extracted.truncated,
             candidatePageIds: new Set(metaPageCandidates(html).map(c => c.pageId)).size, markers, labels: labelCounts(text) };
           const retained = { finalUrl: finalUrl.slice(0, 2048), retained: true, textSha256: sha(Buffer.from(text, 'utf8')), textBytes };
-          const halt = classifyFinalUrl(finalUrl) ?? markerStop(markers);
+          const halt = urlStop ?? htmlStop ?? extracted.stop ?? markerStop(markers);
           if (halt) {
             stop = halt;
             return { kind: 'STOP', index: record({ read: { ...bare(kind, brandIndex, url, 'STOPPED'), ...retained, stop: halt }, text, fingerprint }) };
@@ -494,8 +572,10 @@ export function createMetaAutoSource(options: MetaAutoSourceOptions = {}): MetaA
             out.push({ ...base, status: 'OK', pageRead: page.index, resultCount: p.resultCount, resultCountSpan: p.resultCountSpan, refusedIds: p.refusedIds, ads: p.ads });
           }
         } finally {
-          if (spawned) await command(['close'], undefined);
+          // Cleanup gets a fresh attempt even after cancellation; a new cancellation during close still kills it.
+          if (spawned) await command(['close'], signal?.aborted ? undefined : signal);
         }
+        cancelled ||= signal?.aborted ?? false;
         const status: StepMetaAutoStatus = cancelled ? 'CANCELLED' : stop ? 'STOPPED' : out.some(b => b.status === 'OK') ? 'OK' : 'NO_DATA';
         return { status, stop, reasonVi: stop ? metaAutoStopReason(stop) : null, opens, reads, brands: out };
       }, () => empty('CANCELLED'));
@@ -575,6 +655,7 @@ type Reader = Pick<FoundationSourcePackageReader, 'readFinalizedSourcePackage' |
 /** Network-free re-read of the stored evidence: hashes, the stored step copy, and a replay of the parser on every OK page. */
 export async function verifyMetaAutoEvidence(reader: Reader, doc: StepMetaAuto, runId: string): Promise<boolean> {
   try {
+    if (!validMetaAuto(doc)) return false;
     const ref = doc.evidence;
     if (!ref) return false;
     const source = await reader.readFinalizedSourcePackage(ref.packageId, META_AUTO_READ_BUDGET);
@@ -635,12 +716,13 @@ function validRead(v: unknown, brands: number): boolean {
   if ((v.kind !== 'SEARCH' && v.kind !== 'PAGE') || !nat(v.brandIndex) || v.brandIndex >= brands || typeof v.requestedUrl !== 'string' || metaLibraryUrlKind(v.requestedUrl) !== v.kind) return false;
   if (!strOrNull(v.finalUrl, 2048) || typeof v.outcome !== 'string' || !OUTCOMES.has(v.outcome) || !(v.stop === null || (typeof v.stop === 'string' && STOPS.has(v.stop)))) return false;
   if (typeof v.retained !== 'boolean' || typeof v.readAt !== 'string' || Number.isNaN(Date.parse(v.readAt))) return false;
-  if (v.retained) return typeof v.finalUrl === 'string' && typeof v.textSha256 === 'string' && HEX64.test(v.textSha256) && nat(v.textBytes) && v.textBytes <= META_AUTO_TEXT_CAP_BYTES;
+  if (v.retained) return typeof v.finalUrl === 'string' && (v.outcome !== 'READ' || sameMetaTarget(v.requestedUrl, v.finalUrl))
+    && typeof v.textSha256 === 'string' && HEX64.test(v.textSha256) && nat(v.textBytes) && v.textBytes <= META_AUTO_TEXT_CAP_BYTES;
   return v.finalUrl === null && v.textSha256 === null && v.textBytes === null;
 }
 function validBrand(v: unknown, reads: number): boolean {
   if (!isRecord(v) || !keysExactly(v, ['label', 'key', 'status', 'pageId', 'searchRead', 'pageRead', 'resultCount', 'resultCountSpan', 'refusedIds', 'ads'])) return false;
-  if (typeof v.label !== 'string' || v.label.length < 1 || v.label.length > 120 || typeof v.key !== 'string' || normalizedKey(v.label) !== v.key) return false;
+  if (!brandLabelOk(v.label) || typeof v.key !== 'string' || metaBrandKey(v.label) !== v.key) return false;
   if (typeof v.status !== 'string' || !BRAND_STATUSES.has(v.status) || !(v.pageId === null || (typeof v.pageId === 'string' && DIGITS.test(v.pageId)))) return false;
   if (!idxOrNull(v.searchRead, reads) || !idxOrNull(v.pageRead, reads) || !strOrNull(v.resultCount, 80) || !optSpan(v.resultCountSpan) || (v.resultCount === null) !== (v.resultCountSpan === null)) return false;
   if (!nat(v.refusedIds) || !Array.isArray(v.ads) || !v.ads.every(validAd) || new Set(v.ads.map(a => (a as StepMetaAutoAd).libraryId)).size !== v.ads.length) return false;
@@ -658,6 +740,13 @@ export function validMetaAuto(value: unknown): value is StepMetaAuto {
   const reads: unknown = value.reads, brands: unknown = value.brands;
   if (!Array.isArray(reads) || !Array.isArray(brands) || brands.length > 3 || reads.length > META_AUTO_MAX_OPENS) return false;
   if (!reads.every(r => validRead(r, brands.length)) || !brands.every(b => validBrand(b, reads.length))) return false;
+  for (const [i, brand] of (brands as StepMetaAutoBrand[]).entries()) {
+    const search = brand.searchRead === null ? null : reads[brand.searchRead] as StepMetaAutoRead;
+    const page = brand.pageRead === null ? null : reads[brand.pageRead] as StepMetaAutoRead;
+    if (search && (search.kind !== 'SEARCH' || search.brandIndex !== i || search.requestedUrl !== metaSearchUrl(brand.label))) return false;
+    if (page && (brand.pageId === null || page.kind !== 'PAGE' || page.brandIndex !== i || page.requestedUrl !== metaPageUrl(brand.pageId))) return false;
+    if (brand.status === 'OK' && (!search?.retained || search.outcome !== 'READ' || !page?.retained || page.outcome !== 'READ')) return false;
+  }
   if (ev === null && reads.some(r => (r as StepMetaAutoRead).retained)) return false;
   if (value.status === 'OK' && !brands.some(b => (b as StepMetaAutoBrand).status === 'OK')) return false;
   return true;

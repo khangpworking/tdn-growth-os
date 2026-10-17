@@ -25,7 +25,7 @@ const now = () => new Date('2026-10-17T03:00:00.000Z');
 const brand = (label: string) => ({ label, key: normalizedKey(label)! });
 const BRANDS = [brand('Thương hiệu Mẫu A'), brand('Thương hiệu Mẫu B')];
 
-const searchHtml = (id: string, name: string) => `<html><body><a href="/ads/library/?view_all_page_id=${id}">x</a><script>{"page_name":"${name}"}</script></body></html>`;
+const searchHtml = (id: string, name: string) => `<html><body><a href="/ads/library/?view_all_page_id=${id}&country=VN">${name}</a><script>{"page_name":"${name}"}</script></body></html>`;
 const pageText = (ids: readonly string[]) => `~${ids.length} results\n${ids.map(id => `Active\nLibrary ID: ${id}\nStarted running on 1 Mar 2026\nPlatforms\n`).join('\n')}`;
 const PAGES = new Map<string, { html: string; text: string }>([
   [metaSearchUrl(BRANDS[0]!.label), { html: searchHtml('111', BRANDS[0]!.label), text: 'Kết quả' }],
@@ -34,28 +34,28 @@ const PAGES = new Map<string, { html: string; text: string }>([
   [metaPageUrl('222'), { html: '<html></html>', text: pageText(['5000000003']) }],
 ]);
 
-function fakeLane(calls: string[][]): MetaAutoSource {
-  let current: { html: string; text: string } | null = null;
+function fakeLane(calls: string[][], supplyFixtureBrands: boolean): MetaAutoSource {
+  let current: { html: string; text: string } | null = null, currentUrl = '';
   let t = 1_000_000;
   const runner: MetricOpenCliProcessRunner = async (_executable, argv) => {
     calls.push([...argv]);
     const args = argv.slice(2, -2);
     let stdout = '';
-    if (args[0] === 'open') current = PAGES.get(args[1]!) ?? { html: '<html></html>', text: '' };
-    else if (args[0] === 'get' && args[1] === 'url') stdout = 'https://www.facebook.com/ads/library/?x=1';
+    if (args[0] === 'open') { currentUrl = args[1]!; current = PAGES.get(currentUrl) ?? { html: '<html></html>', text: '' }; }
+    else if (args[0] === 'get' && args[1] === 'url') stdout = currentUrl;
     else if (args[0] === 'get' && args[1] === 'html') stdout = current?.html ?? '';
     else if (args[0] === 'extract') {
       const start = Number(args[2]); const text = current?.text ?? '';
-      stdout = JSON.stringify({ content: text.slice(start, start + 200), next_start_char: start + 200 < text.length ? start + 200 : null });
+      stdout = JSON.stringify({ url: currentUrl, content: text.slice(start, start + 200), next_start_char: start + 200 < text.length ? start + 200 : null });
     }
     return { child: { kill: () => true }, completion: Promise.resolve({ exitCode: 0, stdout, stderr: '' }) };
   };
   const lane = createMetaAutoSource({ createRunner: () => runner, clock: { monotonicMs: () => t, sleep: async ms => { t += ms; } }, now, env: { PATH: '/usr/bin' } });
-  // A manual run has no auto-run pick record, so the wrapper supplies the synthetic brands to the real lane.
-  return { collect: (_input, options) => lane.collect({ brands: BRANDS }, options) };
+  // Evidence tests inject synthetic E11 brands; the placement test exercises the actual service input.
+  return { collect: (input, options) => lane.collect(supplyFixtureBrands ? { brands: BRANDS } : input, options) };
 }
 
-async function runToDraft(t: TestContext, on: boolean) {
+async function runToDraft(t: TestContext, on: boolean, supplyFixtureBrands = true) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-meta-auto-run-'));
   const db = openDatabase({ databasePath: path.join(root, 'test.sqlite'), now }).db;
   const artifacts = new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
@@ -65,7 +65,7 @@ async function runToDraft(t: TestContext, on: boolean) {
   const calls: string[][] = [];
   const service = new ResearchAutomationService({ db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discovery),
     uuid: () => runId, now, renderer: (input, kind) => buildResearchAutomationReport(input, kind), source: syntheticProductSource(),
-    sourceEvidence: { modelIdentity: 'synthetic', promptVersion: 'v1' }, ...(on ? { metaAutoSource: fakeLane(calls) } : {}) });
+    sourceEvidence: { modelIdentity: 'synthetic', promptVersion: 'v1' }, ...(on ? { metaAutoSource: fakeLane(calls, supplyFixtureBrands) } : {}) });
   await service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: '33333333-3333-4333-8333-333333333333',
     mode: 'CATEGORY', keyword: 'synthetic insulated container', requestedPeriod: { startDate: '2025-10-01', endDate: '2026-09-30' }, reports: ['MARKET'] });
   await service.processNext();
@@ -90,6 +90,14 @@ test('flag off: no metaAuto field, no usage 12, no auto table, no call', async t
   assert.equal(off.html.includes(META_AUTO_TABLE_TITLE), false);
   assert.equal(off.calls.length, 0);
   assert.equal(off.activity['meta-ad-library'].lastUsageAt, null);
+});
+
+test('COLLECTION cannot invent E11 brands before the first Market pair exists', async t => {
+  const on = await runToDraft(t, true, false);
+  assert.equal(on.document.metaAuto?.status, 'NO_BRANDS');
+  assert.deepEqual(on.document.metaAuto?.brands, []);
+  assert.equal(on.calls.length, 0);
+  assert.equal(on.usage.some(([ordinal]) => ordinal === 12), false);
 });
 
 test('flag on: the step stores the read, usage 12 counts opens, and the stored evidence re-verifies offline', async t => {

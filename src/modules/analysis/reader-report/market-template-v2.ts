@@ -197,7 +197,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   // The app's own logged-out read (S15 AUTO) adds rows to the same table; with none, the owner-only table keeps its exact bytes.
   const metaAuto = next ? options.metaAuto : undefined;
   const autoMetaRows = (metaAuto?.rows ?? []).map(row => {
-    const page = `<span data-quote>${label(row.label)}</span> ${esc(META_AUTO_NAME_SUFFIX)}`;
+    const page = `<span data-quote>${label(row.label)}</span>${row.ok ? ` ${esc(META_AUTO_NAME_SUFFIX)}` : ''}`;
     if (!row.ok) return [page, esc(META_AUTO_MISSING), esc(META_AUTO_MISSING), esc(META_AUTO_MISSING), label(row.notice ?? '')];
     const no = registry.cite({ sourceKind: 'CAPTURE', identity: row.textSha256!, locator: null, label: META_AUTO_CITATION_LABEL, retrievedAt: row.readAt,
       url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' });

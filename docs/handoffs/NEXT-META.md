@@ -203,7 +203,7 @@ U11/U26/U32/U40 remain unresolved.
 
 The runtime now exists. Branch `wp/meta-auto-209` adds `src/modules/analysis/research-automation/meta-auto-lane.ts` behind
 `TDN_RESEARCH_META_AUTO_ENABLED=1` (default off; off is byte-identical). At COLLECTION it reads the public Meta ad library for
-the first 2 brands of the auto-run pick: search page, then the one matching page, at most 5 opens per run, at least 30 s apart,
+up to 2 brand identities from the verified Market pair’s selected E11 peers: search page, then the one matching page, at most 5 opens per run, at least 30 s apart,
 session `tdnmeta`, `--window background` on every call, never a login, typed text or click. A login wall, checkpoint, captcha
 or block stops the lane; a logged-in browser stops it and keeps nothing. The lane shares the OpenCLI browser lock with the Metric
 capture. Kept texts become a finalized evidence package `automation-meta-auto:<runId>-...`; Market table 7.2 prints AUTO rows
@@ -215,3 +215,5 @@ synthetic fixtures only. It fails closed (unknown layout = UI_CHANGED, evidence 
 witness; compare its kept texts with the profile before trusting the counts. The 8A POLICY literal
 `runtime: 'UNAVAILABLE_OPENCLI_CONTRACT_MISSING'` in meta-page-intake is left unchanged on purpose because it is hashed into
 retained 8A packages.
+
+The initial COLLECTION precedes the first Market pair and E11 classification, so it currently records `NO_BRANDS` without browser calls. The top-revenue pick is not a substitute for the 8A peer binding. Canary timing or a brand-input exception remains an owner decision; no live witness exists yet.
