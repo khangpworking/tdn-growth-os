@@ -29,6 +29,7 @@ function activity(overrides: Record<string, { lastDataAt: string | null; dataCou
     'official-stats': { lastDataAt: null, dataCount: 0, lastUsageAt: null },
     'world-bank': { lastDataAt: null, dataCount: 0, lastUsageAt: null },
     'un-comtrade': { lastDataAt: null, dataCount: 0, lastUsageAt: null },
+    'search-ads-library': { lastDataAt: null, dataCount: 0, lastUsageAt: null },
     pageindex: { lastDataAt: null, dataCount: 0, lastUsageAt: null },
     ...overrides,
   };
@@ -62,7 +63,7 @@ test('every registry ID on the board exists in the source registry v1.9', () => 
   }
   // The roster is exactly the twelve approved cards: the existing five plus the seven additions.
   assert.deepEqual([...SOURCE_BOARD_ORDER], ['METRIC', 'KALODATA', 'KALODATA_VIDEO_FILE', 'APIFY_SHOPEE',
-    'APIFY_TIKTOK_COMMENTS', 'VIDEO_READING', 'META_AD_LIBRARY', 'SERPAPI', 'OFFICIAL_STATS', 'WORLD_BANK', 'UN_COMTRADE', 'PAGEINDEX']);
+    'APIFY_TIKTOK_COMMENTS', 'VIDEO_READING', 'META_AD_LIBRARY', 'SEARCH_ADS_LIBRARY', 'SERPAPI', 'OFFICIAL_STATS', 'WORLD_BANK', 'UN_COMTRADE', 'PAGEINDEX']);
 });
 
 test('mixed connectors carry per-ID tiers, never a fabricated aggregate', () => {
@@ -82,9 +83,27 @@ test('mixed connectors carry per-ID tiers, never a fabricated aggregate', () => 
   assert.equal(SOURCE_REGISTRY.OFFICIAL_STATS.arrival, 'FREE_COLLECT');
 });
 
+test('search ads has S17 metadata and becomes ready only with its own flag and the shared key', () => {
+  const registry = SOURCE_REGISTRY.SEARCH_ADS_LIBRARY;
+  assert.deepEqual(registry.registryIds, ['S17']);
+  assert.equal(registry.tier, 'B');
+  assert.equal(registry.group, 'SELLER_VOICE');
+  assert.equal(registry.paid, true);
+  assert.equal(registry.arrival, 'PAID_API');
+  assert.equal(registry.built, true);
+  assert.doesNotMatch(registry.reportName, /google|serpapi/iu);
+  const providers = { kalodataSecretKey: null, serpApiKey: 'synthetic-search-key', apifyTokenConfigured: false };
+  const off = bySource(buildResearchAutomationSourceStatus(input({ providers })))('SEARCH_ADS_LIBRARY');
+  assert.equal(off.state, 'CONFIGURED_NOT_WIRED');
+  assert.equal(off.wiredIntoRuns, false);
+  const wired = { kalodata: true, serpapi: true, apifyShopee: true, searchAds: true };
+  assert.equal(bySource(buildResearchAutomationSourceStatus(input({ providers, wired })))('SEARCH_ADS_LIBRARY').state, 'READY');
+  assert.equal(bySource(buildResearchAutomationSourceStatus(input({ wired })))('SEARCH_ADS_LIBRARY').state, 'NOT_CONFIGURED');
+});
+
 test('board emits all twelve cards with registry metadata and truthful build states', () => {
   const status = buildResearchAutomationSourceStatus(input());
-  assert.equal(status.sources.length, 12);
+  assert.equal(status.sources.length, 13);
   assert.deepEqual(status.sources.map(item => item.source), [...SOURCE_BOARD_ORDER]);
   const sources = bySource(status);
   for (const id of SOURCE_BOARD_ORDER) {

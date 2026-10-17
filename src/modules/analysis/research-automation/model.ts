@@ -213,6 +213,32 @@ export interface StepComtrade {
   readonly mirrorReporterCount: number | null;
 }
 
+/** Ad counts of each top brand's own website in the public search-ads library (S17). Advertiser names, ids, images, links and ad ids are never stored. */
+export type StepSearchAdsStatus = 'OK' | 'NO_BRANDS' | 'NO_DATA' | 'FAILED' | 'CANCELLED';
+export type StepSearchAdsBrandStatus = 'OK' | 'SKIPPED_NO_DOMAIN' | 'SKIPPED_AMBIGUOUS_DOMAIN' | 'FAILED' | 'CANCELLED';
+export interface StepSearchAdsBrand {
+  readonly label: string;
+  /** The brand's website host taken from the run's own web rows; null when none was chosen. */
+  readonly domain: string | null;
+  readonly status: StepSearchAdsBrandStatus;
+  /** Closed reason code for a status other than OK. */
+  readonly reason: string | null;
+  readonly totalResults: number | null;
+  readonly creativeCount: number | null;
+  readonly formats: { readonly text: number; readonly image: number; readonly video: number } | null;
+  /** Asia/Ho_Chi_Minh calendar days, YYYY-MM-DD. */
+  readonly firstShown: string | null;
+  readonly lastShown: string | null;
+  readonly maxDaysShown: number | null;
+  /** Creatives whose shown range overlaps the run period. */
+  readonly overlapCount: number | null;
+  readonly invalidCount: number | null;
+  readonly captureIndex: number | null;
+  readonly retrievedAt: string | null;
+  readonly responseSha256: string | null;
+  readonly usageOrdinal: number | null;
+}
+export interface StepSearchAds { readonly profile: 'search-ads-v1'; readonly status: StepSearchAdsStatus; readonly brands: readonly StepSearchAdsBrand[] }
 /** Cục Thống kê monthly workbook figures for one product category group (S21). Background only; never combined with sample numbers. */
 export type StepOfficialStatsStatus = 'OK' | 'PARTIAL' | 'NO_DATA' | 'LIST_FAILED' | 'NO_MONTHLY_WORKBOOK' | 'DOWNLOAD_FAILED' | 'READER_UNAVAILABLE'
   | 'LAYOUT_UNKNOWN' | 'CATEGORY_NOT_MAPPED' | 'MODEL_NOT_CONFIGURED' | 'FAILED' | 'CANCELLED';
@@ -319,6 +345,8 @@ export interface StepResultDocument {
   readonly worldBank?: StepWorldBank;
   /** Country-level trade figures for the estimated HS code; absent unless the UN Comtrade lane was on for the run. */
   readonly comtrade?: StepComtrade;
+  /** Search-ads library counts of the top brands' websites; absent unless the lane was on for the run. */
+  readonly searchAds?: StepSearchAds;
   /** Cục Thống kê monthly figures for the product's category group; absent unless the official-statistics lane was on for the run. */
   readonly officialStats?: StepOfficialStats;
   /** Automated seller-video speech readings; absent unless the video-watch lane was on for the run. */

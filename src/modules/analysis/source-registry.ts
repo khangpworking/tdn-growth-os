@@ -16,7 +16,7 @@ export const REPORT_SOURCE_REGISTRY = {
   S14: ['B', 'nội dung video của người bán', 'SELLER_VOICE'],
   S15: ['B', 'thư viện quảng cáo công khai của Meta', 'SELLER_VOICE'],
   S16: ['B', 'thư viện quảng cáo nổi bật của TikTok', 'SELLER_VOICE'],
-  S17: ['B', 'thư viện quảng cáo công khai của Google', 'SELLER_VOICE'],
+  S17: ['B', 'thư viện quảng cáo công khai của công cụ tìm kiếm', 'SELLER_VOICE'],
   S18: ['B', 'trang thương hiệu trên Facebook', 'SELLER_VOICE'],
   S19: [null, 'kết quả tìm kiếm Google', 'DOCUMENTS'],
   S20: ['B', 'mức quan tâm tìm kiếm trên Google', 'SALES_MARKET'],

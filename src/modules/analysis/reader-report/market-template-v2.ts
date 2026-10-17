@@ -9,6 +9,7 @@ import { formatWorldBankValue, worldBankRenderableRows, worldBankSourceNote, wor
 import { E12_ATTRIBUTION, E13_ATTRIBUTION, E14_ATTRIBUTION } from '../source-appendix-projection.js';
 import { officialStatsCitation, officialStatsCitationSheet, officialStatsNotice, officialStatsRenderableRows, officialStatsRowLabel, officialStatsStatusText, officialStatsUnitText, officialStatsValueText, OFFICIAL_STATS_LIMIT, OFFICIAL_STATS_NOTE, OFFICIAL_STATS_SRC, OFFICIAL_STATS_TABLE_TEXT, OFFICIAL_STATS_TABLE_TITLE } from '../research-automation/official-statistics-lane.js';
 import { comtradeFlowText, comtradeNotice, comtradeOfficialText, comtradeRenderableRows, comtradeRowNote, comtradeSideText, COMTRADE_LIMIT, COMTRADE_NOTE, COMTRADE_SOURCE_LABEL, COMTRADE_SRC, COMTRADE_TABLE_TITLE } from '../research-automation/comtrade-lane.js';
+import { searchAdsBrandNotice, searchAdsNotice, searchAdsOkBrands, SEARCH_ADS_NOTE, SEARCH_ADS_SOURCE_LABEL, SEARCH_ADS_SOURCE_NOTE, SEARCH_ADS_TABLE_TITLE } from '../research-automation/google-ads-lane.js';
 import { pdfExcerptBlockHtml, pdfExcerptCitation, PDF_EXCERPT_NOTE, PDF_EXCERPT_SRC } from '../research-automation/pdf-excerpt.js';
 import { sellerVideoBlockHtml, sellerVideoNote, sellerVideoSrc } from '../research-automation/seller-video.js';
 import { metaAdCitation, metaAdDate, META_AD_NAME_WITHHELD, META_AD_NOTE, META_AD_SOURCE_LABEL, META_AD_SOURCE_NOTE, META_AD_SRC, META_AD_TEXT_WITHHELD, META_AD_TITLE } from '../research-automation/meta-ad-report.js';
@@ -193,7 +194,24 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
       return [item.pageName === null ? esc(META_AD_NAME_WITHHELD) : `<span data-quote>${esc(item.pageName)}</span>`, label(String(item.adCount)), label(metaAdDate(item.earliestStart)), label(String(item.daysRun)),
         (item.excerpt === null ? esc(META_AD_TEXT_WITHHELD) : `<span data-quote>${esc(item.excerpt)}</span>${item.excerptCut ? '…' : ''}`) + marks];
     }), { src: esc(META_AD_SRC), note: esc(META_AD_NOTE) });
-  sections.push(section('M07', 'Đối thủ', 'Giữ số liệu của mỗi gian hàng trên từng sàn; phần thiếu không dùng để so sánh đầy đủ.', requiredFig('product-ranking', '7.1') + tbl('7.1', 'Gian hàng trong mẫu, theo thứ tự dòng nguồn', '', ['Sàn', 'Gian hàng', 'Dòng lõi', 'Doanh thu lõi', 'Đơn vị bán lõi'], shops) + peers + metaAdTable, d.defaultMarketPeers === null ? 'Chưa có tập đối thủ đã đóng băng trong đầu vào bản này. Không suy danh tính chéo sàn từ tên hoặc tiêu đề.' : 'Tập mặc định giữ riêng theo sàn và nhóm; nguồn thiếu hoặc doanh thu bằng không được ghi rõ. Không suy danh tính chéo sàn từ tên hoặc tiêu đề.'));
+  // Public search-ads library counts (S17) for the top brands' own websites. Empty values read "không có", never a bare zero; no advertiser detail exists to print.
+  const searchAds = next ? options.searchAds : undefined;
+  const searchAdsOk = searchAdsOkBrands(searchAds);
+  const adsNum = (v: number | null): string => v === null || v === 0 ? 'không có' : String(v);
+  const adsDay = (v: string | null): string => v === null ? 'không có' : v.split('-').reverse().join('/');
+  const adsNotice = (brand: typeof searchAdsOk[number]): string => `<p><span data-quote>${label(brand.label)}</span>: ${label(searchAdsBrandNotice(brand))}</p>`;
+  const searchAdsTable = !searchAds ? '' : searchAdsOk.length === 0
+    ? `<p>${label(searchAdsNotice(searchAds))}</p>` + searchAds.brands.map(adsNotice).join('')
+    : tbl('7.3', SEARCH_ADS_TABLE_TITLE, '', ['Thương hiệu', 'Trang web', 'Số mẫu quảng cáo', 'Chữ / Hình / Video', 'Hiện lần đầu – lần cuối', 'Số ngày hiện của mẫu dài ngày'],
+      searchAdsOk.map(brand => {
+        const no = registry.cite({ sourceKind: 'CAPTURE', identity: brand.responseSha256!, locator: null,
+          label: SEARCH_ADS_SOURCE_LABEL, retrievedAt: brand.retrievedAt, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' });
+        const f = brand.formats!;
+        return [`<span data-quote>${label(brand.label)}</span>`, label(brand.domain!), label(adsNum(brand.creativeCount)) + (no === null ? '' : renderCitationMark(no)),
+          label(`${adsNum(f.text)} / ${adsNum(f.image)} / ${adsNum(f.video)}`), label(`${adsDay(brand.firstShown)} – ${adsDay(brand.lastShown)}`), label(adsNum(brand.maxDaysShown))];
+      }), { src: esc(SEARCH_ADS_SOURCE_LABEL), note: esc(SEARCH_ADS_NOTE) }) +
+      searchAds.brands.filter(brand => brand.status !== 'OK').map(adsNotice).join('');
+  sections.push(section('M07', 'Đối thủ', 'Giữ số liệu của mỗi gian hàng trên từng sàn; phần thiếu không dùng để so sánh đầy đủ.', requiredFig('product-ranking', '7.1') + tbl('7.1', 'Gian hàng trong mẫu, theo thứ tự dòng nguồn', '', ['Sàn', 'Gian hàng', 'Dòng lõi', 'Doanh thu lõi', 'Đơn vị bán lõi'], shops) + peers + metaAdTable + searchAdsTable, d.defaultMarketPeers === null ? 'Chưa có tập đối thủ đã đóng băng trong đầu vào bản này. Không suy danh tính chéo sàn từ tên hoặc tiêu đề.' : 'Tập mặc định giữ riêng theo sàn và nhóm; nguồn thiếu hoặc doanh thu bằng không được ghi rõ. Không suy danh tính chéo sàn từ tên hoặc tiêu đề.'));
   let unitPriceTables = '';
   if (next) {
     const mark = (ref: { sourceSha256: string; locator: string }): string => {
@@ -265,8 +283,9 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     ...(interestChart ? [[SEARCH_INTEREST_SOURCE_LABEL, 'Đã lưu trong lượt này; chỉ số tương đối, không phải doanh số']] : []),
     ...(worldBankTable ? [[WORLD_BANK_SOURCE_LABEL, 'Đã lưu trong lượt này; số liệu cả nước, chỉ là bối cảnh']] : []),
     ...(comtradeRows.length ? [[COMTRADE_SOURCE_LABEL, 'Đã lưu trong lượt này; số liệu cả nước, chỉ là bối cảnh']] : []),
-    ...(officialRows.length ? [[E12_ATTRIBUTION, 'Đã lưu trong lượt này; số liệu thống kê cả nước theo nhóm hàng, chỉ là bối cảnh']] : []),
-    ...(metaAdTable ? [[META_AD_SOURCE_LABEL, META_AD_SOURCE_NOTE]] : [])] : [['Nguồn', sourceText], ['Kỳ', period]];
+    ...(metaAdTable ? [[META_AD_SOURCE_LABEL, META_AD_SOURCE_NOTE]] : []),
+    ...(searchAdsOk.length ? [[SEARCH_ADS_SOURCE_LABEL, SEARCH_ADS_SOURCE_NOTE]] : []),
+    ...(officialRows.length ? [[E12_ATTRIBUTION, 'Đã lưu trong lượt này; số liệu thống kê cả nước theo nhóm hàng, chỉ là bối cảnh']] : [])] : [['Nguồn', sourceText], ['Kỳ', period]];
   if (d.webFacts !== null) {
     const facts = d.webFacts;
     const no = registry.cite({ sourceKind: 'CAPTURE', identity: input.webSnapshotSha256!, locator: { kind: 'source-locator', value: 'số liệu tổng quan' }, label: 'Trang kết quả tìm kiếm: số liệu tổng quan', retrievedAt: facts.capturedAt, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' });

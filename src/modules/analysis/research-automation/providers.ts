@@ -81,7 +81,7 @@ export interface ExpandedSearchProvider extends ResearchAutomationProvider {
 
 export type ProviderOperation =
   | 'kalodata.product.rank' | 'kalodata.product.detail' | 'kalodata.credit.balance'
-  | 'serpapi.google.search' | 'serpapi.google.trends' | 'worldbank.observations' | 'worldbank.metadata' | 'videowatch.generate' | 'comtrade.data'
+  | 'serpapi.google.search' | 'serpapi.google.trends' | 'worldbank.observations' | 'worldbank.metadata' | 'videowatch.generate' | 'comtrade.data' | 'serpapi.google_ads.transparency'
   | 'officialstats.list' | 'officialstats.download' | 'none';
 
 export type CaptureOutcome =

@@ -42,6 +42,7 @@ const SOURCE_COPY: Record<BoardSource, { readonly name: string; readonly role: s
   APIFY_SHOPEE: { name: 'Apify review Shopee', role: 'Review Shopee theo link', unit: 'lần thu' },
   APIFY_TIKTOK_COMMENTS: { name: 'Apify bình luận TikTok', role: 'Bình luận dưới video TikTok', unit: 'lần thu' },
   VIDEO_READING: { name: 'Đọc nội dung video', role: 'Lời thoại và chữ trên video bán hàng', unit: 'file' },
+  SEARCH_ADS_LIBRARY: { name: 'Quảng cáo trên công cụ tìm kiếm', role: 'Số mẫu quảng cáo công khai trên trang web của thương hiệu', unit: 'lần chạy đã lưu' },
   META_AD_LIBRARY: { name: 'Thư viện quảng cáo Meta', role: 'Ngày bắt đầu và trạng thái quảng cáo', unit: 'quảng cáo đã xác nhận theo trang' },
   SERPAPI: { name: 'SerpApi', role: 'Tìm kiếm Google và Google Trends', unit: 'lần thu' },
   OFFICIAL_STATS: { name: 'Cục Thống kê', role: 'Số liệu vĩ mô từ nso.gov.vn', unit: 'file' },

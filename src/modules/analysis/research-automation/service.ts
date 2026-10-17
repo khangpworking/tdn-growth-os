@@ -99,6 +99,7 @@ import { selectPdfExcerpts, storedPdfExcerpts, type PdfExcerpt } from './pdf-exc
 import { readSellerVideoInputs, selectSellerVideos, storedSellerVideos, type AutomatedReadingInput, type SellerVideoAutomatedRef, type SellerVideos, type SellerVideoSources } from './seller-video.js';
 import { OFFICIAL_STATS_PROVIDER, OFFICIAL_STATS_USAGE_ORDINAL, officialStatsDocument, officialStatsFailed, officialStatsUsage, validOfficialStats, type OfficialStatsCollection, type OfficialStatsSource } from './official-statistics-lane.js';
 import { COMTRADE_PROFILE, COMTRADE_PROVIDER, COMTRADE_USAGE_ORDINAL, comtradeDocument, comtradeFailed, comtradeRenderable, comtradeUsage, type ComtradeCollection, type ComtradeSource } from './comtrade-lane.js';
+import { brandsFromPick, GOOGLE_ADS_PROFILE, GOOGLE_ADS_USAGE_ORDINAL, searchAdsDocument, searchAdsFailed, searchAdsUsage, type SearchAdsCollection, type SearchAdsSource } from './google-ads-lane.js';
 import { worldBankDocument, worldBankFailed, worldBankRenderable, worldBankUsage, WORLD_BANK_PROVIDER, WORLD_BANK_USAGE_ORDINAL, type WorldBankAttempt, type WorldBankSource } from './world-bank-lane.js';
 import { publishAutomatedVideoReading, verifyAutomatedVideoReading, videoWatchCandidates, videoWatchDocument, videoWatchFailed, videoWatchReadingRefs, videoWatchUsage, VIDEO_WATCH_MAX_VIDEOS, VIDEO_WATCH_PROFILE, VIDEO_WATCH_USAGE_ORDINAL, type VideoWatchAttempt, type VideoWatchLane, type VideoWatchPlan } from './video-watch-lane.js';
 import { VIDEO_WATCH_PROVIDER } from './video-watch-gemini.js';
@@ -286,7 +287,7 @@ export interface ResearchAutomationReportInput {
 /** Alias retained for the report module's public renderer signature. */
 export type AutomationReportInput = ResearchAutomationReportInput;
 export type ResearchAutomationSourceActivityKey = 'kalodata' | 'serpapi' | 'apify-shopee' | 'metric'
-  | 'kalodata-video' | 'apify-tiktok-comments' | 'video-reading' | 'meta-ad-library' | 'official-stats' | 'world-bank' | 'un-comtrade' | 'pageindex';
+  | 'kalodata-video' | 'apify-tiktok-comments' | 'video-reading' | 'meta-ad-library' | 'official-stats' | 'world-bank' | 'un-comtrade' | 'search-ads-library' | 'pageindex';
 export interface ResearchAutomationSourceActivity { readonly lastDataAt: string | null; readonly dataCount: number; readonly lastUsageAt: string | null }
 /** One stored-capture row per SerpApi operation. Count unit is stored captures, never mixed with uploads or usage rows. lastUsageAt stays null: usage rows are a provider-level aggregate, never per-operation evidence. */
 export interface ResearchAutomationSerpApiOperation { readonly operation: string; readonly count: number; readonly lastDataAt: string | null; readonly lastUsageAt: string | null }
@@ -360,6 +361,8 @@ export interface ResearchAutomationServiceOptions {
   readonly worldBankSource?: WorldBankSource;
   /** UN Comtrade lane; absent unless its flag is on. */
   readonly comtradeSource?: ComtradeSource;
+  /** Public search-ads library lane; absent unless its flag is on. */
+  readonly searchAdsSource?: SearchAdsSource;
   /** Cục Thống kê lane; absent unless its flag is on. */
   readonly officialStatsSource?: OfficialStatsSource;
   /** Automated seller-video watching (S14); only set when its flag is exactly "1". */
@@ -465,6 +468,7 @@ type TrendsAttempt = { readonly attempt: SearchInterestAttempt };
 type ExpandedAttempts = { readonly attempts: readonly ExpandedSearchAttempt[] };
 type WorldBankRun = { readonly attempts: readonly WorldBankAttempt[] } | { readonly thrown: true };
 type ComtradeRun = { readonly collection: ComtradeCollection } | { readonly thrown: true };
+type SearchAdsRun = { readonly collection: SearchAdsCollection } | { readonly thrown: true };
 type OfficialStatsRun = { readonly collection: OfficialStatsCollection } | { readonly thrown: true };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -519,6 +523,7 @@ export class ResearchAutomationService {
   readonly #trendsSource: SearchInterestSource | undefined;
   readonly #worldBankSource: WorldBankSource | undefined;
   readonly #comtradeSource: ComtradeSource | undefined;
+  readonly #searchAdsSource: SearchAdsSource | undefined;
   readonly #officialStatsSource: OfficialStatsSource | undefined;
   readonly #videoWatch: VideoWatchLane | undefined;
   readonly #expandedSource: ExpandedSearchSource | undefined;
@@ -575,6 +580,7 @@ export class ResearchAutomationService {
     this.#trendsSource = options.trendsSource;
     this.#worldBankSource = options.worldBankSource;
     this.#comtradeSource = options.comtradeSource;
+    this.#searchAdsSource = options.searchAdsSource;
     this.#officialStatsSource = options.officialStatsSource;
     this.#videoWatch = options.videoWatch;
     this.#expandedSource = options.expandedSource;
@@ -1844,7 +1850,7 @@ export class ResearchAutomationService {
         webResults: webResults.map(({ position, title, url, snippet, retrievedAt, site, published, origin }) =>
           ({ position, title, url, snippet, retrievedAt, site: site ?? null, published: published ?? null, ...(origin ? { origin } : {}) })),
         ...(searchInterestRenderable(searchInterest) ? { searchInterest } : {}),
-        ...(worldBankRenderable(webCollection?.worldBank) ? { worldBank: webCollection.worldBank } : {}), ...(webCollection?.comtrade ? { comtrade: webCollection.comtrade } : {}), ...(webCollection?.officialStats ? { officialStats: webCollection.officialStats } : {}),...(storedPdfExcerpts(marketSemantic).length ? { pdfExcerpts: storedPdfExcerpts(marketSemantic) } : {}), ...(storedSellerVideos(marketSemantic) ? { sellerVideos: storedSellerVideos(marketSemantic)! } : {}),
+        ...(worldBankRenderable(webCollection?.worldBank) ? { worldBank: webCollection.worldBank } : {}), ...(webCollection?.comtrade ? { comtrade: webCollection.comtrade } : {}), ...(webCollection?.searchAds ? { searchAds: webCollection.searchAds } : {}), ...(webCollection?.officialStats ? { officialStats: webCollection.officialStats } : {}), ...(storedPdfExcerpts(marketSemantic).length ? { pdfExcerpts: storedPdfExcerpts(marketSemantic) } : {}), ...(storedSellerVideos(marketSemantic) ? { sellerVideos: storedSellerVideos(marketSemantic)! } : {}),
         ...(metaAds.length ? { metaAds } : {}),
         metric: { packageId, capture: { snapshot: verifiedCapture.snapshot, snapshotSha256: rawSnapshotSha256, truncation: preparedCapture.capture.truncation }, measurementPeriod: preparedCapture.capture.measurementPeriod } };
     }
@@ -1859,7 +1865,7 @@ export class ResearchAutomationService {
       webResults: webResults.map(({ position, title, url, snippet, retrievedAt, site, published, origin }) =>
         ({ position, title, url, snippet, retrievedAt, site: site ?? null, published: published ?? null, ...(origin ? { origin } : {}) })),
       ...(searchInterestRenderable(searchInterest) ? { searchInterest } : {}),
-        ...(worldBankRenderable(webCollection?.worldBank) ? { worldBank: webCollection.worldBank } : {}), ...(webCollection?.comtrade ? { comtrade: webCollection.comtrade } : {}), ...(webCollection?.officialStats ? { officialStats: webCollection.officialStats } : {}),...(storedPdfExcerpts(marketSemantic).length ? { pdfExcerpts: storedPdfExcerpts(marketSemantic) } : {}), ...(storedSellerVideos(marketSemantic) ? { sellerVideos: storedSellerVideos(marketSemantic)! } : {}),
+        ...(worldBankRenderable(webCollection?.worldBank) ? { worldBank: webCollection.worldBank } : {}), ...(webCollection?.comtrade ? { comtrade: webCollection.comtrade } : {}), ...(webCollection?.searchAds ? { searchAds: webCollection.searchAds } : {}), ...(webCollection?.officialStats ? { officialStats: webCollection.officialStats } : {}), ...(storedPdfExcerpts(marketSemantic).length ? { pdfExcerpts: storedPdfExcerpts(marketSemantic) } : {}), ...(storedSellerVideos(marketSemantic) ? { sellerVideos: storedSellerVideos(marketSemantic)! } : {}),
       ...(metaAds.length ? { metaAds } : {}),
       metric: { packageId, workbook: workbook.bytes, measurementPeriod: prepared.request.measurementPeriod } };
   }
@@ -2070,7 +2076,7 @@ export class ResearchAutomationService {
     assertUuid(workspaceId);
     await this.#readWorkspace(workspaceId);
     const activity = Object.fromEntries((['kalodata', 'serpapi', 'apify-shopee', 'metric', 'kalodata-video',
-      'apify-tiktok-comments', 'video-reading', 'meta-ad-library', 'official-stats', 'world-bank', 'un-comtrade', 'pageindex'] as const)
+      'apify-tiktok-comments', 'video-reading', 'meta-ad-library', 'official-stats', 'world-bank', 'un-comtrade', 'search-ads-library', 'pageindex'] as const)
       .map(key => [key, { lastDataAt: null, dataCount: 0, lastUsageAt: null }])) as Record<ResearchAutomationSourceActivityKey, { lastDataAt: string | null; dataCount: number; lastUsageAt: string | null }>;
     const captures = this.#db.prepare(`SELECT c.provider provider,MAX(c.retrieved_at) lastAt,COUNT(*) total FROM analysis_research_automation_captures c
       JOIN analysis_research_automation_runs r ON r.run_id=c.run_id WHERE r.workspace_id=? AND c.provider IN ('kalodata','serpapi','apify-shopee') GROUP BY c.provider`).all(workspaceId) as Array<{ provider: 'kalodata' | 'serpapi' | 'apify-shopee'; lastAt: string; total: bigint | number }>;
@@ -2078,6 +2084,10 @@ export class ResearchAutomationService {
     const usage = this.#db.prepare(`SELECT u.provider provider,MAX(u.recorded_at) lastAt FROM analysis_research_automation_usage u
       JOIN analysis_research_automation_runs r ON r.run_id=u.run_id WHERE r.workspace_id=? AND u.provider IN ('kalodata','serpapi','apify-shopee') GROUP BY u.provider`).all(workspaceId) as Array<{ provider: 'kalodata' | 'serpapi' | 'apify-shopee'; lastAt: string }>;
     for (const row of usage) activity[row.provider].lastUsageAt = row.lastAt;
+    const searchAdsUsageAt = this.#db.prepare(`SELECT MAX(u.recorded_at) lastAt FROM analysis_research_automation_usage u
+      JOIN analysis_research_automation_runs r ON r.run_id=u.run_id
+      WHERE r.workspace_id=? AND u.step_id='COLLECTION' AND u.ordinal=? AND u.provider='serpapi' AND u.request_count>0`).get(workspaceId, GOOGLE_ADS_USAGE_ORDINAL) as { lastAt: string | null };
+    activity['search-ads-library'].lastUsageAt = searchAdsUsageAt.lastAt;
     // Metric workbooks are owner uploads stored as finalized attachment packages keyed `automation-upload:<runId>-…`.
     const metric = this.#db.prepare(`SELECT MAX(p.finalized_at) lastAt,COUNT(*) total FROM foundation_source_packages p
       JOIN foundation_source_attachment_origins o ON o.package_id=p.package_id
@@ -2100,6 +2110,15 @@ export class ResearchAutomationService {
         for (const call of collection.comtrade.calls) {
           const previous = activity['un-comtrade'].lastDataAt;
           if (previous === null || Date.parse(call.retrievedAt) > Date.parse(previous)) activity['un-comtrade'].lastDataAt = call.retrievedAt;
+        }
+      }
+      // Search-ads library: one stored step per run; the time is the latest stored brand response.
+      if (collection?.searchAds) {
+        activity['search-ads-library'].dataCount++;
+        for (const brand of collection.searchAds.brands) {
+          if (brand.retrievedAt === null) continue;
+          const previous = activity['search-ads-library'].lastDataAt;
+          if (previous === null || Date.parse(brand.retrievedAt) > Date.parse(previous)) activity['search-ads-library'].lastDataAt = brand.retrievedAt;
         }
       }
       // Cục Thống kê: one stored step document per run; the time is the latest stored workbook, null when none was kept.
@@ -3017,7 +3036,7 @@ export class ResearchAutomationService {
       if (videosMarked ? kind !== 'MARKET' || !storedVideos || digest(storedVideos) !== digest(await this.#sellerVideos(frozenRun, storedVideos.sources)) : semantic.sellerVideos !== undefined)
         throw new ResearchAutomationIntegrityError('Report video uploads differ from the pinned stored packages.');
       const expected = sourceEvidenceForReport(basePacket, { collection, ...(marked ? { pdfExcerpts: storedExcerpts } : {}), ...(videosMarked ? { sellerVideos: storedVideos } : {}),
-        ...(collection?.searchInterest || collection?.worldBank || collection?.comtrade || collection?.officialStats ? { captures: await this.#captureRecords(runId) } : {}),
+        ...(collection?.searchInterest || collection?.worldBank || collection?.comtrade || collection?.searchAds || collection?.officialStats ? { captures: await this.#captureRecords(runId) } : {}),
         ...(verifiedPrivateView ? { privateReviewCorpus: verifiedPrivateView } : {}),
         ...(verifiedReviewSample ? { reviewSample: verifiedReviewSample } : {}),
         ...(verifiedLiteral ? { insightLiteral: verifiedLiteral } : {}),
@@ -3284,6 +3303,19 @@ export class ResearchAutomationService {
         try { comtrade = { collection: await this.#comtradeSource.collect({ keyword, description: start.description ?? null, mode: start.mode, periodEndDate: requestedPeriod.endDate }, { signal: controller.signal }) }; }
         catch { comtrade = { thrown: true }; }
       }
+      // Search-ads library comes last: at most three paid calls, never repeated after a restart. Brands come only from the auto-run pick record.
+      let searchAds: SearchAdsRun | undefined;
+      if (stepId === 'COLLECTION' && this.#searchAdsSource && !controller.signal.aborted) {
+        const { requestedPeriod } = input as CollectInput;
+        let brands: ReturnType<typeof brandsFromPick> = [];
+        try {
+          const pickId = this.#hasAutorunTable() ? this.#autorunRow(row.runId)?.pickArtifactId : null;
+          if (pickId) brands = brandsFromPick(await this.#readJson<unknown>(pickId, MAX_JSON_ARTIFACT_BYTES, 'application/json'));
+        } catch { brands = []; }
+        const webUrls = web && 'bound' in web ? (web.bound.step.webResults ?? []).map(item => item.url) : [];
+        try { searchAds = { collection: await this.#searchAdsSource.collect({ brands, webUrls, periodStartDate: requestedPeriod.startDate, periodEndDate: requestedPeriod.endDate }, { signal: controller.signal }) }; }
+        catch { searchAds = { thrown: true }; }
+      }
       // Cục Thống kê follows UN Comtrade: one listing and at most two workbooks per run, never repeated after a restart.
       let officialStats: OfficialStatsRun | undefined;
       if (stepId === 'COLLECTION' && this.#officialStatsSource && !controller.signal.aborted) {
@@ -3292,7 +3324,7 @@ export class ResearchAutomationService {
         catch { officialStats = { thrown: true }; }
       }
       try {
-        await this.#persistSourceResult(row.runId, stepId, result, controller.signal.aborted, exact, web, controller.signal, trends, expanded, worldBank, comtrade, officialStats);
+        await this.#persistSourceResult(row.runId, stepId, result, controller.signal.aborted, exact, web, controller.signal, trends, expanded, worldBank, comtrade, searchAds, officialStats);
       } catch (error) {
         if (!(error instanceof ResearchAutomationProviderOutputError)) throw error;
         await this.#settleSourceFailure(row.runId, stepId, 'PROVIDER_OUTPUT_INVALID', 'FAILED');
@@ -3821,7 +3853,7 @@ export class ResearchAutomationService {
     }
   }
 
-  async #persistSourceResult(runId: string, stepId: SourceStepId, bound: PersistableSourceResult, aborted: boolean, exact?: ExactShopeeAttempt, web?: WebSearchAttempt, signal?: AbortSignal, trends?: TrendsAttempt, expanded?: ExpandedAttempts, worldBank?: WorldBankRun, comtrade?: ComtradeRun, officialStats?: OfficialStatsRun): Promise<void> {
+  async #persistSourceResult(runId: string, stepId: SourceStepId, bound: PersistableSourceResult, aborted: boolean, exact?: ExactShopeeAttempt, web?: WebSearchAttempt, signal?: AbortSignal, trends?: TrendsAttempt, expanded?: ExpandedAttempts, worldBank?: WorldBankRun, comtrade?: ComtradeRun, searchAds?: SearchAdsRun, officialStats?: OfficialStatsRun): Promise<void> {
     const result = bound.result;
     let step = bound.step;
     const nativeCoverage = bound.step.coverage.filter(value => value.provider === 'apify-dami');
@@ -3985,6 +4017,23 @@ export class ResearchAutomationService {
         step = probe;
       } catch { step = { ...step, comtrade: comtradeFailed('FAILED') }; }
     }
+    // Search-ads library captures follow Comtrade: one stored response per called brand; no advertiser detail is kept in the document.
+    const searchAdsCollection = searchAds && 'collection' in searchAds ? searchAds.collection : undefined;
+    if (searchAds) {
+      const indexes: (number | null)[] = [];
+      for (const item of searchAdsCollection?.brands ?? []) {
+        const envelopes = item.capture ? captureEnvelopes({ captures: [item.capture] }) : null;
+        if (!envelopes) { indexes.push(null); continue; }
+        indexes.push(captures.length);
+        await putCaptures(envelopes);
+      }
+      const probe = { ...step, searchAds: searchAdsCollection ? searchAdsDocument(searchAdsCollection, indexes) : searchAdsFailed('FAILED') };
+      try {
+        assertStepDocument(probe, runId, stepId);
+        assertCaptureLineage(probe, captures.map(value => value.row));
+        step = probe;
+      } catch { step = { ...step, searchAds: searchAdsFailed('FAILED') }; }
+    }
     // Cục Thống kê captures follow UN Comtrade: the listing, then each downloaded workbook. Without a confirmed category the
     // document is a status only and no number is kept.
     const officialStatsCollection = officialStats && 'collection' in officialStats ? officialStats.collection : undefined;
@@ -4114,6 +4163,9 @@ export class ResearchAutomationService {
         if (comtradeCollection && comtradeCollection.requests > 0) this.#persistUsage(runId, stepId, comtradeUsage(comtradeCollection), now, COMTRADE_USAGE_ORDINAL);
         else if (comtrade && 'thrown' in comtrade) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
           .run(runId, stepId, COMTRADE_USAGE_ORDINAL, COMTRADE_PROVIDER.toLowerCase(), now);
+        if (searchAdsCollection && searchAdsCollection.requests > 0) this.#persistUsage(runId, stepId, searchAdsUsage(searchAdsCollection), now, GOOGLE_ADS_USAGE_ORDINAL);
+        else if (searchAds && 'thrown' in searchAds) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,'serpapi','unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
+          .run(runId, stepId, GOOGLE_ADS_USAGE_ORDINAL, now);
         if (officialStatsCollection && officialStatsCollection.requests > 0) this.#persistUsage(runId, stepId, officialStatsUsage(officialStatsCollection), now, OFFICIAL_STATS_USAGE_ORDINAL);
         else if (officialStats && 'thrown' in officialStats) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
           .run(runId, stepId, OFFICIAL_STATS_USAGE_ORDINAL, OFFICIAL_STATS_PROVIDER.toLowerCase(), now);
@@ -5298,6 +5350,38 @@ function validWorldBank(value: unknown): boolean {
   });
 }
 
+const SEARCH_ADS_STATUSES = new Set(['OK', 'NO_BRANDS', 'NO_DATA', 'FAILED', 'CANCELLED']);
+const SEARCH_ADS_BRAND_STATUSES = new Set(['OK', 'SKIPPED_NO_DOMAIN', 'SKIPPED_AMBIGUOUS_DOMAIN', 'FAILED', 'CANCELLED']);
+function validSearchAds(value: unknown): boolean {
+  if (!isRecord(value) || Object.keys(value).sort().join() !== 'brands,profile,status' || value.profile !== GOOGLE_ADS_PROFILE ||
+      typeof value.status !== 'string' || !SEARCH_ADS_STATUSES.has(value.status) || !Array.isArray(value.brands) || value.brands.length > 3) return false;
+  const count = (v: unknown): boolean => Number.isSafeInteger(v) && (v as number) >= 0 && (v as number) <= 1_000_000;
+  const day = (v: unknown): boolean => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && validDate(v);
+  const domainOk = (v: unknown): boolean => typeof v === 'string' && v.length <= 253 && /^[a-z0-9.-]+$/.test(v) && v.includes('.');
+  const labels = new Set<string>(), indexes = new Set<number>();
+  return value.brands.every(brand => {
+    if (!isRecord(brand) || Object.keys(brand).sort().join() !== 'captureIndex,creativeCount,domain,firstShown,formats,invalidCount,label,lastShown,maxDaysShown,overlapCount,reason,responseSha256,retrievedAt,status,totalResults,usageOrdinal' ||
+        typeof brand.label !== 'string' || brand.label.length < 1 || brand.label.length > 120 || CONTROL.test(brand.label) || brand.label.includes('%') || labels.has(brand.label) ||
+        typeof brand.status !== 'string' || !SEARCH_ADS_BRAND_STATUSES.has(brand.status) || (brand.domain !== null && !domainOk(brand.domain)) ||
+        (brand.usageOrdinal !== null && brand.usageOrdinal !== GOOGLE_ADS_USAGE_ORDINAL)) return false;
+    labels.add(brand.label);
+    if (brand.status !== 'OK') {
+      return typeof brand.reason === 'string' && /^[A-Z_]{1,40}$/.test(brand.reason) && brand.totalResults === null && brand.creativeCount === null && brand.formats === null &&
+        brand.firstShown === null && brand.lastShown === null && brand.maxDaysShown === null && brand.overlapCount === null && brand.invalidCount === null &&
+        brand.captureIndex === null && brand.retrievedAt === null && brand.responseSha256 === null;
+    }
+    const formats = brand.formats;
+    if (brand.reason !== null || !domainOk(brand.domain) || (brand.totalResults !== null && !count(brand.totalResults)) || !count(brand.creativeCount) || !count(brand.overlapCount) || !count(brand.invalidCount) ||
+        !isRecord(formats) || Object.keys(formats).sort().join() !== 'image,text,video' || !count(formats.text) || !count(formats.image) || !count(formats.video) ||
+        (formats.text as number) + (formats.image as number) + (formats.video as number) !== brand.creativeCount || (brand.overlapCount as number) > (brand.creativeCount as number) ||
+        !Number.isSafeInteger(brand.captureIndex) || (brand.captureIndex as number) < 0 || indexes.has(brand.captureIndex as number) ||
+        typeof brand.retrievedAt !== 'string' || !Number.isFinite(Date.parse(brand.retrievedAt)) || !/^[a-f0-9]{64}$/.test(String(brand.responseSha256)) || brand.usageOrdinal !== GOOGLE_ADS_USAGE_ORDINAL) return false;
+    indexes.add(brand.captureIndex as number);
+    if (brand.creativeCount === 0) return brand.firstShown === null && brand.lastShown === null && brand.maxDaysShown === null;
+    return day(brand.firstShown) && day(brand.lastShown) && (brand.firstShown as string) <= (brand.lastShown as string) && count(brand.maxDaysShown);
+  });
+}
+
 const COMTRADE_STATUSES = new Set(['OK', 'HS_CODE_NOT_CONFIRMED', 'RATE_LIMITED', 'NO_DATA', 'MODEL_NOT_CONFIGURED', 'FAILED', 'CANCELLED']);
 function validComtrade(value: unknown): boolean {
   if (!isRecord(value) || Object.keys(value).sort().join() !== 'attempts,calls,descriptionVi,hsCode,mirrorReporterCount,officialDescription,profile,reasonVi,rows,status' ||
@@ -5436,6 +5520,8 @@ function assertStepDocument(value: unknown, runId: string, stepId: StepId): asse
     throw new ResearchAutomationIntegrityError('Stored World Bank context is invalid.');
   if (value.comtrade !== undefined && (stepId !== 'COLLECTION' || !validComtrade(value.comtrade)))
     throw new ResearchAutomationIntegrityError('Stored UN Comtrade context is invalid.');
+  if (value.searchAds !== undefined && (stepId !== 'COLLECTION' || !validSearchAds(value.searchAds)))
+    throw new ResearchAutomationIntegrityError('Stored search-ads context is invalid.');
   if (value.officialStats !== undefined && (stepId !== 'COLLECTION' || !validOfficialStats(value.officialStats)))
     throw new ResearchAutomationIntegrityError('Stored official statistics context is invalid.');
   if (value.videoWatch !== undefined && (stepId !== 'COLLECTION' || !validVideoWatch(value.videoWatch)))
@@ -5489,6 +5575,12 @@ function assertCaptureLineage(document: StepResultDocument, captures: readonly C
     const capture = stepCaptures.get(call.captureIndex);
     if (!capture || capture.truncated || capture.provider !== 'comtrade' || capture.operation !== 'comtrade.data' || capture.retrievedAt !== call.retrievedAt)
       throw new ResearchAutomationIntegrityError('Stored UN Comtrade context references an incompatible capture.');
+  }
+  for (const brand of document.searchAds?.brands ?? []) {
+    if (brand.status !== 'OK') continue;
+    const capture = brand.captureIndex === null ? undefined : stepCaptures.get(brand.captureIndex);
+    if (!capture || capture.truncated || capture.provider !== 'serpapi' || capture.operation !== 'serpapi.google_ads.transparency' || capture.retrievedAt !== brand.retrievedAt)
+      throw new ResearchAutomationIntegrityError('Stored search-ads context references an incompatible capture.');
   }
   const official = document.officialStats;
   if (official?.listCaptureIndex != null) {

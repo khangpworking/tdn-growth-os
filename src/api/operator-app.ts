@@ -23,6 +23,7 @@ import { researchAutomationProviderConfigFromEnv, type ResearchAutomationProvide
 import { searchTrendsEnabled } from '../modules/analysis/research-automation/search-interest.js';
 import { worldBankEnabled } from '../modules/analysis/research-automation/world-bank-lane.js';
 import { comtradeEnabled } from '../modules/analysis/research-automation/comtrade-lane.js';
+import { googleAdsEnabled } from '../modules/analysis/research-automation/google-ads-lane.js';
 import { officialStatsEnabled } from '../modules/analysis/research-automation/official-statistics-lane.js';
 import { videoWatchConfigFromEnv, videoWatchEnabled, type VideoWatchConfig } from '../modules/analysis/research-automation/video-watch-lane.js';
 import { expandedSearchEnabled } from '../modules/analysis/research-automation/expanded-search-lane.js';
@@ -92,6 +93,8 @@ export interface OperatorAppConfiguration {
   readonly researchWorldBank?: true;
   /** UN Comtrade lane of the Market flow; present only when TDN_RESEARCH_COMTRADE_ENABLED is exactly "1". */
   readonly researchComtrade?: true;
+  /** Public search-ads library lane; present only when TDN_RESEARCH_GOOGLE_ADS_ENABLED is exactly "1". */
+  readonly researchSearchAds?: true;
   /** Cục Thống kê lane of the Market flow; present only when TDN_RESEARCH_OFFICIAL_STATS_ENABLED is exactly "1". */
   readonly researchOfficialStats?: true;
   /** Video-watch lane of the Market flow; present only when TDN_RESEARCH_VIDEO_WATCH_ENABLED is exactly "1". Uses the existing CLIProxy settings. */
@@ -199,6 +202,7 @@ export function operatorAppConfigurationFromEnvironment(
     ...(expandedSearchEnabled(environment) ? { researchExpandedSearch: true as const } : {}),
     ...(worldBankEnabled(environment) ? { researchWorldBank: true as const } : {}),
     ...(comtradeEnabled(environment) ? { researchComtrade: true as const } : {}),
+    ...(googleAdsEnabled(environment) ? { researchSearchAds: true as const } : {}),
     ...(officialStatsEnabled(environment) ? { researchOfficialStats: true as const } : {}),
     ...(videoWatchEnabled(environment) ? { researchVideoWatch: videoWatchConfigFromEnv(environment) } : {}),
     ...(environment.TDN_R2_ENABLED !== 'true' ? {} : { r2: {
@@ -278,6 +282,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
       ...(configuration.researchExpandedSearch ? { expandedSearch: true as const } : {}),
       ...(configuration.researchWorldBank ? { worldBank: true as const } : {}),
       ...(configuration.researchComtrade ? { comtrade: true as const } : {}),
+      ...(configuration.researchSearchAds ? { searchAds: true as const } : {}),
       ...(configuration.researchOfficialStats ? { officialStats: true as const } : {}),
       ...(configuration.researchVideoWatch ? { videoWatch: configuration.researchVideoWatch } : {}),
       ...(configuration.ownerWritesEnabled ? { owner: {
