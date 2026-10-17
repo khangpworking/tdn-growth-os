@@ -4,13 +4,13 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
-import { DEFAULT_MARKET_PEER_RULE, deriveDefaultMarketPeers } from '../../src/modules/analysis/default-market-peers.js';
+import { DEFAULT_MARKET_PEER_RULE } from '../../src/modules/analysis/default-market-peers.js';
 import { buildMarketReport, computeReaderReportData } from '../../src/modules/analysis/reader-report/index.js';
 import { normalizedKey } from '../../src/modules/analysis/research-automation/google-ads-lane.js';
 import { assertMarket14MachineRules, auditMarket14 } from '../../src/modules/analysis/research-automation/market-14-rules.js';
 import { assertMarketBusinessGate, auditMarketReportHtml } from '../../src/modules/analysis/research-automation/market-business-gate.js';
 import {
-  classifyFinalUrl, chooseMetaPage, metaBrandKey, metaBrandsFromE11, metaPageCandidates, createMetaAutoSource, META_AUTO_LOGGED_IN_REASON, META_AUTO_MAX_OPENS, META_AUTO_SAME_DAY, META_AUTO_SESSION, META_AUTO_SOURCE_LABEL,
+  classifyFinalUrl, chooseMetaPage, metaBrandKey, metaBrandsFromPick, metaPageCandidates, createMetaAutoSource, META_AUTO_LOGGED_IN_REASON, META_AUTO_MAX_BRANDS, META_AUTO_MAX_OPENS, META_AUTO_SAME_DAY, META_AUTO_SESSION, META_AUTO_SOURCE_LABEL,
   META_AUTO_SPACING_MS, META_AUTO_TABLE_TITLE, metaAutoDocument, metaAutoEnabled, metaAutoReportView, metaAutoUsage, metaLibraryUrlKind, metaPageUrl, metaSearchUrl,
   parseMetaAdPage, validMetaAuto, type MetaAutoClock, type MetaAutoReportView,
 } from '../../src/modules/analysis/research-automation/meta-auto-lane.js';
@@ -213,18 +213,22 @@ test('page discovery binds names to their own ids and preserves Vietnamese diacr
   assert.deepEqual(chooseMetaPage(metaBrandKey('Thạch dừa'), [{ pageId: '111', name: 'Thach dua' }]), { kind: 'NONE' });
 });
 
-test('brand selection uses only replayed E11 selected brand identities, never a second top-revenue pick', () => {
-  const frame = { platform: 'shopee', group: 'synthetic', sampleKey: 'fixture', period: { start: '2026-09-01', end: '2026-09-30' },
-    unit: 'VND', membershipBasis: 'synthetic-classification' };
-  const snapshot = deriveDefaultMarketPeers({ rule: DEFAULT_MARKET_PEER_RULE, frames: [frame], ownerAdditions: [],
-    records: [A, B].map((brand, i) => ({ platform: frame.platform, group: frame.group, sampleKey: frame.sampleKey, period: frame.period, unit: frame.unit,
-      membership: 'IN_GROUP', listingId: String(i + 1), title: `${brand.label} sản phẩm mẫu`,
-      brandLabel: brand.label, shopId: String(i + 1), shopLabel: null, revenue: i === 0 ? '90' : '10',
-      source: { sourceSha256: 'a'.repeat(64), locator: `synthetic:${i}` } })) });
-  assert.deepEqual(metaBrandsFromE11(snapshot), [{ label: A.label, key: metaBrandKey(A.label) }]);
-  const empty = deriveDefaultMarketPeers({ rule: DEFAULT_MARKET_PEER_RULE, frames: [], records: [], ownerAdditions: [] });
-  assert.deepEqual(metaBrandsFromE11(empty), []);
-  assert.throws(() => metaBrandsFromE11({ ...snapshot, frames: snapshot.frames.map(f => ({ ...f, selected: f.members })) }));
+test('brand selection takes the top two distinct pick brands by revenue, with a diacritic-preserving key', () => {
+  const pick = { links: [
+    { brand: 'Thương hiệu Mẫu C', revenue: 5 },
+    { brand: A.label, revenue: 90 },
+    { brand: ` ${A.label} `, revenue: 80 },
+    { brand: 'Thuong hieu Mau A', revenue: 70 },
+    { brand: B.label, revenue: 60 },
+    { brand: 'Có 50% giảm', revenue: 99 },
+    { brand: 42, revenue: 100 },
+    { revenue: 100 },
+  ] };
+  assert.deepEqual(metaBrandsFromPick(pick), [{ label: A.label, key: metaBrandKey(A.label) }, { label: B.label, key: metaBrandKey(B.label) }]);
+  assert.equal(metaBrandsFromPick(pick)[0]!.key, 'thương hiệu mẫu a');
+  assert.ok(metaBrandsFromPick(pick).length <= META_AUTO_MAX_BRANDS);
+  assert.deepEqual(metaBrandsFromPick({ links: [{ brand: B.label }, { brand: A.label, revenue: 1 }] }).map(b => b.label), [A.label, B.label]);
+  for (const missing of [null, undefined, {}, { links: 'x' }, { links: [] }]) assert.deepEqual(metaBrandsFromPick(missing), []);
 });
 
 test('parser retains literal UTF-8 spans and refuses conflicting repeated ids', () => {

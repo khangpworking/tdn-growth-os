@@ -10,8 +10,7 @@ import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../s
 import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
 import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
 import type { StepResultDocument } from '../../src/modules/analysis/research-automation/model.js';
-import { normalizedKey } from '../../src/modules/analysis/research-automation/google-ads-lane.js';
-import { createMetaAutoSource, META_AUTO_TABLE_TITLE, metaAutoReportView, metaPageUrl, metaSearchUrl, verifyMetaAutoEvidence, type MetaAutoSource } from '../../src/modules/analysis/research-automation/meta-auto-lane.js';
+import { createMetaAutoSource, META_AUTO_TABLE_TITLE, metaBrandKey, metaAutoReportView, metaPageUrl, metaSearchUrl, verifyMetaAutoEvidence, type MetaAutoSource } from '../../src/modules/analysis/research-automation/meta-auto-lane.js';
 import { FoundationSourcePackageReader } from '../../src/modules/foundation/source-package-reader.js';
 import { SourcePackageService } from '../../src/modules/foundation/source-package-service.js';
 import type { MetricOpenCliProcessRunner } from '../../src/modules/analysis/research-automation/metric-opencli-executor.js';
@@ -22,7 +21,7 @@ import { providerNameViolations, reportVisibleText, visibleTextViolations } from
 const workspaceId = '11111111-1111-4111-8111-111111111111';
 const runId = '22222222-2222-4222-8222-222222222222';
 const now = () => new Date('2026-10-17T03:00:00.000Z');
-const brand = (label: string) => ({ label, key: normalizedKey(label)! });
+const brand = (label: string) => ({ label, key: metaBrandKey(label) });
 const BRANDS = [brand('Thương hiệu Mẫu A'), brand('Thương hiệu Mẫu B')];
 
 const searchHtml = (id: string, name: string) => `<html><body><a href="/ads/library/?view_all_page_id=${id}&country=VN">${name}</a><script>{"page_name":"${name}"}</script></body></html>`;
@@ -51,7 +50,7 @@ function fakeLane(calls: string[][], supplyFixtureBrands: boolean): MetaAutoSour
     return { child: { kill: () => true }, completion: Promise.resolve({ exitCode: 0, stdout, stderr: '' }) };
   };
   const lane = createMetaAutoSource({ createRunner: () => runner, clock: { monotonicMs: () => t, sleep: async ms => { t += ms; } }, now, env: { PATH: '/usr/bin' } });
-  // Evidence tests inject synthetic E11 brands; the placement test exercises the actual service input.
+  // Evidence tests inject synthetic pick brands; the no-pick test exercises the actual service input.
   return { collect: (input, options) => lane.collect(supplyFixtureBrands ? { brands: BRANDS } : input, options) };
 }
 
@@ -92,7 +91,7 @@ test('flag off: no metaAuto field, no usage 12, no auto table, no call', async t
   assert.equal(off.activity['meta-ad-library'].lastUsageAt, null);
 });
 
-test('COLLECTION cannot invent E11 brands before the first Market pair exists', async t => {
+test('without an auto-run pick record COLLECTION has no brands: NO_BRANDS and no browser call', async t => {
   const on = await runToDraft(t, true, false);
   assert.equal(on.document.metaAuto?.status, 'NO_BRANDS');
   assert.deepEqual(on.document.metaAuto?.brands, []);

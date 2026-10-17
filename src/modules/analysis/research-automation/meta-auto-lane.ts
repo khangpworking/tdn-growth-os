@@ -13,9 +13,8 @@ import { createHash } from 'node:crypto';
 import type { SourcePackageIntakeRequest } from '../../../../contracts/foundation/source-package-intake-request.generated.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import type { FoundationSourcePackageReader } from '../../foundation/source-package-reader.js';
-import { brandLabelOk, type SearchAdsBrandInput } from './google-ads-lane.js';
+import { brandLabelOk, brandsFromPick, type SearchAdsBrandInput } from './google-ads-lane.js';
 import { filterKeywordMeanings } from '../keyword-meaning-filter.js';
-import { verifyDefaultMarketPeers } from '../default-market-peers.js';
 import type { MetricOpenCliProcessRunner } from './metric-opencli-executor.js';
 import { createMetricOpenCliProcessRunner } from './metric-opencli-process-runner.js';
 import type { StepMetaAuto, StepMetaAutoAd, StepMetaAutoBrand, StepMetaAutoBrandStatus, StepMetaAutoRead, StepMetaAutoSpan, StepMetaAutoStatus, StepMetaAutoStop } from './model.js';
@@ -210,19 +209,17 @@ export function metaPageCandidates(html: string): MetaPageCandidate[] {
 export type MetaPageChoice = { readonly kind: 'PAGE'; readonly pageId: string } | { readonly kind: 'NONE' } | { readonly kind: 'AMBIGUOUS' };
 /** L9 preserves Vietnamese diacritics. Whitespace and case alone do not distinguish names. */
 export const metaBrandKey = (value: string): string => value.normalize('NFC').trim().replace(/\s+/gu, ' ').toLowerCase();
-/** Only replayed E11 selections authorize brand searches. Quick-search picks and shop fallbacks are not brand identities. */
-export function metaBrandsFromE11(value: unknown): SearchAdsBrandInput[] {
-  const peers = verifyDefaultMarketPeers(value);
+/**
+ * The same brand input as the search-ads lane: the top distinct brands of the auto-run pick record, by revenue.
+ * E11 peers exist only after REPORTS, so COLLECTION cannot use them. The key keeps diacritics for the exact page-name match.
+ */
+export function metaBrandsFromPick(pick: unknown): SearchAdsBrandInput[] {
   const out: SearchAdsBrandInput[] = [], seen = new Set<string>();
-  for (const frame of peers.frames) {
-    if (frame.state !== 'SELECTED') continue;
-    for (const member of frame.selected) {
-      if (member.identity.kind !== 'TITLE_LABEL' || !brandLabelOk(member.identity.label)) continue;
-      const key = metaBrandKey(member.identity.label);
-      if (seen.has(key)) continue;
-      seen.add(key); out.push({ label: member.identity.label, key });
-      if (out.length === META_AUTO_MAX_BRANDS) return out;
-    }
+  for (const { label } of brandsFromPick(pick)) {
+    const key = metaBrandKey(label);
+    if (seen.has(key)) continue;
+    seen.add(key); out.push({ label, key });
+    if (out.length === META_AUTO_MAX_BRANDS) break;
   }
   return out;
 }
