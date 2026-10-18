@@ -273,8 +273,14 @@ test('provider names in a Market build fail inside buildResearchAutomationReport
   assert.doesNotThrow(() => buildResearchAutomationReport(readerSanitized, 'MARKET'));
   // The owner reader prints the requested period only beside the per-product trend, so the leak rides on a full Market input.
   const leaking = await fullMarket14Input();
-  (leaking.start.requestedPeriod as { startDate: string }).startDate = 'Metric';
-  assert.throws(() => buildResearchAutomationReport(leaking, 'MARKET'), /MARKET_BUSINESS_GATE_FAILED:G08_PROVIDER_NAME/);
+  for (const provider of ['Metric', 'Kalodata', 'TradeInt', 'Dami', 'Apify', 'SerpApi', 'PageIndex', 'Gemini', 'OpenCLI', 'zen-studio', 'Google']) {
+    (leaking.start.requestedPeriod as { startDate: string }).startDate = provider;
+    assert.throws(() => buildResearchAutomationReport(leaking, 'MARKET'), /MARKET_BUSINESS_GATE_FAILED:G08_PROVIDER_NAME/, provider);
+  }
+  (leaking.start.requestedPeriod as { startDate: string }).startDate = '<b id="injected-period">&';
+  const escaped = buildResearchAutomationReport(leaking, 'MARKET').html.toString();
+  assert.match(escaped, /Diễn biến từng sản phẩm<\/dt><dd>Theo từng kỳ trong khoảng từ &lt;b id=&quot;injected-period&quot;&gt;&amp;/u);
+  assert.doesNotMatch(escaped, /<b id="injected-period">/u);
 });
 
 test('round 5: an unmatched or nested unbalanced quote cannot hide an E2 claim', () => {

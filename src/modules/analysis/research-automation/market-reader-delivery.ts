@@ -58,8 +58,13 @@ const PHRASES: readonly [RegExp, string][] = [
   [/sản phẩm(?:, sản phẩm)+(?![\p{L}\p{N}])/gu, 'sản phẩm'],
   [/\bsearch events\b/giu, 'lượt ghi nhận tìm kiếm'],
   [/theo section gốc/gu, 'theo phần gốc'],
+  [/danh sách top sản phẩm/gu, 'danh sách sản phẩm doanh thu cao'],
+  [/\breview\b/giu, 'đánh giá'],
+  [/\bexport\b/giu, 'tệp dữ liệu'],
+  [/\bpeer set\b/giu, 'nhóm đối thủ'],
   // The reader writes zero in words wherever an empty state is explained; decimals such as "0,5" stay numbers.
   [/([Bb])ằng 0(?![\d]|[,.]\d)/gu, '$1ằng không'],
+  [/([Kk])hông (?:tính là|đổi thành|ghi thành) 0(?![\d]|[,.]\d)/gu, '$1hông thay bằng số không'],
 ];
 
 const CONTEXT = /Cục Thống kê|Ngân hàng Thế giới|vĩ mô|cả nước|mã hàng|tìm kiếm|quảng cáo|video|tỉnh|thành phố/iu;
@@ -67,6 +72,33 @@ const CONTEXT = /Cục Thống kê|Ngân hàng Thế giới|vĩ mô|cả nước
 const SAMPLE_CAPTION = /^(?:Shopee|TikTok Shop)\b|trong mẫu/u;
 const SAMPLE_NOTE = 'Số liệu lấy từ các dòng đã lưu của từng sàn trong kỳ báo cáo; mỗi sàn đọc riêng và không suy rộng ra toàn thị trường. Ô ghi “chưa có dữ liệu” không có nghĩa là bằng không.';
 const CONTEXT_NOTE = 'Số liệu nền từ nguồn công khai, đọc riêng; không nói về riêng sản phẩm này. Ô ghi “chưa có dữ liệu” không có nghĩa là bằng không.';
+
+/** Localize display dates without changing source quotes, identifiers or markup. */
+function readerText(html: string): string {
+  const protectedTags: string[] = [];
+  return html.split(/(<[^>]+>)/gu).map((part, index) => {
+    if (index % 2) {
+      const tag = /^<\/?([\w-]+)/u.exec(part)?.[1]?.toLowerCase();
+      if (!tag) return part;
+      if (part.startsWith('</')) {
+        if (tag === protectedTags.at(-1)) protectedTags.pop();
+      } else if (!/\/>$/u.test(part) && !['br', 'hr', 'img', 'input', 'wbr'].includes(tag)
+        && (protectedTags.length || ['q', 'blockquote', 'code', 'pre'].includes(tag) || /\bdata-quote(?:\s|=|>)/u.test(part) || /\bdata-glossary=/u.test(part))) {
+        protectedTags.push(tag);
+      }
+      return part;
+    }
+    if (protectedTags.length) return part;
+    return PHRASES.slice(1).reduce((value, [re, to]) => value.replace(re, to), part)
+      .replace(/(?<![\p{L}\p{N}_./-])(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}:\d{2}:\d{2}(?:\.\d+)?)(Z|[+-]\d{2}:\d{2}))?(?![\p{L}\p{N}_/-]|\.[\p{L}\p{N}])/gu,
+        (all, year: string, month: string, day: string, time?: string, zone?: string) => {
+          const iso = `${year}-${month}-${day}`;
+          const parsed = Date.parse(`${iso}T00:00:00Z`);
+          if (!Number.isFinite(parsed) || new Date(parsed).toISOString().slice(0, 10) !== iso) return all;
+          return `${day}/${month}/${year}${time ? ` ${time} ${zone === 'Z' ? 'UTC' : zone}` : ''}`;
+        });
+  }).join('');
+}
 
 type Num = { value: number; shown: string };
 const NUMBER = /^(?:chỉ số\s+)?(-?(?:\d{1,3}(?:\.\d{3})+|\d+)(?:,\d+)?)(?=\s|$)/u;
@@ -271,12 +303,15 @@ export function deliverMarketReader(html: string, searchPoints?: readonly Search
   const close = html.indexOf('<footer', open);
   const head = html.slice(0, open), tail = close < 0 ? '' : html.slice(close);
   let body = stripTraceDetails(close < 0 ? html.slice(open) : html.slice(open, close));
-  body = body.split(/(<[^>]+>)/gu).map((part, i) => i % 2 ? part : PHRASES.slice(1).reduce((value, [re, to]) => value.replace(re, to), part)).join('');
+  body = readerText(body);
   body = body.replace(PHRASES[0]![0], PHRASES[0]![1]);
   body = body.replace(/<a\b[^>]*href="#bounded-method-evidence"[^>]*>([\s\S]*?)<\/a>/gu, '$1');
-  // The localized term no longer needs an English glossary entry.
-  body = body.replace(/<table data-glossary="true">[\s\S]*?<\/table>/gu,
-    table => table.replace(/<tr><td>sản phẩm<\/td><td>sản phẩm<\/td><\/tr>/gu, ''));
+  // Keep an English definition only if a verbatim source quote still uses the term.
+  body = body.replace(/<table data-glossary="true">[\s\S]*?<\/table>/gu, table => {
+    const prose = text(body.replace(table, ''));
+    return table.replace(/<tr><td>(listing|review|export|peer set)<\/td><td>[^<]*<\/td><\/tr>/gu,
+      (row, term: string) => new RegExp(`\\b${term}\\b`, 'iu').test(prose) ? row : '');
+  });
   body = body.replace(/<section class="sheet" id="(M\d\d)">([\s\S]*?)<\/section>/gu, (_all, id: string, inner: string) => {
     const annotated = DATA_SECTIONS.test(id) ? annotateExhibits(inner, searchPoints) : inner;
     const data = /<table\b|<figure\b/u.test(annotated.replace(/<div class="table-wrap market14-proposals[\s\S]*?<\/table><\/div>/u, ''));

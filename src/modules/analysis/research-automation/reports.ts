@@ -263,14 +263,19 @@ export function marketSourceTypes(input: AutomationReportInput, webResultCount: 
 }
 /** The main sales sample's stored scope when valid; null when the report has no sales sample. */
 function marketSamplePeriod(input: AutomationReportInput): { start: string; end: string } | null {
-  const iso = /^\d{4}-\d{2}-\d{2}$/u;
+  const validDay = (value: string): boolean => {
+    if (!/^\d{4}-\d{2}-\d{2}$/u.test(value)) return false;
+    const time = Date.parse(`${value}T00:00:00Z`);
+    return Number.isFinite(time) && new Date(time).toISOString().slice(0, 10) === value;
+  };
   const scopes = [input.marketPresentation?.input.metric?.input.scope, input.metricMethods?.result.input.scope];
-  return scopes.flatMap(scope => scope && iso.test(scope.start) && iso.test(scope.end) && scope.start <= scope.end
+  return scopes.flatMap(scope => scope && validDay(scope.start) && validDay(scope.end) && scope.start <= scope.end
     ? [{ start: scope.start, end: scope.end }] : [])[0] ?? null;
 }
-/** Report quarter from the data period (the sales sample, else the requested period): the quarter holding most of its days, the later one on a tie. The date line is the exact data range. */
+/** The sales-sample quarter holding most of its inclusive days, the later one on a tie. A requested period is not evidence of data. */
 export function marketReportQuarter(input: AutomationReportInput): { quarter: string; range: string } {
-  const period = marketSamplePeriod(input) ?? { start: input.start.requestedPeriod.startDate, end: input.start.requestedPeriod.endDate };
+  const period = marketSamplePeriod(input);
+  if (!period) return { quarter: 'Chưa xác định quý dữ liệu', range: 'Chưa có kỳ số liệu bán hàng hợp lệ' };
   const days = new Map<string, { quarter: number; year: number; count: number }>();
   for (let day = Date.parse(`${period.start}T00:00:00Z`), end = Date.parse(`${period.end}T00:00:00Z`); day <= end; day += 86_400_000) {
     const date = new Date(day);
@@ -697,7 +702,7 @@ function defaultPeerSection(snapshot: DefaultMarketPeers, citations: ReportCitat
   const record = `<details><summary>Hồ sơ đối chiếu tập đối thủ</summary><p>Phiên bản quy tắc: <code>${escape(snapshot.input.rule.version)}</code>. Đầu vào, thành viên, lý do loại và kết quả chính xác được giữ trong bản lưu bất biến. Số lần loại dòng ở các nhóm và sàn: ${escape(exclusions.length)}.</p><ul>${exclusions.map(row => `<li><code>${escape(row.reason)}</code> ${mark(row.source)}</li>`).join('')}</ul></details>`;
   if (owner) {
     // The section explanation already says whether peers were chosen; the body gives the rule in plain words, without tie-break or identity-order notes.
-    const rule = `<p>Cách chọn đối thủ mặc định, chốt trước khi đọc doanh số: chọn sản phẩm theo doanh thu giảm dần trong cùng nhóm, cùng sàn cho tới khi đạt ít nhất ${escape(snapshot.input.rule.thresholdPercent)} phần trăm doanh thu của nhóm trong mẫu.</p>`;
+    const rule = `<p>Cách chọn đối thủ mặc định, chốt trước khi đọc doanh số: chọn đối thủ theo doanh thu giảm dần trong cùng nhóm, cùng sàn cho tới khi đạt tối thiểu ${escape(snapshot.input.rule.thresholdPercent)} phần trăm doanh thu của nhóm trong mẫu.</p>`;
     const empty = owner.rankingShown ? '<p>Hình dưới chỉ liệt kê sản phẩm có doanh thu cao trong mẫu, chưa phải đối thủ đã chọn.</p>' : '';
     const ownerAdditions = snapshot.input.ownerAdditions.length
       ? `<h3>Đối thủ do chủ bổ sung, giữ riêng</h3>${additions}<p>Phần bổ sung không thay đổi cách chọn mặc định.</p>` : '<p>Chưa có đối thủ do chủ bổ sung.</p>';
@@ -1080,8 +1085,8 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   const sampleDays = samplePeriod ? Math.round((Date.parse(samplePeriod.end) - Date.parse(samplePeriod.start)) / 86_400_000) + 1 : 0;
   const periodRows = !marketPresentation ? `<dt>Kỳ báo cáo yêu cầu</dt><dd>${escape(period)}</dd>`
     : `<dt>Kỳ số liệu bán hàng</dt><dd>${samplePeriod ? `Mẫu ${sampleDays} ngày, từ ${escape(readerDay(samplePeriod.start))} đến ${escape(readerDay(samplePeriod.end))}`
-      : `Chưa có số liệu bán hàng; kỳ đã yêu cầu từ ${escape(readerDay(requested.startDate))} đến ${escape(readerDay(requested.endDate))}`}</dd>${input.descriptiveMethods
-      ? `<dt>Diễn biến từng sản phẩm</dt><dd>Theo từng kỳ trong khoảng từ ${escape(readerDay(requested.startDate))} đến ${escape(readerDay(requested.endDate))}</dd>` : ''}`;
+      : 'Chưa có kỳ số liệu bán hàng hợp lệ'}</dd>${input.descriptiveMethods
+      ? `<dt>Diễn biến từng sản phẩm</dt><dd>Theo từng kỳ trong khoảng từ ${escape(readerDay(requested.startDate ?? 'chưa rõ ngày'))} đến ${escape(readerDay(requested.endDate ?? 'chưa rõ ngày'))}</dd>` : ''}`;
   const periodWarning = marketPresentation ? 'Mỗi nguồn chỉ có số trong kỳ của nguồn đó; không kéo dài hay chia tỷ lệ cho khớp kỳ khác.'
     : 'Kỳ yêu cầu không chứng minh mọi nguồn có đủ dữ liệu trong kỳ này.';
   const scope = `<dl><dt>Thị trường</dt><dd>Việt Nam</dd><dt>Định nghĩa đã xác nhận</dt><dd>${storedLiteral(input.scope.definition, 'Định nghĩa được giữ trong bản lưu')}</dd>${periodRows}<dt>Điều kiện bao gồm</dt><dd>${storedLiteral(input.scope.includeTerms.join(', ') || 'Không thêm điều kiện', 'Điều kiện được giữ trong bản lưu')}</dd><dt>Điều kiện loại trừ</dt><dd>${storedLiteral(input.scope.excludeTerms.join(', ') || 'Không thêm điều kiện', 'Điều kiện được giữ trong bản lưu')}</dd></dl><p class="warning">Điều kiện trên là ý định nghiên cứu đã lưu. Chưa xác nhận các truy vấn nguồn áp dụng đầy đủ điều kiện này. ${input.metricClassified ? (readerPlainText ? 'Mẫu số liệu thị trường đã được phân loại theo phạm vi toàn bộ mẫu, phạm vi rộng và phạm vi cốt lõi theo quy tắc và biên nhận được chốt; không suy rộng phân loại đó sang nguồn khác.' : 'Mẫu số liệu thị trường đã được phân loại CORE/WIDE theo quy tắc và biên nhận được chốt; không suy rộng phân loại đó sang nguồn khác.') : (readerPlainText ? 'Chưa phân loại phạm vi.' : 'Chưa phân loại CORE/WIDE.')} ${periodWarning} Kết quả tìm kiếm hiện tại và danh sách top sản phẩm không phải tổng doanh số thị trường.</p>`;

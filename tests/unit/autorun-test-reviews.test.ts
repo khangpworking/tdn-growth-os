@@ -158,9 +158,9 @@ test('collector cap drift cannot dispatch a production collection through trial 
 test('frozen default report digests from the base commit remain unchanged (Market and Insight)', async () => {
   const input = await fullMarket14Input();
   const market = buildResearchAutomationReport(input, 'MARKET');
-  // Reader and trace bytes re-pinned for the intended Market reader inventory/peer wording and descriptive reader copy (M05/M06/M07/M09) and the plain owner copy for periods, peers and ads.
-  assert.equal(digest(market.html), '9bf2e3bbb9014b35f197b73017283d2c8df6cc59de82613e938864911ab3a113');
-  // Re-pinned from the 30f35dfe base for the owner section title (Cơ cấu trong mẫu) and plain M07/M10/M21 explanations.
+  // Reader and trace bytes re-pinned for the intended Market reader inventory/peer wording and descriptive reader copy (M05/M06/M07/M09) and the plain owner copy for periods, peers and ads. Reader dates/terms are localized while source quotes stay verbatim.
+  assert.equal(digest(market.html), 'a8ac68071df052f91dfc66514bfc94668909406c2401377f519e79a7b67dedcb');
+  // Against 21d0909a this fixture changes only M04.title and M10/M11/M12.explanation; it has no default-peer rule to exercise M07.
   assert.equal(digest(canonicalJson(market.semantic)), '2042d54826e7119eeab3c27a93869640ca169761e3b30e45f8c09348a57af312');
   assert.equal(digest(market.traceHtml!), 'cadf1054e5a0cc8b2446e3303c49da513572501c6f45d14ffdc4659424996a83');
   const insight = buildResearchAutomationReport(input, 'INSIGHT');

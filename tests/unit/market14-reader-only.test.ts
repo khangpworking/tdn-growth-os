@@ -100,6 +100,24 @@ test('reader wording drops the doubled product word and the English "section", a
   assert.match(reader, /<footer>bằng 0<\/footer>/u, 'the footer is written by its own builder, outside the reader pass');
 });
 
+test('reader dates and terms are localized while source quotes, code and attributes retain their bytes', () => {
+  const source = '<q>review 2026-08-17 bằng 0</q><blockquote><p>listing 2026-08-17</p></blockquote>'
+    + '<span data-quote><b>review</b> 2026-08-17</span><code>listing_2026-08-17</code>';
+  const html = `<div id="sections"><section class="sheet" id="M02"><p>Kỳ 2026-08-17 đến 2026-09-15; thu 2026-09-16T00:00:00Z.</p>`
+    + `<p>Ngày review; danh sách top sản phẩm.</p><p>2026-08-17.xlsx; source-2026-08-17</p>${source}<a href="https://example.test/2026-08-17">Nguồn</a></section></div><footer>2026-08-17</footer>`;
+  const reader = deliverMarketReader(html);
+  assert.match(reader, /Kỳ 17\/08\/2026 đến 15\/09\/2026; thu 16\/09\/2026 00:00:00 UTC\./u);
+  assert.match(reader, /Ngày đánh giá; danh sách sản phẩm doanh thu cao\./u);
+  assert.ok(reader.includes(source));
+  assert.match(reader, /2026-08-17\.xlsx; source-2026-08-17/u);
+  assert.match(reader, /href="https:\/\/example.test\/2026-08-17"/u);
+  assert.match(reader, /<footer>2026-08-17<\/footer>/u);
+  const glossary = '<table data-glossary="true"><tbody><tr><td>review</td><td>đánh giá</td></tr><tr><td>export</td><td>tệp dữ liệu</td></tr></tbody></table>';
+  const withGlossary = deliverMarketReader(html.replace('</section>', `${glossary}</section>`));
+  assert.match(withGlossary, /<td>review<\/td><td>đánh giá<\/td>/u, 'a term still used by a verbatim quote retains its definition');
+  assert.doesNotMatch(withGlossary, /<td>export<\/td>/u, 'an unused English term has no glossary entry');
+});
+
 test('full synthetic market14 report is delivered as a reader copy with notes and interpretations; the trace keeps the rest', async () => {
   const input = await fullMarket14Input();
   const built = buildResearchAutomationReport(input, 'MARKET');
@@ -119,6 +137,10 @@ test('full synthetic market14 report is delivered as a reader copy with notes an
   }
   assert.equal(doc.querySelectorAll('td .interp, th .interp, caption .interp, td .lim, th .lim, caption .lim').length, 0);
   assert.doesNotMatch(visible(body), /\blisting\b|search events/iu);
+  const prose = doc.cloneNode(true) as Document;
+  prose.querySelectorAll('style, script, svg, q, blockquote, code, pre, [data-quote]').forEach(node => node.remove());
+  assert.doesNotMatch(prose.body.textContent!, /\d{4}-\d{2}-\d{2}|\breview\b|\bexport\b|peer set|danh sách top sản phẩm/u);
+  assert.match(prose.body.textContent!, /tỉnh thiếu số để trống, không thay bằng số không/u);
   assert.match(visible(sections.get('M05')!), /từ 05\/10\/2025 đến 27\/09\/2026/u);
   // A7: no draft framing in the sections; M12 keeps its own approval label.
   const outsideM12 = [...sections].filter(([id]) => id !== 'M12').map(([, inner]) => visible(inner)).join(' ');

@@ -61,7 +61,7 @@ test('World Bank documents without source precision/name preserve pinned HTML by
   // (M05/M06/M07/M09) and the plain owner copy for periods, peers and ads; no World Bank bytes change, and legacy pins stay separate.
   const hash = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
   assert.equal(hash((await reader({ worldBank: fullWorldBank() }, false)).html), 'f7670c24d51634d3feb8dfdae3577cce691c3b7ea062a78981c582f7fc8da078');
-  assert.equal(hash(buildResearchAutomationReport(await fullMarket14Input(), 'MARKET').html), '9bf2e3bbb9014b35f197b73017283d2c8df6cc59de82613e938864911ab3a113');
+  assert.equal(hash(buildResearchAutomationReport(await fullMarket14Input(), 'MARKET').html), 'a8ac68071df052f91dfc66514bfc94668909406c2401377f519e79a7b67dedcb');
 });
 
 test('v2 reader: World Bank lines are Hình 5.3/5.4 after Bảng 5.3 and Comtrade bars are Hình 6.1/6.2 after Bảng 6.2, all Flint', async () => {
