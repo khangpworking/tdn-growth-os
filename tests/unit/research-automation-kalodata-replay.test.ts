@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 import {
   assertKalodataReplayNotProduction, assertKalodataReplayScope, buildKalodataReplayIndex, createKalodataReplayTransport,
@@ -70,6 +73,20 @@ test('a later recent window is remapped to the stored one (rank first, then deta
   assert.deepEqual(calls, []);
 });
 
+test('collection cannot reuse a recent-window remap after the quick-search balance boundary', async () => {
+  const { calls, transport } = innerTransport();
+  const replay = createKalodataReplayTransport(transport, async () => index());
+  const recent = '2026-08-01~2026-08-30';
+  await replay.fetch(`${HOST}/openapi/v1/tiktok/product/rank`, post({ ...COMMON, keyword: 'thermos', date_range: recent, page_number: 1 }));
+  const detail = { ...COMMON, product_id: '101', date_range: recent, need_image: 1, need_extra: false };
+  assert.equal((await json(await replay.fetch(`${HOST}/openapi/v1/tiktok/product/detail`, post(detail)))).success, true);
+  await replay.fetch(`${HOST}/openapi/v1/credit/balance`);
+  assert.equal((await json(await replay.fetch(`${HOST}/openapi/v1/tiktok/product/detail`, post(detail)))).code, 'KALODATA_REPLAY_MISS',
+    'a missing exact collection window must not use a different historical recent window');
+  assert.equal((await json(await replay.fetch(`${HOST}/openapi/v1/tiktok/product/detail`, post(storedYear.requestParameters)))).success, true);
+  assert.deepEqual(calls, []);
+});
+
 test('no match fails closed with KALODATA_REPLAY_MISS and never calls the inner transport', async () => {
   const { calls, transport } = innerTransport();
   const replay = createKalodataReplayTransport(transport, async () => index());
@@ -101,6 +118,38 @@ test('other hosts pass through untouched', async () => {
   assert.equal(replay.stats.passedThrough, 1);
 });
 
+test('DNS absolute hostnames cannot escape replay; unknown request identities miss', async () => {
+  const { calls, transport } = innerTransport();
+  const replay = createKalodataReplayTransport(transport, async () => index());
+  for (const host of ['www.kalodata.com.', 'kalodata.com.', 'unknown.kalodata.com.', 'WWW.KALODATA.COM.']) {
+    assert.equal((await json(await replay.fetch(`https://${host}/openapi/v1/credit/balance`))).code, 'KALODATA_REPLAY_MISS');
+  }
+  for (const suffix of ['?unmatched=1', '']) {
+    const request = new Request(`${HOST}/openapi/v1/credit/balance${suffix}`, { method: 'POST' });
+    assert.equal((await json(await replay.fetch(request))).code, 'KALODATA_REPLAY_MISS', 'Request method must not default to GET');
+  }
+  for (const date_range of [undefined, null, 'invalid']) {
+    const response = await replay.fetch(`${HOST}/openapi/v1/tiktok/product/rank`, post({ ...COMMON, keyword: 'thermos', page_number: 1, date_range }));
+    assert.equal((await json(response)).code, 'KALODATA_REPLAY_MISS');
+  }
+  const request = new Request(`${HOST}/openapi/v1/tiktok/product/detail`, post(storedYear.requestParameters));
+  assert.equal(((await json(await replay.fetch(request))).data as { revenue: number }).revenue, 9);
+  assert.equal(request.bodyUsed, false, 'matching does not consume the caller Request');
+  assert.deepEqual(calls, []);
+});
+
+test('pass-through preserves the exact Request, init, response, clock and sleep', async () => {
+  const request = new Request('https://example.test/search?q=x');
+  const init = { headers: { 'x-test': 'unchanged' }, signal: new AbortController().signal };
+  const response = new Response('synthetic');
+  const inner: ProviderTransport = { now: () => 1, sleep: async () => {}, fetch: async (input, options) => {
+    assert.equal(input, request); assert.equal(options, init); return response;
+  } };
+  const replay = createKalodataReplayTransport(inner, async () => { throw new Error('must not load'); });
+  assert.equal(await replay.fetch(request, init), response);
+  assert.equal(replay.now, inner.now); assert.equal(replay.sleep, inner.sleep);
+});
+
 test('env flag: unset/empty = off, a UUID = on, anything else refused', () => {
   assert.equal(kalodataReplaySourceRunIdFromEnvironment({}), undefined);
   assert.equal(kalodataReplaySourceRunIdFromEnvironment({ [KALODATA_REPLAY_ENV]: '' }), undefined);
@@ -114,6 +163,26 @@ test('production port and state paths are refused', () => {
   assert.throws(() => assertKalodataReplayNotProduction({ ...safe, port: 8787 }), /KALODATA_REPLAY_REFUSED/);
   assert.throws(() => assertKalodataReplayNotProduction({ ...safe, databasePath: '/home/u/.local/state/tdn-growth-os/operator-dev-8787-ab099f3/tdn-growth-os-dev.sqlite' }), /KALODATA_REPLAY_REFUSED/);
   assert.throws(() => assertKalodataReplayNotProduction({ ...safe, artifactRoot: 'C:\\x\\operator-dev-8787-ab099f3\\artifacts' }), /KALODATA_REPLAY_REFUSED/);
+});
+
+test('production paths cannot hide behind relative paths or symlinked ancestors', t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tdn-replay-paths-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const production = path.join(root, 'operator-dev-8787-ab099f3');
+  fs.mkdirSync(production);
+  fs.writeFileSync(path.join(production, 'db.sqlite'), 'synthetic');
+  fs.mkdirSync(path.join(production, 'artifacts'));
+  fs.symlinkSync(production, path.join(root, 'alias'), 'dir');
+  fs.symlinkSync(path.join(production, 'db.sqlite'), path.join(root, 'alias.sqlite'));
+  const safe = { databasePath: path.join(root, 'test.sqlite'), artifactRoot: path.join(root, 'test-artifacts'), port: 8797 };
+  for (const databasePath of [path.join(root, 'alias.sqlite'), path.relative(process.cwd(), path.join(root, 'alias', 'db.sqlite'))]) {
+    assert.throws(() => assertKalodataReplayNotProduction({ ...safe, databasePath }), /KALODATA_REPLAY_REFUSED/);
+  }
+  for (const artifactRoot of [path.join(root, 'alias', 'artifacts'), path.join(root, 'alias', 'new', 'nested')]) {
+    assert.throws(() => assertKalodataReplayNotProduction({ ...safe, artifactRoot }), /KALODATA_REPLAY_REFUSED/);
+  }
+  fs.symlinkSync(path.join(root, 'missing'), path.join(root, 'dangling'), 'dir');
+  assert.throws(() => assertKalodataReplayNotProduction({ ...safe, artifactRoot: path.join(root, 'dangling', 'new') }), /KALODATA_REPLAY_REFUSED/);
 });
 
 test('scope must equal the source run keyword and period', () => {
@@ -152,5 +221,17 @@ test('operator app: the flag reaches the configuration and unsafe replay starts 
     { ...on, TDN_WORKSPACE_DB: '/home/u/.local/state/tdn-growth-os/operator-dev-8787-ab099f3/tdn-growth-os-dev.sqlite' }]) {
     assert.throws(() => openOperatorApp(operatorAppConfigurationFromEnvironment(env, defaults)), /KALODATA_REPLAY_REFUSED/);
   }
+  const production = path.join(root, 'operator-dev-8787-ab099f3');
+  fs.mkdirSync(production);
+  fs.writeFileSync(path.join(production, 'db.sqlite'), 'synthetic, must never be opened');
+  fs.symlinkSync(production, path.join(root, 'alias'), 'dir');
+  for (const env of [
+    { ...on, TDN_WORKSPACE_DB: path.relative(process.cwd(), path.join(root, 'alias', 'db.sqlite')) },
+    { ...on, TDN_ARTIFACT_ROOT: path.join(root, 'alias', 'new-artifacts') },
+  ]) assert.throws(() => openOperatorApp(operatorAppConfigurationFromEnvironment(env, defaults)), /KALODATA_REPLAY_REFUSED/);
+  assert.deepEqual(fs.readdirSync(production), ['db.sqlite'], 'no lock, artifacts or DB sidecars created');
+  const { openResearchAutomationApi } = await import('../../src/api/research-automation-api.js');
+  assert.throws(() => openResearchAutomationApi({ databasePath: base.TDN_WORKSPACE_DB, artifactRoot: base.TDN_ARTIFACT_ROOT,
+    origin: 'http://127.0.0.1:8797', kalodataReplaySourceRunId: on[KALODATA_REPLAY_ENV] }), /KALODATA_REPLAY_REFUSED/);
   fs.rmSync(root, { recursive: true, force: true });
 });

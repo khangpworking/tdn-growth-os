@@ -15,12 +15,11 @@
 #   --env-file FILE       read non-secret settings from this file (KEY=VALUE lines) instead of the 8787 process
 #   --port N              test port, default 8797 (8787 is refused)
 #   --node-bin DIR        node 24 bin dir; default $HOME/.nanobot/workspace/.toolchains/node-v24.15.0-linux-x64/bin
-#   --copy-artifacts      full copy instead of hard links (default: hard links when on the same filesystem)
-#   --allow-queued        start even if the copied DB has queued/running runs or attempts (the test worker would run them)
+#   --copy-artifacts      accepted for compatibility; artifacts are always independent copies
 #
 # Assumptions (decided, see docs/runbooks/fedora-local-operator-runtime.md "Kalodata replay test instance"):
-#   * The production state dir is only READ: online SQLite backup + hard-linked (or copied) artifacts.
-#     The artifact store writes new files via temp file + rename, so a hard link is never modified in place.
+#   * The production state dir is only READ: online SQLite backup + independent artifact copies.
+#     No destination file or symlink shares a writable production target.
 #   * Settings for other providers (SerpApi, CLIProxy, flags) are inherited from the running 8787
 #     process so they behave as in production. Never inherited: the Kalodata key, the OWNER token,
 #     DB/artifact/port/host settings, R2 mirroring. Paths that point into the production state dir
@@ -28,11 +27,12 @@
 #   * OWNER access uses the local-test mode (TDN_OWNER_API_LOCAL_TEST=true) on 127.0.0.1 only.
 #   * Paid non-sales-data providers (SerpApi, Apify, model calls) still spend as normal.
 set -euo pipefail
+umask 077
 
 die() { printf 'replay-test-instance: %s\n' "$*" >&2; exit 1; }
 
 PROD_STATE_SEGMENT='operator-dev-8787-ab099f3'
-CHECKOUT='' SOURCE_RUN='' ENV_FILE='' PORT=8797 COPY_ARTIFACTS=0 ALLOW_QUEUED=0
+CHECKOUT='' SOURCE_RUN='' ENV_FILE='' PORT=8797
 PROD_DB="$HOME/.local/state/tdn-growth-os/$PROD_STATE_SEGMENT/tdn-growth-os-dev.sqlite"
 PROD_ARTIFACTS=''
 NODE_BIN="$HOME/.nanobot/workspace/.toolchains/node-v24.15.0-linux-x64/bin"
@@ -46,8 +46,7 @@ while [ $# -gt 0 ]; do
     --env-file) ENV_FILE="$2"; shift 2 ;;
     --port) PORT="$2"; shift 2 ;;
     --node-bin) NODE_BIN="$2"; shift 2 ;;
-    --copy-artifacts) COPY_ARTIFACTS=1; shift ;;
-    --allow-queued) ALLOW_QUEUED=1; shift ;;
+    --copy-artifacts) shift ;;
     -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
     *) die "unknown argument: $1" ;;
   esac
@@ -58,6 +57,7 @@ done
 [[ "$SOURCE_RUN" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]] || die '--source-run must be a run UUID'
 [[ "$PORT" =~ ^[1-9][0-9]{0,4}$ ]] || die '--port must be an integer'
 [ "$PORT" != 8787 ] || die 'port 8787 is production; refused'
+[ "$PORT" -le 65535 ] || die '--port must be at most 65535'
 CHECKOUT="$(cd "$CHECKOUT" && pwd)"
 [ -f "$CHECKOUT/src/modules/analysis/research-automation/kalodata-replay.ts" ] || die 'checkout has no replay mode (kalodata-replay.ts missing)'
 [ -d "$CHECKOUT/node_modules" ] || die 'checkout has no node_modules (run npm ci there first)'
@@ -87,9 +87,12 @@ ACTOR_ID="$(prod_value TDN_OWNER_API_ACTOR_ID)"
 [ -n "$ACTOR_ID" ] || ACTOR_ID='owner:replay-test'
 
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
-DIR="/tmp/tdn-replay/$STAMP"
-case "$DIR" in *"$PROD_STATE_SEGMENT"*) die 'test dir resolves into the production state dir' ;; esac
-mkdir -p "$DIR"; chmod 700 /tmp/tdn-replay "$DIR"
+# Never reuse a timestamp directory or follow a pre-existing link into production.
+if [ ! -e /tmp/tdn-replay ] && [ ! -L /tmp/tdn-replay ]; then mkdir -m 700 /tmp/tdn-replay; fi
+[ ! -L /tmp/tdn-replay ] && [ -d /tmp/tdn-replay ] || die 'unsafe replay parent'
+[ "$(realpath /tmp/tdn-replay)" = /tmp/tdn-replay ] || die 'replay parent must be canonical'
+[ "$(stat -c %u /tmp/tdn-replay)" = "$(id -u)" ] && [ "$(stat -c %a /tmp/tdn-replay)" = 700 ] || die 'replay parent must be owner-only'
+DIR="$(mktemp -d "/tmp/tdn-replay/$STAMP.XXXXXX")"
 DB="$DIR/tdn-growth-os-replay.sqlite"
 ART="$DIR/artifacts"
 
@@ -103,13 +106,10 @@ echo "== online backup of the production database (read only) -> $DB"
 chmod 600 "$DB"
 
 echo "== artifacts -> $ART"
-if [ "$COPY_ARTIFACTS" = 0 ] && [ "$(stat -c %d "$PROD_ARTIFACTS")" = "$(stat -c %d /tmp/tdn-replay)" ]; then
-  cp -al "$PROD_ARTIFACTS" "$ART"
-  echo "   hard links (same filesystem; new files are written by rename, so production files are never modified)"
-else
-  cp -a "$PROD_ARTIFACTS" "$ART"
-  echo "   full copy"
-fi
+# Dereference source links into independent files. Reflinks are copy-on-write;
+# unlike hard links, even an in-place destination write cannot modify production.
+mkdir "$ART"
+cp -aL --reflink=auto "$PROD_ARTIFACTS/." "$ART/"
 
 echo "== migrate the copy (no-op unless the checkout adds migrations)"
 (cd "$CHECKOUT" && npm run --silent db:migrate -- "$DB")
@@ -117,7 +117,7 @@ echo "== migrate the copy (no-op unless the checkout adds migrations)"
 echo "== check the copy: source run + no queued work the test worker would pick up"
 (cd "$CHECKOUT" && node -e '
   const Database = require("better-sqlite3");
-  const [file, runId, allow] = process.argv.slice(1);
+  const [file, runId] = process.argv.slice(1);
   const db = new Database(file, { readonly: true, fileMustExist: true });
   const run = db.prepare("SELECT status FROM analysis_research_automation_runs WHERE run_id=?").get(runId);
   if (!run) { console.error("source run not found in the copy"); process.exit(1); }
@@ -125,17 +125,20 @@ echo "== check the copy: source run + no queued work the test worker would pick 
   if (n < 1) { console.error("source run has no stored sales-data captures"); process.exit(1); }
   console.log("   source run status=" + run.status + " sales-data captures=" + n);
   // The copied worker would resume these with live non-sales-data providers (paid calls).
-  const runs = db.prepare("SELECT COUNT(*) n FROM analysis_research_automation_runs WHERE status IN (?,?,?,?,?)")
-    .get("QUICK_SEARCH_QUEUED", "QUICK_SEARCH_RUNNING", "COLLECTION_QUEUED", "COLLECTING", "RENDERING").n;
+  const runs = db.prepare("SELECT COUNT(*) n FROM analysis_research_automation_runs WHERE status IN (?,?,?,?,?,?)")
+    .get("QUICK_SEARCH_QUEUED", "QUICK_SEARCH_RUNNING", "COLLECTION_QUEUED", "COLLECTING", "RENDERING", "CANCELLING").n;
   const attempts = db.prepare("SELECT COUNT(*) n FROM analysis_research_automation_attempts WHERE state IN (?,?)").get("QUEUED", "RUNNING").n;
+  const autoruns = db.prepare("SELECT COUNT(*) n FROM research_automation_autorun WHERE phase NOT IN (?,?) AND phase_state IN (?,?)")
+    .get("DONE", "STOPPED", "QUEUED", "RUNNING").n;
   db.close();
-  if ((runs > 0 || attempts > 0) && allow !== "1") { console.error("copy has queued/running work (runs=" + runs + ", attempts=" + attempts + "); the test worker would run it. Re-run later or pass --allow-queued"); process.exit(1); }
-' "$DB" "$SOURCE_RUN" "$ALLOW_QUEUED")
+  if (runs > 0 || attempts > 0 || autoruns > 0) { console.error("copy has queued/running work (runs=" + runs + ", attempts=" + attempts + ", autoruns=" + autoruns + "); refused. Re-run after the source queues are idle."); process.exit(1); }
+' "$DB" "$SOURCE_RUN")
 
 # Child environment: start from an empty TDN_* set, add safe inherited settings, then the test-only ones.
 CHILD_ENV=()
 while IFS= read -r line; do
   key="${line%%=*}"; value="${line#*=}"
+  [[ "$key" =~ ^TDN_[A-Z0-9_]+$ ]] || continue
   case "$key" in
     TDN_KALODATA_SECRET_KEY|TDN_OWNER_API_TOKEN|TDN_WORKSPACE_DB|TDN_ARTIFACT_ROOT|TDN_OPERATOR_APP_PORT|TDN_OPERATOR_APP_HOST|\
     TDN_OWNER_API_ENABLED|TDN_OWNER_API_LOCAL_TEST|TDN_OWNER_API_ACTOR_ID|TDN_R2_*|TDN_RESEARCH_KALODATA_REPLAY_SOURCE_RUN_ID) continue ;;
@@ -197,5 +200,5 @@ Then confirm the scope in the UI and pick the SAME products as the source run; a
 stored data shows "Bản chạy thử: không có dữ liệu bán hàng đã lưu ..." (KALODATA_REPLAY_MISS).
 
 Stop:   kill \$(cat '$DIR/server.pid')
-Clean:  rm -rf '$DIR'   (hard links: removing them never touches production files)
+Clean:  rm -rf '$DIR'
 EOF_DONE

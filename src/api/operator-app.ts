@@ -450,7 +450,7 @@ function validateConfiguration(configuration: OperatorAppConfiguration): StaticF
   if (configuration.researchMarketCoverAi !== undefined && (configuration.researchMarketCoverAi !== true || !configuration.cliproxy || !configuration.ownerWritesEnabled)) throw new TypeError('TDN_RESEARCH_COVER_AI_ENABLED requires CLIProxy and OWNER writes to be enabled');
   if (configuration.researchKalodataReplaySourceRunId !== undefined) {
     if (!configuration.ownerWritesEnabled) throw new KalodataReplayRefusedError(`${KALODATA_REPLAY_REFUSED}: replay mode requires OWNER writes`);
-    assertKalodataReplayNotProduction({ databasePath: path.resolve(configuration.databasePath), artifactRoot: path.resolve(configuration.artifactRoot), port: configuration.port });
+    assertKalodataReplayNotProduction({ databasePath: configuration.databasePath, artifactRoot: configuration.artifactRoot, port: configuration.port });
   }
   return preloadFrontend(configuration.frontendDist);
 }

@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
+import { syncBuiltinESMExports } from 'node:module';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -34,7 +36,8 @@ function fakeKalodata(counts: Counts, now: () => Date): ProviderTransport {
     fetch: (async (input, init) => {
       const url = new URL(String(input));
       let payload: unknown;
-      if (url.pathname.endsWith('/credit/balance')) { counts.balance += 1; payload = { success: true, data: { totalRemain: 100 } }; }
+      if (url.hostname === 'serpapi.com') { counts.other += 1; payload = { organic_results: [] }; }
+      else if (url.pathname.endsWith('/credit/balance')) { counts.balance += 1; payload = { success: true, data: { totalRemain: 100 } }; }
       else if (url.pathname.endsWith('/product/rank')) {
         counts.rank += 1;
         payload = { success: true, data: [{ product_id: '101', product_name: 'Synthetic thermos', unit_price: 120000 }] };
@@ -51,7 +54,8 @@ function fakeKalodata(counts: Counts, now: () => Date): ProviderTransport {
 
 async function runMarket(db: BetterSqlite3.Database, artifacts: ContentAddressedArtifactStore, options: {
   workspaceId: string; runId: string; now: () => Date; transport: ProviderTransport; key: string;
-  replay?: ReturnType<typeof readKalodataReplaySource>; keyword?: string; selected?: string; renderer?: boolean;
+  replay?: ReturnType<typeof readKalodataReplaySource>; keyword?: string; selected?: string; renderer?: boolean; web?: boolean;
+  requestedPeriod?: { readonly startDate: string; readonly endDate: string };
 }) {
   const provider = createResearchAutomationProviderRegistry({ kalodataSecretKey: options.key, serpApiKey: null, apifyTokenConfigured: false }, options.transport).get('KALODATA');
   const discovery = new DiscoveryWorkspaceService({ db, artifactStore: artifacts, uuid: () => options.workspaceId, now: options.now });
@@ -60,6 +64,8 @@ async function runMarket(db: BetterSqlite3.Database, artifacts: ContentAddressed
   const service = new ResearchAutomationService({
     db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discovery),
     source: bindResearchAutomationProvider(provider), now: options.now, ...(options.replay ? { kalodataReplay: options.replay } : {}),
+    ...(options.web ? { webSource: bindResearchAutomationProvider(createResearchAutomationProviderRegistry({ kalodataSecretKey: null,
+      serpApiKey: 'synthetic-web-key', apifyTokenConfigured: false }, options.transport).get('SERPAPI')) } : {}),
     // Same shape as the API renderer: the report builder output, no PDF configured.
     ...(options.renderer ? { renderer: async (input: Parameters<typeof buildResearchAutomationReport>[0], kind: 'MARKET' | 'INSIGHT') => ({ ...buildResearchAutomationReport(input, kind), pdfUnavailableCode: 'PDF_RENDERER_NOT_CONFIGURED' as const }) } : {}),
     uuid: () => nextUuid++ === 0 ? options.runId : `99999999-9999-4999-8999-${options.runId.slice(-4)}${String(nextUuid).padStart(8, '0')}`,
@@ -67,7 +73,7 @@ async function runMarket(db: BetterSqlite3.Database, artifacts: ContentAddressed
   const drain = async () => { for (let step = 0; step < 40 && await service.processNext(); step += 1) { /* drain */ } };
   await service.start(options.workspaceId, {
     contractVersion: 'research-automation-start-v1', requestKey: `33333333-3333-4333-8333-33333333${options.runId.slice(-4)}`,
-    mode: 'PRODUCT', keyword: options.keyword ?? 'thermos', requestedPeriod: period, reports: ['MARKET'],
+    mode: 'PRODUCT', keyword: options.keyword ?? 'thermos', requestedPeriod: options.requestedPeriod ?? period, reports: ['MARKET'],
   });
   await drain();
   const awaiting = await service.getRun(options.workspaceId, options.runId);
@@ -148,6 +154,37 @@ test('a run with a different keyword is refused before any work', async t => {
   assert.equal(transport.stats.replayed + transport.stats.missed, 0);
 });
 
+test('a period mismatch is refused before a run or provider work is created', async t => {
+  const { db, artifacts } = await fixture(t);
+  const replay = readKalodataReplaySource(db, sourceRunId);
+  const inner: Counts = { balance: 0, rank: 0, detail: 0, other: 0 };
+  const transport = createKalodataReplayTransport(fakeKalodata(inner, replayNow), () => loadKalodataReplayIndex(db, artifacts, sourceRunId));
+  await assert.rejects(runMarket(db, artifacts, { workspaceId: replayWorkspace, runId: replayRunId, now: replayNow, transport,
+    key: KALODATA_REPLAY_PLACEHOLDER_KEY, replay, requestedPeriod: { ...period, endDate: '2026-08-28' } }), KalodataReplayScopeMismatchError);
+  assert.equal(db.prepare('SELECT 1 FROM analysis_research_automation_runs WHERE run_id=?').get(replayRunId), undefined);
+  assert.deepEqual(inner, { balance: 0, rank: 0, detail: 0, other: 0 });
+  assert.equal(transport.stats.replayed + transport.stats.missed, 0);
+});
+
+test('replay labels only sales-data usage; web provider requests and cost state are preserved', async t => {
+  const { db, artifacts } = await fixture(t);
+  const replay = readKalodataReplaySource(db, sourceRunId);
+  const inner: Counts = { balance: 0, rank: 0, detail: 0, other: 0 };
+  const transport = createKalodataReplayTransport(fakeKalodata(inner, replayNow), () => loadKalodataReplayIndex(db, artifacts, sourceRunId));
+  await runMarket(db, artifacts, { workspaceId: replayWorkspace, runId: replayRunId, now: replayNow, transport,
+    key: KALODATA_REPLAY_PLACEHOLDER_KEY, replay, web: true });
+  assert.equal(inner.balance + inner.rank + inner.detail, 0);
+  assert.ok(inner.other > 0, 'web requests still reach their transport');
+  const rows = usage(db, replayRunId);
+  const web = rows.filter(row => row.provider === 'serpapi');
+  assert.ok(web.length > 0);
+  for (const row of web) {
+    assert.ok(row.n > 0n);
+    assert.deepEqual([row.operation, row.state, row.unit, row.amount], ['provider.run', 'UNKNOWN', null, null]);
+  }
+  assert.ok(rows.filter(row => row.provider === 'kalodata').every(row => row.operation === 'provider.replay' && row.amount === '0'));
+});
+
 test('a product with no stored answer fails closed with KALODATA_REPLAY_MISS and never reaches the live source', async t => {
   const { db, artifacts } = await fixture(t);
   const replay = readKalodataReplaySource(db, sourceRunId);
@@ -176,14 +213,23 @@ test('the report-builder renderer path (as the API wires it) also carries the no
   assert.deepEqual(inner, { balance: 0, rank: 0, detail: 0, other: 0 });
   const html = await outputHtml(db, artifacts, replayRunId);
   assert.ok(html && html.includes(KALODATA_REPLAY_NOTICE_VI));
-  assert.ok(sourceHtml.length + 1 < html.length, 'only the notice is added');
+  assert.equal(html.split('data-test-replay="1"').length - 1, 1, 'exactly one visible notice');
+  const visible = html.replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<[^>]+>/g, ' ');
+  assert.doesNotMatch(visible, /\b(kalodata|metric|tradeint|dami|nvidia|jev)\b/i, 'API renderer text names no provider');
 });
 
-// Flag-off identity: these digests were produced by the same fixture on main e0754a3 (before this change).
+// Flag-off identity: digests from main e0754a3 with the same fixed-UUID fixture.
+// The original renderer golden was nondeterministic because package UUIDs were not fixed.
 const MAIN_E0754A3 = {
-  fallbackHtmlSha256: 'de6bfa2bc1439e19ebf2b7df2d400883a378afab53f91f7014bdc89c585975f3', rendererHtmlSha256: 'f8d4c9df817e11238e4b7e39f4a6bba4762c6aafaddf269d9335b239ece0ee86', usage: 'fcb8b1c018c4684f0d28d3982be7ee2640acaec7f28dfe1fe16f0d0270e1541a', captures: '918b01c1fbd95b2c726f05b3e38c5acf1a89fc3f7c5ba3b3748e1070abaf9f39',
+  fallbackHtmlSha256: 'de6bfa2bc1439e19ebf2b7df2d400883a378afab53f91f7014bdc89c585975f3', rendererHtmlSha256: '6348f67e6d7673aa5d81c03fb008200a806dcf795e3a71b3bf014593b9908040', usage: 'fcb8b1c018c4684f0d28d3982be7ee2640acaec7f28dfe1fe16f0d0270e1541a', captures: '918b01c1fbd95b2c726f05b3e38c5acf1a89fc3f7c5ba3b3748e1070abaf9f39',
 };
 test('flag off: outputs and usage rows are byte-identical to main', async t => {
+  // SourcePackageService creates UUIDs outside the service fixture's injected uuid.
+  // Freeze those too: claim IDs and their display order depend on package identity.
+  let nextPackageUuid = 0;
+  t.mock.method(crypto, 'randomUUID', () => `aaaaaaaa-aaaa-4aaa-8aaa-${String(++nextPackageUuid).padStart(12, '0')}`);
+  syncBuiltinESMExports();
+  t.after(() => { t.mock.restoreAll(); syncBuiltinESMExports(); });
   const { createHash } = await import('node:crypto');
   const digest = (value: string) => createHash('sha256').update(value).digest('hex');
   const plain = await fixture(t);

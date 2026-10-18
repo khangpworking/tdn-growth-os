@@ -106,7 +106,7 @@ import { ResearchAutomationConflictError, ResearchAutomationNotFoundError, Resea
 import { MetricCaptureScopeMismatch } from '../modules/analysis/research-automation/metric-method-bridge.js';
 import { defaultProviderTransport } from '../modules/analysis/research-automation/provider-common.js';
 import { createKalodataReplayTransport, KALODATA_REPLAY_PLACEHOLDER_KEY, KalodataReplayScopeMismatchError, loadKalodataReplayIndex, readKalodataReplaySource,
-  type KalodataReplaySource } from '../modules/analysis/research-automation/kalodata-replay.js';
+  assertKalodataReplayNotProduction, KalodataReplayRefusedError, type KalodataReplaySource } from '../modules/analysis/research-automation/kalodata-replay.js';
 import { assertOwnerHttpConfiguration, EmptyBodyError, ownerAuthorized, PayloadTooLargeError, readOwnerBytes, sendApiJson, singleHeader, type OwnerHttpConfiguration } from './owner-http.js';
 
 export interface ResearchAutomationApiConfiguration {
@@ -317,6 +317,10 @@ export function researchAutomationApiPath(pathname: string): boolean {
 export function openResearchAutomationApi(configuration: ResearchAutomationApiConfiguration, transport?: ProviderTransport): ResearchAutomationApiApplication {
   const origin = new URL(configuration.origin);
   if (origin.origin !== configuration.origin || !['http:', 'https:'].includes(origin.protocol)) throw new TypeError('Automation requires an exact origin');
+  if (configuration.kalodataReplaySourceRunId !== undefined) {
+    if (!configuration.owner) throw new KalodataReplayRefusedError('KALODATA_REPLAY_REFUSED: replay mode requires OWNER writes');
+    assertKalodataReplayNotProduction({ databasePath: configuration.databasePath, artifactRoot: configuration.artifactRoot, port: Number(origin.port) });
+  }
   if (configuration.owner) {
     assertOwnerHttpConfiguration(configuration.owner);
     if (configuration.owner.allowedOrigin !== configuration.origin ||

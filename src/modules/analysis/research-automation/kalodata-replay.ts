@@ -6,6 +6,8 @@
 // without a matching stored capture gets a synthetic `success:false` answer with code
 // KALODATA_REPLAY_MISS. Request bodies and keys are never logged.
 import type BetterSqlite3 from 'better-sqlite3';
+import fs from 'node:fs';
+import path from 'node:path';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import { isRecord, sha256, type ProviderTransport } from './provider-common.js';
 import { ResearchAutomationValidationError } from './model.js';
@@ -53,7 +55,27 @@ export function kalodataReplaySourceRunIdFromEnvironment(environment: NodeJS.Pro
 
 /** Replay mode never runs against the production state directory or port. */
 export function assertKalodataReplayNotProduction(input: { readonly databasePath: string; readonly artifactRoot: string; readonly port: number }): void {
-  const unsafe = (value: string) => value.replace(/\\/g, '/').split('/').includes(PRODUCTION_STATE_SEGMENT);
+  const unsafe = (value: string) => {
+    const containsProduction = (candidate: string) => candidate.replace(/\\/g, '/').toLowerCase().split('/').includes(PRODUCTION_STATE_SEGMENT);
+    if (containsProduction(value)) return true;
+    // The artifact directory may not exist yet. Resolve its nearest existing ancestor,
+    // refusing unreadable/dangling links instead of treating them as safe paths.
+    let current = path.isAbsolute(value) ? value : `${process.cwd()}/${value}`;
+    for (;;) {
+      try { return containsProduction(fs.realpathSync(current)); }
+      catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw new KalodataReplayRefusedError(`${KALODATA_REPLAY_REFUSED}: cannot resolve state path`);
+        try {
+          if (fs.lstatSync(current).isSymbolicLink()) throw new KalodataReplayRefusedError(`${KALODATA_REPLAY_REFUSED}: dangling state link`);
+        } catch (statError) {
+          if ((statError as NodeJS.ErrnoException).code !== 'ENOENT') throw statError;
+        }
+        const parent = path.dirname(current);
+        if (parent === current) throw new KalodataReplayRefusedError(`${KALODATA_REPLAY_REFUSED}: cannot resolve state path`);
+        current = parent;
+      }
+    }
+  };
   if (input.port === PRODUCTION_PORT) throw new KalodataReplayRefusedError(`${KALODATA_REPLAY_REFUSED}: replay mode refuses port ${PRODUCTION_PORT}`);
   if (unsafe(input.databasePath)) throw new KalodataReplayRefusedError(`${KALODATA_REPLAY_REFUSED}: replay mode refuses the production database path`);
   if (unsafe(input.artifactRoot)) throw new KalodataReplayRefusedError(`${KALODATA_REPLAY_REFUSED}: replay mode refuses the production artifact root`);
@@ -169,27 +191,38 @@ export function createKalodataReplayTransport(inner: ProviderTransport, index: (
   stats: KalodataReplayStats = { replayed: 0, missed: 0, passedThrough: 0 }): ProviderTransport & { readonly stats: KalodataReplayStats } {
   // Quick search asks for a recent window relative to "now"; the stored rank used the source run's window.
   // Detail requests for that new window are mapped to the stored one (exact match is tried first).
+  // Balance reads bracket each provider phase: never carry a quick-search mapping into collection.
   const windowRemap = new Map<string, string>();
   let loaded: Promise<KalodataReplayIndex> | undefined;
   const miss = () => { stats.missed++; return answer(200, Buffer.from(JSON.stringify({ success: false, code: KALODATA_REPLAY_MISS, message: 'replay miss' }), 'utf8')); };
   const fetchImpl = async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]): Promise<Response> => {
     const url = new URL(input instanceof Request ? input.url : String(input));
     // Any host of the sales-data domain is replay-only; an unknown one simply misses (fail closed).
-    const salesDomain = url.hostname === 'kalodata.com' || url.hostname.endsWith('.kalodata.com');
+    const hostname = url.hostname.replace(/\.+$/, '');
+    const salesDomain = hostname === 'kalodata.com' || hostname.endsWith('.kalodata.com');
     if (!salesDomain) { stats.passedThrough++; return inner.fetch(input, init); }
-    if (url.hostname !== KALODATA_HOST) return miss();
-    init?.signal?.throwIfAborted();
+    if (url.hostname !== KALODATA_HOST || url.protocol !== 'https:' || url.port || url.username || url.password || url.search) return miss();
+    (init?.signal ?? (input instanceof Request ? input.signal : undefined))?.throwIfAborted();
     let table: KalodataReplayIndex;
     try { table = await (loaded ??= index()); } catch { return miss(); }
-    const method = (init?.method ?? 'GET').toUpperCase();
+    const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase();
     let body: Record<string, unknown> = {};
-    if (typeof init?.body === 'string') {
-      try { const parsed: unknown = JSON.parse(init.body); if (!isRecord(parsed)) return miss(); body = parsed; } catch { return miss(); }
-    } else if (init?.body !== undefined && init.body !== null) return miss();
+    let requestBody = init?.body;
+    if (requestBody == null && input instanceof Request && input.body !== null) {
+      try { requestBody = await input.clone().text(); } catch { return miss(); }
+    }
+    if (typeof requestBody === 'string') {
+      try { const parsed: unknown = JSON.parse(requestBody); if (!isRecord(parsed)) return miss(); body = parsed; } catch { return miss(); }
+    } else if (requestBody !== undefined && requestBody !== null) return miss();
     let found: StoredAnswer | undefined;
-    if (method === 'GET' && url.pathname === '/openapi/v1/credit/balance') found = table.balance ?? undefined;
+    if (method === 'GET' && url.pathname === '/openapi/v1/credit/balance') {
+      if (requestBody != null) return miss();
+      windowRemap.clear();
+      found = table.balance ?? undefined;
+    }
     else if (method === 'POST' && url.pathname === '/openapi/v1/tiktok/product/rank') {
       const { date_range: requested, ...identity } = body;
+      if (typeof requested !== 'string' || !/^\d{4}-\d{2}-\d{2}~\d{4}-\d{2}-\d{2}$/.test(requested)) return miss();
       const stored = table.rank.get(canonicalJson(identity));
       if (stored) {
         found = stored;
