@@ -46,6 +46,25 @@ test('executor accepts exactly one READY adapter row and known benign stderr', a
   assert.equal(result.ok, true);
 });
 
+test('executor accepts the exact OpenCLI update notice printed on a successful exit', async () => {
+  const notice = '\n  Update available: v1.8.8 → v2.0.0\n  Run: npm install -g @jackwener/opencli\n\n'
+    + '\n  Extension update available: v1.0.24 → v1.0.25\n  Download: https://github.com/jackwener/opencli/releases\n\n';
+  const result = await executeMetricOpenCli(input(), deps({ exitCode: 0, stdout: '[{"status":"READY"}]', stderr: `⏳ Starting daemon...\n${notice}` }));
+  assert.equal(result.ok, true);
+});
+
+test('executor still rejects near-miss update notices and extra lines', async () => {
+  for (const stderr of [
+    '\n  Update available: soon\n',
+    '\n  Update available: v1.8.8 → v2.0.0\n  Run: npm install -g other-package\n',
+    '\n  Extension update available: v1.0.24 → v1.0.25\n  Download: https://example.invalid/releases\n',
+    '\n  Update available: v1.8.8 → v2.0.0\n  Run: npm install -g @jackwener/opencli\nunexpected warning\n',
+  ]) {
+    const result = await executeMetricOpenCli(input(), deps({ exitCode: 0, stdout: '[{"status":"READY"}]', stderr }));
+    if (result.ok) assert.fail(`expected fail closed for ${JSON.stringify(stderr)}`); assert.equal(result.code, 'METRIC_UI_CHANGED');
+  }
+});
+
 test('executor maps timeout, hash mismatch and every fail-closed code', async () => {
   const mismatch = await executeMetricOpenCli(input({ expectedAdapterManifestSha256: '0'.repeat(64) }), deps());
   if (mismatch.ok) assert.fail('expected manifest mismatch'); assert.equal(mismatch.code, 'MANIFEST_HASH_MISMATCH');

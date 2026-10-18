@@ -60,6 +60,9 @@ export function metricCaptureEnv(source: Readonly<Record<string, string | undefi
     if (typeof value === 'string' && value !== '') env[key] = value;
   }
   env.OPENCLI_BROWSER_COMMAND_TIMEOUT = METRIC_CAPTURE_BROWSER_COMMAND_TIMEOUT;
+  // OpenCLI reads CI only to skip its background update check and the update
+  // notice it prints to stderr on exit; the capture itself is unaffected.
+  env.CI = '1';
   return env;
 }
 

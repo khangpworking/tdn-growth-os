@@ -72,7 +72,7 @@ test('happy path: no shell, detached, explicit long timeout, allow-listed env, p
   assert.equal(call!.executable, 'opencli-synthetic');
   assert.equal(call!.options.shell, false); assert.equal(call!.options.detached, true);
   assert.deepEqual(call!.argv, ['metric', 'capture', '--spec', join(runDir, 'spec.json'), '--out', join(runDir, 'run1'), '--product-cap', '200', '-f', 'json']);
-  assert.deepEqual(call!.options.env, { PATH: '/usr/bin', HOME: '/home/synthetic', DISPLAY: ':0', OPENCLI_BROWSER_COMMAND_TIMEOUT: '1500' });
+  assert.deepEqual(call!.options.env, { PATH: '/usr/bin', HOME: '/home/synthetic', DISPLAY: ':0', OPENCLI_BROWSER_COMMAND_TIMEOUT: '1500', CI: '1' });
   assert.equal(input!.timeoutMs, METRIC_CAPTURE_TIMEOUT_MS); assert.equal(METRIC_CAPTURE_TIMEOUT_MS, 1_620_000);
   assert.equal(input!.expectedAdapterManifestSha256, sha); assert.equal(input!.adapterManifestPath, '/synthetic/adapter/manifest.json');
   assert.deepEqual(call!.spec, { keywords: ['son môi'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-09-03', endDate: '2026-10-02' }, category: null });
