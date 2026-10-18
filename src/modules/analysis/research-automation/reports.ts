@@ -1065,7 +1065,8 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     if (kind !== 'MARKET' || sectionId !== 'M05' || !searchGeoRenderable(geo)) return '';
     const summary = summarizeSearchGeo(geo.provinces), text = searchGeoText(summary);
     const capture = input.captures.find(item => item.stepId === 'COLLECTION' && item.ordinal === geo.captureIndex);
-    return `<div class="table-wrap"><div class="exh"><span class="exn">Bảng ${SEARCH_GEO_TABLE_NO}</span><span class="ext">${escape(SEARCH_GEO_TABLE_TITLE)}</span></div><table><caption>${escape(SEARCH_GEO_TABLE_TITLE)}</caption>` +
+    // The visible heading already names the table, so the table and its scroll region carry the name as aria-label, not a second caption.
+    return `<div class="table-wrap" role="region" aria-label="${escape(SEARCH_GEO_TABLE_TITLE)}" tabindex="0"><div class="exh"><span class="exn">Bảng ${SEARCH_GEO_TABLE_NO}</span><span class="ext">${escape(SEARCH_GEO_TABLE_TITLE)}</span></div><table aria-label="${escape(SEARCH_GEO_TABLE_TITLE)}">` +
       `<thead><tr>${SEARCH_GEO_HEADERS.map(head => `<th>${escape(head)}</th>`).join('')}</tr></thead><tbody>` +
       summary.regions.map(row => `<tr><td>${escape(row.region)}</td><td>${escape(searchGeoAverageText(row.average))}</td><td>${row.inTop}</td></tr>`).join('') +
       `</tbody></table><p class="lim"><b>Chú thích:</b> ${escape(SEARCH_GEO_NOTE)}</p><p class="ex-src">Nguồn: ${escape(SEARCH_INTEREST_SRC)}${capture ? captureMark(capture, citations) : ''}</p></div>` +
