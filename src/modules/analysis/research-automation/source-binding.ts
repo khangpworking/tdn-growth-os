@@ -9,6 +9,7 @@ import type {
   ResearchAutomationProvider,
 } from './providers.js';
 import type { ResearchAutomationProductCard } from '../../../../contracts/api/research-automation-api.generated.js';
+import { KALODATA_REPLAY_MISS } from './kalodata-replay.js';
 import { MAX_WEB_RESULTS, message, PROVIDER_CREDIT_EXHAUSTED, ResearchAutomationProviderOutputError, type SourceLimitation, type SourceStepId, type StepResultDocument, type StepWebResult, type TypedComparable } from './model.js';
 import type { DateWindow } from './providers.js';
 
@@ -74,7 +75,7 @@ function quickSearchStep(runId: string, result: QuickSearchResult): StepResultDo
     productCards: result.cards.map((card) => toPublicCard(card, result.captures)),
     comparables: [],
     coverage: result.coverage.map(toCoverage),
-    limitations: [...result.limitations.map((code) => limitation(code, result.provider)), ...creditLimitation(result)],
+    limitations: [...result.limitations.map((code) => limitation(code, result.provider)), ...creditLimitation(result), ...replayMissLimitation(result)],
   };
 }
 
@@ -84,9 +85,15 @@ function creditLimitation(result: { readonly provider: string; readonly coverage
     ? [{ code: PROVIDER_CREDIT_EXHAUSTED, provider: result.provider.toLowerCase(), message: message(PROVIDER_CREDIT_EXHAUSTED) }] : [];
 }
 
+/** Replay test instance only: a sales-data request had no stored answer and was never sent live. */
+function replayMissLimitation(result: { readonly provider: string; readonly captures: readonly { readonly outcome: string; readonly providerCode: string | null }[] }): SourceLimitation[] {
+  return result.provider === 'KALODATA' && result.captures.some(capture => capture.outcome === 'PROVIDER_REJECTED' && capture.providerCode === KALODATA_REPLAY_MISS)
+    ? [{ code: KALODATA_REPLAY_MISS, provider: result.provider.toLowerCase(), message: message(KALODATA_REPLAY_MISS) }] : [];
+}
+
 function collectStep(runId: string, result: CollectResult): StepResultDocument {
   const comparables: TypedComparable[] = [];
-  const limitations = [...result.limitations.map((code) => limitation(code, result.provider)), ...creditLimitation(result)];
+  const limitations = [...result.limitations.map((code) => limitation(code, result.provider)), ...creditLimitation(result), ...replayMissLimitation(result)];
   const seen = new Set<string>();
   for (const observation of result.productObservations) {
     const captureIndex = result.captures.findIndex(capture => capture.captureId === observation.captureId);

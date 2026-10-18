@@ -23,6 +23,7 @@ import type { AutomationSourcePort } from '../../src/modules/analysis/research-a
 import { SYNTHETIC_CARD_ID, syntheticProductSource, syntheticWebSource } from '../helpers/research-synthetic-sources.js';
 import { unitPriceFixture } from '../helpers/market-unit-price-fixture.js';
 import { lintVisibleReportText } from '../../src/modules/analysis/report-visible-text-lint.js';
+import { KALODATA_REPLAY_NOTICE_VI } from '../../src/modules/analysis/research-automation/kalodata-replay.js';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
 const runId = '22222222-2222-4222-8222-222222222222';
@@ -413,5 +414,44 @@ test('authenticated HTTP unit-spec intake binds exact source bytes through v1.2 
     assert.equal((await postBuild({ ...envelope, intakeSha256: forgedArtifact.sha256 })).status, 400);
     assert.equal(count(), 1);
     assert.deepEqual(await fs.readdir(path.join(f.root, 'artifacts', '.owner-api-requests')), []);
+  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await api.close(); }
+});
+
+test('replay test instance: served reader pages carry the test notice; stored bytes and flag-off reads are unchanged', async t => {
+  const f = await readyRun(t);
+  const built = await f.service.buildReaderReport(workspaceId, runId, f.build('10000000-0000-4000-8000-000000000961'), owner);
+  const plain = await f.service.readReaderReport(workspaceId, runId, built.revision.revisionId);
+  assert.ok(!plain.bytes.toString('utf8').includes(KALODATA_REPLAY_NOTICE_VI), 'flag off: no notice');
+  const discovery = new DiscoveryWorkspaceService({ db: f.db, artifactStore: f.artifacts, uuid: () => workspaceId, now });
+  const replay = new ResearchAutomationService({ db: f.db, artifactStore: f.artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discovery), now,
+    readerReportFlint: false, kalodataReplay: { sourceRunId: runId, keyword: 'synthetic jar', period: { startDate: '2026-01-01', endDate: '2026-01-30' } } });
+  const served = (await replay.readReaderReport(workspaceId, runId, built.revision.revisionId)).bytes.toString('utf8');
+  assert.equal(served.split('data-test-replay="1"').length - 1, 1, 'exactly one visible notice (the PDF prints these bytes)');
+  assert.ok(served.includes(KALODATA_REPLAY_NOTICE_VI));
+  assert.deepEqual((await f.service.readReaderReport(workspaceId, runId, built.revision.revisionId)).bytes, plain.bytes, 'stored page is untouched');
+});
+
+test('replay test instance over HTTP: the served reader page carries the notice once; the stored page is unchanged', async t => {
+  // The synthetic sales-data source stores real captures on the run, which replay start-up requires.
+  const f = await readyRun(t, undefined, { source: syntheticProductSource() });
+  const built = await f.service.buildReaderReport(workspaceId, runId, f.build('10000000-0000-4000-8000-000000000962'), owner);
+  const stored = (await f.service.readReaderReport(workspaceId, runId, built.revision.revisionId)).bytes;
+  assert.ok(!stored.toString('utf8').includes(KALODATA_REPLAY_NOTICE_VI));
+  const probe = http.createServer(); probe.listen(0, '127.0.0.1'); await once(probe, 'listening');
+  const port = (probe.address() as AddressInfo).port; await new Promise<void>(resolve => probe.close(() => resolve()));
+  const base = `http://127.0.0.1:${port}`;
+  const token = 'synthetic-reader-owner-token-123456-abcdefghijklmnopqrstuvwxyz';
+  const api = openResearchAutomationApi({ databasePath: path.join(f.root, 'test.sqlite'), artifactRoot: path.join(f.root, 'artifacts'), origin: base,
+    providers: { kalodataSecretKey: null, serpApiKey: null, apifyTokenConfigured: false }, kalodataReplaySourceRunId: runId,
+    owner: { writeEnabled: true, databasePath: path.join(f.root, 'test.sqlite'), artifactRoot: path.join(f.root, 'artifacts'), token, allowedOrigin: base, actorId: owner.actorId } });
+  const server = http.createServer(api.handler); server.listen(port, '127.0.0.1'); await once(server, 'listening');
+  try {
+    // The PDF route prints these same page bytes.
+    const read = await fetch(`${base}/api/workspaces/${workspaceId}/research-automation/runs/${runId}/reader-reports/${built.revision.revisionId}/html`);
+    assert.equal(read.status, 200);
+    const html = Buffer.from(await read.arrayBuffer()).toString('utf8');
+    assert.equal(html.split('data-test-replay="1"').length - 1, 1, 'exactly one visible notice on the served page');
+    assert.ok(html.includes(KALODATA_REPLAY_NOTICE_VI));
+    assert.deepEqual((await f.service.readReaderReport(workspaceId, runId, built.revision.revisionId)).bytes, stored, 'stored page is untouched');
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); await api.close(); }
 });

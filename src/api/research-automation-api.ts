@@ -104,6 +104,9 @@ import { MARKET_COVER_MODEL, type MarketCoverAi } from '../modules/analysis/rese
 import { ApifyShopeeCollector } from '../platform/collectors/apify-shopee.js';
 import { ResearchAutomationConflictError, ResearchAutomationNotFoundError, ResearchAutomationValidationError } from '../modules/analysis/research-automation/model.js';
 import { MetricCaptureScopeMismatch } from '../modules/analysis/research-automation/metric-method-bridge.js';
+import { defaultProviderTransport } from '../modules/analysis/research-automation/provider-common.js';
+import { createKalodataReplayTransport, KALODATA_REPLAY_PLACEHOLDER_KEY, KalodataReplayScopeMismatchError, loadKalodataReplayIndex, readKalodataReplaySource,
+  assertKalodataReplayNotProduction, KalodataReplayRefusedError, type KalodataReplaySource } from '../modules/analysis/research-automation/kalodata-replay.js';
 import { assertOwnerHttpConfiguration, EmptyBodyError, ownerAuthorized, PayloadTooLargeError, readOwnerBytes, sendApiJson, singleHeader, type OwnerHttpConfiguration } from './owner-http.js';
 
 export interface ResearchAutomationApiConfiguration {
@@ -125,6 +128,8 @@ export interface ResearchAutomationApiConfiguration {
   readonly origin: string;
   readonly owner?: OwnerHttpConfiguration;
   readonly providers?: ResearchAutomationProviderConfig;
+  /** Test instance only: answer every sales-data request from this stored run's captures; never set in production. */
+  readonly kalodataReplaySourceRunId?: string;
   readonly pdfExecutablePath?: string;
   /** Opt-in I14 synthesis for the OWNER writer only. */
   readonly i14Synthesis?: { readonly cliproxy: CliproxyConfiguration; readonly configuration: AutomationI14SynthesisConfiguration };
@@ -312,6 +317,10 @@ export function researchAutomationApiPath(pathname: string): boolean {
 export function openResearchAutomationApi(configuration: ResearchAutomationApiConfiguration, transport?: ProviderTransport): ResearchAutomationApiApplication {
   const origin = new URL(configuration.origin);
   if (origin.origin !== configuration.origin || !['http:', 'https:'].includes(origin.protocol)) throw new TypeError('Automation requires an exact origin');
+  if (configuration.kalodataReplaySourceRunId !== undefined) {
+    if (!configuration.owner) throw new KalodataReplayRefusedError('KALODATA_REPLAY_REFUSED: replay mode requires OWNER writes');
+    assertKalodataReplayNotProduction({ databasePath: configuration.databasePath, artifactRoot: configuration.artifactRoot, port: Number(origin.port) });
+  }
   if (configuration.owner) {
     assertOwnerHttpConfiguration(configuration.owner);
     if (configuration.owner.allowedOrigin !== configuration.origin ||
@@ -371,11 +380,22 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
   try {
     reader.pragma('query_only = ON'); reader.pragma('foreign_keys = ON'); reader.defaultSafeIntegers(true);
     if (!reader.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='analysis_research_automation_runs'").get()) throw new TypeError('Apply the automation migration before startup');
-    readService = create(reader);
+    // Replay mode: both handles carry the source scope, so reader pages (HTML and PDF) show the replay notice too.
+    const kalodataReplay: KalodataReplaySource | undefined = configuration.kalodataReplaySourceRunId !== undefined
+      ? readKalodataReplaySource(reader, configuration.kalodataReplaySourceRunId) : undefined;
+    readService = create(reader, kalodataReplay ? { kalodataReplay } : {});
     if (configuration.owner) {
       writer = new BetterSqlite3(path.resolve(configuration.databasePath), { fileMustExist: true });
       writer.pragma('foreign_keys = ON'); writer.pragma('busy_timeout = 5000'); writer.defaultSafeIntegers(true);
-      const registry = createResearchAutomationProviderRegistry(configuration.providers ?? { kalodataSecretKey: null, serpApiKey: null, apifyTokenConfigured: false }, transport);
+      // Replay mode: the sales-data provider talks only to stored captures; the live key never reaches it.
+      let registryProviders = configuration.providers ?? { kalodataSecretKey: null, serpApiKey: null, apifyTokenConfigured: false };
+      let registryTransport = transport;
+      if (configuration.kalodataReplaySourceRunId !== undefined) {
+        const replayRunId = configuration.kalodataReplaySourceRunId;
+        registryProviders = { ...registryProviders, kalodataSecretKey: KALODATA_REPLAY_PLACEHOLDER_KEY };
+        registryTransport = createKalodataReplayTransport(transport ?? defaultProviderTransport, () => loadKalodataReplayIndex(reader, artifacts, replayRunId));
+      }
+      const registry = createResearchAutomationProviderRegistry(registryProviders, registryTransport);
       const selected = registry.get('KALODATA');
       // Web search runs beside the product source, only when its key is set on the server.
       const webSource = configuration.providers?.serpApiKey ? bindResearchAutomationProvider(registry.get('SERPAPI')) : undefined;
@@ -403,6 +423,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         ...(l9Jev ? { l9Jev } : {}),
         sourceEvidence: { ...sourceEvidence, ...(keywordTransport ? { transport: keywordTransport } : {}) },
         metricAttachmentStore: new RequestScopedArtifactStore(path.resolve(configuration.artifactRoot)),
+        ...(kalodataReplay ? { kalodataReplay } : {}),
         actorId: configuration.owner.actorId, source: bindResearchAutomationProvider(selected), ...(webSource ? { webSource } : {}),
         ...(trendsSource ? { trendsSource } : {}), ...(trendsGeoSource ? { trendsGeoSource } : {}),
         ...(expandedSource ? { expandedSource } : {}),
@@ -550,6 +571,8 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     }
     if (request.method !== method) return fail(response, 405, 'method_not_allowed', 'Method is not supported');
     try {
+      // Replay instance: one gate for every owner action on a stored run; only cancel stays open.
+      if (mutation && runId && action !== 'cancel') writeService!.assertReplayRunInScope(runId);
       if (!mutation) {
         if (!runId) return sendApiJson(response, 200, await readService.listRuns(workspaceId!));
         if (action === 'sources/world-bank') {
@@ -1194,6 +1217,8 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       worker!.wake();
       sendApiJson(response, action === 'cancel' || receipt.exactRetry ? 200 : 202, receipt);
     } catch (error) {
+      // First: route-specific validation handlers below must not mask the replay scope refusal.
+      if (error instanceof KalodataReplayScopeMismatchError) return fail(response, 400, 'kalodata_replay_scope_mismatch', error.message);
       if (error instanceof P9SourceError) return fail(response, 409, 'source_evidence_rejected', 'P9 source evidence or configured collection is unavailable');
       if (error instanceof TikTokCodingError) return fail(response, 409, 'source_evidence_rejected', 'TikTok coding identity, retained evidence or request state differs.');
       if (error instanceof TikTokCodingTransportError) {
