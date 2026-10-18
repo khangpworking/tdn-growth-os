@@ -5,11 +5,16 @@ import { assertReaderSafeCitation, type CitationEntry, type CitationRegistry } f
 
 const displayDate = (iso: string): string => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
 
+/** Labels a report writes itself when a web result has no usable site name. Any other web label is the site's own name. */
+const AUTHORED_WEB_LABELS: ReadonlySet<string> = new Set(['Kết quả tìm kiếm trên web', 'Trang web liên quan']);
+
 function renderItem(entry: CitationEntry, format: 'web' | 'pdf'): string {
   // A PDF page reads as one name with its page: "<document name>, trang N".
   const pdfPage = entry.sourceKind === 'PDF_PAGE' && entry.locatorText !== null;
   const name = pdfPage && entry.label.endsWith(`, ${entry.locatorText}`) ? entry.label.slice(0, -`, ${entry.locatorText}`.length) : entry.label;
-  const label = `<span class="cite-label">${escapeHtml(name)}</span>`;
+  // A copied site name is shown as copied text, so the owned-wording rules do not read it as the report's claim.
+  const copied = entry.sourceKind === 'WEB_RESULT' && !AUTHORED_WEB_LABELS.has(name);
+  const label = `<span class="cite-label">${copied ? `<q data-quote>${escapeHtml(name)}</q>` : escapeHtml(name)}</span>`;
   const parts = [`<span class="cite-number">[${entry.number}]</span>`, pdfPage ? `${label}, <span class="cite-locator">${escapeHtml(entry.locatorText!)}</span>` : label];
   if (entry.retrievedAt !== null) parts.push(`<span class="cite-date">ngày ${escapeHtml(displayDate(entry.retrievedAt))}</span>`);
   if (entry.locatorText !== null && !pdfPage) parts.push(`<span class="cite-locator">${escapeHtml(entry.locatorText)}</span>`);

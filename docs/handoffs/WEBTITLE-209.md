@@ -1,0 +1,42 @@
+# Handoff — WEBTITLE-209 web search title read as the report's claim
+
+Updated: 2026-10-18
+Worktree/branch: `wp/web-title-quote-209`
+
+Completed: a replayed Market run collected every source, then ended `FAILED` at
+`REPORTS` with `REPORT_RENDER_FAILED`. The server log recorded
+`MARKET_BUSINESS_GATE_FAILED:U13_SUPERLATIVE`.
+
+Cause: the saved web search results carried page titles such as "Top 10 … bán
+chạy nhất năm 2025" and "Tin tức mới nhất 24h qua". The "Kết quả tìm kiếm trên
+web" table printed the title and site cells as plain text, and the reference
+list printed the site name as a plain label, so the owned-wording rule read the
+source's own wording as the report's claim. Web results are live search results,
+so the failure depends on what the search returns that day. This is the same
+class of fault as RENDERFAIL-209 (copied product titles), now in the web rows.
+
+Changed paths:
+
+- `src/modules/analysis/research-automation/reports.ts` — `webSourceText` marks a shown title or site name as copied text (`<q data-quote>`). Withheld wording and "Chưa rõ trang" stay the report's own text, unquoted. The publication date keeps `webText`.
+- `src/modules/analysis/citation-register-html.ts` — a `WEB_RESULT` label that is a copied site name renders inside `<q data-quote>` in the reference list. The two labels reports write themselves ("Kết quả tìm kiếm trên web", "Trang web liên quan") stay unquoted.
+- `tests/unit/web-title-quote-209.test.ts` — synthetic regressions.
+- `docs/handoffs/WEBTITLE-209.md`
+
+Deliberate non-changes:
+
+- No gate or lint rule was relaxed. The fix only marks copied source text, as the lint contract and RENDERFAIL-209 already do.
+- Hiding is unchanged: a title or site that names a provider or the search engine is still replaced by the withheld wording, and the reference list still runs `assertReaderSafeCitation` on every label.
+- Report wording, the reference list for every other source kind and the frozen goldens are unchanged.
+
+Evidence (Windows pre-check; CI is the run of record):
+
+- `node --import tsx --test tests/unit/web-title-quote-209.test.ts`: 3/3 PASS. Draft and presentation reports pass `assertMarketBusinessGate`; with the marker removed the same HTML fails `U13_SUPERLATIVE`; an authored superlative still fails; the 14-rule audit result equals a neutral-title report; withheld text is unquoted and escaped source markup stays inside its cell.
+- 27 test files that touch web results or the reference list: 212 PASS; the only failures are the `better-sqlite3` native module not loading on Windows (`insight-persona-report`, `research-automation`), unrelated to this change.
+- `npm run typecheck`: exit 0.
+- No provider, model, network, paid or credential call was made.
+
+Unresolved: none for this lane.
+
+Next action: review at the exact head, CI, merge; then rerun the replay test on a checkout of the merge.
+
+Business decisions pending: none introduced by this lane.
