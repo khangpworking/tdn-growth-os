@@ -3,6 +3,7 @@ import test from 'node:test';
 import { JSDOM } from 'jsdom';
 import { calculateMetricScopes } from '../../src/modules/analysis/metric-scope-calculator.js';
 import { assertMarket14MachineRules } from '../../src/modules/analysis/research-automation/market-14-rules.js';
+import { assertMarketBusinessGate } from '../../src/modules/analysis/research-automation/market-business-gate.js';
 import { buildAutomationMarketPresentation, marketPresentationDigest, type MarketPresentationBinding } from '../../src/modules/analysis/research-automation/market-presentation-method.js';
 import { PDF_EXCERPT_TITLE, pdfExcerptReaderCitation, type PdfExcerpt } from '../../src/modules/analysis/research-automation/pdf-excerpt.js';
 import { buildSourceEvidence, sourceEvidenceForReport } from '../../src/modules/analysis/research-automation/source-evidence.js';
@@ -12,6 +13,7 @@ import { metricFixture } from '../fixtures/metric-scope-synthetic.js';
 import { sync1ReaderFixture } from '../helpers/sync1-reader-fixture.js';
 import { unitPriceFixture } from '../helpers/market-unit-price-fixture.js';
 import { providerNameViolations } from '../helpers/report-visible-text.js';
+import { fullMarket14Input } from '../helpers/market14-full-fixture.js';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111', runId = '22222222-2222-4222-8222-222222222222';
 const SHA_A = 'a'.repeat(64), SHA_B = 'b'.repeat(64);
@@ -46,6 +48,20 @@ const withExcerpts = (input: AutomationReportInput): AutomationReportInput => {
   return { ...input, start: { ...input.start, sourceEvidenceVersion: 'automation-source-evidence-v1' }, sourceEvidence, pdfExcerpts: EXCERPTS } as unknown as AutomationReportInput;
 };
 
+function assertRegister(document: Document): void {
+  assert.equal(document.querySelectorAll('section.citation-register').length, 1);
+  const entries = [...document.querySelectorAll('section.citation-register li')];
+  const ids = entries.map(entry => entry.id);
+  assert.equal(new Set(ids).size, ids.length, 'no duplicate entries');
+  const marks = [...document.querySelectorAll('sup.cite')].map(mark => {
+    assert.match(mark.textContent!, /^\[\d+\]$/u);
+    return `cite-${mark.textContent!.slice(1, -1)}`;
+  });
+  assert.deepEqual(new Set(marks), new Set(ids), 'no dangling marks or uncited entries');
+  assert.deepEqual([...new Set(marks)], ids, 'numbers follow first appearance');
+  assert.deepEqual(ids, entries.map((_entry, i) => `cite-${i + 1}`), 'consecutive register numbers');
+}
+
 test('reader citation: plain Vietnamese "Tài liệu PDF đã lưu …" label, same source and page, no digest', () => {
   const [a, b] = EXCERPTS.map(pdfExcerptReaderCitation);
   assert.equal(a!.label, 'Tài liệu PDF đã lưu bao-cao-nganh.pdf');
@@ -60,6 +76,7 @@ test('market14: each PDF excerpt carries a visible [n] that resolves to a regist
   const plain = buildResearchAutomationReport(input, 'MARKET').html.toString('utf8');
   const html = buildResearchAutomationReport(withExcerpts(input), 'MARKET').html.toString('utf8');
   const document = new JSDOM(html).window.document;
+  assertRegister(document);
   const block = document.querySelector('#M09 ul.pdf-excerpts');
   assert.ok(block, `the block sits in M09 under "${PDF_EXCERPT_TITLE}"`);
   const items = [...block!.querySelectorAll('li')];
@@ -69,8 +86,7 @@ test('market14: each PDF excerpt carries a visible [n] that resolves to a regist
   for (const [index, li] of items.entries()) {
     const mark = li.querySelector(':scope > sup.cite');
     assert.ok(mark, 'the mark is a direct child of the excerpt item, outside the quote and outside any details block');
-    assert.equal(mark!.closest('details'), null);
-    assert.equal(mark!.closest('blockquote'), null);
+    assert.equal(mark!.closest('details, blockquote, td, th, caption, figcaption'), null);
     assert.equal(mark!.previousElementSibling?.tagName, 'BLOCKQUOTE');
     const number = Number(/^\[(\d+)\]$/u.exec(mark!.textContent!)![1]);
     numbers.push(number);
@@ -85,8 +101,31 @@ test('market14: each PDF excerpt carries a visible [n] that resolves to a regist
   assert.ok(registerItems.get(`cite-${numbers[0]}`)!.includes('bao-cao-nganh.pdf'));
   assert.ok(registerItems.get(`cite-${numbers[1]}`)!.includes('không hiển thị tên tệp'));
   assert.doesNotThrow(() => assertMarket14MachineRules(html));
+  assert.doesNotThrow(() => assertMarketBusinessGate(html, { presentation: true }));
   assert.doesNotThrow(() => assertMarket14MachineRules(plain));
   assert.ok(!plain.includes('pdf-excerpts'), 'without excerpts the report has no block');
+});
+
+test('PDF marks and page entries survive full P2 delivery while the trace resolves its own register', async () => {
+  const report = buildResearchAutomationReport(withExcerpts(await fullMarket14Input()), 'MARKET');
+  assert.ok(report.traceHtml);
+  const reader = new JSDOM(report.html.toString('utf8')).window.document;
+  const trace = new JSDOM(report.traceHtml.toString('utf8')).window.document;
+  assert.ok(trace.querySelector('details'), 'the fixture exercises trace removal');
+  assert.equal(reader.querySelector('details'), null);
+  for (const document of [reader, trace]) {
+    assertRegister(document);
+    const marks = [...document.querySelectorAll('#M09 ul.pdf-excerpts > li > sup.cite')];
+    assert.equal(marks.length, 2);
+    for (const [index, mark] of marks.entries()) {
+      assert.equal(mark.closest('details, blockquote, td, th, caption, figcaption'), null);
+      const entry = document.getElementById(`cite-${mark.textContent!.slice(1, -1)}`)!;
+      assert.equal(entry.querySelector('.cite-label')!.textContent, pdfExcerptReaderCitation(EXCERPTS[index]!).label);
+      assert.equal(entry.querySelector('.cite-locator')!.textContent, `trang ${EXCERPTS[index]!.page}`);
+    }
+  }
+  assert.doesNotThrow(() => assertMarket14MachineRules(report.html.toString('utf8')));
+  assert.doesNotThrow(() => assertMarketBusinessGate(report.html.toString('utf8'), { presentation: true }));
 });
 
 test('legacy (non-market14) Market drafts keep the excerpt block without citation marks', async () => {

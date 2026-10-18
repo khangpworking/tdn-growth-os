@@ -20,7 +20,8 @@ const MAX_ERROR_SNIPPET_BYTES = 8192;
 const MAX_UPLOAD_BYTES = 32 * 1024 * 1024;
 const MAX_BLOCKS = 16;
 const hash = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex');
-const fail = (code: string): never => { throw new Error(`PAGEINDEX_${code}`); };
+class PageIndexCloudError extends Error {}
+const fail = (code: string): never => { throw new PageIndexCloudError(`PAGEINDEX_${code}`); };
 const object = (value: unknown): Record<string, unknown> => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return fail('RESPONSE_INVALID');
   return value as Record<string, unknown>;
@@ -151,7 +152,7 @@ export class PageIndexCloudClient {
       if (text.includes(this.#key) || JSON.stringify(data).includes(this.#key)) fail('SECRET_ECHO');
       return object(data);
     } catch (error) {
-      if (error instanceof Error && /^PAGEINDEX_[A-Z0-9_]+$/u.test(error.message)) throw error;
+      if (error instanceof PageIndexCloudError) throw error;
       return fail('TRANSPORT_FAILED');
     }
   }
@@ -188,14 +189,15 @@ export class PageIndexCloudClient {
    */
   async listDocuments(): Promise<readonly PageIndexCloudDocument[]> {
     const documents: PageIndexCloudDocument[] = [];
-    // Pages of 100 until `total`; without a total, a short or empty page ends the list. The page cap bounds a looping reply.
-    for (let page = 0; page <= MAX_LISTED / LIST_PAGE_SIZE; page += 1) {
+    // Every non-empty page advances the offset; bound documents, even if the service returns fewer than requested per page.
+    while (documents.length <= MAX_LISTED) {
       const response = await this.#request(`${PAGEINDEX_LIST_PATH}?limit=${LIST_PAGE_SIZE}&offset=${documents.length}`);
       const listed: unknown = response.documents;
       if (!Array.isArray(listed)) return fail('RESPONSE_INVALID');
       const total = typeof response.total === 'number' && Number.isSafeInteger(response.total) && response.total >= 0 ? response.total : null;
       if ((total ?? 0) > MAX_LISTED || documents.length + listed.length > MAX_LISTED) return fail('RESPONSE_TOO_LARGE');
       documents.push(...listed.map(entry => toDocument(object(entry))));
+      if (listed.length === 0 && total !== null && documents.length < total) return fail('RESPONSE_INVALID');
       if (listed.length === 0 || (total !== null ? documents.length >= total : listed.length < LIST_PAGE_SIZE)) return documents;
     }
     return fail('RESPONSE_TOO_LARGE');
@@ -221,7 +223,10 @@ export class PageIndexCloudClient {
     const answer = string(object(object(response.choices[0]).message).content, 100_000);
     // Both tag forms pass the same identity checks: `<doc=NAME;page=N;block=ID>` (this parser's original form) and
     // `<cite doc="NAME" page="N" block="ID"/>` (vendor SDK docs). Neither form was seen in a live paid answer (not checked on 18/10).
-    const tags = [...answer.matchAll(/<doc=([^;>]+);page=(\d+);block=([^>]+)>|<cite\s+doc="([^"]+)"\s+page="(\d+)"\s+block="([^"]+)"\s*\/?>/gu)]
+    const tagPattern = /<doc=([^;>]+);page=(\d+);block=([^>]+)>|<cite\s+doc="([^"]+)"\s+page="(\d+)"\s+block="([^"]+)"\s*\/>/gu;
+    // A malformed tag must not disappear from identity validation, including when other valid tags are present.
+    if (/<\/?\s*(?:doc|cite)\b/iu.test(answer.replace(tagPattern, ''))) fail('CITATIONS_INVALID');
+    const tags = [...answer.matchAll(tagPattern)]
       .map(match => match[1] !== undefined ? [match[0], match[1], match[2], match[3]] : [match[0], match[4], match[5], match[6]]);
     if (!Array.isArray(response.citations)) return fail('CITATIONS_INVALID');
     const refs = new Map<string, { page: number; blockId: string }>();

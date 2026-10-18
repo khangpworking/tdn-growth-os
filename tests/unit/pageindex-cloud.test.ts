@@ -94,6 +94,13 @@ test('transport failures are generic, secret echoes fail closed and there are no
   assert.equal(encodedEcho.calls.length, 2);
 });
 
+test('transport error messages resembling connector codes cannot disclose a key', async () => {
+  const apiKey = 'SYNTHETIC_PRIVATE_KEY';
+  const client = new PageIndexCloudClient({ enabled: true, apiKey,
+    fetch: async () => { throw new Error(`PAGEINDEX_${apiKey}`); } });
+  await assert.rejects(client.query(request, bytes, pages), { message: 'PAGEINDEX_TRANSPORT_FAILED' });
+});
+
 test('the <cite doc page block/> tag form passes the same identity checks as the <doc=;page=;block=> form', async () => {
   for (const content of ['120 mg <doc=nguon.pdf;page=1;block=p1_text_1>', '120 mg <cite doc="nguon.pdf" page="1" block="p1_text_1"/>',
     '120 mg <cite doc="nguon.pdf" page="1" block="p1_text_1" />', 'a <doc=nguon.pdf;page=1;block=p1_text_1> b <cite doc="nguon.pdf" page="1" block="p1_text_1"/>']) {
@@ -106,5 +113,23 @@ test('the <cite doc page block/> tag form passes the same identity checks as the
     'x <cite doc="nguon.pdf" page="1" block="p2_text_1"/>', 'x <doc=nguon.pdf;page=1;block=p1_text_1> <cite doc="nguon.pdf" page="2" block="p1_text_1"/>']) {
     const { client } = setup({ answer: { ...answer, choices: [{ message: { content } }] } });
     await assert.rejects(client.query(request, bytes, pages), /PAGEINDEX_CITATION_IDENTITY_MISMATCH/);
+  }
+});
+
+test('malformed citation tags fail even alongside a valid tag or without citation metadata', async () => {
+  for (const malformed of [
+    '<doc=nguon.pdf;page=x;block=p1_text_1>',
+    '<doc=nguon.pdf;page=1;block=p1_text_1',
+    '<cite doc="nguon.pdf" page="x" block="p1_text_1"/>',
+    '<cite doc="nguon.pdf" page="1" block="p1_text_1">',
+    '<cite doc="nguon.pdf" page="1"/>',
+    '<cite doc="nguon.pdf" page="1" block="p1_text_1"',
+  ]) {
+    for (const valid of [false, true]) {
+      const content = `${valid ? answer.choices[0]!.message.content : '120 mg'} ${malformed}`;
+      const { client, calls } = setup({ answer: { choices: [{ message: { content } }], citations: valid ? [meta] : [] } });
+      await assert.rejects(client.query(request, bytes, pages), { message: 'PAGEINDEX_CITATIONS_INVALID' }, content);
+      assert.equal(calls.length, 2, 'reject before fetching any block');
+    }
   }
 });

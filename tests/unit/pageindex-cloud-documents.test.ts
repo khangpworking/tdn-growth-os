@@ -34,7 +34,7 @@ test('upload posts multipart field "file" with the file name, key header and no 
   assert.equal(init?.method, 'POST');
   assert.equal(init?.redirect, 'error');
   const headers = init?.headers as Record<string, string>;
-  assert.equal(headers.api_key, 'synthetic-key');
+  assert.deepEqual(headers, { api_key: 'synthetic-key' });
   assert.ok(!Object.keys(headers).some(name => name.toLowerCase() === 'content-type'), 'fetch sets the multipart boundary itself');
   assert.ok(init?.body instanceof FormData);
   const form = init.body as FormData;
@@ -83,6 +83,22 @@ test('list without a total stops on a short page; an empty first page is an empt
   assert.equal(empty.calls.length, 1);
 });
 
+test('list follows smaller pages to the total without imposing a 101-page document limit', async () => {
+  const { client, calls } = clientFor({ '/docs': url => {
+    const offset = Number(url.searchParams.get('offset'));
+    return { status: 200, body: { documents: [{ id: `pi-${offset}`, name: 'a.pdf', pageNum: 1 }], total: 105 } };
+  } });
+  assert.equal((await client.listDocuments()).length, 105);
+  assert.equal(calls.length, 105);
+  assert.equal(new URL(calls[104]!.url).searchParams.get('offset'), '104');
+});
+
+test('an empty page before the declared total fails rather than returning an incomplete list', async () => {
+  const { client, calls } = clientFor({ '/docs': { status: 200, body: { documents: [], total: 1 } } });
+  await assert.rejects(client.listDocuments(), { message: 'PAGEINDEX_RESPONSE_INVALID' });
+  assert.equal(calls.length, 1);
+});
+
 test('list keeps the 10000 cap: a larger total or a never-ending reply is RESPONSE_TOO_LARGE', async () => {
   const big = clientFor({ '/docs': { status: 200, body: { documents: [], total: 10001 } } });
   await assert.rejects(big.client.listDocuments(), { message: 'PAGEINDEX_RESPONSE_TOO_LARGE' });
@@ -92,6 +108,30 @@ test('list keeps the 10000 cap: a larger total or a never-ending reply is RESPON
   assert.equal(endless.calls.length, 101, 'the call past 10000 documents fails instead of growing the list');
   const invalid = clientFor({ '/docs': { status: 200, body: { items: [] } } });
   await assert.rejects(invalid.client.listDocuments(), { message: 'PAGEINDEX_RESPONSE_INVALID' });
+});
+
+test('without a total, pagination ends on a later short or empty page and permits exactly 10000 documents', async () => {
+  for (const size of [100, 101, 10000]) {
+    const { client, calls } = clientFor({ '/docs': url => {
+      const offset = Number(url.searchParams.get('offset'));
+      const documents = Array.from({ length: Math.min(100, size - offset) }, (_, i) => ({ id: `pi-${offset + i}`, name: 'a.pdf', pageNum: 1 }));
+      return { status: 200, body: { documents } };
+    } });
+    assert.equal((await client.listDocuments()).length, size);
+    assert.equal(calls.length, Math.floor(size / 100) + 1);
+  }
+});
+
+test('metadata fallback makes only one extra call, preserving failures and secret protection', async () => {
+  for (const [metadata, message] of [
+    [{ status: 404, body: { detail: 'Not found' } }, 'PAGEINDEX_HTTP_404'],
+    [{ status: 200, body: { id: 'pi-new' } }, 'PAGEINDEX_RESPONSE_INVALID'],
+    [{ status: 200, body: { id: 'pi-new', name: 'synthetic-key', pageNum: 1 } }, 'PAGEINDEX_SECRET_ECHO'],
+  ] as const) {
+    const { client, calls } = clientFor({ '/doc/': { status: 200, body: { id: 'pi-new' } }, '/metadata': metadata });
+    await assert.rejects(client.uploadDocument({ fileName: 'a.pdf', bytes }), { message });
+    assert.equal(calls.length, 2);
+  }
 });
 
 test('document status reuses metadata', async () => {
