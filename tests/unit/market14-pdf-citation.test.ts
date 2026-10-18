@@ -108,6 +108,26 @@ test('market14: each PDF excerpt carries a visible [n] that resolves to a regist
   assert.ok(!plain.includes('pdf-excerpts'), 'without excerpts the report has no block');
 });
 
+test('market14: an automatic PDF attempt without excerpts shows a plain source row; excerpts keep existing bytes', async () => {
+  const input = await fullMarket14Input();
+  const discovery = { search: { status: 'CALLED' as const, reason: null, captureIndex: 0, retrievedAt: '2026-10-18T00:00:00.000Z' }, files: [], reason: 'NO_CANDIDATE' as const };
+  const on = { ...input, collection: { ...input.collection!, pdfDiscovery: discovery } };
+  const offHtml = buildResearchAutomationReport(input, 'MARKET').html.toString();
+  const html = buildResearchAutomationReport(on, 'MARKET').html.toString();
+  const dom = new JSDOM(html);
+  const rows = [...dom.window.document.querySelectorAll('.market14-sources tr')].filter(row => row.firstElementChild?.textContent === 'Tài liệu ngành dạng PDF');
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0]!.lastElementChild?.textContent, 'Chưa tìm thấy tài liệu phù hợp trong lượt này.');
+  assert.equal(rows[0]!.closest('details'), null);
+  assert.equal(html.replace(/<table><caption>Trạng thái tài liệu ngành<\/caption>[\s\S]*?<\/table>/u, ''), offHtml);
+  assert.doesNotThrow(() => assertMarketBusinessGate(html, { presentation: true }));
+  assert.doesNotThrow(() => assertMarket14MachineRules(html));
+  assert.deepEqual(providerNameViolations(html), []);
+  assert.deepEqual(buildResearchAutomationReport(withExcerpts(on), 'MARKET').html,
+    buildResearchAutomationReport(withExcerpts(input), 'MARKET').html);
+  dom.window.close();
+});
+
 test('PDF marks and page entries survive full P2 delivery while the trace resolves its own register', async () => {
   const report = buildResearchAutomationReport(withExcerpts(await fullMarket14Input()), 'MARKET');
   assert.ok(report.traceHtml);

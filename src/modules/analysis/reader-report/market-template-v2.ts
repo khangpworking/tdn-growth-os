@@ -12,7 +12,7 @@ import { E12_ATTRIBUTION, E13_ATTRIBUTION, E14_ATTRIBUTION } from '../source-app
 import { officialStatsCitation, officialStatsCitationSheet, officialStatsNotice, officialStatsProvinceCellText, officialStatsProvinceCitation, officialStatsProvinceContext, officialStatsProvinceRowLabel, officialStatsProvinceRows, officialStatsRenderableRows, officialStatsRowLabel, officialStatsStatusText, officialStatsUnitText, officialStatsValueText, OFFICIAL_STATS_LIMIT, OFFICIAL_STATS_NOTE, OFFICIAL_STATS_PROVINCE_LIMIT, OFFICIAL_STATS_PROVINCE_NOTE, OFFICIAL_STATS_PROVINCE_TITLE, OFFICIAL_STATS_SRC, OFFICIAL_STATS_TABLE_TEXT, OFFICIAL_STATS_TABLE_TITLE } from '../research-automation/official-statistics-lane.js';
 import { comtradeFlowText, comtradeNotice, comtradeOfficialText, comtradeRenderableRows, comtradeRowNote, comtradeSideText, COMTRADE_LIMIT, COMTRADE_NOTE, COMTRADE_SOURCE_LABEL, COMTRADE_SRC, COMTRADE_TABLE_TITLE } from '../research-automation/comtrade-lane.js';
 import { searchAdsBrandNotice, searchAdsNotice, searchAdsOkBrands, SEARCH_ADS_NOTE, SEARCH_ADS_SOURCE_LABEL, SEARCH_ADS_SOURCE_NOTE, SEARCH_ADS_TABLE_TITLE } from '../research-automation/google-ads-lane.js';
-import { pdfExcerptBlockHtml, pdfExcerptCitation, PDF_EXCERPT_NOTE, PDF_EXCERPT_SRC } from '../research-automation/pdf-excerpt.js';
+import { pdfDiscoverySourceRows, pdfExcerptBlockHtml, pdfExcerptCitation, PDF_EXCERPT_NOTE, PDF_EXCERPT_SRC } from '../research-automation/pdf-excerpt.js';
 import { sellerVideoBlockHtml, sellerVideoNote, sellerVideoSrc } from '../research-automation/seller-video.js';
 import { metaAdCitation, metaAdDate, META_AD_NAME_WITHHELD, META_AD_NOTE, META_AD_SOURCE_LABEL, META_AD_SOURCE_NOTE, META_AD_SRC, META_AD_TEXT_WITHHELD, META_AD_TITLE } from '../research-automation/meta-ad-report.js';
 import { metaAutoNote, META_AUTO_CITATION_LABEL, META_AUTO_EXCERPT, META_AUTO_MISSING, META_AUTO_NAME_SUFFIX, META_AUTO_SAME_DAY, META_AUTO_SOURCE_LABEL, META_AUTO_SOURCE_NOTE, META_AUTO_SRC, META_AUTO_TABLE_TITLE } from '../research-automation/meta-auto-lane.js';
@@ -355,6 +355,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     ['Dữ liệu đánh giá sản phẩm trên nền tảng', 'Chưa có trong lượt này'],
     ['Kết quả tìm kiếm', d.webFacts === null && web.length === 0 ? 'Chưa có trong lượt này' : 'Đã lưu trong lượt này'],
     ['Bình luận đã thu thập', 'Chưa có trong lượt này'],
+    ...pdfDiscoverySourceRows(options.pdfDiscovery, pdfExcerpts),
     ...(interestChart || geoBlock ? [[SEARCH_INTEREST_SOURCE_LABEL, 'Đã lưu trong lượt này; chỉ số tương đối, không phải doanh số']] : []),
     ...(worldBankTable ? [[WORLD_BANK_SOURCE_LABEL, 'Đã lưu trong lượt này; số liệu cả nước, chỉ là bối cảnh']] : []),
     ...(comtradeRows.length ? [[COMTRADE_SOURCE_LABEL, 'Đã lưu trong lượt này; số liệu cả nước, chỉ là bối cảnh']] : []),

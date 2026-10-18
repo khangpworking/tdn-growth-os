@@ -34,7 +34,7 @@ import { isMacroChartId } from '../reader-report/macro-charts.js';
 import { MetricSourceRejection } from '../metric-source-profile.js';
 import { MetricWebSnapshotError } from './metric-web-snapshot.js';
 import { webSnapshotDigest } from '../reader-report/web-facts.js';
-import { ResearchAutomationConflictError, ResearchAutomationIntegrityError, ResearchAutomationNotFoundError, ResearchAutomationValidationError, type CaptureRecord, type StepComtrade, type StepSearchAds, type StepOfficialStats, type StepSearchInterest, type StepSearchGeo, type StepWorldBank } from './model.js';
+import { ResearchAutomationConflictError, ResearchAutomationIntegrityError, ResearchAutomationNotFoundError, ResearchAutomationValidationError, type CaptureRecord, type StepComtrade, type StepPdfDiscovery, type StepSearchAds, type StepOfficialStats, type StepSearchInterest, type StepSearchGeo, type StepWorldBank } from './model.js';
 import { verifyInsightReaderInput, type InsightReaderInput } from '../reader-report/insight-input-v1.js';
 import { prepareTikTokReaderBuild } from '../reader-report/tiktok-build-v1.js';
 import { buildInsightReaderTemplate, type InsightReaderPage } from '../reader-report/insight-template.js';
@@ -104,6 +104,8 @@ export interface ReaderDraftContext {
   readonly officialStats?: StepOfficialStats;
   /** The Market draft's stored document excerpts (S25), present only when its packet carries the marker. */
   readonly pdfExcerpts?: readonly PdfExcerpt[];
+  /** Stored S25 attempt, including an attempt with no usable excerpts. */
+  readonly pdfDiscovery?: StepPdfDiscovery;
   readonly sellerVideos?: import('./seller-video.js').SellerVideos;
   /** The run's confirmed Meta ad-library pages (S15), read when the report is built; absent when none is confirmed. */
   readonly metaAds?: readonly import('./meta-ad-report.js').MetaAdPage[];
@@ -349,7 +351,7 @@ export class AutomationReaderReports {
     );
     const at = this.now(), createdAt = at.toISOString(), revisionId = randomUUID();
     const webResults = context.webResults ?? [];
-    const built = await buildMarketReport(data, { limitations, builtOn: builtOn(at), cover, flint: this.options.flint ?? true, webResults, ...(context.webPageTypes ? { webPageTypes: true as const } : {}), ...(capture ? { captureSource: true } : {}), ...(context.searchInterest ? { searchInterest: context.searchInterest } : {}), ...(context.searchGeo ? { searchGeo: context.searchGeo } : {}), ...(context.searchGeoCapture ? { searchGeoCapture: context.searchGeoCapture } : {}), ...(context.worldBank ? { worldBank: context.worldBank } : {}), ...(context.comtrade ? { comtrade: context.comtrade } : {}), ...(context.searchAds ? { searchAds: context.searchAds } : {}), ...(context.officialStats ? { officialStats: context.officialStats } : {}), ...(context.pdfExcerpts?.length ? { pdfExcerpts: context.pdfExcerpts } : {}), ...(context.sellerVideos ? { sellerVideos: context.sellerVideos } : {}), ...(context.metaAds?.length ? { metaAds: context.metaAds } : {}), ...(context.metaAuto ? { metaAuto: context.metaAuto } : {}), ...(context.tiktokTopAds ? { tiktokTopAds: context.tiktokTopAds } : {}) });
+    const built = await buildMarketReport(data, { limitations, builtOn: builtOn(at), cover, flint: this.options.flint ?? true, webResults, ...(context.webPageTypes ? { webPageTypes: true as const } : {}), ...(capture ? { captureSource: true } : {}), ...(context.searchInterest ? { searchInterest: context.searchInterest } : {}), ...(context.searchGeo ? { searchGeo: context.searchGeo } : {}), ...(context.searchGeoCapture ? { searchGeoCapture: context.searchGeoCapture } : {}), ...(context.worldBank ? { worldBank: context.worldBank } : {}), ...(context.comtrade ? { comtrade: context.comtrade } : {}), ...(context.searchAds ? { searchAds: context.searchAds } : {}), ...(context.officialStats ? { officialStats: context.officialStats } : {}), ...(context.pdfDiscovery ? { pdfDiscovery: context.pdfDiscovery } : {}), ...(context.pdfExcerpts?.length ? { pdfExcerpts: context.pdfExcerpts } : {}), ...(context.sellerVideos ? { sellerVideos: context.sellerVideos } : {}), ...(context.metaAds?.length ? { metaAds: context.metaAds } : {}), ...(context.metaAuto ? { metaAuto: context.metaAuto } : {}), ...(context.tiktokTopAds ? { tiktokTopAds: context.tiktokTopAds } : {}) });
     // Sample charts require Flint; country-background charts retain their explicit SVG fallback.
     assertFlintCharts(built.charts, this.options.flint ?? true);
     // The gate blocks report publication and revision insertion; cover/sidecar artifacts may already be written.

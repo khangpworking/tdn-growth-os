@@ -4,6 +4,7 @@ import { CitationRegistry, type CitationInput } from '../citation-registry.js';
 import { PAGEINDEX_ELIGIBLE_SECTIONS, toCitationInput, type PageIndexQuotesArtifact } from '../pageindex-questions.js';
 import { CAPTURED_PROVIDER_NAMES, FORBIDDEN_PROVIDER_NAMES } from '../reader-report/lint.js';
 import { readerTextSafe } from './reader-plain-text.js';
+import type { StepPdfDiscovery } from './model.js';
 
 /** The Market section that holds the block: "Động lực và rủi ro" is the context section for outside documents. */
 export const PDF_EXCERPT_SECTION = 'M09' as const;
@@ -14,6 +15,13 @@ export const PDF_EXCERPT_UNRECORDED = 'chưa ghi';
 export const PDF_EXCERPT_UNRATED = 'chưa xếp hạng độ tin cậy';
 export const PDF_EXCERPT_NOTE = 'Các đoạn trích này lấy nguyên văn từ tài liệu PDF trong hồ sơ nguồn của lượt này (do chủ đính kèm hoặc tải về khi thu thập). Mỗi đoạn nói về phạm vi của chính tài liệu đó, không nói về sản phẩm này; số trong đó không so sánh được với số liệu mẫu và không được cộng vào số liệu mẫu.';
 export const PDF_EXCERPT_SRC = 'Tài liệu PDF đã lưu trong hồ sơ nguồn của lượt này.';
+export const PDF_DISCOVERY_SOURCE_LABEL = 'Tài liệu ngành dạng PDF';
+export const PDF_DISCOVERY_MISSING = 'Chưa tìm thấy tài liệu phù hợp trong lượt này.';
+
+/** A stored attempt with no report excerpt gets one plain source-status row; receipts never become citations. */
+export function pdfDiscoverySourceRows(discovery: StepPdfDiscovery | undefined, excerpts: readonly PdfExcerpt[]): readonly (readonly [string, string])[] {
+  return discovery !== undefined && excerpts.length === 0 ? [[PDF_DISCOVERY_SOURCE_LABEL, PDF_DISCOVERY_MISSING]] : [];
+}
 /** Longest document name shown; a longer title reads as a pasted heading or sentence, so the order wording is used instead. */
 export const PDF_DOCUMENT_TITLE_MAX = 160;
 /** The name of a document whose own title is missing or not plain reader text: its order among such documents in the block. */

@@ -6,7 +6,9 @@ import { buildMarketReport, computeReaderReportData } from '../../src/modules/an
 import { PAGEINDEX_ELIGIBLE_SECTIONS, type PageIndexQuotesArtifact, type PageIndexVerifiedQuote } from '../../src/modules/analysis/pageindex-questions.js';
 import { auditMarket14, assertMarket14MachineRules } from '../../src/modules/analysis/research-automation/market-14-rules.js';
 import { assertMarketBusinessGate, auditMarketReportHtml } from '../../src/modules/analysis/research-automation/market-business-gate.js';
-import { PDF_EXCERPT_NOTE, PDF_EXCERPT_TITLE, pdfDocumentTitle, pdfExcerptBlockHtml, pdfUntitledName, selectPdfExcerpts, storedPdfExcerpts, type PdfExcerpt } from '../../src/modules/analysis/research-automation/pdf-excerpt.js';
+import { PDF_DISCOVERY_MISSING, PDF_DISCOVERY_SOURCE_LABEL, PDF_EXCERPT_NOTE, PDF_EXCERPT_TITLE, pdfDocumentTitle, pdfExcerptBlockHtml, pdfUntitledName, selectPdfExcerpts, storedPdfExcerpts, type PdfExcerpt } from '../../src/modules/analysis/research-automation/pdf-excerpt.js';
+import { pdfDiscoveryFailed } from '../../src/modules/analysis/research-automation/pdf-discovery-lane.js';
+import type { StepPdfDiscovery } from '../../src/modules/analysis/research-automation/model.js';
 import { buildSourceEvidence, sourceEvidenceForReport } from '../../src/modules/analysis/research-automation/source-evidence.js';
 import { sync1Options, sync1ReaderFixture } from '../helpers/sync1-reader-fixture.js';
 import { unitPriceFixture } from '../helpers/market-unit-price-fixture.js';
@@ -206,10 +208,10 @@ test('evidence: S25 is registered once per document and only when an excerpt is 
   assert.deepEqual(sourceEvidenceForReport(base, input({ pdfExcerpts: excerpts }), 'INSIGHT'), base, 'Insight draws no document excerpt');
   assert.deepEqual(sourceEvidenceForReport(base, input({ pdfExcerpts: [] }), 'MARKET'), base);
 });
-async function reader(pdfExcerpts: readonly PdfExcerpt[] = []) {
+async function reader(pdfExcerpts: readonly PdfExcerpt[] = [], pdfDiscovery?: StepPdfDiscovery) {
   const input = sync1ReaderFixture('1.4.0'); input.peerRule = { ...DEFAULT_MARKET_PEER_RULE };
   const units = unitPriceFixture(input.rows); input.unitPrices = units.packet;
-  return buildMarketReport(computeReaderReportData(input, units.retained), { ...sync1Options, flint: true, ...(pdfExcerpts.length ? { pdfExcerpts } : {}) });
+  return buildMarketReport(computeReaderReportData(input, units.retained), { ...sync1Options, flint: true, ...(pdfExcerpts.length ? { pdfExcerpts } : {}), ...(pdfDiscovery ? { pdfDiscovery } : {}) });
 }
 const visible = (html: string): string => new JSDOM(html).window.document.body.textContent!.replace(/\s+/gu, ' ');
 
@@ -218,6 +220,27 @@ test('reader report: no excerpts gives the same bytes as a build that never hear
   assert.equal(plain.includes(PDF_EXCERPT_TITLE), false);
   assert.equal(plain.includes(PDF_EXCERPT_NOTE), false);
   assert.equal((await reader([])).html, plain);
+});
+
+test('reader report: NO_CANDIDATE adds only one visible sources-table row; excerpts and lane off keep their bytes', async () => {
+  const off = (await reader()).html;
+  const attempted = pdfDiscoveryFailed('NO_CANDIDATE');
+  const on = (await reader([], attempted)).html;
+  const dom = new JSDOM(on);
+  const rows = [...dom.window.document.querySelectorAll('tr')].filter(row => row.firstElementChild?.textContent === PDF_DISCOVERY_SOURCE_LABEL);
+  assert.equal(rows.length, 1);
+  const row = rows[0]!;
+  assert.equal(row.lastElementChild?.textContent, PDF_DISCOVERY_MISSING);
+  assert.ok(row.closest('#phu-luc table'), 'status belongs in the sources table');
+  assert.equal(row.closest('details'), null);
+  assert.doesNotMatch(row.textContent!, /%|0|Google|https?:|studocu|scribd|metric/iu);
+  assert.equal(on.replace(row.outerHTML, ''), off, 'only the sources-table row changed');
+  assert.equal(off.includes(PDF_DISCOVERY_SOURCE_LABEL), false);
+  assert.equal((await reader([], undefined)).html, off);
+  assert.equal((await reader(twoDocuments(), attempted)).html, (await reader(twoDocuments())).html, 'excerpts keep existing output');
+  assert.doesNotThrow(() => assertMarketBusinessGate(on, { presentation: false }));
+  assert.doesNotThrow(() => assertMarket14MachineRules(on));
+  dom.window.close();
 });
 
 test('reader report: the block sits once in M09 with its note, passes every gate and leaks no provider text', async () => {

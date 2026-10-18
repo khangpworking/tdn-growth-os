@@ -70,7 +70,7 @@ import { deliverMarketReader, marketReaderGuide } from './market-reader-delivery
 import { UNKNOWN_SHOP, marketChartRows, marketShopsUnrecorded, type CaptureCountChart, type MarketChart } from '../reader-report/market-charts.js';
 import type { RenderedChart } from '../reader-report/flint.js';
 import { comtradeChartCount, worldBankChartCount, type MacroChart } from '../reader-report/macro-charts.js';
-import { pdfExcerptBlockHtml, pdfExcerptReaderCitation, PDF_EXCERPT_NOTE, PDF_EXCERPT_SECTION, PDF_EXCERPT_SRC } from './pdf-excerpt.js';
+import { pdfDiscoverySourceRows, pdfExcerptBlockHtml, pdfExcerptReaderCitation, PDF_EXCERPT_NOTE, PDF_EXCERPT_SECTION, PDF_EXCERPT_SRC } from './pdf-excerpt.js';
 import { sellerVideoBlockHtml, sellerVideoNote, sellerVideoSrc, SELLER_VIDEO_SECTION } from './seller-video.js';
 import { searchAdsBrandNotice, searchAdsNotice, searchAdsOkBrands, SEARCH_ADS_NOTE, SEARCH_ADS_SOURCE_LABEL, SEARCH_ADS_SOURCE_NOTE, SEARCH_ADS_TABLE_TITLE } from './google-ads-lane.js';
 import { officialStatsCitation, officialStatsNotice, officialStatsProvinceCellText, officialStatsProvinceCitation, officialStatsProvinceContext, officialStatsProvinceRowLabel, officialStatsProvinceRows, officialStatsRenderable, officialStatsRenderableRows, officialStatsRowLabel, officialStatsStatusText, officialStatsUnitText, officialStatsValueText, OFFICIAL_STATS_LIMIT, OFFICIAL_STATS_NOTE, OFFICIAL_STATS_PROVINCE_LIMIT, OFFICIAL_STATS_PROVINCE_NOTE, OFFICIAL_STATS_PROVINCE_TITLE, OFFICIAL_STATS_SOURCE_LABEL, OFFICIAL_STATS_SRC, OFFICIAL_STATS_TABLE_TEXT, OFFICIAL_STATS_TABLE_TITLE } from './official-statistics-lane.js';
@@ -223,7 +223,8 @@ export function marketSourceRows(input: AutomationReportInput, webResultCount: n
     ? [[OFFICIAL_STATS_SOURCE_LABEL, officialStatsProvinceRows(input.collection?.officialStats).length
       ? 'Đã dùng trong lượt này: số liệu thống kê cả nước theo nhóm hàng và chỉ số giá theo tỉnh, thành phố, chỉ là bối cảnh.'
       : 'Đã dùng trong lượt này: số liệu thống kê cả nước theo nhóm hàng, chỉ là bối cảnh.']] : [];
-  return [['Dữ liệu bán hàng', sales], ['Dữ liệu đánh giá sản phẩm trên nền tảng', native], ['Kết quả tìm kiếm', web], ['Bình luận đã thu thập', comments], ...interest, ...macro, ...trade, ...searchAds, ...official];
+  const pdf = pdfDiscoverySourceRows(input.collection?.pdfDiscovery, input.sourceEvidence?.pdfExcerpts === true ? input.pdfExcerpts ?? [] : []);
+  return [['Dữ liệu bán hàng', sales], ['Dữ liệu đánh giá sản phẩm trên nền tảng', native], ['Kết quả tìm kiếm', web], ['Bình luận đã thu thập', comments], ...pdf, ...interest, ...macro, ...trade, ...searchAds, ...official];
 }
 /** Reader appendix (market14): the plain source TYPES used, from the same predicates as marketSourceRows; core types this run lacks go in one sentence. */
 export function marketSourceTypes(input: AutomationReportInput, webResultCount: number, salesPlatforms: readonly string[]): { used: string[]; missing: string[] } {
@@ -1043,11 +1044,13 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   const marketSourceList = `<div class="table-wrap market14-sources"><div class="exh"><span class="exn">Bảng PL.1</span><span class="ext">Nguồn dữ liệu của báo cáo</span></div><table><caption>Nguồn dữ liệu của báo cáo</caption><thead><tr><th>Hạng mục</th><th>Trạng thái</th></tr></thead><tbody>` +
     marketSourceRows(input, webResults.length, webSourceFailed).map(([label, status]) => `<tr><td>${label}</td><td>${escape(status)}</td></tr>`).join('') +
     '</tbody></table></div>';
-  // Reader appendix: what kinds of source fed the report, never a status table; technical detail stays in the stored trace.
+  const missingPdfRows = pdfDiscoverySourceRows(input.collection?.pdfDiscovery, input.sourceEvidence?.pdfExcerpts === true ? input.pdfExcerpts ?? [] : []);
+  // Reader appendix: source types used, plus a plain status when the automatic PDF attempt yielded no excerpt.
   const market14Sources = (): string => {
     const types = marketSourceTypes(input, webResults.length, marketPresentation ? marketChartSource(marketPresentation.input.rows, input.metricMethods).rows.map(row => row.platform) : []);
     return `<div class="ex market14-sources"><div class="exh"><span class="exn">Bảng PL.1</span><span class="ext">Nguồn số liệu</span></div><ul class="pl-srclist">${types.used.map(label => `<li>${escape(label)}</li>`).join('')}</ul>` +
-      (types.missing.length ? `<p>Lượt này chưa có ${escape(types.missing.join(', '))}; phần nào cần các nguồn này ghi rõ là chưa có dữ liệu.</p>` : '') + '</div>' +
+      (types.missing.length ? `<p>Lượt này chưa có ${escape(types.missing.join(', '))}; phần nào cần các nguồn này ghi rõ là chưa có dữ liệu.</p>` : '') +
+      (missingPdfRows.length ? `<table><caption>Trạng thái tài liệu ngành</caption><thead><tr><th>Hạng mục</th><th>Trạng thái</th></tr></thead><tbody>${missingPdfRows.map(([label, status]) => `<tr><td>${escape(label)}</td><td>${escape(status)}</td></tr>`).join('')}</tbody></table>` : '') + '</div>' +
       '<p class="ex-note"><b>Chú thích:</b> Mọi hình và bảng được dựng tự động từ cùng một bộ dữ liệu đã lưu. Chi tiết kỹ thuật của từng nguồn nằm trong hồ sơ kỹ thuật riêng, không in trong bản đọc.</p>';
   };
   const market14Appendix = (marketPresentation ? market14Sources() : '') +
@@ -1193,7 +1196,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     (insightCoding && (sectionId === 'I03' || sectionId === 'I17') ? insightCodingTrace(insightCoding, sectionId) : '') +
     (insightCrosscheck && sectionId === 'I17' ? insightCrosscheckAppendix(insightCrosscheck) : '') +
     (kind === 'MARKET' && sectionId === 'M13' ? marketPresentation ? market14Appendix
-      : officialStatsRenderable(input.collection?.officialStats) ? marketSourceList : '' : '') +
+      : officialStatsRenderable(input.collection?.officialStats) || missingPdfRows.length ? marketSourceList : '' : '') +
     (kind === 'MARKET' && sectionId === 'M13' && !marketPresentation && searchAdsOkBrands(input.collection?.searchAds).length
       ? `<p>Nguồn: ${escape(SEARCH_ADS_SOURCE_LABEL)}. ${escape(SEARCH_ADS_SOURCE_NOTE)}</p>` : '') +
     (input.boundedMethods && traceAppendix(sectionId) && (sectionId === 'M13' || sectionId === 'I17')

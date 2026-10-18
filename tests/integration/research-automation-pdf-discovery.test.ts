@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
+import { JSDOM } from 'jsdom';
 import { openDatabase } from '../../src/platform/db/index.js';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/artifact-store.js';
 import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../src/modules/flow/index.js';
@@ -17,7 +18,7 @@ import type { ProviderTransport } from '../../src/modules/analysis/research-auto
 import type { AutomationSourcePort } from '../../src/modules/analysis/research-automation/source-binding.js';
 import { auditMarket14 } from '../../src/modules/analysis/research-automation/market-14-rules.js';
 import { assertMarketBusinessGate } from '../../src/modules/analysis/research-automation/market-business-gate.js';
-import { PDF_EXCERPT_TITLE } from '../../src/modules/analysis/research-automation/pdf-excerpt.js';
+import { PDF_DISCOVERY_MISSING, PDF_DISCOVERY_SOURCE_LABEL, PDF_EXCERPT_TITLE } from '../../src/modules/analysis/research-automation/pdf-excerpt.js';
 import { createPdfDiscoverySource, type PdfDiscoverySource, type PdfResolver } from '../../src/modules/analysis/research-automation/pdf-discovery-lane.js';
 import { SYNTHETIC_CARD_ID, SYNTHETIC_SERP_KEY, syntheticProductSource, syntheticWebSource } from '../helpers/research-synthetic-sources.js';
 import { providerNameViolations } from '../helpers/report-visible-text.js';
@@ -34,6 +35,23 @@ const publicDns: PdfResolver = async () => ['203.0.113.10'];
 const privateDns: PdfResolver = async () => ['10.0.0.8'];
 const row = (position: number, link: string, title = `Báo cáo ngành ${KEYWORD} ${position}`) => ({ position, title, link, snippet: `Số liệu ${KEYWORD} theo năm` });
 const blockOf = (html: string): string => { const start = html.indexOf(`<h3>${PDF_EXCERPT_TITLE}`); return start < 0 ? '' : html.slice(start, html.indexOf('</ul>', start) + 5); };
+
+/** The older draft has no source-status table without these optional lanes; only that new table may differ. */
+function assertMissingPdfStatus(html: string, offHtml: string): void {
+  const dom = new JSDOM(html);
+  const rows = [...dom.window.document.querySelectorAll('tr')].filter(row => row.firstElementChild?.textContent === PDF_DISCOVERY_SOURCE_LABEL);
+  assert.equal(rows.length, 1, 'one source-status row');
+  assert.equal(rows[0]!.lastElementChild?.textContent, PDF_DISCOVERY_MISSING);
+  assert.equal(rows[0]!.closest('details'), null, 'status is visible');
+  assert.doesNotMatch(rows[0]!.textContent!, /%|0|Google|https?:|studocu|scribd|metric/iu);
+  assert.deepEqual(providerNameViolations(html), []);
+  dom.window.close();
+  assert.equal(html.replace(/<div class="table-wrap market14-sources">[\s\S]*?<\/table><\/div>/u, ''), offHtml,
+    'outside the sources table, report bytes are unchanged');
+  assert.doesNotThrow(() => assertMarketBusinessGate(html, { presentation: false }));
+  const failures = (text: string) => auditMarket14(text).filter(item => item.kind === 'machine' && !item.ok).map(item => item.rule);
+  assert.deepEqual(failures(html).filter(rule => !failures(offHtml).includes(rule)), [], 'no new 14-rule failures');
+}
 
 /** One transport for the extra search and the downloads; counts each kind. */
 function pdfTransport(searchRows: unknown[], large = false, failSearch = false) {
@@ -170,7 +188,7 @@ test('flag on: one run-row PDF plus one admitted search PDF are downloaded, reta
   const found = f.document.pdfDiscovery!;
   assert.ok(found);
   assert.equal(f.pdf.calls.search, 1, 'exactly one extra search');
-  assert.deepEqual(f.pdf.calls.queries, [`${KEYWORD} báo cáo filetype:pdf`]);
+  assert.deepEqual(f.pdf.calls.queries, [`báo cáo thị trường ${KEYWORD} filetype:pdf -site:studocu.vn -site:scribd.com`]);
   assert.equal(found.search.status, 'CALLED');
   assert.deepEqual(found.files.map(file => [file.origin, file.url, file.status]), [['RUN_ROWS', RUN_PDF, 'DOWNLOADED'], ['PDF_SEARCH', SEARCH_PDF, 'DOWNLOADED']]);
   assert.equal(found.reason, null);
@@ -210,6 +228,11 @@ test('flag on: one run-row PDF plus one admitted search PDF are downloaded, reta
   assert.doesNotThrow(() => assertMarketBusinessGate(html, { presentation: false }));
   const failed = (text: string) => auditMarket14(text).filter(item => item.kind === 'machine' && !item.ok);
   assert.deepEqual(failed(html), failed(html.replace(block, '')), 'the block adds no 14-rule machine failure');
+  assert.equal(html.includes(PDF_DISCOVERY_SOURCE_LABEL), false, 'excerpts suppress the missing-source row');
+  const input = f.reportInputs.get('MARKET')!;
+  const collection = { ...input.collection!, pdfDiscovery: { ...input.collection!.pdfDiscovery!, files: [], reason: 'NO_CANDIDATE' as const } };
+  assert.deepEqual(buildResearchAutomationReport({ ...input, collection }, 'MARKET').html,
+    buildResearchAutomationReport(input, 'MARKET').html, 'with excerpts, the discovery outcome changes no HTML bytes');
   // Replay is read-only: no new search or download.
   const before = { ...f.pdf.calls };
   assert.equal(await f.html(), html);
@@ -226,7 +249,21 @@ test('flag on: two run-row PDFs skip the extra search', async t => {
   assert.deepEqual(f.usage.filter(u => u[0] === 15), [[15, 'pdf-discovery', 2]]);
 });
 
-test('flag on, every download refused: reason codes only, no file, and the report bytes match a flag-off run', async t => {
+test('document-sharing and analytics-vendor PDFs in both search paths never download or reach the reader', async t => {
+  const blocked = ['https://cdn.studocu.vn/report.pdf', 'https://scribd.com/report.pdf', 'https://metric.vn/report.pdf', 'https://www.kalodata.com/report.pdf'];
+  const f = await runToDraft(t, { lane: true, organic: blocked.map((url, i) => row(i + 1, url)), searchRows: blocked.map((url, i) => row(i + 1, url)) });
+  assert.equal(f.pdf.calls.search, 1, 'blocked run-row PDFs do not suppress the single extra search');
+  assert.equal(f.pdf.calls.download, 0);
+  assert.equal(f.runPdfs.length, 0);
+  assert.equal(f.pageIndex.calls.upload, 0);
+  assert.deepEqual(f.document.pdfDiscovery!.files, []);
+  assert.deepEqual(f.usage.filter(u => u[0] >= 14), [[14, 'serpapi', 1]]);
+  const html = await f.html();
+  assert.ok(html.includes(PDF_DISCOVERY_SOURCE_LABEL));
+  assert.deepEqual(providerNameViolations(html), []);
+});
+
+test('flag on, every download refused: no file and one plain missing-source row', async t => {
   // Two run-row candidates skip the extra search, so the only difference from a flag-off run is the refused downloads.
   const organic = [row(1, RUN_PDF), row(2, RUN_PDF_2)];
   const off = await runToDraft(t, { lane: false, organic });
@@ -239,7 +276,7 @@ test('flag on, every download refused: reason codes only, no file, and the repor
   assert.equal(refused.usage.some(u => u[0] === 15), false, 'no download request, no download usage row');
   const html = await refused.html();
   assert.equal(html.includes(PDF_EXCERPT_TITLE), false);
-  assert.equal(html, await off.html(), 'a failed lane never changes the rendered report');
+  assertMissingPdfStatus(html, await off.html());
 });
 
 test('flag off: no call, no field, no capture, no usage row, and no S25 row', async t => {
@@ -251,6 +288,7 @@ test('flag off: no call, no field, no capture, no usage row, and no S25 row', as
   assert.equal(f.runPdfs.length, 0);
   const html = await f.html();
   assert.equal(html.includes(PDF_EXCERPT_TITLE), false);
+  assert.equal(html.includes(PDF_DISCOVERY_SOURCE_LABEL), false);
   assert.equal(((await f.semantic()).sourceEvidence as Appendix).sourceAppendix.rows.some(r => r.registryId === 'S25'), false);
   // Frozen on e009d9ee with this same synthetic fixture: stored documents and both renderers are byte-identical.
   // WEBTITLE-209 re-froze only the two HTML digests: copied web titles are now wrapped in <q data-quote>; documents, captures, usage and semantic digests are unchanged.
@@ -270,18 +308,24 @@ test('flag off: no call, no field, no capture, no usage row, and no S25 row', as
 });
 
 
-test('search with no usable PDF keeps technical reasons only and leaves both reports byte-identical', async t => {
+test('search with no usable PDF shows the missing-source row in Market; lane off and Insight stay unchanged', async t => {
   for (const failSearch of [false, true]) {
     const options = { organic: [row(1, 'https://report.example/brand')], reports: ['MARKET', 'INSIGHT'] as ('MARKET' | 'INSIGHT')[] };
     const off = await runToDraft(t, { ...options, lane: false });
-    const on = await runToDraft(t, { ...options, lane: true, failSearch });
+    const on = await runToDraft(t, { ...options, lane: true, failSearch, searchRows: [
+      row(1, 'https://studocu.vn/document/bai-luan'), row(2, 'https://scribd.com/document/luan-van'),
+      row(3, 'https://researchgate.net/publication/bao-cao'), row(4, 'https://phuong.example/tin-tuc.html'),
+      row(5, 'https://vnexpress.net/tag/binh-giu-nhiet'), row(6, 'https://metric.vn/insights/nganh-hang'),
+    ] });
     assert.equal(on.pdf.calls.search, 1);
     assert.equal(on.pdf.calls.download, 0);
     assert.equal(on.runPdfs.length, 0);
+    assert.equal(on.document.pdfDiscovery?.reason, failSearch ? 'SEARCH_FAILED' : 'NO_CANDIDATE');
     for (const kind of options.reports) {
       const left = buildResearchAutomationReport(off.reportInputs.get(kind)!, kind);
       const right = buildResearchAutomationReport(on.reportInputs.get(kind)!, kind);
-      assert.deepEqual(right.html, left.html, kind);
+      if (kind === 'MARKET') assertMissingPdfStatus(right.html.toString(), left.html.toString());
+      else assert.deepEqual(right.html, left.html, kind);
     }
   }
 });
@@ -290,7 +334,7 @@ test('a throwing download port never fails collection, report or gate', async t 
   const off = await runToDraft(t, { lane: false, organic: [row(1, RUN_PDF)] });
   const on = await runToDraft(t, { lane: true, organic: [row(1, RUN_PDF)], throwDownload: true });
   assert.equal(on.document.pdfDiscovery?.reason, 'TRANSPORT');
-  assert.equal(await on.html(), await off.html());
+  assertMissingPdfStatus(await on.html(), await off.html());
   assert.doesNotThrow(() => assertMarketBusinessGate(buildResearchAutomationReport(on.reportInputs.get('MARKET')!, 'MARKET').html.toString(), { presentation: false }));
 });
 
@@ -460,7 +504,7 @@ test('a pre-send search exception records zero requests and does not fail the ru
 });
 
 
-test('optional capture and run-PDF storage failures leave reason codes and unchanged report bytes', async t => {
+test('optional capture and run-PDF storage failures show the missing-source row and retain technical reasons', async t => {
   const organic = [row(1, RUN_PDF), row(2, RUN_PDF_2)];
   const off = await runToDraft(t, { lane: false, organic });
   for (const options of [{ failCaptureWrite: true }, { failPdfRetention: true }]) {
@@ -468,7 +512,7 @@ test('optional capture and run-PDF storage failures leave reason codes and uncha
     assert.equal(f.runPdfs.length, 0);
     assert.ok(f.document.pdfDiscovery!.files.every(file => file.status === 'FAILED' && file.reason ===
       ('failCaptureWrite' in options ? 'TRANSPORT' : 'DOCUMENT_INVALID')));
-    assert.equal(await f.html(), await off.html());
+    assertMissingPdfStatus(await f.html(), await off.html());
     assert.equal(f.usage.find(row => row[0] === 15)?.[2], 2);
   }
 });
