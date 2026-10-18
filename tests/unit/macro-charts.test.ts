@@ -86,6 +86,63 @@ test('World Bank: a series that does not end at the table row draws nothing', as
   assert.deepEqual(await renderWorldBankCharts({ profile: 'p', indicators: [broken] }), []);
 });
 
+test('World Bank charts use the same exact rounded values as the table, with gaps preserved', async () => {
+  for (const [decimal, raw, rounded] of [
+    [0, ['2300.1', null, '2381.8882523638'], ['2300', null, '2382']],
+    [2, ['-9.995', '-0', null, '1.2', '9.995'], ['-10.00', '0.00', null, '1.20', '10.00']],
+    [2, ['999.994', null, '999.995'], ['999.99', null, '1000.00']],
+    [0, ['-0.5', '0', '1234.5'], ['-1', '0', '1235']],
+  ] as const) {
+    const original = syntheticWorldBankIndicator('NE.CON.PRVT.PC.KD', years(2020, raw));
+    const actual = { ...original, row: { ...original.row!, decimal } };
+    const expected = syntheticWorldBankIndicator('NE.CON.PRVT.PC.KD', years(2020, rounded));
+    const expectedWithPrecision = { ...expected, row: { ...expected.row!, decimal } };
+    for (const flint of [true, false]) {
+      assert.deepEqual(await renderWorldBankCharts({ profile: 'p', indicators: [actual] }, { flint }),
+        await renderWorldBankCharts({ profile: 'p', indicators: [expectedWithPrecision] }, { flint }), `${raw.join(',')} at ${decimal} places; flint=${flint}`);
+    }
+    assert.deepEqual(actual.series, years(2020, raw), 'stored source values are unchanged');
+  }
+});
+
+test('World Bank point labels retain exact table digits even on scaled axes and beyond safe integers', async () => {
+  for (const [value, decimal, expected] of [
+    ['101598527', 0, '101.598.527'], ['9.995', 2, '10,00'], ['-9.995', 2, '-10,00'],
+    ['9007199254740993.5', 0, '9.007.199.254.740.994'], ['1.2', 3, '1,200'], ['-0', 2, '0,00'],
+  ] as const) {
+    const item = syntheticWorldBankIndicator('SP.POP.TOTL', years(2022, ['1', null, value]));
+    const bank = { profile: 'p', indicators: [{ ...item, row: { ...item.row!, decimal, sourceIndicatorName: 'Population, total' } }] };
+    for (const flint of [true, false]) {
+      const [chart] = await renderWorldBankCharts(bank, { flint });
+      assert.equal(chart!.engine, flint ? 'flint' : 'svg-fallback', chart!.error);
+      assert.ok(chart!.svg.includes(`aria-label="Năm: 2024; Giá trị: ${expected} người"`), `${value}; flint=${flint}`);
+      assert.ok(!chart!.svg.includes('aria-label="Năm: 2023;'), 'a missing year has no value label');
+    }
+  }
+});
+
+test('World Bank axes use only source-backed units with their scale, in Flint and fallback', async () => {
+  const source = (code: string, name: string, values: string[]) => {
+    const item = syntheticWorldBankIndicator(code, years(2023, values));
+    return { ...item, row: { ...item.row!, sourceIndicatorName: name, decimal: 0 } };
+  };
+  const value = { profile: 'p', indicators: [
+    source('NE.CON.PRVT.PC.KD', 'Household consumption (constant 2015 US$)', ['2300.1', '2381.8882523638']),
+    source('SP.POP.TOTL', 'Population, total', ['100987000', '101598527']),
+    source('NE.CON.PRVT.PC.KD', 'Household consumption (current US$)', ['2300', '2382']),
+    source('SP.POP.TOTL', 'Synthetic population indicator', ['100987000', '101598527']),
+  ] };
+  for (const flint of [true, false]) {
+    const charts = await renderWorldBankCharts(value, { flint });
+    assert.deepEqual(charts.map(chart => chart.unit), ['nghìn USD, giá cố định năm 2015', 'triệu người', 'nghìn USD, giá hiện hành', 'triệu; nguồn chưa ghi đơn vị']);
+    for (const chart of charts) {
+      assert.equal(chart.engine, flint ? 'flint' : 'svg-fallback', chart.error);
+      assert.ok(svgText(chart.svg).includes(`Giá trị (${chart.unit})`));
+      assertNoSi(chart.svg);
+    }
+  }
+});
+
 const row = (side: 'OWN' | 'MIRROR', reporter: string, flow: 'M' | 'X', year: string, value: string, captureIndex = 20): StepComtradeRow => ({ side, reporter, flow, year, value, captureIndex });
 function syntheticComtrade(rows: readonly StepComtradeRow[]): StepComtrade {
   return { profile: 'comtrade-v1', status: 'OK', hsCode: '999999', officialDescription: 'Synthetic goods', descriptionVi: 'Hàng tổng hợp', reasonVi: null, attempts: [],

@@ -29,14 +29,14 @@ const CODES = ['NE.CON.PRVT.PC.KD', 'SP.POP.TOTL'] as const;
 const VALUES: Record<string, string[]> = { 'NE.CON.PRVT.PC.KD': ['null', '1234.5', '1000', ...Array.from({ length: 63 }, () => '900')], 'SP.POP.TOTL': ['98000000', '97000000'] };
 type Mode = 'ok' | 'http-error' | 'transport' | 'timeout' | 'oversize' | 'identity' | 'wrong-indicator' | 'no-rows';
 /** The real lane over a synthetic transport; `modes` picks the answer per requested URL. */
-function syntheticWorldBank(calls: { url: URL; init: RequestInit | undefined }[], modes: Record<string, Mode> = {}): WorldBankSource {
+function syntheticWorldBank(calls: { url: URL; init: RequestInit | undefined }[], modes: Record<string, Mode> = {}, fixtures: Record<string, ReturnType<typeof worldBankFixture>> = {}): WorldBankSource {
   const transport: ProviderTransport = {
     fetch: (async (input: string | URL | Request, init?: RequestInit) => {
       const url = new URL(String(input));
       calls.push({ url, init });
       const code = CODES.find(c => url.pathname.endsWith(`/${c}`))!;
       const mode = modes[url.pathname] ?? modes[code] ?? 'ok';
-      const raw = worldBankFixture(mode === 'wrong-indicator' ? CODES.find(c => c !== code)! : code, VALUES[code]);
+      const raw = fixtures[code] ?? worldBankFixture(mode === 'wrong-indicator' ? CODES.find(c => c !== code)! : code, VALUES[code]);
       const body = url.pathname.includes('/country/') ? raw.observations : raw.metadata;
       const json = (value: string | Buffer, status = 200) => new Response(new Uint8Array(Buffer.from(value)), { status, headers: { 'content-type': 'application/json' } });
       if (mode === 'http-error') return json('{}', 500);
@@ -98,7 +98,7 @@ async function reportDocument(f: Awaited<ReturnType<typeof runToDraft>>) {
 test('flag on: four pinned GETs, both pairs stored as captures, one table in the demand section', async t => {
   const calls: { url: URL; init: RequestInit | undefined }[] = [];
   const f = await runToDraft(t, { source: syntheticProductSource(), worldBankSource: syntheticWorldBank(calls) });
-  assert.deepEqual(calls.map(c => c.url.href), CODES.flatMap(code => [`https://api.worldbank.org/v2/country/VN/indicator/${code}?format=json&per_page=100`, `https://api.worldbank.org/v2/indicator/${code}?format=json`]));
+  assert.deepEqual(calls.map(c => c.url.href), CODES.flatMap(code => [`https://api.worldbank.org/v2/country/VN/indicator/${code}?source=2&format=json&per_page=100`, `https://api.worldbank.org/v2/indicator/${code}?format=json`]));
   for (const c of calls) { assert.equal(c.init?.method, 'GET'); assert.equal(c.init?.redirect, 'error'); assert.deepEqual(c.init?.headers, { accept: 'application/json' }); }
   assert.equal(f.step.state, 'SUCCEEDED');
   assert.deepEqual(f.captures.map(c => [c.ordinal, c.provider, c.operation]), [[0, 'kalodata', 'kalodata.product.rank'],
@@ -118,13 +118,14 @@ test('flag on: four pinned GETs, both pairs stored as captures, one table in the
   const text = table!.textContent!;
   assert.match(text, /Ngân hàng Thế giới \(World Bank Open Data\)/u);
   assert.match(text, /CC BY 4\.0/u);
-  assert.match(text, /1\.234,5/u);
+  assert.match(text, /1\.235/u);
   assert.match(text, /98\.000\.000/u);
   assert.match(text, /2024/u);
   assert.match(text, /2026-07-13/u, 'the update date is shown');
   assert.match(text, /cả nước Việt Nam, chỉ để làm nền/u);
   assert.match(text, /không so sánh được với số liệu mẫu/u);
   assert.match(text, /nguồn chưa ghi đơn vị/u, 'a missing unit is stated, not invented');
+  assert.match(text, /Các giá trị được làm tròn theo độ chính xác do nguồn công bố\./u);
   assert.match(text, /Synthetic estimate note/u, 'the status text is the source own');
   assert.equal(/ước tính/u.test(text.replace(/Synthetic estimate note/u, '')), false, 'no "estimate" label is inferred');
   assert.match(table!.querySelector('.ex-src, .cite')!.outerHTML, /./u);
@@ -144,6 +145,32 @@ test('flag on: four pinned GETs, both pairs stored as captures, one table in the
   assert.deepEqual(failing(html).filter(rule => !baseline.includes(rule)), [], 'S23 adds no machine-rule failure the same synthetic report does not already have without it');
 });
 
+test('source-shaped observations retain precision and source names, display rounded values and units, and replay offline', async t => {
+  const names = { 'NE.CON.PRVT.PC.KD': 'Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)', 'SP.POP.TOTL': 'Population, total' };
+  const fixtures = { 'NE.CON.PRVT.PC.KD': worldBankFixture(CODES[0], ['null', '2381.8882523638', '2300.1'], names[CODES[0]]),
+    'SP.POP.TOTL': worldBankFixture(CODES[1], ['101598527', '100987000'], names[CODES[1]]) };
+  const calls: { url: URL; init: RequestInit | undefined }[] = [];
+  const f = await runToDraft(t, { source: syntheticProductSource(), worldBankSource: syntheticWorldBank(calls, {}, fixtures) });
+  assert.deepEqual(f.document!.worldBank!.indicators.map(item => [item.row!.decimal, item.row!.sourceIndicatorName, item.row!.value]),
+    [[0, names[CODES[0]], '2381.8882523638'], [0, names[CODES[1]], '101598527']]);
+  const { html, doc } = await reportDocument(f);
+  const block = [...doc.querySelectorAll('#M05 .table-wrap')].find(node => /Bảng 5\.3/u.test(node.textContent!))!.textContent!;
+  assert.match(block, /2\.382 USD, giá cố định năm 2015/u);
+  assert.match(block, /101\.598\.527 người/u);
+  assert.doesNotMatch(block, /nguồn chưa ghi đơn vị|2\.381,888|%/u);
+  const axes = [...doc.querySelectorAll('[data-chart-id^="M05.world-bank."]')].map(node => node.textContent!);
+  assert.match(axes[0]!, /nghìn USD, giá cố định năm 2015/u);
+  assert.match(axes[1]!, /triệu người/u);
+  assert.deepEqual(visibleTextViolations(reportVisibleText(doc)), []);
+  assert.deepEqual(providerNameViolations(html), []);
+  assertMarketBusinessGate(html);
+  const oldFailures = auditMarket14((await reportDocument(await runToDraft(t, { source: syntheticProductSource() }))).html)
+    .filter(item => item.kind === 'machine' && !item.ok).map(item => item.rule);
+  assert.deepEqual(auditMarket14(html).filter(item => item.kind === 'machine' && !item.ok && !oldFailures.includes(item.rule)), []);
+  assert.equal((await f.open({}).readReport(workspaceId, runId, 'MARKET')).bytes.toString(), html);
+  assert.equal(calls.length, 4);
+});
+
 test('flag on: a 10-year series is stored with gaps kept, ends at the table row, and is drawn as Flint Hình 5.3/5.4 after Bảng 5.3', async t => {
   const f = await runToDraft(t, { source: syntheticProductSource(), worldBankSource: syntheticWorldBank([]) });
   const [pc, pop] = f.document!.worldBank!.indicators;
@@ -152,6 +179,14 @@ test('flag on: a 10-year series is stored with gaps kept, ends at the table row,
   for (const item of [pc!, pop!]) assert.deepEqual(item.series!.at(-1), { year: item.row!.year, value: item.row!.value });
   const bank = f.document!.worldBank!;
   assert.equal(validWorldBank(bank), true);
+  const legacy = { ...bank, indicators: bank.indicators.map(item => {
+    const { decimal: _decimal, sourceIndicatorName: _name, ...row } = item.row!;
+    return { ...item, row };
+  }) };
+  assert.equal(validWorldBank(legacy), true, 'documents without source precision and source name remain valid');
+  for (const fields of [{ decimal: -1 }, { decimal: 101 }, { decimal: 0.5 }, { decimal: '0' }, { decimal: null },
+    { sourceIndicatorName: 42 }, { sourceIndicatorName: 'source\u0000name' }, { sourceIndicatorName: 'x'.repeat(10001) }])
+    assert.equal(validWorldBank({ ...bank, indicators: [{ ...pc!, row: { ...pc!.row!, ...fields } }, pop] }), false, JSON.stringify(fields).slice(0, 80));
   const old = { ...bank, indicators: bank.indicators.map(({ series: _series, ...rest }) => rest) };
   assert.equal(validWorldBank(old), true, 'a document stored before the series existed still validates');
   const gap = { ...bank, indicators: bank.indicators.map(item => ({ ...item, series: item.series!.map((point, i) => i === 0 ? { ...point, value: null } : point) })) };

@@ -7,7 +7,7 @@ import { UNKNOWN_SHOP, marketChartRows, marketShopsUnrecorded, renderMarketChart
 import { renderComtradeCharts, renderWorldBankCharts, type MacroChart } from './macro-charts.js';
 import { searchInterestChartPoints, searchInterestRenderable, SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_LIMIT, SEARCH_INTEREST_NOTE, SEARCH_INTEREST_SOURCE_LABEL, SEARCH_INTEREST_SRC, SEARCH_INTEREST_UNIT } from '../research-automation/search-interest.js';
 import { searchGeoAverageText, searchGeoRenderable, searchGeoText, summarizeSearchGeo, SEARCH_GEO_DONT, SEARCH_GEO_HEADERS, SEARCH_GEO_NOTE, SEARCH_GEO_TABLE_NO, SEARCH_GEO_TABLE_TITLE } from '../research-automation/search-geo.js';
-import { formatWorldBankValue, worldBankRenderableRows, worldBankSourceNote, worldBankUnitText, WORLD_BANK_LIMIT, WORLD_BANK_NOTE, WORLD_BANK_SOURCE_LABEL, WORLD_BANK_SRC, WORLD_BANK_TITLE } from '../research-automation/world-bank-lane.js';
+import { formatWorldBankValue, worldBankRenderableRows, worldBankSourceNote, worldBankTableNote, worldBankUnitText, WORLD_BANK_LIMIT, WORLD_BANK_SOURCE_LABEL, WORLD_BANK_SRC, WORLD_BANK_TITLE } from '../research-automation/world-bank-lane.js';
 import { E12_ATTRIBUTION, E13_ATTRIBUTION, E14_ATTRIBUTION } from '../source-appendix-projection.js';
 import { officialStatsCitation, officialStatsCitationSheet, officialStatsNotice, officialStatsProvinceCellText, officialStatsProvinceCitation, officialStatsProvinceContext, officialStatsProvinceRowLabel, officialStatsProvinceRows, officialStatsRenderableRows, officialStatsRowLabel, officialStatsStatusText, officialStatsUnitText, officialStatsValueText, OFFICIAL_STATS_LIMIT, OFFICIAL_STATS_NOTE, OFFICIAL_STATS_PROVINCE_LIMIT, OFFICIAL_STATS_PROVINCE_NOTE, OFFICIAL_STATS_PROVINCE_TITLE, OFFICIAL_STATS_SRC, OFFICIAL_STATS_TABLE_TEXT, OFFICIAL_STATS_TABLE_TITLE } from '../research-automation/official-statistics-lane.js';
 import { comtradeFlowText, comtradeNotice, comtradeOfficialText, comtradeRenderableRows, comtradeRowNote, comtradeSideText, COMTRADE_LIMIT, COMTRADE_NOTE, COMTRADE_SOURCE_LABEL, COMTRADE_SRC, COMTRADE_TABLE_TITLE } from '../research-automation/comtrade-lane.js';
@@ -146,9 +146,9 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
       const no = registry.cite({ sourceKind: 'CAPTURE', identity: item.sourceSha256, locator: { kind: 'json-pointer', pointer: item.row.locator },
         label: `${E13_ATTRIBUTION}, ${item.row.indicatorName}, ${item.row.year}, cập nhật ${item.row.lastUpdated}`, technical: { indicator: item.code },
         retrievedAt: item.retrievedAt, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' });
-      return [label(item.row.indicatorName), esc(E13_ATTRIBUTION), label(`${formatWorldBankValue(item.row.value)} ${worldBankUnitText(item.row)}`) + (no === null ? '' : renderCitationMark(no)),
+      return [label(item.row.indicatorName), esc(E13_ATTRIBUTION), label(`${formatWorldBankValue(item.row.value, item.row.decimal)} ${worldBankUnitText(item.row, item.code)}`) + (no === null ? '' : renderCitationMark(no)),
         label(item.row.year), label(item.row.lastUpdated), label(worldBankSourceNote(item.row))];
-    }), { src: WORLD_BANK_SRC, note: WORLD_BANK_NOTE });
+    }), { src: WORLD_BANK_SRC, note: worldBankTableNote(worldBankRows) });
   // One yearly line per drawn indicator follows table 5.3 (Hình 5.3, 5.4 in indicator order), only from the stored series; never on a sample axis.
   const macroFig = (chart: MacroChart, no: string): string => {
     charts.push({ id: chart.id, engine: chart.engine, ...(chart.error ? { error: chart.error } : {}) });
