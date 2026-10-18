@@ -134,3 +134,6 @@
 @media(max-width:650px){.ra-classification-fields{grid-template-columns:1fr}.ra-classification-choice{font-size:14px}}
 
 .ra-history-filter{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;margin:0 0 12px}.ra-history-filter label{display:flex;gap:8px;align-items:center}
+
+/* M-09: long limitation codes wrap instead of being cut at 390 px */
+.ra-block code,.ra-run-steps code,.ra-blockers code{white-space:normal;overflow-wrap:anywhere;word-break:break-word}
