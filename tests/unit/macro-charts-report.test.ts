@@ -116,6 +116,20 @@ async function presentationInput(extra: { worldBank?: StepWorldBank; comtrade?: 
 }
 const draftHtml = (input: AutomationReportInput): string => buildResearchAutomationReport(input, 'MARKET').html.toString('utf8');
 
+test('both renderers show the confirmed scope limit beside the estimated code as automatic interpretation', async () => {
+  const reasonVi = 'Số liệu chỉ gồm bình cách nhiệt bằng thép, không bao gồm mọi vật liệu của nhóm sản phẩm.';
+  const scopedTrade = { ...fullTrade, reasonVi, descriptionVi: 'Bình cách nhiệt bằng thép' };
+  const htmls = [(await reader({ comtrade: scopedTrade })).html, draftHtml(await presentationInput({ comtrade: scopedTrade }))];
+  for (const html of htmls) {
+    const doc = new JSDOM(html).window.document;
+    const paragraph = [...doc.querySelectorAll('p')].find(p => p.textContent!.includes('Mã hàng ước tính: 999999'));
+    assert.ok(paragraph, 'code is shown');
+    assert.ok(paragraph.textContent!.includes(`Phạm vi áp dụng (diễn giải tự động): ${reasonVi}`), 'the limitation is in the same paragraph as the code');
+    assert.doesNotMatch(paragraph.textContent!, /%|Google/u);
+    assert.deepEqual(machineFailures(html), []);
+  }
+});
+
 test('both renderers: World Bank figures, national and province tables, and Comtrade figures coexist with valid numbering and Flint', async () => {
   const officialStats: StepOfficialStats = {
     profile: 'official-stats-v1', status: 'OK', categoryGroup: 'Đồ uống', reasonVi: null, listCaptureIndex: null,
