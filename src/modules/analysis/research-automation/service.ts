@@ -189,6 +189,7 @@ import type {
 } from '../../../../contracts/api/research-automation-api.generated.js';
 import type { DiscoveryWorkspaceReader } from '../../../modules/flow/discovery-workspace-reader.js';
 import { canonicalJson } from '../../../modules/foundation/canonical-json.js';
+import { assertKalodataReplayScope, kalodataReplayScopeMatches, KalodataReplayScopeMismatchError, withKalodataReplayNotice, KALODATA_REPLAY_MISS, KALODATA_REPLAY_SCOPE_MISMATCH, KALODATA_REPLAY_USAGE_OPERATION, type KalodataReplaySource } from './kalodata-replay.js';
 import { withDatabaseMutationMutex } from '../../../platform/db/database-mutation-mutex.js';
 import { ContentAddressedArtifactStore, type StoredArtifact } from '../../../platform/artifacts/artifact-store.js';
 import type {
@@ -296,6 +297,8 @@ export interface ResearchAutomationReportInput {
   readonly boundedMethods?: AutomationBoundedMethodSnapshot;
   readonly quoteMethods?: AutomationQuoteMethodSnapshot;
   readonly metricMethodsFailure?: MetricMethodFailureCode;
+  /** Replay test instance only: the report carries a visible test notice. Absent in production. */
+  readonly kalodataReplayNotice?: true;
 }
 /** Alias retained for the report module's public renderer signature. */
 export type AutomationReportInput = ResearchAutomationReportInput;
@@ -390,6 +393,8 @@ export interface ResearchAutomationServiceOptions {
   /** Optional extra searches (dated and per-marketplace), at most three paid requests per collection; absent keeps every stored byte. */
   readonly expandedSource?: ExpandedSearchSource;
   readonly renderer?: ResearchAutomationReportRenderer;
+  /** Replay test instance only (TDN_RESEARCH_KALODATA_REPLAY_SOURCE_RUN_ID). Absent keeps every stored byte unchanged. */
+  readonly kalodataReplay?: KalodataReplaySource;
   readonly now?: () => Date;
   readonly uuid?: () => string;
   readonly actorId?: string;
@@ -558,6 +563,7 @@ export class ResearchAutomationService {
   readonly #pdfCaptureMaxPages: number;
   readonly #expandedSource: ExpandedSearchSource | undefined;
   readonly #renderer: ResearchAutomationReportRenderer | undefined;
+  readonly #kalodataReplay: KalodataReplaySource | undefined;
   readonly #now: () => Date;
   readonly #uuid: () => string;
   readonly #actorId: string;
@@ -620,6 +626,7 @@ export class ResearchAutomationService {
     this.#pdfCaptureMaxPages = pdfDiscoveryMaxPages(options.pdfCaptureMaxPages === undefined ? process.env : { [PDF_DISCOVERY_MAX_PAGES_ENV]: String(options.pdfCaptureMaxPages) });
     this.#expandedSource = options.expandedSource;
     this.#renderer = options.renderer;
+    this.#kalodataReplay = options.kalodataReplay;
     this.#pageIndex = options.pageIndex;
     this.#sourceEvidence = options.sourceEvidence;
     this.#now = options.now ?? (() => new Date());
@@ -1234,6 +1241,7 @@ export class ResearchAutomationService {
   async start(workspaceId: string, value: unknown): Promise<ResearchAutomationMutationReceipt> {
     const input = validateStart(value);
     assertUuid(workspaceId);
+    if (this.#kalodataReplay) assertKalodataReplayScope(this.#kalodataReplay, input.keyword, input.requestedPeriod);
     await this.#readWorkspace(workspaceId);
     const requestSha = digest({ kind: 'START', workspaceId, input });
     return withDatabaseMutationMutex(this.#db, async () => {
@@ -1878,7 +1886,9 @@ export class ResearchAutomationService {
   async readReaderReport(workspaceId: string, runId: string, revisionId: string) {
     assertUuid(revisionId);
     await this.getRun(workspaceId, runId);
-    return this.#readerReports.html({ workspaceId, runId }, revisionId);
+    const page = await this.#readerReports.html({ workspaceId, runId }, revisionId);
+    // Replay test instance: every served reader page (HTML and the PDF printed from it) carries the visible test notice.
+    return this.#kalodataReplay ? { ...page, bytes: withKalodataReplayNotice(page.bytes) } : page;
   }
   async #readerContext(workspaceId: string, runId: string, packageId: string): Promise<ReaderDraftContext> {
     const run = await this.getRun(workspaceId, runId);
@@ -2055,6 +2065,8 @@ export class ResearchAutomationService {
         ...(input.exactShopeeUrls !== undefined ? { exactShopeeUrls: [...input.exactShopeeUrls] } : {}) };
       const row = this.#current(runId)!;
       const start = await this.#readStartSnapshot(row.startSha, workspaceId);
+      // Runs copied into a replay instance were not started here; confirm only the source run's scope.
+      if (this.#kalodataReplay) assertKalodataReplayScope(this.#kalodataReplay, start.keyword, start.requestedPeriod);
       const bound = { runId, start, scope, scopeConfirmedAt: confirmedAt };
       let metric: AutomationConfirmedSourceSet['metric'] | undefined;
       let native: AutomationConfirmedSourceSet['nativeReview'] | undefined;
@@ -3210,8 +3222,11 @@ export class ResearchAutomationService {
       const attempt = this.#attempt(queued.attemptId)!;
       const parent = this.#current(attempt.runId);
       if (!parent) throw new ResearchAutomationIntegrityError('Revision source run is missing.');
+      if (this.#replayOutOfScope(attempt.runId)) { await this.#quarantineReplayRun(attempt.runId); return true; }
       return this.#executeReports(parent, signal, attempt);
     }
+    // Replay instance: runs copied in from another database never reach a worker outside the source scope.
+    if (this.#replayOutOfScope(row.runId)) { await this.#quarantineReplayRun(row.runId); return true; }
     if (row.status === 'QUICK_SEARCH_QUEUED') return this.#executeQuick(row, signal);
     if (row.status === 'COLLECTION_QUEUED') return this.#executeCollection(row, signal);
     return this.#executeReports(row, signal);
@@ -3219,6 +3234,11 @@ export class ResearchAutomationService {
 
   /** On executor start, paid provider operations are interrupted, never retried. */
   async recoverOnStart(): Promise<void> {
+    // Replay instance: copied runs outside the source scope stop first, so normal recovery never requeues them.
+    if (this.#kalodataReplay) {
+      const runIds = (this.#db.prepare('SELECT run_id runId FROM analysis_research_automation_runs').all() as Array<{ runId: string }>).map(row => row.runId);
+      for (const runId of runIds) if (this.#replayOutOfScope(runId)) await this.#quarantineReplayRun(runId);
+    }
     await withDatabaseMutationMutex(this.#db, async () => {
       const rows = this.#db.prepare(`SELECT run_id runId,revision,status FROM analysis_research_automation_runs WHERE status IN ('QUICK_SEARCH_RUNNING','COLLECTING','CANCELLING','RENDERING')`).all() as Array<{ runId: string; revision: bigint | number; status: ResearchAutomationRun['status'] }>;
       const at = this.#now().toISOString();
@@ -3294,6 +3314,11 @@ export class ResearchAutomationService {
         return true;
       }
       const start = await this.#readStartSnapshot(row.startSha, row.workspaceId);
+      // A queued run outside the source run's scope never reaches the providers in replay mode.
+      if (this.#kalodataReplay && !kalodataReplayScopeMatches(this.#kalodataReplay, start.keyword, start.requestedPeriod)) {
+        if (!controller.signal.aborted) await this.#quarantineReplayRun(row.runId);
+        return true;
+      }
       const scope = row.scopeSha ? await this.#readScopeSnapshot(row.scopeSha, row.workspaceId, row.runId) : null;
       if (controller.signal.aborted) return false;
       const expectedStatus = stepId === 'QUICK_SEARCH' ? 'QUICK_SEARCH_QUEUED' : 'COLLECTION_QUEUED';
@@ -3822,6 +3847,7 @@ export class ResearchAutomationService {
         if (marketCover) input = { ...input, marketCover: { mime: 'image/jpeg', base64: marketCover.bytes.toString('base64'),
           alt: marketCoverAlt(start.keyword, marketCover.record.provenance), provenance: marketCover.record.provenance,
           model: marketCover.record.model, width: marketCover.record.width, height: marketCover.record.height } };
+        if (this.#kalodataReplay) input = { ...input, kalodataReplayNotice: true };
         const render = async () => {
           const privateDefault = kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v5';
           const privateRendererVersion = input.qualitativeDraft ? 'automation-report-kit-v28' : input.insightPersona ? 'automation-report-kit-v26' : privateDefault ? 'automation-report-kit-v25'
@@ -4539,7 +4565,9 @@ export class ResearchAutomationService {
         const outcome = aborted || signal?.aborted || result?.status === 'CANCELLED' || webResult?.status === 'CANCELLED' || trendsResult?.status === 'CANCELLED' || expandedCalled.some(item => item.result.status === 'CANCELLED') || current.status === 'CANCELLING' ? 'CANCELLED' : step.outcome;
         const code = outcome === 'CANCELLED' ? 'CANCELLED_DURING_PROVIDER_OPERATION' : outcome === 'UNAVAILABLE' ? 'PROVIDER_NOT_CONFIGURED' : outcome === 'FAILED'
           ? step.limitations.some(value => value.code === 'PROVIDER_OUTPUT_INVALID') ? 'PROVIDER_OUTPUT_INVALID'
-            : step.limitations.some(value => value.code === 'PROVIDER_CREDIT_EXHAUSTED') ? 'PROVIDER_CREDIT_EXHAUSTED' : 'PROVIDER_FAILED' : null;
+            : step.limitations.some(value => value.code === 'PROVIDER_CREDIT_EXHAUSTED') ? 'PROVIDER_CREDIT_EXHAUSTED'
+            : step.limitations.some(value => value.code === KALODATA_REPLAY_MISS) ? KALODATA_REPLAY_MISS : 'PROVIDER_FAILED'
+          : outcome === 'PARTIAL' && step.limitations.some(value => value.code === KALODATA_REPLAY_MISS) ? KALODATA_REPLAY_MISS : null;
         const finished = this.#now().toISOString();
         this.#db.prepare(`UPDATE analysis_research_automation_steps SET state=?,message_code=?,result_sha256=?,finished_at=? WHERE run_id=? AND step_id=? AND state='RUNNING'`)
           .run(outcome, code, resultArtifact.sha256, finished, runId, stepId);
@@ -4601,6 +4629,36 @@ export class ResearchAutomationService {
     });
   }
 
+  /** Replay instance: true when the stored run is outside the source run's keyword and period. */
+  #replayOutOfScope(runId: string): boolean {
+    if (!this.#kalodataReplay) return false;
+    const run = this.#db.prepare('SELECT keyword,period_start periodStart,period_end periodEnd FROM analysis_research_automation_runs WHERE run_id=?').get(runId) as { keyword: string; periodStart: string; periodEnd: string } | undefined;
+    return run !== undefined && !kalodataReplayScopeMatches(this.#kalodataReplay, run.keyword, { startDate: run.periodStart, endDate: run.periodEnd });
+  }
+
+  /** Replay instance: refuses any owner action on a run outside the source scope. */
+  assertReplayRunInScope(runId: string): void {
+    if (this.#replayOutOfScope(runId)) throw new KalodataReplayScopeMismatchError(`${KALODATA_REPLAY_SCOPE_MISMATCH}: this run is outside the replay source run keyword and period`);
+  }
+
+  /** Replay instance: a run outside the source scope stops with no further work (steps, report attempts, automatic run). */
+  async #quarantineReplayRun(runId: string): Promise<void> {
+    await withDatabaseMutationMutex(this.#db, async () => {
+      this.#db.transaction(() => {
+        const current = this.#current(runId);
+        if (!current) return;
+        const at = this.#now().toISOString();
+        if (!TERMINAL_STATUSES.has(current.status)) {
+          this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='FAILED',message_code=?,finished_at=? WHERE run_id=? AND state IN ('QUEUED','RUNNING')`).run(KALODATA_REPLAY_SCOPE_MISMATCH, at, runId);
+          this.#transition(runId, toNumber(current.revision), 'CANCELLED', at);
+          this.#skipPendingSteps(runId, at);
+        }
+        this.#db.prepare(`UPDATE analysis_research_automation_attempts SET state='CANCELLED',finished_at=? WHERE run_id=? AND state IN ('QUEUED','RUNNING')`).run(at, runId);
+        if (this.#hasAutorunTable()) this.#autorunStop(runId, KALODATA_REPLAY_SCOPE_MISMATCH, at);
+      })();
+    });
+  }
+
   #skipPendingSteps(runId: string, at: string): void {
     this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='SKIPPED',message_code='SKIPPED_AFTER_STOP',finished_at=? WHERE run_id=? AND state IN ('PENDING','QUEUED')`).run(at, runId);
   }
@@ -4609,8 +4667,15 @@ export class ResearchAutomationService {
     const provider = result.provider.toLowerCase();
     // Usage is an aggregate across the provider call; attributing it to the
     // first capture would mislabel a credit-balance request as the run cost.
-    const operation = 'provider.run';
     const usage = result.usage;
+    // Replay test instance: no live sales-data request was made, so the call is labelled
+    // as replayed with a known zero cost instead of an account balance delta.
+    if (this.#kalodataReplay && provider === 'kalodata') {
+      this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,?,?,?,'KNOWN','CREDITS','0',?)`)
+        .run(runId, stepId, ordinal, provider, KALODATA_REPLAY_USAGE_OPERATION, usage.requestsIssued, at);
+      return;
+    }
+    const operation = 'provider.run';
     // An account-wide balance delta is not attributable to this run and is
     // therefore never presented as a known CREDITS charge. Only an explicit
     // no-paid-request receipt can safely expose a zero credit usage.
@@ -5250,6 +5315,7 @@ export class ResearchAutomationService {
         SELECT 1 FROM research_automation_autorun b WHERE b.phase='CAPTURE' AND b.phase_state='RUNNING'))))
       ORDER BY a.created_at,a.run_id LIMIT 1`).get() as { runId: string; phase: AutorunPhase } | undefined;
     if (!next) return false;
+    if (this.#replayOutOfScope(next.runId)) { await this.#quarantineReplayRun(next.runId); return true; }
     switch (next.phase) {
       case 'CAPTURE': return this.#autorunCapture(next.runId);
       case 'PREPARE': return this.#autorunPrepare(next.runId);
@@ -6180,4 +6246,4 @@ function defaultRenderedReport(input: ResearchAutomationReportInput, kind: 'MARK
   // Explicit literal/private/default branches use the owning builder; historical fallback bytes stay unchanged.
   if (kind === 'INSIGHT' && (input.insightLiteral || input.start.privateShopeeSource || input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4'))
     return { ...buildResearchAutomationReport(input, kind), pdfUnavailableCode: 'PDF_RENDERER_NOT_CONFIGURED' };
-  const title = kind === 'MARKET' ? 'Market research draft' : 'Insight research draft'; const escape = (value: string) => value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]!)); const semantic = { contractVersion: 'research-automation-report-v1', kind, runId: input.run.runId, workspaceId: input.run.workspaceId, status: 'UNREVIEWED', scope: input.scope.definition, blockers: input.run.blockers }; const html = Buffer.from(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${escape(title)}</title></head><body><h1>${escape(title)}</h1><p>Draft, unreviewed. Scope: ${escape(input.scope.definition)}</p><p>Evidence remains source-bound; no unsupported totals were inferred.</p></body></html>`, 'utf8'); return { semantic, html, pdfUnavailableCode: 'PDF_RENDERER_NOT_CONFIGURED' }; }
+  const title = kind === 'MARKET' ? 'Market research draft' : 'Insight research draft'; const escape = (value: string) => value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]!)); const semantic = { contractVersion: 'research-automation-report-v1', kind, runId: input.run.runId, workspaceId: input.run.workspaceId, status: 'UNREVIEWED', scope: input.scope.definition, blockers: input.run.blockers }; const html = Buffer.from(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${escape(title)}</title></head><body><h1>${escape(title)}</h1><p>Draft, unreviewed. Scope: ${escape(input.scope.definition)}</p><p>Evidence remains source-bound; no unsupported totals were inferred.</p></body></html>`, 'utf8'); return { semantic, html: input.kalodataReplayNotice ? withKalodataReplayNotice(html) : html, pdfUnavailableCode: 'PDF_RENDERER_NOT_CONFIGURED' }; }

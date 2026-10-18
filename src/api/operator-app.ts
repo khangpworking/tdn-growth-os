@@ -19,6 +19,7 @@ import { openResearchGenerationApi, type ResearchGenerationApiApplication } from
 import { acquireExecutorLock, canonicalDatabasePath, type ExecutorLock } from './executor-lock.js';
 import { createR2MediaArchive } from '../platform/artifacts/r2-media-archive.js';
 import { openResearchAutomationApi, researchAutomationApiPath, type ResearchAutomationApiApplication } from './research-automation-api.js';
+import { assertKalodataReplayNotProduction, kalodataReplaySourceRunIdFromEnvironment, KalodataReplayRefusedError, KALODATA_REPLAY_REFUSED } from '../modules/analysis/research-automation/kalodata-replay.js';
 import { researchAutomationProviderConfigFromEnv, type ResearchAutomationProviderConfig } from '../modules/analysis/research-automation/providers.js';
 import { searchTrendsEnabled } from '../modules/analysis/research-automation/search-interest.js';
 import { searchGeoEnabled } from '../modules/analysis/research-automation/search-geo.js';
@@ -71,6 +72,8 @@ export interface OperatorAppConfiguration {
   /** Only the five explicit R2 configuration fields; never exposed in health output. */
   readonly r2?: NodeJS.ProcessEnv;
   readonly researchProviders?: ResearchAutomationProviderConfig;
+  /** Test instance only (TDN_RESEARCH_KALODATA_REPLAY_SOURCE_RUN_ID): sales data replayed from this stored run. */
+  readonly researchKalodataReplaySourceRunId?: string;
   /** Explicit local Chromium executable; absence leaves web drafts usable without PDF. */
   readonly researchPdfExecutablePath?: string;
   /** Opt-in I14 synthesis model through `cliproxy`. */
@@ -190,6 +193,7 @@ export function operatorAppConfigurationFromEnvironment(
     ...(autoRunManifest ? { adapterManifestPath: autoRunManifest } : {}),
     ...(autoRunSha ? { adapterManifestSha256: autoRunSha } : {}),
   };
+  const kalodataReplaySourceRunId = kalodataReplaySourceRunIdFromEnvironment(environment);
   const configuration: OperatorAppConfiguration = {
     databasePath: environment.TDN_WORKSPACE_DB ?? '', artifactRoot: environment.TDN_ARTIFACT_ROOT ?? '',
     frontendDist: defaults.frontendDist, version: defaults.version,
@@ -200,6 +204,7 @@ export function operatorAppConfigurationFromEnvironment(
     ...(environment.TDN_OWNER_API_ACTOR_ID === undefined ? {} : { ownerActorId: environment.TDN_OWNER_API_ACTOR_ID }),
     ...(cliproxy === undefined ? {} : { cliproxy }),
     ...(!environment.TDN_KALODATA_SECRET_KEY && !environment.TDN_SERPAPI_API_KEY && !environment.TDN_APIFY_TOKEN ? {} : { researchProviders: researchAutomationProviderConfigFromEnv(environment) }),
+    ...(kalodataReplaySourceRunId === undefined ? {} : { researchKalodataReplaySourceRunId: kalodataReplaySourceRunId }),
     ...(environment.TDN_RESEARCH_PDF_CHROMIUM === undefined ? {} : { researchPdfExecutablePath: environment.TDN_RESEARCH_PDF_CHROMIUM }),
     ...(researchKeywordDraftAi === undefined ? {} : { researchKeywordDraftAi }),
     ...(researchI14Ai === undefined ? {} : { researchI14Ai }),
@@ -283,6 +288,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
     researchAutomation = openResearchAutomationApi({
       databasePath, artifactRoot: configuration.artifactRoot, origin,
       ...(configuration.researchProviders ? { providers: configuration.researchProviders } : {}),
+      ...(configuration.researchKalodataReplaySourceRunId ? { kalodataReplaySourceRunId: configuration.researchKalodataReplaySourceRunId } : {}),
       ...(configuration.researchPdfExecutablePath ? { pdfExecutablePath: configuration.researchPdfExecutablePath } : {}),
       // Validation pins this to the OWNER executor with CLIProxy configured; the read handle never receives it.
       ...(configuration.researchKeywordDraftAi ? { keywordDrafting: { cliproxy: configuration.cliproxy!, configuration: configuration.researchKeywordDraftAi } } : {}),
@@ -442,6 +448,10 @@ function validateConfiguration(configuration: OperatorAppConfiguration): StaticF
   if (configuration.researchTikTokCodingAi !== undefined && (!configuration.cliproxy || !configuration.ownerWritesEnabled)) throw new TypeError('TDN_RESEARCH_TIKTOK_CODING_AI_ENABLED requires CLIProxy and OWNER writes to be enabled');
   if (configuration.researchShopeeCodingAi !== undefined && (!configuration.cliproxy || !configuration.ownerWritesEnabled)) throw new TypeError('TDN_RESEARCH_SHOPEE_CODING_AI_ENABLED requires CLIProxy and OWNER writes to be enabled');
   if (configuration.researchMarketCoverAi !== undefined && (configuration.researchMarketCoverAi !== true || !configuration.cliproxy || !configuration.ownerWritesEnabled)) throw new TypeError('TDN_RESEARCH_COVER_AI_ENABLED requires CLIProxy and OWNER writes to be enabled');
+  if (configuration.researchKalodataReplaySourceRunId !== undefined) {
+    if (!configuration.ownerWritesEnabled) throw new KalodataReplayRefusedError(`${KALODATA_REPLAY_REFUSED}: replay mode requires OWNER writes`);
+    assertKalodataReplayNotProduction({ databasePath: configuration.databasePath, artifactRoot: configuration.artifactRoot, port: configuration.port });
+  }
   return preloadFrontend(configuration.frontendDist);
 }
 

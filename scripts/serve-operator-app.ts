@@ -14,6 +14,8 @@ export async function main(): Promise<void> {
     application.server.listen(configuration.port, configuration.host);
     await once(application.server, 'listening');
     process.stdout.write(`Operator app listening on ${application.origin}; OWNER writes ${configuration.ownerWritesEnabled ? 'enabled' : 'disabled'}\n`);
+    if (configuration.researchKalodataReplaySourceRunId) process.stdout.write(`KALODATA REPLAY MODE source=${configuration.researchKalodataReplaySourceRunId}
+`);
     if (configuration.localTestOwner) process.stdout.write('Local testing OWNER auto-access enabled; persisted changes are real. Do not expose this runtime through a proxy, tunnel, LAN or domain.\n');
   } catch (error) {
     if (application) await application.close().catch(() => undefined);
@@ -29,7 +31,10 @@ export async function main(): Promise<void> {
   process.once('SIGTERM', () => { void close(); });
 }
 
-function reportStartupFailure(): void {
+function reportStartupFailure(error: unknown): void {
+  // Replay refusals carry only a closed code and a fixed reason (no keys, no paths).
+  if (error instanceof Error && (error as { code?: unknown }).code === 'KALODATA_REPLAY_REFUSED') process.stderr.write(`${error.message}
+`);
   process.stderr.write('Operator app failed to start. Check configuration, database, artifacts, frontend build, and port availability.\n');
   process.exitCode = 1;
 }
