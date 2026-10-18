@@ -437,7 +437,11 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         ...(videoWatch ? { videoWatch } : {}),
         ...(i14SynthesisAi ? { i14SynthesisAi } : {}),
         ...(marketCoverAi ? { marketCoverAi } : {}),
-        ...(configuration.metricAutoRun ? { autoRun: { enabled: true, onWake: () => worker?.wake(), runner: {
+        ...(configuration.metricAutoRun ? { autoRun: { enabled: true,
+          ...(configuration.providers?.apifyReviews && configuration.providers.autorunTestReviewCap !== undefined
+            && configuration.providers.autorunTestReviewCap === configuration.providers.apifyReviews.maxReviewsPerProduct
+            ? { testReviewCap: configuration.providers.autorunTestReviewCap } : {}),
+          onWake: () => worker?.wake(), runner: {
           enabledEnv: '1', captureRoot: path.resolve(configuration.metricAutoRun.captureRoot),
           adapterManifestPath: configuration.metricAutoRun.adapterManifestPath, adapterManifestSha256: configuration.metricAutoRun.adapterManifestSha256 } } } : {}),
         decisionSynthesisAi,
