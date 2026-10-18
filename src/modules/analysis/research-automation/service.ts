@@ -1876,7 +1876,9 @@ export class ResearchAutomationService {
   async readReaderReport(workspaceId: string, runId: string, revisionId: string) {
     assertUuid(revisionId);
     await this.getRun(workspaceId, runId);
-    return this.#readerReports.html({ workspaceId, runId }, revisionId);
+    const page = await this.#readerReports.html({ workspaceId, runId }, revisionId);
+    // Replay test instance: every served reader page (HTML and the PDF printed from it) carries the visible test notice.
+    return this.#kalodataReplay ? { ...page, bytes: withKalodataReplayNotice(page.bytes) } : page;
   }
   async #readerContext(workspaceId: string, runId: string, packageId: string): Promise<ReaderDraftContext> {
     const run = await this.getRun(workspaceId, runId);

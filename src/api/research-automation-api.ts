@@ -1216,6 +1216,8 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       worker!.wake();
       sendApiJson(response, action === 'cancel' || receipt.exactRetry ? 200 : 202, receipt);
     } catch (error) {
+      // First: route-specific validation handlers below must not mask the replay scope refusal.
+      if (error instanceof KalodataReplayScopeMismatchError) return fail(response, 400, 'kalodata_replay_scope_mismatch', error.message);
       if (error instanceof P9SourceError) return fail(response, 409, 'source_evidence_rejected', 'P9 source evidence or configured collection is unavailable');
       if (error instanceof TikTokCodingError) return fail(response, 409, 'source_evidence_rejected', 'TikTok coding identity, retained evidence or request state differs.');
       if (error instanceof TikTokCodingTransportError) {
@@ -1261,7 +1263,6 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       if (error instanceof MetricSourceRejection && !['INVALID_XLSX', 'OFFLINE_READER_UNAVAILABLE_OR_LIMIT'].includes(error.code))
         return fail(response, 400, 'source_input_rejected', 'The workbook does not match a supported source profile');
       if (error instanceof PayloadTooLargeError) return fail(response, 413, 'payload_too_large', 'Request body exceeds the limit');
-      if (error instanceof KalodataReplayScopeMismatchError) return fail(response, 400, 'kalodata_replay_scope_mismatch', error.message);
       if (error instanceof ResearchAutomationValidationError || error instanceof EmptyBodyError) return fail(response, 400, 'bad_request', 'Research request failed validation');
       // An OWNER-requested source that does not match this run's confirmed scope is
       // operator input, not damaged evidence: it keeps the bridge's own closed code.
