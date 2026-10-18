@@ -129,7 +129,7 @@ test('presentation build with a series passes the business gate, the partial-tot
   assert.match(doc.querySelector('#M10')!.textContent!, /Chưa đủ dữ liệu/u);
   const text = textOf(html);
   assert.doesNotMatch(text, /Google|serpapi/iu);
-  assert.match(text, /Mức quan tâm tìm kiếm\s*Đã dùng trong lượt này: chỉ số tương đối, không phải doanh số/u);
+  assert.match(text, /Mức quan tâm tìm kiếm theo thời gian/u);
   assert.ok(deniedAsCount(demand.textContent!.replace(/\s+/gu, ' ')), 'only ever denied as a count');
 });
 

@@ -54,8 +54,8 @@ const GLOSSARY: readonly [RegExp, RegExp][] = [
   [/\bexport\b/iu, /tệp dữ liệu/iu],
   [/peer\s*set/iu, /nhóm đối thủ/iu],
   [/giá\s*TB/iu, /giá trung bình/iu],
-  [/P25/iu, /mốc\s*25%/iu],
-  [/P75/iu, /mốc\s*75%/iu],
+  [/P25/iu, /mốc\s*25(?:%|\s+phần trăm)/iu],
+  [/P75/iu, /mốc\s*75(?:%|\s+phần trăm)/iu],
   [/\bNSX\b/iu, /nhà sản xuất/iu],
   [/\bH1\b/iu, /giả thuyết\s*1/iu],
   [/\bROAS\b/iu, /doanh thu trên chi phí quảng cáo|tỷ lệ doanh thu trên chi phí quảng cáo/iu],
@@ -241,7 +241,9 @@ export function auditMarket14(html: string, trace?: string, options: { requireFl
     return found === undefined ? { ok: false, detail: `${rule} result unavailable` } : found;
   };
   const glossary = glossaryText(html);
-  const missingGlossary = GLOSSARY.filter(([term, explanation]) => !term.test(glossary) || !explanation.test(glossary)).map(([term]) => term.source);
+  // The reader localizes "listing" to "sản phẩm"; only require its definition if the English term remains.
+  const missingGlossary = GLOSSARY.filter(([term, explanation]) => (!term.test('listing') || term.test(text))
+    && (!term.test(glossary) || !explanation.test(glossary))).map(([term]) => term.source);
   const sectionLabels = [...Array.from({ length: 12 }, (_, index) => `Phần ${index + 1}`), 'Phụ lục'].filter(label => !text.includes(label));
   const visibleCodes = text.match(/\bM(?:0[1-9]|1[0-3])\b/gu) ?? [];
   const appendixLabels = text.match(/Bảng\s+PL\.\d+/giu) ?? [];

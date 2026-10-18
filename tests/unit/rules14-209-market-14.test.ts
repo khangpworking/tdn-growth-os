@@ -25,6 +25,12 @@ ${flintChart.repeat(3)}</body></html>`;
 
 const rule = (html: string, number: string, trace?: string) => auditMarket14(html, trace).find(item => item.rule === number)!;
 
+test('listing needs a glossary definition only when the reader still uses that term', () => {
+  const localized = valid.replace('<tr><td>listing</td><td>sản phẩm</td></tr>', '');
+  assert.equal(rule(localized, '1').ok, true);
+  assert.equal(rule(localized.replace('</body>', '<p>listing</p></body>'), '1').ok, false);
+});
+
 test('synthetic Market HTML passes all machine rules and marks review-only rules as READ', () => {
   const results = auditMarket14(valid);
   assert.deepEqual(results.filter(item => item.kind === 'machine' && !item.ok), []);
@@ -178,4 +184,12 @@ test('rule 11 accepts only Flint charts and needs all three required charts', ()
   assert.equal(rule(twoCharts + macroFallback, '11').ok, false, 'country-background figures cannot replace a required sample chart');
   assert.equal(rule(valid + macroFallback.replace('M06.comtrade.mirror', 'market.concentration'), '11').ok, false, 'sample fallbacks remain refused');
   assert.equal(rule(valid + macroFallback.replace(/<svg[\s\S]*?<\/svg>/u, ''), '11').ok, false, 'a macro marker without drawn data is still refused');
+});
+
+
+test('rule 1 accepts Vietnamese percentile explanations and still rejects a missing or wrong meaning', () => {
+  const vietnamese = valid.replace('mốc 25% / mốc 75%', 'mốc 25 phần trăm / mốc 75 phần trăm');
+  assert.equal(rule(vietnamese, '1').ok, true);
+  assert.equal(rule(vietnamese.replace('mốc 25 phần trăm', 'mốc 20 phần trăm'), '1').ok, false);
+  assert.equal(rule(vietnamese.replace('mốc 75 phần trăm', ''), '1').ok, false);
 });

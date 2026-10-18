@@ -90,7 +90,7 @@ test('v2 reader: absent data, old documents without a series and one mirror row 
   assert.equal((await reader({ worldBank: worldBank(true), comtrade: thinTrade }, false)).html.includes('data-engine="flint"'), false, 'the opt-out draws no Flint chart');
 });
 function stripFigures(html: string, no: RegExp): string {
-  return html.replace(/<figure\b[\s\S]*?<\/figure>/gu, block => no.test(block) ? '' : block);
+  return html.replace(/<figure\b[\s\S]*?<\/figure>(?:<p class="interp">[\s\S]*?<\/p>)?/gu, block => no.test(block) ? '' : block);
 }
 
 // Automation (presentation) renderer
@@ -148,7 +148,7 @@ test('both renderers: World Bank figures, national and province tables, and Comt
     for (const no of ['Hình 5.3', 'Hình 5.4', 'Hình 6.1', 'Hình 6.2']) assert.equal(figure(html, no)?.engine, 'flint', no);
     const m05 = doc.querySelector('#phan-5, #M05')!.textContent!;
     for (const text of [WORLD_BANK_LIMIT, OFFICIAL_STATS_LIMIT, OFFICIAL_STATS_PROVINCE_NOTE, OFFICIAL_STATS_PROVINCE_LIMIT]) assert.ok(m05.includes(text), text);
-    assert.match(doc.querySelector('#phu-luc, #M13')!.textContent!, /chỉ số giá theo tỉnh, thành phố/u);
+    assert.match(doc.querySelector('#phu-luc, #M13')!.textContent!, /Cục Thống kê \(nso\.gov\.vn\)/u);
     const numbering = lint(html).find(check => check.rule.startsWith('F7 '))!;
     assert.equal(numbering.ok, true, numbering.detail);
     const rule11 = auditMarket14(html, undefined, { requireFlint: true }).find(check => check.rule === '11')!;
@@ -180,8 +180,12 @@ test('automation report: no data or no drawable series changes no byte, and a dr
   assert.equal(draftHtml(await presentationInput({ worldBank: worldBank(false), comtrade: thinTrade })), draftHtml(await presentationInput({ worldBank: worldBank(false), comtrade: thinTrade }, false)));
   assert.doesNotMatch(none, /Hình 5\.3|Hình 6\.1/u);
   assert.doesNotMatch(draftHtml(await presentationInput({ worldBank: worldBank(false), comtrade: thinTrade })), /Hình 5\.3|Hình 6\.1/u);
-  // Same tables, figures withdrawn: the WB and Comtrade figures are the only difference.
+  // Same tables, figures withdrawn: only the figures and their required interpretations differ.
   const drawnWb = draftHtml(await presentationInput({ worldBank: worldBank(true) }));
+  const doc = new JSDOM(drawnWb).window.document;
+  const macroFigures = [...doc.querySelectorAll('figure')].filter(figure => /Hình 5\.[34]/u.test(figure.textContent!));
+  assert.equal(macroFigures.length, 2);
+  for (const figure of macroFigures) assert.equal(figure.nextElementSibling?.className, 'interp');
   assert.equal(stripFigures(drawnWb, /Hình 5\.[34]/u), draftHtml(await presentationInput({ worldBank: worldBank(false) })));
 });
 test('automation report: a drawable series without its pre-drawn figure throws', async () => {
