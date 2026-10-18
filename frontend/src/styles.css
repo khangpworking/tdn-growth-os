@@ -132,3 +132,5 @@
 .ra-classification .confirm-dialog{max-height:calc(100dvh - 40px);overflow:auto}
 .ra-classification-dialog-body{max-height:calc(100dvh - 240px);overflow:auto;overscroll-behavior:contain}
 @media(max-width:650px){.ra-classification-fields{grid-template-columns:1fr}.ra-classification-choice{font-size:14px}}
+
+.ra-history-filter{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;margin:0 0 12px}.ra-history-filter label{display:flex;gap:8px;align-items:center}

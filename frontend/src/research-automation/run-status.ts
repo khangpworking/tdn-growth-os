@@ -1,5 +1,5 @@
 // Presentation only: lifecycle names are owned by the generated backend contract.
-import type { ResearchAutomationRun } from './api';
+import type { ResearchAutomationRun, ResearchAutomationRunSummary } from './api';
 
 export type RunPhase = 'searching' | 'scope' | 'running' | 'finished';
 
@@ -97,4 +97,10 @@ export function pdfUnavailableLabel(reason: string | null): string {
   if (normalized.includes('not configured')) return limitationLabel('PDF_RENDERER_NOT_CONFIGURED');
   if (normalized.includes('rendering failed')) return limitationLabel('PDF_RENDER_FAILED');
   return 'chưa thể xuất PDF trên máy này.';
+}
+
+/** Filter sessions by keyword and by "has a draft"; failed or cancelled sessions stay reachable by unchecking the box. */
+export function filterHistory(runs: readonly ResearchAutomationRunSummary[], keyword: string, draftOnly: boolean): readonly ResearchAutomationRunSummary[] {
+  const needle = keyword.trim().toLocaleLowerCase('vi');
+  return runs.filter(item => (!draftOnly || item.status === 'DRAFT_READY') && (needle === '' || item.keyword.toLocaleLowerCase('vi').includes(needle)));
 }

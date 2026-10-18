@@ -11,6 +11,7 @@ import {
 import ReportInterpretations from './ReportInterpretations';
 import ReportSectionReadiness from './ReportSectionReadiness';
 import ResearchReportCreatePanel from './ResearchReportCreatePanel';
+import { researchAutomationHash } from './research-automation/routes';
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
 class CreatedReportSelectionError extends Error {}
@@ -112,6 +113,10 @@ export default function ResearchReportsPanel({ mode, workspaceId, ownerToken = n
     {indexState === 'ready' && index?.reports.length === 0 && <div className="report-message">
       <strong>{mode === 'demo' ? 'Demo không tạo báo cáo nghiên cứu giả.' : 'Workspace chưa có report version đã lưu.'}</strong>
       <p>{mode === 'demo' ? 'Hãy chuyển sang dữ liệu thật để xem các phiên bản được kiểm tra toàn vẹn.' : 'Chọn nguồn đã nhập ở phần tạo báo cáo. Hệ thống không tự thu thập dữ liệu hoặc tự chọn bản mới nhất.'}</p>
+      {mode === 'real' && <>
+        <p>Báo cáo thị trường và insight từ các phiên nghiên cứu nằm ở mục «Báo cáo và phiên nghiên cứu», không nằm trong danh sách này.</p>
+        <button type="button" className="button" onClick={() => navigate(researchAutomationHash(workspaceId))}>Mở báo cáo và phiên nghiên cứu</button>
+      </>}
     </div>}
     {indexState === 'ready' && index && index.reports.length > 0 && <div className="report-browser">
       <ul className="report-series-list" aria-label="Các series báo cáo">{index.reports.map(report => <li key={report.reportId}>
