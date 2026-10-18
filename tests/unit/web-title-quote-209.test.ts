@@ -2,12 +2,14 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
 import type { ResearchAutomationRun } from '../../contracts/api/research-automation-api.generated.js';
+import type { RetainedKeywordListDraftRecord } from '../../src/modules/analysis/keyword-list-draft-record.js';
 import { calculateMetricScopes } from '../../src/modules/analysis/metric-scope-calculator.js';
 import { lintVisibleReportText } from '../../src/modules/analysis/report-visible-text-lint.js';
 import { assertMarketBusinessGate } from '../../src/modules/analysis/research-automation/market-business-gate.js';
 import { auditMarket14 } from '../../src/modules/analysis/research-automation/market-14-rules.js';
 import { buildAutomationMarketPresentation, marketPresentationDigest, type MarketPresentationBinding } from '../../src/modules/analysis/research-automation/market-presentation-method.js';
 import { buildResearchAutomationReport, type AutomationReportInput } from '../../src/modules/analysis/research-automation/reports.js';
+import { buildSourceEvidence } from '../../src/modules/analysis/research-automation/source-evidence.js';
 import type { CaptureRecord, StepWebResult } from '../../src/modules/analysis/research-automation/model.js';
 import { WEB_SITE_WITHHELD, WEB_TITLE_WITHHELD } from '../../src/modules/analysis/research-automation/web-page-type.js';
 import { renderMarketCharts } from '../../src/modules/analysis/reader-report/market-charts.js';
@@ -114,12 +116,57 @@ test('WEB-TITLE-209: the presentation report passes every visible-text rule with
 test('WEB-TITLE-209: withheld text stays the report wording and source markup cannot leave its cell', () => {
   const hostile = '</q></td></tr><h2 data-quote>synthetic tốt nhất</h2><q>';
   const html = buildResearchAutomationReport(plainInput([row(1, 'Quạt synthetic trên Google', 'https://blog.example.test/quat-1', { site: 'Google' }),
-    row(2, hostile, 'https://blog.example.test/quat-2', { site: 'Trang synthetic' })]), 'MARKET').html.toString('utf8');
+    row(2, hostile, 'https://blog.example.test/quat-2', { site: hostile })]), 'MARKET').html.toString('utf8');
   const table = webTable(html);
   const cells = [...table.querySelectorAll('tbody tr')].map(tr => [...tr.querySelectorAll('td')]);
   assert.deepEqual([cells[0]![1]!.textContent, cells[0]![2]!.textContent], [WEB_TITLE_WITHHELD, WEB_SITE_WITHHELD]);
   assert.equal(cells[0]![1]!.querySelector('q') ?? cells[0]![2]!.querySelector('q'), null, 'withheld wording is not presented as a quote');
   assert.equal(cells[1]![1]!.textContent, hostile, 'escaped source text stays inside its own cell');
+  assert.equal(cells[1]![2]!.querySelector('q[data-quote]')?.textContent, hostile);
+  assert.equal(new JSDOM(html).window.document.querySelector('.cite-label q[data-quote]')?.textContent, hostile, 'the shared register escapes the copied site name too');
   assert.equal(new JSDOM(html).window.document.querySelector('h2[data-quote]'), null);
   assert.doesNotThrow(() => assertMarketBusinessGate(html, { presentation: false }));
+});
+
+test('WEB-TITLE-209: quote-like source text cannot disable the gate for authored text elsewhere', () => {
+  for (const title of ['Synthetic <q', 'Synthetic </q>', 'Synthetic data-quote text', 'Synthetic <q data-quote text']) {
+    const html = buildResearchAutomationReport(plainInput([row(1, title, 'https://example.test/source')]), 'MARKET').html.toString('utf8');
+    assert.equal(webTable(html).querySelector('q[data-quote]')?.textContent, title);
+    assert.doesNotThrow(() => assertMarketBusinessGate(html, { presentation: false }));
+    gateThrows(html.replace('</body>', '<p>Quạt synthetic tốt n<b>h</b>ất.</p></body>'), false, 'U13_SUPERLATIVE');
+  }
+});
+
+test('WEB-TITLE-209: a free-form publication label is copied text in gated news rows', async () => {
+  const published = 'Cập nhật mới nhất: 12/10/2026';
+  const webResults = [row(1, 'Quạt synthetic', 'https://news.example.test/tin-tuc/quat', { published })];
+  const draft = { output: { contractVersion: 'l9-keyword-data-v1', dataVersion: 'synthetic-v1', category: 'synthetic',
+    provenance: 'OPERATOR_SUPPLIED', keywords: ['synthetic'], exclusions: [] } } as unknown as RetainedKeywordListDraftRecord;
+  const sourceEvidence = buildSourceEvidence({ draft, draftDigest: 'a'.repeat(64), unavailableReason: null, webResults, captures: [capture], pageTypes: true });
+  for (const input of [plainInput(webResults), await presentationInput(webResults)]) {
+    const html = buildResearchAutomationReport({ ...input, sourceEvidence,
+      start: { ...input.start, sourceEvidenceVersion: 'automation-source-evidence-v1' } }, 'MARKET').html.toString('utf8');
+    assert.doesNotThrow(() => assertMarketBusinessGate(html, { presentation: !!input.marketPresentation }));
+    const cell = [...webTable(html).querySelectorAll('td')].find(td => td.textContent?.includes(published));
+    assert.equal(cell?.querySelector('q[data-quote]')?.textContent, published);
+    assert.ok(cell?.textContent?.startsWith('Tin tứcĐăng '), 'the authored type and prefix remain outside the quote');
+  }
+});
+
+test('WEB-TITLE-209: quoting does not expose withheld identities or exempt safety rules', () => {
+  const hidden = ['Google', 'G o o g l e', 'SerpApi', 'Page Index', 'OpenAI', 'gpt-4-synthetic', 'claude-synthetic', 'a'.repeat(64), 'SYNTHETIC_TECHNICAL_ID'];
+  const webResults = hidden.map((value, index) => row(index + 1, `Synthetic ${value}`, `https://example.test/source-${index}`, { site: value }));
+  const html = buildResearchAutomationReport(plainInput(webResults), 'MARKET').html.toString('utf8');
+  for (const tr of webTable(html).querySelectorAll('tbody tr')) {
+    const cells = tr.querySelectorAll('td');
+    assert.equal(cells[1]?.textContent, WEB_TITLE_WITHHELD);
+    assert.equal(cells[2]?.textContent, WEB_SITE_WITHHELD);
+    assert.equal(tr.querySelector('q'), null);
+  }
+  const labels = [...new JSDOM(html).window.document.querySelectorAll('.citation-register .cite-label')];
+  assert.ok(labels.every(label => label.querySelector('q') === null));
+  assert.doesNotThrow(() => assertMarketBusinessGate(html, { presentation: false }));
+  for (const [value, rule] of [['SerpApi', 'G08_PROVIDER_NAME'], ['gpt-4-synthetic', 'G08_PROVIDER_NAME'], ['synthetic@example.test', 'NO_LEAK']] as const) {
+    gateThrows(html.replace('</body>', `<q data-quote>${value}</q></body>`), false, rule);
+  }
 });

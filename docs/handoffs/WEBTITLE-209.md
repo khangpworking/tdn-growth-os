@@ -17,8 +17,9 @@ class of fault as RENDERFAIL-209 (copied product titles), now in the web rows.
 
 Changed paths:
 
-- `src/modules/analysis/research-automation/reports.ts` — `webSourceText` marks a shown title or site name as copied text (`<q data-quote>`). Withheld wording and "Chưa rõ trang" stay the report's own text, unquoted. The publication date keeps `webText`.
+- `src/modules/analysis/research-automation/reports.ts` — `webSourceText` marks a shown title, site name or free-form publication label as copied text (`<q data-quote>`). Withheld wording, "Chưa rõ trang" and the authored "Đăng" prefix stay unquoted. A retained publication label can itself contain a superlative.
 - `src/modules/analysis/citation-register-html.ts` — a `WEB_RESULT` label that is a copied site name renders inside `<q data-quote>` in the reference list. The two labels reports write themselves ("Kết quả tìm kiếm trên web", "Trang web liên quan") stay unquoted.
+- `src/modules/analysis/research-automation/market-business-gate.ts` — quote balancing recognizes only opening HTML elements, so escaped source text containing `data-quote` cannot disable inline normalization of authored claims elsewhere.
 - `tests/unit/web-title-quote-209.test.ts` — synthetic regressions.
 - `docs/handoffs/WEBTITLE-209.md`
 
@@ -34,6 +35,17 @@ Evidence (Windows pre-check; CI is the run of record):
 - 27 test files that touch web results or the reference list: 212 PASS; the only failures are the `better-sqlite3` native module not loading on Windows (`insight-persona-report`, `research-automation`), unrelated to this change.
 - `npm run typecheck`: exit 0.
 - No provider, model, network, paid or credential call was made.
+
+Linux review verification (Node 24.15.0, browser variables unset): typecheck exits
+0; the five requested files pass all 27 assertions; the browser-free related and business-gate
+checks pass 314 assertions across 33 files. Frozen-byte checks pass, and a direct
+comparison with `c98639fa` preserves Market/Insight semantics, citation identities,
+empty-report bytes and web/PDF register bytes for all five non-web source kinds.
+The original regressions fail on `c98639fa`; the quote-token and publication-label
+regressions also failed on the PR before their repairs. The separate
+official-statistics integration file times out after the same five completed
+tests on both this tree and `c98639fa`; its isolated category-map assertion passes.
+No frozen golden or lint exemption was changed.
 
 Unresolved: none for this lane.
 

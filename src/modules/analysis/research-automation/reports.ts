@@ -304,7 +304,7 @@ function webMark(row: StepWebResult, citations: ReportCitations): string {
 }
 /** Copied search-result text follows the stored-literal rule and is also withheld when it names a provider or the search engine. */
 const webText = (value: string, withheld: string): string => webTextHidden(value) ? withheld : storedLiteral(value, withheld);
-/** A page title or site name is the source's own wording, shown as copied text so the owned-wording rules do not read it as the report's claim. */
+/** A title, site name or free-form publication label is source wording, not the report's own claim. */
 const webSourceText = (value: string, withheld: string): string => { const text = webText(value, withheld); return text === withheld ? text : `<q data-quote>${text}</q>`; };
 /** A closed machine code stays in the report's technical trace without sitting in the reader's sentence. */
 const codeNote = (code: string): string => `<details class="evidence-trace"><summary>Mã đối chiếu của trạng thái này</summary><p><code>${escape(code)}</code></p></details>`;
@@ -984,7 +984,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   const webResults = input.collection?.webResults ?? [];
   const pageTypes = input.sourceEvidence?.webPageTypes === true;
   const expandedRows = webResults.some(row => row.origin !== undefined);
-  const pageTypeCell = (row: StepWebResult): string => { const type = classifyWebPage(row); return `${WEB_PAGE_TYPE_LABEL[type]}${type === 'S26' && row.published ? `<br>Đăng ${webText(row.published, 'Ngày đăng được giữ trong bản lưu')}` : ''}`; };
+  const pageTypeCell = (row: StepWebResult): string => { const type = classifyWebPage(row); return `${WEB_PAGE_TYPE_LABEL[type]}${type === 'S26' && row.published ? `<br>Đăng ${webSourceText(row.published, 'Ngày đăng được giữ trong bản lưu')}` : ''}`; };
   // A web source that failed or timed out leaves no rows; the reader is told
   // plainly instead of seeing an empty area.
   const webSourceFailed = !webResults.length && (input.collection?.coverage ?? [])

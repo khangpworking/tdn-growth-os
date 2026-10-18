@@ -275,7 +275,9 @@ function noLeakMatches(html: string, scan: Scan): string[] {
 }
 
 function isQuoteOpeningToken(token: string): boolean {
-  return /^<(?:q|blockquote)\b/iu.test(token) || /\bdata-quote(?:\s|=|>)/iu.test(token);
+  // Escaped source text and comments can contain "data-quote"; only an actual
+  // opening element can affect quote balancing and inline normalization.
+  return /^<[\w:-]+\b/u.test(token) && (/^<(?:q|blockquote)\b/iu.test(token) || attributes(token).has('data-quote'));
 }
 
 function hasUnbalancedQuoteOpenings(html: string): boolean {
