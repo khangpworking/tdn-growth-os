@@ -104,3 +104,24 @@ export function filterHistory(runs: readonly ResearchAutomationRunSummary[], key
   const needle = keyword.trim().toLocaleLowerCase('vi');
   return runs.filter(item => (!draftOnly || item.status === 'DRAFT_READY') && (needle === '' || item.keyword.toLocaleLowerCase('vi').includes(needle)));
 }
+
+export interface FailureTodo {
+  readonly failed: readonly string[];
+  readonly usable: readonly string[];
+  readonly next: readonly string[];
+}
+
+const todoStepNames: Readonly<Record<string, string>> = { QUICK_SEARCH: 'Tìm nhanh', COLLECTION: 'Thu thập', REPORT: 'Báo cáo' };
+
+/** "Việc cần làm" for a stopped (failed or interrupted) session: what broke, what is still kept, who does what next. No provider names. */
+export function failureTodo(run: Pick<ResearchAutomationRun, 'runId' | 'steps' | 'coverage'>, canWrite: boolean): FailureTodo {
+  const failed = run.steps.filter(step => step.state === 'FAILED' || step.state === 'INTERRUPTED' || step.state === 'CANCELLED')
+    .map(step => `${todoStepNames[step.stepId] ?? step.stepId}: ${stepStateLabel(step.state)}${step.code ? ` · ${limitationLabel(step.code)}` : ''}`);
+  const full = run.coverage.sources.filter(source => source.state === 'COLLECTED').length;
+  const part = run.coverage.sources.filter(source => source.state === 'PARTIAL').length;
+  const usable = full + part === 0 ? [] : [`${full} nguồn đã thu thập xong${part > 0 ? `, ${part} nguồn thu được một phần` : ''}. Dữ liệu này được giữ lại.`];
+  const next = canWrite
+    ? ['Phần lỗi không tự chạy lại. Mở trang Nghiên cứu tự động để bắt đầu một phiên mới với cùng từ khóa.']
+    : [`Bạn đang ở chế độ chỉ xem nên chưa bắt đầu được phiên mới. Gửi mã phiên ${run.runId} cho người có quyền OWNER để xử lý.`];
+  return { failed, usable, next };
+}
