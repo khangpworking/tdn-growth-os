@@ -56,11 +56,12 @@ async function reader(extra: { worldBank?: StepWorldBank; comtrade?: StepComtrad
   return buildMarketReport(computeReaderReportData(input, units.retained), { ...sync1Options, flint, ...extra });
 }
 
-test('World Bank documents without source precision/name preserve complete base HTML bytes in both renderers', async () => {
-  // Captured from HEAD with the same synthetic inputs; the base and tree HTML dumps were also compared byte for byte.
+test('World Bank documents without source precision/name preserve pinned HTML bytes in both reader renderers', async () => {
+  // The automation reader pin includes PR #324's two M08 paragraphs. Comparing
+  // d05f3dff with this projection changes only those paragraphs; legacy pins stay separate.
   const hash = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
   assert.equal(hash((await reader({ worldBank: fullWorldBank() }, false)).html), 'f7670c24d51634d3feb8dfdae3577cce691c3b7ea062a78981c582f7fc8da078');
-  assert.equal(hash(buildResearchAutomationReport(await fullMarket14Input(), 'MARKET').html), '5287d313c0575914044ee6237bd401daac2a3f56bc1b7f1e4acd266b934ced8a');
+  assert.equal(hash(buildResearchAutomationReport(await fullMarket14Input(), 'MARKET').html), 'a5a3016b1b2ba558fb2b1cf80db9112d913210639563c1a8cd49375747e34e9e');
 });
 
 test('v2 reader: World Bank lines are Hình 5.3/5.4 after Bảng 5.3 and Comtrade bars are Hình 6.1/6.2 after Bảng 6.2, all Flint', async () => {

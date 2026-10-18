@@ -582,13 +582,27 @@ function observedRows(input: AutomationReportInput, captures: ReadonlyMap<number
 }
 
 function productLabels(input: AutomationReportInput): ReadonlyMap<string, string> {
-  return new Map((input.collection?.productCards ?? []).flatMap(card => card.title?.trim() ? [[card.productId, card.title.trim()] as const] : []));
+  // Collection cards first; the run's own cards cover runs whose collection result kept none.
+  const labels = new Map<string, string>();
+  for (const card of [...(input.collection?.productCards ?? []), ...(input.run.productCards ?? [])]) {
+    const title = card.title?.trim();
+    if (title && !labels.has(card.productId)) labels.set(card.productId, title);
+  }
+  return labels;
 }
 
-function observationTable(rows: readonly TypedComparable[], captures: ReadonlyMap<number, CaptureRecord>, citations: ReportCitations, labels: ReadonlyMap<string, string>, readerPlainText = false): string {
+function readerDay(value: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
+}
+
+function observationTable(rows: readonly TypedComparable[], captures: ReadonlyMap<number, CaptureRecord>, citations: ReportCitations, labels: ReadonlyMap<string, string>, readerPlainText = false, productOrder: readonly string[] = []): string {
   if (!rows.length) return '';
+  const ordinals = new Map<string, number>();
+  const ordinal = (productId: string): number => ordinals.get(productId) ?? ordinals.set(productId, ordinals.size + 1).get(productId)!;
+  for (const productId of productOrder) ordinal(productId);
   if (!readerPlainText) return `<div class="table-wrap" role="region" aria-label="Giá trị nguồn theo từng sản phẩm và kỳ truy vấn" tabindex="0"><table class="observations"><caption>Giá trị nguồn theo từng sản phẩm và kỳ truy vấn. Không phải tổng thị trường.</caption><thead><tr><th scope="col">Sản phẩm nguồn</th><th scope="col">Phép đo / đơn vị</th><th scope="col">Giá trị nguồn</th><th scope="col">Kỳ đo</th><th scope="col">Nguồn</th></tr></thead><tbody>${rows.map(row => `<tr><td>${escape(sourceMemberLabel(row.productId, false))}</td><td>${escape(row.metric === 'GMV_VND' ? 'Doanh thu (VND)' : 'Lượt bán')}</td><td>${escape(row.value)}</td><td>${escape(row.window.startDate)} đến ${escape(row.window.endDate)}</td><td>${captureMark(captures.get(row.captureIndex)!, citations)}</td></tr>`).join('')}</tbody></table></div>`;
-  return `<div class="table-wrap" role="region" aria-label="Giá trị nguồn theo từng sản phẩm và kỳ truy vấn" tabindex="0"><table class="observations"><caption>Giá trị nguồn theo từng sản phẩm và kỳ truy vấn. Không phải tổng thị trường.</caption><thead><tr><th scope="col">Sản phẩm nguồn</th><th scope="col">Phép đo / đơn vị</th><th scope="col">Giá trị nguồn</th><th scope="col">Kỳ đo</th><th scope="col">Nguồn</th></tr></thead><tbody>${rows.map(row => { const measure = row.metric === 'GMV_VND' ? 'revenue' : 'sales_volumn'; return `<tr><td>${escape(readerProductLabel(sourceMemberLabel(row.productId, true), labels.get(row.productId)))}</td> <td>${escape(measureLabel[row.metric])}</td> <td>${escape(formatReaderValue(row.value, { measure, unit: row.metric === 'GMV_VND' ? 'VND' : 'đơn vị' }) ?? 'Giá trị được giữ trong bản lưu nguồn')}</td> <td>${escape(row.window.startDate)} đến ${escape(row.window.endDate)}</td> <td>${captureMark(captures.get(row.captureIndex)!, citations)}</td></tr>`; }).join('')}</tbody></table></div>`;
+  return `<div class="table-wrap" role="region" aria-label="Giá trị nguồn theo từng sản phẩm và kỳ truy vấn" tabindex="0"><table class="observations"><caption>Giá trị nguồn theo từng sản phẩm và kỳ truy vấn. Không phải tổng thị trường.</caption><thead><tr><th scope="col">Sản phẩm nguồn</th><th scope="col">Phép đo / đơn vị</th><th scope="col">Giá trị nguồn</th><th scope="col">Kỳ đo</th><th scope="col">Nguồn</th></tr></thead><tbody>${rows.map(row => { const measure = row.metric === 'GMV_VND' ? 'revenue' : 'sales_volumn'; return `<tr><td>${escape(readerProductLabel(sourceMemberLabel(row.productId, true), labels.get(row.productId), ordinal(row.productId)))}</td> <td>${escape(measureLabel[row.metric])}</td> <td>${escape(/^0+(?:\.0+)?$/.test(row.value) ? 'Không ghi nhận trong kỳ' : formatReaderValue(row.value, { measure, unit: row.metric === 'GMV_VND' ? 'VND' : 'đơn vị' }) ?? 'Giá trị được giữ trong bản lưu nguồn')}</td> <td>${escape(readerDay(row.window.startDate))} đến ${escape(readerDay(row.window.endDate))}</td> <td>${captureMark(captures.get(row.captureIndex)!, citations)}</td></tr>`; }).join('')}</tbody></table></div>`;
 }
 
 /** Deliberately narrower than the complete M07 method: no universe, share or rank inference. */
@@ -627,6 +641,16 @@ function defaultPeerSection(snapshot: DefaultMarketPeers, citations: ReportCitat
     ZERO_REVENUE: 'Doanh thu nhóm được nguồn ghi bằng 0; chưa chọn đối thủ.',
     INCOMPLETE: 'Chưa đủ nguồn, doanh thu, nhóm hoặc danh tính để chọn đối thủ.',
   };
+  if (readerPlainText) {
+    states.NO_SALES = 'Chưa có doanh số tương thích; không coi phần thiếu là bằng không.';
+    states.ZERO_REVENUE = 'Nguồn ghi nhận doanh thu bằng không; chưa chọn đối thủ.';
+  }
+  const peerLabel = (identity: DefaultMarketPeers['frames'][number]['members'][number]['identity'], ordinal: number): string => {
+    if (identity.kind !== 'SHOP') return readerProductLabel(identity.label, labels.get(identity.label) ?? identity.label, ordinal);
+    const record = snapshot.input.records.find(row => row.shopId !== null && canonicalJson(['SHOP', row.shopId]) === identity.key
+      && row.shopLabel?.trim() === identity.label && row.shopLabel.trim() !== row.shopId);
+    return readerShopLabel(identity.label, record?.shopLabel, ordinal);
+  };
   const frames = snapshot.frames.map(stored => {
     // Older classified capture results can retain the placeholder as a shop.
     // Keep those frozen bytes verifiable, but do not present an inferred peer
@@ -636,16 +660,17 @@ function defaultPeerSection(snapshot: DefaultMarketPeers, citations: ReportCitat
     const frame = result.frame;
     const platform = frame.platform === 'shopee' ? 'Shopee' : frame.platform === 'tiktok' ? 'TikTok Shop' : storedLiteral(frame.platform, 'Sàn được giữ trong bản lưu');
     const revenue = (value: string): string => readerPlainText ? formatReaderValue(value, { currency: 'VND' }) ?? 'Doanh thu được giữ trong bản lưu' : value;
-    const rows = result.selected.map(member => `<tr><td>${readerPlainText ? `${escape(readerProductLabel(member.identity.label, labels.get(member.identity.label)))} ` : ''}${readerPlainText ? '' : escape(storedLiteral(member.identity.label, 'Danh tính nguồn được giữ trong bản lưu'))}</td><td>${member.identity.kind === 'TITLE_LABEL' ? 'Nhãn thương hiệu theo tiêu đề người bán' : 'Gian hàng nguồn; chưa rõ thương hiệu'}</td><td>${escape(revenue(member.revenue))} VND ${member.sources.map(mark).join('')}</td></tr>`).join('');
-    const total = result.totalRevenue === null ? 'Chưa đủ dữ liệu' : `${revenue(result.totalRevenue)} VND`;
-    const selected = result.selectedRevenue === null ? 'Chưa đủ dữ liệu' : `${revenue(result.selectedRevenue)} VND`;
-    return `<h3>${platform} · ${storedLiteral(frame.group, 'Nhóm được giữ trong bản lưu')}</h3><p>${states[result.state]} Kỳ ${escape(frame.period.start)} đến ${escape(frame.period.end)}.</p><p>Doanh thu nhóm trong mẫu: ${escape(total)}; doanh thu tập đã chọn: ${escape(selected)}. ${result.eligible.map(mark).join('')}</p>${rows ? `<table><caption>Đối thủ mặc định trong nhóm, đặt cạnh nhau</caption><thead><tr><th>Nhãn nguồn</th><th>Căn cứ danh tính</th><th>Doanh thu ước tính</th></tr></thead><tbody>${rows}</tbody></table>` : ''}`;
+    const amount = (value: string): string => readerPlainText && /^0(?:\.0+)?$/.test(value) ? 'Không ghi nhận doanh thu' : `${revenue(value)} VND`;
+    const rows = result.selected.map((member, index) => `<tr><td>${readerPlainText ? `${escape(peerLabel(member.identity, index + 1))} ` : ''}${readerPlainText ? '' : escape(storedLiteral(member.identity.label, 'Danh tính nguồn được giữ trong bản lưu'))}</td><td>${member.identity.kind === 'TITLE_LABEL' ? 'Nhãn thương hiệu theo tiêu đề người bán' : 'Gian hàng nguồn; chưa rõ thương hiệu'}</td><td>${escape(amount(member.revenue))} ${member.sources.map(mark).join('')}</td></tr>`).join('');
+    const total = result.totalRevenue === null ? 'Chưa đủ dữ liệu' : amount(result.totalRevenue);
+    const selected = result.selectedRevenue === null ? 'Chưa đủ dữ liệu' : amount(result.selectedRevenue);
+    return `<h3>${platform} · ${storedLiteral(frame.group, 'Nhóm được giữ trong bản lưu')}</h3><p>${states[result.state]} Kỳ ${escape(readerPlainText ? readerDay(frame.period.start) : frame.period.start)} đến ${escape(readerPlainText ? readerDay(frame.period.end) : frame.period.end)}.</p><p>Doanh thu nhóm trong mẫu: ${escape(total)}; doanh thu tập đã chọn: ${escape(selected)}. ${result.eligible.map(mark).join('')}</p>${rows ? `<table><caption>Đối thủ mặc định trong nhóm, đặt cạnh nhau</caption><thead><tr><th>Nhãn nguồn</th><th>Căn cứ danh tính</th><th>Doanh thu ước tính</th></tr></thead><tbody>${rows}</tbody></table>` : ''}`;
   }).join('');
   const exclusions = snapshot.frames.flatMap(frame => frame.excluded);
   const additions = snapshot.input.ownerAdditions.length
     ? `<ul>${snapshot.input.ownerAdditions.map(id => `<li>Đối tượng nguồn: ${escape(sourceMemberLabel(id, readerPlainText))}</li>`).join('')}</ul>`
     : '<p>Chưa có bổ sung của chủ.</p>';
-  return `<p>Quy tắc đã chốt trước khi đọc doanh số: chọn theo doanh thu giảm dần tới khi đạt ít nhất ${escape(snapshot.input.rule.thresholdPercent)}% doanh thu cùng nhóm trong mẫu; khi bằng nhau dùng mã danh tính ổn định. Bảng hiển thị theo danh tính, không xếp ưu tiên.</p>${frames || '<p>Chưa có nhóm doanh số đã phân loại tương thích. Quan sát sản phẩm và thẻ tìm kiếm không cung cấp thành viên doanh số; phần thiếu không phải 0.</p>'}<p>Số bán hàng ước tính chưa đối chiếu với người bán, chỉ dùng tham khảo. Không cộng doanh thu giữa các sàn hoặc suy cùng thương hiệu từ tên giống nhau.</p><h3>Bổ sung của chủ, giữ riêng</h3>${additions}<p>Bổ sung không thay đổi mẫu số hoặc quy tắc mặc định.</p><details><summary>Hồ sơ đối chiếu tập đối thủ</summary><p>Phiên bản quy tắc: <code>${escape(snapshot.input.rule.version)}</code>. Đầu vào, thành viên, lý do loại và kết quả chính xác được giữ trong bản lưu bất biến. Số lần loại dòng ở các nhóm và sàn: ${escape(exclusions.length)}.</p><ul>${exclusions.map(row => `<li><code>${escape(row.reason)}</code> ${mark(row.source)}</li>`).join('')}</ul></details>`;
+  return `<p>Quy tắc đã chốt trước khi đọc doanh số: chọn theo doanh thu giảm dần tới khi đạt ít nhất ${escape(snapshot.input.rule.thresholdPercent)}${readerPlainText ? ' phần trăm' : '%'} doanh thu cùng nhóm trong mẫu; khi bằng nhau dùng mã danh tính ổn định. Bảng hiển thị theo danh tính, không xếp ưu tiên.</p>${frames || `<p>Chưa có nhóm doanh số đã phân loại tương thích. Quan sát sản phẩm và thẻ tìm kiếm không cung cấp thành viên doanh số; phần thiếu không phải ${readerPlainText ? 'bằng không' : '0'}.</p>`}<p>Số bán hàng ước tính chưa đối chiếu với người bán, chỉ dùng tham khảo. Không cộng doanh thu giữa các sàn hoặc suy cùng thương hiệu từ tên giống nhau.</p><h3>Bổ sung của chủ, giữ riêng</h3>${additions}<p>Bổ sung không thay đổi mẫu số hoặc quy tắc mặc định.</p><details><summary>Hồ sơ đối chiếu tập đối thủ</summary><p>Phiên bản quy tắc: <code>${escape(snapshot.input.rule.version)}</code>. Đầu vào, thành viên, lý do loại và kết quả chính xác được giữ trong bản lưu bất biến. Số lần loại dòng ở các nhóm và sàn: ${escape(exclusions.length)}.</p><ul>${exclusions.map(row => `<li><code>${escape(row.reason)}</code> ${mark(row.source)}</li>`).join('')}</ul></details>`;
 }
 
 /**
@@ -1215,7 +1240,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     if (kind === 'MARKET' && sectionId === 'M01' && input.m01Inventory && input.sourceClaims) return m01InventorySection(input.m01Inventory, input.sourceClaims, citations, readerPlainText);
     if (kind === 'INSIGHT' && sectionId === 'I14' && input.i14Admission && input.sourceClaims) return i14SynthesisSection(input.i14Synthesis, citations, false) + i14AdmissionSection(input.i14Admission, input.sourceClaims, citations, false);
     if (kind === 'MARKET' && (sectionId === 'M03' || sectionId === 'M04')) {
-       if (input.metricMethods) return metricMethodSection(input.metricMethods, sectionId, input.metricClassified, citations, Boolean(marketPresentation), readerPlainText) + (sectionId === 'M03' && input.marketInventory ? '<h3>Bằng chứng riêng của nguồn sàn: không cộng vào số liệu nguồn</h3>' + marketInventorySection(input.marketInventory, sectionId, citations, labels, readerPlainText) : '');
+       if (input.metricMethods) return metricMethodSection(input.metricMethods, sectionId, input.metricClassified, citations, Boolean(marketPresentation), readerPlainText) + (sectionId === 'M03' && input.marketInventory ? (readerPlainText ? '<h3>Số liệu từng kỳ của các sản phẩm được chọn (đọc riêng, không cộng vào bảng mẫu)</h3>' : '<h3>Bằng chứng riêng của nguồn sàn: không cộng vào số liệu nguồn</h3>') + marketInventorySection(input.marketInventory, sectionId, citations, labels, readerPlainText) : '');
       if (input.metricMethodsFailure) return `<p class="warning">${escape(metricFailureCopy[input.metricMethodsFailure].next)}</p>` + codeNote(input.metricMethodsFailure);
     }
     if (kind === 'MARKET' && (sectionId === 'M03' || sectionId === 'M08')) {
@@ -1271,7 +1296,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   // market14 readers get a plain "Cách đọc báo cáo" paragraph; the completion counters stay in the semantic and the trace copy.
   const readerOpening = marketPresentation ? marketReaderGuide(marketPlatforms)
     : `<p class="warning">${escape(headline)}${input.qualitativeDraft ? ` ${escape(qualitativeDraftSummary(input.qualitativeDraft))}` : ''}</p>${reviewOutcome ? reviewOutcomeNotice(reviewOutcome, kind) : ''}<p class="reader-guide">Đọc trạng thái và phần diễn giải trước khi sử dụng số liệu. Bảng trình bày những gì nguồn hoặc phép tính đã ghi nhận; phần “Hồ sơ đối chiếu” giữ nguyên nội dung nguồn và thông tin kỹ thuật. Mục còn thiếu điều kiện chưa có kết luận, không phải kết quả bằng 0.</p>`;
-  const body = orderReportCitations(readerOpening + sections.map(section => `<section class="sheet" id="${section.sectionId}"><header class="sh-head"><div><span class="sh-id">${readerPlainText && kind === 'MARKET' ? marketSectionLabel(section.sectionId) : section.sectionId}</span><h2>${escape(section.title)}</h2></div><span class="state">${escape(stateLabel[section.state])}</span></header><p class="section-reading">${escape(section.explanation)}</p>${methodBody(section)}${section.state === 'SOURCE_CONTEXT' ? scope : ''}${section.sectionId === 'M13' || section.sectionId === 'I17' ? sourceTable + webResultsTable : ''}${observationTable(section.rows, captures, citations, labels, readerPlainText)}${appendix(section.sectionId)}${section.sectionId === 'M12' ? market14Proposals : ''}${readerPlainText && kind === 'MARKET' ? '' : `<details class="method-reference"><summary>Hồ sơ đối chiếu phương pháp</summary><p><small>${fallbackIds.has(section.sectionId) ? 'Phương pháp ghi trong danh mục, chưa chạy trong lượt này' : 'Phương pháp'}: ${methodReference(section.method)}</small></p></details>`}</section>`).join(''), registry);
+  const body = orderReportCitations(readerOpening + sections.map(section => `<section class="sheet" id="${section.sectionId}"><header class="sh-head"><div><span class="sh-id">${readerPlainText && kind === 'MARKET' ? marketSectionLabel(section.sectionId) : section.sectionId}</span><h2>${escape(section.title)}</h2></div><span class="state">${escape(stateLabel[section.state])}</span></header><p class="section-reading">${escape(section.explanation)}</p>${methodBody(section)}${section.state === 'SOURCE_CONTEXT' ? scope : ''}${section.sectionId === 'M13' || section.sectionId === 'I17' ? sourceTable + webResultsTable : ''}${observationTable(section.rows, captures, citations, labels, readerPlainText, [...input.scope.selectedProductIds, ...input.scope.peerProductIds])}${appendix(section.sectionId)}${section.sectionId === 'M12' ? market14Proposals : ''}${readerPlainText && kind === 'MARKET' ? '' : `<details class="method-reference"><summary>Hồ sơ đối chiếu phương pháp</summary><p><small>${fallbackIds.has(section.sectionId) ? 'Phương pháp ghi trong danh mục, chưa chạy trong lượt này' : 'Phương pháp'}: ${methodReference(section.method)}</small></p></details>`}</section>`).join(''), registry);
   // Snapshot the original register, then renumber only citations still visible in the reader.
   const semanticCitations = { citations: registry.technicalTrace(), citationEntries: registry.entries() };
   const readerBody = marketPresentation ? orderReportCitations(body.replace(/<template data-market14-source-trace>[\s\S]*?<\/template>/gu, ''), registry) : body;

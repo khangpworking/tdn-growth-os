@@ -158,10 +158,11 @@ test('collector cap drift cannot dispatch a production collection through trial 
 test('frozen default report digests from the base commit remain unchanged (Market and Insight)', async () => {
   const input = await fullMarket14Input();
   const market = buildResearchAutomationReport(input, 'MARKET');
-  assert.equal(digest(market.html), '5287d313c0575914044ee6237bd401daac2a3f56bc1b7f1e4acd266b934ced8a');
+  // Reader and trace bytes re-pinned for the intended Market reader inventory/peer wording; semantic stays the base pin.
+  assert.equal(digest(market.html), 'a5a3016b1b2ba558fb2b1cf80db9112d913210639563c1a8cd49375747e34e9e');
   // Frozen from the archived, unmodified base renderer at 30f35dfe.
   assert.equal(digest(canonicalJson(market.semantic)), '9a65613c430df3db8cc1bec00e94fff95c157524ce50e02772e2f758d6afdeb8');
-  assert.equal(digest(market.traceHtml!), 'cb7b409dbf692d4cad5840bdfeef6a6a2a91f407fc9413fdbaa077688f9c6d0a');
+  assert.equal(digest(market.traceHtml!), 'bae3fd199848d947c62e52a6458ed96f6f657254a068fe22afb06177d6dfad02');
   const insight = buildResearchAutomationReport(input, 'INSIGHT');
   assert.equal(digest(insight.html), '7163940cc6c424f6c1a2fc73c7af9458e1a50d3957adaa8d43802a8caf6ba08d');
   assert.equal(digest(canonicalJson(insight.semantic)), '21c5fa1d4be2b577cc196d0508e84342b0953f1a16ed6505eccbb784b8f05294');
