@@ -34,7 +34,7 @@ export const AUTORUN_PHASE_TEXT: Readonly<Record<Exclude<AutoRunPhase, 'STOPPED'
   CONFIRM: CHECKING,
   WAIT_DRAFT: 'Đang viết báo cáo nháp.',
   PRESENT: 'Đang làm bìa và biểu đồ cho báo cáo.',
-  DONE: 'Báo cáo đã sẵn sàng.',
+  DONE: 'Phần tự động đã xong: bản nháp, bìa và biểu đồ. Bản đọc để xem và duyệt nằm ở mục "Bản đọc" phía trên.',
 };
 
 const LOGIN = 'Cần đăng nhập lại công cụ số liệu trên máy chạy. Báo cáo đã dừng, chưa tốn thêm lượt tra cứu.';

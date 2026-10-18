@@ -159,7 +159,13 @@ function ReaderReportPanelForRun({ run, ownerToken, writesAvailable, refreshToke
     {notice && <div className="ra-banner" role="status"><p>{notice}</p><button type="button" className="button" onClick={() => setNotice('')}>Đã hiểu</button></div>}
     {error ? <div className="ra-message error" role="alert"><p>{error}</p><button type="button" className="button" onClick={reload}>Thử lại</button></div>
       : revisions === null ? <p role="status">Đang tải bản đọc…</p>
-      : !latest ? <div className="ra-message"><p>Bản đọc đang được chuẩn bị từ kết quả của phiên này. Khi xong, bản đọc sẽ hiện ở đây để bạn xem và duyệt.</p><button type="button" className="button" onClick={reload}>Tải lại</button></div>
+      : !latest ? <div className="ra-message">
+        <p>Chưa có bản đọc {kindLabel} cho phiên này. Bản đọc không tự xuất hiện sau khi thu thập xong: cần dựng thì mới xem và duyệt được.</p>
+        <p>{run.status !== 'DRAFT_READY' ? 'Bản đọc dựng được khi phiên có bản nháp (trạng thái "Đã có bản nháp").'
+          : !canWrite ? `Cần mở khóa OWNER để dựng bản đọc. Nếu bạn chỉ xem, hãy nhờ người xử lý dựng giúp và gửi kèm mã phiên ${run.runId}.`
+          : kind === 'MARKET' ? 'Bước tiếp theo: mở mục "Bổ sung quy cách và dựng bản đọc" bên dưới.'
+          : 'Bước tiếp theo: chọn phiên bản nguồn rồi bấm dựng bản đọc insight bên dưới.'}</p>
+        <button type="button" className="button" onClick={reload}>Kiểm tra lại</button></div>
       : <>
         <article className="ra-output" aria-label={`Bản đọc ${kindLabel} lần ${latest.revisionNumber}`}>
           <header><h3>Bản đọc {kindLabel} lần {latest.revisionNumber}</h3><span className={`status-pill ${latest.state === 'APPROVED' ? 'good' : ''}`}>{STATE_LABEL[latest.state]}</span></header>

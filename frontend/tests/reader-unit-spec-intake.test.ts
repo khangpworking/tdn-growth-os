@@ -78,7 +78,11 @@ test('reader intake panel requires owner and selected files, sends only explicit
   try {
     await act(async () => root.render(createElement(Panel, { run, ownerToken: null, writesAvailable: true })));
     assert.equal(buildButton().disabled, true); assert.match(dom.container.textContent!, /Mở khóa OWNER/); assert.equal(writes, 0);
+    // M-01: with no revision the panel must not claim one is being prepared; it names the next step by permission.
+    assert.match(dom.container.textContent!, /Chưa có bản đọc thị trường/); assert.doesNotMatch(dom.container.textContent!, /đang được chuẩn bị/);
+    assert.match(dom.container.textContent!, new RegExp(`Cần mở khóa OWNER để dựng bản đọc.*mã phiên ${runId}`));
     await act(async () => root.render(createElement(Panel, { run, ownerToken: token, writesAvailable: true })));
+    assert.match(dom.container.textContent!, /mở mục "Bổ sung quy cách và dựng bản đọc"/);
     const inputs = document.querySelectorAll<HTMLInputElement>('input[type=file]');
     await select(inputs[0]!, [new File([JSON.stringify(request)], 'build.json')]);
     assert.equal(buildButton().disabled, true);
