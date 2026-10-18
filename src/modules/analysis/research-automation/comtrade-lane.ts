@@ -110,7 +110,7 @@ const plainText = (v: unknown): v is string => typeof v === 'string' && v.trim()
 // text. Model-authored Vietnamese remains strict through `ownerText`.
 const forbiddenProviderName = /\b(?:google|kalodata|tradeint|dami|apify|serpapi|pageindex|gemini)\b/iu;
 const forbiddenMetricBrand = /\b(?:Metric|METRIC)\b/u;
-const forbiddenOwnerName = (value: string): boolean => forbiddenProviderName.test(value) || /\bmetric\b/iu.test(value);
+const forbiddenOwnerName = (value: string): boolean => forbiddenProviderName.test(value) || /\b(?:metric|agent-reach|opencli|zen-studio|jev|typesafe|cliproxy|openai|anthropic|glm)\b/iu.test(value);
 const forbiddenSourceName = (value: string): boolean => forbiddenProviderName.test(value);
 const ownerText = (v: unknown): v is string => plainText(v) && !forbiddenOwnerName(v);
 const dataBlock = (name: 'PRODUCT_DATA' | 'COLLECTED_PRODUCT_TITLES_DATA' | 'OFFICIAL_DESCRIPTION_DATA', value: unknown): string =>
@@ -238,7 +238,8 @@ export function createComtradeSource(options: { readonly model?: ComtradeModelPo
       };
 
       const productData = { keyword: input.keyword, mode: input.mode, description: input.description };
-      const productTitles = [...new Set((input.productTitles ?? []).map(title => title.trim().slice(0, 300)).filter(Boolean))].slice(0, 8);
+      const productTitles = [...new Set((input.productTitles ?? []).map(title =>
+        title.replace(/[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028-\u202e\u2066-\u2069]/gu, ' ').trim().slice(0, 300)).filter(Boolean))].slice(0, 8);
       const productContext = dataBlock('PRODUCT_DATA', productData) + (productTitles.length ? `\n${dataBlock('COLLECTED_PRODUCT_TITLES_DATA', productTitles)}` : '');
       const candidates = await ask(SYSTEM_CANDIDATES, productContext, validateCandidates);
       if (candidates === 'CANCELLED') return result('CANCELLED');
