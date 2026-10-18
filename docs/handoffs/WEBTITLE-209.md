@@ -27,7 +27,8 @@ Deliberate non-changes:
 
 - No gate or lint rule was relaxed. The fix only marks copied source text, as the lint contract and RENDERFAIL-209 already do.
 - Hiding is unchanged: a title or site that names a provider or the search engine is still replaced by the withheld wording, and the reference list still runs `assertReaderSafeCitation` on every label.
-- Report wording, the reference list for every other source kind and the frozen goldens are unchanged.
+- Report wording and the reference list for every other source kind are unchanged.
+- Two frozen report-byte digests were re-frozen, nothing else: `tests/integration/jev-209b-live.test.ts` (report bytes) and `tests/integration/research-automation-pdf-discovery.test.ts` (Market and Insight HTML). Their fixtures carry web rows, so the copied titles are now wrapped in `<q data-quote>`. Rendered against `c98639fa` on Linux, the new HTML equals the old HTML once those wrappers are removed; step, document, capture, usage and semantic digests are unchanged.
 
 Evidence (Windows pre-check; CI is the run of record):
 
@@ -45,7 +46,8 @@ The original regressions fail on `c98639fa`; the quote-token and publication-lab
 regressions also failed on the PR before their repairs. The separate
 official-statistics integration file times out after the same five completed
 tests on both this tree and `c98639fa`; its isolated category-map assertion passes.
-No frozen golden or lint exemption was changed.
+No lint exemption was changed. CI on `17c94709` then failed the two report-byte
+digests above, which that review did not run; they were re-frozen as described.
 
 Unresolved: none for this lane.
 
