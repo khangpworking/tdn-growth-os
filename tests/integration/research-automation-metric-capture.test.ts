@@ -18,6 +18,10 @@ import { buildResearchAutomationReport } from '../../src/modules/analysis/resear
 import { ResearchAutomationValidationError } from '../../src/modules/analysis/research-automation/model.js';
 import { JSDOM } from 'jsdom';
 import { auditMarket14 } from '../../src/modules/analysis/research-automation/market-14-rules.js';
+import { CAPTURE_ROW_PROFILE } from '../../src/modules/analysis/research-automation/capture-row-quality.js';
+import { readerRowsFromMetricCapture } from '../../src/modules/analysis/reader-report/metric-capture-rows.js';
+import { marketChartSource } from '../../src/modules/analysis/research-automation/market-presentation-report.js';
+import { renderMarketCharts } from '../../src/modules/analysis/reader-report/market-charts.js';
 import { webSnapshotDigest } from '../../src/modules/analysis/reader-report/web-facts.js';
 import { providerNameViolations, reportVisibleText, visibleTextViolations } from '../helpers/report-visible-text.js';
 
@@ -51,9 +55,10 @@ function captureSnapshot(shops = true): AutomationMetricWebSnapshotV1 {
 }
 
 function captureArchive(snapshot: AutomationMetricWebSnapshotV1) {
+  const count = 'absent' in snapshot.groups.W12_topProducts ? 0 : snapshot.groups.W12_topProducts.rows.length;
   const snapshotBytes = Buffer.from(JSON.stringify(snapshot, null, 2) + '\n');
   const manifest = { contractVersion: 'metric-results-capture-v1', captureId: snapshot.captureId, specDigest: snapshot.specDigest,
-    appliedFilters: { ...snapshot.scope, smartQuery: true, aiNormalisation: false, usefulFilters: { fake: false, gifts: true, deleted: false } }, resultCount: 3, productPagination: { cap: 3, totalShown: 5, pageSize: 3, pagesRead: 1, rowsRead: 3, truncated: true },
+    appliedFilters: { ...snapshot.scope, smartQuery: true, aiNormalisation: false, usefulFilters: { fake: false, gifts: true, deleted: false } }, resultCount: count, productPagination: { cap: count, totalShown: count + 2, pageSize: count, pagesRead: 1, rowsRead: count, truncated: true },
     metricDataVersion: 'metric-results-data-v2', chartSeries: { contractVersion: 'metric-results-data-v2',
       series: [{ series: 'topProducts', platform: 'shopee', name: 'Synthetic A', revenue: 1200, units: 3, source: 'response:/v2/market/analytics/products' }],
       trendOffered: false, trendNote: 'not offered by the source' },
@@ -156,7 +161,7 @@ test('capture-confirmed Market run refuses the workbook-only presentation revisi
 });
 
 /** Fresh Market run confirmed either with the prepared capture or with no Metric source at all. */
-async function confirmedCaptureRun(t: TestContext, decision: 'USE_PREPARED' | 'SKIPPED', shops = true) {
+async function confirmedCaptureRun(t: TestContext, decision: 'USE_PREPARED' | 'SKIPPED', shops = true, suppliedSnapshot?: AutomationMetricWebSnapshotV1) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), `tdn-metric-capture-209-${decision.toLowerCase()}-`));
   const db = openDatabase({ databasePath: path.join(root, 'test.sqlite'), now }).db;
   const artifacts = new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
@@ -170,7 +175,7 @@ async function confirmedCaptureRun(t: TestContext, decision: 'USE_PREPARED' | 'S
     mode: 'CATEGORY', keyword: 'synthetic jar', requestedPeriod: { startDate: '2026-01-01', endDate: '2026-01-30' }, reports: ['MARKET'] });
   await service.processNext();
   const awaiting = await service.getRun(workspaceId, runId);
-  const archive = captureArchive(captureSnapshot(shops));
+  const archive = captureArchive(suppliedSnapshot ?? captureSnapshot(shops));
   const receipt = await service.prepareMetricCapture(workspaceId, runId, { contractVersion: 'automation-metric-capture-prepare-v1',
     requestKey: '66666666-6666-4666-8666-666666666666', expectedRevision: awaiting.revision, sourceContext: 'Synthetic capture fixture' },
   archive.snapshotBytes, archive.manifestBytes);
@@ -179,7 +184,7 @@ async function confirmedCaptureRun(t: TestContext, decision: 'USE_PREPARED' | 'S
     sources: { metric: decision === 'USE_PREPARED' ? { decision: 'USE_PREPARED', packageId: receipt.packageId } : { decision: 'SKIPPED' }, nativeReview: 'SKIP' } });
   for (let i = 0; i < 10 && (await service.getRun(workspaceId, runId)).status !== 'DRAFT_READY'; i++) await service.processNext();
   const pair = (await service.listReportVersions(workspaceId, runId))[0]!;
-  return { service, artifacts, pair, root };
+  return { service, artifacts, pair, root, db, discovery };
 }
 
 test('a capture-confirmed Market run counts Metric as executed and keeps capture jargon out of reader text', async t => {
@@ -249,7 +254,7 @@ test('capture-backed Market presentation passes rules 1, 2, 3, 5, 7, 9 and 11 wi
   } finally { dom.window.close(); }
   const output = path.join(f.root, 'presented.html');
   await fs.writeFile(output, html);
-  const audit = spawnSync('./node_modules/.bin/tsx', ['scripts/audit-market-14.ts', output], { encoding: 'utf8' });
+  const audit = spawnSync(process.execPath, ['--import', 'tsx', 'scripts/audit-market-14.ts', output], { encoding: 'utf8' });
   assert.equal(audit.status, 0, audit.stdout + audit.stderr);
 });
 
@@ -316,7 +321,7 @@ test('capture revenue survives presentation revision while legacy captures revea
       `${platform} capture figures appear in both the M03 and M04 sections`);
   const CITE = ' <sup class="cite">\\[\\d+\\]<\\/sup>';
   assert.match(draft, new RegExp(`<h3>Shopee<\\/h3><p>Doanh thu quan sát: <strong>1\\.200\\.000\\.000 VND<\\/strong> <small>số làm tròn như trên trang<\\/small>${CITE}; sản lượng: <strong>42\\.000<\\/strong>${CITE}\\. Đây là số của cả tập kết quả theo bộ lọc trên trang\\. Không phải tổng của danh sách giữ bên dưới\\.`));
-  assert.match(draft, new RegExp(`<h3>TikTok Shop<\\/h3><p>Doanh thu quan sát: <strong>9\\.876\\.543\\.210 VND<\\/strong>${CITE}; sản lượng: <strong>không có số liệu<\\/strong>\\. Đây là số của cả tập kết quả theo bộ lọc trên trang\\. Bảng kết quả có chọn nền tảng này nhưng không có dòng nào gán được cho nền tảng; báo cáo không suy ra và không ghi thành 0\\.`));
+  assert.match(draft, new RegExp(`<h3>TikTok Shop<\\/h3><p>Doanh thu quan sát: <strong>9\\.876\\.543\\.210 VND<\\/strong>${CITE}; sản lượng: <strong>không có số liệu<\\/strong>\\. Đây là số của cả tập kết quả theo bộ lọc trên trang\\. Không có dòng phù hợp để tính tổng mẫu trong lượt này\\.`));
   assert.match(draft, /1\.200 VND/, 'the retained row list still shows its own row value');
   assert.doesNotMatch(draft, /Doanh thu quan sát: <strong>1\.200 VND/);
   const pair = (await service.listReportVersions(workspaceId, runId))[0]!;
@@ -342,4 +347,107 @@ test('capture revenue survives presentation revision while legacy captures revea
   assert.match(presented, /Doanh thu quan sát: <strong>9\.876\.543\.210 VND/);
   assert.doesNotMatch(presented, /Doanh thu quan sát: <strong>1\.200 VND/);
   assert.deepEqual(machineRuleFailures(presented), []);
+});
+
+
+test('new captures clean both parsers, restore shops, and exclude irrelevant and implausible rows from reports and charts', async t => {
+  const snapshot = captureSnapshot();
+  snapshot.scope.platforms = ['shopee', 'tiktok'];
+  const table = snapshot.groups.W12_topProducts;
+  assert.ok(!('absent' in table));
+  const base = table.rows[0]!;
+  const specs: [string, string, number, number | null][] = [
+    ['Synthetic jar A remote Phụ Kiện 7 cánh', 'shopee', 1000000, 10],
+    ['TOP 1 SHOPEE BH 2NĂM Synthetic jar B', 'shopee', 2000000, 20],
+    ['Hàng Loại 1 Synthetic jar C', 'shopee', 3000000, 30],
+    ['Moter Synthetic jar', 'shopee', 9000000, 1],
+    ['Power Bank cho Synthetic jar', 'shopee', 8000000, 1],
+    ['Synthetic jar D', 'shopee', 57200000, 1],
+    ['Synthetic jar E', 'shopee', 2000000, 0],
+    ['Synthetic jar F', 'tiktok', 100000000, 1],
+    ['Synthetic jar G', 'tiktok', 200000000, 2],
+    ['Synthetic jar H', 'tiktok', 300000000, 3],
+    ['Dây Synthetic jar', 'tiktok', 70000000, 1],
+    ['Synthetic jar I', 'tiktok', 60000000, null],
+    ['Synthetic unknown', 'unknown', 1000, 1],
+  ];
+  table.rows = specs.map(([title, platform, revenue, units], i) => {
+    const row = structuredClone(base);
+    row.cells.name = { label: 'Tên', text: `${title} 340 reviews Total sold products: 1.496 Created date: 03/2024 Gian hàng Mẫu ${i}`, sourcePointer: `p[${i}].name` };
+    row.cells.shop = { label: 'Gian hàng', text: i === 1 ? 'Gian hàng riêng' : '', sourcePointer: `p[${i}].shop` };
+    row.cells.platform = { label: 'Sàn', text: platform, sourcePointer: `p[${i}].platform` };
+    row.cells.revenue = { label: 'Doanh thu', displayed: String(revenue), value: revenue, unit: 'VND', precision: 'exact', platform: platform as 'shopee', period, sourcePointer: `p[${i}].revenue` };
+    row.cells.units = { label: 'Lượt bán', displayed: units === null ? '–' : String(units), value: units, unit: 'COUNT', precision: 'exact', platform: platform as 'shopee', period, sourcePointer: `p[${i}].units` };
+    return row;
+  });
+  const f = await confirmedCaptureRun(t, 'USE_PREPARED', true, snapshot);
+  assert.equal((await f.service.getRun(workspaceId, runId)).status, 'DRAFT_READY');
+  const draft = await f.service.readReport(workspaceId, runId, 'MARKET');
+  const semantic = JSON.parse((await f.artifacts.read(draft.versionId)).toString('utf8'));
+  const methods = semantic.metricMethods as AutomationMetricMethodSnapshot;
+  assert.equal(methods.result.input.profileId, CAPTURE_ROW_PROFILE);
+  assert.equal(methods.capture!.rowPolicyVersion, CAPTURE_ROW_PROFILE);
+  assert.equal(methods.capture!.excludedRows!.length, 6);
+  const configFile = f.db.prepare("SELECT artifact_sha256 sha FROM foundation_source_package_files WHERE package_id=? AND logical_path='methods/metric-run.json'").get(methods.sourcePackage.packageId) as { sha: string };
+  const config = JSON.parse((await f.artifacts.read(configFile.sha)).toString());
+  const bridge = new AutomationMetricMethodBridge({ db: f.db, artifactStore: f.artifacts, workspaces: new FlowDiscoveryWorkspaceReader(f.discovery), now });
+  assert.deepEqual(await bridge.verify(methods, config.input), methods);
+  const tampered = structuredClone(methods);
+  (tampered.capture!.excludedRows![0] as { reason: string }).reason = 'UNIT_REVENUE_OUTLIER';
+  await assert.rejects(bridge.verify(tampered, config.input), /provenance or row attribution/);
+  const withoutPolicy = structuredClone(methods);
+  delete (withoutPolicy.capture as { rowPolicyVersion?: string }).rowPolicyVersion;
+  await assert.rejects(bridge.verify(withoutPolicy, config.input), /provenance or row attribution/);
+
+  assert.deepEqual(methods.capture!.platforms.map(({result}) => result.scopes.find(scope => scope.key === 'all')!.revenue.value), ['6000000', '600000000']);
+  assert.deepEqual(methods.capture!.platforms.map(({result}) => result.scopes.find(scope => scope.key === 'all')!.shopCount), [3, 3]);
+  const parsed = readerRowsFromMetricCapture(snapshot, ['shopee', 'tiktok'], CAPTURE_ROW_PROFILE);
+  assert.equal(parsed.excluded.length, 6);
+  assert.equal(parsed.unattributed.length, 1);
+  assert.deepEqual(parsed.rows.map(row => row.title), methods.capture!.platforms.flatMap(({result}) => result.input.records.map(row => row.title)));
+  assert.deepEqual(parsed.rows.map(row => row.listing), methods.capture!.platforms.flatMap(({result}) => result.input.records.map(row => row.listingId)));
+  assert.equal(parsed.rows[0]!.units, 10, 'lifetime sold is never substituted for period units');
+  assert.equal(parsed.rows[1]!.shopName, 'Gian hàng riêng');
+  assert.equal(parsed.rows[0]!.shopName, 'Gian hàng Mẫu 0');
+  const html = draft.bytes.toString('utf8');
+  assert.doesNotMatch(html, /reviews|Total sold products|Created date|nguồn không ghi gian hàng/iu);
+  const dom = new JSDOM(html);
+  try {
+    const lines = [...dom.window.document.querySelectorAll('#M03 p')].map(p => p.textContent!).filter(text => text.startsWith('Đã loại'));
+    assert.equal(lines.length, 2);
+    assert.match(lines[0]!, /Đã loại 2 dòng không phải sản phẩm chính.*và 2 dòng có doanh thu/);
+    assert.match(lines[1]!, /Đã loại 1 dòng không phải sản phẩm chính.*và 1 dòng có doanh thu/);
+    for (const line of lines) assert.doesNotMatch(line, /0|%|Metric|Google/);
+  } finally { dom.window.close(); }
+  const source = marketChartSource([], methods);
+  const charts = await renderMarketCharts(source.rows, { ...source, flint: false });
+  assert.ok(charts.some(chart => chart.kind === 'concentration'));
+  assert.match(charts.find(chart => chart.kind === 'product-ranking')!.svg, /Synthetic jar/);
+  assert.doesNotMatch(charts.map(chart => chart.svg).join(''), /Moter|Power Bank|reviews/);
+  const queued = await f.service.requestReportRevision(workspaceId, runId, {
+    contractVersion: 'automation-market-presentation-revision-v1', requestKey: randomUUID(), previousPairId: f.pair.pairId,
+    sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } },
+  });
+  await f.service.processNext();
+  const attempt = await f.service.getReportRevision(workspaceId, runId, queued.attemptId);
+  assert.equal(attempt.state, 'COMMITTED');
+  const presented = (await f.service.readReport(workspaceId, runId, 'MARKET', false, attempt.pairId!)).bytes.toString();
+  assert.match(presented, /Mức tập trung doanh thu theo gian hàng/);
+  assert.doesNotMatch(presented, /reviews|Total sold products|Created date|nguồn không ghi gian hàng/iu);
+
+  const build = await f.service.buildReaderReport(workspaceId, runId, {
+    contractVersion: 'reader-report-build-v1.1', requestKey: '77777777-7777-4777-8777-777777777777', metricPackageId: methods.originalSourcePackage.packageId,
+    platforms: ['shopee', 'tiktok'], profile, cover: null, webSnapshot: snapshot, webSnapshotSha256: webSnapshotDigest(snapshot),
+  }, { actorId: 'owner:synthetic', role: 'OWNER' });
+  const recordRow = f.db.prepare('SELECT input_sha256 inputSha FROM analysis_reader_report_revisions WHERE revision_id=?').get(build.revision.revisionId) as { inputSha: string };
+  const record = JSON.parse((await f.artifacts.read(recordRow.inputSha)).toString());
+  assert.equal(record.captureRowPolicy, CAPTURE_ROW_PROFILE);
+  assert.equal(record.captureExcludedRows.length, 6);
+  const readerHtml = (await f.service.readReaderReport(workspaceId, runId, build.revision.revisionId)).bytes.toString('utf8');
+  assert.doesNotMatch(readerHtml, /reviews|Total sold products|Created date|nguồn không ghi gian hàng/iu);
+  assert.match(readerHtml, /Shopee: Đã loại 2 dòng/);
+  assert.match(readerHtml, /TikTok Shop: Đã loại 1 dòng/);
+  assert.equal((readerHtml.match(/Shopee: Đã loại/g) ?? []).length, 1);
+  assert.equal((readerHtml.match(/TikTok Shop: Đã loại/g) ?? []).length, 1);
+  assert.deepEqual((await f.service.readReaderReport(workspaceId, runId, build.revision.revisionId)).bytes, Buffer.from(readerHtml));
 });

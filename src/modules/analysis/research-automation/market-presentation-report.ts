@@ -16,7 +16,7 @@ const mark = (ref: { sourceSha256: string; locator: string; label?: string }, ci
 const table = (caption: string, headings: readonly string[], rows: readonly string[][]): string =>
   `<div class="table-wrap" role="region" aria-label="${escape(caption)}" tabindex="0"><table><caption>${escape(caption)}</caption><thead><tr>${headings.map(h => `<th scope="col">${escape(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 
-export type MarketChartSource = { rows: MarketChartRow[]; rowListNote?: string; sampleNote?: string };
+export type MarketChartSource = { rows: MarketChartRow[]; titleLabels?: boolean; rowListNote?: string; sampleNote?: string };
 
 /**
  * Rows the three Market charts are drawn from. Saved presentation rows are used
@@ -30,7 +30,8 @@ export function marketChartSource(presentationRows: readonly MarketChartRow[], m
   const revenue = (value: string | null): number | null => value === null ? null : Number(value);
   if (metric.capture) return {
     rows: metric.capture.platforms.flatMap(({ platform, result }) => result.input.records.map((record, index) => ({
-      i: Number(/^\/groups\/W12_topProducts\/rows\/(\d+)$/u.exec(record.source.locator)?.[1] ?? index), platform, shop: record.shopId, rev: revenue(record.revenue.value) }))),
+      i: Number(/^\/groups\/W12_topProducts\/rows\/(\d+)$/u.exec(record.source.locator)?.[1] ?? index), platform, shop: record.shopId, rev: revenue(record.revenue.value), ...(metric.capture?.rowPolicyVersion ? { title: record.title } : {}) }))),
+    ...(metric.capture.rowPolicyVersion ? { titleLabels: true } : {}),
     rowListNote: 'số dòng là thứ tự dòng trong bảng kết quả tìm kiếm đã lưu',
     sampleNote: ' Mẫu là các dòng đầu được giữ của bảng kết quả tìm kiếm, không phải số của cả tập kết quả theo bộ lọc.',
   };

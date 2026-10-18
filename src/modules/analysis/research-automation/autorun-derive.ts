@@ -10,6 +10,7 @@ import type { ResearchAutomationSourceConfirmRequest } from '../../../../contrac
 import type { ResearchAutomationMetricCapturePrepareRequest } from '../../../../contracts/api/research-automation-metric-capture-intake-api.generated.js';
 import type { AutomationMarketPresentationRevisionRequest } from '../../../../contracts/analysis/automation-market-presentation-revision.generated.js';
 import { filterKeywordMeanings, type KeywordMeaningFilterData } from '../keyword-meaning-filter.js';
+import { captureRowExclusions, splitCaptureNameCell, type CaptureRowExclusionReason } from './capture-row-quality.js';
 import { MAX_PRINCIPAL_CARDS } from './model.js';
 import type { MetricCaptureStopCode } from './metric-capture-runner.js';
 
@@ -29,7 +30,7 @@ export function isAutorunCaptureStopCode(code: string | null | undefined): boole
   return typeof code === 'string' && Object.prototype.hasOwnProperty.call(CAPTURE_STOP_CODE_SET, code);
 }
 
-export const AUTORUN_PICK_RULE_VERSION = 'autorun-pick-v1' as const;
+export const AUTORUN_PICK_RULE_VERSION = 'autorun-pick-v2' as const;
 export const AUTORUN_MAX_SHOPEE_LINKS = 5;
 /** Metric's results window is 30 inclusive days. */
 export const AUTORUN_CAPTURE_WINDOW_DAYS = 30;
@@ -217,6 +218,7 @@ export interface PickResult {
   readonly terms: readonly string[];
   readonly links: readonly PickedShopeeLink[];
   readonly urls: readonly string[];
+  readonly excludedRows: readonly { readonly productBaseId: string; readonly reason: CaptureRowExclusionReason }[];
   readonly counts: {
     readonly walked: number;
     readonly deleted: number;
@@ -229,7 +231,7 @@ export interface PickResult {
 
 interface Candidate {
   id: string; itemId: string; shopId: string; shopKey: string; name: string;
-  revenue: number | null; brand: string | null; brandKey: string; deleted: boolean;
+  revenue: number | null; units: number | null; brand: string | null; brandKey: string; deleted: boolean;
 }
 
 function collectShopeeRows(raw: unknown): Candidate[] {
@@ -250,9 +252,13 @@ function collectShopeeRows(raw: unknown): Candidate[] {
       const shopKey = (typeof shopBase === 'string' && shopBase.trim()) || (typeof shopBase === 'number' && Number.isFinite(shopBase)) ? String(shopBase).trim() : shopId;
       const rawBrand = [record.final_brand, record.brand].find(value => typeof value === 'string' && value.trim()) as string | undefined;
       const brand = rawBrand ? rawBrand.trim() : null;
-      const revenueNumber = Number(record.revenue_custom);
+      const revenueValue = record.revenue_custom ?? record.revenue;
+      const revenueNumber = Number(revenueValue);
+      const unitsValue = record.order_custom ?? record.order_count;
+      const unitsNumber = (typeof unitsValue === 'string' && unitsValue.trim()) || typeof unitsValue === 'number' ? Number(unitsValue) : NaN;
       const name = typeof record.product_name === 'string' && record.product_name.length <= FILTER_TEXT_MAX ? record.product_name : '';
-      rows.push({ id, itemId, shopId, shopKey, name, revenue: record.revenue_custom !== null && record.revenue_custom !== undefined && record.revenue_custom !== '' && Number.isFinite(revenueNumber) ? revenueNumber : null,
+      rows.push({ id, itemId, shopId, shopKey, name, revenue: revenueValue !== null && revenueValue !== undefined && revenueValue !== '' && Number.isFinite(revenueNumber) && revenueNumber >= 0 ? revenueNumber : null,
+        units: Number.isFinite(unitsNumber) && unitsNumber >= 0 ? unitsNumber : null,
         brand, brandKey: brand ? brand.normalize('NFC').toLowerCase() : '', deleted: record.is_deleted === true });
     }
     const values = Object.values(record);
@@ -303,7 +309,10 @@ export function pickShopeeLinks(rawResponses: unknown, terms: readonly string[])
   }
   const notIncluded = live.length - included.length;
   const guards = keywords.map(term => new RegExp(`(?<![\\p{L}\\p{N}\\p{M}])${escapeRegExp(term.toLowerCase())}(?![\\p{L}\\p{N}\\p{M}])`, 'u'));
+  const excluded = captureRowExclusions(live.map(row => ({ title: splitCaptureNameCell(row.name, '').title, platform: 'shopee', revenue: row.revenue, units: row.units })), keywords);
+  const qualityRejected = new Set([...excluded.keys()].map(i => live[i]!.id));
   const eligible = included.filter(row => {
+    if (qualityRejected.has(row.id)) return false;
     const name = row.name.normalize('NFC').toLowerCase();
     return guards.some(guard => guard.test(name));
   });
@@ -329,6 +338,7 @@ export function pickShopeeLinks(rawResponses: unknown, terms: readonly string[])
   const links = picked.map(row => ({ productBaseId: row.id, itemId: row.itemId, shopId: row.shopId, revenue: row.revenue, brand: row.brand,
     url: `https://shopee.vn/product/${row.shopId}/${row.itemId}` }));
   return { pickRuleVersion: AUTORUN_PICK_RULE_VERSION, terms: keywords, links, urls: links.map(link => link.url),
+    excludedRows: [...excluded].map(([i, reason]) => ({ productBaseId: live[i]!.id, reason })).sort((a, b) => a.productBaseId < b.productBaseId ? -1 : a.productBaseId > b.productBaseId ? 1 : 0),
     counts: { walked: rows.length, deleted, notIncluded, tokenGuardRejected, eligible: eligible.length, picked: links.length } };
 }
 

@@ -8,7 +8,7 @@ import { sp } from './format.js';
 import { barChart, lineChart } from './svg-charts.js';
 
 export type MarketChartPlatform = 'shopee' | 'tiktok';
-export type MarketChartRow = { readonly i: number; readonly platform: string; readonly shop: string; readonly rev: number | null | undefined };
+export type MarketChartRow = { readonly i: number; readonly platform: string; readonly shop: string; readonly title?: string; readonly rev: number | null | undefined };
 export type MarketChartKind = 'concentration' | 'platform-revenue' | 'product-ranking';
 export type MarketChart = RenderedChart & { id: string; kind: MarketChartKind; title: string; unit: string; note: string };
 
@@ -54,8 +54,8 @@ const one = (v: number): string => sp(v.toFixed(1));
  * `sampleNote` is appended to every chart note when the rows are a limited list.
  * Returns no chart when no platform has a complete, non-zero in-sample revenue.
  */
-export async function renderMarketCharts(rows: readonly MarketChartRow[], { flint = true, rowNumber = row => row.i + 1, rowListNote = 'số dòng là thứ tự dòng trong dữ liệu bán hàng đã lưu', sampleNote = '' }: {
-  flint?: boolean; rowNumber?: (row: MarketChartRow) => number; rowListNote?: string; sampleNote?: string;
+export async function renderMarketCharts(rows: readonly MarketChartRow[], { flint = true, rowNumber = row => row.i + 1, rowListNote = 'số dòng là thứ tự dòng trong dữ liệu bán hàng đã lưu', sampleNote = '', titleLabels = false }: {
+  flint?: boolean; titleLabels?: boolean; rowNumber?: (row: MarketChartRow) => number; rowListNote?: string; sampleNote?: string;
 } = {}): Promise<MarketChart[]> {
   const usable = marketChartRows(rows);
   if (!usable.length) return [];
@@ -81,14 +81,14 @@ export async function renderMarketCharts(rows: readonly MarketChartRow[], { flin
   const cats = groups.map(groupLabel);
   const values = shopPlats.flatMap(P => groups.flatMap((k, j) => shares[P][j] === null ? [] : [{ nhom: groupLabel(k), san: LABEL[P], ty_trong: +shares[P][j]!.toFixed(1) }]));
   const leftOutNote = leftOut.length ? ` ${leftOut.map(P => LABEL[P]).join(' và ')}: nguồn không ghi gian hàng cho từng sản phẩm nên không tính mức tập trung.` : '';
-  if (shopPlats.length) out.push({ id: 'market.concentration', kind: 'concentration', title: 'Mức tập trung doanh thu theo gian hàng, từng sàn', unit: '% doanh thu trong mẫu của từng sàn',
+  if (shopPlats.length) out.push({ id: 'market.concentration', kind: 'concentration', title: 'Mức tập trung doanh thu theo gian hàng, từng sàn', unit: titleLabels ? 'phần trăm doanh thu trong mẫu của từng sàn' : '% doanh thu trong mẫu của từng sàn',
     note: 'Mỗi sàn tính riêng trên doanh thu trong mẫu của sàn đó; gian hàng sắp theo doanh thu giảm dần. Chỉ phản ánh các gian hàng trong mẫu, không nói về cả thị trường.' + leftOutNote + sampleNote,
     ...await draw({
       data: { values },
       semantic_types: { nhom: 'Category', san: 'Category', ty_trong: 'Number' },
-      field_display_names: { nhom: ' ', san: 'Sàn', ty_trong: 'Tỷ trọng doanh thu trong mẫu (%)' },
+      field_display_names: { nhom: ' ', san: 'Sàn', ty_trong: titleLabels ? 'Tỷ trọng doanh thu trong mẫu (phần trăm)' : 'Tỷ trọng doanh thu trong mẫu (%)' },
       chart_spec: { chartType: 'Grouped Bar Chart', encodings: { y: 'nhom', x: 'ty_trong', group: 'san' }, chartProperties: { showValueLabels: true }, baseSize: { width: 560, height: Math.max(200, cats.length * 44) } },
-    } as FlintChartInput, () => barChart(cats, shopPlats.map(P => ({ name: LABEL[P], values: shares[P].map(v => v ?? 0), color: COLOR[P] })), { fmt: v => one(v) + '%' }), keepOrder('nhom', cats)) });
+    } as FlintChartInput, () => barChart(cats, shopPlats.map(P => ({ name: LABEL[P], values: shares[P].map(v => v ?? 0), color: COLOR[P] })), { fmt: v => one(v) + (titleLabels ? ' phần trăm' : '%') }), keepOrder('nhom', cats)) });
 
   // 2. Revenue by platform: one labelled bar per platform, never summed across platforms.
   const byPlatform = plats.map(P => ({ san: LABEL[P], doanh_thu: +(usable.filter(row => row.platform === P).reduce((s, row) => s + row.rev!, 0) / 1e6).toFixed(1) }));
@@ -104,7 +104,7 @@ export async function renderMarketCharts(rows: readonly MarketChartRow[], { flin
 
   // 3. Leading product rows by in-sample revenue, labelled by their source row number.
   const ranked = usable.filter(row => row.rev! > 0).sort((a, b) => b.rev! - a.rev! || a.i - b.i).slice(0, RANKED_ROWS);
-  const rowLabel = (row: MarketChartRow & { readonly platform: MarketChartPlatform }): string => `Dòng ${rowNumber(row)}`;
+  const rowLabel = (row: MarketChartRow & { readonly platform: MarketChartPlatform }): string => titleLabels && row.title ? `${row.title.length > 64 ? row.title.slice(0, 61) + '…' : row.title} · ${LABEL[row.platform]} · ${rowNumber(row)}` : `Dòng ${rowNumber(row)}`;
   const rankedValues = ranked.map(row => ({ dong: rowLabel(row), san: LABEL[row.platform], doanh_thu: +(row.rev! / 1e6).toFixed(1) }));
   const order = rankedValues.map(row => row.dong);
   out.push({ id: 'market.product-ranking', kind: 'product-ranking', title: 'Sản phẩm có doanh thu cao trong mẫu', unit: 'triệu đồng, ước tính trong mẫu',

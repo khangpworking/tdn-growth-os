@@ -1,3 +1,4 @@
+import { captureExclusionNotice } from '../research-automation/capture-row-quality.js';
 import type { ReaderReportData } from './build.js';
 import { completeSum } from './nullable-metrics.js';
 import { readerPeerExhibit } from './default-peers.js';
@@ -88,6 +89,10 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
       B.set(`rule.${i}.n`, d.ruleHits[i] ?? 0, 'num'); return [label(segName(rule.seg)), label(rule.why ?? 'Luật khớp đầu tiên của hồ sơ đã lưu'), n(bf(`rule.${i}.n`))];
     })) + options.limitations.map(limit => `<p>${esc(limit)}</p>`).join('') + reconciliationState + reconciliation,
     'Chưa đủ căn cứ về kỳ, múi giờ, khung mẫu và tính rời nhau để cộng chéo sàn. Tổng và tỷ lệ cần đủ dữ liệu của đúng phạm vi.'));
+  const exclusionNotes = PLATS.map(platform => {
+    const notice = captureExclusionNotice(options.captureExcludedRows ?? [], platform);
+    return notice ? `<p>${esc(PLATFORM_LABEL[platform]!)}: ${esc(notice)}</p>` : '';
+  }).join('');
   const salesTable = (no: string) => tbl(no, next ? 'Doanh số trong mẫu và giá trung bình từ dữ liệu bán hàng, từng sàn' : 'Doanh số trong mẫu, từng sàn', '',
     next ? ['Sàn', 'Doanh thu ước tính', 'Đơn vị bán ước tính', 'Giá trung bình từ doanh thu ÷ đơn vị bán'] : ['Sàn', 'Doanh thu ước tính', 'Đơn vị bán ước tính', 'Giá trung bình'],
     PLATS.map(P => [plat(P), n(bf(`${P}.core.rev`)), n(bf(`${P}.core.units`)), n(bf(`${P}.core.asp`))]));
@@ -111,10 +116,10 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     })), { src: 'Trang kết quả tìm kiếm đã lưu (toàn kết quả tìm kiếm)' + mark });
     if (drawn) charts.push({ id: 'M03.monthly', engine: drawn.engine, ...(drawn.error ? { error: drawn.error } : {}) });
   }
-  sections.push(section('M03', 'Quy mô và diễn biến', monthly ? 'Doanh số trong mẫu và chuỗi trên trang nguồn giữ riêng; có số theo tháng cho từng sàn ở Hình 3.1.' : 'Chỉ mô tả doanh số trong mẫu; chưa có chuỗi phù hợp để xác định diễn biến.', salesTable(MARKET_SALES_AVERAGE_EXHIBIT) + monthly, 'Một thành viên thiếu làm tổng chưa xác định; mẫu số bằng không không tạo ra giá trung bình.'));
+  sections.push(section('M03', 'Quy mô và diễn biến', monthly ? 'Doanh số trong mẫu và chuỗi trên trang nguồn giữ riêng; có số theo tháng cho từng sàn ở Hình 3.1.' : 'Chỉ mô tả doanh số trong mẫu; chưa có chuỗi phù hợp để xác định diễn biến.', exclusionNotes + salesTable(MARKET_SALES_AVERAGE_EXHIBIT) + monthly, 'Một thành viên thiếu làm tổng chưa xác định; mẫu số bằng không không tạo ra giá trung bình.'));
   // The three required charts come from the same saved product rows as the appendix.
   const chartRows = marketChartRows(rows);
-  const required = !flintMarks ? [] : await renderMarketCharts(rows, { flint: options.flint !== false, rowListNote: 'số dòng khớp chú dẫn “dòng sản phẩm” của nguồn' });
+  const required = !flintMarks ? [] : await renderMarketCharts(rows, { flint: options.flint !== false, titleLabels: Boolean(options.captureRowPolicy), rowListNote: 'số dòng khớp chú dẫn “dòng sản phẩm” của nguồn' });
   const requiredFig = (kind: 'concentration' | 'platform-revenue' | 'product-ranking', no: string): string => {
     const found = required.find(c => c.kind === kind);
     if (found === undefined) return '';
@@ -405,9 +410,13 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     if (!('absent' in facts.shopType)) for (const item of facts.shopType) {
       sourceRows.push([`${item.shopType === 'mall' ? 'Gian hàng có nhãn Mall' : 'Gian hàng thường'} theo trang (toàn kết quả tìm kiếm)`, sourceCell(item.share)]);
     }
+    // The clean, filtered sample already appears below. Keep the raw W12 cell
+    // only in the retained evidence; presenting it again would reintroduce its metadata.
     const groups: [string, MetricWebTableFact][] = [
       ['Ngành hàng', facts.category], ['Mức giá', facts.priceLevel], ['Thương hiệu theo loại gian hàng', facts.brandByShopType],
-      ['Khu vực', facts.location], ['Sản phẩm trên trang', facts.topProducts], ['Gian hàng trên trang', facts.topShops],
+      ['Khu vực', facts.location],
+      ...(!options.captureRowPolicy ? [['Sản phẩm trên trang', facts.topProducts] as [string, MetricWebTableFact]] : []),
+      ['Gian hàng trên trang', facts.topShops],
       ['Nhãn thương hiệu trên trang', facts.topBrands], ['Lịch sử chi tiết', facts.detailHistory],
     ];
     let sourceTableNumber = next ? (web.length === 0 ? 4 : 5) : (web.length === 0 ? 3 : 4);

@@ -28,6 +28,7 @@ import { assertMarket14MachineRules } from './market-14-rules.js';
 import type { RequestScopedArtifactStore } from '../../../platform/artifacts/request-scoped-artifact-store.js';
 import { MarketUnitPriceError, type RetainedUnitPriceSource } from '../reader-report/market-unit-prices.js';
 import { ReaderMetricRowsError, readerRowsFromMetricWorkbook, type ReaderRow } from '../reader-report/metric-rows.js';
+import { CAPTURE_ROW_PROFILE } from './capture-row-quality.js';
 import { readerRowsFromMetricCapture } from '../reader-report/metric-capture-rows.js';
 import { nonFlintCharts } from '../reader-report/flint.js';
 import { isMacroChartId } from '../reader-report/macro-charts.js';
@@ -232,7 +233,7 @@ export class AutomationReaderReports {
 
   #captureRows(context: ReaderDraftContext, platforms: readonly ReaderPlatform[]) {
     if (!('capture' in context.metric)) return null;
-    return readerRowsFromMetricCapture(context.metric.capture.snapshot, platforms);
+    return readerRowsFromMetricCapture(context.metric.capture.snapshot, platforms, CAPTURE_ROW_PROFILE);
   }
 
   async build(context: ReaderDraftContext, value: unknown, actor: { actorId: string; role: 'OWNER' }): Promise<ResearchAutomationReaderBuildReceipt> {
@@ -347,12 +348,12 @@ export class AutomationReaderReports {
     const limitations = readerLimitationsFromDraft(context.marketSemantic, request.profile.status);
     if (capture && captureRows) limitations.push(
       `Nguồn số liệu là bảng kết quả tìm kiếm đã lưu; danh sách giữ ${capture.truncation.rowsRead} dòng đã đọc trong giới hạn ${capture.truncation.cap} dòng đầu${capture.truncation.totalShown === null ? '' : ` trên ${capture.truncation.totalShown} dòng hiển thị`};${capture.truncation.truncated ? ' danh sách đã bị cắt; ' : ' '}phần còn lại không được suy ra.`,
-      `${captureRows.unattributed.length} dòng không gán được sàn được giữ riêng, không cộng vào Shopee hoặc TikTok Shop.`,
+      ...(captureRows.unattributed.length ? [`${captureRows.unattributed.length} dòng không gán được sàn được giữ riêng, không cộng vào Shopee hoặc TikTok Shop.`] : []),
       'Bảng kết quả không có ngày bắt đầu bán ở cấp sản phẩm và không đủ trường cho một số mục; các mục đó ghi không có số liệu.',
     );
     const at = this.now(), createdAt = at.toISOString(), revisionId = randomUUID();
     const webResults = context.webResults ?? [];
-    const built = await buildMarketReport(data, { limitations, builtOn: builtOn(at), cover, flint: this.options.flint ?? true, webResults, ...(context.webPageTypes ? { webPageTypes: true as const } : {}), ...(capture ? { captureSource: true } : {}), ...(context.searchInterest ? { searchInterest: context.searchInterest } : {}), ...(context.searchGeo ? { searchGeo: context.searchGeo } : {}), ...(context.searchGeoCapture ? { searchGeoCapture: context.searchGeoCapture } : {}), ...(context.worldBank ? { worldBank: context.worldBank } : {}), ...(context.comtrade ? { comtrade: context.comtrade } : {}), ...(context.searchAds ? { searchAds: context.searchAds } : {}), ...(context.officialStats ? { officialStats: context.officialStats } : {}), ...(context.pdfDiscovery ? { pdfDiscovery: context.pdfDiscovery } : {}), ...(context.pdfExcerpts?.length ? { pdfExcerpts: context.pdfExcerpts } : {}), ...(context.sellerVideos ? { sellerVideos: context.sellerVideos } : {}), ...(context.metaAds?.length ? { metaAds: context.metaAds } : {}), ...(context.metaAuto ? { metaAuto: context.metaAuto } : {}), ...(context.tiktokTopAds ? { tiktokTopAds: context.tiktokTopAds } : {}), ...(next && context.testReviewSample ? { testReviewSample: context.testReviewSample } : {}) });
+    const built = await buildMarketReport(data, { limitations, builtOn: builtOn(at), cover, flint: this.options.flint ?? true, webResults, ...(context.webPageTypes ? { webPageTypes: true as const } : {}), ...(capture ? { captureSource: true, captureRowPolicy: CAPTURE_ROW_PROFILE, captureExcludedRows: captureRows?.excluded ?? [] } : {}), ...(context.searchInterest ? { searchInterest: context.searchInterest } : {}), ...(context.searchGeo ? { searchGeo: context.searchGeo } : {}), ...(context.searchGeoCapture ? { searchGeoCapture: context.searchGeoCapture } : {}), ...(context.worldBank ? { worldBank: context.worldBank } : {}), ...(context.comtrade ? { comtrade: context.comtrade } : {}), ...(context.searchAds ? { searchAds: context.searchAds } : {}), ...(context.officialStats ? { officialStats: context.officialStats } : {}), ...(context.pdfDiscovery ? { pdfDiscovery: context.pdfDiscovery } : {}), ...(context.pdfExcerpts?.length ? { pdfExcerpts: context.pdfExcerpts } : {}), ...(context.sellerVideos ? { sellerVideos: context.sellerVideos } : {}), ...(context.metaAds?.length ? { metaAds: context.metaAds } : {}), ...(context.metaAuto ? { metaAuto: context.metaAuto } : {}), ...(context.tiktokTopAds ? { tiktokTopAds: context.tiktokTopAds } : {}), ...(next && context.testReviewSample ? { testReviewSample: context.testReviewSample } : {}) });
     // Sample charts require Flint; country-background charts retain their explicit SVG fallback.
     assertFlintCharts(built.charts, this.options.flint ?? true);
     // The gate blocks report publication and revision insertion; cover/sidecar artifacts may already be written.
@@ -376,6 +377,7 @@ export class AutomationReaderReports {
       workspaceId: context.workspaceId, runId: context.runId, draftPairId: context.draftPairId, metricPackageId: request.metricPackageId,
       requestSha256: requestSha, profileSha256: profile.sha256, input, limitations, webResults: built.webResults,
       ...(next && context.testReviewSample ? { testReviewSample: context.testReviewSample } : {}),
+      ...(captureRows ? { captureRowPolicy: CAPTURE_ROW_PROFILE, captureExcludedRows: captureRows.excluded } : {}),
       defaultMarketPeers: data.defaultMarketPeers,
       cover: stored && request.cover ? { sha256: stored.coverSha256, imageSha256: stored.imageSha256, mime: stored.mime,
         licence: request.cover.licence, credit: request.cover.credit ?? null } : null,
