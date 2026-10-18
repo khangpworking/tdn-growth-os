@@ -2884,6 +2884,16 @@ export class ResearchAutomationService {
           count(`data-cover-provenance="${record.provenance}"`) !== 1)
         throw new ResearchAutomationIntegrityError('Market cover differs from its retained image.');
     }
+    if (semantic.marketTraceHtmlArtifact !== undefined) {
+      // Hidden technical copy of a market14 page: only a presentation revision carries one, and it must resolve to its exact bytes.
+      const reference = semantic.marketTraceHtmlArtifact as { contractVersion?: unknown; sha256?: unknown; byteSize?: unknown } | null;
+      if (kind !== 'MARKET' || semantic.marketPresentationArtifact === undefined || reference === null || typeof reference !== 'object'
+          || reference.contractVersion !== 'automation-market-trace-html-reference-v1' || typeof reference.sha256 !== 'string' || !/^[0-9a-f]{64}$/u.test(reference.sha256)
+          || typeof reference.byteSize !== 'number' || reference.sha256 === output.htmlSha)
+        throw new ResearchAutomationIntegrityError('Market trace reference is invalid.');
+      const trace = await this.#readArtifact(reference.sha256, MAX_HTML_BYTES, 'text/html; charset=utf-8');
+      if (trace.byteLength !== reference.byteSize) throw new ResearchAutomationIntegrityError('Market trace differs from its reference.');
+    }
     const classifiedRequest = attempt ? await this.#classifiedRequest(frozenRun, attempt) : undefined;
     if (kind === 'MARKET' && classifiedRequest) {
       if (!semantic.metricMethods) throw new ResearchAutomationIntegrityError('Classified Metric result lacks its source preparation.');
@@ -3502,7 +3512,7 @@ export class ResearchAutomationService {
     const run = await this.getRun(fresh.workspaceId, fresh.runId);
     const collection = await this.#stepDocument(fresh.runId, 'COLLECTION');
     const captures = await this.#captureRecords(fresh.runId);
-    const outputArtifacts: Array<{ marketPresentation: StoredArtifact | null; cover: StoredArtifact | null; kind: 'MARKET' | 'INSIGHT'; claims: StoredArtifact; privateCorpus: StoredArtifact | null; m01: StoredArtifact | null; i14: StoredArtifact | null; metricProof: StoredArtifact | null; semantic: StoredArtifact; html: StoredArtifact; pdf: StoredArtifact | null; pdfCode: 'PDF_RENDERER_NOT_CONFIGURED' | 'PDF_RENDER_FAILED' | null }> = [];
+    const outputArtifacts: Array<{ marketPresentation: StoredArtifact | null; cover: StoredArtifact | null; trace: StoredArtifact | null; kind: 'MARKET' | 'INSIGHT'; claims: StoredArtifact; privateCorpus: StoredArtifact | null; m01: StoredArtifact | null; i14: StoredArtifact | null; metricProof: StoredArtifact | null; semantic: StoredArtifact; html: StoredArtifact; pdf: StoredArtifact | null; pdfCode: 'PDF_RENDERER_NOT_CONFIGURED' | 'PDF_RENDER_FAILED' | null }> = [];
     try {
       controller.signal.throwIfAborted();
       // Completeness gate before any Market draft is built from the stored
@@ -3821,13 +3831,17 @@ export class ResearchAutomationService {
           if (worldBankChartCount(worldBank) > 0) input = { ...input, worldBankCharts: await renderWorldBankCharts(worldBank) };
           if (comtradeChartCount(comtrade) > 0) input = { ...input, comtradeCharts: await renderComtradeCharts(comtrade) };
           const authoritative = input.qualitativeDraft || input.marketPresentation || input.insightPersona || privateDefault || (kind === 'INSIGHT' && start.reviewCollectionPolicy) ? buildResearchAutomationReport(input, kind) : undefined;
+          // The market14 reader drops its technical trace; the same page with the trace is kept as its own hidden artifact for retrieval.
+          const traceHtml = kind === 'MARKET' && input.marketPresentation ? authoritative?.traceHtml : undefined;
+          if (traceHtml && traceHtml.byteLength > MAX_HTML_BYTES) throw new ResearchAutomationIntegrityError('Market trace HTML exceeds its bound.');
+          const trace = traceHtml ? await this.#artifacts.put(traceHtml) : null;
           const rendered: ResearchAutomationRenderedReport = this.#renderer ? await this.#renderer(authoritative ? structuredClone(input) : input, kind, controller.signal) : authoritative ?? defaultRenderedReport(input, kind);
           controller.signal.throwIfAborted();
           if (typeof rendered.semantic !== 'object' || rendered.semantic === null || Array.isArray(rendered.semantic)) throw new ResearchAutomationIntegrityError('Research report semantic output is not an object.');
           // Method persistence is owned here, not delegated to an optional presentation adapter.
           const { decisionPackets: _untrustedPackets, decisionSourceClaims: _untrustedDecisionClaims, decisionPairedInsightVersionId: _untrustedPair,
             decisionSynthesis: _untrustedDecisionSynthesis, decisionExecutionIds: _untrustedDecisionExecutions,
-            insightPersona: _untrustedPersona, qualitativeDraft: _untrustedQualitativeDraft, reviewSample: _untrustedSample, privateReviewCorpus: _untrustedPrivateCorpus, marketPresentation: _untrustedMarketPresentation, marketPresentationArtifact: _untrustedMarketReference, sourceEvidence: _untrustedSourceEvidence, pdfExcerpts: _untrustedExcerpts, sellerVideos: _untrustedSellerVideos, defaultMarketPeers: _untrustedPeers, quoteMethods: _untrustedQuote, boundedMethods: _untrustedBounded, metricClassified: _untrustedClassified, insightCoding: _untrustedCoding, insightCrosscheck: _untrustedCrosscheck, insightLiteral: _untrustedLiteral, sourceClaims: _untrustedClaims, sourceClaimsArtifact: _untrustedReference,
+            insightPersona: _untrustedPersona, qualitativeDraft: _untrustedQualitativeDraft, reviewSample: _untrustedSample, privateReviewCorpus: _untrustedPrivateCorpus, marketPresentation: _untrustedMarketPresentation, marketPresentationArtifact: _untrustedMarketReference, marketTraceHtmlArtifact: _untrustedTraceReference, sourceEvidence: _untrustedSourceEvidence, pdfExcerpts: _untrustedExcerpts, sellerVideos: _untrustedSellerVideos, defaultMarketPeers: _untrustedPeers, quoteMethods: _untrustedQuote, boundedMethods: _untrustedBounded, metricClassified: _untrustedClassified, insightCoding: _untrustedCoding, insightCrosscheck: _untrustedCrosscheck, insightLiteral: _untrustedLiteral, sourceClaims: _untrustedClaims, sourceClaimsArtifact: _untrustedReference,
             m01Inventory: _untrustedM01, m01InventoryArtifact: _untrustedM01Reference,
             i14Admission: _untrustedI14, i14AdmissionArtifact: _untrustedI14Reference,
             i14Synthesis: _untrustedSynthesis, i14ExecutionId: _untrustedExecution, marketCover: _untrustedCover, ...presentation } = (authoritative?.semantic ?? rendered.semantic) as Record<string, unknown>;
@@ -3865,14 +3879,15 @@ export class ResearchAutomationService {
             ...(kind === 'MARKET' ? { metricMethods: metricMethods ?? null } : {}),
             ...(kind === 'MARKET' && metricClassified ? { metricClassified } : {}),
             ...(kind === 'MARKET' && metricMethodsFailure ? { metricMethodsFailure } : {}),
-            ...(marketCover ? { marketCover: marketCover.record } : {}) };
+            ...(marketCover ? { marketCover: marketCover.record } : {}),
+            ...(trace ? { marketTraceHtmlArtifact: { contractVersion: 'automation-market-trace-html-reference-v1', sha256: trace.sha256, byteSize: trace.byteSize } } : {}) };
           const semanticBytes = Buffer.from(canonicalJson(reportSemantic), 'utf8');
           const html = Buffer.from(rendered.html);
           if (authoritative) {
             if (!html.equals(authoritative.html)) throw new ResearchAutomationIntegrityError(input.insightPersona ? 'Persona HTML differs from authoritative retained rendering.' : privateDefault ? 'Private default HTML differs from authoritative method rendering.' : 'Market presentation HTML differs from authoritative method rendering.');
             if (presentation.rendererVersion !== (input.qualitativeDraft ? 'automation-report-kit-v28' : input.insightPersona ? 'automation-report-kit-v26' : privateDefault ? 'automation-report-kit-v25' : input.marketPresentation ? 'automation-report-kit-v20' : privateRendererVersion)) throw new ResearchAutomationIntegrityError(input.qualitativeDraft ? 'Qualitative renderer identity differs.' : input.insightPersona ? 'Persona renderer identity differs.' : privateDefault ? 'Private default renderer identity differs.' : 'Market presentation renderer identity differs.');
           }
-          return { rendered, semanticBytes, html };
+          return { rendered, semanticBytes, html, trace };
         };
         let prepared = await render();
         if (kind === 'INSIGHT' && input.reviewCorpus && (prepared.semanticBytes.byteLength > MAX_JSON_ARTIFACT_BYTES || prepared.html.byteLength > MAX_HTML_BYTES)) {
@@ -3890,7 +3905,7 @@ export class ResearchAutomationService {
             nativeReviewFailure: 'NATIVE_REVIEW_REPORT_TOO_LARGE' };
           prepared = await render();
         }
-        const { rendered, semanticBytes, html } = prepared;
+        const { rendered, semanticBytes, html, trace } = prepared;
         if (semanticBytes.byteLength > MAX_JSON_ARTIFACT_BYTES || html.byteLength > MAX_HTML_BYTES) throw new ResearchAutomationIntegrityError('Research report output exceeds its bound.');
         // Partial row sums are checked on the presentation report, whose renderer never states them;
         // the older plain renderer is kept unchanged for earlier runs.
@@ -3904,7 +3919,7 @@ export class ResearchAutomationService {
           if (pdfBytes.byteLength > MAX_PDF_BYTES || !pdfBytes.subarray(0, 5).equals(Buffer.from('%PDF-'))) throw new ResearchAutomationIntegrityError('Research PDF output failed validation.');
           pdf = await this.#artifacts.put(pdfBytes);
         }
-        outputArtifacts.push({ marketPresentation: kind === 'MARKET' ? marketPresentationArtifact : null, cover: coverArtifact, kind, privateCorpus: kind === 'INSIGHT' ? privateCorpusArtifact ?? null : null, claims: claimsArtifact, m01: m01Artifact, i14: i14Artifact, metricProof: kind === 'MARKET' ? metricProof : null, semantic, html: htmlArtifact, pdf, pdfCode: pdf ? null : rendered.pdfUnavailableCode ?? 'PDF_RENDERER_NOT_CONFIGURED' });
+        outputArtifacts.push({ marketPresentation: kind === 'MARKET' ? marketPresentationArtifact : null, cover: coverArtifact, trace, kind, privateCorpus: kind === 'INSIGHT' ? privateCorpusArtifact ?? null : null, claims: claimsArtifact, m01: m01Artifact, i14: i14Artifact, metricProof: kind === 'MARKET' ? metricProof : null, semantic, html: htmlArtifact, pdf, pdfCode: pdf ? null : rendered.pdfUnavailableCode ?? 'PDF_RENDERER_NOT_CONFIGURED' });
       }
     } catch (error) {
       logReportFailure(row.runId, 'RENDER', error);
@@ -3937,6 +3952,7 @@ export class ResearchAutomationService {
             if (output.metricProof) this.#registerManifest(output.metricProof, 'application/json', finished);
             if (output.marketPresentation) this.#registerManifest(output.marketPresentation, 'application/json', finished);
             if (output.cover) this.#registerManifest(output.cover, 'image/jpeg', finished);
+            if (output.trace) this.#registerManifest(output.trace, 'text/html; charset=utf-8', finished);
             this.#registerManifest(output.semantic, 'application/json', finished);
             this.#registerManifest(output.html, 'text/html; charset=utf-8', finished);
             if (output.pdf) this.#registerManifest(output.pdf, 'application/pdf', finished);

@@ -66,6 +66,7 @@ import { formatReaderValue, readerProductLabel, readerShopLabel } from './reader
 import type { AutomationQualitativeDraft } from '../../../../contracts/analysis/automation-qualitative-draft-v1.generated.js';
 import { qualitativeDraftSection, qualitativeDraftSummary } from '../reader-report/qualitative-draft-report.js';
 import { platIcons } from '../reader-report/layout.js';
+import { deliverMarketReader, marketReaderGuide } from './market-reader-delivery.js';
 import { marketChartRows, type CaptureCountChart, type MarketChart } from '../reader-report/market-charts.js';
 import type { RenderedChart } from '../reader-report/flint.js';
 import { comtradeChartCount, worldBankChartCount, type MacroChart } from '../reader-report/macro-charts.js';
@@ -602,7 +603,7 @@ export function marketPartialRowTotals(input: Pick<AutomationReportInput, 'marke
     ...(input.metricMethods?.capture?.platforms.map(platform => platform.result) ?? []), input.metricClassified?.result], pageFigures);
 }
 
-export function buildResearchAutomationReport(input: AutomationReportInput, kind: 'MARKET' | 'INSIGHT'): { semantic: object; html: Buffer } {
+export function buildResearchAutomationReport(input: AutomationReportInput, kind: 'MARKET' | 'INSIGHT'): { semantic: object; html: Buffer; traceHtml?: Buffer } {
   if (input.qualitativeDraft && kind !== 'INSIGHT') throw new Error('Qualitative draft is an Insight-only report dependency');
   if (input.qualitativeDraft) {
     const draft = input.qualitativeDraft;
@@ -709,7 +710,8 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
           ? `${retainedReviewStatus(input)} Xem trạng thái nguồn ở I03 và hồ sơ đối chiếu ở I17.`
           : 'Lượt này chưa có review nguồn gắn kèm.') + ` Không suy ra nguồn không nhắc tới nội dung này.${needs}`;
     }
-    return `Chưa có kết quả cho mục này trong lượt. Bản nháp không đủ thông tin để xác định riêng nguyên nhân là thiếu đầu vào, còn chờ duyệt hay phương pháp chưa chạy.${needs}${sourceObservationNote}`;
+    return marketPresentation ? `Chưa có dữ liệu cho mục này trong lượt; đây không phải kết quả bằng 0.${needs}${sourceObservationNote}`
+      : `Chưa có kết quả cho mục này trong lượt. Bản nháp không đủ thông tin để xác định riêng nguyên nhân là thiếu đầu vào, còn chờ duyệt hay phương pháp chưa chạy.${needs}${sourceObservationNote}`;
   };
   const sections: DraftSection[] = catalog.sections.filter(section => section.sectionId.startsWith(prefix)).map(section => {
     if (insightPersona && section.sectionId === 'I02') {
@@ -722,8 +724,8 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
         ? renderAutomationMarketFindings(marketPresentation, citations, readerPlainText) : renderAutomationMarketUnitPrices(marketPresentation, citations, readerPlainText));
       return { sectionId: section.sectionId, title: section.title, state: 'EVIDENCE_INVENTORY', rows: [],
         method: marketPresentation.methodVersion,
-        explanation: section.sectionId === 'M01' ? 'Nhận định chỉ mô tả bằng chứng đã lưu trong phạm vi khai báo; chưa được chủ duyệt.'
-          : 'Đối chiếu quy cách và giá theo đúng bản lưu; phần thiếu giữ riêng, chưa phải phân tích kinh tế đơn vị hoàn chỉnh.' };
+        explanation: section.sectionId === 'M01' ? 'Nhận định chỉ mô tả dữ liệu đã lưu trong phạm vi khai báo.'
+          : 'Đối chiếu quy cách và giá theo đúng bản lưu; sản phẩm thiếu quy cách hoặc giá được tách riêng.' };
     }
     const decisionPacket = input.decisionPackets?.find(packet => packet.sectionId === section.sectionId);
     if (decisionPacket && input.decisionSourceClaims) {
@@ -802,7 +804,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     if (kind === 'MARKET' && input.metricMethods && (section.sectionId === 'M03' || section.sectionId === 'M04')) return {
       sectionId: section.sectionId, title: section.title, state: input.metricClassified ? 'METHOD_OUTPUT' : 'SOURCE_TABLE', rows: [],
       method: input.metricMethods.result.methodVersion,
-      explanation: input.metricClassified ? (readerPlainText ? 'Đã tính các phạm vi toàn bộ mẫu, phạm vi rộng và phạm vi cốt lõi bằng phân loại được chủ dự án chấp nhận. Kết quả có giới hạn trong mẫu xuất, chưa chứng minh độ phủ toàn thị trường hoặc hoàn tất mọi yêu cầu của mục.' : 'Đã tính các phạm vi toàn bộ mẫu (ALL), rộng (WIDE) và cốt lõi (CORE) bằng phân loại được chủ dự án chấp nhận. Kết quả có giới hạn trong mẫu xuất, chưa chứng minh độ phủ toàn thị trường hoặc hoàn tất mọi yêu cầu của mục.') : 'Đã tính theo công thức đã chốt từ các dòng số liệu nguồn gốc. Tổng và mức tập trung dưới đây chỉ áp dụng cho mẫu xuất theo từ khóa; chưa phải thị trường đã phân loại hoặc mục phân tích hoàn chỉnh.',
+      explanation: input.metricClassified ? (readerPlainText ? 'Đã tính các phạm vi toàn bộ mẫu, phạm vi rộng và phạm vi cốt lõi bằng phân loại được chủ dự án chấp nhận. Kết quả có giới hạn trong mẫu xuất, chưa chứng minh độ phủ toàn thị trường hoặc hoàn tất mọi yêu cầu của mục.' : 'Đã tính các phạm vi toàn bộ mẫu (ALL), rộng (WIDE) và cốt lõi (CORE) bằng phân loại được chủ dự án chấp nhận. Kết quả có giới hạn trong mẫu xuất, chưa chứng minh độ phủ toàn thị trường hoặc hoàn tất mọi yêu cầu của mục.') : marketPresentation ? 'Đã tính theo công thức đã chốt từ các dòng số liệu nguồn gốc. Tổng và mức tập trung dưới đây chỉ áp dụng cho mẫu xuất theo từ khóa, chưa phân loại thành thị trường.' : 'Đã tính theo công thức đã chốt từ các dòng số liệu nguồn gốc. Tổng và mức tập trung dưới đây chỉ áp dụng cho mẫu xuất theo từ khóa; chưa phải thị trường đã phân loại hoặc mục phân tích hoàn chỉnh.',
     };
     if (kind === 'MARKET' && input.metricMethodsFailure && (section.sectionId === 'M03' || section.sectionId === 'M04')) return {
       sectionId: section.sectionId, title: section.title, state: 'BLOCKED', rows: [], method: 'metric-scope-v1',
@@ -822,14 +824,16 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
       const usable = defaultMarketPeers.frames.some(frame => frame.state === 'SELECTED' || frame.state === 'ZERO_REVENUE');
       return { sectionId: section.sectionId, title: section.title, state: usable ? 'METHOD_OUTPUT' : 'METHOD_NO_USABLE_RECORDS',
         method: defaultMarketPeers.input.rule.version, rows: [],
-        explanation: 'Đã áp dụng quy tắc đối thủ mặc định trên doanh thu cùng nhóm, kỳ và khung nguồn đã lưu; phần thiếu giữ nguyên, bổ sung của chủ giữ riêng. Kết quả có giới hạn trong mẫu, chưa phải mục phân tích hoàn chỉnh hoặc quyết định đã duyệt.' };
+        explanation: marketPresentation ? 'Đã áp dụng quy tắc đối thủ mặc định trên doanh thu cùng nhóm, kỳ và khung nguồn đã lưu; phần thiếu giữ nguyên, bổ sung của chủ giữ riêng. Kết quả chỉ mô tả mẫu đã lưu; không thay quyết định của chủ.'
+          : 'Đã áp dụng quy tắc đối thủ mặc định trên doanh thu cùng nhóm, kỳ và khung nguồn đã lưu; phần thiếu giữ nguyên, bổ sung của chủ giữ riêng. Kết quả có giới hạn trong mẫu, chưa phải mục phân tích hoàn chỉnh hoặc quyết định đã duyệt.' };
     }
     const view = descriptive && isDescriptiveSectionId(section.sectionId) ? describeDescriptiveSection(descriptive, section.sectionId, citations, readerPlainText) : undefined;
     if (view) views.set(section.sectionId, view);
     const methodOutput = view && descriptive ? { methodOutputId: descriptive.methodOutputId, locatedRecordCount: view.locatedRecordCount, unresolvedPointers: view.unresolvedPointers, blockers: view.blockers } : undefined;
     if (view?.usable && methodOutput) return {
       sectionId: section.sectionId, title: section.title, state: 'METHOD_OUTPUT', method: `${descriptive!.methodId}@${descriptive!.methodVersion}`, rows: [], methodOutput,
-      explanation: 'Kết quả phương pháp mô tả có giới hạn từ gói nguồn đã lưu. Phương pháp đã chạy, nhưng mục này chưa phải phân tích hoàn chỉnh và chưa được duyệt.',
+      explanation: marketPresentation ? 'Số liệu mô tả từ nguồn đã lưu của lượt này; chỉ nói về dữ liệu đã thu, không suy rộng ra toàn thị trường.'
+        : 'Kết quả phương pháp mô tả có giới hạn từ gói nguồn đã lưu. Phương pháp đã chạy, nhưng mục này chưa phải phân tích hoàn chỉnh và chưa được duyệt.',
     };
     if (section.sectionId === 'M07' && evidence.length > 0) return {
       sectionId: section.sectionId, title: section.title, state: 'SOURCE_TABLE', method: 'automation-explicit-peer-evidence-v1', rows: evidence,
@@ -1177,7 +1181,13 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     if (kind === 'MARKET' && input.metricMethods && (section.sectionId === 'M03' || section.sectionId === 'M04')) return qualitative + captureFigures();
     return (locatedView ? locatedView() : views.get(section.sectionId)!.html) + literal + qualitative;
   };
-  const body = orderReportCitations(`<p class="warning">${escape(headline)}${input.qualitativeDraft ? ` ${escape(qualitativeDraftSummary(input.qualitativeDraft))}` : ''}</p>${reviewOutcome ? reviewOutcomeNotice(reviewOutcome, kind) : ''}<p class="reader-guide">Đọc trạng thái và phần diễn giải trước khi sử dụng số liệu. Bảng trình bày những gì nguồn hoặc phép tính đã ghi nhận; phần “Hồ sơ đối chiếu” giữ nguyên nội dung nguồn và thông tin kỹ thuật. Mục còn thiếu điều kiện chưa có kết luận, không phải kết quả bằng 0.</p>` + sections.map(section => `<section class="sheet" id="${section.sectionId}"><header class="sh-head"><div><span class="sh-id">${readerPlainText && kind === 'MARKET' ? marketSectionLabel(section.sectionId) : section.sectionId}</span><h2>${escape(section.title)}</h2></div><span class="state">${escape(stateLabel[section.state])}</span></header><p class="section-reading">${escape(section.explanation)}</p>${methodBody(section)}${section.state === 'SOURCE_CONTEXT' ? scope : ''}${section.sectionId === 'M13' || section.sectionId === 'I17' ? sourceTable + webResultsTable : ''}${observationTable(section.rows, captures, citations, labels, readerPlainText)}${appendix(section.sectionId)}${section.sectionId === 'M12' ? market14Proposals : ''}${readerPlainText && kind === 'MARKET' ? '' : `<details class="method-reference"><summary>Hồ sơ đối chiếu phương pháp</summary><p><small>${fallbackIds.has(section.sectionId) ? 'Phương pháp ghi trong danh mục, chưa chạy trong lượt này' : 'Phương pháp'}: ${methodReference(section.method)}</small></p></details>`}</section>`).join(''), registry);
+  // Same rows the charts were drawn from, so the chart gate counts the real sample.
+  const chartRows = marketPresentation ? marketChartSource(marketPresentation.input.rows, input.metricMethods).rows : [];
+  const marketPlatforms = [...new Set(chartRows.map(row => row.platform))];
+  // market14 readers get a plain "Cách đọc báo cáo" paragraph; the completion counters stay in the semantic and the trace copy.
+  const readerOpening = marketPresentation ? marketReaderGuide(marketPlatforms)
+    : `<p class="warning">${escape(headline)}${input.qualitativeDraft ? ` ${escape(qualitativeDraftSummary(input.qualitativeDraft))}` : ''}</p>${reviewOutcome ? reviewOutcomeNotice(reviewOutcome, kind) : ''}<p class="reader-guide">Đọc trạng thái và phần diễn giải trước khi sử dụng số liệu. Bảng trình bày những gì nguồn hoặc phép tính đã ghi nhận; phần “Hồ sơ đối chiếu” giữ nguyên nội dung nguồn và thông tin kỹ thuật. Mục còn thiếu điều kiện chưa có kết luận, không phải kết quả bằng 0.</p>`;
+  const body = orderReportCitations(readerOpening + sections.map(section => `<section class="sheet" id="${section.sectionId}"><header class="sh-head"><div><span class="sh-id">${readerPlainText && kind === 'MARKET' ? marketSectionLabel(section.sectionId) : section.sectionId}</span><h2>${escape(section.title)}</h2></div><span class="state">${escape(stateLabel[section.state])}</span></header><p class="section-reading">${escape(section.explanation)}</p>${methodBody(section)}${section.state === 'SOURCE_CONTEXT' ? scope : ''}${section.sectionId === 'M13' || section.sectionId === 'I17' ? sourceTable + webResultsTable : ''}${observationTable(section.rows, captures, citations, labels, readerPlainText)}${appendix(section.sectionId)}${section.sectionId === 'M12' ? market14Proposals : ''}${readerPlainText && kind === 'MARKET' ? '' : `<details class="method-reference"><summary>Hồ sơ đối chiếu phương pháp</summary><p><small>${fallbackIds.has(section.sectionId) ? 'Phương pháp ghi trong danh mục, chưa chạy trong lượt này' : 'Phương pháp'}: ${methodReference(section.method)}</small></p></details>`}</section>`).join(''), registry);
   const cover = kind === 'MARKET' && marketPresentation ? input.marketCover : undefined;
   const coverArt = cover ? `<img class="cv-art" src="data:image/jpeg;base64,${cover.base64}" alt="${escape(cover.alt)}" width="${cover.width}" height="${cover.height}" data-cover-provenance="${escape(cover.provenance)}"${cover.model ? ` data-cover-model="${escape(cover.model)}"` : ''}>` : '';
   const html = `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src data:; base-uri 'none'; form-action 'none'"><title>${escape(title)} · ${storedLiteral(input.start.keyword, 'Từ khóa được giữ trong bản lưu')}</title><style>${reportKitFontCss()}\n${REPORT_KIT_CSS}\n.sheet{break-before:page}.sheet h2{font-size:26px}.state{font-size:12px;color:var(--warn-ink)}.warning{padding:12px;background:var(--warn-bg);color:var(--warn-ink)}dl{display:grid;grid-template-columns:180px minmax(0,1fr);gap:8px}dt{font-weight:700}dd{margin:0}.table-wrap{overflow-x:auto}.table-wrap table{min-width:720px}table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:10px;text-align:left;border:1px solid var(--bd);vertical-align:top}code{word-break:break-all}code.loc{word-break:normal;overflow-wrap:break-word}`
@@ -1188,20 +1198,19 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   + `.reader-summary,.section-reading,.reader-guide{max-width:72ch}.reader-context{margin-bottom:24px}.method-reference{margin-top:24px;color:var(--mut)}.method-reference summary{cursor:pointer}.reader-summary{font-weight:500}td,dd{font-variant-numeric:tabular-nums}`
   + `@media(max-width:600px){dl{grid-template-columns:1fr}.sheet{padding:20px}.cover{display:block}.cv-right{background:var(--blue);padding:24px}.cv-left{padding:24px}}@media print{@page{size:A4;margin:14mm}body{background:white}main{padding:0}.cover{min-height:240mm}.toc{gap:4px}.toc a{min-height:0}#sections>.reader-guide+.sheet{break-before:auto}.sh-head{break-after:avoid}.sheet{padding:16px 0;border:0;break-inside:auto}.sheet:after{display:none}.table-wrap{overflow:visible}.table-wrap table{min-width:0}tr{break-inside:avoid}thead{display:table-header-group}.jump{display:none}.sheet h3,.sheet h4,caption,summary{break-after:avoid}thead{break-after:avoid}tbody>tr:first-child{break-before:avoid}details{break-inside:auto}summary+p{break-before:avoid}.limits li{break-inside:avoid}.citation-register a::after{content:" (" attr(href) ")"}.citation-register ol{padding-left:20px}.citation-register li{break-inside:avoid}}${coverArt ? COVER_ART_CSS : ''}</style></head><body><a class="skip" href="#sections">Đến nội dung báo cáo</a><main><section class="cover"><div class="cv-left"><div class="brand"><i></i><b>TDN GROWTH OS</b></div><div>${coverArt}<p class="cv-eyebrow">Bản nháp từ nguồn · Chưa được duyệt</p><h1>${escape(title)}</h1><h2>${storedLiteral(input.start.keyword, 'Từ khóa được giữ trong bản lưu')}</h2><p class="cv-lede">Hai lớp tách biệt: dữ liệu đã thu và những điều chưa đủ bằng chứng.</p></div><div class="cv-meta"><b>Việt Nam</b><span>${escape(period)}</span><span>${escape(coverSummary)}</span></div></div><nav class="cv-right" aria-label="Mục lục"><h2>Nội dung</h2><ul class="toc">${sections.map(section => `<li><a href="#${section.sectionId}"><em>${section.sectionId}</em>${escape(section.title)}</a></li>`).join('')}</ul></nav></section><div id="sections">${body}</div>${renderCitationRegister(registry.entries(), { format: 'web' })}<footer><p>${insightPersona ? 'Chân dung và thẻ bằng chứng do AI đề xuất, chờ chủ duyệt; không phải một khách hàng có thật, kết luận đã phát hành hoặc quyết định kinh doanh.' : decisionGeneratedIds.length ? 'Kết quả xử lý AI được lưu riêng, chưa được người dùng duyệt; không phải sự thật đã xác minh, phương án đã chọn hoặc quyết định kinh doanh.' : input.i14Synthesis?.status === 'VALID' ? 'Nhận định AI được lưu riêng, chưa được người dùng duyệt; không phải sự thật đã xác minh hoặc quyết định kinh doanh.' : 'Không có nhận định AI hoặc quyết định kinh doanh tự động trong bản nháp này.'} Không có dữ liệu không đồng nghĩa với giá trị bằng 0.</p></footer></main></body></html>`;
   const labelledHtml = readerPlainText && kind === 'MARKET' ? marketReaderLabels(html) : html;
-  // Same rows the charts were drawn from, so the chart gate counts the real sample.
-  const chartRows = marketPresentation ? marketChartSource(marketPresentation.input.rows, input.metricMethods).rows : [];
-  const marketPlatforms = [...new Set(chartRows.map(row => row.platform))];
   const scopedHtml = marketPresentation ? labelledHtml.replace('<body', `<body data-market-platforms="${marketPlatforms.join(',')}" data-market-chart-rows="${marketChartRows(chartRows).length}"`) : labelledHtml;
-  const renderedHtml = marketPresentation ? platIcons(scopedHtml, { shopee: '#c2410c', tiktok: '#1d2327' }, undefined, { compoundPlatformLabels: true }).html : scopedHtml;
-  const readerRenderedHtml = marketPresentation
-    ? renderedHtml.replace(/<span class="cite-locator">[^<]*\bSheet1\b[^<]*<\/span>/giu, '').split(/(<[^>]+>)/gu).map((part, index) => index % 2 ? part : part
+  // Platform icons and reader labels apply to both copies; only the reader copy drops the trace and gains notes/interpretations.
+  const sanitize = (page: string): string => platIcons(page, { shopee: '#c2410c', tiktok: '#1d2327' }, undefined, { compoundPlatformLabels: true }).html
+    .replace(/<span class="cite-locator">[^<]*\bSheet1\b[^<]*<\/span>/giu, '').split(/(<[^>]+>)/gu).map((part, index) => index % 2 ? part : part
       .replace(/\b[0-9a-f]{64}\b/giu, '[mã nguồn được giữ trong hồ sơ]')
       .replace(/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/gu, 'chi tiết nguồn được giữ trong hồ sơ')
       .replace(/\bCORE\b/gu, 'phạm vi cốt lõi')
       .replace(/\bWIDE\b/gu, 'phạm vi rộng')
       .replace(/\bALL\b/gu, 'toàn bộ mẫu')
-      .replace(/\bUNKNOWN\b/gu, 'chưa rõ')).join('')
-    : renderedHtml;
+      .replace(/\bUNKNOWN\b/gu, 'chưa rõ')).join('');
+  const readerRenderedHtml = marketPresentation ? sanitize(deliverMarketReader(scopedHtml)) : scopedHtml;
+  // Hidden technical copy for retrieval: the same page before reader delivery, trace blocks kept. Never linked from the reader.
+  const traceHtml = marketPresentation ? Buffer.from(sanitize(scopedHtml), 'utf8') : undefined;
   // Source appendix v18 also serves existing Market and accepted Insight
   // methods. Preserve the family-draft lint boundary independently of the
   // renderer identity, so its source marker cannot bypass the applicable gate.
@@ -1214,7 +1223,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     assertMarketBusinessGate(readerRenderedHtml, { presentation: true, partialTotals: marketPartialRowTotals(input) });
     assertMarket14MachineRules(readerRenderedHtml);
   }
-  return { semantic: { ...semanticBase, citations: registry.technicalTrace(), citationEntries: registry.entries() }, html: Buffer.from(readerRenderedHtml, 'utf8') };
+  return { semantic: { ...semanticBase, citations: registry.technicalTrace(), citationEntries: registry.entries() }, html: Buffer.from(readerRenderedHtml, 'utf8'), ...(traceHtml ? { traceHtml } : {}) };
 }
 
 /** Counts describe the retained capture, never a product/platform population or people. */
