@@ -148,7 +148,7 @@ test('both renderers: World Bank figures, national and province tables, and Comt
     for (const no of ['Hình 5.3', 'Hình 5.4', 'Hình 6.1', 'Hình 6.2']) assert.equal(figure(html, no)?.engine, 'flint', no);
     const m05 = doc.querySelector('#phan-5, #M05')!.textContent!;
     for (const text of [WORLD_BANK_LIMIT, OFFICIAL_STATS_LIMIT, OFFICIAL_STATS_PROVINCE_NOTE, OFFICIAL_STATS_PROVINCE_LIMIT]) assert.ok(m05.includes(text), text);
-    assert.match(doc.querySelector('#phu-luc, #M13')!.textContent!, /chỉ số giá theo tỉnh, thành phố/u);
+    assert.match(doc.querySelector('#phu-luc, #M13')!.textContent!, /Cục Thống kê \(nso\.gov\.vn\)/u);
     const numbering = lint(html).find(check => check.rule.startsWith('F7 '))!;
     assert.equal(numbering.ok, true, numbering.detail);
     const rule11 = auditMarket14(html, undefined, { requireFlint: true }).find(check => check.rule === '11')!;

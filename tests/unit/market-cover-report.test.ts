@@ -4,7 +4,7 @@ import { JSDOM } from 'jsdom';
 import { calculateMetricScopes } from '../../src/modules/analysis/metric-scope-calculator.js';
 import { lintVisibleReportText } from '../../src/modules/analysis/report-visible-text-lint.js';
 import { assertMarketBusinessGate } from '../../src/modules/analysis/research-automation/market-business-gate.js';
-import { auditMarket14 } from '../../src/modules/analysis/research-automation/market-14-rules.js';
+import { assertMarket14MachineRules, auditMarket14 } from '../../src/modules/analysis/research-automation/market-14-rules.js';
 import { buildMarketCover, marketCoverAlt, MARKET_COVER_MODEL } from '../../src/modules/analysis/research-automation/market-cover.js';
 import { buildAutomationMarketPresentation, marketPresentationDigest, type MarketPresentationBinding } from '../../src/modules/analysis/research-automation/market-presentation-method.js';
 import { buildResearchAutomationReport, type AutomationReportInput } from '../../src/modules/analysis/research-automation/reports.js';
@@ -52,7 +52,7 @@ test('a Market presentation embeds the AI cover inside the cover text column and
   assert.equal(images.length, 1);
   const img = images[0]!;
   assert.equal(img.parentElement, document.querySelector('section.cover > .cv-left > div:nth-of-type(2)'));
-  assert.equal(img.nextElementSibling?.className, 'cv-eyebrow');
+  assert.equal(img.nextElementSibling?.tagName, 'H1');
   assert.equal(img.getAttribute('src'), `data:image/jpeg;base64,${ai.bytes.toString('base64')}`);
   assert.equal(img.getAttribute('alt'), marketCoverAlt('synthetic jar', 'ai-generated'));
   assert.equal(img.getAttribute('data-cover-provenance'), 'ai-generated');
@@ -69,6 +69,42 @@ test('a Market presentation embeds the AI cover inside the cover text column and
   assert.equal(rule10.ok, true, rule10.detail);
   assert.equal(auditMarket14(plain).find(item => item.rule === '10')!.ok, false, 'no cover image stays a READ');
   assert.equal(JSON.stringify(built.semantic).includes(ai.bytes.toString('base64').slice(0, 64)), false, 'semantic never carries the image');
+});
+
+test('a full market14 reader shows a quarter cover, a plain source list and the glossary, and passes the 14 machine rules', async () => {
+  const input = await presentationInput();
+  const ai = await buildMarketCover({ keyword: 'synthetic jar', ai: { generate: async () => ({ bytes: syntheticPng(1536, 1024, 3, (x, y) => [180, (x + y) & 255, 90]), model: MARKET_COVER_MODEL }) } });
+  const html = buildResearchAutomationReport({ ...input, marketCover: coverInput(ai, 'synthetic jar') }, 'MARKET').html.toString('utf8');
+  const document = new JSDOM(html).window.document;
+  const cover = document.querySelector('section.cover')!;
+  const text = (node: Element | null): string => (node?.textContent ?? '').replace(/\s+/gu, ' ').trim();
+  // The stored sales sample (2026-08-17..2026-09-15) wins over the requested period (2026-01).
+  assert.equal(document.title, 'Báo cáo thị trường sản phẩm Synthetic jar · Quý 3 năm 2026');
+  assert.equal(text(cover.querySelector('h1')), 'Báo cáo thị trường sản phẩm Synthetic jar');
+  assert.equal(text(cover.querySelector('.cv-quarter')), 'Quý 3 năm 2026');
+  assert.equal(text(cover.querySelector('.cv-period')), 'Dữ liệu quý 3/2026');
+  assert.equal(cover.querySelector('.cv-eyebrow, .cv-lede'), null);
+  assert.equal(text(cover.querySelector('.cv-meta')), 'Việt Nam');
+  assert.doesNotMatch(text(cover.querySelector('.cv-left')), /bản nháp|\bmục\b|mẫu|phân loại|\d+ ngày|2026-/iu);
+  assert.doesNotMatch(document.body.textContent ?? '', /Bản nháp từ nguồn|Bản thu từ truy vấn nguồn|Bản thu dữ liệu nguồn/u);
+  assert.doesNotMatch(text(document.querySelector('footer')), /bản nháp/iu);
+  assert.match(text(document.querySelector('footer')), /đề xuất, chờ chủ duyệt/u);
+  const sources = document.querySelector('.market14-sources')!;
+  assert.equal(text(sources.querySelector('.ext')), 'Nguồn số liệu');
+  assert.deepEqual([...sources.querySelectorAll('ul.pl-srclist > li')].map(text), ['Dữ liệu bán hàng trên Shopee', 'Dữ liệu bán hàng trên TikTok Shop']);
+  assert.equal(sources.querySelector('table'), null, 'no status table');
+  assert.match(text(sources), /Lượt này chưa có dữ liệu đánh giá sản phẩm, kết quả tìm kiếm trên web, dữ liệu bình luận của khách/u);
+  const note = sources.nextElementSibling!;
+  assert.equal(note.outerHTML, '<p class="ex-note"><b>Chú thích:</b> Mọi hình và bảng được dựng tự động từ cùng một bộ dữ liệu đã lưu. Chi tiết kỹ thuật của từng nguồn nằm trong hồ sơ kỹ thuật riêng, không in trong bản đọc.</p>');
+  const glossary = document.querySelector('.market14-glossary')!;
+  assert.equal(text(glossary.querySelector('.ext')), 'Thuật ngữ và chữ viết tắt');
+  assert.ok(glossary.querySelector('table[data-glossary="true"]'));
+  assert.equal(document.querySelector('#M13 details, #quote-method-evidence, #bounded-method-evidence'), null);
+  assert.doesNotMatch(document.body.textContent ?? '', /manifest|audit|capture|pipeline|fixture|\bSHA|sha256|\b(?:ALL|WIDE|CORE)\b|\bM0\d\b|\bM1[0-3]\b/iu);
+  assert.doesNotThrow(() => assertMarket14MachineRules(html));
+  assert.doesNotThrow(() => assertMarketBusinessGate(html, { presentation: true }));
+  assert.ok(lintVisibleReportText(html).every(check => check.ok));
+  assert.deepEqual(providerNameViolations(html), []);
 });
 
 test('a fallback cover renders but stays a READ; INSIGHT and non-presentation Market ignore the cover', async () => {
