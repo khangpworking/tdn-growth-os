@@ -11,6 +11,7 @@ import {
 } from '../../src/modules/analysis/research-automation/metric-capture-runner.js';
 import { executeMetricOpenCli, type MetricOpenCliExecutorInput, type MetricOpenCliProcessOptions, type MetricOpenCliProcessResult } from '../../src/modules/analysis/research-automation/metric-opencli-executor.js';
 import { createMetricOpenCliProcessRunner } from '../../src/modules/analysis/research-automation/metric-opencli-process-runner.js';
+import { withOpenCliBrowserLock } from '../../src/modules/analysis/research-automation/opencli-browser-lock.js';
 
 // Synthetic only: no live process, no real adapter, no real product data.
 const manifest = new TextEncoder().encode('synthetic adapter manifest for tests');
@@ -140,17 +141,22 @@ test('the in-process lock serializes two captures', async () => {
   });
   const a = runMetricCapture(config(), request(), deps('a', () => { firstStarted(); return first; }));
   const b = runMetricCapture(config(), request(), deps('b', async () => READY));
+  let probe: Promise<void> | undefined;
   try {
     const started = await Promise.race([firstRunning.then(() => true), a.then(() => false)]);
     assert.equal(started, true, 'first capture reached the fake process runner');
+    // This waiter has no filesystem work: without serialization it must run on
+    // this turn, even if the second capture is still preparing its directory.
+    probe = withOpenCliBrowserLock(undefined, async () => { events.push('probe'); }, () => undefined);
+    await new Promise<void>(resolve => setImmediate(resolve));
     assert.deepEqual(events, ['a:start']);
   } finally {
     finishFirst(READY);
-    await Promise.all([a, b]);
+    await Promise.all([a, b, probe]);
   }
   const [ra, rb] = await Promise.all([a, b]);
   assert.ok(ra.ok && rb.ok);
-  assert.deepEqual(events, ['a:start', 'a:end', 'b:start', 'b:end']);
+  assert.deepEqual(events, ['a:start', 'a:end', 'b:start', 'b:end', 'probe']);
 });
 
 class FakeChild extends EventEmitter {
@@ -193,11 +199,15 @@ test('abort while waiting for the lock returns without starting a process', asyn
   const controller = new AbortController();
   const b = runMetricCapture(config(), request({ signal: controller.signal }), { sourceEnv: {}, readManifest: async () => manifest,
     createProcessRunner: () => async () => { secondStarted = true; return { child: { kill: () => true }, completion: Promise.resolve(READY) }; } });
-  await new Promise(resolve => setTimeout(resolve, 20));
-  controller.abort();
-  const rb = await b;
-  assert.deepEqual({ code: !rb.ok && rb.code, calls: rb.executorCalls }, { code: 'CAPTURE_INTERRUPTED', calls: 0 });
-  finishFirst(READY);
+  try {
+    await new Promise(resolve => setTimeout(resolve, 20));
+    controller.abort();
+    const rb = await b;
+    assert.deepEqual({ code: !rb.ok && rb.code, calls: rb.executorCalls }, { code: 'CAPTURE_INTERRUPTED', calls: 0 });
+  } finally {
+    finishFirst(READY);
+    await Promise.all([a, b]);
+  }
   assert.ok((await a).ok); assert.equal(secondStarted, false);
 });
 
