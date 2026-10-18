@@ -158,11 +158,11 @@ test('collector cap drift cannot dispatch a production collection through trial 
 test('frozen default report digests from the base commit remain unchanged (Market and Insight)', async () => {
   const input = await fullMarket14Input();
   const market = buildResearchAutomationReport(input, 'MARKET');
-  // Reader and trace bytes re-pinned for the intended Market reader inventory/peer wording and descriptive reader copy (M05/M06/M07/M09) the plain owner copy for periods, peers and ads, and the per-platform Phần 11 and dated Phần 12 proposals. Reader dates/terms are localized while source quotes stay verbatim.
-  assert.equal(digest(market.html), '864d022a9e285d70cfe7b509eb372dcd5b5a599db0ebc4f53fdc7ee97b32aa25');
-  // Against 21d0909a this fixture changes M04.title, M10.explanation and the M11/M12 proposal state and explanation; it has no default-peer rule to exercise M07.
-  assert.equal(digest(canonicalJson(market.semantic)), 'f0848a6b8ed0a967ed928caff7a6b47f8b2e83790df4ca4f7f9c3f9c26b44fc4');
-  assert.equal(digest(market.traceHtml!), 'fda1a3ddd806e5b763af8057e434068982088c35b09cba4c556a82f4a72504c5');
+  // Reader and trace bytes re-pinned for the intended Market reader inventory/peer wording and descriptive reader copy (M05/M06/M07/M09) the plain owner copy for periods, peers and ads, the per-platform Phần 11 and dated Phần 12 proposals, and the per-platform Phần 1 findings and Phần 2 source scope. Reader dates/terms are localized while source quotes stay verbatim.
+  assert.equal(digest(market.html), 'bfd3d20b786f003e0ed2b164923dc4ee25ccc57f0f3ff087796f4f763b21303c');
+  // Against 21d0909a this fixture changes M04.title, M10.explanation and the M11/M12 proposal state and explanation; it has no default-peer rule to exercise M07. The per-platform Phần 1 findings replace the M03 sample statement, so its citation entry is no longer marked.
+  assert.equal(digest(canonicalJson(market.semantic)), '22a308fa48b99dc24f6dd8fe5f31a4774b6f99a69d7918e7fb439be4fdbaa542');
+  assert.equal(digest(market.traceHtml!), '88a0bf47378dcf423cf42c3f7064c7364f2c28f39c6dad2449542a83f76294a9');
   const insight = buildResearchAutomationReport(input, 'INSIGHT');
   assert.equal(digest(insight.html), '7163940cc6c424f6c1a2fc73c7af9458e1a50d3957adaa8d43802a8caf6ba08d');
   assert.equal(digest(canonicalJson(insight.semantic)), '21c5fa1d4be2b577cc196d0508e84342b0953f1a16ed6505eccbb784b8f05294');
