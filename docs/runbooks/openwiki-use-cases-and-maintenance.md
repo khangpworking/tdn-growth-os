@@ -2,7 +2,7 @@
 
 Updated: 2026-10-08 · Tool: [OpenWiki](https://github.com/langchain-ai/openwiki) (LangChain; npm package `openwiki`) · Setup and first run: [wiki-and-ontology.md](wiki-and-ontology.md) · Brief the tool reads: [`openwiki/INSTRUCTIONS.md`](../../openwiki/INSTRUCTIONS.md)
 
-Status: **proposed**. Nothing here was run in this project yet; every command and behaviour comes from the OpenWiki README and its example workflow, plus one error a worker hit (section 4). The wiki has not been generated at the time of writing.
+Status: **generated and under review in the WIKI-2 draft**. OpenWiki 0.7.1 initialization and bounded correction runs were observed on checked main `2b44e4bcf75ac3bfd2a5d3a0de679a0fcb1a48ad`. See [WIKI-2 evidence and limitations](../handoffs/WIKI-2.md) for page findings, Q&A, elapsed time, and the unchanged-update check. This is not deployment or business acceptance.
 
 ## Tóm tắt (cho chủ shop)
 
@@ -25,7 +25,7 @@ Cách bảo trì ngắn gọn: cập nhật bằng `openwiki --update` sau các 
 
 - A folder of markdown pages (`openwiki/`) written by a model from the repository, with **claims**: each statement is tied to versioned evidence such as `repo://src/server.ts#L40-L82`, stored in `openwiki/.claims/`.
 - Updates are incremental. Before an update OpenWiki rechecks the evidence behind every claim; a stale claim forces work on its page, a clean repo skips model work.
-- It also keeps an `AGENTS.md` block (and `CLAUDE.md` if present) that tells coding agents to read the wiki first.
+- It also keeps an `AGENTS.md` block (and `CLAUDE.md` if present). In 0.7.1 the generated block describes optional just-in-time retrieval; preserve the repository startup order and CodeGraph division of work.
 - **Not** a source of truth. Business rules stay in `docs/research/ultimate-method/ultimate-method-30-sections.md`; the wiki cites the rule ID and says where the code stands.
 - **Not** code navigation. Finding a function, its callers or blast radius is CodeGraph (`codegraph explore`). `openwiki/INSTRUCTIONS.md` already tells the wiki not to write per-function pages.
 - **Not** private: wiki generation sends repository content to the model provider the owner configured.
@@ -61,7 +61,7 @@ Cách bảo trì ngắn gọn: cập nhật bằng `openwiki --update` sau các 
 ### W5 Owner Q&A
 
 - **Goal.** The owner asks an agent in Vietnamese ("bước nào đang chạy tay?", "nguồn nào đã có bộ thu?") and the answer comes from the wiki, with page references.
-- **Also.** `openwiki visualize` opens a local browsable view (`127.0.0.1`, port 4321 by default; it loads its libraries from a public CDN, so it needs internet).
+- **Also.** `openwiki visualize` opens a local browsable view (loopback-only, port 4321 by default; it loads its libraries from a public CDN, so it needs internet).
 - **Condition.** Only after the W1 check passes, otherwise the owner gets confident wrong answers.
 
 ### W6 Drift detector
@@ -90,7 +90,7 @@ openwiki/.last-update.json    records that an update check ran
 openwiki/.run.json            checkpoint of a run in progress; deleted at the end
 .openwikiignore               read boundary (see 3.5)
 AGENTS.md / CLAUDE.md         only the block between <!-- OPENWIKI:START --> and <!-- OPENWIKI:END -->
-~/.openwiki/.env              provider settings and keys; outside the repo
+private OpenWiki config      provider settings and keys; outside the repo
 ```
 
 `openwiki --init` replaces the generated pages and claims but keeps `INSTRUCTIONS.md`.
@@ -104,17 +104,17 @@ AGENTS.md / CLAUDE.md         only the block between <!-- OPENWIKI:START --> and
 ### 3.3 How to update
 
 1. New worktree from the latest `origin/main`; record the SHA.
-2. Make sure the provider variable is present in the shell without printing it. Set `OPENWIKI_TELEMETRY_DISABLED=1`. Optionally `OPENWIKI_PAGE_CONCURRENCY=2` (the README advises starting at 2–4 and watching rate limits).
+2. Use the existing private config directory only when authorized by the owner; do not inspect its environment file or require a shell-key preflight. For every invocation set `OPENWIKI_CONFIG_DIR` to that authorized directory, `OPENWIKI_TELEMETRY_DISABLED=1`, `DO_NOT_TRACK=1`, and `LANGCHAIN_TRACING_V2=false`. Optionally set `OPENWIKI_PAGE_CONCURRENCY=2`. Do not change provider/model settings.
 3. Run `openwiki --update` (or the equivalent `openwiki code --update --print` used in the example workflow).
-4. Delete a leftover `openwiki/.run.json` if the run was interrupted. An interrupted run is picked up on the next update; unfinished pages are restored.
-5. Review the diff (3.4). Open a PR that changes only `openwiki/`, the OpenWiki block of `AGENTS.md`/`CLAUDE.md`, and a handoff note.
+4. The CLI also rewrites its managed instruction blocks on each invocation; review and repair them within the markers after the final invocation, especially the false scheduled-workflow claim and any authority contradiction. After the process exits, remove any leftover `openwiki/.run.json`. Inspect the changed paths: 0.7.1 initialization can create `.github/workflows/openwiki-update.yml`; remove that unrequested file. Do not retain or enable a CI workflow.
+5. Review the diff (3.4). Push only the assigned work branch and open a draft PR containing `openwiki/`, only the OpenWiki blocks of `AGENTS.md`/`CLAUDE.md`, and a handoff note. Correct this maintenance guide only when the task authorizes evidence-based guide changes; record each correction.
 6. The owner merges. No auto-merge.
 
 ### 3.4 Review checklist for a wiki PR
 
 - Only the files listed in step 5 changed. In `AGENTS.md`/`CLAUDE.md` only the OpenWiki block changed.
 - The block does not contradict the CodeGraph instructions in the same file (for example two different "read this first" orders).
-- Spot-check at least five pages against the code and docs, including every page that changed for a reason you cannot see in the merged PRs. Each claim about code has a path; each status word is "merged", "open PR" or "planned", with the checked SHA.
+- For initial WIKI-2 acceptance, check ten pages against code and docs, including both Market lanes; for later maintenance spot-check at least five pages, including every page that changed for a reason you cannot see in the merged PRs. Each claim about code has a path; each status word is "merged", "open PR" or "planned", with the checked SHA.
 - No page restates a business rule's text. Rules appear as ID plus link.
 - Where code and the Ultimate file disagree, the page says so.
 - No secrets, tokens, machine paths, IPs or real commercial data. The brief already forbids them; check the diff anyway.
@@ -139,7 +139,7 @@ Conditions before adding it: the first wiki was reviewed with the checklist abov
 
 ### 3.7 Cost and rate limits
 
-- A clean update skips model work and leaves the wiki untouched.
+- Check clean-update behavior empirically: commit the generated wiki first, run `--update`, then record its diff and elapsed time. Expected content is unchanged except `.last-update.json`; this is an acceptance check, not a guarantee. Report cost as not visible unless actual usage/cost is shown.
 - A stale claim forces a page to be reworked even if the planner would skip it, so large refactors cost more.
 - Parallel workers: `OPENWIKI_PAGE_CONCURRENCY` from 1 to 8; the provider's rate limits can lower concurrency during a run and the page is picked up next time.
 - Record the cost of the first `--init` and each update in the PR. If it is too high, narrow `INSTRUCTIONS.md` and `.openwikiignore` before reducing quality.
@@ -148,8 +148,8 @@ Conditions before adding it: the first wiki was reviewed with the checklist abov
 
 | Symptom | Cause and action |
 |---|---|
-| `OPENAI_API_KEY is required for non-interactive runs` | Seen in the first Orca worker run. The default provider is OpenAI and non-interactive runs read the key from the environment. Export the variable for the provider you chose (and set `OPENWIKI_PROVIDER` / `OPENWIKI_MODEL_ID` for another provider) in the shell where the worker runs. Do not paste the key into chat or files. |
-| `openwiki --version` fails | Reported on version 0.7.1. Record the installed version with `npm ls -g openwiki` instead. |
+| `OPENAI_API_KEY is required for non-interactive runs` | Seen in the first Orca worker run. The default provider is OpenAI and non-interactive runs read the key from the environment. Use only the existing owner-authorized private configuration. Do not read the environment file, export or inspect keys, or change provider/model settings. If the authorized invocation still reports a missing key, stop and report ESCALATED. |
+| `openwiki --version` fails | Observed with 0.7.1. Use `npm ls -g openwiki --depth=0` and `node --version`. Non-TTY `--help` printed version/provider/model but then raised an Ink raw-mode error; do not treat help exit status alone as success, and do not use credential-debug diagnostics. |
 | Leftover `openwiki/.run.json` | An interrupted run. Delete it and run `--update`. |
 | Wiki contradicts `AGENTS.md` instructions | Edit only inside the OpenWiki block, or add a correction to the brief and rerun. |
 | Visualizer shows nothing | It loads its libraries from a public CDN; check internet access. |
@@ -158,7 +158,7 @@ Conditions before adding it: the first wiki was reviewed with the checklist abov
 ### 3.9 Rules that do not change
 
 - No `openwiki integrations install`, and no change to any Orca, ZCode, oh-my-pi, opencode or Codex configuration, unless the owner asks.
-- No secrets in the repo, logs or wiki pages. Never print or read `~/.openwiki/.env`.
+- No secrets in the repo, logs or wiki pages. Never print or read the private OpenWiki environment file.
 - The wiki is derivative: the Ultimate file, `AGENTS.md` (outside the OpenWiki block), `ARCHITECTURE.md`, the registry and the CHANGELOG stay the sources.
 - The wiki is not wired into the application or the report pipeline.
 - Every merge is the owner's. Telemetry stays off.
@@ -169,7 +169,26 @@ If it is not used, remove `openwiki/`, `.openwikiignore` and the OpenWiki block 
 
 ## 4. Suggested order
 
-1. Merge the setup runbook (done) and give the worker a provider key in its shell.
+1. Use the merged setup runbook and the existing owner-authorized private configuration; do not give keys to the worker.
 2. Run the first `--init` (checklist W-01…W-10 in the setup runbook) and review it with section 3.4.
 3. Run the W1 check with three questions the owner knows the answer to.
 4. Use W2 and W4 for a month, then decide on W5 and on scheduled updates (3.6).
+
+
+### WIKI-2 observed unchanged-update behavior (0.7.1)
+
+After committing generated wiki, bare `--update` entered first-run setup in a TTY.
+Confirming the existing repository, skipping LangSmith and running proceeded to
+update mode. It replanned the four repairs retained in the brief despite those
+repairs already being present. The CLI reported two updated pages in 8m13s;
+page verification metadata, sidecars, manifest and managed instruction blocks
+also changed. Therefore an unchanged checkout does not guarantee a metadata-only
+update with this brief/version. Inspect the raw diff before restoring approved
+managed blocks; do not claim a no-op from an exit code.
+
+The WIKI-2 handoff was created during that run. The tool reported source changes,
+finalized pages, removed its checkpoint, and left `.last-update.json` with status
+`interrupted` without advancing the checked source SHA. This attempt does not
+prove stability with frozen inputs. Keep source files unchanged during future
+stability checks. No additional content correction round was authorized after
+the three-round limit. Cost was not visible.
