@@ -148,7 +148,7 @@ export default function InsightPage(props: InsightPageProps) {
   const blocker = insightDraftBlocker(current);
   const editable = stage !== 'locked' && stage !== 'deleted';
   const saveReason = !writable
-    ? mode === 'real' && !props.writesAvailable ? 'Ghi OWNER hiện không khả dụng trong runtime này.' : 'Mở khóa OWNER cục bộ ở thanh phía trên để lưu Insight.'
+    ? mode === 'real' && !props.writesAvailable ? 'Ghi OWNER hiện không khả dụng trong runtime này. Bạn vẫn xem được dữ liệu. Khi quản trị viên đã bật ghi, bấm "Kiểm tra quyền lại" ở thanh trên cùng.' : 'Mở khóa OWNER cục bộ ở thanh phía trên để lưu Insight.'
     : pending ? 'Đang xử lý…' : blocker ?? (unchanged ? 'Chưa có thay đổi so với phiên bản đã lưu.' : null);
   const lockReason = !writable ? 'Mở khóa OWNER cục bộ để khóa Insight.'
     : pending ? 'Đang xử lý…'
