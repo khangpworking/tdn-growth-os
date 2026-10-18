@@ -74,13 +74,13 @@ import { comtradeChartCount, worldBankChartCount, type MacroChart } from '../rea
 import { pdfDiscoverySourceRows, pdfExcerptBlockHtml, pdfExcerptReaderCitation, PDF_EXCERPT_NOTE, PDF_EXCERPT_SECTION, PDF_EXCERPT_SRC } from './pdf-excerpt.js';
 import { sellerVideoBlockHtml, sellerVideoNote, sellerVideoSrc, SELLER_VIDEO_SECTION } from './seller-video.js';
 import { searchAdsBrandNotice, searchAdsNotice, searchAdsOkBrands, SEARCH_ADS_NOTE, SEARCH_ADS_SOURCE_LABEL, SEARCH_ADS_SOURCE_NOTE, SEARCH_ADS_TABLE_TITLE } from './google-ads-lane.js';
-import { officialStatsCitation, officialStatsNotice, officialStatsProvinceCellText, officialStatsProvinceCitation, officialStatsProvinceContext, officialStatsProvinceRowLabel, officialStatsProvinceRows, officialStatsRenderable, officialStatsRenderableRows, officialStatsRowLabel, officialStatsStatusText, officialStatsUnitText, officialStatsValueText, OFFICIAL_STATS_LIMIT, OFFICIAL_STATS_NOTE, OFFICIAL_STATS_PROVINCE_LIMIT, OFFICIAL_STATS_PROVINCE_NOTE, OFFICIAL_STATS_PROVINCE_TITLE, OFFICIAL_STATS_SOURCE_LABEL, OFFICIAL_STATS_SRC, OFFICIAL_STATS_TABLE_TEXT, OFFICIAL_STATS_TABLE_TITLE } from './official-statistics-lane.js';
+import { officialStatsCitation, officialStatsTechnicalCitation, officialStatsNotice, officialStatsProvinceCellText, officialStatsProvinceCitation, officialStatsProvinceContext, officialStatsProvinceRowLabel, officialStatsProvinceRows, officialStatsRenderable, officialStatsRenderableRows, officialStatsRowLabel, officialStatsStatusText, officialStatsUnitText, officialStatsValueText, OFFICIAL_STATS_LIMIT, OFFICIAL_STATS_NOTE, OFFICIAL_STATS_PROVINCE_LIMIT, OFFICIAL_STATS_PROVINCE_NOTE, OFFICIAL_STATS_PROVINCE_TITLE, OFFICIAL_STATS_SOURCE_LABEL, OFFICIAL_STATS_SRC, OFFICIAL_STATS_TABLE_TEXT, OFFICIAL_STATS_TABLE_TITLE } from './official-statistics-lane.js';
 import { comtradeFlowText, comtradeNotice, comtradeOfficialText, comtradeRenderable, comtradeRenderableRows, comtradeRowNote, comtradeSideText, COMTRADE_NOTE, COMTRADE_SOURCE_LABEL, COMTRADE_SRC, COMTRADE_TABLE_TITLE } from './comtrade-lane.js';
 import { formatWorldBankValue, worldBankRenderable, worldBankRenderableRows, worldBankSourceNote, worldBankTableNote, worldBankUnitText, WORLD_BANK_LIMIT, WORLD_BANK_SOURCE_LABEL, WORLD_BANK_SRC, WORLD_BANK_TITLE } from './world-bank-lane.js';
 import { E13_ATTRIBUTION } from '../source-appendix-projection.js';
 import { withKalodataReplayNotice } from './kalodata-replay.js';
 import { exactTestReviewSample, exactTestReviewSection, exactTestReviewSourceRows, TEST_REVIEW_SOURCE_TYPE } from './test-review-sample.js';
-import { searchInterestRenderable,SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_LIMIT, SEARCH_INTEREST_NOTE, SEARCH_INTEREST_SOURCE_LABEL, SEARCH_INTEREST_SRC, SEARCH_INTEREST_UNIT } from './search-interest.js';
+import { searchInterestReadingPoints, searchInterestRenderable,SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_LIMIT, SEARCH_INTEREST_NOTE, SEARCH_INTEREST_SOURCE_LABEL, SEARCH_INTEREST_SRC, SEARCH_INTEREST_UNIT } from './search-interest.js';
 import { searchGeoAverageText, searchGeoRenderable, searchGeoText, summarizeSearchGeo, SEARCH_GEO_DONT, SEARCH_GEO_HEADERS, SEARCH_GEO_NOTE, SEARCH_GEO_TABLE_NO, SEARCH_GEO_TABLE_TITLE } from './search-geo.js';
 
 const reportRequire = createRequire(import.meta.url);
@@ -1216,7 +1216,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   // The stored relative search-interest series sits in the demand section on its own axis, never with sales; the same predicate marks the source as used.
   const searchInterestFigure = (sectionId: string): string => {
     const interest = input.collection?.searchInterest;
-    if (kind !== 'MARKET' || sectionId !== 'M05' || !searchInterestRenderable(interest)) return '';
+    if (kind !== 'MARKET' || sectionId !== 'M05' || !searchInterestRenderable(interest) || !searchInterestReadingPoints(interest).some(point => point.index !== null)) return '';
     if (!input.searchInterestChart) throw new TypeError('SEARCH_INTEREST_CHART_MISSING');
     const capture = input.captures.find(item => item.stepId === 'COLLECTION' && item.ordinal === interest.captureIndex);
     return `<p>Mức quan tâm tìm kiếm của từ khóa được ghi riêng ở Hình 5.2: chỉ số tương đối, không cộng hay so với số bán.</p><figure class="market-chart"><div class="exh"><span class="exn">Hình 5.2</span> <span class="ext">${escape(SEARCH_INTEREST_FIGURE_TITLE)}</span> <span class="exu">(${escape(SEARCH_INTEREST_UNIT)})</span></div>` +
@@ -1271,7 +1271,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
         return `<tr><td>${escape(OFFICIAL_STATS_TABLE_TEXT[row.table])}</td><td>${escape(officialStatsRowLabel(row))}</td><td>${escape(row.period)}</td><td>${escape(officialStatsValueText(row))}${capture ? captureMark(capture, citations) : ''}</td>` +
           `<td>${escape(officialStatsUnitText(row))}</td><td>${escape(officialStatsStatusText(stored, row))}</td></tr>`;
       }).join('') + `</tbody></table><p class="lim"><b>Chú thích:</b> ${escape(OFFICIAL_STATS_NOTE)} ${escape(OFFICIAL_STATS_LIMIT)}</p>` +
-      `<p class="ex-src">Nguồn: ${escape(OFFICIAL_STATS_SRC)}; ${rows.map(row => escape(officialStatsCitation(stored, row))).filter((text, i, all) => all.indexOf(text) === i).join('; ')}</p></div>` +
+      `<p class="ex-src">Nguồn: ${escape(OFFICIAL_STATS_SRC)}; ${rows.map(row => escape(officialStatsCitation(stored, row))).filter((text, i, all) => all.indexOf(text) === i).join('; ')}</p><details class="evidence-trace"><summary>Chi tiết nguồn</summary><pre>${escape(JSON.stringify(rows.map(row => officialStatsTechnicalCitation(stored, row))))}</pre></details></div>` +
       officialStatsProvinceTable(stored);
   };
   // S22: CPI by province from the same stored CPI workbook, right after table 5.4 and only when 5.4 is drawn.
@@ -1282,9 +1282,9 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     const capture = input.captures.find(entry => entry.stepId === 'COLLECTION' && entry.ordinal === sheet.captureIndex);
     return `<p>${escape(officialStatsProvinceContext(stored))}</p><div class="table-wrap"><div class="exh"><span class="exn">Bảng 5.5</span><span class="ext">${escape(OFFICIAL_STATS_PROVINCE_TITLE)}</span></div>` +
       `<table><caption>${escape(OFFICIAL_STATS_PROVINCE_TITLE)}</caption><thead><tr><th>Dòng</th>${sheet.provinces.map(name => `<th>${escape(name)}</th>`).join('')}</tr></thead><tbody>` +
-      rows.map(row => `<tr><td>${escape(officialStatsProvinceRowLabel(row.label))}${capture ? captureMark(capture, citations) : ''}</td>${row.cells.map(cell => `<td>${escape(officialStatsProvinceCellText(cell))}</td>`).join('')}</tr>`).join('') +
+      rows.map(row => `<tr><td>${escape(officialStatsProvinceRowLabel(row.label, sheet.base))}${capture ? captureMark(capture, citations) : ''}</td>${row.cells.map(cell => `<td>${escape(officialStatsProvinceCellText(cell))}</td>`).join('')}</tr>`).join('') +
       `</tbody></table><p class="lim"><b>Chú thích:</b> ${escape(OFFICIAL_STATS_PROVINCE_NOTE)} ${escape(OFFICIAL_STATS_PROVINCE_LIMIT)}</p>` +
-      `<p class="ex-src">Nguồn: ${escape(OFFICIAL_STATS_SRC)}; ${rows.map(row => escape(officialStatsProvinceCitation(stored, row))).join('; ')}</p></div>`;
+      `<p class="ex-src">Nguồn: ${escape(OFFICIAL_STATS_SRC)}; ${rows.map(row => escape(officialStatsProvinceCitation(stored, row))).join('; ')}</p><details class="evidence-trace"><summary>Chi tiết nguồn</summary><pre>${escape(JSON.stringify(rows.map(row => officialStatsTechnicalCitation(stored, { captureIndex: sheet.captureIndex, sheet: sheet.sheet!, row: row.row }))))}</pre></details></div>`;
   };
   // Country-level trade figures sit in the supply section as background; the same predicate marks S24 as used. Never summed or compared with sample numbers.
   const comtradeTable = (sectionId: string): string => {
@@ -1452,7 +1452,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     const readerPage = orderReportCitations(page.slice(0, start), registry);
     return readerPage + renderCitationRegister(registry.entries(), { format: 'web' }) + page.slice(end);
   };
-  const readerRenderedHtml = marketPresentation ? sanitize(readerCitations(deliverMarketReader(scopedHtml, input.collection?.searchInterest?.points))) : scopedHtml;
+  const readerRenderedHtml = marketPresentation ? sanitize(readerCitations(deliverMarketReader(scopedHtml, input.collection?.searchInterest ? searchInterestReadingPoints(input.collection.searchInterest) : undefined))) : scopedHtml;
   // Hidden technical copy for retrieval: the same page before reader delivery, trace blocks kept. Never linked from the reader.
   const traceHtml = marketPresentation ? Buffer.from(sanitize(scopedHtml), 'utf8') : undefined;
   // Source appendix v18 also serves existing Market and accepted Insight

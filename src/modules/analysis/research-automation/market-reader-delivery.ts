@@ -189,9 +189,9 @@ function chartPoints(svg: string): Chart {
     const aria = decode(match[1] ?? '');
     const scale = /^X-axis for a discrete scale with (\d+) values: ([^,]+),.*ending with (.+)$/u.exec(aria);
     if (scale) axis = { count: scale[1]!, first: scale[2]!.trim(), last: scale[3]!.trim() };
-    const line = /^(Năm|Tuần|Tháng): ([^;]+); (.+): (-?[\d.,]+)$/u.exec(aria);
+    const line = /^(Năm|Tuần|Tháng): ([^;]+); (.+): (-?[\d.,]+)(?: (.+))?$/u.exec(aria);
     const bar = line ? null : /^([^;]+): (-?[\d.,]+);\s+: ([^;]+)(?:;.*?\b[Ss](?:àn|an): ([^;]+))?/u.exec(aria);
-    const point = line ? { label: line[2]!.trim(), shown: line[4]!, group: '', unit: '' }
+    const point = line ? { label: line[2]!.trim(), shown: line[4]!, group: '', unit: line[5] ?? /\(([^()]+)\)\s*$/u.exec(line[3]!)?.[1]?.trim() ?? '' }
       : bar ? { label: bar[3]!.trim(), shown: bar[2]!, group: (bar[4] ?? '').trim(), unit: /\(([^()]+)\)\s*$/u.exec(bar[1]!)?.[1]?.trim() ?? '' } : undefined;
     if (!point) continue;
     series = line ? 'line' : 'bar';
@@ -215,6 +215,8 @@ export function figureInterpretation(block: string, searchPoints?: readonly Sear
       : `Hình ghi ${n} bản ghi sản phẩm đã lưu của ${text(caption).replace(/^Bản ghi sản phẩm\s*—\s*/u, '')}; số này chỉ nói về dữ liệu đã thu, đọc riêng từng sàn.`;
   }
   let { points, series, share, axis } = chartPoints(block.match(/<svg\b[\s\S]*?<\/svg>/iu)?.[0] ?? '');
+  const chartUnit = decode(/class="exu"[^>]*>\(([^<]+)\)</u.exec(block)?.[1] ?? '');
+  points = points.map(point => point.unit ? point : { ...point, unit: chartUnit });
   if (searchPoints?.length) {
     // The SVG line can expose just its first point. Use the same stored series, preserving gaps and years.
     const withYear = new Set(searchPoints.map(point => point.period.slice(0, 4))).size > 1;
@@ -227,16 +229,17 @@ export function figureInterpretation(block: string, searchPoints?: readonly Sear
   }
   // A line drawn as one mark carries only its first point; the axis still says how many periods it spans.
   if (series === 'line' && axis && points.length <= 1 && Number(axis.count) > 1)
-    return `Hình có ${axis.count} mốc, từ ${axis.first} đến ${axis.last}; mỗi mốc là một giá trị đã lưu, đọc theo trục của hình.`;
-  if (points.length === 0) return 'Hình vẽ lại đúng các giá trị đã lưu; đọc từng điểm theo trục của hình.';
+    return `Hình có ${axis.count} mốc, từ ${axis.first} đến ${axis.last}; mỗi mốc là một giá trị đã lưu${/USD\/người/u.test(chartUnit) ? `, đơn vị ${chartUnit}` : ''}, đọc theo trục của hình.`;
+  if (points.length === 0) return `Hình vẽ lại đúng các giá trị đã lưu${/USD\/người/u.test(chartUnit) ? `, đơn vị ${chartUnit}` : ''}; đọc từng điểm theo trục của hình.`;
   if (series === 'line') {
     const first = points[0]!, last = points[points.length - 1]!;
     const low = points.reduce((a, b) => b.value < a.value ? b : a), high = points.reduce((a, b) => b.value > a.value ? b : a);
-    const move = last.value > first.value ? `lên ${last.shown}, chiều tăng` : last.value < first.value ? `xuống ${last.shown}, chiều giảm` : `và vẫn ở ${last.shown}, đi ngang`;
-    const span = points.length === 1 ? `Hình có 1 mốc (${first.label}) ở mức ${first.shown}.`
-      : `Hình có ${points.length} mốc${axis && Number(axis.count) > points.length ? ' có số' : ''}, từ ${first.label} đến ${last.label}; giá trị đi từ ${first.shown} ${move} giữa mốc đầu và mốc cuối.`;
+    const amount = (point: Point): string => `${point.shown}${point.unit ? ` ${point.unit}` : ''}`;
+    const move = last.value > first.value ? `lên ${amount(last)}, chiều tăng` : last.value < first.value ? `xuống ${amount(last)}, chiều giảm` : `và vẫn ở ${amount(last)}, đi ngang`;
+    const span = points.length === 1 ? `Hình có 1 mốc (${first.label}) ở mức ${amount(first)}.`
+      : `Hình có ${points.length} mốc${axis && Number(axis.count) > points.length ? ' có số' : ''}, từ ${first.label} đến ${last.label}; giá trị đi từ ${amount(first)} ${move} giữa mốc đầu và mốc cuối.`;
     const extremes = points.length > 2 && (low !== first || high !== last) && (low !== last || high !== first)
-      ? ` Mức thấp là ${low.shown} (${low.label}), mức cao là ${high.shown} (${high.label}).` : '';
+      ? ` Mức thấp là ${amount(low)} (${low.label}), mức cao là ${amount(high)} (${high.label}).` : '';
     const gaps = axis && Number(axis.count) > points.length ? ` ${Number(axis.count) - points.length} mốc chưa có dữ liệu, không phải bằng không.` : '';
     return span + extremes + gaps;
   }

@@ -155,14 +155,15 @@ test('collector cap drift cannot dispatch a production collection through trial 
   assert.ok(run.coverage.sources.some(row => row.provider === 'apify-shopee' && row.state === 'FAILED'));
 });
 
-test('frozen default report digests from the base commit remain unchanged (Market and Insight)', async () => {
+test('Market context reader digests are pinned; Insight retains the frozen base bytes', async () => {
   const input = await fullMarket14Input();
   const market = buildResearchAutomationReport(input, 'MARKET');
-  // Reader and trace bytes re-pinned for the intended Market reader inventory/peer wording and descriptive reader copy (M05/M06/M07/M09) the plain owner copy for periods, peers and ads, and the per-platform Phần 11 and dated Phần 12 proposals. Reader dates/terms are localized while source quotes stay verbatim.
-  assert.equal(digest(market.html), '864d022a9e285d70cfe7b509eb372dcd5b5a599db0ebc4f53fdc7ee97b32aa25');
+  // M14/M15/M16/M27/L11/L12: completed search weeks, row bases and sentence-case labels, short CPI citations, unscaled per-person charts, and neutral province copy.
+  // These are render-only changes: the Market semantic pin and both Insight pins stay unchanged.
+  assert.equal(digest(market.html), '18f9f32211991842c0f5d949aed63f7a10d1bfcf5d24cefc12284efa2363d0cc');
   // Against 21d0909a this fixture changes M04.title, M10.explanation and the M11/M12 proposal state and explanation; it has no default-peer rule to exercise M07.
   assert.equal(digest(canonicalJson(market.semantic)), 'f0848a6b8ed0a967ed928caff7a6b47f8b2e83790df4ca4f7f9c3f9c26b44fc4');
-  assert.equal(digest(market.traceHtml!), 'fda1a3ddd806e5b763af8057e434068982088c35b09cba4c556a82f4a72504c5');
+  assert.equal(digest(market.traceHtml!), '15c7c0be79c024fac78140bbaa2539679438489a1d6dd0e536f37911fd5d76d0');
   const insight = buildResearchAutomationReport(input, 'INSIGHT');
   assert.equal(digest(insight.html), '7163940cc6c424f6c1a2fc73c7af9458e1a50d3957adaa8d43802a8caf6ba08d');
   assert.equal(digest(canonicalJson(insight.semantic)), '21c5fa1d4be2b577cc196d0508e84342b0953f1a16ed6505eccbb784b8f05294');

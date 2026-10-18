@@ -141,3 +141,38 @@ test('presentation build: a series the report cannot draw is silent, and a drawn
   const input = await presentationInput(syntheticSearchInterest(), false);
   assert.throws(() => draftHtml(input), /SEARCH_INTEREST_CHART_MISSING/u);
 });
+
+
+test('both readers omit a retrieved in-progress week and the automated reading uses the chart dates', async () => {
+  const interest = syntheticSearchInterest({ retrievedAt: '2026-10-19T08:00:00Z', points: [
+    { period: '20 – 26 thg 9, 2026', index: 20 }, { period: '27 thg 9 – 3 thg 10, 2026', index: 30 },
+    { period: '4 – 10 thg 10, 2026', index: 40 }, { period: '11 – 17 thg 10, 2026', index: 50 },
+    { period: '18 – 24 thg 10, 2026', index: 99 },
+  ] });
+  const before = JSON.stringify(interest);
+  for (const html of [(await reader(interest)).html, draftHtml(await presentationInput(interest))]) {
+    const doc = new JSDOM(html).window.document;
+    const section = doc.querySelector('#M05, #phan-5')!;
+    const figure = [...section.querySelectorAll('figure')].find(node => node.textContent!.includes('Hình 5.2'))!;
+    assert.match(figure.innerHTML, /11–17\/10\/2026/u);
+    assert.doesNotMatch(figure.innerHTML, /18–24|thg|chi_so[^;]*: 99/u);
+    const reading = figure.nextElementSibling;
+    if (reading?.classList.contains('interp')) {
+      assert.match(reading.textContent!, /từ 20–26\/09\/2026 đến 11–17\/10\/2026/u);
+      assert.match(reading.textContent!, /từ 20 lên 50/u);
+      assert.doesNotMatch(reading.textContent!, /99|18–24/u);
+    }
+  }
+  assert.equal(JSON.stringify(interest), before);
+});
+
+test('filtering all dated values leaves no empty search chart in either reader', async () => {
+  const interest = syntheticSearchInterest({ retrievedAt: '2026-10-19T08:00:00Z', points: [
+    { period: '11 – 17 thg 10, 2026', index: null },
+    ...syntheticWeeks(4, '2026-10-18'),
+  ] });
+  for (const html of [(await reader(interest)).html, draftHtml(await presentationInput(interest))]) {
+    const doc = new JSDOM(html).window.document;
+    assert.ok([...doc.querySelectorAll('figure')].every(node => !/Hình 5\.2/u.test(node.textContent!)));
+  }
+});

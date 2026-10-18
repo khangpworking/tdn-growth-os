@@ -20,7 +20,7 @@ import { WORLD_BANK_LIMIT, WORLD_BANK_SRC } from '../../src/modules/analysis/res
 import { metricFixture } from '../fixtures/metric-scope-synthetic.js';
 import { sync1Options, sync1ReaderFixture } from '../helpers/sync1-reader-fixture.js';
 import { unitPriceFixture } from '../helpers/market-unit-price-fixture.js';
-import { fullMarket14Input, fullWorldBank } from '../helpers/market14-full-fixture.js';
+import { fullMarket14Input, fullWorldBank, fullOfficialStats } from '../helpers/market14-full-fixture.js';
 
 const SHA = 'a'.repeat(64);
 const workspaceId = '11111111-1111-4111-8111-111111111111';
@@ -56,12 +56,11 @@ async function reader(extra: { worldBank?: StepWorldBank; comtrade?: StepComtrad
   return buildMarketReport(computeReaderReportData(input, units.retained), { ...sync1Options, flint, ...extra });
 }
 
-test('World Bank documents without source precision/name preserve pinned HTML bytes in both reader renderers', async () => {
-  // The automation reader pin includes PR #324's two M08 paragraphs and PR #328's descriptive reader copy
-  // (M05/M06/M07/M09) the plain owner copy for periods, peers and ads, and the dated Phần 11/12 proposals; no World Bank bytes change, and legacy pins stay separate.
+test('current Market renderers pin unscaled per-person charts and corrected context copy', async () => {
+  // Re-pin the 1.4.0 per-person chart scale and automated Market context display; legacy readers have separate frozen pins.
   const hash = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
-  assert.equal(hash((await reader({ worldBank: fullWorldBank() }, false)).html), '48b875e381dcdde45a543ec05e91333947bb9809fda115ae6fab97495d314858');
-  assert.equal(hash(buildResearchAutomationReport(await fullMarket14Input(), 'MARKET').html), '864d022a9e285d70cfe7b509eb372dcd5b5a599db0ebc4f53fdc7ee97b32aa25');
+  assert.equal(hash((await reader({ worldBank: fullWorldBank() }, false)).html), 'f60d2b42e03e7a3804f9c66cf5edee0a3056320e646dad6eb20ff364416e557b');
+  assert.equal(hash(buildResearchAutomationReport(await fullMarket14Input(), 'MARKET').html), '18f9f32211991842c0f5d949aed63f7a10d1bfcf5d24cefc12284efa2363d0cc');
 });
 
 test('v2 reader: World Bank lines are Hình 5.3/5.4 after Bảng 5.3 and Comtrade bars are Hình 6.1/6.2 after Bảng 6.2, all Flint', async () => {
@@ -77,7 +76,7 @@ test('v2 reader: World Bank lines are Hình 5.3/5.4 after Bảng 5.3 and Comtrad
   }
   assert.match(wb1!.text, /Chỉ số tổng hợp A, cả nước Việt Nam/u);
   assert.match(wb1!.text, /\(triệu/u);
-  assert.match(wb2!.text, /\(nghìn/u);
+  assert.doesNotMatch(wb2!.text, /nghìn/u);
   assert.match(mirror!.text, /năm 2023/u);
   assert.match(own!.text, /triệu USD/u);
   const doc = new JSDOM(built.html).window.document;
@@ -177,12 +176,15 @@ test('both Market renderers show source precision, source-name units and a round
     const doc = new JSDOM(html).window.document;
     const table = [...doc.querySelectorAll('.table-wrap, .ex')].find(node => /Bảng 5\.3/u.test(node.textContent!))!;
     assert.match(table.textContent!, /101\.598\.527 người/u);
-    assert.match(table.textContent!, /2\.382 USD, giá cố định năm 2015/u);
+    assert.match(table.textContent!, /2\.382 USD\/người, giá cố định năm 2015/u);
     assert.doesNotMatch(table.textContent!, /nguồn chưa ghi đơn vị|2\.381,888|%/u);
     assert.equal((table.textContent!.match(/Các giá trị được làm tròn theo độ chính xác do nguồn công bố\./gu) ?? []).length, 1);
     assert.match(figure(html, 'Hình 5.3')!.text, /triệu người/u);
-    assert.match(figure(html, 'Hình 5.4')!.text, /nghìn USD, giá cố định năm 2015/u);
-    for (const [code, expected] of [['NE.CON.PRVT.PC.KD', '2.382 USD, giá cố định năm 2015'], ['SP.POP.TOTL', '101.598.527 người']]) {
+    assert.match(figure(html, 'Hình 5.4')!.text, /USD\/người, giá cố định năm 2015/u);
+    const consumptionFigure = [...doc.querySelectorAll('figure')].find(node => /Hình 5\.4/u.test(node.textContent!))!;
+    const reading = consumptionFigure.nextElementSibling;
+    if (reading?.classList.contains('interp')) assert.match(reading.textContent!, /2\.382 USD\/người, giá cố định năm 2015/u);
+    for (const [code, expected] of [['NE.CON.PRVT.PC.KD', '2.382 USD/người, giá cố định năm 2015'], ['SP.POP.TOTL', '101.598.527 người']]) {
       const points = [...doc.querySelectorAll(`[data-chart-id="M05.world-bank.${code}"] [aria-roledescription="point"]`)];
       assert.equal(points.at(-1)!.getAttribute('aria-label'), `Năm: 2024; Giá trị: ${expected}`);
     }
@@ -294,4 +296,31 @@ test('a Flint failure in country-background figures retains fallbacks in both re
   const html = draftHtml(await presentationInput({ worldBank: worldBank(true), comtrade: fullTrade }));
   for (const no of ['Hình 5.3', 'Hình 5.4', 'Hình 6.1', 'Hình 6.2']) assert.equal(figure(html, no)!.engine, 'svg-fallback');
   assert.deepEqual(machineFailures(html), []);
+});
+
+
+test('both readers keep CPI row bases and short citations; full source coordinates stay technical', async () => {
+  const original = fullOfficialStats(), row = original.values[0]!;
+  const officialStats = { ...original, values: [
+    { ...row, label: 'CHỈ SỐ GIÁ TIÊU DÙNG', base: 'tháng 9 năm 2025' },
+    { ...row, cell: 'E14', label: 'CHỈ SỐ GIÁ TIÊU DÙNG', base: 'tháng 8 năm 2026' },
+  ] };
+  const before = JSON.stringify(officialStats);
+  const automated = buildResearchAutomationReport(await presentationInput({ officialStats }), 'MARKET');
+  for (const html of [(await reader({ officialStats })).html, automated.html.toString()]) {
+    const doc = new JSDOM(html).window.document;
+    const section = doc.querySelector('#M05, #phan-5')!;
+    assert.match(section.textContent!, /kỳ gốc: tháng 9 năm 2025/u);
+    assert.match(section.textContent!, /kỳ gốc: tháng 8 năm 2026/u);
+    assert.match(section.textContent!, /Chỉ số giá tiêu dùng/u);
+    assert.doesNotMatch(section.textContent!, /CHỈ SỐ GIÁ TIÊU DÙNG|bảng không ghi|Kỳ gốc: tháng trước/u);
+    const prose = doc.body.textContent!;
+    assert.match(prose, /Cục Thống kê, số liệu CPI tháng 9\/2026, công bố 01\/10\/2026/u);
+    assert.doesNotMatch(prose, /CPI-synthetic\.xlsx|bảng Cả nước|bảng Địa phương|dòng 14|ô C14/u);
+    const table = [...section.querySelectorAll('table')].find(node => /Trạng thái/u.test(node.textContent!))!;
+    assert.ok([...table.querySelectorAll('tbody tr')].every(node => node.lastElementChild!.textContent === '—'));
+  }
+  assert.match(automated.traceHtml!.toString(), /CPI-synthetic\.xlsx/u);
+  assert.match(automated.traceHtml!.toString(), /Địa phương/u);
+  assert.equal(JSON.stringify(officialStats), before);
 });

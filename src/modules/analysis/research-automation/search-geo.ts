@@ -20,7 +20,7 @@ export const SEARCH_GEO_TABLE_NO = '5.2';
 export const SEARCH_GEO_TABLE_TITLE = 'Mức quan tâm tìm kiếm theo vùng';
 export const SEARCH_GEO_HEADERS = ['Vùng', 'Trung bình mức quan tâm', 'Số tỉnh trong 10 tỉnh đứng đầu'] as const;
 export const SEARCH_GEO_NOTE = 'Chỉ số tương đối từ 0 đến 100 theo tỉnh, thành phố: 100 là nơi đứng đầu về mức quan tâm cho chính từ khóa này trong 12 tháng gần đây. ' +
-  'Trung bình vùng chỉ tính các tỉnh có số; tỉnh thiếu số để trống, không tính là 0. Vùng theo cách chia 6 vùng của cơ quan thống kê, 63 tỉnh, thành phố trước sáp nhập.';
+  'Trung bình vùng chỉ tính các tỉnh có số; tỉnh thiếu số để trống, không tính là 0. Vùng theo cách chia 6 vùng của cơ quan thống kê, 63 tỉnh, thành phố trước sáp nhập năm 2025.';
 export const SEARCH_GEO_DONT = 'Đừng hiểu là: đây không phải số lượt tìm kiếm, không phải số người mua hay doanh số; tỉnh đứng đầu có thể do người bán tìm nhiều.';
 
 export function searchGeoEnabled(env: Readonly<Record<string, string | undefined>>): boolean {
@@ -205,24 +205,24 @@ export function searchGeoText(summary: SearchGeoSummary): SearchGeoText {
   // Unknown provider labels remain retained evidence, never visible report prose.
   const top5 = summary.top.slice(0, 5);
   const topLine = top5.length && top5.every(row => row.region !== null)
-    ? `${top5.length} tỉnh, thành phố đứng đầu về mức quan tâm: ${top5.map(row => `${row.name} (${row.index})`).join(', ')}.` : '';
+    ? `${top5.length} tỉnh, thành phố đứng đầu về mức quan tâm (theo 63 tỉnh, thành phố trước sáp nhập năm 2025): ${top5.map(row => `${row.name} (${row.index})`).join(', ')}.` : '';
   const { choice } = summary;
+  const use = 'Cách đọc: chỉ số cho biết mức quan tâm tương đối của từ khóa theo nơi tìm kiếm, không đo nhu cầu mua hay khả năng giao hàng.';
   if (choice.kind === 'REGION') return { topLine,
     result: `Kết quả: vùng nổi bật là ${choice.region} (${choice.inTop} trong 10 tỉnh đứng đầu).`,
     seen: `Thấy gì: trong 10 tỉnh, thành phố đứng đầu về mức quan tâm, ${choice.inTop} tỉnh thuộc ${choice.region}.`,
-    use: `Dùng để: chọn vùng ưu tiên khi chạy quảng cáo, hoặc chọn kho giao hàng gần ${choice.region}.`,
+    use,
     dont: SEARCH_GEO_DONT };
-  const use = 'Dùng để: chưa chọn vùng ưu tiên; chạy quảng cáo và giao hàng toàn quốc, không lọc theo vùng.';
   if (choice.why === 'SPREAD') {
     const lead = choice.leading.length <= 2 && choice.leadingInTop >= 2
-      ? ` Dẫn đầu: ${choice.leading.join(' và ')} (${choice.leading.length > 1 ? 'mỗi vùng ' : ''}${choice.leadingInTop} tỉnh), không đủ để lọc.` : '';
-    return { topLine, result: `Kết quả: toàn quốc, không lọc.${lead}`,
+      ? ` Dẫn đầu: ${choice.leading.join(' và ')} (${choice.leading.length > 1 ? 'mỗi vùng ' : ''}${choice.leadingInTop} tỉnh).` : '';
+    return { topLine, result: `Kết quả: chưa có vùng nổi bật theo quy tắc đếm tỉnh.${lead}`,
       seen: choice.leadingInTop >= SEARCH_GEO_MIN_IN_TOP
-        ? `Thấy gì: hai vùng cùng có ${choice.leadingInTop} tỉnh trong 10 tỉnh, thành phố đứng đầu về mức quan tâm; không chọn riêng một vùng.`
+        ? `Thấy gì: hai vùng cùng có ${choice.leadingInTop} tỉnh trong 10 tỉnh, thành phố đứng đầu về mức quan tâm; chưa có vùng nổi bật riêng.`
         : `Thấy gì: 10 tỉnh, thành phố đứng đầu về mức quan tâm trải trên nhiều vùng; không vùng nào có từ ${SEARCH_GEO_MIN_IN_TOP} tỉnh trở lên.`, use, dont: SEARCH_GEO_DONT };
   }
-  if (choice.why === 'TOO_FEW') return { topLine, result: 'Kết quả: toàn quốc, không lọc.',
+  if (choice.why === 'TOO_FEW') return { topLine, result: 'Kết quả: chưa có vùng nổi bật theo quy tắc đếm tỉnh.',
     seen: `Thấy gì: chỉ ${choice.valued} tỉnh, thành phố có số; chưa đủ 10 tỉnh để so các vùng.`, use, dont: SEARCH_GEO_DONT };
-  return { topLine, result: 'Kết quả: toàn quốc, không lọc.',
-    seen: 'Thấy gì: có nơi trong 10 tỉnh đứng đầu không khớp danh sách 63 tỉnh, thành phố; không chọn vùng.', use, dont: SEARCH_GEO_DONT };
+  return { topLine, result: 'Kết quả: chưa có vùng nổi bật theo quy tắc đếm tỉnh.',
+    seen: 'Thấy gì: có nơi trong 10 tỉnh đứng đầu không khớp danh sách 63 tỉnh, thành phố; chưa xác định được vùng theo danh sách này.', use, dont: SEARCH_GEO_DONT };
 }

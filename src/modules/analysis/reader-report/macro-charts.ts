@@ -1,10 +1,10 @@
 // Country-level background figures of the Market report (S23 World Bank yearly lines, S24 UN Comtrade bars).
 // Each figure stands on its own axis: never beside, summed with or scaled against the sample numbers, and never summed across
-// reporting sides. Axes use a named Vietnamese scale word (nghìn / triệu / tỷ); tables use the source display precision when retained.
+// reporting sides. Axes use triệu / tỷ for large totals; per-person figures stay unscaled. Tables use retained source precision.
 // `flint: false` is the unit-test opt-out (hand-made SVG, recorded as svg-fallback).
 import type { StepComtrade, StepComtradeRow, StepWorldBankIndicator, StepWorldBankRow } from '../research-automation/model.js';
 import { comtradeRenderableRows, comtradeSideText, COMTRADE_SRC } from '../research-automation/comtrade-lane.js';
-import { formatWorldBankValue, roundWorldBankValue, worldBankChartSeries, worldBankRenderableRows, worldBankUnitText, WORLD_BANK_SRC, WORLD_BANK_UNKNOWN_UNIT } from '../research-automation/world-bank-lane.js';
+import { formatWorldBankValue, roundWorldBankValue, worldBankChartSeries, worldBankPerPerson, worldBankRenderableRows, worldBankUnitText, WORLD_BANK_SRC, WORLD_BANK_UNKNOWN_UNIT } from '../research-automation/world-bank-lane.js';
 import { renderChart, type FlintChartInput, type RenderedChart } from './flint.js';
 import { esc, sp } from './format.js';
 import { keepOrder } from './market-charts.js';
@@ -12,8 +12,8 @@ import { barChart, lineChart } from './svg-charts.js';
 
 /** Plain grouped digits (1.234,5), never an SI suffix such as k, M, G or B. */
 const PLAIN_FORMAT = ',.6~r';
-const SCALES = [[1e9, 'tỷ'], [1e6, 'triệu'], [1e3, 'nghìn']] as const;
-/** The largest scale word whose unit the biggest value reaches; values below one thousand stay unscaled. */
+const SCALES = [[1e9, 'tỷ'], [1e6, 'triệu']] as const;
+/** Values below one million stay unscaled. */
 export function macroScale(values: readonly number[]): { readonly divisor: number; readonly word: string | null } {
   const max = Math.max(0, ...values.map(Math.abs));
   for (const [divisor, word] of SCALES) if (max >= divisor) return { divisor, word };
@@ -76,7 +76,7 @@ async function renderWorldBankChart(item: StepWorldBankIndicator, row: StepWorld
   // Round before converting to chart coordinates, using the same exact decimal arithmetic as the table.
   const rounded = series.map(point => point.value === null ? null : roundWorldBankValue(point.value, row.decimal));
   const numbers = rounded.flatMap(value => value === null ? [] : [Number(value)]);
-  const { divisor, word } = macroScale(numbers);
+  const { divisor, word } = worldBankPerPerson(row, item.code) ? { divisor: 1, word: null } : macroScale(numbers);
   const sourceUnit = worldBankUnitText(row, item.code);
   const known = (row.unit !== null && row.unit.trim() !== '') || sourceUnit !== WORLD_BANK_UNKNOWN_UNIT;
   const unit = unitWithScale(word, sourceUnit, known);

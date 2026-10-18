@@ -45,9 +45,10 @@ function assertBlock(html: string, choice: RegExp) {
   assert.deepEqual(rows.map(row => row[0]), REGIONS);
   assert.equal(rows.reduce((sum, row) => sum + Number(row[2]), 0), 10, 'the top ten are counted once');
   assert.ok(rows.every(row => /^\d+(,\d)?$|^$/u.test(row[1]!)), 'averages use a comma; missing stays blank');
-  assert.match(text, /5 tỉnh, thành phố đứng đầu về mức quan tâm: /u);
+  assert.match(text, /5 tỉnh, thành phố đứng đầu về mức quan tâm \(theo 63 tỉnh, thành phố trước sáp nhập năm 2025\): /u);
   assert.match(text, choice);
-  for (const lead of ['Thấy gì:', 'Dùng để:', 'Đừng hiểu là:']) assert.ok(text.includes(lead), lead);
+  assert.doesNotMatch(text, /Dùng để:|chọn kho|chạy quảng cáo|nhất|hàng đầu|ưu tiên/u);
+  for (const lead of ['Thấy gì:', 'Cách đọc:', 'Đừng hiểu là:']) assert.ok(text.includes(lead), lead);
   assert.match(text, /Chú thích: Chỉ số tương đối từ 0 đến 100 theo tỉnh/u);
   const figure = [...section.querySelectorAll('figure')].find(item => item.textContent!.includes('Hình 5.2'));
   if (figure) assert.ok(figure.compareDocumentPosition(head!) & 4, 'right after Hình 5.2');
@@ -86,8 +87,8 @@ const draftHtml = (input: AutomationReportInput): string => buildResearchAutomat
 
 const CASES = [
   ['quạt điện', /Kết quả: vùng nổi bật là Đồng bằng sông Hồng \(6 trong 10 tỉnh đứng đầu\)\./u],
-  ['bình giữ nhiệt', /Kết quả: toàn quốc, không lọc\. Dẫn đầu: Đồng bằng sông Hồng và Đông Nam Bộ/u],
-  ['thạch dừa', /Kết quả: toàn quốc, không lọc\./u],
+  ['bình giữ nhiệt', /Kết quả: chưa có vùng nổi bật theo quy tắc đếm tỉnh\. Dẫn đầu: Đồng bằng sông Hồng và Đông Nam Bộ/u],
+  ['thạch dừa', /Kết quả: chưa có vùng nổi bật theo quy tắc đếm tỉnh\./u],
 ] as const;
 
 for (const [keyword, choice] of CASES) {
@@ -141,7 +142,7 @@ test('unknown provider labels never enter visible text or break either report ga
     for (const html of [(await reader(geo)).html, draftHtml(await presentationInput(geo))]) {
       const { table, text } = geoBlock(html);
       assert.doesNotMatch(text, /Metric|SerpApi|https:|\/tmp\/|192\.0\.2\.1|không có số/u);
-      assert.match(text, /Kết quả: toàn quốc, không lọc/u);
+      assert.match(text, /Kết quả: chưa có vùng nổi bật theo quy tắc đếm tỉnh/u);
       assert.equal([...table!.querySelectorAll('tbody tr')].filter(row => row.children[1]!.textContent === '').length, 5);
       assert.doesNotThrow(() => assertMarketBusinessGate(html, { presentation: html.includes('id="M05"'), partialTotals: [] }));
       assert.doesNotThrow(() => assertMarket14MachineRules(html));

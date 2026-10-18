@@ -419,19 +419,25 @@ export function officialStatsProvinceRows(value: StepOfficialStats | null | unde
   });
 }
 /** The overall row is the reference line beside the picked group, as in table 5.4. */
-export const officialStatsProvinceRowLabel = (label: string): string =>
-  officialStatsGroupLabels(ALL_GROUPS).some(item => item.table === 'CPI_WORKBOOK' && item.label === label) ? `${label} (Mọi ngành hàng; dòng tham chiếu)` : label;
+const sentenceCase = (label: string): string => label.replace(/^([IVX]+\.\s*)?(.*)$/u, (_all, prefix: string | undefined, body: string) =>
+  (prefix ?? '') + body.charAt(0).toLocaleUpperCase('vi-VN') + body.slice(1).toLocaleLowerCase('vi-VN'));
+export const officialStatsProvinceRowLabel = (label: string, base?: string | null): string =>
+  (officialStatsGroupLabels(ALL_GROUPS).some(item => item.table === 'CPI_WORKBOOK' && item.label === label) ? `${sentenceCase(label)} (Mọi ngành hàng; dòng tham chiếu)` : sentenceCase(label))
+    + (base ? ` (kỳ gốc: ${base} = 100)` : '');
 /** "100,23"; a province column without a number reads "không có số", never 0. */
 export const officialStatsProvinceCellText = (cell: StepOfficialStatsProvinceValue | null): string => cell === null || cell.shown === null ? 'không có số' : vietnameseDecimal(cell.shown);
 /** Period, the base as the sheet states it, and the data status, as table 5.4 shows them. */
 export function officialStatsProvinceContext(value: StepOfficialStats): string {
   const sheet = value.provinces!;
-  return `Kỳ: ${sheet.period}. Kỳ gốc: ${sheet.base} = 100. Trạng thái: ${officialStatsStatusText(value, { status: 'NOT_STATED', captureIndex: sheet.captureIndex })}.`;
+  const rows = officialStatsRenderableRows(value).filter(row => row.measure === 'INDEX');
+  const base = sheet.base !== null && rows.every(row => row.base === sheet.base) ? ` Kỳ gốc: ${sheet.base} = 100.` : '';
+  const status = officialStatsStatusText(value, { status: 'NOT_STATED', captureIndex: sheet.captureIndex });
+  return `Kỳ: ${sheet.period}.${base}${status === '—' ? '' : ` ${status}.`}`;
 }
-/** "Cục Thống kê (nso.gov.vn), <file>, bảng <sheet>, dòng <n>, công bố <date>" for one province row. */
+/** Short reader citation for the province sheet's own period. */
 export function officialStatsProvinceCitation(value: StepOfficialStats, row: Pick<OfficialStatsProvinceRow, 'row'>): string {
   const sheet = value.provinces!;
-  return officialStatsCitation(value, { captureIndex: sheet.captureIndex, sheet: sheet.sheet!, row: row.row });
+  return officialStatsCitation(value, { captureIndex: sheet.captureIndex, sheet: sheet.sheet!, row: row.row, period: sheet.period!, table: 'CPI_WORKBOOK' });
 }
 
 /** One plain sentence for a run whose figures are not drawn (or are drawn only in part): no digits, no percent sign. */
@@ -468,20 +474,20 @@ export const OFFICIAL_STATS_TABLE_TEXT: Readonly<Record<StepOfficialStatsTableId
   IMPORT: 'Hàng hóa nhập khẩu',
   CPI_WORKBOOK: 'Chỉ số giá tiêu dùng cả nước',
 };
-/** Keep the source row label intact and explicitly distinguish the overall reference from the selected group. */
+/** Sentence case at display time; distinguish the national reference from the selected group. */
 export const officialStatsRowLabel = (row: Pick<StepOfficialStatsValue, 'table' | 'label'>): string =>
   officialStatsGroupLabels(ALL_GROUPS).some(item => item.table === row.table && item.label === row.label)
-    ? `${row.label} (Mọi ngành hàng; tham chiếu cả nước)` : row.label;
+    ? `${sentenceCase(row.label)} (Mọi ngành hàng; tham chiếu cả nước)` : sentenceCase(row.label);
 /** "chỉ số 103,5 (kỳ gốc = 100)" for an index, never a percent sign; "1.234,5" for a level. */
 export function officialStatsValueText(value: Pick<StepOfficialStatsValue, 'measure' | 'shown'>): string {
   const shown = value.shown === null ? '' : vietnameseDecimal(value.shown);
   return value.measure === 'INDEX' ? `chỉ số ${shown} (kỳ gốc = 100)` : shown;
 }
 export const officialStatsUnitText = (value: Pick<StepOfficialStatsValue, 'measure' | 'unit' | 'base'>): string =>
-  value.measure === 'INDEX' ? `chỉ số, kỳ gốc: ${value.base ?? 'bảng không ghi'}` : value.unit ?? 'bảng không ghi';
+  value.measure === 'INDEX' ? `chỉ số, kỳ gốc: ${value.base ?? 'chưa có thông tin'}` : value.unit ?? '—';
 export function officialStatsStatusText(value: StepOfficialStats, row: Pick<StepOfficialStatsValue, 'status' | 'captureIndex'>): string {
   const revised = value.files.some(file => file.captureIndex === row.captureIndex && file.revised);
-  return `${OFFICIAL_STATS_STATUS_TEXT[row.status]}${revised ? '; đã cập nhật' : ''}`;
+  return [row.status === 'NOT_STATED' ? '' : OFFICIAL_STATS_STATUS_TEXT[row.status], revised ? 'tệp đã được nguồn cập nhật lại' : ''].filter(Boolean).join('; ') || '—';
 }
 /** Internet-supplied file/sheet names remain in the stored evidence; unsafe reader wording is withheld. */
 const citationName = (name: string, fallback: string): string => {
@@ -490,11 +496,22 @@ const citationName = (name: string, fallback: string): string => {
     && lintVisibleReportText(`<p>${escaped}</p>`).every(check => check.ok) ? name : fallback;
 };
 export const officialStatsCitationSheet = (row: Pick<StepOfficialStatsValue, 'sheet'>): string => citationName(row.sheet, 'bảng số liệu đã lưu');
-/** "Cục Thống kê (nso.gov.vn), <file>, bảng <sheet>, dòng <n>, công bố <date>". */
-export function officialStatsCitation(value: StepOfficialStats, row: Pick<StepOfficialStatsValue, 'captureIndex' | 'sheet' | 'row'>): string {
+/** Reader wording only. File, sheet and row belong in the technical citation. */
+export function officialStatsCitation(value: StepOfficialStats, row: Pick<StepOfficialStatsValue, 'captureIndex' | 'sheet' | 'row'> & Partial<Pick<StepOfficialStatsValue, 'period' | 'table'>>): string {
   const file = value.files.find(item => item.captureIndex === row.captureIndex);
-  const name = file ? citationName(fileName(file.url), 'tệp số liệu đã lưu') : '';
-  return `${OFFICIAL_STATS_SOURCE_LABEL}, ${name}, bảng ${officialStatsCitationSheet(row)}, dòng ${row.row}, công bố ${file ? file.listedAt.slice(0, 10) : ''}`;
+  const period = /[Tt]háng (\d{1,2}) năm (\d{4})/u.exec(row.period ?? '');
+  const subject = row.table === 'CPI' || row.table === 'CPI_WORKBOOK' ? 'CPI' : row.table ? OFFICIAL_STATS_TABLE_TEXT[row.table] : 'thống kê';
+  const date = file?.listedAt.slice(0, 10).split('-').reverse().join('/');
+  return `Cục Thống kê, số liệu ${subject}${period ? ` tháng ${Number(period[1])}/${period[2]}` : ''}${date ? `, công bố ${date}` : ''}`;
+}
+
+export function officialStatsTechnicalCitation(value: StepOfficialStats, row: Pick<StepOfficialStatsValue, 'captureIndex' | 'sheet' | 'row'>): Readonly<Record<string, string>> {
+  const file = value.files.find(item => item.captureIndex === row.captureIndex);
+  // Reader citations coalesce by file, so the first citation retains every locator from that file.
+  const locators = value.values.filter(item => item.captureIndex === row.captureIndex).map(item => ({ sheet: item.sheet, row: item.row, cell: item.cell }));
+  if (value.provinces?.captureIndex === row.captureIndex) for (const item of value.provinces.values)
+    locators.push({ sheet: value.provinces.sheet!, row: item.row, cell: item.cell });
+  return { file: file ? fileName(file.url) : '', sheet: row.sheet, row: String(row.row), locators: JSON.stringify(locators) };
 }
 
 /** Shape check of a stored document, used by the step validator. */
