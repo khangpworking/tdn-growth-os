@@ -181,6 +181,19 @@ test('Market HTML hides machine literals in visible text while retaining technic
   assert.match(visible, /Chưa đủ dữ liệu về sự kiện trong kỳ\./);
   assert.doesNotMatch(document.querySelector('#M09')!.textContent!, /2024-08-31|Chỉ số nêu|Người nêu/);
   assert.doesNotMatch(document.querySelector('#M05')!.textContent!, /Phạm vi quan sát do nguồn khai báo|Source-declared/);
+
+  // The production descriptive bridge falls back to the source-local ID when
+  // product/detail has no name, while cards are keyed by a qualified product ID.
+  const rawIdMethods = buildDescriptiveMarketMethods({ ...methods.input,
+    m05: methods.input.m05.map(row => ({ ...row, entityLabel: product.sourceProductId })),
+  }, { methodVersion: '1.1.0' }).output;
+  const mapped = new JSDOM(buildResearchAutomationReport({ ...input, descriptiveMethods: rawIdMethods }, 'MARKET').html).window.document;
+  assert.match(mapped.querySelector('#M05')!.textContent!, /Bình giữ nhiệt tổng hợp/);
+  assert.doesNotMatch(mapped.querySelector('#M05')!.textContent!, /Sản phẩm #/);
+  const ambiguous = new JSDOM(buildResearchAutomationReport({ ...input, descriptiveMethods: rawIdMethods,
+    collection: { ...input.collection!, productCards: [product, { ...product, productId: 'metric:sku_101', provider: 'metric', title: 'Bình khác' }] },
+  } as Parameters<typeof buildResearchAutomationReport>[0], 'MARKET').html).window.document;
+  assert.doesNotMatch(ambiguous.querySelector('#M05')!.textContent!, /Bình giữ nhiệt tổng hợp|Bình khác/, 'a bare ID cannot resolve across providers');
 });
 
 test('marker-free quote, metric and market-presentation renderers replay origin/main bytes', () => {

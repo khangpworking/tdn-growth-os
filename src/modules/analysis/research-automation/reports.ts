@@ -585,6 +585,18 @@ function productLabels(input: AutomationReportInput): ReadonlyMap<string, string
   return new Map((input.collection?.productCards ?? []).flatMap(card => card.title?.trim() ? [[card.productId, card.title.trim()] as const] : []));
 }
 
+/** The descriptive bridge may retain a source-local ID when its detail has no name. */
+function descriptiveProductLabels(input: AutomationReportInput): ReadonlyMap<string, string> {
+  const labels = new Map(productLabels(input));
+  const localLabels = new Map<string, string | null>();
+  for (const card of input.collection?.productCards ?? []) {
+    // A bare ID shared by providers is ambiguous, even if only one card has a title.
+    localLabels.set(card.sourceProductId, localLabels.has(card.sourceProductId) ? null : card.title?.trim() || null);
+  }
+  for (const [id, label] of localLabels) if (label && !labels.has(id)) labels.set(id, label);
+  return labels;
+}
+
 function observationTable(rows: readonly TypedComparable[], captures: ReadonlyMap<number, CaptureRecord>, citations: ReportCitations, labels: ReadonlyMap<string, string>, readerPlainText = false): string {
   if (!rows.length) return '';
   if (!readerPlainText) return `<div class="table-wrap" role="region" aria-label="Giá trị nguồn theo từng sản phẩm và kỳ truy vấn" tabindex="0"><table class="observations"><caption>Giá trị nguồn theo từng sản phẩm và kỳ truy vấn. Không phải tổng thị trường.</caption><thead><tr><th scope="col">Sản phẩm nguồn</th><th scope="col">Phép đo / đơn vị</th><th scope="col">Giá trị nguồn</th><th scope="col">Kỳ đo</th><th scope="col">Nguồn</th></tr></thead><tbody>${rows.map(row => `<tr><td>${escape(sourceMemberLabel(row.productId, false))}</td><td>${escape(row.metric === 'GMV_VND' ? 'Doanh thu (VND)' : 'Lượt bán')}</td><td>${escape(row.value)}</td><td>${escape(row.window.startDate)} đến ${escape(row.window.endDate)}</td><td>${captureMark(captures.get(row.captureIndex)!, citations)}</td></tr>`).join('')}</tbody></table></div>`;
@@ -891,7 +903,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
           : 'Đã áp dụng quy tắc đối thủ mặc định trên doanh thu cùng nhóm, kỳ và khung nguồn đã lưu; phần thiếu giữ nguyên, bổ sung của chủ giữ riêng. Kết quả có giới hạn trong mẫu, chưa phải mục phân tích hoàn chỉnh hoặc quyết định đã duyệt.' };
     }
     const view = descriptive && isDescriptiveSectionId(section.sectionId) ? describeDescriptiveSection(descriptive, section.sectionId, citations, readerPlainText,
-      { productLabels: productLabels(input), requestedPeriod: input.start.requestedPeriod }) : undefined;
+      { productLabels: descriptiveProductLabels(input), requestedPeriod: input.start.requestedPeriod }) : undefined;
     if (view) views.set(section.sectionId, view);
     const methodOutput = view && descriptive ? { methodOutputId: descriptive.methodOutputId, locatedRecordCount: view.locatedRecordCount, unresolvedPointers: view.unresolvedPointers, blockers: view.blockers } : undefined;
     if (view?.usable && methodOutput) return {
@@ -1272,7 +1284,11 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   // market14 readers get a plain "Cách đọc báo cáo" paragraph; the completion counters stay in the semantic and the trace copy.
   const readerOpening = marketPresentation ? marketReaderGuide(marketPlatforms)
     : `<p class="warning">${escape(headline)}${input.qualitativeDraft ? ` ${escape(qualitativeDraftSummary(input.qualitativeDraft))}` : ''}</p>${reviewOutcome ? reviewOutcomeNotice(reviewOutcome, kind) : ''}<p class="reader-guide">Đọc trạng thái và phần diễn giải trước khi sử dụng số liệu. Bảng trình bày những gì nguồn hoặc phép tính đã ghi nhận; phần “Hồ sơ đối chiếu” giữ nguyên nội dung nguồn và thông tin kỹ thuật. Mục còn thiếu điều kiện chưa có kết luận, không phải kết quả bằng 0.</p>`;
-  const body = orderReportCitations(readerOpening + sections.map(section => `<section class="sheet" id="${section.sectionId}"><header class="sh-head"><div><span class="sh-id">${readerPlainText && kind === 'MARKET' ? marketSectionLabel(section.sectionId) : section.sectionId}</span><h2>${escape(section.title)}</h2></div><span class="state">${escape(stateLabel[section.state])}</span></header><p class="section-reading">${escape(section.explanation)}</p>${methodBody(section)}${section.state === 'SOURCE_CONTEXT' ? scope : ''}${section.sectionId === 'M13' || section.sectionId === 'I17' ? sourceTable + webResultsTable : ''}${observationTable(section.rows, captures, citations, labels, readerPlainText)}${appendix(section.sectionId)}${section.sectionId === 'M12' ? market14Proposals : ''}${readerPlainText && kind === 'MARKET' ? '' : `<details class="method-reference"><summary>Hồ sơ đối chiếu phương pháp</summary><p><small>${fallbackIds.has(section.sectionId) ? 'Phương pháp ghi trong danh mục, chưa chạy trong lượt này' : 'Phương pháp'}: ${methodReference(section.method)}</small></p></details>`}</section>`).join(''), registry);
+  // Descriptive empty states already explain the gap; retain the detailed
+  // method explanation in semantic data without repeating it in the reader.
+  const sectionReading = (section: DraftSection): string => readerPlainText && section.state === 'METHOD_NO_USABLE_RECORDS' && views.has(section.sectionId)
+    ? '' : `<p class="section-reading">${escape(section.explanation)}</p>`;
+  const body = orderReportCitations(readerOpening + sections.map(section => `<section class="sheet" id="${section.sectionId}"><header class="sh-head"><div><span class="sh-id">${readerPlainText && kind === 'MARKET' ? marketSectionLabel(section.sectionId) : section.sectionId}</span><h2>${escape(section.title)}</h2></div><span class="state">${escape(stateLabel[section.state])}</span></header>${sectionReading(section)}${methodBody(section)}${section.state === 'SOURCE_CONTEXT' ? scope : ''}${section.sectionId === 'M13' || section.sectionId === 'I17' ? sourceTable + webResultsTable : ''}${observationTable(section.rows, captures, citations, labels, readerPlainText)}${appendix(section.sectionId)}${section.sectionId === 'M12' ? market14Proposals : ''}${readerPlainText && kind === 'MARKET' ? '' : `<details class="method-reference"><summary>Hồ sơ đối chiếu phương pháp</summary><p><small>${fallbackIds.has(section.sectionId) ? 'Phương pháp ghi trong danh mục, chưa chạy trong lượt này' : 'Phương pháp'}: ${methodReference(section.method)}</small></p></details>`}</section>`).join(''), registry);
   // Snapshot the original register, then renumber only citations still visible in the reader.
   const semanticCitations = { citations: registry.technicalTrace(), citationEntries: registry.entries() };
   const readerBody = marketPresentation ? orderReportCitations(body.replace(/<template data-market14-source-trace>[\s\S]*?<\/template>/gu, ''), registry) : body;

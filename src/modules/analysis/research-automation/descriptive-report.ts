@@ -305,7 +305,7 @@ function m09(methods: DescriptiveMarketMethods, citations: ReportCitations): Omi
 }
 
 const readerDate = (value: string): string => value.replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$3/$2/$1');
-const plainCopy = (value: string): boolean => readerSafe(value) && !/\b(?:Google|OpenCLI)\b|%/i.test(value);
+const plainCopy = (value: string): boolean => readerSafe(value) && !containsForbiddenProviderName(value) && !/\b(?:Google|Gemini)\b|%/i.test(value);
 const readerPeriod = (period: Observation['period']): string => period === null
   ? 'Chưa rõ kỳ quan sát' : `${readerDate(period.start)} đến ${readerDate(period.end)}`;
 const readerProduct = (id: string | null, ordinal: number, context: DescriptiveReaderContext): string => {
@@ -320,11 +320,17 @@ const SUPPLY_MEASURES: Readonly<Record<string, string>> = {
 };
 function supplyMeasure(literal: string): string | null {
   const normalized = literal.trim().toLowerCase().replace(/[ -]+/g, '_');
-  return SUPPLY_MEASURES[normalized] ?? (/^(?:nguồn cung|lượng cung|tồn kho|năng lực (?:sản xuất|cung ứng)|số (?:mặt hàng|sản phẩm|người bán))$/i.test(literal.trim()) ? literal.trim() : null);
+  return Object.hasOwn(SUPPLY_MEASURES, normalized) ? SUPPLY_MEASURES[normalized]!
+    : /^(?:nguồn cung|lượng cung|tồn kho|năng lực (?:sản xuất|cung ứng)|số (?:mặt hàng|sản phẩm|người bán))$/i.test(literal.trim()) ? literal.trim() : null;
 }
-const readerMeasure = (literal: string): string => supplyMeasure(literal)
-  ?? (/^(?:reported searches|search_count|search_volume)$/i.test(literal) ? 'Lượt tìm kiếm'
-    : plainCopy(literal) && /[\u00c0-\u024f\u1e00-\u1eff]/.test(literal) ? literal : readerPlainMeasureName(literal));
+function readerMeasure(literal: string): string {
+  const supply = supplyMeasure(literal);
+  if (supply !== null) return supply;
+  if (/^(?:reported searches|search_count|search_volume)$/i.test(literal)) return 'Lượt tìm kiếm';
+  if (plainCopy(literal) && /[\u00c0-\u024f\u1e00-\u1eff]/.test(literal)) return literal;
+  const label = readerPlainMeasureName(literal);
+  return typeof label === 'string' ? label : readerPlainMeasureName(null);
+}
 function readerUnit(unit: string | null): string | null {
   if (unit === null || !plainCopy(unit)) return null;
   if (/^(?:units?|count)$/i.test(unit)) return 'đơn vị';

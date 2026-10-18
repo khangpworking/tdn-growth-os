@@ -159,10 +159,10 @@ test('frozen default report digests from the base commit remain unchanged (Marke
   const input = await fullMarket14Input();
   const market = buildResearchAutomationReport(input, 'MARKET');
   // Reader and trace bytes re-pinned for the intended descriptive reader copy (M05/M06/M07/M09); semantic stays the base pin.
-  assert.equal(digest(market.html), '977dd2f9f35944f4774a087cc0cb79741b3d8a022fe492e0ff7c3b3709093845');
+  assert.equal(digest(market.html), 'c5f6fe2f032797008462122a29f346b7644d5a6665c0b814e8f336c67edd2153');
   // Frozen from the archived, unmodified base renderer at 30f35dfe.
   assert.equal(digest(canonicalJson(market.semantic)), '9a65613c430df3db8cc1bec00e94fff95c157524ce50e02772e2f758d6afdeb8');
-  assert.equal(digest(market.traceHtml!), '6c7616b0fa8774bd00982bc71fe03e7bba36a8e6e45b6519ffb66ae6826c4a6f');
+  assert.equal(digest(market.traceHtml!), '42863a52445feed5255076e4d3f4c35057f9a77b254a7235cabd6b294f380de9');
   const insight = buildResearchAutomationReport(input, 'INSIGHT');
   assert.equal(digest(insight.html), '7163940cc6c424f6c1a2fc73c7af9458e1a50d3957adaa8d43802a8caf6ba08d');
   assert.equal(digest(canonicalJson(insight.semantic)), '21c5fa1d4be2b577cc196d0508e84342b0953f1a16ed6505eccbb784b8f05294');

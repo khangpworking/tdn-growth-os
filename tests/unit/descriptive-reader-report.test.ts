@@ -196,3 +196,47 @@ test('reader copy withholds unsafe literals and never mutates hash-bound methods
     assert.deepEqual(verifyDescriptiveMarketMethods(methods).output, methods);
   }
 });
+
+test('reader withholds every forbidden provider in labels, measures, units, event quotes and attribution', () => {
+  const methods = descriptiveReaderFixture();
+  for (const provider of ['Metric', 'Kalodata', 'TradeInt', 'Dami', 'Apify', 'SerpApi', 'PageIndex', 'Gemini', 'OpenCLI', 'zen-studio', 'Google']) {
+    const literal = `Thông tin từ ${provider}`;
+    const observation = { ...methods.input.m05[1]!, entityLabel: 'synthetic:product-b', measureLiteral: literal, unit: literal };
+    const event = { ...methods.input.m09[1]!, sourceWording: literal, attribution: literal };
+    const changed = rebuild(methods, { m05: [observation], m07: [observation],
+      m06: [{ ...methods.input.m06[1]!, observation: { ...observation, measureLiteral: 'stock' } }], m09: [event] });
+    const displayContext = { ...context, productLabels: new Map([['synthetic:product-b', literal]]) };
+    for (const id of ids) assert.ok(!reader(changed, id, displayContext).text.includes(provider), `${id}: ${provider}`);
+    const attributed = rebuild(changed, { m09: [{ ...event, sourceWording: 'Thông tin chưa được xác minh.' }] });
+    assert.ok(!reader(attributed, 'M09').text.includes(provider), `attribution: ${provider}`);
+  }
+});
+
+test('M06 never treats inherited object properties as supply measures', () => {
+  const methods = descriptiveReaderFixture();
+  const changed = rebuild(methods, { m06: ['constructor', '__proto__'].map((measureLiteral, index) => ({
+    ...methods.input.m06[0]!, observation: { ...methods.input.m05[1]!, measureLiteral,
+      source: { ...methods.input.m05[1]!.source, locator: `/supply/${index}` } },
+  })) });
+  assert.equal(reader(changed, 'M06').html, '<p>Chưa có dữ liệu nguồn cung.</p>');
+  const observations = changed.input.m06.map(record => record.observation);
+  const otherSections = rebuild(changed, { m05: observations, m07: observations });
+  for (const id of ['M05', 'M07'] as const) assert.doesNotMatch(reader(otherSections, id).text, /function|native code|Object|constructor|__proto__/);
+});
+
+test('reader escapes mapped product labels and verbatim event evidence', () => {
+  const methods = descriptiveReaderFixture();
+  const label = 'Bình <b>lớn</b> & "nhỏ"';
+  const wording = 'Chưa xác minh <b>thông tin</b> & ngày ra mắt.';
+  const observation = { ...methods.input.m05[1]!, entityLabel: 'synthetic:product-b' };
+  const changed = rebuild(methods, { m05: [observation], m07: [observation],
+    m06: [{ ...methods.input.m06[1]!, observation: { ...observation, measureLiteral: 'stock' } }],
+    m09: [{ ...methods.input.m09[1]!, sourceWording: wording, attribution: wording }] });
+  for (const id of ids) {
+    const view = reader(changed, id, { ...context, productLabels: new Map([['synthetic:product-b', label]]) });
+    assert.ok(view.text.includes(label));
+    assert.equal(view.document.querySelector('b'), null);
+    assert.doesNotMatch(view.text, /Sản phẩm #/);
+    if (id === 'M09') assert.equal(view.document.querySelector('q')!.textContent, wording);
+  }
+});
