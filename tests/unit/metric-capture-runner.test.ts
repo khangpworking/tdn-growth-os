@@ -62,7 +62,7 @@ test('missing manifest path or digest stops as EXECUTOR_NOT_CONFIGURED without c
 });
 
 test('happy path: no shell, detached, explicit long timeout, allow-listed env, pinned sha from config', async () => {
-  const f = fake([READY], { PATH: '/usr/bin', HOME: '/home/synthetic', DISPLAY: ':0', TDN_SERPAPI_KEY: 'k1', APIFY_TOKEN: 'k2', OPENAI_API_KEY: 'k3', TDN_OWNER_TOKEN: 'k4' });
+  const f = fake([READY], { PATH: '/usr/bin', HOME: '/home/synthetic', DISPLAY: ':0', TDN_SERPAPI_KEY: 'k1', APIFY_TOKEN: 'k2', OPENAI_API_KEY: 'k3', TDN_OWNER_TOKEN: 'k4', CI: '0', CONTINUOUS_INTEGRATION: 'synthetic', OPENCLI_BROWSER_COMMAND_TIMEOUT: '1' });
   const req = request();
   const result = await runMetricCapture(config({ opencliExecutable: 'opencli-synthetic' }), req, f.deps);
   assert.ok(result.ok, JSON.stringify(result));
@@ -72,7 +72,7 @@ test('happy path: no shell, detached, explicit long timeout, allow-listed env, p
   assert.equal(call!.executable, 'opencli-synthetic');
   assert.equal(call!.options.shell, false); assert.equal(call!.options.detached, true);
   assert.deepEqual(call!.argv, ['metric', 'capture', '--spec', join(runDir, 'spec.json'), '--out', join(runDir, 'run1'), '--product-cap', '200', '-f', 'json']);
-  assert.deepEqual(call!.options.env, { PATH: '/usr/bin', HOME: '/home/synthetic', DISPLAY: ':0', OPENCLI_BROWSER_COMMAND_TIMEOUT: '1500' });
+  assert.deepEqual(call!.options.env, { PATH: '/usr/bin', HOME: '/home/synthetic', DISPLAY: ':0', OPENCLI_BROWSER_COMMAND_TIMEOUT: '1500', CI: '1' });
   assert.equal(input!.timeoutMs, METRIC_CAPTURE_TIMEOUT_MS); assert.equal(METRIC_CAPTURE_TIMEOUT_MS, 1_620_000);
   assert.equal(input!.expectedAdapterManifestSha256, sha); assert.equal(input!.adapterManifestPath, '/synthetic/adapter/manifest.json');
   assert.deepEqual(call!.spec, { keywords: ['son môi'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-09-03', endDate: '2026-10-02' }, category: null });

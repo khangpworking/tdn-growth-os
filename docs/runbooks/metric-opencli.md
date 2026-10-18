@@ -237,6 +237,17 @@ small `opencli` shim that runs the same Node version the adapter was installed
 with. Any stderr line the executor does not recognise (for example a Node
 version warning) fails the capture as `METRIC_UI_CHANGED`.
 
+OpenCLI prints an "Update available" / "Extension update available" notice to
+stderr on a successful exit when its cached version check finds a newer
+release. The capture child therefore runs with `CI=1`, which OpenCLI reads only
+to skip that check and notice, and the executor also accepts the exact notice
+lines. Do not upgrade OpenCLI or the extension to silence it.
+
+The desktop session that shows Chrome must stay unlocked during a capture. On a
+locked screen the platform switch fails and the capture stops as
+`METRIC_UI_CHANGED`, even though the hidden-tab path below handles a tab that is
+only behind other windows.
+
 With the flag on, a new run that requests MARKET gets one auto-run row. After
 the run reaches scope review, the worker runs one capture at a time (never
 retried automatically), prepares it, picks up to 5 Shopee links, and confirms

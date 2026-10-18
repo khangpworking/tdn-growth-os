@@ -96,7 +96,11 @@ function isAdapterResult(stdout: string): boolean {
   }
 }
 
-/** Only framework startup/connection lines known to be emitted outside JSON. */
+/**
+ * Only framework startup/connection lines known to be emitted outside JSON,
+ * plus the exact update notice OpenCLI prints on a successful exit when its
+ * cached version check is newer than the installed CLI or extension.
+ */
 function isKnownBenignStderr(stderr: string): boolean {
   const known = [
     /^\s*$/,
@@ -105,6 +109,9 @@ function isKnownBenignStderr(stderr: string): boolean {
     /^⏳\s+Waiting for Chrome\/Chromium extension to connect\.\.\.\s*$/,
     /^\s+Make sure Chrome or Chromium is open and the OpenCLI extension is enabled\.\s*$/,
     /^\s+Connected to (?:daemon|browser bridge)\.\s*$/,
+    /^  (?:Update|Extension update) available: v\d+\.\d+\.\d+ → v\d+\.\d+\.\d+$/,
+    /^  Run: npm install -g @jackwener\/opencli$/,
+    /^  Download: https:\/\/github\.com\/jackwener\/opencli\/releases$/,
   ];
   return stderr.split(/\r?\n/).every(line => known.some(pattern => pattern.test(line)));
 }
