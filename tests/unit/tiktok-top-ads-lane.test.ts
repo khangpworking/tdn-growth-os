@@ -369,19 +369,25 @@ test('the shared browser lock blocks overlap with a Metric command and a Meta re
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   // Metric: a real capture call whose executor is a fake that holds until released (no process, synthetic manifest).
   const events: string[] = [];
-  let releaseMetric!: () => void;
+  let releaseMetric!: () => void, metricStarted!: () => void;
   const metricHeld = new Promise<void>(resolve => { releaseMetric = resolve; });
+  const metricRunning = new Promise<void>(resolve => { metricStarted = resolve; });
   const metric = runMetricCapture({ enabledEnv: '1', captureRoot: root, adapterManifestPath: '/synthetic/manifest.json', adapterManifestSha256: 'a'.repeat(64) },
     { runId: '00000000-0000-4000-8000-000000000209', keyword: KEYWORD, requestedPeriod: { startDate: '2025-10-05', endDate: '2026-10-02' } },
-    { sourceEnv: { PATH: '/usr/bin' }, execute: async () => { events.push('metric:start'); await metricHeld; events.push('metric:end');
+    { sourceEnv: { PATH: '/usr/bin' }, execute: async () => { events.push('metric:start'); metricStarted(); await metricHeld; events.push('metric:end');
       return { ok: false, code: 'METRIC_UI_CHANGED', message: 'synthetic', argv: [] } as never; } });
   const w = world();
   const tiktok = source(w, () => [URL_VI]).collect({ keyword: KEYWORD }).then(r => { events.push('tiktok:end'); return r; });
-  for (let i = 0; i < 200 && !events.includes('metric:start'); i++) await new Promise(resolve => setImmediate(resolve));
-  assert.deepEqual(events, ['metric:start']);
-  assert.equal(w.calls.length, 0, 'no browser command while the Metric command holds the lock');
-  releaseMetric();
-  await metric;
+  try {
+    // Capture prepares files before entering the executor; event-loop turns are not a readiness signal.
+    const started = await Promise.race([metricRunning.then(() => true), metric.then(() => false)]);
+    assert.equal(started, true, 'Metric capture reached the fake executor');
+    assert.deepEqual(events, ['metric:start']);
+    assert.equal(w.calls.length, 0, 'no browser command while the Metric command holds the lock');
+  } finally {
+    releaseMetric();
+    await Promise.all([metric, tiktok]);
+  }
   assert.equal((await tiktok).status, 'OK');
   assert.deepEqual(events, ['metric:start', 'metric:end', 'tiktok:end']);
 
@@ -401,10 +407,13 @@ test('the shared browser lock blocks overlap with a Metric command and a Meta re
   await metaRunning;
   const w2 = world();
   const second = source(w2, () => [URL_VI]).collect({ keyword: KEYWORD });
-  for (let i = 0; i < 50; i++) await new Promise(resolve => setImmediate(resolve));
-  assert.equal(w2.calls.length, 0, 'no browser command while the Meta read holds the lock');
-  releaseMeta();
-  await meta;
+  try {
+    for (let i = 0; i < 50; i++) await new Promise(resolve => setImmediate(resolve));
+    assert.equal(w2.calls.length, 0, 'no browser command while the Meta read holds the lock');
+  } finally {
+    releaseMeta();
+    await Promise.all([meta, second]);
+  }
   assert.equal((await second).status, 'OK');
   assert.ok(w2.calls.length > 0);
 
@@ -414,9 +423,12 @@ test('the shared browser lock blocks overlap with a Metric command and a Meta re
   const controller = new AbortController();
   const w3 = world();
   const waiting = source(w3).collect({ keyword: KEYWORD }, { signal: controller.signal });
-  controller.abort();
-  assert.equal((await waiting).status, 'CANCELLED');
-  hold(); await busy;
+  try {
+    controller.abort();
+    assert.equal((await waiting).status, 'CANCELLED');
+  } finally {
+    hold(); await busy;
+  }
   assert.equal(w3.calls.length, 0);
 });
 

@@ -131,17 +131,23 @@ test('other executor stops are returned as is with a short path-free detail', as
 
 test('the in-process lock serializes two captures', async () => {
   const events: string[] = [];
-  let finishFirst!: (value: MetricOpenCliProcessResult) => void;
+  let finishFirst!: (value: MetricOpenCliProcessResult) => void, firstStarted!: () => void;
   const first = new Promise<MetricOpenCliProcessResult>(resolve => { finishFirst = resolve; });
+  const firstRunning = new Promise<void>(resolve => { firstStarted = resolve; });
   const deps = (name: string, completion: () => Promise<MetricOpenCliProcessResult>): MetricCaptureRunnerDependencies => ({
     sourceEnv: {}, readManifest: async () => manifest,
     createProcessRunner: () => async () => { events.push(`${name}:start`); return { child: { kill: () => true }, completion: completion().then(r => { events.push(`${name}:end`); return r; }) }; },
   });
-  const a = runMetricCapture(config(), request(), deps('a', () => first));
+  const a = runMetricCapture(config(), request(), deps('a', () => { firstStarted(); return first; }));
   const b = runMetricCapture(config(), request(), deps('b', async () => READY));
-  await new Promise(resolve => setTimeout(resolve, 30));
-  assert.deepEqual(events, ['a:start']);
-  finishFirst(READY);
+  try {
+    const started = await Promise.race([firstRunning.then(() => true), a.then(() => false)]);
+    assert.equal(started, true, 'first capture reached the fake process runner');
+    assert.deepEqual(events, ['a:start']);
+  } finally {
+    finishFirst(READY);
+    await Promise.all([a, b]);
+  }
   const [ra, rb] = await Promise.all([a, b]);
   assert.ok(ra.ok && rb.ok);
   assert.deepEqual(events, ['a:start', 'a:end', 'b:start', 'b:end']);
