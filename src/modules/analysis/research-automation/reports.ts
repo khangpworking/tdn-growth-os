@@ -1350,7 +1350,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     if (kind === 'MARKET' && sectionId === 'M01' && input.m01Inventory && input.sourceClaims) {
       const inventory = m01InventorySection(input.m01Inventory, input.sourceClaims, citations, readerPlainText);
       // Phần 1 states the per-platform findings; the per-period evidence rows stay in the technical copy.
-      return marketPresentation ? `<details class="evidence-trace"><summary>Danh sách bằng chứng từng kỳ (hồ sơ đối chiếu)</summary>${inventory}</details>` : inventory;
+      return marketPresentation && input.metricMethods?.capture ? `<details class="evidence-trace"><summary>Danh sách bằng chứng từng kỳ (hồ sơ đối chiếu)</summary>${inventory}</details>` : inventory;
     }
     if (kind === 'INSIGHT' && sectionId === 'I14' && input.i14Admission && input.sourceClaims) return i14SynthesisSection(input.i14Synthesis, citations, false) + i14AdmissionSection(input.i14Admission, input.sourceClaims, citations, false);
     if (kind === 'MARKET' && (sectionId === 'M03' || sectionId === 'M04')) {
@@ -1456,7 +1456,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     const readerPage = orderReportCitations(page.slice(0, start), registry);
     return readerPage + renderCitationRegister(registry.entries(), { format: 'web' }) + page.slice(end);
   };
-  const readerRenderedHtml = marketPresentation ? sanitize(readerCitations(deliverMarketReader(scopedHtml, input.collection?.searchInterest?.points))) : scopedHtml;
+  const readerRenderedHtml = marketPresentation ? sanitize(readerCitations(deliverMarketReader(scopedHtml, input.collection?.searchInterest?.points, Boolean(input.metricMethods?.capture)))) : scopedHtml;
   // Hidden technical copy for retrieval: the same page before reader delivery, trace blocks kept. Never linked from the reader.
   const traceHtml = marketPresentation ? Buffer.from(sanitize(scopedHtml), 'utf8') : undefined;
   // Source appendix v18 also serves existing Market and accepted Insight

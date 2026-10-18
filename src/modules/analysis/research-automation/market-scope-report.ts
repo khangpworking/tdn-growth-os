@@ -76,7 +76,7 @@ const periodBasisLabel = (value: string): string => value === 'Kỳ bộ lọc c
 const PLATFORM_LABELS = { shopee: 'Shopee', tiktok: 'TikTok Shop' } as const;
 const isoDay = (value: string): string => {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(value);
-  return match ? `//` : value;
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
 };
 const vietnamDay = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric' });
 const acquiredDay = (value: string | null): string => {
@@ -89,7 +89,7 @@ function capturePlatformScope(capture: CaptureMetricMethodDetails): string {
   const results = new Map(capture.platforms.map(entry => [entry.platform, entry.result] as const));
   const lines = capture.capture.platforms.map(platform => {
     const result = results.get(platform);
-    return result
+    return result && result.input.records.length
       ? `<li>${PLATFORM_LABELS[platform]}: ${escape(acquiredDay(result.input.scope.acquiredAt))}; ${result.input.records.length} dòng sản phẩm; kỳ ${escape(isoDay(result.input.scope.start))} đến ${escape(isoDay(result.input.scope.end))}.</li>`
       : `<li>${PLATFORM_LABELS[platform]}: chưa có dòng nào gán được cho sàn này.</li>`;
   });
