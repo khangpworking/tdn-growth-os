@@ -69,6 +69,9 @@ test('campaign routes parse and round-trip only the supported content paths', ()
   const state = createSeedState();
   assert.deepEqual(parseRoute(routeToHash.content(), state), { kind: 'content' });
   assert.deepEqual(parseRoute(routeToHash.campaignNew(), state), { kind: 'campaign-new' });
+  const knownProduct = state.products[0]!;
+  assert.deepEqual(parseRoute(routeToHash.campaignNewFromProduct(knownProduct.id), state), { kind: 'campaign-new', researchProductId: knownProduct.id });
+  assert.deepEqual(parseRoute(routeToHash.campaignNewFromProduct('no-such-product'), state), { kind: 'invalid', hash: routeToHash.campaignNewFromProduct('no-such-product') });
   assert.deepEqual(parseRoute(routeToHash.campaign(campaignId), state), { kind: 'campaign', campaignId });
   const angleHash = routeToHash.campaignAngle(campaignId, workspaceId);
   assert.deepEqual(parseRoute(angleHash, state), { kind: 'campaign-ideas', campaignId, ideaKind: 'ANGLE', parentIdeaId: workspaceId });
