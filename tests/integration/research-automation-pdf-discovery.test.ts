@@ -65,8 +65,8 @@ function pageIndexFake() {
     const pathname = new URL(String(input)).pathname;
     const body = typeof init?.body === 'string' ? JSON.parse(init.body) as Record<string, unknown> : {};
     const docOf = (id: string) => ({ id, name: docs.get(id)!, pageNum: 1, status: 'completed' });
-    if (pathname === '/doc/upload') { calls.upload += 1; const id = `pi-${docs.size + 1}`; docs.set(id, String(body.file_name)); return Response.json({ ...docOf(id), status: 'processing' }); }
-    if (pathname === '/doc/list') return Response.json({ documents: [...docs.keys()].map(docOf) });
+    if (pathname === '/doc/') { calls.upload += 1; const id = `pi-${docs.size + 1}`; docs.set(id, ((init?.body as FormData).get('file') as File).name); return Response.json({ ...docOf(id), status: 'processing' }); }
+    if (pathname === '/docs') return Response.json({ documents: [...docs.keys()].map(docOf) });
     const match = /^\/doc\/([^/]+)\/(metadata|block\/p1_text_1\/)$/u.exec(pathname);
     if (match?.[2] === 'metadata') return Response.json(docOf(match[1]!));
     if (match) return Response.json({ doc_id: match[1], page: 1, block_id: 'p1_text_1', block_type: 'text', bbox: [1, 1, 20, 20], text: 'Thị trường tăng đều theo quý' });

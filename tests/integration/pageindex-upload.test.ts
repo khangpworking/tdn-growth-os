@@ -53,8 +53,8 @@ test('fixture run indexes attached PDF once, persists verified quotes and expose
     const bytes = pdfFixture(); let uploads = 0; let questions = 0; let lists = 0; let failQuestion = false; let unknownPages = false; let exhausted = false;
     const fakeFetch: typeof fetch = async (url, init) => {
       const pathname = new URL(String(url)).pathname;
-      if (pathname === '/doc/upload') { uploads += 1; return Response.json({ id: 'pi-fixture', name: 'fixture.pdf', pageNum: 1, status: 'processing' }); }
-      if (pathname === '/doc/list') {
+      if (pathname === '/doc/') { uploads += 1; return Response.json({ id: 'pi-fixture', name: 'fixture.pdf', pageNum: 1, status: 'processing' }); }
+      if (pathname === '/docs') {
         lists += 1;
         return exhausted ? Response.json({ code: 'USAGE_LIMIT_REACHED' }, { status: 403 })
           : Response.json({ documents: [{ id: 'pi-fixture', name: 'fixture.pdf', pageNum: unknownPages ? null : 1, status: 'completed' }] });
@@ -201,7 +201,7 @@ test('production upload gates account for accrued storage, prospective indexing 
         pageIndex: { enabled: true, apiKey: 'synthetic-gate-key', ...(scenario === 'unknown' ? {} : { startingCreditMicroDollars: scenario === 'storage' ? 27_000_000 : 10_000_000 }),
           extractPdf: async () => Array.from({ length: scenario === 'prospective' ? 1000 : 1 }, (_, index) => ({ page: index + 1, text: 'Synthetic local verifier' })),
           fetch: async url => {
-            if (scenario === 'storage' && new URL(String(url)).pathname === '/doc/list') {
+            if (scenario === 'storage' && new URL(String(url)).pathname === '/docs') {
               lists++;
               return Response.json({ documents: [{ id: 'pi-a', name: 'a.pdf', pageNum: 1000, status: 'completed' },
                 { id: 'pi-b', name: 'b.pdf', pageNum: 1000, status: 'completed' },

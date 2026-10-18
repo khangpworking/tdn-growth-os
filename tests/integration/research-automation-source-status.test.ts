@@ -271,8 +271,8 @@ test('PDF HTTP intake and free recheck are reachable, owner-only, and GET states
     extractPdf: async () => [{ page: 1, text: 'Synthetic page for transport only' }],
     fetch: async (url) => {
       const pathname = new URL(String(url)).pathname;
-      if (pathname === '/doc/upload') { uploads++; return Response.json({ id: 'synthetic-cloud-doc', name: 'fixture.pdf', pageNum: 1, status: 'processing' }); }
-      if (pathname === '/doc/list') { lists++; return Response.json({ documents: [{ id: 'synthetic-cloud-doc', name: 'fixture.pdf', pageNum: 1, status: 'completed' }] }); }
+      if (pathname === '/doc/') { uploads++; return Response.json({ id: 'synthetic-cloud-doc', name: 'fixture.pdf', pageNum: 1, status: 'processing' }); }
+      if (pathname === '/docs') { lists++; return Response.json({ documents: [{ id: 'synthetic-cloud-doc', name: 'fixture.pdf', pageNum: 1, status: 'completed' }] }); }
       if (pathname.endsWith('/metadata')) { metadataReads++; return Response.json({ id: 'synthetic-cloud-doc', name: 'fixture.pdf', pageNum: 1, status: 'completed' }); }
       throw new Error('Unexpected paid question or other connector call');
     },

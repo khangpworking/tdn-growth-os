@@ -210,6 +210,16 @@ export function pdfExcerptCitation(excerpt: PdfExcerpt): CitationInput {
     label: excerpt.label, retrievedAt: null, url: null, quote: excerpt.text, quoteVerification: 'EXTERNAL_VERIFIER_ATTESTED' };
 }
 
+/**
+ * The market14 reader's entry for one excerpt: the same source and page as `pdfExcerptCitation`, labelled "Tài liệu PDF đã lưu …"
+ * without the page, because the register already prints the page locator ("trang N") after the label.
+ */
+export function pdfExcerptReaderCitation(excerpt: PdfExcerpt): CitationInput {
+  const document = excerpt.label.replace(/^Tài liệu\s+/u, '').replace(/,\s*trang\s+\d+$/u, '').trim();
+  return { ...pdfExcerptCitation(excerpt), label: `${PDF_EXCERPT_REGISTER_LABEL}${document ? ` ${document}` : ''}` };
+}
+export const PDF_EXCERPT_REGISTER_LABEL = 'Tài liệu PDF đã lưu';
+
 function readerSafe(text: string, citation: CitationInput): boolean {
   if (providerPattern.test(text) || leaks(text) || !readerTextSafe(text)) return false;
   try { new CitationRegistry().cite(citation); return true; } catch { return false; }

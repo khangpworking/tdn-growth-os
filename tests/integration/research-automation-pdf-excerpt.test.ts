@@ -31,13 +31,13 @@ async function fixture(options: { pdf: boolean; pageIndex: boolean }) {
   const calls: Calls = { upload: 0, question: 0, other: 0 };
   const fakeFetch: typeof fetch = async url => {
     const pathname = new URL(String(url)).pathname;
-    if (pathname === '/doc/upload') { calls.upload += 1; return Response.json({ id: 'pi-fixture', name: 'fixture.pdf', pageNum: 1, status: 'processing' }); }
+    if (pathname === '/doc/') { calls.upload += 1; return Response.json({ id: 'pi-fixture', name: 'fixture.pdf', pageNum: 1, status: 'processing' }); }
     if (pathname === '/chat/completions') {
       calls.question += 1;
       return Response.json({ choices: [{ message: { content: 'x <doc=fixture.pdf;page=1;block=p1_text_1>' } }], citations: [{ document: 'fixture.pdf', page: 1, block_id: 'p1_text_1', block_type: 'text', bbox: [1, 1, 20, 20] }] });
     }
     calls.other += 1;
-    if (pathname === '/doc/list') return Response.json({ documents: [{ id: 'pi-fixture', name: 'fixture.pdf', pageNum: 1, status: 'completed' }] });
+    if (pathname === '/docs') return Response.json({ documents: [{ id: 'pi-fixture', name: 'fixture.pdf', pageNum: 1, status: 'completed' }] });
     if (pathname.endsWith('/metadata')) return Response.json({ id: 'pi-fixture', name: 'fixture.pdf', pageNum: 1, status: 'completed' });
     if (pathname.endsWith('/block/p1_text_1/')) return Response.json({ doc_id: 'pi-fixture', page: 1, block_id: 'p1_text_1', block_type: 'text', bbox: [1, 1, 20, 20], text: 'Hàm lượng 120 mg' });
     throw new Error('Unexpected connector request');
