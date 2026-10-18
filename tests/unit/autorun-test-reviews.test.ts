@@ -11,8 +11,11 @@ import { assertMarketBusinessGate } from '../../src/modules/analysis/research-au
 import { ApifyShopeeCollector, FixtureShopeeCollector, shopeeActorInputSha256, type ShopeeCollector } from '../../src/platform/collectors/apify-shopee.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import type { StepResultDocument } from '../../src/modules/analysis/research-automation/model.js';
-import { autorun, drain, fixture, rewindStartKey, startRun, workspaceId } from '../helpers/autorun-harness.js';
+import { autorun, captureFiles, drain, fixture, rewindStartKey, startRun, workspaceId } from '../helpers/autorun-harness.js';
 import { fullMarket14Input } from '../helpers/market14-full-fixture.js';
+import { sync1ReaderFixture } from '../helpers/sync1-reader-fixture.js';
+import { buildMarketReport, computeReaderReportData } from '../../src/modules/analysis/reader-report/index.js';
+import { deriveReaderSource, verifyWebSnapshot, webSnapshotDigest } from '../../src/modules/analysis/reader-report/web-facts.js';
 
 const baseEnv = { TDN_APIFY_TOKEN: 'synthetic-not-a-live-token', TDN_RESEARCH_SHOPEE_MAX_CHARGE_USD: '1', TDN_RESEARCH_SHOPEE_MAX_REVIEWS_PER_PRODUCT: '20' };
 const confirmInput = { runId: workspaceId, expectedRevision: 1, keyword: 'synthetic', includeTerms: ['synthetic'],
@@ -106,6 +109,29 @@ for (const counts of [[20, 20, 20], [20, 7, 0], [0, 0, 0]]) test(`Market-only au
   const rules = auditMarket14(html);
   assert.equal(rules.length, 14); assert.deepEqual(rules.filter(rule => rule.kind === 'machine' && !rule.ok), []);
   assert.deepEqual(rules.filter(rule => rule.kind === 'evidence').map(rule => rule.rule), ['6', '8', '10', '14'], 'human evidence reads remain explicit, including the unconfigured cover');
+  // Exercise the production reader context through the retained capture source,
+  // then replay solely from the frozen reader record (no current run evidence).
+  const readerSnapshot: unknown = JSON.parse(captureFiles(runId).snapshotBytes.toString());
+  const readerRequest = { contractVersion: 'reader-report-build-v1.2', requestKey: randomUUID(),
+    metricPackageId: body.sources.metric.packageId, platforms: ['shopee'], profile: sync1ReaderFixture().profile, cover: null,
+    source: deriveReaderSource(verifyWebSnapshot(readerSnapshot, webSnapshotDigest(readerSnapshot)), 5000, { nullable: true }) };
+  const owner = { actorId: 'owner:synthetic', role: 'OWNER' as const };
+  const built = await f.service.buildReaderReport(workspaceId, runId, readerRequest, owner);
+  const reader = await f.service.readReaderReport(workspaceId, runId, built.revision.revisionId);
+  const readerSample = reader.bytes.toString().match(/<div class="test-review-sample">[\s\S]*?<\/div>/u)![0];
+  const plain = (value: string) => value.replace(/<sup class="cite">[\s\S]*?<\/sup>/gu, '').replace(/<[^>]*>/gu, '').replace(/\s+/gu, ' ').trim();
+  assert.equal(plain(readerSample), plain(sample));
+  assert.doesNotThrow(() => assertMarketBusinessGate(reader.bytes.toString(), { presentation: false }));
+  const recordRow = f.db.prepare('SELECT input_sha256 sha FROM analysis_reader_report_revisions WHERE revision_id=?').get(built.revision.revisionId) as { sha: string };
+  const record = await readJson(recordRow.sha);
+  assert.deepEqual(record.testReviewSample.collection, { exactShopee: collection.exactShopee, exactShopeeOutcome: collection.exactShopeeOutcome });
+  assert.deepEqual(record.testReviewSample.scope, { testReviewCap: 20 });
+  const replay = await buildMarketReport(computeReaderReportData(record.input), { limitations: record.limitations, builtOn: '01/02/2026',
+    flint: false, webResults: record.webResults, captureSource: true, testReviewSample: record.testReviewSample });
+  assert.equal(replay.html, reader.bytes.toString());
+  const restarted = f.make();
+  assert.deepEqual((await restarted.readReaderReport(workspaceId, runId, built.revision.revisionId)).bytes, reader.bytes);
+  assert.deepEqual(await restarted.buildReaderReport(workspaceId, runId, readerRequest, owner), { ...built, exactRetry: true });
   assert.equal(fake.calls.length, 1, 'presentation never collects again');
 });
 

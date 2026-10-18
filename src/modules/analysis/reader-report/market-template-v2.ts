@@ -28,6 +28,7 @@ import type { MetricWebCellFact, MetricWebTableFact } from '../research-automati
 import { classifyWebPage, WEB_PAGE_TYPE_LABEL } from '../research-automation/web-page-type.js';
 import { EXPANDED_SEARCH_COLUMN, EXPANDED_SEARCH_LABEL, EXPANDED_SEARCH_NOTE } from '../research-automation/expanded-search-lane.js';
 import { MARKET_SALES_AVERAGE_EXHIBIT, marketFindings } from './market-findings.js';
+import { exactTestReviewSample, exactTestReviewSection, exactTestReviewSourceRows } from '../research-automation/test-review-sample.js';
 
 const PLATFORM_COLORS = { shopee: '#c2410c', tiktok: '#1d2327' } as const;
 
@@ -351,10 +352,17 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     return [plat(row.platform), label(row.shopName || row.shop), label(row.brand) + ' (theo tiêu đề người bán)', value('rev'), value('units'), value('asp'), `<span data-quote>${esc(row.title)}</span>`];
   });
   const web = readerWebResults(options.webResults ?? [], true);
+  const testSample = next && options.testReviewSample ? exactTestReviewSample(options.testReviewSample) : null;
+  const trialRows = testSample ? exactTestReviewSourceRows(testSample) : null;
+  const trialBlock = testSample ? exactTestReviewSection(testSample, (url, product) => {
+    const no = registry.cite({ sourceKind: 'WEB_RESULT', identity: url, locator: null, label: product,
+      retrievedAt: testSample.attemptedAt, url, quote: null, quoteVerification: 'NOT_APPLICABLE' });
+    return `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(product)}</a>${no === null ? '' : renderCitationMark(no)}`;
+  }) : '';
   const sourceRows = next ? [['Nguồn', sourceText], ['Kỳ', period],
-    ['Dữ liệu đánh giá sản phẩm trên nền tảng', 'Chưa có trong lượt này'],
+    ['Dữ liệu đánh giá sản phẩm trên nền tảng', trialRows?.native ?? 'Chưa có trong lượt này'],
     ['Kết quả tìm kiếm', d.webFacts === null && web.length === 0 ? 'Chưa có trong lượt này' : 'Đã lưu trong lượt này'],
-    ['Bình luận đã thu thập', 'Chưa có trong lượt này'],
+    ['Bình luận đã thu thập', trialRows?.comments ?? 'Chưa có trong lượt này'],
     ...pdfDiscoverySourceRows(options.pdfDiscovery, pdfExcerpts),
     ...(interestChart || geoBlock ? [[SEARCH_INTEREST_SOURCE_LABEL, 'Đã lưu trong lượt này; chỉ số tương đối, không phải doanh số']] : []),
     ...(worldBankTable ? [[WORLD_BANK_SOURCE_LABEL, 'Đã lưu trong lượt này; số liệu cả nước, chỉ là bối cảnh']] : []),
@@ -428,7 +436,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     return [`<span data-quote><a href="${esc(w.url)}" target="_blank" rel="noopener noreferrer">${esc(w.title)}</a>${mark}${meta ? `<span class="pl-meta">${esc(meta)}</span>` : ''}</span>`, ...(originated ? [w.origin ? EXPANDED_SEARCH_LABEL[w.origin] : ''] : []), ...(typed ? [pageType(w)] : []), `<span data-quote>${esc(w.snippet ?? '')}</span>`];
   }), { src: 'Kết quả tìm kiếm đã lưu.', note: 'Tiêu đề và đoạn mô tả chép theo kết quả tìm kiếm, chưa mở trang gốc để đối chiếu; không phải nhận định của báo cáo.' + (originated ? ' ' + EXPANDED_SEARCH_NOTE : '') });
   sections.push(section('M13', 'Nguồn, thuật ngữ và danh sách sản phẩm', nar('Giữ đủ {{src.rows}} dòng nguồn để tra lại.', 'M13'),
-    tbl('PL.1', 'Dòng dữ liệu đã lưu, theo từng sàn', '', ['Sàn', 'Gian hàng', 'Nhãn thương hiệu', 'Doanh thu', 'Đơn vị bán', 'Giá trung bình', 'Tiêu đề nguồn'], appendix) + tbl('PL.2', 'Nguồn số liệu đã lưu', '', ['Hạng mục', 'Nguồn / giá trị'], sourceRows) + (next ? glossaryTable : '') + webTable + retainedSourceTables + renderCitationRegister(registry.entries(), { format: 'web' })));
+    tbl('PL.1', 'Dòng dữ liệu đã lưu, theo từng sàn', '', ['Sàn', 'Gian hàng', 'Nhãn thương hiệu', 'Doanh thu', 'Đơn vị bán', 'Giá trung bình', 'Tiêu đề nguồn'], appendix) + tbl('PL.2', 'Nguồn số liệu đã lưu', '', ['Hạng mục', 'Nguồn / giá trị'], sourceRows) + trialBlock + (next ? glossaryTable : '') + webTable + retainedSourceTables + renderCitationRegister(registry.entries(), { format: 'web' })));
   const html = page({ title: `Báo cáo thị trường – ${profile.product}`, coverHtml: cover(options.cover ?? null, `Dữ liệu ${period}`, ['Báo cáo thị trường', profile.product, 'Bản đọc cho chủ dự án']),
     intro: `<div class="box"><p>Số ước tính trong mẫu. Mỗi sàn tính riêng. Phân loại ${status}.</p></div>`, toc: MARKET_TOC, sections, foot: `TDN · ${esc(options.builtOn)}` });
   const renderedHtml = next ? html.replace('<body', '<body data-report-rules="market-visible-v1"') : html;

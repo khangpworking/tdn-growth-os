@@ -112,6 +112,7 @@ export interface ReaderDraftContext {
   /** The app's own Meta ad library read (S15 AUTO), re-verified from stored evidence when the report is built. */
   readonly metaAuto?: import('./meta-auto-lane.js').MetaAutoReportView;
   readonly tiktokTopAds?: import('./tiktok-top-ads-lane.js').TikTokTopAdsReportView;
+  readonly testReviewSample?: import('./test-review-sample.js').ExactTestReviewContext;
   readonly metric:
     | { readonly packageId: string; readonly workbook: Buffer; readonly measurementPeriod: { readonly startDate: string; readonly endDate: string } }
     | { readonly packageId: string; readonly capture: { readonly snapshot: AutomationMetricWebSnapshotV1; readonly snapshotSha256: string; readonly truncation: { readonly cap: number; readonly totalShown: number | null; readonly pagesRead: number; readonly rowsRead: number; readonly truncated: boolean } };
@@ -351,7 +352,7 @@ export class AutomationReaderReports {
     );
     const at = this.now(), createdAt = at.toISOString(), revisionId = randomUUID();
     const webResults = context.webResults ?? [];
-    const built = await buildMarketReport(data, { limitations, builtOn: builtOn(at), cover, flint: this.options.flint ?? true, webResults, ...(context.webPageTypes ? { webPageTypes: true as const } : {}), ...(capture ? { captureSource: true } : {}), ...(context.searchInterest ? { searchInterest: context.searchInterest } : {}), ...(context.searchGeo ? { searchGeo: context.searchGeo } : {}), ...(context.searchGeoCapture ? { searchGeoCapture: context.searchGeoCapture } : {}), ...(context.worldBank ? { worldBank: context.worldBank } : {}), ...(context.comtrade ? { comtrade: context.comtrade } : {}), ...(context.searchAds ? { searchAds: context.searchAds } : {}), ...(context.officialStats ? { officialStats: context.officialStats } : {}), ...(context.pdfDiscovery ? { pdfDiscovery: context.pdfDiscovery } : {}), ...(context.pdfExcerpts?.length ? { pdfExcerpts: context.pdfExcerpts } : {}), ...(context.sellerVideos ? { sellerVideos: context.sellerVideos } : {}), ...(context.metaAds?.length ? { metaAds: context.metaAds } : {}), ...(context.metaAuto ? { metaAuto: context.metaAuto } : {}), ...(context.tiktokTopAds ? { tiktokTopAds: context.tiktokTopAds } : {}) });
+    const built = await buildMarketReport(data, { limitations, builtOn: builtOn(at), cover, flint: this.options.flint ?? true, webResults, ...(context.webPageTypes ? { webPageTypes: true as const } : {}), ...(capture ? { captureSource: true } : {}), ...(context.searchInterest ? { searchInterest: context.searchInterest } : {}), ...(context.searchGeo ? { searchGeo: context.searchGeo } : {}), ...(context.searchGeoCapture ? { searchGeoCapture: context.searchGeoCapture } : {}), ...(context.worldBank ? { worldBank: context.worldBank } : {}), ...(context.comtrade ? { comtrade: context.comtrade } : {}), ...(context.searchAds ? { searchAds: context.searchAds } : {}), ...(context.officialStats ? { officialStats: context.officialStats } : {}), ...(context.pdfDiscovery ? { pdfDiscovery: context.pdfDiscovery } : {}), ...(context.pdfExcerpts?.length ? { pdfExcerpts: context.pdfExcerpts } : {}), ...(context.sellerVideos ? { sellerVideos: context.sellerVideos } : {}), ...(context.metaAds?.length ? { metaAds: context.metaAds } : {}), ...(context.metaAuto ? { metaAuto: context.metaAuto } : {}), ...(context.tiktokTopAds ? { tiktokTopAds: context.tiktokTopAds } : {}), ...(next && context.testReviewSample ? { testReviewSample: context.testReviewSample } : {}) });
     // Sample charts require Flint; country-background charts retain their explicit SVG fallback.
     assertFlintCharts(built.charts, this.options.flint ?? true);
     // The gate blocks report publication and revision insertion; cover/sidecar artifacts may already be written.
@@ -374,6 +375,7 @@ export class AutomationReaderReports {
       ...(intakeEnvelope ? { unitSpecIntakeSha256: intakeEnvelope.intakeSha256 } : {}),
       workspaceId: context.workspaceId, runId: context.runId, draftPairId: context.draftPairId, metricPackageId: request.metricPackageId,
       requestSha256: requestSha, profileSha256: profile.sha256, input, limitations, webResults: built.webResults,
+      ...(next && context.testReviewSample ? { testReviewSample: context.testReviewSample } : {}),
       defaultMarketPeers: data.defaultMarketPeers,
       cover: stored && request.cover ? { sha256: stored.coverSha256, imageSha256: stored.imageSha256, mime: stored.mime,
         licence: request.cover.licence, credit: request.cover.credit ?? null } : null,
