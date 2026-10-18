@@ -4,9 +4,9 @@
 // `flint: false` is the unit-test opt-out (hand-made SVG, recorded as svg-fallback).
 import type { StepComtrade, StepComtradeRow, StepWorldBankIndicator, StepWorldBankRow } from '../research-automation/model.js';
 import { comtradeRenderableRows, comtradeSideText, COMTRADE_SRC } from '../research-automation/comtrade-lane.js';
-import { worldBankChartSeries, worldBankRenderableRows, worldBankUnitText, WORLD_BANK_SRC, WORLD_BANK_UNKNOWN_UNIT } from '../research-automation/world-bank-lane.js';
+import { formatWorldBankValue, roundWorldBankValue, worldBankChartSeries, worldBankRenderableRows, worldBankUnitText, WORLD_BANK_SRC, WORLD_BANK_UNKNOWN_UNIT } from '../research-automation/world-bank-lane.js';
 import { renderChart, type FlintChartInput, type RenderedChart } from './flint.js';
-import { sp } from './format.js';
+import { esc, sp } from './format.js';
 import { keepOrder } from './market-charts.js';
 import { barChart, lineChart } from './svg-charts.js';
 
@@ -22,7 +22,7 @@ export function macroScale(values: readonly number[]): { readonly divisor: numbe
 const plain = (value: number): string => sp(String(+value.toFixed(3)));
 
 /** Axis and label formats are fixed to grouped plain digits after Flint assembles the spec. */
-const plainNumbers = (spec: any): void => {
+const plainNumbers = (spec: any, exactPointLabels = false): void => {
   const walk = (node: any): void => {
     if (!node || typeof node !== 'object') return;
     for (const channel of ['x', 'y']) {
@@ -31,6 +31,9 @@ const plainNumbers = (spec: any): void => {
     }
     const text = node.encoding?.text;
     if (text?.type === 'quantitative') { text.format = PLAIN_FORMAT; text.formatType = 'number'; }
+    if (exactPointLabels && node.encoding?.y?.field === 'gia_tri') {
+      node.encoding.description = { field: 'mo_ta', type: 'nominal' };
+    }
     for (const value of Object.values(node)) walk(value);
   };
   walk(spec);
@@ -70,22 +73,31 @@ export async function renderWorldBankCharts(value: Parameters<typeof worldBankRe
 }
 
 async function renderWorldBankChart(item: StepWorldBankIndicator, row: StepWorldBankRow, series: NonNullable<ReturnType<typeof worldBankChartSeries>>, flint: boolean): Promise<MacroChart> {
-  const numbers = series.flatMap(point => point.value === null ? [] : [Number(point.value)]);
+  // Round before converting to chart coordinates, using the same exact decimal arithmetic as the table.
+  const rounded = series.map(point => point.value === null ? null : roundWorldBankValue(point.value, row.decimal));
+  const numbers = rounded.flatMap(value => value === null ? [] : [Number(value)]);
   const { divisor, word } = macroScale(numbers);
   const sourceUnit = worldBankUnitText(row, item.code);
   const known = (row.unit !== null && row.unit.trim() !== '') || sourceUnit !== WORLD_BANK_UNKNOWN_UNIT;
   const unit = unitWithScale(word, sourceUnit, known);
   const years = series.map(point => point.year);
-  const values = series.map(point => point.value === null ? null : Number(point.value) / divisor);
-  const fallback = (): string => lineChart(years, [{ name: row.indicatorName, color: '#1d4ed8', values }], { yTitle: `Giá trị (${unit})` });
+  const values = rounded.map(value => value === null ? null : Number(value) / divisor);
+  // Source-precision documents carry exact point labels; the chart engine's six significant digits are only for axis ticks.
+  const labels = row.decimal === undefined ? undefined : rounded.map((value, i) =>
+    value === null ? null : `Năm: ${years[i]}; Giá trị: ${formatWorldBankValue(value)} ${sourceUnit}`);
+  const fallback = (): string => {
+    const svg = lineChart(years, [{ name: row.indicatorName, color: '#1d4ed8', values }], { yTitle: `Giá trị (${unit})` });
+    return labels ? svg.replace(/<circle data-month="([^"]+)"/gu, (tag, year: string) =>
+      `${tag} aria-label="${esc(labels[years.indexOf(year)])}"`) : svg;
+  };
   const meta = { id: `M05.world-bank.${item.code}`, title: `Diễn biến theo năm: ${row.indicatorName}, cả nước Việt Nam`, unit, note: WORLD_BANK_CHART_NOTE, src: WORLD_BANK_SRC };
   if (!flint) return { ...meta, svg: fallback(), engine: 'svg-fallback' };
   return { ...meta, ...await renderChart({
-    data: { values: series.map((point, i) => ({ nam: point.year, gia_tri: values[i] })) },
+    data: { values: series.map((point, i) => ({ nam: point.year, gia_tri: values[i], ...(labels ? { mo_ta: labels[i] } : {}) })) },
     semantic_types: { nam: 'Category', gia_tri: 'Number' },
     field_display_names: { nam: 'Năm', gia_tri: `Giá trị (${unit})` },
     chart_spec: { chartType: 'Line Chart', encodings: { x: 'nam', y: 'gia_tri' }, chartProperties: { showPoints: true }, baseSize: { width: 560, height: 240 } },
-  } as FlintChartInput, fallback, { patch: patches(keepOrder('nam', years), plainNumbers), legend: false }) };
+  } as FlintChartInput, fallback, { patch: patches(keepOrder('nam', years), spec => plainNumbers(spec, labels !== undefined)), legend: false }) };
 }
 
 /** Mirror rows of one year (the year of the first stored mirror row), largest first. */

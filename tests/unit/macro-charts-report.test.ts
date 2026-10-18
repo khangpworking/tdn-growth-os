@@ -145,6 +145,10 @@ test('both Market renderers show source precision, source-name units and a round
     assert.equal((table.textContent!.match(/Các giá trị được làm tròn theo độ chính xác do nguồn công bố\./gu) ?? []).length, 1);
     assert.match(figure(html, 'Hình 5.3')!.text, /triệu người/u);
     assert.match(figure(html, 'Hình 5.4')!.text, /nghìn USD, giá cố định năm 2015/u);
+    for (const [code, expected] of [['NE.CON.PRVT.PC.KD', '2.382 USD, giá cố định năm 2015'], ['SP.POP.TOTL', '101.598.527 người']]) {
+      const points = [...doc.querySelectorAll(`[data-chart-id="M05.world-bank.${code}"] [aria-roledescription="point"]`)];
+      assert.equal(points.at(-1)!.getAttribute('aria-label'), `Năm: 2024; Giá trị: ${expected}`);
+    }
   }
   assert.deepEqual(machineFailures(readerHtml), machineFailures((await reader()).html));
   assert.deepEqual(machineFailures(automationHtml), []);

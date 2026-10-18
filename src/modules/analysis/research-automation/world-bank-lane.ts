@@ -157,9 +157,8 @@ export function worldBankUsage(attempts: readonly WorldBankAttempt[]): {
     credits: { status: 'NONE_USED' } } };
 }
 
-/** "." groups thousands, "," starts the fraction. Optional source precision rounds exact decimal digits half away from zero.
- * Without precision, preserve every digit (old World Bank documents and Comtrade). */
-export function formatWorldBankValue(value: string, decimal?: number): string {
+/** Round exact decimal digits half away from zero; retain the source string when precision is absent. */
+export function roundWorldBankValue(value: string, decimal?: number): string {
   if (decimal !== undefined && Number.isInteger(decimal) && decimal >= 0 && decimal <= 100) {
     const parts = /^(-?)(\d+)(?:\.(\d+))?$/u.exec(value);
     if (parts) {
@@ -170,6 +169,12 @@ export function formatWorldBankValue(value: string, decimal?: number): string {
       value = (magnitude === 0n ? '' : parts[1]!) + (decimal === 0 ? digits : `${digits.slice(0, -decimal)}.${digits.slice(-decimal)}`);
     }
   }
+  return value;
+}
+
+/** "." groups thousands, "," starts the fraction. Without precision, preserve every digit (old documents and Comtrade). */
+export function formatWorldBankValue(value: string, decimal?: number): string {
+  value = roundWorldBankValue(value, decimal);
   const m = /^(-?)(\d+)(?:\.(\d+))?$/u.exec(value);
   if (!m) return value;
   return `${m[1]}${m[2]!.replace(/\B(?=(\d{3})+(?!\d))/gu, '.')}${m[3] ? `,${m[3]}` : ''}`;
