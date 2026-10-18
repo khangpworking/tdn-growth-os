@@ -177,7 +177,7 @@ test('chart points use completed weeks and Vietnamese date ranges without changi
 });
 
 test('week parsing fails closed for invalid dates, unknown labels and an absent retrieval date', () => {
-  const chart = (period: string, retrievedAt: string | null = '2026-10-18T23:59:59Z') =>
+  const chart = (period: string, retrievedAt: string | null = '2026-10-18T16:59:59Z') =>
     searchInterestChartPoints(syntheticSearchInterest({ retrievedAt, points: [{ period, index: 50 }] }));
   assert.deepEqual(chart('12 – 18 thg 10, 2026'), [], 'the ending day has not finished');
   assert.deepEqual(chart('11 – 17 thg 10, 2026'), [{ label: '11–17/10/2026', value: 50 }]);
@@ -185,4 +185,19 @@ test('week parsing fails closed for invalid dates, unknown labels and an absent 
   for (const period of ['unknown', '<img src=x>', '30 thg 2 – 8 thg 3, 2026', '2026-02-30', '1 – 18 thg 10, 2026'])
     assert.deepEqual(chart(period), [], period);
   assert.deepEqual(chart('2025-10-12', null), []);
+});
+
+
+test('completed weeks use the Vietnam retrieval day at midnight and at the year boundary', () => {
+  const points = [{ period: '12 – 18 thg 10, 2026', index: 50 }];
+  const chart = (retrievedAt: string) => searchInterestChartPoints(syntheticSearchInterest({ retrievedAt, points }));
+  assert.deepEqual(chart('2026-10-18T16:59:59.999Z'), [], 'still Sunday in Vietnam');
+  assert.deepEqual(chart('2026-10-18T17:00:00Z'), [{ label: '12–18/10/2026', value: 50 }], 'Monday in Vietnam');
+  assert.deepEqual(chart('2026-10-19T00:00:00+07:00'), chart('2026-10-18T17:00:00Z'));
+  assert.deepEqual(chart('invalid-date'), []);
+  for (const period of ['29 thg 12, 2025 – 4 thg 1, 2026', '29 thg 12 – 4 thg 1, 2026']) {
+    const source = syntheticSearchInterest({ retrievedAt: '2026-01-04T17:00:00Z', points: [{ period, index: 50 }] });
+    assert.deepEqual(searchInterestChartPoints(source), [{ label: '29/12/2025–04/01/2026', value: 50 }]);
+    assert.deepEqual(searchInterestChartPoints({ ...source, retrievedAt: '2026-01-04T16:59:59Z' }), []);
+  }
 });

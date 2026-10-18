@@ -5,7 +5,7 @@ import { lineChart } from './svg-charts.js';
 import { renderChart, type FlintChartInput } from './flint.js';
 import { UNKNOWN_SHOP, marketChartRows, marketShopsUnrecorded, renderMarketCharts, renderSearchInterestChart } from './market-charts.js';
 import { renderComtradeCharts, renderWorldBankCharts, type MacroChart } from './macro-charts.js';
-import { searchInterestChartPoints, searchInterestRenderable, SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_LIMIT, SEARCH_INTEREST_NOTE, SEARCH_INTEREST_SOURCE_LABEL, SEARCH_INTEREST_SRC, SEARCH_INTEREST_UNIT } from '../research-automation/search-interest.js';
+import { SEARCH_INTEREST_EMPTY, searchInterestChartPoints, searchInterestRenderable, SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_LIMIT, SEARCH_INTEREST_NOTE, SEARCH_INTEREST_SOURCE_LABEL, SEARCH_INTEREST_SRC, SEARCH_INTEREST_UNIT } from '../research-automation/search-interest.js';
 import { searchGeoAverageText, searchGeoRenderable, searchGeoText, summarizeSearchGeo, SEARCH_GEO_DONT, SEARCH_GEO_HEADERS, SEARCH_GEO_NOTE, SEARCH_GEO_TABLE_NO, SEARCH_GEO_TABLE_TITLE } from '../research-automation/search-geo.js';
 import { formatWorldBankValue, worldBankRenderableRows, worldBankSourceNote, worldBankTableNote, worldBankUnitText, WORLD_BANK_LIMIT, WORLD_BANK_SOURCE_LABEL, WORLD_BANK_SRC, WORLD_BANK_TITLE } from '../research-automation/world-bank-lane.js';
 import { E12_ATTRIBUTION, E13_ATTRIBUTION, E14_ATTRIBUTION } from '../source-appendix-projection.js';
@@ -191,7 +191,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   sections.push(section('M05', 'Nhu cầu (tín hiệu bán)', 'Nhu cầu, đo bằng doanh số (ước tính) trong mẫu.', salesTable('5.1') +
     (interestChart ? `<p>Kỳ ${period}; nguồn: dữ liệu bán hàng ước tính trên từng sàn. Mức quan tâm tìm kiếm ghi riêng ở Hình 5.2, là chỉ số tương đối, không cộng hay so với số bán.</p>` +
       fig('5.2', SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_UNIT, interestChart.svg, { engine: interestChart.engine, src: SEARCH_INTEREST_SRC, note: SEARCH_INTEREST_NOTE })
-      : `<p>Kỳ ${period}; nguồn: dữ liệu bán hàng ước tính trên từng sàn. Mức quan tâm tìm kiếm ghi riêng, chưa có chuỗi tìm kiếm phù hợp trong bản này.</p>`) + geoBlock + worldBankTable + worldBankFigures + officialTable,
+      : `<p>Kỳ ${period}; nguồn: dữ liệu bán hàng ước tính trên từng sàn. Mức quan tâm tìm kiếm ghi riêng, chưa có chuỗi tìm kiếm phù hợp trong bản này.</p>${next && searchInterestRenderable(options.searchInterest) ? `<p>${esc(SEARCH_INTEREST_EMPTY)}</p>` : ''}`) + geoBlock + worldBankTable + worldBankFigures + officialTable,
     'Số bán hàng ước tính chưa đối chiếu với người bán, chỉ dùng tham khảo. Không suy ra quy mô ngoài mẫu, số người mua, nhu cầu chưa được đáp ứng hay dự báo.' + (interestChart || geoBlock ? ` ${SEARCH_INTEREST_LIMIT}` : '') + (worldBankTable ? ` ${WORLD_BANK_LIMIT}` : '') + (officialRows.length ? ` ${OFFICIAL_STATS_LIMIT}` : '') + (officialStatsProvinceRows(officialStats).length ? ` ${OFFICIAL_STATS_PROVINCE_LIMIT}` : '')));
   // Country-level trade figures sit in M06 as background; the same predicate marks S24 as used. No sums, shares or comparison with the sample.
   const comtrade = next ? options.comtrade : undefined;

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { CitationRegistry } from '../../src/modules/analysis/citation-registry.js';
 import {
   officialStatsCitation, officialStatsProvinceCitation, officialStatsProvinceContext,
   officialStatsProvinceRowLabel, officialStatsRowLabel, officialStatsStatusText,
@@ -47,4 +48,31 @@ test('CPI reader citations contain period and publication date; technical citati
   const technical = officialStatsTechnicalCitation(value, row);
   assert.deepEqual({ file: technical.file, sheet: technical.sheet, row: technical.row }, { file: 'CPI-synthetic.xlsx', sheet: 'Cả nước', row: '14' });
   assert.ok(JSON.parse(technical.locators!).some((item: { sheet: string; cell: string }) => item.sheet === 'Địa phương' && item.cell === 'C11'));
+});
+
+
+test('display casing preserves proper names, abbreviations and Roman numerals in any position', () => {
+  for (const label of ['CPI', 'GDP', 'Chỉ số CPI', 'GDP của Hà Nội', 'Hà Nội', 'TP. Hồ Chí Minh',
+    'HÀ NỘI', 'TP. HỒ CHÍ MINH', 'Quý IV', 'II. CPI VÀ GDP QUÝ IV', 'Nguyên PL dệt, may, giày dép']) {
+    assert.equal(officialStatsRowLabel({ table: 'CPI_WORKBOOK', label }), label);
+    assert.equal(officialStatsProvinceRowLabel(label), label);
+  }
+});
+
+test('file-level citation coalescing retains every national and province locator on the first entry', () => {
+  const value = fullOfficialStats(), registry = new CitationRegistry();
+  const before = JSON.stringify(value);
+  for (const row of value.values) registry.cite({ sourceKind: 'CAPTURE', identity: value.files[0]!.sha256, locator: null,
+    label: officialStatsCitation(value, row), retrievedAt: value.files[0]!.retrievedAt, url: null,
+    quote: null, quoteVerification: 'NOT_APPLICABLE', technical: officialStatsTechnicalCitation(value, row) });
+  for (const row of value.provinces!.values) registry.cite({ sourceKind: 'CAPTURE', identity: value.files[0]!.sha256, locator: null,
+    label: officialStatsProvinceCitation(value, row), retrievedAt: value.files[0]!.retrievedAt, url: null,
+    quote: null, quoteVerification: 'NOT_APPLICABLE', technical: officialStatsTechnicalCitation(value,
+      { captureIndex: value.provinces!.captureIndex, sheet: value.provinces!.sheet!, row: row.row }) });
+  assert.equal(registry.entries().length, 1);
+  assert.equal(registry.entries()[0]!.locatorText, null);
+  const locators = JSON.parse(registry.technicalTrace().entries[0]!.technical.locators!);
+  assert.deepEqual(locators, [...value.values.map(row => ({ sheet: row.sheet, row: row.row, cell: row.cell })),
+    ...value.provinces!.values.map(row => ({ sheet: value.provinces!.sheet, row: row.row, cell: row.cell }))]);
+  assert.equal(JSON.stringify(value), before);
 });

@@ -17,6 +17,9 @@ import { OFFICIAL_STATS_LIMIT, OFFICIAL_STATS_PROVINCE_LIMIT, OFFICIAL_STATS_PRO
 import { assertFlintCharts } from '../../src/modules/analysis/research-automation/reader-report-revisions.js';
 import { buildResearchAutomationReport, type AutomationReportInput } from '../../src/modules/analysis/research-automation/reports.js';
 import { WORLD_BANK_LIMIT, WORLD_BANK_SRC } from '../../src/modules/analysis/research-automation/world-bank-lane.js';
+import { searchInterestChartPoints } from '../../src/modules/analysis/research-automation/search-interest.js';
+import { renderSearchInterestChart } from '../../src/modules/analysis/reader-report/market-charts.js';
+import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { metricFixture } from '../fixtures/metric-scope-synthetic.js';
 import { sync1Options, sync1ReaderFixture } from '../helpers/sync1-reader-fixture.js';
 import { unitPriceFixture } from '../helpers/market-unit-price-fixture.js';
@@ -322,5 +325,53 @@ test('both readers keep CPI row bases and short citations; full source coordinat
   }
   assert.match(automated.traceHtml!.toString(), /CPI-synthetic\.xlsx/u);
   assert.match(automated.traceHtml!.toString(), /Địa phương/u);
+  assert.equal(JSON.stringify(officialStats), before);
+});
+
+
+test('reviewed base reader 1.2/1.3 and reports without a presentation retain their exact bytes', async () => {
+  const { marketPresentation: _presentation, ...input } = await fullMarket14Input();
+  const before = JSON.stringify(input.collection);
+  const hash = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
+  // Captured from eedcb369 using the same synthetic input and chart engines.
+  for (const [version, expected] of [
+    ['1.2.0', 'c45ee04895526bb20d5510f8a6dd1c3de37611e79a83d4ca5c172fe14059edb4'],
+    ['1.3.0', 'b69c7b6d4220598e5a8a1fd53e82cc569d374945c6b95079b408903458838cd8'],
+  ] as const) {
+    const fixture = sync1ReaderFixture(version);
+    if (version === '1.3.0') fixture.peerRule = { ...DEFAULT_MARKET_PEER_RULE };
+    const built = await buildMarketReport(computeReaderReportData(fixture), { ...sync1Options, searchInterest: input.collection!.searchInterest!, searchGeo: input.collection!.searchGeo!,
+      officialStats: input.collection!.officialStats!, worldBank: input.collection!.worldBank!, comtrade: input.collection!.comtrade! });
+    assert.equal(hash(built.html), expected, version);
+  }
+  const legacy = { ...input,
+    searchInterestChart: await renderSearchInterestChart(searchInterestChartPoints(input.collection!.searchInterest!, true)),
+    worldBankCharts: await renderWorldBankCharts(input.collection!.worldBank, { legacy: true }),
+    comtradeCharts: await renderComtradeCharts(input.collection!.comtrade, { legacy: true }) };
+  const report = buildResearchAutomationReport(legacy, 'MARKET');
+  assert.equal(hash(report.html), 'bfdaca277bee00e28b823d042b11dd75846dba38381704d3b0042ca06f5cbab5');
+  assert.equal(hash(canonicalJson(report.semantic)), '89b388819561c90b6082847afb079b85aa911457862ca7d542d5335860c3f8a5');
+  assert.equal(JSON.stringify(input.collection), before, 'retained step document bytes are untouched');
+});
+
+test('technical CPI JSON is escaped and removed completely from owner copy', async () => {
+  const original = fullOfficialStats(), hostile = '</pre><img data-synthetic-probe="x" src="x">&';
+  const sheet = `Bảng giả lập ${hostile}`;
+  const officialStats = { ...original,
+    files: original.files.map(file => ({ ...file, url: `https://www.nso.gov.vn/wp-content/uploads/2026/10/${encodeURIComponent(hostile)}.xlsx` })),
+    values: original.values.map(row => ({ ...row, sheet })),
+    provinces: { ...original.provinces!, sheet } };
+  const before = JSON.stringify(officialStats);
+  const automated = buildResearchAutomationReport(await presentationInput({ officialStats }), 'MARKET');
+  const trace = new JSDOM(automated.traceHtml!.toString()).window.document;
+  assert.equal(trace.querySelector('[data-synthetic-probe]'), null);
+  const technical = [...trace.querySelectorAll('details.evidence-trace pre')].find(node => node.textContent!.includes('locators'))!;
+  assert.ok(technical);
+  assert.equal(JSON.parse(technical.textContent!)[0].sheet, sheet);
+  for (const html of [(await reader({ officialStats }, false)).html, automated.html.toString()]) {
+    const doc = new JSDOM(html).window.document;
+    assert.equal(doc.querySelector('[data-synthetic-probe]'), null);
+    assert.doesNotMatch(doc.body.textContent!, /data-synthetic-probe|locators|\.xlsx/u);
+  }
   assert.equal(JSON.stringify(officialStats), before);
 });

@@ -183,10 +183,11 @@ export const WORLD_BANK_UNKNOWN_UNIT = 'nguồn chưa ghi đơn vị';
 export const worldBankPerPerson = (row: StepWorldBankRow, code?: string): boolean =>
   code === 'NE.CON.PRVT.PC.KD' || /\bper capita\b/iu.test(row.sourceIndicatorName ?? '') || /(?:USD|US\$)\/(?:người|person)/iu.test(row.unit ?? '');
 /** Use only the source's explicit unit or these exact source-name patterns; the Vietnamese display label is never evidence. */
-export function worldBankUnitText(row: StepWorldBankRow, code?: string): string {
+export function worldBankUnitText(row: StepWorldBankRow, code?: string, legacy = false): string {
+  if (legacy && row.unit && row.unit.trim() !== '') return row.unit;
   const name = row.sourceIndicatorName;
   const constant = /\(constant (\d{4}) US\$\)/u.exec(name ?? '');
-  const perPerson = worldBankPerPerson(row, code);
+  const perPerson = !legacy && worldBankPerPerson(row, code);
   if (row.unit && row.unit.trim() !== '') {
     const unit = perPerson ? row.unit.trim().replace(/^(?:USD|US\$)(?:\/(?:người|person))?(?=,|$)/u, 'USD/người') : row.unit;
     if (unit === 'USD/người' && constant) return `${unit}, giá cố định năm ${constant[1]}`;

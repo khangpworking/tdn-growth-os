@@ -80,8 +80,8 @@ import { formatWorldBankValue, worldBankRenderable, worldBankRenderableRows, wor
 import { E13_ATTRIBUTION } from '../source-appendix-projection.js';
 import { withKalodataReplayNotice } from './kalodata-replay.js';
 import { exactTestReviewSample, exactTestReviewSection, exactTestReviewSourceRows, TEST_REVIEW_SOURCE_TYPE } from './test-review-sample.js';
-import { searchInterestReadingPoints, searchInterestRenderable,SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_LIMIT, SEARCH_INTEREST_NOTE, SEARCH_INTEREST_SOURCE_LABEL, SEARCH_INTEREST_SRC, SEARCH_INTEREST_UNIT } from './search-interest.js';
-import { searchGeoAverageText, searchGeoRenderable, searchGeoText, summarizeSearchGeo, SEARCH_GEO_DONT, SEARCH_GEO_HEADERS, SEARCH_GEO_NOTE, SEARCH_GEO_TABLE_NO, SEARCH_GEO_TABLE_TITLE } from './search-geo.js';
+import { SEARCH_INTEREST_EMPTY, searchInterestReadingPoints, searchInterestRenderable,SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_LIMIT, SEARCH_INTEREST_NOTE, SEARCH_INTEREST_SOURCE_LABEL, SEARCH_INTEREST_SRC, SEARCH_INTEREST_UNIT } from './search-interest.js';
+import { LEGACY_SEARCH_GEO_NOTE, searchGeoAverageText, searchGeoRenderable, searchGeoText, summarizeSearchGeo, SEARCH_GEO_DONT, SEARCH_GEO_HEADERS, SEARCH_GEO_NOTE, SEARCH_GEO_TABLE_NO, SEARCH_GEO_TABLE_TITLE } from './search-geo.js';
 
 const reportRequire = createRequire(import.meta.url);
 const { Ajv2020 } = reportRequire('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -1216,7 +1216,8 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   // The stored relative search-interest series sits in the demand section on its own axis, never with sales; the same predicate marks the source as used.
   const searchInterestFigure = (sectionId: string): string => {
     const interest = input.collection?.searchInterest;
-    if (kind !== 'MARKET' || sectionId !== 'M05' || !searchInterestRenderable(interest) || !searchInterestReadingPoints(interest).some(point => point.index !== null)) return '';
+    if (kind !== 'MARKET' || sectionId !== 'M05' || !searchInterestRenderable(interest)) return '';
+    if (marketPresentation && !searchInterestReadingPoints(interest).some(point => point.index !== null)) return `<p>${escape(SEARCH_INTEREST_EMPTY)}</p>`;
     if (!input.searchInterestChart) throw new TypeError('SEARCH_INTEREST_CHART_MISSING');
     const capture = input.captures.find(item => item.stepId === 'COLLECTION' && item.ordinal === interest.captureIndex);
     return `<p>Mức quan tâm tìm kiếm của từ khóa được ghi riêng ở Hình 5.2: chỉ số tương đối, không cộng hay so với số bán.</p><figure class="market-chart"><div class="exh"><span class="exn">Hình 5.2</span> <span class="ext">${escape(SEARCH_INTEREST_FIGURE_TITLE)}</span> <span class="exu">(${escape(SEARCH_INTEREST_UNIT)})</span></div>` +
@@ -1227,13 +1228,13 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   const searchGeoBlock = (sectionId: string): string => {
     const geo = input.collection?.searchGeo;
     if (kind !== 'MARKET' || sectionId !== 'M05' || !searchGeoRenderable(geo)) return '';
-    const summary = summarizeSearchGeo(geo.provinces), text = searchGeoText(summary);
+    const summary = summarizeSearchGeo(geo.provinces), text = searchGeoText(summary, !marketPresentation);
     const capture = input.captures.find(item => item.stepId === 'COLLECTION' && item.ordinal === geo.captureIndex);
     // The visible heading already names the table, so the table and its scroll region carry the name as aria-label, not a second caption.
     return `<div class="table-wrap" role="region" aria-label="${escape(SEARCH_GEO_TABLE_TITLE)}" tabindex="0"><div class="exh"><span class="exn">Bảng ${SEARCH_GEO_TABLE_NO}</span><span class="ext">${escape(SEARCH_GEO_TABLE_TITLE)}</span></div><table aria-label="${escape(SEARCH_GEO_TABLE_TITLE)}">` +
       `<thead><tr>${SEARCH_GEO_HEADERS.map(head => `<th>${escape(head)}</th>`).join('')}</tr></thead><tbody>` +
       summary.regions.map(row => `<tr><td>${escape(row.region)}</td><td>${escape(searchGeoAverageText(row.average))}</td><td>${row.inTop}</td></tr>`).join('') +
-      `</tbody></table><p class="lim"><b>Chú thích:</b> ${escape(SEARCH_GEO_NOTE)}</p><p class="ex-src">Nguồn: ${escape(SEARCH_INTEREST_SRC)}${capture ? captureMark(capture, citations) : ''}</p></div>` +
+      `</tbody></table><p class="lim"><b>Chú thích:</b> ${escape(marketPresentation ? SEARCH_GEO_NOTE : LEGACY_SEARCH_GEO_NOTE)}</p><p class="ex-src">Nguồn: ${escape(SEARCH_INTEREST_SRC)}${capture ? captureMark(capture, citations) : ''}</p></div>` +
       [text.topLine, text.result, text.seen, text.use, text.dont].filter(Boolean).map(line => `<p>${escape(line)}</p>`).join('');
   };
   // Open country-level figures sit beside the sales numbers in the same demand section; the same predicate marks S23 as used.
@@ -1244,7 +1245,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
       '<thead><tr><th>Chỉ số</th><th>Nguồn</th><th>Giá trị</th><th>Năm</th><th>Cập nhật</th><th>Ghi chú của nguồn</th></tr></thead><tbody>' +
       rows.map(item => {
         const capture = input.captures.find(entry => entry.stepId === 'COLLECTION' && entry.ordinal === item.captureIndex);
-        return `<tr><td>${escape(item.row.indicatorName)}</td><td>${escape(E13_ATTRIBUTION)}</td><td>${escape(`${formatWorldBankValue(item.row.value, item.row.decimal)} ${worldBankUnitText(item.row, item.code)}`)}${capture ? captureMark(capture, citations) : ''}</td>` +
+        return `<tr><td>${escape(item.row.indicatorName)}</td><td>${escape(E13_ATTRIBUTION)}</td><td>${escape(`${formatWorldBankValue(item.row.value, item.row.decimal)} ${worldBankUnitText(item.row, item.code, !marketPresentation)}`)}${capture ? captureMark(capture, citations) : ''}</td>` +
           `<td>${escape(item.row.year)}</td><td>${escape(item.row.lastUpdated)}</td><td>${escape(worldBankSourceNote(item.row))}</td></tr>`;
       }).join('') + `</tbody></table><p class="lim"><b>Chú thích:</b> ${escape(worldBankTableNote(rows))} ${escape(WORLD_BANK_LIMIT)}</p><p class="ex-src">Nguồn: ${escape(WORLD_BANK_SRC)}</p></div>` +
       macroFigures(input.worldBankCharts, worldBankChartCount(input.collection?.worldBank), 'WORLD_BANK_CHARTS_MISSING', 5, 3);
@@ -1268,10 +1269,10 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
       `<table><caption>${escape(OFFICIAL_STATS_TABLE_TITLE)}</caption><thead><tr><th>Bảng</th><th>Dòng</th><th>Kỳ</th><th>Giá trị</th><th>Đơn vị</th><th>Trạng thái</th></tr></thead><tbody>` +
       rows.map(row => {
         const capture = input.captures.find(entry => entry.stepId === 'COLLECTION' && entry.ordinal === row.captureIndex);
-        return `<tr><td>${escape(OFFICIAL_STATS_TABLE_TEXT[row.table])}</td><td>${escape(officialStatsRowLabel(row))}</td><td>${escape(row.period)}</td><td>${escape(officialStatsValueText(row))}${capture ? captureMark(capture, citations) : ''}</td>` +
-          `<td>${escape(officialStatsUnitText(row))}</td><td>${escape(officialStatsStatusText(stored, row))}</td></tr>`;
+        return `<tr><td>${escape(OFFICIAL_STATS_TABLE_TEXT[row.table])}</td><td>${escape(officialStatsRowLabel(row, !marketPresentation))}</td><td>${escape(row.period)}</td><td>${escape(officialStatsValueText(row))}${capture ? captureMark(capture, citations) : ''}</td>` +
+          `<td>${escape(officialStatsUnitText(row, !marketPresentation))}</td><td>${escape(officialStatsStatusText(stored, row, !marketPresentation))}</td></tr>`;
       }).join('') + `</tbody></table><p class="lim"><b>Chú thích:</b> ${escape(OFFICIAL_STATS_NOTE)} ${escape(OFFICIAL_STATS_LIMIT)}</p>` +
-      `<p class="ex-src">Nguồn: ${escape(OFFICIAL_STATS_SRC)}; ${rows.map(row => escape(officialStatsCitation(stored, row))).filter((text, i, all) => all.indexOf(text) === i).join('; ')}</p><details class="evidence-trace"><summary>Chi tiết nguồn</summary><pre>${escape(JSON.stringify(rows.map(row => officialStatsTechnicalCitation(stored, row))))}</pre></details></div>` +
+      `<p class="ex-src">Nguồn: ${escape(OFFICIAL_STATS_SRC)}; ${rows.map(row => escape(officialStatsCitation(stored, row, !marketPresentation))).filter((text, i, all) => all.indexOf(text) === i).join('; ')}</p>` + (marketPresentation ? `<details class="evidence-trace"><summary>Chi tiết nguồn</summary><pre>${escape(JSON.stringify(rows.map(row => officialStatsTechnicalCitation(stored, row))))}</pre></details>` : '') + `</div>` +
       officialStatsProvinceTable(stored);
   };
   // S22: CPI by province from the same stored CPI workbook, right after table 5.4 and only when 5.4 is drawn.
@@ -1280,11 +1281,11 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     if (rows.length === 0 || !stored.provinces) return '';
     const sheet = stored.provinces;
     const capture = input.captures.find(entry => entry.stepId === 'COLLECTION' && entry.ordinal === sheet.captureIndex);
-    return `<p>${escape(officialStatsProvinceContext(stored))}</p><div class="table-wrap"><div class="exh"><span class="exn">Bảng 5.5</span><span class="ext">${escape(OFFICIAL_STATS_PROVINCE_TITLE)}</span></div>` +
+    return `<p>${escape(officialStatsProvinceContext(stored, !marketPresentation))}</p><div class="table-wrap"><div class="exh"><span class="exn">Bảng 5.5</span><span class="ext">${escape(OFFICIAL_STATS_PROVINCE_TITLE)}</span></div>` +
       `<table><caption>${escape(OFFICIAL_STATS_PROVINCE_TITLE)}</caption><thead><tr><th>Dòng</th>${sheet.provinces.map(name => `<th>${escape(name)}</th>`).join('')}</tr></thead><tbody>` +
-      rows.map(row => `<tr><td>${escape(officialStatsProvinceRowLabel(row.label, sheet.base))}${capture ? captureMark(capture, citations) : ''}</td>${row.cells.map(cell => `<td>${escape(officialStatsProvinceCellText(cell))}</td>`).join('')}</tr>`).join('') +
+      rows.map(row => `<tr><td>${escape(officialStatsProvinceRowLabel(row.label, sheet.base, !marketPresentation))}${capture ? captureMark(capture, citations) : ''}</td>${row.cells.map(cell => `<td>${escape(officialStatsProvinceCellText(cell))}</td>`).join('')}</tr>`).join('') +
       `</tbody></table><p class="lim"><b>Chú thích:</b> ${escape(OFFICIAL_STATS_PROVINCE_NOTE)} ${escape(OFFICIAL_STATS_PROVINCE_LIMIT)}</p>` +
-      `<p class="ex-src">Nguồn: ${escape(OFFICIAL_STATS_SRC)}; ${rows.map(row => escape(officialStatsProvinceCitation(stored, row))).join('; ')}</p><details class="evidence-trace"><summary>Chi tiết nguồn</summary><pre>${escape(JSON.stringify(rows.map(row => officialStatsTechnicalCitation(stored, { captureIndex: sheet.captureIndex, sheet: sheet.sheet!, row: row.row }))))}</pre></details></div>`;
+      `<p class="ex-src">Nguồn: ${escape(OFFICIAL_STATS_SRC)}; ${rows.map(row => escape(officialStatsProvinceCitation(stored, row, !marketPresentation))).join('; ')}</p>` + (marketPresentation ? `<details class="evidence-trace"><summary>Chi tiết nguồn</summary><pre>${escape(JSON.stringify(rows.map(row => officialStatsTechnicalCitation(stored, { captureIndex: sheet.captureIndex, sheet: sheet.sheet!, row: row.row }))))}</pre></details>` : '') + `</div>`;
   };
   // Country-level trade figures sit in the supply section as background; the same predicate marks S24 as used. Never summed or compared with sample numbers.
   const comtradeTable = (sectionId: string): string => {

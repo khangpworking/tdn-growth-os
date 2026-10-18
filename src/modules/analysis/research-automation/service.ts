@@ -3897,11 +3897,11 @@ export class ResearchAutomationService {
               ...(capture ? { marketCaptureCharts: await renderCaptureCountCharts(captureSampleCounts(capture)) } : {}) };
           }
           const interest = kind === 'MARKET' ? input.collection?.searchInterest : undefined;
-          if (searchInterestRenderable(interest)) input = { ...input, searchInterestChart: await renderSearchInterestChart(searchInterestChartPoints(interest)) };
+          if (searchInterestRenderable(interest)) input = { ...input, searchInterestChart: await renderSearchInterestChart(searchInterestChartPoints(interest, !input.marketPresentation)) };
           // Country-level figures (S23 yearly lines, S24 bars per reporting side), drawn only from stored rows that the tables also show.
           const worldBank = kind === 'MARKET' ? input.collection?.worldBank : undefined, comtrade = kind === 'MARKET' ? input.collection?.comtrade : undefined;
-          if (worldBankChartCount(worldBank) > 0) input = { ...input, worldBankCharts: await renderWorldBankCharts(worldBank) };
-          if (comtradeChartCount(comtrade) > 0) input = { ...input, comtradeCharts: await renderComtradeCharts(comtrade) };
+          if (worldBankChartCount(worldBank) > 0) input = { ...input, worldBankCharts: await renderWorldBankCharts(worldBank, { legacy: !input.marketPresentation }) };
+          if (comtradeChartCount(comtrade) > 0) input = { ...input, comtradeCharts: await renderComtradeCharts(comtrade, { legacy: !input.marketPresentation }) };
           const authoritative = input.qualitativeDraft || input.marketPresentation || input.insightPersona || privateDefault || (kind === 'INSIGHT' && start.reviewCollectionPolicy) ? buildResearchAutomationReport(input, kind) : undefined;
           // The market14 reader drops its technical trace; the same page with the trace is kept as its own hidden artifact for retrieval.
           const traceHtml = kind === 'MARKET' && input.marketPresentation ? authoritative?.traceHtml : undefined;

@@ -174,5 +174,21 @@ test('filtering all dated values leaves no empty search chart in either reader',
   for (const html of [(await reader(interest)).html, draftHtml(await presentationInput(interest))]) {
     const doc = new JSDOM(html).window.document;
     assert.ok([...doc.querySelectorAll('figure')].every(node => !/Hình 5\.2/u.test(node.textContent!)));
+    assert.match(doc.querySelector('#M05, #phan-5')!.textContent!, /Chưa có tuần đã kết thúc có số liệu tìm kiếm/u);
   }
+});
+
+
+test('missing retrieval time withholds the chart and explains the empty state in both readers', async () => {
+  const interest = syntheticSearchInterest({ retrievedAt: null });
+  const before = JSON.stringify(interest);
+  for (const html of [(await reader(interest)).html, draftHtml(await presentationInput(interest, false))]) {
+    const doc = new JSDOM(html).window.document;
+    const section = doc.querySelector('#M05, #phan-5')!;
+    assert.ok([...section.querySelectorAll('figure')].every(node => !/Hình 5\.2/u.test(node.textContent!)));
+    const empty = [...section.querySelectorAll('p')].find(node => /Chưa có tuần đã kết thúc/u.test(node.textContent!));
+    assert.ok(empty, 'the missing search chart has a plain explanation');
+    assert.doesNotMatch(empty.textContent!, /%|\b0\b|Google|SerpApi/u);
+  }
+  assert.equal(JSON.stringify(interest), before);
 });

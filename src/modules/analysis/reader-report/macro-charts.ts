@@ -14,9 +14,10 @@ import { barChart, lineChart } from './svg-charts.js';
 const PLAIN_FORMAT = ',.6~r';
 const SCALES = [[1e9, 'tỷ'], [1e6, 'triệu']] as const;
 /** Values below one million stay unscaled. */
-export function macroScale(values: readonly number[]): { readonly divisor: number; readonly word: string | null } {
+export function macroScale(values: readonly number[], legacy = false): { readonly divisor: number; readonly word: string | null } {
   const max = Math.max(0, ...values.map(Math.abs));
   for (const [divisor, word] of SCALES) if (max >= divisor) return { divisor, word };
+  if (legacy && max >= 1e3) return { divisor: 1e3, word: 'nghìn' };
   return { divisor: 1, word: null };
 }
 const plain = (value: number): string => sp(String(+value.toFixed(3)));
@@ -62,22 +63,22 @@ const unitWithScale = (word: string | null, unit: string, known: boolean): strin
   word === null ? unit : known ? `${word} ${unit}` : `${word}; ${unit}`;
 
 /** One line per collected indicator whose stored window has at least 2 values; indicators without a series draw nothing. */
-export async function renderWorldBankCharts(value: Parameters<typeof worldBankRenderableRows>[0], { flint = true }: { flint?: boolean } = {}): Promise<MacroChart[]> {
+export async function renderWorldBankCharts(value: Parameters<typeof worldBankRenderableRows>[0], { flint = true, legacy = false }: { flint?: boolean; legacy?: boolean } = {}): Promise<MacroChart[]> {
   const out: MacroChart[] = [];
   for (const item of worldBankRenderableRows(value)) {
     const series = worldBankChartSeries(item);
     if (series === null) continue;
-    out.push(separateLabels(await renderWorldBankChart(item, item.row, series, flint)));
+    out.push(separateLabels(await renderWorldBankChart(item, item.row, series, flint, legacy)));
   }
   return out;
 }
 
-async function renderWorldBankChart(item: StepWorldBankIndicator, row: StepWorldBankRow, series: NonNullable<ReturnType<typeof worldBankChartSeries>>, flint: boolean): Promise<MacroChart> {
+async function renderWorldBankChart(item: StepWorldBankIndicator, row: StepWorldBankRow, series: NonNullable<ReturnType<typeof worldBankChartSeries>>, flint: boolean, legacy: boolean): Promise<MacroChart> {
   // Round before converting to chart coordinates, using the same exact decimal arithmetic as the table.
   const rounded = series.map(point => point.value === null ? null : roundWorldBankValue(point.value, row.decimal));
   const numbers = rounded.flatMap(value => value === null ? [] : [Number(value)]);
-  const { divisor, word } = worldBankPerPerson(row, item.code) ? { divisor: 1, word: null } : macroScale(numbers);
-  const sourceUnit = worldBankUnitText(row, item.code);
+  const { divisor, word } = !legacy && worldBankPerPerson(row, item.code) ? { divisor: 1, word: null } : macroScale(numbers, legacy);
+  const sourceUnit = worldBankUnitText(row, item.code, legacy);
   const known = (row.unit !== null && row.unit.trim() !== '') || sourceUnit !== WORLD_BANK_UNKNOWN_UNIT;
   const unit = unitWithScale(word, sourceUnit, known);
   const years = series.map(point => point.year);
@@ -115,8 +116,8 @@ export function comtradeOwnChartRows(value: StepComtrade | null | undefined): St
   return imports && exports ? [imports, exports] : [];
 }
 
-async function bars(meta: Omit<MacroChart, 'svg' | 'engine' | 'error' | 'unit'>, cats: readonly string[], raw: readonly number[], flint: boolean): Promise<MacroChart> {
-  const { divisor, word } = macroScale(raw);
+async function bars(meta: Omit<MacroChart, 'svg' | 'engine' | 'error' | 'unit'>, cats: readonly string[], raw: readonly number[], flint: boolean, legacy: boolean): Promise<MacroChart> {
+  const { divisor, word } = macroScale(raw, legacy);
   const unit = word === null ? 'USD' : `${word} USD`;
   const values = raw.map(v => v / divisor);
   const fallback = (): string => barChart(cats, [{ name: 'Giá trị', values, color: '#0f766e' }], { fmt: plain, xTitle: `Giá trị (${unit})` });
@@ -137,13 +138,13 @@ export const comtradeChartCount = (value: StepComtrade | null | undefined): numb
   (comtradeMirrorChartRows(value).length ? 1 : 0) + (comtradeOwnChartRows(value).length ? 1 : 0);
 
 /** Up to two bar figures (mirror reporters; Việt Nam's own two flows). Each bar is one reporting side's number; nothing is summed. */
-export async function renderComtradeCharts(value: StepComtrade | null | undefined, { flint = true }: { flint?: boolean } = {}): Promise<MacroChart[]> {
+export async function renderComtradeCharts(value: StepComtrade | null | undefined, { flint = true, legacy = false }: { flint?: boolean; legacy?: boolean } = {}): Promise<MacroChart[]> {
   const out: MacroChart[] = [];
   const mirror = comtradeMirrorChartRows(value);
   if (mirror.length) out.push(await bars({ id: 'M06.comtrade.mirror', title: `Hàng xuất sang Việt Nam theo số từng nước tự báo, năm ${mirror[0]!.year}`,
-    note: COMTRADE_MIRROR_NOTE, src: COMTRADE_SRC }, mirror.map(comtradeSideText), mirror.map(row => Number(row.value)), flint));
+    note: COMTRADE_MIRROR_NOTE, src: COMTRADE_SRC }, mirror.map(comtradeSideText), mirror.map(row => Number(row.value)), flint, legacy));
   const own = comtradeOwnChartRows(value);
   if (own.length) out.push(await bars({ id: 'M06.comtrade.own', title: `Nhập khẩu và xuất khẩu theo số Việt Nam tự báo, năm ${own[0]!.year}`,
-    note: COMTRADE_OWN_NOTE, src: COMTRADE_SRC }, ['Nhập khẩu', 'Xuất khẩu'], own.map(row => Number(row.value)), flint));
+    note: COMTRADE_OWN_NOTE, src: COMTRADE_SRC }, ['Nhập khẩu', 'Xuất khẩu'], own.map(row => Number(row.value)), flint, legacy));
   return out;
 }

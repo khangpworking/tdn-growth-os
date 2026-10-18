@@ -21,6 +21,7 @@ export const SEARCH_INTEREST_FIGURE_TITLE = 'Mức quan tâm tìm kiếm theo tu
 export const SEARCH_INTEREST_UNIT = 'chỉ số tương đối 0–100';
 export const SEARCH_INTEREST_SRC = 'Mức quan tâm tìm kiếm đã lưu cho từ khóa của báo cáo, Việt Nam, 12 tháng gần đây.';
 export const SEARCH_INTEREST_NOTE = 'Chỉ số tương đối từ 0 đến 100: 100 là tuần quan tâm cao của chính từ khóa này trong khoảng đã lấy. Không phải số lượt tìm kiếm, không phải doanh số; chỉ so các tuần của cùng chuỗi. Tuần thiếu số để trống.';
+export const SEARCH_INTEREST_EMPTY = 'Chưa có tuần đã kết thúc có số liệu tìm kiếm để hiển thị trong bản này.';
 export const SEARCH_INTEREST_LIMIT = 'Chỉ số tìm kiếm là mức tương đối, chỉ cho từ khóa này; không đo số người tìm và không cộng hay so với số bán.';
 
 export function searchTrendsEnabled(env: Readonly<Record<string, string | undefined>>): boolean {
@@ -126,15 +127,27 @@ function searchWeekLabel({ start, end }: { start: number; end: number }): string
 
 /** Rendering only: retained step bytes and their replay/digest inputs stay unchanged. A week ending today is still in progress. */
 export function searchInterestReadingPoints(value: StepSearchInterest): StepSearchInterestPoint[] {
-  const retrievalDay = value.retrievedAt?.slice(0, 10);
-  if (!retrievalDay) return [];
-  const cutoff = Date.parse(`${retrievalDay}T00:00:00Z`);
+  const retrieved = value.retrievedAt ? Date.parse(value.retrievedAt) : NaN;
+  if (!Number.isFinite(retrieved)) return [];
+  // The source periods are Vietnam calendar days (UTC+7), independent of the host timezone.
+  const cutoff = Math.floor((retrieved + 7 * 60 * 60 * 1000) / DAY) * DAY;
   return value.points.flatMap(point => {
     const week = searchWeek(point.period);
     return week && week.end < cutoff ? [{ period: searchWeekLabel(week), index: point.index }] : [];
   });
 }
 
-export function searchInterestChartPoints(value: StepSearchInterest): { readonly label: string; readonly value: number | null }[] {
+export function searchInterestChartPoints(value: StepSearchInterest, legacy = false): { readonly label: string; readonly value: number | null }[] {
+  // Frozen labels for reports without marketPresentation.
+  if (legacy) {
+    const label = (period: string, withYear: boolean): string => {
+      const iso = /^(\d{4})-(\d{2})-(\d{2})/u.exec(period);
+      return iso ? `${iso[3]}/${iso[2]}${withYear ? `/${iso[1]!.slice(2)}` : ''}` : period;
+    };
+    const unique = (labels: readonly string[]): boolean => new Set(labels).size === labels.length;
+    const short = value.points.map(point => label(point.period, false));
+    const labels = unique(short) ? short : value.points.map(point => label(point.period, true));
+    return value.points.map((point, i) => ({ label: unique(labels) ? labels[i]! : `${labels[i]} (${i + 1})`, value: point.index }));
+  }
   return searchInterestReadingPoints(value).map(point => ({ label: point.period, value: point.index }));
 }
