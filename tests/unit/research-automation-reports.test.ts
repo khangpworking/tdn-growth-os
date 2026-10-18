@@ -575,7 +575,9 @@ test('v18 neutral method identity wording preserves retained input and marker-fr
   const current = buildResearchAutomationReport({ ...input, descriptiveMethods: output,
     start: { ...input.start, sourceEvidenceVersion: 'automation-source-evidence-v1' }, sourceEvidence: packet }, 'MARKET');
   assert.equal((current.semantic as { rendererVersion: string }).rendererVersion, 'automation-report-kit-v18');
-  assert.match(current.html.toString(), /Số đối tượng phân biệt/);
+  // Reader M06 admits supply measures only; a sales row is not relabelled as supply.
+  assert.doesNotMatch(current.html.toString(), /Số đối tượng duy nhất/);
+  assert.match(current.html.toString(), /Chưa có dữ liệu nguồn cung\./);
   assert.match(current.html.toString(), /chưa gộp listing/);
   assert.deepEqual(output.input, retainedInput);
   assert.deepEqual(buildResearchAutomationReport({ ...input, descriptiveMethods: output }, 'MARKET'), legacy);

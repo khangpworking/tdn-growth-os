@@ -171,7 +171,10 @@ function marketReportInput(): Parameters<typeof buildResearchAutomationReport>[0
 }
 
 test('Market HTML hides machine literals in visible text while retaining technical details', () => {
-  const document = new JSDOM(buildResearchAutomationReport(marketReportInput(), 'MARKET').html.toString()).window.document;
+  const input = marketReportInput();
+  const methods = input.descriptiveMethods!;
+  const product = input.run.productCards[0]!;
+  const document = new JSDOM(buildResearchAutomationReport(input, 'MARKET').html.toString()).window.document;
   for (const selector of ['details', 'script', 'style']) document.querySelectorAll(selector).forEach(node => node.remove());
   document.querySelectorAll('td, th').forEach(cell => cell.append(' '));
   const visible = document.body.textContent ?? '';
@@ -191,9 +194,22 @@ test('Market HTML hides machine literals in visible text while retaining technic
   assert.match(visible, /85\.991\.857/);
   assert.match(visible, /Doanh thu chia sản lượng bán theo kỳ/);
   assert.doesNotMatch(visible, /pack\/variant/);
-  assert.match(visible, /ngày ra mắt do nguồn khai báo: 2024-08-31/);
-  assert.match(visible, /Chỉ số nêu: Doanh thu/);
-  assert.match(visible, /Phạm vi quan sát do nguồn khai báo; không phải toàn bộ thị trường\./);
+  assert.match(visible, /Chưa đủ dữ liệu về sự kiện trong kỳ\./);
+  assert.doesNotMatch(document.querySelector('#M09')!.textContent!, /2024-08-31|Chỉ số nêu|Người nêu/);
+  assert.doesNotMatch(document.querySelector('#M05')!.textContent!, /Phạm vi quan sát do nguồn khai báo|Source-declared/);
+
+  // The production descriptive bridge falls back to the source-local ID when
+  // product/detail has no name, while cards are keyed by a qualified product ID.
+  const rawIdMethods = buildDescriptiveMarketMethods({ ...methods.input,
+    m05: methods.input.m05.map(row => ({ ...row, entityLabel: product.sourceProductId })),
+  }, { methodVersion: '1.1.0' }).output;
+  const mapped = new JSDOM(buildResearchAutomationReport({ ...input, descriptiveMethods: rawIdMethods }, 'MARKET').html).window.document;
+  assert.match(mapped.querySelector('#M05')!.textContent!, /Bình giữ nhiệt tổng hợp/);
+  assert.doesNotMatch(mapped.querySelector('#M05')!.textContent!, /Sản phẩm #/);
+  const ambiguous = new JSDOM(buildResearchAutomationReport({ ...input, descriptiveMethods: rawIdMethods,
+    collection: { ...input.collection!, productCards: [product, { ...product, productId: 'metric:sku_101', provider: 'metric', title: 'Bình khác' }] },
+  } as Parameters<typeof buildResearchAutomationReport>[0], 'MARKET').html).window.document;
+  assert.doesNotMatch(ambiguous.querySelector('#M05')!.textContent!, /Bình giữ nhiệt tổng hợp|Bình khác/, 'a bare ID cannot resolve across providers');
 });
 
 test('reader appendix numbers products in order, falls back to run titles and writes dates and zero in words', () => {

@@ -90,6 +90,12 @@ test('full synthetic market14 report is delivered as a reader copy with notes an
   assert.equal(sections.size, 13);
   const body = [...sections.values()].join('');
   const doc = new JSDOM(html).window.document;
+  for (const id of ['M06', 'M07', 'M09']) {
+    assert.equal(doc.querySelector(`#${id} > .section-reading`), null, `${id} uses its concise empty state`);
+    const emptyCopy = [...doc.querySelectorAll(`#${id} > p`)].filter(node => /Chưa (?:có|đủ) dữ liệu/.test(node.textContent!));
+    assert.equal(emptyCopy.length, 1, `${id} has one empty message`);
+    assert.doesNotMatch(emptyCopy[0]!.textContent!, /\b0\b|%/);
+  }
   assert.equal(doc.querySelectorAll('td .interp, th .interp, caption .interp, td .lim, th .lim, caption .lim').length, 0);
   assert.doesNotMatch(visible(body), /\blisting\b|search events/iu);
   assert.match(visible(sections.get('M05')!), /từ 05\/10\/2025 đến 27\/09\/2026/u);
