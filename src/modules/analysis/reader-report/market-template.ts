@@ -23,7 +23,7 @@ import { barChart, lineChart, paretoChart } from './svg-charts.js';
 import { CITATION_FORBIDDEN_NAMES, CitationRegistry, containsTechnicalId, displayCitationUrl } from '../citation-registry.js';
 import { orderReportCitations, renderCitationMark, renderCitationRegister } from '../citation-register-html.js';
 import { DISPLAY_ROUNDED_NOTE, WEB_FAMILY_LABEL, WEB_MONTHLY_METHOD, webMonthlyStats } from './web-facts.js';
-import type { CaptureRecord, ExpandedSearchKind, StepComtrade, StepSearchAds, StepOfficialStats, StepSearchInterest, StepSearchGeo, StepWorldBank } from '../research-automation/model.js';
+import type { CaptureRecord, ExpandedSearchKind, StepComtrade, StepPdfDiscovery, StepSearchAds, StepOfficialStats, StepSearchInterest, StepSearchGeo, StepWorldBank } from '../research-automation/model.js';
 import { WEB_SNIPPET_WITHHELD, WEB_TITLE_WITHHELD, webTextHidden } from '../research-automation/web-page-type.js';
 
 export const MARKET_PRICE_BANDS: readonly (readonly [string, number, number])[] = [
@@ -66,6 +66,8 @@ export type MarketReportOptions = {
   officialStats?: StepOfficialStats;
   /** The run's verified document excerpts (S25); drawn as one small block in the context section of new builds. */
   pdfExcerpts?: readonly PdfExcerpt[];
+  /** Stored S25 attempt, absent when the automatic PDF lane did not run. */
+  pdfDiscovery?: StepPdfDiscovery;
   /** The run's pinned owner/operator video uploads (S02 table, S14 seller speech); drawn in M09 of new builds only. */
   sellerVideos?: SellerVideos;
   /** The run's confirmed Meta ad-library pages (S15); drawn as one table in the competitor section of new builds. */

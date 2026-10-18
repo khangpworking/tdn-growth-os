@@ -14,16 +14,16 @@ import { openDatabase } from '../../src/platform/db/index.js';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/artifact-store.js';
 import { RequestScopedArtifactStore } from '../../src/platform/artifacts/request-scoped-artifact-store.js';
 import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../src/modules/flow/index.js';
-import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
+import { ResearchAutomationService, type ResearchAutomationServiceOptions } from '../../src/modules/analysis/research-automation/service.js';
 import { readerLimitationsFromDraft, type ReaderRowsReader } from '../../src/modules/analysis/research-automation/reader-report-revisions.js';
 import { webSnapshotDigest } from '../../src/modules/analysis/reader-report/web-facts.js';
 import { ReaderMetricRowsError, readerRowsFromMetricWorkbook } from '../../src/modules/analysis/reader-report/metric-rows.js';
 import { DEFAULT_MARKET_PEER_RULE, verifyDefaultMarketPeers } from '../../src/modules/analysis/default-market-peers.js';
-import type { AutomationSourcePort } from '../../src/modules/analysis/research-automation/source-binding.js';
 import { SYNTHETIC_CARD_ID, syntheticProductSource, syntheticWebSource } from '../helpers/research-synthetic-sources.js';
 import { unitPriceFixture } from '../helpers/market-unit-price-fixture.js';
 import { lintVisibleReportText } from '../../src/modules/analysis/report-visible-text-lint.js';
 import { KALODATA_REPLAY_NOTICE_VI } from '../../src/modules/analysis/research-automation/kalodata-replay.js';
+import { PDF_DISCOVERY_MISSING, PDF_DISCOVERY_SOURCE_LABEL } from '../../src/modules/analysis/research-automation/pdf-excerpt.js';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
 const runId = '22222222-2222-4222-8222-222222222222';
@@ -48,7 +48,7 @@ const source = (start = period.startDate) => ({
   platformBreakdown: { shopee: { displayedRevenueVnd: 200 } },
 });
 
-async function readyRun(t: TestContext, rows?: ReaderRowsReader, sources: { source?: AutomationSourcePort; webSource?: AutomationSourcePort } = {}) {
+async function readyRun(t: TestContext, rows?: ReaderRowsReader, sources: Pick<ResearchAutomationServiceOptions, 'source' | 'webSource' | 'pdfDiscoverySource'> = {}) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-reader-report-'));
   const db = openDatabase({ databasePath: path.join(root, 'test.sqlite'), now }).db;
   const artifacts = new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
@@ -78,6 +78,33 @@ async function readyRun(t: TestContext, rows?: ReaderRowsReader, sources: { sour
   assert.equal((await service.getRun(workspaceId, runId)).status, 'DRAFT_READY');
   return { root, db, service, artifacts, build, packageId: prepared.packageId };
 }
+
+test('reader rebuild carries the stored PDF attempt through service context; lane off keeps the original HTML', async t => {
+  const retainedRows = [0, 1, 2].map(i => ({ i, platform: 'shopee' as const, listing: `listing-${i}`, shop: `shop-${i}`,
+    cat: 'Hũ', title: `Hũ thử ${i}`, brand: '(không ghi)', rev: (i + 1) * 100, units: 2, asp: (i + 1) * 50, start: null }));
+  const htmls: string[] = [];
+  for (const lane of [false, true]) {
+    const f = await readyRun(t, () => retainedRows, { source: syntheticProductSource(), webSource: syntheticWebSource(() => {}, []),
+      ...(lane ? { pdfDiscoverySource: {
+        search: async () => { throw new Error('reader off must skip search'); },
+        download: async () => { throw new Error('reader off must skip downloads'); },
+      } } : {}) });
+    const step = f.db.prepare("SELECT result_sha256 sha FROM analysis_research_automation_steps WHERE run_id=? AND step_id='COLLECTION'").get(runId) as { sha: string };
+    const collection = JSON.parse((await f.artifacts.read(step.sha)).toString());
+    assert.equal(collection.pdfDiscovery?.reason, lane ? 'SKIPPED_READER_OFF' : undefined);
+    const units = unitPriceFixture(retainedRows);
+    for (const retained of units.retained) await f.artifacts.put(retained.bytes);
+    const receipt = await f.service.buildReaderReport(workspaceId, runId,
+      f.build('10000000-0000-4000-8000-000000000956', { contractVersion: 'reader-report-build-v1.2', unitPrices: units.packet }), owner);
+    const saved = await f.service.readReaderReport(workspaceId, runId, receipt.revision.revisionId);
+    htmls.push(saved.bytes.toString());
+    assert.deepEqual((await f.service.readReaderReport(workspaceId, runId, receipt.revision.revisionId)).bytes, saved.bytes);
+  }
+  const row = `<tr><td>${PDF_DISCOVERY_SOURCE_LABEL}</td><td>${PDF_DISCOVERY_MISSING}</td></tr>`;
+  assert.equal(htmls[0]!.includes(PDF_DISCOVERY_SOURCE_LABEL), false);
+  assert.equal(htmls[1]!.split(row).length, 2, 'one source-status row reaches the retained reader report');
+  assert.equal(htmls[1]!.replace(row, ''), htmls[0]);
+});
 
 test('reader owner build-v1.2 verifies retained unit prices, publishes findings and replays exact bytes beside old v1', async t => {
   const retainedRows = [0, 1, 2, 3, 4, 5].map(i => ({ i, platform: 'shopee' as const, listing: `listing-${i}`, shop: `shop-${i}`,

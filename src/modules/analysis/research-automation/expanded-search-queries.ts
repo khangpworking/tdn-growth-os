@@ -68,7 +68,7 @@ export interface ExpandedSearchRequest {
   readonly siteDomain: string | null;
   /** Report-keyword mode: the only query is this exact keyword (plain words, validated like a confirmed name); templates are not used. */
   readonly exactKeyword?: string;
-  /** Report-PDF mode (S25): appends the fixed words `báo cáo filetype:pdf` to the exact keyword. Requires `exactKeyword`. */
+  /** Report-PDF mode (S25): fixed market-report template and document-sharing exclusions. Requires a plain `exactKeyword`. */
   readonly fileType?: 'pdf';
 }
 
@@ -111,7 +111,8 @@ export function planExpandedSearch(request: ExpandedSearchRequest): readonly Exp
     : confirmedWords([request.exactKeyword]).slice(0, 1);
   if (request.exactKeyword !== undefined && queries.length !== 1) throw new ProviderInputError('Exact keyword must contain plain words');
   if (request.fileType !== undefined && (request.fileType !== 'pdf' || request.exactKeyword === undefined)) throw new ProviderInputError('File type search needs the exact keyword');
-  const withFileType = (q: string): string => request.fileType === 'pdf' ? `${q} báo cáo filetype:pdf` : q;
+  const withFileType = (q: string): string => request.fileType === 'pdf'
+    ? `báo cáo thị trường ${q} filetype:pdf -site:studocu.vn -site:scribd.com` : q;
   return queries.map(query => ({
     query, requestedWindow, siteDomain,
     parameters: {
