@@ -49,5 +49,10 @@ export function computeNullableReaderMetrics(B: Bundle, input: ReaderReportInput
     const sourceRevenue = input.source!.platformBreakdown[P]!.displayedRevenueVnd;
     set(`src.hl.${P}.rev`, sourceRevenue, 'ty');
     set(`src.${P}.cover`, compatibleRatio(completeSum(all, 'rev') === null ? null : completeSum(all, 'rev')! * 100, sourceRevenue), 'pct');
+    // A filtered-out platform has no sample observations, not observed zero sales.
+    if (input.captureRowPolicy && all.length === 0) {
+      for (const metric of B.m.values()) if (metric.id.startsWith(`${P}.`) || metric.id === `src.${P}.cover`)
+        B.setMissing(metric.id, metric.fmt, metric.desc);
+    }
   }
 }

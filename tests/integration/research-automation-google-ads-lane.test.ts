@@ -658,7 +658,8 @@ test('recovery during discovery never requeues a paid lane', async t => {
     source: syntheticProductSource(), searchAdsSource: lane };
   const worker = new ResearchAutomationService(options);
   const running = worker.processNext();
-  await dispatched;
+  // Fail instead of hanging when the collection finishes without reaching discovery.
+  await Promise.race([dispatched, running.then(() => { throw new Error('discovery was never dispatched'); })]);
   const restarted = new ResearchAutomationService(options);
   await restarted.recoverOnStart();
   assert.equal((await restarted.getRun(workspaceId, autoRunId)).status, 'INTERRUPTED');

@@ -67,6 +67,7 @@ import type { AutomationQualitativeDraft } from '../../../../contracts/analysis/
 import { qualitativeDraftSection, qualitativeDraftSummary } from '../reader-report/qualitative-draft-report.js';
 import { platIcons } from '../reader-report/layout.js';
 import { deliverMarketReader, marketReaderGuide } from './market-reader-delivery.js';
+import { plainCaptureNumbers } from '../reader-report/format.js';
 import { UNKNOWN_SHOP, marketChartRows, marketShopsUnrecorded, type CaptureCountChart, type MarketChart } from '../reader-report/market-charts.js';
 import type { RenderedChart } from '../reader-report/flint.js';
 import { comtradeChartCount, worldBankChartCount, type MacroChart } from '../reader-report/macro-charts.js';
@@ -200,12 +201,17 @@ const metricFailureCopy: Readonly<Record<MetricMethodFailureCode, { explanation:
 const WEB_DISCOVERY_DATASET = 'web_discovery_current';
 const WEB_SOURCE_FAILED_TEXT = 'Nguồn kết quả tìm kiếm trên web không phản hồi kịp hoặc trả về dữ liệu không dùng được; lượt này không dùng kết quả tìm kiếm web.';
 const readerPlatform = (platform: string): string => platform === 'shopee' ? 'Shopee' : platform === 'tiktok' ? 'TikTok Shop' : platform;
+const captureSalesPlatforms = (capture: NonNullable<AutomationMetricMethodSnapshot['capture']>): string[] => capture.platforms
+  .filter(({ platform, result }) => !capture.rowPolicyVersion || result.input.records.length > 0 ||
+    capture.platformHeadlines?.some(figure => figure.platform === platform && figure.revenue.value !== null))
+  .map(value => value.platform);
 /** The appendix source list states what this run actually used, so a missing or failed source is never shown as present. */
 export function marketSourceRows(input: AutomationReportInput, webResultCount: number, webFailed: boolean): readonly (readonly [string, string])[] {
   const capture = input.metricMethods?.capture;
-  const missing = capture ? capture.capture.platforms.filter(platform => !capture.platforms.some(value => value.platform === platform)) : [];
+  const missing = capture ? capture.capture.platforms.filter(platform => !captureSalesPlatforms(capture).includes(platform)) : [];
   const sales = input.metricMethods
-    ? missing.length ? `Dùng một phần: không có số liệu cho ${missing.map(readerPlatform).join(', ')} trong lượt này.` : 'Đã dùng số liệu của lượt này.'
+    ? capture?.rowPolicyVersion && missing.length === capture.capture.platforms.length ? 'Không có số liệu bán hàng dùng được sau khi lọc trong lượt này.'
+      : missing.length ? `Dùng một phần: không có số liệu cho ${missing.map(readerPlatform).join(', ')} trong lượt này.` : 'Đã dùng số liệu của lượt này.'
     : input.metricMethodsFailure ? 'Không dùng được trong lượt này: gói số liệu không qua kiểm tra.' : 'Chưa có trong lượt này.';
   const testSample = exactTestReviewSample(input);
   const trialRows = testSample ? exactTestReviewSourceRows(testSample) : null;
@@ -233,8 +239,8 @@ export function marketSourceRows(input: AutomationReportInput, webResultCount: n
 export function marketSourceTypes(input: AutomationReportInput, webResultCount: number, salesPlatforms: readonly string[]): { used: string[]; missing: string[] } {
   const capture = input.metricMethods?.capture;
   const testSample = exactTestReviewSample(input)?.listings.some(row => row.reviews > 0);
-  const sales = Boolean(input.metricMethods || input.marketPresentation?.input.metric);
-  const present = capture ? capture.platforms.map(value => value.platform as string) : salesPlatforms;
+  const present = capture ? captureSalesPlatforms(capture) : salesPlatforms;
+  const sales = capture?.rowPolicyVersion ? present.length > 0 : Boolean(input.metricMethods || input.marketPresentation?.input.metric);
   const platforms = ['shopee', 'tiktok'].filter(platform => present.includes(platform));
   const lacking = capture ? capture.capture.platforms.filter(platform => !present.includes(platform)) : [];
   const collection = input.collection;
@@ -1355,7 +1361,8 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     const readerPage = orderReportCitations(page.slice(0, start), registry);
     return readerPage + renderCitationRegister(registry.entries(), { format: 'web' }) + page.slice(end);
   };
-  const readerRenderedHtml = marketPresentation ? sanitize(readerCitations(deliverMarketReader(scopedHtml, input.collection?.searchInterest?.points))) : scopedHtml;
+  const deliveredHtml = marketPresentation ? sanitize(readerCitations(deliverMarketReader(scopedHtml, input.collection?.searchInterest?.points))) : scopedHtml;
+  const readerRenderedHtml = kind === 'MARKET' && input.metricMethods?.capture?.rowPolicyVersion ? plainCaptureNumbers(deliveredHtml) : deliveredHtml;
   // Hidden technical copy for retrieval: the same page before reader delivery, trace blocks kept. Never linked from the reader.
   const traceHtml = marketPresentation ? Buffer.from(sanitize(scopedHtml), 'utf8') : undefined;
   // Source appendix v18 also serves existing Market and accepted Insight

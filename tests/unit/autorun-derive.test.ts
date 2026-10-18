@@ -27,7 +27,7 @@ const runPeriod = { startDate: '2025-10-05', endDate: '2026-10-02' };
 
 let nextItem = 1000;
 const row = (name: string, shop: number, revenue: number | string | null, extra: Record<string, unknown> = {}) =>
-  ({ product_base_id: `1__${nextItem++}__${shop}`, product_name: name, shop_base_id: String(shop), revenue_custom: revenue, ...extra });
+  ({ product_base_id: `1__${nextItem++}__${shop}`, product_name: name, shop_base_id: String(shop), revenue_custom: revenue, order_custom: 1, ...extra });
 const raw = (rows: unknown[]) => ({ code: 0, data: { page: 1, list: rows.slice(0, 2) }, more: [{ nested: { items: rows.slice(2) } }] });
 
 test('son keyword picks son, never sơn, sonic or person', () => {
@@ -77,8 +77,8 @@ test('deleted, non-Shopee and duplicate rows are dropped; fewer than five is ret
 });
 
 test('revenue ties break by product_base_id regardless of input order', () => {
-  const a = { product_base_id: '1__300__31', product_name: 'son a', shop_base_id: '31', revenue_custom: '77', brand: 'X1' };
-  const b = { product_base_id: '1__200__32', product_name: 'son b', shop_base_id: '32', revenue_custom: 77, brand: 'X2' };
+  const a = { product_base_id: '1__300__31', product_name: 'son a', shop_base_id: '31', revenue_custom: '77', order_custom: 1, brand: 'X1' };
+  const b = { product_base_id: '1__200__32', product_name: 'son b', shop_base_id: '32', revenue_custom: 77, order_custom: 1, brand: 'X2' };
   const c = { product_base_id: '1__100__33', product_name: 'son c', shop_base_id: '33', revenue_custom: 'n/a', brand: 'X3' };
   const one = pickShopeeLinks([a, b, c], ['son']);
   const two = pickShopeeLinks([c, b, a], ['son']);
@@ -172,4 +172,16 @@ test('sourceContext is plain Vietnamese and names no data provider', () => {
   for (const name of ['metric', 'kalodata', 'tradeint', 'dami', 'apify', 'serpapi', 'opencli', 'fastmoss', 'zen-studio']) {
     assert.ok(!text.toLowerCase().includes(name), name);
   }
+});
+
+
+test('Shopee pick rejects accessories and implausible revenue using the same generic row policy', () => {
+  const rows = [row('Bình giữ nhiệt A', 61, 1000000, { order_custom: 10 }),
+    row('Bình giữ nhiệt B', 62, 2000000, { order_custom: 20 }),
+    row('Bình giữ nhiệt C', 63, 3000000, { order_custom: 30 }),
+    row('Nắp bình giữ nhiệt', 64, 99000000, { order_custom: 1 }),
+    row('Bình giữ nhiệt D', 65, 57200000, { order_custom: 1 }),
+    row('Bình giữ nhiệt E', 66, 5000000, { order_custom: 0 }),
+    row('Bình giữ nhiệt F', 67, 6000000, { order_custom: null })];
+  assert.deepEqual(pickShopeeLinks(raw(rows), ['bình giữ nhiệt']).links.map(link => link.shopId), ['63','62','61']);
 });

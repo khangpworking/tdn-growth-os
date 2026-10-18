@@ -35,6 +35,8 @@ import { createRetainedSchemaCache } from './retained-schema-cache.js';
 import { verifyMetricCaptureArchive, CONTEXT_PATH as CAPTURE_CONTEXT_PATH, DESCRIPTOR_PATH as CAPTURE_DESCRIPTOR_PATH,
   MANIFEST_PATH as CAPTURE_MANIFEST_PATH, SNAPSHOT_PATH as CAPTURE_SNAPSHOT_PATH } from './metric-capture-intake.js';
 
+import { CAPTURE_ROW_PROFILE, readCaptureProductRows, captureRowExclusions, type CaptureRowExclusionReason } from './capture-row-quality.js';
+
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
 const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
@@ -167,6 +169,8 @@ export interface CaptureMetricMethodDetails {
   readonly platforms: readonly CaptureMetricPlatformResult[];
   /** Absent on snapshots frozen before the capture's per-platform figures were read. */
   readonly platformHeadlines?: readonly CaptureMetricPlatformHeadline[];
+  readonly rowPolicyVersion?: typeof CAPTURE_ROW_PROFILE;
+  readonly excludedRows?: readonly (CaptureMetricUnattributedRow & { readonly platform: 'shopee' | 'tiktok'; readonly reason: CaptureRowExclusionReason })[];
   readonly unattributedRows: readonly CaptureMetricUnattributedRow[];
 }
 
@@ -435,17 +439,18 @@ export class AutomationMetricMethodBridge {
     const catalogBytes = await fs.readFile(new URL('../../../../docs/research/report-section-catalog-v1.json', import.meta.url));
     const platformResults: CaptureMetricPlatformResult[] = [];
     for (const platform of verified.snapshot.scope.platforms) {
-      const captureInput = captureMetricInput(verified.snapshot, selected.snapshot.sha256, platform);
+      const captureInput = captureMetricInput(verified.snapshot, selected.snapshot.sha256, platform, CAPTURE_ROW_PROFILE);
       if (!captureInput) continue;
       const result = calculateMetricScopes(captureInput);
       const readiness = captureReadiness(input, result, catalogBytes);
       assertBoundedState(result, readiness);
       platformResults.push({ platform, result });
     }
+    platformResults.sort((a, b) => Number(a.result.input.records.length === 0) - Number(b.result.input.records.length === 0));
     if (platformResults.length === 0) fail('METRIC_SOURCE_INPUT_REJECTED', 'Metric capture contains no attributed platform rows.');
     const primary = platformResults[0]!.result;
     const workspace = await this.#workspaces.readVerifiedWorkspace(input.start.workspaceId);
-    const captureDetails = captureMethodDetails(verified.snapshot, selected, platformResults);
+    const captureDetails = captureMethodDetails(verified.snapshot, selected, platformResults, CAPTURE_ROW_PROFILE);
     const normalized = primary.input;
     const preparation = capturePreparation(input, original, selected, workspace, primary, captureDetails);
     const readiness = captureReadiness(input, primary, catalogBytes, preparation.preparationSha256);
@@ -453,9 +458,7 @@ export class AutomationMetricMethodBridge {
     const files = new Map(original.files.map(file => [file.path, file.bytes]));
     const preparationBytes = text(preparation);
     const normalizedBytes = text(normalized);
-    const receipt = { contractVersion: 'automation-metric-capture-normalization-receipt-v1', inputSha256: primary.inputSha256,
-      sourceSha256: selected.snapshot.sha256, manifestSha256: selected.manifest.sha256, rowCount: normalized.records.length,
-      excludedUnattributedRows: captureDetails.unattributedRows.map(row => row.rowIndex) };
+    const receipt = captureReceipt(selected, primary, captureDetails);
     const receiptBytes = json(receipt);
     const derived = new Map<string, Buffer>([
       [PREPARATION, preparationBytes], [NORMALIZED, normalizedBytes], [RECEIPT, receiptBytes],
@@ -607,7 +610,17 @@ export class AutomationMetricMethodBridge {
         !file(retained, NORMALIZED).bytes.equals(text(result.input)) || !file(retained, READINESS).bytes.equals(json(snapshot.readiness)))
       integrity('Metric capture snapshot differs from its frozen retained bytes.');
     const verified = verifyMetricCaptureArchive(selected.snapshot.bytes, selected.manifest.bytes, { start: input.start });
-    const expectedCapture = captureMethodDetails(verified.snapshot, selected, platformResults);
+    const profile = result.input.profileId;
+    if (profile !== 'automation-metric-capture-v1' && profile !== CAPTURE_ROW_PROFILE) integrity('Unknown capture row profile.');
+    if (profile === CAPTURE_ROW_PROFILE) {
+      const expectedPlatforms = verified.snapshot.scope.platforms.flatMap(platform => {
+        const normalized = captureMetricInput(verified.snapshot, selected.snapshot.sha256, platform, profile);
+        return normalized ? [{ platform, result: calculateMetricScopes(normalized) }] : [];
+      });
+      expectedPlatforms.sort((a, b) => Number(a.result.input.records.length === 0) - Number(b.result.input.records.length === 0));
+      if (!equal(platformResults, expectedPlatforms)) integrity('Capture rows differ from the frozen row policy.');
+    }
+    const expectedCapture = captureMethodDetails(verified.snapshot, selected, platformResults, profile);
     if (!sameCaptureProvenance(snapshot.capture!, expectedCapture))
       integrity('Metric capture provenance or row attribution differs.');
     const workspace = await this.#workspaces.readVerifiedWorkspace(input.start.workspaceId);
@@ -621,9 +634,7 @@ export class AutomationMetricMethodBridge {
     if (!equal(parse(retained, CONFIG), expectedConfig) || !equal(snapshot.limitations, limitationsFor(periodCoverage(input, result)).concat('CAPTURE_RESULTS_PAGE_TOP_N_LIMITED')))
       integrity('Metric capture run configuration differs.');
     const receipt = parse(retained, RECEIPT);
-    if (!equal(receipt, { contractVersion: 'automation-metric-capture-normalization-receipt-v1', inputSha256: result.inputSha256,
-      sourceSha256: selected.snapshot.sha256, manifestSha256: selected.manifest.sha256, rowCount: result.input.records.length,
-      excludedUnattributedRows: expectedCapture.unattributedRows.map(row => row.rowIndex) })) integrity('Metric capture normalization receipt differs.');
+    if (!equal(receipt, captureReceipt(selected, result, expectedCapture))) integrity('Metric capture normalization receipt differs.');
     return snapshot;
   }
 
@@ -772,15 +783,18 @@ const captureText = (value: Value | Text | undefined): string => value && 'text'
 const captureNumber = (value: Value | Text | undefined): number | null => value && 'value' in value && typeof value.value === 'number' && Number.isFinite(value.value) && value.value >= 0 ? value.value : null;
 const captureSyntheticId = (platform: string, title: string, shop: string): string => `synthetic-${digest([platform, title, shop]).slice(0, 40)}`;
 
-function captureMetricInput(snapshot: AutomationMetricWebSnapshotV1, sourceSha256: string, platform: 'shopee' | 'tiktok'): MetricScopeInput | undefined {
+function captureMetricInput(snapshot: AutomationMetricWebSnapshotV1, sourceSha256: string, platform: 'shopee' | 'tiktok', profile = 'automation-metric-capture-v1'): MetricScopeInput | undefined {
   const table = snapshot.groups.W12_topProducts;
   if ('absent' in table) return undefined;
+  const clean = profile === CAPTURE_ROW_PROFILE ? readCaptureProductRows(snapshot) : null;
+  const excluded = clean ? captureRowExclusions(clean, snapshot.scope.keywords) : null;
   const records = table.rows.flatMap((row, index): MetricScopeInput['records'][number][] => {
     const platformText = captureText(captureCell(row, 'platform')).toLowerCase();
     if (platformText !== platform) return [];
-    const title = captureText(captureCell(row, 'name'));
+    if (excluded?.has(index)) return [];
+    const title = clean?.[index]?.title ?? captureText(captureCell(row, 'name'));
     if (!title) return [];
-    const shop = captureText(captureCell(row, 'shop')) || UNKNOWN_SHOP;
+    const shop = (clean?.[index]?.shop ?? captureText(captureCell(row, 'shop'))) || UNKNOWN_SHOP;
     const revenueCell = captureCell(row, 'revenue'), unitsCell = captureCell(row, 'units');
     const observation = (cell: Value | Text | undefined): MetricScopeInput['records'][number]['revenue'] => {
       const value = captureNumber(cell);
@@ -793,15 +807,15 @@ function captureMetricInput(snapshot: AutomationMetricWebSnapshotV1, sourceSha25
     return [{ shopId: shop.slice(0, 300), listingId: captureSyntheticId(platform, title, shop), title: title.slice(0, 1000),
       category: (captureText(captureCell(row, 'category')) || '(trống)').slice(0, 300), source,
       revenue: observation(revenueCell), units: observation(unitsCell), label: null,
-      measurement: { profileId: 'automation-metric-capture-v1', scopeKey: 'all', platform, selection: 'UNSPECIFIED',
+      measurement: { profileId: profile, scopeKey: 'all', platform, selection: 'UNSPECIFIED',
         start: snapshot.scope.period.startDate, end: snapshot.scope.period.endDate, currency: 'VND' } }];
   });
-  if (!records.length) return undefined;
+  if (!records.length && profile !== CAPTURE_ROW_PROFILE) return undefined;
   return { contractVersion: '1.0.0', scope: { key: 'all', platform, selection: 'UNSPECIFIED', start: snapshot.scope.period.startDate,
       end: snapshot.scope.period.endDate, periodBasis: 'Kỳ bộ lọc của results-page capture; giữ nguyên, không tự kéo dài hoặc chia tỷ lệ.', acquiredAt: snapshot.capturedAt },
     sources: [{ sha256: sourceSha256, label: 'Metric results-page capture snapshot', representationRole: 'primary', evidenceFamily: 'metric-results-page-capture',
       provenanceBasis: 'Exact retained results-page snapshot; provider authenticity and market completeness are not independently established.' }], records,
-    profileId: 'automation-metric-capture-v1', labelCodebookVersion: 'capture-no-labels-v1', wideUnknownPolicy: 'exclude' };
+    profileId: profile, labelCodebookVersion: 'capture-no-labels-v1', wideUnknownPolicy: 'exclude' };
 }
 
 function captureSourceFile(role: string, source: VerifiedSourcePackageFile): MetricMethodSourceFile {
@@ -811,9 +825,10 @@ function captureSourceFile(role: string, source: VerifiedSourcePackageFile): Met
 }
 
 function captureReceipt(selected: CaptureSelected, result: MetricScopeOutput, details: CaptureMetricMethodDetails) {
-  return { contractVersion: 'automation-metric-capture-normalization-receipt-v1', inputSha256: result.inputSha256,
+  return { contractVersion: details.rowPolicyVersion ? 'automation-metric-capture-normalization-receipt-v2' : 'automation-metric-capture-normalization-receipt-v1', inputSha256: result.inputSha256,
     sourceSha256: selected.snapshot.sha256, manifestSha256: selected.manifest.sha256, rowCount: result.input.records.length,
-    excludedUnattributedRows: details.unattributedRows.map(row => row.rowIndex) };
+    excludedUnattributedRows: details.unattributedRows.map(row => row.rowIndex),
+    ...(details.rowPolicyVersion ? { rowPolicyVersion: details.rowPolicyVersion, excludedRows: details.excludedRows } : {}) };
 }
 
 function capturePreparation(input: MetricRunInput, original: VerifiedFinalizedSourcePackage, selected: CaptureSelected, workspace: unknown,
@@ -874,17 +889,20 @@ function capturePlatformHeadlines(snapshot: AutomationMetricWebSnapshotV1): Capt
  * as written. Every newly frozen capture must carry the recomputed figures.
  */
 export function sameCaptureProvenance(retained: CaptureMetricMethodDetails, expected: CaptureMetricMethodDetails): boolean {
+  if (expected.rowPolicyVersion !== undefined) return equal(retained, expected);
   const { platformHeadlines: _platformHeadlines, ...legacy } = expected;
   return equal(retained, Object.hasOwn(retained, 'platformHeadlines') ? expected : legacy);
 }
 
-function captureMethodDetails(snapshot: AutomationMetricWebSnapshotV1, selected: CaptureSelected, platformResults: readonly CaptureMetricPlatformResult[]): CaptureMetricMethodDetails {
+function captureMethodDetails(snapshot: AutomationMetricWebSnapshotV1, selected: CaptureSelected, platformResults: readonly CaptureMetricPlatformResult[], profile = 'automation-metric-capture-v1'): CaptureMetricMethodDetails {
   const table = snapshot.groups.W12_topProducts;
   const unattributedRows: CaptureMetricUnattributedRow[] = [];
+  const clean = profile === CAPTURE_ROW_PROFILE ? readCaptureProductRows(snapshot) : null;
   if (!('absent' in table)) for (const [rowIndex, row] of table.rows.entries()) {
     const platform = captureText(captureCell(row, 'platform')).toLowerCase();
     if (platform !== 'shopee' && platform !== 'tiktok') {
-      const title = captureText(captureCell(row, 'name')), shop = captureText(captureCell(row, 'shop')) || UNKNOWN_SHOP;
+      const title = clean?.[rowIndex]?.title ?? captureText(captureCell(row, 'name'));
+      const shop = (clean?.[rowIndex]?.shop ?? captureText(captureCell(row, 'shop'))) || UNKNOWN_SHOP;
       unattributedRows.push({ rowIndex, listingId: captureSyntheticId('unknown', title, shop), title, shop,
         revenue: captureNumber(captureCell(row, 'revenue')) === null ? null : String(captureNumber(captureCell(row, 'revenue'))),
         units: captureNumber(captureCell(row, 'units')) === null ? null : String(captureNumber(captureCell(row, 'units'))) });
@@ -893,7 +911,13 @@ function captureMethodDetails(snapshot: AutomationMetricWebSnapshotV1, selected:
   const verified = verifyMetricCaptureArchive(selected.snapshot.bytes, selected.manifest.bytes);
   return { provenance: 'RESULTS_PAGE_CAPTURE', snapshotSha256: selected.snapshot.sha256, manifestSha256: selected.manifest.sha256,
     contextSha256: selected.context.sha256, descriptorSha256: selected.descriptorFile.sha256,
-    capture: verified.capture, platforms: platformResults, platformHeadlines: capturePlatformHeadlines(verified.snapshot), unattributedRows };
+    capture: verified.capture, platforms: platformResults, platformHeadlines: capturePlatformHeadlines(verified.snapshot), unattributedRows,
+    ...(clean ? { rowPolicyVersion: CAPTURE_ROW_PROFILE, excludedRows: [...captureRowExclusions(clean, snapshot.scope.keywords)].flatMap(([i, reason]) => {
+      const row = clean[i]!;
+      return row.platform !== 'shopee' && row.platform !== 'tiktok' ? [] : [{ rowIndex: row.rowIndex,
+        listingId: captureSyntheticId(row.platform, row.title, row.shop || UNKNOWN_SHOP), title: row.title, shop: row.shop || UNKNOWN_SHOP,
+        revenue: row.revenue === null ? null : String(row.revenue), units: row.units === null ? null : String(row.units), platform: row.platform, reason }];
+    }) } : {}) };
 }
 
 function captureRunConfig(input: MetricRunInput, original: VerifiedFinalizedSourcePackage, selected: CaptureSelected, result: MetricScopeOutput,
@@ -928,6 +952,11 @@ function limitationsFor(coverage: ReturnType<typeof periodCoverage>): string[] {
 function assertBoundedState(result: MetricScopeOutput, readiness: MetricPreparationReadinessResult): void {
   const [all, wide, core] = result.scopes;
   const sections = new Map(readiness.sections.map(section => [section.sectionId, section.state]));
+  // The existing calculator represents an empty input with empty calculated
+  // scopes. The capture readiness still blocks every classified method.
+  if (result.input.profileId === CAPTURE_ROW_PROFILE && result.input.records.length === 0 &&
+      result.scopes.every(scope => scope.listingCount === 0 && scope.revenue.value === null && scope.units.value === null) &&
+      sections.get('M03') === 'BLOCKED' && sections.get('M04') === 'BLOCKED') return;
   if (result.scopes.length !== 3 || all?.key !== 'all' || all.status !== 'CALCULATED' || wide?.key !== 'wide' || wide.status !== 'BLOCKED_LABELS' ||
       core?.key !== 'core' || core.status !== 'BLOCKED_LABELS' || result.comparisons.length !== 0 ||
       result.input.records.some(row => row.label !== null) || result.labelIssues.length !== result.input.records.length ||
