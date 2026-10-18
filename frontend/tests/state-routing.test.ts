@@ -99,3 +99,11 @@ test('demo candidate create and revision are synthetic, isolated, and retain his
   assert.equal(candidate.version,3); assert.equal(candidate.productCandidateVersion,1); assert.equal(candidate.productId,'adult');
   assert.equal(revised.products.find(item=>item.id==='adult')?.candidateVersion,1);
 });
+
+test('bare #/markets opens the market list, and research pages keep the Market menu highlighted', () => {
+  const state = createSeedState();
+  assert.deepEqual(parseRoute('#/markets', state), { kind: 'portfolio' });
+  assert.deepEqual(parseRoute('#/markets/', state), { kind: 'portfolio' });
+  assert.equal(parseRoute('#/markets?x=1', state).kind, 'invalid');
+  assert.equal(parseRoute('#/markets/unknown-market', state).kind, 'invalid');
+});

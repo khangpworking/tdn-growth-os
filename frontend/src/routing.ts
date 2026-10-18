@@ -46,6 +46,7 @@ export function parseRoute(hash: string, state: DemoState): Route {
   } catch {
     return { kind: 'invalid', hash };
   }
+  if (parts.length === 1 && parts[0] === 'markets' && query === undefined) return { kind: 'portfolio' };
   if ((parts.length === 3 || parts.length === 4) && parts[0] === 'markets' && parts[2] === 'research') {
     if (query !== undefined || !parts[1]) return { kind: 'invalid', hash };
     return parts.length === 3
