@@ -67,7 +67,7 @@ import type { AutomationQualitativeDraft } from '../../../../contracts/analysis/
 import { qualitativeDraftSection, qualitativeDraftSummary } from '../reader-report/qualitative-draft-report.js';
 import { platIcons } from '../reader-report/layout.js';
 import { deliverMarketReader, marketReaderGuide } from './market-reader-delivery.js';
-import { marketChartRows, type CaptureCountChart, type MarketChart } from '../reader-report/market-charts.js';
+import { marketChartRows, marketShopsUnrecorded, type CaptureCountChart, type MarketChart } from '../reader-report/market-charts.js';
 import type { RenderedChart } from '../reader-report/flint.js';
 import { comtradeChartCount, worldBankChartCount, type MacroChart } from '../reader-report/macro-charts.js';
 import { pdfExcerptBlockHtml, pdfExcerptReaderCitation, PDF_EXCERPT_NOTE, PDF_EXCERPT_SECTION, PDF_EXCERPT_SRC } from './pdf-excerpt.js';
@@ -1057,8 +1057,11 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
       `<div class="chart flint" data-engine="${escape(chart.engine)}">${chart.svg}</div>` +
       `<p class="lim"><b>Chú thích:</b> ${escape(chart.note)}</p><p class="ex-src">Nguồn: dữ liệu bán hàng đã lưu, chỉ tính trong mẫu.</p></figure>`;
   };
+  // Rows that do not record their shop get no concentration chart; the section says why instead of staying silent.
+  const shopsUnrecorded = (): boolean => marketPresentation !== undefined && marketShopsUnrecorded(marketChartSource(marketPresentation.input.rows, input.metricMethods).rows);
   const presentationCharts = (sectionId: string): string => sectionId === 'M04'
-    ? presentationChart('platform-revenue', '4.1') + presentationChart('concentration', '4.2')
+    ? presentationChart('platform-revenue', '4.1') + (presentationChart('concentration', '4.2') ||
+      (shopsUnrecorded() ? '<p>Không có hình mức tập trung theo gian hàng: nguồn không ghi gian hàng cho từng sản phẩm trong mẫu, nên báo cáo không đếm số gian hàng.</p>' : ''))
     : sectionId === 'M07' ? presentationChart('product-ranking', '7.1') : '';
   // The stored relative search-interest series sits in the demand section on its own axis, never with sales; the same predicate marks the source as used.
   const searchInterestFigure = (sectionId: string): string => {
@@ -1275,7 +1278,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   + `.reader-summary,.section-reading,.reader-guide{max-width:72ch}.reader-context{margin-bottom:24px}.method-reference{margin-top:24px;color:var(--mut)}.method-reference summary{cursor:pointer}.reader-summary{font-weight:500}td,dd{font-variant-numeric:tabular-nums}`
   + `@media(max-width:600px){dl{grid-template-columns:1fr}.sheet{padding:20px}.cover{display:block}.cv-right{background:var(--blue);padding:24px}.cv-left{padding:24px}}@media print{@page{size:A4;margin:14mm}body{background:white}main{padding:0}.cover{min-height:240mm}.toc{gap:4px}.toc a{min-height:0}#sections>.reader-guide+.sheet{break-before:auto}.sh-head{break-after:avoid}.sheet{padding:16px 0;border:0;break-inside:auto}.sheet:after{display:none}.table-wrap{overflow:visible}.table-wrap table{min-width:0}tr{break-inside:avoid}thead{display:table-header-group}.jump{display:none}.sheet h3,.sheet h4,caption,summary{break-after:avoid}thead{break-after:avoid}tbody>tr:first-child{break-before:avoid}details{break-inside:auto}summary+p{break-before:avoid}.limits li{break-inside:avoid}.citation-register a::after{content:" (" attr(href) ")"}.citation-register ol{padding-left:20px}.citation-register li{break-inside:avoid}}${coverArt ? COVER_ART_CSS : ''}${coverQuarter ? '.cv-quarter{margin:14px 0 0;font-size:20px;font-weight:800;color:var(--blue)}.cv-period{margin:6px 0 0;font-size:14px;color:var(--mut)}' : ''}</style></head><body><a class="skip" href="#sections">Đến nội dung báo cáo</a><main><section class="cover"><div class="cv-left"><div class="brand"><i></i><b>TDN GROWTH OS</b></div><div>${coverArt}${coverText}</div><nav class="cv-right" aria-label="Mục lục"><h2>Nội dung</h2><ul class="toc">${sections.map(section => `<li><a href="#${section.sectionId}"><em>${section.sectionId}</em>${escape(section.title)}</a></li>`).join('')}</ul></nav></section><div id="sections">${readerBody}</div>${renderCitationRegister(registry.entries(), { format: 'web' })}<footer><p>${footerText}</p></footer></main></body></html>`;
   const labelledHtml = readerPlainText && kind === 'MARKET' ? marketReaderLabels(html) : html;
-  const scopedHtml = marketPresentation ? labelledHtml.replace('<body', `<body data-market-platforms="${marketPlatforms.join(',')}" data-market-chart-rows="${marketChartRows(chartRows).length}"`) : labelledHtml;
+  const scopedHtml = marketPresentation ? labelledHtml.replace('<body', `<body data-market-platforms="${marketPlatforms.join(',')}" data-market-chart-rows="${marketChartRows(chartRows).length}"${marketShopsUnrecorded(chartRows) ? ' data-market-shops-unrecorded="1"' : ''}`) : labelledHtml;
   // Platform icons and reader labels apply to both copies; only the reader copy drops the trace and gains notes/interpretations.
   const sanitize = (page: string): string => platIcons(page, { shopee: '#c2410c', tiktok: '#1d2327' }, undefined, { compoundPlatformLabels: true }).html
     .replace(/<span class="cite-locator">[^<]*\bSheet1\b[^<]*<\/span>/giu, '').split(/(<[^>]+>)/gu).map((part, index) => index % 2 ? part : part

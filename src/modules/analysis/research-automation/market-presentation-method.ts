@@ -10,6 +10,7 @@ import peerSchema from '../../../../contracts/analysis/default-market-peers.sche
 import type { AutomationMarketPresentationMethod } from '../../../../contracts/analysis/automation-market-presentation-method.generated.js';
 import type { ReaderReportInput } from '../../../../contracts/analysis/reader-report-input.generated.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
+import { UNKNOWN_SHOP } from '../reader-report/market-charts.js';
 import { projectMarketUnitPrices, type RetainedUnitPriceSource } from '../reader-report/market-unit-prices.js';
 import { MAX_JSON_ARTIFACT_BYTES, ResearchAutomationIntegrityError } from './model.js';
 
@@ -67,7 +68,12 @@ export function buildAutomationMarketPresentation(binding: MarketPresentationBin
         evidence: [{ sourceSha256: binding.metric!.resultSha256, locator, label: 'Phép tính mẫu xuất đã lưu' }] });
     };
     const index = metric.scopes.indexOf(all);
-    add('inventory', `Mẫu xuất giữ ${all.listingCount} bản ghi sản phẩm của ${all.shopCount} gian hàng; mỗi bản ghi chưa chứng minh một sản phẩm hoặc biến thể phân biệt.`, `/scopes/${index}`);
+    // Rows without a recorded shop share one placeholder shop id, so a shop count would be wrong: say it is not counted.
+    const noShop = metric.input.records.filter(record => record.shopId === UNKNOWN_SHOP).length;
+    const shops = noShop === 0 ? ` của ${all.shopCount} gian hàng`
+      : noShop === metric.input.records.length ? '; nguồn không ghi gian hàng cho từng bản ghi nên báo cáo không đếm số gian hàng'
+      : `; ${noShop} bản ghi không ghi gian hàng nên báo cáo không đếm số gian hàng`;
+    add('inventory', `Mẫu xuất giữ ${all.listingCount} bản ghi sản phẩm${shops}; mỗi bản ghi chưa chứng minh một sản phẩm hoặc biến thể phân biệt.`, `/scopes/${index}`);
     // One missing member makes a row total undetermined: a sum of only the rows
     // with values is never stated as the sample's demand.
     const revenue = all.revenue.missingCount === 0 ? all.revenue.value : null;

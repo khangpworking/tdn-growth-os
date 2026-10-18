@@ -198,6 +198,19 @@ test('Market 1.4 without monthly web facts still draws the three required charts
   assert.equal(rule11.ok, true, rule11.detail);
 });
 
+test('Market 1.4 rows that record no shop draw no concentration chart, say why, and still pass rule 11', async () => {
+  const x = sync1ReaderFixture('1.4.0');
+  x.peerRule = { ...DEFAULT_MARKET_PEER_RULE };
+  for (const row of x.rows) { row.shop = '(không ghi)'; row.shopName = '(không ghi)'; }
+  const r = await buildMarketReport(computeReaderReportData(x), { ...sync1Options, flint: true });
+  assert.deepEqual(r.charts.filter(c => c.id === 'market.concentration'), []);
+  assert.match(r.html, /data-market-shops-unrecorded="1"/);
+  assert.match(visibleText(r.html), /Không có hình mức tập trung theo gian hàng: nguồn không ghi gian hàng/);
+  assert.doesNotMatch(visibleText(r.html), /Mức tập trung doanh thu theo gian hàng, từng sàn|\b1 gian hàng\b/);
+  const rule11 = auditMarket14(r.html).find(item => item.rule === '11')!;
+  assert.equal(rule11.ok, true, rule11.detail);
+});
+
 test('Market 1.2 (V1 template) draws the three required charts beside its core concentration line, all with Flint', async () => {
   const r = await buildMarketReport(computeReaderReportData(sync1ReaderFixture('1.2.0')), { ...sync1Options, flint: true });
   for (const id of ['m04-pareto', ...REQUIRED_CHARTS]) assert.ok(r.charts.some(c => c.id === id), id);

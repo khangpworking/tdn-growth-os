@@ -17,6 +17,8 @@ const COLOR: Record<MarketChartPlatform, string> = { shopee: '#c2410c', tiktok: 
 const PALETTE: FlintPalette = { san: { Shopee: COLOR.shopee, 'TikTok Shop': COLOR.tiktok } };
 const TOP_GROUPS = [1, 3, 5, 10] as const;
 const RANKED_ROWS = 10;
+/** Shop value of a sales row whose source did not record its shop. */
+export const UNKNOWN_SHOP = '(không ghi)';
 
 /** Rows a chart may use: platforms whose every row has a revenue and whose in-sample total is above zero. */
 export function marketChartRows<R extends MarketChartRow>(rows: readonly R[]): (R & { readonly platform: MarketChartPlatform })[] {
@@ -27,6 +29,14 @@ export function marketChartRows<R extends MarketChartRow>(rows: readonly R[]): (
   }
   return rows.filter((row): row is R & { readonly platform: MarketChartPlatform } => usable.has(row.platform as MarketChartPlatform));
 }
+
+/** Chart platforms whose every row records its shop: only these get a concentration chart. */
+export function concentrationPlatforms(rows: readonly MarketChartRow[]): MarketChartPlatform[] {
+  const usable = marketChartRows(rows);
+  return (['shopee', 'tiktok'] as const).filter(P => usable.some(row => row.platform === P) && usable.every(row => row.platform !== P || row.shop !== UNKNOWN_SHOP));
+}
+/** True when the sample has chartable rows but no platform records its shops, so no concentration chart is drawn. */
+export const marketShopsUnrecorded = (rows: readonly MarketChartRow[]): boolean => marketChartRows(rows).length > 0 && concentrationPlatforms(rows).length === 0;
 
 export const keepOrder = (field: string, order: readonly string[]) => (spec: any): void => {
   const walk = (node: any): void => {
@@ -55,8 +65,12 @@ export async function renderMarketCharts(rows: readonly MarketChartRow[], { flin
   const out: MarketChart[] = [];
 
   // 1. Concentration: share of each platform's in-sample revenue held by its leading shops.
-  const groups = TOP_GROUPS.filter(k => plats.some(P => new Set(usable.filter(row => row.platform === P).map(row => row.shop)).size >= k));
-  const shares = Object.fromEntries(plats.map(P => {
+  // A platform with any row that does not record its shop is left out: its rows
+  // would otherwise count as one shop holding the whole sample.
+  const shopPlats = concentrationPlatforms(rows);
+  const leftOut = plats.filter(P => !shopPlats.includes(P));
+  const groups = TOP_GROUPS.filter(k => shopPlats.some(P => new Set(usable.filter(row => row.platform === P).map(row => row.shop)).size >= k));
+  const shares = Object.fromEntries(shopPlats.map(P => {
     const own = usable.filter(row => row.platform === P), total = own.reduce((s, row) => s + row.rev!, 0);
     const byShop = new Map<string, number>();
     for (const row of own) byShop.set(row.shop, (byShop.get(row.shop) ?? 0) + row.rev!);
@@ -65,15 +79,16 @@ export async function renderMarketCharts(rows: readonly MarketChartRow[], { flin
   })) as Record<MarketChartPlatform, (number | null)[]>;
   const groupLabel = (k: number): string => `${k} gian hàng doanh thu cao`;
   const cats = groups.map(groupLabel);
-  const values = plats.flatMap(P => groups.flatMap((k, j) => shares[P][j] === null ? [] : [{ nhom: groupLabel(k), san: LABEL[P], ty_trong: +shares[P][j]!.toFixed(1) }]));
-  out.push({ id: 'market.concentration', kind: 'concentration', title: 'Mức tập trung doanh thu theo gian hàng, từng sàn', unit: '% doanh thu trong mẫu của từng sàn',
-    note: 'Mỗi sàn tính riêng trên doanh thu trong mẫu của sàn đó; gian hàng sắp theo doanh thu giảm dần. Chỉ phản ánh các gian hàng trong mẫu, không nói về cả thị trường.' + sampleNote,
+  const values = shopPlats.flatMap(P => groups.flatMap((k, j) => shares[P][j] === null ? [] : [{ nhom: groupLabel(k), san: LABEL[P], ty_trong: +shares[P][j]!.toFixed(1) }]));
+  const leftOutNote = leftOut.length ? ` ${leftOut.map(P => LABEL[P]).join(' và ')}: nguồn không ghi gian hàng cho từng sản phẩm nên không tính mức tập trung.` : '';
+  if (shopPlats.length) out.push({ id: 'market.concentration', kind: 'concentration', title: 'Mức tập trung doanh thu theo gian hàng, từng sàn', unit: '% doanh thu trong mẫu của từng sàn',
+    note: 'Mỗi sàn tính riêng trên doanh thu trong mẫu của sàn đó; gian hàng sắp theo doanh thu giảm dần. Chỉ phản ánh các gian hàng trong mẫu, không nói về cả thị trường.' + leftOutNote + sampleNote,
     ...await draw({
       data: { values },
       semantic_types: { nhom: 'Category', san: 'Category', ty_trong: 'Number' },
       field_display_names: { nhom: ' ', san: 'Sàn', ty_trong: 'Tỷ trọng doanh thu trong mẫu (%)' },
       chart_spec: { chartType: 'Grouped Bar Chart', encodings: { y: 'nhom', x: 'ty_trong', group: 'san' }, chartProperties: { showValueLabels: true }, baseSize: { width: 560, height: Math.max(200, cats.length * 44) } },
-    } as FlintChartInput, () => barChart(cats, plats.map(P => ({ name: LABEL[P], values: shares[P].map(v => v ?? 0), color: COLOR[P] })), { fmt: v => one(v) + '%' }), keepOrder('nhom', cats)) });
+    } as FlintChartInput, () => barChart(cats, shopPlats.map(P => ({ name: LABEL[P], values: shares[P].map(v => v ?? 0), color: COLOR[P] })), { fmt: v => one(v) + '%' }), keepOrder('nhom', cats)) });
 
   // 2. Revenue by platform: one labelled bar per platform, never summed across platforms.
   const byPlatform = plats.map(P => ({ san: LABEL[P], doanh_thu: +(usable.filter(row => row.platform === P).reduce((s, row) => s + row.rev!, 0) / 1e6).toFixed(1) }));

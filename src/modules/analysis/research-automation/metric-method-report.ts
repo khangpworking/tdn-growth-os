@@ -3,6 +3,7 @@ import type { AutomationMetricMethodSnapshot, CaptureMetricHeadlineValue, Captur
 import type { AutomationClassifiedMetricSnapshot } from '../../../../contracts/analysis/automation-classified-metric.generated.js';
 import { formatReaderCount, readerProductLabel, readerShopLabel, readerStoredOrJson } from './reader-plain-text.js';
 import { escapeHtml as escape, readerPointer, storedLiteral, type ReportCitations } from './descriptive-report.js';
+import { UNKNOWN_SHOP } from '../reader-report/market-charts.js';
 
 // Presentation only: every amount, membership, ratio and sensitivity below is
 // read from the frozen calculation. Opening a report never recalculates it.
@@ -231,7 +232,9 @@ function captureMetricMethodSection(snapshot: AutomationMetricMethodSnapshot, se
       const rowTotal = (value: Total, unit = ''): string => value.value !== null && value.missingCount > 0
         ? `<strong>chưa xác định</strong> (${missingNote(value)})`
         : `<strong>${number(value.value, unit)}</strong>`;
-      return `<p>Doanh thu quan sát: ${rowTotal(observed.revenue, 'VND')}; sản lượng: ${rowTotal(observed.units)}; ${observed.listingCount} dòng, ${observed.shopCount} gian hàng. ${source(result)}</p>`;
+      // Rows without a recorded shop share one placeholder shop id; their shops are not counted.
+      const shops = result.input.records.some(row => row.shopId === UNKNOWN_SHOP) ? 'nguồn không ghi gian hàng cho từng dòng' : `${observed.shopCount} gian hàng`;
+      return `<p>Doanh thu quan sát: ${rowTotal(observed.revenue, 'VND')}; sản lượng: ${rowTotal(observed.units)}; ${observed.listingCount} dòng, ${shops}. ${source(result)}</p>`;
     }
     const rows = result === null
       ? ' Bảng kết quả có chọn nền tảng này nhưng không có dòng nào gán được cho nền tảng; báo cáo không suy ra và không ghi thành 0.'

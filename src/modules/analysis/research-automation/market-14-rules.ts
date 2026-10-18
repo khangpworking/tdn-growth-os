@@ -273,7 +273,10 @@ export function auditMarket14(html: string, trace?: string, options: { requireFl
   const chartRows = chartRowsMarker !== undefined ? Number(chartRowsMarker)
     : Math.max(0, ...[...text.matchAll(/\bn\s*=\s*(\d+)/gu)].map(match => Number(match[1])));
   const sampleCharts = charts.filter(({ tag }) => !isMacroChartId(attribute(tag, 'data-chart-id') ?? ''));
-  if (chartRows > 0 && sampleCharts.length < 3) chartIssues.push(`only ${sampleCharts.length} of 3 required charts (concentration, revenue by platform, product ranking)`);
+  // Rows that record no shop cannot show concentration: the report must say so in its text, and then two charts suffice.
+  const shopsUnrecorded = /data-market-shops-unrecorded=["']1["']/iu.test(html) && /không ghi gian hàng/iu.test(text);
+  const requiredCharts = shopsUnrecorded ? 2 : 3;
+  if (chartRows > 0 && sampleCharts.length < requiredCharts) chartIssues.push(`only ${sampleCharts.length} of ${requiredCharts} required charts (${shopsUnrecorded ? 'revenue by platform, product ranking; the source records no shop' : 'concentration, revenue by platform, product ranking'})`);
   const iconCounts = { shopee: (text.match(/\bShopee\b/gu) ?? []).length, tiktok: (text.match(/\bTikTok\s+Shop\b/gu) ?? []).length };
   const icons = { shopee: (html.match(/<i\b[^>]*class=["'][^"']*\bpi\s+s\b[^"']*["'][^>]*>/giu) ?? []).length,
     tiktok: (html.match(/<i\b[^>]*class=["'][^"']*\bpi\s+t\b[^"']*["'][^>]*>/giu) ?? []).length };

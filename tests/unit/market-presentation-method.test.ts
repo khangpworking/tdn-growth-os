@@ -127,6 +127,24 @@ test('one missing row makes the sample total undetermined: a partial sum is neve
   assert.ok(!demand.statement.includes(`${shown(unitsAll.revenue.value!)} VND`), demand.statement);
 });
 
+test('rows without a recorded shop are never counted as one shop', () => {
+  const f = fixture();
+  const build = (metric: ReturnType<typeof calculateMetricScopes>) => buildAutomationMarketPresentation(
+    { ...f.binding, metric: { ...f.binding.metric!, resultSha256: marketPresentationDigest(metric) } }, { metric, rows: [], unitSpec: null });
+  const inventory = (metric: ReturnType<typeof calculateMetricScopes>) => build(metric).findings.find(finding => finding.id === 'inventory')!.statement;
+  const none = metricFixture();
+  for (const row of none.records) row.shopId = '(không ghi)';
+  const noneText = inventory(calculateMetricScopes(none));
+  assert.doesNotMatch(noneText, /của \d+ gian hàng/);
+  assert.match(noneText, /nguồn không ghi gian hàng cho từng bản ghi nên báo cáo không đếm số gian hàng/);
+  const some = metricFixture();
+  some.records[0]!.shopId = '(không ghi)';
+  const someText = inventory(calculateMetricScopes(some));
+  assert.doesNotMatch(someText, /của \d+ gian hàng/);
+  assert.match(someText, /; 1 bản ghi không ghi gian hàng nên báo cáo không đếm số gian hàng/);
+  assert.match(inventory(calculateMetricScopes(metricFixture())), /của \d+ gian hàng/);
+});
+
 test('wrong receipt/run/pair/workbook/package and altered bytes fail before projection; replay does not recalculate', () => {
   const f = fixture();
   for (const changed of [

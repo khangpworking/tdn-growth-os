@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { marketChartRows, renderMarketCharts, type MarketChartRow } from '../../src/modules/analysis/reader-report/market-charts.js';
+import { UNKNOWN_SHOP, concentrationPlatforms, marketChartRows, marketShopsUnrecorded, renderMarketCharts, type MarketChartRow } from '../../src/modules/analysis/reader-report/market-charts.js';
 import { marketChartSource } from '../../src/modules/analysis/research-automation/market-presentation-report.js';
 import type { AutomationMetricMethodSnapshot } from '../../src/modules/analysis/research-automation/metric-method-bridge.js';
 
@@ -55,4 +55,27 @@ test('capture rows keep their platform and saved results-table row, and every no
   assert.match(charts[2]!.note, /bảng kết quả tìm kiếm đã lưu/);
   const revenue = charts.find(chart => chart.kind === 'platform-revenue')!;
   assert.doesNotMatch(revenue.svg, />7(?:[.,]0)?</, 'no cross-platform total');
+});
+
+test('capture rows without a recorded shop draw no concentration chart', async () => {
+  const none = marketChartSource([], capture([
+    { platform: 'shopee', records: [{ shop: UNKNOWN_SHOP, revenue: '4000000', row: 0 }, { shop: UNKNOWN_SHOP, revenue: '1000000', row: 1 }] },
+  ]));
+  assert.equal(marketShopsUnrecorded(none.rows), true);
+  const { rows, ...options } = none;
+  assert.deepEqual((await renderMarketCharts(rows, { ...options, flint: false })).map(chart => chart.kind), ['platform-revenue', 'product-ranking']);
+});
+
+test('a platform whose rows record no shop is left out of the concentration chart and named in its note', async () => {
+  const mixed = marketChartSource([], capture([
+    { platform: 'shopee', records: [{ shop: 's1', revenue: '4000000', row: 0 }, { shop: 's2', revenue: '1000000', row: 2 }] },
+    { platform: 'tiktok', records: [{ shop: UNKNOWN_SHOP, revenue: '2000000', row: 1 }] },
+  ]));
+  assert.equal(marketShopsUnrecorded(mixed.rows), false);
+  assert.deepEqual(concentrationPlatforms(mixed.rows), ['shopee']);
+  const { rows, ...options } = mixed;
+  const charts = await renderMarketCharts(rows, { ...options, flint: false });
+  const concentration = charts.find(chart => chart.kind === 'concentration')!;
+  assert.match(concentration.note, /TikTok Shop: nguồn không ghi gian hàng/);
+  assert.doesNotMatch(concentration.svg, /TikTok/);
 });

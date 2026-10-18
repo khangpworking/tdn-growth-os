@@ -3,6 +3,7 @@ import type { AutomationMetricWebSnapshotV1, Table, Value, Text } from '../../..
 import type { ReaderReportInput } from '../../../../contracts/analysis/reader-report-input.generated.js';
 import type { ReaderPlatform } from './build.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
+import { UNKNOWN_SHOP } from './market-charts.js';
 import { ReaderMetricRowsError } from './metric-rows.js';
 
 export type ReaderRow = ReaderReportInput['rows'][number];
@@ -47,7 +48,7 @@ export function readerRowsFromMetricCapture(snapshot: AutomationMetricWebSnapsho
     if (!title) throw new ReaderMetricRowsError('BLANK_TITLE', `groups.W12_topProducts.rows[${i}].name`);
     const platformText = textCell(rowCell(sourceRow, 'platform')).toLowerCase();
     const platform = platformText === 'shopee' || platformText === 'tiktok' || platformText === 'unknown' ? platformText : 'unknown';
-    const shop = textCell(rowCell(sourceRow, 'shop')) || '(không ghi)';
+    const shop = textCell(rowCell(sourceRow, 'shop')) || UNKNOWN_SHOP;
     const rev = numberCell(rowCell(sourceRow, 'revenue'));
     const units = numberCell(rowCell(sourceRow, 'units'));
     if (platform === 'unknown') {
