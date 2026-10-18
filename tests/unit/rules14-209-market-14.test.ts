@@ -182,6 +182,13 @@ test('rule 9 selects whole column headings rather than words inside other headin
   assert.equal(rule(valid.replace('<th>Hạn</th>', '<th>Giới hạn</th>'), '9').ok, false, 'Giới hạn alone is not a deadline heading');
 });
 
+test('rule 9 requires a quick-win task table distinct from the options table', () => {
+  assert.equal(rule(valid.replace('<th>Việc</th>', '<th>Phương án</th>'), '9').ok, false, 'another option heading is not a quick-win task heading');
+  const options = sections[11]!.match(/<table>[\s\S]*?<\/table>/u)![0];
+  const duplicated = valid.replace(/(<h3>Làm ngay[^<]*<\/h3>)<table>[\s\S]*?<\/table>/u, `$1${options}`);
+  assert.equal(rule(duplicated, '9').ok, false, 'duplicating the options cannot replace the quick wins');
+});
+
 test('rule 11 rejects a flint marker with an empty or removed SVG', () => {
   assert.equal(rule(valid.replace(/<svg[\s\S]*?<\/svg>/iu, ''), '11').ok, false, 'removed SVG');
   assert.equal(rule(valid.replace(/<svg[\s\S]*?<\/svg>/iu, '<svg></svg>'), '11').ok, false, 'empty SVG');
