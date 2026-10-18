@@ -126,12 +126,14 @@ test('full synthetic market14 report is delivered as a reader copy with notes an
   assertMarketBusinessGate(html, { presentation: true });
   // Citations still resolve to the register.
   for (const cite of body.matchAll(/href="#(cite-[^"]+)"/gu)) assert.ok(html.includes(`id="${cite[1]}"`), cite[1]);
-  // The hidden trace keeps every removed block.
-  assert.ok((trace.match(/<details/gu) ?? []).length >= 5);
+  // The hidden trace keeps every block reader delivery removed.
+  assert.ok((trace.match(/<details class="evidence-trace"/gu) ?? []).length >= 3);
   assert.match(trace, /Hồ sơ đối chiếu/u);
+  // M13 method declarations never enter the market14 page; they stay in the semantic record.
   const variantRule = input.descriptiveMethods!.input.scope.variantRule;
-  assert.ok(visible(trace).includes(variantRule), 'the removed method declaration is retained verbatim in the trace');
+  assert.ok(JSON.stringify(built.semantic).includes(variantRule), 'the removed method declaration is retained in the semantic record');
   assert.ok(!visible(body).includes(variantRule), 'the technical declaration is hidden from the reader');
+  assert.ok(!visible(trace).includes(variantRule), 'the build drops the declaration before the trace copy');
   assert.doesNotMatch(trace, /<p class="interp">/u);
   assert.doesNotMatch(html, /href="[^"]*trace/iu);
 });
