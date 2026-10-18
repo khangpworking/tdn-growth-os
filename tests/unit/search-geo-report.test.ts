@@ -110,7 +110,8 @@ for (const [keyword, choice] of CASES) {
     for (const rule of ['SEARCH_INTEREST_NOT_COUNT', 'NO_LEAK', 'G08_PROVIDER_NAME', 'PARTIAL_TOTAL_FORBIDDEN', 'U32_NO_CROSS_PLATFORM_TOTAL'])
       assert.equal(gate.find(item => item.rule === rule)!.ok, true, rule);
     assert.doesNotThrow(() => assertMarket14MachineRules(html));
-    const { head } = geoBlock(html);
+    const { head, table } = geoBlock(html);
+    assert.equal(table!.getAttribute('aria-label'), 'Mức quan tâm tìm kiếm theo vùng', 'the table keeps an accessible name without a second caption');
     assert.match(head!.closest('.table-wrap')!.querySelector('.ex-src .cite')!.textContent!, /^\[\d+\]$/u, 'the stored map is cited');
     assert.deepEqual(auditMarket14(html).filter(item => item.kind === 'machine' && !item.ok).map(item => item.rule), []);
   });
