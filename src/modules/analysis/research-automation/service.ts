@@ -189,7 +189,7 @@ import type {
 } from '../../../../contracts/api/research-automation-api.generated.js';
 import type { DiscoveryWorkspaceReader } from '../../../modules/flow/discovery-workspace-reader.js';
 import { canonicalJson } from '../../../modules/foundation/canonical-json.js';
-import { assertKalodataReplayScope, kalodataReplayScopeMatches, withKalodataReplayNotice, KALODATA_REPLAY_MISS, KALODATA_REPLAY_SCOPE_MISMATCH, KALODATA_REPLAY_USAGE_OPERATION, type KalodataReplaySource } from './kalodata-replay.js';
+import { assertKalodataReplayScope, kalodataReplayScopeMatches, KalodataReplayScopeMismatchError, withKalodataReplayNotice, KALODATA_REPLAY_MISS, KALODATA_REPLAY_SCOPE_MISMATCH, KALODATA_REPLAY_USAGE_OPERATION, type KalodataReplaySource } from './kalodata-replay.js';
 import { withDatabaseMutationMutex } from '../../../platform/db/database-mutation-mutex.js';
 import { ContentAddressedArtifactStore, type StoredArtifact } from '../../../platform/artifacts/artifact-store.js';
 import type {
@@ -3200,8 +3200,11 @@ export class ResearchAutomationService {
       const attempt = this.#attempt(queued.attemptId)!;
       const parent = this.#current(attempt.runId);
       if (!parent) throw new ResearchAutomationIntegrityError('Revision source run is missing.');
+      if (this.#replayOutOfScope(attempt.runId)) { await this.#quarantineReplayRun(attempt.runId); return true; }
       return this.#executeReports(parent, signal, attempt);
     }
+    // Replay instance: runs copied in from another database never reach a worker outside the source scope.
+    if (this.#replayOutOfScope(row.runId)) { await this.#quarantineReplayRun(row.runId); return true; }
     if (row.status === 'QUICK_SEARCH_QUEUED') return this.#executeQuick(row, signal);
     if (row.status === 'COLLECTION_QUEUED') return this.#executeCollection(row, signal);
     return this.#executeReports(row, signal);
@@ -3286,7 +3289,7 @@ export class ResearchAutomationService {
       const start = await this.#readStartSnapshot(row.startSha, row.workspaceId);
       // A queued run outside the source run's scope never reaches the providers in replay mode.
       if (this.#kalodataReplay && !kalodataReplayScopeMatches(this.#kalodataReplay, start.keyword, start.requestedPeriod)) {
-        if (!controller.signal.aborted) await this.#stopReplayScopeMismatch(row, stepId);
+        if (!controller.signal.aborted) await this.#quarantineReplayRun(row.runId);
         return true;
       }
       const scope = row.scopeSha ? await this.#readScopeSnapshot(row.scopeSha, row.workspaceId, row.runId) : null;
@@ -4585,19 +4588,32 @@ export class ResearchAutomationService {
     });
   }
 
-  /** Replay instance: a queued run outside the source scope stops without a draft or provider call. */
-  async #stopReplayScopeMismatch(row: RunRow, stepId: SourceStepId): Promise<void> {
+  /** Replay instance: true when the stored run is outside the source run's keyword and period. */
+  #replayOutOfScope(runId: string): boolean {
+    if (!this.#kalodataReplay) return false;
+    const run = this.#db.prepare('SELECT keyword,period_start periodStart,period_end periodEnd FROM analysis_research_automation_runs WHERE run_id=?').get(runId) as { keyword: string; periodStart: string; periodEnd: string } | undefined;
+    return run !== undefined && !kalodataReplayScopeMatches(this.#kalodataReplay, run.keyword, { startDate: run.periodStart, endDate: run.periodEnd });
+  }
+
+  /** Replay instance: refuses any owner action on a run outside the source scope. */
+  assertReplayRunInScope(runId: string): void {
+    if (this.#replayOutOfScope(runId)) throw new KalodataReplayScopeMismatchError(`${KALODATA_REPLAY_SCOPE_MISMATCH}: this run is outside the replay source run keyword and period`);
+  }
+
+  /** Replay instance: a run outside the source scope stops with no further work (steps, report attempts, automatic run). */
+  async #quarantineReplayRun(runId: string): Promise<void> {
     await withDatabaseMutationMutex(this.#db, async () => {
       this.#db.transaction(() => {
-        const current = this.#current(row.runId);
-        const expectedStatus = stepId === 'QUICK_SEARCH' ? 'QUICK_SEARCH_QUEUED' : 'COLLECTION_QUEUED';
-        if (!current || current.status !== expectedStatus) return;
+        const current = this.#current(runId);
+        if (!current) return;
         const at = this.#now().toISOString();
-        const updated = this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='FAILED',message_code=?,finished_at=? WHERE run_id=? AND step_id=? AND state='QUEUED'`).run(KALODATA_REPLAY_SCOPE_MISMATCH, at, row.runId, stepId);
-        if (updated.changes !== 1) return;
-        this.#transition(row.runId, toNumber(current.revision), 'CANCELLED', at);
-        this.#skipPendingSteps(row.runId, at);
-        if (this.#hasAutorunTable()) this.#autorunStop(row.runId, 'CANCELLED', at);
+        if (!TERMINAL_STATUSES.has(current.status)) {
+          this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='FAILED',message_code=?,finished_at=? WHERE run_id=? AND state IN ('QUEUED','RUNNING')`).run(KALODATA_REPLAY_SCOPE_MISMATCH, at, runId);
+          this.#transition(runId, toNumber(current.revision), 'CANCELLED', at);
+          this.#skipPendingSteps(runId, at);
+        }
+        this.#db.prepare(`UPDATE analysis_research_automation_attempts SET state='CANCELLED',finished_at=? WHERE run_id=? AND state IN ('QUEUED','RUNNING')`).run(at, runId);
+        if (this.#hasAutorunTable()) this.#autorunStop(runId, KALODATA_REPLAY_SCOPE_MISMATCH, at);
       })();
     });
   }
@@ -5258,6 +5274,7 @@ export class ResearchAutomationService {
         SELECT 1 FROM research_automation_autorun b WHERE b.phase='CAPTURE' AND b.phase_state='RUNNING'))))
       ORDER BY a.created_at,a.run_id LIMIT 1`).get() as { runId: string; phase: AutorunPhase } | undefined;
     if (!next) return false;
+    if (this.#replayOutOfScope(next.runId)) { await this.#quarantineReplayRun(next.runId); return true; }
     switch (next.phase) {
       case 'CAPTURE': return this.#autorunCapture(next.runId);
       case 'PREPARE': return this.#autorunPrepare(next.runId);

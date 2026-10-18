@@ -570,6 +570,8 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     }
     if (request.method !== method) return fail(response, 405, 'method_not_allowed', 'Method is not supported');
     try {
+      // Replay instance: one gate for every owner action on a stored run; only cancel stays open.
+      if (mutation && runId && action !== 'cancel') writeService!.assertReplayRunInScope(runId);
       if (!mutation) {
         if (!runId) return sendApiJson(response, 200, await readService.listRuns(workspaceId!));
         if (action === 'sources/world-bank') {

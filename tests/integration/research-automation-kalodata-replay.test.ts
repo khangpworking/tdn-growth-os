@@ -288,3 +288,52 @@ test('runs copied into the replay instance outside the source scope cannot be co
   assert.deepEqual(inner, { balance: 0, rank: 0, detail: 0, other: 0 });
   assert.equal(transport.stats.replayed + transport.stats.missed, 0, 'no request reached the replay transport');
 });
+
+test('the replay gate stops copied rendering runs and automatic capture, and refuses owner actions on them', async t => {
+  const { db, artifacts } = await fixture(t);
+  const replay = readKalodataReplaySource(db, sourceRunId);
+  const otherPeriod = { ...period, endDate: '2026-08-28' } as const;
+  const discovery = new DiscoveryWorkspaceService({ db, artifactStore: artifacts, uuid: () => replayWorkspace, now: replayNow });
+  await discovery.createWorkspace({ contractVersion: '1.0.0', workspaceKey: 'replay-gate', title: 'Synthetic copied runs' });
+  const inner: Counts = { balance: 0, rank: 0, detail: 0, other: 0 };
+  const transport = createKalodataReplayTransport(fakeKalodata(inner, replayNow), () => loadKalodataReplayIndex(db, artifacts, sourceRunId));
+  let captures = 0;
+  let nextUuid = 0;
+  const service = (replayMode: boolean) => new ResearchAutomationService({
+    db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discovery), now: replayNow,
+    source: bindResearchAutomationProvider(createResearchAutomationProviderRegistry({ kalodataSecretKey: replayMode ? KALODATA_REPLAY_PLACEHOLDER_KEY : 'synthetic-secret',
+      serpApiKey: null, apifyTokenConfigured: false }, replayMode ? transport : fakeKalodata({ balance: 0, rank: 0, detail: 0, other: 0 }, replayNow)).get('KALODATA')),
+    ...(replayMode ? { kalodataReplay: replay, autoRun: { enabled: true, runner: { enabledEnv: '1', captureRoot: path.join(os.tmpdir(), 'tdn-replay-no-capture') },
+      runCapture: (async () => { captures += 1; throw new Error('capture must not run'); }) as never } } : {}),
+    uuid: () => `77777777-7777-4777-8777-${String(++nextUuid).padStart(12, '0')}`,
+  });
+  const before = service(false);
+  const startRun = async (n: string) => (await before.start(replayWorkspace, { contractVersion: 'research-automation-start-v1', requestKey: `33333333-3333-4333-8333-3333333377${n}`,
+    mode: 'PRODUCT', keyword: 'thermos', requestedPeriod: otherPeriod, reports: ['MARKET'] })).run.runId;
+  const waiting = await startRun('01');
+  const rendering = await startRun('02');
+  for (let step = 0; step < 10 && await before.processNext(); step += 1) { /* quick searches */ }
+  await before.confirmScope(replayWorkspace, rendering, { contractVersion: 'research-automation-confirm-v1', requestKey: '44444444-4444-4444-8444-444444447702',
+    expectedRevision: (await before.getRun(replayWorkspace, rendering)).revision, definition: 'Vietnam thermos source observations',
+    includeTerms: ['thermos'], excludeTerms: [], selectedProductIds: ['kalodata:101'], peerProductIds: [] });
+  for (let step = 0; step < 10 && (await before.getRun(replayWorkspace, rendering)).status !== 'RENDERING' && await before.processNext(); step += 1) { /* collection only */ }
+  assert.equal((await before.getRun(replayWorkspace, rendering)).status, 'RENDERING', 'copied while the report is pending');
+  // An automatic capture copied in while its run waits for scope.
+  const at = replayNow().toISOString();
+  db.prepare(`INSERT INTO research_automation_autorun(run_id,workspace_id,phase,phase_state,capture_dir_key,prepare_request_key,confirm_request_key,revision_request_key,created_at,updated_at)
+    VALUES (?,?,'CAPTURE','QUEUED',?,?,?,?,?,?)`).run(waiting, replayWorkspace, waiting, '55555555-5555-4555-8555-555555557701', '55555555-5555-4555-8555-555555557702', '55555555-5555-4555-8555-555555557703', at, at);
+
+  const replayService = service(true);
+  assert.throws(() => replayService.assertReplayRunInScope(waiting), KalodataReplayScopeMismatchError, 'owner actions on a copied run are refused');
+  assert.doesNotThrow(() => replayService.assertReplayRunInScope(sourceRunId), 'the source scope stays open');
+  assert.doesNotThrow(() => before.assertReplayRunInScope(waiting), 'flag off: no gate');
+  for (let step = 0; step < 10 && await replayService.processNext(); step += 1) { /* drain */ }
+  assert.equal((await replayService.getRun(replayWorkspace, rendering)).status, 'CANCELLED');
+  assert.equal(await outputHtml(db, artifacts, rendering), undefined, 'no draft for a copied run outside the source scope');
+  assert.equal((await replayService.getRun(replayWorkspace, waiting)).status, 'CANCELLED');
+  assert.deepEqual({ ...db.prepare('SELECT phase,stop_code code FROM research_automation_autorun WHERE run_id=?').get(waiting) as object },
+    { phase: 'STOPPED', code: 'KALODATA_REPLAY_SCOPE_MISMATCH' });
+  assert.equal(captures, 0, 'the capture provider was never called');
+  assert.deepEqual(inner, { balance: 0, rank: 0, detail: 0, other: 0 });
+  assert.equal(transport.stats.replayed + transport.stats.missed, 0);
+});
