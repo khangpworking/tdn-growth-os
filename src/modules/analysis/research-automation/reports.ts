@@ -67,7 +67,7 @@ import type { AutomationQualitativeDraft } from '../../../../contracts/analysis/
 import { qualitativeDraftSection, qualitativeDraftSummary } from '../reader-report/qualitative-draft-report.js';
 import { platIcons } from '../reader-report/layout.js';
 import { deliverMarketReader, marketReaderGuide } from './market-reader-delivery.js';
-import { marketChartRows, marketShopsUnrecorded, type CaptureCountChart, type MarketChart } from '../reader-report/market-charts.js';
+import { UNKNOWN_SHOP, marketChartRows, marketShopsUnrecorded, type CaptureCountChart, type MarketChart } from '../reader-report/market-charts.js';
 import type { RenderedChart } from '../reader-report/flint.js';
 import { comtradeChartCount, worldBankChartCount, type MacroChart } from '../reader-report/macro-charts.js';
 import { pdfExcerptBlockHtml, pdfExcerptReaderCitation, PDF_EXCERPT_NOTE, PDF_EXCERPT_SECTION, PDF_EXCERPT_SRC } from './pdf-excerpt.js';
@@ -621,7 +621,12 @@ function defaultPeerSection(snapshot: DefaultMarketPeers, citations: ReportCitat
     ZERO_REVENUE: 'Doanh thu nhóm được nguồn ghi bằng 0; chưa chọn đối thủ.',
     INCOMPLETE: 'Chưa đủ nguồn, doanh thu, nhóm hoặc danh tính để chọn đối thủ.',
   };
-  const frames = snapshot.frames.map(result => {
+  const frames = snapshot.frames.map(stored => {
+    // Older classified capture results can retain the placeholder as a shop.
+    // Keep those frozen bytes verifiable, but do not present an inferred peer
+    // or selected revenue when the group's shop identities are incomplete.
+    const result = stored.members.some(member => member.identity.kind === 'SHOP' && member.identity.key === canonicalJson(['SHOP', UNKNOWN_SHOP]))
+      ? { ...stored, state: 'INCOMPLETE' as const, totalRevenue: null, selectedRevenue: null, selected: [] } : stored;
     const frame = result.frame;
     const platform = frame.platform === 'shopee' ? 'Shopee' : frame.platform === 'tiktok' ? 'TikTok Shop' : storedLiteral(frame.platform, 'Sàn được giữ trong bản lưu');
     const revenue = (value: string): string => readerPlainText ? formatReaderValue(value, { currency: 'VND' }) ?? 'Doanh thu được giữ trong bản lưu' : value;

@@ -6,6 +6,7 @@ import type { NullableRow } from './classify.js';
 import type { Bundle } from './bundle.js';
 import { esc } from './format.js';
 import { n, plat } from './layout.js';
+import { UNKNOWN_SHOP } from './market-charts.js';
 
 /** Uses classified frozen workbook rows. Screen leader tables and quick-search cards never supply memberships. */
 export function readerDefaultPeers(input: ReaderReportInput, rows: NullableRow[]): DefaultMarketPeers | null {
@@ -20,7 +21,7 @@ export function readerDefaultPeers(input: ReaderReportInput, rows: NullableRow[]
       platform: row.platform, sampleKey, group: row.seg ?? null, membership: row.seg === undefined ? 'UNKNOWN' as const : input.profile.core.includes(row.seg) ? 'IN_GROUP' as const : 'OTHER_GROUP' as const,
       period, unit: 'VND' as const, listingId: row.listing, title: row.title, brandLabel: sourceRows.get(row.i)!.brand,
       // Historical workbook conversion uses listing as the shop placeholder when its source link is absent.
-      shopId: row.shop === row.listing ? null : row.shop, shopLabel: row.shopName || row.shop,
+      shopId: row.shop === row.listing || row.shop === UNKNOWN_SHOP ? null : row.shop, shopLabel: row.shopName || row.shop,
       revenue: row.rev === null ? null : String(row.rev),
       source: input.rowLineage === undefined ? null : { sourceSha256: input.rowLineage.sha256, locator: `Sheet1!A${row.i + 2}:T${row.i + 2}` },
     }));

@@ -183,6 +183,7 @@ test('rule 11 accepts only Flint charts and needs all three required charts', ()
   const shopNote = '<p>Không có hình mức tập trung theo gian hàng: nguồn không ghi gian hàng cho từng sản phẩm trong mẫu.</p></body>';
   assert.equal(rule(unrecorded.replace('</body>', shopNote), '11').ok, true, 'no recorded shop, said in the text: two charts suffice');
   assert.equal(rule(unrecorded, '11').ok, false, 'the marker alone does not waive the concentration chart');
+  assert.equal(rule(twoCharts.replace('</body>', shopNote), '11').ok, false, 'visible missing-shop wording alone cannot waive a known-shop report');
   assert.equal(rule(unrecorded.replace(flintChart, '').replace('</body>', shopNote), '11').ok, false, 'two charts are still required');
   const macroFallback = flintChart.replace('data-engine="flint"', 'data-engine="svg-fallback" data-chart-id="M06.comtrade.mirror"');
   assert.equal(rule(valid + macroFallback, '11').ok, true, 'country-background fallback is allowed beside the required Flint charts');

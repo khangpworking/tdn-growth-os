@@ -79,3 +79,16 @@ test('a platform whose rows record no shop is left out of the concentration char
   assert.match(concentration.note, /TikTok Shop: nguồn không ghi gian hàng/);
   assert.doesNotMatch(concentration.svg, /TikTok/);
 });
+
+test('shop waiver requires chartable rows and no platform with complete shop identities', async () => {
+  const row = { i: 0, platform: 'shopee', shop: UNKNOWN_SHOP, rev: 10 };
+  for (const rows of [[], [{ ...row, rev: null }], [{ ...row, rev: 0 }], [{ ...row, platform: 'unknown' }], [{ ...row, shop: 'recorded' }]]) {
+    assert.equal(marketShopsUnrecorded(rows), false);
+  }
+  const partial = [row, { ...row, i: 1, shop: 'recorded' }];
+  assert.deepEqual(concentrationPlatforms(partial), [], 'one missing identity invalidates the whole platform denominator');
+  assert.ok(!(await renderMarketCharts(partial, { flint: false })).some(chart => chart.kind === 'concentration'));
+  const mixed = [...partial, { ...row, i: 2, platform: 'tiktok', shop: 'other' }];
+  assert.equal(marketShopsUnrecorded(mixed), false);
+  assert.deepEqual(concentrationPlatforms(mixed), ['tiktok']);
+});
