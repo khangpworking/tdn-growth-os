@@ -189,6 +189,7 @@ import type {
 } from '../../../../contracts/api/research-automation-api.generated.js';
 import type { DiscoveryWorkspaceReader } from '../../../modules/flow/discovery-workspace-reader.js';
 import { canonicalJson } from '../../../modules/foundation/canonical-json.js';
+import { assertKalodataReplayScope, withKalodataReplayNotice, KALODATA_REPLAY_MISS, KALODATA_REPLAY_USAGE_OPERATION, type KalodataReplaySource } from './kalodata-replay.js';
 import { withDatabaseMutationMutex } from '../../../platform/db/database-mutation-mutex.js';
 import { ContentAddressedArtifactStore, type StoredArtifact } from '../../../platform/artifacts/artifact-store.js';
 import type {
@@ -296,6 +297,8 @@ export interface ResearchAutomationReportInput {
   readonly boundedMethods?: AutomationBoundedMethodSnapshot;
   readonly quoteMethods?: AutomationQuoteMethodSnapshot;
   readonly metricMethodsFailure?: MetricMethodFailureCode;
+  /** Replay test instance only: the report carries a visible test notice. Absent in production. */
+  readonly kalodataReplayNotice?: true;
 }
 /** Alias retained for the report module's public renderer signature. */
 export type AutomationReportInput = ResearchAutomationReportInput;
@@ -390,6 +393,8 @@ export interface ResearchAutomationServiceOptions {
   /** Optional extra searches (dated and per-marketplace), at most three paid requests per collection; absent keeps every stored byte. */
   readonly expandedSource?: ExpandedSearchSource;
   readonly renderer?: ResearchAutomationReportRenderer;
+  /** Replay test instance only (TDN_RESEARCH_KALODATA_REPLAY_SOURCE_RUN_ID). Absent keeps every stored byte unchanged. */
+  readonly kalodataReplay?: KalodataReplaySource;
   readonly now?: () => Date;
   readonly uuid?: () => string;
   readonly actorId?: string;
@@ -557,6 +562,7 @@ export class ResearchAutomationService {
   readonly #pdfCaptureMaxPages: number;
   readonly #expandedSource: ExpandedSearchSource | undefined;
   readonly #renderer: ResearchAutomationReportRenderer | undefined;
+  readonly #kalodataReplay: KalodataReplaySource | undefined;
   readonly #now: () => Date;
   readonly #uuid: () => string;
   readonly #actorId: string;
@@ -619,6 +625,7 @@ export class ResearchAutomationService {
     this.#pdfCaptureMaxPages = pdfDiscoveryMaxPages(options.pdfCaptureMaxPages === undefined ? process.env : { [PDF_DISCOVERY_MAX_PAGES_ENV]: String(options.pdfCaptureMaxPages) });
     this.#expandedSource = options.expandedSource;
     this.#renderer = options.renderer;
+    this.#kalodataReplay = options.kalodataReplay;
     this.#pageIndex = options.pageIndex;
     this.#sourceEvidence = options.sourceEvidence;
     this.#now = options.now ?? (() => new Date());
@@ -1233,6 +1240,7 @@ export class ResearchAutomationService {
   async start(workspaceId: string, value: unknown): Promise<ResearchAutomationMutationReceipt> {
     const input = validateStart(value);
     assertUuid(workspaceId);
+    if (this.#kalodataReplay) assertKalodataReplayScope(this.#kalodataReplay, input.keyword, input.requestedPeriod);
     await this.#readWorkspace(workspaceId);
     const requestSha = digest({ kind: 'START', workspaceId, input });
     return withDatabaseMutationMutex(this.#db, async () => {
@@ -3802,6 +3810,7 @@ export class ResearchAutomationService {
         if (marketCover) input = { ...input, marketCover: { mime: 'image/jpeg', base64: marketCover.bytes.toString('base64'),
           alt: marketCoverAlt(start.keyword, marketCover.record.provenance), provenance: marketCover.record.provenance,
           model: marketCover.record.model, width: marketCover.record.width, height: marketCover.record.height } };
+        if (this.#kalodataReplay) input = { ...input, kalodataReplayNotice: true };
         const render = async () => {
           const privateDefault = kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v5';
           const privateRendererVersion = input.qualitativeDraft ? 'automation-report-kit-v28' : input.insightPersona ? 'automation-report-kit-v26' : privateDefault ? 'automation-report-kit-v25'
@@ -4505,7 +4514,9 @@ export class ResearchAutomationService {
         const outcome = aborted || signal?.aborted || result?.status === 'CANCELLED' || webResult?.status === 'CANCELLED' || trendsResult?.status === 'CANCELLED' || expandedCalled.some(item => item.result.status === 'CANCELLED') || current.status === 'CANCELLING' ? 'CANCELLED' : step.outcome;
         const code = outcome === 'CANCELLED' ? 'CANCELLED_DURING_PROVIDER_OPERATION' : outcome === 'UNAVAILABLE' ? 'PROVIDER_NOT_CONFIGURED' : outcome === 'FAILED'
           ? step.limitations.some(value => value.code === 'PROVIDER_OUTPUT_INVALID') ? 'PROVIDER_OUTPUT_INVALID'
-            : step.limitations.some(value => value.code === 'PROVIDER_CREDIT_EXHAUSTED') ? 'PROVIDER_CREDIT_EXHAUSTED' : 'PROVIDER_FAILED' : null;
+            : step.limitations.some(value => value.code === 'PROVIDER_CREDIT_EXHAUSTED') ? 'PROVIDER_CREDIT_EXHAUSTED'
+            : step.limitations.some(value => value.code === KALODATA_REPLAY_MISS) ? KALODATA_REPLAY_MISS : 'PROVIDER_FAILED'
+          : outcome === 'PARTIAL' && step.limitations.some(value => value.code === KALODATA_REPLAY_MISS) ? KALODATA_REPLAY_MISS : null;
         const finished = this.#now().toISOString();
         this.#db.prepare(`UPDATE analysis_research_automation_steps SET state=?,message_code=?,result_sha256=?,finished_at=? WHERE run_id=? AND step_id=? AND state='RUNNING'`)
           .run(outcome, code, resultArtifact.sha256, finished, runId, stepId);
@@ -4575,8 +4586,15 @@ export class ResearchAutomationService {
     const provider = result.provider.toLowerCase();
     // Usage is an aggregate across the provider call; attributing it to the
     // first capture would mislabel a credit-balance request as the run cost.
-    const operation = 'provider.run';
     const usage = result.usage;
+    // Replay test instance: no live sales-data request was made, so the call is labelled
+    // as replayed with a known zero cost instead of an account balance delta.
+    if (this.#kalodataReplay && provider === 'kalodata') {
+      this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,?,?,?,'KNOWN','CREDITS','0',?)`)
+        .run(runId, stepId, ordinal, provider, KALODATA_REPLAY_USAGE_OPERATION, usage.requestsIssued, at);
+      return;
+    }
+    const operation = 'provider.run';
     // An account-wide balance delta is not attributable to this run and is
     // therefore never presented as a known CREDITS charge. Only an explicit
     // no-paid-request receipt can safely expose a zero credit usage.
@@ -6146,4 +6164,4 @@ function defaultRenderedReport(input: ResearchAutomationReportInput, kind: 'MARK
   // Explicit literal/private/default branches use the owning builder; historical fallback bytes stay unchanged.
   if (kind === 'INSIGHT' && (input.insightLiteral || input.start.privateShopeeSource || input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4'))
     return { ...buildResearchAutomationReport(input, kind), pdfUnavailableCode: 'PDF_RENDERER_NOT_CONFIGURED' };
-  const title = kind === 'MARKET' ? 'Market research draft' : 'Insight research draft'; const escape = (value: string) => value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]!)); const semantic = { contractVersion: 'research-automation-report-v1', kind, runId: input.run.runId, workspaceId: input.run.workspaceId, status: 'UNREVIEWED', scope: input.scope.definition, blockers: input.run.blockers }; const html = Buffer.from(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${escape(title)}</title></head><body><h1>${escape(title)}</h1><p>Draft, unreviewed. Scope: ${escape(input.scope.definition)}</p><p>Evidence remains source-bound; no unsupported totals were inferred.</p></body></html>`, 'utf8'); return { semantic, html, pdfUnavailableCode: 'PDF_RENDERER_NOT_CONFIGURED' }; }
+  const title = kind === 'MARKET' ? 'Market research draft' : 'Insight research draft'; const escape = (value: string) => value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]!)); const semantic = { contractVersion: 'research-automation-report-v1', kind, runId: input.run.runId, workspaceId: input.run.workspaceId, status: 'UNREVIEWED', scope: input.scope.definition, blockers: input.run.blockers }; const html = Buffer.from(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${escape(title)}</title></head><body><h1>${escape(title)}</h1><p>Draft, unreviewed. Scope: ${escape(input.scope.definition)}</p><p>Evidence remains source-bound; no unsupported totals were inferred.</p></body></html>`, 'utf8'); return { semantic, html: input.kalodataReplayNotice ? withKalodataReplayNotice(html) : html, pdfUnavailableCode: 'PDF_RENDERER_NOT_CONFIGURED' }; }

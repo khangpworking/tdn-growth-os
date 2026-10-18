@@ -587,6 +587,7 @@ export const MESSAGES: Readonly<Record<string, string>> = {
   PROVIDER_NOT_CONFIGURED: 'No research data provider is configured on this operator; nothing was collected.',
   PROVIDER_FAILED: 'The provider operation failed and was not retried automatically.',
   PROVIDER_CREDIT_EXHAUSTED: 'The provider stopped because its credit balance is used up; nothing more was requested. Top up and start a new run; it was not retried automatically.',
+  KALODATA_REPLAY_MISS: 'Replay test instance: a sales-data request had no stored answer from the source run, so it was not sent to the live source and its data is missing.',
   PROVIDER_OUTPUT_INVALID: 'The provider returned data that failed validation; the result was rejected and nothing was inferred from it.',
   SCOPE_FILTERS_NOT_APPLIED: 'The confirmed scope definition and terms were retained, but provider-side filtering for those criteria is not implemented in this run.',
   STEP_TIMEOUT: 'The provider operation exceeded the operator time bound and was stopped; it was not retried.',

@@ -104,6 +104,9 @@ import { MARKET_COVER_MODEL, type MarketCoverAi } from '../modules/analysis/rese
 import { ApifyShopeeCollector } from '../platform/collectors/apify-shopee.js';
 import { ResearchAutomationConflictError, ResearchAutomationNotFoundError, ResearchAutomationValidationError } from '../modules/analysis/research-automation/model.js';
 import { MetricCaptureScopeMismatch } from '../modules/analysis/research-automation/metric-method-bridge.js';
+import { defaultProviderTransport } from '../modules/analysis/research-automation/provider-common.js';
+import { createKalodataReplayTransport, KALODATA_REPLAY_PLACEHOLDER_KEY, KalodataReplayScopeMismatchError, loadKalodataReplayIndex, readKalodataReplaySource,
+  type KalodataReplaySource } from '../modules/analysis/research-automation/kalodata-replay.js';
 import { assertOwnerHttpConfiguration, EmptyBodyError, ownerAuthorized, PayloadTooLargeError, readOwnerBytes, sendApiJson, singleHeader, type OwnerHttpConfiguration } from './owner-http.js';
 
 export interface ResearchAutomationApiConfiguration {
@@ -125,6 +128,8 @@ export interface ResearchAutomationApiConfiguration {
   readonly origin: string;
   readonly owner?: OwnerHttpConfiguration;
   readonly providers?: ResearchAutomationProviderConfig;
+  /** Test instance only: answer every sales-data request from this stored run's captures; never set in production. */
+  readonly kalodataReplaySourceRunId?: string;
   readonly pdfExecutablePath?: string;
   /** Opt-in I14 synthesis for the OWNER writer only. */
   readonly i14Synthesis?: { readonly cliproxy: CliproxyConfiguration; readonly configuration: AutomationI14SynthesisConfiguration };
@@ -375,7 +380,17 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     if (configuration.owner) {
       writer = new BetterSqlite3(path.resolve(configuration.databasePath), { fileMustExist: true });
       writer.pragma('foreign_keys = ON'); writer.pragma('busy_timeout = 5000'); writer.defaultSafeIntegers(true);
-      const registry = createResearchAutomationProviderRegistry(configuration.providers ?? { kalodataSecretKey: null, serpApiKey: null, apifyTokenConfigured: false }, transport);
+      // Replay mode: the sales-data provider talks only to stored captures; the live key never reaches it.
+      let kalodataReplay: KalodataReplaySource | undefined;
+      let registryProviders = configuration.providers ?? { kalodataSecretKey: null, serpApiKey: null, apifyTokenConfigured: false };
+      let registryTransport = transport;
+      if (configuration.kalodataReplaySourceRunId !== undefined) {
+        const replayRunId = configuration.kalodataReplaySourceRunId;
+        kalodataReplay = readKalodataReplaySource(writer, replayRunId);
+        registryProviders = { ...registryProviders, kalodataSecretKey: KALODATA_REPLAY_PLACEHOLDER_KEY };
+        registryTransport = createKalodataReplayTransport(transport ?? defaultProviderTransport, () => loadKalodataReplayIndex(reader, artifacts, replayRunId));
+      }
+      const registry = createResearchAutomationProviderRegistry(registryProviders, registryTransport);
       const selected = registry.get('KALODATA');
       // Web search runs beside the product source, only when its key is set on the server.
       const webSource = configuration.providers?.serpApiKey ? bindResearchAutomationProvider(registry.get('SERPAPI')) : undefined;
@@ -403,6 +418,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         ...(l9Jev ? { l9Jev } : {}),
         sourceEvidence: { ...sourceEvidence, ...(keywordTransport ? { transport: keywordTransport } : {}) },
         metricAttachmentStore: new RequestScopedArtifactStore(path.resolve(configuration.artifactRoot)),
+        ...(kalodataReplay ? { kalodataReplay } : {}),
         actorId: configuration.owner.actorId, source: bindResearchAutomationProvider(selected), ...(webSource ? { webSource } : {}),
         ...(trendsSource ? { trendsSource } : {}), ...(trendsGeoSource ? { trendsGeoSource } : {}),
         ...(expandedSource ? { expandedSource } : {}),
@@ -1239,6 +1255,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       if (error instanceof MetricSourceRejection && !['INVALID_XLSX', 'OFFLINE_READER_UNAVAILABLE_OR_LIMIT'].includes(error.code))
         return fail(response, 400, 'source_input_rejected', 'The workbook does not match a supported source profile');
       if (error instanceof PayloadTooLargeError) return fail(response, 413, 'payload_too_large', 'Request body exceeds the limit');
+      if (error instanceof KalodataReplayScopeMismatchError) return fail(response, 400, 'kalodata_replay_scope_mismatch', error.message);
       if (error instanceof ResearchAutomationValidationError || error instanceof EmptyBodyError) return fail(response, 400, 'bad_request', 'Research request failed validation');
       // An OWNER-requested source that does not match this run's confirmed scope is
       // operator input, not damaged evidence: it keeps the bridge's own closed code.

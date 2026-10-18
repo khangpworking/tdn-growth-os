@@ -1,0 +1,201 @@
+#!/usr/bin/env bash
+# Kalodata replay test instance (Fedora). Starts a SEPARATE operator app whose sales-data
+# requests are answered from the stored captures of one earlier run: zero Kalodata points.
+#
+# Usage:
+#   scripts/replay-test-instance.sh --checkout <dir> --source-run <run-uuid> [options]
+#
+# Options:
+#   --checkout DIR        checkout to run (must contain this replay code, node_modules and frontend/dist)
+#   --source-run UUID     DRAFT_READY run whose sales-data captures are replayed
+#   --prod-db PATH        production SQLite file to copy (read-only online backup)
+#                         default: $HOME/.local/state/tdn-growth-os/operator-dev-8787-ab099f3/tdn-growth-os-dev.sqlite
+#   --prod-artifacts DIR  production artifact root to copy; default: TDN_ARTIFACT_ROOT of the running 8787
+#                         process (read from /proc/<pid>/environ), else required
+#   --env-file FILE       read non-secret settings from this file (KEY=VALUE lines) instead of the 8787 process
+#   --port N              test port, default 8797 (8787 is refused)
+#   --node-bin DIR        node 24 bin dir; default $HOME/.nanobot/workspace/.toolchains/node-v24.15.0-linux-x64/bin
+#   --copy-artifacts      full copy instead of hard links (default: hard links when on the same filesystem)
+#   --allow-queued        start even if the copied DB has queued/running runs or attempts (the test worker would run them)
+#
+# Assumptions (decided, see docs/runbooks/fedora-local-operator-runtime.md "Kalodata replay test instance"):
+#   * The production state dir is only READ: online SQLite backup + hard-linked (or copied) artifacts.
+#     The artifact store writes new files via temp file + rename, so a hard link is never modified in place.
+#   * Settings for other providers (SerpApi, CLIProxy, flags) are inherited from the running 8787
+#     process so they behave as in production. Never inherited: the Kalodata key, the OWNER token,
+#     DB/artifact/port/host settings, R2 mirroring. Paths that point into the production state dir
+#     (video media, Metric captures) are redirected into the test dir.
+#   * OWNER access uses the local-test mode (TDN_OWNER_API_LOCAL_TEST=true) on 127.0.0.1 only.
+#   * Paid non-sales-data providers (SerpApi, Apify, model calls) still spend as normal.
+set -euo pipefail
+
+die() { printf 'replay-test-instance: %s\n' "$*" >&2; exit 1; }
+
+PROD_STATE_SEGMENT='operator-dev-8787-ab099f3'
+CHECKOUT='' SOURCE_RUN='' ENV_FILE='' PORT=8797 COPY_ARTIFACTS=0 ALLOW_QUEUED=0
+PROD_DB="$HOME/.local/state/tdn-growth-os/$PROD_STATE_SEGMENT/tdn-growth-os-dev.sqlite"
+PROD_ARTIFACTS=''
+NODE_BIN="$HOME/.nanobot/workspace/.toolchains/node-v24.15.0-linux-x64/bin"
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --checkout) CHECKOUT="$2"; shift 2 ;;
+    --source-run) SOURCE_RUN="$2"; shift 2 ;;
+    --prod-db) PROD_DB="$2"; shift 2 ;;
+    --prod-artifacts) PROD_ARTIFACTS="$2"; shift 2 ;;
+    --env-file) ENV_FILE="$2"; shift 2 ;;
+    --port) PORT="$2"; shift 2 ;;
+    --node-bin) NODE_BIN="$2"; shift 2 ;;
+    --copy-artifacts) COPY_ARTIFACTS=1; shift ;;
+    --allow-queued) ALLOW_QUEUED=1; shift ;;
+    -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
+    *) die "unknown argument: $1" ;;
+  esac
+done
+
+[ -n "$CHECKOUT" ] || die '--checkout is required'
+[ -n "$SOURCE_RUN" ] || die '--source-run is required'
+[[ "$SOURCE_RUN" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]] || die '--source-run must be a run UUID'
+[[ "$PORT" =~ ^[1-9][0-9]{0,4}$ ]] || die '--port must be an integer'
+[ "$PORT" != 8787 ] || die 'port 8787 is production; refused'
+CHECKOUT="$(cd "$CHECKOUT" && pwd)"
+[ -f "$CHECKOUT/src/modules/analysis/research-automation/kalodata-replay.ts" ] || die 'checkout has no replay mode (kalodata-replay.ts missing)'
+[ -d "$CHECKOUT/node_modules" ] || die 'checkout has no node_modules (run npm ci there first)'
+[ -f "$CHECKOUT/frontend/dist/index.html" ] || die 'checkout has no frontend/dist (run npm run frontend:build there first)'
+[ -f "$PROD_DB" ] || die "production database not found: $PROD_DB"
+export PATH="$NODE_BIN:$PATH"
+node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 24 ? 0 : 1)' || die 'node 24 is required (--node-bin)'
+if ss -ltn "sport = :$PORT" 2>/dev/null | grep -q LISTEN; then die "port $PORT is already in use"; fi
+
+# Settings source: --env-file, else the running production process (read only).
+PROD_ENV="$(mktemp)"; trap 'rm -f "$PROD_ENV"' EXIT
+if [ -n "$ENV_FILE" ]; then
+  grep -E '^[A-Z0-9_]+=' "$ENV_FILE" > "$PROD_ENV" || true
+else
+  PROD_PID="$(ss -ltnpH 'sport = :8787' 2>/dev/null | sed -n 's/.*pid=\([0-9]*\).*/\1/p' | head -n1)"
+  if [ -n "$PROD_PID" ] && [ -r "/proc/$PROD_PID/environ" ]; then
+    tr '\0' '\n' < "/proc/$PROD_PID/environ" | grep -E '^TDN_[A-Z0-9_]+=' > "$PROD_ENV" || true
+  else
+    printf 'replay-test-instance: no readable 8787 process; only the replay flag and defaults are set\n' >&2
+  fi
+fi
+prod_value() { sed -n "s/^$1=//p" "$PROD_ENV" | head -n1; }
+[ -n "$PROD_ARTIFACTS" ] || PROD_ARTIFACTS="$(prod_value TDN_ARTIFACT_ROOT)"
+[ -n "$PROD_ARTIFACTS" ] || die '--prod-artifacts is required (could not read TDN_ARTIFACT_ROOT from the 8787 process)'
+[ -d "$PROD_ARTIFACTS" ] || die "artifact root not found: $PROD_ARTIFACTS"
+ACTOR_ID="$(prod_value TDN_OWNER_API_ACTOR_ID)"
+[ -n "$ACTOR_ID" ] || ACTOR_ID='owner:replay-test'
+
+STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+DIR="/tmp/tdn-replay/$STAMP"
+case "$DIR" in *"$PROD_STATE_SEGMENT"*) die 'test dir resolves into the production state dir' ;; esac
+mkdir -p "$DIR"; chmod 700 /tmp/tdn-replay "$DIR"
+DB="$DIR/tdn-growth-os-replay.sqlite"
+ART="$DIR/artifacts"
+
+echo "== online backup of the production database (read only) -> $DB"
+(cd "$CHECKOUT" && node -e '
+  const Database = require("better-sqlite3");
+  const [source, target] = process.argv.slice(1);
+  const db = new Database(source, { readonly: true, fileMustExist: true });
+  db.backup(target).then(() => { db.close(); }, (error) => { db.close(); console.error("backup failed:", error.message); process.exit(1); });
+' "$PROD_DB" "$DB")
+chmod 600 "$DB"
+
+echo "== artifacts -> $ART"
+if [ "$COPY_ARTIFACTS" = 0 ] && [ "$(stat -c %d "$PROD_ARTIFACTS")" = "$(stat -c %d /tmp/tdn-replay)" ]; then
+  cp -al "$PROD_ARTIFACTS" "$ART"
+  echo "   hard links (same filesystem; new files are written by rename, so production files are never modified)"
+else
+  cp -a "$PROD_ARTIFACTS" "$ART"
+  echo "   full copy"
+fi
+
+echo "== migrate the copy (no-op unless the checkout adds migrations)"
+(cd "$CHECKOUT" && npm run --silent db:migrate -- "$DB")
+
+echo "== check the copy: source run + no queued work the test worker would pick up"
+(cd "$CHECKOUT" && node -e '
+  const Database = require("better-sqlite3");
+  const [file, runId, allow] = process.argv.slice(1);
+  const db = new Database(file, { readonly: true, fileMustExist: true });
+  const run = db.prepare("SELECT status FROM analysis_research_automation_runs WHERE run_id=?").get(runId);
+  if (!run) { console.error("source run not found in the copy"); process.exit(1); }
+  const n = db.prepare("SELECT COUNT(*) n FROM analysis_research_automation_captures WHERE run_id=? AND provider=?").get(runId, "kalodata").n;
+  if (n < 1) { console.error("source run has no stored sales-data captures"); process.exit(1); }
+  console.log("   source run status=" + run.status + " sales-data captures=" + n);
+  // The copied worker would resume these with live non-sales-data providers (paid calls).
+  const runs = db.prepare("SELECT COUNT(*) n FROM analysis_research_automation_runs WHERE status IN (?,?,?,?,?)")
+    .get("QUICK_SEARCH_QUEUED", "QUICK_SEARCH_RUNNING", "COLLECTION_QUEUED", "COLLECTING", "RENDERING").n;
+  const attempts = db.prepare("SELECT COUNT(*) n FROM analysis_research_automation_attempts WHERE state IN (?,?)").get("QUEUED", "RUNNING").n;
+  db.close();
+  if ((runs > 0 || attempts > 0) && allow !== "1") { console.error("copy has queued/running work (runs=" + runs + ", attempts=" + attempts + "); the test worker would run it. Re-run later or pass --allow-queued"); process.exit(1); }
+' "$DB" "$SOURCE_RUN" "$ALLOW_QUEUED")
+
+# Child environment: start from an empty TDN_* set, add safe inherited settings, then the test-only ones.
+CHILD_ENV=()
+while IFS= read -r line; do
+  key="${line%%=*}"; value="${line#*=}"
+  case "$key" in
+    TDN_KALODATA_SECRET_KEY|TDN_OWNER_API_TOKEN|TDN_WORKSPACE_DB|TDN_ARTIFACT_ROOT|TDN_OPERATOR_APP_PORT|TDN_OPERATOR_APP_HOST|\
+    TDN_OWNER_API_ENABLED|TDN_OWNER_API_LOCAL_TEST|TDN_OWNER_API_ACTOR_ID|TDN_R2_*|TDN_RESEARCH_KALODATA_REPLAY_SOURCE_RUN_ID) continue ;;
+    TDN_RESEARCH_VIDEO_MEDIA_DIR) mkdir -p "$DIR/video-media"; CHILD_ENV+=("$key=$DIR/video-media"); continue ;;
+    TDN_METRIC_CAPTURE_DIR) mkdir -p "$DIR/metric-captures"; CHILD_ENV+=("$key=$DIR/metric-captures"); continue ;;
+  esac
+  case "$value" in *"$PROD_STATE_SEGMENT"*) printf 'replay-test-instance: dropped %s (points into the production state dir)\n' "$key" >&2; continue ;; esac
+  CHILD_ENV+=("$key=$value")
+done < "$PROD_ENV"
+CHILD_ENV+=(
+  "TDN_WORKSPACE_DB=$DB" "TDN_ARTIFACT_ROOT=$ART" "TDN_OPERATOR_APP_HOST=127.0.0.1" "TDN_OPERATOR_APP_PORT=$PORT"
+  "TDN_OWNER_API_ENABLED=true" "TDN_OWNER_API_LOCAL_TEST=true" "TDN_OWNER_API_ACTOR_ID=$ACTOR_ID" "TDN_R2_ENABLED=false"
+  "TDN_RESEARCH_KALODATA_REPLAY_SOURCE_RUN_ID=$SOURCE_RUN"
+)
+
+echo "== start the replay instance on 127.0.0.1:$PORT"
+# env -i: nothing from this shell (or the production process) leaks in except the list above.
+(cd "$CHECKOUT" && env -i HOME="$HOME" USER="${USER:-}" LANG="${LANG:-C.UTF-8}" PATH="$PATH" "${CHILD_ENV[@]}" \
+  nohup node --import tsx scripts/serve-operator-app.ts > "$DIR/server.log" 2>&1 &
+  echo $! > "$DIR/server.pid")
+for _ in $(seq 1 60); do
+  grep -q 'Operator app listening' "$DIR/server.log" 2>/dev/null && break
+  kill -0 "$(cat "$DIR/server.pid")" 2>/dev/null || { cat "$DIR/server.log" >&2; die 'server exited during startup'; }
+  sleep 1
+done
+grep -q "KALODATA REPLAY MODE source=$SOURCE_RUN" "$DIR/server.log" || { cat "$DIR/server.log" >&2; die 'replay mode line not logged; stopping'; }
+
+# Helper that starts a Market run with the source run's exact keyword and period (the only scope replay accepts).
+cat > "$DIR/start-market.ts" <<EOF_HELPER
+import { createRequire } from 'node:module';
+import { randomUUID } from 'node:crypto';
+// Resolve the driver from the checkout (this helper lives in the test dir).
+const BetterSqlite3 = createRequire('$CHECKOUT/package.json')('better-sqlite3') as typeof import('better-sqlite3');
+const origin = 'http://127.0.0.1:$PORT';
+const db = new BetterSqlite3('$DB', { readonly: true, fileMustExist: true });
+const run = db.prepare('SELECT workspace_id ws, mode, keyword, period_start s, period_end e FROM analysis_research_automation_runs WHERE run_id=?').get('$SOURCE_RUN') as
+  { ws: string; mode: string; keyword: string; s: string; e: string };
+db.close();
+const session = await fetch(origin + '/owner-api/local-test-session', { method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json' }, body: '{}' });
+if (!session.ok) throw new Error('local test session failed: ' + session.status);
+const { token } = await session.json() as { token: string };
+const response = await fetch(origin + '/owner-api/workspaces/' + run.ws + '/research-automation/runs', { method: 'POST',
+  headers: { Origin: origin, 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+  body: JSON.stringify({ contractVersion: 'research-automation-start-v1', requestKey: randomUUID(), mode: run.mode, keyword: run.keyword,
+    requestedPeriod: { startDate: run.s, endDate: run.e }, reports: ['MARKET'] }) });
+console.log(response.status, await response.text());
+EOF_HELPER
+
+cat <<EOF_DONE
+
+Replay test instance is running (pid $(cat "$DIR/server.pid")), state in $DIR
+  log:    $DIR/server.log   (expects "KALODATA REPLAY MODE source=$SOURCE_RUN")
+  open:   ssh -L $PORT:127.0.0.1:$PORT <fedora>   then http://127.0.0.1:$PORT/
+
+Start a Market run (same keyword + period as the source run; anything else is refused with
+kalodata_replay_scope_mismatch):
+  cd '$CHECKOUT' && PATH='$NODE_BIN':\$PATH node --import tsx '$DIR/start-market.ts'
+Then confirm the scope in the UI and pick the SAME products as the source run; a product without
+stored data shows "Bản chạy thử: không có dữ liệu bán hàng đã lưu ..." (KALODATA_REPLAY_MISS).
+
+Stop:   kill \$(cat '$DIR/server.pid')
+Clean:  rm -rf '$DIR'   (hard links: removing them never touches production files)
+EOF_DONE

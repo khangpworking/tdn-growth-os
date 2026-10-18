@@ -214,3 +214,12 @@ Stop in the server terminal with **Ctrl-C**. `SIGINT` and `SIGTERM` trigger orde
 ## Deliberately future work
 
 Systemd units, reverse proxies, TLS, remote access, multi-user/production authentication, LAN/internet exposure, backup/restore procedures, and deployment operations are not part of this local runbook or Task 045.
+
+### Kalodata replay test instance (test only, flag `TDN_RESEARCH_KALODATA_REPLAY_SOURCE_RUN_ID`)
+
+Never set this flag in the production deploy. Unset (the default) means today's behaviour and byte-identical outputs.
+When set to the id of an earlier run, every sales-data request is answered from that run's stored raw captures and never reaches the live source (zero points). Other sources behave as normal.
+
+- Start it only with `scripts/replay-test-instance.sh --checkout <dir> --source-run <run-id>`: it makes an online backup copy of the production database, hard-links (or copies) the artifact store into `/tmp/tdn-replay/<stamp>/`, and starts the app on port 8797. The app refuses port 8787 and any path inside `operator-dev-8787-ab099f3`, and logs `KALODATA REPLAY MODE source=<run>` once.
+- Only the source run's exact keyword and period are accepted (`kalodata_replay_scope_mismatch` otherwise). Pick the same products when confirming the scope; a request with no stored answer fails closed with `KALODATA_REPLAY_MISS`.
+- Replayed usage rows use operation `provider.replay` with cost 0 credits. Reports carry the notice "Bản chạy thử – dữ liệu bán hàng phát lại từ lần chạy trước, không phải báo cáo thật".

@@ -76,6 +76,7 @@ import { officialStatsCitation, officialStatsNotice, officialStatsProvinceCellTe
 import { comtradeFlowText, comtradeNotice, comtradeOfficialText, comtradeRenderable, comtradeRenderableRows, comtradeRowNote, comtradeSideText, COMTRADE_NOTE, COMTRADE_SOURCE_LABEL, COMTRADE_SRC, COMTRADE_TABLE_TITLE } from './comtrade-lane.js';
 import { formatWorldBankValue, worldBankRenderable, worldBankRenderableRows, worldBankSourceNote, worldBankUnitText, WORLD_BANK_LIMIT, WORLD_BANK_NOTE, WORLD_BANK_SOURCE_LABEL, WORLD_BANK_SRC, WORLD_BANK_TITLE } from './world-bank-lane.js';
 import { E13_ATTRIBUTION } from '../source-appendix-projection.js';
+import { withKalodataReplayNotice } from './kalodata-replay.js';
 import { searchInterestRenderable,SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_LIMIT, SEARCH_INTEREST_NOTE, SEARCH_INTEREST_SOURCE_LABEL, SEARCH_INTEREST_SRC, SEARCH_INTEREST_UNIT } from './search-interest.js';
 import { searchGeoAverageText, searchGeoRenderable, searchGeoText, summarizeSearchGeo, SEARCH_GEO_DONT, SEARCH_GEO_HEADERS, SEARCH_GEO_NOTE, SEARCH_GEO_TABLE_NO, SEARCH_GEO_TABLE_TITLE } from './search-geo.js';
 
@@ -96,6 +97,8 @@ export interface MarketCoverInput {
 }
 
 export interface AutomationReportInput {
+  /** Replay test instance only: adds a visible test notice to the HTML (and so the PDF). */
+  readonly kalodataReplayNotice?: true;
   readonly sourceEvidence?: import('./source-evidence.js').AutomationSourceEvidence;
   /** Verified document excerpts (Market only); present only when the packet carries the pdfExcerpts marker. */
   readonly pdfExcerpts?: readonly import('./pdf-excerpt.js').PdfExcerpt[];
@@ -603,6 +606,12 @@ export function marketPartialRowTotals(input: Pick<AutomationReportInput, 'marke
 }
 
 export function buildResearchAutomationReport(input: AutomationReportInput, kind: 'MARKET' | 'INSIGHT'): { semantic: object; html: Buffer } {
+  const report = buildResearchAutomationReportBody(input, kind);
+  // Replay test instance only: the field is never set in production, so production bytes are unchanged.
+  return input.kalodataReplayNotice ? { semantic: report.semantic, html: withKalodataReplayNotice(report.html) } : report;
+}
+
+function buildResearchAutomationReportBody(input: AutomationReportInput, kind: 'MARKET' | 'INSIGHT'): { semantic: object; html: Buffer } {
   if (input.qualitativeDraft && kind !== 'INSIGHT') throw new Error('Qualitative draft is an Insight-only report dependency');
   if (input.qualitativeDraft) {
     const draft = input.qualitativeDraft;
