@@ -27,9 +27,17 @@ const COUNT_COLUMNS = Object.freeze(new Set(['units', 'unitsChg', 'lifetimeUnits
 
 const normaliseRegion = value => String(value ?? '').replaceAll('_', '-').replace(/\s+/g, '-').toLowerCase();
 const clean = value => String(value ?? '').normalize('NFC').trim();
+// Top-products/shops cells append the period change after the value:
+// "2,6 billion ▼ 34%", "9 ▲ 9%", "9,9 million — 9%", "9 —", "3 ↗ 2".
+// The leading number is the cell value; the change marker is not part of it.
+const TREND_SUFFIX = /\s*[▲▼↗↘—]\s*(?:[-+]?\d[\d.,]*\s*%?)?$/u;
+// "Price in product variant" shows the variant price range "a₫ - b₫".
+const PRICE_RANGE = /^(.+?)\s+-\s+(.+)$/u;
 
 function numberFromDisplay(displayed) {
-  let text = clean(displayed).toLowerCase().replace(/\s+/g, '');
+  const source = clean(displayed);
+  const leading = source.replace(TREND_SUFFIX, '');
+  let text = leading.toLowerCase().replace(/\s+/g, '');
   text = text.replace(/[₫đ]/g, '').replace(/vnd$/i, '');
   const suffixMatch = /(billion|million|thousand|tỷ|ty|tr|triệu|trieu|k|nghìn|nghin|%)$/iu.exec(text);
   const suffix = suffixMatch?.[1]?.normalize('NFC').toLowerCase() || '';
@@ -60,11 +68,29 @@ function numberFromDisplay(displayed) {
     : /^(?:million|tr|triệu|trieu)$/iu.test(suffix) ? 1_000_000
       : /^(?:thousand|k|nghìn|nghin)$/iu.test(suffix) ? 1_000
         : 1;
-  const value = sign * base * multiplier;
+  // Newly supported trend cells must not turn 4.1 million into
+  // 4099999.9999999995: the app consumes integer strings. Shift the decimal
+  // exponent instead of multiplying, while preserving legacy scalar parsing.
+  const [digits, exponent = '0'] = String(base).split('e');
+  const value = source !== leading && multiplier !== 1
+    ? sign * Number(`${digits}e${Number(exponent) + Math.log10(multiplier)}`)
+    : sign * base * multiplier;
   return Number.isFinite(value) ? value : null;
 }
 
 export const parseMetricDisplay = numberFromDisplay;
+
+function priceRangeEnd(displayed, column) {
+  if (column !== 'minPrice' && column !== 'maxPrice') return null;
+  // Range endpoints are prices, not percentages or separately decorated trends.
+  if (/[▲▼↗↘—%]/u.test(displayed)) return null;
+  const match = PRICE_RANGE.exec(clean(displayed));
+  if (!match) return null;
+  const low = numberFromDisplay(match[1]);
+  const high = numberFromDisplay(match[2]);
+  if (low === null || high === null || low > high) return null;
+  return column === 'minPrice' ? low : high;
+}
 
 function pathFor(value, fallback) {
   const path = clean(value);
@@ -261,7 +287,7 @@ function metricValue(raw, context) {
     ? rawValue
     : typeof rawValue === 'string' && rawValue.trim() && Number.isFinite(Number(rawValue))
       ? Number(rawValue)
-      : numberFromDisplay(displayed);
+      : numberFromDisplay(displayed) ?? priceRangeEnd(displayed, context.label);
   const unit = object.unit || context.unit;
   const pointer = pathFor(object.sourcePointer, context.sourcePointer);
   return {

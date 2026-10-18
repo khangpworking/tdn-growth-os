@@ -2089,6 +2089,71 @@ test('capture groups parse live displayed units and platform rows without summin
   assert.equal(result.snapshot.groups.W2_kpi.revenue.current.value, 4_000_000_000);
 });
 
+test('table cells keep the leading value when the page appends a trend marker, and price ranges give their ends', async () => {
+  const { extractResultsPage, parseMetricDisplay } = await import(captureUrl.href);
+  assert.deepEqual([
+    '2,6 billion ▼ 34%', '12,5 million ▲ 8%', '9,9 million — 0%', '9,9 million —', '48 ▲ 9%', '7 ▼ -12%',
+    '1,2 thousand ▲ 5%', '15 —', '3 ↗ 2', '6 ↘ 1', '4 — 0',
+    '4,1 million ▲ 5%', '-4,1 triệu ▼ 2%', '32,8 million —', '0,0001 thousand ▲ 1%',
+  ].map(display => parseMetricDisplay(display)), [2_600_000_000, 12_500_000, 9_900_000, 9_900_000, 48, 7, 1_200, 15, 3, 6, 4,
+    4_100_000, -4_100_000, 32_800_000, 0.1]);
+  // A bare marker or a range is not a single value.
+  assert.deepEqual(['—', '▲ 5%', '45.000₫ - 120.000₫', '-5%'].map(display => parseMetricDisplay(display)), [null, null, null, -5]);
+  const result = extractResultsPage({
+    responses: [],
+    dom: { regions: {
+      overview: { selector: '#overview', kpi: { revenue: { displayed: '1' }, units: { displayed: '2' }, soldListings: { displayed: '3' }, shops: { displayed: '4' } } },
+      'top-products': { selector: '#products', rows: [
+        { name: 'Synthetic product A', platform: 'shopee', minPrice: '45.000₫ - 120.000₫', revenue: '2,6 billion ▼ 34%', units: '1,2 thousand ▲ 5%' },
+        { name: 'Synthetic product B', platform: 'tiktok', minPrice: '89.000₫', revenue: '9,9 million —', units: '15 —' },
+        { name: 'Synthetic product C', platform: 'tiktok', minPrice: '120.000₫ - 45.000₫', revenue: '—', units: '▲ 5%' },
+        { name: 'Synthetic product D', platform: 'shopee', minPrice: '45.000₫ - 120.000₫', revenue: '4,1 million ▲ 5%', units: '15 —' },
+        { name: 'Synthetic product E', platform: 'shopee', minPrice: '45.000₫', revenue: { value: '4100123', displayed: '4,1 million ▲ 5%', precision: 'exact' }, units: 15 },
+      ] },
+      'top-shops': { selector: '#shops', rows: [{ rankNew: '3 ↗ 2', shop: 'Synthetic shop', platform: 'shopee', revenue: '12,5 million ▲ 8%', units: '48 ▲ 9%' }] },
+    } },
+    scope: { keywords: ['synthetic-term'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-01-01', endDate: '2026-02-02' }, category: null },
+    captureId: 'synthetic-trend-cells', specDigest: 'a'.repeat(64), capturedAt: '2026-10-13T00:00:00.000Z', pageCap: 10,
+  });
+  const products = result.snapshot.groups.W12_topProducts.rows.map((row: any) => row.cells);
+  assert.deepEqual(products.map((cells: any) => [cells.revenue.value, cells.units.value, cells.minPrice.value]),
+    [[2_600_000_000, 1_200, 45_000], [9_900_000, 15, 89_000], [null, null, null], [4_100_000, 15, 45_000], [4_100_123, 15, 45_000]]);
+  assert.equal(products[0].revenue.displayed, '2,6 billion ▼ 34%');
+  assert.equal(products[0].revenue.precision, 'display_rounded');
+  assert.equal(products[0].minPrice.displayed, '45.000₫ - 120.000₫');
+  assert.equal(products[3].revenue.precision, 'display_rounded');
+  assert.equal(products[4].revenue.precision, 'exact');
+  const shop = result.snapshot.groups.W13_topShops.rows[0].cells;
+  assert.deepEqual([shop.rankNew.value, shop.revenue.value, shop.units.value], [3, 12_500_000, 48]);
+});
+
+test('price range fallback rejects percent and trend-decorated bounds and stays limited to min/max price', async () => {
+  const { extractResultsPage } = await import(captureUrl.href);
+  const ranges = [
+    '45.000₫ - 120.000₫', '120.000₫ - 45.000₫', '45% - 120%',
+    '45.000₫ ▲ 5% - 120.000₫', '45.000₫ - 120.000₫ ↗ 2',
+    '45.000₫ - —', '45.000₫ - invalid', '45.000₫ - 120.000₫ - 150.000₫',
+  ];
+  const result = extractResultsPage({
+    responses: [],
+    dom: { regions: {
+      overview: { selector: '#overview', kpi: { revenue: '1', units: '2', soldListings: '3', shops: '4' } },
+      'top-products': { selector: '#products', rows: ranges.map((range, index) => ({
+        name: `Synthetic range ${index}`, platform: 'shopee',
+        minPrice: range, maxPrice: range, price: range, revenue: range, units: range, revenueChg: range,
+      })) },
+    } },
+    scope: { keywords: ['synthetic-term'], platforms: ['shopee'], period: { startDate: '2026-01-01', endDate: '2026-02-02' }, category: null },
+    captureId: 'synthetic-price-ranges', specDigest: 'a'.repeat(64), capturedAt: '2026-10-13T00:00:00.000Z', pageCap: 10,
+  });
+  const rows = result.snapshot.groups.W12_topProducts.rows;
+  assert.equal(rows.length, ranges.length);
+  rows.forEach(({ cells }: any, index: number) => {
+    assert.deepEqual([cells.minPrice.value, cells.maxPrice.value], index === 0 ? [45_000, 120_000] : [null, null], ranges[index]);
+    for (const column of ['price', 'revenue', 'units', 'revenueChg']) assert.equal(cells[column].value, null, column);
+  });
+});
+
 test('platform split emits a null-valued row for every requested platform absent from the page', async () => {
   const { extractResultsPage } = await import(captureUrl.href);
   const result = extractResultsPage({
