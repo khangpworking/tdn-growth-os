@@ -134,3 +134,12 @@
 @media(max-width:650px){.ra-classification-fields{grid-template-columns:1fr}.ra-classification-choice{font-size:14px}}
 
 .ra-history-filter{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;margin:0 0 12px}.ra-history-filter label{display:flex;gap:8px;align-items:center}
+
+/* M-09: long limitation codes wrap instead of being cut at 390 px */
+.ra-block code,.ra-run-steps code,.ra-blockers code{white-space:normal;overflow-wrap:anywhere;word-break:break-word}
+
+/* M-12: touch targets near 44 px on phones */
+@media(max-width:650px){.ra-steps-nav li button,.ra-steps-nav li>div,.campaign-steps .step,.topnav a{min-height:44px}.topnav a{display:inline-flex;align-items:center}}
+
+/* M-14: stacked source pickers under the reader get the same spacing as other forms */
+.ra-reader-insight-build{display:grid;gap:12px}.ra-reader-insight-build>h3,.ra-reader-insight-build>p{margin:0}

@@ -1,12 +1,18 @@
 import type { DescriptiveMarketMethods } from '../../../../contracts/analysis/descriptive-market-methods.generated.js';
 import { containsForbiddenProviderName, containsTechnicalId, type CitationInput } from '../citation-registry.js';
-import { formatReaderCount, formatReaderValue as formatReaderPlainValue, readerDateBasis as readerPlainDateBasis, readerLocator, readerMeasureName as readerPlainMeasureName, readerScopeText as readerPlainScopeText, readerStoredOrJson as readerPlainStoredOrJson, readerTextSafe } from './reader-plain-text.js';
+import { formatReaderCount, formatReaderValue as formatReaderPlainValue, readerDateBasis as readerPlainDateBasis, readerLocator, readerMeasureName as readerPlainMeasureName, readerProductLabel, readerScopeText as readerPlainScopeText, readerStoredOrJson as readerPlainStoredOrJson, readerTextSafe } from './reader-plain-text.js';
 
 type Input = DescriptiveMarketMethods['input'];
 type Observation = Input['m05'][number];
 type Ref = Observation['source'];
 type Partition = DescriptiveMarketMethods['sections']['M05']['partitions'][number];
 export type DescriptiveSectionId = 'M05' | 'M06' | 'M07' | 'M09';
+
+/** Display context from the report, deliberately outside the hash-bound method input. */
+export interface DescriptiveReaderContext {
+  readonly productLabels?: ReadonlyMap<string, string>;
+  readonly requestedPeriod?: { readonly startDate: string; readonly endDate: string };
+}
 
 /** Rendering of one bounded method section. `usable` means a resolved record carries a source-stated value or event, not that the section is complete. */
 export interface DescriptiveSectionView {
@@ -184,7 +190,7 @@ const withheldScope = 'phạm vi được giữ trong bản lưu nguồn';
 const scopeText = (scope: Input['scope'], readerPlainText = activeReaderPlainText): string =>
   [scope.universe, scope.geography, scope.frame].map(part => escape(readerPlainText ? readerScopeText(part, withheldScope) : (readerSafe(part) ? part : withheldScope))).join(' · ');
 /** The reader sees a numbered source and its provenance gloss; the file path, family and raw locator stay technical. */
-function sourceCell(input: Input, ref: Ref, citations: ReportCitations): string {
+function sourceCell(input: Input, ref: Ref, citations: ReportCitations, compact = false): string {
   const source = input.sources.find(item => item.sha256 === ref.sourceSha256);
   const pointer = readerPointer(ref.locator, activeReaderPlainText);
   const mark = citations.mark({ sourceKind: 'CAPTURE', identity: ref.sourceSha256, locator: pointer.locator, label: 'Nguồn dữ liệu đã lưu',
@@ -192,7 +198,7 @@ function sourceCell(input: Input, ref: Ref, citations: ReportCitations): string 
     technical: { ...(source ? { logicalPath: source.logicalPath, evidenceFamily: source.evidenceFamily, provenance: source.providerProvenance } : {}),
       ...(pointer.technical === null ? {} : { locator: pointer.technical }) } });
   const provenance = source ? `<small>${escape(PROVENANCE_TEXT[source.providerProvenance])}</small>` : tag('Nguồn không có trong bản kê', 'warn');
-  return `${mark} ${provenance}`;
+  return compact ? mark : `${mark} ${provenance}`;
 }
 const entityCell = (row: Observation, readerPlainText = activeReaderPlainText): string => `${row.entityLabel === null ? tag('Nguồn không nêu đối tượng', 'warn') : storedLiteral(row.entityLabel, WITHHELD.entity)}<br><small>${readerPlainText ? escape(readerPlainMeasureName(row.measureLiteral)) : storedLiteral(row.measureLiteral, WITHHELD.measure)}</small>`;
 
@@ -298,10 +304,205 @@ function m09(methods: DescriptiveMarketMethods, citations: ReportCitations): Omi
   return { usable, locatedRecordCount: section.locatedRecordCount, unresolvedPointers: unresolved, blockers: section.blockers, body };
 }
 
-export function describeDescriptiveSection(methods: DescriptiveMarketMethods, sectionId: DescriptiveSectionId, citations: ReportCitations, readerPlainText = false): DescriptiveSectionView {
+const readerDate = (value: string): string => value.replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$3/$2/$1');
+const plainCopy = (value: string): boolean => readerSafe(value) && !containsForbiddenProviderName(value) && !/\b(?:Google|Gemini)\b|%/i.test(value);
+const readerPeriod = (period: Observation['period']): string => period === null
+  ? 'Chưa rõ kỳ quan sát' : `${readerDate(period.start)} đến ${readerDate(period.end)}`;
+const readerProduct = (id: string | null, ordinal: number, context: DescriptiveReaderContext): string => {
+  const title = id === null ? undefined : context.productLabels?.get(id) ?? id;
+  return readerProductLabel(id ?? '', title && plainCopy(title) && !/^\d+$|^[a-z][\w-]*:/i.test(title) ? title : undefined, ordinal);
+};
+const SUPPLY_MEASURES: Readonly<Record<string, string>> = {
+  supply: 'Nguồn cung', supply_quantity: 'Lượng cung', stock: 'Tồn kho', stock_quantity: 'Tồn kho',
+  inventory: 'Tồn kho', inventory_quantity: 'Tồn kho', available_units: 'Số lượng có sẵn',
+  available_quantity: 'Số lượng có sẵn', production_capacity: 'Năng lực sản xuất', supply_capacity: 'Năng lực cung ứng',
+  listing_count: 'Số mặt hàng được niêm yết', product_count: 'Số sản phẩm', seller_count: 'Số người bán',
+};
+function supplyMeasure(literal: string): string | null {
+  const normalized = literal.trim().toLowerCase().replace(/[ -]+/g, '_');
+  return Object.hasOwn(SUPPLY_MEASURES, normalized) ? SUPPLY_MEASURES[normalized]!
+    : /^(?:nguồn cung|lượng cung|tồn kho|năng lực (?:sản xuất|cung ứng)|số (?:mặt hàng|sản phẩm|người bán))$/i.test(literal.trim()) ? literal.trim() : null;
+}
+function readerMeasure(literal: string): string {
+  const supply = supplyMeasure(literal);
+  if (supply !== null) return supply;
+  if (/^(?:reported searches|search_count|search_volume)$/i.test(literal)) return 'Lượt tìm kiếm';
+  if (plainCopy(literal) && /[\u00c0-\u024f\u1e00-\u1eff]/.test(literal)) return literal;
+  const label = readerPlainMeasureName(literal);
+  return typeof label === 'string' ? label : readerPlainMeasureName(null);
+}
+function readerUnit(unit: string | null): string | null {
+  if (unit === null || !plainCopy(unit)) return null;
+  if (/^(?:units?|count)$/i.test(unit)) return 'đơn vị';
+  if (/^(?:search events|searches)$/i.test(unit)) return 'lượt tìm kiếm';
+  return /[\u00c0-\u024f\u1e00-\u1eff]/.test(unit) || /^[A-Z]{3}$/.test(unit) ? unit : null;
+}
+function readerValue(row: Observation, includeUnit = false): string {
+  const { state, value, precision } = row.observation;
+  if (state === 'missing' || value === null) return state === 'UNKNOWN' ? 'Chưa rõ' : 'Chưa có dữ liệu';
+  if (state === 'observed_zero') return `Không ghi nhận${precision === 'non_exact' ? ' (ước tính)' : ''}`;
+  const formatted = formatReaderValue(value, { measure: row.measureLiteral, unit: row.unit });
+  if (formatted === null) return 'Chưa có dữ liệu';
+  const displayUnit = readerUnit(row.unit);
+  const unit = includeUnit && displayUnit !== null ? ` ${escape(displayUnit)}` : '';
+  return `${escape(formatted)}${unit}${precision === 'non_exact' ? ' (ước tính)' : ''}`;
+}
+const READER_SECTION_LIMITS: Readonly<Record<string, string>> = {
+  M05_LITERAL_SOURCE_MEASURES_NOT_DEMAND_OR_MARKET_SIZE: 'Số liệu giữ đúng thước đo của nguồn; không suy ra quy mô thị trường.',
+  M05_ESTIMATED_SALES_IN_SAMPLE_DEMAND_PER_PLATFORM_SEARCH_SEPARATE: 'Nhu cầu, đo bằng doanh số (ước tính) trong mẫu, được đọc riêng cho từng sàn. Mức quan tâm tìm kiếm ghi riêng. Số bán hàng chưa đối chiếu với người bán, chỉ dùng tham khảo; không suy ra quy mô ngoài mẫu, số người mua, nhu cầu chưa được đáp ứng hay dự báo.',
+  M06_LOCATED_RECORDS_NOT_UNIQUE_ENTITIES_STOCK_OR_TOTAL_SUPPLY: 'Số liệu chỉ mô tả nguồn đã thu, chưa phản ánh toàn bộ nguồn cung.',
+  M07_OWNER_DECLARED_SIDE_BY_SIDE_NO_RANK_SCORE_DIFFERENCE_OR_RATIO: 'Chỉ đặt các quan sát cạnh nhau; không xếp hạng, chấm điểm hay suy ra thị phần.',
+  M07_DEFAULT_PEERS_FROM_RETAINED_CLASSIFIED_SALES_OR_EXPLICIT_GAP_OWNER_ADDITIONS_SEPARATE: 'Đối thủ mặc định chỉ được chọn từ doanh thu cùng nhóm, cùng kỳ và cùng phạm vi nguồn. Bổ sung của chủ được giữ riêng.',
+  M09_ATTRIBUTED_EVENT_INVENTORY_NOT_CAUSAL_IMPACT_OR_FORECAST: 'Sự kiện do nguồn nêu; chưa đủ bằng chứng xác định nguyên nhân hay dự báo tác động.',
+};
+function readerNotes(methods: DescriptiveMarketMethods, section: DescriptiveSectionId, additiveWarning: boolean, extra: readonly string[] = []): string {
+  const notes = [
+    ...(/\bVN\b|Việt Nam|Vietnam/i.test(methods.input.scope.geography) ? ['Số liệu cho Việt Nam.'] : []),
+    ...(additiveWarning ? ['Không cộng các dòng với nhau.'] : []),
+    ...methods.limitations.filter(code => code.startsWith(`${section}_`)).flatMap(code => READER_SECTION_LIMITS[code] ? [READER_SECTION_LIMITS[code]!] : []),
+    ...extra,
+  ];
+  return [...new Set(notes)].map(note => `<p class="sec-note">${escape(note)}</p>`).join('');
+}
+type ReaderSectionBody = Omit<DescriptiveSectionView, 'html'> & { body: string };
+function readerM05(methods: DescriptiveMarketMethods, citations: ReportCitations, context: DescriptiveReaderContext): ReaderSectionBody {
+  const section = methods.sections.M05;
+  const unresolved: string[] = [];
+  const measures = new Map<string, Observation[]>();
+  for (const pointer of new Set(section.partitions.flatMap(partition => partition.recordPointers))) {
+    const row = recordAt(methods.input.m05, pointer, 'm05');
+    if (!row) { unresolved.push(pointer); continue; }
+    const rows = measures.get(row.measureLiteral) ?? [];
+    rows.push(row);
+    measures.set(row.measureLiteral, rows);
+  }
+  let usable = false;
+  const tables = [...measures].map(([measure, observations]) => {
+    const windows = [...new Set(observations.map(row => row.period === null ? '' : `${row.period.start}/${row.period.end}`))].sort();
+    const products = new Map<string, { label: string; cells: Map<string, Observation[]> }>();
+    for (const row of observations) {
+      usable ||= hasSourceValue(row);
+      // A name alone cannot join observations from different sources or scopes.
+      const key = JSON.stringify([row.source.sourceSha256, row.entityLabel ?? row.source.locator, row.scope, row.measureDefinition]);
+      let product = products.get(key);
+      if (!product) {
+        product = { label: readerProduct(row.entityLabel, products.size + 1, context), cells: new Map() };
+        products.set(key, product);
+      }
+      const window = row.period === null ? '' : `${row.period.start}/${row.period.end}`;
+      product.cells.set(window, [...(product.cells.get(window) ?? []), row]);
+    }
+    const units = [...new Set(observations.map(row => row.unit))];
+    const unit = units.length === 1 ? readerUnit(units[0] ?? null) : null;
+    const label = `${readerMeasure(measure)}${unit ? ` (${unit})` : ''}`;
+    const heads = ['Sản phẩm', ...windows.map(window => {
+      const row = observations.find(item => (item.period === null ? '' : `${item.period.start}/${item.period.end}`) === window)!;
+      return `${readerPeriod(row.period)}${unit === 'VND' ? ' (VND)' : ''}`;
+    })];
+    const rows = [...products.values()].map(product => `<tr><td>${escape(product.label)}</td>${windows.map(window =>
+      `<td>${product.cells.get(window)?.map(row => `${readerValue(row, units.length > 1)} ${sourceCell(methods.input, row.source, citations, true)}`).join('<br>') ?? 'Chưa có dữ liệu'}</td>`).join('')}</tr>`).join('');
+    return table(label, heads, rows, true);
+  }).join('');
+  const body = tables ? `<p>${readerCount(section.locatedRecordCount)} quan sát theo sản phẩm và kỳ.</p>${tables}${readerNotes(methods, 'M05', true)}` : '<p>Chưa có dữ liệu quan sát.</p>';
+  return { usable, locatedRecordCount: section.locatedRecordCount, unresolvedPointers: unresolved, blockers: section.blockers, body };
+}
+function readerM06(methods: DescriptiveMarketMethods, citations: ReportCitations, context: DescriptiveReaderContext): ReaderSectionBody {
+  const section = methods.sections.M06;
+  const unresolved: string[] = [];
+  let usable = false;
+  let count = 0;
+  const rows = section.recordPointers.flatMap(pointer => {
+    const record = recordAt(methods.input.m06, pointer, 'm06');
+    if (!record) { unresolved.push(pointer); return []; }
+    const row = record.observation;
+    const measure = supplyMeasure(row.measureLiteral);
+    if (measure === null) return [];
+    count += 1;
+    usable ||= hasSourceValue(row);
+    return [`<tr><td>${escape(readerProduct(row.entityLabel, count, context))}</td><td>${escape(measure)}</td><td>${readerValue(row, true)}</td><td>${escape(readerPeriod(row.period))}</td><td>${sourceCell(methods.input, row.source, citations, true)}</td></tr>`];
+  }).join('');
+  const body = rows ? table('Số liệu nguồn cung', ['Sản phẩm', 'Chỉ số', 'Giá trị', 'Kỳ quan sát', 'Nguồn'], rows, true) + readerNotes(methods, 'M06', true)
+    : '<p>Chưa có dữ liệu nguồn cung.</p>';
+  return { usable, locatedRecordCount: count, unresolvedPointers: unresolved, blockers: section.blockers, body };
+}
+function readerM07(methods: DescriptiveMarketMethods, citations: ReportCitations, context: DescriptiveReaderContext): ReaderSectionBody {
+  const section = methods.sections.M07;
+  const unresolved: string[] = [];
+  let usable = false;
+  const declared = section.mode === 'DECLARED_PEERS_SIDE_BY_SIDE' && methods.input.peerSet !== null;
+  const labels = new Map<string, string>();
+  const cell = (row: Observation): string => {
+    const key = JSON.stringify([row.source.sourceSha256, row.entityLabel ?? row.source.locator]);
+    if (!labels.has(key)) labels.set(key, readerProduct(row.entityLabel, labels.size + 1, context));
+    return `${escape(labels.get(key)!)}<br>${escape(readerMeasure(row.measureLiteral))}: ${readerValue(row, true)}<br>${escape(readerPeriod(row.period))} ${sourceCell(methods.input, row.source, citations, true)}`;
+  };
+  const rows = section.recordPointers.flatMap(pointer => {
+    const row = recordAt(methods.input.m07, pointer, 'm07');
+    if (!row) { unresolved.push(pointer); return []; }
+    usable ||= hasSourceValue(row);
+    return [`<tr><td>${cell(row)}</td></tr>`];
+  }).join('');
+  const side = (pointer: string | null): string => {
+    const row = pointer === null ? null : recordAt(methods.input.m07, pointer, 'm07');
+    return row === null ? 'Chưa đủ dữ liệu đối chiếu' : cell(row);
+  };
+  const comparisons = declared && section.comparisons.length ? table('Đối chiếu trong nhóm đã khai báo', ['Sản phẩm mốc', 'Đối thủ', 'Khả năng đối chiếu'],
+    section.comparisons.map(item => `<tr><td>${side(item.anchorPointer)}</td><td>${side(item.peerPointer)}</td><td>${item.compatibility === 'COMPARABLE' ? 'Cùng thước đo, kỳ và phạm vi' : 'Chưa đủ điều kiện so sánh'}</td></tr>`).join(''), true) : '';
+  const body = rows ? `${comparisons}${table('Quan sát theo sản phẩm; thứ tự không phải xếp hạng', ['Sản phẩm và số liệu nguồn'], rows, true)}${readerNotes(methods, 'M07', true,
+    declared ? [] : ['Chưa có nhóm đối thủ được khai báo để so sánh.'])}` : '<p>Chưa đủ dữ liệu về đối thủ.</p>';
+  return { usable, locatedRecordCount: section.recordPointers.length, unresolvedPointers: unresolved, blockers: section.blockers, body };
+}
+function readerM09(methods: DescriptiveMarketMethods, citations: ReportCitations, context: DescriptiveReaderContext): ReaderSectionBody {
+  const section = methods.sections.M09;
+  const unresolved: string[] = [];
+  const period = context.requestedPeriod;
+  let before = false;
+  let after = false;
+  let launches = false;
+  let count = 0;
+  const products = new Map<string, string>();
+  const rows = section.events.flatMap(event => {
+    const row = recordAt(methods.input.m09, event.recordPointer, 'm09');
+    if (!row) { unresolved.push(event.recordPointer); return []; }
+    if (!period || row.eventDate === null) return [];
+    if (row.eventDate < period.startDate) { before = true; return []; }
+    if (row.eventDate > period.endDate) { after = true; return []; }
+    let wording: string;
+    let launch = false;
+    if (row.sourceWording.trimStart().startsWith('{')) {
+      try {
+        const value: unknown = JSON.parse(row.sourceWording);
+        if (value === null || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length !== 1
+          || !('launch_date' in value) || value.launch_date !== row.eventDate) return [];
+        wording = 'Ngày ra mắt do nguồn khai báo';
+        launch = true;
+      } catch { return []; }
+    } else {
+      if (!plainCopy(row.sourceWording) || !/[\u00c0-\u024f\u1e00-\u1eff]/.test(row.sourceWording)) return [];
+      wording = row.sourceWording;
+    }
+    launches ||= launch;
+    count += 1;
+    if (!products.has(row.namedScope)) products.set(row.namedScope, readerProduct(row.namedScope, products.size + 1, context));
+    const conflict = row.conflictRefs.length ? '<br>Có thông tin mâu thuẫn, cần đối chiếu.' : '';
+    const kind = !launch && row.statementType !== 'UNCLASSIFIED' ? `${escape(EVENT_TYPE[row.statementType])}<br>` : '';
+    const attribution = !launch && plainCopy(row.attribution) && /[\u00c0-\u024f\u1e00-\u1eff]/.test(row.attribution) ? `<br><small>${escape(row.attribution)}</small>` : '';
+    return [`<tr><td>${escape(products.get(row.namedScope)!)}</td><td>${kind}${launch ? escape(wording) : `<q>${escape(wording)}</q>`}${attribution}</td><td>${escape(readerDate(row.eventDate))}</td><td>${sourceCell(methods.input, row.source, citations, true)}${conflict}</td></tr>`];
+  }).join('');
+  const omitted = before || after ? `<p>Đã lược bỏ các sự kiện có ngày ${before && after ? 'trước hoặc sau' : before ? 'trước' : 'sau'} kỳ báo cáo.</p>` : '';
+  const body = rows ? `${table('Sự kiện trong kỳ do nguồn nêu', ['Sản phẩm', 'Sự kiện', 'Ngày', 'Nguồn'], rows, true)}${omitted}${readerNotes(methods, 'M09', false,
+    launches ? ['Chưa xác minh đây là ngày ra mắt thực tế.'] : [])}` : `<p>Chưa đủ dữ liệu về sự kiện trong kỳ.</p>${omitted}`;
+  return { usable: count > 0, locatedRecordCount: count, unresolvedPointers: unresolved, blockers: section.blockers, body };
+}
+
+export function describeDescriptiveSection(methods: DescriptiveMarketMethods, sectionId: DescriptiveSectionId, citations: ReportCitations, readerPlainText = false, readerContext: DescriptiveReaderContext = {}): DescriptiveSectionView {
   const previous = activeReaderPlainText;
   activeReaderPlainText = readerPlainText;
   try {
+    if (readerPlainText) {
+      const { body, ...view } = { M05: readerM05, M06: readerM06, M07: readerM07, M09: readerM09 }[sectionId](methods, citations, readerContext);
+      return { ...view, html: body };
+    }
     const { body, ...view } = { M05: m05, M06: m06, M07: m07, M09: m09 }[sectionId](methods, citations);
     return { ...view, html: `${methodNote(view.usable)}${body}${limitations(methods, citations)}` };
   } finally {
