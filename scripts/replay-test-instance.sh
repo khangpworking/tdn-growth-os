@@ -24,6 +24,10 @@
 #     process so they behave as in production. Never inherited: the Kalodata key, the OWNER token,
 #     DB/artifact/port/host settings, R2 mirroring. Paths that point into the production state dir
 #     (video media, Metric captures) are redirected into the test dir.
+#   * Only TDN_* settings are inherited, so a lane whose key has another name is left off here:
+#     TDN_RESEARCH_JEV_ENABLED (needs TYPESAFE_API_KEY; the app refuses to start without it).
+#     PDF cloud reading has no PAGEINDEX_API_KEY either, so it reads nothing and the production
+#     balance ledger is never touched.
 #   * OWNER access uses the local-test mode (TDN_OWNER_API_LOCAL_TEST=true) on 127.0.0.1 only.
 #   * Paid non-sales-data providers (SerpApi, Apify, model calls) still spend as normal.
 set -euo pipefail
@@ -144,6 +148,8 @@ while IFS= read -r line; do
     TDN_OWNER_API_ENABLED|TDN_OWNER_API_LOCAL_TEST|TDN_OWNER_API_ACTOR_ID|TDN_R2_*|TDN_RESEARCH_KALODATA_REPLAY_SOURCE_RUN_ID) continue ;;
     TDN_RESEARCH_VIDEO_MEDIA_DIR) mkdir -p "$DIR/video-media"; CHILD_ENV+=("$key=$DIR/video-media"); continue ;;
     TDN_METRIC_CAPTURE_DIR) mkdir -p "$DIR/metric-captures"; CHILD_ENV+=("$key=$DIR/metric-captures"); continue ;;
+    # Its key (TYPESAFE_API_KEY) is not a TDN_* setting and is never inherited; on without it the app does not start.
+    TDN_RESEARCH_JEV_ENABLED) printf 'replay-test-instance: left %s off (its key is not passed to the test instance)\n' "$key" >&2; continue ;;
   esac
   case "$value" in *"$PROD_STATE_SEGMENT"*) printf 'replay-test-instance: dropped %s (points into the production state dir)\n' "$key" >&2; continue ;; esac
   CHILD_ENV+=("$key=$value")
