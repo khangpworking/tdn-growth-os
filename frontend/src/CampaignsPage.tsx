@@ -70,6 +70,7 @@ export interface CampaignsPageProps {
   readonly mode: 'real' | 'demo';
   readonly campaignId: string | null;
   readonly creating: boolean;
+  readonly researchProductId?: string | null;
   readonly ownerToken: string | null;
   readonly writesAvailable: boolean;
   readonly demoCampaigns: readonly DemoCampaign[];
@@ -369,7 +370,7 @@ export function CampaignDetail(props: CampaignDetailProps) {
 }
 
 export default function CampaignsPage(props: CampaignsPageProps) {
-  const { mode, campaignId, creating, demoCampaigns, demoItems, demoBrands } = props;
+  const { mode, campaignId, creating, researchProductId, demoCampaigns, demoItems, demoBrands } = props;
   const [brandsState, setBrandsState] = useState<LoadState<readonly ContentBrandSummary[]>>(mode === 'demo' ? { status: 'ready', value: [] } : { status: 'loading' });
   const [listState, setListState] = useState<LoadState<CampaignList>>(mode === 'demo' ? { status: 'ready', value: listCampaigns(demoCampaigns, demoItems) } : { status: 'loading' });
   const [detailState, setDetailState] = useState<LoadState<CampaignDataDetail | null>>({ status: 'loading' });
@@ -422,9 +423,9 @@ export default function CampaignsPage(props: CampaignsPageProps) {
     if (creating) {
       setEditing('new');
       dispatch({ type: 'new', key: generatedCampaignKey(), target: 'new' });
-      dispatch({ type: 'edit', draft: emptyCampaignDraft() });
+      dispatch({ type: 'edit', draft: { ...emptyCampaignDraft(), researchProductWorkspaceId: researchProductId && props.productWorkspaces.some((workspace) => workspace.id === researchProductId) ? researchProductId : '' } });
     } else setEditing(null);
-  }, [creating, campaignId]);
+  }, [creating, campaignId, researchProductId]);
 
   useEffect(() => {
     if (editing !== 'edit' || !campaignId || !detail) return;
