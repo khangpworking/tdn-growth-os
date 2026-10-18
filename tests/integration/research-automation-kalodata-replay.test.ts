@@ -336,4 +336,20 @@ test('the replay gate stops copied rendering runs and automatic capture, and ref
   assert.equal(captures, 0, 'the capture provider was never called');
   assert.deepEqual(inner, { balance: 0, rank: 0, detail: 0, other: 0 });
   assert.equal(transport.stats.replayed + transport.stats.missed, 0);
+
+  // Copied mid-flight: a running quick search with a running capture. Startup recovery quarantines it instead of interrupting or requeueing.
+  const running = await startRun('03');
+  db.prepare(`UPDATE analysis_research_automation_runs SET revision=revision+1,status='QUICK_SEARCH_RUNNING' WHERE run_id=?`).run(running);
+  db.prepare(`UPDATE analysis_research_automation_steps SET state='RUNNING',started_at=? WHERE run_id=? AND state='QUEUED'`).run(at, running);
+  db.prepare(`INSERT INTO research_automation_autorun(run_id,workspace_id,phase,phase_state,capture_dir_key,prepare_request_key,confirm_request_key,revision_request_key,created_at,updated_at)
+    VALUES (?,?,'CAPTURE','RUNNING',?,?,?,?,?,?)`).run(running, replayWorkspace, running, '55555555-5555-4555-8555-555555557711', '55555555-5555-4555-8555-555555557712', '55555555-5555-4555-8555-555555557713', at, at);
+  const restarted = service(true);
+  await restarted.recoverOnStart();
+  const recovered = await restarted.getRun(replayWorkspace, running);
+  assert.equal(recovered.status, 'CANCELLED', 'a copied running quick search is quarantined, not interrupted');
+  assert.ok(recovered.steps.some(step => step.code === 'KALODATA_REPLAY_SCOPE_MISMATCH'));
+  assert.deepEqual({ ...db.prepare('SELECT phase,phase_state state,stop_code code FROM research_automation_autorun WHERE run_id=?').get(running) as object },
+    { phase: 'STOPPED', state: 'QUEUED', code: 'KALODATA_REPLAY_SCOPE_MISMATCH' }, 'a copied running capture stops with the scope code');
+  assert.equal(await restarted.processNext(), false, 'nothing is left to dispatch');
+  assert.equal(captures, 0);
 });

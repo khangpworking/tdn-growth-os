@@ -156,15 +156,20 @@ CHILD_ENV+=(
 
 echo "== start the replay instance on 127.0.0.1:$PORT"
 # env -i: nothing from this shell (or the production process) leaks in except the list above.
-(cd "$CHECKOUT" && env -i HOME="$HOME" USER="${USER:-}" LANG="${LANG:-C.UTF-8}" PATH="$PATH" "${CHILD_ENV[@]}" \
-  nohup node --import tsx scripts/serve-operator-app.ts > "$DIR/server.log" 2>&1 &
-  echo $! > "$DIR/server.pid")
+# exec chain (subshell -> env -> nohup -> node): $! is the server process itself, so the printed stop command stops it.
+(cd "$CHECKOUT" && exec env -i HOME="$HOME" USER="${USER:-}" LANG="${LANG:-C.UTF-8}" PATH="$PATH" "${CHILD_ENV[@]}" \
+  nohup node --import tsx scripts/serve-operator-app.ts > "$DIR/server.log" 2>&1) &
+SERVER_PID=$!
+echo "$SERVER_PID" > "$DIR/server.pid"
+stop_server() { kill "$SERVER_PID" 2>/dev/null || true; wait "$SERVER_PID" 2>/dev/null || true; }
+listening=0
 for _ in $(seq 1 60); do
-  grep -q 'Operator app listening' "$DIR/server.log" 2>/dev/null && break
-  kill -0 "$(cat "$DIR/server.pid")" 2>/dev/null || { cat "$DIR/server.log" >&2; die 'server exited during startup'; }
+  grep -q 'Operator app listening' "$DIR/server.log" 2>/dev/null && { listening=1; break; }
+  kill -0 "$SERVER_PID" 2>/dev/null || { cat "$DIR/server.log" >&2; die 'server exited during startup'; }
   sleep 1
 done
-grep -q "KALODATA REPLAY MODE source=$SOURCE_RUN" "$DIR/server.log" || { cat "$DIR/server.log" >&2; die 'replay mode line not logged; stopping'; }
+[ "$listening" = 1 ] || { stop_server; cat "$DIR/server.log" >&2; die 'server did not start within 60s; stopped it'; }
+grep -q "KALODATA REPLAY MODE source=$SOURCE_RUN" "$DIR/server.log" || { stop_server; cat "$DIR/server.log" >&2; die 'replay mode line not logged; stopped the server'; }
 
 # Helper that starts a Market run with the source run's exact keyword and period (the only scope replay accepts).
 cat > "$DIR/start-market.ts" <<EOF_HELPER

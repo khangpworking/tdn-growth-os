@@ -3212,6 +3212,11 @@ export class ResearchAutomationService {
 
   /** On executor start, paid provider operations are interrupted, never retried. */
   async recoverOnStart(): Promise<void> {
+    // Replay instance: copied runs outside the source scope stop first, so normal recovery never requeues them.
+    if (this.#kalodataReplay) {
+      const runIds = (this.#db.prepare('SELECT run_id runId FROM analysis_research_automation_runs').all() as Array<{ runId: string }>).map(row => row.runId);
+      for (const runId of runIds) if (this.#replayOutOfScope(runId)) await this.#quarantineReplayRun(runId);
+    }
     await withDatabaseMutationMutex(this.#db, async () => {
       const rows = this.#db.prepare(`SELECT run_id runId,revision,status FROM analysis_research_automation_runs WHERE status IN ('QUICK_SEARCH_RUNNING','COLLECTING','CANCELLING','RENDERING')`).all() as Array<{ runId: string; revision: bigint | number; status: ResearchAutomationRun['status'] }>;
       const at = this.#now().toISOString();
