@@ -23,7 +23,7 @@ adapter installed from the same repository bytes. The executor verifies
 `tools/opencli-metric/adapter-manifest.json` before each run. `whoami` reads
 only login, captcha, page-state and any displayed analysis lookup balance.
 The current manifest SHA-256 is
-`ba1f60da199b8627c7870f909d605b3027cc2a2131946aa90e254308e7e1eb42`.
+`984ea32937081bb487a566df3c1ebe3dedb2f9afca282a67a7afb3b8518e0935`.
 
 Install or reinstall the adapter from the checked-out repository bytes with:
 
@@ -332,4 +332,10 @@ top-shop series. Platforms are mapped from the live `search_basic` list; values
 are never summed. A trend series is retained only when a post-submit source
 response offers one; otherwise the manifest records `not offered by the source`.
 
-Adapter manifest SHA-256: `ba1f60da199b8627c7870f909d605b3027cc2a2131946aa90e254308e7e1eb42`.
+Top-products and top-shops cells show the period change after the value
+(`2,6 billion ▼ 34%`, `9 —`, `3 ↗ 2`). Adapter v11 keeps the leading value and
+drops the change marker; the full displayed text stays in the snapshot. The
+product variant price range `a₫ - b₫` gives `minPrice` its low end. Captures
+made before v11 keep those cells empty.
+
+Adapter manifest SHA-256: `984ea32937081bb487a566df3c1ebe3dedb2f9afca282a67a7afb3b8518e0935`.
