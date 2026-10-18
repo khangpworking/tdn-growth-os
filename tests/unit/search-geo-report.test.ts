@@ -40,6 +40,7 @@ function assertBlock(html: string, choice: RegExp) {
   const { section, head, table, text } = geoBlock(html);
   assert.ok(head, 'Bảng 5.2 sits in the demand section');
   assert.match(head.parentElement!.textContent!, /Mức quan tâm tìm kiếm theo vùng/u);
+  assert.equal(text.split('Mức quan tâm tìm kiếm theo vùng').length - 1, 1, 'the table title is shown once');
   const rows = [...table!.querySelectorAll('tbody tr')].map(row => [...row.querySelectorAll('td')].map(cell => cell.textContent!.trim()));
   assert.deepEqual(rows.map(row => row[0]), REGIONS);
   assert.equal(rows.reduce((sum, row) => sum + Number(row[2]), 0), 10, 'the top ten are counted once');
