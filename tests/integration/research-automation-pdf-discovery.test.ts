@@ -253,13 +253,14 @@ test('flag off: no call, no field, no capture, no usage row, and no S25 row', as
   assert.equal(html.includes(PDF_EXCERPT_TITLE), false);
   assert.equal(((await f.semantic()).sourceEvidence as Appendix).sourceAppendix.rows.some(r => r.registryId === 'S25'), false);
   // Frozen on e009d9ee with this same synthetic fixture: stored documents and both renderers are byte-identical.
+  // WEBTITLE-209 re-froze only the two HTML digests: copied web titles are now wrapped in <q data-quote>; documents, captures, usage and semantic digests are unchanged.
   const digest = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
   assert.equal(digest(JSON.stringify(f.document)), 'e0c90c1116c96b18508dff74c646c3ce594a89aee6e46e1507a735357eff1018');
   assert.equal(digest(JSON.stringify(f.captures)), '6fe81a13cc6fe4a54417efde083d79eb8beb34ecdd242a868b4a35eeee14201a');
   assert.equal(digest(JSON.stringify(f.usage)), '2a267b2f584266350053a7a4d917439936a5ff8a4bdc5587ad3430180707ceaa');
   for (const [kind, htmlDigest, semanticDigest] of [
-    ['MARKET', '4d962b9295505553d68e61dbd81c89a31ffd898576a57e5bae2de4a13c27dd6d', '04d5cec28cfaf12284fb5b64055f261915fa01128c5bf690ffa75d09b51bdd8f'],
-    ['INSIGHT', 'b95a661f988a92fbe7ef70323033c14f14da7da88147dab4dbd84475240cc36a', '836f890780481d66e8227069107804fea6e5ecd28f64dae345681485219855bc'],
+    ['MARKET', '12733eaf88146b941e32f0a49b8732ae3d8ecc7aa556b9de231a0b930f335d3a', '04d5cec28cfaf12284fb5b64055f261915fa01128c5bf690ffa75d09b51bdd8f'],
+    ['INSIGHT', '94724e129362d437a4622b87d33c33e52ecf8f1c7a898c97d5dac312c8f61559', '836f890780481d66e8227069107804fea6e5ecd28f64dae345681485219855bc'],
   ] as const) {
     const report = buildResearchAutomationReport(f.reportInputs.get(kind)!, kind);
     assert.equal(digest(report.html), htmlDigest, kind);
