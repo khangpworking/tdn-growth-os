@@ -10,6 +10,7 @@ import { DEFAULT_MARKET_PEER_RULE, verifyDefaultMarketPeers } from '../../src/mo
 import { calculateMetricScopes, metricLabelFingerprint } from '../../src/modules/analysis/metric-scope-calculator.js';
 import { metricFixture } from '../fixtures/metric-scope-synthetic.js';
 import { providerNameViolations, reportVisibleText, visibleTextViolations } from '../helpers/report-visible-text.js';
+import { buildSourceEvidence } from '../../src/modules/analysis/research-automation/source-evidence.js';
 
 const hash = (value: string | Buffer): string => createHash('sha256').update(value).digest('hex');
 
@@ -107,4 +108,29 @@ test('classified capture placeholders cannot appear as source shops in the peer 
   assert.match(reportVisibleText(m07), /Chưa đủ nguồn, doanh thu, nhóm hoặc danh tính để chọn đối thủ/u);
   assert.doesNotMatch(m07, /\(không ghi\)|Gian hàng nguồn; chưa rõ thương hiệu/u);
   assert.doesNotMatch(m07, /<table>/u, 'the incomplete frame cannot rank just its known shops');
+});
+
+test('reader peers withhold shop identifiers, localize periods and express zero and threshold in words', () => {
+  for (const zero of [false, true]) {
+    const input = { ...sync2ReportFixture() };
+    input.start = { ...input.start, defaultPeerRule: { ...DEFAULT_MARKET_PEER_RULE }, sourceEvidenceVersion: 'automation-source-evidence-v1' };
+    input.sourceEvidence = buildSourceEvidence({ draft: null, draftDigest: null, unavailableReason: 'SALES_NAMES_UNAVAILABLE', webResults: [], captures: [] });
+    input.metricClassified = classified();
+    const sales = input.metricClassified.result.input;
+    for (const [index, row] of sales.records.entries()) {
+      row.shopId = String(987654321 + index);
+      if (zero) row.revenue = { ...row.revenue, state: 'observed_zero', value: '0' };
+      row.label!.contentSha256 = metricLabelFingerprint(sales.scope.platform, row);
+    }
+    input.metricClassified.result = calculateMetricScopes(sales);
+    const report = buildResearchAutomationReport(input, 'MARKET');
+    const section = report.html.toString().match(/<section[^>]*id="M07"[^>]*>[\s\S]*?<\/section>/u)![0];
+    const visible = reportVisibleText(section);
+    assert.doesNotMatch(visible, /98765432|\d{4}-\d{2}-\d{2}|%|\b0\b/);
+    assert.match(visible, /17\/08\/2026 đến 15\/09\/2026/);
+    assert.match(visible, /50 phần trăm/);
+    assert.match(visible, zero ? /Không ghi nhận doanh thu/ : /Gian hàng #1/);
+    const peers = (report.semantic as { defaultMarketPeers: DefaultMarketPeers }).defaultMarketPeers;
+    assert.deepEqual(verifyDefaultMarketPeers(peers), peers);
+  }
 });

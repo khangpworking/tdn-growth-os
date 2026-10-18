@@ -33,6 +33,7 @@ function productNamer(snapshot: AutomationMarketMethodSnapshot, productLabels: R
     if (!ordinals.has(key)) ordinals.set(key, ordinals.size + 1);
     return ordinals.get(key)!;
   };
+  for (const observation of snapshot.temporal.input.observations) for (const key of observation.subjectMemberKeys ?? []) ordinal(key);
   return {
     ordinal: (keys: readonly string[]): number => keys.length ? Math.min(...keys.map(ordinal)) : Number.MAX_SAFE_INTEGER,
     label: (keys: readonly string[]): string => keys.map(key => readerProductLabel(sourceMemberLabel(key, true), productLabels?.get(key), ordinal(key))).join(', '),
@@ -93,7 +94,8 @@ function readerPeriodSection(snapshot: AutomationMarketMethodSnapshot, trace: Tr
   });
   const ordered = [...groups.values()].sort((a, b) => names.ordinal(a.keys) - names.ordinal(b.keys)
     || (a.window.start ?? '').localeCompare(b.window.start ?? '') || a.first - b.first);
-  const noSales = (row: Row): boolean => row.observations.length > 0 && row.observations.every(observation => isZero(observedDecimal(observation)));
+  const noSales = (row: Row): boolean => row.cells.has('revenue') && (row.cells.has('sales_volumn') || row.cells.has('sales_volume'))
+    && row.observations.every(observation => isZero(observedDecimal(observation)));
   // Back-to-back windows with no recorded sale for the same product read as one row, never as a sum.
   const rows: Row[] = [];
   for (const row of ordered) {
@@ -133,46 +135,63 @@ function quoteMemberKey(quote: Quote, keys: readonly string[]): string | null {
   return keys.find(key => key === text || key.slice(key.lastIndexOf(':') + 1) === text) ?? null;
 }
 
+/** Compare the retained nonnegative decimals without losing integer or fractional precision. */
+function compareAmounts(a: string, b: string): number {
+  const [aw = '0', af = ''] = a.split('.'), [bw = '0', bf = ''] = b.split('.');
+  const scale = Math.max(af.length, bf.length);
+  const left = BigInt(aw + af.padEnd(scale, '0')), right = BigInt(bw + bf.padEnd(scale, '0'));
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
 /** M08 reader view: listed price range once per product, then revenue ÷ units per query window as an estimate. */
 function readerPriceSection(snapshot: AutomationMarketMethodSnapshot, trace: Trace, productLabels: ReadonlyMap<string, string> | undefined): string {
   const names = productNamer(snapshot, productLabels);
-  const captures = new Map<string, { keys: readonly string[]; window: Window }>();
+  const captures = new Map<string, { keys: readonly string[]; window: Window; observations: Observation[] }>();
   for (const observation of snapshot.temporal.input.observations) {
     const ordinal = /^capture-(\d+)-/.exec(observation.observationId ?? '')?.[1];
-    if (ordinal !== undefined && !captures.has(ordinal)) captures.set(ordinal, { keys: observation.subjectMemberKeys ?? [], window: observationWindow(observation) });
+    if (ordinal !== undefined) {
+      const capture = captures.get(ordinal) ?? { keys: observation.subjectMemberKeys ?? [], window: observationWindow(observation), observations: [] };
+      capture.observations.push(observation);
+      captures.set(ordinal, capture);
+    }
   }
   const knownKeys = [...new Set([...names.keys(), ...snapshot.temporal.input.observations.flatMap(observation => observation.subjectMemberKeys ?? [])])];
   type Estimate = { keys: readonly string[]; window: Window | null; value: string; quote: Quote; index: number };
-  type Listed = { keys: readonly string[]; label: string | null; ranges: Map<string, { minimum: string; maximum: string }>; sources: Quote['source'][]; index: number };
+  type Listed = { keys: readonly string[]; label: string | null; minimum: string; maximum: string; sources: Quote['source'][]; index: number };
   const estimates: Estimate[] = [], listed = new Map<string, Listed>();
-  let noSale = 0, unreadable = 0;
+  let noSale = 0, zeroEstimate = 0, unreadable = 0;
   snapshot.quotes.input.quotes.forEach((quote, index) => {
     const capture = captures.get(/^capture-(\d+)-/.exec(quote.quoteId)?.[1] ?? '');
     const member = capture ? null : quoteMemberKey(quote, knownKeys);
     const keys = capture?.keys ?? (member ? [member] : []);
     if (quote.price.value !== null) {
-      if (isZero(quote.price.value)) noSale += 1;
+      const units = capture?.observations.filter(row => row.measure.literal === 'sales_volumn' || row.measure.literal === 'sales_volume') ?? [];
+      if (units.length && units.every(row => isZero(observedDecimal(row)))) noSale += 1;
+      else if (isZero(quote.price.value)) zeroEstimate += 1;
       else estimates.push({ keys, window: capture?.window ?? null, value: quote.price.value, quote, index });
     } else if (quote.price.range) {
       const id = keys.length ? JSON.stringify(keys) : `quote:${index}`;
-      const row: Listed = listed.get(id) ?? { keys, label: keys.length ? null : readerQuoteLabel(quote.quoteId, index + 1), ranges: new Map(), sources: [], index };
-      row.ranges.set(`${quote.price.range.minimum}|${quote.price.range.maximum}`, quote.price.range);
+      const row: Listed = listed.get(id) ?? { keys, label: keys.length ? null : readerQuoteLabel(quote.quoteId, index + 1), ...quote.price.range, sources: [], index };
+      if (compareAmounts(quote.price.range.minimum, row.minimum) < 0) row.minimum = quote.price.range.minimum;
+      if (compareAmounts(quote.price.range.maximum, row.maximum) > 0) row.maximum = quote.price.range.maximum;
       row.sources.push(quote.source);
       listed.set(id, row);
     } else unreadable += 1;
   });
-  const money = (value: string): string => formatReaderValue(value, { currency: 'VND' }) ?? 'Giá được giữ trong bản lưu';
+  const money = (value: string): string => isZero(value) ? 'Không đồng' : formatReaderValue(value, { currency: 'VND' }) ?? 'Giá được giữ trong bản lưu';
   const product = (keys: readonly string[], fallback: string): string => keys.length ? names.label(keys) : fallback;
-  const listedRows = [...listed.values()].sort((a, b) => names.ordinal(a.keys) - names.ordinal(b.keys) || a.index - b.index).flatMap(row =>
-    [...row.ranges.values()].map(range => `<tr><td>${escape(product(row.keys, row.label ?? 'Sản phẩm chưa xác định'))}</td><td>${escape(money(range.minimum))}</td><td>${escape(money(range.maximum))}</td><td>${marks(row.sources, trace)}</td></tr>`)).join('');
+  const listedRows = [...listed.values()].sort((a, b) => names.ordinal(a.keys) - names.ordinal(b.keys) || a.index - b.index)
+    .map(row => `<tr><td>${escape(product(row.keys, row.label ?? 'Sản phẩm chưa xác định'))}</td><td>${escape(money(row.minimum))}</td><td>${escape(money(row.maximum))}</td><td>${marks(row.sources, trace)}</td></tr>`).join('');
   const estimateRows = estimates.sort((a, b) => names.ordinal(a.keys) - names.ordinal(b.keys) || (a.window?.start ?? '').localeCompare(b.window?.start ?? '') || a.index - b.index)
     .map(row => `<tr><td>${escape(product(row.keys, readerQuoteLabel(row.quote.quoteId, row.index + 1)))}</td><td>${escape(windowText(row.window))}</td><td>${escape(money(row.value))}</td><td>${trace(row.quote.source)}</td></tr>`).join('');
   const parts = ['<p class="warning">Chưa rõ phiên bản, combo hay điều kiện giá. Không tính biên lợi nhuận và không so sánh như cùng loại hàng.</p>'];
-  if (listedRows) parts.push('<div class="table-wrap" role="region" aria-label="Giá do nguồn ghi cho từng sản phẩm" tabindex="0"><table><caption>Giá do nguồn ghi cho từng sản phẩm</caption><thead><tr><th>Sản phẩm</th><th>Giá thấp nhất (VND)</th><th>Giá cao nhất (VND)</th><th>Nguồn</th></tr></thead><tbody>' + listedRows + '</tbody></table></div>' +
-    '<p class="lim"><b>Chú thích:</b> Giá thấp nhất và cao nhất do nguồn ghi cho sản phẩm; hai số bằng nhau khi nguồn chỉ ghi một mức giá.</p>');
+  if (listedRows) parts.push('<div class="table-wrap" role="region" aria-label="Giá do nguồn ghi cho từng sản phẩm" tabindex="0"><table><caption>Giá do nguồn ghi cho từng sản phẩm</caption><thead><tr><th>Sản phẩm</th><th>Giá từ (VND)</th><th>Giá đến (VND)</th><th>Nguồn</th></tr></thead><tbody>' + listedRows + '</tbody></table></div>' +
+    '<p class="lim"><b>Chú thích:</b> Khoảng giá bao quát các mức nguồn ghi cho từng sản phẩm qua các lần thu đã lưu; hai số bằng nhau khi nguồn chỉ ghi một mức giá. Các lần thu có thể có kỳ đo và điều kiện giá khác nhau.</p>');
   if (estimateRows) parts.push('<div class="table-wrap" role="region" aria-label="Doanh thu chia sản lượng bán theo kỳ" tabindex="0"><table><caption>Doanh thu chia sản lượng bán theo kỳ (ước tính, không phải giá niêm yết)</caption><thead><tr><th>Sản phẩm</th><th>Kỳ đo</th><th>Doanh thu chia sản lượng bán (VND)</th><th>Nguồn</th></tr></thead><tbody>' + estimateRows + '</tbody></table></div>' +
-    `<p class="lim"><b>Chú thích:</b> Số ước tính bằng doanh thu chia sản lượng bán trong từng kỳ; có thể khác giá nguồn ghi vì khuyến mãi, phiên bản hoặc combo.${noSale ? ' Kỳ không có lượt bán thì không có số ước tính nên không đưa vào bảng.' : ''}</p>`);
-  if (!listedRows && !estimateRows) parts.push(`<p>Chưa có giá nguồn dùng được.${noSale ? ' Các kỳ đã lưu không có lượt bán nên không có số ước tính.' : ''}</p>`);
+    '<p class="lim"><b>Chú thích:</b> Số ước tính bằng doanh thu chia sản lượng bán trong từng kỳ; có thể khác giá nguồn ghi vì khuyến mãi, phiên bản hoặc combo.</p>');
+  if (!listedRows && !estimateRows) parts.push('<p>Chưa có giá nguồn dùng được.</p>');
+  if (noSale) parts.push(`<p>Có ${escape(formatReaderCount(noSale))} bản ghi thuộc kỳ không ghi nhận lượt bán; không đưa vào bảng ước tính vì không thể chia cho sản lượng bằng không.</p>`);
+  if (zeroEstimate) parts.push(`<p>Có ${escape(formatReaderCount(zeroEstimate))} bản ghi ước tính bằng không; không đưa vào bảng. Giá trị này không đủ để kết luận kỳ đó không có lượt bán.</p>`);
   if (unreadable) parts.push(`<p>Có ${escape(formatReaderCount(unreadable) ?? 'một số')} bản ghi giá không đọc được; không đưa vào bảng.</p>`);
   return parts.join('');
 }

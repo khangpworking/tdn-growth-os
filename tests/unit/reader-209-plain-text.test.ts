@@ -22,6 +22,10 @@ import {
   readerQuoteRange, readerQuoteValueState, readerStoredOrJson, readerScopeText, readerTextSafe,
 } from '../../src/modules/analysis/research-automation/reader-plain-text.js';
 import { descriptiveMarketFixture } from '../helpers/descriptive-market-fixture.js';
+import { annotateExhibits } from '../../src/modules/analysis/research-automation/market-reader-delivery.js';
+import { fullMarket14Input } from '../helpers/market14-full-fixture.js';
+import { assertMarket14MachineRules } from '../../src/modules/analysis/research-automation/market-14-rules.js';
+import { assertMarketBusinessGate } from '../../src/modules/analysis/research-automation/market-business-gate.js';
 
 const ORIGIN_QUOTE_BYTES = "<p class=\"warning\">Tính từ bản ghi có cấu trúc đã lưu, không tự suy quy cách từ tên sản phẩm. Kiểm tra này chứng minh phép tính và sự khớp trường, không xác nhận nội dung của trang bán hàng, giao dịch hay việc người dùng đã duyệt. Không tính chi phí, lợi nhuận hoặc xếp hạng chào bán.</p><p>Gói đã chọn không có bản ghi giá.</p><p>Số hiển thị làm tròn đến hai chữ số thập phân theo half-even; phân số chính xác được giữ riêng. Giá có điều kiện không trở thành giá thanh toán vô điều kiện.</p>";
 const ORIGIN_QUOTE_NONEMPTY_BYTES = "<p class=\"warning\">Tính từ bản ghi có cấu trúc đã lưu, không tự suy quy cách từ tên sản phẩm. Kiểm tra này chứng minh phép tính và sự khớp trường, không xác nhận nội dung của trang bán hàng, giao dịch hay việc người dùng đã duyệt. Không tính chi phí, lợi nhuận hoặc xếp hạng chào bán.</p><h3>capture-12-unit-price</h3><p>1 item. Giá niêm yết: 85991856.58 VND.</p>\n      <p>Biến thể: UNKNOWN. Điều kiện: Không có điều kiện được ghi trong nguồn; chưa xác nhận vô điều kiện. Thuế: UNKNOWN; vận chuyển: UNKNOWN.</p>\n      <p>Thời điểm quan sát: Chưa xác định, không coi là giá hiện tại. Thời điểm thu nhận được khai báo: 2026-01-01T00:00:00Z.</p>\n      <div class=\"table-wrap\" role=\"region\" aria-label=\"Phép tính giá chào bán 1\" tabindex=\"0\"><table><caption>Giá theo từng cơ sở, giữ riêng khối lượng tịnh và ráo</caption><thead><tr><th scope=\"col\">Cơ sở</th><th scope=\"col\">Kết quả</th><th scope=\"col\">Điều kiện và phần thiếu</th></tr></thead><tbody><tr><th scope=\"row\">Mỗi gói mua</th><td>1234567.89 VND<br><small>Giá trị chính xác: 1234567 / 100</small></td><td>Từ trường trong bản ghi nguồn, chưa xác minh thực tế</td></tr><tr><th scope=\"row\">Mỗi món hàng</th><td>1234567.89 VND<br><small>Giá trị chính xác: 1234567 / 100</small></td><td>Từ trường trong bản ghi nguồn, chưa xác minh thực tế</td></tr><tr><th scope=\"row\">Mỗi 100 g tịnh</th><td>1234567.89 VND<br><small>Giá trị chính xác: 1234567 / 100</small></td><td>Từ trường trong bản ghi nguồn, chưa xác minh thực tế</td></tr><tr><th scope=\"row\">Mỗi 100 g ráo</th><td>1234567.89 VND<br><small>Giá trị chính xác: 1234567 / 100</small></td><td>Từ trường trong bản ghi nguồn, chưa xác minh thực tế</td></tr></tbody></table></div>\n      <p>Nguồn: [1]. Xuất xứ khai báo trong gói: synthetic; Synthetic source. <a href=\"#quote-method-evidence\">Xem trường nguồn và phép tính tại M13</a>.</p><p>Số hiển thị làm tròn đến hai chữ số thập phân theo half-even; phân số chính xác được giữ riêng. Giá có điều kiện không trở thành giá thanh toán vô điều kiện.</p>";
@@ -213,6 +217,9 @@ test('reader appendix numbers products in order, falls back to run titles and wr
     ['Bình hai lớp tổng hợp', '250.000', '01/01/2026 đến 31/01/2026'],
     ['Sản phẩm #3', '1.000', '01/01/2026 đến 31/01/2026'],
   ]);
+  const reordered = { ...input, collection: { ...input.collection!, comparables: [...input.collection!.comparables].reverse() } };
+  const reorderedDoc = new JSDOM(buildResearchAutomationReport(reordered, 'MARKET').html.toString()).window.document;
+  assert.equal(reorderedDoc.querySelector('table.observations tbody tr td')?.textContent?.trim(), 'Sản phẩm #3', 'scope order survives reordered observations');
 });
 
 test('marker-free quote, metric and market-presentation renderers replay origin/main bytes', () => {
@@ -311,19 +318,99 @@ test('reader price section lists each product range once and keeps revenue per u
   const tables = reader.split('<table>').slice(1);
   assert.equal(tables.length, 2);
   assert.equal(tables[0]!.match(/<tr><td>/g)?.length, 2);
-  assert.match(tables[0]!, /<th>Giá thấp nhất \(VND\)<\/th><th>Giá cao nhất \(VND\)<\/th>/);
+  assert.match(tables[0]!, /<th>Giá từ \(VND\)<\/th><th>Giá đến \(VND\)<\/th>/);
   assert.match(tables[0]!, /Quạt đứng tổng hợp<\/td><td>100\.000<\/td><td>150\.000<\/td>/);
   assert.match(tables[0]!, /Sản phẩm #2<\/td><td>45\.000<\/td><td>55\.000<\/td>/);
   assert.equal(tables[1]!.match(/<tr><td>/g)?.length, 3);
   assert.match(tables[1]!, /Quạt đứng tổng hợp<\/td><td>02\/03\/2026 đến 31\/03\/2026<\/td><td>411\.522<\/td>/);
   assert.match(tables[1]!, /Sản phẩm #2<\/td><td>01\/01\/2026 đến 30\/01\/2026<\/td><td>50\.000<\/td>/);
   assert.match(tables[1]!, /Sản phẩm #2<\/td><td>Kỳ đo được giữ trong bản lưu nguồn<\/td><td>52\.000<\/td>/);
-  assert.match(reader, /Kỳ không có lượt bán thì không có số ước tính nên không đưa vào bảng\./);
+  assert.match(reader, /Có 2 bản ghi thuộc kỳ không ghi nhận lượt bán; không đưa vào bảng ước tính/);
   assert.match(reader, /Có 1 bản ghi giá không đọc được; không đưa vào bảng\./);
   assert.equal(reader.match(/<\/table><\/div><p class="lim"><b>Chú thích:<\/b>/g)?.length, 2);
   assert.doesNotMatch(reader, /capture-|pack\/variant|NON_EXACT|RANGE|UNREADABLE|kalodata|<td>0<\/td>/);
   const none = { ...periodInventory(), quotes: { input: { quotes: [] } } } as unknown as AutomationMarketMethodSnapshot;
   assert.match(marketInventorySection(none, 'M08', { mark: () => '[1]' }, undefined, true), /<p>Chưa có giá nguồn dùng được\.<\/p>$/);
+});
+
+test('reader period merging preserves missing measures and intervening sales', () => {
+  const snapshot = periodInventory();
+  const before = JSON.stringify(snapshot);
+  const missingUnits = { ...snapshot, temporal: { input: { ...snapshot.temporal.input,
+    observations: snapshot.temporal.input.observations.filter(row => row.measure.literal === 'revenue'),
+  } } } as AutomationMarketMethodSnapshot;
+  const html = marketInventorySection(missingUnits, 'M03', { mark: () => '[1]' }, undefined, true);
+  assert.doesNotMatch(new JSDOM(html).window.document.querySelector('tbody')!.textContent ?? '', /Không ghi nhận bán|kỳ liền nhau/);
+  assert.equal(new JSDOM(html).window.document.querySelectorAll('tbody tr').length, 4);
+  const separated = structuredClone(snapshot);
+  for (const row of separated.temporal.input.observations) {
+    if (row.observationId.startsWith('capture-2-')) row.value.decimal = '1';
+    if (row.observationId.startsWith('capture-3-')) row.value.decimal = '0';
+  }
+  const separateHtml = marketInventorySection(separated, 'M03', { mark: () => '[1]' }, undefined, true);
+  assert.doesNotMatch(separateHtml, /kỳ liền nhau/);
+  assert.equal(new JSDOM(separateHtml).window.document.querySelectorAll('tbody tr').length, 4);
+  assert.equal(JSON.stringify(snapshot), before, 'rendering leaves the stored inventory unchanged');
+});
+
+test('reader inventory uses deterministic ordinals without frame members and tolerates absent windows and empty inventories', () => {
+  const snapshot = periodInventory();
+  const { frame: _frame, ...input } = snapshot.temporal.input;
+  const noFrame = { ...snapshot, temporal: { input } } as AutomationMarketMethodSnapshot;
+  for (const section of ['M03', 'M08'] as const) {
+    const doc = new JSDOM(marketInventorySection(noFrame, section, { mark: () => '[1]' }, undefined, true)).window.document;
+    const cells = [...doc.querySelector('tbody tr')!.querySelectorAll('td')].map(cell => cell.textContent);
+    assert.equal(cells[0], 'Sản phẩm #1');
+    assert.ok(cells.includes(section === 'M03' ? '500.000' : '45.000'), 'first observed product keeps ordinal one before sorting');
+  }
+  const noWindows = { ...noFrame, temporal: { input: { ...input, observations: input.observations.map(({ rawQuery: _raw, requestedWindow: _requested, ...row }) => row) } } } as unknown as AutomationMarketMethodSnapshot;
+  for (const section of ['M03', 'M08'] as const) {
+    const html = marketInventorySection(noWindows, section, { mark: () => '[1]' }, undefined, true);
+    assert.match(html, /Kỳ đo được giữ trong bản lưu nguồn/);
+    assert.doesNotMatch(html, /\d{4}-\d{2}-\d{2}|kalodata:|capture-/);
+  }
+  const empty = { ...noFrame, temporal: { input: { observations: [] } }, quotes: { input: { quotes: [] } } } as unknown as AutomationMarketMethodSnapshot;
+  assert.match(marketInventorySection(empty, 'M03', { mark: () => '[1]' }, undefined, true), /Chưa có số liệu theo kỳ dùng được/);
+  assert.match(marketInventorySection(empty, 'M08', { mark: () => '[1]' }, undefined, true), /Chưa có giá nguồn dùng được/);
+});
+
+test('reader prices combine changed ranges once, preserve their citations and distinguish zero estimates from no sales', () => {
+  const snapshot = periodInventory();
+  snapshot.quotes.input.quotes[3]!.price.range = { minimum: '90000', maximum: '160000' };
+  snapshot.quotes.input.quotes[4]!.price.value = '0'; // This capture has three units sold.
+  const before = JSON.stringify(snapshot);
+  const html = marketInventorySection(snapshot, 'M08', { mark: ref => `[${ref.identity}]` }, undefined, true);
+  const doc = new JSDOM(html).window.document;
+  const listed = doc.querySelectorAll('table')[0]!;
+  assert.equal(listed.querySelectorAll('tbody tr').length, 2);
+  const cells = [...listed.querySelector('tbody tr')!.querySelectorAll('td')].map(cell => cell.textContent);
+  assert.deepEqual(cells.slice(0, 3), ['Sản phẩm #1', '90.000', '160.000']);
+  for (const n of [1, 2, 3]) assert.ok(cells[3]!.includes(String(n).repeat(64)), 'each contributing capture is cited');
+  assert.match(html, /Có 2 bản ghi thuộc kỳ không ghi nhận lượt bán/);
+  assert.match(html, /Có 1 bản ghi ước tính bằng không/);
+  assert.doesNotMatch(html, /<td>0<\/td>/);
+  assert.equal(JSON.stringify(snapshot), before);
+});
+
+test('inventory notes survive delivery and the full reader still passes the machine and business gates', async () => {
+  const snapshot = periodInventory();
+  for (const section of ['M03', 'M08'] as const) {
+    const html = marketInventorySection(snapshot, section, { mark: () => '[1]' }, undefined, true);
+    const doc = new JSDOM(annotateExhibits(html)).window.document;
+    assert.equal(doc.querySelectorAll('.lim').length, doc.querySelectorAll('table').length);
+    assert.equal(doc.querySelectorAll('.interp').length, doc.querySelectorAll('table').length);
+    assert.doesNotMatch(doc.body.textContent ?? '', /Số liệu lấy từ các dòng đã lưu của từng sàn/);
+    for (const table of doc.querySelectorAll('table')) {
+      assert.equal(table.parentElement!.nextElementSibling!.className, 'lim');
+      assert.equal(table.parentElement!.nextElementSibling!.nextElementSibling!.className, 'interp');
+    }
+  }
+  const input = await fullMarket14Input();
+  const report = buildResearchAutomationReport({ ...input, marketInventory: snapshot }, 'MARKET');
+  assertMarket14MachineRules(report.html.toString());
+  assertMarketBusinessGate(report.html.toString(), { presentation: true });
+  const doc = new JSDOM(report.html.toString()).window.document;
+  assert.match(doc.querySelector('#M03')!.textContent ?? '', /Số liệu theo từng kỳ đo/);
 });
 
 test('reader-on synthesis inventory formats large counts and hides retained source details', () => {
