@@ -38,7 +38,7 @@ test('confirmed same-source inputs render scoped estimated ROAS and CPA with the
   assert.match(html, /không so sánh kênh/);
 });
 
-test('Market output keeps ROAS and CPA unavailable without confirmed advertising fields', () => {
+test('owner Market reader says in one line that ROAS and CPA are not calculated without advertising cost fields', () => {
   const method = metricMethod();
   const html = buildResearchAutomationReport({
     run: { contractVersion: 'research-automation-run-v1', runId, workspaceId, createdAt: '2026-08-17T00:00:00.000Z', coverage: {}, usage: {} } as never,
@@ -48,12 +48,8 @@ test('Market output keeps ROAS and CPA unavailable without confirmed advertising
     collection: null, captures: [], marketPresentation: method,
   }, 'MARKET').html.toString();
 
-  assert.match(html, /ROAS: chưa khả dụng/);
-  assert.match(html, /CPA: chưa khả dụng/);
-  assert.match(html, /Kỳ: 2026-08-17 đến 2026-09-15/);
-  assert.match(html, /Đối tượng: video: chưa xác định trong đầu vào Market/);
-  assert.match(html, /đầu vào Market chưa có trường chi phí quảng cáo và số đơn đã xác nhận/);
-  assert.match(html, /không trộn với số liệu bán hàng từ nguồn khác/);
+  assert.match(html, /Chưa có số liệu chi phí quảng cáo nên chưa tính ROAS \(doanh thu trên chi phí quảng cáo\) và CPA \(chi phí cho mỗi đơn hàng\)\./);
+  assert.doesNotMatch(html, /ROAS: |CPA: |Chỉ số quảng cáo tham khảo|đầu vào Market/);
   assert.doesNotMatch(html, /Ad Spend|adSpend|adShare/);
 });
 

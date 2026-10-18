@@ -261,16 +261,26 @@ export function marketSourceTypes(input: AutomationReportInput, webResultCount: 
   ];
   return { used, missing };
 }
-/** Report quarter from the data period: the main sales sample's stored scope when valid, else the requested period. */
-export function marketReportQuarter(input: AutomationReportInput): { quarter: string; range: string } {
+/** The main sales sample's stored scope when valid; null when the report has no sales sample. */
+function marketSamplePeriod(input: AutomationReportInput): { start: string; end: string } | null {
   const iso = /^\d{4}-\d{2}-\d{2}$/u;
-  const scopes = [input.marketPresentation?.input.metric?.input.scope, input.metricMethods?.result.input.scope]
-    .map(scope => scope ? { start: scope.start, end: scope.end } : null);
-  const period = scopes.find(scope => scope && iso.test(scope.start) && iso.test(scope.end) && scope.start <= scope.end)
-    ?? { start: input.start.requestedPeriod.startDate, end: input.start.requestedPeriod.endDate };
-  const q = (date: string): [number, number] => [Math.floor((Number(date.slice(5, 7)) - 1) / 3) + 1, Number(date.slice(0, 4))];
-  const [qs, ys] = q(period.start), [qe, ye] = q(period.end);
-  return { quarter: `Quý ${qe} năm ${ye}`, range: qs === qe && ys === ye ? `Dữ liệu quý ${qe}/${ye}` : `Dữ liệu quý ${qs}/${ys} – quý ${qe}/${ye}` };
+  const scopes = [input.marketPresentation?.input.metric?.input.scope, input.metricMethods?.result.input.scope];
+  return scopes.flatMap(scope => scope && iso.test(scope.start) && iso.test(scope.end) && scope.start <= scope.end
+    ? [{ start: scope.start, end: scope.end }] : [])[0] ?? null;
+}
+/** Report quarter from the data period (the sales sample, else the requested period): the quarter holding most of its days, the later one on a tie. The date line is the exact data range. */
+export function marketReportQuarter(input: AutomationReportInput): { quarter: string; range: string } {
+  const period = marketSamplePeriod(input) ?? { start: input.start.requestedPeriod.startDate, end: input.start.requestedPeriod.endDate };
+  const days = new Map<string, { quarter: number; year: number; count: number }>();
+  for (let day = Date.parse(`${period.start}T00:00:00Z`), end = Date.parse(`${period.end}T00:00:00Z`); day <= end; day += 86_400_000) {
+    const date = new Date(day);
+    const quarter = Math.floor(date.getUTCMonth() / 3) + 1, year = date.getUTCFullYear();
+    const key = `${year}-${quarter}`;
+    days.set(key, { quarter, year, count: (days.get(key)?.count ?? 0) + 1 });
+  }
+  const main = [...days.values()].reduce((best, item) => item.count >= best.count ? item : best,
+    { quarter: Math.floor((Number(period.end.slice(5, 7)) - 1) / 3) + 1, year: Number(period.end.slice(0, 4)), count: 0 });
+  return { quarter: `Quý ${main.quarter} năm ${main.year}`, range: `Dữ liệu từ ${escape(readerDay(period.start))} đến ${escape(readerDay(period.end))}` };
 }
 interface CatalogSection { sectionId: string; title: string; methodId: string; methodVersion: string; requiredInputs: string[] }
 export interface MethodOutputRef { methodOutputId: string; locatedRecordCount: number; unresolvedPointers: readonly string[]; blockers: readonly string[] }
@@ -627,7 +637,9 @@ function peerEvidence(input: AutomationReportInput, captures: ReadonlyMap<number
   });
 }
 
-function defaultPeerSection(snapshot: DefaultMarketPeers, citations: ReportCitations, labels: ReadonlyMap<string, string>, readerPlainText = false): string {
+/** `owner` is the market14 owner reader; `rankingShown` says the in-sample top-revenue figure follows the section text. */
+function defaultPeerSection(snapshot: DefaultMarketPeers, citations: ReportCitations, labels: ReadonlyMap<string, string>, readerPlainText = false,
+  owner?: { readonly rankingShown: boolean }): string {
   const mark = (ref: DefaultMarketPeers['input']['records'][number]['source']): string => {
     if (ref === null) return 'Chưa có nguồn';
     const pointer = readerPointer(ref.locator, readerPlainText);
@@ -670,7 +682,16 @@ function defaultPeerSection(snapshot: DefaultMarketPeers, citations: ReportCitat
   const additions = snapshot.input.ownerAdditions.length
     ? `<ul>${snapshot.input.ownerAdditions.map(id => `<li>Đối tượng nguồn: ${escape(sourceMemberLabel(id, readerPlainText))}</li>`).join('')}</ul>`
     : '<p>Chưa có bổ sung của chủ.</p>';
-  return `<p>Quy tắc đã chốt trước khi đọc doanh số: chọn theo doanh thu giảm dần tới khi đạt ít nhất ${escape(snapshot.input.rule.thresholdPercent)}${readerPlainText ? ' phần trăm' : '%'} doanh thu cùng nhóm trong mẫu; khi bằng nhau dùng mã danh tính ổn định. Bảng hiển thị theo danh tính, không xếp ưu tiên.</p>${frames || `<p>Chưa có nhóm doanh số đã phân loại tương thích. Quan sát sản phẩm và thẻ tìm kiếm không cung cấp thành viên doanh số; phần thiếu không phải ${readerPlainText ? 'bằng không' : '0'}.</p>`}<p>Số bán hàng ước tính chưa đối chiếu với người bán, chỉ dùng tham khảo. Không cộng doanh thu giữa các sàn hoặc suy cùng thương hiệu từ tên giống nhau.</p><h3>Bổ sung của chủ, giữ riêng</h3>${additions}<p>Bổ sung không thay đổi mẫu số hoặc quy tắc mặc định.</p><details><summary>Hồ sơ đối chiếu tập đối thủ</summary><p>Phiên bản quy tắc: <code>${escape(snapshot.input.rule.version)}</code>. Đầu vào, thành viên, lý do loại và kết quả chính xác được giữ trong bản lưu bất biến. Số lần loại dòng ở các nhóm và sàn: ${escape(exclusions.length)}.</p><ul>${exclusions.map(row => `<li><code>${escape(row.reason)}</code> ${mark(row.source)}</li>`).join('')}</ul></details>`;
+  const record = `<details><summary>Hồ sơ đối chiếu tập đối thủ</summary><p>Phiên bản quy tắc: <code>${escape(snapshot.input.rule.version)}</code>. Đầu vào, thành viên, lý do loại và kết quả chính xác được giữ trong bản lưu bất biến. Số lần loại dòng ở các nhóm và sàn: ${escape(exclusions.length)}.</p><ul>${exclusions.map(row => `<li><code>${escape(row.reason)}</code> ${mark(row.source)}</li>`).join('')}</ul></details>`;
+  if (owner) {
+    // The section explanation already says whether peers were chosen; the body gives the rule in plain words, without tie-break or identity-order notes.
+    const rule = `<p>Cách chọn đối thủ mặc định, chốt trước khi đọc doanh số: chọn sản phẩm theo doanh thu giảm dần trong cùng nhóm, cùng sàn cho tới khi đạt ít nhất ${escape(snapshot.input.rule.thresholdPercent)} phần trăm doanh thu của nhóm trong mẫu.</p>`;
+    const empty = owner.rankingShown ? '<p>Hình dưới chỉ liệt kê sản phẩm có doanh thu cao trong mẫu, chưa phải đối thủ đã chọn.</p>' : '';
+    const ownerAdditions = snapshot.input.ownerAdditions.length
+      ? `<h3>Đối thủ do chủ bổ sung, giữ riêng</h3>${additions}<p>Phần bổ sung không thay đổi cách chọn mặc định.</p>` : '<p>Chưa có đối thủ do chủ bổ sung.</p>';
+    return `${rule}${frames || empty}<p>Số bán hàng là số ước tính của nguồn, chưa đối chiếu với người bán. Không cộng doanh thu giữa các sàn, không coi hai sản phẩm là cùng thương hiệu chỉ vì tên giống nhau.</p>${ownerAdditions}${record}`;
+  }
+  return `<p>Quy tắc đã chốt trước khi đọc doanh số: chọn theo doanh thu giảm dần tới khi đạt ít nhất ${escape(snapshot.input.rule.thresholdPercent)}${readerPlainText ? ' phần trăm' : '%'} doanh thu cùng nhóm trong mẫu; khi bằng nhau dùng mã danh tính ổn định. Bảng hiển thị theo danh tính, không xếp ưu tiên.</p>${frames || `<p>Chưa có nhóm doanh số đã phân loại tương thích. Quan sát sản phẩm và thẻ tìm kiếm không cung cấp thành viên doanh số; phần thiếu không phải ${readerPlainText ? 'bằng không' : '0'}.</p>`}<p>Số bán hàng ước tính chưa đối chiếu với người bán, chỉ dùng tham khảo. Không cộng doanh thu giữa các sàn hoặc suy cùng thương hiệu từ tên giống nhau.</p><h3>Bổ sung của chủ, giữ riêng</h3>${additions}<p>Bổ sung không thay đổi mẫu số hoặc quy tắc mặc định.</p>${record}`;
 }
 
 /**
@@ -774,9 +795,10 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   const decisionProposedIds: string[] = [];
   // Catalog fallbacks: the stored method stays the catalog reference; the page says it did not run here.
   const fallbackIds = new Set<string>();
+  const customerInsight = marketPresentation ? 'hiểu biết về khách hàng' : 'insight khách hàng';
   const sourceObservationNote = observations.length
-    ? ` Quan sát sản phẩm đã thu được giữ ở ${kind === 'MARKET' ? 'M13' : 'báo cáo thị trường'}; không đủ để tự suy ra quy mô thị trường hoặc insight khách hàng.`
-    : ' Không tự suy ra quy mô thị trường hoặc insight khách hàng từ phần còn thiếu.';
+    ? ` Quan sát sản phẩm đã thu được giữ ở ${kind === 'MARKET' ? 'M13' : 'báo cáo thị trường'}; không đủ để tự suy ra quy mô thị trường hoặc ${customerInsight}.`
+    : ` Không tự suy ra quy mô thị trường hoặc ${customerInsight} từ phần còn thiếu.`;
   /** Display-only reason built from inputs actually present in this run; it never changes state or eligibility. */
   const blockedGuidance = (section: CatalogSection): string => {
     const needs = ` Mục cần: ${section.requiredInputs.map(id => inputLabels[id] ?? id).join(', ')}.`;
@@ -789,6 +811,9 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
       ? 'các quan sát sản phẩm đã thu chưa tạo được kết quả phương pháp được lưu'
       : 'lượt này không có quan sát sản phẩm từ bản thu nguồn mới'}.${needs}${sourceObservationNote}`;
     if (kind === 'MARKET' && (id === 'M03' || id === 'M04')) return `Lượt này không có gói số liệu thị trường gắn kèm${id === 'M03' ? ' và không có inventory từ bản thu nguồn' : ''}, nên chưa tính mục này.${needs}${sourceObservationNote}`;
+    // The owner reader says plainly what a forecast would need instead of naming the method's input profile.
+    if (marketPresentation && id === 'M10') return 'Chưa dự báo: cần chuỗi doanh số theo từng ngày, đo cùng một cách và đủ dài, cùng một khoảng thời gian riêng để kiểm tra lại dự báo. '
+      + `Lượt này chỉ có mẫu đã lưu trong kỳ báo cáo nên chưa đủ để dự báo hay dựng kịch bản.${sourceObservationNote}`;
     if (['M10', 'I11', 'I12', 'I16'].includes(id)) return `Phương pháp kiểm tra điều kiện của mục này chỉ chạy trên hồ sơ nguồn bổ sung do người dùng chọn; lượt này chưa có hồ sơ đó.${needs}${sourceObservationNote}`;
     if (kind === 'INSIGHT' && (isLiteralFamily(id) || codingFamilies.some(family => family === id))) {
       const records = located?.output.input.records.length;
@@ -801,7 +826,10 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     return marketPresentation ? `Chưa có dữ liệu cho mục này trong lượt; đây không phải kết quả bằng 0.${needs}${sourceObservationNote}`
       : `Chưa có kết quả cho mục này trong lượt. Bản nháp không đủ thông tin để xác định riêng nguyên nhân là thiếu đầu vào, còn chờ duyệt hay phương pháp chưa chạy.${needs}${sourceObservationNote}`;
   };
-  const sections: DraftSection[] = catalog.sections.filter(section => section.sectionId.startsWith(prefix)).map(section => {
+  // The owner reader names Phần 4 for what it shows: the split inside the stored sample, not the whole market's.
+  const readerTitles: Readonly<Record<string, string>> = marketPresentation ? { M04: 'Cơ cấu trong mẫu' } : {};
+  const sections: DraftSection[] = catalog.sections.filter(section => section.sectionId.startsWith(prefix))
+    .map(entry => ({ ...entry, title: readerTitles[entry.sectionId] ?? entry.title })).map(section => {
     if (insightPersona && section.sectionId === 'I02') {
       locatedViews.set(section.sectionId, () => insightPersonaSection(insightPersona.snapshot, insightPersona.source, 'I02', citations));
       return { sectionId: section.sectionId, title: section.title, state: 'EVIDENCE_INVENTORY', rows: [], method: 'insight-persona-report-snapshot-v1',
@@ -908,11 +936,16 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
       explanation: section.sectionId === 'I01' ? 'Yêu cầu nghiên cứu ghi lại từ phạm vi đã xác nhận; không phải nhận định AI hay insight đã duyệt.' : 'Phạm vi yêu cầu, độ phủ thực tế và dấu vết nguồn của lượt này. Không thay thế phương pháp tính chuyên biệt của từng mục.',
     };
     if (section.sectionId === 'M07' && defaultMarketPeers) {
-      locatedViews.set(section.sectionId, () => defaultPeerSection(defaultMarketPeers, citations, productLabels(input), readerPlainText));
+      const owner = marketPresentation ? { rankingShown: input.marketPresentationCharts?.some(chart => chart.kind === 'product-ranking') === true } : undefined;
+      locatedViews.set(section.sectionId, () => defaultPeerSection(defaultMarketPeers, citations, productLabels(input), readerPlainText, owner));
       const usable = defaultMarketPeers.frames.some(frame => frame.state === 'SELECTED' || frame.state === 'ZERO_REVENUE');
+      // The owner reader's explanation must agree with the body: no "rule applied" line when no group could be chosen.
+      const chosen = defaultMarketPeers.frames.some(frame => frame.state === 'SELECTED');
       return { sectionId: section.sectionId, title: section.title, state: usable ? 'METHOD_OUTPUT' : 'METHOD_NO_USABLE_RECORDS',
         method: defaultMarketPeers.input.rule.version, rows: [],
-        explanation: marketPresentation ? 'Đã áp dụng quy tắc đối thủ mặc định trên doanh thu cùng nhóm, kỳ và khung nguồn đã lưu; phần thiếu giữ nguyên, bổ sung của chủ giữ riêng. Kết quả chỉ mô tả mẫu đã lưu; không thay quyết định của chủ.'
+        explanation: marketPresentation ? (chosen ? 'Đối thủ mặc định được chọn theo doanh thu cùng nhóm, cùng sàn và cùng kỳ trong mẫu đã lưu; đối thủ do chủ bổ sung được giữ riêng. Kết quả chỉ mô tả mẫu đã lưu, không thay quyết định của chủ.'
+          : defaultMarketPeers.frames.length ? 'Chưa chọn được đối thủ mặc định: các nhóm doanh số trong mẫu chưa đủ dữ liệu để chọn.'
+            : 'Chưa chọn được đối thủ mặc định vì chưa có nhóm doanh số đã phân loại.')
           : 'Đã áp dụng quy tắc đối thủ mặc định trên doanh thu cùng nhóm, kỳ và khung nguồn đã lưu; phần thiếu giữ nguyên, bổ sung của chủ giữ riêng. Kết quả có giới hạn trong mẫu, chưa phải mục phân tích hoàn chỉnh hoặc quyết định đã duyệt.' };
     }
     const view = descriptive && isDescriptiveSectionId(section.sectionId) ? describeDescriptiveSection(descriptive, section.sectionId, citations, readerPlainText) : undefined;
@@ -1028,7 +1061,17 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   const webSourceFailed = !webResults.length && (input.collection?.coverage ?? [])
     .some(value => value.dataset === WEB_DISCOVERY_DATASET && value.state === 'FAILED');
   const webResultsTable = webResults.length ? `<div class="table-wrap" role="region" aria-label="Kết quả tìm kiếm trên web đã lưu" tabindex="0"><table><caption>Kết quả tìm kiếm trên web đã lưu của lượt này, theo thứ tự nguồn trả về</caption><thead><tr><th scope="col">Vị trí</th><th scope="col">Tiêu đề</th><th scope="col">Trang</th>${expandedRows ? `<th scope="col">${EXPANDED_SEARCH_COLUMN}</th>` : ''}${pageTypes ? '<th scope="col">Loại trang</th>' : ''}<th scope="col">Thời điểm thu</th><th scope="col">Nguồn</th></tr></thead><tbody>${webResults.map(row => `<tr><td>${row.position}</td><td>${webSourceText(row.title, WEB_TITLE_WITHHELD)}</td><td>${row.site === undefined || row.site === null ? 'Chưa rõ trang' : webSourceText(row.site, WEB_SITE_WITHHELD)}</td>${expandedRows ? `<td>${row.origin ? EXPANDED_SEARCH_LABEL[row.origin] : ''}</td>` : ''}${pageTypes ? `<td>${pageTypeCell(row)}</td>` : ''}<td>${escape(row.retrievedAt)}</td><td>${webMark(row, citations)}</td></tr>`).join('')}</tbody></table></div><p>Thứ tự trên là thứ tự kết quả nguồn trả về, không phải xếp hạng. Đoạn trích và liên kết đầy đủ được giữ trong hồ sơ thu đã lưu.</p>${expandedRows ? `<p>${EXPANDED_SEARCH_NOTE}</p>` : ''}` : webSourceFailed ? `<p class="warning">${WEB_SOURCE_FAILED_TEXT}</p>` : '';
-  const scope = `<dl><dt>Thị trường</dt><dd>Việt Nam</dd><dt>Định nghĩa đã xác nhận</dt><dd>${storedLiteral(input.scope.definition, 'Định nghĩa được giữ trong bản lưu')}</dd><dt>Kỳ báo cáo yêu cầu</dt><dd>${escape(period)}</dd><dt>Điều kiện bao gồm</dt><dd>${storedLiteral(input.scope.includeTerms.join(', ') || 'Không thêm điều kiện', 'Điều kiện được giữ trong bản lưu')}</dd><dt>Điều kiện loại trừ</dt><dd>${storedLiteral(input.scope.excludeTerms.join(', ') || 'Không thêm điều kiện', 'Điều kiện được giữ trong bản lưu')}</dd></dl><p class="warning">Điều kiện trên là ý định nghiên cứu đã lưu. Chưa xác nhận các truy vấn nguồn áp dụng đầy đủ điều kiện này. ${input.metricClassified ? (readerPlainText ? 'Mẫu số liệu thị trường đã được phân loại theo phạm vi toàn bộ mẫu, phạm vi rộng và phạm vi cốt lõi theo quy tắc và biên nhận được chốt; không suy rộng phân loại đó sang nguồn khác.' : 'Mẫu số liệu thị trường đã được phân loại CORE/WIDE theo quy tắc và biên nhận được chốt; không suy rộng phân loại đó sang nguồn khác.') : (readerPlainText ? 'Chưa phân loại phạm vi.' : 'Chưa phân loại CORE/WIDE.')} Kỳ yêu cầu không chứng minh mọi nguồn có đủ dữ liệu trong kỳ này. Kết quả tìm kiếm hiện tại và danh sách top sản phẩm không phải tổng doanh số thị trường.</p>`;
+  // The owner reader prints the period the numbers come from; the requested period alone would contradict the cover.
+  const samplePeriod = marketPresentation ? marketSamplePeriod(input) : null;
+  const requested = input.start.requestedPeriod;
+  const sampleDays = samplePeriod ? Math.round((Date.parse(samplePeriod.end) - Date.parse(samplePeriod.start)) / 86_400_000) + 1 : 0;
+  const periodRows = !marketPresentation ? `<dt>Kỳ báo cáo yêu cầu</dt><dd>${escape(period)}</dd>`
+    : `<dt>Kỳ số liệu bán hàng</dt><dd>${samplePeriod ? `Mẫu ${sampleDays} ngày, từ ${escape(readerDay(samplePeriod.start))} đến ${escape(readerDay(samplePeriod.end))}`
+      : `Chưa có số liệu bán hàng; kỳ đã yêu cầu từ ${escape(readerDay(requested.startDate))} đến ${escape(readerDay(requested.endDate))}`}</dd>${input.descriptiveMethods
+      ? `<dt>Diễn biến từng sản phẩm</dt><dd>Theo từng kỳ trong khoảng từ ${escape(readerDay(requested.startDate))} đến ${escape(readerDay(requested.endDate))}</dd>` : ''}`;
+  const periodWarning = marketPresentation ? 'Mỗi nguồn chỉ có số trong kỳ của nguồn đó; không kéo dài hay chia tỷ lệ cho khớp kỳ khác.'
+    : 'Kỳ yêu cầu không chứng minh mọi nguồn có đủ dữ liệu trong kỳ này.';
+  const scope = `<dl><dt>Thị trường</dt><dd>Việt Nam</dd><dt>Định nghĩa đã xác nhận</dt><dd>${storedLiteral(input.scope.definition, 'Định nghĩa được giữ trong bản lưu')}</dd>${periodRows}<dt>Điều kiện bao gồm</dt><dd>${storedLiteral(input.scope.includeTerms.join(', ') || 'Không thêm điều kiện', 'Điều kiện được giữ trong bản lưu')}</dd><dt>Điều kiện loại trừ</dt><dd>${storedLiteral(input.scope.excludeTerms.join(', ') || 'Không thêm điều kiện', 'Điều kiện được giữ trong bản lưu')}</dd></dl><p class="warning">Điều kiện trên là ý định nghiên cứu đã lưu. Chưa xác nhận các truy vấn nguồn áp dụng đầy đủ điều kiện này. ${input.metricClassified ? (readerPlainText ? 'Mẫu số liệu thị trường đã được phân loại theo phạm vi toàn bộ mẫu, phạm vi rộng và phạm vi cốt lõi theo quy tắc và biên nhận được chốt; không suy rộng phân loại đó sang nguồn khác.' : 'Mẫu số liệu thị trường đã được phân loại CORE/WIDE theo quy tắc và biên nhận được chốt; không suy rộng phân loại đó sang nguồn khác.') : (readerPlainText ? 'Chưa phân loại phạm vi.' : 'Chưa phân loại CORE/WIDE.')} ${periodWarning} Kết quả tìm kiếm hiện tại và danh sách top sản phẩm không phải tổng doanh số thị trường.</p>`;
   const stateLabel: Readonly<Record<DraftSection['state'], string>> = {
     EVIDENCE_INVENTORY: 'Kiểm tra bằng chứng · Chưa có kết luận',
     BLOCKED: 'Chưa đủ dữ liệu / phương pháp', SOURCE_TABLE: 'Bảng bằng chứng · Chưa duyệt', SOURCE_CONTEXT: 'Ngữ cảnh nguồn · Chưa duyệt',
@@ -1309,7 +1352,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   const coverText = coverQuarter ? `<h1>${coverTitle}</h1><p class="cv-quarter">${coverQuarter.quarter}</p><p class="cv-period">${coverQuarter.range}</p></div><div class="cv-meta"><b>Việt Nam</b></div>`
     : `<p class="cv-eyebrow">Bản nháp từ nguồn · Chưa được duyệt</p><h1>${escape(title)}</h1><h2>${storedLiteral(input.start.keyword, 'Từ khóa được giữ trong bản lưu')}</h2><p class="cv-lede">Hai lớp tách biệt: dữ liệu đã thu và những điều chưa đủ bằng chứng.</p></div><div class="cv-meta"><b>Việt Nam</b><span>${escape(period)}</span><span>${escape(coverSummary)}</span></div>`;
   const footerText = marketPresentation
-    ? `${decisionGeneratedIds.length || input.i14Synthesis?.status === 'VALID' ? 'Nội dung do AI đề xuất chưa được chủ duyệt. ' : ''}Các phương án ở Phần 12 là đề xuất, chờ chủ duyệt; báo cáo không tự đưa ra quyết định kinh doanh. “Chưa có dữ liệu” nghĩa là nguồn chưa có số, không phải bằng 0.`
+    ? `${decisionGeneratedIds.length || input.i14Synthesis?.status === 'VALID' ? 'Nội dung do AI đề xuất chưa được chủ duyệt. ' : ''}Các phương án ở Phần 12 là đề xuất, chờ chủ duyệt; báo cáo không tự đưa ra quyết định kinh doanh. “Chưa có dữ liệu” nghĩa là nguồn chưa có số, không phải bằng không.`
     : `${insightPersona ? 'Chân dung và thẻ bằng chứng do AI đề xuất, chờ chủ duyệt; không phải một khách hàng có thật, kết luận đã phát hành hoặc quyết định kinh doanh.' : decisionGeneratedIds.length ? 'Kết quả xử lý AI được lưu riêng, chưa được người dùng duyệt; không phải sự thật đã xác minh, phương án đã chọn hoặc quyết định kinh doanh.' : input.i14Synthesis?.status === 'VALID' ? 'Nhận định AI được lưu riêng, chưa được người dùng duyệt; không phải sự thật đã xác minh hoặc quyết định kinh doanh.' : 'Không có nhận định AI hoặc quyết định kinh doanh tự động trong bản nháp này.'} Không có dữ liệu không đồng nghĩa với giá trị bằng 0.`;
   const coverArt = cover ?`<img class="cv-art" src="data:image/jpeg;base64,${cover.base64}" alt="${escape(cover.alt)}" width="${cover.width}" height="${cover.height}" data-cover-provenance="${escape(cover.provenance)}"${cover.model ? ` data-cover-model="${escape(cover.model)}"` : ''}>` : '';
   const html = `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src data:; base-uri 'none'; form-action 'none'"><title>${pageTitle}</title><style>${reportKitFontCss()}\n${REPORT_KIT_CSS}\n.sheet{break-before:page}.sheet h2{font-size:26px}.state{font-size:12px;color:var(--warn-ink)}.warning{padding:12px;background:var(--warn-bg);color:var(--warn-ink)}dl{display:grid;grid-template-columns:180px minmax(0,1fr);gap:8px}dt{font-weight:700}dd{margin:0}.table-wrap{overflow-x:auto}.table-wrap table{min-width:720px}table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:10px;text-align:left;border:1px solid var(--bd);vertical-align:top}code{word-break:break-all}code.loc{word-break:normal;overflow-wrap:break-word}`

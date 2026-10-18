@@ -51,15 +51,22 @@ const PHRASES: readonly [RegExp, string][] = [
   [/Danh sách bằng chứng không phải phân tích hoàn chỉnh;/gu, 'Danh sách bằng chứng chỉ liệt kê điều nguồn ghi;'],
   [/cho bản nháp này/gu, 'cho báo cáo này'],
   [/trong bản nháp này/gu, 'trong báo cáo này'],
-  [/Bản nháp không đủ thông tin để xác định riêng nguyên nhân là thiếu đầu vào, còn chờ duyệt hay phương pháp chưa chạy\./gu, 'Chưa có dữ liệu cho mục này; đây không phải kết quả bằng 0.'],
+  [/Bản nháp không đủ thông tin để xác định riêng nguyên nhân là thiếu đầu vào, còn chờ duyệt hay phương pháp chưa chạy\./gu, 'Chưa có dữ liệu cho mục này; đây không phải kết quả bằng không.'],
   [/;?\s*chưa phải (?:mục )?phân tích (?:kinh tế đơn vị )?hoàn chỉnh/gu, ''],
   [/\blisting\b/giu, 'sản phẩm'],
+  // "người, sản phẩm, listing" reads twice once listing is localized.
+  [/sản phẩm(?:, sản phẩm)+(?![\p{L}\p{N}])/gu, 'sản phẩm'],
   [/\bsearch events\b/giu, 'lượt ghi nhận tìm kiếm'],
+  [/theo section gốc/gu, 'theo phần gốc'],
+  // The reader writes zero in words wherever an empty state is explained; decimals such as "0,5" stay numbers.
+  [/([Bb])ằng 0(?![\d]|[,.]\d)/gu, '$1ằng không'],
 ];
 
 const CONTEXT = /Cục Thống kê|Ngân hàng Thế giới|vĩ mô|cả nước|mã hàng|tìm kiếm|quảng cáo|video|tỉnh|thành phố/iu;
-const SAMPLE_NOTE = 'Số liệu lấy từ các dòng đã lưu của từng sàn trong kỳ báo cáo; mỗi sàn đọc riêng và không suy rộng ra toàn thị trường. Ô ghi “chưa có dữ liệu” không có nghĩa là bằng 0.';
-const CONTEXT_NOTE = 'Số liệu nền từ nguồn công khai, đọc riêng; không nói về riêng sản phẩm này. Ô ghi “chưa có dữ liệu” không có nghĩa là bằng 0.';
+/** A caption naming a sales platform first, or the in-sample measure, is the stored sales sample even when it mentions search. */
+const SAMPLE_CAPTION = /^(?:Shopee|TikTok Shop)\b|trong mẫu/u;
+const SAMPLE_NOTE = 'Số liệu lấy từ các dòng đã lưu của từng sàn trong kỳ báo cáo; mỗi sàn đọc riêng và không suy rộng ra toàn thị trường. Ô ghi “chưa có dữ liệu” không có nghĩa là bằng không.';
+const CONTEXT_NOTE = 'Số liệu nền từ nguồn công khai, đọc riêng; không nói về riêng sản phẩm này. Ô ghi “chưa có dữ liệu” không có nghĩa là bằng không.';
 
 type Num = { value: number; shown: string };
 const NUMBER = /^(?:chỉ số\s+)?(-?(?:\d{1,3}(?:\.\d{3})+|\d+)(?:,\d+)?)(?=\s|$)/u;
@@ -132,9 +139,14 @@ export function tableInterpretation(block: string): string {
 }
 
 type SearchPoint = { readonly period: string; readonly index: number | null };
-type Point = { label: string; value: number; shown: string; group: string };
+type Point = { label: string; value: number; shown: string; group: string; unit: string };
 type Chart = { points: Point[]; series: 'bar' | 'line' | 'none'; share: boolean; axis?: { count: string; first: string; last: string } };
 const SALES_PLATFORMS = /^(?:Shopee|TikTok Shop)$/u;
+/** One vi-VN spelling per value ("5621,7" and "5.621,7" are the same bar), keeping the decimals the chart printed. */
+const viNumber = (value: number, shown: string): string => {
+  const decimals = shown.split(',')[1]?.length ?? 0;
+  return value.toLocaleString('vi-VN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+};
 function chartPoints(svg: string): Chart {
   const byKey = new Map<string, Point>();
   let series: Chart['series'] = 'none', share = false, axis: Chart['axis'];
@@ -144,15 +156,17 @@ function chartPoints(svg: string): Chart {
     if (scale) axis = { count: scale[1]!, first: scale[2]!.trim(), last: scale[3]!.trim() };
     const line = /^(Năm|Tuần|Tháng): ([^;]+); (.+): (-?[\d.,]+)$/u.exec(aria);
     const bar = line ? null : /^([^;]+): (-?[\d.,]+);\s+: ([^;]+)(?:;.*?\b[Ss](?:àn|an): ([^;]+))?/u.exec(aria);
-    const point = line ? { label: line[2]!.trim(), shown: line[4]!, group: '' } : bar ? { label: bar[3]!.trim(), shown: bar[2]!, group: (bar[4] ?? '').trim() } : undefined;
+    const point = line ? { label: line[2]!.trim(), shown: line[4]!, group: '', unit: '' }
+      : bar ? { label: bar[3]!.trim(), shown: bar[2]!, group: (bar[4] ?? '').trim(), unit: /\(([^()]+)\)\s*$/u.exec(bar[1]!)?.[1]?.trim() ?? '' } : undefined;
     if (!point) continue;
     series = line ? 'line' : 'bar';
     if (bar && /%/u.test(bar[1]!)) share = true;
-    // The same bar is described by several marks; one per label/value, keeping the platform when any mark names it.
-    const key = `${point.label}|${point.shown}|${point.group}`, loose = `${point.label}|${point.shown}|`;
+    // The same bar is described by several marks, with or without thousands dots; one per label/value, keeping the platform when any mark names it.
+    const value = Number(point.shown.replace(/\./gu, '').replace(',', '.'));
+    const key = `${point.label}|${value}|${point.group}`, loose = `${point.label}|${value}|`;
     if (byKey.has(key) || (point.group === '' && [...byKey.keys()].some(k => k.startsWith(loose)))) continue;
     if (point.group) byKey.delete(loose);
-    byKey.set(key, { ...point, group: point.group === point.label ? '' : point.group, value: Number(point.shown.replace(/\./gu, '').replace(',', '.')) });
+    byKey.set(key, { ...point, group: point.group === point.label ? '' : point.group, value, shown: bar ? viNumber(value, point.shown) : point.shown });
   }
   return { points: [...byKey.values()], series, share, ...(axis ? { axis } : {}) };
 }
@@ -172,7 +186,7 @@ export function figureInterpretation(block: string, searchPoints?: readonly Sear
     const label = (period: string): string => period.replace(/^(\d{4})-(\d{2})-(\d{2})$/u,
       (_all, year: string, month: string, day: string) => `${day}/${month}${withYear ? `/${year}` : ''}`);
     points = searchPoints.flatMap(point => point.index === null ? [] : [{ label: label(point.period), value: point.index,
-      shown: point.index.toLocaleString('vi-VN'), group: '' }]);
+      shown: point.index.toLocaleString('vi-VN'), group: '', unit: '' }]);
     series = 'line'; share = false;
     axis = { count: String(searchPoints.length), first: label(searchPoints[0]!.period), last: label(searchPoints[searchPoints.length - 1]!.period) };
   }
@@ -188,18 +202,20 @@ export function figureInterpretation(block: string, searchPoints?: readonly Sear
       : `Hình có ${points.length} mốc${axis && Number(axis.count) > points.length ? ' có số' : ''}, từ ${first.label} đến ${last.label}; giá trị đi từ ${first.shown} ${move} giữa mốc đầu và mốc cuối.`;
     const extremes = points.length > 2 && (low !== first || high !== last) && (low !== last || high !== first)
       ? ` Mức thấp là ${low.shown} (${low.label}), mức cao là ${high.shown} (${high.label}).` : '';
-    const gaps = axis && Number(axis.count) > points.length ? ` ${Number(axis.count) - points.length} mốc chưa có dữ liệu, không phải bằng 0.` : '';
+    const gaps = axis && Number(axis.count) > points.length ? ` ${Number(axis.count) - points.length} mốc chưa có dữ liệu, không phải bằng không.` : '';
     return span + extremes + gaps;
   }
+  // Bar values carry the unit of the chart's measure ("5.621,7 triệu đồng").
+  const amount = (point: Point): string => `${point.shown}${point.unit ? ` ${point.unit}` : ''}`;
   if (points.every(point => SALES_PLATFORMS.test(point.label)))
-    return `${points.map((point, i) => `${i ? 'thanh' : 'Thanh'} ${point.label} ở mức ${point.shown}`).join('; ')} theo trục của hình. Mỗi sàn đọc riêng.`;
+    return `${points.map((point, i) => `${i ? 'thanh' : 'Thanh'} ${point.label} ở mức ${amount(point)}`).join('; ')} theo trục của hình. Mỗi sàn đọc riêng.`;
   const groups = new Map<string, Point[]>();
   for (const point of points) groups.set(point.group, [...(groups.get(point.group) ?? []), point]);
   const parts = [...groups].map(([group, members]) => {
     const low = members.reduce((a, b) => b.value < a.value ? b : a), high = members.reduce((a, b) => b.value > a.value ? b : a);
-    const value = (point: Point): string => share ? '' : ` (${point.shown})`;
-    const body = members.length === 1 ? `một thanh ${high.label}${share ? '' : ` ở mức ${high.shown}`}`
-      : low.value === high.value ? `${members.length} thanh cùng mức${share ? '' : ` ${high.shown}`}` : `${members.length} thanh, thanh dài là ${high.label}${value(high)}, thanh ngắn là ${low.label}${value(low)}`;
+    const value = (point: Point): string => share ? '' : ` (${amount(point)})`;
+    const body = members.length === 1 ? `một thanh ${high.label}${share ? '' : ` ở mức ${amount(high)}`}`
+      : low.value === high.value ? `${members.length} thanh cùng mức${share ? '' : ` ${amount(high)}`}` : `${members.length} thanh, thanh dài là ${high.label}${value(high)}, thanh ngắn là ${low.label}${value(low)}`;
     return group ? `${group}: ${body}.` : `Hình có ${body}.`;
   });
   return `${parts.join(' ')} Giá trị đọc theo trục của hình; ${groups.size > 1 ? 'mỗi sàn đọc riêng' : 'mỗi thanh đọc riêng'}.`;
@@ -226,8 +242,8 @@ export function annotateExhibits(section: string, searchPoints?: readonly Search
     const block = section.slice(exhibit.start, exhibit.end);
     const after = /^\s*<p class="lim"><b>Chú thích:<\/b>[\s\S]*?<\/p>/u.exec(section.slice(exhibit.end))?.[0] ?? '';
     const hasNote = /<p class="(?:lim|ex-note)"><b>Chú thích:<\/b>/u.test(block) || after !== '';
-    const context = CONTEXT.test(text(block.match(/<div class="exh">[\s\S]*?<\/div>|<caption\b[^>]*>[\s\S]*?<\/caption>|<figcaption\b[^>]*>[\s\S]*?<\/figcaption>/u)?.[0] ?? ''))
-      || /data-chart-id="M0[56]\./u.test(block);
+    const caption = text(block.match(/<div class="exh">[\s\S]*?<\/div>|<caption\b[^>]*>[\s\S]*?<\/caption>|<figcaption\b[^>]*>[\s\S]*?<\/figcaption>/u)?.[0] ?? '');
+    const context = (!SAMPLE_CAPTION.test(caption) && CONTEXT.test(caption)) || /data-chart-id="M0[56]\./u.test(block);
     const note = hasNote ? '' : `<p class="lim"><b>Chú thích:</b> ${esc(context ? CONTEXT_NOTE : SAMPLE_NOTE)}</p>`;
     const interp = exhibit.kind === 'table' ? tableInterpretation(block)
       : figureInterpretation(block, /<span class="exn">Hình 5\.2<\/span>/u.test(block) ? searchPoints : undefined);
@@ -243,7 +259,7 @@ const PLATFORM_NAMES: Readonly<Record<string, string>> = { shopee: 'Shopee', tik
 export function marketReaderGuide(platforms: readonly string[]): string {
   const names = platforms.map(platform => PLATFORM_NAMES[platform] ?? platform);
   const from = names.length ? `của ${names.length > 1 ? `${names.slice(0, -1).join(', ')} và ${names[names.length - 1]}` : names[0]}` : 'của các sàn đã chọn';
-  return `<p class="reader-guide"><b>Cách đọc báo cáo:</b> ${esc(`Báo cáo trình bày kết luận chính, phạm vi, số liệu bán hàng, nhu cầu, nguồn cung, đối thủ, giá, rủi ro, cơ hội và phương án đề xuất cho từ khóa đã chọn. Số liệu bán hàng lấy từ mẫu đã lưu ${from} trong kỳ báo cáo; mỗi sàn đọc riêng. Số liệu nền cả nước, nếu có, được đặt riêng và không nói về riêng sản phẩm này. Mục ghi “chưa có dữ liệu” nghĩa là chưa thu được, không phải bằng 0. Dưới mỗi bảng và hình có một dòng chú thích về phạm vi và một dòng diễn giải.`)}</p>`;
+  return `<p class="reader-guide"><b>Cách đọc báo cáo:</b> ${esc(`Báo cáo trình bày kết luận chính, phạm vi, số liệu bán hàng, nhu cầu, nguồn cung, đối thủ, giá, rủi ro, cơ hội và phương án đề xuất cho từ khóa đã chọn. Số liệu bán hàng lấy từ mẫu đã lưu ${from} trong kỳ báo cáo; mỗi sàn đọc riêng. Số liệu nền cả nước, nếu có, được đặt riêng và không nói về riêng sản phẩm này. Mục ghi “chưa có dữ liệu” nghĩa là chưa thu được, không phải bằng không. Dưới mỗi bảng và hình có một dòng chú thích về phạm vi và một dòng diễn giải.`)}</p>`;
 }
 
 const DATA_SECTIONS =/^M(?:0[3-9]|1[01])$/u;

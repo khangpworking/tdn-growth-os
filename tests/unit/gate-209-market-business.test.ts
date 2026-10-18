@@ -7,6 +7,7 @@ import { buildResearchAutomationReport, type AutomationReportInput } from '../..
 import { metricFixture } from '../fixtures/metric-scope-synthetic.js';
 import { sync1ReaderFixture } from '../helpers/sync1-reader-fixture.js';
 import { unitPriceFixture } from '../helpers/market-unit-price-fixture.js';
+import { fullMarket14Input } from '../helpers/market14-full-fixture.js';
 import { renderMarketCharts } from '../../src/modules/analysis/reader-report/market-charts.js';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
@@ -270,7 +271,8 @@ test('provider names in a Market build fail inside buildResearchAutomationReport
   const readerSanitized = structuredClone(input);
   (readerSanitized.marketPresentation as NonNullable<AutomationReportInput['marketPresentation']>).findings[0]!.statement = 'Metric';
   assert.doesNotThrow(() => buildResearchAutomationReport(readerSanitized, 'MARKET'));
-  const leaking = structuredClone(input);
+  // The owner reader prints the requested period only beside the per-product trend, so the leak rides on a full Market input.
+  const leaking = await fullMarket14Input();
   (leaking.start.requestedPeriod as { startDate: string }).startDate = 'Metric';
   assert.throws(() => buildResearchAutomationReport(leaking, 'MARKET'), /MARKET_BUSINESS_GATE_FAILED:G08_PROVIDER_NAME/);
 });

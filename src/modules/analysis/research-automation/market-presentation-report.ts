@@ -175,7 +175,8 @@ export function renderAutomationMarketUnitPrices(method: Method, citations: Repo
   let html = [...groups.values()].map(group => table('Giá theo đơn vị chuẩn — sắp xếp tăng dần trong phạm vi tương thích', headings,
     [...group].sort((a, b) => a.value! - b.value! || a.rowI - b.rowI).map(cells))).join('');
   if (missing.length) html += table('Dòng chưa rõ — không đưa vào sắp xếp', headings, missing.map(cells));
-  if (!method.unitPrices.length) html += '<p>Chưa có biên nhận quy cách và giá tương thích đã xác minh cho bản nháp này. Chưa tính giá theo đơn vị chuẩn; không đoán số lượng từ tiêu đề.</p>';
+  if (!method.unitPrices.length) html += readerPlainText ? '<p>Chưa quy đổi được giá theo đơn vị chuẩn vì nguồn chưa ghi rõ quy cách; báo cáo không đoán số lượng từ tiêu đề.</p>'
+    : '<p>Chưa có biên nhận quy cách và giá tương thích đã xác minh cho bản nháp này. Chưa tính giá theo đơn vị chuẩn; không đoán số lượng từ tiêu đề.</p>';
   const observed = new Set(method.unitPrices.map(row => row.rowI));
   const absent = method.input.rows.filter(row => !observed.has(row.i));
   const metricBinding = method.binding.metric;
@@ -192,13 +193,17 @@ export function renderAutomationMarketUnitPrices(method: Method, citations: Repo
         (sourceMark ? mark(sourceMark, citations, readerPlainText) : '')];
     }));
   const period = method.input.metric?.input.scope ?? null;
-  return html + (readerPlainText
-    ? '<p>Giá hiển thị tối đa ba chữ số thập phân; sắp xếp theo giá trị chưa làm tròn. Chỉ sắp xếp cùng sàn, ngành hàng, đơn vị hoặc cơ sở, nhóm quy cách, loại giá, điều kiện và kỳ. Quy cách khác nhau (khối lượng, combo, hàng dùng lâu) giữ riêng, không chia nhỏ. Kỳ quan sát giá giữ riêng với kỳ doanh số.</p><p>Giá niêm yết, thanh toán và khuyến mãi có điều kiện giữ riêng. Số doanh thu chia sản lượng bán (nếu có) chỉ là ước tính, không thay cho giá niêm yết. Đối chiếu khai báo với bản lưu không xác thực người bán; không suy chất lượng, giá vốn hoặc lợi nhuận.</p>'
-    : '<p>Giá hiển thị tối đa ba chữ số thập phân; sắp xếp theo giá trị chưa làm tròn. Chỉ sắp xếp cùng sàn, ngành hàng, đơn vị hoặc cơ sở, nhóm quy cách, loại giá, điều kiện và kỳ. Khối lượng tịnh và khối lượng cái giữ riêng; hàng dùng lâu và combo không chia nhỏ. Kỳ quan sát giá giữ riêng với kỳ doanh số.</p><p>Giá niêm yết, thanh toán và khuyến mãi có điều kiện giữ riêng; không thay bằng giá bán trung bình từ doanh thu và đơn vị bán. Đối chiếu khai báo với bản lưu không xác thực người bán; không suy chất lượng, giá vốn hoặc lợi nhuận.</p>') +
+  // Owner reader: the sorting rules only matter when a standard-unit price table exists, and the advertising
+  // reference has no cost or order field in Market input, so it is one plain line instead of a ROAS/CPA block.
+  if (readerPlainText) return html + (method.unitPrices.length
+    ? '<p>Chỉ so sánh giá trong cùng sàn, ngành hàng, đơn vị hoặc cơ sở, nhóm quy cách, loại giá, điều kiện và kỳ. Quy cách khác nhau (khối lượng, combo, hàng dùng lâu) giữ riêng, không chia nhỏ. Kỳ quan sát giá giữ riêng với kỳ doanh số.</p>' : '') +
+    '<p>Giá niêm yết, thanh toán và khuyến mãi có điều kiện giữ riêng. Số doanh thu chia sản lượng bán (nếu có) chỉ là ước tính, không thay cho giá niêm yết. Đối chiếu khai báo với bản lưu không xác thực người bán; không suy chất lượng, giá vốn hoặc lợi nhuận.</p>' +
+    '<p>Chưa có số liệu chi phí quảng cáo nên chưa tính ROAS (doanh thu trên chi phí quảng cáo) và CPA (chi phí cho mỗi đơn hàng).</p>' +
+    '<p class="lim"><b>Chú thích:</b> Giá và quy cách được đối chiếu trong phạm vi bản lưu; phần thiếu giữ riêng và không được suy đoán.</p>';
+  return html + '<p>Giá hiển thị tối đa ba chữ số thập phân; sắp xếp theo giá trị chưa làm tròn. Chỉ sắp xếp cùng sàn, ngành hàng, đơn vị hoặc cơ sở, nhóm quy cách, loại giá, điều kiện và kỳ. Khối lượng tịnh và khối lượng cái giữ riêng; hàng dùng lâu và combo không chia nhỏ. Kỳ quan sát giá giữ riêng với kỳ doanh số.</p><p>Giá niêm yết, thanh toán và khuyến mãi có điều kiện giữ riêng; không thay bằng giá bán trung bình từ doanh thu và đơn vị bán. Đối chiếu khai báo với bản lưu không xác thực người bán; không suy chất lượng, giá vốn hoặc lợi nhuận.</p>' +
     renderAutomationMarketAdvertising({ period: period ? { start: period.start, end: period.end } : null,
       object: { kind: 'video', label: 'chưa xác định trong đầu vào Market' },
       revenue: { value: null, source: null }, adCost: { value: null, source: null }, orders: { value: null, source: null },
       unavailableReason: 'Chưa có trường ROAS hoặc CPA với nguồn và ngữ nghĩa đã xác nhận; đầu vào Market chưa có trường chi phí quảng cáo và số đơn đã xác nhận', readerPlainText }) +
-    '<p>Dữ liệu được thu từ kênh công khai và xử lý bằng mô hình; doanh thu và chi tiêu quảng cáo có thể khác số thực tế.</p>' +
-    (readerPlainText ? '<p class="lim"><b>Chú thích:</b> Giá và quy cách được đối chiếu trong phạm vi bản lưu; phần thiếu giữ riêng và không được suy đoán.</p>' : '');
+    '<p>Dữ liệu được thu từ kênh công khai và xử lý bằng mô hình; doanh thu và chi tiêu quảng cáo có thể khác số thực tế.</p>';
 }
