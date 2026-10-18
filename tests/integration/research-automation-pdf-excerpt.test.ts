@@ -103,7 +103,7 @@ test('a run with a verified PDF draws a capped excerpt block that verifies, regi
 });
 
 test('a PDF whose own metadata holds a plain Vietnamese title is cited by that title and page, read once, never by its file name', async () => {
-  const f = await fixture({ pdf: true, pageIndex: true, pdfTitle: '  BÁO CÁO thị trường bình giữ nhiệt năm 2025 ' });
+  const f = await fixture({ pdf: true, pageIndex: true, pdfTitle: '  BÁO CÁO thị trường bình giữ nhiệt năm 2025 ... - VnExpress ' });
   const g = await fixture({ pdf: true, pageIndex: true, pdfTitle: 'fixture-report.pdf' });
   try {
     const block = blockOf(await f.html());
@@ -111,6 +111,10 @@ test('a PDF whose own metadata holds a plain Vietnamese title is cited by that t
     assert.doesNotMatch(block, /fixture|Tài liệu PDF số/u);
     assert.equal((f.db.prepare('SELECT document_title t FROM analysis_pageindex_run_pdfs WHERE run_id=?').get(runId) as { t: string }).t, 'BÁO CÁO thị trường bình giữ nhiệt năm 2025');
     assert.equal(f.titleReads(), 1, 'the stored title is not read again');
+    const saved = await f.html();
+    f.db.prepare('UPDATE analysis_pageindex_run_pdfs SET document_title=NULL WHERE run_id=?').run(runId);
+    assert.equal(await f.html(), saved, 'saved labels and HTML remain frozen even if the current title changes');
+    assert.equal(f.titleReads(), 1, 'reading saved drafts does not parse metadata again');
     // A metadata title that is itself a file name is not stored and the order wording is used.
     const fallback = blockOf(await g.html());
     assert.match(fallback, /Tài liệu PDF số 1, trang 1;/u);

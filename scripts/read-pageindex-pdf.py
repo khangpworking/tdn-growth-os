@@ -17,7 +17,9 @@ try:
     if sys.argv[1:] == ['--title']:
         metadata = reader.metadata
         title = metadata.title if metadata is not None else None
-        title = ' '.join(str(title).split())[:300] if isinstance(title, str) else ''
+        title = ' '.join(title.split()) if isinstance(title, str) else ''
+        if len(title) > 300:
+            title = ''
         output = json.dumps({'title': title or None}, ensure_ascii=False)
     else:
         pages = [{'page': i + 1, 'text': page.extract_text() or ''} for i, page in enumerate(reader.pages)]

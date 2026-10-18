@@ -9,7 +9,7 @@ import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../s
 import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/artifact-store.js';
 import { buildResearchAutomationSourceStatus } from '../../src/modules/analysis/research-automation/source-status.js';
-import { extractPageIndexPdf } from '../../src/modules/analysis/pageindex-questions.js';
+import { extractPageIndexPdf, readPageIndexPdfTitle } from '../../src/modules/analysis/pageindex-questions.js';
 import sourceStatusSchema from '../../contracts/api/research-automation-source-status-api.schema.json' with { type: 'json' };
 
 const require = createRequire(import.meta.url);
@@ -24,11 +24,12 @@ const workspaceId = '11111111-1111-4111-8111-111111111111';
 const runId = '22222222-2222-4222-8222-222222222222';
 const fixedNow = () => new Date('2026-10-07T00:00:00.000Z');
 
-function pdfFixture(): Buffer {
+function pdfFixture(title?: string): Buffer {
   const text = 'BT /F1 12 Tf 20 100 Td (Calcium 120 mg) Tj ET';
   const objects = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
     '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',
     `<< /Length ${text.length} >>\nstream\n${text}\nendstream`, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
+  if (title !== undefined) objects.push(`<< /Title <feff${Buffer.from(title, 'utf16le').swap16().toString('hex')}> >>`);
   let pdf = '%PDF-1.4\n';
   const offsets: number[] = [];
   for (const [index, object] of objects.entries()) {
@@ -36,10 +37,16 @@ function pdfFixture(): Buffer {
     pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
   }
   const start = Buffer.byteLength(pdf);
-  pdf += `xref\n0 6\n0000000000 65535 f \n${offsets.map(n => `${String(n).padStart(10, '0')} 00000 n \n`).join('')}`;
-  pdf += `trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${start}\n%%EOF\n`;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.map(n => `${String(n).padStart(10, '0')} 00000 n \n`).join('')}`;
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R${title === undefined ? '' : ' /Info 6 0 R'} >>\nstartxref\n${start}\n%%EOF\n`;
   return Buffer.from(pdf);
 }
+
+test('local metadata reader reads the embedded title and never returns a truncated title prefix', async () => {
+  assert.equal(await readPageIndexPdfTitle(pdfFixture('  Báo cáo   ngành quạt điện  ')), 'Báo cáo ngành quạt điện');
+  assert.equal(await readPageIndexPdfTitle(pdfFixture()), null);
+  assert.equal(await readPageIndexPdfTitle(pdfFixture('Báo cáo ngành '.repeat(30) + '.pdf')), null);
+});
 
 // The service owns attachment, indexing, local verification and artifact persistence;
 // only HTTP responses are fake, so the fixture cannot supply missing wiring.

@@ -6,9 +6,10 @@ import { assertReaderSafeCitation, type CitationEntry, type CitationRegistry } f
 const displayDate = (iso: string): string => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
 
 function renderItem(entry: CitationEntry, format: 'web' | 'pdf'): string {
-  const label = `<span class="cite-label">${escapeHtml(entry.label)}</span>`;
   // A PDF page reads as one name with its page: "<document name>, trang N".
   const pdfPage = entry.sourceKind === 'PDF_PAGE' && entry.locatorText !== null;
+  const name = pdfPage && entry.label.endsWith(`, ${entry.locatorText}`) ? entry.label.slice(0, -`, ${entry.locatorText}`.length) : entry.label;
+  const label = `<span class="cite-label">${escapeHtml(name)}</span>`;
   const parts = [`<span class="cite-number">[${entry.number}]</span>`, pdfPage ? `${label}, <span class="cite-locator">${escapeHtml(entry.locatorText!)}</span>` : label];
   if (entry.retrievedAt !== null) parts.push(`<span class="cite-date">ngày ${escapeHtml(displayDate(entry.retrievedAt))}</span>`);
   if (entry.locatorText !== null && !pdfPage) parts.push(`<span class="cite-locator">${escapeHtml(entry.locatorText)}</span>`);

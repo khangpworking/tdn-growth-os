@@ -199,9 +199,10 @@ const capitalsRead = (text: string): string => text.split(' ').map(token => {
   return /^\p{Lu}{2,}$/u.test(word) && !ACRONYMS.has(word) ? token.toLowerCase() : token;
 }).join(' ');
 const titleShown = (title: string): boolean => {
-  const count = words(title);
+  const count = title.split(/\s+/u).filter(token => /[\p{L}\p{N}]/u.test(token)).length;
   // Vietnamese words are syllables: a name of one or two ("Báo cáo") says nothing about the document.
   return title.length <= PDF_DOCUMENT_TITLE_MAX && count >= 3 && count <= PDF_EXCERPT_MAX_WORDS && /\p{L}/u.test(title) && !providerPattern.test(title)
+    && !/%|\b(?!Q[1-4]\b)[A-Z]\d{1,2}[A-Z]?\b/u.test(title)
     && !LEAK_PATTERNS.some(pattern => pattern.test(title)) && readerTextSafe(title) && !leaks(capitalsRead(title));
 };
 
@@ -214,15 +215,34 @@ const titleShown = (title: string): boolean => {
  */
 export function pdfDocumentTitle(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
-  const title = raw.normalize('NFC').replace(/\s+/gu, ' ').trim().replace(/^\[PDF\]\s*/iu, '').split(' | ')[0]!.replace(/\s*(?:\.{3}|…)$/u, '').trim();
-  for (const candidate of [title, title.replace(/\s[-–—]\s[^-–—]*$/u, '').trim()]) if (candidate && titleShown(candidate)) return candidate;
+  const trimEnd = (text: string): string => text.replace(/(?:\s*(?:\.{3,}|…))+$/u, '').trim();
+  const title = trimEnd(raw.normalize('NFC').replace(/\s+/gu, ' ').trim().replace(/^\[PDF\]\s*/iu, '').split(' | ')[0]!);
+  // A spaced dash can belong to a file name. Do not salvage its prefix as a document title.
+  if (/\.(?:pdf|docx?|xlsx?|pptx?|txt|csv|json|xml|html?|zip|png|jpe?g)\b[\s.)\]"'”’]*$/iu.test(title)) return null;
+  for (const candidate of [title, trimEnd(title.replace(/\s[-–—]\s[^-–—]*$/u, '').trim())]) if (candidate && titleShown(candidate)) return candidate;
   return null;
+}
+
+/** Rebuilding a reader from a saved semantic packet must not reuse historical file-name labels. */
+export function readerPdfExcerpts(excerpts: readonly PdfExcerpt[]): readonly PdfExcerpt[] {
+  const names = new Map<string, string>();
+  let untitled = 0;
+  return excerpts.map(excerpt => {
+    let name = names.get(excerpt.sourceSha256);
+    if (name === undefined) {
+      name = pdfDocumentTitle(excerpt.label.replace(/,\s*trang\s+\d+$/u, '')) ?? pdfUntitledName(++untitled);
+      names.set(excerpt.sourceSha256, name);
+    }
+    return { ...excerpt, label: `${name}, trang ${excerpt.page}` };
+  });
 }
 
 /** The citation entry of one excerpt, built the way every PDF citation is built (`toCitationInput`). */
 export function pdfExcerptCitation(excerpt: PdfExcerpt): CitationInput {
+  const name = excerpt.label.replace(/,\s*trang\s+\d+$/u, '').trim();
+  const safeName = pdfDocumentTitle(name) ?? (/^Tài liệu PDF số [1-9]\d*$/u.test(name) ? name : pdfUntitledName(1));
   return { sourceKind: 'PDF_PAGE', identity: excerpt.sourceSha256, locator: { kind: 'pdf', page: excerpt.page, fragment: null },
-    label: excerpt.label, retrievedAt: null, url: null, quote: excerpt.text, quoteVerification: 'EXTERNAL_VERIFIER_ATTESTED' };
+    label: `${safeName}, trang ${excerpt.page}`, retrievedAt: null, url: null, quote: excerpt.text, quoteVerification: 'EXTERNAL_VERIFIER_ATTESTED' };
 }
 
 /**
@@ -230,7 +250,8 @@ export function pdfExcerptCitation(excerpt: PdfExcerpt): CitationInput {
  * alone, because the register prints the page locator after it ("<name>, trang N").
  */
 export function pdfExcerptReaderCitation(excerpt: PdfExcerpt): CitationInput {
-  return { ...pdfExcerptCitation(excerpt), label: excerpt.label.replace(/,\s*trang\s+\d+$/u, '').trim() || excerpt.label };
+  const citation = pdfExcerptCitation(excerpt);
+  return { ...citation, label: citation.label.replace(/,\s*trang\s+\d+$/u, '') };
 }
 
 function readerSafe(text: string, citation: CitationInput): boolean {
@@ -260,7 +281,7 @@ export function selectPdfExcerpts(artifact: PageIndexQuotesArtifact | null | und
     // The order number is taken only once an excerpt of the document is shown, so the shown numbers have no gaps.
     const ordinal = untitled.get(quote.sourceSha256) ?? untitled.size + 1;
     let citation: CitationInput;
-    try { citation = toCitationInput(quote, title ?? pdfUntitledName(ordinal)); } catch { out(quote.sourceSha256, quote.page, 'NOT_READER_SAFE'); continue; }
+    try { citation = toCitationInput(quote, title ?? pdfUntitledName(ordinal), ordinal); } catch { out(quote.sourceSha256, quote.page, 'NOT_READER_SAFE'); continue; }
     if (!readerSafe(quote.quote, citation)) { out(quote.sourceSha256, quote.page, 'NOT_READER_SAFE'); continue; }
     if (title === null) untitled.set(quote.sourceSha256, ordinal);
     perDocument.set(quote.sourceSha256, (perDocument.get(quote.sourceSha256) ?? 0) + 1);
@@ -278,7 +299,7 @@ export const pdfExcerptDocuments = (excerpts: readonly PdfExcerpt[]): string[] =
  */
 export function pdfExcerptBlockHtml(excerpts: readonly PdfExcerpt[], esc: (value: string) => string, mark: (excerpt: PdfExcerpt) => string = () => ''): string {
   if (excerpts.length === 0) return '';
-  return `<h3>${esc(PDF_EXCERPT_TITLE)}</h3><ul class="pdf-excerpts">${excerpts.map(excerpt =>
+  return `<h3>${esc(PDF_EXCERPT_TITLE)}</h3><ul class="pdf-excerpts">${readerPdfExcerpts(excerpts).map(excerpt =>
     `<li><blockquote data-quote><p>${esc(excerpt.text)}</p><footer>${esc(excerpt.label)}; nhà xuất bản: ${PDF_EXCERPT_UNRECORDED}; năm: ${PDF_EXCERPT_UNRECORDED}; độ tin cậy: ${PDF_EXCERPT_UNRATED}.</footer></blockquote>${mark(excerpt)}</li>`).join('')}</ul>`;
 }
 

@@ -9,6 +9,7 @@
  */
 import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { pdfDocumentTitle, pdfUntitledName } from './research-automation/pdf-excerpt.js';
 
 export type PageIndexVerifierDropReason = 'PAGE_OUT_OF_RANGE' | 'QUOTE_NOT_ON_PAGE';
 
@@ -38,18 +39,20 @@ export async function extractPageIndexPdf(bytes: Uint8Array): Promise<readonly P
  * before showing it as the document name. Null when there is none or it cannot be read; never throws.
  */
 export async function readPageIndexPdfTitle(bytes: Uint8Array): Promise<string | null> {
-  if (!localPdf(bytes)) return null;
-  return new Promise(resolve => {
-    const child = execFile(process.env.TDN_PAGEINDEX_PYTHON ?? 'python3', [readPdfScript(), '--title'],
-      { timeout: 30_000, maxBuffer: 64 * 1024, encoding: 'utf8' }, (error, stdout) => {
-        try {
-          if (error) throw error;
-          const title: unknown = (JSON.parse(stdout) as { title?: unknown } | null)?.title;
-          resolve(typeof title === 'string' && title.trim() ? title : null);
-        } catch { resolve(null); }
-      });
-    child.stdin?.on('error', () => undefined); child.stdin?.end(bytes);
-  });
+  try {
+    if (!localPdf(bytes)) return null;
+    return await new Promise(resolve => {
+      const child = execFile(process.env.TDN_PAGEINDEX_PYTHON ?? 'python3', [readPdfScript(), '--title'],
+        { timeout: 30_000, maxBuffer: 64 * 1024, encoding: 'utf8' }, (error, stdout) => {
+          try {
+            if (error) throw error;
+            const title: unknown = (JSON.parse(stdout) as { title?: unknown } | null)?.title;
+            resolve(typeof title === 'string' && title.trim() ? title : null);
+          } catch { resolve(null); }
+        });
+      child.stdin?.on('error', () => undefined); child.stdin?.end(bytes);
+    });
+  } catch { return null; }
 }
 
 export interface PageIndexLocalPage {
@@ -268,10 +271,10 @@ export interface PageIndexCitationInput {
 
 /**
  * Shapes a verified quote for `CitationRegistry` as `PDF_PAGE` with a `pdf`
- * page locator. The label is plain reader text, "<document name>, trang N": the caller passes an already vetted document
- * name (never a file name); no vendor name, no digest.
+ * page locator. Vet the supplied document name again for display; otherwise use its untitled ordinal.
+ * The label is plain reader text, "<document name>, trang N", never a file name, vendor name or digest.
  */
-export function toCitationInput(quote: PageIndexVerifiedQuote, documentName: string): PageIndexCitationInput {
+export function toCitationInput(quote: PageIndexVerifiedQuote, documentName: string, untitledOrdinal = 1): PageIndexCitationInput {
   if (!quote || quote.quoteVerification !== 'EXTERNAL_VERIFIER_ATTESTED' || typeof documentName !== 'string' || !documentName.trim()) {
     throw new PageIndexQuestionError('INVALID_QUOTE_INPUT');
   }
@@ -279,7 +282,7 @@ export function toCitationInput(quote: PageIndexVerifiedQuote, documentName: str
     sourceKind: 'PDF_PAGE',
     identity: quote.sourceSha256,
     locator: { kind: 'pdf', page: quote.page, fragment: null },
-    label: `${documentName.trim()}, trang ${quote.page}`,
+    label: `${pdfDocumentTitle(documentName) ?? pdfUntitledName(untitledOrdinal)}, trang ${quote.page}`,
     retrievedAt: null,
     url: null,
     quote: quote.quote,

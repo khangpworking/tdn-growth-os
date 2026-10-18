@@ -226,6 +226,7 @@ import {
   type CaptureRecord,
   type StepExpandedQuery,
   type StepPdfDiscovery,
+  type StepWebResult,
   type ScopeSnapshot,
   type SourceStepId,
   type StartSnapshot,
@@ -3145,10 +3146,12 @@ export class ResearchAutomationService {
     if (sourceStart.sourceEvidenceVersion && semantic.sourceEvidence) {
       const collection = await this.#reportCollection(runId, sources, Boolean(attempt));
       const basePacket = (await this.#stepDocument(runId, 'COLLECTION'))?.sourceEvidence ?? buildSourceEvidence({ draft: null, draftDigest: null, unavailableReason: 'SALES_NAMES_UNAVAILABLE', webResults: [], captures: [] });
-      // Excerpts are drawn only by builds that set the packet marker; the stored list must equal a fresh read of the run's stored quotes.
+      // Replay source/page/quote membership; labels are frozen presentation, including pre-title drafts.
+      // The saved HTML is returned below, never regenerated with today's title policy.
       const marked = (semantic.sourceEvidence as { pdfExcerpts?: unknown }).pdfExcerpts === true;
       const storedExcerpts = (Array.isArray(semantic.pdfExcerpts) ? semantic.pdfExcerpts : []) as PdfExcerpt[];
-      if (marked ? kind !== 'MARKET' || !storedExcerpts.length || digest(storedExcerpts) !== digest(await this.#pdfExcerpts(runId)) : semantic.pdfExcerpts !== undefined)
+      const excerptEvidence = (excerpts: readonly PdfExcerpt[]) => excerpts.map(({ label: _label, ...evidence }) => evidence);
+      if (marked ? kind !== 'MARKET' || !storedExcerpts.length || digest(excerptEvidence(storedExcerpts)) !== digest(excerptEvidence(await this.#pdfExcerpts(runId))) : semantic.pdfExcerpts !== undefined)
         throw new ResearchAutomationIntegrityError('Report document excerpts differ from the run stored quotes.');
       // Video uploads are re-read from exactly the packages the stored list pinned; a later upload never changes a stored version.
       const videosMarked = (semantic.sourceEvidence as { sellerVideos?: unknown }).sellerVideos === true, storedVideos = storedSellerVideos(semantic);
@@ -4390,6 +4393,35 @@ export class ResearchAutomationService {
           captures.reduce((sum, value) => sum + value.artifact.byteSize, 0) + values.reduce((sum, value) => sum + value.body.byteLength, 0) <= MARKET_CAPTURE_READ_BUDGET_BYTES;
         const source = this.#pdfDiscoverySource;
         const seen = new Set<string>();
+        // Search projections truncate text before this lane. Vet the exact retained search title,
+        // so truncation cannot hide a file extension, provider name or other unsafe suffix.
+        const candidatesForRows = async (rows: readonly StepWebResult[], origin: PdfCandidate['origin']): Promise<PdfCandidate[]> => {
+          const titled: StepWebResult[] = [];
+          const payloads = new Map<string, unknown>();
+          for (const row of rows) {
+            let title = '';
+            try {
+              const capture = captures.find(c => c.row.ordinal === row.captureIndex)?.row;
+              if (capture?.provider === 'serpapi' && capture.operation === 'serpapi.google.search') {
+                if (!payloads.has(capture.artifactSha256)) {
+                  // These content-addressed bytes are retained already; their manifests commit with the step below.
+                  const envelope = JSON.parse((await this.#artifacts.read(capture.artifactSha256, { maxBytes: MAX_CAPTURE_ENVELOPE_BYTES })).toString('utf8')) as Record<string, unknown>;
+                  if (envelope.outcome !== 'OK' || typeof envelope.responseBytesBase64 !== 'string') throw new Error('Missing search bytes');
+                  const bytes = Buffer.from(envelope.responseBytesBase64, 'base64');
+                  if (createHash('sha256').update(bytes).digest('hex') !== envelope.responseSha256) throw new Error('Search byte mismatch');
+                  payloads.set(capture.artifactSha256, JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)));
+                }
+                const payload = payloads.get(capture.artifactSha256);
+                const matches = isRecord(payload) && Array.isArray(payload.organic_results) ? payload.organic_results.filter((raw: unknown, index: number) =>
+                  isRecord(raw) && (typeof raw.position === 'number' && Number.isSafeInteger(raw.position) && raw.position > 0 ? raw.position : index + 1) === row.position &&
+                  httpsUrl(raw.link, 2048) === row.url) : [];
+                if (matches.length === 1 && isRecord(matches[0])) title = pdfDocumentTitle(matches[0].title) ?? '';
+              }
+            } catch { /* No authentic usable search title: embedded metadata or the ordinal remains available. */ }
+            titled.push({ ...row, title });
+          }
+          return pdfCandidates(titled, origin, seen);
+        };
         let candidates: PdfCandidate[] = [];
         // The M09 excerpt block shows only stored reader quotes: with the document reader off an automatic PDF adds nothing,
         // so neither the extra search nor any download is made. With it on, owner uploads planned first may already fill the
@@ -4401,7 +4433,7 @@ export class ResearchAutomationService {
           const runRows = step.sourceEvidence
             ? admitWebResults(step.sourceEvidence, collectionWebRows(step), [...await this.#captureRecords(runId), ...captures.map(c => c.row)], step.sourceEvidence.jevTriage ?? null)
             : [];
-          candidates = pdfCandidates(runRows, 'RUN_ROWS', seen);
+          candidates = await candidatesForRows(runRows, 'RUN_ROWS');
         } catch { candidates = []; }
         if (readerOff) search = { status: 'SKIPPED', reason: 'SKIPPED_READER_OFF', captureIndex: null, retrievedAt: null };
         else if (noQuestionBudget) search ={ status: 'SKIPPED', reason: 'SKIPPED_NO_QUESTION_BUDGET', captureIndex: null, retrievedAt: null };
@@ -4422,7 +4454,7 @@ export class ResearchAutomationService {
                 const rows = toWebResults(attempt.result).filter(row => row.captureIndex === 0).map(row => ({ ...row, captureIndex: offset }));
                 const admitted = new Set(filterSerpApiResults({ results: rows.map(row => ({ captureId: stored.artifactSha256, position: row.position, title: row.title, snippet: row.snippet })),
                   filter: keywordDraft.output }).includedRecordIds);
-                const found = pdfCandidates(rows.filter(row => admitted.has(`${stored.artifactSha256}#${row.position}`)), 'PDF_SEARCH', seen);
+                const found = await candidatesForRows(rows.filter(row => admitted.has(`${stored.artifactSha256}#${row.position}`)), 'PDF_SEARCH');
                 if (!found.length && rows.some(row => isPdfPath(row.url))) search = { ...search, reason: 'NOT_ADMITTED' };
                 candidates = [...candidates, ...found];
               } catch { search = { ...search, reason: 'SEARCH_FAILED' }; }

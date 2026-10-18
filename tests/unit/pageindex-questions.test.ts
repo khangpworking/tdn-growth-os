@@ -9,8 +9,10 @@ import {
   verifyPageIndexQuotes,
   PAGEINDEX_ELIGIBLE_SECTIONS,
   PageIndexQuestionError,
+  readPageIndexPdfTitle,
 } from '../../src/modules/analysis/pageindex-questions.js';
 import { CitationRegistry } from '../../src/modules/analysis/citation-registry.js';
+import { renderCitationRegister } from '../../src/modules/analysis/citation-register-html.js';
 
 test('one fixed question per eligible section, none for synthesis or method sections', () => {
   assert.ok(PAGEINDEX_ELIGIBLE_SECTIONS.length > 0);
@@ -76,8 +78,25 @@ test('artifacts carry verified quotes only and cite as PDF_PAGE without answer t
   const number = registry.cite({ ...citation, technical: { provider: 'pageindex-test', cloudDocId: 'pi-2' } });
   assert.equal(number, 1);
   assert.equal(registry.entries()[0]?.locatorText, 'trang 3');
+  assert.match(renderCitationRegister(registry.entries(), { format: 'web' }), /Báo cáo ngành quạt điện<\/span>, <span class="cite-locator">trang 3<\/span>/u);
+  for (const unsafe of ['bao-cao-nganh.pdf', 'Báo cáo của Google', 'Báo cáo <script>']) {
+    assert.equal(toCitationInput(quote, unsafe, 2).label, 'Tài liệu PDF số 2, trang 3');
+  }
   assert.throws(() => buildVerifiedQuotesArtifact('', [quote]),
     error => error instanceof PageIndexQuestionError && error.code === 'INVALID_QUOTE_INPUT');
+});
+
+test('optional local title reader returns null for invalid input or a failed Python launch', async () => {
+  const python = process.env.TDN_PAGEINDEX_PYTHON;
+  try {
+    for (const executable of ['', '/missing-pageindex-python']) {
+      process.env.TDN_PAGEINDEX_PYTHON = executable;
+      assert.equal(await readPageIndexPdfTitle(Buffer.from('%PDF-1.4\ninvalid')), null);
+    }
+    assert.equal(await readPageIndexPdfTitle(Buffer.from('not a PDF')), null);
+  } finally {
+    if (python === undefined) delete process.env.TDN_PAGEINDEX_PYTHON; else process.env.TDN_PAGEINDEX_PYTHON = python;
+  }
 });
 
 test('owner uploads are planned before captured PDFs, each group in sha order', () => {

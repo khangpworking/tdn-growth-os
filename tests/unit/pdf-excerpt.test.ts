@@ -127,16 +127,26 @@ test('document titles: a plain Vietnamese title is shown as written, search-page
     ['Báo cáo ngành quạt điện - VnExpress', 'Báo cáo ngành quạt điện'],
     ['Báo cáo ngành quạt điện năm 2025...', 'Báo cáo ngành quạt điện năm 2025'],
     ['Báo cáo ngành quạt điện năm 2025 …', 'Báo cáo ngành quạt điện năm 2025'],
+    ['Báo cáo ngành quạt điện ... - VnExpress', 'Báo cáo ngành quạt điện'],
+    ['Báo cáo ngành quạt điện......', 'Báo cáo ngành quạt điện'],
+    ['Báo cáo ngành quạt điện ... … - VnExpress', 'Báo cáo ngành quạt điện'],
+    ['Báo cáo ngành quạt điện - cơ hội và rủi ro', 'Báo cáo ngành quạt điện - cơ hội và rủi ro'],
     ['BÁO CÁO NGÀNH QUẠT ĐIỆN VIỆT NAM', 'BÁO CÁO NGÀNH QUẠT ĐIỆN VIỆT NAM'],
     ['Thị trường FMCG ở ĐBSCL quý 3/2025', 'Thị trường FMCG ở ĐBSCL quý 3/2025'],
-  ] as const) assert.equal(pdfDocumentTitle(raw), shown, raw);
+  ] as const) {
+    assert.equal(pdfDocumentTitle(raw), shown, raw);
+    assert.equal(pdfDocumentTitle(pdfDocumentTitle(raw)), shown, `idempotent: ${raw}`);
+  }
   assert.equal(pdfDocumentTitle(pdfDocumentTitle(TITLE_A)), TITLE_A, 'vetting a vetted title keeps it');
 });
 
 test('document titles: a file name, link, path, code, provider, English heading or one word is never shown', () => {
   for (const bad of [undefined, null, 42, '', '   ', '[PDF]', 'Báo', 'Báo cáo', 'bao-cao-nganh.pdf', 'Báo cáo ngành quạt điện.pdf', 'https://example.test/a.pdf', 'Xem tại solieu.example.vn',
     'C:\\x\\y.pdf', '/tmp/bao-cao.pdf', 'Báo cáo theo Kalodata', 'Số liệu PageIndex tháng 6', 'Báo cáo của Google', 'Báo cáo Ｇｏｏｇｌｅ', 'Vacuum flask market report 2025',
-    'Báo cáo mã OTP 4821 dùng tạm', 'Báo cáo ' + 'nghiêng '.repeat(20), 'Báo cáo <script>', 'Báo cáo gửi nhom@example.test'])
+    'Báo cáo mã OTP 4821 dùng tạm', 'Báo cáo ' + 'nghiêng '.repeat(20), 'Báo cáo <script>', 'Báo cáo gửi nhom@example.test',
+    'Báo cáo ngành quạt điện - bản in.pdf', 'Báo cáo ngành quạt điện.docx', 'Báo cáo ngành quạt điện 1234567890',
+    'Báo cáo ngành M03', 'Báo cáo ngành Q8', 'Tăng trưởng 20%', 'Báo cáo -', 'Báo cáo . .',
+    'Báo cáo Gοοgle', 'Báo cáo Kaⅼodata', 'Báo cáo Ｍｅｔｒｉｃ', 'Báo cáo Page Index'])
     assert.equal(pdfDocumentTitle(bad), null, JSON.stringify(bad));
   assert.equal(pdfUntitledName(3), 'Tài liệu PDF số 3');
 });
@@ -211,6 +221,9 @@ test('reader report: the block sits once in M09 with its note, passes every gate
   assert.equal(doc.querySelectorAll('#phan-9 blockquote[data-quote]').length, 3);
   assert.ok(section.textContent!.includes('Nhu cầu bình giữ nhiệt tăng đều ở các đô thị lớn.'));
   assert.equal(doc.querySelectorAll('blockquote[data-quote]').length, 3, 'no other section carries an excerpt');
+  const pdfEntries = [...doc.querySelectorAll('.citation-register li')].filter(li => li.querySelector('.cite-locator')?.textContent?.startsWith('trang '));
+  assert.equal(pdfEntries.length, 3);
+  for (const entry of pdfEntries) assert.equal((entry.textContent!.match(/trang \d+/gu) ?? []).length, 1, entry.textContent!);
   assert.match(built.html, /Chú thích:/u);
   assert.ok(visible(built.html).includes('không so sánh được với số liệu mẫu'));
   const failed = auditMarketReportHtml(built.html, { presentation: false }).filter(item => !item.ok).map(item => `${item.rule}: ${item.detail}`);
@@ -226,6 +239,17 @@ test('reader report: the block sits once in M09 with its note, passes every gate
   assert.doesNotMatch(noData, /PageIndex|Google|Kalodata|Metric\b|SerpApi|Apify|\bS22\b/iu);
   assert.doesNotMatch(noData, /[A-Za-z]:\\|\/home\/|\/Users\//u);
   assert.doesNotMatch(visible(built.html), /\d+\s*%\s*(?:hoàn|xong|tiến)|đang xử lý \d+/iu);
+});
+
+test('a reader regenerated from legacy excerpt labels uses consecutive fallback names and passes the gates', async () => {
+  const excerpts = twoDocuments().map(item => ({ ...item, label: `Tài liệu bao-cao-nganh.pdf, trang ${item.page}` }));
+  const built = await reader(excerpts);
+  const doc = new JSDOM(built.html).window.document;
+  const labels = [...doc.querySelectorAll('.pdf-excerpts footer')].map(item => item.textContent!.split(';')[0]);
+  assert.deepEqual(labels, ['Tài liệu PDF số 1, trang 2', 'Tài liệu PDF số 1, trang 5', 'Tài liệu PDF số 2, trang 1']);
+  assert.doesNotMatch(built.html, /bao-cao-nganh\.pdf|tên tệp/u);
+  assert.doesNotThrow(() => assertMarket14MachineRules(built.html));
+  assert.doesNotThrow(() => assertMarketBusinessGate(built.html, { presentation: false }));
 });
 
 const withBlock = (statement: string): string => `<html><body><section id="M09"><h3>${PDF_EXCERPT_TITLE}</h3><ul><li><blockquote data-quote><p>Câu gốc.</p></blockquote></li></ul><p>${statement}</p></section></body></html>`;

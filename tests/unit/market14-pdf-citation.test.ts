@@ -138,3 +138,18 @@ test('legacy (non-market14) Market drafts keep the excerpt block without citatio
   assert.ok(block);
   assert.equal(block!.querySelectorAll('sup.cite').length, 0);
 });
+
+test('regenerating the Market reader and trace from old labels never republishes file names', async () => {
+  const input = withExcerpts(await fullMarket14Input());
+  const report = await buildResearchAutomationReport({ ...input, pdfExcerpts: EXCERPTS.map(excerpt => ({ ...excerpt,
+    label: `Tài liệu bao-cao-nganh.pdf, trang ${excerpt.page}` })) }, 'MARKET');
+  for (const html of [report.html.toString('utf8'), report.traceHtml!.toString('utf8')]) {
+    const document = new JSDOM(html).window.document;
+    assert.doesNotMatch(document.body.textContent!, /bao-cao-nganh\.pdf|tên tệp/u);
+    const labels = [...document.querySelectorAll('#M09 .pdf-excerpts footer')].map(item => item.textContent!.split(';')[0]);
+    assert.deepEqual(labels, ['Tài liệu PDF số 1, trang 4', 'Tài liệu PDF số 2, trang 2']);
+    assertRegister(document);
+  }
+  assert.doesNotThrow(() => assertMarket14MachineRules(report.html.toString('utf8')));
+  assert.doesNotThrow(() => assertMarketBusinessGate(report.html.toString('utf8'), { presentation: true }));
+});
