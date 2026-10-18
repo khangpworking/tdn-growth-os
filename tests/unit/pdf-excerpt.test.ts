@@ -145,7 +145,9 @@ test('document titles: a file name, link, path, code, provider, English heading 
     'C:\\x\\y.pdf', '/tmp/bao-cao.pdf', 'Báo cáo theo Kalodata', 'Số liệu PageIndex tháng 6', 'Báo cáo của Google', 'Báo cáo Ｇｏｏｇｌｅ', 'Vacuum flask market report 2025',
     'Báo cáo mã OTP 4821 dùng tạm', 'Báo cáo ' + 'nghiêng '.repeat(20), 'Báo cáo <script>', 'Báo cáo gửi nhom@example.test',
     'Báo cáo ngành quạt điện - bản in.pdf', 'Báo cáo ngành quạt điện.docx', 'Báo cáo ngành quạt điện 1234567890',
-    ...['rtf', 'odt', 'ods', 'odp', 'odg', 'ott', 'ots', 'otp', 'epub', 'docm', 'xlsb', 'xlsm', 'pptm', 'ppsx', 'potx'].map(extension => `Báo cáo ngành quạt điện - bản in.${extension}`),
+    ...['rtf', 'odt', 'ods', 'odp', 'odg', 'ott', 'ots', 'otp', 'epub', 'docm', 'xlsb', 'xlsm', 'pptm', 'ppsx', 'potx', 'dot', 'dotx', 'dotm', 'odf', 'odm', 'mobi',
+      'azw3', 'pages', 'numbers', 'key', 'mp4', '7z', 'PDF', 'Docx'].flatMap(extension => [`Báo cáo ngành quạt điện - bản in.${extension}`, `Báo cáo ngành quạt điện.${extension}`,
+      `Báo cáo ngành quạt điện.${extension} - Cổng thông tin`]),
     'Báo cáo ngành M03', 'Báo cáo ngành Q8', 'Tăng trưởng 20%', 'Báo cáo -', 'Báo cáo . .',
     'Báo cáo Gοοgle', 'Báo cáo Kaⅼodata', 'Báo cáo Ｍｅｔｒｉｃ', 'Báo cáo Page Index'])
     assert.equal(pdfDocumentTitle(bad), null, JSON.stringify(bad));
@@ -158,7 +160,7 @@ test('labels: "<title>, trang N", or "Tài liệu PDF số k, trang N" numbered 
   const labels = excerptsOf([quote(SHA_A, 1, 'Xem https://example.test/x.'), quote(SHA_C, 1, 'Một.'), quote(SHA_B, 2, 'Hai.'), quote(SHA_A, 3, 'Ba.'), quote(SHA_B, 4, 'Bốn.')], map).map(item => item.label);
   assert.deepEqual(labels, ['Báo cáo ngành quạt điện, trang 1', 'Tài liệu PDF số 1, trang 2', 'Tài liệu PDF số 2, trang 3', 'Tài liệu PDF số 1, trang 4'], 'a left-out excerpt takes no number');
   // A stored name that is a file name, empty or provider-like is vetted again and replaced by the order wording.
-  for (const fileName of ['bao-cao-nganh.pdf', 'Báo cáo ngành quạt điện - bản in.odt']) {
+  for (const fileName of ['bao-cao-nganh.pdf', 'Báo cáo ngành quạt điện - bản in.odt', 'Báo cáo ngành quạt điện - bản in.dotx', 'Báo cáo ngành quạt điện.pages']) {
     const vetted = excerptsOf([quote(SHA_A, 2, 'Một.'), quote(SHA_B, 3, 'Hai.')], new Map([[SHA_A, fileName], [SHA_B, 'PageIndex.pdf']]));
     assert.deepEqual(vetted.map(item => item.label), ['Tài liệu PDF số 1, trang 2', 'Tài liệu PDF số 2, trang 3']);
     assert.ok(vetted.every(item => !item.label.includes('.pdf')));

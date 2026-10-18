@@ -217,9 +217,14 @@ export function pdfDocumentTitle(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
   const trimEnd = (text: string): string => text.replace(/(?:\s*(?:\.{3,}|…))+$/u, '').trim();
   const title = trimEnd(raw.normalize('NFC').replace(/\s+/gu, ' ').trim().replace(/^\[PDF\]\s*/iu, '').split(' | ')[0]!);
-  // A spaced dash can belong to a file name. Do not salvage its prefix as a document title.
-  if (/\.(?:pdf|doc[xm]?|xls[xmb]?|ppt[xm]?|pps[xm]?|pot[xm]?|rtf|od[tspg]|ot[tsp]|epub|txt|csv|json|xml|html?|zip|png|jpe?g)\b[\s.)\]"'”’]*$/iu.test(title)) return null;
-  for (const candidate of [title, trimEnd(title.replace(/\s[-–—]\s[^-–—]*$/u, '').trim())]) if (candidate && titleShown(candidate)) return candidate;
+  // Any ending shaped like a file extension (".pdf", ".dotx", ".mobi", ".pages"…) marks a file name, so no list of known extensions
+  // can fall behind. A spaced dash can belong to a file name: its prefix is not salvaged either. A real title ending in a dotted
+  // abbreviation ("TP.HCM") is then read by its order number, which never shows a file name.
+  const fileNameEnd = (text: string): boolean => /\.(?=\p{N}*\p{L})[\p{L}\p{N}]{2,8}[\s.)\]"'”’]*$/u.test(text);
+  if (fileNameEnd(title)) return null;
+  for (const candidate of [title, trimEnd(title.replace(/\s[-–—]\s[^-–—]*$/u, '').trim())]) {
+    if (candidate && !fileNameEnd(candidate) && titleShown(candidate)) return candidate;
+  }
   return null;
 }
 
