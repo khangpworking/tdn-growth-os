@@ -178,7 +178,8 @@ done
 grep -q "KALODATA REPLAY MODE source=$SOURCE_RUN" "$DIR/server.log" || { stop_server; cat "$DIR/server.log" >&2; die 'replay mode line not logged; stopped the server'; }
 
 # Helper that starts a Market run with the source run's exact keyword and period (the only scope replay accepts).
-cat > "$DIR/start-market.ts" <<EOF_HELPER
+# .mts: the test dir has no package.json, so tsx would compile a .ts file as CommonJS and reject top-level await.
+cat > "$DIR/start-market.mts" <<EOF_HELPER
 import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
 // Resolve the driver from the checkout (this helper lives in the test dir).
@@ -206,9 +207,12 @@ Replay test instance is running (pid $(cat "$DIR/server.pid")), state in $DIR
 
 Start a Market run (same keyword + period as the source run; anything else is refused with
 kalodata_replay_scope_mismatch):
-  cd '$CHECKOUT' && PATH='$NODE_BIN':\$PATH node --import tsx '$DIR/start-market.ts'
-Then confirm the scope in the UI and pick the SAME products as the source run; a product without
-stored data shows "Bản chạy thử: không có dữ liệu bán hàng đã lưu ..." (KALODATA_REPLAY_MISS).
+  cd '$CHECKOUT' && PATH='$NODE_BIN':\$PATH node --import tsx '$DIR/start-market.mts'
+With the Market auto-runner inherited (TDN_METRIC_OPENCLI_ENABLED), the run reads Metric live and then
+confirms itself; that needs the browser extension connected to the opencli daemon, otherwise it stops
+with BRIDGE_DISCONNECTED (reconnect, then "Thử lại"). Without the auto-runner, confirm the scope in the
+UI and pick the SAME products as the source run. A product without stored data shows
+"Bản chạy thử: không có dữ liệu bán hàng đã lưu ..." (KALODATA_REPLAY_MISS).
 
 Stop:   kill \$(cat '$DIR/server.pid')
 Clean:  rm -rf '$DIR'
