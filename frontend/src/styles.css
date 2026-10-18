@@ -137,3 +137,6 @@
 
 /* M-09: long limitation codes wrap instead of being cut at 390 px */
 .ra-block code,.ra-run-steps code,.ra-blockers code{white-space:normal;overflow-wrap:anywhere;word-break:break-word}
+
+/* M-12: touch targets near 44 px on phones */
+@media(max-width:650px){.ra-steps-nav li button,.ra-steps-nav li>div,.campaign-steps .step,.topnav a{min-height:44px}.topnav a{display:inline-flex;align-items:center}}

@@ -214,7 +214,7 @@ export function PromptDetail(props: { readonly mode: 'real' | 'demo'; readonly o
         <p className="prompt-meta">
           <span className={`source-badge ${view.source === 'SYSTEM' ? 'system' : 'mine'}`}>{view.source === 'SYSTEM' ? 'Hệ thống' : 'Của tôi'}{view.source === 'USER' ? ` · v${view.version}` : ''}</span>
           {view.isDefault && <span className="source-badge default">Mặc định</span>}
-          <span>Mô hình: {modelLabel(view.prompt.recommendedModel)}</span>
+          <span>Mô hình đề xuất: {modelLabel(view.prompt.recommendedModel)}</span>
           {view.prompt.tags.length > 0 && <span className="tags">{view.prompt.tags.map((tag) => <span key={tag} className="tag">{tag}</span>)}</span>}
         </p>
         {view.duplicatedFrom && <p className="muted small">Nhân bản từ {view.duplicatedFrom.kind === 'SYSTEM' ? 'prompt hệ thống' : 'prompt của bạn'} (phiên bản {view.duplicatedFrom.version}).</p>}
