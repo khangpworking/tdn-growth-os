@@ -4,7 +4,7 @@
 // M07 as table 7.3 beside the Meta table. At most 6 paid calls per run (3 site searches and 3 ads reads), spaced at least 2 seconds apart, never retried.
 // A website must occur in run rows or one deterministic brand-site search. Advertiser names, advertiser
 // ids, images, links and ad ids stay out of the step document: the library often lists an agency, so it keeps only counts, formats and dates.
-import { boundedRequest, bytesContainSecret, CaptureLog, defaultProviderTransport, isRecord, parseJson, safeProviderCode, type ProviderTransport } from './provider-common.js';
+import { boundedRequest, bytesContainSecret, CaptureLog, defaultProviderTransport, httpsUrl, isRecord, parseJson, safeProviderCode, type ProviderTransport } from './provider-common.js';
 import { parse as parseDomain } from 'tldts';
 import { createSerpApiProvider } from './provider-serpapi.js';
 import { planExpandedSearch, SearchCallBudget, type ExpandedSearchRequest } from './expanded-search-queries.js';
@@ -118,7 +118,7 @@ export function hostOf(url: string): string | null {
   } catch { return null; }
 }
 export function hostDenied(host: string, extra: readonly string[] = []): boolean {
-  if (host.endsWith('.gov.vn') || host.endsWith('.edu.vn')) return true;
+  if (/\.(?:gov|edu|mil)(?:\.[a-z]{2})?$/u.test(host)) return true;
   if (host.split('.').some(label => DENIED_NAMES.has(label) || RETAILER_AGGREGATOR_DENY.has(label))) return true;
   if (webTextHidden(host) || FORBIDDEN_NAME.test(host) || NEWS_DOMAINS.some(value => host === value || host.endsWith(`.${value}`))) return true;
   return extra.some(value => { const other = value.toLowerCase().replace(/^www\./u, ''); return other.length > 0 && (host === other || host.endsWith(`.${other}`)); });
@@ -133,6 +133,8 @@ export function chooseDomain(brandKey: string, webUrls: readonly string[], denie
     const host = hostOf(url);
     if (!host || hostDenied(host, deniedHosts)) continue;
     const parsed = parseDomain(host, { allowPrivateDomains: true });
+    // A tenant name on a shared hosting/shop suffix is not a registered brand domain.
+    if (parsed.isPrivate) continue;
     if (parsed.domain && parsed.domainWithoutSuffix && normalizedKey(parsed.domainWithoutSuffix) === brandKey)
       if (!domains.has(parsed.domain)) domains.set(parsed.domain, host);
   }
@@ -260,8 +262,13 @@ export function createGoogleAdsSource(apiKey: string, transport: ProviderTranspo
             if (result.status !== 'SUCCEEDED' || !discoveryCapture?.responseSha256) {
               out.push(statusOnly(null, 'FAILED', 'DISCOVERY_FAILED')); return finish(settledStatus());
             }
-            // Provider positions, never array slots: positions beyond five cannot nominate a site.
-            const urls = result.webResults.filter(row => row.position <= 5).sort((a, b) => a.position - b.position).map(row => row.url);
+            // The shared parser fills absent/invalid positions from array slots. Only explicit
+            // provider ranks in the retained response may qualify for this lane's top five.
+            const raw = discoveryCapture.responseBytes ? parseJson(discoveryCapture.responseBytes) : null;
+            const ranked = isRecord(raw) && Array.isArray(raw.organic_results) ? raw.organic_results.slice(0, 10).filter(isRecord)
+              .filter(row => typeof row.position === 'number' && Number.isSafeInteger(row.position) && row.position >= 1 && row.position <= 5) : [];
+            const urls = result.webResults.filter(row => ranked.some(rawRow => rawRow.position === row.position && httpsUrl(rawRow.link) === row.url))
+              .sort((a, b) => a.position - b.position).map(row => row.url);
             choice = chooseDomain(brand.key, urls, input.deniedHosts);
             domainSource = choice.kind === 'DOMAIN' ? 'BRAND_SITE_SEARCH' : null;
           } catch {

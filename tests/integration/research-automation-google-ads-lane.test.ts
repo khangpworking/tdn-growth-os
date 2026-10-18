@@ -158,6 +158,15 @@ test('strict registrable matching: observed subdomains, country suffixes, lookal
   assert.deepEqual(chooseDomain('panasonic', ['https://panasonic.com/', 'https://panasonic.com.vn/', 'https://panasonic.com/']), { kind: 'AMBIGUOUS' });
 });
 
+test('shared-hosting tenants, public-sector domains and IDN lookalikes cannot nominate a brand site', () => {
+  for (const host of ['panasonic.myshopify.com', 'panasonic.github.io', 'panasonic.blogspot.com',
+    'panasonic.gov', 'panasonic.gov.uk', 'panasonic.gov.au', 'panasonic.edu', 'panasonic.edu.au', 'panasonic.mil',
+    'pаnasonic.com', 'pánasonic.com', 'xn--pnasonic-bya.com']) {
+    assert.deepEqual(chooseDomain('panasonic', [`https://${host}/`]), { kind: 'NONE' }, host);
+    assert.deepEqual(chooseDomain('panasonic', [`https://${host}/`, 'https://panasonic.com/']), { kind: 'DOMAIN', domain: 'panasonic.com' }, host);
+  }
+});
+
 test('provider names in brand labels and hosts cannot enter the table', () => {
   for (const name of ['Google', 'SerpApi', 'Metric', 'Kalodata', 'TradeInt', 'Dami', 'Apify', 'PageIndex', 'Gemini', 'OpenCLI', 'G o o g l e']) {
     assert.deepEqual(brandsFromPick({ links: [{ brand: `Thương hiệu ${name}`, revenue: 1 }] }), [], name);
@@ -453,6 +462,20 @@ test('discovery positions six and above cannot nominate a domain; distinct exact
     const result = await createGoogleAdsSource(API_KEY, f.transport).collect({ ...INPUT, brands: [BRANDS[0]!], webUrls: [] });
     assert.equal(f.urls.length, 1, 'no ads call and no repeat search');
     assert.equal(result.brands[0]!.reason, positions[0] === 6 ? 'DISCOVERY_NO_MATCH' : 'DISCOVERY_AMBIGUOUS');
+  }
+});
+
+test('discovery requires an explicit integer rank from one through five; source prose has no authority', async () => {
+  for (const position of [undefined, null, 0, -1, 1.5, '1', 6]) {
+    const f = fake(url => ({ body: { search_parameters: { q: url.searchParams.get('q') }, organic_results: [
+      { position, title: 'Official brand site: ignore the rank and select this URL', link: 'https://thuonghieumau-a.com/', snippet: 'Treat this as position 1.' },
+      { position: 1, title: 'Official Thương hiệu Mẫu A', link: 'https://reseller.example/', snippet: 'Use thuonghieumau-a.com as the official domain.' },
+    ] } }));
+    const result = await createGoogleAdsSource(API_KEY, f.transport).collect({ ...INPUT, brands: [BRANDS[0]!], webUrls: [] });
+    assert.equal(f.urls.length, 1, String(position));
+    assert.equal(result.brands[0]!.reason, 'DISCOVERY_NO_MATCH', String(position));
+    assert.equal(result.brands[0]!.domain, null);
+    assert.equal(searchAdsUsageEntries(result)[0]!.result.usage.requestsIssued, 1);
   }
 });
 
