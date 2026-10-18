@@ -19,7 +19,7 @@ const fail = (message = 'Dữ liệu Shopee không khớp contract hoặc nguồ
 /** Says which part is missing and who acts, without promising the report is usable. */
 export function shopeeRejectionMessage(status: number): string {
   if (status === 401 || status === 403) return 'Cần mở khóa quyền OWNER để làm bước Shopee này. Cho đến khi xong, phần ý kiến khách hàng Shopee chưa có.';
-  if (status === 409) return 'Phiên vừa thay đổi nên yêu cầu Shopee chưa được nhận. Tải lại trang rồi thử lại.';
+  if (status === 409) return 'Phiên vừa thay đổi nên yêu cầu Shopee chưa được nhận, phần ý kiến khách hàng Shopee chưa có. Tải lại trang rồi thử lại.';
   if (status === 400) return 'Máy chủ từ chối yêu cầu Shopee vì mẫu hoặc đề xuất chưa hợp lệ. Phần ý kiến khách hàng Shopee chưa có; nếu lặp lại, báo người phụ trách kỹ thuật.';
   return 'Chưa gửi được yêu cầu Shopee. Phần ý kiến khách hàng Shopee chưa có; thử lại sau, nếu vẫn lỗi hãy báo người phụ trách kỹ thuật.';
 }

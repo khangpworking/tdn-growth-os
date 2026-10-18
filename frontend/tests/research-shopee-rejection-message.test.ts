@@ -6,6 +6,7 @@ import { AUTORUN_DENY_LIST } from '../src/research-automation/autorun-text';
 test('Shopee rejection says what is missing and who acts, per status', () => {
   assert.match(shopeeRejectionMessage(403), /OWNER/);
   assert.match(shopeeRejectionMessage(409), /Tải lại/);
+  for (const status of [400, 401, 403, 404, 409, 500]) assert.match(shopeeRejectionMessage(status), /ý kiến khách hàng Shopee chưa có/);
   assert.match(shopeeRejectionMessage(400), /kỹ thuật/);
   assert.match(shopeeRejectionMessage(500), /thử lại sau/);
 });
