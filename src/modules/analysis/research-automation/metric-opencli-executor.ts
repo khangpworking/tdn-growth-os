@@ -109,9 +109,9 @@ function isKnownBenignStderr(stderr: string): boolean {
     /^⏳\s+Waiting for Chrome\/Chromium extension to connect\.\.\.\s*$/,
     /^\s+Make sure Chrome or Chromium is open and the OpenCLI extension is enabled\.\s*$/,
     /^\s+Connected to (?:daemon|browser bridge)\.\s*$/,
-    /^\s+(?:Update|Extension update) available: v\d+\.\d+\.\d+ → v\d+\.\d+\.\d+\s*$/,
-    /^\s+Run: npm install -g @jackwener\/opencli\s*$/,
-    /^\s+Download: https:\/\/github\.com\/jackwener\/opencli\/releases\s*$/,
+    /^  (?:Update|Extension update) available: v\d+\.\d+\.\d+ → v\d+\.\d+\.\d+$/,
+    /^  Run: npm install -g @jackwener\/opencli$/,
+    /^  Download: https:\/\/github\.com\/jackwener\/opencli\/releases$/,
   ];
   return stderr.split(/\r?\n/).every(line => known.some(pattern => pattern.test(line)));
 }

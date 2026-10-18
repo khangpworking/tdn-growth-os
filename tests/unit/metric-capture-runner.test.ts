@@ -62,7 +62,7 @@ test('missing manifest path or digest stops as EXECUTOR_NOT_CONFIGURED without c
 });
 
 test('happy path: no shell, detached, explicit long timeout, allow-listed env, pinned sha from config', async () => {
-  const f = fake([READY], { PATH: '/usr/bin', HOME: '/home/synthetic', DISPLAY: ':0', TDN_SERPAPI_KEY: 'k1', APIFY_TOKEN: 'k2', OPENAI_API_KEY: 'k3', TDN_OWNER_TOKEN: 'k4' });
+  const f = fake([READY], { PATH: '/usr/bin', HOME: '/home/synthetic', DISPLAY: ':0', TDN_SERPAPI_KEY: 'k1', APIFY_TOKEN: 'k2', OPENAI_API_KEY: 'k3', TDN_OWNER_TOKEN: 'k4', CI: '0', CONTINUOUS_INTEGRATION: 'synthetic', OPENCLI_BROWSER_COMMAND_TIMEOUT: '1' });
   const req = request();
   const result = await runMetricCapture(config({ opencliExecutable: 'opencli-synthetic' }), req, f.deps);
   assert.ok(result.ok, JSON.stringify(result));
