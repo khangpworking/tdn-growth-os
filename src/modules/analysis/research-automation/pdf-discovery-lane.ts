@@ -1,7 +1,7 @@
 // Automatic industry-report PDF lane for the automated Market flow (S25). Off unless the flag is exactly "1".
 //
 // Per run: PDF links already present in this run's collected search rows, plus at most ONE extra search
-// (`<keyword> báo cáo filetype:pdf`, never retried) when those rows give fewer than 2 candidates; then at most
+// (a fixed market-report PDF query with document-sharing exclusions, never retried) when those rows give fewer than 2 candidates; then at most
 // 2 sequential downloads through an SSRF guard, never retried. A stored file is an ordinary COLLECTION capture
 // whose bytes start with `%PDF-`, so the existing run-PDF retention path keeps and reads it. Nothing here fails a run.
 import { lookup } from 'node:dns/promises';
@@ -42,14 +42,20 @@ export function pdfDiscoveryMaxPages(env: Readonly<Record<string, string | undef
   return Number.isSafeInteger(value) ? Math.min(Math.max(value, 1), 1000) : PDF_DISCOVERY_DEFAULT_MAX_PAGES;
 }
 
-/** Marketplace, social and video hosts: their pages are listings or posts, never an industry report. */
-const BLOCKED_HOST_SUFFIXES = ['shopee.vn', 'shopee.com', 'shopee', 'tiktok.com', 'tiktokcdn.com', 'facebook.com', 'fb.com', 'fbcdn.net', 'instagram.com',
-  'youtube.com', 'youtu.be', 'lazada.vn', 'lazada.com', 'tiki.vn', 'sendo.vn', 'zalo.me', 'zalo.vn', 'x.com', 'twitter.com', 'threads.net'];
+/** Full domains match subdomains too; bare names match whole DNS labels across country domains, never substrings. */
+const BLOCKED_HOSTS = [
+  // Marketplace, social and video pages.
+  'shopee', 'tiktok', 'tiktokcdn.com', 'facebook', 'fb.com', 'fbcdn.net', 'instagram.com',
+  'youtube', 'youtu.be', 'lazada', 'tiki', 'sendo.vn', 'zalo.me', 'zalo.vn', 'x.com', 'twitter.com', 'threads.net',
+  // Document-sharing and essay repositories, including regional domains and download subdomains.
+  'studocu', 'scribd', '123doc', '123docz', 'tailieu', 'luanvan', 'academia.edu', 'doc.edu.vn',
+  // Branded marketplace-analytics vendors: their own PDFs must not leak a data-provider brand into the report.
+  'metric', 'kalodata', 'tradeint', 'dami', 'ecdata', 'youneteci',
+];
 export function isBlockedHost(hostname: string): boolean {
   const host = hostname.toLowerCase().replace(/\.$/u, '');
   const labels = host.split('.');
-  return BLOCKED_HOST_SUFFIXES.some(suffix => host === suffix || host.endsWith(`.${suffix}`))
-    || labels.some(label => ['shopee', 'tiktok', 'lazada', 'tiki', 'youtube', 'facebook'].includes(label));
+  return BLOCKED_HOSTS.some(suffix => host === suffix || host.endsWith(`.${suffix}`) || (!suffix.includes('.') && labels.includes(suffix)));
 }
 
 export const isPdfPath = (url: string): boolean => {

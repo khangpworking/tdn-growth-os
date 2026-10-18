@@ -44,7 +44,7 @@ export default function ScopeConfirm({ run, ownerToken, writesAvailable, onConfi
   const terms = (value: string) => [...new Set(value.split('\n').map(term => term.trim()).filter(Boolean))];
   const urls = exactUrls.split('\n').map(url => url.trim()).filter(Boolean);
   const urlIssue = exactUrlIssue(urls);
-  const blockedReason = !writesAvailable ? 'Ghi OWNER hiện không khả dụng trong runtime này.' : !ownerToken ? 'Mở khóa OWNER ở đầu trang để duyệt phạm vi.' : null;
+  const blockedReason = !writesAvailable ? 'Ghi OWNER hiện không khả dụng trong runtime này. Bạn vẫn xem được dữ liệu. Khi quản trị viên đã bật ghi, bấm "Kiểm tra quyền lại" ở thanh trên cùng.' : !ownerToken ? 'Mở khóa OWNER ở đầu trang để duyệt phạm vi.' : null;
   const incomplete = urlIssue ?? (!none && selected.length === 0 && urls.length === 0 ? 'Chọn thẻ giống ý bạn, nhập link Shopee chính xác, hoặc chọn Không cái nào giống.' : !definition.trim() ? 'Viết định nghĩa phạm vi trước khi duyệt.' : !sourceState.ready ? 'Hoàn tất việc tải và chọn nguồn trước khi duyệt phạm vi.' : null);
   const fieldsLocked = pending || sourceState.held;
   const scope = { definition: definition.normalize('NFC').trim(), includeTerms: terms(includeTerms).map(value => value.normalize('NFC')), excludeTerms: terms(excludeTerms).map(value => value.normalize('NFC')),

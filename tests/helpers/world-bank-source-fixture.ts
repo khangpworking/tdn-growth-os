@@ -1,6 +1,5 @@
 /** Synthetic World Bank v2 endpoint shape; these names/units/numbers are test evidence only. */
-export function worldBankFixture(code = 'SP.POP.TOTL', values = ['12345678901234567890.123456789', '0', 'null']) {
-  const name = 'Synthetic population indicator';
+export function worldBankFixture(code = 'SP.POP.TOTL', values = ['12345678901234567890.123456789', '0', 'null'], name = 'Synthetic population indicator') {
   const records = values.map((value, index) => JSON.stringify({ indicator: { id: code, value: name },
     country: { id: 'VN', value: 'Viet Nam' }, countryiso3code: 'VNM', date: String(2025 - index),
     value: '__EXACT_VALUE__', unit: '', obs_status: '', decimal: 0, ...(index === 0 ? { footnote: 'Synthetic estimate note' } : {}) })

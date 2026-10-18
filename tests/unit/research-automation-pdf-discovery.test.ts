@@ -72,6 +72,26 @@ test('URL rule: https, port 443, no credentials, DNS name only', () => {
   }
 });
 
+test('candidates and downloads refuse document-sharing and analytics-vendor PDF hosts, including redirects', async () => {
+  const hosts = ['studocu.vn', 'www.studocu.com', 'cdn.scribd.com', '123doc.org', 'download.123docz.net', 'tailieu.vn', 'luanvan.net.vn',
+    'www.academia.edu', 'files.doc.edu.vn', 'metric.vn', 'insight.metric.vn', 'www.kalodata.com', 'tradeint.com', 'dami.vn', 'ecdata.vn', 'youneteci.com'];
+  for (const host of hosts) {
+    const url = `https://${host}/bao-cao.pdf`;
+    assert.equal(isBlockedHost(host.toUpperCase() + '.'), true, host);
+    for (const origin of ['RUN_ROWS', 'PDF_SEARCH'] as const) assert.deepEqual(pdfCandidates([{ url }], origin), [], `${host} in ${origin}`);
+    const { transport, seen } = fakeTransport(() => new Response(null, { status: 302, headers: { location: url } }));
+    assert.deepEqual(await guardedPdfDownload({ download: transport.fetch, transport, resolve: publicDns, log: log(transport), url }),
+      { kind: 'FAILED', reason: 'URL_REFUSED', requested: false });
+    assert.equal(seen.length, 0, host);
+    assert.deepEqual(await guardedPdfDownload({ download: transport.fetch, transport, resolve: publicDns, log: log(transport), url: 'https://bao-cao.example/start.pdf' }),
+      { kind: 'FAILED', reason: 'URL_REFUSED', requested: true });
+    assert.equal(seen.length, 1, `no redirect request to ${host}`);
+  }
+  for (const host of ['notstudocu.vn', 'metric-research.example', 'academia.example', 'doc.example.edu.vn']) {
+    assert.equal(isBlockedHost(host), false, 'only whole DNS labels or full domain suffixes are blocked');
+  }
+});
+
 test('DNS answer rule: private, reserved and mapped addresses are refused', () => {
   for (const ip of ['127.0.0.1', '10.1.2.3', '172.16.0.1', '172.31.255.255', '192.168.0.10', '169.254.169.254', '100.64.0.1', '0.0.0.0', '224.0.0.1', '255.255.255.255',
     '192.0.0.1', '198.18.0.1', '::', '::1', '::ffff:127.0.0.1', '::ffff:7f00:1', '::ffff:a00:1', '0000::1', '0000:0000:0000:0000:0000:ffff:7f00:1', 'fec0::1', 'fc00::1', 'fd12:3456::1', 'fe80::1%eth0', 'ff02::1', '2001:db8::1', '2001:0db8::1', '64:ff9b::a00:1', 'nonsense']) {
@@ -194,15 +214,22 @@ test('source search: one call with the fixed PDF query, no retry', async () => {
   const input = { runId: '22222222-2222-4222-8222-222222222222', mode: 'CATEGORY' as const, keyword: 'thạch dừa', requestedPeriod: { startDate: '2025-10-01', endDate: '2026-09-30' }, country: 'VN' as const, selectedProductRefs: [], peerProductRefs: [] };
   const attempt = await source.search(input);
   assert.equal(seen.length, 1, 'one call, never retried');
-  assert.equal(new URL(seen[0]!.url).searchParams.get('q'), 'thạch dừa báo cáo filetype:pdf');
+  const params = new URL(seen[0]!.url).searchParams;
+  assert.equal(params.get('q'), 'báo cáo thị trường thạch dừa filetype:pdf -site:studocu.vn -site:scribd.com');
+  for (const [name, value] of [['gl', 'vn'], ['hl', 'vi'], ['num', '10']]) assert.equal(params.get(name!), value);
   assert.ok(attempt.state === 'CALLED' || attempt.state === 'THROWN');
 });
 
-test('query plan: file type appends the fixed words and needs the exact keyword', () => {
+test('query plan: PDF market-report template uses only validated keyword words and fixed exclusions', () => {
   const [plan] = planExpandedSearch({ version: 'expanded-search-request-v1', confirmedProducts: [], confirmedBrands: [], requestedWindow: null, siteDomain: null, exactKeyword: 'thạch dừa', fileType: 'pdf' });
-  assert.equal(plan!.parameters.q, 'thạch dừa báo cáo filetype:pdf');
+  assert.equal(plan!.parameters.q, 'báo cáo thị trường thạch dừa filetype:pdf -site:studocu.vn -site:scribd.com');
   assert.throws(() => planExpandedSearch({ version: 'expanded-search-request-v1', confirmedProducts: ['a'], confirmedBrands: [], requestedWindow: null, siteDomain: null, fileType: 'pdf' }));
   assert.throws(() => planExpandedSearch({ version: 'expanded-search-request-v1', confirmedProducts: [], confirmedBrands: [], requestedWindow: null, siteDomain: null, exactKeyword: 'a filetype:exe' }));
+  for (const exactKeyword of ['quạt điện site:scribd.com', 'quạt điện -site:gov.vn', 'quạt điện OR bài luận', 'quạt điện\nkhác']) {
+    assert.throws(() => planExpandedSearch({ version: 'expanded-search-request-v1', confirmedProducts: [], confirmedBrands: [], requestedWindow: null, siteDomain: null, exactKeyword, fileType: 'pdf' }));
+  }
+  const [fan] = planExpandedSearch({ version: 'expanded-search-request-v1', confirmedProducts: [], confirmedBrands: [], requestedWindow: null, siteDomain: null, exactKeyword: 'quạt điện', fileType: 'pdf' });
+  assert.deepEqual(fan!.parameters, { engine: 'google', q: 'báo cáo thị trường quạt điện filetype:pdf -site:studocu.vn -site:scribd.com', gl: 'vn', hl: 'vi', num: 10 });
 });
 
 test('stored field: valid shapes, refusals, usage', () => {

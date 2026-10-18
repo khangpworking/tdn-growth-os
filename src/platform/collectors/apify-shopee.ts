@@ -41,6 +41,8 @@ function validateMaxReviewsPerProduct(value: number): number {
 }
 export interface ShopeeCollector {
   readonly mode: 'fixture' | 'live';
+  /** Exposed for checking a frozen trial cap before dispatch. */
+  readonly maxReviewsPerProduct?: number;
   readonly privacyProfile?: ShopeePrivateIntake['profile'] | undefined;
   collect(selected: readonly ShopeeTransportListing[], requestSha256: string, runKey: string, signal?: AbortSignal): Promise<CollectedPages>;
 }
@@ -73,6 +75,7 @@ export class CollectionPendingError extends Error {}
 
 export class ApifyShopeeCollector implements ShopeeCollector {
   readonly mode = 'live' as const;
+  get maxReviewsPerProduct() { return this.options.maxReviewsPerProduct ?? PRODUCTION_MAX_REVIEWS_PER_PRODUCT; }
   readonly #fetch: typeof fetch;
   readonly #sleep: (ms: number, signal?: AbortSignal) => Promise<unknown>;
   readonly #privacy: ShopeePrivateIntake | undefined;

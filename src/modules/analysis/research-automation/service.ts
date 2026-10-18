@@ -173,7 +173,7 @@ import { AutomationNativeSourceReviewBridge, type NativeSourceReviewSnapshot, ty
 import { buildAutomationSourceClaims, validateAutomationSourceClaimsReference, MAX_SOURCE_CLAIMS_BYTES } from './source-claims.js';
 import type { AutomationSourceClaims } from '../../../../contracts/analysis/automation-source-claims.generated.js';
 import { exactShopeeRequest, AutomationExactShopeeBridge, type ExactShopeeAttempt, type ShopeeCollectorFactory, type PrivateShopeeConfiguration, type ReviewPolicyConfiguration } from './exact-shopee-bridge.js';
-import { EXACT_SHOPEE_OUTCOMES, MAX_PROVIDER_MESSAGE_LENGTH, type ExactShopeeOutcome } from './exact-shopee-outcome.js';
+import { EXACT_SHOPEE_OUTCOMES, MAX_PROVIDER_MESSAGE_LENGTH, countReviewsPerListing, markReviewShortfalls, type ExactShopeeOutcome } from './exact-shopee-outcome.js';
 import { selectExactShopeeListings } from '../../foundation/shopee-exact-selection.js';
 import type { ResearchReviewCorpus } from '../../../../contracts/analysis/research-review-corpus.generated.js';
 import type {
@@ -435,6 +435,7 @@ export interface ResearchAutomationServiceOptions {
 /** Composition-root configuration of the Market auto-runner (enabled only when its flag is exactly "1"). */
 export interface ResearchAutomationAutoRunOptions {
   readonly enabled: boolean;
+  readonly testReviewCap?: number;
   readonly runner: MetricCaptureRunnerConfig;
   /** Test seam; defaults to the real capture runner. */
   readonly runCapture?: (config: MetricCaptureRunnerConfig, request: MetricCaptureRequest) => Promise<MetricCaptureRunResult>;
@@ -1932,7 +1933,7 @@ export class ResearchAutomationService {
         webResults: webResults.map(({ position, title, url, snippet, retrievedAt, site, published, origin }) =>
           ({ position, title, url, snippet, retrievedAt, site: site ?? null, published: published ?? null, ...(origin ? { origin } : {}) })),
         ...(searchInterestRenderable(searchInterest) ? { searchInterest } : {}), ...(searchGeoRenderable(webCollection?.searchGeo) ? { searchGeo: webCollection.searchGeo, searchGeoCapture: (await this.#captureRecords(runId)).find(c => c.stepId === 'COLLECTION' && c.ordinal === webCollection.searchGeo!.captureIndex)! } : {}),
-        ...(worldBankRenderable(webCollection?.worldBank) ? { worldBank: webCollection.worldBank } : {}), ...(webCollection?.comtrade ? { comtrade: webCollection.comtrade } : {}), ...(webCollection?.searchAds ? { searchAds: webCollection.searchAds } : {}), ...(webCollection?.officialStats ? { officialStats: webCollection.officialStats } : {}), ...(storedPdfExcerpts(marketSemantic).length ? { pdfExcerpts: storedPdfExcerpts(marketSemantic) } : {}), ...(storedSellerVideos(marketSemantic) ? { sellerVideos: storedSellerVideos(marketSemantic)! } : {}),
+        ...(worldBankRenderable(webCollection?.worldBank) ? { worldBank: webCollection.worldBank } : {}), ...(webCollection?.comtrade ? { comtrade: webCollection.comtrade } : {}), ...(webCollection?.searchAds ? { searchAds: webCollection.searchAds } : {}), ...(webCollection?.officialStats ? { officialStats: webCollection.officialStats } : {}), ...(webCollection?.pdfDiscovery ? { pdfDiscovery: webCollection.pdfDiscovery } : {}), ...(storedPdfExcerpts(marketSemantic).length ? { pdfExcerpts: storedPdfExcerpts(marketSemantic) } : {}), ...(storedSellerVideos(marketSemantic) ? { sellerVideos: storedSellerVideos(marketSemantic)! } : {}),
         ...(metaAds.length ? { metaAds } : {}), ...await this.#metaAutoContext(webCollection, runId), ...await this.#tiktokTopAdsContext(webCollection, runId),
         metric: { packageId, capture: { snapshot: verifiedCapture.snapshot, snapshotSha256: rawSnapshotSha256, truncation: preparedCapture.capture.truncation }, measurementPeriod: preparedCapture.capture.measurementPeriod } };
     }
@@ -1947,7 +1948,7 @@ export class ResearchAutomationService {
       webResults: webResults.map(({ position, title, url, snippet, retrievedAt, site, published, origin }) =>
         ({ position, title, url, snippet, retrievedAt, site: site ?? null, published: published ?? null, ...(origin ? { origin } : {}) })),
       ...(searchInterestRenderable(searchInterest) ? { searchInterest } : {}), ...(searchGeoRenderable(webCollection?.searchGeo) ? { searchGeo: webCollection.searchGeo, searchGeoCapture: (await this.#captureRecords(runId)).find(c => c.stepId === 'COLLECTION' && c.ordinal === webCollection.searchGeo!.captureIndex)! } : {}),
-        ...(worldBankRenderable(webCollection?.worldBank) ? { worldBank: webCollection.worldBank } : {}), ...(webCollection?.comtrade ? { comtrade: webCollection.comtrade } : {}), ...(webCollection?.searchAds ? { searchAds: webCollection.searchAds } : {}), ...(webCollection?.officialStats ? { officialStats: webCollection.officialStats } : {}), ...(storedPdfExcerpts(marketSemantic).length ? { pdfExcerpts: storedPdfExcerpts(marketSemantic) } : {}), ...(storedSellerVideos(marketSemantic) ? { sellerVideos: storedSellerVideos(marketSemantic)! } : {}),
+        ...(worldBankRenderable(webCollection?.worldBank) ? { worldBank: webCollection.worldBank } : {}), ...(webCollection?.comtrade ? { comtrade: webCollection.comtrade } : {}), ...(webCollection?.searchAds ? { searchAds: webCollection.searchAds } : {}), ...(webCollection?.officialStats ? { officialStats: webCollection.officialStats } : {}), ...(webCollection?.pdfDiscovery ? { pdfDiscovery: webCollection.pdfDiscovery } : {}), ...(storedPdfExcerpts(marketSemantic).length ? { pdfExcerpts: storedPdfExcerpts(marketSemantic) } : {}), ...(storedSellerVideos(marketSemantic) ? { sellerVideos: storedSellerVideos(marketSemantic)! } : {}),
       ...(metaAds.length ? { metaAds } : {}), ...await this.#metaAutoContext(webCollection, runId), ...await this.#tiktokTopAdsContext(webCollection, runId),
       metric: { packageId, workbook: workbook.bytes, measurementPeriod: prepared.request.measurementPeriod } };
   }
@@ -2065,7 +2066,9 @@ export class ResearchAutomationService {
       const confirmedAt = this.#now().toISOString();
       const scope: ScopeSnapshot = { contractVersion: 'research-automation-scope-snapshot-v1', workspaceId, runId, definition: input.definition,
         includeTerms: [...input.includeTerms], excludeTerms: [...input.excludeTerms], selectedProductIds: [...input.selectedProductIds], peerProductIds: [...input.peerProductIds],
-        ...(input.exactShopeeUrls !== undefined ? { exactShopeeUrls: [...input.exactShopeeUrls] } : {}) };
+        ...(input.exactShopeeUrls !== undefined ? { exactShopeeUrls: [...input.exactShopeeUrls] } : {}),
+        ...(input.contractVersion === 'research-automation-confirm-v2' && typeof input.sources.nativeReview === 'object'
+          ? { testReviewCap: input.sources.nativeReview.maxReviewsPerProduct } : {}) };
       const row = this.#current(runId)!;
       const start = await this.#readStartSnapshot(row.startSha, workspaceId);
       // Runs copied into a replay instance were not started here; confirm only the source run's scope.
@@ -2079,6 +2082,12 @@ export class ResearchAutomationService {
           ? { decision: 'ADMITTED', sourcePackage: await this.#metricMethods.inspectPrepared(bound, input.sources.metric.packageId) }
           : { decision: input.sources.metric.decision };
         if (input.sources.nativeReview === 'SKIP') native = { decision: 'SKIPPED' };
+        else if (typeof input.sources.nativeReview === 'object') {
+          if (!this.#autoRun?.enabled || this.#autoRun.testReviewCap !== scope.testReviewCap || !this.#shopee.factory ||
+              !scope.exactShopeeUrls?.length || start.reports.length !== 1 || start.reports[0] !== 'MARKET' || start.privateShopeeSource || start.reviewCollectionPolicy)
+            throw new ResearchAutomationValidationError('Trial reviews require a Market-only run, exact Shopee URLs and the configured trial collector.');
+          native = { decision: 'NONE' };
+        }
         else {
           const resolved = await this.#nativeReviews.resolve(bound);
           if (resolved.state === 'AMBIGUOUS' || resolved.state === 'UNSUPPORTED_SCOPE')
@@ -2722,6 +2731,12 @@ export class ResearchAutomationService {
       throw new ResearchAutomationIntegrityError('Stored report semantic artifact has inconsistent identity.');
     }
     const sourceStart = await this.#readStartSnapshot(frozenRun.startSha, workspaceId);
+    if (semantic.exactTestReviewSample !== undefined) {
+      const collection = await this.#stepDocument(runId, 'COLLECTION');
+      if (!collection?.exactShopee || collection.exactShopeeOutcome?.testReviewCap === undefined ||
+          canonicalJson(semantic.exactTestReviewSample) !== canonicalJson({ collection: collection.exactShopee, outcome: collection.exactShopeeOutcome }))
+        throw new ResearchAutomationIntegrityError('Stored trial review summary differs from its collection.');
+    }
     if (sourceStart.sourceEvidenceVersion) {
       const collection = await this.#stepDocument(runId, 'COLLECTION');
       if (collection?.sourceEvidence) {
@@ -2890,7 +2905,8 @@ export class ResearchAutomationService {
         verifiedInput = verified.input;
         method = verifyAutomationMarketPresentation(parsed, verified.binding);
       }
-      if (canonicalJson(method.input) !== canonicalJson(verifiedInput) || semantic.rendererVersion !== 'automation-report-kit-v20')
+      if (canonicalJson(method.input) !== canonicalJson(verifiedInput) || semantic.rendererVersion !==
+          (semantic.exactTestReviewSample !== undefined ? 'automation-report-kit-v30' : 'automation-report-kit-v20'))
         throw new ResearchAutomationIntegrityError('Market presentation retained inputs differ.');
     } else if (kind === 'MARKET' && attempt) {
       const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
@@ -3402,6 +3418,8 @@ export class ResearchAutomationService {
             if (!controller.signal.aborted) result.step = nativeSourceBlocked(result.step, 'SOURCE_PACKAGE_RESOLUTION_FAILED');
           }
         } else if (resolution?.state === 'NONE' && !controller.signal.aborted) {
+          if (scope!.testReviewCap !== undefined && this.#autoRun?.testReviewCap !== scope!.testReviewCap)
+            throw new ResearchAutomationIntegrityError('Trial review runtime cap differs from confirmed scope.');
           exact = await this.#shopee.collect(frozenInput, controller.signal, this.#now);
         } else if (resolution && !controller.signal.aborted) {
           result.step = nativeSourceBlocked(result.step, resolution.state === 'AMBIGUOUS' ? 'NATIVE_SOURCE_AMBIGUOUS' : 'NATIVE_SOURCE_SCOPE_UNSUPPORTED');
@@ -3937,7 +3955,7 @@ export class ResearchAutomationService {
           const html = Buffer.from(rendered.html);
           if (authoritative) {
             if (!html.equals(authoritative.html)) throw new ResearchAutomationIntegrityError(input.insightPersona ? 'Persona HTML differs from authoritative retained rendering.' : privateDefault ? 'Private default HTML differs from authoritative method rendering.' : 'Market presentation HTML differs from authoritative method rendering.');
-            if (presentation.rendererVersion !== (input.qualitativeDraft ? 'automation-report-kit-v28' : input.insightPersona ? 'automation-report-kit-v26' : privateDefault ? 'automation-report-kit-v25' : input.marketPresentation ? 'automation-report-kit-v20' : privateRendererVersion)) throw new ResearchAutomationIntegrityError(input.qualitativeDraft ? 'Qualitative renderer identity differs.' : input.insightPersona ? 'Persona renderer identity differs.' : privateDefault ? 'Private default renderer identity differs.' : 'Market presentation renderer identity differs.');
+            if (presentation.rendererVersion !== (kind === 'MARKET' && input.collection?.exactShopeeOutcome?.testReviewCap !== undefined ? 'automation-report-kit-v30' : input.qualitativeDraft ? 'automation-report-kit-v28' : input.insightPersona ? 'automation-report-kit-v26' : privateDefault ? 'automation-report-kit-v25' : input.marketPresentation ? 'automation-report-kit-v20' : privateRendererVersion)) throw new ResearchAutomationIntegrityError(input.qualitativeDraft ? 'Qualitative renderer identity differs.' : input.insightPersona ? 'Persona renderer identity differs.' : privateDefault ? 'Private default renderer identity differs.' : 'Market presentation renderer identity differs.');
           }
           return { rendered, semanticBytes, html, trace };
         };
@@ -5515,7 +5533,9 @@ export class ResearchAutomationService {
       if (pick.runId !== runId || pick.packageId !== row.packageId) throw new ResearchAutomationIntegrityError('Auto-run pick record does not match its run.');
       const start = await this.#readStartSnapshot(run.startSha, run.workspaceId);
       built = buildConfirmValue({ runId, expectedRevision, keyword: start.keyword, description: start.description, includeTerms: pick.terms,
-        principalProductIds: pick.principalProductIds, exactShopeeUrls: pick.urls, packageId: row.packageId });
+        principalProductIds: pick.principalProductIds, exactShopeeUrls: pick.urls, packageId: row.packageId,
+        ...(this.#shopee.factory && start.reports.length === 1 && start.reports[0] === 'MARKET' && !start.privateShopeeSource && !start.reviewCollectionPolicy && this.#autoRun?.testReviewCap !== undefined
+          ? { testReviewCap: this.#autoRun.testReviewCap } : {}) });
     } catch (error) {
       await this.#autorunStopRunning(runId, 'CONFIRM', this.#autorunErrorCode(runId, error, 'CONFIRM_FAILED'));
       return true;
@@ -5685,8 +5705,15 @@ export class ResearchAutomationService {
     if (value.exactShopee) {
       const row = this.#current(runId);
       if (stepId !== 'COLLECTION' || !row?.scopeSha || !row.scopeConfirmedAt) throw new ResearchAutomationIntegrityError('Review source lacks confirmed scope.');
-      await this.#shopee.read(value.exactShopee, { runId, start: await this.#readStartSnapshot(row.startSha, row.workspaceId),
-        scope: await this.#readScopeSnapshot(row.scopeSha, row.workspaceId, runId), scopeConfirmedAt: row.scopeConfirmedAt });
+      const scope = await this.#readScopeSnapshot(row.scopeSha, row.workspaceId, runId);
+      const verified = await this.#shopee.read(value.exactShopee, { runId, start: await this.#readStartSnapshot(row.startSha, row.workspaceId),
+        scope, scopeConfirmedAt: row.scopeConfirmedAt });
+      if (scope.testReviewCap !== undefined || value.exactShopeeOutcome?.testReviewCap !== undefined) {
+        if (scope.testReviewCap === undefined || value.exactShopeeOutcome?.testReviewCap !== scope.testReviewCap ||
+            verified.packet.actor.settings.maxReviewsPerProduct !== scope.testReviewCap ||
+            canonicalJson(value.exactShopeeOutcome.listings) !== canonicalJson(markReviewShortfalls(countReviewsPerListing(verified.packet.selected, verified.pages), scope.testReviewCap)))
+          throw new ResearchAutomationIntegrityError('Trial review summary differs from verified collection counts or cap.');
+      }
     }
     if (value.nativeReview) {
       const row = this.#current(runId);
@@ -5770,6 +5797,8 @@ function assertStartSnapshot(value: unknown, workspaceId: string): asserts value
 }
 
 function assertScopeSnapshot(value: unknown, workspaceId: string, runId: string): asserts value is ScopeSnapshot {
+  if (isRecord(value) && value.testReviewCap !== undefined && (!Number.isInteger(value.testReviewCap) || (value.testReviewCap as number) < 1 || (value.testReviewCap as number) > 20))
+    throw new ResearchAutomationIntegrityError('Stored trial review cap is invalid.');
   if (!isRecord(value) || value.contractVersion !== 'research-automation-scope-snapshot-v1' || value.workspaceId !== workspaceId || value.runId !== runId ||
       typeof value.definition !== 'string' || value.definition.length < 1 || value.definition.length > 2000 || LONG_CONTROL.test(value.definition) || !stringArray(value.includeTerms, 30, 80) ||
       !stringArray(value.excludeTerms, 30, 80) || !stringArray(value.selectedProductIds, 4, 160) || !stringArray(value.peerProductIds, 8, 160)) {
@@ -5831,6 +5860,8 @@ export function validWorldBank(value: unknown): boolean {
       index(item.captureIndex) && index(item.metadataCaptureIndex) && item.captureIndex !== item.metadataCaptureIndex &&
       hex.test(String(item.sourceSha256)) && hex.test(String(item.metadataSha256)) && isRecord(row) &&
       text(row.indicatorName, 300) && typeof row.value === 'string' && /^-?\d{1,60}(\.\d{1,60})?$/.test(row.value) && (row.unit === null || text(row.unit, 300)) &&
+      (!('sourceIndicatorName' in row) || text(row.sourceIndicatorName, 10000)) &&
+      (!('decimal' in row) || (Number.isInteger(row.decimal) && (row.decimal as number) >= 0 && (row.decimal as number) <= 100)) &&
       typeof row.year === 'string' && /^\d{4}$/.test(row.year) && text(row.lastUpdated, 40) && text(row.statusLiteral, 300) &&
       (row.footnote === null || text(row.footnote, 1000)) && text(row.locator, 64);
   });

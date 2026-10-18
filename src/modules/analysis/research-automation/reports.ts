@@ -70,12 +70,12 @@ import { deliverMarketReader, marketReaderGuide } from './market-reader-delivery
 import { UNKNOWN_SHOP, marketChartRows, marketShopsUnrecorded, type CaptureCountChart, type MarketChart } from '../reader-report/market-charts.js';
 import type { RenderedChart } from '../reader-report/flint.js';
 import { comtradeChartCount, worldBankChartCount, type MacroChart } from '../reader-report/macro-charts.js';
-import { pdfExcerptBlockHtml, pdfExcerptReaderCitation, PDF_EXCERPT_NOTE, PDF_EXCERPT_SECTION, PDF_EXCERPT_SRC } from './pdf-excerpt.js';
+import { pdfDiscoverySourceRows, pdfExcerptBlockHtml, pdfExcerptReaderCitation, PDF_EXCERPT_NOTE, PDF_EXCERPT_SECTION, PDF_EXCERPT_SRC } from './pdf-excerpt.js';
 import { sellerVideoBlockHtml, sellerVideoNote, sellerVideoSrc, SELLER_VIDEO_SECTION } from './seller-video.js';
 import { searchAdsBrandNotice, searchAdsNotice, searchAdsOkBrands, SEARCH_ADS_NOTE, SEARCH_ADS_SOURCE_LABEL, SEARCH_ADS_SOURCE_NOTE, SEARCH_ADS_TABLE_TITLE } from './google-ads-lane.js';
 import { officialStatsCitation, officialStatsNotice, officialStatsProvinceCellText, officialStatsProvinceCitation, officialStatsProvinceContext, officialStatsProvinceRowLabel, officialStatsProvinceRows, officialStatsRenderable, officialStatsRenderableRows, officialStatsRowLabel, officialStatsStatusText, officialStatsUnitText, officialStatsValueText, OFFICIAL_STATS_LIMIT, OFFICIAL_STATS_NOTE, OFFICIAL_STATS_PROVINCE_LIMIT, OFFICIAL_STATS_PROVINCE_NOTE, OFFICIAL_STATS_PROVINCE_TITLE, OFFICIAL_STATS_SOURCE_LABEL, OFFICIAL_STATS_SRC, OFFICIAL_STATS_TABLE_TEXT, OFFICIAL_STATS_TABLE_TITLE } from './official-statistics-lane.js';
 import { comtradeFlowText, comtradeNotice, comtradeOfficialText, comtradeRenderable, comtradeRenderableRows, comtradeRowNote, comtradeSideText, COMTRADE_NOTE, COMTRADE_SOURCE_LABEL, COMTRADE_SRC, COMTRADE_TABLE_TITLE } from './comtrade-lane.js';
-import { formatWorldBankValue, worldBankRenderable, worldBankRenderableRows, worldBankSourceNote, worldBankUnitText, WORLD_BANK_LIMIT, WORLD_BANK_NOTE, WORLD_BANK_SOURCE_LABEL, WORLD_BANK_SRC, WORLD_BANK_TITLE } from './world-bank-lane.js';
+import { formatWorldBankValue, worldBankRenderable, worldBankRenderableRows, worldBankSourceNote, worldBankTableNote, worldBankUnitText, WORLD_BANK_LIMIT, WORLD_BANK_SOURCE_LABEL, WORLD_BANK_SRC, WORLD_BANK_TITLE } from './world-bank-lane.js';
 import { E13_ATTRIBUTION } from '../source-appendix-projection.js';
 import { withKalodataReplayNotice } from './kalodata-replay.js';
 import { searchInterestRenderable,SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_LIMIT, SEARCH_INTEREST_NOTE, SEARCH_INTEREST_SOURCE_LABEL, SEARCH_INTEREST_SRC, SEARCH_INTEREST_UNIT } from './search-interest.js';
@@ -206,10 +206,13 @@ export function marketSourceRows(input: AutomationReportInput, webResultCount: n
   const sales = input.metricMethods
     ? missing.length ? `Dùng một phần: không có số liệu cho ${missing.map(readerPlatform).join(', ')} trong lượt này.` : 'Đã dùng số liệu của lượt này.'
     : input.metricMethodsFailure ? 'Không dùng được trong lượt này: gói số liệu không qua kiểm tra.' : 'Chưa có trong lượt này.';
-  const native = input.nativeReview ? 'Đã dùng trong lượt này.'
+  const testSample = exactTestReviewSample(input);
+  const native = testSample ? testSample.listings.some(row => row.reviews > 0)
+    ? `Đã thu mẫu thử Shopee, tối đa ${testSample.testReviewCap} đánh giá mỗi sản phẩm; chưa mã hóa nội dung.`
+    : 'Đã thử thu trên Shopee nhưng chưa có đánh giá trả về; không suy ra sản phẩm không có đánh giá.' : input.nativeReview ? 'Đã dùng trong lượt này.'
     : input.nativeReviewFailure ? 'Không dùng được trong lượt này: bước xử lý không qua kiểm tra.' : 'Chưa có trong lượt này.';
   const web = webResultCount ? `Đã lưu ${webResultCount} kết quả trong lượt này.` : webFailed ? WEB_SOURCE_FAILED_TEXT : 'Chưa có trong lượt này.';
-  const comments = input.reviewCorpus ? 'Đã dùng trong lượt này.'
+  const comments = testSample ? 'Cùng mẫu đánh giá Shopee nêu trên; không phải một tập bình luận khác.' : input.reviewCorpus ? 'Đã dùng trong lượt này.'
     : input.reviewCorpusFailure ? 'Không dùng được trong lượt này: bộ bình luận không qua kiểm tra.' : 'Chưa có trong lượt này.';
   const interest: readonly (readonly [string, string])[] = searchInterestRenderable(input.collection?.searchInterest) || searchGeoRenderable(input.collection?.searchGeo)
     ? [[SEARCH_INTEREST_SOURCE_LABEL, 'Đã dùng trong lượt này: chỉ số tương đối, không phải doanh số.']] : [];
@@ -223,11 +226,13 @@ export function marketSourceRows(input: AutomationReportInput, webResultCount: n
     ? [[OFFICIAL_STATS_SOURCE_LABEL, officialStatsProvinceRows(input.collection?.officialStats).length
       ? 'Đã dùng trong lượt này: số liệu thống kê cả nước theo nhóm hàng và chỉ số giá theo tỉnh, thành phố, chỉ là bối cảnh.'
       : 'Đã dùng trong lượt này: số liệu thống kê cả nước theo nhóm hàng, chỉ là bối cảnh.']] : [];
-  return [['Dữ liệu bán hàng', sales], ['Dữ liệu đánh giá sản phẩm trên nền tảng', native], ['Kết quả tìm kiếm', web], ['Bình luận đã thu thập', comments], ...interest, ...macro, ...trade, ...searchAds, ...official];
+  const pdf = pdfDiscoverySourceRows(input.collection?.pdfDiscovery, input.sourceEvidence?.pdfExcerpts === true ? input.pdfExcerpts ?? [] : []);
+  return [['Dữ liệu bán hàng', sales], ['Dữ liệu đánh giá sản phẩm trên nền tảng', native], ['Kết quả tìm kiếm', web], ['Bình luận đã thu thập', comments], ...pdf, ...interest, ...macro, ...trade, ...searchAds, ...official];
 }
 /** Reader appendix (market14): the plain source TYPES used, from the same predicates as marketSourceRows; core types this run lacks go in one sentence. */
 export function marketSourceTypes(input: AutomationReportInput, webResultCount: number, salesPlatforms: readonly string[]): { used: string[]; missing: string[] } {
   const capture = input.metricMethods?.capture;
+  const testSample = exactTestReviewSample(input)?.listings.some(row => row.reviews > 0);
   const sales = Boolean(input.metricMethods || input.marketPresentation?.input.metric);
   const present = capture ? capture.platforms.map(value => value.platform as string) : salesPlatforms;
   const platforms = ['shopee', 'tiktok'].filter(platform => present.includes(platform));
@@ -237,7 +242,8 @@ export function marketSourceTypes(input: AutomationReportInput, webResultCount: 
     ...(sales ? platforms.length ? platforms.map(platform => `Dữ liệu bán hàng trên ${readerPlatform(platform)}`) : ['Dữ liệu bán hàng'] : []),
     ...(input.nativeReview ? ['Dữ liệu đánh giá sản phẩm trên Shopee'] : []),
     ...(webResultCount ? ['Kết quả tìm kiếm trên web'] : []),
-    ...(input.reviewCorpus ? ['Dữ liệu bình luận của khách trên Shopee'] : []),
+    ...(testSample ? ['Dữ liệu đánh giá sản phẩm và dữ liệu bình luận trên Shopee: cùng mẫu thử nhỏ, chưa mã hóa nội dung']
+      : input.reviewCorpus ? ['Dữ liệu bình luận của khách trên Shopee'] : []),
     ...(searchInterestRenderable(collection?.searchInterest) ? ['Mức quan tâm tìm kiếm theo thời gian'] : []),
     ...(searchGeoRenderable(collection?.searchGeo) ? ['Mức quan tâm tìm kiếm theo khu vực'] : []),
     ...(worldBankRenderable(collection?.worldBank) ? ['Ngân hàng Thế giới (World Bank Open Data)'] : []),
@@ -249,9 +255,9 @@ export function marketSourceTypes(input: AutomationReportInput, webResultCount: 
   ];
   const missing = [
     ...(!sales ? ['dữ liệu bán hàng'] : lacking.map(platform => `dữ liệu bán hàng trên ${readerPlatform(platform)}`)),
-    ...(input.nativeReview ? [] : ['dữ liệu đánh giá sản phẩm']),
+    ...(input.nativeReview || testSample ? [] : ['dữ liệu đánh giá sản phẩm']),
     ...(webResultCount ? [] : ['kết quả tìm kiếm trên web']),
-    ...(input.reviewCorpus ? [] : ['dữ liệu bình luận của khách']),
+    ...(input.reviewCorpus || testSample ? [] : ['dữ liệu bình luận của khách']),
   ];
   return { used, missing };
 }
@@ -341,7 +347,24 @@ const REVIEW_TARGET = 300;
 /** A non-OK outcome bound to this report's exact collection; old runs, OK runs and replaced review sources show nothing. */
 function missingReviewOutcome(input: AutomationReportInput): ReviewOutcome | null {
   const value = input.collection?.exactShopeeOutcome;
-  return value && input.collection?.exactShopee && value.outcome !== 'OK' ? value : null;
+  return value && input.collection?.exactShopee && value.testReviewCap === undefined && value.outcome !== 'OK' ? value : null;
+}
+/** Counts and cap are verified against the retained collection by the owning service. No coding or population inference. */
+function exactTestReviewSample(input: AutomationReportInput): ReviewOutcome | null {
+  const value = input.collection?.exactShopeeOutcome;
+  return value && input.collection?.exactShopee && value.testReviewCap !== undefined && value.testReviewCap === input.scope.testReviewCap
+    && Number.isInteger(value.testReviewCap) && value.testReviewCap >= 1 && value.testReviewCap <= 20 ? value : null;
+}
+function exactTestReviewSection(value: ReviewOutcome): string {
+  const cap = value.testReviewCap!;
+  return '<div class="test-review-sample"><h3>Mẫu đánh giá Shopee thu thử</h3>'
+    + `<p>Đây là mẫu thử nhỏ, tối đa ${cap} đánh giá mỗi sản phẩm, được thu cho báo cáo thử nghiệm. Mẫu này không đại diện cho toàn bộ đánh giá.</p>`
+    + `<ul>${value.listings.map((row, index) => `<li><a href="${escape(row.listingUrl)}" rel="noopener noreferrer">Sản phẩm #${index + 1}</a>: ${row.reviews === 0
+      ? `Chưa thu được đánh giá; chưa đạt giới hạn thử ${cap} đánh giá.` : row.reviews < cap
+        ? `Chỉ thu được ${row.reviews} đánh giá, ít hơn giới hạn thử ${cap} đánh giá.`
+        : `Đã thu đủ giới hạn thử ${cap} đánh giá.`}</li>`).join('')}</ul>`
+    + '<p>Đủ giới hạn thử không có nghĩa đã thu hết đánh giá của sản phẩm. Chưa mã hóa nội dung; không suy ra tỷ lệ ý kiến hay đặc điểm khách hàng. Ngày đánh giá có thể nằm ngoài kỳ báo cáo.</p>'
+    + '<p>Đây chỉ là đánh giá Shopee; không cộng với TikTok Shop, số liệu bán hàng hoặc số liệu cả nước. Số đánh giá không phải số người.</p></div>';
 }
 /** dd/mm/yyyy in Vietnam time (UTC+7, no daylight saving). */
 const vietnamDate = (iso: string): string => {
@@ -933,7 +956,8 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   // snapshot-v2 draft marker; marker-free output keeps byte-identical dispatch.
   const descriptiveVersion = kind === 'MARKET' ? input.descriptiveMethods?.methodVersion : undefined;
   const draftInsight = kind === 'INSIGHT' && input.insightCoding !== undefined && 'draftSelection' in input.insightCoding;
-  const rendererVersion = input.qualitativeDraft ? 'automation-report-kit-v28' : insightPersona ? 'automation-report-kit-v26' : kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v5' ? 'automation-report-kit-v25' : marketPresentation ? 'automation-report-kit-v20' : kind === 'INSIGHT' && input.start.privateShopeeSource ? (sample ? 'automation-report-kit-v27' : 'automation-report-kit-v22') : insightCrosscheck ? 'automation-report-kit-v23' : kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4' ? 'automation-report-kit-v21' : insightLiteral ? 'automation-report-kit-v19' : kind === 'MARKET' && input.sourceEvidence?.jevTriage ? 'automation-report-kit-v29' : input.sourceEvidence ? 'automation-report-kit-v18'
+  const testReviewSample = kind === 'MARKET' ? exactTestReviewSample(input) : null;
+  const rendererVersion = testReviewSample ? 'automation-report-kit-v30' : input.qualitativeDraft ? 'automation-report-kit-v28' : insightPersona ? 'automation-report-kit-v26' : kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v5' ? 'automation-report-kit-v25' : marketPresentation ? 'automation-report-kit-v20' : kind === 'INSIGHT' && input.start.privateShopeeSource ? (sample ? 'automation-report-kit-v27' : 'automation-report-kit-v22') : insightCrosscheck ? 'automation-report-kit-v23' : kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4' ? 'automation-report-kit-v21' : insightLiteral ? 'automation-report-kit-v19' : kind === 'MARKET' && input.sourceEvidence?.jevTriage ? 'automation-report-kit-v29' : input.sourceEvidence ? 'automation-report-kit-v18'
     : draftInsight && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3' ? 'automation-report-kit-v17'
     : draftInsight ? 'automation-report-kit-v15'
     : defaultMarketPeers ? 'automation-report-kit-v14'
@@ -944,6 +968,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     : descriptiveVersion && descriptiveVersion !== '1.0.0' ? 'automation-report-kit-v13' : 'automation-report-kit-v12';
   /** Everything except the citation trace, which only exists once every renderer has run. */
   const semanticBase = {
+    ...(testReviewSample ? { exactTestReviewSample: { collection: input.collection!.exactShopee, outcome: testReviewSample } } : {}),
     ...(marketPresentation ? { marketPresentation } : {}),
     ...(input.sourceEvidence ? { sourceEvidence: input.sourceEvidence } : {}),
     ...(sourceScope ? { sourceScope } : {}),
@@ -1043,11 +1068,13 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   const marketSourceList = `<div class="table-wrap market14-sources"><div class="exh"><span class="exn">Bảng PL.1</span><span class="ext">Nguồn dữ liệu của báo cáo</span></div><table><caption>Nguồn dữ liệu của báo cáo</caption><thead><tr><th>Hạng mục</th><th>Trạng thái</th></tr></thead><tbody>` +
     marketSourceRows(input, webResults.length, webSourceFailed).map(([label, status]) => `<tr><td>${label}</td><td>${escape(status)}</td></tr>`).join('') +
     '</tbody></table></div>';
-  // Reader appendix: what kinds of source fed the report, never a status table; technical detail stays in the stored trace.
+  const missingPdfRows = pdfDiscoverySourceRows(input.collection?.pdfDiscovery, input.sourceEvidence?.pdfExcerpts === true ? input.pdfExcerpts ?? [] : []);
+  // Reader appendix: source types used, plus a plain status when the automatic PDF attempt yielded no excerpt.
   const market14Sources = (): string => {
     const types = marketSourceTypes(input, webResults.length, marketPresentation ? marketChartSource(marketPresentation.input.rows, input.metricMethods).rows.map(row => row.platform) : []);
     return `<div class="ex market14-sources"><div class="exh"><span class="exn">Bảng PL.1</span><span class="ext">Nguồn số liệu</span></div><ul class="pl-srclist">${types.used.map(label => `<li>${escape(label)}</li>`).join('')}</ul>` +
-      (types.missing.length ? `<p>Lượt này chưa có ${escape(types.missing.join(', '))}; phần nào cần các nguồn này ghi rõ là chưa có dữ liệu.</p>` : '') + '</div>' +
+      (types.missing.length ? `<p>Lượt này chưa có ${escape(types.missing.join(', '))}; phần nào cần các nguồn này ghi rõ là chưa có dữ liệu.</p>` : '') +
+      (missingPdfRows.length ? `<table><caption>Trạng thái tài liệu ngành</caption><thead><tr><th>Hạng mục</th><th>Trạng thái</th></tr></thead><tbody>${missingPdfRows.map(([label, status]) => `<tr><td>${escape(label)}</td><td>${escape(status)}</td></tr>`).join('')}</tbody></table>` : '') + '</div>' +
       '<p class="ex-note"><b>Chú thích:</b> Mọi hình và bảng được dựng tự động từ cùng một bộ dữ liệu đã lưu. Chi tiết kỹ thuật của từng nguồn nằm trong hồ sơ kỹ thuật riêng, không in trong bản đọc.</p>';
   };
   const market14Appendix = (marketPresentation ? market14Sources() : '') +
@@ -1099,9 +1126,9 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
       '<thead><tr><th>Chỉ số</th><th>Nguồn</th><th>Giá trị</th><th>Năm</th><th>Cập nhật</th><th>Ghi chú của nguồn</th></tr></thead><tbody>' +
       rows.map(item => {
         const capture = input.captures.find(entry => entry.stepId === 'COLLECTION' && entry.ordinal === item.captureIndex);
-        return `<tr><td>${escape(item.row.indicatorName)}</td><td>${escape(E13_ATTRIBUTION)}</td><td>${escape(`${formatWorldBankValue(item.row.value)} ${worldBankUnitText(item.row)}`)}${capture ? captureMark(capture, citations) : ''}</td>` +
+        return `<tr><td>${escape(item.row.indicatorName)}</td><td>${escape(E13_ATTRIBUTION)}</td><td>${escape(`${formatWorldBankValue(item.row.value, item.row.decimal)} ${worldBankUnitText(item.row, item.code)}`)}${capture ? captureMark(capture, citations) : ''}</td>` +
           `<td>${escape(item.row.year)}</td><td>${escape(item.row.lastUpdated)}</td><td>${escape(worldBankSourceNote(item.row))}</td></tr>`;
-      }).join('') + `</tbody></table><p class="lim"><b>Chú thích:</b> ${escape(WORLD_BANK_NOTE)} ${escape(WORLD_BANK_LIMIT)}</p><p class="ex-src">Nguồn: ${escape(WORLD_BANK_SRC)}</p></div>` +
+      }).join('') + `</tbody></table><p class="lim"><b>Chú thích:</b> ${escape(worldBankTableNote(rows))} ${escape(WORLD_BANK_LIMIT)}</p><p class="ex-src">Nguồn: ${escape(WORLD_BANK_SRC)}</p></div>` +
       macroFigures(input.worldBankCharts, worldBankChartCount(input.collection?.worldBank), 'WORLD_BANK_CHARTS_MISSING', 5, 3);
   };
   // Pre-drawn country-level figures (S23 lines after table 5.3, S24 bars after table 6.2), each on its own axis; none is drawn without its table.
@@ -1182,6 +1209,8 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   // market14 reader: M13 trace receipts and evidence details stay in semantic (sourceEvidence, quoteMethods, boundedMethods), not the reader.
   const traceAppendix = (sectionId: string): boolean => !(marketPresentation && sectionId === 'M13');
   const appendix = (sectionId: string): string =>
+    (testReviewSample && sectionId === 'M13'
+      ? exactTestReviewSection(testReviewSample) : '') +
     presentationCharts(sectionId) + searchInterestFigure(sectionId) + searchGeoBlock(sectionId) + worldBankTable(sectionId) + officialStatsTable(sectionId) + comtradeTable(sectionId) + searchAdsTable(sectionId) + pdfExcerptBlock(sectionId) + sellerVideoBlock(sectionId) +
     (reviewOutcome && kind === 'INSIGHT' && (sectionId === 'I03' || sectionId === 'I17') ? `<p class="warning">${escape(reviewOutcomeLead(reviewOutcome))}</p>` : '') +
     baseAppendix(sectionId) +
@@ -1193,7 +1222,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     (insightCoding && (sectionId === 'I03' || sectionId === 'I17') ? insightCodingTrace(insightCoding, sectionId) : '') +
     (insightCrosscheck && sectionId === 'I17' ? insightCrosscheckAppendix(insightCrosscheck) : '') +
     (kind === 'MARKET' && sectionId === 'M13' ? marketPresentation ? market14Appendix
-      : officialStatsRenderable(input.collection?.officialStats) ? marketSourceList : '' : '') +
+      : officialStatsRenderable(input.collection?.officialStats) || missingPdfRows.length ? marketSourceList : '' : '') +
     (kind === 'MARKET' && sectionId === 'M13' && !marketPresentation && searchAdsOkBrands(input.collection?.searchAds).length
       ? `<p>Nguồn: ${escape(SEARCH_ADS_SOURCE_LABEL)}. ${escape(SEARCH_ADS_SOURCE_NOTE)}</p>` : '') +
     (input.boundedMethods && traceAppendix(sectionId) && (sectionId === 'M13' || sectionId === 'I17')
