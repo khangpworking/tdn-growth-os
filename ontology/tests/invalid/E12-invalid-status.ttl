@@ -1,4 +1,4 @@
 @prefix ex: <urn:onto:> .
 @prefix sh: <http://www.w3.org/ns/shacl#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
-ex:f a ex:E12Figure; ex:attribution "Synthetic attribution"; ex:valueStatus "final"; ex:file "synthetic.csv"; ex:sheet "Synthetic"; ex:row "2" .
+ex:f a ex:E12Figure; ex:attribution "Cục Thống kê (nso.gov.vn)"; ex:valueStatus "final"; ex:file "synthetic.csv"; ex:sheet "Synthetic"; ex:row "2" .
