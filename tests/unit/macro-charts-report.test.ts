@@ -125,6 +125,42 @@ async function presentationInput(extra: { worldBank?: StepWorldBank; comtrade?: 
 }
 const draftHtml = (input: AutomationReportInput): string => buildResearchAutomationReport(input, 'MARKET').html.toString('utf8');
 
+test('both renderers show the confirmed scope limit beside the estimated code as automatic interpretation', async () => {
+  const reasonVi = 'Số liệu chỉ gồm bình cách nhiệt bằng thép, không bao gồm mọi vật liệu của nhóm sản phẩm.';
+  const scopedTrade = { ...fullTrade, reasonVi, descriptionVi: 'Bình cách nhiệt bằng thép' };
+  const htmls = [(await reader({ comtrade: scopedTrade })).html, draftHtml(await presentationInput({ comtrade: scopedTrade }))];
+  for (const html of htmls) {
+    const doc = new JSDOM(html).window.document;
+    const paragraph = [...doc.querySelectorAll('p')].find(p => p.textContent!.includes('Mã hàng ước tính: 999999'));
+    assert.ok(paragraph, 'code is shown');
+    assert.ok(paragraph.textContent!.includes(`Phạm vi áp dụng (diễn giải tự động): ${reasonVi}`), 'the limitation is in the same paragraph as the code');
+    assert.doesNotMatch(paragraph.textContent!, /%|Google/u);
+    assert.deepEqual(machineFailures(html), []);
+  }
+});
+
+test('both renderers escape scope text and omit it without a reason or renderable rows', async () => {
+  const reasonVi = '<img src=x onerror="alert(1)"> & synthetic scope';
+  for (const trade of [
+    { ...fullTrade, reasonVi },
+    fullTrade,
+    { ...fullTrade, reasonVi, rows: [] },
+    { ...fullTrade, reasonVi, status: 'HS_CODE_NOT_CONFIRMED' as const },
+  ]) {
+    const htmls = [(await reader({ comtrade: trade })).html, draftHtml(await presentationInput({ comtrade: trade }))];
+    for (const html of htmls) {
+      const doc = new JSDOM(html).window.document;
+      const paragraphs = [...doc.querySelectorAll('p')].filter(p => p.textContent!.includes('Phạm vi áp dụng (diễn giải tự động):'));
+      const shown = trade.reasonVi !== null && trade.rows.length > 0 && trade.status === 'OK';
+      assert.equal(paragraphs.length, shown ? 1 : 0);
+      if (shown) {
+        assert.ok(paragraphs[0]!.textContent!.includes(reasonVi));
+        assert.equal(paragraphs[0]!.querySelector('img'), null, 'model text cannot create HTML');
+      }
+    }
+  }
+});
+
 test('both Market renderers show source precision, source-name units and a rounding note without gate regressions', async () => {
   const bank = worldBank(true);
   const updated = { ...bank, indicators: bank.indicators.map(item => {
