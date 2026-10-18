@@ -17,7 +17,8 @@ export const WORLD_BANK_PROVIDER = 'WORLD-BANK' as const;
 export const WORLD_BANK_SOURCE_LABEL = 'Bối cảnh vĩ mô cả nước';
 export const WORLD_BANK_TITLE = 'Bối cảnh vĩ mô cả nước của Việt Nam, đặt cạnh phần nhu cầu';
 export const WORLD_BANK_SRC = 'Ngân hàng Thế giới (World Bank Open Data), giấy phép CC BY 4.0.';
-export const WORLD_BANK_NOTE = 'Số liệu của cả nước Việt Nam, chỉ để làm nền: không nói về sản phẩm này và không so sánh được với số liệu mẫu trong báo cáo. Đơn vị giữ nguyên như nguồn; đây không phải một nguồn xác nhận độc lập.';
+const LEGACY_WORLD_BANK_NOTE = 'Số liệu của cả nước Việt Nam, chỉ để làm nền: không nói về sản phẩm này và không so sánh được với số liệu mẫu trong báo cáo. Đơn vị giữ nguyên như nguồn; đây không phải một nguồn xác nhận độc lập.';
+export const WORLD_BANK_NOTE = 'Số liệu của cả nước Việt Nam, chỉ để làm nền: không nói về sản phẩm này và không so sánh được với số liệu mẫu trong báo cáo. Đơn vị lấy từ thông tin đơn vị hoặc tên chỉ số do nguồn công bố; đây không phải một nguồn xác nhận độc lập.';
 export const WORLD_BANK_LIMIT = 'Số liệu cả nước chỉ là bối cảnh; không dùng để ước lượng thị trường của sản phẩm và không ghép với số bán của mẫu.';
 const NAMES: Readonly<Record<string, string>> = {
   'NE.CON.PRVT.PC.KD': 'Chi tiêu tiêu dùng hộ gia đình bình quân đầu người',
@@ -93,7 +94,8 @@ function latestRow(projection: Projection, code: string): StepWorldBankRow | nul
   let best: Projection['rows'][number] | null = null;
   for (const row of projection.rows) if (row.indicatorCode === code && row.value !== null && (best === null || Number(row.year) > Number(best.year))) best = row;
   return best === null || best.value === null ? null
-    : { indicatorName: NAMES[code] ?? best.indicatorName, value: best.value, unit: best.unit, year: best.year, lastUpdated: best.lastUpdated,
+    : { indicatorName: NAMES[code] ?? best.indicatorName, sourceIndicatorName: best.indicatorName, decimal: best.decimal,
+      value: best.value, unit: best.unit, year: best.year, lastUpdated: best.lastUpdated,
       statusLiteral: best.statusLiteral, footnote: best.footnote, locator: best.locator };
 }
 
@@ -155,12 +157,42 @@ export function worldBankUsage(attempts: readonly WorldBankAttempt[]): {
     credits: { status: 'NONE_USED' } } };
 }
 
-/** Exact digits of the source value: "." groups the integer part, "," starts the fraction. Nothing is rounded or converted. */
-export function formatWorldBankValue(value: string): string {
+/** "." groups thousands, "," starts the fraction. Optional source precision rounds exact decimal digits half away from zero.
+ * Without precision, preserve every digit (old World Bank documents and Comtrade). */
+export function formatWorldBankValue(value: string, decimal?: number): string {
+  if (decimal !== undefined && Number.isInteger(decimal) && decimal >= 0 && decimal <= 100) {
+    const parts = /^(-?)(\d+)(?:\.(\d+))?$/u.exec(value);
+    if (parts) {
+      const fraction = parts[3] ?? '';
+      const kept = parts[2]! + fraction.slice(0, decimal).padEnd(decimal, '0');
+      const magnitude = BigInt(kept) + ((fraction[decimal] ?? '0') >= '5' ? 1n : 0n);
+      const digits = String(magnitude).padStart(decimal + 1, '0');
+      value = (magnitude === 0n ? '' : parts[1]!) + (decimal === 0 ? digits : `${digits.slice(0, -decimal)}.${digits.slice(-decimal)}`);
+    }
+  }
   const m = /^(-?)(\d+)(?:\.(\d+))?$/u.exec(value);
   if (!m) return value;
   return `${m[1]}${m[2]!.replace(/\B(?=(\d{3})+(?!\d))/gu, '.')}${m[3] ? `,${m[3]}` : ''}`;
 }
-export const worldBankUnitText = (row: StepWorldBankRow): string => row.unit && row.unit.trim() !== '' ? row.unit : 'nguồn chưa ghi đơn vị';
+export const WORLD_BANK_UNKNOWN_UNIT = 'nguồn chưa ghi đơn vị';
+/** Use only the source's explicit unit or these exact source-name patterns; the Vietnamese display label is never evidence. */
+export function worldBankUnitText(row: StepWorldBankRow, code?: string): string {
+  if (row.unit && row.unit.trim() !== '') return row.unit;
+  const name = row.sourceIndicatorName;
+  if (name !== undefined) {
+    const constant = /\(constant (\d{4}) US\$\)/u.exec(name);
+    if (constant) return `USD, giá cố định năm ${constant[1]}`;
+    if (name.includes('(current US$)')) return 'USD, giá hiện hành';
+    if (code === 'SP.POP.TOTL' && name === 'Population, total') return 'người';
+  }
+  return WORLD_BANK_UNKNOWN_UNIT;
+}
+/** Old documents retain their original note bytes. Mention rounding only when a drawn value loses nonzero digits. */
+export function worldBankTableNote(items: readonly StepWorldBankIndicator[]): string {
+  const rows = items.flatMap(item => item.row ? [item.row] : []);
+  const note = rows.some(row => row.sourceIndicatorName !== undefined || row.decimal !== undefined) ? WORLD_BANK_NOTE : LEGACY_WORLD_BANK_NOTE;
+  const rounded = rows.some(row => row.decimal !== undefined && /[1-9]/u.test((row.value.split('.')[1] ?? '').slice(row.decimal)));
+  return note + (rounded ? ' Các giá trị được làm tròn theo độ chính xác do nguồn công bố.' : '');
+}
 /** The source's own status or footnote text, shown as-is; "ước tính" is never inferred. */
 export const worldBankSourceNote = (row: StepWorldBankRow): string => [row.statusLiteral, row.footnote ?? ''].map(s => s.trim()).filter(Boolean).join('; ') || 'nguồn chưa ghi chú';

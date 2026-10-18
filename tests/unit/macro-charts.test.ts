@@ -86,6 +86,28 @@ test('World Bank: a series that does not end at the table row draws nothing', as
   assert.deepEqual(await renderWorldBankCharts({ profile: 'p', indicators: [broken] }), []);
 });
 
+test('World Bank axes use only source-backed units with their scale, in Flint and fallback', async () => {
+  const source = (code: string, name: string, values: string[]) => {
+    const item = syntheticWorldBankIndicator(code, years(2023, values));
+    return { ...item, row: { ...item.row!, sourceIndicatorName: name, decimal: 0 } };
+  };
+  const value = { profile: 'p', indicators: [
+    source('NE.CON.PRVT.PC.KD', 'Household consumption (constant 2015 US$)', ['2300.1', '2381.8882523638']),
+    source('SP.POP.TOTL', 'Population, total', ['100987000', '101598527']),
+    source('NE.CON.PRVT.PC.KD', 'Household consumption (current US$)', ['2300', '2382']),
+    source('SP.POP.TOTL', 'Synthetic population indicator', ['100987000', '101598527']),
+  ] };
+  for (const flint of [true, false]) {
+    const charts = await renderWorldBankCharts(value, { flint });
+    assert.deepEqual(charts.map(chart => chart.unit), ['nghìn USD, giá cố định năm 2015', 'triệu người', 'nghìn USD, giá hiện hành', 'triệu; nguồn chưa ghi đơn vị']);
+    for (const chart of charts) {
+      assert.equal(chart.engine, flint ? 'flint' : 'svg-fallback', chart.error);
+      assert.ok(svgText(chart.svg).includes(`Giá trị (${chart.unit})`));
+      assertNoSi(chart.svg);
+    }
+  }
+});
+
 const row = (side: 'OWN' | 'MIRROR', reporter: string, flow: 'M' | 'X', year: string, value: string, captureIndex = 20): StepComtradeRow => ({ side, reporter, flow, year, value, captureIndex });
 function syntheticComtrade(rows: readonly StepComtradeRow[]): StepComtrade {
   return { profile: 'comtrade-v1', status: 'OK', hsCode: '999999', officialDescription: 'Synthetic goods', descriptionVi: 'Hàng tổng hợp', reasonVi: null, attempts: [],

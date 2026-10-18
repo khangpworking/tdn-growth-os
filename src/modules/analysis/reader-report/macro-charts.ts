@@ -1,10 +1,10 @@
 // Country-level background figures of the Market report (S23 World Bank yearly lines, S24 UN Comtrade bars).
 // Each figure stands on its own axis: never beside, summed with or scaled against the sample numbers, and never summed across
-// reporting sides. Values are only divided by a named Vietnamese scale word (nghìn / triệu / tỷ) for the axis; tables keep raw values.
+// reporting sides. Axes use a named Vietnamese scale word (nghìn / triệu / tỷ); tables use the source display precision when retained.
 // `flint: false` is the unit-test opt-out (hand-made SVG, recorded as svg-fallback).
 import type { StepComtrade, StepComtradeRow, StepWorldBankIndicator, StepWorldBankRow } from '../research-automation/model.js';
 import { comtradeRenderableRows, comtradeSideText, COMTRADE_SRC } from '../research-automation/comtrade-lane.js';
-import { worldBankChartSeries, worldBankRenderableRows, worldBankUnitText, WORLD_BANK_SRC } from '../research-automation/world-bank-lane.js';
+import { worldBankChartSeries, worldBankRenderableRows, worldBankUnitText, WORLD_BANK_SRC, WORLD_BANK_UNKNOWN_UNIT } from '../research-automation/world-bank-lane.js';
 import { renderChart, type FlintChartInput, type RenderedChart } from './flint.js';
 import { sp } from './format.js';
 import { keepOrder } from './market-charts.js';
@@ -72,8 +72,9 @@ export async function renderWorldBankCharts(value: Parameters<typeof worldBankRe
 async function renderWorldBankChart(item: StepWorldBankIndicator, row: StepWorldBankRow, series: NonNullable<ReturnType<typeof worldBankChartSeries>>, flint: boolean): Promise<MacroChart> {
   const numbers = series.flatMap(point => point.value === null ? [] : [Number(point.value)]);
   const { divisor, word } = macroScale(numbers);
-  const known = row.unit !== null && row.unit.trim() !== '';
-  const unit = unitWithScale(word, worldBankUnitText(row), known);
+  const sourceUnit = worldBankUnitText(row, item.code);
+  const known = (row.unit !== null && row.unit.trim() !== '') || sourceUnit !== WORLD_BANK_UNKNOWN_UNIT;
+  const unit = unitWithScale(word, sourceUnit, known);
   const years = series.map(point => point.year);
   const values = series.map(point => point.value === null ? null : Number(point.value) / divisor);
   const fallback = (): string => lineChart(years, [{ name: row.indicatorName, color: '#1d4ed8', values }], { yTitle: `Giá trị (${unit})` });

@@ -5823,6 +5823,8 @@ export function validWorldBank(value: unknown): boolean {
       index(item.captureIndex) && index(item.metadataCaptureIndex) && item.captureIndex !== item.metadataCaptureIndex &&
       hex.test(String(item.sourceSha256)) && hex.test(String(item.metadataSha256)) && isRecord(row) &&
       text(row.indicatorName, 300) && typeof row.value === 'string' && /^-?\d{1,60}(\.\d{1,60})?$/.test(row.value) && (row.unit === null || text(row.unit, 300)) &&
+      (!('sourceIndicatorName' in row) || text(row.sourceIndicatorName, 10000)) &&
+      (!('decimal' in row) || (Number.isInteger(row.decimal) && (row.decimal as number) >= 0 && (row.decimal as number) <= 100)) &&
       typeof row.year === 'string' && /^\d{4}$/.test(row.year) && text(row.lastUpdated, 40) && text(row.statusLiteral, 300) &&
       (row.footnote === null || text(row.footnote, 1000)) && text(row.locator, 64);
   });

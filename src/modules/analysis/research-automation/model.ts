@@ -172,6 +172,9 @@ export interface StepSearchGeo {
 /** Latest non-null World Bank observation per indicator (open country-level background, S23); source text is kept unchanged. */
 export interface StepWorldBankRow {
   readonly indicatorName: string;
+  /** Original source name and display precision; absent on older stored documents. */
+  readonly sourceIndicatorName?: string;
+  readonly decimal?: number;
   readonly value: string;
   readonly unit: string | null;
   readonly year: string;

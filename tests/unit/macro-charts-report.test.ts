@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
 import { containsTechnicalId } from '../../src/modules/analysis/citation-registry.js';
@@ -19,6 +20,7 @@ import { WORLD_BANK_LIMIT, WORLD_BANK_SRC } from '../../src/modules/analysis/res
 import { metricFixture } from '../fixtures/metric-scope-synthetic.js';
 import { sync1Options, sync1ReaderFixture } from '../helpers/sync1-reader-fixture.js';
 import { unitPriceFixture } from '../helpers/market-unit-price-fixture.js';
+import { fullMarket14Input, fullWorldBank } from '../helpers/market14-full-fixture.js';
 
 const SHA = 'a'.repeat(64);
 const workspaceId = '11111111-1111-4111-8111-111111111111';
@@ -53,6 +55,13 @@ async function reader(extra: { worldBank?: StepWorldBank; comtrade?: StepComtrad
   const units = unitPriceFixture(input.rows); input.unitPrices = units.packet;
   return buildMarketReport(computeReaderReportData(input, units.retained), { ...sync1Options, flint, ...extra });
 }
+
+test('World Bank documents without source precision/name preserve complete base HTML bytes in both renderers', async () => {
+  // Captured from HEAD with the same synthetic inputs; the base and tree HTML dumps were also compared byte for byte.
+  const hash = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
+  assert.equal(hash((await reader({ worldBank: fullWorldBank() }, false)).html), 'f7670c24d51634d3feb8dfdae3577cce691c3b7ea062a78981c582f7fc8da078');
+  assert.equal(hash(buildResearchAutomationReport(await fullMarket14Input(), 'MARKET').html), '5287d313c0575914044ee6237bd401daac2a3f56bc1b7f1e4acd266b934ced8a');
+});
 
 test('v2 reader: World Bank lines are Hình 5.3/5.4 after Bảng 5.3 and Comtrade bars are Hình 6.1/6.2 after Bảng 6.2, all Flint', async () => {
   const built = await reader({ worldBank: worldBank(true), comtrade: fullTrade });
@@ -115,6 +124,32 @@ async function presentationInput(extra: { worldBank?: StepWorldBank; comtrade?: 
     ...(worldBankCharts.length ? { worldBankCharts } : {}), ...(comtradeCharts.length ? { comtradeCharts } : {}) } as unknown as AutomationReportInput;
 }
 const draftHtml = (input: AutomationReportInput): string => buildResearchAutomationReport(input, 'MARKET').html.toString('utf8');
+
+test('both Market renderers show source precision, source-name units and a rounding note without gate regressions', async () => {
+  const bank = worldBank(true);
+  const updated = { ...bank, indicators: bank.indicators.map(item => {
+    const population = item.code === 'SP.POP.TOTL';
+    const value = population ? '101598527' : '2381.8882523638';
+    return { ...item, row: { ...item.row!, value, decimal: 0,
+      sourceIndicatorName: population ? 'Population, total' : 'Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)' },
+      series: item.series!.map((point, i) => i === item.series!.length - 1 ? { ...point, value } : point) };
+  }) };
+  const readerHtml = (await reader({ worldBank: updated, comtrade: fullTrade })).html;
+  const automationHtml = draftHtml(await presentationInput({ worldBank: updated, comtrade: fullTrade }));
+  for (const html of [readerHtml, automationHtml]) {
+    const doc = new JSDOM(html).window.document;
+    const table = [...doc.querySelectorAll('.table-wrap, .ex')].find(node => /Bảng 5\.3/u.test(node.textContent!))!;
+    assert.match(table.textContent!, /101\.598\.527 người/u);
+    assert.match(table.textContent!, /2\.382 USD, giá cố định năm 2015/u);
+    assert.doesNotMatch(table.textContent!, /nguồn chưa ghi đơn vị|2\.381,888|%/u);
+    assert.equal((table.textContent!.match(/Các giá trị được làm tròn theo độ chính xác do nguồn công bố\./gu) ?? []).length, 1);
+    assert.match(figure(html, 'Hình 5.3')!.text, /triệu người/u);
+    assert.match(figure(html, 'Hình 5.4')!.text, /nghìn USD, giá cố định năm 2015/u);
+  }
+  assert.deepEqual(machineFailures(readerHtml), machineFailures((await reader()).html));
+  assert.deepEqual(machineFailures(automationHtml), []);
+  assertMarketBusinessGate(automationHtml, { presentation: true, partialTotals: [] });
+});
 
 test('both renderers: World Bank figures, national and province tables, and Comtrade figures coexist with valid numbering and Flint', async () => {
   const officialStats: StepOfficialStats = {
