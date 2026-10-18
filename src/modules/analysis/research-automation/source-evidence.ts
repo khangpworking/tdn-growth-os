@@ -183,6 +183,11 @@ export function sourceEvidenceForReport(packet: AutomationSourceEvidence, input:
     const capture = input.captures?.find(c => c.stepId === 'COLLECTION' && c.ordinal === brand.captureIndex);
     if (!capture || capture.truncated || capture.provider !== 'serpapi' || capture.operation !== 'serpapi.google_ads.transparency' || capture.retrievedAt !== brand.retrievedAt)
       throw new ResearchAutomationIntegrityError('Search ads capture lineage is unavailable');
+    if ('domainSource' in brand && brand.domainSource === 'BRAND_SITE_SEARCH') {
+      const discovery = input.captures?.find(c => c.stepId === 'COLLECTION' && c.ordinal === brand.discoveryCaptureIndex);
+      if (!discovery || discovery.truncated || discovery.provider !== 'serpapi' || discovery.operation !== 'serpapi.google.search')
+        throw new ResearchAutomationIntegrityError('Search ads discovery capture lineage is unavailable');
+    }
     add('S17', 'capture', capture.artifactSha256);
   }
   // S25 is used only when the Market report draws at least one verified document excerpt, once per document; the marker lets older packets verify unchanged.

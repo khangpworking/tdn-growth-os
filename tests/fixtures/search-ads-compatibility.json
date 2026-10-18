@@ -1,0 +1,147 @@
+{
+  "baseCommit": "79c57d8bd50ffe61bfd3bab940e17c928c0d59a7",
+  "reader": [
+    {
+      "searchAds": {
+        "profile": "search-ads-v1",
+        "status": "OK",
+        "brands": [
+          {
+            "label": "Thương hiệu Mẫu A",
+            "domain": "thuonghieumau-a.example.vn",
+            "status": "OK",
+            "reason": null,
+            "totalResults": 3,
+            "creativeCount": 3,
+            "formats": {
+              "text": 1,
+              "image": 1,
+              "video": 1
+            },
+            "firstShown": "2025-10-09",
+            "lastShown": "2025-12-06",
+            "maxDaysShown": 40,
+            "overlapCount": 3,
+            "invalidCount": 0,
+            "usageOrdinal": 10,
+            "captureIndex": 0,
+            "retrievedAt": "1970-01-01T00:16:40.200Z",
+            "responseSha256": "6883936eb10b5b418b22f2b2eab1052bfe28e65f266b3633446b14b550ffd3a8"
+          },
+          {
+            "label": "Thương hiệu Mẫu B",
+            "domain": "thuonghieumau-b.example.vn",
+            "status": "OK",
+            "reason": null,
+            "totalResults": 3,
+            "creativeCount": 3,
+            "formats": {
+              "text": 1,
+              "image": 1,
+              "video": 1
+            },
+            "firstShown": "2025-10-09",
+            "lastShown": "2025-12-06",
+            "maxDaysShown": 40,
+            "overlapCount": 3,
+            "invalidCount": 0,
+            "usageOrdinal": 10,
+            "captureIndex": 1,
+            "retrievedAt": "1970-01-01T00:16:42.400Z",
+            "responseSha256": "6883936eb10b5b418b22f2b2eab1052bfe28e65f266b3633446b14b550ffd3a8"
+          },
+          {
+            "label": "Thương hiệu Mẫu C",
+            "domain": "thuonghieumau-c.example.vn",
+            "status": "OK",
+            "reason": null,
+            "totalResults": 3,
+            "creativeCount": 3,
+            "formats": {
+              "text": 1,
+              "image": 1,
+              "video": 1
+            },
+            "firstShown": "2025-10-09",
+            "lastShown": "2025-12-06",
+            "maxDaysShown": 40,
+            "overlapCount": 3,
+            "invalidCount": 0,
+            "usageOrdinal": 10,
+            "captureIndex": 2,
+            "retrievedAt": "1970-01-01T00:16:44.600Z",
+            "responseSha256": "6883936eb10b5b418b22f2b2eab1052bfe28e65f266b3633446b14b550ffd3a8"
+          }
+        ]
+      },
+      "htmlSha256": "a89f19b048f07ff611c21d1590cccffdb82f1e9f26663eeed383a35645d770f0"
+    },
+    {
+      "searchAds": {
+        "profile": "search-ads-v1",
+        "status": "NO_DATA",
+        "brands": [
+          {
+            "label": "Thương hiệu Mẫu A",
+            "domain": null,
+            "status": "SKIPPED_NO_DOMAIN",
+            "reason": "NO_MATCHING_WEB_ROW",
+            "totalResults": null,
+            "creativeCount": null,
+            "formats": null,
+            "firstShown": null,
+            "lastShown": null,
+            "maxDaysShown": null,
+            "overlapCount": null,
+            "invalidCount": null,
+            "usageOrdinal": null,
+            "captureIndex": null,
+            "retrievedAt": null,
+            "responseSha256": null
+          },
+          {
+            "label": "Thương hiệu Mẫu B",
+            "domain": null,
+            "status": "SKIPPED_NO_DOMAIN",
+            "reason": "NO_MATCHING_WEB_ROW",
+            "totalResults": null,
+            "creativeCount": null,
+            "formats": null,
+            "firstShown": null,
+            "lastShown": null,
+            "maxDaysShown": null,
+            "overlapCount": null,
+            "invalidCount": null,
+            "usageOrdinal": null,
+            "captureIndex": null,
+            "retrievedAt": null,
+            "responseSha256": null
+          },
+          {
+            "label": "Thương hiệu Mẫu C",
+            "domain": null,
+            "status": "SKIPPED_NO_DOMAIN",
+            "reason": "NO_MATCHING_WEB_ROW",
+            "totalResults": null,
+            "creativeCount": null,
+            "formats": null,
+            "firstShown": null,
+            "lastShown": null,
+            "maxDaysShown": null,
+            "overlapCount": null,
+            "invalidCount": null,
+            "usageOrdinal": null,
+            "captureIndex": null,
+            "retrievedAt": null,
+            "responseSha256": null
+          }
+        ]
+      },
+      "htmlSha256": "07ed9b7bfe8d01b8d8bac21ef81863687d989c8b13050d7349906e4399b1a533"
+    }
+  ],
+  "off": {
+    "stepSha": "a8965a2876bf026c59e462a5b51b465559ed153e50c3d47e84cc90e2fedd05a9",
+    "htmlSha256": "ed2f290507d77234f7acf8c7c4356d7fe83d15fb343c14756b2f8f3d6027e723"
+  }
+}

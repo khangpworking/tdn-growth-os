@@ -247,31 +247,11 @@ export interface StepComtrade {
 }
 
 /** Ad counts of each top brand's own website in the public search-ads library (S17). Advertiser names, ids, images, links and ad ids are never stored. */
-export type StepSearchAdsStatus = 'OK' | 'NO_BRANDS' | 'NO_DATA' | 'FAILED' | 'CANCELLED';
-export type StepSearchAdsBrandStatus = 'OK' | 'SKIPPED_NO_DOMAIN' | 'SKIPPED_AMBIGUOUS_DOMAIN' | 'FAILED' | 'CANCELLED';
-export interface StepSearchAdsBrand {
-  readonly label: string;
-  /** The brand's website host taken from the run's own web rows; null when none was chosen. */
-  readonly domain: string | null;
-  readonly status: StepSearchAdsBrandStatus;
-  /** Closed reason code for a status other than OK. */
-  readonly reason: string | null;
-  readonly totalResults: number | null;
-  readonly creativeCount: number | null;
-  readonly formats: { readonly text: number; readonly image: number; readonly video: number } | null;
-  /** Asia/Ho_Chi_Minh calendar days, YYYY-MM-DD. */
-  readonly firstShown: string | null;
-  readonly lastShown: string | null;
-  readonly maxDaysShown: number | null;
-  /** Creatives whose shown range overlaps the run period. */
-  readonly overlapCount: number | null;
-  readonly invalidCount: number | null;
-  readonly captureIndex: number | null;
-  readonly retrievedAt: string | null;
-  readonly responseSha256: string | null;
-  readonly usageOrdinal: number | null;
-}
-export interface StepSearchAds { readonly profile: 'search-ads-v1'; readonly status: StepSearchAdsStatus; readonly brands: readonly StepSearchAdsBrand[] }
+export type StepSearchAdsStatus = StepSearchAds['status'];
+export type StepSearchAdsBrandStatus = StepSearchAdsBrand['status'];
+export type { SearchAdsBrandV1, SearchAdsBrandV2 } from '../../../../contracts/analysis/automation-search-ads.generated.js';
+export type StepSearchAds = import('../../../../contracts/analysis/automation-search-ads.generated.js').AutomationSearchAds;
+export type StepSearchAdsBrand = StepSearchAds['brands'][number];
 /** Cục Thống kê monthly workbook figures for one product category group (S21). Background only; never combined with sample numbers. */
 export type StepOfficialStatsStatus = 'OK' | 'PARTIAL' | 'NO_DATA' | 'LIST_FAILED' | 'NO_MONTHLY_WORKBOOK' | 'DOWNLOAD_FAILED' | 'READER_UNAVAILABLE'
   | 'LAYOUT_UNKNOWN' | 'CATEGORY_NOT_MAPPED' | 'MODEL_NOT_CONFIGURED' | 'FAILED' | 'CANCELLED';

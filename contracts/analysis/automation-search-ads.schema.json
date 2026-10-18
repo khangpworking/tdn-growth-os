@@ -1,0 +1,536 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/automation-search-ads.schema.json",
+  "title": "AutomationSearchAds",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "status",
+        "brands"
+      ],
+      "properties": {
+        "profile": {
+          "const": "search-ads-v1"
+        },
+        "status": {
+          "enum": [
+            "OK",
+            "NO_BRANDS",
+            "NO_DATA",
+            "FAILED",
+            "CANCELLED"
+          ]
+        },
+        "brands": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "$ref": "#/$defs/brandV1"
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "status",
+        "brands"
+      ],
+      "properties": {
+        "profile": {
+          "const": "search-ads-v2"
+        },
+        "status": {
+          "enum": [
+            "OK",
+            "NO_BRANDS",
+            "NO_DATA",
+            "FAILED",
+            "CANCELLED"
+          ]
+        },
+        "brands": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "$ref": "#/$defs/brandV2"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "brandV1": {
+      "title": "SearchAdsBrandV1",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "domain",
+        "status",
+        "reason",
+        "totalResults",
+        "creativeCount",
+        "maxDaysShown",
+        "overlapCount",
+        "invalidCount",
+        "formats",
+        "firstShown",
+        "lastShown",
+        "captureIndex",
+        "retrievedAt",
+        "responseSha256",
+        "usageOrdinal"
+      ],
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "domain": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 253,
+              "pattern": "^[a-z0-9.-]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "enum": [
+            "OK",
+            "SKIPPED_NO_DOMAIN",
+            "SKIPPED_AMBIGUOUS_DOMAIN",
+            "FAILED",
+            "CANCELLED"
+          ]
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[A-Z_]{1,40}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "totalResults": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "creativeCount": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "maxDaysShown": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "overlapCount": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "invalidCount": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "formats": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "text",
+                "image",
+                "video"
+              ],
+              "properties": {
+                "text": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000000
+                },
+                "image": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000000
+                },
+                "video": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000000
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "firstShown": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lastShown": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "captureIndex": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "retrievedAt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "responseSha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "usageOrdinal": {
+          "enum": [
+            null,
+            10
+          ]
+        }
+      }
+    },
+    "brandV2": {
+      "title": "SearchAdsBrandV2",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "domain",
+        "status",
+        "reason",
+        "totalResults",
+        "creativeCount",
+        "maxDaysShown",
+        "overlapCount",
+        "invalidCount",
+        "formats",
+        "firstShown",
+        "lastShown",
+        "captureIndex",
+        "retrievedAt",
+        "responseSha256",
+        "usageOrdinal",
+        "domainSource",
+        "discoveryCaptureIndex",
+        "discoveryUsageOrdinal"
+      ],
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "domain": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 253,
+              "pattern": "^[a-z0-9.-]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "enum": [
+            "OK",
+            "SKIPPED_NO_DOMAIN",
+            "SKIPPED_AMBIGUOUS_DOMAIN",
+            "FAILED",
+            "CANCELLED"
+          ]
+        },
+        "reason": {
+          "enum": [
+            null,
+            "AMBIGUOUS_RUN_DOMAINS",
+            "DISCOVERY_QUERY_REFUSED",
+            "DISCOVERY_FAILED",
+            "DISCOVERY_NO_MATCH",
+            "DISCOVERY_AMBIGUOUS",
+            "CANCELLED",
+            "REQUEST_REFUSED",
+            "TIMEOUT",
+            "TRANSPORT_ERROR",
+            "RESPONSE_TOO_LARGE",
+            "CREDENTIAL_ECHO_REFUSED",
+            "HTTP_ERROR",
+            "INVALID_PAYLOAD",
+            "CAPTURE_NOT_STORED"
+          ]
+        },
+        "totalResults": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "creativeCount": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "maxDaysShown": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "overlapCount": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "invalidCount": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1000000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "formats": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "text",
+                "image",
+                "video"
+              ],
+              "properties": {
+                "text": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000000
+                },
+                "image": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000000
+                },
+                "video": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 1000000
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "firstShown": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lastShown": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "captureIndex": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "retrievedAt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "responseSha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "usageOrdinal": {
+          "enum": [
+            null,
+            10
+          ]
+        },
+        "domainSource": {
+          "enum": [
+            null,
+            "RUN_ROWS",
+            "BRAND_SITE_SEARCH"
+          ]
+        },
+        "discoveryCaptureIndex": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "discoveryUsageOrdinal": {
+          "enum": [
+            null,
+            17,
+            18,
+            19
+          ]
+        }
+      }
+    }
+  }
+}

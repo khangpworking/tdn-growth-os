@@ -259,7 +259,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   const searchAdsOk = searchAdsOkBrands(searchAds);
   const adsNum = (v: number | null): string => v === null || v === 0 ? 'không có' : String(v);
   const adsDay = (v: string | null): string => v === null ? 'không có' : v.split('-').reverse().join('/');
-  const adsNotice = (brand: typeof searchAdsOk[number]): string => `<p><span data-quote>${label(brand.label)}</span>: ${label(searchAdsBrandNotice(brand))}</p>`;
+  const adsNotice = (brand: typeof searchAdsOk[number]): string => `<p><span data-quote>${label(brand.label)}</span>: ${label(searchAdsBrandNotice(brand, searchAds!.profile))}</p>`;
   const searchAdsTable = !searchAds ? '' : searchAdsOk.length === 0
     ? `<p>${label(searchAdsNotice(searchAds))}</p>` + searchAds.brands.map(adsNotice).join('')
     : tbl('7.3', SEARCH_ADS_TABLE_TITLE, '', ['Thương hiệu', 'Trang web', 'Số mẫu quảng cáo', 'Chữ / Hình / Video', 'Hiện lần đầu – lần cuối', 'Số ngày hiện của mẫu dài ngày'],
