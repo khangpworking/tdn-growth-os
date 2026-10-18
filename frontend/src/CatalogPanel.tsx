@@ -130,7 +130,7 @@ export function CatalogForm(props: CatalogPanelProps & { readonly editor: Catalo
   const blocker = catalogDraftBlocker(draft);
   const unchanged = current !== null && sameCatalogContent(draft, current.draft);
   const canWrite = mode === 'demo' || (writesAvailable && ownerToken !== null);
-  const disabledReason = mode === 'real' && !writesAvailable ? 'Ghi OWNER hiện không khả dụng trong runtime này.'
+  const disabledReason = mode === 'real' && !writesAvailable ? 'Ghi OWNER hiện không khả dụng trong runtime này. Bạn vẫn xem được dữ liệu. Khi quản trị viên đã bật ghi, bấm "Kiểm tra quyền lại" ở thanh trên cùng.'
     : mode === 'real' && !ownerToken ? 'Mở khóa OWNER cục bộ ở thanh phía trên để bật lưu và tải ảnh.'
     : pending ? 'Đang gửi yêu cầu…'
     : editor.uploads > 0 ? UPLOAD_PENDING_MESSAGE

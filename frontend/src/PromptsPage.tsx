@@ -270,7 +270,7 @@ export function PromptForm(props: {
   const inFlight = useRef<number | null>(null);
   const blocker = promptDraftBlocker(draft);
   const unchanged = current !== null && samePromptContent(draft, current.draft);
-  const disabledReason = mode === 'real' && !writesAvailable ? 'Ghi OWNER hiện không khả dụng trong runtime này.'
+  const disabledReason = mode === 'real' && !writesAvailable ? 'Ghi OWNER hiện không khả dụng trong runtime này. Bạn vẫn xem được dữ liệu. Khi quản trị viên đã bật ghi, bấm "Kiểm tra quyền lại" ở thanh trên cùng.'
     : mode === 'real' && !ownerToken ? 'Mở khóa OWNER cục bộ ở thanh phía trên để bật lưu.'
     : pending ? 'Đang gửi yêu cầu…'
     : blocker ?? (unchanged ? 'Chưa có thay đổi so với phiên bản hiện tại.' : null);

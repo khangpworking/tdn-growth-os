@@ -65,7 +65,7 @@ export default function ResearchEditor({ mode, workspaceId, ownerToken, writesAv
   };
 
   const blockedReason = mode === 'demo' ? 'Demo không gửi yêu cầu nghiên cứu và không tạo kết quả giả. Chuyển sang dữ liệu thật để chạy.'
-    : !writesAvailable ? 'Ghi OWNER hiện không khả dụng trong runtime này, nên chưa thể bắt đầu.'
+    : !writesAvailable ? 'Ghi OWNER hiện không khả dụng trong runtime này, nên chưa thể bắt đầu. Bạn vẫn xem được dữ liệu. Khi quản trị viên đã bật ghi, bấm "Kiểm tra quyền lại" ở thanh trên cùng.'
       : !ownerToken ? 'Mở khóa OWNER ở đầu trang để bắt đầu.' : null;
 
   const start = async () => {

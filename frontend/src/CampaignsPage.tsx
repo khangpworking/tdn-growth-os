@@ -240,7 +240,7 @@ export function CampaignForm(props: CampaignFormProps) {
   const unchanged = current !== null && sameCampaignContent(draft, current.draft);
   const writable = canWrite(mode, ownerToken, writesAvailable);
   const disabledReason = !writable
-    ? mode === 'real' && !writesAvailable ? 'Ghi OWNER hiện không khả dụng trong runtime này.' : 'Mở khóa OWNER cục bộ ở thanh phía trên để bật lưu.'
+    ? mode === 'real' && !writesAvailable ? 'Ghi OWNER hiện không khả dụng trong runtime này. Bạn vẫn xem được dữ liệu. Khi quản trị viên đã bật ghi, bấm "Kiểm tra quyền lại" ở thanh trên cùng.' : 'Mở khóa OWNER cục bộ ở thanh phía trên để bật lưu.'
     : pending ? 'Đang lưu…'
       : blocker ?? (unchanged ? 'Chưa có thay đổi so với phiên bản hiện tại.' : null);
   const brandName = findBrandName(brands, draft.brandId);

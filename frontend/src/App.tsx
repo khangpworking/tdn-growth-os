@@ -326,14 +326,14 @@ export default function App() {
         const availability = await loadFrontendAvailability();
         if (!active) return;
         setLocalTestOwner(availability.localTestOwner === true);
-        if (!availability.ownerWritesEnabled) { setOwnerAvailability('unavailable'); return; }
+        if (!availability.ownerWritesEnabled) { setOwnerAvailability('unavailable'); if (ownerAccessAttempt > 0) notify('Đã kiểm tra lại: ghi OWNER vẫn chưa bật trên máy chủ. Bạn vẫn xem được dữ liệu.'); return; }
         if (availability.localTestOwner) {
           const token = await loadLocalTestOwnerSession();
           if (!active) return;
           setOwnerToken(token);
         }
-        setOwnerAvailability('available');
-      } catch { if (active) setOwnerAvailability('unavailable'); }
+        setOwnerAvailability('available'); if (ownerAccessAttempt > 0) notify('Đã kiểm tra lại: ghi OWNER đã sẵn sàng.');
+      } catch { if (active) { setOwnerAvailability('unavailable'); if (ownerAccessAttempt > 0) notify('Đã kiểm tra lại nhưng chưa kết nối được máy chủ. Thử lại sau ít phút.'); } }
     })();
     return () => { active = false; };
   }, [mode, ownerAccessAttempt]);
