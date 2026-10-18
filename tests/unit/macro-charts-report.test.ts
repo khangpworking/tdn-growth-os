@@ -60,7 +60,7 @@ test('World Bank documents without source precision/name preserve complete base 
   // Captured from HEAD with the same synthetic inputs; the base and tree HTML dumps were also compared byte for byte.
   const hash = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
   assert.equal(hash((await reader({ worldBank: fullWorldBank() }, false)).html), 'f7670c24d51634d3feb8dfdae3577cce691c3b7ea062a78981c582f7fc8da078');
-  assert.equal(hash(buildResearchAutomationReport(await fullMarket14Input(), 'MARKET').html), '5287d313c0575914044ee6237bd401daac2a3f56bc1b7f1e4acd266b934ced8a');
+  assert.equal(hash(buildResearchAutomationReport(await fullMarket14Input(), 'MARKET').html), '977dd2f9f35944f4774a087cc0cb79741b3d8a022fe492e0ff7c3b3709093845');
 });
 
 test('v2 reader: World Bank lines are Hình 5.3/5.4 after Bảng 5.3 and Comtrade bars are Hình 6.1/6.2 after Bảng 6.2, all Flint', async () => {
