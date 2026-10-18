@@ -60,7 +60,7 @@ test('World Bank documents without source precision/name preserve pinned HTML by
   // The automation reader pin includes PR #324's two M08 paragraphs and PR #328's descriptive reader copy
   // (M05/M06/M07/M09) the plain owner copy for periods, peers and ads, and the dated Phần 11/12 proposals; no World Bank bytes change, and legacy pins stay separate.
   const hash = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
-  assert.equal(hash((await reader({ worldBank: fullWorldBank() }, false)).html), '3ada181ec5c513bd8536f7354652de283c7a488cc13adf6fa8f67ba6264a4ddb');
+  assert.equal(hash((await reader({ worldBank: fullWorldBank() }, false)).html), '48b875e381dcdde45a543ec05e91333947bb9809fda115ae6fab97495d314858');
   assert.equal(hash(buildResearchAutomationReport(await fullMarket14Input(), 'MARKET').html), '864d022a9e285d70cfe7b509eb372dcd5b5a599db0ebc4f53fdc7ee97b32aa25');
 });
 

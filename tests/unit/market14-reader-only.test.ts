@@ -30,6 +30,29 @@ test('table interpretation reads each platform on its own and never sums them', 
   assert.equal(tableInterpretation(table.replace('<td>A</td>', '<td data-classified="pending">A</td>')), 'Bảng có 4 dòng.');
 });
 
+test('a table reading is escaped on delivery and stays with its own exhibit', () => {
+  const table = '<table><thead><tr><th>Tên</th></tr></thead><tbody><tr><td>A</td></tr></tbody></table>';
+  const custom = table.replace('<table>', '<table data-reading="&quot;A&quot; &amp; &lt;img src=x onerror=bad&gt;">');
+  const doc = new JSDOM(annotateExhibits(custom + table)).window.document;
+  assert.deepEqual([...doc.querySelectorAll('.interp')].map(node => node.textContent),
+    ['Diễn giải: "A" & <img src=x onerror=bad>', 'Diễn giải: Bảng có 1 dòng.']);
+  assert.equal(doc.querySelector('img'), null);
+  assert.equal(doc.querySelector('table')!.getAttribute('data-reading'), '"A" & <img src=x onerror=bad>');
+});
+
+test('proposal chips read the M12 table class without leaking from prose or adjacent sections', () => {
+  const section = (id: string, body: string) => `<section class="sheet" id="${id}"><span class="state">old</span>${body}</section>`;
+  const table = '<div class="table-wrap market14-proposals"><table><tbody><tr><td>Chưa có dữ liệu</td></tr></tbody></table></div>';
+  const page = (body: string) => `<div id="sections">${body}</div><footer></footer>`;
+  const doc = new JSDOM(deliverMarketReader(page(section('M10', '<p>market14-proposals has-figures</p>') + section('M12', table + table)))).window.document;
+  assert.equal(doc.querySelector('#M10 .state')!.textContent, 'Chưa đủ dữ liệu');
+  assert.equal(doc.querySelector('#M12 .state')!.textContent, 'Chưa đủ dữ liệu');
+  const figured = new JSDOM(deliverMarketReader(page(section('M12', table.replace('market14-proposals', 'market14-proposals has-figures')) + section('M11', '<p>Chưa có dữ liệu</p>')))).window.document;
+  assert.equal(figured.querySelector('#M12 .state')!.textContent, 'Có số liệu');
+  assert.equal(figured.querySelector('#M11 .state')!.textContent, 'Chưa đủ dữ liệu');
+  assert.equal(figured.querySelector('#M12 .interp'), null);
+});
+
 test('interpretations never range across unrelated columns or macro indicator units', () => {
   const table = (heads: string[], rows: string[][]) => `<table><thead><tr>${heads.map(cell => `<th>${cell}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
   assert.equal(tableInterpretation(table(['Sản phẩm', 'Lượt bán', 'Chi phí'], [['A', '4', '100'], ['B', 'chưa có dữ liệu', '200']])), 'Bảng có 2 dòng.');

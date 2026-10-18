@@ -133,8 +133,8 @@ test('a blocked or timed-out source that returned nothing says so once instead o
 test('no sample keeps the frozen reader bytes; legacy inputs ignore the additive sample option', async () => {
   const expected = { '1.2.0': 'c45ee04895526bb20d5510f8a6dd1c3de37611e79a83d4ca5c172fe14059edb4',
     '1.3.0': 'b69c7b6d4220598e5a8a1fd53e82cc569d374945c6b95079b408903458838cd8',
-    '1.4.0': '737a3959c7be905f78cf80ef7a58328a7acc0e09701187989a01f64c2f7364bc' };
-  // Frozen from unmodified assigned HEAD 99003a3b803e1081be4d97d574273bb6b82f902a; 1.4.0 re-pinned for the dated Phần 12 proposals.
+    '1.4.0': 'ac8f1900e52a094c5866b1e901e5b4d1820a19d90e74a4385f4073f2bf046ffa' };
+  // Frozen from unmodified assigned HEAD 99003a3b803e1081be4d97d574273bb6b82f902a; 1.4.0 re-pinned for the sample-based Phần 11 and dated Phần 12 proposals.
   for (const version of ['1.2.0', '1.3.0', '1.4.0'] as const) {
     assert.equal(hash((await buildMarketReport(readerData(version), sync1Options)).html), expected[version]);
     if (version !== '1.4.0') assert.equal(hash((await buildMarketReport(readerData(version), { ...sync1Options, testReviewSample: trialContext([20]) })).html), expected[version]);

@@ -318,8 +318,12 @@ export function deliverMarketReader(html: string, searchPoints?: readonly Search
   body = body.replace(/<section class="sheet" id="(M\d\d)">([\s\S]*?)<\/section>/gu, (_all, id: string, inner: string) => {
     const annotated = DATA_SECTIONS.test(id) ? annotateExhibits(inner, searchPoints) : inner;
     // Proposal tables only count as data when they cite in-sample figures.
-    const data = /<table\b|<figure\b/u.test(annotated.replace(/<div class="table-wrap market14-proposals[\s\S]*?<\/table><\/div>/gu, '')) ||
-      annotated.includes('market14-proposals has-figures');
+    let proposalFigures = false;
+    const evidence = id === 'M12' ? annotated.replace(/<div class="table-wrap market14-proposals(?: has-figures)?">[\s\S]*?<\/table><\/div>/gu, block => {
+      proposalFigures ||= block.startsWith('<div class="table-wrap market14-proposals has-figures">');
+      return '';
+    }) : annotated;
+    const data = /<table\b|<figure\b/u.test(evidence) || proposalFigures;
     const chip = id === 'M02' || id === 'M13' ? '' : `<span class="state">${data ? 'Có số liệu' : 'Chưa đủ dữ liệu'}</span>`;
     return `<section class="sheet" id="${id}">${annotated.replace(/<span class="state">[^<]*<\/span>/u, chip)}</section>`;
   });

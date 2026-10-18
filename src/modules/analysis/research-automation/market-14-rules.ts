@@ -129,12 +129,23 @@ function hasM12ProposalRows(html: string): boolean {
   const tables = tableFragments(m12).map(table => {
     const headings = tableHeadings(table);
     const find = (pattern: RegExp): number => headings.findIndex(value => pattern.test(value));
-    const task = find(/(?:việc|phương\s*án|quick[- ]?win|option)/iu), owner = find(/(?:người\s*phụ\s*trách|owner)/iu), deadline = find(/(?:hạn|deadline)/iu);
+    const option = find(/^(?:phương\s+án|option)(?:\s+đề\s+xuất)?$/iu);
+    const task = option >= 0 ? option : find(/^(?:việc(?:\s+làm(?:\s+ngay)?)?|quick[- ]?win)(?:\s+đề\s+xuất)?$/iu);
+    const owner = find(/^(?:người\s+phụ\s+trách|owner)(?:\s+đề\s+xuất)?$/iu);
+    const deadline = find(/^(?:(?:thời\s+)?hạn|deadline)(?:\s+đề\s+xuất)?$/iu);
+    const approval = /đề xuất\s*,\s*chờ\s+chủ\s+duyệt/iu;
+    const dated = (value: string): boolean => {
+      const match = /^(\d{2})\/(\d{2})\/(\d{4})$/u.exec(value.trim());
+      if (!match) return false;
+      const iso = `${match[3]}-${match[2]}-${match[1]}`;
+      const date = new Date(`${iso}T00:00:00Z`);
+      return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === iso;
+    };
     const rows = tableRows(table);
     const filled = task >= 0 && owner >= 0 && deadline >= 0 && rows.length > 0 && rows.every(row =>
-      Boolean(row[task]?.trim()) && Boolean(row[owner]?.trim()) && /(?<!\d)\d{2}\/\d{2}\/\d{4}(?!\d)/u.test(row[deadline] ?? '') &&
-      /đề xuất\s*,\s*chờ\s+chủ\s+duyệt/iu.test(row.join(' ')));
-    return { options: filled && rows.length === 3 && /(?:phương\s*án|option)/iu.test(headings[task] ?? ''), filled };
+      Boolean(row[task]?.trim()) && /\p{L}/u.test((row[owner] ?? '').replace(approval, '')) && dated(row[deadline] ?? '') &&
+      approval.test(row.join(' ')));
+    return { options: filled && rows.length === 3 && option >= 0, filled };
   });
   const options = tables.findIndex(table => table.options);
   return options >= 0 && tables.some((table, index) => index !== options && table.filled) && /\blàm\s+ngay\b/iu.test(visible(m12));

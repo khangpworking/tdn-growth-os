@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { dayPlus, isoFromReaderDay, marketActionPlan, opportunityRows, platformSignals, type ActionRow } from '../../src/modules/analysis/reader-report/market-actions.js';
+import { JSDOM } from 'jsdom';
+import { actionStartDay, dayPlus, isoFromReaderDay, marketActionPlan, opportunityRows, platformSignals, type ActionRow } from '../../src/modules/analysis/reader-report/market-actions.js';
+import { buildMarketReport, computeReaderReportData } from '../../src/modules/analysis/reader-report/index.js';
+import { DEFAULT_MARKET_PEER_RULE } from '../../src/modules/analysis/default-market-peers.js';
+import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
+import { fullMarket14Input } from '../helpers/market14-full-fixture.js';
+import { sync1Options, sync1ReaderFixture } from '../helpers/sync1-reader-fixture.js';
 
 // Synthetic sample: six priced Shopee rows (unit prices 10–60) and two TikTok Shop rows, one without units.
 const rows: ActionRow[] = [
@@ -60,4 +66,57 @@ test('deadline days cross month and year ends and reject malformed days', () => 
   assert.throws(() => dayPlus('2026-02-30', 1), RangeError);
   assert.throws(() => dayPlus('19/10/2026', 1), RangeError);
   assert.throws(() => isoFromReaderDay('2026-10-19'), RangeError);
+});
+
+test('invalid proposal dates use retained fallback days and never invent a date', () => {
+  assert.equal(actionStartDay('bad', '2026-02-30', '2026-01-31'), '2026-01-31');
+  assert.equal(actionStartDay('9999-12-31', undefined, null), null);
+  assert.throws(() => dayPlus('9999-12-31', 14), RangeError);
+  const plan = marketActionPlan(rows, { reviewsCollected: false, startDay: 'bad' });
+  for (const row of [...plan.options, ...plan.quickWins]) assert.equal(row.deadline, 'Chưa có ngày bắt đầu hợp lệ');
+});
+
+test('missing, zero and negative revenues do not create action figures', () => {
+  const empty = ['shopee', 'tiktok'].flatMap(platform => [null, undefined, 0, -10, Number.NaN, Infinity].map(rev => ({ platform, rev, units: 10 })));
+  const plan = marketActionPlan(empty, { reviewsCollected: false, startDay: '2026-10-19' });
+  assert.equal(plan.hasFigures, false);
+  for (const signal of plan.signals) assert.deepEqual([signal.band, signal.leaders], [null, null]);
+  assert.doesNotMatch(opportunityRows(plan.signals).flat().join(' '), /\b0\b/u);
+  assert.doesNotMatch(plan.options.flatMap(option => option.related).join(' '), /\b0\b/u);
+});
+
+test('automation deadlines use the Vietnam day and survive missing or malformed run and period dates', async () => {
+  const input = await fullMarket14Input();
+  const deadline = (createdAt: string | undefined, endDate = '2026-01-30'): string => {
+    const built = buildResearchAutomationReport({ ...input, run: { ...input.run, createdAt: createdAt as string },
+      start: { ...input.start, requestedPeriod: { ...input.start.requestedPeriod, endDate } } }, 'MARKET');
+    return new JSDOM(built.html).window.document.querySelector('#M12 tbody tr td:last-child')!.textContent!;
+  };
+  assert.equal(deadline('2026-10-19T16:59:59Z'), '26/10/2026');
+  assert.equal(deadline('2026-10-19T17:00:00Z'), '27/10/2026');
+  assert.equal(deadline('2026-10-20T00:00:00+07:00'), '27/10/2026');
+  assert.equal(deadline(undefined), '06/02/2026');
+  for (const createdAt of [undefined, 'bad', '+275760-09-13T00:00:00.000Z']) {
+    assert.equal(deadline(createdAt, 'bad'), '08/01/2026');
+  }
+});
+
+test('1.4.0 Phần 11 and 12 share sample signals, independent of classification, with robust dates', async () => {
+  const input = sync1ReaderFixture('1.4.0');
+  input.peerRule = { ...DEFAULT_MARKET_PEER_RULE };
+  const data = computeReaderReportData(input);
+  const render = async (builtOn: string) => new JSDOM((await buildMarketReport(data, { ...sync1Options, builtOn })).html).window.document;
+  const doc = await render(sync1Options.builtOn);
+  const expected = opportunityRows(platformSignals(data.rows));
+  assert.deepEqual([...doc.querySelectorAll('#phan-11 tbody tr')].map(row => [...row.querySelectorAll('td')].map(cell => cell.textContent)), expected);
+  assert.equal(doc.querySelector('#phan-11 [data-classified]'), null);
+  const sections = ['#phan-11', '#phan-12'].map(id => doc.querySelector(id)!.textContent!).join(' ');
+  assert.doesNotMatch(sections, /%|\b0 VND\b|Metric|Kalodata|TradeInt|Dami|Apify|SerpApi|PageIndex|Gemini|OpenCLI|zen-studio|Google|nhất|hàng đầu|ưu tiên/iu);
+  assert.match(sections, /không cộng thêm/u);
+  assert.equal((await render('31/02/2026')).querySelector('#phan-12 tbody tr td:last-child')!.textContent, '07/02/2026');
+  // Simulate malformed retained metadata after the normal input validation boundary.
+  data.input.source!.measurementPeriod.end = 'bad';
+  for (const builtOn of ['bad', '2026-10-19', '31/02/2026']) {
+    assert.equal((await render(builtOn)).querySelector('#phan-12 tbody tr td:last-child')!.textContent, '08/01/2026');
+  }
 });

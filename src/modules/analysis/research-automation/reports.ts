@@ -66,7 +66,7 @@ import { formatReaderValue, readerProductLabel, readerShopLabel } from './reader
 import type { AutomationQualitativeDraft } from '../../../../contracts/analysis/automation-qualitative-draft-v1.generated.js';
 import { qualitativeDraftSection, qualitativeDraftSummary } from '../reader-report/qualitative-draft-report.js';
 import { platIcons } from '../reader-report/layout.js';
-import { ACTION_LEAD, ACTION_NOTE, OPPORTUNITY_HEADINGS, OPPORTUNITY_READING, OPTION_HEADINGS, QUICK_WIN_HEADING, QUICK_WIN_HEADINGS, marketActionPlan, opportunityRows, type ActionRow, type MarketActionPlan } from '../reader-report/market-actions.js';
+import { ACTION_LEAD, ACTION_NOTE, OPPORTUNITY_HEADINGS, OPPORTUNITY_READING, OPTION_HEADINGS, QUICK_WIN_HEADING, QUICK_WIN_HEADINGS, actionStartDay, marketActionPlan, opportunityExplanation, opportunityRows, type ActionRow, type MarketActionPlan } from '../reader-report/market-actions.js';
 import { deliverMarketReader, marketReaderGuide } from './market-reader-delivery.js';
 import { UNKNOWN_SHOP, marketChartRows, marketShopsUnrecorded, type CaptureCountChart, type MarketChart } from '../reader-report/market-charts.js';
 import type { RenderedChart } from '../reader-report/flint.js';
@@ -639,9 +639,12 @@ function marketActionRows(input: AutomationReportInput, presentationRows: readon
 }
 
 /** Vietnam calendar day the report run was created; the proposal deadlines count from it. */
-function marketActionStartDay(input: AutomationReportInput): string {
+function marketActionStartDay(input: AutomationReportInput): string | null {
   const created = Date.parse(input.run.createdAt);
-  return Number.isFinite(created) ? new Date(created + 7 * 3_600_000).toISOString().slice(0, 10) : input.start.requestedPeriod.endDate;
+  const vietnamDay = new Date(created + 7 * 3_600_000);
+  return actionStartDay(Number.isFinite(vietnamDay.getTime()) ? vietnamDay.toISOString().slice(0, 10) : null,
+    input.start.requestedPeriod.endDate, input.start.requestedPeriod.startDate,
+    input.marketPresentation?.input.metric?.input.scope.end);
 }
 
 function marketActionTable(no: string, title: string, extraClass: string, headings: readonly string[], rows: readonly (readonly string[])[], attributes = ''): string {
@@ -650,13 +653,12 @@ function marketActionTable(no: string, title: string, extraClass: string, headin
     `<tbody>${rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 
-/** Phần 11: the two in-sample opportunities per platform, or one plain line when no platform has revenue rows. */
+/** Phần 11: the two in-sample opportunities per platform, or one plain line when no platform has enough revenue rows. */
 function marketOpportunitySection(plan: MarketActionPlan, reviewsCollected: boolean): string {
-  const reviews = reviewsCollected ? 'Lần chạy này đã thu đánh giá của khách; điểm khen và chê được đọc ở phương án C, Phần 12.'
-    : 'Lần chạy này chưa thu đánh giá của khách, nên chưa biết khách chưa hài lòng ở điểm nào.';
-  if (!plan.hasFigures) return `<p>Chưa đủ dữ liệu để nêu cơ hội trong mẫu: chưa sàn nào có sản phẩm ghi doanh thu. ${reviews}</p>`;
+  const explanation = `<p>${escape(opportunityExplanation(plan.hasFigures, reviewsCollected))}</p>`;
+  if (!plan.hasFigures) return explanation;
   const title = 'Cơ hội trong mẫu, ghi riêng từng sàn (đề xuất, chờ chủ duyệt)';
-  return `<p>Hai cơ hội đọc từ doanh thu quan sát trong mẫu: bán trong khoảng giá có doanh thu lớn, và cạnh tranh với nhóm sản phẩm doanh thu lớn. Chưa có giá vốn nên chưa biết cơ hội nào có lãi. ${reviews}</p>` +
+  return explanation +
     marketActionTable('11.1', title, '', OPPORTUNITY_HEADINGS, opportunityRows(plan.signals).map(row => row.map(cell => escape(cell))), ` data-reading="${escape(OPPORTUNITY_READING)}"`);
 }
 
@@ -914,7 +916,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
       return { sectionId: section.sectionId, title: section.title, state: 'EVIDENCE_INVENTORY', rows: [], method: marketPresentation.methodVersion,
         explanation: section.sectionId === 'M11' ? 'Cơ hội đọc từ doanh thu quan sát trong mẫu, ghi riêng từng sàn; là đề xuất của TDN, chờ chủ duyệt.' : ACTION_LEAD };
     }
-    const decisionPacket =input.decisionPackets?.find(packet => packet.sectionId === section.sectionId);
+    const decisionPacket = input.decisionPackets?.find(packet => packet.sectionId === section.sectionId);
     if (decisionPacket && input.decisionSourceClaims) {
       const synthesis = input.decisionSynthesis?.[decisionPacket.sectionId];
       const proposed = synthesis?.status === 'VALID' && synthesis.candidates.artifact.aiCandidates.length > 0;

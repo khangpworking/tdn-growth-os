@@ -169,6 +169,17 @@ test('rule 9 binds approval labels, owners and dated deadlines to three options 
   assert.equal(rule(valid.replace(/<h3>Làm ngay[\s\S]*?<\/table>/u, ''), '9').ok, false, 'missing quick-win table');
   assert.equal(rule(valid.replace('<th>Phương án</th>', '<th>Việc</th>'), '9').ok, false, 'the three rows must be options');
   assert.equal(rule(valid.replace(/<tr><td>C\. [\s\S]*?<\/tr>/u, ''), '9').ok, false, 'two options are not three');
+  assert.equal(rule(valid.replace('<td>Chủ dự án (đề xuất, chờ chủ duyệt)</td>', '<td>(đề xuất, chờ chủ duyệt)</td>'), '9').ok, false, 'an approval label alone is not an owner');
+  assert.equal(rule(valid.replace('<td>26/10/2026</td>', '<td>31/02/2026</td>'), '9').ok, false, 'a nonexistent calendar day is not a deadline');
+  assert.equal(rule(valid.replace('<td>26/10/2026</td>', '<td>26/10/2026, chủ chọn</td>'), '9').ok, false, 'a date beside an undecided deadline must not count');
+});
+
+test('rule 9 selects whole column headings rather than words inside other headings', () => {
+  const extra = valid.replace('<th>Phương án</th>', '<th>Giới hạn công việc</th><th>Phương án</th>')
+    .replace(/<tr><td>([ABC]\. )/gu, '<tr><td>26/10/2026</td><td>$1');
+  assert.equal(rule(extra, '9').ok, true, 'an unrelated column before the task must not hide it');
+  assert.equal(rule(extra.replace(/<td>26\/10\/2026<\/td><\/tr>/u, '<td></td></tr>'), '9').ok, false, 'a date in Giới hạn is not the Hạn cell');
+  assert.equal(rule(valid.replace('<th>Hạn</th>', '<th>Giới hạn</th>'), '9').ok, false, 'Giới hạn alone is not a deadline heading');
 });
 
 test('rule 11 rejects a flint marker with an empty or removed SVG', () => {
