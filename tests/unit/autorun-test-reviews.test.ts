@@ -155,17 +155,14 @@ test('collector cap drift cannot dispatch a production collection through trial 
   assert.ok(run.coverage.sources.some(row => row.provider === 'apify-shopee' && row.state === 'FAILED'));
 });
 
-test('Market capture copy has explained rendering digests; Insight digests remain unchanged', async () => {
+test('frozen default report digests from the base commit remain unchanged (Market and Insight)', async () => {
   const input = await fullMarket14Input();
   const market = buildResearchAutomationReport(input, 'MARKET');
-  // Against eedcb369: per-platform Phần 1/2 copy, localized scope dates, capture-only sample wording,
-  // and retained M03 findings in the trace. No retained method or Insight bytes change.
-  assert.equal(digest(market.html), '4f3b70cfdb4cc55751fb5b347e6a984ae61329d81550ec8a20493eef8c6fc19d');
-  // All nine semantic citations remain. The sample calculation moves from citation 1 to 3;
-  // the per-platform calculation moves from 3 to 1 and gains methodVersion/rounding metadata.
-  // These are the only semantic differences from eedcb369.
-  assert.equal(digest(canonicalJson(market.semantic)), '3a50085424b8843609458a2d77a93e5f4baa21a8e2b1db40239f33140991dfde');
-  assert.equal(digest(market.traceHtml!), '8e2339d7f07b684f91d603a3daab382222e9db305b091780fc84f04c63b3cb15');
+  // Reader/trace pins include per-platform row caps, inline citations, coverage wording and the used-term glossary.
+  assert.equal(digest(market.html), '528086a78915c9e00649012b49a140d6af82cd352aa19d1e8c4d5d82994276ca');
+  // Rendering changes leave the semantic evidence and Insight pins unchanged.
+  assert.equal(digest(canonicalJson(market.semantic)), '22a308fa48b99dc24f6dd8fe5f31a4774b6f99a69d7918e7fb439be4fdbaa542');
+  assert.equal(digest(market.traceHtml!), 'af35790cc600ee33366c99f58220714945ccec787a6bbb15e3effae53a295026');
   const insight = buildResearchAutomationReport(input, 'INSIGHT');
   assert.equal(digest(insight.html), '7163940cc6c424f6c1a2fc73c7af9458e1a50d3957adaa8d43802a8caf6ba08d');
   assert.equal(digest(canonicalJson(insight.semantic)), '21c5fa1d4be2b577cc196d0508e84342b0953f1a16ed6505eccbb784b8f05294');

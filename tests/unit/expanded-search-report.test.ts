@@ -13,6 +13,7 @@ import { buildResearchAutomationReport, type AutomationReportInput } from '../..
 import { metricFixture } from '../fixtures/metric-scope-synthetic.js';
 import { sync1Options, sync1ReaderFixture } from '../helpers/sync1-reader-fixture.js';
 import { unitPriceFixture } from '../helpers/market-unit-price-fixture.js';
+import { expandedSearchReaderLabel } from '../../src/modules/analysis/research-automation/expanded-search-lane.js';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
 const runId = '22222222-2222-4222-8222-222222222222';
@@ -21,6 +22,15 @@ const at = '2026-10-02T00:00:00.000Z';
 const row = (position: number, name: string, origin?: StepWebResult['origin']): StepWebResult => ({ position, title: `Bình giữ nhiệt ${name}`, url: `https://example.test/${name}`, snippet: `Mô tả ${name}`, retrievedAt: at, site: 'example.test', published: null, captureIndex: 1, ...(origin ? { origin } : {}) });
 const plainRow = row(1, 'chinh-hang');
 const expandedRows = [row(1, 'trong-ky', 'WINDOW'), row(1, 'shopee', 'SHOPEE'), row(1, 'tiktok', 'TIKTOK')];
+
+test('TikTok news and videos use the domain label; only product pages use the shop label', () => {
+  for (const url of ['https://www.tiktok.com/@synthetic/video/123', 'https://www.tiktok.com/tin-tuc/synthetic', 'https://example.test/product/123', 'https://tiktok.com.example.test/view/product/123']) {
+    assert.equal(expandedSearchReaderLabel({ origin: 'TIKTOK', url }), 'Trên TikTok', url);
+  }
+  for (const url of ['https://www.tiktok.com/view/product/123', 'https://shop.tiktok.com/view/product/123', 'https://www.tiktok.com/shop/vn/pdp/synthetic/123']) {
+    assert.equal(expandedSearchReaderLabel({ origin: 'TIKTOK', url }), 'Trên TikTok Shop', url);
+  }
+});
 
 async function reader(rows: StepWebResult[], webPageTypes = false) {
   const input = sync1ReaderFixture('1.4.0'); input.peerRule = { ...DEFAULT_MARKET_PEER_RULE };
@@ -54,7 +64,7 @@ test('reader report: extra rows carry a neutral label column; plain rows leave i
   const headers = [...table.querySelectorAll('th')].map(item => item.textContent!.trim());
   assert.deepEqual(headers, ['Trang tìm thấy', 'Lượt tìm', 'Loại trang', 'Đoạn mô tả hiển thị']);
   const rows = [...table.querySelectorAll('tbody tr')].map(tr => [...tr.querySelectorAll('td')][1]!.textContent!.trim());
-  assert.deepEqual(rows, ['', 'Trong kỳ báo cáo', 'Trên Shopee', 'Trên TikTok Shop']);
+  assert.deepEqual(rows, ['', 'Trong kỳ báo cáo', 'Trên Shopee', 'Trên TikTok']);
   const text = textOf(built.html);
   assert.match(text, /kỳ tìm là khoảng ngày đã yêu cầu, không phải ngày xảy ra sự việc/u);
   assert.doesNotMatch(text, /site:|\btbs\b|\bcdr\b|Google|serpapi|số kết quả/iu);
@@ -82,7 +92,7 @@ const draftHtml = (input: AutomationReportInput): string => buildResearchAutomat
 test('presentation build with extra rows passes the business gate, the partial-total rule, NO_LEAK and the 14 machine rules', async () => {
   const html = draftHtml(await presentationInput([plainRow, ...expandedRows]));
   const text = textOf(html);
-  for (const label of ['Trong kỳ báo cáo', 'Trên Shopee', 'Trên TikTok Shop']) assert.ok(text.includes(label), label);
+  for (const label of ['Trong kỳ báo cáo', 'Trên Shopee', 'Trên TikTok']) assert.ok(text.includes(label), label);
   assert.doesNotThrow(() => assertMarketBusinessGate(html, { presentation: true, partialTotals: [] }));
   assert.doesNotThrow(() => assertMarket14MachineRules(html));
   const gate = auditMarketReportHtml(html, { presentation: true, partialTotals: [] });

@@ -12,7 +12,9 @@ import type { AutomationMarketPresentationMethod } from '../../../../contracts/a
 import { verifyAutomationMarketPresentation } from './market-presentation-method.js';
 import { marketChartSource, renderAutomationMarketFindings, renderAutomationMarketUnitPrices, renderCaptureSampleCharts } from './market-presentation-report.js';
 import { admitWebResults, checkSourceEvidence } from './source-evidence.js';
-import { collectionWebRows, EXPANDED_SEARCH_COLUMN, EXPANDED_SEARCH_LABEL, EXPANDED_SEARCH_NOTE } from './expanded-search-lane.js';
+import { collectionWebRows, expandedSearchReaderLabel, EXPANDED_SEARCH_COLUMN, EXPANDED_SEARCH_LABEL, EXPANDED_SEARCH_NOTE } from './expanded-search-lane.js';
+import { MARKET_READER_TERMS } from './market-reader-glossary.js';
+import { marketReaderCitations } from './market-reader-citations.js';
 import { sourceEvidenceHtml } from './source-evidence-report.js';
 import { classifyWebPage, WEB_LINK_WITHHELD, WEB_PAGE_TYPE_LABEL, WEB_SITE_WITHHELD, WEB_TITLE_WITHHELD, webTextHidden } from './web-page-type.js';
 import fs from 'node:fs';
@@ -1134,7 +1136,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   // plainly instead of seeing an empty area.
   const webSourceFailed = !webResults.length && (input.collection?.coverage ?? [])
     .some(value => value.dataset === WEB_DISCOVERY_DATASET && value.state === 'FAILED');
-  const webResultsTable = webResults.length ? `<div class="table-wrap" role="region" aria-label="Kết quả tìm kiếm trên web đã lưu" tabindex="0"><table><caption>Kết quả tìm kiếm trên web đã lưu của lượt này, theo thứ tự nguồn trả về</caption><thead><tr><th scope="col">Vị trí</th><th scope="col">Tiêu đề</th><th scope="col">Trang</th>${expandedRows ? `<th scope="col">${EXPANDED_SEARCH_COLUMN}</th>` : ''}${pageTypes ? '<th scope="col">Loại trang</th>' : ''}<th scope="col">Thời điểm thu</th><th scope="col">Nguồn</th></tr></thead><tbody>${webResults.map(row => `<tr><td>${row.position}</td><td>${webSourceText(row.title, WEB_TITLE_WITHHELD)}</td><td>${row.site === undefined || row.site === null ? 'Chưa rõ trang' : webSourceText(row.site, WEB_SITE_WITHHELD)}</td>${expandedRows ? `<td>${row.origin ? EXPANDED_SEARCH_LABEL[row.origin] : ''}</td>` : ''}${pageTypes ? `<td>${pageTypeCell(row)}</td>` : ''}<td>${escape(row.retrievedAt)}</td><td>${webMark(row, citations)}</td></tr>`).join('')}</tbody></table></div><p>Thứ tự trên là thứ tự kết quả nguồn trả về, không phải xếp hạng. Đoạn trích và liên kết đầy đủ được giữ trong hồ sơ thu đã lưu.</p>${expandedRows ? `<p>${EXPANDED_SEARCH_NOTE}</p>` : ''}` : webSourceFailed ? `<p class="warning">${WEB_SOURCE_FAILED_TEXT}</p>` : '';
+  const webResultsTable = webResults.length ? `<div class="table-wrap" role="region" aria-label="Kết quả tìm kiếm trên web đã lưu" tabindex="0"><table><caption>Kết quả tìm kiếm trên web đã lưu của lượt này, theo thứ tự nguồn trả về</caption><thead><tr><th scope="col">Vị trí</th><th scope="col">Tiêu đề</th><th scope="col">Trang</th>${expandedRows ? `<th scope="col">${EXPANDED_SEARCH_COLUMN}</th>` : ''}${pageTypes ? '<th scope="col">Loại trang</th>' : ''}<th scope="col">Thời điểm thu</th><th scope="col">Nguồn</th></tr></thead><tbody>${webResults.map(row => `<tr><td>${row.position}</td><td>${webSourceText(row.title, WEB_TITLE_WITHHELD)}</td><td>${row.site === undefined || row.site === null ? 'Chưa rõ trang' : webSourceText(row.site, WEB_SITE_WITHHELD)}</td>${expandedRows ? `<td>${escape(kind === 'MARKET' && readerPlainText ? expandedSearchReaderLabel(row) : row.origin ? EXPANDED_SEARCH_LABEL[row.origin] : '')}</td>` : ''}${pageTypes ? `<td>${pageTypeCell(row)}</td>` : ''}<td>${escape(row.retrievedAt)}</td><td>${webMark(row, citations)}</td></tr>`).join('')}</tbody></table></div><p>Thứ tự trên là thứ tự kết quả nguồn trả về, không phải xếp hạng. Đoạn trích và liên kết đầy đủ được giữ trong hồ sơ thu đã lưu.</p>${expandedRows ? `<p>${EXPANDED_SEARCH_NOTE}</p>` : ''}` : webSourceFailed ? `<p class="warning">${WEB_SOURCE_FAILED_TEXT}</p>` : '';
   // The owner reader prints the period the numbers come from; the requested period alone would contradict the cover.
   const samplePeriod = marketPresentation ? marketSamplePeriod(input) : null;
   const requested = input.start.requestedPeriod;
@@ -1197,8 +1199,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   };
   const market14Appendix = (marketPresentation ? market14Sources() : '') +
     '<div class="table-wrap market14-glossary"><div class="exh"><span class="exn">Bảng PL.2</span><span class="ext">Thuật ngữ và chữ viết tắt</span></div><table data-glossary="true"><caption>Thuật ngữ và chữ viết tắt</caption><thead><tr><th>Thuật ngữ</th><th>Nghĩa tiếng Việt</th></tr></thead><tbody>' +
-    [['listing', 'sản phẩm'], ['review', 'đánh giá'], ['export', 'tệp dữ liệu'], ['peer set', 'nhóm đối thủ'], ['Giá TB', 'giá trung bình'], ['P25 / P75', 'mốc 25 phần trăm / mốc 75 phần trăm'], ['NSX', 'nhà sản xuất'], ['H1', 'giả thuyết 1'], ['ROAS', 'tỷ lệ doanh thu trên chi phí quảng cáo'], ['CPA', 'chi phí trên đơn'], ['AI', 'trí tuệ nhân tạo']]
-      .map(([term, meaning]) => `<tr><td>${term}</td><td>${meaning}</td></tr>`).join('') +
+    MARKET_READER_TERMS.map(([term, meaning]) => `<tr><td>${escape(term)}</td><td>${escape(meaning)}</td></tr>`).join('') +
     '</tbody></table></div>';
   // Presentation charts: revenue by platform and concentration in Phần 4, product rows in Phần 7.
   const presentationChart = (chartKind: MarketChart['kind'], no: string): string => {
@@ -1448,15 +1449,8 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
       .replace(/\bWIDE\b/gu, 'phạm vi rộng')
       .replace(/\bALL\b/gu, 'toàn bộ mẫu')
       .replace(/\bUNKNOWN\b/gu, 'chưa rõ')).join('');
-  // Delivery drops trace blocks, so renumber the citations the reader still shows and register only those.
-  const readerCitations = (page: string): string => {
-    const start = page.indexOf('<section class="citation-register">');
-    if (start < 0) return page;
-    const end = page.indexOf('</section>', start) + '</section>'.length;
-    const readerPage = orderReportCitations(page.slice(0, start), registry);
-    return readerPage + renderCitationRegister(registry.entries(), { format: 'web' }) + page.slice(end);
-  };
-  const readerRenderedHtml = marketPresentation ? sanitize(readerCitations(deliverMarketReader(scopedHtml, input.collection?.searchInterest?.points, Boolean(input.metricMethods?.capture)))) : scopedHtml;
+  // Delivery drops trace blocks; the reader renumbers the citations it still shows after semanticCitations and scopedHtml keep per-claim identity.
+  const readerRenderedHtml = marketPresentation ? sanitize(marketReaderCitations(deliverMarketReader(scopedHtml, input.collection?.searchInterest?.points, Boolean(input.metricMethods?.capture)), registry)) : scopedHtml;
   // Hidden technical copy for retrieval: the same page before reader delivery, trace blocks kept. Never linked from the reader.
   const traceHtml = marketPresentation ? Buffer.from(sanitize(scopedHtml), 'utf8') : undefined;
   // Source appendix v18 also serves existing Market and accepted Insight

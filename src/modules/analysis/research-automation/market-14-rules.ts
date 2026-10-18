@@ -51,6 +51,11 @@ function result(rule: string, ok: boolean, kind: Market14Result['kind'], detail:
 const GLOSSARY: readonly [RegExp, RegExp][] = [
   [/\blisting\b/iu, /sản phẩm/iu],
   [/\breview\b/iu, /đánh giá/iu],
+  [/\breviews\b/iu, /đánh giá/iu],
+  [/\bvariant\b/iu, /biến thể/iu],
+  [/\bpack\b/iu, /gói/iu],
+  [/\binsight\b/iu, /hiểu biết/iu],
+  [/\bsection\b/iu, /phần/iu],
   [/\bexport\b/iu, /tệp dữ liệu/iu],
   [/peer\s*set/iu, /nhóm đối thủ/iu],
   [/giá\s*TB/iu, /giá trung bình/iu],
@@ -255,8 +260,9 @@ export function auditMarket14(html: string, trace?: string, options: { requireFl
     return found === undefined ? { ok: false, detail: `${rule} result unavailable` } : found;
   };
   const glossary = glossaryText(html);
-  // A localized English term needs a definition only when it still appears; acronym definitions remain required.
-  const missingGlossary = GLOSSARY.filter(([term, explanation]) => (!['listing', 'review', 'export', 'peer set'].some(word => term.test(word)) || term.test(text))
+  // A definition is required only for a term used outside the glossary (including verbatim quotes).
+  const prose = text.replace(glossary, '');
+  const missingGlossary = GLOSSARY.filter(([term, explanation]) => term.test(prose)
     && (!term.test(glossary) || !explanation.test(glossary))).map(([term]) => term.source);
   const sectionLabels = [...Array.from({ length: 12 }, (_, index) => `Phần ${index + 1}`), 'Phụ lục'].filter(label => !text.includes(label));
   const visibleCodes = text.match(/\bM(?:0[1-9]|1[0-3])\b/gu) ?? [];

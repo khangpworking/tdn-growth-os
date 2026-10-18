@@ -26,10 +26,21 @@ export const EXPANDED_SEARCH_PLAN: readonly { readonly kind: ExpandedSearchKind;
   { kind: 'TIKTOK', windowed: false, siteDomain: 'tiktok.com' },
 ]);
 
-/** Neutral reader labels: no operator text, no engine or provider name. */
+/** Legacy labels for report paths outside Market reader mode. */
 export const EXPANDED_SEARCH_LABEL: Readonly<Record<ExpandedSearchKind, string>> = Object.freeze({
   WINDOW: 'Trong kỳ báo cáo', SHOPEE: 'Trên Shopee', TIKTOK: 'Trên TikTok Shop',
 });
+/** Render-time label: the TikTok domain search also finds videos and news. Retained query bytes stay unchanged. */
+export function expandedSearchReaderLabel(row: { readonly origin?: ExpandedSearchKind; readonly url: string }): string {
+  if (!row.origin) return '';
+  if (row.origin !== 'TIKTOK') return EXPANDED_SEARCH_LABEL[row.origin];
+  try {
+    const url = new URL(row.url);
+    if ((url.hostname === 'tiktok.com' || url.hostname.endsWith('.tiktok.com'))
+      && /^\/(?:view\/product|shop\/(?:[^/]+\/)?(?:pdp|product))\/[^/]+(?:\/|$)/u.test(url.pathname)) return 'Trên TikTok Shop';
+  } catch { /* An unrecognized address never establishes a shop product page. */ }
+  return 'Trên TikTok';
+}
 /** Column title and the one note about the dated search: the window is the period asked for, never an event date. */
 export const EXPANDED_SEARCH_COLUMN = 'Lượt tìm';
 export const EXPANDED_SEARCH_NOTE = 'Các dòng có nhãn lượt tìm là kết quả của thêm một lượt tìm theo kỳ báo cáo hoặc theo sàn; kỳ tìm là khoảng ngày đã yêu cầu, không phải ngày xảy ra sự việc.';

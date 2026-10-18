@@ -6,6 +6,11 @@ import { assertMarketBusinessGate } from '../../src/modules/analysis/research-au
 import { annotateExhibits, deliverMarketReader, figureInterpretation, stripTraceDetails, tableInterpretation } from '../../src/modules/analysis/research-automation/market-reader-delivery.js';
 import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
 import { fullMarket14Input } from '../helpers/market14-full-fixture.js';
+import { MARKET_READER_TERMS } from '../../src/modules/analysis/research-automation/market-reader-glossary.js';
+import { metricMethodSection } from '../../src/modules/analysis/research-automation/metric-method-report.js';
+import { CitationRegistry } from '../../src/modules/analysis/citation-registry.js';
+import { orderReportCitations, renderCitationMarkOrMissing, renderCitationRegister } from '../../src/modules/analysis/citation-register-html.js';
+import { marketReaderCitations } from '../../src/modules/analysis/research-automation/market-reader-citations.js';
 
 const sectionsOf = (html: string): Map<string, string> =>
   new Map([...html.matchAll(/<section class="sheet" id="(M\d\d)">([\s\S]*?)<\/section>/gu)].map(match => [match[1]!, match[2]!]));
@@ -26,8 +31,80 @@ test('table interpretation reads each platform on its own and never sums them', 
   assert.match(text, /TikTok Shop: ở cột “Doanh thu \(VND\)”, mức thấp là 40 \(C\) và mức cao là 70 \(D\);/u);
   assert.match(text, /1 dòng chưa có dữ liệu ở cột này\./u);
   assert.doesNotMatch(text, /%|VND \d|170|tổng|cộng/iu);
-  // Pending classified cells are counted, never quoted.
-  assert.equal(tableInterpretation(table.replace('<td>A</td>', '<td data-classified="pending">A</td>')), 'Bảng có 4 dòng.');
+  // Pending classified cells do not support a numeric reading.
+  assert.equal(tableInterpretation(table.replace('<td>A</td>', '<td data-classified="pending">A</td>')), '');
+});
+
+test('categorical tables omit empty readings; dated tables describe their actual date span', () => {
+  const dated = '<table><thead><tr><th>Sự kiện</th><th>Ngày</th></tr></thead><tbody><tr><td>A</td><td>31/12/2025</td></tr><tr><td>B</td><td>02/01/2026</td></tr></tbody></table>';
+  assert.equal(tableInterpretation(dated), 'Cột “Ngày” ghi ngày từ 31/12/2025 đến 02/01/2026.');
+  assert.equal(tableInterpretation(dated.replace(/\d{2}\/\d{2}\/\d{4}/gu, 'Chưa có dữ liệu')), '');
+  assert.equal(tableInterpretation('<table><thead><tr><th>Tên</th></tr></thead><tbody></tbody></table>'), '');
+});
+
+test('reader glossary contains only used terms, including terms retained in quotes', () => {
+  const glossary = `<table data-glossary="true"><tbody>${MARKET_READER_TERMS.map(([term, meaning]) => `<tr><td>${term}</td><td>${meaning}</td></tr>`).join('')}</tbody></table>`;
+  const quoted = '<q>variant pack insight section reviews</q><blockquote>NSX</blockquote><code>H1</code><pre>CPA</pre><span data-quote>ROAS</span>';
+  const html = `<div id="sections"><section class="sheet" id="M13"><p>variant pack insight section reviews AI</p>${quoted}${glossary}</section></div><footer></footer>`;
+  const result = deliverMarketReader(html), doc = new JSDOM(result).window.document;
+  assert.ok(result.includes(quoted));
+  assert.match(doc.querySelector('p')!.textContent!, /biến thể gói hiểu biết phần đánh giá AI/u);
+  assert.deepEqual([...doc.querySelectorAll('[data-glossary] tr td:first-child')].map(node => node.textContent),
+    ['reviews', 'variant', 'pack', 'insight', 'section', 'NSX', 'H1', 'ROAS', 'CPA', 'AI']);
+  const localized = deliverMarketReader(html.replace(quoted, ''));
+  assert.deepEqual([...new JSDOM(localized).window.document.querySelectorAll('[data-glossary] tr td:first-child')].map(node => node.textContent), ['AI']);
+});
+
+test('capture reader names per-platform retained rows and keeps the original cap and technical copy', async () => {
+  const input = await fullMarket14Input(), snapshot = structuredClone(input.metricMethods!);
+  const capture = snapshot.capture!;
+  const changed = { ...snapshot, capture: { ...capture, platforms: capture.platforms.map((entry, index) => ({ ...entry,
+    result: { ...entry.result, input: { ...entry.result.input, records: entry.result.input.records.slice(0, index ? 2 : 3) } } })),
+    capture: { ...capture.capture, truncation: { ...capture.capture.truncation, rowsRead: 5, pagesRead: 10 } } } };
+  const before = JSON.stringify(changed);
+  const render = (plain: boolean) => metricMethodSection(changed, 'M03', undefined, { mark: () => '<sup class="cite">[1]</sup>' }, false, plain);
+  const reader = render(true), technical = render(false), doc = new JSDOM(reader).window.document;
+  assert.match(reader, /giới hạn lấy 200 dòng đầu của bảng kết quả\. Shopee: giữ 3 dòng; TikTok Shop: giữ 2 dòng/u);
+  assert.match(reader, /Mọi dòng đều đã gán sàn\./u);
+  assert.doesNotMatch(reader, /Không có dòng không gán|giữ 5 dòng trong 10 trang/u);
+  assert.match(technical, /giữ 5 dòng trong 10 trang/u);
+  assert.match(technical, /Không có dòng không gán được sàn/u);
+  assert.equal(doc.querySelectorAll('tbody tr').length, 5);
+  for (const row of doc.querySelectorAll('tbody tr')) {
+    assert.equal(row.children.length, 5);
+    assert.equal(row.lastElementChild!.querySelectorAll('.cite').length, 1);
+    assert.equal(row.lastElementChild!.querySelector('br'), null);
+    assert.ok(row.children[1]!.textContent);
+  }
+  let number = 0;
+  const distinct = new JSDOM(metricMethodSection(changed, 'M04', undefined,
+    { mark: () => `<sup class="cite">[${++number}]</sup>` }, false, true)).window.document;
+  for (const row of distinct.querySelectorAll('tbody tr')) {
+    assert.equal(row.lastElementChild!.querySelectorAll('.cite').length, 2, 'distinct cell sources stay in their product row');
+    assert.equal(row.lastElementChild!.querySelector('br'), null);
+  }
+  assert.equal(JSON.stringify(changed), before);
+});
+
+test('identical claim source entries collapse to one number while all technical identities remain saved', () => {
+  const registry = new CitationRegistry();
+  const marks = Array.from({ length: 104 }, (_, i) => registry.cite({ sourceKind: 'UPSTREAM_CLAIM',
+    identity: `synthetic-claim-${i}`, locator: null, label: 'Nhận định nguồn đã lưu', retrievedAt: null,
+    url: null, quote: null, quoteVerification: 'NOT_APPLICABLE', technical: { product: `synthetic-product-${i}` } })).map(renderCitationMarkOrMissing);
+  const other = renderCitationMarkOrMissing(registry.cite({ sourceKind: 'WEB_RESULT', identity: 'https://example.test/source',
+    label: 'Trang web liên quan', locator: null, url: 'https://example.test/source', retrievedAt: null, quote: null, quoteVerification: 'NOT_APPLICABLE' }));
+  const body = orderReportCitations(`<p>${marks.join(' ')} ${other}</p>`, registry);
+  const trace = registry.technicalTrace(), entries = registry.entries();
+  const technical = body + renderCitationRegister(entries, { format: 'web' });
+  const reader = new JSDOM(marketReaderCitations(technical, registry)).window.document;
+  assert.equal(reader.querySelectorAll('.citation-register li').length, 2);
+  assert.equal(reader.querySelectorAll('.cite').length, 105);
+  assert.deepEqual([...new Set([...reader.querySelectorAll('.cite')].map(node => node.textContent))], ['[1]', '[2]']);
+  for (const node of reader.querySelectorAll('.cite')) assert.ok(reader.getElementById(`cite-${node.textContent!.replace(/\D/gu, '')}`));
+  assert.equal(trace.entries.length, 105);
+  assert.equal(new Set(trace.entries.map(entry => entry.identity)).size, 105);
+  assert.equal(entries.filter(entry => entry.label === 'Nhận định nguồn đã lưu').length, 104);
+  assert.equal(new JSDOM(technical).window.document.querySelectorAll('.citation-register li').length, 105);
 });
 
 test('a table reading is escaped on delivery and stays with its own exhibit', () => {
@@ -35,7 +112,7 @@ test('a table reading is escaped on delivery and stays with its own exhibit', ()
   const custom = table.replace('<table>', '<table data-reading="&quot;A&quot; &amp; &lt;img src=x onerror=bad&gt;">');
   const doc = new JSDOM(annotateExhibits(custom + table)).window.document;
   assert.deepEqual([...doc.querySelectorAll('.interp')].map(node => node.textContent),
-    ['Diễn giải: "A" & <img src=x onerror=bad>', 'Diễn giải: Bảng có 1 dòng.']);
+    ['Diễn giải: "A" & <img src=x onerror=bad>']);
   assert.equal(doc.querySelector('img'), null);
   assert.equal(doc.querySelector('table')!.getAttribute('data-reading'), '"A" & <img src=x onerror=bad>');
 });
@@ -55,7 +132,7 @@ test('proposal chips read the M12 table class without leaking from prose or adja
 
 test('interpretations never range across unrelated columns or macro indicator units', () => {
   const table = (heads: string[], rows: string[][]) => `<table><thead><tr>${heads.map(cell => `<th>${cell}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
-  assert.equal(tableInterpretation(table(['Sản phẩm', 'Lượt bán', 'Chi phí'], [['A', '4', '100'], ['B', 'chưa có dữ liệu', '200']])), 'Bảng có 2 dòng.');
+  assert.equal(tableInterpretation(table(['Sản phẩm', 'Lượt bán', 'Chi phí'], [['A', '4', '100'], ['B', 'chưa có dữ liệu', '200']])), 'Bảng có 2 dòng. Cột “Lượt bán” ghi 4 (A); 1 dòng chưa có dữ liệu ở cột này.');
   const macro = table(['Chỉ số', 'Giá trị', 'Đơn vị'], Array.from({ length: 5 }, (_, i) => [`Chỉ số ${i + 1}`, `${i + 1}`, `Đơn vị ${i + 1}`]));
   assert.equal(tableInterpretation(macro.replace(/<th>Đơn vị<\/th>/u, '<th>Nguồn</th>')), 'Bảng có 5 dòng. Mỗi dòng là một thước đo riêng, đọc theo đơn vị của chính nó.');
   assert.equal(tableInterpretation(table(['Sản phẩm nguồn', 'Phép đo / đơn vị', 'Giá trị nguồn'], [['A', 'Doanh thu (VND)', '100'], ['A', 'Sản lượng bán', '2']])),
@@ -127,12 +204,12 @@ test('reader dates and terms are localized while source quotes, code and attribu
   const source = '<q>review 2026-08-17 bằng 0</q><blockquote><p>listing 2026-08-17</p></blockquote>'
     + '<span data-quote><b>review</b> 2026-08-17</span><code>listing_2026-08-17</code>';
   const html = `<div id="sections"><section class="sheet" id="M02"><p>Kỳ 2026-08-17 đến 2026-09-15; thu 2026-09-16T00:00:00Z.</p>`
-    + `<p>Ngày review; danh sách top sản phẩm.</p><p>2026-08-17.xlsx; source-2026-08-17</p>${source}<a href="https://example.test/2026-08-17">Nguồn</a></section></div><footer>2026-08-17</footer>`;
+    + `<p>Ngày review; danh sách top sản phẩm.</p><p>2026-08-17.xlsx; source-2026-08-17; listing-1; variant-code; pack_size; insight.id</p>${source}<a href="https://example.test/2026-08-17">Nguồn</a></section></div><footer>2026-08-17</footer>`;
   const reader = deliverMarketReader(html);
   assert.match(reader, /Kỳ 17\/08\/2026 đến 15\/09\/2026; thu 16\/09\/2026 00:00:00 UTC\./u);
   assert.match(reader, /Ngày đánh giá; danh sách sản phẩm doanh thu cao\./u);
   assert.ok(reader.includes(source));
-  assert.match(reader, /2026-08-17\.xlsx; source-2026-08-17/u);
+  assert.match(reader, /2026-08-17\.xlsx; source-2026-08-17; listing-1; variant-code; pack_size; insight\.id/u);
   assert.match(reader, /href="https:\/\/example.test\/2026-08-17"/u);
   assert.match(reader, /<footer>2026-08-17<\/footer>/u);
   const glossary = '<table data-glossary="true"><tbody><tr><td>review</td><td>đánh giá</td></tr><tr><td>export</td><td>tệp dữ liệu</td></tr></tbody></table>';
@@ -173,16 +250,18 @@ test('full synthetic market14 report is delivered as a reader copy with notes an
   assert.match(html, /<p class="reader-guide"><b>Cách đọc báo cáo:<\/b>[^<]*<i class="pi s">Shopee<\/i>[\s\S]*?không phải bằng không/u);
   assert.doesNotMatch(html, /<p class="warning">[^<]*Mục phân tích hoàn chỉnh/u);
   for (const chip of body.matchAll(/<span class="state">([^<]*)<\/span>/gu)) assert.match(chip[1]!, /^(?:Có số liệu|Chưa đủ dữ liệu)$/u);
-  // D30 + B13: every table and figure of Phần 3–11 has a standalone note and an interpretation right under it.
+  // D30 + B13: exhibits have notes; readings are omitted only for tables without a useful cell-based statement.
   let exhibits = 0;
   for (const id of ['M03', 'M04', 'M05', 'M06', 'M07', 'M08', 'M09', 'M10', 'M11']) {
     const inner = sections.get(id)!;
     const count = (inner.match(/<table\b/gu) ?? []).length + (inner.match(/<figure\b/gu) ?? []).length;
     const interps = [...inner.matchAll(/<p class="interp"><b>Diễn giải:<\/b> ([\s\S]*?)<\/p>/gu)].map(match => match[1]!.replace(/<[^>]+>/gu, ''));
-    assert.equal(interps.length, count, `${id} interpretations`);
+    const omitted = [...inner.matchAll(/<table\b[\s\S]*?<\/table>/gu)].filter(match => !tableInterpretation(match[0])).length;
+    assert.equal(interps.length, count - omitted, `${id} interpretations`);
     exhibits += count;
     for (const sentence of interps) {
       assert.doesNotMatch(sentence, /%|toàn thị trường|tổng hai|cộng|gộp/u, sentence);
+      assert.doesNotMatch(sentence, /^Bảng có \d+ dòng\.$/u);
       assert.ok(sentence.split(/(?<=\.)\s/u).length <= 3, sentence);
     }
     // Each exhibit is followed by its own note (inside the exhibit or right under it) before its interpretation.
