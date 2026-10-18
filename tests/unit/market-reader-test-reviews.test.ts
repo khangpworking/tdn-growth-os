@@ -17,11 +17,11 @@ const readerData = (version: '1.2.0' | '1.3.0' | '1.4.0' = '1.4.0') => {
   if (version !== '1.2.0') input.peerRule = { ...DEFAULT_MARKET_PEER_RULE };
   return computeReaderReportData(input);
 };
-const trialContext = (counts: readonly number[], cap = 20): ExactTestReviewContext => ({
+const trialContext = (counts: readonly number[], cap = 20, outcome: 'PARTIAL_LISTINGS' | 'PROVIDER_BLOCKED' | 'PROVIDER_TIMEOUT_NO_REVIEWS' = 'PARTIAL_LISTINGS'): ExactTestReviewContext => ({
   scope: { testReviewCap: cap },
   collection: {
     exactShopee: { collectionId: 'synthetic', collectionSha256: 'a'.repeat(64), requestSha256: 'b'.repeat(64) },
-    exactShopeeOutcome: { outcome: 'PARTIAL_LISTINGS', testReviewCap: cap,
+    exactShopeeOutcome: { outcome, testReviewCap: cap,
       listings: counts.map((reviews, i) => ({ listingUrl: `https://shopee.vn/product/201/${101 + i}`, reviews })),
       attemptedAt: '2026-02-01T00:00:00Z', providerMessage: 'Apify zen-studio Google synthetic diagnostic', reused: false },
   },
@@ -106,6 +106,28 @@ test('an empty trial states the attempt and missing review types, without a zero
   assert.ok(marketSourceTypes(input, 0, []).missing.includes('dữ liệu đánh giá sản phẩm'));
   assert.ok(marketSourceTypes(input, 0, []).missing.includes('dữ liệu bình luận của khách'));
   assert.equal(sampleText(new JSDOM(buildResearchAutomationReport(input, 'MARKET').html.toString()).window.document), sampleText(doc));
+});
+
+test('a blocked or timed-out source that returned nothing says so once instead of a per-product shortfall', async () => {
+  for (const outcome of ['PROVIDER_BLOCKED', 'PROVIDER_TIMEOUT_NO_REVIEWS'] as const) {
+    const context = trialContext([0, 0, 0], 20, outcome);
+    const doc = new JSDOM((await buildMarketReport(readerData(), { ...sync1Options, testReviewSample: context })).html).window.document;
+    const sample = sampleText(doc);
+    assert.equal(sample.match(/nguồn tạm thời không trả dữ liệu/gu)?.length, 1);
+    assert.doesNotMatch(sample, /chưa đạt giới hạn|\b0\b|%|https?:|apify|zen-studio|google/iu);
+    const list = doc.querySelector('.test-review-sample')!.cloneNode(true) as Element;
+    list.querySelectorAll('.cite').forEach(node => node.remove());
+    assert.deepEqual([...list.querySelectorAll('li')].map(text), [1, 2, 3].map(n => `Sản phẩm #${n}: Chưa thu được đánh giá trong lượt này.`));
+    assert.match(doc.querySelector('#phu-luc')!.textContent!, /Lượt thu thử này không lấy được đánh giá vì nguồn tạm thời không trả dữ liệu; không suy ra sản phẩm không có đánh giá\./u);
+    const base = await fullMarket14Input();
+    const input = { ...base, scope: { ...base.scope, ...context.scope }, collection: { ...base.collection!, ...context.collection } };
+    assert.equal(sampleText(new JSDOM(buildResearchAutomationReport(input, 'MARKET').html.toString()).window.document), sample);
+  }
+  // A blocked outcome that still returned some reviews keeps the per-product wording.
+  const partial = sampleText(new JSDOM((await buildMarketReport(readerData(), { ...sync1Options,
+    testReviewSample: trialContext([0, 5], 20, 'PROVIDER_BLOCKED') })).html).window.document);
+  assert.doesNotMatch(partial, /nguồn tạm thời không trả dữ liệu/u);
+  assert.match(partial, /Chỉ thu được 5 đánh giá/u);
 });
 
 test('no sample keeps the frozen reader bytes; legacy inputs ignore the additive sample option', async () => {
