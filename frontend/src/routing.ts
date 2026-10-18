@@ -10,7 +10,7 @@ export type Route =
   | { readonly kind: 'brand'; readonly brandId: string }
   | { readonly kind: 'catalog'; readonly brandId: string; readonly itemId: string | null }
   | { readonly kind: 'content' }
-  | { readonly kind: 'campaign-new' }
+  | { readonly kind: 'campaign-new'; readonly researchProductId?: string }
   | { readonly kind: 'campaign'; readonly campaignId: string }
   | { readonly kind: 'campaign-insight'; readonly campaignId: string }
   | { readonly kind: 'campaign-ideas'; readonly campaignId: string; readonly ideaKind: 'BIG_IDEA' | 'ANGLE'; readonly parentIdeaId?: string }
@@ -64,6 +64,9 @@ export function parseRoute(hash: string, state: DemoState): Route {
   if (parts.length === 1 && parts[0] === 'brands') return { kind: 'brands' };
   if (parts.length === 2 && parts[0] === 'brands') return UUID.test(parts[1]!) ? { kind: 'brand', brandId: parts[1]! } : { kind: 'invalid', hash };
   if (parts.length === 1 && parts[0] === 'content') return { kind: 'content' };
+  if (parts.length === 3 && parts[0] === 'content' && parts[1] === 'new') {
+    return state.products.some((product) => product.id === parts[2]) ? { kind: 'campaign-new', researchProductId: parts[2]! } : { kind: 'invalid', hash };
+  }
   if (parts.length === 2 && parts[0] === 'content') {
     if (parts[1] === 'new') return { kind: 'campaign-new' };
     return UUID.test(parts[1]!) ? { kind: 'campaign', campaignId: parts[1]! } : { kind: 'invalid', hash };
@@ -108,6 +111,7 @@ export const routeToHash = {
   catalog: (brandId: string): string => `#/brands/${encodeURIComponent(brandId)}/products`,
   content: (): string => '#/content',
   campaignNew: (): string => '#/content/new',
+  campaignNewFromProduct: (productId: string): string => `#/content/new/${encodeURIComponent(productId)}`,
   campaign: (campaignId: string): string => `#/content/${encodeURIComponent(campaignId)}`,
   campaignInsight: (campaignId: string): string => `#/content/${encodeURIComponent(campaignId)}/insight`,
   campaignBigIdea: (campaignId: string): string => `#/content/${encodeURIComponent(campaignId)}/big-idea`,

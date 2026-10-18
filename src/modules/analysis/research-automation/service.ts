@@ -3468,7 +3468,11 @@ export class ResearchAutomationService {
       let comtrade: ComtradeRun | undefined;
       if (stepId === 'COLLECTION' && this.#comtradeSource && !controller.signal.aborted) {
         const { keyword, requestedPeriod } = input as CollectInput;
-        try { comtrade = { collection: await this.#comtradeSource.collect({ keyword, description: start.description ?? null, mode: start.mode, periodEndDate: requestedPeriod.endDate }, { signal: controller.signal }) }; }
+        const productTitles = [
+          ...(result.result && 'productObservations' in result.result ? result.result.productObservations.flatMap(item => item.productName ? [item.productName] : []) : []),
+          ...result.step.productCards.flatMap(card => card.title ? [card.title] : []),
+        ];
+        try { comtrade = { collection: await this.#comtradeSource.collect({ keyword, description: start.description ?? null, mode: start.mode, periodEndDate: requestedPeriod.endDate, productTitles }, { signal: controller.signal }) }; }
         catch { comtrade = { thrown: true }; }
       }
       // Search-ads library comes last: at most three paid calls, never repeated after a restart. Brands come only from the auto-run pick record.

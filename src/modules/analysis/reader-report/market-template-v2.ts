@@ -197,7 +197,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   const comtradeRows = comtradeRenderableRows(comtrade);
   const comtradeTable = !comtrade ? '' : comtradeRows.length === 0 ? `<p>${esc(comtradeNotice(comtrade))}</p>`
     : (comtrade.status === 'OK' ? '' : `<p>${esc(comtradeNotice(comtrade))}</p>`) +
-      `<p>Mã hàng ước tính: ${esc(comtrade.hsCode!)}. Mô tả chính thức (tiếng Anh): ${esc(comtradeOfficialText(comtrade))}. Diễn giải tự động: ${esc(comtrade.descriptionVi!)}</p>` +
+      `<p>Mã hàng ước tính: ${esc(comtrade.hsCode!)}. ${comtrade.reasonVi ? `Phạm vi áp dụng (diễn giải tự động): ${esc(comtrade.reasonVi)} ` : ''}Mô tả chính thức (tiếng Anh): ${esc(comtradeOfficialText(comtrade))}. Diễn giải tự động: ${esc(comtrade.descriptionVi!)}</p>` +
       tbl('6.2', COMTRADE_TABLE_TITLE, '', ['Bên báo số', 'Chiều', 'Năm', 'Giá trị (USD, theo bên báo)', 'Ghi chú'],
         comtradeRows.map(row => {
           const call = comtrade.calls.find(item => item.captureIndex === row.captureIndex);
