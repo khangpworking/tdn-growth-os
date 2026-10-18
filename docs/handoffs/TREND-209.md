@@ -26,21 +26,37 @@ also `null`.
   page) with an optional signed number or percent before parsing. The leading number is
   the cell value. A bare marker parses as `null`.
 - `priceRangeEnd` gives `minPrice` the low end and `maxPrice` the high end of an
-  `a - b` range; other columns never read a range. A reversed range stays `null`.
+  `a - b` range; other columns never read a range. Reversed ranges, percentage
+  bounds and bounds containing trend markers stay `null`.
 - `displayed` keeps the full page text; the parsed value has precision
   `display_rounded`. Response-body values are unchanged.
+- Trend-cell unit scaling shifts the decimal exponent, so values such as
+  `4,1 million` become integer `4100000` rather than a floating-point fraction
+  rejected by the app's integer-string contract. Existing numeric scalar cells
+  retain their prior parsing.
 - The change percent is not captured into `revenueChg`/`unitsChg` (kept minimal).
 
 ## Evidence
 
 - Unit: `tests/unit/p6-209-adapter.test.ts` new test with synthetic cells (markers,
-  bare marker, range ends, reversed range, W13 rank). Adapter and manifest test files
-  pass on Windows (108/108).
+  bare marker, range ends, reversed range, W13 rank). The author's pre-review
+  adapter and manifest tests passed on Windows (108/108). Review added invalid
+  price-bound, integer-scaling and raw-value precedence checks; the final adapter
+  and manifest tests pass on Node 24/Linux (109/109), as does `npm run typecheck`.
 - Offline, no provider call: the retained DOM observations of a 2026-10-18 replay run
   were extracted DOM-only with the old and the new `capture.js`. The old extraction
   equals the retained snapshot's product rows. The new one fills revenue and units for
   every product row on both platforms and `minPrice` for every non-empty range cell;
   no previously numeric value changed and no other cell field differs.
+- Review rechecked the final parser: all 200 product rows have integer revenue and
+  units, all 631 previously numeric cells are unchanged, and five newly filled
+  revenues no longer contain multiplication artifacts. A synthetic calculation
+  confirms the original fraction fails the app contract and the fixed value passes.
+- Browser-free report checks preserve platform separation, partial-total rules,
+  frozen reader hashes and the rounding note without raw unit words or arrows.
+  Full `sync1-market-corrections` and capture integration runs hit the 300-second
+  bound in Python subprocess calls under sandbox restrictions; the six non-workbook
+  sync1 checks and the isolated capture-provenance integration check pass.
 
 ## Deploy note
 

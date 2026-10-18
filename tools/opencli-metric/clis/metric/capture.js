@@ -35,7 +35,9 @@ const TREND_SUFFIX = /\s*[▲▼↗↘—]\s*(?:[-+]?\d[\d.,]*\s*%?)?$/u;
 const PRICE_RANGE = /^(.+?)\s+-\s+(.+)$/u;
 
 function numberFromDisplay(displayed) {
-  let text = clean(displayed).replace(TREND_SUFFIX, '').toLowerCase().replace(/\s+/g, '');
+  const source = clean(displayed);
+  const leading = source.replace(TREND_SUFFIX, '');
+  let text = leading.toLowerCase().replace(/\s+/g, '');
   text = text.replace(/[₫đ]/g, '').replace(/vnd$/i, '');
   const suffixMatch = /(billion|million|thousand|tỷ|ty|tr|triệu|trieu|k|nghìn|nghin|%)$/iu.exec(text);
   const suffix = suffixMatch?.[1]?.normalize('NFC').toLowerCase() || '';
@@ -66,7 +68,13 @@ function numberFromDisplay(displayed) {
     : /^(?:million|tr|triệu|trieu)$/iu.test(suffix) ? 1_000_000
       : /^(?:thousand|k|nghìn|nghin)$/iu.test(suffix) ? 1_000
         : 1;
-  const value = sign * base * multiplier;
+  // Newly supported trend cells must not turn 4.1 million into
+  // 4099999.9999999995: the app consumes integer strings. Shift the decimal
+  // exponent instead of multiplying, while preserving legacy scalar parsing.
+  const [digits, exponent = '0'] = String(base).split('e');
+  const value = source !== leading && multiplier !== 1
+    ? sign * Number(`${digits}e${Number(exponent) + Math.log10(multiplier)}`)
+    : sign * base * multiplier;
   return Number.isFinite(value) ? value : null;
 }
 
@@ -74,6 +82,8 @@ export const parseMetricDisplay = numberFromDisplay;
 
 function priceRangeEnd(displayed, column) {
   if (column !== 'minPrice' && column !== 'maxPrice') return null;
+  // Range endpoints are prices, not percentages or separately decorated trends.
+  if (/[▲▼↗↘—%]/u.test(displayed)) return null;
   const match = PRICE_RANGE.exec(clean(displayed));
   if (!match) return null;
   const low = numberFromDisplay(match[1]);
