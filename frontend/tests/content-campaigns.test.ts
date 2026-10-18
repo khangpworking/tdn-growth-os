@@ -576,7 +576,7 @@ test('campaign page renders active rows and keeps deleted campaigns in the recen
   assert.match(html, /Canxi B \(1\)/);
   assert.match(html, /Tư vấn \(Plus, Pro\)/);
   assert.match(html, new RegExp(`href="#/content/${campaignId}/insight">Insight</`));
-  assert.match(html, new RegExp(`<td class="campaign-progress"><a href="#/content/${campaignId}/insight">Insight</a> · <a href="#/content/${campaignId}/big-idea">Big Idea</a> · <a href="#/content/${campaignId}/angle">Góc</a></td>`));
+  assert.match(html, new RegExp(`<td class="campaign-progress"><a href="#/content/${campaignId}/insight">Insight</a> · <a href="#/content/${campaignId}/big-idea">Big Idea</a> · <a href="#/content/${campaignId}/angle">Góc</a> · <a href="#/content/${campaignId}/package/new">Caption &amp; Poster</a></td>`));
   assert.match(html, /Đã xóa gần đây/);
   assert.match(html, /Chiến dịch đã xóa/);
   assert.match(html, /Khôi phục/);
@@ -655,14 +655,14 @@ test('CampaignForm disables upgrade when a selected summary-only option has no d
   assert.match(html, /<button[^>]*disabled=""[^>]*>Dùng phiên bản mới<\/button>/);
 });
 
-test('campaign detail links step 1, shows disabled next-step indicators and respects deletion and OWNER lock', async () => {
+test('campaign detail links step 1, links the packages step and respects deletion and OWNER lock', async () => {
   const { CampaignDetail } = await tsImport('../src/CampaignsPage.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/CampaignsPage');
   const common = { view: detail as never, brandName: 'Canxi A', researchProductWorkspaceName: 'Workspace nghiên cứu', onEdit: () => undefined, onLifecycle: () => undefined };
   const active = renderToStaticMarkup(createElement(CampaignDetail, { ...common, mode: 'demo', ownerToken: 'demo-token', writesAvailable: true }));
   assert.match(active, new RegExp(`<a class="step" href="#/content/${campaignId}/insight"><b>Insight — mở bước 1</b></a>`));
   assert.match(active, new RegExp(`<a class="step" href="#/content/${campaignId}/big-idea"><b>Big Idea — mở bước 2</b></a>`));
   assert.match(active, new RegExp(`<a class="step" href="#/content/${campaignId}/angle"><b>Góc nội dung — mở bước 3</b></a>`));
-  assert.match(active, /Caption &amp; Poster — có ở bước tiếp theo/);
+  assert.match(active, new RegExp(`<a class="step" href="#/content/${campaignId}/package/new"><b>Caption &amp; Poster — mở bước 4</b></a>`));
   const deleted = renderToStaticMarkup(createElement(CampaignDetail, { ...common, mode: 'demo', ownerToken: 'demo-token', writesAvailable: true }));
   assert.match(deleted, /Chiến dịch đã bị xóa\. Khôi phục được đến/);
   assert.doesNotMatch(deleted, />Sửa</);

@@ -6,6 +6,7 @@ import type {
   ContentCatalogItemSummary,
 } from '../../contracts/api/content-api.generated';
 import { ContentDataSourceError, loadBrands } from './content-data-source';
+import { loadPackages } from './package-data-source';
 import {
   loadCatalog,
   loadCatalogItem,
@@ -221,7 +222,7 @@ function CampaignListView(props: {
           <td><a href={routeToHash.campaign(campaign.campaignId)}><strong>{campaign.name}</strong></a><small>v{campaign.version}</small></td>
           <td>{findBrandName(brands, campaign.brandId)}</td>
           <td className="campaign-items">{campaign.items.map(itemLabel).join(', ')}</td>
-          <td className="campaign-progress"><a href={routeToHash.campaignInsight(campaign.campaignId)}>Insight</a> · <a href={routeToHash.campaignBigIdea(campaign.campaignId)}>Big Idea</a> · <a href={routeToHash.campaignAngle(campaign.campaignId)}>Góc</a></td>
+          <td className="campaign-progress"><a href={routeToHash.campaignInsight(campaign.campaignId)}>Insight</a> · <a href={routeToHash.campaignBigIdea(campaign.campaignId)}>Big Idea</a> · <a href={routeToHash.campaignAngle(campaign.campaignId)}>Góc</a> · <a href={routeToHash.packageNew(campaign.campaignId, [])}>Caption &amp; Poster</a></td>
           <td>{formatDateTime(campaign.updatedAt)}</td>
         </tr>)}</tbody></table></div>}
     {deleted.length > 0 && <section className="surface recently-deleted campaign-deleted" aria-labelledby="campaign-deleted-title">
@@ -338,8 +339,18 @@ export function CampaignForm(props: CampaignFormProps) {
 export function CampaignDetail(props: CampaignDetailProps) {
   const { view } = props;
   const [confirming, setConfirming] = useState(false);
+  // Real saved package count for the last step; null while unknown (demo, loading or a failed read).
+  const [packageCount, setPackageCount] = useState<number | null>(null);
   const writable = canWrite(props.mode, props.ownerToken, props.writesAvailable);
   const deleted = view.lifecycle.deleted;
+  const detailCampaignId = view.campaign.campaignId;
+  useEffect(() => {
+    setPackageCount(null);
+    if (props.mode === 'demo') return;
+    let active = true;
+    loadPackages(detailCampaignId).then((list) => { if (active && list) setPackageCount(list.packages.length); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [props.mode, detailCampaignId]);
   const expired = deleted ? Date.now() > Date.parse(deleted.restorableUntil) : false;
   return <article className="prompt-view campaign-detail-view">
     <header className="prompt-head"><div><h2>{view.campaign.campaign.name}</h2><p className="prompt-meta"><span>{props.brandName}</span><span>v{view.campaign.version}</span><span>{formatDateTime(view.campaign.createdAt)}</span></p></div><div className="prompt-actions">
@@ -352,7 +363,7 @@ export function CampaignDetail(props: CampaignDetailProps) {
     <section className="campaign-objective"><h3>Mục tiêu</h3><p>{view.campaign.campaign.objective}</p></section>
     <section className="campaign-detail-items" aria-labelledby="campaign-products-title"><h3 id="campaign-products-title">Sản phẩm</h3><ul>{view.items.map((item) => <li key={item.itemId}><strong>{item.name}</strong> <small>v{item.itemVersion}</small><span>{item.tiers.length > 0 ? item.tiers.map((tier) => tier.name).join(', ') : 'Tất cả các gói'}</span></li>)}</ul></section>
     {props.researchProductWorkspaceName && <p className="muted">Liên kết sản phẩm nghiên cứu: <strong>{props.researchProductWorkspaceName}</strong></p>}
-    <section className="campaign-steps" aria-label="Các bước chiến dịch"><a className="step" href={routeToHash.campaignInsight(view.campaign.campaignId)}><b>Insight — mở bước 1</b></a><a className="step" href={routeToHash.campaignBigIdea(view.campaign.campaignId)}><b>Big Idea — mở bước 2</b></a><a className="step" href={routeToHash.campaignAngle(view.campaign.campaignId)}><b>Góc nội dung — mở bước 3</b></a><button className="step" disabled type="button"><b>Caption &amp; Poster — có ở bước tiếp theo</b></button></section>
+    <section className="campaign-steps" aria-label="Các bước chiến dịch"><a className="step" href={routeToHash.campaignInsight(view.campaign.campaignId)}><b>Insight — mở bước 1</b></a><a className="step" href={routeToHash.campaignBigIdea(view.campaign.campaignId)}><b>Big Idea — mở bước 2</b></a><a className="step" href={routeToHash.campaignAngle(view.campaign.campaignId)}><b>Góc nội dung — mở bước 3</b></a><a className="step" href={routeToHash.packageNew(view.campaign.campaignId, [])}><b>{packageCount === null ? 'Caption & Poster — mở bước 4' : packageCount > 0 ? `Caption & Poster — xem ${packageCount} gói` : 'Caption & Poster — chưa có gói, tạo gói đầu tiên'}</b></a></section>
     <section className="brand-history" aria-labelledby="campaign-history-title"><h3 id="campaign-history-title">Lịch sử phiên bản</h3><ol className="timeline">{[...view.history].reverse().map((entry) => <li key={entry.version}>v{entry.version} · {entry.name} · {formatDateTime(entry.createdAt)}</li>)}</ol></section>
   </article>;
 }
