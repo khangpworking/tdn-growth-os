@@ -263,7 +263,7 @@ test('auto presentation without a receipt preserves zero/missing, keeps referenc
   assert.ok(report.bytes.toString().includes('Chưa quy đổi được giá theo đơn vị chuẩn'));
   const priceSection = new JSDOM(report.bytes.toString()).window.document.querySelector('#M08')!.textContent!;
   assert.ok(priceSection.includes('Chưa có số liệu chi phí quảng cáo nên chưa tính ROAS (doanh thu trên chi phí quảng cáo) và CPA (chi phí cho mỗi đơn hàng).'));
-  assert.doesNotMatch(priceSection, /\b(?:ROAS|CPA)\s*[:=]\s*[-−]?\d/u);
+  assert.doesNotMatch(priceSection, /\b(?:ROAS|CPA)\s*[:=]?\s*[-−]?\d/u);
 });
 
 test('actual auto revision composes retained literal19/Source18 with Market20 and never discovers an unselected prepared package', async t => {
