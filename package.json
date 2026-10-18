@@ -57,7 +57,8 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "vega": "6.4.0",
-    "vega-lite": "6.4.3"
+    "vega-lite": "6.4.3",
+    "tldts": "7.4.15"
   },
   "devDependencies": {
     "@types/better-sqlite3": "7.6.13",

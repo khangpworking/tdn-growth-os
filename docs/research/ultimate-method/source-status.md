@@ -120,3 +120,23 @@ market-method bridge's existing capture budget. Owner uploads keep their current
 storage, question cap and package lineage. Discovery-only receipts are technical
 records: no kept/quoted PDF means no visible S25 block or provenance addition.
 The first live canary remains pending; this review uses synthetic fixtures only.
+
+### S17 website discovery implementation (19/10/2026, local review)
+
+New `search-ads-v2` runs first reuse plain and expanded run search rows. An exact
+normalized registrable-name match may nominate an observed host; different exact
+registrable domains remain ambiguous. Marketplace, social, news, public-sector,
+provider and retailer/aggregator hosts are excluded. Only a brand with no match
+gets one deterministic `<brand label> trang chủ chính hãng` search (VN/vi, ten
+results, only positions one through five eligible). The lane makes at most three
+site searches plus three ads reads, spaces requests by two seconds, and stops on
+request failure or cancellation. Recovery never requeues collection calls.
+
+Ads usage retains ordinal 10; site searches use separate ordinals 17–19, one per
+selected brand position. The existing SQLite ordinal constraint is nonnegative
+with no upper bound; no migration is needed. Each discovery capture is retained
+and referenced by its brand. Discovery alone adds no report source row or ads
+figure; S17 evidence still requires a rendered ads row. The table is unchanged.
+V1 documents keep their original notice and rendering; flag-off reports keep
+their original bytes. Verification uses injected synthetic transport only; no
+live provider or browser was used.

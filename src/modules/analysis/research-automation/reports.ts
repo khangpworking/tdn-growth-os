@@ -1161,7 +1161,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     const stored = kind === 'MARKET' && sectionId === 'M07' ? input.collection?.searchAds : undefined;
     if (!stored) return '';
     const okBrands = searchAdsOkBrands(stored);
-    const notices = (brands: typeof stored.brands) => brands.map(brand => `<p><span data-quote>${escape(brand.label)}</span>: ${escape(searchAdsBrandNotice(brand))}</p>`).join('');
+    const notices = (brands: typeof stored.brands) => brands.map(brand => `<p><span data-quote>${escape(brand.label)}</span>: ${escape(searchAdsBrandNotice(brand, stored.profile))}</p>`).join('');
     if (okBrands.length === 0) return `<p>${escape(searchAdsNotice(stored))}</p>` + notices(stored.brands);
     const num = (v: number | null): string => v === null || v === 0 ? 'không có' : String(v);
     const day = (v: string | null): string => v === null ? 'không có' : v.split('-').reverse().join('/');

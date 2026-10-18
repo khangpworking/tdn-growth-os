@@ -1,19 +1,23 @@
 // Public search-ads library lane for the automated Market flow (S17). Off unless the flag is exactly "1".
 //
 // For the run's top brands, count the ads a brand's own website has in the public search-ads transparency library, shown in
-// M07 as table 7.3 beside the Meta table. At most 3 paid calls per run, spaced at least 2 seconds apart, never retried.
-// The brand's website comes only from the run's own web search rows; nothing is searched for. Advertiser names, advertiser
+// M07 as table 7.3 beside the Meta table. At most 6 paid calls per run (3 site searches and 3 ads reads), spaced at least 2 seconds apart, never retried.
+// A website must occur in run rows or one deterministic brand-site search. Advertiser names, advertiser
 // ids, images, links and ad ids stay out of the step document: the library often lists an agency, so it keeps only counts, formats and dates.
 import { boundedRequest, bytesContainSecret, CaptureLog, defaultProviderTransport, isRecord, parseJson, safeProviderCode, type ProviderTransport } from './provider-common.js';
+import { parse as parseDomain } from 'tldts';
+import { createSerpApiProvider } from './provider-serpapi.js';
+import { planExpandedSearch, SearchCallBudget, type ExpandedSearchRequest } from './expanded-search-queries.js';
 import type { ProviderCallOptions, ProviderRawCapture } from './providers.js';
-import type { StepSearchAds, StepSearchAdsBrand, StepSearchAdsBrandStatus, StepSearchAdsStatus } from './model.js';
+import type { StepSearchAds, StepSearchAdsBrand, StepSearchAdsBrandStatus, StepSearchAdsStatus, SearchAdsBrandV2 } from './model.js';
 import { NEWS_DOMAINS, webTextHidden } from './web-page-type.js';
 
 export const GOOGLE_ADS_FLAG = 'TDN_RESEARCH_GOOGLE_ADS_ENABLED';
-/** Usage ordinal inside the collection step (9 Comtrade; 11 is taken by the official-statistics package). */
+/** Ads usage remains at 10; 0–16 are occupied by other collection lanes. Discovery uses 17–19. */
 export const GOOGLE_ADS_USAGE_ORDINAL = 10;
 export const GOOGLE_ADS_PROVIDER = 'SERPAPI' as const;
-export const GOOGLE_ADS_PROFILE = 'search-ads-v1' as const;
+export const GOOGLE_ADS_DISCOVERY_USAGE_ORDINALS = [17, 18, 19] as const;
+export const GOOGLE_ADS_PROFILE = 'search-ads-v2' as const;
 export const GOOGLE_ADS_MAX_BRANDS = 3;
 export const GOOGLE_ADS_SPACING_MS = 2_000;
 export const GOOGLE_ADS_TIMEOUT_MS = 30_000;
@@ -40,7 +44,7 @@ export interface SearchAdsBrandInput { readonly label: string; readonly key: str
 export interface SearchAdsInput {
   /** Distinct brands of the run, best first. Only the first three are used. */
   readonly brands: readonly SearchAdsBrandInput[];
-  /** Links of the run's own web search rows. */
+  /** Links of the run's plain and expanded web rows, ordered by position. */
   readonly webUrls: readonly string[];
   /** Marketplace hosts that must never be picked (extra to the fixed deny-list). */
   readonly deniedHosts?: readonly string[];
@@ -49,9 +53,10 @@ export interface SearchAdsInput {
   readonly periodEndDate: string;
 }
 
-export interface SearchAdsBrandResult extends Omit<StepSearchAdsBrand, 'captureIndex' | 'retrievedAt' | 'responseSha256'> {
+export interface SearchAdsBrandResult extends Omit<SearchAdsBrandV2, 'captureIndex' | 'retrievedAt' | 'responseSha256' | 'discoveryCaptureIndex'> {
   /** Stored response of this brand's call (any outcome); null when no call was made. */
   readonly capture: ProviderRawCapture | null;
+  readonly discoveryCapture: ProviderRawCapture | null;
 }
 export interface SearchAdsCollection {
   readonly status: StepSearchAdsStatus;
@@ -102,34 +107,48 @@ export function brandsFromPick(pick: unknown, options: { readonly missingRevenue
   return out;
 }
 
+export const RETAILER_AGGREGATOR_DENY = new Set(['dienmayxanh', 'nguyenkim', 'mediamart', 'thegioididong', 'cellphones', 'hc', 'pico', 'dienmaycholon', 'websosanh']);
 const DENIED_NAMES = new Set(['shopee', 'lazada', 'tiki', 'sendo', 'tiktok', 'facebook', 'instagram', 'youtube', 'wikipedia', 'youtu', 'fb', 'threads', 'twitter', 'x']);
 export function hostOf(url: string): string | null {
   try {
-    const host = new URL(url).hostname.toLowerCase().replace(/\.$/u, '').replace(/^www\./u, '');
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return null;
+    const host = parsed.hostname.toLowerCase().replace(/\.$/u, '');
     return host.length > 0 && host.includes('.') && /^[a-z0-9.-]+$/u.test(host) ? host : null;
   } catch { return null; }
 }
 export function hostDenied(host: string, extra: readonly string[] = []): boolean {
   if (host.endsWith('.gov.vn') || host.endsWith('.edu.vn')) return true;
-  if (host.split('.').some(label => DENIED_NAMES.has(label))) return true;
+  if (host.split('.').some(label => DENIED_NAMES.has(label) || RETAILER_AGGREGATOR_DENY.has(label))) return true;
   if (webTextHidden(host) || FORBIDDEN_NAME.test(host) || NEWS_DOMAINS.some(value => host === value || host.endsWith(`.${value}`))) return true;
   return extra.some(value => { const other = value.toLowerCase().replace(/^www\./u, ''); return other.length > 0 && (host === other || host.endsWith(`.${other}`)); });
 }
 
 export type DomainChoice = { readonly kind: 'DOMAIN'; readonly domain: string } | { readonly kind: 'NONE' } | { readonly kind: 'AMBIGUOUS' };
-/** The one host whose first label contains the brand key; the most web rows wins, a tie is ambiguous. */
+/** Exact registrable label only. Different suffixes are ambiguous; subdomains share one domain.
+ * Input order is search position order, so the first observed host of that domain wins. */
 export function chooseDomain(brandKey: string, webUrls: readonly string[], deniedHosts: readonly string[] = []): DomainChoice {
-  const counts = new Map<string, number>();
+  const domains = new Map<string, string>();
   for (const url of webUrls) {
     const host = hostOf(url);
     if (!host || hostDenied(host, deniedHosts)) continue;
-    const first = normalizedKey(host.split('.')[0]!);
-    if (first && first.includes(brandKey)) counts.set(host, (counts.get(host) ?? 0) + 1);
+    const parsed = parseDomain(host, { allowPrivateDomains: true });
+    if (parsed.domain && parsed.domainWithoutSuffix && normalizedKey(parsed.domainWithoutSuffix) === brandKey)
+      if (!domains.has(parsed.domain)) domains.set(parsed.domain, host);
   }
-  if (counts.size === 0) return { kind: 'NONE' };
-  const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-  if (ranked.length > 1 && ranked[0]![1] === ranked[1]![1]) return { kind: 'AMBIGUOUS' };
-  return { kind: 'DOMAIN', domain: ranked[0]![0] };
+  if (domains.size === 0) return { kind: 'NONE' };
+  if (domains.size > 1) return { kind: 'AMBIGUOUS' };
+  return { kind: 'DOMAIN', domain: [...domains.values()][0]! };
+}
+
+/** The same plain-word validation as expanded searches; no operators, model or inferred domain. */
+export function brandSiteSearchRequest(label: string): ExpandedSearchRequest {
+  // Validate the label separately as well, so template words cannot conceal a malformed name.
+  planExpandedSearch({ version: 'expanded-search-request-v1', confirmedProducts: [], confirmedBrands: [label], requestedWindow: null, siteDomain: null });
+  const request: ExpandedSearchRequest = { version: 'expanded-search-request-v1', confirmedProducts: [], confirmedBrands: [],
+    exactKeyword: `${label} trang chủ chính hãng`, requestedWindow: null, siteDomain: null };
+  planExpandedSearch(request);
+  return request;
 }
 
 // ---- response reading (strict; nothing is repaired) ----
@@ -183,16 +202,21 @@ export function summarizeResponse(bytes: Buffer, periodStartDate: string, period
 
 // ---- the lane ----
 
-const skipped = (label: string, domain: string | null, status: StepSearchAdsBrandStatus, reason: string): SearchAdsBrandResult => ({ label, domain, status, reason,
-  totalResults: null, creativeCount: null, formats: null, firstShown: null, lastShown: null, maxDaysShown: null, overlapCount: null, invalidCount: null, usageOrdinal: null, capture: null });
+const skipped = (label: string, domain: string | null, status: StepSearchAdsBrandStatus, reason: Exclude<SearchAdsBrandV2['reason'], null>): SearchAdsBrandResult => ({ label, domain, status, reason,
+  totalResults: null, creativeCount: null, formats: null, firstShown: null, lastShown: null, maxDaysShown: null, overlapCount: null, invalidCount: null, usageOrdinal: null, capture: null, domainSource: null, discoveryCapture: null, discoveryUsageOrdinal: null });
 
 /** apiKey is the existing SerpApi key; it is placed only on the request URL and never stored. */
 export function createGoogleAdsSource(apiKey: string, transport: ProviderTransport = defaultProviderTransport, timeoutMs = GOOGLE_ADS_TIMEOUT_MS): SearchAdsSource {
+  const searchProvider = createSerpApiProvider(apiKey, transport);
   return {
     async collect(input, callOptions = {}) {
       const signal = callOptions.signal;
-      const brands = input.brands.slice(0, GOOGLE_ADS_MAX_BRANDS);
-      const log = new CaptureLog(GOOGLE_ADS_PROVIDER, transport, undefined, GOOGLE_ADS_MAX_BRANDS);
+      const seenBrands = new Set<string>();
+      const brands = input.brands.filter(brand => {
+        if (seenBrands.has(brand.key)) return false;
+        seenBrands.add(brand.key); return true;
+      }).slice(0, GOOGLE_ADS_MAX_BRANDS);
+      const log = new CaptureLog(GOOGLE_ADS_PROVIDER, transport, undefined, GOOGLE_ADS_MAX_BRANDS * 2);
       const out: SearchAdsBrandResult[] = [];
       let requests = 0, ambiguousRequests = 0, lastEnd: number | null = null;
       const finish = (status: StepSearchAdsStatus): SearchAdsCollection => ({ status, brands: out, requests, ambiguousRequests });
@@ -201,15 +225,57 @@ export function createGoogleAdsSource(apiKey: string, transport: ProviderTranspo
       const pause = async (ms: number): Promise<boolean> => {
         try { await transport.sleep(ms, signal); return !signal?.aborted; } catch { return false; }
       };
-      for (const brand of brands) {
-        const choice = chooseDomain(brand.key, input.webUrls, input.deniedHosts);
-        if (choice.kind === 'NONE') { out.push(skipped(brand.label, null, 'SKIPPED_NO_DOMAIN', 'NO_MATCHING_WEB_ROW')); continue; }
-        if (choice.kind === 'AMBIGUOUS') { out.push(skipped(brand.label, null, 'SKIPPED_AMBIGUOUS_DOMAIN', 'TIED_WEB_ROWS')); continue; }
-        if (signal?.aborted) { out.push(skipped(brand.label, choice.domain, 'CANCELLED', 'CANCELLED')); return finish('CANCELLED'); }
-        if (lastEnd !== null) {
-          const wait = lastEnd + GOOGLE_ADS_SPACING_MS - transport.now();
-          if (wait > 0 && !(await pause(wait))) { out.push(skipped(brand.label, choice.domain, 'CANCELLED', 'CANCELLED')); return finish('CANCELLED'); }
+      const budget = new SearchCallBudget({ trends: 0, search: GOOGLE_ADS_MAX_BRANDS });
+      const ready = async (): Promise<boolean> => {
+        if (signal?.aborted) return false;
+        const wait = lastEnd === null ? 0 : lastEnd + GOOGLE_ADS_SPACING_MS - transport.now();
+        return (wait <= 0 || await pause(wait)) && !signal?.aborted;
+      };
+      const settledStatus = (): StepSearchAdsStatus => out.some(item => item.status === 'OK') ? 'OK' : 'NO_DATA';
+      for (const [brandIndex, brand] of brands.entries()) {
+        let choice = chooseDomain(brand.key, input.webUrls, input.deniedHosts);
+        let domainSource: SearchAdsBrandV2['domainSource'] = choice.kind === 'DOMAIN' ? 'RUN_ROWS' : null;
+        let discoveryCapture: ProviderRawCapture | null = null;
+        let discoveryUsageOrdinal: SearchAdsBrandV2['discoveryUsageOrdinal'] = null;
+        const statusOnly = (domain: string | null, status: StepSearchAdsBrandStatus, reason: Exclude<SearchAdsBrandV2['reason'], null>): SearchAdsBrandResult => ({
+          ...skipped(brand.label, domain, status, reason), domainSource, discoveryCapture, discoveryUsageOrdinal,
+        });
+        if (choice.kind === 'NONE') {
+          let request: ExpandedSearchRequest;
+          try { request = brandSiteSearchRequest(brand.label); }
+          catch { out.push(statusOnly(null, 'FAILED', 'DISCOVERY_QUERY_REFUSED')); return finish(settledStatus()); }
+          if (!(await ready())) { out.push(statusOnly(null, 'CANCELLED', 'CANCELLED')); return finish('CANCELLED'); }
+          try {
+            const result = await searchProvider.collectExpanded({ runId: 'search-ads', mode: 'CATEGORY', keyword: brand.label, country: 'VN',
+              requestedPeriod: { startDate: input.periodStartDate, endDate: input.periodEndDate }, selectedProductRefs: [], peerProductRefs: [] },
+              request, 0, budget, callOptions);
+            requests += result.usage.requestsIssued;
+            if (result.usage.requestsIssued > 0) discoveryUsageOrdinal = GOOGLE_ADS_DISCOVERY_USAGE_ORDINALS[brandIndex]!;
+            discoveryCapture = result.captures[0] ?? null;
+            lastEnd = transport.now();
+            ambiguousRequests += result.usage.ambiguousPaidRequests;
+            if (result.status === 'CANCELLED' || signal?.aborted) {
+              out.push(statusOnly(null, 'CANCELLED', 'CANCELLED')); return finish('CANCELLED');
+            }
+            if (result.status !== 'SUCCEEDED' || !discoveryCapture?.responseSha256) {
+              out.push(statusOnly(null, 'FAILED', 'DISCOVERY_FAILED')); return finish(settledStatus());
+            }
+            // Provider positions, never array slots: positions beyond five cannot nominate a site.
+            const urls = result.webResults.filter(row => row.position <= 5).sort((a, b) => a.position - b.position).map(row => row.url);
+            choice = chooseDomain(brand.key, urls, input.deniedHosts);
+            domainSource = choice.kind === 'DOMAIN' ? 'BRAND_SITE_SEARCH' : null;
+          } catch {
+            discoveryUsageOrdinal = GOOGLE_ADS_DISCOVERY_USAGE_ORDINALS[brandIndex]!;
+            requests++;
+            lastEnd = transport.now();
+            ambiguousRequests++;
+            out.push(statusOnly(null, signal?.aborted ? 'CANCELLED' : 'FAILED', 'DISCOVERY_FAILED'));
+            return finish(signal?.aborted ? 'CANCELLED' : settledStatus());
+          }
+          if (choice.kind === 'NONE') { out.push(statusOnly(null, 'SKIPPED_NO_DOMAIN', 'DISCOVERY_NO_MATCH')); continue; }
         }
+        if (choice.kind === 'AMBIGUOUS') { out.push(statusOnly(null, 'SKIPPED_AMBIGUOUS_DOMAIN', discoveryUsageOrdinal === null ? 'AMBIGUOUS_RUN_DOMAINS' : 'DISCOVERY_AMBIGUOUS')); continue; }
+        if (!(await ready())) { out.push(statusOnly(choice.domain, 'CANCELLED', 'CANCELLED')); return finish('CANCELLED'); }
         const params = { engine: 'google_ads_transparency_center', region: GOOGLE_ADS_REGION, num: String(GOOGLE_ADS_NUM), text: choice.domain } as const;
         const url = new URL(GOOGLE_ADS_ORIGIN + GOOGLE_ADS_PATH);
         for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
@@ -221,30 +287,30 @@ export function createGoogleAdsSource(apiKey: string, transport: ProviderTranspo
         let response: Awaited<ReturnType<typeof boundedRequest>>;
         try {
           response = await boundedRequest(transport, { url, method: 'GET', headers: { Accept: 'application/json' }, body: null, timeoutMs, maxBytes: GOOGLE_ADS_MAX_BYTES, signal });
-        } catch { out.push(skipped(brand.label, choice.domain, 'FAILED', 'REQUEST_REFUSED')); continue; }
+        } catch { ambiguousRequests++; out.push({ ...statusOnly(choice.domain, 'FAILED', 'REQUEST_REFUSED'), usageOrdinal: GOOGLE_ADS_USAGE_ORDINAL }); return finish(settledStatus()); }
         lastEnd = transport.now();
-        const fail = (reason: string, capture: ProviderRawCapture | null, status: StepSearchAdsBrandStatus = 'FAILED'): void => {
-          out.push({ ...skipped(brand.label, choice.domain, status, reason), usageOrdinal: GOOGLE_ADS_USAGE_ORDINAL, capture });
+        const fail = (reason: Exclude<SearchAdsBrandV2['reason'], null>, capture: ProviderRawCapture | null, status: StepSearchAdsBrandStatus = 'FAILED'): void => {
+          out.push({ ...statusOnly(choice.domain, status, reason), usageOrdinal: GOOGLE_ADS_USAGE_ORDINAL, capture });
         };
-        if (response.kind === 'ABORTED') {
+        if (response.kind === 'ABORTED' || signal?.aborted) {
           ambiguousRequests++;
           fail('CANCELLED', log.record(context, requestedAt, 'ABORTED_AMBIGUOUS', null, null, null), 'CANCELLED');
           return finish('CANCELLED');
         }
-        if (response.kind === 'TIMEOUT') { ambiguousRequests++; fail('TIMEOUT', log.record(context, requestedAt, 'TIMEOUT_AMBIGUOUS', null, null, null)); continue; }
-        if (response.kind === 'TRANSPORT') { ambiguousRequests++; fail('TRANSPORT_ERROR', log.record(context, requestedAt, 'TRANSPORT_AMBIGUOUS', null, null, null)); continue; }
-        if (response.kind === 'OVERSIZE') { fail('RESPONSE_TOO_LARGE', log.record(context, requestedAt, 'OVERSIZE', response.status, null, null)); continue; }
-        if (response.kind !== 'RECEIVED') { fail('REQUEST_REFUSED', null); continue; }
-        if (bytesContainSecret(response.bytes, apiKey)) { fail('CREDENTIAL_ECHO_REFUSED', log.record(context, requestedAt, 'CREDENTIAL_ECHO_REFUSED', response.status, null, null)); continue; }
+        if (response.kind === 'TIMEOUT') { ambiguousRequests++; fail('TIMEOUT', log.record(context, requestedAt, 'TIMEOUT_AMBIGUOUS', null, null, null)); return finish(settledStatus()); }
+        if (response.kind === 'TRANSPORT') { ambiguousRequests++; fail('TRANSPORT_ERROR', log.record(context, requestedAt, 'TRANSPORT_AMBIGUOUS', null, null, null)); return finish(settledStatus()); }
+        if (response.kind === 'OVERSIZE') { fail('RESPONSE_TOO_LARGE', log.record(context, requestedAt, 'OVERSIZE', response.status, null, null)); return finish(settledStatus()); }
+        if (response.kind !== 'RECEIVED') { fail('REQUEST_REFUSED', null); return finish(settledStatus()); }
+        if (bytesContainSecret(response.bytes, apiKey)) { fail('CREDENTIAL_ECHO_REFUSED', log.record(context, requestedAt, 'CREDENTIAL_ECHO_REFUSED', response.status, null, null)); return finish(settledStatus()); }
         const json = parseJson(response.bytes);
         const providerCode = isRecord(json) ? safeProviderCode(json.error_code ?? (isRecord(json.search_metadata) ? json.search_metadata.id : undefined)) : null;
-        if (response.status !== 200) { fail('HTTP_ERROR', log.record(context, requestedAt, 'HTTP_ERROR', response.status, response.bytes, providerCode)); continue; }
+        if (response.status !== 200) { fail('HTTP_ERROR', log.record(context, requestedAt, 'HTTP_ERROR', response.status, response.bytes, providerCode)); return finish(settledStatus()); }
         const summary = summarizeResponse(response.bytes, input.periodStartDate, input.periodEndDate);
-        if (!summary) { fail('INVALID_PAYLOAD', log.record(context, requestedAt, 'INVALID_PAYLOAD', 200, response.bytes, providerCode)); continue; }
+        if (!summary) { fail('INVALID_PAYLOAD', log.record(context, requestedAt, 'INVALID_PAYLOAD', 200, response.bytes, providerCode)); return finish(settledStatus()); }
         const capture = log.record(context, requestedAt, 'OK', 200, response.bytes, providerCode);
         out.push({ label: brand.label, domain: choice.domain, status: 'OK', reason: null, totalResults: summary.totalResults, creativeCount: summary.creativeCount,
           formats: summary.formats, firstShown: summary.firstShown, lastShown: summary.lastShown, maxDaysShown: summary.maxDaysShown, overlapCount: summary.overlapCount,
-          invalidCount: summary.invalidCount, usageOrdinal: GOOGLE_ADS_USAGE_ORDINAL, capture });
+          invalidCount: summary.invalidCount, usageOrdinal: GOOGLE_ADS_USAGE_ORDINAL, capture, domainSource, discoveryCapture, discoveryUsageOrdinal });
       }
       return finish(out.some(item => item.status === 'OK') ? 'OK' : 'NO_DATA');
     },
@@ -252,14 +318,15 @@ export function createGoogleAdsSource(apiKey: string, transport: ProviderTranspo
 }
 
 /** The stored step field. `indexes[i]` is the step capture ordinal of `collection.brands[i].capture`, null when it was not stored. */
-export function searchAdsDocument(collection: SearchAdsCollection, indexes: readonly (number | null)[]): StepSearchAds {
-  const brands: StepSearchAdsBrand[] = collection.brands.map((item, i) => {
-    const { capture, ...rest } = item;
+export function searchAdsDocument(collection: SearchAdsCollection, indexes: readonly (number | null)[], discoveryIndexes: readonly (number | null)[] = []): StepSearchAds {
+  const brands: SearchAdsBrandV2[] = collection.brands.map((item, i) => {
+    const { capture, discoveryCapture, ...rest } = item;
+    const discoveryCaptureIndex = discoveryIndexes[i] ?? null;
     const index = indexes[i] ?? null;
     // Only a response that was stored may back figures; otherwise the brand keeps a status only.
-    if (item.status === 'OK' && (index === null || !capture?.responseSha256)) return { ...rest, status: 'FAILED', reason: 'CAPTURE_NOT_STORED', totalResults: null, creativeCount: null,
+    if (item.status === 'OK' && (index === null || !capture?.responseSha256 || (item.domainSource === 'BRAND_SITE_SEARCH' && (discoveryCaptureIndex === null || !discoveryCapture?.responseSha256)))) return { ...rest, discoveryCaptureIndex, status: 'FAILED', reason: 'CAPTURE_NOT_STORED', totalResults: null, creativeCount: null,
       formats: null, firstShown: null, lastShown: null, maxDaysShown: null, overlapCount: null, invalidCount: null, captureIndex: null, retrievedAt: null, responseSha256: null };
-    return { ...rest, captureIndex: item.status === 'OK' ? index : null, retrievedAt: item.status === 'OK' ? capture!.completedAt : null, responseSha256: item.status === 'OK' ? capture!.responseSha256 : null };
+    return { ...rest, discoveryCaptureIndex, captureIndex: item.status === 'OK' ? index : null, retrievedAt: item.status === 'OK' ? capture!.completedAt : null, responseSha256: item.status === 'OK' ? capture!.responseSha256 : null };
   });
   const status: StepSearchAdsStatus = collection.status === 'OK' && !brands.some(b => b.status === 'OK') ? 'NO_DATA' : collection.status;
   return { profile: GOOGLE_ADS_PROFILE, status, brands };
@@ -275,9 +342,11 @@ export const searchAdsOkBrands = (value: StepSearchAds | null | undefined): Step
 export const searchAdsRenderable = (value: StepSearchAds | null | undefined): value is StepSearchAds => searchAdsOkBrands(value).length > 0;
 
 /** Status wording only; renderers quote the original brand label separately. */
-export function searchAdsBrandNotice(brand: StepSearchAdsBrand): string {
+export function searchAdsBrandNotice(brand: StepSearchAdsBrand, profile: StepSearchAds['profile'] = GOOGLE_ADS_PROFILE): string {
   switch (brand.status) {
-    case 'SKIPPED_NO_DOMAIN': return 'chưa tìm thấy trang web của thương hiệu trong kết quả tìm kiếm của lần chạy này.';
+    case 'SKIPPED_NO_DOMAIN': return profile === 'search-ads-v1'
+      ? 'chưa tìm thấy trang web của thương hiệu trong kết quả tìm kiếm của lần chạy này.'
+      : 'chưa tìm thấy trang web chính hãng của thương hiệu trong kết quả của lần chạy này và trong lượt tìm trang chủ chính hãng của thương hiệu.';
     case 'SKIPPED_AMBIGUOUS_DOMAIN': return 'có nhiều trang web có thể là của thương hiệu, không chọn được trang nào nên bỏ qua.';
     case 'CANCELLED': return 'lượt tra bị dừng nên chưa có số liệu.';
     default: return 'lần này chưa lấy được số liệu từ thư viện quảng cáo công khai.';
@@ -297,4 +366,16 @@ export function searchAdsUsage(collection: Pick<SearchAdsCollection, 'requests' 
   readonly usage: { readonly requestsIssued: number; readonly paidRequestsIssued: number; readonly ambiguousPaidRequests: number; readonly credits: { readonly status: 'NONE_USED' } };
 } {
   return { provider: GOOGLE_ADS_PROVIDER, usage: { requestsIssued: collection.requests, paidRequestsIssued: collection.requests, ambiguousPaidRequests: collection.ambiguousRequests, credits: { status: 'NONE_USED' } } };
+}
+
+/** Ads keep ordinal 10. Each discovery has its own reserved ordinal and one request, including failure. */
+export function searchAdsUsageEntries(collection: SearchAdsCollection): { ordinal: number; result: ReturnType<typeof searchAdsUsage> }[] {
+  const ambiguous = (capture: ProviderRawCapture | null): number => capture === null || capture.outcome.endsWith('_AMBIGUOUS') ? 1 : 0;
+  const ads = collection.brands.filter(brand => brand.usageOrdinal === GOOGLE_ADS_USAGE_ORDINAL);
+  return [
+    ...(ads.length ? [{ ordinal: GOOGLE_ADS_USAGE_ORDINAL, result: searchAdsUsage({ requests: ads.length,
+      ambiguousRequests: ads.reduce((total, brand) => total + ambiguous(brand.capture), 0) }) }] : []),
+    ...collection.brands.filter(brand => brand.discoveryUsageOrdinal !== null).map(brand => ({ ordinal: brand.discoveryUsageOrdinal!,
+      result: searchAdsUsage({ requests: 1, ambiguousRequests: ambiguous(brand.discoveryCapture) }) })),
+  ];
 }

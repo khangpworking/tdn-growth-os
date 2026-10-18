@@ -1,3 +1,4 @@
+import searchAdsSchema from '../../../../contracts/analysis/automation-search-ads.schema.json' with { type: 'json' };
 import { selectMetaAdPages, type MetaAdPage } from './meta-ad-report.js';
 import { AutomationMetaPageIntake, metaPagePackagePrefix, validateMetaPageBinding, type MetaPageBinding, type MetaPageSelection, type MetaPageSourceView } from './meta-page-intake.js';
 import type { DefaultMarketPeers } from '../../../../contracts/analysis/default-market-peers.generated.js';
@@ -101,7 +102,7 @@ import { pdfDocumentTitle, selectPdfExcerpts, storedPdfExcerpts, type PdfExcerpt
 import { readSellerVideoInputs, selectSellerVideos, storedSellerVideos, type AutomatedReadingInput, type SellerVideoAutomatedRef, type SellerVideos, type SellerVideoSources } from './seller-video.js';
 import { OFFICIAL_STATS_PROVIDER, OFFICIAL_STATS_USAGE_ORDINAL, officialStatsDocument, officialStatsFailed, officialStatsUsage, validOfficialStats, type OfficialStatsCollection, type OfficialStatsSource } from './official-statistics-lane.js';
 import { COMTRADE_PROFILE, COMTRADE_PROVIDER, COMTRADE_USAGE_ORDINAL, comtradeDocument, comtradeFailed, comtradeRenderable, comtradeUsage, type ComtradeCollection, type ComtradeSource } from './comtrade-lane.js';
-import { brandsFromPick, GOOGLE_ADS_PROFILE, GOOGLE_ADS_USAGE_ORDINAL, searchAdsDocument, searchAdsFailed, searchAdsUsage, type SearchAdsCollection, type SearchAdsSource } from './google-ads-lane.js';
+import { brandsFromPick, GOOGLE_ADS_PROFILE, GOOGLE_ADS_USAGE_ORDINAL, searchAdsDocument, searchAdsFailed, searchAdsUsageEntries, GOOGLE_ADS_DISCOVERY_USAGE_ORDINALS, type SearchAdsCollection, type SearchAdsSource } from './google-ads-lane.js';
 import { WORLD_BANK_SERIES_YEARS, worldBankDocument, worldBankFailed, worldBankRenderable, worldBankUsage, WORLD_BANK_PROVIDER, WORLD_BANK_USAGE_ORDINAL, type WorldBankAttempt, type WorldBankSource } from './world-bank-lane.js';
 import { publishAutomatedVideoReading, verifyAutomatedVideoReading, videoWatchCandidates, videoWatchDocument, videoWatchFailed, videoWatchReadingRefs, videoWatchUsage, VIDEO_WATCH_MAX_VIDEOS, VIDEO_WATCH_PROFILE, VIDEO_WATCH_USAGE_ORDINAL, type VideoWatchAttempt, type VideoWatchLane, type VideoWatchPlan } from './video-watch-lane.js';
 import { VIDEO_WATCH_PROVIDER } from './video-watch-gemini.js';
@@ -531,6 +532,7 @@ const validateShopeeReaderBuild = sourceAjv.compile<ResearchAutomationShopeeRead
 const validateInsightReaderBuild = sourceAjv.compile<ResearchAutomationInsightReaderBuildRequest>({ $ref: `${readerApiSchema.$id}#/$defs/insightBuildRequest` });
 const validateHistoricalRevision = sourceAjv.compile<HistoricalReportRevisionRequest>({ oneOf: [{ $ref: marketPresentationRevisionSchema.$id }, { $ref: revisionSchema.$id }, { $ref: classifiedRevisionSchema.$id }, { $ref: insightRevisionSchema.$id }, { $ref: boundedRevisionSchema.$id }, { $ref: quoteRevisionSchema.$id }] });
 const validateRevision = (value: unknown): value is AutomationReportRevisionRequest => personaReportRequestValid(value) || validateHistoricalRevision(value);
+const validateSearchAds = sourceAjv.compile(searchAdsSchema);
 const validateM01Reference = sourceAjv.compile<AutomationM01InventoryReference>(m01ReferenceSchema);
 const validateI14Reference = sourceAjv.compile<AutomationI14AdmissionReference>(i14ReferenceSchema);
 sourceAjv.addSchema(metricIntakeSchema);
@@ -2188,7 +2190,7 @@ export class ResearchAutomationService {
     for (const row of usage) activity[row.provider].lastUsageAt = row.lastAt;
     const searchAdsUsageAt = this.#db.prepare(`SELECT MAX(u.recorded_at) lastAt FROM analysis_research_automation_usage u
       JOIN analysis_research_automation_runs r ON r.run_id=u.run_id
-      WHERE r.workspace_id=? AND u.step_id='COLLECTION' AND u.ordinal=? AND u.provider='serpapi' AND u.request_count>0`).get(workspaceId, GOOGLE_ADS_USAGE_ORDINAL) as { lastAt: string | null };
+      WHERE r.workspace_id=? AND u.step_id='COLLECTION' AND u.ordinal IN (?,?,?,?) AND u.provider='serpapi' AND u.request_count>0`).get(workspaceId, GOOGLE_ADS_USAGE_ORDINAL, ...GOOGLE_ADS_DISCOVERY_USAGE_ORDINALS) as { lastAt: string | null };
     activity['search-ads-library'].lastUsageAt = searchAdsUsageAt.lastAt;
     const metaAutoUsageAt = this.#db.prepare(`SELECT MAX(u.recorded_at) lastAt FROM analysis_research_automation_usage u
       JOIN analysis_research_automation_runs r ON r.run_id=u.run_id
@@ -3447,7 +3449,7 @@ export class ResearchAutomationService {
         try { comtrade = { collection: await this.#comtradeSource.collect({ keyword, description: start.description ?? null, mode: start.mode, periodEndDate: requestedPeriod.endDate }, { signal: controller.signal }) }; }
         catch { comtrade = { thrown: true }; }
       }
-      // Search-ads library comes last: at most three paid calls, never repeated after a restart. Brands come only from the auto-run pick record.
+      // Search-ads library comes last: at most six paid calls including site discovery, never repeated after a restart. Brands come only from the auto-run pick record.
       let searchAds: SearchAdsRun | undefined;
       const readPick = async (): Promise<unknown> => {
         try {
@@ -3458,7 +3460,10 @@ export class ResearchAutomationService {
       if (stepId === 'COLLECTION' && this.#searchAdsSource && !controller.signal.aborted) {
         const { requestedPeriod } = input as CollectInput;
         const brands = brandsFromPick(await readPick());
-        const webUrls = web && 'bound' in web ? (web.bound.step.webResults ?? []).map(item => item.url) : [];
+        const plainRows = web && 'bound' in web ? web.bound.step.webResults ?? [] : [];
+        const seen = new Set(plainRows.map(item => webResultUrlKey(item.url)));
+        const expandedRows = (expanded?.attempts ?? []).flatMap(attempt => expandedQueryDocument(attempt, 0, seen).results);
+        const webUrls = [...plainRows, ...expandedRows].sort((a, b) => a.position - b.position).map(item => item.url);
         try { searchAds = { collection: await this.#searchAdsSource.collect({ brands, webUrls, periodStartDate: requestedPeriod.startDate, periodEndDate: requestedPeriod.endDate }, { signal: controller.signal }) }; }
         catch { searchAds = { thrown: true }; }
       }
@@ -4225,17 +4230,20 @@ export class ResearchAutomationService {
         step = probe;
       } catch { step = { ...step, comtrade: comtradeFailed('FAILED') }; }
     }
-    // Search-ads library captures follow Comtrade: one stored response per called brand; no advertiser detail is kept in the document.
+    // Search-ads library captures follow Comtrade: discovery and ads responses per called brand; no advertiser detail is kept in the document.
     const searchAdsCollection = searchAds && 'collection' in searchAds ? searchAds.collection : undefined;
     if (searchAds) {
-      const indexes: (number | null)[] = [];
+      const indexes: (number | null)[] = [], discoveryIndexes: (number | null)[] = [];
       for (const item of searchAdsCollection?.brands ?? []) {
+        const discovery = item.discoveryCapture ? captureEnvelopes({ captures: [item.discoveryCapture] }) : null;
+        discoveryIndexes.push(discovery?.length ? captures.length : null);
+        if (discovery) await putCaptures(discovery);
         const envelopes = item.capture ? captureEnvelopes({ captures: [item.capture] }) : null;
         if (!envelopes) { indexes.push(null); continue; }
         indexes.push(captures.length);
         await putCaptures(envelopes);
       }
-      const probe = { ...step, searchAds: searchAdsCollection ? searchAdsDocument(searchAdsCollection, indexes) : searchAdsFailed('FAILED') };
+      const probe = { ...step, searchAds: searchAdsCollection ? searchAdsDocument(searchAdsCollection, indexes, discoveryIndexes) : searchAdsFailed('FAILED') };
       try {
         assertStepDocument(probe, runId, stepId);
         assertCaptureLineage(probe, captures.map(value => value.row));
@@ -4567,7 +4575,7 @@ export class ResearchAutomationService {
         if (comtradeCollection && comtradeCollection.requests > 0) this.#persistUsage(runId, stepId, comtradeUsage(comtradeCollection), now, COMTRADE_USAGE_ORDINAL);
         else if (comtrade && 'thrown' in comtrade) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
           .run(runId, stepId, COMTRADE_USAGE_ORDINAL, COMTRADE_PROVIDER.toLowerCase(), now);
-        if (searchAdsCollection && searchAdsCollection.requests > 0) this.#persistUsage(runId, stepId, searchAdsUsage(searchAdsCollection), now, GOOGLE_ADS_USAGE_ORDINAL);
+        if (searchAdsCollection) for (const entry of searchAdsUsageEntries(searchAdsCollection)) this.#persistUsage(runId, stepId, entry.result, now, entry.ordinal);
         else if (searchAds && 'thrown' in searchAds) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,'serpapi','unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
           .run(runId, stepId, GOOGLE_ADS_USAGE_ORDINAL, now);
         if (officialStatsCollection && officialStatsCollection.requests > 0) this.#persistUsage(runId, stepId, officialStatsUsage(officialStatsCollection), now, OFFICIAL_STATS_USAGE_ORDINAL);
@@ -5837,21 +5845,33 @@ function validWorldBankSeries(series: unknown, row: unknown): boolean {
   return ok && last !== undefined && last.year === row.year && last.value === row.value;
 }
 
-const SEARCH_ADS_STATUSES = new Set(['OK', 'NO_BRANDS', 'NO_DATA', 'FAILED', 'CANCELLED']);
 const SEARCH_ADS_BRAND_STATUSES = new Set(['OK', 'SKIPPED_NO_DOMAIN', 'SKIPPED_AMBIGUOUS_DOMAIN', 'FAILED', 'CANCELLED']);
-function validSearchAds(value: unknown): boolean {
-  if (!isRecord(value) || Object.keys(value).sort().join() !== 'brands,profile,status' || value.profile !== GOOGLE_ADS_PROFILE ||
-      typeof value.status !== 'string' || !SEARCH_ADS_STATUSES.has(value.status) || !Array.isArray(value.brands) || value.brands.length > 3) return false;
+export function validSearchAds(value: unknown): boolean {
+  if (!isRecord(value) || !Array.isArray(value.brands) || !validateSearchAds(value)) return false;
   const count = (v: unknown): boolean => Number.isSafeInteger(v) && (v as number) >= 0 && (v as number) <= 1_000_000;
   const day = (v: unknown): boolean => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && validDate(v);
   const domainOk = (v: unknown): boolean => typeof v === 'string' && v.length <= 253 && /^[a-z0-9.-]+$/.test(v) && v.includes('.');
-  const labels = new Set<string>(), indexes = new Set<number>();
+  const labels = new Set<string>(), indexes = new Set<number>(), discoveryOrdinals = new Set<number>();
   return value.brands.every(brand => {
-    if (!isRecord(brand) || Object.keys(brand).sort().join() !== 'captureIndex,creativeCount,domain,firstShown,formats,invalidCount,label,lastShown,maxDaysShown,overlapCount,reason,responseSha256,retrievedAt,status,totalResults,usageOrdinal' ||
+    if (!isRecord(brand) ||
         typeof brand.label !== 'string' || brand.label.length < 1 || brand.label.length > 120 || CONTROL.test(brand.label) || brand.label.includes('%') || labels.has(brand.label) ||
         typeof brand.status !== 'string' || !SEARCH_ADS_BRAND_STATUSES.has(brand.status) || (brand.domain !== null && !domainOk(brand.domain)) ||
         (brand.usageOrdinal !== null && brand.usageOrdinal !== GOOGLE_ADS_USAGE_ORDINAL)) return false;
     labels.add(brand.label);
+    if (value.profile === GOOGLE_ADS_PROFILE) {
+      const discovery = brand.discoveryCaptureIndex;
+      if (brand.discoveryUsageOrdinal !== null) {
+        if (typeof brand.discoveryUsageOrdinal !== 'number' || discoveryOrdinals.has(brand.discoveryUsageOrdinal)) return false;
+        discoveryOrdinals.add(brand.discoveryUsageOrdinal);
+      }
+      if ((discovery !== null && (!Number.isSafeInteger(discovery) || discovery < 0 || indexes.has(discovery))) ||
+          (discovery !== null && brand.discoveryUsageOrdinal === null) ||
+          (brand.domainSource === 'BRAND_SITE_SEARCH' && brand.discoveryUsageOrdinal === null) ||
+          ((brand.domain === null) !== (brand.domainSource === null)) ||
+          (brand.domainSource === 'RUN_ROWS' && (discovery !== null || brand.discoveryUsageOrdinal !== null)) ||
+          (brand.status === 'OK' && brand.domainSource === 'BRAND_SITE_SEARCH' && discovery === null)) return false;
+      if (discovery !== null) indexes.add(discovery);
+    }
     if (brand.status !== 'OK') {
       return typeof brand.reason === 'string' && /^[A-Z_]{1,40}$/.test(brand.reason) && brand.totalResults === null && brand.creativeCount === null && brand.formats === null &&
         brand.firstShown === null && brand.lastShown === null && brand.maxDaysShown === null && brand.overlapCount === null && brand.invalidCount === null &&
@@ -6078,6 +6098,11 @@ function assertCaptureLineage(document: StepResultDocument, captures: readonly C
       throw new ResearchAutomationIntegrityError('Stored UN Comtrade context references an incompatible capture.');
   }
   for (const brand of document.searchAds?.brands ?? []) {
+    if ('discoveryCaptureIndex' in brand && typeof brand.discoveryCaptureIndex === 'number') {
+      const discovery = stepCaptures.get(brand.discoveryCaptureIndex);
+      if (!discovery || discovery.truncated || discovery.provider !== 'serpapi' || discovery.operation !== 'serpapi.google.search')
+        throw new ResearchAutomationIntegrityError('Stored search-ads discovery references an incompatible capture.');
+    }
     if (brand.status !== 'OK') continue;
     const capture = brand.captureIndex === null ? undefined : stepCaptures.get(brand.captureIndex);
     if (!capture || capture.truncated || capture.provider !== 'serpapi' || capture.operation !== 'serpapi.google_ads.transparency' || capture.retrievedAt !== brand.retrievedAt)

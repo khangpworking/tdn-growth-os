@@ -1,5 +1,14 @@
 # Trạng thái hiện tại
 
+## S17 website discovery — local implementation (19/10/2026)
+
+The opt-in automated search-ads lane now reuses plain and expanded run rows,
+requires an exact registrable brand name and falls back to one deterministic
+brand-site search per unmatched brand. The ceiling is six paid calls, with
+separate discovery capture/usage lineage and no recovery redispatch. Stored v1
+and flag-off rendering retain their bytes. Offline verification and remaining
+limits are recorded in [the task handoff](handoffs/S17-brand-site-discovery.md).
+
 ## Ultimate alignment — implementation run (08/10/2026)
 
 The source-board foundation is merged in [PR #161](https://github.com/khangpworking/tdn-growth-os/pull/161),
