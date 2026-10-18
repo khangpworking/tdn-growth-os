@@ -11,6 +11,7 @@ import { calculateMetricScopes, metricLabelFingerprint } from '../../src/modules
 import { metricFixture } from '../fixtures/metric-scope-synthetic.js';
 import { providerNameViolations, reportVisibleText, visibleTextViolations } from '../helpers/report-visible-text.js';
 import { buildSourceEvidence } from '../../src/modules/analysis/research-automation/source-evidence.js';
+import { fullMarket14Input } from '../helpers/market14-full-fixture.js';
 
 const hash = (value: string | Buffer): string => createHash('sha256').update(value).digest('hex');
 
@@ -42,6 +43,19 @@ function classified(): AutomationClassifiedMetricSnapshot {
       inputSha256: result.inputSha256, sourcePackageId: '33333333-3333-4333-8333-333333333333', scopeSha256: 'f'.repeat(64) },
     selection: { adoptionId: 'c'.repeat(64), receiptIds: ['44444444-4444-4444-8444-444444444444'] } };
 }
+
+test('owner reader explains selected and missing default peers without superlatives or identity-order jargon', async () => {
+  const base = await fullMarket14Input();
+  for (const selected of [false, true]) {
+    const input = { ...base, start: { ...base.start, defaultPeerRule: { ...DEFAULT_MARKET_PEER_RULE } },
+      ...(selected ? { metricClassified: classified() } : {}) };
+    const html = buildResearchAutomationReport(input, 'MARKET').html.toString();
+    const peers = html.match(/<section class="sheet" id="M07">([\s\S]*?)<\/section>/u)![1]!;
+    assert.match(peers, /chọn đối thủ theo doanh thu giảm dần trong cùng nhóm, cùng sàn cho tới khi đạt tối thiểu 50 phần trăm/u);
+    assert.doesNotMatch(peers, /nhất|mã danh tính ổn định|theo danh tính/u);
+    assert.match(peers, selected ? /Đối thủ mặc định được chọn/u : /Chưa chọn được đối thủ mặc định vì chưa có nhóm doanh số đã phân loại/u);
+  }
+});
 
 test('frozen start rule dispatches Metric-only and retained descriptive1.1 Market drafts to one valid default peer', () => {
   for (const detail of [false, true]) {

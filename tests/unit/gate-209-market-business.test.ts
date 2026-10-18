@@ -7,6 +7,7 @@ import { buildResearchAutomationReport, type AutomationReportInput } from '../..
 import { metricFixture } from '../fixtures/metric-scope-synthetic.js';
 import { sync1ReaderFixture } from '../helpers/sync1-reader-fixture.js';
 import { unitPriceFixture } from '../helpers/market-unit-price-fixture.js';
+import { fullMarket14Input } from '../helpers/market14-full-fixture.js';
 import { renderMarketCharts } from '../../src/modules/analysis/reader-report/market-charts.js';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
@@ -270,9 +271,16 @@ test('provider names in a Market build fail inside buildResearchAutomationReport
   const readerSanitized = structuredClone(input);
   (readerSanitized.marketPresentation as NonNullable<AutomationReportInput['marketPresentation']>).findings[0]!.statement = 'Metric';
   assert.doesNotThrow(() => buildResearchAutomationReport(readerSanitized, 'MARKET'));
-  const leaking = structuredClone(input);
-  (leaking.start.requestedPeriod as { startDate: string }).startDate = 'Metric';
-  assert.throws(() => buildResearchAutomationReport(leaking, 'MARKET'), /MARKET_BUSINESS_GATE_FAILED:G08_PROVIDER_NAME/);
+  // The owner reader prints the requested period only beside the per-product trend, so the leak rides on a full Market input.
+  const leaking = await fullMarket14Input();
+  for (const provider of ['Metric', 'Kalodata', 'TradeInt', 'Dami', 'Apify', 'SerpApi', 'PageIndex', 'Gemini', 'OpenCLI', 'zen-studio', 'Google']) {
+    (leaking.start.requestedPeriod as { startDate: string }).startDate = provider;
+    assert.throws(() => buildResearchAutomationReport(leaking, 'MARKET'), /MARKET_BUSINESS_GATE_FAILED:G08_PROVIDER_NAME/, provider);
+  }
+  (leaking.start.requestedPeriod as { startDate: string }).startDate = '<b id="injected-period">&';
+  const escaped = buildResearchAutomationReport(leaking, 'MARKET').html.toString();
+  assert.match(escaped, /Diễn biến từng sản phẩm<\/dt><dd>Theo từng kỳ trong khoảng từ &lt;b id=&quot;injected-period&quot;&gt;&amp;/u);
+  assert.doesNotMatch(escaped, /<b id="injected-period">/u);
 });
 
 test('round 5: an unmatched or nested unbalanced quote cannot hide an E2 claim', () => {

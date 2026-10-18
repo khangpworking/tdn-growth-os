@@ -25,10 +25,13 @@ ${flintChart.repeat(3)}</body></html>`;
 
 const rule = (html: string, number: string, trace?: string) => auditMarket14(html, trace).find(item => item.rule === number)!;
 
-test('listing needs a glossary definition only when the reader still uses that term', () => {
-  const localized = valid.replace('<tr><td>listing</td><td>sản phẩm</td></tr>', '');
-  assert.equal(rule(localized, '1').ok, true);
-  assert.equal(rule(localized.replace('</body>', '<p>listing</p></body>'), '1').ok, false);
+test('localized English terms need glossary definitions only when the reader still uses those terms', () => {
+  for (const [term, meaning] of [['listing', 'sản phẩm'], ['review', 'đánh giá'], ['export', 'tệp dữ liệu'], ['peer set', 'nhóm đối thủ']]) {
+    const localized = valid.replace(`<tr><td>${term}</td><td>${meaning}</td></tr>`, '');
+    assert.equal(rule(localized, '1').ok, true, term);
+    assert.equal(rule(localized.replace('</body>', `<p>${term}</p></body>`), '1').ok, false, term);
+    assert.equal(rule(valid.replace(`<td>${meaning}</td>`, '<td>Không rõ</td>'), '1').ok, false, term);
+  }
 });
 
 test('synthetic Market HTML passes all machine rules and marks review-only rules as READ', () => {

@@ -79,6 +79,45 @@ test('share charts are described without their percentage values', () => {
   assert.equal(text, 'Shopee: 2 thanh, thanh dài là 3 gian hàng, thanh ngắn là 1 gian hàng. Giá trị đọc theo trục của hình; mỗi thanh đọc riêng.');
 });
 
+test('a bar drawn by marks with and without thousands dots is read once, with the unit of its measure', () => {
+  const svg = '<path aria-label="Doanh thu trong mẫu (triệu đồng): 5621,7;  : Shopee; san: Shopee; doanh_thu: 5.622"/>'
+    + '<path aria-label="Doanh thu trong mẫu (triệu đồng): 5.621,7;  : Shopee"/><path aria-label="Doanh thu trong mẫu (triệu đồng): 5127,3;  : TikTok Shop; san: TikTok Shop"/>';
+  assert.equal(figureInterpretation(`<figure class="market-chart"><svg>${svg}</svg></figure>`),
+    'Thanh Shopee ở mức 5.621,7 triệu đồng; thanh TikTok Shop ở mức 5.127,3 triệu đồng theo trục của hình. Mỗi sàn đọc riêng.');
+});
+
+test('a sales table whose caption mentions search keeps the sample note; a search-interest table keeps the context note', () => {
+  const table = (caption: string) => `<div class="table-wrap"><table><caption>${caption}</caption><thead><tr><th>Tên</th><th>Doanh thu (VND)</th></tr></thead><tbody><tr><td>A</td><td>100</td></tr></tbody></table></div>`;
+  assert.match(annotateExhibits(table('Shopee · số liệu từ bảng kết quả tìm kiếm đã lưu')), /Số liệu lấy từ các dòng đã lưu của từng sàn/u);
+  assert.match(annotateExhibits(table('Thước đo nguồn theo từng dòng; doanh số đo nhu cầu trong mẫu, mức quan tâm tìm kiếm giữ riêng.')), /Số liệu lấy từ các dòng đã lưu của từng sàn/u);
+  assert.match(annotateExhibits(table('Mức quan tâm tìm kiếm theo vùng')), /Số liệu nền từ nguồn công khai/u);
+});
+
+test('reader wording drops the doubled product word and the English "section", and writes the zero of empty states in words', () => {
+  const html = '<div id="sections"><section class="sheet" id="M12"><p>Không chứng minh cùng người, sản phẩm, listing hoặc kỳ đo. Giữ theo section gốc. Đây không phải kết quả bằng 0. Hệ số bằng 0,5.</p></section></div><footer>bằng 0</footer>';
+  const reader = deliverMarketReader(html);
+  assert.match(reader, /cùng người, sản phẩm hoặc kỳ đo\. Giữ theo phần gốc\. Đây không phải kết quả bằng không\. Hệ số bằng 0,5\./u);
+  assert.match(reader, /<footer>bằng 0<\/footer>/u, 'the footer is written by its own builder, outside the reader pass');
+});
+
+test('reader dates and terms are localized while source quotes, code and attributes retain their bytes', () => {
+  const source = '<q>review 2026-08-17 bằng 0</q><blockquote><p>listing 2026-08-17</p></blockquote>'
+    + '<span data-quote><b>review</b> 2026-08-17</span><code>listing_2026-08-17</code>';
+  const html = `<div id="sections"><section class="sheet" id="M02"><p>Kỳ 2026-08-17 đến 2026-09-15; thu 2026-09-16T00:00:00Z.</p>`
+    + `<p>Ngày review; danh sách top sản phẩm.</p><p>2026-08-17.xlsx; source-2026-08-17</p>${source}<a href="https://example.test/2026-08-17">Nguồn</a></section></div><footer>2026-08-17</footer>`;
+  const reader = deliverMarketReader(html);
+  assert.match(reader, /Kỳ 17\/08\/2026 đến 15\/09\/2026; thu 16\/09\/2026 00:00:00 UTC\./u);
+  assert.match(reader, /Ngày đánh giá; danh sách sản phẩm doanh thu cao\./u);
+  assert.ok(reader.includes(source));
+  assert.match(reader, /2026-08-17\.xlsx; source-2026-08-17/u);
+  assert.match(reader, /href="https:\/\/example.test\/2026-08-17"/u);
+  assert.match(reader, /<footer>2026-08-17<\/footer>/u);
+  const glossary = '<table data-glossary="true"><tbody><tr><td>review</td><td>đánh giá</td></tr><tr><td>export</td><td>tệp dữ liệu</td></tr></tbody></table>';
+  const withGlossary = deliverMarketReader(html.replace('</section>', `${glossary}</section>`));
+  assert.match(withGlossary, /<td>review<\/td><td>đánh giá<\/td>/u, 'a term still used by a verbatim quote retains its definition');
+  assert.doesNotMatch(withGlossary, /<td>export<\/td>/u, 'an unused English term has no glossary entry');
+});
+
 test('full synthetic market14 report is delivered as a reader copy with notes and interpretations; the trace keeps the rest', async () => {
   const input = await fullMarket14Input();
   const built = buildResearchAutomationReport(input, 'MARKET');
@@ -98,13 +137,17 @@ test('full synthetic market14 report is delivered as a reader copy with notes an
   }
   assert.equal(doc.querySelectorAll('td .interp, th .interp, caption .interp, td .lim, th .lim, caption .lim').length, 0);
   assert.doesNotMatch(visible(body), /\blisting\b|search events/iu);
+  const prose = doc.cloneNode(true) as Document;
+  prose.querySelectorAll('style, script, svg, q, blockquote, code, pre, [data-quote]').forEach(node => node.remove());
+  assert.doesNotMatch(prose.body.textContent!, /\d{4}-\d{2}-\d{2}|\breview\b|\bexport\b|peer set|danh sách top sản phẩm/u);
+  assert.match(prose.body.textContent!, /tỉnh thiếu số để trống, không thay bằng số không/u);
   assert.match(visible(sections.get('M05')!), /từ 05\/10\/2025 đến 27\/09\/2026/u);
   // A7: no draft framing in the sections; M12 keeps its own approval label.
   const outsideM12 = [...sections].filter(([id]) => id !== 'M12').map(([, inner]) => visible(inner)).join(' ');
   assert.doesNotMatch(outsideM12, /Bản nháp|bản nháp|chưa duyệt|Chưa duyệt|chưa phải phân tích|Mục phân tích hoàn chỉnh/u);
   assert.match(visible(sections.get('M12')!), /đề xuất, chờ chủ duyệt/u);
   assert.doesNotMatch(body, /<details|class="evidence-trace"|Hồ sơ đối chiếu|method-reference|Sheet1/u);
-  assert.match(html, /<p class="reader-guide"><b>Cách đọc báo cáo:<\/b>[^<]*<i class="pi s">Shopee<\/i>[\s\S]*?không phải bằng 0/u);
+  assert.match(html, /<p class="reader-guide"><b>Cách đọc báo cáo:<\/b>[^<]*<i class="pi s">Shopee<\/i>[\s\S]*?không phải bằng không/u);
   assert.doesNotMatch(html, /<p class="warning">[^<]*Mục phân tích hoàn chỉnh/u);
   for (const chip of body.matchAll(/<span class="state">([^<]*)<\/span>/gu)) assert.match(chip[1]!, /^(?:Có số liệu|Chưa đủ dữ liệu)$/u);
   // D30 + B13: every table and figure of Phần 3–11 has a standalone note and an interpretation right under it.

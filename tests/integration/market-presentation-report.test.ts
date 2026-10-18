@@ -159,7 +159,7 @@ test('actual auto service builds source-bound findings/unit tables and immutable
   assert.deepEqual(JSON.parse(retained.toString()), method);
   const doc = new JSDOM(report.bytes.toString()).window.document;
   assert.equal(doc.querySelectorAll('#M01 ul.market-findings > li').length, 5);
-  assert.ok(doc.querySelector('#M01')!.textContent!.includes('2026-01-01 đến 2026-01-29'));
+  assert.ok(doc.querySelector('#M01')!.textContent!.includes('01/01/2026 đến 29/01/2026'));
   assert.ok(doc.querySelector('#M08')!.textContent!.includes('đồng/100g'));
   assert.ok(doc.querySelector('#M01 .citation-mark, #M01 sup, #M01 a[href*="citation"]'));
   assert.ok(lintVisibleReportText(report.bytes.toString()).every(check => check.ok));
@@ -260,8 +260,10 @@ test('auto presentation without a receipt preserves zero/missing, keeps referenc
   assert.ok(method.findings[1]!.statement.includes('chưa có tổng đơn vị bán'));
   assert.equal(method.input.metric!.scopes[0]!.units.value, null);
   assert.equal(method.unitPrices.length, 0);
-  assert.ok(report.bytes.toString().includes('Chưa tính giá theo đơn vị chuẩn'));
-  assert.ok(report.bytes.toString().includes('Chưa có trường ROAS hoặc CPA'));
+  assert.ok(report.bytes.toString().includes('Chưa quy đổi được giá theo đơn vị chuẩn'));
+  const priceSection = new JSDOM(report.bytes.toString()).window.document.querySelector('#M08')!.textContent!;
+  assert.ok(priceSection.includes('Chưa có số liệu chi phí quảng cáo nên chưa tính ROAS (doanh thu trên chi phí quảng cáo) và CPA (chi phí cho mỗi đơn hàng).'));
+  assert.doesNotMatch(priceSection, /\b(?:ROAS|CPA)\s*[:=]?\s*[-−]?\d/u);
 });
 
 test('actual auto revision composes retained literal19/Source18 with Market20 and never discovers an unselected prepared package', async t => {
@@ -298,5 +300,5 @@ test('actual auto revision composes retained literal19/Source18 with Market20 an
   assert.deepEqual((await f.service.readReport(workspaceId, runId, 'MARKET', false, f.pair.pairId)).bytes, f.original.bytes);
   assert.deepEqual([f.sourceCalls(), f.modelCalls()], calls);
   assert.ok(report.bytes.toString().includes('Chưa đủ bằng chứng để có bốn nhận định'));
-  assert.ok(report.bytes.toString().includes('Chưa tính giá theo đơn vị chuẩn'));
+  assert.ok(report.bytes.toString().includes('Chưa quy đổi được giá theo đơn vị chuẩn'));
 });

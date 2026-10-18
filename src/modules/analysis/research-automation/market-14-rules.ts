@@ -241,8 +241,8 @@ export function auditMarket14(html: string, trace?: string, options: { requireFl
     return found === undefined ? { ok: false, detail: `${rule} result unavailable` } : found;
   };
   const glossary = glossaryText(html);
-  // The reader localizes "listing" to "sản phẩm"; only require its definition if the English term remains.
-  const missingGlossary = GLOSSARY.filter(([term, explanation]) => (!term.test('listing') || term.test(text))
+  // A localized English term needs a definition only when it still appears; acronym definitions remain required.
+  const missingGlossary = GLOSSARY.filter(([term, explanation]) => (!['listing', 'review', 'export', 'peer set'].some(word => term.test(word)) || term.test(text))
     && (!term.test(glossary) || !explanation.test(glossary))).map(([term]) => term.source);
   const sectionLabels = [...Array.from({ length: 12 }, (_, index) => `Phần ${index + 1}`), 'Phụ lục'].filter(label => !text.includes(label));
   const visibleCodes = text.match(/\bM(?:0[1-9]|1[0-3])\b/gu) ?? [];

@@ -84,7 +84,7 @@ test('a full market14 reader shows a quarter cover, a plain source list and the 
   assert.equal(document.title, 'Báo cáo thị trường sản phẩm Synthetic jar · Quý 3 năm 2026');
   assert.equal(text(cover.querySelector('h1')), 'Báo cáo thị trường sản phẩm Synthetic jar');
   assert.equal(text(cover.querySelector('.cv-quarter')), 'Quý 3 năm 2026');
-  assert.equal(text(cover.querySelector('.cv-period')), 'Dữ liệu quý 3/2026');
+  assert.equal(text(cover.querySelector('.cv-period')), 'Dữ liệu từ 17/08/2026 đến 15/09/2026');
   assert.equal(cover.querySelector('.cv-eyebrow, .cv-lede'), null);
   assert.equal(text(cover.querySelector('.cv-meta')), 'Việt Nam');
   assert.doesNotMatch(text(cover.querySelector('.cv-left')), /bản nháp|\bmục\b|mẫu|phân loại|\d+ ngày|2026-/iu);
@@ -126,25 +126,61 @@ test('a fallback cover renders but stays a READ; INSIGHT and non-presentation Ma
 });
 
 
-test('cover quarters use the stored end date, span years, and fall back to the requested period', async () => {
+test('cover quarters count inclusive data days, break ties toward the later quarter, and disclose a missing sample', async () => {
   const input = await presentationInput();
   const metric = input.marketPresentation!.input.metric!;
   for (const [start, end, quarter, range] of [
-    ['2025-10-01', '2026-09-30', 'Quý 3 năm 2026', 'Dữ liệu quý 4/2025 – quý 3/2026'],
-    ['2026-03-31', '2026-04-01', 'Quý 2 năm 2026', 'Dữ liệu quý 1/2026 – quý 2/2026'],
-    ['2026-01-01', '2026-03-31', 'Quý 1 năm 2026', 'Dữ liệu quý 1/2026'],
+    ['2025-10-01', '2026-09-30', 'Quý 3 năm 2026', 'Dữ liệu từ 01/10/2025 đến 30/09/2026'],
+    ['2026-03-31', '2026-04-01', 'Quý 2 năm 2026', 'Dữ liệu từ 31/03/2026 đến 01/04/2026'],
+    // 18 days in quarter 3 and 12 in quarter 4: the cover names quarter 3.
+    ['2026-09-13', '2026-10-12', 'Quý 3 năm 2026', 'Dữ liệu từ 13/09/2026 đến 12/10/2026'],
+    ['2026-01-01', '2026-03-31', 'Quý 1 năm 2026', 'Dữ liệu từ 01/01/2026 đến 31/03/2026'],
+    ['2026-03-31', '2026-03-31', 'Quý 1 năm 2026', 'Dữ liệu từ 31/03/2026 đến 31/03/2026'],
+    ['2026-03-30', '2026-04-01', 'Quý 1 năm 2026', 'Dữ liệu từ 30/03/2026 đến 01/04/2026'],
+    ['2026-12-31', '2027-01-01', 'Quý 1 năm 2027', 'Dữ liệu từ 31/12/2026 đến 01/01/2027'],
+    ['2024-02-29', '2024-02-29', 'Quý 1 năm 2024', 'Dữ liệu từ 29/02/2024 đến 29/02/2024'],
   ] as const) {
     const scoped = { ...metric, input: { ...metric.input, scope: { ...metric.input.scope, start, end } } };
     assert.deepEqual(marketReportQuarter({ ...input, marketPresentation: { ...input.marketPresentation!, input: { ...input.marketPresentation!.input, metric: scoped } } }), { quarter, range });
   }
   const marketPresentation = buildAutomationMarketPresentation({ ...input.marketPresentation!.binding, metric: null }, { metric: null, rows: [], unitSpec: null });
   const missing = { ...input, marketPresentation, marketPresentationCharts: [] };
-  assert.deepEqual(marketReportQuarter(missing), { quarter: 'Quý 1 năm 2026', range: 'Dữ liệu quý 1/2026' });
+  assert.deepEqual(marketReportQuarter(missing), { quarter: 'Chưa xác định quý dữ liệu', range: 'Chưa có kỳ số liệu bán hàng hợp lệ' });
   const document = new JSDOM(buildResearchAutomationReport(missing, 'MARKET').html.toString()).window.document;
-  assert.equal(document.querySelector('.cv-period')!.textContent, 'Dữ liệu quý 1/2026');
+  assert.equal(document.querySelector('.cv-period')!.textContent, 'Chưa có kỳ số liệu bán hàng hợp lệ');
+  assert.match(document.querySelector('#M02')!.textContent!, /Chưa có kỳ số liệu bán hàng hợp lệ/u);
+  assert.doesNotMatch(document.querySelector('.cover')!.textContent! + document.querySelector('#M02')!.textContent!, /01\/01\/2026|30\/01\/2026|NaN/u);
   assert.equal(document.querySelectorAll('.market14-sources li').length, 0);
   assert.match(document.querySelector('.market14-sources')!.textContent!, /Lượt này chưa có dữ liệu bán hàng/u);
   assert.doesNotMatch(document.querySelector('.market14-sources')!.textContent!, /\b0\b/u);
+});
+
+test('cover rejects impossible, missing and reversed sample dates without using the requested range as data', async () => {
+  const input = await presentationInput();
+  const metric = input.marketPresentation!.input.metric!;
+  const missing = { quarter: 'Chưa xác định quý dữ liệu', range: 'Chưa có kỳ số liệu bán hàng hợp lệ' };
+  for (const [start, end] of [
+    ['2026-13-01', '2026-13-30'], ['2026-02-30', '2026-03-01'], ['2026-02-29', '2026-03-01'],
+    ['2026-00-01', '2026-01-01'], ['2026-01-00', '2026-01-01'], ['2026-09-01', '2026-08-01'],
+    ['', '2026-09-01'], ['2026-09-01', ''], ['invalid', 'invalid'], ['<b>&', '<b>&'], [undefined, undefined],
+  ]) {
+    const scoped = { ...metric, input: { ...metric.input, scope: { ...metric.input.scope, start, end } } };
+    const invalid = { ...input, marketPresentation: { ...input.marketPresentation!, input: { ...input.marketPresentation!.input, metric: scoped } } } as AutomationReportInput;
+    assert.deepEqual(marketReportQuarter(invalid), missing);
+    assert.deepEqual(marketReportQuarter({ ...invalid, metricMethods: { result: metric } } as AutomationReportInput), marketReportQuarter(input), 'a valid stored method scope is still usable');
+  }
+  const marketPresentation = buildAutomationMarketPresentation({ ...input.marketPresentation!.binding, metric: null }, { metric: null, rows: [], unitSpec: null });
+  for (const requestedPeriod of [
+    { startDate: 'invalid', endDate: 'invalid', dayCount: 30 },
+    { startDate: '2026-09-01', endDate: '2026-08-01', dayCount: 30 },
+    { dayCount: 30 },
+  ]) {
+    const noSample = { ...input, marketPresentation, marketPresentationCharts: [], start: { ...input.start, requestedPeriod } } as AutomationReportInput;
+    const document = new JSDOM(buildResearchAutomationReport(noSample, 'MARKET').html.toString()).window.document;
+    assert.equal(document.querySelector('.cv-quarter')!.textContent, missing.quarter);
+    assert.equal(document.querySelector('.cv-period')!.textContent, missing.range);
+    assert.doesNotMatch(document.querySelector('.cover')!.textContent! + document.querySelector('#M02')!.textContent!, /NaN|undefined|invalid/u);
+  }
 });
 
 test('cover capitalizes Vietnamese and escapes product text in the heading and document title', async () => {

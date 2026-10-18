@@ -243,7 +243,7 @@ function e2Matches(text: string): string[] {
 }
 
 function providerMatches(text: string): string[] {
-  const names = [...new Set([...FORBIDDEN_PROVIDER_NAMES, ...CAPTURED_PROVIDER_NAMES, 'Jev', 'TypeSafe', 'CLIProxy', 'OpenAI', 'Anthropic', 'GLM'])];
+  const names = [...new Set([...FORBIDDEN_PROVIDER_NAMES, ...CAPTURED_PROVIDER_NAMES, 'Jev', 'TypeSafe', 'CLIProxy', 'OpenAI', 'Anthropic', 'GLM', 'Gemini', 'Google'])];
   const found = names.flatMap(name => {
     const escaped = name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
     // A brand that is also a common lowercase word matches only as written or in capitals,
