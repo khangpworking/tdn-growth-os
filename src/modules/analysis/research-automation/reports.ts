@@ -582,13 +582,26 @@ function observedRows(input: AutomationReportInput, captures: ReadonlyMap<number
 }
 
 function productLabels(input: AutomationReportInput): ReadonlyMap<string, string> {
-  return new Map((input.collection?.productCards ?? []).flatMap(card => card.title?.trim() ? [[card.productId, card.title.trim()] as const] : []));
+  // Collection cards first; the run's own cards cover runs whose collection result kept none.
+  const labels = new Map<string, string>();
+  for (const card of [...(input.collection?.productCards ?? []), ...(input.run.productCards ?? [])]) {
+    const title = card.title?.trim();
+    if (title && !labels.has(card.productId)) labels.set(card.productId, title);
+  }
+  return labels;
+}
+
+function readerDay(value: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
 }
 
 function observationTable(rows: readonly TypedComparable[], captures: ReadonlyMap<number, CaptureRecord>, citations: ReportCitations, labels: ReadonlyMap<string, string>, readerPlainText = false): string {
   if (!rows.length) return '';
+  const ordinals = new Map<string, number>();
+  const ordinal = (productId: string): number => ordinals.get(productId) ?? ordinals.set(productId, ordinals.size + 1).get(productId)!;
   if (!readerPlainText) return `<div class="table-wrap" role="region" aria-label="Giá trị nguồn theo từng sản phẩm và kỳ truy vấn" tabindex="0"><table class="observations"><caption>Giá trị nguồn theo từng sản phẩm và kỳ truy vấn. Không phải tổng thị trường.</caption><thead><tr><th scope="col">Sản phẩm nguồn</th><th scope="col">Phép đo / đơn vị</th><th scope="col">Giá trị nguồn</th><th scope="col">Kỳ đo</th><th scope="col">Nguồn</th></tr></thead><tbody>${rows.map(row => `<tr><td>${escape(sourceMemberLabel(row.productId, false))}</td><td>${escape(row.metric === 'GMV_VND' ? 'Doanh thu (VND)' : 'Lượt bán')}</td><td>${escape(row.value)}</td><td>${escape(row.window.startDate)} đến ${escape(row.window.endDate)}</td><td>${captureMark(captures.get(row.captureIndex)!, citations)}</td></tr>`).join('')}</tbody></table></div>`;
-  return `<div class="table-wrap" role="region" aria-label="Giá trị nguồn theo từng sản phẩm và kỳ truy vấn" tabindex="0"><table class="observations"><caption>Giá trị nguồn theo từng sản phẩm và kỳ truy vấn. Không phải tổng thị trường.</caption><thead><tr><th scope="col">Sản phẩm nguồn</th><th scope="col">Phép đo / đơn vị</th><th scope="col">Giá trị nguồn</th><th scope="col">Kỳ đo</th><th scope="col">Nguồn</th></tr></thead><tbody>${rows.map(row => { const measure = row.metric === 'GMV_VND' ? 'revenue' : 'sales_volumn'; return `<tr><td>${escape(readerProductLabel(sourceMemberLabel(row.productId, true), labels.get(row.productId)))}</td> <td>${escape(measureLabel[row.metric])}</td> <td>${escape(formatReaderValue(row.value, { measure, unit: row.metric === 'GMV_VND' ? 'VND' : 'đơn vị' }) ?? 'Giá trị được giữ trong bản lưu nguồn')}</td> <td>${escape(row.window.startDate)} đến ${escape(row.window.endDate)}</td> <td>${captureMark(captures.get(row.captureIndex)!, citations)}</td></tr>`; }).join('')}</tbody></table></div>`;
+  return `<div class="table-wrap" role="region" aria-label="Giá trị nguồn theo từng sản phẩm và kỳ truy vấn" tabindex="0"><table class="observations"><caption>Giá trị nguồn theo từng sản phẩm và kỳ truy vấn. Không phải tổng thị trường.</caption><thead><tr><th scope="col">Sản phẩm nguồn</th><th scope="col">Phép đo / đơn vị</th><th scope="col">Giá trị nguồn</th><th scope="col">Kỳ đo</th><th scope="col">Nguồn</th></tr></thead><tbody>${rows.map(row => { const measure = row.metric === 'GMV_VND' ? 'revenue' : 'sales_volumn'; return `<tr><td>${escape(readerProductLabel(sourceMemberLabel(row.productId, true), labels.get(row.productId), ordinal(row.productId)))}</td> <td>${escape(measureLabel[row.metric])}</td> <td>${escape(/^0+(?:\.0+)?$/.test(row.value) ? 'Không ghi nhận trong kỳ' : formatReaderValue(row.value, { measure, unit: row.metric === 'GMV_VND' ? 'VND' : 'đơn vị' }) ?? 'Giá trị được giữ trong bản lưu nguồn')}</td> <td>${escape(readerDay(row.window.startDate))} đến ${escape(readerDay(row.window.endDate))}</td> <td>${captureMark(captures.get(row.captureIndex)!, citations)}</td></tr>`; }).join('')}</tbody></table></div>`;
 }
 
 /** Deliberately narrower than the complete M07 method: no universe, share or rank inference. */
@@ -636,7 +649,7 @@ function defaultPeerSection(snapshot: DefaultMarketPeers, citations: ReportCitat
     const frame = result.frame;
     const platform = frame.platform === 'shopee' ? 'Shopee' : frame.platform === 'tiktok' ? 'TikTok Shop' : storedLiteral(frame.platform, 'Sàn được giữ trong bản lưu');
     const revenue = (value: string): string => readerPlainText ? formatReaderValue(value, { currency: 'VND' }) ?? 'Doanh thu được giữ trong bản lưu' : value;
-    const rows = result.selected.map(member => `<tr><td>${readerPlainText ? `${escape(readerProductLabel(member.identity.label, labels.get(member.identity.label)))} ` : ''}${readerPlainText ? '' : escape(storedLiteral(member.identity.label, 'Danh tính nguồn được giữ trong bản lưu'))}</td><td>${member.identity.kind === 'TITLE_LABEL' ? 'Nhãn thương hiệu theo tiêu đề người bán' : 'Gian hàng nguồn; chưa rõ thương hiệu'}</td><td>${escape(revenue(member.revenue))} VND ${member.sources.map(mark).join('')}</td></tr>`).join('');
+    const rows = result.selected.map((member, index) => `<tr><td>${readerPlainText ? `${escape(member.identity.kind === 'SHOP' ? readerShopLabel(member.identity.label, member.identity.label, index + 1) : readerProductLabel(member.identity.label, labels.get(member.identity.label) ?? member.identity.label, index + 1))} ` : ''}${readerPlainText ? '' : escape(storedLiteral(member.identity.label, 'Danh tính nguồn được giữ trong bản lưu'))}</td><td>${member.identity.kind === 'TITLE_LABEL' ? 'Nhãn thương hiệu theo tiêu đề người bán' : 'Gian hàng nguồn; chưa rõ thương hiệu'}</td><td>${escape(revenue(member.revenue))} VND ${member.sources.map(mark).join('')}</td></tr>`).join('');
     const total = result.totalRevenue === null ? 'Chưa đủ dữ liệu' : `${revenue(result.totalRevenue)} VND`;
     const selected = result.selectedRevenue === null ? 'Chưa đủ dữ liệu' : `${revenue(result.selectedRevenue)} VND`;
     return `<h3>${platform} · ${storedLiteral(frame.group, 'Nhóm được giữ trong bản lưu')}</h3><p>${states[result.state]} Kỳ ${escape(frame.period.start)} đến ${escape(frame.period.end)}.</p><p>Doanh thu nhóm trong mẫu: ${escape(total)}; doanh thu tập đã chọn: ${escape(selected)}. ${result.eligible.map(mark).join('')}</p>${rows ? `<table><caption>Đối thủ mặc định trong nhóm, đặt cạnh nhau</caption><thead><tr><th>Nhãn nguồn</th><th>Căn cứ danh tính</th><th>Doanh thu ước tính</th></tr></thead><tbody>${rows}</tbody></table>` : ''}`;
@@ -1215,7 +1228,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     if (kind === 'MARKET' && sectionId === 'M01' && input.m01Inventory && input.sourceClaims) return m01InventorySection(input.m01Inventory, input.sourceClaims, citations, readerPlainText);
     if (kind === 'INSIGHT' && sectionId === 'I14' && input.i14Admission && input.sourceClaims) return i14SynthesisSection(input.i14Synthesis, citations, false) + i14AdmissionSection(input.i14Admission, input.sourceClaims, citations, false);
     if (kind === 'MARKET' && (sectionId === 'M03' || sectionId === 'M04')) {
-       if (input.metricMethods) return metricMethodSection(input.metricMethods, sectionId, input.metricClassified, citations, Boolean(marketPresentation), readerPlainText) + (sectionId === 'M03' && input.marketInventory ? '<h3>Bằng chứng riêng của nguồn sàn: không cộng vào số liệu nguồn</h3>' + marketInventorySection(input.marketInventory, sectionId, citations, labels, readerPlainText) : '');
+       if (input.metricMethods) return metricMethodSection(input.metricMethods, sectionId, input.metricClassified, citations, Boolean(marketPresentation), readerPlainText) + (sectionId === 'M03' && input.marketInventory ? (readerPlainText ? '<h3>Số liệu từng kỳ của các sản phẩm được chọn (đọc riêng, không cộng vào bảng mẫu)</h3>' : '<h3>Bằng chứng riêng của nguồn sàn: không cộng vào số liệu nguồn</h3>') + marketInventorySection(input.marketInventory, sectionId, citations, labels, readerPlainText) : '');
       if (input.metricMethodsFailure) return `<p class="warning">${escape(metricFailureCopy[input.metricMethodsFailure].next)}</p>` + codeNote(input.metricMethodsFailure);
     }
     if (kind === 'MARKET' && (sectionId === 'M03' || sectionId === 'M08')) {
