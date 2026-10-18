@@ -91,7 +91,9 @@ export async function renderMarketCharts(rows: readonly MarketChartRow[], { flin
     } as FlintChartInput, () => barChart(cats, shopPlats.map(P => ({ name: LABEL[P], values: shares[P].map(v => v ?? 0), color: COLOR[P] })), { fmt: v => one(v) + (titleLabels ? ' phần trăm' : '%') }), keepOrder('nhom', cats)) });
 
   // 2. Revenue by platform: one labelled bar per platform, never summed across platforms.
-  const byPlatform = plats.map(P => ({ san: LABEL[P], doanh_thu: +(usable.filter(row => row.platform === P).reduce((s, row) => s + row.rev!, 0) / 1e6).toFixed(1) }));
+  const millions = (revenue: number): number => titleLabels ? revenue / 1e6 : +(revenue / 1e6).toFixed(1);
+  const revenueLabel = (value: number): string => titleLabels && value > 0 && value < 0.1 ? value.toLocaleString('vi-VN', { maximumFractionDigits: 20 }) : one(value);
+  const byPlatform = plats.map(P => ({ san: LABEL[P], doanh_thu: millions(usable.filter(row => row.platform === P).reduce((s, row) => s + row.rev!, 0)) }));
   out.push({ id: 'market.platform-revenue', kind: 'platform-revenue', title: 'Doanh thu trong mẫu, từng sàn', unit: 'triệu đồng, ước tính trong mẫu',
     note: 'Mỗi thanh là doanh thu ước tính của các sản phẩm trong mẫu trên một sàn. Mỗi sàn đứng riêng, không gộp thành một con số chung; không phải quy mô thị trường.' + sampleNote,
     ...await draw({
@@ -99,13 +101,13 @@ export async function renderMarketCharts(rows: readonly MarketChartRow[], { flin
       semantic_types: { san: 'Category', doanh_thu: 'Number' },
       field_display_names: { san: ' ', doanh_thu: 'Doanh thu trong mẫu (triệu đồng)' },
       chart_spec: { chartType: 'Bar Chart', encodings: { y: 'san', x: 'doanh_thu', color: 'san' }, chartProperties: { showValueLabels: true }, baseSize: { width: 560, height: Math.max(120, byPlatform.length * 60) } },
-    } as FlintChartInput, () => barChart(byPlatform.map(p => p.san), plats.map((P, j) => ({ name: LABEL[P], values: byPlatform.map((_, k) => k === j ? byPlatform[j]!.doanh_thu : 0), color: COLOR[P] })), { stacked: true, fmt: one }),
+    } as FlintChartInput, () => barChart(byPlatform.map(p => p.san), plats.map((P, j) => ({ name: LABEL[P], values: byPlatform.map((_, k) => k === j ? byPlatform[j]!.doanh_thu : 0), color: COLOR[P] })), { stacked: true, fmt: revenueLabel }),
     keepOrder('san', byPlatform.map(p => p.san)), false) });
 
   // 3. Leading product rows by in-sample revenue, labelled by their source row number.
   const ranked = usable.filter(row => row.rev! > 0).sort((a, b) => b.rev! - a.rev! || a.i - b.i).slice(0, RANKED_ROWS);
   const rowLabel = (row: MarketChartRow & { readonly platform: MarketChartPlatform }): string => titleLabels && row.title ? `${row.title.length > 64 ? row.title.slice(0, 61) + '…' : row.title} · ${LABEL[row.platform]} · ${rowNumber(row)}` : `Dòng ${rowNumber(row)}`;
-  const rankedValues = ranked.map(row => ({ dong: rowLabel(row), san: LABEL[row.platform], doanh_thu: +(row.rev! / 1e6).toFixed(1) }));
+  const rankedValues = ranked.map(row => ({ dong: rowLabel(row), san: LABEL[row.platform], doanh_thu: millions(row.rev!) }));
   const order = rankedValues.map(row => row.dong);
   out.push({ id: 'market.product-ranking', kind: 'product-ranking', title: 'Sản phẩm có doanh thu cao trong mẫu', unit: 'triệu đồng, ước tính trong mẫu',
     note: `Gồm tối đa mười dòng sản phẩm có doanh thu cao trong mẫu, sắp giảm dần; ${rowListNote}. Mỗi sàn giữ màu riêng; không cộng chéo sàn.${sampleNote}`,
@@ -114,7 +116,7 @@ export async function renderMarketCharts(rows: readonly MarketChartRow[], { flin
       semantic_types: { dong: 'Category', san: 'Category', doanh_thu: 'Number' },
       field_display_names: { dong: ' ', san: 'Sàn', doanh_thu: 'Doanh thu trong mẫu (triệu đồng)' },
       chart_spec: { chartType: 'Bar Chart', encodings: { y: 'dong', x: 'doanh_thu', color: 'san' }, chartProperties: { showValueLabels: true }, baseSize: { width: 560, height: Math.max(160, ranked.length * 30) } },
-    } as FlintChartInput, () => barChart(order, plats.map(P => ({ name: LABEL[P], values: ranked.map(row => row.platform === P ? row.rev! / 1e6 : 0), color: COLOR[P] })), { stacked: true, fmt: one }),
+    } as FlintChartInput, () => barChart(order, plats.map(P => ({ name: LABEL[P], values: ranked.map(row => row.platform === P ? row.rev! / 1e6 : 0), color: COLOR[P] })), { stacked: true, fmt: revenueLabel }),
     keepOrder('dong', order)) });
   return out;
 }

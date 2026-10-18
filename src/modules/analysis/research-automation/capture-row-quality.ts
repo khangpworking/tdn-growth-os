@@ -63,7 +63,7 @@ export function captureExclusionNotice(rows: readonly { readonly platform: strin
     ...(irrelevant ? [`${irrelevant} dòng không phải sản phẩm chính (phụ kiện, linh kiện hoặc sản phẩm khác)`] : []),
     ...(implausible ? [`${implausible} dòng có doanh thu hoặc đơn vị bán bất thường`] : []),
   ];
-  return parts.length ? `Đã loại ${parts.join(' và ')} khỏi tổng.` : '';
+  return parts.length ? `Đã loại ${parts.join(' và ')} khỏi mẫu tính toán. Số liệu của toàn bộ kết quả tìm kiếm trên trang nguồn được giữ riêng, chưa áp dụng bộ lọc này.` : '';
 }
 
 /** Both report parsers derive membership from the same untruncated, clean cells. */

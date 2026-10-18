@@ -14,10 +14,13 @@ export type ReaderReportInput = {
    */
   platforms: [Platform] | [Platform, Platform];
   /**
-   * @minItems 1
    * @maxItems 20000
    */
-  rows: [Row, ...Row[]];
+  rows: Row[];
+  /**
+   * New capture readers retain the row policy, including an empty filtered sample. Absent on historical readers.
+   */
+  captureRowPolicy?: 'automation-metric-capture-v2';
   source?: Source;
   /**
    * Opaque web snapshot (automation-metric-web-snapshot-v1). Allowed only in 1.1.0; validated at runtime.

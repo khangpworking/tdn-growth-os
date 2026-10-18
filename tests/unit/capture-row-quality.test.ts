@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { splitCaptureNameCell, isMainCapturedProduct, captureRowExclusions, captureExclusionNotice } from '../../src/modules/analysis/research-automation/capture-row-quality.js';
+import { plainCaptureNumbers } from '../../src/modules/analysis/reader-report/format.js';
 
 test('name cell splits tolerant spacing and case; explicit shops win and unmatched cells are unchanged', () => {
   const name = 'Quạt điện Mẫu A 340 REVIEWS Total  sold products: 1.496 Created date: 03/2024  Gian hàng Mẫu';
@@ -53,7 +54,7 @@ test('plausibility uses relevant rows only, each platform separately, strict twe
 test('filter notice omits zero categories, empty notices and forbidden visible text', () => {
   const rows = [{ platform: 'shopee', reason: 'NOT_MAIN_PRODUCT' as const }, { platform: 'shopee', reason: 'UNIT_REVENUE_OUTLIER' as const }];
   assert.equal(captureExclusionNotice(rows, 'tiktok'), '');
-  assert.equal(captureExclusionNotice(rows.slice(0,1), 'shopee'), 'Đã loại 1 dòng không phải sản phẩm chính (phụ kiện, linh kiện hoặc sản phẩm khác) khỏi tổng.');
+  assert.equal(captureExclusionNotice(rows.slice(0,1), 'shopee'), 'Đã loại 1 dòng không phải sản phẩm chính (phụ kiện, linh kiện hoặc sản phẩm khác) khỏi mẫu tính toán. Số liệu của toàn bộ kết quả tìm kiếm trên trang nguồn được giữ riêng, chưa áp dụng bộ lọc này.');
   const notice = captureExclusionNotice(rows, 'shopee');
   assert.match(notice, /và 1 dòng/);
   assert.doesNotMatch(notice, /0|%|Metric|Kalodata|Google/);
@@ -64,4 +65,12 @@ test('even medians average the central ratios, do not round unit revenue, and ke
   // Median = 300, so neither upper row is twenty-fold; adding two lower rows makes median = 200.
   rows.push({ title: 'Son thêm A', platform: 'shopee', revenue: 100, units: 1 }, { title: 'Son thêm B', platform: 'shopee', revenue: 100, units: 1 });
   assert.deepEqual([...captureRowExclusions(rows, ['son'])], [[5, 'UNIT_REVENUE_OUTLIER']]);
+});
+
+test('capture number wording leaves source quotes, source identifiers and layout bytes intact', () => {
+  const protectedHtml = '<style>.x{width:100%}</style><p data-quote>Shop 0 giảm 25%</p><q>0%</q><code>source_0</code>';
+  assert.equal(plainCaptureNumbers(protectedHtml + '<p title="0%">0 dòng; 20%; 10.000; 0,01</p>'),
+    protectedHtml + '<p title="0%">không có dòng; 20 phần trăm; 10.000; 0,01</p>');
+  assert.equal(plainCaptureNumbers('<p>Trong mẫu có 0 dòng thiếu doanh thu và 0 dòng thiếu đơn vị bán.</p>'),
+    '<p>Trong mẫu không có dòng thiếu doanh thu và không có dòng thiếu đơn vị bán.</p>');
 });

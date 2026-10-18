@@ -446,6 +446,7 @@ export class AutomationMetricMethodBridge {
       assertBoundedState(result, readiness);
       platformResults.push({ platform, result });
     }
+    platformResults.sort((a, b) => Number(a.result.input.records.length === 0) - Number(b.result.input.records.length === 0));
     if (platformResults.length === 0) fail('METRIC_SOURCE_INPUT_REJECTED', 'Metric capture contains no attributed platform rows.');
     const primary = platformResults[0]!.result;
     const workspace = await this.#workspaces.readVerifiedWorkspace(input.start.workspaceId);
@@ -616,6 +617,7 @@ export class AutomationMetricMethodBridge {
         const normalized = captureMetricInput(verified.snapshot, selected.snapshot.sha256, platform, profile);
         return normalized ? [{ platform, result: calculateMetricScopes(normalized) }] : [];
       });
+      expectedPlatforms.sort((a, b) => Number(a.result.input.records.length === 0) - Number(b.result.input.records.length === 0));
       if (!equal(platformResults, expectedPlatforms)) integrity('Capture rows differ from the frozen row policy.');
     }
     const expectedCapture = captureMethodDetails(verified.snapshot, selected, platformResults, profile);
@@ -808,7 +810,7 @@ function captureMetricInput(snapshot: AutomationMetricWebSnapshotV1, sourceSha25
       measurement: { profileId: profile, scopeKey: 'all', platform, selection: 'UNSPECIFIED',
         start: snapshot.scope.period.startDate, end: snapshot.scope.period.endDate, currency: 'VND' } }];
   });
-  if (!records.length) return undefined;
+  if (!records.length && profile !== CAPTURE_ROW_PROFILE) return undefined;
   return { contractVersion: '1.0.0', scope: { key: 'all', platform, selection: 'UNSPECIFIED', start: snapshot.scope.period.startDate,
       end: snapshot.scope.period.endDate, periodBasis: 'Kỳ bộ lọc của results-page capture; giữ nguyên, không tự kéo dài hoặc chia tỷ lệ.', acquiredAt: snapshot.capturedAt },
     sources: [{ sha256: sourceSha256, label: 'Metric results-page capture snapshot', representationRole: 'primary', evidenceFamily: 'metric-results-page-capture',
@@ -950,6 +952,11 @@ function limitationsFor(coverage: ReturnType<typeof periodCoverage>): string[] {
 function assertBoundedState(result: MetricScopeOutput, readiness: MetricPreparationReadinessResult): void {
   const [all, wide, core] = result.scopes;
   const sections = new Map(readiness.sections.map(section => [section.sectionId, section.state]));
+  // The existing calculator represents an empty input with empty calculated
+  // scopes. The capture readiness still blocks every classified method.
+  if (result.input.profileId === CAPTURE_ROW_PROFILE && result.input.records.length === 0 &&
+      result.scopes.every(scope => scope.listingCount === 0 && scope.revenue.value === null && scope.units.value === null) &&
+      sections.get('M03') === 'BLOCKED' && sections.get('M04') === 'BLOCKED') return;
   if (result.scopes.length !== 3 || all?.key !== 'all' || all.status !== 'CALCULATED' || wide?.key !== 'wide' || wide.status !== 'BLOCKED_LABELS' ||
       core?.key !== 'core' || core.status !== 'BLOCKED_LABELS' || result.comparisons.length !== 0 ||
       result.input.records.some(row => row.label !== null) || result.labelIssues.length !== result.input.records.length ||

@@ -75,8 +75,10 @@ export function readerRowsFromMetricCapture(snapshot: AutomationMetricWebSnapsho
     if (reason) excluded.push({ ...readerRow, reason });
     else rows.push(readerRow);
   }
-  if (!rows.length) throw new ReaderMetricRowsError('NO_ATTRIBUTED_ROWS', 'groups.W12_topProducts');
-  for (const platform of platforms) if (!rows.some(row => row.platform === platform))
-    throw new ReaderMetricRowsError('DECLARED_PLATFORM_HAS_NO_ROWS', platform);
+  if (profile !== CAPTURE_ROW_PROFILE) {
+    if (!rows.length) throw new ReaderMetricRowsError('NO_ATTRIBUTED_ROWS', 'groups.W12_topProducts');
+    for (const platform of platforms) if (!rows.some(row => row.platform === platform))
+      throw new ReaderMetricRowsError('DECLARED_PLATFORM_HAS_NO_ROWS', platform);
+  }
   return { rows, unattributed, excluded };
 }

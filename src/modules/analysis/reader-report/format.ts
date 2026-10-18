@@ -9,6 +9,29 @@ export const pct = (a: number, b: number, d = 1): string => (100 * a / b).toFixe
 export const sp = (x: unknown): string => String(x).replace('.', ',');
 export const r100 = (v: number): number => Math.round(v / 100) * 100;
 
+/** New capture reports spell out percentages and zero in authored text only.
+ * Source quotes, attributes, CSS and scripts retain their exact bytes. */
+export function plainCaptureNumbers(html: string): string {
+  const stack: { tag: string; protected: boolean }[] = [];
+  return html.split(/(<!--[^]*?-->|<[^>]+>)/u).map(part => {
+    if (!part.startsWith('<')) return stack.some(frame => frame.protected) ? part : part
+      .replace(/%/gu, ' phần trăm')
+      .replace(/^(\s*)0(\s*)$/u, '$1không$2')
+      .replace(/(?<![\p{L}\p{N}.,])(?:có\s+)?0(?=\s+(?:dòng|gian hàng|bản ghi|sản phẩm|giá trị|đơn vị bán)(?![\p{L}\p{N}]))/gu, 'không có')
+      .replace(/((?:bằng|thành|phải|là|:)\s+)0(?![\p{L}\p{N}]|[.,]\d)/gu, '$1không');
+    const match = /^<(\/)?([a-z][a-z\d:-]*)\b/iu.exec(part);
+    if (!match) return part;
+    const tag = match[2]!.toLowerCase();
+    if (match[1]) {
+      const index = stack.map(frame => frame.tag).lastIndexOf(tag);
+      if (index >= 0) stack.splice(index);
+    } else if (!/^(?:area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)$/u.test(tag) && !/\/\s*>$/u.test(part)) {
+      stack.push({ tag, protected: /^(?:style|script|pre|code|q|blockquote)$/u.test(tag) || /\sdata-quote(?:\s|=|>)/u.test(part) });
+    }
+    return part;
+  }).join('');
+}
+
 /** Linear-interpolated quantile; NaN for an empty list. */
 export function q(values: readonly number[], p: number): number {
   const a = [...values].sort((x, y) => x - y);

@@ -309,6 +309,7 @@ export class AutomationReaderReports {
       profile: request.profile, platforms, rows, rowLineage: { sha256: rowLineageSha256 },
       ...(request.source === undefined ? {} : { source: request.source }),
       ...(capture ? {
+        captureRowPolicy: CAPTURE_ROW_PROFILE,
         webSnapshot: capture.snapshot,
         webSnapshotSha256: webSnapshotDigest(capture.snapshot),
       } : request.webSnapshot === undefined ? {} : {

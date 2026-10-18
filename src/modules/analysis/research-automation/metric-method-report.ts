@@ -227,6 +227,7 @@ function captureMetricMethodSection(snapshot: AutomationMetricMethodSnapshot, se
    */
   const noRowsNote = capture.rowPolicyVersion ? ' Không có dòng phù hợp để tính tổng mẫu trong lượt này.' : ' Bảng kết quả có chọn nền tảng này nhưng không có dòng nào gán được cho nền tảng; báo cáo không suy ra và không ghi thành 0.';
   const platformSummary = (platform: string, result: MetricScopeOutput | null): string => {
+    if (capture.rowPolicyVersion && result?.input.records.length === 0) result = null;
     const figure = figureOf(platform);
     if (figure === null) {
       if (result === null) return `<p class="warning">${escape(platformLabel(platform))}: <strong>không có số liệu</strong> trong lượt này. ${noRowsNote.trim()}</p>`;

@@ -42,7 +42,7 @@ export function marketChartSource(presentationRows: readonly MarketChartRow[], m
 export function captureSampleCounts(capture: CaptureMetricMethodDetails) {
   return capture.platforms.flatMap(({ platform, result }) => {
     const all = result.scopes.find(scope => scope.key === 'all');
-    return all?.status === 'CALCULATED' ? [{ platform, result, count: all.listingCount }] : [];
+    return all?.status === 'CALCULATED' && (!capture.rowPolicyVersion || all.listingCount > 0) ? [{ platform, result, count: all.listingCount }] : [];
   });
 }
 
@@ -52,6 +52,8 @@ export function captureSampleCounts(capture: CaptureMetricMethodDetails) {
  * platform without a drawn chart keeps its count line and source, with no chart.
  */
 export function renderCaptureSampleCharts(capture: CaptureMetricMethodDetails, citations: ReportCitations, charts: readonly CaptureCountChart[] = []): string {
+  if (capture.rowPolicyVersion && capture.platforms.every(({ result }) => result.input.records.length === 0))
+    return '<p>Chưa có số lượng mẫu phù hợp để phân tích sau khi lọc; không suy ra doanh số từ các dòng bị loại.</p>';
   return captureSampleCounts(capture).map(({ platform, result, count }) => {
     const label = platform === 'shopee' ? 'Shopee' : 'TikTok Shop';
     const chart = charts.find(item => item.platform === platform);
@@ -136,6 +138,8 @@ export function renderAutomationMarketAdvertising(input: AdvertisingReferenceInp
 export function renderAutomationMarketFindings(method: Method, citations: ReportCitations, readerPlainText = false): string {
   const allScope = method.input.metric?.scopes.find(scope => scope.key === 'all');
   const sampleCount = allScope?.status === 'CALCULATED' ? allScope.listingCount : null;
+  if (method.input.metric?.input.profileId === 'automation-metric-capture-v2' && sampleCount === 0)
+    return '<p>Chưa có số lượng mẫu phù hợp để phân tích sau khi lọc. Không suy ra doanh số, số người mua hoặc quy mô ngoài mẫu.</p>';
   const sampleLabel = sampleCount === null ? 'trong mẫu (chưa có số lượng mẫu)' : `trong mẫu (n = ${sampleCount})`;
   const withSample = (text: string): string => readerPlainText
     ? text.replace(/\btrong mẫu\b/iu, sampleLabel)

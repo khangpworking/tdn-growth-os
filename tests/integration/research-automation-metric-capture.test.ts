@@ -23,6 +23,7 @@ import { readerRowsFromMetricCapture } from '../../src/modules/analysis/reader-r
 import { marketChartSource } from '../../src/modules/analysis/research-automation/market-presentation-report.js';
 import { renderMarketCharts } from '../../src/modules/analysis/reader-report/market-charts.js';
 import { webSnapshotDigest } from '../../src/modules/analysis/reader-report/web-facts.js';
+import { verifyReaderReportInput } from '../../src/modules/analysis/reader-report/build.js';
 import { providerNameViolations, reportVisibleText, visibleTextViolations } from '../helpers/report-visible-text.js';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
@@ -443,11 +444,72 @@ test('new captures clean both parsers, restore shops, and exclude irrelevant and
   const record = JSON.parse((await f.artifacts.read(recordRow.inputSha)).toString());
   assert.equal(record.captureRowPolicy, CAPTURE_ROW_PROFILE);
   assert.equal(record.captureExcludedRows.length, 6);
+  assert.deepEqual(record.defaultMarketPeers.input.records.map((row: { title: string }) => row.title), parsed.rows.map(row => row.title));
   const readerHtml = (await f.service.readReaderReport(workspaceId, runId, build.revision.revisionId)).bytes.toString('utf8');
   assert.doesNotMatch(readerHtml, /reviews|Total sold products|Created date|nguồn không ghi gian hàng/iu);
   assert.match(readerHtml, /Shopee: Đã loại 2 dòng/);
   assert.match(readerHtml, /TikTok Shop: Đã loại 1 dòng/);
   assert.equal((readerHtml.match(/Shopee: Đã loại/g) ?? []).length, 1);
   assert.equal((readerHtml.match(/TikTok Shop: Đã loại/g) ?? []).length, 1);
+  assert.deepEqual(reportVisibleText(readerHtml).match(/.{0,45}%.{0,45}/gu) ?? [], []);
   assert.deepEqual((await f.service.readReaderReport(workspaceId, runId, build.revision.revisionId)).bytes, Buffer.from(readerHtml));
+});
+
+for (const emptyAll of [false, true]) test(`filtered capture retains an honest ${emptyAll ? 'empty sample' : 'empty platform'}`, async t => {
+  const snapshot = captureSnapshot();
+  snapshot.scope.platforms = ['shopee', 'tiktok'];
+  if (emptyAll) for (const item of snapshot.groups.W3_platformSplit) {
+    item.revenue = { ...item.revenue, value: null, displayed: '–' };
+  }
+  const table = snapshot.groups.W12_topProducts;
+  assert.ok(!('absent' in table));
+  const base = table.rows[0]!;
+  table.rows = ['shopee', 'tiktok'].map((platform, i) => {
+    const row = structuredClone(base);
+    row.cells.name = { label: 'Tên', text: emptyAll || i === 1 ? 'Motor Synthetic jar' : 'Synthetic jar', sourcePointer: `p[${i}].name` };
+    row.cells.platform = { label: 'Sàn', text: platform, sourcePointer: `p[${i}].platform` };
+    for (const key of ['revenue', 'units']) {
+      const cell = row.cells[key]!;
+      assert.ok('value' in cell);
+      cell.platform = platform as 'shopee' | 'tiktok';
+      cell.sourcePointer = `p[${i}].${key}`;
+    }
+    return row;
+  });
+  const f = await confirmedCaptureRun(t, 'USE_PREPARED', true, snapshot);
+  const draft = await f.service.readReport(workspaceId, runId, 'MARKET');
+  const semantic = JSON.parse((await f.artifacts.read(draft.versionId)).toString());
+  const methods = semantic.metricMethods as AutomationMetricMethodSnapshot;
+  assert.equal(methods.capture!.platforms.find(p => p.platform === 'tiktok')!.result.scopes[0]!.revenue.value, null);
+  assert.doesNotMatch(reportVisibleText(draft.bytes.toString()), /Motor Synthetic jar|khỏi tổng/u);
+  const build = await f.service.buildReaderReport(workspaceId, runId, {
+    contractVersion: 'reader-report-build-v1.1', requestKey: randomUUID(), metricPackageId: methods.originalSourcePackage.packageId,
+    platforms: ['shopee', 'tiktok'], profile, cover: null, webSnapshot: snapshot, webSnapshotSha256: webSnapshotDigest(snapshot),
+  }, { actorId: 'owner:synthetic', role: 'OWNER' });
+  const reader = (await f.service.readReaderReport(workspaceId, runId, build.revision.revisionId)).bytes.toString();
+  assert.match(reportVisibleText(reader), /TikTok Shop: không có dòng phù hợp/u);
+  const readerDom = new JSDOM(reader);
+  try {
+    // Source quotes and locators such as detail[0].name are evidence, not empty states.
+    for (const node of readerDom.window.document.querySelectorAll('[data-quote], .citation-register')) node.remove();
+    assert.deepEqual(reportVisibleText(readerDom.window.document).match(/.{0,45}(?:%|(?<![\p{L}\p{N}.,])0(?![\p{L}\p{N}.,])).{0,45}/gu) ?? [], []);
+  } finally { readerDom.window.close(); }
+  assert.doesNotMatch(reportVisibleText(reader), /Motor Synthetic jar|Sản phẩm trên trang|khỏi tổng/u);
+  const row = f.db.prepare('SELECT input_sha256 sha FROM analysis_reader_report_revisions WHERE revision_id=?').get(build.revision.revisionId) as { sha: string };
+  const record = JSON.parse((await f.artifacts.read(row.sha)).toString());
+  assert.equal(record.input.rows.length, emptyAll ? 0 : 1);
+  if (emptyAll) {
+    const { captureRowPolicy: _policy, ...legacyInput } = record.input;
+    assert.throws(() => verifyReaderReportInput(legacyInput), /rows/u, 'unversioned empty inputs still fail closed');
+  }
+  const queued = await f.service.requestReportRevision(workspaceId, runId, {
+    contractVersion: 'automation-market-presentation-revision-v1', requestKey: randomUUID(), previousPairId: f.pair.pairId,
+    sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } },
+  });
+  await f.service.processNext();
+  const attempt = await f.service.getReportRevision(workspaceId, runId, queued.attemptId);
+  assert.equal(attempt.state, 'COMMITTED');
+  const presented = (await f.service.readReport(workspaceId, runId, 'MARKET', false, attempt.pairId!)).bytes.toString();
+  assert.deepEqual(reportVisibleText(presented).match(/.{0,45}(?:%|(?<![\p{L}\p{N}.,])0(?![\p{L}\p{N}.,])).{0,45}/gu) ?? [], []);
+  assert.deepEqual(auditMarket14(presented).filter(rule => rule.kind === 'machine' && !rule.ok), []);
 });
