@@ -432,14 +432,11 @@ test('replay test instance: served reader pages carry the test notice; stored by
 });
 
 test('replay test instance over HTTP: the served reader page carries the notice once; the stored page is unchanged', async t => {
-  const f = await readyRun(t);
+  // The synthetic sales-data source stores real captures on the run, which replay start-up requires.
+  const f = await readyRun(t, undefined, { source: syntheticProductSource() });
   const built = await f.service.buildReaderReport(workspaceId, runId, f.build('10000000-0000-4000-8000-000000000962'), owner);
   const stored = (await f.service.readReaderReport(workspaceId, runId, built.revision.revisionId)).bytes;
-  // Replay start-up needs one stored sales-data capture on the source run; reuse a retained artifact.
-  const sha = (f.db.prepare('SELECT sha256 FROM artifact_manifests LIMIT 1').get() as { sha256: string }).sha256;
-  const at = now().toISOString();
-  f.db.prepare(`INSERT INTO analysis_research_automation_captures(run_id,step_id,ordinal,artifact_sha256,media_type,provider,operation,retrieved_at,window_start,window_end,truncated,retained_at)
-    VALUES (?,'QUICK_SEARCH',900,?,'application/json','kalodata','synthetic.capture',?,NULL,NULL,0,?)`).run(runId, sha, at, at);
+  assert.ok(!stored.toString('utf8').includes(KALODATA_REPLAY_NOTICE_VI));
   const probe = http.createServer(); probe.listen(0, '127.0.0.1'); await once(probe, 'listening');
   const port = (probe.address() as AddressInfo).port; await new Promise<void>(resolve => probe.close(() => resolve()));
   const base = `http://127.0.0.1:${port}`;
