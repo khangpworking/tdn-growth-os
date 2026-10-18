@@ -430,3 +430,31 @@ test('replay test instance: served reader pages carry the test notice; stored by
   assert.ok(served.includes(KALODATA_REPLAY_NOTICE_VI));
   assert.deepEqual((await f.service.readReaderReport(workspaceId, runId, built.revision.revisionId)).bytes, plain.bytes, 'stored page is untouched');
 });
+
+test('replay test instance over HTTP: the served reader page carries the notice once; the stored page is unchanged', async t => {
+  const f = await readyRun(t);
+  const built = await f.service.buildReaderReport(workspaceId, runId, f.build('10000000-0000-4000-8000-000000000962'), owner);
+  const stored = (await f.service.readReaderReport(workspaceId, runId, built.revision.revisionId)).bytes;
+  // Replay start-up needs one stored sales-data capture on the source run; reuse a retained artifact.
+  const sha = (f.db.prepare('SELECT sha256 FROM artifact_manifests LIMIT 1').get() as { sha256: string }).sha256;
+  const at = now().toISOString();
+  f.db.prepare(`INSERT INTO analysis_research_automation_captures(run_id,step_id,ordinal,artifact_sha256,media_type,provider,operation,retrieved_at,window_start,window_end,truncated,retained_at)
+    VALUES (?,'QUICK_SEARCH',900,?,'application/json','kalodata','synthetic.capture',?,NULL,NULL,0,?)`).run(runId, sha, at, at);
+  const probe = http.createServer(); probe.listen(0, '127.0.0.1'); await once(probe, 'listening');
+  const port = (probe.address() as AddressInfo).port; await new Promise<void>(resolve => probe.close(() => resolve()));
+  const base = `http://127.0.0.1:${port}`;
+  const token = 'synthetic-reader-owner-token-123456-abcdefghijklmnopqrstuvwxyz';
+  const api = openResearchAutomationApi({ databasePath: path.join(f.root, 'test.sqlite'), artifactRoot: path.join(f.root, 'artifacts'), origin: base,
+    providers: { kalodataSecretKey: null, serpApiKey: null, apifyTokenConfigured: false }, kalodataReplaySourceRunId: runId,
+    owner: { writeEnabled: true, databasePath: path.join(f.root, 'test.sqlite'), artifactRoot: path.join(f.root, 'artifacts'), token, allowedOrigin: base, actorId: owner.actorId } });
+  const server = http.createServer(api.handler); server.listen(port, '127.0.0.1'); await once(server, 'listening');
+  try {
+    // The PDF route prints these same page bytes.
+    const read = await fetch(`${base}/api/workspaces/${workspaceId}/research-automation/runs/${runId}/reader-reports/${built.revision.revisionId}/html`);
+    assert.equal(read.status, 200);
+    const html = Buffer.from(await read.arrayBuffer()).toString('utf8');
+    assert.equal(html.split('data-test-replay="1"').length - 1, 1, 'exactly one visible notice on the served page');
+    assert.ok(html.includes(KALODATA_REPLAY_NOTICE_VI));
+    assert.deepEqual((await f.service.readReaderReport(workspaceId, runId, built.revision.revisionId)).bytes, stored, 'stored page is untouched');
+  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await api.close(); }
+});

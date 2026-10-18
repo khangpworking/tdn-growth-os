@@ -380,17 +380,18 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
   try {
     reader.pragma('query_only = ON'); reader.pragma('foreign_keys = ON'); reader.defaultSafeIntegers(true);
     if (!reader.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='analysis_research_automation_runs'").get()) throw new TypeError('Apply the automation migration before startup');
-    readService = create(reader);
+    // Replay mode: both handles carry the source scope, so reader pages (HTML and PDF) show the replay notice too.
+    const kalodataReplay: KalodataReplaySource | undefined = configuration.kalodataReplaySourceRunId !== undefined
+      ? readKalodataReplaySource(reader, configuration.kalodataReplaySourceRunId) : undefined;
+    readService = create(reader, kalodataReplay ? { kalodataReplay } : {});
     if (configuration.owner) {
       writer = new BetterSqlite3(path.resolve(configuration.databasePath), { fileMustExist: true });
       writer.pragma('foreign_keys = ON'); writer.pragma('busy_timeout = 5000'); writer.defaultSafeIntegers(true);
       // Replay mode: the sales-data provider talks only to stored captures; the live key never reaches it.
-      let kalodataReplay: KalodataReplaySource | undefined;
       let registryProviders = configuration.providers ?? { kalodataSecretKey: null, serpApiKey: null, apifyTokenConfigured: false };
       let registryTransport = transport;
       if (configuration.kalodataReplaySourceRunId !== undefined) {
         const replayRunId = configuration.kalodataReplaySourceRunId;
-        kalodataReplay = readKalodataReplaySource(writer, replayRunId);
         registryProviders = { ...registryProviders, kalodataSecretKey: KALODATA_REPLAY_PLACEHOLDER_KEY };
         registryTransport = createKalodataReplayTransport(transport ?? defaultProviderTransport, () => loadKalodataReplayIndex(reader, artifacts, replayRunId));
       }
