@@ -123,18 +123,21 @@ function tableHeadings(table: string): string[] {
   return [...row.matchAll(/<(?:th|td)\b[^>]*>([\s\S]*?)<\/(?:th|td)>/giu)].map(cell => visible(cell[1] ?? ''));
 }
 
+/** Rule 9: a table of exactly three options and a second table of quick wins under a "làm ngay" label; every row names its owner, carries a dd/mm/yyyy deadline and the approval label. */
 function hasM12ProposalRows(html: string): boolean {
   const m12 = html.match(/<section\b[^>]*\bid=["'](?:phan-12|M12)["'][^>]*>[\s\S]*?<\/section>/iu)?.[0] ?? '';
-  return tableFragments(m12).some(table => {
+  const tables = tableFragments(m12).map(table => {
     const headings = tableHeadings(table);
-    const option = headings.findIndex(value => /(?:việc\s*làm|phương\s*án|quick[- ]?win|option)/iu.test(value));
-    const owner = headings.findIndex(value => /(?:người\s*phụ\s*trách|owner)/iu.test(value));
-    const deadline = headings.findIndex(value => /(?:hạn|deadline|thời\s*hạn)/iu.test(value));
+    const find = (pattern: RegExp): number => headings.findIndex(value => pattern.test(value));
+    const task = find(/(?:việc|phương\s*án|quick[- ]?win|option)/iu), owner = find(/(?:người\s*phụ\s*trách|owner)/iu), deadline = find(/(?:hạn|deadline)/iu);
     const rows = tableRows(table);
-    return option >= 0 && owner >= 0 && deadline >= 0 && rows.length === 3 && rows.every(row =>
-      Boolean(row[option]?.trim()) && Boolean(row[owner]?.trim()) && Boolean(row[deadline]?.trim()) &&
+    const filled = task >= 0 && owner >= 0 && deadline >= 0 && rows.length > 0 && rows.every(row =>
+      Boolean(row[task]?.trim()) && Boolean(row[owner]?.trim()) && /(?<!\d)\d{2}\/\d{2}\/\d{4}(?!\d)/u.test(row[deadline] ?? '') &&
       /đề xuất\s*,\s*chờ\s+chủ\s+duyệt/iu.test(row.join(' ')));
+    return { options: filled && rows.length === 3 && /(?:phương\s*án|option)/iu.test(headings[task] ?? ''), filled };
   });
+  const options = tables.findIndex(table => table.options);
+  return options >= 0 && tables.some((table, index) => index !== options && table.filled) && /\blàm\s+ngay\b/iu.test(visible(m12));
 }
 
 function noteBlocks(html: string): string[] {
@@ -298,7 +301,7 @@ export function auditMarket14(html: string, trace?: string, options: { requireFl
     result('6', true, 'evidence', evidenceDetail(html, [/doanh thu|tỷ trọng|giá trung bình/iu])),
     result('7', gateResult('U32_NO_CROSS_PLATFORM_TOTAL').ok && hasSampleStatement(text) && sampleIssues.length === 0 && zeroSampleIssues.length === 0 && !/(?:thị phần|quy mô thị trường)\s+(?:là|đạt|tăng|giảm|chiếm)\s*\d/iu.test(text), 'machine', sampleIssues.length ? snippets(sampleIssues) : zeroSampleIssues.length ? snippets(zeroSampleIssues) : hasSampleStatement(text) ? gateResult('U32_NO_CROSS_PLATFORM_TOTAL').detail : 'missing n = sample statement'),
     result('8', true, 'evidence', evidenceDetail(html, [/nhận định|nhóm|doanh thu|giá/iu])),
-    result('9', m12Structure, 'machine', m12Structure ? 'M12 has three labelled proposal rows, a quick-win label, owner and deadline fields' : 'M12 is missing the three-option, quick-win, owner, deadline or approval-label structure'),
+    result('9', m12Structure, 'machine', m12Structure ? 'M12 has three labelled options and a labelled quick-win table, each row with an owner and a dated deadline' : 'M12 is missing the three-option table, the quick-win table, an owner, a dd/mm/yyyy deadline or the approval label'),
     result('10', externalCover || malformedCover ? false : aiCover, externalCover || malformedCover || aiCover ? 'machine' : 'evidence', externalCover || malformedCover ? 'cover must be an embedded stored asset; external or malformed cover markup (or an AI cover that is not a bounded base64 JPEG with alt text) is not allowed' : aiCover ? 'cover image is embedded with AI-generated provenance and alt text; a generic illustration, no licence claimed' : licensedCover ? 'READ: a licensed or owner-supplied cover needs owner review; only an embedded AI-generated JPEG with alt text passes automatically' : 'READ: no embedded AI-generated JPEG cover with alt text'),
     result('11', (!iconCounts.shopee || icons.shopee >= iconCounts.shopee) && (!iconCounts.tiktok || icons.tiktok >= iconCounts.tiktok) && localIconCss && chartIssues.length === 0, 'machine', chartIssues.length ? chartIssues.join('; ') : `platform icons: ${icons.shopee}/${iconCounts.shopee} Shopee, ${icons.tiktok}/${iconCounts.tiktok} TikTok Shop`),
     result('12', allPlatformsMentioned && tables.length === 0, 'machine', tables.length ? `tables without a platform label: ${tables.length}` : allPlatformsMentioned ? 'Shopee and TikTok Shop are labelled in platform exhibits' : 'both platforms are not labelled'),

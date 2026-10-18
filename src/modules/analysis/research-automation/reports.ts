@@ -66,6 +66,7 @@ import { formatReaderValue, readerProductLabel, readerShopLabel } from './reader
 import type { AutomationQualitativeDraft } from '../../../../contracts/analysis/automation-qualitative-draft-v1.generated.js';
 import { qualitativeDraftSection, qualitativeDraftSummary } from '../reader-report/qualitative-draft-report.js';
 import { platIcons } from '../reader-report/layout.js';
+import { ACTION_LEAD, ACTION_NOTE, OPPORTUNITY_HEADINGS, OPPORTUNITY_READING, OPTION_HEADINGS, QUICK_WIN_HEADING, QUICK_WIN_HEADINGS, marketActionPlan, opportunityRows, type ActionRow, type MarketActionPlan } from '../reader-report/market-actions.js';
 import { deliverMarketReader, marketReaderGuide } from './market-reader-delivery.js';
 import { UNKNOWN_SHOP, marketChartRows, marketShopsUnrecorded, type CaptureCountChart, type MarketChart } from '../reader-report/market-charts.js';
 import type { RenderedChart } from '../reader-report/flint.js';
@@ -623,6 +624,51 @@ function readerDay(value: string): string {
   return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
 }
 
+/** Phần 11/12 rows, in the precedence the Market charts use; Metric records labelled outside the scope are left out. */
+function marketActionRows(input: AutomationReportInput, presentationRows: readonly ActionRow[]): ActionRow[] {
+  const metric = input.metricMethods;
+  if (presentationRows.length || !metric) return [...presentationRows];
+  const value = (stored: string | null): number | null => {
+    const parsed = stored === null ? Number.NaN : Number(stored);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+  };
+  const records = metric.capture ? metric.capture.platforms.flatMap(({ platform, result }) => result.input.records.map(record => ({ platform: platform as string, record })))
+    : metric.result.input.records.map(record => ({ platform: record.measurement.platform as string, record }));
+  return records.filter(({ record }) => record.label?.classification !== 'OUTSIDE')
+    .map(({ platform, record }) => ({ platform, rev: value(record.revenue.value), units: value(record.units.value) }));
+}
+
+/** Vietnam calendar day the report run was created; the proposal deadlines count from it. */
+function marketActionStartDay(input: AutomationReportInput): string {
+  const created = Date.parse(input.run.createdAt);
+  return Number.isFinite(created) ? new Date(created + 7 * 3_600_000).toISOString().slice(0, 10) : input.start.requestedPeriod.endDate;
+}
+
+function marketActionTable(no: string, title: string, extraClass: string, headings: readonly string[], rows: readonly (readonly string[])[], attributes = ''): string {
+  return `<div class="table-wrap${extraClass}"><div class="exh"><span class="exn">Bảng ${no}</span><span class="ext">${escape(title)}</span></div><table${attributes}><caption>${escape(title)}</caption>` +
+    `<thead><tr>${headings.map(heading => `<th scope="col">${escape(heading)}</th>`).join('')}</tr></thead>` +
+    `<tbody>${rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+
+/** Phần 11: the two in-sample opportunities per platform, or one plain line when no platform has revenue rows. */
+function marketOpportunitySection(plan: MarketActionPlan, reviewsCollected: boolean): string {
+  const reviews = reviewsCollected ? 'Lần chạy này đã thu đánh giá của khách; điểm khen và chê được đọc ở phương án C, Phần 12.'
+    : 'Lần chạy này chưa thu đánh giá của khách, nên chưa biết khách chưa hài lòng ở điểm nào.';
+  if (!plan.hasFigures) return `<p>Chưa đủ dữ liệu để nêu cơ hội trong mẫu: chưa sàn nào có sản phẩm ghi doanh thu. ${reviews}</p>`;
+  const title = 'Cơ hội trong mẫu, ghi riêng từng sàn (đề xuất, chờ chủ duyệt)';
+  return `<p>Hai cơ hội đọc từ doanh thu quan sát trong mẫu: bán trong khoảng giá có doanh thu lớn, và cạnh tranh với nhóm sản phẩm doanh thu lớn. Chưa có giá vốn nên chưa biết cơ hội nào có lãi. ${reviews}</p>` +
+    marketActionTable('11.1', title, '', OPPORTUNITY_HEADINGS, opportunityRows(plan.signals).map(row => row.map(cell => escape(cell))), ` data-reading="${escape(OPPORTUNITY_READING)}"`);
+}
+
+/** Phần 12: three options with in-sample related revenue, then the no-cost quick wins; every row is a proposal awaiting the owner. */
+function marketActionSection(plan: MarketActionPlan): string {
+  const options = marketActionTable('12.1', 'Phương án đề xuất, chờ chủ duyệt', ` market14-proposals${plan.hasFigures ? ' has-figures' : ''}`, OPTION_HEADINGS,
+    plan.options.map(option => [escape(option.name), option.related.map(line => escape(line)).join('<br>'), escape(option.firstStep), escape(option.owner), escape(option.deadline)]));
+  const quick = marketActionTable('12.2', 'Việc làm ngay, không tốn chi phí (đề xuất, chờ chủ duyệt)', ' market14-proposals', QUICK_WIN_HEADINGS,
+    plan.quickWins.map(win => [win.task, win.owner, win.deadline, win.output].map(cell => escape(cell))));
+  return `${options}<h3>${escape(QUICK_WIN_HEADING)}</h3>${quick}<p>${escape(ACTION_NOTE)}</p>`;
+}
+
 function observationTable(rows: readonly TypedComparable[], captures: ReadonlyMap<number, CaptureRecord>, citations: ReportCitations, labels: ReadonlyMap<string, string>, readerPlainText = false, productOrder: readonly string[] = []): string {
   if (!rows.length) return '';
   const ordinals = new Map<string, number>();
@@ -860,7 +906,15 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
         explanation: section.sectionId === 'M01' ? 'Nhận định chỉ mô tả dữ liệu đã lưu trong phạm vi khai báo.'
           : 'Đối chiếu quy cách và giá theo đúng bản lưu; sản phẩm thiếu quy cách hoặc giá được tách riêng.' };
     }
-    const decisionPacket = input.decisionPackets?.find(packet => packet.sectionId === section.sectionId);
+    // Phần 11/12 are built from the sample rows alone: per-platform figures, proposals awaiting the owner, no AI text.
+    if (marketPresentation && (section.sectionId === 'M11' || section.sectionId === 'M12')) {
+      const reviewsCollected = Boolean(input.nativeReview || input.reviewCorpus || exactTestReviewSample(input)?.listings.some(row => row.reviews > 0));
+      const plan = marketActionPlan(marketActionRows(input, marketPresentation.input.rows), { reviewsCollected, startDay: marketActionStartDay(input) });
+      locatedViews.set(section.sectionId, () => section.sectionId === 'M11' ? marketOpportunitySection(plan, reviewsCollected) : marketActionSection(plan));
+      return { sectionId: section.sectionId, title: section.title, state: 'EVIDENCE_INVENTORY', rows: [], method: marketPresentation.methodVersion,
+        explanation: section.sectionId === 'M11' ? 'Cơ hội đọc từ doanh thu quan sát trong mẫu, ghi riêng từng sàn; là đề xuất của TDN, chờ chủ duyệt.' : ACTION_LEAD };
+    }
+    const decisionPacket =input.decisionPackets?.find(packet => packet.sectionId === section.sectionId);
     if (decisionPacket && input.decisionSourceClaims) {
       const synthesis = input.decisionSynthesis?.[decisionPacket.sectionId];
       const proposed = synthesis?.status === 'VALID' && synthesis.candidates.artifact.aiCandidates.length > 0;
@@ -1127,13 +1181,6 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   const marketReaderLabels = (source: string): string => source.split(/(<[^>]+>)/gu).map((part, index) => index % 2 === 0
     ? part.replace(/(?<![\p{L}\p{N}_-])M(0[1-9]|1[0-3])(?![\p{L}\p{N}_-])/gu, (_match, digits: string) => marketSectionLabel(`M${digits}`))
     : part).join('');
-  const market14Proposals = marketPresentation ? '<p>Ba phương án là đề xuất, chờ chủ duyệt; chưa có hành động nào được phê duyệt.</p>' +
-    '<div class="table-wrap market14-proposals"><table><caption>Phương án đề xuất, chờ chủ duyệt</caption><thead><tr><th>Việc làm ngay</th><th>Người phụ trách</th><th>Hạn</th><th>Đầu ra</th></tr></thead><tbody>' +
-    [
-      ['Việc làm nhanh: rà phạm vi dữ liệu', 'Chủ dự án (đề xuất, chờ chủ duyệt)', 'Hạn: chủ chọn', 'Danh sách phần còn thiếu'],
-      ['Kiểm tra phân loại trên dòng nguồn', 'Chủ dự án; TDN hỗ trợ (đề xuất, chờ chủ duyệt)', 'Hạn: chủ chọn', 'Nhãn phân loại đã xem'],
-      ['Đối chiếu lời khách từ nguồn đã lưu', 'Chủ dự án (đề xuất, chờ chủ duyệt)', 'Hạn: chủ chọn', 'Bảng phản hồi được duyệt'],
-    ].map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('') + '</tbody></table></div>' : '';
   const marketSourceList = `<div class="table-wrap market14-sources"><div class="exh"><span class="exn">Bảng PL.1</span><span class="ext">Nguồn dữ liệu của báo cáo</span></div><table><caption>Nguồn dữ liệu của báo cáo</caption><thead><tr><th>Hạng mục</th><th>Trạng thái</th></tr></thead><tbody>` +
     marketSourceRows(input, webResults.length, webSourceFailed).map(([label, status]) => `<tr><td>${label}</td><td>${escape(status)}</td></tr>`).join('') +
     '</tbody></table></div>';
@@ -1361,7 +1408,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   // method explanation in semantic data without repeating it in the reader.
   const sectionReading = (section: DraftSection): string => readerPlainText && section.state === 'METHOD_NO_USABLE_RECORDS' && views.has(section.sectionId)
     ? '' : `<p class="section-reading">${escape(section.explanation)}</p>`;
-  const body = orderReportCitations(readerOpening + sections.map(section => `<section class="sheet" id="${section.sectionId}"><header class="sh-head"><div><span class="sh-id">${readerPlainText && kind === 'MARKET' ? marketSectionLabel(section.sectionId) : section.sectionId}</span><h2>${escape(section.title)}</h2></div><span class="state">${escape(stateLabel[section.state])}</span></header>${sectionReading(section)}${methodBody(section)}${section.state === 'SOURCE_CONTEXT' ? scope : ''}${section.sectionId === 'M13' || section.sectionId === 'I17' ? sourceTable + webResultsTable : ''}${observationTable(section.rows, captures, citations, labels, readerPlainText, [...input.scope.selectedProductIds, ...input.scope.peerProductIds])}${appendix(section.sectionId)}${section.sectionId === 'M12' ? market14Proposals : ''}${readerPlainText && kind === 'MARKET' ? '' : `<details class="method-reference"><summary>Hồ sơ đối chiếu phương pháp</summary><p><small>${fallbackIds.has(section.sectionId) ? 'Phương pháp ghi trong danh mục, chưa chạy trong lượt này' : 'Phương pháp'}: ${methodReference(section.method)}</small></p></details>`}</section>`).join(''), registry);
+  const body = orderReportCitations(readerOpening + sections.map(section => `<section class="sheet" id="${section.sectionId}"><header class="sh-head"><div><span class="sh-id">${readerPlainText && kind === 'MARKET' ? marketSectionLabel(section.sectionId) : section.sectionId}</span><h2>${escape(section.title)}</h2></div><span class="state">${escape(stateLabel[section.state])}</span></header>${sectionReading(section)}${methodBody(section)}${section.state === 'SOURCE_CONTEXT' ? scope : ''}${section.sectionId === 'M13' || section.sectionId === 'I17' ? sourceTable + webResultsTable : ''}${observationTable(section.rows, captures, citations, labels, readerPlainText, [...input.scope.selectedProductIds, ...input.scope.peerProductIds])}${appendix(section.sectionId)}${readerPlainText && kind === 'MARKET' ? '' : `<details class="method-reference"><summary>Hồ sơ đối chiếu phương pháp</summary><p><small>${fallbackIds.has(section.sectionId) ? 'Phương pháp ghi trong danh mục, chưa chạy trong lượt này' : 'Phương pháp'}: ${methodReference(section.method)}</small></p></details>`}</section>`).join(''), registry);
   // Snapshot the original register, then renumber only citations still visible in the reader.
   const semanticCitations = { citations: registry.technicalTrace(), citationEntries: registry.entries() };
   const readerBody = marketPresentation ? orderReportCitations(body.replace(/<template data-market14-source-trace>[\s\S]*?<\/template>/gu, ''), registry) : body;

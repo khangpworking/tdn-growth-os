@@ -11,9 +11,10 @@ const glossary = `<table data-glossary="true"><tbody>${[
 ].map(([term, meaning]) => `<tr><td>${term}</td><td>${meaning}</td></tr>`).join('')}</tbody></table>`;
 
 const sections = [...Array.from({ length: 11 }, (_, i) => `<section id="phan-${i + 1}"><span>Phần ${i + 1}</span><p>Doanh thu 10 trong mẫu (n = 4) sản phẩm.</p></section>`),
-  `<section id="phan-12"><span>Phần 12</span><p>Ba phương án là đề xuất, chờ chủ duyệt.</p><table><thead><tr><th>Việc làm ngay</th><th>Người phụ trách</th><th>Hạn</th></tr></thead><tbody>${[
-    'Việc làm nhanh: rà dữ liệu', 'Kiểm tra phân loại', 'Đối chiếu đánh giá',
-  ].map(name => `<tr><td>${name} (đề xuất, chờ chủ duyệt)</td><td>Chủ dự án (đề xuất, chờ chủ duyệt)</td><td>Hạn: chủ chọn</td></tr>`).join('')}</tbody></table></section>`,
+  `<section id="phan-12"><span>Phần 12</span><p>Ba phương án là đề xuất, chờ chủ duyệt.</p><table><thead><tr><th>Phương án</th><th>Người phụ trách</th><th>Hạn</th></tr></thead><tbody>${[
+    'A. Bán trong khoảng giá', 'B. Cạnh tranh với nhóm doanh thu lớn', 'C. Khác biệt bằng điểm khách chê',
+  ].map(name => `<tr><td>${name}</td><td>Chủ dự án (đề xuất, chờ chủ duyệt)</td><td>26/10/2026</td></tr>`).join('')}</tbody></table>` +
+    '<h3>Làm ngay (không tốn chi phí)</h3><table><thead><tr><th>Việc</th><th>Người phụ trách</th><th>Hạn</th></tr></thead><tbody><tr><td>Viết câu hỏi kinh doanh</td><td>Chủ dự án (đề xuất, chờ chủ duyệt)</td><td>22/10/2026</td></tr></tbody></table></section>',
   `<section id="phu-luc"><span>Phụ lục</span>${glossary}<p>Dữ liệu bán hàng, dữ liệu đánh giá sản phẩm trên nền tảng, kết quả tìm kiếm, bình luận đã thu thập.</p><p>Bảng PL.1</p><p class="ex-note"><b>Chú thích:</b> Các số liệu trong mẫu là số ước tính.</p></section>`];
 
 const flintChart = '<div class="chart flint" data-engine="flint"><svg viewBox="0 0 10 10"><rect x="1" y="1" width="8" height="8"></rect></svg></div>';
@@ -105,7 +106,7 @@ test('each machine rule has a failing synthetic mutation', () => {
     '4': valid.replace('Shopee</i> và', 'Google</i> và'),
     '5': valid.replace('Bảng PL.1', 'Ghi chú: Bảng PL.1'),
     '7': valid.replace('Trong mẫu n = 4 sản phẩm.', 'Trong mẫu 4 sản phẩm.'),
-    '9': valid.replace(/Việc làm (?:nhanh|ngay)/gu, 'Bước'),
+    '9': valid.replace(/Làm ngay/gu, 'Bước'),
     '10': valid.replace('<header class="cover">', '<header class="cover" style="background-image:url(\'https://example.test/cover.jpg\')">'),
     '11': valid.replace('data-engine="flint"', 'data-engine="svg"'),
     '12': valid.replace(/TikTok Shop<\/i>/gu, 'TikTok</i>'),
@@ -158,11 +159,16 @@ test('rule 7 requires an n = sample statement', () => {
   assert.equal(rule(unknown, '7').ok, true, 'unknown stored count is stated without inventing n');
 });
 
-test('rule 9 binds approval labels and required fields to exactly three rows', () => {
+test('rule 9 binds approval labels, owners and dated deadlines to three options and a quick-win table', () => {
+  assert.equal(rule(valid, '9').ok, true);
   const rowLabelsOutsideRows = valid.replace(/ \(đề xuất, chờ chủ duyệt\)/gu, '');
   assert.equal(rule(rowLabelsOutsideRows, '9').ok, false, 'labels only in prose must not count');
-  assert.equal(rule(valid.replace('Chủ dự án (đề xuất, chờ chủ duyệt)', ''), '9').ok, false, 'missing owner');
-  assert.equal(rule(valid.replace('Hạn: chủ chọn', ''), '9').ok, false, 'missing deadline');
+  assert.equal(rule(valid.replace('<td>Chủ dự án (đề xuất, chờ chủ duyệt)</td>', '<td></td>'), '9').ok, false, 'missing owner');
+  assert.equal(rule(valid.replace('<td>26/10/2026</td>', '<td></td>'), '9').ok, false, 'missing deadline');
+  assert.equal(rule(valid.replace('<td>26/10/2026</td>', '<td>Hạn: chủ chọn (đề xuất, chờ chủ duyệt)</td>'), '9').ok, false, 'an undated deadline is not a deadline');
+  assert.equal(rule(valid.replace(/<h3>Làm ngay[\s\S]*?<\/table>/u, ''), '9').ok, false, 'missing quick-win table');
+  assert.equal(rule(valid.replace('<th>Phương án</th>', '<th>Việc</th>'), '9').ok, false, 'the three rows must be options');
+  assert.equal(rule(valid.replace(/<tr><td>C\. [\s\S]*?<\/tr>/u, ''), '9').ok, false, 'two options are not three');
 });
 
 test('rule 11 rejects a flint marker with an empty or removed SVG', () => {

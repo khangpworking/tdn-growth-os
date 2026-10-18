@@ -158,11 +158,11 @@ test('collector cap drift cannot dispatch a production collection through trial 
 test('frozen default report digests from the base commit remain unchanged (Market and Insight)', async () => {
   const input = await fullMarket14Input();
   const market = buildResearchAutomationReport(input, 'MARKET');
-  // Reader and trace bytes re-pinned for the intended Market reader inventory/peer wording and descriptive reader copy (M05/M06/M07/M09) and the plain owner copy for periods, peers and ads. Reader dates/terms are localized while source quotes stay verbatim.
-  assert.equal(digest(market.html), 'a8ac68071df052f91dfc66514bfc94668909406c2401377f519e79a7b67dedcb');
-  // Against 21d0909a this fixture changes only M04.title and M10/M11/M12.explanation; it has no default-peer rule to exercise M07.
-  assert.equal(digest(canonicalJson(market.semantic)), '2042d54826e7119eeab3c27a93869640ca169761e3b30e45f8c09348a57af312');
-  assert.equal(digest(market.traceHtml!), 'cadf1054e5a0cc8b2446e3303c49da513572501c6f45d14ffdc4659424996a83');
+  // Reader and trace bytes re-pinned for the intended Market reader inventory/peer wording and descriptive reader copy (M05/M06/M07/M09) the plain owner copy for periods, peers and ads, and the per-platform Phần 11 and dated Phần 12 proposals. Reader dates/terms are localized while source quotes stay verbatim.
+  assert.equal(digest(market.html), '864d022a9e285d70cfe7b509eb372dcd5b5a599db0ebc4f53fdc7ee97b32aa25');
+  // Against 21d0909a this fixture changes M04.title, M10.explanation and the M11/M12 proposal state and explanation; it has no default-peer rule to exercise M07.
+  assert.equal(digest(canonicalJson(market.semantic)), 'f0848a6b8ed0a967ed928caff7a6b47f8b2e83790df4ca4f7f9c3f9c26b44fc4');
+  assert.equal(digest(market.traceHtml!), 'fda1a3ddd806e5b763af8057e434068982088c35b09cba4c556a82f4a72504c5');
   const insight = buildResearchAutomationReport(input, 'INSIGHT');
   assert.equal(digest(insight.html), '7163940cc6c424f6c1a2fc73c7af9458e1a50d3957adaa8d43802a8caf6ba08d');
   assert.equal(digest(canonicalJson(insight.semantic)), '21c5fa1d4be2b577cc196d0508e84342b0953f1a16ed6505eccbb784b8f05294');
