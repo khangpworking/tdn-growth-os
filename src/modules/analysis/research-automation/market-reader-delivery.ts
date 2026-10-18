@@ -62,6 +62,8 @@ const PHRASES: readonly [RegExp, string][] = [
   [/\breview\b/giu, 'đánh giá'],
   [/\bexport\b/giu, 'tệp dữ liệu'],
   [/\bpeer set\b/giu, 'nhóm đối thủ'],
+  // The owner never downloads a file; the sample is what the run saved.
+  [/(?<![\p{L}\p{N}])([Mm])ẫu xuất(?![\p{L}\p{N}])/gu, '$1ẫu đã lưu'],
   // The reader writes zero in words wherever an empty state is explained; decimals such as "0,5" stay numbers.
   [/([Bb])ằng 0(?![\d]|[,.]\d)/gu, '$1ằng không'],
   [/([Kk])hông (?:tính là|đổi thành|ghi thành) 0(?![\d]|[,.]\d)/gu, '$1hông thay bằng số không'],
