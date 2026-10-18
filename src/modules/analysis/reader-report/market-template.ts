@@ -7,6 +7,7 @@ import type { SellerVideos } from '../research-automation/seller-video.js';
 import type { MetaAdPage } from '../research-automation/meta-ad-report.js';
 import type { MetaAutoReportView } from '../research-automation/meta-auto-lane.js';
 import type { TikTokTopAdsReportView } from '../research-automation/tiktok-top-ads-lane.js';
+import type { ExactTestReviewContext } from '../research-automation/test-review-sample.js';
 import type { ReaderPlatform, ReaderReportData } from './build.js';
 import { currentProposals } from './market-proposals.js';
 import { buildMarketReportV2 } from './market-template-v2.js';
@@ -76,6 +77,8 @@ export type MarketReportOptions = {
   metaAuto?: MetaAutoReportView;
   /** The app's own TikTok top-ads read (S16 AUTO); drawn as table 7.4 in the competitor section of new builds. */
   tiktokTopAds?: TikTokTopAdsReportView;
+  /** Exact collection and confirmed trial cap, verified by the owning service; new reader builds only. */
+  testReviewSample?: ExactTestReviewContext;
 };
 /** site and published are the page name and date as the search engine shows them; older runs have neither. */
 export type ReaderWebResult = { position: number; title: string; url: string; snippet: string | null; retrievedAt: string; site?: string | null; published?: string | null; origin?: ExpandedSearchKind };

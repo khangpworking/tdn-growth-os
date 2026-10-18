@@ -1928,6 +1928,9 @@ export class ResearchAutomationService {
       const searchInterest = webCollection?.searchInterest;
       const webResults = webCollection?.sourceEvidence ? admitWebResults(webCollection.sourceEvidence, collectionWebRows(webCollection), await this.#captureRecords(runId), webCollection.sourceEvidence.jevTriage ?? null) : webCollection ? collectionWebRows(webCollection) : [];
       return { workspaceId, runId, draftPairId: latest.pairId, marketSemantic, ...(webCollection?.sourceEvidence?.webPageTypes ? { webPageTypes: true } : {}),
+        ...(scope?.testReviewCap !== undefined && marketSemantic.exactTestReviewSample !== undefined && webCollection?.exactShopee && webCollection.exactShopeeOutcome ? { testReviewSample: {
+          scope: { testReviewCap: scope.testReviewCap }, collection: { exactShopee: webCollection.exactShopee, exactShopeeOutcome: webCollection.exactShopeeOutcome },
+        } } : {}),
         webResults: webResults.map(({ position, title, url, snippet, retrievedAt, site, published, origin }) =>
           ({ position, title, url, snippet, retrievedAt, site: site ?? null, published: published ?? null, ...(origin ? { origin } : {}) })),
         ...(searchInterestRenderable(searchInterest) ? { searchInterest } : {}), ...(searchGeoRenderable(webCollection?.searchGeo) ? { searchGeo: webCollection.searchGeo, searchGeoCapture: (await this.#captureRecords(runId)).find(c => c.stepId === 'COLLECTION' && c.ordinal === webCollection.searchGeo!.captureIndex)! } : {}),
@@ -1943,6 +1946,9 @@ export class ResearchAutomationService {
     const searchInterest = webCollection?.searchInterest;
     const webResults = webCollection?.sourceEvidence ? admitWebResults(webCollection.sourceEvidence, collectionWebRows(webCollection), await this.#captureRecords(runId), webCollection.sourceEvidence.jevTriage ?? null) : webCollection ? collectionWebRows(webCollection) : [];
     return { workspaceId, runId, draftPairId: latest.pairId, marketSemantic, ...(webCollection?.sourceEvidence?.webPageTypes ? { webPageTypes: true } : {}),
+      ...(scope?.testReviewCap !== undefined && marketSemantic.exactTestReviewSample !== undefined && webCollection?.exactShopee && webCollection.exactShopeeOutcome ? { testReviewSample: {
+        scope: { testReviewCap: scope.testReviewCap }, collection: { exactShopee: webCollection.exactShopee, exactShopeeOutcome: webCollection.exactShopeeOutcome },
+      } } : {}),
       webResults: webResults.map(({ position, title, url, snippet, retrievedAt, site, published, origin }) =>
         ({ position, title, url, snippet, retrievedAt, site: site ?? null, published: published ?? null, ...(origin ? { origin } : {}) })),
       ...(searchInterestRenderable(searchInterest) ? { searchInterest } : {}), ...(searchGeoRenderable(webCollection?.searchGeo) ? { searchGeo: webCollection.searchGeo, searchGeoCapture: (await this.#captureRecords(runId)).find(c => c.stepId === 'COLLECTION' && c.ordinal === webCollection.searchGeo!.captureIndex)! } : {}),

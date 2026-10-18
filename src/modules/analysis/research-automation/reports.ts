@@ -78,6 +78,7 @@ import { comtradeFlowText, comtradeNotice, comtradeOfficialText, comtradeRendera
 import { formatWorldBankValue, worldBankRenderable, worldBankRenderableRows, worldBankSourceNote, worldBankTableNote, worldBankUnitText, WORLD_BANK_LIMIT, WORLD_BANK_SOURCE_LABEL, WORLD_BANK_SRC, WORLD_BANK_TITLE } from './world-bank-lane.js';
 import { E13_ATTRIBUTION } from '../source-appendix-projection.js';
 import { withKalodataReplayNotice } from './kalodata-replay.js';
+import { exactTestReviewSample, exactTestReviewSection, exactTestReviewSourceRows, TEST_REVIEW_SOURCE_TYPE } from './test-review-sample.js';
 import { searchInterestRenderable,SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_LIMIT, SEARCH_INTEREST_NOTE, SEARCH_INTEREST_SOURCE_LABEL, SEARCH_INTEREST_SRC, SEARCH_INTEREST_UNIT } from './search-interest.js';
 import { searchGeoAverageText, searchGeoRenderable, searchGeoText, summarizeSearchGeo, SEARCH_GEO_DONT, SEARCH_GEO_HEADERS, SEARCH_GEO_NOTE, SEARCH_GEO_TABLE_NO, SEARCH_GEO_TABLE_TITLE } from './search-geo.js';
 
@@ -207,12 +208,11 @@ export function marketSourceRows(input: AutomationReportInput, webResultCount: n
     ? missing.length ? `Dùng một phần: không có số liệu cho ${missing.map(readerPlatform).join(', ')} trong lượt này.` : 'Đã dùng số liệu của lượt này.'
     : input.metricMethodsFailure ? 'Không dùng được trong lượt này: gói số liệu không qua kiểm tra.' : 'Chưa có trong lượt này.';
   const testSample = exactTestReviewSample(input);
-  const native = testSample ? testSample.listings.some(row => row.reviews > 0)
-    ? `Đã thu mẫu thử Shopee, tối đa ${testSample.testReviewCap} đánh giá mỗi sản phẩm; chưa mã hóa nội dung.`
-    : 'Đã thử thu trên Shopee nhưng chưa có đánh giá trả về; không suy ra sản phẩm không có đánh giá.' : input.nativeReview ? 'Đã dùng trong lượt này.'
+  const trialRows = testSample ? exactTestReviewSourceRows(testSample) : null;
+  const native = trialRows ? trialRows.native : input.nativeReview ? 'Đã dùng trong lượt này.'
     : input.nativeReviewFailure ? 'Không dùng được trong lượt này: bước xử lý không qua kiểm tra.' : 'Chưa có trong lượt này.';
   const web = webResultCount ? `Đã lưu ${webResultCount} kết quả trong lượt này.` : webFailed ? WEB_SOURCE_FAILED_TEXT : 'Chưa có trong lượt này.';
-  const comments = testSample ? 'Cùng mẫu đánh giá Shopee nêu trên; không phải một tập bình luận khác.' : input.reviewCorpus ? 'Đã dùng trong lượt này.'
+  const comments = trialRows ? trialRows.comments : input.reviewCorpus ? 'Đã dùng trong lượt này.'
     : input.reviewCorpusFailure ? 'Không dùng được trong lượt này: bộ bình luận không qua kiểm tra.' : 'Chưa có trong lượt này.';
   const interest: readonly (readonly [string, string])[] = searchInterestRenderable(input.collection?.searchInterest) || searchGeoRenderable(input.collection?.searchGeo)
     ? [[SEARCH_INTEREST_SOURCE_LABEL, 'Đã dùng trong lượt này: chỉ số tương đối, không phải doanh số.']] : [];
@@ -242,7 +242,7 @@ export function marketSourceTypes(input: AutomationReportInput, webResultCount: 
     ...(sales ? platforms.length ? platforms.map(platform => `Dữ liệu bán hàng trên ${readerPlatform(platform)}`) : ['Dữ liệu bán hàng'] : []),
     ...(input.nativeReview ? ['Dữ liệu đánh giá sản phẩm trên Shopee'] : []),
     ...(webResultCount ? ['Kết quả tìm kiếm trên web'] : []),
-    ...(testSample ? ['Dữ liệu đánh giá sản phẩm và dữ liệu bình luận trên Shopee: cùng mẫu thử nhỏ, chưa mã hóa nội dung']
+    ...(testSample ? [TEST_REVIEW_SOURCE_TYPE]
       : input.reviewCorpus ? ['Dữ liệu bình luận của khách trên Shopee'] : []),
     ...(searchInterestRenderable(collection?.searchInterest) ? ['Mức quan tâm tìm kiếm theo thời gian'] : []),
     ...(searchGeoRenderable(collection?.searchGeo) ? ['Mức quan tâm tìm kiếm theo khu vực'] : []),
@@ -348,23 +348,6 @@ const REVIEW_TARGET = 300;
 function missingReviewOutcome(input: AutomationReportInput): ReviewOutcome | null {
   const value = input.collection?.exactShopeeOutcome;
   return value && input.collection?.exactShopee && value.testReviewCap === undefined && value.outcome !== 'OK' ? value : null;
-}
-/** Counts and cap are verified against the retained collection by the owning service. No coding or population inference. */
-function exactTestReviewSample(input: AutomationReportInput): ReviewOutcome | null {
-  const value = input.collection?.exactShopeeOutcome;
-  return value && input.collection?.exactShopee && value.testReviewCap !== undefined && value.testReviewCap === input.scope.testReviewCap
-    && Number.isInteger(value.testReviewCap) && value.testReviewCap >= 1 && value.testReviewCap <= 20 ? value : null;
-}
-function exactTestReviewSection(value: ReviewOutcome): string {
-  const cap = value.testReviewCap!;
-  return '<div class="test-review-sample"><h3>Mẫu đánh giá Shopee thu thử</h3>'
-    + `<p>Đây là mẫu thử nhỏ, tối đa ${cap} đánh giá mỗi sản phẩm, được thu cho báo cáo thử nghiệm. Mẫu này không đại diện cho toàn bộ đánh giá.</p>`
-    + `<ul>${value.listings.map((row, index) => `<li><a href="${escape(row.listingUrl)}" rel="noopener noreferrer">Sản phẩm #${index + 1}</a>: ${row.reviews === 0
-      ? `Chưa thu được đánh giá; chưa đạt giới hạn thử ${cap} đánh giá.` : row.reviews < cap
-        ? `Chỉ thu được ${row.reviews} đánh giá, ít hơn giới hạn thử ${cap} đánh giá.`
-        : `Đã thu đủ giới hạn thử ${cap} đánh giá.`}</li>`).join('')}</ul>`
-    + '<p>Đủ giới hạn thử không có nghĩa đã thu hết đánh giá của sản phẩm. Chưa mã hóa nội dung; không suy ra tỷ lệ ý kiến hay đặc điểm khách hàng. Ngày đánh giá có thể nằm ngoài kỳ báo cáo.</p>'
-    + '<p>Đây chỉ là đánh giá Shopee; không cộng với TikTok Shop, số liệu bán hàng hoặc số liệu cả nước. Số đánh giá không phải số người.</p></div>';
 }
 /** dd/mm/yyyy in Vietnam time (UTC+7, no daylight saving). */
 const vietnamDate = (iso: string): string => {
