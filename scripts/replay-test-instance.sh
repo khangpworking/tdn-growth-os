@@ -14,7 +14,7 @@
 #                         process (read from /proc/<pid>/environ), else required
 #   --env-file FILE       read non-secret settings from this file (KEY=VALUE lines) instead of the 8787 process
 #   --test-setting K=V    repeatable numeric override: TDN_RESEARCH_AUTORUN_TEST_REVIEWS (0/1),
-#                         TDN_RESEARCH_SHOPEE_MAX_REVIEWS_PER_PRODUCT (1..50),
+#                         TDN_RESEARCH_SHOPEE_MAX_REVIEWS_PER_PRODUCT (1..20),
 #                         TDN_RESEARCH_SHOPEE_MAX_CHARGE_USD (positive, at most 10000)
 #   --port N              test port, default 8797 (8787 is refused)
 #   --node-bin DIR        node 24 bin dir; default $HOME/.nanobot/workspace/.toolchains/node-v24.15.0-linux-x64/bin
@@ -54,7 +54,7 @@ add_test_setting() {
     TDN_RESEARCH_AUTORUN_TEST_REVIEWS)
       [[ "$value" =~ ^[01]$ ]] || die 'invalid test flag' ;;
     TDN_RESEARCH_SHOPEE_MAX_REVIEWS_PER_PRODUCT)
-      [[ "$value" =~ ^[1-9][0-9]?$ ]] && [ "$value" -le 50 ] || die 'test review cap must be 1..50' ;;
+      [[ "$value" =~ ^[1-9][0-9]?$ ]] && [ "$value" -le 20 ] || die 'test review cap must be 1..20' ;;
     TDN_RESEARCH_SHOPEE_MAX_CHARGE_USD)
       [[ "$value" =~ ^(0|[1-9][0-9]{0,4})(\.[0-9]{1,6})?$ ]] && [[ "$value" =~ [1-9] ]] || die 'invalid test charge cap'
       whole="${value%%.*}"

@@ -75,7 +75,7 @@ export class AutomationExactShopeeBridge {
     try {
       signal?.throwIfAborted();
       const testReviewCap = input.scope.testReviewCap;
-      if (testReviewCap !== undefined && (!Number.isInteger(testReviewCap) || testReviewCap < 1 || testReviewCap > 50 ||
+      if (testReviewCap !== undefined && (!Number.isInteger(testReviewCap) || testReviewCap < 1 || testReviewCap > 20 ||
           attempt.collector.maxReviewsPerProduct !== testReviewCap)) throw new Error('Trial collector cap differs from confirmed scope');
       let verified = await this.#collections.existingExact(bytes, attempt.collector.mode);
       const reused = Boolean(verified);

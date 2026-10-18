@@ -369,7 +369,7 @@ export function buildConfirmValue(input: ConfirmValueInput): { ok: true; value: 
     definition, includeTerms: uniqueTerms(input.includeTerms), excludeTerms: [], selectedProductIds: selected, peerProductIds: [],
     exactShopeeUrls: [...new Set(input.exactShopeeUrls)].slice(0, AUTORUN_MAX_SHOPEE_LINKS),
     sources: { metric: { decision: 'USE_PREPARED', packageId: input.packageId }, nativeReview:
-      input.exactShopeeUrls.length > 0 && Number.isInteger(input.testReviewCap) && input.testReviewCap! >= 1 && input.testReviewCap! <= 50
+      input.exactShopeeUrls.length > 0 && Number.isInteger(input.testReviewCap) && input.testReviewCap! >= 1 && input.testReviewCap! <= 20
         ? { decision: 'COLLECT_EXACT_TEST', maxReviewsPerProduct: input.testReviewCap! } : 'SKIP' },
   } };
 }

@@ -16,11 +16,11 @@ test('replay test-setting refuses every non-allow-listed key before production r
 });
 
 test('replay test-setting accepts only short numeric flag and cap values', () => {
-  for (const entry of [`${flag}=1`, `${flag}=0`, `${cap}=1`, `${cap}=20`, `${cap}=50`, `${charge}=0.01`, `${charge}=1`, `${charge}=10000.000`]) {
+  for (const entry of [`${flag}=1`, `${flag}=0`, `${cap}=1`, `${cap}=20`, `${cap}=19`, `${charge}=0.01`, `${charge}=1`, `${charge}=10000.000`]) {
     const result = invoke('--test-setting', entry, '--help');
     assert.equal(result.status, 0, result.stderr); assert.match(result.stdout, /--test-setting/);
   }
-  for (const [key, values] of [[flag, ['true', 'secret', '2']], [cap, ['0', '51', '300', '20x', '12345678901234567890']],
+  for (const [key, values] of [[flag, ['true', 'secret', '2']], [cap, ['0', '21', '50', '51', '300', '20x', '12345678901234567890']],
     [charge, ['0', '-1', '10000.01', '10001', '1e2', '1\nTDN_APIFY_TOKEN=synthetic', 'synthetic-secret', '12345678901234567890', '1$(touch ../never-create-this)']]] as const) {
     for (const value of values) {
       const result = invoke('--test-setting', `${key}=${value}`, '--help');

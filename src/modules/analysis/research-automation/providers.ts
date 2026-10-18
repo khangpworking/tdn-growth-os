@@ -400,7 +400,7 @@ export function researchAutomationProviderConfigFromEnv(env: NodeJS.ProcessEnv):
     serpApiKey: credential(env[PROVIDER_CREDENTIAL_ENV.SERPAPI], PROVIDER_CREDENTIAL_ENV.SERPAPI),
     apifyTokenConfigured: token !== null,
     ...(token && cap !== null ? { apifyReviews: { token, maxChargeUsd: cap, ...(perListing !== null ? { maxReviewsPerProduct: perListing } : {}) } } : {}),
-    ...(env.TDN_RESEARCH_AUTORUN_TEST_REVIEWS === '1' && token && cap !== null && perListing !== null && perListing <= 50
+    ...(env.TDN_RESEARCH_AUTORUN_TEST_REVIEWS === '1' && token && cap !== null && perListing !== null && perListing <= 20
       ? { autorunTestReviewCap: perListing } : {}),
     ...(tiktokCap !== null ? { apifyTikTokComments: { maxChargeUsd: tiktokCap } } : {}),
   };

@@ -352,7 +352,7 @@ function missingReviewOutcome(input: AutomationReportInput): ReviewOutcome | nul
 function exactTestReviewSample(input: AutomationReportInput): ReviewOutcome | null {
   const value = input.collection?.exactShopeeOutcome;
   return value && input.collection?.exactShopee && value.testReviewCap !== undefined && value.testReviewCap === input.scope.testReviewCap
-    && Number.isInteger(value.testReviewCap) && value.testReviewCap >= 1 && value.testReviewCap <= 50 ? value : null;
+    && Number.isInteger(value.testReviewCap) && value.testReviewCap >= 1 && value.testReviewCap <= 20 ? value : null;
 }
 function exactTestReviewSection(value: ReviewOutcome): string {
   const cap = value.testReviewCap!;
@@ -955,7 +955,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   // snapshot-v2 draft marker; marker-free output keeps byte-identical dispatch.
   const descriptiveVersion = kind === 'MARKET' ? input.descriptiveMethods?.methodVersion : undefined;
   const draftInsight = kind === 'INSIGHT' && input.insightCoding !== undefined && 'draftSelection' in input.insightCoding;
-  const testReviewSample = exactTestReviewSample(input);
+  const testReviewSample = kind === 'MARKET' ? exactTestReviewSample(input) : null;
   const rendererVersion = testReviewSample ? 'automation-report-kit-v30' : input.qualitativeDraft ? 'automation-report-kit-v28' : insightPersona ? 'automation-report-kit-v26' : kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v5' ? 'automation-report-kit-v25' : marketPresentation ? 'automation-report-kit-v20' : kind === 'INSIGHT' && input.start.privateShopeeSource ? (sample ? 'automation-report-kit-v27' : 'automation-report-kit-v22') : insightCrosscheck ? 'automation-report-kit-v23' : kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4' ? 'automation-report-kit-v21' : insightLiteral ? 'automation-report-kit-v19' : kind === 'MARKET' && input.sourceEvidence?.jevTriage ? 'automation-report-kit-v29' : input.sourceEvidence ? 'automation-report-kit-v18'
     : draftInsight && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3' ? 'automation-report-kit-v17'
     : draftInsight ? 'automation-report-kit-v15'
@@ -1206,7 +1206,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   // market14 reader: M13 trace receipts and evidence details stay in semantic (sourceEvidence, quoteMethods, boundedMethods), not the reader.
   const traceAppendix = (sectionId: string): boolean => !(marketPresentation && sectionId === 'M13');
   const appendix = (sectionId: string): string =>
-    (testReviewSample && ((kind === 'MARKET' && sectionId === 'M13') || (kind === 'INSIGHT' && sectionId === 'I03'))
+    (testReviewSample && sectionId === 'M13'
       ? exactTestReviewSection(testReviewSample) : '') +
     presentationCharts(sectionId) + searchInterestFigure(sectionId) + searchGeoBlock(sectionId) + worldBankTable(sectionId) + officialStatsTable(sectionId) + comtradeTable(sectionId) + searchAdsTable(sectionId) + pdfExcerptBlock(sectionId) + sellerVideoBlock(sectionId) +
     (reviewOutcome && kind === 'INSIGHT' && (sectionId === 'I03' || sectionId === 'I17') ? `<p class="warning">${escape(reviewOutcomeLead(reviewOutcome))}</p>` : '') +

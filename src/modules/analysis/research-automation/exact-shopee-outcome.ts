@@ -92,7 +92,7 @@ const OUTCOME_CODES: Readonly<Record<Exclude<ExactShopeeOutcome, 'OK'>, string>>
 /** The extra run-page limitation for a non-OK outcome; null when every listing has reviews. */
 export function exactShopeeOutcomeLimitation(outcome: ExactShopeeOutcome, counts: readonly ExactShopeeListingCount[], targetReviews?: number): SourceLimitation | null {
   if (outcome === 'OK') return null;
-  if (targetReviews !== undefined && targetReviews <= 50) return { provider: 'apify-shopee', code: OUTCOME_CODES[outcome],
+  if (targetReviews !== undefined && targetReviews <= 20) return { provider: 'apify-shopee', code: OUTCOME_CODES[outcome],
     message: `Chưa thu đủ giới hạn thử ${targetReviews} đánh giá cho mọi sản phẩm. Đây là mẫu thử nhỏ, không đại diện cho toàn bộ đánh giá; không tự thu lại.` };
   const withReviews = counts.filter(row => row.reviews > 0).length;
   const short = counts.filter(row => row.shortfallReason !== undefined || row.reviews === 0);

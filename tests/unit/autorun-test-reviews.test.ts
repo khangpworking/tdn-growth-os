@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { researchAutomationProviderConfigFromEnv } from '../../src/modules/analysis/research-automation/providers.js';
 import { buildConfirmValue } from '../../src/modules/analysis/research-automation/autorun-derive.js';
-import { buildResearchAutomationReport, marketSourceRows } from '../../src/modules/analysis/research-automation/reports.js';
+import { buildResearchAutomationReport, marketSourceRows, marketSourceTypes } from '../../src/modules/analysis/research-automation/reports.js';
 import { auditMarket14 } from '../../src/modules/analysis/research-automation/market-14-rules.js';
 import { assertMarketBusinessGate } from '../../src/modules/analysis/research-automation/market-business-gate.js';
-import { FixtureShopeeCollector, shopeeActorInputSha256, type ShopeeCollector } from '../../src/platform/collectors/apify-shopee.js';
+import { ApifyShopeeCollector, FixtureShopeeCollector, shopeeActorInputSha256, type ShopeeCollector } from '../../src/platform/collectors/apify-shopee.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import type { StepResultDocument } from '../../src/modules/analysis/research-automation/model.js';
 import { autorun, drain, fixture, rewindStartKey, startRun, workspaceId } from '../helpers/autorun-harness.js';
@@ -35,17 +35,17 @@ function fakeCollector(counts: readonly number[], cap = 20) {
   return { calls, factory: () => ({ collector, requestsIssued: () => calls.length }) };
 }
 
-test('test review opt-in requires exactly 1, a configured collector and an explicit cap at most 50', () => {
+test('test review opt-in requires exactly 1, a configured collector and an explicit cap at most 20', () => {
   for (const env of [{}, baseEnv, { ...baseEnv, TDN_RESEARCH_AUTORUN_TEST_REVIEWS: 'true' },
     { TDN_RESEARCH_AUTORUN_TEST_REVIEWS: '1' },
     { TDN_APIFY_TOKEN: baseEnv.TDN_APIFY_TOKEN, TDN_RESEARCH_SHOPEE_MAX_CHARGE_USD: '1', TDN_RESEARCH_AUTORUN_TEST_REVIEWS: '1' },
-    ...['51', '300', '500'].map(cap => ({ ...baseEnv, TDN_RESEARCH_AUTORUN_TEST_REVIEWS: '1', TDN_RESEARCH_SHOPEE_MAX_REVIEWS_PER_PRODUCT: cap }))]) {
+    ...['21', '50', '51', '300', '500'].map(cap => ({ ...baseEnv, TDN_RESEARCH_AUTORUN_TEST_REVIEWS: '1', TDN_RESEARCH_SHOPEE_MAX_REVIEWS_PER_PRODUCT: cap }))]) {
     const config = researchAutomationProviderConfigFromEnv(env);
     assert.equal(config.autorunTestReviewCap, undefined);
     const built = buildConfirmValue({ ...confirmInput, ...(config.autorunTestReviewCap !== undefined ? { testReviewCap: config.autorunTestReviewCap } : {}) });
     assert.ok(built.ok); assert.equal(built.value.sources.nativeReview, 'SKIP');
   }
-  for (const cap of ['1', '20', '50']) {
+  for (const cap of ['1', '19', '20']) {
     const config = researchAutomationProviderConfigFromEnv({ ...baseEnv, TDN_RESEARCH_AUTORUN_TEST_REVIEWS: '1', TDN_RESEARCH_SHOPEE_MAX_REVIEWS_PER_PRODUCT: cap });
     assert.equal(config.autorunTestReviewCap, Number(cap));
     const built = buildConfirmValue({ ...confirmInput, testReviewCap: config.autorunTestReviewCap! });
@@ -110,7 +110,7 @@ for (const counts of [[20, 20, 20], [20, 7, 0], [0, 0, 0]]) test(`Market-only au
 });
 
 test('injected flag without collector, missing cap or production cap keeps the original SKIP', async t => {
-  for (const options of [{ cap: 20 }, { factory: fakeCollector([20]).factory }, { cap: 51, factory: fakeCollector([20]).factory }, { cap: 300, factory: fakeCollector([20]).factory }]) {
+  for (const options of [{ cap: 20 }, { factory: fakeCollector([20]).factory }, { cap: 21, factory: fakeCollector([20]).factory }, { cap: 300, factory: fakeCollector([20]).factory }]) {
     const f = await fixture(t, 'on', undefined, undefined, options);
     const runId = await startRun(f.service); await drain(f.service);
     assert.equal((f.service.confirms[0] as any).sources.nativeReview, 'SKIP');
@@ -148,4 +148,121 @@ test('source table describes the exact trial sample without depending on an Insi
     exactShopeeOutcome: { outcome: 'OK' as const, testReviewCap: 20, listings: [{ listingUrl: confirmInput.exactShopeeUrls[0]!, reviews: 20 }], attemptedAt: '2026-02-01T00:00:00Z', providerMessage: null, reused: false } } };
   assert.equal(trial.reviewCorpus, undefined);
   assert.match(marketSourceRows(trial, 0, false).find(([label]) => label === 'Dữ liệu đánh giá sản phẩm trên nền tảng')![1], /mẫu thử Shopee, tối đa 20/u);
+  assert.equal(marketSourceTypes(trial, 0, []).used.filter(label => /đánh giá|bình luận/u.test(label)).length, 1);
+  const { marketPresentation: _presentation, ...draft } = trial;
+  for (const reportInput of [trial, draft]) {
+    const html = buildResearchAutomationReport(reportInput, 'MARKET').html.toString();
+    const sample = html.match(/<div class="test-review-sample">[\s\S]*?<\/div>/u)![0].replace(/<[^>]*>/gu, '');
+    assert.match(sample, /Mẫu này không đại diện cho toàn bộ đánh giá/u);
+    assert.doesNotMatch(sample, /%|\b0\b|apify|zen-studio|Metric|Kalodata|Google/iu);
+    const empty = { ...reportInput, collection: { ...reportInput.collection, exactShopeeOutcome: {
+      ...reportInput.collection.exactShopeeOutcome, outcome: 'PROVIDER_BLOCKED' as const,
+      listings: [{ listingUrl: confirmInput.exactShopeeUrls[0]!, reviews: 0 }] } } };
+    const emptyHtml = buildResearchAutomationReport(empty, 'MARKET').html.toString();
+    const emptySample = emptyHtml.match(/<div class="test-review-sample">[\s\S]*?<\/div>/u)![0].replace(/<[^>]*>/gu, '');
+    assert.match(emptySample, /Chưa thu được đánh giá/u);
+    assert.doesNotMatch(emptySample, /%|\b0\b|apify|zen-studio|Metric|Kalodata|Google/iu);
+    assert.equal(marketSourceTypes(empty, 0, []).used.some(label => /đánh giá|bình luận/u.test(label)), false);
+  }
+});
+
+test('trial configuration leaves paired reports on SKIP and Insight bytes unchanged', async t => {
+  const fake = fakeCollector([20, 20, 20]);
+  const f = await fixture(t, 'on', undefined, undefined, { factory: fake.factory, cap: 20 });
+  const baseline = await fixture(t);
+  const request = { contractVersion: 'research-automation-start-v1', requestKey: randomUUID(),
+    mode: 'CATEGORY', keyword: 'synthetic jar', requestedPeriod: { startDate: '2026-01-01', endDate: '2026-01-30' }, reports: ['MARKET', 'INSIGHT'] };
+  const started = await f.service.start(workspaceId, request);
+  await baseline.service.start(workspaceId, request);
+  const runId = started.run.runId;
+  await drain(f.service); await drain(baseline.service);
+  assert.equal((f.service.confirms[0] as any).sources.nativeReview, 'SKIP');
+  const pair = (await f.service.listReportVersions(workspaceId, runId)).at(-1)!;
+  const before = await f.service.readReport(workspaceId, runId, 'INSIGHT', false, pair.pairId);
+  const baselinePair = (await baseline.service.listReportVersions(workspaceId, runId)).at(-1)!;
+  assert.deepEqual(before.bytes, (await baseline.service.readReport(workspaceId, runId, 'INSIGHT', false, baselinePair.pairId)).bytes);
+  await f.service.requestReportRevision(workspaceId, runId, { contractVersion: 'automation-insight-literal-report-revision-v1',
+    requestKey: randomUUID(), previousPairId: pair.pairId,
+    sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } }, literalInsight: { contractVersion: 'insight-literal-select-v1' } });
+  await drain(f.service);
+  const revised = (await f.service.listReportVersions(workspaceId, runId)).at(-1)!;
+  assert.notEqual(revised.pairId, pair.pairId);
+  const report = await f.service.readReport(workspaceId, runId, 'INSIGHT', false, revised.pairId);
+  const semantic = JSON.parse(await fs.readFile(path.join(f.artifactRoot, 'sha256', report.versionId.slice(0, 2), report.versionId), 'utf8'));
+  assert.equal(semantic.rendererVersion, 'automation-report-kit-v19');
+  assert.equal(fake.calls.length, 0);
+});
+
+test('owner confirmation cannot enable a trial without its configuration or for Insight', async t => {
+  const fake = fakeCollector([20]);
+  for (const [autoRun, options, reports, cap] of [
+    ['on', { factory: fake.factory }, ['MARKET'], 20],
+    ['on', { cap: 20 }, ['MARKET'], 20],
+    ['off', { factory: fake.factory, cap: 20 }, ['MARKET'], 20],
+    ['on', { factory: fake.factory, cap: 20 }, ['MARKET'], 19],
+    ['on', { factory: fake.factory, cap: 21 }, ['MARKET'], 21],
+    ['on', { factory: fake.factory, cap: 20 }, ['INSIGHT'], 20],
+    ['on', { factory: fake.factory, cap: 20 }, ['MARKET', 'INSIGHT'], 20],
+  ] as const) {
+    const f = await fixture(t, autoRun, undefined, undefined, options);
+    const { run } = await f.service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: randomUUID(),
+      mode: 'CATEGORY', keyword: 'synthetic jar', requestedPeriod: { startDate: '2026-01-01', endDate: '2026-01-30' }, reports });
+    await f.service.processNext();
+    const awaiting = await f.service.getRun(workspaceId, run.runId);
+    const before = f.db.prepare('SELECT total_changes() n').get();
+    await assert.rejects(f.service.confirmScope(workspaceId, run.runId, { contractVersion: 'research-automation-confirm-v2',
+      requestKey: randomUUID(), expectedRevision: awaiting.revision, definition: 'Synthetic trial', includeTerms: [], excludeTerms: [],
+      selectedProductIds: [], peerProductIds: [], exactShopeeUrls: confirmInput.exactShopeeUrls,
+      sources: { metric: { decision: 'ABSENT' }, nativeReview: { decision: 'COLLECT_EXACT_TEST', maxReviewsPerProduct: cap } } }),
+    /Trial reviews require|Invalid source-bound scope confirmation/);
+    assert.deepEqual(f.db.prepare('SELECT total_changes() n').get(), before);
+  }
+  assert.equal(fake.calls.length, 0);
+});
+
+test('trial restart and collection replay preserve the real collector cap and a single paid POST', async t => {
+  let posts = 0, requests = 0, journalRoot = '';
+  let rows: object[] = [];
+  const transport: typeof fetch = async (urlLike, init) => {
+    requests++;
+    const url = new URL(String(urlLike));
+    if (init?.method === 'POST') {
+      posts++;
+      assert.equal(url.searchParams.get('maxTotalChargeUsd'), '1');
+      const input = JSON.parse(String(init.body));
+      assert.equal(input.maxReviewsPerProduct, 20);
+      assert.ok(input.startUrls.length > 0 && input.startUrls.length <= 5);
+      rows = input.startUrls.flatMap((entry: { url: string }) => {
+        const [, shopId, itemId] = new URL(entry.url).pathname.match(/\/product\/(\d+)\/(\d+)/)!;
+        return Array.from({ length: 20 }, (_, n) => ({ shopId, itemId, reviewId: `${itemId}-${n}`, comment: 'Synthetic source text' }));
+      });
+      return Response.json({ data: { id: 'TrialRun', defaultDatasetId: 'TrialDataset', status: 'SUCCEEDED', usageTotalUsd: 0 } });
+    }
+    assert.match(url.pathname, /\/datasets\/TrialDataset\/items$/);
+    const offset = Number(url.searchParams.get('offset')), limit = Number(url.searchParams.get('limit'));
+    return Response.json(rows.slice(offset, offset + limit), { headers: { 'x-apify-pagination-total': String(rows.length) } });
+  };
+  const factory = () => ({ collector: new ApifyShopeeCollector({ token: 'synthetic-token', maxChargeUsd: 1,
+    maxReviewsPerProduct: 20, journalRoot, fetch: transport, contentFilter: 'all' }), requestsIssued: () => requests });
+  const f = await fixture(t, 'on', undefined, undefined, { factory, cap: 20 });
+  journalRoot = path.join(f.root, 'journal');
+  const runId = await startRun(f.service);
+  f.service.hangAfterConfirm = true;
+  for (let i = 0; i < 50; i++) {
+    const moved = await Promise.race([f.service.processNext(), f.service.hung]);
+    if (moved === 'hung') break;
+    if (!moved) await f.service.settleAutoRunCaptures();
+  }
+  assert.equal(posts, 0);
+  assert.equal(f.service.confirms.length, 1);
+  const restarted = f.make();
+  await restarted.recoverOnStart(); await drain(restarted);
+  assert.equal(autorun(f.db, runId)?.phase, 'DONE');
+  assert.equal(posts, 1);
+  const requestsBeforeRead = requests;
+  for (const pair of await restarted.listReportVersions(workspaceId, runId))
+    await restarted.readReport(workspaceId, runId, 'MARKET', false, pair.pairId);
+  await restarted.recoverOnStart(); await drain(restarted);
+  assert.equal(requests, requestsBeforeRead);
+  assert.equal(posts, 1);
 });

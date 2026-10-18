@@ -2082,8 +2082,8 @@ export class ResearchAutomationService {
         if (input.sources.nativeReview === 'SKIP') native = { decision: 'SKIPPED' };
         else if (typeof input.sources.nativeReview === 'object') {
           if (!this.#autoRun?.enabled || this.#autoRun.testReviewCap !== scope.testReviewCap || !this.#shopee.factory ||
-              !scope.exactShopeeUrls?.length || start.privateShopeeSource || start.reviewCollectionPolicy)
-            throw new ResearchAutomationValidationError('Trial reviews require exact Shopee URLs and the raw review collector.');
+              !scope.exactShopeeUrls?.length || start.reports.length !== 1 || start.reports[0] !== 'MARKET' || start.privateShopeeSource || start.reviewCollectionPolicy)
+            throw new ResearchAutomationValidationError('Trial reviews require a Market-only run, exact Shopee URLs and the configured trial collector.');
           native = { decision: 'NONE' };
         }
         else {
@@ -3950,7 +3950,7 @@ export class ResearchAutomationService {
           const html = Buffer.from(rendered.html);
           if (authoritative) {
             if (!html.equals(authoritative.html)) throw new ResearchAutomationIntegrityError(input.insightPersona ? 'Persona HTML differs from authoritative retained rendering.' : privateDefault ? 'Private default HTML differs from authoritative method rendering.' : 'Market presentation HTML differs from authoritative method rendering.');
-            if (presentation.rendererVersion !== (input.collection?.exactShopeeOutcome?.testReviewCap !== undefined ? 'automation-report-kit-v30' : input.qualitativeDraft ? 'automation-report-kit-v28' : input.insightPersona ? 'automation-report-kit-v26' : privateDefault ? 'automation-report-kit-v25' : input.marketPresentation ? 'automation-report-kit-v20' : privateRendererVersion)) throw new ResearchAutomationIntegrityError(input.qualitativeDraft ? 'Qualitative renderer identity differs.' : input.insightPersona ? 'Persona renderer identity differs.' : privateDefault ? 'Private default renderer identity differs.' : 'Market presentation renderer identity differs.');
+            if (presentation.rendererVersion !== (kind === 'MARKET' && input.collection?.exactShopeeOutcome?.testReviewCap !== undefined ? 'automation-report-kit-v30' : input.qualitativeDraft ? 'automation-report-kit-v28' : input.insightPersona ? 'automation-report-kit-v26' : privateDefault ? 'automation-report-kit-v25' : input.marketPresentation ? 'automation-report-kit-v20' : privateRendererVersion)) throw new ResearchAutomationIntegrityError(input.qualitativeDraft ? 'Qualitative renderer identity differs.' : input.insightPersona ? 'Persona renderer identity differs.' : privateDefault ? 'Private default renderer identity differs.' : 'Market presentation renderer identity differs.');
           }
           return { rendered, semanticBytes, html, trace };
         };
@@ -5526,7 +5526,7 @@ export class ResearchAutomationService {
       const start = await this.#readStartSnapshot(run.startSha, run.workspaceId);
       built = buildConfirmValue({ runId, expectedRevision, keyword: start.keyword, description: start.description, includeTerms: pick.terms,
         principalProductIds: pick.principalProductIds, exactShopeeUrls: pick.urls, packageId: row.packageId,
-        ...(this.#shopee.factory && !start.privateShopeeSource && !start.reviewCollectionPolicy && this.#autoRun?.testReviewCap !== undefined
+        ...(this.#shopee.factory && start.reports.length === 1 && start.reports[0] === 'MARKET' && !start.privateShopeeSource && !start.reviewCollectionPolicy && this.#autoRun?.testReviewCap !== undefined
           ? { testReviewCap: this.#autoRun.testReviewCap } : {}) });
     } catch (error) {
       await this.#autorunStopRunning(runId, 'CONFIRM', this.#autorunErrorCode(runId, error, 'CONFIRM_FAILED'));
@@ -5789,7 +5789,7 @@ function assertStartSnapshot(value: unknown, workspaceId: string): asserts value
 }
 
 function assertScopeSnapshot(value: unknown, workspaceId: string, runId: string): asserts value is ScopeSnapshot {
-  if (isRecord(value) && value.testReviewCap !== undefined && (!Number.isInteger(value.testReviewCap) || (value.testReviewCap as number) < 1 || (value.testReviewCap as number) > 50))
+  if (isRecord(value) && value.testReviewCap !== undefined && (!Number.isInteger(value.testReviewCap) || (value.testReviewCap as number) < 1 || (value.testReviewCap as number) > 20))
     throw new ResearchAutomationIntegrityError('Stored trial review cap is invalid.');
   if (!isRecord(value) || value.contractVersion !== 'research-automation-scope-snapshot-v1' || value.workspaceId !== workspaceId || value.runId !== runId ||
       typeof value.definition !== 'string' || value.definition.length < 1 || value.definition.length > 2000 || LONG_CONTROL.test(value.definition) || !stringArray(value.includeTerms, 30, 80) ||
