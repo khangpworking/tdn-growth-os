@@ -164,13 +164,17 @@ test('removing the source table preserves frozen semantic bytes and keeps only c
   }));
   const built = buildResearchAutomationReport({ ...input, captures }, 'MARKET');
   // Frozen at e0754a3b: includes the source-table-only capture and the original metadata of the shared capture.
-  assert.equal(createHash('sha256').update(canonicalJson(built.semantic)).digest('hex'), '542fdcbef202fbc9f204c155962fac08ce081ac81ca8f98d0ea04310d76177e8');
+  // Only the citation fields are pinned; reader delivery rewrites the market14 section wording.
+  const { citations, citationEntries, captures: storedCaptures } = built.semantic as Record<string, unknown>;
+  assert.equal(createHash('sha256').update(canonicalJson({ citations, citationEntries, captures: storedCaptures })).digest('hex'), '04bb0bbc89d7b12021d14fd7ae28fcadb3e12ecc44095b8e3f6de395ca246946');
   const document = new JSDOM(built.html.toString()).window.document;
   assert.equal(document.querySelector('template[data-market14-source-trace]'), null);
   assert.doesNotMatch(document.querySelector('#M13')!.textContent!, /Bản thu từ truy vấn nguồn/u);
   const cited = [...new Set([...document.querySelectorAll('sup.cite')].map(node => node.textContent))];
   const registered = [...document.querySelectorAll('.citation-register .cite-number')].map(node => node.textContent);
   assert.deepEqual(registered, cited);
-  assert.deepEqual(registered, Array.from({ length: 5 }, (_, index) => `[${index + 1}]`));
+  // The source capture is cited only inside the M02 trace block that reader delivery removes.
+  assert.deepEqual(registered, Array.from({ length: 4 }, (_, index) => `[${index + 1}]`));
+  assert.match(built.traceHtml!.toString(), /Bản thu dữ liệu nguồn/u);
   assert.doesNotThrow(() => assertMarket14MachineRules(built.html.toString()));
 });

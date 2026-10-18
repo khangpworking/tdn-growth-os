@@ -25,6 +25,12 @@ ${flintChart.repeat(3)}</body></html>`;
 
 const rule = (html: string, number: string, trace?: string) => auditMarket14(html, trace).find(item => item.rule === number)!;
 
+test('listing needs a glossary definition only when the reader still uses that term', () => {
+  const localized = valid.replace('<tr><td>listing</td><td>sản phẩm</td></tr>', '');
+  assert.equal(rule(localized, '1').ok, true);
+  assert.equal(rule(localized.replace('</body>', '<p>listing</p></body>'), '1').ok, false);
+});
+
 test('synthetic Market HTML passes all machine rules and marks review-only rules as READ', () => {
   const results = auditMarket14(valid);
   assert.deepEqual(results.filter(item => item.kind === 'machine' && !item.ok), []);
