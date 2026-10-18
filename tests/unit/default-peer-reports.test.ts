@@ -91,3 +91,20 @@ test('new Market drafts retain explicit absent, zero, missing and incompatible s
     assert.deepEqual(providerNameViolations(report.html.toString()), []);
   }
 });
+
+test('classified capture placeholders cannot appear as source shops in the peer table; frozen peer bytes still verify', () => {
+  const input = { ...sync2ReportFixture() };
+  input.start = { ...input.start, defaultPeerRule: { ...DEFAULT_MARKET_PEER_RULE } };
+  input.metricClassified = classified();
+  const sales = input.metricClassified.result.input;
+  sales.records[0]!.shopId = '(không ghi)';
+  sales.records[0]!.label!.contentSha256 = metricLabelFingerprint(sales.scope.platform, sales.records[0]!);
+  input.metricClassified.result = calculateMetricScopes(sales);
+  const report = buildResearchAutomationReport(input, 'MARKET');
+  const peers = (report.semantic as { defaultMarketPeers: DefaultMarketPeers }).defaultMarketPeers;
+  assert.deepEqual(verifyDefaultMarketPeers(peers), peers, 'rendering does not rewrite the retained method');
+  const m07 = report.html.toString().match(/<section[^>]*id="M07"[^>]*>[\s\S]*?<\/section>/u)![0];
+  assert.match(reportVisibleText(m07), /Chưa đủ nguồn, doanh thu, nhóm hoặc danh tính để chọn đối thủ/u);
+  assert.doesNotMatch(m07, /\(không ghi\)|Gian hàng nguồn; chưa rõ thương hiệu/u);
+  assert.doesNotMatch(m07, /<table>/u, 'the incomplete frame cannot rank just its known shops');
+});

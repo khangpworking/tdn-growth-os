@@ -3,7 +3,7 @@ import { completeSum } from './nullable-metrics.js';
 import { readerPeerExhibit } from './default-peers.js';
 import { lineChart } from './svg-charts.js';
 import { renderChart, type FlintChartInput } from './flint.js';
-import { marketChartRows, renderMarketCharts, renderSearchInterestChart } from './market-charts.js';
+import { UNKNOWN_SHOP, marketChartRows, marketShopsUnrecorded, renderMarketCharts, renderSearchInterestChart } from './market-charts.js';
 import { renderComtradeCharts, renderWorldBankCharts, type MacroChart } from './macro-charts.js';
 import { searchInterestChartPoints, searchInterestRenderable, SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_LIMIT, SEARCH_INTEREST_NOTE, SEARCH_INTEREST_SOURCE_LABEL, SEARCH_INTEREST_SRC, SEARCH_INTEREST_UNIT } from '../research-automation/search-interest.js';
 import { searchGeoAverageText, searchGeoRenderable, searchGeoText, summarizeSearchGeo, SEARCH_GEO_DONT, SEARCH_GEO_HEADERS, SEARCH_GEO_NOTE, SEARCH_GEO_TABLE_NO, SEARCH_GEO_TABLE_TITLE } from '../research-automation/search-geo.js';
@@ -120,7 +120,9 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     charts.push({ id: found.id, engine: found.engine, ...(found.error ? { error: found.error } : {}) });
     return fig(no, found.title, found.unit, found.svg, { engine: found.engine, note: found.note });
   };
-  const m04Charts = requiredFig('platform-revenue', '4.1') + requiredFig('concentration', '4.2');
+  const shopsUnrecorded = flintMarks && marketShopsUnrecorded(rows);
+  const m04Charts = requiredFig('platform-revenue', '4.1') + (requiredFig('concentration', '4.2') ||
+    (shopsUnrecorded ? '<p>Không có hình mức tập trung theo gian hàng: nguồn không ghi gian hàng cho từng sản phẩm trong mẫu, nên báo cáo không đếm số gian hàng.</p>' : ''));
   sections.push(section('M04', 'Cơ cấu thị trường', 'Các nhóm đặt cạnh nhau theo quy tắc phân loại, tính riêng từng sàn.',
     m04Charts + tbl('4.1', 'Cơ cấu doanh số trong mẫu theo nhóm', '', ['Sàn', 'Nhóm', 'Doanh thu', 'Đơn vị bán', 'Tỷ trọng doanh thu lõi'], PLATS.flatMap(P => profile.core.map(k => [plat(P), label(segName(k)), n(bf(`${P}.seg.${k}.rev`)), n(bf(`${P}.seg.${k}.units`)), n(bf(`${P}.seg.${k}.revShare`))]))), 'Tỷ trọng trong mẫu; không phải thị phần.'));
   // The stored search-interest series is drawn only here, on its own axis; the same predicate marks the source as used.
@@ -210,13 +212,16 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     tbl('6.1', 'Ngày mở bán và phần chưa rõ', '', ['Sàn', 'Có ngày', 'Thiếu ngày', 'Mở bán trong kỳ', 'Doanh thu mở bán trong kỳ'],
       PLATS.map(P => [plat(P), n(bf(`${P}.coh.known`)), n(bf(`${P}.coh.nodate`)), n(bf(`${P}.coh.n`)), n(bf(`${P}.coh.rev`))])) +
     `<p>Tên giống nhau không chứng minh cùng thương hiệu, người bán hay người mua giữa các sàn. Nhãn trên dòng nguồn nằm ở Phụ lục.</p>` + comtradeTable + comtradeFigures, comtradeRows.length ? COMTRADE_LIMIT : undefined));
-  const shops = PLATS.flatMap(P => [...new Set(rows.filter(row => row.platform === P).map(row => row.shop))].map((shop, i) => {
+  const missingShopNote = rows.some(row => row.shop === UNKNOWN_SHOP)
+    ? '<p>Nguồn không ghi gian hàng cho một số dòng sản phẩm; các dòng này được giữ ở Phụ lục, không gộp thành một gian hàng trong bảng.</p>' : '';
+  const shops = PLATS.flatMap(P => [...new Set(rows.filter(row => row.platform === P).map(row => row.shop))].flatMap((shop, i) => {
+    if (shop === UNKNOWN_SHOP) return [];
     const members = rows.filter(row => row.platform === P && row.shop === shop && profile.core.includes(row.seg!));
     const rev = completeSum(members, 'rev'), units = completeSum(members, 'units'), id = `shop.${P}.${i}`;
     B.set(`${id}.n`, members.length, 'num');
     if (rev === null) B.setMissing(`${id}.rev`, 'ty'); else B.set(`${id}.rev`, rev, 'ty');
     if (units === null) B.setMissing(`${id}.units`, 'num'); else B.set(`${id}.units`, units, 'num');
-    return [plat(P), label(members[0]?.shopName || shop), n(bf(`${id}.n`)), n(bf(`${id}.rev`)), n(bf(`${id}.units`))];
+    return [[plat(P), label(members[0]?.shopName || shop), n(bf(`${id}.n`)), n(bf(`${id}.rev`)), n(bf(`${id}.units`))]];
   }));
   const peers = readerPeerExhibit(d.defaultMarketPeers, B, { text: label, metric: bf, readerSafeText: next, sourceMark: ref => {
     const no = registry.cite({ sourceKind: 'METRIC_ROW', identity: ref.sourceSha256,
@@ -281,7 +286,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     { src: esc(TIKTOK_TOP_ADS_SRC), note: label(tiktok.readDate === null ? 'Lượt này chưa có bản đọc trang quảng cáo nổi bật của TikTok để kiểm tra.' : tiktokTopAdsNote(metaAdDate(tiktok.readDate))) })
     + (tiktok.moreCards > 0 ? `<p>${label(`Còn ${tiktok.moreCards} quảng cáo khớp nghĩa khác trên trang, không liệt kê thêm.`)}</p>` : '')
     + (tiktok.droppedCards > 0 ? `<p>${label(`Có ${tiktok.droppedCards} quảng cáo không khớp nghĩa với từ khoá sản phẩm nên không đưa vào bảng.`)}</p>` : '');
-  sections.push(section('M07', 'Đối thủ', 'Giữ số liệu của mỗi gian hàng trên từng sàn; phần thiếu không dùng để so sánh đầy đủ.', requiredFig('product-ranking', '7.1') + tbl('7.1', 'Gian hàng trong mẫu, theo thứ tự dòng nguồn', '', ['Sàn', 'Gian hàng', 'Dòng lõi', 'Doanh thu lõi', 'Đơn vị bán lõi'], shops) + peers + metaAdTable + searchAdsTable + tiktokTable, d.defaultMarketPeers === null ? 'Chưa có tập đối thủ đã đóng băng trong đầu vào bản này. Không suy danh tính chéo sàn từ tên hoặc tiêu đề.' : 'Tập mặc định giữ riêng theo sàn và nhóm; nguồn thiếu hoặc doanh thu bằng không được ghi rõ. Không suy danh tính chéo sàn từ tên hoặc tiêu đề.'));
+  sections.push(section('M07', 'Đối thủ', 'Giữ số liệu của mỗi gian hàng trên từng sàn; phần thiếu không dùng để so sánh đầy đủ.', requiredFig('product-ranking', '7.1') + missingShopNote + tbl('7.1', 'Gian hàng trong mẫu, theo thứ tự dòng nguồn', '', ['Sàn', 'Gian hàng', 'Dòng lõi', 'Doanh thu lõi', 'Đơn vị bán lõi'], shops) + peers + metaAdTable + searchAdsTable + tiktokTable, d.defaultMarketPeers === null ? 'Chưa có tập đối thủ đã đóng băng trong đầu vào bản này. Không suy danh tính chéo sàn từ tên hoặc tiêu đề.' : 'Tập mặc định giữ riêng theo sàn và nhóm; nguồn thiếu hoặc doanh thu bằng không được ghi rõ. Không suy danh tính chéo sàn từ tên hoặc tiêu đề.'));
   let unitPriceTables = '';
   if (next) {
     const mark = (ref: { sourceSha256: string; locator: string }): string => {
@@ -427,6 +432,6 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     intro: `<div class="box"><p>Số ước tính trong mẫu. Mỗi sàn tính riêng. Phân loại ${status}.</p></div>`, toc: MARKET_TOC, sections, foot: `TDN · ${esc(options.builtOn)}` });
   const renderedHtml = next ? html.replace('<body', '<body data-report-rules="market-visible-v1"') : html;
   const finalHtml = next ? renderedHtml.replace(/Ghi chú:/gu, 'Chú thích:') : html;
-  const scopedHtml = finalHtml.replace('<body', `<body data-market-platforms="${PLATS.join(',')}"${flintMarks ? ` data-market-chart-rows="${chartRows.length}"` : ''}`);
+  const scopedHtml = finalHtml.replace('<body', `<body data-market-platforms="${PLATS.join(',')}"${flintMarks ? ` data-market-chart-rows="${chartRows.length}"` : ''}${shopsUnrecorded ? ' data-market-shops-unrecorded="1"' : ''}`);
   return { html: next ? platIcons(scopedHtml, PLATFORM_COLORS, undefined, { compoundPlatformLabels: true }).html : html, narrator, extraOk: [...extraOk], charts, webResults: web, ...(next ? { visibleTextRules: true } : {}) };
 }

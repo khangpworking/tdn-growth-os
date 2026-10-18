@@ -9,6 +9,7 @@ import { Bundle, type HardcodedNumber, type Narrator } from './bundle.js';
 import { classify, profileRe, type Profile, type NullableRow as Row, type LegacyRow } from './classify.js';
 import { computeNullableReaderMetrics } from './nullable-metrics.js';
 import { readerDefaultPeers } from './default-peers.js';
+import { UNKNOWN_SHOP } from './market-charts.js';
 import type { DefaultMarketPeers } from '../../../../contracts/analysis/default-market-peers.generated.js';
 import { READER_SECTION_ANCHORS } from './layout.js';
 import { lint, type LintResult } from './lint.js';
@@ -151,7 +152,10 @@ export function computeReaderReportData(value: unknown, retainedUnitPriceSources
       const core = rows.filter(row => row.platform === P && profile.core.includes(row.seg!));
       return core.length > 0 && core.reduce((s, row) => s + row.rev!, 0) > 0 && core.reduce((s, row) => s + row.units!, 0) > 0;
     });
-    if (completePositive && input.contractVersion !== '1.4.0') for (const P of input.platforms) scopes[P] = scopeMetrics(B, P, rows.filter(row => row.platform === P) as LegacyRow[], profile);
+    // Capture rows can have complete sales but no shop identity. Use the nullable
+    // reader in that case; the legacy reader assumes every shop is identified.
+    if (completePositive && input.contractVersion !== '1.4.0' && rows.every(row => row.shop !== UNKNOWN_SHOP))
+      for (const P of input.platforms) scopes[P] = scopeMetrics(B, P, rows.filter(row => row.platform === P) as LegacyRow[], profile);
     computeNullableReaderMetrics(B, input, rows, profile);
     for (const [key, value, fmt] of [['src.hl.rev', input.source!.displayedHeadlines.revenueVnd, 'ty1'], ['src.hl.listings', input.source!.displayedHeadlines.soldListings, 'num'], ['src.hl.shops', input.source!.displayedHeadlines.shops, 'num'], ['src.hl.units', input.source!.displayedHeadlines.units, 'num'], ['src.rowCap', input.source!.rowCap, 'num']] as const) {
       if (value === null) B.setMissing(key, fmt); else B.set(key, value, fmt);

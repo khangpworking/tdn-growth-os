@@ -127,6 +127,24 @@ test('one missing row makes the sample total undetermined: a partial sum is neve
   assert.ok(!demand.statement.includes(`${shown(unitsAll.revenue.value!)} VND`), demand.statement);
 });
 
+test('rows without a recorded shop are never counted as one shop', () => {
+  const f = fixture();
+  const build = (metric: ReturnType<typeof calculateMetricScopes>) => buildAutomationMarketPresentation(
+    { ...f.binding, metric: { ...f.binding.metric!, resultSha256: marketPresentationDigest(metric) } }, { metric, rows: [], unitSpec: null });
+  const inventory = (metric: ReturnType<typeof calculateMetricScopes>) => build(metric).findings.find(finding => finding.id === 'inventory')!.statement;
+  const none = metricFixture();
+  for (const row of none.records) row.shopId = '(không ghi)';
+  const noneText = inventory(calculateMetricScopes(none));
+  assert.doesNotMatch(noneText, /của \d+ gian hàng/);
+  assert.match(noneText, /nguồn không ghi gian hàng cho từng bản ghi nên báo cáo không đếm số gian hàng/);
+  const some = metricFixture();
+  some.records[0]!.shopId = '(không ghi)';
+  const someText = inventory(calculateMetricScopes(some));
+  assert.doesNotMatch(someText, /của \d+ gian hàng/);
+  assert.match(someText, /; 1 bản ghi không ghi gian hàng nên báo cáo không đếm số gian hàng/);
+  assert.match(inventory(calculateMetricScopes(metricFixture())), /của \d+ gian hàng/);
+});
+
 test('wrong receipt/run/pair/workbook/package and altered bytes fail before projection; replay does not recalculate', () => {
   const f = fixture();
   for (const changed of [
@@ -144,6 +162,18 @@ test('wrong receipt/run/pair/workbook/package and altered bytes fail before proj
   // Read v1 uses only frozen inputs and binding checks; no retained source bytes
   // or live calculator are required by this pure verifier.
   assert.deepEqual(verifyAutomationMarketPresentation(method, f.binding), method);
+});
+
+test('stored inventory findings from before the missing-shop correction remain byte-identical on verification', () => {
+  const f = fixture(), input = metricFixture();
+  for (const row of input.records) row.shopId = '(không ghi)';
+  const metric = calculateMetricScopes(input);
+  const binding = { ...f.binding, metric: { ...f.binding.metric!, resultSha256: marketPresentationDigest(metric) } };
+  const stored = buildAutomationMarketPresentation(binding, { metric, rows: [], unitSpec: null });
+  const all = metric.scopes.find(scope => scope.key === 'all')!;
+  stored.findings.find(finding => finding.id === 'inventory')!.statement = `Mẫu xuất giữ ${all.listingCount} bản ghi sản phẩm của ${all.shopCount} gian hàng; mỗi bản ghi chưa chứng minh một sản phẩm hoặc biến thể phân biệt.`;
+  const before = marketPresentationDigest(stored);
+  assert.equal(marketPresentationDigest(verifyAutomationMarketPresentation(stored, binding)), before);
 });
 
 test('pending finding numbers carry their classification label in the same sentence', () => {

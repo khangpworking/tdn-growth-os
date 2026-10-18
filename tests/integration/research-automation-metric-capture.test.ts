@@ -29,7 +29,7 @@ const profile = { slug: 'synthetic-jar', product: 'Hũ thử nghiệm', status: 
   segments: { S1: 'Hũ nhỏ', N1: 'Hàng khác' }, short: { S1: 'Nhỏ' }, core: ['S1'], non: ['N1'], rules: [{ seg: 'S1', when: {} }], signals: [] };
 const hash = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex');
 
-function captureSnapshot(): AutomationMetricWebSnapshotV1 {
+function captureSnapshot(shops = true): AutomationMetricWebSnapshotV1 {
   const snapshot = JSON.parse(readFileSync(new URL('../fixtures/metric-web-snapshot/full.json', import.meta.url), 'utf8')) as any;
   snapshot.captureId = 'capture-synthetic-e2e-209';
   snapshot.scope = { keywords: ['synthetic jar'], platforms: ['shopee'], period, category: null, ticks: [], advancedFilters: [], exclusions: [] };
@@ -42,6 +42,11 @@ function captureSnapshot(): AutomationMetricWebSnapshotV1 {
       { cells: { name: { label: 'Tên', text: 'Synthetic unknown', sourcePointer: 'p[2].name' }, shop: { label: 'Shop', text: 'Shop ?', sourcePointer: 'p[2].shop' }, platform: { label: 'Sàn', text: 'unknown', sourcePointer: 'p[2].platform' }, revenue: { label: 'Doanh thu', displayed: '500', value: 500, unit: 'VND', precision: 'exact', platform: 'unknown', period, sourcePointer: 'p[2].revenue' }, units: { label: 'Lượt bán', displayed: '–', value: null, unit: 'COUNT', precision: 'exact', platform: 'unknown', period, sourcePointer: 'p[2].units' } } },
     ],
   };
+  // Some results pages list products without a shop column.
+  if (!shops) {
+    snapshot.groups.W12_topProducts.columns = snapshot.groups.W12_topProducts.columns.filter((column: string) => column !== 'shop');
+    for (const row of snapshot.groups.W12_topProducts.rows) delete row.cells.shop;
+  }
   return snapshot as AutomationMetricWebSnapshotV1;
 }
 
@@ -151,7 +156,7 @@ test('capture-confirmed Market run refuses the workbook-only presentation revisi
 });
 
 /** Fresh Market run confirmed either with the prepared capture or with no Metric source at all. */
-async function confirmedCaptureRun(t: TestContext, decision: 'USE_PREPARED' | 'SKIPPED') {
+async function confirmedCaptureRun(t: TestContext, decision: 'USE_PREPARED' | 'SKIPPED', shops = true) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), `tdn-metric-capture-209-${decision.toLowerCase()}-`));
   const db = openDatabase({ databasePath: path.join(root, 'test.sqlite'), now }).db;
   const artifacts = new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
@@ -165,7 +170,7 @@ async function confirmedCaptureRun(t: TestContext, decision: 'USE_PREPARED' | 'S
     mode: 'CATEGORY', keyword: 'synthetic jar', requestedPeriod: { startDate: '2026-01-01', endDate: '2026-01-30' }, reports: ['MARKET'] });
   await service.processNext();
   const awaiting = await service.getRun(workspaceId, runId);
-  const archive = captureArchive(captureSnapshot());
+  const archive = captureArchive(captureSnapshot(shops));
   const receipt = await service.prepareMetricCapture(workspaceId, runId, { contractVersion: 'automation-metric-capture-prepare-v1',
     requestKey: '66666666-6666-4666-8666-666666666666', expectedRevision: awaiting.revision, sourceContext: 'Synthetic capture fixture' },
   archive.snapshotBytes, archive.manifestBytes);
@@ -246,6 +251,24 @@ test('capture-backed Market presentation passes rules 1, 2, 3, 5, 7, 9 and 11 wi
   await fs.writeFile(output, html);
   const audit = spawnSync('./node_modules/.bin/tsx', ['scripts/audit-market-14.ts', output], { encoding: 'utf8' });
   assert.equal(audit.status, 0, audit.stdout + audit.stderr);
+});
+
+test('a capture whose results page lists no shop is presented without a shop count or concentration chart', async t => {
+  const f = await confirmedCaptureRun(t, 'USE_PREPARED', false);
+  const queued = await f.service.requestReportRevision(workspaceId, runId, {
+    contractVersion: 'automation-market-presentation-revision-v1', requestKey: randomUUID(), previousPairId: f.pair.pairId,
+    sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } },
+  });
+  await f.service.processNext();
+  const attempt = await f.service.getReportRevision(workspaceId, runId, queued.attemptId);
+  assert.equal(attempt.state, 'COMMITTED');
+  const html = (await f.service.readReport(workspaceId, runId, 'MARKET', false, attempt.pairId!)).bytes.toString('utf8');
+  const visible = reportVisibleText(html);
+  assert.doesNotMatch(visible, /\b1 gian hàng\b|của \d+ gian hàng/u);
+  assert.match(visible, /không đếm số gian hàng/u);
+  assert.match(visible, /Không có hình mức tập trung theo gian hàng: nguồn không ghi gian hàng/u);
+  assert.match(html, /data-market-shops-unrecorded="1"/);
+  assert.deepEqual(auditMarket14(html).filter(rule => rule.kind === 'machine' && !rule.ok), []);
 });
 
 const presentationRequest = (previousPairId: string, extra: Record<string, unknown> = {}) => ({ contractVersion: 'automation-market-presentation-revision-v1' as const, requestKey: randomUUID(), previousPairId, sources: { metric: { decision: 'KEEP' as const }, nativeReview: { decision: 'KEEP' as const } }, ...extra });

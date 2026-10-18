@@ -27,6 +27,7 @@ import type { DiscoveryWorkspaceReader } from '../../flow/discovery-workspace-re
 import { AnalysisMetricInputPreparationReader, MetricInputPreparationService } from '../metric-input-preparation-service.js';
 import { MetricPreparationReadinessService } from '../metric-preparation-readiness.js';
 import { calculateMetricScopes, metricLabelFingerprint } from '../metric-scope-calculator.js';
+import { UNKNOWN_SHOP } from '../reader-report/market-charts.js';
 import { parseVietnameseDisplayNumber } from './metric-web-facts.js';
 import { METRIC_CURRENT_HEADERS, MetricSourceRejection, normalizeMetricWorkbookInput } from '../metric-source-profile.js';
 import { MAX_JSON_ARTIFACT_BYTES, ResearchAutomationIntegrityError, type ScopeSnapshot, type StartSnapshot } from './model.js';
@@ -779,7 +780,7 @@ function captureMetricInput(snapshot: AutomationMetricWebSnapshotV1, sourceSha25
     if (platformText !== platform) return [];
     const title = captureText(captureCell(row, 'name'));
     if (!title) return [];
-    const shop = captureText(captureCell(row, 'shop')) || '(không ghi)';
+    const shop = captureText(captureCell(row, 'shop')) || UNKNOWN_SHOP;
     const revenueCell = captureCell(row, 'revenue'), unitsCell = captureCell(row, 'units');
     const observation = (cell: Value | Text | undefined): MetricScopeInput['records'][number]['revenue'] => {
       const value = captureNumber(cell);
@@ -883,7 +884,7 @@ function captureMethodDetails(snapshot: AutomationMetricWebSnapshotV1, selected:
   if (!('absent' in table)) for (const [rowIndex, row] of table.rows.entries()) {
     const platform = captureText(captureCell(row, 'platform')).toLowerCase();
     if (platform !== 'shopee' && platform !== 'tiktok') {
-      const title = captureText(captureCell(row, 'name')), shop = captureText(captureCell(row, 'shop')) || '(không ghi)';
+      const title = captureText(captureCell(row, 'name')), shop = captureText(captureCell(row, 'shop')) || UNKNOWN_SHOP;
       unattributedRows.push({ rowIndex, listingId: captureSyntheticId('unknown', title, shop), title, shop,
         revenue: captureNumber(captureCell(row, 'revenue')) === null ? null : String(captureNumber(captureCell(row, 'revenue'))),
         units: captureNumber(captureCell(row, 'units')) === null ? null : String(captureNumber(captureCell(row, 'units'))) });
