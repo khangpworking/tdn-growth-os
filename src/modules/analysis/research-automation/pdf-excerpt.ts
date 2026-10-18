@@ -14,8 +14,10 @@ export const PDF_EXCERPT_UNRECORDED = 'chưa ghi';
 export const PDF_EXCERPT_UNRATED = 'chưa xếp hạng độ tin cậy';
 export const PDF_EXCERPT_NOTE = 'Các đoạn trích này lấy nguyên văn từ tài liệu PDF trong hồ sơ nguồn của lượt này (do chủ đính kèm hoặc tải về khi thu thập). Mỗi đoạn nói về phạm vi của chính tài liệu đó, không nói về sản phẩm này; số trong đó không so sánh được với số liệu mẫu và không được cộng vào số liệu mẫu.';
 export const PDF_EXCERPT_SRC = 'Tài liệu PDF đã lưu trong hồ sơ nguồn của lượt này.';
-/** Shown instead of a file name that is empty or could expose a provider, link, path or command. */
-export const PDF_EXCERPT_WITHHELD_NAME = 'không hiển thị tên tệp';
+/** Longest document name shown; a longer title reads as a pasted heading or sentence, so the order wording is used instead. */
+export const PDF_DOCUMENT_TITLE_MAX = 160;
+/** The name of a document whose own title is missing or not plain reader text: its order among such documents in the block. */
+export const pdfUntitledName = (ordinal: number): string => `Tài liệu PDF số ${ordinal}`;
 
 export type PdfExcerptLeftOutReason = 'NOT_ATTESTED' | 'NOT_MARKET_SECTION' | 'OVER_30_WORDS' | 'OVER_3_PER_DOCUMENT' | 'NOT_FOR_THIS_RUN' | 'NOT_READER_SAFE' | 'EMPTY_QUOTE';
 
@@ -68,15 +70,10 @@ const CLOSING = /[)\]"'”’»,.;:!?…]+$/u;
 const SECRET_LABEL = /(?<![\p{L}\p{N}])(?:mã\s*(?:xác\s*(?:thực|nhận|minh)|bảo\s*mật|số|khóa|otp|pin|kích\s*hoạt|đăng\s*nhập|khôi\s*phục|giao\s*dịch|thẻ)|otp|cvv|cvc|số\s*(?:tài\s*khoản|thẻ|serial|sê\s*ri)|tài\s*khoản\s*số|serial|license\s*key|mật\s*mã)(?![\p{L}\p{N}])/iu;
 /** Lowercase "pin" is also an ordinary Vietnamese battery word; block it as a secret only when it carries a bare code number. */
 const PIN_CODE = /(?<![\p{L}\p{N}])pin\s*[:#-]?\s*\d{1,8}(?!\s*(?:mAh|mah|V|v)\b)(?![\p{L}\p{N}])/iu;
-const PIN_NAME = /(?<![\p{L}\p{N}])pin(?:[\s-]|$)/iu;
 /** An address spelled out in words ("a còng", "chấm com", "203 chấm 0"). */
 const SPELLED_ADDRESS = /(?<![\p{L}\p{N}])(?:a\s+còng|chấm\s+(?:com|vn|net|org)|\d+\s+chấm\s+\d)(?![\p{L}])/iu;
 /** Dotted abbreviations that are not addresses (v.v = "and so on", TP.HCM). */
 const DOTTED_ABBREVIATION = /^(?:v\.v|T[Pp]\.\p{Lu}{2,4})$/u;
-/** The same labels written without accent marks, for file names, which may drop them (ma-xac-thuc, a-cong). */
-const bare = (text: string): string => text.normalize('NFD').replace(VIETNAMESE_MARKS, '').normalize('NFC');
-const SECRET_LABEL_BARE = new RegExp(bare(SECRET_LABEL.source), 'iu');
-const SPELLED_ADDRESS_BARE = new RegExp(bare(SPELLED_ADDRESS.source), 'iu');
 
 /**
  * The closed word set. A word without a digit is shown only when it is written Vietnamese: one syllable, read on the letters left
@@ -98,14 +95,14 @@ const LISTED_WORDS = new Set(['online', 'offline', 'livestream', 'marketing', 'v
   'voucher', 'freeship', 'mini', 'size', 'set', 'shop', 'shopee', 'tiktok', 'lazada', 'tiki', 'sendo', 'inox', 'vitamin', 'canxi', 'protein',
   'collagen', 'nilon', 'silicon', 'gel', 'serum', 'cotton',
   'kg', 'mg', 'ml', 'cm', 'mm', 'km', 'ha', 'kwh', 'kw', 'mah', 'gb', 'mb', 'tb', 'vnđ', 'vnd', 'tr']);
-function vietnameseWord(word: string, tones = true): boolean {
+function vietnameseWord(word: string): boolean {
   if (/^\p{L}$/u.test(word) || ACRONYMS.has(word)) return true;
   if (/^[A-Z]{2,}$/u.test(word)) return false; // an unlisted code in capitals (PIN, ABCD)
   const lower = word.toLowerCase();
   if (LISTED_WORDS.has(lower)) return true;
   const marked = lower.normalize('NFD');
   const base = marked.replace(VIETNAMESE_MARKS, '');
-  return SYLLABLE.test(base) && (!tones || !/(?:c|ch|p|t)$/u.test(base) || /[̣́]/u.test(marked));
+  return SYLLABLE.test(base) && (!/(?:c|ch|p|t)$/u.test(base) || /[̣́]/u.test(marked));
 }
 
 /** Words that may follow a slash as "per" (đồng/chiếc, 250.000đ/tháng, lần/ngày). */
@@ -144,7 +141,7 @@ function numberWord(word: string): boolean {
   return !/[–-]/u.test(word) || (word.match(/(?<![\d.,])\d{4}(?![\d.,])/gu) ?? []).every(digits => new RegExp(`^${YEAR}$`, 'u').test(digits));
 }
 
-function plainWord(token: string, last: boolean, tones: boolean): boolean {
+function plainWord(token: string, last: boolean): boolean {
   if (/^\p{L}:$/u.test(token)) return false; // drive letter, also spaced ("C: / a")
   const word = token.replace(OPENING, '').replace(CLOSING, '');
   // A spaced "/" never stands alone ("/ tmp / a", "https : / / x"); a spaced "." or ":" only ends the text ("tăng mạnh .").
@@ -157,7 +154,7 @@ function plainWord(token: string, last: boolean, tones: boolean): boolean {
   if (word.includes('.')) return DOTTED_ABBREVIATION.test(word); // domain, host, file name
   // A leading hyphen is a command flag (rm -rf); three or more hyphenated parts are a slug or code (thu-muc-bao-cao); each part is
   // a Vietnamese word (sê-ri).
-  return !word.startsWith('-') && (word.match(/[-–—]/gu) ?? []).length <= 1 && word.split(/[-–—]/u).every(part => vietnameseWord(part, tones));
+  return !word.startsWith('-') && (word.match(/[-–—]/gu) ?? []).length <= 1 && word.split(/[-–—]/u).every(part => vietnameseWord(part));
 }
 
 /** Two numbers side by side are a spaced address or a grouped code ("203. 0. 113. 7", "1234 5678 9012"); only one spaced range ("10 – 20") joins two. */
@@ -179,46 +176,85 @@ const TOP_LEVEL = /^(?:com|net|org|gov|edu|info|biz|io|vn|asia|int|co|ai|me|tv|a
 const spacedDomain = (tokens: readonly string[]): boolean =>
   tokens.some((token, i) => /[\p{L}\p{N}]\.$/u.test(token) && i + 1 < tokens.length && TOP_LEVEL.test(tokens[i + 1]!.replace(OPENING, '').replace(CLOSING, '')));
 
-function plainProse(text: string, tones: boolean): boolean {
+function plainProse(text: string): boolean {
   const folded = text.normalize('NFKC');
   const tokens = folded.trim().split(/\s+/u);
   const spaced = folded.replace(/[-–—_]/gu, ' ');
   return plainLetters(text) && !FULLWIDTH.test(text) && plainLetters(folded) && !namesHidden(folded) && !SECRET_LABEL.test(spaced) && !PIN_CODE.test(spaced)
-    && !SPELLED_ADDRESS.test(spaced) && (tones || (!SECRET_LABEL_BARE.test(bare(spaced)) && !SPELLED_ADDRESS_BARE.test(bare(spaced))))
-    && tokens.every((token, i) => plainWord(token, i === tokens.length - 1, tones)) && numbersApart(tokens) && !spacedDomain(tokens);
+    && !SPELLED_ADDRESS.test(spaced) && tokens.every((token, i) => plainWord(token, i === tokens.length - 1)) && numbersApart(tokens) && !spacedDomain(tokens);
 }
-/** Tone marks are required in quotes; a file name is often written without them (bao-cao-quat-dien), so there they are not. */
-const leaks = (text: string, tones = true): boolean => !plainProse(text, tones) || LEAK_PATTERNS.some(pattern => pattern.test(text));
+const leaks = (text: string): boolean => !plainProse(text) || LEAK_PATTERNS.some(pattern => pattern.test(text));
 
 const words = (text: string): number => text.trim().split(/\s+/u).filter(Boolean).length;
 /** The same closed plain-prose, leak and provider checks, for other verbatim operator text (seller video speech). */
 export const pdfPlainTextSafe = (text: string): boolean => !providerPattern.test(text) && !leaks(text) && readerTextSafe(text);
 
-/** A file name is shown only when it is plain text: no provider, link, path separator or operator text. */
-export function pdfExcerptFileNameShown(fileName: unknown): fileName is string {
-  if (typeof fileName !== 'string') return false;
-  const name = fileName.trim();
-  const base = name.replace(/\.pdf$/iu, ''); // the extension is the only dot a shown name may hold
-  // Hyphens in a file name join words (bao-cao-2025-quy-3), so each part is read as a word: a grouped code still fails (x2-ab12, 1234-5678).
-  return name.length > 0 && base.trim().length > 0 && /\p{L}/u.test(base) && name.length <= 120 && !/[\\/|;&<>$`"'=\u0000-\u001f]/u.test(name) && !providerPattern.test(name)
-    && !leaks(base.replace(/[-–—]/gu, ' '), false) && !PIN_NAME.test(base.replace(/[-–—]/gu, ' ')) && !LEAK_PATTERNS.some(pattern => pattern.test(name)) && readerTextSafe(name) && !/\.\./u.test(name);
+/**
+ * A title in capitals is read word by word in lower case, keeping the listed acronyms, so "BÁO CÁO NGÀNH" or "VIỆT NAM" reads as
+ * Vietnamese words. Only the reading changes: the shown title keeps its capitals, and the secret-label, provider and leak checks
+ * ignore case anyway.
+ */
+const capitalsRead = (text: string): string => text.split(' ').map(token => {
+  const word = token.replace(OPENING, '').replace(CLOSING, '');
+  return /^\p{Lu}{2,}$/u.test(word) && !ACRONYMS.has(word) ? token.toLowerCase() : token;
+}).join(' ');
+const titleShown = (title: string): boolean => {
+  const count = title.split(/\s+/u).filter(token => /[\p{L}\p{N}]/u.test(token)).length;
+  // Vietnamese words are syllables: a name of one or two ("Báo cáo") says nothing about the document.
+  return title.length <= PDF_DOCUMENT_TITLE_MAX && count >= 3 && count <= PDF_EXCERPT_MAX_WORDS && /\p{L}/u.test(title) && !providerPattern.test(title)
+    && !/%|\b(?!Q[1-4]\b)[A-Z]\d{1,2}[A-Z]?\b/u.test(title)
+    && !LEAK_PATTERNS.some(pattern => pattern.test(title)) && readerTextSafe(title) && !leaks(capitalsRead(title));
+};
+
+/**
+ * The document name shown for a run PDF: the title its search result showed, or the title stored in the PDF itself. Never a file
+ * name: a title is shown only when it passes the same closed plain-prose, provider and leak checks as the excerpts, so a file name,
+ * link, path, code, provider or English heading is not shown. A "[PDF]" mark, a trailing "..." and anything after " | " are
+ * dropped; a site name after the last " - " is dropped when the title passes only without it. Null means the order wording is used.
+ * Stored titles are vetted again when shown.
+ */
+export function pdfDocumentTitle(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const trimEnd = (text: string): string => text.replace(/(?:\s*(?:\.{3,}|…))+$/u, '').trim();
+  const title = trimEnd(raw.normalize('NFC').replace(/\s+/gu, ' ').trim().replace(/^\[PDF\]\s*/iu, '').split(' | ')[0]!);
+  // Any word that ends like a file extension (".pdf", ".dotx", ".mobi", ".pages"…), wherever it stands and whatever punctuation
+  // follows it, marks a file name, so no list of known extensions can fall behind and no site tail can hide it. A real title with a
+  // dotted abbreviation ("TP.HCM") is then read by its order number, which never shows a file name.
+  if (title.split(' ').some(token => /\.(?=\p{N}*\p{L})[\p{L}\p{N}]{2,8}$/u.test(token.replace(CLOSING, '')))) return null;
+  for (const candidate of [title, trimEnd(title.replace(/\s[-–—]\s[^-–—]*$/u, '').trim())]) if (candidate && titleShown(candidate)) return candidate;
+  return null;
+}
+
+/** Rebuilding a reader from a saved semantic packet must not reuse historical file-name labels. */
+export function readerPdfExcerpts(excerpts: readonly PdfExcerpt[]): readonly PdfExcerpt[] {
+  const names = new Map<string, string>();
+  let untitled = 0;
+  return excerpts.map(excerpt => {
+    let name = names.get(excerpt.sourceSha256);
+    if (name === undefined) {
+      name = pdfDocumentTitle(excerpt.label.replace(/,\s*trang\s+\d+$/u, '')) ?? pdfUntitledName(++untitled);
+      names.set(excerpt.sourceSha256, name);
+    }
+    return { ...excerpt, label: `${name}, trang ${excerpt.page}` };
+  });
 }
 
 /** The citation entry of one excerpt, built the way every PDF citation is built (`toCitationInput`). */
 export function pdfExcerptCitation(excerpt: PdfExcerpt): CitationInput {
+  const name = excerpt.label.replace(/,\s*trang\s+\d+$/u, '').trim();
+  const safeName = pdfDocumentTitle(name) ?? (/^Tài liệu PDF số [1-9]\d*$/u.test(name) ? name : pdfUntitledName(1));
   return { sourceKind: 'PDF_PAGE', identity: excerpt.sourceSha256, locator: { kind: 'pdf', page: excerpt.page, fragment: null },
-    label: excerpt.label, retrievedAt: null, url: null, quote: excerpt.text, quoteVerification: 'EXTERNAL_VERIFIER_ATTESTED' };
+    label: `${safeName}, trang ${excerpt.page}`, retrievedAt: null, url: null, quote: excerpt.text, quoteVerification: 'EXTERNAL_VERIFIER_ATTESTED' };
 }
 
 /**
- * The market14 reader's entry for one excerpt: the same source and page as `pdfExcerptCitation`, labelled "Tài liệu PDF đã lưu …"
- * without the page, because the register already prints the page locator ("trang N") after the label.
+ * The market14 reader's entry for one excerpt: the same source and page as `pdfExcerptCitation`, labelled with the document name
+ * alone, because the register prints the page locator after it ("<name>, trang N").
  */
 export function pdfExcerptReaderCitation(excerpt: PdfExcerpt): CitationInput {
-  const document = excerpt.label.replace(/^Tài liệu\s+/u, '').replace(/,\s*trang\s+\d+$/u, '').trim();
-  return { ...pdfExcerptCitation(excerpt), label: `${PDF_EXCERPT_REGISTER_LABEL}${document ? ` ${document}` : ''}` };
+  const citation = pdfExcerptCitation(excerpt);
+  return { ...citation, label: citation.label.replace(/,\s*trang\s+\d+$/u, '') };
 }
-export const PDF_EXCERPT_REGISTER_LABEL = 'Tài liệu PDF đã lưu';
 
 function readerSafe(text: string, citation: CitationInput): boolean {
   if (providerPattern.test(text) || leaks(text) || !readerTextSafe(text)) return false;
@@ -228,25 +264,28 @@ function readerSafe(text: string, citation: CitationInput): boolean {
 /**
  * Pure selection over the run's stored verified quotes: Market sections only, attested only, verbatim only, at most 3 per document
  * in stored order, at most 30 words each. A quote that does not qualify is left out with a reason code; none is cut or reworded.
+ * `documents` maps each run PDF to its stored document title (null when none): the label is "<title>, trang N", or "Tài liệu PDF
+ * số k, trang N" counting, in block order, only the shown documents without a usable title.
  */
-export function selectPdfExcerpts(artifact: PageIndexQuotesArtifact | null | undefined, runId: string, fileNames: ReadonlyMap<string, string>): PdfExcerptSelection {
+export function selectPdfExcerpts(artifact: PageIndexQuotesArtifact | null | undefined, runId: string, documents: ReadonlyMap<string, string | null>): PdfExcerptSelection {
   const excerpts: PdfExcerpt[] = [], leftOut: PdfExcerptLeftOut[] = [];
   if (!artifact || artifact.contractVersion !== 'pageindex-verified-quotes-v1' || !Array.isArray(artifact.quotes)) return { excerpts, leftOut };
-  const perDocument = new Map<string, number>(), ordinals = new Map<string, number>();
+  const perDocument = new Map<string, number>(), untitled = new Map<string, number>();
   const out = (sourceSha256: string, page: number, reason: PdfExcerptLeftOutReason): void => { leftOut.push({ sourceSha256, page, reason }); };
   for (const quote of artifact.quotes) {
-    if (artifact.runId !== runId || !fileNames.has(quote.sourceSha256)) { out(quote.sourceSha256, quote.page, 'NOT_FOR_THIS_RUN'); continue; }
+    if (artifact.runId !== runId || !documents.has(quote.sourceSha256)) { out(quote.sourceSha256, quote.page, 'NOT_FOR_THIS_RUN'); continue; }
     if (quote.quoteVerification !== 'EXTERNAL_VERIFIER_ATTESTED') { out(quote.sourceSha256, quote.page, 'NOT_ATTESTED'); continue; }
     if (!quote.sectionId.startsWith('M') || !PAGEINDEX_ELIGIBLE_SECTIONS.includes(quote.sectionId)) { out(quote.sourceSha256, quote.page, 'NOT_MARKET_SECTION'); continue; }
     if (typeof quote.quote !== 'string' || !quote.quote.trim()) { out(quote.sourceSha256, quote.page, 'EMPTY_QUOTE'); continue; }
     if (words(quote.quote) > PDF_EXCERPT_MAX_WORDS) { out(quote.sourceSha256, quote.page, 'OVER_30_WORDS'); continue; }
     if ((perDocument.get(quote.sourceSha256) ?? 0) >= PDF_EXCERPT_MAX_PER_DOCUMENT) { out(quote.sourceSha256, quote.page, 'OVER_3_PER_DOCUMENT'); continue; }
-    const fileName = fileNames.get(quote.sourceSha256);
-    if (!ordinals.has(quote.sourceSha256)) ordinals.set(quote.sourceSha256, ordinals.size + 1);
-    const shown = pdfExcerptFileNameShown(fileName) ? fileName : `số ${ordinals.get(quote.sourceSha256)}, ${PDF_EXCERPT_WITHHELD_NAME}`;
+    const title = pdfDocumentTitle(documents.get(quote.sourceSha256));
+    // The order number is taken only once an excerpt of the document is shown, so the shown numbers have no gaps.
+    const ordinal = untitled.get(quote.sourceSha256) ?? untitled.size + 1;
     let citation: CitationInput;
-    try { citation = toCitationInput(quote, shown); } catch { out(quote.sourceSha256, quote.page, 'NOT_READER_SAFE'); continue; }
+    try { citation = toCitationInput(quote, title ?? pdfUntitledName(ordinal), ordinal); } catch { out(quote.sourceSha256, quote.page, 'NOT_READER_SAFE'); continue; }
     if (!readerSafe(quote.quote, citation)) { out(quote.sourceSha256, quote.page, 'NOT_READER_SAFE'); continue; }
+    if (title === null) untitled.set(quote.sourceSha256, ordinal);
     perDocument.set(quote.sourceSha256, (perDocument.get(quote.sourceSha256) ?? 0) + 1);
     excerpts.push({ sourceSha256: quote.sourceSha256, page: quote.page, text: quote.quote, label: citation.label });
   }
@@ -262,7 +301,7 @@ export const pdfExcerptDocuments = (excerpts: readonly PdfExcerpt[]): string[] =
  */
 export function pdfExcerptBlockHtml(excerpts: readonly PdfExcerpt[], esc: (value: string) => string, mark: (excerpt: PdfExcerpt) => string = () => ''): string {
   if (excerpts.length === 0) return '';
-  return `<h3>${esc(PDF_EXCERPT_TITLE)}</h3><ul class="pdf-excerpts">${excerpts.map(excerpt =>
+  return `<h3>${esc(PDF_EXCERPT_TITLE)}</h3><ul class="pdf-excerpts">${readerPdfExcerpts(excerpts).map(excerpt =>
     `<li><blockquote data-quote><p>${esc(excerpt.text)}</p><footer>${esc(excerpt.label)}; nhà xuất bản: ${PDF_EXCERPT_UNRECORDED}; năm: ${PDF_EXCERPT_UNRECORDED}; độ tin cậy: ${PDF_EXCERPT_UNRATED}.</footer></blockquote>${mark(excerpt)}</li>`).join('')}</ul>`;
 }
 

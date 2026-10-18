@@ -97,7 +97,7 @@ import { autorunRequestKey, buildConfirmValue, buildPrepareValue, buildRevisionV
 import { runMetricCapture, type MetricCaptureRequest, type MetricCaptureRunnerConfig, type MetricCaptureRunResult } from './metric-capture-runner.js';
 import { readPreparedMetricCaptureSources } from './metric-capture-inventory.js';
 import { AutomationWorldBankSourceIntake, readConfirmedWorldBankSource, readWorldBankHistory, WORLD_BANK_INDICATORS, WORLD_BANK_PROFILE } from './world-bank-intake.js';
-import { selectPdfExcerpts, storedPdfExcerpts, type PdfExcerpt } from './pdf-excerpt.js';
+import { pdfDocumentTitle, selectPdfExcerpts, storedPdfExcerpts, type PdfExcerpt } from './pdf-excerpt.js';
 import { readSellerVideoInputs, selectSellerVideos, storedSellerVideos, type AutomatedReadingInput, type SellerVideoAutomatedRef, type SellerVideos, type SellerVideoSources } from './seller-video.js';
 import { OFFICIAL_STATS_PROVIDER, OFFICIAL_STATS_USAGE_ORDINAL, officialStatsDocument, officialStatsFailed, officialStatsUsage, validOfficialStats, type OfficialStatsCollection, type OfficialStatsSource } from './official-statistics-lane.js';
 import { COMTRADE_PROFILE, COMTRADE_PROVIDER, COMTRADE_USAGE_ORDINAL, comtradeDocument, comtradeFailed, comtradeRenderable, comtradeUsage, type ComtradeCollection, type ComtradeSource } from './comtrade-lane.js';
@@ -156,7 +156,7 @@ import { AutomationMarketMethodBridge, MARKET_CAPTURE_READ_BUDGET_BYTES, type Au
 import { AutomationMetricMethodBridge, MetricMethodFailure, metricMethodFailureCode, type AutomationMetricMethodSnapshot, type MetricMethodFailureCode } from './metric-method-bridge.js';
 import { PageIndexCloudClient } from '../pageindex-cloud.js';
 import { estimatePageIndexBalance, estimatePageIndexLedgerBalance } from '../pageindex-balance.js';
-import { extractPageIndexPdf, planPageIndexQuestions, orderRunPdfsForQuestions, verifyPageIndexQuotes, buildVerifiedQuotesArtifact,
+import { extractPageIndexPdf, readPageIndexPdfTitle, planPageIndexQuestions, orderRunPdfsForQuestions, verifyPageIndexQuotes, buildVerifiedQuotesArtifact,
   PAGEINDEX_ELIGIBLE_SECTIONS, type RunPdfOrigin, type PageIndexLocalPage, type PageIndexQuotesArtifact, type PageIndexVerifiedQuote } from '../pageindex-questions.js';
 import type { PageIndexStatusSummary } from './source-status.js';
 import {
@@ -226,6 +226,7 @@ import {
   type CaptureRecord,
   type StepExpandedQuery,
   type StepPdfDiscovery,
+  type StepWebResult,
   type ScopeSnapshot,
   type SourceStepId,
   type StartSnapshot,
@@ -326,7 +327,7 @@ export interface PageIndexRunPdfStates {
   readonly usageLimited: boolean;
   readonly documents: readonly PageIndexRunPdfDocument[];
 }
-interface RunPdfRow { sha256: string; fileName: string; packageId: string; manifestSha256: string; logicalPath: string; origin: RunPdfOrigin }
+interface RunPdfRow { sha256: string; fileName: string; packageId: string; manifestSha256: string; logicalPath: string; origin: RunPdfOrigin; documentTitle: string | null }
 
 /** Best-effort ledger read that never throws; unreadable rows degrade to INDEXING. */
 function safeReadPageIndex(db: Database.Database, sourceSha256: string): {
@@ -422,6 +423,7 @@ export interface ResearchAutomationServiceOptions {
     readonly startingCreditMicroDollars?: number;
     readonly maxQuestionsPerRun?: number;
     readonly extractPdf?: (bytes: Uint8Array) => Promise<readonly PageIndexLocalPage[]>;
+    readonly readPdfTitle?: (bytes: Uint8Array) => Promise<string | null>;
   };
   /** Page cap for automatically captured PDFs; absent reads TDN_RESEARCH_PDF_DISCOVERY_MAX_PAGES (default 60). Owner uploads are never capped by it. */
   readonly pdfCaptureMaxPages?: number;
@@ -1438,7 +1440,7 @@ export class ResearchAutomationService {
 
   #runPdfs(runId: string): RunPdfRow[] {
     return this.#db.prepare(`SELECT source_sha256 sha256, file_name fileName, package_id packageId,
-      manifest_sha256 manifestSha256, logical_path logicalPath, origin FROM analysis_pageindex_run_pdfs WHERE run_id=? ORDER BY source_sha256`).all(runId) as RunPdfRow[];
+      manifest_sha256 manifestSha256, logical_path logicalPath, origin, document_title documentTitle FROM analysis_pageindex_run_pdfs WHERE run_id=? ORDER BY source_sha256`).all(runId) as RunPdfRow[];
   }
 
   /** The run's question cap, as `#processRunPdfs` applies it. */
@@ -1479,8 +1481,11 @@ export class ResearchAutomationService {
     return this.pageIndexStatesForRun(workspaceId, runId);
   }
 
-  /** `origin` orders question planning; an owner upload of bytes already captured marks the row UPLOAD (upload wins, never the reverse). */
-  async #retainRunPdf(runId: string, fileName: string, bytes: Uint8Array, origin: RunPdfOrigin): Promise<void> {
+  /**
+   * `origin` orders question planning; an owner upload of bytes already captured marks the row UPLOAD (upload wins, never the reverse).
+   * `title` is the search row's title of an automatically found PDF, kept only when it is plain reader text; the file name is never shown.
+   */
+  async #retainRunPdf(runId: string, fileName: string, bytes: Uint8Array, origin: RunPdfOrigin, title: string | null = null): Promise<void> {
     const sha256 = createHash('sha256').update(bytes).digest('hex');
     const source = new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
     const logicalPath = 'source.pdf';
@@ -1488,9 +1493,9 @@ export class ResearchAutomationService {
       sourceAcquiredAt: null, sourceLabel: 'Tài liệu PDF đính kèm', files: [{ path: logicalPath, sha256, byteSize: bytes.length,
         mediaType: 'application/pdf', evidenceFamily: 'run-pdf', representationRole: 'primary', independence: 'independent',
         providerProvenance: 'operator_supplied_unverified', provenanceBasis: 'Exact source bytes attached to this run; content remains unreviewed.' }] }, new Map([[logicalPath, bytes]]));
-    this.#db.prepare(`INSERT INTO analysis_pageindex_run_pdfs(run_id,source_sha256,file_name,package_id,manifest_sha256,logical_path,origin)
-      VALUES (?,?,?,?,?,?,?) ON CONFLICT(run_id,source_sha256) DO UPDATE SET origin='UPLOAD' WHERE excluded.origin='UPLOAD'`)
-      .run(runId, sha256, fileName, receipt.packageId, receipt.manifestArtifactSha256, logicalPath, origin);
+    this.#db.prepare(`INSERT INTO analysis_pageindex_run_pdfs(run_id,source_sha256,file_name,package_id,manifest_sha256,logical_path,origin,document_title)
+      VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(run_id,source_sha256) DO UPDATE SET origin='UPLOAD' WHERE excluded.origin='UPLOAD'`)
+      .run(runId, sha256, fileName, receipt.packageId, receipt.manifestArtifactSha256, logicalPath, origin, pdfDocumentTitle(title));
     if (!this.#pageIndexEnabled()) return;
     await indexRunPdfsForPageIndex([{ sha256, fileName, bytes }], this.#pageIndexDeps());
   }
@@ -1635,7 +1640,7 @@ export class ResearchAutomationService {
   async #pdfExcerpts(runId: string): Promise<readonly PdfExcerpt[]> {
     const row = this.#db.prepare('SELECT artifact_sha256 sha FROM analysis_pageindex_run_quotes WHERE run_id=?').get(runId) as { sha: string } | undefined;
     if (!row) return [];
-    try { return selectPdfExcerpts(await this.#readJson<PageIndexQuotesArtifact>(row.sha, MAX_JSON_ARTIFACT_BYTES, 'application/json'), runId, new Map(this.#runPdfs(runId).map(file => [file.sha256, file.fileName]))).excerpts; }
+    try { return selectPdfExcerpts(await this.#readJson<PageIndexQuotesArtifact>(row.sha, MAX_JSON_ARTIFACT_BYTES, 'application/json'), runId, new Map(this.#runPdfs(runId).map(file => [file.sha256, file.documentTitle]))).excerpts; }
     catch { return []; }
   }
 
@@ -1729,6 +1734,12 @@ export class ResearchAutomationService {
         if (ledger?.status !== 'READY' || !ledger.cloudDocId) continue;
         const pages = await (this.#pageIndex?.extractPdf ?? extractPageIndexPdf)(member.bytes);
         local.set(index, { bytes: member.bytes, pages });
+        // No usable search title: the title stored in the PDF itself, read locally from the same verified bytes (never a provider call).
+        if (file.documentTitle === null) {
+          const title = pdfDocumentTitle(await (this.#pageIndex?.readPdfTitle ?? readPageIndexPdfTitle)(member.bytes));
+          if (title !== null) this.#db.prepare(`UPDATE analysis_pageindex_run_pdfs SET document_title=? WHERE run_id=? AND source_sha256=? AND document_title IS NULL`)
+            .run(title, runId, file.sha256);
+        }
       } catch { /* Local verification failure never authorizes a query. */ }
     }
     for (const question of plan) {
@@ -3135,10 +3146,12 @@ export class ResearchAutomationService {
     if (sourceStart.sourceEvidenceVersion && semantic.sourceEvidence) {
       const collection = await this.#reportCollection(runId, sources, Boolean(attempt));
       const basePacket = (await this.#stepDocument(runId, 'COLLECTION'))?.sourceEvidence ?? buildSourceEvidence({ draft: null, draftDigest: null, unavailableReason: 'SALES_NAMES_UNAVAILABLE', webResults: [], captures: [] });
-      // Excerpts are drawn only by builds that set the packet marker; the stored list must equal a fresh read of the run's stored quotes.
+      // Replay source/page/quote membership; labels are frozen presentation, including pre-title drafts.
+      // The saved HTML is returned below, never regenerated with today's title policy.
       const marked = (semantic.sourceEvidence as { pdfExcerpts?: unknown }).pdfExcerpts === true;
       const storedExcerpts = (Array.isArray(semantic.pdfExcerpts) ? semantic.pdfExcerpts : []) as PdfExcerpt[];
-      if (marked ? kind !== 'MARKET' || !storedExcerpts.length || digest(storedExcerpts) !== digest(await this.#pdfExcerpts(runId)) : semantic.pdfExcerpts !== undefined)
+      const excerptEvidence = (excerpts: readonly PdfExcerpt[]) => excerpts.map(({ label: _label, ...evidence }) => evidence);
+      if (marked ? kind !== 'MARKET' || !storedExcerpts.length || digest(excerptEvidence(storedExcerpts)) !== digest(excerptEvidence(await this.#pdfExcerpts(runId))) : semantic.pdfExcerpts !== undefined)
         throw new ResearchAutomationIntegrityError('Report document excerpts differ from the run stored quotes.');
       // Video uploads are re-read from exactly the packages the stored list pinned; a later upload never changes a stored version.
       const videosMarked = (semantic.sourceEvidence as { sellerVideos?: unknown }).sellerVideos === true, storedVideos = storedSellerVideos(semantic);
@@ -4380,6 +4393,35 @@ export class ResearchAutomationService {
           captures.reduce((sum, value) => sum + value.artifact.byteSize, 0) + values.reduce((sum, value) => sum + value.body.byteLength, 0) <= MARKET_CAPTURE_READ_BUDGET_BYTES;
         const source = this.#pdfDiscoverySource;
         const seen = new Set<string>();
+        // Search projections truncate text before this lane. Vet the exact retained search title,
+        // so truncation cannot hide a file extension, provider name or other unsafe suffix.
+        const candidatesForRows = async (rows: readonly StepWebResult[], origin: PdfCandidate['origin']): Promise<PdfCandidate[]> => {
+          const titled: StepWebResult[] = [];
+          const payloads = new Map<string, unknown>();
+          for (const row of rows) {
+            let title = '';
+            try {
+              const capture = captures.find(c => c.row.ordinal === row.captureIndex)?.row;
+              if (capture?.provider === 'serpapi' && capture.operation === 'serpapi.google.search') {
+                if (!payloads.has(capture.artifactSha256)) {
+                  // These content-addressed bytes are retained already; their manifests commit with the step below.
+                  const envelope = JSON.parse((await this.#artifacts.read(capture.artifactSha256, { maxBytes: MAX_CAPTURE_ENVELOPE_BYTES })).toString('utf8')) as Record<string, unknown>;
+                  if (envelope.outcome !== 'OK' || typeof envelope.responseBytesBase64 !== 'string') throw new Error('Missing search bytes');
+                  const bytes = Buffer.from(envelope.responseBytesBase64, 'base64');
+                  if (createHash('sha256').update(bytes).digest('hex') !== envelope.responseSha256) throw new Error('Search byte mismatch');
+                  payloads.set(capture.artifactSha256, JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)));
+                }
+                const payload = payloads.get(capture.artifactSha256);
+                const matches = isRecord(payload) && Array.isArray(payload.organic_results) ? payload.organic_results.filter((raw: unknown, index: number) =>
+                  isRecord(raw) && (typeof raw.position === 'number' && Number.isSafeInteger(raw.position) && raw.position > 0 ? raw.position : index + 1) === row.position &&
+                  httpsUrl(raw.link, 2048) === row.url) : [];
+                if (matches.length === 1 && isRecord(matches[0])) title = pdfDocumentTitle(matches[0].title) ?? '';
+              }
+            } catch { /* No authentic usable search title: embedded metadata or the ordinal remains available. */ }
+            titled.push({ ...row, title });
+          }
+          return pdfCandidates(titled, origin, seen);
+        };
         let candidates: PdfCandidate[] = [];
         // The M09 excerpt block shows only stored reader quotes: with the document reader off an automatic PDF adds nothing,
         // so neither the extra search nor any download is made. With it on, owner uploads planned first may already fill the
@@ -4391,7 +4433,7 @@ export class ResearchAutomationService {
           const runRows = step.sourceEvidence
             ? admitWebResults(step.sourceEvidence, collectionWebRows(step), [...await this.#captureRecords(runId), ...captures.map(c => c.row)], step.sourceEvidence.jevTriage ?? null)
             : [];
-          candidates = pdfCandidates(runRows, 'RUN_ROWS', seen);
+          candidates = await candidatesForRows(runRows, 'RUN_ROWS');
         } catch { candidates = []; }
         if (readerOff) search = { status: 'SKIPPED', reason: 'SKIPPED_READER_OFF', captureIndex: null, retrievedAt: null };
         else if (noQuestionBudget) search ={ status: 'SKIPPED', reason: 'SKIPPED_NO_QUESTION_BUDGET', captureIndex: null, retrievedAt: null };
@@ -4412,7 +4454,7 @@ export class ResearchAutomationService {
                 const rows = toWebResults(attempt.result).filter(row => row.captureIndex === 0).map(row => ({ ...row, captureIndex: offset }));
                 const admitted = new Set(filterSerpApiResults({ results: rows.map(row => ({ captureId: stored.artifactSha256, position: row.position, title: row.title, snippet: row.snippet })),
                   filter: keywordDraft.output }).includedRecordIds);
-                const found = pdfCandidates(rows.filter(row => admitted.has(`${stored.artifactSha256}#${row.position}`)), 'PDF_SEARCH', seen);
+                const found = await candidatesForRows(rows.filter(row => admitted.has(`${stored.artifactSha256}#${row.position}`)), 'PDF_SEARCH');
                 if (!found.length && rows.some(row => isPdfPath(row.url))) search = { ...search, reason: 'NOT_ADMITTED' };
                 candidates = [...candidates, ...found];
               } catch { search = { ...search, reason: 'SEARCH_FAILED' }; }
@@ -4461,7 +4503,7 @@ export class ResearchAutomationService {
               continue;
             }
             if (item.kind === 'DOWNLOADED') {
-              try { await this.#retainRunPdf(runId, `source-${captures.length}.pdf`, item.bytes, 'CAPTURE'); }
+              try { await this.#retainRunPdf(runId, `source-${captures.length}.pdf`, item.bytes, 'CAPTURE', item.candidate.title ?? null); }
               catch {
                 // Indexing may fail after source retention; that follows the upload path's existing reader state.
                 if (!this.#runPdfs(runId).some(pdf => pdf.sha256 === item.sha256)) {

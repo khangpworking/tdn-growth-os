@@ -55,6 +55,10 @@ test('candidates: .pdf path only, https, allowed host, row order, dedup by page 
   ]);
   assert.deepEqual(pdfCandidates([{ url: 'https://bao-cao.example/nganh/2026.pdf' }, { url: 'https://moi.example/b.pdf' }], 'PDF_SEARCH', seen).map(c => c.url),
     ['https://moi.example/b.pdf'], 'the shared set dedups across sources');
+  assert.deepEqual(pdfCandidates([{ url: 'https://tieu-de.example/a.pdf', title: 'Báo cáo ngành 2026' }, { url: 'https://tieu-de.example/b.pdf' }], 'PDF_SEARCH', seen), [
+    { url: 'https://tieu-de.example/a.pdf', origin: 'PDF_SEARCH', title: 'Báo cáo ngành 2026' },
+    { url: 'https://tieu-de.example/b.pdf', origin: 'PDF_SEARCH' },
+  ], 'the search title rides along for the citation; a row without one stays untitled');
   for (const host of ['shopee.example', 'm.facebook.example', 'lazada.example', 'youtube.example', 'tiktok.example', 'shopee.example']) assert.equal(isBlockedHost(host), true, host);
   assert.equal(isBlockedHost('bao-cao.example'), false);
 });

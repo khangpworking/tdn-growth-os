@@ -60,7 +60,7 @@ function pdfTransport(searchRows: unknown[], large = false, failSearch = false) 
 /** PageIndex fake that keeps each uploaded file name, so citations name the retained `source-N.pdf`. */
 function pageIndexFake() {
   const docs = new Map<string, string>();
-  const calls = { upload: 0, question: 0, localReads: 0 };
+  const calls = { upload: 0, question: 0, localReads: 0, titleReads: 0 };
   const fetchFake: typeof fetch = async (input, init) => {
     const pathname = new URL(String(input)).pathname;
     const body = typeof init?.body === 'string' ? JSON.parse(init.body) as Record<string, unknown> : {};
@@ -130,6 +130,7 @@ async function runToDraft(t: TestContext, options: RunOptions) {
     renderer: (input, kind) => { reportInputs.set(kind, input); return buildResearchAutomationReport(input, kind); }, source: sales, webSource: syntheticWebSource(() => {}, options.organic),
     sourceEvidence: { modelIdentity: 'synthetic-model', promptVersion: 'synthetic-v1', transport: { draftLists: async () => { if (options.noAdmission) throw new Error('synthetic admission failure'); return { keywords: [KEYWORD], exclusions: [] }; } } },
     pageIndex: { enabled: !options.readerOff, apiKey: 'synthetic-pdf-key', fetch: pageIndex.fetchFake, startingCreditMicroDollars: 10_000_000, maxQuestionsPerRun: options.questionCap ?? 10,
+      readPdfTitle: async () => { pageIndex.calls.titleReads += 1; return null; },
       extractPdf: async bytes => { pageIndex.calls.localReads += 1;
         if (options.uncountableLabel && Buffer.from(bytes).includes(Buffer.from(options.uncountableLabel))) throw new Error('synthetic local reader unavailable');
         const pages = options.longLabel && Buffer.from(bytes).includes(Buffer.from(options.longLabel)) ? options.longPages ?? 61 : 1;
@@ -152,7 +153,7 @@ async function runToDraft(t: TestContext, options: RunOptions) {
     .map(value => { const r = value as { ordinal: bigint | number; provider: string; n: bigint | number }; return [Number(r.ordinal), r.provider, Number(r.n)] as const; });
   const captures = db.prepare(`SELECT ordinal, provider, operation, artifact_sha256 sha FROM analysis_research_automation_captures WHERE run_id=? AND step_id='COLLECTION' ORDER BY ordinal`).all(runId)
     .map(value => { const r = value as { ordinal: bigint | number; provider: string; operation: string; sha: string }; return { ordinal: Number(r.ordinal), provider: r.provider, operation: r.operation, sha: r.sha }; });
-  const runPdfs = db.prepare('SELECT source_sha256 sha, file_name name FROM analysis_pageindex_run_pdfs WHERE run_id=? ORDER BY file_name').all(runId) as { sha: string; name: string }[];
+  const runPdfs = db.prepare('SELECT source_sha256 sha, file_name name, document_title title FROM analysis_pageindex_run_pdfs WHERE run_id=? ORDER BY file_name').all(runId) as { sha: string; name: string; title: string | null }[];
   const html = async (pairId?: string) => (await service.readReport(workspaceId, runId, 'MARKET', false, pairId)).bytes.toString('utf8');
   const semantic = async (): Promise<Record<string, unknown>> => {
     const out = db.prepare('SELECT version_sha256 sha FROM analysis_research_automation_outputs WHERE run_id=? AND report_kind=?').get(runId, 'MARKET') as { sha: string };
@@ -174,6 +175,7 @@ test('flag on: one run-row PDF plus one admitted search PDF are downloaded, reta
   assert.deepEqual(found.files.map(file => [file.origin, file.url, file.status]), [['RUN_ROWS', RUN_PDF, 'DOWNLOADED'], ['PDF_SEARCH', SEARCH_PDF, 'DOWNLOADED']]);
   assert.equal(found.reason, null);
   assert.equal(f.pdf.calls.download, 2, 'at most 2 downloads, never the blocked or non-admitted rows');
+  assert.equal(f.pageIndex.calls.titleReads, 0, 'safe search titles take priority over embedded metadata');
   for (const headers of f.pdf.calls.headers) assert.equal(headers.has('cookie') || headers.has('authorization'), false);
   const searchCapture = f.captures.find(c => c.ordinal === found.search.captureIndex)!;
   assert.deepEqual([searchCapture.provider, searchCapture.operation], ['serpapi', 'serpapi.google.search']);
@@ -191,6 +193,8 @@ test('flag on: one run-row PDF plus one admitted search PDF are downloaded, reta
   // Retention: both files reach the run-PDF table through the existing collection-capture path and were read once each.
   assert.deepEqual(f.runPdfs.map(p => p.sha).sort(), found.files.map(file => file.sourceSha256).sort());
   assert.ok(f.runPdfs.every(p => /^source-\d+\.pdf$/u.test(p.name)));
+  assert.deepEqual(found.files.map(file => f.runPdfs.find(p => p.sha === file.sourceSha256)?.title), [`Báo cáo ngành ${KEYWORD} 2`, `Báo cáo ngành ${KEYWORD} 1`],
+    'each file keeps the title of the search row it came from, for the citation label');
   assert.equal(f.pageIndex.calls.upload, 2);
   const html = await f.html();
   const block = blockOf(html);
@@ -466,4 +470,15 @@ test('optional capture and run-PDF storage failures leave reason codes and uncha
     assert.equal(await f.html(), await off.html());
     assert.equal(f.usage.find(row => row[0] === 15)?.[2], 2);
   }
+});
+
+test('both search paths vet original titles before bounded projections can hide a file extension', async t => {
+  const unsafe = `Báo cáo ngành ${KEYWORD}${' '.repeat(600)}.pdf`;
+  const f = await runToDraft(t, { lane: true, organic: [row(1, RUN_PDF, unsafe)], searchRows: [row(1, SEARCH_PDF, unsafe)] });
+  assert.equal(f.runPdfs.length, 2);
+  assert.deepEqual(f.runPdfs.map(pdf => pdf.title), [null, null]);
+  const block = blockOf(await f.html());
+  assert.match(block, /Tài liệu PDF số 1, trang 1/u);
+  assert.match(block, /Tài liệu PDF số 2, trang 1/u);
+  assert.doesNotMatch(block, /Báo cáo ngành|source-\d+\.pdf/u);
 });

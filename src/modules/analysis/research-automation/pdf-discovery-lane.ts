@@ -144,10 +144,11 @@ function beforeDeadline<T>(pending: Promise<T>, signal: AbortSignal): Promise<T>
   });
 }
 
-export interface PdfCandidate { readonly url: string; readonly origin: StepPdfDiscoveryFile['origin'] }
+/** `title` is the search row's own title, kept as raw text: the report vets it before showing it as the document name. */
+export interface PdfCandidate { readonly url: string; readonly origin: StepPdfDiscoveryFile['origin']; readonly title?: string }
 
 /** Eligible PDF links in row order: `.pdf` path, an allowed URL and host, deduplicated by page identity. */
-export function pdfCandidates(rows: readonly Pick<StepWebResult, 'url'>[], origin: PdfCandidate['origin'], seen: Set<string> = new Set()): PdfCandidate[] {
+export function pdfCandidates(rows: readonly (Pick<StepWebResult, 'url'> & Partial<Pick<StepWebResult, 'title'>>)[], origin: PdfCandidate['origin'], seen: Set<string> = new Set()): PdfCandidate[] {
   const out: PdfCandidate[] = [];
   for (const row of rows) {
     if (!isPdfPath(row.url)) continue;
@@ -156,7 +157,7 @@ export function pdfCandidates(rows: readonly Pick<StepWebResult, 'url'>[], origi
     const key = webResultUrlKey(row.url);
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push({ url: row.url, origin });
+    out.push(typeof row.title === 'string' ? { url: row.url, origin, title: row.title } : { url: row.url, origin });
   }
   return out;
 }
