@@ -218,7 +218,7 @@ export function pdfDocumentTitle(raw: unknown): string | null {
   const trimEnd = (text: string): string => text.replace(/(?:\s*(?:\.{3,}|…))+$/u, '').trim();
   const title = trimEnd(raw.normalize('NFC').replace(/\s+/gu, ' ').trim().replace(/^\[PDF\]\s*/iu, '').split(' | ')[0]!);
   // A spaced dash can belong to a file name. Do not salvage its prefix as a document title.
-  if (/\.(?:pdf|docx?|xlsx?|pptx?|txt|csv|json|xml|html?|zip|png|jpe?g)\b[\s.)\]"'”’]*$/iu.test(title)) return null;
+  if (/\.(?:pdf|doc[xm]?|xls[xmb]?|ppt[xm]?|pps[xm]?|pot[xm]?|rtf|od[tspg]|ot[tsp]|epub|txt|csv|json|xml|html?|zip|png|jpe?g)\b[\s.)\]"'”’]*$/iu.test(title)) return null;
   for (const candidate of [title, trimEnd(title.replace(/\s[-–—]\s[^-–—]*$/u, '').trim())]) if (candidate && titleShown(candidate)) return candidate;
   return null;
 }
