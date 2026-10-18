@@ -28,6 +28,7 @@ const limitationLabels: Readonly<Record<string, string>> = {
   PROVIDER_FAILED: 'Nguồn dữ liệu gặp lỗi; hệ thống không tự chạy lại.',
   PROVIDER_CREDIT_EXHAUSTED: 'Nguồn số liệu bán hàng TikTok Shop đã hết lượt tra cứu. Cần nạp thêm lượt rồi chạy lại; hệ thống không tự chạy lại.',
   KALODATA_REPLAY_MISS: 'Bản chạy thử: không có dữ liệu bán hàng đã lưu cho yêu cầu này nên không gửi đi nguồn thật; phần số liệu đó bị thiếu.',
+  KALODATA_REPLAY_SCOPE_MISMATCH: 'Bản chạy thử: từ khóa hoặc khoảng thời gian khác lần chạy gốc nên phiên đã dừng trước khi gọi nguồn.',
   PROVIDER_OUTPUT_INVALID: 'Dữ liệu nguồn không vượt qua kiểm tra; không có số liệu nào được suy diễn.',
   SCOPE_FILTERS_NOT_APPLIED: 'Định nghĩa và cụm từ đã lưu nhưng chưa được áp dụng bộ lọc ở phía nguồn trong phiên này.',
   STEP_TIMEOUT: 'Nguồn chạy quá thời hạn và đã được dừng; không tự chạy lại.',

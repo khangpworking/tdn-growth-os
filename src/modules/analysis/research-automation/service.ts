@@ -189,7 +189,7 @@ import type {
 } from '../../../../contracts/api/research-automation-api.generated.js';
 import type { DiscoveryWorkspaceReader } from '../../../modules/flow/discovery-workspace-reader.js';
 import { canonicalJson } from '../../../modules/foundation/canonical-json.js';
-import { assertKalodataReplayScope, withKalodataReplayNotice, KALODATA_REPLAY_MISS, KALODATA_REPLAY_USAGE_OPERATION, type KalodataReplaySource } from './kalodata-replay.js';
+import { assertKalodataReplayScope, kalodataReplayScopeMatches, withKalodataReplayNotice, KALODATA_REPLAY_MISS, KALODATA_REPLAY_SCOPE_MISMATCH, KALODATA_REPLAY_USAGE_OPERATION, type KalodataReplaySource } from './kalodata-replay.js';
 import { withDatabaseMutationMutex } from '../../../platform/db/database-mutation-mutex.js';
 import { ContentAddressedArtifactStore, type StoredArtifact } from '../../../platform/artifacts/artifact-store.js';
 import type {
@@ -2053,6 +2053,8 @@ export class ResearchAutomationService {
         ...(input.exactShopeeUrls !== undefined ? { exactShopeeUrls: [...input.exactShopeeUrls] } : {}) };
       const row = this.#current(runId)!;
       const start = await this.#readStartSnapshot(row.startSha, workspaceId);
+      // Runs copied into a replay instance were not started here; confirm only the source run's scope.
+      if (this.#kalodataReplay) assertKalodataReplayScope(this.#kalodataReplay, start.keyword, start.requestedPeriod);
       const bound = { runId, start, scope, scopeConfirmedAt: confirmedAt };
       let metric: AutomationConfirmedSourceSet['metric'] | undefined;
       let native: AutomationConfirmedSourceSet['nativeReview'] | undefined;
@@ -3282,6 +3284,11 @@ export class ResearchAutomationService {
         return true;
       }
       const start = await this.#readStartSnapshot(row.startSha, row.workspaceId);
+      // A queued run outside the source run's scope never reaches the providers in replay mode.
+      if (this.#kalodataReplay && !kalodataReplayScopeMatches(this.#kalodataReplay, start.keyword, start.requestedPeriod)) {
+        if (!controller.signal.aborted) await this.#stopReplayScopeMismatch(row, stepId);
+        return true;
+      }
       const scope = row.scopeSha ? await this.#readScopeSnapshot(row.scopeSha, row.workspaceId, row.runId) : null;
       if (controller.signal.aborted) return false;
       const expectedStatus = stepId === 'QUICK_SEARCH' ? 'QUICK_SEARCH_QUEUED' : 'COLLECTION_QUEUED';
@@ -4574,6 +4581,23 @@ export class ResearchAutomationService {
           return;
         }
         this.#transition(runId, toNumber(current.revision), 'FAILED', at);
+      })();
+    });
+  }
+
+  /** Replay instance: a queued run outside the source scope stops without a draft or provider call. */
+  async #stopReplayScopeMismatch(row: RunRow, stepId: SourceStepId): Promise<void> {
+    await withDatabaseMutationMutex(this.#db, async () => {
+      this.#db.transaction(() => {
+        const current = this.#current(row.runId);
+        const expectedStatus = stepId === 'QUICK_SEARCH' ? 'QUICK_SEARCH_QUEUED' : 'COLLECTION_QUEUED';
+        if (!current || current.status !== expectedStatus) return;
+        const at = this.#now().toISOString();
+        const updated = this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='FAILED',message_code=?,finished_at=? WHERE run_id=? AND step_id=? AND state='QUEUED'`).run(KALODATA_REPLAY_SCOPE_MISMATCH, at, row.runId, stepId);
+        if (updated.changes !== 1) return;
+        this.#transition(row.runId, toNumber(current.revision), 'CANCELLED', at);
+        this.#skipPendingSteps(row.runId, at);
+        if (this.#hasAutorunTable()) this.#autorunStop(row.runId, 'CANCELLED', at);
       })();
     });
   }

@@ -242,3 +242,49 @@ test('flag off: outputs and usage rows are byte-identical to main', async t => {
   assert.equal(digest(usageRows), MAIN_E0754A3.usage);
   assert.equal(digest(captureShas(plain.db, sourceRunId).sort().join(',')), MAIN_E0754A3.captures);
 });
+
+test('runs copied into the replay instance outside the source scope cannot be confirmed or executed', async t => {
+  const { db, artifacts } = await fixture(t);
+  const replay = readKalodataReplaySource(db, sourceRunId);
+  const otherPeriod = { ...period, endDate: '2026-08-28' } as const;
+  const discovery = new DiscoveryWorkspaceService({ db, artifactStore: artifacts, uuid: () => replayWorkspace, now: replayNow });
+  await discovery.createWorkspace({ contractVersion: '1.0.0', workspaceKey: 'replay-copied', title: 'Synthetic copied runs' });
+  const live: Counts = { balance: 0, rank: 0, detail: 0, other: 0 };
+  const inner: Counts = { balance: 0, rank: 0, detail: 0, other: 0 };
+  const transport = createKalodataReplayTransport(fakeKalodata(inner, replayNow), () => loadKalodataReplayIndex(db, artifacts, sourceRunId));
+  let nextUuid = 0;
+  const service = (replayMode: boolean) => new ResearchAutomationService({
+    db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discovery), now: replayNow,
+    source: bindResearchAutomationProvider(createResearchAutomationProviderRegistry({ kalodataSecretKey: replayMode ? KALODATA_REPLAY_PLACEHOLDER_KEY : 'synthetic-secret',
+      serpApiKey: null, apifyTokenConfigured: false }, replayMode ? transport : fakeKalodata(live, replayNow)).get('KALODATA')),
+    ...(replayMode ? { kalodataReplay: replay } : {}),
+    uuid: () => `88888888-8888-4888-8888-${String(++nextUuid).padStart(12, '0')}`,
+  });
+  // Two runs made before the copy (no replay): one waits for scope, one is already queued.
+  const before = service(false);
+  const drain = async (svc: ResearchAutomationService) => { for (let step = 0; step < 40 && await svc.processNext(); step += 1) { /* drain */ } };
+  const startRun = async (n: string) => {
+    const { run: { runId } } = await before.start(replayWorkspace, { contractVersion: 'research-automation-start-v1', requestKey: `33333333-3333-4333-8333-3333333399${n}`,
+      mode: 'PRODUCT', keyword: 'thermos', requestedPeriod: otherPeriod, reports: ['MARKET'] });
+    return runId;
+  };
+  const waiting = await startRun('01');
+  const queued = await startRun('02');
+  await drain(before);
+  const confirm = (svc: ResearchAutomationService, runId: string, revision: number, n: string) => svc.confirmScope(replayWorkspace, runId, {
+    contractVersion: 'research-automation-confirm-v1', requestKey: `44444444-4444-4444-8444-4444444499${n}`, expectedRevision: revision,
+    definition: 'Vietnam thermos source observations', includeTerms: ['thermos'], excludeTerms: [], selectedProductIds: ['kalodata:101'], peerProductIds: [],
+  });
+  await confirm(before, queued, (await before.getRun(replayWorkspace, queued)).revision, '02');
+
+  const replayService = service(true);
+  await assert.rejects(confirm(replayService, waiting, (await replayService.getRun(replayWorkspace, waiting)).revision, '01'), KalodataReplayScopeMismatchError);
+  assert.equal((await replayService.getRun(replayWorkspace, waiting)).status, 'AWAITING_SCOPE');
+  await drain(replayService);
+  const settled = await replayService.getRun(replayWorkspace, queued);
+  assert.equal(settled.status, 'CANCELLED');
+  assert.equal(settled.steps.find(step => step.stepId === 'COLLECTION')?.code, 'KALODATA_REPLAY_SCOPE_MISMATCH');
+  assert.equal(await outputHtml(db, artifacts, queued), undefined, 'no draft for a run outside the source scope');
+  assert.deepEqual(inner, { balance: 0, rank: 0, detail: 0, other: 0 });
+  assert.equal(transport.stats.replayed + transport.stats.missed, 0, 'no request reached the replay transport');
+});

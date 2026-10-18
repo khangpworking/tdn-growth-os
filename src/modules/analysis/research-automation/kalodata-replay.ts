@@ -92,10 +92,15 @@ export function readKalodataReplaySource(db: BetterSqlite3.Database, sourceRunId
   return { sourceRunId, keyword: run.keyword, period: { startDate: run.periodStart, endDate: run.periodEnd } };
 }
 
+/** True when keyword and period equal the source run. */
+export function kalodataReplayScopeMatches(source: KalodataReplaySource, keyword: string, period: { readonly startDate: string; readonly endDate: string }): boolean {
+  const norm = (value: string) => value.normalize('NFC').trim();
+  return norm(keyword) === norm(source.keyword) && period.startDate === source.period.startDate && period.endDate === source.period.endDate;
+}
+
 /** Throws KALODATA_REPLAY_SCOPE_MISMATCH unless keyword and period equal the source run. */
 export function assertKalodataReplayScope(source: KalodataReplaySource, keyword: string, period: { readonly startDate: string; readonly endDate: string }): void {
-  const norm = (value: string) => value.normalize('NFC').trim();
-  if (norm(keyword) !== norm(source.keyword) || period.startDate !== source.period.startDate || period.endDate !== source.period.endDate) {
+  if (!kalodataReplayScopeMatches(source, keyword, period)) {
     throw new KalodataReplayScopeMismatchError(`${KALODATA_REPLAY_SCOPE_MISMATCH}: replay test instance only accepts the source run keyword and period (${source.period.startDate}..${source.period.endDate})`);
   }
 }
