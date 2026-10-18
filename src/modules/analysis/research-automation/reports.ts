@@ -69,7 +69,7 @@ import { platIcons } from '../reader-report/layout.js';
 import { marketChartRows, type CaptureCountChart, type MarketChart } from '../reader-report/market-charts.js';
 import type { RenderedChart } from '../reader-report/flint.js';
 import { comtradeChartCount, worldBankChartCount, type MacroChart } from '../reader-report/macro-charts.js';
-import { pdfExcerptBlockHtml, PDF_EXCERPT_NOTE, PDF_EXCERPT_SECTION, PDF_EXCERPT_SRC } from './pdf-excerpt.js';
+import { pdfExcerptBlockHtml, pdfExcerptReaderCitation, PDF_EXCERPT_NOTE, PDF_EXCERPT_SECTION, PDF_EXCERPT_SRC } from './pdf-excerpt.js';
 import { sellerVideoBlockHtml, sellerVideoNote, sellerVideoSrc, SELLER_VIDEO_SECTION } from './seller-video.js';
 import { searchAdsBrandNotice, searchAdsNotice, searchAdsOkBrands, SEARCH_ADS_NOTE, SEARCH_ADS_SOURCE_LABEL, SEARCH_ADS_SOURCE_NOTE, SEARCH_ADS_TABLE_TITLE } from './google-ads-lane.js';
 import { officialStatsCitation, officialStatsNotice, officialStatsProvinceCellText, officialStatsProvinceCitation, officialStatsProvinceContext, officialStatsProvinceRowLabel, officialStatsProvinceRows, officialStatsRenderable, officialStatsRenderableRows, officialStatsRowLabel, officialStatsStatusText, officialStatsUnitText, officialStatsValueText, OFFICIAL_STATS_LIMIT, OFFICIAL_STATS_NOTE, OFFICIAL_STATS_PROVINCE_LIMIT, OFFICIAL_STATS_PROVINCE_NOTE, OFFICIAL_STATS_PROVINCE_TITLE, OFFICIAL_STATS_SOURCE_LABEL, OFFICIAL_STATS_SRC, OFFICIAL_STATS_TABLE_TEXT, OFFICIAL_STATS_TABLE_TITLE } from './official-statistics-lane.js';
@@ -1153,7 +1153,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   };
   // Verified document excerpts sit in the context section; the same predicate marks S25 as used.
   const pdfExcerptBlock = (sectionId: string): string => kind === 'MARKET' && sectionId === PDF_EXCERPT_SECTION && input.pdfExcerpts?.length && input.sourceEvidence?.pdfExcerpts === true
-    ? pdfExcerptBlockHtml(input.pdfExcerpts, escape) + `<p class="lim"><b>Chú thích:</b> ${escape(PDF_EXCERPT_NOTE)}</p><p class="ex-src">Nguồn: ${escape(PDF_EXCERPT_SRC)}</p>` : '';
+    ? pdfExcerptBlockHtml(input.pdfExcerpts, escape, marketPresentation ? excerpt => citations.mark(pdfExcerptReaderCitation(excerpt)) : undefined) + `<p class="lim"><b>Chú thích:</b> ${escape(PDF_EXCERPT_NOTE)}</p><p class="ex-src">Nguồn: ${escape(PDF_EXCERPT_SRC)}</p>` : '';
   const sellerVideoBlock = (sectionId: string): string => kind === 'MARKET' && sectionId === SELLER_VIDEO_SECTION && input.sellerVideos && input.sourceEvidence?.sellerVideos === true
     ? sellerVideoBlockHtml(input.sellerVideos, escape) + `<p class="lim"><b>Chú thích:</b> ${escape(sellerVideoNote(input.sellerVideos))}</p><p class="ex-src">Nguồn: ${escape(sellerVideoSrc(input.sellerVideos))}</p>` : '';
   // market14 reader: M13 trace receipts and evidence details stay in semantic (sourceEvidence, quoteMethods, boundedMethods), not the reader.

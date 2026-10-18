@@ -93,3 +93,18 @@ test('transport failures are generic, secret echoes fail closed and there are no
   await assert.rejects(encodedEcho.client.query(request, bytes, pages), { message: 'PAGEINDEX_SECRET_ECHO' });
   assert.equal(encodedEcho.calls.length, 2);
 });
+
+test('the <cite doc page block/> tag form passes the same identity checks as the <doc=;page=;block=> form', async () => {
+  for (const content of ['120 mg <doc=nguon.pdf;page=1;block=p1_text_1>', '120 mg <cite doc="nguon.pdf" page="1" block="p1_text_1"/>',
+    '120 mg <cite doc="nguon.pdf" page="1" block="p1_text_1" />', 'a <doc=nguon.pdf;page=1;block=p1_text_1> b <cite doc="nguon.pdf" page="1" block="p1_text_1"/>']) {
+    const { client, calls } = setup({ answer: { ...answer, choices: [{ message: { content } }] } });
+    const result = await client.query(request, bytes, pages);
+    assert.equal(result.candidates.length, 1); assert.equal(result.candidates[0]?.blockId, 'p1_text_1');
+    assert.equal(result.candidates[0]?.verification, 'LOCAL_PDF_TEXT_MATCH'); assert.equal(calls.length, 3);
+  }
+  for (const content of ['x <cite doc="other.pdf" page="1" block="p1_text_1"/>', 'x <cite doc="nguon.pdf" page="2" block="p2_text_1"/>',
+    'x <cite doc="nguon.pdf" page="1" block="p2_text_1"/>', 'x <doc=nguon.pdf;page=1;block=p1_text_1> <cite doc="nguon.pdf" page="2" block="p1_text_1"/>']) {
+    const { client } = setup({ answer: { ...answer, choices: [{ message: { content } }] } });
+    await assert.rejects(client.query(request, bytes, pages), /PAGEINDEX_CITATION_IDENTITY_MISMATCH/);
+  }
+});

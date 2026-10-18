@@ -7,9 +7,15 @@ const validateQuery = new Ajv({ strict: true }).compile<PageIndexCloudQuery>(que
 
 const ORIGIN = 'https://api.pageindex.ai';
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
-/** Vendor document paths below are UNVERIFIED against the live API (see handoff P3). There is intentionally no delete method. */
-export const PAGEINDEX_UPLOAD_PATH = '/doc/upload';
-export const PAGEINDEX_LIST_PATH = '/doc/list';
+/**
+ * Vendor document paths, checked live with free calls on 18/10: `POST /doc/` takes multipart/form-data with field `file` (the old
+ * `/doc/upload` JSON path answered 405), `GET /docs?limit=&offset=` lists `{documents,total,limit,offset}` (the old `/doc/list`
+ * answered 404), `GET /doc/{id}/metadata` matches `toDocument`. There is intentionally no delete method.
+ */
+export const PAGEINDEX_UPLOAD_PATH = '/doc/';
+export const PAGEINDEX_LIST_PATH = '/docs';
+const LIST_PAGE_SIZE = 100;
+const MAX_LISTED = 10000;
 const MAX_ERROR_SNIPPET_BYTES = 8192;
 const MAX_UPLOAD_BYTES = 32 * 1024 * 1024;
 const MAX_BLOCKS = 16;
@@ -81,7 +87,7 @@ export interface PageIndexCloudDocument {
   readonly status: 'processing' | 'completed' | 'failed' | 'unknown';
 }
 
-/** Document upload input. The request shape follows the UNVERIFIED upload path above. */
+/** Document upload input, sent as the multipart `file` field of the upload path above. */
 export interface PageIndexCloudUpload {
   readonly fileName: string;
   readonly bytes: Uint8Array;
@@ -114,12 +120,14 @@ export class PageIndexCloudClient {
     this.#fetch = options.fetch ?? fetch;
   }
 
+  /** A `FormData` body goes out as multipart (fetch sets the boundary content type); any other body as JSON. */
   async #request(endpoint: string, body?: unknown): Promise<Record<string, unknown>> {
     try {
+      const form = body instanceof FormData;
       const response = await this.#fetch(ORIGIN + endpoint, {
         method: body === undefined ? 'GET' : 'POST', redirect: 'error',
-        headers: body === undefined ? { api_key: this.#key } : { api_key: this.#key, 'Content-Type': 'application/json' },
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: AbortSignal.timeout(90_000),
+        headers: body === undefined || form ? { api_key: this.#key } : { api_key: this.#key, 'Content-Type': 'application/json' },
+        ...(body === undefined ? {} : { body: form ? body : JSON.stringify(body) }), signal: AbortSignal.timeout(90_000),
       });
       // Single attempt only: this connector never retries a paid call.
       if (!response.ok) {
@@ -149,15 +157,20 @@ export class PageIndexCloudClient {
   }
 
   /**
-   * Uploads one PDF for indexing. Single attempt, no retry. The upload path is
-   * UNVERIFIED against the live API; verify it before any production enablement.
+   * Uploads one PDF for indexing as multipart field `file`. Single attempt, no retry. Path and form were checked live on 18/10
+   * (no file → 422 on `body.file`); no real upload was sent. Vendor docs: the reply carries `doc_id`, indexing is asynchronous and
+   * a name already in use gains a suffix, so a reply without `name` or `pageNum` is completed by the free metadata read.
    */
   async uploadDocument(input: PageIndexCloudUpload): Promise<PageIndexCloudDocument> {
     if (typeof input.fileName !== 'string' || !input.fileName.trim() || input.fileName.length > 256 || /[\r\n]/u.test(input.fileName)) fail('INPUT_INVALID');
     if (!(input.bytes instanceof Uint8Array) || input.bytes.byteLength < 1 || input.bytes.byteLength > MAX_UPLOAD_BYTES) fail('INPUT_INVALID');
-    const response = await this.#request(PAGEINDEX_UPLOAD_PATH, {
-      file_name: input.fileName, content_base64: Buffer.from(input.bytes).toString('base64'),
-    });
+    const form = new FormData();
+    form.append('file', new Blob([Buffer.from(input.bytes)], { type: 'application/pdf' }), input.fileName);
+    const response = await this.#request(PAGEINDEX_UPLOAD_PATH, form);
+    if (response.name === undefined || response.name === null || response.pageNum === undefined) {
+      const id = response.id ?? response.doc_id;
+      return this.documentStatus(typeof id === 'string' ? id : fail('RESPONSE_INVALID'));
+    }
     return toDocument(response);
   }
 
@@ -174,11 +187,18 @@ export class PageIndexCloudClient {
    * it never uploads and never asks a question. Single attempt, no retry.
    */
   async listDocuments(): Promise<readonly PageIndexCloudDocument[]> {
-    const response = await this.#request(PAGEINDEX_LIST_PATH);
-    const listed: unknown = response.documents;
-    if (!Array.isArray(listed)) return fail('RESPONSE_INVALID');
-    if (listed.length > 10000) return fail('RESPONSE_TOO_LARGE');
-    return listed.map(entry => toDocument(object(entry)));
+    const documents: PageIndexCloudDocument[] = [];
+    // Pages of 100 until `total`; without a total, a short or empty page ends the list. The page cap bounds a looping reply.
+    for (let page = 0; page <= MAX_LISTED / LIST_PAGE_SIZE; page += 1) {
+      const response = await this.#request(`${PAGEINDEX_LIST_PATH}?limit=${LIST_PAGE_SIZE}&offset=${documents.length}`);
+      const listed: unknown = response.documents;
+      if (!Array.isArray(listed)) return fail('RESPONSE_INVALID');
+      const total = typeof response.total === 'number' && Number.isSafeInteger(response.total) && response.total >= 0 ? response.total : null;
+      if ((total ?? 0) > MAX_LISTED || documents.length + listed.length > MAX_LISTED) return fail('RESPONSE_TOO_LARGE');
+      documents.push(...listed.map(entry => toDocument(object(entry))));
+      if (listed.length === 0 || (total !== null ? documents.length >= total : listed.length < LIST_PAGE_SIZE)) return documents;
+    }
+    return fail('RESPONSE_TOO_LARGE');
   }
 
   /** Local pages must be extracted from these exact bytes, never from Cloud OCR. */
@@ -199,7 +219,10 @@ export class PageIndexCloudClient {
     });
     if (!Array.isArray(response.choices) || response.choices.length !== 1) return fail('RESPONSE_INVALID');
     const answer = string(object(object(response.choices[0]).message).content, 100_000);
-    const tags = [...answer.matchAll(/<doc=([^;>]+);page=(\d+);block=([^>]+)>/gu)];
+    // Both tag forms pass the same identity checks: `<doc=NAME;page=N;block=ID>` (this parser's original form) and
+    // `<cite doc="NAME" page="N" block="ID"/>` (vendor SDK docs). Neither form was seen in a live paid answer (not checked on 18/10).
+    const tags = [...answer.matchAll(/<doc=([^;>]+);page=(\d+);block=([^>]+)>|<cite\s+doc="([^"]+)"\s+page="(\d+)"\s+block="([^"]+)"\s*\/?>/gu)]
+      .map(match => match[1] !== undefined ? [match[0], match[1], match[2], match[3]] : [match[0], match[4], match[5], match[6]]);
     if (!Array.isArray(response.citations)) return fail('CITATIONS_INVALID');
     const refs = new Map<string, { page: number; blockId: string }>();
     for (const tag of tags) {
