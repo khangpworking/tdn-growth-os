@@ -178,9 +178,9 @@ test('Market HTML hides machine literals in visible text while retaining technic
   assert.match(visible, /Sản lượng bán: 7\.082/);
   assert.match(visible, /Bản ghi giá #12 · giá đơn vị/);
   assert.match(visible, /85\.991\.857 VND/);
-  assert.match(visible, /ngày ra mắt do nguồn khai báo: 2024-08-31/);
-  assert.match(visible, /Chỉ số nêu: Doanh thu/);
-  assert.match(visible, /Phạm vi quan sát do nguồn khai báo; không phải toàn bộ thị trường\./);
+  assert.match(visible, /Chưa đủ dữ liệu về sự kiện trong kỳ\./);
+  assert.doesNotMatch(document.querySelector('#M09')!.textContent!, /2024-08-31|Chỉ số nêu|Người nêu/);
+  assert.doesNotMatch(document.querySelector('#M05')!.textContent!, /Phạm vi quan sát do nguồn khai báo|Source-declared/);
 });
 
 test('marker-free quote, metric and market-presentation renderers replay origin/main bytes', () => {

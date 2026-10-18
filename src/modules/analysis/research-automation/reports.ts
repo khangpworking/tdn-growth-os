@@ -890,7 +890,8 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
         explanation: marketPresentation ? 'Đã áp dụng quy tắc đối thủ mặc định trên doanh thu cùng nhóm, kỳ và khung nguồn đã lưu; phần thiếu giữ nguyên, bổ sung của chủ giữ riêng. Kết quả chỉ mô tả mẫu đã lưu; không thay quyết định của chủ.'
           : 'Đã áp dụng quy tắc đối thủ mặc định trên doanh thu cùng nhóm, kỳ và khung nguồn đã lưu; phần thiếu giữ nguyên, bổ sung của chủ giữ riêng. Kết quả có giới hạn trong mẫu, chưa phải mục phân tích hoàn chỉnh hoặc quyết định đã duyệt.' };
     }
-    const view = descriptive && isDescriptiveSectionId(section.sectionId) ? describeDescriptiveSection(descriptive, section.sectionId, citations, readerPlainText) : undefined;
+    const view = descriptive && isDescriptiveSectionId(section.sectionId) ? describeDescriptiveSection(descriptive, section.sectionId, citations, readerPlainText,
+      { productLabels: productLabels(input), requestedPeriod: input.start.requestedPeriod }) : undefined;
     if (view) views.set(section.sectionId, view);
     const methodOutput = view && descriptive ? { methodOutputId: descriptive.methodOutputId, locatedRecordCount: view.locatedRecordCount, unresolvedPointers: view.unresolvedPointers, blockers: view.blockers } : undefined;
     if (view?.usable && methodOutput) return {
