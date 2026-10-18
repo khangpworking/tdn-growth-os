@@ -16,6 +16,14 @@ export type { ResearchAutomationShopeeReaderBuildRequest, ResearchAutomationRead
 const base = (workspaceId: string, runId: string) => `/workspaces/${encodeURIComponent(workspaceId)}/research-automation/runs/${encodeURIComponent(runId)}`;
 const fail = (message = 'Dữ liệu Shopee không khớp contract hoặc nguồn đã chọn.') => new ResearchAutomationError('integrity', message);
 
+/** Says which part is missing and who acts, without promising the report is usable. */
+export function shopeeRejectionMessage(status: number): string {
+  if (status === 401 || status === 403) return 'Cần mở khóa quyền OWNER để làm bước Shopee này. Cho đến khi xong, phần ý kiến khách hàng Shopee chưa có.';
+  if (status === 409) return 'Phiên vừa thay đổi nên yêu cầu Shopee chưa được nhận, phần ý kiến khách hàng Shopee chưa có. Tải lại trang rồi thử lại.';
+  if (status === 400) return 'Máy chủ từ chối yêu cầu Shopee vì mẫu hoặc đề xuất chưa hợp lệ. Phần ý kiến khách hàng Shopee chưa có; nếu lặp lại, báo người phụ trách kỹ thuật.';
+  return 'Chưa gửi được yêu cầu Shopee. Phần ý kiến khách hàng Shopee chưa có; thử lại sau, nếu vẫn lỗi hãy báo người phụ trách kỹ thuật.';
+}
+
 async function request(url: string, init: RequestInit, statuses: readonly number[]): Promise<{ status: number; value: unknown }> {
   let response: Response;
   try { response = await fetch(url, { cache: 'no-store', ...init }); }
@@ -25,7 +33,7 @@ async function request(url: string, init: RequestInit, statuses: readonly number
   if (!statuses.includes(response.status)) {
     throw new ResearchAutomationError(
       response.status === 401 || response.status === 403 ? 'authorization' : response.status === 409 ? 'conflict' : response.status === 400 ? 'rejected' : response.status === 404 ? 'notFound' : 'connection',
-      'Máy chủ chưa chấp nhận yêu cầu Shopee; kiểm tra mẫu, đề xuất và quyền OWNER.',
+      shopeeRejectionMessage(response.status),
     );
   }
   return { status: response.status, value };
