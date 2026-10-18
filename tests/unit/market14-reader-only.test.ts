@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { JSDOM } from 'jsdom';
 import { assertMarket14MachineRules } from '../../src/modules/analysis/research-automation/market-14-rules.js';
-import { figureInterpretation, stripTraceDetails, tableInterpretation } from '../../src/modules/analysis/research-automation/market-reader-delivery.js';
+import { assertMarketBusinessGate } from '../../src/modules/analysis/research-automation/market-business-gate.js';
+import { annotateExhibits, deliverMarketReader, figureInterpretation, stripTraceDetails, tableInterpretation } from '../../src/modules/analysis/research-automation/market-reader-delivery.js';
 import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
 import { fullMarket14Input } from '../helpers/market14-full-fixture.js';
 
@@ -21,11 +23,54 @@ test('table interpretation reads each platform on its own and never sums them', 
   const text = tableInterpretation(table);
   assert.match(text, /^Bảng có 4 dòng\./u);
   assert.match(text, /Shopee: cột “Doanh thu \(VND\)” ghi 100 \(A\)\./u);
-  assert.match(text, /TikTok Shop: ở cột “Doanh thu \(VND\)”, mức thấp là 40 \(C\) và mức cao là 70 \(D\)\./u);
+  assert.match(text, /TikTok Shop: ở cột “Doanh thu \(VND\)”, mức thấp là 40 \(C\) và mức cao là 70 \(D\);/u);
   assert.match(text, /1 dòng chưa có dữ liệu ở cột này\./u);
   assert.doesNotMatch(text, /%|VND \d|170|tổng|cộng/iu);
   // Pending classified cells are counted, never quoted.
   assert.equal(tableInterpretation(table.replace('<td>A</td>', '<td data-classified="pending">A</td>')), 'Bảng có 4 dòng.');
+});
+
+test('interpretations never range across unrelated columns or macro indicator units', () => {
+  const table = (heads: string[], rows: string[][]) => `<table><thead><tr>${heads.map(cell => `<th>${cell}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  assert.equal(tableInterpretation(table(['Sản phẩm', 'Lượt bán', 'Chi phí'], [['A', '4', '100'], ['B', 'chưa có dữ liệu', '200']])), 'Bảng có 2 dòng.');
+  const macro = table(['Chỉ số', 'Giá trị', 'Đơn vị'], Array.from({ length: 5 }, (_, i) => [`Chỉ số ${i + 1}`, `${i + 1}`, `Đơn vị ${i + 1}`]));
+  assert.equal(tableInterpretation(macro.replace(/<th>Đơn vị<\/th>/u, '<th>Nguồn</th>')), 'Bảng có 5 dòng. Mỗi dòng là một thước đo riêng, đọc theo đơn vị của chính nó.');
+  assert.equal(tableInterpretation(table(['Sản phẩm nguồn', 'Phép đo / đơn vị', 'Giá trị nguồn'], [['A', 'Doanh thu (VND)', '100'], ['A', 'Sản lượng bán', '2']])),
+    'Bảng có 2 dòng. Các dòng có thước đo, đơn vị hoặc kỳ khác nhau; đọc riêng từng dòng.');
+});
+
+test('search interpretation preserves missing weeks and makes cross-year dates explicit', () => {
+  const result = figureInterpretation('<figure><svg></svg></figure>', [
+    { period: '2025-10-05', index: 20 }, { period: '2026-01-04', index: null }, { period: '2026-09-27', index: 40 },
+  ]);
+  assert.match(result, /từ 05\/10\/2025 đến 27\/09\/2026/u);
+  assert.match(result, /từ 20 lên 40/u);
+  assert.match(result, /1 mốc chưa có dữ liệu/u);
+});
+
+test('nested exhibit wrappers remain intact and notes and interpretations stay outside cells and captions', () => {
+  const html = '<div class="table-wrap"><div><div>Tiêu đề</div></div><table><caption>Bảng</caption><thead><tr><th>Giá</th></tr></thead><tbody><tr><td>100</td></tr></tbody></table></div><figure><div><div><svg></svg></div></div><figcaption>Hình</figcaption></figure>';
+  const doc = new JSDOM(annotateExhibits(html)).window.document;
+  assert.equal(doc.querySelector('table')!.outerHTML, new JSDOM(html).window.document.querySelector('table')!.outerHTML);
+  assert.equal(doc.querySelectorAll('.interp').length, 2);
+  assert.equal(doc.querySelectorAll('.lim').length, 2);
+  assert.equal(doc.querySelectorAll('td .interp, th .interp, caption .interp, td .lim, th .lim, caption .lim').length, 0);
+  assert.equal(doc.querySelector('figure')!.nextElementSibling!.className, 'lim');
+});
+
+test('the default-peer table without a wrapper also receives a standalone note and interpretation', () => {
+  const table = '<table><caption>Đối thủ mặc định trong nhóm, đặt cạnh nhau</caption><thead><tr><th>Nhãn nguồn</th><th>Doanh thu ước tính</th></tr></thead><tbody><tr><td>A</td><td>100</td></tr></tbody></table>';
+  const doc = new JSDOM(annotateExhibits(table)).window.document;
+  assert.equal(doc.querySelector('table')!.outerHTML, table);
+  assert.equal(doc.querySelector('table')!.nextElementSibling!.className, 'lim');
+  assert.equal(doc.querySelector('.lim')!.nextElementSibling!.className, 'interp');
+});
+
+test('reader terms are localized and the removed method target has no reader link', () => {
+  const html = '<div id="sections"><section class="sheet" id="M10"><p>listing: search events</p><a href="#bounded-method-evidence">Xem nguồn</a><details id="bounded-method-evidence"><summary>Hồ sơ</summary>raw listing</details></section></div><footer>legacy</footer>';
+  const reader = deliverMarketReader(html);
+  assert.match(reader, /sản phẩm: lượt ghi nhận tìm kiếm/u);
+  assert.doesNotMatch(reader, /listing|search events|href="#bounded-method-evidence"|<details/u);
 });
 
 test('share charts are described without their percentage values', () => {
@@ -35,13 +80,19 @@ test('share charts are described without their percentage values', () => {
 });
 
 test('full synthetic market14 report is delivered as a reader copy with notes and interpretations; the trace keeps the rest', async () => {
-  const built = buildResearchAutomationReport(await fullMarket14Input(), 'MARKET');
+  const input = await fullMarket14Input();
+  const built = buildResearchAutomationReport(input, 'MARKET');
+  assert.deepEqual(buildResearchAutomationReport(input, 'MARKET'), built, 'delivery is deterministic');
   const html = built.html.toString('utf8');
   assert.ok(built.traceHtml, 'market14 build returns its hidden trace copy');
   const trace = built.traceHtml.toString('utf8');
   const sections = sectionsOf(html);
   assert.equal(sections.size, 13);
   const body = [...sections.values()].join('');
+  const doc = new JSDOM(html).window.document;
+  assert.equal(doc.querySelectorAll('td .interp, th .interp, caption .interp, td .lim, th .lim, caption .lim').length, 0);
+  assert.doesNotMatch(visible(body), /\blisting\b|search events/iu);
+  assert.match(visible(sections.get('M05')!), /từ 05\/10\/2025 đến 27\/09\/2026/u);
   // A7: no draft framing in the sections; M12 keeps its own approval label.
   const outsideM12 = [...sections].filter(([id]) => id !== 'M12').map(([, inner]) => visible(inner)).join(' ');
   assert.doesNotMatch(outsideM12, /Bản nháp|bản nháp|chưa duyệt|Chưa duyệt|chưa phải phân tích|Mục phân tích hoàn chỉnh/u);
@@ -60,7 +111,7 @@ test('full synthetic market14 report is delivered as a reader copy with notes an
     exhibits += count;
     for (const sentence of interps) {
       assert.doesNotMatch(sentence, /%|toàn thị trường|tổng hai|cộng|gộp/u, sentence);
-      assert.ok(sentence.split(/(?<=\.)\s/u).length <= 4, sentence);
+      assert.ok(sentence.split(/(?<=\.)\s/u).length <= 3, sentence);
     }
     // Each exhibit is followed by its own note (inside the exhibit or right under it) before its interpretation.
     const chunks = inner.split('<p class="interp">').slice(0, -1);
@@ -72,11 +123,15 @@ test('full synthetic market14 report is delivered as a reader copy with notes an
   }
   assert.ok(exhibits >= 25, `synthetic report renders its exhibits (${exhibits})`);
   assertMarket14MachineRules(html);
+  assertMarketBusinessGate(html, { presentation: true });
   // Citations still resolve to the register.
   for (const cite of body.matchAll(/href="#(cite-[^"]+)"/gu)) assert.ok(html.includes(`id="${cite[1]}"`), cite[1]);
   // The hidden trace keeps every removed block.
   assert.ok((trace.match(/<details/gu) ?? []).length >= 5);
   assert.match(trace, /Hồ sơ đối chiếu/u);
+  const variantRule = input.descriptiveMethods!.input.scope.variantRule;
+  assert.ok(visible(trace).includes(variantRule), 'the removed method declaration is retained verbatim in the trace');
+  assert.ok(!visible(body).includes(variantRule), 'the technical declaration is hidden from the reader');
   assert.doesNotMatch(trace, /<p class="interp">/u);
   assert.doesNotMatch(html, /href="[^"]*trace/iu);
 });

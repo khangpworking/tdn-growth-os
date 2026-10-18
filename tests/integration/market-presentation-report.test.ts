@@ -72,7 +72,8 @@ async function fixture(t: TestContext, cells: Record<string, unknown> = {}, forg
       const report = buildResearchAutomationReport(input, kind);
       return { ...report, ...(rendererControl.forgedHtml ? { html: Buffer.from('<p>999999 invented</p>') } : {}), semantic: { ...report.semantic as Record<string, unknown>,
         ...(input.marketPresentation ? { sections: [{ sectionId: 'M01', explanation: '999999 invented' }], scope: 'forged scope' } : {}),
-        marketPresentation: { findings: [{ statement: '999999 invented' }] }, marketPresentationArtifact: { sha256: 'f'.repeat(64), byteSize: 7 } } };
+        marketPresentation: { findings: [{ statement: '999999 invented' }] }, marketPresentationArtifact: { sha256: 'f'.repeat(64), byteSize: 7 },
+        marketTraceHtmlArtifact: { sha256: 'f'.repeat(64), byteSize: 7 }, marketTraceHtmlUnavailableCode: 'forged' } };
     } } : {}) });
   await service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: randomUUID(), mode: 'CATEGORY',
     keyword: 'synthetic jar', requestedPeriod: { startDate: '2026-01-01', endDate: '2026-01-30' }, reports: ['MARKET', 'INSIGHT'] });
@@ -92,6 +93,9 @@ async function fixture(t: TestContext, cells: Record<string, unknown> = {}, forg
   assert.equal((await service.getRun(workspaceId, runId)).status, 'DRAFT_READY');
   const pair = (await service.listReportVersions(workspaceId, runId))[0]!;
   const original = await service.readReport(workspaceId, runId, 'MARKET', false, pair.pairId);
+  const originalSemantic = JSON.parse((await artifacts.read(original.versionId)).toString());
+  assert.equal(originalSemantic.marketTraceHtmlArtifact, undefined);
+  assert.equal(originalSemantic.marketTraceHtmlUnavailableCode, undefined);
   return { db, artifacts, service, workbook, prepared, pair, original, rendererControl, renders: () => renders, modelCalls: () => modelCalls, sourceCalls: () => sourceCalls };
 }
 
@@ -132,6 +136,16 @@ test('actual auto service builds source-bound findings/unit tables and immutable
   const report = await f.service.readReport(workspaceId, runId, 'MARKET', false, committed.pairId!);
   const semantic = JSON.parse((await f.artifacts.read(report.versionId)).toString());
   assert.equal(semantic.rendererVersion, 'automation-report-kit-v20');
+  assert.equal(semantic.marketTraceHtmlUnavailableCode, undefined);
+  const traceReference = semantic.marketTraceHtmlArtifact;
+  assert.equal(traceReference.contractVersion, 'automation-market-trace-html-reference-v1');
+  const trace = await f.artifacts.read(traceReference.sha256);
+  assert.equal(trace.byteLength, traceReference.byteSize);
+  assert.equal(createHash('sha256').update(trace).digest('hex'), traceReference.sha256);
+  assert.notEqual(traceReference.sha256, 'f'.repeat(64));
+  assert.match(trace.toString(), /<details/u);
+  assert.doesNotMatch(report.bytes.toString(), /<details/u);
+  assert.ok(!report.bytes.includes(Buffer.from(traceReference.sha256)));
   assert.equal(semantic.sourceEvidence.contractVersion, 'automation-source-evidence-v1');
   const method = await readMarketPresentation(f.artifacts, semantic);
   assert.equal(method.binding.previousPairId, f.pair.pairId);
@@ -197,6 +211,37 @@ test('actual auto service builds source-bound findings/unit tables and immutable
   await assert.rejects(f.service.readReport(workspaceId, runId, 'MARKET', false, committed.pairId!));
   await fs.writeFile(methodPath, retained);
   assert.deepEqual((await f.service.readReport(workspaceId, runId, 'MARKET', false, committed.pairId!)).bytes, report.bytes);
+  const tracePath = f.artifacts.pathForDigest(traceReference.sha256);
+  for (const corrupt of [Buffer.alloc(trace.byteLength, 'x'), Buffer.concat([trace, Buffer.from('x')])]) {
+    await fs.writeFile(tracePath, corrupt);
+    await assert.rejects(f.service.readReport(workspaceId, runId, 'MARKET', false, committed.pairId!));
+  }
+  await fs.writeFile(tracePath, trace);
+  assert.deepEqual((await f.service.readReport(workspaceId, runId, 'MARKET', false, committed.pairId!)).bytes, report.bytes);
+});
+
+test('a failed optional trace write still commits a readable Market report with a recorded reason', async t => {
+  const f = await fixture(t, {}, true);
+  const put = f.artifacts.put.bind(f.artifacts);
+  let rejectedTraces = 0;
+  t.mock.method(f.artifacts, 'put', async (bytes: Uint8Array) => {
+    const html = Buffer.from(bytes).toString();
+    if (html.includes('data-market-platforms=') && html.includes('<details')) {
+      rejectedTraces++;
+      throw new Error('Synthetic trace write failure');
+    }
+    return put(bytes);
+  });
+  const receipt = await f.service.requestReportRevision(workspaceId, runId, request(f.pair.pairId));
+  await f.service.processNext();
+  const committed = await f.service.getReportRevision(workspaceId, runId, receipt.attemptId);
+  assert.equal(committed.state, 'COMMITTED');
+  assert.equal(rejectedTraces, 1);
+  const report = await f.service.readReport(workspaceId, runId, 'MARKET', false, committed.pairId!);
+  const semantic = JSON.parse((await f.artifacts.read(report.versionId)).toString());
+  assert.equal(semantic.marketTraceHtmlArtifact, undefined);
+  assert.equal(semantic.marketTraceHtmlUnavailableCode, 'TRACE_HTML_STORE_FAILED');
+  assert.doesNotMatch(report.bytes.toString(), /<details|TRACE_HTML_STORE_FAILED/u);
 });
 
 test('auto presentation without a receipt preserves zero/missing, keeps references unavailable and rejects unrelated digests before queuing', async t => {

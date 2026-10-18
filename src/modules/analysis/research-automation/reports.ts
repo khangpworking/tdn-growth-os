@@ -1208,7 +1208,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
       .replace(/\bWIDE\b/gu, 'phạm vi rộng')
       .replace(/\bALL\b/gu, 'toàn bộ mẫu')
       .replace(/\bUNKNOWN\b/gu, 'chưa rõ')).join('');
-  const readerRenderedHtml = marketPresentation ? sanitize(deliverMarketReader(scopedHtml)) : scopedHtml;
+  const readerRenderedHtml = marketPresentation ? sanitize(deliverMarketReader(scopedHtml, input.collection?.searchInterest?.points)) : scopedHtml;
   // Hidden technical copy for retrieval: the same page before reader delivery, trace blocks kept. Never linked from the reader.
   const traceHtml = marketPresentation ? Buffer.from(sanitize(scopedHtml), 'utf8') : undefined;
   // Source appendix v18 also serves existing Market and accepted Insight

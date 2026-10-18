@@ -2889,7 +2889,7 @@ export class ResearchAutomationService {
       const reference = semantic.marketTraceHtmlArtifact as { contractVersion?: unknown; sha256?: unknown; byteSize?: unknown } | null;
       if (kind !== 'MARKET' || semantic.marketPresentationArtifact === undefined || reference === null || typeof reference !== 'object'
           || reference.contractVersion !== 'automation-market-trace-html-reference-v1' || typeof reference.sha256 !== 'string' || !/^[0-9a-f]{64}$/u.test(reference.sha256)
-          || typeof reference.byteSize !== 'number' || reference.sha256 === output.htmlSha)
+          || typeof reference.byteSize !== 'number' || !Number.isSafeInteger(reference.byteSize) || reference.byteSize <= 0 || reference.byteSize > MAX_HTML_BYTES || reference.sha256 === output.htmlSha)
         throw new ResearchAutomationIntegrityError('Market trace reference is invalid.');
       const trace = await this.#readArtifact(reference.sha256, MAX_HTML_BYTES, 'text/html; charset=utf-8');
       if (trace.byteLength !== reference.byteSize) throw new ResearchAutomationIntegrityError('Market trace differs from its reference.');
@@ -3833,15 +3833,22 @@ export class ResearchAutomationService {
           const authoritative = input.qualitativeDraft || input.marketPresentation || input.insightPersona || privateDefault || (kind === 'INSIGHT' && start.reviewCollectionPolicy) ? buildResearchAutomationReport(input, kind) : undefined;
           // The market14 reader drops its technical trace; the same page with the trace is kept as its own hidden artifact for retrieval.
           const traceHtml = kind === 'MARKET' && input.marketPresentation ? authoritative?.traceHtml : undefined;
-          if (traceHtml && traceHtml.byteLength > MAX_HTML_BYTES) throw new ResearchAutomationIntegrityError('Market trace HTML exceeds its bound.');
-          const trace = traceHtml ? await this.#artifacts.put(traceHtml) : null;
+          let trace: StoredArtifact | null = null;
+          let traceUnavailableCode: 'TRACE_HTML_TOO_LARGE' | 'TRACE_HTML_STORE_FAILED' | undefined;
+          if (traceHtml) {
+            if (traceHtml.byteLength > MAX_HTML_BYTES) traceUnavailableCode = 'TRACE_HTML_TOO_LARGE';
+            else {
+              try { trace = await this.#artifacts.put(traceHtml); }
+              catch { traceUnavailableCode = 'TRACE_HTML_STORE_FAILED'; }
+            }
+          }
           const rendered: ResearchAutomationRenderedReport = this.#renderer ? await this.#renderer(authoritative ? structuredClone(input) : input, kind, controller.signal) : authoritative ?? defaultRenderedReport(input, kind);
           controller.signal.throwIfAborted();
           if (typeof rendered.semantic !== 'object' || rendered.semantic === null || Array.isArray(rendered.semantic)) throw new ResearchAutomationIntegrityError('Research report semantic output is not an object.');
           // Method persistence is owned here, not delegated to an optional presentation adapter.
           const { decisionPackets: _untrustedPackets, decisionSourceClaims: _untrustedDecisionClaims, decisionPairedInsightVersionId: _untrustedPair,
             decisionSynthesis: _untrustedDecisionSynthesis, decisionExecutionIds: _untrustedDecisionExecutions,
-            insightPersona: _untrustedPersona, qualitativeDraft: _untrustedQualitativeDraft, reviewSample: _untrustedSample, privateReviewCorpus: _untrustedPrivateCorpus, marketPresentation: _untrustedMarketPresentation, marketPresentationArtifact: _untrustedMarketReference, marketTraceHtmlArtifact: _untrustedTraceReference, sourceEvidence: _untrustedSourceEvidence, pdfExcerpts: _untrustedExcerpts, sellerVideos: _untrustedSellerVideos, defaultMarketPeers: _untrustedPeers, quoteMethods: _untrustedQuote, boundedMethods: _untrustedBounded, metricClassified: _untrustedClassified, insightCoding: _untrustedCoding, insightCrosscheck: _untrustedCrosscheck, insightLiteral: _untrustedLiteral, sourceClaims: _untrustedClaims, sourceClaimsArtifact: _untrustedReference,
+            insightPersona: _untrustedPersona, qualitativeDraft: _untrustedQualitativeDraft, reviewSample: _untrustedSample, privateReviewCorpus: _untrustedPrivateCorpus, marketPresentation: _untrustedMarketPresentation, marketPresentationArtifact: _untrustedMarketReference, marketTraceHtmlArtifact: _untrustedTraceReference, marketTraceHtmlUnavailableCode: _untrustedTraceFailure, sourceEvidence: _untrustedSourceEvidence, pdfExcerpts: _untrustedExcerpts, sellerVideos: _untrustedSellerVideos, defaultMarketPeers: _untrustedPeers, quoteMethods: _untrustedQuote, boundedMethods: _untrustedBounded, metricClassified: _untrustedClassified, insightCoding: _untrustedCoding, insightCrosscheck: _untrustedCrosscheck, insightLiteral: _untrustedLiteral, sourceClaims: _untrustedClaims, sourceClaimsArtifact: _untrustedReference,
             m01Inventory: _untrustedM01, m01InventoryArtifact: _untrustedM01Reference,
             i14Admission: _untrustedI14, i14AdmissionArtifact: _untrustedI14Reference,
             i14Synthesis: _untrustedSynthesis, i14ExecutionId: _untrustedExecution, marketCover: _untrustedCover, ...presentation } = (authoritative?.semantic ?? rendered.semantic) as Record<string, unknown>;
@@ -3880,7 +3887,8 @@ export class ResearchAutomationService {
             ...(kind === 'MARKET' && metricClassified ? { metricClassified } : {}),
             ...(kind === 'MARKET' && metricMethodsFailure ? { metricMethodsFailure } : {}),
             ...(marketCover ? { marketCover: marketCover.record } : {}),
-            ...(trace ? { marketTraceHtmlArtifact: { contractVersion: 'automation-market-trace-html-reference-v1', sha256: trace.sha256, byteSize: trace.byteSize } } : {}) };
+            ...(trace ? { marketTraceHtmlArtifact: { contractVersion: 'automation-market-trace-html-reference-v1', sha256: trace.sha256, byteSize: trace.byteSize } } : {}),
+            ...(traceUnavailableCode ? { marketTraceHtmlUnavailableCode: traceUnavailableCode } : {}) };
           const semanticBytes = Buffer.from(canonicalJson(reportSemantic), 'utf8');
           const html = Buffer.from(rendered.html);
           if (authoritative) {

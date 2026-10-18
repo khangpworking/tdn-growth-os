@@ -53,6 +53,8 @@ const PHRASES: readonly [RegExp, string][] = [
   [/trong bản nháp này/gu, 'trong báo cáo này'],
   [/Bản nháp không đủ thông tin để xác định riêng nguyên nhân là thiếu đầu vào, còn chờ duyệt hay phương pháp chưa chạy\./gu, 'Chưa có dữ liệu cho mục này; đây không phải kết quả bằng 0.'],
   [/;?\s*chưa phải (?:mục )?phân tích (?:kinh tế đơn vị )?hoàn chỉnh/gu, ''],
+  [/\blisting\b/giu, 'sản phẩm'],
+  [/\bsearch events\b/giu, 'lượt ghi nhận tìm kiếm'],
 ];
 
 const CONTEXT = /Cục Thống kê|Ngân hàng Thế giới|vĩ mô|cả nước|mã hàng|tìm kiếm|quảng cáo|video|tỉnh|thành phố/iu;
@@ -96,12 +98,11 @@ export function tableInterpretation(block: string): string {
   const numeric = head.map((_h, i) => rows.some(row => parseNum(row[i] ?? '') !== undefined));
   const measures = head.map((h, i) => i).filter(i => numeric[i] && !NOT_MEASURE.test(head[i]!) && !PLATFORM.test(head[i]!));
   const measure = PREFERRED.map(re => measures.find(i => re.test(head[i]!))).find(i => i !== undefined) ?? (measures.length === 1 ? measures[0] : undefined);
-  if (measure === undefined) {
-    const all = rows.flatMap(row => measures.map(i => parseNum(row[i] ?? ''))).filter((num): num is Num => num !== undefined);
-    if (all.length < 2) return count;
-    const low = all.reduce((a, b) => b.value < a.value ? b : a), high = all.reduce((a, b) => b.value > a.value ? b : a);
-    return `${count} Các ô số đi từ ${low.shown} đến ${high.shown}.`;
-  }
+  // Different columns can carry unrelated units; there is no meaningful range across them.
+  if (measure === undefined) return count;
+  const incompatible = head.some((h, i) => /^(?:Phép đo|Thước đo|Đơn vị|Kỳ(?:\s|$))/u.test(h)
+    && new Set(rows.map(row => row[i])).size > 1);
+  if (incompatible) return `${count} Các dòng có thước đo, đơn vị hoặc kỳ khác nhau; đọc riêng từng dòng.`;
   const labelIndex = head.findIndex((h, i) => i !== measure && LABEL.test(h) && !numeric[i]);
   const fallbackLabel = head.findIndex((_h, i) => i !== measure && !numeric[i] && !PLATFORM.test(head[i]!) && new Set(rows.map(row => row[i])).size > 1);
   const label = labelIndex >= 0 ? labelIndex : fallbackLabel;
@@ -110,7 +111,8 @@ export function tableInterpretation(block: string): string {
   const duplicate = labels.some((value, i) => labels.indexOf(value) !== i);
   const named = rows.map((row, r) => !duplicate ? labels[r]! : second >= 0 ? `${labels[r]} · ${row[second]}` : `dòng ${r + 1}`);
   // Rows that are different measures or reporters (macro indicators, trade sides) are listed one by one, never ranged together.
-  if (label >= 0 && ROW_PER_MEASURE.test(head[label]!) && rows.length <= 4) {
+  if (label >= 0 && ROW_PER_MEASURE.test(head[label]!)) {
+    if (rows.length > 4) return `${count} Mỗi dòng là một thước đo riêng, đọc theo đơn vị của chính nó.`;
     const listed = rows.flatMap((row, r) => { const num = parseNum(row[measure] ?? ''); return num ? [`${named[r]}: ${num.shown}`] : []; });
     return listed.length ? `${count} Cột “${head[measure]}” ghi ${listed.join('; ')}. Mỗi dòng là một thước đo riêng, đọc theo đơn vị của chính nó.` : count;
   }
@@ -125,10 +127,11 @@ export function tableInterpretation(block: string): string {
     if (sentence) sentences.push(groups.size > 1 && key ? `${key}: ${sentence.charAt(0).toLowerCase()}${sentence.slice(1)}` : sentence);
   }
   const missing = rows.filter(row => parseNum(row[measure] ?? '') === undefined && EMPTY.test(row[measure] ?? '')).length;
-  if (missing) sentences.push(`${missing} dòng chưa có dữ liệu ở cột này.`);
+  if (missing) sentences[sentences.length - 1] = `${sentences[sentences.length - 1]!.replace(/\.$/u, '')}; ${missing} dòng chưa có dữ liệu ở cột này.`;
   return sentences.join(' ');
 }
 
+type SearchPoint = { readonly period: string; readonly index: number | null };
 type Point = { label: string; value: number; shown: string; group: string };
 type Chart = { points: Point[]; series: 'bar' | 'line' | 'none'; share: boolean; axis?: { count: string; first: string; last: string } };
 const SALES_PLATFORMS = /^(?:Shopee|TikTok Shop)$/u;
@@ -155,14 +158,24 @@ function chartPoints(svg: string): Chart {
 }
 
 /** Figures: capture counts, or low/high (bars, per platform) and first→last direction (series) read from the drawn points. */
-export function figureInterpretation(block: string): string {
+export function figureInterpretation(block: string, searchPoints?: readonly SearchPoint[]): string {
   const caption = block.match(/<figcaption\b[^>]*>([\s\S]*?)<\/figcaption>/iu)?.[1];
   if (caption !== undefined) {
     const n = /n = (\d+) bản ghi/u.exec(text(block))?.[1];
     return n === undefined ? 'Hình ghi số bản ghi đã lưu của sàn này; đọc riêng từng sàn.'
       : `Hình ghi ${n} bản ghi sản phẩm đã lưu của ${text(caption).replace(/^Bản ghi sản phẩm\s*—\s*/u, '')}; số này chỉ nói về dữ liệu đã thu, đọc riêng từng sàn.`;
   }
-  const { points, series, share, axis } = chartPoints(block.match(/<svg\b[\s\S]*?<\/svg>/iu)?.[0] ?? '');
+  let { points, series, share, axis } = chartPoints(block.match(/<svg\b[\s\S]*?<\/svg>/iu)?.[0] ?? '');
+  if (searchPoints?.length) {
+    // The SVG line can expose just its first point. Use the same stored series, preserving gaps and years.
+    const withYear = new Set(searchPoints.map(point => point.period.slice(0, 4))).size > 1;
+    const label = (period: string): string => period.replace(/^(\d{4})-(\d{2})-(\d{2})$/u,
+      (_all, year: string, month: string, day: string) => `${day}/${month}${withYear ? `/${year}` : ''}`);
+    points = searchPoints.flatMap(point => point.index === null ? [] : [{ label: label(point.period), value: point.index,
+      shown: point.index.toLocaleString('vi-VN'), group: '' }]);
+    series = 'line'; share = false;
+    axis = { count: String(searchPoints.length), first: label(searchPoints[0]!.period), last: label(searchPoints[searchPoints.length - 1]!.period) };
+  }
   // A line drawn as one mark carries only its first point; the axis still says how many periods it spans.
   if (series === 'line' && axis && points.length <= 1 && Number(axis.count) > 1)
     return `Hình có ${axis.count} mốc, từ ${axis.first} đến ${axis.last}; mỗi mốc là một giá trị đã lưu, đọc theo trục của hình.`;
@@ -195,10 +208,10 @@ export function figureInterpretation(block: string): string {
 type Exhibit = { start: number; end: number; kind: 'table' | 'figure' };
 function exhibits(section: string): Exhibit[] {
   const found: Exhibit[] = [];
-  for (const match of section.matchAll(/<figure\b[^>]*>|<div class="table-wrap[^"]*"[^>]*>/gu)) {
+  for (const match of section.matchAll(/<figure\b[^>]*>|<div class="table-wrap[^"]*"[^>]*>|<table\b[^>]*>/gu)) {
     if (found.some(item => match.index! < item.end)) continue;
     const figure = match[0].startsWith('<figure');
-    const end = elementEnd(section, match.index!, figure ? 'figure' : 'div');
+    const end = elementEnd(section, match.index!, figure ? 'figure' : match[0].startsWith('<table') ? 'table' : 'div');
     const block = section.slice(match.index!, end);
     if (!figure && !/<table\b/u.test(block)) continue;
     found.push({ start: match.index!, end, kind: figure ? 'figure' : 'table' });
@@ -207,7 +220,7 @@ function exhibits(section: string): Exhibit[] {
 }
 
 /** Adds the standalone note (when the exhibit has none) and the interpretation right under every table/figure. */
-export function annotateExhibits(section: string): string {
+export function annotateExhibits(section: string, searchPoints?: readonly SearchPoint[]): string {
   let out = '', from = 0;
   for (const exhibit of exhibits(section)) {
     const block = section.slice(exhibit.start, exhibit.end);
@@ -216,7 +229,8 @@ export function annotateExhibits(section: string): string {
     const context = CONTEXT.test(text(block.match(/<div class="exh">[\s\S]*?<\/div>|<caption\b[^>]*>[\s\S]*?<\/caption>|<figcaption\b[^>]*>[\s\S]*?<\/figcaption>/u)?.[0] ?? ''))
       || /data-chart-id="M0[56]\./u.test(block);
     const note = hasNote ? '' : `<p class="lim"><b>Chú thích:</b> ${esc(context ? CONTEXT_NOTE : SAMPLE_NOTE)}</p>`;
-    const interp = exhibit.kind === 'table' ? tableInterpretation(block) : figureInterpretation(block);
+    const interp = exhibit.kind === 'table' ? tableInterpretation(block)
+      : figureInterpretation(block, /<span class="exn">Hình 5\.2<\/span>/u.test(block) ? searchPoints : undefined);
     out += section.slice(from, exhibit.end) + after + note + `<p class="interp"><b>Diễn giải:</b> ${esc(interp)}</p>`;
     from = exhibit.end + after.length;
   }
@@ -235,7 +249,7 @@ export function marketReaderGuide(platforms: readonly string[]): string {
 const DATA_SECTIONS =/^M(?:0[3-9]|1[01])$/u;
 
 /** Reader copy of a market14 page (before platform icons and label sanitising). Sections are never nested. */
-export function deliverMarketReader(html: string): string {
+export function deliverMarketReader(html: string, searchPoints?: readonly SearchPoint[]): string {
   const open = html.indexOf('<div id="sections">');
   if (open < 0) return html;
   const close = html.indexOf('<footer', open);
@@ -243,8 +257,12 @@ export function deliverMarketReader(html: string): string {
   let body = stripTraceDetails(close < 0 ? html.slice(open) : html.slice(open, close));
   body = body.split(/(<[^>]+>)/gu).map((part, i) => i % 2 ? part : PHRASES.slice(1).reduce((value, [re, to]) => value.replace(re, to), part)).join('');
   body = body.replace(PHRASES[0]![0], PHRASES[0]![1]);
+  body = body.replace(/<a\b[^>]*href="#bounded-method-evidence"[^>]*>([\s\S]*?)<\/a>/gu, '$1');
+  // The localized term no longer needs an English glossary entry.
+  body = body.replace(/<table data-glossary="true">[\s\S]*?<\/table>/gu,
+    table => table.replace(/<tr><td>sản phẩm<\/td><td>sản phẩm<\/td><\/tr>/gu, ''));
   body = body.replace(/<section class="sheet" id="(M\d\d)">([\s\S]*?)<\/section>/gu, (_all, id: string, inner: string) => {
-    const annotated = DATA_SECTIONS.test(id) ? annotateExhibits(inner) : inner;
+    const annotated = DATA_SECTIONS.test(id) ? annotateExhibits(inner, searchPoints) : inner;
     const data = /<table\b|<figure\b/u.test(annotated.replace(/<div class="table-wrap market14-proposals[\s\S]*?<\/table><\/div>/u, ''));
     const chip = id === 'M02' || id === 'M13' ? '' : `<span class="state">${data ? 'Có số liệu' : 'Chưa đủ dữ liệu'}</span>`;
     return `<section class="sheet" id="${id}">${annotated.replace(/<span class="state">[^<]*<\/span>/u, chip)}</section>`;
