@@ -57,11 +57,11 @@ async function reader(extra: { worldBank?: StepWorldBank; comtrade?: StepComtrad
 }
 
 test('World Bank documents without source precision/name preserve pinned HTML bytes in both reader renderers', async () => {
-  // Reader pins include the used-term glossary and reader-only proofreading.
-  // Country data and the separate frozen 1.2/1.3 reader pins stay unchanged.
+  // The automation reader pin includes PR #324's two M08 paragraphs and PR #328's descriptive reader copy
+  // (M05/M06/M07/M09) the plain owner copy for periods, peers and ads, the dated Phần 11/12 proposals, the per-platform Phần 1/2 copy and the reader proofread; no World Bank bytes change, and legacy pins stay separate.
   const hash = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
   assert.equal(hash((await reader({ worldBank: fullWorldBank() }, false)).html), 'f607583cff39b346515681fefa85284abc44bde3da006709d9d7d7b4dde7e578');
-  assert.equal(hash(buildResearchAutomationReport(await fullMarket14Input(), 'MARKET').html), '528086a78915c9e00649012b49a140d6af82cd352aa19d1e8c4d5d82994276ca');
+  assert.equal(hash(buildResearchAutomationReport(await fullMarket14Input(), 'MARKET').html), '8764da84f3381754eedfbf670ce6ff7fb445299112f07413195a90c80caf52ce');
 });
 
 test('v2 reader: World Bank lines are Hình 5.3/5.4 after Bảng 5.3 and Comtrade bars are Hình 6.1/6.2 after Bảng 6.2, all Flint', async () => {
