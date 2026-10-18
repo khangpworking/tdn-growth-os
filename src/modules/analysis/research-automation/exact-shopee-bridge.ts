@@ -43,7 +43,8 @@ export interface ExactShopeeAttempt {
 }
 
 export function exactShopeeRequest(input: ExactShopeeRunInput): ShopeeExactRequest {
-  const label = input.start.reviewCollectionPolicy
+  const label = input.scope.testReviewCap !== undefined ? `Exact Shopee trial collection; at most ${input.scope.testReviewCap} reviews per listing`
+    : input.start.reviewCollectionPolicy
     ? `Owner-confirmed exact Shopee listing URLs; frozen policy/run binding ${createHash('sha256').update(canonicalJson([input.runId, input.start, input.scope, input.scopeConfirmedAt])).digest('hex')}`
     : 'Owner-confirmed exact Shopee listing URLs';
   return { contractVersion: '2.0.0', runKey: `auto-${input.runId}`, topic: input.start.keyword,
@@ -73,6 +74,9 @@ export class AutomationExactShopeeBridge {
     const attempt = this.factory();
     try {
       signal?.throwIfAborted();
+      const testReviewCap = input.scope.testReviewCap;
+      if (testReviewCap !== undefined && (!Number.isInteger(testReviewCap) || testReviewCap < 1 || testReviewCap > 50 ||
+          attempt.collector.maxReviewsPerProduct !== testReviewCap)) throw new Error('Trial collector cap differs from confirmed scope');
       let verified = await this.#collections.existingExact(bytes, attempt.collector.mode);
       const reused = Boolean(verified);
       let providerMessage: string | null = null;
@@ -83,9 +87,10 @@ export class AutomationExactShopeeBridge {
         verified = await this.#collections.saveExact(bytes, collected);
       }
       const actor = verified.packet.actor;
+      if (testReviewCap !== undefined && actor.settings.maxReviewsPerProduct !== testReviewCap) throw new Error('Retained trial cap differs');
       const rawCounts = countReviewsPerListing(selection.selected, verified.pages);
-      const targetReviews = actor.settings.maxReviewsPerProduct === TARGET_REVIEWS ? TARGET_REVIEWS : undefined;
-      const counts = targetReviews === undefined ? rawCounts : markReviewShortfalls(rawCounts);
+      const targetReviews = testReviewCap ?? (actor.settings.maxReviewsPerProduct === TARGET_REVIEWS ? TARGET_REVIEWS : undefined);
+      const counts = targetReviews === undefined ? rawCounts : markReviewShortfalls(rawCounts, targetReviews);
       const outcome = classifyExactShopee({ actorStatus: actor.status, statusMessage: providerMessage, counts, ...(targetReviews === undefined ? {} : { targetReviews }) });
       const outcomeLimitation = exactShopeeOutcomeLimitation(outcome, counts, targetReviews);
       const cost = reused ? '0' : actor.usageTotalUsd;
@@ -94,16 +99,19 @@ export class AutomationExactShopeeBridge {
         listings: selection.selected.map((listing, index) => ({ listing: `${listing.shopId}:${listing.itemId}`, reviews: counts[index]!.reviews })),
         actorStatus: actor.status, usageUsd: reused ? 0 : actor.usageTotalUsd, reused }));
       const terminalFailure = ['FAILED', 'TIMED-OUT', 'ABORTED'].includes(actor.status);
-      const complete = !terminalFailure && (actor.stopReason === 'dataset_exhausted' || actor.stopReason === 'fixture_complete');
+      const complete = !terminalFailure && (testReviewCap !== undefined ? counts.every(row => row.reviews >= testReviewCap)
+        : actor.stopReason === 'dataset_exhausted' || actor.stopReason === 'fixture_complete');
       // Status/warning rows are retained as raw evidence, but they are not returned reviews.
       // Keep coverage state aligned with the same identity-admitted counts used by the outcome.
       const hasReturnedReviews = rawCounts.some(row => row.reviews > 0);
-      return { exactShopeeOutcome: { outcome, listings: counts, providerMessage, attemptedAt: now().toISOString(), reused },
+      return { exactShopeeOutcome: { outcome, listings: counts, providerMessage, attemptedAt: now().toISOString(), reused,
+        ...(testReviewCap !== undefined ? { testReviewCap } : {}) },
         ...(outcomeLimitation ? { outcomeLimitation } : {}),
         reference: { collectionId: verified.packet.collectionId, collectionSha256: verified.sha256, requestSha256: requestSha },
         requestsIssued: attempt.requestsIssued(), costUsd: typeof cost === 'string' ? safeCost(cost) : typeof cost === 'number' ? safeCost(String(cost)) : null,
         coverage: { ...base, state: signal?.aborted ? 'CANCELLED' : terminalFailure && !hasReturnedReviews ? 'FAILED' : complete && hasReturnedReviews ? 'COLLECTED' : 'PARTIAL', truncated: !complete,
-          note: terminalFailure ? 'Nhà cung cấp báo lỗi. Dòng đã trả về vẫn được giữ; không có dòng không có nghĩa sản phẩm không có review.'
+          note: testReviewCap !== undefined ? `Mẫu thử: tối đa ${testReviewCap} đánh giá mỗi sản phẩm. ${complete ? 'Đã thu đủ giới hạn thử.' : 'Chưa thu đủ giới hạn thử cho mọi sản phẩm.'} Không đại diện cho toàn bộ đánh giá.`
+            : terminalFailure ? 'Nhà cung cấp báo lỗi. Dòng đã trả về vẫn được giữ; không có dòng không có nghĩa sản phẩm không có review.'
             : 'Review cấp listing; không xác nhận variant hay độ phủ kỳ báo cáo. Thu hết dataset không có nghĩa đủ mọi review.' },
         limitation: { provider: 'apify-shopee', code: terminalFailure ? 'EXACT_SHOPEE_ACTOR_FAILED' : 'REVIEW_PERIOD_NOT_CONSTRAINED',
           message: terminalFailure ? 'Lượt thu review thất bại ở nhà cung cấp; đã giữ biên nhận, chi phí và dữ liệu trả về. Không tự chạy lượt tính phí khác. Kỳ yêu cầu không lọc ngày review.'
@@ -219,6 +227,8 @@ export class AutomationExactShopeeBridge {
     const request = exactShopeeRequest(input);
     if (verified.sha256 !== reference.collectionSha256 || verified.packet.requestSha256 !== reference.requestSha256 ||
         canonicalJson(verified.request) !== canonicalJson(request)) throw new Error('Exact review collection does not match its frozen run');
+    if (input.scope.testReviewCap !== undefined && verified.packet.actor.settings.maxReviewsPerProduct !== input.scope.testReviewCap)
+      throw new Error('Exact trial collection cap differs from frozen scope');
     return verified;
   }
 

@@ -356,12 +356,10 @@ export interface ConfirmValueInput {
   readonly principalProductIds: readonly string[];
   readonly exactShopeeUrls: readonly string[];
   readonly packageId: string;
+  readonly testReviewCap?: number;
 }
 
-/**
- * The auto-runner's scope confirmation. `nativeReview` is the literal "SKIP":
- * no input field can change it (owner decision, review provider unfunded).
- */
+/** Trial collection is distinct from AUTO_REUSE; marker-free confirmations keep their exact bytes. */
 export function buildConfirmValue(input: ConfirmValueInput): { ok: true; value: ResearchAutomationSourceConfirmRequest } | { ok: false; code: 'NO_PRINCIPAL_PRODUCTS' } {
   const selected = [...new Set(input.principalProductIds)].slice(0, MAX_PRINCIPAL_CARDS);
   if (selected.length === 0) return { ok: false, code: 'NO_PRINCIPAL_PRODUCTS' };
@@ -370,7 +368,9 @@ export function buildConfirmValue(input: ConfirmValueInput): { ok: true; value: 
     contractVersion: 'research-automation-confirm-v2', requestKey: autorunRequestKey(input.runId, 'confirm'), expectedRevision: input.expectedRevision,
     definition, includeTerms: uniqueTerms(input.includeTerms), excludeTerms: [], selectedProductIds: selected, peerProductIds: [],
     exactShopeeUrls: [...new Set(input.exactShopeeUrls)].slice(0, AUTORUN_MAX_SHOPEE_LINKS),
-    sources: { metric: { decision: 'USE_PREPARED', packageId: input.packageId }, nativeReview: 'SKIP' },
+    sources: { metric: { decision: 'USE_PREPARED', packageId: input.packageId }, nativeReview:
+      input.exactShopeeUrls.length > 0 && Number.isInteger(input.testReviewCap) && input.testReviewCap! >= 1 && input.testReviewCap! <= 50
+        ? { decision: 'COLLECT_EXACT_TEST', maxReviewsPerProduct: input.testReviewCap! } : 'SKIP' },
   } };
 }
 

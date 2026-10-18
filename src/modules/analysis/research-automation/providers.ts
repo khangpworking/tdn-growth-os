@@ -356,6 +356,8 @@ export interface ResearchAutomationProviderConfig {
   readonly apifyTokenConfigured: boolean;
   /** Separate opt-in for exact-listing reviews; presence of a token alone does not enable spending. */
   readonly apifyReviews?: { readonly token: string; readonly maxChargeUsd: number; readonly maxReviewsPerProduct?: number };
+  /** Explicit trial-only auto-confirmation; absent unless the collector and a small cap are configured. */
+  readonly autorunTestReviewCap?: number;
   /**
    * Independent opt-in cap for TikTok comment test runs (P9, owner approved $3 per
    * test run on 08/10/2026). Config exposure only: no TikTok collector is wired
@@ -398,6 +400,8 @@ export function researchAutomationProviderConfigFromEnv(env: NodeJS.ProcessEnv):
     serpApiKey: credential(env[PROVIDER_CREDENTIAL_ENV.SERPAPI], PROVIDER_CREDENTIAL_ENV.SERPAPI),
     apifyTokenConfigured: token !== null,
     ...(token && cap !== null ? { apifyReviews: { token, maxChargeUsd: cap, ...(perListing !== null ? { maxReviewsPerProduct: perListing } : {}) } } : {}),
+    ...(env.TDN_RESEARCH_AUTORUN_TEST_REVIEWS === '1' && token && cap !== null && perListing !== null && perListing <= 50
+      ? { autorunTestReviewCap: perListing } : {}),
     ...(tiktokCap !== null ? { apifyTikTokComments: { maxChargeUsd: tiktokCap } } : {}),
   };
 }

@@ -20,7 +20,13 @@
         { "type": "object", "additionalProperties": false, "required": ["decision", "packageId"], "properties": { "decision": { "const": "USE_PREPARED" }, "packageId": { "$ref": "research-automation-api.schema.json#/$defs/uuid" } } },
         { "type": "object", "additionalProperties": false, "required": ["decision"], "properties": { "decision": { "enum": ["ABSENT", "SKIPPED"] } } }
       ] },
-      "nativeReview": { "enum": ["AUTO_REUSE", "SKIP"] }
+      "nativeReview": { "oneOf": [
+        { "enum": ["AUTO_REUSE", "SKIP"] },
+        { "type": "object", "additionalProperties": false, "required": ["decision", "maxReviewsPerProduct"], "properties": {
+          "decision": { "const": "COLLECT_EXACT_TEST" },
+          "maxReviewsPerProduct": { "type": "integer", "minimum": 1, "maximum": 50 }
+        } }
+      ] }
     } }
   }
 }

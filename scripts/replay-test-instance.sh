@@ -13,6 +13,9 @@
 #   --prod-artifacts DIR  production artifact root to copy; default: TDN_ARTIFACT_ROOT of the running 8787
 #                         process (read from /proc/<pid>/environ), else required
 #   --env-file FILE       read non-secret settings from this file (KEY=VALUE lines) instead of the 8787 process
+#   --test-setting K=V    repeatable numeric override: TDN_RESEARCH_AUTORUN_TEST_REVIEWS (0/1),
+#                         TDN_RESEARCH_SHOPEE_MAX_REVIEWS_PER_PRODUCT (1..50),
+#                         TDN_RESEARCH_SHOPEE_MAX_CHARGE_USD (positive, at most 10000)
 #   --port N              test port, default 8797 (8787 is refused)
 #   --node-bin DIR        node 24 bin dir; default $HOME/.nanobot/workspace/.toolchains/node-v24.15.0-linux-x64/bin
 #   --copy-artifacts      accepted for compatibility; artifacts are always independent copies
@@ -40,6 +43,26 @@ CHECKOUT='' SOURCE_RUN='' ENV_FILE='' PORT=8797
 PROD_DB="$HOME/.local/state/tdn-growth-os/$PROD_STATE_SEGMENT/tdn-growth-os-dev.sqlite"
 PROD_ARTIFACTS=''
 NODE_BIN="$HOME/.nanobot/workspace/.toolchains/node-v24.15.0-linux-x64/bin"
+TEST_SETTINGS=()
+
+# Validate before reading any settings or touching production. Numeric forms only:
+# no credentials, paths, substitutions, whitespace or long secret-like strings.
+add_test_setting() {
+  local entry="$1" key="${1%%=*}" value="${1#*=}" whole
+  [[ "$entry" == *=* ]] || die '--test-setting requires KEY=VALUE'
+  case "$key" in
+    TDN_RESEARCH_AUTORUN_TEST_REVIEWS)
+      [[ "$value" =~ ^[01]$ ]] || die 'invalid test flag' ;;
+    TDN_RESEARCH_SHOPEE_MAX_REVIEWS_PER_PRODUCT)
+      [[ "$value" =~ ^[1-9][0-9]?$ ]] && [ "$value" -le 50 ] || die 'test review cap must be 1..50' ;;
+    TDN_RESEARCH_SHOPEE_MAX_CHARGE_USD)
+      [[ "$value" =~ ^(0|[1-9][0-9]{0,4})(\.[0-9]{1,6})?$ ]] && [[ "$value" =~ [1-9] ]] || die 'invalid test charge cap'
+      whole="${value%%.*}"
+      [ "$whole" -lt 10000 ] || { [ "$whole" -eq 10000 ] && [[ "$value" =~ ^10000(\.0+)?$ ]]; } || die 'test charge cap exceeds 10000' ;;
+    *) die 'test setting key is not allow-listed' ;;
+  esac
+  TEST_SETTINGS+=("$key=$value")
+}
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -48,10 +71,11 @@ while [ $# -gt 0 ]; do
     --prod-db) PROD_DB="$2"; shift 2 ;;
     --prod-artifacts) PROD_ARTIFACTS="$2"; shift 2 ;;
     --env-file) ENV_FILE="$2"; shift 2 ;;
+    --test-setting) [ $# -ge 2 ] || die '--test-setting requires KEY=VALUE'; add_test_setting "$2"; shift 2 ;;
     --port) PORT="$2"; shift 2 ;;
     --node-bin) NODE_BIN="$2"; shift 2 ;;
     --copy-artifacts) shift ;;
-    -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,33p' "$0"; exit 0 ;;
     *) die "unknown argument: $1" ;;
   esac
 done
@@ -154,6 +178,7 @@ while IFS= read -r line; do
   case "$value" in *"$PROD_STATE_SEGMENT"*) printf 'replay-test-instance: dropped %s (points into the production state dir)\n' "$key" >&2; continue ;; esac
   CHILD_ENV+=("$key=$value")
 done < "$PROD_ENV"
+CHILD_ENV+=("${TEST_SETTINGS[@]}")
 CHILD_ENV+=(
   "TDN_WORKSPACE_DB=$DB" "TDN_ARTIFACT_ROOT=$ART" "TDN_OPERATOR_APP_HOST=127.0.0.1" "TDN_OPERATOR_APP_PORT=$PORT"
   "TDN_OWNER_API_ENABLED=true" "TDN_OWNER_API_LOCAL_TEST=true" "TDN_OWNER_API_ACTOR_ID=$ACTOR_ID" "TDN_R2_ENABLED=false"

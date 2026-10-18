@@ -39,6 +39,11 @@ export interface ResearchAutomationSourceConfirmRequest {
       | {
           decision: 'ABSENT' | 'SKIPPED';
         };
-    nativeReview: 'AUTO_REUSE' | 'SKIP';
+    nativeReview:
+      | ('AUTO_REUSE' | 'SKIP')
+      | {
+          decision: 'COLLECT_EXACT_TEST';
+          maxReviewsPerProduct: number;
+        };
   };
 }

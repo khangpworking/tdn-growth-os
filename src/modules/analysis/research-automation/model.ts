@@ -53,6 +53,8 @@ export interface StartSnapshot {
 
 /** Exact owner-approved scope; peers are explicit and never implied by selection. */
 export interface ScopeSnapshot {
+  /** Frozen by the explicit trial confirmation; never inferred from retained review packages. */
+  readonly testReviewCap?: number;
   readonly contractVersion: 'research-automation-scope-snapshot-v1';
   readonly workspaceId: string;
   readonly runId: string;
@@ -557,6 +559,7 @@ export interface StepResultDocument {
   };
   /** Classified exact-Shopee review outcome; absent on runs stored before it was kept. */
   readonly exactShopeeOutcome?: {
+    readonly testReviewCap?: number;
     readonly outcome: ExactShopeeOutcome;
     readonly listings: readonly { readonly listingUrl: string; readonly reviews: number; readonly shortfallReason?: 'RETURNED_COUNT_BELOW_REQUESTED' }[];
     readonly providerMessage: string | null;

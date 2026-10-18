@@ -13,6 +13,7 @@ export interface ExactShopeeListingCount {
 }
 
 export interface ExactShopeeOutcomeRecord {
+  readonly testReviewCap?: number;
   readonly outcome: ExactShopeeOutcome;
   readonly listings: readonly ExactShopeeListingCount[];
   /** Provider status message, at most 300 chars; null when reused or absent. Never shown to the reader. */
@@ -60,8 +61,8 @@ export function countReviewsPerListing(selected: readonly SelectedListing[], pag
 }
 
 /** Adds the fixed per-product target and a durable reason for every short set. */
-export function markReviewShortfalls(counts: readonly ExactShopeeListingCount[]): ExactShopeeListingCount[] {
-  return counts.map(row => row.reviews < TARGET_REVIEWS ? { ...row, shortfallReason: SHORTFALL_REASON } : row);
+export function markReviewShortfalls(counts: readonly ExactShopeeListingCount[], targetReviews: number = TARGET_REVIEWS): ExactShopeeListingCount[] {
+  return counts.map(row => row.reviews < targetReviews ? { ...row, shortfallReason: SHORTFALL_REASON } : row);
 }
 
 const TIMEOUT_MESSAGE = /time limit|timed out/i;
@@ -91,6 +92,8 @@ const OUTCOME_CODES: Readonly<Record<Exclude<ExactShopeeOutcome, 'OK'>, string>>
 /** The extra run-page limitation for a non-OK outcome; null when every listing has reviews. */
 export function exactShopeeOutcomeLimitation(outcome: ExactShopeeOutcome, counts: readonly ExactShopeeListingCount[], targetReviews?: number): SourceLimitation | null {
   if (outcome === 'OK') return null;
+  if (targetReviews !== undefined && targetReviews <= 50) return { provider: 'apify-shopee', code: OUTCOME_CODES[outcome],
+    message: `Chưa thu đủ giới hạn thử ${targetReviews} đánh giá cho mọi sản phẩm. Đây là mẫu thử nhỏ, không đại diện cho toàn bộ đánh giá; không tự thu lại.` };
   const withReviews = counts.filter(row => row.reviews > 0).length;
   const short = counts.filter(row => row.shortfallReason !== undefined || row.reviews === 0);
   return { provider: 'apify-shopee', code: OUTCOME_CODES[outcome],
