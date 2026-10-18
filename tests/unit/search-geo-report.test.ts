@@ -123,7 +123,7 @@ test('the region table is drawn without the series too, and marks the source as 
   assert.match(textOf(built.html), /Mức quan tâm tìm kiếm\s*Đã lưu trong lượt này/u);
   const html = draftHtml(await presentationInput(syntheticSearchGeo()));
   assertBlock(html, /vùng nổi bật/u);
-  assert.match(textOf(html), /Mức quan tâm tìm kiếm\s*Đã dùng trong lượt này/u);
+  assert.match(textOf(html), /Mức quan tâm tìm kiếm theo khu vực/u);
 });
 
 test('a map the report cannot use changes no byte in either renderer', async () => {

@@ -1,13 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { createHash } from 'node:crypto';
+import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { JSDOM } from 'jsdom';
 import { calculateMetricScopes } from '../../src/modules/analysis/metric-scope-calculator.js';
 import { lintVisibleReportText } from '../../src/modules/analysis/report-visible-text-lint.js';
 import { assertMarketBusinessGate } from '../../src/modules/analysis/research-automation/market-business-gate.js';
-import { auditMarket14 } from '../../src/modules/analysis/research-automation/market-14-rules.js';
+import { assertMarket14MachineRules, auditMarket14 } from '../../src/modules/analysis/research-automation/market-14-rules.js';
 import { buildMarketCover, marketCoverAlt, MARKET_COVER_MODEL } from '../../src/modules/analysis/research-automation/market-cover.js';
 import { buildAutomationMarketPresentation, marketPresentationDigest, type MarketPresentationBinding } from '../../src/modules/analysis/research-automation/market-presentation-method.js';
-import { buildResearchAutomationReport, type AutomationReportInput } from '../../src/modules/analysis/research-automation/reports.js';
+import { buildResearchAutomationReport, marketReportQuarter, type AutomationReportInput } from '../../src/modules/analysis/research-automation/reports.js';
 import { renderMarketCharts } from '../../src/modules/analysis/reader-report/market-charts.js';
 import { metricFixture } from '../fixtures/metric-scope-synthetic.js';
 import { sync1ReaderFixture } from '../helpers/sync1-reader-fixture.js';
@@ -52,7 +54,7 @@ test('a Market presentation embeds the AI cover inside the cover text column and
   assert.equal(images.length, 1);
   const img = images[0]!;
   assert.equal(img.parentElement, document.querySelector('section.cover > .cv-left > div:nth-of-type(2)'));
-  assert.equal(img.nextElementSibling?.className, 'cv-eyebrow');
+  assert.equal(img.nextElementSibling?.tagName, 'H1');
   assert.equal(img.getAttribute('src'), `data:image/jpeg;base64,${ai.bytes.toString('base64')}`);
   assert.equal(img.getAttribute('alt'), marketCoverAlt('synthetic jar', 'ai-generated'));
   assert.equal(img.getAttribute('data-cover-provenance'), 'ai-generated');
@@ -71,6 +73,46 @@ test('a Market presentation embeds the AI cover inside the cover text column and
   assert.equal(JSON.stringify(built.semantic).includes(ai.bytes.toString('base64').slice(0, 64)), false, 'semantic never carries the image');
 });
 
+test('a full market14 reader shows a quarter cover, a plain source list and the glossary, and passes the 14 machine rules', async () => {
+  const input = await presentationInput();
+  const ai = await buildMarketCover({ keyword: 'synthetic jar', ai: { generate: async () => ({ bytes: syntheticPng(1536, 1024, 3, (x, y) => [180, (x + y) & 255, 90]), model: MARKET_COVER_MODEL }) } });
+  const html = buildResearchAutomationReport({ ...input, marketCover: coverInput(ai, 'synthetic jar') }, 'MARKET').html.toString('utf8');
+  const document = new JSDOM(html).window.document;
+  const cover = document.querySelector('section.cover')!;
+  const text = (node: Element | null): string => (node?.textContent ?? '').replace(/\s+/gu, ' ').trim();
+  // The stored sales sample (2026-08-17..2026-09-15) wins over the requested period (2026-01).
+  assert.equal(document.title, 'Báo cáo thị trường sản phẩm Synthetic jar · Quý 3 năm 2026');
+  assert.equal(text(cover.querySelector('h1')), 'Báo cáo thị trường sản phẩm Synthetic jar');
+  assert.equal(text(cover.querySelector('.cv-quarter')), 'Quý 3 năm 2026');
+  assert.equal(text(cover.querySelector('.cv-period')), 'Dữ liệu quý 3/2026');
+  assert.equal(cover.querySelector('.cv-eyebrow, .cv-lede'), null);
+  assert.equal(text(cover.querySelector('.cv-meta')), 'Việt Nam');
+  assert.doesNotMatch(text(cover.querySelector('.cv-left')), /bản nháp|\bmục\b|mẫu|phân loại|\d+ ngày|2026-/iu);
+  assert.doesNotMatch(document.body.textContent ?? '', /Bản nháp từ nguồn|Bản thu từ truy vấn nguồn|Bản thu dữ liệu nguồn/u);
+  assert.doesNotMatch(text(document.querySelector('footer')), /bản nháp/iu);
+  assert.match(text(document.querySelector('footer')), /đề xuất, chờ chủ duyệt/u);
+  const sources = document.querySelector('.market14-sources')!;
+  assert.equal(text(sources.querySelector('.ext')), 'Nguồn số liệu');
+  assert.deepEqual([...sources.querySelectorAll('ul.pl-srclist > li')].map(text), ['Dữ liệu bán hàng trên Shopee', 'Dữ liệu bán hàng trên TikTok Shop']);
+  assert.equal(sources.querySelector('table'), null, 'no status table');
+  assert.match(text(sources), /Lượt này chưa có dữ liệu đánh giá sản phẩm, kết quả tìm kiếm trên web, dữ liệu bình luận của khách/u);
+  const note = sources.nextElementSibling!;
+  assert.equal(note.outerHTML, '<p class="ex-note"><b>Chú thích:</b> Mọi hình và bảng được dựng tự động từ cùng một bộ dữ liệu đã lưu. Chi tiết kỹ thuật của từng nguồn nằm trong hồ sơ kỹ thuật riêng, không in trong bản đọc.</p>');
+  const glossary = document.querySelector('.market14-glossary')!;
+  assert.equal(text(glossary.querySelector('.ext')), 'Thuật ngữ và chữ viết tắt');
+  assert.ok(glossary.querySelector('table[data-glossary="true"]'));
+  assert.doesNotMatch(text(glossary), /%/u);
+  const links = [...cover.querySelectorAll<HTMLAnchorElement>('.toc a')];
+  assert.equal(links.length, 13);
+  for (const link of links) assert.ok(document.getElementById(link.hash.slice(1)), link.hash);
+  assert.equal(document.querySelector('#M13 details, #quote-method-evidence, #bounded-method-evidence'), null);
+  assert.doesNotMatch(document.body.textContent ?? '', /manifest|audit|capture|pipeline|fixture|\bSHA|sha256|\b(?:ALL|WIDE|CORE)\b|\bM0\d\b|\bM1[0-3]\b/iu);
+  assert.doesNotThrow(() => assertMarket14MachineRules(html));
+  assert.doesNotThrow(() => assertMarketBusinessGate(html, { presentation: true }));
+  assert.ok(lintVisibleReportText(html).every(check => check.ok));
+  assert.deepEqual(providerNameViolations(html), []);
+});
+
 test('a fallback cover renders but stays a READ; INSIGHT and non-presentation Market ignore the cover', async () => {
   const input = await presentationInput();
   const fallback = await buildMarketCover({ keyword: 'synthetic jar' });
@@ -81,4 +123,54 @@ test('a fallback cover renders but stays a READ; INSIGHT and non-presentation Ma
   const { marketPresentation: _p, marketPresentationCharts: _c, ...legacy } = input;
   const legacyHtml = buildResearchAutomationReport({ ...legacy, marketCover: coverInput(fallback, 'synthetic jar') } as AutomationReportInput, 'MARKET').html.toString('utf8');
   assert.doesNotMatch(legacyHtml, /<img|cv-art/);
+});
+
+
+test('cover quarters use the stored end date, span years, and fall back to the requested period', async () => {
+  const input = await presentationInput();
+  const metric = input.marketPresentation!.input.metric!;
+  for (const [start, end, quarter, range] of [
+    ['2025-10-01', '2026-09-30', 'Quý 3 năm 2026', 'Dữ liệu quý 4/2025 – quý 3/2026'],
+    ['2026-03-31', '2026-04-01', 'Quý 2 năm 2026', 'Dữ liệu quý 1/2026 – quý 2/2026'],
+    ['2026-01-01', '2026-03-31', 'Quý 1 năm 2026', 'Dữ liệu quý 1/2026'],
+  ] as const) {
+    const scoped = { ...metric, input: { ...metric.input, scope: { ...metric.input.scope, start, end } } };
+    assert.deepEqual(marketReportQuarter({ ...input, marketPresentation: { ...input.marketPresentation!, input: { ...input.marketPresentation!.input, metric: scoped } } }), { quarter, range });
+  }
+  const marketPresentation = buildAutomationMarketPresentation({ ...input.marketPresentation!.binding, metric: null }, { metric: null, rows: [], unitSpec: null });
+  const missing = { ...input, marketPresentation, marketPresentationCharts: [] };
+  assert.deepEqual(marketReportQuarter(missing), { quarter: 'Quý 1 năm 2026', range: 'Dữ liệu quý 1/2026' });
+  const document = new JSDOM(buildResearchAutomationReport(missing, 'MARKET').html.toString()).window.document;
+  assert.equal(document.querySelector('.cv-period')!.textContent, 'Dữ liệu quý 1/2026');
+  assert.equal(document.querySelectorAll('.market14-sources li').length, 0);
+  assert.match(document.querySelector('.market14-sources')!.textContent!, /Lượt này chưa có dữ liệu bán hàng/u);
+  assert.doesNotMatch(document.querySelector('.market14-sources')!.textContent!, /\b0\b/u);
+});
+
+test('cover capitalizes Vietnamese and escapes product text in the heading and document title', async () => {
+  const input = await presentationInput();
+  const html = buildResearchAutomationReport({ ...input, start: { ...input.start, keyword: '  đèn <b> & "ấm"  ' } }, 'MARKET').html.toString();
+  const document = new JSDOM(html).window.document;
+  assert.equal(document.querySelector('.cover h1')!.textContent, 'Báo cáo thị trường sản phẩm Đèn <b> & "ấm"');
+  assert.equal(document.title, 'Báo cáo thị trường sản phẩm Đèn <b> & "ấm" · Quý 3 năm 2026');
+  assert.equal(document.querySelector('.cover h1 b'), null);
+});
+
+test('removing the source table preserves frozen semantic bytes and keeps only cited sources in the reader register', async () => {
+  const input = await presentationInput();
+  const captures = [null, { startDate: '2026-01-01', endDate: '2026-01-30' }].map((window, index) => ({
+    stepId: 'COLLECTION' as const, ordinal: index + 1, artifactSha256: String(index + 1).repeat(64), mediaType: 'application/json',
+    provider: 'synthetic', operation: 'synthetic.query', retrievedAt: '2026-01-31T00:00:00.000Z', window, truncated: false,
+  }));
+  const built = buildResearchAutomationReport({ ...input, captures }, 'MARKET');
+  // Frozen at e0754a3b: includes the source-table-only capture and the original metadata of the shared capture.
+  assert.equal(createHash('sha256').update(canonicalJson(built.semantic)).digest('hex'), '542fdcbef202fbc9f204c155962fac08ce081ac81ca8f98d0ea04310d76177e8');
+  const document = new JSDOM(built.html.toString()).window.document;
+  assert.equal(document.querySelector('template[data-market14-source-trace]'), null);
+  assert.doesNotMatch(document.querySelector('#M13')!.textContent!, /Bản thu từ truy vấn nguồn/u);
+  const cited = [...new Set([...document.querySelectorAll('sup.cite')].map(node => node.textContent))];
+  const registered = [...document.querySelectorAll('.citation-register .cite-number')].map(node => node.textContent);
+  assert.deepEqual(registered, cited);
+  assert.deepEqual(registered, Array.from({ length: 5 }, (_, index) => `[${index + 1}]`));
+  assert.doesNotThrow(() => assertMarket14MachineRules(built.html.toString()));
 });
