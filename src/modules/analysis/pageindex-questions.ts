@@ -12,13 +12,14 @@ import { fileURLToPath } from 'node:url';
 
 export type PageIndexVerifierDropReason = 'PAGE_OUT_OF_RANGE' | 'QUOTE_NOT_ON_PAGE';
 
+const readPdfScript = (): string => fileURLToPath(new URL('../../../scripts/read-pageindex-pdf.py', import.meta.url));
+const localPdf = (bytes: Uint8Array): boolean => bytes.length <= 32 * 1024 * 1024 && Buffer.from(bytes.subarray(0, 5)).toString('utf8') === '%PDF-';
+
 /** Extract text from these exact PDF bytes locally; bounded process and output. */
 export async function extractPageIndexPdf(bytes: Uint8Array): Promise<readonly PageIndexLocalPage[]> {
-  if (bytes.length > 32 * 1024 * 1024 || Buffer.from(bytes.subarray(0, 5)).toString('utf8') !== '%PDF-')
-    throw new Error('PAGEINDEX_LOCAL_PDF_INVALID');
+  if (!localPdf(bytes)) throw new Error('PAGEINDEX_LOCAL_PDF_INVALID');
   return new Promise((resolve, reject) => {
-    const child = execFile(process.env.TDN_PAGEINDEX_PYTHON ?? 'python3',
-      [fileURLToPath(new URL('../../../scripts/read-pageindex-pdf.py', import.meta.url))],
+    const child = execFile(process.env.TDN_PAGEINDEX_PYTHON ?? 'python3', [readPdfScript()],
       { timeout: 30_000, maxBuffer: 2 * 1024 * 1024, encoding: 'utf8' }, (error, stdout) => {
         try {
           if (error) throw error;
@@ -27,6 +28,25 @@ export async function extractPageIndexPdf(bytes: Uint8Array): Promise<readonly P
             pages.some((page, index) => !page || page.page !== index + 1 || typeof page.text !== 'string')) throw new Error();
           resolve(pages as PageIndexLocalPage[]);
         } catch { reject(new Error('PAGEINDEX_LOCAL_PDF_INVALID')); }
+      });
+    child.stdin?.on('error', () => undefined); child.stdin?.end(bytes);
+  });
+}
+
+/**
+ * The title stored in these exact PDF bytes' own metadata, read locally (never a provider call). Raw text: the report vets it
+ * before showing it as the document name. Null when there is none or it cannot be read; never throws.
+ */
+export async function readPageIndexPdfTitle(bytes: Uint8Array): Promise<string | null> {
+  if (!localPdf(bytes)) return null;
+  return new Promise(resolve => {
+    const child = execFile(process.env.TDN_PAGEINDEX_PYTHON ?? 'python3', [readPdfScript(), '--title'],
+      { timeout: 30_000, maxBuffer: 64 * 1024, encoding: 'utf8' }, (error, stdout) => {
+        try {
+          if (error) throw error;
+          const title: unknown = (JSON.parse(stdout) as { title?: unknown } | null)?.title;
+          resolve(typeof title === 'string' && title.trim() ? title : null);
+        } catch { resolve(null); }
       });
     child.stdin?.on('error', () => undefined); child.stdin?.end(bytes);
   });
@@ -248,17 +268,18 @@ export interface PageIndexCitationInput {
 
 /**
  * Shapes a verified quote for `CitationRegistry` as `PDF_PAGE` with a `pdf`
- * page locator. The label is plain reader text: no vendor name, no digest.
+ * page locator. The label is plain reader text, "<document name>, trang N": the caller passes an already vetted document
+ * name (never a file name); no vendor name, no digest.
  */
-export function toCitationInput(quote: PageIndexVerifiedQuote, fileName: string): PageIndexCitationInput {
-  if (!quote || quote.quoteVerification !== 'EXTERNAL_VERIFIER_ATTESTED' || typeof fileName !== 'string' || !fileName.trim()) {
+export function toCitationInput(quote: PageIndexVerifiedQuote, documentName: string): PageIndexCitationInput {
+  if (!quote || quote.quoteVerification !== 'EXTERNAL_VERIFIER_ATTESTED' || typeof documentName !== 'string' || !documentName.trim()) {
     throw new PageIndexQuestionError('INVALID_QUOTE_INPUT');
   }
   return {
     sourceKind: 'PDF_PAGE',
     identity: quote.sourceSha256,
     locator: { kind: 'pdf', page: quote.page, fragment: null },
-    label: `Tài liệu ${fileName.trim()}, trang ${quote.page}`,
+    label: `${documentName.trim()}, trang ${quote.page}`,
     retrievedAt: null,
     url: null,
     quote: quote.quote,

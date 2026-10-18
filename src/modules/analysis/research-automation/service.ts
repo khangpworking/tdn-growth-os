@@ -97,7 +97,7 @@ import { autorunRequestKey, buildConfirmValue, buildPrepareValue, buildRevisionV
 import { runMetricCapture, type MetricCaptureRequest, type MetricCaptureRunnerConfig, type MetricCaptureRunResult } from './metric-capture-runner.js';
 import { readPreparedMetricCaptureSources } from './metric-capture-inventory.js';
 import { AutomationWorldBankSourceIntake, readConfirmedWorldBankSource, readWorldBankHistory, WORLD_BANK_INDICATORS, WORLD_BANK_PROFILE } from './world-bank-intake.js';
-import { selectPdfExcerpts, storedPdfExcerpts, type PdfExcerpt } from './pdf-excerpt.js';
+import { pdfDocumentTitle, selectPdfExcerpts, storedPdfExcerpts, type PdfExcerpt } from './pdf-excerpt.js';
 import { readSellerVideoInputs, selectSellerVideos, storedSellerVideos, type AutomatedReadingInput, type SellerVideoAutomatedRef, type SellerVideos, type SellerVideoSources } from './seller-video.js';
 import { OFFICIAL_STATS_PROVIDER, OFFICIAL_STATS_USAGE_ORDINAL, officialStatsDocument, officialStatsFailed, officialStatsUsage, validOfficialStats, type OfficialStatsCollection, type OfficialStatsSource } from './official-statistics-lane.js';
 import { COMTRADE_PROFILE, COMTRADE_PROVIDER, COMTRADE_USAGE_ORDINAL, comtradeDocument, comtradeFailed, comtradeRenderable, comtradeUsage, type ComtradeCollection, type ComtradeSource } from './comtrade-lane.js';
@@ -156,7 +156,7 @@ import { AutomationMarketMethodBridge, MARKET_CAPTURE_READ_BUDGET_BYTES, type Au
 import { AutomationMetricMethodBridge, MetricMethodFailure, metricMethodFailureCode, type AutomationMetricMethodSnapshot, type MetricMethodFailureCode } from './metric-method-bridge.js';
 import { PageIndexCloudClient } from '../pageindex-cloud.js';
 import { estimatePageIndexBalance, estimatePageIndexLedgerBalance } from '../pageindex-balance.js';
-import { extractPageIndexPdf, planPageIndexQuestions, orderRunPdfsForQuestions, verifyPageIndexQuotes, buildVerifiedQuotesArtifact,
+import { extractPageIndexPdf, readPageIndexPdfTitle, planPageIndexQuestions, orderRunPdfsForQuestions, verifyPageIndexQuotes, buildVerifiedQuotesArtifact,
   PAGEINDEX_ELIGIBLE_SECTIONS, type RunPdfOrigin, type PageIndexLocalPage, type PageIndexQuotesArtifact, type PageIndexVerifiedQuote } from '../pageindex-questions.js';
 import type { PageIndexStatusSummary } from './source-status.js';
 import {
@@ -323,7 +323,7 @@ export interface PageIndexRunPdfStates {
   readonly usageLimited: boolean;
   readonly documents: readonly PageIndexRunPdfDocument[];
 }
-interface RunPdfRow { sha256: string; fileName: string; packageId: string; manifestSha256: string; logicalPath: string; origin: RunPdfOrigin }
+interface RunPdfRow { sha256: string; fileName: string; packageId: string; manifestSha256: string; logicalPath: string; origin: RunPdfOrigin; documentTitle: string | null }
 
 /** Best-effort ledger read that never throws; unreadable rows degrade to INDEXING. */
 function safeReadPageIndex(db: Database.Database, sourceSha256: string): {
@@ -417,6 +417,7 @@ export interface ResearchAutomationServiceOptions {
     readonly startingCreditMicroDollars?: number;
     readonly maxQuestionsPerRun?: number;
     readonly extractPdf?: (bytes: Uint8Array) => Promise<readonly PageIndexLocalPage[]>;
+    readonly readPdfTitle?: (bytes: Uint8Array) => Promise<string | null>;
   };
   /** Page cap for automatically captured PDFs; absent reads TDN_RESEARCH_PDF_DISCOVERY_MAX_PAGES (default 60). Owner uploads are never capped by it. */
   readonly pdfCaptureMaxPages?: number;
@@ -1430,7 +1431,7 @@ export class ResearchAutomationService {
 
   #runPdfs(runId: string): RunPdfRow[] {
     return this.#db.prepare(`SELECT source_sha256 sha256, file_name fileName, package_id packageId,
-      manifest_sha256 manifestSha256, logical_path logicalPath, origin FROM analysis_pageindex_run_pdfs WHERE run_id=? ORDER BY source_sha256`).all(runId) as RunPdfRow[];
+      manifest_sha256 manifestSha256, logical_path logicalPath, origin, document_title documentTitle FROM analysis_pageindex_run_pdfs WHERE run_id=? ORDER BY source_sha256`).all(runId) as RunPdfRow[];
   }
 
   /** The run's question cap, as `#processRunPdfs` applies it. */
@@ -1471,8 +1472,11 @@ export class ResearchAutomationService {
     return this.pageIndexStatesForRun(workspaceId, runId);
   }
 
-  /** `origin` orders question planning; an owner upload of bytes already captured marks the row UPLOAD (upload wins, never the reverse). */
-  async #retainRunPdf(runId: string, fileName: string, bytes: Uint8Array, origin: RunPdfOrigin): Promise<void> {
+  /**
+   * `origin` orders question planning; an owner upload of bytes already captured marks the row UPLOAD (upload wins, never the reverse).
+   * `title` is the search row's title of an automatically found PDF, kept only when it is plain reader text; the file name is never shown.
+   */
+  async #retainRunPdf(runId: string, fileName: string, bytes: Uint8Array, origin: RunPdfOrigin, title: string | null = null): Promise<void> {
     const sha256 = createHash('sha256').update(bytes).digest('hex');
     const source = new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
     const logicalPath = 'source.pdf';
@@ -1480,9 +1484,9 @@ export class ResearchAutomationService {
       sourceAcquiredAt: null, sourceLabel: 'Tài liệu PDF đính kèm', files: [{ path: logicalPath, sha256, byteSize: bytes.length,
         mediaType: 'application/pdf', evidenceFamily: 'run-pdf', representationRole: 'primary', independence: 'independent',
         providerProvenance: 'operator_supplied_unverified', provenanceBasis: 'Exact source bytes attached to this run; content remains unreviewed.' }] }, new Map([[logicalPath, bytes]]));
-    this.#db.prepare(`INSERT INTO analysis_pageindex_run_pdfs(run_id,source_sha256,file_name,package_id,manifest_sha256,logical_path,origin)
-      VALUES (?,?,?,?,?,?,?) ON CONFLICT(run_id,source_sha256) DO UPDATE SET origin='UPLOAD' WHERE excluded.origin='UPLOAD'`)
-      .run(runId, sha256, fileName, receipt.packageId, receipt.manifestArtifactSha256, logicalPath, origin);
+    this.#db.prepare(`INSERT INTO analysis_pageindex_run_pdfs(run_id,source_sha256,file_name,package_id,manifest_sha256,logical_path,origin,document_title)
+      VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(run_id,source_sha256) DO UPDATE SET origin='UPLOAD' WHERE excluded.origin='UPLOAD'`)
+      .run(runId, sha256, fileName, receipt.packageId, receipt.manifestArtifactSha256, logicalPath, origin, pdfDocumentTitle(title));
     if (!this.#pageIndexEnabled()) return;
     await indexRunPdfsForPageIndex([{ sha256, fileName, bytes }], this.#pageIndexDeps());
   }
@@ -1627,7 +1631,7 @@ export class ResearchAutomationService {
   async #pdfExcerpts(runId: string): Promise<readonly PdfExcerpt[]> {
     const row = this.#db.prepare('SELECT artifact_sha256 sha FROM analysis_pageindex_run_quotes WHERE run_id=?').get(runId) as { sha: string } | undefined;
     if (!row) return [];
-    try { return selectPdfExcerpts(await this.#readJson<PageIndexQuotesArtifact>(row.sha, MAX_JSON_ARTIFACT_BYTES, 'application/json'), runId, new Map(this.#runPdfs(runId).map(file => [file.sha256, file.fileName]))).excerpts; }
+    try { return selectPdfExcerpts(await this.#readJson<PageIndexQuotesArtifact>(row.sha, MAX_JSON_ARTIFACT_BYTES, 'application/json'), runId, new Map(this.#runPdfs(runId).map(file => [file.sha256, file.documentTitle]))).excerpts; }
     catch { return []; }
   }
 
@@ -1721,6 +1725,12 @@ export class ResearchAutomationService {
         if (ledger?.status !== 'READY' || !ledger.cloudDocId) continue;
         const pages = await (this.#pageIndex?.extractPdf ?? extractPageIndexPdf)(member.bytes);
         local.set(index, { bytes: member.bytes, pages });
+        // No usable search title: the title stored in the PDF itself, read locally from the same verified bytes (never a provider call).
+        if (file.documentTitle === null) {
+          const title = pdfDocumentTitle(await (this.#pageIndex?.readPdfTitle ?? readPageIndexPdfTitle)(member.bytes));
+          if (title !== null) this.#db.prepare(`UPDATE analysis_pageindex_run_pdfs SET document_title=? WHERE run_id=? AND source_sha256=? AND document_title IS NULL`)
+            .run(title, runId, file.sha256);
+        }
       } catch { /* Local verification failure never authorizes a query. */ }
     }
     for (const question of plan) {
@@ -4435,7 +4445,7 @@ export class ResearchAutomationService {
               continue;
             }
             if (item.kind === 'DOWNLOADED') {
-              try { await this.#retainRunPdf(runId, `source-${captures.length}.pdf`, item.bytes, 'CAPTURE'); }
+              try { await this.#retainRunPdf(runId, `source-${captures.length}.pdf`, item.bytes, 'CAPTURE', item.candidate.title ?? null); }
               catch {
                 // Indexing may fail after source retention; that follows the upload path's existing reader state.
                 if (!this.#runPdfs(runId).some(pdf => pdf.sha256 === item.sha256)) {

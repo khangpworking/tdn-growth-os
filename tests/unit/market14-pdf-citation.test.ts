@@ -17,10 +17,11 @@ import { fullMarket14Input } from '../helpers/market14-full-fixture.js';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111', runId = '22222222-2222-4222-8222-222222222222';
 const SHA_A = 'a'.repeat(64), SHA_B = 'b'.repeat(64);
-/** Two synthetic excerpts as `selectPdfExcerpts` stores them: one named document, one with its name withheld. */
+const TITLE_A = 'Báo cáo thị trường bình giữ nhiệt năm 2025';
+/** Two synthetic excerpts as `selectPdfExcerpts` stores them: one document with a title, one numbered by order. */
 const EXCERPTS: PdfExcerpt[] = [
-  { sourceSha256: SHA_A, page: 4, text: 'Nhu cầu bình giữ nhiệt tăng đều ở các đô thị lớn.', label: 'Tài liệu bao-cao-nganh.pdf, trang 4' },
-  { sourceSha256: SHA_B, page: 2, text: 'Quy định ghi nhãn vật liệu tiếp xúc thực phẩm áp dụng từ năm trước.', label: 'Tài liệu số 2, không hiển thị tên tệp, trang 2' },
+  { sourceSha256: SHA_A, page: 4, text: 'Nhu cầu bình giữ nhiệt tăng đều ở các đô thị lớn.', label: `${TITLE_A}, trang 4` },
+  { sourceSha256: SHA_B, page: 2, text: 'Quy định ghi nhãn vật liệu tiếp xúc thực phẩm áp dụng từ năm trước.', label: 'Tài liệu PDF số 1, trang 2' },
 ];
 
 async function presentationInput(): Promise<AutomationReportInput> {
@@ -62,10 +63,10 @@ function assertRegister(document: Document): void {
   assert.deepEqual(ids, entries.map((_entry, i) => `cite-${i + 1}`), 'consecutive register numbers');
 }
 
-test('reader citation: plain Vietnamese "Tài liệu PDF đã lưu …" label, same source and page, no digest', () => {
+test('reader citation: the document name alone (the register adds the page), same source and page, no digest', () => {
   const [a, b] = EXCERPTS.map(pdfExcerptReaderCitation);
-  assert.equal(a!.label, 'Tài liệu PDF đã lưu bao-cao-nganh.pdf');
-  assert.equal(b!.label, 'Tài liệu PDF đã lưu số 2, không hiển thị tên tệp');
+  assert.equal(a!.label, TITLE_A);
+  assert.equal(b!.label, 'Tài liệu PDF số 1');
   assert.deepEqual(a!.locator, { kind: 'pdf', page: 4, fragment: null });
   assert.equal(a!.sourceKind, 'PDF_PAGE');
   assert.ok(![a!.label, b!.label].some(label => /[0-9a-f]{32,}/u.test(label)));
@@ -93,13 +94,14 @@ test('market14: each PDF excerpt carries a visible [n] that resolves to a regist
     const entry = registerItems.get(`cite-${number}`);
     assert.ok(entry, `[${number}] resolves to a register entry`);
     const excerpt = EXCERPTS[index]!;
-    assert.match(entry!, new RegExp(`^\\[${number}\\] · Tài liệu PDF đã lưu .+ · trang ${excerpt.page}$`, 'u'));
+    assert.equal(entry, `[${number}] · ${pdfExcerptReaderCitation(excerpt).label}, trang ${excerpt.page}`, 'one name with its page');
+    assert.ok(!entry!.includes('.pdf') && !entry!.includes('tên tệp'), 'never a file name');
     assert.ok(!/[0-9a-f]{32,}/u.test(entry!) && !entry!.includes('mã nguồn'), 'no digest in the entry');
     assert.deepEqual(providerNameViolations(entry!), []);
   }
   assert.equal(new Set(numbers).size, 2, 'two documents, two entries');
-  assert.ok(registerItems.get(`cite-${numbers[0]}`)!.includes('bao-cao-nganh.pdf'));
-  assert.ok(registerItems.get(`cite-${numbers[1]}`)!.includes('không hiển thị tên tệp'));
+  assert.equal(registerItems.get(`cite-${numbers[0]}`), `[${numbers[0]}] · ${TITLE_A}, trang 4`);
+  assert.equal(registerItems.get(`cite-${numbers[1]}`), `[${numbers[1]}] · Tài liệu PDF số 1, trang 2`);
   assert.doesNotThrow(() => assertMarket14MachineRules(html));
   assert.doesNotThrow(() => assertMarketBusinessGate(html, { presentation: true }));
   assert.doesNotThrow(() => assertMarket14MachineRules(plain));

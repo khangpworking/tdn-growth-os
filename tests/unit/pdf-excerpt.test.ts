@@ -6,7 +6,7 @@ import { buildMarketReport, computeReaderReportData } from '../../src/modules/an
 import { PAGEINDEX_ELIGIBLE_SECTIONS, type PageIndexQuotesArtifact, type PageIndexVerifiedQuote } from '../../src/modules/analysis/pageindex-questions.js';
 import { auditMarket14, assertMarket14MachineRules } from '../../src/modules/analysis/research-automation/market-14-rules.js';
 import { assertMarketBusinessGate, auditMarketReportHtml } from '../../src/modules/analysis/research-automation/market-business-gate.js';
-import { PDF_EXCERPT_NOTE, PDF_EXCERPT_TITLE, pdfExcerptBlockHtml, pdfExcerptFileNameShown, selectPdfExcerpts, storedPdfExcerpts, type PdfExcerpt } from '../../src/modules/analysis/research-automation/pdf-excerpt.js';
+import { PDF_EXCERPT_NOTE, PDF_EXCERPT_TITLE, pdfDocumentTitle, pdfExcerptBlockHtml, pdfUntitledName, selectPdfExcerpts, storedPdfExcerpts, type PdfExcerpt } from '../../src/modules/analysis/research-automation/pdf-excerpt.js';
 import { buildSourceEvidence, sourceEvidenceForReport } from '../../src/modules/analysis/research-automation/source-evidence.js';
 import { sync1Options, sync1ReaderFixture } from '../helpers/sync1-reader-fixture.js';
 import { unitPriceFixture } from '../helpers/market-unit-price-fixture.js';
@@ -16,8 +16,9 @@ const SHA_A = 'a'.repeat(64), SHA_B = 'b'.repeat(64);
 const quote = (sourceSha256: string, page: number, text: string, sectionId = 'M09', extra: Partial<PageIndexVerifiedQuote> = {}): PageIndexVerifiedQuote =>
   ({ sourceSha256, cloudDocId: 'doc-1', sectionId, page, quote: text, quoteVerification: 'EXTERNAL_VERIFIER_ATTESTED', ...extra });
 const artifact = (quotes: PageIndexVerifiedQuote[], runId = RUN): PageIndexQuotesArtifact => ({ contractVersion: 'pageindex-verified-quotes-v1', approvalState: 'UNREVIEWED', runId, quotes });
-const names = new Map([[SHA_A, 'bao-cao-nganh.pdf'], [SHA_B, 'tai-lieu-hai.pdf']]);
-const excerptsOf = (quotes: PageIndexVerifiedQuote[], map = names): PdfExcerpt[] => [...selectPdfExcerpts(artifact(quotes), RUN, map).excerpts];
+const TITLE_A = 'Báo cáo thị trường bình giữ nhiệt năm 2025';
+const names = new Map<string, string | null>([[SHA_A, TITLE_A], [SHA_B, null]]);
+const excerptsOf = (quotes: PageIndexVerifiedQuote[], map: ReadonlyMap<string, string | null> = names): PdfExcerpt[] => [...selectPdfExcerpts(artifact(quotes), RUN, map).excerpts];
 const twoDocuments = (): PdfExcerpt[] => excerptsOf([
   quote(SHA_A, 2, 'Nhu cầu bình giữ nhiệt tăng đều ở các đô thị lớn.'), quote(SHA_A, 5, 'Giá nguyên liệu inox biến động theo quý.', 'M03'),
   quote(SHA_B, 1, 'Quy định ghi nhãn vật liệu tiếp xúc thực phẩm áp dụng từ năm trước.')]);
@@ -25,7 +26,7 @@ const twoDocuments = (): PdfExcerpt[] => excerptsOf([
 test('selection: two documents keep stored order, Market sections only, verbatim text', () => {
   const picked = selectPdfExcerpts(artifact([quote(SHA_A, 2, 'Câu một.'), quote(SHA_B, 1, 'Câu hai.'), quote(SHA_A, 5, 'Câu ba.', 'M05')]), RUN, names);
   assert.deepEqual(picked.excerpts.map(item => [item.sourceSha256 === SHA_A ? 'A' : 'B', item.page, item.text]), [['A', 2, 'Câu một.'], ['B', 1, 'Câu hai.'], ['A', 5, 'Câu ba.']]);
-  assert.deepEqual(picked.excerpts.map(item => item.label), ['Tài liệu bao-cao-nganh.pdf, trang 2', 'Tài liệu tai-lieu-hai.pdf, trang 1', 'Tài liệu bao-cao-nganh.pdf, trang 5']);
+  assert.deepEqual(picked.excerpts.map(item => item.label), [`${TITLE_A}, trang 2`, 'Tài liệu PDF số 1, trang 1', `${TITLE_A}, trang 5`]);
   assert.deepEqual(picked.leftOut, []);
 });
 
@@ -106,10 +107,10 @@ test('word set: every word is written Vietnamese, so hosts, commands, English la
     'Demand for vacuum flasks grows in big cities.'])
     assert.equal(shown(text), false, text);
   assert.deepEqual(selectPdfExcerpts(artifact([quote(SHA_A, 1, 'Demand grows.')]), RUN, names).leftOut.map(item => item.reason), ['NOT_READER_SAFE']);
-  for (const bad of ['example. dev.pdf', 'http:.pdf', 'C:.pdf', '.pdf', '-.pdf', '123.pdf', 'pin.pdf', 'ma-so-4821.pdf', 'ma-khoa-4821.pdf', 'ma-xac-thuc-4821.pdf', 'minh-a-cong-tin.pdf', 'server-share.pdf', 'demand-report.pdf'])
-    assert.equal(pdfExcerptFileNameShown(bad), false, bad);
-  for (const good of ['bao-cao-quat-dien.pdf', 'thi-truong-binh-giu-nhiet-2025.pdf', 'Báo cáo ngành quạt điện.pdf'])
-    assert.equal(pdfExcerptFileNameShown(good), true, good);
+  // A file name is never a document name, however plain it reads.
+  for (const bad of ['example. dev.pdf', 'http:.pdf', 'C:.pdf', '.pdf', '-.pdf', '123.pdf', 'pin.pdf', 'ma-so-4821.pdf', 'ma-khoa-4821.pdf', 'ma-xac-thuc-4821.pdf', 'minh-a-cong-tin.pdf', 'server-share.pdf', 'demand-report.pdf',
+    'bao-cao-quat-dien.pdf', 'thi-truong-binh-giu-nhiet-2025.pdf', 'Báo cáo ngành quạt điện.pdf', 'source-0.pdf'])
+    assert.equal(pdfDocumentTitle(bad), null, bad);
 });
 
 test('selection: only market sections are eligible even when the section id is made up', () => {
@@ -118,16 +119,37 @@ test('selection: only market sections are eligible even when the section id is m
   assert.deepEqual([picked.excerpts.length, picked.leftOut.map(item => item.reason)], [0, ['NOT_MARKET_SECTION', 'NOT_MARKET_SECTION', 'NOT_MARKET_SECTION']]);
 });
 
-test('file names: empty, missing or provider-like names are withheld, never guessed', () => {
-  for (const bad of ['', '   ', 'pageindex-export.pdf', 'Google trang.pdf', 'kalodata.pdf', 'a/b.pdf', 'C:\\x\\y.pdf', 'https://example.test/a.pdf', 'a;b.pdf', 'metric-report.pdf', 'x'.repeat(130), 'solieu.example.vn.pdf', '203.0.113.7.pdf', 'bao_cao_nganh.pdf', 'aB3dE5gH7jK9mN1pQ3sT5vW7.pdf', '/secret.pdf', '\\secret.pdf', 'C:report.pdf', '~/a.pdf', 'tmp∕a.pdf', '%2Fa.pdf',
-    '%252Fa.pdf', 'file:report.pdf', 'glpat-abc12345678901234567.pdf', 'example.dev.pdf', '╱tmp╱a.pdf', 'Ｇｏｏｇｌｅ.pdf', 'G​oogle.pdf', 'page index.pdf', 'Agent–Reach.pdf', 'api  key.pdf',
-    'x2-ab12.pdf', '1234-5678-9012-3456.pdf', '192-168-1-1.pdf', 'AB12-CD34-EF56.pdf'])
-    assert.equal(pdfExcerptFileNameShown(bad), false, JSON.stringify(bad));
-  assert.equal(pdfExcerptFileNameShown(undefined), false);
-  assert.equal(pdfExcerptFileNameShown('bao-cao-nganh.pdf'), true);
-  assert.equal(pdfExcerptFileNameShown('bao-cao-2025-quy-3-nganh-quat-dien.pdf'), true, 'a long hyphenated name is not a token');
-  const withheld = excerptsOf([quote(SHA_A, 2, 'Một.'), quote(SHA_B, 3, 'Hai.')], new Map([[SHA_A, ''], [SHA_B, 'PageIndex.pdf']]));
-  assert.deepEqual(withheld.map(item => item.label), ['Tài liệu số 1, không hiển thị tên tệp, trang 2', 'Tài liệu số 2, không hiển thị tên tệp, trang 3']);
+test('document titles: a plain Vietnamese title is shown as written, search-page trimmings are dropped', () => {
+  for (const [raw, shown] of [
+    [TITLE_A, TITLE_A],
+    ['  Báo cáo   ngành quạt điện  ', 'Báo cáo ngành quạt điện'],
+    ['[PDF] Báo cáo ngành quạt điện | Cổng thông tin', 'Báo cáo ngành quạt điện'],
+    ['Báo cáo ngành quạt điện - VnExpress', 'Báo cáo ngành quạt điện'],
+    ['Báo cáo ngành quạt điện năm 2025...', 'Báo cáo ngành quạt điện năm 2025'],
+    ['Báo cáo ngành quạt điện năm 2025 …', 'Báo cáo ngành quạt điện năm 2025'],
+    ['BÁO CÁO NGÀNH QUẠT ĐIỆN VIỆT NAM', 'BÁO CÁO NGÀNH QUẠT ĐIỆN VIỆT NAM'],
+    ['Thị trường FMCG ở ĐBSCL quý 3/2025', 'Thị trường FMCG ở ĐBSCL quý 3/2025'],
+  ] as const) assert.equal(pdfDocumentTitle(raw), shown, raw);
+  assert.equal(pdfDocumentTitle(pdfDocumentTitle(TITLE_A)), TITLE_A, 'vetting a vetted title keeps it');
+});
+
+test('document titles: a file name, link, path, code, provider, English heading or one word is never shown', () => {
+  for (const bad of [undefined, null, 42, '', '   ', '[PDF]', 'Báo', 'Báo cáo', 'bao-cao-nganh.pdf', 'Báo cáo ngành quạt điện.pdf', 'https://example.test/a.pdf', 'Xem tại solieu.example.vn',
+    'C:\\x\\y.pdf', '/tmp/bao-cao.pdf', 'Báo cáo theo Kalodata', 'Số liệu PageIndex tháng 6', 'Báo cáo của Google', 'Báo cáo Ｇｏｏｇｌｅ', 'Vacuum flask market report 2025',
+    'Báo cáo mã OTP 4821 dùng tạm', 'Báo cáo ' + 'nghiêng '.repeat(20), 'Báo cáo <script>', 'Báo cáo gửi nhom@example.test'])
+    assert.equal(pdfDocumentTitle(bad), null, JSON.stringify(bad));
+  assert.equal(pdfUntitledName(3), 'Tài liệu PDF số 3');
+});
+
+test('labels: "<title>, trang N", or "Tài liệu PDF số k, trang N" numbered only over shown untitled documents', () => {
+  const SHA_C = 'c'.repeat(64);
+  const map = new Map<string, string | null>([[SHA_A, null], [SHA_B, null], [SHA_C, 'Báo cáo ngành quạt điện']]);
+  const labels = excerptsOf([quote(SHA_A, 1, 'Xem https://example.test/x.'), quote(SHA_C, 1, 'Một.'), quote(SHA_B, 2, 'Hai.'), quote(SHA_A, 3, 'Ba.'), quote(SHA_B, 4, 'Bốn.')], map).map(item => item.label);
+  assert.deepEqual(labels, ['Báo cáo ngành quạt điện, trang 1', 'Tài liệu PDF số 1, trang 2', 'Tài liệu PDF số 2, trang 3', 'Tài liệu PDF số 1, trang 4'], 'a left-out excerpt takes no number');
+  // A stored name that is a file name, empty or provider-like is vetted again and replaced by the order wording.
+  const vetted = excerptsOf([quote(SHA_A, 2, 'Một.'), quote(SHA_B, 3, 'Hai.')], new Map([[SHA_A, 'bao-cao-nganh.pdf'], [SHA_B, 'PageIndex.pdf']]));
+  assert.deepEqual(vetted.map(item => item.label), ['Tài liệu PDF số 1, trang 2', 'Tài liệu PDF số 2, trang 3']);
+  assert.ok(vetted.every(item => !item.label.includes('.pdf')));
 });
 
 test('block: publisher and year read "chưa ghi", the grade reads unrated, no grade A and no S22', () => {

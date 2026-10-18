@@ -152,7 +152,7 @@ async function runToDraft(t: TestContext, options: RunOptions) {
     .map(value => { const r = value as { ordinal: bigint | number; provider: string; n: bigint | number }; return [Number(r.ordinal), r.provider, Number(r.n)] as const; });
   const captures = db.prepare(`SELECT ordinal, provider, operation, artifact_sha256 sha FROM analysis_research_automation_captures WHERE run_id=? AND step_id='COLLECTION' ORDER BY ordinal`).all(runId)
     .map(value => { const r = value as { ordinal: bigint | number; provider: string; operation: string; sha: string }; return { ordinal: Number(r.ordinal), provider: r.provider, operation: r.operation, sha: r.sha }; });
-  const runPdfs = db.prepare('SELECT source_sha256 sha, file_name name FROM analysis_pageindex_run_pdfs WHERE run_id=? ORDER BY file_name').all(runId) as { sha: string; name: string }[];
+  const runPdfs = db.prepare('SELECT source_sha256 sha, file_name name, document_title title FROM analysis_pageindex_run_pdfs WHERE run_id=? ORDER BY file_name').all(runId) as { sha: string; name: string; title: string | null }[];
   const html = async (pairId?: string) => (await service.readReport(workspaceId, runId, 'MARKET', false, pairId)).bytes.toString('utf8');
   const semantic = async (): Promise<Record<string, unknown>> => {
     const out = db.prepare('SELECT version_sha256 sha FROM analysis_research_automation_outputs WHERE run_id=? AND report_kind=?').get(runId, 'MARKET') as { sha: string };
@@ -191,6 +191,8 @@ test('flag on: one run-row PDF plus one admitted search PDF are downloaded, reta
   // Retention: both files reach the run-PDF table through the existing collection-capture path and were read once each.
   assert.deepEqual(f.runPdfs.map(p => p.sha).sort(), found.files.map(file => file.sourceSha256).sort());
   assert.ok(f.runPdfs.every(p => /^source-\d+\.pdf$/u.test(p.name)));
+  assert.deepEqual(found.files.map(file => f.runPdfs.find(p => p.sha === file.sourceSha256)?.title), [`Báo cáo ngành ${KEYWORD} 2`, `Báo cáo ngành ${KEYWORD} 1`],
+    'each file keeps the title of the search row it came from, for the citation label');
   assert.equal(f.pageIndex.calls.upload, 2);
   const html = await f.html();
   const block = blockOf(html);

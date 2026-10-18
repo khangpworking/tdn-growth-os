@@ -22,13 +22,14 @@ const withoutDataUris = (html: string): string => html.replace(/data:[^"')]*;bas
 const blockOf = (html: string): string => html.slice(html.indexOf(`<h3>${PDF_EXCERPT_TITLE}`), html.indexOf('</ul>', html.indexOf(`<h3>${PDF_EXCERPT_TITLE}`)) + 5);
 
 interface Calls { upload: number; question: number; other: number }
-async function fixture(options: { pdf: boolean; pageIndex: boolean }) {
+async function fixture(options: { pdf: boolean; pageIndex: boolean; pdfTitle?: string | null }) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-pdf-excerpt-'));
   const db = openDatabase({ databasePath: path.join(root, 'db.sqlite'), now }).db;
   const artifacts = new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
   const discovery = new DiscoveryWorkspaceService({ db, artifactStore: artifacts, uuid: () => workspaceId, now });
   await discovery.createWorkspace({ contractVersion: '1.0.0', workspaceKey: 'pdf-excerpt', title: 'Synthetic excerpt run' });
   const calls: Calls = { upload: 0, question: 0, other: 0 };
+  let titleReads = 0;
   const fakeFetch: typeof fetch = async url => {
     const pathname = new URL(String(url)).pathname;
     if (pathname === '/doc/') { calls.upload += 1; return Response.json({ id: 'pi-fixture', name: 'fixture.pdf', pageNum: 1, status: 'processing' }); }
@@ -46,7 +47,7 @@ async function fixture(options: { pdf: boolean; pageIndex: boolean }) {
     renderer: (input, kind) => buildResearchAutomationReport(input, kind), source: syntheticProductSource(),
     sourceEvidence: { modelIdentity: 'synthetic-model', promptVersion: 'prompt-v1' },
     ...(options.pageIndex ? { pageIndex: { enabled: true, apiKey: 'synthetic-pdf-key', fetch: fakeFetch, startingCreditMicroDollars: 10_000_000, maxQuestionsPerRun: 10,
-      extractPdf: async () => [{ page: 1, text: 'Hàm lượng 120 mg' }] } } : {}) });
+      extractPdf: async () => [{ page: 1, text: 'Hàm lượng 120 mg' }], readPdfTitle: async () => { titleReads += 1; return options.pdfTitle ?? null; } } } : {}) });
   await service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: '33333333-3333-4333-8333-333333333333', mode: 'CATEGORY', keyword: 'bình giữ nhiệt',
     requestedPeriod: { startDate: '2025-10-01', endDate: '2026-09-30' }, reports: ['MARKET'] });
   await service.processNext();
@@ -61,7 +62,7 @@ async function fixture(options: { pdf: boolean; pageIndex: boolean }) {
     const row = db.prepare('SELECT version_sha256 sha FROM analysis_research_automation_outputs WHERE run_id=? AND report_kind=?').get(runId, 'MARKET') as { sha: string };
     return JSON.parse((await artifacts.read(row.sha)).toString('utf8')) as Record<string, unknown>;
   };
-  return { root, db, service, calls, html, semantic };
+  return { root, db, service, calls, html, semantic, titleReads: () => titleReads };
 }
 
 test('a run with a verified PDF draws a capped excerpt block that verifies, registers S25 once and never re-asks the PDF client', async () => {
@@ -74,7 +75,8 @@ test('a run with a verified PDF draws a capped excerpt block that verifies, regi
     const block = blockOf(html);
     assert.ok(block.length > 0 && html.includes(`<h3>${PDF_EXCERPT_TITLE}`));
     assert.equal((block.match(/<blockquote data-quote>/gu) ?? []).length, PDF_EXCERPT_MAX_PER_DOCUMENT);
-    assert.match(block, /Hàm lượng 120 mg/u); assert.match(block, /không hiển thị tên tệp/u); assert.doesNotMatch(block, /fixture\.pdf/u, 'an English file name is not a Vietnamese word, so it is withheld');
+    assert.match(block, /Hàm lượng 120 mg/u); assert.match(block, /Tài liệu PDF số 1, trang 1;/u);
+    assert.doesNotMatch(block, /fixture\.pdf|tên tệp/u, 'the file name is never shown; a PDF without a title is named by its order');
     assert.match(block, /nhà xuất bản: chưa ghi; năm: chưa ghi; độ tin cậy: chưa xếp hạng độ tin cậy/u);
     assert.ok(!/hạng A|grade A|S22/u.test(block));
     assert.ok(!providerWords.test(withoutDataUris(block)), 'No provider name inside the block');
@@ -98,6 +100,23 @@ test('a run with a verified PDF draws a capped excerpt block that verifies, regi
     assert.equal(blockOf(revisedHtml), block, 'The revision shows the same stored excerpts');
     assert.deepEqual(f.calls, initialCalls, 'No upload, question or other PDF client call after the initial build');
   } finally { f.db.close(); await fs.rm(f.root, { recursive: true, force: true }); }
+});
+
+test('a PDF whose own metadata holds a plain Vietnamese title is cited by that title and page, read once, never by its file name', async () => {
+  const f = await fixture({ pdf: true, pageIndex: true, pdfTitle: '  BÁO CÁO thị trường bình giữ nhiệt năm 2025 ' });
+  const g = await fixture({ pdf: true, pageIndex: true, pdfTitle: 'fixture-report.pdf' });
+  try {
+    const block = blockOf(await f.html());
+    assert.equal((block.match(/BÁO CÁO thị trường bình giữ nhiệt năm 2025, trang 1;/gu) ?? []).length, PDF_EXCERPT_MAX_PER_DOCUMENT);
+    assert.doesNotMatch(block, /fixture|Tài liệu PDF số/u);
+    assert.equal((f.db.prepare('SELECT document_title t FROM analysis_pageindex_run_pdfs WHERE run_id=?').get(runId) as { t: string }).t, 'BÁO CÁO thị trường bình giữ nhiệt năm 2025');
+    assert.equal(f.titleReads(), 1, 'the stored title is not read again');
+    // A metadata title that is itself a file name is not stored and the order wording is used.
+    const fallback = blockOf(await g.html());
+    assert.match(fallback, /Tài liệu PDF số 1, trang 1;/u);
+    assert.doesNotMatch(fallback, /fixture/u);
+    assert.equal((g.db.prepare('SELECT document_title t FROM analysis_pageindex_run_pdfs WHERE run_id=?').get(runId) as { t: string | null }).t, null);
+  } finally { for (const x of [f, g]) { x.db.close(); await fs.rm(x.root, { recursive: true, force: true }); } }
 });
 
 test('a run without a PDF, or with the document connector off, has no block, no marker and the same wording as before', async () => {

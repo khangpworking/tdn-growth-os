@@ -66,7 +66,8 @@ test('artifacts carry verified quotes only and cite as PDF_PAGE without answer t
   assert.equal(artifact.contractVersion, 'pageindex-verified-quotes-v1');
   assert.equal(artifact.approvalState, 'UNREVIEWED');
   assert.ok(!('answer' in artifact), 'vendor answer text is never stored as report content');
-  const citation = toCitationInput(quote, 'nguon.pdf');
+  const citation = toCitationInput(quote, 'Báo cáo ngành quạt điện');
+  assert.equal(citation.label, 'Báo cáo ngành quạt điện, trang 3', 'the document name and its page, no "Tài liệu" prefix');
   assert.equal(citation.sourceKind, 'PDF_PAGE');
   assert.deepEqual(citation.locator, { kind: 'pdf', page: 3, fragment: null });
   assert.equal(citation.quoteVerification, 'EXTERNAL_VERIFIER_ATTESTED');
