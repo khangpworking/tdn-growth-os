@@ -48,7 +48,7 @@ function result(rule: string, ok: boolean, kind: Market14Result['kind'], detail:
   return { rule, ok, kind, detail };
 }
 
-const GLOSSARY: readonly [RegExp, RegExp][] = [
+export const GLOSSARY: readonly [RegExp, RegExp][] = [
   [/\blisting\b/iu, /sản phẩm/iu],
   [/\breview\b/iu, /đánh giá/iu],
   [/\breviews\b/iu, /đánh giá/iu],
