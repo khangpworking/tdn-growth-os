@@ -703,7 +703,8 @@ test('reader report: table 5.4 retains periods, statuses, E12 attribution and th
   assert.deepEqual(providerNameViolations(on.html), []);
   assert.doesNotMatch(on.html, /Google/u);
   assert.match(doc.querySelector('#phu-luc')!.textContent!, /Cục Thống kê \(nso.gov.vn\)/u);
-  assert.match(doc.querySelector('#danh-muc-nguon')?.textContent ?? doc.body.textContent!, /công bố 2026-10-06/u);
+  assert.match(doc.querySelector('#danh-muc-nguon')?.textContent ?? doc.body.textContent!, /công bố 06\/10\/2026/u, 'reader dates are dd/mm/yyyy');
+  assert.doesNotMatch(doc.body.textContent!, /công bố 2026-10-06/u);
   const failedRules = (html: string) => auditMarket14(html).filter(check => check.kind === 'machine' && !check.ok).map(check => check.rule);
   assert.deepEqual(failedRules(on.html), failedRules(off.html), 'the new table adds no machine-rule failure');
   const failedLint = (html: string) => lint(html).filter(check => !check.ok).map(check => check.rule);
