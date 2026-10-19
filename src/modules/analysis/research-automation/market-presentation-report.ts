@@ -193,8 +193,10 @@ function capturePlatformFindings(capture: CaptureMetricMethodDetails, citations:
 export function renderAutomationMarketFindings(method: Method, citations: ReportCitations, readerPlainText = false, capture?: CaptureMetricMethodDetails): string {
   const allScope = method.input.metric?.scopes.find(scope => scope.key === 'all');
   const sampleCount = allScope?.status === 'CALCULATED' ? allScope.listingCount : null;
-  if (method.input.metric?.input.profileId === 'automation-metric-capture-v2' && sampleCount === 0)
-    return '<p>Chưa có số lượng mẫu phù hợp để phân tích sau khi lọc. Không suy ra doanh số, số người mua hoặc quy mô ngoài mẫu.</p>';
+  const emptySample = method.input.metric?.input.profileId === 'automation-metric-capture-v2' && sampleCount === 0
+    ? '<p>Chưa có số lượng mẫu phù hợp để phân tích sau khi lọc. Không suy ra doanh số, số người mua hoặc quy mô ngoài mẫu.</p>' : '';
+  // An empty filtered sample does not erase the independently retained page figures.
+  if (emptySample && !(readerPlainText && capture)) return emptySample;
   const sampleLabel = sampleCount === null ? 'trong mẫu (chưa có số lượng mẫu)' : `trong mẫu (n = ${sampleCount})`;
   const withSample = (text: string): string => readerPlainText
     ? text.replace(/\btrong mẫu\b/iu, sampleLabel)
@@ -203,7 +205,7 @@ export function renderAutomationMarketFindings(method: Method, citations: Report
   const note = readerPlainText ? '<p class="lim"><b>Chú thích:</b> Số liệu chỉ mô tả mẫu đã lưu theo từng sàn; không suy rộng thành quy mô toàn thị trường.</p>' : '';
   const item = (finding: Method['findings'][number]): string =>
     `<li><p><b>Nhận định:</b> ${finding.pending ? `<span data-classified="pending">${escape(withSample(readerPlainText ? readerStoredOrJson(finding.statement.replace(/[.]$/, ''), 'Nhận định được giữ trong hồ sơ đối chiếu') : finding.statement.replace(/[.]$/, '')))} (đề xuất, chờ chủ duyệt).</span>` : escape(withSample(readerPlainText ? readerStoredOrJson(finding.statement, 'Nhận định được giữ trong hồ sơ đối chiếu') : finding.statement))}</p><p><b>Bằng chứng:</b> <a href="#${finding.sectionId}">Bảng ${finding.sectionId === 'M03' ? 'số liệu mẫu xuất ở phần Quy mô và diễn biến' : 'quy cách và đơn vị chuẩn ở phần Giá và kinh tế đơn vị'}</a>${finding.evidence.map(ref => mark(ref, citations, readerPlainText)).join('')}.</p><p><b>Trạng thái:</b> Bản nháp chưa được duyệt; ${finding.pending ? 'phân loại đề xuất, chờ chủ duyệt; ' : ''}${escape(readerPlainText ? readerStoredOrJson(finding.scope, 'Phạm vi được giữ trong hồ sơ đối chiếu') : finding.scope)}</p></li>`;
-  if (readerPlainText && capture) return '<p>Các phát hiện mô tả mẫu đã lưu của từng sàn, không sắp theo mức quan trọng.</p><ul class="market-findings">' +
+  if (readerPlainText && capture) return emptySample + '<p>Các phát hiện mô tả mẫu đã lưu của từng sàn, không sắp theo mức quan trọng.</p><ul class="market-findings">' +
     capturePlatformFindings(capture, citations).join('') + method.findings.filter(finding => finding.sectionId !== 'M03').map(item).join('') + '</ul>' +
     '<p>Doanh thu và đơn vị bán là số ước tính của nguồn. Mỗi sàn đọc riêng; không suy số người mua, quy mô ngoài mẫu hoặc nguyên nhân.</p>' +
     '<p class="lim"><b>Chú thích:</b> Số liệu chỉ mô tả mẫu đã lưu theo từng sàn; không suy rộng ngoài phạm vi nguồn.</p>' +

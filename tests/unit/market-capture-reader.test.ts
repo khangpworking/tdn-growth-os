@@ -7,7 +7,9 @@ import { calculateMetricScopes } from '../../src/modules/analysis/metric-scope-c
 import { CitationRegistry, type CitationEntry } from '../../src/modules/analysis/citation-registry.js';
 import { renderCitationMarkOrMissing } from '../../src/modules/analysis/citation-register-html.js';
 import { UNKNOWN_SHOP } from '../../src/modules/analysis/reader-report/market-charts.js';
+import { plainCaptureNumbers } from '../../src/modules/analysis/reader-report/format.js';
 import { renderAutomationMarketFindings } from '../../src/modules/analysis/research-automation/market-presentation-report.js';
+import { buildAutomationMarketPresentation, marketPresentationDigest } from '../../src/modules/analysis/research-automation/market-presentation-method.js';
 import { marketSourceScopeSection, projectMarketSourceScope } from '../../src/modules/analysis/research-automation/market-scope-report.js';
 import { deliverMarketReader, stripTraceDetails } from '../../src/modules/analysis/research-automation/market-reader-delivery.js';
 import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
@@ -148,6 +150,49 @@ test('capture source scope localizes dates, excludes unattributed rows and escap
   dom.window.close();
 });
 
+test('filtered-empty capture keeps the empty-sample notice and each platform page figure in the reader', async () => {
+  const { input, capture } = await fixture();
+  const empty = metricFixture();
+  empty.profileId = 'automation-metric-capture-v2';
+  empty.records = [];
+  const result = calculateMetricScopes(empty);
+  const method = buildAutomationMarketPresentation({ ...input.marketPresentation!.binding,
+    metric: { ...input.marketPresentation!.binding.metric!, resultSha256: marketPresentationDigest(result) } },
+  { metric: result, rows: [], unitSpec: null });
+  const filtered: CaptureMetricMethodDetails = { ...capture, rowPolicyVersion: 'automation-metric-capture-v2',
+    platforms: capture.platforms.map(({ platform }) => ({ platform,
+      result: calculateMetricScopes({ ...empty, scope: { ...empty.scope, platform } }) })),
+    platformHeadlines: [
+      { platform: 'shopee', revenue: { value: '12345', precision: 'exact', locator: '/groups/W3_platformSplit/0/revenue' }, units: null },
+      { platform: 'tiktok', revenue: { value: '67890', precision: 'exact', locator: '/groups/W3_platformSplit/1/revenue' }, units: null },
+    ] };
+  const { source, citations } = registry();
+  const reader = new JSDOM(stripTraceDetails(renderAutomationMarketFindings(method, citations, true, filtered)));
+  const visible = reader.window.document.body.textContent!;
+  assert.match(visible, /Chưa có số lượng mẫu phù hợp để phân tích sau khi lọc/u);
+  assert.match(visible, /Shopee:.*12\.345 VND/u);
+  assert.match(visible, /TikTok Shop:.*67\.890 VND/u);
+  assert.doesNotMatch(visible, /80\.235|\b0\b|%/u);
+  for (const platform of ['Shopee', 'TikTok Shop']) {
+    const item = [...reader.window.document.querySelectorAll('li')].find(li => text(li).startsWith(`Nhận định: ${platform}: bảng`))!;
+    const mark = Number(item.querySelector('sup.cite')!.textContent!.slice(1, -1));
+    // The register deduplicates both figures at their shared source and reader locator.
+    assert.equal(source.technicalTrace().entries.find(entry => entry.number === mark)!.identity, capture.snapshotSha256);
+    assert.equal(source.entries().find(entry => entry.number === mark)!.label, 'Số liệu nền tảng trong bản lưu nguồn');
+  }
+  const emptyNotice = '<p>Chưa có số lượng mẫu phù hợp để phân tích sau khi lọc. Không suy ra doanh số, số người mua hoặc quy mô ngoài mẫu.</p>';
+  assert.equal(renderAutomationMarketFindings(method, registry().citations, true), emptyNotice);
+  assert.equal(renderAutomationMarketFindings(method, registry().citations, false, filtered), emptyNotice);
+  const report = buildResearchAutomationReport({ ...input, marketPresentation: method, marketPresentationCharts: [],
+    metricMethods: { ...input.metricMethods!, result, capture: filtered } }, 'MARKET');
+  const page = new JSDOM(report.html.toString());
+  assert.match(page.window.document.querySelector('#M01')!.textContent!, /Shopee:.*12\.345 VND/u);
+  assert.match(page.window.document.querySelector('#M01')!.textContent!, /TikTok Shop:.*67\.890 VND/u);
+  assertCitations(page.window.document);
+  page.window.close();
+  reader.window.close();
+});
+
 test('capture sample wording is idempotent, avoids repeated saved wording, and preserves all quote containers', () => {
   const quote = 'Mẫu xuất đã lưu, mẫu xuất; 2026-10-19';
   const containers = ['q', 'blockquote', 'code', 'pre'];
@@ -175,6 +220,34 @@ test('automation reports without capture or presentation keep eedcb369 reader, s
     assert.equal(hash(canonicalJson(report.semantic)), variant.semantic);
     assert.equal(report.traceHtml ? hash(report.traceHtml) : null, variant.trace);
   }
+});
+
+test('row policy number formatting runs after reader delivery and leaves semantic citations and trace bytes intact', async () => {
+  const input = await fullMarket14Input();
+  const retained = canonicalJson(input);
+  for (const presentation of [true, false]) {
+    const { marketPresentation: _presentation, ...noPresentation } = input;
+    const original = presentation ? input : noPresentation;
+    const withPolicy = { ...original, metricMethods: { ...original.metricMethods!,
+      capture: { ...original.metricMethods!.capture!, rowPolicyVersion: 'automation-metric-capture-v2' as const } } };
+    for (const kind of ['MARKET', 'INSIGHT'] as const) {
+      const before = buildResearchAutomationReport(original, kind);
+      const after = buildResearchAutomationReport(withPolicy, kind);
+      // Main also changes M03's authored missing-value phrase for this marker.
+      const expectedHtml = kind === 'MARKET' ? plainCaptureNumbers(before.html.toString()
+        .replaceAll('không đổi thành 0.</p><dl class="reader-context">', 'không đổi thành số không.</p><dl class="reader-context">'))
+        .replaceAll('không thay bằng số không.</p><dl class="reader-context">', 'không đổi thành số không.</p><dl class="reader-context">') : before.html.toString();
+      assert.equal(hash(after.html), hash(expectedHtml), `${kind}, presentation=${presentation}`);
+      const expectedTrace = before.traceHtml?.toString().replaceAll('không đổi thành 0.</p><dl class="reader-context">', 'không đổi thành số không.</p><dl class="reader-context">');
+      assert.equal(after.traceHtml ? hash(after.traceHtml) : undefined, expectedTrace ? hash(expectedTrace) : undefined);
+      // The input marker itself is retained; the formatting pass changes no semantic content.
+      assert.deepEqual(after.semantic, kind === 'MARKET' ? { ...before.semantic, metricMethods: withPolicy.metricMethods } : before.semantic);
+      const dom = new JSDOM(after.html.toString());
+      assertCitations(dom.window.document);
+      dom.window.close();
+    }
+  }
+  assert.equal(canonicalJson(input), retained);
 });
 
 test('M01 period inventory stays cited in trace and is hidden only for the capture reader', async () => {
