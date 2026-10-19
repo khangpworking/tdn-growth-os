@@ -22,9 +22,9 @@ const v2PrefixTerms = [
   'stator', 'bạc đạn', 'công tắc', 'điều khiển', 'remote', 'adapter', 'linh kiện', 'phụ kiện', 'nắp', 'ốp', 'vỏ',
   'dây', 'giá đỡ', 'miếng dán', 'bút', 'cho', 'dùng cho', 'thay', 'thay thế', 'của',
 ].map(words);
-/** The v3 boolean is deliberately title-only; metadata decisions require the batch API. */
+/** Passing v3 means no deterministic title rejection, not a confirmed MAIN classification. */
 export function isMainCapturedProduct(title: string, keyword: string, profile: CaptureRowProfile = CAPTURE_ROW_PROFILE_V2): boolean {
-  if (profile === CAPTURE_ROW_PROFILE) return assessCaptureTitle(title, keyword).reason === null;
+  if (profile === CAPTURE_ROW_PROFILE) return true;
   const head = words(keyword)[0];
   if (!head) return false;
   const titleWords = words(title), first = titleWords.indexOf(head);
@@ -42,7 +42,7 @@ export type CaptureQualityRow = {
   readonly price?: number | null;
 };
 
-type RelevanceReason = 'ACCESSORY_FOR_TARGET' | 'SECONDARY_GIFT' | 'TITLE_CATEGORY_MISMATCH';
+type RelevanceReason = 'ACCESSORY_FOR_TARGET' | 'SECONDARY_GIFT';
 const phrases = (value: string) => value.split('|').map(words);
 const has = (seq: readonly string[], at: number, term: readonly string[]) => term.length > 0 && term.every((word, j) => seq[at + j] === word);
 const includes = (seq: readonly string[], term: readonly string[]) => seq.some((_, i) => has(seq, i, term));
@@ -63,6 +63,7 @@ const categoryKey = (value: string | null | undefined): string | null => {
 };
 const priceValue = (value: number | null | undefined): number | null => typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
 
+/** Title markers are diagnostic hypotheses only; they never decide v3 membership. */
 export function assessCaptureTitle(title: string, keyword: string) {
   const original = title.normalize('NFC'), target = words(keyword);
   const tokens = [...original.matchAll(/[\p{L}\p{N}\p{M}]+/gu)].map(match => ({ word: match[0].toLowerCase(), start: match.index, end: match.index + match[0].length }));
@@ -168,19 +169,16 @@ export function assessCaptureRows(rows: readonly CaptureQualityRow[], keywords: 
       const category = categories[i]!, price = prices[i]!, categoryCount = category === null || !cohort ? null : cohort.categoryCounts[category] ?? 0;
       const rareCategory = cohort?.categoryAvailable === true && category !== null && !cohort.modalCategories.includes(category) && categoryCount! <= cohort.rareLimit;
       const lowPrice = cohort?.priceAvailable === true && price !== null && price < 0.5 * cohort.p10!;
-      // A prefix, partial match or later segment can describe the product itself.
-      // Category rarity needs an explicit relation clue; a retained MAIN vetoes
-      // this category inference, but never a clear accessory or secondary-gift relation.
-      const categoryMismatch = title.weak.includes('WEAK_RELATION') && !title.protectedScope && rareCategory && aiLabel(row.title, keyword) !== 'MAIN';
-      const reason: RelevanceReason | null = title.reason ?? (categoryMismatch ? 'TITLE_CATEGORY_MISMATCH' : null);
+      // No deterministic relevance reason: even title.reason is diagnostic only.
+      const reason = null;
       const review = [...title.review, ...(category === null ? ['CATEGORY_UNAVAILABLE'] : []), ...(price === null ? ['PRICE_UNAVAILABLE'] : []),
         ...(!cohort?.categoryAvailable ? ['INSUFFICIENT_REFERENCE'] : []), ...(!cohort?.priceAvailable ? ['PRICE_REFERENCE_UNAVAILABLE'] : []),
         ...(platforms[i] === null ? ['PLATFORM_UNAVAILABLE'] : []), ...(lowPrice ? ['LOW_PRICE_ONLY'] : [])];
       return { keyword, title, reason, review, category, categoryCount, rareCategory, price, lowPrice };
     });
-    const reason = evidence.length && evidence.every(value => value.reason !== null) ? evidence[0]!.reason : null;
+    const reason = null;
     const aiExcluded = targets.length > 0 && targets.every(keyword => aiLabel(row.title, keyword) === 'NOT_MAIN');
-    if (reason || aiExcluded) exclusions.set(i, 'NOT_MAIN_PRODUCT');
+    if (aiExcluded) exclusions.set(i, 'NOT_MAIN_PRODUCT');
     return { rowIndex: i, platform: row.platform, usable: row.title.trim().length > 0, reason, aiExcluded,
       review: [...new Set(evidence.flatMap(value => value.review))], evidence };
   });

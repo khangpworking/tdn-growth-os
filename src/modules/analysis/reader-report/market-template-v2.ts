@@ -91,12 +91,14 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     ? '<p>Bộ lọc mẫu: loại phụ kiện, linh kiện, sản phẩm khác và dòng có doanh thu hoặc đơn vị bán bất thường khỏi mẫu tính. Bộ lọc mẫu do hệ thống áp dụng trên bảng kết quả đã lưu.</p>' +
       PLATS.map(platform => `<p>${esc(PLATFORM_LABEL[platform]!)}: ${(options.captureExcludedRows ?? []).filter(row => row.platform === platform).length} dòng đã loại khỏi mẫu tính toán.</p>`).join('')
     : '';
+  const limitations = [...options.limitations, ...(options.captureRowPolicy === 'automation-metric-capture-v3'
+    ? ['Những tiêu đề AI chưa phân loại được hoặc còn chưa chắc chắn vẫn được giữ trong mẫu.'] : [])];
   sections.push(section('M02', 'Phạm vi và phương pháp', `Kỳ ${period}; mỗi sàn là một phạm vi riêng.`,
     tbl('2.1', 'Phạm vi và độ phủ số liệu', '', ['Sàn', 'Dòng nguồn', 'Thiếu doanh thu', 'Doanh thu bằng không', 'Thiếu đơn vị bán', 'Đơn vị bán bằng không'],
       PLATS.map(P => [plat(P), n(bf(`${P}.all.n`)), n(bf(`${P}.all.rev.missing`)), n(bf(`${P}.all.rev.zero`)), n(bf(`${P}.all.units.missing`)), n(bf(`${P}.all.units.zero`))])) +
     tbl('2.2', `Quy tắc phân loại (${status})`, '', ['Nhóm', 'Quy tắc', 'Dòng khớp'], profile.rules.map((rule, i) => {
       B.set(`rule.${i}.n`, d.ruleHits[i] ?? 0, 'num'); return [label(segName(rule.seg)), label(rule.why ?? 'Luật khớp đầu tiên của hồ sơ đã lưu'), n(bf(`rule.${i}.n`))];
-    })) + captureFilter + options.limitations.map(limit => `<p>${esc(limit)}</p>`).join('') + reconciliationState + reconciliation,
+    })) + captureFilter + limitations.map(limit => `<p>${esc(limit)}</p>`).join('') + reconciliationState + reconciliation,
     'Chưa đủ căn cứ về kỳ, múi giờ, khung mẫu và tính rời nhau để cộng chéo sàn. Tổng và tỷ lệ cần đủ dữ liệu của đúng phạm vi.'));
   const exclusionNotes = PLATS.map(platform => {
     const notice = captureExclusionNotice(options.captureExcludedRows ?? [], platform, options.captureRowPolicy);

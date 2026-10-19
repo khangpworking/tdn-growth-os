@@ -87,7 +87,7 @@ export async function classifyCaptureRelevance(rows: readonly TitleRow[], keywor
   return readCaptureRelevanceRecord(record, rows, keywords);
 }
 
-/** Lookup only; the row policy combines these labels with relation and category evidence. */
+/** Lookup only; v3 relevance removal requires NOT_MAIN for every normalized keyword. */
 export function captureRelevanceLookup(record?: CaptureRelevanceRecord) {
   const labels = new Map(record?.decisions.map(row => [JSON.stringify([row.keyword, row.titleSha256]), row.label]));
   return (title: string, keyword: string) => labels.get(JSON.stringify([captureRelevanceKeyword(keyword), captureTitleSha256(title)])) ?? null;
