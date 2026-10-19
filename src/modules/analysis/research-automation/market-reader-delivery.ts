@@ -154,13 +154,18 @@ export function tableInterpretation(block: string): string {
   const own = /^<table\b[^>]*\sdata-reading="([^"]*)"/u.exec(table)?.[1];
   if (own !== undefined) return decode(own);
   const head = cells(table.match(/<thead\b[^>]*>([\s\S]*?)<\/thead>/iu)?.[1] ?? '');
-  const rows = [...(table.match(/<tbody\b[^>]*>([\s\S]*?)<\/tbody>/iu)?.[1] ?? '').matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/giu)].map(match => cells(match[1] ?? ''));
   const priceTable = /data-market-prices=/u.test(table);
+  const periodTable = /data-market-periods="true"/u.test(table);
+  // Short capture windows remain visible evidence, but never enter a numeric reading, including prices.
+  const rows = [...(table.match(/<tbody\b[^>]*>([\s\S]*?)<\/tbody>/iu)?.[1] ?? '').matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/giu)]
+    .filter(match => !(periodTable || priceTable) || !/^<tr\b[^>]*\bdata-period-incomplete="true"/u.test(match[0]))
+    .map(match => cells(match[1] ?? ''));
   const number = (cell: string): Num | undefined => {
     const num = parseNum(cell);
     return priceTable && num && num.value <= 0 ? undefined : num;
   };
-  const count = `Bảng có ${rows.length} dòng.`;
+  const count = (periodTable || priceTable) && /data-period-incomplete="true"/u.test(table)
+    ? `Diễn giải dùng ${rows.length} dòng đủ kỳ.` : `Bảng có ${rows.length} dòng.`;
   // Pending classification cells are not quoted as numbers anywhere outside their own cell.
   if (rows.length === 0 || /data-classified="pending"/u.test(table)) return '';
   const numeric = head.map((_h, i) => rows.some(row => number(row[i] ?? '') !== undefined));

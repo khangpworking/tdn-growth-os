@@ -229,7 +229,7 @@ test('automated reader uses the price projection without changing retained input
   // Latest-price review: preserve range-only evidence, explicit estimate wording, and corrected price-only readings.
   // 2480414f additionally points M04/M05 to Phần 3 and M13 to Phần 2.
   // Package C adds Phần 1 findings and its data badge to this capture report.
-  assert.equal(hash(report.html), 'c7b2fa4e84ae47cbd9d91e730039cf14e92f2214bd6b4891435dff8e88a06e98');
+  assert.equal(hash(report.html), '88af46c8be5de6ebd504eb49437598e9410cc8a775ea921eb80ae9e708342ef1');
   const doc = new JSDOM(report.html.toString()).window.document;
   const section = doc.querySelector('#M08')!;
   assert.equal(section.querySelectorAll('tbody tr').length, 8);

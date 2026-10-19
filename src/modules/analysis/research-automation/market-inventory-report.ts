@@ -2,12 +2,20 @@ import type { AutomationMarketMethodSnapshot } from './market-method-bridge.js';
 import { escapeHtml as escape, readerPointer, sourceMemberLabel, storedLiteral, type ReportCitations } from './descriptive-report.js';
 import { formatReaderCount, formatReaderValue, readerMeasureName, readerProductLabel, readerQuoteLabel } from './reader-plain-text.js';
 import { containsForbiddenProviderName } from '../citation-registry.js';
+import { inclusiveDayCount, parseProviderProductRef } from './provider-common.js';
+import type { CaptureRecord, ScopeSnapshot } from './model.js';
 
 type Observation = AutomationMarketMethodSnapshot['temporal']['input']['observations'][number];
 type Quote = AutomationMarketMethodSnapshot['quotes']['input']['quotes'][number];
 type Trace = (ref: { sourceSha256: string; fieldPointer: string }) => string;
 type Window = { readonly start: string | null; readonly end: string | null };
-export type MarketInventoryReaderContext = { readonly platforms: ReadonlyMap<string, string> };
+/** Supplied only for the market14 presentation; retained readers keep their original rendering. */
+export type MarketInventoryReaderContext = {
+  readonly platforms: ReadonlyMap<string, string>;
+  readonly scope?: Pick<ScopeSnapshot, 'selectedProductIds' | 'peerProductIds'>;
+  readonly sampleWindow?: Window | null;
+  readonly captures?: readonly CaptureRecord[];
+};
 
 export function marketInventorySection(snapshot: AutomationMarketMethodSnapshot, section: 'M03' | 'M08', citations: ReportCitations, productLabels?: ReadonlyMap<string, string>, readerPlainText = false, reader?: MarketInventoryReaderContext): string {
   const trace: Trace = ref => {
@@ -19,7 +27,7 @@ export function marketInventorySection(snapshot: AutomationMarketMethodSnapshot,
     });
   };
   if (readerPlainText) {
-    if (section === 'M03') return readerPeriodSection(snapshot, trace, productLabels, Boolean(reader));
+    if (section === 'M03') return readerPeriodSection(snapshot, trace, productLabels, reader);
     const retained = readerPriceSection(snapshot, trace, productLabels);
     if (!reader) return retained;
     const raw = snapshot.quotes.input.quotes.map(quote => `<tr><td>${escape(quote.quoteId)}</td><td>${escape(quote.price.value ?? (quote.price.range ? `${quote.price.range.minimum} đến ${quote.price.range.maximum}` : 'Không có giá đọc được'))}</td><td>${trace(quote.source)}</td></tr>`).join('');
@@ -59,6 +67,35 @@ function windowText(window: Window | null): string {
   return start && end ? `${start} đến ${end}` : 'Kỳ đo được giữ trong bản lưu nguồn';
 }
 
+/** One platform resolver for both market14 inventory tables; unknown references stay unknown. */
+function readerPlatform(snapshot: AutomationMarketMethodSnapshot, reader: MarketInventoryReaderContext, keys: readonly string[], quotes: readonly Quote[] = []): string {
+  const label = (value: string | null | undefined): string | null => value === 'shopee' || value === 'SHOPEE' ? 'Shopee'
+    : value === 'tiktok' || value === 'TIKTOK_SHOP' ? 'TikTok Shop' : null;
+  const platforms = keys.map(key => label(reader.platforms.get(key))
+    ?? label(snapshot.temporal.input.frame?.members.find(member => member.memberKey === key)?.platform)
+    ?? (parseProviderProductRef(key) ? 'TikTok Shop' : null));
+  if (!platforms.length) platforms.push(...quotes.map(quote => label(quote.identity?.platform)));
+  return [...new Set(platforms.map(platform => platform ?? 'Chưa rõ sàn'))].join(', ') || 'Chưa rõ sàn';
+}
+
+function shortWindowDays(window: Window): number | null {
+  if (!window.start || !window.end) return null;
+  try {
+    const days = inclusiveDayCount({ startDate: window.start, endDate: window.end });
+    return days > 0 && days < 30 ? days : null;
+  } catch { return null; }
+}
+
+function selectionText(reader: MarketInventoryReaderContext, keys: readonly string[]): string {
+  const selected = new Set(reader.scope?.selectedProductIds ?? []), peers = new Set(reader.scope?.peerProductIds ?? []);
+  const count = (scope: ReadonlySet<string>): number => keys.filter(key => scope.has(key)).length;
+  const principalCount = count(selected), peerCount = count(peers);
+  const roles = [principalCount ? `${formatReaderCount(principalCount)} sản phẩm chính` : '',
+    peerCount ? `${formatReaderCount(peerCount)} sản phẩm đối chiếu` : ''].filter(Boolean);
+  return roles.length ? `Gồm ${roles.join(' và ')} được chọn trong phạm vi đã xác nhận.`
+    : 'Chưa có thông tin xác nhận vai trò sản phẩm chính và sản phẩm đối chiếu.';
+}
+
 /** The detail capture's own query window; the run's whole period only when the capture kept none. */
 function observationWindow(row: Observation): Window {
   const raw = row.rawQuery as Partial<Observation['rawQuery']> | undefined;
@@ -82,7 +119,7 @@ const capitalized = (value: string): string => value.charAt(0).toUpperCase() + v
 const marks = (refs: readonly { sourceSha256: string; fieldPointer: string }[], trace: Trace): string => [...new Set(refs.map(trace))].join('');
 
 /** M03 reader view: one row per product and query window, one column per measure. */
-function readerPeriodSection(snapshot: AutomationMarketMethodSnapshot, trace: Trace, productLabels: ReadonlyMap<string, string> | undefined, currentReader = false): string {
+function readerPeriodSection(snapshot: AutomationMarketMethodSnapshot, trace: Trace, productLabels: ReadonlyMap<string, string> | undefined, reader?: MarketInventoryReaderContext): string {
   const names = productNamer(snapshot, productLabels);
   const measures: string[] = [];
   const vnd = new Set<string>();
@@ -109,6 +146,7 @@ function readerPeriodSection(snapshot: AutomationMarketMethodSnapshot, trace: Tr
   for (const row of ordered) {
     const previous = rows.at(-1);
     if (previous && noSales(previous) && noSales(row) && JSON.stringify(previous.keys) === JSON.stringify(row.keys)
+      && (!reader || (shortWindowDays(previous.window) === null && shortWindowDays(row.window) === null))
       && nextDay(previous.window.end) !== null && nextDay(previous.window.end) === row.window.start) {
       rows[rows.length - 1] = { ...previous, window: { start: previous.window.start, end: row.window.end },
         observations: [...previous.observations, ...row.observations], periods: previous.periods + row.periods };
@@ -122,16 +160,23 @@ function readerPeriodSection(snapshot: AutomationMarketMethodSnapshot, trace: Tr
       return formatReaderValue(decimal, { measure: observation.measure?.literal, unit: observation.measure?.unit, currency: observation.measure?.currency }) ?? 'Chưa có dữ liệu';
     }).join('; ');
   };
+  const platforms = reader ? rows.map(row => readerPlatform(snapshot, reader, row.keys)) : [];
+  const platformColumn = platforms.some(platform => /Shopee|TikTok Shop/u.test(platform));
   const body = rows.map(row => {
     const values = noSales(row)
       ? `<td colspan="${measures.length}">${row.periods > 1 ? `Không ghi nhận bán trong ${escape(formatReaderCount(row.periods) ?? 'các')} kỳ liền nhau` : 'Không ghi nhận bán trong kỳ'}</td>`
       : measures.map(measure => `<td>${escape(cell(row.cells.get(measure)))}</td>`).join('');
-    return `<tr><td>${escape(names.label(row.keys))}</td><td>${escape(windowText(row.window))}</td>${values}<td>${marks(row.observations.map(observation => observation.source), trace)}</td></tr>`;
+    const days = reader ? shortWindowDays(row.window) : null;
+    const beyondSample = reader?.sampleWindow?.end && row.window.end && row.window.end > reader.sampleWindow.end
+      ? `; vượt ngày cuối mẫu ${readerDate(reader.sampleWindow.end)}` : '';
+    const period = windowText(row.window) + (days === null ? '' : `; kỳ chưa đủ (${days} ngày)`) + beyondSample;
+    return `<tr${days === null ? '' : ' data-period-incomplete="true"'}>${platformColumn ? `<td>${escape(readerPlatform(snapshot, reader!, row.keys))}</td>` : ''}<td>${escape(names.label(row.keys))}</td><td>${escape(period)}</td>${values}<td>${marks(row.observations.map(observation => observation.source), trace)}</td></tr>`;
   }).join('');
   const headers = measures.map(measure => `<th>${escape(capitalized(readerMeasureName(measure)))}${vnd.has(measure) ? ' (VND)' : ''}</th>`).join('');
   return '<p class="warning">Mỗi dòng là một kỳ đo riêng của một sản phẩm được chọn. Không cộng các kỳ thành tổng năm, không tính tăng trưởng và không gọi đây là quy mô thị trường.</p>' +
-    `<div class="table-wrap" role="region" aria-label="Số liệu theo kỳ của sản phẩm được chọn" tabindex="0"><table><caption>Số liệu theo từng kỳ đo của các sản phẩm được chọn</caption><thead><tr><th>Sản phẩm</th><th>Kỳ đo</th>${headers}<th>Nguồn</th></tr></thead><tbody>${body || `<tr><td colspan="${3 + measures.length}">Chưa có số liệu theo kỳ dùng được.</td></tr>`}</tbody></table></div>` +
-    (currentReader ? '<p class="lim"><b>Chú thích:</b> Số liệu mẫu lấy từ trang kết quả tìm kiếm đã lưu; doanh thu chi tiết lấy từ trang sản phẩm theo kỳ riêng ghi trong bảng này. Vì vậy, số của cùng một sản phẩm ở hai nơi có thể khác nhau. “Không ghi nhận bán” là nguồn không ghi lượt bán nào trong kỳ đó.</p>'
+    (reader ? `<p>${escape(selectionText(reader, [...new Set(rows.flatMap(row => row.keys))]))}</p>` : '') +
+    `<div class="table-wrap" role="region" aria-label="Số liệu theo kỳ của sản phẩm được chọn" tabindex="0"><table${reader ? ' data-market-periods="true"' : ''}><caption>Số liệu theo từng kỳ đo của các sản phẩm được chọn</caption><thead><tr>${platformColumn ? '<th>Sàn</th>' : ''}<th>Sản phẩm</th><th>Kỳ đo</th>${headers}<th>Nguồn</th></tr></thead><tbody>${body || `<tr><td colspan="${3 + measures.length + Number(platformColumn)}">Chưa có số liệu theo kỳ dùng được.</td></tr>`}</tbody></table></div>` +
+    (reader ? '<p class="lim"><b>Chú thích:</b> Số liệu mẫu lấy từ trang kết quả tìm kiếm đã lưu; doanh thu chi tiết lấy từ trang sản phẩm theo kỳ riêng ghi trong bảng này. Vì vậy, số của cùng một sản phẩm ở hai nơi có thể khác nhau. Các tháng cao điểm lấy từ trang sản phẩm, không so sánh với mẫu tìm kiếm 30 ngày. Kỳ chưa đủ 30 ngày không dùng để diễn giải hay so sánh với kỳ đủ; ngày vượt cuối mẫu được giữ đúng bản thu, không cắt hay chia tỷ lệ số liệu. “Không ghi nhận bán” là nguồn không ghi lượt bán nào trong kỳ đó.</p>'
       : '<p class="lim"><b>Chú thích:</b> Số liệu lấy từ trang chi tiết của từng sản phẩm, theo từng kỳ đo. Bảng mẫu sản phẩm lấy từ trang kết quả tìm kiếm với kỳ và cách làm tròn khác, nên số của cùng một sản phẩm ở hai nơi có thể lệch nhau. “Không ghi nhận bán” là nguồn không ghi lượt bán nào trong kỳ đó.</p>');
 }
 
@@ -161,15 +206,17 @@ function latestReaderPrices(snapshot: AutomationMarketMethodSnapshot, trace: Tra
     const ordinal = /^capture-(\d+)-/.exec(row.observationId ?? '')?.[1];
     if (ordinal !== undefined) observations.set(ordinal, row);
   }
-  type Capture = { keys: readonly string[]; quotes: Quote[]; ordinal: number; acquiredAt: number; index: number };
+  type Capture = { keys: readonly string[]; quotes: Quote[]; ordinal: number; acquiredAt: number; window: Window | null; index: number };
   const captures = new Map<string, Capture>();
   snapshot.quotes.input.quotes.forEach((quote, index) => {
     const ordinal = /^capture-(\d+)-/.exec(quote.quoteId)?.[1];
     const id = ordinal ?? `quote:${index}`;
     const observation = observations.get(ordinal ?? '');
+    const retainedCapture = ordinal === undefined ? undefined : reader.captures?.find(capture => capture.stepId === 'COLLECTION' && capture.ordinal === Number(ordinal));
     const member = quoteMemberKey(quote, knownKeys);
-    const acquiredAt = Date.parse(quote.acquiredAt ?? observation?.retrievedAt ?? '');
-    const capture = captures.get(id) ?? { keys: observation?.subjectMemberKeys?.length ? observation.subjectMemberKeys : member ? [member] : [], quotes: [], ordinal: Number(ordinal ?? index + 1), acquiredAt: Number.isFinite(acquiredAt) ? acquiredAt : 0, index };
+    const acquiredAt = Date.parse(observation?.retrievedAt ?? retainedCapture?.retrievedAt ?? quote.acquiredAt ?? '');
+    const capture = captures.get(id) ?? { keys: observation?.subjectMemberKeys?.length ? observation.subjectMemberKeys : member ? [member] : [], quotes: [], ordinal: Number(ordinal ?? index + 1), acquiredAt: Number.isFinite(acquiredAt) ? acquiredAt : Number.NEGATIVE_INFINITY,
+      window: observation ? observationWindow(observation) : retainedCapture?.window ? { start: retainedCapture.window.startDate, end: retainedCapture.window.endDate } : null, index };
     capture.quotes.push(quote);
     captures.set(id, capture);
   });
@@ -184,7 +231,8 @@ function latestReaderPrices(snapshot: AutomationMarketMethodSnapshot, trace: Tra
     const formatted = formatReaderValue(value, { currency: 'VND' });
     return formatted === '0' ? null : formatted;
   };
-  let readable = false;
+  let readable = false, missingRange = false;
+  const bases: { label: string; basis: string }[] = [];
   const rows = [...products.values()].sort((a, b) => names.ordinal(a.keys) - names.ordinal(b.keys) || a.index - b.index).map((capture, index) => {
     const unit = capture.quotes.find(quote => !quote.price.range);
     const range = capture.quotes.find(quote => quote.price.range)?.price.range;
@@ -193,18 +241,21 @@ function latestReaderPrices(snapshot: AutomationMarketMethodSnapshot, trace: Tra
     const validRange = range && minimum && maximum && minimum !== maximum && compareAmounts(range.minimum, range.maximum) < 0
       && (price === null || (compareAmounts(range.minimum, unit!.price.value!) <= 0 && compareAmounts(unit!.price.value!, range.maximum) <= 0));
     readable ||= price !== null || Boolean(validRange);
+    missingRange ||= !validRange;
     const candidate = capture.keys.length ? names.label(capture.keys).replace(/Sản phẩm #/g, 'Sản phẩm ') : '';
     const label = candidate && !containsForbiddenProviderName(candidate) && !/\b(?:Gemini|Google)\b/iu.test(candidate)
       ? candidate : `Sản phẩm ${formatReaderCount(capture.keys.length ? names.ordinal(capture.keys) : index + 1)}`;
-    const observation = observations.get(String(capture.ordinal));
-    const platform = capture.keys.map(key => reader.platforms.get(key)).find(value => value) ?? capture.quotes.find(quote => quote.identity?.platform)?.identity?.platform
-      ?? (observation?.sourceNamespace === 'kalodata-product-detail' || capture.keys.some(key => key.startsWith('kalodata:')) ? 'tiktok' : null);
-    const platformLabel = platform === 'shopee' || platform === 'SHOPEE' ? 'Shopee' : platform === 'tiktok' || platform === 'TIKTOK_SHOP' ? 'TikTok Shop' : 'Chưa rõ sàn';
-    return `<tr><td>${escape(platformLabel)}</td><td>${escape(label)}</td><td>${escape(price ?? 'Chưa có giá đọc được')}</td><td>${escape(validRange ? `${minimum} đến ${maximum}` : '—')}</td><td>${marks(capture.quotes.map(quote => quote.source), trace)}</td></tr>`;
+    const platformLabel = readerPlatform(snapshot, reader, capture.keys, capture.quotes);
+    const date = Number.isFinite(capture.acquiredAt) ? readerDate(new Date(capture.acquiredAt).toISOString().slice(0, 10)) : null;
+    bases.push({ label: `${platformLabel} · ${label}`, basis: `${date ? `thu ngày ${date} (UTC)` : 'chưa rõ ngày thu'}; ${capture.window?.start && capture.window.end ? `kỳ ${windowText(capture.window)}` : 'chưa rõ kỳ đo'}` });
+    return `<tr${capture.window && shortWindowDays(capture.window) !== null ? ' data-period-incomplete="true"' : ''}><td>${escape(platformLabel)}</td><td>${escape(label)}</td><td>${escape(price ?? 'Chưa có giá đọc được')}</td><td>${escape(validRange ? `${minimum} đến ${maximum}` : '—')}</td><td>${marks(capture.quotes.map(quote => quote.source), trace)}</td></tr>`;
   }).join('');
+  const sharedBasis = bases.length > 0 && bases.every(row => row.basis === bases[0]!.basis);
+  const basisNote = bases.length ? sharedBasis ? ` Tất cả sản phẩm: ${bases[0]!.basis}.`
+    : ` Bản thu giữ lại của từng sản phẩm: ${bases.map(row => `${row.label}: ${row.basis}`).join('; ')}.` : '';
   return '<p class="warning">Chưa rõ phiên bản, combo hay điều kiện giá.</p>' +
-    `<div class="table-wrap" role="region" aria-label="Giá tham khảo của từng sản phẩm" tabindex="0"><table data-market-prices="${readable ? 'reference' : 'unavailable'}"><caption>Giá tham khảo của từng sản phẩm (VND)</caption><thead><tr><th>Sàn</th><th>Sản phẩm</th><th>Giá bình quân (doanh thu ÷ số đã bán, ước tính)</th><th>Khoảng giá nguồn (VND)</th><th>Nguồn</th></tr></thead><tbody>${rows || '<tr><td colspan="5">Chưa có giá đọc được</td></tr>'}</tbody></table></div>` +
-    '<p class="lim"><b>Chú thích:</b> Mỗi sản phẩm giữ lần thu sau cùng. Giá bình quân là số nguồn tính, chưa xác minh; chưa dùng để tính giá vốn hoặc lợi nhuận.</p>';
+    `<div class="table-wrap" role="region" aria-label="Giá tham khảo của từng sản phẩm" tabindex="0"><table data-market-prices="${readable ? 'reference' : 'unavailable'}"><caption>Giá tham khảo của từng sản phẩm (VND)</caption><thead><tr><th>Sàn</th><th>Sản phẩm</th><th>Giá bình quân do nguồn tính (ước tính)</th><th>Khoảng giá nguồn (VND)</th><th>Nguồn</th></tr></thead><tbody>${rows || '<tr><td colspan="5">Chưa có giá đọc được</td></tr>'}</tbody></table></div>` +
+    `<p class="lim"><b>Chú thích:</b> Mỗi sản phẩm giữ lần thu sau cùng. Giá bình quân là số nguồn tính, chưa xác minh; chưa dùng để tính giá vốn hoặc lợi nhuận.${escape(basisNote)}${missingRange ? ' Dấu “—” cho biết chưa có khoảng giá nguồn dùng được.' : ''}</p>`;
 }
 
 /** M08 reader view: listed price range once per product, then revenue ÷ units per query window as an estimate. */
