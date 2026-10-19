@@ -1,7 +1,7 @@
 import type { AutomationReportInput } from './reports.js';
 import { escapeHtml as escape, providerProvenanceLabel, readerSafe, storedLiteral, type ReportCitations } from './descriptive-report.js';
 import { containsForbiddenProviderName } from '../citation-registry.js';
-import type { AutomationMetricMethodSnapshot, MetricMethodSourceFile } from './metric-method-bridge.js';
+import type { AutomationMetricMethodSnapshot, CaptureMetricMethodDetails, MetricMethodSourceFile } from './metric-method-bridge.js';
 import type { StartSnapshot } from './model.js';
 
 type Input = Pick<AutomationReportInput, 'start' | 'captures' | 'metricMethods' | 'metricClassified'>;
@@ -73,7 +73,33 @@ const periodBasisLabel = (value: string): string => value === 'Kỳ bộ lọc c
   ? 'Kỳ lọc của bảng kết quả tìm kiếm đã lưu; giữ nguyên, không tự kéo dài hoặc chia tỷ lệ.'
   : storedLiteral(value, 'Căn cứ kỳ được giữ trong bản lưu nguồn');
 
-export function marketSourceScopeSection(scope: MarketSourceScope, section: 'M02' | 'M13', citations: ReportCitations, readerPlainText = false): string {
+const PLATFORM_LABELS = { shopee: 'Shopee', tiktok: 'TikTok Shop' } as const;
+const isoDay = (value: string): string => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(value);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
+};
+const vietnamDay = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric' });
+const acquiredDay = (value: string | null): string => {
+  const time = value === null ? Number.NaN : Date.parse(value);
+  return Number.isNaN(time) ? 'chưa xác nhận ngày lấy' : `lấy ngày ${vietnamDay.format(time)}`;
+};
+
+/** Reader lines of a results-page capture: one per platform, read separately (never summed). */
+function capturePlatformScope(capture: CaptureMetricMethodDetails): string {
+  const results = new Map(capture.platforms.map(entry => [entry.platform, entry.result] as const));
+  const lines = capture.capture.platforms.map(platform => {
+    const result = results.get(platform);
+    return result && result.input.records.length
+      ? `<li>${PLATFORM_LABELS[platform]}: ${escape(acquiredDay(result.input.scope.acquiredAt))}; ${result.input.records.length} dòng sản phẩm; kỳ ${escape(isoDay(result.input.scope.start))} đến ${escape(isoDay(result.input.scope.end))}.</li>`
+      : `<li>${PLATFORM_LABELS[platform]}: chưa có dòng nào gán được cho sàn này.</li>`;
+  });
+  const unattributed = capture.unattributedRows.length
+    ? `<p>${capture.unattributedRows.length} dòng không ghi rõ sàn nên không dùng trong số liệu; các dòng này được giữ trong hồ sơ đối chiếu.</p>` : '';
+  return `<ul>${lines.join('')}</ul>${unattributed}`;
+}
+
+export function marketSourceScopeSection(scope: MarketSourceScope, section: 'M02' | 'M13', citations: ReportCitations, readerPlainText = false,
+  capture?: CaptureMetricMethodDetails): string {
   const metric = scope.metric;
   if (section === 'M13') {
     if (!metric) return '<details class="evidence-trace"><summary>Hồ sơ đối chiếu nguồn số liệu</summary><p>Chưa có gói số liệu đã xử lý trong bản báo cáo này; không có dấu vết tính toán để đối chiếu.</p></details>';
@@ -86,10 +112,17 @@ export function marketSourceScopeSection(scope: MarketSourceScope, section: 'M02
       ? `<p>Quy tắc đã chọn: ${code(metric.classification.adoptionId)}. Bằng chứng phân loại: ${code(metric.classification.proofSha256)}.</p><ul>${metric.classification.receiptIds.map(id => `<li>Biên nhận lựa chọn: ${code(id)}</li>`).join('')}</ul>`
       : '<p>Chưa có biên nhận phân loại được chọn cho bản báo cáo này.</p>'}<p>Kiểm tra tính toàn vẹn không chứng nhận nguồn do nhà cung cấp trực tiếp thu thập. Phân loại này chỉ áp dụng cho mẫu số liệu.</p></details>`;
   }
+  const declared = metric
+    ? `<dl><dt>Kỳ khai báo trong nguồn</dt><dd>${escape(metric.declaredScope.start)} đến ${escape(metric.declaredScope.end)}</dd><dt>Nền tảng</dt><dd>${escape(metric.declaredScope.platform)}</dd><dt>Thời điểm lấy nguồn</dt><dd>${metric.declaredScope.acquiredAt === null ? 'Chưa xác nhận' : escape(metric.declaredScope.acquiredAt)}</dd><dt>Số dòng chuẩn hóa</dt><dd>${metric.sourceRowCount}</dd></dl>` : '';
   const metricContent = metric
-    ? `<dl><dt>Kỳ khai báo trong nguồn</dt><dd>${escape(metric.declaredScope.start)} đến ${escape(metric.declaredScope.end)}</dd><dt>Nền tảng</dt><dd>${escape(metric.declaredScope.platform)}</dd><dt>Thời điểm lấy nguồn</dt><dd>${metric.declaredScope.acquiredAt === null ? 'Chưa xác nhận' : escape(metric.declaredScope.acquiredAt)}</dd><dt>Số dòng chuẩn hóa</dt><dd>${metric.sourceRowCount}</dd></dl><p>${metric.classification ? 'Đã áp dụng lựa chọn phân loại cho mẫu số liệu của bản này.' : 'Chưa áp dụng phân loại đã duyệt; không suy phạm vi rộng hoặc phạm vi cốt lõi từ từ khóa.'}</p><p>Kỳ này do nguồn khai báo, chưa được xác minh độc lập. Không kéo dài hoặc chia tỷ lệ số liệu để khớp kỳ yêu cầu.</p><details class="evidence-trace"><summary>Hồ sơ đối chiếu kỳ đo và trạng thái tính</summary><p>Căn cứ kỳ khai báo, nguyên văn: ${periodBasisLabel(metric.declaredScope.periodBasis)}</p><p>Trạng thái phép tính: ${metric.scopes.map(s => `${escape(s.scope.toUpperCase())}: ${escape(s.status)}`).join('; ')}.</p></details>`
+    ? `${capture ? capturePlatformScope(capture) : declared}<p>${metric.classification ? 'Đã áp dụng lựa chọn phân loại cho mẫu số liệu của bản này.' : 'Chưa áp dụng phân loại đã duyệt; không suy phạm vi rộng hoặc phạm vi cốt lõi từ từ khóa.'}</p><p>Kỳ này do nguồn khai báo, chưa được xác minh độc lập. Không kéo dài hoặc chia tỷ lệ số liệu để khớp kỳ yêu cầu.</p><details class="evidence-trace"><summary>Hồ sơ đối chiếu kỳ đo và trạng thái tính</summary>${capture ? declared : ''}<p>Căn cứ kỳ khai báo, nguyên văn: ${periodBasisLabel(metric.declaredScope.periodBasis)}</p><p>Trạng thái phép tính: ${metric.scopes.map(s => `${escape(s.scope.toUpperCase())}: ${escape(s.status)}`).join('; ')}.</p></details>`
     : '<p>Chưa có gói số liệu đã xử lý trong bản này. Không xem thiếu nguồn là doanh số bằng 0.</p>';
   const queries = scope.queries.map(group => `<li><p>${stepLabel(group.step)}: ${group.windows.length} khoảng truy vấn khác nhau, ${group.captures.length} bản thu${group.truncated ? '; có bản thu bị cắt' : ''}.</p><details><summary>Xem các khoảng đã truy vấn</summary><ul>${group.windows.map(w => `<li>${escape(w.startDate)} đến ${escape(w.endDate)}</li>`).join('')}</ul></details><details><summary>Xem dấu vết các bản thu của nhóm này</summary><ul>${group.captures.map(sha => `<li>${citations.mark({ sourceKind: 'CAPTURE', identity: sha, locator: null, label: 'Bản thu dữ liệu nguồn',
     retrievedAt: null, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE', technical: { step: group.step } })}</li>`).join('')}</ul></details></li>`).join('');
-  return `<h3>Phạm vi từng nguồn</h3><h4>Số liệu nguồn</h4>${metricContent}<h4>Truy vấn đã lưu</h4>${queries ? `<ul>${queries}</ul>` : '<p>Chưa có bản thu kèm khoảng truy vấn.</p>'}<p>Các khoảng trên là ngày gửi trong yêu cầu, không chứng minh nguồn có dữ liệu đo đủ cả kỳ hoặc các cửa sổ có thể cộng lại. Quy tắc phân loại của nguồn số liệu không tự áp dụng cho nguồn sàn khác, tìm kiếm hoặc review.</p><p>Kỳ chọn listing không giới hạn ngày đăng review. Ngày review phải kiểm tra riêng trong bằng chứng gốc.</p><a href="#M13">Đối chiếu nguồn và phương pháp tại M13</a>`;
+  const queryList = `<h4>Truy vấn đã lưu</h4>${queries ? `<ul>${queries}</ul>` : '<p>Chưa có bản thu kèm khoảng truy vấn.</p>'}<p>Các khoảng trên là ngày gửi trong yêu cầu, không chứng minh nguồn có dữ liệu đo đủ cả kỳ hoặc các cửa sổ có thể cộng lại. Quy tắc phân loại của nguồn số liệu không tự áp dụng cho nguồn sàn khác, tìm kiếm hoặc review.</p>`;
+  // A results-page capture states how the rows were taken; the query log stays in the technical copy.
+  const queryContent = capture
+    ? `<h4>Cách lấy dữ liệu</h4><p>Hệ thống tìm sản phẩm theo từ khóa và lưu bảng kết quả của từng sàn trong kỳ đã chọn; nhật ký truy vấn được giữ trong hồ sơ đối chiếu.</p><details class="evidence-trace"><summary>Nhật ký truy vấn đã lưu</summary>${queryList}</details>`
+    : queryList;
+  return `<h3>Phạm vi từng nguồn</h3><h4>Số liệu nguồn</h4>${metricContent}${queryContent}<p>Kỳ chọn listing không giới hạn ngày đăng review. Ngày review phải kiểm tra riêng trong bằng chứng gốc.</p><a href="#M13">Đối chiếu nguồn và phương pháp tại M13</a>`;
 }

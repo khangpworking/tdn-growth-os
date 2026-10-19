@@ -73,4 +73,7 @@ test('capture number wording leaves source quotes, source identifiers and layout
     protectedHtml + '<p title="0%">không có dòng; 20 phần trăm; 10.000; 0,01</p>');
   assert.equal(plainCaptureNumbers('<p>Trong mẫu có 0 dòng thiếu doanh thu và 0 dòng thiếu đơn vị bán.</p>'),
     '<p>Trong mẫu không có dòng thiếu doanh thu và không có dòng thiếu đơn vị bán.</p>');
+  const citation = '<sup class="cite"><a href="#cite-1">[1]</a></sup><a href="https://example.test/a%20b?x=0&amp;y=1">Nguồn</a>';
+  const escaped = '&lt;img src=x onerror=bad&gt; &amp; &#0; &#37; &quot;';
+  assert.equal(plainCaptureNumbers(`<p>${escaped} 20%${citation}</p>`), `<p>${escaped} 20 phần trăm${citation}</p>`);
 });

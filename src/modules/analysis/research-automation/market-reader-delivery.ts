@@ -67,6 +67,11 @@ const PHRASES: readonly [RegExp, string][] = [
   [/([Kk])hông (?:tính là|đổi thành|ghi thành) 0(?![\d]|[,.]\d)/gu, '$1hông thay bằng số không'],
 ];
 
+// Only results-page copies use this wording; other report inputs retain their bytes.
+const CAPTURE_PHRASES: readonly [RegExp, string][] = [
+  [/(?<![\p{L}\p{N}])([Mm])ẫu xuất(?: đã lưu)?(?![\p{L}\p{N}])/gu, '$1ẫu đã lưu'],
+];
+
 const CONTEXT = /Cục Thống kê|Ngân hàng Thế giới|vĩ mô|cả nước|mã hàng|tìm kiếm|quảng cáo|video|tỉnh|thành phố/iu;
 /** A caption naming a sales platform first, or the in-sample measure, is the stored sales sample even when it mentions search. */
 const SAMPLE_CAPTION = /^(?:Shopee|TikTok Shop)\b|trong mẫu/u;
@@ -74,8 +79,9 @@ const SAMPLE_NOTE = 'Số liệu lấy từ các dòng đã lưu của từng s�
 const CONTEXT_NOTE = 'Số liệu nền từ nguồn công khai, đọc riêng; không nói về riêng sản phẩm này. Ô ghi “chưa có dữ liệu” không có nghĩa là bằng không.';
 
 /** Localize display dates without changing source quotes, identifiers or markup. */
-function readerText(html: string): string {
+function readerText(html: string, captureCopy: boolean): string {
   const protectedTags: string[] = [];
+  const phrases = [...PHRASES.slice(1), ...(captureCopy ? CAPTURE_PHRASES : [])];
   return html.split(/(<[^>]+>)/gu).map((part, index) => {
     if (index % 2) {
       const tag = /^<\/?([\w-]+)/u.exec(part)?.[1]?.toLowerCase();
@@ -89,7 +95,7 @@ function readerText(html: string): string {
       return part;
     }
     if (protectedTags.length) return part;
-    return PHRASES.slice(1).reduce((value, [re, to]) => value.replace(re, to), part)
+    return phrases.reduce((value, [re, to]) => value.replace(re, to), part)
       .replace(/(?<![\p{L}\p{N}_./-])(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}:\d{2}:\d{2}(?:\.\d+)?)(Z|[+-]\d{2}:\d{2}))?(?![\p{L}\p{N}_/-]|\.[\p{L}\p{N}])/gu,
         (all, year: string, month: string, day: string, time?: string, zone?: string) => {
           const iso = `${year}-${month}-${day}`;
@@ -300,13 +306,13 @@ export function marketReaderGuide(platforms: readonly string[]): string {
 const DATA_SECTIONS =/^M(?:0[3-9]|1[01])$/u;
 
 /** Reader copy of a market14 page (before platform icons and label sanitising). Sections are never nested. */
-export function deliverMarketReader(html: string, searchPoints?: readonly SearchPoint[]): string {
+export function deliverMarketReader(html: string, searchPoints?: readonly SearchPoint[], captureCopy = false): string {
   const open = html.indexOf('<div id="sections">');
   if (open < 0) return html;
   const close = html.indexOf('<footer', open);
   const head = html.slice(0, open), tail = close < 0 ? '' : html.slice(close);
   let body = stripTraceDetails(close < 0 ? html.slice(open) : html.slice(open, close));
-  body = readerText(body);
+  body = readerText(body, captureCopy);
   body = body.replace(PHRASES[0]![0], PHRASES[0]![1]);
   body = body.replace(/<a\b[^>]*href="#bounded-method-evidence"[^>]*>([\s\S]*?)<\/a>/gu, '$1');
   // Keep an English definition only if a verbatim source quote still uses the term.

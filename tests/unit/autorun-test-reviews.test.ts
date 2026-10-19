@@ -156,14 +156,17 @@ test('collector cap drift cannot dispatch a production collection through trial 
   assert.ok(run.coverage.sources.some(row => row.provider === 'apify-shopee' && row.state === 'FAILED'));
 });
 
-test('frozen default report digests from the base commit remain unchanged (Market and Insight)', async () => {
+test('Market capture copy has explained rendering digests; Insight digests remain unchanged', async () => {
   const input = await fullMarket14Input();
   const market = buildResearchAutomationReport(input, 'MARKET');
-  // Reader and trace bytes re-pinned for the intended Market reader inventory/peer wording and descriptive reader copy (M05/M06/M07/M09) the plain owner copy for periods, peers and ads, and the per-platform Phần 11 and dated Phần 12 proposals. Reader dates/terms are localized while source quotes stay verbatim.
-  assert.equal(digest(market.html), '864d022a9e285d70cfe7b509eb372dcd5b5a599db0ebc4f53fdc7ee97b32aa25');
-  // Against 21d0909a this fixture changes M04.title, M10.explanation and the M11/M12 proposal state and explanation; it has no default-peer rule to exercise M07.
-  assert.equal(digest(canonicalJson(market.semantic)), 'f0848a6b8ed0a967ed928caff7a6b47f8b2e83790df4ca4f7f9c3f9c26b44fc4');
-  assert.equal(digest(market.traceHtml!), 'fda1a3ddd806e5b763af8057e434068982088c35b09cba4c556a82f4a72504c5');
+  // Against eedcb369: per-platform Phần 1/2 copy, localized scope dates, capture-only sample wording,
+  // and retained M03 findings in the trace. No retained method or Insight bytes change.
+  assert.equal(digest(market.html), '4f3b70cfdb4cc55751fb5b347e6a984ae61329d81550ec8a20493eef8c6fc19d');
+  // All nine semantic citations remain. The sample calculation moves from citation 1 to 3;
+  // the per-platform calculation moves from 3 to 1 and gains methodVersion/rounding metadata.
+  // These are the only semantic differences from eedcb369.
+  assert.equal(digest(canonicalJson(market.semantic)), '3a50085424b8843609458a2d77a93e5f4baa21a8e2b1db40239f33140991dfde');
+  assert.equal(digest(market.traceHtml!), '8e2339d7f07b684f91d603a3daab382222e9db305b091780fc84f04c63b3cb15');
   const insight = buildResearchAutomationReport(input, 'INSIGHT');
   assert.equal(digest(insight.html), '7163940cc6c424f6c1a2fc73c7af9458e1a50d3957adaa8d43802a8caf6ba08d');
   assert.equal(digest(canonicalJson(insight.semantic)), '21c5fa1d4be2b577cc196d0508e84342b0953f1a16ed6505eccbb784b8f05294');

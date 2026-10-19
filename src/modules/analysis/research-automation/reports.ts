@@ -908,7 +908,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     }
     if (marketPresentation && (section.sectionId === 'M01' || section.sectionId === 'M08')) {
       locatedViews.set(section.sectionId, () => section.sectionId === 'M01'
-        ? renderAutomationMarketFindings(marketPresentation, citations, readerPlainText) : renderAutomationMarketUnitPrices(marketPresentation, citations, readerPlainText));
+        ? renderAutomationMarketFindings(marketPresentation, citations, readerPlainText, input.metricMethods?.capture) : renderAutomationMarketUnitPrices(marketPresentation, citations, readerPlainText));
       return { sectionId: section.sectionId, title: section.title, state: 'EVIDENCE_INVENTORY', rows: [],
         method: marketPresentation.methodVersion,
         explanation: section.sectionId === 'M01' ? 'Nhận định chỉ mô tả dữ liệu đã lưu trong phạm vi khai báo.'
@@ -1352,8 +1352,12 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     (input.boundedMethods && traceAppendix(sectionId) && (sectionId === 'M13' || sectionId === 'I17')
       ? `<details open id="bounded-method-evidence"><summary>Hồ sơ phương pháp M10/I11/I12/I16 và vị trí nguồn</summary><p>Nguồn bổ sung do người dùng chọn, không phải dữ liệu tự thu hoặc xác nhận độ phủ. Hồ sơ giữ riêng kỳ, phạm vi và điều kiện còn thiếu; không cộng gộp với số liệu thị trường hoặc review.</p>${retainedEvidenceHtml(input.boundedMethods)}</details>` : '');
   const baseAppendix = (sectionId: string): string => {
-    if (sourceScope && sectionId === 'M02') return marketSourceScopeSection(sourceScope, 'M02', citations, readerPlainText);
-    if (kind === 'MARKET' && sectionId === 'M01' && input.m01Inventory && input.sourceClaims) return m01InventorySection(input.m01Inventory, input.sourceClaims, citations, readerPlainText);
+    if (sourceScope && sectionId === 'M02') return marketSourceScopeSection(sourceScope, 'M02', citations, readerPlainText, marketPresentation ? input.metricMethods?.capture : undefined);
+    if (kind === 'MARKET' && sectionId === 'M01' && input.m01Inventory && input.sourceClaims) {
+      const inventory = m01InventorySection(input.m01Inventory, input.sourceClaims, citations, readerPlainText);
+      // Phần 1 states the per-platform findings; the per-period evidence rows stay in the technical copy.
+      return marketPresentation && input.metricMethods?.capture ? `<details class="evidence-trace"><summary>Danh sách bằng chứng từng kỳ (hồ sơ đối chiếu)</summary>${inventory}</details>` : inventory;
+    }
     if (kind === 'INSIGHT' && sectionId === 'I14' && input.i14Admission && input.sourceClaims) return i14SynthesisSection(input.i14Synthesis, citations, false) + i14AdmissionSection(input.i14Admission, input.sourceClaims, citations, false);
     if (kind === 'MARKET' && (sectionId === 'M03' || sectionId === 'M04')) {
        if (input.metricMethods) return metricMethodSection(input.metricMethods, sectionId, input.metricClassified, citations, Boolean(marketPresentation), readerPlainText) + (sectionId === 'M03' && input.marketInventory ? (readerPlainText ? '<h3>Số liệu từng kỳ của các sản phẩm được chọn (đọc riêng, không cộng vào bảng mẫu)</h3>' : '<h3>Bằng chứng riêng của nguồn sàn: không cộng vào số liệu nguồn</h3>') + marketInventorySection(input.marketInventory, sectionId, citations, labels, readerPlainText) : '');
@@ -1458,7 +1462,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     const readerPage = orderReportCitations(page.slice(0, start), registry);
     return readerPage + renderCitationRegister(registry.entries(), { format: 'web' }) + page.slice(end);
   };
-  const deliveredHtml = marketPresentation ? sanitize(readerCitations(deliverMarketReader(scopedHtml, input.collection?.searchInterest?.points))) : scopedHtml;
+  const deliveredHtml = marketPresentation ? sanitize(readerCitations(deliverMarketReader(scopedHtml, input.collection?.searchInterest?.points, Boolean(input.metricMethods?.capture)))) : scopedHtml;
   const readerRenderedHtml = kind === 'MARKET' && input.metricMethods?.capture?.rowPolicyVersion ? plainCaptureNumbers(deliveredHtml) : deliveredHtml;
   // Hidden technical copy for retrieval: the same page before reader delivery, trace blocks kept. Never linked from the reader.
   const traceHtml = marketPresentation ? Buffer.from(sanitize(scopedHtml), 'utf8') : undefined;
