@@ -362,14 +362,14 @@ const READER_SECTION_LIMITS: Readonly<Record<string, string>> = {
   M07_DEFAULT_PEERS_FROM_RETAINED_CLASSIFIED_SALES_OR_EXPLICIT_GAP_OWNER_ADDITIONS_SEPARATE: 'Đối thủ mặc định chỉ được chọn từ doanh thu cùng nhóm, cùng kỳ và cùng phạm vi nguồn. Bổ sung của chủ được giữ riêng.',
   M09_ATTRIBUTED_EVENT_INVENTORY_NOT_CAUSAL_IMPACT_OR_FORECAST: 'Sự kiện do nguồn nêu; chưa đủ bằng chứng xác định nguyên nhân hay dự báo tác động.',
 };
-function readerNotes(methods: DescriptiveMarketMethods, section: DescriptiveSectionId, additiveWarning: boolean, extra: readonly string[] = []): string {
+function readerNotes(methods: DescriptiveMarketMethods, section: DescriptiveSectionId, additiveWarning: boolean, extra: readonly string[] = [], currentReader = false): string {
   const notes = [
     ...(/\bVN\b|Việt Nam|Vietnam/i.test(methods.input.scope.geography) ? ['Số liệu cho Việt Nam.'] : []),
     ...(additiveWarning ? ['Không cộng các dòng với nhau.'] : []),
     ...methods.limitations.filter(code => code.startsWith(`${section}_`)).flatMap(code => READER_SECTION_LIMITS[code] ? [READER_SECTION_LIMITS[code]!] : []),
     ...extra,
   ];
-  return [...new Set(notes)].map(note => `<p class="sec-note">${escape(note)}</p>`).join('');
+  return currentReader ? notes.length ? `<p class="lim"><b>Chú thích:</b> ${[...new Set(notes)].map(escape).join(' ')}</p>` : '' : [...new Set(notes)].map(note => `<p class="sec-note">${escape(note)}</p>`).join('');
 }
 type ReaderSectionBody = Omit<DescriptiveSectionView, 'html'> & { body: string };
 function readerCoverage(rows: readonly Observation[]): string {
@@ -397,7 +397,7 @@ function readerM05(methods: DescriptiveMarketMethods, citations: ReportCitations
   }
   if (context.periodRowsInM03 && measures.size) return {
     usable: [...measures.values()].flat().some(hasSourceValue), locatedRecordCount: section.locatedRecordCount, unresolvedPointers: unresolved, blockers: section.blockers,
-    body: `<p>Số liệu bán từng kỳ của các sản phẩm được chọn nằm ở Phần 3; phần này không in lại.</p>${readerNotes(methods, 'M05', false)}`,
+    body: `<p>Số liệu bán từng kỳ của các sản phẩm được chọn nằm ở Phần 3; phần này không in lại.</p>${readerNotes(methods, 'M05', false, [], context.market14)}`,
   };
   let usable = false;
   const tables = [...measures].map(([measure, observations]) => {
@@ -426,7 +426,7 @@ function readerM05(methods: DescriptiveMarketMethods, citations: ReportCitations
       `<td>${product.cells.get(window)?.map(row => `${readerValue(row, units.length > 1)} ${sourceCell(methods.input, row.source, citations, true)}`).join('<br>') ?? 'Chưa có dữ liệu'}</td>`).join('')}</tr>`).join('');
     return `<p>${escape(readerCoverage(observations))}</p>` + table(label, heads, rows, true);
   }).join('');
-  const body = tables ? `<p>${readerCount(section.locatedRecordCount)} quan sát theo sản phẩm và kỳ.</p>${tables}${readerNotes(methods, 'M05', true)}` : '<p>Chưa có dữ liệu quan sát.</p>';
+  const body = tables ? `<p>${readerCount(section.locatedRecordCount)} quan sát theo sản phẩm và kỳ.</p>${tables}${readerNotes(methods, 'M05', true, [], context.market14)}` : '<p>Chưa có dữ liệu quan sát.</p>';
   return { usable, locatedRecordCount: section.locatedRecordCount, unresolvedPointers: unresolved, blockers: section.blockers, body };
 }
 function readerM06(methods: DescriptiveMarketMethods, citations: ReportCitations, context: DescriptiveReaderContext): ReaderSectionBody {
@@ -444,7 +444,7 @@ function readerM06(methods: DescriptiveMarketMethods, citations: ReportCitations
     usable ||= hasSourceValue(row);
     return [`<tr><td>${escape(readerProduct(row.entityLabel, count, context))}</td><td>${escape(measure)}</td><td>${readerValue(row, true)}</td><td>${escape(readerPeriod(row.period))}</td><td>${sourceCell(methods.input, row.source, citations, true)}</td></tr>`];
   }).join('');
-  const body = rows ? table('Số liệu nguồn cung', ['Sản phẩm', 'Chỉ số', 'Giá trị', 'Kỳ quan sát', 'Nguồn'], rows, true) + readerNotes(methods, 'M06', true)
+  const body = rows ? table('Số liệu nguồn cung', ['Sản phẩm', 'Chỉ số', 'Giá trị', 'Kỳ quan sát', 'Nguồn'], rows, true) + readerNotes(methods, 'M06', true, [], context.market14)
     : '<p>Chưa có dữ liệu nguồn cung.</p>';
   return { usable, locatedRecordCount: count, unresolvedPointers: unresolved, blockers: section.blockers, body };
 }
@@ -472,7 +472,7 @@ function readerM07(methods: DescriptiveMarketMethods, citations: ReportCitations
   const comparisons = declared && section.comparisons.length ? table('Đối chiếu trong nhóm đã khai báo', ['Sản phẩm mốc', 'Đối thủ', 'Khả năng đối chiếu'],
     section.comparisons.map(item => `<tr><td>${side(item.anchorPointer)}</td><td>${side(item.peerPointer)}</td><td>${item.compatibility === 'COMPARABLE' ? 'Cùng thước đo, kỳ và phạm vi' : 'Chưa đủ điều kiện so sánh'}</td></tr>`).join(''), true) : '';
   const body = rows ? `${comparisons}${table('Quan sát theo sản phẩm; thứ tự không phải xếp hạng', ['Sản phẩm và số liệu nguồn'], rows, true)}${readerNotes(methods, 'M07', true,
-    declared ? [] : ['Chưa có nhóm đối thủ được khai báo để so sánh.'])}` : '<p>Chưa đủ dữ liệu về đối thủ.</p>';
+    declared ? [] : ['Chưa có nhóm đối thủ được khai báo để so sánh.'], context.market14)}` : '<p>Chưa đủ dữ liệu về đối thủ.</p>';
   return { usable, locatedRecordCount: section.recordPointers.length, unresolvedPointers: unresolved, blockers: section.blockers, body };
 }
 function readerM09(methods: DescriptiveMarketMethods, citations: ReportCitations, context: DescriptiveReaderContext): ReaderSectionBody {
@@ -532,7 +532,7 @@ function readerM09(methods: DescriptiveMarketMethods, citations: ReportCitations
   const heads = platformColumn ? ['Sản phẩm', 'Sàn', 'Sự kiện', 'Ngày', 'Nguồn'] : ['Sản phẩm', 'Sự kiện', 'Ngày', 'Nguồn'];
   const body = rows ? `${table(title, heads, rows, true)}${omitted}${readerNotes(methods, 'M09', false, [
     ...(launches ? ['Chưa xác minh đây là ngày ra mắt thực tế.'] : []),
-    ...(partial ? ['Các dòng trong bảng chỉ là ngày ra mắt do nguồn khai báo, không phải động lực hay rủi ro.'] : [])])}`
+    ...(partial ? ['Các dòng trong bảng chỉ là ngày ra mắt do nguồn khai báo, không phải động lực hay rủi ro.'] : [])], context.market14)}`
     : `<p>Chưa đủ dữ liệu về sự kiện ${dates ? `từ ${escape(dates.start)} đến ${escape(dates.end)}` : 'trong kỳ'}.</p>${omitted}`;
   return { usable: count > 0, locatedRecordCount: count, unresolvedPointers: unresolved, blockers: section.blockers, body, ...(partial ? { partial } : {}) };
 }

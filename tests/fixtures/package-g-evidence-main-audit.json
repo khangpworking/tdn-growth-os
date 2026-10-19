@@ -1,0 +1,218 @@
+{
+  "G1": [
+    {
+      "rule": "1",
+      "kind": "machine",
+      "ok": true
+    },
+    {
+      "rule": "2",
+      "kind": "machine",
+      "ok": true
+    },
+    {
+      "rule": "3",
+      "kind": "machine",
+      "ok": true
+    },
+    {
+      "rule": "4",
+      "kind": "machine",
+      "ok": true
+    },
+    {
+      "rule": "5",
+      "kind": "machine",
+      "ok": true
+    },
+    {
+      "rule": "6",
+      "kind": "evidence",
+      "ok": true
+    },
+    {
+      "rule": "7",
+      "kind": "machine",
+      "ok": true
+    },
+    {
+      "rule": "8",
+      "kind": "evidence",
+      "ok": true
+    },
+    {
+      "rule": "9",
+      "kind": "machine",
+      "ok": true
+    },
+    {
+      "rule": "10",
+      "kind": "evidence",
+      "ok": false
+    },
+    {
+      "rule": "11",
+      "kind": "machine",
+      "ok": true
+    },
+    {
+      "rule": "12",
+      "kind": "machine",
+      "ok": true
+    },
+    {
+      "rule": "13",
+      "kind": "machine",
+      "ok": true
+    },
+    {
+      "rule": "14",
+      "kind": "evidence",
+      "ok": true
+    }
+  ],
+  "G2": [
+    {
+      "rule": "1",
+      "kind": "machine",
+      "ok": true
+    },
+    {
+      "rule": "2",
+      "kind": "machine",
+      "ok": true
+    },
+    {
+      "rule": "3",
+      "kind": "machine",
+      "ok": true
+    },
+    {
+      "rule": "4",
+      "kind": "machine",
+      "ok": true
+    },
+    {
+      "rule": "5",
+      "kind": "machine",
+      "ok": true
+    },
+    {
+      "rule": "6",
+      "kind": "evidence",
+      "ok": true
+    },
+    {
+      "rule": "7",
+      "kind": "machine",
+      "ok": true
+    },
+    {
+      "rule": "8",
+      "kind": "evidence",
+      "ok": true
+    },
+    {
+      "rule": "9",
+      "kind": "machine",
+      "ok": true
+    },
+    {
+      "rule": "10",
+      "kind": "evidence",
+      "ok": false
+    },
+    {
+      "rule": "11",
+      "kind": "machine",
+      "ok": true
+    },
+    {
+      "rule": "12",
+      "kind": "machine",
+      "ok": true
+    },
+    {
+      "rule": "13",
+      "kind": "machine",
+      "ok": true
+    },
+    {
+      "rule": "14",
+      "kind": "evidence",
+      "ok": true
+    }
+  ],
+  "G3": [
+    {
+      "rule": "1",
+      "kind": "machine",
+      "ok": true
+    },
+    {
+      "rule": "2",
+      "kind": "machine",
+      "ok": true
+    },
+    {
+      "rule": "3",
+      "kind": "machine",
+      "ok": true
+    },
+    {
+      "rule": "4",
+      "kind": "machine",
+      "ok": true
+    },
+    {
+      "rule": "5",
+      "kind": "machine",
+      "ok": true
+    },
+    {
+      "rule": "6",
+      "kind": "evidence",
+      "ok": true
+    },
+    {
+      "rule": "7",
+      "kind": "machine",
+      "ok": true
+    },
+    {
+      "rule": "8",
+      "kind": "evidence",
+      "ok": true
+    },
+    {
+      "rule": "9",
+      "kind": "machine",
+      "ok": true
+    },
+    {
+      "rule": "10",
+      "kind": "evidence",
+      "ok": false
+    },
+    {
+      "rule": "11",
+      "kind": "machine",
+      "ok": true
+    },
+    {
+      "rule": "12",
+      "kind": "machine",
+      "ok": true
+    },
+    {
+      "rule": "13",
+      "kind": "machine",
+      "ok": true
+    },
+    {
+      "rule": "14",
+      "kind": "evidence",
+      "ok": true
+    }
+  ]
+}

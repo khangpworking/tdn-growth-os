@@ -142,7 +142,7 @@ test('a Market presentation with extra rows passes every gate, labels each row a
   const at = heads.indexOf('Lượt tìm'), typeAt = heads.indexOf('Loại trang');
   assert.ok(at > 0 && typeAt > 0);
   const body = [...table.querySelectorAll('tbody tr')].map(tr => [...tr.querySelectorAll('td')].map(td => td.textContent ?? ''));
-  assert.deepEqual(body.map(cells => cells[at]), ['', 'Trong kỳ báo cáo', 'Trên Shopee', 'Trên TikTok'], 'the excluded extra row is not rendered');
+  assert.deepEqual(body.map(cells => cells[at]), ['Truy vấn cơ bản', 'Tìm theo khoảng ngày yêu cầu', 'Trên Shopee', 'Trên TikTok'], 'the excluded extra row is not rendered');
   assert.deepEqual(body.map(cells => cells[typeAt]?.split('Đăng')[0]), ['Trang khác', 'Bài hướng dẫn', 'Trang khác', 'Tin tức']);
   assert.match(document.body.textContent ?? '', /kỳ tìm là khoảng ngày đã yêu cầu, không phải ngày xảy ra sự việc/);
   assert.doesNotThrow(() => assertMarketBusinessGate(html, { presentation: true, partialTotals: [] }));
@@ -152,5 +152,8 @@ test('a Market presentation with extra rows passes every gate, labels each row a
   assert.deepEqual(providerNameViolations(html), []);
   assert.doesNotMatch(document.body.textContent ?? '', /site:|\btbs\b|\bcdr\b|google|serpapi|số kết quả/iu);
   const without = buildResearchAutomationReport({ ...input, captures: [capture(0)], sourceEvidence: evidence([plain], true, [capture(0)]), start: { ...input.start, sourceEvidenceVersion: 'automation-source-evidence-v1' }, collection: { ...collection, expandedSearch: undefined } } as unknown as AutomationReportInput, 'MARKET').html.toString('utf8');
-  assert.equal(without.includes('Lượt tìm'), false);
+  // G/M19: an unlabeled basic group was the defect; no extra query is invented.
+  assert.equal(without.includes('Lượt tìm'), true);
+  assert.ok(without.includes('Truy vấn cơ bản'));
+  assert.equal(without.includes('Tìm theo khoảng ngày yêu cầu'), false);
 });

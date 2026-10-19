@@ -17,6 +17,7 @@ import { periodByteCases, periodCaptures, periodContext, periodDeliveryCases, pe
   withPeriodInventory, type PeriodCapture } from '../helpers/package-e-period-fixture.js';
 import { SYNTHETIC_CARD_ID } from '../helpers/research-synthetic-sources.js';
 
+// G: the current market14 HTML fixture pin included corrected evidence copy; E periods and legacy pins stay frozen.
 const hash = (value: string | Uint8Array) => createHash('sha256').update(value).digest('hex');
 const amount = (value: string | number) => Number(value).toLocaleString('vi-VN');
 const cells = (row: Element) => [...row.querySelectorAll('td')].map(cell => cell.textContent!);

@@ -43,7 +43,9 @@ function assertBlock(html: string, choice: RegExp) {
   assert.equal(text.split('Mức quan tâm tìm kiếm theo vùng').length - 1, 1, 'the table title is shown once');
   const rows = [...table!.querySelectorAll('tbody tr')].map(row => [...row.querySelectorAll('td')].map(cell => cell.textContent!.trim()));
   assert.deepEqual(rows.map(row => row[0]), REGIONS);
-  assert.equal(rows.reduce((sum, row) => sum + Number(row[2]), 0), 10, 'the top ten are counted once');
+  // G/L10: bare zero was the defect. Only the current reader uses the explicit zero phrase.
+  const count = (value: string) => section.id === 'M05' && value === 'không có tỉnh nào đạt ngưỡng' ? 0 : Number(value);
+  assert.equal(rows.reduce((sum, row) => sum + count(row[2]!), 0), 10, 'the top ten are counted once');
   assert.ok(rows.every(row => /^\d+(,\d)?$|^$/u.test(row[1]!)), 'averages use a comma; missing stays blank');
   assert.match(text, /5 tỉnh, thành phố đứng đầu về mức quan tâm \(theo 63 tỉnh, thành phố trước sáp nhập năm 2025\): /u);
   assert.match(text, choice);

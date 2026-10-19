@@ -92,7 +92,8 @@ const draftHtml = (input: AutomationReportInput): string => buildResearchAutomat
 test('presentation build with extra rows passes the business gate, the partial-total rule, NO_LEAK and the 14 machine rules', async () => {
   const html = draftHtml(await presentationInput([plainRow, ...expandedRows]));
   const text = textOf(html);
-  for (const label of ['Trong kỳ báo cáo', 'Trên Shopee', 'Trên TikTok']) assert.ok(text.includes(label), label);
+  // G/M19: the old period label falsely implied article dates; this labels the requested query.
+  for (const label of ['Truy vấn cơ bản', 'Tìm theo khoảng ngày yêu cầu', 'Trên Shopee', 'Trên TikTok']) assert.ok(text.includes(label), label);
   assert.doesNotThrow(() => assertMarketBusinessGate(html, { presentation: true, partialTotals: [] }));
   assert.doesNotThrow(() => assertMarket14MachineRules(html));
   const gate = auditMarketReportHtml(html, { presentation: true, partialTotals: [] });
@@ -103,8 +104,11 @@ test('presentation build with extra rows passes the business gate, the partial-t
   assert.doesNotMatch(text, /số kết quả|tổng số/iu, 'pointers only: no counts or totals');
 });
 
-test('presentation build: no extra rows, no label and no note', async () => {
+test('presentation build: basic query stays labelled without inventing an extra query', async () => {
   const html = draftHtml(await presentationInput([plainRow]));
-  assert.equal(html.includes('Lượt tìm'), false);
+  // G/M19: every retained origin is labelled, including the basic query.
+  assert.equal(html.includes('Lượt tìm'), true);
+  assert.ok(html.includes('Truy vấn cơ bản'));
+  assert.equal(html.includes('Tìm theo khoảng ngày yêu cầu'), false);
   assert.equal(html.includes('Trên Shopee'), false);
 });

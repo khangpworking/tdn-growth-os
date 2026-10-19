@@ -17,6 +17,7 @@ export const WORLD_BANK_PROVIDER = 'WORLD-BANK' as const;
 export const WORLD_BANK_SOURCE_LABEL = 'Bối cảnh vĩ mô cả nước';
 export const WORLD_BANK_TITLE = 'Bối cảnh vĩ mô cả nước của Việt Nam, đặt cạnh phần nhu cầu';
 export const WORLD_BANK_SRC = 'Ngân hàng Thế giới (World Bank Open Data), giấy phép CC BY 4.0.';
+export const WORLD_BANK_READER_SRC = 'Ngân hàng Thế giới, giấy phép CC BY 4.0.';
 const LEGACY_WORLD_BANK_NOTE = 'Số liệu của cả nước Việt Nam, chỉ để làm nền: không nói về sản phẩm này và không so sánh được với số liệu mẫu trong báo cáo. Đơn vị giữ nguyên như nguồn; đây không phải một nguồn xác nhận độc lập.';
 export const WORLD_BANK_NOTE = 'Số liệu của cả nước Việt Nam, chỉ để làm nền: không nói về sản phẩm này và không so sánh được với số liệu mẫu trong báo cáo. Đơn vị lấy từ thông tin đơn vị hoặc tên chỉ số do nguồn công bố; đây không phải một nguồn xác nhận độc lập.';
 export const WORLD_BANK_LIMIT = 'Số liệu cả nước chỉ là bối cảnh; không dùng để ước lượng thị trường của sản phẩm và không ghép với số bán của mẫu.';
@@ -211,3 +212,5 @@ export function worldBankTableNote(items: readonly StepWorldBankIndicator[]): st
 }
 /** The source's own status or footnote text, shown as-is; "ước tính" is never inferred. */
 export const worldBankSourceNote = (row: StepWorldBankRow): string => [row.statusLiteral, row.footnote ?? ''].map(s => s.trim()).filter(Boolean).join('; ') || 'nguồn chưa ghi chú';
+export const worldBankReaderNote = (row: StepWorldBankRow): string => [row.statusLiteral, row.footnote ?? '']
+  .map(s => s.trim()).filter(s => s && s.toLocaleLowerCase('vi-VN') !== 'nguồn chưa ghi chú').join('; ');
