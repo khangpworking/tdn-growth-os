@@ -30,7 +30,7 @@ export function isAutorunCaptureStopCode(code: string | null | undefined): boole
   return typeof code === 'string' && Object.prototype.hasOwnProperty.call(CAPTURE_STOP_CODE_SET, code);
 }
 
-export const AUTORUN_PICK_RULE_VERSION = 'autorun-pick-v2' as const;
+export const AUTORUN_PICK_RULE_VERSION = 'autorun-pick-v3' as const;
 export const AUTORUN_MAX_SHOPEE_LINKS = 5;
 /** Metric's results window is 30 inclusive days. */
 export const AUTORUN_CAPTURE_WINDOW_DAYS = 30;

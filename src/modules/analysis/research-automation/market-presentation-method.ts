@@ -13,6 +13,7 @@ import { canonicalJson } from '../../foundation/canonical-json.js';
 import { UNKNOWN_SHOP } from '../reader-report/market-charts.js';
 import { projectMarketUnitPrices, type RetainedUnitPriceSource } from '../reader-report/market-unit-prices.js';
 import { MAX_JSON_ARTIFACT_BYTES, ResearchAutomationIntegrityError } from './model.js';
+import { isCaptureRowProfile } from './capture-row-quality.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -59,7 +60,7 @@ export function buildAutomationMarketPresentation(binding: MarketPresentationBin
   if (!valid(method)) fail('Market presentation inputs fail their canonical contract.');
   verifyInputs(method);
   const metric = input.metric;
-  if (metric && !(metric.input.profileId === 'automation-metric-capture-v2' && metric.input.records.length === 0)) {
+  if (metric && !(isCaptureRowProfile(metric.input.profileId) && metric.input.records.length === 0)) {
     const all = metric.scopes.find(scope => scope.key === 'all');
     if (!all || all.status !== 'CALCULATED') return fail('Market presentation lacks a frozen ALL scope.');
     const scope = `Trong mẫu xuất chưa phân loại theo nhóm sản phẩm; sàn ${metric.input.scope.platform === 'shopee' ? 'Shopee' : 'TikTok Shop'}, kỳ ${metric.input.scope.start} đến ${metric.input.scope.end}. Không quy ra toàn thị trường hoặc cộng với sàn khác.`;

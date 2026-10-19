@@ -5,7 +5,7 @@ import type { ReaderPlatform } from './build.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import { UNKNOWN_SHOP } from './market-charts.js';
 import { ReaderMetricRowsError } from './metric-rows.js';
-import { CAPTURE_ROW_PROFILE, captureRowExclusions, readCaptureProductRows, type CaptureRowExclusionReason } from '../research-automation/capture-row-quality.js';
+import { CAPTURE_ROW_PROFILE, captureRowExclusions, isCaptureRowProfile, readCaptureProductRows, type CaptureRowExclusionReason, type CaptureRowProfile } from '../research-automation/capture-row-quality.js';
 
 export type ReaderRow = ReaderReportInput['rows'][number];
 export type MetricCaptureUnattributedRow = {
@@ -36,15 +36,16 @@ const rowCell = (row: CaptureTableRow, key: string): Value | Text | undefined =>
  * attribution is returned separately so it can be displayed without entering
  * either platform's arithmetic.
  */
-export function readerRowsFromMetricCapture(snapshot: AutomationMetricWebSnapshotV1, platforms: readonly ReaderPlatform[], profile: 'automation-metric-capture-v1' | typeof CAPTURE_ROW_PROFILE = CAPTURE_ROW_PROFILE): {
+export function readerRowsFromMetricCapture(snapshot: AutomationMetricWebSnapshotV1, platforms: readonly ReaderPlatform[], profile: 'automation-metric-capture-v1' | CaptureRowProfile = CAPTURE_ROW_PROFILE): {
   readonly rows: ReaderRow[];
   readonly unattributed: MetricCaptureUnattributedRow[];
   readonly excluded: (ReaderRow & { reason: CaptureRowExclusionReason })[];
 } {
   const table = snapshot.groups.W12_topProducts;
   if ('absent' in table || table.rows.length === 0) throw new ReaderMetricRowsError('NO_ROWS', 'groups.W12_topProducts');
-  const clean = profile === CAPTURE_ROW_PROFILE ? readCaptureProductRows(snapshot) : null;
-  const exclusions = clean ? captureRowExclusions(clean, snapshot.scope.keywords) : null;
+  const rowProfile = isCaptureRowProfile(profile) ? profile : null;
+  const clean = rowProfile ? readCaptureProductRows(snapshot) : null;
+  const exclusions = clean && rowProfile ? captureRowExclusions(clean, snapshot.scope.keywords, rowProfile) : null;
   const excluded: (ReaderRow & { reason: CaptureRowExclusionReason })[] = [];
   const rows: ReaderRow[] = [];
   const unattributed: MetricCaptureUnattributedRow[] = [];
@@ -80,7 +81,7 @@ export function readerRowsFromMetricCapture(snapshot: AutomationMetricWebSnapsho
     if (reason) excluded.push({ ...readerRow, reason });
     else rows.push(readerRow);
   }
-  if (profile !== CAPTURE_ROW_PROFILE) {
+  if (!rowProfile) {
     if (!rows.length) throw new ReaderMetricRowsError('NO_ATTRIBUTED_ROWS', 'groups.W12_topProducts');
     for (const platform of platforms) if (!rows.some(row => row.platform === platform))
       throw new ReaderMetricRowsError('DECLARED_PLATFORM_HAS_NO_ROWS', platform);

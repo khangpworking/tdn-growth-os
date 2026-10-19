@@ -18,9 +18,9 @@ export type ReaderReportInput = {
    */
   rows: Row[];
   /**
-   * New capture readers retain the row policy, including an empty filtered sample. Absent on historical readers.
+   * New capture readers retain the row policy, including an empty filtered sample. Absent on historical readers; v2 readers keep v2.
    */
-  captureRowPolicy?: 'automation-metric-capture-v2';
+  captureRowPolicy?: 'automation-metric-capture-v2' | 'automation-metric-capture-v3';
   source?: Source;
   /**
    * Opaque web snapshot (automation-metric-web-snapshot-v1). Allowed only in 1.1.0; validated at runtime.

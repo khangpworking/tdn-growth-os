@@ -1,7 +1,11 @@
 import type { AutomationMetricWebSnapshotV1 } from '../../../../contracts/analysis/automation-metric-web-snapshot-v1.generated.js';
 
 /** App-side policy. Absence on a retained method means the original capture v1 semantics. */
-export const CAPTURE_ROW_PROFILE = 'automation-metric-capture-v2' as const;
+export const CAPTURE_ROW_PROFILE_V2 = 'automation-metric-capture-v2' as const;
+/** Latest policy for new captures; a retained v2 method keeps replaying with its own frozen term list. */
+export const CAPTURE_ROW_PROFILE = 'automation-metric-capture-v3' as const;
+export type CaptureRowProfile = typeof CAPTURE_ROW_PROFILE_V2 | typeof CAPTURE_ROW_PROFILE;
+export const isCaptureRowProfile = (value: unknown): value is CaptureRowProfile => value === CAPTURE_ROW_PROFILE_V2 || value === CAPTURE_ROW_PROFILE;
 export type CaptureRowExclusionReason = 'NOT_MAIN_PRODUCT' | 'REVENUE_WITHOUT_UNITS' | 'UNIT_REVENUE_OUTLIER';
 
 /** Counts in this cell are source strings; lifetime sold is never a period observation. */
@@ -12,20 +16,29 @@ export function splitCaptureNameCell(name: string, shop: string) {
 }
 
 const words = (text: string): string[] => text.normalize('NFC').toLowerCase().split(/[^\p{L}\p{N}\p{M}]+/u).filter(Boolean);
-const prefixTerms = [
+const v2PrefixTerms = [
   'power bank', 'sạc dự phòng', 'sạc', 'pin', 'mô tơ', 'motor', 'moter', 'động cơ', 'tụ', 'dầu', 'cánh', 'lồng',
   'stator', 'bạc đạn', 'công tắc', 'điều khiển', 'remote', 'adapter', 'linh kiện', 'phụ kiện', 'nắp', 'ốp', 'vỏ',
   'dây', 'giá đỡ', 'miếng dán', 'bút', 'cho', 'dùng cho', 'thay', 'thay thế', 'của',
 ].map(words);
+/** v3 adds part names seen in retained captures. Short, common words reject only directly before the head ("đầu quạt", "lốc quạt"). */
+const ROW_TERMS: Readonly<Record<CaptureRowProfile, { readonly prefix: readonly string[][]; readonly adjacent: readonly string[][] }>> = {
+  [CAPTURE_ROW_PROFILE_V2]: { prefix: v2PrefixTerms, adjacent: [] },
+  [CAPTURE_ROW_PROFILE]: {
+    prefix: [...v2PrefixTerms, ...['stato', 'chiết áp', 'chuyển đổi', 'đọng cơ', 'bánh răng', 'phụ tùng'].map(words)],
+    adjacent: ['trục', 'đầu', 'đế', 'lốc', 'cuộn', 'núm', 'lưới', 'mạch', 'chân'].map(words),
+  },
+};
 
 /** Whole words preserve accents. Only text BEFORE the first keyword head can reject a title. */
-export function isMainCapturedProduct(title: string, keyword: string): boolean {
+export function isMainCapturedProduct(title: string, keyword: string, profile: CaptureRowProfile = CAPTURE_ROW_PROFILE): boolean {
   const head = words(keyword)[0];
   if (!head) return false;
   const titleWords = words(title), first = titleWords.indexOf(head);
   if (first < 0) return false;
-  const prefix = titleWords.slice(0, first);
-  return !prefixTerms.some(term => prefix.some((_, i) => term.every((word, j) => prefix[i + j] === word)));
+  const prefix = titleWords.slice(0, first), { prefix: terms, adjacent } = ROW_TERMS[profile];
+  if (adjacent.some(term => term.every((word, j) => prefix[prefix.length - term.length + j] === word))) return false;
+  return !terms.some(term => prefix.some((_, i) => term.every((word, j) => prefix[i + j] === word)));
 }
 
 export type CaptureQualityRow = {
@@ -36,10 +49,10 @@ export type CaptureQualityRow = {
 };
 
 /** One pass against the median of relevant rows with defined unit revenue, separately per platform. */
-export function captureRowExclusions(rows: readonly CaptureQualityRow[], keywords: readonly string[]): Map<number, CaptureRowExclusionReason> {
+export function captureRowExclusions(rows: readonly CaptureQualityRow[], keywords: readonly string[], profile: CaptureRowProfile = CAPTURE_ROW_PROFILE): Map<number, CaptureRowExclusionReason> {
   const excluded = new Map<number, CaptureRowExclusionReason>();
   for (const [i, row] of rows.entries()) {
-    if (!keywords.some(keyword => isMainCapturedProduct(row.title, keyword))) excluded.set(i, 'NOT_MAIN_PRODUCT');
+    if (!keywords.some(keyword => isMainCapturedProduct(row.title, keyword, profile))) excluded.set(i, 'NOT_MAIN_PRODUCT');
     else if (row.revenue !== null && row.revenue > 0 && (row.units === null || row.units === 0)) excluded.set(i, 'REVENUE_WITHOUT_UNITS');
   }
   for (const platform of new Set(rows.map(row => row.platform))) {

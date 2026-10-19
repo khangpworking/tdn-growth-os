@@ -155,6 +155,7 @@ import { AutomationDescriptiveMethodBridge } from './descriptive-method-bridge.j
 import { DEFAULT_MARKET_PEER_RULE, classifiedMetricDefaultPeers, verifyDefaultMarketPeerRule } from '../default-market-peers.js';
 import { AutomationMarketMethodBridge, MARKET_CAPTURE_READ_BUDGET_BYTES, type AutomationMarketMethodSnapshot } from './market-method-bridge.js';
 import { AutomationMetricMethodBridge, MetricMethodFailure, metricMethodFailureCode, type AutomationMetricMethodSnapshot, type MetricMethodFailureCode } from './metric-method-bridge.js';
+import { CAPTURE_ROW_PROFILE, CAPTURE_ROW_PROFILE_V2 } from './capture-row-quality.js';
 import { PageIndexCloudClient } from '../pageindex-cloud.js';
 import { estimatePageIndexBalance, estimatePageIndexLedgerBalance } from '../pageindex-balance.js';
 import { extractPageIndexPdf, readPageIndexPdfTitle, planPageIndexQuestions, orderRunPdfsForQuestions, verifyPageIndexQuotes, buildVerifiedQuotesArtifact,
@@ -1925,6 +1926,9 @@ export class ResearchAutomationService {
       if (!snapshot || !manifest) throw new ResearchAutomationIntegrityError('Prepared Metric capture is missing its archive files.');
       const verifiedCapture = verifyMetricCaptureArchive(snapshot.bytes, manifest.bytes, { start: await this.#readStartSnapshot(this.#current(runId)!.startSha, workspaceId) });
       const rawSnapshotSha256 = createHash('sha256').update(snapshot.bytes).digest('hex');
+      // Reader rows follow the verified draft's frozen row policy for this exact snapshot; drafts before v3 keep v2.
+      const draftCapture = isRecord(marketSemantic.metricMethods) ? (marketSemantic.metricMethods as unknown as AutomationMetricMethodSnapshot).capture : undefined;
+      const rowPolicy = draftCapture?.snapshotSha256 === rawSnapshotSha256 && draftCapture.rowPolicyVersion === CAPTURE_ROW_PROFILE ? CAPTURE_ROW_PROFILE : CAPTURE_ROW_PROFILE_V2;
       const collection = this.#db.prepare(`SELECT result_sha256 resultSha FROM analysis_research_automation_steps WHERE run_id=? AND step_id='COLLECTION'`).get(runId) as { resultSha: string | null } | undefined;
       const webCollection = collection?.resultSha ? await this.#readStepDocument(collection.resultSha, runId, 'COLLECTION') : null;
       const searchInterest = webCollection?.searchInterest;
@@ -1938,7 +1942,7 @@ export class ResearchAutomationService {
         ...(searchInterestRenderable(searchInterest) ? { searchInterest } : {}), ...(searchGeoRenderable(webCollection?.searchGeo) ? { searchGeo: webCollection.searchGeo, searchGeoCapture: (await this.#captureRecords(runId)).find(c => c.stepId === 'COLLECTION' && c.ordinal === webCollection.searchGeo!.captureIndex)! } : {}),
         ...(worldBankRenderable(webCollection?.worldBank) ? { worldBank: webCollection.worldBank } : {}), ...(webCollection?.comtrade ? { comtrade: webCollection.comtrade } : {}), ...(webCollection?.searchAds ? { searchAds: webCollection.searchAds } : {}), ...(webCollection?.officialStats ? { officialStats: webCollection.officialStats } : {}), ...(webCollection?.pdfDiscovery ? { pdfDiscovery: webCollection.pdfDiscovery } : {}), ...(storedPdfExcerpts(marketSemantic).length ? { pdfExcerpts: storedPdfExcerpts(marketSemantic) } : {}), ...(storedSellerVideos(marketSemantic) ? { sellerVideos: storedSellerVideos(marketSemantic)! } : {}),
         ...(metaAds.length ? { metaAds } : {}), ...await this.#metaAutoContext(webCollection, runId), ...await this.#tiktokTopAdsContext(webCollection, runId),
-        metric: { packageId, capture: { snapshot: verifiedCapture.snapshot, snapshotSha256: rawSnapshotSha256, truncation: preparedCapture.capture.truncation }, measurementPeriod: preparedCapture.capture.measurementPeriod } };
+        metric: { packageId, capture: { snapshot: verifiedCapture.snapshot, snapshotSha256: rawSnapshotSha256, rowPolicy, truncation: preparedCapture.capture.truncation }, measurementPeriod: preparedCapture.capture.measurementPeriod } };
     }
     if (!prepared) throw new ResearchAutomationValidationError('Tệp danh sách sản phẩm này không thuộc lượt research.');
     const workbook = source.files.find(file => file.path === 'metric/export.xlsx');
