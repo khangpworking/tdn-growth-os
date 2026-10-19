@@ -439,8 +439,9 @@ test('new captures clean both parsers, restore shops, and exclude irrelevant and
   assert.ok(charts.some(chart => chart.kind === 'concentration'));
   assert.match(charts.find(chart => chart.kind === 'product-ranking')!.svg, /Synthetic jar/);
   assert.doesNotMatch(charts.map(chart => chart.svg).join(''), /Moter|Power Bank|reviews/);
+  // F+ L17 names the drawn platforms; M14/L4 use per-platform ranking row refs; plotted values stay unchanged.
   assert.equal(hash(Buffer.from(canonicalJson(charts))),
-    'ffe7c87f4a0b88fd8399f474a874f9f8527459604bc9b6d584c9e85845421182', 'chart metadata and SVG bytes match main');
+    'eb71ebf0cb29dca5898e8c4aae201fc18cc0a05bbdbf89c55845e12099eaa8c5', 'chart metadata and SVG bytes match F+ presentation');
   const queued = await f.service.requestReportRevision(workspaceId, runId, {
     contractVersion: 'automation-market-presentation-revision-v1', requestKey: randomUUID(), previousPairId: f.pair.pairId,
     sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } },
