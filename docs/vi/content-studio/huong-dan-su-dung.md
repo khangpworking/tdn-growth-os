@@ -2,7 +2,7 @@
 
 Mục đích: giúp chủ sở hữu (không cần biết kỹ thuật) làm từng bước từ thương hiệu đến bài đăng và poster.
 
-Cập nhật: 20/10/2026 · Mã nguồn chính: `e9e0f444`
+Cập nhật: 20/10/2026 · Commit chính: `e9e0f444`
 
 ## Mục lục
 
@@ -20,19 +20,50 @@ Cập nhật: 20/10/2026 · Mã nguồn chính: `e9e0f444`
 
 ## Phần 1. Content Studio là gì
 
-Content Studio là khu làm nội dung quảng cáo trong hệ thống. Bạn đi theo một đường thẳng: khai báo thương hiệu, thêm sản phẩm, mở chiến dịch, chốt Insight (điều khách hàng thật sự quan tâm), sinh ý tưởng lớn (Big Idea), sinh các góc kể (Góc nội dung), rồi tạo bài đăng (Caption) và ảnh quảng cáo (Poster).
+Content Studio là khu làm nội dung quảng cáo trong hệ thống. Bạn đi theo một đường thẳng, từng bước:
 
-Các màn hình dùng đường dẫn bắt đầu bằng dấu `#`, ví dụ `#/brands` (thương hiệu), `#/content` (chiến dịch), `#/prompts/...` (thư viện prompt). Nguồn: `frontend/src/routing.ts`.
+1. Khai báo thương hiệu.
+2. Thêm sản phẩm.
+3. Mở chiến dịch.
+4. Chốt Insight (điều khách hàng thật sự quan tâm).
+5. Sinh ý tưởng lớn (Big Idea).
+6. Sinh các góc kể (Góc nội dung).
+7. Tạo bài đăng (Caption) và ảnh quảng cáo (Poster).
 
-Mọi thao tác ghi (tạo, sửa, xóa) cần "mở khóa chủ sở hữu". Khi chưa mở khóa, bạn chỉ xem được và các nút ghi bị tắt kèm dòng nhắc "Cần mở khóa OWNER". Khi chưa cấu hình AI, nút tạo bằng AI không chạy được.
+```mermaid
+flowchart LR
+  A["Thương hiệu"] --> B["Sản phẩm"]
+  B --> C["Chiến dịch"]
+  C --> D["Insight"]
+  D --> E["Big Idea"]
+  E --> F["Góc nội dung"]
+  F --> G["Caption và Poster"]
+```
 
-Ghi chú về báo cáo gửi khách: báo cáo giao cho khách hàng không bao giờ ghi tên nhà cung cấp dữ liệu hay tên mô hình AI.
+Các màn hình dùng đường dẫn bắt đầu bằng dấu `#`. Ví dụ:
+
+- `#/brands`: thương hiệu.
+- `#/content`: chiến dịch.
+- `#/prompts/...`: thư viện prompt.
+
+Nguồn: `frontend/src/routing.ts`.
+
+Mọi thao tác ghi (tạo, sửa, xóa) cần "mở khóa chủ sở hữu". Khi chưa mở khóa, bạn chỉ xem được. Các nút ghi bị tắt và có dòng nhắc "Cần mở khóa OWNER". Khi chưa cấu hình AI, nút tạo bằng AI không chạy.
+
+Lưu ý: báo cáo giao cho khách hàng không bao giờ ghi tên nhà cung cấp dữ liệu hay tên mô hình AI.
 
 ## Phần 2. Thương hiệu và quy tắc hiển thị
 
 Vào `#/brands` để xem danh sách, bấm vào một thương hiệu để mở hồ sơ.
 
-1. Tạo thương hiệu: nhập tên, tagline (khẩu hiệu ngắn), hotline, website, fanpage, địa chỉ, logo.
+1. Bấm tạo thương hiệu. Nhập các mục sau:
+   - tên;
+   - tagline (khẩu hiệu ngắn);
+   - hotline;
+   - website;
+   - fanpage;
+   - địa chỉ;
+   - logo.
 2. Logo chỉ nhận PNG hoặc JPEG. Logo tối đa 2 MiB.
 3. Mỗi lần lưu là một phiên bản mới. Phiên bản cũ vẫn còn, không bị ghi đè.
 
@@ -42,7 +73,14 @@ Quy tắc hiển thị quyết định thông tin nào của thương hiệu xu�
 - Tùy: có thể có, tùy bối cảnh.
 - Ẩn: không được xuất hiện.
 
-Khi một góc nội dung có nhiều mục đích, hệ thống lấy mức cao nhất (Luôn cao hơn Tùy, Tùy cao hơn Ẩn). Sau đó, khi tạo Caption & Poster, bạn có thể chỉnh riêng cho từng gói (mục "Sửa riêng"). Chỉnh riêng thắng quy tắc theo mục đích.
+Khi một góc nội dung có nhiều mục đích, hệ thống lấy mức cao nhất (Luôn cao hơn Tùy, Tùy cao hơn Ẩn). Sau đó, khi tạo Caption & Poster, bạn chỉnh riêng cho từng gói được (mục "Sửa riêng"). Chỉnh riêng thắng quy tắc theo mục đích.
+
+```mermaid
+flowchart LR
+  A["Mức theo từng mục đích"] --> B["Lấy mức cao nhất: Luôn, Tùy, Ẩn"]
+  B --> C["Áp mục Sửa riêng của gói"]
+  C --> D["Mức cuối cùng"]
+```
 
 Lưu ý về thông tin liên hệ: hotline, website, địa chỉ không được gửi cho AI. Hệ thống tự gắn "khối liên hệ" vào cuối Caption sau khi AI viết xong. Nguồn: `src/modules/flow/content-display-rules.ts`.
 
@@ -91,42 +129,74 @@ Trong chiến dịch có thanh các bước: Insight, Big Idea, Góc nội dung,
 
 Mở `#/content/<mã chiến dịch>/insight`.
 
-1. Viết Insight: điều khách hàng thật sự cảm thấy hoặc cần, mà sản phẩm có thể chạm tới. Có thể gõ tự do, hoặc lấy từ một bản STP đã khóa trong hệ thống (STP là bản định vị khách hàng mục tiêu; cần xác nhận cách chọn trên màn hình).
-2. Mỗi lần lưu là một bản sửa. Khi hài lòng, bấm "Khóa". Sau khi khóa, Insight không đổi nữa và các bước sau dựa trên bản đã khóa.
-3. Chưa khóa Insight thì chưa tạo được ý tưởng; màn hình báo "Cần khóa Insight trước khi tạo ý tưởng".
+Lưu ý: bạn phải khóa Insight trước khi tạo ý tưởng. Nếu chưa khóa, màn hình báo "Cần khóa Insight trước khi tạo ý tưởng".
+
+1. Viết Insight: điều khách hàng thật sự cảm thấy hoặc cần, mà sản phẩm có thể chạm tới.
+2. Gõ tự do, hoặc lấy từ một bản STP đã khóa trong hệ thống. STP là bản định vị khách hàng mục tiêu. Cách chọn trên màn hình cần xác nhận.
+3. Bấm lưu. Mỗi lần lưu là một bản sửa.
+4. Khi hài lòng, bấm "Khóa". Kết quả: Insight không đổi nữa và các bước sau dựa trên bản đã khóa.
 
 ### Bước 2. Big Idea
 
 Mở `#/content/<mã chiến dịch>/big-idea`.
 
-1. Chọn prompt từ thư viện (có thể chọn nhiều prompt, mỗi prompt một "Số ý" từ 1 đến 10) hoặc dùng prompt tự do. Chọn mô hình AI trong danh sách "Mô hình".
-2. Trước khi bấm, nút ghi rõ số lần gọi AI, ví dụ "Tạo 3 ý".
-3. Bấm tạo. Khung tiến trình báo "Đang tạo · n". Bấm "Dừng sau lần gọi này" để dừng; lần gọi đang chạy vẫn hoàn tất.
-4. Mỗi Big Idea có mã A, B, C... Bấm "Phát triển ý này" cho ý bạn muốn đi tiếp (trạng thái "Đang phát triển"), hoặc "Ngừng phát triển".
+1. Chọn prompt từ thư viện hoặc dùng prompt tự do. Bạn chọn được nhiều prompt. Mỗi prompt có một "Số ý" từ 1 đến 10.
+2. Chọn mô hình AI trong danh sách "Mô hình".
+3. Đọc nút tạo. Nút ghi rõ số lần gọi AI, ví dụ "Tạo 3 ý".
+4. Bấm tạo. Khung tiến trình báo "Đang tạo · n".
+5. Nếu muốn dừng, bấm "Dừng sau lần gọi này". Lần gọi đang chạy vẫn hoàn tất.
+6. Bấm "Phát triển ý này" cho ý bạn muốn đi tiếp. Kết quả: ý có trạng thái "Đang phát triển". Mỗi Big Idea có mã A, B, C...
+7. Để bỏ một ý, bấm "Ngừng phát triển".
 
 ### Bước 3. Góc nội dung
 
 Mở bằng nút "Tạo góc nội dung" trên một Big Idea đang phát triển.
 
-1. Mỗi góc là một cách kể Big Idea cho một mục đích cụ thể. Cách chọn prompt giống bước 2.
-2. Gắn mục đích cho góc ("Gắn mục đích"), tối đa 6 mục đích mỗi góc (`MAX_PURPOSES` trong `frontend/src/idea-data-source.ts`). Có mục đích gợi ý sẵn, và bạn thêm được mục đích riêng ("Mục đích mới", chọn "Hiển thị giống" loại nào để áp quy tắc hiển thị).
-3. Góc chưa gắn mục đích thì chưa chọn được để tạo Caption & Poster.
-4. Tick các góc muốn làm bài, rồi bấm "Tạo Caption & Poster". Tối đa 20 góc mỗi lô (`PACKAGE_BATCH_LIMIT` trong `frontend/src/package-data-source.ts`). Caption tối đa 4.000 ký tự khi sửa tay.
+Mỗi góc là một cách kể Big Idea cho một mục đích cụ thể. Cách chọn prompt giống Bước 2.
+
+Lưu ý: góc chưa gắn mục đích thì bạn chưa chọn được để tạo Caption & Poster.
+
+1. Bấm "Gắn mục đích" để gắn mục đích cho góc. Mỗi góc có tối đa 6 mục đích (`MAX_PURPOSES` trong `frontend/src/idea-data-source.ts`).
+2. Chọn một mục đích gợi ý sẵn, hoặc bấm "Mục đích mới" để thêm mục đích riêng.
+3. Với mục đích mới, chọn loại trong "Hiển thị giống". Hệ thống áp quy tắc hiển thị của loại đó.
+4. Tick các góc muốn làm bài.
+5. Bấm "Tạo Caption & Poster". Mỗi lô có tối đa 20 góc (`PACKAGE_BATCH_LIMIT` trong `frontend/src/package-data-source.ts`).
+
+Khi sửa tay, Caption có tối đa 4.000 ký tự.
 
 ### Bước 4. Caption & Poster
 
 Mở `#/content/<mã chiến dịch>/package/new?angles=A1,A2`.
 
-1. Phần "Thiết lập cho cả lô": chọn prompt, mô hình, giọng văn, độ dài cho Caption; chọn prompt, mô hình, khổ ảnh, có dùng logo không, ảnh tham chiếu cho Poster. Chỉ chọn được 1 ảnh tham chiếu cho Poster.
-2. Khổ ảnh có bốn loại: vuông, dọc, story, ngang. Xem kích thước trong màn hình.
-3. Mỗi góc là một dòng; "Sửa riêng" cho phép chỉnh giọng văn, độ dài, hiển thị thành phần, ảnh tham chiếu riêng cho góc đó. "Lưu làm mặc định cho chiến dịch" ghi nhớ thiết lập để lần sau dùng lại.
-4. Bấm "Tạo n gói". Hệ thống tạo Caption trước, rồi Poster. Nếu Caption của một góc lỗi, Poster của góc đó bị bỏ qua.
-5. Mở từng gói theo mã (ví dụ `A1·1`): xem Caption kèm khối liên hệ, Poster, bảng "Kiểm tra thông tin thương hiệu".
-6. Bảng kiểm tra cho từng thành phần một trong các trạng thái: khớp, không nhắc tới, đang ẩn, sai lệch. Kiểm tra chỉ cảnh báo, không chặn bạn dùng.
-7. "Tạo lại" cho ra phiên bản mới của Caption hoặc Poster. "Sửa tay" cho phép bạn viết lại Caption (khối liên hệ vẫn tự thêm). "Khôi phục" đưa một phiên bản cũ thành phiên bản mới nhất. "Thử lại lần lỗi" chạy lại lần gọi bị lỗi hoặc bị gián đoạn.
-8. Mọi phiên bản đều được giữ, không có gì bị ghi đè.
+1. Trong phần "Thiết lập cho cả lô", chọn cho Caption:
+   - prompt;
+   - mô hình;
+   - giọng văn;
+   - độ dài.
+2. Trong cùng phần, chọn cho Poster:
+   - prompt;
+   - mô hình;
+   - khổ ảnh;
+   - có dùng logo hay không;
+   - ảnh tham chiếu (chỉ chọn được 1 ảnh).
+3. Chọn khổ ảnh: vuông, dọc, story hoặc ngang. Xem kích thước trong màn hình.
+4. Nếu một góc cần thiết lập riêng, bấm "Sửa riêng" trên dòng của góc. Mỗi góc là một dòng. Bạn chỉnh được giọng văn, độ dài, hiển thị thành phần và ảnh tham chiếu.
+5. Để dùng lại thiết lập, bấm "Lưu làm mặc định cho chiến dịch".
+6. Bấm "Tạo n gói". Hệ thống tạo Caption trước, rồi Poster. Nếu Caption của một góc lỗi, hệ thống bỏ qua Poster của góc đó.
+7. Mở từng gói theo mã (ví dụ `A1·1`). Bạn xem Caption kèm khối liên hệ, Poster và bảng "Kiểm tra thông tin thương hiệu".
 
-Nếu mất mạng giữa chừng: bấm "Tiếp tục" hoặc "Gửi lại". Hệ thống dùng lại đúng mã yêu cầu cũ nên không tạo bản trùng.
+Bảng kiểm tra gán cho từng thành phần một trong bốn trạng thái: khớp, không nhắc tới, đang ẩn, sai lệch. Kiểm tra chỉ cảnh báo, không chặn bạn dùng.
+
+Sau khi tạo gói, bạn có bốn thao tác:
+
+- "Tạo lại": cho ra phiên bản mới của Caption hoặc Poster.
+- "Sửa tay": bạn viết lại Caption. Khối liên hệ vẫn tự thêm.
+- "Khôi phục": đưa một phiên bản cũ thành phiên bản mới nhất.
+- "Thử lại lần lỗi": chạy lại lần gọi bị lỗi hoặc bị gián đoạn.
+
+Hệ thống giữ mọi phiên bản. Không có gì bị ghi đè.
+
+Nếu mất mạng giữa chừng, bấm "Tiếp tục" hoặc "Gửi lại". Hệ thống dùng lại đúng mã yêu cầu cũ nên không tạo bản trùng.
 
 ## Phần 7. Mã nhánh A, A1, A1·1
 
@@ -155,9 +225,13 @@ AI tốn tiền và thời gian, nên hệ thống luôn báo trước:
 - Caption & Poster: mỗi góc một lần gọi Caption (văn bản) và một lần gọi Poster (ảnh). Ví dụ 4 góc làm cả hai = 8 lần gọi.
 - Số lần gọi hiện ngay cạnh nút bấm trước khi bạn xác nhận.
 
-Mỗi lần gọi đều được ghi vào sổ lần gọi AI với trạng thái: đang chạy, thành công, lỗi, bị gián đoạn. Trong trang gói có mục "Lần gọi AI" để xem. Hệ thống không tự thử lại; muốn thử lại, bạn bấm.
+Hệ thống ghi mỗi lần gọi vào sổ lần gọi AI. Mỗi lần gọi có một trong bốn trạng thái: đang chạy, thành công, lỗi, bị gián đoạn. Để xem sổ, mở mục "Lần gọi AI" trong trang gói. Hệ thống không tự thử lại. Muốn thử lại, bạn bấm.
 
-Nếu AI báo lỗi, thông báo bằng tiếng Việt, ví dụ "Chưa cấu hình AI", "AI không phản hồi trong thời hạn", "Ảnh AI trả về không hợp lệ".
+Nếu AI báo lỗi, thông báo bằng tiếng Việt. Ví dụ:
+
+- "Chưa cấu hình AI".
+- "AI không phản hồi trong thời hạn".
+- "Ảnh AI trả về không hợp lệ".
 
 ## Phần 10. Chưa làm
 
@@ -166,8 +240,8 @@ Những mục dưới đây chưa có trong bản hiện tại:
 - Đăng bài tự động lên mạng xã hội và làm video: Chưa làm (kế hoạch phát hành ghi rõ không có đăng bài, không có video).
 - Danh mục sản phẩm chưa có chức năng lưu trữ hoặc xóa mục: Chưa làm (chưa có quyết định).
 - Gợi ý chỉnh sửa bằng AI cho Caption và Poster: Chưa làm (hoãn sang bản sau theo quyết định chủ sở hữu 25/09/2026). Sửa tay và khôi phục phiên bản đã có.
-- Việc triển khai (deploy) chính thức cần chủ sở hữu cho phép riêng. Tài liệu phát hành ghi đã chạy thử với AI thật trên máy chủ Fedora ngày 29/09/2026 (6 lần gọi, đều thành công); việc dùng thật lâu dài và tắt máy Windows còn chờ chủ sở hữu: xem `docs/content-studio-release.md`.
-- Khay "Đang tạo" đầy đủ cho mọi màn hình: cần xác nhận; hiện có khung tiến trình trong màn Big Idea, Góc nội dung và Caption & Poster.
+- Việc triển khai (deploy) chính thức cần chủ sở hữu cho phép riêng. Tài liệu phát hành ghi một lần chạy thử với AI thật trên máy chủ Fedora ngày 29/09/2026: 6 lần gọi, đều thành công. Việc dùng thật lâu dài và tắt máy Windows còn chờ chủ sở hữu. Xem `docs/content-studio-release.md`.
+- Khay "Đang tạo" đầy đủ cho mọi màn hình: cần xác nhận. Hiện có khung tiến trình trong ba màn: Big Idea, Góc nội dung, Caption & Poster.
 
 ## Phần 11. Giải thích thuật ngữ
 

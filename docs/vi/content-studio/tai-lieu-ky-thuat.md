@@ -2,9 +2,13 @@
 
 Mục đích: mô tả mô-đun, đường dẫn API, bảng dữ liệu, prompt, cổng AI, kiểm tra ảnh và kiểm thử của Content Studio cho người bảo trì.
 
-Cập nhật: 20/10/2026 · Mã nguồn chính: `e9e0f444`
+Cập nhật: 20/10/2026 · Commit chính: `e9e0f444`
 
-Quy ước: đường dẫn trong dấu huyền là đường dẫn tương đối từ gốc kho mã. Chỗ nào chưa chắc được ghi "(cần xác nhận)". Báo cáo giao cho khách không bao giờ ghi tên nhà cung cấp dữ liệu hay tên mô hình AI; tài liệu này chỉ ghi định danh mô hình khi đó là tên trong mã.
+Quy ước:
+
+- Đường dẫn trong dấu huyền là đường dẫn tương đối từ gốc kho mã.
+- Chỗ nào chưa chắc, tài liệu ghi "(cần xác nhận)".
+- Báo cáo giao cho khách không bao giờ ghi tên nhà cung cấp dữ liệu hay tên mô hình AI. Tài liệu này chỉ ghi định danh mô hình khi đó là tên trong mã.
 
 ## Mục lục
 
@@ -23,13 +27,20 @@ Quy ước: đường dẫn trong dấu huyền là đường dẫn tương đ�
 
 ## Phần 1. Tổng quan và công nghệ
 
-Content Studio (B11–B13) nằm trong hệ thống tdn-growth-os, mã TypeScript chạy trên Node, máy chủ dùng `node:http` có sẵn (mã không nhập thư viện Express dù `ARCHITECTURE.md` còn nhắc Express), giao diện React + Vite dùng đường dẫn băm (`#/...`), một cơ sở dữ liệu SQLite với migration đánh số, và JSON Schema đóng kèm kiểu sinh tự động trong `contracts/`.
+Content Studio (B11–B13) nằm trong hệ thống tdn-growth-os. Công nghệ gồm:
+
+- Mã TypeScript chạy trên Node.
+- Máy chủ dùng `node:http` có sẵn. Mã không nhập thư viện Express, dù `ARCHITECTURE.md` còn nhắc Express.
+- Giao diện React + Vite dùng đường dẫn băm (`#/...`).
+- Một cơ sở dữ liệu SQLite với migration đánh số.
+- JSON Schema đóng kèm kiểu sinh tự động trong `contracts/`.
 
 Nguyên tắc chung:
 
 - Mọi bản ghi bất biến và có phiên bản. Muốn đổi thì ghi bản mới.
-- Ghi dùng `expectedVersion` hoặc `expectedSequence`. Sai số thì trả 409 và giao diện tải lại nhưng giữ bản nháp. Gửi lại đúng yêu cầu cũ là không-thao-tác (trả 200).
-- Mỗi lần đọc kiểm tra lại mã băm SHA-256 của tệp lưu trữ (artifact). Lệch thì trả `500 integrity_error` với thông báo an toàn.
+- Ghi dùng `expectedVersion` hoặc `expectedSequence`. Nếu số sai, API trả 409. Giao diện tải lại nhưng giữ bản nháp.
+- Gửi lại đúng yêu cầu cũ là không-thao-tác (trả 200).
+- Mỗi lần đọc, API kiểm tra lại mã băm SHA-256 của tệp lưu trữ (artifact). Nếu mã lệch, API trả `500 integrity_error` với thông báo an toàn.
 - Đọc ở `/api/content/*`; ghi của chủ sở hữu ở `/owner-api/content/*`.
 
 Nguồn: `docs/adr/0003-content-studio-b11-b13.md`, `docs/adr/0004-content-ai-synchronous-attempts.md`, `src/api/content-api.ts`.
@@ -67,11 +78,25 @@ Nhóm đọc (`/api/content/...`), theo các đoạn đường dẫn tìm thấy
 - mục đích (`purpose-tags`);
 - trạng thái AI (`ai/status`).
 
-Nhóm ghi của chủ sở hữu (`/owner-api/content/...`): tạo và sửa thương hiệu, danh mục, ảnh, prompt (`revisions`); Insight (`revisions`, `lock`); ý tưởng (`ideas`, `generate`, `state`); gói (`packages`, `defaults`, `generate`, `versions`, `state`).
+Nhóm ghi của chủ sở hữu (`/owner-api/content/...`):
+
+- tạo và sửa thương hiệu, danh mục, ảnh, prompt (`revisions`);
+- Insight (`revisions`, `lock`);
+- ý tưởng (`ideas`, `generate`, `state`);
+- gói (`packages`, `defaults`, `generate`, `versions`, `state`).
 
 Xác thực ghi: token chủ sở hữu, bật bằng biến môi trường `TDN_OWNER_API_ENABLED`, `TDN_OWNER_API_TOKEN`, `TDN_OWNER_API_ACTOR_ID`.
 
-Ánh xạ lỗi ghi: 400 yêu cầu sai, 404 không có, 409 sai phiên bản, 500 `integrity_error`. Lỗi AI mang mã cố định và thông báo tiếng Việt, không lộ văn bản của nhà cung cấp, URL hay khóa (xem Phần 6).
+Ánh xạ lỗi ghi:
+
+| Mã | Ý nghĩa |
+|---|---|
+| 400 | yêu cầu sai |
+| 404 | không có |
+| 409 | sai phiên bản |
+| 500 `integrity_error` | mã băm lệch |
+
+Lỗi AI mang mã cố định và thông báo tiếng Việt. Thông báo không lộ văn bản của nhà cung cấp, URL hay khóa (xem Phần 6).
 
 ## Phần 4. Bảng dữ liệu và migration
 
@@ -90,7 +115,23 @@ Migration theo thứ tự, trong thư mục `migrations/`:
 
 Các migration 0030–0033 và từ 0035 trở đi thuộc phần phân tích/báo cáo thị trường, không thuộc Content Studio.
 
-Xóa mềm: các sự kiện DELETE/RESTORE chỉ nối thêm (append-only), do trigger trong cơ sở dữ liệu ép: luân phiên đúng, đúng thứ tự thời gian, và cửa sổ khôi phục 30 ngày. Xóa suy diễn (quyết định Q6): xóa Big Idea hoặc Góc thì con cháu bị ẩn mà không ghi thêm dòng; hạn sớm nhất được áp dụng.
+Xóa mềm: các sự kiện DELETE/RESTORE chỉ nối thêm (append-only). Trigger trong cơ sở dữ liệu ép ba điều:
+
+- DELETE và RESTORE luân phiên đúng;
+- đúng thứ tự thời gian;
+- cửa sổ khôi phục 30 ngày.
+
+Xóa suy diễn (quyết định Q6): khi bạn xóa Big Idea hoặc Góc, hệ thống ẩn con cháu mà không ghi thêm dòng. Hệ thống áp dụng hạn sớm nhất.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Hoat_dong
+  Hoat_dong --> Da_xoa: DELETE
+  Da_xoa --> Hoat_dong: RESTORE trong 30 ngày
+  Da_xoa --> Het_han: quá 30 ngày
+  Hoat_dong --> An_theo_cha: cha bị xóa
+  An_theo_cha --> Hoat_dong: cha được khôi phục
+```
 
 Chi tiết cột từng bảng: đọc trực tiếp các tệp migration ở trên (không chép lại ở đây để tránh lệch).
 
@@ -117,12 +158,30 @@ Khổ ảnh (`CREATIVE_IMAGE_FORMATS`): vuông 1088×1088, dọc 1088×1360, sto
 
 Mã lỗi (`CreativeAiErrorCode`): `ai_not_configured`, `model_not_allowed`, `request_too_large`, `timeout`, `network_error`, `gateway_http_error`, `malformed_envelope`, `response_too_large`, `invalid_image`, `schema_mismatch`. Mỗi mã có một thông báo tiếng Việt cố định; lỗi không mang `cause`.
 
-Sổ lần gọi `flow_content_ai_attempts`: ghi mọi lần gọi với trạng thái running, succeeded, failed, interrupted. Quy tắc theo ADR 0004:
+Sổ lần gọi `flow_content_ai_attempts` ghi mọi lần gọi với trạng thái running, succeeded, failed, interrupted.
+
+```mermaid
+stateDiagram-v2
+  [*] --> running
+  running --> succeeded: AI trả kết quả
+  running --> failed: mã lỗi cố định
+  running --> interrupted: quét lúc khởi động
+  failed --> running: người dùng thử lại, retryOf
+  interrupted --> running: người dùng thử lại, retryOf
+```
+
+Quy tắc theo ADR 0004:
 
 - Gọi đồng bộ theo từng lần, không hàng đợi nền.
-- Một khóa thực thi cho mỗi cơ sở dữ liệu; chỉ tiến trình thực thi quét lại lúc khởi động để đánh dấu lần gọi dở dang là interrupted.
-- Không tự thử lại; thử lại là hành động của người dùng (gắn `retryOf`).
-- Số lần gọi hiện trước khi xác nhận, tính ở `content-ai-call-count.ts`: Big Idea hoặc Góc = số lượt × số ý mỗi lượt (mỗi giá trị 1–10); Caption & Poster = số góc cho văn bản, cộng số góc cho ảnh (số góc 1–50 trong hàm; giao diện giới hạn 20 góc mỗi lô).
+- Một khóa thực thi cho mỗi cơ sở dữ liệu.
+- Chỉ tiến trình thực thi quét lại lúc khởi động. Tiến trình này đánh dấu lần gọi dở dang là interrupted.
+- Không tự thử lại. Thử lại là hành động của người dùng (gắn `retryOf`).
+
+Số lần gọi hiện trước khi xác nhận. Hàm tính nằm ở `content-ai-call-count.ts`:
+
+- Big Idea hoặc Góc = số lượt × số ý mỗi lượt (mỗi giá trị 1–10).
+- Caption & Poster = số góc cho văn bản, cộng số góc cho ảnh.
+- Trong hàm, số góc từ 1 đến 50. Giao diện giới hạn 20 góc mỗi lô.
 
 Biến môi trường (chỉ tên, đọc ở `src/platform/ai/cliproxy-configuration.ts` và `src/api/executor-lock.ts`): `TDN_CLIPROXY_BASE_URL`, `TDN_CLIPROXY_API_KEY`, `TDN_WORKSPACE_DB`, `TDN_ARTIFACT_ROOT`. Khôi phục tay khi khóa thực thi kẹt: xem `docs/runbooks/fedora-local-operator-runtime.md`.
 
@@ -139,7 +198,15 @@ Biến môi trường (chỉ tên, đọc ở `src/platform/ai/cliproxy-configur
 
 ## Phần 8. Quy tắc hiển thị và kiểm tra thông tin thương hiệu
 
-- Giải quy tắc (`content-display-rules.ts`): mỗi thành phần × mục đích có mức Luôn/Tùy/Ẩn; qua nhiều mục đích lấy mức cao nhất; sau đó áp ghi đè của gói.
+- Giải quy tắc (`content-display-rules.ts`): mỗi thành phần × mục đích có mức Luôn/Tùy/Ẩn. Qua nhiều mục đích, hệ thống lấy mức cao nhất. Sau đó hệ thống áp ghi đè của gói.
+
+```mermaid
+flowchart LR
+  A["Mức theo thành phần và mục đích"] --> B["Lấy mức cao nhất qua các mục đích"]
+  B --> C["Áp ghi đè của gói"]
+  C --> D["Mức cuối cùng"]
+```
+
 - Giá trị liên hệ không gửi cho mô hình. Hệ thống tự thêm khối liên hệ vào cuối Caption.
 - Kiểm tra thông tin (`content-brand-fact-check.ts`): từng dòng một trong MATCH, NOT_MENTIONED, HIDDEN, MISMATCH. Chỉ cảnh báo, không chặn.
 - Sáu thành phần được xét (`name`, `logo`, `tagline`, `hotline`, `web`, `address`); Caption không xét `logo`; Poster có công tắc bật/tắt thay vì ba mức.
@@ -148,9 +215,23 @@ Biến môi trường (chỉ tên, đọc ở `src/platform/ai/cliproxy-configur
 
 Thư mục `frontend/src/`. Các tuyến (từ `routing.ts`): `#/brands`, `#/brands/:id`, `#/brands/:id/products[/:itemId]`, `#/content`, `#/content/new[/:productId]`, `#/content/:id`, `#/content/:id/insight`, `#/content/:id/big-idea`, `#/content/:id/angle[/:bigIdeaId]`, `#/content/:id/package/new?angles=A1,A2`, `#/content/:id/package/:code`, `#/prompts/:type[/:ref]`.
 
-Trang chính: `IdeasPage.tsx` (Big Idea và Góc), `PackageNewPage.tsx` (tạo lô), `PackagePage.tsx` (một gói). Mỗi trang có chế độ demo (dữ liệu trong trình duyệt, bộ sinh giả lập) và chế độ thật. Hằng số: tối đa 10 ý mỗi prompt, 6 mục đích mỗi góc, 20 góc mỗi lô, Caption sửa tay tối đa 4.000 ký tự, khôi phục gói 30 ngày.
+Trang chính:
 
-Khi mất kết nối, lần gọi dở dang gửi lại bằng cùng mã yêu cầu nên không tạo bản trùng. Rời trang sẽ dừng lô trước lần gọi kế tiếp.
+- `IdeasPage.tsx`: Big Idea và Góc.
+- `PackageNewPage.tsx`: tạo lô.
+- `PackagePage.tsx`: một gói.
+
+Mỗi trang có chế độ demo (dữ liệu trong trình duyệt, bộ sinh giả lập) và chế độ thật.
+
+Hằng số:
+
+- tối đa 10 ý mỗi prompt;
+- tối đa 6 mục đích mỗi góc;
+- tối đa 20 góc mỗi lô;
+- Caption sửa tay tối đa 4.000 ký tự;
+- khôi phục gói trong 30 ngày.
+
+Khi mất kết nối, giao diện gửi lại lần gọi dở dang bằng cùng mã yêu cầu nên không tạo bản trùng. Khi người dùng rời trang, giao diện dừng lô trước lần gọi kế tiếp.
 
 ## Phần 10. Kiểm thử
 

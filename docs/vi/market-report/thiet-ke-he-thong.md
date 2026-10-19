@@ -20,15 +20,18 @@ Cập nhật: 20/10/2026 · Commit chính: `e9e0f444`
 
 **Mục tiêu**
 
-- Chủ sở hữu nhập một từ khóa; hệ thống tự thu thập dữ liệu thật từ nhiều nguồn, soạn báo cáo Thị trường cho Việt Nam và xuất bản web cùng PDF, không cần ai thu thập tay (quyết định 17/10: tự động hóa hoàn toàn thu thập).
-- Báo cáo đạt 14/14 quy tắc do chính luồng tự động tạo ra và nhất quán qua nhiều lần chạy lại, không phải do sửa tay từng báo cáo.
-- Mọi con số truy được về chứng cứ nguồn; AI chỉ diễn giải và chỉ được trích dẫn khẳng định đã có (ADR 0005).
-- Dữ liệu nguồn trả phí được kiểm soát: chi phí ghi nhận theo bước, có trần, không tự thử lại yêu cầu trả phí chưa rõ kết quả (ADR 0006).
+- Chủ sở hữu nhập một từ khóa. Hệ thống tự thu thập dữ liệu thật từ nhiều nguồn. Hệ thống soạn báo cáo Thị trường cho Việt Nam và xuất bản web cùng PDF. Không ai thu thập tay (quyết định 17/10: tự động hóa hoàn toàn thu thập).
+- Chính luồng tự động tạo ra báo cáo đạt 14/14 quy tắc, nhất quán qua nhiều lần chạy lại. Không ai sửa tay từng báo cáo.
+- Mọi con số truy được về chứng cứ nguồn. AI chỉ diễn giải và chỉ được trích dẫn khẳng định đã có (ADR 0005).
+- Hệ thống kiểm soát dữ liệu nguồn trả phí (ADR 0006):
+  - ghi chi phí theo bước;
+  - đặt trần chi phí;
+  - không tự thử lại yêu cầu trả phí chưa rõ kết quả.
 - Báo cáo giao khách không lộ tên nhà cung cấp và không chứa bình luận thô.
 
 **Ngoài phạm vi (hiện tại)**
 
-- Báo cáo Insight: tạm dừng theo chủ sở hữu từ 19/10. Mục tiêu Insight vẫn giữ (cùng bốn nguồn chính, bình luận đã được mã hóa, persona AI chỉ khi mọi thuộc tính dẫn chứng thật), nhưng Chưa làm trong phạm vi tài liệu này.
+- Báo cáo Insight: chủ sở hữu tạm dừng từ 19/10. Mục tiêu Insight vẫn giữ: cùng bốn nguồn chính, bình luận đã được mã hóa, persona AI chỉ khi mọi thuộc tính dẫn chứng thật. Nhưng Chưa làm trong phạm vi tài liệu này.
 - Thị trường ngoài Việt Nam: không hỗ trợ; thị trường cố định (`docs/research-automation/README.md`).
 - Tự động duyệt/phê chuẩn báo cáo: hệ thống không bao giờ tự phê chuẩn; quyết định của chủ sở hữu tách riêng (ADR 0005, bảng `analysis_reader_report_revisions`).
 - Bảng chủ đề từ bình luận Shopee (S2): bỏ theo quyết định phương án A ngày 19/10.
@@ -100,7 +103,15 @@ sequenceDiagram
   end
 ```
 
-Luồng một phiên, nói gọn: chủ sở hữu tạo phiên với từ khóa, kỳ và loại báo cáo; tìm nhanh trả thẻ sản phẩm; chủ sở hữu duyệt phạm vi; bộ tự chạy thu thập số liệu bán hàng, chuẩn bị, chọn liên kết, xác nhận nguồn; các làn nguồn khác (video, quảng cáo, tìm kiếm, thống kê, PDF) bổ sung bằng chứng; bản nháp được dựng, rồi bộ tự chạy luôn yêu cầu một lượt trình bày lại (bản v2) có chạy kiểm định, trượt thì phiên dừng; cuối cùng lưu phiên bản bất biến và cho phép tải bản web, PDF.
+Luồng một phiên, nói gọn:
+
+1. Chủ sở hữu tạo phiên với từ khóa, kỳ và loại báo cáo.
+2. Tìm nhanh trả thẻ sản phẩm.
+3. Chủ sở hữu duyệt phạm vi.
+4. Bộ tự chạy thu thập số liệu bán hàng, chuẩn bị, chọn liên kết và xác nhận nguồn.
+5. Các làn nguồn khác bổ sung bằng chứng: video, quảng cáo, tìm kiếm, thống kê, PDF.
+6. Hệ thống dựng bản nháp. Sau đó bộ tự chạy luôn yêu cầu một lượt trình bày lại (bản v2) có chạy kiểm định. Nếu bản v2 trượt, phiên dừng.
+7. Hệ thống lưu phiên bản bất biến và cho phép tải bản web và PDF.
 
 ## Phần 3. Các thành phần
 
@@ -138,20 +149,27 @@ Luồng một phiên, nói gọn: chủ sở hữu tạo phiên với từ khóa
 - Không nêu tên nhà cung cấp, tên công cụ, tên mô hình AI hay tên bộ persona tổng hợp trong báo cáo giao khách (cổng: `G08_PROVIDER_NAME`, quy tắc 4). Ghi chú nguồn đặt trên dòng riêng "Chú thích:".
 - Thu thập chỉ tự động; không bao giờ nhờ con người tự thu thập mẫu (17/10).
 - Đề xuất hành động (M12) cho phép, nhưng phải có ba phương án, người phụ trách, hạn dd/mm/yyyy và nhãn chờ duyệt (quy tắc 9, `M12_PROPOSAL_LABEL`). Phần "ý nghĩa" chỉ dựa trên doanh thu trong mẫu.
-- Số tìm kiếm không phải số đếm người mua (`SEARCH_INTEREST_NOT_COUNT`); số Ngân hàng Thế giới không dùng làm phép tính thị phần (`WORLD_BANK_NOT_ARITHMETIC`); video người bán không phải khách hàng hay tổng (`SELLER_VIDEO_NOT_CUSTOMER_OR_TOTAL`); trích PDF không phải số thị trường (`PDF_EXCERPT_NOT_MARKET_NUMBER`).
+- Báo cáo không dùng sai bốn loại số sau:
+  - Số tìm kiếm không phải số đếm người mua (`SEARCH_INTEREST_NOT_COUNT`).
+  - Số Ngân hàng Thế giới không dùng làm phép tính thị phần (`WORLD_BANK_NOT_ARITHMETIC`).
+  - Video người bán không phải khách hàng hay tổng (`SELLER_VIDEO_NOT_CUSTOMER_OR_TOTAL`).
+  - Trích PDF không phải số thị trường (`PDF_EXCERPT_NOT_MARKET_NUMBER`).
 - Không có phần trăm tiến độ; hiển thị bước, độ phủ nguồn, lý do dừng.
 - Insight tạm dừng; Market làm trước.
 - Báo cáo là sản phẩm: giao diện hiển thị trang đọc và PDF, không phải bảng điều khiển; tối đa 3 worker, 1 gói, không phần trăm.
 
 **Quy trình kỹ thuật**
 
-- Tự động hóa phải vượt 14/14 do chính luồng tự động, nhất quán qua nhiều lần chạy lại; sửa tay chỉ để học rồi chuyển vào mã; sửa phải áp dụng toàn hệ thống và kiểm trên ít nhất 3 sản phẩm.
-- Mỗi PR một gói; tác giả mã, người viết kiểm thử (có đối chứng âm) và người rà soát là các phiên tách biệt; gộp khi đạt đúng head và CI xanh; triển khai chỉ khi chủ sở hữu ra lệnh theo SHA.
+- Chính luồng tự động phải vượt 14/14, nhất quán qua nhiều lần chạy lại.
+- Sửa tay chỉ để học, rồi chuyển vào mã. Mỗi sửa phải áp dụng toàn hệ thống và được kiểm trên ít nhất 3 sản phẩm.
+- Mỗi PR một gói. Tác giả mã, người viết kiểm thử (có đối chứng âm) và người rà soát là các phiên tách biệt.
+- Chỉ gộp khi người rà soát đạt đúng head và CI xanh.
+- Chỉ triển khai khi chủ sở hữu ra lệnh theo SHA.
 - Quy tắc 3 lần: trượt kiểm thử 3 lần thì dừng và xem lại phương pháp.
 
 ## Phần 5. An toàn và trần chi phí
 
-- **Ghi chỉ cho chủ sở hữu:** mọi thao tác ghi cần Origin khớp, token chủ sở hữu hợp lệ và cờ cho phép ghi; GET đọc không nhận query. Ứng dụng vận hành chỉ nghe trên địa chỉ nội bộ của máy (mã từ chối cấu hình khác).
+- **Ghi chỉ cho chủ sở hữu:** mọi thao tác ghi cần Origin khớp, token chủ sở hữu hợp lệ và cờ cho phép ghi. GET đọc không nhận query. Ứng dụng vận hành chỉ nghe trên địa chỉ nội bộ của máy. Mã từ chối cấu hình khác.
 - **Idempotency:** khóa yêu cầu cố định theo phiên và bước; gửi lại không tạo bản trùng.
 - **Cấu hình khởi động nghiêm:** cờ boolean sai định dạng làm ứng dụng không khởi động; cờ bộ tự chạy chỉ nhận đúng giá trị bật, giá trị khác tắt hẳn, không để lại dòng trạng thái.
 - **Trần chi phí đã xác nhận trong mã / quyết định:**
@@ -159,7 +177,11 @@ Luồng một phiên, nói gọn: chủ sở hữu tạo phiên với từ khóa
   - Shopee qua dịch vụ Shopee API riêng: trần số bình luận mỗi sản phẩm (300); trần tiền theo cờ `TDN_RESEARCH_SHOPEE_MAX_CHARGE_USD` sẽ bị gỡ khi bật nguồn công khai (kế hoạch triển khai, chưa làm).
   - TikTok bình luận: trần tiền riêng (`TDN_RESEARCH_TIKTOK_COMMENTS_MAX_CHARGE_USD`, giữ nguyên).
   - Kalodata: tính điểm, 0,1 điểm mỗi lệnh gọi; dừng khi hết điểm và chặn cửa sổ còn thiếu (tùy chọn A đã gộp); các tùy chọn B–E chờ chủ sở hữu quyết.
-  - Dịch vụ lập chỉ mục PDF: cảnh báo khi số dư còn tối đa 2 USD và chặn khi còn tối đa 0,5 USD (`src/modules/analysis/pageindex-balance.ts`), tính 0,01 USD mỗi trang lập chỉ mục; ước tính khoảng 1,2 USD mỗi báo cáo (cần xác nhận lại với số liệu mới nhất).
+  - Dịch vụ lập chỉ mục PDF (`src/modules/analysis/pageindex-balance.ts`):
+    - cảnh báo khi số dư còn tối đa 2 USD;
+    - chặn khi số dư còn tối đa 0,5 USD;
+    - tính 0,01 USD mỗi trang lập chỉ mục;
+    - ước tính khoảng 1,2 USD mỗi báo cáo (cần xác nhận lại với số liệu mới nhất).
   - Chi phí AI không được tính vào "lượt gọi thu nguồn"; trạng thái AI hiển thị tách riêng.
 - **Cô lập dữ liệu nhạy cảm:** không ghi đường dẫn, địa chỉ nội bộ hay khóa vào tài liệu, nhật ký lỗi hiển thị cho người dùng, hay báo cáo. Mã dừng chỉ gồm chữ hoa/số/gạch dưới; chi tiết dừng ngắn và không chứa đường dẫn (ràng buộc trong migration 0055).
 - **Video:** tải chỉ chạy ở máy chủ triển khai, giữ 45 ngày rồi tự xóa trong ứng dụng.
@@ -180,9 +202,9 @@ Luồng một phiên, nói gọn: chủ sở hữu tạo phiên với từ khóa
 
 ## Phần 7. Vấn đề còn mở
 
-- **Gói PR #348 (G-references):** đã được người rà soát đạt hai lần ở head `72c86105`; CI báo 3 mốc test cũ (ghi trước khi có GR) cần cập nhật sau khi gộp `main` vào nhánh, rồi review lại, CI và gộp. Chưa vào bản đang chạy thật.
+- **Gói PR #348 (G-references):** người rà soát đã đạt hai lần ở head `72c86105`. CI báo 3 mốc test cũ (ghi trước khi có GR). Cần cập nhật các mốc này sau khi gộp `main` vào nhánh, rồi review lại, chạy CI và gộp. Gói chưa vào bản đang chạy thật.
 - **Gói F+** (biểu đồ cho người đọc hiện tại, đánh số exhibit, tham chiếu dòng, đơn vị): mã đã xong; đang chờ kiểm thử, rà soát, PR, CI. Chưa làm: gộp và triển khai.
-- **Triển khai sau gộp:** chờ câu «deploy <SHA>» của chủ sở hữu; kèm bật cờ mô hình độ liên quan, bật nguồn đánh giá công khai Shopee với trần 300 và gỡ dòng trần tiền Shopee cũ; sau đó canary ít nhất 3 sản phẩm và chấm bản v2 tự động.
+- **Triển khai sau gộp:** chờ câu «deploy <SHA>» của chủ sở hữu. Lần triển khai kèm ba thay đổi cờ: bật cờ mô hình độ liên quan, bật nguồn đánh giá công khai Shopee với trần 300 và gỡ dòng trần tiền Shopee cũ. Sau đó chạy canary ít nhất 3 sản phẩm và chấm bản v2 tự động.
 - **Kalodata, tùy chọn B–E:** chờ chủ sở hữu quyết định.
 - **Chi tiết lượt trình bày lại v2:** việc bản nháp đầu có qua cổng kiểm định riêng hay không, và đầu vào cho AI, cần đối chiếu thêm trong `service.ts` (cần xác nhận).
 - **Danh sách tên bị cấm:** cần bổ sung tên bộ persona tổng hợp và tên nhà cung cấp mô hình AI vào danh sách chặn của báo cáo (việc nhỏ, chưa làm, ước tính khoảng nửa ngày).

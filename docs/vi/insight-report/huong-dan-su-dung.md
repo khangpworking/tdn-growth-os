@@ -1,10 +1,13 @@
 # Hướng dẫn sử dụng báo cáo Insight (khách hàng)
 
-Mục đích: giúp chủ dự án hiểu báo cáo Insight dùng để làm gì, khác báo cáo Market ra sao, hôm nay dùng được đến đâu và phần nào chưa làm.
+Mục đích: giúp chủ dự án hiểu báo cáo Insight. Tài liệu trả lời bốn câu hỏi:
 
-Cập nhật: 20/10/2026
-Phiên bản mã nguồn mô tả: `e9e0f444` (nhánh `main`)
+- Báo cáo Insight dùng để làm gì?
+- Báo cáo Insight khác báo cáo Market ở đâu?
+- Hôm nay dùng được đến đâu?
+- Phần nào chưa làm?
 
+Cập nhật: 20/10/2026 · Commit chính: `e9e0f444`
 > Trạng thái: **TẠM NGỪNG** theo quyết định của chủ dự án ngày 19/10/2026 (làm Market trước). Tài liệu này chỉ mô tả những gì đã có trong mã. Mọi thứ chưa có được ghi rõ là **Kế hoạch** hoặc **Chưa làm**.
 
 ## Mục lục
@@ -23,7 +26,13 @@ Phiên bản mã nguồn mô tả: `e9e0f444` (nhánh `main`)
 
 ## Phần 1. Báo cáo Insight là gì và dùng để làm gì
 
-Báo cáo Insight trả lời câu hỏi: **khách hàng thật sự nói gì** về sản phẩm, vì sao họ mua, vì sao họ ngần ngại, họ còn thiếu điều gì. Nó đọc lời khách (đánh giá, bình luận), xếp lời đó vào các chủ đề, rồi trình bày kèm câu trích nguyên văn để người đọc tự kiểm.
+Báo cáo Insight trả lời câu hỏi: **khách hàng thật sự nói gì** về sản phẩm. Báo cáo cho biết:
+
+- vì sao khách mua;
+- vì sao khách ngần ngại;
+- khách còn thiếu điều gì.
+
+Báo cáo đọc lời khách (đánh giá, bình luận) và xếp lời đó vào các chủ đề. Mỗi chủ đề có câu trích nguyên văn để bạn tự kiểm.
 
 Báo cáo có 17 mục đánh số I01 đến I17 (tên mục lấy từ `src/modules/analysis/reader-report/insight-projection.ts`), gồm:
 
@@ -35,7 +44,7 @@ Báo cáo có 17 mục đánh số I01 đến I17 (tên mục lấy từ `src/mo
 
 Phía trên các mục là phần **Kết luận chính** (tối đa 6 nhận định, mỗi nhận định kèm bằng chứng và phạm vi).
 
-Nguyên tắc nền: mọi câu đều phải truy được về lời nguồn thật. Con số do AI đưa ra luôn mang nhãn "đề xuất, chờ chủ duyệt".
+Nguyên tắc nền: bạn truy được mọi câu về lời nguồn thật. Con số do AI đưa ra luôn mang nhãn "đề xuất, chờ chủ duyệt".
 
 ## Phần 2. Khác nhau giữa Insight và Market
 
@@ -47,9 +56,13 @@ Nguyên tắc nền: mọi câu đều phải truy được về lời nguồn t
 | Mức sẵn sàng hôm nay | Đang là ưu tiên số 1, đã tự động hóa nhiều bước | Có bản nháp và công cụ gán mã, nhưng tạm ngừng; chưa có bước chủ duyệt rồi phát hành |
 | Bình luận Shopee | Chỉ ghi là nguồn được đếm (số lượng, nhãn "review công khai trên Shopee", mốc 300, giới hạn). Không có bảng chủ đề, không trích lời | Là nguồn chính, nhưng phải gán mã trước khi đưa lên báo cáo |
 
-Quyết định của chủ (19/10): không bao giờ đưa bình luận thô lên báo cáo. Bình luận phải qua quy trình xử lý (gán mã chủ đề, trích đúng nguyên văn) rồi mới được dùng. Việc gán mã chủ đề thuộc về Insight, không thuộc Market.
+Quyết định của chủ (19/10): không bao giờ đưa bình luận thô lên báo cáo. Hệ thống xử lý bình luận trước (gán mã chủ đề, trích đúng nguyên văn) rồi mới dùng. Việc gán mã chủ đề thuộc về Insight, không thuộc Market.
 
-Hai báo cáo dùng chung một phiên "Nghiên cứu tự động": khi tạo phiên, bạn chọn soạn "Cả hai" (Thị trường và Insight), "Chỉ Thị trường" hoặc "Chỉ Insight".
+Hai báo cáo dùng chung một phiên "Nghiên cứu tự động". Khi tạo phiên, bạn chọn một trong ba lựa chọn:
+
+- "Cả hai" (Thị trường và Insight);
+- "Chỉ Thị trường";
+- "Chỉ Insight".
 
 ## Phần 3. Hôm nay dùng được những gì
 
@@ -61,46 +74,67 @@ Hai báo cáo dùng chung một phiên "Nghiên cứu tự động": khi tạo p
 4. Nút **Xem thẻ và chân dung đề xuất**: tạo thẻ bằng chứng và chân dung đề xuất từ đánh giá Shopee đã lưu.
 5. Phần "Chuẩn bị mẫu cho model thứ hai" để so sánh hai lượt gán mã. Chức năng này cần cấu hình riêng (cần xác nhận cấu hình đã bật).
 
-Điều kiện: để gọi AI hoặc tạo bản nháp, bạn phải **mở khóa OWNER** (quyền chủ sở hữu) trên trang. Không có khóa, trang chỉ cho xem.
+**Lưu ý:** mở khóa OWNER (quyền chủ sở hữu) trên trang trước khi gọi AI hoặc tạo bản nháp. Không có khóa, trang chỉ cho xem.
 
 Bản nháp luôn ghi "Bản nháp · Chờ chủ duyệt". Hiện **chưa có nút duyệt rồi phát hành** cho báo cáo Insight (xem Phần 9).
 
 ## Phần 4. Cách bắt đầu một phiên có báo cáo Insight
 
 1. Mở trang **Nghiên cứu tự động** của workspace. Đường dẫn có dạng `#/markets/<mã workspace>/research`.
-2. Nhập từ khóa sản phẩm, kỳ nghiên cứu, rồi ở mục "Báo cáo cần soạn" chọn **Cả hai** hoặc **Chỉ Insight**.
-3. Bấm nút bắt đầu ("Bắt đầu tìm nhanh"). Chốt phạm vi bằng tay ở bước xác nhận phạm vi.
-4. Theo dõi phiên. Địa chỉ phiên có dạng `#/markets/<mã workspace>/research/<mã phiên>`; tải lại trang vẫn mở đúng phiên.
-5. Khi có bản nháp, vào khung **Các phiên bản báo cáo**, chọn phiên bản, rồi mở "Báo cáo Insight".
+2. Nhập từ khóa sản phẩm và kỳ nghiên cứu.
+3. Ở mục "Báo cáo cần soạn", chọn **Cả hai** hoặc **Chỉ Insight**.
+4. Bấm nút bắt đầu ("Bắt đầu tìm nhanh").
+5. Chốt phạm vi bằng tay ở bước xác nhận phạm vi.
+6. Theo dõi phiên. Địa chỉ phiên có dạng `#/markets/<mã workspace>/research/<mã phiên>`. Nếu bạn tải lại trang, trang vẫn mở đúng phiên.
+7. Khi có bản nháp, vào khung **Các phiên bản báo cáo** và chọn phiên bản.
+8. Mở "Báo cáo Insight".
 
-Lưu ý: nguồn dữ liệu và chi phí được kiểm soát theo quy định chung của hệ thống (xem Phần 10 của tài liệu Market nếu cần). Báo cáo Insight dùng chung các nguồn lõi với Market, nhưng chỉ dùng lời khách đã qua gán mã.
+**Lưu ý:** quy định chung của hệ thống kiểm soát nguồn dữ liệu và chi phí (xem Phần 10 của tài liệu Market nếu cần). Báo cáo Insight dùng chung các nguồn lõi với Market. Báo cáo Insight chỉ dùng lời khách đã gán mã.
 
 ## Phần 5. Cách đọc báo cáo Insight
 
 - **Trang bìa** ghi "Báo cáo · INSIGHT · Bản nháp · Chờ chủ duyệt".
 - **Kết luận chính**: tối đa 6 nhận định. Mỗi nhận định có phần "Nhận định", "Bằng chứng" và phạm vi. Câu phạm vi nhắc rằng đơn vị đếm là bản ghi.
 - **Các mục I01 đến I17**: mỗi mục có một câu trả lời ngắn. Nếu chưa đủ bằng chứng, mục ghi "Chưa đủ bằng chứng cho mục này". Đó là kết quả bình thường, không phải lỗi.
-- **Chân trang** nhắc: chưa được chủ duyệt; quy tắc mã hóa hoặc biên nhận lựa chọn không xác nhận sự thật, độ đại diện hay điều kiện phát hành.
+- **Chân trang** nhắc hai điều:
+  - chủ chưa duyệt báo cáo;
+  - quy tắc mã hóa và biên nhận lựa chọn không xác nhận sự thật, độ đại diện hay điều kiện phát hành.
 - **Nhãn "đề xuất, chờ chủ duyệt"** nghĩa là AI đề xuất, chưa ai xác nhận.
-- Cách ghi tỷ lệ: chỉ có tỷ lệ khi kho bản ghi đã khai báo đầy đủ mẫu số. Nếu chưa, báo cáo chỉ nêu số đếm và ghi rõ là bản nháp.
+- Cách ghi tỷ lệ: báo cáo chỉ nêu tỷ lệ khi kho bản ghi đã khai báo đầy đủ mẫu số. Nếu chưa, báo cáo chỉ nêu số đếm và ghi rõ là bản nháp.
 
 ## Phần 6. Gán mã lời khách (mã hóa bình luận)
 
 "Gán mã" nghĩa là gắn nhãn chủ đề cho từng lời khách, kèm đoạn trích nguyên văn chứng minh nhãn đó.
 
-Có ba cách trong khung **Mã hóa Insight theo nguyên văn nguồn**:
+Khung **Mã hóa Insight theo nguyên văn nguồn** có ba cách:
 
-1. **Soạn tay**: nhập câu hỏi nghiên cứu, tiêu chí đưa bản ghi vào, cách phân xử khi người mã hóa không thống nhất. Hệ thống không gợi ý mã, nhãn ngành hay nhóm khách hàng.
-2. **Đề xuất AI cho toàn bộ bản ghi**: AI đề xuất theo lô (tối đa 100 bản ghi mỗi lô). Mỗi lô có hộp xác nhận, có thể phát sinh chi phí và hệ thống chưa có ước tính chi phí. Có nút "Dừng sau lô đang gửi".
-3. **Mã hóa mặc định theo nguồn**: không cần duyệt quy tắc trước; AI đề xuất bộ mã bám nguồn, chưa mục nào được chấp nhận.
+1. **Soạn tay**: nhập ba thứ.
+   - Câu hỏi nghiên cứu.
+   - Tiêu chí đưa bản ghi vào.
+   - Cách phân xử khi người mã hóa không thống nhất.
 
-Mỗi bước là **một lần xác nhận riêng**: duyệt quy tắc, nhận đề xuất, chọn mục nhận, tạo báo cáo. Mở hoặc tải lại trang không tự gửi gì.
+   Hệ thống không gợi ý mã, nhãn ngành hay nhóm khách hàng.
+2. **Đề xuất AI cho toàn bộ bản ghi**: AI đề xuất theo lô, tối đa 100 bản ghi mỗi lô. Mỗi lô có hộp xác nhận và có thể phát sinh chi phí. Hệ thống chưa có ước tính chi phí. Có nút "Dừng sau lô đang gửi".
+3. **Mã hóa mặc định theo nguồn**: bạn không cần duyệt quy tắc trước. AI đề xuất bộ mã bám nguồn. Chưa mục nào được chấp nhận.
+
+Mỗi bước là **một lần xác nhận riêng**. Mở hoặc tải lại trang không tự gửi gì.
+
+```mermaid
+flowchart LR
+  A["Duyệt quy tắc"] --> B["Nhận đề xuất"]
+  B --> C["Chọn mục nhận"]
+  C --> D["Tạo báo cáo"]
+```
 
 Đoạn trích phải khớp từng ký tự với bản ghi gốc. Nếu không khớp, hệ thống từ chối.
 
-Cách chọn đoạn trích: gõ hoặc bôi đen đoạn trích, hệ thống liệt kê các chỗ xuất hiện kèm chữ xung quanh, bạn chọn đúng chỗ.
+Cách chọn đoạn trích:
 
-Nếu kết quả chưa rõ (ví dụ mất kết nối giữa chừng), trang **giữ nguyên yêu cầu cũ** để đọc lại; đừng tạo yêu cầu mới.
+1. Gõ hoặc bôi đen đoạn trích.
+2. Đọc danh sách các chỗ xuất hiện. Mỗi chỗ có chữ xung quanh.
+3. Chọn đúng chỗ.
+
+**Cảnh báo:** nếu kết quả chưa rõ (ví dụ mất kết nối giữa chừng), đừng tạo yêu cầu mới. Trang **giữ nguyên yêu cầu cũ** để bạn đọc lại. Yêu cầu mới có thể gọi AI hai lần.
 
 ## Phần 7. Chân dung khách và thẻ bằng chứng
 
@@ -109,34 +143,54 @@ Chủ đã cho phép chân dung do AI tổng hợp (07/10), với điều kiện
 Quy tắc đang được mã kiểm tra:
 
 - **Thẻ bằng chứng**: một tình huống, có ít nhất 2 lời khách từ ít nhất 2 người viết khác nhau.
-- **Chân dung**: cần ít nhất **3 thẻ khác nhau**, ít nhất **5 người viết**, và để nói rộng hơn một sản phẩm thì cần ít nhất **3 sản phẩm** khác nhau trong nguồn.
-- Nếu nguồn không có mã người viết, được dùng 5 nội dung khác nhau thay thế, nhưng phải ghi: "nguồn không có mã người viết; chưa xác minh là 5 người".
-- Mỗi thuộc tính (tình huống, nhu cầu, lo lắng, lý do mua, kênh) phải bằng đúng một đoạn trích nguyên văn. Thuộc tính không có trích dẫn bị bỏ.
+- **Chân dung** cần ba điều kiện:
+  - ít nhất **3 thẻ khác nhau**;
+  - ít nhất **5 người viết**;
+  - ít nhất **3 sản phẩm** khác nhau trong nguồn, nếu chân dung nói rộng hơn một sản phẩm.
+- Nếu nguồn không có mã người viết, hệ thống dùng 5 nội dung khác nhau thay thế. Khi đó báo cáo phải ghi: "nguồn không có mã người viết; chưa xác minh là 5 người".
+- Mỗi thuộc tính (tình huống, nhu cầu, lo lắng, lý do mua, kênh) phải bằng đúng một đoạn trích nguyên văn. Hệ thống bỏ thuộc tính không có trích dẫn.
 - Phiên bản đầu **không có** tuổi, giới, thu nhập, nơi ở, nghề nghiệp.
 - Nhãn bắt buộc: "Chân dung do AI tổng hợp từ lời khách thật, không phải một khách hàng có thật".
 - Quy mô chỉ ghi dạng "x/y bản ghi trong mẫu — đề xuất, chờ chủ duyệt".
 - Không có lời khách do AI tự viết, không có câu trả lời khảo sát giả.
-- Nếu chưa đủ bằng chứng, hệ thống ghi thiếu bằng chứng, không dựng chân dung giả.
+- Nếu chưa đủ bằng chứng, hệ thống ghi thiếu bằng chứng và không dựng chân dung giả.
 
 Hiện chỉ làm được với **đánh giá Shopee**. Bình luận TikTok: Chưa làm.
 
-Cách dùng (ba bước, mỗi bước xác nhận riêng): đề xuất bộ mã, phân loại các lô, đề xuất thẻ và chân dung. Cuối cùng có nút tạo báo cáo nháp từ đề xuất đã chọn.
+Cách dùng có ba bước. Mỗi bước cần một lần xác nhận riêng:
+
+1. Đề xuất bộ mã.
+2. Phân loại các lô.
+3. Đề xuất thẻ và chân dung.
+
+Sau ba bước, bấm nút tạo báo cáo nháp từ đề xuất đã chọn.
+
+```mermaid
+flowchart TD
+  A["Thẻ bằng chứng: từ 2 lời khách, từ 2 người viết"] --> B{"Có đủ 3 thẻ, 5 người viết?"}
+  B -->|"Có"| C{"Chân dung nói rộng hơn một sản phẩm?"}
+  B -->|"Không"| X["Ghi thiếu bằng chứng, không dựng chân dung"]
+  C -->|"Không"| D["Dựng chân dung"]
+  C -->|"Có"| E{"Có từ 3 sản phẩm khác nhau?"}
+  E -->|"Có"| D
+  E -->|"Không"| X
+```
 
 ## Phần 8. Những điều báo cáo sẽ không bao giờ làm
 
 - Không đưa bình luận thô lên báo cáo.
-- Không nêu tên công cụ lấy dữ liệu, bộ dữ liệu giả lập hay tên mô hình AI trong báo cáo gửi khách. Nguồn Shopee chỉ ghi "review công khai trên Shopee".
+- Không nêu tên công cụ lấy dữ liệu, bộ dữ liệu giả lập hay tên mô hình AI trong báo cáo gửi khách. Báo cáo ghi nguồn Shopee là "review công khai trên Shopee".
 - Không đề xuất "đi mua hàng".
 - Không xếp hạng ngầm, không cộng số của Shopee với TikTok.
 - Không khẳng định thị phần hay quy mô toàn thị trường từ lời khách.
 - Không suy ra ngày sự kiện từ ngày thu thập; ngày nguồn chưa xác lập kỳ đo lường.
 - Không tự duyệt, không tự phát hành.
 
-Lưu ý quyền riêng tư: câu trích nguyên văn vẫn có thể chứa thông tin cá nhân. Hệ thống không che và nói rõ điều đó.
+**Lưu ý:** câu trích nguyên văn có thể chứa thông tin cá nhân. Hệ thống không che thông tin này và nói rõ điều đó.
 
 ## Phần 9. Chưa có gì và khi nào có
 
-**Chưa làm hoặc đang chặn** (theo mã hiện tại và bản rà soát độ phủ trong `docs/research/ultimate-method/coverage-209/insight.md`, bản rà này có thể đã cũ nên ghi "cần xác nhận"):
+**Chưa làm hoặc đang chặn.** Bảng này theo mã hiện tại và bản rà soát độ phủ trong `docs/research/ultimate-method/coverage-209/insight.md`. Bản rà này có thể đã cũ, nên ghi "cần xác nhận".
 
 | Việc | Trạng thái |
 | --- | --- |
@@ -148,7 +202,12 @@ Lưu ý quyền riêng tư: câu trích nguyên văn vẫn có thể chứa thô
 | Gợi ý ngầm từ bộ persona tổng hợp | Kế hoạch; chưa nối vào ứng dụng, và không bao giờ được nêu tên trong báo cáo |
 | Tự động hóa Insight ở mức Market (không chạm tay) | Kế hoạch |
 
-**Khi nào có:** Insight chờ báo cáo Market đạt 14/14 quy tắc bằng tự động hóa (quyết định 17/10 và 19/10). Ước tính sơ bộ, chưa phải cam kết: sau khi chủ mở lại, khoảng 1 đến 2 tuần để đạt mức tự động như Market, với giả định dùng lại luồng Market và có đủ quyết định của chủ.
+**Khi nào có:** Insight chờ báo cáo Market đạt 14/14 quy tắc bằng tự động hóa (quyết định 17/10 và 19/10).
+
+Ước tính sơ bộ, chưa phải cam kết: sau khi chủ mở lại, cần khoảng 1 đến 2 tuần để Insight đạt mức tự động như Market. Ước tính này giả định hai điều:
+
+- dùng lại luồng Market;
+- chủ ra đủ quyết định.
 
 ## Phần 10. Câu hỏi thường gặp
 
@@ -156,9 +215,15 @@ Lưu ý quyền riêng tư: câu trích nguyên văn vẫn có thể chứa thô
 
 **Vì sao không thấy lời khách trong báo cáo Market?** Theo quyết định ngày 19/10, Market chỉ đếm số đánh giá và nêu giới hạn. Lời khách và chủ đề thuộc Insight.
 
-**Tại sao không bấm được nút gọi AI?** Thường do chưa mở khóa OWNER, đang có thao tác khác chạy, hoặc cấu hình AI chưa bật trên máy chủ. Dòng giải thích hiện ngay dưới nút.
+**Tại sao không bấm được nút gọi AI?** Có ba nguyên nhân thường gặp:
 
-**Bấm nhầm hoặc mất mạng giữa chừng?** Dùng nút "Thử lại đúng yêu cầu" hoặc "Đọc lại". Không tạo yêu cầu mới vì có thể bị gọi AI hai lần.
+- bạn chưa mở khóa OWNER;
+- một thao tác khác đang chạy;
+- máy chủ chưa bật cấu hình AI.
+
+Dòng giải thích hiện ngay dưới nút.
+
+**Bấm nhầm hoặc mất mạng giữa chừng?** Bấm nút "Thử lại đúng yêu cầu" hoặc "Đọc lại". Đừng tạo yêu cầu mới, vì hệ thống có thể gọi AI hai lần.
 
 **Có phải Insight giống trang "Insight" trong Content Studio không?** Không. Content Studio có mục Insight riêng để viết ý tưởng nội dung (khóa insight, chiến dịch). Đó là sản phẩm khác, xem tài liệu Content Studio.
 

@@ -1,8 +1,15 @@
 # Thiết kế hệ thống báo cáo Insight (khách hàng)
 
-Mục đích: mô tả kiến trúc, luồng dữ liệu từ nguồn đến bình luận đã gán mã, insight, chân dung và báo cáo; phần dùng chung với Market; các quyết định; việc còn lại trước khi mở lại; câu hỏi cho chủ dự án.
+Mục đích: mô tả thiết kế hệ thống báo cáo Insight. Tài liệu gồm:
 
-Cập nhật: 20/10/2026
+- kiến trúc;
+- luồng dữ liệu từ nguồn đến bình luận đã gán mã, insight, chân dung và báo cáo;
+- phần dùng chung với Market;
+- các quyết định;
+- việc còn lại trước khi mở lại;
+- câu hỏi cho chủ dự án.
+
+Cập nhật: 20/10/2026 · Commit chính: `e9e0f444`
 Commit chính: `e9e0f444` (nhánh `main`)
 
 > Trạng thái: TẠM NGỪNG (chủ dự án, 19/10/2026). Tài liệu mô tả mã hiện có; phần chưa có ghi "Kế hoạch".
@@ -90,7 +97,7 @@ flowchart LR
   PANELS -->|"POST có token chủ"| XULY
 ```
 
-Ghi chú: cầu nối `located-review-bridge` và `native-source-review-bridge` đưa bản ghi có định vị vào phương pháp I06/I09; không vẽ riêng để giữ sơ đồ gọn.
+Ghi chú: sơ đồ không vẽ riêng hai cầu nối `located-review-bridge` và `native-source-review-bridge`, để giữ sơ đồ gọn. Hai cầu nối này đưa bản ghi có định vị vào phương pháp I06/I09.
 
 ## Phần 3. Luồng dữ liệu
 
@@ -120,9 +127,9 @@ flowchart TD
 
 Điểm cần lưu ý:
 
-- Các bước 3 đến 5 mỗi bước là một yêu cầu riêng với khóa yêu cầu duy nhất. Mở trang hay tải lại không tự gọi AI.
-- Khi kết quả AI không rõ, hệ thống giữ yêu cầu cũ để đọc lại, không tạo yêu cầu mới (tránh gọi AI hai lần).
-- Mẫu bộ mã của chân dung là 300 bản ghi đầu theo thứ tự lưu, nên mô tả là mẫu quan sát, không đại diện.
+- Mỗi bước từ 3 đến 5 là một yêu cầu riêng với khóa yêu cầu duy nhất. Mở trang hay tải lại không tự gọi AI.
+- Khi kết quả AI không rõ, hệ thống giữ yêu cầu cũ để đọc lại. Hệ thống không tạo yêu cầu mới, để tránh gọi AI hai lần.
+- Mẫu bộ mã của chân dung là 300 bản ghi đầu theo thứ tự lưu. Mô tả mẫu này là mẫu quan sát, không đại diện.
 
 ## Phần 4. Chuỗi bằng chứng bất biến
 
@@ -140,14 +147,26 @@ Dùng chung:
 
 - Phiên "Nghiên cứu tự động" và bảng phiên, đầu ra, lượt thử bản sửa (`0038`, `0041`).
 - Bảng lần chạy AI và nhân thực thi tổng hợp; cổng CLIProxy (`i14-cliproxy-transport.ts`).
-- Bộ nguồn lõi: Kalodata, SerpApi, Apify/Shopee và Metric (SerpApi chỉ gọi sau khi sản phẩm đã xác nhận, tối đa 3 lần cho mỗi báo cáo theo quy chuẩn).
+- Bộ nguồn lõi: Kalodata, SerpApi, Apify/Shopee và Metric.
+  - Hệ thống chỉ gọi SerpApi sau khi sản phẩm đã xác nhận.
+  - Quy chuẩn cho phép tối đa 3 lần gọi SerpApi mỗi báo cáo.
 - Kho đánh giá (`review-corpus.ts`), cầu nối nguồn, bộ kiểm chữ hiển thị.
-- Giao diện: cùng trang Nghiên cứu tự động, cùng khung "Các phiên bản báo cáo"; bảng báo cáo đọc dùng `report_kind` (`0050`).
-- Phía Market chỉ nhận đánh giá Shopee như nguồn được đếm (phương án A, 19/10): đếm, nhãn "review công khai trên Shopee", mốc 300, giới hạn.
+- Giao diện: cùng trang Nghiên cứu tự động và cùng khung "Các phiên bản báo cáo". Bảng báo cáo đọc dùng `report_kind` (`0050`).
+- Phía Market chỉ nhận đánh giá Shopee như nguồn được đếm (phương án A, 19/10). Market giữ năm thứ:
+  - số đếm;
+  - nhãn "review công khai trên Shopee";
+  - mốc 300;
+  - giới hạn.
 
-Riêng của Insight: gán mã chủ đề, trích nguyên văn, thẻ bằng chứng, chân dung, kiểm chéo, các mục I01 đến I17.
+Riêng của Insight:
 
-Liên hệ ngược: mục M11 "Cơ hội" của Market sẽ lấy tín hiệu I08/I09 từ Insight khi Insight mở lại (**Kế hoạch**).
+- gán mã chủ đề;
+- trích nguyên văn;
+- thẻ bằng chứng và chân dung;
+- kiểm chéo;
+- các mục I01 đến I17.
+
+Liên hệ ngược: khi Insight mở lại, mục M11 "Cơ hội" của Market sẽ lấy tín hiệu I08/I09 từ Insight (**Kế hoạch**).
 
 ## Phần 6. Các quyết định thiết kế
 
@@ -178,16 +197,38 @@ Danh sách (Kế hoạch trừ khi ghi khác):
 4. Lớp "người bán nhắm tới" (E5).
 5. Buộc kết luận chính nêu giới hạn mẫu.
 6. Nối bình luận TikTok (S07) và nền tảng chân dung ngoài Shopee.
-7. Nguồn còn thiếu đường thu: S06, S08, S10, S12, S18; Apify đang hết tiền nên chuyển Shopee sang dịch vụ Shopee API riêng (đã gộp qua gói S).
+7. Nguồn còn thiếu đường thu: S06, S08, S10, S12, S18.
+   - Apify đang hết tiền, nên hệ thống chuyển Shopee sang dịch vụ Shopee API riêng (đã gộp qua gói S).
 8. Nối gợi ý ngầm từ bộ persona tổng hợp.
 9. Dựng bảng chủ đề và câu trích từ bình luận đã gán mã vào báo cáo.
 10. Nối bản thể (ontology) vào ứng dụng nếu chủ muốn; hiện chỉ là hình dạng tổng hợp.
 11. Bổ sung tên bộ persona tổng hợp và tên mô hình AI vào danh sách chữ cấm của bộ kiểm báo cáo.
 12. Tự động hóa Insight đến mức Market: dùng lại luồng Market, chạy thử ít nhất 3 sản phẩm, chấm theo quy tắc.
 
-Ước tính sơ bộ (không phải cam kết): khoảng 1 đến 2 tuần sau khi chủ mở lại, với giả định dùng lại luồng Market và có đủ quyết định của chủ. Nhịp thực tế hiện tại: mỗi gói khoảng 0,5 đến 1 ngày, gồm viết mã, kiểm thử, duyệt, CI.
+Ước tính sơ bộ (không phải cam kết): cần khoảng 1 đến 2 tuần sau khi chủ mở lại. Ước tính này giả định hai điều:
 
-Quy trình: một mô hình AI viết mã; một mô hình AI khác viết kiểm thử (có đối chứng âm) và duyệt, mỗi vai một phiên mới; gộp khi kết quả duyệt PASS đúng đầu nhánh và CI xanh; triển khai chỉ khi chủ viết «deploy <SHA>»; mỗi gói một PR, tối đa 3 PR mở.
+- dùng lại luồng Market;
+- chủ ra đủ quyết định.
+
+Nhịp thực tế hiện tại: mỗi gói mất khoảng 0,5 đến 1 ngày, gồm viết mã, kiểm thử, duyệt và CI.
+
+Quy trình làm việc:
+
+- Một mô hình AI viết mã.
+- Một mô hình AI khác viết kiểm thử (có đối chứng âm) và duyệt. Mỗi vai dùng một phiên mới.
+- Mỗi gói có một PR. Tối đa 3 PR mở cùng lúc.
+
+```mermaid
+flowchart LR
+  A["Viết mã"] --> B["Viết kiểm thử và duyệt"]
+  B --> C{"PASS đúng đầu nhánh, CI xanh?"}
+  C -->|"Có"| D["Gộp"]
+  C -->|"Không"| A
+  D --> E["Chủ viết: deploy SHA"]
+  E --> F["Triển khai"]
+```
+
+Hệ thống chỉ triển khai khi chủ viết «deploy <SHA>».
 
 ## Phần 8. Câu hỏi cho chủ dự án
 

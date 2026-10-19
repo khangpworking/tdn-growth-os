@@ -1,8 +1,14 @@
 # Content Studio — Thiết kế hệ thống
 
-Mục đích: cho thấy Content Studio nằm ở đâu trong hệ thống, dữ liệu chảy thế nào, các quyết định đã chốt, tình trạng phát hành và việc còn mở.
+Mục đích: tài liệu này cho thấy:
 
-Cập nhật: 20/10/2026 · Mã nguồn chính: `e9e0f444`
+- Content Studio nằm ở đâu trong hệ thống;
+- dữ liệu chảy thế nào;
+- các quyết định đã chốt;
+- tình trạng phát hành;
+- việc còn mở.
+
+Cập nhật: 20/10/2026 · Commit chính: `e9e0f444`
 
 ## Mục lục
 
@@ -14,7 +20,7 @@ Cập nhật: 20/10/2026 · Mã nguồn chính: `e9e0f444`
 
 ## Phần 1. Vị trí trong hệ thống năm hộp
 
-tdn-growth-os là một khối thống nhất (modular monolith) gồm năm hộp (xem `ARCHITECTURE.md`). Content Studio là ba khối B11–B13 nằm trong Hộp 4 (Flow Engine), dùng chung một cơ sở dữ liệu SQLite với các hộp khác, nhưng bảng riêng tiền tố `flow_content_*`.
+tdn-growth-os là một khối thống nhất (modular monolith) gồm năm hộp (xem `ARCHITECTURE.md`). Content Studio là ba khối B11–B13 nằm trong Hộp 4 (Flow Engine). Content Studio dùng chung một cơ sở dữ liệu SQLite với các hộp khác. Bảng của nó có tiền tố riêng `flow_content_*`.
 
 Quan hệ với báo cáo thị trường: chiến dịch có thể mở từ một sản phẩm nghiên cứu (đường dẫn `#/content/new/<mã sản phẩm>`). Theo D26 và D33 trong `INTENT.md`, mục "Duyệt" (`APPROVE`) của B10 chỉ bị đóng băng cho chiến dịch có liên kết với sản phẩm nghiên cứu. Ngoài ra Content Studio không phụ thuộc kết quả phân tích.
 
@@ -104,7 +110,7 @@ stateDiagram-v2
 Điểm thiết kế đáng chú ý:
 
 - Bất biến và có phiên bản: sửa là thêm bản mới, ghi có điều kiện `expectedVersion` hoặc `expectedSequence`; sai thì 409, gửi lại đúng thì no-op.
-- Gọi AI đồng bộ, một khóa thực thi cho mỗi cơ sở dữ liệu, quét lúc khởi động đánh dấu lần gọi dở dang là bị gián đoạn, không tự thử lại (ADR 0004).
+- Gọi AI đồng bộ, không tự thử lại (ADR 0004). Mỗi cơ sở dữ liệu có một khóa thực thi. Khi khởi động, hệ thống quét và đánh dấu lần gọi dở dang là bị gián đoạn.
 - Giá trị liên hệ không đi vào mô hình; hệ thống tự thêm khối liên hệ.
 - Lớp prompt hệ thống ghim bằng SHA-256; người dùng chỉ sửa được lớp sáng tạo.
 - Lỗi AI trả mã cố định và thông báo cố định, không lộ văn bản nhà cung cấp, URL hay khóa.
@@ -124,16 +130,43 @@ stateDiagram-v2
 
 Nguồn: `docs/content-studio-release.md`.
 
-Tình trạng mã: mọi lát xây dựng đã gộp vào nhánh chính: 047 thiết kế (#44), 048 thương hiệu (#45), 048b danh mục và ảnh (#46), 048c thư viện prompt (#47), 048d chiến dịch (#50), 049 hạ tầng AI (#53), 050a Insight (#56), 050b Big Idea và Góc (#57), 051 Caption & Poster (#58), cùng #68 định tuyến mô hình (migration 0034). Nhiệm vụ 052 (AI đề xuất chỉnh sửa) hoãn sang bản sau. Commit liên quan gần nhất: `df84a183` (30/09/2026, sửa nội suy prompt Poster) và gộp #90 (`02eb59e3`, 01/10/2026). Nhánh chính hiện tại: `e9e0f444`.
+Tình trạng mã: mọi lát xây dựng đã gộp vào nhánh chính.
+
+| Lát | Nội dung | PR |
+|---|---|---|
+| 047 | thiết kế | #44 |
+| 048 | thương hiệu | #45 |
+| 048b | danh mục và ảnh | #46 |
+| 048c | thư viện prompt | #47 |
+| 048d | chiến dịch | #50 |
+| 049 | hạ tầng AI | #53 |
+| 050a | Insight | #56 |
+| 050b | Big Idea và Góc | #57 |
+| 051 | Caption & Poster | #58 |
+| (khác) | định tuyến mô hình (migration 0034) | #68 |
+
+Nhiệm vụ 052 (AI đề xuất chỉnh sửa) hoãn sang bản sau. Commit liên quan gần nhất:
+
+- `df84a183` (30/09/2026): sửa nội suy prompt Poster.
+- gộp #90 (`02eb59e3`, 01/10/2026).
+
+Nhánh chính hiện tại: `e9e0f444`.
 
 Chưa làm (kế hoạch):
 
 - AI đề xuất chỉnh sửa Caption và Poster (nhiệm vụ 052): Chưa làm, hoãn theo quyết định chủ sở hữu 25/09/2026. Sửa tay và khôi phục phiên bản đã có.
-- Nghiệm thu thực tế (nhiệm vụ 053): đã chạy trên máy chủ Fedora ngày 29/09/2026 ở commit `2b208cd` với 6 lần gọi AI thật (Big Idea, Góc, 2 gói Caption & Poster cho cả hai mô hình ảnh), đều thành công. Việc tắt máy Windows còn chờ chủ sở hữu sau một thời gian dùng thật.
+- Nghiệm thu thực tế (nhiệm vụ 053): đã chạy trên máy chủ Fedora ngày 29/09/2026 ở commit `2b208cd`. Có 6 lần gọi AI thật, đều thành công: Big Idea, Góc, và 2 gói Caption & Poster cho cả hai mô hình ảnh. Việc tắt máy Windows còn chờ chủ sở hữu sau một thời gian dùng thật.
 
-Triển khai lên máy chủ thật: cần chủ sở hữu cho phép riêng bằng câu lệnh "deploy" kèm mã commit. Tài liệu phát hành chỉ ghi lần chạy nghiệm thu ngày 29/09/2026; tình trạng triển khai sản xuất hiện nay cần xác nhận với chủ sở hữu. Báo cáo thị trường (hệ thống riêng) đang chạy ở một commit khác và không đồng nghĩa với việc Content Studio đã triển khai.
+Triển khai lên máy chủ thật cần chủ sở hữu cho phép riêng, bằng câu lệnh "deploy" kèm mã commit. Tài liệu phát hành chỉ ghi lần chạy nghiệm thu ngày 29/09/2026. Tình trạng triển khai sản xuất hiện nay cần xác nhận với chủ sở hữu. Báo cáo thị trường (hệ thống riêng) đang chạy ở một commit khác. Điều đó không có nghĩa là Content Studio đã triển khai.
 
-Ước tính sơ bộ (phán đoán, không phải cam kết): nếu chủ sở hữu cho triển khai lên bản mới nhất, chạy migration, bật cổng AI, chạy thử các luồng và rà soát khoảng nửa ngày đến một ngày. Phần AI đề xuất chỉnh sửa (052) chưa có ước tính vì chưa chốt phạm vi.
+Ước tính sơ bộ (phán đoán, không phải cam kết): nếu chủ sở hữu cho triển khai lên bản mới nhất, các việc sau mất khoảng nửa ngày đến một ngày:
+
+- chạy migration;
+- bật cổng AI;
+- chạy thử các luồng;
+- rà soát.
+
+Phần AI đề xuất chỉnh sửa (052) chưa có ước tính vì chưa chốt phạm vi.
 
 ## Phần 5. Câu hỏi còn mở
 

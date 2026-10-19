@@ -1,6 +1,6 @@
 # Tài liệu kỹ thuật báo cáo Thị trường (Market) tự động
 
-Mục đích: mô tả module, route, bảng dữ liệu, cờ cấu hình, nguồn, vòng kiểm định, đường PDF, kiểm thử, triển khai và cách xử lý sự cố của báo cáo Thị trường tự động.
+Mục đích: mô tả báo cáo Thị trường tự động. Tài liệu gồm module, route, bảng dữ liệu, cờ cấu hình, nguồn, vòng kiểm định, đường PDF, kiểm thử, triển khai và xử lý sự cố.
 
 Cập nhật: 20/10/2026 · Commit chính: `e9e0f444`
 
@@ -23,9 +23,28 @@ Quy ước: đường dẫn là tương đối so với gốc repo. Chỗ nào c
 
 ## Phần 1. Tổng quan và module
 
-Hệ thống là một monolith TypeScript chia module, dùng SQLite qua `better-sqlite3`, giao diện React/Vite với hash route (`frontend/src/research-automation/routes.ts`). Ứng dụng vận hành (operator app) là tiến trình duy nhất phục vụ API và giao diện; nó chỉ lắng nghe trên địa chỉ nội bộ của máy, không mở ra mạng ngoài (cấu hình qua tên biến `TDN_OPERATOR_APP_HOST`, `TDN_OPERATOR_APP_PORT`; xem `src/api/operator-app.ts`).
+Hệ thống là một monolith TypeScript chia module. Nó dùng SQLite qua `better-sqlite3`. Giao diện là React/Vite với hash route (`frontend/src/research-automation/routes.ts`).
 
-Quyết định kiến trúc chính nằm ở `docs/adr/0006-research-automation-execution.md`: một dịch vụ `ResearchAutomationService` thuộc module Analysis, lưu trạng thái bền trong SQLite (migration 0038), cùng một `ResearchAutomationWorker` tối thiểu gắn vào executor của operator. Không dùng hàng đợi riêng. Khi tiến trình khởi động lại, dòng nào đang chạy nhà cung cấp chuyển sang `INTERRUPTED` và không bao giờ được tự thử lại; chỉ bước kết xuất cục bộ (không phát sinh phí) mới được xếp hàng lại.
+Ứng dụng vận hành (operator app) là tiến trình duy nhất phục vụ API và giao diện. Tiến trình này chỉ lắng nghe trên địa chỉ nội bộ của máy và không mở ra mạng ngoài. Cấu hình dùng hai biến `TDN_OPERATOR_APP_HOST` và `TDN_OPERATOR_APP_PORT` (xem `src/api/operator-app.ts`).
+
+Quyết định kiến trúc chính nằm ở `docs/adr/0006-research-automation-execution.md`:
+
+- Một dịch vụ `ResearchAutomationService` thuộc module Analysis.
+- Dịch vụ lưu trạng thái bền trong SQLite (migration 0038).
+- Một `ResearchAutomationWorker` tối thiểu gắn vào executor của operator.
+- Không dùng hàng đợi riêng.
+
+Khi tiến trình khởi động lại, hệ thống đổi dòng đang chạy nhà cung cấp sang `INTERRUPTED`. Hệ thống không bao giờ tự thử lại dòng đó. Chỉ bước kết xuất cục bộ (không phát sinh phí) được xếp hàng lại.
+
+```mermaid
+flowchart LR
+    UI["Giao diện React"] --> API["operator-app.ts"]
+    API --> SVC["ResearchAutomationService"]
+    SVC --> DB["SQLite"]
+    SVC --> WK["ResearchAutomationWorker"]
+    SVC --> PORT["AutomationSourcePort"]
+    PORT --> SRC["Adapter nguồn dữ liệu"]
+```
 
 Các thư mục chính:
 
@@ -51,7 +70,13 @@ Các thư mục chính:
 
 ## Phần 2. Route HTTP
 
-Hai không gian đường dẫn: `/api/...` (đọc) và `/owner-api/...` (ghi, cần xác thực chủ sở hữu). Phần ghi yêu cầu đồng thời: đúng `Origin`, token chủ sở hữu hợp lệ và cờ cho phép ghi (`TDN_OWNER_API_ENABLED`). Các GET đọc không nhận query string. Nguồn: `src/api/research-automation-api.ts`, `src/api/research-generation-api.ts`.
+Có hai không gian đường dẫn: `/api/...` (đọc) và `/owner-api/...` (ghi, cần xác thực chủ sở hữu). Một yêu cầu ghi phải thỏa cả ba điều kiện:
+
+- đúng `Origin`;
+- token chủ sở hữu hợp lệ;
+- cờ cho phép ghi `TDN_OWNER_API_ENABLED` đang bật.
+
+Các GET đọc không nhận query string. Nguồn: `src/api/research-automation-api.ts`, `src/api/research-generation-api.ts`.
 
 **Tạo báo cáo từ đầu vào (generation)**
 
@@ -71,9 +96,14 @@ Hai không gian đường dẫn: `/api/...` (đọc) và `/owner-api/...` (ghi, 
 - Báo cáo đọc: `reader-reports`, `reader-reports/decisions`, `reader-reports/v2`, `reader-reports/decisions/v2`, `reader-reports/tiktok`, `reader-reports/shopee`, `reader-reports/insight`, `reader-reports/unit-spec-intakes`, `report-versions`, `report-attempts`, `report-revisions`.
 - Phần Insight (hiện tạm dừng theo quyết định chủ sở hữu): `insight-crosscheck-preparations`, `insight-persona-model-proposals`, `insight-coding-model-proposals`, `insight-coding-default-model-proposals`.
 
-Mỗi route có schema trong `contracts/api/` (ví dụ `research-automation-api.schema.json`, `research-automation-reader-report-api.schema.json`). Yêu cầu ghi dùng khóa yêu cầu (request key) idempotent: gửi lại cùng khóa và cùng nội dung chuẩn hóa trả về biên nhận cũ (`exactRetry`), khác nội dung thì báo xung đột (ADR 0006).
+Mỗi route có schema trong `contracts/api/` (ví dụ `research-automation-api.schema.json`, `research-automation-reader-report-api.schema.json`).
 
-**Giao diện** dùng hash route `#/markets/<marketId>/research` và `#/markets/<marketId>/research/<runId>`; id phiên lưu trong URL nên tải lại trang vẫn tiếp tục đúng phiên, không dùng bộ nhớ trình duyệt.
+Yêu cầu ghi dùng khóa yêu cầu (request key) idempotent (ADR 0006):
+
+- Gửi lại cùng khóa và cùng nội dung chuẩn hóa: hệ thống trả biên nhận cũ (`exactRetry`).
+- Gửi cùng khóa nhưng khác nội dung: hệ thống báo xung đột.
+
+**Giao diện** dùng hash route `#/markets/<marketId>/research` và `#/markets/<marketId>/research/<runId>`. Id phiên nằm trong URL. Vì vậy khi tải lại trang, giao diện vẫn mở đúng phiên và không dùng bộ nhớ trình duyệt.
 
 ## Phần 3. Bảng dữ liệu và migration
 
@@ -95,12 +125,12 @@ Bảng `research_automation_autorun` (đọc từ migration 0055):
 - Chỉ có dòng cho phiên bắt đầu khi bộ tự chạy bật và có yêu cầu MARKET; phiên khi tắt cờ không có dòng.
 - `phase` thuộc: `WAITING_SCOPE`, `CAPTURE`, `PREPARE`, `PICK`, `CONFIRM`, `WAIT_DRAFT`, `PRESENT`, `DONE`, `STOPPED`. `phase_state` thuộc `QUEUED`, `RUNNING`.
 - `STOPPED` khi và chỉ khi có `stop_code` (chữ hoa/số/gạch dưới, tối đa 64 ký tự); `stop_detail` ngắn, không chứa đường dẫn.
-- Khóa yêu cầu cố định theo từng bước (`prepare`, `confirm`, `revision`), sinh bởi `autorunRequestKey` trong `autorun-derive.ts`: cùng phiên và bước thì cùng khóa, nên bước khởi động lại phát lại đúng yêu cầu cũ.
+- Khóa yêu cầu cố định theo từng bước (`prepare`, `confirm`, `revision`). Hàm `autorunRequestKey` trong `autorun-derive.ts` sinh khóa. Cùng phiên và cùng bước thì cùng khóa. Vì vậy bước khởi động lại phát lại đúng yêu cầu cũ.
 - Thư mục thu thập suy ra từ id phiên, không lưu đường dẫn.
 
-Mã dừng thuộc nhóm thu thập (chỉ nhóm này mới được "Thử lại" thủ công): `METRIC_LOGIN_REQUIRED`, `METRIC_CAPTCHA`, `METRIC_PERIOD_UNSUPPORTED`, `METRIC_UI_CHANGED`, `METRIC_FILTER_MISMATCH`, `METRIC_ROW_CAP`, `METRIC_SEARCH_NOT_APPLIED`, `BRIDGE_DISCONNECTED`, `EXECUTOR_DISABLED`, `TIMEOUT`, `MANIFEST_HASH_MISMATCH`, `EXECUTOR_NOT_CONFIGURED`, `PERIOD_OUTSIDE_RUN`, `CAPTURE_INTERRUPTED`, `CAPTURE_INPUT_INVALID`, `CAPTURE_IO_FAILED` (`src/modules/analysis/research-automation/autorun-derive.ts`). Dừng ở giai đoạn chọn, xác nhận, trình bày, kết thúc phiên hoặc do chủ sở hữu thì không thử lại được.
+Chỉ mã dừng thuộc nhóm thu thập mới được "Thử lại" thủ công. Nhóm gồm các mã: `METRIC_LOGIN_REQUIRED`, `METRIC_CAPTCHA`, `METRIC_PERIOD_UNSUPPORTED`, `METRIC_UI_CHANGED`, `METRIC_FILTER_MISMATCH`, `METRIC_ROW_CAP`, `METRIC_SEARCH_NOT_APPLIED`, `BRIDGE_DISCONNECTED`, `EXECUTOR_DISABLED`, `TIMEOUT`, `MANIFEST_HASH_MISMATCH`, `EXECUTOR_NOT_CONFIGURED`, `PERIOD_OUTSIDE_RUN`, `CAPTURE_INTERRUPTED`, `CAPTURE_INPUT_INVALID`, `CAPTURE_IO_FAILED` (`src/modules/analysis/research-automation/autorun-derive.ts`). Dừng ở giai đoạn chọn, xác nhận, trình bày, kết thúc phiên hoặc do chủ sở hữu thì không thử lại được.
 
-Quy tắc chọn liên kết Shopee của bộ tự chạy có phiên bản (`autorun-pick-v3`, còn `autorun-pick-v2` để tương thích), tối đa 5 liên kết; cửa sổ kết quả của Metric là 30 ngày gồm cả hai đầu.
+Quy tắc chọn liên kết Shopee của bộ tự chạy có phiên bản: `autorun-pick-v3`. Bản `autorun-pick-v2` còn giữ để tương thích. Quy tắc chọn tối đa 5 liên kết. Cửa sổ kết quả của Metric là 30 ngày, gồm cả hai đầu.
 
 ## Phần 4. Cờ cấu hình (chỉ tên)
 
@@ -110,16 +140,19 @@ Cấu hình đọc một lần từ môi trường khi khởi động (`src/api/
 - **Bộ tự chạy / Metric:** `TDN_METRIC_OPENCLI_ENABLED` (đúng "1" mới bật; giá trị khác thì không có bộ tự chạy và không có dòng), `TDN_METRIC_OPENCLI_ADAPTER_MANIFEST`, `TDN_METRIC_OPENCLI_ADAPTER_SHA256`, `TDN_METRIC_CAPTURE_DIR`, `TDN_RESEARCH_KALODATA_REPLAY_SOURCE_RUN_ID` (chế độ phát lại, không tốn điểm).
 - **Làn nguồn:** `TDN_RESEARCH_SEARCH_TRENDS_ENABLED`, `TDN_RESEARCH_SEARCH_TRENDS_GEO_ENABLED`, `TDN_RESEARCH_EXPANDED_SEARCH_ENABLED`, `TDN_RESEARCH_WORLD_BANK_ENABLED`, `TDN_RESEARCH_COMTRADE_ENABLED`, `TDN_RESEARCH_GOOGLE_ADS_ENABLED`, `TDN_RESEARCH_OFFICIAL_STATS_ENABLED`, `TDN_RESEARCH_OFFICIAL_STATS_PROVINCE_ENABLED`, `TDN_RESEARCH_META_AUTO_ENABLED`, `TDN_RESEARCH_TIKTOK_TOPADS_ENABLED`, `TDN_RESEARCH_VIDEO_WATCH_ENABLED`, `TDN_RESEARCH_PDF_DISCOVERY_ENABLED`, `TDN_RESEARCH_PDF_DISCOVERY_MAX_PAGES`.
 - **Nhà cung cấp trả phí:** `TDN_KALODATA_SECRET_KEY`, `TDN_SERPAPI_API_KEY`, `TDN_APIFY_TOKEN`, `TDN_RESEARCH_SHOPEE_PUBLIC_ENABLED`, `TDN_RESEARCH_SHOPEE_PUBLIC_TOKEN`, `TDN_RESEARCH_SHOPEE_PUBLIC_BASE_URL`, `TDN_RESEARCH_SHOPEE_PUBLIC_MAX_COMMENTS_PER_PRODUCT`; trần: `TDN_RESEARCH_SHOPEE_MAX_CHARGE_USD`, `TDN_RESEARCH_SHOPEE_MAX_REVIEWS_PER_PRODUCT`, `TDN_RESEARCH_TIKTOK_COMMENTS_MAX_CHARGE_USD`; kiểm thử: `TDN_RESEARCH_AUTORUN_TEST_REVIEWS`.
-- **AI (đều qua cổng AI nội bộ, tên biến `TDN_CLIPROXY_BASE_URL`, `TDN_CLIPROXY_API_KEY`):** `TDN_RESEARCH_CAPTURE_RELEVANCE_AI_MODEL` (giai đoạn đánh giá độ liên quan; khi trống thì dùng luật v2), `TDN_RESEARCH_KEYWORD_DRAFT_AI_ENABLED` / `_MODEL`, `TDN_RESEARCH_I14_AI_ENABLED` / `_MODEL`, `TDN_RESEARCH_M11_AI_ENABLED` / `_MODEL`, `TDN_RESEARCH_M12_AI_ENABLED` / `_MODEL`, `TDN_RESEARCH_I15_AI_ENABLED` / `_MODEL` (ghép tên trong `src/api/operator-app.ts`), `TDN_RESEARCH_INSIGHT_CODING_AI_ENABLED` / `_MODEL`, `TDN_RESEARCH_TIKTOK_CODING_AI_ENABLED` / `_MODEL`, `TDN_RESEARCH_SHOPEE_CODING_AI_ENABLED` / `_MODEL`, `TDN_RESEARCH_COVER_AI_ENABLED` / `_MODEL`. Mỗi cờ `_ENABLED` phải đúng `true` hoặc `false`; bật thì bắt buộc khai tên mô hình tường minh.
+- **AI:** mọi lệnh gọi đi qua cổng AI nội bộ. Cổng dùng hai biến `TDN_CLIPROXY_BASE_URL` và `TDN_CLIPROXY_API_KEY`. Các biến AI gồm:
+  - `TDN_RESEARCH_CAPTURE_RELEVANCE_AI_MODEL`: giai đoạn đánh giá độ liên quan. Khi trống, hệ thống dùng luật v2.
+  - Các cặp `_ENABLED` / `_MODEL` (ghép tên trong `src/api/operator-app.ts`): `TDN_RESEARCH_KEYWORD_DRAFT_AI_ENABLED` / `_MODEL`, `TDN_RESEARCH_I14_AI_ENABLED` / `_MODEL`, `TDN_RESEARCH_M11_AI_ENABLED` / `_MODEL`, `TDN_RESEARCH_M12_AI_ENABLED` / `_MODEL`, `TDN_RESEARCH_I15_AI_ENABLED` / `_MODEL`, `TDN_RESEARCH_INSIGHT_CODING_AI_ENABLED` / `_MODEL`, `TDN_RESEARCH_TIKTOK_CODING_AI_ENABLED` / `_MODEL`, `TDN_RESEARCH_SHOPEE_CODING_AI_ENABLED` / `_MODEL`, `TDN_RESEARCH_COVER_AI_ENABLED` / `_MODEL`.
+  - Mỗi cờ `_ENABLED` phải đúng `true` hoặc `false`. Khi bật cờ, bạn bắt buộc khai tên mô hình tường minh.
 - **Video:** `TDN_RESEARCH_VIDEO_MEDIA_DIR`, `TDN_RESEARCH_VIDEO_WATCH_MODEL`, `TDN_RESEARCH_YTDLP_BIN`, `TDN_RESEARCH_FFPROBE_BIN`.
 - **PDF và lập chỉ mục:** `TDN_RESEARCH_PDF_CHROMIUM` (đường dẫn trình in; thiếu thì không xuất PDF), `TDN_PAGEINDEX_CLOUD_ENABLED`, `TDN_PAGEINDEX_MAX_QUESTIONS_PER_RUN`, `TDN_PAGEINDEX_STARTING_CREDIT_MICRO_DOLLARS`.
 - **Lưu trữ đối tượng:** `TDN_R2_ENABLED` và nhóm khóa `TDN_R2_*`.
 
-Trạng thái bật/tắt trên môi trường chạy thật không nằm trong repo; xem bảng trạng thái trong `docs/STATUS.md` và quy chuẩn dữ liệu đầu vào (cần xác nhận phiên bản mới nhất).
+Trạng thái bật/tắt trên môi trường chạy thật không nằm trong repo. Xem bảng trạng thái trong `docs/STATUS.md` và quy chuẩn dữ liệu đầu vào (cần xác nhận phiên bản mới nhất).
 
 ## Phần 5. Nguồn, adapter và giới hạn
 
-Quy chuẩn dữ liệu đầu vào liệt kê các nguồn S01–S28 (tài liệu quản lý ngoài repo, bản v1.36; không sao chép bảng đầy đủ ở đây — cần đối chiếu tài liệu đó khi sửa). Tóm tắt các nhóm nguồn và giới hạn đã xác nhận:
+Quy chuẩn dữ liệu đầu vào liệt kê các nguồn S01–S28. Đây là tài liệu quản lý ngoài repo, bản v1.36. Tài liệu này không sao chép bảng đầy đủ. Khi sửa, hãy đối chiếu tài liệu đó. Bảng sau tóm tắt các nhóm nguồn và giới hạn đã xác nhận:
 
 | Nhóm | Nhà cung cấp / công cụ | Ghi chú giới hạn |
 | --- | --- | --- |
@@ -137,34 +170,76 @@ Mọi nhà cung cấp đứng sau cổng `AutomationSourcePort` (ADR 0006): thô
 
 ## Phần 6. Vòng cổng kiểm định, audit và bản sửa v2
 
-Luồng của một phiên tự chạy (pha trong `research_automation_autorun`):
+Một phiên tự chạy đi qua các pha sau (pha nằm trong `research_automation_autorun`):
 
-1. `WAITING_SCOPE`: tìm nhanh xong, chờ chủ sở hữu duyệt phạm vi.
+1. `WAITING_SCOPE`: tìm nhanh xong. Hệ thống chờ chủ sở hữu duyệt phạm vi.
 2. `CAPTURE`: thu thập số liệu bán hàng (OpenCLI) vào thư mục theo id phiên.
-3. `PREPARE`: chuẩn bị gói đầu vào; dòng thu thập được đánh giá chất lượng (`capture-row-quality.ts`) và độ liên quan (`capture-relevance.ts`; luật v2, hoặc v3 khi cờ mô hình độ liên quan được đặt).
+3. `PREPARE`: chuẩn bị gói đầu vào. Hệ thống đánh giá chất lượng dòng thu thập (`capture-row-quality.ts`). Hệ thống cũng đánh giá độ liên quan (`capture-relevance.ts`): luật v2, hoặc v3 khi cờ mô hình độ liên quan được đặt.
 4. `PICK`: chọn liên kết sản phẩm theo luật `autorun-pick-v3`.
 5. `CONFIRM`: xác nhận nguồn với phiên bản kỳ vọng.
 6. `WAIT_DRAFT`: chờ bản nháp tự động.
-7. `PRESENT`: khi phiên ở trạng thái `DRAFT_READY`, bộ tự chạy luôn yêu cầu đúng một lượt trình bày lại (revision attempt, hợp đồng `automation-market-presentation-revision-v1`, `service.ts` hàm `#autorunPresent`) từ cặp bản nháp mới nhất; lượt này dựng trang đọc v2 và chạy kiểm định. Lượt `COMMITTED` thì sang `DONE`; lượt hỏng thì dừng với mã `PRESENTATION_FAILED`; nếu đã có lượt sửa tay của chủ sở hữu thì dừng với `OWNER_REVISION_EXISTS`.
+7. `PRESENT`: khi phiên ở trạng thái `DRAFT_READY`, bộ tự chạy luôn yêu cầu đúng một lượt trình bày lại (revision attempt). Lượt này đi từ cặp bản nháp mới nhất. Hợp đồng là `automation-market-presentation-revision-v1`, hàm là `#autorunPresent` trong `service.ts`. Lượt này dựng trang đọc v2 và chạy kiểm định.
 8. `DONE` hoặc `STOPPED`.
+
+```mermaid
+flowchart TD
+    A["WAITING_SCOPE"] --> B["CAPTURE"]
+    B --> C["PREPARE"]
+    C --> D["PICK"]
+    D --> E["CONFIRM"]
+    E --> F["WAIT_DRAFT"]
+    F --> G["PRESENT"]
+    G -->|"lượt COMMITTED"| H["DONE"]
+    G -->|"lượt hỏng: PRESENTATION_FAILED"| I["STOPPED"]
+    G -->|"đã có lượt sửa tay: OWNER_REVISION_EXISTS"| I
+    B -->|"lỗi thu thập"| I
+```
+
+Kết quả của pha `PRESENT`:
+
+- Lượt `COMMITTED`: phiên sang `DONE`.
+- Lượt hỏng: phiên dừng với mã `PRESENTATION_FAILED`.
+- Đã có lượt sửa tay của chủ sở hữu: phiên dừng với mã `OWNER_REVISION_EXISTS`.
 
 **Kiểm định khi dựng trang đọc** (gọi từ `reader-report-revisions.ts` và mẫu Market):
 
-- `auditMarket14` (trong `market-14-rules.ts`) trả về từng quy tắc 1–14 kèm loại `machine` hay `evidence`. Quy tắc 1–5, 7, 9–13 do máy kiểm; quy tắc 6, 8, 14 là loại chứng cứ (người rà soát); quy tắc 10 là máy kiểm cho ảnh bìa nhúng sẵn do AI tạo có chú thích, còn bìa có bản quyền hoặc do chủ sở hữu cung cấp cần người xem. `assertMarket14MachineRules` ném `TypeError` với mã `MARKET_14_RULES_FAILED:<danh sách quy tắc>`.
-- `auditMarketReportHtml` (cổng kinh doanh, `market-business-gate.ts`) kiểm các mã: `G08_PROVIDER_NAME`, `U32_NO_CROSS_PLATFORM_TOTAL`, `E2_NO_REVENUE_ORDER`, `SECTIONS_PRESENT`, `M12_PROPOSAL_LABEL`, `PARTIAL_TOTAL_FORBIDDEN`, `NO_LEAK`, `SEARCH_INTEREST_NOT_COUNT`, `WORLD_BANK_NOT_ARITHMETIC`, `PDF_EXCERPT_NOT_MARKET_NUMBER`, `SELLER_VIDEO_NOT_CUSTOMER_OR_TOTAL`; lỗi ném `MARKET_BUSINESS_GATE_FAILED:<mã>`. Thêm bộ lint văn bản hiển thị (`src/modules/analysis/report-visible-text-lint.ts`, U13).
-- `reader-report-revisions.ts` (dòng 371) bắt hai loại lỗi trên và chuyển thành `ResearchAutomationValidationError` để API trả lỗi xác thực rõ ràng.
+- `auditMarket14` (trong `market-14-rules.ts`) trả về từng quy tắc 1–14, kèm loại `machine` hay `evidence`.
+  - Máy kiểm quy tắc 1–5, 7, 9–13.
+  - Quy tắc 6, 8, 14 là loại chứng cứ. Người rà soát kiểm các quy tắc này.
+  - Quy tắc 10 là máy kiểm cho ảnh bìa nhúng sẵn, do AI tạo và có chú thích. Bìa có bản quyền hoặc do chủ sở hữu cung cấp cần người xem.
+  - `assertMarket14MachineRules` ném `TypeError` với mã `MARKET_14_RULES_FAILED:<danh sách quy tắc>`.
+- `auditMarketReportHtml` (cổng kinh doanh, `market-business-gate.ts`) kiểm các mã sau:
+  - `G08_PROVIDER_NAME`, `U32_NO_CROSS_PLATFORM_TOTAL`, `E2_NO_REVENUE_ORDER`, `SECTIONS_PRESENT`;
+  - `M12_PROPOSAL_LABEL`, `PARTIAL_TOTAL_FORBIDDEN`, `NO_LEAK`, `SEARCH_INTEREST_NOT_COUNT`;
+  - `WORLD_BANK_NOT_ARITHMETIC`, `PDF_EXCERPT_NOT_MARKET_NUMBER`, `SELLER_VIDEO_NOT_CUSTOMER_OR_TOTAL`.
+  - Khi lỗi, hàm ném `MARKET_BUSINESS_GATE_FAILED:<mã>`.
+  - Thêm bộ lint văn bản hiển thị (`src/modules/analysis/report-visible-text-lint.ts`, U13).
+- `reader-report-revisions.ts` (dòng 371) bắt hai loại lỗi trên. Nó chuyển lỗi thành `ResearchAutomationValidationError`, để API trả lỗi xác thực rõ ràng.
 
-**Lượt trình bày lại (bản v2).** Ở pha `PRESENT`, bộ tự chạy gọi `requestReportRevision` với `buildRevisionValue` (`autorun-derive.ts`): giữ nguyên nguồn Metric và đánh giá gốc (`KEEP`), khóa yêu cầu riêng `autorunRequestKey(runId, 'revision')`, nên khởi động lại thì phát lại đúng yêu cầu. Lượt này lưu vào bảng `analysis_research_automation_attempts` và đầu ra ở `analysis_research_automation_attempt_outputs` (migration 0041; route `report-attempts`, `report-revisions`). Kiểm định 14 quy tắc và cổng kinh doanh chạy khi dựng trang đọc; vi phạm làm lượt dựng bị từ chối (`MARKET_14_RULES_FAILED`, `MARKET_BUSINESS_GATE_FAILED`). Vì vậy bản đạt là bản v2 (đầu ra của lượt), không phải bản nháp đầu. Quy tắc vận hành khi chấm: chấm 14/14 trên đầu ra v2 tự động, không chấm bản nháp canary đầu (bản này thường trượt các quy tắc 1, 3, 7, 9, 11; theo ghi chú vận hành, không tự động hóa trong mã). Việc bản nháp đầu có qua cổng riêng hay không, và số lượt sửa tối đa, cần đọc thêm `service.ts` (cần xác nhận).
+**Lượt trình bày lại (bản v2).** Ở pha `PRESENT`, bộ tự chạy gọi `requestReportRevision` với `buildRevisionValue` (`autorun-derive.ts`). Lệnh gọi giữ nguyên nguồn Metric và đánh giá gốc (`KEEP`). Nó dùng khóa yêu cầu riêng `autorunRequestKey(runId, 'revision')`, nên khi khởi động lại, hệ thống phát lại đúng yêu cầu.
 
-**Bốn lớp chứng cứ** (ADR `0005-report-evidence-and-decision-ledger.md`): chứng cứ nguồn (byte gốc), tính toán xác định (đầu vào đã chuẩn hóa, phiên bản phương pháp), diễn giải AI (bất biến, chưa duyệt, chỉ được trích dẫn khẳng định đã có), quyết định con người (chỉ nối thêm, tách khỏi nội dung báo cáo).
+Lượt này lưu vào bảng `analysis_research_automation_attempts`. Đầu ra nằm ở `analysis_research_automation_attempt_outputs` (migration 0041; route `report-attempts`, `report-revisions`).
+
+Kiểm định 14 quy tắc và cổng kinh doanh chạy khi dựng trang đọc. Nếu có vi phạm, hệ thống từ chối lượt dựng (`MARKET_14_RULES_FAILED`, `MARKET_BUSINESS_GATE_FAILED`). Vì vậy bản đạt là bản v2 (đầu ra của lượt), không phải bản nháp đầu.
+
+Quy tắc vận hành khi chấm: chấm 14/14 trên đầu ra v2 tự động. Không chấm bản nháp canary đầu. Bản nháp này thường trượt các quy tắc 1, 3, 7, 9, 11 (theo ghi chú vận hành, không tự động hóa trong mã).
+
+Cần đọc thêm `service.ts` để biết hai điều: bản nháp đầu có qua cổng riêng không, và số lượt sửa tối đa (cần xác nhận).
+
+**Bốn lớp chứng cứ** (ADR `0005-report-evidence-and-decision-ledger.md`):
+
+- Chứng cứ nguồn: byte gốc.
+- Tính toán xác định: đầu vào đã chuẩn hóa và phiên bản phương pháp.
+- Diễn giải AI: bất biến, chưa duyệt, chỉ được trích dẫn khẳng định đã có.
+- Quyết định con người: chỉ nối thêm, tách khỏi nội dung báo cáo.
 
 **Nguyên tắc sửa lỗi:** sửa phải áp dụng toàn hệ thống và được kiểm trên ít nhất 3 sản phẩm; sửa tay chỉ để học rồi đưa vào mã.
 
 ## Phần 7. Đường PDF
 
 1. Báo cáo đọc (HTML) được dựng từ khung ngữ nghĩa đã đóng băng và lưu bất biến, kèm hash (`html_sha256`, `metrics_sha256`, `claims_sha256`, `cover_sha256` trong bảng revisions).
-2. `src/modules/analysis/research-automation/pdf.ts` tạo bộ kết xuất `createChromiumPdfRenderer({ executablePath })`: Chromium cục bộ in HTML đã lưu (không script, không gọi ra ngoài), dùng `Page.printToPDF` với nền in và kích thước trang theo CSS, nhận kết quả dạng stream. Có giới hạn kích thước (`MAX_HTML_BYTES`, `MAX_PDF_BYTES` trong `model.ts`); vượt thì lỗi.
-3. Chỉ khi cấu hình `TDN_RESEARCH_PDF_CHROMIUM` có và Chromium thật chạy thành công mới lưu PDF; nếu không, giao diện hiển thị lý do "PDF chưa xuất được" (ADR 0006). Xuất PDF không chạy AI và không tốn phí nhà cung cấp.
+2. `src/modules/analysis/research-automation/pdf.ts` tạo bộ kết xuất `createChromiumPdfRenderer({ executablePath })`. Chromium cục bộ in HTML đã lưu, không chạy script và không gọi ra ngoài. Nó dùng `Page.printToPDF` với nền in và kích thước trang theo CSS, và nhận kết quả dạng stream. Giới hạn kích thước là `MAX_HTML_BYTES` và `MAX_PDF_BYTES` trong `model.ts`. Nếu vượt giới hạn, hệ thống báo lỗi.
+3. Hệ thống chỉ lưu PDF khi cấu hình `TDN_RESEARCH_PDF_CHROMIUM` có và Chromium thật chạy thành công. Nếu không, giao diện hiển thị lý do "PDF chưa xuất được" (ADR 0006). Xuất PDF không chạy AI và không tốn phí nhà cung cấp.
 4. Ảnh bìa: nhúng dạng JPEG (`cover-image-codec.ts`, `market-cover.ts`), bắt buộc có chú thích mô tả; bìa ngoài hoặc sai định dạng bị quy tắc 10 từ chối.
 5. Biểu đồ: `src/modules/analysis/reader-report/flint.ts`, `market-charts.ts`, `macro-charts.ts`, `svg-charts.ts`; phiên bản bộ dựng ghi trong `builder_version`. Báo cáo Market dùng các hằng số trong `reader-report-revisions.ts`: `reader-report-market-v3` (mặc định), `reader-report-market-v4` (bộ dựng kế tiếp) và `reader-report-market-v5` (khi có nguồn đánh giá công khai Shopee). Ý nghĩa chi tiết của v4 cần xác nhận.
 6. Tải xuống: giao diện dùng `reportUrl(workspaceId, runId, 'market', 'web'|'pdf')`; mỗi liên kết tương ứng đúng một phiên bản đã lưu.
@@ -175,7 +250,14 @@ Tài liệu PDF do người dùng đính kèm là một việc khác: `source-pd
 
 Lệnh trong `package.json`: `npm run check` chạy tuần tự sinh hợp đồng (`contracts:generate`), `typecheck`, `frontend:typecheck`, `frontend:build`, `frontend:test`, rồi `test` (đơn vị và tích hợp: `tests/unit/*.test.ts`, `tests/integration/*.test.ts`). Node phải đúng phiên bản trong `engines` (24.15.0).
 
-CI nằm ở `.github/workflows/check.yml`: chạy trên PR và khi đẩy vào `main`; Node 24.15.0; `npm ci`; giới hạn 45 phút; có chế độ "research" rút gọn cho PR nháp vào nhánh `feature/research-*` chỉ khi mọi tệp đổi thuộc danh sách cho phép, còn lại chạy "full"; chế độ full cài bộ xác minh PDF cục bộ phiên bản cố định (Python). Các workflow khác: `local-owner-test-web.yml`, `research-generation-web.yml`, `research-report-preview.yml`.
+CI nằm ở `.github/workflows/check.yml`:
+
+- CI chạy trên PR và khi đẩy vào `main`.
+- Node 24.15.0; chạy `npm ci`; giới hạn 45 phút.
+- Chế độ "research" rút gọn áp dụng cho PR nháp vào nhánh `feature/research-*`, chỉ khi mọi tệp đổi thuộc danh sách cho phép. Các trường hợp còn lại chạy "full".
+- Chế độ full cài bộ xác minh PDF cục bộ phiên bản cố định (Python).
+
+Các workflow khác: `local-owner-test-web.yml`, `research-generation-web.yml`, `research-report-preview.yml`.
 
 Quy ước dự án:
 
@@ -188,11 +270,18 @@ Quy ước dự án:
 ## Phần 9. Triển khai (deploy)
 
 - Chỉ triển khai khi chủ sở hữu viết đúng câu «deploy <SHA>». Gộp vào `main` không đồng nghĩa với triển khai.
-- Triển khai ứng dụng gồm: lấy đúng SHA, chạy migration tiếp theo còn thiếu (kiểm DB đạt phiên bản đầu `0059` ở thời điểm tài liệu này; ứng dụng từ chối khởi động nếu phiên bản DB lệch — xem phần kiểm DB trong `src/api/operator-app.ts`), dựng giao diện, khởi động lại dịch vụ.
-- Cờ cấu hình được mang theo từ lần triển khai trước; các thay đổi cờ (ví dụ bật mô hình độ liên quan, bật nguồn đánh giá công khai Shopee với trần 300) là một phần của câu lệnh triển khai và cần chủ sở hữu đồng ý.
+- Triển khai ứng dụng gồm bốn bước theo thứ tự:
+  1. Lấy đúng SHA.
+  2. Chạy migration tiếp theo còn thiếu. Ở thời điểm tài liệu này, kiểm DB đạt phiên bản đầu `0059`. Ứng dụng từ chối khởi động nếu phiên bản DB lệch (xem phần kiểm DB trong `src/api/operator-app.ts`).
+  3. Dựng giao diện.
+  4. Khởi động lại dịch vụ.
+- Cờ cấu hình được mang theo từ lần triển khai trước. Thay đổi cờ là một phần của câu lệnh triển khai và cần chủ sở hữu đồng ý. Ví dụ: bật mô hình độ liên quan, bật nguồn đánh giá công khai Shopee với trần 300.
 - Runbook: `docs/runbooks/fedora-local-operator-runtime.md` (vận hành trên máy chủ), `docs/runbooks/metric-opencli.md` (thu thập Metric), `docs/runbooks/agent-pipeline.md`.
 - Ngay sau triển khai: chạy canary ít nhất 3 sản phẩm và chấm bản v2 tự động theo 14 quy tắc.
-- Trạng thái hiện tại (cần xác nhận lúc đọc): bản đang chạy thật là `f026acd9`; `main` là `e9e0f444` và các PR #348 (G-references) và gói F+ chưa vào bản chạy thật.
+- Trạng thái hiện tại (cần xác nhận lúc đọc):
+  - Bản đang chạy thật là `f026acd9`.
+  - `main` là `e9e0f444`.
+  - PR #348 (G-references) và gói F+ chưa vào bản chạy thật.
 
 ## Phần 10. Xử lý sự cố
 
