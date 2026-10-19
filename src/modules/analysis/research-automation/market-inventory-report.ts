@@ -233,7 +233,10 @@ function latestReaderPrices(snapshot: AutomationMarketMethodSnapshot, trace: Tra
   };
   let readable = false, missingRange = false;
   const bases: { label: string; basis: string }[] = [];
-  const rows = [...products.values()].sort((a, b) => names.ordinal(a.keys) - names.ordinal(b.keys) || a.index - b.index).map((capture, index) => {
+  const ordered = [...products.values()].sort((a, b) => names.ordinal(a.keys) - names.ordinal(b.keys) || a.index - b.index);
+  const platforms = ordered.map(capture => readerPlatform(snapshot, reader, capture.keys, capture.quotes));
+  const platformColumn = platforms.some(platform => /Shopee|TikTok Shop/u.test(platform));
+  const rows = ordered.map((capture, index) => {
     const unit = capture.quotes.find(quote => !quote.price.range);
     const range = capture.quotes.find(quote => quote.price.range)?.price.range;
     const price = money(unit?.price.value);
@@ -245,16 +248,16 @@ function latestReaderPrices(snapshot: AutomationMarketMethodSnapshot, trace: Tra
     const candidate = capture.keys.length ? names.label(capture.keys).replace(/Sản phẩm #/g, 'Sản phẩm ') : '';
     const label = candidate && !containsForbiddenProviderName(candidate) && !/\b(?:Gemini|Google)\b/iu.test(candidate)
       ? candidate : `Sản phẩm ${formatReaderCount(capture.keys.length ? names.ordinal(capture.keys) : index + 1)}`;
-    const platformLabel = readerPlatform(snapshot, reader, capture.keys, capture.quotes);
+    const platformLabel = platforms[index]!;
     const date = Number.isFinite(capture.acquiredAt) ? readerDate(new Date(capture.acquiredAt).toISOString().slice(0, 10)) : null;
     bases.push({ label: `${platformLabel} · ${label}`, basis: `${date ? `thu ngày ${date} (UTC)` : 'chưa rõ ngày thu'}; ${capture.window?.start && capture.window.end ? `kỳ ${windowText(capture.window)}` : 'chưa rõ kỳ đo'}` });
-    return `<tr${capture.window && shortWindowDays(capture.window) !== null ? ' data-period-incomplete="true"' : ''}><td>${escape(platformLabel)}</td><td>${escape(label)}</td><td>${escape(price ?? 'Chưa có giá đọc được')}</td><td>${escape(validRange ? `${minimum} đến ${maximum}` : '—')}</td><td>${marks(capture.quotes.map(quote => quote.source), trace)}</td></tr>`;
+    return `<tr${capture.window && shortWindowDays(capture.window) !== null ? ' data-period-incomplete="true"' : ''}>${platformColumn ? `<td>${escape(platformLabel)}</td>` : ''}<td>${escape(label)}</td><td>${escape(price ?? 'Chưa có giá đọc được')}</td><td>${escape(validRange ? `${minimum} đến ${maximum}` : '—')}</td><td>${marks(capture.quotes.map(quote => quote.source), trace)}</td></tr>`;
   }).join('');
   const sharedBasis = bases.length > 0 && bases.every(row => row.basis === bases[0]!.basis);
   const basisNote = bases.length ? sharedBasis ? ` Tất cả sản phẩm: ${bases[0]!.basis}.`
     : ` Bản thu giữ lại của từng sản phẩm: ${bases.map(row => `${row.label}: ${row.basis}`).join('; ')}.` : '';
   return '<p class="warning">Chưa rõ phiên bản, combo hay điều kiện giá.</p>' +
-    `<div class="table-wrap" role="region" aria-label="Giá tham khảo của từng sản phẩm" tabindex="0"><table data-market-prices="${readable ? 'reference' : 'unavailable'}"><caption>Giá tham khảo của từng sản phẩm (VND)</caption><thead><tr><th>Sàn</th><th>Sản phẩm</th><th>Giá bình quân do nguồn tính (ước tính)</th><th>Khoảng giá nguồn (VND)</th><th>Nguồn</th></tr></thead><tbody>${rows || '<tr><td colspan="5">Chưa có giá đọc được</td></tr>'}</tbody></table></div>` +
+    `<div class="table-wrap" role="region" aria-label="Giá tham khảo của từng sản phẩm" tabindex="0"><table data-market-prices="${readable ? 'reference' : 'unavailable'}"><caption>Giá tham khảo của từng sản phẩm (VND)</caption><thead><tr>${platformColumn ? '<th>Sàn</th>' : ''}<th>Sản phẩm</th><th>Giá bình quân do nguồn tính (ước tính)</th><th>Khoảng giá nguồn (VND)</th><th>Nguồn</th></tr></thead><tbody>${rows || `<tr><td colspan="${4 + Number(platformColumn)}">Chưa có giá đọc được</td></tr>`}</tbody></table></div>` +
     `<p class="lim"><b>Chú thích:</b> Mỗi sản phẩm giữ lần thu sau cùng. Giá bình quân là số nguồn tính, chưa xác minh; chưa dùng để tính giá vốn hoặc lợi nhuận.${escape(basisNote)}${missingRange ? ' Dấu “—” cho biết chưa có khoảng giá nguồn dùng được.' : ''}</p>`;
 }
 

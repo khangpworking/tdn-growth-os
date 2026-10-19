@@ -137,7 +137,8 @@ test('capture ties choose the highest ordinal and unidentified captures remain s
   for (const observation of snapshot.temporal.input.observations) observation.subjectMemberKeys = [];
   const { doc } = reader(snapshot);
   assert.equal(doc.querySelectorAll('[data-market-prices] tbody tr').length, 2);
-  assert.deepEqual([...doc.querySelectorAll('[data-market-prices] tbody td:nth-child(2)')].map(cell => cell.textContent), ['Sản phẩm 1', 'Sản phẩm 2']);
+  assert.equal([...doc.querySelectorAll('[data-market-prices] th')].some(cell => cell.textContent === 'Sàn'), false);
+  assert.deepEqual([...doc.querySelectorAll('[data-market-prices] tbody td:nth-child(1)')].map(cell => cell.textContent), ['Sản phẩm 1', 'Sản phẩm 2']);
 });
 
 test('member-key order does not duplicate products and quotes can resolve a run card without temporal members', () => {
@@ -164,7 +165,10 @@ test('provider names never become product names or platform labels in the price 
     assert.doesNotMatch(doc.querySelector('#M08')!.textContent!, new RegExp(name, 'iu'));
   }
   const html = marketInventorySection(snapshot, 'M08', { mark: () => '[1]' }, labels, true, { platforms: new Map([['detail:p2', 'Apify']]) });
-  assert.equal(new JSDOM(html).window.document.querySelector('[data-market-prices] tbody td')!.textContent, 'Chưa rõ sàn');
+  const unknown = new JSDOM(html).window.document;
+  assert.equal([...unknown.querySelectorAll('[data-market-prices] th')].some(cell => cell.textContent === 'Sàn'), false);
+  assert.equal(unknown.querySelector('[data-market-prices] tbody td')!.textContent, 'Quạt mẫu 2');
+  assert.doesNotMatch(unknown.querySelector('#M08')?.textContent ?? unknown.body.textContent!, /Apify/u);
   for (const id of ['detail:p2', 'p2', 'capture-3-unit-price']) {
     assert.equal(reader(snapshot, new Map([['detail:p2', id]])).doc.querySelector('[data-market-prices] tbody td:nth-child(2)')!.textContent, 'Sản phẩm 2');
   }

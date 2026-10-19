@@ -8,6 +8,7 @@ import { renderCitationMarkOrMissing, renderCitationRegister } from '../../src/m
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { marketInventorySection, type MarketInventoryReaderContext } from '../../src/modules/analysis/research-automation/market-inventory-report.js';
 import { auditMarketReportHtml } from '../../src/modules/analysis/research-automation/market-business-gate.js';
+import { auditMarket14, assertMarket14MachineRules } from '../../src/modules/analysis/research-automation/market-14-rules.js';
 import { deliverMarketReader, tableInterpretation } from '../../src/modules/analysis/research-automation/market-reader-delivery.js';
 import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
 import type { CaptureRecord } from '../../src/modules/analysis/research-automation/model.js';
@@ -76,7 +77,7 @@ test('mixed platforms resolve maps, explicit frame members and validated referen
   }
 });
 
-test('all unknown references omit the period platform column and keep price platforms unknown', t => {
+test('all unknown references omit the platform column in both inventory tables', t => {
   const captures = periodCaptures().map(capture => ({ ...capture, key: `unresolved:${capture.ordinal}` }));
   const snapshot = periodInventory(captures), context = { platforms: new Map<string, string>() };
   const period = view(t, 'M03', snapshot, context, new Map());
@@ -84,8 +85,56 @@ test('all unknown references omit the period platform column and keep price plat
   assert.equal(period.table.querySelectorAll('th').length, 5);
   assert.ok(period.rows.every(row => cells(row)[1]!.startsWith('01/')));
   const price = view(t, 'M08', snapshot, context, new Map());
-  assert.ok(price.rows.every(row => cells(row)[0] === 'Chưa rõ sàn'));
+  assert.deepEqual([...price.table.querySelectorAll('th')].map(cell => cell.textContent), ['Sản phẩm', priceHeader, 'Khoảng giá nguồn (VND)', 'Nguồn']);
+  assert.ok(price.rows.length > 0);
+  assert.ok(price.rows.every(row => cells(row)[0]!.startsWith('Sản phẩm ') && cells(row).length === 4));
   for (const result of [period, price]) assert.doesNotMatch(result.doc.body.textContent!, /Shopee|TikTok Shop/u);
+});
+
+for (const shape of ['known', 'mixed', 'unknown', 'empty'] as const) {
+  test(`full market14 inventory platform columns pass rule 12: ${shape}`, async t => {
+    const base = await fullMarket14Input();
+    const captures = shape === 'empty' ? [] : periodCaptures();
+    const snapshot = periodInventory(captures);
+    snapshot.temporal.input.frame.members.forEach((member, index) => {
+      if (shape === 'known' || (shape === 'mixed' && index < 2)) member.platform = index === 0 ? 'SHOPEE' : 'TIKTOK_SHOP';
+    });
+    const report = buildResearchAutomationReport({ ...base, marketInventory: snapshot }, 'MARKET');
+    const html = report.html.toString();
+    assert.equal(auditMarket14(html).find(rule => rule.rule === '12')!.ok, true);
+    assertMarket14MachineRules(html);
+    const dom = new JSDOM(html);
+    t.after(() => dom.window.close());
+    for (const selector of ['[data-market-periods]', '[data-market-prices]']) {
+      const table = dom.window.document.querySelector(selector)!;
+      assert.ok(table);
+      assert.equal([...table.querySelectorAll('th')].some(cell => cell.textContent === 'Sàn'), shape === 'known' || shape === 'mixed');
+      if (shape === 'mixed') {
+        const labels = [...table.querySelectorAll('tbody tr')].map(row => cells(row)[0]);
+        for (const label of ['Shopee', 'TikTok Shop', 'Chưa rõ sàn']) assert.ok(labels.includes(label));
+      }
+      if (shape === 'empty') assert.equal(table.querySelector('tbody td')!.getAttribute('colspan'), String(table.querySelectorAll('th').length));
+    }
+  });
+}
+
+test('one Shopee row and one unknown row retain platform columns and pass rule 12', async t => {
+  const base = await fullMarket14Input();
+  const snapshot = periodInventory(periodCaptures().filter(capture => capture.ordinal === 1 || capture.ordinal === 3));
+  snapshot.temporal.input.frame.members[0]!.platform = 'SHOPEE';
+  const report = buildResearchAutomationReport({ ...base, marketInventory: snapshot }, 'MARKET');
+  const html = report.html.toString();
+  assertMarket14MachineRules(html);
+  const dom = new JSDOM(html);
+  t.after(() => dom.window.close());
+  for (const selector of ['[data-market-periods]', '[data-market-prices]']) {
+    const table = dom.window.document.querySelector(selector)!;
+    assert.ok(table);
+    assert.equal(table.querySelector('th')!.textContent, 'Sàn');
+    assert.deepEqual([...table.querySelectorAll('tbody tr')].map(row => cells(row)[0]), ['Shopee', 'Chưa rõ sàn']);
+    const isolated = `<div data-market-platforms="shopee">${table.outerHTML}</div>`;
+    assert.equal(auditMarket14(isolated).find(rule => rule.rule === '12')!.ok, true);
+  }
 });
 
 test('mixed inventory never displays a cross-platform sum, including interpretations and notes', t => {
@@ -282,7 +331,7 @@ test('missing and unusable ranges display a dash and explain it exactly once', t
   const captures: PeriodCapture[] = ranges.map((range, index) => ({ ...periodCaptures()[0]!, key: `sample:${94000 + index}`, ordinal: index + 1, range }));
   const { rows, note, doc } = view(t, 'M08', periodInventory(captures));
   assert.equal(rows.length, ranges.length);
-  assert.deepEqual(rows.map(row => cells(row)[3]), ranges.map(() => '—'));
+  assert.deepEqual(rows.map(row => cells(row)[2]), ranges.map(() => '—'));
   assert.equal(note.textContent!.split(missingRangeNote).length - 1, 1);
   assert.equal(doc.body.textContent!.split(missingRangeNote).length - 1, 1);
   assert.doesNotMatch(doc.body.textContent!, /(?:^|\s)0(?:\s|$)/u);
