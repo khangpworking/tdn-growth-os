@@ -7,6 +7,8 @@ import { buildResearchAutomationReport } from '../../src/modules/analysis/resear
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { builderControlNames, footerBuilderControl, footerPage, footerProducts, pageFooter, pageHead, pdfBlock, sectionIds, videoBlock } from '../helpers/package-r-reader-footer-fixture.js';
 
+// G round 2: current source-list snapshots remove English product branding (L11(b));
+// G: current HTML/trace exhibit pins included defective evidence copy; legacy/Insight pins stay frozen.
 const hash = (value: string | Uint8Array): string => createHash('sha256').update(value).digest('hex');
 function section(html: string, id: string): string {
   const found = new RegExp(`<section class="sheet" id="${id}">([\\s\\S]*?)</section>`, 'u').exec(html);
@@ -154,13 +156,13 @@ const handBuiltMainHashes: Record<string, string> = {
 };
 const builderMainHashes: Record<string, { html: string; trace: string | null; semantic: string }> = {
   "capture-market": {
-    "html": "9b736f4f39cae7011d60ed383c5f11f569b830b9e447e2883c74532660a983e4",
-    "trace": "3654e45a08d6fba22e2eb23a238108fcf7b208abba3d8508a74d9c3b69017513",
+    "html": "dd3c9b0c30efaf1f0f55ce7e404c0ee66ff8481bec67f60e0f7279cccb01d050",
+    "trace": "8d2edd027f20d6d4ac309905e45434bd8092ee413a7f941cb4dbf834634a20d2",
     "semantic": "7c67a4170987b988b8e9f18ff7294fef370a185d3613d8e2a5b6767475e4cf8d"
   },
   "no-capture-market": {
-    "html": "37193ad1a32f125d5eb5aa5d35f37457642b11e15ef92c3a4f539a8327ac743e",
-    "trace": "88094400c2b0557464ba50d301a8a27a0107c29bcc9d396baac75a26754b8977",
+    "html": "040eaef231ab3c82e67d93bc93b88d0cee28a1cc48c7a3924b60bded139fa32d",
+    "trace": "420c1305318b19affd4dd47dabf361d46ad4eab388eeb850c6da9358eb0301d7",
     "semantic": "de585c1f267a1d36644443579f4b684e9767a6fa1b7502f3b87c465e3224c3fc"
   },
   "capture-insight": {

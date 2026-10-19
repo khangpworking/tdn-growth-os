@@ -11,6 +11,7 @@ import { deliverMarketReader, tableInterpretation } from '../../src/modules/anal
 import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
 import { fullMarket14Input } from '../helpers/market14-full-fixture.js';
 
+// G: current full-reader pins included defective evidence copy; legacy/Insight pins stay frozen.
 const hash = (value: string | Uint8Array): string => createHash('sha256').update(value).digest('hex');
 // L12: delivered reader prose localizes the authored combination-pack caveat.
 const caveat = 'Chưa rõ phiên bản, gói kết hợp hay điều kiện giá.';
@@ -217,8 +218,8 @@ test('reader digests pin the M08 badge control with capture headlines', async ()
   // Neither input has inventory, so both retain M05's per-period tables.
   // Package C adds Phần 1 findings and its badge only to the capture control.
   for (const [reportInput, parent] of [
-    [input, 'fdece5352c3b4556a347af9e4a4785fda0e8f3697e5ec65753461453019810ba'],
-    [{ ...input, metricMethods }, 'c64d5839b40f46283a344ec7a28f338ea283ea771c1709bf54451a96f5e83948'],
+    [input, '2ec8905747c876186882b94e9853b55bed7ef36a9121ac98531c799994d805dc'],
+    [{ ...input, metricMethods }, '6c6c9bb54ae15056b80dc44ec140deda4f841732eff33a97fdfb795397d16fef'],
   ] as const) {
     const html = buildResearchAutomationReport(reportInput, 'MARKET').html.toString();
     assert.equal(hash(html.replace('<span class="state">Có giá tham khảo, chưa xác minh</span>', '<span class="state">Có số liệu</span>')), parent);
@@ -234,7 +235,7 @@ test('automated reader uses the price projection without changing retained input
   // Latest-price review: preserve range-only evidence, explicit estimate wording, and corrected price-only readings.
   // 2480414f additionally points M04/M05 to Phần 3 and M13 to Phần 2.
   // Package C adds Phần 1 findings and its data badge to this capture report.
-  assert.equal(hash(report.html), '83c57da1bd0082b194910cc43aed20d717421aa95b74d2b7296270ce09cecdac');
+  assert.equal(hash(report.html), '3b20f92691176aa442d490a795566e6988a23a8ef0e9557add3b85584c08d4c2');
   const doc = new JSDOM(report.html.toString()).window.document;
   const section = doc.querySelector('#M08')!;
   assert.equal(section.querySelectorAll('tbody tr').length, 8);

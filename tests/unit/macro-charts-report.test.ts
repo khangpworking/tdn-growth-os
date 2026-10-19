@@ -63,10 +63,11 @@ test('current Market renderers pin unscaled per-person charts and corrected cont
   // Re-pin the 1.4.0 per-person chart scale, automated Market context display, the per-platform Phần 1/2 copy, the reader proofread
   // and the Phần 8 reference-price badge. 2480414f removes duplicate M04 tables
   // and M13 scope through pointers; legacy readers have separate frozen pins.
+  // G: current full-reader pins included defective evidence copy; legacy/Insight pins stay frozen.
   const hash = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
   assert.equal(hash((await reader({ worldBank: fullWorldBank() }, false)).html), '2c6bf440c35405eebeede37f08f57764e549cdc42041bf26b958952340d1d02e');
   // Package C changes only capture Market Phần 1 findings and its data badge.
-  assert.equal(hash(buildResearchAutomationReport(await fullMarket14Input(), 'MARKET').html), '9b736f4f39cae7011d60ed383c5f11f569b830b9e447e2883c74532660a983e4');
+  assert.equal(hash(buildResearchAutomationReport(await fullMarket14Input(), 'MARKET').html), 'dd3c9b0c30efaf1f0f55ce7e404c0ee66ff8481bec67f60e0f7279cccb01d050');
 });
 
 test('v2 reader: World Bank lines are Hình 5.3/5.4 after Bảng 5.3 and Comtrade bars are Hình 6.1/6.2 after Bảng 6.2, all Flint', async () => {
@@ -131,15 +132,18 @@ async function presentationInput(extra: { worldBank?: StepWorldBank; comtrade?: 
 }
 const draftHtml = (input: AutomationReportInput): string => buildResearchAutomationReport(input, 'MARKET').html.toString('utf8');
 
-test('both renderers show the confirmed scope limit beside the estimated code as automatic interpretation', async () => {
+test('both renderers show the scope limit beside the estimated code with their own reader context', async () => {
   const reasonVi = 'Số liệu chỉ gồm bình cách nhiệt bằng thép, không bao gồm mọi vật liệu của nhóm sản phẩm.';
   const scopedTrade = { ...fullTrade, reasonVi, descriptionVi: 'Bình cách nhiệt bằng thép' };
   const htmls = [(await reader({ comtrade: scopedTrade })).html, draftHtml(await presentationInput({ comtrade: scopedTrade }))];
-  for (const html of htmls) {
+  for (const [index, html] of htmls.entries()) {
     const doc = new JSDOM(html).window.document;
     const paragraph = [...doc.querySelectorAll('p')].find(p => p.textContent!.includes('Mã hàng ước tính: 999999'));
     assert.ok(paragraph, 'code is shown');
-    assert.ok(paragraph.textContent!.includes(`Phạm vi áp dụng (diễn giải tự động): ${reasonVi}`), 'the limitation is in the same paragraph as the code');
+    // G/M13: automatic-marker copy was the current-reader defect; versioned copy stays pinned.
+    const marker = index === 0 ? 'Phạm vi áp dụng (diễn giải tự động):' : 'Phạm vi áp dụng:';
+    assert.ok(paragraph.textContent!.includes(`${marker} ${reasonVi}`), 'the limitation is in the same paragraph as the code');
+    if (index === 1) assert.ok(paragraph.textContent!.includes('Phạm vi theo mã hàng là ước tính, chưa xác nhận trùng với phạm vi sản phẩm.'));
     assert.doesNotMatch(paragraph.textContent!, /%|Google/u);
     assert.deepEqual(machineFailures(html), []);
   }
@@ -154,9 +158,10 @@ test('both renderers escape scope text and omit it without a reason or renderabl
     { ...fullTrade, reasonVi, status: 'HS_CODE_NOT_CONFIRMED' as const },
   ]) {
     const htmls = [(await reader({ comtrade: trade })).html, draftHtml(await presentationInput({ comtrade: trade }))];
-    for (const html of htmls) {
+    for (const [index, html] of htmls.entries()) {
       const doc = new JSDOM(html).window.document;
-      const paragraphs = [...doc.querySelectorAll('p')].filter(p => p.textContent!.includes('Phạm vi áp dụng (diễn giải tự động):'));
+      const marker = index === 0 ? 'Phạm vi áp dụng (diễn giải tự động):' : 'Phạm vi áp dụng:';
+      const paragraphs = [...doc.querySelectorAll('p')].filter(p => p.textContent!.includes(marker));
       const shown = trade.reasonVi !== null && trade.rows.length > 0 && trade.status === 'OK';
       assert.equal(paragraphs.length, shown ? 1 : 0);
       if (shown) {
@@ -247,7 +252,8 @@ test('automation report: the four macro figures are Flint, numbered after their 
   const html = draftHtml(await presentationInput({ worldBank: worldBank(true), comtrade: fullTrade }));
   const list = figures(html);
   for (const no of ['Hình 5.3', 'Hình 5.4', 'Hình 6.1', 'Hình 6.2']) assert.equal(list.find(item => item.no === no)?.engine, 'flint', no);
-  assert.ok(figure(html, 'Hình 5.3')!.text.includes(WORLD_BANK_SRC) && figure(html, 'Hình 5.3')!.text.includes(WORLD_BANK_CHART_NOTE));
+  // G/L11: English branding was the current-reader defect; the versioned source pin above stays unchanged.
+  assert.ok(figure(html, 'Hình 5.3')!.text.includes('Ngân hàng Thế giới, giấy phép CC BY 4.0.') && figure(html, 'Hình 5.3')!.text.includes(WORLD_BANK_CHART_NOTE));
   assert.ok(figure(html, 'Hình 6.1')!.text.includes(COMTRADE_SRC) && figure(html, 'Hình 6.1')!.text.includes(COMTRADE_MIRROR_NOTE));
   assert.ok(figure(html, 'Hình 6.2')!.text.includes(COMTRADE_OWN_NOTE));
   const doc = new JSDOM(html).window.document;
@@ -313,7 +319,7 @@ test('both readers keep CPI row bases and short citations; full source coordinat
   ] };
   const before = JSON.stringify(officialStats);
   const automated = buildResearchAutomationReport(await presentationInput({ officialStats }), 'MARKET');
-  for (const html of [(await reader({ officialStats })).html, automated.html.toString()]) {
+  for (const [index, html] of [(await reader({ officialStats })).html, automated.html.toString()].entries()) {
     const doc = new JSDOM(html).window.document;
     const section = doc.querySelector('#M05, #phan-5')!;
     assert.match(section.textContent!, /kỳ gốc: tháng 9 năm 2025/u);
@@ -321,10 +327,14 @@ test('both readers keep CPI row bases and short citations; full source coordinat
     assert.match(section.textContent!, /Chỉ số giá tiêu dùng/u);
     assert.doesNotMatch(section.textContent!, /CHỈ SỐ GIÁ TIÊU DÙNG|bảng không ghi|Kỳ gốc: tháng trước/u);
     const prose = doc.body.textContent!;
-    assert.match(prose, /Cục Thống kê, số liệu CPI tháng 9\/2026, công bố 01\/10\/2026/u);
+    // G/M18: listing dates were mislabelled as publication dates in the current reader.
+    assert.match(prose, index === 0 ? /Cục Thống kê, số liệu CPI tháng 9\/2026, công bố 01\/10\/2026/u
+      : /Cục Thống kê, tệp số liệu 1, số liệu CPI tháng 9\/2026, ngày niêm yết 01\/10\/2026/u);
     assert.doesNotMatch(prose, /CPI-synthetic\.xlsx|bảng Cả nước|bảng Địa phương|dòng 14|ô C14/u);
     const table = [...section.querySelectorAll('table')].find(node => /Trạng thái/u.test(node.textContent!))!;
-    assert.ok([...table.querySelectorAll('tbody tr')].every(node => node.lastElementChild!.textContent === '—'));
+    // G/M18: an all-placeholder status column was the defect; retain the versioned control.
+    if (index === 0) assert.ok([...table.querySelectorAll('tbody tr')].every(node => node.lastElementChild!.textContent === '—'));
+    else assert.equal(table, undefined);
   }
   assert.match(automated.traceHtml!.toString(), /CPI-synthetic\.xlsx/u);
   assert.match(automated.traceHtml!.toString(), /Địa phương/u);

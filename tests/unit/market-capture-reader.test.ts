@@ -21,6 +21,8 @@ import { metricFixture } from '../fixtures/metric-scope-synthetic.js';
 import { fullMarket14Input } from '../helpers/market14-full-fixture.js';
 import { CAPTURE_ROW_PROFILE, CAPTURE_ROW_PROFILE_V2, type CaptureRowExclusionReason } from '../../src/modules/analysis/research-automation/capture-row-quality.js';
 
+// G round 2: current source-list snapshots remove English product branding (L11(b));
+// G: current HTML/trace exhibit pins included defective evidence copy; legacy/Insight pins stay frozen.
 const hash = (value: string | Uint8Array) => createHash('sha256').update(value).digest('hex');
 const banned = /%|toàn thị trường|tổng|cộng|gộp|Metric|Kalodata|TradeInt|Dami|Apify|SerpApi|PageIndex|Gemini|OpenCLI|zen-studio|Google|nhất|hàng đầu|ưu tiên/iu;
 const text = (node: Element) => node.textContent!.replace(/\s+/gu, ' ').trim();
@@ -304,7 +306,7 @@ test('automation reports without capture pin the M13 pointer; without presentati
   const { capture: _capture, ...metricMethods } = input.metricMethods!;
   const { marketPresentation: _presentation, ...noPresentation } = input;
   const variants = [
-    { value: { ...input, metricMethods }, html: '37193ad1a32f125d5eb5aa5d35f37457642b11e15ef92c3a4f539a8327ac743e', semantic: 'de585c1f267a1d36644443579f4b684e9767a6fa1b7502f3b87c465e3224c3fc', trace: '88094400c2b0557464ba50d301a8a27a0107c29bcc9d396baac75a26754b8977' },
+    { value: { ...input, metricMethods }, html: '040eaef231ab3c82e67d93bc93b88d0cee28a1cc48c7a3924b60bded139fa32d', semantic: 'de585c1f267a1d36644443579f4b684e9767a6fa1b7502f3b87c465e3224c3fc', trace: '420c1305318b19affd4dd47dabf361d46ad4eab388eeb850c6da9358eb0301d7' },
     { value: noPresentation, html: '92ada31fa0a8a276d05aedc38fe418c3b5204f0750ef89020453a998526c6da9', semantic: '89b388819561c90b6082847afb079b85aa911457862ca7d542d5335860c3f8a5', trace: null },
   ];
   for (const variant of variants) {
@@ -315,14 +317,14 @@ test('automation reports without capture pin the M13 pointer; without presentati
   }
 });
 
-test('retained v1 and v2 capture HTML and trace match main 71128df9, including excluded rows', async () => {
+test('v1 and v2 capture policies retain raw trace details with current-reader evidence copy', async () => {
   const input = await fullMarket14Input();
-  // Recomputed on clean main 71128df9 with this same synthetic input.
+  // Legacy pins are from clean main 71128df9; G updates copied current exhibits in HTML/trace.
   // These cover the scope copy and removed-row list that method-only replay cannot check.
   const variants = [
-    { policy: undefined, presentation: true, html: '7b90c7a2b99a2ead2dec1bd93831698876c9ffa87fcba0daa8570ed22285897f', trace: 'e833f5cdde0ec244bc67bf87c2c4789fb65d78bc008c4d688b6dbf8201150cb6' },
+    { policy: undefined, presentation: true, html: 'bebd0a0fe6879f5bf7d76abc45e509e62057ec19f3af5133c7a5868d5cbcf9be', trace: 'a5ddbede84f4a4d77d58022f0bdadc9ffc40764a5f461993cb6cd80f7c53bd76' },
     { policy: undefined, presentation: false, html: '4678e1fbce3e75dd8c6485bdc690f32bcf8fbbb74fde862e9179941b480ec7af', trace: null },
-    { policy: CAPTURE_ROW_PROFILE_V2, presentation: true, html: 'e575e6704f0f4232f28f9414a14f9581c1694745accc220a3a307aac17fdfae2', trace: '63e58b111139082475d4d8f9fe555f7a2d0c2f666db0a5601140ea05f554135c' },
+    { policy: CAPTURE_ROW_PROFILE_V2, presentation: true, html: '1788e5d84fc557b2519c1568588fe869b99289de6b1a04d27457d306eafda24d', trace: '37fdfd60d92c8d5fae7e10ef13c04a8b89f3d2c8e7a4cdc0c4cfdc9d77bb7617' },
     { policy: CAPTURE_ROW_PROFILE_V2, presentation: false, html: '1b755331abea5bd7428e64c005fefaf91b17869006daf388bec03d82a9d58f69', trace: null },
   ];
   for (const variant of variants) {
