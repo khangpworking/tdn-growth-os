@@ -1159,7 +1159,8 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   const noCaptureRow = `<tr><td colspan="4">Lượt này không có bản thu từ truy vấn nguồn mới.${retainedSources.length ? ` Nguồn đã lưu và gắn với lượt vẫn được dùng ở: ${retainedSources.join('; ')}.` : ''}</td></tr>`;
   const labels = productLabels(input);
   const inventoryReader = marketPresentation ? { platforms: new Map([...(input.collection?.productCards ?? []), ...(input.run.productCards ?? [])]
-    .map(card => [card.productId, card.provider === 'kalodata' ? 'tiktok' : card.productId.startsWith('shopee:') ? 'shopee' : ''] as const)) } : undefined;
+    .map(card => [card.productId, card.provider === 'kalodata' ? 'tiktok' : card.productId.startsWith('shopee:') ? 'shopee' : ''] as const)),
+    scope: input.scope, sampleWindow: marketSamplePeriod(input), captures: input.captures } : undefined;
   // Discovery exchanges are technical receipts; only verified PDF excerpts earn visible S25 citations.
   const discoverySearchIndex = input.collection?.pdfDiscovery?.search.captureIndex;
   const visibleCaptures = input.captures.filter(capture => !(capture.stepId === 'COLLECTION' &&

@@ -73,7 +73,7 @@ test('prices use one latest capture per product, with labels and platform, valid
   assert.equal(visible.split(caveat).length - 1, 1);
   assert.doesNotMatch(visible, banned);
   assert.doesNotMatch(visible, /(?:^|\s)0(?:\s|$)|0 VND|#\d|374\.467|52\.000/u);
-  assert.match(visible, /Giá bình quân \(doanh thu ÷ số đã bán, ước tính\)/u);
+  assert.match(visible, /Giá bình quân do nguồn tính \(ước tính\)/u);
   const reading = doc.querySelector('.interp')!;
   assert.ok(reading.querySelector('sup.cite'), 'interpretation carries the price sources');
   assert.doesNotMatch(reading.textContent!, /mức thấp là 0\b/u);
@@ -137,7 +137,8 @@ test('capture ties choose the highest ordinal and unidentified captures remain s
   for (const observation of snapshot.temporal.input.observations) observation.subjectMemberKeys = [];
   const { doc } = reader(snapshot);
   assert.equal(doc.querySelectorAll('[data-market-prices] tbody tr').length, 2);
-  assert.deepEqual([...doc.querySelectorAll('[data-market-prices] tbody td:nth-child(2)')].map(cell => cell.textContent), ['Sản phẩm 1', 'Sản phẩm 2']);
+  assert.equal([...doc.querySelectorAll('[data-market-prices] th')].some(cell => cell.textContent === 'Sàn'), false);
+  assert.deepEqual([...doc.querySelectorAll('[data-market-prices] tbody td:nth-child(1)')].map(cell => cell.textContent), ['Sản phẩm 1', 'Sản phẩm 2']);
 });
 
 test('member-key order does not duplicate products and quotes can resolve a run card without temporal members', () => {
@@ -164,7 +165,10 @@ test('provider names never become product names or platform labels in the price 
     assert.doesNotMatch(doc.querySelector('#M08')!.textContent!, new RegExp(name, 'iu'));
   }
   const html = marketInventorySection(snapshot, 'M08', { mark: () => '[1]' }, labels, true, { platforms: new Map([['detail:p2', 'Apify']]) });
-  assert.equal(new JSDOM(html).window.document.querySelector('[data-market-prices] tbody td')!.textContent, 'Chưa rõ sàn');
+  const unknown = new JSDOM(html).window.document;
+  assert.equal([...unknown.querySelectorAll('[data-market-prices] th')].some(cell => cell.textContent === 'Sàn'), false);
+  assert.equal(unknown.querySelector('[data-market-prices] tbody td')!.textContent, 'Quạt mẫu 2');
+  assert.doesNotMatch(unknown.querySelector('#M08')?.textContent ?? unknown.body.textContent!, /Apify/u);
   for (const id of ['detail:p2', 'p2', 'capture-3-unit-price']) {
     assert.equal(reader(snapshot, new Map([['detail:p2', id]])).doc.querySelector('[data-market-prices] tbody td:nth-child(2)')!.textContent, 'Sản phẩm 2');
   }
@@ -182,7 +186,7 @@ test('detail figures show their actual query window and one note explaining the 
   const snapshot = inventory(), before = canonicalJson(snapshot);
   const html = marketInventorySection(snapshot, 'M03', { mark: () => '[1]' }, labels, true, context);
   const doc = new JSDOM(html).window.document;
-  for (const row of doc.querySelectorAll('tbody tr')) assert.equal(row.querySelectorAll('td')[1]!.textContent, '01/08/2026 đến 30/08/2026');
+  for (const row of doc.querySelectorAll('tbody tr')) assert.equal(row.querySelectorAll('td')[2]!.textContent, '01/08/2026 đến 30/08/2026');
   assert.doesNotMatch(doc.body.textContent!, /12\/09\/2026|11\/10\/2026/u);
   assert.equal(doc.querySelectorAll('p.lim').length, 1);
   assert.match(doc.querySelector('p.lim')!.textContent!, /Chú thích: Số liệu mẫu lấy từ trang kết quả tìm kiếm đã lưu; doanh thu chi tiết lấy từ trang sản phẩm theo kỳ riêng/u);
@@ -229,7 +233,7 @@ test('automated reader uses the price projection without changing retained input
   // Latest-price review: preserve range-only evidence, explicit estimate wording, and corrected price-only readings.
   // 2480414f additionally points M04/M05 to Phần 3 and M13 to Phần 2.
   // Package C adds Phần 1 findings and its data badge to this capture report.
-  assert.equal(hash(report.html), 'c7b2fa4e84ae47cbd9d91e730039cf14e92f2214bd6b4891435dff8e88a06e98');
+  assert.equal(hash(report.html), '88af46c8be5de6ebd504eb49437598e9410cc8a775ea921eb80ae9e708342ef1');
   const doc = new JSDOM(report.html.toString()).window.document;
   const section = doc.querySelector('#M08')!;
   assert.equal(section.querySelectorAll('tbody tr').length, 8);
