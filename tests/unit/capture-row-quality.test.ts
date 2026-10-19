@@ -76,6 +76,13 @@ test('v3 keeps head-first fans and non-adjacent short words, with whole accented
   assert.equal(isMainCapturedProduct('Đầu quat dien', 'quạt điện'), false, 'unaccented heads do not match accented keywords');
 });
 
+test('independent fan title adversaries preserve products and reject adjacent parts', () => {
+  for (const title of ['quạt đứng chân cao', 'quạt có đèn', 'Quạt không cánh có đèn ngủ', 'Quạt điện lắc đầu kèm chân đế', 'Đầu giường dùng quạt điện mini', 'Lưới bảo vệ đi kèm quạt đứng', 'Chân cao dáng đứng: quạt điện'])
+    assert.equal(isMainCapturedProduct(title, 'quạt điện'), true, title);
+  for (const title of ['đầu quạt', 'Bộ trục-quạt điện', 'Lưới, quạt điện', 'Chân quạt điện thay thế', 'Stato cho quạt điện', 'MOTOR QUẠT ĐIỆN'])
+    assert.equal(isMainCapturedProduct(title, 'quạt điện'), false, title);
+});
+
 test('row exclusions use the requested profile and never reinterpret retained v2 parts as v3', () => {
   const rows = ['Trục quạt điện', 'Chiết áp mẫu thử Quạt điện', 'Quạt điện lắc đầu', 'Đầu mùa sale Quạt điện', 'Motor quạt điện']
     .map(title => ({ title, platform: 'shopee', revenue: 100, units: 1 }));

@@ -434,12 +434,19 @@ export class AutomationMetricMethodBridge {
   async #executeCapture(input: MetricRunInput, original: VerifiedFinalizedSourcePackage, selected: CaptureSelected,
     signal?: AbortSignal): Promise<AutomationMetricMethodSnapshot> {
     signal?.throwIfAborted();
+    // A retry can reach here after method retention but before draft publication.
+    // Keep that execution's frozen policy instead of changing its package bytes.
+    const matches = await this.#reader.findFinalizedSourcePackagesByKey(methodKey(input));
+    if (matches.length > 1 || (matches[0] && matches[0].version !== 1)) integrity('Metric capture retry method identity is ambiguous.');
+    const retained = matches[0] ? await this.#reader.readFinalizedSourcePackage(matches[0].packageId, BUDGET) : undefined;
+    const profile = retained ? parse(retained, NORMALIZED).profileId : CAPTURE_ROW_PROFILE;
+    if (profile !== 'automation-metric-capture-v1' && !isCaptureRowProfile(profile)) integrity('Unknown capture row profile.');
     const verified = verifyMetricCaptureArchive(selected.snapshot.bytes, selected.manifest.bytes, { start: input.start });
     declaredPeriodCoverage(input, { start: verified.snapshot.scope.period.startDate, end: verified.snapshot.scope.period.endDate });
     const catalogBytes = await fs.readFile(new URL('../../../../docs/research/report-section-catalog-v1.json', import.meta.url));
     const platformResults: CaptureMetricPlatformResult[] = [];
     for (const platform of verified.snapshot.scope.platforms) {
-      const captureInput = captureMetricInput(verified.snapshot, selected.snapshot.sha256, platform, CAPTURE_ROW_PROFILE);
+      const captureInput = captureMetricInput(verified.snapshot, selected.snapshot.sha256, platform, profile);
       if (!captureInput) continue;
       const result = calculateMetricScopes(captureInput);
       const readiness = captureReadiness(input, result, catalogBytes);
@@ -450,7 +457,7 @@ export class AutomationMetricMethodBridge {
     if (platformResults.length === 0) fail('METRIC_SOURCE_INPUT_REJECTED', 'Metric capture contains no attributed platform rows.');
     const primary = platformResults[0]!.result;
     const workspace = await this.#workspaces.readVerifiedWorkspace(input.start.workspaceId);
-    const captureDetails = captureMethodDetails(verified.snapshot, selected, platformResults, CAPTURE_ROW_PROFILE);
+    const captureDetails = captureMethodDetails(verified.snapshot, selected, platformResults, profile);
     const normalized = primary.input;
     const preparation = capturePreparation(input, original, selected, workspace, primary, captureDetails);
     const readiness = captureReadiness(input, primary, catalogBytes, preparation.preparationSha256);

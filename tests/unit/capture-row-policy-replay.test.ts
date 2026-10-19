@@ -73,6 +73,9 @@ test('new capture freezes v3, all three exclusion reasons and exact source-row i
   assert.deepEqual(receipt.excludedRows, method.capture!.excludedRows, 'exclusions are frozen in the retained receipt as well as the draft');
   const bridge = new AutomationMetricMethodBridge({ db: f.db, artifactStore: f.artifacts, workspaces: f.workspaces, now: policyNow });
   assert.deepEqual(await bridge.verify(method, config.input), method);
+  const beforeRetry = f.db.prepare('SELECT total_changes() n').get();
+  assert.deepEqual(await bridge.execute(config.input), method, 'a v3 retry keeps the retained method');
+  assert.deepEqual(f.db.prepare('SELECT total_changes() n').get(), beforeRetry);
   const tampered = { ...method, capture: { ...method.capture!, excludedRows: [] } };
   await assert.rejects(bridge.verify(tampered, config.input), ResearchAutomationIntegrityError);
 });
@@ -87,6 +90,13 @@ test('retained v2 verifies using its frozen term list, without writes or a froze
   // Only changing the claimed row policy must never silently reinterpret retained bytes.
   const tampered = { ...fixture.method, capture: { ...fixture.method.capture!, rowPolicyVersion: CAPTURE_ROW_PROFILE } };
   await assert.rejects(bridge.verify(tampered, fixture.input), ResearchAutomationIntegrityError);
+});
+
+test('retrying an already-retained v2 execution keeps its method and rows', async t => {
+  const { fixture, bridge, db } = await retainedV2(t);
+  const before = db.prepare('SELECT total_changes() n').get();
+  assert.deepEqual(await bridge.execute(fixture.input), fixture.method);
+  assert.deepEqual(db.prepare('SELECT total_changes() n').get(), before, 'retry is mutation-free');
 });
 
 for (const profile of ['automation-metric-capture-v3', 'automation-metric-capture-v4']) test(`coherent retained results with ${profile} reject at the policy integrity gate`, async t => {
@@ -116,6 +126,8 @@ for (const profile of ['automation-metric-capture-v3', 'automation-metric-captur
   const altered = { ...method, result: alteredResult, sourcePackage: { packageId: receipt.packageId, manifestArtifactSha256: receipt.manifestArtifactSha256, packageContentSha256: receipt.packageContentSha256 } };
   await assert.rejects(bridge.verify(altered, fixture.input), (error: unknown) => error instanceof ResearchAutomationIntegrityError &&
     error.message === (profile.endsWith('v4') ? 'Unknown capture row profile.' : 'Capture rows differ from the frozen row policy.'));
+  if (profile.endsWith('v4')) await assert.rejects(bridge.execute(fixture.input),
+    (error: unknown) => error instanceof ResearchAutomationIntegrityError && error.message === 'Unknown capture row profile.');
 });
 
 async function buildAndReadPolicy(f: Awaited<ReturnType<typeof policyRun>>, packageId: string) {

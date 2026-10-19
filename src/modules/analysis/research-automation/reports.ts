@@ -1153,9 +1153,9 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     : `<dt>Kỳ số liệu bán hàng</dt><dd>${samplePeriod ? `Mẫu ${sampleDays} ngày, từ ${escape(readerDay(samplePeriod.start))} đến ${escape(readerDay(samplePeriod.end))}`
       : 'Chưa có kỳ số liệu bán hàng hợp lệ'}</dd>${input.descriptiveMethods
       ? `<dt>Diễn biến từng sản phẩm</dt><dd>Theo từng kỳ trong khoảng từ ${escape(readerDay(requested.startDate ?? 'chưa rõ ngày'))} đến ${escape(readerDay(requested.endDate ?? 'chưa rõ ngày'))}</dd>` : ''}`;
-  // A filtered results-page sample states its own row filter instead of the stored-intent fallback.
-  const captureFiltered = Boolean(marketPresentation && input.metricMethods?.capture?.rowPolicyVersion);
-  const periodWarning = marketPresentation ?'Mỗi nguồn chỉ có số trong kỳ của nguồn đó; không kéo dài hay chia tỷ lệ cho khớp kỳ khác.'
+  // Only v3 adopts the sample-filter copy; retained v1/v2 reports keep their exact wording.
+  const captureFiltered = Boolean(marketPresentation && input.metricMethods?.capture?.rowPolicyVersion === 'automation-metric-capture-v3');
+  const periodWarning = marketPresentation ? 'Mỗi nguồn chỉ có số trong kỳ của nguồn đó; không kéo dài hay chia tỷ lệ cho khớp kỳ khác.'
     : 'Kỳ yêu cầu không chứng minh mọi nguồn có đủ dữ liệu trong kỳ này.';
   const scope = `<dl><dt>Thị trường</dt><dd>Việt Nam</dd><dt>Định nghĩa đã xác nhận</dt><dd>${storedLiteral(input.scope.definition, 'Định nghĩa được giữ trong bản lưu')}</dd>${periodRows}<dt>Điều kiện bao gồm</dt><dd>${storedLiteral(input.scope.includeTerms.join(', ') || (captureFiltered ? 'Mọi sản phẩm trả về cho từ khóa đã tìm' : 'Không thêm điều kiện'),'Điều kiện được giữ trong bản lưu')}</dd><dt>Điều kiện loại trừ</dt><dd>${storedLiteral(input.scope.excludeTerms.join(', ') || (captureFiltered ? 'Không có điều kiện riêng ngoài bộ lọc mẫu' : 'Không thêm điều kiện'), 'Điều kiện được giữ trong bản lưu')}</dd>${captureFiltered
     ? '<dt>Bộ lọc mẫu</dt><dd>Loại phụ kiện, linh kiện, sản phẩm khác và dòng có doanh thu hoặc đơn vị bán bất thường khỏi mẫu tính; số dòng đã loại của từng sàn ghi tại mục Phạm vi từng nguồn.</dd>' : ''}</dl><p class="warning">${captureFiltered
