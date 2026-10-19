@@ -127,7 +127,8 @@ for (const counts of [[20, 20, 20], [20, 7, 0], [0, 0, 0]]) test(`Market-only au
   assert.deepEqual(record.testReviewSample.collection, { exactShopee: collection.exactShopee, exactShopeeOutcome: collection.exactShopeeOutcome });
   assert.deepEqual(record.testReviewSample.scope, { testReviewCap: 20 });
   const replay = await buildMarketReport(computeReaderReportData(record.input), { limitations: record.limitations, builtOn: '01/02/2026',
-    flint: false, webResults: record.webResults, captureSource: true, testReviewSample: record.testReviewSample });
+    flint: false, webResults: record.webResults, captureSource: true, testReviewSample: record.testReviewSample,
+    captureRowPolicy: record.captureRowPolicy, captureExcludedRows: record.captureExcludedRows });
   assert.equal(replay.html, reader.bytes.toString());
   const restarted = f.make();
   assert.deepEqual((await restarted.readReaderReport(workspaceId, runId, built.revision.revisionId)).bytes, reader.bytes);

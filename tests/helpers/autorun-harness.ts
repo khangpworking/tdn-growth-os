@@ -44,11 +44,12 @@ export function captureFiles(runId: string, period: DatePeriod = capturePeriod) 
     views: [], sourceMap: {}, files: [{ path: 'snapshot.json', sha256: hash(snapshotBytes), byteSize: snapshotBytes.length, mediaType: 'application/json', role: 'normalized' }], screenshotSkips: [],
     archive: { rawResponses: 'raw/', normalizedSnapshot: 'snapshot.json', resultsHtml: 'results.html', screenshots: [] }, noReportFileRequested: true, captureGate: { cleared: true } };
   // Three synthetic Shopee rows (different brands and shops) plus one unrelated row the pick must skip.
+  // Rows carry units sold, as real search rows do; the pick rejects revenue rows without units.
   const rows = [
-    { product_base_id: '1__101__201', product_name: 'Synthetic jar mini', shop_base_id: 'shop-a', revenue_custom: 3000, brand: 'Brand A' },
-    { product_base_id: '1__102__202', product_name: 'Synthetic jar large', shop_base_id: 'shop-b', revenue_custom: 2000, brand: 'Brand B' },
-    { product_base_id: '1__103__203', product_name: 'Synthetic jar set', shop_base_id: 'shop-c', revenue_custom: 1000, brand: 'Brand C' },
-    { product_base_id: '1__104__204', product_name: 'Unrelated item', shop_base_id: 'shop-d', revenue_custom: 9000, brand: 'Brand D' },
+    { product_base_id: '1__101__201', product_name: 'Synthetic jar mini', shop_base_id: 'shop-a', revenue_custom: 3000, order_custom: 10, brand: 'Brand A' },
+    { product_base_id: '1__102__202', product_name: 'Synthetic jar large', shop_base_id: 'shop-b', revenue_custom: 2000, order_custom: 8, brand: 'Brand B' },
+    { product_base_id: '1__103__203', product_name: 'Synthetic jar set', shop_base_id: 'shop-c', revenue_custom: 1000, order_custom: 5, brand: 'Brand C' },
+    { product_base_id: '1__104__204', product_name: 'Unrelated item', shop_base_id: 'shop-d', revenue_custom: 9000, order_custom: 30, brand: 'Brand D' },
   ];
   return { snapshotBytes, manifestBytes: Buffer.from(JSON.stringify(manifest, null, 2) + '\n'), rawBytes: Buffer.from(JSON.stringify({ responses: [{ body: { data: rows } }] })) };
 }
