@@ -375,7 +375,7 @@ export function deliverMarketReader(html: string, searchPoints?: readonly Search
       proposalFigures ||= block.startsWith('<div class="table-wrap market14-proposals has-figures">');
       return '';
     }) : annotated;
-    const data = /<table\b|<figure\b/u.test(evidence) || proposalFigures;
+    const data = /<table\b|<figure\b/u.test(evidence) || proposalFigures || (id === 'M01' && /data-market-headline="1"/u.test(evidence));
     const priceState = /data-market-prices="reference"/u.test(evidence) || hasReadablePrice(evidence) ? 'Có giá tham khảo, chưa xác minh'
       : /data-market-prices="unavailable"/u.test(evidence) ? 'Chưa có giá đọc được' : 'Chưa đủ dữ liệu';
     const chip = id === 'M02' || id === 'M13' ? '' : `<span class="state">${id === 'M08' ? priceState : data ? 'Có số liệu' : 'Chưa đủ dữ liệu'}</span>`;

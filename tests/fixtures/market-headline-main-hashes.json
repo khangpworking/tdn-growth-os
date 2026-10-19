@@ -1,0 +1,47 @@
+{
+  "capture-market": {
+    "html": "b47fe6f0eeaa47eef354d4ad707dc4f66ab1348ed05740d7ec6424f3d3fffe5e",
+    "semantic": "671089c001264c32f0f88002ad4b9aedc713667fbafc7327ccfa1b2d5f4bd57a",
+    "trace": "9a9dca7637b8c9569c46ea71a2443ba31fd267494924f58a7b166ecef68a7181"
+  },
+  "capture-insight": {
+    "html": "7163940cc6c424f6c1a2fc73c7af9458e1a50d3957adaa8d43802a8caf6ba08d",
+    "semantic": "21c5fa1d4be2b577cc196d0508e84342b0953f1a16ed6505eccbb784b8f05294",
+    "trace": null
+  },
+  "no-capture-market": {
+    "html": "8adbfe602d5e8798b804ddbf69cbf557890528d2802dc9986f7ea6ed46622bf2",
+    "semantic": "cfefb08635d39a3ddecef46ab0475becb75c7391a2ba5fffc6858dbb1f88047d",
+    "trace": "bf439c8cf5ec7b736a34775c507550d141519a39c04795dfd14762c64ae1ba55"
+  },
+  "no-capture-insight": {
+    "html": "7163940cc6c424f6c1a2fc73c7af9458e1a50d3957adaa8d43802a8caf6ba08d",
+    "semantic": "21c5fa1d4be2b577cc196d0508e84342b0953f1a16ed6505eccbb784b8f05294",
+    "trace": null
+  },
+  "no-figure-4.1-market": {
+    "html": "a7c5131aa43bfdc5dd0b8d1b82f762ae0fe41d260012a7e6696fdfcea7735a6f",
+    "semantic": "ead5bdf2e339fefd90dedbe42207904118e1260f6f21d748b288ae2ddd1d3ffc",
+    "trace": "5cc132b6a27d564a31d1e2a062531fa844edc29601096db812996e3efad896a4"
+  },
+  "legacy-capture-market": {
+    "html": "92ada31fa0a8a276d05aedc38fe418c3b5204f0750ef89020453a998526c6da9",
+    "semantic": "89b388819561c90b6082847afb079b85aa911457862ca7d542d5335860c3f8a5",
+    "trace": null
+  },
+  "legacy-capture-insight": {
+    "html": "7163940cc6c424f6c1a2fc73c7af9458e1a50d3957adaa8d43802a8caf6ba08d",
+    "semantic": "21c5fa1d4be2b577cc196d0508e84342b0953f1a16ed6505eccbb784b8f05294",
+    "trace": null
+  },
+  "legacy-no-capture-market": {
+    "html": "81acb9d9aae415ef2a44243ab0d4957b057976ca90913b3690aae72ca9d76377",
+    "semantic": "53681a3d1580247b0c7f6df091c80698b9b8e4d7f5dbd94aa01bc6e1eb8f9e2a",
+    "trace": null
+  },
+  "legacy-no-capture-insight": {
+    "html": "7163940cc6c424f6c1a2fc73c7af9458e1a50d3957adaa8d43802a8caf6ba08d",
+    "semantic": "21c5fa1d4be2b577cc196d0508e84342b0953f1a16ed6505eccbb784b8f05294",
+    "trace": null
+  }
+}

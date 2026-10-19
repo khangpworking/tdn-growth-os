@@ -205,13 +205,14 @@ test('the delivered appendix localizes each comparable window to dd/mm/yyyy', as
   assert.doesNotMatch(appendix.textContent!, /2026-09-12|2026-10-11/u);
 });
 
-test('both reader digests with deduplication differ from their badge-reverted controls only in M08', async () => {
+test('reader digests pin the M08 badge control with capture headlines', async () => {
   const input = await fullMarket14Input();
   const { capture: _capture, ...metricMethods } = input.metricMethods!;
   // Controls include 2480414f: capture changes M04/M13; no capture changes M13.
   // Neither input has inventory, so both retain M05's per-period tables.
+  // Package C adds Phần 1 findings and its badge only to the capture control.
   for (const [reportInput, parent] of [
-    [input, '0c123bd8e8e99a66b699a53f9580d09ed4baef094e20e4e226cecd88dc72e202'],
+    [input, 'eb80295652c4cc79de5563e15684d33a0479d0ee95e382e3c87b14a7ef44e96a'],
     [{ ...input, metricMethods }, 'd834bd31581e1fbc96d04137ee1c4887a0c267c6ae40e085d8e5220a88942410'],
   ] as const) {
     const html = buildResearchAutomationReport(reportInput, 'MARKET').html.toString();
@@ -227,7 +228,8 @@ test('automated reader uses the price projection without changing retained input
   const report = buildResearchAutomationReport(reportInput, 'MARKET');
   // Latest-price review: preserve range-only evidence, explicit estimate wording, and corrected price-only readings.
   // 2480414f additionally points M04/M05 to Phần 3 and M13 to Phần 2.
-  assert.equal(hash(report.html), '8d941a858f81eb6f43aeb7098130c533396411d2dfac17a7f77ea40042da754e');
+  // Package C adds Phần 1 findings and its data badge to this capture report.
+  assert.equal(hash(report.html), '85ccf9d28a0ec63570fc0765af07995b4f802387eaaaa56507573ebeb2ddf43e');
   const doc = new JSDOM(report.html.toString()).window.document;
   const section = doc.querySelector('#M08')!;
   assert.equal(section.querySelectorAll('tbody tr').length, 8);

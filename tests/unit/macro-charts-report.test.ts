@@ -65,7 +65,8 @@ test('current Market renderers pin unscaled per-person charts and corrected cont
   // and M13 scope through pointers; legacy readers have separate frozen pins.
   const hash = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
   assert.equal(hash((await reader({ worldBank: fullWorldBank() }, false)).html), '2c6bf440c35405eebeede37f08f57764e549cdc42041bf26b958952340d1d02e');
-  assert.equal(hash(buildResearchAutomationReport(await fullMarket14Input(), 'MARKET').html), 'b47fe6f0eeaa47eef354d4ad707dc4f66ab1348ed05740d7ec6424f3d3fffe5e');
+  // Package C changes only capture Market Phần 1 findings and its data badge.
+  assert.equal(hash(buildResearchAutomationReport(await fullMarket14Input(), 'MARKET').html), '8dffa67933b932788b34bed4fcff2da7d8fd75d14a68c6d86ffd1631e598d952');
 });
 
 test('v2 reader: World Bank lines are Hình 5.3/5.4 after Bảng 5.3 and Comtrade bars are Hình 6.1/6.2 after Bảng 6.2, all Flint', async () => {
