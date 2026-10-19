@@ -361,7 +361,8 @@ function hasReadablePrice(html: string): boolean {
 export function deliverMarketReader(html: string, searchPoints?: readonly SearchPoint[], captureCopy = false): string {
   const open = html.indexOf('<div id="sections">');
   if (open < 0) return html;
-  const close = html.indexOf('<footer', open);
+  // Quoted excerpts carry their own <footer> inside a section: the page footer is the first one after the last section.
+  const close = html.indexOf('<footer', Math.max(open, html.lastIndexOf('</section>')));
   const head = html.slice(0, open), tail = close < 0 ? '' : html.slice(close);
   let body = stripTraceDetails(close < 0 ? html.slice(open) : html.slice(open, close));
   body = readerText(body, captureCopy);
