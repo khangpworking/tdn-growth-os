@@ -23,9 +23,9 @@ function assertNoSi(svg: string): void {
   assert.doesNotMatch(svg, /%/u);
 }
 
-test('macroScale names nghìn/triệu/tỷ and leaves small values unscaled', () => {
+test('macroScale names triệu/tỷ and leaves values below one million unscaled', () => {
   assert.deepEqual(macroScale([12, 999]), { divisor: 1, word: null });
-  assert.deepEqual(macroScale([2_500]), { divisor: 1e3, word: 'nghìn' });
+  assert.deepEqual(macroScale([999_999]), { divisor: 1, word: null });
   assert.deepEqual(macroScale([98_000_000]), { divisor: 1e6, word: 'triệu' });
   assert.deepEqual(macroScale([4_200_000_000]), { divisor: 1e9, word: 'tỷ' });
 });
@@ -134,7 +134,7 @@ test('World Bank axes use only source-backed units with their scale, in Flint an
   ] };
   for (const flint of [true, false]) {
     const charts = await renderWorldBankCharts(value, { flint });
-    assert.deepEqual(charts.map(chart => chart.unit), ['nghìn USD, giá cố định năm 2015', 'triệu người', 'nghìn USD, giá hiện hành', 'triệu; nguồn chưa ghi đơn vị']);
+    assert.deepEqual(charts.map(chart => chart.unit), ['USD/người, giá cố định năm 2015', 'triệu người', 'USD/người, giá hiện hành', 'triệu; nguồn chưa ghi đơn vị']);
     for (const chart of charts) {
       assert.equal(chart.engine, flint ? 'flint' : 'svg-fallback', chart.error);
       assert.ok(svgText(chart.svg).includes(`Giá trị (${chart.unit})`));
@@ -179,5 +179,17 @@ test('Comtrade: mirror figure needs ≥2 rows, sorted by value; own figure needs
     assertNoSi(chart.svg);
     assert.ok(svgText(chart.svg).includes(`Giá trị (${chart.unit})`), 'fallback axis names its scale');
     assert.doesNotMatch(svgText(chart.svg).join(' '), /4,68|6,4|3,86/u, 'fallback never displays sums or differences');
+  }
+});
+
+
+test('per-person indicators remain unscaled even above one million, in both engines', async () => {
+  const item = syntheticWorldBankIndicator('NE.CON.PRVT.PC.KD', years(2023, ['1000000', '2000000']));
+  const value = { profile: 'p', indicators: [{ ...item, row: { ...item.row!, sourceIndicatorName: 'Consumption per capita (constant 2015 US$)', decimal: 0 } }] };
+  for (const flint of [false, true]) {
+    const [chart] = await renderWorldBankCharts(value, { flint });
+    assert.equal(chart!.unit, 'USD/người, giá cố định năm 2015');
+    assert.match(chart!.svg, /2\.000\.000 USD\/người/u);
+    assert.doesNotMatch(chart!.unit, /nghìn|triệu|tỷ/u);
   }
 });

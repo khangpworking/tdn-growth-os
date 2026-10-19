@@ -697,13 +697,13 @@ test('reader report: table 5.4 retains periods, statuses, E12 attribution and th
   const table = [...doc.querySelectorAll('table')].find(node => node.textContent!.includes('Mọi ngành hàng; tham chiếu cả nước'));
   assert.ok(table);
   assert.match(table.textContent!, /Tháng 9 năm 2026/u);
-  assert.match(table.textContent!, /sơ bộ; đã cập nhật/u);
+  assert.match(table.textContent!, /sơ bộ; tệp đã được nguồn cập nhật lại/u);
   assert.match(table.textContent!, /chỉ số 105,55 \(kỳ gốc = 100\)/u);
   assert.doesNotMatch(table.textContent!, /%/u);
   assert.deepEqual(providerNameViolations(on.html), []);
   assert.doesNotMatch(on.html, /Google/u);
   assert.match(doc.querySelector('#phu-luc')!.textContent!, /Cục Thống kê \(nso.gov.vn\)/u);
-  assert.match(doc.querySelector('#danh-muc-nguon')?.textContent ?? doc.body.textContent!, /công bố 06\/10\/2026/u, 'reader dates are dd/mm/yyyy');
+  assert.match(doc.querySelector('#phu-luc .citation-register')!.textContent!, /công bố 06\/10\/2026/u, 'reader dates are dd/mm/yyyy');
   assert.doesNotMatch(doc.body.textContent!, /công bố 2026-10-06/u);
   const failedRules = (html: string) => auditMarket14(html).filter(check => check.kind === 'machine' && !check.ok).map(check => check.rule);
   assert.deepEqual(failedRules(on.html), failedRules(off.html), 'the new table adds no machine-rule failure');
@@ -714,9 +714,21 @@ test('reader report: table 5.4 retains periods, statuses, E12 attribution and th
     values: officialStats.values.map(row => ({ ...row, sheet: 'Google OpenCLI rẻ nhất 50%' })) };
   const hidden = await buildMarketReport(data, { ...sync1Options, officialStats: unsafe });
   assert.doesNotMatch(hidden.html, /Google|OpenCLI|rẻ nhất/u);
-  assert.doesNotMatch(new JSDOM(hidden.html).window.document.querySelector('.citation-register')!.textContent!, /%/u);
-  assert.match(hidden.html, /tệp số liệu đã lưu/u);
-  assert.match(hidden.html, /bảng số liệu đã lưu/u);
+  const registerNode = new JSDOM(hidden.html).window.document.querySelector('.citation-register')!;
+  const register = registerNode.textContent!;
+  assert.doesNotMatch(register, /%/u);
+  // Each official-statistics entry is the short label alone: nothing appended, no file, sheet or row locator.
+  const officialEntries = [...registerNode.querySelectorAll('li')]
+    .map(item => ({ label: item.querySelector('.cite-label')?.textContent ?? '', locators: item.querySelectorAll('.cite-locator').length }))
+    .filter(item => item.label.startsWith('Cục Thống kê'));
+  const cpiLabels = officialEntries.map(item => item.label).filter(label => label.startsWith('Cục Thống kê, số liệu CPI'));
+  assert.ok(cpiLabels.length > 0, 'the register lists the CPI citation');
+  assert.deepEqual([...new Set(cpiLabels)], ['Cục Thống kê, số liệu CPI tháng 9/2026, công bố 06/10/2026'], 'the short CPI citation names no stored file or sheet');
+  for (const entry of officialEntries) {
+    assert.match(entry.label, /^Cục Thống kê, số liệu [^,]+(?: tháng \d{1,2}\/\d{4})?(?:, công bố \d{2}\/\d{2}\/\d{4})?$/u, entry.label);
+    assert.equal(entry.locators, 0, `${entry.label} shows no file, sheet or row locator`);
+  }
+  assert.doesNotMatch(register, /\.xlsx|tệp số liệu đã lưu|bảng số liệu đã lưu|, dòng \d/u, 'no stored file, sheet or row reaches the register');
   assert.equal(unsafe.values[0]!.sheet, 'Google OpenCLI rẻ nhất 50%', 'source metadata stays intact');
 });
 
@@ -886,11 +898,12 @@ test('S22 reader report: table 5.5 follows 5.4 with title, source, note, period,
   assert.ok(table);
   assert.deepEqual([...table.querySelectorAll('th')].map(th => th.textContent!.trim()), ['Dòng', 'Tỉnh A', 'Tỉnh B', 'Thành phố C']);
   assert.match(table.textContent!, /II\. Đồ uống và thuốc lá/u);
-  assert.match(table.textContent!, /CHỈ SỐ GIÁ TIÊU DÙNG \(Mọi ngành hàng; dòng tham chiếu\)/u);
+  assert.match(table.textContent!, /II\. Đồ uống và thuốc lá \(kỳ gốc: tháng trước = 100\)/u, 'each row names its base');
+  assert.match(table.textContent!, /Chỉ số giá tiêu dùng \(Mọi ngành hàng; dòng tham chiếu\) \(kỳ gốc: tháng trước = 100\)/u);
   assert.match(table.textContent!, /102,38/u);
   assert.match(table.textContent!, /không có số/u);
   assert.doesNotMatch(table.textContent!, /%/u);
-  for (const text of [OFFICIAL_STATS_PROVINCE_TITLE, OFFICIAL_STATS_PROVINCE_NOTE, 'Kỳ: Tháng 9 năm 2026. Kỳ gốc: tháng trước = 100. Trạng thái: bảng không ghi.'])
+  for (const text of [OFFICIAL_STATS_PROVINCE_TITLE, OFFICIAL_STATS_PROVINCE_NOTE, 'Kỳ: Tháng 9 năm 2026.'])
     assert.ok(m05.includes(text), text);
   assert.doesNotMatch(m05, /(?<![\p{L}\p{N}.,])0(?![\p{N}.,])/u, 'no bare 0');
   assert.deepEqual(providerNameViolations(html), []);

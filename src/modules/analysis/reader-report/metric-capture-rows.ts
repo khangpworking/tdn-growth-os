@@ -25,8 +25,8 @@ const isText = (value: Value | Text | undefined): value is Text => typeof value 
 const isValue = (value: Value | Text | undefined): value is Value => typeof value === 'object' && value !== null && 'value' in value;
 const textCell = (value: Value | Text | undefined): string => isText(value) ? squash(value.text) : isValue(value) ? squash(value.displayed) : '';
 const numberCell = (value: Value | Text | undefined): number | null => isValue(value) && typeof value.value === 'number' && Number.isFinite(value.value) && value.value >= 0 ? value.value : null;
-const hashId = (platform: string, title: string, shop: string): string =>
-  `synthetic-${createHash('sha256').update(canonicalJson([platform, title, shop]), 'utf8').digest('hex').slice(0, 40)}`;
+const hashId = (platform: string, title: string, shop: string, rowIndex?: number): string =>
+  `synthetic-${createHash('sha256').update(canonicalJson(rowIndex === undefined ? [platform, title, shop] : [platform, title, shop, rowIndex]), 'utf8').digest('hex').slice(0, 40)}`;
 
 type CaptureTableRow = Table['rows'][number];
 const rowCell = (row: CaptureTableRow, key: string): Value | Text | undefined => row.cells[key];
@@ -48,6 +48,7 @@ export function readerRowsFromMetricCapture(snapshot: AutomationMetricWebSnapsho
   const excluded: (ReaderRow & { reason: CaptureRowExclusionReason })[] = [];
   const rows: ReaderRow[] = [];
   const unattributed: MetricCaptureUnattributedRow[] = [];
+  const identities = new Set<string>();
   for (const [i, sourceRow] of table.rows.entries()) {
     const title = clean?.[i]?.title ?? textCell(rowCell(sourceRow, 'name'));
     if (!title) throw new ReaderMetricRowsError('BLANK_TITLE', `groups.W12_topProducts.rows[${i}].name`);
@@ -64,14 +65,18 @@ export function readerRowsFromMetricCapture(snapshot: AutomationMetricWebSnapsho
     if (!platforms.includes(platform)) throw new ReaderMetricRowsError('UNDECLARED_PLATFORM', `groups.W12_topProducts.rows[${i}].platform`);
     const brandCell = rowCell(sourceRow, 'brand');
     const brand = textCell(brandCell) || NO_BRAND;
-    const listing = hashId(platform, title, shop);
+    const reason = exclusions?.get(i);
+    // Same identity rule as the method bridge's capture records: a later kept row whose cleaned
+    // title and shop repeat an earlier kept row's on its platform is a separate listing.
+    const base = hashId(platform, title, shop);
+    const listing = !reason && identities.has(base) ? hashId(platform, title, shop, i) : base;
+    if (!reason) identities.add(listing);
     const readerRow: ReaderRow = {
       i, platform, listing, listingSynthetic: true, shop: shop.slice(0, 100), shopName: shop.slice(0, 300),
       cat: (textCell(rowCell(sourceRow, 'category')) || '(trống)').slice(0, 300),
       rev, units, asp: rev !== null && units !== null && units > 0 ? Math.round(rev / units) : null,
       brand: brand.slice(0, 300), title: title.slice(0, 1000), start: null,
     };
-    const reason = exclusions?.get(i);
     if (reason) excluded.push({ ...readerRow, reason });
     else rows.push(readerRow);
   }

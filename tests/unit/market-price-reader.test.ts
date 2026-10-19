@@ -208,9 +208,10 @@ test('the delivered appendix localizes each comparable window to dd/mm/yyyy', as
 test('both re-pinned reader digests differ from the parent only in the M08 badge', async () => {
   const input = await fullMarket14Input();
   const { capture: _capture, ...metricMethods } = input.metricMethods!;
+  // Parents are the main pins after #335 (context copy) in autorun-test-reviews and market-capture-reader.
   for (const [reportInput, parent] of [
-    [input, '8764da84f3381754eedfbf670ce6ff7fb445299112f07413195a90c80caf52ce'],
-    [{ ...input, metricMethods }, '99e15f75c3f56be58b249d8bf9561ef1c1a751f148ee03064041cd463a39b393'],
+    [input, '1b2cb8b3ad4d0bd8d0a4cc6ff52551167799e22a748ac20c83d1c74cc9956c55'],
+    [{ ...input, metricMethods }, 'ada74b0ed1e5531e14197e56ad134e618c88de8601aad23adca57474cebb9284'],
   ] as const) {
     const html = buildResearchAutomationReport(reportInput, 'MARKET').html.toString();
     assert.equal(hash(html.replace('<span class="state">Có giá tham khảo, chưa xác minh</span>', '<span class="state">Có số liệu</span>')), parent);
@@ -224,7 +225,7 @@ test('automated reader uses the price projection without changing retained input
   const before = canonicalJson(reportInput);
   const report = buildResearchAutomationReport(reportInput, 'MARKET');
   // Latest-price review: preserve range-only evidence, explicit estimate wording, and corrected price-only readings.
-  assert.equal(hash(report.html), 'bcf956388f8aeac6bd708f1af60055bac3c00b8cebbe13ca7372cb48368c25a8');
+  assert.equal(hash(report.html), 'f497244b55b7a84c9c06d4cf5475978d93707d6c78a8fbcc844b52585d10323a');
   const doc = new JSDOM(report.html.toString()).window.document;
   const section = doc.querySelector('#M08')!;
   assert.equal(section.querySelectorAll('tbody tr').length, 8);
@@ -241,7 +242,7 @@ test('automated reader uses the price projection without changing retained input
 test('reports without presentation keep their pinned reader and semantic bytes', async () => {
   const { marketPresentation: _presentation, ...input } = await fullMarket14Input();
   const report = buildResearchAutomationReport(input, 'MARKET');
-  assert.equal(hash(report.html), 'bfdaca277bee00e28b823d042b11dd75846dba38381704d3b0042ca06f5cbab5');
+  assert.equal(hash(report.html), '92ada31fa0a8a276d05aedc38fe418c3b5204f0750ef89020453a998526c6da9');
   assert.equal(hash(canonicalJson(report.semantic)), '89b388819561c90b6082847afb079b85aa911457862ca7d542d5335860c3f8a5');
   assert.equal(report.traceHtml, undefined);
 });

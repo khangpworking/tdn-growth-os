@@ -10,7 +10,7 @@ export const sp = (x: unknown): string => String(x).replace('.', ',');
 export const r100 = (v: number): number => Math.round(v / 100) * 100;
 
 /** New capture reports spell out percentages and zero in authored text only.
- * Source quotes, attributes, CSS and scripts retain their exact bytes. */
+ * Chart SVGs, source quotes, attributes, CSS and scripts retain their exact bytes. */
 export function plainCaptureNumbers(html: string): string {
   const stack: { tag: string; protected: boolean }[] = [];
   return html.split(/(<!--[^]*?-->|<[^>]+>)/u).map(part => {
@@ -26,7 +26,7 @@ export function plainCaptureNumbers(html: string): string {
       const index = stack.map(frame => frame.tag).lastIndexOf(tag);
       if (index >= 0) stack.splice(index);
     } else if (!/^(?:area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)$/u.test(tag) && !/\/\s*>$/u.test(part)) {
-      stack.push({ tag, protected: /^(?:style|script|pre|code|q|blockquote)$/u.test(tag) || /\sdata-quote(?:\s|=|>)/u.test(part) });
+      stack.push({ tag, protected: /^(?:svg|style|script|pre|code|q|blockquote)$/u.test(tag) || /\sdata-quote(?:\s|=|>)/u.test(part) });
     }
     return part;
   }).join('');

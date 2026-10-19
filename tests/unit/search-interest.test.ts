@@ -156,14 +156,48 @@ test('usage counts the paid request and any ambiguous outcome from the captures'
   assert.equal(searchInterestUsage([]).usage.requestsIssued, 0);
 });
 
-test('chart labels are short dates, widen on a collision, and keep unknown period text', () => {
-  const labels = (periods: string[]) => searchInterestChartPoints(syntheticSearchInterest({ points: periods.map((period, i) => ({ period, index: i })) })).map(point => point.label);
-  assert.deepEqual(labels(['2025-10-05', '2025-10-12']), ['05/10', '12/10']);
-  assert.deepEqual(labels(['2025-10-05', '2026-10-05']), ['05/10/25', '05/10/26'], 'the same day in two years gets a year');
-  assert.deepEqual(labels(['Oct 5 – 11, 2025', 'Oct 12 – 18, 2025']), ['Oct 5 – 11, 2025', 'Oct 12 – 18, 2025']);
-  assert.deepEqual(labels(['same', 'same']), ['same (1)', 'same (2)'], 'labels stay unique');
-  const points = searchInterestChartPoints(syntheticSearchInterest());
-  assert.equal(points.length, 52);
-  assert.equal(points[5]!.value, null, 'a blank week stays a gap');
-  assert.equal(Math.max(...points.map(point => point.value ?? 0)), 100);
+test('chart points use completed weeks and Vietnamese date ranges without changing the stored series', () => {
+  const stored = syntheticSearchInterest({ retrievedAt: '2026-10-19T09:00:00.000Z', points: [
+    { period: '2025-10-12', index: 10 },
+    { period: '29 thg 9 – 5 thg 10, 2025', index: null },
+    { period: '29 thg 12, 2025 – 4 thg 1, 2026', index: 30 },
+    { period: '29 thg 12 – 4 thg 1, 2026', index: 31 },
+    { period: '11 – 17 thg 10, 2026', index: 40 },
+    { period: '18 – 24 thg 10, 2026', index: 99 },
+    { period: '2026-10-18', index: 98 },
+  ] });
+  const bytes = JSON.stringify(stored);
+  assert.deepEqual(searchInterestChartPoints(stored), [
+    { label: '12–18/10/2025', value: 10 }, { label: '29/09–05/10/2025', value: null },
+    { label: '29/12/2025–04/01/2026', value: 30 }, { label: '29/12/2025–04/01/2026', value: 31 },
+    { label: '11–17/10/2026', value: 40 },
+  ]);
+  assert.equal(JSON.stringify(stored), bytes, 'rendering never rewrites retained evidence');
+  assert.equal(searchInterestChartPoints(syntheticSearchInterest()).length, 51, 'the in-progress ISO week is withheld');
+});
+
+test('week parsing fails closed for invalid dates, unknown labels and an absent retrieval date', () => {
+  const chart = (period: string, retrievedAt: string | null = '2026-10-18T16:59:59Z') =>
+    searchInterestChartPoints(syntheticSearchInterest({ retrievedAt, points: [{ period, index: 50 }] }));
+  assert.deepEqual(chart('12 – 18 thg 10, 2026'), [], 'the ending day has not finished');
+  assert.deepEqual(chart('11 – 17 thg 10, 2026'), [{ label: '11–17/10/2026', value: 50 }]);
+  assert.deepEqual(chart('2025-09-29–2025-10-05'), [{ label: '29/09–05/10/2025', value: 50 }]);
+  for (const period of ['unknown', '<img src=x>', '30 thg 2 – 8 thg 3, 2026', '2026-02-30', '1 – 18 thg 10, 2026'])
+    assert.deepEqual(chart(period), [], period);
+  assert.deepEqual(chart('2025-10-12', null), []);
+});
+
+
+test('completed weeks use the Vietnam retrieval day at midnight and at the year boundary', () => {
+  const points = [{ period: '12 – 18 thg 10, 2026', index: 50 }];
+  const chart = (retrievedAt: string) => searchInterestChartPoints(syntheticSearchInterest({ retrievedAt, points }));
+  assert.deepEqual(chart('2026-10-18T16:59:59.999Z'), [], 'still Sunday in Vietnam');
+  assert.deepEqual(chart('2026-10-18T17:00:00Z'), [{ label: '12–18/10/2026', value: 50 }], 'Monday in Vietnam');
+  assert.deepEqual(chart('2026-10-19T00:00:00+07:00'), chart('2026-10-18T17:00:00Z'));
+  assert.deepEqual(chart('invalid-date'), []);
+  for (const period of ['29 thg 12, 2025 – 4 thg 1, 2026', '29 thg 12 – 4 thg 1, 2026']) {
+    const source = syntheticSearchInterest({ retrievedAt: '2026-01-04T17:00:00Z', points: [{ period, index: 50 }] });
+    assert.deepEqual(searchInterestChartPoints(source), [{ label: '29/12/2025–04/01/2026', value: 50 }]);
+    assert.deepEqual(searchInterestChartPoints({ ...source, retrievedAt: '2026-01-04T16:59:59Z' }), []);
+  }
 });

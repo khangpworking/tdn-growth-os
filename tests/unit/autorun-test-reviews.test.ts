@@ -162,14 +162,15 @@ test('Market capture copy has explained rendering digests; Insight digests remai
   // Against eedcb369: per-platform Phần 1/2 copy, localized scope dates, capture-only sample wording,
   // and retained M03 findings in the trace. No retained method or Insight bytes change.
   // The reader proofread (Vietnamese terms, used-term glossary, shared citation numbers) changes only rendered bytes.
+  // M14/M15/M16/M27/L11/L12 context copy (completed search weeks, row bases, short CPI citations, unscaled per-person charts, neutral province copy) is render-only too.
   // Phần 8 now labels the observed prices as references awaiting verification.
-  assert.equal(digest(market.html), '35e26bff3e49013774c863d26d3d22d2c87a8d1ec628f38d0efc525e6615e723');
+  assert.equal(digest(market.html), 'f1d52c84a137d66189b8890d4ab6c5f28cc0900696c7f08864f5cccad393cc6a');
   // All nine semantic citations remain. The sample calculation moves from citation 1 to 3;
   // the per-platform calculation moves from 3 to 1 and gains methodVersion/rounding metadata.
   // These are the only semantic differences from eedcb369.
   assert.equal(digest(canonicalJson(market.semantic)), '3a50085424b8843609458a2d77a93e5f4baa21a8e2b1db40239f33140991dfde');
   // The proofread review restores raw capture row/page/display counts inside the technical details.
-  assert.equal(digest(market.traceHtml!), '633682b24bfa474afd6267876f22fedc08427689680a2610fd6b1887258f009d');
+  assert.equal(digest(market.traceHtml!), 'a523aa8630c071d9b6133b44a3177fccc4f0d5bf93574936b677a8de45881c85');
   const insight = buildResearchAutomationReport(input, 'INSIGHT');
   assert.equal(digest(insight.html), '7163940cc6c424f6c1a2fc73c7af9458e1a50d3957adaa8d43802a8caf6ba08d');
   assert.equal(digest(canonicalJson(insight.semantic)), '21c5fa1d4be2b577cc196d0508e84342b0953f1a16ed6505eccbb784b8f05294');
