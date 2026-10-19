@@ -264,6 +264,25 @@ for (const cancelStatus of [202, 409, 401, 500, 'timeout'] as const) test(`S5 ab
   assert.equal(transport.calls.filter(c => new URL(c.url).pathname.endsWith('/cancel')).length, 1);
   store.reopen(); const replay = new FakeTransport([]); await bindings.open({ ...store, clock, fetch: replay.fetch }).run(PRODUCTS); assert.equal(replay.calls.length, 0);
 });
+test('S5 abort in the journal/dispatch gap does not count an undispatched request as exact usage', async t => {
+  const store = await temporaryPublicStore(t), clock = new FakeClock(), abort = new AbortController();
+  const transport = new FakeTransport([]), rename = fs.rename;
+  fs.rename = async (from, to) => {
+    await rename(from, to);
+    if (String(to).endsWith('.json')) {
+      const journal = JSON.parse(await fs.readFile(to, 'utf8'));
+      if (journal.requestCount === 1 && journal.requestCountUncertain) abort.abort();
+    }
+  };
+  try {
+    const session = bindings.open({ ...store, clock, fetch: transport.fetch, signal: abort.signal });
+    const value = await session.run(); transport.done();
+    assert.equal(transport.calls.length, 0); assert.equal(session.requestsIssued(), 0);
+    assert.equal(value.listings[0].requestCount, 0); assert.equal(value.listings[0].requestCountUncertain, false);
+    assert.equal(value.listings[0].stopCode, 'OWNER_ABORTED');
+  } finally { fs.rename = rename; }
+});
+
 test('S5 abort before submit makes no HTTP invocation', async t => {
   const store = await temporaryPublicStore(t), clock = new FakeClock(), controller = new AbortController(); controller.abort();
   const transport = new FakeTransport([]); await bindings.open({ ...store, clock, fetch: transport.fetch, signal: controller.signal }).run(); assert.equal(transport.calls.length, 0);
