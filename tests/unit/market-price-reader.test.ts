@@ -205,13 +205,14 @@ test('the delivered appendix localizes each comparable window to dd/mm/yyyy', as
   assert.doesNotMatch(appendix.textContent!, /2026-09-12|2026-10-11/u);
 });
 
-test('both re-pinned reader digests differ from the parent only in the M08 badge', async () => {
+test('both reader digests with deduplication differ from their badge-reverted controls only in M08', async () => {
   const input = await fullMarket14Input();
   const { capture: _capture, ...metricMethods } = input.metricMethods!;
-  // Parents are the main pins after #335 (context copy) in autorun-test-reviews and market-capture-reader.
+  // Controls include 2480414f: capture changes M04/M13; no capture changes M13.
+  // Neither input has inventory, so both retain M05's per-period tables.
   for (const [reportInput, parent] of [
-    [input, '1b2cb8b3ad4d0bd8d0a4cc6ff52551167799e22a748ac20c83d1c74cc9956c55'],
-    [{ ...input, metricMethods }, 'ada74b0ed1e5531e14197e56ad134e618c88de8601aad23adca57474cebb9284'],
+    [input, '0c123bd8e8e99a66b699a53f9580d09ed4baef094e20e4e226cecd88dc72e202'],
+    [{ ...input, metricMethods }, 'd834bd31581e1fbc96d04137ee1c4887a0c267c6ae40e085d8e5220a88942410'],
   ] as const) {
     const html = buildResearchAutomationReport(reportInput, 'MARKET').html.toString();
     assert.equal(hash(html.replace('<span class="state">Có giá tham khảo, chưa xác minh</span>', '<span class="state">Có số liệu</span>')), parent);
@@ -225,7 +226,8 @@ test('automated reader uses the price projection without changing retained input
   const before = canonicalJson(reportInput);
   const report = buildResearchAutomationReport(reportInput, 'MARKET');
   // Latest-price review: preserve range-only evidence, explicit estimate wording, and corrected price-only readings.
-  assert.equal(hash(report.html), 'f497244b55b7a84c9c06d4cf5475978d93707d6c78a8fbcc844b52585d10323a');
+  // 2480414f additionally points M04/M05 to Phần 3 and M13 to Phần 2.
+  assert.equal(hash(report.html), '8d941a858f81eb6f43aeb7098130c533396411d2dfac17a7f77ea40042da754e');
   const doc = new JSDOM(report.html.toString()).window.document;
   const section = doc.querySelector('#M08')!;
   assert.equal(section.querySelectorAll('tbody tr').length, 8);
