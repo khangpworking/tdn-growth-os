@@ -1749,12 +1749,13 @@ test('capture source runs create → upload → confirm → Market without a wor
     snapshot.scope = { keywords: ['wireless earbuds'], platforms: ['shopee', 'tiktok'], period: requestedPeriod,
       category: null, ticks: [], advancedFilters: [], exclusions: [] };
     snapshot.groups.W4_monthly = { absent: true, reason: 'NOT_CAPTURED' };
+    // Titles carry the keyword and platform rows carry units, so the capture-v2 row policy keeps them in the sample.
     const value = (label: string, displayed: string, numeric: number | null, platform: 'shopee' | 'tiktok' | 'unknown') => ({ label, displayed,
       value: numeric, unit: 'VND' as const, precision: 'exact' as const, platform, period: requestedPeriod, sourcePointer: `${platform}.${label}` });
     const text = (label: string, value: string, pointer: string) => ({ label, text: value, sourcePointer: pointer });
     snapshot.groups.W12_topProducts = { columns: ['name', 'shop', 'platform', 'revenue', 'units'], rows: [
-      { cells: { name: text('Tên', 'Shopee synthetic', 'p[0].name'), shop: text('Shop', 'Shop Shopee', 'p[0].shop'), platform: text('Sàn', 'shopee', 'p[0].platform'), revenue: value('Doanh thu', '1200', 1200, 'shopee'), units: value('Lượt bán', '3', 3, 'shopee') } },
-      { cells: { name: text('Tên', 'TikTok synthetic', 'p[1].name'), shop: text('Shop', 'Shop TikTok', 'p[1].shop'), platform: text('Sàn', 'tiktok', 'p[1].platform'), revenue: value('Doanh thu', '800', 800, 'tiktok'), units: value('Lượt bán', '–', null, 'tiktok') } },
+      { cells: { name: text('Tên', 'Wireless earbuds Shopee synthetic', 'p[0].name'), shop: text('Shop', 'Shop Shopee', 'p[0].shop'), platform: text('Sàn', 'shopee', 'p[0].platform'), revenue: value('Doanh thu', '1200', 1200, 'shopee'), units: value('Lượt bán', '3', 3, 'shopee') } },
+      { cells: { name: text('Tên', 'Wireless earbuds TikTok synthetic', 'p[1].name'), shop: text('Shop', 'Shop TikTok', 'p[1].shop'), platform: text('Sàn', 'tiktok', 'p[1].platform'), revenue: value('Doanh thu', '800', 800, 'tiktok'), units: value('Lượt bán', '2', 2, 'tiktok') } },
       { cells: { name: text('Tên', 'Unknown synthetic', 'p[2].name'), shop: text('Shop', 'Shop Unknown', 'p[2].shop'), platform: text('Sàn', 'unknown', 'p[2].platform'), revenue: value('Doanh thu', '500', 500, 'unknown'), units: value('Lượt bán', '–', null, 'unknown') } },
     ] };
     const snapshotBytes = Buffer.from(JSON.stringify(snapshot, null, 2) + '\n');
@@ -1860,7 +1861,7 @@ test('capture source uploaded after scope confirmation follows the prepared-sour
     snapshot.groups.W4_monthly = { absent: true, reason: 'NOT_CAPTURED' };
     const period = requestedPeriod;
     snapshot.groups.W12_topProducts = { columns: ['name', 'shop', 'platform', 'revenue', 'units'], rows: [
-      { cells: { name: { label: 'Tên', text: 'Late capture product', sourcePointer: 'p[0].name' }, shop: { label: 'Shop', text: 'Late shop', sourcePointer: 'p[0].shop' }, platform: { label: 'Sàn', text: 'shopee', sourcePointer: 'p[0].platform' }, revenue: { label: 'Doanh thu', displayed: '900', value: 900, unit: 'VND', precision: 'exact', platform: 'shopee', period, sourcePointer: 'p[0].revenue' }, units: { label: 'Lượt bán', displayed: '2', value: 2, unit: 'COUNT', precision: 'exact', platform: 'shopee', period, sourcePointer: 'p[0].units' } } },
+      { cells: { name: { label: 'Tên', text: 'Wireless earbuds Late capture product', sourcePointer: 'p[0].name' }, shop: { label: 'Shop', text: 'Late shop', sourcePointer: 'p[0].shop' }, platform: { label: 'Sàn', text: 'shopee', sourcePointer: 'p[0].platform' }, revenue: { label: 'Doanh thu', displayed: '900', value: 900, unit: 'VND', precision: 'exact', platform: 'shopee', period, sourcePointer: 'p[0].revenue' }, units: { label: 'Lượt bán', displayed: '2', value: 2, unit: 'COUNT', precision: 'exact', platform: 'shopee', period, sourcePointer: 'p[0].units' } } },
     ] };
     const snapshotBytes = Buffer.from(JSON.stringify(snapshot, null, 2) + '\n');
     const manifest = { contractVersion: 'metric-results-capture-v1', captureId: snapshot.captureId, specDigest: snapshot.specDigest, appliedFilters: snapshot.scope, resultCount: 1,

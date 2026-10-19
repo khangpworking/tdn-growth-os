@@ -127,7 +127,8 @@ for (const counts of [[20, 20, 20], [20, 7, 0], [0, 0, 0]]) test(`Market-only au
   assert.deepEqual(record.testReviewSample.collection, { exactShopee: collection.exactShopee, exactShopeeOutcome: collection.exactShopeeOutcome });
   assert.deepEqual(record.testReviewSample.scope, { testReviewCap: 20 });
   const replay = await buildMarketReport(computeReaderReportData(record.input), { limitations: record.limitations, builtOn: '01/02/2026',
-    flint: false, webResults: record.webResults, captureSource: true, testReviewSample: record.testReviewSample });
+    flint: false, webResults: record.webResults, captureSource: true, testReviewSample: record.testReviewSample,
+    captureRowPolicy: record.captureRowPolicy, captureExcludedRows: record.captureExcludedRows });
   assert.equal(replay.html, reader.bytes.toString());
   const restarted = f.make();
   assert.deepEqual((await restarted.readReaderReport(workspaceId, runId, built.revision.revisionId)).bytes, reader.bytes);
@@ -155,15 +156,20 @@ test('collector cap drift cannot dispatch a production collection through trial 
   assert.ok(run.coverage.sources.some(row => row.provider === 'apify-shopee' && row.state === 'FAILED'));
 });
 
-test('Market context reader digests are pinned; Insight retains the frozen base bytes', async () => {
+test('Market capture copy has explained rendering digests; Insight digests remain unchanged', async () => {
   const input = await fullMarket14Input();
   const market = buildResearchAutomationReport(input, 'MARKET');
-  // M14/M15/M16/M27/L11/L12: completed search weeks, row bases and sentence-case labels, short CPI citations, unscaled per-person charts, and neutral province copy.
-  // These are render-only changes: the Market semantic pin and both Insight pins stay unchanged.
-  assert.equal(digest(market.html), '18f9f32211991842c0f5d949aed63f7a10d1bfcf5d24cefc12284efa2363d0cc');
-  // Against 21d0909a this fixture changes M04.title, M10.explanation and the M11/M12 proposal state and explanation; it has no default-peer rule to exercise M07.
-  assert.equal(digest(canonicalJson(market.semantic)), 'f0848a6b8ed0a967ed928caff7a6b47f8b2e83790df4ca4f7f9c3f9c26b44fc4');
-  assert.equal(digest(market.traceHtml!), '15c7c0be79c024fac78140bbaa2539679438489a1d6dd0e536f37911fd5d76d0');
+  // Against eedcb369: per-platform Phần 1/2 copy, localized scope dates, capture-only sample wording,
+  // and retained M03 findings in the trace. No retained method or Insight bytes change.
+  // The reader proofread (Vietnamese terms, used-term glossary, shared citation numbers) changes only rendered bytes.
+  // M14/M15/M16/M27/L11/L12 context copy (completed search weeks, row bases, short CPI citations, unscaled per-person charts, neutral province copy) is render-only too.
+  assert.equal(digest(market.html), '1b2cb8b3ad4d0bd8d0a4cc6ff52551167799e22a748ac20c83d1c74cc9956c55');
+  // All nine semantic citations remain. The sample calculation moves from citation 1 to 3;
+  // the per-platform calculation moves from 3 to 1 and gains methodVersion/rounding metadata.
+  // These are the only semantic differences from eedcb369.
+  assert.equal(digest(canonicalJson(market.semantic)), '3a50085424b8843609458a2d77a93e5f4baa21a8e2b1db40239f33140991dfde');
+  // The proofread review restores raw capture row/page/display counts inside the technical details.
+  assert.equal(digest(market.traceHtml!), 'a523aa8630c071d9b6133b44a3177fccc4f0d5bf93574936b677a8de45881c85');
   const insight = buildResearchAutomationReport(input, 'INSIGHT');
   assert.equal(digest(insight.html), '7163940cc6c424f6c1a2fc73c7af9458e1a50d3957adaa8d43802a8caf6ba08d');
   assert.equal(digest(canonicalJson(insight.semantic)), '21c5fa1d4be2b577cc196d0508e84342b0953f1a16ed6505eccbb784b8f05294');

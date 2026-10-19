@@ -84,8 +84,8 @@ const realisticChartSeries = (): Record<string, unknown> => ({
 
 test('capture rows split platforms, preserve unknown attribution, and use stable synthetic IDs with honest nulls', () => {
   const snapshot = snapshotFixture();
-  const first = readerRowsFromMetricCapture(snapshot, ['shopee', 'tiktok']);
-  const second = readerRowsFromMetricCapture(snapshot, ['shopee', 'tiktok']);
+  const first = readerRowsFromMetricCapture(snapshot, ['shopee', 'tiktok'], 'automation-metric-capture-v1');
+  const second = readerRowsFromMetricCapture(snapshot, ['shopee', 'tiktok'], 'automation-metric-capture-v1');
   assert.deepEqual(first.rows.map(row => row.platform), ['shopee', 'tiktok']);
   assert.equal(first.unattributed.length, 1);
   assert.equal(first.rows[0]!.listingSynthetic, true);

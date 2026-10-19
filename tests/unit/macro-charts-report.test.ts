@@ -60,10 +60,10 @@ async function reader(extra: { worldBank?: StepWorldBank; comtrade?: StepComtrad
 }
 
 test('current Market renderers pin unscaled per-person charts and corrected context copy', async () => {
-  // Re-pin the 1.4.0 per-person chart scale and automated Market context display; legacy readers have separate frozen pins.
+  // Re-pin the 1.4.0 per-person chart scale, automated Market context display, the per-platform Phần 1/2 copy and the reader proofread; legacy readers have separate frozen pins.
   const hash = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
-  assert.equal(hash((await reader({ worldBank: fullWorldBank() }, false)).html), 'f60d2b42e03e7a3804f9c66cf5edee0a3056320e646dad6eb20ff364416e557b');
-  assert.equal(hash(buildResearchAutomationReport(await fullMarket14Input(), 'MARKET').html), '18f9f32211991842c0f5d949aed63f7a10d1bfcf5d24cefc12284efa2363d0cc');
+  assert.equal(hash((await reader({ worldBank: fullWorldBank() }, false)).html), '2c6bf440c35405eebeede37f08f57764e549cdc42041bf26b958952340d1d02e');
+  assert.equal(hash(buildResearchAutomationReport(await fullMarket14Input(), 'MARKET').html), '1b2cb8b3ad4d0bd8d0a4cc6ff52551167799e22a748ac20c83d1c74cc9956c55');
 });
 
 test('v2 reader: World Bank lines are Hình 5.3/5.4 after Bảng 5.3 and Comtrade bars are Hình 6.1/6.2 after Bảng 6.2, all Flint', async () => {

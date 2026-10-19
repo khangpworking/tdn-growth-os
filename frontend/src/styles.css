@@ -143,3 +143,7 @@
 
 /* M-14: stacked source pickers under the reader get the same spacing as other forms */
 .ra-reader-insight-build{display:grid;gap:12px}.ra-reader-insight-build>h3,.ra-reader-insight-build>p{margin:0}
+/* M-09: at phone width the header nav fits one row and the B7-B10 step bar shows all four steps in a 2x2 grid instead of hiding B9/B10 in a sideways scroll */
+@media(max-width:650px){.topnav{gap:2px}.topnav a{padding:6px 5px}.steps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible;padding-bottom:0}.steps .step{flex:none;min-width:0}}
+/* M-12 (follow-up): prompt-type tabs and the heading action reach 44 px on phones */
+@media(max-width:650px){.segmented a,.segmented button,.heading>.button{min-height:44px;display:inline-flex;align-items:center;justify-content:center}}

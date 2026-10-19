@@ -12,7 +12,9 @@ import type { AutomationMarketPresentationMethod } from '../../../../contracts/a
 import { verifyAutomationMarketPresentation } from './market-presentation-method.js';
 import { marketChartSource, renderAutomationMarketFindings, renderAutomationMarketUnitPrices, renderCaptureSampleCharts } from './market-presentation-report.js';
 import { admitWebResults, checkSourceEvidence } from './source-evidence.js';
-import { collectionWebRows, EXPANDED_SEARCH_COLUMN, EXPANDED_SEARCH_LABEL, EXPANDED_SEARCH_NOTE } from './expanded-search-lane.js';
+import { collectionWebRows, expandedSearchReaderLabel, EXPANDED_SEARCH_COLUMN, EXPANDED_SEARCH_LABEL, EXPANDED_SEARCH_NOTE } from './expanded-search-lane.js';
+import { MARKET_READER_TERMS } from './market-reader-glossary.js';
+import { marketReaderCitations } from './market-reader-citations.js';
 import { sourceEvidenceHtml } from './source-evidence-report.js';
 import { classifyWebPage, WEB_LINK_WITHHELD, WEB_PAGE_TYPE_LABEL, WEB_SITE_WITHHELD, WEB_TITLE_WITHHELD, webTextHidden } from './web-page-type.js';
 import fs from 'node:fs';
@@ -68,6 +70,7 @@ import { qualitativeDraftSection, qualitativeDraftSummary } from '../reader-repo
 import { platIcons } from '../reader-report/layout.js';
 import { ACTION_LEAD, ACTION_NOTE, OPPORTUNITY_HEADINGS, OPPORTUNITY_READING, OPTION_HEADINGS, QUICK_WIN_HEADING, QUICK_WIN_HEADINGS, actionStartDay, marketActionPlan, opportunityExplanation, opportunityRows, type ActionRow, type MarketActionPlan } from '../reader-report/market-actions.js';
 import { deliverMarketReader, marketReaderGuide } from './market-reader-delivery.js';
+import { plainCaptureNumbers } from '../reader-report/format.js';
 import { UNKNOWN_SHOP, marketChartRows, marketShopsUnrecorded, type CaptureCountChart, type MarketChart } from '../reader-report/market-charts.js';
 import type { RenderedChart } from '../reader-report/flint.js';
 import { comtradeChartCount, worldBankChartCount, type MacroChart } from '../reader-report/macro-charts.js';
@@ -201,12 +204,17 @@ const metricFailureCopy: Readonly<Record<MetricMethodFailureCode, { explanation:
 const WEB_DISCOVERY_DATASET = 'web_discovery_current';
 const WEB_SOURCE_FAILED_TEXT = 'Nguồn kết quả tìm kiếm trên web không phản hồi kịp hoặc trả về dữ liệu không dùng được; lượt này không dùng kết quả tìm kiếm web.';
 const readerPlatform = (platform: string): string => platform === 'shopee' ? 'Shopee' : platform === 'tiktok' ? 'TikTok Shop' : platform;
+const captureSalesPlatforms = (capture: NonNullable<AutomationMetricMethodSnapshot['capture']>): string[] => capture.platforms
+  .filter(({ platform, result }) => !capture.rowPolicyVersion || result.input.records.length > 0 ||
+    capture.platformHeadlines?.some(figure => figure.platform === platform && figure.revenue.value !== null))
+  .map(value => value.platform);
 /** The appendix source list states what this run actually used, so a missing or failed source is never shown as present. */
 export function marketSourceRows(input: AutomationReportInput, webResultCount: number, webFailed: boolean): readonly (readonly [string, string])[] {
   const capture = input.metricMethods?.capture;
-  const missing = capture ? capture.capture.platforms.filter(platform => !capture.platforms.some(value => value.platform === platform)) : [];
+  const missing = capture ? capture.capture.platforms.filter(platform => !captureSalesPlatforms(capture).includes(platform)) : [];
   const sales = input.metricMethods
-    ? missing.length ? `Dùng một phần: không có số liệu cho ${missing.map(readerPlatform).join(', ')} trong lượt này.` : 'Đã dùng số liệu của lượt này.'
+    ? capture?.rowPolicyVersion && missing.length === capture.capture.platforms.length ? 'Không có số liệu bán hàng dùng được sau khi lọc trong lượt này.'
+      : missing.length ? `Dùng một phần: không có số liệu cho ${missing.map(readerPlatform).join(', ')} trong lượt này.` : 'Đã dùng số liệu của lượt này.'
     : input.metricMethodsFailure ? 'Không dùng được trong lượt này: gói số liệu không qua kiểm tra.' : 'Chưa có trong lượt này.';
   const testSample = exactTestReviewSample(input);
   const trialRows = testSample ? exactTestReviewSourceRows(testSample) : null;
@@ -234,8 +242,8 @@ export function marketSourceRows(input: AutomationReportInput, webResultCount: n
 export function marketSourceTypes(input: AutomationReportInput, webResultCount: number, salesPlatforms: readonly string[]): { used: string[]; missing: string[] } {
   const capture = input.metricMethods?.capture;
   const testSample = exactTestReviewSample(input)?.listings.some(row => row.reviews > 0);
-  const sales = Boolean(input.metricMethods || input.marketPresentation?.input.metric);
-  const present = capture ? capture.platforms.map(value => value.platform as string) : salesPlatforms;
+  const present = capture ? captureSalesPlatforms(capture) : salesPlatforms;
+  const sales = capture?.rowPolicyVersion ? present.length > 0 : Boolean(input.metricMethods || input.marketPresentation?.input.metric);
   const platforms = ['shopee', 'tiktok'].filter(platform => present.includes(platform));
   const lacking = capture ? capture.capture.platforms.filter(platform => !present.includes(platform)) : [];
   const collection = input.collection;
@@ -902,7 +910,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     }
     if (marketPresentation && (section.sectionId === 'M01' || section.sectionId === 'M08')) {
       locatedViews.set(section.sectionId, () => section.sectionId === 'M01'
-        ? renderAutomationMarketFindings(marketPresentation, citations, readerPlainText) : renderAutomationMarketUnitPrices(marketPresentation, citations, readerPlainText));
+        ? renderAutomationMarketFindings(marketPresentation, citations, readerPlainText, input.metricMethods?.capture) : renderAutomationMarketUnitPrices(marketPresentation, citations, readerPlainText));
       return { sectionId: section.sectionId, title: section.title, state: 'EVIDENCE_INVENTORY', rows: [],
         method: marketPresentation.methodVersion,
         explanation: section.sectionId === 'M01' ? 'Nhận định chỉ mô tả dữ liệu đã lưu trong phạm vi khai báo.'
@@ -1134,7 +1142,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   // plainly instead of seeing an empty area.
   const webSourceFailed = !webResults.length && (input.collection?.coverage ?? [])
     .some(value => value.dataset === WEB_DISCOVERY_DATASET && value.state === 'FAILED');
-  const webResultsTable = webResults.length ? `<div class="table-wrap" role="region" aria-label="Kết quả tìm kiếm trên web đã lưu" tabindex="0"><table><caption>Kết quả tìm kiếm trên web đã lưu của lượt này, theo thứ tự nguồn trả về</caption><thead><tr><th scope="col">Vị trí</th><th scope="col">Tiêu đề</th><th scope="col">Trang</th>${expandedRows ? `<th scope="col">${EXPANDED_SEARCH_COLUMN}</th>` : ''}${pageTypes ? '<th scope="col">Loại trang</th>' : ''}<th scope="col">Thời điểm thu</th><th scope="col">Nguồn</th></tr></thead><tbody>${webResults.map(row => `<tr><td>${row.position}</td><td>${webSourceText(row.title, WEB_TITLE_WITHHELD)}</td><td>${row.site === undefined || row.site === null ? 'Chưa rõ trang' : webSourceText(row.site, WEB_SITE_WITHHELD)}</td>${expandedRows ? `<td>${row.origin ? EXPANDED_SEARCH_LABEL[row.origin] : ''}</td>` : ''}${pageTypes ? `<td>${pageTypeCell(row)}</td>` : ''}<td>${escape(row.retrievedAt)}</td><td>${webMark(row, citations)}</td></tr>`).join('')}</tbody></table></div><p>Thứ tự trên là thứ tự kết quả nguồn trả về, không phải xếp hạng. Đoạn trích và liên kết đầy đủ được giữ trong hồ sơ thu đã lưu.</p>${expandedRows ? `<p>${EXPANDED_SEARCH_NOTE}</p>` : ''}` : webSourceFailed ? `<p class="warning">${WEB_SOURCE_FAILED_TEXT}</p>` : '';
+  const webResultsTable = webResults.length ? `<div class="table-wrap" role="region" aria-label="Kết quả tìm kiếm trên web đã lưu" tabindex="0"><table><caption>Kết quả tìm kiếm trên web đã lưu của lượt này, theo thứ tự nguồn trả về</caption><thead><tr><th scope="col">Vị trí</th><th scope="col">Tiêu đề</th><th scope="col">Trang</th>${expandedRows ? `<th scope="col">${EXPANDED_SEARCH_COLUMN}</th>` : ''}${pageTypes ? '<th scope="col">Loại trang</th>' : ''}<th scope="col">Thời điểm thu</th><th scope="col">Nguồn</th></tr></thead><tbody>${webResults.map(row => `<tr><td>${row.position}</td><td>${webSourceText(row.title, WEB_TITLE_WITHHELD)}</td><td>${row.site === undefined || row.site === null ? 'Chưa rõ trang' : webSourceText(row.site, WEB_SITE_WITHHELD)}</td>${expandedRows ? `<td>${escape(kind === 'MARKET' && readerPlainText ? expandedSearchReaderLabel(row) : row.origin ? EXPANDED_SEARCH_LABEL[row.origin] : '')}</td>` : ''}${pageTypes ? `<td>${pageTypeCell(row)}</td>` : ''}<td>${escape(row.retrievedAt)}</td><td>${webMark(row, citations)}</td></tr>`).join('')}</tbody></table></div><p>Thứ tự trên là thứ tự kết quả nguồn trả về, không phải xếp hạng. Đoạn trích và liên kết đầy đủ được giữ trong hồ sơ thu đã lưu.</p>${expandedRows ? `<p>${EXPANDED_SEARCH_NOTE}</p>` : ''}` : webSourceFailed ? `<p class="warning">${WEB_SOURCE_FAILED_TEXT}</p>` : '';
   // The owner reader prints the period the numbers come from; the requested period alone would contradict the cover.
   const samplePeriod = marketPresentation ? marketSamplePeriod(input) : null;
   const requested = input.start.requestedPeriod;
@@ -1197,8 +1205,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   };
   const market14Appendix = (marketPresentation ? market14Sources() : '') +
     '<div class="table-wrap market14-glossary"><div class="exh"><span class="exn">Bảng PL.2</span><span class="ext">Thuật ngữ và chữ viết tắt</span></div><table data-glossary="true"><caption>Thuật ngữ và chữ viết tắt</caption><thead><tr><th>Thuật ngữ</th><th>Nghĩa tiếng Việt</th></tr></thead><tbody>' +
-    [['listing', 'sản phẩm'], ['review', 'đánh giá'], ['export', 'tệp dữ liệu'], ['peer set', 'nhóm đối thủ'], ['Giá TB', 'giá trung bình'], ['P25 / P75', 'mốc 25 phần trăm / mốc 75 phần trăm'], ['NSX', 'nhà sản xuất'], ['H1', 'giả thuyết 1'], ['ROAS', 'tỷ lệ doanh thu trên chi phí quảng cáo'], ['CPA', 'chi phí trên đơn'], ['AI', 'trí tuệ nhân tạo']]
-      .map(([term, meaning]) => `<tr><td>${term}</td><td>${meaning}</td></tr>`).join('') +
+    MARKET_READER_TERMS.map(([term, meaning]) => `<tr><td>${escape(term)}</td><td>${escape(meaning)}</td></tr>`).join('') +
     '</tbody></table></div>';
   // Presentation charts: revenue by platform and concentration in Phần 4, product rows in Phần 7.
   const presentationChart = (chartKind: MarketChart['kind'], no: string): string => {
@@ -1347,8 +1354,12 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     (input.boundedMethods && traceAppendix(sectionId) && (sectionId === 'M13' || sectionId === 'I17')
       ? `<details open id="bounded-method-evidence"><summary>Hồ sơ phương pháp M10/I11/I12/I16 và vị trí nguồn</summary><p>Nguồn bổ sung do người dùng chọn, không phải dữ liệu tự thu hoặc xác nhận độ phủ. Hồ sơ giữ riêng kỳ, phạm vi và điều kiện còn thiếu; không cộng gộp với số liệu thị trường hoặc review.</p>${retainedEvidenceHtml(input.boundedMethods)}</details>` : '');
   const baseAppendix = (sectionId: string): string => {
-    if (sourceScope && sectionId === 'M02') return marketSourceScopeSection(sourceScope, 'M02', citations, readerPlainText);
-    if (kind === 'MARKET' && sectionId === 'M01' && input.m01Inventory && input.sourceClaims) return m01InventorySection(input.m01Inventory, input.sourceClaims, citations, readerPlainText);
+    if (sourceScope && sectionId === 'M02') return marketSourceScopeSection(sourceScope, 'M02', citations, readerPlainText, marketPresentation ? input.metricMethods?.capture : undefined);
+    if (kind === 'MARKET' && sectionId === 'M01' && input.m01Inventory && input.sourceClaims) {
+      const inventory = m01InventorySection(input.m01Inventory, input.sourceClaims, citations, readerPlainText);
+      // Phần 1 states the per-platform findings; the per-period evidence rows stay in the technical copy.
+      return marketPresentation && input.metricMethods?.capture ? `<details class="evidence-trace"><summary>Danh sách bằng chứng từng kỳ (hồ sơ đối chiếu)</summary>${inventory}</details>` : inventory;
+    }
     if (kind === 'INSIGHT' && sectionId === 'I14' && input.i14Admission && input.sourceClaims) return i14SynthesisSection(input.i14Synthesis, citations, false) + i14AdmissionSection(input.i14Admission, input.sourceClaims, citations, false);
     if (kind === 'MARKET' && (sectionId === 'M03' || sectionId === 'M04')) {
        if (input.metricMethods) return metricMethodSection(input.metricMethods, sectionId, input.metricClassified, citations, Boolean(marketPresentation), readerPlainText) + (sectionId === 'M03' && input.marketInventory ? (readerPlainText ? '<h3>Số liệu từng kỳ của các sản phẩm được chọn (đọc riêng, không cộng vào bảng mẫu)</h3>' : '<h3>Bằng chứng riêng của nguồn sàn: không cộng vào số liệu nguồn</h3>') + marketInventorySection(input.marketInventory, sectionId, citations, labels, readerPlainText) : '');
@@ -1445,15 +1456,9 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
       .replace(/\bWIDE\b/gu, 'phạm vi rộng')
       .replace(/\bALL\b/gu, 'toàn bộ mẫu')
       .replace(/\bUNKNOWN\b/gu, 'chưa rõ')).join('');
-  // Delivery drops trace blocks, so renumber the citations the reader still shows and register only those.
-  const readerCitations = (page: string): string => {
-    const start = page.indexOf('<section class="citation-register">');
-    if (start < 0) return page;
-    const end = page.indexOf('</section>', start) + '</section>'.length;
-    const readerPage = orderReportCitations(page.slice(0, start), registry);
-    return readerPage + renderCitationRegister(registry.entries(), { format: 'web' }) + page.slice(end);
-  };
-  const readerRenderedHtml = marketPresentation ? sanitize(readerCitations(deliverMarketReader(scopedHtml, input.collection?.searchInterest ? searchInterestReadingPoints(input.collection.searchInterest) : undefined))) : scopedHtml;
+  // Delivery drops trace blocks; the reader renumbers the citations it still shows after semanticCitations and scopedHtml keep per-claim identity.
+  const deliveredHtml = marketPresentation ? sanitize(marketReaderCitations(deliverMarketReader(scopedHtml, input.collection?.searchInterest ? searchInterestReadingPoints(input.collection.searchInterest) : undefined, Boolean(input.metricMethods?.capture)), registry)) : scopedHtml;
+  const readerRenderedHtml = kind === 'MARKET' && input.metricMethods?.capture?.rowPolicyVersion ? plainCaptureNumbers(deliveredHtml) : deliveredHtml;
   // Hidden technical copy for retrieval: the same page before reader delivery, trace blocks kept. Never linked from the reader.
   const traceHtml = marketPresentation ? Buffer.from(sanitize(scopedHtml), 'utf8') : undefined;
   // Source appendix v18 also serves existing Market and accepted Insight

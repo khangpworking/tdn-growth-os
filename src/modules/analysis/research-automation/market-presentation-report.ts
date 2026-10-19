@@ -1,6 +1,6 @@
 import type { AutomationMarketPresentationMethod } from '../../../../contracts/analysis/automation-market-presentation-method.generated.js';
-import type { AutomationMetricMethodSnapshot, CaptureMetricMethodDetails } from './metric-method-bridge.js';
-import type { CaptureCountChart, MarketChartRow } from '../reader-report/market-charts.js';
+import type { AutomationMetricMethodSnapshot, CaptureMetricHeadlineValue, CaptureMetricMethodDetails } from './metric-method-bridge.js';
+import { UNKNOWN_SHOP, type CaptureCountChart, type MarketChartRow } from '../reader-report/market-charts.js';
 import { readerPriceState, readerProductLabel, readerStoredOrJson } from './reader-plain-text.js';
 import { escapeHtml as escape, readerPointer, storedLiteral, type ReportCitations } from './descriptive-report.js';
 
@@ -16,7 +16,7 @@ const mark = (ref: { sourceSha256: string; locator: string; label?: string }, ci
 const table = (caption: string, headings: readonly string[], rows: readonly string[][]): string =>
   `<div class="table-wrap" role="region" aria-label="${escape(caption)}" tabindex="0"><table><caption>${escape(caption)}</caption><thead><tr>${headings.map(h => `<th scope="col">${escape(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 
-export type MarketChartSource = { rows: MarketChartRow[]; rowListNote?: string; sampleNote?: string };
+export type MarketChartSource = { rows: MarketChartRow[]; titleLabels?: boolean; rowListNote?: string; sampleNote?: string };
 
 /**
  * Rows the three Market charts are drawn from. Saved presentation rows are used
@@ -30,7 +30,8 @@ export function marketChartSource(presentationRows: readonly MarketChartRow[], m
   const revenue = (value: string | null): number | null => value === null ? null : Number(value);
   if (metric.capture) return {
     rows: metric.capture.platforms.flatMap(({ platform, result }) => result.input.records.map((record, index) => ({
-      i: Number(/^\/groups\/W12_topProducts\/rows\/(\d+)$/u.exec(record.source.locator)?.[1] ?? index), platform, shop: record.shopId, rev: revenue(record.revenue.value) }))),
+      i: Number(/^\/groups\/W12_topProducts\/rows\/(\d+)$/u.exec(record.source.locator)?.[1] ?? index), platform, shop: record.shopId, rev: revenue(record.revenue.value), ...(metric.capture?.rowPolicyVersion ? { title: record.title } : {}) }))),
+    ...(metric.capture.rowPolicyVersion ? { titleLabels: true } : {}),
     rowListNote: 'số dòng là thứ tự dòng trong bảng kết quả tìm kiếm đã lưu',
     sampleNote: ' Mẫu là các dòng đầu được giữ của bảng kết quả tìm kiếm, không phải số của cả tập kết quả theo bộ lọc.',
   };
@@ -41,7 +42,7 @@ export function marketChartSource(presentationRows: readonly MarketChartRow[], m
 export function captureSampleCounts(capture: CaptureMetricMethodDetails) {
   return capture.platforms.flatMap(({ platform, result }) => {
     const all = result.scopes.find(scope => scope.key === 'all');
-    return all?.status === 'CALCULATED' ? [{ platform, result, count: all.listingCount }] : [];
+    return all?.status === 'CALCULATED' && (!capture.rowPolicyVersion || all.listingCount > 0) ? [{ platform, result, count: all.listingCount }] : [];
   });
 }
 
@@ -51,6 +52,8 @@ export function captureSampleCounts(capture: CaptureMetricMethodDetails) {
  * platform without a drawn chart keeps its count line and source, with no chart.
  */
 export function renderCaptureSampleCharts(capture: CaptureMetricMethodDetails, citations: ReportCitations, charts: readonly CaptureCountChart[] = []): string {
+  if (capture.rowPolicyVersion && capture.platforms.every(({ result }) => result.input.records.length === 0))
+    return '<p>Chưa có số lượng mẫu phù hợp để phân tích sau khi lọc; không suy ra doanh số từ các dòng bị loại.</p>';
   return captureSampleCounts(capture).map(({ platform, result, count }) => {
     const label = platform === 'shopee' ? 'Shopee' : 'TikTok Shop';
     const chart = charts.find(item => item.platform === platform);
@@ -130,19 +133,85 @@ export function renderAutomationMarketAdvertising(input: AdvertisingReferenceInp
     `<p class="warning">${escape(disclaimer)}</p></div>`;
 }
 
+const PLATFORM_LABELS = { shopee: 'Shopee', tiktok: 'TikTok Shop' } as const;
+const isoDay = (value: string): string => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(value);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
+};
+const grouped = (value: string): string => BigInt(value).toLocaleString('vi-VN');
+
+/**
+ * Reader findings of a results-page capture: two per platform, each read from
+ * that platform's own retained figures. The platform figure is the one Phần 3
+ * shows (the page's own figure when it has one, otherwise a complete row total);
+ * a total with a missing row is never stated, and platforms are never summed.
+ */
+function capturePlatformFindings(capture: CaptureMetricMethodDetails, citations: ReportCitations): string[] {
+  const results = new Map(capture.platforms.map(entry => [entry.platform, entry.result] as const));
+  return capture.capture.platforms.flatMap(platform => {
+    const label = PLATFORM_LABELS[platform], result = results.get(platform);
+    const evidence = (text: string, marks: string): string => `<p><b>Bằng chứng:</b> <a href="#M03">${escape(text)}</a>${marks}.</p>`;
+    const all = result?.scopes.find(scope => scope.key === 'all');
+    const hasRows = result && all && all.status === 'CALCULATED' && all.listingCount > 0;
+    const calculation = hasRows ? citations.mark({ sourceKind: 'METRIC_ROW', identity: result.inputSha256, locator: null, label: 'Số liệu đã tính từ nguồn đã lưu',
+      retrievedAt: null, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE', technical: { methodVersion: result.methodVersion, rounding: result.rounding } })
+      : citations.mark({ sourceKind: 'CAPTURE', identity: capture.snapshotSha256, locator: null, label: 'Bảng kết quả tìm kiếm đã lưu',
+        retrievedAt: null, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' });
+    const page = capture.platformHeadlines?.find(value => value.platform === platform && value.revenue.value !== null);
+    const pageMark = (value: CaptureMetricHeadlineValue): string => citations.mark({ sourceKind: 'CAPTURE', identity: capture.snapshotSha256,
+      locator: readerPointer(value.locator, true).locator, label: 'Số liệu nền tảng trong bản lưu nguồn', retrievedAt: null, url: null, quote: null,
+      quoteVerification: 'NOT_APPLICABLE', technical: { sourceSha256: capture.snapshotSha256, locator: value.locator } });
+    const shops = hasRows && !result.input.records.some(record => record.shopId === UNKNOWN_SHOP) ? ` của ${all.shopCount} gian hàng` : '';
+    const sample = hasRows
+      ? `${label}: mẫu đã lưu có ${all.listingCount} dòng sản phẩm${shops}, kỳ ${isoDay(result.input.scope.start)} đến ${isoDay(result.input.scope.end)}. Mẫu là các dòng đầu của bảng kết quả tìm kiếm, không phải toàn bộ sản phẩm của sàn.`
+      : `${label}: chưa có dòng nào gán được cho sàn này trong bảng kết quả đã lưu; báo cáo không suy ra số liệu từ các dòng.`;
+    let figures = '', marks = '';
+    if (page) {
+      const units = page.units?.value ?? null;
+      figures = `${label}: bảng kết quả theo bộ lọc ghi doanh thu (ước tính) ${grouped(page.revenue.value!)} VND${units === null ? '; chưa có số đơn vị bán' : ` và ${grouped(units)} đơn vị bán`}. Đây là số của cả tập kết quả trên trang; phạm vi này khác với các dòng đã lưu.`;
+      marks = pageMark(page.revenue) + (page.units?.value ? pageMark(page.units) : '');
+    } else if (hasRows) {
+      const total = (value: typeof all.revenue, unit: string): string => value.missingCount === 0 && value.value !== null ? `${grouped(value.value)}${unit}` : 'chưa xác định vì có dòng thiếu số liệu';
+      figures = `${label}: doanh thu (ước tính) của các dòng đã lưu là ${total(all.revenue, ' VND')}; đơn vị bán (ước tính) là ${total(all.units, '')}.`;
+      marks = calculation;
+    }
+    if (hasRows) {
+      const missing = [all.revenue.missingCount ? `${all.revenue.missingCount} dòng thiếu doanh thu` : '', all.units.missingCount ? `${all.units.missingCount} dòng thiếu đơn vị bán` : ''].filter(Boolean);
+      figures += missing.length ? ` Có ${missing.join(' và ')} trong các dòng đã lưu; phần thiếu không thay bằng số không.` : ' Không có dòng nào thiếu doanh thu hoặc đơn vị bán trong các dòng đã lưu.';
+      // Row completeness is a calculation claim, separate from the page figures.
+      if (page) marks += calculation;
+    }
+    return [`<li><p><b>Nhận định:</b> ${escape(sample)}</p>${evidence(`Bảng số liệu ${label} ở phần Quy mô và diễn biến`, calculation)}</li>`,
+      ...(figures ? [`<li><p><b>Nhận định:</b> ${escape(figures)}</p>${evidence(`Số liệu ${label} ở phần Quy mô và diễn biến`, marks)}</li>`] : [])];
+  });
+}
+
 /** Every statement is frozen by the owning method; rendering introduces no
- * calculation, interpretation, ordering by importance or provider execution. */
-export function renderAutomationMarketFindings(method: Method, citations: ReportCitations, readerPlainText = false): string {
+ * calculation, interpretation, ordering by importance or provider execution.
+ * A reader copy of a results-page capture states each platform's own figures
+ * instead of the single-platform statements (see `capturePlatformFindings`). */
+export function renderAutomationMarketFindings(method: Method, citations: ReportCitations, readerPlainText = false, capture?: CaptureMetricMethodDetails): string {
   const allScope = method.input.metric?.scopes.find(scope => scope.key === 'all');
   const sampleCount = allScope?.status === 'CALCULATED' ? allScope.listingCount : null;
+  const emptySample = method.input.metric?.input.profileId === 'automation-metric-capture-v2' && sampleCount === 0
+    ? '<p>Chưa có số lượng mẫu phù hợp để phân tích sau khi lọc. Không suy ra doanh số, số người mua hoặc quy mô ngoài mẫu.</p>' : '';
+  // An empty filtered sample does not erase the independently retained page figures.
+  if (emptySample && !(readerPlainText && capture)) return emptySample;
   const sampleLabel = sampleCount === null ? 'trong mẫu (chưa có số lượng mẫu)' : `trong mẫu (n = ${sampleCount})`;
   const withSample = (text: string): string => readerPlainText
     ? text.replace(/\btrong mẫu\b/iu, sampleLabel)
     : text;
   const sampleStatement = readerPlainText ? ` ${sampleLabel}` : ' trong mẫu';
   const note = readerPlainText ? '<p class="lim"><b>Chú thích:</b> Số liệu chỉ mô tả mẫu đã lưu theo từng sàn; không suy rộng thành quy mô toàn thị trường.</p>' : '';
-  return '<p>Các phát hiện mô tả mẫu đã lưu, không sắp theo mức quan trọng.</p><ul class="market-findings">' + method.findings.map(finding =>
-    `<li><p><b>Nhận định:</b> ${finding.pending ? `<span data-classified="pending">${escape(withSample(readerPlainText ? readerStoredOrJson(finding.statement.replace(/[.]$/, ''), 'Nhận định được giữ trong hồ sơ đối chiếu') : finding.statement.replace(/[.]$/, '')))} (đề xuất, chờ chủ duyệt).</span>` : escape(withSample(readerPlainText ? readerStoredOrJson(finding.statement, 'Nhận định được giữ trong hồ sơ đối chiếu') : finding.statement))}</p><p><b>Bằng chứng:</b> <a href="#${finding.sectionId}">Bảng ${finding.sectionId === 'M03' ? 'số liệu mẫu xuất ở phần Quy mô và diễn biến' : 'quy cách và đơn vị chuẩn ở phần Giá và kinh tế đơn vị'}</a>${finding.evidence.map(ref => mark(ref, citations, readerPlainText)).join('')}.</p><p><b>Trạng thái:</b> Bản nháp chưa được duyệt; ${finding.pending ? 'phân loại đề xuất, chờ chủ duyệt; ' : ''}${escape(readerPlainText ? readerStoredOrJson(finding.scope, 'Phạm vi được giữ trong hồ sơ đối chiếu') : finding.scope)}</p></li>`).join('') + '</ul>' +
+  const item = (finding: Method['findings'][number]): string =>
+    `<li><p><b>Nhận định:</b> ${finding.pending ? `<span data-classified="pending">${escape(withSample(readerPlainText ? readerStoredOrJson(finding.statement.replace(/[.]$/, ''), 'Nhận định được giữ trong hồ sơ đối chiếu') : finding.statement.replace(/[.]$/, '')))} (đề xuất, chờ chủ duyệt).</span>` : escape(withSample(readerPlainText ? readerStoredOrJson(finding.statement, 'Nhận định được giữ trong hồ sơ đối chiếu') : finding.statement))}</p><p><b>Bằng chứng:</b> <a href="#${finding.sectionId}">Bảng ${finding.sectionId === 'M03' ? 'số liệu mẫu xuất ở phần Quy mô và diễn biến' : 'quy cách và đơn vị chuẩn ở phần Giá và kinh tế đơn vị'}</a>${finding.evidence.map(ref => mark(ref, citations, readerPlainText)).join('')}.</p><p><b>Trạng thái:</b> Bản nháp chưa được duyệt; ${finding.pending ? 'phân loại đề xuất, chờ chủ duyệt; ' : ''}${escape(readerPlainText ? readerStoredOrJson(finding.scope, 'Phạm vi được giữ trong hồ sơ đối chiếu') : finding.scope)}</p></li>`;
+  if (readerPlainText && capture) return emptySample + '<p>Các phát hiện mô tả mẫu đã lưu của từng sàn, không sắp theo mức quan trọng.</p><ul class="market-findings">' +
+    capturePlatformFindings(capture, citations).join('') + method.findings.filter(finding => finding.sectionId !== 'M03').map(item).join('') + '</ul>' +
+    '<p>Doanh thu và đơn vị bán là số ước tính của nguồn. Mỗi sàn đọc riêng; không suy số người mua, quy mô ngoài mẫu hoặc nguyên nhân.</p>' +
+    '<p class="lim"><b>Chú thích:</b> Số liệu chỉ mô tả mẫu đã lưu theo từng sàn; không suy rộng ngoài phạm vi nguồn.</p>' +
+    '<details class="evidence-trace"><summary>Nhận định M03 đã lưu</summary><ul>' +
+    method.findings.filter(finding => finding.sectionId === 'M03').map(item).join('') + '</ul></details>';
+  return '<p>Các phát hiện mô tả mẫu đã lưu, không sắp theo mức quan trọng.</p><ul class="market-findings">' + method.findings.map(item).join('') + '</ul>' +
     (method.findings.length < 4 ? '<p>Chưa đủ bằng chứng để có bốn nhận định; phần kết luận còn thiếu, không bổ sung nhận định không có nguồn.</p>' : '') +
     `<p>Số bán hàng là ước tính${sampleStatement}. Không suy số người mua, quy mô ngoài mẫu hoặc nguyên nhân.</p>${note}`;
 }
