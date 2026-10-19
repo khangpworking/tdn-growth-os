@@ -166,7 +166,8 @@ test('Market deduplication pins only rendered bytes and section explanations; In
   // Phần 8 now labels the observed prices as references awaiting verification.
   // 2480414f replaces M04's duplicate capture rows and M13's duplicate scope
   // with pointers. This fixture has no inventory, so M05 retains its tables.
-  assert.equal(digest(market.html), 'b47fe6f0eeaa47eef354d4ad707dc4f66ab1348ed05740d7ec6424f3d3fffe5e');
+  // Package C adds exhibit-backed Phần 1 findings and its data badge.
+  assert.equal(digest(market.html), '8dffa67933b932788b34bed4fcff2da7d8fd75d14a68c6d86ffd1631e598d952');
   // All nine semantic citations remain. The sample calculation moves from citation 1 to 3;
   // the per-platform calculation moves from 3 to 1 and gains methodVersion/rounding metadata.
   // Deduplication additionally changes only the M04 and M13 explanations;
@@ -174,7 +175,8 @@ test('Market deduplication pins only rendered bytes and section explanations; In
   assert.equal(digest(canonicalJson(market.semantic)), '671089c001264c32f0f88002ad4b9aedc713667fbafc7327ccfa1b2d5f4bd57a');
   // The proofread review restores raw capture row/page/display counts inside the technical details.
   // The trace includes the same M04/M13 pointers and revised explanations.
-  assert.equal(digest(market.traceHtml!), '9a9dca7637b8c9569c46ea71a2443ba31fd267494924f58a7b166ecef68a7181');
+  // Its old platform statements remain in a trace-only disclosure.
+  assert.equal(digest(market.traceHtml!), '230b024d1696eaedd07a6c39a4a143ceaed99f697f045213113b4a673d8fb740');
   const insight = buildResearchAutomationReport(input, 'INSIGHT');
   assert.equal(digest(insight.html), '7163940cc6c424f6c1a2fc73c7af9458e1a50d3957adaa8d43802a8caf6ba08d');
   assert.equal(digest(canonicalJson(insight.semantic)), '21c5fa1d4be2b577cc196d0508e84342b0953f1a16ed6505eccbb784b8f05294');
