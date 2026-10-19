@@ -61,10 +61,11 @@ async function reader(extra: { worldBank?: StepWorldBank; comtrade?: StepComtrad
 
 test('current Market renderers pin unscaled per-person charts and corrected context copy', async () => {
   // Re-pin the 1.4.0 per-person chart scale, automated Market context display, the per-platform Phần 1/2 copy, the reader proofread
-  // and the Phần 8 reference-price badge; legacy readers have separate frozen pins.
+  // and the Phần 8 reference-price badge. 2480414f removes duplicate M04 tables
+  // and M13 scope through pointers; legacy readers have separate frozen pins.
   const hash = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
   assert.equal(hash((await reader({ worldBank: fullWorldBank() }, false)).html), '2c6bf440c35405eebeede37f08f57764e549cdc42041bf26b958952340d1d02e');
-  assert.equal(hash(buildResearchAutomationReport(await fullMarket14Input(), 'MARKET').html), 'f1d52c84a137d66189b8890d4ab6c5f28cc0900696c7f08864f5cccad393cc6a');
+  assert.equal(hash(buildResearchAutomationReport(await fullMarket14Input(), 'MARKET').html), 'b47fe6f0eeaa47eef354d4ad707dc4f66ab1348ed05740d7ec6424f3d3fffe5e');
 });
 
 test('v2 reader: World Bank lines are Hình 5.3/5.4 after Bảng 5.3 and Comtrade bars are Hình 6.1/6.2 after Bảng 6.2, all Flint', async () => {

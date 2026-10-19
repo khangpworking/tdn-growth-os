@@ -295,14 +295,15 @@ test('capture sample wording is idempotent, avoids repeated saved wording, and p
   assert.ok(deliverMarketReader(html).includes('<p>Mẫu xuất đã lưu; mẫu xuất theo từ khóa.</p>'), 'no capture retains prior wording');
 });
 
-// Without capture, the presentation copy changes only by the reader proofread, the context copy and the reference-price badge; semantic bytes stay at eedcb369.
+// Without capture, 2480414f changes M13's scope pointer and explanation in both
+// rendered outputs and the semantic explanation. M04 and M05 stay unchanged.
 // The no-presentation html differs only by the fixture's charts from the current renderers; legacy chart bytes stay pinned at bfdaca27 in macro-charts-report.
-test('automation reports without capture or presentation retain semantic pins with explained rendering changes', async () => {
+test('automation reports without capture pin the M13 pointer; without presentation all bytes stay unchanged', async () => {
   const input = await fullMarket14Input();
   const { capture: _capture, ...metricMethods } = input.metricMethods!;
   const { marketPresentation: _presentation, ...noPresentation } = input;
   const variants = [
-    { value: { ...input, metricMethods }, html: '5367992cbab9988a9a996695b3a9e6fbfc67ad561a4ae4bf07de74f237d4ef49', semantic: 'f09ff348de6036dbf7866d069d8dc833c37ab9a52c6e1b0ea82eaed9bb7742ab', trace: '6d6a13d0eaf09314fa4edadec8adc20d43b68f235b47322cf03c6893edb65009' },
+    { value: { ...input, metricMethods }, html: '8adbfe602d5e8798b804ddbf69cbf557890528d2802dc9986f7ea6ed46622bf2', semantic: 'cfefb08635d39a3ddecef46ab0475becb75c7391a2ba5fffc6858dbb1f88047d', trace: 'bf439c8cf5ec7b736a34775c507550d141519a39c04795dfd14762c64ae1ba55' },
     { value: noPresentation, html: '92ada31fa0a8a276d05aedc38fe418c3b5204f0750ef89020453a998526c6da9', semantic: '89b388819561c90b6082847afb079b85aa911457862ca7d542d5335860c3f8a5', trace: null },
   ];
   for (const variant of variants) {

@@ -156,7 +156,7 @@ test('collector cap drift cannot dispatch a production collection through trial 
   assert.ok(run.coverage.sources.some(row => row.provider === 'apify-shopee' && row.state === 'FAILED'));
 });
 
-test('Market capture copy has explained rendering digests; Insight digests remain unchanged', async () => {
+test('Market deduplication pins only rendered bytes and section explanations; Insight digests remain unchanged', async () => {
   const input = await fullMarket14Input();
   const market = buildResearchAutomationReport(input, 'MARKET');
   // Against eedcb369: per-platform Phần 1/2 copy, localized scope dates, capture-only sample wording,
@@ -164,13 +164,17 @@ test('Market capture copy has explained rendering digests; Insight digests remai
   // The reader proofread (Vietnamese terms, used-term glossary, shared citation numbers) changes only rendered bytes.
   // M14/M15/M16/M27/L11/L12 context copy (completed search weeks, row bases, short CPI citations, unscaled per-person charts, neutral province copy) is render-only too.
   // Phần 8 now labels the observed prices as references awaiting verification.
-  assert.equal(digest(market.html), 'f1d52c84a137d66189b8890d4ab6c5f28cc0900696c7f08864f5cccad393cc6a');
+  // 2480414f replaces M04's duplicate capture rows and M13's duplicate scope
+  // with pointers. This fixture has no inventory, so M05 retains its tables.
+  assert.equal(digest(market.html), 'b47fe6f0eeaa47eef354d4ad707dc4f66ab1348ed05740d7ec6424f3d3fffe5e');
   // All nine semantic citations remain. The sample calculation moves from citation 1 to 3;
   // the per-platform calculation moves from 3 to 1 and gains methodVersion/rounding metadata.
-  // These are the only semantic differences from eedcb369.
-  assert.equal(digest(canonicalJson(market.semantic)), '3a50085424b8843609458a2d77a93e5f4baa21a8e2b1db40239f33140991dfde');
+  // Deduplication additionally changes only the M04 and M13 explanations;
+  // retained methods, M05 methodOutput and semantic citations stay identical.
+  assert.equal(digest(canonicalJson(market.semantic)), '671089c001264c32f0f88002ad4b9aedc713667fbafc7327ccfa1b2d5f4bd57a');
   // The proofread review restores raw capture row/page/display counts inside the technical details.
-  assert.equal(digest(market.traceHtml!), 'a523aa8630c071d9b6133b44a3177fccc4f0d5bf93574936b677a8de45881c85');
+  // The trace includes the same M04/M13 pointers and revised explanations.
+  assert.equal(digest(market.traceHtml!), '9a9dca7637b8c9569c46ea71a2443ba31fd267494924f58a7b166ecef68a7181');
   const insight = buildResearchAutomationReport(input, 'INSIGHT');
   assert.equal(digest(insight.html), '7163940cc6c424f6c1a2fc73c7af9458e1a50d3957adaa8d43802a8caf6ba08d');
   assert.equal(digest(canonicalJson(insight.semantic)), '21c5fa1d4be2b577cc196d0508e84342b0953f1a16ed6505eccbb784b8f05294');
