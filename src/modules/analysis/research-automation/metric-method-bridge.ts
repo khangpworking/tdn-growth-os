@@ -465,6 +465,10 @@ export class AutomationMetricMethodBridge {
       platformResults.push({ platform, result });
     }
     platformResults.sort((a, b) => Number(a.result.input.records.length === 0) - Number(b.result.input.records.length === 0));
+    // Reject drift at the same row-policy boundary as verify, before attempting
+    // publication under an already-retained package identity.
+    if (retained && isCaptureRowProfile(profile) && !equal(parseArray(retained, CAPTURE_RESULTS), platformResults))
+      integrity('Capture rows differ from the frozen row policy.');
     if (platformResults.length === 0) fail('METRIC_SOURCE_INPUT_REJECTED', 'Metric capture contains no attributed platform rows.');
     const primary = platformResults[0]!.result;
     const workspace = await this.#workspaces.readVerifiedWorkspace(input.start.workspaceId);

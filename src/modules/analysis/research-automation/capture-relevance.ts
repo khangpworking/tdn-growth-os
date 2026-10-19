@@ -87,7 +87,7 @@ export async function classifyCaptureRelevance(rows: readonly TitleRow[], keywor
   return readCaptureRelevanceRecord(record, rows, keywords);
 }
 
-/** All keywords must say NOT_MAIN to exclude from a multi-keyword union. Missing/UNSURE/MAIN preserves the floor. */
+/** Lookup only; the row policy combines these labels with relation and category evidence. */
 export function captureRelevanceLookup(record?: CaptureRelevanceRecord) {
   const labels = new Map(record?.decisions.map(row => [JSON.stringify([row.keyword, row.titleSha256]), row.label]));
   return (title: string, keyword: string) => labels.get(JSON.stringify([captureRelevanceKeyword(keyword), captureTitleSha256(title)])) ?? null;

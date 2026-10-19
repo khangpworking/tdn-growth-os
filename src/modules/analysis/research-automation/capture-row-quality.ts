@@ -168,7 +168,11 @@ export function assessCaptureRows(rows: readonly CaptureQualityRow[], keywords: 
       const category = categories[i]!, price = prices[i]!, categoryCount = category === null || !cohort ? null : cohort.categoryCounts[category] ?? 0;
       const rareCategory = cohort?.categoryAvailable === true && category !== null && !cohort.modalCategories.includes(category) && categoryCount! <= cohort.rareLimit;
       const lowPrice = cohort?.priceAvailable === true && price !== null && price < 0.5 * cohort.p10!;
-      const reason: RelevanceReason | null = title.reason ?? (title.weak.length && !title.protectedScope && rareCategory ? 'TITLE_CATEGORY_MISMATCH' : null);
+      // A prefix, partial match or later segment can describe the product itself.
+      // Category rarity needs an explicit relation clue; a retained MAIN vetoes
+      // this category inference, but never a clear accessory or secondary-gift relation.
+      const categoryMismatch = title.weak.includes('WEAK_RELATION') && !title.protectedScope && rareCategory && aiLabel(row.title, keyword) !== 'MAIN';
+      const reason: RelevanceReason | null = title.reason ?? (categoryMismatch ? 'TITLE_CATEGORY_MISMATCH' : null);
       const review = [...title.review, ...(category === null ? ['CATEGORY_UNAVAILABLE'] : []), ...(price === null ? ['PRICE_UNAVAILABLE'] : []),
         ...(!cohort?.categoryAvailable ? ['INSUFFICIENT_REFERENCE'] : []), ...(!cohort?.priceAvailable ? ['PRICE_REFERENCE_UNAVAILABLE'] : []),
         ...(platforms[i] === null ? ['PLATFORM_UNAVAILABLE'] : []), ...(lowPrice ? ['LOW_PRICE_ONLY'] : [])];
