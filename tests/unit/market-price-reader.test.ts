@@ -212,8 +212,8 @@ test('reader digests pin the M08 badge control with capture headlines', async ()
   // Neither input has inventory, so both retain M05's per-period tables.
   // Package C adds Phần 1 findings and its badge only to the capture control.
   for (const [reportInput, parent] of [
-    [input, 'eb80295652c4cc79de5563e15684d33a0479d0ee95e382e3c87b14a7ef44e96a'],
-    [{ ...input, metricMethods }, 'd834bd31581e1fbc96d04137ee1c4887a0c267c6ae40e085d8e5220a88942410'],
+    [input, '426bb862d0389fef01f0d5df7f4c574da68d185c924494dfa0289aa103c8bb8e'],
+    [{ ...input, metricMethods }, '0d1d3d171f517d60f9cb27fd32db333c0ef3c3b62f8818844cdda1524b133c85'],
   ] as const) {
     const html = buildResearchAutomationReport(reportInput, 'MARKET').html.toString();
     assert.equal(hash(html.replace('<span class="state">Có giá tham khảo, chưa xác minh</span>', '<span class="state">Có số liệu</span>')), parent);
@@ -229,7 +229,7 @@ test('automated reader uses the price projection without changing retained input
   // Latest-price review: preserve range-only evidence, explicit estimate wording, and corrected price-only readings.
   // 2480414f additionally points M04/M05 to Phần 3 and M13 to Phần 2.
   // Package C adds Phần 1 findings and its data badge to this capture report.
-  assert.equal(hash(report.html), '85ccf9d28a0ec63570fc0765af07995b4f802387eaaaa56507573ebeb2ddf43e');
+  assert.equal(hash(report.html), 'c7b2fa4e84ae47cbd9d91e730039cf14e92f2214bd6b4891435dff8e88a06e98');
   const doc = new JSDOM(report.html.toString()).window.document;
   const section = doc.querySelector('#M08')!;
   assert.equal(section.querySelectorAll('tbody tr').length, 8);

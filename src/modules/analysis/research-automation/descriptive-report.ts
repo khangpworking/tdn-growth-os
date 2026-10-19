@@ -1,5 +1,6 @@
 import type { DescriptiveMarketMethods } from '../../../../contracts/analysis/descriptive-market-methods.generated.js';
 import { containsForbiddenProviderName, containsTechnicalId, type CitationInput } from '../citation-registry.js';
+import { parseProviderProductRef } from './provider-common.js';
 import { formatReaderCount, formatReaderValue as formatReaderPlainValue, readerDateBasis as readerPlainDateBasis, readerLocator, readerMeasureName as readerPlainMeasureName, readerProductLabel, readerScopeText as readerPlainScopeText, readerStoredOrJson as readerPlainStoredOrJson, readerTextSafe } from './reader-plain-text.js';
 
 type Input = DescriptiveMarketMethods['input'];
@@ -14,6 +15,8 @@ export interface DescriptiveReaderContext {
   readonly requestedPeriod?: { readonly startDate: string; readonly endDate: string };
   /** The report already prints the per-period rows of the selected products in Phần 3, so M05 points there instead of repeating them. */
   readonly periodRowsInM03?: boolean;
+  /** Owner reader (market14): Phần 9 names the report dates and the platform of each event. */
+  readonly market14?: boolean;
 }
 
 /** Rendering of one bounded method section. `usable` means a resolved record carries a source-stated value or event, not that the section is complete. */
@@ -23,6 +26,8 @@ export interface DescriptiveSectionView {
   readonly unresolvedPointers: readonly string[];
   readonly blockers: readonly string[];
   readonly html: string;
+  /** market14 Phần 9 only: every in-period row is a source-declared launch date, so no source states a driver or risk. */
+  readonly partial?: boolean;
 }
 
 export const escapeHtml = (value: unknown): string => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
@@ -478,8 +483,11 @@ function readerM09(methods: DescriptiveMarketMethods, citations: ReportCitations
   let after = false;
   let launches = false;
   let count = 0;
+  let statements = 0;
+  const market14 = context.market14 === true;
   const products = new Map<string, string>();
-  const rows = section.events.flatMap(event => {
+  let knownPlatform = false;
+  const rendered = section.events.flatMap(event => {
     const row = recordAt(methods.input.m09, event.recordPointer, 'm09');
     if (!row) { unresolved.push(event.recordPointer); return []; }
     if (!period || row.eventDate === null) return [];
@@ -501,16 +509,32 @@ function readerM09(methods: DescriptiveMarketMethods, citations: ReportCitations
     }
     launches ||= launch;
     count += 1;
+    if (!launch) statements += 1;
     if (!products.has(row.namedScope)) products.set(row.namedScope, readerProduct(row.namedScope, products.size + 1, context));
     const conflict = row.conflictRefs.length ? '<br>Có thông tin mâu thuẫn, cần đối chiếu.' : '';
     const kind = !launch && row.statementType !== 'UNCLASSIFIED' ? `${escape(EVENT_TYPE[row.statementType])}<br>` : '';
     const attribution = !launch && plainCopy(row.attribution) && /[\u00c0-\u024f\u1e00-\u1eff]/.test(row.attribution) ? `<br><small>${escape(row.attribution)}</small>` : '';
-    return [`<tr><td>${escape(products.get(row.namedScope)!)}</td><td>${kind}${launch ? escape(wording) : `<q>${escape(wording)}</q>`}${attribution}</td><td>${escape(readerDate(row.eventDate))}</td><td>${sourceCell(methods.input, row.source, citations, true)}${conflict}</td></tr>`];
-  }).join('');
-  const omitted = before || after ? `<p>Đã lược bỏ các sự kiện có ngày ${before && after ? 'trước hoặc sau' : before ? 'trước' : 'sau'} kỳ báo cáo.</p>` : '';
-  const body = rows ? `${table('Sự kiện trong kỳ do nguồn nêu', ['Sản phẩm', 'Sự kiện', 'Ngày', 'Nguồn'], rows, true)}${omitted}${readerNotes(methods, 'M09', false,
-    launches ? ['Chưa xác minh đây là ngày ra mắt thực tế.'] : [])}` : `<p>Chưa đủ dữ liệu về sự kiện trong kỳ.</p>${omitted}`;
-  return { usable: count > 0, locatedRecordCount: count, unresolvedPointers: unresolved, blockers: section.blockers, body };
+    // Phần 9 events come from product records of a named platform; an unrecognised record says so instead of guessing.
+    const known = Boolean(parseProviderProductRef(row.namedScope));
+    knownPlatform ||= known;
+    return [{ known, product: `<tr><td>${escape(products.get(row.namedScope)!)}</td>`, rest: `<td>${kind}${launch ? escape(wording) : `<q>${escape(wording)}</q>`}${attribution}</td><td>${escape(readerDate(row.eventDate))}</td><td>${sourceCell(methods.input, row.source, citations, true)}${conflict}</td></tr>` }];
+  });
+  // A Sàn column only helps when at least one event names a platform; an all-unknown table keeps the historical columns.
+  const platformColumn = market14 && knownPlatform;
+  const rows = rendered.map(row => `${row.product}${platformColumn ? `<td>${row.known ? 'TikTok Shop' : 'Chưa rõ sàn'}</td>` : ''}${row.rest}`).join('');
+  // The owner reader names the report dates; other readers keep the historical wording.
+  const dates = market14 && period ? { start: readerDate(period.startDate), end: readerDate(period.endDate) } : undefined;
+  const omitted = !(before || after) ? '' : dates
+    ? `<p>Đã lược bỏ các sự kiện có ngày ${[before ? `trước ${escape(dates.start)}` : '', after ? `sau ${escape(dates.end)}` : ''].filter(Boolean).join(' hoặc ')}, ngoài kỳ báo cáo.</p>`
+    : `<p>Đã lược bỏ các sự kiện có ngày ${before && after ? 'trước hoặc sau' : before ? 'trước' : 'sau'} kỳ báo cáo.</p>`;
+  const partial = market14 && count > 0 && statements === 0;
+  const title = dates ? `Sự kiện do nguồn nêu, từ ${dates.start} đến ${dates.end}` : 'Sự kiện trong kỳ do nguồn nêu';
+  const heads = platformColumn ? ['Sản phẩm', 'Sàn', 'Sự kiện', 'Ngày', 'Nguồn'] : ['Sản phẩm', 'Sự kiện', 'Ngày', 'Nguồn'];
+  const body = rows ? `${table(title, heads, rows, true)}${omitted}${readerNotes(methods, 'M09', false, [
+    ...(launches ? ['Chưa xác minh đây là ngày ra mắt thực tế.'] : []),
+    ...(partial ? ['Các dòng trong bảng chỉ là ngày ra mắt do nguồn khai báo, không phải động lực hay rủi ro.'] : [])])}`
+    : `<p>Chưa đủ dữ liệu về sự kiện ${dates ? `từ ${escape(dates.start)} đến ${escape(dates.end)}` : 'trong kỳ'}.</p>${omitted}`;
+  return { usable: count > 0, locatedRecordCount: count, unresolvedPointers: unresolved, blockers: section.blockers, body, ...(partial ? { partial } : {}) };
 }
 
 export function describeDescriptiveSection(methods: DescriptiveMarketMethods, sectionId: DescriptiveSectionId, citations: ReportCitations, readerPlainText = false, readerContext: DescriptiveReaderContext = {}): DescriptiveSectionView {

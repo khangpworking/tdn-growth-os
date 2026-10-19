@@ -1,0 +1,22 @@
+{
+  "legacy-market": {
+    "html": "92ada31fa0a8a276d05aedc38fe418c3b5204f0750ef89020453a998526c6da9",
+    "semantic": "89b388819561c90b6082847afb079b85aa911457862ca7d542d5335860c3f8a5",
+    "trace": null
+  },
+  "insight": {
+    "html": "7163940cc6c424f6c1a2fc73c7af9458e1a50d3957adaa8d43802a8caf6ba08d",
+    "semantic": "21c5fa1d4be2b577cc196d0508e84342b0953f1a16ed6505eccbb784b8f05294",
+    "trace": null
+  },
+  "market14": {
+    "html": "8dffa67933b932788b34bed4fcff2da7d8fd75d14a68c6d86ffd1631e598d952",
+    "semantic": "671089c001264c32f0f88002ad4b9aedc713667fbafc7327ccfa1b2d5f4bd57a",
+    "trace": "230b024d1696eaedd07a6c39a4a143ceaed99f697f045213113b4a673d8fb740"
+  },
+  "plain-m09": {
+    "html": "61696d52f12935835de530ec13e152926e56bc8a1c78fbb131371046ae0b8960",
+    "semantic": "26daf1c5d6a778e64a218ceb9c310e5adf81b021396f4ba2e888739a6159d500",
+    "trace": null
+  }
+}
