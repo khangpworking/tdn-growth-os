@@ -44,6 +44,13 @@ test('remaining English words in source quotes require their own Vietnamese defi
   }
 });
 
+test('a meaning in another glossary row cannot explain a used term', () => {
+  const used = valid.replace('</body>', '<p>reviews</p></body>');
+  const wrong = used.replace(glossary, glossary.replace('</tbody></table>', '<tr><td>reviews</td><td>Chưa giải thích</td></tr></tbody></table>'));
+  assert.equal(rule(wrong, '1').ok, false, 'the review row already contains đánh giá, but reviews has no meaning');
+  assert.equal(rule(wrong.replace('<td>Chưa giải thích</td>', '<td>đánh giá</td>'), '1').ok, true);
+});
+
 test('synthetic Market HTML passes all machine rules and marks review-only rules as READ', () => {
   const results = auditMarket14(valid);
   assert.deepEqual(results.filter(item => item.kind === 'machine' && !item.ok), []);

@@ -1,6 +1,7 @@
 import type { CitationRegistry } from '../citation-registry.js';
 import { orderReportCitations, renderCitationMark, renderCitationRegister } from '../citation-register-html.js';
-import { canonicalJson } from '../../foundation/canonical-json.js';
+import { readerText } from './market-reader-delivery.js';
+import { filterReaderGlossary } from './market-reader-glossary.js';
 
 /** Call only after saving the semantic and technical copies: reader-identical entries share one number. */
 export function marketReaderCitations(page: string, registry: CitationRegistry): string {
@@ -9,8 +10,9 @@ export function marketReaderCitations(page: string, registry: CitationRegistry):
   const end = page.indexOf('</section>', start) + '</section>'.length;
   const byDisplay = new Map<string, number>(), representative = new Map<number, number>();
   for (const entry of registry.entries()) {
-    const { number, citationId: _id, ...display } = entry;
-    const key = canonicalJson(display);
+    const { number } = entry;
+    // Hidden quote/verification metadata and the time within a displayed date do not distinguish source entries.
+    const key = readerText(renderCitationRegister([{ ...entry, number: 1 }], { format: 'web' }));
     const kept = byDisplay.get(key) ?? number;
     byDisplay.set(key, kept);
     representative.set(number, kept);
@@ -18,5 +20,5 @@ export function marketReaderCitations(page: string, registry: CitationRegistry):
   const mapped = page.slice(0, start).replace(/<sup class="cite">\[(\d+)\]<\/sup>/gu,
     (_mark, number: string) => renderCitationMark(representative.get(Number(number))!));
   const readerPage = orderReportCitations(mapped, registry);
-  return readerPage + renderCitationRegister(registry.entries(), { format: 'web' }) + page.slice(end);
+  return filterReaderGlossary(readerPage + readerText(renderCitationRegister(registry.entries(), { format: 'web' })) + page.slice(end));
 }

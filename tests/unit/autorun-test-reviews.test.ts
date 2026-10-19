@@ -166,7 +166,8 @@ test('Market capture copy has explained rendering digests; Insight digests remai
   // the per-platform calculation moves from 3 to 1 and gains methodVersion/rounding metadata.
   // These are the only semantic differences from eedcb369.
   assert.equal(digest(canonicalJson(market.semantic)), '3a50085424b8843609458a2d77a93e5f4baa21a8e2b1db40239f33140991dfde');
-  assert.equal(digest(market.traceHtml!), '199288ade8e2fad3e1df1f45b150c752b498f422bb1b280d5fe6898c83ba0cae');
+  // The proofread review restores raw capture row/page/display counts inside the technical details.
+  assert.equal(digest(market.traceHtml!), '633682b24bfa474afd6267876f22fedc08427689680a2610fd6b1887258f009d');
   const insight = buildResearchAutomationReport(input, 'INSIGHT');
   assert.equal(digest(insight.html), '7163940cc6c424f6c1a2fc73c7af9458e1a50d3957adaa8d43802a8caf6ba08d');
   assert.equal(digest(canonicalJson(insight.semantic)), '21c5fa1d4be2b577cc196d0508e84342b0953f1a16ed6505eccbb784b8f05294');

@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
-import { assertMarket14MachineRules } from '../../src/modules/analysis/research-automation/market-14-rules.js';
+import { auditMarket14, assertMarket14MachineRules } from '../../src/modules/analysis/research-automation/market-14-rules.js';
 import { assertMarketBusinessGate } from '../../src/modules/analysis/research-automation/market-business-gate.js';
-import { annotateExhibits, deliverMarketReader, figureInterpretation, stripTraceDetails, tableInterpretation } from '../../src/modules/analysis/research-automation/market-reader-delivery.js';
+import { annotateExhibits, deliverMarketReader, figureInterpretation, readerText, stripTraceDetails, tableInterpretation } from '../../src/modules/analysis/research-automation/market-reader-delivery.js';
 import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
 import { fullMarket14Input } from '../helpers/market14-full-fixture.js';
-import { MARKET_READER_TERMS } from '../../src/modules/analysis/research-automation/market-reader-glossary.js';
+import { filterReaderGlossary, MARKET_READER_TERMS } from '../../src/modules/analysis/research-automation/market-reader-glossary.js';
 import { metricMethodSection } from '../../src/modules/analysis/research-automation/metric-method-report.js';
 import { CitationRegistry } from '../../src/modules/analysis/citation-registry.js';
 import { orderReportCitations, renderCitationMarkOrMissing, renderCitationRegister } from '../../src/modules/analysis/citation-register-html.js';
@@ -15,6 +15,50 @@ import { marketReaderCitations } from '../../src/modules/analysis/research-autom
 const sectionsOf = (html: string): Map<string, string> =>
   new Map([...html.matchAll(/<section class="sheet" id="(M\d\d)">([\s\S]*?)<\/section>/gu)].map(match => [match[1]!, match[2]!]));
 const visible = (html: string): string => html.replace(/<style[\s\S]*?<\/style>/gu, '').replace(/<svg[\s\S]*?<\/svg>/gu, '').replace(/<[^>]+>/gu, ' ');
+
+test('readerText preserves markup, quoted data, URLs and filenames while translating whole prose words', () => {
+  const protectedText = '<q><span title="a > pack">reviews</span></q><blockquote>variant</blockquote><code>insight</code><pre>export</pre>'
+    + '<span data-quote>section</span><table data-glossary="true"><tr><td>review</td></tr></table>'
+    + '<div class="pl-terms-table">pack</div><svg><text>section</text></svg>'
+    + '<style>.pack::after { content: "review > section"; }</style><script>if (a < b) s = "<q>pack";</script><!-- pack -->';
+  const unchanged = 'https://example.test/?review=pack#section pack/variant.json listing-1 variant_code insight.id namespace:variant review@example.test export=value sections reviewer exported packaging';
+  const input = protectedText + `<p title="a > pack" data-id="review">${unchanged}</p><p>review reviews variant pack insight section export peer set</p>`;
+  const output = readerText(input);
+  assert.ok(output.startsWith(protectedText));
+  assert.ok(output.includes(`<p title="a > pack" data-id="review">${unchanged}</p>`));
+  assert.ok(output.endsWith('<p>đánh giá đánh giá biến thể gói hiểu biết phần tệp dữ liệu nhóm đối thủ</p>'));
+  assert.equal(readerText('<p>biến thể variant; gói pack; phần section; đánh giá reviews; tệp export; nhóm peer set</p>'),
+    '<p>biến thể; gói; phần; đánh giá; tệp dữ liệu; nhóm đối thủ</p>');
+});
+
+test('glossary follows decoded visible terms in sources and the footer, excluding hidden content', () => {
+  const glossary = `<table data-glossary="true"><tbody>${MARKET_READER_TERMS.map(([term, meaning]) => `<tr><td>${term}</td><td>${meaning}</td></tr>`).join('')}</tbody></table>`;
+  const html = `<div id="sections"><section class="sheet" id="M13">${glossary}<q>&#114;eview peer&nbsp;set</q><template>CPA</template></section></div>`
+    + '<section class="citation-register"><ol><li><q>variant</q></li></ol></section><footer>AI</footer>';
+  const output = deliverMarketReader(html);
+  assert.deepEqual([...new JSDOM(output).window.document.querySelectorAll('[data-glossary] td:first-child')].map(node => node.textContent),
+    ['review', 'peer set', 'variant', 'AI']);
+  assert.equal(auditMarket14(output).find(item => item.rule === '1')!.ok, true);
+  assert.equal(filterReaderGlossary(output), output);
+});
+
+test('reader citation identity uses displayed fields and leaves distinct locators, links and days separate', () => {
+  const registry = new CitationRegistry();
+  const base = { sourceKind: 'UPSTREAM_CLAIM' as const, label: 'Nguồn mẫu', retrievedAt: '2026-10-01T01:00:00Z',
+    locator: null, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' as const };
+  const variants = [base, { ...base, sourceKind: 'CAPTURE' as const, retrievedAt: '2026-10-01T02:00:00Z', quote: 'Nguồn trích', quoteVerification: 'UNVERIFIED' as const },
+    { ...base, locator: '/rows/1' }, { ...base, url: 'https://example.test/a' }, { ...base, retrievedAt: '2026-10-02' }];
+  const marks = variants.map((entry, i) => renderCitationMarkOrMissing(registry.cite({ ...entry, identity: `synthetic-${i}` })));
+  registry.cite({ ...base, label: 'Nguồn AI không dùng', identity: 'unused' });
+  const technical = registry.technicalTrace();
+  const page = `<p>${marks.join(' ')}</p><table data-glossary="true"><tbody><tr><td>AI</td><td>trí tuệ nhân tạo</td></tr></tbody></table>` + renderCitationRegister(registry.entries(), { format: 'web' });
+  const doc = new JSDOM(marketReaderCitations(page, registry)).window.document;
+  assert.deepEqual([...doc.querySelectorAll('.cite')].map(node => node.textContent), ['[1]', '[1]', '[2]', '[3]', '[4]']);
+  assert.equal(doc.querySelectorAll('.citation-register li').length, 4);
+  assert.equal(doc.querySelectorAll('[data-glossary] td').length, 0, 'an unused source cannot keep a glossary definition');
+  for (const entry of doc.querySelectorAll('.citation-register li')) assert.ok([...doc.querySelectorAll('.cite')].some(mark => mark.textContent === `[${entry.id.slice(5)}]`));
+  assert.equal(technical.entries.length, 6);
+});
 
 test('trace blocks leave the reader but keep their citation marks, nested blocks included', () => {
   const html = '<p>a</p><details class="evidence-trace"><summary>Xem nguồn <sup class="cite">[2]</sup></summary><details><summary>x</summary>raw</details>Sheet1!A2</details><p>b</p>';
@@ -60,13 +104,14 @@ test('capture reader names per-platform retained rows and keeps the original cap
   const capture = snapshot.capture!;
   const changed = { ...snapshot, capture: { ...capture, platforms: capture.platforms.map((entry, index) => ({ ...entry,
     result: { ...entry.result, input: { ...entry.result.input, records: entry.result.input.records.slice(0, index ? 2 : 3) } } })),
-    capture: { ...capture.capture, truncation: { ...capture.capture.truncation, rowsRead: 5, pagesRead: 10 } } } };
+    capture: { ...capture.capture, truncation: { ...capture.capture.truncation, rowsRead: 5, pagesRead: 10, totalShown: 88 } } } };
   const before = JSON.stringify(changed);
   const render = (plain: boolean) => metricMethodSection(changed, 'M03', undefined, { mark: () => '<sup class="cite">[1]</sup>' }, false, plain);
   const reader = render(true), technical = render(false), doc = new JSDOM(reader).window.document;
   assert.match(reader, /giới hạn lấy 200 dòng đầu của bảng kết quả\. Shopee: giữ 3 dòng; TikTok Shop: giữ 2 dòng/u);
   assert.match(reader, /Mọi dòng đều đã gán sàn\./u);
-  assert.doesNotMatch(reader, /Không có dòng không gán|giữ 5 dòng trong 10 trang/u);
+  assert.doesNotMatch(stripTraceDetails(reader), /Không có dòng không gán|giữ 5 dòng trong 10 trang/u);
+  assert.match(reader, /<details class="evidence-trace">[\s\S]*giữ 5 dòng trong 10 trang trên 88 dòng hiển thị/u, 'capture counters remain in the technical copy');
   assert.match(technical, /giữ 5 dòng trong 10 trang/u);
   assert.match(technical, /Không có dòng không gán được sàn/u);
   assert.equal(doc.querySelectorAll('tbody tr').length, 5);
@@ -137,6 +182,9 @@ test('interpretations never range across unrelated columns or macro indicator un
   assert.equal(tableInterpretation(macro.replace(/<th>Đơn vị<\/th>/u, '<th>Nguồn</th>')), 'Bảng có 5 dòng. Mỗi dòng là một thước đo riêng, đọc theo đơn vị của chính nó.');
   assert.equal(tableInterpretation(table(['Sản phẩm nguồn', 'Phép đo / đơn vị', 'Giá trị nguồn'], [['A', 'Doanh thu (VND)', '100'], ['A', 'Sản lượng bán', '2']])),
     'Bảng có 2 dòng. Các dòng có thước đo, đơn vị hoặc kỳ khác nhau; đọc riêng từng dòng.');
+  assert.equal(tableInterpretation(table(['Sản phẩm', 'Quan sát', 'Chi phí'], [['A', '4 VND', '100'], ['B', '2 sản phẩm', '200']])),
+    'Bảng có 2 dòng. Các dòng có thước đo, đơn vị hoặc kỳ khác nhau; đọc riêng từng dòng.');
+  assert.equal(tableInterpretation(table(['Sản phẩm', 'Quan sát', 'Chi phí'], [['A', '4 VND<br>2 VND', '100']])), '');
 });
 
 test('search interpretation preserves missing weeks and makes cross-year dates explicit', () => {
@@ -275,11 +323,16 @@ test('full synthetic market14 report is delivered as a reader copy with notes an
   assert.ok(exhibits >= 25, `synthetic report renders its exhibits (${exhibits})`);
   assertMarket14MachineRules(html);
   assertMarketBusinessGate(html, { presentation: true });
-  // Citations still resolve to the register.
-  for (const cite of body.matchAll(/href="#(cite-[^"]+)"/gu)) assert.ok(html.includes(`id="${cite[1]}"`), cite[1]);
+  // Every rendered [n] has a source, and no source survives without a rendered [n].
+  const cited = new Set([...doc.querySelectorAll('sup.cite')].map(cite => cite.textContent));
+  const registered = new Set([...doc.querySelectorAll('.citation-register .cite-number')].map(cite => cite.textContent));
+  assert.ok(cited.size > 0);
+  assert.deepEqual(cited, registered);
   // The hidden trace keeps every block reader delivery removed.
   assert.ok((trace.match(/<details class="evidence-trace"/gu) ?? []).length >= 3);
   assert.match(trace, /Hồ sơ đối chiếu/u);
+  assert.match(trace, /giữ 5 dòng trong 1 trang/u, 'the actual technical artifact retains the capture counters');
+  assert.doesNotMatch(html, /giữ 5 dòng trong 1 trang/u);
   // M13 method declarations never enter the market14 page; they stay in the semantic record.
   const variantRule = input.descriptiveMethods!.input.scope.variantRule;
   assert.ok(JSON.stringify(built.semantic).includes(variantRule), 'the removed method declaration is retained in the semantic record');

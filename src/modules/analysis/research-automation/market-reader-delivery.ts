@@ -55,21 +55,21 @@ const PHRASES: readonly [RegExp, string][] = [
   [/trong bản nháp này/gu, 'trong báo cáo này'],
   [/Bản nháp không đủ thông tin để xác định riêng nguyên nhân là thiếu đầu vào, còn chờ duyệt hay phương pháp chưa chạy\./gu, 'Chưa có dữ liệu cho mục này; đây không phải kết quả bằng không.'],
   [/;?\s*chưa phải (?:mục )?phân tích (?:kinh tế đơn vị )?hoàn chỉnh/gu, ''],
-  [/(?<![\p{L}\p{N}_./-])listing(?![\p{L}\p{N}_/-]|\.[\p{L}\p{N}])/giu, 'sản phẩm'],
+  [/(?<![\p{L}\p{M}\p{N}_./\\:@#=-])listing(?![\p{L}\p{M}\p{N}_/\\@#=-]|[.:][\p{L}\p{N}])/giu, 'sản phẩm'],
   // "người, sản phẩm, listing" reads twice once listing is localized.
   [/sản phẩm(?:, sản phẩm)+(?![\p{L}\p{N}])/gu, 'sản phẩm'],
   [/\bsearch events\b/giu, 'lượt ghi nhận tìm kiếm'],
   [/theo section gốc/gu, 'theo phần gốc'],
   [/danh sách top sản phẩm/gu, 'danh sách sản phẩm doanh thu cao'],
-  [/(?<![\p{L}\p{N}_./-])pack\/variant(?![\p{L}\p{N}_/-])/giu, 'gói/biến thể'],
-  [/(?<![\p{L}\p{N}_./-])review(?![\p{L}\p{N}_/-]|\.[\p{L}\p{N}])/giu, 'đánh giá'],
-  [/(?<![\p{L}\p{N}_./-])reviews(?![\p{L}\p{N}_/-]|\.[\p{L}\p{N}])/giu, 'đánh giá'],
-  [/(?<![\p{L}\p{N}_./-])variant(?![\p{L}\p{N}_/-]|\.[\p{L}\p{N}])/giu, 'biến thể'],
-  [/(?<![\p{L}\p{N}_./-])pack(?![\p{L}\p{N}_/-]|\.[\p{L}\p{N}])/giu, 'gói'],
-  [/(?<![\p{L}\p{N}_./-])insight(?![\p{L}\p{N}_/-]|\.[\p{L}\p{N}])/giu, 'hiểu biết'],
-  [/(?<![\p{L}\p{N}_./-])section(?![\p{L}\p{N}_/-]|\.[\p{L}\p{N}])/giu, 'phần'],
-  [/(?<![\p{L}\p{N}_./-])export(?![\p{L}\p{N}_/-]|\.[\p{L}\p{N}])/giu, 'tệp dữ liệu'],
-  [/(?<![\p{L}\p{N}_./-])peer set(?![\p{L}\p{N}_/-]|\.[\p{L}\p{N}])/giu, 'nhóm đối thủ'],
+  [/(?<![\p{L}\p{M}\p{N}_./\\:@#=-])pack\/variant(?![\p{L}\p{M}\p{N}_/\\@#=-]|[.:][\p{L}\p{N}])/giu, 'gói/biến thể'],
+  [/(?<![\p{L}\p{M}\p{N}_./\\:@#=-])review(?![\p{L}\p{M}\p{N}_/\\@#=-]|[.:][\p{L}\p{N}])/giu, 'đánh giá'],
+  [/(?<![\p{L}\p{M}\p{N}_./\\:@#=-])reviews(?![\p{L}\p{M}\p{N}_/\\@#=-]|[.:][\p{L}\p{N}])/giu, 'đánh giá'],
+  [/(?<![\p{L}\p{M}\p{N}_./\\:@#=-])variant(?![\p{L}\p{M}\p{N}_/\\@#=-]|[.:][\p{L}\p{N}])/giu, 'biến thể'],
+  [/(?<![\p{L}\p{M}\p{N}_./\\:@#=-])pack(?![\p{L}\p{M}\p{N}_/\\@#=-]|[.:][\p{L}\p{N}])/giu, 'gói'],
+  [/(?<![\p{L}\p{M}\p{N}_./\\:@#=-])insight(?![\p{L}\p{M}\p{N}_/\\@#=-]|[.:][\p{L}\p{N}])/giu, 'hiểu biết'],
+  [/(?<![\p{L}\p{M}\p{N}_./\\:@#=-])section(?![\p{L}\p{M}\p{N}_/\\@#=-]|[.:][\p{L}\p{N}])/giu, 'phần'],
+  [/(?<![\p{L}\p{M}\p{N}_./\\:@#=-])export(?![\p{L}\p{M}\p{N}_/\\@#=-]|[.:][\p{L}\p{N}])/giu, 'tệp dữ liệu'],
+  [/(?<![\p{L}\p{M}\p{N}_./\\:@#=-])peer set(?![\p{L}\p{M}\p{N}_/\\@#=-]|[.:][\p{L}\p{N}])/giu, 'nhóm đối thủ'],
   // The reader writes zero in words wherever an empty state is explained; decimals such as "0,5" stay numbers.
   [/([Bb])ằng 0(?![\d]|[,.]\d)/gu, '$1ằng không'],
   [/([Kk])hông (?:tính là|đổi thành|ghi thành) 0(?![\d]|[,.]\d)/gu, '$1hông thay bằng số không'],
@@ -90,35 +90,41 @@ const CONTEXT_NOTE = 'Số liệu nền từ nguồn công khai, đọc riêng; 
 export function readerText(html: string, captureCopy = false): string {
   const protectedTags: string[] = [];
   const phrases = [...PHRASES.slice(1), ...(captureCopy ? CAPTURE_PHRASES : [])];
-  return html.split(/(<[^>]+>)/gu).map((part, index) => {
+  // Keep quoted attribute values and raw CSS/JS intact, even when they contain angle brackets.
+  const tokens = /(<!--[\s\S]*?-->|<script\b(?:[^>"']|"[^"]*"|'[^']*')*>[\s\S]*?<\/script\s*>|<style\b(?:[^>"']|"[^"]*"|'[^']*')*>[\s\S]*?<\/style\s*>|<(?:[^<>"']|"[^"]*"|'[^']*')+>)/giu;
+  return html.split(tokens).map((part, index) => {
     if (index % 2) {
+      if (/^<!--|^<(?:script|style)\b/iu.test(part)) return part;
       const tag = /^<\/?([\w-]+)/u.exec(part)?.[1]?.toLowerCase();
       if (!tag) return part;
       if (part.startsWith('</')) {
         if (tag === protectedTags.at(-1)) protectedTags.pop();
-      } else if (!/\/>$/u.test(part) && !['br', 'hr', 'img', 'input', 'wbr'].includes(tag)
-        && (protectedTags.length || ['q', 'blockquote', 'code', 'pre', 'style', 'script', 'svg'].includes(tag) || /\bdata-quote(?:\s|=|>)/u.test(part) || /\bdata-glossary=|\bpl-terms-table\b/u.test(part))) {
+      } else if (!/\/>$/u.test(part) && !['br', 'hr', 'img', 'input', 'wbr', 'area', 'base', 'col', 'embed', 'link', 'meta', 'param', 'source', 'track'].includes(tag)
+        && (protectedTags.length || ['q', 'blockquote', 'code', 'pre', 'style', 'script', 'svg'].includes(tag) || /\bdata-(?:quote|glossary)(?:\s|=|>)/iu.test(part) || /\bpl-terms-table\b/u.test(part))) {
         protectedTags.push(tag);
       }
       return part;
     }
     if (protectedTags.length) return part;
-    return phrases.reduce((value, [re, to]) => value.replace(re, to), part)
+    const paired = (value: string): string => value.replace(/(?<![\p{L}\p{N}_./-])(biến thể variant|gói pack|phần section|đánh giá reviews?|hiểu biết insight|nhóm peer set|tệp export)(?![\p{L}\p{N}_/-]|\.[\p{L}\p{N}])/giu,
+      label => ({ 'biến thể variant': 'biến thể', 'gói pack': 'gói', 'phần section': 'phần', 'đánh giá review': 'đánh giá', 'đánh giá reviews': 'đánh giá', 'hiểu biết insight': 'hiểu biết', 'nhóm peer set': 'nhóm đối thủ', 'tệp export': 'tệp dữ liệu' } as Record<string, string>)[label.toLowerCase()]!);
+    // A URL's query and fragment are identifiers too, not prose to translate.
+    return part.split(/((?:[a-z][a-z\d+.-]*:\/\/|www\.)[^\s<>"']+)/giu).map((chunk, i) => i % 2 ? chunk : phrases.reduce((value, [re, to]) => value.replace(re, to), paired(chunk))
       .replace(/(?<![\p{L}\p{N}_./-])(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}:\d{2}:\d{2}(?:\.\d+)?)(Z|[+-]\d{2}:\d{2}))?(?![\p{L}\p{N}_/-]|\.[\p{L}\p{N}])/gu,
         (all, year: string, month: string, day: string, time?: string, zone?: string) => {
           const iso = `${year}-${month}-${day}`;
           const parsed = Date.parse(`${iso}T00:00:00Z`);
           if (!Number.isFinite(parsed) || new Date(parsed).toISOString().slice(0, 10) !== iso) return all;
           return `${day}/${month}/${year}${time ? ` ${time} ${zone === 'Z' ? 'UTC' : zone}` : ''}`;
-        });
+        })).join('');
   }).join('');
 }
 
-type Num = { value: number; shown: string };
+type Num = { value: number; shown: string; unit: string };
 const NUMBER = /^(?:chỉ số\s+)?(-?(?:\d{1,3}(?:\.\d{3})+|\d+)(?:,\d+)?)(?=\s|$)/u;
 const parseNum = (cell: string): Num | undefined => {
-  const shown = NUMBER.exec(cell.trim())?.[1];
-  return shown === undefined ? undefined : { value: Number(shown.replace(/\./gu, '').replace(',', '.')), shown };
+  const match = NUMBER.exec(cell.trim()), shown = match?.[1];
+  return shown === undefined ? undefined : { value: Number(shown.replace(/\./gu, '').replace(',', '.')), shown, unit: cell.trim().slice(match![0].length).trim() };
 };
 const EMPTY = /^(?:|—|–|-|chưa có dữ liệu|không có|chưa rõ\b.*)$/iu;
 const PLATFORM = /^(?:Sàn|Nền tảng)$/u;
@@ -128,7 +134,8 @@ const ROW_PER_MEASURE = /^(?:Chỉ số|Bên báo số|Bảng)/u;
 const LABEL = /^(?:Tên|Sản phẩm|Chỉ số|Vùng|Dòng|Bên báo số|Đối tượng|Thương hiệu)/u;
 
 function cells(row: string): string[] {
-  return [...row.matchAll(/<(?:td|th)\b[^>]*>([\s\S]*?)<\/(?:td|th)>/giu)].map(match => text(match[1] ?? ''));
+  return [...row.matchAll(/<(?:td|th)\b[^>]*>([\s\S]*?)<\/(?:td|th)>/giu)]
+    .map(match => text((match[1] ?? '').replace(/<small\b[^>]*>[\s\S]*?<\/small>/giu, ' ')));
 }
 
 function rangeSentence(head: string, rows: readonly { label: string; num: Num }[]): string {
@@ -164,7 +171,10 @@ export function tableInterpretation(block: string): string {
     }
     return '';
   }
-  const incompatible = head.some((h, i) => /^(?:Phép đo|Thước đo|Đơn vị|Kỳ(?:\s|$))/u.test(h)
+  const values = rows.flatMap(row => { const num = parseNum(row[measure] ?? ''); return num ? [num] : []; });
+  // A cell can print its own unit (or several observations). Do not infer a shared scale from its heading alone.
+  if (values.some(num => /\d/u.test(num.unit.replace(/\(kỳ gốc = [\d.,]+\)/u, '')))) return '';
+  const incompatible = new Set(values.map(num => num.unit)).size > 1 || head.some((h, i) => /^(?:Phép đo|Thước đo|Đơn vị|Kỳ(?:\s|$))/u.test(h)
     && new Set(rows.map(row => row[i])).size > 1);
   if (incompatible) return `${count} Các dòng có thước đo, đơn vị hoặc kỳ khác nhau; đọc riêng từng dòng.`;
   const labelIndex = head.findIndex((h, i) => i !== measure && LABEL.test(h) && !numeric[i]);
@@ -343,5 +353,5 @@ export function deliverMarketReader(html: string, searchPoints?: readonly Search
     const chip = id === 'M02' || id === 'M13' ? '' : `<span class="state">${data ? 'Có số liệu' : 'Chưa đủ dữ liệu'}</span>`;
     return `<section class="sheet" id="${id}">${annotated.replace(/<span class="state">[^<]*<\/span>/u, chip)}</section>`;
   });
-  return head + filterReaderGlossary(body) + tail;
+  return filterReaderGlossary(head + body + tail);
 }
