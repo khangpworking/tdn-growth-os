@@ -290,7 +290,9 @@ export function figureInterpretation(block: string, searchPoints?: readonly Sear
       const peak = high !== first && high !== last ? `Đỉnh của chuỗi là ${amount(high)} (${high.label}).` : '';
       const trough = low !== first && low !== last ? `Đáy của chuỗi là ${amount(low)} (${low.label}).` : '';
       const gaps = axis && Number(axis.count) > points.length ? ` ${Number(axis.count) - points.length} mốc chưa có dữ liệu, không phải bằng không.` : '';
-      return `Hình có ${points.length} mốc có số, từ ${first.label} đến ${last.label}. ${[peak, trough].filter(Boolean).join(' ')}${gaps}`;
+      const extremes = [peak, trough].filter(Boolean).join(' ');
+      // Keep both extrema and the missing-data caveat within the three-sentence limit.
+      return `Hình có ${points.length} mốc có số, từ ${first.label} đến ${last.label}. ${gaps && peak && trough ? extremes.replace(/\.$/u, ';') : extremes}${gaps}`;
     }
     const move = last.value > first.value ? `lên ${amount(last)}, chiều tăng` : last.value < first.value ? `xuống ${amount(last)}, chiều giảm` : `và vẫn ở ${amount(last)}, đi ngang`;
     const span = points.length === 1 ? `Hình có 1 mốc (${first.label}) ở mức ${amount(first)}.`

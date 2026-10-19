@@ -30,6 +30,9 @@ import { BUSINESS_CAPTURE_DAY, BUSINESS_EXPECTED, BUSINESS_SHAPES, businessInput
 import { businessByteInput } from '../helpers/package-r-business-byte-input.js';
 import { sync1Options, sync1ReaderFixture } from '../helpers/sync1-reader-fixture.js';
 import { periodCaptures, periodInventory, periodProducts } from '../helpers/package-e-period-fixture.js';
+import { syntheticSearchInterest } from '../helpers/search-interest-synthetic.js';
+import { searchInterestChartPoints } from '../../src/modules/analysis/research-automation/search-interest.js';
+import { renderSearchInterestChart } from '../../src/modules/analysis/reader-report/market-charts.js';
 
 const text = (node: Node | null | undefined) => node?.textContent?.replace(/\s+/gu, ' ').trim() ?? '';
 const amount = (n: number) => n.toLocaleString('vi-VN');
@@ -193,6 +196,24 @@ test('M6 interior peak: P2 names 100 at 09/02, with no first-to-last rise or fal
   assert.match(reading, /(?:đỉnh|cao nhất|mức cao).*100|100.*(?:đỉnh|cao nhất|mức cao)/iu);
   assert.match(reading, /09(?:–15)?\/02(?:\/2025)?/u);
   assert.doesNotMatch(reading, /chiều tăng|chiều giảm|giá trị đi từ|mốc đầu và mốc cuối|xu hướng (?:tăng|giảm)/iu);
+});
+
+test('M6 interior peak, trough and missing point keep all evidence within three sentences', async t => {
+  const { doc } = await documentFor(t, 'P2', async input => {
+    const searchInterest = syntheticSearchInterest({ keyword: 'Sản phẩm mẫu', points: [22, 100, null, 5, 23].map((index, i) => ({
+      period: new Date(Date.UTC(2025, 0, 5 + 7 * i)).toISOString().slice(0, 10), index,
+    })) });
+    return { ...input, collection: { ...input.collection!, searchInterest },
+      searchInterestChart: await renderSearchInterestChart(searchInterestChartPoints(searchInterest)) };
+  });
+  const figure = [...section(doc, 'M05').querySelectorAll('figure')].find(node => text(node).includes('Mức quan tâm tìm kiếm'));
+  assert.ok(figure);
+  const reading = readingFor(figure);
+  assert.match(reading, /Đỉnh của chuỗi là 100 \(12–18\/01\/2025\)/u);
+  assert.match(reading, /Đáy của chuỗi là 5 \(26\/01–01\/02\/2025\)/u);
+  assert.match(reading, /1 mốc chưa có dữ liệu, không phải bằng không/u);
+  assert.ok(reading.split(/(?<=\.)\s/u).length <= 3, reading);
+  assert.doesNotMatch(reading, /chiều tăng|chiều giảm|giá trị đi từ/u);
 });
 
 test('M6 keep gates: P1 missing gap; P2 short periods; all readings avoid causal and forecast claims', async t => {
@@ -384,6 +405,16 @@ test('L16 verified receipt labels: P2 exact listing identity gets retained produ
   assert.match(text(block), /không phải số người/u);
 });
 
+test('L16 retained source titles survive receipt localization and remain escaped', async t => {
+  const title = 'Sản phẩm mẫu bundle combo pack <A> & B';
+  const { doc } = await documentFor(t, 'P2', () => businessInput('P2', { sourceTitle: title }));
+  const receipt = doc.querySelector('.test-review-sample li a');
+  assert.ok(receipt);
+  assert.equal(text(receipt), title);
+  assert.equal(receipt.querySelector('a,b,script,img'), null);
+  assert.ok([...section(doc, 'M03').querySelectorAll('[data-quote]')].some(node => text(node) === title));
+});
+
 test('L16 escaping, unsafe and unmatched fallback: five uniform receipt list items with 0/7/20', async t => {
   const { doc } = await documentFor(t, 'P2', input => {
     const withReviews = businessReviewEvidence(input, [0, 7, 20, 7, 0]);
@@ -422,7 +453,7 @@ test('L16 no-source receipt: failed source is honest without implying the produc
 
 test('L16 unsafe technical names are rejected as receipt labels', async t => {
   // Forbidden names occur only as inputs to this rejection test.
-  for (const unsafe of ['Metric', 'Kalodata', 'Apify', 'SerpApi', 'Google', 'Nemotron', 'NVIDIA']) {
+  for (const unsafe of ['Metric', 'Kalodata', 'TradeInt', 'Dami', 'Apify', 'SerpApi', 'PageIndex', 'Gemini', 'OpenCLI', 'zen-studio', 'Agent-Reach', 'Google', 'Nemotron', 'NVIDIA']) {
     // An outside-group card isolates the receipt label from inventory/table label validation.
     const { doc } = await documentFor(t, 'P3', input => ({ ...input, collection: { ...input.collection!,
       productCards: [{ productId: businessListingForTest(90), title: unsafe }] as never[] } }));
