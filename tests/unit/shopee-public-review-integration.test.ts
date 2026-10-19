@@ -296,10 +296,11 @@ test('S4 bounded corpus fallback retains exact capture/accounting and a verified
   assert.equal((await g.semantic()).publicReviewCorpusFailure, 'PUBLIC_REVIEW_CORPUS_TOO_LARGE'); assert.ok(await g.sanitizedCapture()); assert.ok(await g.accounting());
 });
 
-test('S9 independent main fixture artifact membership and bytes match candidate output exactly', async t => {
-  const baselineRoot = new URL('../fixtures/shopee-public-main/', import.meta.url);
+test('S9 fresh G-references fixture artifact membership and bytes match candidate output exactly', async t => {
+  // Fresh output at ae561389 plus the reviewed plainCaptureNumbers wording fix.
+  const baselineRoot = new URL('../fixtures/shopee-public-g-references/', import.meta.url);
   const manifest = JSON.parse(await fs.readFile(new URL('manifest.json', baselineRoot), 'utf8'));
-  assert.equal(manifest.revision, 'e10c7a720c655489e2abaa65633e133b279eba8e');
+  assert.equal(manifest.revision, 'ae561389ae9c74d882b1ff8195ce0ba455b9fb94+wording-fix');
   const decode = (bytes: Buffer): Map<string, Buffer> => new Map(JSON.parse(gunzipSync(bytes).toString()).map((r: any) => [r.name, Buffer.from(r.base64, 'base64')]));
   const reference = decode(await fs.readFile(new URL('artifacts.json.gz', baselineRoot)));
   for (const env of [{}, { TDN_RESEARCH_SHOPEE_PUBLIC_TOKEN: '\n', TDN_RESEARCH_SHOPEE_PUBLIC_BASE_URL: 'invalid', TDN_RESEARCH_SHOPEE_PUBLIC_MAX_COMMENTS_PER_PRODUCT: '01' }]) {
@@ -315,9 +316,13 @@ test('S9 independent main fixture artifact membership and bytes match candidate 
     }
   }
 });
-test('S9 retained old source replay while public runtime is enabled keeps bytes and factory untouched', async t => {
+test('S9 retained source replay while public runtime is enabled keeps same-code bytes and factory untouched', async t => {
   const f = await binding.scenario(t); const old = await f.loadLegacyBaselines(); const before = await old.allBytes();
+  const membersBefore = await old.allMembers();
   await old.setRuntime({ enabled: true }); await old.readReportsAndSources(); assert.deepEqual(await old.allBytes(), before);
+  const membersAfter = await old.allMembers();
+  assert.deepEqual([...membersAfter.keys()], [...membersBefore.keys()], 'replay adds or removes no package member');
+  for (const [name, bytes] of membersBefore) assert.deepEqual(membersAfter.get(name), bytes, `same-code replay bytes: ${name}`);
   assert.equal(old.transport.calls.length, 0); assert.equal(old.publicFactoryCalls.length, 0);
 });
 
