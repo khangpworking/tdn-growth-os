@@ -714,9 +714,21 @@ test('reader report: table 5.4 retains periods, statuses, E12 attribution and th
     values: officialStats.values.map(row => ({ ...row, sheet: 'Google OpenCLI rẻ nhất 50%' })) };
   const hidden = await buildMarketReport(data, { ...sync1Options, officialStats: unsafe });
   assert.doesNotMatch(hidden.html, /Google|OpenCLI|rẻ nhất/u);
-  const register = new JSDOM(hidden.html).window.document.querySelector('.citation-register')!.textContent!;
+  const registerNode = new JSDOM(hidden.html).window.document.querySelector('.citation-register')!;
+  const register = registerNode.textContent!;
   assert.doesNotMatch(register, /%/u);
-  assert.match(register, /Cục Thống kê, số liệu CPI tháng 9\/2026, công bố 06\/10\/2026/u, 'the short CPI citation names no stored file or sheet');
+  // Each official-statistics entry is the short label alone: nothing appended, no file, sheet or row locator.
+  const officialEntries = [...registerNode.querySelectorAll('li')]
+    .map(item => ({ label: item.querySelector('.cite-label')?.textContent ?? '', locators: item.querySelectorAll('.cite-locator').length }))
+    .filter(item => item.label.startsWith('Cục Thống kê'));
+  const cpiLabels = officialEntries.map(item => item.label).filter(label => label.startsWith('Cục Thống kê, số liệu CPI'));
+  assert.ok(cpiLabels.length > 0, 'the register lists the CPI citation');
+  assert.deepEqual([...new Set(cpiLabels)], ['Cục Thống kê, số liệu CPI tháng 9/2026, công bố 06/10/2026'], 'the short CPI citation names no stored file or sheet');
+  for (const entry of officialEntries) {
+    assert.match(entry.label, /^Cục Thống kê, số liệu [^,]+(?: tháng \d{1,2}\/\d{4})?(?:, công bố \d{2}\/\d{2}\/\d{4})?$/u, entry.label);
+    assert.equal(entry.locators, 0, `${entry.label} shows no file, sheet or row locator`);
+  }
+  assert.doesNotMatch(register, /\.xlsx|tệp số liệu đã lưu|bảng số liệu đã lưu|, dòng \d/u, 'no stored file, sheet or row reaches the register');
   assert.equal(unsafe.values[0]!.sheet, 'Google OpenCLI rẻ nhất 50%', 'source metadata stays intact');
 });
 
