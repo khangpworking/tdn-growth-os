@@ -24,20 +24,34 @@ const positive = (value: number | null | undefined): value is number => typeof v
 const sum = (values: readonly number[]): number => values.reduce((total, value) => total + value, 0);
 export const vnd = (value: number): string => Math.round(value).toLocaleString('vi-VN');
 
+/** One shared grouping basis; keep raw revenue for the legacy winning-band tie rule. */
+function priceGroups(rows: readonly ActionRow[]) {
+  const priced = rows.flatMap(row => positive(row.rev) && positive(row.units) ? [{ rev: row.rev, asp: row.rev / row.units }] : [])
+    .sort((a, b) => a.asp - b.asp || a.rev - b.rev);
+  const cuts = [0, Math.floor(priced.length / 3), Math.floor((2 * priced.length) / 3), priced.length];
+  return { eligible: priced.length, groups: priced.length < MIN_BAND_ROWS ? [] : [0, 1, 2].map(index => priced.slice(cuts[index], cuts[index + 1])) };
+}
+const priceBand = (group: readonly { rev: number; asp: number }[]): PriceBand => ({
+  low: Math.round(group[0]!.asp), high: Math.round(group[group.length - 1]!.asp), revenue: Math.round(sum(group.map(row => row.rev))), count: group.length,
+});
+
+/** The same three equal-count groups used by platformSignals, with their eligible denominator. */
+export function platformPriceBands(rows: readonly ActionRow[]): { platform: ActionPlatform; name: string; bands: PriceBand[]; eligible: number; retained: number }[] {
+  return PLATFORMS.filter(platform => rows.some(row => row.platform === platform)).map(platform => {
+    const own = rows.filter(row => row.platform === platform);
+    const { eligible, groups } = priceGroups(own);
+    const bands = groups.map(priceBand);
+    return { platform, name: NAMES[platform], bands, eligible, retained: own.length };
+  });
+}
+
 /** Per platform: the price group (of three, by revenue per unit sold) carrying the most in-sample revenue, and the high-revenue product group. */
 export function platformSignals(rows: readonly ActionRow[]): PlatformSignal[] {
   return PLATFORMS.filter(platform => rows.some(row => row.platform === platform)).map(platform => {
     const own = rows.filter(row => row.platform === platform);
-    const priced = own.flatMap(row => positive(row.rev) && positive(row.units) ? [{ rev: row.rev, asp: row.rev / row.units }] : [])
-      .sort((a, b) => a.asp - b.asp || a.rev - b.rev);
-    let band: PriceBand | null = null;
-    if (priced.length >= MIN_BAND_ROWS) {
-      const cuts = [0, Math.floor(priced.length / 3), Math.floor((2 * priced.length) / 3), priced.length];
-      const groups = [0, 1, 2].map(index => priced.slice(cuts[index], cuts[index + 1]));
-      // A tie keeps the lower price group.
-      const best = groups.reduce((top, group) => sum(group.map(row => row.rev)) > sum(top.map(row => row.rev)) ? group : top);
-      band = { low: Math.round(best[0]!.asp), high: Math.round(best[best.length - 1]!.asp), revenue: Math.round(sum(best.map(row => row.rev))), count: best.length };
-    }
+    const { groups } = priceGroups(own);
+    // A tie keeps the lower price group, using unrounded revenue.
+    const band = groups.length ? priceBand(groups.reduce((top, group) => sum(group.map(row => row.rev)) > sum(top.map(row => row.rev)) ? group : top)) : null;
     const sold = own.flatMap(row => positive(row.rev) ? [row.rev] : []).sort((a, b) => b - a);
     const top = sold.slice(0, LEADER_COUNT);
     const leaders = sold.length >= 2 ? { revenue: Math.round(sum(top)), count: top.length } : null;
@@ -78,7 +92,10 @@ export const ACTION_NOTE = 'Phương án, người phụ trách và hạn là đ
 export const QUICK_WIN_HEADING = 'Làm ngay (không tốn chi phí)';
 export const OPPORTUNITY_READING = 'Mỗi sàn đọc riêng: sản phẩm có cả doanh thu và đơn vị bán được chia theo giá thành ba nhóm gần bằng nhau về số sản phẩm, và khoảng giá ở bảng là nhóm có doanh thu lớn trong ba nhóm đó. Nhóm sản phẩm doanh thu lớn gồm tối đa năm sản phẩm của sàn đó. Hai nhóm có thể trùng sản phẩm, nên mỗi cột chỉ đọc riêng.';
 
-export function opportunityExplanation(hasFigures: boolean, reviewsCollected: boolean): string {
+export function opportunityExplanation(hasFigures: boolean, reviewsCollected: boolean, currentReader = false): string {
+  if (currentReader) return hasFigures
+    ? 'Các khoảng giá được đọc riêng từng sàn từ doanh thu và đơn vị bán trong mẫu. Các đề xuất ở Phần 12 là những bước kiểm tra kinh doanh, chờ chủ duyệt; chưa xác định khả năng sinh lời.'
+    : 'Chưa đủ dữ liệu để nêu cơ hội theo khoảng giá trong mẫu.';
   const reviews = reviewsCollected ? 'Lần chạy này đã thu đánh giá của khách; điểm khen và chê được đọc ở phương án C, Phần 12.'
     : 'Lần chạy này chưa thu đánh giá của khách, nên chưa biết khách chưa hài lòng ở điểm nào.';
   return (hasFigures
@@ -87,10 +104,32 @@ export function opportunityExplanation(hasFigures: boolean, reviewsCollected: bo
 }
 
 /** Three options (A–C) with in-sample related revenue per platform, plus quick wins; dates count from `startDay` (yyyy-mm-dd). */
-export function marketActionPlan(rows: readonly ActionRow[], { reviewsCollected, startDay }: { reviewsCollected: boolean; startDay: string | null }): MarketActionPlan {
-  const signals = platformSignals(rows);
+export function marketActionPlan(rows: readonly ActionRow[], { reviewsCollected, startDay, currentReader = false }: { reviewsCollected: boolean; startDay: string | null; currentReader?: boolean }): MarketActionPlan {
+  const signals = platformSignals(rows).map(signal => currentReader && signal.band && (signal.band.low <= 0 || signal.band.high <= 0)
+    ? { ...signal, band: null } : signal);
   const day = actionStartDay(startDay);
   const deadline = (days: number): string => day === null ? 'Chưa có ngày bắt đầu hợp lệ' : dayPlus(day, days);
+  if (currentReader) {
+    const related = signals.length ? signals.map(({ name, band }) => band
+      ? `${name}: khoảng giá ${vnd(band.low)}–${vnd(band.high)} VND mỗi đơn vị bán; ${band.count} sản phẩm, doanh thu nhóm ${vnd(band.revenue)} VND`
+      : `${name}: chưa đủ dữ liệu giá để xác định khoảng giá`) : ['Chưa đủ dữ liệu giá để xác định khoảng giá theo sàn'];
+    const options: ActionOption[] = [
+      { name: 'A. Kiểm tra mức giá dự kiến trong khoảng giá của mẫu', related,
+        firstStep: 'Đối chiếu mức giá dự kiến với khoảng giá cùng sàn; trình chủ duyệt trước khi thay đổi giá',
+        owner: 'Chủ dự án (đề xuất, chờ chủ duyệt)', deadline: deadline(7) },
+      { name: 'B. Kiểm tra quy cách chào bán trong khoảng giá của mẫu', related,
+        firstStep: 'Đối chiếu quy cách đã xác minh của tối đa năm sản phẩm cùng sàn và khoảng giá; trình chủ duyệt quy cách cần xem xét',
+        owner: 'TDN chuẩn bị; chủ dự án duyệt (đề xuất, chờ chủ duyệt)', deadline: deadline(7) },
+      { name: 'C. Kiểm tra điều kiện bán trong khoảng giá của mẫu', related,
+        firstStep: 'Đối chiếu điều kiện giao hàng và đổi trả đã lưu của tối đa năm sản phẩm cùng sàn và khoảng giá; trình chủ duyệt điều kiện cần xem xét',
+        owner: 'TDN chuẩn bị; chủ dự án duyệt (đề xuất, chờ chủ duyệt)', deadline: deadline(14) },
+    ];
+    const quickWins: QuickWin[] = [
+      { task: 'Kiểm tra mức giá dự kiến cho một quy cách đã xác minh', owner: 'Chủ dự án (đề xuất, chờ chủ duyệt)', deadline: deadline(3), output: 'Một mức giá để chủ xem xét; chưa áp dụng thay đổi' },
+      { task: 'Kiểm tra một điều kiện giao hàng hoặc đổi trả dự kiến', owner: 'Chủ dự án (đề xuất, chờ chủ duyệt)', deadline: deadline(3), output: 'Một điều kiện bán để chủ xem xét; chưa áp dụng thay đổi' },
+    ];
+    return { signals, options, quickWins, hasFigures: signals.some(signal => signal.band !== null) };
+  }
   const bandLines = signals.map(({ name, band }) => band
     ? `${name}: ${vnd(band.revenue)} VND từ ${band.count} sản phẩm giá ${vnd(band.low)}–${vnd(band.high)} VND mỗi đơn vị bán`
     : `${name}: chưa đủ dòng có cả doanh thu và đơn vị bán`);
