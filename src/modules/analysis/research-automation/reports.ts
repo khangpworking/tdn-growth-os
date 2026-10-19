@@ -10,7 +10,7 @@ import { privateReviewReportView } from './private-review-contracts.js';
 import type { PrivateReviewReportView } from '../../../../contracts/analysis/private-review-report-view.generated.js';
 import type { AutomationMarketPresentationMethod } from '../../../../contracts/analysis/automation-market-presentation-method.generated.js';
 import { verifyAutomationMarketPresentation } from './market-presentation-method.js';
-import { marketChartSource, renderAutomationMarketFindings, renderAutomationMarketUnitPrices, renderCaptureSampleCharts } from './market-presentation-report.js';
+import { marketChartSource, renderAutomationMarketFindings, renderAutomationMarketUnitPrices, renderCaptureSampleCharts, type MarketHeadline } from './market-presentation-report.js';
 import { admitWebResults, checkSourceEvidence } from './source-evidence.js';
 import { collectionWebRows, expandedSearchReaderLabel, EXPANDED_SEARCH_COLUMN, EXPANDED_SEARCH_LABEL, EXPANDED_SEARCH_NOTE } from './expanded-search-lane.js';
 import { MARKET_READER_TERMS } from './market-reader-glossary.js';
@@ -71,7 +71,7 @@ import { platIcons } from '../reader-report/layout.js';
 import { ACTION_LEAD, ACTION_NOTE, OPPORTUNITY_HEADINGS, OPPORTUNITY_READING, OPTION_HEADINGS, QUICK_WIN_HEADING, QUICK_WIN_HEADINGS, actionStartDay, marketActionPlan, opportunityExplanation, opportunityRows, type ActionRow, type MarketActionPlan } from '../reader-report/market-actions.js';
 import { deliverMarketReader, marketReaderGuide } from './market-reader-delivery.js';
 import { plainCaptureNumbers } from '../reader-report/format.js';
-import { UNKNOWN_SHOP, marketChartRows, marketShopsUnrecorded, type CaptureCountChart, type MarketChart } from '../reader-report/market-charts.js';
+import { UNKNOWN_SHOP, marketChartRows, marketShares, marketShopsUnrecorded, type CaptureCountChart, type MarketChart } from '../reader-report/market-charts.js';
 import type { RenderedChart } from '../reader-report/flint.js';
 import { comtradeChartCount, worldBankChartCount, type MacroChart } from '../reader-report/macro-charts.js';
 import { pdfDiscoverySourceRows, pdfExcerptBlockHtml, pdfExcerptReaderCitation, PDF_EXCERPT_NOTE, PDF_EXCERPT_SECTION, PDF_EXCERPT_SRC } from './pdf-excerpt.js';
@@ -655,6 +655,25 @@ function marketActionStartDay(input: AutomationReportInput): string | null {
     input.marketPresentation?.input.metric?.input.scope.end);
 }
 
+const marketReviewsCollected = (input: AutomationReportInput): boolean =>
+  Boolean(input.nativeReview || input.reviewCorpus || exactTestReviewSample(input)?.listings.some(row => row.reviews > 0));
+
+/** Phần 1 figures, each from the function behind its exhibit: Hình 4.1/4.2 shares, Bảng 11.1 price groups, Hình 5.2 weeks, Phần 12 options. */
+function marketHeadline(input: AutomationReportInput, presentation: AutomationMarketPresentationMethod): MarketHeadline {
+  const drawn = (chartKind: MarketChart['kind']): boolean => Boolean(input.marketPresentationCharts?.some(chart => chart.kind === chartKind));
+  const rows = marketActionRows(input, presentation.input.rows), plan = marketActionPlan(rows, { reviewsCollected: marketReviewsCollected(input), startDay: marketActionStartDay(input) });
+  const interest = input.collection?.searchInterest;
+  const weeks = searchInterestRenderable(interest) && input.searchInterestChart
+    ? searchInterestReadingPoints(interest).flatMap(point => point.index === null ? [] : [{ period: point.period, index: point.index }]) : [];
+  const peak = weeks.reduce<(typeof weeks)[number] | undefined>((top, week) => top && top.index >= week.index ? top : week, undefined);
+  return {
+    shares: drawn('platform-revenue') ? marketShares(marketChartSource(presentation.input.rows, input.metricMethods).rows).map(share => drawn('concentration') ? share : { ...share, shops: null }) : [],
+    bands: plan.signals.flatMap(signal => signal.band ? [{ ...signal, n: rows.filter(row => row.platform === signal.platform).length }] : []),
+    search: peak && peak.index > 0 ? { ...peak, weeks: weeks.length } : null,
+    options: plan.hasFigures,
+  };
+}
+
 function marketActionTable(no: string, title: string, extraClass: string, headings: readonly string[], rows: readonly (readonly string[])[], attributes = ''): string {
   return `<div class="table-wrap${extraClass}"><div class="exh"><span class="exn">Bảng ${no}</span><span class="ext">${escape(title)}</span></div><table${attributes}><caption>${escape(title)}</caption>` +
     `<thead><tr>${headings.map(heading => `<th scope="col">${escape(heading)}</th>`).join('')}</tr></thead>` +
@@ -910,7 +929,8 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     }
     if (marketPresentation && (section.sectionId === 'M01' || section.sectionId === 'M08')) {
       locatedViews.set(section.sectionId, () => section.sectionId === 'M01'
-        ? renderAutomationMarketFindings(marketPresentation, citations, readerPlainText, input.metricMethods?.capture) : renderAutomationMarketUnitPrices(marketPresentation, citations, readerPlainText, Boolean(input.marketInventory?.quotes.input.quotes.length)));
+        ? renderAutomationMarketFindings(marketPresentation, citations, readerPlainText, input.metricMethods?.capture,
+          readerPlainText && input.metricMethods?.capture ? marketHeadline(input, marketPresentation) : undefined) : renderAutomationMarketUnitPrices(marketPresentation, citations, readerPlainText, Boolean(input.marketInventory?.quotes.input.quotes.length)));
       return { sectionId: section.sectionId, title: section.title, state: 'EVIDENCE_INVENTORY', rows: [],
         method: marketPresentation.methodVersion,
         explanation: section.sectionId === 'M01' ? 'Nhận định chỉ mô tả dữ liệu đã lưu trong phạm vi khai báo.'
@@ -918,7 +938,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     }
     // Phần 11/12 are built from the sample rows alone: per-platform figures, proposals awaiting the owner, no AI text.
     if (marketPresentation && (section.sectionId === 'M11' || section.sectionId === 'M12')) {
-      const reviewsCollected = Boolean(input.nativeReview || input.reviewCorpus || exactTestReviewSample(input)?.listings.some(row => row.reviews > 0));
+      const reviewsCollected = marketReviewsCollected(input);
       const plan = marketActionPlan(marketActionRows(input, marketPresentation.input.rows), { reviewsCollected, startDay: marketActionStartDay(input) });
       locatedViews.set(section.sectionId, () => section.sectionId === 'M11' ? marketOpportunitySection(plan, reviewsCollected) : marketActionSection(plan));
       return { sectionId: section.sectionId, title: section.title, state: 'EVIDENCE_INVENTORY', rows: [], method: marketPresentation.methodVersion,
