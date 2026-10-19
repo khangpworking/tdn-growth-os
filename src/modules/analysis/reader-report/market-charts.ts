@@ -8,7 +8,7 @@ import { sp } from './format.js';
 import { barChart, lineChart } from './svg-charts.js';
 
 export type MarketChartPlatform = 'shopee' | 'tiktok';
-export type MarketChartRow = { readonly i: number; readonly platform: string; readonly shop: string; readonly title?: string; readonly rev: number | null | undefined };
+export type MarketChartRow = { readonly i: number; readonly platform: string; readonly shop: string; readonly title?: string; readonly ref?: string; readonly rev: number | null | undefined };
 export type MarketChartKind = 'concentration' | 'platform-revenue' | 'product-ranking';
 export type MarketChart = RenderedChart & { id: string; kind: MarketChartKind; title: string; unit: string; note: string };
 
@@ -19,6 +19,39 @@ export const TOP_GROUPS = [1, 3, 5, 10] as const;
 const RANKED_ROWS = 10;
 /** Shop value of a sales row whose source did not record its shop. */
 export const UNKNOWN_SHOP = '(không ghi)';
+/** Current reader: header of the visible row-ref column of each platform's capture sample table. */
+export const CAPTURE_ROW_REF_HEADER = 'Mã dòng';
+/** Current reader: the one count unit used by the sample, price and period tables. */
+export const CAPTURE_UNIT_TERM = 'đơn vị bán';
+/** Stable machine ref of a capture sample row (per platform, 1-based). */
+export const captureRowRef = (platform: string, index: number): string => `${platform}:${index + 1}`;
+/** Visible ref of a capture sample row, the same text in its table, its chart label and its interpretation. */
+export const captureRowRefLabel = (index: number): string => `Dòng ${index + 1}`;
+/** Current reader: longest product alias drawn on the ranking chart; the exact title stays in the sample table. */
+export const RANKING_ALIAS_MAX = 40;
+/** Current reader: most labelled ticks on a weekly search axis, first and last included. */
+export const SEARCH_AXIS_LABEL_MAX = 13;
+const rankingAlias = (title: string): string => title.length > RANKING_ALIAS_MAX ? title.slice(0, RANKING_ALIAS_MAX - 1) + '…' : title;
+
+/**
+ * Current reader only: keeps at most max evenly spaced x-axis labels (first and last included) of a drawn
+ * discrete-axis line chart. Every point stays plotted; only label text is dropped. Other SVG is returned unchanged.
+ */
+export function thinSearchAxisLabels(svg: string, max: number = SEARCH_AXIS_LABEL_MAX): string {
+  const axis = svg.search(/aria-label="X-axis for a discrete scale/u);
+  if (axis < 0) return svg;
+  const start = svg.indexOf('<g class="mark-text role-axis-label"', axis);
+  if (start < 0) return svg;
+  const end = svg.indexOf('</g>', start);
+  if (end < 0) return svg;
+  const group = svg.slice(start, end), texts = group.match(/<text\b[^>]*>[^<]*<\/text>/gu) ?? [];
+  const n = texts.length;
+  if (n <= max) return svg;
+  const keep = new Set(Array.from({ length: max }, (_, j) => Math.round(j * (n - 1) / (max - 1))));
+  let k = 0;
+  const thinned = group.replace(/<text\b[^>]*>[^<]*<\/text>/gu, text => keep.has(k++) ? text : '');
+  return svg.slice(0, start) + thinned + svg.slice(end);
+}
 
 /** Rows a chart may use: platforms whose every row has a revenue and whose in-sample total is above zero. */
 export function marketChartRows<R extends MarketChartRow>(rows: readonly R[]): (R & { readonly platform: MarketChartPlatform })[] {
@@ -71,6 +104,23 @@ export const keepOrder = (field: string, order: readonly string[]) => (spec: any
   };
   walk(spec);
 };
+/** Current reader: keeps a labelled legend on the colour series even when only one series is drawn. */
+export const labelSeries = (field: string, title: string, shown: readonly string[]) => (spec: any): void => {
+  const walk = (node: any): void => {
+    if (!node || typeof node !== 'object') return;
+    const color = node.encoding?.color;
+    if (color?.field === field && !node.__themeSynthetic) {
+      color.legend = { title };
+      // The legend lists only the series drawn: a platform left out of the chart is not named.
+      if (Array.isArray(color.scale?.domain)) {
+        const keep: [string, unknown][] = color.scale.domain.map((k: string, i: number): [string, unknown] => [k, color.scale.range?.[i]]).filter(([k]: [string, unknown]) => shown.includes(k));
+        color.scale = { ...color.scale, domain: keep.map(([k]) => k), range: keep.map(([, v]) => v) };
+      }
+    }
+    for (const value of Object.values(node)) walk(value);
+  };
+  walk(spec);
+};
 const one = (v: number): string => sp(v.toFixed(1));
 
 /**
@@ -79,8 +129,8 @@ const one = (v: number): string => sp(v.toFixed(1));
  * `sampleNote` is appended to every chart note when the rows are a limited list.
  * Returns no chart when no platform has a complete, non-zero in-sample revenue.
  */
-export async function renderMarketCharts(rows: readonly MarketChartRow[], { flint = true, rowNumber = row => row.i + 1, rowListNote = 'số dòng là thứ tự dòng trong dữ liệu bán hàng đã lưu', sampleNote = '', titleLabels = false }: {
-  flint?: boolean; titleLabels?: boolean; rowNumber?: (row: MarketChartRow) => number; rowListNote?: string; sampleNote?: string;
+export async function renderMarketCharts(rows: readonly MarketChartRow[], { flint = true, rowNumber = row => row.i + 1, rowListNote = 'số dòng là thứ tự dòng trong dữ liệu bán hàng đã lưu', sampleNote = '', titleLabels = false, currentReader = false }: {
+  flint?: boolean; titleLabels?: boolean; currentReader?: boolean; rowNumber?: (row: MarketChartRow) => number; rowListNote?: string; sampleNote?: string;
 } = {}): Promise<MarketChart[]> {
   const usable = marketChartRows(rows);
   if (!usable.length) return [];
@@ -100,14 +150,16 @@ export async function renderMarketCharts(rows: readonly MarketChartRow[], { flin
   const cats = groups.map(groupLabel);
   const values = shopPlats.flatMap(P => groups.flatMap((k, j) => shares[P][j] === null ? [] : [{ nhom: groupLabel(k), san: LABEL[P], ty_trong: +shares[P][j]!.toFixed(1) }]));
   const leftOutNote = leftOut.length ? ` ${leftOut.map(P => LABEL[P]).join(' và ')}: nguồn không ghi gian hàng cho từng sản phẩm nên không tính mức tập trung.` : '';
-  if (shopPlats.length) out.push({ id: 'market.concentration', kind: 'concentration', title: 'Mức tập trung doanh thu theo gian hàng, từng sàn', unit: titleLabels ? 'phần trăm doanh thu trong mẫu của từng sàn' : '% doanh thu trong mẫu của từng sàn',
+  const concentrationTitle = currentReader ? `Mức tập trung doanh thu theo gian hàng, ${shopPlats.map(P => LABEL[P]).join(' và ')}` : 'Mức tập trung doanh thu theo gian hàng, từng sàn';
+  if (shopPlats.length) out.push({ id: 'market.concentration', kind: 'concentration', title: concentrationTitle, unit: titleLabels ? 'phần trăm doanh thu trong mẫu của từng sàn' : '% doanh thu trong mẫu của từng sàn',
     note: 'Mỗi sàn tính riêng trên doanh thu trong mẫu của sàn đó; gian hàng sắp theo doanh thu giảm dần. Chỉ phản ánh các gian hàng trong mẫu, không nói về cả thị trường.' + leftOutNote + sampleNote,
     ...await draw({
       data: { values },
       semantic_types: { nhom: 'Category', san: 'Category', ty_trong: 'Number' },
       field_display_names: { nhom: ' ', san: 'Sàn', ty_trong: titleLabels ? 'Tỷ trọng doanh thu trong mẫu (phần trăm)' : 'Tỷ trọng doanh thu trong mẫu (%)' },
       chart_spec: { chartType: 'Grouped Bar Chart', encodings: { y: 'nhom', x: 'ty_trong', group: 'san' }, chartProperties: { showValueLabels: true }, baseSize: { width: 560, height: Math.max(200, cats.length * 44) } },
-    } as FlintChartInput, () => barChart(cats, shopPlats.map(P => ({ name: LABEL[P], values: shares[P].map(v => v ?? 0), color: COLOR[P] })), { fmt: v => one(v) + (titleLabels ? ' phần trăm' : '%') }), keepOrder('nhom', cats)) });
+    } as FlintChartInput, () => barChart(cats, shopPlats.map(P => ({ name: LABEL[P], values: shares[P].map(v => v ?? 0), color: COLOR[P] })), { fmt: v => one(v) + (titleLabels ? ' phần trăm' : '%') }),
+    currentReader ? (spec: any) => { keepOrder('nhom', cats)(spec); labelSeries('san', 'Sàn', shopPlats.map(P => LABEL[P]))(spec); } : keepOrder('nhom', cats), currentReader ? true : undefined) });
 
   // 2. Revenue by platform: one labelled bar per platform, never summed across platforms.
   const millions = (revenue: number): number => titleLabels ? revenue / 1e6 : +(revenue / 1e6).toFixed(1);
@@ -125,7 +177,9 @@ export async function renderMarketCharts(rows: readonly MarketChartRow[], { flin
 
   // 3. Leading product rows by in-sample revenue, labelled by their source row number.
   const ranked = marketRankedRows(rows);
-  const rowLabel = (row: MarketChartRow & { readonly platform: MarketChartPlatform }): string => titleLabels && row.title ? `${row.title.length > 64 ? row.title.slice(0, 61) + '…' : row.title} · ${LABEL[row.platform]} · ${rowNumber(row)}` : `Dòng ${rowNumber(row)}`;
+  const rowLabel = (row: MarketChartRow & { readonly platform: MarketChartPlatform }): string => currentReader && row.ref
+    ? (row.title ? `${rankingAlias(row.title)} · ${LABEL[row.platform]} · ${row.ref}` : `${LABEL[row.platform]} · ${row.ref}`)
+    : titleLabels && row.title ? `${row.title.length > 64 ? row.title.slice(0, 61) + '…' : row.title} · ${LABEL[row.platform]} · ${rowNumber(row)}` : `Dòng ${rowNumber(row)}`;
   const rankedValues = ranked.map(row => ({ dong: rowLabel(row), san: LABEL[row.platform], doanh_thu: millions(row.rev!) }));
   const order = rankedValues.map(row => row.dong);
   out.push({ id: 'market.product-ranking', kind: 'product-ranking', title: 'Sản phẩm có doanh thu cao trong mẫu', unit: 'triệu đồng, ước tính trong mẫu',
@@ -134,7 +188,7 @@ export async function renderMarketCharts(rows: readonly MarketChartRow[], { flin
       data: { values: rankedValues },
       semantic_types: { dong: 'Category', san: 'Category', doanh_thu: 'Number' },
       field_display_names: { dong: ' ', san: 'Sàn', doanh_thu: 'Doanh thu trong mẫu (triệu đồng)' },
-      chart_spec: { chartType: 'Bar Chart', encodings: { y: 'dong', x: 'doanh_thu', color: 'san' }, chartProperties: { showValueLabels: true }, baseSize: { width: 560, height: Math.max(160, ranked.length * 30) } },
+      chart_spec: { chartType: 'Bar Chart', encodings: { y: 'dong', x: 'doanh_thu', color: 'san' }, chartProperties: { showValueLabels: true }, baseSize: { width: 560, height: currentReader ? Math.max(160, ranked.length * 36) : Math.max(160, ranked.length * 30) } },
     } as FlintChartInput, () => barChart(order, plats.map(P => ({ name: LABEL[P], values: ranked.map(row => row.platform === P ? row.rev! / 1e6 : 0), color: COLOR[P] })), { stacked: true, fmt: revenueLabel }),
     keepOrder('dong', order)) });
   return out;

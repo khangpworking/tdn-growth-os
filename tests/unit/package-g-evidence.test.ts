@@ -84,7 +84,8 @@ const text = (node: Node | null | undefined) => (node?.textContent ?? '').replac
 const cells = (row: Element) => [...row.querySelectorAll('td')].map(text);
 function table(doc: Document, marker: string): HTMLTableElement | undefined {
   return [...doc.querySelectorAll('table')].find(node => node.getAttribute('aria-label') === marker || text(node.querySelector('caption')) === marker
-    || text(node.querySelector('caption')).includes(marker));
+    || text(node.querySelector('caption')).includes(marker)
+    || (node.getAttribute('aria-labelledby') ?? '').split(/\s+/u).some(id => text(doc.getElementById(id)?.querySelector('.ext')).includes(marker)));
 }
 function needTable(doc: Document, marker: string): HTMLTableElement {
   const node = table(doc, marker); assert.ok(node, `missing table: ${marker}`); return node;

@@ -114,7 +114,7 @@ test('market14: an automatic PDF attempt without excerpts shows a plain source r
   const on = { ...input, collection: { ...input.collection!, pdfDiscovery: discovery } };
   const offHtml = buildResearchAutomationReport(input, 'MARKET').html.toString();
   const html = buildResearchAutomationReport(on, 'MARKET').html.toString();
-  const dom = new JSDOM(html);
+  const dom = new JSDOM(html, { includeNodeLocations: true });
   const rows = [...dom.window.document.querySelectorAll('.market14-sources tr')].filter(row => row.firstElementChild?.textContent === 'Tài liệu ngành dạng PDF');
   assert.equal(rows.length, 1);
   assert.equal(rows[0]!.lastElementChild?.textContent, 'Chưa tìm thấy tài liệu phù hợp trong lượt này.');
@@ -122,7 +122,20 @@ test('market14: an automatic PDF attempt without excerpts shows a plain source r
   const pdfDefinition = '<tr><td>PDF</td><td>định dạng tài liệu giữ nguyên bố cục</td></tr>';
   assert.ok(html.includes(pdfDefinition), 'M21: authored PDF status label requires its definition');
   assert.ok(!offHtml.includes(pdfDefinition), 'M21: unused PDF term adds no glossary row');
-  assert.equal(html.replace(/<table><caption>Trạng thái tài liệu ngành<\/caption>[\s\S]*?<\/table>/u, '').replace(pdfDefinition, ''), offHtml);
+  // M8: the optional status table is PL.1 and shifts the glossary by one.
+  // Remove only that table/definition and undo only the required glossary relabel.
+  const statusTable = rows[0]!.closest('table')!;
+  assert.equal(statusTable.querySelector('caption .ext')?.textContent, 'Trạng thái tài liệu ngành');
+  assert.equal(statusTable.querySelector('.exn')?.textContent, 'Bảng PL.1');
+  const glossary = dom.window.document.querySelector('table[data-glossary]')!;
+  assert.equal(dom.window.document.getElementById(glossary.getAttribute('aria-labelledby')!)?.querySelector('.exn')?.textContent, 'Bảng PL.2');
+  assert.ok(offHtml.includes('data-exhibit-no="PL.1">Bảng PL.1'), 'without status the glossary is the first visible appendix table');
+  const location = dom.nodeLocation(statusTable)!;
+  assert.ok(location && location.endOffset > location.startOffset);
+  const withoutStatus = (html.slice(0, location.startOffset) + html.slice(location.endOffset)).replace(pdfDefinition, '')
+    .replace(/((?:id|aria-labelledby)="exh-pl-b)2"/gu, (_all, prefix: string) => `${prefix}1"`)
+    .replace('data-exhibit-no="PL.2">Bảng PL.2', 'data-exhibit-no="PL.1">Bảng PL.1');
+  assert.equal(withoutStatus, offHtml);
   assert.doesNotThrow(() => assertMarketBusinessGate(html, { presentation: true }));
   assert.doesNotThrow(() => assertMarket14MachineRules(html));
   assert.deepEqual(providerNameViolations(html), []);

@@ -31,7 +31,7 @@ test('M06 trade table and both macro charts alone are national background', asyn
       assert.equal(supply.querySelectorAll('table[data-exhibit-scope="national"]').length, 1);
       assert.equal(supply.querySelectorAll('figure.market-chart[data-exhibit-scope="national"]').length, 2);
       assert.equal(supply.querySelectorAll('table:not([data-exhibit-scope]), figure:not([data-exhibit-scope])').length, 0);
-      assert.match(text(supply), /Bảng 6\.2/u);
+      assert.match(text(supply), doc === reader ? /Bảng 6\.1/u : /Bảng 6\.2/u);
     }
     assert.equal(gap(trace, 'M06'), '1');
   });
@@ -52,7 +52,7 @@ test('M05 tables 5.3, 5.4, 5.5 and macro charts alone are national background', 
     assert.equal(badge(reader, 'M05'), 'Chỉ có số liệu nền cả nước');
     for (const doc of [reader, trace]) {
       const demand = section(doc, 'M05');
-      for (const exhibit of ['Bảng 5.3', 'Bảng 5.4', 'Bảng 5.5']) {
+      for (const exhibit of doc === reader ? ['Bảng 5.1', 'Bảng 5.2', 'Bảng 5.3'] : ['Bảng 5.3', 'Bảng 5.4', 'Bảng 5.5']) {
         const label = [...demand.querySelectorAll('.exn')].find(node => text(node) === exhibit);
         assert.ok(label, exhibit);
         assert.equal(label.closest('.table-wrap')!.querySelector('table')!.getAttribute('data-exhibit-scope'), 'national');
@@ -95,7 +95,7 @@ test('M09 launch-only rows have dated title, platform, partial note and partial 
   const input = await sectionBadgeInput('background');
   inspect(input, (reader, trace) => {
     const events = section(reader, 'M09');
-    assert.equal(events.querySelector('caption')!.textContent, 'Sự kiện do nguồn nêu, từ 01/01/2026 đến 30/01/2026');
+    assert.equal(events.querySelector('caption')!.textContent, 'Bảng 9.1: Sự kiện do nguồn nêu, từ 01/01/2026 đến 30/01/2026');
     assert.deepEqual([...events.querySelectorAll('thead th')].map(text), ['Sản phẩm', 'Sàn', 'Sự kiện', 'Ngày', 'Nguồn']);
     assert.equal(events.querySelector('tbody td')!.textContent, badgeProducts.background.title);
     assert.equal(text(events.querySelector('tbody td:nth-child(2)')!), 'TikTok Shop');

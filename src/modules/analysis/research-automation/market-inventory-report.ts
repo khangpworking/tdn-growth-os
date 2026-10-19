@@ -172,7 +172,8 @@ function readerPeriodSection(snapshot: AutomationMarketMethodSnapshot, trace: Tr
     const period = windowText(row.window) + (days === null ? '' : `; kỳ chưa đủ (${days} ngày)`) + beyondSample;
     return `<tr${days === null ? '' : ' data-period-incomplete="true"'}>${platformColumn ? `<td>${escape(readerPlatform(snapshot, reader!, row.keys))}</td>` : ''}<td>${escape(names.label(row.keys))}</td><td>${escape(period)}</td>${values}<td>${marks(row.observations.map(observation => observation.source), trace)}</td></tr>`;
   }).join('');
-  const headers = measures.map(measure => `<th>${escape(capitalized(readerMeasureName(measure)))}${vnd.has(measure) ? ' (VND)' : ''}</th>`).join('');
+  // Current reader: each measure states its unit once, in the header; count measures use the one sold-unit term.
+  const headers = measures.map(measure => `<th>${escape(capitalized(readerMeasureName(measure)))}${vnd.has(measure) ? ' (VND)' : reader && (measure === 'sales_volumn' || measure === 'sales_volume') ? ' (đơn vị bán)' : ''}</th>`).join('');
   return '<p class="warning">Mỗi dòng là một kỳ đo riêng của một sản phẩm được chọn. Không cộng các kỳ thành tổng năm, không tính tăng trưởng và không gọi đây là quy mô thị trường.</p>' +
     (reader ? `<p>${escape(selectionText(reader, [...new Set(rows.flatMap(row => row.keys))]))}</p>` : '') +
     `<div class="table-wrap" role="region" aria-label="Số liệu theo kỳ của sản phẩm được chọn" tabindex="0"><table${reader ? ' data-market-periods="true"' : ''}><caption>Số liệu theo từng kỳ đo của các sản phẩm được chọn</caption><thead><tr>${platformColumn ? '<th>Sàn</th>' : ''}<th>Sản phẩm</th><th>Kỳ đo</th>${headers}<th>Nguồn</th></tr></thead><tbody>${body || `<tr><td colspan="${3 + measures.length + Number(platformColumn)}">Chưa có số liệu theo kỳ dùng được.</td></tr>`}</tbody></table></div>` +
@@ -257,7 +258,7 @@ function latestReaderPrices(snapshot: AutomationMarketMethodSnapshot, trace: Tra
   const basisNote = bases.length ? sharedBasis ? ` Tất cả sản phẩm: ${bases[0]!.basis}.`
     : ` Bản thu giữ lại của từng sản phẩm: ${bases.map(row => `${row.label}: ${row.basis}`).join('; ')}.` : '';
   return '<p class="warning">Chưa rõ phiên bản, combo hay điều kiện giá.</p>' +
-    `<div class="table-wrap" role="region" aria-label="Giá tham khảo của từng sản phẩm" tabindex="0"><table data-market-prices="${readable ? 'reference' : 'unavailable'}"><caption>Giá tham khảo của từng sản phẩm (VND)</caption><thead><tr>${platformColumn ? '<th>Sàn</th>' : ''}<th>Sản phẩm</th><th>Giá bình quân do nguồn tính (ước tính)</th><th>Khoảng giá nguồn (VND)</th><th>Nguồn</th></tr></thead><tbody>${rows || `<tr><td colspan="${4 + Number(platformColumn)}">Chưa có giá đọc được</td></tr>`}</tbody></table></div>` +
+    `<div class="table-wrap" role="region" aria-label="Giá tham khảo của từng sản phẩm" tabindex="0"><table data-market-prices="${readable ? 'reference' : 'unavailable'}"><caption>Giá tham khảo của từng sản phẩm</caption><thead><tr>${platformColumn ? '<th>Sàn</th>' : ''}<th>Sản phẩm</th><th>Giá bình quân do nguồn tính, ước tính (VND)</th><th>Khoảng giá nguồn (VND)</th><th>Nguồn</th></tr></thead><tbody>${rows || `<tr><td colspan="${4 + Number(platformColumn)}">Chưa có giá đọc được</td></tr>`}</tbody></table></div>` +
     `<p class="lim"><b>Chú thích:</b> Mỗi sản phẩm giữ lần thu sau cùng. Giá bình quân là số nguồn tính, chưa xác minh; chưa dùng để tính giá vốn hoặc lợi nhuận.${escape(basisNote)}${missingRange ? ' Dấu “—” cho biết chưa có khoảng giá nguồn dùng được.' : ''}</p>`;
 }
 

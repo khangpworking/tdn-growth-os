@@ -187,9 +187,9 @@ test('Phần 1 search peak uses the first highest completed week and only weeks 
   const { dom, section } = reader({ ...input, collection: { ...input.collection!, searchInterest },
     searchInterestChart: await renderSearchInterestChart(searchInterestChartPoints(searchInterest)) });
   try {
-    assert.equal(statement(finding(section, 'Hình 5.2')),
+    assert.equal(statement(finding(section, 'Hình 5.1')),
       'Mức quan tâm tìm kiếm của từ khóa cao ở tuần 19–25/10/2025, chỉ số 100 trên thang 0–100; đây là chỉ số tương đối, không phải số người tìm hay doanh số (n = 50 tuần có số).');
-    assert.equal(finding(section, 'Hình 5.2').querySelector('sup.cite'), null);
+    assert.equal(finding(section, 'Hình 5.1').querySelector('sup.cite'), null);
   } finally { dom.window.close(); }
 });
 
@@ -197,21 +197,21 @@ test('Phần 1 omits the search peak when its index is zero', async () => {
   const input = await headlineInput();
   const searchInterest = { ...input.collection!.searchInterest!, points: input.collection!.searchInterest!.points.map(point => ({ ...point, index: 0 })) };
   const { dom, section } = reader({ ...input, collection: { ...input.collection!, searchInterest } });
-  try { assert.equal(hasExhibit(section, 'Hình 5.2'), false); } finally { dom.window.close(); }
+  try { assert.equal(hasExhibit(section, 'Hình 5.1'), false); } finally { dom.window.close(); }
 });
 
 test('Phần 1 omits the search peak when there is no renderable series', async () => {
   const input = await headlineInput();
   const searchInterest = { ...input.collection!.searchInterest!, points: [] };
   const { dom, section } = reader({ ...input, collection: { ...input.collection!, searchInterest } });
-  try { assert.equal(hasExhibit(section, 'Hình 5.2'), false); } finally { dom.window.close(); }
+  try { assert.equal(hasExhibit(section, 'Hình 5.1'), false); } finally { dom.window.close(); }
 });
 
 test('Phần 1 omits the search peak when every week is missing', async () => {
   const input = await headlineInput();
   const searchInterest = { ...input.collection!.searchInterest!, points: input.collection!.searchInterest!.points.map(point => ({ ...point, index: null })) };
   const { dom, section } = reader({ ...input, collection: { ...input.collection!, searchInterest } });
-  try { assert.equal(hasExhibit(section, 'Hình 5.2'), false); } finally { dom.window.close(); }
+  try { assert.equal(hasExhibit(section, 'Hình 5.1'), false); } finally { dom.window.close(); }
 });
 
 test('Phần 1 points to Phần 12 when the plan has figures', async () => {

@@ -75,7 +75,7 @@ test('prices use one latest capture per product, with labels and platform, valid
   assert.equal(visible.split(caveat).length - 1, 1);
   assert.doesNotMatch(visible, banned);
   assert.doesNotMatch(visible, /(?:^|\s)0(?:\s|$)|0 VND|#\d|374\.467|52\.000/u);
-  assert.match(visible, /Giá bình quân do nguồn tính \(ước tính\)/u);
+  assert.match(visible, /Giá bình quân do nguồn tính, ước tính \(VND\)/u);
   const reading = doc.querySelector('.interp')!;
   assert.ok(reading.querySelector('sup.cite'), 'interpretation carries the price sources');
   assert.doesNotMatch(reading.textContent!, /mức thấp là 0\b/u);
@@ -219,8 +219,8 @@ test('reader digests pin the M08 badge control with capture headlines', async ()
   // Package C adds Phần 1 findings and its badge only to the capture control.
   // Round-2 wording fix clarifies numeric zero and removes the extra space after '(' in current no-capture prose.
   for (const [reportInput, parent] of [
-    [input, '047f2907d92b930a3fe0abe777e3c855825c7bb3d657dc9f591ff8cda3c3967b'],
-    [{ ...input, metricMethods }, '48d3f0368004f06e68809e8420404a3b1c462da2099a66cf0423360960b2e9db'],
+    [input, '10532b4a9e6c403e7732cd585241f940dec5a0516a79d17cc90ee3359282d434'],
+    [{ ...input, metricMethods }, '5f82a336c3d7e4fc478b3f027bda12d0c456345626bf6ba55ba99a0a863b22ca'],
   ] as const) {
     const html = buildResearchAutomationReport(reportInput, 'MARKET').html.toString();
     assert.equal(hash(html.replace('<span class="state">Có giá tham khảo, chưa xác minh</span>', '<span class="state">Có số liệu</span>')), parent);
@@ -236,7 +236,7 @@ test('automated reader uses the price projection without changing retained input
   // Latest-price review: preserve range-only evidence, explicit estimate wording, and corrected price-only readings.
   // 2480414f additionally points M04/M05 to Phần 3 and M13 to Phần 2.
   // Package C adds Phần 1 findings and its data badge to this capture report.
-  assert.equal(hash(report.html), 'becf5e79e91d8b0cb441fafafb24230cc61a984baf253dc077b6bda889b292a6');
+  assert.equal(hash(report.html), 'fe0b89edf9f933f47f52f7f91062b1a969fffb41da57a1e65efe3cad621540ae');
   const doc = new JSDOM(report.html.toString()).window.document;
   const section = doc.querySelector('#M08')!;
   assert.equal(section.querySelectorAll('tbody tr').length, 8);

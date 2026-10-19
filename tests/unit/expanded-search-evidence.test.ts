@@ -136,7 +136,7 @@ test('a Market presentation with extra rows passes every gate, labels each row a
   const built = buildResearchAutomationReport({ ...input, captures, sourceEvidence: packet, start: { ...input.start, sourceEvidenceVersion: 'automation-source-evidence-v1' }, collection } as unknown as AutomationReportInput, 'MARKET');
   const html = built.html.toString('utf8');
   const document = new JSDOM(html).window.document;
-  const table = [...document.querySelectorAll('table')].find(t => t.querySelector('caption')?.textContent?.startsWith('Kết quả tìm kiếm trên web'))!;
+  const table = [...document.querySelectorAll('table')].find(t => (t.querySelector('caption .ext') ?? t.querySelector('caption'))?.textContent?.startsWith('Kết quả tìm kiếm trên web'))!;
   assert.ok(table);
   const heads = [...table.querySelectorAll('th')].map(th => th.textContent);
   const at = heads.indexOf('Lượt tìm'), typeAt = heads.indexOf('Loại trang');

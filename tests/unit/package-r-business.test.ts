@@ -103,7 +103,7 @@ for (const shape of BUSINESS_SHAPES) {
       assert.ok(group, `${name} gets its own table/body`);
       assert.equal(group.getAttribute('data-market-price-bands'), 'true');
       assert.deepEqual([...group.querySelectorAll('thead th')].map(text), COPY.bandHeaders);
-      assert.ok(text(group.querySelector('caption')).includes(`Cơ cấu khoảng giá trong mẫu · ${name}`));
+      assert.ok(text(group.querySelector('caption') ?? doc.getElementById(group.getAttribute('aria-labelledby') ?? '')?.querySelector('.ext')).includes(`Cơ cấu khoảng giá trong mẫu · ${name}`));
       assert.ok(group.hasAttribute('data-market-price-bands') || group.closest('[data-market-price-bands]')
         || group.querySelector('[data-market-price-bands]'), 'platform group belongs to the marked exhibit');
       const rows = [...group.querySelectorAll('tr')].filter(row => row.querySelector('td'));
@@ -231,8 +231,8 @@ test('M6 keep gates: P1 missing gap; P2 short periods; all readings avoid causal
 
 test('M10 keep dedupe and unknown shops: P1 platform rows stay separate and no invented shop count', async t => {
   const { doc } = await documentFor(t, 'P1'), m03 = section(doc, 'M03'), m04 = section(doc, 'M04');
-  assert.match(text(m03), /n = 7 bản ghi/u);
-  assert.match(text(m03), /n = 6 bản ghi/u);
+  assert.match(text(m03), /n = 7 dòng sản phẩm/u);
+  assert.match(text(m03), /n = 6 dòng sản phẩm/u);
   assert.match(text(m03), /nguồn không ghi gian hàng|không đếm số gian hàng/u);
   assert.doesNotMatch(text(m04), /tổng (?:hai|các|cả hai) sàn|13 sản phẩm|13 bản ghi/iu);
   assert.equal(m04.querySelectorAll('table[data-market-periods]').length, 0, 'retained inventory is not duplicated into M04');
@@ -284,7 +284,7 @@ test('L7 reconciliation: P3 cap 20; platform observed 4=1+3, 3=1+2; unattributed
   assert.match(method, /(?:giới hạn|tối đa|lấy).*20/u);
   // Each independent platform sentence must carry observed, excluded and retained counts.
   for (const [name, observed, retained] of [['Shopee', 4, 3], ['TikTok Shop', 3, 2]] as const) {
-    const statement = method.split(/(?<=[.;])\s+/u).find(part => part.includes(name) && /loại/u.test(part) && /giữ/u.test(part));
+    const statement = method.split(/(?<=[.;])\s+/u).find(part => part.includes(`${name}: đã quan sát`) && /loại/u.test(part) && /giữ/u.test(part));
     assert.ok(statement, `${name}: observed/excluded/retained in the method section`);
     for (const n of [observed, 1, retained]) assert.match(statement, new RegExp(`(?<!\\d)${n}(?!\\d)`, 'u'));
     assert.match(statement, /quan sát|đã đọc|đã thấy|ghi nhận/u);
@@ -346,7 +346,7 @@ test('L12 keep E price basis: full report preserves platform, periods, source es
   assert.ok(table);
   assert.equal(table.querySelectorAll('tbody tr').length, 3);
   assert.equal(table.querySelectorAll('[data-period-incomplete="true"]').length, 2);
-  assert.match(text(m08), /Giá bình quân do nguồn tính \(ước tính\)/u);
+  assert.match(text(m08), /Giá bình quân do nguồn tính, ước tính \(VND\)/u);
   assert.match(text(m08), /01\/10\/2026 đến 30\/10\/2026/u);
   assert.match(text(m08), /chưa có khoảng giá nguồn dùng được/iu);
   assert.ok([...table.querySelectorAll('td')].some(cell => text(cell) === '—'));
