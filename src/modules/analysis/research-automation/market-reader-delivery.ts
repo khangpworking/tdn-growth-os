@@ -2,9 +2,11 @@
  * Reader-only delivery for the market14 Market report (owner A7, D30, B13).
  * The page is built once with its technical trace; this pure string pass turns that page into the reader copy:
  * trace blocks (`<details>`) leave the reader (their cite marks stay), draft framing becomes reader wording, and every
- * table/figure in Phần 3–11 gets a standalone note and a deterministic "Diễn giải:" computed from the cells or chart
+ * table/figure in Phần 3–11 gets a standalone note and, when useful, a deterministic "Diễn giải:" from the cells or chart
  * points it shows. The untouched page is stored separately as the hidden trace artifact.
  */
+
+import { filterReaderGlossary } from './market-reader-glossary.js';
 
 const ESCAPES: Readonly<Record<string, string>> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 const esc = (value: string): string => value.replace(/[&<>"']/gu, char => ESCAPES[char]!);
@@ -53,15 +55,21 @@ const PHRASES: readonly [RegExp, string][] = [
   [/trong bản nháp này/gu, 'trong báo cáo này'],
   [/Bản nháp không đủ thông tin để xác định riêng nguyên nhân là thiếu đầu vào, còn chờ duyệt hay phương pháp chưa chạy\./gu, 'Chưa có dữ liệu cho mục này; đây không phải kết quả bằng không.'],
   [/;?\s*chưa phải (?:mục )?phân tích (?:kinh tế đơn vị )?hoàn chỉnh/gu, ''],
-  [/\blisting\b/giu, 'sản phẩm'],
+  [/(?<![\p{L}\p{M}\p{N}_./\\:@#=-])listing(?![\p{L}\p{M}\p{N}_/\\@#=-]|[.:][\p{L}\p{N}])/giu, 'sản phẩm'],
   // "người, sản phẩm, listing" reads twice once listing is localized.
   [/sản phẩm(?:, sản phẩm)+(?![\p{L}\p{N}])/gu, 'sản phẩm'],
   [/\bsearch events\b/giu, 'lượt ghi nhận tìm kiếm'],
   [/theo section gốc/gu, 'theo phần gốc'],
   [/danh sách top sản phẩm/gu, 'danh sách sản phẩm doanh thu cao'],
-  [/\breview\b/giu, 'đánh giá'],
-  [/\bexport\b/giu, 'tệp dữ liệu'],
-  [/\bpeer set\b/giu, 'nhóm đối thủ'],
+  [/(?<![\p{L}\p{M}\p{N}_./\\:@#=-])pack\/variant(?![\p{L}\p{M}\p{N}_/\\@#=-]|[.:][\p{L}\p{N}])/giu, 'gói/biến thể'],
+  [/(?<![\p{L}\p{M}\p{N}_./\\:@#=-])review(?![\p{L}\p{M}\p{N}_/\\@#=-]|[.:][\p{L}\p{N}])/giu, 'đánh giá'],
+  [/(?<![\p{L}\p{M}\p{N}_./\\:@#=-])reviews(?![\p{L}\p{M}\p{N}_/\\@#=-]|[.:][\p{L}\p{N}])/giu, 'đánh giá'],
+  [/(?<![\p{L}\p{M}\p{N}_./\\:@#=-])variant(?![\p{L}\p{M}\p{N}_/\\@#=-]|[.:][\p{L}\p{N}])/giu, 'biến thể'],
+  [/(?<![\p{L}\p{M}\p{N}_./\\:@#=-])pack(?![\p{L}\p{M}\p{N}_/\\@#=-]|[.:][\p{L}\p{N}])/giu, 'gói'],
+  [/(?<![\p{L}\p{M}\p{N}_./\\:@#=-])insight(?![\p{L}\p{M}\p{N}_/\\@#=-]|[.:][\p{L}\p{N}])/giu, 'hiểu biết'],
+  [/(?<![\p{L}\p{M}\p{N}_./\\:@#=-])section(?![\p{L}\p{M}\p{N}_/\\@#=-]|[.:][\p{L}\p{N}])/giu, 'phần'],
+  [/(?<![\p{L}\p{M}\p{N}_./\\:@#=-])export(?![\p{L}\p{M}\p{N}_/\\@#=-]|[.:][\p{L}\p{N}])/giu, 'tệp dữ liệu'],
+  [/(?<![\p{L}\p{M}\p{N}_./\\:@#=-])peer set(?![\p{L}\p{M}\p{N}_/\\@#=-]|[.:][\p{L}\p{N}])/giu, 'nhóm đối thủ'],
   // The reader writes zero in words wherever an empty state is explained; decimals such as "0,5" stay numbers.
   [/([Bb])ằng 0(?![\d]|[,.]\d)/gu, '$1ằng không'],
   [/([Kk])hông (?:tính là|đổi thành|ghi thành) 0(?![\d]|[,.]\d)/gu, '$1hông thay bằng số không'],
@@ -79,38 +87,44 @@ const SAMPLE_NOTE = 'Số liệu lấy từ các dòng đã lưu của từng s�
 const CONTEXT_NOTE = 'Số liệu nền từ nguồn công khai, đọc riêng; không nói về riêng sản phẩm này. Ô ghi “chưa có dữ liệu” không có nghĩa là bằng không.';
 
 /** Localize display dates without changing source quotes, identifiers or markup. */
-function readerText(html: string, captureCopy: boolean): string {
+export function readerText(html: string, captureCopy = false): string {
   const protectedTags: string[] = [];
   const phrases = [...PHRASES.slice(1), ...(captureCopy ? CAPTURE_PHRASES : [])];
-  return html.split(/(<[^>]+>)/gu).map((part, index) => {
+  // Keep quoted attribute values and raw CSS/JS intact, even when they contain angle brackets.
+  const tokens = /(<!--[\s\S]*?-->|<script\b(?:[^>"']|"[^"]*"|'[^']*')*>[\s\S]*?<\/script\s*>|<style\b(?:[^>"']|"[^"]*"|'[^']*')*>[\s\S]*?<\/style\s*>|<(?:[^<>"']|"[^"]*"|'[^']*')+>)/giu;
+  return html.split(tokens).map((part, index) => {
     if (index % 2) {
+      if (/^<!--|^<(?:script|style)\b/iu.test(part)) return part;
       const tag = /^<\/?([\w-]+)/u.exec(part)?.[1]?.toLowerCase();
       if (!tag) return part;
       if (part.startsWith('</')) {
         if (tag === protectedTags.at(-1)) protectedTags.pop();
-      } else if (!/\/>$/u.test(part) && !['br', 'hr', 'img', 'input', 'wbr'].includes(tag)
-        && (protectedTags.length || ['q', 'blockquote', 'code', 'pre'].includes(tag) || /\bdata-quote(?:\s|=|>)/u.test(part) || /\bdata-glossary=/u.test(part))) {
+      } else if (!/\/>$/u.test(part) && !['br', 'hr', 'img', 'input', 'wbr', 'area', 'base', 'col', 'embed', 'link', 'meta', 'param', 'source', 'track'].includes(tag)
+        && (protectedTags.length || ['q', 'blockquote', 'code', 'pre', 'style', 'script', 'svg'].includes(tag) || /\bdata-(?:quote|glossary)(?:\s|=|>)/iu.test(part) || /\bpl-terms-table\b/u.test(part))) {
         protectedTags.push(tag);
       }
       return part;
     }
     if (protectedTags.length) return part;
-    return phrases.reduce((value, [re, to]) => value.replace(re, to), part)
+    const paired = (value: string): string => value.replace(/(?<![\p{L}\p{N}_./-])(biến thể variant|gói pack|phần section|đánh giá reviews?|hiểu biết insight|nhóm peer set|tệp export)(?![\p{L}\p{N}_/-]|\.[\p{L}\p{N}])/giu,
+      label => ({ 'biến thể variant': 'biến thể', 'gói pack': 'gói', 'phần section': 'phần', 'đánh giá review': 'đánh giá', 'đánh giá reviews': 'đánh giá', 'hiểu biết insight': 'hiểu biết', 'nhóm peer set': 'nhóm đối thủ', 'tệp export': 'tệp dữ liệu' } as Record<string, string>)[label.toLowerCase()]!);
+    // A URL's query and fragment are identifiers too, not prose to translate.
+    return part.split(/((?:[a-z][a-z\d+.-]*:\/\/|www\.)[^\s<>"']+)/giu).map((chunk, i) => i % 2 ? chunk : phrases.reduce((value, [re, to]) => value.replace(re, to), paired(chunk))
       .replace(/(?<![\p{L}\p{N}_./-])(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}:\d{2}:\d{2}(?:\.\d+)?)(Z|[+-]\d{2}:\d{2}))?(?![\p{L}\p{N}_/-]|\.[\p{L}\p{N}])/gu,
         (all, year: string, month: string, day: string, time?: string, zone?: string) => {
           const iso = `${year}-${month}-${day}`;
           const parsed = Date.parse(`${iso}T00:00:00Z`);
           if (!Number.isFinite(parsed) || new Date(parsed).toISOString().slice(0, 10) !== iso) return all;
           return `${day}/${month}/${year}${time ? ` ${time} ${zone === 'Z' ? 'UTC' : zone}` : ''}`;
-        });
+        })).join('');
   }).join('');
 }
 
-type Num = { value: number; shown: string };
+type Num = { value: number; shown: string; unit: string };
 const NUMBER = /^(?:chỉ số\s+)?(-?(?:\d{1,3}(?:\.\d{3})+|\d+)(?:,\d+)?)(?=\s|$)/u;
 const parseNum = (cell: string): Num | undefined => {
-  const shown = NUMBER.exec(cell.trim())?.[1];
-  return shown === undefined ? undefined : { value: Number(shown.replace(/\./gu, '').replace(',', '.')), shown };
+  const match = NUMBER.exec(cell.trim()), shown = match?.[1];
+  return shown === undefined ? undefined : { value: Number(shown.replace(/\./gu, '').replace(',', '.')), shown, unit: cell.trim().slice(match![0].length).trim() };
 };
 const EMPTY = /^(?:|—|–|-|chưa có dữ liệu|không có|chưa rõ\b.*)$/iu;
 const PLATFORM = /^(?:Sàn|Nền tảng)$/u;
@@ -120,7 +134,8 @@ const ROW_PER_MEASURE = /^(?:Chỉ số|Bên báo số|Bảng)/u;
 const LABEL = /^(?:Tên|Sản phẩm|Chỉ số|Vùng|Dòng|Bên báo số|Đối tượng|Thương hiệu)/u;
 
 function cells(row: string): string[] {
-  return [...row.matchAll(/<(?:td|th)\b[^>]*>([\s\S]*?)<\/(?:td|th)>/giu)].map(match => text(match[1] ?? ''));
+  return [...row.matchAll(/<(?:td|th)\b[^>]*>([\s\S]*?)<\/(?:td|th)>/giu)]
+    .map(match => text((match[1] ?? '').replace(/<small\b[^>]*>[\s\S]*?<\/small>/giu, ' ')));
 }
 
 function rangeSentence(head: string, rows: readonly { label: string; num: Num }[]): string {
@@ -131,7 +146,7 @@ function rangeSentence(head: string, rows: readonly { label: string; num: Num }[
     : `Ở cột “${head}”, mức thấp là ${low.num.shown} (${low.label}) và mức cao là ${high.num.shown} (${high.label}).`;
 }
 
-/** 1–3 sentences from the rows the table shows: row count, low–high of one measure column, rows with no data. */
+/** At most three sentences from displayed cells; omit the reading when no useful statement is available. */
 export function tableInterpretation(block: string): string {
   const table = block.match(/<table\b[\s\S]*?<\/table>/iu)?.[0];
   if (!table) return '';
@@ -142,13 +157,24 @@ export function tableInterpretation(block: string): string {
   const rows = [...(table.match(/<tbody\b[^>]*>([\s\S]*?)<\/tbody>/iu)?.[1] ?? '').matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/giu)].map(match => cells(match[1] ?? ''));
   const count = `Bảng có ${rows.length} dòng.`;
   // Pending classification cells are not quoted as numbers anywhere outside their own cell.
-  if (rows.length === 0 || /data-classified="pending"/u.test(table)) return count;
+  if (rows.length === 0 || /data-classified="pending"/u.test(table)) return '';
   const numeric = head.map((_h, i) => rows.some(row => parseNum(row[i] ?? '') !== undefined));
   const measures = head.map((h, i) => i).filter(i => numeric[i] && !NOT_MEASURE.test(head[i]!) && !PLATFORM.test(head[i]!));
-  const measure = PREFERRED.map(re => measures.find(i => re.test(head[i]!))).find(i => i !== undefined) ?? (measures.length === 1 ? measures[0] : undefined);
+  const measure = PREFERRED.map(re => measures.find(i => re.test(head[i]!))).find(i => i !== undefined) ?? measures[0];
   // Different columns can carry unrelated units; there is no meaningful range across them.
-  if (measure === undefined) return count;
-  const incompatible = head.some((h, i) => /^(?:Phép đo|Thước đo|Đơn vị|Kỳ(?:\s|$))/u.test(h)
+  if (measure === undefined) {
+    for (let i = 0; i < head.length; i++) {
+      const dates = rows.map(row => row[i] ?? '').filter(value => /^\d{2}\/\d{2}\/\d{4}$/u.test(value));
+      if (!dates.length) continue;
+      const ordered = dates.sort((a, b) => a.split('/').reverse().join('').localeCompare(b.split('/').reverse().join('')));
+      return `Cột “${head[i]}” ghi ngày từ ${ordered[0]} đến ${ordered[ordered.length - 1]}.`;
+    }
+    return '';
+  }
+  const values = rows.flatMap(row => { const num = parseNum(row[measure] ?? ''); return num ? [num] : []; });
+  // A cell can print its own unit (or several observations). Do not infer a shared scale from its heading alone.
+  if (values.some(num => /\d/u.test(num.unit.replace(/\(kỳ gốc = [\d.,]+\)/u, '')))) return '';
+  const incompatible = new Set(values.map(num => num.unit)).size > 1 || head.some((h, i) => /^(?:Phép đo|Thước đo|Đơn vị|Kỳ(?:\s|$))/u.test(h)
     && new Set(rows.map(row => row[i])).size > 1);
   if (incompatible) return `${count} Các dòng có thước đo, đơn vị hoặc kỳ khác nhau; đọc riêng từng dòng.`;
   const labelIndex = head.findIndex((h, i) => i !== measure && LABEL.test(h) && !numeric[i]);
@@ -162,7 +188,7 @@ export function tableInterpretation(block: string): string {
   if (label >= 0 && ROW_PER_MEASURE.test(head[label]!)) {
     if (rows.length > 4) return `${count} Mỗi dòng là một thước đo riêng, đọc theo đơn vị của chính nó.`;
     const listed = rows.flatMap((row, r) => { const num = parseNum(row[measure] ?? ''); return num ? [`${named[r]}: ${num.shown}`] : []; });
-    return listed.length ? `${count} Cột “${head[measure]}” ghi ${listed.join('; ')}. Mỗi dòng là một thước đo riêng, đọc theo đơn vị của chính nó.` : count;
+    return listed.length ? `${count} Cột “${head[measure]}” ghi ${listed.join('; ')}. Mỗi dòng là một thước đo riêng, đọc theo đơn vị của chính nó.` : '';
   }
   const platform = head.findIndex(h => PLATFORM.test(h));
   const groups = new Map<string, number[]>();
@@ -276,7 +302,7 @@ function exhibits(section: string): Exhibit[] {
   return found;
 }
 
-/** Adds the standalone note (when the exhibit has none) and the interpretation right under every table/figure. */
+/** Adds a standalone note and any useful cell/point-based reading right under the exhibit. */
 export function annotateExhibits(section: string, searchPoints?: readonly SearchPoint[]): string {
   let out = '', from = 0;
   for (const exhibit of exhibits(section)) {
@@ -288,7 +314,7 @@ export function annotateExhibits(section: string, searchPoints?: readonly Search
     const note = hasNote ? '' : `<p class="lim"><b>Chú thích:</b> ${esc(context ? CONTEXT_NOTE : SAMPLE_NOTE)}</p>`;
     const interp = exhibit.kind === 'table' ? tableInterpretation(block)
       : figureInterpretation(block, /<span class="exn">Hình 5\.2<\/span>/u.test(block) ? searchPoints : undefined);
-    out += section.slice(from, exhibit.end) + after + note + `<p class="interp"><b>Diễn giải:</b> ${esc(interp)}</p>`;
+    out += section.slice(from, exhibit.end) + after + note + (interp ? `<p class="interp"><b>Diễn giải:</b> ${esc(interp)}</p>` : '');
     from = exhibit.end + after.length;
   }
   return out + section.slice(from);
@@ -300,7 +326,7 @@ const PLATFORM_NAMES: Readonly<Record<string, string>> = { shopee: 'Shopee', tik
 export function marketReaderGuide(platforms: readonly string[]): string {
   const names = platforms.map(platform => PLATFORM_NAMES[platform] ?? platform);
   const from = names.length ? `của ${names.length > 1 ? `${names.slice(0, -1).join(', ')} và ${names[names.length - 1]}` : names[0]}` : 'của các sàn đã chọn';
-  return `<p class="reader-guide"><b>Cách đọc báo cáo:</b> ${esc(`Báo cáo trình bày kết luận chính, phạm vi, số liệu bán hàng, nhu cầu, nguồn cung, đối thủ, giá, rủi ro, cơ hội và phương án đề xuất cho từ khóa đã chọn. Số liệu bán hàng lấy từ mẫu đã lưu ${from} trong kỳ báo cáo; mỗi sàn đọc riêng. Số liệu nền cả nước, nếu có, được đặt riêng và không nói về riêng sản phẩm này. Mục ghi “chưa có dữ liệu” nghĩa là chưa thu được, không phải bằng không. Dưới mỗi bảng và hình có một dòng chú thích về phạm vi và một dòng diễn giải.`)}</p>`;
+  return `<p class="reader-guide"><b>Cách đọc báo cáo:</b> ${esc(`Báo cáo trình bày kết luận chính, phạm vi, số liệu bán hàng, nhu cầu, nguồn cung, đối thủ, giá, rủi ro, cơ hội và phương án đề xuất cho từ khóa đã chọn. Số liệu bán hàng lấy từ mẫu đã lưu ${from} trong kỳ báo cáo; mỗi sàn đọc riêng. Số liệu nền cả nước, nếu có, được đặt riêng và không nói về riêng sản phẩm này. Mục ghi “chưa có dữ liệu” nghĩa là chưa thu được, không phải bằng không. Dưới mỗi bảng và hình có chú thích về phạm vi; diễn giải đi kèm khi dữ liệu cho phép.`)}</p>`;
 }
 
 const DATA_SECTIONS =/^M(?:0[3-9]|1[01])$/u;
@@ -315,12 +341,6 @@ export function deliverMarketReader(html: string, searchPoints?: readonly Search
   body = readerText(body, captureCopy);
   body = body.replace(PHRASES[0]![0], PHRASES[0]![1]);
   body = body.replace(/<a\b[^>]*href="#bounded-method-evidence"[^>]*>([\s\S]*?)<\/a>/gu, '$1');
-  // Keep an English definition only if a verbatim source quote still uses the term.
-  body = body.replace(/<table data-glossary="true">[\s\S]*?<\/table>/gu, table => {
-    const prose = text(body.replace(table, ''));
-    return table.replace(/<tr><td>(listing|review|export|peer set)<\/td><td>[^<]*<\/td><\/tr>/gu,
-      (row, term: string) => new RegExp(`\\b${term}\\b`, 'iu').test(prose) ? row : '');
-  });
   body = body.replace(/<section class="sheet" id="(M\d\d)">([\s\S]*?)<\/section>/gu, (_all, id: string, inner: string) => {
     const annotated = DATA_SECTIONS.test(id) ? annotateExhibits(inner, searchPoints) : inner;
     // Proposal tables only count as data when they cite in-sample figures.
@@ -333,5 +353,5 @@ export function deliverMarketReader(html: string, searchPoints?: readonly Search
     const chip = id === 'M02' || id === 'M13' ? '' : `<span class="state">${data ? 'Có số liệu' : 'Chưa đủ dữ liệu'}</span>`;
     return `<section class="sheet" id="${id}">${annotated.replace(/<span class="state">[^<]*<\/span>/u, chip)}</section>`;
   });
-  return head + body + tail;
+  return filterReaderGlossary(head + body + tail);
 }

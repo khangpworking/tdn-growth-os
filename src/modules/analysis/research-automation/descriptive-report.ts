@@ -365,6 +365,18 @@ function readerNotes(methods: DescriptiveMarketMethods, section: DescriptiveSect
   return [...new Set(notes)].map(note => `<p class="sec-note">${escape(note)}</p>`).join('');
 }
 type ReaderSectionBody = Omit<DescriptiveSectionView, 'html'> & { body: string };
+function readerCoverage(rows: readonly Observation[]): string {
+  // Observed count includes recorded zero, as it does in the frozen method's coverage.
+  const counts = [rows.filter(row => row.observation.value !== null).length,
+    rows.filter(row => row.observation.state === 'observed_zero').length,
+    rows.filter(row => row.observation.state === 'missing').length,
+    rows.filter(row => row.observation.state === 'UNKNOWN').length,
+    rows.filter(row => row.observation.value !== null && row.observation.precision === 'non_exact').length];
+  if (counts[0] && counts.slice(1).every(count => count === 0)) return 'Mọi dòng đều có số.';
+  const labels = ['dòng có số', 'dòng bằng không', 'dòng thiếu số', 'dòng chưa rõ', 'dòng có số chưa chính xác'];
+  const parts = counts.flatMap((count, i) => count ? [`${readerCount(count)} ${labels[i]}`] : []);
+  return parts.length ? `${parts.join('; ')}.` : 'Chưa có dữ liệu về độ phủ dòng.';
+}
 function readerM05(methods: DescriptiveMarketMethods, citations: ReportCitations, context: DescriptiveReaderContext): ReaderSectionBody {
   const section = methods.sections.M05;
   const unresolved: string[] = [];
@@ -401,7 +413,7 @@ function readerM05(methods: DescriptiveMarketMethods, citations: ReportCitations
     })];
     const rows = [...products.values()].map(product => `<tr><td>${escape(product.label)}</td>${windows.map(window =>
       `<td>${product.cells.get(window)?.map(row => `${readerValue(row, units.length > 1)} ${sourceCell(methods.input, row.source, citations, true)}`).join('<br>') ?? 'Chưa có dữ liệu'}</td>`).join('')}</tr>`).join('');
-    return table(label, heads, rows, true);
+    return `<p>${escape(readerCoverage(observations))}</p>` + table(label, heads, rows, true);
   }).join('');
   const body = tables ? `<p>${readerCount(section.locatedRecordCount)} quan sát theo sản phẩm và kỳ.</p>${tables}${readerNotes(methods, 'M05', true)}` : '<p>Chưa có dữ liệu quan sát.</p>';
   return { usable, locatedRecordCount: section.locatedRecordCount, unresolvedPointers: unresolved, blockers: section.blockers, body };

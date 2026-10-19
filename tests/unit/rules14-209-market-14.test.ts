@@ -27,12 +27,28 @@ ${flintChart.repeat(3)}</body></html>`;
 const rule = (html: string, number: string, trace?: string) => auditMarket14(html, trace).find(item => item.rule === number)!;
 
 test('localized English terms need glossary definitions only when the reader still uses those terms', () => {
-  for (const [term, meaning] of [['listing', 'sản phẩm'], ['review', 'đánh giá'], ['export', 'tệp dữ liệu'], ['peer set', 'nhóm đối thủ']]) {
+  for (const [term, meaning] of [['listing', 'sản phẩm'], ['review', 'đánh giá'], ['export', 'tệp dữ liệu'], ['peer set', 'nhóm đối thủ'], ['Giá TB', 'giá trung bình'], ['NSX', 'nhà sản xuất'], ['H1', 'giả thuyết 1'], ['ROAS', 'tỷ lệ doanh thu trên chi phí quảng cáo'], ['CPA', 'chi phí trên đơn'], ['AI', 'trí tuệ nhân tạo']]) {
     const localized = valid.replace(`<tr><td>${term}</td><td>${meaning}</td></tr>`, '');
     assert.equal(rule(localized, '1').ok, true, term);
     assert.equal(rule(localized.replace('</body>', `<p>${term}</p></body>`), '1').ok, false, term);
-    assert.equal(rule(valid.replace(`<td>${meaning}</td>`, '<td>Không rõ</td>'), '1').ok, false, term);
+    assert.equal(rule(valid.replace(`<td>${meaning}</td>`, '<td>Không rõ</td>').replace('</body>', `<p>${term}</p></body>`), '1').ok, false, term);
   }
+});
+
+test('remaining English words in source quotes require their own Vietnamese definitions', () => {
+  for (const [term, meaning] of [['variant', 'biến thể'], ['pack', 'gói'], ['insight', 'hiểu biết'], ['section', 'phần'], ['reviews', 'đánh giá']]) {
+    const used = valid.replace('</body>', `<q>${term}</q></body>`);
+    assert.equal(rule(used, '1').ok, false, term);
+    const explained = used.replace(glossary, glossary.replace('</tbody></table>', `<tr><td>${term}</td><td>${meaning}</td></tr></tbody></table>`));
+    assert.equal(rule(explained, '1').ok, true, term);
+  }
+});
+
+test('a meaning in another glossary row cannot explain a used term', () => {
+  const used = valid.replace('</body>', '<p>reviews</p></body>');
+  const wrong = used.replace(glossary, glossary.replace('</tbody></table>', '<tr><td>reviews</td><td>Chưa giải thích</td></tr></tbody></table>'));
+  assert.equal(rule(wrong, '1').ok, false, 'the review row already contains đánh giá, but reviews has no meaning');
+  assert.equal(rule(wrong.replace('<td>Chưa giải thích</td>', '<td>đánh giá</td>'), '1').ok, true);
 });
 
 test('synthetic Market HTML passes all machine rules and marks review-only rules as READ', () => {
@@ -100,7 +116,7 @@ test('rule 10 passes an embedded AI cover with provenance and alt text, without 
 
 test('each machine rule has a failing synthetic mutation', () => {
   const mutations: Record<string, string> = {
-    '1': valid.replace('<td>review</td><td>đánh giá</td>', '<td>review</td><td></td>'),
+    '1': valid.replace('<td>review</td><td>đánh giá</td>', '<td>review</td><td></td>').replace('</body>', '<p>review</p></body>'),
     '2': valid.replace('Phần 1</span>', 'M01</span>'),
     '3': valid.replace('</body>', '<p>source_sha256 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef</p></body>'),
     '4': valid.replace('Shopee</i> và', 'Google</i> và'),
@@ -221,7 +237,7 @@ test('rule 11 accepts only Flint charts and needs all three required charts', ()
 
 
 test('rule 1 accepts Vietnamese percentile explanations and still rejects a missing or wrong meaning', () => {
-  const vietnamese = valid.replace('mốc 25% / mốc 75%', 'mốc 25 phần trăm / mốc 75 phần trăm');
+  const vietnamese = valid.replace('mốc 25% / mốc 75%', 'mốc 25 phần trăm / mốc 75 phần trăm').replace('</body>', '<p>P25 P75</p></body>');
   assert.equal(rule(vietnamese, '1').ok, true);
   assert.equal(rule(vietnamese.replace('mốc 25 phần trăm', 'mốc 20 phần trăm'), '1').ok, false);
   assert.equal(rule(vietnamese.replace('mốc 75 phần trăm', ''), '1').ok, false);

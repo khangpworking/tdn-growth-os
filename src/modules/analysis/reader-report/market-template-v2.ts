@@ -28,7 +28,9 @@ import { CitationRegistry } from '../citation-registry.js';
 import { renderCitationMark, renderCitationRegister } from '../citation-register-html.js';
 import type { MetricWebCellFact, MetricWebTableFact } from '../research-automation/metric-web-facts.js';
 import { classifyWebPage, WEB_PAGE_TYPE_LABEL } from '../research-automation/web-page-type.js';
-import { EXPANDED_SEARCH_COLUMN, EXPANDED_SEARCH_LABEL, EXPANDED_SEARCH_NOTE } from '../research-automation/expanded-search-lane.js';
+import { expandedSearchReaderLabel, EXPANDED_SEARCH_COLUMN, EXPANDED_SEARCH_NOTE } from '../research-automation/expanded-search-lane.js';
+import { filterReaderGlossary, MARKET_READER_TERMS } from '../research-automation/market-reader-glossary.js';
+import { readerText } from '../research-automation/market-reader-delivery.js';
 import { MARKET_SALES_AVERAGE_EXHIBIT, marketFindings } from './market-findings.js';
 import { exactTestReviewSample, exactTestReviewSection, exactTestReviewSourceRows } from '../research-automation/test-review-sample.js';
 
@@ -450,11 +452,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
         { src: 'Trang nguồn đã lưu; lời và thứ tự nguồn được giữ nguyên.', note: 'Phạm vi trên trang khác mẫu sản phẩm. Hạng do nguồn ghi không phải kết luận hay ưu tiên của báo cáo; tên không chứng minh danh tính chéo sàn.' });
     }).join('');
   }
-  const glossaryTable = next ? tbl('PL.3', 'Thuật ngữ', '', ['Thuật ngữ', 'Nghĩa tiếng Việt'], [
-    ['listing', 'sản phẩm'], ['review', 'đánh giá'], ['export', 'tệp dữ liệu'], ['peer set', 'nhóm đối thủ'],
-    ['Giá TB', 'giá trung bình'], ['P25 / P75', 'mốc 25% / mốc 75%'], ['NSX', 'nhà sản xuất'], ['H1', 'giả thuyết 1'],
-    ['ROAS', 'tỷ lệ doanh thu trên chi phí quảng cáo'], ['CPA', 'chi phí trên đơn'], ['AI', 'trí tuệ nhân tạo'],
-  ], { cls: 'pl-terms-table' }) : '';
+  const glossaryTable = next ? tbl('PL.3', 'Thuật ngữ', '', ['Thuật ngữ', 'Nghĩa tiếng Việt'], MARKET_READER_TERMS, { cls: 'pl-terms-table' }) : '';
   const typed = next && options.webPageTypes === true;
   // The page type reads the stored title and snippet, not the withheld wording shown in their place.
   const stored = new Map((options.webResults ?? []).map(v => [`${v.position}|${v.url}`, v]));
@@ -463,7 +461,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   const webTable = web.length === 0 ? '' : tbl(next ? 'PL.4' : 'PL.3', 'Kết quả tìm kiếm trên web', '', ['Trang tìm thấy', ...(originated ? [EXPANDED_SEARCH_COLUMN] : []), ...(typed ? ['Loại trang'] : []), 'Đoạn mô tả hiển thị'], web.map(w => {
     const no = registry.cite({ sourceKind: 'WEB_RESULT', identity: w.url, locator: null, label: w.site || 'Kết quả tìm kiếm trên web', retrievedAt: w.retrievedAt, url: w.url, quote: null, quoteVerification: 'NOT_APPLICABLE' });
     const mark = no === null ? '' : renderCitationMark(no), meta = [w.site, w.published ? `đăng ${w.published}` : null].filter(Boolean).join(' · ');
-    return [`<span data-quote><a href="${esc(w.url)}" target="_blank" rel="noopener noreferrer">${esc(w.title)}</a>${mark}${meta ? `<span class="pl-meta">${esc(meta)}</span>` : ''}</span>`, ...(originated ? [w.origin ? EXPANDED_SEARCH_LABEL[w.origin] : ''] : []), ...(typed ? [pageType(w)] : []), `<span data-quote>${esc(w.snippet ?? '')}</span>`];
+    return [`<span data-quote><a href="${esc(w.url)}" target="_blank" rel="noopener noreferrer">${esc(w.title)}</a>${mark}${meta ? `<span class="pl-meta">${esc(meta)}</span>` : ''}</span>`, ...(originated ? [esc(expandedSearchReaderLabel(w))] : []), ...(typed ? [pageType(w)] : []), `<span data-quote>${esc(w.snippet ?? '')}</span>`];
   }), { src: 'Kết quả tìm kiếm đã lưu.', note: 'Tiêu đề và đoạn mô tả chép theo kết quả tìm kiếm, chưa mở trang gốc để đối chiếu; không phải nhận định của báo cáo.' + (originated ? ' ' + EXPANDED_SEARCH_NOTE : '') });
   sections.push(section('M13', 'Nguồn, thuật ngữ và danh sách sản phẩm', options.captureRowPolicy && !rows.length ? 'Không có dòng phù hợp trong mẫu; bản lưu nguồn vẫn được giữ để đối chiếu.' : nar('Giữ đủ {{src.rows}} dòng nguồn để tra lại.', 'M13'),
     tbl('PL.1', 'Dòng dữ liệu đã lưu, theo từng sàn', '', ['Sàn', 'Gian hàng', 'Nhãn thương hiệu', 'Doanh thu', 'Đơn vị bán', 'Giá trung bình', 'Tiêu đề nguồn'], appendix) + tbl('PL.2', 'Nguồn số liệu đã lưu', '', ['Hạng mục', 'Nguồn / giá trị'], sourceRows) + trialBlock + (next ? glossaryTable : '') + webTable + retainedSourceTables + renderCitationRegister(registry.entries(), { format: 'web' })));
@@ -472,6 +470,6 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   const renderedHtml = next ? html.replace('<body', '<body data-report-rules="market-visible-v1"') : html;
   const finalHtml = next ? renderedHtml.replace(/Ghi chú:/gu, 'Chú thích:') : html;
   const scopedHtml = finalHtml.replace('<body', `<body data-market-platforms="${PLATS.join(',')}"${flintMarks ? ` data-market-chart-rows="${chartRows.length}"` : ''}${shopsUnrecorded ? ' data-market-shops-unrecorded="1"' : ''}`);
-  const outputHtml = next ? platIcons(scopedHtml, PLATFORM_COLORS, undefined, { compoundPlatformLabels: true }).html : html;
+  const outputHtml = next ? platIcons(filterReaderGlossary(readerText(scopedHtml)), PLATFORM_COLORS, undefined, { compoundPlatformLabels: true }).html : html;
   return { html: options.captureRowPolicy ? plainCaptureNumbers(outputHtml) : outputHtml, narrator, extraOk: [...extraOk], charts, webResults: web, ...(next ? { visibleTextRules: true } : {}) };
 }

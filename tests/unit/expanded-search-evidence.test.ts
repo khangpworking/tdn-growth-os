@@ -142,7 +142,7 @@ test('a Market presentation with extra rows passes every gate, labels each row a
   const at = heads.indexOf('Lượt tìm'), typeAt = heads.indexOf('Loại trang');
   assert.ok(at > 0 && typeAt > 0);
   const body = [...table.querySelectorAll('tbody tr')].map(tr => [...tr.querySelectorAll('td')].map(td => td.textContent ?? ''));
-  assert.deepEqual(body.map(cells => cells[at]), ['', 'Trong kỳ báo cáo', 'Trên Shopee', 'Trên TikTok Shop'], 'the excluded extra row is not rendered');
+  assert.deepEqual(body.map(cells => cells[at]), ['', 'Trong kỳ báo cáo', 'Trên Shopee', 'Trên TikTok'], 'the excluded extra row is not rendered');
   assert.deepEqual(body.map(cells => cells[typeAt]?.split('Đăng')[0]), ['Trang khác', 'Bài hướng dẫn', 'Trang khác', 'Tin tức']);
   assert.match(document.body.textContent ?? '', /kỳ tìm là khoảng ngày đã yêu cầu, không phải ngày xảy ra sự việc/);
   assert.doesNotThrow(() => assertMarketBusinessGate(html, { presentation: true, partialTotals: [] }));

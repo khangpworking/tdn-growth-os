@@ -51,6 +51,11 @@ function result(rule: string, ok: boolean, kind: Market14Result['kind'], detail:
 const GLOSSARY: readonly [RegExp, RegExp][] = [
   [/\blisting\b/iu, /sản phẩm/iu],
   [/\breview\b/iu, /đánh giá/iu],
+  [/\breviews\b/iu, /đánh giá/iu],
+  [/\bvariant\b/iu, /biến thể/iu],
+  [/\bpack\b/iu, /gói/iu],
+  [/\binsight\b/iu, /hiểu biết/iu],
+  [/\bsection\b/iu, /phần/iu],
   [/\bexport\b/iu, /tệp dữ liệu/iu],
   [/peer\s*set/iu, /nhóm đối thủ/iu],
   [/giá\s*TB/iu, /giá trung bình/iu],
@@ -63,9 +68,9 @@ const GLOSSARY: readonly [RegExp, RegExp][] = [
   [/\bAI\b/iu, /trí tuệ nhân tạo|mô hình/iu],
 ];
 
-function glossaryText(html: string): string {
+function glossaryHtml(html: string): string {
   const match = html.match(/<(?:dl|table)\b[^>]*(?:class=["'][^"']*pl-terms|data-glossary=["'][^"']*true)[^>]*>[\s\S]*?<\/(?:dl|table)>/iu);
-  return visible(match?.[0] ?? '');
+  return match?.[0] ?? '';
 }
 
 export function technicalLeaks(html: string): string[] {
@@ -253,10 +258,12 @@ export function auditMarket14(html: string, trace?: string, options: { requireFl
     const found = gate.find(item => item.rule === rule);
     return found === undefined ? { ok: false, detail: `${rule} result unavailable` } : found;
   };
-  const glossary = glossaryText(html);
-  // A localized English term needs a definition only when it still appears; acronym definitions remain required.
-  const missingGlossary = GLOSSARY.filter(([term, explanation]) => (!['listing', 'review', 'export', 'peer set'].some(word => term.test(word)) || term.test(text))
-    && (!term.test(glossary) || !explanation.test(glossary))).map(([term]) => term.source);
+  const glossary = glossaryHtml(html);
+  const definitions = [...glossary.matchAll(/<tr\b[^>]*>[\s\S]*?<\/tr>|<dt\b[^>]*>[\s\S]*?<\/dt>\s*<dd\b[^>]*>[\s\S]*?<\/dd>/giu)].map(match => visible(match[0]));
+  // A definition is required only for a term used outside the glossary (including verbatim quotes).
+  const prose = visible(html.replace(glossary, ''));
+  const missingGlossary = GLOSSARY.filter(([term, explanation]) => term.test(prose)
+    && !definitions.some(definition => term.test(definition) && explanation.test(definition))).map(([term]) => term.source);
   const sectionLabels = [...Array.from({ length: 12 }, (_, index) => `Phần ${index + 1}`), 'Phụ lục'].filter(label => !text.includes(label));
   const visibleCodes = text.match(/\bM(?:0[1-9]|1[0-3])\b/gu) ?? [];
   const appendixLabels = text.match(/Bảng\s+PL\.\d+/giu) ?? [];
