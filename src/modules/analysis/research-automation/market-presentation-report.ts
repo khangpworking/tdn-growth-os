@@ -216,7 +216,7 @@ export function renderAutomationMarketFindings(method: Method, citations: Report
     `<p>Số bán hàng là ước tính${sampleStatement}. Không suy số người mua, quy mô ngoài mẫu hoặc nguyên nhân.</p>${note}`;
 }
 
-export function renderAutomationMarketUnitPrices(method: Method, citations: ReportCitations, readerPlainText = false): string {
+export function renderAutomationMarketUnitPrices(method: Method, citations: ReportCitations, readerPlainText = false, capturedPrices = false): string {
   const groups = new Map<string, Method['unitPrices']>(), missing: Method['unitPrices'] = [];
   for (const row of method.unitPrices) {
     if (row.value === null) missing.push(row);
@@ -264,11 +264,14 @@ export function renderAutomationMarketUnitPrices(method: Method, citations: Repo
   const period = method.input.metric?.input.scope ?? null;
   // Owner reader: the sorting rules only matter when a standard-unit price table exists, and the advertising
   // reference has no cost or order field in Market input, so it is one plain line instead of a ROAS/CPA block.
-  if (readerPlainText) return html + (method.unitPrices.length
+  if (readerPlainText) {
+    const reader = html + (method.unitPrices.length
     ? '<p>Chỉ so sánh giá trong cùng sàn, ngành hàng, đơn vị hoặc cơ sở, nhóm quy cách, loại giá, điều kiện và kỳ. Quy cách khác nhau (khối lượng, combo, hàng dùng lâu) giữ riêng, không chia nhỏ. Kỳ quan sát giá giữ riêng với kỳ doanh số.</p>' : '') +
     '<p>Giá niêm yết, thanh toán và khuyến mãi có điều kiện giữ riêng. Số doanh thu chia sản lượng bán (nếu có) chỉ là ước tính, không thay cho giá niêm yết. Đối chiếu khai báo với bản lưu không xác thực người bán; không suy chất lượng, giá vốn hoặc lợi nhuận.</p>' +
     '<p>Chưa có số liệu chi phí quảng cáo nên chưa tính ROAS (doanh thu trên chi phí quảng cáo) và CPA (chi phí cho mỗi đơn hàng).</p>' +
     '<p class="lim"><b>Chú thích:</b> Giá và quy cách được đối chiếu trong phạm vi bản lưu; phần thiếu giữ riêng và không được suy đoán.</p>';
+    return capturedPrices && !method.unitPrices.length ? `<details class="evidence-trace"><summary>Quy cách và giá chưa xác minh</summary>${reader}</details>` : reader;
+  }
   return html + '<p>Giá hiển thị tối đa ba chữ số thập phân; sắp xếp theo giá trị chưa làm tròn. Chỉ sắp xếp cùng sàn, ngành hàng, đơn vị hoặc cơ sở, nhóm quy cách, loại giá, điều kiện và kỳ. Khối lượng tịnh và khối lượng cái giữ riêng; hàng dùng lâu và combo không chia nhỏ. Kỳ quan sát giá giữ riêng với kỳ doanh số.</p><p>Giá niêm yết, thanh toán và khuyến mãi có điều kiện giữ riêng; không thay bằng giá bán trung bình từ doanh thu và đơn vị bán. Đối chiếu khai báo với bản lưu không xác thực người bán; không suy chất lượng, giá vốn hoặc lợi nhuận.</p>' +
     renderAutomationMarketAdvertising({ period: period ? { start: period.start, end: period.end } : null,
       object: { kind: 'video', label: 'chưa xác định trong đầu vào Market' },

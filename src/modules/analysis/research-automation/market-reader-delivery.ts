@@ -155,10 +155,15 @@ export function tableInterpretation(block: string): string {
   if (own !== undefined) return decode(own);
   const head = cells(table.match(/<thead\b[^>]*>([\s\S]*?)<\/thead>/iu)?.[1] ?? '');
   const rows = [...(table.match(/<tbody\b[^>]*>([\s\S]*?)<\/tbody>/iu)?.[1] ?? '').matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/giu)].map(match => cells(match[1] ?? ''));
+  const priceTable = /data-market-prices=/u.test(table);
+  const number = (cell: string): Num | undefined => {
+    const num = parseNum(cell);
+    return priceTable && num && num.value <= 0 ? undefined : num;
+  };
   const count = `Bảng có ${rows.length} dòng.`;
   // Pending classification cells are not quoted as numbers anywhere outside their own cell.
   if (rows.length === 0 || /data-classified="pending"/u.test(table)) return '';
-  const numeric = head.map((_h, i) => rows.some(row => parseNum(row[i] ?? '') !== undefined));
+  const numeric = head.map((_h, i) => rows.some(row => number(row[i] ?? '') !== undefined));
   const measures = head.map((h, i) => i).filter(i => numeric[i] && !NOT_MEASURE.test(head[i]!) && !PLATFORM.test(head[i]!));
   const measure = PREFERRED.map(re => measures.find(i => re.test(head[i]!))).find(i => i !== undefined) ?? measures[0];
   // Different columns can carry unrelated units; there is no meaningful range across them.
@@ -171,7 +176,7 @@ export function tableInterpretation(block: string): string {
     }
     return '';
   }
-  const values = rows.flatMap(row => { const num = parseNum(row[measure] ?? ''); return num ? [num] : []; });
+  const values = rows.flatMap(row => { const num = number(row[measure] ?? ''); return num ? [num] : []; });
   // A cell can print its own unit (or several observations). Do not infer a shared scale from its heading alone.
   if (values.some(num => /\d/u.test(num.unit.replace(/\(kỳ gốc = [\d.,]+\)/u, '')))) return '';
   const incompatible = new Set(values.map(num => num.unit)).size > 1 || head.some((h, i) => /^(?:Phép đo|Thước đo|Đơn vị|Kỳ(?:\s|$))/u.test(h)
@@ -187,7 +192,7 @@ export function tableInterpretation(block: string): string {
   // Rows that are different measures or reporters (macro indicators, trade sides) are listed one by one, never ranged together.
   if (label >= 0 && ROW_PER_MEASURE.test(head[label]!)) {
     if (rows.length > 4) return `${count} Mỗi dòng là một thước đo riêng, đọc theo đơn vị của chính nó.`;
-    const listed = rows.flatMap((row, r) => { const num = parseNum(row[measure] ?? ''); return num ? [`${named[r]}: ${num.shown}`] : []; });
+    const listed = rows.flatMap((row, r) => { const num = number(row[measure] ?? ''); return num ? [`${named[r]}: ${num.shown}`] : []; });
     return listed.length ? `${count} Cột “${head[measure]}” ghi ${listed.join('; ')}. Mỗi dòng là một thước đo riêng, đọc theo đơn vị của chính nó.` : '';
   }
   const platform = head.findIndex(h => PLATFORM.test(h));
@@ -196,11 +201,11 @@ export function tableInterpretation(block: string): string {
   const sentences = [count];
   // Each platform is read on its own; values of different platforms are never put in one range.
   for (const [key, members] of groups) {
-    const withNumber = members.flatMap(r => { const num = parseNum(rows[r]![measure] ?? ''); return num ? [{ label: named[r]!, num }] : []; });
+    const withNumber = members.flatMap(r => { const num = number(rows[r]![measure] ?? ''); return num ? [{ label: named[r]!, num }] : []; });
     const sentence = rangeSentence(head[measure]!, withNumber);
     if (sentence) sentences.push(groups.size > 1 && key ? `${key}: ${sentence.charAt(0).toLowerCase()}${sentence.slice(1)}` : sentence);
   }
-  const missing = rows.filter(row => parseNum(row[measure] ?? '') === undefined && EMPTY.test(row[measure] ?? '')).length;
+  const missing = rows.filter(row => number(row[measure] ?? '') === undefined && (EMPTY.test(row[measure] ?? '') || (priceTable && row[measure] === 'Chưa có giá đọc được'))).length;
   if (missing) sentences[sentences.length - 1] = `${sentences[sentences.length - 1]!.replace(/\.$/u, '')}; ${missing} dòng chưa có dữ liệu ở cột này.`;
   return sentences.join(' ');
 }
@@ -314,7 +319,8 @@ export function annotateExhibits(section: string, searchPoints?: readonly Search
     const note = hasNote ? '' : `<p class="lim"><b>Chú thích:</b> ${esc(context ? CONTEXT_NOTE : SAMPLE_NOTE)}</p>`;
     const interp = exhibit.kind === 'table' ? tableInterpretation(block)
       : figureInterpretation(block, /<span class="exn">Hình 5\.2<\/span>/u.test(block) ? searchPoints : undefined);
-    out += section.slice(from, exhibit.end) + after + note + (interp ? `<p class="interp"><b>Diễn giải:</b> ${esc(interp)}</p>` : '');
+    const marks = /data-market-prices=/u.test(block) ? [...new Set(block.match(/<sup class="cite"[\s\S]*?<\/sup>/gu) ?? [])].join('') : '';
+    out += section.slice(from, exhibit.end) + after + note + (interp ? `<p class="interp"><b>Diễn giải:</b> ${esc(interp)}${marks}</p>` : '');
     from = exhibit.end + after.length;
   }
   return out + section.slice(from);
@@ -350,7 +356,9 @@ export function deliverMarketReader(html: string, searchPoints?: readonly Search
       return '';
     }) : annotated;
     const data = /<table\b|<figure\b/u.test(evidence) || proposalFigures;
-    const chip = id === 'M02' || id === 'M13' ? '' : `<span class="state">${data ? 'Có số liệu' : 'Chưa đủ dữ liệu'}</span>`;
+    const priceState = /data-market-prices="unavailable"/u.test(evidence) ? 'Chưa có giá đọc được'
+      : /data-market-prices="reference"/u.test(evidence) || /<td>\d/u.test(evidence) ? 'Có giá tham khảo, chưa xác minh' : 'Chưa đủ dữ liệu';
+    const chip = id === 'M02' || id === 'M13' ? '' : `<span class="state">${id === 'M08' ? priceState : data ? 'Có số liệu' : 'Chưa đủ dữ liệu'}</span>`;
     return `<section class="sheet" id="${id}">${annotated.replace(/<span class="state">[^<]*<\/span>/u, chip)}</section>`;
   });
   return filterReaderGlossary(head + body + tail);

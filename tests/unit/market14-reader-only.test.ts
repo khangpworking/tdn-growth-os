@@ -297,7 +297,10 @@ test('full synthetic market14 report is delivered as a reader copy with notes an
   assert.doesNotMatch(body, /<details|class="evidence-trace"|Hồ sơ đối chiếu|method-reference|Sheet1/u);
   assert.match(html, /<p class="reader-guide"><b>Cách đọc báo cáo:<\/b>[^<]*<i class="pi s">Shopee<\/i>[\s\S]*?không phải bằng không/u);
   assert.doesNotMatch(html, /<p class="warning">[^<]*Mục phân tích hoàn chỉnh/u);
-  for (const chip of body.matchAll(/<span class="state">([^<]*)<\/span>/gu)) assert.match(chip[1]!, /^(?:Có số liệu|Chưa đủ dữ liệu)$/u);
+  for (const [id, inner] of sections) for (const chip of inner.matchAll(/<span class="state">([^<]*)<\/span>/gu)) {
+    if (id === 'M08') assert.equal(chip[1], 'Có giá tham khảo, chưa xác minh');
+    else assert.match(chip[1]!, /^(?:Có số liệu|Chưa đủ dữ liệu)$/u);
+  }
   // D30 + B13: exhibits have notes; readings are omitted only for tables without a useful cell-based statement.
   let exhibits = 0;
   for (const id of ['M03', 'M04', 'M05', 'M06', 'M07', 'M08', 'M09', 'M10', 'M11']) {

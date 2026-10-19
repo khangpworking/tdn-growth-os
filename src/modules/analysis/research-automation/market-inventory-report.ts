@@ -6,8 +6,9 @@ type Observation = AutomationMarketMethodSnapshot['temporal']['input']['observat
 type Quote = AutomationMarketMethodSnapshot['quotes']['input']['quotes'][number];
 type Trace = (ref: { sourceSha256: string; fieldPointer: string }) => string;
 type Window = { readonly start: string | null; readonly end: string | null };
+export type MarketInventoryReaderContext = { readonly platforms: ReadonlyMap<string, string> };
 
-export function marketInventorySection(snapshot: AutomationMarketMethodSnapshot, section: 'M03' | 'M08', citations: ReportCitations, productLabels?: ReadonlyMap<string, string>, readerPlainText = false): string {
+export function marketInventorySection(snapshot: AutomationMarketMethodSnapshot, section: 'M03' | 'M08', citations: ReportCitations, productLabels?: ReadonlyMap<string, string>, readerPlainText = false, reader?: MarketInventoryReaderContext): string {
   const trace: Trace = ref => {
     const pointer = readerPointer(ref.fieldPointer, readerPlainText);
     return citations.mark({
@@ -16,7 +17,13 @@ export function marketInventorySection(snapshot: AutomationMarketMethodSnapshot,
       technical: { fieldPointer: ref.fieldPointer },
     });
   };
-  if (readerPlainText) return section === 'M03' ? readerPeriodSection(snapshot, trace, productLabels) : readerPriceSection(snapshot, trace, productLabels);
+  if (readerPlainText) {
+    if (section === 'M03') return readerPeriodSection(snapshot, trace, productLabels, Boolean(reader));
+    const retained = readerPriceSection(snapshot, trace, productLabels);
+    if (!reader) return retained;
+    const raw = snapshot.quotes.input.quotes.map(quote => `<tr><td>${escape(quote.quoteId)}</td><td>${escape(quote.price.value ?? (quote.price.range ? `${quote.price.range.minimum} đến ${quote.price.range.maximum}` : 'Không có giá đọc được'))}</td><td>${trace(quote.source)}</td></tr>`).join('');
+    return latestReaderPrices(snapshot, trace, productLabels, reader) + `<details class="evidence-trace"><summary>Bản ghi giá theo từng lần thu</summary>${retained}<table><thead><tr><th>Bản ghi</th><th>Giá trị nguồn (VND)</th><th>Nguồn</th></tr></thead><tbody>${raw}</tbody></table></details>`;
+  }
   if (section === 'M03') {
     const rows = snapshot.temporal.input.observations.map(row => `<tr><td>${row.subjectMemberKeys.map(key => escape(sourceMemberLabel(key, false))).join(', ')}</td><td>${escape(row.measure.literal)} / ${escape(row.measure.unit ?? row.measure.currency ?? 'Chưa rõ đơn vị')}</td><td>${escape(row.value.literal ?? 'Thiếu giá trị nguồn')}</td><td>${escape(row.requestedWindow.start ?? '?')} đến ${escape(row.requestedWindow.end ?? '?')}</td><td>${trace(row.source)}</td></tr>`).join('');
     return `<p class="warning">Đã giữ số liệu theo kỳ truy vấn cho các sản phẩm được chọn. Chưa xác minh đầy đủ định nghĩa phép đo, múi giờ, biên kỳ, tính cộng được và độ phủ. Không cộng thành tổng năm, tính tăng trưởng hay gọi đây là quy mô thị trường.</p><div class="table-wrap" role="region" aria-label="Quan sát theo kỳ" tabindex="0"><table><caption>Quan sát theo kỳ, chưa phải chuỗi thời gian đủ điều kiện tính</caption><thead><tr><th>Đối tượng nguồn</th><th>Phép đo nguồn</th><th>Giá trị nguồn</th><th>Kỳ truy vấn</th><th>Nguồn</th></tr></thead><tbody>${rows || '<tr><td colspan="5">Không có số liệu theo kỳ dùng được.</td></tr>'}</tbody></table></div>`;
@@ -74,7 +81,7 @@ const capitalized = (value: string): string => value.charAt(0).toUpperCase() + v
 const marks = (refs: readonly { sourceSha256: string; fieldPointer: string }[], trace: Trace): string => [...new Set(refs.map(trace))].join('');
 
 /** M03 reader view: one row per product and query window, one column per measure. */
-function readerPeriodSection(snapshot: AutomationMarketMethodSnapshot, trace: Trace, productLabels: ReadonlyMap<string, string> | undefined): string {
+function readerPeriodSection(snapshot: AutomationMarketMethodSnapshot, trace: Trace, productLabels: ReadonlyMap<string, string> | undefined, currentReader = false): string {
   const names = productNamer(snapshot, productLabels);
   const measures: string[] = [];
   const vnd = new Set<string>();
@@ -123,7 +130,8 @@ function readerPeriodSection(snapshot: AutomationMarketMethodSnapshot, trace: Tr
   const headers = measures.map(measure => `<th>${escape(capitalized(readerMeasureName(measure)))}${vnd.has(measure) ? ' (VND)' : ''}</th>`).join('');
   return '<p class="warning">Mỗi dòng là một kỳ đo riêng của một sản phẩm được chọn. Không cộng các kỳ thành tổng năm, không tính tăng trưởng và không gọi đây là quy mô thị trường.</p>' +
     `<div class="table-wrap" role="region" aria-label="Số liệu theo kỳ của sản phẩm được chọn" tabindex="0"><table><caption>Số liệu theo từng kỳ đo của các sản phẩm được chọn</caption><thead><tr><th>Sản phẩm</th><th>Kỳ đo</th>${headers}<th>Nguồn</th></tr></thead><tbody>${body || `<tr><td colspan="${3 + measures.length}">Chưa có số liệu theo kỳ dùng được.</td></tr>`}</tbody></table></div>` +
-    '<p class="lim"><b>Chú thích:</b> Số liệu lấy từ trang chi tiết của từng sản phẩm, theo từng kỳ đo. Bảng mẫu sản phẩm lấy từ trang kết quả tìm kiếm với kỳ và cách làm tròn khác, nên số của cùng một sản phẩm ở hai nơi có thể lệch nhau. “Không ghi nhận bán” là nguồn không ghi lượt bán nào trong kỳ đó.</p>';
+    (currentReader ? '<p class="lim"><b>Chú thích:</b> Số liệu mẫu lấy từ trang kết quả tìm kiếm đã lưu; doanh thu chi tiết lấy từ trang sản phẩm theo kỳ riêng ghi trong bảng này. Vì vậy, số của cùng một sản phẩm ở hai nơi có thể khác nhau. “Không ghi nhận bán” là nguồn không ghi lượt bán nào trong kỳ đó.</p>'
+      : '<p class="lim"><b>Chú thích:</b> Số liệu lấy từ trang chi tiết của từng sản phẩm, theo từng kỳ đo. Bảng mẫu sản phẩm lấy từ trang kết quả tìm kiếm với kỳ và cách làm tròn khác, nên số của cùng một sản phẩm ở hai nơi có thể lệch nhau. “Không ghi nhận bán” là nguồn không ghi lượt bán nào trong kỳ đó.</p>');
 }
 
 /** Provider product id in the quote's stored offer text, matched to a run member key. */
@@ -141,6 +149,57 @@ function compareAmounts(a: string, b: string): number {
   const scale = Math.max(af.length, bf.length);
   const left = BigInt(aw + af.padEnd(scale, '0')), right = BigInt(bw + bf.padEnd(scale, '0'));
   return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function latestReaderPrices(snapshot: AutomationMarketMethodSnapshot, trace: Trace, productLabels: ReadonlyMap<string, string> | undefined, reader: MarketInventoryReaderContext): string {
+  const names = productNamer(snapshot, productLabels);
+  const observations = new Map<string, Observation>();
+  for (const row of snapshot.temporal.input.observations) {
+    const ordinal = /^capture-(\d+)-/.exec(row.observationId ?? '')?.[1];
+    if (ordinal !== undefined) observations.set(ordinal, row);
+  }
+  type Capture = { keys: readonly string[]; quotes: Quote[]; ordinal: number; acquiredAt: number; index: number };
+  const captures = new Map<string, Capture>();
+  snapshot.quotes.input.quotes.forEach((quote, index) => {
+    const ordinal = /^capture-(\d+)-/.exec(quote.quoteId)?.[1];
+    const id = ordinal ?? `quote:${index}`;
+    const observation = observations.get(ordinal ?? '');
+    const member = quoteMemberKey(quote, names.keys());
+    const acquiredAt = Date.parse(quote.acquiredAt ?? observation?.retrievedAt ?? '');
+    const capture = captures.get(id) ?? { keys: observation?.subjectMemberKeys ?? (member ? [member] : []), quotes: [], ordinal: Number(ordinal ?? index + 1), acquiredAt: Number.isFinite(acquiredAt) ? acquiredAt : 0, index };
+    capture.quotes.push(quote);
+    captures.set(id, capture);
+  });
+  const products = new Map<string, Capture>();
+  for (const capture of captures.values()) {
+    const key = capture.keys.length ? JSON.stringify(capture.keys) : `quote:${capture.index}`;
+    const previous = products.get(key);
+    if (!previous || capture.acquiredAt > previous.acquiredAt || (capture.acquiredAt === previous.acquiredAt && capture.ordinal > previous.ordinal)) products.set(key, capture);
+  }
+  const money = (value: string | null | undefined): string | null => {
+    if (!value || !/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(value) || isZero(value)) return null;
+    const formatted = formatReaderValue(value, { currency: 'VND' });
+    return formatted === '0' ? null : formatted;
+  };
+  let readable = false;
+  const rows = [...products.values()].sort((a, b) => names.ordinal(a.keys) - names.ordinal(b.keys) || a.index - b.index).map((capture, index) => {
+    const unit = capture.quotes.find(quote => !quote.price.range);
+    const range = capture.quotes.find(quote => quote.price.range)?.price.range;
+    const price = money(unit?.price.value);
+    const minimum = money(range?.minimum), maximum = money(range?.maximum);
+    const validRange = range && minimum && maximum && minimum !== maximum && compareAmounts(range.minimum, range.maximum) < 0
+      && (!unit || (price !== null && compareAmounts(range.minimum, unit.price.value!) <= 0 && compareAmounts(unit.price.value!, range.maximum) <= 0));
+    readable ||= price !== null || Boolean(validRange);
+    const label = capture.keys.length ? names.label(capture.keys).replace(/Sản phẩm #/g, 'Sản phẩm ') : `Sản phẩm ${formatReaderCount(index + 1)}`;
+    const observation = observations.get(String(capture.ordinal));
+    const platform = capture.keys.map(key => reader.platforms.get(key)).find(value => value !== undefined) ?? unit?.identity?.platform
+      ?? (observation?.sourceNamespace === 'kalodata-product-detail' || capture.keys.some(key => key.startsWith('kalodata:')) ? 'tiktok' : null);
+    const platformLabel = platform === 'shopee' || platform === 'SHOPEE' ? 'Shopee' : platform === 'tiktok' || platform === 'TIKTOK_SHOP' ? 'TikTok Shop' : 'Chưa rõ sàn';
+    return `<tr><td>${escape(platformLabel)}</td><td>${escape(label)}</td><td>${escape(price ?? 'Chưa có giá đọc được')}</td><td>${escape(validRange ? `${minimum} đến ${maximum}` : '—')}</td><td>${marks(capture.quotes.map(quote => quote.source), trace)}</td></tr>`;
+  }).join('');
+  return '<p class="warning">Chưa rõ phiên bản, combo hay điều kiện giá.</p>' +
+    `<div class="table-wrap" role="region" aria-label="Giá tham khảo của từng sản phẩm" tabindex="0"><table data-market-prices="${readable ? 'reference' : 'unavailable'}"><caption>Giá tham khảo của từng sản phẩm (VND)</caption><thead><tr><th>Sàn</th><th>Sản phẩm</th><th>Giá bình quân (doanh thu ÷ số đã bán, nguồn tính)</th><th>Khoảng giá nguồn (VND)</th><th>Nguồn</th></tr></thead><tbody>${rows || '<tr><td colspan="5">Chưa có giá đọc được</td></tr>'}</tbody></table></div>` +
+    '<p class="lim"><b>Chú thích:</b> Mỗi sản phẩm giữ lần thu sau cùng. Giá bình quân là số nguồn tính, chưa xác minh; chưa dùng để tính giá vốn hoặc lợi nhuận.</p>';
 }
 
 /** M08 reader view: listed price range once per product, then revenue ÷ units per query window as an estimate. */

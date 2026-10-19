@@ -58,10 +58,10 @@ async function reader(extra: { worldBank?: StepWorldBank; comtrade?: StepComtrad
 
 test('World Bank documents without source precision/name preserve pinned HTML bytes in both reader renderers', async () => {
   // The automation reader pin includes PR #324's two M08 paragraphs and PR #328's descriptive reader copy
-  // (M05/M06/M07/M09) the plain owner copy for periods, peers and ads, the dated Phần 11/12 proposals, the per-platform Phần 1/2 copy and the reader proofread; no World Bank bytes change, and legacy pins stay separate.
+  // (M05/M06/M07/M09) the plain owner copy for periods, peers and ads, the dated Phần 11/12 proposals, the per-platform Phần 1/2 copy, the reader proofread and the Phần 8 reference-price badge; no World Bank bytes change, and legacy pins stay separate.
   const hash = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
   assert.equal(hash((await reader({ worldBank: fullWorldBank() }, false)).html), 'f607583cff39b346515681fefa85284abc44bde3da006709d9d7d7b4dde7e578');
-  assert.equal(hash(buildResearchAutomationReport(await fullMarket14Input(), 'MARKET').html), '8764da84f3381754eedfbf670ce6ff7fb445299112f07413195a90c80caf52ce');
+  assert.equal(hash(buildResearchAutomationReport(await fullMarket14Input(), 'MARKET').html), '35e26bff3e49013774c863d26d3d22d2c87a8d1ec628f38d0efc525e6615e723');
 });
 
 test('v2 reader: World Bank lines are Hình 5.3/5.4 after Bảng 5.3 and Comtrade bars are Hình 6.1/6.2 after Bảng 6.2, all Flint', async () => {

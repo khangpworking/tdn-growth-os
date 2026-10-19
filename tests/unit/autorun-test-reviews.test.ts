@@ -162,7 +162,8 @@ test('Market capture copy has explained rendering digests; Insight digests remai
   // Against eedcb369: per-platform Phần 1/2 copy, localized scope dates, capture-only sample wording,
   // and retained M03 findings in the trace. No retained method or Insight bytes change.
   // The reader proofread (Vietnamese terms, used-term glossary, shared citation numbers) changes only rendered bytes.
-  assert.equal(digest(market.html), '8764da84f3381754eedfbf670ce6ff7fb445299112f07413195a90c80caf52ce');
+  // Phần 8 now labels the observed prices as references awaiting verification.
+  assert.equal(digest(market.html), '35e26bff3e49013774c863d26d3d22d2c87a8d1ec628f38d0efc525e6615e723');
   // All nine semantic citations remain. The sample calculation moves from citation 1 to 3;
   // the per-platform calculation moves from 3 to 1 and gains methodVersion/rounding metadata.
   // These are the only semantic differences from eedcb369.
