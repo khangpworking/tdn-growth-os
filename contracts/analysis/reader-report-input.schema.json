@@ -41,8 +41,8 @@
       }
     },
     "captureRowPolicy": {
-      "description": "New capture readers retain the row policy, including an empty filtered sample. Absent on historical readers.",
-      "const": "automation-metric-capture-v2"
+      "description": "New capture readers retain the row policy, including an empty filtered sample. Absent on historical readers; v2 readers keep v2.",
+      "enum": ["automation-metric-capture-v2", "automation-metric-capture-v3"]
     },
     "source": {
       "$ref": "#/$defs/source"

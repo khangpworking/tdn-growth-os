@@ -89,13 +89,28 @@ function capturePlatformScope(capture: CaptureMetricMethodDetails): string {
   const results = new Map(capture.platforms.map(entry => [entry.platform, entry.result] as const));
   const lines = capture.capture.platforms.map(platform => {
     const result = results.get(platform);
+    const removed = capture.rowPolicyVersion === 'automation-metric-capture-v3' ? (capture.excludedRows ?? []).filter(row => row.platform === platform).length : 0;
+    const removedNote = removed ? `; đã loại ${removed} dòng trước khi tính` : '';
     return result && result.input.records.length
-      ? `<li>${PLATFORM_LABELS[platform]}: ${escape(acquiredDay(result.input.scope.acquiredAt))}; ${result.input.records.length} dòng sản phẩm; kỳ ${escape(isoDay(result.input.scope.start))} đến ${escape(isoDay(result.input.scope.end))}.</li>`
-      : `<li>${PLATFORM_LABELS[platform]}: chưa có dòng nào gán được cho sàn này.</li>`;
+      ? `<li>${PLATFORM_LABELS[platform]}: ${escape(acquiredDay(result.input.scope.acquiredAt))}; ${result.input.records.length} dòng sản phẩm; kỳ ${escape(isoDay(result.input.scope.start))} đến ${escape(isoDay(result.input.scope.end))}${removedNote}.</li>`
+      : `<li>${PLATFORM_LABELS[platform]}: ${removed ? `không còn dòng phù hợp sau khi lọc${removedNote}` : 'chưa có dòng nào gán được cho sàn này'}.</li>`;
   });
   const unattributed = capture.unattributedRows.length
     ? `<p>${capture.unattributedRows.length} dòng không ghi rõ sàn nên không dùng trong số liệu; các dòng này được giữ trong hồ sơ đối chiếu.</p>` : '';
   return `<ul>${lines.join('')}</ul>${unattributed}`;
+}
+
+/** Plain statement of what a filtered capture sample holds; per-platform removed counts sit in the lines above. */
+export function captureSampleSentence(capture: CaptureMetricMethodDetails): string {
+  const rows = capture.excludedRows ?? [];
+  const current = capture.rowPolicyVersion === 'automation-metric-capture-v3';
+  const reasons = [...(rows.some(row => row.reason === 'NOT_MAIN_PRODUCT') ? [current ? 'dòng có dấu hiệu nằm ngoài nhóm sản phẩm đang xét' : 'phụ kiện, linh kiện hoặc sản phẩm khác'] : []),
+    ...(rows.some(row => row.reason !== 'NOT_MAIN_PRODUCT') ? ['dòng có doanh thu hoặc đơn vị bán bất thường'] : [])];
+  const removed = reasons.length ? `đã loại ${reasons.join(' và ')} trước khi tính` : current ? '' : 'không có dòng nào phải loại trước khi tính';
+  const withheld = 'Từ khóa được giữ trong bản lưu';
+  const keyword = containsForbiddenProviderName(capture.capture.keyword) || /\b(?:Gemini|Google)\b/iu.test(capture.capture.keyword)
+    ? withheld : storedLiteral(capture.capture.keyword, withheld, true);
+  return `Mẫu gồm các sản phẩm trả về cho từ khóa “${keyword}”${removed ? `; ${removed}` : ''}; chưa chia nhóm sản phẩm.`;
 }
 
 export function marketSourceScopeSection(scope: MarketSourceScope, section: 'M02' | 'M13', citations: ReportCitations, readerPlainText = false,
@@ -115,7 +130,7 @@ export function marketSourceScopeSection(scope: MarketSourceScope, section: 'M02
   const declared = metric
     ? `<dl><dt>Kỳ khai báo trong nguồn</dt><dd>${escape(metric.declaredScope.start)} đến ${escape(metric.declaredScope.end)}</dd><dt>Nền tảng</dt><dd>${escape(metric.declaredScope.platform)}</dd><dt>Thời điểm lấy nguồn</dt><dd>${metric.declaredScope.acquiredAt === null ? 'Chưa xác nhận' : escape(metric.declaredScope.acquiredAt)}</dd><dt>Số dòng chuẩn hóa</dt><dd>${metric.sourceRowCount}</dd></dl>` : '';
   const metricContent = metric
-    ? `${capture ? capturePlatformScope(capture) : declared}<p>${metric.classification ? 'Đã áp dụng lựa chọn phân loại cho mẫu số liệu của bản này.' : 'Chưa áp dụng phân loại đã duyệt; không suy phạm vi rộng hoặc phạm vi cốt lõi từ từ khóa.'}</p><p>Kỳ này do nguồn khai báo, chưa được xác minh độc lập. Không kéo dài hoặc chia tỷ lệ số liệu để khớp kỳ yêu cầu.</p><details class="evidence-trace"><summary>Hồ sơ đối chiếu kỳ đo và trạng thái tính</summary>${capture ? declared : ''}<p>Căn cứ kỳ khai báo, nguyên văn: ${periodBasisLabel(metric.declaredScope.periodBasis)}</p><p>Trạng thái phép tính: ${metric.scopes.map(s => `${escape(s.scope.toUpperCase())}: ${escape(s.status)}`).join('; ')}.</p></details>`
+    ? `${capture ? capturePlatformScope(capture) : declared}<p>${metric.classification ? 'Đã áp dụng lựa chọn phân loại cho mẫu số liệu của bản này.' : capture?.rowPolicyVersion === 'automation-metric-capture-v3' ? captureSampleSentence(capture) : 'Chưa áp dụng phân loại đã duyệt; không suy phạm vi rộng hoặc phạm vi cốt lõi từ từ khóa.'}</p><p>Kỳ này do nguồn khai báo, chưa được xác minh độc lập. Không kéo dài hoặc chia tỷ lệ số liệu để khớp kỳ yêu cầu.</p><details class="evidence-trace"><summary>Hồ sơ đối chiếu kỳ đo và trạng thái tính</summary>${capture ? declared : ''}<p>Căn cứ kỳ khai báo, nguyên văn: ${periodBasisLabel(metric.declaredScope.periodBasis)}</p><p>Trạng thái phép tính: ${metric.scopes.map(s => `${escape(s.scope.toUpperCase())}: ${escape(s.status)}`).join('; ')}.</p></details>`
     : '<p>Chưa có gói số liệu đã xử lý trong bản này. Không xem thiếu nguồn là doanh số bằng 0.</p>';
   const queries = scope.queries.map(group => `<li><p>${stepLabel(group.step)}: ${group.windows.length} khoảng truy vấn khác nhau, ${group.captures.length} bản thu${group.truncated ? '; có bản thu bị cắt' : ''}.</p><details><summary>Xem các khoảng đã truy vấn</summary><ul>${group.windows.map(w => `<li>${escape(w.startDate)} đến ${escape(w.endDate)}</li>`).join('')}</ul></details><details><summary>Xem dấu vết các bản thu của nhóm này</summary><ul>${group.captures.map(sha => `<li>${citations.mark({ sourceKind: 'CAPTURE', identity: sha, locator: null, label: 'Bản thu dữ liệu nguồn',
     retrievedAt: null, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE', technical: { step: group.step } })}</li>`).join('')}</ul></details></li>`).join('');

@@ -1,0 +1,2333 @@
+{
+  "revision": "edfcfc98",
+  "input": {
+    "runId": "22222222-2222-4222-8222-222222222222",
+    "scopeConfirmedAt": "2026-02-01T00:00:00.000Z",
+    "start": {
+      "contractVersion": "research-automation-start-snapshot-v1",
+      "workspaceId": "11111111-1111-4111-8111-111111111111",
+      "country": "VN",
+      "mode": "CATEGORY",
+      "keyword": "lumo pod",
+      "description": null,
+      "interview": null,
+      "requestedPeriod": {
+        "startDate": "2026-01-01",
+        "endDate": "2026-01-30",
+        "dayCount": 30
+      },
+      "reports": [
+        "MARKET"
+      ]
+    },
+    "scope": {
+      "contractVersion": "research-automation-scope-snapshot-v1",
+      "workspaceId": "11111111-1111-4111-8111-111111111111",
+      "runId": "22222222-2222-4222-8222-222222222222",
+      "definition": "Synthetic lumoware",
+      "includeTerms": [
+        "lumo pod"
+      ],
+      "excludeTerms": [],
+      "selectedProductIds": [],
+      "peerProductIds": []
+    },
+    "sourceSelection": {
+      "executionId": "44444444-4444-4444-8444-444444444444",
+      "sourcePackage": {
+        "packageId": "7b0e982f-f30b-4ca1-80cb-d1965d292b32",
+        "manifestArtifactSha256": "779e11fbb0efbb321ad9e41e53c5fcd65c2444c9d0b5ecde670a0b0397cb623a",
+        "packageContentSha256": "a23da051e83cf806e4866b6b078a6938e99b2a30e24d7280196f0852a5b330dd"
+      }
+    }
+  },
+  "workspace": {
+    "contractVersion": "1.0.0",
+    "createdAt": "2026-02-01T00:00:00.000Z",
+    "requestSha256": "58085cdf25ebda08f05b0fe60281c94a742a45761aef2bc5bdd51b25a03cbc20",
+    "state": "ACTIVE",
+    "title": "Synthetic lumoware",
+    "workspaceId": "11111111-1111-4111-8111-111111111111",
+    "workspaceKey": "synthetic-lumo"
+  },
+  "method": {
+    "contractVersion": "automation-metric-method-snapshot-v2",
+    "runId": "22222222-2222-4222-8222-222222222222",
+    "runBindingSha256": "b02230c88146d0cd24628a4989c318e31ea58c1a7536ceca37548c5a12cb283b",
+    "sourcePackage": {
+      "packageId": "528067da-4d5e-46d7-9e89-b75d2f822492",
+      "manifestArtifactSha256": "3a9102f95cb96956482998d10db4c031097bf6b791c5c1079796ae4ea3db9c1a",
+      "packageContentSha256": "3d9e44f2a76e6d267a5e676e900b3371da2287dbd6e65549cf1db84602f21058"
+    },
+    "originalSourcePackage": {
+      "packageId": "7b0e982f-f30b-4ca1-80cb-d1965d292b32",
+      "manifestArtifactSha256": "779e11fbb0efbb321ad9e41e53c5fcd65c2444c9d0b5ecde670a0b0397cb623a",
+      "packageContentSha256": "a23da051e83cf806e4866b6b078a6938e99b2a30e24d7280196f0852a5b330dd"
+    },
+    "preparation": {
+      "contractVersion": "automation-metric-capture-preparation-v1",
+      "preparationSha256": "534c12df5e6d0b9451ad946ddf562bab626610a6f7714616af423c74fe5e8246",
+      "request": {
+        "contractVersion": "automation-metric-capture-preparation-request-v1",
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "packageId": "7b0e982f-f30b-4ca1-80cb-d1965d292b32",
+        "packageManifestSha256": "779e11fbb0efbb321ad9e41e53c5fcd65c2444c9d0b5ecde670a0b0397cb623a",
+        "snapshotPath": "capture/snapshot.json",
+        "manifestPath": "capture/manifest.json",
+        "sourceContextPath": "capture/context.json"
+      },
+      "requestSha256": "91d4c62a8c862fd40a2bcdfb450adcbfe735cc7d60067353f1ac403fb94b1a8c",
+      "workspace": {
+        "workspaceId": "11111111-1111-4111-8111-111111111111",
+        "state": "ACTIVE",
+        "snapshotSha256": "afc98103acf82b6e68d7099563deebbd1cdccd366fd24a87a285bc568a9648b8"
+      },
+      "sourcePackage": {
+        "packageId": "7b0e982f-f30b-4ca1-80cb-d1965d292b32",
+        "manifestArtifactSha256": "779e11fbb0efbb321ad9e41e53c5fcd65c2444c9d0b5ecde670a0b0397cb623a",
+        "packageContentSha256": "a23da051e83cf806e4866b6b078a6938e99b2a30e24d7280196f0852a5b330dd"
+      },
+      "selectedSources": {
+        "snapshot": {
+          "role": "snapshot",
+          "logicalPath": "capture/snapshot.json",
+          "sha256": "7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79",
+          "byteSize": 18726,
+          "mediaType": "application/json",
+          "evidenceFamily": "metric-capture-22222222-2222-4222-8222-222222222222",
+          "representationRole": "primary",
+          "independence": "non_independent",
+          "providerProvenance": "provider_reported",
+          "provenanceBasis": "Exact sanitized results-page capture supplied by the owner; the capture gate, page scope and snapshot digest were checked, but provider authenticity and market completeness are not independently established."
+        },
+        "manifest": {
+          "role": "manifest",
+          "logicalPath": "capture/manifest.json",
+          "sha256": "4e517101aa81eaedb72540c4b63fbebebcf194c86a0f4dd36d745551815832c0",
+          "byteSize": 1178,
+          "mediaType": "application/json",
+          "evidenceFamily": "metric-capture-22222222-2222-4222-8222-222222222222",
+          "representationRole": "derived",
+          "independence": "non_independent",
+          "providerProvenance": "provider_reported",
+          "provenanceBasis": "Exact sanitized results-page capture supplied by the owner; the capture gate, page scope and snapshot digest were checked, but provider authenticity and market completeness are not independently established."
+        },
+        "context": {
+          "role": "context",
+          "logicalPath": "capture/context.json",
+          "sha256": "1b6405f56e7396a64cfaa329e5bc2f639092e4e1ea38a1e961cb3ff4df5c8108",
+          "byteSize": 859,
+          "mediaType": "application/json",
+          "evidenceFamily": "metric-capture-22222222-2222-4222-8222-222222222222",
+          "representationRole": "derived",
+          "independence": "non_independent",
+          "providerProvenance": "operator_supplied_unverified",
+          "provenanceBasis": "Server-authored run binding and capture metadata; not a replacement for page evidence."
+        },
+        "descriptor": {
+          "role": "descriptor",
+          "logicalPath": "normalized/automation-metric-source-capture.json",
+          "sha256": "907cd2a0317c4f41b7510b7fe36482a24af614f862e381c39a1bc865806490f4",
+          "byteSize": 502,
+          "mediaType": "application/json",
+          "evidenceFamily": "metric-capture-22222222-2222-4222-8222-222222222222",
+          "representationRole": "derived",
+          "independence": "non_independent",
+          "providerProvenance": "operator_supplied_unverified",
+          "provenanceBasis": "Server-authored run binding; not provider evidence."
+        }
+      },
+      "normalizedInput": {
+        "artifactSha256": "b8783f0d92351d9c3cfa7a5a15eb62ac0daa862255b17a2663e4e6ce8895ff3e",
+        "valueSha256": "1de4018b116e1e62073554a89dfb71371b585de0d8884e667edb0bb01db9829c",
+        "sourceCount": 1,
+        "rowCount": 3
+      },
+      "normalizationReceiptSha256": "e3da79ce9df7c7d3f491789ae6df747680e6ae8d7718d2124cb54938df22bc34"
+    },
+    "readiness": {
+      "contractVersion": "1.0.0",
+      "readinessProfile": "metric-preparation-readiness-v1",
+      "preparationSha256": "534c12df5e6d0b9451ad946ddf562bab626610a6f7714616af423c74fe5e8246",
+      "catalog": {
+        "catalogId": "market-insight-30-section-catalog-v1",
+        "catalogVersion": "0.6.0",
+        "sha256": "926a175fa9104df4cefde799ad601861d94b4e9d4d7fe1dbf7717dc163a8e255"
+      },
+      "inputs": [
+        {
+          "inputId": "results-page-capture",
+          "state": "PRESENT",
+          "blocking": false,
+          "codes": [
+            "CAPTURE_SOURCE"
+          ],
+          "evidenceRefs": [
+            {
+              "kind": "NORMALIZED_INPUT",
+              "locator": "/",
+              "sha256": "1de4018b116e1e62073554a89dfb71371b585de0d8884e667edb0bb01db9829c"
+            }
+          ]
+        }
+      ],
+      "sections": [
+        {
+          "sectionId": "M01",
+          "title": "Kết luận chính",
+          "methodId": "metric-results-page-capture",
+          "methodVersion": "1.0.0",
+          "state": "BLOCKED",
+          "requiredInputs": [
+            "validated-metrics",
+            "source-bound-claims",
+            "owner-review"
+          ],
+          "blockingCodes": [
+            "CAPTURE_FIELDS_LIMITED"
+          ]
+        },
+        {
+          "sectionId": "M02",
+          "title": "Phạm vi và phương pháp",
+          "methodId": "metric-results-page-capture",
+          "methodVersion": "1.0.0",
+          "state": "BLOCKED",
+          "requiredInputs": [
+            "source-manifest",
+            "verified-locators"
+          ],
+          "blockingCodes": [
+            "CAPTURE_FIELDS_LIMITED"
+          ]
+        },
+        {
+          "sectionId": "M03",
+          "title": "Quy mô và diễn biến",
+          "methodId": "metric-results-page-capture",
+          "methodVersion": "1.0.0",
+          "state": "BLOCKED",
+          "requiredInputs": [
+            "normalized-metric-rows",
+            "frozen-label-decisions",
+            "source-scope"
+          ],
+          "blockingCodes": [
+            "CAPTURE_FIELDS_LIMITED"
+          ]
+        },
+        {
+          "sectionId": "M04",
+          "title": "Cơ cấu thị trường",
+          "methodId": "metric-results-page-capture",
+          "methodVersion": "1.0.0",
+          "state": "BLOCKED",
+          "requiredInputs": [
+            "normalized-metric-rows",
+            "frozen-label-decisions",
+            "source-scope"
+          ],
+          "blockingCodes": [
+            "CAPTURE_FIELDS_LIMITED"
+          ]
+        },
+        {
+          "sectionId": "M05",
+          "title": "Nhu cầu",
+          "methodId": "metric-results-page-capture",
+          "methodVersion": "1.0.0",
+          "state": "BLOCKED",
+          "requiredInputs": [
+            "source-manifest",
+            "domain-specific-evidence"
+          ],
+          "blockingCodes": [
+            "CAPTURE_FIELDS_LIMITED"
+          ]
+        },
+        {
+          "sectionId": "M06",
+          "title": "Nguồn cung",
+          "methodId": "metric-results-page-capture",
+          "methodVersion": "1.0.0",
+          "state": "BLOCKED",
+          "requiredInputs": [
+            "source-manifest",
+            "domain-specific-evidence"
+          ],
+          "blockingCodes": [
+            "CAPTURE_FIELDS_LIMITED"
+          ]
+        },
+        {
+          "sectionId": "M07",
+          "title": "Đối thủ",
+          "methodId": "metric-results-page-capture",
+          "methodVersion": "1.0.0",
+          "state": "BLOCKED",
+          "requiredInputs": [
+            "source-manifest",
+            "domain-specific-evidence"
+          ],
+          "blockingCodes": [
+            "CAPTURE_FIELDS_LIMITED"
+          ]
+        },
+        {
+          "sectionId": "M08",
+          "title": "Giá và kinh tế đơn vị",
+          "methodId": "metric-results-page-capture",
+          "methodVersion": "1.0.0",
+          "state": "BLOCKED",
+          "requiredInputs": [
+            "exact-raw-quote-source-and-locator",
+            "canonical-tablet-quote-input",
+            "explicit-price-state-and-observation-time",
+            "optional-owner-declared-tablet-count"
+          ],
+          "blockingCodes": [
+            "CAPTURE_FIELDS_LIMITED"
+          ]
+        },
+        {
+          "sectionId": "M09",
+          "title": "Động lực và rủi ro",
+          "methodId": "metric-results-page-capture",
+          "methodVersion": "1.0.0",
+          "state": "BLOCKED",
+          "requiredInputs": [
+            "source-manifest",
+            "domain-specific-evidence"
+          ],
+          "blockingCodes": [
+            "CAPTURE_FIELDS_LIMITED"
+          ]
+        },
+        {
+          "sectionId": "M10",
+          "title": "Dự báo và kịch bản",
+          "methodId": "metric-results-page-capture",
+          "methodVersion": "1.0.0",
+          "state": "BLOCKED",
+          "requiredInputs": [
+            "compatible-daily-series",
+            "held-out-horizon"
+          ],
+          "blockingCodes": [
+            "CAPTURE_FIELDS_LIMITED"
+          ]
+        },
+        {
+          "sectionId": "M11",
+          "title": "Cơ hội",
+          "methodId": "metric-results-page-capture",
+          "methodVersion": "1.0.0",
+          "state": "BLOCKED",
+          "requiredInputs": [
+            "validated-metrics",
+            "source-bound-claims",
+            "owner-review"
+          ],
+          "blockingCodes": [
+            "CAPTURE_FIELDS_LIMITED"
+          ]
+        },
+        {
+          "sectionId": "M12",
+          "title": "Hành động",
+          "methodId": "metric-results-page-capture",
+          "methodVersion": "1.0.0",
+          "state": "BLOCKED",
+          "requiredInputs": [
+            "validated-metrics",
+            "source-bound-claims",
+            "owner-review"
+          ],
+          "blockingCodes": [
+            "CAPTURE_FIELDS_LIMITED"
+          ]
+        },
+        {
+          "sectionId": "M13",
+          "title": "Phụ lục và truy nguồn",
+          "methodId": "metric-results-page-capture",
+          "methodVersion": "1.0.0",
+          "state": "BLOCKED",
+          "requiredInputs": [
+            "source-manifest",
+            "verified-locators"
+          ],
+          "blockingCodes": [
+            "CAPTURE_FIELDS_LIMITED"
+          ]
+        },
+        {
+          "sectionId": "I01",
+          "title": "Câu hỏi kinh doanh",
+          "methodId": "metric-results-page-capture",
+          "methodVersion": "1.0.0",
+          "state": "BLOCKED",
+          "requiredInputs": [
+            "owner-question",
+            "scope"
+          ],
+          "blockingCodes": [
+            "CAPTURE_FIELDS_LIMITED"
+          ]
+        },
+        {
+          "sectionId": "I02",
+          "title": "Khách hàng và hoàn cảnh",
+          "methodId": "metric-results-page-capture",
+          "methodVersion": "1.0.0",
+          "state": "BLOCKED",
+          "requiredInputs": [
+            "source-scope",
+            "case-locators",
+            "adjudication-provenance"
+          ],
+          "blockingCodes": [
+            "CAPTURE_FIELDS_LIMITED"
+          ]
+        },
+        {
+          "sectionId": "I03",
+          "title": "Phương pháp nghiên cứu",
+          "methodId": "metric-results-page-capture",
+          "methodVersion": "1.0.0",
+          "state": "BLOCKED",
+          "requiredInputs": [
+            "exact-source-package-lineage",
+            "normalization-receipt",
+            "metric-result",
+            "verified-locators-and-denominators"
+          ],
+          "blockingCodes": [
+            "CAPTURE_FIELDS_LIMITED"
+          ]
+        },
+        {
+          "sectionId": "I04",
+          "title": "Hành vi",
+          "methodId": "metric-results-page-capture",
+          "methodVersion": "1.0.0",
+          "state": "BLOCKED",
+          "requiredInputs": [
+            "source-scope",
+            "case-locators",
+            "adjudication-provenance"
+          ],
+          "blockingCodes": [
+            "CAPTURE_FIELDS_LIMITED"
+          ]
+        },
+        {
+          "sectionId": "I05",
+          "title": "Cảm nhận và thái độ",
+          "methodId": "metric-results-page-capture",
+          "methodVersion": "1.0.0",
+          "state": "BLOCKED",
+          "requiredInputs": [
+            "source-scope",
+            "case-locators",
+            "adjudication-provenance"
+          ],
+          "blockingCodes": [
+            "CAPTURE_FIELDS_LIMITED"
+          ]
+        },
+        {
+          "sectionId": "I06",
+          "title": "Hành trình",
+          "methodId": "metric-results-page-capture",
+          "methodVersion": "1.0.0",
+          "state": "BLOCKED",
+          "requiredInputs": [
+            "source-scope",
+            "case-locators",
+            "adjudication-provenance"
+          ],
+          "blockingCodes": [
+            "CAPTURE_FIELDS_LIMITED"
+          ]
+        },
+        {
+          "sectionId": "I07",
+          "title": "Lý do lựa chọn",
+          "methodId": "metric-results-page-capture",
+          "methodVersion": "1.0.0",
+          "state": "BLOCKED",
+          "requiredInputs": [
+            "source-scope",
+            "case-locators",
+            "adjudication-provenance"
+          ],
+          "blockingCodes": [
+            "CAPTURE_FIELDS_LIMITED"
+          ]
+        },
+        {
+          "sectionId": "I08",
+          "title": "Rào cản",
+          "methodId": "metric-results-page-capture",
+          "methodVersion": "1.0.0",
+          "state": "BLOCKED",
+          "requiredInputs": [
+            "source-scope",
+            "case-locators",
+            "adjudication-provenance"
+          ],
+          "blockingCodes": [
+            "CAPTURE_FIELDS_LIMITED"
+          ]
+        },
+        {
+          "sectionId": "I09",
+          "title": "Nhu cầu chưa được đáp ứng",
+          "methodId": "metric-results-page-capture",
+          "methodVersion": "1.0.0",
+          "state": "BLOCKED",
+          "requiredInputs": [
+            "source-scope",
+            "case-locators",
+            "adjudication-provenance"
+          ],
+          "blockingCodes": [
+            "CAPTURE_FIELDS_LIMITED"
+          ]
+        },
+        {
+          "sectionId": "I10",
+          "title": "Chủ đề và mối quan tâm",
+          "methodId": "metric-results-page-capture",
+          "methodVersion": "1.0.0",
+          "state": "BLOCKED",
+          "requiredInputs": [
+            "source-scope",
+            "case-locators",
+            "adjudication-provenance"
+          ],
+          "blockingCodes": [
+            "CAPTURE_FIELDS_LIMITED"
+          ]
+        },
+        {
+          "sectionId": "I11",
+          "title": "Khác biệt giữa các nhóm",
+          "methodId": "metric-results-page-capture",
+          "methodVersion": "1.0.0",
+          "state": "BLOCKED",
+          "requiredInputs": [
+            "comparable-groups",
+            "denominators"
+          ],
+          "blockingCodes": [
+            "CAPTURE_FIELDS_LIMITED"
+          ]
+        },
+        {
+          "sectionId": "I12",
+          "title": "Điểm tiếp xúc",
+          "methodId": "metric-results-page-capture",
+          "methodVersion": "1.0.0",
+          "state": "BLOCKED",
+          "requiredInputs": [
+            "source-scope",
+            "case-locators",
+            "adjudication-provenance"
+          ],
+          "blockingCodes": [
+            "CAPTURE_FIELDS_LIMITED"
+          ]
+        },
+        {
+          "sectionId": "I13",
+          "title": "Thương hiệu và đối thủ",
+          "methodId": "metric-results-page-capture",
+          "methodVersion": "1.0.0",
+          "state": "BLOCKED",
+          "requiredInputs": [
+            "source-scope",
+            "case-locators",
+            "adjudication-provenance"
+          ],
+          "blockingCodes": [
+            "CAPTURE_FIELDS_LIMITED"
+          ]
+        },
+        {
+          "sectionId": "I14",
+          "title": "Hướng cơ hội",
+          "methodId": "metric-results-page-capture",
+          "methodVersion": "1.0.0",
+          "state": "BLOCKED",
+          "requiredInputs": [
+            "validated-metrics",
+            "source-bound-claims",
+            "owner-review"
+          ],
+          "blockingCodes": [
+            "CAPTURE_FIELDS_LIMITED"
+          ]
+        },
+        {
+          "sectionId": "I15",
+          "title": "Định hướng chiến lược",
+          "methodId": "metric-results-page-capture",
+          "methodVersion": "1.0.0",
+          "state": "BLOCKED",
+          "requiredInputs": [
+            "validated-metrics",
+            "source-bound-claims",
+            "owner-review"
+          ],
+          "blockingCodes": [
+            "CAPTURE_FIELDS_LIMITED"
+          ]
+        },
+        {
+          "sectionId": "I16",
+          "title": "Thử nghiệm và đo lường",
+          "methodId": "metric-results-page-capture",
+          "methodVersion": "1.0.0",
+          "state": "BLOCKED",
+          "requiredInputs": [
+            "existing-relevant-outcomes",
+            "measurement-design"
+          ],
+          "blockingCodes": [
+            "CAPTURE_FIELDS_LIMITED"
+          ]
+        },
+        {
+          "sectionId": "I17",
+          "title": "Phụ lục và bằng chứng",
+          "methodId": "metric-results-page-capture",
+          "methodVersion": "1.0.0",
+          "state": "BLOCKED",
+          "requiredInputs": [
+            "source-package-manifest",
+            "verified-method-artifacts",
+            "resolved-fact-claim-pointers"
+          ],
+          "blockingCodes": [
+            "CAPTURE_FIELDS_LIMITED"
+          ]
+        }
+      ],
+      "summary": {
+        "totalSections": 30,
+        "readyToCalculate": 0,
+        "blocked": 30,
+        "invalid": 0
+      },
+      "readinessSha256": "19052d6eedd4195f50c966f9516190beb493a6c74f478f8f5c66e2aebe36147b"
+    },
+    "result": {
+      "contractVersion": "1.0.0",
+      "methodVersion": "metric-scope-v1",
+      "rendererVersion": "metric-draft-vi-v1",
+      "rounding": "percent-half-even-2-v1",
+      "status": "DRAFT",
+      "verification": "NORMALIZED_INPUT_ONLY",
+      "inputSha256": "1de4018b116e1e62073554a89dfb71371b585de0d8884e667edb0bb01db9829c",
+      "input": {
+        "contractVersion": "1.0.0",
+        "labelCodebookVersion": "capture-no-labels-v1",
+        "profileId": "automation-metric-capture-v2",
+        "records": [
+          {
+            "category": "Invented lumoware",
+            "label": null,
+            "listingId": "synthetic-5205ed9e10e927aec6a6de4b180880827c5940f0",
+            "measurement": {
+              "currency": "VND",
+              "end": "2026-01-29",
+              "platform": "shopee",
+              "profileId": "automation-metric-capture-v2",
+              "scopeKey": "all",
+              "selection": "UNSPECIFIED",
+              "start": "2026-01-01"
+            },
+            "revenue": {
+              "displayedValue": "100",
+              "precision": "exact",
+              "source": {
+                "locator": "/groups/W12_topProducts/rows/0/rows[0].revenue",
+                "sourceSha256": "7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79"
+              },
+              "state": "observed_value",
+              "value": "100"
+            },
+            "shopId": "Synthetic shop 0",
+            "source": {
+              "locator": "/groups/W12_topProducts/rows/0",
+              "sourceSha256": "7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79"
+            },
+            "title": "Lumo pod amber",
+            "units": {
+              "displayedValue": "1",
+              "precision": "exact",
+              "source": {
+                "locator": "/groups/W12_topProducts/rows/0/rows[0].units",
+                "sourceSha256": "7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79"
+              },
+              "state": "observed_value",
+              "value": "1"
+            }
+          },
+          {
+            "category": "Invented lumoware",
+            "label": null,
+            "listingId": "synthetic-25fad15908fa4e6f2e53138af83ff235c8328a85",
+            "measurement": {
+              "currency": "VND",
+              "end": "2026-01-29",
+              "platform": "shopee",
+              "profileId": "automation-metric-capture-v2",
+              "scopeKey": "all",
+              "selection": "UNSPECIFIED",
+              "start": "2026-01-01"
+            },
+            "revenue": {
+              "displayedValue": "100",
+              "precision": "exact",
+              "source": {
+                "locator": "/groups/W12_topProducts/rows/2/rows[2].revenue",
+                "sourceSha256": "7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79"
+              },
+              "state": "observed_value",
+              "value": "100"
+            },
+            "shopId": "Synthetic shop 2",
+            "source": {
+              "locator": "/groups/W12_topProducts/rows/2",
+              "sourceSha256": "7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79"
+            },
+            "title": "Lumo pod uncertain",
+            "units": {
+              "displayedValue": "1",
+              "precision": "exact",
+              "source": {
+                "locator": "/groups/W12_topProducts/rows/2/rows[2].units",
+                "sourceSha256": "7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79"
+              },
+              "state": "observed_value",
+              "value": "1"
+            }
+          },
+          {
+            "category": "Invented lumoware",
+            "label": null,
+            "listingId": "synthetic-0a5b4e59de12a80267281115fb00c1cce3d4ef48",
+            "measurement": {
+              "currency": "VND",
+              "end": "2026-01-29",
+              "platform": "shopee",
+              "profileId": "automation-metric-capture-v2",
+              "scopeKey": "all",
+              "selection": "UNSPECIFIED",
+              "start": "2026-01-01"
+            },
+            "revenue": {
+              "displayedValue": "100",
+              "precision": "exact",
+              "source": {
+                "locator": "/groups/W12_topProducts/rows/3/rows[3].revenue",
+                "sourceSha256": "7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79"
+              },
+              "state": "observed_value",
+              "value": "100"
+            },
+            "shopId": "Synthetic shop 3",
+            "source": {
+              "locator": "/groups/W12_topProducts/rows/3",
+              "sourceSha256": "7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79"
+            },
+            "title": "Lumo pod rival",
+            "units": {
+              "displayedValue": "1",
+              "precision": "exact",
+              "source": {
+                "locator": "/groups/W12_topProducts/rows/3/rows[3].units",
+                "sourceSha256": "7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79"
+              },
+              "state": "observed_value",
+              "value": "1"
+            }
+          }
+        ],
+        "scope": {
+          "acquiredAt": "2026-09-21T03:15:00Z",
+          "end": "2026-01-29",
+          "key": "all",
+          "periodBasis": "Kỳ bộ lọc của results-page capture; giữ nguyên, không tự kéo dài hoặc chia tỷ lệ.",
+          "platform": "shopee",
+          "selection": "UNSPECIFIED",
+          "start": "2026-01-01"
+        },
+        "sources": [
+          {
+            "evidenceFamily": "metric-results-page-capture",
+            "label": "Metric results-page capture snapshot",
+            "provenanceBasis": "Exact retained results-page snapshot; provider authenticity and market completeness are not independently established.",
+            "representationRole": "primary",
+            "sha256": "7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79"
+          }
+        ],
+        "wideUnknownPolicy": "exclude"
+      },
+      "labelIssues": [
+        {
+          "recordIndex": 0,
+          "reason": "MISSING_LABEL"
+        },
+        {
+          "recordIndex": 1,
+          "reason": "MISSING_LABEL"
+        },
+        {
+          "recordIndex": 2,
+          "reason": "MISSING_LABEL"
+        }
+      ],
+      "scopes": [
+        {
+          "key": "all",
+          "status": "CALCULATED",
+          "recordIndices": [
+            0,
+            1,
+            2
+          ],
+          "listingCount": 3,
+          "shopCount": 3,
+          "revenue": {
+            "value": "300",
+            "observedCount": 3,
+            "missingCount": 0,
+            "nonExactCount": 0,
+            "complete": true
+          },
+          "units": {
+            "value": "3",
+            "observedCount": 3,
+            "missingCount": 0,
+            "nonExactCount": 0,
+            "complete": true
+          },
+          "warnings": [
+            "LABELS_REQUIRE_ADJUDICATION"
+          ],
+          "shops": [
+            {
+              "shopKey": "[\"shopee\",\"Synthetic shop 0\"]",
+              "revenue": {
+                "value": "100",
+                "observedCount": 1,
+                "missingCount": 0,
+                "nonExactCount": 0,
+                "complete": true
+              },
+              "units": {
+                "value": "1",
+                "observedCount": 1,
+                "missingCount": 0,
+                "nonExactCount": 0,
+                "complete": true
+              }
+            },
+            {
+              "shopKey": "[\"shopee\",\"Synthetic shop 2\"]",
+              "revenue": {
+                "value": "100",
+                "observedCount": 1,
+                "missingCount": 0,
+                "nonExactCount": 0,
+                "complete": true
+              },
+              "units": {
+                "value": "1",
+                "observedCount": 1,
+                "missingCount": 0,
+                "nonExactCount": 0,
+                "complete": true
+              }
+            },
+            {
+              "shopKey": "[\"shopee\",\"Synthetic shop 3\"]",
+              "revenue": {
+                "value": "100",
+                "observedCount": 1,
+                "missingCount": 0,
+                "nonExactCount": 0,
+                "complete": true
+              },
+              "units": {
+                "value": "1",
+                "observedCount": 1,
+                "missingCount": 0,
+                "nonExactCount": 0,
+                "complete": true
+              }
+            }
+          ],
+          "groups": [
+            {
+              "group": "UNKNOWN",
+              "listingCount": 3,
+              "revenue": {
+                "value": "300",
+                "observedCount": 3,
+                "missingCount": 0,
+                "nonExactCount": 0,
+                "complete": true
+              },
+              "units": {
+                "value": "3",
+                "observedCount": 3,
+                "missingCount": 0,
+                "nonExactCount": 0,
+                "complete": true
+              },
+              "revenueShare": {
+                "numerator": "300",
+                "denominator": "300",
+                "percent": "100.00"
+              }
+            }
+          ],
+          "concentration": [
+            {
+              "k": 1,
+              "usedShopCount": 1,
+              "share": {
+                "numerator": "100",
+                "denominator": "300",
+                "percent": "33.33"
+              }
+            },
+            {
+              "k": 3,
+              "usedShopCount": 3,
+              "share": {
+                "numerator": "300",
+                "denominator": "300",
+                "percent": "100.00"
+              }
+            },
+            {
+              "k": 10,
+              "usedShopCount": 3,
+              "share": {
+                "numerator": "300",
+                "denominator": "300",
+                "percent": "100.00"
+              }
+            }
+          ],
+          "withoutTopShop": {
+            "removedShopKey": "[\"shopee\",\"Synthetic shop 0\"]",
+            "listingCount": 2,
+            "revenue": {
+              "value": "200",
+              "observedCount": 2,
+              "missingCount": 0,
+              "nonExactCount": 0,
+              "complete": true
+            },
+            "shops": [
+              {
+                "shopKey": "[\"shopee\",\"Synthetic shop 2\"]",
+                "revenue": {
+                  "value": "100",
+                  "observedCount": 1,
+                  "missingCount": 0,
+                  "nonExactCount": 0,
+                  "complete": true
+                },
+                "units": {
+                  "value": "1",
+                  "observedCount": 1,
+                  "missingCount": 0,
+                  "nonExactCount": 0,
+                  "complete": true
+                }
+              },
+              {
+                "shopKey": "[\"shopee\",\"Synthetic shop 3\"]",
+                "revenue": {
+                  "value": "100",
+                  "observedCount": 1,
+                  "missingCount": 0,
+                  "nonExactCount": 0,
+                  "complete": true
+                },
+                "units": {
+                  "value": "1",
+                  "observedCount": 1,
+                  "missingCount": 0,
+                  "nonExactCount": 0,
+                  "complete": true
+                }
+              }
+            ],
+            "concentration": [
+              {
+                "k": 1,
+                "usedShopCount": 1,
+                "share": {
+                  "numerator": "100",
+                  "denominator": "200",
+                  "percent": "50.00"
+                }
+              },
+              {
+                "k": 3,
+                "usedShopCount": 2,
+                "share": {
+                  "numerator": "200",
+                  "denominator": "200",
+                  "percent": "100.00"
+                }
+              },
+              {
+                "k": 10,
+                "usedShopCount": 2,
+                "share": {
+                  "numerator": "200",
+                  "denominator": "200",
+                  "percent": "100.00"
+                }
+              }
+            ],
+            "remainingRevenueShare": {
+              "numerator": "200",
+              "denominator": "300",
+              "percent": "66.67"
+            }
+          }
+        },
+        {
+          "key": "wide",
+          "status": "BLOCKED_LABELS",
+          "recordIndices": [],
+          "listingCount": 0,
+          "shopCount": 0,
+          "revenue": {
+            "value": null,
+            "observedCount": 0,
+            "missingCount": 0,
+            "nonExactCount": 0,
+            "complete": false
+          },
+          "units": {
+            "value": null,
+            "observedCount": 0,
+            "missingCount": 0,
+            "nonExactCount": 0,
+            "complete": false
+          },
+          "warnings": [
+            "LABELS_REQUIRE_ADJUDICATION"
+          ],
+          "shops": [],
+          "groups": [],
+          "concentration": [
+            {
+              "k": 1,
+              "usedShopCount": 0,
+              "share": null
+            },
+            {
+              "k": 3,
+              "usedShopCount": 0,
+              "share": null
+            },
+            {
+              "k": 10,
+              "usedShopCount": 0,
+              "share": null
+            }
+          ],
+          "withoutTopShop": null
+        },
+        {
+          "key": "core",
+          "status": "BLOCKED_LABELS",
+          "recordIndices": [],
+          "listingCount": 0,
+          "shopCount": 0,
+          "revenue": {
+            "value": null,
+            "observedCount": 0,
+            "missingCount": 0,
+            "nonExactCount": 0,
+            "complete": false
+          },
+          "units": {
+            "value": null,
+            "observedCount": 0,
+            "missingCount": 0,
+            "nonExactCount": 0,
+            "complete": false
+          },
+          "warnings": [
+            "LABELS_REQUIRE_ADJUDICATION"
+          ],
+          "shops": [],
+          "groups": [],
+          "concentration": [
+            {
+              "k": 1,
+              "usedShopCount": 0,
+              "share": null
+            },
+            {
+              "k": 3,
+              "usedShopCount": 0,
+              "share": null
+            },
+            {
+              "k": 10,
+              "usedShopCount": 0,
+              "share": null
+            }
+          ],
+          "withoutTopShop": null
+        }
+      ],
+      "comparisons": []
+    },
+    "limitations": [
+      "OPERATOR_ATTACHED_EXPORT_NOT_PROVIDER_AUTHENTICATED",
+      "KEYWORD_EXPORT_CONTEXT_RETAINED_LITERALLY_NO_FILTER_CATEGORY_OR_COVERAGE_GUARANTEE",
+      "ALL_SCOPE_IS_BOUNDED_OBSERVED_KEYWORD_EXPORT_SAMPLE_NOT_WHOLE_MARKET",
+      "CLASSIFICATION_LABELS_NOT_BOUND_WIDE_CORE_BLOCKED",
+      "CLASSIFIED_M03_M04_READINESS_REMAINS_BLOCKED",
+      "NO_ANNUAL_GROWTH_TAM_OR_WHOLE_MARKET_SHARE",
+      "NOT_DIRECTLY_COMPARABLE_WITH_KALODATA_PERIODS",
+      "DECLARED_PERIOD_AND_PRECISION_NOT_INDEPENDENTLY_VERIFIED",
+      "SOURCE_PERIOD_SHORTER_THAN_REQUESTED_NOT_EXPANDED_OR_PRORATED",
+      "CAPTURE_RESULTS_PAGE_TOP_N_LIMITED"
+    ],
+    "capture": {
+      "provenance": "RESULTS_PAGE_CAPTURE",
+      "snapshotSha256": "7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79",
+      "manifestSha256": "4e517101aa81eaedb72540c4b63fbebebcf194c86a0f4dd36d745551815832c0",
+      "contextSha256": "1b6405f56e7396a64cfaa329e5bc2f639092e4e1ea38a1e961cb3ff4df5c8108",
+      "descriptorSha256": "907cd2a0317c4f41b7510b7fe36482a24af614f862e381c39a1bc865806490f4",
+      "capture": {
+        "captureId": "capture-synthetic-lumo",
+        "specDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "keyword": "lumo pod",
+        "platforms": [
+          "shopee",
+          "tiktok"
+        ],
+        "measurementPeriod": {
+          "startDate": "2026-01-01",
+          "endDate": "2026-01-29"
+        },
+        "truncation": {
+          "cap": 8,
+          "totalShown": 8,
+          "pagesRead": 1,
+          "rowsRead": 8,
+          "truncated": false
+        }
+      },
+      "platforms": [
+        {
+          "platform": "shopee",
+          "result": {
+            "contractVersion": "1.0.0",
+            "methodVersion": "metric-scope-v1",
+            "rendererVersion": "metric-draft-vi-v1",
+            "rounding": "percent-half-even-2-v1",
+            "status": "DRAFT",
+            "verification": "NORMALIZED_INPUT_ONLY",
+            "inputSha256": "1de4018b116e1e62073554a89dfb71371b585de0d8884e667edb0bb01db9829c",
+            "input": {
+              "contractVersion": "1.0.0",
+              "labelCodebookVersion": "capture-no-labels-v1",
+              "profileId": "automation-metric-capture-v2",
+              "records": [
+                {
+                  "category": "Invented lumoware",
+                  "label": null,
+                  "listingId": "synthetic-5205ed9e10e927aec6a6de4b180880827c5940f0",
+                  "measurement": {
+                    "currency": "VND",
+                    "end": "2026-01-29",
+                    "platform": "shopee",
+                    "profileId": "automation-metric-capture-v2",
+                    "scopeKey": "all",
+                    "selection": "UNSPECIFIED",
+                    "start": "2026-01-01"
+                  },
+                  "revenue": {
+                    "displayedValue": "100",
+                    "precision": "exact",
+                    "source": {
+                      "locator": "/groups/W12_topProducts/rows/0/rows[0].revenue",
+                      "sourceSha256": "7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79"
+                    },
+                    "state": "observed_value",
+                    "value": "100"
+                  },
+                  "shopId": "Synthetic shop 0",
+                  "source": {
+                    "locator": "/groups/W12_topProducts/rows/0",
+                    "sourceSha256": "7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79"
+                  },
+                  "title": "Lumo pod amber",
+                  "units": {
+                    "displayedValue": "1",
+                    "precision": "exact",
+                    "source": {
+                      "locator": "/groups/W12_topProducts/rows/0/rows[0].units",
+                      "sourceSha256": "7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79"
+                    },
+                    "state": "observed_value",
+                    "value": "1"
+                  }
+                },
+                {
+                  "category": "Invented lumoware",
+                  "label": null,
+                  "listingId": "synthetic-25fad15908fa4e6f2e53138af83ff235c8328a85",
+                  "measurement": {
+                    "currency": "VND",
+                    "end": "2026-01-29",
+                    "platform": "shopee",
+                    "profileId": "automation-metric-capture-v2",
+                    "scopeKey": "all",
+                    "selection": "UNSPECIFIED",
+                    "start": "2026-01-01"
+                  },
+                  "revenue": {
+                    "displayedValue": "100",
+                    "precision": "exact",
+                    "source": {
+                      "locator": "/groups/W12_topProducts/rows/2/rows[2].revenue",
+                      "sourceSha256": "7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79"
+                    },
+                    "state": "observed_value",
+                    "value": "100"
+                  },
+                  "shopId": "Synthetic shop 2",
+                  "source": {
+                    "locator": "/groups/W12_topProducts/rows/2",
+                    "sourceSha256": "7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79"
+                  },
+                  "title": "Lumo pod uncertain",
+                  "units": {
+                    "displayedValue": "1",
+                    "precision": "exact",
+                    "source": {
+                      "locator": "/groups/W12_topProducts/rows/2/rows[2].units",
+                      "sourceSha256": "7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79"
+                    },
+                    "state": "observed_value",
+                    "value": "1"
+                  }
+                },
+                {
+                  "category": "Invented lumoware",
+                  "label": null,
+                  "listingId": "synthetic-0a5b4e59de12a80267281115fb00c1cce3d4ef48",
+                  "measurement": {
+                    "currency": "VND",
+                    "end": "2026-01-29",
+                    "platform": "shopee",
+                    "profileId": "automation-metric-capture-v2",
+                    "scopeKey": "all",
+                    "selection": "UNSPECIFIED",
+                    "start": "2026-01-01"
+                  },
+                  "revenue": {
+                    "displayedValue": "100",
+                    "precision": "exact",
+                    "source": {
+                      "locator": "/groups/W12_topProducts/rows/3/rows[3].revenue",
+                      "sourceSha256": "7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79"
+                    },
+                    "state": "observed_value",
+                    "value": "100"
+                  },
+                  "shopId": "Synthetic shop 3",
+                  "source": {
+                    "locator": "/groups/W12_topProducts/rows/3",
+                    "sourceSha256": "7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79"
+                  },
+                  "title": "Lumo pod rival",
+                  "units": {
+                    "displayedValue": "1",
+                    "precision": "exact",
+                    "source": {
+                      "locator": "/groups/W12_topProducts/rows/3/rows[3].units",
+                      "sourceSha256": "7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79"
+                    },
+                    "state": "observed_value",
+                    "value": "1"
+                  }
+                }
+              ],
+              "scope": {
+                "acquiredAt": "2026-09-21T03:15:00Z",
+                "end": "2026-01-29",
+                "key": "all",
+                "periodBasis": "Kỳ bộ lọc của results-page capture; giữ nguyên, không tự kéo dài hoặc chia tỷ lệ.",
+                "platform": "shopee",
+                "selection": "UNSPECIFIED",
+                "start": "2026-01-01"
+              },
+              "sources": [
+                {
+                  "evidenceFamily": "metric-results-page-capture",
+                  "label": "Metric results-page capture snapshot",
+                  "provenanceBasis": "Exact retained results-page snapshot; provider authenticity and market completeness are not independently established.",
+                  "representationRole": "primary",
+                  "sha256": "7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79"
+                }
+              ],
+              "wideUnknownPolicy": "exclude"
+            },
+            "labelIssues": [
+              {
+                "recordIndex": 0,
+                "reason": "MISSING_LABEL"
+              },
+              {
+                "recordIndex": 1,
+                "reason": "MISSING_LABEL"
+              },
+              {
+                "recordIndex": 2,
+                "reason": "MISSING_LABEL"
+              }
+            ],
+            "scopes": [
+              {
+                "key": "all",
+                "status": "CALCULATED",
+                "recordIndices": [
+                  0,
+                  1,
+                  2
+                ],
+                "listingCount": 3,
+                "shopCount": 3,
+                "revenue": {
+                  "value": "300",
+                  "observedCount": 3,
+                  "missingCount": 0,
+                  "nonExactCount": 0,
+                  "complete": true
+                },
+                "units": {
+                  "value": "3",
+                  "observedCount": 3,
+                  "missingCount": 0,
+                  "nonExactCount": 0,
+                  "complete": true
+                },
+                "warnings": [
+                  "LABELS_REQUIRE_ADJUDICATION"
+                ],
+                "shops": [
+                  {
+                    "shopKey": "[\"shopee\",\"Synthetic shop 0\"]",
+                    "revenue": {
+                      "value": "100",
+                      "observedCount": 1,
+                      "missingCount": 0,
+                      "nonExactCount": 0,
+                      "complete": true
+                    },
+                    "units": {
+                      "value": "1",
+                      "observedCount": 1,
+                      "missingCount": 0,
+                      "nonExactCount": 0,
+                      "complete": true
+                    }
+                  },
+                  {
+                    "shopKey": "[\"shopee\",\"Synthetic shop 2\"]",
+                    "revenue": {
+                      "value": "100",
+                      "observedCount": 1,
+                      "missingCount": 0,
+                      "nonExactCount": 0,
+                      "complete": true
+                    },
+                    "units": {
+                      "value": "1",
+                      "observedCount": 1,
+                      "missingCount": 0,
+                      "nonExactCount": 0,
+                      "complete": true
+                    }
+                  },
+                  {
+                    "shopKey": "[\"shopee\",\"Synthetic shop 3\"]",
+                    "revenue": {
+                      "value": "100",
+                      "observedCount": 1,
+                      "missingCount": 0,
+                      "nonExactCount": 0,
+                      "complete": true
+                    },
+                    "units": {
+                      "value": "1",
+                      "observedCount": 1,
+                      "missingCount": 0,
+                      "nonExactCount": 0,
+                      "complete": true
+                    }
+                  }
+                ],
+                "groups": [
+                  {
+                    "group": "UNKNOWN",
+                    "listingCount": 3,
+                    "revenue": {
+                      "value": "300",
+                      "observedCount": 3,
+                      "missingCount": 0,
+                      "nonExactCount": 0,
+                      "complete": true
+                    },
+                    "units": {
+                      "value": "3",
+                      "observedCount": 3,
+                      "missingCount": 0,
+                      "nonExactCount": 0,
+                      "complete": true
+                    },
+                    "revenueShare": {
+                      "numerator": "300",
+                      "denominator": "300",
+                      "percent": "100.00"
+                    }
+                  }
+                ],
+                "concentration": [
+                  {
+                    "k": 1,
+                    "usedShopCount": 1,
+                    "share": {
+                      "numerator": "100",
+                      "denominator": "300",
+                      "percent": "33.33"
+                    }
+                  },
+                  {
+                    "k": 3,
+                    "usedShopCount": 3,
+                    "share": {
+                      "numerator": "300",
+                      "denominator": "300",
+                      "percent": "100.00"
+                    }
+                  },
+                  {
+                    "k": 10,
+                    "usedShopCount": 3,
+                    "share": {
+                      "numerator": "300",
+                      "denominator": "300",
+                      "percent": "100.00"
+                    }
+                  }
+                ],
+                "withoutTopShop": {
+                  "removedShopKey": "[\"shopee\",\"Synthetic shop 0\"]",
+                  "listingCount": 2,
+                  "revenue": {
+                    "value": "200",
+                    "observedCount": 2,
+                    "missingCount": 0,
+                    "nonExactCount": 0,
+                    "complete": true
+                  },
+                  "shops": [
+                    {
+                      "shopKey": "[\"shopee\",\"Synthetic shop 2\"]",
+                      "revenue": {
+                        "value": "100",
+                        "observedCount": 1,
+                        "missingCount": 0,
+                        "nonExactCount": 0,
+                        "complete": true
+                      },
+                      "units": {
+                        "value": "1",
+                        "observedCount": 1,
+                        "missingCount": 0,
+                        "nonExactCount": 0,
+                        "complete": true
+                      }
+                    },
+                    {
+                      "shopKey": "[\"shopee\",\"Synthetic shop 3\"]",
+                      "revenue": {
+                        "value": "100",
+                        "observedCount": 1,
+                        "missingCount": 0,
+                        "nonExactCount": 0,
+                        "complete": true
+                      },
+                      "units": {
+                        "value": "1",
+                        "observedCount": 1,
+                        "missingCount": 0,
+                        "nonExactCount": 0,
+                        "complete": true
+                      }
+                    }
+                  ],
+                  "concentration": [
+                    {
+                      "k": 1,
+                      "usedShopCount": 1,
+                      "share": {
+                        "numerator": "100",
+                        "denominator": "200",
+                        "percent": "50.00"
+                      }
+                    },
+                    {
+                      "k": 3,
+                      "usedShopCount": 2,
+                      "share": {
+                        "numerator": "200",
+                        "denominator": "200",
+                        "percent": "100.00"
+                      }
+                    },
+                    {
+                      "k": 10,
+                      "usedShopCount": 2,
+                      "share": {
+                        "numerator": "200",
+                        "denominator": "200",
+                        "percent": "100.00"
+                      }
+                    }
+                  ],
+                  "remainingRevenueShare": {
+                    "numerator": "200",
+                    "denominator": "300",
+                    "percent": "66.67"
+                  }
+                }
+              },
+              {
+                "key": "wide",
+                "status": "BLOCKED_LABELS",
+                "recordIndices": [],
+                "listingCount": 0,
+                "shopCount": 0,
+                "revenue": {
+                  "value": null,
+                  "observedCount": 0,
+                  "missingCount": 0,
+                  "nonExactCount": 0,
+                  "complete": false
+                },
+                "units": {
+                  "value": null,
+                  "observedCount": 0,
+                  "missingCount": 0,
+                  "nonExactCount": 0,
+                  "complete": false
+                },
+                "warnings": [
+                  "LABELS_REQUIRE_ADJUDICATION"
+                ],
+                "shops": [],
+                "groups": [],
+                "concentration": [
+                  {
+                    "k": 1,
+                    "usedShopCount": 0,
+                    "share": null
+                  },
+                  {
+                    "k": 3,
+                    "usedShopCount": 0,
+                    "share": null
+                  },
+                  {
+                    "k": 10,
+                    "usedShopCount": 0,
+                    "share": null
+                  }
+                ],
+                "withoutTopShop": null
+              },
+              {
+                "key": "core",
+                "status": "BLOCKED_LABELS",
+                "recordIndices": [],
+                "listingCount": 0,
+                "shopCount": 0,
+                "revenue": {
+                  "value": null,
+                  "observedCount": 0,
+                  "missingCount": 0,
+                  "nonExactCount": 0,
+                  "complete": false
+                },
+                "units": {
+                  "value": null,
+                  "observedCount": 0,
+                  "missingCount": 0,
+                  "nonExactCount": 0,
+                  "complete": false
+                },
+                "warnings": [
+                  "LABELS_REQUIRE_ADJUDICATION"
+                ],
+                "shops": [],
+                "groups": [],
+                "concentration": [
+                  {
+                    "k": 1,
+                    "usedShopCount": 0,
+                    "share": null
+                  },
+                  {
+                    "k": 3,
+                    "usedShopCount": 0,
+                    "share": null
+                  },
+                  {
+                    "k": 10,
+                    "usedShopCount": 0,
+                    "share": null
+                  }
+                ],
+                "withoutTopShop": null
+              }
+            ],
+            "comparisons": []
+          }
+        },
+        {
+          "platform": "tiktok",
+          "result": {
+            "contractVersion": "1.0.0",
+            "methodVersion": "metric-scope-v1",
+            "rendererVersion": "metric-draft-vi-v1",
+            "rounding": "percent-half-even-2-v1",
+            "status": "DRAFT",
+            "verification": "NORMALIZED_INPUT_ONLY",
+            "inputSha256": "0a7c6ecd11caf7e0dd319fdb1c7d8bff2921f16f8d19bfb70eaa2b857bf0fc58",
+            "input": {
+              "contractVersion": "1.0.0",
+              "labelCodebookVersion": "capture-no-labels-v1",
+              "profileId": "automation-metric-capture-v2",
+              "records": [
+                {
+                  "category": "Invented lumoware",
+                  "label": null,
+                  "listingId": "synthetic-2cfbe507bd85b7420e117f0acbac0cbaae53af62",
+                  "measurement": {
+                    "currency": "VND",
+                    "end": "2026-01-29",
+                    "platform": "tiktok",
+                    "profileId": "automation-metric-capture-v2",
+                    "scopeKey": "all",
+                    "selection": "UNSPECIFIED",
+                    "start": "2026-01-01"
+                  },
+                  "revenue": {
+                    "displayedValue": "9000",
+                    "precision": "exact",
+                    "source": {
+                      "locator": "/groups/W12_topProducts/rows/6/rows[6].revenue",
+                      "sourceSha256": "7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79"
+                    },
+                    "state": "observed_value",
+                    "value": "9000"
+                  },
+                  "shopId": "Synthetic shop 6",
+                  "source": {
+                    "locator": "/groups/W12_topProducts/rows/6",
+                    "sourceSha256": "7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79"
+                  },
+                  "title": "Lumo pod amber",
+                  "units": {
+                    "displayedValue": "1",
+                    "precision": "exact",
+                    "source": {
+                      "locator": "/groups/W12_topProducts/rows/6/rows[6].units",
+                      "sourceSha256": "7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79"
+                    },
+                    "state": "observed_value",
+                    "value": "1"
+                  }
+                },
+                {
+                  "category": "Invented lumoware",
+                  "label": null,
+                  "listingId": "synthetic-a6b635d6eafb2ef5aa846b283166509660fffd62",
+                  "measurement": {
+                    "currency": "VND",
+                    "end": "2026-01-29",
+                    "platform": "tiktok",
+                    "profileId": "automation-metric-capture-v2",
+                    "scopeKey": "all",
+                    "selection": "UNSPECIFIED",
+                    "start": "2026-01-01"
+                  },
+                  "revenue": {
+                    "displayedValue": "9000",
+                    "precision": "exact",
+                    "source": {
+                      "locator": "/groups/W12_topProducts/rows/7/rows[7].revenue",
+                      "sourceSha256": "7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79"
+                    },
+                    "state": "observed_value",
+                    "value": "9000"
+                  },
+                  "shopId": "Synthetic shop 7",
+                  "source": {
+                    "locator": "/groups/W12_topProducts/rows/7",
+                    "sourceSha256": "7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79"
+                  },
+                  "title": "Lumo pod violet",
+                  "units": {
+                    "displayedValue": "1",
+                    "precision": "exact",
+                    "source": {
+                      "locator": "/groups/W12_topProducts/rows/7/rows[7].units",
+                      "sourceSha256": "7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79"
+                    },
+                    "state": "observed_value",
+                    "value": "1"
+                  }
+                }
+              ],
+              "scope": {
+                "acquiredAt": "2026-09-21T03:15:00Z",
+                "end": "2026-01-29",
+                "key": "all",
+                "periodBasis": "Kỳ bộ lọc của results-page capture; giữ nguyên, không tự kéo dài hoặc chia tỷ lệ.",
+                "platform": "tiktok",
+                "selection": "UNSPECIFIED",
+                "start": "2026-01-01"
+              },
+              "sources": [
+                {
+                  "evidenceFamily": "metric-results-page-capture",
+                  "label": "Metric results-page capture snapshot",
+                  "provenanceBasis": "Exact retained results-page snapshot; provider authenticity and market completeness are not independently established.",
+                  "representationRole": "primary",
+                  "sha256": "7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79"
+                }
+              ],
+              "wideUnknownPolicy": "exclude"
+            },
+            "labelIssues": [
+              {
+                "recordIndex": 0,
+                "reason": "MISSING_LABEL"
+              },
+              {
+                "recordIndex": 1,
+                "reason": "MISSING_LABEL"
+              }
+            ],
+            "scopes": [
+              {
+                "key": "all",
+                "status": "CALCULATED",
+                "recordIndices": [
+                  0,
+                  1
+                ],
+                "listingCount": 2,
+                "shopCount": 2,
+                "revenue": {
+                  "value": "18000",
+                  "observedCount": 2,
+                  "missingCount": 0,
+                  "nonExactCount": 0,
+                  "complete": true
+                },
+                "units": {
+                  "value": "2",
+                  "observedCount": 2,
+                  "missingCount": 0,
+                  "nonExactCount": 0,
+                  "complete": true
+                },
+                "warnings": [
+                  "LABELS_REQUIRE_ADJUDICATION"
+                ],
+                "shops": [
+                  {
+                    "shopKey": "[\"tiktok\",\"Synthetic shop 6\"]",
+                    "revenue": {
+                      "value": "9000",
+                      "observedCount": 1,
+                      "missingCount": 0,
+                      "nonExactCount": 0,
+                      "complete": true
+                    },
+                    "units": {
+                      "value": "1",
+                      "observedCount": 1,
+                      "missingCount": 0,
+                      "nonExactCount": 0,
+                      "complete": true
+                    }
+                  },
+                  {
+                    "shopKey": "[\"tiktok\",\"Synthetic shop 7\"]",
+                    "revenue": {
+                      "value": "9000",
+                      "observedCount": 1,
+                      "missingCount": 0,
+                      "nonExactCount": 0,
+                      "complete": true
+                    },
+                    "units": {
+                      "value": "1",
+                      "observedCount": 1,
+                      "missingCount": 0,
+                      "nonExactCount": 0,
+                      "complete": true
+                    }
+                  }
+                ],
+                "groups": [
+                  {
+                    "group": "UNKNOWN",
+                    "listingCount": 2,
+                    "revenue": {
+                      "value": "18000",
+                      "observedCount": 2,
+                      "missingCount": 0,
+                      "nonExactCount": 0,
+                      "complete": true
+                    },
+                    "units": {
+                      "value": "2",
+                      "observedCount": 2,
+                      "missingCount": 0,
+                      "nonExactCount": 0,
+                      "complete": true
+                    },
+                    "revenueShare": {
+                      "numerator": "18000",
+                      "denominator": "18000",
+                      "percent": "100.00"
+                    }
+                  }
+                ],
+                "concentration": [
+                  {
+                    "k": 1,
+                    "usedShopCount": 1,
+                    "share": {
+                      "numerator": "9000",
+                      "denominator": "18000",
+                      "percent": "50.00"
+                    }
+                  },
+                  {
+                    "k": 3,
+                    "usedShopCount": 2,
+                    "share": {
+                      "numerator": "18000",
+                      "denominator": "18000",
+                      "percent": "100.00"
+                    }
+                  },
+                  {
+                    "k": 10,
+                    "usedShopCount": 2,
+                    "share": {
+                      "numerator": "18000",
+                      "denominator": "18000",
+                      "percent": "100.00"
+                    }
+                  }
+                ],
+                "withoutTopShop": {
+                  "removedShopKey": "[\"tiktok\",\"Synthetic shop 6\"]",
+                  "listingCount": 1,
+                  "revenue": {
+                    "value": "9000",
+                    "observedCount": 1,
+                    "missingCount": 0,
+                    "nonExactCount": 0,
+                    "complete": true
+                  },
+                  "shops": [
+                    {
+                      "shopKey": "[\"tiktok\",\"Synthetic shop 7\"]",
+                      "revenue": {
+                        "value": "9000",
+                        "observedCount": 1,
+                        "missingCount": 0,
+                        "nonExactCount": 0,
+                        "complete": true
+                      },
+                      "units": {
+                        "value": "1",
+                        "observedCount": 1,
+                        "missingCount": 0,
+                        "nonExactCount": 0,
+                        "complete": true
+                      }
+                    }
+                  ],
+                  "concentration": [
+                    {
+                      "k": 1,
+                      "usedShopCount": 1,
+                      "share": {
+                        "numerator": "9000",
+                        "denominator": "9000",
+                        "percent": "100.00"
+                      }
+                    },
+                    {
+                      "k": 3,
+                      "usedShopCount": 1,
+                      "share": {
+                        "numerator": "9000",
+                        "denominator": "9000",
+                        "percent": "100.00"
+                      }
+                    },
+                    {
+                      "k": 10,
+                      "usedShopCount": 1,
+                      "share": {
+                        "numerator": "9000",
+                        "denominator": "9000",
+                        "percent": "100.00"
+                      }
+                    }
+                  ],
+                  "remainingRevenueShare": {
+                    "numerator": "9000",
+                    "denominator": "18000",
+                    "percent": "50.00"
+                  }
+                }
+              },
+              {
+                "key": "wide",
+                "status": "BLOCKED_LABELS",
+                "recordIndices": [],
+                "listingCount": 0,
+                "shopCount": 0,
+                "revenue": {
+                  "value": null,
+                  "observedCount": 0,
+                  "missingCount": 0,
+                  "nonExactCount": 0,
+                  "complete": false
+                },
+                "units": {
+                  "value": null,
+                  "observedCount": 0,
+                  "missingCount": 0,
+                  "nonExactCount": 0,
+                  "complete": false
+                },
+                "warnings": [
+                  "LABELS_REQUIRE_ADJUDICATION"
+                ],
+                "shops": [],
+                "groups": [],
+                "concentration": [
+                  {
+                    "k": 1,
+                    "usedShopCount": 0,
+                    "share": null
+                  },
+                  {
+                    "k": 3,
+                    "usedShopCount": 0,
+                    "share": null
+                  },
+                  {
+                    "k": 10,
+                    "usedShopCount": 0,
+                    "share": null
+                  }
+                ],
+                "withoutTopShop": null
+              },
+              {
+                "key": "core",
+                "status": "BLOCKED_LABELS",
+                "recordIndices": [],
+                "listingCount": 0,
+                "shopCount": 0,
+                "revenue": {
+                  "value": null,
+                  "observedCount": 0,
+                  "missingCount": 0,
+                  "nonExactCount": 0,
+                  "complete": false
+                },
+                "units": {
+                  "value": null,
+                  "observedCount": 0,
+                  "missingCount": 0,
+                  "nonExactCount": 0,
+                  "complete": false
+                },
+                "warnings": [
+                  "LABELS_REQUIRE_ADJUDICATION"
+                ],
+                "shops": [],
+                "groups": [],
+                "concentration": [
+                  {
+                    "k": 1,
+                    "usedShopCount": 0,
+                    "share": null
+                  },
+                  {
+                    "k": 3,
+                    "usedShopCount": 0,
+                    "share": null
+                  },
+                  {
+                    "k": 10,
+                    "usedShopCount": 0,
+                    "share": null
+                  }
+                ],
+                "withoutTopShop": null
+              }
+            ],
+            "comparisons": []
+          }
+        }
+      ],
+      "platformHeadlines": [
+        {
+          "platform": "shopee",
+          "revenue": {
+            "value": "8012345678",
+            "precision": "exact",
+            "locator": "platform.shopee.revenue"
+          },
+          "units": null
+        },
+        {
+          "platform": "tiktok",
+          "revenue": {
+            "value": "4300000000",
+            "precision": "exact",
+            "locator": "platform.tiktok.revenue"
+          },
+          "units": null
+        }
+      ],
+      "unattributedRows": [],
+      "rowPolicyVersion": "automation-metric-capture-v2",
+      "excludedRows": [
+        {
+          "rowIndex": 1,
+          "listingId": "synthetic-8115b49fea3e871dc3019d36e60dfde39be7c9e3",
+          "title": "Sleeve dùng cho lumo pod",
+          "shop": "Synthetic shop 1",
+          "revenue": "100",
+          "units": "1",
+          "platform": "shopee",
+          "reason": "NOT_MAIN_PRODUCT"
+        },
+        {
+          "rowIndex": 4,
+          "listingId": "synthetic-212cff3d6e65da8d5a10d3c2202634a0e76c06dc",
+          "title": "Lumo pod no units",
+          "shop": "Synthetic shop 4",
+          "revenue": "100",
+          "units": "0",
+          "platform": "shopee",
+          "reason": "REVENUE_WITHOUT_UNITS"
+        },
+        {
+          "rowIndex": 5,
+          "listingId": "synthetic-5b7c0262d5f5c77c54b69a12b572fc1753da9a71",
+          "title": "Lumo pod high",
+          "shop": "Synthetic shop 5",
+          "revenue": "4000",
+          "units": "1",
+          "platform": "shopee",
+          "reason": "UNIT_REVENUE_OUTLIER"
+        }
+      ]
+    }
+  },
+  "methodFiles": [
+    {
+      "path": "authority/report-section-catalog-v1.json",
+      "sha256": "926a175fa9104df4cefde799ad601861d94b4e9d4d7fe1dbf7717dc163a8e255",
+      "byteSize": 18481
+    },
+    {
+      "path": "capture/context.json",
+      "sha256": "1b6405f56e7396a64cfaa329e5bc2f639092e4e1ea38a1e961cb3ff4df5c8108",
+      "byteSize": 859
+    },
+    {
+      "path": "capture/manifest.json",
+      "sha256": "4e517101aa81eaedb72540c4b63fbebebcf194c86a0f4dd36d745551815832c0",
+      "byteSize": 1178
+    },
+    {
+      "path": "capture/snapshot.json",
+      "sha256": "7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79",
+      "byteSize": 18726
+    },
+    {
+      "path": "methods/metric-capture-results.json",
+      "sha256": "bf7a06865f0ab1dabec2d59e41cf823e6ae1e3e67c82fcaa34ef0fcecb4234a2",
+      "byteSize": 14239
+    },
+    {
+      "path": "methods/metric-normalization-receipt.json",
+      "sha256": "e3da79ce9df7c7d3f491789ae6df747680e6ae8d7718d2124cb54938df22bc34",
+      "byteSize": 1073
+    },
+    {
+      "path": "methods/metric-normalized-input.json",
+      "sha256": "b8783f0d92351d9c3cfa7a5a15eb62ac0daa862255b17a2663e4e6ce8895ff3e",
+      "byteSize": 3670
+    },
+    {
+      "path": "methods/metric-preparation-result.json",
+      "sha256": "88270b7467858b37de07354f231f08b4c04afc428a280dc4eb8f76cd93946779",
+      "byteSize": 3535
+    },
+    {
+      "path": "methods/metric-readiness.json",
+      "sha256": "3034498ec6194b05e8ee254ce3a6d434ba6b45e05f2b8f4906ef148121654294",
+      "byteSize": 8444
+    },
+    {
+      "path": "methods/metric-run.json",
+      "sha256": "5648b611b5626558d93631169fd86eef925b2dba3bfd0661f0e6115efbbe70f9",
+      "byteSize": 3134
+    },
+    {
+      "path": "methods/metric-scope-output.json",
+      "sha256": "91fdaf43261ff8394e8dce2e91535e5c95342b6ae53364047ee55b1775b7039f",
+      "byteSize": 7808
+    },
+    {
+      "path": "normalized/automation-metric-source-capture.json",
+      "sha256": "907cd2a0317c4f41b7510b7fe36482a24af614f862e381c39a1bc865806490f4",
+      "byteSize": 502
+    },
+    {
+      "path": "profiles/automation-metric-source-v2.schema.json",
+      "sha256": "d71fe914b6457c1f1ad87980b19a75309fed3ec79c37932aa96040ab0276cedc",
+      "byteSize": 1492
+    },
+    {
+      "path": "profiles/automation-metric-source.schema.json",
+      "sha256": "aa9f0789c3544edaccbdafe5a37d088ba3491fd74faf157d44b4663e8828ef28",
+      "byteSize": 1427
+    },
+    {
+      "path": "profiles/metric-input-preparation-request.schema.json",
+      "sha256": "3c7656c45660c780940fa94f01370f0edbcb73cb9746e9dc2084da578c53c955",
+      "byteSize": 1123
+    },
+    {
+      "path": "profiles/metric-input-preparation-result.schema.json",
+      "sha256": "68fcffbacbeec644113abdbb1c1d7351beadf79fc21e22a7412cc47d4f1dc3a1",
+      "byteSize": 4092
+    },
+    {
+      "path": "profiles/metric-preparation-readiness-result.schema.json",
+      "sha256": "533d5b7a7f1c8ba995e56ef24fdf91e9916e7701837a74e53dd12d630d18e5c0",
+      "byteSize": 3904
+    },
+    {
+      "path": "profiles/metric-scope-input.schema.json",
+      "sha256": "0a342685d387d009ea0330c1edd2a891d9fe2e8c01a9b09744ed5b62679478d6",
+      "byteSize": 7962
+    },
+    {
+      "path": "profiles/metric-scope-output.schema.json",
+      "sha256": "0b11e831ba6e8b6188de11e76e3f86afa98e8c5e4583b8f51e8468f1ba2cfb21",
+      "byteSize": 12197
+    },
+    {
+      "path": "profiles/metric-source-manifest.schema.json",
+      "sha256": "dfc20eab7281f232e70bf1451b8c9722ed1505bfceb6f972d525151df4f42865",
+      "byteSize": 3670
+    },
+    {
+      "path": "profiles/report-section-catalog.schema.json",
+      "sha256": "a0f6cfeb5ae9a72107c94e9e45c9f3c187b184bd055886558103aaa65cc9f641",
+      "byteSize": 2929
+    }
+  ],
+  "readerJson": "{\"rows\":[{\"i\":0,\"platform\":\"shopee\",\"listing\":\"synthetic-5205ed9e10e927aec6a6de4b180880827c5940f0\",\"listingSynthetic\":true,\"shop\":\"Synthetic shop 0\",\"shopName\":\"Synthetic shop 0\",\"cat\":\"Invented lumoware\",\"rev\":100,\"units\":1,\"asp\":100,\"brand\":\"(không ghi)\",\"title\":\"Lumo pod amber\",\"start\":null},{\"i\":2,\"platform\":\"shopee\",\"listing\":\"synthetic-25fad15908fa4e6f2e53138af83ff235c8328a85\",\"listingSynthetic\":true,\"shop\":\"Synthetic shop 2\",\"shopName\":\"Synthetic shop 2\",\"cat\":\"Invented lumoware\",\"rev\":100,\"units\":1,\"asp\":100,\"brand\":\"(không ghi)\",\"title\":\"Lumo pod uncertain\",\"start\":null},{\"i\":3,\"platform\":\"shopee\",\"listing\":\"synthetic-0a5b4e59de12a80267281115fb00c1cce3d4ef48\",\"listingSynthetic\":true,\"shop\":\"Synthetic shop 3\",\"shopName\":\"Synthetic shop 3\",\"cat\":\"Invented lumoware\",\"rev\":100,\"units\":1,\"asp\":100,\"brand\":\"(không ghi)\",\"title\":\"Lumo pod rival\",\"start\":null},{\"i\":6,\"platform\":\"tiktok\",\"listing\":\"synthetic-2cfbe507bd85b7420e117f0acbac0cbaae53af62\",\"listingSynthetic\":true,\"shop\":\"Synthetic shop 6\",\"shopName\":\"Synthetic shop 6\",\"cat\":\"Invented lumoware\",\"rev\":9000,\"units\":1,\"asp\":9000,\"brand\":\"(không ghi)\",\"title\":\"Lumo pod amber\",\"start\":null},{\"i\":7,\"platform\":\"tiktok\",\"listing\":\"synthetic-a6b635d6eafb2ef5aa846b283166509660fffd62\",\"listingSynthetic\":true,\"shop\":\"Synthetic shop 7\",\"shopName\":\"Synthetic shop 7\",\"cat\":\"Invented lumoware\",\"rev\":9000,\"units\":1,\"asp\":9000,\"brand\":\"(không ghi)\",\"title\":\"Lumo pod violet\",\"start\":null}],\"unattributed\":[],\"excluded\":[{\"i\":1,\"platform\":\"shopee\",\"listing\":\"synthetic-8115b49fea3e871dc3019d36e60dfde39be7c9e3\",\"listingSynthetic\":true,\"shop\":\"Synthetic shop 1\",\"shopName\":\"Synthetic shop 1\",\"cat\":\"Invented lumoware\",\"rev\":100,\"units\":1,\"asp\":100,\"brand\":\"(không ghi)\",\"title\":\"Sleeve dùng cho lumo pod\",\"start\":null,\"reason\":\"NOT_MAIN_PRODUCT\"},{\"i\":4,\"platform\":\"shopee\",\"listing\":\"synthetic-212cff3d6e65da8d5a10d3c2202634a0e76c06dc\",\"listingSynthetic\":true,\"shop\":\"Synthetic shop 4\",\"shopName\":\"Synthetic shop 4\",\"cat\":\"Invented lumoware\",\"rev\":100,\"units\":0,\"asp\":null,\"brand\":\"(không ghi)\",\"title\":\"Lumo pod no units\",\"start\":null,\"reason\":\"REVENUE_WITHOUT_UNITS\"},{\"i\":5,\"platform\":\"shopee\",\"listing\":\"synthetic-5b7c0262d5f5c77c54b69a12b572fc1753da9a71\",\"listingSynthetic\":true,\"shop\":\"Synthetic shop 5\",\"shopName\":\"Synthetic shop 5\",\"cat\":\"Invented lumoware\",\"rev\":4000,\"units\":1,\"asp\":4000,\"brand\":\"(không ghi)\",\"title\":\"Lumo pod high\",\"start\":null,\"reason\":\"UNIT_REVENUE_OUTLIER\"}]}",
+  "pickJson": "{\"pickRuleVersion\":\"autorun-pick-v2\",\"terms\":[\"lumo pod\"],\"links\":[{\"productBaseId\":\"1__107__207\",\"itemId\":\"107\",\"shopId\":\"207\",\"revenue\":9000,\"brand\":\"Synthetic brand 6\",\"url\":\"https://shopee.vn/product/207/107\"},{\"productBaseId\":\"1__108__208\",\"itemId\":\"108\",\"shopId\":\"208\",\"revenue\":9000,\"brand\":\"Synthetic brand 7\",\"url\":\"https://shopee.vn/product/208/108\"},{\"productBaseId\":\"1__106__206\",\"itemId\":\"106\",\"shopId\":\"206\",\"revenue\":4000,\"brand\":\"Synthetic brand 5\",\"url\":\"https://shopee.vn/product/206/106\"},{\"productBaseId\":\"1__101__201\",\"itemId\":\"101\",\"shopId\":\"201\",\"revenue\":100,\"brand\":\"Synthetic brand 0\",\"url\":\"https://shopee.vn/product/201/101\"},{\"productBaseId\":\"1__103__203\",\"itemId\":\"103\",\"shopId\":\"203\",\"revenue\":100,\"brand\":\"Synthetic brand 2\",\"url\":\"https://shopee.vn/product/203/103\"}],\"urls\":[\"https://shopee.vn/product/207/107\",\"https://shopee.vn/product/208/108\",\"https://shopee.vn/product/206/106\",\"https://shopee.vn/product/201/101\",\"https://shopee.vn/product/203/103\"],\"excludedRows\":[{\"productBaseId\":\"1__102__202\",\"reason\":\"NOT_MAIN_PRODUCT\"},{\"productBaseId\":\"1__105__205\",\"reason\":\"REVENUE_WITHOUT_UNITS\"}],\"counts\":{\"walked\":8,\"deleted\":0,\"notIncluded\":0,\"tokenGuardRejected\":2,\"eligible\":6,\"picked\":5}}",
+  "packages": [
+    {
+      "package_id": "7b0e982f-f30b-4ca1-80cb-d1965d292b32",
+      "package_key": "automation-metric-capture:22222222-2222-4222-8222-222222222222-33333333-3333-4333-8333-333333333333",
+      "version": 1,
+      "source_acquired_at": "2026-09-21T03:15:00Z",
+      "source_label": "results-page capture",
+      "request_sha256": "e84a75bfed104900cd8ebd0a52634e3570cb66422168aa3beafd92ea51a519e8",
+      "package_content_sha256": "a23da051e83cf806e4866b6b078a6938e99b2a30e24d7280196f0852a5b330dd",
+      "manifest_artifact_sha256": "779e11fbb0efbb321ad9e41e53c5fcd65c2444c9d0b5ecde670a0b0397cb623a",
+      "finalized_at": "2026-02-01T00:00:00.000Z"
+    }
+  ],
+  "files": [
+    {
+      "package_id": "7b0e982f-f30b-4ca1-80cb-d1965d292b32",
+      "logical_path": "capture/context.json",
+      "artifact_sha256": "1b6405f56e7396a64cfaa329e5bc2f639092e4e1ea38a1e961cb3ff4df5c8108",
+      "byte_size": 859,
+      "media_type": "application/json",
+      "evidence_family": "metric-capture-22222222-2222-4222-8222-222222222222",
+      "representation_role": "derived",
+      "independence": "non_independent",
+      "provider_provenance": "operator_supplied_unverified",
+      "provenance_basis": "Server-authored run binding and capture metadata; not a replacement for page evidence.",
+      "period_start": null,
+      "period_end": null
+    },
+    {
+      "package_id": "7b0e982f-f30b-4ca1-80cb-d1965d292b32",
+      "logical_path": "capture/manifest.json",
+      "artifact_sha256": "4e517101aa81eaedb72540c4b63fbebebcf194c86a0f4dd36d745551815832c0",
+      "byte_size": 1178,
+      "media_type": "application/json",
+      "evidence_family": "metric-capture-22222222-2222-4222-8222-222222222222",
+      "representation_role": "derived",
+      "independence": "non_independent",
+      "provider_provenance": "provider_reported",
+      "provenance_basis": "Exact sanitized results-page capture supplied by the owner; the capture gate, page scope and snapshot digest were checked, but provider authenticity and market completeness are not independently established.",
+      "period_start": null,
+      "period_end": null
+    },
+    {
+      "package_id": "7b0e982f-f30b-4ca1-80cb-d1965d292b32",
+      "logical_path": "capture/snapshot.json",
+      "artifact_sha256": "7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79",
+      "byte_size": 18726,
+      "media_type": "application/json",
+      "evidence_family": "metric-capture-22222222-2222-4222-8222-222222222222",
+      "representation_role": "primary",
+      "independence": "non_independent",
+      "provider_provenance": "provider_reported",
+      "provenance_basis": "Exact sanitized results-page capture supplied by the owner; the capture gate, page scope and snapshot digest were checked, but provider authenticity and market completeness are not independently established.",
+      "period_start": "2026-01-01T00:00:00.000Z",
+      "period_end": "2026-01-29T23:59:59.999Z"
+    },
+    {
+      "package_id": "7b0e982f-f30b-4ca1-80cb-d1965d292b32",
+      "logical_path": "normalized/automation-metric-source-capture.json",
+      "artifact_sha256": "907cd2a0317c4f41b7510b7fe36482a24af614f862e381c39a1bc865806490f4",
+      "byte_size": 502,
+      "media_type": "application/json",
+      "evidence_family": "metric-capture-22222222-2222-4222-8222-222222222222",
+      "representation_role": "derived",
+      "independence": "non_independent",
+      "provider_provenance": "operator_supplied_unverified",
+      "provenance_basis": "Server-authored run binding; not provider evidence.",
+      "period_start": null,
+      "period_end": null
+    }
+  ],
+  "origins": [
+    {
+      "package_id": "7b0e982f-f30b-4ca1-80cb-d1965d292b32",
+      "origin_kind": "AUTOMATION_ATTACHMENT",
+      "binding_sha256": "bf48c6ed57b6b3e8799f647a6d522809ebe7a98887191c5a67137e7657b16996",
+      "manifest_artifact_sha256": "779e11fbb0efbb321ad9e41e53c5fcd65c2444c9d0b5ecde670a0b0397cb623a",
+      "marked_at": "2026-02-01T00:00:00.000Z"
+    }
+  ],
+  "artifacts": [
+    {
+      "metadata": {
+        "sha256": "779e11fbb0efbb321ad9e41e53c5fcd65c2444c9d0b5ecde670a0b0397cb623a",
+        "byte_size": 2514,
+        "media_type": "application/json",
+        "relative_path": "sha256/77/779e11fbb0efbb321ad9e41e53c5fcd65c2444c9d0b5ecde670a0b0397cb623a",
+        "acquired_at": "2026-02-01T00:00:00.000Z",
+        "contract_version": "1.0.0",
+        "retention_status": "active",
+        "created_at": "2026-02-01T00:00:00.000Z"
+      },
+      "text": "{\"contractVersion\":\"1.0.0\",\"files\":[{\"byteSize\":859,\"evidenceFamily\":\"metric-capture-22222222-2222-4222-8222-222222222222\",\"independence\":\"non_independent\",\"mediaType\":\"application/json\",\"path\":\"capture/context.json\",\"provenanceBasis\":\"Server-authored run binding and capture metadata; not a replacement for page evidence.\",\"providerProvenance\":\"operator_supplied_unverified\",\"representationRole\":\"derived\",\"sha256\":\"1b6405f56e7396a64cfaa329e5bc2f639092e4e1ea38a1e961cb3ff4df5c8108\"},{\"byteSize\":1178,\"evidenceFamily\":\"metric-capture-22222222-2222-4222-8222-222222222222\",\"independence\":\"non_independent\",\"mediaType\":\"application/json\",\"path\":\"capture/manifest.json\",\"provenanceBasis\":\"Exact sanitized results-page capture supplied by the owner; the capture gate, page scope and snapshot digest were checked, but provider authenticity and market completeness are not independently established.\",\"providerProvenance\":\"provider_reported\",\"representationRole\":\"derived\",\"sha256\":\"4e517101aa81eaedb72540c4b63fbebebcf194c86a0f4dd36d745551815832c0\"},{\"byteSize\":18726,\"evidenceFamily\":\"metric-capture-22222222-2222-4222-8222-222222222222\",\"independence\":\"non_independent\",\"mediaType\":\"application/json\",\"path\":\"capture/snapshot.json\",\"period\":{\"end\":\"2026-01-29T23:59:59.999Z\",\"start\":\"2026-01-01T00:00:00.000Z\"},\"provenanceBasis\":\"Exact sanitized results-page capture supplied by the owner; the capture gate, page scope and snapshot digest were checked, but provider authenticity and market completeness are not independently established.\",\"providerProvenance\":\"provider_reported\",\"representationRole\":\"primary\",\"sha256\":\"7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79\"},{\"byteSize\":502,\"evidenceFamily\":\"metric-capture-22222222-2222-4222-8222-222222222222\",\"independence\":\"non_independent\",\"mediaType\":\"application/json\",\"path\":\"normalized/automation-metric-source-capture.json\",\"provenanceBasis\":\"Server-authored run binding; not provider evidence.\",\"providerProvenance\":\"operator_supplied_unverified\",\"representationRole\":\"derived\",\"sha256\":\"907cd2a0317c4f41b7510b7fe36482a24af614f862e381c39a1bc865806490f4\"}],\"finalizedAt\":\"2026-02-01T00:00:00.000Z\",\"packageContentSha256\":\"a23da051e83cf806e4866b6b078a6938e99b2a30e24d7280196f0852a5b330dd\",\"packageId\":\"7b0e982f-f30b-4ca1-80cb-d1965d292b32\",\"packageKey\":\"automation-metric-capture:22222222-2222-4222-8222-222222222222-33333333-3333-4333-8333-333333333333\",\"sourceAcquiredAt\":\"2026-09-21T03:15:00Z\",\"sourceLabel\":\"results-page capture\",\"version\":1}"
+    },
+    {
+      "metadata": {
+        "sha256": "1b6405f56e7396a64cfaa329e5bc2f639092e4e1ea38a1e961cb3ff4df5c8108",
+        "byte_size": 859,
+        "media_type": "application/json",
+        "relative_path": "sha256/1b/1b6405f56e7396a64cfaa329e5bc2f639092e4e1ea38a1e961cb3ff4df5c8108",
+        "acquired_at": "2026-02-01T00:00:00.000Z",
+        "contract_version": "1.0.0",
+        "retention_status": "active",
+        "created_at": "2026-02-01T00:00:00.000Z"
+      },
+      "text": "{\"capture\":{\"captureId\":\"capture-synthetic-lumo\",\"keyword\":\"lumo pod\",\"measurementPeriod\":{\"endDate\":\"2026-01-29\",\"startDate\":\"2026-01-01\"},\"platforms\":[\"shopee\",\"tiktok\"],\"specDigest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"truncation\":{\"cap\":8,\"pagesRead\":1,\"rowsRead\":8,\"totalShown\":8,\"truncated\":false}},\"contractVersion\":\"automation-metric-capture-context-v1\",\"manifestSha256\":\"4e517101aa81eaedb72540c4b63fbebebcf194c86a0f4dd36d745551815832c0\",\"provenance\":\"results-page capture\",\"request\":{\"contractVersion\":\"automation-metric-capture-prepare-v1\",\"expectedRevision\":1,\"requestKey\":\"33333333-3333-4333-8333-333333333333\",\"sourceContext\":\"Synthetic lumoware\"},\"snapshotSha256\":\"7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79\",\"truncation\":{\"cap\":8,\"pagesRead\":1,\"rowsRead\":8,\"totalShown\":8,\"truncated\":false}}"
+    },
+    {
+      "metadata": {
+        "sha256": "4e517101aa81eaedb72540c4b63fbebebcf194c86a0f4dd36d745551815832c0",
+        "byte_size": 1178,
+        "media_type": "application/json",
+        "relative_path": "sha256/4e/4e517101aa81eaedb72540c4b63fbebebcf194c86a0f4dd36d745551815832c0",
+        "acquired_at": "2026-02-01T00:00:00.000Z",
+        "contract_version": "1.0.0",
+        "retention_status": "active",
+        "created_at": "2026-02-01T00:00:00.000Z"
+      },
+      "text": "{\n  \"contractVersion\": \"metric-results-capture-v1\",\n  \"captureId\": \"capture-synthetic-lumo\",\n  \"specDigest\": \"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\n  \"appliedFilters\": {\n    \"keywords\": [\n      \"lumo pod\"\n    ],\n    \"platforms\": [\n      \"shopee\",\n      \"tiktok\"\n    ],\n    \"period\": {\n      \"startDate\": \"2026-01-01\",\n      \"endDate\": \"2026-01-29\"\n    },\n    \"category\": \"Invented lumoware\",\n    \"ticks\": [],\n    \"advancedFilters\": [],\n    \"exclusions\": []\n  },\n  \"resultCount\": 8,\n  \"productPagination\": {\n    \"cap\": 8,\n    \"totalShown\": 8,\n    \"pageSize\": 8,\n    \"pagesRead\": 1,\n    \"rowsRead\": 8,\n    \"truncated\": false\n  },\n  \"views\": [],\n  \"sourceMap\": {},\n  \"files\": [\n    {\n      \"path\": \"snapshot.json\",\n      \"sha256\": \"7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79\",\n      \"byteSize\": 18726,\n      \"mediaType\": \"application/json\",\n      \"role\": \"normalized\"\n    }\n  ],\n  \"screenshotSkips\": [],\n  \"archive\": {\n    \"rawResponses\": \"raw/\",\n    \"normalizedSnapshot\": \"snapshot.json\",\n    \"resultsHtml\": \"results.html\",\n    \"screenshots\": []\n  },\n  \"noReportFileRequested\": true,\n  \"captureGate\": {\n    \"cleared\": true\n  }\n}\n"
+    },
+    {
+      "metadata": {
+        "sha256": "7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79",
+        "byte_size": 18726,
+        "media_type": "application/json",
+        "relative_path": "sha256/7b/7bcf1ff22fb83ab9d508c5c4b4ed1d14f23e313010ebed8fad6fd53c19022c79",
+        "acquired_at": "2026-02-01T00:00:00.000Z",
+        "contract_version": "1.0.0",
+        "retention_status": "active",
+        "created_at": "2026-02-01T00:00:00.000Z"
+      },
+      "text": "{\n  \"contractVersion\": \"automation-metric-web-snapshot-v1\",\n  \"captureId\": \"capture-synthetic-lumo\",\n  \"specDigest\": \"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\n  \"capturedAt\": \"2026-09-21T03:15:00Z\",\n  \"scope\": {\n    \"keywords\": [\n      \"lumo pod\"\n    ],\n    \"platforms\": [\n      \"shopee\",\n      \"tiktok\"\n    ],\n    \"period\": {\n      \"startDate\": \"2026-01-01\",\n      \"endDate\": \"2026-01-29\"\n    },\n    \"category\": \"Invented lumoware\",\n    \"ticks\": [],\n    \"advancedFilters\": [],\n    \"exclusions\": []\n  },\n  \"groups\": {\n    \"W2_kpi\": {\n      \"revenue\": {\n        \"current\": {\n          \"label\": \"Doanh số\",\n          \"displayed\": \"12,3 tỷ\",\n          \"value\": 12312345678,\n          \"unit\": \"VND\",\n          \"precision\": \"exact\",\n          \"platform\": \"all\",\n          \"period\": {\n            \"startDate\": \"2025-09-15\",\n            \"endDate\": \"2026-09-20\"\n          },\n          \"sourcePointer\": \"overview.revenue.value\"\n        },\n        \"changePct\": {\n          \"label\": \"Doanh số - % so với kỳ liền kề\",\n          \"displayed\": \"18,4%\",\n          \"value\": 18.4,\n          \"unit\": \"PERCENT\",\n          \"precision\": \"exact\",\n          \"platform\": \"all\",\n          \"period\": {\n            \"startDate\": \"2025-09-15\",\n            \"endDate\": \"2026-09-20\"\n          },\n          \"sourcePointer\": \"overview.revenue.change\"\n        }\n      },\n      \"units\": {\n        \"current\": {\n          \"label\": \"Lượt bán\",\n          \"displayed\": \"1.234.567\",\n          \"value\": 1234567,\n          \"unit\": \"COUNT\",\n          \"precision\": \"exact\",\n          \"platform\": \"all\",\n          \"period\": {\n            \"startDate\": \"2025-09-15\",\n            \"endDate\": \"2026-09-20\"\n          },\n          \"sourcePointer\": \"overview.units.value\"\n        },\n        \"changePct\": {\n          \"label\": \"Lượt bán - % so với kỳ liền kề\",\n          \"displayed\": \"-5,2%\",\n          \"value\": -5.2,\n          \"unit\": \"PERCENT\",\n          \"precision\": \"exact\",\n          \"platform\": \"all\",\n          \"period\": {\n            \"startDate\": \"2025-09-15\",\n            \"endDate\": \"2026-09-20\"\n          },\n          \"sourcePointer\": \"overview.units.change\"\n        }\n      },\n      \"soldListings\": {\n        \"current\": {\n          \"label\": \"Sản phẩm có lượt bán\",\n          \"displayed\": \"850 nghìn\",\n          \"value\": 850210,\n          \"unit\": \"COUNT\",\n          \"precision\": \"exact\",\n          \"platform\": \"all\",\n          \"period\": {\n            \"startDate\": \"2025-09-15\",\n            \"endDate\": \"2026-09-20\"\n          },\n          \"sourcePointer\": \"overview.soldListings.value\"\n        },\n        \"changePct\": {\n          \"label\": \"Sản phẩm có lượt bán - % so với kỳ liền kề\",\n          \"displayed\": \"3,1%\",\n          \"value\": 3.1,\n          \"unit\": \"PERCENT\",\n          \"precision\": \"exact\",\n          \"platform\": \"all\",\n          \"period\": {\n            \"startDate\": \"2025-09-15\",\n            \"endDate\": \"2026-09-20\"\n          },\n          \"sourcePointer\": \"overview.soldListings.change\"\n        }\n      },\n      \"shops\": {\n        \"current\": {\n          \"label\": \"Gian hàng có lượt bán\",\n          \"displayed\": \"4.512\",\n          \"value\": 4512,\n          \"unit\": \"COUNT\",\n          \"precision\": \"exact\",\n          \"platform\": \"all\",\n          \"period\": {\n            \"startDate\": \"2025-09-15\",\n            \"endDate\": \"2026-09-20\"\n          },\n          \"sourcePointer\": \"overview.shops.value\"\n        },\n        \"changePct\": {\n          \"label\": \"Gian hàng có lượt bán - % so với kỳ liền kề\",\n          \"displayed\": \"-\",\n          \"value\": null,\n          \"unit\": \"PERCENT\",\n          \"precision\": \"display_rounded\",\n          \"platform\": \"all\",\n          \"period\": {\n            \"startDate\": \"2025-09-15\",\n            \"endDate\": \"2026-09-20\"\n          },\n          \"sourcePointer\": \"overview.shops.change\"\n        }\n      }\n    },\n    \"W3_platformSplit\": [\n      {\n        \"platform\": \"shopee\",\n        \"revenue\": {\n          \"label\": \"Doanh số\",\n          \"displayed\": \"8 tỷ\",\n          \"value\": 8012345678,\n          \"unit\": \"VND\",\n          \"precision\": \"exact\",\n          \"platform\": \"shopee\",\n          \"period\": {\n            \"startDate\": \"2025-09-15\",\n            \"endDate\": \"2026-09-20\"\n          },\n          \"sourcePointer\": \"platform.shopee.revenue\"\n        },\n        \"share\": {\n          \"label\": \"Tỷ trọng\",\n          \"displayed\": \"65,1%\",\n          \"value\": 65.08,\n          \"unit\": \"PERCENT\",\n          \"precision\": \"exact\",\n          \"platform\": \"shopee\",\n          \"period\": {\n            \"startDate\": \"2025-09-15\",\n            \"endDate\": \"2026-09-20\"\n          },\n          \"sourcePointer\": \"platform.shopee.share\"\n        }\n      },\n      {\n        \"platform\": \"tiktok\",\n        \"revenue\": {\n          \"label\": \"Doanh số\",\n          \"displayed\": \"4,3 tỷ\",\n          \"value\": 4300000000,\n          \"unit\": \"VND\",\n          \"precision\": \"exact\",\n          \"platform\": \"tiktok\",\n          \"period\": {\n            \"startDate\": \"2025-09-15\",\n            \"endDate\": \"2026-09-20\"\n          },\n          \"sourcePointer\": \"platform.tiktok.revenue\"\n        },\n        \"share\": {\n          \"label\": \"Tỷ trọng\",\n          \"displayed\": \"34,9%\",\n          \"value\": 34.92,\n          \"unit\": \"PERCENT\",\n          \"precision\": \"exact\",\n          \"platform\": \"tiktok\",\n          \"period\": {\n            \"startDate\": \"2025-09-15\",\n            \"endDate\": \"2026-09-20\"\n          },\n          \"sourcePointer\": \"platform.tiktok.share\"\n        }\n      }\n    ],\n    \"W4_monthly\": {\n      \"absent\": true,\n      \"reason\": \"NOT_CAPTURED\"\n    },\n    \"W5_category\": {\n      \"absent\": true,\n      \"reason\": \"NOT_CAPTURED\"\n    },\n    \"W6_priceLevel\": {\n      \"absent\": true,\n      \"reason\": \"NOT_CAPTURED\"\n    },\n    \"W7_top10Brand\": {\n      \"absent\": true,\n      \"reason\": \"NOT_CAPTURED\"\n    },\n    \"W8_top10Shop\": {\n      \"absent\": true,\n      \"reason\": \"NOT_CAPTURED\"\n    },\n    \"W9_brandByShopType\": {\n      \"absent\": true,\n      \"reason\": \"NOT_CAPTURED\"\n    },\n    \"W10_shopType\": {\n      \"absent\": true,\n      \"reason\": \"NOT_CAPTURED\"\n    },\n    \"W11_location\": {\n      \"absent\": true,\n      \"reason\": \"NOT_CAPTURED\"\n    },\n    \"W12_topProducts\": {\n      \"columns\": [\n        \"name\",\n        \"shop\",\n        \"platform\",\n        \"category\",\n        \"revenue\",\n        \"units\"\n      ],\n      \"rows\": [\n        {\n          \"cells\": {\n            \"name\": {\n              \"label\": \"Title\",\n              \"text\": \"Lumo pod amber\",\n              \"sourcePointer\": \"rows[0].name\"\n            },\n            \"shop\": {\n              \"label\": \"Shop\",\n              \"text\": \"Synthetic shop 0\",\n              \"sourcePointer\": \"rows[0].shop\"\n            },\n            \"platform\": {\n              \"label\": \"Platform\",\n              \"text\": \"shopee\",\n              \"sourcePointer\": \"rows[0].platform\"\n            },\n            \"category\": {\n              \"label\": \"Category\",\n              \"text\": \"Invented lumoware\",\n              \"sourcePointer\": \"rows[0].category\"\n            },\n            \"revenue\": {\n              \"label\": \"Revenue\",\n              \"displayed\": \"100\",\n              \"value\": 100,\n              \"unit\": \"VND\",\n              \"precision\": \"exact\",\n              \"platform\": \"shopee\",\n              \"period\": {\n                \"startDate\": \"2026-01-01\",\n                \"endDate\": \"2026-01-29\"\n              },\n              \"sourcePointer\": \"rows[0].revenue\"\n            },\n            \"units\": {\n              \"label\": \"Units\",\n              \"displayed\": \"1\",\n              \"value\": 1,\n              \"unit\": \"COUNT\",\n              \"precision\": \"exact\",\n              \"platform\": \"shopee\",\n              \"period\": {\n                \"startDate\": \"2026-01-01\",\n                \"endDate\": \"2026-01-29\"\n              },\n              \"sourcePointer\": \"rows[0].units\"\n            }\n          }\n        },\n        {\n          \"cells\": {\n            \"name\": {\n              \"label\": \"Title\",\n              \"text\": \"Sleeve dùng cho lumo pod\",\n              \"sourcePointer\": \"rows[1].name\"\n            },\n            \"shop\": {\n              \"label\": \"Shop\",\n              \"text\": \"Synthetic shop 1\",\n              \"sourcePointer\": \"rows[1].shop\"\n            },\n            \"platform\": {\n              \"label\": \"Platform\",\n              \"text\": \"shopee\",\n              \"sourcePointer\": \"rows[1].platform\"\n            },\n            \"category\": {\n              \"label\": \"Category\",\n              \"text\": \"Invented lumoware\",\n              \"sourcePointer\": \"rows[1].category\"\n            },\n            \"revenue\": {\n              \"label\": \"Revenue\",\n              \"displayed\": \"100\",\n              \"value\": 100,\n              \"unit\": \"VND\",\n              \"precision\": \"exact\",\n              \"platform\": \"shopee\",\n              \"period\": {\n                \"startDate\": \"2026-01-01\",\n                \"endDate\": \"2026-01-29\"\n              },\n              \"sourcePointer\": \"rows[1].revenue\"\n            },\n            \"units\": {\n              \"label\": \"Units\",\n              \"displayed\": \"1\",\n              \"value\": 1,\n              \"unit\": \"COUNT\",\n              \"precision\": \"exact\",\n              \"platform\": \"shopee\",\n              \"period\": {\n                \"startDate\": \"2026-01-01\",\n                \"endDate\": \"2026-01-29\"\n              },\n              \"sourcePointer\": \"rows[1].units\"\n            }\n          }\n        },\n        {\n          \"cells\": {\n            \"name\": {\n              \"label\": \"Title\",\n              \"text\": \"Lumo pod uncertain\",\n              \"sourcePointer\": \"rows[2].name\"\n            },\n            \"shop\": {\n              \"label\": \"Shop\",\n              \"text\": \"Synthetic shop 2\",\n              \"sourcePointer\": \"rows[2].shop\"\n            },\n            \"platform\": {\n              \"label\": \"Platform\",\n              \"text\": \"shopee\",\n              \"sourcePointer\": \"rows[2].platform\"\n            },\n            \"category\": {\n              \"label\": \"Category\",\n              \"text\": \"Invented lumoware\",\n              \"sourcePointer\": \"rows[2].category\"\n            },\n            \"revenue\": {\n              \"label\": \"Revenue\",\n              \"displayed\": \"100\",\n              \"value\": 100,\n              \"unit\": \"VND\",\n              \"precision\": \"exact\",\n              \"platform\": \"shopee\",\n              \"period\": {\n                \"startDate\": \"2026-01-01\",\n                \"endDate\": \"2026-01-29\"\n              },\n              \"sourcePointer\": \"rows[2].revenue\"\n            },\n            \"units\": {\n              \"label\": \"Units\",\n              \"displayed\": \"1\",\n              \"value\": 1,\n              \"unit\": \"COUNT\",\n              \"precision\": \"exact\",\n              \"platform\": \"shopee\",\n              \"period\": {\n                \"startDate\": \"2026-01-01\",\n                \"endDate\": \"2026-01-29\"\n              },\n              \"sourcePointer\": \"rows[2].units\"\n            }\n          }\n        },\n        {\n          \"cells\": {\n            \"name\": {\n              \"label\": \"Title\",\n              \"text\": \"Lumo pod rival\",\n              \"sourcePointer\": \"rows[3].name\"\n            },\n            \"shop\": {\n              \"label\": \"Shop\",\n              \"text\": \"Synthetic shop 3\",\n              \"sourcePointer\": \"rows[3].shop\"\n            },\n            \"platform\": {\n              \"label\": \"Platform\",\n              \"text\": \"shopee\",\n              \"sourcePointer\": \"rows[3].platform\"\n            },\n            \"category\": {\n              \"label\": \"Category\",\n              \"text\": \"Invented lumoware\",\n              \"sourcePointer\": \"rows[3].category\"\n            },\n            \"revenue\": {\n              \"label\": \"Revenue\",\n              \"displayed\": \"100\",\n              \"value\": 100,\n              \"unit\": \"VND\",\n              \"precision\": \"exact\",\n              \"platform\": \"shopee\",\n              \"period\": {\n                \"startDate\": \"2026-01-01\",\n                \"endDate\": \"2026-01-29\"\n              },\n              \"sourcePointer\": \"rows[3].revenue\"\n            },\n            \"units\": {\n              \"label\": \"Units\",\n              \"displayed\": \"1\",\n              \"value\": 1,\n              \"unit\": \"COUNT\",\n              \"precision\": \"exact\",\n              \"platform\": \"shopee\",\n              \"period\": {\n                \"startDate\": \"2026-01-01\",\n                \"endDate\": \"2026-01-29\"\n              },\n              \"sourcePointer\": \"rows[3].units\"\n            }\n          }\n        },\n        {\n          \"cells\": {\n            \"name\": {\n              \"label\": \"Title\",\n              \"text\": \"Lumo pod no units\",\n              \"sourcePointer\": \"rows[4].name\"\n            },\n            \"shop\": {\n              \"label\": \"Shop\",\n              \"text\": \"Synthetic shop 4\",\n              \"sourcePointer\": \"rows[4].shop\"\n            },\n            \"platform\": {\n              \"label\": \"Platform\",\n              \"text\": \"shopee\",\n              \"sourcePointer\": \"rows[4].platform\"\n            },\n            \"category\": {\n              \"label\": \"Category\",\n              \"text\": \"Invented lumoware\",\n              \"sourcePointer\": \"rows[4].category\"\n            },\n            \"revenue\": {\n              \"label\": \"Revenue\",\n              \"displayed\": \"100\",\n              \"value\": 100,\n              \"unit\": \"VND\",\n              \"precision\": \"exact\",\n              \"platform\": \"shopee\",\n              \"period\": {\n                \"startDate\": \"2026-01-01\",\n                \"endDate\": \"2026-01-29\"\n              },\n              \"sourcePointer\": \"rows[4].revenue\"\n            },\n            \"units\": {\n              \"label\": \"Units\",\n              \"displayed\": \"0\",\n              \"value\": 0,\n              \"unit\": \"COUNT\",\n              \"precision\": \"exact\",\n              \"platform\": \"shopee\",\n              \"period\": {\n                \"startDate\": \"2026-01-01\",\n                \"endDate\": \"2026-01-29\"\n              },\n              \"sourcePointer\": \"rows[4].units\"\n            }\n          }\n        },\n        {\n          \"cells\": {\n            \"name\": {\n              \"label\": \"Title\",\n              \"text\": \"Lumo pod high\",\n              \"sourcePointer\": \"rows[5].name\"\n            },\n            \"shop\": {\n              \"label\": \"Shop\",\n              \"text\": \"Synthetic shop 5\",\n              \"sourcePointer\": \"rows[5].shop\"\n            },\n            \"platform\": {\n              \"label\": \"Platform\",\n              \"text\": \"shopee\",\n              \"sourcePointer\": \"rows[5].platform\"\n            },\n            \"category\": {\n              \"label\": \"Category\",\n              \"text\": \"Invented lumoware\",\n              \"sourcePointer\": \"rows[5].category\"\n            },\n            \"revenue\": {\n              \"label\": \"Revenue\",\n              \"displayed\": \"4000\",\n              \"value\": 4000,\n              \"unit\": \"VND\",\n              \"precision\": \"exact\",\n              \"platform\": \"shopee\",\n              \"period\": {\n                \"startDate\": \"2026-01-01\",\n                \"endDate\": \"2026-01-29\"\n              },\n              \"sourcePointer\": \"rows[5].revenue\"\n            },\n            \"units\": {\n              \"label\": \"Units\",\n              \"displayed\": \"1\",\n              \"value\": 1,\n              \"unit\": \"COUNT\",\n              \"precision\": \"exact\",\n              \"platform\": \"shopee\",\n              \"period\": {\n                \"startDate\": \"2026-01-01\",\n                \"endDate\": \"2026-01-29\"\n              },\n              \"sourcePointer\": \"rows[5].units\"\n            }\n          }\n        },\n        {\n          \"cells\": {\n            \"name\": {\n              \"label\": \"Title\",\n              \"text\": \"Lumo pod amber\",\n              \"sourcePointer\": \"rows[6].name\"\n            },\n            \"shop\": {\n              \"label\": \"Shop\",\n              \"text\": \"Synthetic shop 6\",\n              \"sourcePointer\": \"rows[6].shop\"\n            },\n            \"platform\": {\n              \"label\": \"Platform\",\n              \"text\": \"tiktok\",\n              \"sourcePointer\": \"rows[6].platform\"\n            },\n            \"category\": {\n              \"label\": \"Category\",\n              \"text\": \"Invented lumoware\",\n              \"sourcePointer\": \"rows[6].category\"\n            },\n            \"revenue\": {\n              \"label\": \"Revenue\",\n              \"displayed\": \"9000\",\n              \"value\": 9000,\n              \"unit\": \"VND\",\n              \"precision\": \"exact\",\n              \"platform\": \"tiktok\",\n              \"period\": {\n                \"startDate\": \"2026-01-01\",\n                \"endDate\": \"2026-01-29\"\n              },\n              \"sourcePointer\": \"rows[6].revenue\"\n            },\n            \"units\": {\n              \"label\": \"Units\",\n              \"displayed\": \"1\",\n              \"value\": 1,\n              \"unit\": \"COUNT\",\n              \"precision\": \"exact\",\n              \"platform\": \"tiktok\",\n              \"period\": {\n                \"startDate\": \"2026-01-01\",\n                \"endDate\": \"2026-01-29\"\n              },\n              \"sourcePointer\": \"rows[6].units\"\n            }\n          }\n        },\n        {\n          \"cells\": {\n            \"name\": {\n              \"label\": \"Title\",\n              \"text\": \"Lumo pod violet\",\n              \"sourcePointer\": \"rows[7].name\"\n            },\n            \"shop\": {\n              \"label\": \"Shop\",\n              \"text\": \"Synthetic shop 7\",\n              \"sourcePointer\": \"rows[7].shop\"\n            },\n            \"platform\": {\n              \"label\": \"Platform\",\n              \"text\": \"tiktok\",\n              \"sourcePointer\": \"rows[7].platform\"\n            },\n            \"category\": {\n              \"label\": \"Category\",\n              \"text\": \"Invented lumoware\",\n              \"sourcePointer\": \"rows[7].category\"\n            },\n            \"revenue\": {\n              \"label\": \"Revenue\",\n              \"displayed\": \"9000\",\n              \"value\": 9000,\n              \"unit\": \"VND\",\n              \"precision\": \"exact\",\n              \"platform\": \"tiktok\",\n              \"period\": {\n                \"startDate\": \"2026-01-01\",\n                \"endDate\": \"2026-01-29\"\n              },\n              \"sourcePointer\": \"rows[7].revenue\"\n            },\n            \"units\": {\n              \"label\": \"Units\",\n              \"displayed\": \"1\",\n              \"value\": 1,\n              \"unit\": \"COUNT\",\n              \"precision\": \"exact\",\n              \"platform\": \"tiktok\",\n              \"period\": {\n                \"startDate\": \"2026-01-01\",\n                \"endDate\": \"2026-01-29\"\n              },\n              \"sourcePointer\": \"rows[7].units\"\n            }\n          }\n        }\n      ]\n    },\n    \"W13_topShops\": {\n      \"absent\": true,\n      \"reason\": \"NOT_CAPTURED\"\n    },\n    \"W14_topBrands\": {\n      \"absent\": true,\n      \"reason\": \"NOT_CAPTURED\"\n    },\n    \"W16_detailHistory\": {\n      \"absent\": true,\n      \"reason\": \"NOT_CAPTURED\"\n    }\n  }\n}\n"
+    },
+    {
+      "metadata": {
+        "sha256": "907cd2a0317c4f41b7510b7fe36482a24af614f862e381c39a1bc865806490f4",
+        "byte_size": 502,
+        "media_type": "application/json",
+        "relative_path": "sha256/90/907cd2a0317c4f41b7510b7fe36482a24af614f862e381c39a1bc865806490f4",
+        "acquired_at": "2026-02-01T00:00:00.000Z",
+        "contract_version": "1.0.0",
+        "retention_status": "active",
+        "created_at": "2026-02-01T00:00:00.000Z"
+      },
+      "text": "{\"captureId\":\"capture-synthetic-lumo\",\"contractVersion\":\"automation-metric-source-capture-v1\",\"keyword\":\"lumo pod\",\"manifestPath\":\"capture/manifest.json\",\"runBindingSha256\":\"bf48c6ed57b6b3e8799f647a6d522809ebe7a98887191c5a67137e7657b16996\",\"runId\":\"22222222-2222-4222-8222-222222222222\",\"snapshotPath\":\"capture/snapshot.json\",\"sourceContextPath\":\"capture/context.json\",\"specDigest\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"workspaceId\":\"11111111-1111-4111-8111-111111111111\"}"
+    }
+  ]
+}

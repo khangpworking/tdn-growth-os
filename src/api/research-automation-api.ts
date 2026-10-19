@@ -1,3 +1,4 @@
+import { createCaptureRelevanceCliproxyTransport, type CaptureRelevanceConfiguration } from '../modules/analysis/research-automation/capture-relevance-cliproxy-transport.js';
 import metaPageApiSchema from '../../contracts/api/research-automation-meta-page-api.schema.json' with { type: 'json' };
 import metaPageSourceSchema from '../../contracts/analysis/meta-page-source-v1.schema.json' with { type: 'json' };
 import metaL9Schema from '../../contracts/analysis/keyword-meaning-filter.schema.json' with { type: 'json' };
@@ -119,6 +120,7 @@ export interface ResearchAutomationApiConfiguration {
   /** Explicit Shopee draft-coding model; absent refuses model dispatch, never a default model. */
   readonly shopeeCoding?: { readonly cliproxy: CliproxyConfiguration; readonly configuration: ShopeeReviewCodingConfiguration };
   /** Independently configured list drafting; other model flags grant no calls here. */
+  readonly captureRelevance?: { readonly cliproxy: CliproxyConfiguration; readonly configuration: CaptureRelevanceConfiguration };
   readonly keywordDrafting?: { readonly cliproxy: CliproxyConfiguration; readonly configuration: KeywordDraftConfiguration };
   /** Opt-in L9 second pass for the OWNER writer only; absent keeps the deterministic gate unchanged. */
   readonly researchJev?: TypesafeJevConfiguration;
@@ -331,12 +333,14 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
   }
   if (configuration.reviewCollection && !configuration.owner) throw new TypeError('Review collection policy requires the OWNER writer');
   if (configuration.i14Synthesis && !configuration.owner) throw new TypeError('Automation I14 synthesis requires the OWNER writer');
+  if (configuration.captureRelevance && !configuration.owner) throw new TypeError('Capture relevance requires the OWNER writer');
   if (configuration.keywordDrafting && !configuration.owner) throw new TypeError('Keyword drafting requires the OWNER writer');
   if (configuration.tikTokCommentsCollector && !configuration.owner) throw new TypeError('P9 collection requires the OWNER writer');
   if (configuration.tikTokCommentsCollector &&
     (!Boolean(configuration.providers?.apifyTokenConfigured || configuration.providers?.apifyReviews) ||
       configuration.providers?.apifyTikTokComments?.maxChargeUsd !== configuration.tikTokCommentsCollector.collectionConfiguration.approvedMaxTotalChargeUsd))
     throw new TypeError('P9 collection requires the existing configured credential and the same explicitly approved cap');
+  const captureRelevance = configuration.captureRelevance ? { configuration: configuration.captureRelevance.configuration, classifier: createCaptureRelevanceCliproxyTransport(configuration.captureRelevance) } : undefined;
   const keywordTransport = configuration.keywordDrafting ? createKeywordCliproxyTransport(configuration.keywordDrafting) : undefined;
   const sourceEvidence = { modelIdentity: configuration.keywordDrafting ? `cliproxy:${configuration.keywordDrafting.configuration.modelId}` : 'unconfigured',
     promptVersion: KEYWORD_PROMPT_VERSION, ...(configuration.keywordDrafting ? { configuration: configuration.keywordDrafting.configuration } : {}) };
@@ -421,6 +425,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         ...(configuration.reviewCollection ? { reviewCollection: configuration.reviewCollection } : {}),
         ...(configuration.tikTokCommentsCollector ? { tikTokCommentsCollector: configuration.tikTokCommentsCollector } : {}),
         ...(l9Jev ? { l9Jev } : {}),
+        ...(captureRelevance ? { captureRelevance } : {}),
         sourceEvidence: { ...sourceEvidence, ...(keywordTransport ? { transport: keywordTransport } : {}) },
         metricAttachmentStore: new RequestScopedArtifactStore(path.resolve(configuration.artifactRoot)),
         ...(kalodataReplay ? { kalodataReplay } : {}),

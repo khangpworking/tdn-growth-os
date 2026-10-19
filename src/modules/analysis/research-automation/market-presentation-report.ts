@@ -5,6 +5,7 @@ import { vnd, type PlatformSignal } from '../reader-report/market-actions.js';
 import { sp } from '../reader-report/format.js';
 import { readerPriceState, readerProductLabel, readerStoredOrJson } from './reader-plain-text.js';
 import { escapeHtml as escape, readerPointer, storedLiteral, type ReportCitations } from './descriptive-report.js';
+import { isCaptureRowProfile } from './capture-row-quality.js';
 
 type Method = AutomationMarketPresentationMethod;
 const number = (value: number | null): string => value === null ? 'Chưa rõ' : value.toLocaleString('vi-VN', { maximumFractionDigits: 3 });
@@ -244,7 +245,7 @@ function headlineFindings(headline: MarketHeadline, method: Method, capture: Cap
 export function renderAutomationMarketFindings(method: Method, citations: ReportCitations, readerPlainText = false, capture?: CaptureMetricMethodDetails, headline?: MarketHeadline): string {
   const allScope = method.input.metric?.scopes.find(scope => scope.key === 'all');
   const sampleCount = allScope?.status === 'CALCULATED' ? allScope.listingCount : null;
-  const emptySample = method.input.metric?.input.profileId === 'automation-metric-capture-v2' && sampleCount === 0
+  const emptySample = isCaptureRowProfile(method.input.metric?.input.profileId) && sampleCount === 0
     ? '<p>Chưa có số lượng mẫu phù hợp để phân tích sau khi lọc. Không suy ra doanh số, số người mua hoặc quy mô ngoài mẫu.</p>' : '';
   // An empty filtered sample does not erase the independently retained page figures.
   if (emptySample && !(readerPlainText && capture)) return emptySample;
