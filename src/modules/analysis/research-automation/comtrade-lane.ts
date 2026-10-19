@@ -328,8 +328,8 @@ export function comtradeFailed(status: StepComtradeStatus, attempts: readonly St
 }
 
 /** The one predicate shared by both renderers and the evidence packet: S24 is used only when the table is drawn. */
-export function comtradeRenderableRows(value: StepComtrade | null | undefined): StepComtradeRow[] {
-  if (!value || (value.status !== 'OK' && value.status !== 'RATE_LIMITED') || value.hsCode === null || value.officialDescription === null || value.descriptionVi === null) return [];
+export function comtradeRenderableRows(value: StepComtrade | null | undefined, currentReader = false): StepComtradeRow[] {
+  if (!value || (value.status !== 'OK' && value.status !== 'RATE_LIMITED') || value.hsCode === null || value.officialDescription === null || (!currentReader && value.descriptionVi === null)) return [];
   return [...value.rows];
 }
 export const comtradeRenderable = (value: StepComtrade | null | undefined): value is StepComtrade => comtradeRenderableRows(value).length > 0;
@@ -348,6 +348,16 @@ export function comtradeNotice(value: StepComtrade): string {
 
 /** The English official description for display: a percent sign is spelled out. */
 export const comtradeOfficialText = (value: StepComtrade): string => (value.officialDescription ?? '').replace(/%/gu, ' percent');
+
+/** Display only; the retained official description and exact decimals are untouched. */
+export const comtradeReaderLabel = (value: StepComtrade): string => value.descriptionVi?.trim() || `Mã HS ${value.hsCode ?? ''}`;
+export const comtradeReaderSide = (row: StepComtradeRow): string => row.side === 'OWN' ? comtradeSideText(row)
+  : /^(?:\d+|[A-Z]{2,3}|(?:Nước|Country)\s*\(?\d+\)?|N\/A|(?:unknown|không rõ)(?:\b.*)?)$/iu.test(row.reporter.trim()) || !row.reporter.trim() ? 'Nước không rõ' : row.reporter;
+export function comtradeWholeUsd(value: string): string {
+  const [whole = '0', fraction = ''] = value.split('.');
+  return (BigInt(whole) + (/^[5-9]/u.test(fraction) ? 1n : 0n)).toString().replace(/\B(?=(\d{3})+(?!\d))/gu, '.');
+}
+export const comtradeMillionText = (value: number): string => value > 0 && value < 0.1 ? 'dưới 0,1' : value.toLocaleString('vi-VN', { maximumFractionDigits: 1 });
 
 /** This lane reads public open data: no paid request, no credits. */
 export function comtradeUsage(collection: Pick<ComtradeCollection, 'requests'>): {

@@ -49,14 +49,30 @@ export function section(id: string, title: string, headline: string, body: strin
  * Wraps visible "Shopee"/"TikTok" words in <i class="pi s|t"> so CSS draws the
  * marketplace mark in front. Skips head, script, style, svg, select and tag attributes.
  */
-export function platIcons(html: string, col: { shopee: string; tiktok: string }, icons: PlatformIcons = readerReportPlatformIcons(), { compoundPlatformLabels = false }: { compoundPlatformLabels?: boolean } = {}): { html: string; count: number } {
+export function platIcons(html: string, col: { shopee: string; tiktok: string }, icons: PlatformIcons = readerReportPlatformIcons(), { compoundPlatformLabels = false, preserveQuotes = false }: { compoundPlatformLabels?: boolean; preserveQuotes?: boolean } = {}): { html: string; count: number } {
   const uri = (svg: string) => `url("data:image/svg+xml;base64,${Buffer.from(svg, 'utf8').toString('base64')}")`;
   const css = `.pi{font-style:inherit;white-space:nowrap}.pi::before{content:"";display:inline-block;width:.92em;height:.92em;margin-right:.24em;vertical-align:-.11em;-webkit-mask:var(--m) center/contain no-repeat;mask:var(--m) center/contain no-repeat;background:var(--c)}`
     + `.pi.s{--m:${uri(icons.shopee)};--c:${col.shopee}}.pi.t{--m:${uri(icons.tiktok)};--c:${col.tiktok}}.plat .pi,.cover .pi{--c:currentColor}`;
   let count = 0;
   const platformPattern = compoundPlatformLabels ? /\b(Shopee|TikTok(?:\s+Shop)?)\b/g : /\b(Shopee|TikTok)\b/g;
-  const body = html.split(/(<head[\s\S]*?<\/head>|<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<svg[\s\S]*?<\/svg>|<select[\s\S]*?<\/select>|<[^>]+>)/)
-    .map((s, i) => i % 2 ? s : s.replace(platformPattern, w => (count++, `<i class="pi ${w === 'Shopee' ? 's' : 't'}">${w}</i>`))).join('');
+  const quoted: string[] = [];
+  const tokens = preserveQuotes
+    ? /(<!--[\s\S]*?-->|<head\b[\s\S]*?<\/head\s*>|<script\b[\s\S]*?<\/script\s*>|<style\b[\s\S]*?<\/style\s*>|<svg\b[\s\S]*?<\/svg\s*>|<select\b[\s\S]*?<\/select\s*>|<(?:[^<>"']|"[^"]*"|'[^']*')+>)/giu
+    : /(<head[\s\S]*?<\/head>|<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<svg[\s\S]*?<\/svg>|<select[\s\S]*?<\/select>|<[^>]+>)/;
+  const body = html.split(tokens)
+    .map((part, i) => {
+      if (!preserveQuotes) return i % 2 ? part : part.replace(platformPattern, w => (count++, `<i class="pi ${w === 'Shopee' ? 's' : 't'}">${w}</i>`));
+      if (i % 2) {
+        if (/^<!--|^<(?:head|script|style|svg|select)\b/iu.test(part)) return part;
+        const tag = /^<(\/?)\s*([\w-]+)/u.exec(part);
+        if (tag?.[1] && tag[2]?.toLowerCase() === quoted.at(-1)) quoted.pop();
+        else if (tag && !tag[1] && !/\/>$/u.test(part) && !/^(?:br|hr|img|input|wbr|area|base|col|embed|link|meta|param|source|track)$/iu.test(tag[2]!)) {
+          if (quoted.length || /^(?:q|blockquote)$/iu.test(tag[2]!) || /\bdata-quote(?:\s|=|>)/iu.test(part)) quoted.push(tag[2]!.toLowerCase());
+        }
+        return part;
+      }
+      return quoted.length ? part : part.replace(platformPattern, w => (count++, `<i class="pi ${w === 'Shopee' ? 's' : 't'}">${w}</i>`));
+    }).join('');
   return { html: body.replace('</style>', css + '</style>'), count };
 }
 

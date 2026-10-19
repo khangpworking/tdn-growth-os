@@ -3,8 +3,8 @@
 // reporting sides. Axes use triệu / tỷ for large totals; per-person figures stay unscaled. Tables use retained source precision.
 // `flint: false` is the unit-test opt-out (hand-made SVG, recorded as svg-fallback).
 import type { StepComtrade, StepComtradeRow, StepWorldBankIndicator, StepWorldBankRow } from '../research-automation/model.js';
-import { comtradeRenderableRows, comtradeSideText, COMTRADE_SRC } from '../research-automation/comtrade-lane.js';
-import { formatWorldBankValue, roundWorldBankValue, worldBankChartSeries, worldBankPerPerson, worldBankRenderableRows, worldBankUnitText, WORLD_BANK_SRC, WORLD_BANK_UNKNOWN_UNIT } from '../research-automation/world-bank-lane.js';
+import { comtradeRenderableRows, comtradeSideText, comtradeReaderLabel, comtradeReaderSide, comtradeMillionText, COMTRADE_SRC } from '../research-automation/comtrade-lane.js';
+import { formatWorldBankValue, roundWorldBankValue, worldBankChartSeries, worldBankPerPerson, worldBankRenderableRows, worldBankUnitText, WORLD_BANK_SRC, WORLD_BANK_READER_SRC, WORLD_BANK_UNKNOWN_UNIT } from '../research-automation/world-bank-lane.js';
 import { renderChart, type FlintChartInput, type RenderedChart } from './flint.js';
 import { esc, sp } from './format.js';
 import { keepOrder } from './market-charts.js';
@@ -44,6 +44,8 @@ const patches = (...list: ((spec: any) => void)[]) => (spec: any): void => { for
 const separateLabels = <T extends { svg: string }>(chart: T): T => ({ ...chart, svg: chart.svg.replace(/<\/text>(?!\n)/gu, '</text>\n') });
 
 export interface MacroChart extends RenderedChart {
+  /** Optional display projection; shared/versioned callers keep using the original fields. */
+  readonly currentReader?: MacroChart;
   readonly id: string;
   readonly title: string;
   readonly unit: string;
@@ -68,7 +70,9 @@ export async function renderWorldBankCharts(value: Parameters<typeof worldBankRe
   for (const item of worldBankRenderableRows(value)) {
     const series = worldBankChartSeries(item);
     if (series === null) continue;
-    out.push(separateLabels(await renderWorldBankChart(item, item.row, series, flint, legacy)));
+    const chart = separateLabels(await renderWorldBankChart(item, item.row, series, flint, legacy));
+    out.push(legacy ? chart : { ...chart, currentReader: { ...chart, src: WORLD_BANK_READER_SRC,
+      title: `Diễn biến theo năm: ${item.row.indicatorName}${/toàn quốc|cả nước/iu.test(item.row.indicatorName) ? '' : ', cả nước Việt Nam'}` } });
   }
   return out;
 }
@@ -102,49 +106,68 @@ async function renderWorldBankChart(item: StepWorldBankIndicator, row: StepWorld
 }
 
 /** Mirror rows of one year (the year of the first stored mirror row), largest first. */
-export function comtradeMirrorChartRows(value: StepComtrade | null | undefined): StepComtradeRow[] {
-  const mirror = comtradeRenderableRows(value).filter(row => row.side === 'MIRROR');
+export function comtradeMirrorChartRows(value: StepComtrade | null | undefined, currentReader = false): StepComtradeRow[] {
+  const mirror = comtradeRenderableRows(value, currentReader).filter(row => row.side === 'MIRROR');
   const year = mirror[0]?.year;
   const rows = mirror.filter(row => row.year === year).sort((a, b) => Number(b.value) - Number(a.value));
   return rows.length >= 2 ? rows : [];
 }
 /** Việt Nam's own import and export rows, only when both exist for the same year. */
-export function comtradeOwnChartRows(value: StepComtrade | null | undefined): StepComtradeRow[] {
-  const own = comtradeRenderableRows(value).filter(row => row.side === 'OWN');
+export function comtradeOwnChartRows(value: StepComtrade | null | undefined, currentReader = false): StepComtradeRow[] {
+  const own = comtradeRenderableRows(value, currentReader).filter(row => row.side === 'OWN');
   const imports = own.find(row => row.flow === 'M');
   const exports = imports ? own.find(row => row.flow === 'X' && row.year === imports.year) : undefined;
   return imports && exports ? [imports, exports] : [];
 }
 
-async function bars(meta: Omit<MacroChart, 'svg' | 'engine' | 'error' | 'unit'>, cats: readonly string[], raw: readonly number[], flint: boolean, legacy: boolean): Promise<MacroChart> {
-  const { divisor, word } = macroScale(raw, legacy);
+async function bars(meta: Omit<MacroChart, 'svg' | 'engine' | 'error' | 'unit'>, cats: readonly string[], raw: readonly number[], flint: boolean, legacy: boolean, currentReader = false): Promise<MacroChart> {
+  const { divisor, word } = currentReader ? { divisor: 1e6, word: 'triệu' } : macroScale(raw, legacy);
   const unit = word === null ? 'USD' : `${word} USD`;
   const values = raw.map(v => v / divisor);
-  const fallback = (): string => barChart(cats, [{ name: 'Giá trị', values, color: '#0f766e' }], { fmt: plain, xTitle: `Giá trị (${unit})` });
+  const fallback = (): string => barChart(cats, [{ name: 'Giá trị', values, color: '#0f766e' }], { fmt: currentReader ? comtradeMillionText : plain, xTitle: `Giá trị (${unit})` });
   const full = { ...meta, unit };
   if (!flint) return separateLabels<MacroChart>({ ...full, svg: fallback(), engine: 'svg-fallback' });
   return separateLabels({ ...full, ...await renderChart({
-    data: { values: cats.map((cat, i) => ({ ben: cat, gia_tri: values[i] })) },
+    data: { values: cats.map((cat, i) => ({ ben: cat, gia_tri: values[i], ...(currentReader ? { nhan: `${comtradeMillionText(values[i]!)} triệu USD` } : {}) })) },
     semantic_types: { ben: 'Category', gia_tri: 'Number' },
     field_display_names: { ben: ' ', gia_tri: `Giá trị (${unit})` },
     chart_spec: { chartType: 'Bar Chart', encodings: { y: 'ben', x: 'gia_tri' }, chartProperties: { showValueLabels: true }, baseSize: { width: 560, height: Math.max(120, cats.length * 44) } },
-  } as FlintChartInput, fallback, { patch: patches(keepOrder('ben', cats), plainNumbers), legend: false }) });
+  } as FlintChartInput, fallback, { patch: patches(keepOrder('ben', cats), plainNumbers, spec => {
+    if (!currentReader) return;
+    const walk = (node: any): void => {
+      if (!node || typeof node !== 'object') return;
+      if (node.encoding?.x?.type === 'quantitative' && node.encoding.x.axis !== null) node.encoding.x.axis = { ...node.encoding.x.axis, format: ',.1~f' };
+      if (node.encoding?.text?.type === 'quantitative') node.encoding.text = { field: 'nhan', type: 'nominal' };
+      for (const child of Object.values(node)) walk(child);
+    };
+    walk(spec);
+  }), legend: false }) });
 }
 
 /** Synchronous counts of the figures the renderers above would draw, for the sync report builder's pre-render check. */
 export const worldBankChartCount = (value: Parameters<typeof worldBankRenderableRows>[0]): number =>
   worldBankRenderableRows(value).filter(item => worldBankChartSeries(item) !== null).length;
-export const comtradeChartCount = (value: StepComtrade | null | undefined): number =>
-  (comtradeMirrorChartRows(value).length ? 1 : 0) + (comtradeOwnChartRows(value).length ? 1 : 0);
+// Without a reader context this is a conservative pre-render count: the service must schedule HS-only rows too.
+// The renderer still selects legacy/default rows unless its caller explicitly requests the current reader.
+export const comtradeChartCount = (value: StepComtrade | null | undefined, currentReader = true): number =>
+  (comtradeMirrorChartRows(value, currentReader).length ? 1 : 0) + (comtradeOwnChartRows(value, currentReader).length ? 1 : 0);
 
 /** Up to two bar figures (mirror reporters; Việt Nam's own two flows). Each bar is one reporting side's number; nothing is summed. */
-export async function renderComtradeCharts(value: StepComtrade | null | undefined, { flint = true, legacy = false }: { flint?: boolean; legacy?: boolean } = {}): Promise<MacroChart[]> {
+export async function renderComtradeCharts(value: StepComtrade | null | undefined, { flint = true, legacy, currentReader = legacy === false }: { flint?: boolean; legacy?: boolean; currentReader?: boolean } = {}): Promise<MacroChart[]> {
   const out: MacroChart[] = [];
-  const mirror = comtradeMirrorChartRows(value);
-  if (mirror.length) out.push(await bars({ id: 'M06.comtrade.mirror', title: `Hàng xuất sang Việt Nam theo số từng nước tự báo, năm ${mirror[0]!.year}`,
-    note: COMTRADE_MIRROR_NOTE, src: COMTRADE_SRC }, mirror.map(comtradeSideText), mirror.map(row => Number(row.value)), flint, legacy));
-  const own = comtradeOwnChartRows(value);
-  if (own.length) out.push(await bars({ id: 'M06.comtrade.own', title: `Nhập khẩu và xuất khẩu theo số Việt Nam tự báo, năm ${own[0]!.year}`,
-    note: COMTRADE_OWN_NOTE, src: COMTRADE_SRC }, ['Nhập khẩu', 'Xuất khẩu'], own.map(row => Number(row.value)), flint, legacy));
+  // The automation service already passes legacy:false for the current Market reader; omitted options stay historical.
+  const fallbackLabel = currentReader && value && !value.descriptionVi?.trim() ? comtradeReaderLabel(value) : null;
+  const mirror = comtradeMirrorChartRows(value, currentReader);
+  if (mirror.length) {
+    const meta = { id: 'M06.comtrade.mirror', title: `Hàng xuất sang Việt Nam theo số từng nước tự báo, năm ${mirror[0]!.year}`, note: COMTRADE_MIRROR_NOTE, src: COMTRADE_SRC };
+    const chart = await bars(meta, mirror.map(comtradeSideText), mirror.map(row => Number(row.value)), flint, legacy === true);
+    out.push(legacy ? chart : { ...chart, currentReader: await bars(fallbackLabel ? { ...meta, title: `${meta.title}: ${fallbackLabel}` } : meta, mirror.map(comtradeReaderSide), mirror.map(row => Number(row.value)), flint, false, true) });
+  }
+  const own = comtradeOwnChartRows(value, currentReader);
+  if (own.length) {
+    const meta = { id: 'M06.comtrade.own', title: `Nhập khẩu và xuất khẩu theo số Việt Nam tự báo, năm ${own[0]!.year}`, note: COMTRADE_OWN_NOTE, src: COMTRADE_SRC };
+    const chart = await bars(meta, ['Nhập khẩu', 'Xuất khẩu'], own.map(row => Number(row.value)), flint, legacy === true);
+    out.push(legacy ? chart : { ...chart, currentReader: await bars(fallbackLabel ? { ...meta, title: `${meta.title}: ${fallbackLabel}` } : meta, ['Nhập khẩu', 'Xuất khẩu'], own.map(row => Number(row.value)), flint, false, true) });
+  }
   return out;
 }

@@ -297,9 +297,23 @@ export function auditMarket14(html: string, trace?: string, options: { requireFl
   const shopsUnrecorded = /data-market-shops-unrecorded=["']1["']/iu.test(html) && /không ghi gian hàng/iu.test(text);
   const requiredCharts = shopsUnrecorded ? 2 : 3;
   if (chartRows > 0 && sampleCharts.length < requiredCharts) chartIssues.push(`only ${sampleCharts.length} of ${requiredCharts} required charts (${shopsUnrecorded ? 'revenue by platform, product ranking; the source records no shop' : 'concentration, revenue by platform, product ranking'})`);
-  const iconCounts = { shopee: (text.match(/\bShopee\b/gu) ?? []).length, tiktok: (text.match(/\bTikTok\s+Shop\b/gu) ?? []).length };
-  const icons = { shopee: (html.match(/<i\b[^>]*class=["'][^"']*\bpi\s+s\b[^"']*["'][^>]*>/giu) ?? []).length,
-    tiktok: (html.match(/<i\b[^>]*class=["'][^"']*\bpi\s+t\b[^"']*["'][^>]*>/giu) ?? []).length };
+  // Count authored prose and its icons together; copied titles cannot supply or require icons.
+  const quoteStack: string[] = [];
+  const iconHtml = html.split(/(<!--[\s\S]*?-->|<script\b[\s\S]*?<\/script\s*>|<style\b[\s\S]*?<\/style\s*>|<svg\b[\s\S]*?<\/svg\s*>|<(?:[^<>"']|"[^"]*"|'[^']*')+>)/giu).map((part, i) => {
+    if (/^<!--|^<(?:script|style|svg)\b/iu.test(part)) return quoteStack.length ? '' : part;
+    if (!(i % 2)) return quoteStack.length ? '' : part;
+    const tag = /^<(\/?)\s*([\w-]+)/u.exec(part);
+    const protectedPart = quoteStack.length > 0;
+    if (tag?.[1] && tag[2]?.toLowerCase() === quoteStack.at(-1)) quoteStack.pop();
+    else if (tag && !tag[1] && !/\/>$/u.test(part) && !/^(?:br|hr|img|input|wbr|area|base|col|embed|link|meta|param|source|track)$/iu.test(tag[2]!)) {
+      if (quoteStack.length || /^(?:q|blockquote)$/iu.test(tag[2]!) || /\bdata-quote(?:\s|=|>)/iu.test(part)) quoteStack.push(tag[2]!.toLowerCase());
+    }
+    return protectedPart || quoteStack.length ? '' : part;
+  }).join('');
+  const iconText = visible(iconHtml);
+  const iconCounts = { shopee: (iconText.match(/\bShopee\b/gu) ?? []).length, tiktok: (iconText.match(/\bTikTok\s+Shop\b/gu) ?? []).length };
+  const icons = { shopee: (iconHtml.match(/<i\b[^>]*class=["'][^"']*\bpi\s+s\b[^"']*["'][^>]*>/giu) ?? []).length,
+    tiktok: (iconHtml.match(/<i\b[^>]*class=["'][^"']*\bpi\s+t\b[^"']*["'][^>]*>/giu) ?? []).length };
   const localIconCss = /data:image\/svg\+xml;base64,/iu.test(html);
   const m12Structure = hasM12ProposalRows(html);
   const sources = sourceCoverage(html, options.publicReviewSource);

@@ -31,8 +31,9 @@ export const EXPANDED_SEARCH_LABEL: Readonly<Record<ExpandedSearchKind, string>>
   WINDOW: 'Trong kỳ báo cáo', SHOPEE: 'Trên Shopee', TIKTOK: 'Trên TikTok Shop',
 });
 /** Render-time label: the TikTok domain search also finds videos and news. Retained query bytes stay unchanged. */
-export function expandedSearchReaderLabel(row: { readonly origin?: ExpandedSearchKind; readonly url: string }): string {
-  if (!row.origin) return '';
+export function expandedSearchReaderLabel(row: { readonly origin?: ExpandedSearchKind; readonly url: string }, currentReader = false): string {
+  if (!row.origin) return currentReader ? 'Truy vấn cơ bản' : '';
+  if (currentReader && row.origin === 'WINDOW') return 'Tìm theo khoảng ngày yêu cầu';
   if (row.origin !== 'TIKTOK') return EXPANDED_SEARCH_LABEL[row.origin];
   try {
     const url = new URL(row.url);
@@ -40,6 +41,29 @@ export function expandedSearchReaderLabel(row: { readonly origin?: ExpandedSearc
       && /^\/(?:view\/product|shop\/(?:[^/]+\/)?(?:pdp|product))\/[^/]+(?:\/|$)/u.test(url.pathname)) return 'Trên TikTok Shop';
   } catch { /* An unrecognized address never establishes a shop product page. */ }
   return 'Trên TikTok';
+}
+
+/** Metadata only: never applied to copied titles. Reject invalid calendar dates rather than rolling them forward. */
+export function webReaderDay(raw: string | null | undefined): string {
+  const value = raw?.trim() ?? '';
+  const iso = /^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/u.exec(value);
+  const local = /^(?:ngày\s+)?(\d{1,2})\s*(?:[/.\-]|(?:thg|tháng)\.?\s*)(\d{1,2})\s*(?:[,/.\-]|năm)?\s*(\d{4})$/iu.exec(value);
+  let day = iso?.[3] ?? local?.[1], month = iso?.[2] ?? local?.[2], year = iso?.[1] ?? local?.[3];
+  const english = /^(?:([A-Za-z]{3,9})\s+(\d{1,2}),?|([0-9]{1,2})\s+([A-Za-z]{3,9}))\s+(\d{4})$/u.exec(value);
+  if (!day && english) {
+    const months = [['jan', 'january'], ['feb', 'february'], ['mar', 'march'], ['apr', 'april'], ['may'], ['jun', 'june'], ['jul', 'july'], ['aug', 'august'], ['sep', 'september'], ['oct', 'october'], ['nov', 'november'], ['dec', 'december']];
+    const index = months.findIndex(names => names.includes((english[1] ?? english[4] ?? '').toLowerCase()));
+    if (index >= 0) { day = english[2] ?? english[3]; month = String(index + 1); year = english[5]; }
+  }
+  if (!day || !month || !year) return 'Chưa có ngày đăng';
+  const date = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  const parsed = Date.parse(`${date}T00:00:00Z`);
+  return Number.isFinite(parsed) && new Date(parsed).toISOString().slice(0, 10) === date ? `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}` : 'Chưa có ngày đăng';
+}
+export function webReaderRetrieved(raw: string): string {
+  if (webReaderDay(raw) === 'Chưa có ngày đăng' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/u.test(raw) || !Number.isFinite(Date.parse(raw))) return 'Chưa có thời điểm thu';
+  const local = new Date(Date.parse(raw) + 7 * 3_600_000).toISOString();
+  return `${local.slice(8, 10)}/${local.slice(5, 7)}/${local.slice(0, 4)} ${local.slice(11, 16)} (giờ Việt Nam)`;
 }
 /** Column title and the one note about the dated search: the window is the period asked for, never an event date. */
 export const EXPANDED_SEARCH_COLUMN = 'Lượt tìm';
