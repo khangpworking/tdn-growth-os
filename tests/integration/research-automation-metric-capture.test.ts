@@ -246,8 +246,8 @@ test('capture-backed Market presentation passes rules 1, 2, 3, 5, 7, 9 and 11 wi
     // and no listing locator reaches reader text.
     assert.equal(dom.window.document.querySelector('.review-outcome-notice'), null);
     const sources = dom.window.document.querySelector('.market14-sources')!.textContent!;
-    assert.match(sources, /Lượt này chưa có [^.;]*dữ liệu đánh giá sản phẩm/u);
-    assert.match(sources, /Lượt này chưa có [^.;]*dữ liệu bình luận của khách/u);
+    assert.match(sources, /Báo cáo chưa có [^.;]*dữ liệu đánh giá sản phẩm/u);
+    assert.match(sources, /Báo cáo chưa có [^.;]*dữ liệu bình luận của khách/u);
     assert.doesNotMatch(sources, /Dữ liệu đánh giá sản phẩm trên Shopee|Dữ liệu bình luận của khách trên Shopee/u, 'a skipped review source is not listed as used');
     assert.doesNotMatch(reportVisibleText(dom.window.document), /shopee\.vn|product\/\d/iu, 'a skipped review scope keeps listing locators out of reader text');
     // No owner-accepted classification, so M03 is a source table; the per-platform
