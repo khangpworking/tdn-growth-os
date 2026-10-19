@@ -121,9 +121,12 @@ test('S8 auto-run empty URL selection remains SKIP without public dispatch', asy
 for (const faultAt of ['before-base-checkpoint-commit', 'job-running', 'after-retention-before-finalization']) test(`S4 real worker recovery at ${faultAt}`, async t => {
   const f = await binding.scenario(t, { faultAt });
   assert.ok(f.service instanceof ResearchAutomationService);
-  await f.confirmPublic(); await assert.rejects(f.processToFault());
+  await f.confirmPublic();
+  const beforeDispatch = await f.baseRows();
+  await assert.rejects(f.processToFault());
   const callsBefore = f.transport.calls.length;
   const baseBefore = await f.baseRows();
+  if (faultAt === 'before-base-checkpoint-commit') assert.deepEqual(baseBefore, beforeDispatch, 'The real checkpoint transaction rolls back its captures and usage on worker death');
   const restarted = await f.recreateFromDisk({ throwBase: true, throwPaid: true, throwSearch: true, throwPdf: true, throwOtherProviders: true, throwModel: true });
   assert.ok(restarted.service instanceof ResearchAutomationService);
   await restarted.service.recoverOnStart(); await restarted.finish();
@@ -171,6 +174,14 @@ test('S4 checkpoint schema enforces FKs, immutable exact retry and existing step
 test('S4 historical read-only database without checkpoint table replays without querying the missing table', async t => {
   const f = await binding.scenario(t); const historical = await f.historicalReadOnlyWithoutStages();
   const bytes = await historical.readReports(); assert.ok(bytes.length > 0); assert.equal(historical.transport.calls.length, 0);
+});
+test('S4 Foundation public exact retry preserves the collection and evidence rows', async t => {
+  const f = await binding.scenario(t); await f.confirmPublic(); await f.finish();
+  const retained = await f.sanitizedCapture(), before = await f.allReportAndUsageBytes();
+  const retried = await f.retryPublicCollection();
+  assert.equal(retried.sha256, retained.sha256);
+  assert.deepEqual(retried.packet, retained.packet);
+  assert.deepEqual(await f.allReportAndUsageBytes(), before);
 });
 test('S2 acquisition-wide absolute deadline stops the next product after restart', async t => {
   const f = await binding.scenario(t, { productCount: 5, faultAt: 'between-products' }); await f.confirmPublic(); await assert.rejects(f.processToFault());
@@ -245,6 +256,27 @@ test('S5 crash after durable cancel intent never resends uncertain cancellation'
   const f = await binding.scenario(t, { faultAt: 'after-cancel-intent-before-dispatch' }); await f.confirmPublic(); await assert.rejects(f.abortAt('poll'));
   const restarted = await f.recreateFromDisk({ throwAllProviders: true }); await restarted.service.recoverOnStart(); await restarted.finish();
   assert.equal(restarted.transport.calls.length, 0); assert.equal((await restarted.service.getRun(f.workspaceId, f.runId)).status, 'CANCELLED');
+});
+for (const faultAt of ['owner-cancel-before-intent', 'owner-cancel-after-intent']) test(`S5 durable owner cancellation survives restart at ${faultAt}`, async t => {
+  const f = await binding.scenario(t, { faultAt }); await f.confirmPublic(); await assert.rejects(f.processToFault());
+  assert.equal(await f.statusCode(), 'CANCELLING');
+  const restarted = await f.recreateFromDisk({ throwAllProviders: true });
+  const callsBefore = restarted.transport.calls.length;
+  await restarted.service.recoverOnStart();
+  // A second recovery must not lose the cancellation when the run is queued.
+  await restarted.service.recoverOnStart(); await restarted.finish();
+  const tailCalls = restarted.transport.calls.slice(callsBefore);
+  if (faultAt === 'owner-cancel-before-intent') {
+    assert.equal(tailCalls.length, 1);
+    assert.equal(tailCalls[0].method, 'POST');
+    assert.match(new URL(tailCalls[0].url).pathname, /^\/jobs\/[^/]+\/cancel$/u);
+    restarted.transport.done();
+  } else assert.equal(tailCalls.length, 0);
+  assert.equal(await restarted.statusCode(), 'CANCELLED');
+  assert.equal((await restarted.receipts())[0].stopCode, 'OWNER_ABORTED');
+  const before = await restarted.allReportAndUsageBytes();
+  await restarted.service.recoverOnStart(); await restarted.finish();
+  assert.deepEqual(await restarted.allReportAndUsageBytes(), before);
 });
 test('S5 service cancelled is distinct from owner-aborted top-level state', async t => {
   const f = await binding.scenario(t, { state: 'cancelled', counts: [1, 1, 1] }); await f.confirmPublic(); await f.finish();

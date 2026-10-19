@@ -12,7 +12,7 @@ const rename=fs.rename;
 fs.rename=(async(from:any,to:any)=>{
   let j:any;try{if(String(to).endsWith('.json'))j=JSON.parse(await fs.readFile(from,'utf8'));}catch{}
   await rename(from,to);
-  if(j&&(options.faultAt==='between-products'&&j.terminal || options.faultAt==='after-cancel-intent-before-dispatch'&&j.cancelIntent || options.faultAt==='after-request-count-before-fetch'&&j.requestCountUncertain&&j.intentAt&&j.requestCount===3))die();
+  if(j&&(options.faultAt==='between-products'&&j.terminal || ['after-cancel-intent-before-dispatch','owner-cancel-after-intent'].includes(options.faultAt)&&j.cancelIntent || options.faultAt==='after-request-count-before-fetch'&&j.requestCountUncertain&&j.intentAt&&j.requestCount===3))die();
 }) as typeof fs.rename;
 const put=ContentAddressedArtifactStore.prototype.put;
 ContentAddressedArtifactStore.prototype.put=async function(bytes:Uint8Array){
@@ -31,6 +31,11 @@ f.db.prepare=(sql:string)=>{
   return st;
 };
 if(options.faultAt==='job-running'||options.faultAt==='damaged-base-checkpoint')f.clock.sleep=async()=>die();
+if(['owner-cancel-before-intent','owner-cancel-after-intent'].includes(options.faultAt))f.clock.sleep=async()=>{
+  const run=await f.service.getRun(f.workspaceId,f.runId);
+  await f.service.cancel(f.workspaceId,f.runId,{contractVersion:'research-automation-cancel-v1',requestKey:'aaaaaaaa-0000-4000-8000-999999999999',expectedRevision:run.revision});
+  if(options.faultAt==='owner-cancel-before-intent')die();
+};
 if(options.faultAt==='human-block-finalized') {
   for(const x of f.transport.exchanges)if(x.path.endsWith('/result'))(x.body as any).complete=false;
   for(const x of f.transport.exchanges)if((x.body as any)?.state==='succeeded')(x.body as any).state='needs_login';
