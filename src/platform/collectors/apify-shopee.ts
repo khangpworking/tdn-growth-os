@@ -39,12 +39,12 @@ function validateMaxReviewsPerProduct(value: number): number {
   }
   return value;
 }
-export interface ShopeeCollector {
+export interface ShopeeCollector<Result = CollectedPages> {
   readonly mode: 'fixture' | 'live';
   /** Exposed for checking a frozen trial cap before dispatch. */
   readonly maxReviewsPerProduct?: number;
   readonly privacyProfile?: ShopeePrivateIntake['profile'] | undefined;
-  collect(selected: readonly ShopeeTransportListing[], requestSha256: string, runKey: string, signal?: AbortSignal): Promise<CollectedPages>;
+  collect(selected: readonly ShopeeTransportListing[], requestSha256: string, runKey: string, signal?: AbortSignal): Promise<Result>;
 }
 
 export class FixtureShopeeCollector implements ShopeeCollector {

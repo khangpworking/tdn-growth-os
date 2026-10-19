@@ -499,6 +499,7 @@ export interface StepPdfDiscovery {
 
 /** Normalized step outcome retained as canonical JSON; raw bytes are separate capture artifacts. */
 export interface StepResultDocument {
+  readonly publicReviewAcquisition?: import('../../../platform/collectors/shopee-public-reviews.js').PublicReviewStage;
   readonly reviewSample?: import('../../../../contracts/analysis/automation-review-sample.generated.js').AutomationReviewSample;
   readonly sourceEvidence?: import('../../../../contracts/analysis/automation-source-evidence.generated.js').AutomationSourceEvidence;
   readonly contractVersion: 'research-automation-step-result-v1';

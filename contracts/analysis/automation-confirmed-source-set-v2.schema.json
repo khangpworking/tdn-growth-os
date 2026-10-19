@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AutomationConfirmedSourceSetV2",
+  "description": "Immutable explicitly confirmed public review acquisition and source inputs. Admission is not provider authentication, coding approval or complete coverage.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "runId",
+    "workspaceId",
+    "executionId",
+    "startSha256",
+    "scopeSha256",
+    "requestSha256",
+    "confirmedAt",
+    "metric",
+    "nativeReview",
+    "reviewAcquisition"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": "automation-confirmed-source-set-v2"
+    },
+    "runId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "workspaceId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "executionId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "startSha256": {
+      "$ref": "#/$defs/digest"
+    },
+    "scopeSha256": {
+      "$ref": "#/$defs/digest"
+    },
+    "requestSha256": {
+      "$ref": "#/$defs/digest"
+    },
+    "confirmedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "metric": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "decision",
+            "sourcePackage"
+          ],
+          "properties": {
+            "decision": {
+              "const": "ADMITTED"
+            },
+            "sourcePackage": {
+              "$ref": "#/$defs/sourceIdentity"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "decision"
+          ],
+          "properties": {
+            "decision": {
+              "enum": [
+                "ABSENT",
+                "SKIPPED"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nativeReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decision"
+      ],
+      "properties": {
+        "decision": {
+          "const": "NONE"
+        }
+      }
+    },
+    "reviewAcquisition": {
+      "$ref": "../foundation/shopee-public-collection.schema.json#/$defs/acquisition"
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "sourceIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "packageId",
+        "manifestArtifactSha256",
+        "packageContentSha256"
+      ],
+      "properties": {
+        "packageId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "manifestArtifactSha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "packageContentSha256": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    }
+  },
+  "$id": "https://tdn.local/contracts/analysis/automation-confirmed-source-set-v2.schema.json"
+}

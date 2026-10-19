@@ -1,3 +1,4 @@
+import type { ResearchAutomationSourceConfirmRequestV3 } from '../../../../contracts/api/research-automation-source-api-v3.generated.js';
 import type { CaptureRelevanceRecord } from './capture-relevance.js';
 // Pure derivations for the Market auto-runner (P6-209 follow-up, PR1).
 //
@@ -361,6 +362,7 @@ export function buildPrepareValue(input: { runId: string; expectedRevision: numb
 }
 
 export interface ConfirmValueInput {
+  readonly publicAcquisition?: { readonly maxReviewsPerProduct: number };
   readonly runId: string;
   readonly expectedRevision: number;
   readonly keyword: string;
@@ -373,10 +375,20 @@ export interface ConfirmValueInput {
 }
 
 /** Trial collection is distinct from AUTO_REUSE; marker-free confirmations keep their exact bytes. */
-export function buildConfirmValue(input: ConfirmValueInput): { ok: true; value: ResearchAutomationSourceConfirmRequest } | { ok: false; code: 'NO_PRINCIPAL_PRODUCTS' } {
+export function buildConfirmValue(input: ConfirmValueInput & { publicAcquisition?: undefined }): { ok: true; value: ResearchAutomationSourceConfirmRequest } | { ok: false; code: 'NO_PRINCIPAL_PRODUCTS' };
+export function buildConfirmValue(input: ConfirmValueInput): { ok: true; value: ResearchAutomationSourceConfirmRequest | ResearchAutomationSourceConfirmRequestV3 } | { ok: false; code: 'NO_PRINCIPAL_PRODUCTS' };
+export function buildConfirmValue(input: ConfirmValueInput): { ok: true; value: ResearchAutomationSourceConfirmRequest | ResearchAutomationSourceConfirmRequestV3 } | { ok: false; code: 'NO_PRINCIPAL_PRODUCTS' } {
   const selected = [...new Set(input.principalProductIds)].slice(0, MAX_PRINCIPAL_CARDS);
   if (selected.length === 0) return { ok: false, code: 'NO_PRINCIPAL_PRODUCTS' };
   const definition = (input.description ?? '').trim() || input.keyword.normalize('NFC').trim();
+  if (input.publicAcquisition && input.exactShopeeUrls.length) return { ok: true, value: {
+    contractVersion: 'research-automation-confirm-v3', requestKey: autorunRequestKey(input.runId, 'confirm'), expectedRevision: input.expectedRevision,
+    definition, includeTerms: uniqueTerms(input.includeTerms), excludeTerms: [], selectedProductIds: selected, peerProductIds: [],
+    exactShopeeUrls: [...new Set(input.exactShopeeUrls)].slice(0, AUTORUN_MAX_SHOPEE_LINKS),
+    sources: { metric: { decision: 'USE_PREPARED', packageId: input.packageId }, nativeReview: {
+      decision: input.testReviewCap === undefined ? 'COLLECT_EXACT' : 'COLLECT_EXACT_TEST', providerId: 'shopee-public-review',
+      maxReviewsPerProduct: input.testReviewCap ?? input.publicAcquisition.maxReviewsPerProduct } },
+  } };
   return { ok: true, value: {
     contractVersion: 'research-automation-confirm-v2', requestKey: autorunRequestKey(input.runId, 'confirm'), expectedRevision: input.expectedRevision,
     definition, includeTerms: uniqueTerms(input.includeTerms), excludeTerms: [], selectedProductIds: selected, peerProductIds: [],

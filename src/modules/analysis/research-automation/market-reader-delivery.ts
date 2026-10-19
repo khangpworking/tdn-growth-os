@@ -91,8 +91,13 @@ const SAMPLE_CAPTION = /^(?:Shopee|TikTok Shop)\b|trong mẫu/u;
 const SAMPLE_NOTE = 'Số liệu lấy từ các dòng đã lưu của từng sàn trong kỳ báo cáo; mỗi sàn đọc riêng và không suy rộng ra toàn thị trường. Ô ghi “chưa có dữ liệu” không có nghĩa là bằng không.';
 const CONTEXT_NOTE = 'Số liệu nền từ nguồn công khai, đọc riêng; không nói về riêng sản phẩm này. Ô ghi “chưa có dữ liệu” không có nghĩa là bằng không.';
 
+export interface ReaderTextOptions {
+  readonly currentReader?: boolean;
+  readonly publicReviewSource?: boolean;
+}
+
 /** Localize display dates without changing source quotes, identifiers or markup. */
-export function readerText(html: string, captureCopy = false, currentReader = false): string {
+export function readerText(html: string, captureCopy = false, { currentReader = false, publicReviewSource = false }: ReaderTextOptions = {}): string {
   const protectedTags: string[] = [];
   const phrases = [...PHRASES.slice(1), ...(captureCopy ? CAPTURE_PHRASES : []), ...(currentReader ? CURRENT_READER_PHRASES : [])];
   // Keep quoted attribute values and raw CSS/JS intact, even when they contain angle brackets.
@@ -114,7 +119,7 @@ export function readerText(html: string, captureCopy = false, currentReader = fa
     const paired = (value: string): string => value.replace(/(?<![\p{L}\p{N}_./-])(biến thể variant|gói pack|phần section|đánh giá reviews?|hiểu biết insight|nhóm peer set|tệp export)(?![\p{L}\p{N}_/-]|\.[\p{L}\p{N}])/giu,
       label => ({ 'biến thể variant': 'biến thể', 'gói pack': 'gói', 'phần section': 'phần', 'đánh giá review': 'đánh giá', 'đánh giá reviews': 'đánh giá', 'hiểu biết insight': 'hiểu biết', 'nhóm peer set': 'nhóm đối thủ', 'tệp export': 'tệp dữ liệu' } as Record<string, string>)[label.toLowerCase()]!);
     // A URL's query and fragment are identifiers too, not prose to translate.
-    return part.split(/((?:[a-z][a-z\d+.-]*:\/\/|www\.)[^\s<>"']+)/giu).map((chunk, i) => i % 2 ? chunk : phrases.reduce((value, [re, to]) => value.replace(re, to), paired(chunk))
+    return part.split(/((?:[a-z][a-z\d+.-]*:\/\/|www\.)[^\s<>"']+)/giu).map((chunk, i) => i % 2 ? chunk : phrases.reduce((value, [re, to]) => publicReviewSource && to === 'đánh giá' ? value.split('review công khai trên Shopee').map(part => part.replace(re, to)).join('review công khai trên Shopee') : value.replace(re, to), paired(chunk))
       .replace(/(?<![\p{L}\p{N}_./-])(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}:\d{2}:\d{2}(?:\.\d+)?)(Z|[+-]\d{2}:\d{2}))?(?![\p{L}\p{N}_/-]|\.[\p{L}\p{N}])/gu,
         (all, year: string, month: string, day: string, time?: string, zone?: string) => {
           const iso = `${year}-${month}-${day}`;
@@ -379,14 +384,14 @@ function hasReadablePrice(html: string): boolean {
 }
 
 /** Reader copy of a market14 page (before platform icons and label sanitising). Sections are never nested. */
-export function deliverMarketReader(html: string, searchPoints?: readonly SearchPoint[], captureCopy = false): string {
+export function deliverMarketReader(html: string, searchPoints?: readonly SearchPoint[], captureCopy = false, publicReviewSource = false): string {
   const open = html.indexOf('<div id="sections">');
   if (open < 0) return html;
   // Quoted excerpts carry their own <footer> inside a section: the page footer is the first one after the last section.
   const close = html.indexOf('<footer', Math.max(open, html.lastIndexOf('</section>')));
   const head = html.slice(0, open), tail = close < 0 ? '' : html.slice(close);
   let body = stripTraceDetails(close < 0 ? html.slice(open) : html.slice(open, close));
-  body = readerText(body, captureCopy, true);
+  body = readerText(body, captureCopy, { currentReader: true, publicReviewSource });
   body = body.replace(PHRASES[0]![0], PHRASES[0]![1]);
   body = body.replace(/<a\b[^>]*href="#bounded-method-evidence"[^>]*>([\s\S]*?)<\/a>/gu, '$1');
   body = body.replace(/<section class="sheet" id="(M\d\d)">([\s\S]*?)<\/section>/gu, (_all, id: string, inner: string) => {

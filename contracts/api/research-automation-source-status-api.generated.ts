@@ -11,6 +11,7 @@ export type ResearchAutomationSourceId =
   | 'KALODATA'
   | 'SERPAPI'
   | 'APIFY_SHOPEE'
+  | 'SHOPEE_PUBLIC_REVIEWS'
   | 'METRIC'
   | 'PAGEINDEX'
   | 'KALODATA_VIDEO_FILE'
@@ -41,7 +42,7 @@ export interface ResearchAutomationSourceStatus {
   checkedAt: Timestamp;
   executorEnabled: boolean;
   /**
-   * @maxItems 14
+   * @maxItems 15
    */
   sources:
     | []
@@ -168,6 +169,23 @@ export interface ResearchAutomationSourceStatus {
         ResearchAutomationSourceStatusEntry,
         ResearchAutomationSourceStatusEntry,
         ResearchAutomationSourceStatusEntry,
+      ]
+    | [
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
       ];
 }
 export interface ResearchAutomationSourceStatusEntry {
@@ -221,6 +239,8 @@ export interface ResearchAutomationSourceStatusEntry {
    * The report citation name from the registry.
    */
   reportName?: string | null;
+  maxRecordsPerProduct?: number;
+  requestCountUncertain?: boolean;
   /**
    * Configured USD charge cap, or null when none is configured. Never defaulted.
    */

@@ -1,0 +1,239 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ShopeePublicJournal",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "runKey",
+    "confirmedSourceSetSha256",
+    "requestSha256",
+    "providerId",
+    "maxReviewsPerProduct",
+    "mappingRevision",
+    "sampleMode",
+    "productUrl",
+    "shopId",
+    "itemId",
+    "inputSha256",
+    "intentAt",
+    "submitWindowStart",
+    "submitWindowEnd",
+    "deadline",
+    "acquisitionDeadline",
+    "baselineIds",
+    "job",
+    "lastState",
+    "snapshot",
+    "requestCount",
+    "requestCountUncertain",
+    "cancelIntent",
+    "timedOut",
+    "terminal"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": "shopee-public-journal-v1"
+    },
+    "runKey": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "confirmedSourceSetSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "requestSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "providerId": {
+      "const": "shopee-public-review"
+    },
+    "maxReviewsPerProduct": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 300
+    },
+    "mappingRevision": {
+      "const": "shopee-public-review-row-v1"
+    },
+    "sampleMode": {
+      "enum": [
+        "STANDARD",
+        "TRIAL"
+      ]
+    },
+    "productUrl": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "shopId": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]{0,19}$"
+    },
+    "itemId": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]{0,19}$"
+    },
+    "inputSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "intentAt": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "submitWindowStart": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "submitWindowEnd": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "deadline": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "acquisitionDeadline": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "baselineIds": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "string",
+        "format": "uuid"
+      }
+    },
+    "job": {
+      "anyOf": [
+        {
+          "$ref": "shopee-public-collection.schema.json#/$defs/job"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "lastState": {
+      "enum": [
+        "queued",
+        "running",
+        "succeeded",
+        "partial",
+        "failed",
+        "cancelled",
+        "interrupted",
+        "needs_login",
+        "needs_verification",
+        "NOT_SUBMITTED",
+        "HEALTH_NOT_READY",
+        "SUBMISSION_UNCERTAIN",
+        "HUMAN_LOGIN_REQUIRED",
+        "HUMAN_VERIFICATION_REQUIRED",
+        "DEADLINE",
+        "OWNER_ABORTED",
+        "SHOPEE_REVIEW_TIMEOUT",
+        "SHOPEE_REVIEW_TRANSPORT",
+        "SHOPEE_REVIEW_INVALID_RESPONSE",
+        "SHOPEE_REVIEW_LIMIT",
+        "CREDENTIAL_ECHO_REFUSED",
+        "SHOPEE_REVIEW_HTTP_301",
+        "SHOPEE_REVIEW_HTTP_302",
+        "SHOPEE_REVIEW_HTTP_303",
+        "SHOPEE_REVIEW_HTTP_307",
+        "SHOPEE_REVIEW_HTTP_308",
+        "SHOPEE_REVIEW_HTTP_400",
+        "SHOPEE_REVIEW_HTTP_401",
+        "SHOPEE_REVIEW_HTTP_403",
+        "SHOPEE_REVIEW_HTTP_404",
+        "SHOPEE_REVIEW_HTTP_409",
+        "SHOPEE_REVIEW_HTTP_422",
+        "SHOPEE_REVIEW_HTTP_429",
+        "SHOPEE_REVIEW_HTTP_500",
+        "SHOPEE_REVIEW_HTTP_502",
+        "SHOPEE_REVIEW_HTTP_503",
+        "SHOPEE_REVIEW_HTTP_504",
+        "SHOPEE_REVIEW_HTTP_5XX"
+      ]
+    },
+    "snapshot": {
+      "anyOf": [
+        {
+          "$ref": "shopee-public-collection.schema.json#/$defs/envelope"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "requestCount": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100000
+    },
+    "requestCountUncertain": {
+      "type": "boolean"
+    },
+    "cancelIntent": {
+      "type": "boolean"
+    },
+    "timedOut": {
+      "type": "boolean"
+    },
+    "terminal": {
+      "anyOf": [
+        {
+          "$ref": "shopee-public-collection.schema.json#/$defs/receipt"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "$id": "https://tdn.local/contracts/foundation/shopee-public-journal.schema.json"
+}

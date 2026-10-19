@@ -2028,3 +2028,13 @@ PR #98). Linux CI passed on the final implementation-and-test head
 strict TypeScript, production build) and
 [Research report preview](https://github.com/khangpworking/tdn-growth-os/actions/runs/36708237136)
 (no page error). Windows tests, build and typecheck were not run by policy.
+
+## Package S: bounded public Shopee reviews (author checkout)
+
+Source implementation adds explicit frozen acquisition, sanitized v4 capture,
+raw-only corpus accounting and restartable collection after an immutable base
+checkpoint. The disabled path preserves the legacy lane. Offline transport,
+worker restart and presentation smoke checks pass; one synthetic baseline
+report has matching HTML, semantic and trace bytes. Independent regression
+tests and review remain separately owned. No live activation or deployment
+was performed. See [scoped task](tasks/package-s-public-shopee-review.md).

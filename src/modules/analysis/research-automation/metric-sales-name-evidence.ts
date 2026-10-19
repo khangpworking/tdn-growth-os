@@ -20,7 +20,7 @@ export async function readMetricSalesNameEvidence(options: {
   artifacts: ContentAddressedArtifactStore;
   reader: FinalizedSourcePackageReader;
   authority: Pick<AutomationMetricMethodBridge, 'verifySelection' | 'inspectPrepared'> & Partial<Pick<AutomationMetricMethodBridge, 'readFrozenSalesNames'>>;
-}, input: MetricRunInput, sources: AutomationConfirmedSourceSet, sourceSetDigest: string) {
+}, input: MetricRunInput, sources: AutomationConfirmedSourceSet | import('../../../../contracts/analysis/automation-confirmed-source-set-v2.generated.js').AutomationConfirmedSourceSetV2, sourceSetDigest: string) {
   if (sources.metric.decision !== 'ADMITTED') return null;
   if (digest(sources) !== sourceSetDigest || sources.runId !== input.runId || sources.workspaceId !== input.start.workspaceId ||
       sources.scopeSha256 !== digest(input.scope) || sources.startSha256 !== digest(input.start) ||

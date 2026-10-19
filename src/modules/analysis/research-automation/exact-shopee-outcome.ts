@@ -102,3 +102,12 @@ export function exactShopeeOutcomeLimitation(outcome: ExactShopeeOutcome, counts
         : ''
       : ' Không tự chạy lượt tính phí khác.'}` };
 }
+
+/** Public source classification trusts only verified receipts and scoped admitted counts. */
+export function classifyPublicExactShopee(input: { receipts: readonly import('../../../platform/collectors/shopee-public-reviews.js').PublicReviewReceipt[]; counts: readonly ExactShopeeListingCount[]; maxReviewsPerProduct: number }): ExactShopeeOutcome {
+  const hard = (code: string | null) => code !== null && (['HUMAN_LOGIN_REQUIRED','HUMAN_VERIFICATION_REQUIRED','HEALTH_NOT_READY','SHOPEE_REVIEW_INVALID_RESPONSE','SHOPEE_REVIEW_LIMIT','CREDENTIAL_ECHO_REFUSED'].includes(code) || /^SHOPEE_REVIEW_HTTP_(?:[34]\d\d)$/.test(code));
+  if (input.receipts.some(r => hard(r.stopCode) || ['needs_login','needs_verification'].includes(r.state))) return 'PROVIDER_BLOCKED';
+  const total = input.counts.reduce((n, r) => n + r.reviews, 0);
+  if (!total) return input.receipts.some(r => r.timedOut) ? 'PROVIDER_TIMEOUT_NO_REVIEWS' : 'PROVIDER_BLOCKED';
+  return input.receipts.length === input.counts.length && input.receipts.every((r, i) => r.state === 'succeeded' && r.stopCode === null && r.complete && ['record_limit','expected_count_reached','last_page'].includes(r.stopReason) && input.counts[i]!.reviews >= input.maxReviewsPerProduct) ? 'OK' : 'PARTIAL_LISTINGS';
+}

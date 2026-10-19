@@ -42,6 +42,7 @@ export const MARKET_TOC: readonly (readonly [string, string])[] = [
 ];
 
 export type MarketReportOptions = {
+  publicReviewSource?: import('../research-automation/public-shopee-bridge.js').PublicReviewSource;
   /** Plain-Vietnamese limits carried over from the draft; the reader report must restate every one. */
   limitations: readonly string[];
   /** dd/mm/yyyy, shown in the footer only. */
@@ -127,6 +128,7 @@ const ps = (v: number): string => sp(v.toFixed(1)) + '%';
 
 /** Builds the generic market reader report. The caller gates and stores it with publishReaderReport. */
 export async function buildMarketReport(d: ReaderReportData, options: MarketReportOptions): Promise<BuiltMarketReport> {
+  if (options.publicReviewSource) return buildMarketReportV2(d, options);
   if (isCaptureRowProfile(options.captureRowPolicy)) return buildMarketReportV2(d, options);
   if (d.input.contractVersion === '1.4.0') return buildMarketReportV2(d, options);
   if ((d.input.contractVersion === '1.2.0' || d.input.contractVersion === '1.3.0') && d.input.platforms.some(P => d.scopes[P] === undefined)) return buildMarketReportV2(d, options);

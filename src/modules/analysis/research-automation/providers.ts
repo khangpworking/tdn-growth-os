@@ -349,7 +349,11 @@ export const PROVIDER_CREDENTIAL_ENV = Object.freeze({
   APIFY_SHOPEE: 'TDN_APIFY_TOKEN',
 } as const);
 
+export interface ShopeePublicReviewConfiguration {
+  readonly token: string; readonly baseUrl: string; readonly maxReviewsPerProduct: number;
+}
 export interface ResearchAutomationProviderConfig {
+  readonly shopeePublicReviews?: ShopeePublicReviewConfiguration;
   readonly kalodataSecretKey: string | null;
   readonly serpApiKey: string | null;
   /** Presence only matters for the capability report; no Apify operation is wired here. */
@@ -381,6 +385,7 @@ function credential(value: string | undefined, name: string): string | null {
 
 /** Reads credentials from server environment only. Error messages name the variable, never the value. */
 export function researchAutomationProviderConfigFromEnv(env: NodeJS.ProcessEnv): ResearchAutomationProviderConfig {
+  const publicReviews = shopeePublicReviewConfigFromEnv(env);
   const token = credential(env[PROVIDER_CREDENTIAL_ENV.APIFY_SHOPEE], PROVIDER_CREDENTIAL_ENV.APIFY_SHOPEE);
   const capValue = env.TDN_RESEARCH_SHOPEE_MAX_CHARGE_USD;
   const cap = capValue ? Number(capValue) : null;
@@ -395,12 +400,17 @@ export function researchAutomationProviderConfigFromEnv(env: NodeJS.ProcessEnv):
   const tiktokCapValue = env.TDN_RESEARCH_TIKTOK_COMMENTS_MAX_CHARGE_USD;
   const tiktokCap = tiktokCapValue ? Number(tiktokCapValue) : null;
   if (tiktokCapValue && (tiktokCap === null || !Number.isFinite(tiktokCap) || tiktokCap <= 0 || tiktokCap > 10000)) throw new ProviderConfigurationError('TDN_RESEARCH_TIKTOK_COMMENTS_MAX_CHARGE_USD requires an approved positive cap');
+  if (publicReviews && token && cap !== null) throw new ProviderConfigurationError('TDN_RESEARCH_SHOPEE_PUBLIC_ENABLED conflicts with approved paid reviews');
+  if (publicReviews && env.TDN_RESEARCH_AUTORUN_TEST_REVIEWS === '1' && publicReviews.maxReviewsPerProduct > 20)
+    throw new ProviderConfigurationError('TDN_RESEARCH_AUTORUN_TEST_REVIEWS requires a public cap at most 20');
   return {
+    ...(publicReviews ? { shopeePublicReviews: publicReviews } : {}),
     kalodataSecretKey: credential(env[PROVIDER_CREDENTIAL_ENV.KALODATA], PROVIDER_CREDENTIAL_ENV.KALODATA),
     serpApiKey: credential(env[PROVIDER_CREDENTIAL_ENV.SERPAPI], PROVIDER_CREDENTIAL_ENV.SERPAPI),
     apifyTokenConfigured: token !== null,
     ...(token && cap !== null ? { apifyReviews: { token, maxChargeUsd: cap, ...(perListing !== null ? { maxReviewsPerProduct: perListing } : {}) } } : {}),
-    ...(env.TDN_RESEARCH_AUTORUN_TEST_REVIEWS === '1' && token && cap !== null && perListing !== null && perListing <= 20
+    ...(publicReviews ? env.TDN_RESEARCH_AUTORUN_TEST_REVIEWS === '1' ? { autorunTestReviewCap: publicReviews.maxReviewsPerProduct } : {}
+      : env.TDN_RESEARCH_AUTORUN_TEST_REVIEWS === '1' && token && cap !== null && perListing !== null && perListing <= 20
       ? { autorunTestReviewCap: perListing } : {}),
     ...(tiktokCap !== null ? { apifyTikTokComments: { maxChargeUsd: tiktokCap } } : {}),
   };
@@ -486,4 +496,20 @@ function createApifyShopeeProvider(configured: boolean): ResearchAutomationProvi
     provider: 'APIFY_SHOPEE', displayName: 'Shopee via Apify', credentialEnv: PROVIDER_CREDENTIAL_ENV.APIFY_SHOPEE,
     configured, operations: UNSUPPORTED_OPS(reason), verification: 'NONE', limitations,
   }, 'SHOPEE_PRODUCT_DETAIL', 'UNSUPPORTED');
+}
+
+/** Disabled means companion properties are never accessed, including through getters. */
+export function shopeePublicReviewConfigFromEnv(env: NodeJS.ProcessEnv): ShopeePublicReviewConfiguration | undefined {
+  const enabled = env.TDN_RESEARCH_SHOPEE_PUBLIC_ENABLED;
+  if (enabled === undefined || enabled === '0') return undefined;
+  if (enabled !== '1') throw new ProviderConfigurationError('TDN_RESEARCH_SHOPEE_PUBLIC_ENABLED');
+  const token = env.TDN_RESEARCH_SHOPEE_PUBLIC_TOKEN;
+  if (!token || token.length > 512 || !/^[\x21-\x7e]+$/.test(token)) throw new ProviderConfigurationError('TDN_RESEARCH_SHOPEE_PUBLIC_TOKEN');
+  const baseUrl = env.TDN_RESEARCH_SHOPEE_PUBLIC_BASE_URL ?? 'http://127.0.0.1:8877';
+  if (!/^http:\/\/(?:127\.0\.0\.1|\[::1\]):8877\/?$/.test(baseUrl))
+    throw new ProviderConfigurationError('TDN_RESEARCH_SHOPEE_PUBLIC_BASE_URL');
+  const cap = env.TDN_RESEARCH_SHOPEE_PUBLIC_MAX_COMMENTS_PER_PRODUCT ?? '300';
+  if (!/^[1-9][0-9]{0,2}$/.test(cap) || Number(cap) > 300)
+    throw new ProviderConfigurationError('TDN_RESEARCH_SHOPEE_PUBLIC_MAX_COMMENTS_PER_PRODUCT');
+  return Object.defineProperty({ token, baseUrl: baseUrl.replace(/\/$/, ''), maxReviewsPerProduct: Number(cap) }, 'token', { value: token, enumerable: false });
 }
