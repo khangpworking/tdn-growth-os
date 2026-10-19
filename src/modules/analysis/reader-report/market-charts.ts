@@ -15,7 +15,7 @@ export type MarketChart = RenderedChart & { id: string; kind: MarketChartKind; t
 const LABEL: Record<MarketChartPlatform, string> = { shopee: 'Shopee', tiktok: 'TikTok Shop' };
 const COLOR: Record<MarketChartPlatform, string> = { shopee: '#c2410c', tiktok: '#1d2327' };
 const PALETTE: FlintPalette = { san: { Shopee: COLOR.shopee, 'TikTok Shop': COLOR.tiktok } };
-const TOP_GROUPS = [1, 3, 5, 10] as const;
+export const TOP_GROUPS = [1, 3, 5, 10] as const;
 const RANKED_ROWS = 10;
 /** Shop value of a sales row whose source did not record its shop. */
 export const UNKNOWN_SHOP = '(không ghi)';
@@ -37,6 +37,31 @@ export function concentrationPlatforms(rows: readonly MarketChartRow[]): MarketC
 }
 /** True when the sample has chartable rows but no platform records its shops, so no concentration chart is drawn. */
 export const marketShopsUnrecorded = (rows: readonly MarketChartRow[]): boolean => marketChartRows(rows).length > 0 && concentrationPlatforms(rows).length === 0;
+
+/** Exact product rows displayed by Hình 7.1, also used to bound its headline claims. */
+export const marketRankedRows = (rows: readonly MarketChartRow[]) =>
+  marketChartRows(rows).filter(row => row.rev! > 0).sort((a, b) => b.rev! - a.rev! || a.i - b.i).slice(0, RANKED_ROWS);
+
+export type MarketShare = {
+  readonly platform: MarketChartPlatform; readonly n: number; readonly total: number;
+  readonly top: number; readonly top5: number | null; readonly shops: readonly (number | null)[] | null;
+};
+/**
+ * Per chart platform, the percent of its own in-sample revenue held by its leading product, its five leading
+ * products and its 1/3/5/10 leading shops (`shops` follows TOP_GROUPS; null when the platform does not record
+ * shops, an entry is null when it has fewer shops). The one formula behind Hình 4.2 and the Phần 1 findings.
+ */
+export function marketShares(rows: readonly MarketChartRow[]): MarketShare[] {
+  const usable = marketChartRows(rows), shopPlats = concentrationPlatforms(rows);
+  return (['shopee', 'tiktok'] as const).filter(P => usable.some(row => row.platform === P)).map(P => {
+    const own = usable.filter(row => row.platform === P), total = own.reduce((s, row) => s + row.rev!, 0);
+    const lead = (sorted: readonly number[], k: number): number | null => k <= sorted.length ? 100 * sorted.slice(0, k).reduce((s, v) => s + v, 0) / total : null;
+    const byShop = new Map<string, number>();
+    for (const row of own) byShop.set(row.shop, (byShop.get(row.shop) ?? 0) + row.rev!);
+    const shops = [...byShop.values()].sort((a, b) => b - a), products = own.map(row => row.rev!).sort((a, b) => b - a);
+    return { platform: P, n: own.length, total, top: lead(products, 1)!, top5: lead(products, 5), shops: shopPlats.includes(P) ? TOP_GROUPS.map(k => lead(shops, k)) : null };
+  });
+}
 
 export const keepOrder = (field: string, order: readonly string[]) => (spec: any): void => {
   const walk = (node: any): void => {
@@ -67,16 +92,10 @@ export async function renderMarketCharts(rows: readonly MarketChartRow[], { flin
   // 1. Concentration: share of each platform's in-sample revenue held by its leading shops.
   // A platform with any row that does not record its shop is left out: its rows
   // would otherwise count as one shop holding the whole sample.
-  const shopPlats = concentrationPlatforms(rows);
+  const shared = marketShares(rows).filter(share => share.shops), shopPlats = shared.map(share => share.platform);
   const leftOut = plats.filter(P => !shopPlats.includes(P));
-  const groups = TOP_GROUPS.filter(k => shopPlats.some(P => new Set(usable.filter(row => row.platform === P).map(row => row.shop)).size >= k));
-  const shares = Object.fromEntries(shopPlats.map(P => {
-    const own = usable.filter(row => row.platform === P), total = own.reduce((s, row) => s + row.rev!, 0);
-    const byShop = new Map<string, number>();
-    for (const row of own) byShop.set(row.shop, (byShop.get(row.shop) ?? 0) + row.rev!);
-    const sorted = [...byShop.values()].sort((a, b) => b - a);
-    return [P, groups.map(k => k <= sorted.length ? 100 * sorted.slice(0, k).reduce((s, v) => s + v, 0) / total : null)];
-  })) as Record<MarketChartPlatform, (number | null)[]>;
+  const cols = TOP_GROUPS.flatMap((_, j) => shared.some(share => share.shops![j] !== null) ? [j] : []), groups = cols.map(j => TOP_GROUPS[j]!);
+  const shares = Object.fromEntries(shared.map(share => [share.platform, cols.map(j => share.shops![j] ?? null)])) as Record<MarketChartPlatform, (number | null)[]>;
   const groupLabel = (k: number): string => `${k} gian hàng doanh thu cao`;
   const cats = groups.map(groupLabel);
   const values = shopPlats.flatMap(P => groups.flatMap((k, j) => shares[P][j] === null ? [] : [{ nhom: groupLabel(k), san: LABEL[P], ty_trong: +shares[P][j]!.toFixed(1) }]));
@@ -105,7 +124,7 @@ export async function renderMarketCharts(rows: readonly MarketChartRow[], { flin
     keepOrder('san', byPlatform.map(p => p.san)), false) });
 
   // 3. Leading product rows by in-sample revenue, labelled by their source row number.
-  const ranked = usable.filter(row => row.rev! > 0).sort((a, b) => b.rev! - a.rev! || a.i - b.i).slice(0, RANKED_ROWS);
+  const ranked = marketRankedRows(rows);
   const rowLabel = (row: MarketChartRow & { readonly platform: MarketChartPlatform }): string => titleLabels && row.title ? `${row.title.length > 64 ? row.title.slice(0, 61) + '…' : row.title} · ${LABEL[row.platform]} · ${rowNumber(row)}` : `Dòng ${rowNumber(row)}`;
   const rankedValues = ranked.map(row => ({ dong: rowLabel(row), san: LABEL[row.platform], doanh_thu: millions(row.rev!) }));
   const order = rankedValues.map(row => row.dong);

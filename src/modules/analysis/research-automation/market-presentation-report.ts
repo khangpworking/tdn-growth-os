@@ -1,6 +1,8 @@
 import type { AutomationMarketPresentationMethod } from '../../../../contracts/analysis/automation-market-presentation-method.generated.js';
 import type { AutomationMetricMethodSnapshot, CaptureMetricHeadlineValue, CaptureMetricMethodDetails } from './metric-method-bridge.js';
-import { UNKNOWN_SHOP, type CaptureCountChart, type MarketChartRow } from '../reader-report/market-charts.js';
+import { TOP_GROUPS, UNKNOWN_SHOP, type CaptureCountChart, type MarketChartRow, type MarketShare } from '../reader-report/market-charts.js';
+import { vnd, type PlatformSignal } from '../reader-report/market-actions.js';
+import { sp } from '../reader-report/format.js';
 import { readerPriceState, readerProductLabel, readerStoredOrJson } from './reader-plain-text.js';
 import { escapeHtml as escape, readerPointer, storedLiteral, type ReportCitations } from './descriptive-report.js';
 import { isCaptureRowProfile } from './capture-row-quality.js';
@@ -187,11 +189,60 @@ function capturePlatformFindings(capture: CaptureMetricMethodDetails, citations:
   });
 }
 
+/** Phần 1 so-what figures, each computed by the same function as the exhibit it points to; empty parts print nothing. */
+export type MarketHeadline = {
+  /** marketShares of the chart rows; `shops` is null where Hình 4.2 is not drawn. Empty when Hình 4.1 is not drawn, and then Phần 1 keeps its previous bytes. */
+  readonly shares: readonly MarketShare[];
+  /** Product shares supported by Hình 7.1; top5 is null unless all five products are displayed. */
+  readonly products: readonly MarketShare[];
+  /** Platforms with a Bảng 11.1 price group; n is that platform's sample row count. */
+  readonly bands: readonly (PlatformSignal & { readonly n: number })[];
+  /** The first highest week of Hình 5.2 and its count of weeks with a value. */
+  readonly search: { readonly period: string; readonly index: number; readonly weeks: number } | null;
+  /** True when Phần 12 states its options with sample figures. */
+  readonly options: boolean;
+};
+
+type Platform = keyof typeof PLATFORM_LABELS;
+const pct = (value: number): string => `${sp(value.toFixed(1))} phần trăm`;
+
+/** One finding per exhibit, one sentence per platform; platforms are never summed and no product is named. */
+function headlineFindings(headline: MarketHeadline, method: Method, capture: CaptureMetricMethodDetails, citations: ReportCitations): string[] {
+  const results = new Map(capture.platforms.map(entry => [entry.platform, entry.result] as const)), measured = capture.capture.measurementPeriod;
+  const label = (P: Platform): string => PLATFORM_LABELS[P];
+  const sample = (P: Platform, n: number): string => {
+    const scope = results.get(P)?.input.scope ?? method.input.metric?.input.scope;
+    return ` (n = ${n} dòng, kỳ ${isoDay(scope?.start ?? measured.startDate)} đến ${isoDay(scope?.end ?? measured.endDate)})`;
+  };
+  // The same calculation mark Phần 3 cites for the platform; no new source is numbered.
+  const marks = (platforms: readonly Platform[]): string => [...new Set(platforms.flatMap(P => {
+    const result = results.get(P), all = result?.scopes.find(scope => scope.key === 'all');
+    return result && all?.status === 'CALCULATED' && all.listingCount > 0 ? [citations.mark({ sourceKind: 'METRIC_ROW', identity: result.inputSha256, locator: null,
+      label: 'Số liệu đã tính từ nguồn đã lưu', retrievedAt: null, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE', technical: { methodVersion: result.methodVersion, rounding: result.rounding } })] : [];
+  }))].join('');
+  const li = (sentences: readonly string[], links: readonly (readonly [string, string])[], cite: string): string => sentences.length
+    ? `<li><p><b>Nhận định:</b> ${escape(sentences.join(' '))}</p><p><b>Bằng chứng:</b> ${links.map(([id, text]) => `<a href="#${id}">${escape(text)}</a>`).join(', ')}${cite}.</p></li>` : '';
+  const shops = headline.shares.filter(share => share.shops?.[0] != null);
+  return [
+    li(headline.products.map(s => `${label(s.platform)}: 1 sản phẩm doanh thu cao giữ ${pct(s.top)} doanh thu trong mẫu của sàn${s.top5 === null ? '' : `; 5 sản phẩm doanh thu cao giữ ${pct(s.top5)}`}${sample(s.platform, s.n)}.`),
+      [['M04', 'Hình 4.1 ở phần Cơ cấu trong mẫu'], ['M07', 'Hình 7.1 ở phần Đối thủ']], marks(headline.products.map(s => s.platform))),
+    li(shops.map(s => {
+      const j = [2, 1].find(j => s.shops![j] != null), wider = j === undefined ? '' : `; ${TOP_GROUPS[j]} gian hàng doanh thu cao giữ ${pct(s.shops![j]!)}`;
+      return `${label(s.platform)}: 1 gian hàng doanh thu cao giữ ${pct(s.shops![0]!)} doanh thu trong mẫu của sàn${wider}${sample(s.platform, s.n)}.`;
+    }), [['M04', 'Hình 4.2 ở phần Cơ cấu trong mẫu']], marks(shops.map(s => s.platform))),
+    li(headline.bands.flatMap(({ platform, band, n }) => band ? [`${label(platform)}: nhóm giá ${band.low === band.high ? vnd(band.low) : `${vnd(band.low)}–${vnd(band.high)}`} VND mỗi đơn vị bán có doanh thu lớn trong ba nhóm giá của sàn, ${vnd(band.revenue)} VND từ ${band.count} sản phẩm${sample(platform, n)}.`] : []),
+      [['M11', 'Bảng 11.1 ở phần Cơ hội']], marks(headline.bands.map(b => b.platform))),
+    li(headline.search ? [`Mức quan tâm tìm kiếm của từ khóa cao ở tuần ${headline.search.period}, chỉ số ${sp(headline.search.index)} trên thang 0–100; đây là chỉ số tương đối, không phải số người tìm hay doanh số (n = ${headline.search.weeks} tuần có số).`] : [],
+      [['M05', 'Hình 5.2 ở phần Nhu cầu (tín hiệu bán)']], ''),
+  ].filter(Boolean);
+}
+
 /** Every statement is frozen by the owning method; rendering introduces no
  * calculation, interpretation, ordering by importance or provider execution.
  * A reader copy of a results-page capture states each platform's own figures
- * instead of the single-platform statements (see `capturePlatformFindings`). */
-export function renderAutomationMarketFindings(method: Method, citations: ReportCitations, readerPlainText = false, capture?: CaptureMetricMethodDetails): string {
+ * instead of the single-platform statements (see `capturePlatformFindings`);
+ * with headline figures it leads with them and keeps those statements as trace. */
+export function renderAutomationMarketFindings(method: Method, citations: ReportCitations, readerPlainText = false, capture?: CaptureMetricMethodDetails, headline?: MarketHeadline): string {
   const allScope = method.input.metric?.scopes.find(scope => scope.key === 'all');
   const sampleCount = allScope?.status === 'CALCULATED' ? allScope.listingCount : null;
   const emptySample = isCaptureRowProfile(method.input.metric?.input.profileId) && sampleCount === 0
@@ -206,12 +257,21 @@ export function renderAutomationMarketFindings(method: Method, citations: Report
   const note = readerPlainText ? '<p class="lim"><b>Chú thích:</b> Số liệu chỉ mô tả mẫu đã lưu theo từng sàn; không suy rộng thành quy mô toàn thị trường.</p>' : '';
   const item = (finding: Method['findings'][number]): string =>
     `<li><p><b>Nhận định:</b> ${finding.pending ? `<span data-classified="pending">${escape(withSample(readerPlainText ? readerStoredOrJson(finding.statement.replace(/[.]$/, ''), 'Nhận định được giữ trong hồ sơ đối chiếu') : finding.statement.replace(/[.]$/, '')))} (đề xuất, chờ chủ duyệt).</span>` : escape(withSample(readerPlainText ? readerStoredOrJson(finding.statement, 'Nhận định được giữ trong hồ sơ đối chiếu') : finding.statement))}</p><p><b>Bằng chứng:</b> <a href="#${finding.sectionId}">Bảng ${finding.sectionId === 'M03' ? 'số liệu mẫu xuất ở phần Quy mô và diễn biến' : 'quy cách và đơn vị chuẩn ở phần Giá và kinh tế đơn vị'}</a>${finding.evidence.map(ref => mark(ref, citations, readerPlainText)).join('')}.</p><p><b>Trạng thái:</b> Bản nháp chưa được duyệt; ${finding.pending ? 'phân loại đề xuất, chờ chủ duyệt; ' : ''}${escape(readerPlainText ? readerStoredOrJson(finding.scope, 'Phạm vi được giữ trong hồ sơ đối chiếu') : finding.scope)}</p></li>`;
-  if (readerPlainText && capture) return emptySample + '<p>Các phát hiện mô tả mẫu đã lưu của từng sàn, không sắp theo mức quan trọng.</p><ul class="market-findings">' +
-    capturePlatformFindings(capture, citations).join('') + method.findings.filter(finding => finding.sectionId !== 'M03').map(item).join('') + '</ul>' +
-    '<p>Doanh thu và đơn vị bán là số ước tính của nguồn. Mỗi sàn đọc riêng; không suy số người mua, quy mô ngoài mẫu hoặc nguyên nhân.</p>' +
-    '<p class="lim"><b>Chú thích:</b> Số liệu chỉ mô tả mẫu đã lưu theo từng sàn; không suy rộng ngoài phạm vi nguồn.</p>' +
-    '<details class="evidence-trace"><summary>Nhận định M03 đã lưu</summary><ul>' +
-    method.findings.filter(finding => finding.sectionId === 'M03').map(item).join('') + '</ul></details>';
+  if (readerPlainText && capture) {
+    // Phần 3 statements are built first so citation numbers stay as before; without sample shares they stay the findings.
+    const platformFindings = capturePlatformFindings(capture, citations).join(''), lead = headline?.shares.length ? headlineFindings(headline, method, capture, citations) : [];
+    const pointer = lead.length && headline!.options ? '<li><p><b>Nhận định:</b> Ba phương án ở Phần 12 đọc từ các số trong mẫu này (đề xuất, chờ chủ duyệt).</p><p><b>Bằng chứng:</b> <a href="#M12">Bảng 12.1 ở phần Khuyến nghị và hành động</a>.</p></li>' : '';
+    // Sources only the traced Phần 3 statements cite stay cited in the reader copy.
+    const sups = (html: string): string[] => [...new Set(html.match(/<sup class="cite">[^<]*<\/sup>/gu) ?? [])];
+    const kept = lead.length ? sups(platformFindings).filter(sup => !sups(lead.join('')).includes(sup)).join('') : '';
+    return emptySample + `<p>Các phát hiện mô tả mẫu đã lưu của từng sàn, không sắp theo mức quan trọng.</p><ul class="market-findings"${lead.length ? ' data-market-headline="1"' : ''}>` +
+      (lead.length ? lead.join('') + pointer : platformFindings) + method.findings.filter(finding => finding.sectionId !== 'M03').map(item).join('') + '</ul>' +
+      `<p>Doanh thu và đơn vị bán là số ước tính của nguồn${kept}. Mỗi sàn đọc riêng; không suy số người mua, quy mô ngoài mẫu hoặc nguyên nhân.</p>` +
+      '<p class="lim"><b>Chú thích:</b> Số liệu chỉ mô tả mẫu đã lưu theo từng sàn; không suy rộng ngoài phạm vi nguồn.</p>' +
+      (lead.length ? `<details class="evidence-trace"><summary>Số liệu mẫu đã lưu từng sàn</summary><ul>${platformFindings}</ul></details>` : '') +
+      '<details class="evidence-trace"><summary>Nhận định M03 đã lưu</summary><ul>' +
+      method.findings.filter(finding => finding.sectionId === 'M03').map(item).join('') + '</ul></details>';
+  }
   return '<p>Các phát hiện mô tả mẫu đã lưu, không sắp theo mức quan trọng.</p><ul class="market-findings">' + method.findings.map(item).join('') + '</ul>' +
     (method.findings.length < 4 ? '<p>Chưa đủ bằng chứng để có bốn nhận định; phần kết luận còn thiếu, không bổ sung nhận định không có nguồn.</p>' : '') +
     `<p>Số bán hàng là ước tính${sampleStatement}. Không suy số người mua, quy mô ngoài mẫu hoặc nguyên nhân.</p>${note}`;
