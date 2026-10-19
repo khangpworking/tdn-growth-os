@@ -1059,7 +1059,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
           : 'Đã áp dụng quy tắc đối thủ mặc định trên doanh thu cùng nhóm, kỳ và khung nguồn đã lưu; phần thiếu giữ nguyên, bổ sung của chủ giữ riêng. Kết quả có giới hạn trong mẫu, chưa phải mục phân tích hoàn chỉnh hoặc quyết định đã duyệt.' };
     }
     const view = descriptive && isDescriptiveSectionId(section.sectionId) ? describeDescriptiveSection(descriptive, section.sectionId, citations, readerPlainText,
-      { productLabels: descriptiveProductLabels(input), requestedPeriod: input.start.requestedPeriod,
+      { productLabels: descriptiveProductLabels(input), requestedPeriod: input.start.requestedPeriod, ...(marketPresentation ? { market14: true } : {}),
         // Phần 3 prints the inventory rows unless the metric step failed and no method is retained.
         ...(marketPresentation && input.marketInventory && (input.metricMethods || !input.metricMethodsFailure) ? { periodRowsInM03: true } : {}) }) : undefined;
     if (view) views.set(section.sectionId, view);
@@ -1277,11 +1277,13 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
       `</tbody></table><p class="lim"><b>Chú thích:</b> ${escape(marketPresentation ? SEARCH_GEO_NOTE : LEGACY_SEARCH_GEO_NOTE)}</p><p class="ex-src">Nguồn: ${escape(SEARCH_INTEREST_SRC)}${capture ? captureMark(capture, citations) : ''}</p></div>` +
       [text.topLine, text.result, text.seen, text.use, text.dont].filter(Boolean).map(line => `<p>${escape(line)}</p>`).join('');
   };
+  // Country-level exhibits carry a marker so the market14 reader never counts them as data about the product; legacy bytes stay unmarked.
+  const national = marketPresentation ? ' data-exhibit-scope="national"' : '';
   // Open country-level figures sit beside the sales numbers in the same demand section; the same predicate marks S23 as used.
   const worldBankTable = (sectionId: string): string => {
     const rows = kind === 'MARKET' && sectionId === 'M05' ? worldBankRenderableRows(input.collection?.worldBank) : [];
     if (rows.length === 0) return '';
-    return `<div class="table-wrap"><div class="exh"><span class="exn">Bảng 5.3</span><span class="ext">${escape(WORLD_BANK_TITLE)}</span></div><table><caption>${escape(WORLD_BANK_TITLE)}</caption>` +
+    return `<div class="table-wrap"><div class="exh"><span class="exn">Bảng 5.3</span><span class="ext">${escape(WORLD_BANK_TITLE)}</span></div><table${national}><caption>${escape(WORLD_BANK_TITLE)}</caption>` +
       '<thead><tr><th>Chỉ số</th><th>Nguồn</th><th>Giá trị</th><th>Năm</th><th>Cập nhật</th><th>Ghi chú của nguồn</th></tr></thead><tbody>' +
       rows.map(item => {
         const capture = input.captures.find(entry => entry.stepId === 'COLLECTION' && entry.ordinal === item.captureIndex);
@@ -1294,7 +1296,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   const macroFigures = (drawn: readonly MacroChart[] | undefined, expected: number, missing: string, sectionNo: number, first: number): string => {
     if (expected === 0) return '';
     if (!drawn || drawn.length !== expected) throw new TypeError(missing);
-    return drawn.map((chart, i) => `<figure class="market-chart"><div class="exh"><span class="exn">Hình ${sectionNo}.${first + i}</span> <span class="ext">${escape(chart.title)}</span> <span class="exu">(${escape(chart.unit)})</span></div>` +
+    return drawn.map((chart, i) => `<figure class="market-chart"${national}><div class="exh"><span class="exn">Hình ${sectionNo}.${first + i}</span> <span class="ext">${escape(chart.title)}</span> <span class="exu">(${escape(chart.unit)})</span></div>` +
       `<div class="chart flint" data-engine="${escape(chart.engine)}" data-chart-id="${escape(chart.id)}">${chart.svg}</div>` +
       `<p class="lim"><b>Chú thích:</b> ${escape(chart.note)}</p><p class="ex-src">Nguồn: ${escape(chart.src)}</p></figure>`).join('');
   };
@@ -1306,7 +1308,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     const rows = officialStatsRenderableRows(stored);
     if (rows.length === 0) return `<p>${escape(officialStatsNotice(stored))}</p>`;
     return `${stored.status === 'OK' ? '' : `<p>${escape(officialStatsNotice(stored))}</p>`}<div class="table-wrap"><div class="exh"><span class="exn">Bảng 5.4</span><span class="ext">${escape(OFFICIAL_STATS_TABLE_TITLE)}</span></div>` +
-      `<table><caption>${escape(OFFICIAL_STATS_TABLE_TITLE)}</caption><thead><tr><th>Bảng</th><th>Dòng</th><th>Kỳ</th><th>Giá trị</th><th>Đơn vị</th><th>Trạng thái</th></tr></thead><tbody>` +
+      `<table${national}><caption>${escape(OFFICIAL_STATS_TABLE_TITLE)}</caption><thead><tr><th>Bảng</th><th>Dòng</th><th>Kỳ</th><th>Giá trị</th><th>Đơn vị</th><th>Trạng thái</th></tr></thead><tbody>` +
       rows.map(row => {
         const capture = input.captures.find(entry => entry.stepId === 'COLLECTION' && entry.ordinal === row.captureIndex);
         return `<tr><td>${escape(OFFICIAL_STATS_TABLE_TEXT[row.table])}</td><td>${escape(officialStatsRowLabel(row, !marketPresentation))}</td><td>${escape(row.period)}</td><td>${escape(officialStatsValueText(row))}${capture ? captureMark(capture, citations) : ''}</td>` +
@@ -1322,7 +1324,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     const sheet = stored.provinces;
     const capture = input.captures.find(entry => entry.stepId === 'COLLECTION' && entry.ordinal === sheet.captureIndex);
     return `<p>${escape(officialStatsProvinceContext(stored, !marketPresentation))}</p><div class="table-wrap"><div class="exh"><span class="exn">Bảng 5.5</span><span class="ext">${escape(OFFICIAL_STATS_PROVINCE_TITLE)}</span></div>` +
-      `<table><caption>${escape(OFFICIAL_STATS_PROVINCE_TITLE)}</caption><thead><tr><th>Dòng</th>${sheet.provinces.map(name => `<th>${escape(name)}</th>`).join('')}</tr></thead><tbody>` +
+      `<table${national}><caption>${escape(OFFICIAL_STATS_PROVINCE_TITLE)}</caption><thead><tr><th>Dòng</th>${sheet.provinces.map(name => `<th>${escape(name)}</th>`).join('')}</tr></thead><tbody>` +
       rows.map(row => `<tr><td>${escape(officialStatsProvinceRowLabel(row.label, sheet.base, !marketPresentation))}${capture ? captureMark(capture, citations) : ''}</td>${row.cells.map(cell => `<td>${escape(officialStatsProvinceCellText(cell))}</td>`).join('')}</tr>`).join('') +
       `</tbody></table><p class="lim"><b>Chú thích:</b> ${escape(OFFICIAL_STATS_PROVINCE_NOTE)} ${escape(OFFICIAL_STATS_PROVINCE_LIMIT)}</p>` +
       `<p class="ex-src">Nguồn: ${escape(OFFICIAL_STATS_SRC)}; ${rows.map(row => escape(officialStatsProvinceCitation(stored, row, !marketPresentation))).join('; ')}</p>` + (marketPresentation ? `<details class="evidence-trace"><summary>Chi tiết nguồn</summary><pre>${escape(JSON.stringify(rows.map(row => officialStatsTechnicalCitation(stored, { captureIndex: sheet.captureIndex, sheet: sheet.sheet!, row: row.row }))))}</pre></details>` : '') + `</div>`;
@@ -1335,7 +1337,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     if (rows.length === 0) return `<p>${escape(comtradeNotice(stored))}</p>`;
     return `${stored.status === 'OK' ? '' : `<p>${escape(comtradeNotice(stored))}</p>`}<div class="table-wrap"><div class="exh"><span class="exn">Bảng 6.2</span><span class="ext">${escape(COMTRADE_TABLE_TITLE)}</span></div>` +
       `<p>Mã hàng ước tính: ${escape(stored.hsCode!)}. ${stored.reasonVi ? `Phạm vi áp dụng (diễn giải tự động): ${escape(stored.reasonVi)} ` : ''}Mô tả chính thức (tiếng Anh): ${escape(comtradeOfficialText(stored))}. Diễn giải tự động: ${escape(stored.descriptionVi!)}</p>` +
-      `<table><caption>${escape(COMTRADE_TABLE_TITLE)}</caption><thead><tr><th>Bên báo số</th><th>Chiều</th><th>Năm</th><th>Giá trị (USD, theo bên báo)</th><th>Ghi chú</th></tr></thead><tbody>` +
+      `<table${national}><caption>${escape(COMTRADE_TABLE_TITLE)}</caption><thead><tr><th>Bên báo số</th><th>Chiều</th><th>Năm</th><th>Giá trị (USD, theo bên báo)</th><th>Ghi chú</th></tr></thead><tbody>` +
       rows.map(row => {
         const capture = input.captures.find(entry => entry.stepId === 'COLLECTION' && entry.ordinal === row.captureIndex);
         return `<tr><td>${escape(comtradeSideText(row))}</td><td>${escape(comtradeFlowText(row.flow))}</td><td>${escape(row.year)}</td><td>${escape(formatWorldBankValue(row.value))}${capture ? captureMark(capture, citations) : ''}</td><td>${escape(comtradeRowNote(row))}</td></tr>`;
@@ -1455,9 +1457,14 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     : `<p class="warning">${escape(headline)}${input.qualitativeDraft ? ` ${escape(qualitativeDraftSummary(input.qualitativeDraft))}` : ''}</p>${reviewOutcome ? reviewOutcomeNotice(reviewOutcome, kind) : ''}<p class="reader-guide">Đọc trạng thái và phần diễn giải trước khi sử dụng số liệu. Bảng trình bày những gì nguồn hoặc phép tính đã ghi nhận; phần “Hồ sơ đối chiếu” giữ nguyên nội dung nguồn và thông tin kỹ thuật. Mục còn thiếu điều kiện chưa có kết luận, không phải kết quả bằng 0.</p>`;
   // Descriptive empty states already explain the gap; retain the detailed
   // method explanation in semantic data without repeating it in the reader.
+  // market14 delivery reads this marker: a method with no usable records, or Phần 9 holding only source-declared launch dates
+  // with no other Phần 9 statement, is a gap even when the section prints numbers. Legacy and Insight bytes stay unmarked.
+  const sectionGap = (section: DraftSection): boolean => Boolean(marketPresentation) && (section.state === 'METHOD_NO_USABLE_RECORDS'
+    || (section.sectionId === 'M09' && views.get('M09')?.partial === true && !(input.pdfExcerpts?.length && input.sourceEvidence?.pdfExcerpts === true)
+      && !(input.sellerVideos && input.sourceEvidence?.sellerVideos === true)));
   const sectionReading = (section: DraftSection): string => readerPlainText && section.state === 'METHOD_NO_USABLE_RECORDS' && views.has(section.sectionId)
     ? '' : `<p class="section-reading">${escape(section.explanation)}</p>`;
-  const body = orderReportCitations(readerOpening + sections.map(section => `<section class="sheet" id="${section.sectionId}"><header class="sh-head"><div><span class="sh-id">${readerPlainText && kind === 'MARKET' ? marketSectionLabel(section.sectionId) : section.sectionId}</span><h2>${escape(section.title)}</h2></div><span class="state">${escape(stateLabel[section.state])}</span></header>${sectionReading(section)}${methodBody(section)}${section.state === 'SOURCE_CONTEXT' ? marketPresentation && section.sectionId === 'M13' ? '<p>Phạm vi, kỳ số liệu và điều kiện của mẫu ghi ở Phần 2.</p>' : scope : ''}${section.sectionId === 'M13' || section.sectionId === 'I17' ? sourceTable + webResultsTable : ''}${observationTable(section.rows, captures, citations, labels, readerPlainText, [...input.scope.selectedProductIds, ...input.scope.peerProductIds])}${appendix(section.sectionId)}${readerPlainText && kind === 'MARKET' ? '' : `<details class="method-reference"><summary>Hồ sơ đối chiếu phương pháp</summary><p><small>${fallbackIds.has(section.sectionId) ? 'Phương pháp ghi trong danh mục, chưa chạy trong lượt này' : 'Phương pháp'}: ${methodReference(section.method)}</small></p></details>`}</section>`).join(''), registry);
+  const body = orderReportCitations(readerOpening + sections.map(section => `<section class="sheet" id="${section.sectionId}"><header class="sh-head"><div><span class="sh-id">${readerPlainText && kind === 'MARKET' ? marketSectionLabel(section.sectionId) : section.sectionId}</span><h2>${escape(section.title)}</h2></div><span class="state"${sectionGap(section) ? ' data-section-gap="1"' : ''}>${escape(stateLabel[section.state])}</span></header>${sectionReading(section)}${methodBody(section)}${section.state === 'SOURCE_CONTEXT' ? marketPresentation && section.sectionId === 'M13' ? '<p>Phạm vi, kỳ số liệu và điều kiện của mẫu ghi ở Phần 2.</p>' : scope : ''}${section.sectionId === 'M13' || section.sectionId === 'I17' ? sourceTable + webResultsTable : ''}${observationTable(section.rows, captures, citations, labels, readerPlainText, [...input.scope.selectedProductIds, ...input.scope.peerProductIds])}${appendix(section.sectionId)}${readerPlainText && kind === 'MARKET' ? '' : `<details class="method-reference"><summary>Hồ sơ đối chiếu phương pháp</summary><p><small>${fallbackIds.has(section.sectionId) ? 'Phương pháp ghi trong danh mục, chưa chạy trong lượt này' : 'Phương pháp'}: ${methodReference(section.method)}</small></p></details>`}</section>`).join(''), registry);
   // Snapshot the original register, then renumber only citations still visible in the reader.
   const semanticCitations = { citations: registry.technicalTrace(), citationEntries: registry.entries() };
   const readerBody = marketPresentation ? orderReportCitations(body.replace(/<template data-market14-source-trace>[\s\S]*?<\/template>/gu, ''), registry) : body;
