@@ -1,0 +1,923 @@
+# Ý định sản phẩm và quyết định thiết kế — TDN Growth OS
+
+## Quyết định bổ sung 27/09/2026 — độ ổn định báo cáo nghiên cứu
+
+OWNER giao task **Review marketing framework files** phụ trách nghiệp vụ và task **TDN operation** phụ trách code, phối hợp triển khai. Code tính số liệu/biểu đồ; dữ kiện, suy luận và giả thuyết phải tách rõ. Insight phải truy được bằng chứng, phạm vi/thời gian, giả định và giới hạn; validator hoặc AI kiểm tra chéo không chứng minh kết luận là thật.
+
+Cùng bộ đầu vào đã đóng băng, phiên bản phương pháp và cấu hình phải mở lại kết quả đã lưu sau kiểm tra identity; không âm thầm gọi AI sinh lại hoặc ghi đè. Phương án diễn giải mới phải tạo phiên bản riêng theo yêu cầu rõ ràng. Kết luận chính thức vẫn cần người duyệt.
+
+A1 là calculator/CLI offline với bản nháp JSON/Markdown deterministic, chưa full report/Insight, chưa có SQLite report-run/UI hoặc AI generation. Chính sách UNKNOWN trong wide là cấu hình bắt buộc và chưa có lựa chọn mặc định cho báo cáo thật. Xem `docs/tasks/research-a1-deterministic-metric.md`.
+
+A3a (2026-09-28) triển khai lát packet offline nhỏ trước phần A3 persistence: cùng dependency bytes và phiên bản code/phương pháp cho cùng bản nháp; đổi dependency tạo content identity khác, không tự ghi đè hay bịa lịch sử phiên bản tuần tự. Catalog 30 mục là metadata kế hoạch; maturity lịch sử không phải bằng chứng độ hoàn thiện của bản mới. Chỉ materialize quan sát định lượng do ứng dụng tính, chưa nhận/sinh INFERENCE hoặc HYPOTHESIS. Phần thiếu hiện blocker; tất cả UNREVIEWED. Quyền nhập case/claim thủ công, source acceptance thật, official approval và database/workspace integration còn để lát sau.
+
+Research A21 đưa trạng thái thực của đúng packet/report version ra API và UI để OWNER nhìn được section nào đã có kết quả code, section nào mới có metadata phương pháp, section nào bị chặn và cần đầu vào gì. Màn hình này không nâng readiness, không chạy phương pháp còn thiếu và không coi framework approval là approval nội dung báo cáo.
+
+Cập nhật: 11/09/2026. Trạng thái: ghi nhận quyết định frontend sau baseline Task 032; visual direction đang đề xuất.
+
+## Mục đích và cách đọc
+
+Lưu bối cảnh, quyết định đã thống nhất, lý do, phần để sau và câu hỏi còn mở để người và agent tiếp tục đúng hướng giữa các phiên làm việc.
+
+- **Đã thống nhất:** chủ dự án đã xác nhận trong cuộc trao đổi.
+- **Để sau:** đã chủ động hoãn; không tự đưa vào scope hiện tại.
+- **Chưa chốt:** còn là câu hỏi hoặc đề xuất; không được coi là yêu cầu đã duyệt.
+- **Tài liệu tham chiếu:** mô tả nội dung nguồn, không đồng nghĩa đã xác minh dữ liệu hoặc đã triển khai.
+
+Tài liệu này ghi ý định nghiệp vụ. `ARCHITECTURE.md` giữ baseline kỹ thuật; `docs/STATUS.md`, code, tests và handoff phản ánh implementation. Nếu khác nhau, ghi nhận khoảng cách trước khi đề xuất thay đổi. Quyết định thiết kế ở đây không tự chứng minh tính năng đã hoàn thành hoặc cho phép thực thi hành động bên ngoài.
+
+## Mục tiêu xuyên suốt
+
+- Một người phát triển với AI coding: ưu tiên tốc độ và giải pháp đơn giản nhất đáp ứng mục tiêu.
+- Tái sử dụng Research Pipeline và Content Studio sau khi kiểm tra phần code liên quan.
+- Kiểm thử theo rủi ro; kiểm tra hành vi ứng dụng sở hữu, tránh gates và NFR không cần thiết.
+- AI hỗ trợ phân tích và đề xuất; con người quyết định tại các gate nghiệp vụ đã thống nhất.
+- Orca quản lý agent/worktree phát triển. Workspace nghiệp vụ dưới đây là khái niệm sản phẩm, không phải Git worktree.
+
+## Những gì chủ dự án đã có
+
+| Thành phần | Năng lực được cung cấp trong cuộc trao đổi | Giới hạn xác nhận |
+|---|---|---|
+| Research Pipeline | KaloData + Metric → báo cáo phân tích thị trường | Đã đọc báo cáo đầu ra; chưa chứng minh mọi năng lực đã tích hợp vào repo mới |
+| Content Studio | Product info (giá, mô tả) + audience + pain point + insight → Big Idea → Angles → Drafts → Caption + Poster | Luồng do chủ dự án mô tả; chưa kiểm tra toàn bộ implementation trong đợt phỏng vấn này |
+| Framework 10×6 | 60 câu hỏi chi tiết trong 10 nhóm; nguồn, lập luận, công thức và bằng chứng | Framework ngoài hệ thống; không được tính là đã tích hợp chỉ vì có DOCX/Excel |
+
+## Flow B0–B14 — tên theo hình chủ dự án cung cấp
+
+| Bước | Tên nghiệp vụ |
+|---|---|
+| B0 | Khóa định hướng chiến lược — để sau, giữ tên tạm |
+| B1 | PESTLE |
+| B2 | Thị trường online Việt Nam |
+| B3 | Rổ cơ hội sản phẩm |
+| B4 | STP sơ bộ |
+| B5 | Khái niệm sản phẩm mục tiêu |
+| B6 | Tìm nhà cung cấp |
+| B7 | Sàng lọc phù hợp chiến lược |
+| B8 | Thẩm định pháp lý – khoa học – chất lượng – tài chính |
+| B9 | Khóa STP |
+| B10 | Phê duyệt danh mục và cấp vốn |
+| B11 | Insight & tiếp cận số |
+| B12 | Kiến trúc thông điệp |
+| B13 | Poster & video |
+| B14 | Phản hồi thị trường và học lại — để sau |
+
+Đã xác nhận cấu trúc này rộng hơn luồng tạo nội dung: gồm khám phá cơ hội, phát triển sản phẩm, thẩm định, phê duyệt và triển khai. Input/output, vai trò, điều kiện chuyển bước và rework của từng bước chưa được chốt đầy đủ.
+
+B0 và B14 chỉ giữ vị trí trong roadmap, không phải yêu cầu triển khai hiện tại. Các cách gọi B0–B7 và B8–B14 dưới đây giữ nhãn giai đoạn gốc, không đưa hai bước đã hoãn trở lại scope.
+
+## Quyết định đã thống nhất
+
+### D27 — Frontend dùng React + Vite + TypeScript
+
+Chủ dự án đã chốt stack này sau khi thảo luận các phương án. Giữ Node.js/TypeScript/SQLite và Fedora; không chuyển sang Bun, FastAPI, Streamlit hoặc Supabase. Lựa chọn mới thay thế frontend vanilla TypeScript/Bootstrap trong baseline cũ, xem `docs/adr/0002-react-vite-typescript-frontend.md`.
+
+Content Studio hiện là HTML/CSS thuần theo xác nhận của chủ dự án; chưa kiểm tra code để cam kết reuse. Chủ dự án muốn giao diện sinh động, dữ liệu diễn giải bằng chart/visual, tránh wall of text. Không sáng tác dữ liệu, insight hoặc methodology để phục vụ bố cục.
+
+`PRODUCT.md` ghi product context; `docs/frontend/product-workspace-brief.vi.md` là brief chức năng đề xuất, chưa phải giao diện đã duyệt hoặc frontend đã triển khai. B0/B14, B2 methodology và insight business logic vẫn giữ trạng thái để sau.
+
+### D28 — Overview và detail là hai tầng của cùng frontend
+
+Option 3 là **Portfolio Overview** để xem toàn bộ workspace và chọn việc tiếp theo. Option 2 là **Product Workspace Detail** để xem evidence, lane và quyết định của một workspace. Hai option có thể triển khai cùng lúc thành flow `Overview → Detail`; Option 1 chỉ giữ như mật độ thao tác B8 nhanh bên trong detail nếu có nhu cầu thực tế. Đây là quyết định về cấu trúc surface, không tạo thêm nghiệp vụ, API hay quyền mới.
+
+### D29 — Giữ phong cách prototype gốc; loại bốn reference thương hiệu
+
+Ngày 11/09/2026, chủ dự án đánh giá mockup bốn design-md kém phù hợp hơn prototype `docs/frontend/direction-options.html` và yêu cầu không tiếp tục theo Coinbase/Meta/Apple/HP. Prototype gốc là nguồn thị giác cho lượt tiếp theo; giữ cặp Overview + Detail theo D28. Chủ dự án đã yêu cầu tiếp tục, không cần hỏi chọn lại giữa hai màn hình này.
+
+Bản nối hai màn hình nằm ở `docs/frontend/workspace-prototype.html`. Tương tác B8 chỉ dùng dữ liệu synthetic trong bộ nhớ; bố cục tinh chỉnh cần chủ dự án xem, không tự coi là đã nghiệm thu production. B9/B10 trong bản này chỉ giải thích điều kiện; form thao tác sẽ làm sau. `DESIGN.md` ghi lại hệ thống thị giác đang sử dụng để agent tiếp tục nhất quán.
+
+### D30 — Nhiều thị trường, điều hướng ba cấp
+
+Chủ dự án xác nhận nhu cầu nghiên cứu nhiều thị trường và yêu cầu cập nhật UI. Điều hướng: **Tất cả thị trường → Workspace khám phá của một thị trường → Hồ sơ sản phẩm**. Trang đầu hiển thị các thị trường; trang thị trường chứa nghiên cứu chung, rổ ứng viên và hồ sơ đã tách sau B7. Thị trường chưa có sản phẩm vẫn có thể tiếp tục khám phá.
+
+Sản phẩm giữ nguồn gốc thị trường để điều hướng, nhưng hồ sơ và quyết định sau B7 độc lập. Không tự đồng bộ quyết định giữa sản phẩm/thị trường. Không suy ra cùng thực thể từ tên. Bản demo dùng liên kết ID riêng; API tạo/list thị trường và read model production vẫn chưa xây. Nút Tạo nghiên cứu mới chỉ tạo workspace demo trống, không tự chạy thu thập hoặc phát sinh phí.
+
+### D31 — Duyệt prototype nhiều thị trường; triển khai frontend demo trên Fedora
+
+Chủ dự án xác nhận hài lòng với `docs/frontend/workspace-prototype.html` sau cập nhật nhiều thị trường và yêu cầu tiến hành bước tiếp theo. Bản này là visual source of truth cho Task 033 React + Vite + TypeScript; không hỏi chọn lại layout hoặc reference. Task đầu tiên chuyển UI sang React bằng synthetic state, sau đó mới xây API/read và hành động OWNER thật. Chủ dự án yêu cầu bỏ qua LSP; không tạo task cài/cấu hình LSP.
+
+### D32 — UX B7–B10 phải nói rõ trạng thái, điều kiện và quyền thao tác
+
+Mỗi route B8, B9 và B10 chỉ hiển thị bảng hành động của chính bước đó; context bước trước có thể ở dạng chỉ xem. Điều hướng đến bước tương lai không đồng nghĩa được phép hành động. Giao diện phải giải thích bền vững gần nút bị vô hiệu hóa: runtime ghi không khả dụng, OWNER đang khóa, input chưa hợp lệ, thay đổi chưa lưu, điều kiện nghiệp vụ chưa đủ, request đang xử lý hoặc xung đột vừa tải lại.
+
+B9 phân biệt rõ “Chưa có bản nháp”, “Bản nháp đã lưu · Chưa khóa”, “Có thay đổi chưa lưu” và “STP chính thức đã khóa”; lưu không phải khóa. B10 chỉ cho quyết định khi có locked STP đã xác minh và APPROVE phải nói rõ chỉ đủ điều kiện B11, trong khi B11 chưa triển khai. B7 HOLD có thể mở form tạo phiên bản kế tiếp của đúng basket family với lựa chọn editable; việc mở form không ghi dữ liệu và quyết định HOLD cũ vẫn bất biến. Đây là làm rõ UX của policy hiện có, không thêm gate hoặc quyền mới.
+
+### D33 — Content Studio là phần Nội dung (B11–B13); D26 chỉ áp dụng khi chiến dịch liên kết sản phẩm nghiên cứu
+
+Chủ dự án duyệt ngày 25/09/2026: Content Studio được viết lại trong Growth OS thành mục “Nội dung” (B11 Insight, B12 Big Idea và Góc khai thác, B13 Caption và Poster; không có bước Draft, không có video), cùng “Thương hiệu” (nhiều thương hiệu, danh mục sản phẩm/dịch vụ có gói) và “Thư viện prompt”. Chiến dịch có thể tự nhập Insight mà không cần nghiên cứu; liên kết sản phẩm nghiên cứu là tùy chọn. Quy tắc D26 (đóng băng đúng B10 `APPROVE` đang hiệu lực khi B11 bắt đầu) chỉ áp dụng cho chiến dịch có liên kết đó. AI chỉ đề xuất; mọi áp dụng, lựa chọn và xóa do người dùng quyết định. Chi tiết: ADR 0003 và Task 047.
+
+### D01 — Khám phá chung B0–B7; tách workspace tại B7
+
+Workspace ban đầu bắt đầu bằng một cơ hội rộng, ví dụ “thị trường canxi”. Sản phẩm cụ thể hình thành trong B0–B7; giai đoạn này có thể chứa nhiều lựa chọn như canxi người lớn và canxi trẻ em.
+
+Tại B7, mỗi candidate được chọn tiếp tục trong một workspace sản phẩm độc lập cho B8–B14. Workspace mới mang theo bản sao cố định của nghiên cứu liên quan và concept đã chọn.
+
+Lý do: dùng chung công sức khám phá ban đầu, nhưng các sản phẩm sau lựa chọn không phụ thuộc tiến độ, quyết định, cấp vốn hay nội dung của nhau. Không tự đồng bộ thay đổi giữa các workspace. Cách hiện thực sao chép/tham chiếu dữ liệu, quyền truy cập và cách nhập cập nhật sau này chưa chốt.
+
+### D02 — AI đề xuất; con người quyết định B7
+
+AI chuẩn bị candidate, so sánh và bằng chứng. Con người là gate cuối cùng chọn kết quả:
+
+- **PASS:** tạo workspace sản phẩm độc lập để đi B8–B14.
+- **HOLD:** giữ candidate cùng lý do thiếu bằng chứng hoặc yêu cầu cần bổ sung; có thể xem xét lại.
+- **REJECT:** giữ lịch sử/lý do và bỏ khỏi công việc đang hoạt động.
+
+Người/vai trò cụ thể có quyền chọn, tiêu chí chấm và điều kiện xem xét lại chưa được xác định. Không tự coi policy kỹ thuật của Task 013 là policy B7 đầy đủ.
+
+### D25 — B8 v1 gồm bốn lane độc lập, owner vận hành bằng nút
+
+B8 v1 có đúng bốn lane độc lập: **LEGAL**, **SCIENTIFIC**, **QUALITY** và **FINANCE**. `OWNER` là system actor duy nhất được phép quyết định trong v1. Owner tự điều phối mọi thẩm định bên ngoài hoặc offline rồi trực tiếp bấm nút; tài khoản chuyên gia và enforcement vai trò chuyên gia để sau.
+
+Mỗi quyết định chỉ là **PASS**, **HOLD** hoặc **REJECT**. B8 là button-only như B7: không yêu cầu hoặc lưu reason, rationale, notes, explanation, evidence reference, attachment, reviewer name hay văn bản do AI tạo. AI không được submit quyết định B8.
+
+B9 chỉ ở trạng thái sẵn sàng khi effective decision mới nhất của cả bốn lane đều là PASS. Task 029 chỉ ghi lịch sử quyết định append-only và đọc trạng thái sẵn sàng; không bắt đầu B9, không tạo B9 clearance, không đổi `entryStep` hay mutate product workspace, và không tạo task hoặc hành động bên ngoài. Một task tương lai sẽ đóng băng đúng bốn PASS decision ID trước khi vào B9.
+
+### D26 — B10 v1 là một quyết định kết hợp; B11 tương lai phải đóng băng đúng APPROVE hiệu lực
+
+B10 v1 có một quyết định nghiệp vụ kết hợp cho cả phê duyệt danh mục/portfolio và quyền nhận funding; không tách thành hai gate. Chỉ `OWNER` bấm một trong `APPROVE`, `HOLD`, `REJECT`, không lưu budget, amount, currency, kỳ/trần/lịch cấp vốn, reason, rationale, notes, explanation hay khuyến nghị AI. `APPROVE` đồng thời phê duyệt sản phẩm cho danh mục/portfolio và cho phép sản phẩm nhận funding; không tự phân bổ hoặc giải ngân tiền.
+
+Nhấn nhầm được sửa bằng lịch sử quyết định bất biến, append-only. Mỗi correction phải trỏ đúng quyết định hiện đang hiệu lực và đổi sang một trạng thái khác; lịch sử cũ vẫn replay độc lập. Chỉ quyết định hợp lệ mới nhất có hiệu lực. Task 032 không xây B11 hoặc policy reopening sau B11.
+
+Quy tắc chuyển tiếp bắt buộc cho implementation B11 tương lai: khi B11 bắt đầu, nó phải đóng băng đúng quyết định B10 `APPROVE` đang hiệu lực tại thời điểm đó. Chính sách có cho sửa/mở lại B10 sau khi B11 đã bắt đầu hay không vẫn là future work và không được tự suy diễn từ Task 032.
+
+### D03 — Workspace khám phá vẫn mở
+
+Không đóng workspace B0–B7 khi có candidate PASS. Người dùng có thể khám phá thêm hoặc tiếp tục nghiên cứu khi chưa candidate nào PASS. Các workspace sản phẩm đã tách tiếp tục độc lập.
+
+### D04 — 60 câu hỏi là nền phân tích; phạm vi ban đầu xét đủ 60
+
+Chủ dự án chọn xét toàn bộ 60 câu hỏi, thay vì tự động chỉ chọn một phần. Điều đó không có nghĩa tất cả câu hỏi phải có câu trả lời chắc chắn ngay khi bắt đầu nghiên cứu.
+
+Thời điểm chạy, cách làm mới câu trả lời và gắn từng câu hỏi vào các bước B0–B14 chưa chốt. Các câu về năng lực công ty, economics và experiment có thể cần dữ liệu xuất hiện ở bước sau.
+
+### D05 — Insight: giữ mục tiêu giải thích, hoãn business logic
+
+Chủ dự án muốn AI đề xuất insight kèm dữ liệu Box 1, phép tính nếu có, giải thích vì sao kết luận có cơ sở và vì sao có thể hữu ích. Con người chọn insight cuối cùng.
+
+Sau đó chủ dự án yêu cầu hoãn thiết kế chi tiết vì đội ngũ chưa hoàn tất logic insight. Mẫu insight, scoring, quy tắc chọn, cách kiểm chứng hiệu quả và contract chưa được duyệt. Bộ 60 câu hỏi là nền tham chiếu cho phần này.
+
+### D06 — Đầu ra giao trước mắt
+
+Chủ dự án chọn caption và poster được duyệt, sẵn sàng xuất bản thủ công. B13 trong roadmap vẫn gồm video; phạm vi video ở bản giao đầu tiên chưa xác nhận. Không suy ra đã có xuất bản tự động.
+
+### D07 — B14 phục vụ cải tiến B11–B13 trong workspace sản phẩm
+
+Nguồn dự kiến: dữ liệu bán hàng, hiệu quả social media và bình luận trên trang của công ty. Mục đích là cải tiến insight/tiếp cận số, thông điệp và poster/video.
+
+Chủ dự án đã sửa đề xuất đưa feedback về khám phá: B14 tập trung vào giai đoạn triển khai của sản phẩm đã chọn. Không thiết kế vòng tự động quay về B0–B7.
+
+### D08 — B14 để sau; định hướng là dashboard có gợi ý
+
+Định hướng ban đầu: dashboard thể hiện dữ liệu và gợi ý AI để đội ngũ họp, thảo luận và cân nhắc thay đổi. Không ép quá trình đó thành một đoạn đề xuất và nút approve/hold.
+
+Chủ dự án yêu cầu dừng đào sâu B14 vì còn sớm. Dashboard, metrics, attribution, group theo creative/campaign, chat/meeting, approval flow và tự động tái tạo nội dung đều để tương lai. Chưa chốt các chi tiết này.
+
+### D09 — Quản lý cập nhật framework để sau
+
+Chủ dự án muốn có khả năng sửa framework trong tương lai, nhưng hoãn thiết kế tính năng cập nhật/versioning. Đề xuất immutable framework versions hoặc tự rerun report cũ chưa được chấp thuận. Không tạo editor/versioning platform trong scope hiện tại.
+
+### D10 — B0 để sau; chưa xác nhận giá trị nghiệp vụ
+
+Ngày 08/09/2026, chủ dự án cho biết chưa rõ B0 có nghĩa gì hoặc có cần thiết hay không, và yêu cầu để tương lai như B14. Giữ tên “Khóa định hướng chiến lược” làm nhãn tạm, không xóa hoặc đánh lại số flow.
+
+Chưa định nghĩa form, input/output, người duyệt, tiêu chí hoàn thành hay gate B0. Không yêu cầu hoàn thành B0 trước khi nghiên cứu các bước còn lại. Các gợi ý trước đây về mục tiêu, thị trường và ràng buộc chỉ là đề xuất chưa được duyệt, không phải yêu cầu bắt buộc.
+
+Quyết định này thay thế điểm tiếp tục phỏng vấn B0 trước đó; chưa kết luận B0 vô ích hoặc bị loại bỏ vĩnh viễn.
+
+### D11 — Báo cáo tổng quan; chat AI và layout để sau
+
+Chủ dự án muốn đầu ra nghiên cứu dạng báo cáo/dashboard tổng quan, trực quan, bắt mắt, có dữ liệu, tóm tắt và kết luận. Chưa chốt bố cục chi tiết. Các mục tóm tắt nhanh, thị trường, cạnh tranh, cơ hội, bất định và kết luận do assistant đề xuất vẫn là gợi ý, không phải yêu cầu đã duyệt.
+
+Khả năng hỏi AI về báo cáo là mong muốn tương lai; chưa triển khai trong scope ban đầu. Thiết kế layout và giao diện dashboard chi tiết cũng để sau. Không suy ra phải xây dashboard tương tác ngay để giao phần nghiên cứu.
+
+### D12 — Nghiên cứu chạy theo yêu cầu ban đầu
+
+Chủ dự án xác nhận chỉ chạy nghiên cứu khi người dùng yêu cầu. Không tự chạy theo lịch hoặc tự làm mới nghiên cứu trong phạm vi ban đầu. Cách nhập yêu cầu, chọn dữ liệu và xử lý một lần yêu cầu cập nhật chưa chốt; quyết định này không tự định nghĩa lịch thu thập dữ liệu Box 1 hoặc cho phép gọi nhà cung cấp.
+
+### D13 — Hệ thống thu thập dữ liệu mới khi được yêu cầu
+
+Chủ dự án xác nhận hệ thống sẽ thu thập dữ liệu mới cho lần nghiên cứu được yêu cầu, không chỉ dựa vào file nhập thủ công. Chủ dự án dự định kết nối các nguồn sau:
+
+- KaloData và Metric.vn: dữ liệu thương mại điện tử Việt Nam.
+- Apify: thu thập bình luận/đánh giá trên Shopee.
+- Google Trends API: dữ liệu xu hướng tìm kiếm.
+- Google News API: dữ liệu tin tức.
+
+Đây là danh sách nguồn dự kiến do chủ dự án cung cấp, không phải xác nhận connector đã hoàn thành hoặc API chính thức đã khả dụng. Nhà cung cấp/endpoint cụ thể (đặc biệt Trends và News), quyền truy cập, giới hạn, chi phí và phạm vi dữ liệu cần được kiểm tra khi tích hợp. Không lưu credentials trong tài liệu hoặc Git.
+
+Không tự thêm nguồn khác; khi có khoảng trống bằng chứng cụ thể thì đề xuất cho chủ dự án. Thu thập dữ liệu mới không đồng nghĩa mọi nguồn cập nhật tức thời; báo cáo cần phân biệt thời điểm lấy dữ liệu với kỳ dữ liệu nguồn. Cách xử lý nguồn lỗi, dữ liệu thiếu/cũ và ngân sách mỗi lần chạy chưa chốt. Chưa có provider call hoặc thay đổi implementation từ quyết định này.
+
+### D14 — Tiếp tục báo cáo thiếu nguồn; tái sử dụng E0–E5
+
+Chủ dự án đồng ý tiếp tục tạo báo cáo một phần khi nguồn không khả dụng, ghi rõ dữ liệu/nguồn thiếu và không đưa ra kết luận phụ thuộc vào bằng chứng chưa có. Chủ dự án yêu cầu dùng lại phân loại E0–E5 đã có.
+
+Đã tìm thấy định nghĩa gốc trong `references/data-warehouse-master-handoff.html`, mục “Evidence Level System (E0–E5)”:
+
+| Mức | Định nghĩa trong tài liệu gốc |
+|---|---|
+| E0 | Nguồn chính thức đã xác minh; tài liệu gốc mô tả API chính thức, đã kiểm chứng, thời gian thực |
+| E1 | Nguồn chính thức, chưa đối chiếu kiểm chứng |
+| E2 | Bên thứ ba đã hiệu chuẩn/đối chuẩn |
+| E3 | Bên thứ ba chưa hiệu chuẩn/kiểm chứng |
+| E4 | Dữ liệu suy ra/tính toán từ dữ liệu khác |
+| E5 | Ước tính/giả định cần xác minh |
+
+Lưu ý thiết kế: bảng này trộn nguồn gốc, mức kiểm chứng và cách tạo dữ liệu; không tự chuyển thành phần trăm tin cậy. E4 không mặc nhiên kém chính xác hơn E3. Thiếu dữ liệu là trạng thái riêng, không tự gán E5 hoặc biến thành số 0. Ví dụ KaloData/Metric được ghi E2 trong tài liệu cũ không tự chứng minh mọi dữ liệu mới của hai nguồn đã được hiệu chuẩn.
+
+Khoảng cách kỹ thuật đã kiểm tra: code hiện lưu `grade` và `basis` với nhãn `synthetic`, `unverified`, `provider_reported`, `corroborated`, `verified`; chưa dùng trực tiếp enum E0–E5. Mapping, tiêu chí kiểm chứng và cách áp dụng cho bằng chứng/kết luận cần chốt khi triển khai, không tự thay schema trong phiên phỏng vấn này. Giữ lý do phân loại và nguồn truy xuất, không gán cấp chỉ theo tên provider.
+
+### D15 — Đường kết nối thực tế và tài sản tái sử dụng
+
+Chủ dự án làm rõ:
+
+- KaloData/Metric: truy cập qua đăng nhập Google OAuth trên website theo mô tả của chủ dự án, agent tự đăng nhập với CloakBrowser. Đã làm trên Windows với OpenClaw; chưa thiết lập trên Fedora. Không coi đây là API dữ liệu OAuth đã được xác nhận; cần kiểm tra luồng đăng nhập và xuất dữ liệu thực tế.
+- Apify: chủ dự án có API và số dư; hiện chủ yếu dùng Actor lấy Shopee comments. Actor ID/link, input schema, output mẫu và giới hạn chi phí mỗi lần chạy chưa được cung cấp. Có thể đề xuất scrape khác nếu cần, không coi số dư là ngân sách không giới hạn.
+- SerpApi là nhà cung cấp cụ thể cho Google Trends, News và có thể Shopping. Không gọi các kết nối này là API chính thức do Google cấp. Shopping/engine khác là năng lực khả dụng để cân nhắc, chưa tự thêm vào scope đầu tiên.
+
+Tài liệu đã kiểm tra: [CloakBrowser](https://github.com/CloakHQ/cloakbrowser), [Apify API](https://docs.apify.com/api/v2), [SerpApi engines](https://serpapi.com/search-engine-apis). CloakBrowser có wrapper Python/JavaScript kiểu Playwright; điều này không chứng minh đăng nhập Google/KaloData/Metric trên Fedora đã chạy được. Apify có luồng chạy Actor và lấy dataset; SerpApi liệt kê Trends, News và Shopping.
+
+Đã đọc toàn bộ file `shopee_review_filter.py` (bản cục bộ của chủ dự án, ngoài repo), chưa chạy hoặc sửa. Script nhận bảng Markdown rồi xuất JSON kept/removed; không phải Apify connector. Tái sử dụng được chuẩn hóa tiếng Việt, tách guided fields/metadata, phân loại noise/signal, lý do loại và xếp hạng review. Đây là heuristic chuyên canxi, không phải fact-check hoặc thang E0–E5.
+
+Các điểm cần xử lý khi tích hợp, chưa phải thay đổi đã làm:
+
+- Adapter từ output Actor thực tế; kiểm tra input rỗng, star không hợp lệ, UTF-8 output và dùng hàm không tự chạy I/O khi import.
+- Dedup hiện theo nội dung chuẩn hóa trên toàn bộ input, không theo sản phẩm; có thể làm mất phân bổ review giữa sản phẩm. Cần giữ lineage và số lượng nguồn gốc.
+- Score ưu tiên tín hiệu tiêu cực/sao thấp; không dùng phân bố tập đã lọc để kết luận tỷ lệ hài lòng toàn thị trường.
+- Bộ lọc loại/giảm tín hiệu giá, vận chuyển, dịch vụ và tin cậy cửa hàng. Đề xuất giữ raw bất biến, tạo view lọc riêng cho product experience để không mất dữ liệu có ích cho nghiên cứu khác. Chưa tự áp dụng bộ lọc này làm quy tắc loại toàn kho.
+
+Chủ dự án ưu tiên tốc độ, không muốn security quá nặng. Giữ tối thiểu credentials/session ngoài Git và log, không đưa vào prompt; khi cần xác thực bổ sung thì yêu cầu người dùng. Chưa login, truy cập tài khoản, gọi API trả phí hay thiết lập Fedora trong phiên này.
+
+Đề xuất thứ tự triển khai, chưa chốt: Apify Shopee + filter có phạm vi rõ trước; SerpApi Trends/News sau; kiểm tra khả năng tái sử dụng browser flow KaloData/Metric trên Fedora riêng. Không cần thêm nguồn chỉ để mở rộng danh sách.
+
+### D16 — Actor Shopee đã được xác định
+
+Chủ dự án cung cấp [zen-studio/shopee-product-reviews-scraper](https://apify.com/zen-studio/shopee-product-reviews-scraper/api/python). Đã đọc API example, Input và README công khai; chưa chạy Actor.
+
+Tài liệu yêu cầu `startUrls`; có `starFilter`, `contentFilter`, `maxReviewsPerProduct` (0 là không giới hạn theo cấu hình). Output mẫu có `reviewId`, `itemId`, `shopId`, `ratingStar`, `comment`, thời gian và `templateTags`. README mô tả summary riêng theo sản phẩm. Đây là mô tả provider, chưa phải output thực tế đã xác minh.
+
+Đề xuất dùng JSON trực tiếp vào logic filter, không vòng qua Markdown. Cần giữ product identity, đối chiếu templateTags thực tế và không tự coi sample documentation là schema đã kiểm thử. Có thể bắt đầu thiết kế offline; kiểm tra live vẫn cần URL sản phẩm và giới hạn lần chạy được duyệt. Actor này nhận URL sản phẩm, không tự giải quyết bước từ chủ đề rộng đến danh sách sản phẩm.
+
+### D17 — Nguồn danh sách sản phẩm: Metric “Sản phẩm bán chạy”
+
+Chủ dự án xác nhận thường lấy URL Shopee từ mục “Sản phẩm bán chạy” của Metric. Đây là đường tìm sản phẩm đầu vào cho Actor reviews, không cần mặc định thêm Actor tìm kiếm sản phẩm riêng.
+
+Đã kiểm tra phần này trong bản HTML lưu trang Metric của pipeline canxi ngày 2026-08-14 (tệp cục bộ của chủ dự án, ngoài repo): có tên sản phẩm, gian hàng, giá, rating, số đánh giá, doanh số/sản lượng theo kỳ và tổng; giao diện lưu đang chọn “Tổng doanh số”, “Giảm dần”, 20 sản phẩm/trang. Danh sách có dữ liệu đa nền tảng; cần chọn đúng sản phẩm Shopee trước khi gửi Actor.
+
+Chủ dự án làm rõ: đây là HTML tải xuống, không phải trang live; trên phiên web Metric có thể click vào sản phẩm. Việc không tìm thấy href/URL Shopee trong bản lưu không chứng minh trang live thiếu đường truy cập sản phẩm.
+
+Giới hạn xác minh: đã kiểm tra HTML tĩnh, chưa thao tác phiên Metric live. Tiếp tục theo đường click sản phẩm trên web để lấy URL Shopee; đích click trực tiếp hay qua trang chi tiết và cách thu URL chính xác cần xác minh khi tích hợp. Không đoán link từ tên sản phẩm hoặc thêm search scraper chỉ vì bản HTML lưu không có link.
+
+Luồng dự kiến: Metric danh sách sản phẩm → chọn listing Shopee và lấy URL hợp lệ → Apify reviews → lưu raw → view lọc → bằng chứng cho báo cáo. Số sản phẩm, tiêu chí xếp hạng/lấy mẫu và giới hạn reviews chưa chốt. “Sản phẩm bán chạy” là nguồn lấy mẫu, không tự đại diện mọi phân khúc thị trường.
+
+### D18 — Bestseller là listing, không mặc nhiên là sản phẩm duy nhất
+
+Chủ dự án nêu hai trường hợp phải xử lý trong danh sách Metric:
+
+- Cùng một sản phẩm xuất hiện ở nhiều shop/người bán/nhà phân phối.
+- Cùng một sản phẩm xuất hiện trên nhiều nền tảng, thường Shopee và TikTok Shop.
+
+Vì vậy, thứ hạng khác nhau không tự đồng nghĩa sản phẩm khác nhau. Cần phân biệt sản phẩm nghiệp vụ với listing theo nền tảng và người bán. Giữ riêng nguồn, rank, kỳ dữ liệu, doanh số và review của từng listing; không xóa listing chỉ vì cùng sản phẩm hoặc chuyển review giữa seller/platform.
+
+Nguyên tắc đề xuất khi triển khai, chưa phải schema hoặc matching policy đã duyệt:
+
+- Shopee dùng platform + shopId + itemId để nhận diện listing. TikTok dùng định danh listing riêng; không gửi URL TikTok vào Actor review Shopee.
+- Nhóm listing về cùng sản phẩm khi có đủ thuộc tính đối chiếu; tên gần giống không đủ. Khác hàm lượng, quy cách, số viên hoặc combo có thể cần tách variant/offer; quy tắc chưa chốt.
+- Khi không chắc, giữ listing riêng và đánh dấu chưa xác định liên kết; không ép gộp.
+- Báo cáo phân biệt số listing và số sản phẩm đã xác định duy nhất. Chưa tự cộng doanh số hoặc suy ra số người mua duy nhất giữa shop/platform; cần kiểm tra kỳ, đơn vị, phạm vi và trùng bản ghi trước tổng hợp.
+- Phạm vi lấy review đã được chốt tiếp ở D19: một listing Shopee đại diện cho mỗi sản phẩm, chọn theo doanh số trong kỳ nghiên cứu cao nhất. Đây là quyết định sampling và ngân sách, không phải dedup kỹ thuật đơn thuần.
+
+Không thay schema, chạy matching hoặc thu thập dữ liệu trong lần ghi nhận này.
+
+### D19 — Một listing Shopee đại diện cho mỗi sản phẩm
+
+Chủ dự án chọn lấy review từ một listing Shopee đại diện khi cùng sản phẩm xuất hiện ở nhiều shop. Không chạy Actor reviews trên mọi listing trùng sản phẩm trong phạm vi ban đầu.
+
+Quyết định này giới hạn lấy mẫu review, không xóa các listing khác khỏi dữ liệu thị trường. Review và kết luận dựa trên mẫu phải giữ liên kết về listing/shop được chọn, không mặc nhiên đại diện mọi người bán hoặc nền tảng.
+
+Chủ dự án đã đồng ý tiêu chí chọn: listing Shopee có doanh số trong kỳ nghiên cứu cao nhất trong nhóm cùng sản phẩm đã xác định. So sánh cùng kỳ, theo doanh số tiền bán hàng, không theo số lượng bán hoặc doanh số tích lũy toàn thời gian. Không dùng thứ hạng đa nền tảng để gửi listing TikTok vào Actor Shopee.
+
+Chưa chốt cách xử lý bằng doanh số hoặc thiếu doanh số cùng kỳ; không tự thay bằng tổng doanh số toàn thời gian. Việc chọn listing không làm review của listing đó đại diện cho toàn bộ sản phẩm trên mọi shop.
+
+### D20 — Giới hạn ban đầu: top 5 sản phẩm, tối đa 500 comments mỗi sản phẩm
+
+Chủ dự án chọn 5 sản phẩm đứng đầu sau khi xử lý listing trùng sản phẩm, mỗi sản phẩm lấy tối đa 500 comments từ một listing Shopee đại diện theo D19. Giới hạn mục tiêu là tối đa 2.500 comments cho một lần nghiên cứu; không cam kết nguồn luôn có đủ số lượng. Không áp dụng đề xuất trước đó của assistant là 10 sản phẩm × 200 reviews.
+
+500 là giới hạn thu thập trước bộ lọc nội dung, không phải số comment phải giữ lại sau lọc; không tự scrape bù vượt giới hạn để đạt 500 comments đã lọc. Ghi rõ số thực lấy và số giữ/loại. Thiếu dữ liệu vẫn theo D14.
+
+Chủ dự án muốn người dùng có thể chỉnh số sản phẩm và số comments thủ công trong tương lai, nhưng chưa xây chức năng đó ở scope hiện tại. Giữ các giá trị trong cấu hình nội bộ rõ ràng để dễ thay đổi khi cần; không tạo UI/editor cấu hình lúc này.
+
+Cách chọn top 5 ban đầu được chốt ở D21: lọc Shopee trước rồi đi theo doanh số trong kỳ. Xếp hạng đa nền tảng để tương lai; không tự cộng doanh số các listing để tạo thứ hạng mới. Mức tiền cho live run và chính sách retry vẫn cần giới hạn riêng; 2.500 comments không đồng nghĩa cho phép chi tiêu không giới hạn.
+
+### D21 — Shopee trước; Shopee + TikTok Shop trong tương lai
+
+Chủ dự án đồng ý cách chọn cho phiên bản đầu tiên:
+
+1. Lọc danh sách Metric chỉ còn listing Shopee.
+2. Sắp xếp doanh số trong kỳ nghiên cứu giảm dần.
+3. Đi xuống danh sách, nhóm các listing đã xác định là cùng sản phẩm; lấy đến 5 sản phẩm khác nhau. Listing đầu tiên của mỗi nhóm là đại diện theo D19.
+4. Thu thập tối đa 500 comments cho mỗi listing đại diện theo D20. Nếu thiếu sản phẩm/dữ liệu, ghi rõ phạm vi thực tế thay vì tạo đủ giả định.
+
+Đây không phải xếp hạng theo tổng doanh số cộng gộp của mọi shop. Quy tắc xác định cùng sản phẩm/variant và xử lý bằng doanh số vẫn cần nêu rõ trong spec; chưa tự coi tên giống nhau là trùng sản phẩm.
+
+Chủ dự án yêu cầu tương lai hỗ trợ cả Shopee và TikTok Shop. Không xây connector reviews TikTok, cơ chế chọn đại diện đa nền tảng hoặc xếp hạng gộp trong scope hiện tại. Giữ nhận diện platform rõ ràng để mở rộng sau; chưa quyết định quota chia theo nền tảng, ranking hay chính sách sampling đa nền tảng.
+
+## Framework mới — nội dung tham chiếu đã đọc
+
+Nguồn: `Framework_10x6_Canxi_Cong_Thuc_Chi_Tiet_Cap_Nhat.docx`, do chủ dự án cung cấp ngày 08/09/2026.
+
+- Mỗi câu có trạng thái `FACT / ESTIMATE / HYPOTHESIS / UNKNOWN`, giới hạn, nguồn/field, ví dụ, lập luận, công thức và tính toán.
+- Tổng hợp: 60 câu chi tiết → 10 nhóm → 7 quyết định quản trị.
+- 7 đầu ra: khách hàng ưu tiên; vấn đề cần giải quyết; giá trị cung cấp; thông điệp; kênh/cách bán; lợi thế cạnh tranh; thử nghiệm tiếp theo.
+- FACT được giới hạn trong nguồn/mẫu quan sát; không mặc nhiên đại diện thị trường hoặc chứng minh quan hệ nhân quả.
+- Metric Excel và HTML là hai biểu diễn cùng nguồn. Google Trends là nguồn dự kiến trong tài liệu, chưa có output canxi thực tế được dùng ở bản đó.
+- Tài liệu báo cáo 16 FACT, 21 ESTIMATE, 14 HYPOTHESIS, 9 UNKNOWN. Đây là đánh giá của bộ dữ liệu minh họa, không phải trạng thái cố định của các câu hỏi, và chưa được kiểm toán độc lập trong phiên này.
+- Q9 nêu khoảng trống dữ liệu công ty; Q10.5 chưa có threshold PASS/HOLD/NO-GO được chốt.
+
+Trạng thái bằng chứng của câu trả lời khác trạng thái workflow. Việc tài liệu có UNKNOWN không tự định nghĩa gate HOLD của toàn dự án. Câu hỏi xử lý thiếu dữ liệu/criticality vẫn còn mở.
+
+## Các cách hiểu đã được sửa trong cuộc phỏng vấn
+
+| Cách hiểu trước | Cách hiểu hiện tại |
+|---|---|
+| Workflow đầu tiên chỉ là research → insight → content | B0–B14 bao gồm phát triển sản phẩm và thẩm định trước content |
+| B0–B14 chưa có ý nghĩa nghiệp vụ | Đã có tên và thứ tự; còn thiếu quy tắc vận hành chi tiết |
+| Tất cả candidate sống trong cùng project dài hạn | Chia sẻ khám phá tới B7, sau PASS tách workspace độc lập |
+| Phải biết SKU cụ thể khi tạo workspace | Bắt đầu từ cơ hội rộng; concept hình thành B0–B7 |
+| B14 gửi learning về khám phá theo mặc định | B14 phục vụ B11–B13; thiết kế chi tiết để sau |
+| Cần tiếp tục chốt insight/versioning/B14 ngay | Các phần này đã được chủ dự án hoãn |
+| Cần chốt B0 trước khi tiếp tục phỏng vấn | B0 giữ tên tạm trong roadmap; hoãn cùng B14, không là gate hiện tại |
+
+## Khoảng cách với implementation hiện tại
+
+Baseline code lúc ghi nhận: `f845c5abab6b37f3c71f4225c6831a5c04a3c24e`, sau merge Task 014.
+
+- Task 011: immutable proposal; Task 013: decision foundation; Task 014: authorized-plan shell không thực thi.
+- Chưa triển khai workspace khám phá/sản phẩm, split B7, B0–B14 nghiệp vụ đầy đủ hay tích hợp framework 60 câu.
+- Task 013 hiện có APPROVE/REJECT/HOLD với terminal rules hẹp. Không tự đồng nhất với toàn bộ PASS/HOLD/REJECT, reconsideration và quyền B7.
+- Workspace độc lập là yêu cầu nghiệp vụ, chưa phải quyết định tạo database/repository riêng. Baseline vẫn một modular monolith, một SQLite.
+- Task 012 verdict REVISE; chưa có production Pi adoption.
+
+## Điểm tiếp tục phỏng vấn
+
+Chủ dự án đã duyệt triển khai Task 015 không cần login Metric: dùng file listing (synthetic khi test, operator cung cấp khi live) cho toàn bộ downstream. Metric browser collector tiếp tục pending. Implementation bắt đầu trên nhánh local `feature/015-file-shopee-research`; chưa có live call.
+
+Đã chuẩn bị brief `docs/tasks/015-on-demand-shopee-research.md` cho lát cắt đầu tiên và lưu baseline script ở `references/reuse/shopee_review_filter.v3.py`. Các xử lý kỹ thuật còn mở trong brief là đề xuất implementation, không phải quyết định nghiệp vụ mới. Chưa dispatch/implementation/live run.
+
+**Điểm dừng mới:** Đã xác nhận hướng báo cáo tổng quan (D11), nghiên cứu chỉ chạy khi được yêu cầu (D12), và hệ thống thu thập dữ liệu mới qua các nguồn dự kiến (D13). Chat AI về báo cáo và layout chi tiết để sau. Không còn câu hỏi B0 đang chờ trả lời.
+
+**Đã trả lời:** Tiếp tục báo cáo khi thiếu nguồn, flag dữ liệu thiếu và dùng lại E0–E5 theo D14. D15 xác định cách truy cập từng nguồn và script có thể tái sử dụng.
+
+**Thông tin kết nối:** Actor đã xác định theo D16; nơi lấy danh sách sản phẩm là Metric “Sản phẩm bán chạy” theo D17. D18 ghi nhận trùng sản phẩm giữa seller/platform. Cách trích URL live/export, output Actor thực tế và giới hạn chi phí/số lượng chưa xác minh/chốt; không cần gửi token qua chat. Mapping E0–E5 còn mở.
+
+**Đã trả lời:** Lấy review từ một listing Shopee đại diện cho mỗi sản phẩm (D19).
+
+**Đã trả lời:** Chọn listing Shopee cùng sản phẩm có doanh số trong kỳ nghiên cứu cao nhất (D19); top 5 sản phẩm × tối đa 500 comments mỗi sản phẩm (D20); lọc Shopee trước, sắp xếp doanh số trong kỳ rồi lấy 5 sản phẩm khác nhau (D21). Chỉnh giới hạn thủ công và hỗ trợ cả Shopee + TikTok Shop để tương lai. Đủ quyết định chọn mẫu để chuẩn bị spec Task 015; chưa có implementation/live run được thực hiện từ cuộc phỏng vấn.
+
+Các câu hỏi tiếp theo chỉ mở khi có đủ ngữ cảnh:
+
+- Input/output và điều kiện hoàn thành từng bước B1–B7?
+- Ai quyết định B7 và theo tiêu chí nào; HOLD được mở lại ra sao?
+- Chính xác những gì được mang sang workspace mới tại B7?
+- “Phê duyệt danh mục và cấp vốn” tại B10 nghĩa gì trong từng workspace sản phẩm độc lập?
+- Thiếu dữ liệu trong 60 câu được thể hiện và ảnh hưởng gate như thế nào?
+- Vai trò thẩm định tại B8, khóa STP B9 và phê duyệt B10?
+
+Không quay lại đào sâu B0, insight, framework versioning, B14, chat AI về báo cáo hoặc layout dashboard khi chủ dự án chưa chủ động mở lại.
+
+## Cách duy trì
+
+### Report automation — four distinct evidence layers (2026-09-28)
+
+The owner confirms original source evidence, reproducible calculations, AI
+interpretations, and human decisions must remain distinguishable and traceable.
+An AI interpretation must cite the exact evidence/calculation version and expose
+its checkable explanation, assumptions and limitations; it is not independent
+source evidence. Accepting an interpretation records a human decision, not proof
+of its truth. Preserve original files, normalize into SQLite, evaluate readiness
+of all 30 sections, calculate through approved methods, then render charts and
+evidence-backed interpretations for review and versioned Dashboard/HTML/PDF.
+Methodology remains owned by **Review marketing framework files**. No missing
+method, label, commercial measurement period or approval may be invented.
+Retrieval/context systems remain replaceable future additions, not the
+authoritative calculation or approval store.
+
+### Report automation — deterministic evidence foundation (2026-09-28)
+
+Owner assigns business methodology to task **Review marketing framework files** and code to the TDN task. Numbers and reproducible calculations are application-owned; AI must not invent missing values, periods, entity IDs or source lineage. A1 normalized calculations and A2 exact Metric source mapping are bounded implementation slices, not approval of official market/insight conclusions. A2 requires explicit scope/acquisition declarations and labels bound to source bytes; no implicit UNKNOWN-policy choice for real reports. The current raw profile supports one Metric Shopee export only; incompatible Kalodata/trade/legacy sources require separate future profiles. No live collection is authorized by this decision.
+
+**Owner clarification, 2026-09-28:** use `wideUnknownPolicy=exclude` for the current research workflow. Retain fresh UNKNOWN records for inspection and separate disclosure; do not count them in WIDE, delete raw rows, or change CORE membership. Missing/stale/pending labels do not become fresh UNKNOWN. This choice must remain explicit and version-bound in real run inputs, not a silent calculator default. Owner also confirms date filters exist in Metric and Kalodata: recover measurement-period evidence from existing source/filter records where possible, separately for each source. A measurement period is not the export/acquisition timestamp. No unknown-acquisition-date contract revision was approved.
+
+**Subsequent owner selection, 2026-09-28:** for this calcium Metric study, use workbook `(4)` (abnormal filter ON) as the primary analysis and `(3)` (abnormal filter OFF) as a separate filter-sensitivity comparison. Run each independently; never sum their rows/totals or interpret their difference as market movement. The suffix itself is not evidence: bind each source to its exact hash and saved filter-capture record. This is not a claim that ON is universally more accurate or that excluded rows are fake sales. Retain the separate UNKNOWN-exclusion policy above. This source selection does not approve official report conclusions, merges, deployment, provider calls or an acquisition timestamp inferred from filesystem metadata.
+
+**Subsequent owner approval, 2026-09-28 — unconfirmed acquisition:** a diagnostic draft may proceed with explicit `scope.acquiredAt=null` when acquisition time cannot be confirmed. Preserve the evidence-backed measurement period unchanged, display the unconfirmed-time warning, and keep DRAFT/UNREVIEWED/source-verification limitations. Omitted, empty or malformed dates are not silently converted to null. Never infer acquisition from period endpoints, current time or filesystem mtime. This supersedes the earlier acquisition-time blocking rule only for these drafts; it grants no official approval or stronger source verification.
+
+**Durable report-version boundary, 2026-09-28:** each persisted report version names one exact discovery workspace, finalized source package, selected source paths, section-catalog digest and explicit predecessor semantic ID. Source membership and every retained artifact are immutable; history reads always name a version and never silently choose “latest”. Exact retry must supply the same catalog bytes and returns the same identity without mutation. Replay reruns the approved deterministic calculation path through the owning readers and verifies the retained bytes. The v1 renderer is intentionally byte-replay-bound; changing renderer bytes requires preserving that renderer contract or creating a new report version rather than rewriting history. A newly persisted version starts with AI interpretation `NONE` and human review `UNREVIEWED`. Approval of the 30-section framework authorizes this boundary only—it does not approve any report’s data, interpretation or conclusion.
+
+**Framework audit and report-read boundary, 2026-09-28:** the owner approves the audited methodology as boundary-ready and deterministic-packet-ready. This is approval of the framework, not of calcium-market content and not a claim that all 30 sections are operational. Current executable coverage is four partial deterministic section drafts; AI interpretation remains `NONE` and human review remains `UNREVIEWED`. The local operator may list report series and replay an explicitly selected immutable version, but it must never infer or open “latest” automatically. Research A12 subsequently added the exact row-queryable SQLite projection described below; downstream readiness must verify that projection rather than treating artifact presence alone as proof that normalized rows are queryable.
+
+**Queryable normalized-observation boundary, 2026-09-28:** a report version may materialize its exact `normalized-input.json` bytes as an immutable, row-queryable SQLite projection keyed by that artifact digest. The content-addressed artifact remains the authority; the SQL dataset is not an independent source and must reconstruct the same canonical bytes. Preserve missing separately from observed zero, decimal integers as exact strings, declared precision, displayed value, source membership and cell/JSON locators. Each report/version link retains the exact source-package lineage and no read may infer the latest report. This boundary authorizes future deterministic section queries only; it does not approve source truth, any calcium conclusion, AI interpretation, human review, cross-source join or provider collection.
+
+**Readiness-to-SQL boundary, 2026-09-30:** a catalog input named `normalized-metric-rows` is `PRESENT` only after the exact report ID/version replays its A12 SQLite projection and reconstructs the canonical `normalized-input.json` bytes. Artifact presence without the matching origin row is `ABSENT`; a projection or lineage mismatch is `INVALID`. A positive readiness result cites both the immutable artifact and the exact dataset-origin record. The content-addressed artifact remains authoritative, while SQLite proves the rows are available for bounded queries. This adds no new calculation, section, claim, chart, interpretation, review decision or provider authority.
+
+**Report interpretation-run boundary, 2026-09-28:** each A8 interpretation run is an immutable layer-three overlay on one explicitly selected A10 report ID/version. The ledger retains the exact validated artifact, prompt bytes, model/configuration, telemetry and application-resolved citations so later reads replay against the same source/calculation bundle without calling AI again. Different runs over the same evidence remain separate sequential entries, even when their meaning is identical; they never overwrite one another. Exact retry of the same run identity and bytes is mutation-free, while changed bytes under the same identity fail closed. The base A10 row remains unchanged and its `NONE` state means no interpretation was embedded at base-version creation. Every overlay remains unapproved and is neither evidence nor a human decision. Hidden chain-of-thought and raw provider responses are not stored.
+
+**Interpretation read boundary, 2026-09-28:** the local read-only report API may list and inspect retained interpretation overlays only under an explicitly named report ID and version. Every response must replay the exact A13 artifact against the exact report bundle before returning the user-visible conclusion, evidence logic, resolved citations, assumptions and limitations. Safe generation identity may include provider/model and prompt ID/version, but prompt material, provider request IDs, token counts, latency, request identities and artifact paths are not API fields. This is inspection of unapproved layer-three material only; it does not create or imply review, acceptance, official-report status or permission to act.
+
+**Interpretation dashboard boundary, 2026-09-28:** the local operator UI may render the safe interpretation-read projection only after an explicit report-series, report-version and interpretation-run selection. It must not infer a latest or official run. The primary reading path answers what AI concluded, which exact claims and pointers support it, and which assumptions/limitations remain; digest and generation details stay available as secondary provenance. Every run is visibly `UNREVIEWED`, is not source evidence and carries no approve/reject/regenerate control in this slice. Truthful empty, loading, connection and integrity states must not fall back to synthetic business content.
+
+**Exact review-target boundary, 2026-09-28:** before any human-decision action exists, the application may compose a deterministic internal-review inventory from one explicitly named A10 report version and one explicitly named A13 interpretation run. The inventory binds the complete selected-source membership, declared market/channel/period, explicit intended use, exact deterministic calculation/section identities, exact interpretation items/claims and the exact verified `report.html` file shown to the reviewer. It carries unknown geography/source-rights markers and is non-transferable to any other version, run, scope, intended use or render. This boundary records no approval, reviewer, authority, publication right or revocation rule and adds no UI/API, migration or write.
+
+**Review-target retention boundary, 2026-09-28:** the application may retain an A16 target as one immutable canonical artifact and SQLite row, then replay it only by exact target ID through the A10/A13 readers. Exact retry is mutation-free; a different intended use creates a different target and cannot rewrite the first. Retention still records no human decision, reviewer, authority or publication permission. A future decision action must remain separate and is not implied by the existence of a target.
+
+**Review-target read boundary, 2026-09-28:** the local read-only report API may return one retained A17 target only when the caller supplies its exact lowercase content digest. The response is the canonical A16 target itself after full A10/A13 replay; there is no collection or latest-target route. This inspection path does not create review state, acceptance, rejection, reviewer identity, authority, publication permission or any write. Human-decision semantics and UI/API remain a separate future boundary.
+
+**Review-target preparation boundary, 2026-09-28:** the local OWNER operator may explicitly retain an A16 review target only by naming one exact report ID/version, one exact interpretation ID and one exact intended use. The write delegates to the A17 ledger and returns only after verified replay; an exact retry is mutation-free. This is preparation of an immutable review packet, not approval of the report, interpretation or framework content. No reviewer, authority, rationale, decision, revocation or publication permission is accepted or inferred. Human-decision semantics and controls remain blocked until the owner defines them separately.
+
+**Review-target UI boundary, 2026-09-28:** after the operator explicitly selects one report version and one retained interpretation, the local UI may collect an exact intended use, confirm that snapshot, create it through A19 and open it only after an authoritative A18 read. Each target has a stable exact-digest route and presents source evidence, reproducible calculation, AI interpretation and human decision as separate layers. The fourth layer remains visibly empty and the whole target remains unapproved. No target list, latest inference, demo target, reviewer field or approve/hold/reject action is permitted in this slice.
+
+**M02 deterministic-method boundary, 2026-09-28:** M02 may produce a canonical structured account only from an exact verified source package and its normalized observations. It records declared scope/period, exact selected-source and raw-byte membership, locator and measurement coverage, missing versus observed zero, precision, label coverage and the explicit UNKNOWN/WIDE rule. Byte verification does not authenticate provider collection, and an observed export is not promoted to the whole market. The artifact is part of the immutable report version and semantic identity, remains unreviewed, and contains no AI interpretation, conclusion or human decision. Older catalog 0.1.0 report versions must replay without the new artifact; catalog 0.2.0 must fail closed when it is absent or mismatched.
+
+**M13 deterministic-provenance boundary, 2026-09-28:** M13 may produce a canonical appendix only from one exact finalized source package and the exact normalized calculation chain. It retains selected source-file identity and metadata, raw-byte membership, normalized-input, normalization-receipt and deterministic-result digests, plus evidence locators for every retained record, revenue value, unit value and optional label. Missing labels stay explicit. Hashes and locators support replay and drift detection; they do not authenticate the provider, establish source truth or prove market completeness. The artifact is part of immutable report and semantic identity, remains unreviewed, and contains no AI interpretation, narrative conclusion or human decision. Catalog 0.3.0 must fail closed when the required M02 or M13 method artifact is absent or mismatched; older catalogs replay under their original requirements.
+
+- Sau câu trả lời có quyết định mới, cập nhật đúng mục và ngày; giữ mã Dxx ổn định.
+- Đề xuất chưa xác nhận nằm ở “Chưa chốt”, không ghi thành quyết định.
+- Khi người dùng đổi ý, ghi quyết định mới và lý do thay thế; Git giữ lịch sử.
+- Không cập nhật phần trăm hoàn thành từ cuộc phỏng vấn; chỉ từ bằng chứng implementation/nghiệm thu.
+- Chỉ chuyển thành spec/code task khi scope cần xây đã đủ rõ.
+
+
+### D23 — Shopee calcium filter retains product-use experiences only
+
+On 09/09/2026 the owner narrowed the Shopee calcium review view to concrete reported product-use experiences. This supersedes the earlier proposed broader scope that could include buying information.
+
+Qualifying experiences cover taste, smell, swallowing, opening/preparation, tolerability, and perceived effects or lack of effects. Price, shipping/service, authenticity reassurance, purchase motivation, hearsay without a concrete product-use attribute or effect, and repurchase alone do not qualify. Hearsay attribution does not disqualify an otherwise qualifying attribute or effect. Generic praise, repeated use, or merely starting use without a concrete experience are insufficient. Mixed comments remain eligible when they contain a qualifying experience, and guided-field labels alone cannot establish one. Negation must be preserved: for example, “not difficult to drink” is not a complaint.
+
+This is a deterministic filtering policy for a research view, not validation of a health claim or causal relationship. Retention does not imply firsthand experience or truth, and hearsay attribution remains in the original text. Raw review text remains immutable outside the filtered view. Numeric scoring weights, product-scoped deduplication, collection limits, and raw-text preservation remain unchanged.
+
+### D24 — Chính sách quyết định B7 owner-only v1
+
+Chủ dự án xác nhận B7 v1 là gate **chỉ OWNER**: trusted actor phải có `roleSnapshot` chính xác `OWNER` và capability `governance:candidate-b7-review`. AI có thể hỗ trợ chuẩn bị và phân tích ở nơi khác nhưng không được submit quyết định B7. Kết quả duy nhất là **PASS / HOLD / REJECT**; request, artifact và storage không yêu cầu hoặc lưu rationale/reason/notes/explanation.
+
+**PASS** chỉ cho phép một bước tương lai, độc lập, tạo product workspace; Task 027 không tạo workspace ngay. PASS không phê duyệt cấp vốn, pháp lý, tuyên bố khoa học, nhà cung cấp, xuất bản, launch, hay bất kỳ gate B8–B10 nào. **HOLD** chỉ được xem xét lại bằng một basket version tương lai; không sửa hoặc ghi đè quyết định cho basket/member/version hiện tại.
+
+D24 thay thế ngôn ngữ D02 yêu cầu/giữ lý do và phần chưa chắc chắn về ai quyết định hoặc cách reconsideration. D02 vẫn là bối cảnh lịch sử cho ba kết quả, nhưng policy owner-only và semantics không-rationale/reconsideration tại đây là authoritative cho B7 v1.
+
+### D32 — Ranh giới B3 candidate basket v1
+
+B3 v1 đóng băng một tập các **exact candidate revision** trong một discovery workspace đang ACTIVE. Một basket family được nhận diện bằng `workspaceId + basketKey`; version phải nối tiếp từ v1, lịch sử append-only và exact retry không tạo bản mới. Read model chỉ phát các trường an toàn cần cho UI và replay toàn bộ basket bằng verified reader; mọi drift artifact/row/workspace/candidate trả lỗi integrity chung.
+
+Việc tạo basket không chấm điểm, xếp hạng, so sánh, chọn PASS/HOLD/REJECT, tạo B7 decision hay product workspace, sửa candidate, chạy research/provider/AI, hoặc xóa/sweep artifact. Workspace ID chỉ đến từ URL OWNER API; request-scoped staging chỉ phục hồi đúng canonical basket artifact bị thiếu của exact committed retry.
+
+### D33 — OWNER B7 API/UI boundary v1
+
+B7 thao tác trên đúng một member revision của một candidate basket đã đóng băng, với route được scope bởi `workspaceId + basketId`; body chỉ chứa `candidateId`, `candidateVersion` và một quyết định **PASS / HOLD / REJECT**. Backend lấy actor OWNER và capability `governance:candidate-b7-review` từ cấu hình tin cậy, không nhận actor, rationale, reason, notes, evidence hay text AI từ caller.
+
+Một exact basket/member/version chỉ có một quyết định bất biến: request giống hệt là exact retry không mutation; request đổi quyết định là conflict. Basket thuộc workspace khác, candidate revision không phải exact member, hoặc stored row/artifact/manifest drift đều fail closed. Read model trả effective state theo từng frozen member nhưng không tự tạo product workspace; PASS vẫn chỉ mở đường cho bước tạo product workspace độc lập trong tương lai.
+
+
+### D34 — Tạo product workspace từ exact B7 PASS là hành động OWNER riêng
+
+Sau một quyết định B7 `PASS`, OWNER phải chủ động tạo đúng một product workspace độc lập qua hành động riêng được scope bởi `workspaceId + basketId + decisionId`; không tự động tạo workspace khi bấm PASS. Body chỉ nhận `productWorkspaceKey`, còn ID, thời gian, tiêu đề, trạng thái `ACTIVE`, entry step `B8` và toàn bộ source snapshot lấy từ exact verified PASS. `HOLD`/`REJECT`, sai lineage hoặc decision không thuộc URL scope đều fail closed.
+
+Mỗi exact B7 PASS chỉ tạo tối đa một product workspace và mỗi key chỉ nhận diện một workspace. Exact retry không mutation; key hoặc PASS đã gắn identity khác là conflict. Read model B7 chỉ gắn product-workspace summary sau khi replay và đối chiếu toàn bộ frozen workspace/basket/candidate/decision lineage; nó không suy ra product từ tên và không tự chuyển bước B8. Hành động này không cấp quyền pháp lý, khoa học, chất lượng, tài chính, B9/B10, funding, supplier, publication, launch, provider hoặc AI execution.
+
+### D35 — Integrated operator runtime chỉ dành cho một operator local
+
+Frontend production đã build, verified read API, optional OWNER API và health endpoint cùng chạy trên một process/origin loopback; mặc định canonical là `http://127.0.0.1:8787`. Normal mode dùng persisted data; synthetic state chỉ qua `?mode=demo` có nhãn rõ. OWNER writes mặc định tắt; khi bật, token mạnh và actor ID chỉ là local development authorization giữ trong memory/shell, không phải public hoặc production authentication.
+
+Runtime này dành cho một trusted operator trên chính Fedora host: không bind wildcard/LAN, không port-forward hoặc expose internet. Systemd, reverse proxy, TLS, remote/multi-user access, production auth, backup/restore và deployment là future work. Quyết định vận hành này không thay đổi semantics, authority hoặc gate B3–B10.
+
+### D36 — M08/P4 chỉ là một quote viên đơn lẻ có truy xuất nguồn
+
+`tablet-quote-normalization-v1` được phép xuất hiện trong báo cáo dưới lát cắt
+`M08/P4 · Chuẩn hóa giá quote viên đơn lẻ` khi và chỉ khi một raw quote JSON và
+một canonical quote input cùng thuộc đúng source package đã finalized. Hệ thống
+giữ nguyên hai file, exact source locator, trạng thái giá/thời gian/identity,
+phép tính phân số chính xác và hiển thị half-even; tablet count chỉ được dùng
+khi operator khai báo rõ.
+
+Đây vẫn là `SCENARIO`, `UNREVIEWED`, `DECLARED_UNVERIFIED` và
+`NOT_AUTHENTICATED`. Nó không trở thành FactObservation, không vào
+ALL/WIDE/CORE, không so sánh hay xếp hạng sản phẩm, không suy dose equivalence,
+margin hoặc recommendation, và không làm M08 trở thành section unit economics
+hoàn chỉnh. Report version giữ cặp source này trong membership bổ sung riêng,
+không viết lại membership Metric của các report cũ. Thiếu một trong hai source
+thì M08 giữ BLOCKED thay vì tự tạo dữ liệu.
+
+### D37 — I03 ghi lại phương pháp, không tự tạo insight
+
+I03 được phép trở thành `PARTIAL_DETERMINISTIC_DRAFT` khi và chỉ khi báo cáo có
+đúng gói nguồn đã finalized, M02, M13, biên bản chuẩn hóa và kết quả tính khớp
+digest. Artifact I03 giữ tập file nguồn, vai trò/quan hệ bằng chứng, profile chuẩn
+hóa, kỳ đo, chính sách UNKNOWN của WIDE, mẫu số, missing/zero/non-exact, trạng
+thái nhãn và điều kiện tính của ALL/WIDE/CORE. Phạm vi bị chặn phải hiện là bị
+chặn; không dùng số thành viên 0 như một quan sát kinh doanh.
+
+I03 không xác nhận provider, độ đại diện, độ đầy đủ thị trường, tính đúng của kỳ
+đo hoặc nhãn. Nó không chứa kết luận thị trường, insight, recommendation, causal
+claim, effectiveness claim hay approval. Thay đổi source membership, kỳ đo,
+profile/codebook/chính sách nhãn hoặc lỗi replay/locator buộc mở lại phương pháp.
+Đây là lớp phương pháp và provenance phục vụ hai lớp nguồn/tính toán; nhận định
+AI và quyết định người dùng tiếp tục là các artifact riêng.
+
+### D38 — I17 là chỉ mục truy xuất bằng chứng theo một chiều
+
+I17 được phép trở thành `PARTIAL_DETERMINISTIC_DRAFT` khi exact source package,
+catalog, normalized input, metric result, M02/M13/I03, M08 nếu có, và toàn bộ
+M03/M04 FactObservation đều phát lại được. I17 liên kết hồ sơ phương pháp bằng
+`TRACE_FOR` và claim định lượng bằng `CALCULATION_BASIS` tới đúng artifact,
+digest, JSON pointer, scope, membership, denominator và coverage đã tồn tại.
+`RESOLVED` chỉ có nghĩa pointer tồn tại; nó không đổi missing thành zero, xác
+nhận UNKNOWN, nâng độ chính xác, xác thực provider hay chứng minh claim.
+
+M13 tiếp tục sở hữu source inventory, raw-byte lineage và locators. I17 không
+chép lại raw evidence hoặc biến trace thành source truth. Luồng identity chỉ đi
+một chiều: I17 bind exact upstream source/method/calculation inputs; final packet
+bind digest của I17; semantic content bind final packet; report-version ledger
+bind semantic identity. I17 không nhúng final `packetId` hoặc
+`semanticVersionId`, tránh hash vòng tròn.
+
+I17 không tạo conclusion, insight, recommendation, ranking, causality,
+effectiveness, market coverage, provider authenticity, AI interpretation hoặc
+human approval. Thay đổi source/digest/locator, normalization, scope/codebook,
+UNKNOWN policy, method, claim, denominator hoặc usage-rights buộc mở lại chỉ
+mục. Chart contract, AI interpretation và human decision là các lớp downstream
+riêng; I17 không tự nhận đã hoàn thành chúng.
+
+### D39 — ChartSpec chỉ trình bày số đã tính và phải truy ngược tới evidence
+
+Mỗi biểu đồ M03/M04 phải được materialize từ exact `charts.json` thành một
+`ChartSpec` canonical, versioned và `UNREVIEWED`. Spec đóng băng loại biểu đồ,
+trục, đơn vị, scale, zero baseline, category order, relationship, blocker,
+limitation và từng dấu dữ liệu. Mỗi dấu dữ liệu phải trỏ đồng thời tới giá trị
+trong ChartData và exact Result pointer/evidence pointers; supporting value chỉ
+được phép là giá trị Result trực tiếp hoặc một phép đếm đã được materialize vào
+ChartData với nguồn array Result rõ ràng. Renderer không được tính thêm market
+metric, xếp hạng, kết luận hoặc membership.
+
+Thứ tự phạm vi là `ALL → WIDE → CORE`; ba phạm vi giao nhau và không được cộng.
+Top 1/3/10 là tỷ trọng lũy kế nên không dùng pie, donut hay stacked-parts. Chênh
+ALL→WIDE/CORE là ảnh hưởng của membership trong cùng kỳ đo, không phải growth.
+UNKNOWN tiếp tục hiển thị và tuân theo frozen WIDE policy; missing/blocked không
+được đổi thành zero, còn observed zero phải hiện đúng tại zero baseline. Group
+giữ code-unit order của Result; trên 100 group thì visual fail-closed thay vì
+cắt hoặc gộp âm thầm. CSS, HTML/PDF renderer và responsive layout không đổi
+semantic identity, nhưng thay đổi data, method, scope, ordering, scale, chart
+meaning hoặc pointer buộc mở lại ChartSpec.
+
+ChartSpec là hợp đồng trình bày và truy xuất bằng chứng, không phải một section
+nghiệp vụ mới, AI interpretation, human approval hay bằng chứng về market
+universe. Vì vậy Research A27 giữ coverage ở 7/30 section.
+
+### D40 — Readiness của section phải chỉ ra từng input và exact evidence
+
+Mỗi section trong catalog phải công khai trạng thái của từng input theo đúng
+thứ tự đã khai báo: `PRESENT`, `ABSENT` hoặc `INVALID`. `PRESENT` chỉ được dùng
+khi exact artifact/record/packet pointer và digest của report version đang xem
+phát lại được; thiếu byte, sai digest hoặc method artifact không khớp là
+`INVALID`, không tự sửa hoặc bỏ qua. Input chưa được cung cấp là `ABSENT`;
+optional input có thể không chặn section nhưng vẫn phải hiện là thiếu.
+
+Profile readiness là closed contract có version và fail-closed với input ID
+chưa đăng ký. Nó không chạy provider, không gọi AI, không tạo dữ liệu, không
+tính thêm metric, không nâng section state và không biến zero thành missing.
+Readiness chỉ trả lời “điều kiện nào đã có và evidence nằm ở đâu”; phép tính,
+ChartSpec, nhận định AI và quyết định người dùng tiếp tục là bốn lớp riêng.
+Với gói calcium hiện tại, gate này không làm tăng coverage: vẫn chỉ 7/30 section
+có deterministic partial draft.
+
+### D41 — Chuẩn hóa đầu vào phải hoàn tất trước calculation và report
+
+Một exact Metric source selection phải được chuẩn hóa thành canonical input và
+projection SQLite độc lập trước khi bất kỳ section calculation, chart, AI
+interpretation hoặc report version nào được tạo. Preparation bind đúng ACTIVE
+workspace snapshot, finalized source package, package manifest/content digest,
+workbook, manifest và optional labels path/digest; không chọn `latest` và không
+suy nguồn từ tên file.
+
+Canonical input giữ nguyên `missing`, `observed_zero`, `observed_value`, nhãn
+`UNKNOWN` và frozen WIDE policy. Exact retry không mutation; replay phải mở lại
+source bytes, chạy lại input-only normalization và đối chiếu artifact cùng
+projection SQLite. A30 không chạy M03 hoặc section khác, không tạo claim/chart,
+không gọi AI và không tạo report. Section recipe sau này chỉ được chạy trên exact
+preparation identity này; AI không được sinh rồi thực thi arbitrary code. A30
+mới tạo preparation path và identity, chưa chặn các legacy/direct calculation
+hoặc report command; consumer gate để bắt buộc thứ tự này thuộc lát tiếp theo.
+
+### D42 — Readiness trước calculation phải bind exact preparation
+
+Readiness trước report phải mở lại đúng `preparationSha256` và đúng catalog
+bytes/digest, sau đó phân loại từng prerequisite là `PRESENT`, `ABSENT` hoặc
+`INVALID`. Một section chỉ `READY_TO_CALCULATE` khi mọi input bắt buộc đã có;
+trạng thái này không có nghĩa section đã được tính, viết, duyệt hoặc chấp nhận.
+`UNKNOWN` là một quyết định nhãn hợp lệ để người dùng nhìn thấy, còn việc có
+được đưa vào WIDE hay không tiếp tục theo frozen policy của preparation. A31
+không tính WIDE, không sinh chart/narrative và không gọi AI.
+
+### A32 — SectionRecipe và VerifiedMetricSet đầu tiên
+
+M03 dùng một recipe đóng, chỉ chạy sau khi exact A30 preparation và exact A31
+readiness được phát lại. Kết quả là `VerifiedMetricSet` bất biến theo nội dung.
+Chart và diễn giải AI ở bước sau phải cùng tham chiếu đúng `metricSetSha256`,
+không được tự tính lại hoặc tạo số mới. UNKNOWN được giữ trong ALL nhưng loại
+khỏi WIDE theo policy có version; ALL/WIDE/CORE chồng lấp và không được cộng.
+Missing không phải zero. Chênh membership không phải tăng trưởng hay nhân quả.
+
+### A33 — ChartSpec phải copy từ exact VerifiedMetricSet
+
+Chart M03 chỉ được tạo sau khi mở và kiểm tra đúng `metricSetSha256`. ChartSpec
+không đọc lại file nguồn, không tự tính lại và không nhận style/instruction tự
+do. Null phải hiển thị là thiếu, không đổi thành zero. ALL/WIDE/CORE không được
+stack hay cộng vì có membership chồng lấp; biểu đồ sensitivity không được gắn
+nhãn tăng trưởng, dự báo hoặc nhân quả.
+
+### A34 — AI chỉ nhận citation envelope, chưa được tự do nội suy số
+
+Trước khi gọi AI cho M03, hệ thống phải bind đúng metric set và chart bundle,
+sau đó phát hành danh sách fact có claim ID, value/missing state, unit, coverage,
+membership và pointer. Mọi con số trong prose tương lai phải copy và cite một
+fact. Không cho phép claim về nhân quả, forecast, market share, sức khỏe, so
+sánh khác kỳ hoặc cộng các scope chồng lấp. A34 chưa gọi AI và chưa thay thế
+method nghiệp vụ do owner framework quản lý.
+
+### A35 — Phần factual narrative do code viết, không giao AI
+
+Mô tả số liệu M03 được render deterministic từ claim envelope. Cùng dependency
+bytes và version luôn cho cùng paragraphs. Mọi numeric token phải trùng một
+value của claim được cite; missing dùng câu “chưa đủ dữ liệu để tính”, không đổi
+thành zero. AI về sau chỉ bổ sung lớp interpretation/hypothesis tách biệt theo
+method nghiệp vụ, citation, validator và human review.
+
+### A36 — Section artifact ghép đúng exact A32–A35, không tự sinh nội dung
+
+M03 section artifact chỉ được render sau khi phát lại đúng exact metric set,
+chart bundle, evidence envelope và factual narrative qua verifier của từng
+bước. HTML tự chứa (không script, không tài nguyên ngoài, khóa CSP); cùng
+dependency bytes và renderer profile luôn cho cùng byte HTML. Receipt đóng
+gói renderer profile, đúng digest của bốn dependency và SHA-256/byte size của
+HTML; verifier có thể phát lại toàn chuỗi từ exact dependencies để phát hiện
+can thiệp. Không UI nào được ngụ ý rằng nội dung do AI tạo ra hoặc đã được
+duyệt.
+
+### A37 — Giữ đúng exact A36 section artifact làm state có thể phát lại, chưa phải report version
+
+A37 chỉ lưu lại một bản ghi bất biến khóa theo đúng exact `artifactSha256` của
+A36, cùng membership xác định cho sáu artifact cần để phát lại nó (A32 metric
+set, A33 chart bundle, A34 evidence envelope, A35 factual narrative, A36
+receipt và HTML). Trước khi ghi, hệ thống phải parse và verify từng JSON
+contract, verify đúng exact digest, gọi lại verifier/renderer A32-A36 với
+đúng exact dependencies, và so khớp byte HTML. Retry với đúng exact bytes
+không tạo mutation; tái dùng identity với bytes hoặc metadata khác sẽ fail
+closed. Đây thuần là lớp lưu trữ (layer-two retention): không tạo report
+version, interpretation, review target, quyết định duyệt của con người, PDF,
+UI/API hay deployment nào.
+
+### A38 — Assembly snapshot đóng băng đủ 30 section nhưng chưa tạo report version mới (superseded)
+
+A38 tạo một `ReportAssemblySnapshot` canonical từ đúng một A10 report version,
+exact catalog bytes/digest, một A30 preparation, A31 readiness được tính lại từ
+chính preparation/catalog đó, và các A37 section artifact được chọn rõ ràng.
+Snapshot phải giữ đúng 30 section theo catalog order; catalog fallback,
+readiness và materialization là ba trạng thái riêng. Section chưa có artifact
+phải hiện `NOT_MATERIALIZED` cùng blocker/missing-input code, không được bỏ qua
+hoặc dùng AI để lấp chỗ trống.
+
+Ở trạng thái hiện tại chỉ M03 có thể được materialize và toàn snapshot chỉ được
+gắn `DRAFT_PARTIAL`, interpretation `NONE`, review `UNREVIEWED`, không final,
+không publishable và không commercial-ready. `assemblySha256` là content
+identity của artifact assembly, không phải A10 report version hay semantic
+version; A38 không tạo ledger/version sequence thứ hai và không chọn `latest`.
+A39 mới được phép dùng exact snapshot này để tạo version kế tiếp trong ledger
+A10. Khi section hoàn thành sau, hệ thống tạo snapshot và A10 version mới, tuyệt
+đối không sửa snapshot hoặc lịch sử A10 cũ.
+
+### A38/A39 acceleration revision, approved 2026-09-30
+
+Owner approved replacing the JSON-only A38 delivery sequence with one integrated
+prepared-source -> bounded section outputs -> HTML -> immutable A10 version
+batch. Reuse M02/M03/M04/M08-P4/M13/I03/I17; do not count missing prerequisites
+as completed sections. The first report does not require a prior report; later
+versions retain the exact predecessor rule. All 30 readiness/delivery states
+remain explicit, with DRAFT_PARTIAL/NONE/UNREVIEWED authority. Historical v1
+report and section readers remain intact through versioned dispatch. The former
+A38 restriction to M03-only materialization and later separate A39 persistence
+delivery is superseded, not the evidence or immutable-history guarantees.
+
+Implementation proceeds in disjoint Claude lanes; Codex coordinates contracts,
+independent tests, Linux CI and review. No Windows tests/build/typecheck, provider
+calls, deployment or automatic merge. The business-method session remains the
+owner of section methods and claim limits. See research-a38-integrated-report-delivery.md.
+
+After the Claude lanes reached quota, the owner explicitly authorized GPT to
+take over the remaining production code. This changes implementation ownership,
+not the accepted methods, report scope or Linux-only verification constraints.
+
+### A40 — Method specifications for all 30 sections, requested 2026-09-30
+
+The owner requested a written plan followed by Luna xhigh authoring of concrete
+machine-actionable methods for all 30 market/insight sections. Codex coordinates
+technical review; the Review marketing framework files session reviews business
+semantics. This authorizes specification work, not automatic approval of new
+formulas, taxonomies, forecast settings, opportunity rankings or strategy choices.
+
+Track method specification, business approval, code implementation, input
+readiness and executed output separately. Existing seven bounded methods remain
+partial; no new method becomes executable merely because its inputs have a
+readiness gate. Missing owner choices remain explicit while unrelated method
+drafting proceeds. Preserve the four evidence layers and retained, versioned AI
+interpretation; an evidence-linked rationale is not hidden chain-of-thought.
+See `docs/tasks/research-a40-thirty-section-method-specs.md`.
+
+### A41 — Scoped method adoption, approved 2026-10-01
+
+The owner accepted all four reviewed recommendations and delegated routine
+technical/business-method finalization to Codex and Review marketing framework
+files. Adopt source-bound descriptive market v1, the concrete located-evidence
+codebook/literal mappings with complete frozen-corpus ratios, and optional
+retained AI candidate design with separate human semantic disposition. Defer
+production forecasting, population/causal/effectiveness claims and advanced
+scoring; the M10 diagnostic remains a separate proposal.
+
+This acceptance resolves those four choices without further owner questioning.
+It does not make proposal bytes implemented methods or permit provider
+activation, paid collection, deployment, automatic strategy choice or business
+decisions. Required run inputs remain explicit. Preserve the reviewed A41 packet
+and historical A40 authority pins; the new adoption overlay records the change.
+See `docs/research/method-configurations-v1-adoption.md` for exact scope and
+implementation order.
+
+### A42: delivery priority and report presentation, 2026-10-01
+
+The owner requested a detailed, efficient implementation plan prioritizing the
+earliest usable web deployment, and confirmed Fedora localhost first with domain
+access later. The owner has separate desired Market Report and Insight Report
+HTML designs; their paths/assets are still needed for inspection. Use these as
+presentation references without treating sample content as research evidence.
+
+Plan delivery in usable increments: read retained reports on the operator web,
+then create reports from selected retained sources, then expand the approved
+method families. Reuse existing services, report history and the selected stack.
+The plan is `docs/tasks/research-a42-live-report-delivery-plan.vi.md`; this records
+the delivery direction, not an activation or real-data migration performed.
+
+### Agent assignment preference, updated 2026-10-01
+
+The owner requested Claude Opus 5.5 with high thinking for delegated design,
+UI and UX work. Pure code and logic may be delegated to GPT-5.6 Luna with
+xhigh thinking or Claude Sonnet 5.5 with high thinking. Codex remains the
+coordinator and technical advisor. Preserve the approved report presentation;
+this preference does not authorize a redesign. If the requested model is not
+available through the configured runtime, report that limitation rather than
+silently substituting another model. Do not use Astra workers.
+
+### A45 — Explicit method inputs on the report web form, 2026-10-01
+
+Continue the approved report-delivery work with an explicit same-package method
+picker. Each of the three existing families defaults to no supplement; even one
+recognized candidate is never attached automatically. A recognized schema is not
+a compatible, approved or completed analysis. Existing retained-source consumers
+own lineage and claim checks. Requests carry opaque selection IDs, and retries
+must bind the complete resolved request before intermediate writes. Historical
+reports remain immutable. Do not add an upload flow, ledger, migration, AI call
+or business approval to make this bridge work. All execution checks run on Linux;
+Windows is limited to static edits and contract generation. Fedora activation
+and release-chain merges still require separate owner authorization.
+
+### Local testing OWNER convenience, approved 2026-10-01
+
+The owner approved removing repeated manual token entry for Fedora localhost
+testing. Add an explicit, default-off `TDN_OWNER_API_LOCAL_TEST=true` mode to
+the integrated operator only; it also requires OWNER writes enabled and the
+existing server-owned actor. The frontend automatically obtains a
+process-scoped bearer through an exact-origin local bootstrap, keeps it only
+in React memory, and reacquires it on reload. Never expose the configured
+persistent token or save credentials in browser storage, HTML, logs or Git.
+
+Keep the approved visual identity and visibly distinguish local testing from
+synthetic demo and normal manually unlocked operation. Changes in this mode
+are persisted real changes. Do not silently attach sources, create decisions,
+call AI/providers or spend money when opening the page. Retain all domain
+OWNER capabilities, B7–B10 prerequisites, confirmations, immutable lineage,
+irreversible B9 locking and the single-executor database lock. Do not expose
+this mode through LAN, forwarding, Cloudflare, proxy or domain access; OAuth
+and production multi-user authorization remain future work.
+
+This approval authorizes the scoped implementation and Linux validation. It
+does not authorize changing live Fedora data or activation during unsaved
+operator work. See `docs/tasks/local-owner-testing.md` and the runbook.
+
+### Report design judge, chart audit and citations, approved 2026-10-01
+
+The owner authorized three coordinated workstreams: the existing Claude Code
+session **Competitor mockup report design** judges Market/Insight report
+presentation; Flint is evaluated as an offline chart compiler/auditor; and
+TDN adds deterministic numbered citations to retained source/calculation
+evidence. New report presentation must pass that Claude design review and then
+the owner's final approval before live activation. Preserve the already
+approved Vietdata/YouNet ECI direction rather than redesigning it.
+
+Source evidence, reproducible calculations, AI interpretations and human
+decisions remain distinct. PageIndex may propose document locations, not
+authorize claims; an external quote-verifier attestation must not be described
+as independent byte extraction by a projection adapter. Keep unrelated
+retrieval candidates out of supporting references. WeKnora and OpenViking are
+optional future retrieval/context experiments, not mandatory runtime services
+or authoritative replacements for TDN SQLite and retained artifacts.
+
+This slice produces an unreviewed offline preview under a separate renderer
+identity. Historical v1 rendering and font bytes stay unchanged. No new model
+calls, live source import, production records, migration or deployment are
+implied. See `docs/research/retrieval-citation-architecture.md`.
+
+### Additive citation release and conditional model selection, 2026-10-01
+
+The owner authorized parallel Claude Opus 5.5 high UI work and Luna 5.6 coding
+to bring the approved citation direction into the Fedora localhost web. New
+versions may explicitly select `report-kit-citations-v1`; old presentation
+identities, stored bytes and immutable replay must remain unchanged. This is
+source/calculation presentation, not a new AI conclusion, provider call,
+PageIndex chat feature, cloud upload, domain deployment or source import.
+
+The owner also authorized GPT 6.1 versus Luna on the same pilot fixture, with
+replacement conditional on improved results. The exact CLIProxy route tested
+was `gpt-6.1-sol`. Both models missed the selective limitation-page citation,
+so the replacement condition was not met despite GPT 6.1's observed faster
+responses and byte-stable repeat. No unrelated production model changes are
+authorized by this experiment. The eight-call pilot budget is exhausted;
+further model experiments need a new explicit budget. Hidden chain-of-thought
+is not retained as evidence. See `docs/research/pageindex-gpt61-comparison.md`.
+
+### Private R2 web media mirror, 2026-10-02
+
+The owner authorized enabling R2 on the Fedora localhost web after privately
+configuring bucket-scoped S3 credentials. New Content Studio logo/photo uploads
+and generated posters are copied to private `tdn-media` only after verified
+local commit. SQLite and local artifacts remain authoritative, and browser
+previews continue through the existing local API. Remote failures must not
+undo a local success or trigger another AI generation. Exact retries and the
+explicit digest command can repair failed copies. Failure digests stay in
+private logs; safe process-local health counters do not claim full coverage.
+
+No historical backfill, PDF/video support, public URL/CDN, CORS, domain, Worker,
+local deletion or R2-primary storage is implied. The owner confirmed edits
+were saved before restart. Live activation preserves the existing data, local
+OWNER testing mode and AI configuration, with private recovery and code-only
+rollback. See `docs/tasks/r2-private-media-archive.md`.
+
+### Automated research: owner-approved v1 implementation, 2026-10-02
+
+The owner authorized code implementation and parallel Claude Opus 5.5 high
+work from the reviewed automation prototype. Preserve the accepted decision
+records under `docs/research-automation/adr/`; ADR 0015 supersedes the earlier
+mandatory monetary-cap wording, not the evidence or human-scope boundaries.
+
+V1 supports Vietnam. Default requested duration is 365 inclusive days, with
+30/90/180-day, 24-month, calendar-year and exact custom intervals. Resolve
+presets to explicit frozen dates; requested scope and observed source coverage
+remain different facts. Never silently shorten the requested period or treat
+truncated monthly rankings as a complete annual market total.
+
+Real provider product cards retain their source identity, image/description
+availability and listing link. Choosing a card identifies intended-product
+closeness; it does not approve a peer set or any B7–B10 action. Keep one
+explicit scope confirmation before full collection and separate M07 peer
+selection. Unknown evidence remains inspectable but does not count in WIDE.
+
+Explicit owner-started in-scope research prioritizes sufficient evidence with
+no owner monetary ceiling. Finite operations, provider quotas, rate limits,
+cancellation, actual usage and reconciliation of ambiguous paid starts remain
+required. Neither viewing a page nor typing starts paid collection.
+
+Market and Insight use separate web views and separate PDFs of their saved
+semantic content. Export does not regenerate analysis. Missing source fields,
+unsupported connectors or method prerequisites produce truthful partial
+drafts and named section blockers. Generic research must not automatically
+inherit the historical calcium review filter or tablet-unit method.
+
+This authorization covers implementation and isolated Linux validation. No
+live Fedora migration, restart, deployment, real run or business approval is
+implied. Report design still requires the established Claude judge and then
+owner acceptance. Existing report paths and immutable history stay intact.
+
+Owner clarification, 2026-10-02: Claude session “Competitor mockup report design”
+audits only the rendered Market and Insight reports (web/PDF). It is not an
+approval gate for the automated-research application UI, execution architecture
+or the whole feature. Keep report-design acceptance separate from application
+UI feedback, code review and owner merge/deployment authorization.
+
+### Automated research source timing, owner-approved 2026-10-03
+
+Sources selected for the first report are verified and frozen together with
+the explicit scope confirmation. Preparing an upload alone is not admission
+and does not start a provider call. Preserve existing free reuse of retained
+evidence that matches the exact selected listing and confirmed scope.
+
+Sources added after confirmation belong to an explicit supplemental report
+version. They never alter the first version, including while its worker is
+queued or running. Preserve both original Market and Insight outputs and
+select the same exact version for web and PDF. Changing the scope requires a
+new research run, not an attachment correction. The owner approved this policy
+with “Duyệt cách đề xuất”. It does not approve code, real source acceptance,
+paid recollection, migration on the live database or Fedora activation.
+
+See `docs/tasks/research-source-attachment-and-resume-design.md` for the
+implementation state and recovery boundaries.

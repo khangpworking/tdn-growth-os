@@ -1,6 +1,8 @@
 # Input data sources for 30 sections
 
-Nguồn dữ liệu đầu vào cho 30 section · Phiên bản 1.9 · ngày 08/10/2026 (ngày 12/10/2026: rà khớp chữ, ghi quyết định của chủ về trạng thái S07, S15, S21, S22 và bảng mục 3; không thêm, bớt nguồn) · đi kèm [Ultimate Method](ultimate-method-30-sections.md) v1.13
+> Bản cập nhật 20/10/2026. Bản trước: [bản 20/10/2026 trước khi sửa](../../outdated/2026-10-20/docs/research/ultimate-method/input-data-sources-30-sections.md).
+
+Nguồn dữ liệu đầu vào cho 30 section · Phiên bản 1.9 · ngày 08/10/2026 (ngày 12/10/2026: rà khớp chữ, ghi quyết định của chủ về trạng thái S07, S15, S21, S22 và bảng mục 3; không thêm, bớt nguồn; ngày 19/10/2026: cập nhật dòng S05 trong bảng mục 2, phiên bản giữ 1.9 theo cách ghi của CHANGELOG) · đi kèm [Ultimate Method](ultimate-method-30-sections.md) v1.13
 
 Đây là **nguồn chuẩn về danh mục nguồn dữ liệu**. File này trả lời ba câu hỏi:
 - có những nguồn nào;
@@ -74,7 +76,7 @@ Nhãn hiện tại của từng nguồn (5 nhãn, chủ chốt 12/10/2026) và n
 
 | ID | Nguồn | Tiếng nói | Công cụ | Tên trong báo cáo | Hạng | Đại diện | Trạng thái | Chi phí | Ràng buộc |
 |---|---|---|---|---|---|---|---|---|---|
-| S05 | Review Shopee, có số sao | Khách | Bộ thu review Shopee (Apify, actor zen-studio) | "review công khai trên Shopee" | B | Thấp | Đang dùng | Theo lượt; trong trần chi đã cấu hình (E14) | L1, L6; mục 6.3 |
+| S05 | Review Shopee, có số sao | Khách | Từ 19/10/2026: dịch vụ Shopee API mới (gói S, tối đa 300 review mỗi sản phẩm, chạy từ lần triển khai tới). Bộ thu cũ (Apify, actor zen-studio) chỉ còn bản miễn phí 20 review mỗi sản phẩm cho báo cáo chạy thử. Báo cáo Market chỉ đếm review, không trích nguyên văn | "review công khai trên Shopee" | B | Thấp | Đang dùng | Theo lượt; trong trần chi đã cấu hình (E14) | L1, L6; mục 6.3 |
 | S06 | Review TikTok Shop | Khách | Chưa có bộ thu | "review công khai trên TikTok Shop" | B | Thấp | Đề xuất | — | Như S05 |
 | S07 | Bình luận dưới video TikTok | Khách | Apify (clockworks, datadoping) | "bình luận công khai dưới video" | B | Thấp | Đã duyệt (chủ 12/10/2026); đã test (R3, R4): dùng được. 10–32% lời khách ứng viên trên mẫu chấm, cao hơn hẳn tìm bài Facebook. Pilot dùng datadoping, dự phòng clockworks. Đưa vào hệ thống bằng gói P9 | ~$0,33 (datadoping) – $1,00 (clockworks) / 1.000 bình luận duy nhất | Ẩn danh người viết; lọc tài khoản bán hàng; **lọc trùng theo mã video + mã bình luận**; vị trí trích dẫn = link video + mã bình luận (không có link trực tiếp tới bình luận); E5 phép kiểm 4 |
 | S08 | Bài viết Facebook công khai | Khách | Agent-Reach (OpenCLI); Apify Facebook Posts Search | "bài viết công khai trên Facebook" | B | Thấp | **Tạm ngừng thu** (chủ quyết 08/10/2026). Đã test: Agent-Reach một phần; Apify tìm bài công khai R1 không đạt, R2 một phần. Bài công khai chủ yếu là bài bán hàng, chỉ 0–8% lời khách. Không thu bài trong nhóm (chủ quyết 08/10/2026) | Agent-Reach: không; Apify: ~$0,23–0,26 cho 75–86 bài | Ẩn danh; dùng tài khoản riêng; L5, L7; bài không có ngày không vào số đếm theo kỳ |

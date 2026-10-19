@@ -1,5 +1,17 @@
 # Ý định sản phẩm và quyết định thiết kế — TDN Growth OS
 
+> Bản cập nhật 20/10/2026. Bản trước: [bản 20/10/2026 trước khi sửa](docs/outdated/2026-10-20/INTENT.md).
+>
+> Nội dung bên dưới chạy tới ngày 03/10/2026. Trạng thái hiện tại nằm ở [docs/STATUS.md](docs/STATUS.md) và [docs/vi](docs/vi/README.md).
+
+### Quyết định của chủ sở hữu sau 03/10/2026
+
+- 19/10/2026: báo cáo Insight tạm dừng. Làm báo cáo Market trước.
+- 19/10/2026: phương án A. Báo cáo Market chỉ đếm review Shopee, không trích nguyên văn.
+- 19/10/2026: nguyên văn bình luận thô không bao giờ xuất hiện trên báo cáo.
+- Mục tiêu: báo cáo Market tự động đạt 14/14 quy tắc, không sửa tay (không ghi ngày trong nguồn).
+- 20/10/2026: tài liệu viết gần chuẩn ASD-STE100 (khoảng 80%) và có sơ đồ. Bản cũ giữ ở `docs/outdated/`.
+
 ## Quyết định bổ sung 27/09/2026 — độ ổn định báo cáo nghiên cứu
 
 OWNER giao task **Review marketing framework files** phụ trách nghiệp vụ và task **TDN operation** phụ trách code, phối hợp triển khai. Code tính số liệu/biểu đồ; dữ kiện, suy luận và giả thuyết phải tách rõ. Insight phải truy được bằng chứng, phạm vi/thời gian, giả định và giới hạn; validator hoặc AI kiểm tra chéo không chứng minh kết luận là thật.
@@ -348,6 +360,8 @@ Trạng thái bằng chứng của câu trả lời khác trạng thái workflow
 
 ## Khoảng cách với implementation hiện tại
 
+(Lịch sử, trạng thái 03/10/2026. Trạng thái hiện tại: docs/STATUS.md và docs/vi.)
+
 Baseline code lúc ghi nhận: `f845c5abab6b37f3c71f4225c6831a5c04a3c24e`, sau merge Task 014.
 
 - Task 011: immutable proposal; Task 013: decision foundation; Task 014: authorized-plan shell không thực thi.
@@ -357,6 +371,8 @@ Baseline code lúc ghi nhận: `f845c5abab6b37f3c71f4225c6831a5c04a3c24e`, sau m
 - Task 012 verdict REVISE; chưa có production Pi adoption.
 
 ## Điểm tiếp tục phỏng vấn
+
+(Lịch sử, trạng thái 03/10/2026. Trạng thái hiện tại: docs/STATUS.md và docs/vi.)
 
 Chủ dự án đã duyệt triển khai Task 015 không cần login Metric: dùng file listing (synthetic khi test, operator cung cấp khi live) cho toàn bộ downstream. Metric browser collector tiếp tục pending. Implementation bắt đầu trên nhánh local `feature/015-file-shopee-research`; chưa có live call.
 

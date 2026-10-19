@@ -4,6 +4,8 @@ Mục đích: giúp chủ sở hữu (owner) tạo một báo cáo Thị trườ
 
 Cập nhật: 20/10/2026 · Commit chính: `e9e0f444`
 
+> Bản cập nhật 20/10/2026. Bản trước: [bản 20/10/2026 trước khi sửa](../../outdated/2026-10-20/docs/vi/market-report/huong-dan-su-dung.md).
+
 ## Mục lục
 
 - Phần 1. Báo cáo Thị trường là gì và hệ thống làm gì thay bạn
@@ -50,7 +52,17 @@ flowchart LR
 
 ## Phần 2. Tạo một báo cáo mới
 
-Vào trang nghiên cứu của thị trường trong ứng dụng quản lý. Đường dẫn có dạng `#/markets/<mã thị trường>/research`. Màn hình có 3 bước ở bên trái. Bên phải luôn có khung "Hệ thống đã hiểu" để bạn kiểm tra lại những gì đã nhập.
+Ảnh trong tài liệu này chụp từ ứng dụng thật. Ứng dụng chạy thử trên máy với dữ liệu giả. Dải xanh "Test local" ở đầu ảnh chỉ có ở bản chạy thử.
+
+Trang chủ liệt kê các thị trường. Bấm "Mở thị trường" để vào một thị trường.
+
+![Trang chủ: danh sách thị trường](../images/market-01-trang-chu.jpg)
+
+Trong thị trường, bấm "Nghiên cứu tự động". Đường dẫn có dạng `#/markets/<mã thị trường>/research`. Đầu trang là danh sách "Báo cáo và phiên nghiên cứu". Mỗi dòng là một phiên cũ, kèm trạng thái. Bấm "Mở phiên" để xem lại một phiên.
+
+![Danh sách phiên nghiên cứu](../images/market-02-danh-sach-phien.jpg)
+
+Bên dưới danh sách là khung tạo phiên mới. Bên trái có 6 bước. Ba bước đầu dùng để tạo báo cáo. Khung "Hệ thống đã hiểu" cho bạn kiểm tra lại những gì đã nhập.
 
 ### Mở khóa quyền chủ sở hữu
 
@@ -70,6 +82,8 @@ Câu hỏi của bước này là "Bạn muốn nghiên cứu gì?". Gõ một n
   - Mô tả sản phẩm ở ô bên dưới: tên, dạng, dành cho ai, giá. Mô tả càng rõ thì kết quả càng khớp.
   - Bạn không cần phỏng vấn. Hệ thống tìm sản phẩm thật giống mô tả để bạn chọn.
 - "Khám phá ngành": chọn chế độ này khi bạn muốn tìm hiểu cả ngành. Hệ thống hỏi vài câu ngắn ở bước 2.
+
+![Bước 1: nhập từ khóa và chọn chế độ](../images/market-03-bat-dau-nghien-cuu.jpg)
 
 Nếu bạn dán một đoạn mô tả dài vào ô từ khóa, hệ thống tự tách đoạn đó:
 
@@ -116,6 +130,8 @@ Hệ thống cố ý không hiện phần trăm hoàn thành, vì thời gian m�
 - Khung "Chi phí và lượt gọi": số lượt gọi nguồn và chi phí đã biết. Nếu chưa có số liệu, nguồn chưa báo. Số đó không bằng 0.
 - "Phần chưa thể hoàn thành": những phần thiếu dữ liệu, kèm lý do. Hệ thống không lấp chỗ trống bằng số giả.
 
+![Tiến độ các bước, độ phủ dữ liệu và phần chưa thể hoàn thành](../images/market-05-tien-do-ban-nhap.jpg)
+
 Với phiên tự chạy (auto-run), thẻ "tự động" cho biết phiên đang ở giai đoạn nào trong chuỗi. Sơ đồ dưới đây cho thấy các giai đoạn.
 
 ```mermaid
@@ -145,14 +161,24 @@ Sau bước tìm nhanh, hệ thống đưa ra các thẻ sản phẩm thật đ�
 2. Kiểm tra lại từ khóa, kỳ và loại báo cáo.
 3. Xác nhận phạm vi.
 
+Nếu không thẻ nào giống ý bạn, bấm "Không cái nào giống ý tôi". Sau đó viết định nghĩa phạm vi bằng lời của bạn. Bạn có thể thêm cụm từ phải có và cụm từ loại trừ, mỗi dòng một cụm.
+
+![Bước chọn thẻ và định nghĩa phạm vi](../images/market-04-chon-pham-vi.jpg)
+
 Với phiên tự chạy, hệ thống tự suy ra nhiều thao tác trung gian từ dữ liệu của phiên, như chọn liên kết sản phẩm và xác nhận nguồn. Bạn không cần gõ tay.
 
 ### Khi bản nháp sẵn sàng
 
-Trạng thái chuyển sang có bản nháp. Mục "Báo cáo" hiện thẻ "Báo cáo Thị trường" với hai nút:
+Trạng thái chuyển sang "Đã có bản nháp". Khung "Bản đọc" hiện bản đọc mới nhất với bốn nút:
 
-- "Mở bản web": mở bản đọc trong tab mới.
+- "Mở bản đọc": mở bản đọc trong tab mới.
 - "Tải PDF": tải bản PDF.
+- "Duyệt": chấp nhận bản đọc này.
+- "Từ chối": không chấp nhận bản đọc này.
+
+Bản nháp tự động ở lại máy chủ. Bạn chỉ xem và duyệt bản đọc.
+
+![Khung Bản đọc chờ bạn duyệt](../images/market-06-ban-doc-cho-duyet.jpg)
 
 Nếu chưa có PDF, màn hình ghi lý do, ví dụ chưa có trình in PDF. Màn hình kèm "Chi tiết kỹ thuật" để bạn gửi cho quản trị viên.
 
@@ -170,7 +196,13 @@ Mỗi lần xây lại báo cáo tạo một phiên bản mới, bất biến. M
 
 ## Phần 5. Cách đọc bản PDF
 
-Bản PDF là sản phẩm chính. Nó được thiết kế cho người không chuyên đọc. Bản PDF có các phần sau:
+Bản PDF là sản phẩm chính. Nó được thiết kế cho người không chuyên đọc. Bản đọc trên web có cùng nội dung.
+
+![Trang bìa bản đọc (dữ liệu giả)](../images/market-07-bia-ban-doc.jpg)
+
+![Biểu đồ doanh thu theo tháng, mỗi sàn một đường (dữ liệu giả)](../images/market-08-bieu-do-theo-thang.jpg)
+
+Bản PDF có các phần sau:
 
 1. **Trang bìa.** Trang bìa có ảnh minh họa chung cho từ khóa. Ảnh do AI tạo và có chú thích mô tả ảnh. Báo cáo không tuyên bố ảnh có bản quyền riêng.
 2. **12 phần đánh số "Phần 1" đến "Phần 12" và một "Phụ lục".** Mỗi phần có tiêu đề tiếng Việt dễ hiểu và không hiện mã kỹ thuật.
@@ -179,7 +211,7 @@ Bản PDF là sản phẩm chính. Nó được thiết kế cho người không
 5. **Dòng "Chú thích:".** Ghi chú nguồn và giới hạn nằm trên dòng riêng, bắt đầu bằng "Chú thích:". Chúng không trộn vào đoạn văn.
 6. **Phần "Đề xuất".** Phần này có ba phương án và bảng việc làm ngay. Mọi lựa chọn mang nhãn "đề xuất", có người phụ trách và hạn dạng ngày/tháng/năm. Đây là gợi ý chờ bạn duyệt. Đây không phải quyết định đã chốt.
 7. **Bảng chú giải thuật ngữ** bằng tiếng Việt đơn giản.
-8. **Nguồn đánh giá Shopee.** Nếu có nguồn này, báo cáo chỉ nêu số lượng, nhãn "review công khai trên Shopee" và mốc 300 đánh giá cho mỗi sản phẩm. Báo cáo không trích nguyên văn bình luận. Báo cáo không lập bảng chủ đề từ bình luận.
+8. **Nguồn đánh giá Shopee.** Nếu có nguồn này, báo cáo chỉ nêu số lượng, nhãn "review công khai trên Shopee" và mốc 300 đánh giá cho mỗi sản phẩm. Báo cáo không trích nguyên văn bình luận. Báo cáo không lập bảng chủ đề từ bình luận. Nguồn này bắt đầu chạy từ lần triển khai tới.
 
 Báo cáo không bao giờ làm những việc sau:
 
@@ -206,9 +238,9 @@ Trước khi coi một bản là đạt, hệ thống tự kiểm 14 quy tắc (
 - Quy tắc 8: nhận định theo nhóm, doanh thu, giá có chứng cứ (người rà soát xác nhận).
 - Quy tắc 9: phần đề xuất có đúng ba phương án và một bảng việc làm ngay. Mỗi dòng có người phụ trách, hạn dạng dd/mm/yyyy và nhãn chờ duyệt.
 - Quy tắc 10: ảnh bìa nhúng sẵn trong báo cáo và không liên kết ra ngoài. Ảnh có bản quyền hoặc do chủ sở hữu cung cấp cần chủ sở hữu xem lại.
-- Quy tắc 11: biểu tượng nền tảng đúng chỗ, biểu đồ hợp lệ và báo cáo có ít nhất 3 biểu đồ (cần xác nhận lại ngưỡng trong mã khi cập nhật).
+- Quy tắc 11: biểu tượng nền tảng đúng chỗ, biểu đồ hợp lệ và số biểu đồ đủ. Cần ít nhất 3 biểu đồ. Khi nguồn không ghi gian hàng, cần 2 biểu đồ. Khi đó nội dung báo cáo phải nêu câu "không ghi gian hàng" và mang dấu hiệu `data-market-shops-unrecorded`.
 - Quy tắc 12: mọi bảng theo nền tảng đều ghi rõ nền tảng nào.
-- Quy tắc 13: đủ bốn loại nguồn trung tính, không nêu tên nhà cung cấp. Bốn loại là số liệu bán hàng, dữ liệu đánh giá, kết quả tìm kiếm và bình luận đã thu.
+- Quy tắc 13: đủ bốn loại nguồn trung tính, không nêu tên nhà cung cấp. Bốn loại là số liệu bán hàng, dữ liệu đánh giá, kết quả tìm kiếm và bình luận đã thu. Nhãn review công khai trên Shopee cũng đạt nhóm review và bình luận.
 - Quy tắc 14: phần đánh giá và bình luận có chứng cứ về mẫu (người rà soát xác nhận).
 
 Quy tắc 6, 8 và 14 là quy tắc "chứng cứ". Máy chỉ kiểm tra có nội dung liên quan. Người rà soát đọc và xác nhận. Quy tắc 10 vừa có phần máy kiểm vừa có phần cần người xem.
@@ -266,7 +298,7 @@ Nguyên tắc chung: hệ thống không bao giờ nhờ bạn tự thu thập d
 - **Đề xuất:** gợi ý hành động của hệ thống, chờ bạn duyệt. Đề xuất không phải quyết định.
 - **Chú thích:** dòng ghi nguồn và giới hạn, đặt riêng một dòng.
 - **Số tìm kiếm / mức độ quan tâm:** thước đo mức quan tâm trên công cụ tìm kiếm. Số này không phải số người mua.
-- **Review công khai trên Shopee:** đánh giá hiển thị công khai trên sản phẩm. Báo cáo chỉ đếm và nêu mốc 300. Báo cáo không trích nguyên văn.
+- **Review công khai trên Shopee:** đánh giá hiển thị công khai trên sản phẩm. Báo cáo chỉ đếm và nêu mốc 300. Báo cáo không trích nguyên văn. Nguồn này bắt đầu chạy từ lần triển khai tới.
 - **Token chủ sở hữu:** chìa khóa để mở quyền ghi. Không chia sẻ cho người khác.
 - **Lập chỉ mục PDF:** bước dịch vụ bên ngoài đọc và đánh chỉ mục tài liệu PDF để trích dẫn có kiểm chứng. Bước này có thể tốn tiền.
 - **Bộ persona tổng hợp:** bộ mô tả nhóm người dùng dựng từ dữ liệu tổng hợp. Bộ này chỉ dùng làm gợi ý bối cảnh và không được nêu tên nguồn trong báo cáo (kế hoạch, chưa bật trong báo cáo Thị trường, cần xác nhận).

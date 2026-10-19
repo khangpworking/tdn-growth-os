@@ -1,6 +1,17 @@
 # Phương pháp 30 section: nghiệp vụ Ultimate và phần TDN đang áp dụng
 
-Cập nhật: 11/10/2026
+> Bản cập nhật 20/10/2026. Bản trước: [bản 20/10/2026 trước khi sửa](../../outdated/2026-10-20/docs/research/ultimate-method/README.md).
+
+Cập nhật: 20/10/2026
+
+## Trạng thái 20/10/2026
+
+- Báo cáo Market chạy tự động và đã triển khai từ 15/10/2026. Bản đang chạy thật là `f026acd9`.
+- Insight tạm dừng từ 19/10/2026. Market được làm trước.
+- Gói S (#346, đã gộp, chưa triển khai) đưa bình luận Shopee vào qua dịch vụ Shopee API mới. Tối đa 300 review mỗi sản phẩm.
+- Phương án A (19/10/2026): báo cáo Market chỉ đếm review Shopee. Báo cáo không trích nguyên văn.
+- Mục tiêu: báo cáo tự động đạt 14/14 quy tắc, không sửa tay, và đạt đều qua các lần tạo lại.
+- Bảng mục 4 giữ cột TDN ở trạng thái 08/10/2026. Trạng thái hiện tại nằm ở [STATUS](../../STATUS.md) và [trạng thái nguồn](source-status.md).
 
 ## Tóm tắt (cho chủ dự án)
 
@@ -34,7 +45,7 @@ Ba loại báo cáo đang dùng các lớp khác nhau:
 |---|---|---|
 | Bản nháp tự động (research automation) | Recipe A40 và code | Đã có các phần E2/E7, prompt E4 và draft-count có giới hạn qua PR #164/#166; chưa đủ mọi ngoại lệ |
 | Bản đọc Market (`src/modules/analysis/reader-report/`) | Ultimate v1.0 (E1–E3) qua phần trình bày và lint | Chỉ có mẫu Market trong repo |
-| Bản đọc Insight | Ultimate v1.1 | Hiện **dựng tay ngoài repo** (báo cáo thạch dừa 05–07/10). Chưa có mẫu Insight trong code |
+| Bản đọc Insight | Ultimate v1.1 | Có mẫu Insight trong code (`insight-template.ts`, từ 09/10/2026). Báo cáo thạch dừa 05–07/10 dựng tay ngoài repo (trạng thái 08/10). Insight tạm dừng từ 19/10/2026 |
 
 ## 2. Khi hai lớp lệch nhau
 
@@ -63,7 +74,7 @@ Mỗi bước là một tầng riêng. Xong bước 2 chưa có nghĩa là xong 
 - Các dòng chưa có cập nhật PR giữ mốc của bảng điều hành ngày 04/10/2026 (`research-30-section-progress.md`). "Nối" nghĩa là luồng chạy có gọi phương pháp, **chưa** có nghĩa là đúng hay đã nghiệm thu. Tới 04/10 chưa section nào nghiệm thu đủ trên ba case (thạch dừa, bình giữ nhiệt, quạt cầm tay).
 - Các PR sau 04/10 (#118–#137) thêm nguồn và trích dẫn (tìm kiếm web, trạng thái review Shopee, sổ trích dẫn, lưu trữ, Trends) nhưng không đổi phương pháp section.
 
-| ID | Ultimate v1.1 | TDN recipe (A40) | TDN code (cập nhật 08/10) | Cần đồng bộ |
+| ID | Ultimate v1.1 | TDN recipe (A40) | TDN code (trạng thái 08/10) | Cần đồng bộ |
 |---|---|---|---|---|
 | M01 | PROPOSED + E3 | Chờ chính sách chủ | Bản đọc bỏ nhận định bậc nhất, giữ số từng nhóm cạnh nhau (PR #162); inventory bản nháp có câu hỏi đề xuất (PR #164) | E3 đầy đủ và U-29 còn thiếu |
 | M02 | EXISTING_BOUNDED | A22 | Đã nối | — |

@@ -1,5 +1,9 @@
 # TDN Growth OS — Product
 
+> Bản cập nhật 20/10/2026. Bản trước: [bản 20/10/2026 trước khi sửa](docs/outdated/2026-10-20/PRODUCT.md).
+>
+> Nội dung gốc ghi theo baseline ngày 11/09/2026. Trạng thái hiện tại nằm ở [docs/vi](docs/vi/README.md) và [docs/STATUS.md](docs/STATUS.md).
+
 <!-- impeccable:product-schema 1 -->
 
 ## Platform
@@ -12,7 +16,7 @@ web
 - Giữ backend TypeScript, Node.js, SQLite và kiến trúc modular monolith hiện có; không đổi sang Bun, FastAPI, Streamlit hay Supabase.
 - Fedora là môi trường vận hành chính. Windows chỉ phục vụ công việc phát triển/thiết kế khi cần.
 - Quyết định frontend mới thay thế baseline vanilla TypeScript/Bootstrap cũ; xem `docs/adr/0002-react-vite-typescript-frontend.md`.
-- Frontend, HTTP API và xác thực người dùng chưa được triển khai trong baseline Task 032. Không coi service backend là endpoint có sẵn.
+- Frontend React (`frontend/`), API HTTP của chủ sở hữu (`src/api/`) và lớp xác thực (`src/platform/auth`) đã có trong repo. Dòng này từng ghi là chưa triển khai (baseline Task 032, 11/09/2026).
 
 ## Users
 
@@ -40,8 +44,8 @@ Biến dữ liệu thị trường và nghiên cứu thành bằng chứng có t
 - B7 chỉ OWNER quyết định PASS/HOLD/REJECT, không có trường lý do; quyết định cố định theo basket/candidate/version. Xem lại HOLD qua basket version tương lai, không sửa bản cũ.
 - B8 và B10 cho phép sửa quyết định bằng bản ghi nối tiếp có kiểm tra phiên bản/predecessor; không ghi đè lịch sử. Quyết định vẫn button-only, không thêm lý do bắt buộc.
 - B8 clearance và STP đã khóa là snapshot lịch sử. Không biến snapshot thành tuyên bố rằng trạng thái B8 hiện tại luôn PASS.
-- Chưa có UI, API, dashboard hoặc luồng B11 hoạt động. Mockup không phải bằng chứng tính năng đã vận hành.
-- B0, B14, logic insight/60 câu hỏi, chat AI về báo cáo và tích hợp Content Studio còn để sau. Methodology/format báo cáo B2 Task 024 do chủ dự án chuẩn bị, đang tạm hoãn; không tự tạo phương pháp thay thế.
+- Giao diện React, API của chủ sở hữu và Content Studio B11–B13 (`src/api/content-api.ts`) đã có. Mockup không phải bằng chứng tính năng đã vận hành.
+- B0, B14, logic insight/60 câu hỏi, chat AI về báo cáo và tích hợp Content Studio còn để sau. Methodology/format báo cáo B2 Task 024 do chủ dự án chuẩn bị, đang tạm hoãn (cần xác nhận); không tự tạo phương pháp thay thế.
 
 ## Evidence on Hand
 

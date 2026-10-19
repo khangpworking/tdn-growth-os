@@ -1,6 +1,8 @@
 # Trạng thái nguồn dữ liệu
 
-Trạng thái từng nguồn dữ liệu đầu vào và nhật ký đổi trạng thái · cập nhật 12/10/2026 · đi kèm [Input data sources for 30 sections](input-data-sources-30-sections.md)
+> Bản cập nhật 20/10/2026. Bản trước: [bản 20/10/2026 trước khi sửa](../../outdated/2026-10-20/docs/research/ultimate-method/source-status.md).
+
+Trạng thái từng nguồn dữ liệu đầu vào và nhật ký đổi trạng thái · cập nhật 19/10/2026 · đi kèm [Input data sources for 30 sections](input-data-sources-30-sections.md)
 
 Trang này cho biết mỗi nguồn (mã S) **đang ở trạng thái nào** và **đổi trạng thái khi nào, vì sao**. Trang chỉ để đọc thông tin:
 - không có code nào đọc nhãn ở đây;
@@ -29,7 +31,7 @@ E14 của file Ultimate nói về "nguồn đang dùng hoặc đã duyệt". Ở
 
 ## 2. Trạng thái hiện tại
 
-"Ngày cập nhật" là ngày trạng thái được ghi lần gần nhất. Danh mục nguồn ghi trạng thái tính tới 08/10/2026; S07, S15, S21, S22 cập nhật ngày 12/10/2026; dòng nào ghi ngày mới hơn thì theo ngày đó.
+"Ngày cập nhật" là ngày trạng thái được ghi lần gần nhất. Danh mục nguồn ghi trạng thái tính tới 08/10/2026; chủ duyệt S07, S15, S21, S22 ngày 12/10/2026 (S15, S21, S22 cập nhật thêm ngày 17/10/2026); S05 và S17 cập nhật ngày 19/10/2026; dòng nào ghi ngày mới hơn thì theo ngày đó.
 
 | Mã | Nguồn | Nhãn | Ngày cập nhật | Ghi chú |
 |---|---|---|---|---|
@@ -37,7 +39,7 @@ E14 của file Ultimate nói về "nguồn đang dùng hoặc đã duyệt". Ở
 | S02 | Dữ liệu video bán hàng TikTok | Đã duyệt | 08/10/2026 | Đang dùng một phần |
 | S03 | Dữ liệu xuất nhập khẩu theo doanh nghiệp | Không thu | 08/10/2026 | Chưa có phiên truy cập hợp lệ |
 | S04 | Trang bán sản phẩm | Đã duyệt | 08/10/2026 | Đang dùng |
-| S05 | Review Shopee | Đã duyệt | 08/10/2026 | Đang dùng |
+| S05 | Review Shopee | Đã duyệt | 19/10/2026 | Đang dùng. Từ 19/10 bình luận Shopee đến từ dịch vụ Shopee API mới (gói S, #346, đã gộp, chưa triển khai, tối đa 300 mỗi sản phẩm). Báo cáo Market chỉ đếm, không trích nguyên văn (phương án A) |
 | S06 | Review TikTok Shop | Đề xuất | 08/10/2026 | Chưa có bộ thu |
 | S07 | Bình luận dưới video TikTok | Đã duyệt | 12/10/2026 | Chủ duyệt 12/10; vào hệ thống qua gói P9 |
 | S08 | Bài viết Facebook công khai | Không thu | 08/10/2026 | Chủ tạm ngừng 08/10 |
@@ -49,7 +51,7 @@ E14 của file Ultimate nói về "nguồn đang dùng hoặc đã duyệt". Ở
 | S14 | Nội dung video bán hàng | Chạy thử | 08/10/2026 | Gói P9, đã có checklist |
 | S15 | Thư viện quảng cáo Meta | Đã duyệt | 17/10/2026 | Chủ duyệt 12/10; chỉ đọc theo trang; máy tự đọc trang công khai sau cờ TDN_RESEARCH_META_AUTO_ENABLED (mặc định tắt), cách đọc chưa được kiểm chứng trên trang thật |
 | S16 | Quảng cáo nổi bật trên TikTok | Chạy thử | 17/10/2026 | Chủ duyệt bộ máy tự đọc 17/10; máy tự đọc trang quảng cáo nổi bật công khai theo từ khoá sản phẩm, không đăng nhập, sau cờ TDN_RESEARCH_TIKTOK_TOPADS_ENABLED (mặc định tắt); cách đọc chưa được kiểm chứng trên trang thật, lượt chạy thử đầu là bản kiểm chứng |
-| S17 | Thư viện quảng cáo công khai của công cụ tìm kiếm | Đã duyệt | 17/10/2026 | Chủ duyệt 17/10; chỉ đếm quảng cáo theo trang web của tối đa 3 thương hiệu đầu (cờ TDN_RESEARCH_GOOGLE_ADS_ENABLED); chưa dùng cho phép kiểm 3 của E5 |
+| S17 | Thư viện quảng cáo công khai của công cụ tìm kiếm | Đã duyệt | 19/10/2026 | Chủ duyệt 17/10; ngày 19/10 thêm bước tự tìm trang web chính thức của thương hiệu (commit `acd42991`, đã có trong bản chạy thật `f026acd9`); chỉ đếm quảng cáo theo trang web của tối đa 3 thương hiệu đầu (cờ TDN_RESEARCH_GOOGLE_ADS_ENABLED); chưa dùng cho phép kiểm 3 của E5 |
 | S18 | Trang thương hiệu Facebook | Đề xuất | 08/10/2026 | — |
 | S19 | Kết quả tìm kiếm Google mở rộng | Chạy thử | 08/10/2026 | Chờ chạy thử Phase 0 |
 | S20 | Mức quan tâm tìm kiếm trên Google (Trends) | Chạy thử | 08/10/2026 | Chờ chạy thử Phase 0 |
@@ -71,6 +73,8 @@ Dòng trước 12/10/2026 ghi lại từ danh mục nguồn, nhật ký test và
 
 | Ngày | Mã nguồn | Nhãn cũ → nhãn mới | Lý do | Ai quyết |
 |---|---|---|---|---|
+| 19/10/2026 | S17 | Đã duyệt → Đã duyệt | Thêm bước tự tìm trang web chính thức của thương hiệu (v2, commit `acd42991`); đã triển khai trong `f026acd9`; nhãn không đổi | Chủ (duyệt 17/10) |
+| 19/10/2026 | S05 | Đã duyệt → Đã duyệt | Bình luận Shopee chuyển sang dịch vụ Shopee API mới (gói S, #346, đã gộp, chưa triển khai, tối đa 300 mỗi sản phẩm); báo cáo Market chỉ đếm, không trích nguyên văn (phương án A); nhãn không đổi | Chủ (19/10) |
 | 17/10/2026 | S25 | Đã duyệt → Đã duyệt | Thêm giới hạn cho tệp tự tải: mặc định tối đa 60 trang mỗi tệp, tệp dài hơn bị bỏ, không lưu; tài liệu chủ gửi được hỏi trước; chỉ tải thêm tệp có chỗ trong kế hoạch hỏi, tính cả tài liệu đã thu; khi chưa bật bộ đọc tài liệu hoặc hết chỗ thì không tự tìm, không tự tải; nhãn không đổi | Chủ (duyệt 17/10) |
 | 17/10/2026 | S25 | Đã duyệt → Đã duyệt | Thêm bộ máy tự tìm báo cáo ngành dạng PDF cho báo cáo Market (M09): lấy liên kết PDF trong kết quả tìm của lượt, thêm tối đa 1 lần tìm, tải tối đa 2 tệp qua lớp chặn địa chỉ nội bộ; sau cờ TDN_RESEARCH_PDF_DISCOVERY_ENABLED, mặc định tắt; tệp chủ gửi vẫn dùng được; nhãn không đổi | Chủ (duyệt 17/10) |
 | 17/10/2026 | S22 | Đã duyệt → Đã duyệt | Thêm bộ máy tự đọc bảng chỉ số giá theo tỉnh cho báo cáo Market (Bảng 5.5), từ file CPI của S21, sau cờ TDN_RESEARCH_OFFICIAL_STATS_PROVINCE_ENABLED, mặc định tắt; khi bật cờ, file CPI được tải ở mọi lượt Market (tối đa 3 lần gọi), Bảng 5.4 không đổi; nhãn không đổi | Chủ (duyệt 12/10, 17/10) |

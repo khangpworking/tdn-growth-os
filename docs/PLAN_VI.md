@@ -1,5 +1,9 @@
 # Kế hoạch triển khai TDN Growth OS
 
+> Bản cập nhật 20/10/2026. Bản trước: [bản 20/10/2026 trước khi sửa](outdated/2026-10-20/docs/PLAN_VI.md).
+>
+> Đây là kế hoạch lịch sử ngày 05/09/2026. Trạng thái hiện tại nằm ở [docs/STATUS.md](STATUS.md) và [docs/vi](vi/README.md).
+
 Ngày lập: 05/09/2026. Một người, thứ Hai–thứ Sáu, 8 giờ/ngày, tối đa 40 giờ/tuần.
 Ưu tiên tốc độ và giải pháp tối giản đáp ứng đúng yêu cầu.
 
@@ -9,7 +13,7 @@ Ngày lập: 05/09/2026. Một người, thứ Hai–thứ Sáu, 8 giờ/ngày, 
 - Một SQLite authoritative store dùng chung cho năm Box; mỗi module sở hữu bảng và application service của mình.
 - Không dùng database riêng từng Box, DuckDB hoặc PostgreSQL ở baseline.
 - Strict TypeScript, Node 24 mục tiêu sau compatibility check, Express, JSON Schema/AJV.
-- Vite + vanilla TypeScript + Bootstrap + Lucide khi bắt đầu giao diện.
+- React + Vite + TypeScript cho giao diện, theo [ADR 0002](adr/0002-react-vite-typescript-frontend.md). Dòng gốc ngày 05/09/2026 ghi vanilla TypeScript + Bootstrap + Lucide; ADR 0002 thay thế lựa chọn đó.
 - Worker riêng process; n8n chỉ ở biên connector.
 - Official OpenAI SDK sau AiGateway; Pi là spike tùy chọn, chưa nằm trên đường bắt buộc.
 - Orca quản lý agent phát triển; không phải bộ điều phối nghiệp vụ Box 3.
