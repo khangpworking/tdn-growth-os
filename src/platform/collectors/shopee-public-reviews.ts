@@ -302,12 +302,13 @@ export class ShopeePublicReviewCollector implements ShopeeCollector<PublicCollec
     const controller = new AbortController(); let timedOut = false;
     const timer = setTimeout(() => { timedOut = true; controller.abort(); }, ms);
     const abort = () => controller.abort(); signal?.addEventListener('abort', abort, { once: true });
-    const priorUncertainty = j.requestCountUncertain;
+    const priorUncertainty = j.requestCountUncertain, priorRequestCount = j.requestCount;
+    let dispatched = false;
     try {
       j.requestCount++; j.requestCountUncertain = true; await save();
       if (signal?.aborted) return fail('OWNER_ABORTED');
       if (controller.signal.aborted) return fail(timedOut ? 'SHOPEE_REVIEW_TIMEOUT' : 'OWNER_ABORTED');
-      this.#requests++;
+      dispatched = true; this.#requests++;
       const work = async () => {
         const response = await this.#fetch(this.#base + endpoint[1], { method: endpoint[0], headers: { Authorization: `Bearer ${this.options.token}`, ...(op === 'submit' ? { 'Content-Type': 'application/json' } : {}) },
           ...(op === 'submit' ? { body: canonicalJson(body) } : {}), redirect: 'error', cache: 'no-store', signal: controller.signal });
@@ -330,7 +331,7 @@ export class ShopeePublicReviewCollector implements ShopeeCollector<PublicCollec
         if (controller.signal.aborted) rejectAbort(); else controller.signal.addEventListener('abort', rejectAbort, { once: true });
       })]);
     } catch (e) {
-      if (!j.terminal) { j.requestCountUncertain = priorUncertainty; await save(); }
+      if (!j.terminal) { if (!dispatched) j.requestCount = priorRequestCount; j.requestCountUncertain = priorUncertainty; await save(); }
       if (e instanceof ShopeePublicReviewError) throw e;
       throw new ShopeePublicReviewError(timedOut || e instanceof Error && e.name === 'TimeoutError' ? 'SHOPEE_REVIEW_TIMEOUT' : signal?.aborted ? 'OWNER_ABORTED' : 'SHOPEE_REVIEW_TRANSPORT', op);
     } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }

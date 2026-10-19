@@ -51,6 +51,20 @@ export async function candidateBaselines(t: TestContext, env: NodeJS.ProcessEnv)
   const r=await child(['--import','tsx','tests/helpers/generate-shopee-public-main-baselines.ts',process.cwd(),output,'--candidate'],process.cwd(),env);
   assert.equal(r.code,0,r.output); return output;
 }
+/** HEAD is provenance metadata; every other manifest field and archive byte is evidence. */
+export async function legacyBaselineBytes(root: string): Promise<Map<string, Buffer>> {
+  const manifest = JSON.parse(await fs.readFile(path.join(root, 'manifest.json'), 'utf8'));
+  delete manifest.revision;
+  return new Map([
+    ['manifest.json', Buffer.from(JSON.stringify(manifest, null, 2) + '\n')],
+    ['artifacts.json.gz', await fs.readFile(path.join(root, 'artifacts.json.gz'))],
+  ]);
+}
+export async function assertLegacyBaselineMatches(candidate: string, reference: string): Promise<void> {
+  const expected = await legacyBaselineBytes(reference);
+  const actual = await legacyBaselineBytes(candidate);
+  for (const [name, bytes] of expected) assert.ok(actual.get(name)?.equals(bytes), `Exact baseline bytes differ: ${name}`);
+}
 export async function sourceGate(which:'lint'|'citation'|'business',html:string,marker=true) {
   if(which==='citation') assertReaderSafeCitation({label:html,quote:null,locatorText:null,url:null},{publicReviewSource:marker});
   else {
@@ -210,6 +224,7 @@ export async function publicScenario(t:TestContext, options:ScenarioOptions={}, 
     const prior=await fs.readFile(path.join(root,'invocations.jsonl'),'utf8').catch(()=>'');
     const history=prior.trim()?prior.trim().split('\n').filter(Boolean).map(x=>JSON.parse(x)):[...transport.calls];
     let exchanges=wire(options,values).slice(history.length);if(options.faultAt==='after-request-count-before-fetch')exchanges=[{method:'GET',path:'/jobs?limit=100',body:[job()]},...wire(options,values).slice(3)];transport=new FakeTransport(exchanges,()=>clock.milliseconds);
+    if(options.faultAt==='owner-cancel-before-intent')transport.exchanges.splice(0,transport.exchanges.length,{method:'POST',path:`/jobs/${IDS[0]}/cancel`,status:202,body:job(0,'running')});
     const newPosts=transport.posts.bind(transport); if(!['damaged-base-checkpoint','human-block-finalized','cancel-intent-finalized','after-cancel-intent-before-dispatch'].includes(options.faultAt??''))transport.calls.push(...history);
     transport.posts=()=>newPosts().filter(c=>transport.calls.indexOf(c)>=(['damaged-base-checkpoint','human-block-finalized','cancel-intent-finalized','after-cancel-intent-before-dispatch'].includes(options.faultAt??'')?0:history.length));
     throwBase=Boolean(o.throwBase||o.throwAllProviders);runtime={enabled:o.runtimeEnabled??runtime.enabled,cap:runtime.cap};
@@ -272,6 +287,14 @@ export async function publicScenario(t:TestContext, options:ScenarioOptions={}, 
     retainedRows:async()=> (await journals()).flatMap(j=>j.snapshot?.rows??[]),
     setCorpusSizeCase:async(kind:string)=>{const cap=300;options={...options,cap};runtime.cap=cap;values=Array.from({length:3},(_,p)=>result(p,Array.from({length:cap},(_,i)=>row(p,{review_id:`synthetic-${i}`,comment:'x'.repeat(kind==='over-8MiB'?12000:3000)}))));transport=new FakeTransport(wire(options,values),()=>clock.milliseconds);service=make();},
     sanitizedCapture:retained,accounting:async()=> (await context()).accounting,
+    retryPublicCollection:async()=>{
+      const source=await retained(), p=source.packet;
+      return new ShopeeCollectionService(db,artifacts).savePublicExact(await artifacts.read(p.requestSha256),{
+        mode:p.mode,confirmedSourceSetSha256:p.confirmedSourceSetSha256,providerId:p.providerId,mappingRevision:p.mappingRevision,
+        maxReviewsPerProduct:p.maxReviewsPerProduct,usageTotalUsd:0,warnings:[],pages:source.pages.map(page=>({bytes:page.bytes,offset:page.offset})),
+        envelopes:source.envelopes,listings:p.listings,attemptedAt:p.attemptedAt,reused:p.reused,
+      });
+    },
     readerBuildRecord:async()=>{const r=db.prepare('SELECT * FROM analysis_reader_report_revisions WHERE run_id=? ORDER BY created_at DESC').get(runId) as any;const v=await readArtifact(r.input_sha256);return {...v,builderId:v.builderVersion};},
     exportReport:async()=>service.readReport(workspaceId,runId,'MARKET',false,pairId),
     baseRows:async()=>({stage:db.prepare('SELECT * FROM analysis_research_automation_review_stages WHERE run_id=?').all(runId),captures:db.prepare('SELECT * FROM analysis_research_automation_captures WHERE run_id=?').all(runId),usage:db.prepare("SELECT * FROM analysis_research_automation_usage WHERE run_id=? AND provider!='shopee-public-review'").all(runId)}),
@@ -281,8 +304,8 @@ export async function publicScenario(t:TestContext, options:ScenarioOptions={}, 
     reopenSettledStep:async()=>{db.prepare("UPDATE analysis_research_automation_steps SET state='RUNNING' WHERE run_id=? AND step_id='COLLECTION'").run(runId);},
     loadLegacyBaselines:async()=>{
       let enabled=false;const baseline=fileURLToPath(new URL('../fixtures/shopee-public-main/',import.meta.url));let current=baseline;
-      const allBytes=async()=>new Map(await Promise.all(['manifest.json','artifacts.json.gz'].map(async n=>[n,await fs.readFile(path.join(current,n))] as const)));
-      return {allBytes,setRuntime:async(o:any)=>{enabled=o.enabled;},readReportsAndSources:async()=>{const next=await candidateBaselines(t,enabled?{TDN_TEST_PUBLIC_REPLAY:'1'}:{});for(const n of ['manifest.json','artifacts.json.gz'])assert.deepEqual(await fs.readFile(path.join(next,n)),await fs.readFile(path.join(baseline,n)));current=next;},transport:new FakeTransport([]),publicFactoryCalls:[]};
+      const allBytes=async()=>legacyBaselineBytes(current);
+      return {allBytes,setRuntime:async(o:any)=>{enabled=o.enabled;},readReportsAndSources:async()=>{const next=await candidateBaselines(t,enabled?{TDN_TEST_PUBLIC_REPLAY:'1'}:{});await assertLegacyBaselineMatches(next,baseline);current=next;},transport:new FakeTransport([]),publicFactoryCalls:[]};
     },
     historicalReadOnlyWithoutStages:async()=>{
       await confirm({},'SKIP');await finish();await driver.readReport();

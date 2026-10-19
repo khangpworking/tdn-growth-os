@@ -11,10 +11,15 @@ import { registerHooks, syncBuiltinESMExports } from 'node:module';
 const [rootArg, outputArg, candidate] = process.argv.slice(2);
 assert.ok(rootArg && outputArg, 'ROOT and OUTPUT arguments required');
 const root = path.resolve(rootArg), output = path.resolve(outputArg);
-const gitPointer = (await fs.readFile(path.join(root, '.git'), 'utf8')).trim();
-const gitDirectory = path.resolve(root, gitPointer.replace(/^gitdir: /u, ''));
-const revision = (await fs.readFile(path.join(gitDirectory, 'HEAD'), 'utf8')).trim();
-if (candidate !== '--candidate') assert.equal(revision, 'e10c7a720c655489e2abaa65633e133b279eba8e');
+// Candidate evidence is independent of checkout identity; only real baseline runs pin HEAD.
+let revision = 'candidate';
+if (candidate !== '--candidate') {
+  const gitEntry = path.join(root, '.git');
+  const gitDirectory = (await fs.stat(gitEntry)).isDirectory() ? gitEntry
+    : path.resolve(root, (await fs.readFile(gitEntry, 'utf8')).trim().replace(/^gitdir: /u, ''));
+  revision = (await fs.readFile(path.join(gitDirectory, 'HEAD'), 'utf8')).trim();
+  assert.equal(revision, 'e10c7a720c655489e2abaa65633e133b279eba8e');
+}
 assert.ok(!output.startsWith(root + path.sep), 'baseline output must not modify main');
 for (const key of ['TDN_CHROMIUM_PATH', 'TDN_RESEARCH_PDF_CHROMIUM', 'TDN_REQUIRE_BROWSER', 'TDN_BROWSER_EXECUTABLE', 'TDN_RESEARCH_CAPTURE_RELEVANCE_AI_MODEL']) assert.equal(process.env[key], undefined, `${key} must be unset`);
 globalThis.fetch = async () => { throw new Error('Network forbidden in baseline generator'); };

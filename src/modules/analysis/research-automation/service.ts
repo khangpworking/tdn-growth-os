@@ -3338,7 +3338,7 @@ export class ResearchAutomationService {
     await withDatabaseMutationMutex(this.#db, async () => {
       const rows = this.#db.prepare(`SELECT run_id runId,revision,status FROM analysis_research_automation_runs WHERE status IN ('QUICK_SEARCH_RUNNING','COLLECTING','CANCELLING','RENDERING')`).all() as Array<{ runId: string; revision: bigint | number; status: ResearchAutomationRun['status'] }>;
       const resumable = new Set<string>();
-      for (const row of rows) if (row.status === 'COLLECTING') {
+      for (const row of rows) if (row.status === 'COLLECTING' || row.status === 'CANCELLING') {
         try { const run = this.#current(row.runId)!, sources = await this.#readFrozenSources(run);
           if (sources?.value.contractVersion === 'automation-confirmed-source-set-v2' && await this.#publicBaseCheckpoint(row.runId, sources)) resumable.add(row.runId);
         } catch { /* Damaged checkpoint follows the existing interrupted path. */ }
@@ -4216,6 +4216,10 @@ export class ResearchAutomationService {
   async #executePublicTail(row: RunRow, sources: FrozenSources, signal: AbortSignal): Promise<void> {
     const base = await this.#publicBaseCheckpoint(row.runId, sources);
     if (!base) { if (signal.aborted) return; throw new ResearchAutomationIntegrityError('Public base checkpoint missing.'); }
+    // Owner cancellation is durable before the collector sees its AbortSignal.
+    // Preserve it across requeue/crash gaps; the aborted tail only settles saved
+    // snapshots and, if necessary, cancels a known job once.
+    if (this.#db.prepare(`SELECT 1 FROM analysis_research_automation_requests WHERE run_id=? AND request_kind='CANCEL'`).get(row.runId)) signal = AbortSignal.abort();
     const current = this.#current(row.runId)!;
     const start = await this.#readStartSnapshot(current.startSha, current.workspaceId);
     const scope = await this.#readScopeSnapshot(current.scopeSha!, current.workspaceId, current.runId);
