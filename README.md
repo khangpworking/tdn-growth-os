@@ -1,5 +1,7 @@
 # TDN Growth Operating System
 
+**Tài liệu tiếng Việt:** xem [docs/vi](docs/vi/README.md). Mọi hướng dẫn sử dụng, tài liệu kỹ thuật, thiết kế hệ thống và báo cáo tiến độ nằm ở đó.
+
 Hệ thống nghiên cứu và vận hành kinh doanh canxi, phát triển bởi một người với AI coding.
 
 Ưu tiên: giao hàng nhanh; giải pháp đơn giản nhất đáp ứng tiêu chí nghiệm thu; bằng chứng và quyền phê duyệt rõ ràng.
