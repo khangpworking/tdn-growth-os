@@ -1,0 +1,547 @@
+{
+  "citations": {
+    "contractVersion": "citation-trace-v1",
+    "entries": [
+      {
+        "number": 1,
+        "citationId": "8c474731c84a070b3a5b5e7eecff6df21bbaded7fd1b87a8195ab5ef9a9c2218",
+        "identity": "7b9cbdbeb5fe333df6c59d02e77145b17b021a1034270fb5146eb4551fcdd339",
+        "locator": null,
+        "technical": {
+          "methodVersion": "metric-scope-v1",
+          "rounding": "percent-half-even-2-v1"
+        }
+      },
+      {
+        "number": 2,
+        "citationId": "777b9fe1334cb9fdc3792c9d5e4e4fde6ce03368f11c692be7ff8905803c4a45",
+        "identity": "800a18c8b47767928908cc4637ea8e47c8a36489fc8d4a390a8aae2c84fa03c0",
+        "locator": null,
+        "technical": {
+          "methodVersion": "metric-scope-v1",
+          "rounding": "percent-half-even-2-v1"
+        }
+      },
+      {
+        "number": 3,
+        "citationId": "e746ef69ab5f6c9f54187648d9050a327dd831ef9cfc783990005bc776ea058e",
+        "identity": "2222222222222222222222222222222222222222222222222222222222222222",
+        "locator": {
+          "kind": "source-locator",
+          "value": "vị trí trong nguồn"
+        },
+        "technical": {
+          "sourceSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+          "locator": "/data/revenue"
+        }
+      },
+      {
+        "number": 4,
+        "citationId": "93673c9930d6a9a957b7b8753589645fb9b0f5f689d166d4f3c6dd2cf6576578",
+        "identity": "ab1268fd1b7fcb75225fc7b2bb71a026c2b71c4529a2870afa3608f78bdf5ce4",
+        "locator": null,
+        "technical": {
+          "locator": "/scopes/0"
+        }
+      },
+      {
+        "number": 5,
+        "citationId": "5af84cf87f6be7d7438c506499a4b6f72c40e7511170a6ce5a7c55a0fa1d788a",
+        "identity": "59514a46c62b53a9013435af1f9d1e3a8a1abc77971ef9b2df3b9fb173bce366",
+        "locator": null,
+        "technical": {
+          "provider": "synthetic",
+          "operation": "synthetic.sample",
+          "step": "COLLECTION"
+        }
+      },
+      {
+        "number": 6,
+        "citationId": "ce9d9feb36d6f8fffc4dcd5e52ad5cdd71c94d61e77c6ff6f24c3fad9f3b8c81",
+        "identity": "fbf99c107d50098a9fd960cee528abac88d56959afcc2f5583f5d5d3020d7a01",
+        "locator": null,
+        "technical": {
+          "provider": "synthetic",
+          "operation": "synthetic.sample",
+          "step": "COLLECTION"
+        }
+      },
+      {
+        "number": 7,
+        "citationId": "921f8136bff0d2841e47dfb785a051fee7487c04bad52663bda5a6ec424c37c4",
+        "identity": "bc54ac844df23eb2832e22c312c4e2f38cb10762eb6eb37b22ae492e2cd01d5e",
+        "locator": null,
+        "technical": {
+          "provider": "synthetic",
+          "operation": "synthetic.sample",
+          "step": "COLLECTION"
+        }
+      },
+      {
+        "number": 8,
+        "citationId": "580fc945c05067b7abe44756cf28a9efa350fe520a6ee253d0f6603a3e5148d0",
+        "identity": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "locator": {
+          "kind": "source-locator",
+          "value": "vị trí trong nguồn"
+        },
+        "technical": {
+          "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "locator": "/rows/0/revenue"
+        }
+      },
+      {
+        "number": 9,
+        "citationId": "9ec5a622ef09f4489065889cee63ce71f3b45ca71a15e4d940165eab21aa39c3",
+        "identity": "2f1815d7d23c19f9da5d04c256b77747ae7f53f4ecadfbf4d72bb4f1ffcb6745",
+        "locator": {
+          "kind": "source-locator",
+          "value": "vị trí trong nguồn"
+        },
+        "technical": {
+          "fieldPointer": "/data/revenue"
+        }
+      },
+      {
+        "number": 10,
+        "citationId": "dfd1c3695cd76750023f7efd777a7d6163b69160f3420ec21e19e34be0a6f25d",
+        "identity": "53f7ea3c23c914cc81f3f6e2168679ba42ee6cf481572441a85d9e649dce27e2",
+        "locator": {
+          "kind": "source-locator",
+          "value": "vị trí trong nguồn"
+        },
+        "technical": {
+          "fieldPointer": "/data/revenue"
+        }
+      },
+      {
+        "number": 11,
+        "citationId": "ae78c5886a6b2bc60c0929a310988f2c017f6c079f050b811ccc0aec028ec2ee",
+        "identity": "7fd712213824ab378bb572d96477192352ac97a7c23e97a3d8d26997cf424273",
+        "locator": {
+          "kind": "source-locator",
+          "value": "vị trí trong nguồn"
+        },
+        "technical": {
+          "fieldPointer": "/data/revenue"
+        }
+      },
+      {
+        "number": 12,
+        "citationId": "ea18ba78046c22634b6cfd908fd2ff0cbda3832b92dafda79cf997bf8fbb045c",
+        "identity": "5af534fd0d2af0091b72cf743f7eb9b323ad2ceb29427267fc790acb29a1d901",
+        "locator": {
+          "kind": "source-locator",
+          "value": "vị trí trong nguồn"
+        },
+        "technical": {
+          "fieldPointer": "/data/revenue"
+        }
+      },
+      {
+        "number": 13,
+        "citationId": "90c233098accd2a2da3c7ba4519828f59f55209cf6ef69f7e4074cd73f8f4aea",
+        "identity": "7cc7c2eefc64b8fd503e79ca6b0c929d59cfe0aea12c6086266398e77f7232b7",
+        "locator": {
+          "kind": "source-locator",
+          "value": "vị trí trong nguồn"
+        },
+        "technical": {
+          "fieldPointer": "/data/revenue"
+        }
+      },
+      {
+        "number": 14,
+        "citationId": "7bff34d36980060c07b6a5c2ccdf83bbf7aeae3eb29b8517403f33f95854b25c",
+        "identity": "646766d45f12d6b55c015b025d7e72d5229ab12987fd611e711014999ec744da",
+        "locator": {
+          "kind": "source-locator",
+          "value": "vị trí trong nguồn"
+        },
+        "technical": {
+          "fieldPointer": "/data/revenue"
+        }
+      },
+      {
+        "number": 15,
+        "citationId": "93b04e6c076ac181431c56f1572ec610282867611cac2d31210a552dc67ac2f7",
+        "identity": "6aea148face6999c19f95e30631afb81d20095719abd9da4e848766817482055",
+        "locator": {
+          "kind": "source-locator",
+          "value": "vị trí trong nguồn"
+        },
+        "technical": {
+          "fieldPointer": "/data/revenue"
+        }
+      },
+      {
+        "number": 16,
+        "citationId": "ead58d46fc65d645a2e766368a34e576c06aeec37bf63754d9b4c20012ec0583",
+        "identity": "f56690a3286cdde1735b9fe928a7dece588365b1a2e9f0152971a502cab1b329",
+        "locator": {
+          "kind": "source-locator",
+          "value": "vị trí trong nguồn"
+        },
+        "technical": {
+          "fieldPointer": "/data/revenue"
+        }
+      },
+      {
+        "number": 17,
+        "citationId": "f74750453a9c1f613631fcefa84527a272736e70cb1c6d7aa64d85fd3a6497e0",
+        "identity": "643877dd75bddf0364f688e5928a9f1a2aa588f4e62930fc3b8debcc282ab79f",
+        "locator": {
+          "kind": "source-locator",
+          "value": "vị trí trong nguồn"
+        },
+        "technical": {
+          "fieldPointer": "/data/revenue"
+        }
+      },
+      {
+        "number": 18,
+        "citationId": "c0ef36c251c4b0a55a0c63f0f665336ca861084e0e29992c01c1eab4e88ec2c7",
+        "identity": "b4e802d0d02a147a12f903c4a26547c9f24a69e18b1b9e1fef02cb41c0e2d36a",
+        "locator": {
+          "kind": "source-locator",
+          "value": "vị trí trong nguồn"
+        },
+        "technical": {
+          "fieldPointer": "/data/revenue"
+        }
+      },
+      {
+        "number": 19,
+        "citationId": "bc046289133b77c4a12363fb311a5c2b94e3e2b29d73d3a77cf56c4e32a62259",
+        "identity": "17f95d727b682267ed40c9cb73d6519504da6a7ec759433ff694858dd1e20322",
+        "locator": {
+          "kind": "source-locator",
+          "value": "vị trí trong nguồn"
+        },
+        "technical": {
+          "fieldPointer": "/data/revenue"
+        }
+      },
+      {
+        "number": 20,
+        "citationId": "0db160c7b017c60c00f3bd1782270866b4ff3da7ee586305089c89a0c4d984a4",
+        "identity": "5bac58ffdf727ba9610d72650b407ce996f5e4a4b961aa8801417ab5925b0af0",
+        "locator": {
+          "kind": "source-locator",
+          "value": "vị trí trong nguồn"
+        },
+        "technical": {
+          "fieldPointer": "/data/revenue"
+        }
+      },
+      {
+        "number": 21,
+        "citationId": "8e1c60e75541e18b158c748e710213e9cad6e60c5c83ea838ccf1a6164c858d0",
+        "identity": "1111111111111111111111111111111111111111111111111111111111111111",
+        "locator": null,
+        "technical": {
+          "provider": "synthetic-provider",
+          "operation": "synthetic.trends",
+          "step": "COLLECTION"
+        }
+      },
+      {
+        "number": 22,
+        "citationId": "1034e42d8e6c7903ee4f9d83e158c4ae8af72abee43b68c473ee9d87f77e9bbd",
+        "identity": "2222222222222222222222222222222222222222222222222222222222222222",
+        "locator": null,
+        "technical": {
+          "provider": "synthetic-provider",
+          "operation": "synthetic.trends",
+          "step": "COLLECTION"
+        }
+      },
+      {
+        "number": 23,
+        "citationId": "94b50ef4c254d77f4d4d277650e94db87ac029c4b90c1a8e0c3e8f2a3b3d347b",
+        "identity": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "locator": null,
+        "technical": {
+          "locator": "Sheet1!A2:T2"
+        }
+      },
+      {
+        "number": 24,
+        "citationId": "251f6a296ecbace680f613493bfcea35ad898f18357f3a2416b55aeac69cfa93",
+        "identity": "https://example.invalid/%E1%BA%A3nh-t%C6%B0-li%E1%BB%87u-%E1%BA%A3nh-t%C6%B0-li%E1%BB%87u-%E1%BA%A3nh-t%C6%B0-li%E1%BB%87u-%E1%BA%A3nh-t%C6%B0-li%E1%BB%87u-%E1%BA%A3nh-t%C6%B0-li%E1%BB%87u-%E1%BA%A3nh-t%C6%B0-li%E1%BB%87u-%E1%BA%A3nh-t%C6%B0-li%E1%BB%87u-%E1%BA%A3nh-t%C6%B0-li%E1%BB%87u-%E1%BA%A3nh-t%C6%B0-li%E1%BB%87u-%E1%BA%A3nh-t%C6%B0-li%E1%BB%87u-%E1%BA%A3nh-t%C6%B0-li%E1%BB%87u-%E1%BA%A3nh-t%C6%B0-li%E1%BB%87u-%3Cph%E1%BB%A5-l%E1%BB%A5c%3E",
+        "locator": null,
+        "technical": {
+          "position": "1",
+          "capture": "81",
+          "site": "Trang tư liệu mẫu"
+        }
+      }
+    ]
+  },
+  "citationEntries": [
+    {
+      "number": 1,
+      "citationId": "8c474731c84a070b3a5b5e7eecff6df21bbaded7fd1b87a8195ab5ef9a9c2218",
+      "sourceKind": "METRIC_ROW",
+      "label": "Số liệu đã tính từ nguồn đã lưu",
+      "retrievedAt": null,
+      "url": null,
+      "locatorText": null,
+      "quote": null,
+      "quoteVerification": "NOT_APPLICABLE"
+    },
+    {
+      "number": 2,
+      "citationId": "777b9fe1334cb9fdc3792c9d5e4e4fde6ce03368f11c692be7ff8905803c4a45",
+      "sourceKind": "METRIC_ROW",
+      "label": "Số liệu đã tính từ nguồn đã lưu",
+      "retrievedAt": null,
+      "url": null,
+      "locatorText": null,
+      "quote": null,
+      "quoteVerification": "NOT_APPLICABLE"
+    },
+    {
+      "number": 3,
+      "citationId": "e746ef69ab5f6c9f54187648d9050a327dd831ef9cfc783990005bc776ea058e",
+      "sourceKind": "CAPTURE",
+      "label": "Số liệu nền tảng trong bản lưu nguồn",
+      "retrievedAt": null,
+      "url": null,
+      "locatorText": "vị trí trong nguồn",
+      "quote": null,
+      "quoteVerification": "NOT_APPLICABLE"
+    },
+    {
+      "number": 4,
+      "citationId": "93673c9930d6a9a957b7b8753589645fb9b0f5f689d166d4f3c6dd2cf6576578",
+      "sourceKind": "CAPTURE",
+      "label": "Phép tính mẫu xuất đã lưu",
+      "retrievedAt": null,
+      "url": null,
+      "locatorText": null,
+      "quote": null,
+      "quoteVerification": "NOT_APPLICABLE"
+    },
+    {
+      "number": 5,
+      "citationId": "5af84cf87f6be7d7438c506499a4b6f72c40e7511170a6ce5a7c55a0fa1d788a",
+      "sourceKind": "CAPTURE",
+      "label": "Bản thu dữ liệu nguồn",
+      "retrievedAt": "2026-10-19T00:00:00.000Z",
+      "url": null,
+      "locatorText": null,
+      "quote": null,
+      "quoteVerification": "NOT_APPLICABLE"
+    },
+    {
+      "number": 6,
+      "citationId": "ce9d9feb36d6f8fffc4dcd5e52ad5cdd71c94d61e77c6ff6f24c3fad9f3b8c81",
+      "sourceKind": "CAPTURE",
+      "label": "Bản thu dữ liệu nguồn",
+      "retrievedAt": "2026-10-19T00:00:00.000Z",
+      "url": null,
+      "locatorText": null,
+      "quote": null,
+      "quoteVerification": "NOT_APPLICABLE"
+    },
+    {
+      "number": 7,
+      "citationId": "921f8136bff0d2841e47dfb785a051fee7487c04bad52663bda5a6ec424c37c4",
+      "sourceKind": "CAPTURE",
+      "label": "Bản thu dữ liệu nguồn",
+      "retrievedAt": "2026-10-19T00:00:00.000Z",
+      "url": null,
+      "locatorText": null,
+      "quote": null,
+      "quoteVerification": "NOT_APPLICABLE"
+    },
+    {
+      "number": 8,
+      "citationId": "580fc945c05067b7abe44756cf28a9efa350fe520a6ee253d0f6603a3e5148d0",
+      "sourceKind": "METRIC_ROW",
+      "label": "Dòng số liệu nguồn",
+      "retrievedAt": null,
+      "url": null,
+      "locatorText": "vị trí trong nguồn",
+      "quote": null,
+      "quoteVerification": "NOT_APPLICABLE"
+    },
+    {
+      "number": 9,
+      "citationId": "9ec5a622ef09f4489065889cee63ce71f3b45ca71a15e4d940165eab21aa39c3",
+      "sourceKind": "CAPTURE",
+      "label": "Số liệu nguồn đã lưu",
+      "retrievedAt": null,
+      "url": null,
+      "locatorText": "vị trí trong nguồn",
+      "quote": null,
+      "quoteVerification": "NOT_APPLICABLE"
+    },
+    {
+      "number": 10,
+      "citationId": "dfd1c3695cd76750023f7efd777a7d6163b69160f3420ec21e19e34be0a6f25d",
+      "sourceKind": "CAPTURE",
+      "label": "Số liệu nguồn đã lưu",
+      "retrievedAt": null,
+      "url": null,
+      "locatorText": "vị trí trong nguồn",
+      "quote": null,
+      "quoteVerification": "NOT_APPLICABLE"
+    },
+    {
+      "number": 11,
+      "citationId": "ae78c5886a6b2bc60c0929a310988f2c017f6c079f050b811ccc0aec028ec2ee",
+      "sourceKind": "CAPTURE",
+      "label": "Số liệu nguồn đã lưu",
+      "retrievedAt": null,
+      "url": null,
+      "locatorText": "vị trí trong nguồn",
+      "quote": null,
+      "quoteVerification": "NOT_APPLICABLE"
+    },
+    {
+      "number": 12,
+      "citationId": "ea18ba78046c22634b6cfd908fd2ff0cbda3832b92dafda79cf997bf8fbb045c",
+      "sourceKind": "CAPTURE",
+      "label": "Số liệu nguồn đã lưu",
+      "retrievedAt": null,
+      "url": null,
+      "locatorText": "vị trí trong nguồn",
+      "quote": null,
+      "quoteVerification": "NOT_APPLICABLE"
+    },
+    {
+      "number": 13,
+      "citationId": "90c233098accd2a2da3c7ba4519828f59f55209cf6ef69f7e4074cd73f8f4aea",
+      "sourceKind": "CAPTURE",
+      "label": "Số liệu nguồn đã lưu",
+      "retrievedAt": null,
+      "url": null,
+      "locatorText": "vị trí trong nguồn",
+      "quote": null,
+      "quoteVerification": "NOT_APPLICABLE"
+    },
+    {
+      "number": 14,
+      "citationId": "7bff34d36980060c07b6a5c2ccdf83bbf7aeae3eb29b8517403f33f95854b25c",
+      "sourceKind": "CAPTURE",
+      "label": "Số liệu nguồn đã lưu",
+      "retrievedAt": null,
+      "url": null,
+      "locatorText": "vị trí trong nguồn",
+      "quote": null,
+      "quoteVerification": "NOT_APPLICABLE"
+    },
+    {
+      "number": 15,
+      "citationId": "93b04e6c076ac181431c56f1572ec610282867611cac2d31210a552dc67ac2f7",
+      "sourceKind": "CAPTURE",
+      "label": "Số liệu nguồn đã lưu",
+      "retrievedAt": null,
+      "url": null,
+      "locatorText": "vị trí trong nguồn",
+      "quote": null,
+      "quoteVerification": "NOT_APPLICABLE"
+    },
+    {
+      "number": 16,
+      "citationId": "ead58d46fc65d645a2e766368a34e576c06aeec37bf63754d9b4c20012ec0583",
+      "sourceKind": "CAPTURE",
+      "label": "Số liệu nguồn đã lưu",
+      "retrievedAt": null,
+      "url": null,
+      "locatorText": "vị trí trong nguồn",
+      "quote": null,
+      "quoteVerification": "NOT_APPLICABLE"
+    },
+    {
+      "number": 17,
+      "citationId": "f74750453a9c1f613631fcefa84527a272736e70cb1c6d7aa64d85fd3a6497e0",
+      "sourceKind": "CAPTURE",
+      "label": "Số liệu nguồn đã lưu",
+      "retrievedAt": null,
+      "url": null,
+      "locatorText": "vị trí trong nguồn",
+      "quote": null,
+      "quoteVerification": "NOT_APPLICABLE"
+    },
+    {
+      "number": 18,
+      "citationId": "c0ef36c251c4b0a55a0c63f0f665336ca861084e0e29992c01c1eab4e88ec2c7",
+      "sourceKind": "CAPTURE",
+      "label": "Số liệu nguồn đã lưu",
+      "retrievedAt": null,
+      "url": null,
+      "locatorText": "vị trí trong nguồn",
+      "quote": null,
+      "quoteVerification": "NOT_APPLICABLE"
+    },
+    {
+      "number": 19,
+      "citationId": "bc046289133b77c4a12363fb311a5c2b94e3e2b29d73d3a77cf56c4e32a62259",
+      "sourceKind": "CAPTURE",
+      "label": "Số liệu nguồn đã lưu",
+      "retrievedAt": null,
+      "url": null,
+      "locatorText": "vị trí trong nguồn",
+      "quote": null,
+      "quoteVerification": "NOT_APPLICABLE"
+    },
+    {
+      "number": 20,
+      "citationId": "0db160c7b017c60c00f3bd1782270866b4ff3da7ee586305089c89a0c4d984a4",
+      "sourceKind": "CAPTURE",
+      "label": "Số liệu nguồn đã lưu",
+      "retrievedAt": null,
+      "url": null,
+      "locatorText": "vị trí trong nguồn",
+      "quote": null,
+      "quoteVerification": "NOT_APPLICABLE"
+    },
+    {
+      "number": 21,
+      "citationId": "8e1c60e75541e18b158c748e710213e9cad6e60c5c83ea838ccf1a6164c858d0",
+      "sourceKind": "CAPTURE",
+      "label": "Bản thu dữ liệu nguồn",
+      "retrievedAt": "2026-10-02T00:00:01.000Z",
+      "url": null,
+      "locatorText": null,
+      "quote": null,
+      "quoteVerification": "NOT_APPLICABLE"
+    },
+    {
+      "number": 22,
+      "citationId": "1034e42d8e6c7903ee4f9d83e158c4ae8af72abee43b68c473ee9d87f77e9bbd",
+      "sourceKind": "CAPTURE",
+      "label": "Bản thu dữ liệu nguồn",
+      "retrievedAt": "2026-10-02T00:00:01.000Z",
+      "url": null,
+      "locatorText": null,
+      "quote": null,
+      "quoteVerification": "NOT_APPLICABLE"
+    },
+    {
+      "number": 23,
+      "citationId": "94b50ef4c254d77f4d4d277650e94db87ac029c4b90c1a8e0c3e8f2a3b3d347b",
+      "sourceKind": "CAPTURE",
+      "label": "Dòng sản phẩm trong tệp đã lưu",
+      "retrievedAt": null,
+      "url": null,
+      "locatorText": null,
+      "quote": null,
+      "quoteVerification": "NOT_APPLICABLE"
+    },
+    {
+      "number": 24,
+      "citationId": "251f6a296ecbace680f613493bfcea35ad898f18357f3a2416b55aeac69cfa93",
+      "sourceKind": "WEB_RESULT",
+      "label": "Trang tư liệu mẫu",
+      "retrievedAt": "2026-10-19T00:00:00.000Z",
+      "url": "https://example.invalid/%E1%BA%A3nh-t%C6%B0-li%E1%BB%87u-%E1%BA%A3nh-t%C6%B0-li%E1%BB%87u-%E1%BA%A3nh-t%C6%B0-li%E1%BB%87u-%E1%BA%A3nh-t%C6%B0-li%E1%BB%87u-%E1%BA%A3nh-t%C6%B0-li%E1%BB%87u-%E1%BA%A3nh-t%C6%B0-li%E1%BB%87u-%E1%BA%A3nh-t%C6%B0-li%E1%BB%87u-%E1%BA%A3nh-t%C6%B0-li%E1%BB%87u-%E1%BA%A3nh-t%C6%B0-li%E1%BB%87u-%E1%BA%A3nh-t%C6%B0-li%E1%BB%87u-%E1%BA%A3nh-t%C6%B0-li%E1%BB%87u-%E1%BA%A3nh-t%C6%B0-li%E1%BB%87u-%3Cph%E1%BB%A5-l%E1%BB%A5c%3E",
+      "locatorText": null,
+      "quote": null,
+      "quoteVerification": "NOT_APPLICABLE"
+    }
+  ]
+}

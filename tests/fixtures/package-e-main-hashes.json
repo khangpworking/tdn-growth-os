@@ -22,9 +22,9 @@
     }
   },
   "market14-without-inventory": {
-    "html": "dd3c9b0c30efaf1f0f55ce7e404c0ee66ff8481bec67f60e0f7279cccb01d050",
+    "html": "8e17b680f2ee968a797cbe50aea28be736ab8b976918350f38ceb5ae66fa4f38",
     "semantic": "7c67a4170987b988b8e9f18ff7294fef370a185d3613d8e2a5b6767475e4cf8d",
-    "trace": "8d2edd027f20d6d4ac309905e45434bd8092ee413a7f941cb4dbf834634a20d2",
+    "trace": "d323402b60fa0321787684d42537e7bc8848a5e23762bfbbf328748dd7570d5b",
     "deliveryIdempotent": false,
     "bytes": {
       "html": 344077,

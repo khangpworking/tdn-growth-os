@@ -1,0 +1,21 @@
+{
+  "base": "a9fc87f0b93ed63381f40eb9cbdfdd4c66da241b",
+  "clock": "2026-10-19T00:00:00.000Z",
+  "files": {
+    "legacy-market": {
+      "bytes": 201951,
+      "sha256": "570ae91548e5ee9f96087b052058fc593a851e28e4678ddf3360594fd5a98cf4",
+      "gzipSha256": "3ef465a03843c605e2453e81aff147e1aa097d97f8f62b8175f76e91373f222c"
+    },
+    "market-template-v4": {
+      "bytes": 332472,
+      "sha256": "7895f2f4334a688aadd4bb64049417e37a9e38023d62b92407ef20913a940df9",
+      "gzipSha256": "c498d6e2f4d341bab2f5f883d8d8f7e7bd46faafb868b224715ee0e8302846ab"
+    },
+    "insight": {
+      "bytes": 203581,
+      "sha256": "47d571e32c98bdd12859402e64c12ac05fdc570b031c878ce873830804d6bd19",
+      "gzipSha256": "cc74b509b7df61e05d51853b2b1c17c679460b1afb51b456232894ed27e42a7a"
+    }
+  }
+}

@@ -88,7 +88,10 @@ test('M04 negative controls retain legacy capture bytes and the reader without c
         assert.match(m04.textContent!, /cơ cấu trong bảng kết quả đã lưu/iu);
         assert.match(m04.textContent!, /Synthetic L1/u);
         assert.equal(hash(m04.outerHTML), '72224d428e028b18fffbb3a179a24ba3eb16273a10e220178dd3b72223484f4d');
-      } else assert.equal(hash(m04.outerHTML), '0d98da52f30cda1afdf4bd18a6990af8d2e76a81ce38ee986fbf22870302dd87');
+      } else {
+        // G-references general report-text rule spells out percentages and zero in the current reader.
+        assert.equal(hash(m04.outerHTML), '314150d5da802b81a84c8addf9bac0f9844b97228357f053378e6d48f59d3a9f');
+      }
     } finally { dom.window.close(); }
   }
 });

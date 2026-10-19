@@ -1,0 +1,160 @@
+{
+  "citations": {
+    "contractVersion": "citation-trace-v1",
+    "entries": [
+      {
+        "number": 1,
+        "citationId": "3a42a0e918e1784474f2869940a45d9048fcb048eeb3a02efb881a65dd7ad6ab",
+        "identity": "cd5a15699fe982698cbf7b22206bd17102145bd7d41ab9209763444f72bcabbb",
+        "locator": null,
+        "technical": {
+          "methodVersion": "metric-scope-v1",
+          "rounding": "percent-half-even-2-v1"
+        }
+      },
+      {
+        "number": 2,
+        "citationId": "f921a2cdf3dc52cbddca0ddeb2d943c4bfea16253321edcb6749eb357ee8a9ce",
+        "identity": "88bcb0d227c8c2ba647dddfdbb11af9a2c10e8af34c9a62c3926609b7e45aeb5",
+        "locator": null,
+        "technical": {
+          "locator": "/scopes/0"
+        }
+      },
+      {
+        "number": 3,
+        "citationId": "5af84cf87f6be7d7438c506499a4b6f72c40e7511170a6ce5a7c55a0fa1d788a",
+        "identity": "59514a46c62b53a9013435af1f9d1e3a8a1abc77971ef9b2df3b9fb173bce366",
+        "locator": null,
+        "technical": {
+          "provider": "synthetic",
+          "operation": "synthetic.sample",
+          "step": "COLLECTION"
+        }
+      },
+      {
+        "number": 4,
+        "citationId": "580fc945c05067b7abe44756cf28a9efa350fe520a6ee253d0f6603a3e5148d0",
+        "identity": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "locator": {
+          "kind": "source-locator",
+          "value": "vị trí trong nguồn"
+        },
+        "technical": {
+          "sourceSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "locator": "/rows/0/revenue"
+        }
+      },
+      {
+        "number": 5,
+        "citationId": "94b50ef4c254d77f4d4d277650e94db87ac029c4b90c1a8e0c3e8f2a3b3d347b",
+        "identity": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "locator": null,
+        "technical": {
+          "locator": "Sheet1!A2:T2"
+        }
+      },
+      {
+        "number": 6,
+        "citationId": "8e1c60e75541e18b158c748e710213e9cad6e60c5c83ea838ccf1a6164c858d0",
+        "identity": "1111111111111111111111111111111111111111111111111111111111111111",
+        "locator": null,
+        "technical": {
+          "provider": "synthetic-provider",
+          "operation": "synthetic.trends",
+          "step": "COLLECTION"
+        }
+      },
+      {
+        "number": 7,
+        "citationId": "1034e42d8e6c7903ee4f9d83e158c4ae8af72abee43b68c473ee9d87f77e9bbd",
+        "identity": "2222222222222222222222222222222222222222222222222222222222222222",
+        "locator": null,
+        "technical": {
+          "provider": "synthetic-provider",
+          "operation": "synthetic.trends",
+          "step": "COLLECTION"
+        }
+      }
+    ]
+  },
+  "citationEntries": [
+    {
+      "number": 1,
+      "citationId": "3a42a0e918e1784474f2869940a45d9048fcb048eeb3a02efb881a65dd7ad6ab",
+      "sourceKind": "METRIC_ROW",
+      "label": "Số liệu đã tính từ nguồn đã lưu",
+      "retrievedAt": null,
+      "url": null,
+      "locatorText": null,
+      "quote": null,
+      "quoteVerification": "NOT_APPLICABLE"
+    },
+    {
+      "number": 2,
+      "citationId": "f921a2cdf3dc52cbddca0ddeb2d943c4bfea16253321edcb6749eb357ee8a9ce",
+      "sourceKind": "CAPTURE",
+      "label": "Phép tính mẫu xuất đã lưu",
+      "retrievedAt": null,
+      "url": null,
+      "locatorText": null,
+      "quote": null,
+      "quoteVerification": "NOT_APPLICABLE"
+    },
+    {
+      "number": 3,
+      "citationId": "5af84cf87f6be7d7438c506499a4b6f72c40e7511170a6ce5a7c55a0fa1d788a",
+      "sourceKind": "CAPTURE",
+      "label": "Bản thu dữ liệu nguồn",
+      "retrievedAt": "2026-10-19T00:00:00.000Z",
+      "url": null,
+      "locatorText": null,
+      "quote": null,
+      "quoteVerification": "NOT_APPLICABLE"
+    },
+    {
+      "number": 4,
+      "citationId": "580fc945c05067b7abe44756cf28a9efa350fe520a6ee253d0f6603a3e5148d0",
+      "sourceKind": "METRIC_ROW",
+      "label": "Dòng số liệu nguồn",
+      "retrievedAt": null,
+      "url": null,
+      "locatorText": "vị trí trong nguồn",
+      "quote": null,
+      "quoteVerification": "NOT_APPLICABLE"
+    },
+    {
+      "number": 5,
+      "citationId": "94b50ef4c254d77f4d4d277650e94db87ac029c4b90c1a8e0c3e8f2a3b3d347b",
+      "sourceKind": "CAPTURE",
+      "label": "Dòng sản phẩm trong tệp đã lưu",
+      "retrievedAt": null,
+      "url": null,
+      "locatorText": null,
+      "quote": null,
+      "quoteVerification": "NOT_APPLICABLE"
+    },
+    {
+      "number": 6,
+      "citationId": "8e1c60e75541e18b158c748e710213e9cad6e60c5c83ea838ccf1a6164c858d0",
+      "sourceKind": "CAPTURE",
+      "label": "Bản thu dữ liệu nguồn",
+      "retrievedAt": "2026-10-02T00:00:01.000Z",
+      "url": null,
+      "locatorText": null,
+      "quote": null,
+      "quoteVerification": "NOT_APPLICABLE"
+    },
+    {
+      "number": 7,
+      "citationId": "1034e42d8e6c7903ee4f9d83e158c4ae8af72abee43b68c473ee9d87f77e9bbd",
+      "sourceKind": "CAPTURE",
+      "label": "Bản thu dữ liệu nguồn",
+      "retrievedAt": "2026-10-02T00:00:01.000Z",
+      "url": null,
+      "locatorText": null,
+      "quote": null,
+      "quoteVerification": "NOT_APPLICABLE"
+    }
+  ]
+}
