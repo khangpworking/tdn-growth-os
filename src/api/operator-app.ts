@@ -1,3 +1,4 @@
+import { captureRelevanceConfiguration, type CaptureRelevanceConfiguration } from '../modules/analysis/research-automation/capture-relevance-cliproxy-transport.js';
 import { keywordDraftConfiguration, type KeywordDraftConfiguration } from '../modules/analysis/research-automation/keyword-cliproxy-transport.js';
 import fs from 'node:fs';
 import http, { type IncomingMessage, type ServerResponse } from 'node:http';
@@ -55,6 +56,7 @@ type StaticFile = Readonly<{ bytes: Buffer; mime: string }>;
 type StaticFiles = ReadonlyMap<string, StaticFile>;
 
 export interface OperatorAppConfiguration {
+  readonly researchCaptureRelevanceAi?: CaptureRelevanceConfiguration;
   readonly researchKeywordDraftAi?: KeywordDraftConfiguration;
   readonly databasePath: string;
   readonly artifactRoot: string;
@@ -155,6 +157,12 @@ export function operatorAppConfigurationFromEnvironment(
       catch { throw new TypeError(`${prefix}_MODEL must name an explicit CLIProxy model when ${prefix}_ENABLED is true`); }
     }
   }
+  const relevanceModel = environment.TDN_RESEARCH_CAPTURE_RELEVANCE_AI_MODEL;
+  let researchCaptureRelevanceAi: CaptureRelevanceConfiguration | undefined;
+  if (relevanceModel !== undefined && relevanceModel !== '') {
+    try { researchCaptureRelevanceAi = captureRelevanceConfiguration(relevanceModel); }
+    catch { throw new TypeError('TDN_RESEARCH_CAPTURE_RELEVANCE_AI_MODEL must name an explicit valid model'); }
+  }
   const keywordDraftEnabled = environment.TDN_RESEARCH_KEYWORD_DRAFT_AI_ENABLED;
   if (keywordDraftEnabled !== undefined && keywordDraftEnabled !== 'true' && keywordDraftEnabled !== 'false') throw new TypeError('TDN_RESEARCH_KEYWORD_DRAFT_AI_ENABLED must be exactly true or false');
   let researchKeywordDraftAi: KeywordDraftConfiguration | undefined;
@@ -206,6 +214,7 @@ export function operatorAppConfigurationFromEnvironment(
     ...(!environment.TDN_KALODATA_SECRET_KEY && !environment.TDN_SERPAPI_API_KEY && !environment.TDN_APIFY_TOKEN ? {} : { researchProviders: researchAutomationProviderConfigFromEnv(environment) }),
     ...(kalodataReplaySourceRunId === undefined ? {} : { researchKalodataReplaySourceRunId: kalodataReplaySourceRunId }),
     ...(environment.TDN_RESEARCH_PDF_CHROMIUM === undefined ? {} : { researchPdfExecutablePath: environment.TDN_RESEARCH_PDF_CHROMIUM }),
+    ...(researchCaptureRelevanceAi === undefined ? {} : { researchCaptureRelevanceAi }),
     ...(researchKeywordDraftAi === undefined ? {} : { researchKeywordDraftAi }),
     ...(researchI14Ai === undefined ? {} : { researchI14Ai }),
     ...(Object.keys(researchDecisionAi).length === 0 ? {} : { researchDecisionAi }),
@@ -291,6 +300,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
       ...(configuration.researchKalodataReplaySourceRunId ? { kalodataReplaySourceRunId: configuration.researchKalodataReplaySourceRunId } : {}),
       ...(configuration.researchPdfExecutablePath ? { pdfExecutablePath: configuration.researchPdfExecutablePath } : {}),
       // Validation pins this to the OWNER executor with CLIProxy configured; the read handle never receives it.
+      ...(configuration.researchCaptureRelevanceAi ? { captureRelevance: { cliproxy: configuration.cliproxy!, configuration: configuration.researchCaptureRelevanceAi } } : {}),
       ...(configuration.researchKeywordDraftAi ? { keywordDrafting: { cliproxy: configuration.cliproxy!, configuration: configuration.researchKeywordDraftAi } } : {}),
       ...(configuration.researchI14Ai ? { i14Synthesis: { cliproxy: configuration.cliproxy!, configuration: configuration.researchI14Ai } } : {}),
       ...(configuration.researchDecisionAi ? { decisionSynthesis: { cliproxy: configuration.cliproxy!, configurations: configuration.researchDecisionAi } } : {}),
@@ -441,6 +451,7 @@ function validateConfiguration(configuration: OperatorAppConfiguration): StaticF
   if (configuration.ownerWritesEnabled && (!configuration.ownerActorId || !ACTOR.test(configuration.ownerActorId))) throw new TypeError('TDN_OWNER_API_ACTOR_ID is required and invalid when OWNER writes are enabled');
   if (configuration.cliproxy !== undefined) assertCliproxyConfiguration(configuration.cliproxy);
   if (configuration.r2 && !configuration.ownerWritesEnabled) throw new TypeError('R2 mirroring requires OWNER writes to be enabled');
+  if (configuration.researchCaptureRelevanceAi !== undefined && (!configuration.cliproxy || !configuration.ownerWritesEnabled)) throw new TypeError('Capture relevance requires CLIProxy and OWNER writes to be enabled');
   if (configuration.researchKeywordDraftAi !== undefined && (!configuration.cliproxy || !configuration.ownerWritesEnabled)) throw new TypeError('Keyword drafting requires CLIProxy and OWNER writes to be enabled');
   if (configuration.researchI14Ai !== undefined && (!configuration.cliproxy || !configuration.ownerWritesEnabled)) throw new TypeError('TDN_RESEARCH_I14_AI_ENABLED requires CLIProxy and OWNER writes to be enabled');
   if (configuration.researchDecisionAi !== undefined && (!configuration.cliproxy || !configuration.ownerWritesEnabled)) throw new TypeError('Research decision synthesis requires CLIProxy and OWNER writes to be enabled');

@@ -90,7 +90,7 @@ function capturePlatformScope(capture: CaptureMetricMethodDetails): string {
   const lines = capture.capture.platforms.map(platform => {
     const result = results.get(platform);
     const removed = capture.rowPolicyVersion === 'automation-metric-capture-v3' ? (capture.excludedRows ?? []).filter(row => row.platform === platform).length : 0;
-    const removedNote = removed ? `; đã loại ${removed} dòng không dùng được trước khi tính` : '';
+    const removedNote = removed ? `; đã loại ${removed} dòng trước khi tính` : '';
     return result && result.input.records.length
       ? `<li>${PLATFORM_LABELS[platform]}: ${escape(acquiredDay(result.input.scope.acquiredAt))}; ${result.input.records.length} dòng sản phẩm; kỳ ${escape(isoDay(result.input.scope.start))} đến ${escape(isoDay(result.input.scope.end))}${removedNote}.</li>`
       : `<li>${PLATFORM_LABELS[platform]}: ${removed ? `không còn dòng phù hợp sau khi lọc${removedNote}` : 'chưa có dòng nào gán được cho sàn này'}.</li>`;
@@ -103,13 +103,14 @@ function capturePlatformScope(capture: CaptureMetricMethodDetails): string {
 /** Plain statement of what a filtered capture sample holds; per-platform removed counts sit in the lines above. */
 export function captureSampleSentence(capture: CaptureMetricMethodDetails): string {
   const rows = capture.excludedRows ?? [];
-  const reasons = [...(rows.some(row => row.reason === 'NOT_MAIN_PRODUCT') ? ['phụ kiện, linh kiện hoặc sản phẩm khác'] : []),
+  const current = capture.rowPolicyVersion === 'automation-metric-capture-v3';
+  const reasons = [...(rows.some(row => row.reason === 'NOT_MAIN_PRODUCT') ? [current ? 'dòng có dấu hiệu nằm ngoài nhóm sản phẩm đang xét' : 'phụ kiện, linh kiện hoặc sản phẩm khác'] : []),
     ...(rows.some(row => row.reason !== 'NOT_MAIN_PRODUCT') ? ['dòng có doanh thu hoặc đơn vị bán bất thường'] : [])];
-  const removed = reasons.length ? `đã loại ${reasons.join(' và ')} trước khi tính` : 'không có dòng nào phải loại trước khi tính';
+  const removed = reasons.length ? `đã loại ${reasons.join(' và ')} trước khi tính` : current ? '' : 'không có dòng nào phải loại trước khi tính';
   const withheld = 'Từ khóa được giữ trong bản lưu';
   const keyword = containsForbiddenProviderName(capture.capture.keyword) || /\b(?:Gemini|Google)\b/iu.test(capture.capture.keyword)
     ? withheld : storedLiteral(capture.capture.keyword, withheld, true);
-  return `Mẫu gồm các sản phẩm trả về cho từ khóa “${keyword}”; ${removed}; chưa chia nhóm sản phẩm.`;
+  return `Mẫu gồm các sản phẩm trả về cho từ khóa “${keyword}”${removed ? `; ${removed}` : ''}; chưa chia nhóm sản phẩm.`;
 }
 
 export function marketSourceScopeSection(scope: MarketSourceScope, section: 'M02' | 'M13', citations: ReportCitations, readerPlainText = false,

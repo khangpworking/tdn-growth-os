@@ -95,7 +95,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     })) + options.limitations.map(limit => `<p>${esc(limit)}</p>`).join('') + reconciliationState + reconciliation,
     'Chưa đủ căn cứ về kỳ, múi giờ, khung mẫu và tính rời nhau để cộng chéo sàn. Tổng và tỷ lệ cần đủ dữ liệu của đúng phạm vi.'));
   const exclusionNotes = PLATS.map(platform => {
-    const notice = captureExclusionNotice(options.captureExcludedRows ?? [], platform);
+    const notice = captureExclusionNotice(options.captureExcludedRows ?? [], platform, options.captureRowPolicy);
     const empty = options.captureRowPolicy && !rows.some(row => row.platform === platform)
       ? `<p>${esc(PLATFORM_LABEL[platform]!)}: không có dòng phù hợp để tính số liệu mẫu trong lượt này.</p>` : '';
     return (notice ? `<p>${esc(PLATFORM_LABEL[platform]!)}: ${esc(notice)}</p>` : '') + empty;

@@ -1,3 +1,4 @@
+import type { CaptureRelevanceRecord } from './capture-relevance.js';
 import type { PdfExcerpt } from './pdf-excerpt.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
@@ -116,7 +117,7 @@ export interface ReaderDraftContext {
   readonly testReviewSample?: import('./test-review-sample.js').ExactTestReviewContext;
   readonly metric:
     | { readonly packageId: string; readonly workbook: Buffer; readonly measurementPeriod: { readonly startDate: string; readonly endDate: string } }
-    | { readonly packageId: string; readonly capture: { readonly snapshot: AutomationMetricWebSnapshotV1; readonly snapshotSha256: string; readonly rowPolicy: CaptureRowProfile; readonly truncation: { readonly cap: number; readonly totalShown: number | null; readonly pagesRead: number; readonly rowsRead: number; readonly truncated: boolean } };
+    | { readonly packageId: string; readonly capture: { readonly snapshot: AutomationMetricWebSnapshotV1; readonly snapshotSha256: string; readonly rowPolicy: CaptureRowProfile; readonly relevance?: CaptureRelevanceRecord; readonly truncation: { readonly cap: number; readonly totalShown: number | null; readonly pagesRead: number; readonly rowsRead: number; readonly truncated: boolean } };
         readonly measurementPeriod: { readonly startDate: string; readonly endDate: string } };
 }
 export interface ReaderBinding { readonly workspaceId: string; readonly runId: string }
@@ -233,7 +234,7 @@ export class AutomationReaderReports {
 
   #captureRows(context: ReaderDraftContext, platforms: readonly ReaderPlatform[]) {
     if (!('capture' in context.metric)) return null;
-    return readerRowsFromMetricCapture(context.metric.capture.snapshot, platforms, context.metric.capture.rowPolicy);
+    return readerRowsFromMetricCapture(context.metric.capture.snapshot, platforms, context.metric.capture.rowPolicy, context.metric.capture.relevance);
   }
 
   async build(context: ReaderDraftContext, value: unknown, actor: { actorId: string; role: 'OWNER' }): Promise<ResearchAutomationReaderBuildReceipt> {
