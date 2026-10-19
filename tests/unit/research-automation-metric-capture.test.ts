@@ -9,6 +9,7 @@ import { validateMetricWebSnapshot } from '../../src/modules/analysis/research-a
 import { MAX_METRIC_CAPTURE_BYTES, MetricCaptureRejection, verifyMetricCaptureArchive } from '../../src/modules/analysis/research-automation/metric-capture-intake.js';
 import { readerRowsFromMetricCapture } from '../../src/modules/analysis/reader-report/metric-capture-rows.js';
 import { CAPTURE_ROW_PROFILE, CAPTURE_ROW_PROFILE_V2 } from '../../src/modules/analysis/research-automation/capture-row-quality.js';
+import { retainedRelevance } from '../helpers/capture-relevance-fixture.js';
 
 const captureUrl = new URL('../../tools/opencli-metric/clis/metric/capture.js', import.meta.url);
 const metricUrl = new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url);
@@ -118,11 +119,17 @@ test('reader rows replay v2 and v3 on identical source bytes, preserving lineage
   const v3 = readerRowsFromMetricCapture(snapshot, ['shopee', 'tiktok'], CAPTURE_ROW_PROFILE);
   assert.deepEqual(v2.rows.map(row => row.title), names.slice(0, 4));
   assert.deepEqual(v2.excluded.map(row => [row.title, row.reason]), [[names[4], 'NOT_MAIN_PRODUCT']]);
-  assert.deepEqual(v3.rows.map(row => row.title), [names[1], names[3]]);
-  assert.deepEqual(v3.excluded.map(row => [row.title, row.reason]), [names[0], names[2], names[4]].map(name => [name, 'NOT_MAIN_PRODUCT']));
-  assert.deepEqual(readerRowsFromMetricCapture(snapshot, ['shopee', 'tiktok']), v3, 'default is latest');
+  assert.deepEqual(v3.rows.map(row => row.title), names, 'floor alone conserves ambiguous part words');
+  assert.deepEqual(v3.excluded, []);
+  const relevance = retainedRelevance(names.map(title => ({ title })), 'quạt điện',
+    title => [names[0], names[2], names[4]].includes(title) ? 'NOT_MAIN' : 'MAIN');
+  const decided = readerRowsFromMetricCapture(snapshot, ['shopee', 'tiktok'], CAPTURE_ROW_PROFILE, relevance);
+  assert.deepEqual(decided.rows.map(row => row.title), [names[1], names[3]]);
+  assert.deepEqual(decided.excluded.map(row => [row.title, row.reason]), [names[0], names[2], names[4]].map(name => [name, 'NOT_MAIN_PRODUCT']));
+  assert.deepEqual(readerRowsFromMetricCapture(snapshot, ['shopee', 'tiktok']), v2, 'unconfigured default is production v2');
   const keptV2 = v2.rows.find(row => row.title === names[1])!;
-  assert.deepEqual(v3.rows[0], keptV2, 'row identity and raw position do not depend on filtering');
+  assert.deepEqual(v3.rows[1], keptV2, 'row identity and raw position do not depend on filtering');
+  assert.deepEqual(decided.rows[0], keptV2, 'saved labels preserve row identity and raw position too');
   const v1 = readerRowsFromMetricCapture(snapshot, ['shopee', 'tiktok'], 'automation-metric-capture-v1');
   assert.equal(v1.rows.length, names.length, 'v1 negative control retains even old accessory prefixes');
   assert.deepEqual(v1.excluded, []);

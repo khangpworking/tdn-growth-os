@@ -6,9 +6,11 @@ import sourceConfirmSchema from '../../contracts/api/research-automation-source-
 import metricCaptureIntakeSchema from '../../contracts/api/research-automation-metric-capture-intake-api.schema.json' with { type: 'json' };
 import presentationRevisionSchema from '../../contracts/analysis/automation-market-presentation-revision.schema.json' with { type: 'json' };
 import {
-  AUTORUN_PICK_RULE_VERSION, autorunRequestKey, buildCaptureSpec, buildConfirmValue, buildPrepareValue, buildRevisionValue, decidePeriodRetry,
+  AUTORUN_PICK_RULE_VERSION, AUTORUN_PICK_RULE_VERSION_V2, autorunRequestKey, buildCaptureSpec, buildConfirmValue, buildPrepareValue, buildRevisionValue, decidePeriodRetry,
   deriveIncludeTerms, firstAttemptPeriod, parseObservedPeriod, periodInside, pickShopeeLinks, planCapturePeriod, sourceContextVi,
 } from '../../src/modules/analysis/research-automation/autorun-derive.js';
+import { CAPTURE_ROW_PROFILE } from '../../src/modules/analysis/research-automation/capture-row-quality.js';
+import { retainedRelevance } from '../helpers/capture-relevance-fixture.js';
 import { selectExactShopeeListings } from '../../src/modules/foundation/shopee-exact-selection.js';
 
 // Synthetic fixtures only: invented names, brands, shops and ids.
@@ -39,7 +41,7 @@ test('son keyword picks son, never sơn, sonic or person', () => {
     row('Thỏi SON-môi lì mềm', 15, 400, { final_brand: 'Mây Hồng', brand: 'ignored' }),
   ];
   const result = pickShopeeLinks(raw(rows), ['son']);
-  assert.equal(result.pickRuleVersion, AUTORUN_PICK_RULE_VERSION);
+  assert.equal(result.pickRuleVersion, AUTORUN_PICK_RULE_VERSION_V2);
   assert.deepEqual(result.links.map(link => link.brand), ['Hoa Giấy', 'Mây Hồng']);
   assert.deepEqual(result.counts, { walked: 5, deleted: 0, notIncluded: 1, tokenGuardRejected: 2, eligible: 2, picked: 2 });
   assert.match(result.urls[0]!, /^https:\/\/shopee\.vn\/product\/11\/\d+$/);
@@ -186,15 +188,20 @@ test('Shopee pick rejects accessories and implausible revenue using the same gen
   assert.deepEqual(pickShopeeLinks(raw(rows), ['bình giữ nhiệt']).links.map(link => link.shopId), ['63','62','61']);
 });
 
-test('pick v3 excludes newly recognized parts while keeping head-first and non-adjacent fan titles', () => {
+test('pick v3 conserves ambiguous parts on the floor and excludes retained NOT_MAIN, keeping product titles', () => {
   assert.equal(AUTORUN_PICK_RULE_VERSION, 'autorun-pick-v3');
   const rows = [row('Trục quạt điện mẫu thử', 71, 900, { order_custom: 9 }),
     row('Chiết áp mẫu thử Quạt điện', 72, 800, { order_custom: 8 }),
     row('Quạt điện mẫu thử xoay đầu tự động', 73, 300, { order_custom: 3 }),
     row('Đầu mùa sale Quạt điện mẫu thử', 74, 200, { order_custom: 2 })];
-  const picked = pickShopeeLinks(raw(rows), ['quạt điện']);
+  const picked = pickShopeeLinks(raw(rows), ['quạt điện'], { profile: CAPTURE_ROW_PROFILE });
   assert.equal(picked.pickRuleVersion, 'autorun-pick-v3');
-  assert.deepEqual(picked.links.map(link => link.shopId), ['73', '74']);
-  assert.equal(picked.counts.eligible, 2);
-  assert.deepEqual(pickShopeeLinks(raw(rows.slice(0, 2)), ['quạt điện']).links, []);
+  assert.deepEqual(picked.links.map(link => link.shopId), ['71', '72', '73', '74']);
+  assert.equal(picked.counts.eligible, 4);
+  const relevance = retainedRelevance(rows.map(row => ({ title: row.product_name })), 'quạt điện',
+    title => title === rows[0]!.product_name || title === rows[1]!.product_name ? 'NOT_MAIN' : 'MAIN');
+  const decided = pickShopeeLinks(raw(rows), ['quạt điện'], { profile: CAPTURE_ROW_PROFILE, relevance });
+  assert.deepEqual(decided.links.map(link => link.shopId), ['73', '74']);
+  assert.equal(decided.counts.eligible, 2);
+  assert.deepEqual(pickShopeeLinks(raw(rows.slice(0, 2)), ['quạt điện'], { profile: CAPTURE_ROW_PROFILE, relevance }).links, []);
 });

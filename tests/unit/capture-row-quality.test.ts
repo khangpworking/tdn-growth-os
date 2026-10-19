@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { CAPTURE_ROW_PROFILE, CAPTURE_ROW_PROFILE_V2, isCaptureRowProfile, splitCaptureNameCell, isMainCapturedProduct, captureRowExclusions, captureExclusionNotice } from '../../src/modules/analysis/research-automation/capture-row-quality.js';
+import { CAPTURE_ROW_PROFILE, CAPTURE_ROW_PROFILE_V2, isCaptureRowProfile, splitCaptureNameCell, isMainCapturedProduct, captureRowExclusions, captureExclusionNotice, assessCaptureRows, assessCaptureRowsTitleOnly } from '../../src/modules/analysis/research-automation/capture-row-quality.js';
 import { plainCaptureNumbers } from '../../src/modules/analysis/reader-report/format.js';
+import { retainedRelevance } from '../helpers/capture-relevance-fixture.js';
 
 test('name cell splits tolerant spacing and case; explicit shops win and unmatched cells are unchanged', () => {
   const name = 'Quạt điện Mẫu A 340 REVIEWS Total  sold products: 1.496 Created date: 03/2024  Gian hàng Mẫu';
@@ -31,12 +32,12 @@ test('generic prefix rule keeps title suffixes and promotional prefixes, across 
   assert.equal(isMainCapturedProduct('SON môi', 'sơn'), false);
 });
 
-test('v3 adds part prefixes and adjacent words while the same titles retain their frozen v2 answers', () => {
+test('v3 floor preserves ambiguous part words; retained NOT_MAIN excludes them while v2 answers stay frozen', () => {
   assert.equal(CAPTURE_ROW_PROFILE, 'automation-metric-capture-v3');
   assert.equal(CAPTURE_ROW_PROFILE_V2, 'automation-metric-capture-v2');
   const adjacent = ['trục', 'đầu', 'đế', 'lốc', 'cuộn', 'núm', 'lưới', 'mạch', 'chân'];
   const prefixes = ['stato', 'chiết áp', 'chuyển đổi', 'đọng cơ', 'bánh răng', 'phụ tùng'];
-  const rejected = [
+  const ambiguous = [
     ...adjacent.map(word => `Mẫu thử ${word} quạt điện mini`),
     ...prefixes.map(word => `Mẫu thử ${word} loại nhỏ dành riêng Quạt điện`),
     'Trục Quạt Điện,Cốt Quạt Điện,Mẫu A B C',
@@ -48,15 +49,19 @@ test('v3 adds part prefixes and adjacent words while the same titles retain thei
     'ĐỌNG CƠ QUẠT ĐIỆN MẪU A - LOẠI CÓ REN',
     'Chiết áp tăng giảm tốc độ quạt điện mẫu thử',
   ];
-  for (const title of rejected) for (const normalized of [title, title.toUpperCase(), title.normalize('NFD')]) {
-    assert.equal(isMainCapturedProduct(normalized, 'quạt điện'.normalize('NFD')), false, title);
+  for (const title of ambiguous) for (const normalized of [title, title.toUpperCase(), title.normalize('NFD')]) {
+    assert.equal(isMainCapturedProduct(normalized, 'quạt điện'.normalize('NFD'), CAPTURE_ROW_PROFILE), true, title);
     assert.equal(isMainCapturedProduct(normalized, 'quạt điện', CAPTURE_ROW_PROFILE_V2), true, `v2: ${title}`);
   }
-  // Frozen v2 prefixes still reject in both versions, including when separated from the head.
-  for (const profile of [CAPTURE_ROW_PROFILE_V2, CAPTURE_ROW_PROFILE]) {
-    assert.equal(isMainCapturedProduct('Motor mẫu thử quạt điện', 'quạt điện', profile), false);
-    assert.equal(isMainCapturedProduct('Cánh mẫu thử quạt điện', 'quạt điện', profile), false);
+  // Released v2 retains its prefix list; the general v3 floor has no part vocabulary.
+  for (const title of ['Motor mẫu thử quạt điện', 'Cánh mẫu thử quạt điện']) {
+    assert.equal(isMainCapturedProduct(title, 'quạt điện', CAPTURE_ROW_PROFILE_V2), false);
+    assert.equal(isMainCapturedProduct(title, 'quạt điện', CAPTURE_ROW_PROFILE), true);
   }
+  const rows = ambiguous.map(title => ({ title, platform: 'shopee', revenue: 100, units: 1 }));
+  const relevance = retainedRelevance(rows, 'quạt điện', () => 'NOT_MAIN');
+  assert.deepEqual([...assessCaptureRowsTitleOnly(rows, ['quạt điện'], CAPTURE_ROW_PROFILE, relevance).exclusions],
+    rows.map((_, i) => [i, 'NOT_MAIN_PRODUCT']));
 });
 
 test('v3 keeps head-first fans and non-adjacent short words, with whole accented tokens', () => {
@@ -71,16 +76,22 @@ test('v3 keeps head-first fans and non-adjacent short words, with whole accented
   ];
   for (const title of kept) for (const profile of [CAPTURE_ROW_PROFILE_V2, CAPTURE_ROW_PROFILE])
     assert.equal(isMainCapturedProduct(title.normalize('NFD'), title === 'Dau quat dien' ? 'quat dien' : 'quạt điện', profile), true, title);
-  assert.equal(isMainCapturedProduct('Đầu, QUẠT điện', 'quạt điện'), false, 'punctuation preserves token adjacency');
-  assert.equal(isMainCapturedProduct('Dau quạt điện', 'quạt điện'), true, 'accents are not stripped');
-  assert.equal(isMainCapturedProduct('Đầu quat dien', 'quạt điện'), false, 'unaccented heads do not match accented keywords');
+  assert.equal(isMainCapturedProduct('Đầu, QUẠT điện', 'quạt điện', CAPTURE_ROW_PROFILE), true, 'adjacency alone is not a relation');
+  assert.equal(isMainCapturedProduct('Dau quạt điện', 'quạt điện', CAPTURE_ROW_PROFILE), true, 'accents are not stripped');
+  assert.equal(isMainCapturedProduct('Đầu quat dien', 'quạt điện', CAPTURE_ROW_PROFILE), true, 'an unrecognized accented target is conserved');
+  assert.equal(isMainCapturedProduct('Ống mẫu, DÙNG CHO lumo pod'.normalize('NFD'), 'LUMO POD', CAPTURE_ROW_PROFILE), false, 'a strong relation survives punctuation, case and NFC normalization');
+  assert.equal(isMainCapturedProduct('Ống mẫu dùng cho lumo pód', 'lumo pod', CAPTURE_ROW_PROFILE), true, 'accents are not folded into a full target match');
 });
 
-test('independent fan title adversaries preserve products and reject adjacent parts', () => {
+test('independent fan title adversaries preserve ambiguous parts until retained NOT_MAIN decides them', () => {
   for (const title of ['quạt đứng chân cao', 'quạt có đèn', 'Quạt không cánh có đèn ngủ', 'Quạt điện lắc đầu kèm chân đế', 'Đầu giường dùng quạt điện mini', 'Lưới bảo vệ đi kèm quạt đứng', 'Chân cao dáng đứng: quạt điện'])
-    assert.equal(isMainCapturedProduct(title, 'quạt điện'), true, title);
-  for (const title of ['đầu quạt', 'Bộ trục-quạt điện', 'Lưới, quạt điện', 'Chân quạt điện thay thế', 'Stato cho quạt điện', 'MOTOR QUẠT ĐIỆN'])
-    assert.equal(isMainCapturedProduct(title, 'quạt điện'), false, title);
+    assert.equal(isMainCapturedProduct(title, 'quạt điện', CAPTURE_ROW_PROFILE), true, title);
+  const parts = ['đầu quạt', 'Bộ trục-quạt điện', 'Lưới, quạt điện', 'Chân quạt điện thay thế', 'Stato cho quạt điện', 'MOTOR QUẠT ĐIỆN'];
+  for (const title of parts) assert.equal(isMainCapturedProduct(title, 'quạt điện', CAPTURE_ROW_PROFILE), true, title);
+  const rows = parts.map(title => ({ title, platform: 'shopee', revenue: 100, units: 1 }));
+  const relevance = retainedRelevance(rows, 'quạt điện', () => 'NOT_MAIN');
+  assert.deepEqual([...assessCaptureRowsTitleOnly(rows, ['quạt điện'], CAPTURE_ROW_PROFILE, relevance).exclusions],
+    rows.map((_, i) => [i, 'NOT_MAIN_PRODUCT']));
 });
 
 test('row exclusions use the requested profile and never reinterpret retained v2 parts as v3', () => {
@@ -88,8 +99,10 @@ test('row exclusions use the requested profile and never reinterpret retained v2
     .map(title => ({ title, platform: 'shopee', revenue: 100, units: 1 }));
   const retained = structuredClone(rows);
   assert.deepEqual([...captureRowExclusions(rows, ['quạt điện'], CAPTURE_ROW_PROFILE_V2)], [[4, 'NOT_MAIN_PRODUCT']]);
-  assert.deepEqual([...captureRowExclusions(rows, ['quạt điện'], CAPTURE_ROW_PROFILE)], [[0, 'NOT_MAIN_PRODUCT'], [1, 'NOT_MAIN_PRODUCT'], [4, 'NOT_MAIN_PRODUCT']]);
-  assert.deepEqual(captureRowExclusions(rows, ['quạt điện']), captureRowExclusions(rows, ['quạt điện'], CAPTURE_ROW_PROFILE));
+  assert.deepEqual([...captureRowExclusions(rows, ['quạt điện'], CAPTURE_ROW_PROFILE)], []);
+  const relevance = retainedRelevance(rows, 'quạt điện', title => [rows[0]!.title, rows[1]!.title, rows[4]!.title].includes(title) ? 'NOT_MAIN' : 'MAIN');
+  assert.deepEqual([...assessCaptureRows(rows, ['quạt điện'], 'BATCH', relevance).exclusions], [[0, 'NOT_MAIN_PRODUCT'], [1, 'NOT_MAIN_PRODUCT'], [4, 'NOT_MAIN_PRODUCT']]);
+  assert.deepEqual(captureRowExclusions(rows, ['quạt điện']), captureRowExclusions(rows, ['quạt điện'], CAPTURE_ROW_PROFILE_V2));
   assert.deepEqual(rows, retained);
 });
 

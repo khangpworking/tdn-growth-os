@@ -52,29 +52,29 @@ async function retainedV2(t: TestContext, omitMethod = false) {
   return { fixture, db, artifacts, bridge };
 }
 
-test('new capture freezes v3, all three exclusion reasons and exact source-row indices', async t => {
+test('unconfigured new capture freezes v2, all three exclusion reasons and exact source-row indices', async t => {
   const f = await policyRun(t);
   const report = await f.service.readReport(policyWorkspaceId, policyRunId, 'MARKET', false);
   const semantic = JSON.parse((await f.artifacts.read(report.versionId)).toString()) as { metricMethods: AutomationMetricMethodSnapshot };
   const method = semantic.metricMethods;
-  assert.equal(method.result.input.profileId, CAPTURE_ROW_PROFILE);
-  assert.equal(method.capture!.rowPolicyVersion, CAPTURE_ROW_PROFILE);
+  assert.equal(method.result.input.profileId, CAPTURE_ROW_PROFILE_V2);
+  assert.equal(method.capture!.rowPolicyVersion, CAPTURE_ROW_PROFILE_V2);
   assert.equal(method.capture!.snapshotSha256, policyHash(f.first.snapshotBytes));
   assert.deepEqual(method.capture!.excludedRows!.map(row => [row.rowIndex, row.reason]).sort((a, b) => Number(a[0]) - Number(b[0])),
-    [[1, 'NOT_MAIN_PRODUCT'], [2, 'NOT_MAIN_PRODUCT'], [3, 'NOT_MAIN_PRODUCT'], [6, 'UNIT_REVENUE_OUTLIER'], [7, 'REVENUE_WITHOUT_UNITS']]);
-  assert.equal(method.result.input.records.length, 3);
+    [[3, 'NOT_MAIN_PRODUCT'], [6, 'UNIT_REVENUE_OUTLIER'], [7, 'REVENUE_WITHOUT_UNITS']]);
+  assert.equal(method.result.input.records.length, 5);
   const file = f.db.prepare('SELECT artifact_sha256 sha FROM foundation_source_package_files WHERE package_id=? AND logical_path=?')
     .get(method.sourcePackage.packageId, 'methods/metric-run.json') as { sha: string };
   const config = JSON.parse((await f.artifacts.read(file.sha)).toString()) as { input: MetricRunInput };
   const receiptFile = f.db.prepare('SELECT artifact_sha256 sha FROM foundation_source_package_files WHERE package_id=? AND logical_path=?')
     .get(method.sourcePackage.packageId, 'methods/metric-normalization-receipt.json') as { sha: string };
   const receipt = JSON.parse((await f.artifacts.read(receiptFile.sha)).toString()) as { rowPolicyVersion: string; excludedRows: unknown };
-  assert.equal(receipt.rowPolicyVersion, CAPTURE_ROW_PROFILE);
+  assert.equal(receipt.rowPolicyVersion, CAPTURE_ROW_PROFILE_V2);
   assert.deepEqual(receipt.excludedRows, method.capture!.excludedRows, 'exclusions are frozen in the retained receipt as well as the draft');
   const bridge = new AutomationMetricMethodBridge({ db: f.db, artifactStore: f.artifacts, workspaces: f.workspaces, now: policyNow });
   assert.deepEqual(await bridge.verify(method, config.input), method);
   const beforeRetry = f.db.prepare('SELECT total_changes() n').get();
-  assert.deepEqual(await bridge.execute(config.input), method, 'a v3 retry keeps the retained method');
+  assert.deepEqual(await bridge.execute(config.input), method, 'a v2 retry keeps the retained method');
   assert.deepEqual(f.db.prepare('SELECT total_changes() n').get(), beforeRetry);
   const tampered = { ...method, capture: { ...method.capture!, excludedRows: [] } };
   await assert.rejects(bridge.verify(tampered, config.input), ResearchAutomationIntegrityError);
@@ -149,13 +149,13 @@ async function buildAndReadPolicy(f: Awaited<ReturnType<typeof policyRun>>, pack
   return record;
 }
 
-test('public reader build uses v3 for the matching verified draft snapshot and v2 for a different prepared snapshot', async t => {
+test('unconfigured public reader build uses v2 for matching and different prepared snapshots', async t => {
   const f = await policyRun(t, 'USE_PREPARED', true);
   assert.notEqual(policyHash(f.first.snapshotBytes), policyHash(f.second!.snapshotBytes));
   const matching = await buildAndReadPolicy(f, f.first.packageId);
-  assert.equal(matching.captureRowPolicy, CAPTURE_ROW_PROFILE);
-  assert.equal(matching.input.rows.length, 3);
-  assert.equal(matching.captureExcludedRows.length, 5);
+  assert.equal(matching.captureRowPolicy, CAPTURE_ROW_PROFILE_V2);
+  assert.equal(matching.input.rows.length, 5);
+  assert.equal(matching.captureExcludedRows.length, 3);
   const mismatched = await buildAndReadPolicy(f, f.second!.packageId);
   assert.equal(mismatched.captureRowPolicy, CAPTURE_ROW_PROFILE_V2);
   assert.equal(mismatched.input.rows.length, 5);
@@ -177,7 +177,10 @@ for (const rowPolicyVersion of [CAPTURE_ROW_PROFILE_V2, undefined]) test(`verifi
   const metricMethods = { ...semantic.metricMethods, capture: { ...capture, ...(rowPolicyVersion ? { rowPolicyVersion } : {}) } };
   const stored = await f.artifacts.put(Buffer.from(canonicalJson({ ...semantic, metricMethods })));
   const at = policyNow().toISOString();
-  f.db.prepare(`INSERT INTO artifact_manifests(sha256,byte_size,media_type,relative_path,acquired_at,contract_version,retention_status,created_at)
+  // With the v2 default, the explicit-v2 variant may already be these exact retained bytes.
+  const existing = f.db.prepare('SELECT sha256 FROM artifact_manifests WHERE relative_path=?').get(stored.relativePath) as { sha256: string } | undefined;
+  if (existing) assert.equal(existing.sha256, stored.sha256);
+  else f.db.prepare(`INSERT INTO artifact_manifests(sha256,byte_size,media_type,relative_path,acquired_at,contract_version,retention_status,created_at)
     VALUES (?,?,'application/json',?,?,'1.0.0','active',?)`).run(stored.sha256, stored.byteSize, stored.relativePath, at, at);
   // Isolate the policy decision at the public verified-report boundary. Full v2 integrity
   // replay is exercised above; these variants do not claim to replay an altered draft.
