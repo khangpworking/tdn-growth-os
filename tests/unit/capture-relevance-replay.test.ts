@@ -10,7 +10,6 @@ import { deriveReaderSource, verifyWebSnapshot, webSnapshotDigest } from '../../
 import type { ReaderReportInput } from '../../contracts/analysis/reader-report-input.generated.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { FoundationSourcePackageReader } from '../../src/modules/foundation/source-package-reader.js';
-import { SourcePackageRequestConflictError } from '../../src/modules/foundation/source-package-service.js';
 import { AutomationMetricMethodBridge, type AutomationMetricMethodSnapshot } from '../../src/modules/analysis/research-automation/metric-method-bridge.js';
 import { ResearchAutomationIntegrityError } from '../../src/modules/analysis/research-automation/model.js';
 import { readCaptureProductRows, assessCaptureProductRows, CAPTURE_ROW_PROFILE, captureExclusionNotice } from '../../src/modules/analysis/research-automation/capture-row-quality.js';
@@ -236,9 +235,7 @@ for (const operation of ['verify','execute'] as const) test(`earlier unreleased 
   const savedMethod = canonicalJson(prior.method);
   await assert.rejects(
     operation === 'verify' ? replay.verify(prior.method,prior.input) : replay.execute(prior.input),
-    operation === 'verify'
-      ? { constructor: ResearchAutomationIntegrityError, message: 'Capture rows differ from the frozen row policy.' }
-      : { constructor: SourcePackageRequestConflictError, message: 'Source package key/version exists with metadata or byte drift' },
+    { constructor: ResearchAutomationIntegrityError, message: 'Capture rows differ from the frozen row policy.' },
   );
   assert.equal(fake.calls,0,'an incompatible final package never triggers classification');
   assert.deepEqual(await f.packages.readVerified(prior.method.sourcePackage.packageId),before,'retained bytes and package membership are unchanged');

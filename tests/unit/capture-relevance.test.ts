@@ -94,7 +94,7 @@ async function labelled(rows: readonly {title:string}[], keywords: readonly stri
   return readCaptureRelevanceRecord(record, rows, keywords);
 }
 
-test('decision rule: floor OR NOT_MAIN; MAIN, UNSURE and null never undo the floor', async () => {
+test('explicit accessory exclusion is not vetoed by MAIN, UNSURE or null; NOT_MAIN also excludes a main title', async () => {
   const rows = [
     {title:'Sleeve dùng cho lumo pod',platform:'shopee',revenue:100,units:1},
     {title:'Lumo pod amber',platform:'shopee',revenue:100,units:1},
@@ -158,18 +158,18 @@ test('title-only picker applies retained decisions and keeps sorting, guards, di
 });
 
 
-test('metadata floor stays per platform and cannot be rescued by MAIN, UNSURE or null', async () => {
+test('weak-relation category floor stays per platform and MAIN vetoes only the category inference', async () => {
   const anchors = Array.from({length:40},(_,i) => ({title:`Lumo pod anchor ${i}`,platform:'shopee',revenue:100,units:1,categoryText:'Invented lumoware',price:100}));
   const rows = [...anchors,
-    {title:'Odd lumo pod attachment',platform:'shopee',revenue:100,units:1,categoryText:'Invented cloudware',price:10},
-    {title:'Odd lumo pod attachment',platform:'tiktok',revenue:100,units:1,categoryText:'Invented cloudware',price:10},
+    {title:'Stand dành cho lumo pod',platform:'shopee',revenue:100,units:1,categoryText:'Invented cloudware',price:10},
+    {title:'Stand dành cho lumo pod',platform:'tiktok',revenue:100,units:1,categoryText:'Invented cloudware',price:10},
     {title:'Lumo pod tiny',platform:'shopee',revenue:100,units:1,categoryText:'Invented lumoware',price:1},
   ];
   for (const label of ['MAIN','UNSURE',null] as const) {
     const record = await labelled(rows,[relevanceKeyword],() => label);
     const result = assessCaptureRows(rows,[relevanceKeyword],'BATCH',record);
-    assert.deepEqual([...result.exclusions],[[40,'NOT_MAIN_PRODUCT']]);
-    assert.equal(result.decisions[40]!.reason,'TITLE_CATEGORY_MISMATCH');
+    assert.deepEqual([...result.exclusions],label === 'MAIN' ? [] : [[40,'NOT_MAIN_PRODUCT']]);
+    assert.equal(result.decisions[40]!.reason,label === 'MAIN' ? null : 'TITLE_CATEGORY_MISMATCH');
     assert.equal(result.exclusions.has(41),false,'TikTok has no category reference');
     assert.equal(result.exclusions.has(42),false,'low price alone is not a floor drop');
     assert.deepEqual([...assessCaptureRowsTitleOnly(rows,[relevanceKeyword],CAPTURE_ROW_PROFILE,record).exclusions],[],'title-only assessment has no metadata reference');
