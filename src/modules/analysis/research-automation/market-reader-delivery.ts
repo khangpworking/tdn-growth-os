@@ -516,12 +516,29 @@ export function numberMarketExhibits(html: string): string {
   });
   if (!relabel.size) return numbered;
   // References in prose follow their exhibit; labels, drawn charts, styles and quotes keep their bytes.
-  let quotedUntil = 0;
-  return numbered.replace(/<span class="exn"[^>]*>[^<]*<\/span>|<svg\b[\s\S]*?<\/svg>|<style\b[\s\S]*?<\/style>|<script\b[\s\S]*?<\/script>|<q\b[\s\S]*?<\/q>|<blockquote\b[\s\S]*?<\/blockquote>|<(?:[^<>"']|"[^"]*"|'[^']*')+>|[^<]+/gu,
-    (part: string, at: number) => {
-      if (at < quotedUntil) return part;
-      const quote = /^<([\w-]+)\b[^>]*\sdata-quote(?:\s|=|>)/u.exec(part);
-      if (quote) quotedUntil = elementEnd(numbered, at, quote[1]!);
-      return part.startsWith('<') ? part : part.replace(/(?<![\p{L}\p{N}])(Bảng|Hình) (\d+|PL)\.(\d+)(?![\d.]*\d)/gu, all => relabel.get(all) ?? all);
+  let protectedTag = '', depth = 0;
+  return numbered.replace(/<!--[\s\S]*?(?:-->|$)|<script(?=[\s/>])(?:[^>"']|"[^"]*"|'[^']*')*(?<!\/)>[\s\S]*?(?:<\/script\s*>|$)|<style(?=[\s/>])(?:[^>"']|"[^"]*"|'[^']*')*(?<!\/)>[\s\S]*?(?:<\/style\s*>|$)|<(?:[^<>"']|"[^"]*"|'[^']*')+>|[^<]+/giu,
+    (part: string) => {
+      if (!part.startsWith('<')) return depth ? part
+        : part.replace(/(?<![\p{L}\p{N}])(Bảng|Hình) (\d+|PL)\.(\d+)(?![\d.]*\d)/gu, all => relabel.get(all) ?? all);
+      if (/^<!--|^<(?:script|style)(?=[\s/>])/iu.test(part)) return part;
+      const open = /^<(\/?)([\w:-]+)/u.exec(part);
+      if (!open) return part;
+      const tag = open[2]!.toLowerCase();
+      if (open[1]) {
+        if (tag === protectedTag && --depth === 0) protectedTag = '';
+      } else if (!/\/\s*>$/u.test(part) && !['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'].includes(tag)) {
+        if (depth) {
+          if (tag === protectedTag) depth++;
+          return part;
+        }
+        const attributes = [...part.slice(open[0].length, -1).matchAll(/([^\s=<>/"']+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/gu)];
+        if (['q', 'blockquote', 'svg'].includes(tag) || attributes.some(attribute => attribute[1]!.toLowerCase() === 'data-quote'
+          || tag === 'span' && attribute[1]!.toLowerCase() === 'class' && (attribute[2] ?? attribute[3] ?? attribute[4] ?? '').split(/\s+/u).includes('exn'))) {
+          protectedTag = tag;
+          depth = 1;
+        }
+      }
+      return part;
     });
 }
