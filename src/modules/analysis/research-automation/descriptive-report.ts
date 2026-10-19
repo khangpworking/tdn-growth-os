@@ -12,6 +12,8 @@ export type DescriptiveSectionId = 'M05' | 'M06' | 'M07' | 'M09';
 export interface DescriptiveReaderContext {
   readonly productLabels?: ReadonlyMap<string, string>;
   readonly requestedPeriod?: { readonly startDate: string; readonly endDate: string };
+  /** The report already prints the per-period rows of the selected products in Phần 3, so M05 points there instead of repeating them. */
+  readonly periodRowsInM03?: boolean;
 }
 
 /** Rendering of one bounded method section. `usable` means a resolved record carries a source-stated value or event, not that the section is complete. */
@@ -388,6 +390,10 @@ function readerM05(methods: DescriptiveMarketMethods, citations: ReportCitations
     rows.push(row);
     measures.set(row.measureLiteral, rows);
   }
+  if (context.periodRowsInM03 && measures.size) return {
+    usable: [...measures.values()].flat().some(hasSourceValue), locatedRecordCount: section.locatedRecordCount, unresolvedPointers: unresolved, blockers: section.blockers,
+    body: `<p>Số liệu bán từng kỳ của các sản phẩm được chọn nằm ở Phần 3; phần này không in lại.</p>${readerNotes(methods, 'M05', false)}`,
+  };
   let usable = false;
   const tables = [...measures].map(([measure, observations]) => {
     const windows = [...new Set(observations.map(row => row.period === null ? '' : `${row.period.start}/${row.period.end}`))].sort();
