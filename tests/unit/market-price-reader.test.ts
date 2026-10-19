@@ -217,9 +217,10 @@ test('reader digests pin the M08 badge control with capture headlines', async ()
   // Controls include 2480414f: capture changes M04/M13; no capture changes M13.
   // Neither input has inventory, so both retain M05's per-period tables.
   // Package C adds Phần 1 findings and its badge only to the capture control.
+  // Round-2 wording fix clarifies numeric zero and removes the extra space after '(' in current no-capture prose.
   for (const [reportInput, parent] of [
     [input, '047f2907d92b930a3fe0abe777e3c855825c7bb3d657dc9f591ff8cda3c3967b'],
-    [{ ...input, metricMethods }, '656af09747ca23b19913fbcacf49c88974fa7490620be97b6cfffa9e1ef2049c'],
+    [{ ...input, metricMethods }, '48d3f0368004f06e68809e8420404a3b1c462da2099a66cf0423360960b2e9db'],
   ] as const) {
     const html = buildResearchAutomationReport(reportInput, 'MARKET').html.toString();
     assert.equal(hash(html.replace('<span class="state">Có giá tham khảo, chưa xác minh</span>', '<span class="state">Có số liệu</span>')), parent);
