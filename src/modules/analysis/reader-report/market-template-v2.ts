@@ -22,6 +22,7 @@ import { Narrator } from './bundle.js';
 import { esc, plainCaptureNumbers } from './format.js';
 import { cover, makeExhibits, n, page, plat, platIcons, PLATFORM_LABEL, section as legacySection } from './layout.js';
 import { currentProposals } from './market-proposals.js';
+import { ACTION_LEAD, ACTION_NOTE, OPPORTUNITY_HEADINGS, OPPORTUNITY_READING, OPTION_HEADINGS, QUICK_WIN_HEADING, QUICK_WIN_HEADINGS, actionStartDay, isoFromReaderDay, marketActionPlan, opportunityExplanation, opportunityRows } from './market-actions.js';
 import { MARKET_TOC, readerWebResults, type BuiltMarketReport, type MarketReportOptions, type ReaderWebResult } from './market-template.js';
 import { CitationRegistry } from '../citation-registry.js';
 import { renderCitationMark, renderCitationRegister } from '../citation-register-html.js';
@@ -347,11 +348,23 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   const sellerVideoHtml = sellerVideos ? sellerVideoBlockHtml(sellerVideos, esc) + `<p class="ex-src">Nguồn: ${esc(sellerVideoSrc(sellerVideos))}</p>` : '';
   sections.push(section('M09', 'Động lực và rủi ro', 'Chưa đủ bằng chứng để kết luận nguyên nhân.', tbl('9.1', 'Ngày mở bán do nguồn ghi, giữ riêng từng dòng', '', ['Sàn', 'Tiêu đề nguồn', 'Ngày mở bán'], rows.map(row => [plat(row.platform), `<span data-quote>${esc(row.title)}</span>`, row.start === null || row.start === undefined ? 'Chưa rõ ngày' : label(row.start)])) + pdfExcerptHtml + sellerVideoHtml, [pdfExcerpts.length ? esc(PDF_EXCERPT_NOTE) : '', sellerVideos ? esc(sellerVideoNote(sellerVideos)) : ''].filter(Boolean).join(' ') || undefined));
   sections.push(section('M10', 'Dự báo và kịch bản', 'Chưa dự báo.', '<p>Cần chuỗi phù hợp và giả định đã kiểm chứng trước khi lập kịch bản.</p>'));
-  const proposals = currentProposals({ PLATS, coreSegs: profile.core, segName, bf, tbl, SRC: sourceText });
-  sections.push(...(next ? proposals.map((html, index) => index === 1
-    ? html.replace(/Rà phạm vi dữ liệu đã lưu/iu, 'Việc làm nhanh: rà phạm vi dữ liệu đã lưu')
-      .replace(/(?:Trước khi dùng báo cáo cho quyết định|Sau khi rà phạm vi, trước kết luận|Sau khi xác định đúng nhóm sản phẩm)/giu, 'Hạn: chủ chọn')
-    : html) : proposals));
+  const nextActionSections = (): string[] => {
+    const reviewsCollected = Boolean(options.testReviewSample && exactTestReviewSample(options.testReviewSample)?.listings.some(row => row.reviews > 0));
+    const startDay = actionStartDay(/^\d{2}\/\d{2}\/\d{4}$/u.test(options.builtOn) ? isoFromReaderDay(options.builtOn) : null,
+      source.measurementPeriod.end, source.measurementPeriod.start);
+    const plan = marketActionPlan(rows, { reviewsCollected, startDay });
+    const opportunity = plan.hasFigures ? tbl('11.1', 'Cơ hội trong mẫu, ghi riêng từng sàn (đề xuất, chờ chủ duyệt)', '', [...OPPORTUNITY_HEADINGS].map(esc),
+      opportunityRows(plan.signals).map(row => row.map(label)), { note: esc(OPPORTUNITY_READING) }) : '';
+    const options12 = tbl('12.1', 'Phương án đề xuất, chờ chủ duyệt', '', [...OPTION_HEADINGS].map(esc),
+      plan.options.map(option => [label(option.name), option.related.map(line => label(line)).join('<br>'), label(option.firstStep), label(option.owner), label(option.deadline)]),
+      { src: 'TDN đề xuất từ doanh thu trong mẫu, ghi riêng từng sàn.' });
+    const quick = tbl('12.2', 'Việc làm ngay, không tốn chi phí (đề xuất, chờ chủ duyệt)', '', [...QUICK_WIN_HEADINGS].map(esc),
+      plan.quickWins.map(win => [win.task, win.owner, win.deadline, win.output].map(cell => label(cell))), { src: 'TDN đề xuất.' });
+    return [section('M11', 'Cơ hội', esc(opportunityExplanation(plan.hasFigures, reviewsCollected)), opportunity),
+      section('M12', 'Khuyến nghị và hành động', esc(ACTION_LEAD), `${options12}<h3>${esc(QUICK_WIN_HEADING)}</h3>${quick}`, esc(ACTION_NOTE))];
+  };
+  // 1.4.0 readers use the same sample signals in Phần 11/12; legacy bytes stay as they were.
+  sections.push(...(next ? nextActionSections() : currentProposals({ PLATS, coreSegs: profile.core, segName, bf, tbl, SRC: sourceText })));
   const appendix = rows.map(row => {
     const value = (field: 'rev' | 'units' | 'asp'): string => {
       const id = `row.${row.i}.${field}`;

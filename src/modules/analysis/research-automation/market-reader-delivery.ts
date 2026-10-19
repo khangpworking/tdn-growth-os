@@ -129,6 +129,9 @@ function rangeSentence(head: string, rows: readonly { label: string; num: Num }[
 export function tableInterpretation(block: string): string {
   const table = block.match(/<table\b[\s\S]*?<\/table>/iu)?.[0];
   if (!table) return '';
+  // A table that carries its own reading (e.g. Phần 11) says how it was built; no generic sentence is derived for it.
+  const own = /^<table\b[^>]*\sdata-reading="([^"]*)"/u.exec(table)?.[1];
+  if (own !== undefined) return decode(own);
   const head = cells(table.match(/<thead\b[^>]*>([\s\S]*?)<\/thead>/iu)?.[1] ?? '');
   const rows = [...(table.match(/<tbody\b[^>]*>([\s\S]*?)<\/tbody>/iu)?.[1] ?? '').matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/giu)].map(match => cells(match[1] ?? ''));
   const count = `Bảng có ${rows.length} dòng.`;
@@ -314,7 +317,13 @@ export function deliverMarketReader(html: string, searchPoints?: readonly Search
   });
   body = body.replace(/<section class="sheet" id="(M\d\d)">([\s\S]*?)<\/section>/gu, (_all, id: string, inner: string) => {
     const annotated = DATA_SECTIONS.test(id) ? annotateExhibits(inner, searchPoints) : inner;
-    const data = /<table\b|<figure\b/u.test(annotated.replace(/<div class="table-wrap market14-proposals[\s\S]*?<\/table><\/div>/u, ''));
+    // Proposal tables only count as data when they cite in-sample figures.
+    let proposalFigures = false;
+    const evidence = id === 'M12' ? annotated.replace(/<div class="table-wrap market14-proposals(?: has-figures)?">[\s\S]*?<\/table><\/div>/gu, block => {
+      proposalFigures ||= block.startsWith('<div class="table-wrap market14-proposals has-figures">');
+      return '';
+    }) : annotated;
+    const data = /<table\b|<figure\b/u.test(evidence) || proposalFigures;
     const chip = id === 'M02' || id === 'M13' ? '' : `<span class="state">${data ? 'Có số liệu' : 'Chưa đủ dữ liệu'}</span>`;
     return `<section class="sheet" id="${id}">${annotated.replace(/<span class="state">[^<]*<\/span>/u, chip)}</section>`;
   });
