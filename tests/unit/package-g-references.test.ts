@@ -6,7 +6,7 @@ import { buildResearchAutomationReport, type AutomationReportInput } from '../..
 const targetCheckout = process.env.TDN_G_REFERENCES_TARGET_CHECKOUT;
 if (targetCheckout) {
   const pointer = readFileSync(resolve(targetCheckout, '.git'), 'utf8').trim().replace(/^gitdir: /u, '');
-  assert.equal(readFileSync(resolve(targetCheckout, pointer, 'HEAD'), 'utf8').trim(), REFERENCE_BASE);
+  assert.equal(readFileSync(resolve(targetCheckout, pointer, 'HEAD'), 'utf8').trim(), REFERENCE_REVIEW_BASE);
 }
 const builder = process.env.TDN_G_REFERENCES_TARGET_CHECKOUT
   ? (await import(pathToFileURL(resolve(process.env.TDN_G_REFERENCES_TARGET_CHECKOUT,
@@ -46,7 +46,8 @@ import { auditMarket14, assertMarket14MachineRules } from '../../src/modules/ana
 import { REFERENCE_BRAND, REFERENCE_DAY, REFERENCE_EXPECTED, REFERENCE_LABEL, REFERENCE_LONG_URL,
   REFERENCE_SHAPES, referenceIdentity, referenceInput, referencePdfInput, referenceRegistryFixture,
   type ReferenceShape } from '../helpers/package-g-references-fixture.js';
-import { referenceBaselineBytes, REFERENCE_BASE } from '../helpers/package-g-references-baselines.js';
+import { referenceBaselineBytes, REFERENCE_BASE, REFERENCE_REVIEW_BASE } from '../helpers/package-g-references-baselines.js';
+import { fullMarket14Input } from '../helpers/market14-full-fixture.js';
 
 const text = (node: Node | null | undefined): string => node?.textContent?.replace(/\s+/gu, ' ').trim() ?? '';
 const word = (term: string) => new RegExp(`(?<![\\p{L}\\p{N}_])${term.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}(?![\\p{L}\\p{N}_])`, 'iu');
@@ -302,6 +303,19 @@ test('machine rules: all three full reports retain every machine PASS', async t 
     assert.doesNotThrow(() => assertMarket14MachineRules(html));
     domFor(t, report);
   }
+});
+
+test('current reader without capture details spells out percentages outside share charts', async t => {
+  const input = await fullMarket14Input();
+  const { capture: _capture, ...metricMethods } = input.metricMethods!;
+  const report = renderCurrent({ ...input, metricMethods }), doc = domFor(t, report);
+  const prose = authored(doc);
+  assert.match(prose, /\d[\d,.]*(?:%| phần trăm)/u, 'the fixture actually contains percentage measurements');
+  const copy = doc.body.cloneNode(true) as HTMLElement;
+  for (const node of copy.querySelectorAll('q, [data-quote], blockquote, code, pre, svg, style, script, template, noscript, [hidden], [aria-hidden="true"], figure.market-chart')) node.remove();
+  assert.doesNotMatch(text(copy), /%/u, 'authored prose and table cells spell out percentages');
+  assert.doesNotMatch(text(copy), /\b0\s+(?:dòng|giá trị)|không phải 0/u, 'empty states spell out zero');
+  assert.doesNotThrow(() => assertMarket14MachineRules(report.html.toString()));
 });
 
 let byteControls: Promise<Record<string, Buffer>> | undefined;

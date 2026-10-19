@@ -8,7 +8,9 @@ import { mock } from 'node:test';
 
 // Usage: node --import tsx tests/helpers/package-g-references-baselines.ts CHECKOUT OUTPUT
 // Imports CHECKOUT's own builders AND existing input helpers. Never edits CHECKOUT.
+// Origin of the frozen fixtures; keep their provenance separate from the review target.
 export const REFERENCE_BASE = 'a9fc87f0b93ed63381f40eb9cbdfdd4c66da241b';
+export const REFERENCE_REVIEW_BASE = 'c7ce1e206f3312b4078a9394505692403195f5b7';
 export const REFERENCE_BASELINE_CLOCK = '2026-10-19T00:00:00.000Z';
 export async function referenceBaselineBytes(checkout: string): Promise<Record<string, Buffer>> {
   const load = (relative: string) => import(pathToFileURL(resolve(checkout, relative)).href);
@@ -31,7 +33,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   assert.ok(checkout && output, 'CHECKOUT and OUTPUT required');
   assert.ok(!resolve(output).startsWith(resolve(checkout) + sep), 'output must be outside the source checkout');
   const pointer = (await readFile(resolve(checkout, '.git'), 'utf8')).trim().replace(/^gitdir: /u, '');
-  assert.equal((await readFile(resolve(checkout, pointer, 'HEAD'), 'utf8')).trim(), REFERENCE_BASE);
+  assert.equal((await readFile(resolve(checkout, pointer, 'HEAD'), 'utf8')).trim(), REFERENCE_REVIEW_BASE);
   for (const name of ['TDN_CHROMIUM_PATH', 'TDN_RESEARCH_PDF_CHROMIUM', 'TDN_REQUIRE_BROWSER', 'TDN_BROWSER_EXECUTABLE', 'TDN_RESEARCH_CAPTURE_RELEVANCE_AI_MODEL']) {
     assert.equal(process.env[name], undefined, `${name} must be unset`);
   }
@@ -45,7 +47,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     manifest[name] = { bytes: html.length, sha256: createHash('sha256').update(html).digest('hex'),
       gzipSha256: createHash('sha256').update(compressed).digest('hex') };
   }
-  await writeFile(resolve(output, 'manifest.json'), JSON.stringify({ base: REFERENCE_BASE, clock: REFERENCE_BASELINE_CLOCK, files: manifest }, null, 2) + '\n');
+  await writeFile(resolve(output, 'manifest.json'), JSON.stringify({ base: REFERENCE_REVIEW_BASE, clock: REFERENCE_BASELINE_CLOCK, files: manifest }, null, 2) + '\n');
   const { referenceInput, REFERENCE_SHAPES } = await import('./package-g-references-fixture.js');
   const { buildResearchAutomationReport } = await import(pathToFileURL(resolve(checkout, 'src/modules/analysis/research-automation/reports.ts')).href);
   for (const shape of REFERENCE_SHAPES) {

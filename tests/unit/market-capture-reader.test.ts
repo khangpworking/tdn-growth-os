@@ -306,7 +306,7 @@ test('automation reports without capture pin the M13 pointer; without presentati
   const { capture: _capture, ...metricMethods } = input.metricMethods!;
   const { marketPresentation: _presentation, ...noPresentation } = input;
   const variants = [
-    { value: { ...input, metricMethods }, html: 'ea7c109d0eb7702b950e3212a845fed2a82187f5d30bf5731d7c244d8b9e8651', semantic: 'de585c1f267a1d36644443579f4b684e9767a6fa1b7502f3b87c465e3224c3fc', trace: '560a0ba0579c296a0865d351d6b68f0877ea9676694eb2c2057d5ae7e1ec0874' },
+    { value: { ...input, metricMethods }, html: '53798915ad0a762ea55098fe8b0cfda57e5942b5660bfc32eb49cf309059b80e', semantic: 'de585c1f267a1d36644443579f4b684e9767a6fa1b7502f3b87c465e3224c3fc', trace: '560a0ba0579c296a0865d351d6b68f0877ea9676694eb2c2057d5ae7e1ec0874' },
     { value: noPresentation, html: '92ada31fa0a8a276d05aedc38fe418c3b5204f0750ef89020453a998526c6da9', semantic: '89b388819561c90b6082847afb079b85aa911457862ca7d542d5335860c3f8a5', trace: null },
   ];
   for (const variant of variants) {
