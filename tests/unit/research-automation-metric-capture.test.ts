@@ -8,6 +8,7 @@ import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { validateMetricWebSnapshot } from '../../src/modules/analysis/research-automation/metric-web-snapshot.js';
 import { MAX_METRIC_CAPTURE_BYTES, MetricCaptureRejection, verifyMetricCaptureArchive } from '../../src/modules/analysis/research-automation/metric-capture-intake.js';
 import { readerRowsFromMetricCapture } from '../../src/modules/analysis/reader-report/metric-capture-rows.js';
+import { CAPTURE_ROW_PROFILE, CAPTURE_ROW_PROFILE_V2 } from '../../src/modules/analysis/research-automation/capture-row-quality.js';
 
 const captureUrl = new URL('../../tools/opencli-metric/clis/metric/capture.js', import.meta.url);
 const metricUrl = new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url);
@@ -96,6 +97,36 @@ test('capture rows split platforms, preserve unknown attribution, and use stable
   assert.equal(first.unattributed[0]!.platform, 'unknown');
   assert.equal(first.unattributed[0]!.listingSynthetic, true);
   assert.equal(first.unattributed[0]!.listing, second.unattributed[0]!.listing);
+});
+
+test('reader rows replay v2 and v3 on identical source bytes, preserving lineage and exclusion reasons', () => {
+  const draft = snapshotFixture();
+  draft.scope.keywords = ['quạt điện'];
+  const table = draft.groups.W12_topProducts;
+  assert.ok(!('absent' in table));
+  const names = ['Trục quạt điện mẫu thử', 'Quạt điện lắc đầu mẫu thử', 'Chiết áp mẫu thử quạt điện', 'Đầu mùa sale Quạt điện mẫu thử', 'Motor quạt điện'];
+  table.rows = names.map((name, i) => {
+    const row = structuredClone(table.rows[i % 2]!);
+    const cells = row.cells as Record<string, { text?: string; value?: number | null; displayed?: string }>;
+    cells.name!.text = name;
+    cells.revenue!.value = 100; cells.revenue!.displayed = '100';
+    cells.units!.value = 1; cells.units!.displayed = '1';
+    return row;
+  });
+  const snapshot = validateMetricWebSnapshot(draft), retained = canonicalJson(snapshot);
+  const v2 = readerRowsFromMetricCapture(snapshot, ['shopee', 'tiktok'], CAPTURE_ROW_PROFILE_V2);
+  const v3 = readerRowsFromMetricCapture(snapshot, ['shopee', 'tiktok'], CAPTURE_ROW_PROFILE);
+  assert.deepEqual(v2.rows.map(row => row.title), names.slice(0, 4));
+  assert.deepEqual(v2.excluded.map(row => [row.title, row.reason]), [[names[4], 'NOT_MAIN_PRODUCT']]);
+  assert.deepEqual(v3.rows.map(row => row.title), [names[1], names[3]]);
+  assert.deepEqual(v3.excluded.map(row => [row.title, row.reason]), [names[0], names[2], names[4]].map(name => [name, 'NOT_MAIN_PRODUCT']));
+  assert.deepEqual(readerRowsFromMetricCapture(snapshot, ['shopee', 'tiktok']), v3, 'default is latest');
+  const keptV2 = v2.rows.find(row => row.title === names[1])!;
+  assert.deepEqual(v3.rows[0], keptV2, 'row identity and raw position do not depend on filtering');
+  const v1 = readerRowsFromMetricCapture(snapshot, ['shopee', 'tiktok'], 'automation-metric-capture-v1');
+  assert.equal(v1.rows.length, names.length, 'v1 negative control retains even old accessory prefixes');
+  assert.deepEqual(v1.excluded, []);
+  assert.equal(canonicalJson(snapshot), retained);
 });
 
 test('capture archive validates pretty JSON bytes and refuses digest, gate, schema, and size failures with typed codes', () => {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { splitCaptureNameCell, isMainCapturedProduct, captureRowExclusions, captureExclusionNotice } from '../../src/modules/analysis/research-automation/capture-row-quality.js';
+import { CAPTURE_ROW_PROFILE, CAPTURE_ROW_PROFILE_V2, isCaptureRowProfile, splitCaptureNameCell, isMainCapturedProduct, captureRowExclusions, captureExclusionNotice } from '../../src/modules/analysis/research-automation/capture-row-quality.js';
 import { plainCaptureNumbers } from '../../src/modules/analysis/reader-report/format.js';
 
 test('name cell splits tolerant spacing and case; explicit shops win and unmatched cells are unchanged', () => {
@@ -29,6 +29,67 @@ test('generic prefix rule keeps title suffixes and promotional prefixes, across 
   for (const [title, keyword, expected] of cases) assert.equal(isMainCapturedProduct(title, keyword), expected, title);
   assert.equal(isMainCapturedProduct('SON môi'.normalize('NFD'), 'son'), true);
   assert.equal(isMainCapturedProduct('SON môi', 'sơn'), false);
+});
+
+test('v3 adds part prefixes and adjacent words while the same titles retain their frozen v2 answers', () => {
+  assert.equal(CAPTURE_ROW_PROFILE, 'automation-metric-capture-v3');
+  assert.equal(CAPTURE_ROW_PROFILE_V2, 'automation-metric-capture-v2');
+  const adjacent = ['trục', 'đầu', 'đế', 'lốc', 'cuộn', 'núm', 'lưới', 'mạch', 'chân'];
+  const prefixes = ['stato', 'chiết áp', 'chuyển đổi', 'đọng cơ', 'bánh răng', 'phụ tùng'];
+  const rejected = [
+    ...adjacent.map(word => `Mẫu thử ${word} quạt điện mini`),
+    ...prefixes.map(word => `Mẫu thử ${word} loại nhỏ dành riêng Quạt điện`),
+    'Trục Quạt Điện,Cốt Quạt Điện,Mẫu A B C',
+    'Mẫu thử Đầu quạt không chổi than điện áp thấp',
+    'Đầu quạt không chổi than loại mini',
+    'Lốc quạt Mẫu A cuộn stato',
+    'LỐC QUẠT ĐIỆN DÂY ĐỒNG - STATOR MẪU THỬ',
+    'CÓ ĐÈN LED Đế chuyển đổi nguồn điện Cắm Được Quạt Điện mẫu thử',
+    'ĐỌNG CƠ QUẠT ĐIỆN MẪU A - LOẠI CÓ REN',
+    'Chiết áp tăng giảm tốc độ quạt điện mẫu thử',
+  ];
+  for (const title of rejected) for (const normalized of [title, title.toUpperCase(), title.normalize('NFD')]) {
+    assert.equal(isMainCapturedProduct(normalized, 'quạt điện'.normalize('NFD')), false, title);
+    assert.equal(isMainCapturedProduct(normalized, 'quạt điện', CAPTURE_ROW_PROFILE_V2), true, `v2: ${title}`);
+  }
+  // Frozen v2 prefixes still reject in both versions, including when separated from the head.
+  for (const profile of [CAPTURE_ROW_PROFILE_V2, CAPTURE_ROW_PROFILE]) {
+    assert.equal(isMainCapturedProduct('Motor mẫu thử quạt điện', 'quạt điện', profile), false);
+    assert.equal(isMainCapturedProduct('Cánh mẫu thử quạt điện', 'quạt điện', profile), false);
+  }
+});
+
+test('v3 keeps head-first fans and non-adjacent short words, with whole accented tokens', () => {
+  const kept = [
+    'Quạt điện để bàn mẫu thử xoay đầu tự động', 'Quạt điện mới lắc đầu mẫu thử',
+    'Quạt điện để bàn để đầu giường mẫu thử', 'Quạt điện ô tô Hai đầu quạt tuỳ chỉnh',
+    'Mẫu thử Quạt điện gắn sau ghế có tích hợp đèn LED', 'Mẫu F Bạo lực Quạt điện Máy thổi khí',
+    'QUẠT ĐIỀU HÒA HƠI NƯỚC MẪU THỬ', 'Đầu mùa sale Quạt điện mẫu thử',
+    ...['trục', 'đầu', 'đế', 'lốc', 'cuộn', 'núm', 'lưới', 'mạch', 'chân'].map(word => `${word} mùa sale Quạt điện`),
+    ...['stato', 'chiết áp', 'chuyển đổi', 'đọng cơ', 'bánh răng', 'phụ tùng'].map(word => `Quạt điện kèm ${word}`),
+    'Mẫu statorish quạt điện', 'Dau quat dien',
+  ];
+  for (const title of kept) for (const profile of [CAPTURE_ROW_PROFILE_V2, CAPTURE_ROW_PROFILE])
+    assert.equal(isMainCapturedProduct(title.normalize('NFD'), title === 'Dau quat dien' ? 'quat dien' : 'quạt điện', profile), true, title);
+  assert.equal(isMainCapturedProduct('Đầu, QUẠT điện', 'quạt điện'), false, 'punctuation preserves token adjacency');
+  assert.equal(isMainCapturedProduct('Dau quạt điện', 'quạt điện'), true, 'accents are not stripped');
+  assert.equal(isMainCapturedProduct('Đầu quat dien', 'quạt điện'), false, 'unaccented heads do not match accented keywords');
+});
+
+test('row exclusions use the requested profile and never reinterpret retained v2 parts as v3', () => {
+  const rows = ['Trục quạt điện', 'Chiết áp mẫu thử Quạt điện', 'Quạt điện lắc đầu', 'Đầu mùa sale Quạt điện', 'Motor quạt điện']
+    .map(title => ({ title, platform: 'shopee', revenue: 100, units: 1 }));
+  const retained = structuredClone(rows);
+  assert.deepEqual([...captureRowExclusions(rows, ['quạt điện'], CAPTURE_ROW_PROFILE_V2)], [[4, 'NOT_MAIN_PRODUCT']]);
+  assert.deepEqual([...captureRowExclusions(rows, ['quạt điện'], CAPTURE_ROW_PROFILE)], [[0, 'NOT_MAIN_PRODUCT'], [1, 'NOT_MAIN_PRODUCT'], [4, 'NOT_MAIN_PRODUCT']]);
+  assert.deepEqual(captureRowExclusions(rows, ['quạt điện']), captureRowExclusions(rows, ['quạt điện'], CAPTURE_ROW_PROFILE));
+  assert.deepEqual(rows, retained);
+});
+
+test('capture profile guard accepts exactly v2 and v3, including rejecting non-string values', () => {
+  for (const value of ['automation-metric-capture-v2', 'automation-metric-capture-v3']) assert.equal(isCaptureRowProfile(value), true);
+  for (const value of ['automation-metric-capture-v1', 'automation-metric-capture-v4', '', 'AUTOMATION-METRIC-CAPTURE-V3', null, undefined, 3, true, {}, [], new String(CAPTURE_ROW_PROFILE)])
+    assert.equal(isCaptureRowProfile(value), false, String(value));
 });
 
 test('plausibility uses relevant rows only, each platform separately, strict twenty-fold threshold and honest missing units', () => {

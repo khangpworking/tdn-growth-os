@@ -185,3 +185,16 @@ test('Shopee pick rejects accessories and implausible revenue using the same gen
     row('Bình giữ nhiệt F', 67, 6000000, { order_custom: null })];
   assert.deepEqual(pickShopeeLinks(raw(rows), ['bình giữ nhiệt']).links.map(link => link.shopId), ['63','62','61']);
 });
+
+test('pick v3 excludes newly recognized parts while keeping head-first and non-adjacent fan titles', () => {
+  assert.equal(AUTORUN_PICK_RULE_VERSION, 'autorun-pick-v3');
+  const rows = [row('Trục quạt điện mẫu thử', 71, 900, { order_custom: 9 }),
+    row('Chiết áp mẫu thử Quạt điện', 72, 800, { order_custom: 8 }),
+    row('Quạt điện mẫu thử xoay đầu tự động', 73, 300, { order_custom: 3 }),
+    row('Đầu mùa sale Quạt điện mẫu thử', 74, 200, { order_custom: 2 })];
+  const picked = pickShopeeLinks(raw(rows), ['quạt điện']);
+  assert.equal(picked.pickRuleVersion, 'autorun-pick-v3');
+  assert.deepEqual(picked.links.map(link => link.shopId), ['73', '74']);
+  assert.equal(picked.counts.eligible, 2);
+  assert.deepEqual(pickShopeeLinks(raw(rows.slice(0, 2)), ['quạt điện']).links, []);
+});
