@@ -1,0 +1,70 @@
+{
+  "insight-with-inventory": {
+    "html": "7163940cc6c424f6c1a2fc73c7af9458e1a50d3957adaa8d43802a8caf6ba08d",
+    "semantic": "28f51e145f88ca16d2c7b71333e2c3be81c7cbc6d7a10ef6ec097b7f41c89206",
+    "trace": null,
+    "deliveryIdempotent": false,
+    "bytes": {
+      "html": 203160,
+      "semantic": 9690,
+      "trace": null
+    }
+  },
+  "legacy-market-with-inventory": {
+    "html": "14b31a74b9fde694663dd72238b0bab9f16dc6238c3440a568f4fcc84b6f76f7",
+    "semantic": "c23309345cdf5ab594cc4b47e56d779650d3e3cce65a53adc005d730548c75f0",
+    "trace": null,
+    "deliveryIdempotent": false,
+    "bytes": {
+      "html": 299282,
+      "semantic": 82204,
+      "trace": null
+    }
+  },
+  "market14-without-inventory": {
+    "html": "0bec39867725e9d4b0d6c51908bc2adaaf9e184d2be7a271e6846d01890a5a86",
+    "semantic": "671089c001264c32f0f88002ad4b9aedc713667fbafc7327ccfa1b2d5f4bd57a",
+    "trace": "db6b70b5f75c669e0ab042d4bba922235121746dc0e91149d547a5dbf8faa2d8",
+    "deliveryIdempotent": false,
+    "bytes": {
+      "html": 344077,
+      "semantic": 95170,
+      "trace": 345256
+    }
+  },
+  "market14-with-inventory": {
+    "html": "5d374e619015b6b0fc1141c70e08cbf738d9ca37411afa01bfcdb960abf163d2",
+    "semantic": "493223919d1ac1fc4c2dcee5aef16f7221e866686dcc1355c04ede741881177c",
+    "trace": "32aa48e855814a7a37aef97b324a03c5c6b148ea8eb41c05cf4c6ff87aae74e7",
+    "deliveryIdempotent": false,
+    "bytes": {
+      "html": 332829,
+      "semantic": 99846,
+      "trace": 343566
+    }
+  },
+  "empty-M03": {
+    "html": "5bfa324e6bd39bcf72d1a13a5a534cee622d0a319845e5696d97f46a5591f054",
+    "semantic": "61b706157939e01908727c95adc9211107392a3da63407d5a786a2d566d34d5b",
+    "trace": null,
+    "deliveryIdempotent": true
+  },
+  "empty-M08": {
+    "html": "bd4c05485331f919df6eb34c43412e44185b3a53c7bd40424267c33cc148403f",
+    "semantic": "61b706157939e01908727c95adc9211107392a3da63407d5a786a2d566d34d5b",
+    "trace": null,
+    "deliveryIdempotent": true
+  },
+  "no-sales-M03": {
+    "html": "7e62dd664346a122cb8a6b2314f064d4ccbebb1a792d31c5a95811a5f023c21b",
+    "semantic": "28377446a5fa12d04a11e3f922379579257c8c79cfce6120baf22cafeb4093f3",
+    "trace": null,
+    "deliveryIdempotent": true
+  },
+  "no-sales-M08": {
+    "html": "1d25cf607fa35bfbb12481bf38a6477bbec9f5c528419c239e88f7580d5034db",
+    "semantic": "28377446a5fa12d04a11e3f922379579257c8c79cfce6120baf22cafeb4093f3",
+    "trace": null,
+    "deliveryIdempotent": true
+  }
+}

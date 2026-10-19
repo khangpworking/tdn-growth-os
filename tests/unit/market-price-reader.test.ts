@@ -73,7 +73,7 @@ test('prices use one latest capture per product, with labels and platform, valid
   assert.equal(visible.split(caveat).length - 1, 1);
   assert.doesNotMatch(visible, banned);
   assert.doesNotMatch(visible, /(?:^|\s)0(?:\s|$)|0 VND|#\d|374\.467|52\.000/u);
-  assert.match(visible, /Giá bình quân \(doanh thu ÷ số đã bán, ước tính\)/u);
+  assert.match(visible, /Giá bình quân do nguồn tính \(ước tính\)/u);
   const reading = doc.querySelector('.interp')!;
   assert.ok(reading.querySelector('sup.cite'), 'interpretation carries the price sources');
   assert.doesNotMatch(reading.textContent!, /mức thấp là 0\b/u);
@@ -182,7 +182,7 @@ test('detail figures show their actual query window and one note explaining the 
   const snapshot = inventory(), before = canonicalJson(snapshot);
   const html = marketInventorySection(snapshot, 'M03', { mark: () => '[1]' }, labels, true, context);
   const doc = new JSDOM(html).window.document;
-  for (const row of doc.querySelectorAll('tbody tr')) assert.equal(row.querySelectorAll('td')[1]!.textContent, '01/08/2026 đến 30/08/2026');
+  for (const row of doc.querySelectorAll('tbody tr')) assert.equal(row.querySelectorAll('td')[2]!.textContent, '01/08/2026 đến 30/08/2026');
   assert.doesNotMatch(doc.body.textContent!, /12\/09\/2026|11\/10\/2026/u);
   assert.equal(doc.querySelectorAll('p.lim').length, 1);
   assert.match(doc.querySelector('p.lim')!.textContent!, /Chú thích: Số liệu mẫu lấy từ trang kết quả tìm kiếm đã lưu; doanh thu chi tiết lấy từ trang sản phẩm theo kỳ riêng/u);
