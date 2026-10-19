@@ -910,7 +910,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     }
     if (marketPresentation && (section.sectionId === 'M01' || section.sectionId === 'M08')) {
       locatedViews.set(section.sectionId, () => section.sectionId === 'M01'
-        ? renderAutomationMarketFindings(marketPresentation, citations, readerPlainText, input.metricMethods?.capture) : renderAutomationMarketUnitPrices(marketPresentation, citations, readerPlainText));
+        ? renderAutomationMarketFindings(marketPresentation, citations, readerPlainText, input.metricMethods?.capture) : renderAutomationMarketUnitPrices(marketPresentation, citations, readerPlainText, Boolean(input.marketInventory?.quotes.input.quotes.length)));
       return { sectionId: section.sectionId, title: section.title, state: 'EVIDENCE_INVENTORY', rows: [],
         method: marketPresentation.methodVersion,
         explanation: section.sectionId === 'M01' ? 'Nhận định chỉ mô tả dữ liệu đã lưu trong phạm vi khai báo.'
@@ -1127,6 +1127,8 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   ]).filter(Boolean);
   const noCaptureRow = `<tr><td colspan="4">Lượt này không có bản thu từ truy vấn nguồn mới.${retainedSources.length ? ` Nguồn đã lưu và gắn với lượt vẫn được dùng ở: ${retainedSources.join('; ')}.` : ''}</td></tr>`;
   const labels = productLabels(input);
+  const inventoryReader = marketPresentation ? { platforms: new Map([...(input.collection?.productCards ?? []), ...(input.run.productCards ?? [])]
+    .map(card => [card.productId, card.provider === 'kalodata' ? 'tiktok' : card.productId.startsWith('shopee:') ? 'shopee' : ''] as const)) } : undefined;
   // Discovery exchanges are technical receipts; only verified PDF excerpts earn visible S25 citations.
   const discoverySearchIndex = input.collection?.pdfDiscovery?.search.captureIndex;
   const visibleCaptures = input.captures.filter(capture => !(capture.stepId === 'COLLECTION' &&
@@ -1362,11 +1364,11 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     }
     if (kind === 'INSIGHT' && sectionId === 'I14' && input.i14Admission && input.sourceClaims) return i14SynthesisSection(input.i14Synthesis, citations, false) + i14AdmissionSection(input.i14Admission, input.sourceClaims, citations, false);
     if (kind === 'MARKET' && (sectionId === 'M03' || sectionId === 'M04')) {
-       if (input.metricMethods) return metricMethodSection(input.metricMethods, sectionId, input.metricClassified, citations, Boolean(marketPresentation), readerPlainText) + (sectionId === 'M03' && input.marketInventory ? (readerPlainText ? '<h3>Số liệu từng kỳ của các sản phẩm được chọn (đọc riêng, không cộng vào bảng mẫu)</h3>' : '<h3>Bằng chứng riêng của nguồn sàn: không cộng vào số liệu nguồn</h3>') + marketInventorySection(input.marketInventory, sectionId, citations, labels, readerPlainText) : '');
+       if (input.metricMethods) return metricMethodSection(input.metricMethods, sectionId, input.metricClassified, citations, Boolean(marketPresentation), readerPlainText) + (sectionId === 'M03' && input.marketInventory ? (readerPlainText ? '<h3>Số liệu từng kỳ của các sản phẩm được chọn (đọc riêng, không cộng vào bảng mẫu)</h3>' : '<h3>Bằng chứng riêng của nguồn sàn: không cộng vào số liệu nguồn</h3>') + marketInventorySection(input.marketInventory, sectionId, citations, labels, readerPlainText, inventoryReader) : '');
       if (input.metricMethodsFailure) return `<p class="warning">${escape(metricFailureCopy[input.metricMethodsFailure].next)}</p>` + codeNote(input.metricMethodsFailure);
     }
     if (kind === 'MARKET' && (sectionId === 'M03' || sectionId === 'M08')) {
-      if (input.marketInventory) return marketInventorySection(input.marketInventory, sectionId, citations, labels, readerPlainText);
+      if (input.marketInventory) return marketInventorySection(input.marketInventory, sectionId, citations, labels, readerPlainText, inventoryReader);
       if (input.marketInventoryFailure) return '<p class="warning">Đã thử xử lý inventory nhưng nguồn hoặc phương pháp không vượt qua kiểm tra; không tự gọi lại nguồn.</p>' + codeNote('MARKET_INVENTORY_FAILED');
     }
     if (sourceScope && sectionId === 'M13' && traceAppendix(sectionId)) return marketSourceScopeSection(sourceScope, 'M13', citations, readerPlainText) + descriptiveAppendix(descriptive, input.descriptiveMethodFailure, readerPlainText, readerPlainText);

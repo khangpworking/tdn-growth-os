@@ -163,7 +163,8 @@ test('Market capture copy has explained rendering digests; Insight digests remai
   // and retained M03 findings in the trace. No retained method or Insight bytes change.
   // The reader proofread (Vietnamese terms, used-term glossary, shared citation numbers) changes only rendered bytes.
   // M14/M15/M16/M27/L11/L12 context copy (completed search weeks, row bases, short CPI citations, unscaled per-person charts, neutral province copy) is render-only too.
-  assert.equal(digest(market.html), '1b2cb8b3ad4d0bd8d0a4cc6ff52551167799e22a748ac20c83d1c74cc9956c55');
+  // Phần 8 now labels the observed prices as references awaiting verification.
+  assert.equal(digest(market.html), 'f1d52c84a137d66189b8890d4ab6c5f28cc0900696c7f08864f5cccad393cc6a');
   // All nine semantic citations remain. The sample calculation moves from citation 1 to 3;
   // the per-platform calculation moves from 3 to 1 and gains methodVersion/rounding metadata.
   // These are the only semantic differences from eedcb369.
