@@ -208,7 +208,7 @@ test('capture sample wording is idempotent, avoids repeated saved wording, and p
 
 // Without capture, the presentation copy changes only by the reader proofread and the context copy; semantic bytes stay at eedcb369.
 // The no-presentation html differs only by the fixture's charts from the current renderers; legacy chart bytes stay pinned at bfdaca27 in macro-charts-report.
-test('automation reports without capture or presentation keep eedcb369 semantic and legacy bytes', async () => {
+test('automation reports without capture or presentation retain semantic pins with explained rendering changes', async () => {
   const input = await fullMarket14Input();
   const { capture: _capture, ...metricMethods } = input.metricMethods!;
   const { marketPresentation: _presentation, ...noPresentation } = input;
@@ -235,6 +235,9 @@ test('row policy number formatting runs after reader delivery and leaves semanti
     for (const kind of ['MARKET', 'INSIGHT'] as const) {
       const before = buildResearchAutomationReport(original, kind);
       const after = buildResearchAutomationReport(withPolicy, kind);
+      const chartSvgs = (html: string) => html.match(/<svg\b[\s\S]*?<\/svg>/gu) ?? [];
+      assert.deepEqual(chartSvgs(after.html.toString()), chartSvgs(before.html.toString()),
+        `${kind}, presentation=${presentation}: number formatting must preserve chart SVG bytes, including zero ticks`);
       // Main also changes M03's authored missing-value phrase for this marker.
       const expectedHtml = kind === 'MARKET' ? plainCaptureNumbers(before.html.toString()
         .replaceAll('không đổi thành 0.</p><dl class="reader-context">', 'không đổi thành số không.</p><dl class="reader-context">'))
