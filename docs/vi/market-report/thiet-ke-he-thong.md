@@ -4,6 +4,8 @@ Mục đích: giải thích mục tiêu, kiến trúc, luồng dữ liệu, các
 
 Cập nhật: 20/10/2026 · Commit chính: `e9e0f444`
 
+> Bản cập nhật 20/10/2026. Bản trước: [bản 20/10/2026 trước khi sửa](../../outdated/2026-10-20/docs/vi/market-report/thiet-ke-he-thong.md).
+
 ## Mục lục
 
 - Phần 1. Mục tiêu và ngoài phạm vi
@@ -233,8 +235,8 @@ Luồng một phiên, nói gọn:
 
 ## Phần 7. Vấn đề còn mở
 
-- **Gói PR #348 (G-references):** người rà soát đã đạt hai lần ở head `72c86105`. CI báo 3 mốc test cũ (ghi trước khi có GR). Cần cập nhật các mốc này sau khi gộp `main` vào nhánh, rồi review lại, chạy CI và gộp. Gói chưa vào bản đang chạy thật.
-- **Gói F+** (biểu đồ cho người đọc hiện tại, đánh số exhibit, tham chiếu dòng, đơn vị): mã đã xong; đang chờ kiểm thử, rà soát, PR, CI. Chưa làm: gộp và triển khai.
+- **Gói PR #348 (G-references):** người rà soát đã đạt. Nhánh đã gộp `main`. Hai mốc kiểm thử cũ đã được cập nhật. Lần rà soát ngắn sau đó cũng đạt. Việc tiếp theo: chờ CI, gộp. Gói chưa vào bản đang chạy thật.
+- **Gói F+** (biểu đồ cho người đọc hiện tại, đánh số exhibit, tham chiếu dòng, đơn vị): mã và kiểm thử đã xong trên nhánh `wp/f-plus-209`. Chưa có PR. Việc tiếp theo: rà soát, PR, CI, gộp. Chưa triển khai.
 - **Triển khai sau gộp:** chờ câu «deploy <SHA>» của chủ sở hữu. Lần triển khai kèm ba thay đổi cờ: bật cờ mô hình độ liên quan, bật nguồn đánh giá công khai Shopee với trần 300 và gỡ dòng trần tiền Shopee cũ. Sau đó chạy canary ít nhất 3 sản phẩm và chấm bản v2 tự động.
 - **Kalodata, tùy chọn B–E:** chờ chủ sở hữu quyết định.
 - **Chi tiết lượt trình bày lại v2:** việc bản nháp đầu có qua cổng kiểm định riêng hay không, và đầu vào cho AI, cần đối chiếu thêm trong `service.ts` (cần xác nhận).

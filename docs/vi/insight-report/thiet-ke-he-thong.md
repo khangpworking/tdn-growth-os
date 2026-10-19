@@ -10,6 +10,8 @@ Mục đích: mô tả thiết kế hệ thống báo cáo Insight. Tài liệu 
 - câu hỏi cho chủ dự án.
 
 Cập nhật: 20/10/2026 · Commit chính: `e9e0f444`
+
+> Bản cập nhật 20/10/2026. Bản trước: [bản 20/10/2026 trước khi sửa](../../outdated/2026-10-20/docs/vi/insight-report/thiet-ke-he-thong.md).
 Commit chính: `e9e0f444` (nhánh `main`)
 
 > Trạng thái: TẠM NGỪNG (chủ dự án, 19/10/2026). Tài liệu mô tả mã hiện có; phần chưa có ghi "Kế hoạch".
@@ -252,7 +254,7 @@ Quy trình làm việc:
 
 - Một mô hình AI viết mã.
 - Một mô hình AI khác viết kiểm thử (có đối chứng âm) và duyệt. Mỗi vai dùng một phiên mới.
-- Mỗi gói có một PR. Tối đa 3 PR mở cùng lúc.
+- Mỗi gói có một PR. Thường mở tối đa 2 gói cùng lúc. Gói thứ ba chỉ mở khi xếp chồng lên PR của gói trước.
 
 ```mermaid
 flowchart LR

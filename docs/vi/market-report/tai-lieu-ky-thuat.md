@@ -4,6 +4,8 @@ Mục đích: mô tả báo cáo Thị trường tự động. Tài liệu gồm
 
 Cập nhật: 20/10/2026 · Commit chính: `e9e0f444`
 
+> Bản cập nhật 20/10/2026. Bản trước: [bản 20/10/2026 trước khi sửa](../../outdated/2026-10-20/docs/vi/market-report/tai-lieu-ky-thuat.md).
+
 Quy ước: đường dẫn là tương đối so với gốc repo. Chỗ nào chưa xác nhận trong mã đã đọc thì ghi "(cần xác nhận)". Mục chưa làm ghi "Chưa làm" hoặc "Kế hoạch".
 
 ## Mục lục
@@ -280,8 +282,9 @@ Quy ước dự án:
 - Ngay sau triển khai: chạy canary ít nhất 3 sản phẩm và chấm bản v2 tự động theo 14 quy tắc.
 - Trạng thái hiện tại (cần xác nhận lúc đọc):
   - Bản đang chạy thật là `f026acd9`.
-  - `main` là `e9e0f444`.
-  - PR #348 (G-references) và gói F+ chưa vào bản chạy thật.
+  - Mã mới nhất trên `main` là `e9e0f444`. Các lần gộp sau đó chỉ đổi tài liệu.
+  - Các PR #345, #346 và #347 đã gộp vào `main` nhưng chưa triển khai.
+  - PR #348 (G-references) và gói F+ chưa gộp.
 
 ## Phần 10. Xử lý sự cố
 

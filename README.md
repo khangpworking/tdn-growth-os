@@ -1,5 +1,7 @@
 # TDN Growth Operating System
 
+> Bản cập nhật 20/10/2026. Bản trước: [bản 20/10/2026 trước khi sửa](docs/outdated/2026-10-20/README.md).
+
 **Tài liệu tiếng Việt:** xem [docs/vi](docs/vi/README.md). Mọi hướng dẫn sử dụng, tài liệu kỹ thuật, thiết kế hệ thống và báo cáo tiến độ nằm ở đó.
 
 Hệ thống nghiên cứu và vận hành kinh doanh canxi, phát triển bởi một người với AI coding.
@@ -8,25 +10,19 @@ Hệ thống nghiên cứu và vận hành kinh doanh canxi, phát triển bởi
 
 Trạng thái: modular monolith TypeScript/SQLite đã có các lát cắt foundation, analysis, governance/flow và Shopee research được kiểm thử; xem `docs/STATUS.md` để biết năng lực và giới hạn đã xác minh.
 
-Ultimate alignment is being delivered in bounded, independently reviewed packages.
-The eleven-card source board, versioned Market reader corrections, bounded L9 core,
-draft/Insight defaults, sales-backed default peers and bounded receipt-free Insight
-drafts are merged. PRs #174/#175 add family draft counts, an I11 count bridge,
-Market reader findings, retained-spec unit prices and shared visible-text lint.
-PR #177 adds authenticated listing-spec intake; PR #172 adds retained keyword
-drafting, a web L9 consumer and bounded source disclosure. U-03, U-12, U-27 and
-U-34 remain partial; future collector placeholders remain inactive.
-See [current implementation evidence and limits](docs/STATUS.md#ultimate-alignment--implementation-run-08102026).
+Trạng thái hiện tại (20/10/2026): báo cáo Market tự động đã chạy thật. Báo cáo Insight tạm dừng từ 19/10/2026.
+Xem tài liệu tiếng Việt đầy đủ ở [docs/vi](docs/vi/README.md).
+Xem khối "Trạng thái hiện tại · 20/10/2026" ở đầu [docs/STATUS.md](docs/STATUS.md).
 
 ## Bắt đầu
 
 Bối cảnh thiết kế đang thảo luận: [INTENT.md](INTENT.md) — quyết định đã thống nhất, phần để sau và câu hỏi tiếp tục phỏng vấn.
 
-Frontend mới đã chốt **React + Vite + TypeScript**, thay thế lựa chọn frontend cũ trong brief kiến trúc: xem [ADR 0002](docs/adr/0002-react-vite-typescript-frontend.md), [Product context](PRODUCT.md) và [brief UX B7–B10](docs/frontend/product-workspace-brief.vi.md). Các tài liệu này chưa phải frontend/API đã triển khai.
+Frontend mới đã chốt **React + Vite + TypeScript**, thay thế lựa chọn frontend cũ trong brief kiến trúc: xem [ADR 0002](docs/adr/0002-react-vite-typescript-frontend.md), [Product context](PRODUCT.md) và [brief UX B7–B10](docs/frontend/product-workspace-brief.vi.md). Frontend React, API của chủ sở hữu và runtime vận hành đã có trong repo.
 
 1. Đọc `AGENTS.md` và `ARCHITECTURE.md`.
 2. Đọc [kế hoạch](docs/PLAN_VI.md), [trạng thái](docs/STATUS.md), [bản đồ repository](docs/REPOSITORY_MAP.md).
-3. Làm [task SQLite đầu tiên](docs/tasks/001-sqlite-foundation.md).
+3. Đọc [tài liệu tiếng Việt](docs/vi/README.md): hướng dẫn sử dụng, tài liệu kỹ thuật và thiết kế hệ thống.
 
 Một repository, một application package, năm module, một SQLite authoritative store. Web và worker chạy riêng từ cùng build artifact. Database mới độc lập với hệ thống Content Studio đang vận hành.
 
@@ -81,7 +77,7 @@ Only the exact `metric-shopee-product-list-sheet1-v1` profile is supported. An e
 
 Use an exact A1/A2 `result.json` and the explicitly selected [planning catalog](docs/research/report-section-catalog-v1.json). The packet recomputes/compares the normalized result, binds its exact bytes and catalog, and creates a deterministic Vietnamese DRAFT with partial observed metrics and explicit section blockers. It does not authenticate raw sources, generate Insight, grant approval, or connect to the live workspace/database. The same bundle is verified/reused; conflicting content is never overwritten. See [A3a scope](docs/tasks/research-a3-versioned-report-packet.md).
 
-## Source-backed research report export (A4, under review)
+## Source-backed research report export (A4)
 
 `npm run research:report:export -- <database.sqlite> <artifact-root> <request.json> <catalog.json> <outside-git-bundle-directory>`
 

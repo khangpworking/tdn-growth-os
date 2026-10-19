@@ -1,5 +1,40 @@
 # Trạng thái hiện tại
 
+> Bản cập nhật 20/10/2026. Bản trước: [bản 20/10/2026 trước khi sửa](outdated/2026-10-20/docs/STATUS.md).
+
+## Trạng thái hiện tại · 20/10/2026
+
+**Bản đang chạy thật**
+- Bản chạy thật là `f026acd9` (PR #344), triển khai ngày 19/10/2026.
+- Lần triển khai đó là bản chỉ cập nhật ứng dụng. Migration 58. Giữ 26 cờ môi trường. Cờ AI độ liên quan tắt. Đọc PDF bật từ 18/10/2026.
+
+**Đã gộp vào `main`, chưa triển khai**
+- #345 (R-business).
+- #346 (gói S: review công khai Shopee qua dịch vụ Shopee API riêng).
+- #347 (G-evidence).
+
+**Đang làm, chưa gộp**
+- #348 (G-references): người rà soát đã đạt. Hai mốc kiểm thử cũ đã được cập nhật và rà soát lại đạt. Đang chờ CI.
+- Gói F+ (nhánh `wp/f-plus-209`): mã và kiểm thử đã xong. Chưa có PR.
+
+**Danh sách việc ở lần triển khai tới**
+1. Chờ chủ sở hữu viết «deploy <SHA>».
+2. Đặt `TDN_RESEARCH_CAPTURE_RELEVANCE_AI_MODEL` để bật bước AI độ liên quan.
+3. Bật nguồn S với trần 300 review mỗi sản phẩm.
+4. Gỡ `TDN_RESEARCH_SHOPEE_MAX_CHARGE_USD=10`.
+5. Giữ trần TikTok là 5.
+6. Chạy canary ít nhất 3 sản phẩm.
+
+**Quyết định của chủ sở hữu đang có hiệu lực**
+- Báo cáo Insight tạm dừng từ 19/10/2026. Làm Market trước.
+- Phương án A (19/10/2026): báo cáo Market chỉ đếm review Shopee, không trích nguyên văn.
+- Mục tiêu: báo cáo Market tự động đạt 14/14 quy tắc, không sửa tay, và đạt đều qua các lần tạo lại.
+- Chỉ triển khai khi chủ sở hữu viết «deploy <SHA>».
+
+Tài liệu tiếng Việt đầy đủ: [docs/vi](vi/README.md).
+
+> Các mục bên dưới là nhật ký có ghi ngày, không phải trạng thái hiện tại. Đừng dùng chúng để biết cái gì đã triển khai.
+
 ## S17 website discovery — local implementation (19/10/2026)
 
 The opt-in automated search-ads lane now reuses plain and expanded run rows,
