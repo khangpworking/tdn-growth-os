@@ -192,6 +192,8 @@ function capturePlatformFindings(capture: CaptureMetricMethodDetails, citations:
 export type MarketHeadline = {
   /** marketShares of the chart rows; `shops` is null where Hình 4.2 is not drawn. Empty when Hình 4.1 is not drawn, and then Phần 1 keeps its previous bytes. */
   readonly shares: readonly MarketShare[];
+  /** Product shares supported by Hình 7.1; top5 is null unless all five products are displayed. */
+  readonly products: readonly MarketShare[];
   /** Platforms with a Bảng 11.1 price group; n is that platform's sample row count. */
   readonly bands: readonly (PlatformSignal & { readonly n: number })[];
   /** The first highest week of Hình 5.2 and its count of weeks with a value. */
@@ -221,8 +223,8 @@ function headlineFindings(headline: MarketHeadline, method: Method, capture: Cap
     ? `<li><p><b>Nhận định:</b> ${escape(sentences.join(' '))}</p><p><b>Bằng chứng:</b> ${links.map(([id, text]) => `<a href="#${id}">${escape(text)}</a>`).join(', ')}${cite}.</p></li>` : '';
   const shops = headline.shares.filter(share => share.shops?.[0] != null);
   return [
-    li(headline.shares.map(s => `${label(s.platform)}: 1 sản phẩm doanh thu cao giữ ${pct(s.top)} doanh thu trong mẫu của sàn${s.top5 === null ? '' : `; 5 sản phẩm doanh thu cao giữ ${pct(s.top5)}`}${sample(s.platform, s.n)}.`),
-      [['M04', 'Hình 4.1 ở phần Cơ cấu trong mẫu'], ['M07', 'Hình 7.1 ở phần Đối thủ']], marks(headline.shares.map(s => s.platform))),
+    li(headline.products.map(s => `${label(s.platform)}: 1 sản phẩm doanh thu cao giữ ${pct(s.top)} doanh thu trong mẫu của sàn${s.top5 === null ? '' : `; 5 sản phẩm doanh thu cao giữ ${pct(s.top5)}`}${sample(s.platform, s.n)}.`),
+      [['M04', 'Hình 4.1 ở phần Cơ cấu trong mẫu'], ['M07', 'Hình 7.1 ở phần Đối thủ']], marks(headline.products.map(s => s.platform))),
     li(shops.map(s => {
       const j = [2, 1].find(j => s.shops![j] != null), wider = j === undefined ? '' : `; ${TOP_GROUPS[j]} gian hàng doanh thu cao giữ ${pct(s.shops![j]!)}`;
       return `${label(s.platform)}: 1 gian hàng doanh thu cao giữ ${pct(s.shops![0]!)} doanh thu trong mẫu của sàn${wider}${sample(s.platform, s.n)}.`;

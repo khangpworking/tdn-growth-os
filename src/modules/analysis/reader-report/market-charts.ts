@@ -38,6 +38,10 @@ export function concentrationPlatforms(rows: readonly MarketChartRow[]): MarketC
 /** True when the sample has chartable rows but no platform records its shops, so no concentration chart is drawn. */
 export const marketShopsUnrecorded = (rows: readonly MarketChartRow[]): boolean => marketChartRows(rows).length > 0 && concentrationPlatforms(rows).length === 0;
 
+/** Exact product rows displayed by Hình 7.1, also used to bound its headline claims. */
+export const marketRankedRows = (rows: readonly MarketChartRow[]) =>
+  marketChartRows(rows).filter(row => row.rev! > 0).sort((a, b) => b.rev! - a.rev! || a.i - b.i).slice(0, RANKED_ROWS);
+
 export type MarketShare = {
   readonly platform: MarketChartPlatform; readonly n: number; readonly total: number;
   readonly top: number; readonly top5: number | null; readonly shops: readonly (number | null)[] | null;
@@ -120,7 +124,7 @@ export async function renderMarketCharts(rows: readonly MarketChartRow[], { flin
     keepOrder('san', byPlatform.map(p => p.san)), false) });
 
   // 3. Leading product rows by in-sample revenue, labelled by their source row number.
-  const ranked = usable.filter(row => row.rev! > 0).sort((a, b) => b.rev! - a.rev! || a.i - b.i).slice(0, RANKED_ROWS);
+  const ranked = marketRankedRows(rows);
   const rowLabel = (row: MarketChartRow & { readonly platform: MarketChartPlatform }): string => titleLabels && row.title ? `${row.title.length > 64 ? row.title.slice(0, 61) + '…' : row.title} · ${LABEL[row.platform]} · ${rowNumber(row)}` : `Dòng ${rowNumber(row)}`;
   const rankedValues = ranked.map(row => ({ dong: rowLabel(row), san: LABEL[row.platform], doanh_thu: millions(row.rev!) }));
   const order = rankedValues.map(row => row.dong);

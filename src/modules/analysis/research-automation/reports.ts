@@ -71,7 +71,7 @@ import { platIcons } from '../reader-report/layout.js';
 import { ACTION_LEAD, ACTION_NOTE, OPPORTUNITY_HEADINGS, OPPORTUNITY_READING, OPTION_HEADINGS, QUICK_WIN_HEADING, QUICK_WIN_HEADINGS, actionStartDay, marketActionPlan, opportunityExplanation, opportunityRows, type ActionRow, type MarketActionPlan } from '../reader-report/market-actions.js';
 import { deliverMarketReader, marketReaderGuide } from './market-reader-delivery.js';
 import { plainCaptureNumbers } from '../reader-report/format.js';
-import { UNKNOWN_SHOP, marketChartRows, marketShares, marketShopsUnrecorded, type CaptureCountChart, type MarketChart } from '../reader-report/market-charts.js';
+import { UNKNOWN_SHOP, marketChartRows, marketRankedRows, marketShares, marketShopsUnrecorded, type CaptureCountChart, type MarketChart } from '../reader-report/market-charts.js';
 import type { RenderedChart } from '../reader-report/flint.js';
 import { comtradeChartCount, worldBankChartCount, type MacroChart } from '../reader-report/macro-charts.js';
 import { pdfDiscoverySourceRows, pdfExcerptBlockHtml, pdfExcerptReaderCitation, PDF_EXCERPT_NOTE, PDF_EXCERPT_SECTION, PDF_EXCERPT_SRC } from './pdf-excerpt.js';
@@ -666,9 +666,17 @@ function marketHeadline(input: AutomationReportInput, presentation: AutomationMa
   const weeks = searchInterestRenderable(interest) && input.searchInterestChart
     ? searchInterestReadingPoints(interest).flatMap(point => point.index === null ? [] : [{ period: point.period, index: point.index }]) : [];
   const peak = weeks.reduce<(typeof weeks)[number] | undefined>((top, week) => top && top.index >= week.index ? top : week, undefined);
+  const chartRows = marketChartSource(presentation.input.rows, input.metricMethods).rows;
+  const shares = drawn('platform-revenue') ? marketShares(chartRows).map(share => drawn('concentration') ? share : { ...share, shops: null }) : [];
+  const ranked = drawn('product-ranking') ? marketRankedRows(chartRows) : [];
   return {
-    shares: drawn('platform-revenue') ? marketShares(marketChartSource(presentation.input.rows, input.metricMethods).rows).map(share => drawn('concentration') ? share : { ...share, shops: null }) : [],
-    bands: plan.signals.flatMap(signal => signal.band ? [{ ...signal, n: rows.filter(row => row.platform === signal.platform).length }] : []),
+    shares,
+    products: shares.flatMap(share => {
+      const shown = ranked.filter(row => row.platform === share.platform).length;
+      return shown ? [{ ...share, top5: shown >= 5 ? share.top5 : null }] : [];
+    }),
+    bands: plan.signals.flatMap(signal => signal.band && signal.band.low > 0 && signal.band.revenue > 0
+      ? [{ ...signal, n: rows.filter(row => row.platform === signal.platform).length }] : []),
     search: peak && peak.index > 0 ? { ...peak, weeks: weeks.length } : null,
     options: plan.hasFigures,
   };
