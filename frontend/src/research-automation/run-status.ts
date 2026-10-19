@@ -24,6 +24,8 @@ const stepStates: Readonly<Record<string, string>> = {
 };
 
 const limitationLabels: Readonly<Record<string, string>> = {
+  PUBLIC_REVIEW_NOT_CONFIGURED: 'Nguồn review công khai trên Shopee chưa sẵn sàng cho lượt đọc đã xác nhận.',
+  PUBLIC_REVIEW_RAW_CAPTURE_ONLY: 'Số đánh giá không phải số người. Nội dung chưa được mã hóa.',
   PROVIDER_NOT_CONFIGURED: 'Nguồn dữ liệu chưa được kết nối trong runtime này.',
   PROVIDER_FAILED: 'Nguồn dữ liệu gặp lỗi; hệ thống không tự chạy lại.',
   PROVIDER_CREDIT_EXHAUSTED: 'Nguồn số liệu bán hàng TikTok Shop đã hết lượt tra cứu. Cần nạp thêm lượt rồi chạy lại; hệ thống không tự chạy lại.',

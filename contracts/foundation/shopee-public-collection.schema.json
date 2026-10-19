@@ -1,0 +1,939 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ShopeePublicCollection",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "selectionBasis",
+    "collectionId",
+    "runKey",
+    "requestSha256",
+    "createdAt",
+    "mode",
+    "selected",
+    "selectionWarnings",
+    "collectorWarnings",
+    "pages",
+    "confirmedSourceSetSha256",
+    "mappingRevision",
+    "providerId",
+    "maxReviewsPerProduct",
+    "usageTotalUsd",
+    "listings",
+    "attemptedAt",
+    "reused"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": "4.0.0"
+    },
+    "selectionBasis": {
+      "const": "OWNER_EXACT_URL"
+    },
+    "collectionId": {
+      "$ref": "shopee-collection.schema.json#/properties/collectionId"
+    },
+    "runKey": {
+      "$ref": "shopee-collection.schema.json#/properties/runKey"
+    },
+    "requestSha256": {
+      "$ref": "shopee-collection.schema.json#/properties/requestSha256"
+    },
+    "createdAt": {
+      "$ref": "shopee-collection.schema.json#/properties/createdAt"
+    },
+    "mode": {
+      "$ref": "shopee-collection.schema.json#/properties/mode"
+    },
+    "selected": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "platform",
+          "shopId",
+          "itemId",
+          "productUrl",
+          "submittedUrl"
+        ],
+        "properties": {
+          "platform": {
+            "const": "shopee"
+          },
+          "shopId": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,19}$"
+          },
+          "itemId": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,19}$"
+          },
+          "productUrl": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "submittedUrl": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        }
+      }
+    },
+    "selectionWarnings": {
+      "$ref": "shopee-collection.schema.json#/properties/selectionWarnings"
+    },
+    "collectorWarnings": {
+      "$ref": "shopee-collection.schema.json#/properties/collectorWarnings"
+    },
+    "pages": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sha256",
+          "byteSize",
+          "offset"
+        ],
+        "properties": {
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "byteSize": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 8388608
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000
+          }
+        }
+      }
+    },
+    "confirmedSourceSetSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "mappingRevision": {
+      "const": "shopee-public-review-row-v1"
+    },
+    "providerId": {
+      "const": "shopee-public-review"
+    },
+    "maxReviewsPerProduct": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 300
+    },
+    "usageTotalUsd": {
+      "const": 0
+    },
+    "listings": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "$ref": "#/$defs/receipt"
+      }
+    },
+    "attemptedAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "reused": {
+      "type": "boolean"
+    }
+  },
+  "$defs": {
+    "acquisition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "providerId",
+        "maxReviewsPerProduct",
+        "mappingRevision",
+        "sampleMode"
+      ],
+      "properties": {
+        "providerId": {
+          "const": "shopee-public-review"
+        },
+        "maxReviewsPerProduct": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 300
+        },
+        "mappingRevision": {
+          "const": "shopee-public-review-row-v1"
+        },
+        "sampleMode": {
+          "enum": [
+            "STANDARD",
+            "TRIAL"
+          ]
+        }
+      }
+    },
+    "stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "state",
+        "confirmedSourceSetSha256",
+        "providerId",
+        "maxReviewsPerProduct",
+        "mappingRevision",
+        "sampleMode"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "shopee-public-review-stage-v1"
+        },
+        "state": {
+          "enum": [
+            "PENDING",
+            "FINAL"
+          ]
+        },
+        "confirmedSourceSetSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "providerId": {
+          "const": "shopee-public-review"
+        },
+        "maxReviewsPerProduct": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 300
+        },
+        "mappingRevision": {
+          "const": "shopee-public-review-row-v1"
+        },
+        "sampleMode": {
+          "enum": [
+            "STANDARD",
+            "TRIAL"
+          ]
+        }
+      }
+    },
+    "receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "productUrl",
+        "shopId",
+        "itemId",
+        "inputSha256",
+        "jobId",
+        "state",
+        "stopCode",
+        "createdAt",
+        "observedAt",
+        "attemptedAt",
+        "complete",
+        "stopReason",
+        "resultAvailable",
+        "resultSha256",
+        "resultByteSize",
+        "requestCount",
+        "requestCountUncertain",
+        "timedOut",
+        "cancelIntent"
+      ],
+      "properties": {
+        "productUrl": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "shopId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,19}$"
+        },
+        "itemId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,19}$"
+        },
+        "inputSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "jobId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "state": {
+          "enum": [
+            "queued",
+            "running",
+            "succeeded",
+            "partial",
+            "failed",
+            "cancelled",
+            "interrupted",
+            "needs_login",
+            "needs_verification",
+            "NOT_SUBMITTED",
+            "HEALTH_NOT_READY",
+            "SUBMISSION_UNCERTAIN",
+            "HUMAN_LOGIN_REQUIRED",
+            "HUMAN_VERIFICATION_REQUIRED",
+            "DEADLINE",
+            "OWNER_ABORTED",
+            "SHOPEE_REVIEW_TIMEOUT",
+            "SHOPEE_REVIEW_TRANSPORT",
+            "SHOPEE_REVIEW_INVALID_RESPONSE",
+            "SHOPEE_REVIEW_LIMIT",
+            "CREDENTIAL_ECHO_REFUSED",
+            "SHOPEE_REVIEW_HTTP_301",
+            "SHOPEE_REVIEW_HTTP_302",
+            "SHOPEE_REVIEW_HTTP_303",
+            "SHOPEE_REVIEW_HTTP_307",
+            "SHOPEE_REVIEW_HTTP_308",
+            "SHOPEE_REVIEW_HTTP_400",
+            "SHOPEE_REVIEW_HTTP_401",
+            "SHOPEE_REVIEW_HTTP_403",
+            "SHOPEE_REVIEW_HTTP_404",
+            "SHOPEE_REVIEW_HTTP_409",
+            "SHOPEE_REVIEW_HTTP_422",
+            "SHOPEE_REVIEW_HTTP_429",
+            "SHOPEE_REVIEW_HTTP_500",
+            "SHOPEE_REVIEW_HTTP_502",
+            "SHOPEE_REVIEW_HTTP_503",
+            "SHOPEE_REVIEW_HTTP_504",
+            "SHOPEE_REVIEW_HTTP_5XX"
+          ]
+        },
+        "stopCode": {
+          "anyOf": [
+            {
+              "enum": [
+                "NOT_SUBMITTED",
+                "HEALTH_NOT_READY",
+                "SUBMISSION_UNCERTAIN",
+                "HUMAN_LOGIN_REQUIRED",
+                "HUMAN_VERIFICATION_REQUIRED",
+                "DEADLINE",
+                "OWNER_ABORTED",
+                "SHOPEE_REVIEW_TIMEOUT",
+                "SHOPEE_REVIEW_TRANSPORT",
+                "SHOPEE_REVIEW_INVALID_RESPONSE",
+                "SHOPEE_REVIEW_LIMIT",
+                "CREDENTIAL_ECHO_REFUSED",
+                "SHOPEE_REVIEW_HTTP_301",
+                "SHOPEE_REVIEW_HTTP_302",
+                "SHOPEE_REVIEW_HTTP_303",
+                "SHOPEE_REVIEW_HTTP_307",
+                "SHOPEE_REVIEW_HTTP_308",
+                "SHOPEE_REVIEW_HTTP_400",
+                "SHOPEE_REVIEW_HTTP_401",
+                "SHOPEE_REVIEW_HTTP_403",
+                "SHOPEE_REVIEW_HTTP_404",
+                "SHOPEE_REVIEW_HTTP_409",
+                "SHOPEE_REVIEW_HTTP_422",
+                "SHOPEE_REVIEW_HTTP_429",
+                "SHOPEE_REVIEW_HTTP_500",
+                "SHOPEE_REVIEW_HTTP_502",
+                "SHOPEE_REVIEW_HTTP_503",
+                "SHOPEE_REVIEW_HTTP_504",
+                "SHOPEE_REVIEW_HTTP_5XX"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "createdAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "Z$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "observedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "attemptedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "stopReason": {
+          "enum": [
+            "record_limit",
+            "expected_count_reached",
+            "last_page",
+            "OTHER_OR_MISSING"
+          ]
+        },
+        "resultAvailable": {
+          "type": "boolean"
+        },
+        "resultSha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resultByteSize": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 8388608
+        },
+        "requestCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000
+        },
+        "requestCountUncertain": {
+          "type": "boolean"
+        },
+        "timedOut": {
+          "type": "boolean"
+        },
+        "cancelIntent": {
+          "type": "boolean"
+        }
+      }
+    },
+    "envelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "jobId",
+        "productUrl",
+        "shopId",
+        "itemId",
+        "maxReviewsPerProduct",
+        "complete",
+        "stopReason",
+        "filter",
+        "expectedWithComments",
+        "startedAt",
+        "finishedAt",
+        "excluded",
+        "diagnostics",
+        "pages",
+        "rows"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "shopee-public-sanitized-result-v1"
+        },
+        "jobId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "productUrl": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "shopId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,19}$"
+        },
+        "itemId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,19}$"
+        },
+        "maxReviewsPerProduct": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 300
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "stopReason": {
+          "enum": [
+            "record_limit",
+            "expected_count_reached",
+            "last_page",
+            "OTHER_OR_MISSING"
+          ]
+        },
+        "filter": {
+          "const": "HAS_COMMENTS"
+        },
+        "expectedWithComments": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "startedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "Z$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "finishedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "Z$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "excluded": {
+          "type": "array",
+          "maxItems": 100000,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "reviewId",
+              "reason"
+            ],
+            "properties": {
+              "reviewId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              "reason": {
+                "enum": [
+                  "EMPTY_OR_MEDIA_ONLY",
+                  "EMPTY_OR_SYMBOLS_ONLY"
+                ]
+              }
+            }
+          }
+        },
+        "diagnostics": {
+          "type": "array",
+          "maxItems": 100000,
+          "items": {
+            "enum": [
+              "INVALID_EXCLUDED_ENTRY"
+            ]
+          }
+        },
+        "pages": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "page",
+              "cards",
+              "collected",
+              "ids"
+            ],
+            "properties": {
+              "page": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 500
+              },
+              "cards": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100000
+              },
+              "collected": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100000
+              },
+              "ids": {
+                "type": "array",
+                "maxItems": 100000,
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2000
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "rows": {
+          "$ref": "shopee-public-rows.schema.json"
+        }
+      }
+    },
+    "job": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "request",
+        "state",
+        "created_at",
+        "updated_at",
+        "result_available"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "request": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "max_comments"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "max_comments": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 2000
+            }
+          }
+        },
+        "state": {
+          "enum": [
+            "queued",
+            "running",
+            "succeeded",
+            "partial",
+            "failed",
+            "cancelled",
+            "interrupted",
+            "needs_login",
+            "needs_verification"
+          ]
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "collected": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000
+        },
+        "result_available": {
+          "type": "boolean"
+        }
+      }
+    },
+    "publicReviewSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "acquisition",
+        "reference",
+        "outcome",
+        "corpusSha256",
+        "corpusUnavailableReason",
+        "accounting",
+        "products",
+        "humanBlocked"
+      ],
+      "properties": {
+        "acquisition": {
+          "$ref": "#/$defs/stage"
+        },
+        "reference": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "collectionId",
+                "collectionSha256",
+                "requestSha256"
+              ],
+              "properties": {
+                "collectionId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "collectionSha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "requestSha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "outcome": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "outcome",
+            "listings",
+            "providerMessage",
+            "attemptedAt",
+            "reused"
+          ],
+          "properties": {
+            "outcome": {
+              "enum": [
+                "OK",
+                "PARTIAL_LISTINGS",
+                "PROVIDER_BLOCKED",
+                "PROVIDER_TIMEOUT_NO_REVIEWS"
+              ]
+            },
+            "listings": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 5,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "listingUrl",
+                  "reviews"
+                ],
+                "properties": {
+                  "listingUrl": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "reviews": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 300
+                  },
+                  "shortfallReason": {
+                    "const": "RETURNED_COUNT_BELOW_REQUESTED"
+                  }
+                }
+              }
+            },
+            "providerMessage": {
+              "type": "null"
+            },
+            "attemptedAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "reused": {
+              "type": "boolean"
+            },
+            "testReviewCap": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20
+            }
+          }
+        },
+        "corpusSha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "corpusUnavailableReason": {
+          "anyOf": [
+            {
+              "enum": [
+                "PUBLIC_REVIEW_CORPUS_TOO_LARGE",
+                "PUBLIC_REVIEW_NOT_CONFIGURED"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "accounting": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sourceRows",
+            "uniqueScopedGroups",
+            "equalDuplicates",
+            "conflictingGroups",
+            "quarantinedRows",
+            "capturedReviewRecords",
+            "readableCommentRecords",
+            "attributesOnlyRecords",
+            "emptyComments",
+            "unreadableComments",
+            "missingRatings",
+            "invalidRatings",
+            "sourceExcludedIds"
+          ],
+          "properties": {
+            "sourceRows": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000
+            },
+            "uniqueScopedGroups": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000
+            },
+            "equalDuplicates": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000
+            },
+            "conflictingGroups": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000
+            },
+            "quarantinedRows": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000
+            },
+            "capturedReviewRecords": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000
+            },
+            "readableCommentRecords": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000
+            },
+            "attributesOnlyRecords": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000
+            },
+            "emptyComments": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000
+            },
+            "unreadableComments": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000
+            },
+            "missingRatings": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000
+            },
+            "invalidRatings": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000
+            },
+            "sourceExcludedIds": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000
+            }
+          }
+        },
+        "products": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "records",
+              "readableComments"
+            ],
+            "properties": {
+              "records": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 300
+              },
+              "readableComments": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 300
+              }
+            }
+          }
+        },
+        "humanBlocked": {
+          "type": "boolean"
+        },
+        "corpusInlineUnavailableReason": {
+          "const": "PUBLIC_REVIEW_CORPUS_RETAINED_SEPARATELY"
+        }
+      }
+    }
+  },
+  "$id": "https://tdn.local/contracts/foundation/shopee-public-collection.schema.json"
+}

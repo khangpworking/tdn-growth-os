@@ -1,10 +1,11 @@
+import { PUBLIC_REVIEW_FORBIDDEN_NAMES } from './public-review-report.js';
 import type { Total } from '../../../../contracts/analysis/metric-scope-output.generated.js';
 import { CAPTURED_PROVIDER_NAMES, FORBIDDEN_PROVIDER_NAMES } from '../reader-report/lint.js';
 import { balancedOpenings, lintVisibleReportText } from '../report-visible-text-lint.js';
 
 export type MarketBusinessGateResult = { rule: string; ok: boolean; detail: string };
 export type PartialRowTotal = { readonly measure: 'revenue' | 'units'; readonly value: string };
-export type MarketBusinessGateOptions = { presentation?: boolean; partialTotals?: readonly PartialRowTotal[] };
+export type MarketBusinessGateOptions = { publicReviewSource?: boolean; presentation?: boolean; partialTotals?: readonly PartialRowTotal[] };
 type TotalsSource = { readonly scopes: readonly {
   readonly key: string; readonly revenue: Total; readonly units: Total;
   readonly groups: readonly { readonly revenue: Total; readonly units: Total }[];
@@ -242,8 +243,8 @@ function e2Matches(text: string): string[] {
   return hits;
 }
 
-function providerMatches(text: string): string[] {
-  const names = [...new Set([...FORBIDDEN_PROVIDER_NAMES, ...CAPTURED_PROVIDER_NAMES, 'Jev', 'TypeSafe', 'CLIProxy', 'OpenAI', 'Anthropic', 'GLM', 'Gemini', 'Google'])];
+function providerMatches(text: string, publicReviewSource = false): string[] {
+  const names = [...new Set([...FORBIDDEN_PROVIDER_NAMES, ...CAPTURED_PROVIDER_NAMES, ...(publicReviewSource ? PUBLIC_REVIEW_FORBIDDEN_NAMES : []), 'Jev', 'TypeSafe', 'CLIProxy', 'OpenAI', 'Anthropic', 'GLM', 'Gemini', 'Google'])];
   const found = names.flatMap(name => {
     const escaped = name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
     // A brand that is also a common lowercase word matches only as written or in capitals,
@@ -423,7 +424,7 @@ function result(rule: string, ok: boolean, detail: string): MarketBusinessGateRe
 export function auditMarketReportHtml(html: string, options: MarketBusinessGateOptions = {}): MarketBusinessGateResult[] {
   const presentation = options.presentation ?? true;
   const scan = scanHtml(html);
-  const provider = providerMatches(scan.visible);
+  const provider = providerMatches(options.publicReviewSource ? scan.visible + ' ' + decodeHtml(html) : scan.visible, options.publicReviewSource);
   const crossPlatform = CROSS_PLATFORM_TOTAL_PHRASES.flatMap(phrase => matches(scan.visible, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'giu')));
   const e2 = e2Matches(scan.authored);
   const missingOrDuplicate = MARKET_SECTION_IDS.filter(id => scan.sectionCounts.get(id) !== 1).map(id => `${id}=${scan.sectionCounts.get(id)}`);

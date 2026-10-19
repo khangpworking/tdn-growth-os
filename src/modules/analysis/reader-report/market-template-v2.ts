@@ -1,3 +1,4 @@
+import { publicReviewReportHtml, publicReviewReportLines, PUBLIC_REVIEW_SOURCE_NAME } from '../research-automation/public-review-report.js';
 import { captureExclusionNotice } from '../research-automation/capture-row-quality.js';
 import type { ReaderReportData } from './build.js';
 import { completeSum } from './nullable-metrics.js';
@@ -43,7 +44,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   // Legacy 1.2/1.3 rows that fall back to this path keep their frozen bytes under the flint:false
   // opt-out (the legacy hash fixture pins them); Flint charts and markers apply everywhere else.
   const flintMarks = next || options.flint !== false;
-  const narrator = new Narrator(B), registry = new CitationRegistry(), extraOk = new Set<string>();
+  const narrator = new Narrator(B), registry = new CitationRegistry({ publicReviewSource: Boolean(options.publicReviewSource) }), extraOk = new Set<string>();
   const label = (s: string): string => { if (/\d/.test(s)) extraOk.add(s); return options.captureRowPolicy ? `<span data-quote>${esc(s)}</span>` : esc(s); };
   const source = input.source!;
   const period = `${source.measurementPeriod.start.split('-').reverse().join('/')} – ${source.measurementPeriod.end.split('-').reverse().join('/')}`;
@@ -357,7 +358,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   sections.push(section('M09', 'Động lực và rủi ro', 'Chưa đủ bằng chứng để kết luận nguyên nhân.', tbl('9.1', 'Ngày mở bán do nguồn ghi, giữ riêng từng dòng', '', ['Sàn', 'Tiêu đề nguồn', 'Ngày mở bán'], rows.map(row => [plat(row.platform), `<span data-quote>${esc(row.title)}</span>`, row.start === null || row.start === undefined ? 'Chưa rõ ngày' : label(row.start)])) + pdfExcerptHtml + sellerVideoHtml, [pdfExcerpts.length ? esc(PDF_EXCERPT_NOTE) : '', sellerVideos ? esc(sellerVideoNote(sellerVideos)) : ''].filter(Boolean).join(' ') || undefined));
   sections.push(section('M10', 'Dự báo và kịch bản', 'Chưa dự báo.', '<p>Cần chuỗi phù hợp và giả định đã kiểm chứng trước khi lập kịch bản.</p>'));
   const nextActionSections = (): string[] => {
-    const reviewsCollected = Boolean(options.testReviewSample && exactTestReviewSample(options.testReviewSample)?.listings.some(row => row.reviews > 0));
+    const reviewsCollected = Boolean(options.publicReviewSource?.accounting.capturedReviewRecords || options.testReviewSample && exactTestReviewSample(options.testReviewSample)?.listings.some(row => row.reviews > 0));
     const startDay = actionStartDay(/^\d{2}\/\d{2}\/\d{4}$/u.test(options.builtOn) ? isoFromReaderDay(options.builtOn) : null,
       source.measurementPeriod.end, source.measurementPeriod.start);
     const plan = marketActionPlan(rows, { reviewsCollected, startDay });
@@ -382,13 +383,16 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     return [plat(row.platform), label(row.shopName || row.shop), label(row.brand) + ' (theo tiêu đề người bán)', value('rev'), value('units'), value('asp'), `<span data-quote>${esc(row.title)}</span>`];
   });
   const web = readerWebResults(options.webResults ?? [], true);
-  const testSample = next && options.testReviewSample ? exactTestReviewSample(options.testReviewSample) : null;
+  const testSample = next && !options.publicReviewSource && options.testReviewSample ? exactTestReviewSample(options.testReviewSample) : null;
   const trialRows = testSample ? exactTestReviewSourceRows(testSample) : null;
+  if (options.publicReviewSource) for (const line of publicReviewReportLines(options.publicReviewSource)) if (/\d/.test(line)) extraOk.add(line);
+  const publicBlock = options.publicReviewSource ? publicReviewReportHtml(options.publicReviewSource) : '';
   const trialBlock = testSample ? exactTestReviewSection(testSample, (url, product) => {
     const no = registry.cite({ sourceKind: 'WEB_RESULT', identity: url, locator: null, label: product,
       retrievedAt: testSample.attemptedAt, url, quote: null, quoteVerification: 'NOT_APPLICABLE' });
     return `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(product)}</a>${no === null ? '' : renderCitationMark(no)}`;
   }) : '';
+  const publicReviewCitation = options.publicReviewSource?.reference ? registry.cite({ sourceKind: 'REVIEW', identity: options.publicReviewSource.reference.collectionSha256, locator: null, label: PUBLIC_REVIEW_SOURCE_NAME, retrievedAt: options.publicReviewSource.outcome.attemptedAt, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' }) : null;
   const sourceRows = next ? [['Nguồn', sourceText], ['Kỳ', period],
     ['Dữ liệu đánh giá sản phẩm trên nền tảng', trialRows?.native ?? 'Chưa có trong lượt này'],
     ['Kết quả tìm kiếm', d.webFacts === null && web.length === 0 ? 'Chưa có trong lượt này' : 'Đã lưu trong lượt này'],
@@ -402,6 +406,8 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     ...(searchAdsOk.length ? [[SEARCH_ADS_SOURCE_LABEL, SEARCH_ADS_SOURCE_NOTE]] : []),
     ...(tiktok ? [[TIKTOK_TOP_ADS_SOURCE_LABEL, tiktok.notice ?? TIKTOK_TOP_ADS_SOURCE_NOTE]] : []),
     ...(officialRows.length ? [[E12_ATTRIBUTION, `Đã lưu trong lượt này; số liệu thống kê cả nước theo nhóm hàng${officialStatsProvinceRows(officialStats).length ? ' và chỉ số giá theo tỉnh, thành phố' : ''}, chỉ là bối cảnh`]] : [])] : [['Nguồn', sourceText], ['Kỳ', period]];
+
+  if (options.publicReviewSource) sourceRows.push([PUBLIC_REVIEW_SOURCE_NAME, 'Bản đọc có giới hạn; bản ghi thô, chưa mã hóa.']);
   if (d.webFacts !== null) {
     const facts = d.webFacts;
     const no = registry.cite({ sourceKind: 'CAPTURE', identity: input.webSnapshotSha256!, locator: { kind: 'source-locator', value: 'số liệu tổng quan' }, label: 'Trang kết quả tìm kiếm: số liệu tổng quan', retrievedAt: facts.capturedAt, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' });
@@ -470,12 +476,12 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     return [`<span data-quote><a href="${esc(w.url)}" target="_blank" rel="noopener noreferrer">${esc(w.title)}</a>${mark}${meta ? `<span class="pl-meta">${esc(meta)}</span>` : ''}</span>`, ...(originated ? [esc(expandedSearchReaderLabel(w))] : []), ...(typed ? [pageType(w)] : []), `<span data-quote>${esc(w.snippet ?? '')}</span>`];
   }), { src: 'Kết quả tìm kiếm đã lưu.', note: 'Tiêu đề và đoạn mô tả chép theo kết quả tìm kiếm, chưa mở trang gốc để đối chiếu; không phải nhận định của báo cáo.' + (originated ? ' ' + EXPANDED_SEARCH_NOTE : '') });
   sections.push(section('M13', 'Nguồn, thuật ngữ và danh sách sản phẩm', options.captureRowPolicy && !rows.length ? 'Không có dòng phù hợp trong mẫu; bản lưu nguồn vẫn được giữ để đối chiếu.' : nar('Giữ đủ {{src.rows}} dòng nguồn để tra lại.', 'M13'),
-    tbl('PL.1', 'Dòng dữ liệu đã lưu, theo từng sàn', '', ['Sàn', 'Gian hàng', 'Nhãn thương hiệu', 'Doanh thu', 'Đơn vị bán', 'Giá trung bình', 'Tiêu đề nguồn'], appendix) + tbl('PL.2', 'Nguồn số liệu đã lưu', '', ['Hạng mục', 'Nguồn / giá trị'], sourceRows) + trialBlock + (next ? glossaryTable : '') + webTable + retainedSourceTables + renderCitationRegister(registry.entries(), { format: 'web' })));
+    tbl('PL.1', 'Dòng dữ liệu đã lưu, theo từng sàn', '', ['Sàn', 'Gian hàng', 'Nhãn thương hiệu', 'Doanh thu', 'Đơn vị bán', 'Giá trung bình', 'Tiêu đề nguồn'], appendix) + tbl('PL.2', 'Nguồn số liệu đã lưu', '', ['Hạng mục', 'Nguồn / giá trị'], sourceRows) + trialBlock + publicBlock + (publicReviewCitation === null ? '' : renderCitationMark(publicReviewCitation)) + (next ? glossaryTable : '') + webTable + retainedSourceTables + renderCitationRegister(registry.entries(), { format: 'web' })));
   const html = page({ title: `Báo cáo thị trường – ${profile.product}`, coverHtml: cover(options.cover ?? null, `Dữ liệu ${period}`, ['Báo cáo thị trường', profile.product, 'Bản đọc cho chủ dự án']),
     intro: `<div class="box"><p>Số ước tính trong mẫu. Mỗi sàn tính riêng. Phân loại ${status}.</p></div>`, toc: MARKET_TOC, sections, foot: `TDN · ${esc(options.builtOn)}` });
   const renderedHtml = next ? html.replace('<body', '<body data-report-rules="market-visible-v1"') : html;
   const finalHtml = next ? renderedHtml.replace(/Ghi chú:/gu, 'Chú thích:') : html;
   const scopedHtml = finalHtml.replace('<body', `<body data-market-platforms="${PLATS.join(',')}"${flintMarks ? ` data-market-chart-rows="${chartRows.length}"` : ''}${shopsUnrecorded ? ' data-market-shops-unrecorded="1"' : ''}`);
-  const outputHtml = next ? platIcons(filterReaderGlossary(readerText(scopedHtml)), PLATFORM_COLORS, undefined, { compoundPlatformLabels: true }).html : html;
+  const outputHtml = next ? platIcons(filterReaderGlossary(readerText(scopedHtml, false, { publicReviewSource: Boolean(options.publicReviewSource) })), PLATFORM_COLORS, undefined, { compoundPlatformLabels: true }).html : html;
   return { html: options.captureRowPolicy ? plainCaptureNumbers(outputHtml) : outputHtml, narrator, extraOk: [...extraOk], charts, webResults: web, ...(next ? { visibleTextRules: true } : {}) };
 }

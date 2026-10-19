@@ -1,3 +1,8 @@
+import { ShopeePublicReviewCollector } from '../platform/collectors/shopee-public-reviews.js';
+import publicSourceSchema from '../../contracts/api/research-automation-source-api-v3.schema.json' with { type: 'json' };
+import publicCollectionSchema from '../../contracts/foundation/shopee-public-collection.schema.json' with { type: 'json' };
+import publicRowsSchema from '../../contracts/foundation/shopee-public-rows.schema.json' with { type: 'json' };
+import publicLegacySchema from '../../contracts/foundation/shopee-collection.schema.json' with { type: 'json' };
 import { createCaptureRelevanceCliproxyTransport, type CaptureRelevanceConfiguration } from '../modules/analysis/research-automation/capture-relevance-cliproxy-transport.js';
 import metaPageApiSchema from '../../contracts/api/research-automation-meta-page-api.schema.json' with { type: 'json' };
 import metaPageSourceSchema from '../../contracts/analysis/meta-page-source-v1.schema.json' with { type: 'json' };
@@ -188,6 +193,11 @@ addFormats(ajv);
 ajv.addSchema(defaultPeerSchema);
 ajv.addSchema(schema);
 ajv.addSchema(sourceSchema);
+ajv.addSchema(publicLegacySchema, 'shopee-collection.schema.json');
+ajv.addSchema(publicRowsSchema, 'shopee-public-rows.schema.json');
+ajv.addSchema(publicCollectionSchema, 'shopee-public-collection.schema.json');
+if (!ajv.getSchema('https://tdn.local/contracts/foundation/shopee-collection.schema.json')) ajv.addSchema(publicLegacySchema, 'https://tdn.local/contracts/foundation/shopee-collection.schema.json');
+ajv.addSchema(publicSourceSchema, 'research-automation-source-api-v3.schema.json');
 ajv.addSchema(revisionRequestSchema);
 ajv.addSchema(marketPresentationRevisionSchema);
 ajv.addSchema(classifiedRevisionRequestSchema);
@@ -234,7 +244,7 @@ const validates = {
   p9ReadingRequest: ajv.compile({ $ref: `${p9LegacyReadingSchema.$id}#/$defs/request` }),
   p9ReadingReceipt: ajv.compile({ $ref: `${p9ReadingSchema.$id}#/$defs/receipt` }),
   start: ajv.compile({ $ref: `${schema.$id}#/$defs/startRequest` }),
-  confirm: ajv.compile({ oneOf: [{ $ref: `${schema.$id}#/$defs/confirmRequest` }, { $ref: sourceSchema.$id }] }),
+  confirm: ajv.compile({ oneOf: [{ $ref: `${schema.$id}#/$defs/confirmRequest` }, { $ref: sourceSchema.$id }, { $ref: 'research-automation-source-api-v3.schema.json' }] }),
   cancel: ajv.compile({ $ref: `${schema.$id}#/$defs/cancelRequest` }),
   autoRunRetry: ajv.compile({ $ref: `${schema.$id}#/$defs/autoRunRetryRequest` }),
   revision: (value: unknown) => personaReportRequestValid(value) || historicalRevisionValid(value),
@@ -443,13 +453,19 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         ...(i14SynthesisAi ? { i14SynthesisAi } : {}),
         ...(marketCoverAi ? { marketCoverAi } : {}),
         ...(configuration.metricAutoRun ? { autoRun: { enabled: true,
-          ...(configuration.providers?.apifyReviews && configuration.providers.autorunTestReviewCap !== undefined
-            && configuration.providers.autorunTestReviewCap === configuration.providers.apifyReviews.maxReviewsPerProduct
+          ...((configuration.providers?.apifyReviews || configuration.providers?.shopeePublicReviews) && configuration.providers.autorunTestReviewCap !== undefined
+            && configuration.providers.autorunTestReviewCap === (configuration.providers.shopeePublicReviews ?? configuration.providers.apifyReviews)?.maxReviewsPerProduct
             ? { testReviewCap: configuration.providers.autorunTestReviewCap } : {}),
           onWake: () => worker?.wake(), runner: {
           enabledEnv: '1', captureRoot: path.resolve(configuration.metricAutoRun.captureRoot),
           adapterManifestPath: configuration.metricAutoRun.adapterManifestPath, adapterManifestSha256: configuration.metricAutoRun.adapterManifestSha256 } } } : {}),
         decisionSynthesisAi,
+        ...(configuration.providers?.shopeePublicReviews ? { shopeePublicReviews: { maxReviewsPerProduct: configuration.providers.shopeePublicReviews.maxReviewsPerProduct, factory: acquisition => {
+          const config = configuration.providers!.shopeePublicReviews!;
+          const collector = new ShopeePublicReviewCollector({ token: config.token, baseUrl: config.baseUrl, maxReviewsPerProduct: config.maxReviewsPerProduct, confirmedSourceSetSha256: acquisition.confirmedSourceSetSha256, sampleMode: acquisition.sampleMode,
+            journalRoot: path.join(path.dirname(path.resolve(configuration.databasePath)), 'research-automation-shopee-public-journal') });
+          return { collector, requestsIssued: collector.requestsIssued };
+        } } } : {}),
         ...(configuration.providers?.apifyReviews ? { shopeeCollectorFactory: () => {
           let requests = 0;
           const config = configuration.providers!.apifyReviews!;
@@ -1298,7 +1314,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
   }
   async function sourceStatusProjection(workspaceId: string) {
     const result = buildResearchAutomationSourceStatus({ workspaceId, checkedAt: new Date().toISOString(),
-      executorEnabled: Boolean(writeService), providers: configuration.providers, wired: { ...SOURCES_WIRED_INTO_RUNS, searchAds: configuration.searchAds === true, metaAuto: configuration.metaAuto === true, tiktokTopAds: configuration.tiktokTopAds === true, pdfDiscovery: configuration.pdfDiscovery === true },
+      executorEnabled: Boolean(writeService), providers: configuration.providers, wired: { ...SOURCES_WIRED_INTO_RUNS, ...(configuration.providers?.shopeePublicReviews ? { shopeePublicReviews: true } : {}), searchAds: configuration.searchAds === true, metaAuto: configuration.metaAuto === true, tiktokTopAds: configuration.tiktokTopAds === true, pdfDiscovery: configuration.pdfDiscovery === true },
       tikTokCommentsConfigured: Boolean(configuration.tikTokCommentsCollector),
       activity: await readService.readSourceActivity(workspaceId), pageindex: (writeService ?? readService).pageIndexStatusSummary() });
     if (!validates.sourceStatus(result)) throw new Error('Source status projection failed validation');

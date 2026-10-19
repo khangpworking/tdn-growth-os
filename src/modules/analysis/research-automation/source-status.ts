@@ -89,6 +89,7 @@ export const SOURCE_REGISTRY: Record<SourceBoardId, SourceRegistryCard> = {
     reportName: 'dữ liệu video bán hàng (ước tính)', paid: false, pendingPackage: null, built: true, arrival: 'MANUAL_UPLOAD' },
   APIFY_SHOPEE: { registryIds: ['S05'], tier: 'B', tierDetail: null, group: 'CUSTOMER_VOICE',
     reportName: 'review công khai trên Shopee', paid: true, pendingPackage: null, built: true, arrival: 'PAID_API' },
+  SHOPEE_PUBLIC_REVIEWS: { registryIds: ['S05'], tier: 'B', tierDetail: null, group: 'CUSTOMER_VOICE', reportName: 'review công khai trên Shopee', paid: false, pendingPackage: null, built: true, arrival: 'FREE_COLLECT' },
   APIFY_TIKTOK_COMMENTS: { registryIds: ['S07'], tier: 'B', tierDetail: null, group: 'CUSTOMER_VOICE',
     reportName: 'bình luận công khai dưới video', paid: true, pendingPackage: null, built: true, arrival: 'PAID_API' },
   VIDEO_READING: { registryIds: ['S14'], tier: 'B', tierDetail: null, group: 'SELLER_VOICE',
@@ -135,8 +136,8 @@ export interface SourceStatusInput {
   readonly executorEnabled: boolean;
   readonly providers: ResearchAutomationProviderConfig | undefined;
   /** Sources the executor actually calls during a run. Web search is configured separately from run wiring. */
-  readonly wired: { readonly kalodata: boolean; readonly serpapi: boolean; readonly apifyShopee: boolean; readonly searchAds?: boolean; readonly metaAuto?: boolean; readonly tiktokTopAds?: boolean; readonly pdfDiscovery?: boolean };
-  readonly activity: Record<ResearchAutomationSourceActivityKey, ResearchAutomationSourceActivity> & { readonly serpapiOperations: readonly ResearchAutomationSerpApiOperation[] };
+  readonly wired: { readonly kalodata: boolean; readonly serpapi: boolean; readonly apifyShopee: boolean; readonly shopeePublicReviews?: boolean; readonly searchAds?: boolean; readonly metaAuto?: boolean; readonly tiktokTopAds?: boolean; readonly pdfDiscovery?: boolean };
+  readonly activity: Record<ResearchAutomationSourceActivityKey, ResearchAutomationSourceActivity> & { readonly 'shopee-public-review'?: ResearchAutomationSourceActivity } & { readonly serpapiOperations: readonly ResearchAutomationSerpApiOperation[] };
   /** Absent until the API route passes live connector state; the card then shows the not-connected copy. */
   readonly pageindex?: PageIndexStatusSummary;
 }
@@ -174,13 +175,15 @@ export function buildResearchAutomationSourceStatus(input: SourceStatusInput): R
     source, state: cardState(source, 'READY'), credential: 'NOT_REQUIRED', wiredIntoRuns: true, paid: false,
     ...input.activity[key], lastUsageAt: null, ...meta(source), spendCapUsd: null, operations: null,
   });
-  const sources: ResearchAutomationSourceStatus['sources'] = [
+  const sources: ResearchAutomationSourceStatusEntry[] = [
     manualSource('METRIC', 'metric'),
     paidSource('KALODATA', 'kalodata', Boolean(providers?.kalodataSecretKey), Boolean(providers?.kalodataSecretKey), input.wired.kalodata, null, null),
     manualSource('KALODATA_VIDEO_FILE', 'kalodata-video'),
     // Paid review collection also needs a spending cap; a token alone never starts a collection.
     paidSource('APIFY_SHOPEE', 'apify-shopee', apifyToken, Boolean(providers?.apifyReviews), input.wired.apifyShopee,
       providers?.apifyReviews?.maxChargeUsd ?? null, null),
+    ...(providers?.shopeePublicReviews ? [{ source: 'SHOPEE_PUBLIC_REVIEWS' as const, state: cardState('SHOPEE_PUBLIC_REVIEWS', input.wired.shopeePublicReviews ? 'READY' : 'CONFIGURED_NOT_WIRED'), credential: 'CONFIGURED' as const, wiredIntoRuns: input.wired.shopeePublicReviews === true, paid: false,
+      ...(input.activity['shopee-public-review'] ?? { lastDataAt: null, dataCount: 0, lastUsageAt: null }), ...meta('SHOPEE_PUBLIC_REVIEWS'), spendCapUsd: null, operations: null, maxRecordsPerProduct: providers.shopeePublicReviews.maxReviewsPerProduct }] : []),
     { source: 'APIFY_TIKTOK_COMMENTS',
       state: cardState('APIFY_TIKTOK_COMMENTS', input.tikTokCommentsConfigured && apifyToken &&
         providers?.apifyTikTokComments && providers.apifyTikTokComments.maxChargeUsd > 0 ? 'READY' : 'NOT_CONFIGURED'),
@@ -226,20 +229,21 @@ export function buildResearchAutomationSourceStatus(input: SourceStatusInput): R
       },
     },
   ];
-  assertBoardOrder(sources);
+  assertBoardOrder(sources, Boolean(providers?.shopeePublicReviews));
   return {
     contractVersion: 'research-automation-source-status-v1',
     workspaceId: input.workspaceId,
     checkedAt: input.checkedAt,
     executorEnabled: input.executorEnabled,
-    sources,
+    sources: sources as ResearchAutomationSourceStatus['sources'],
   };
 }
 
 /** Guards the Plan B1 roster order at runtime; a wrong order fails closed instead of rendering. */
-function assertBoardOrder(sources: ResearchAutomationSourceStatus['sources']): void {
-  if (sources.length !== SOURCE_BOARD_ORDER.length ||
-    !sources.every((entry, index) => entry.source === SOURCE_BOARD_ORDER[index])) {
+function assertBoardOrder(sources: readonly ResearchAutomationSourceStatusEntry[], publicEnabled = false): void {
+  const order = publicEnabled ? SOURCE_BOARD_ORDER.flatMap(id => id === 'APIFY_SHOPEE' ? [id, 'SHOPEE_PUBLIC_REVIEWS'] : [id]) : SOURCE_BOARD_ORDER;
+  if (sources.length !== order.length ||
+    !sources.every((entry, index) => entry.source === order[index])) {
     throw new Error('Source board roster order changed; update SOURCE_BOARD_ORDER with the registry.');
   }
 }

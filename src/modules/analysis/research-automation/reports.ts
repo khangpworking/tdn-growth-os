@@ -1,3 +1,5 @@
+import { publicReviewReportHtml } from './public-review-report.js';
+import { lint as lintReaderReport } from '../reader-report/lint.js';
 import type { PersonaSelectedReportSnapshot } from '../../../../contracts/analysis/automation-insight-persona-report.generated.js';
 import { checkPersonaSelectedReport, personaDigest as personaViewDigest } from './insight-persona-contracts.js';
 import { insightPersonaSection } from './insight-persona-report.js';
@@ -103,6 +105,8 @@ export interface MarketCoverInput {
 }
 
 export interface AutomationReportInput {
+  readonly publicReviewSource?: import('./public-shopee-bridge.js').PublicReviewSource;
+  readonly publicReviewCorpus?: import('../../../../contracts/analysis/research-review-corpus-v2.generated.js').ResearchReviewCorpusV2;
   /** Replay test instance only: adds a visible test notice to the HTML (and so the PDF). */
   readonly kalodataReplayNotice?: true;
   readonly sourceEvidence?: import('./source-evidence.js').AutomationSourceEvidence;
@@ -216,12 +220,12 @@ export function marketSourceRows(input: AutomationReportInput, webResultCount: n
     ? capture?.rowPolicyVersion && missing.length === capture.capture.platforms.length ? 'Không có số liệu bán hàng dùng được sau khi lọc trong lượt này.'
       : missing.length ? `Dùng một phần: không có số liệu cho ${missing.map(readerPlatform).join(', ')} trong lượt này.` : 'Đã dùng số liệu của lượt này.'
     : input.metricMethodsFailure ? 'Không dùng được trong lượt này: gói số liệu không qua kiểm tra.' : 'Chưa có trong lượt này.';
-  const testSample = exactTestReviewSample(input);
+  const testSample = input.publicReviewSource ? null : exactTestReviewSample(input);
   const trialRows = testSample ? exactTestReviewSourceRows(testSample) : null;
   const native = trialRows ? trialRows.native : input.nativeReview ? 'Đã dùng trong lượt này.'
     : input.nativeReviewFailure ? 'Không dùng được trong lượt này: bước xử lý không qua kiểm tra.' : 'Chưa có trong lượt này.';
   const web = webResultCount ? `Đã lưu ${webResultCount} kết quả trong lượt này.` : webFailed ? WEB_SOURCE_FAILED_TEXT : 'Chưa có trong lượt này.';
-  const comments = trialRows ? trialRows.comments : input.reviewCorpus ? 'Đã dùng trong lượt này.'
+  const comments = input.publicReviewSource ? 'review công khai trên Shopee; bản ghi thô, chưa mã hóa.' : trialRows ? trialRows.comments : input.reviewCorpus ? 'Đã dùng trong lượt này.'
     : input.reviewCorpusFailure ? 'Không dùng được trong lượt này: bộ bình luận không qua kiểm tra.' : 'Chưa có trong lượt này.';
   const interest: readonly (readonly [string, string])[] = searchInterestRenderable(input.collection?.searchInterest) || searchGeoRenderable(input.collection?.searchGeo)
     ? [[SEARCH_INTEREST_SOURCE_LABEL, 'Đã dùng trong lượt này: chỉ số tương đối, không phải doanh số.']] : [];
@@ -236,18 +240,19 @@ export function marketSourceRows(input: AutomationReportInput, webResultCount: n
       ? 'Đã dùng trong lượt này: số liệu thống kê cả nước theo nhóm hàng và chỉ số giá theo tỉnh, thành phố, chỉ là bối cảnh.'
       : 'Đã dùng trong lượt này: số liệu thống kê cả nước theo nhóm hàng, chỉ là bối cảnh.']] : [];
   const pdf = pdfDiscoverySourceRows(input.collection?.pdfDiscovery, input.sourceEvidence?.pdfExcerpts === true ? input.pdfExcerpts ?? [] : []);
-  return [['Dữ liệu bán hàng', sales], ['Dữ liệu đánh giá sản phẩm trên nền tảng', native], ['Kết quả tìm kiếm', web], ['Bình luận đã thu thập', comments], ...pdf, ...interest, ...macro, ...trade, ...searchAds, ...official];
+  return [...(input.publicReviewSource ? [['review công khai trên Shopee', 'Bản đọc có giới hạn; bản ghi thô, chưa mã hóa.'] as const] : []), ['Dữ liệu bán hàng', sales], ['Dữ liệu đánh giá sản phẩm trên nền tảng', native], ['Kết quả tìm kiếm', web], ['Bình luận đã thu thập', comments], ...pdf, ...interest, ...macro, ...trade, ...searchAds, ...official];
 }
 /** Reader appendix (market14): the plain source TYPES used, from the same predicates as marketSourceRows; core types this run lacks go in one sentence. */
 export function marketSourceTypes(input: AutomationReportInput, webResultCount: number, salesPlatforms: readonly string[]): { used: string[]; missing: string[] } {
   const capture = input.metricMethods?.capture;
-  const testSample = exactTestReviewSample(input)?.listings.some(row => row.reviews > 0);
+  const testSample = !input.publicReviewSource && exactTestReviewSample(input)?.listings.some(row => row.reviews > 0);
   const present = capture ? captureSalesPlatforms(capture) : salesPlatforms;
   const sales = capture?.rowPolicyVersion ? present.length > 0 : Boolean(input.metricMethods || input.marketPresentation?.input.metric);
   const platforms = ['shopee', 'tiktok'].filter(platform => present.includes(platform));
   const lacking = capture ? capture.capture.platforms.filter(platform => !present.includes(platform)) : [];
   const collection = input.collection;
   const used = [
+    ...(input.publicReviewSource ? ['review công khai trên Shopee'] : []),
     ...(sales ? platforms.length ? platforms.map(platform => `Dữ liệu bán hàng trên ${readerPlatform(platform)}`) : ['Dữ liệu bán hàng'] : []),
     ...(input.nativeReview ? ['Dữ liệu đánh giá sản phẩm trên Shopee'] : []),
     ...(webResultCount ? ['Kết quả tìm kiếm trên web'] : []),
@@ -264,9 +269,9 @@ export function marketSourceTypes(input: AutomationReportInput, webResultCount: 
   ];
   const missing = [
     ...(!sales ? ['dữ liệu bán hàng'] : lacking.map(platform => `dữ liệu bán hàng trên ${readerPlatform(platform)}`)),
-    ...(input.nativeReview || testSample ? [] : ['dữ liệu đánh giá sản phẩm']),
+    ...(input.nativeReview || testSample || input.publicReviewSource ? [] : ['dữ liệu đánh giá sản phẩm']),
     ...(webResultCount ? [] : ['kết quả tìm kiếm trên web']),
-    ...(input.reviewCorpus || testSample ? [] : ['dữ liệu bình luận của khách']),
+    ...(input.reviewCorpus || testSample || input.publicReviewSource ? [] : ['dữ liệu bình luận của khách']),
   ];
   return { used, missing };
 }
@@ -371,7 +376,7 @@ const REVIEW_TARGET = 300;
 /** A non-OK outcome bound to this report's exact collection; old runs, OK runs and replaced review sources show nothing. */
 function missingReviewOutcome(input: AutomationReportInput): ReviewOutcome | null {
   const value = input.collection?.exactShopeeOutcome;
-  return value && input.collection?.exactShopee && value.testReviewCap === undefined && value.outcome !== 'OK' ? value : null;
+  return value && !input.publicReviewSource && input.collection?.exactShopee && value.testReviewCap === undefined && value.outcome !== 'OK' ? value : null;
 }
 /** dd/mm/yyyy in Vietnam time (UTC+7, no daylight saving). */
 const vietnamDate = (iso: string): string => {
@@ -656,7 +661,8 @@ function marketActionStartDay(input: AutomationReportInput): string | null {
 }
 
 const marketReviewsCollected = (input: AutomationReportInput): boolean =>
-  Boolean(input.nativeReview?.output.input.records.length || input.reviewCorpus?.records.length || exactTestReviewSample(input)?.listings.some(row => row.reviews > 0));
+  input.publicReviewSource ? input.publicReviewSource.products.some(row => row.records > 0)
+    : Boolean(input.nativeReview?.output.input.records.length || input.reviewCorpus?.records.length || exactTestReviewSample(input)?.listings.some(row => row.reviews > 0));
 
 /** Phần 1 figures, each from the function behind its exhibit: Hình 4.1/4.2 shares, Bảng 11.1 price groups, Hình 5.2 weeks, Phần 12 options. */
 function marketHeadline(input: AutomationReportInput, presentation: AutomationMarketPresentationMethod): MarketHeadline {
@@ -883,7 +889,8 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   const views = new Map<string, DescriptiveSectionView>();
   // Views are composed on first render so that [n] numbers follow the page, not the section-array build order.
   const locatedViews = new Map<string, () => string>();
-  const registry = new CitationRegistry();
+  const registry = new CitationRegistry({ publicReviewSource: Boolean(input.publicReviewSource) });
+  const publicReviewCitation = input.publicReviewSource?.reference ? registry.cite({ sourceKind: 'REVIEW', identity: input.publicReviewSource.reference.collectionSha256, locator: null, label: 'review công khai trên Shopee', retrievedAt: input.publicReviewSource.outcome.attemptedAt, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' }) : null;
   // A source-policy marker opts in only when this report actually carries a
   // reader-owned method projection. Source-only drafts with no such method
   // retain the historical renderer bytes.
@@ -1050,7 +1057,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     };
     if (section.sectionId === 'M07' && defaultMarketPeers) {
       const owner = marketPresentation ? { rankingShown: input.marketPresentationCharts?.some(chart => chart.kind === 'product-ranking') === true } : undefined;
-      locatedViews.set(section.sectionId, () => defaultPeerSection(defaultMarketPeers, citations, productLabels(input), readerPlainText, owner));
+      locatedViews.set(section.sectionId, () => defaultPeerSection(defaultMarketPeers, citations, productLabels(input), readerPlainText || Boolean(input.publicReviewSource), owner));
       const usable = defaultMarketPeers.frames.some(frame => frame.state === 'SELECTED' || frame.state === 'ZERO_REVENUE');
       // The owner reader's explanation must agree with the body: no "rule applied" line when no group could be chosen.
       const chosen = defaultMarketPeers.frames.some(frame => frame.state === 'SELECTED');
@@ -1113,8 +1120,8 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   // snapshot-v2 draft marker; marker-free output keeps byte-identical dispatch.
   const descriptiveVersion = kind === 'MARKET' ? input.descriptiveMethods?.methodVersion : undefined;
   const draftInsight = kind === 'INSIGHT' && input.insightCoding !== undefined && 'draftSelection' in input.insightCoding;
-  const testReviewSample = kind === 'MARKET' ? exactTestReviewSample(input) : null;
-  const rendererVersion = testReviewSample ? 'automation-report-kit-v30' : input.qualitativeDraft ? 'automation-report-kit-v28' : insightPersona ? 'automation-report-kit-v26' : kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v5' ? 'automation-report-kit-v25' : marketPresentation ? 'automation-report-kit-v20' : kind === 'INSIGHT' && input.start.privateShopeeSource ? (sample ? 'automation-report-kit-v27' : 'automation-report-kit-v22') : insightCrosscheck ? 'automation-report-kit-v23' : kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4' ? 'automation-report-kit-v21' : insightLiteral ? 'automation-report-kit-v19' : kind === 'MARKET' && input.sourceEvidence?.jevTriage ? 'automation-report-kit-v29' : input.sourceEvidence ? 'automation-report-kit-v18'
+  const testReviewSample = kind === 'MARKET' && !input.publicReviewSource ? exactTestReviewSample(input) : null;
+  const rendererVersion = input.publicReviewSource ? 'automation-report-kit-v31' : testReviewSample ? 'automation-report-kit-v30' : input.qualitativeDraft ? 'automation-report-kit-v28' : insightPersona ? 'automation-report-kit-v26' : kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v5' ? 'automation-report-kit-v25' : marketPresentation ? 'automation-report-kit-v20' : kind === 'INSIGHT' && input.start.privateShopeeSource ? (sample ? 'automation-report-kit-v27' : 'automation-report-kit-v22') : insightCrosscheck ? 'automation-report-kit-v23' : kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4' ? 'automation-report-kit-v21' : insightLiteral ? 'automation-report-kit-v19' : kind === 'MARKET' && input.sourceEvidence?.jevTriage ? 'automation-report-kit-v29' : input.sourceEvidence ? 'automation-report-kit-v18'
     : draftInsight && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3' ? 'automation-report-kit-v17'
     : draftInsight ? 'automation-report-kit-v15'
     : defaultMarketPeers ? 'automation-report-kit-v14'
@@ -1132,6 +1139,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     ...(defaultMarketPeers ? { defaultMarketPeers } : {}),
     ...(kind === 'MARKET' && input.quoteMethods ? { quoteMethods: input.quoteMethods } : {}),
     ...(input.boundedMethods ? { boundedMethods: input.boundedMethods } : {}),
+    ...(input.publicReviewSource ? { publicReviewSource: input.publicReviewSource, ...(input.publicReviewCorpus ? { publicReviewCorpus: input.publicReviewCorpus } : {}) } : {}),
     contractVersion: 'research-automation-report-v1', rendererVersion, kind, state: 'PARTIAL_UNREVIEWED_DRAFT',
     runId: input.run.runId, workspaceId: input.run.workspaceId, createdAt: input.run.createdAt,
     keyword: input.start.keyword, country: input.start.country, requestedPeriod: input.start.requestedPeriod,
@@ -1201,11 +1209,13 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     BLOCKED: 'Chưa đủ dữ liệu / phương pháp', SOURCE_TABLE: 'Bảng bằng chứng · Chưa duyệt', SOURCE_CONTEXT: 'Ngữ cảnh nguồn · Chưa duyệt',
     METHOD_OUTPUT: kind === 'INSIGHT' ? 'Mã hóa lời nguồn · Kết quả từng phần' : 'Kết quả phương pháp mô tả · Chưa phải phân tích hoàn chỉnh', METHOD_NO_USABLE_RECORDS: 'Phương pháp đã chạy · Không có bản ghi dùng được',
   };
+  const analyticalCompletion = kind === 'MARKET' && input.publicReviewSource && completion.completedAnalyticalSections === 0
+    ? 'Chưa có mục phân tích hoàn chỉnh' : `Mục phân tích hoàn chỉnh: ${completion.completedAnalyticalSections}`;
   const coverSummary = `Trong ${sections.length} mục: ${([
     [completion.boundedMethodOutputSections, 'có kết quả phương pháp từng phần'], [completion.evidenceInventorySectionIds.length, 'kiểm tra bằng chứng'],
     [completion.contextSections, 'ngữ cảnh nguồn'], [completion.sourceTableSections, 'bảng nguồn'],
     [completion.boundedMethodNoUsableRecordSectionIds.length, 'đã chạy phương pháp nhưng không có bản ghi dùng được'], [completion.blockedSections, 'chưa có kết quả'],
-  ] as const).flatMap(([count, label]) => count ? [`${count} mục ${label}`] : []).join('; ')}. Mục phân tích hoàn chỉnh: ${completion.completedAnalyticalSections}; không tuyên bố báo cáo hoàn chỉnh.`;
+  ] as const).flatMap(([count, label]) => count ? [`${count} mục ${label}`] : []).join('; ')}. ${analyticalCompletion}; không tuyên bố báo cáo hoàn chỉnh.`;
   const methodIds = completion.boundedMethodOutputSectionIds;
   const emptyIds = completion.boundedMethodNoUsableRecordSectionIds;
   const literalIds = methodIds.filter(id => isLiteralFamily(id) && !usesCodingFamily(insightCoding, id));
@@ -1213,7 +1223,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   const headline = [
     kind === 'MARKET' && input.metricMethods ? input.metricClassified ? (readerPlainText ? 'Đã tính các phạm vi toàn bộ mẫu, phạm vi rộng và phạm vi cốt lõi bằng phân loại đã duyệt. Kết quả giới hạn trong mẫu nguồn và kỳ đo đã lưu; chưa đánh dấu M03/M04 hoàn chỉnh.' : 'Đã tính các phạm vi ALL/WIDE/CORE bằng phân loại đã duyệt. Kết quả giới hạn trong mẫu nguồn và kỳ đo đã lưu; chưa đánh dấu M03/M04 hoàn chỉnh.') : 'Đã tính tổng và độ tập trung từ các dòng số liệu nguồn gốc của đúng lượt này. Mẫu theo từ khóa chưa được phân loại thành thị trường; không đánh dấu M03/M04 hoàn chỉnh.' : '',
     kind === 'MARKET' && input.descriptiveMethodFailure ? 'Chưa tính được các mục mô tả thị trường vì đầu vào hoặc phương pháp không vượt qua kiểm tra. Bản nháp này chỉ giữ ngữ cảnh và dấu vết nguồn. Cần kiểm tra lỗi trước khi tạo phiên bản mới; không tự động gọi lại nguồn.' : '',
-    `Mục phân tích hoàn chỉnh: ${completion.completedAnalyticalSections}.`,
+    `${analyticalCompletion}.`,
     completion.evidenceInventorySectionIds.length ? `Đã kiểm tra bằng chứng, chưa có kết luận: ${completion.evidenceInventorySectionIds.join(', ')}.` : '',
     decisionProposedIds.length ? `Đề xuất AI đã lưu ở ${decisionProposedIds.join(', ')} là bản nháp chưa duyệt, không tính là mục phân tích hoàn chỉnh.` : '',
     kind === 'MARKET' ? descriptive ? `Kết quả phương pháp mô tả có giới hạn, chưa duyệt: ${methodIds.length} mục${methodIds.length ? ` (${methodIds.join(', ')})` : ''}.` : input.descriptiveMethodFailure ? '' : `Không có kết quả phương pháp mô tả thị trường: ${input.collection?.comparables.length ? 'các quan sát sản phẩm đã thu chưa tạo được kết quả được lưu' : 'lượt này không có quan sát sản phẩm từ bản thu nguồn mới'}.` : '',
@@ -1388,6 +1398,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   // market14 reader: M13 trace receipts and evidence details stay in semantic (sourceEvidence, quoteMethods, boundedMethods), not the reader.
   const traceAppendix = (sectionId: string): boolean => !(marketPresentation && sectionId === 'M13');
   const appendix = (sectionId: string): string =>
+    (input.publicReviewSource && (sectionId === 'M13' || sectionId === 'I03' || sectionId === 'I17') ? publicReviewReportHtml(input.publicReviewSource) + (publicReviewCitation === null ? '' : renderCitationMarkOrMissing(publicReviewCitation)) : '') +
     (testReviewSample && sectionId === 'M13'
       ? exactTestReviewSection(testReviewSample, undefined, marketPresentation ? { currentReader: true, productLabels: new Map([
         ...labels, ...[...(input.collection?.productCards ?? []), ...(input.run.productCards ?? [])].flatMap(card =>
@@ -1410,7 +1421,8 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     (input.boundedMethods && traceAppendix(sectionId) && (sectionId === 'M13' || sectionId === 'I17')
       ? `<details open id="bounded-method-evidence"><summary>Hồ sơ phương pháp M10/I11/I12/I16 và vị trí nguồn</summary><p>Nguồn bổ sung do người dùng chọn, không phải dữ liệu tự thu hoặc xác nhận độ phủ. Hồ sơ giữ riêng kỳ, phạm vi và điều kiện còn thiếu; không cộng gộp với số liệu thị trường hoặc review.</p>${retainedEvidenceHtml(input.boundedMethods)}</details>` : '');
   const baseAppendix = (sectionId: string): string => {
-    if (sourceScope && sectionId === 'M02') return marketSourceScopeSection(sourceScope, 'M02', citations, readerPlainText, marketPresentation ? input.metricMethods?.capture : undefined, marketPresentation ? marketReviewsCollected(input) : undefined);
+    if (sourceScope && sectionId === 'M02') return marketSourceScopeSection(sourceScope, 'M02', citations, readerPlainText, marketPresentation ? input.metricMethods?.capture : undefined,
+      { ...(marketPresentation ? { reviewsPresent: marketReviewsCollected(input) } : {}), currentReader: Boolean(input.publicReviewSource) });
     if (kind === 'MARKET' && sectionId === 'M01' && input.m01Inventory && input.sourceClaims) {
       const inventory = m01InventorySection(input.m01Inventory, input.sourceClaims, citations, readerPlainText);
       // Phần 1 states the per-platform findings; the per-period evidence rows stay in the technical copy.
@@ -1475,7 +1487,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   const marketPlatforms = [...new Set(chartRows.map(row => row.platform))];
   // market14 readers get a plain "Cách đọc báo cáo" paragraph; the completion counters stay in the semantic and the trace copy.
   const readerOpening = marketPresentation ? marketReaderGuide(marketPlatforms)
-    : `<p class="warning">${escape(headline)}${input.qualitativeDraft ? ` ${escape(qualitativeDraftSummary(input.qualitativeDraft))}` : ''}</p>${reviewOutcome ? reviewOutcomeNotice(reviewOutcome, kind) : ''}<p class="reader-guide">Đọc trạng thái và phần diễn giải trước khi sử dụng số liệu. Bảng trình bày những gì nguồn hoặc phép tính đã ghi nhận; phần “Hồ sơ đối chiếu” giữ nguyên nội dung nguồn và thông tin kỹ thuật. Mục còn thiếu điều kiện chưa có kết luận, không phải kết quả bằng 0.</p>`;
+    : `<p class="warning">${escape(headline)}${input.qualitativeDraft ? ` ${escape(qualitativeDraftSummary(input.qualitativeDraft))}` : ''}</p>${reviewOutcome ? reviewOutcomeNotice(reviewOutcome, kind) : ''}<p class="reader-guide">Đọc trạng thái và phần diễn giải trước khi sử dụng số liệu. Bảng trình bày những gì nguồn hoặc phép tính đã ghi nhận; phần “Hồ sơ đối chiếu” giữ nguyên nội dung nguồn và thông tin kỹ thuật. Mục còn thiếu điều kiện chưa có kết luận, ${input.publicReviewSource ? 'không phải kết quả bằng không' : 'không phải kết quả bằng 0'}.</p>`;
   // Descriptive empty states already explain the gap; retain the detailed
   // method explanation in semantic data without repeating it in the reader.
   // market14 delivery reads this marker: a method with no usable records, or Phần 9 holding only source-declared launch dates
@@ -1499,7 +1511,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     : `<p class="cv-eyebrow">Bản nháp từ nguồn · Chưa được duyệt</p><h1>${escape(title)}</h1><h2>${storedLiteral(input.start.keyword, 'Từ khóa được giữ trong bản lưu')}</h2><p class="cv-lede">Hai lớp tách biệt: dữ liệu đã thu và những điều chưa đủ bằng chứng.</p></div><div class="cv-meta"><b>Việt Nam</b><span>${escape(period)}</span><span>${escape(coverSummary)}</span></div>`;
   const footerText = marketPresentation
     ? `${decisionGeneratedIds.length || input.i14Synthesis?.status === 'VALID' ? 'Nội dung do AI đề xuất chưa được chủ duyệt. ' : ''}Các phương án ở Phần 12 là đề xuất, chờ chủ duyệt; báo cáo không tự đưa ra quyết định kinh doanh. “Chưa có dữ liệu” nghĩa là nguồn chưa có số, không phải bằng không.`
-    : `${insightPersona ? 'Chân dung và thẻ bằng chứng do AI đề xuất, chờ chủ duyệt; không phải một khách hàng có thật, kết luận đã phát hành hoặc quyết định kinh doanh.' : decisionGeneratedIds.length ? 'Kết quả xử lý AI được lưu riêng, chưa được người dùng duyệt; không phải sự thật đã xác minh, phương án đã chọn hoặc quyết định kinh doanh.' : input.i14Synthesis?.status === 'VALID' ? 'Nhận định AI được lưu riêng, chưa được người dùng duyệt; không phải sự thật đã xác minh hoặc quyết định kinh doanh.' : 'Không có nhận định AI hoặc quyết định kinh doanh tự động trong bản nháp này.'} Không có dữ liệu không đồng nghĩa với giá trị bằng 0.`;
+    : `${insightPersona ? 'Chân dung và thẻ bằng chứng do AI đề xuất, chờ chủ duyệt; không phải một khách hàng có thật, kết luận đã phát hành hoặc quyết định kinh doanh.' : decisionGeneratedIds.length ? 'Kết quả xử lý AI được lưu riêng, chưa được người dùng duyệt; không phải sự thật đã xác minh, phương án đã chọn hoặc quyết định kinh doanh.' : input.i14Synthesis?.status === 'VALID' ? 'Nhận định AI được lưu riêng, chưa được người dùng duyệt; không phải sự thật đã xác minh hoặc quyết định kinh doanh.' : 'Không có nhận định AI hoặc quyết định kinh doanh tự động trong bản nháp này.'} Không có dữ liệu không đồng nghĩa với giá trị bằng ${input.publicReviewSource ? 'không' : '0'}.`;
   const coverArt = cover ?`<img class="cv-art" src="data:image/jpeg;base64,${cover.base64}" alt="${escape(cover.alt)}" width="${cover.width}" height="${cover.height}" data-cover-provenance="${escape(cover.provenance)}"${cover.model ? ` data-cover-model="${escape(cover.model)}"` : ''}>` : '';
   const html = `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src data:; base-uri 'none'; form-action 'none'"><title>${pageTitle}</title><style>${reportKitFontCss()}\n${REPORT_KIT_CSS}\n.sheet{break-before:page}.sheet h2{font-size:26px}.state{font-size:12px;color:var(--warn-ink)}.warning{padding:12px;background:var(--warn-bg);color:var(--warn-ink)}dl{display:grid;grid-template-columns:180px minmax(0,1fr);gap:8px}dt{font-weight:700}dd{margin:0}.table-wrap{overflow-x:auto}.table-wrap table{min-width:720px}table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:10px;text-align:left;border:1px solid var(--bd);vertical-align:top}code{word-break:break-all}code.loc{word-break:normal;overflow-wrap:break-word}`
   // Desktop cover: keep text off the diagonal (yellow stripe spans 61.5%→39.6% of the cover width, top→bottom).
@@ -1520,7 +1532,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
       .replace(/\bALL\b/gu, 'toàn bộ mẫu')
       .replace(/\bUNKNOWN\b/gu, 'chưa rõ')).join('');
   // Delivery drops trace blocks; the reader renumbers the citations it still shows after semanticCitations and scopedHtml keep per-claim identity.
-  const deliveredHtml = marketPresentation ? sanitize(marketReaderCitations(deliverMarketReader(scopedHtml, input.collection?.searchInterest ? searchInterestReadingPoints(input.collection.searchInterest) : undefined, Boolean(input.metricMethods?.capture)), registry)) : scopedHtml;
+  const deliveredHtml = marketPresentation ? sanitize(marketReaderCitations(deliverMarketReader(scopedHtml, input.collection?.searchInterest ? searchInterestReadingPoints(input.collection.searchInterest) : undefined, Boolean(input.metricMethods?.capture), Boolean(input.publicReviewSource)), registry, { publicReviewSource: Boolean(input.publicReviewSource) })) : scopedHtml;
   const readerRenderedHtml = kind === 'MARKET' && input.metricMethods?.capture?.rowPolicyVersion ? plainCaptureNumbers(deliveredHtml) : deliveredHtml;
   // Hidden technical copy for retrieval: the same page before reader delivery, trace blocks kept. Never linked from the reader.
   const traceHtml = marketPresentation ? Buffer.from(sanitize(scopedHtml), 'utf8') : undefined;
@@ -1533,8 +1545,12 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   }
   // The visible-text lint keeps its own error; the business gate adds the remaining Market rules.
   if (marketPresentation) {
-    assertMarketBusinessGate(readerRenderedHtml, { presentation: true, partialTotals: marketPartialRowTotals(input) });
-    assertMarket14MachineRules(readerRenderedHtml);
+    assertMarketBusinessGate(readerRenderedHtml, { presentation: true, publicReviewSource: Boolean(input.publicReviewSource), partialTotals: marketPartialRowTotals(input) });
+    assertMarket14MachineRules(readerRenderedHtml, undefined, { publicReviewSource: Boolean(input.publicReviewSource) });
+  }
+  if (input.publicReviewSource) {
+    const nameFailure = lintReaderReport(readerRenderedHtml, { publicReviewSource: true }).filter(r => (r.rule.startsWith('F1 ') || r.rule.startsWith('W6 ')) && !r.ok);
+    if (nameFailure.length) throw new TypeError('PUBLIC_REVIEW_READER_NAME_REFUSED');
   }
   return { semantic: { ...semanticBase, ...semanticCitations }, html: Buffer.from(readerRenderedHtml, 'utf8'), ...(traceHtml ? { traceHtml } : {}) };
 }

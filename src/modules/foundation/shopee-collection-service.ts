@@ -1,3 +1,5 @@
+import type { ShopeePublicCollection } from '../../../contracts/foundation/shopee-public-collection.generated.js';
+import { PUBLIC_REVIEW_MAX_BYTES, validatePublicCollection, validatePublicEnvelope, type PublicCollectedPages, type PublicReviewEnvelope } from '../../platform/collectors/shopee-public-reviews.js';
 import { randomUUID } from 'node:crypto';
 import type { ShopeePrivateCollection } from '../../../contracts/foundation/shopee-private-collection.generated.js';
 import type { ShopeePrivateProjection } from '../../../contracts/foundation/shopee-private-projection.generated.js';
@@ -16,6 +18,10 @@ import { withDatabaseMutationMutex } from '../../platform/db/database-mutation-m
 import { digest, jsonBytes, parseJsonBytes, selectShopeeListings, validateCollection, validateListingRequest } from './shopee-selection.js';
 import { selectExactShopeeListings, validateExactShopeeCollection, validateExactShopeeRequest } from './shopee-exact-selection.js';
 
+export interface VerifiedPublicShopeeCollection {
+  packet: ShopeePublicCollection; request: ShopeeExactRequest; sha256: string;
+  pages: { bytes: Buffer; sha256: string; offset: number }[]; envelopes: PublicReviewEnvelope[];
+}
 export interface VerifiedShopeeCollection {
   packet: ShopeeCollection;
   request: ShopeeListingRequest;
@@ -51,6 +57,87 @@ interface Row { collection_id: string; request_sha256: string; artifact_sha256: 
 
 export class ShopeeCollectionService implements ShopeeCollectionReader, PrivateShopeeCollectionReader {
   constructor(readonly db: Database.Database, readonly artifacts: ContentAddressedArtifactStore) {}
+
+  async existingPublicExact(requestBytes: Buffer, mode: 'fixture' | 'live', confirmedSourceSetSha256?: string): Promise<VerifiedPublicShopeeCollection | null> {
+    const request = validateExactShopeeRequest(parseJsonBytes(requestBytes));
+    const row = this.db.prepare('SELECT * FROM foundation_shopee_collections WHERE run_key=?').get(request.runKey) as Row | undefined;
+    if (!row) return null;
+    if (row.request_sha256 !== digest(requestBytes)) throw new Error('Public collection request differs');
+    const verified = await this.readPublicExact(row.collection_id);
+    if (verified.packet.mode !== mode || confirmedSourceSetSha256 !== undefined && verified.packet.confirmedSourceSetSha256 !== confirmedSourceSetSha256) throw new Error('Public collection binding differs');
+    return verified;
+  }
+
+  async savePublicExact(requestBytes: Buffer, collected: PublicCollectedPages): Promise<VerifiedPublicShopeeCollection> {
+    const frozenBytes = Buffer.from(requestBytes), frozen = structuredClone(collected);
+    const request = validateExactShopeeRequest(parseJsonBytes(frozenBytes));
+    const selection = selectExactShopeeListings(request);
+    return withDatabaseMutationMutex(this.db, async () => {
+      const prior = await this.existingPublicExact(frozenBytes, frozen.mode, frozen.confirmedSourceSetSha256);
+      const envelopes = frozen.envelopes.map(validatePublicEnvelope);
+      const pageBytes = envelopes.map(e => jsonBytes(e.rows));
+      if (pageBytes.length !== frozen.pages.length || pageBytes.some((p, i) => !p.equals(Buffer.from(frozen.pages[i]!.bytes)))) throw new Error('Public mapped page differs');
+      let offset = 0;
+      const pages = pageBytes.map((p, i) => { if (frozen.pages[i]!.offset !== offset) throw new Error('Public page offset differs'); const row = { sha256: digest(p), byteSize: p.length, offset }; offset += envelopes[i]!.rows.length; return row; });
+      if (prior) {
+        if (!jsonBytes(prior.packet.pages).equals(jsonBytes(pages)) || !jsonBytes(prior.packet.listings).equals(jsonBytes(frozen.listings)) ||
+            prior.packet.maxReviewsPerProduct !== frozen.maxReviewsPerProduct || prior.packet.mappingRevision !== frozen.mappingRevision ||
+            prior.packet.attemptedAt !== frozen.attemptedAt || prior.packet.providerId !== frozen.providerId) throw new Error('Public collection evidence differs');
+        return prior;
+      }
+      const now = frozen.attemptedAt;
+      const packet = validatePublicCollection({ contractVersion: '4.0.0', selectionBasis: 'OWNER_EXACT_URL', collectionId: randomUUID(),
+        runKey: request.runKey, requestSha256: digest(frozenBytes), createdAt: now, mode: frozen.mode,
+        selected: selection.selected, selectionWarnings: selection.warnings, collectorWarnings: frozen.warnings, pages,
+        confirmedSourceSetSha256: frozen.confirmedSourceSetSha256, mappingRevision: frozen.mappingRevision, providerId: frozen.providerId,
+        maxReviewsPerProduct: frozen.maxReviewsPerProduct, usageTotalUsd: 0, listings: frozen.listings, attemptedAt: now, reused: frozen.reused });
+      assertPublicMembership(packet, envelopes, pageBytes);
+      const artifacts = [await this.artifacts.put(frozenBytes)];
+      for (const p of pageBytes) artifacts.push(await this.artifacts.put(p));
+      for (const e of envelopes) artifacts.push(await this.artifacts.put(jsonBytes(e)));
+      const stored = await this.artifacts.put(jsonBytes(packet)); artifacts.push(stored);
+      const sourceId = packet.mode === 'fixture' ? 'synthetic:shopee-public-reviews' : 'provider:shopee-public-reviews';
+      const evidenceId = randomUUID(), ingestionId = randomUUID();
+      this.db.transaction(() => {
+        for (const a of artifacts) registerManifest(this.db, a, now);
+        this.db.prepare(`INSERT INTO foundation_sources(source_id,source_type,display_name,created_at) VALUES (?,?,?,?) ON CONFLICT(source_id) DO NOTHING`)
+          .run(sourceId, packet.mode === 'fixture' ? 'manual' : 'provider_api', 'review công khai trên Shopee', now);
+        this.db.prepare(`INSERT INTO foundation_ingestion_runs(ingestion_id,source_id,idempotency_key,status,acquired_at,started_at,completed_at,artifact_sha256,request_sha256,contract_version) VALUES (?,?,?,'completed',?,?,?,?,?,?)`)
+          .run(ingestionId, sourceId, request.runKey, now, now, now, stored.sha256, packet.requestSha256, '4.0.0');
+        this.db.prepare(`INSERT INTO foundation_evidence(evidence_id,ingestion_id,artifact_sha256,evidence_grade,evidence_grade_basis,created_at) VALUES (?,?,?,?,?,?)`)
+          .run(evidenceId, ingestionId, stored.sha256, packet.mode === 'fixture' ? 'synthetic' : 'unverified', 'Sanitized bounded source capture; membership is not source authentication', now);
+        this.db.prepare(`INSERT INTO foundation_shopee_collections(collection_id,run_key,request_sha256,artifact_sha256,evidence_id,created_at) VALUES (?,?,?,?,?,?)`)
+          .run(packet.collectionId, packet.runKey, packet.requestSha256, stored.sha256, evidenceId, now);
+      })();
+      return this.readPublicExact(packet.collectionId);
+    });
+  }
+
+  async readPublicExact(id: string): Promise<VerifiedPublicShopeeCollection> {
+    const row = this.db.prepare('SELECT * FROM foundation_shopee_collections WHERE collection_id=?').get(id) as Row | undefined;
+    if (!row) throw new Error('Public collection not found');
+    const raw = await this.#verifiedArtifact(row.artifact_sha256, PUBLIC_REVIEW_MAX_BYTES), packet = validatePublicCollection(parseJsonBytes(raw));
+    if (!jsonBytes(packet).equals(raw) || packet.collectionId !== id || packet.requestSha256 !== row.request_sha256 || packet.runKey !== row.run_key || packet.createdAt !== row.created_at) throw new Error('Public collection metadata differs');
+    const request = validateExactShopeeRequest(parseJsonBytes(await this.#verifiedArtifact(packet.requestSha256, PUBLIC_REVIEW_MAX_BYTES)));
+    const selection = selectExactShopeeListings(request);
+    if (request.runKey !== packet.runKey || !jsonBytes(selection.selected).equals(jsonBytes(packet.selected)) || !jsonBytes(selection.warnings).equals(jsonBytes(packet.selectionWarnings))) throw new Error('Public selection replay differs');
+    const lineage = this.db.prepare(`SELECT e.artifact_sha256,e.evidence_grade,i.source_id,i.request_sha256,i.idempotency_key,i.status,i.contract_version FROM foundation_evidence e JOIN foundation_ingestion_runs i ON i.ingestion_id=e.ingestion_id WHERE e.evidence_id=?`).get(row.evidence_id) as Record<string,string> | undefined;
+    if (!lineage || lineage.artifact_sha256 !== row.artifact_sha256 || lineage.evidence_grade !== (packet.mode === 'fixture' ? 'synthetic' : 'unverified') ||
+        lineage.source_id !== (packet.mode === 'fixture' ? 'synthetic:shopee-public-reviews' : 'provider:shopee-public-reviews') || lineage.request_sha256 !== packet.requestSha256 ||
+        lineage.idempotency_key !== packet.runKey || lineage.status !== 'completed' || lineage.contract_version !== '4.0.0') throw new Error('Public collection lineage differs');
+    const envelopes: PublicReviewEnvelope[] = [];
+    for (const receipt of packet.listings) if (receipt.resultSha256) {
+      const rawEnvelope = await this.#verifiedArtifact(receipt.resultSha256, PUBLIC_REVIEW_MAX_BYTES);
+      if (rawEnvelope.length !== receipt.resultByteSize) throw new Error('Public result size differs');
+      const envelope = validatePublicEnvelope(parseJsonBytes(rawEnvelope));
+      if (!jsonBytes(envelope).equals(rawEnvelope)) throw new Error('Public result canonical bytes differ');
+      envelopes.push(envelope);
+    }
+    const pages = [];
+    for (const p of packet.pages) { const rawPage = await this.#verifiedArtifact(p.sha256, PUBLIC_REVIEW_MAX_BYTES); if (rawPage.length !== p.byteSize) throw new Error('Public page size differs'); pages.push({ bytes: rawPage, sha256: p.sha256, offset: p.offset }); }
+    assertPublicMembership(packet, envelopes, pages.map(p => p.bytes));
+    return { packet, request, sha256: row.artifact_sha256, pages, envelopes };
+  }
 
   async existing(requestBytes: Buffer, mode: 'fixture' | 'live'): Promise<VerifiedShopeeCollection | null> {
     validateListingRequest(parseJsonBytes(requestBytes, 2 * 1024 * 1024));
@@ -268,8 +355,8 @@ export class ShopeeCollectionService implements ShopeeCollectionReader, PrivateS
     return { packet, request, sha256: row.artifact_sha256, pages };
   }
 
-  async #verifiedArtifact(sha: string): Promise<Buffer> {
-    const bytes = await this.artifacts.read(sha);
+  async #verifiedArtifact(sha: string, maxBytes?: number): Promise<Buffer> {
+    const bytes = maxBytes === undefined ? await this.artifacts.read(sha) : await this.artifacts.read(sha, { maxBytes });
     const metadata = this.db.prepare('SELECT byte_size, media_type, relative_path, contract_version FROM artifact_manifests WHERE sha256=?')
       .get(sha) as { byte_size: bigint; media_type: string; relative_path: string; contract_version: string } | undefined;
     if (!metadata || BigInt(metadata.byte_size) !== BigInt(bytes.length) || metadata.media_type !== 'application/json' ||
@@ -368,4 +455,21 @@ function assertPrivatePublication(collected: Pick<CollectedPages, 'mode' | 'acto
       jsonBytes(collected.warnings).equals(jsonBytes(['synthetic_fixture_not_live_evidence']))
     : collected.actor.status === 'SUCCEEDED' && ['dataset_exhausted', 'collection_limit_reached'].includes(collected.actor.stopReason) && collected.warnings.length === 0;
   if (!complete) throw new Error('Private collection is unavailable: failed, cancelled or incomplete intake');
+}
+
+function assertPublicMembership(packet: ShopeePublicCollection, envelopes: PublicReviewEnvelope[], pages: Buffer[]): void {
+  if (packet.listings.length !== packet.selected.length || envelopes.length !== pages.length || pages.length !== packet.pages.length) throw new Error('Public listing membership differs');
+  let pageIndex = 0, offset = 0;
+  for (let index = 0; index < packet.listings.length; index++) {
+    const receipt = packet.listings[index]!, listing = packet.selected[index]!;
+    const inputSha = digest(jsonBytes({url: listing.productUrl, max_comments: packet.maxReviewsPerProduct}));
+    if (receipt.productUrl !== listing.productUrl || receipt.shopId !== listing.shopId || receipt.itemId !== listing.itemId || receipt.inputSha256 !== inputSha) throw new Error('Public receipt binding differs');
+    if (receipt.resultSha256 === null) { if (receipt.resultByteSize !== 0 || receipt.resultAvailable || receipt.complete) throw new Error('Public missing snapshot differs'); continue; }
+    const e = envelopes[pageIndex]!, p = packet.pages[pageIndex]!, b = pages[pageIndex]!;
+    if (e.jobId !== receipt.jobId || e.productUrl !== listing.productUrl || e.shopId !== listing.shopId || e.itemId !== listing.itemId || e.maxReviewsPerProduct !== packet.maxReviewsPerProduct ||
+        digest(jsonBytes(e)) !== receipt.resultSha256 || jsonBytes(e).length !== receipt.resultByteSize || receipt.complete !== e.complete || receipt.stopReason !== e.stopReason ||
+        !jsonBytes(e.rows).equals(b) || digest(b) !== p.sha256 || b.length !== p.byteSize || p.offset !== offset || e.rows.length > packet.maxReviewsPerProduct ||
+        e.rows.some((r, i) => r.shopId !== listing.shopId || r.itemId !== listing.itemId || r.sourceUrl !== listing.productUrl || r.sourceRow !== i)) throw new Error('Public sanitized evidence differs');
+    offset += e.rows.length; pageIndex++;
+  }
 }

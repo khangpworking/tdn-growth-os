@@ -211,7 +211,7 @@ export function operatorAppConfigurationFromEnvironment(
     ...(environment.TDN_OWNER_API_TOKEN === undefined ? {} : { ownerToken: environment.TDN_OWNER_API_TOKEN }),
     ...(environment.TDN_OWNER_API_ACTOR_ID === undefined ? {} : { ownerActorId: environment.TDN_OWNER_API_ACTOR_ID }),
     ...(cliproxy === undefined ? {} : { cliproxy }),
-    ...(!environment.TDN_KALODATA_SECRET_KEY && !environment.TDN_SERPAPI_API_KEY && !environment.TDN_APIFY_TOKEN ? {} : { researchProviders: researchAutomationProviderConfigFromEnv(environment) }),
+    ...(!environment.TDN_KALODATA_SECRET_KEY && !environment.TDN_SERPAPI_API_KEY && !environment.TDN_APIFY_TOKEN && (environment.TDN_RESEARCH_SHOPEE_PUBLIC_ENABLED === undefined || environment.TDN_RESEARCH_SHOPEE_PUBLIC_ENABLED === '0') ? {} : { researchProviders: researchAutomationProviderConfigFromEnv(environment) }),
     ...(kalodataReplaySourceRunId === undefined ? {} : { researchKalodataReplaySourceRunId: kalodataReplaySourceRunId }),
     ...(environment.TDN_RESEARCH_PDF_CHROMIUM === undefined ? {} : { researchPdfExecutablePath: environment.TDN_RESEARCH_PDF_CHROMIUM }),
     ...(researchCaptureRelevanceAi === undefined ? {} : { researchCaptureRelevanceAi }),

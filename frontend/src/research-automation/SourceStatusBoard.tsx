@@ -32,13 +32,14 @@ const GROUP_ORDER: readonly BoardGroup[] = ['SALES_MARKET', 'CUSTOMER_VOICE', 'S
 
 /** Fallback grouping for payloads that predate the group field. */
 const LEGACY_GROUP: Record<string, BoardGroup> = {
-  METRIC: 'SALES_MARKET', KALODATA: 'SALES_MARKET', APIFY_SHOPEE: 'CUSTOMER_VOICE', SERPAPI: 'SALES_MARKET', PAGEINDEX: 'DOCUMENTS',
+  METRIC: 'SALES_MARKET', KALODATA: 'SALES_MARKET', APIFY_SHOPEE: 'CUSTOMER_VOICE', SHOPEE_PUBLIC_REVIEWS: 'CUSTOMER_VOICE', SERPAPI: 'SALES_MARKET', PAGEINDEX: 'DOCUMENTS',
 };
 
 const SOURCE_COPY: Record<BoardSource, { readonly name: string; readonly role: string; readonly unit: string }> = {
   METRIC: { name: 'Metric', role: 'File xuất tải lên tay', unit: 'file' },
   KALODATA: { name: 'Kalodata', role: 'Số liệu sản phẩm theo kỳ', unit: 'lần thu' },
   KALODATA_VIDEO_FILE: { name: 'Kalodata video', role: 'File video và creator tải lên tay', unit: 'file' },
+  SHOPEE_PUBLIC_REVIEWS: { name: 'review công khai trên Shopee', role: 'Review theo link sản phẩm', unit: 'lần thu' },
   APIFY_SHOPEE: { name: 'Apify review Shopee', role: 'Review Shopee theo link', unit: 'lần thu' },
   APIFY_TIKTOK_COMMENTS: { name: 'Apify bình luận TikTok', role: 'Bình luận dưới video TikTok', unit: 'lần thu' },
   VIDEO_READING: { name: 'Đọc nội dung video', role: 'Lời thoại và chữ trên video bán hàng', unit: 'file' },
@@ -179,6 +180,8 @@ export default function SourceStatusBoard({ mode, workspaceId, ownerToken = null
                   <dl>
                     <dt>Khóa</dt><dd>{credentialLabel(entry.credential)}</dd>
                     <dt>Chi phí</dt><dd>{costLabel(entry)}</dd>
+                    {entry.maxRecordsPerProduct !== undefined && <><dt>Giới hạn mỗi sản phẩm</dt><dd>{entry.maxRecordsPerProduct} bản ghi đánh giá</dd></>}
+                    {entry.requestCountUncertain && <><dt>Lượt gọi</dt><dd>Chưa đối soát số chính xác</dd></>}
                     {capped && <><dt>Trần chi</dt><dd>{formatCapUsd(entry.spendCapUsd)}</dd></>}
                     {entry.registryIds && entry.registryIds.length ? <><dt>Mã nguồn</dt><dd>{entry.registryIds.join(', ')}</dd></> : null}
                     {tier ? <><dt>Hạng</dt><dd>{entry.tier ?? ''}{entry.tier && entry.tierDetail ? ` (${entry.tierDetail})` : entry.tierDetail ?? ''}</dd></> : null}

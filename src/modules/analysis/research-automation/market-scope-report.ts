@@ -113,8 +113,13 @@ export function captureSampleSentence(capture: CaptureMetricMethodDetails): stri
   return `Mẫu gồm các sản phẩm trả về cho từ khóa “${keyword}”${removed ? `; ${removed}` : ''}; chưa chia nhóm sản phẩm.`;
 }
 
+export interface MarketSourceScopeOptions {
+  readonly reviewsPresent?: boolean;
+  readonly currentReader?: boolean;
+}
+
 export function marketSourceScopeSection(scope: MarketSourceScope, section: 'M02' | 'M13', citations: ReportCitations, readerPlainText = false,
-  capture?: CaptureMetricMethodDetails, reviewsPresent?: boolean): string {
+  capture?: CaptureMetricMethodDetails, { reviewsPresent, currentReader = false }: MarketSourceScopeOptions = {}): string {
   const metric = scope.metric;
   if (section === 'M13') {
     if (!metric) return '<details class="evidence-trace"><summary>Hồ sơ đối chiếu nguồn số liệu</summary><p>Chưa có gói số liệu đã xử lý trong bản báo cáo này; không có dấu vết tính toán để đối chiếu.</p></details>';
@@ -131,7 +136,7 @@ export function marketSourceScopeSection(scope: MarketSourceScope, section: 'M02
     ? `<dl><dt>Kỳ khai báo trong nguồn</dt><dd>${escape(metric.declaredScope.start)} đến ${escape(metric.declaredScope.end)}</dd><dt>Nền tảng</dt><dd>${escape(metric.declaredScope.platform)}</dd><dt>Thời điểm lấy nguồn</dt><dd>${metric.declaredScope.acquiredAt === null ? 'Chưa xác nhận' : escape(metric.declaredScope.acquiredAt)}</dd><dt>Số dòng chuẩn hóa</dt><dd>${metric.sourceRowCount}</dd></dl>` : '';
   const metricContent = metric
     ? `${capture ? capturePlatformScope(capture) : declared}<p>${metric.classification ? 'Đã áp dụng lựa chọn phân loại cho mẫu số liệu của bản này.' : capture?.rowPolicyVersion === 'automation-metric-capture-v3' ? captureSampleSentence(capture) : 'Chưa áp dụng phân loại đã duyệt; không suy phạm vi rộng hoặc phạm vi cốt lõi từ từ khóa.'}</p><p>Kỳ này do nguồn khai báo, chưa được xác minh độc lập. Không kéo dài hoặc chia tỷ lệ số liệu để khớp kỳ yêu cầu.</p><details class="evidence-trace"><summary>Hồ sơ đối chiếu kỳ đo và trạng thái tính</summary>${capture ? declared : ''}<p>Căn cứ kỳ khai báo, nguyên văn: ${periodBasisLabel(metric.declaredScope.periodBasis)}</p><p>Trạng thái phép tính: ${metric.scopes.map(s => `${escape(s.scope.toUpperCase())}: ${escape(s.status)}`).join('; ')}.</p></details>`
-    : '<p>Chưa có gói số liệu đã xử lý trong bản này. Không xem thiếu nguồn là doanh số bằng 0.</p>';
+    : `<p>Chưa có gói số liệu đã xử lý trong bản này. Không xem thiếu nguồn là doanh số bằng ${currentReader ? 'không' : '0'}.</p>`;
   const queries = scope.queries.map(group => `<li><p>${stepLabel(group.step)}: ${group.windows.length} khoảng truy vấn khác nhau, ${group.captures.length} bản thu${group.truncated ? '; có bản thu bị cắt' : ''}.</p><details><summary>Xem các khoảng đã truy vấn</summary><ul>${group.windows.map(w => `<li>${escape(w.startDate)} đến ${escape(w.endDate)}</li>`).join('')}</ul></details><details><summary>Xem dấu vết các bản thu của nhóm này</summary><ul>${group.captures.map(sha => `<li>${citations.mark({ sourceKind: 'CAPTURE', identity: sha, locator: null, label: 'Bản thu dữ liệu nguồn',
     retrievedAt: null, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE', technical: { step: group.step } })}</li>`).join('')}</ul></details></li>`).join('');
   const queryList = `<h4>Truy vấn đã lưu</h4>${queries ? `<ul>${queries}</ul>` : '<p>Chưa có bản thu kèm khoảng truy vấn.</p>'}<p>Các khoảng trên là ngày gửi trong yêu cầu, không chứng minh nguồn có dữ liệu đo đủ cả kỳ hoặc các cửa sổ có thể cộng lại. Quy tắc phân loại của nguồn số liệu không tự áp dụng cho nguồn sàn khác, tìm kiếm hoặc review.</p>`;

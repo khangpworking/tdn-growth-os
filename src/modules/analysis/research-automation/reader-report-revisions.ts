@@ -1,3 +1,4 @@
+import type { PublicReviewSource } from './public-shopee-bridge.js';
 import type { CaptureRelevanceRecord } from './capture-relevance.js';
 import type { PdfExcerpt } from './pdf-excerpt.js';
 import { createHash, randomUUID } from 'node:crypto';
@@ -60,6 +61,7 @@ const validDecisionV2 = def<ResearchAutomationReaderDecisionRequestV2>('decision
 const validRevisionV2 = def<ResearchAutomationReaderRevisionV2>('revisionV2');
 
 export const READER_BUILDER_VERSION = 'reader-report-market-v3';
+export const PUBLIC_MARKET_READER_BUILDER_VERSION = 'reader-report-market-v5';
 export const NEXT_MARKET_READER_BUILDER_VERSION = 'reader-report-market-v4';
 export const MAX_READER_HTML_BYTES = 32 * 1024 * 1024;
 const sha = (bytes: Uint8Array | string): string => createHash('sha256').update(bytes).digest('hex');
@@ -90,6 +92,7 @@ export function readerLimitationsFromDraft(semantic: Record<string, unknown>, pr
 }
 
 export interface ReaderDraftContext {
+  readonly publicReviewSource?: PublicReviewSource;
   readonly workspaceId: string; readonly runId: string; readonly draftPairId: string;
   readonly marketSemantic: Record<string, unknown>;
   /** Web search results retained by the run's collection step; empty when none ran. */
@@ -189,7 +192,7 @@ export class AutomationReaderReports {
   readonly #rows: ReaderRowsReader;
   readonly #unitSpecs: ReaderUnitSpecIntakes;
   constructor(private readonly db: Database.Database, private readonly artifacts: ContentAddressedArtifactStore,
-    private readonly now: () => Date, private readonly options: { flint?: boolean; rows?: ReaderRowsReader; staging?: RequestScopedArtifactStore } = {}) {
+    private readonly now: () => Date, private readonly options: { flint?: boolean; rows?: ReaderRowsReader; staging?: RequestScopedArtifactStore; verifyPublicReviewSource?: (source: PublicReviewSource, binding: ReaderBinding) => Promise<void> } = {}) {
     this.#rows = options.rows ?? readerRowsFromMetricWorkbook;
     this.#unitSpecs = new ReaderUnitSpecIntakes(db, artifacts, options.staging, now);
   }
@@ -290,7 +293,7 @@ export class AutomationReaderReports {
     // A reader-report-build-v1.1 request carries a web snapshot; the effective (derived) period
     // is checked against the attached file below, after compute.
     const next = request.contractVersion === 'reader-report-build-v1.2';
-    const builderVersion = next ? NEXT_MARKET_READER_BUILDER_VERSION : READER_BUILDER_VERSION;
+    const builderVersion = context.publicReviewSource ? PUBLIC_MARKET_READER_BUILDER_VERSION : next ? NEXT_MARKET_READER_BUILDER_VERSION : READER_BUILDER_VERSION;
     const retainedUnitPriceSources: RetainedUnitPriceSource[] = [];
     if (next && request.unitPrices) {
       let totalBytes = 0;
@@ -355,18 +358,22 @@ export class AutomationReaderReports {
     );
     const at = this.now(), createdAt = at.toISOString(), revisionId = randomUUID();
     const webResults = context.webResults ?? [];
-    const built = await buildMarketReport(data, { limitations, builtOn: builtOn(at), cover, flint: this.options.flint ?? true, webResults, ...(context.webPageTypes ? { webPageTypes: true as const } : {}), ...(capture ? { captureSource: true, captureRowPolicy: capture.rowPolicy, captureExcludedRows: captureRows?.excluded ?? [] } : {}), ...(context.searchInterest ? { searchInterest: context.searchInterest } : {}), ...(context.searchGeo ? { searchGeo: context.searchGeo } : {}), ...(context.searchGeoCapture ? { searchGeoCapture: context.searchGeoCapture } : {}), ...(context.worldBank ? { worldBank: context.worldBank } : {}), ...(context.comtrade ? { comtrade: context.comtrade } : {}), ...(context.searchAds ? { searchAds: context.searchAds } : {}), ...(context.officialStats ? { officialStats: context.officialStats } : {}), ...(context.pdfDiscovery ? { pdfDiscovery: context.pdfDiscovery } : {}), ...(context.pdfExcerpts?.length ? { pdfExcerpts: context.pdfExcerpts } : {}), ...(context.sellerVideos ? { sellerVideos: context.sellerVideos } : {}), ...(context.metaAds?.length ? { metaAds: context.metaAds } : {}), ...(context.metaAuto ? { metaAuto: context.metaAuto } : {}), ...(context.tiktokTopAds ? { tiktokTopAds: context.tiktokTopAds } : {}), ...(next && context.testReviewSample ? { testReviewSample: context.testReviewSample } : {}) });
+    if (context.publicReviewSource) {
+      if (!this.options.verifyPublicReviewSource) throw new ResearchAutomationIntegrityError('Public reader requires source verification.');
+      await this.options.verifyPublicReviewSource(context.publicReviewSource, context);
+    }
+    const built = await buildMarketReport(data, { ...(context.publicReviewSource ? { publicReviewSource: context.publicReviewSource } : {}), limitations, builtOn: builtOn(at), cover, flint: this.options.flint ?? true, webResults, ...(context.webPageTypes ? { webPageTypes: true as const } : {}), ...(capture ? { captureSource: true, captureRowPolicy: capture.rowPolicy, captureExcludedRows: captureRows?.excluded ?? [] } : {}), ...(context.searchInterest ? { searchInterest: context.searchInterest } : {}), ...(context.searchGeo ? { searchGeo: context.searchGeo } : {}), ...(context.searchGeoCapture ? { searchGeoCapture: context.searchGeoCapture } : {}), ...(context.worldBank ? { worldBank: context.worldBank } : {}), ...(context.comtrade ? { comtrade: context.comtrade } : {}), ...(context.searchAds ? { searchAds: context.searchAds } : {}), ...(context.officialStats ? { officialStats: context.officialStats } : {}), ...(context.pdfDiscovery ? { pdfDiscovery: context.pdfDiscovery } : {}), ...(context.pdfExcerpts?.length ? { pdfExcerpts: context.pdfExcerpts } : {}), ...(context.sellerVideos ? { sellerVideos: context.sellerVideos } : {}), ...(context.metaAds?.length ? { metaAds: context.metaAds } : {}), ...(context.metaAuto ? { metaAuto: context.metaAuto } : {}), ...(context.tiktokTopAds ? { tiktokTopAds: context.tiktokTopAds } : {}), ...(next && context.testReviewSample ? { testReviewSample: context.testReviewSample } : {}) });
     // Sample charts require Flint; country-background charts retain their explicit SVG fallback.
     assertFlintCharts(built.charts, this.options.flint ?? true);
     // The gate blocks report publication and revision insertion; cover/sidecar artifacts may already be written.
-    try { assertMarketBusinessGate(built.html, { presentation: false }); if (built.visibleTextRules) assertMarket14MachineRules(built.html, undefined, { requireFlint: this.options.flint ?? true }); }
+    try { assertMarketBusinessGate(built.html, { presentation: false, publicReviewSource: Boolean(context.publicReviewSource) }); if (built.visibleTextRules) assertMarket14MachineRules(built.html, undefined, { requireFlint: this.options.flint ?? true, publicReviewSource: Boolean(context.publicReviewSource) }); }
     catch (error) {
       if (error instanceof TypeError && (error.message.startsWith('MARKET_BUSINESS_GATE_FAILED:') || error.message.startsWith('MARKET_14_RULES_FAILED:'))) throw new ResearchAutomationValidationError(
         `Bản đọc chưa đạt kiểm tra bằng chứng hoặc cách trình bày (quy tắc: ${error.message.replace(/^MARKET_(?:BUSINESS_GATE|14_RULES)_FAILED:/u, '')}). Hãy sửa cách trình bày trước khi tạo phiên bản mới.`);
       throw error;
     }
     let published;
-    try { published = await publishReaderReport(this.artifacts, { html: built.html, narrator: built.narrator, extraOk: built.extraOk, visibleTextRules: next }); }
+    try { published = await publishReaderReport(this.artifacts, { html: built.html, narrator: built.narrator, extraOk: built.extraOk, visibleTextRules: next, publicReviewSource: Boolean(context.publicReviewSource) }); }
     catch (error) {
       if (error instanceof ReaderReportGateError) throw new ResearchAutomationValidationError(next
         ? 'Bản đọc chưa đạt kiểm tra bằng chứng hoặc cách trình bày. Hãy kiểm tra nguồn, nhận định và nhãn phân loại chờ chủ duyệt trước khi tạo phiên bản mới.' : error.message);
@@ -375,6 +382,7 @@ export class AutomationReaderReports {
     const profile = (await storeReaderProfile(this.artifacts, request.profile)).artifact;
     const record = await this.artifacts.put(json({
       contractVersion: 'reader-report-build-record-v1', builderVersion, revisionId,
+      ...(context.publicReviewSource ? { publicReviewSource: context.publicReviewSource } : {}),
       ...(intakeEnvelope ? { unitSpecIntakeSha256: intakeEnvelope.intakeSha256 } : {}),
       workspaceId: context.workspaceId, runId: context.runId, draftPairId: context.draftPairId, metricPackageId: request.metricPackageId,
       requestSha256: requestSha, profileSha256: profile.sha256, input, limitations, webResults: built.webResults,
@@ -729,6 +737,13 @@ export class AutomationReaderReports {
   async html(binding: ReaderBinding, revisionId: string): Promise<{ revision: ResearchAutomationReaderRevision | ResearchAutomationReaderRevisionV2; bytes: Buffer }> {
     const row = this.#byId(binding.runId, revisionId);
     if (!row || row.workspace_id !== binding.workspaceId) throw new ResearchAutomationNotFoundError('reader_report_not_found', 'Không tìm thấy bản đọc.');
+    if (row.report_kind === 'MARKET' && row.builder_version === PUBLIC_MARKET_READER_BUILDER_VERSION) {
+      const raw = await this.#verifiedInsightArtifact(row.input_sha256, 'application/json');
+      let record: Record<string, unknown>;
+      try { record = JSON.parse(raw.toString('utf8')) as Record<string, unknown>; } catch { throw new ResearchAutomationIntegrityError('Public reader build record is invalid.'); }
+      if (!raw.equals(json(record)) || record.builderVersion !== PUBLIC_MARKET_READER_BUILDER_VERSION || record.revisionId !== row.revision_id || !record.publicReviewSource || !this.options.verifyPublicReviewSource) throw new ResearchAutomationIntegrityError('Public reader build binding differs.');
+      await this.options.verifyPublicReviewSource(record.publicReviewSource as PublicReviewSource, binding);
+    }
     if (row.report_kind === 'INSIGHT') return { revision: await this.#projectWithPersona(row), bytes: await this.#verifiedInsightPage(row) };
     const manifest = this.db.prepare('SELECT byte_size,media_type,relative_path,contract_version,retention_status FROM artifact_manifests WHERE sha256=?')
       .get(row.html_sha256) as { byte_size: number | bigint; media_type: string; relative_path: string; contract_version: string; retention_status: string } | undefined;

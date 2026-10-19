@@ -1,3 +1,4 @@
+import { PUBLIC_REVIEW_FORBIDDEN_NAMES } from './research-automation/public-review-report.js';
 import { createHash } from 'node:crypto';
 import { canonicalJson } from '../foundation/canonical-json.js';
 import { normalizeReportCitationLocator, type ReportCitationLocator } from './report-citations.js';
@@ -68,13 +69,14 @@ const VERIFICATIONS: ReadonlySet<string> = new Set<QuoteVerification>(['NOT_APPL
 const EXTRA_FORBIDDEN_NAMES = ['SerpApi', 'Apify', 'PageIndex', 'Agent-Reach', 'OpenCLI', 'zen-studio'] as const;
 /** Lower-cased; matched as a substring of the lower-cased text. */
 export const CITATION_FORBIDDEN_NAMES: readonly string[] = [...FORBIDDEN_PROVIDER_NAMES, ...EXTRA_FORBIDDEN_NAMES].map(name => name.toLowerCase());
+export const PUBLIC_SOURCE_CITATION_FORBIDDEN_NAMES: readonly string[] = [...CITATION_FORBIDDEN_NAMES, ...PUBLIC_REVIEW_FORBIDDEN_NAMES.map(n => n.toLowerCase())];
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})?)?$/;
 
 const sha256 = (text: string): string => createHash('sha256').update(text, 'utf8').digest('hex');
 
-export function containsForbiddenProviderName(text: string): boolean {
-  const lower = text.toLowerCase();
-  return CITATION_FORBIDDEN_NAMES.some(name => lower.includes(name));
+export function containsForbiddenProviderName(text: string, options: { publicReviewSource?: boolean } = {}): boolean {
+  const lower = (options.publicReviewSource ? text.replace(/&#x([0-9a-f]+);?|&#(\d+);?/gi, (all, hex, dec) => { const n = parseInt(hex ?? dec, hex ? 16 : 10); return n <= 0x10ffff ? String.fromCodePoint(n) : all; }) : text).toLowerCase();
+  return (options.publicReviewSource ? PUBLIC_SOURCE_CITATION_FORBIDDEN_NAMES : CITATION_FORBIDDEN_NAMES).some(name => lower.includes(name));
 }
 
 /** A digest-like run of 32+ hex characters (sha256, artifact or package ids) is technical identity, never reader text. */
@@ -84,10 +86,10 @@ export function containsTechnicalId(text: string): boolean {
 }
 
 /** Every field a reader sees: label, quote, locator text and the displayed URL. Throws on a provider name or a digest. */
-export function assertReaderSafeCitation(entry: Pick<CitationEntry, 'label' | 'quote' | 'locatorText' | 'url'>): void {
+export function assertReaderSafeCitation(entry: Pick<CitationEntry, 'label' | 'quote' | 'locatorText' | 'url'>, options: { publicReviewSource?: boolean } = {}): void {
   for (const text of [entry.label, entry.quote, entry.locatorText, entry.url]) {
     if (text === null) continue;
-    if (containsForbiddenProviderName(text)) throw new CitationLabelError('PROVIDER_NAME_IN_LABEL');
+    if (containsForbiddenProviderName(text, options)) throw new CitationLabelError('PROVIDER_NAME_IN_LABEL');
     if (containsTechnicalId(text)) throw new CitationLabelError('TECHNICAL_ID_IN_LABEL');
   }
 }
@@ -116,6 +118,7 @@ function normalizeLocator(locator: CitationInput['locator']): ReportCitationLoca
 }
 
 export class CitationRegistry {
+  constructor(readonly options: { publicReviewSource?: boolean } = {}) {}
   readonly #entries: CitationEntry[] = [];
   readonly #trace: CitationTraceEntry[] = [];
   readonly #numberById = new Map<string, number>();
@@ -131,7 +134,7 @@ export class CitationRegistry {
     const url = input.url === null ? null : displayCitationUrl(input.url);
     const locator = normalizeLocator(input.locator);
     const locatorText = citationLocatorText(locator);
-    assertReaderSafeCitation({ label: input.label, quote: input.quote, locatorText, url });
+    assertReaderSafeCitation({ label: input.label, quote: input.quote, locatorText, url }, this.options);
     const citationId = sha256(canonicalJson({ sourceKind: input.sourceKind, identity: input.identity, locator }));
 
     const known = this.#numberById.get(citationId);

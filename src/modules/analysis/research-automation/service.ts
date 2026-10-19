@@ -1,3 +1,12 @@
+import publicSourceConfirmSchema from '../../../../contracts/api/research-automation-source-api-v3.schema.json' with { type: 'json' };
+import publicSourceSetSchema from '../../../../contracts/analysis/automation-confirmed-source-set-v2.schema.json' with { type: 'json' };
+import publicCollectionSchema from '../../../../contracts/foundation/shopee-public-collection.schema.json' with { type: 'json' };
+import publicRowsSchema from '../../../../contracts/foundation/shopee-public-rows.schema.json' with { type: 'json' };
+import publicLegacySchema from '../../../../contracts/foundation/shopee-collection.schema.json' with { type: 'json' };
+import type { ResearchAutomationSourceConfirmRequestV3 } from '../../../../contracts/api/research-automation-source-api-v3.generated.js';
+import type { AutomationConfirmedSourceSetV2 } from '../../../../contracts/analysis/automation-confirmed-source-set-v2.generated.js';
+import { AutomationPublicShopeeBridge, buildPublicReviewCorpus, publicReviewOutcome, type PublicShopeeConfiguration, type PublicReviewSource } from './public-shopee-bridge.js';
+import { ShopeePublicReviewError, validatePublicReviewSource, validatePublicReviewStage, type PublicReviewStage } from '../../../platform/collectors/shopee-public-reviews.js';
 import type { CaptureRelevanceAi } from './capture-relevance.js';
 import searchAdsSchema from '../../../../contracts/analysis/automation-search-ads.schema.json' with { type: 'json' };
 import { selectMetaAdPages, type MetaAdPage } from './meta-ad-report.js';
@@ -148,7 +157,7 @@ type HistoricalReportRevisionRequest = AutomationMarketPresentationRevisionReque
 type AutomationReportRevisionRequest = HistoricalReportRevisionRequest | AutomationInsightPersonaReportRevisionRequest;
 import type { ResearchAutomationReportPair, ResearchAutomationRevisionReceipt } from '../../../../contracts/api/research-automation-revision-api.generated.js';
 export type { ResearchAutomationReportPair, ResearchAutomationRevisionReceipt } from '../../../../contracts/api/research-automation-revision-api.generated.js';
-import type { AutomationConfirmedSourceSet } from '../../../../contracts/analysis/automation-confirmed-source-set.generated.js';
+import type { AutomationConfirmedSourceSet as LegacyConfirmedSourceSet } from '../../../../contracts/analysis/automation-confirmed-source-set.generated.js';
 import type { ResearchAutomationSourceConfirmRequest } from '../../../../contracts/api/research-automation-source-api.generated.js';
 import type Database from 'better-sqlite3';
 import type { DescriptiveMarketMethods } from '../../../../contracts/analysis/descriptive-market-methods.generated.js';
@@ -247,6 +256,8 @@ import {
 } from './model.js';
 
 export interface ResearchAutomationReportInput {
+  readonly publicReviewSource?: PublicReviewSource;
+  readonly publicReviewCorpus?: import('../../../../contracts/analysis/research-review-corpus-v2.generated.js').ResearchReviewCorpusV2;
   readonly sourceEvidence?: AutomationSourceEvidence;
   readonly run: ResearchAutomationRun;
   readonly start: StartSnapshot;
@@ -308,10 +319,11 @@ export interface ResearchAutomationReportInput {
 export type AutomationReportInput = ResearchAutomationReportInput;
 export type ResearchAutomationSourceActivityKey = 'kalodata' | 'serpapi' | 'apify-shopee' | 'metric'
   | 'kalodata-video' | 'apify-tiktok-comments' | 'video-reading' | 'meta-ad-library' | 'tiktok-top-ads' | 'official-stats' | 'world-bank' | 'un-comtrade' | 'search-ads-library' | 'pageindex';
-export interface ResearchAutomationSourceActivity { readonly lastDataAt: string | null; readonly dataCount: number; readonly lastUsageAt: string | null }
+export interface ResearchAutomationSourceActivity { readonly lastDataAt: string | null; readonly dataCount: number; readonly lastUsageAt: string | null; readonly requestCountUncertain?: boolean }
 /** One stored-capture row per SerpApi operation. Count unit is stored captures, never mixed with uploads or usage rows. lastUsageAt stays null: usage rows are a provider-level aggregate, never per-operation evidence. */
 export interface ResearchAutomationSerpApiOperation { readonly operation: string; readonly count: number; readonly lastDataAt: string | null; readonly lastUsageAt: string | null }
 export interface ResearchAutomationSourceActivityResult extends Record<ResearchAutomationSourceActivityKey, ResearchAutomationSourceActivity> {
+  readonly 'shopee-public-review'?: ResearchAutomationSourceActivity;
   /** Per-operation SerpApi capture history for the board's operation rows. */
   readonly serpapiOperations: readonly ResearchAutomationSerpApiOperation[];
 }
@@ -404,6 +416,7 @@ export interface ResearchAutomationServiceOptions {
   readonly uuid?: () => string;
   readonly actorId?: string;
   readonly shopeeCollectorFactory?: ShopeeCollectorFactory;
+  readonly shopeePublicReviews?: PublicShopeeConfiguration;
   /** Explicit runtime injection only; absent preserves raw historical starts. */
   readonly privateShopee?: PrivateShopeeConfiguration;
   readonly reviewCollection?: ReviewPolicyConfiguration;
@@ -522,7 +535,14 @@ sourceAjv.addSchema(automationApiSchema);
 registerPrivateReviewSchemas(sourceAjv);
 sourceAjv.addSchema(marketPresentationRevisionSchema);
 const validateSourceConfirm = sourceAjv.compile<ResearchAutomationSourceConfirmRequest>(sourceConfirmSchema);
-const validateSourceSet = sourceAjv.compile<AutomationConfirmedSourceSet>(sourceSetSchema);
+const validateLegacySourceSet = sourceAjv.compile<LegacyConfirmedSourceSet>(sourceSetSchema);
+sourceAjv.addSchema(publicLegacySchema, 'shopee-collection.schema.json');
+sourceAjv.addSchema(publicRowsSchema, 'shopee-public-rows.schema.json');
+sourceAjv.addSchema(publicCollectionSchema, 'shopee-public-collection.schema.json');
+if (!sourceAjv.getSchema('https://tdn.local/contracts/foundation/shopee-collection.schema.json')) sourceAjv.addSchema(publicLegacySchema, 'https://tdn.local/contracts/foundation/shopee-collection.schema.json');
+const validatePublicSourceConfirm = sourceAjv.compile<ResearchAutomationSourceConfirmRequestV3>(publicSourceConfirmSchema);
+const validatePublicSourceSet = sourceAjv.compile<AutomationConfirmedSourceSetV2>(publicSourceSetSchema);
+function validateSourceSet(value: unknown): value is AutomationConfirmedSourceSet { return validateLegacySourceSet(value) || validatePublicSourceSet(value); }
 sourceAjv.addSchema(qualitativeDraftSchema);
 sourceAjv.addSchema(revisionSchema); sourceAjv.addSchema(classifiedRevisionSchema); sourceAjv.addSchema(insightRevisionSchema); sourceAjv.addSchema(boundedRevisionSchema); sourceAjv.addSchema(quoteRevisionSchema);
 sourceAjv.addSchema(defaultPeerSchema); sourceAjv.addSchema(readerInputSchema); sourceAjv.addSchema(readerApiSchema);
@@ -545,6 +565,7 @@ sourceAjv.addSchema(metricCaptureIntakeSchema);
 const validateMetricCapturePrepare = sourceAjv.compile<ResearchAutomationMetricCapturePrepareRequest>({ $ref: `${metricCaptureIntakeSchema.$id}#/$defs/request` });
 sourceAjv.addSchema([foundationIntakeSchema, supplementalIntakeSchema]);
 const validateSupplementalPrepare = sourceAjv.compile<ResearchAutomationSupplementalPrepareRequest>({ $ref: `${supplementalIntakeSchema.$id}#/$defs/request` });
+type AutomationConfirmedSourceSet = LegacyConfirmedSourceSet | (AutomationConfirmedSourceSetV2 & { privateShopeeSource?: never; reviewCollectionPolicy?: never });
 interface FrozenSources { sha256: string; value: AutomationConfirmedSourceSet; nativeReference?: NativeSourceReviewReference }
 
 export class ResearchAutomationService {
@@ -578,6 +599,7 @@ export class ResearchAutomationService {
   readonly #locatedReviews: AutomationLocatedReviewBridge;
   readonly #nativeReviews: AutomationNativeSourceReviewBridge;
   readonly #shopee: AutomationExactShopeeBridge;
+  readonly #publicShopee: AutomationPublicShopeeBridge;
   readonly #privateShopeeSource: StartSnapshot['privateShopeeSource'];
   readonly #reviewPolicy: StartSnapshot['reviewCollectionPolicy'];
   readonly #marketInventory: AutomationMarketMethodBridge;
@@ -655,6 +677,8 @@ export class ResearchAutomationService {
     this.#reviewPolicy = options.reviewCollection ? reviewCollectionPolicy(options.reviewCollection.policy) : undefined;
     if (this.#reviewPolicy && options.privateShopee && canonicalJson(this.#reviewPolicy.privateSource) !== canonicalJson(options.privateShopee.source)) throw new ResearchAutomationValidationError('Configured review policy/private source mismatch.');
     this.#privateShopeeSource = this.#reviewPolicy?.privateSource ?? (options.privateShopee ? structuredClone(privateShopeeMarker(options.privateShopee.source)) : undefined);
+    this.#publicShopee = new AutomationPublicShopeeBridge(this.#db, this.#artifacts, options.shopeePublicReviews);
+    if (options.shopeePublicReviews && options.shopeeCollectorFactory) throw new ResearchAutomationValidationError('Conflicting review collectors.');
     this.#shopee = new AutomationExactShopeeBridge(this.#db, this.#artifacts, options.shopeeCollectorFactory, options.privateShopee, options.reviewCollection);
     this.#marketInventory = new AutomationMarketMethodBridge({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
     this.#captureRelevance = options.captureRelevance;
@@ -665,6 +689,12 @@ export class ResearchAutomationService {
     if (options.metricAttachmentStore) this.#supplementalIntake = new AutomationSupplementalSourceIntake(options.metricAttachmentStore, this.#db, this.#now);
     this.#metricRules = new AutomationMetricRuleAdoptions(this.#db, this.#artifacts, options.metricAttachmentStore, this.#now);
     this.#readerReports = new AutomationReaderReports(this.#db, this.#artifacts, this.#now, {
+      verifyPublicReviewSource: async (context, binding) => {
+        const row = this.#current(binding.runId); if (!row || row.workspaceId !== binding.workspaceId) throw new ResearchAutomationIntegrityError('Public reader run differs.');
+        const sources = await this.#readFrozenSources(row), collection = await this.#stepDocument(row.runId, 'COLLECTION');
+        const expected = await this.#publicReportSource(row, sources, collection, false);
+        if (!expected || canonicalJson(expected.context) !== canonicalJson(context)) throw new ResearchAutomationIntegrityError('Public reader source differs.');
+      },
       ...(options.readerReportFlint === undefined ? {} : { flint: options.readerReportFlint }),
       ...(options.readerRows ? { rows: options.readerRows } : {}),
       ...(options.metricAttachmentStore ? { staging: options.metricAttachmentStore } : {}) });
@@ -1937,7 +1967,7 @@ export class ResearchAutomationService {
       const webCollection = collection?.resultSha ? await this.#readStepDocument(collection.resultSha, runId, 'COLLECTION') : null;
       const searchInterest = webCollection?.searchInterest;
       const webResults = webCollection?.sourceEvidence ? admitWebResults(webCollection.sourceEvidence, collectionWebRows(webCollection), await this.#captureRecords(runId), webCollection.sourceEvidence.jevTriage ?? null) : webCollection ? collectionWebRows(webCollection) : [];
-      return { workspaceId, runId, draftPairId: latest.pairId, marketSemantic, ...(webCollection?.sourceEvidence?.webPageTypes ? { webPageTypes: true } : {}),
+      return { workspaceId, runId, draftPairId: latest.pairId, marketSemantic, ...(marketSemantic.publicReviewSource ? { publicReviewSource: marketSemantic.publicReviewSource as PublicReviewSource } : {}), ...(webCollection?.sourceEvidence?.webPageTypes ? { webPageTypes: true } : {}),
         ...(scope?.testReviewCap !== undefined && marketSemantic.exactTestReviewSample !== undefined && webCollection?.exactShopee && webCollection.exactShopeeOutcome ? { testReviewSample: {
           scope: { testReviewCap: scope.testReviewCap }, collection: { exactShopee: webCollection.exactShopee, exactShopeeOutcome: webCollection.exactShopeeOutcome },
         } } : {}),
@@ -1955,7 +1985,7 @@ export class ResearchAutomationService {
     const webCollection = collection?.resultSha ? await this.#readStepDocument(collection.resultSha, runId, 'COLLECTION') : null;
     const searchInterest = webCollection?.searchInterest;
     const webResults = webCollection?.sourceEvidence ? admitWebResults(webCollection.sourceEvidence, collectionWebRows(webCollection), await this.#captureRecords(runId), webCollection.sourceEvidence.jevTriage ?? null) : webCollection ? collectionWebRows(webCollection) : [];
-    return { workspaceId, runId, draftPairId: latest.pairId, marketSemantic, ...(webCollection?.sourceEvidence?.webPageTypes ? { webPageTypes: true } : {}),
+    return { workspaceId, runId, draftPairId: latest.pairId, marketSemantic, ...(marketSemantic.publicReviewSource ? { publicReviewSource: marketSemantic.publicReviewSource as PublicReviewSource } : {}), ...(webCollection?.sourceEvidence?.webPageTypes ? { webPageTypes: true } : {}),
       ...(scope?.testReviewCap !== undefined && marketSemantic.exactTestReviewSample !== undefined && webCollection?.exactShopee && webCollection.exactShopeeOutcome ? { testReviewSample: {
         scope: { testReviewCap: scope.testReviewCap }, collection: { exactShopee: webCollection.exactShopee, exactShopeeOutcome: webCollection.exactShopeeOutcome },
       } } : {}),
@@ -2081,7 +2111,7 @@ export class ResearchAutomationService {
       const scope: ScopeSnapshot = { contractVersion: 'research-automation-scope-snapshot-v1', workspaceId, runId, definition: input.definition,
         includeTerms: [...input.includeTerms], excludeTerms: [...input.excludeTerms], selectedProductIds: [...input.selectedProductIds], peerProductIds: [...input.peerProductIds],
         ...(input.exactShopeeUrls !== undefined ? { exactShopeeUrls: [...input.exactShopeeUrls] } : {}),
-        ...(input.contractVersion === 'research-automation-confirm-v2' && typeof input.sources.nativeReview === 'object'
+        ...(input.contractVersion !== 'research-automation-confirm-v1' && typeof input.sources.nativeReview === 'object' && input.sources.nativeReview.decision === 'COLLECT_EXACT_TEST'
           ? { testReviewCap: input.sources.nativeReview.maxReviewsPerProduct } : {}) };
       const row = this.#current(runId)!;
       const start = await this.#readStartSnapshot(row.startSha, workspaceId);
@@ -2091,13 +2121,24 @@ export class ResearchAutomationService {
       let metric: AutomationConfirmedSourceSet['metric'] | undefined;
       let native: AutomationConfirmedSourceSet['nativeReview'] | undefined;
       let referenceArtifact: StoredArtifact | undefined;
-      if (input.contractVersion === 'research-automation-confirm-v2') {
+      let publicAcquisition: AutomationConfirmedSourceSetV2['reviewAcquisition'] | undefined;
+      if (input.contractVersion !== 'research-automation-confirm-v1') {
         metric = input.sources.metric.decision === 'USE_PREPARED'
           ? { decision: 'ADMITTED', sourcePackage: await this.#metricMethods.inspectPrepared(bound, input.sources.metric.packageId) }
           : { decision: input.sources.metric.decision };
         if (input.sources.nativeReview === 'SKIP') native = { decision: 'SKIPPED' };
         else if (typeof input.sources.nativeReview === 'object') {
-          if (!this.#autoRun?.enabled || this.#autoRun.testReviewCap !== scope.testReviewCap || !this.#shopee.factory ||
+          if (input.contractVersion === 'research-automation-confirm-v3') {
+            const acquisition = input.sources.nativeReview;
+            if (!this.#publicShopee.configuration || this.#publicShopee.configuration.maxReviewsPerProduct !== acquisition.maxReviewsPerProduct ||
+                !scope.exactShopeeUrls?.length || start.privateShopeeSource || start.reviewCollectionPolicy)
+              throw new ResearchAutomationValidationError('Public reviews require explicit configured exact acquisition.');
+            const trial = acquisition.decision === 'COLLECT_EXACT_TEST';
+            if (trial && (!this.#autoRun?.enabled || this.#autoRun.testReviewCap !== acquisition.maxReviewsPerProduct || start.reports.length !== 1 || start.reports[0] !== 'MARKET'))
+              throw new ResearchAutomationValidationError('Public trial requires the configured Market auto-run.');
+            publicAcquisition = { providerId: 'shopee-public-review', maxReviewsPerProduct: acquisition.maxReviewsPerProduct,
+              mappingRevision: 'shopee-public-review-row-v1', sampleMode: trial ? 'TRIAL' : 'STANDARD' };
+          } else if (!this.#autoRun?.enabled || this.#autoRun.testReviewCap !== scope.testReviewCap || !this.#shopee.factory ||
               !scope.exactShopeeUrls?.length || start.reports.length !== 1 || start.reports[0] !== 'MARKET' || start.privateShopeeSource || start.reviewCollectionPolicy)
             throw new ResearchAutomationValidationError('Trial reviews require a Market-only run, exact Shopee URLs and the configured trial collector.');
           native = { decision: 'NONE' };
@@ -2113,6 +2154,8 @@ export class ResearchAutomationService {
           } else native = { decision: 'NONE' };
         }
       }
+      if (this.#publicShopee.configuration && !publicAcquisition && scope.exactShopeeUrls?.length && native?.decision !== 'SKIPPED' && native?.decision !== 'RESOLVED')
+        throw new ResearchAutomationValidationError('Explicit v3 public acquisition is required.');
       if (start.privateShopeeSource) {
         if (native?.decision === 'RESOLVED') throw new ResearchAutomationValidationError('Private/native review source substitution is forbidden.');
         metric ??= { decision: 'ABSENT' };
@@ -2120,11 +2163,12 @@ export class ResearchAutomationService {
       }
       const stored = await this.#putJson(scope, confirmedAt);
       const sourceSet: AutomationConfirmedSourceSet | undefined = metric && native ? {
-        contractVersion: 'automation-confirmed-source-set-v1', runId, workspaceId, executionId: randomUUID(),
+        contractVersion: publicAcquisition ? 'automation-confirmed-source-set-v2' : 'automation-confirmed-source-set-v1', runId, workspaceId, executionId: randomUUID(),
         startSha256: row.startSha, scopeSha256: stored.sha256, requestSha256: requestSha, confirmedAt, metric, nativeReview: native,
+        ...(publicAcquisition ? { reviewAcquisition: publicAcquisition } : {}),
         ...(start.privateShopeeSource ? { privateShopeeSource: start.privateShopeeSource } : {}),
         ...(start.reviewCollectionPolicy ? { reviewCollectionPolicy: start.reviewCollectionPolicy } : {}),
-      } : undefined;
+      } as AutomationConfirmedSourceSet : undefined;
       if (sourceSet && !validateSourceSet(sourceSet)) throw new ResearchAutomationIntegrityError('Confirmed source set is invalid.');
       const sourceSetArtifact = sourceSet ? await this.#putJson(sourceSet, confirmedAt) : undefined;
       this.#db.transaction(() => {
@@ -2211,6 +2255,15 @@ export class ResearchAutomationService {
     const usage = this.#db.prepare(`SELECT u.provider provider,MAX(u.recorded_at) lastAt FROM analysis_research_automation_usage u
       JOIN analysis_research_automation_runs r ON r.run_id=u.run_id WHERE r.workspace_id=? AND u.provider IN ('kalodata','serpapi','apify-shopee') GROUP BY u.provider`).all(workspaceId) as Array<{ provider: 'kalodata' | 'serpapi' | 'apify-shopee'; lastAt: string }>;
     for (const row of usage) activity[row.provider].lastUsageAt = row.lastAt;
+    const publicHistory = this.#db.prepare(`SELECT MAX(c.created_at) lastAt,COUNT(*) total FROM foundation_shopee_collections c JOIN analysis_research_automation_runs r ON c.run_key='auto-'||r.run_id JOIN foundation_ingestion_runs i ON i.artifact_sha256=c.artifact_sha256 WHERE r.workspace_id=? AND i.contract_version='4.0.0'`).get(workspaceId) as { lastAt: string | null; total: number | bigint };
+    const publicUsage = this.#db.prepare(`SELECT MAX(u.recorded_at) lastAt FROM analysis_research_automation_usage u JOIN analysis_research_automation_runs r ON r.run_id=u.run_id WHERE r.workspace_id=? AND u.provider='shopee-public-review'`).get(workspaceId) as { lastAt: string | null };
+    let publicUncertain = false;
+    if (publicHistory.lastAt) {
+      const retained = this.#db.prepare(`SELECT c.collection_id id FROM foundation_shopee_collections c JOIN analysis_research_automation_runs r ON c.run_key='auto-'||r.run_id JOIN foundation_ingestion_runs i ON i.artifact_sha256=c.artifact_sha256 WHERE r.workspace_id=? AND i.contract_version='4.0.0'`).all(workspaceId) as { id: string }[];
+      const reader = new ShopeeCollectionService(this.#db, this.#artifacts);
+      for (const item of retained) publicUncertain ||= (await reader.readPublicExact(item.id)).packet.listings.some(r => r.requestCountUncertain);
+    }
+    const publicActivity = publicHistory.lastAt || publicUsage.lastAt ? { 'shopee-public-review': { lastDataAt: publicHistory.lastAt, dataCount: toNumber(publicHistory.total), lastUsageAt: publicUsage.lastAt, requestCountUncertain: publicUncertain } } : {};
     const searchAdsUsageAt = this.#db.prepare(`SELECT MAX(u.recorded_at) lastAt FROM analysis_research_automation_usage u
       JOIN analysis_research_automation_runs r ON r.run_id=u.run_id
       WHERE r.workspace_id=? AND u.step_id='COLLECTION' AND u.ordinal IN (?,?,?,?) AND u.provider='serpapi' AND u.request_count>0`).get(workspaceId, GOOGLE_ADS_USAGE_ORDINAL, ...GOOGLE_ADS_DISCOVERY_USAGE_ORDINALS) as { lastAt: string | null };
@@ -2350,7 +2403,7 @@ export class ResearchAutomationService {
     // Remaining source readers and NOT_BUILT flips belong to their owning
     // packages (P10: official statistics and World Bank; U-23: Meta ads).
     // Until then the board shows honest zeros, never invented history.
-    return { ...activity, serpapiOperations };
+    return { ...activity, ...publicActivity, serpapiOperations };
   }
 
   async getRun(workspaceId: string, runId: string): Promise<ResearchAutomationRun> {
@@ -2522,11 +2575,12 @@ export class ResearchAutomationService {
         } else nativeReview = priorSources?.value.nativeReview ?? { decision: 'NONE' };
       }
       const attemptId = randomUUID();
-      const sources: AutomationConfirmedSourceSet = { contractVersion: 'automation-confirmed-source-set-v1', runId, workspaceId,
+      const publicKeep = priorSources?.value.contractVersion === 'automation-confirmed-source-set-v2' && ('qualitativeDraft' in input || input.sources.nativeReview.decision === 'KEEP') ? priorSources.value.reviewAcquisition : undefined;
+      const sources = { contractVersion: publicKeep ? 'automation-confirmed-source-set-v2' : 'automation-confirmed-source-set-v1', runId, workspaceId,
         executionId: attemptId, startSha256: run.startSha, scopeSha256: run.scopeSha, requestSha256: requestSha,
-        confirmedAt: run.scopeConfirmedAt, metric, nativeReview,
+        confirmedAt: run.scopeConfirmedAt, metric, nativeReview, ...(publicKeep ? { reviewAcquisition: publicKeep } : {}),
         ...(start.privateShopeeSource ? { privateShopeeSource: start.privateShopeeSource } : {}),
-        ...(start.reviewCollectionPolicy ? { reviewCollectionPolicy: start.reviewCollectionPolicy } : {}) };
+        ...(start.reviewCollectionPolicy ? { reviewCollectionPolicy: start.reviewCollectionPolicy } : {}) } as AutomationConfirmedSourceSet;
       await this.#verifySourceDocument(run, sources, nativeReference);
       const at = this.#now().toISOString();
       const requestArtifact = await this.#putJson(input, at);
@@ -2765,6 +2819,12 @@ export class ResearchAutomationService {
       }
     } else if (semantic.sourceEvidence !== undefined) throw new ResearchAutomationIntegrityError('Historical report cannot acquire source admission.');
     const sources = attempt ? await this.#readAttemptSources(frozenRun, attempt) : await this.#readFrozenSources(frozenRun);
+    const publicCollection = await this.#reportCollection(runId, sources, Boolean(attempt));
+    const verifiedPublicReview = await this.#publicReportSource(frozenRun, sources, publicCollection, false, kind === 'INSIGHT' && semantic.publicReviewCorpus === undefined);
+    if (verifiedPublicReview ? semantic.rendererVersion !== 'automation-report-kit-v31' || canonicalJson(semantic.publicReviewSource) !== canonicalJson(verifiedPublicReview.context) ||
+        (semantic.publicReviewCorpus !== undefined && canonicalJson(semantic.publicReviewCorpus) !== canonicalJson(verifiedPublicReview.corpus)) || semantic.reviewCorpus || semantic.locatedReview || semantic.nativeReview
+      : semantic.publicReviewSource !== undefined || semantic.publicReviewCorpus !== undefined || semantic.rendererVersion === 'automation-report-kit-v31')
+      throw new ResearchAutomationIntegrityError('Public report evidence differs.');
     const metricSources = attempt ? await this.#methodSources(frozenRun, attempt, 'metric') : sources;
     const nativeExecution = attempt ? (await this.#methodSources(frozenRun, attempt, 'nativeReview'))?.value.executionId : undefined;
     if (attempt ? semantic.reportAttemptId !== attempt.attemptId || semantic.previousPairId !== attempt.previousPairId : semantic.reportAttemptId !== undefined || semantic.previousPairId !== undefined)
@@ -2920,7 +2980,7 @@ export class ResearchAutomationService {
         method = verifyAutomationMarketPresentation(parsed, verified.binding);
       }
       if (canonicalJson(method.input) !== canonicalJson(verifiedInput) || semantic.rendererVersion !==
-          (semantic.exactTestReviewSample !== undefined ? 'automation-report-kit-v30' : 'automation-report-kit-v20'))
+          (semantic.publicReviewSource !== undefined ? 'automation-report-kit-v31' : semantic.exactTestReviewSample !== undefined ? 'automation-report-kit-v30' : 'automation-report-kit-v20'))
         throw new ResearchAutomationIntegrityError('Market presentation retained inputs differ.');
     } else if (kind === 'MARKET' && attempt) {
       const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
@@ -3191,6 +3251,7 @@ export class ResearchAutomationService {
         throw new ResearchAutomationIntegrityError('Report video uploads differ from the pinned stored packages.');
       const expected = sourceEvidenceForReport(basePacket, { collection, ...(marked ? { pdfExcerpts: storedExcerpts } : {}), ...(videosMarked ? { sellerVideos: storedVideos } : {}),
         ...(collection?.searchInterest || collection?.searchGeo || collection?.worldBank || collection?.comtrade || collection?.searchAds || collection?.officialStats || collection?.pdfDiscovery ? { captures: await this.#captureRecords(runId) } : {}),
+        ...(verifiedPublicReview ? { publicReviewSource: verifiedPublicReview.context, ...(kind === 'INSIGHT' && verifiedPublicReview.corpus ? { publicReviewCorpus: verifiedPublicReview.corpus } : {}) } : {}),
         ...(verifiedPrivateView ? { privateReviewCorpus: verifiedPrivateView } : {}),
         ...(verifiedReviewSample ? { reviewSample: verifiedReviewSample } : {}),
         ...(verifiedLiteral ? { insightLiteral: verifiedLiteral } : {}),
@@ -3276,12 +3337,21 @@ export class ResearchAutomationService {
     }
     await withDatabaseMutationMutex(this.#db, async () => {
       const rows = this.#db.prepare(`SELECT run_id runId,revision,status FROM analysis_research_automation_runs WHERE status IN ('QUICK_SEARCH_RUNNING','COLLECTING','CANCELLING','RENDERING')`).all() as Array<{ runId: string; revision: bigint | number; status: ResearchAutomationRun['status'] }>;
+      const resumable = new Set<string>();
+      for (const row of rows) if (row.status === 'COLLECTING' || row.status === 'CANCELLING') {
+        try { const run = this.#current(row.runId)!, sources = await this.#readFrozenSources(run);
+          if (sources?.value.contractVersion === 'automation-confirmed-source-set-v2' && await this.#publicBaseCheckpoint(row.runId, sources)) resumable.add(row.runId);
+        } catch { /* Damaged checkpoint follows the existing interrupted path. */ }
+      }
       const at = this.#now().toISOString();
       this.#db.transaction(() => {
         this.#i14Executions.recoverInterruptedDispatches();
         this.#db.prepare(`UPDATE analysis_research_automation_attempts SET state='QUEUED',started_at=NULL WHERE state='RUNNING'`).run();
         for (const row of rows) {
-          if (row.status === 'RENDERING') {
+          if (resumable.has(row.runId)) {
+            this.#transition(row.runId, toNumber(row.revision), 'COLLECTION_QUEUED', at);
+            this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='QUEUED',started_at=NULL,finished_at=NULL,result_sha256=NULL,message_code=NULL WHERE run_id=? AND step_id='COLLECTION' AND state='RUNNING'`).run(row.runId);
+          } else if (row.status === 'RENDERING') {
             this.#transition(row.runId, toNumber(row.revision), 'RENDERING', at);
             this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='QUEUED',message_code=NULL,started_at=NULL,finished_at=NULL WHERE run_id=? AND step_id='REPORTS' AND state='RUNNING'`).run(row.runId);
           } else {
@@ -3378,6 +3448,9 @@ export class ResearchAutomationService {
           return true;
         }
       }
+      if (sources?.value.contractVersion === 'automation-confirmed-source-set-v2' && await this.#publicBaseCheckpoint(row.runId, sources)) {
+        await this.#executePublicTail(row, sources, controller.signal); return true;
+      }
       if (controller.signal.aborted) {
         await this.#settleSourceFailure(row.runId, stepId, 'CANCELLED_DURING_PROVIDER_OPERATION', 'CANCELLED');
         return true;
@@ -3407,7 +3480,7 @@ export class ResearchAutomationService {
         result = { result: null, unsettledProvider: source!.id.toLowerCase(), step: { ...invalidProviderStep(row.runId, stepId), limitations: [{ code: 'PROVIDER_FAILED', provider: source!.id.toLowerCase(), message: 'Lượt nguồn chưa có biên nhận hoàn tất. Số request và chi phí chưa đối soát; tổng request chỉ gồm các lượt đã ghi nhận.' }] } };
       }
       let exact: ExactShopeeAttempt | undefined;
-      if (stepId === 'COLLECTION' && scope?.exactShopeeUrls?.length && !controller.signal.aborted) {
+      if (stepId === 'COLLECTION' && sources?.value.contractVersion !== 'automation-confirmed-source-set-v2' && scope?.exactShopeeUrls?.length && !controller.signal.aborted) {
         const frozenInput = { runId: row.runId, start, scope, scopeConfirmedAt: row.scopeConfirmedAt! };
         let resolution: Awaited<ReturnType<AutomationNativeSourceReviewBridge['resolve']>> | undefined;
         try {
@@ -3531,7 +3604,9 @@ export class ResearchAutomationService {
       try {
         // The report-PDF lane runs inside the save step, after L9 admission of this run's rows, so its candidates are admitted rows only.
         await this.#persistSourceResult(row.runId, stepId, result, controller.signal.aborted, exact, web, controller.signal, trends, expanded, worldBank, comtrade, searchAds, officialStats, metaAuto, tiktokTopAds,
-          stepId === 'COLLECTION' && this.#pdfDiscoverySource ? input as CollectInput : undefined);
+          stepId === 'COLLECTION' && this.#pdfDiscoverySource ? input as CollectInput : undefined,
+          sources?.value.contractVersion === 'automation-confirmed-source-set-v2' ? sources : undefined);
+        if (sources?.value.contractVersion === 'automation-confirmed-source-set-v2') await this.#executePublicTail(row, sources, controller.signal);
       } catch (error) {
         if (!(error instanceof ResearchAutomationProviderOutputError)) throw error;
         await this.#settleSourceFailure(row.runId, stepId, 'PROVIDER_OUTPUT_INVALID', 'FAILED');
@@ -3632,6 +3707,7 @@ export class ResearchAutomationService {
       let metricMethodsFailure: MetricMethodFailureCode | undefined;
       let privateReviewCorpus: PrivateReviewReportView | undefined;
       let privateCorpusArtifact: StoredArtifact | undefined;
+      const publicReview = await this.#publicReportSource(fresh, sources, reviewCollection, true);
       let reviewCorpus: ResearchReviewCorpus | undefined;
       let reviewCorpusFailure: ResearchAutomationReportInput['reviewCorpusFailure'];
       let locatedReview: AutomationLocatedReviewSnapshot | undefined;
@@ -3650,7 +3726,7 @@ export class ResearchAutomationService {
         reviewCorpusFailure = priorInsight.reviewCorpusFailure as typeof reviewCorpusFailure;
         locatedReview = priorInsight.locatedReview as AutomationLocatedReviewSnapshot | undefined;
         locatedReviewFailure = priorInsight.locatedReviewFailure as typeof locatedReviewFailure;
-        if (priorInsight.locatedReviewFallback && reviewCollection?.exactShopee) {
+        if (priorInsight.locatedReviewFallback && reviewCollection?.exactShopee && !reviewCollection.publicReviewAcquisition) {
           locatedReviewFallback = priorInsight.locatedReviewFallback as ResearchAutomationReportInput['locatedReviewFallback'];
           locatedReview = await this.#locatedReviews.readSnapshot(locatedReviewFallback!.sourcePackage,
             { runId: fresh.runId, start, scope, scopeConfirmedAt: fresh.scopeConfirmedAt!, reference: reviewCollection.exactShopee });
@@ -3671,7 +3747,7 @@ export class ResearchAutomationService {
         qualitativeDraft = await this.#validateQualitativeDraftForRun(fresh.workspaceId, fresh.runId, revisionRequest.qualitativeDraft);
         insightPersona = undefined;
       }
-      if (!qualitativeRevision && (!revisionRequest || !('sources' in revisionRequest) || revisionRequest.sources.nativeReview.decision !== 'KEEP') && start.reports.includes('INSIGHT') && reviewCollection?.exactShopee) {
+      if (!qualitativeRevision && (!revisionRequest || !('sources' in revisionRequest) || revisionRequest.sources.nativeReview.decision !== 'KEEP') && start.reports.includes('INSIGHT') && reviewCollection?.exactShopee && !reviewCollection.publicReviewAcquisition) {
         try { reviewCorpus = await this.#shopee.corpus(reviewCollection.exactShopee, { runId: fresh.runId, start, scope, scopeConfirmedAt: fresh.scopeConfirmedAt! }); }
         catch { controller.signal.throwIfAborted(); reviewCorpusFailure = 'REVIEW_CORPUS_FAILED'; }
         if (reviewCorpus) {
@@ -3778,6 +3854,7 @@ export class ResearchAutomationService {
           ...(kind === 'MARKET' && descriptiveMethodFailure ? { descriptiveMethodFailure } : {}),
           ...(kind === 'INSIGHT' && privateReviewCorpus ? { privateReviewCorpus } : {}),
           ...(kind === 'INSIGHT' && reviewCollection?.reviewSample ? { reviewSample: reviewCollection.reviewSample } : {}),
+          ...(publicReview ? { publicReviewSource: publicReview.context, ...(kind === 'INSIGHT' && publicReview.corpus ? { publicReviewCorpus: publicReview.corpus } : {}) } : {}),
           ...(kind === 'INSIGHT' && reviewCorpus ? { reviewCorpus } : {}),
           ...(kind === 'INSIGHT' && reviewCorpusFailure ? { reviewCorpusFailure } : {}),
           ...(kind === 'INSIGHT' && locatedReview && !locatedReviewFallback ? { locatedReview } : {}),
@@ -3914,7 +3991,7 @@ export class ResearchAutomationService {
           const worldBank = kind === 'MARKET' ? input.collection?.worldBank : undefined, comtrade = kind === 'MARKET' ? input.collection?.comtrade : undefined;
           if (worldBankChartCount(worldBank) > 0) input = { ...input, worldBankCharts: await renderWorldBankCharts(worldBank, { legacy: !input.marketPresentation }) };
           if (comtradeChartCount(comtrade) > 0) input = { ...input, comtradeCharts: await renderComtradeCharts(comtrade, { legacy: !input.marketPresentation }) };
-          const authoritative = input.qualitativeDraft || input.marketPresentation || input.insightPersona || privateDefault || (kind === 'INSIGHT' && start.reviewCollectionPolicy) ? buildResearchAutomationReport(input, kind) : undefined;
+          const authoritative = input.publicReviewSource || input.qualitativeDraft || input.marketPresentation || input.insightPersona || privateDefault || (kind === 'INSIGHT' && start.reviewCollectionPolicy) ? buildResearchAutomationReport(input, kind) : undefined;
           // The market14 reader drops its technical trace; the same page with the trace is kept as its own hidden artifact for retrieval.
           const traceHtml = kind === 'MARKET' && input.marketPresentation ? authoritative?.traceHtml : undefined;
           let trace: StoredArtifact | null = null;
@@ -3977,11 +4054,14 @@ export class ResearchAutomationService {
           const html = Buffer.from(rendered.html);
           if (authoritative) {
             if (!html.equals(authoritative.html)) throw new ResearchAutomationIntegrityError(input.insightPersona ? 'Persona HTML differs from authoritative retained rendering.' : privateDefault ? 'Private default HTML differs from authoritative method rendering.' : 'Market presentation HTML differs from authoritative method rendering.');
-            if (presentation.rendererVersion !== (kind === 'MARKET' && input.collection?.exactShopeeOutcome?.testReviewCap !== undefined ? 'automation-report-kit-v30' : input.qualitativeDraft ? 'automation-report-kit-v28' : input.insightPersona ? 'automation-report-kit-v26' : privateDefault ? 'automation-report-kit-v25' : input.marketPresentation ? 'automation-report-kit-v20' : privateRendererVersion)) throw new ResearchAutomationIntegrityError(input.qualitativeDraft ? 'Qualitative renderer identity differs.' : input.insightPersona ? 'Persona renderer identity differs.' : privateDefault ? 'Private default renderer identity differs.' : 'Market presentation renderer identity differs.');
+            if (presentation.rendererVersion !== (input.publicReviewSource ? 'automation-report-kit-v31' : kind === 'MARKET' && input.collection?.exactShopeeOutcome?.testReviewCap !== undefined ? 'automation-report-kit-v30' : input.qualitativeDraft ? 'automation-report-kit-v28' : input.insightPersona ? 'automation-report-kit-v26' : privateDefault ? 'automation-report-kit-v25' : input.marketPresentation ? 'automation-report-kit-v20' : privateRendererVersion)) throw new ResearchAutomationIntegrityError(input.qualitativeDraft ? 'Qualitative renderer identity differs.' : input.insightPersona ? 'Persona renderer identity differs.' : privateDefault ? 'Private default renderer identity differs.' : 'Market presentation renderer identity differs.');
           }
           return { rendered, semanticBytes, html, trace };
         };
         let prepared = await render();
+        if (input.publicReviewCorpus && prepared.semanticBytes.byteLength > MAX_JSON_ARTIFACT_BYTES) {
+          const { publicReviewCorpus: _inlinePublicCorpus, ...withoutInlinePublicCorpus } = input; input = { ...withoutInlinePublicCorpus, ...(input.publicReviewSource ? { publicReviewSource: { ...input.publicReviewSource, corpusInlineUnavailableReason: 'PUBLIC_REVIEW_CORPUS_RETAINED_SEPARATELY' } } : {}) }; prepared = await render();
+        }
         if (kind === 'INSIGHT' && input.reviewCorpus && (prepared.semanticBytes.byteLength > MAX_JSON_ARTIFACT_BYTES || prepared.html.byteLength > MAX_HTML_BYTES)) {
           // Keep the entire admitted raw collection. Do not truncate quotes or
           // fail the independent Market report because this view is too large.
@@ -4001,7 +4081,7 @@ export class ResearchAutomationService {
         if (semanticBytes.byteLength > MAX_JSON_ARTIFACT_BYTES || html.byteLength > MAX_HTML_BYTES) throw new ResearchAutomationIntegrityError('Research report output exceeds its bound.');
         // Partial row sums are checked on the presentation report, whose renderer never states them;
         // the older plain renderer is kept unchanged for earlier runs.
-        if (kind === 'MARKET') assertMarketBusinessGate(html.toString('utf8'), { presentation: Boolean(input.marketPresentation),
+        if (kind === 'MARKET') assertMarketBusinessGate(html.toString('utf8'), { presentation: Boolean(input.marketPresentation), ...(input.publicReviewSource ? { publicReviewSource: true } : {}),
           ...(input.marketPresentation ? { partialTotals: marketPartialRowTotals(input) } : {}) });
         const semantic = await this.#artifacts.put(semanticBytes);
         const htmlArtifact = await this.#artifacts.put(html);
@@ -4083,7 +4163,93 @@ export class ResearchAutomationService {
     }
   }
 
-  async #persistSourceResult(runId: string, stepId: SourceStepId, bound: PersistableSourceResult, aborted: boolean, exact?: ExactShopeeAttempt, web?: WebSearchAttempt, signal?: AbortSignal, trends?: TrendsAttempt, expanded?: ExpandedAttempts, worldBank?: WorldBankRun, comtrade?: ComtradeRun, searchAds?: SearchAdsRun, officialStats?: OfficialStatsRun, metaAuto?: MetaAutoRun, tiktokTopAds?: TikTokTopAdsRun, pdfInput?: CollectInput): Promise<void> {
+  async #publicReportSource(row: RunRow, sources: FrozenSources | undefined, collection: StepResultDocument | null, retain: boolean, inlineOmitted = false): Promise<{ context: PublicReviewSource; corpus?: import('../../../../contracts/analysis/research-review-corpus-v2.generated.js').ResearchReviewCorpusV2 } | undefined> {
+    if (!collection?.publicReviewAcquisition) return undefined;
+    if (sources?.value.contractVersion !== 'automation-confirmed-source-set-v2') throw new ResearchAutomationIntegrityError('Public report lacks frozen acquisition.');
+    const stage = collection.publicReviewAcquisition;
+    if (canonicalJson(sources.value.reviewAcquisition) !== canonicalJson({ providerId: stage.providerId, maxReviewsPerProduct: stage.maxReviewsPerProduct, mappingRevision: stage.mappingRevision, sampleMode: stage.sampleMode })) throw new ResearchAutomationIntegrityError('Public report acquisition differs.');
+    if (!collection.exactShopee) {
+      if (collection.exactShopeeOutcome || !collection.limitations.some(l => l.code === 'PUBLIC_REVIEW_NOT_CONFIGURED')) throw new ResearchAutomationIntegrityError('Public unavailable source differs.');
+      const scope = await this.#readScopeSnapshot(row.scopeSha!, row.workspaceId, row.runId);
+      const selected = selectExactShopeeListings(exactShopeeRequest({ runId: row.runId, start: await this.#readStartSnapshot(row.startSha, row.workspaceId), scope, scopeConfirmedAt: row.scopeConfirmedAt! })).selected;
+      const finished = this.#db.prepare("SELECT finished_at at FROM analysis_research_automation_steps WHERE run_id=? AND step_id='COLLECTION'").get(row.runId) as { at: string | null };
+      if (!finished?.at) throw new ResearchAutomationIntegrityError('Public unavailable source lacks finalization.');
+      const context = validatePublicReviewSource({ acquisition: stage, reference: null,
+        outcome: { outcome: 'PROVIDER_BLOCKED', listings: markReviewShortfalls(selected.map(p => ({ listingUrl: p.productUrl, reviews: 0 })), stage.maxReviewsPerProduct), providerMessage: null, attemptedAt: finished.at, reused: false, ...(stage.sampleMode === 'TRIAL' ? { testReviewCap: stage.maxReviewsPerProduct } : {}) },
+        accounting: { sourceRows: 0, uniqueScopedGroups: 0, equalDuplicates: 0, conflictingGroups: 0, quarantinedRows: 0, capturedReviewRecords: 0, readableCommentRecords: 0, attributesOnlyRecords: 0, emptyComments: 0, unreadableComments: 0, missingRatings: 0, invalidRatings: 0, sourceExcludedIds: 0 },
+        products: selected.map(() => ({ records: 0, readableComments: 0 })), humanBlocked: false, corpusSha256: null, corpusUnavailableReason: 'PUBLIC_REVIEW_NOT_CONFIGURED' });
+      return { context };
+    }
+    try {
+      const source = await this.#publicShopee.read(collection.exactShopee, { runId: row.runId, start: await this.#readStartSnapshot(row.startSha, row.workspaceId), scope: await this.#readScopeSnapshot(row.scopeSha!, row.workspaceId, row.runId), scopeConfirmedAt: row.scopeConfirmedAt! }, stage);
+      const corpus = buildPublicReviewCorpus(source), outcome = publicReviewOutcome(source, stage, corpus), raw = Buffer.from(canonicalJson(corpus));
+      if (canonicalJson(outcome) !== canonicalJson(collection.exactShopeeOutcome)) throw new Error('Public outcome differs');
+      const tooLarge = raw.length > MAX_JSON_ARTIFACT_BYTES;
+      const corpusSha256 = tooLarge ? null : createHash('sha256').update(raw).digest('hex');
+      if (!tooLarge) {
+        if (retain) { const stored = await this.#artifacts.put(raw); await withDatabaseMutationMutex(this.#db, async () => this.#registerManifest(stored, 'application/json', source.packet.attemptedAt)); }
+        else if (!(await this.#readArtifact(corpusSha256!, MAX_JSON_ARTIFACT_BYTES, 'application/json')).equals(raw)) throw new Error('Public corpus differs');
+      }
+      const products = source.packet.selected.map(p => ({ records: corpus.records.filter(r => r.disposition === 'RETAINED_RAW' && r.identity.listingKey === `shopee:${p.shopId}:${p.itemId}`).length,
+        readableComments: corpus.records.filter(r => r.disposition === 'RETAINED_RAW' && r.identity.listingKey === `shopee:${p.shopId}:${p.itemId}` && r.versions[0]!.textState === 'READABLE').length }));
+      const context: PublicReviewSource = { acquisition: stage, reference: collection.exactShopee, outcome: { ...outcome, providerMessage: null, listings: [...outcome.listings] }, accounting: corpus.coverage, products,
+        humanBlocked: source.packet.listings.some(r => r.stopCode === 'HUMAN_LOGIN_REQUIRED' || r.stopCode === 'HUMAN_VERIFICATION_REQUIRED'), ...(!tooLarge && (inlineOmitted || raw.length >= MAX_JSON_ARTIFACT_BYTES / 4) ? { corpusInlineUnavailableReason: 'PUBLIC_REVIEW_CORPUS_RETAINED_SEPARATELY' as const } : {}), corpusSha256, corpusUnavailableReason: tooLarge ? 'PUBLIC_REVIEW_CORPUS_TOO_LARGE' : null };
+      // Inline only when comfortably bounded; the exact separately retained corpus remains authoritative.
+      validatePublicReviewSource(context);
+      return { context, ...(!tooLarge && raw.length < MAX_JSON_ARTIFACT_BYTES / 4 ? { corpus } : {}) };
+    } catch { throw new ResearchAutomationIntegrityError('Public review report source replay differs.'); }
+  }
+
+  async #publicBaseCheckpoint(runId: string, sources: FrozenSources): Promise<StepResultDocument | null> {
+    if (sources.value.contractVersion !== 'automation-confirmed-source-set-v2' || !this.#db.prepare(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='analysis_research_automation_review_stages'`).get()) return null;
+    const row = this.#db.prepare(`SELECT confirmed_source_set_sha256 sourceSha,base_step_sha256 baseSha FROM analysis_research_automation_review_stages WHERE run_id=?`).get(runId) as { sourceSha: string; baseSha: string } | undefined;
+    if (!row) return null;
+    if (row.sourceSha !== sources.sha256) throw new ResearchAutomationIntegrityError('Public checkpoint source differs.');
+    const step = await this.#readJson<StepResultDocument>(row.baseSha, MAX_JSON_ARTIFACT_BYTES, 'application/vnd.tdn.research-automation.step+json');
+    assertStepDocument(step, runId, 'COLLECTION');
+    if (canonicalJson(step.publicReviewAcquisition) !== canonicalJson(publicStage(sources, 'PENDING')) || step.exactShopee || step.privateShopee || step.nativeReview) throw new ResearchAutomationIntegrityError('Public checkpoint differs.');
+    const captures = await this.#captureRecords(runId);
+    assertCaptureLineage(step, captures.filter(c => c.stepId === 'COLLECTION'));
+    return step;
+  }
+
+  async #executePublicTail(row: RunRow, sources: FrozenSources, signal: AbortSignal): Promise<void> {
+    const base = await this.#publicBaseCheckpoint(row.runId, sources);
+    if (!base) { if (signal.aborted) return; throw new ResearchAutomationIntegrityError('Public base checkpoint missing.'); }
+    // Owner cancellation is durable before the collector sees its AbortSignal.
+    // Preserve it across requeue/crash gaps; the aborted tail only settles saved
+    // snapshots and, if necessary, cancels a known job once.
+    if (this.#db.prepare(`SELECT 1 FROM analysis_research_automation_requests WHERE run_id=? AND request_kind='CANCEL'`).get(row.runId)) signal = AbortSignal.abort();
+    const current = this.#current(row.runId)!;
+    const start = await this.#readStartSnapshot(current.startSha, current.workspaceId);
+    const scope = await this.#readScopeSnapshot(current.scopeSha!, current.workspaceId, current.runId);
+    let attempt: Awaited<ReturnType<AutomationPublicShopeeBridge['collect']>>;
+    try { attempt = await this.#publicShopee.collect({ runId: current.runId, start, scope, scopeConfirmedAt: current.scopeConfirmedAt! }, publicStage(sources, 'PENDING'), signal); }
+    catch (error) {
+      if (!(error instanceof ShopeePublicReviewError)) throw error;
+      await this.#settleSourceFailure(row.runId, 'COLLECTION', 'PUBLIC_REVIEW_ACQUISITION_FAILED', 'FAILED'); return;
+    }
+    const ownerAborted = signal.aborted || attempt.coverage.state === 'CANCELLED';
+    const step: StepResultDocument = { ...base, publicReviewAcquisition: attempt.publicReviewAcquisition,
+      outcome: ownerAborted ? 'CANCELLED' : attempt.reference ? 'PARTIAL' : base.outcome === 'SUCCEEDED' ? 'PARTIAL' : base.outcome,
+      coverage: [...base.coverage, attempt.coverage], limitations: [...base.limitations, attempt.limitation],
+      ...(attempt.reference ? { exactShopee: attempt.reference, exactShopeeOutcome: attempt.exactShopeeOutcome } : {}) };
+    assertStepDocument(step, row.runId, 'COLLECTION');
+    const now = this.#now().toISOString(), artifact = await this.#artifacts.put(Buffer.from(canonicalJson(step)));
+    await withDatabaseMutationMutex(this.#db, async () => { this.#db.transaction(() => {
+      const fresh = this.#current(row.runId)!; if (TERMINAL_STATUSES.has(fresh.status)) return;
+      this.#registerManifest(artifact, 'application/vnd.tdn.research-automation.step+json', now);
+      this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,'COLLECTION',1,'shopee-public-review','reviews',?,'KNOWN','USD','0',?)`).run(row.runId, attempt.requestsIssued, now);
+      const cancelled = ownerAborted || fresh.status === 'CANCELLING';
+      this.#db.prepare(`UPDATE analysis_research_automation_steps SET state=?,result_sha256=?,finished_at=?,message_code=? WHERE run_id=? AND step_id='COLLECTION' AND state='RUNNING'`)
+        .run(cancelled ? 'CANCELLED' : step.outcome, artifact.sha256, now, cancelled ? 'CANCELLED_DURING_PROVIDER_OPERATION' : null, row.runId);
+      this.#transition(row.runId, toNumber(fresh.revision), cancelled ? 'CANCELLED' : 'RENDERING', now);
+      if (cancelled) this.#skipPendingSteps(row.runId, now);
+      else this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='QUEUED' WHERE run_id=? AND step_id='REPORTS' AND state='PENDING'`).run(row.runId);
+    })(); });
+  }
+
+  async #persistSourceResult(runId: string, stepId: SourceStepId, bound: PersistableSourceResult, aborted: boolean, exact?: ExactShopeeAttempt, web?: WebSearchAttempt, signal?: AbortSignal, trends?: TrendsAttempt, expanded?: ExpandedAttempts, worldBank?: WorldBankRun, comtrade?: ComtradeRun, searchAds?: SearchAdsRun, officialStats?: OfficialStatsRun, metaAuto?: MetaAutoRun, tiktokTopAds?: TikTokTopAdsRun, pdfInput?: CollectInput, publicSources?: FrozenSources): Promise<void> {
     const result = bound.result;
     let step = bound.step;
     const nativeCoverage = bound.step.coverage.filter(value => value.provider === 'apify-dami');
@@ -4576,6 +4742,7 @@ export class ResearchAutomationService {
         } catch { step = { ...step, pdfDiscovery: { ...pdfDiscoveryFailed('DOCUMENT_INVALID'), search } }; }
       } catch { step = { ...step, pdfDiscovery: step.pdfDiscovery ?? { ...pdfDiscoveryFailed('TRANSPORT'), search } }; }
     }
+    if (publicSources) step = { ...step, publicReviewAcquisition: publicStage(publicSources, 'PENDING') };
     const webResult = web && 'bound' in web ? web.bound.result : null;
     let resultArtifact = await this.#artifacts.put(Buffer.from(canonicalJson(step), 'utf8'));
     await withDatabaseMutationMutex(this.#db, async () => {
@@ -4642,6 +4809,11 @@ export class ResearchAutomationService {
         // Keep the exact late capture and usage rows, but never reopen a
         // terminal run or mutate its interrupted step.
         if (TERMINAL_STATUSES.has(current.status)) return;
+        if (publicSources && !aborted && !signal?.aborted && current.status === 'COLLECTING') {
+          this.#db.prepare(`INSERT INTO analysis_research_automation_review_stages(run_id,confirmed_source_set_sha256,base_step_sha256,created_at) VALUES (?,?,?,?)`)
+            .run(runId, publicSources.sha256, resultArtifact.sha256, now);
+          return;
+        }
         const outcome = aborted || signal?.aborted || result?.status === 'CANCELLED' || webResult?.status === 'CANCELLED' || trendsResult?.status === 'CANCELLED' || expandedCalled.some(item => item.result.status === 'CANCELLED') || current.status === 'CANCELLING' ? 'CANCELLED' : step.outcome;
         const code = outcome === 'CANCELLED' ? 'CANCELLED_DURING_PROVIDER_OPERATION' : outcome === 'UNAVAILABLE' ? 'PROVIDER_NOT_CONFIGURED' : outcome === 'FAILED'
           ? step.limitations.some(value => value.code === 'PROVIDER_OUTPUT_INVALID') ? 'PROVIDER_OUTPUT_INVALID'
@@ -4940,7 +5112,7 @@ export class ResearchAutomationService {
     if ('qualitativeDraft' in request) {
       const previous = this.#previousAttempt(run, attempt);
       const prior = previous ? await this.#readAttemptSources(run, previous) : await this.#readFrozenSources(run);
-      if (prior && (canonicalJson(value.metric) !== canonicalJson(prior.value.metric) || canonicalJson(value.nativeReview) !== canonicalJson(prior.value.nativeReview)))
+      if (prior && (canonicalJson(value.metric) !== canonicalJson(prior.value.metric) || canonicalJson(value.nativeReview) !== canonicalJson(prior.value.nativeReview) || canonicalJson('reviewAcquisition' in value ? value.reviewAcquisition : null) !== canonicalJson('reviewAcquisition' in prior.value ? prior.value.reviewAcquisition : null)))
         throw new ResearchAutomationIntegrityError('Qualitative revision source membership drifted from its predecessor.');
       const nativeReference = await this.#verifySourceDocument(run, value);
       return { sha256: attempt.sourceSetSha, value, ...(nativeReference ? { nativeReference } : {}) };
@@ -4957,7 +5129,7 @@ export class ResearchAutomationService {
       const prior = previous ? await this.#readAttemptSources(run, previous) : await this.#readFrozenSources(run);
       if (prior) {
         if ((request.sources.metric.decision === 'KEEP' && canonicalJson(value.metric) !== canonicalJson(prior.value.metric)) ||
-            (request.sources.nativeReview.decision === 'KEEP' && canonicalJson(value.nativeReview) !== canonicalJson(prior.value.nativeReview)))
+            (request.sources.nativeReview.decision === 'KEEP' && (canonicalJson(value.nativeReview) !== canonicalJson(prior.value.nativeReview) || canonicalJson('reviewAcquisition' in value ? value.reviewAcquisition : null) !== canonicalJson('reviewAcquisition' in prior.value ? prior.value.reviewAcquisition : null))))
           throw new ResearchAutomationIntegrityError('Retained source membership drifted across report versions.');
       } else {
         const original = this.#output(run.runId, 'MARKET');
@@ -4989,7 +5161,8 @@ export class ResearchAutomationService {
   async #reportCollection(runId: string, sources: FrozenSources | undefined, supplemental: boolean): Promise<StepResultDocument | null> {
     const original = await this.#stepDocument(runId, 'COLLECTION');
     if (!supplemental || !sources || !original) return original;
-    const { reviewSample: _sample, privateShopee: _private, exactShopee: _exact, exactShopeeOutcome: _outcome, nativeReview: _native, ...withoutReviews } = original;
+    const { reviewSample: _sample, privateShopee: _private, exactShopee: _exact, exactShopeeOutcome: _outcome, nativeReview: _native, publicReviewAcquisition: _public, ...baseWithoutReviews } = original;
+    const withoutReviews = _public ? { ...baseWithoutReviews, coverage: baseWithoutReviews.coverage.filter(c => c.provider !== 'shopee-public-review'), limitations: baseWithoutReviews.limitations.filter(l => l.provider !== 'shopee-public-review') } : baseWithoutReviews;
     if (sources.nativeReference) return { ...withoutReviews, nativeReview: sources.nativeReference };
     if (sources.value.nativeReview.decision === 'SKIPPED') return withoutReviews;
     return original;
@@ -5556,7 +5729,8 @@ export class ResearchAutomationService {
       const start = await this.#readStartSnapshot(run.startSha, run.workspaceId);
       built = buildConfirmValue({ runId, expectedRevision, keyword: start.keyword, description: start.description, includeTerms: pick.terms,
         principalProductIds: pick.principalProductIds, exactShopeeUrls: pick.urls, packageId: row.packageId,
-        ...(this.#shopee.factory && start.reports.length === 1 && start.reports[0] === 'MARKET' && !start.privateShopeeSource && !start.reviewCollectionPolicy && this.#autoRun?.testReviewCap !== undefined
+        ...(this.#publicShopee.configuration && !start.privateShopeeSource && !start.reviewCollectionPolicy ? { publicAcquisition: { maxReviewsPerProduct: this.#publicShopee.configuration.maxReviewsPerProduct } } : {}),
+        ...((this.#shopee.factory || this.#publicShopee.configuration) && start.reports.length === 1 && start.reports[0] === 'MARKET' && !start.privateShopeeSource && !start.reviewCollectionPolicy && this.#autoRun?.testReviewCap !== undefined
           ? { testReviewCap: this.#autoRun.testReviewCap } : {}) });
     } catch (error) {
       await this.#autorunStopRunning(runId, 'CONFIRM', this.#autorunErrorCode(runId, error, 'CONFIRM_FAILED'));
@@ -5728,6 +5902,14 @@ export class ResearchAutomationService {
       const row = this.#current(runId);
       if (stepId !== 'COLLECTION' || !row?.scopeSha || !row.scopeConfirmedAt) throw new ResearchAutomationIntegrityError('Review source lacks confirmed scope.');
       const scope = await this.#readScopeSnapshot(row.scopeSha, row.workspaceId, runId);
+      if (value.publicReviewAcquisition) {
+        const sources = await this.#readFrozenSources(row);
+        if (!sources || canonicalJson(value.publicReviewAcquisition) !== canonicalJson(publicStage(sources, 'FINAL'))) throw new ResearchAutomationIntegrityError('Public collection marker differs.');
+        try {
+          const verified = await this.#publicShopee.read(value.exactShopee, { runId, start: await this.#readStartSnapshot(row.startSha, row.workspaceId), scope, scopeConfirmedAt: row.scopeConfirmedAt }, value.publicReviewAcquisition);
+          if (canonicalJson(value.exactShopeeOutcome) !== canonicalJson(publicReviewOutcome(verified, value.publicReviewAcquisition))) throw new Error('Outcome differs');
+        } catch { throw new ResearchAutomationIntegrityError('Public collection replay differs.'); }
+      } else {
       const verified = await this.#shopee.read(value.exactShopee, { runId, start: await this.#readStartSnapshot(row.startSha, row.workspaceId),
         scope, scopeConfirmedAt: row.scopeConfirmedAt });
       if (scope.testReviewCap !== undefined || value.exactShopeeOutcome?.testReviewCap !== undefined) {
@@ -5737,6 +5919,7 @@ export class ResearchAutomationService {
           throw new ResearchAutomationIntegrityError('Trial review summary differs from verified collection counts or cap.');
       }
     }
+      }
     if (value.nativeReview) {
       const row = this.#current(runId);
       if (stepId !== 'COLLECTION' || value.exactShopee || !row?.scopeSha || !row.scopeConfirmedAt)
@@ -5746,6 +5929,7 @@ export class ResearchAutomationService {
     }
     if (stepId === 'COLLECTION') {
       const sources = await this.#readFrozenSources(this.#current(runId)!);
+      if (sources?.value.contractVersion === 'automation-confirmed-source-set-v2' ? canonicalJson(value.publicReviewAcquisition) !== canonicalJson(publicStage(sources, 'FINAL')) : value.publicReviewAcquisition !== undefined) throw new ResearchAutomationIntegrityError('Public stage lacks frozen marker.');
       if (sources?.value.privateShopeeSource && (value.exactShopee || value.nativeReview || (sources.value.nativeReview.decision === 'SKIPPED' && value.privateShopee))) throw new ResearchAutomationIntegrityError('Private confirmed source selection differs.');
       if (!sources?.value.privateShopeeSource && value.privateShopee) throw new ResearchAutomationIntegrityError('Private collection lacks explicit confirmed marker.');
       if (sources && (sources.value.nativeReview.decision === 'RESOLVED'
@@ -6046,6 +6230,7 @@ function assertStepDocument(value: unknown, runId: string, stepId: StepId): asse
   if (value.privateShopee !== undefined && (value.exactShopee !== undefined || value.nativeReview !== undefined || !isRecord(value.privateShopee) ||
     Object.keys(value.privateShopee).sort().join(',') !== 'collectionId,collectionSha256,privateVersion,requestSha256' || value.privateShopee.privateVersion !== '3.0.0' ||
     !UUID.test(String(value.privateShopee.collectionId)) || !/^[a-f0-9]{64}$/.test(String(value.privateShopee.collectionSha256)) || !/^[a-f0-9]{64}$/.test(String(value.privateShopee.requestSha256)))) throw new ResearchAutomationIntegrityError('Stored private collection reference is invalid.');
+  if (value.publicReviewAcquisition !== undefined) { try { validatePublicReviewStage(value.publicReviewAcquisition); } catch { throw new ResearchAutomationIntegrityError('Invalid public review marker.'); } }
   if (value.exactShopee !== undefined && (!isRecord(value.exactShopee) || !UUID.test(String(value.exactShopee.collectionId)) ||
       !/^[a-f0-9]{64}$/.test(String(value.exactShopee.collectionSha256)) || !/^[a-f0-9]{64}$/.test(String(value.exactShopee.requestSha256)))) throw new ResearchAutomationIntegrityError('Stored exact collection reference is invalid.');
   if (value.nativeReview !== undefined && (value.exactShopee !== undefined || !isRecord(value.nativeReview) ||
@@ -6225,14 +6410,15 @@ function validateStart(value: unknown): ResearchAutomationStartRequest {
   return output;
 }
 function validateConfirm(value: unknown): ResearchAutomationConfirmRequest { const object = plain(value); keys(object, ['contractVersion', 'requestKey', 'expectedRevision', 'definition', 'includeTerms', 'excludeTerms', 'selectedProductIds', 'peerProductIds', 'exactShopeeUrls']); if (object.contractVersion !== 'research-automation-confirm-v1' || typeof object.requestKey !== 'string' || !REQUEST_KEY.test(object.requestKey) || !Number.isSafeInteger(object.expectedRevision) || object.expectedRevision < 1) throw new ResearchAutomationValidationError('Invalid scope confirmation request.'); return { contractVersion: 'research-automation-confirm-v1', requestKey: object.requestKey, expectedRevision: object.expectedRevision, definition: text(object.definition, 2000, true), includeTerms: terms(object.includeTerms), excludeTerms: terms(object.excludeTerms), selectedProductIds: productIds(object.selectedProductIds, 4), peerProductIds: productIds(object.peerProductIds, 8), ...(object.exactShopeeUrls !== undefined ? { exactShopeeUrls: validateExactUrls(object.exactShopeeUrls) } : {}) }; }
-function validateScopeConfirmation(value: unknown): ResearchAutomationConfirmRequest | ResearchAutomationSourceConfirmRequest {
-  if (!isRecord(value) || value.contractVersion !== 'research-automation-confirm-v2') return validateConfirm(value);
-  if (!validateSourceConfirm(value)) throw new ResearchAutomationValidationError('Invalid source-bound scope confirmation.');
+function validateScopeConfirmation(value: unknown): ResearchAutomationConfirmRequest | ResearchAutomationSourceConfirmRequest | ResearchAutomationSourceConfirmRequestV3 {
+  if (!isRecord(value) || !['research-automation-confirm-v2','research-automation-confirm-v3'].includes(String(value.contractVersion))) return validateConfirm(value);
+  const validator = value.contractVersion === 'research-automation-confirm-v3' ? validatePublicSourceConfirm : validateSourceConfirm;
+  if (!validator(value)) throw new ResearchAutomationValidationError('Invalid source-bound scope confirmation.');
   const { sources, ...scope } = value;
   const normalized = validateConfirm({ ...scope, contractVersion: 'research-automation-confirm-v1' });
-  const result = { ...normalized, contractVersion: 'research-automation-confirm-v2', sources };
-  if (!validateSourceConfirm(result)) throw new ResearchAutomationValidationError('Invalid normalized source-bound confirmation.');
-  return result;
+  const result = { ...normalized, contractVersion: value.contractVersion, sources };
+  if (!validator(result)) throw new ResearchAutomationValidationError('Invalid normalized source-bound confirmation.');
+  return result as ResearchAutomationSourceConfirmRequest | ResearchAutomationSourceConfirmRequestV3;
 }
 function metricSelection(set: AutomationConfirmedSourceSet) {
   return { executionId: set.executionId, sourcePackage: set.metric.decision === 'ADMITTED' ? set.metric.sourcePackage : null };
@@ -6360,6 +6546,11 @@ function logReportFailure(runId: string, stage: 'RENDER' | 'PUBLICATION', error:
 }
 function defaultRenderedReport(input: ResearchAutomationReportInput, kind: 'MARKET' | 'INSIGHT'): ResearchAutomationRenderedReport {
   // Explicit literal/private/default branches use the owning builder; historical fallback bytes stay unchanged.
-  if (kind === 'INSIGHT' && (input.insightLiteral || input.start.privateShopeeSource || input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4'))
+  if (input.publicReviewSource || kind === 'INSIGHT' && (input.insightLiteral || input.start.privateShopeeSource || input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4'))
     return { ...buildResearchAutomationReport(input, kind), pdfUnavailableCode: 'PDF_RENDERER_NOT_CONFIGURED' };
   const title = kind === 'MARKET' ? 'Market research draft' : 'Insight research draft'; const escape = (value: string) => value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]!)); const semantic = { contractVersion: 'research-automation-report-v1', kind, runId: input.run.runId, workspaceId: input.run.workspaceId, status: 'UNREVIEWED', scope: input.scope.definition, blockers: input.run.blockers }; const html = Buffer.from(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${escape(title)}</title></head><body><h1>${escape(title)}</h1><p>Draft, unreviewed. Scope: ${escape(input.scope.definition)}</p><p>Evidence remains source-bound; no unsupported totals were inferred.</p></body></html>`, 'utf8'); return { semantic, html: input.kalodataReplayNotice ? withKalodataReplayNotice(html) : html, pdfUnavailableCode: 'PDF_RENDERER_NOT_CONFIGURED' }; }
+
+function publicStage(sources: FrozenSources, state: 'PENDING' | 'FINAL'): PublicReviewStage {
+  if (sources.value.contractVersion !== 'automation-confirmed-source-set-v2') throw new ResearchAutomationIntegrityError('Public source marker missing.');
+  return validatePublicReviewStage({ contractVersion: 'shopee-public-review-stage-v1', state, confirmedSourceSetSha256: sources.sha256, ...sources.value.reviewAcquisition });
+}

@@ -23,7 +23,7 @@ export type RetainedKeywordListDraftRecord = KeywordListDraftRecord | KeywordLis
 export interface MetricKeywordDraftEvidenceContext {
   options: Parameters<typeof readMetricSalesNameEvidence>[0];
   input: MetricRunInput;
-  sources: AutomationConfirmedSourceSet;
+  sources: AutomationConfirmedSourceSet | import('../../../contracts/analysis/automation-confirmed-source-set-v2.generated.js').AutomationConfirmedSourceSetV2;
   sourceSetDigest: string;
 }
 export type KeywordListDraftSalesRef = KeywordListDraftRecord['salesNameRefs'][number];

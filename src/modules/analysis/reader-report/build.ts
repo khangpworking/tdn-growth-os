@@ -214,10 +214,10 @@ export type PublishedReaderReport = {
  */
 export async function publishReaderReport(
   store: ContentAddressedArtifactStore,
-  { html, narrator, extraOk = [], sectionIds = READER_SECTION_ANCHORS, visibleTextRules = false, reportKind = 'MARKET' }:
-    { html: string; narrator: Narrator; extraOk?: readonly string[]; sectionIds?: readonly string[]; visibleTextRules?: boolean; reportKind?: 'MARKET' | 'INSIGHT' },
+  { html, narrator, extraOk = [], sectionIds = READER_SECTION_ANCHORS, visibleTextRules = false, reportKind = 'MARKET', publicReviewSource = false }:
+    { html: string; narrator: Narrator; extraOk?: readonly string[]; sectionIds?: readonly string[]; visibleTextRules?: boolean; reportKind?: 'MARKET' | 'INSIGHT'; publicReviewSource?: boolean },
 ): Promise<PublishedReaderReport> {
-  const lintResults = lint(html, { sectionIds, visibleTextRules, reportKind });
+  const lintResults = lint(html, { sectionIds, visibleTextRules, reportKind, publicReviewSource });
   const { checked, hardcoded } = narrator.checkHardcoded(extraOk);
   const notInBundle = narrator.notInBundle(extraOk);
   const failed = lintResults.filter(r => !r.ok);

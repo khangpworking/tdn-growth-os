@@ -208,13 +208,13 @@ function platformTableIssues(html: string): string[] {
     && !/Shopee|TikTok\s+Shop/iu.test(visible(table)));
 }
 
-function sourceCoverage(html: string): { label: string; ok: boolean }[] {
+function sourceCoverage(html: string, publicReviewSource = false): { label: string; ok: boolean }[] {
   const text = visible(html);
   return [
     { label: 'sales metrics', ok: /dữ liệu bán hàng|số liệu bán hàng|doanh thu bán hàng/iu.test(text) },
-    { label: 'review platform data', ok: /dữ liệu đánh giá|đánh giá sản phẩm|nguồn đánh giá/iu.test(text) },
+    { label: 'review platform data', ok: /dữ liệu đánh giá|đánh giá sản phẩm|nguồn đánh giá/iu.test(text) || publicReviewSource && /review công khai trên Shopee/u.test(text) },
     { label: 'search results', ok: /kết quả tìm kiếm/iu.test(text) },
-    { label: 'comment scraping', ok: /bình luận đã thu|dữ liệu bình luận|nguồn bình luận/iu.test(text) },
+    { label: 'comment scraping', ok: /bình luận đã thu|dữ liệu bình luận|nguồn bình luận/iu.test(text) || publicReviewSource && /review công khai trên Shopee/u.test(text) },
   ];
 }
 
@@ -250,10 +250,10 @@ function coverBlock(html: string): { open: string; block: string } {
  * `requireFlint: false` mirrors the builder's explicit test opt-out: charts may be the
  * hand-drawn SVG, but each still needs an engine marker, drawn content and the count of three.
  */
-export function auditMarket14(html: string, trace?: string, options: { requireFlint?: boolean } = {}): Market14Result[] {
+export function auditMarket14(html: string, trace?: string, options: { requireFlint?: boolean; publicReviewSource?: boolean } = {}): Market14Result[] {
   const requireFlint = options.requireFlint ?? true;
   const text = visible(html);
-  const gate = auditMarketReportHtml(html, { presentation: false });
+  const gate = auditMarketReportHtml(html, { presentation: false, publicReviewSource: Boolean(options.publicReviewSource) });
   const gateResult = (rule: string): { ok: boolean; detail: string } => {
     const found = gate.find(item => item.rule === rule);
     return found === undefined ? { ok: false, detail: `${rule} result unavailable` } : found;
@@ -302,7 +302,7 @@ export function auditMarket14(html: string, trace?: string, options: { requireFl
     tiktok: (html.match(/<i\b[^>]*class=["'][^"']*\bpi\s+t\b[^"']*["'][^>]*>/giu) ?? []).length };
   const localIconCss = /data:image\/svg\+xml;base64,/iu.test(html);
   const m12Structure = hasM12ProposalRows(html);
-  const sources = sourceCoverage(html);
+  const sources = sourceCoverage(html, options.publicReviewSource);
   const sampleIssues = sampleSizeIssues(html);
   const zeroSampleIssues = zeroSampleSizeIssues(html);
   const tables = platformTableIssues(html);
@@ -327,7 +327,7 @@ export function auditMarket14(html: string, trace?: string, options: { requireFl
   ];
 }
 
-export function assertMarket14MachineRules(html: string, trace?: string, options: { requireFlint?: boolean } = {}): void {
+export function assertMarket14MachineRules(html: string, trace?: string, options: { requireFlint?: boolean; publicReviewSource?: boolean } = {}): void {
   const audited = auditMarket14(html, trace, options);
   const failed = audited.filter(rule => rule.kind === 'machine' && !rule.ok);
   if (failed.length) throw new TypeError(`MARKET_14_RULES_FAILED:${failed.map(rule => rule.rule).join(',')}`);
