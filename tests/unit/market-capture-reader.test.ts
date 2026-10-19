@@ -304,7 +304,7 @@ test('automation reports without capture pin the M13 pointer; without presentati
   const { capture: _capture, ...metricMethods } = input.metricMethods!;
   const { marketPresentation: _presentation, ...noPresentation } = input;
   const variants = [
-    { value: { ...input, metricMethods }, html: 'a91f5dd8926755b3c11eaff2888e9e8d2192f96c564cc51c911327e65430bca2', semantic: 'cfefb08635d39a3ddecef46ab0475becb75c7391a2ba5fffc6858dbb1f88047d', trace: 'ce4cc7127f949f96de4230527b05cd35c57063b0fa91f35a65a0c08703d5395f' },
+    { value: { ...input, metricMethods }, html: '37193ad1a32f125d5eb5aa5d35f37457642b11e15ef92c3a4f539a8327ac743e', semantic: 'de585c1f267a1d36644443579f4b684e9767a6fa1b7502f3b87c465e3224c3fc', trace: '88094400c2b0557464ba50d301a8a27a0107c29bcc9d396baac75a26754b8977' },
     { value: noPresentation, html: '92ada31fa0a8a276d05aedc38fe418c3b5204f0750ef89020453a998526c6da9', semantic: '89b388819561c90b6082847afb079b85aa911457862ca7d542d5335860c3f8a5', trace: null },
   ];
   for (const variant of variants) {
@@ -320,9 +320,9 @@ test('retained v1 and v2 capture HTML and trace match main 71128df9, including e
   // Recomputed on clean main 71128df9 with this same synthetic input.
   // These cover the scope copy and removed-row list that method-only replay cannot check.
   const variants = [
-    { policy: undefined, presentation: true, html: 'c7023da4e23e8c825b064b1624a44ed3ae9c0cd5e2e411daf543a6606c556a8a', trace: '082c4b57b75edb5998dbede8e597a6436a2bb8158821c7fd600f3650b4ca28bb' },
+    { policy: undefined, presentation: true, html: '7b90c7a2b99a2ead2dec1bd93831698876c9ffa87fcba0daa8570ed22285897f', trace: 'e833f5cdde0ec244bc67bf87c2c4789fb65d78bc008c4d688b6dbf8201150cb6' },
     { policy: undefined, presentation: false, html: '4678e1fbce3e75dd8c6485bdc690f32bcf8fbbb74fde862e9179941b480ec7af', trace: null },
-    { policy: CAPTURE_ROW_PROFILE_V2, presentation: true, html: '621dea6b96d636b849ad12259e63292babe4f14a799e3ed033b80f7c7fc9bf26', trace: 'dacff2d299cf20c646d1ed4f153057f1bd3ab031e3c8a5c8d802efc43add9257' },
+    { policy: CAPTURE_ROW_PROFILE_V2, presentation: true, html: 'e575e6704f0f4232f28f9414a14f9581c1694745accc220a3a307aac17fdfae2', trace: '63e58b111139082475d4d8f9fe555f7a2d0c2f666db0a5601140ea05f554135c' },
     { policy: CAPTURE_ROW_PROFILE_V2, presentation: false, html: '1b755331abea5bd7428e64c005fefaf91b17869006daf388bec03d82a9d58f69', trace: null },
   ];
   for (const variant of variants) {

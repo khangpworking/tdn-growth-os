@@ -12,7 +12,8 @@ import { buildResearchAutomationReport } from '../../src/modules/analysis/resear
 import { fullMarket14Input } from '../helpers/market14-full-fixture.js';
 
 const hash = (value: string | Uint8Array): string => createHash('sha256').update(value).digest('hex');
-const caveat = 'Chưa rõ phiên bản, combo hay điều kiện giá.';
+// L12: delivered reader prose localizes the authored combination-pack caveat.
+const caveat = 'Chưa rõ phiên bản, gói kết hợp hay điều kiện giá.';
 const banned = /\b(?:variant|pack)\b|khối lượng (?:tịnh|ráo|cái)|Chưa xác nhận giá|ba chữ số thập phân|không thay bằng giá bán trung bình|%|toàn thị trường|tổng|cộng|gộp|Metric|Kalodata|TradeInt|Dami|Apify|SerpApi|PageIndex|Gemini|OpenCLI|zen-studio|Google|nhất|hàng đầu|ưu tiên/iu;
 const labels = new Map(Array.from({ length: 8 }, (_, i) => [`detail:p${i + 1}`, i === 0 ? 'Quạt <mẫu> & A' : `Quạt mẫu ${i + 1}`]));
 const context = { platforms: new Map([...labels.keys()].map((key, i) => [key, i === 4 ? 'shopee' : 'tiktok'])) };
@@ -216,8 +217,8 @@ test('reader digests pin the M08 badge control with capture headlines', async ()
   // Neither input has inventory, so both retain M05's per-period tables.
   // Package C adds Phần 1 findings and its badge only to the capture control.
   for (const [reportInput, parent] of [
-    [input, '426bb862d0389fef01f0d5df7f4c574da68d185c924494dfa0289aa103c8bb8e'],
-    [{ ...input, metricMethods }, '0d1d3d171f517d60f9cb27fd32db333c0ef3c3b62f8818844cdda1524b133c85'],
+    [input, 'fdece5352c3b4556a347af9e4a4785fda0e8f3697e5ec65753461453019810ba'],
+    [{ ...input, metricMethods }, 'c64d5839b40f46283a344ec7a28f338ea283ea771c1709bf54451a96f5e83948'],
   ] as const) {
     const html = buildResearchAutomationReport(reportInput, 'MARKET').html.toString();
     assert.equal(hash(html.replace('<span class="state">Có giá tham khảo, chưa xác minh</span>', '<span class="state">Có số liệu</span>')), parent);
@@ -233,7 +234,7 @@ test('automated reader uses the price projection without changing retained input
   // Latest-price review: preserve range-only evidence, explicit estimate wording, and corrected price-only readings.
   // 2480414f additionally points M04/M05 to Phần 3 and M13 to Phần 2.
   // Package C adds Phần 1 findings and its data badge to this capture report.
-  assert.equal(hash(report.html), '88af46c8be5de6ebd504eb49437598e9410cc8a775ea921eb80ae9e708342ef1');
+  assert.equal(hash(report.html), '83c57da1bd0082b194910cc43aed20d717421aa95b74d2b7296270ce09cecdac');
   const doc = new JSDOM(report.html.toString()).window.document;
   const section = doc.querySelector('#M08')!;
   assert.equal(section.querySelectorAll('tbody tr').length, 8);

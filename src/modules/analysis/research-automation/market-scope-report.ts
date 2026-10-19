@@ -114,7 +114,7 @@ export function captureSampleSentence(capture: CaptureMetricMethodDetails): stri
 }
 
 export function marketSourceScopeSection(scope: MarketSourceScope, section: 'M02' | 'M13', citations: ReportCitations, readerPlainText = false,
-  capture?: CaptureMetricMethodDetails): string {
+  capture?: CaptureMetricMethodDetails, reviewsPresent?: boolean): string {
   const metric = scope.metric;
   if (section === 'M13') {
     if (!metric) return '<details class="evidence-trace"><summary>Hồ sơ đối chiếu nguồn số liệu</summary><p>Chưa có gói số liệu đã xử lý trong bản báo cáo này; không có dấu vết tính toán để đối chiếu.</p></details>';
@@ -139,5 +139,5 @@ export function marketSourceScopeSection(scope: MarketSourceScope, section: 'M02
   const queryContent = capture
     ? `<h4>Cách lấy dữ liệu</h4><p>Hệ thống tìm sản phẩm theo từ khóa và lưu bảng kết quả của từng sàn trong kỳ đã chọn; nhật ký truy vấn được giữ trong hồ sơ đối chiếu.</p><details class="evidence-trace"><summary>Nhật ký truy vấn đã lưu</summary>${queryList}</details>`
     : queryList;
-  return `<h3>Phạm vi từng nguồn</h3><h4>Số liệu nguồn</h4>${metricContent}${queryContent}<p>Kỳ chọn listing không giới hạn ngày đăng review. Ngày review phải kiểm tra riêng trong bằng chứng gốc.</p><a href="#M13">Đối chiếu nguồn và phương pháp tại M13</a>`;
+  return `<h3>Phạm vi từng nguồn</h3><h4>Số liệu nguồn</h4>${metricContent}${queryContent}${reviewsPresent === false ? '' : '<p>Kỳ chọn listing không giới hạn ngày đăng review. Ngày review phải kiểm tra riêng trong bằng chứng gốc.</p>'}<a href="#M13">Đối chiếu nguồn và phương pháp tại M13</a>`;
 }

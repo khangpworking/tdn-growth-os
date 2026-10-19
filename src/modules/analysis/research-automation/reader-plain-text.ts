@@ -190,7 +190,8 @@ export function readerQuoteLabel(quoteId: string, fallbackOrdinal: number): stri
   return `B\u1ea3n ghi gi\u00e1 #${ordinal} \u00b7 ${kind}`;
 }
 
-export function readerMethodName(code: string): string {
+export function readerMethodName(code: string, currentReader = false): string {
+  if (currentReader && code === 'M08') return 'Giá và quy cách sản phẩm';
   return METHOD_NAMES[code] ?? '\u0050h\u01b0\u01a1ng ph\u00e1p';
 }
 

@@ -10,7 +10,8 @@ import { fullMarket14Input } from '../helpers/market14-full-fixture.js';
 
 // Original controls computed independently on main at edfcfc98, Node 24.15.0.
 // Package D updates only the two affected market14 html/trace pairs; every
-// semantic, legacy and Insight control keeps its original independently pinned bytes.
+// legacy and Insight control keeps its original independently pinned bytes.
+// R updates only current Market copy: M6/M10/M17 and L5/L7/L8/L9/L12/L13.
 const baseline = JSON.parse(readFileSync(new URL('../fixtures/market-headline-main-hashes.json', import.meta.url), 'utf8')) as
   Record<string, { html: string; semantic: string; trace: string | null }>;
 const hash = (value: string | Uint8Array) => createHash('sha256').update(value).digest('hex');
@@ -30,7 +31,7 @@ for (const [name, kind] of [
   if (name.includes('no-capture')) value = { ...value, metricMethods };
   if (name === 'no-figure-4.1-market') value = filteredEmptyHeadlineInput(input);
   const report = buildResearchAutomationReport(value, kind), expected = baseline[name]!;
-  assert.equal(hash(canonicalJson(report.semantic)), expected.semantic, 'every semantic retains its main bytes');
+  assert.equal(hash(canonicalJson(report.semantic)), expected.semantic, 'reviewed current copy or frozen historical semantic bytes');
   if (name !== 'capture-market') {
     assert.equal(hash(report.html), expected.html, 'retained reader bytes, including package D market14 badges');
     assert.equal(report.traceHtml ? hash(report.traceHtml) : null, expected.trace, 'trace identity, including absence');

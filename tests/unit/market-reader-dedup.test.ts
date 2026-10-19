@@ -58,14 +58,17 @@ test('M04 capture reader points to Phần 3 while M03 retains its exact per-plat
     const m04 = section(dom.window.document, 'M04'), m03 = section(dom.window.document, 'M03');
     assert.equal(count(m04.textContent!, M04_POINTER), 1);
     assert.equal(m04.querySelector('.section-reading')!.textContent, M04_READING);
-    assert.equal(m04.querySelectorAll('table').length, 0);
+    // M10: zero tables pinned the missing breakdown; retain the inventory pointer.
+    assert.equal(m04.querySelectorAll('table').length, 2);
+    assert.equal(m04.querySelectorAll('table[data-market-price-bands="true"]').length, 2);
+    assert.deepEqual([...m04.querySelectorAll('table[data-market-price-bands]')].map(table => table.getAttribute('data-platform')), ['shopee', 'tiktok']);
     assert.doesNotMatch(m04.textContent!, /cơ cấu trong bảng kết quả đã lưu|Synthetic L1/iu);
     const captions = [...m03.querySelectorAll('table caption')].map(node => node.textContent!);
     assert.ok(captions.some(value => value.includes('Shopee')));
     assert.ok(captions.some(value => value.includes('TikTok Shop')));
     assert.match(m03.textContent!, /Synthetic L1/u);
-    // Frozen from the current main merge with only 2480414f reversed.
-    assert.equal(hash(m03.outerHTML), '8a0eef713d33f6a5510289150ebf9c0304d74de5198823c2a573a5b230a60b14');
+    // R L5/L7/L8 change current method copy; retained per-platform rows stay asserted above.
+    assert.equal(hash(m03.outerHTML), '3896b8fce7ef66b3e980e971a36d0493b8d6a1239d8bdf9f8434d13173b7ffab');
   } finally { dom.window.close(); }
   assert.equal(canonicalJson(input), retained);
 });
@@ -85,7 +88,7 @@ test('M04 negative controls retain legacy capture bytes and the reader without c
         assert.match(m04.textContent!, /cơ cấu trong bảng kết quả đã lưu/iu);
         assert.match(m04.textContent!, /Synthetic L1/u);
         assert.equal(hash(m04.outerHTML), '72224d428e028b18fffbb3a179a24ba3eb16273a10e220178dd3b72223484f4d');
-      } else assert.equal(hash(m04.outerHTML), 'bfc26d464c1378dd9182049eea4ed3d68648798004bad4231a4e811ba48dc767');
+      } else assert.equal(hash(m04.outerHTML), '0d98da52f30cda1afdf4bd18a6990af8d2e76a81ce38ee986fbf22870302dd87');
     } finally { dom.window.close(); }
   }
 });

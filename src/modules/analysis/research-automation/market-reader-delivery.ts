@@ -76,6 +76,11 @@ const PHRASES: readonly [RegExp, string][] = [
 ];
 
 // Only results-page copies use this wording; other report inputs retain their bytes.
+const CURRENT_READER_PHRASES: readonly [RegExp, string][] = [
+  [/Giá và kinh tế đơn vị/gu, 'Giá và quy cách sản phẩm'],
+  [/(?<![\p{L}\p{N}_./-])(?:combo pack|bundle|combo)(?![\p{L}\p{N}_/-])/giu, 'gói kết hợp'],
+];
+
 const CAPTURE_PHRASES: readonly [RegExp, string][] = [
   [/(?<![\p{L}\p{N}])([Mm])ẫu xuất(?: đã lưu)?(?![\p{L}\p{N}])/gu, '$1ẫu đã lưu'],
 ];
@@ -87,9 +92,9 @@ const SAMPLE_NOTE = 'Số liệu lấy từ các dòng đã lưu của từng s�
 const CONTEXT_NOTE = 'Số liệu nền từ nguồn công khai, đọc riêng; không nói về riêng sản phẩm này. Ô ghi “chưa có dữ liệu” không có nghĩa là bằng không.';
 
 /** Localize display dates without changing source quotes, identifiers or markup. */
-export function readerText(html: string, captureCopy = false): string {
+export function readerText(html: string, captureCopy = false, currentReader = false): string {
   const protectedTags: string[] = [];
-  const phrases = [...PHRASES.slice(1), ...(captureCopy ? CAPTURE_PHRASES : [])];
+  const phrases = [...PHRASES.slice(1), ...(captureCopy ? CAPTURE_PHRASES : []), ...(currentReader ? CURRENT_READER_PHRASES : [])];
   // Keep quoted attribute values and raw CSS/JS intact, even when they contain angle brackets.
   const tokens = /(<!--[\s\S]*?-->|<script\b(?:[^>"']|"[^"]*"|'[^']*')*>[\s\S]*?<\/script\s*>|<style\b(?:[^>"']|"[^"]*"|'[^']*')*>[\s\S]*?<\/style\s*>|<(?:[^<>"']|"[^"]*"|'[^']*')+>)/giu;
   return html.split(tokens).map((part, index) => {
@@ -130,7 +135,7 @@ const EMPTY = /^(?:|—|–|-|chưa có dữ liệu|không có|chưa rõ\b.*)$/i
 const PLATFORM = /^(?:Sàn|Nền tảng)$/u;
 const PREFERRED = [/^Doanh thu/u, /^Giá theo đơn vị chuẩn/u, /^Giá trị/u, /^Trung bình/u, /^Giá\b/u];
 const NOT_MEASURE = /^(?:Năm|Kỳ|Tuần|Tháng|Nguồn|Vị trí|Cập nhật|Hạng|Thứ tự|Số lượng)/u;
-const ROW_PER_MEASURE = /^(?:Chỉ số|Bên báo số|Bảng)/u;
+const ROW_PER_MEASURE = /^(?:Chỉ số|Dòng|Bên báo số|Bảng)/u;
 const LABEL = /^(?:Tên|Sản phẩm|Chỉ số|Vùng|Dòng|Bên báo số|Đối tượng|Thương hiệu)/u;
 
 function cells(row: string): string[] {
@@ -196,8 +201,8 @@ export function tableInterpretation(block: string): string {
   const duplicate = labels.some((value, i) => labels.indexOf(value) !== i);
   const named = rows.map((row, r) => !duplicate ? labels[r]! : second >= 0 ? `${labels[r]} · ${row[second]}` : `dòng ${r + 1}`);
   // Rows that are different measures or reporters (macro indicators, trade sides) are listed one by one, never ranged together.
-  if (label >= 0 && ROW_PER_MEASURE.test(head[label]!)) {
-    if (rows.length > 4) return `${count} Mỗi dòng là một thước đo riêng, đọc theo đơn vị của chính nó.`;
+  if (head.some((heading, index) => ROW_PER_MEASURE.test(heading) && new Set(rows.map(row => row[index])).size > 1 && !numeric[index])) {
+    if (rows.length > 4 || head.some(heading => /^Dòng/u.test(heading))) return `${count} Mỗi dòng là một thước đo riêng, đọc theo đơn vị của chính nó.`;
     const listed = rows.flatMap((row, r) => { const num = number(row[measure] ?? ''); return num ? [`${named[r]}: ${num.shown}`] : []; });
     return listed.length ? `${count} Cột “${head[measure]}” ghi ${listed.join('; ')}. Mỗi dòng là một thước đo riêng, đọc theo đơn vị của chính nó.` : '';
   }
@@ -275,9 +280,20 @@ export function figureInterpretation(block: string, searchPoints?: readonly Sear
     return `Hình có ${axis.count} mốc, từ ${axis.first} đến ${axis.last}; mỗi mốc là một giá trị đã lưu${/USD\/người/u.test(chartUnit) ? `, đơn vị ${chartUnit}` : ''}, đọc theo trục của hình.`;
   if (points.length === 0) return `Hình vẽ lại đúng các giá trị đã lưu${/USD\/người/u.test(chartUnit) ? `, đơn vị ${chartUnit}` : ''}; đọc từng điểm theo trục của hình.`;
   if (series === 'line') {
+    if (new Set(points.map(point => point.unit)).size > 1 || new Set(points.map(point => point.group)).size > 1)
+      return 'Các điểm có đơn vị hoặc nhóm khác nhau; đọc riêng từng chuỗi theo trục của hình.';
     const first = points[0]!, last = points[points.length - 1]!;
     const low = points.reduce((a, b) => b.value < a.value ? b : a), high = points.reduce((a, b) => b.value > a.value ? b : a);
     const amount = (point: Point): string => `${point.shown}${point.unit ? ` ${point.unit}` : ''}`;
+    // An interior extreme is more informative than an endpoint direction.
+    if (points.length > 2 && ((high !== first && high !== last) || (low !== first && low !== last))) {
+      const peak = high !== first && high !== last ? `Đỉnh của chuỗi là ${amount(high)} (${high.label}).` : '';
+      const trough = low !== first && low !== last ? `Đáy của chuỗi là ${amount(low)} (${low.label}).` : '';
+      const gaps = axis && Number(axis.count) > points.length ? ` ${Number(axis.count) - points.length} mốc chưa có dữ liệu, không phải bằng không.` : '';
+      const extremes = [peak, trough].filter(Boolean).join(' ');
+      // Keep both extrema and the missing-data caveat within the three-sentence limit.
+      return `Hình có ${points.length} mốc có số, từ ${first.label} đến ${last.label}. ${gaps && peak && trough ? extremes.replace(/\.$/u, ';') : extremes}${gaps}`;
+    }
     const move = last.value > first.value ? `lên ${amount(last)}, chiều tăng` : last.value < first.value ? `xuống ${amount(last)}, chiều giảm` : `và vẫn ở ${amount(last)}, đi ngang`;
     const span = points.length === 1 ? `Hình có 1 mốc (${first.label}) ở mức ${amount(first)}.`
       : `Hình có ${points.length} mốc${axis && Number(axis.count) > points.length ? ' có số' : ''}, từ ${first.label} đến ${last.label}; giá trị đi từ ${amount(first)} ${move} giữa mốc đầu và mốc cuối.`;
@@ -370,7 +386,7 @@ export function deliverMarketReader(html: string, searchPoints?: readonly Search
   const close = html.indexOf('<footer', Math.max(open, html.lastIndexOf('</section>')));
   const head = html.slice(0, open), tail = close < 0 ? '' : html.slice(close);
   let body = stripTraceDetails(close < 0 ? html.slice(open) : html.slice(open, close));
-  body = readerText(body, captureCopy);
+  body = readerText(body, captureCopy, true);
   body = body.replace(PHRASES[0]![0], PHRASES[0]![1]);
   body = body.replace(/<a\b[^>]*href="#bounded-method-evidence"[^>]*>([\s\S]*?)<\/a>/gu, '$1');
   body = body.replace(/<section class="sheet" id="(M\d\d)">([\s\S]*?)<\/section>/gu, (_all, id: string, inner: string) => {

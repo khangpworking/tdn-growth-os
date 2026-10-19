@@ -22,9 +22,9 @@
     }
   },
   "market14-without-inventory": {
-    "html": "0bec39867725e9d4b0d6c51908bc2adaaf9e184d2be7a271e6846d01890a5a86",
-    "semantic": "671089c001264c32f0f88002ad4b9aedc713667fbafc7327ccfa1b2d5f4bd57a",
-    "trace": "db6b70b5f75c669e0ab042d4bba922235121746dc0e91149d547a5dbf8faa2d8",
+    "html": "9b736f4f39cae7011d60ed383c5f11f569b830b9e447e2883c74532660a983e4",
+    "semantic": "7c67a4170987b988b8e9f18ff7294fef370a185d3613d8e2a5b6767475e4cf8d",
+    "trace": "3654e45a08d6fba22e2eb23a238108fcf7b208abba3d8508a74d9c3b69017513",
     "deliveryIdempotent": false,
     "bytes": {
       "html": 344077,
@@ -34,7 +34,7 @@
   },
   "market14-with-inventory": {
     "html": "5d374e619015b6b0fc1141c70e08cbf738d9ca37411afa01bfcdb960abf163d2",
-    "semantic": "493223919d1ac1fc4c2dcee5aef16f7221e866686dcc1355c04ede741881177c",
+    "semantic": "ce035b478aa99944d6e8d5fcbce340fae090607caaffd067e9c17f476be00b9a",
     "trace": "32aa48e855814a7a37aef97b324a03c5c6b148ea8eb41c05cf4c6ff87aae74e7",
     "deliveryIdempotent": false,
     "bytes": {

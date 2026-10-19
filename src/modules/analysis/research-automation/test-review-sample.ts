@@ -1,4 +1,6 @@
 import { escapeHtml } from './descriptive-report.js';
+import { readerProductLabel } from './reader-plain-text.js';
+import { containsForbiddenProviderName } from '../citation-registry.js';
 import type { ScopeSnapshot, StepResultDocument } from './model.js';
 
 /** Supplied only after the owning service verifies the retained collection and its counts. */
@@ -37,13 +39,25 @@ export function exactTestReviewSourceRows(value: TestReviewSample): { native: st
 
 /** Both renderers share the exact prose; the reader adds its usual linked citations. */
 export function exactTestReviewSection(value: TestReviewSample,
-  link: (url: string, label: string) => string = (url, label) => `<a href="${escapeHtml(url)}" rel="noopener noreferrer">${label}</a>`): string {
+  link: (url: string, label: string) => string = (url, label) => `<a href="${escapeHtml(url)}" rel="noopener noreferrer">${label}</a>`,
+  reader?: { readonly currentReader: true; readonly productLabels: ReadonlyMap<string, string> }): string {
   const cap = value.testReviewCap;
   const nothing = sourceReturnedNothing(value);
+  const label = (url: string, index: number): string => {
+    if (!reader) return `Sản phẩm #${index + 1}`;
+    const match = /^https:\/\/shopee\.vn\/product\/(\d+)\/(\d+)(?:[?#].*)?$/u.exec(url);
+    const title = reader.productLabels.get(url) ?? (match ? reader.productLabels.get(`shopee:${match[1]}:${match[2]}`) : undefined);
+    const safe = title && !containsForbiddenProviderName(title) && !/\b(?:Gemini|Google|Nemotron|NVIDIA)\b/iu.test(title) ? title : undefined;
+    const resolved = readerProductLabel(url, safe, index + 1);
+    const escaped = escapeHtml(resolved);
+    // A verified source title must survive the reader's authored-copy localization.
+    return safe && resolved === safe.trim() ? `<span data-quote="true">${escaped}</span>` : escaped;
+  };
   return '<div class="test-review-sample"><h3>Mẫu đánh giá Shopee thu thử</h3>'
-    + `<p>Đây là mẫu thử nhỏ, tối đa ${cap} đánh giá mỗi sản phẩm, được thu cho báo cáo thử nghiệm. Mẫu này không đại diện cho toàn bộ đánh giá.</p>`
+    + (reader ? `<p>Đây là mẫu nhỏ, tối đa ${cap} đánh giá mỗi sản phẩm, được hệ thống thu để đọc trong báo cáo. Mẫu này không đại diện cho toàn bộ đánh giá.</p>`
+      : `<p>Đây là mẫu thử nhỏ, tối đa ${cap} đánh giá mỗi sản phẩm, được thu cho báo cáo thử nghiệm. Mẫu này không đại diện cho toàn bộ đánh giá.</p>`)
     + (nothing ? `<p>${SOURCE_RETURNED_NOTHING}</p>` : '')
-    + `<ul>${value.listings.map((row, index) => `<li>${link(row.listingUrl, `Sản phẩm #${index + 1}`)}: ${nothing
+    + `<ul>${value.listings.map((row, index) => `<li>${link(row.listingUrl, label(row.listingUrl, index))}: ${nothing
       ? 'Chưa thu được đánh giá trong lượt này.' : row.reviews === 0
         ? `Chưa thu được đánh giá; chưa đạt giới hạn thử ${cap} đánh giá.` : row.reviews < cap
           ? `Chỉ thu được ${row.reviews} đánh giá, ít hơn giới hạn thử ${cap} đánh giá.`
