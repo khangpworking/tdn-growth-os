@@ -37,6 +37,37 @@ Cập nhật: 20/10/2026 · Commit chính: `e9e0f444`
 - Bảng chủ đề từ bình luận Shopee (S2): bỏ theo quyết định phương án A ngày 19/10.
 - Bộ persona tổng hợp cho Market: Kế hoạch, chưa nối.
 
+### Các chức năng của báo cáo
+
+Báo cáo Thị trường có 13 section, từ M01 đến M13. Sơ đồ phân rã chức năng dưới đây chia 13 section thành 5 nhóm.
+
+```mermaid
+flowchart LR
+  R["Báo cáo Thị trường"]
+  R --> G1["Khung báo cáo"]
+  R --> G2["Đo thị trường"]
+  R --> G3["Cạnh tranh và giá"]
+  R --> G4["Nhìn trước"]
+  R --> G5["Kết luận"]
+  G1 --> M02["M02 · Phạm vi và phương pháp"]
+  G1 --> M13["M13 · Phụ lục và truy nguồn"]
+  G2 --> M03["M03 · Quy mô và diễn biến"]
+  G2 --> M04["M04 · Cơ cấu thị trường"]
+  G2 --> M05["M05 · Nhu cầu"]
+  G2 --> M06["M06 · Nguồn cung"]
+  G3 --> M07["M07 · Đối thủ"]
+  G3 --> M08["M08 · Giá và kinh tế đơn vị"]
+  G4 --> M09["M09 · Động lực và rủi ro"]
+  G4 --> M10["M10 · Dự báo và kịch bản"]
+  G5 --> M01["M01 · Kết luận chính"]
+  G5 --> M11["M11 · Cơ hội"]
+  G5 --> M12["M12 · Hành động"]
+```
+
+- Cách chia 5 nhóm chỉ giúp đọc dễ hơn. Nó không thay đổi quy tắc nghiệp vụ nào.
+- Sơ đồ không cho biết thứ tự chạy. Thứ tự chạy nằm ở Phần 2.
+- Phương pháp và trạng thái của từng section nằm ở [Ultimate Method, mục 3](../../research/ultimate-method/ultimate-method-30-sections.md#3-bảng-tổng-quan-30-section).
+
 ## Phần 2. Kiến trúc và luồng dữ liệu
 
 **Sơ đồ tổng thể**

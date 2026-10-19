@@ -10,6 +10,25 @@ Mục lục các tài liệu tiếng Việt cho ba phần của hệ thống. M�
 
 Chỗ nào chưa chắc chắn được ghi "(cần xác nhận)".
 
+Hai báo cáo có 30 section: Market có 13, Insight có 17. Sơ đồ phân rã chức năng dưới đây chia mỗi báo cáo thành 5 nhóm. Danh sách section của từng nhóm nằm trong tài liệu "Thiết kế hệ thống" của mỗi báo cáo.
+
+```mermaid
+flowchart TD
+  S["Hệ thống báo cáo: 30 section"]
+  S --> M["Báo cáo Thị trường: 13 section"]
+  S --> I["Báo cáo Insight: 17 section"]
+  M --> M1["Khung báo cáo"]
+  M --> M2["Đo thị trường"]
+  M --> M3["Cạnh tranh và giá"]
+  M --> M4["Nhìn trước"]
+  M --> M5["Kết luận"]
+  I --> I1["Khung nghiên cứu"]
+  I --> I2["Hiểu khách hàng"]
+  I --> I3["Lý do và rào cản"]
+  I --> I4["Bối cảnh"]
+  I --> I5["Định hướng"]
+```
+
 ## Phần 1. Báo cáo Thị trường (Market)
 
 - [Hướng dẫn sử dụng](market-report/huong-dan-su-dung.md)

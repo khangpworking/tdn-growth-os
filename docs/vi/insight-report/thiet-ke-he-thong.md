@@ -39,6 +39,42 @@ Nguyên tắc:
 5. **Không tên nhà cung cấp trong báo cáo gửi khách.**
 6. **Đơn vị là bản ghi**, không đếm người; không cộng chéo Shopee và TikTok.
 
+### Các chức năng của báo cáo
+
+Báo cáo Insight có 17 section, từ I01 đến I17. Sơ đồ phân rã chức năng dưới đây chia 17 section thành 5 nhóm. Báo cáo Insight đang tạm dừng (xem Phần 7), nên sơ đồ mô tả thiết kế, không mô tả phần đang chạy.
+
+```mermaid
+flowchart LR
+  R["Báo cáo Insight"]
+  R --> G1["Khung nghiên cứu"]
+  R --> G2["Hiểu khách hàng"]
+  R --> G3["Lý do và rào cản"]
+  R --> G4["Bối cảnh"]
+  R --> G5["Định hướng"]
+  G1 --> I01["I01 · Câu hỏi kinh doanh"]
+  G1 --> I03["I03 · Phương pháp nghiên cứu"]
+  G1 --> I17["I17 · Phụ lục và bằng chứng"]
+  G2 --> I02["I02 · Khách hàng và hoàn cảnh"]
+  G2 --> I04["I04 · Hành vi"]
+  G2 --> I05["I05 · Cảm nhận và thái độ"]
+  G2 --> I06["I06 · Hành trình"]
+  G3 --> I07["I07 · Lý do lựa chọn"]
+  G3 --> I08["I08 · Rào cản"]
+  G3 --> I09["I09 · Nhu cầu chưa được đáp ứng"]
+  G4 --> I10["I10 · Chủ đề và mối quan tâm"]
+  G4 --> I11["I11 · Khác biệt giữa các nhóm"]
+  G4 --> I12["I12 · Điểm tiếp xúc"]
+  G4 --> I13["I13 · Thương hiệu và đối thủ"]
+  G5 --> I14["I14 · Hướng cơ hội"]
+  G5 --> I15["I15 · Định hướng chiến lược"]
+  G5 --> I16["I16 · Thử nghiệm và đo lường"]
+```
+
+- Cách chia 5 nhóm chỉ giúp đọc dễ hơn. Nó không thay đổi quy tắc nghiệp vụ nào.
+- Phần kết luận chính của Insight (quy tắc E6) không phải một section có mã, nên không có trong sơ đồ.
+- Sơ đồ không cho biết thứ tự chạy. Thứ tự chạy nằm ở Phần 3.
+- Phương pháp và trạng thái của từng section nằm ở [Ultimate Method, mục 3](../../research/ultimate-method/ultimate-method-30-sections.md#3-bảng-tổng-quan-30-section).
+
 ## Phần 2. Kiến trúc tổng thể
 
 ```mermaid
