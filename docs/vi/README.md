@@ -52,3 +52,11 @@ Báo cáo Insight đang tạm dừng từ 19/10/2026 để ưu tiên Market.
 ## Phần 4. Báo cáo tiến độ
 
 - [Báo cáo tiến độ đến 20/10/2026](bao-cao-tien-do-2026-10-20.md): việc đã làm, khó khăn, việc đang chờ, ước tính thời gian, quyết định cần chủ sở hữu.
+
+## Phần 5. Tài liệu tham khảo
+
+Các tài liệu dưới đây là tài liệu nghiên cứu gốc. Chúng chưa được viết lại theo cách viết mới và dùng nhiều thuật ngữ tiếng Anh.
+
+- [Ultimate Method cho 30 section](../research/ultimate-method/ultimate-method-30-sections.md): phương pháp và trạng thái của từng section.
+- [Nguồn dữ liệu cho 30 section](../research/ultimate-method/input-data-sources-30-sections.md): section nào dùng nguồn nào.
+- [Trạng thái nguồn dữ liệu](../research/ultimate-method/source-status.md): nguồn nào đã chạy, nguồn nào còn chờ (cập nhật lần cuối 12/10/2026).
