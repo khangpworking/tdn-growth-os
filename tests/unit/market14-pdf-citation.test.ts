@@ -94,14 +94,14 @@ test('market14: each PDF excerpt carries a visible [n] that resolves to a regist
     const entry = registerItems.get(`cite-${number}`);
     assert.ok(entry, `[${number}] resolves to a register entry`);
     const excerpt = EXCERPTS[index]!;
-    assert.equal(entry, `[${number}] · ${pdfExcerptReaderCitation(excerpt).label}, trang ${excerpt.page}`, 'one name with its page');
+    assert.equal(entry, `[${number}] · ${pdfExcerptReaderCitation(excerpt).label}, trang ${excerpt.page} · Tài liệu PDF · mục nguồn ${number}`, 'one name with its page');
     assert.ok(!entry!.includes('.pdf') && !entry!.includes('tên tệp'), 'never a file name');
     assert.ok(!/[0-9a-f]{32,}/u.test(entry!) && !entry!.includes('mã nguồn'), 'no digest in the entry');
     assert.deepEqual(providerNameViolations(entry!), []);
   }
   assert.equal(new Set(numbers).size, 2, 'two documents, two entries');
-  assert.equal(registerItems.get(`cite-${numbers[0]}`), `[${numbers[0]}] · ${TITLE_A}, trang 4`);
-  assert.equal(registerItems.get(`cite-${numbers[1]}`), `[${numbers[1]}] · Tài liệu PDF số 1, trang 2`);
+  assert.equal(registerItems.get(`cite-${numbers[0]}`), `[${numbers[0]}] · ${TITLE_A}, trang 4 · Tài liệu PDF · mục nguồn ${numbers[0]}`);
+  assert.equal(registerItems.get(`cite-${numbers[1]}`), `[${numbers[1]}] · Tài liệu PDF số 1, trang 2 · Tài liệu PDF · mục nguồn ${numbers[1]}`);
   assert.doesNotThrow(() => assertMarket14MachineRules(html));
   assert.doesNotThrow(() => assertMarketBusinessGate(html, { presentation: true }));
   assert.doesNotThrow(() => assertMarket14MachineRules(plain));
@@ -119,7 +119,10 @@ test('market14: an automatic PDF attempt without excerpts shows a plain source r
   assert.equal(rows.length, 1);
   assert.equal(rows[0]!.lastElementChild?.textContent, 'Chưa tìm thấy tài liệu phù hợp trong lượt này.');
   assert.equal(rows[0]!.closest('details'), null);
-  assert.equal(html.replace(/<table><caption>Trạng thái tài liệu ngành<\/caption>[\s\S]*?<\/table>/u, ''), offHtml);
+  const pdfDefinition = '<tr><td>PDF</td><td>định dạng tài liệu giữ nguyên bố cục</td></tr>';
+  assert.ok(html.includes(pdfDefinition), 'M21: authored PDF status label requires its definition');
+  assert.ok(!offHtml.includes(pdfDefinition), 'M21: unused PDF term adds no glossary row');
+  assert.equal(html.replace(/<table><caption>Trạng thái tài liệu ngành<\/caption>[\s\S]*?<\/table>/u, '').replace(pdfDefinition, ''), offHtml);
   assert.doesNotThrow(() => assertMarketBusinessGate(html, { presentation: true }));
   assert.doesNotThrow(() => assertMarket14MachineRules(html));
   assert.deepEqual(providerNameViolations(html), []);

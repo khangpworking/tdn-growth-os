@@ -42,7 +42,7 @@ test('glossary follows decoded visible terms in sources and the footer, excludin
   assert.equal(filterReaderGlossary(output), output);
 });
 
-test('reader citation identity uses displayed fields and leaves distinct locators, links and days separate', () => {
+test('reader citation identity preserves distinct retained identities, locators, links and days', () => {
   const registry = new CitationRegistry();
   const base = { sourceKind: 'UPSTREAM_CLAIM' as const, label: 'Nguồn mẫu', retrievedAt: '2026-10-01T01:00:00Z',
     locator: null, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' as const };
@@ -53,8 +53,8 @@ test('reader citation identity uses displayed fields and leaves distinct locator
   const technical = registry.technicalTrace();
   const page = `<p>${marks.join(' ')}</p><table data-glossary="true"><tbody><tr><td>AI</td><td>trí tuệ nhân tạo</td></tr></tbody></table>` + renderCitationRegister(registry.entries(), { format: 'web' });
   const doc = new JSDOM(marketReaderCitations(page, registry)).window.document;
-  assert.deepEqual([...doc.querySelectorAll('.cite')].map(node => node.textContent), ['[1]', '[1]', '[2]', '[3]', '[4]']);
-  assert.equal(doc.querySelectorAll('.citation-register li').length, 4);
+  assert.deepEqual([...doc.querySelectorAll('.cite')].map(node => node.textContent), ['[1]', '[2]', '[3]', '[4]', '[5]']);
+  assert.equal(doc.querySelectorAll('.citation-register li').length, 5);
   assert.equal(doc.querySelectorAll('[data-glossary] td').length, 0, 'an unused source cannot keep a glossary definition');
   for (const entry of doc.querySelectorAll('.citation-register li')) assert.ok([...doc.querySelectorAll('.cite')].some(mark => mark.textContent === `[${entry.id.slice(5)}]`));
   assert.equal(technical.entries.length, 6);
@@ -131,7 +131,7 @@ test('capture reader names per-platform retained rows and keeps the original cap
   assert.equal(JSON.stringify(changed), before);
 });
 
-test('identical claim source entries collapse to one number while all technical identities remain saved', () => {
+test('equal-label distinct claim identities keep separate numbers and all technical identities remain saved', () => {
   const registry = new CitationRegistry();
   const marks = Array.from({ length: 104 }, (_, i) => registry.cite({ sourceKind: 'UPSTREAM_CLAIM',
     identity: `synthetic-claim-${i}`, locator: null, label: 'Nhận định nguồn đã lưu', retrievedAt: null,
@@ -142,9 +142,9 @@ test('identical claim source entries collapse to one number while all technical 
   const trace = registry.technicalTrace(), entries = registry.entries();
   const technical = body + renderCitationRegister(entries, { format: 'web' });
   const reader = new JSDOM(marketReaderCitations(technical, registry)).window.document;
-  assert.equal(reader.querySelectorAll('.citation-register li').length, 2);
+  assert.equal(reader.querySelectorAll('.citation-register li').length, 105);
   assert.equal(reader.querySelectorAll('.cite').length, 105);
-  assert.deepEqual([...new Set([...reader.querySelectorAll('.cite')].map(node => node.textContent))], ['[1]', '[2]']);
+  assert.deepEqual([...new Set([...reader.querySelectorAll('.cite')].map(node => node.textContent))], Array.from({ length: 105 }, (_, i) => `[${i + 1}]`));
   for (const node of reader.querySelectorAll('.cite')) assert.ok(reader.getElementById(`cite-${node.textContent!.replace(/\D/gu, '')}`));
   assert.equal(trace.entries.length, 105);
   assert.equal(new Set(trace.entries.map(entry => entry.identity)).size, 105);

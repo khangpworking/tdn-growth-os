@@ -67,7 +67,7 @@ test('current Market renderers pin unscaled per-person charts and corrected cont
   const hash = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
   assert.equal(hash((await reader({ worldBank: fullWorldBank() }, false)).html), '2c6bf440c35405eebeede37f08f57764e549cdc42041bf26b958952340d1d02e');
   // Package C changes only capture Market Phần 1 findings and its data badge.
-  assert.equal(hash(buildResearchAutomationReport(await fullMarket14Input(), 'MARKET').html), 'dd3c9b0c30efaf1f0f55ce7e404c0ee66ff8481bec67f60e0f7279cccb01d050');
+  assert.equal(hash(buildResearchAutomationReport(await fullMarket14Input(), 'MARKET').html), '8e17b680f2ee968a797cbe50aea28be736ab8b976918350f38ceb5ae66fa4f38');
 });
 
 test('v2 reader: World Bank lines are Hình 5.3/5.4 after Bảng 5.3 and Comtrade bars are Hình 6.1/6.2 after Bảng 6.2, all Flint', async () => {

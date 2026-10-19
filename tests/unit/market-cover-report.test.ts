@@ -86,7 +86,8 @@ test('a full market14 reader shows a quarter cover, a plain source list and the 
   assert.equal(text(cover.querySelector('.cv-quarter')), 'Quý 3 năm 2026');
   assert.equal(text(cover.querySelector('.cv-period')), 'Dữ liệu từ 17/08/2026 đến 15/09/2026');
   assert.equal(cover.querySelector('.cv-eyebrow, .cv-lede'), null);
-  assert.equal(text(cover.querySelector('.cv-meta')), 'Việt Nam');
+  assert.equal(text(cover.querySelector('.cv-meta')), '', 'L2: country moves to the scope section');
+  assert.match(text(document.querySelector('#M02')), /Việt Nam/u);
   assert.doesNotMatch(text(cover.querySelector('.cv-left')), /bản nháp|\bmục\b|mẫu|phân loại|\d+ ngày|2026-/iu);
   assert.doesNotMatch(document.body.textContent ?? '', /Bản nháp từ nguồn|Bản thu từ truy vấn nguồn|Bản thu dữ liệu nguồn/u);
   assert.doesNotMatch(text(document.querySelector('footer')), /bản nháp/iu);

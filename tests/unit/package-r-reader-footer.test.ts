@@ -156,13 +156,13 @@ const handBuiltMainHashes: Record<string, string> = {
 };
 const builderMainHashes: Record<string, { html: string; trace: string | null; semantic: string }> = {
   "capture-market": {
-    "html": "dd3c9b0c30efaf1f0f55ce7e404c0ee66ff8481bec67f60e0f7279cccb01d050",
-    "trace": "8d2edd027f20d6d4ac309905e45434bd8092ee413a7f941cb4dbf834634a20d2",
+    "html": "8e17b680f2ee968a797cbe50aea28be736ab8b976918350f38ceb5ae66fa4f38",
+    "trace": "d323402b60fa0321787684d42537e7bc8848a5e23762bfbbf328748dd7570d5b",
     "semantic": "7c67a4170987b988b8e9f18ff7294fef370a185d3613d8e2a5b6767475e4cf8d"
   },
   "no-capture-market": {
-    "html": "040eaef231ab3c82e67d93bc93b88d0cee28a1cc48c7a3924b60bded139fa32d",
-    "trace": "420c1305318b19affd4dd47dabf361d46ad4eab388eeb850c6da9358eb0301d7",
+    "html": "ea7c109d0eb7702b950e3212a845fed2a82187f5d30bf5731d7c244d8b9e8651",
+    "trace": "560a0ba0579c296a0865d351d6b68f0877ea9676694eb2c2057d5ae7e1ec0874",
     "semantic": "de585c1f267a1d36644443579f4b684e9767a6fa1b7502f3b87c465e3224c3fc"
   },
   "capture-insight": {
