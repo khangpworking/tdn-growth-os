@@ -94,7 +94,7 @@ async function labelled(rows: readonly {title:string}[], keywords: readonly stri
   return readCaptureRelevanceRecord(record, rows, keywords);
 }
 
-test('explicit accessory exclusion is not vetoed by MAIN, UNSURE or null; NOT_MAIN also excludes a main title', async () => {
+test('accessory and main titles require retained NOT_MAIN for relevance exclusion', async () => {
   const rows = [
     {title:'Sleeve dùng cho lumo pod',platform:'shopee',revenue:100,units:1},
     {title:'Lumo pod amber',platform:'shopee',revenue:100,units:1},
@@ -102,11 +102,11 @@ test('explicit accessory exclusion is not vetoed by MAIN, UNSURE or null; NOT_MA
   for (const label of ['MAIN','NOT_MAIN','UNSURE',null] as const) {
     const record = await labelled(rows,[relevanceKeyword],() => label);
     assert.deepEqual([...assessCaptureRows(rows,[relevanceKeyword],'BATCH',record).exclusions],
-      label === 'NOT_MAIN' ? [[0,'NOT_MAIN_PRODUCT'],[1,'NOT_MAIN_PRODUCT']] : [[0,'NOT_MAIN_PRODUCT']], String(label));
+      label === 'NOT_MAIN' ? [[0,'NOT_MAIN_PRODUCT'],[1,'NOT_MAIN_PRODUCT']] : [], String(label));
   }
 });
 
-test('several keywords use conservative union separately for the floor and AI branches', async () => {
+test('several keywords require all retained NOT_MAIN labels despite diagnostic relations', async () => {
   const rows = [{title:'Sleeve dùng cho lumo pod',platform:'shopee',revenue:100,units:1}];
   const keywords = [relevanceKeyword, 'mây sao'];
   for (const labels of [['MAIN','MAIN'],['NOT_MAIN','MAIN'],['MAIN','NOT_MAIN'],['NOT_MAIN','UNSURE'],['NOT_MAIN',null],['NOT_MAIN','NOT_MAIN']] as const) {
@@ -115,7 +115,7 @@ test('several keywords use conservative union separately for the floor and AI br
   }
   const both = [{...rows[0]!, title:'Sleeve dùng cho lumo pod; pouch dùng cho mây sao'}];
   const main = await labelled(both,keywords,() => 'MAIN');
-  assert.deepEqual([...assessCaptureRows(both,keywords,'BATCH',main).exclusions], [[0,'NOT_MAIN_PRODUCT']]);
+  assert.deepEqual([...assessCaptureRows(both,keywords,'BATCH',main).exclusions], []);
 });
 
 test('relevance precedes missing units and changes the outlier candidate set, separately per platform', async () => {
@@ -134,7 +134,7 @@ test('title-only picker applies retained decisions and keeps sorting, guards, di
   const record = await labelled(relevanceRows,[relevanceKeyword], title => title.endsWith('rival') ? 'NOT_MAIN' : 'UNSURE');
   const options = {profile:CAPTURE_ROW_PROFILE,relevance:record};
   const picked = pickShopeeLinks(raw,[relevanceKeyword],options);
-  assert.deepEqual(picked.links.map(row => row.productBaseId), [raw[0]!.product_base_id,raw[2]!.product_base_id]);
+  assert.deepEqual(picked.links.map(row => row.productBaseId), [raw[0]!.product_base_id,raw[1]!.product_base_id,raw[2]!.product_base_id]);
   assert.ok(picked.excludedRows.some(row => row.productBaseId === raw[3]!.product_base_id && row.reason === 'NOT_MAIN_PRODUCT'));
   assert.deepEqual(assessCaptureRowsTitleOnly(relevanceRows,[relevanceKeyword],CAPTURE_ROW_PROFILE,record).exclusions,
     assessCaptureRows(relevanceRows,[relevanceKeyword],'TITLE_ONLY',record).exclusions);
@@ -158,7 +158,7 @@ test('title-only picker applies retained decisions and keeps sorting, guards, di
 });
 
 
-test('weak-relation category floor stays per platform and MAIN vetoes only the category inference', async () => {
+test('weak-relation rarity stays diagnostic per platform for MAIN, UNSURE and null', async () => {
   const anchors = Array.from({length:40},(_,i) => ({title:`Lumo pod anchor ${i}`,platform:'shopee',revenue:100,units:1,categoryText:'Invented lumoware',price:100}));
   const rows = [...anchors,
     {title:'Stand dành cho lumo pod',platform:'shopee',revenue:100,units:1,categoryText:'Invented cloudware',price:10},
@@ -168,8 +168,8 @@ test('weak-relation category floor stays per platform and MAIN vetoes only the c
   for (const label of ['MAIN','UNSURE',null] as const) {
     const record = await labelled(rows,[relevanceKeyword],() => label);
     const result = assessCaptureRows(rows,[relevanceKeyword],'BATCH',record);
-    assert.deepEqual([...result.exclusions],label === 'MAIN' ? [] : [[40,'NOT_MAIN_PRODUCT']]);
-    assert.equal(result.decisions[40]!.reason,label === 'MAIN' ? null : 'TITLE_CATEGORY_MISMATCH');
+    assert.deepEqual([...result.exclusions],[]);
+    assert.equal(result.decisions[40]!.reason,null);
     assert.equal(result.exclusions.has(41),false,'TikTok has no category reference');
     assert.equal(result.exclusions.has(42),false,'low price alone is not a floor drop');
     assert.deepEqual([...assessCaptureRowsTitleOnly(rows,[relevanceKeyword],CAPTURE_ROW_PROFILE,record).exclusions],[],'title-only assessment has no metadata reference');

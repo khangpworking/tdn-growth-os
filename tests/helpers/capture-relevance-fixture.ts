@@ -75,13 +75,13 @@ export interface RelevanceMainFixture {
   packages: Stored[]; files: Stored[]; origins: Stored[]; artifacts: { metadata: Stored; text: string }[];
 }
 
-export async function relevanceHarness(t: Pick<TestContext, 'after'>, fixture?: RelevanceMainFixture) {
+export async function relevanceHarness(t: Pick<TestContext, 'after'>, fixture?: RelevanceMainFixture, suppliedArchive?: Awaited<ReturnType<typeof relevanceArchive>>) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'synthetic-relevance-'));
   const db = openDatabase({ databasePath: path.join(root, 'test.sqlite'), now: relevanceNow }).db;
   const artifacts = new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
   t.after(async () => { db.close(); await fs.rm(root, { recursive: true, force: true }); });
   const packages = new SourcePackageService({ db, artifactStore: artifacts, now: relevanceNow });
-  const archive = await relevanceArchive();
+  const archive = suppliedArchive ?? await relevanceArchive();
   if (fixture) {
     const insert = (table: string, row: Stored) => { const keys = Object.keys(row); db.prepare(`INSERT INTO ${table} (${keys.join(',')}) VALUES (${keys.map(() => '?').join(',')})`).run(...Object.values(row)); };
     for (const a of fixture.artifacts) { assert.equal((await artifacts.put(Buffer.from(a.text))).sha256, a.metadata.sha256); insert('artifact_manifests', a.metadata); }
@@ -96,9 +96,9 @@ export async function relevanceHarness(t: Pick<TestContext, 'after'>, fixture?: 
   await discovery.createWorkspace({ contractVersion: '1.0.0', workspaceKey: 'synthetic-lumo', title: 'Synthetic lumoware' });
   const workspaces = new FlowDiscoveryWorkspaceReader(discovery);
   const input: MetricRunInput = { runId, scopeConfirmedAt: relevanceNow().toISOString(),
-    start: { contractVersion: 'research-automation-start-snapshot-v1', workspaceId, country: 'VN', mode: 'CATEGORY', keyword: relevanceKeyword,
+    start: { contractVersion: 'research-automation-start-snapshot-v1', workspaceId, country: 'VN', mode: 'CATEGORY', keyword: archive.snapshot.scope.keywords[0]!,
       description: null, interview: null, requestedPeriod: { startDate: '2026-01-01', endDate: '2026-01-30', dayCount: 30 }, reports: ['MARKET'] },
-    scope: { contractVersion: 'research-automation-scope-snapshot-v1', workspaceId, runId, definition: 'Synthetic lumoware', includeTerms: [relevanceKeyword], excludeTerms: [], selectedProductIds: [], peerProductIds: [] } };
+    scope: { contractVersion: 'research-automation-scope-snapshot-v1', workspaceId, runId, definition: 'Synthetic lumoware', includeTerms: archive.snapshot.scope.keywords, excludeTerms: [], selectedProductIds: [], peerProductIds: [] } };
   const intake = new AutomationMetricCaptureSourceIntake(new RequestScopedArtifactStore(path.join(root, 'artifacts')), db, relevanceNow);
   const prepared = await intake.prepare({ contractVersion: 'automation-metric-capture-prepare-v1', requestKey: '33333333-3333-4333-8333-333333333333', expectedRevision: 1, sourceContext: 'Synthetic lumoware' }, archive.snapshotBytes, archive.manifestBytes, { runId, start: input.start, scope: input.scope });
   const source = await new AutomationMetricMethodBridge({ db, artifactStore: artifacts, workspaces, now: relevanceNow }).inspectPrepared(input, prepared.packageId);

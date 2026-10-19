@@ -315,14 +315,14 @@ test('automation reports without capture pin the M13 pointer; without presentati
   }
 });
 
-test('retained v1 and v2 capture HTML and trace match main 82459bb9, including excluded rows', async () => {
+test('retained v1 and v2 capture HTML and trace match main 71128df9, including excluded rows', async () => {
   const input = await fullMarket14Input();
-  // Recomputed on clean main 82459bb9 with this same synthetic input.
+  // Recomputed on clean main 71128df9 with this same synthetic input.
   // These cover the scope copy and removed-row list that method-only replay cannot check.
   const variants = [
-    { policy: undefined, presentation: true, html: '7e5da7bbd8785107c2c3aac04135158715803bc20988d384328b08bd9b99c6e9', trace: '1e8f6a0dfc3bba2b62d87429f043612b1de59b302467f5e0a4527d5acec7a063' },
+    { policy: undefined, presentation: true, html: 'c7023da4e23e8c825b064b1624a44ed3ae9c0cd5e2e411daf543a6606c556a8a', trace: '082c4b57b75edb5998dbede8e597a6436a2bb8158821c7fd600f3650b4ca28bb' },
     { policy: undefined, presentation: false, html: '4678e1fbce3e75dd8c6485bdc690f32bcf8fbbb74fde862e9179941b480ec7af', trace: null },
-    { policy: CAPTURE_ROW_PROFILE_V2, presentation: true, html: '2310808c5e90d08262f0896cbd7b51dc0855bda6297b39b931592c983b73720c', trace: 'c169d19750dd3190f53da2d30f642c3ae1d10b670311426ae65c25673e5befe2' },
+    { policy: CAPTURE_ROW_PROFILE_V2, presentation: true, html: '621dea6b96d636b849ad12259e63292babe4f14a799e3ed033b80f7c7fc9bf26', trace: 'dacff2d299cf20c646d1ed4f153057f1bd3ab031e3c8a5c8d802efc43add9257' },
     { policy: CAPTURE_ROW_PROFILE_V2, presentation: false, html: '1b755331abea5bd7428e64c005fefaf91b17869006daf388bec03d82a9d58f69', trace: null },
   ];
   for (const variant of variants) {

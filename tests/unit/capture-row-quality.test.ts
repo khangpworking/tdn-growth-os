@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { CAPTURE_ROW_PROFILE, CAPTURE_ROW_PROFILE_V2, isCaptureRowProfile, splitCaptureNameCell, isMainCapturedProduct, captureRowExclusions, captureExclusionNotice, assessCaptureRows, assessCaptureRowsTitleOnly } from '../../src/modules/analysis/research-automation/capture-row-quality.js';
+import { CAPTURE_ROW_PROFILE, CAPTURE_ROW_PROFILE_V2, isCaptureRowProfile, splitCaptureNameCell, isMainCapturedProduct, captureRowExclusions, captureExclusionNotice, assessCaptureTitle, assessCaptureRows, assessCaptureRowsTitleOnly } from '../../src/modules/analysis/research-automation/capture-row-quality.js';
 import { plainCaptureNumbers } from '../../src/modules/analysis/reader-report/format.js';
 import { retainedRelevance } from '../helpers/capture-relevance-fixture.js';
 
@@ -79,7 +79,8 @@ test('v3 keeps head-first fans and non-adjacent short words, with whole accented
   assert.equal(isMainCapturedProduct('Đầu, QUẠT điện', 'quạt điện', CAPTURE_ROW_PROFILE), true, 'adjacency alone is not a relation');
   assert.equal(isMainCapturedProduct('Dau quạt điện', 'quạt điện', CAPTURE_ROW_PROFILE), true, 'accents are not stripped');
   assert.equal(isMainCapturedProduct('Đầu quat dien', 'quạt điện', CAPTURE_ROW_PROFILE), true, 'an unrecognized accented target is conserved');
-  assert.equal(isMainCapturedProduct('Ống mẫu, DÙNG CHO lumo pod'.normalize('NFD'), 'LUMO POD', CAPTURE_ROW_PROFILE), false, 'a strong relation survives punctuation, case and NFC normalization');
+  assert.equal(isMainCapturedProduct('Ống mẫu, DÙNG CHO lumo pod'.normalize('NFD'), 'LUMO POD', CAPTURE_ROW_PROFILE), true, 'a strong relation remains diagnostic across punctuation, case and NFC normalization');
+  assert.equal(assessCaptureTitle('Ống mẫu, DÙNG CHO lumo pod'.normalize('NFD'), 'LUMO POD').reason, 'ACCESSORY_FOR_TARGET');
   assert.equal(isMainCapturedProduct('Ống mẫu dùng cho lumo pód', 'lumo pod', CAPTURE_ROW_PROFILE), true, 'accents are not folded into a full target match');
 });
 

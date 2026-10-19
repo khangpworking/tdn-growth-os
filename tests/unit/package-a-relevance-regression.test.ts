@@ -32,7 +32,7 @@ for (const { keyword, title, category } of products) for (const label of labels)
     assert.deepEqual([...result.exclusions], []);
   });
 
-  test(`weak relation plus rare category uses per-keyword MAIN veto for ${keyword}, label=${label}`, () => {
+  test(`weak relation plus rare category is diagnostic for ${keyword}, label=${label}`, () => {
     const rows = [...anchors(keyword), row(`Giá dành cho ${keyword}`, category)];
     const result = assessCaptureRows(rows, [keyword], 'BATCH', saved(rows, keyword, label));
     const decision = result.decisions[40]!;
@@ -40,20 +40,22 @@ for (const { keyword, title, category } of products) for (const label of labels)
     assert.ok(decision.evidence[0]!.title.weak.includes('WEAK_RELATION'));
     assert.equal(decision.evidence[0]!.title.protectedScope, false);
     assert.equal(decision.evidence[0]!.rareCategory, true);
-    assert.equal(decision.reason, label === 'MAIN' ? null : 'TITLE_CATEGORY_MISMATCH');
-    assert.deepEqual([...result.exclusions], label === 'MAIN' ? [] : [[40, 'NOT_MAIN_PRODUCT']]);
+    assert.equal(decision.reason, null);
+    assert.deepEqual([...result.exclusions], []);
   });
 }
 
-for (const { keyword } of products) test(`explicit relations and NOT_MAIN remain exclusions for ${keyword}`, () => {
+for (const { keyword } of products) test(`explicit relations stay diagnostic and only NOT_MAIN excludes for ${keyword}`, () => {
   const rows = [...anchors(keyword), row(`Bao dùng cho ${keyword}`), row(`Túi tặng ${keyword}`), row(`${keyword} mẫu riêng`)];
   const record = retainedRelevance(rows, keyword, title => title.endsWith('riêng') ? 'NOT_MAIN' : 'MAIN');
   const result = assessCaptureRows(rows, [keyword], 'BATCH', record);
-  assert.equal(result.decisions[40]!.reason, 'ACCESSORY_FOR_TARGET');
-  assert.equal(result.decisions[41]!.reason, 'SECONDARY_GIFT');
+  assert.equal(result.decisions[40]!.reason, null);
+  assert.equal(result.decisions[40]!.evidence[0]!.title.reason, 'ACCESSORY_FOR_TARGET');
+  assert.equal(result.decisions[41]!.reason, null);
+  assert.equal(result.decisions[41]!.evidence[0]!.title.reason, 'SECONDARY_GIFT');
   assert.equal(result.decisions[42]!.reason, null);
   assert.equal(result.decisions[42]!.aiExcluded, true);
-  assert.deepEqual([...result.exclusions], [[40, 'NOT_MAIN_PRODUCT'], [41, 'NOT_MAIN_PRODUCT'], [42, 'NOT_MAIN_PRODUCT']]);
+  assert.deepEqual([...result.exclusions], [[42, 'NOT_MAIN_PRODUCT']]);
 });
 
 test('partial target and later title segment plus rarity retain uncertainty without a category drop', () => {
@@ -89,13 +91,13 @@ test('category reference thresholds retain anchors and never borrow another plat
     rows.push({ ...row(`Giá dành cho ${keyword}`), platform: 'tiktok' });
     const result = assessCaptureRows(rows, [keyword]);
     assert.equal(result.cohorts[0]!.categoryAvailable, available, JSON.stringify({ A, N, C }));
-    assert.equal(result.exclusions.has(A), available, 'weak relation uses only an eligible reference');
+    assert.equal(result.exclusions.has(A), false, 'an eligible reference remains diagnostic');
     assert.equal(result.exclusions.has(N), false, 'no reference on the second platform');
     assert.ok(rows.slice(0, A).every((_, i) => !result.exclusions.has(i)), 'anchors survive');
   }
 });
 
-test('multi-keyword floor needs a reason for every keyword and MAIN vetoes only its own inference', () => {
+test('multi-keyword category hints remain diagnostic for every label combination', () => {
   const keywords = ['đèn lumo', 'giày vesa'];
   const title = 'Giá dành cho đèn lumo và giày vesa';
   const rows = [...keywords.flatMap(anchors), row(title)];
@@ -105,23 +107,23 @@ test('multi-keyword floor needs a reason for every keyword and MAIN vetoes only 
   };
   for (const pair of [[null, null], ['UNSURE', 'UNSURE'], ['MAIN', null], [null, 'MAIN'], ['MAIN', 'MAIN']] as const) {
     const result = assessCaptureRows(rows, keywords, 'BATCH', record(pair));
-    assert.deepEqual(result.decisions[80]!.evidence.map(e => e.reason), pair.map(label => label === 'MAIN' ? null : 'TITLE_CATEGORY_MISMATCH'));
-    assert.equal(result.exclusions.has(80), !pair.some(label => label === 'MAIN'), JSON.stringify(pair));
+    assert.deepEqual(result.decisions[80]!.evidence.map(e => e.reason), pair.map(() => null));
+    assert.equal(result.exclusions.has(80), false, JSON.stringify(pair));
   }
   const oneReference = [...anchors(keywords[0]!), row(title)];
   const result = assessCaptureRows(oneReference, keywords);
-  assert.deepEqual(result.decisions[40]!.evidence.map(e => e.reason), ['TITLE_CATEGORY_MISMATCH', null]);
-  assert.equal(result.exclusions.has(40), false, 'one keyword floor reason is insufficient');
+  assert.deepEqual(result.decisions[40]!.evidence.map(e => e.reason), [null, null]);
+  assert.equal(result.exclusions.has(40), false, 'one keyword diagnostic hint cannot exclude');
 });
 
-test('multi-keyword AI needs all NOT_MAIN and never mixes one floor reason with another AI reason', () => {
+test('multi-keyword AI needs all NOT_MAIN and never mixes one diagnostic hint with another AI reason', () => {
   const keywords = ['đèn lumo', 'giày vesa'];
   const rows = [...anchors(keywords[0]!), row('Giá dành cho đèn lumo và giày vesa')];
   for (const pair of [['NOT_MAIN','NOT_MAIN'], ['NOT_MAIN','MAIN'], ['NOT_MAIN','UNSURE'], ['NOT_MAIN',null], [null,'NOT_MAIN']] as const) {
     const parts = keywords.map((keyword, i) => retainedRelevance(rows, keyword, () => pair[i]!));
     const record = readCaptureRelevanceRecord({ ...parts[0]!, decisions: parts.flatMap(part => part.decisions) }, rows, keywords);
     const result = assessCaptureRows(rows, keywords, 'BATCH', record);
-    assert.deepEqual(result.decisions[40]!.evidence.map(e => e.reason), ['TITLE_CATEGORY_MISMATCH', null]);
+    assert.deepEqual(result.decisions[40]!.evidence.map(e => e.reason), [null, null]);
     assert.equal(result.decisions[40]!.aiExcluded, pair.every(label => label === 'NOT_MAIN'));
     assert.equal(result.exclusions.has(40), pair.every(label => label === 'NOT_MAIN'), JSON.stringify(pair));
   }

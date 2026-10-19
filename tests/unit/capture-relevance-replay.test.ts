@@ -87,8 +87,8 @@ test('final package retains the exact canonical record and reuses it without cal
     assert.deepEqual(f.db.prepare('SELECT total_changes() n').get(),before); if (selected) assert.equal(selected.calls,0);
   }
   assert.equal(fake.calls,1);
-  assert.deepEqual(method.capture!.platforms.map(p => [p.platform,p.result.input.records.length]),[['shopee',2],['tiktok',2]]);
-  assert.deepEqual(method.capture!.platforms.map(p => p.result.input.records.map(row => row.revenue.value)),[['100','100'],['9000','9000']]);
+  assert.deepEqual(method.capture!.platforms.map(p => [p.platform,p.result.input.records.length]),[['shopee',3],['tiktok',2]]);
+  assert.deepEqual(method.capture!.platforms.map(p => p.result.input.records.map(row => row.revenue.value)),[['100','100','100'],['9000','9000']]);
 });
 
 for (const replacement of ['disabled','changed'] as const) test(`checkpoint precedes calculation and retries with model ${replacement} make zero classifier calls`, async t => {
