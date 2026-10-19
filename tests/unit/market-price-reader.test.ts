@@ -219,7 +219,7 @@ test('reader digests pin the M08 badge control with capture headlines', async ()
   // Package C adds Phần 1 findings and its badge only to the capture control.
   for (const [reportInput, parent] of [
     [input, '047f2907d92b930a3fe0abe777e3c855825c7bb3d657dc9f591ff8cda3c3967b'],
-    [{ ...input, metricMethods }, '57a47846ba70bd444e605658823ead87bafdf9f52380c8e7fec68cce3d42cbb1'],
+    [{ ...input, metricMethods }, '656af09747ca23b19913fbcacf49c88974fa7490620be97b6cfffa9e1ef2049c'],
   ] as const) {
     const html = buildResearchAutomationReport(reportInput, 'MARKET').html.toString();
     assert.equal(hash(html.replace('<span class="state">Có giá tham khảo, chưa xác minh</span>', '<span class="state">Có số liệu</span>')), parent);

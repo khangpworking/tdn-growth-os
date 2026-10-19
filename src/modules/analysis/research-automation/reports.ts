@@ -1605,7 +1605,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
       .replace(/\bUNKNOWN\b/gu, 'chưa rõ'));
   // Delivery drops trace blocks; the reader renumbers the citations it still shows after semanticCitations and scopedHtml keep per-claim identity.
   const deliveredHtml = marketPresentation ? sanitize(marketReaderCitations(deliverMarketReader(scopedHtml, input.collection?.searchInterest ? searchInterestReadingPoints(input.collection.searchInterest) : undefined, Boolean(input.metricMethods?.capture), Boolean(input.publicReviewSource)), registry, { publicReviewSource: Boolean(input.publicReviewSource) })) : scopedHtml;
-  const readerRenderedHtml = kind === 'MARKET' && input.metricMethods?.capture?.rowPolicyVersion ? plainCaptureNumbers(deliveredHtml) : deliveredHtml;
+  const readerRenderedHtml = kind === 'MARKET' && (input.metricMethods?.capture?.rowPolicyVersion || (marketPresentation && !input.metricMethods?.capture)) ? plainCaptureNumbers(deliveredHtml) : deliveredHtml;
   // Hidden technical copy for retrieval: the same page before reader delivery, trace blocks kept. Never linked from the reader.
   const traceHtml = marketPresentation ? Buffer.from(sanitize(scopedHtml), 'utf8') : undefined;
   // Source appendix v18 also serves existing Market and accepted Insight
