@@ -150,10 +150,9 @@ function hasM12ProposalRows(html: string): boolean {
     const filled = task >= 0 && owner >= 0 && deadline >= 0 && rows.length > 0 && rows.every(row =>
       Boolean(row[task]?.trim()) && /\p{L}/u.test((row[owner] ?? '').replace(approval, '')) && dated(row[deadline] ?? '') &&
       approval.test(row.join(' ')));
-    return { options: filled && rows.length === 3 && option >= 0, filled };
+    return { options: filled && rows.length === 3 && option >= 0, quickWins: filled && option < 0 };
   });
-  const options = tables.findIndex(table => table.options);
-  return options >= 0 && tables.some((table, index) => index !== options && table.filled) && /\blàm\s+ngay\b/iu.test(visible(m12));
+  return tables.some(table => table.options) && tables.some(table => table.quickWins) && /\blàm\s+ngay\b/iu.test(visible(m12));
 }
 
 function noteBlocks(html: string): string[] {

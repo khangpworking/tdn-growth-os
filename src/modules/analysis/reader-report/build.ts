@@ -84,7 +84,7 @@ export function verifyReaderReportInput(value: unknown): ReaderReportInput {
     fail('đầu vào 1.1.0 thiếu webSnapshot hoặc webSnapshotSha256');
   }
   const facts = verifyWebSnapshot(input.webSnapshot, input.webSnapshotSha256);
-  const rowCap = input.source?.rowCap ?? input.rows.length;
+  const rowCap = input.source?.rowCap ?? (input.captureRowPolicy && !('absent' in facts.topProducts) ? facts.topProducts.length : input.rows.length);
   const derived = deriveReaderSource(facts, rowCap, { nullable: input.contractVersion === '1.2.0' || input.contractVersion === '1.3.0' || input.contractVersion === '1.4.0' });
   if (input.source !== undefined) checkDerivedSource(input.source, derived);
   return checkRowsAndSource({ ...input, source: derived }, derived);
@@ -104,7 +104,7 @@ function checkRowsAndSource(
     if (!platforms.includes(r.platform)) fail(`dòng ${r.i} thuộc sàn ${r.platform} không có trong danh sách sàn`);
   }
   for (const P of platforms) {
-    if (!rows.some(r => r.platform === P)) fail(`sàn ${P} không có dòng nào`);
+    if (!input.captureRowPolicy && !rows.some(r => r.platform === P)) fail(`sàn ${P} không có dòng nào`);
     if (!source.platformBreakdown[P]) fail(`thiếu số màn hình nguồn của sàn ${P}`);
   }
   if (source.measurementPeriod.start > source.measurementPeriod.end) fail('kỳ đo có ngày bắt đầu sau ngày kết thúc');

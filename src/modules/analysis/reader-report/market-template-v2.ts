@@ -1,3 +1,4 @@
+import { captureExclusionNotice } from '../research-automation/capture-row-quality.js';
 import type { ReaderReportData } from './build.js';
 import { completeSum } from './nullable-metrics.js';
 import { readerPeerExhibit } from './default-peers.js';
@@ -18,7 +19,7 @@ import { metaAdCitation, metaAdDate, META_AD_NAME_WITHHELD, META_AD_NOTE, META_A
 import { metaAutoNote, META_AUTO_CITATION_LABEL, META_AUTO_EXCERPT, META_AUTO_MISSING, META_AUTO_NAME_SUFFIX, META_AUTO_SAME_DAY, META_AUTO_SOURCE_LABEL, META_AUTO_SOURCE_NOTE, META_AUTO_SRC, META_AUTO_TABLE_TITLE } from '../research-automation/meta-auto-lane.js';
 import { tiktokTopAdsNote, TIKTOK_TOP_ADS_CITATION_LABEL, TIKTOK_TOP_ADS_HEADERS, TIKTOK_TOP_ADS_MISSING, TIKTOK_TOP_ADS_SOURCE_LABEL, TIKTOK_TOP_ADS_SOURCE_NOTE, TIKTOK_TOP_ADS_SRC, TIKTOK_TOP_ADS_TABLE_TITLE } from '../research-automation/tiktok-top-ads-lane.js';
 import { Narrator } from './bundle.js';
-import { esc } from './format.js';
+import { esc, plainCaptureNumbers } from './format.js';
 import { cover, makeExhibits, n, page, plat, platIcons, PLATFORM_LABEL, section as legacySection } from './layout.js';
 import { currentProposals } from './market-proposals.js';
 import { ACTION_LEAD, ACTION_NOTE, OPPORTUNITY_HEADINGS, OPPORTUNITY_READING, OPTION_HEADINGS, QUICK_WIN_HEADING, QUICK_WIN_HEADINGS, actionStartDay, isoFromReaderDay, marketActionPlan, opportunityExplanation, opportunityRows } from './market-actions.js';
@@ -43,10 +44,12 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   // opt-out (the legacy hash fixture pins them); Flint charts and markers apply everywhere else.
   const flintMarks = next || options.flint !== false;
   const narrator = new Narrator(B), registry = new CitationRegistry(), extraOk = new Set<string>();
-  const label = (s: string): string => { if (/\d/.test(s)) extraOk.add(s); return esc(s); };
+  const label = (s: string): string => { if (/\d/.test(s)) extraOk.add(s); return options.captureRowPolicy ? `<span data-quote>${esc(s)}</span>` : esc(s); };
   const source = input.source!;
   const period = `${source.measurementPeriod.start.split('-').reverse().join('/')} – ${source.measurementPeriod.end.split('-').reverse().join('/')}`;
-  const sourceText = next
+  const sourceText = options.captureRowPolicy && rows.length === 0
+    ? `Chưa có dòng sản phẩm phù hợp để tính số liệu mẫu; kỳ ${period}.`
+    : next
     ? `Dữ liệu bán hàng ước tính trên từng sàn, ${period}; trong mẫu gồm n = ${rows.length} sản phẩm đã lưu.`
     : `Dữ liệu bán hàng ước tính trên từng sàn, ${period}; trong mẫu sản phẩm đã lưu.`;
   const { tbl, fig } = makeExhibits(sourceText);
@@ -91,6 +94,12 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
       B.set(`rule.${i}.n`, d.ruleHits[i] ?? 0, 'num'); return [label(segName(rule.seg)), label(rule.why ?? 'Luật khớp đầu tiên của hồ sơ đã lưu'), n(bf(`rule.${i}.n`))];
     })) + options.limitations.map(limit => `<p>${esc(limit)}</p>`).join('') + reconciliationState + reconciliation,
     'Chưa đủ căn cứ về kỳ, múi giờ, khung mẫu và tính rời nhau để cộng chéo sàn. Tổng và tỷ lệ cần đủ dữ liệu của đúng phạm vi.'));
+  const exclusionNotes = PLATS.map(platform => {
+    const notice = captureExclusionNotice(options.captureExcludedRows ?? [], platform);
+    const empty = options.captureRowPolicy && !rows.some(row => row.platform === platform)
+      ? `<p>${esc(PLATFORM_LABEL[platform]!)}: không có dòng phù hợp để tính số liệu mẫu trong lượt này.</p>` : '';
+    return (notice ? `<p>${esc(PLATFORM_LABEL[platform]!)}: ${esc(notice)}</p>` : '') + empty;
+  }).join('');
   const salesTable = (no: string) => tbl(no, next ? 'Doanh số trong mẫu và giá trung bình từ dữ liệu bán hàng, từng sàn' : 'Doanh số trong mẫu, từng sàn', '',
     next ? ['Sàn', 'Doanh thu ước tính', 'Đơn vị bán ước tính', 'Giá trung bình từ doanh thu ÷ đơn vị bán'] : ['Sàn', 'Doanh thu ước tính', 'Đơn vị bán ước tính', 'Giá trung bình'],
     PLATS.map(P => [plat(P), n(bf(`${P}.core.rev`)), n(bf(`${P}.core.units`)), n(bf(`${P}.core.asp`))]));
@@ -114,10 +123,10 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     })), { src: 'Trang kết quả tìm kiếm đã lưu (toàn kết quả tìm kiếm)' + mark });
     if (drawn) charts.push({ id: 'M03.monthly', engine: drawn.engine, ...(drawn.error ? { error: drawn.error } : {}) });
   }
-  sections.push(section('M03', 'Quy mô và diễn biến', monthly ? 'Doanh số trong mẫu và chuỗi trên trang nguồn giữ riêng; có số theo tháng cho từng sàn ở Hình 3.1.' : 'Chỉ mô tả doanh số trong mẫu; chưa có chuỗi phù hợp để xác định diễn biến.', salesTable(MARKET_SALES_AVERAGE_EXHIBIT) + monthly, 'Một thành viên thiếu làm tổng chưa xác định; mẫu số bằng không không tạo ra giá trung bình.'));
+  sections.push(section('M03', 'Quy mô và diễn biến', monthly ? 'Doanh số trong mẫu và chuỗi trên trang nguồn giữ riêng; có số theo tháng cho từng sàn ở Hình 3.1.' : 'Chỉ mô tả doanh số trong mẫu; chưa có chuỗi phù hợp để xác định diễn biến.', exclusionNotes + salesTable(MARKET_SALES_AVERAGE_EXHIBIT) + monthly, 'Một thành viên thiếu làm tổng chưa xác định; mẫu số bằng không không tạo ra giá trung bình.'));
   // The three required charts come from the same saved product rows as the appendix.
   const chartRows = marketChartRows(rows);
-  const required = !flintMarks ? [] : await renderMarketCharts(rows, { flint: options.flint !== false, rowListNote: 'số dòng khớp chú dẫn “dòng sản phẩm” của nguồn' });
+  const required = !flintMarks ? [] : await renderMarketCharts(rows, { flint: options.flint !== false, titleLabels: Boolean(options.captureRowPolicy), rowListNote: 'số dòng khớp chú dẫn “dòng sản phẩm” của nguồn' });
   const requiredFig = (kind: 'concentration' | 'platform-revenue' | 'product-ranking', no: string): string => {
     const found = required.find(c => c.kind === kind);
     if (found === undefined) return '';
@@ -408,6 +417,10 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
       const no = registry.cite({ sourceKind: 'CAPTURE', identity: input.webSnapshotSha256!,
         locator: { kind: 'source-locator', value: cell.sourcePointer }, label: 'Bảng trên trang nguồn đã lưu',
         retrievedAt: facts.capturedAt, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' });
+      if (options.captureRowPolicy && 'value' in cell && cell.unit === 'PERCENT') {
+        // Present the numeric observation, not a rewritten verbatim source quote.
+        return (cell.value === null ? 'Chưa có dữ liệu' : `${esc(cell.value.toLocaleString('vi-VN', { maximumFractionDigits: 20 }))} phần trăm`) + (no === null ? '' : renderCitationMark(no));
+      }
       const literal = 'text' in cell ? cell.text : cell.displayed;
       const missing = 'value' in cell && cell.value === null ? 'Chưa có dữ liệu · lời nguồn: ' : '';
       return missing + `<span data-quote>${esc(literal)}</span>` + (no === null ? '' : renderCitationMark(no));
@@ -420,9 +433,13 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     if (!('absent' in facts.shopType)) for (const item of facts.shopType) {
       sourceRows.push([`${item.shopType === 'mall' ? 'Gian hàng có nhãn Mall' : 'Gian hàng thường'} theo trang (toàn kết quả tìm kiếm)`, sourceCell(item.share)]);
     }
+    // The clean, filtered sample already appears below. Keep the raw W12 cell
+    // only in the retained evidence; presenting it again would reintroduce its metadata.
     const groups: [string, MetricWebTableFact][] = [
       ['Ngành hàng', facts.category], ['Mức giá', facts.priceLevel], ['Thương hiệu theo loại gian hàng', facts.brandByShopType],
-      ['Khu vực', facts.location], ['Sản phẩm trên trang', facts.topProducts], ['Gian hàng trên trang', facts.topShops],
+      ['Khu vực', facts.location],
+      ...(!options.captureRowPolicy ? [['Sản phẩm trên trang', facts.topProducts] as [string, MetricWebTableFact]] : []),
+      ['Gian hàng trên trang', facts.topShops],
       ['Nhãn thương hiệu trên trang', facts.topBrands], ['Lịch sử chi tiết', facts.detailHistory],
     ];
     let sourceTableNumber = next ? (web.length === 0 ? 4 : 5) : (web.length === 0 ? 3 : 4);
@@ -446,12 +463,13 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     const mark = no === null ? '' : renderCitationMark(no), meta = [w.site, w.published ? `đăng ${w.published}` : null].filter(Boolean).join(' · ');
     return [`<span data-quote><a href="${esc(w.url)}" target="_blank" rel="noopener noreferrer">${esc(w.title)}</a>${mark}${meta ? `<span class="pl-meta">${esc(meta)}</span>` : ''}</span>`, ...(originated ? [esc(expandedSearchReaderLabel(w))] : []), ...(typed ? [pageType(w)] : []), `<span data-quote>${esc(w.snippet ?? '')}</span>`];
   }), { src: 'Kết quả tìm kiếm đã lưu.', note: 'Tiêu đề và đoạn mô tả chép theo kết quả tìm kiếm, chưa mở trang gốc để đối chiếu; không phải nhận định của báo cáo.' + (originated ? ' ' + EXPANDED_SEARCH_NOTE : '') });
-  sections.push(section('M13', 'Nguồn, thuật ngữ và danh sách sản phẩm', nar('Giữ đủ {{src.rows}} dòng nguồn để tra lại.', 'M13'),
+  sections.push(section('M13', 'Nguồn, thuật ngữ và danh sách sản phẩm', options.captureRowPolicy && !rows.length ? 'Không có dòng phù hợp trong mẫu; bản lưu nguồn vẫn được giữ để đối chiếu.' : nar('Giữ đủ {{src.rows}} dòng nguồn để tra lại.', 'M13'),
     tbl('PL.1', 'Dòng dữ liệu đã lưu, theo từng sàn', '', ['Sàn', 'Gian hàng', 'Nhãn thương hiệu', 'Doanh thu', 'Đơn vị bán', 'Giá trung bình', 'Tiêu đề nguồn'], appendix) + tbl('PL.2', 'Nguồn số liệu đã lưu', '', ['Hạng mục', 'Nguồn / giá trị'], sourceRows) + trialBlock + (next ? glossaryTable : '') + webTable + retainedSourceTables + renderCitationRegister(registry.entries(), { format: 'web' })));
   const html = page({ title: `Báo cáo thị trường – ${profile.product}`, coverHtml: cover(options.cover ?? null, `Dữ liệu ${period}`, ['Báo cáo thị trường', profile.product, 'Bản đọc cho chủ dự án']),
     intro: `<div class="box"><p>Số ước tính trong mẫu. Mỗi sàn tính riêng. Phân loại ${status}.</p></div>`, toc: MARKET_TOC, sections, foot: `TDN · ${esc(options.builtOn)}` });
   const renderedHtml = next ? html.replace('<body', '<body data-report-rules="market-visible-v1"') : html;
   const finalHtml = next ? renderedHtml.replace(/Ghi chú:/gu, 'Chú thích:') : html;
   const scopedHtml = finalHtml.replace('<body', `<body data-market-platforms="${PLATS.join(',')}"${flintMarks ? ` data-market-chart-rows="${chartRows.length}"` : ''}${shopsUnrecorded ? ' data-market-shops-unrecorded="1"' : ''}`);
-  return { html: next ? platIcons(filterReaderGlossary(readerText(scopedHtml)), PLATFORM_COLORS, undefined, { compoundPlatformLabels: true }).html : html, narrator, extraOk: [...extraOk], charts, webResults: web, ...(next ? { visibleTextRules: true } : {}) };
+  const outputHtml = next ? platIcons(filterReaderGlossary(readerText(scopedHtml)), PLATFORM_COLORS, undefined, { compoundPlatformLabels: true }).html : html;
+  return { html: options.captureRowPolicy ? plainCaptureNumbers(outputHtml) : outputHtml, narrator, extraOk: [...extraOk], charts, webResults: web, ...(next ? { visibleTextRules: true } : {}) };
 }
