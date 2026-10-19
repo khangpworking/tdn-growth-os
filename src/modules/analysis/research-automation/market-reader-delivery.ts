@@ -164,7 +164,8 @@ export function tableInterpretation(block: string): string {
   // Pending classification cells are not quoted as numbers anywhere outside their own cell.
   if (rows.length === 0 || /data-classified="pending"/u.test(table)) return '';
   const numeric = head.map((_h, i) => rows.some(row => number(row[i] ?? '') !== undefined));
-  const measures = head.map((h, i) => i).filter(i => numeric[i] && !NOT_MEASURE.test(head[i]!) && !PLATFORM.test(head[i]!));
+  const measures = head.map((h, i) => i).filter(i => numeric[i] && !NOT_MEASURE.test(head[i]!) && !PLATFORM.test(head[i]!)
+    && (!priceTable || /^Giá(?:\s|\()/u.test(head[i]!)));
   const measure = PREFERRED.map(re => measures.find(i => re.test(head[i]!))).find(i => i !== undefined) ?? measures[0];
   // Different columns can carry unrelated units; there is no meaningful range across them.
   if (measure === undefined) {
@@ -337,6 +338,22 @@ export function marketReaderGuide(platforms: readonly string[]): string {
 
 const DATA_SECTIONS =/^M(?:0[3-9]|1[01])$/u;
 
+/** Standard-unit tables have no capture marker: only a positive price cell establishes a readable price. */
+function hasReadablePrice(html: string): boolean {
+  return [...html.matchAll(/<table\b[\s\S]*?<\/table>/giu)].some(([table]) => {
+    const head = cells(table.match(/<thead\b[^>]*>([\s\S]*?)<\/thead>/iu)?.[1] ?? '');
+    const prices = head.flatMap((label, index) => /^Giá(?:\s|\()/u.test(label) ? [index] : []);
+    const body = table.match(/<tbody\b[^>]*>([\s\S]*?)<\/tbody>/iu)?.[1] ?? '';
+    return [...body.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/giu)].some(([, row]) => {
+      const values = cells(row ?? '');
+      return prices.some(index => {
+        const value = parseNum(values[index] ?? '');
+        return value !== undefined && value.value > 0 && /^(?:VND|đồng)?$/iu.test(value.unit);
+      });
+    });
+  });
+}
+
 /** Reader copy of a market14 page (before platform icons and label sanitising). Sections are never nested. */
 export function deliverMarketReader(html: string, searchPoints?: readonly SearchPoint[], captureCopy = false): string {
   const open = html.indexOf('<div id="sections">');
@@ -356,8 +373,8 @@ export function deliverMarketReader(html: string, searchPoints?: readonly Search
       return '';
     }) : annotated;
     const data = /<table\b|<figure\b/u.test(evidence) || proposalFigures;
-    const priceState = /data-market-prices="unavailable"/u.test(evidence) ? 'Chưa có giá đọc được'
-      : /data-market-prices="reference"/u.test(evidence) || /<td>\d/u.test(evidence) ? 'Có giá tham khảo, chưa xác minh' : 'Chưa đủ dữ liệu';
+    const priceState = /data-market-prices="reference"/u.test(evidence) || hasReadablePrice(evidence) ? 'Có giá tham khảo, chưa xác minh'
+      : /data-market-prices="unavailable"/u.test(evidence) ? 'Chưa có giá đọc được' : 'Chưa đủ dữ liệu';
     const chip = id === 'M02' || id === 'M13' ? '' : `<span class="state">${id === 'M08' ? priceState : data ? 'Có số liệu' : 'Chưa đủ dữ liệu'}</span>`;
     return `<section class="sheet" id="${id}">${annotated.replace(/<span class="state">[^<]*<\/span>/u, chip)}</section>`;
   });
