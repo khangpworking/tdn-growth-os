@@ -3715,7 +3715,11 @@ export class ResearchAutomationService {
           metricMethods = await this.#metricMethods.execute({ runId: fresh.runId, start, scope,
             scopeConfirmedAt: fresh.scopeConfirmedAt,
             ...(sources ? { sourceSelection: metricSelection(sources.value) } : {}) }, controller.signal);
-        } catch (error) { controller.signal.throwIfAborted(); metricMethodsFailure = metricMethodFailureCode(error); }
+        } catch (error) {
+          controller.signal.throwIfAborted();
+          metricMethodsFailure = metricMethodFailureCode(error);
+          logMetricMethodFailure(fresh.runId, metricMethodsFailure, error);
+        }
         if (revisionRequest && 'acceptedMetric' in revisionRequest) {
           const classified = await this.#classifiedMetric.calculate(fresh.workspaceId, fresh.runId, revisionRequest.previousPairId, revisionRequest.acceptedMetric);
           metricClassified = classified.snapshot;
@@ -6335,6 +6339,12 @@ class MarketSourceWindowsMissingError extends Error {
   }
 }
 
+/** Same operator channel as report failures: the closed code alone hides why an unexpected error fell back. */
+function logMetricMethodFailure(runId: string, code: MetricMethodFailureCode, error: unknown): void {
+  const name = error instanceof Error ? error.name : typeof error;
+  const text = error instanceof Error ? error.message : String(error);
+  console.error(JSON.stringify({ event: 'research_automation_metric_method_failed', runId, code, errorName: name, errorMessage: text }));
+}
 function logReportFailure(runId: string, stage: 'RENDER' | 'PUBLICATION', error: unknown): void {
   const name = error instanceof Error ? error.name : typeof error;
   const text = error instanceof Error ? error.message : String(error);

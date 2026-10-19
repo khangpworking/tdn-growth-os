@@ -781,13 +781,15 @@ function selectSource(source: VerifiedFinalizedSourcePackage, input: Pick<Metric
 const captureCell = (row: Table['rows'][number], key: string): Value | Text | undefined => row.cells[key];
 const captureText = (value: Value | Text | undefined): string => value && 'text' in value ? value.text.trim().replace(/\s+/gu, ' ') : value && 'displayed' in value ? value.displayed.trim().replace(/\s+/gu, ' ') : '';
 const captureNumber = (value: Value | Text | undefined): number | null => value && 'value' in value && typeof value.value === 'number' && Number.isFinite(value.value) && value.value >= 0 ? value.value : null;
-const captureSyntheticId = (platform: string, title: string, shop: string): string => `synthetic-${digest([platform, title, shop]).slice(0, 40)}`;
+const captureSyntheticId = (platform: string, title: string, shop: string, rowIndex?: number): string =>
+  `synthetic-${digest(rowIndex === undefined ? [platform, title, shop] : [platform, title, shop, rowIndex]).slice(0, 40)}`;
 
 function captureMetricInput(snapshot: AutomationMetricWebSnapshotV1, sourceSha256: string, platform: 'shopee' | 'tiktok', profile = 'automation-metric-capture-v1'): MetricScopeInput | undefined {
   const table = snapshot.groups.W12_topProducts;
   if ('absent' in table) return undefined;
   const clean = profile === CAPTURE_ROW_PROFILE ? readCaptureProductRows(snapshot) : null;
   const excluded = clean ? captureRowExclusions(clean, snapshot.scope.keywords) : null;
+  const identities = new Set<string>();
   const records = table.rows.flatMap((row, index): MetricScopeInput['records'][number][] => {
     const platformText = captureText(captureCell(row, 'platform')).toLowerCase();
     if (platformText !== platform) return [];
@@ -804,7 +806,13 @@ function captureMetricInput(snapshot: AutomationMetricWebSnapshotV1, sourceSha25
         displayedValue: cell && 'displayed' in cell ? cell.displayed : null };
     };
     const source = { sourceSha256, locator: `/groups/W12_topProducts/rows/${index}` };
-    return [{ shopId: shop.slice(0, 300), listingId: captureSyntheticId(platform, title, shop), title: title.slice(0, 1000),
+    // The cleaned title drops the name cell's review, lifetime-sold and listing-date text, so one shop's
+    // separate listings can share a title. A later row keeps its own identity by its fixed row position;
+    // the first row's identity, and every capture without such a pair, stays exactly as frozen.
+    const base = captureSyntheticId(platform, title, shop);
+    const listingId = identities.has(base) ? captureSyntheticId(platform, title, shop, index) : base;
+    identities.add(listingId);
+    return [{ shopId: shop.slice(0, 300), listingId, title: title.slice(0, 1000),
       category: (captureText(captureCell(row, 'category')) || '(trống)').slice(0, 300), source,
       revenue: observation(revenueCell), units: observation(unitsCell), label: null,
       measurement: { profileId: profile, scopeKey: 'all', platform, selection: 'UNSPECIFIED',
