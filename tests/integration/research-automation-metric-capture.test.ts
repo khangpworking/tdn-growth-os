@@ -471,8 +471,9 @@ test('new captures clean both parsers, restore shops, and exclude irrelevant and
   assert.equal((readerHtml.match(/TikTok Shop: Đã loại/g) ?? []).length, 1);
   assert.deepEqual(reportVisibleText(readerHtml).match(/.{0,45}%.{0,45}/gu) ?? [], []);
   assert.deepEqual((await f.service.readReaderReport(workspaceId, runId, build.revision.revisionId)).bytes, Buffer.from(readerHtml));
+  // Round-2 wording fix removes added spaces before standalone percent text nodes in current capture output.
   assert.equal(hash(Buffer.from(readerHtml)),
-    '5330ea7e8f960f28becf0c417999e660ec76274c899af89eb1a380e776eb39f9', 'reader HTML bytes match main');
+    'd0660c463a652034d8e115d6a670707cda6b424c7c3d64cb9158b4e9c11597d6', 'reader HTML bytes match current wording');
 });
 
 for (const item of ['jar', 'slipper', 'biscuit']) test(`a new ${item} capture with the configured fake classifier freezes v3 through reader build and replay`, async t => {

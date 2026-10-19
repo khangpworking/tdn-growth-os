@@ -217,6 +217,7 @@ test('reader digests pin the M08 badge control with capture headlines', async ()
   // Controls include 2480414f: capture changes M04/M13; no capture changes M13.
   // Neither input has inventory, so both retain M05's per-period tables.
   // Package C adds Phần 1 findings and its badge only to the capture control.
+  // Round-2 wording fix clarifies numeric zero and removes the extra space after '(' in current no-capture prose.
   for (const [reportInput, parent] of [
     [input, '10532b4a9e6c403e7732cd585241f940dec5a0516a79d17cc90ee3359282d434'],
     [{ ...input, metricMethods }, '5f82a336c3d7e4fc478b3f027bda12d0c456345626bf6ba55ba99a0a863b22ca'],
