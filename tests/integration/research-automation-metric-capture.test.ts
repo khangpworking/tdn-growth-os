@@ -455,6 +455,54 @@ test('new captures clean both parsers, restore shops, and exclude irrelevant and
   assert.deepEqual((await f.service.readReaderReport(workspaceId, runId, build.revision.revisionId)).bytes, Buffer.from(readerHtml));
 });
 
+test('one shop\'s separate listings that share a cleaned title both stay in the capture methods and the reader rows', async t => {
+  const snapshot = captureSnapshot();
+  snapshot.scope.platforms = ['shopee', 'tiktok'];
+  const table = snapshot.groups.W12_topProducts;
+  assert.ok(!('absent' in table));
+  const base = table.rows[0]!;
+  const specs: [string, string, number, number][] = [
+    ['shopee', 'Synthetic jar A 12 reviews Total sold products: 40 Created date: 02/2025 Gian hàng Mẫu', 1000000, 10],
+    ['tiktok', 'Synthetic jar B 545 reviews Total sold products: 1.496 Created date: 08/2025 Gian hàng Trùng', 3000000, 30],
+    ['tiktok', 'Synthetic jar C 9 reviews Total sold products: 20 Created date: 01/2026 Gian hàng Khác', 2000000, 20],
+    ['tiktok', 'Synthetic jar B 15 reviews Total sold products: 31 Created date: 06/2026 Gian hàng Trùng', 1000000, 10],
+  ];
+  table.rows = specs.map(([platform, name, revenue, units], i) => {
+    const row = structuredClone(base);
+    row.cells.name = { label: 'Tên', text: name, sourcePointer: `p[${i}].name` };
+    row.cells.shop = { label: 'Gian hàng', text: '', sourcePointer: `p[${i}].shop` };
+    row.cells.platform = { label: 'Sàn', text: platform, sourcePointer: `p[${i}].platform` };
+    row.cells.revenue = { label: 'Doanh thu', displayed: String(revenue), value: revenue, unit: 'VND', precision: 'exact', platform: platform as 'shopee', period, sourcePointer: `p[${i}].revenue` };
+    row.cells.units = { label: 'Lượt bán', displayed: String(units), value: units, unit: 'COUNT', precision: 'exact', platform: platform as 'shopee', period, sourcePointer: `p[${i}].units` };
+    return row;
+  });
+  const f = await confirmedCaptureRun(t, 'USE_PREPARED', true, snapshot);
+  assert.equal((await f.service.getRun(workspaceId, runId)).status, 'DRAFT_READY');
+  const draft = await f.service.readReport(workspaceId, runId, 'MARKET');
+  const semantic = JSON.parse((await f.artifacts.read(draft.versionId)).toString('utf8'));
+  assert.equal(semantic.metricMethodsFailure, undefined);
+  const methods = semantic.metricMethods as AutomationMetricMethodSnapshot;
+  const tiktok = methods.capture!.platforms.find(({platform}) => platform === 'tiktok')!.result;
+  assert.deepEqual(tiktok.input.records.map(row => [row.title, row.shopId]),
+    [['Synthetic jar B', 'Gian hàng Trùng'], ['Synthetic jar C', 'Gian hàng Khác'], ['Synthetic jar B', 'Gian hàng Trùng']]);
+  const ids = tiktok.input.records.map(row => row.listingId);
+  assert.equal(new Set(ids).size, 3, 'the repeated title and shop keep two listing identities');
+  assert.equal(tiktok.scopes.find(scope => scope.key === 'all')!.revenue.value, '6000000');
+  const configFile = f.db.prepare("SELECT artifact_sha256 sha FROM foundation_source_package_files WHERE package_id=? AND logical_path='methods/metric-run.json'").get(methods.sourcePackage.packageId) as { sha: string };
+  const config = JSON.parse((await f.artifacts.read(configFile.sha)).toString());
+  const bridge = new AutomationMetricMethodBridge({ db: f.db, artifactStore: f.artifacts, workspaces: new FlowDiscoveryWorkspaceReader(f.discovery), now });
+  assert.deepEqual(await bridge.verify(methods, config.input), methods);
+  const parsed = readerRowsFromMetricCapture(snapshot, ['shopee', 'tiktok'], CAPTURE_ROW_PROFILE);
+  assert.deepEqual(parsed.rows.map(row => row.listing), methods.capture!.platforms.flatMap(({result}) => result.input.records.map(row => row.listingId)));
+  const build = await f.service.buildReaderReport(workspaceId, runId, {
+    contractVersion: 'reader-report-build-v1.1', requestKey: randomUUID(), metricPackageId: methods.originalSourcePackage.packageId,
+    platforms: ['shopee', 'tiktok'], profile, cover: null, webSnapshot: snapshot, webSnapshotSha256: webSnapshotDigest(snapshot),
+  }, { actorId: 'owner:synthetic', role: 'OWNER' });
+  const recordRow = f.db.prepare('SELECT input_sha256 inputSha FROM analysis_reader_report_revisions WHERE revision_id=?').get(build.revision.revisionId) as { inputSha: string };
+  const record = JSON.parse((await f.artifacts.read(recordRow.inputSha)).toString());
+  assert.equal(record.defaultMarketPeers.input.records.filter((row: { title: string }) => row.title === 'Synthetic jar B').length, 2);
+});
+
 for (const emptyAll of [false, true]) test(`filtered capture retains an honest ${emptyAll ? 'empty sample' : 'empty platform'}`, async t => {
   const snapshot = captureSnapshot();
   snapshot.scope.platforms = ['shopee', 'tiktok'];
