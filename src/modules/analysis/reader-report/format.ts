@@ -10,15 +10,21 @@ export const sp = (x: unknown): string => String(x).replace('.', ',');
 export const r100 = (v: number): number => Math.round(v / 100) * 100;
 
 /** New capture reports spell out percentages and zero in authored text only.
+ * "12%" becomes "12 phần trăm"; any other "%" becomes "phần trăm" with the
+ * surrounding whitespace kept ("(%" → "(phần trăm"). A lone 0 after "phải"/"là"
+ * becomes "số không" (so "không phải 0" never reads "không phải không"); after
+ * "bằng"/"thành"/":" it becomes "không".
  * Chart SVGs, source quotes, attributes, CSS and scripts retain their exact bytes. */
 export function plainCaptureNumbers(html: string): string {
   const stack: { tag: string; protected: boolean }[] = [];
   return html.split(/(<!--[^]*?-->|<[^>]+>)/u).map(part => {
     if (!part.startsWith('<')) return stack.some(frame => frame.protected) ? part : part
-      .replace(/%/gu, ' phần trăm')
+      .replace(/(\d)\s*%/gu, '$1 phần trăm')
+      .replace(/%/gu, 'phần trăm')
       .replace(/^(\s*)0(\s*)$/u, '$1không$2')
       .replace(/(?<![\p{L}\p{N}.,])(?:có\s+)?0(?=\s+(?:dòng|gian hàng|bản ghi|sản phẩm|giá trị|đơn vị bán)(?![\p{L}\p{N}]))/gu, 'không có')
-      .replace(/((?:bằng|thành|phải|là|:)\s+)0(?![\p{L}\p{N}]|[.,]\d)/gu, '$1không');
+      .replace(/((?:phải|là)\s+)0(?![\p{L}\p{N}]|[.,]\d)/gu, '$1số không')
+      .replace(/((?:bằng|thành|:)\s+)0(?![\p{L}\p{N}]|[.,]\d)/gu, '$1không');
     const match = /^<(\/)?([a-z][a-z\d:-]*)\b/iu.exec(part);
     if (!match) return part;
     const tag = match[2]!.toLowerCase();

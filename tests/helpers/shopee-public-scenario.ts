@@ -10,6 +10,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { gunzipSync } from 'node:zlib';
 import type { TestContext } from 'node:test';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/artifact-store.js';
 import { RequestScopedArtifactStore } from '../../src/platform/artifacts/request-scoped-artifact-store.js';
@@ -303,9 +304,12 @@ export async function publicScenario(t:TestContext, options:ScenarioOptions={}, 
     persistBaseCheckpoint:async()=>{db.transaction(()=>{db.prepare('INSERT INTO analysis_research_automation_review_stages SELECT * FROM analysis_research_automation_review_stages WHERE run_id=?').run(runId);})()},
     reopenSettledStep:async()=>{db.prepare("UPDATE analysis_research_automation_steps SET state='RUNNING' WHERE run_id=? AND step_id='COLLECTION'").run(runId);},
     loadLegacyBaselines:async()=>{
-      let enabled=false;const baseline=fileURLToPath(new URL('../fixtures/shopee-public-main/',import.meta.url));let current=baseline;
+      let enabled=false;const baseline=fileURLToPath(new URL('../fixtures/shopee-public-g-references/',import.meta.url));
+      let current=await candidateBaselines(t,{TDN_TEST_PUBLIC_REPLAY:'0'});
+      await assertLegacyBaselineMatches(current,baseline);
       const allBytes=async()=>legacyBaselineBytes(current);
-      return {allBytes,setRuntime:async(o:any)=>{enabled=o.enabled;},readReportsAndSources:async()=>{const next=await candidateBaselines(t,enabled?{TDN_TEST_PUBLIC_REPLAY:'1'}:{});await assertLegacyBaselineMatches(next,baseline);current=next;},transport:new FakeTransport([]),publicFactoryCalls:[]};
+      const allMembers=async()=>new Map<string,Buffer>(JSON.parse(gunzipSync(await fs.readFile(path.join(current,'artifacts.json.gz'))).toString()).map((row:{name:string;base64:string})=>[row.name,Buffer.from(row.base64,'base64')]));
+      return {allBytes,allMembers,setRuntime:async(o:any)=>{enabled=o.enabled;},readReportsAndSources:async()=>{const next=await candidateBaselines(t,{TDN_TEST_PUBLIC_REPLAY:enabled?'1':'0'});await assertLegacyBaselineMatches(next,baseline);current=next;},transport:new FakeTransport([]),publicFactoryCalls:[]};
     },
     historicalReadOnlyWithoutStages:async()=>{
       await confirm({},'SKIP');await finish();await driver.readReport();

@@ -306,7 +306,7 @@ test('automation reports without capture pin the M13 pointer; without presentati
   const { capture: _capture, ...metricMethods } = input.metricMethods!;
   const { marketPresentation: _presentation, ...noPresentation } = input;
   const variants = [
-    { value: { ...input, metricMethods }, html: '53798915ad0a762ea55098fe8b0cfda57e5942b5660bfc32eb49cf309059b80e', semantic: 'de585c1f267a1d36644443579f4b684e9767a6fa1b7502f3b87c465e3224c3fc', trace: '560a0ba0579c296a0865d351d6b68f0877ea9676694eb2c2057d5ae7e1ec0874' },
+    { value: { ...input, metricMethods }, html: '7375c861d90a5288a8a3e6ed695f77ee6aa28c351fb199319fb11ac50c383645', semantic: 'de585c1f267a1d36644443579f4b684e9767a6fa1b7502f3b87c465e3224c3fc', trace: '560a0ba0579c296a0865d351d6b68f0877ea9676694eb2c2057d5ae7e1ec0874' },
     { value: noPresentation, html: '92ada31fa0a8a276d05aedc38fe418c3b5204f0750ef89020453a998526c6da9', semantic: '89b388819561c90b6082847afb079b85aa911457862ca7d542d5335860c3f8a5', trace: null },
   ];
   for (const variant of variants) {
@@ -324,8 +324,8 @@ test('v1 and v2 capture policies retain raw trace details with current-reader ev
   const variants = [
     { policy: undefined, presentation: true, html: '70218e0f5c9b5253baa20d35b2450e556f9970d03850b0303a32dc6755a52ade', trace: '4ec9ff0100a6cdc9f55cbf58fecabc137e75d7db48e6d7eb8b997599fd7913e4' },
     { policy: undefined, presentation: false, html: '4678e1fbce3e75dd8c6485bdc690f32bcf8fbbb74fde862e9179941b480ec7af', trace: null },
-    { policy: CAPTURE_ROW_PROFILE_V2, presentation: true, html: 'd7ffcb1cad98b31d9d90a718d2619d8c56f0247f42dd4b0cd68c2b350f069d2e', trace: '9547a565e86cac5c69d2d703475d05e9634d05bf751a923a5c8de601f016e779' },
-    { policy: CAPTURE_ROW_PROFILE_V2, presentation: false, html: '1b755331abea5bd7428e64c005fefaf91b17869006daf388bec03d82a9d58f69', trace: null },
+    { policy: CAPTURE_ROW_PROFILE_V2, presentation: true, html: '7edf34e5ef50bef3b407a5660af58c6449908c126e0d72865114670ac2707ebe', trace: '9547a565e86cac5c69d2d703475d05e9634d05bf751a923a5c8de601f016e779' },
+    { policy: CAPTURE_ROW_PROFILE_V2, presentation: false, html: 'd55594c3f4f72df67acfab8fb41657c2e9b26100cc653f2b83caa77754e3fc64', trace: null },
   ];
   for (const variant of variants) {
     const { marketPresentation: _presentation, ...noPresentation } = input;

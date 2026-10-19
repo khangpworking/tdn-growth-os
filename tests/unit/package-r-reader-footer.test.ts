@@ -161,7 +161,7 @@ const builderMainHashes: Record<string, { html: string; trace: string | null; se
     "semantic": "7c67a4170987b988b8e9f18ff7294fef370a185d3613d8e2a5b6767475e4cf8d"
   },
   "no-capture-market": {
-    "html": "53798915ad0a762ea55098fe8b0cfda57e5942b5660bfc32eb49cf309059b80e",
+    "html": "7375c861d90a5288a8a3e6ed695f77ee6aa28c351fb199319fb11ac50c383645",
     "trace": "560a0ba0579c296a0865d351d6b68f0877ea9676694eb2c2057d5ae7e1ec0874",
     "semantic": "de585c1f267a1d36644443579f4b684e9767a6fa1b7502f3b87c465e3224c3fc"
   },
