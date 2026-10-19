@@ -486,7 +486,8 @@ function readerM09(methods: DescriptiveMarketMethods, citations: ReportCitations
   let statements = 0;
   const market14 = context.market14 === true;
   const products = new Map<string, string>();
-  const rows = section.events.flatMap(event => {
+  let knownPlatform = false;
+  const rendered = section.events.flatMap(event => {
     const row = recordAt(methods.input.m09, event.recordPointer, 'm09');
     if (!row) { unresolved.push(event.recordPointer); return []; }
     if (!period || row.eventDate === null) return [];
@@ -514,21 +515,25 @@ function readerM09(methods: DescriptiveMarketMethods, citations: ReportCitations
     const kind = !launch && row.statementType !== 'UNCLASSIFIED' ? `${escape(EVENT_TYPE[row.statementType])}<br>` : '';
     const attribution = !launch && plainCopy(row.attribution) && /[\u00c0-\u024f\u1e00-\u1eff]/.test(row.attribution) ? `<br><small>${escape(row.attribution)}</small>` : '';
     // Phần 9 events come from product records of a named platform; an unrecognised record says so instead of guessing.
-    const platform = market14 ? `<td>${parseProviderProductRef(row.namedScope) ? 'TikTok Shop' : 'Chưa rõ sàn'}</td>` : '';
-    return [`<tr><td>${escape(products.get(row.namedScope)!)}</td>${platform}<td>${kind}${launch ? escape(wording) : `<q>${escape(wording)}</q>`}${attribution}</td><td>${escape(readerDate(row.eventDate))}</td><td>${sourceCell(methods.input, row.source, citations, true)}${conflict}</td></tr>`];
-  }).join('');
+    const known = Boolean(parseProviderProductRef(row.namedScope));
+    knownPlatform ||= known;
+    return [{ known, product: `<tr><td>${escape(products.get(row.namedScope)!)}</td>`, rest: `<td>${kind}${launch ? escape(wording) : `<q>${escape(wording)}</q>`}${attribution}</td><td>${escape(readerDate(row.eventDate))}</td><td>${sourceCell(methods.input, row.source, citations, true)}${conflict}</td></tr>` }];
+  });
+  // A Sàn column only helps when at least one event names a platform; an all-unknown table keeps the historical columns.
+  const platformColumn = market14 && knownPlatform;
+  const rows = rendered.map(row => `${row.product}${platformColumn ? `<td>${row.known ? 'TikTok Shop' : 'Chưa rõ sàn'}</td>` : ''}${row.rest}`).join('');
   // The owner reader names the report dates; other readers keep the historical wording.
   const dates = market14 && period ? { start: readerDate(period.startDate), end: readerDate(period.endDate) } : undefined;
   const omitted = !(before || after) ? '' : dates
-    ? `<p>Đã lược bỏ các sự kiện có ngày ${[before ? `trước ${dates.start}` : '', after ? `sau ${dates.end}` : ''].filter(Boolean).join(' hoặc ')}, ngoài kỳ báo cáo.</p>`
+    ? `<p>Đã lược bỏ các sự kiện có ngày ${[before ? `trước ${escape(dates.start)}` : '', after ? `sau ${escape(dates.end)}` : ''].filter(Boolean).join(' hoặc ')}, ngoài kỳ báo cáo.</p>`
     : `<p>Đã lược bỏ các sự kiện có ngày ${before && after ? 'trước hoặc sau' : before ? 'trước' : 'sau'} kỳ báo cáo.</p>`;
   const partial = market14 && count > 0 && statements === 0;
   const title = dates ? `Sự kiện do nguồn nêu, từ ${dates.start} đến ${dates.end}` : 'Sự kiện trong kỳ do nguồn nêu';
-  const heads = market14 ? ['Sản phẩm', 'Sàn', 'Sự kiện', 'Ngày', 'Nguồn'] : ['Sản phẩm', 'Sự kiện', 'Ngày', 'Nguồn'];
+  const heads = platformColumn ? ['Sản phẩm', 'Sàn', 'Sự kiện', 'Ngày', 'Nguồn'] : ['Sản phẩm', 'Sự kiện', 'Ngày', 'Nguồn'];
   const body = rows ? `${table(title, heads, rows, true)}${omitted}${readerNotes(methods, 'M09', false, [
     ...(launches ? ['Chưa xác minh đây là ngày ra mắt thực tế.'] : []),
     ...(partial ? ['Các dòng trong bảng chỉ là ngày ra mắt do nguồn khai báo, không phải động lực hay rủi ro.'] : [])])}`
-    : `<p>Chưa đủ dữ liệu về sự kiện ${dates ? `từ ${dates.start} đến ${dates.end}` : 'trong kỳ'}.</p>${omitted}`;
+    : `<p>Chưa đủ dữ liệu về sự kiện ${dates ? `từ ${escape(dates.start)} đến ${escape(dates.end)}` : 'trong kỳ'}.</p>${omitted}`;
   return { usable: count > 0, locatedRecordCount: count, unresolvedPointers: unresolved, blockers: section.blockers, body, ...(partial ? { partial } : {}) };
 }
 
