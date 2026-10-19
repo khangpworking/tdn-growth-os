@@ -18,6 +18,8 @@ export const SEARCH_INTEREST_MIN_POINTS = 4;
 
 export const SEARCH_INTEREST_SOURCE_LABEL = 'Mức quan tâm tìm kiếm';
 export const SEARCH_INTEREST_FIGURE_TITLE = 'Mức quan tâm tìm kiếm theo tuần, chỉ số tương đối';
+/** Current reader: the figure title without the unit, which the unit span states once. */
+export const SEARCH_INTEREST_READER_TITLE = 'Mức quan tâm tìm kiếm theo tuần';
 export const SEARCH_INTEREST_UNIT = 'chỉ số tương đối 0–100';
 export const SEARCH_INTEREST_SRC = 'Mức quan tâm tìm kiếm đã lưu cho từ khóa của báo cáo, Việt Nam, 12 tháng gần đây.';
 export const SEARCH_INTEREST_NOTE = 'Chỉ số tương đối từ 0 đến 100: 100 là tuần quan tâm cao của chính từ khóa này trong khoảng đã lấy. Không phải số lượt tìm kiếm, không phải doanh số; chỉ so các tuần của cùng chuỗi. Tuần thiếu số để trống.';

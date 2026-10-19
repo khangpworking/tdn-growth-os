@@ -1,6 +1,6 @@
 import type { AutomationMarketPresentationMethod } from '../../../../contracts/analysis/automation-market-presentation-method.generated.js';
 import type { AutomationMetricMethodSnapshot, CaptureMetricHeadlineValue, CaptureMetricMethodDetails } from './metric-method-bridge.js';
-import { TOP_GROUPS, UNKNOWN_SHOP, type CaptureCountChart, type MarketChartRow, type MarketShare } from '../reader-report/market-charts.js';
+import { CAPTURE_ROW_REF_HEADER, TOP_GROUPS, UNKNOWN_SHOP, captureRowRefLabel, type CaptureCountChart, type MarketChartRow, type MarketShare } from '../reader-report/market-charts.js';
 import { vnd, type PlatformSignal } from '../reader-report/market-actions.js';
 import { sp } from '../reader-report/format.js';
 import { readerPriceState, readerProductLabel, readerStoredOrJson } from './reader-plain-text.js';
@@ -19,7 +19,7 @@ const mark = (ref: { sourceSha256: string; locator: string; label?: string }, ci
 const table = (caption: string, headings: readonly string[], rows: readonly string[][]): string =>
   `<div class="table-wrap" role="region" aria-label="${escape(caption)}" tabindex="0"><table><caption>${escape(caption)}</caption><thead><tr>${headings.map(h => `<th scope="col">${escape(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 
-export type MarketChartSource = { rows: MarketChartRow[]; titleLabels?: boolean; rowListNote?: string; sampleNote?: string };
+export type MarketChartSource = { rows: MarketChartRow[]; titleLabels?: boolean; currentReader?: boolean; rowListNote?: string; sampleNote?: string };
 
 /**
  * Rows the three Market charts are drawn from. Saved presentation rows are used
@@ -33,9 +33,10 @@ export function marketChartSource(presentationRows: readonly MarketChartRow[], m
   const revenue = (value: string | null): number | null => value === null ? null : Number(value);
   if (metric.capture) return {
     rows: metric.capture.platforms.flatMap(({ platform, result }) => result.input.records.map((record, index) => ({
-      i: Number(/^\/groups\/W12_topProducts\/rows\/(\d+)$/u.exec(record.source.locator)?.[1] ?? index), platform, shop: record.shopId, rev: revenue(record.revenue.value), ...(metric.capture?.rowPolicyVersion ? { title: record.title } : {}) }))),
+      i: Number(/^\/groups\/W12_topProducts\/rows\/(\d+)$/u.exec(record.source.locator)?.[1] ?? index), platform, shop: record.shopId, rev: revenue(record.revenue.value), ref: captureRowRefLabel(index), ...(metric.capture?.rowPolicyVersion ? { title: record.title } : {}) }))),
     ...(metric.capture.rowPolicyVersion ? { titleLabels: true } : {}),
-    rowListNote: 'số dòng là thứ tự dòng trong bảng kết quả tìm kiếm đã lưu',
+    currentReader: true,
+    rowListNote: `mỗi nhãn ghi sàn và mã dòng, đúng mã ở cột ${CAPTURE_ROW_REF_HEADER} của bảng mẫu cùng sàn; tên dài được rút gọn, tên đầy đủ nằm trong bảng mẫu`,
     sampleNote: ' Mẫu là các dòng đầu được giữ của bảng kết quả tìm kiếm, không phải số của cả tập kết quả theo bộ lọc.',
   };
   return { rows: metric.result.input.records.map((record, i) => ({ i, platform: record.measurement.platform, shop: record.shopId, rev: revenue(record.revenue.value) })) };
@@ -66,6 +67,30 @@ export function renderCaptureSampleCharts(capture: CaptureMetricMethodDetails, c
       (chart === undefined ? '' : `<div class="chart flint" data-engine="${escape(chart.engine)}">${chart.svg}</div>`) +
       `<p>Nguồn: ${source}</p><p class="lim"><b>Chú thích:</b> Mỗi sàn giữ riêng số bản ghi đã lưu; không suy rộng ra toàn thị trường. Bản ghi chưa chứng minh sản phẩm hoặc biến thể phân biệt.</p></figure>`;
   }).join('');
+}
+
+/**
+ * Current reader only (M9): one sentence per platform instead of capture-count bars. Each states the platform's own
+ * row count, its distinct product count when that differs, the capture date and a neutral source; counts are never
+ * added across platforms and no shop count is claimed. A platform outside the capture is named as not in the sample.
+ */
+export function renderCaptureSampleSentences(capture: CaptureMetricMethodDetails, citations: ReportCitations): string {
+  const results = new Map(capture.platforms.map(entry => [entry.platform, entry.result] as const));
+  const rows = (P: Platform): number => results.get(P)?.input.records.length ?? 0;
+  if ((['shopee', 'tiktok'] as const).every(P => rows(P) === 0))
+    return '<div class="capture-sample" data-capture-sample="1"><p>Chưa có số lượng mẫu phù hợp để phân tích; bảng kết quả đã lưu chưa có dòng sản phẩm nào gán được cho một sàn. Báo cáo không suy ra doanh số từ các dòng bị loại.</p></div>';
+  const sentences = (['shopee', 'tiktok'] as const).map(P => {
+    const label = PLATFORM_LABELS[P], result = results.get(P);
+    if (!capture.capture.platforms.includes(P)) return `<p>${label} không có trong mẫu của báo cáo này.</p>`;
+    if (!result || result.input.records.length === 0) return `<p>Mẫu ${label}: chưa có dòng sản phẩm nào gán được cho sàn này trong bảng kết quả đã lưu.</p>`;
+    const records = result.input.records, distinct = new Set(records.map(record => record.title.normalize('NFC').trim().replace(/\s+/gu, ' ').toLocaleLowerCase('vi-VN'))).size;
+    const acquired = result.input.scope.acquiredAt ?? null;
+    const day = acquired ? `ngày ${isoDay(acquired.slice(0, 10))}` : 'chưa ghi ngày lưu';
+    const source = citations.mark({ sourceKind: 'METRIC_ROW', identity: result.inputSha256, locator: null,
+      label: 'Số liệu đã tính từ nguồn đã lưu', retrievedAt: null, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' });
+    return `<p>Mẫu ${label}: n = ${records.length} dòng sản phẩm${distinct !== records.length ? `, gồm ${distinct} sản phẩm khác tên` : ''}, lấy từ bảng kết quả tìm kiếm đã lưu, ${escape(day)}.${source}</p>`;
+  });
+  return `<div class="capture-sample" data-capture-sample="1">${sentences.join('')}<p class="lim"><b>Chú thích:</b> Mỗi sàn giữ riêng số dòng đã lưu và được đọc riêng; số dòng không suy rộng ra toàn thị trường.</p></div>`;
 }
 
 export type AdvertisingReferenceInput = {

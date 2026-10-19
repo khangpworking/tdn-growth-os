@@ -4,7 +4,7 @@ import type { AutomationMetricMethodSnapshot, CaptureMetricHeadlineValue, Captur
 import type { AutomationClassifiedMetricSnapshot } from '../../../../contracts/analysis/automation-classified-metric.generated.js';
 import { formatReaderCount, readerProductLabel, readerShopLabel, readerStoredOrJson } from './reader-plain-text.js';
 import { escapeHtml as escape, readerPointer, storedLiteral, type ReportCitations } from './descriptive-report.js';
-import { UNKNOWN_SHOP } from '../reader-report/market-charts.js';
+import { CAPTURE_ROW_REF_HEADER, CAPTURE_UNIT_TERM, UNKNOWN_SHOP, captureRowRef, captureRowRefLabel } from '../reader-report/market-charts.js';
 
 // Presentation only: every amount, membership, ratio and sensitivity below is
 // read from the frozen calculation. Opening a report never recalculates it.
@@ -245,23 +245,29 @@ function captureMetricMethodSection(snapshot: AutomationMetricMethodSnapshot, se
     return `<p>Doanh thu quan sát: ${headlineValue(figure.revenue, 'VND')}; sản lượng: ${headlineValue(figure.units, '')}. Đây là số của cả tập kết quả theo bộ lọc trên trang.${rows}</p>`;
   };
   const platformRows = capture.platforms.map(({ platform, result }) => {
-    const records = result.input.records.map(row => {
+    const records = result.input.records.map((row, index) => {
       const marks = [rowMark(row.revenue.source, citations), rowMark(row.units.source, citations)];
       // Both cells belong to this product row. Keep distinct citations inline in the reader.
       const sourceMarks = readerPlainText ? [...new Set(marks)].join(' ') : marks.join('<br>');
-      return `<tr><td>${escape(platformLabel(platform))}</td><td>${retainedSourceName(row.title)}</td><td>${number(row.revenue.value, 'VND')}</td><td>${number(row.units.value)}</td><td>${sourceMarks}</td></tr>`;
+      // Current reader: a stable per-platform row ref leads the row and the unit lives only in the header.
+      return currentReader
+        ? `<tr data-row-ref="${escape(captureRowRef(platform, index))}"><td>${escape(platformLabel(platform))}</td><td class="row-ref">${escape(captureRowRefLabel(index))}</td><td>${retainedSourceName(row.title)}</td><td>${number(row.revenue.value)}</td><td>${number(row.units.value)}</td><td>${sourceMarks}</td></tr>`
+        : `<tr><td>${escape(platformLabel(platform))}</td><td>${retainedSourceName(row.title)}</td><td>${number(row.revenue.value, 'VND')}</td><td>${number(row.units.value)}</td><td>${sourceMarks}</td></tr>`;
     });
+    const headers = currentReader
+      ? ['Nền tảng', CAPTURE_ROW_REF_HEADER, 'Tên trên bảng kết quả', 'Doanh thu (VND)', `Sản lượng (${CAPTURE_UNIT_TERM})`, 'Nguồn']
+      : ['Nền tảng', 'Tên trên bảng kết quả', 'Doanh thu (VND)', 'Sản lượng', 'Nguồn'];
     const notice = sectionId === 'M03' ? captureExclusionNotice(capture.excludedRows ?? [], platform, capture.rowPolicyVersion) : '';
     return `<h3>${escape(platformLabel(platform))}</h3>${platformSummary(platform, result)}${notice ? `<p>${escape(notice)}</p>` : ''}${sectionId === 'M03'
-      ? table(`${platformLabel(platform)} · số liệu từ bảng kết quả tìm kiếm đã lưu`, ['Nền tảng', 'Tên trên bảng kết quả', 'Doanh thu (VND)', 'Sản lượng', 'Nguồn'], records)
-      : table(`${platformLabel(platform)} · cơ cấu trong bảng kết quả đã lưu`, ['Nền tảng', 'Tên trên bảng kết quả', 'Doanh thu (VND)', 'Sản lượng', 'Nguồn'], records)}`;
+      ? table(`${platformLabel(platform)} · số liệu từ bảng kết quả tìm kiếm đã lưu`, headers, records)
+      : table(`${platformLabel(platform)} · cơ cấu trong bảng kết quả đã lưu`, headers, records)}`;
   }).join('') + capture.capture.platforms.filter(platform => !capture.platforms.some(value => value.platform === platform))
     .map(platform => {
       const notice = sectionId === 'M03' ? captureExclusionNotice(capture.excludedRows ?? [], platform, capture.rowPolicyVersion) : '';
       return `<h3>${escape(platformLabel(platform))}</h3>${platformSummary(platform, null)}${notice ? `<p>${escape(notice)}</p>` : ''}`;
     }).join('');
   const unknown = capture.unattributedRows.length
-    ? `<h3>Phụ lục: dòng không gán được sàn</h3><p>${currentReader ? `${capture.unattributedRows.length} dòng sau` : 'Các dòng sau'} không nêu được sàn, được đánh mã nội bộ ổn định trong bản lưu và <strong>không cộng vào Shopee hoặc TikTok Shop</strong>.</p>${table('Dòng không gán được sàn', ['Dòng nguồn', 'Tên trên bảng kết quả', 'Gian hàng', 'Doanh thu (VND)', 'Sản lượng'], capture.unattributedRows.map((row, index) => `<tr><td>${escape(readerProductLabel(row.listingId, null, index + 1))}</td><td>${retainedSourceName(row.title)}</td><td>${retainedSourceName(row.shop)}</td><td>${number(row.revenue, 'VND')}</td><td>${number(row.units)}</td></tr>`))}`
+    ? `<h3>Phụ lục: dòng không gán được sàn</h3><p>${currentReader ? `${capture.unattributedRows.length} dòng sau` : 'Các dòng sau'} không nêu được sàn, được đánh mã nội bộ ổn định trong bản lưu và <strong>không cộng vào Shopee hoặc TikTok Shop</strong>.</p>${table('Dòng không gán được sàn', ['Dòng nguồn', 'Tên trên bảng kết quả', 'Gian hàng', 'Doanh thu (VND)', currentReader ? `Sản lượng (${CAPTURE_UNIT_TERM})` : 'Sản lượng'], capture.unattributedRows.map((row, index) => `<tr><td>${escape(readerProductLabel(row.listingId, null, index + 1))}</td><td>${retainedSourceName(row.title)}</td><td>${retainedSourceName(row.shop)}</td><td>${currentReader ? number(row.revenue) : number(row.revenue, 'VND')}</td><td>${number(row.units)}</td></tr>`))}`
     : currentReader ? '' : readerPlainText ? '<p>Mọi dòng đều đã gán sàn.</p>' : '<p>Không có dòng không gán được sàn.</p>';
   const truncation = capture.capture.truncation;
   const technicalLimitation = `Nguồn là <strong>bảng kết quả tìm kiếm đã lưu</strong>; danh sách bị giới hạn <strong>${escape(String(truncation.cap))} dòng đầu</strong> và giữ ${escape(String(truncation.rowsRead))} dòng trong ${escape(String(truncation.pagesRead))} trang${truncation.totalShown === null ? '' : ` trên ${escape(String(truncation.totalShown))} dòng hiển thị`}.${truncation.truncated ? ' Phần còn lại không được suy ra.' : ''}`;

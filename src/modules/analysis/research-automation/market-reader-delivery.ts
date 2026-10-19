@@ -348,7 +348,7 @@ export function annotateExhibits(section: string, searchPoints?: readonly Search
     const context = (!SAMPLE_CAPTION.test(caption) && CONTEXT.test(caption)) || /data-chart-id="M0[56]\./u.test(block);
     const note = hasNote ? '' : `<p class="lim"><b>Chú thích:</b> ${esc(context ? CONTEXT_NOTE : SAMPLE_NOTE)}</p>`;
     const interp = exhibit.kind === 'table' ? tableInterpretation(block)
-      : figureInterpretation(block, /<span class="exn">Hình 5\.2<\/span>/u.test(block) ? searchPoints : undefined);
+      : figureInterpretation(block, /^<figure\b[^>]*\sdata-search-interest="1"|<span class="exn">Hình 5\.2<\/span>/u.test(block) ? searchPoints : undefined);
     const marks = /data-market-prices=/u.test(block) ? [...new Set(block.match(/<sup class="cite"[\s\S]*?<\/sup>/gu) ?? [])].join('') : '';
     out += section.slice(from, exhibit.end) + after + note + (interp ? `<p class="interp"><b>Diễn giải:</b> ${esc(interp)}${marks}</p>` : '');
     from = exhibit.end + after.length;
@@ -415,4 +415,92 @@ export function deliverMarketReader(html: string, searchPoints?: readonly Search
     return `<section class="sheet" id="${id}">${annotated.replace(/<span class="state"[^>]*>[^<]*<\/span>/u, chip)}</section>`;
   });
   return filterReaderGlossary(head + body + tail);
+}
+
+/** Separator printed between an exhibit number and its title ("Bảng 5.1: Tên"). */
+export const EXHIBIT_LABEL_SEPARATOR = ': ';
+
+type NumberedExhibit = { start: number; end: number; open: string; kind: 'Bảng' | 'Hình'; inBox: boolean };
+
+/** Visible tables and figures of one section in order of appearance; a sources box (`div.ex`) may hold its own captioned table. */
+function numberedExhibits(section: string): NumberedExhibit[] {
+  const found: NumberedExhibit[] = [];
+  for (const match of section.matchAll(/<figure\b[^>]*>|<div class="(?:table-wrap|ex)(?=[\s"])[^"]*"[^>]*>|<table\b[^>]*>/gu)) {
+    const at = match.index!, open = match[0];
+    const outer = found.filter(item => at >= item.start && at < item.end).at(-1);
+    if (outer && !outer.open.startsWith('<div class="ex')) continue;
+    const figure = open.startsWith('<figure'), table = open.startsWith('<table');
+    const end = elementEnd(section, at, figure ? 'figure' : table ? 'table' : 'div');
+    const block = section.slice(at, end);
+    const box = open.startsWith('<div class="ex');
+    if (box ? !/^<div\b[^>]*>\s*<div class="exh"/u.test(block) && !/<table\b/u.test(block) : !figure && !/<table\b/u.test(block)) continue;
+    // Inside a sources box only a table with its own caption is a separate exhibit.
+    if (outer && !/<caption\b/u.test(block)) continue;
+    found.push({ start: at, end, open, kind: figure && /<svg\b|<img\b/u.test(block) ? 'Hình' : figure && /<table\b/u.test(block) ? 'Bảng' : figure ? 'Hình' : 'Bảng', inBox: Boolean(outer) });
+  }
+  return found;
+}
+
+const EXN_SPAN = /<span class="exn"[^>]*>([^<]*)<\/span>(?:\s*<span class="exs">[^<]*<\/span>)?\s*/u;
+
+/**
+ * Current Market reader only: every visible table and figure carries exactly one label `<Bảng|Hình> <phần>.<n>`, counted
+ * separately per type and per section in order of appearance (the appendix uses `PL`), with a literal separator before its
+ * title. A caption that repeats the heading leaves the visible text (the table keeps it as its accessible name), and in-text
+ * references to a renumbered exhibit follow it. Anchors, citations and omitted exhibits are untouched; running it twice is a no-op.
+ */
+export function numberMarketExhibits(html: string): string {
+  const relabel = new Map<string, string>();
+  const numbered = html.replace(/<section class="sheet" id="(M\d\d)">([\s\S]*?)<\/section>/gu, (_all, id: string, inner: string) => {
+    const prefix = id === 'M13' ? 'PL' : String(Number(id.slice(1)));
+    const counts = { Bảng: 0, Hình: 0 };
+    const edits: { start: number; end: number; to: string }[] = [];
+    for (const exhibit of numberedExhibits(inner)) {
+      const no = `${prefix}.${++counts[exhibit.kind]}`, label = `${exhibit.kind} ${no}`;
+      const elementId = `exh-${prefix.toLowerCase()}-${exhibit.kind === 'Bảng' ? 'b' : 'h'}${counts[exhibit.kind]}`;
+      const exn = `<span class="exn" data-exhibit-no="${no}">${label}</span>`;
+      const block = inner.slice(exhibit.start, exhibit.end);
+      // The exhibit's own parts stop at its first nested exhibit (a captioned table inside a sources box).
+      const own = exhibit.open.startsWith('<div class="ex') ? block.slice(0, Math.max(0, block.search(/<(?:div class="table-wrap|table\b)/u)) || block.length) : block;
+      const head = /<div class="exh"[^>]*>([\s\S]*?)<\/div>/u.exec(own);
+      const tableOpen = /<table\b[^>]*>/u.exec(own);
+      const caption = tableOpen ? /<caption\b[^>]*>([\s\S]*?)<\/caption>/u.exec(own.slice(tableOpen.index)) : null;
+      const figcaption = /<figcaption\b[^>]*>([\s\S]*?)<\/figcaption>/u.exec(own);
+      const oldLabel = (head ? EXN_SPAN.exec(head[1]!) : null)?.[1]?.trim() ?? (caption ? EXN_SPAN.exec(caption[1]!)?.[1]?.trim() : undefined);
+      if (oldLabel && oldLabel !== label && !relabel.has(oldLabel)) relabel.set(oldLabel, label);
+      const at = exhibit.start;
+      const titled = (rest: string): string => rest ? `${exn}<span class="exs">${EXHIBIT_LABEL_SEPARATOR}</span>${rest}` : exn;
+      if (head) {
+        const rest = head[1]!.replace(EXN_SPAN, '').trim();
+        edits.push({ start: at + head.index, end: at + head.index + head[0].length, to: `<div class="exh" id="${elementId}">${titled(rest)}</div>` });
+        const title = text(rest.replace(/<span class="exu"[\s\S]*?<\/span>/u, ''));
+        if (caption && tableOpen) {
+          const capAt = at + tableOpen.index + caption.index;
+          edits.push({ start: capAt, end: capAt + caption[0].length, to: '' });
+          if (!/\saria-label(?:ledby)?=/u.test(tableOpen[0]))
+            edits.push({ start: at + tableOpen.index + tableOpen[0].length - 1, end: at + tableOpen.index + tableOpen[0].length - 1, to: ` aria-labelledby="${elementId}"` });
+        }
+        if (figcaption && text(figcaption[1]!) === title) edits.push({ start: at + figcaption.index, end: at + figcaption.index + figcaption[0].length, to: '' });
+      } else if (caption && tableOpen) {
+        const body = caption[1]!.replace(EXN_SPAN, '').replace(/^<span class="ext">([\s\S]*)<\/span>$/u, '$1').trim();
+        const capAt = at + tableOpen.index + caption.index, openEnd = caption[0].indexOf('>') + 1;
+        edits.push({ start: capAt + openEnd, end: capAt + caption[0].length - '</caption>'.length, to: titled(body ? `<span class="ext">${body}</span>` : '') });
+      } else if (figcaption) {
+        const body = figcaption[1]!.replace(EXN_SPAN, '').replace(/^<span class="ext">([\s\S]*)<\/span>$/u, '$1').trim();
+        const capAt = at + figcaption.index, openEnd = figcaption[0].indexOf('>') + 1;
+        edits.push({ start: capAt + openEnd, end: capAt + figcaption[0].length - '</figcaption>'.length, to: titled(body ? `<span class="ext">${body}</span>` : '') });
+      } else if (exhibit.open.startsWith('<table')) {
+        edits.push({ start: at + exhibit.open.length, end: at + exhibit.open.length, to: `<caption>${exn}</caption>` });
+      } else {
+        edits.push({ start: at + exhibit.open.length, end: at + exhibit.open.length, to: `<div class="exh" id="${elementId}">${exn}</div>` });
+      }
+    }
+    let out = inner;
+    for (const edit of edits.sort((a, b) => b.start - a.start)) out = out.slice(0, edit.start) + edit.to + out.slice(edit.end);
+    return `<section class="sheet" id="${id}">${out}</section>`;
+  });
+  if (!relabel.size) return numbered;
+  // References in prose follow their exhibit; labels, drawn charts, styles and quotes keep their bytes.
+  return numbered.split(/(<span class="exn"[^>]*>[^<]*<\/span>|<svg\b[\s\S]*?<\/svg>|<style\b[\s\S]*?<\/style>|<script\b[\s\S]*?<\/script>|<q\b[\s\S]*?<\/q>|<blockquote\b[\s\S]*?<\/blockquote>)/u)
+    .map((part, index) => index % 2 ? part : part.replace(/(?<![\p{L}\p{N}])(Bảng|Hình) (\d+|PL)\.(\d+)(?![\d.]*\d)/gu, all => relabel.get(all) ?? all)).join('');
 }

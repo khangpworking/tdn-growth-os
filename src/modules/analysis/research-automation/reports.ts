@@ -12,7 +12,7 @@ import { privateReviewReportView } from './private-review-contracts.js';
 import type { PrivateReviewReportView } from '../../../../contracts/analysis/private-review-report-view.generated.js';
 import type { AutomationMarketPresentationMethod } from '../../../../contracts/analysis/automation-market-presentation-method.generated.js';
 import { verifyAutomationMarketPresentation } from './market-presentation-method.js';
-import { marketChartSource, renderAutomationMarketFindings, renderAutomationMarketUnitPrices, renderCaptureSampleCharts, type MarketHeadline } from './market-presentation-report.js';
+import { marketChartSource, renderAutomationMarketFindings, renderAutomationMarketUnitPrices, renderCaptureSampleSentences, type MarketHeadline } from './market-presentation-report.js';
 import { admitWebResults, checkSourceEvidence } from './source-evidence.js';
 import { collectionWebRows, webReaderDay, webReaderRetrieved, expandedSearchReaderLabel, EXPANDED_SEARCH_COLUMN, EXPANDED_SEARCH_LABEL, EXPANDED_SEARCH_NOTE } from './expanded-search-lane.js';
 import { CURRENT_MARKET_READER_TERMS, MARKET_READER_TERMS } from './market-reader-glossary.js';
@@ -71,9 +71,9 @@ import type { AutomationQualitativeDraft } from '../../../../contracts/analysis/
 import { qualitativeDraftSection, qualitativeDraftSummary } from '../reader-report/qualitative-draft-report.js';
 import { platIcons } from '../reader-report/layout.js';
 import { ACTION_LEAD, OPPORTUNITY_HEADINGS, OPPORTUNITY_READING, OPTION_HEADINGS, QUICK_WIN_HEADING, QUICK_WIN_HEADINGS, actionStartDay, marketActionPlan, opportunityExplanation, opportunityRows, platformPriceBands, type ActionRow, type MarketActionPlan } from '../reader-report/market-actions.js';
-import { deliverMarketReader, marketReaderGuide } from './market-reader-delivery.js';
+import { deliverMarketReader, marketReaderGuide, numberMarketExhibits } from './market-reader-delivery.js';
 import { plainCaptureNumbers } from '../reader-report/format.js';
-import { UNKNOWN_SHOP, marketChartRows, marketRankedRows, marketShares, marketShopsUnrecorded, type CaptureCountChart, type MarketChart } from '../reader-report/market-charts.js';
+import { UNKNOWN_SHOP, marketChartRows, marketRankedRows, marketShares, marketShopsUnrecorded, thinSearchAxisLabels, type CaptureCountChart, type MarketChart } from '../reader-report/market-charts.js';
 import type { RenderedChart } from '../reader-report/flint.js';
 import { comtradeChartCount, worldBankChartCount, type MacroChart } from '../reader-report/macro-charts.js';
 import { pdfDiscoverySourceRows, pdfExcerptBlockHtml, pdfExcerptReaderCitation, PDF_EXCERPT_NOTE, PDF_EXCERPT_SECTION, PDF_EXCERPT_SRC } from './pdf-excerpt.js';
@@ -85,8 +85,15 @@ import { formatWorldBankValue, worldBankReaderNote, WORLD_BANK_READER_SRC, world
 import { E13_ATTRIBUTION } from '../source-appendix-projection.js';
 import { withKalodataReplayNotice } from './kalodata-replay.js';
 import { exactTestReviewSample, exactTestReviewSection, exactTestReviewSourceRows, TEST_REVIEW_SOURCE_TYPE } from './test-review-sample.js';
-import { SEARCH_INTEREST_EMPTY, searchInterestReadingPoints, searchInterestRenderable,SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_LIMIT, SEARCH_INTEREST_NOTE, SEARCH_INTEREST_SOURCE_LABEL, SEARCH_INTEREST_SRC, SEARCH_INTEREST_UNIT } from './search-interest.js';
+import { SEARCH_INTEREST_EMPTY, searchInterestReadingPoints, searchInterestRenderable,SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_LIMIT, SEARCH_INTEREST_NOTE, SEARCH_INTEREST_READER_TITLE, SEARCH_INTEREST_SOURCE_LABEL, SEARCH_INTEREST_SRC, SEARCH_INTEREST_UNIT } from './search-interest.js';
 import { LEGACY_SEARCH_GEO_NOTE, searchGeoAverageText, searchGeoRenderable, searchGeoText, summarizeSearchGeo, SEARCH_GEO_DONT, SEARCH_GEO_HEADERS, SEARCH_GEO_NOTE, SEARCH_GEO_TABLE_NO, SEARCH_GEO_TABLE_TITLE } from './search-geo.js';
+
+/**
+ * Current Market reader print layout (L14, M7e). Forced page breaks stay structural: each top-level section (`.sheet`,
+ * the appendix included) starts a page and nothing else forces one. A figure keeps its label, a definition term keeps its
+ * definition, an exhibit label keeps the exhibit it names; long tables still split, with the header row repeated.
+ */
+export const MARKET_READER_PRINT_CSS = '@media print{figure.market-chart,.capture-sample{break-inside:avoid}.exh{break-after:avoid}dt{break-after:avoid}dd{break-before:avoid}.table-wrap>.exh+table{break-before:avoid}}';
 
 const reportRequire = createRequire(import.meta.url);
 const { Ajv2020 } = reportRequire('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -1338,8 +1345,10 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     if (marketPresentation && !searchInterestReadingPoints(interest).some(point => point.index !== null)) return `<p>${escape(SEARCH_INTEREST_EMPTY)}</p>`;
     if (!input.searchInterestChart) throw new TypeError('SEARCH_INTEREST_CHART_MISSING');
     const capture = input.captures.find(item => item.stepId === 'COLLECTION' && item.ordinal === interest.captureIndex);
-    return `<p>Mức quan tâm tìm kiếm của từ khóa được ghi riêng ở Hình 5.2: chỉ số tương đối, không cộng hay so với số bán.</p><figure class="market-chart"><div class="exh"><span class="exn">Hình 5.2</span> <span class="ext">${escape(SEARCH_INTEREST_FIGURE_TITLE)}</span> <span class="exu">(${escape(SEARCH_INTEREST_UNIT)})</span></div>` +
-      `<div class="chart flint" data-engine="${escape(input.searchInterestChart.engine)}">${input.searchInterestChart.svg}</div>` +
+    // Current reader: the unit is stated once (in the unit span) and a weekly axis keeps at most SEARCH_AXIS_LABEL_MAX labels.
+    const searchSvg = marketPresentation && input.searchInterestChart.engine !== 'svg-fallback' ? thinSearchAxisLabels(input.searchInterestChart.svg) : input.searchInterestChart.svg;
+    return `<p>Mức quan tâm tìm kiếm của từ khóa được ghi riêng ở Hình 5.2: chỉ số tương đối, không cộng hay so với số bán.</p><figure class="market-chart"${marketPresentation ? ' data-search-interest="1"' : ''}><div class="exh"><span class="exn">Hình 5.2</span> <span class="ext">${escape(marketPresentation ? SEARCH_INTEREST_READER_TITLE : SEARCH_INTEREST_FIGURE_TITLE)}</span> <span class="exu">(${escape(SEARCH_INTEREST_UNIT)})</span></div>` +
+      `<div class="chart flint" data-engine="${escape(input.searchInterestChart.engine)}">${searchSvg}</div>` +
       `<p class="lim"><b>Chú thích:</b> ${escape(SEARCH_INTEREST_NOTE)} ${escape(SEARCH_INTEREST_LIMIT)}</p><p class="ex-src">Nguồn: ${escape(SEARCH_INTEREST_SRC)}${capture ? captureMark(capture, citations) : ''}</p></figure>`;
   };
   // The stored province map sits right after Hình 5.2, as regions only; a pure rule picks a region or says nationwide. Never with sales.
@@ -1547,7 +1556,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     const locatedView = locatedViews.get(section.sectionId);
     // Per-platform record counts need no owner-accepted classification, so an unclassified capture M03 shows them too.
     const captureFigures = (): string => kind === 'MARKET' && marketPresentation && section.sectionId === 'M03' && input.metricMethods?.capture
-      ? renderCaptureSampleCharts(input.metricMethods.capture, citations, input.marketCaptureCharts) : '';
+      ? renderCaptureSampleSentences(input.metricMethods.capture, citations) : '';
     if (section.state === 'EVIDENCE_INVENTORY') return (locatedView ? locatedView() : '') + literal + qualitative;
     if (section.state !== 'METHOD_OUTPUT' && section.state !== 'METHOD_NO_USABLE_RECORDS') return literal + qualitative + captureFigures();
     // Metric has its own scoped tables and source trace in appendix(), not a descriptive-method view.
@@ -1591,7 +1600,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   // Narrow screens: tables keep their width and scroll; say so, show edge shadows and keep captions in view.
   + `@media screen and (max-width:800px){.table-wrap:not(:has(>.evidence-table)){container-type:inline-size;background:linear-gradient(90deg,#fff 30%,#fff0) left/24px 100% no-repeat local,linear-gradient(270deg,#fff 30%,#fff0) right/24px 100% no-repeat local,radial-gradient(farthest-side at 0 50%,#0f172a33,#0000) left/10px 100% no-repeat scroll,radial-gradient(farthest-side at 100% 50%,#0f172a33,#0000) right/10px 100% no-repeat scroll}.table-wrap:not(:has(>.evidence-table))::before{content:"Nếu bảng vượt chiều rộng màn hình, vuốt ngang để xem đủ cột. Bàn phím: Tab để chọn bảng, rồi dùng phím mũi tên.";display:block;position:sticky;left:0;padding:0 0 6px;color:var(--mut);font-size:12px}.table-wrap:not(:has(>.evidence-table)) caption{position:sticky;left:0;max-width:100cqi;box-sizing:border-box}.table-wrap:focus-visible{outline-offset:-3px}}`
   + `.reader-summary,.section-reading,.reader-guide{max-width:72ch}.reader-context{margin-bottom:24px}.method-reference{margin-top:24px;color:var(--mut)}.method-reference summary{cursor:pointer}.reader-summary{font-weight:500}td,dd{font-variant-numeric:tabular-nums}`
-  + `@media(max-width:600px){dl{grid-template-columns:1fr}.sheet{padding:20px}.cover{display:block}.cv-right{background:var(--blue);padding:24px}.cv-left{padding:24px}}@media print{@page{size:A4;margin:14mm}body{background:white}main{padding:0}.cover{min-height:240mm}.toc{gap:4px}.toc a{min-height:0}#sections>.reader-guide+.sheet{break-before:auto}.sh-head{break-after:avoid}.sheet{padding:16px 0;border:0;break-inside:auto}.sheet:after{display:none}.table-wrap{overflow:visible}.table-wrap table{min-width:0}tr{break-inside:avoid}thead{display:table-header-group}.jump{display:none}.sheet h3,.sheet h4,caption,summary{break-after:avoid}thead{break-after:avoid}tbody>tr:first-child{break-before:avoid}details{break-inside:auto}summary+p{break-before:avoid}.limits li{break-inside:avoid}${marketPresentation ? '' : '.citation-register a::after{content:" (" attr(href) ")"}'}.citation-register ol{padding-left:20px}.citation-register li{break-inside:avoid}}${coverArt ? COVER_ART_CSS : ''}${coverQuarter ? '.cv-quarter{margin:14px 0 0;font-size:20px;font-weight:800;color:var(--blue)}.cv-period{margin:6px 0 0;font-size:14px;color:var(--mut)}' : ''}</style></head><body><a class="skip" href="#sections">Đến nội dung báo cáo</a><main><section class="cover"><div class="cv-left"><div class="brand"><i></i><b>TDN GROWTH OS</b></div><div>${coverArt}${coverText}</div><nav class="cv-right" aria-label="Mục lục"><h2>Nội dung</h2><ul class="toc">${sections.map(section => `<li><a href="#${section.sectionId}"><em>${section.sectionId}</em>${escape(marketPresentation && section.sectionId === 'M13' ? ` · ${section.title.replace(/^Phụ lục\s*(?:[·:–—-]\s*)?/iu, '')}` : section.title)}</a></li>`).join('')}</ul></nav></section><div id="sections">${readerBody}</div>${renderCitationRegister(registry.entries(), { format: 'web' })}<footer><p>${footerText}</p></footer></main></body></html>`;
+  + `@media(max-width:600px){dl{grid-template-columns:1fr}.sheet{padding:20px}.cover{display:block}.cv-right{background:var(--blue);padding:24px}.cv-left{padding:24px}}@media print{@page{size:A4;margin:14mm}body{background:white}main{padding:0}.cover{min-height:240mm}.toc{gap:4px}.toc a{min-height:0}#sections>.reader-guide+.sheet{break-before:auto}.sh-head{break-after:avoid}.sheet{padding:16px 0;border:0;break-inside:auto}.sheet:after{display:none}.table-wrap{overflow:visible}.table-wrap table{min-width:0}tr{break-inside:avoid}thead{display:table-header-group}.jump{display:none}.sheet h3,.sheet h4,caption,summary{break-after:avoid}thead{break-after:avoid}tbody>tr:first-child{break-before:avoid}details{break-inside:auto}summary+p{break-before:avoid}.limits li{break-inside:avoid}${marketPresentation ? '' : '.citation-register a::after{content:" (" attr(href) ")"}'}.citation-register ol{padding-left:20px}.citation-register li{break-inside:avoid}}${coverArt ? COVER_ART_CSS : ''}${coverQuarter ? '.cv-quarter{margin:14px 0 0;font-size:20px;font-weight:800;color:var(--blue)}.cv-period{margin:6px 0 0;font-size:14px;color:var(--mut)}' : ''}${marketPresentation ? MARKET_READER_PRINT_CSS : ''}</style></head><body><a class="skip" href="#sections">Đến nội dung báo cáo</a><main><section class="cover"><div class="cv-left"><div class="brand"><i></i><b>TDN GROWTH OS</b></div><div>${coverArt}${coverText}</div><nav class="cv-right" aria-label="Mục lục"><h2>Nội dung</h2><ul class="toc">${sections.map(section => `<li><a href="#${section.sectionId}"><em>${section.sectionId}</em>${escape(marketPresentation && section.sectionId === 'M13' ? ` · ${section.title.replace(/^Phụ lục\s*(?:[·:–—-]\s*)?/iu, '')}` : section.title)}</a></li>`).join('')}</ul></nav></section><div id="sections">${readerBody}</div>${renderCitationRegister(registry.entries(), { format: 'web' })}<footer><p>${footerText}</p></footer></main></body></html>`;
   const labelledHtml = readerPlainText && kind === 'MARKET' ? marketReaderLabels(html) : html;
   const scopedHtml = marketPresentation ? labelledHtml.replace('<body', `<body data-market-platforms="${marketPlatforms.join(',')}" data-market-chart-rows="${marketChartRows(chartRows).length}"${marketShopsUnrecorded(chartRows) ? ' data-market-shops-unrecorded="1"' : ''}`) : labelledHtml;
   // Platform icons and reader labels apply to both copies; only the reader copy drops the trace and gains notes/interpretations.
@@ -1604,7 +1613,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
       .replace(/\bALL\b/gu, 'toàn bộ mẫu')
       .replace(/\bUNKNOWN\b/gu, 'chưa rõ'));
   // Delivery drops trace blocks; the reader renumbers the citations it still shows after semanticCitations and scopedHtml keep per-claim identity.
-  const deliveredHtml = marketPresentation ? sanitize(marketReaderCitations(deliverMarketReader(scopedHtml, input.collection?.searchInterest ? searchInterestReadingPoints(input.collection.searchInterest) : undefined, Boolean(input.metricMethods?.capture), Boolean(input.publicReviewSource)), registry, { publicReviewSource: Boolean(input.publicReviewSource) })) : scopedHtml;
+  const deliveredHtml = marketPresentation ? sanitize(marketReaderCitations(numberMarketExhibits(deliverMarketReader(scopedHtml, input.collection?.searchInterest ? searchInterestReadingPoints(input.collection.searchInterest) : undefined, Boolean(input.metricMethods?.capture), Boolean(input.publicReviewSource))), registry, { publicReviewSource: Boolean(input.publicReviewSource) })) : scopedHtml;
   const readerRenderedHtml = kind === 'MARKET' && input.metricMethods?.capture?.rowPolicyVersion ? plainCaptureNumbers(deliveredHtml) : deliveredHtml;
   // Hidden technical copy for retrieval: the same page before reader delivery, trace blocks kept. Never linked from the reader.
   const traceHtml = marketPresentation ? Buffer.from(sanitize(scopedHtml), 'utf8') : undefined;
