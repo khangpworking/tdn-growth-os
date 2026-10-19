@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -10,6 +11,8 @@ import {
   Narrator, ReaderReportGateError, ReaderReportInputError, computeReaderReportData, cover, makeExhibits, page,
   publishReaderReport, section, verifyReaderReportInput, type ReaderReportData,
 } from '../../src/modules/analysis/reader-report/index.js';
+import { webSnapshotDigest } from '../../src/modules/analysis/reader-report/web-facts.js';
+import { DEFAULT_MARKET_PEER_RULE } from '../../src/modules/analysis/default-market-peers.js';
 
 const row = (i: number, platform: 'shopee' | 'tiktok', shop: string, rev: number, units: number, brand: string, title: string) =>
   ({ i, platform, listing: `L${i}`, shop, cat: 'Bình', rev, units, asp: rev / units, brand, title });
@@ -97,6 +100,19 @@ test('input rejects broken contracts with plain messages', () => {
     mutate(x);
     assert.throws(() => verifyReaderReportInput(x), (e: unknown) => e instanceof ReaderReportInputError && re.test(e.message), name);
   }
+});
+
+test('reader input validator accepts retained v2 and latest v3 capture policies and rejects an unknown version', () => {
+  const webSnapshot: unknown = JSON.parse(readFileSync(new URL('../fixtures/metric-web-snapshot/full.json', import.meta.url), 'utf8'));
+  const { source: _source, ...base } = input();
+  const capture = { ...base, rows: [], contractVersion: '1.3.0', peerRule: DEFAULT_MARKET_PEER_RULE, webSnapshot, webSnapshotSha256: webSnapshotDigest(webSnapshot), rowLineage: { sha256: 'a'.repeat(64) } };
+  for (const captureRowPolicy of ['automation-metric-capture-v2', 'automation-metric-capture-v3']) for (const rows of [[], base.rows.slice(0, 1)]) {
+    const value = { ...capture, rows, captureRowPolicy };
+    assert.equal(verifyReaderReportInput(value).captureRowPolicy, captureRowPolicy, 'nonempty and empty filtered samples are valid under both known policies');
+  }
+  assert.equal(verifyReaderReportInput(input()).captureRowPolicy, undefined, 'historical inputs remain valid');
+  assert.throws(() => verifyReaderReportInput({ ...capture, captureRowPolicy: 'automation-metric-capture-v4' }),
+    (error: unknown) => error instanceof ReaderReportInputError && /captureRowPolicy/.test(error.message));
 });
 
 test('publish stores html, metrics and claims deterministically and fails closed', async () => {

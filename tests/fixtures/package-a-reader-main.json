@@ -1,0 +1,15 @@
+{
+  "revision": "82459bb9baa0b63e645c10a1ea0227c4c30cb88c",
+  "variants": [
+    {
+      "policy": "automation-metric-capture-v1",
+      "htmlSha256": "970b1f19e0a1ff0fef0498470c9ae182a21c7c31e7834f6a5f87fcc15c2e7f5f",
+      "readerJsonSha256": "911fbc51196a4e60ffdeb8b4a2ee7671f455636644591b7cd24de56ff27bc47e"
+    },
+    {
+      "policy": "automation-metric-capture-v2",
+      "htmlSha256": "3c98c7f7e939b77dd9ba8f1f6a33917095fb57c96348ce3b270ca45058ceec2e",
+      "readerJsonSha256": "6afeb88d8763782f5c3f554b91265a4a0a95c2cae24c58539b524dcbb0787d6a"
+    }
+  ]
+}

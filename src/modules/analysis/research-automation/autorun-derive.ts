@@ -1,3 +1,4 @@
+import type { CaptureRelevanceRecord } from './capture-relevance.js';
 // Pure derivations for the Market auto-runner (P6-209 follow-up, PR1).
 //
 // Every value the operator used to type by hand is derived here from run data
@@ -10,7 +11,7 @@ import type { ResearchAutomationSourceConfirmRequest } from '../../../../contrac
 import type { ResearchAutomationMetricCapturePrepareRequest } from '../../../../contracts/api/research-automation-metric-capture-intake-api.generated.js';
 import type { AutomationMarketPresentationRevisionRequest } from '../../../../contracts/analysis/automation-market-presentation-revision.generated.js';
 import { filterKeywordMeanings, type KeywordMeaningFilterData } from '../keyword-meaning-filter.js';
-import { captureRowExclusions, splitCaptureNameCell, type CaptureRowExclusionReason } from './capture-row-quality.js';
+import { CAPTURE_ROW_PROFILE_V2, type CaptureRowProfile, assessCaptureRowsTitleOnly, splitCaptureNameCell, type CaptureRowExclusionReason } from './capture-row-quality.js';
 import { MAX_PRINCIPAL_CARDS } from './model.js';
 import type { MetricCaptureStopCode } from './metric-capture-runner.js';
 
@@ -30,7 +31,8 @@ export function isAutorunCaptureStopCode(code: string | null | undefined): boole
   return typeof code === 'string' && Object.prototype.hasOwnProperty.call(CAPTURE_STOP_CODE_SET, code);
 }
 
-export const AUTORUN_PICK_RULE_VERSION = 'autorun-pick-v2' as const;
+export const AUTORUN_PICK_RULE_VERSION = 'autorun-pick-v3' as const;
+export const AUTORUN_PICK_RULE_VERSION_V2 = 'autorun-pick-v2' as const;
 export const AUTORUN_MAX_SHOPEE_LINKS = 5;
 /** Metric's results window is 30 inclusive days. */
 export const AUTORUN_CAPTURE_WINDOW_DAYS = 30;
@@ -214,7 +216,7 @@ export interface PickedShopeeLink {
 }
 
 export interface PickResult {
-  readonly pickRuleVersion: typeof AUTORUN_PICK_RULE_VERSION;
+  readonly pickRuleVersion: typeof AUTORUN_PICK_RULE_VERSION | typeof AUTORUN_PICK_RULE_VERSION_V2;
   readonly terms: readonly string[];
   readonly links: readonly PickedShopeeLink[];
   readonly urls: readonly string[];
@@ -290,14 +292,15 @@ function uniqueTerms(terms: readonly string[]): string[] {
  * term as a whole token, sorted by revenue then id, at most one per brand and
  * per shop. Pure: no I/O, and the result keeps only audit fields.
  */
-export function pickShopeeLinks(rawResponses: unknown, terms: readonly string[]): PickResult {
+export function pickShopeeLinks(rawResponses: unknown, terms: readonly string[], quality: { readonly profile: CaptureRowProfile; readonly relevance?: CaptureRelevanceRecord } = { profile: CAPTURE_ROW_PROFILE_V2 }): PickResult {
+  const pickRuleVersion = quality.profile === CAPTURE_ROW_PROFILE_V2 ? AUTORUN_PICK_RULE_VERSION_V2 : AUTORUN_PICK_RULE_VERSION;
   const keywords = uniqueTerms(terms);
   const rows = collectShopeeRows(rawResponses);
   const live = rows.filter(row => !row.deleted);
   const deleted = rows.length - live.length;
   let included: Candidate[] = [];
   if (keywords.length > 0) {
-    const data: KeywordMeaningFilterData = { contractVersion: 'l9-keyword-data-v1', dataVersion: AUTORUN_PICK_RULE_VERSION,
+    const data: KeywordMeaningFilterData = { contractVersion: 'l9-keyword-data-v1', dataVersion: pickRuleVersion,
       category: 'autorun-shopee-pick', provenance: 'OPERATOR_SUPPLIED', keywords: keywords as [string, ...string[]], exclusions: [] };
     const decisions = new Map<string, string>();
     for (let start = 0; start < live.length; start += FILTER_RECORD_CHUNK) {
@@ -309,7 +312,7 @@ export function pickShopeeLinks(rawResponses: unknown, terms: readonly string[])
   }
   const notIncluded = live.length - included.length;
   const guards = keywords.map(term => new RegExp(`(?<![\\p{L}\\p{N}\\p{M}])${escapeRegExp(term.toLowerCase())}(?![\\p{L}\\p{N}\\p{M}])`, 'u'));
-  const excluded = captureRowExclusions(live.map(row => ({ title: splitCaptureNameCell(row.name, '').title, platform: 'shopee', revenue: row.revenue, units: row.units })), keywords);
+  const excluded = assessCaptureRowsTitleOnly(live.map(row => ({ title: splitCaptureNameCell(row.name, '').title, platform: 'shopee', revenue: row.revenue, units: row.units })), keywords, quality.profile, quality.relevance).exclusions;
   const qualityRejected = new Set([...excluded.keys()].map(i => live[i]!.id));
   const eligible = included.filter(row => {
     if (qualityRejected.has(row.id)) return false;
@@ -337,7 +340,7 @@ export function pickShopeeLinks(rawResponses: unknown, terms: readonly string[])
   }
   const links = picked.map(row => ({ productBaseId: row.id, itemId: row.itemId, shopId: row.shopId, revenue: row.revenue, brand: row.brand,
     url: `https://shopee.vn/product/${row.shopId}/${row.itemId}` }));
-  return { pickRuleVersion: AUTORUN_PICK_RULE_VERSION, terms: keywords, links, urls: links.map(link => link.url),
+  return { pickRuleVersion, terms: keywords, links, urls: links.map(link => link.url),
     excludedRows: [...excluded].map(([i, reason]) => ({ productBaseId: live[i]!.id, reason })).sort((a, b) => a.productBaseId < b.productBaseId ? -1 : a.productBaseId > b.productBaseId ? 1 : 0),
     counts: { walked: rows.length, deleted, notIncluded, tokenGuardRejected, eligible: eligible.length, picked: links.length } };
 }

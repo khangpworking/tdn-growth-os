@@ -18,7 +18,9 @@ import { buildResearchAutomationReport } from '../../src/modules/analysis/resear
 import { ResearchAutomationValidationError } from '../../src/modules/analysis/research-automation/model.js';
 import { JSDOM } from 'jsdom';
 import { auditMarket14 } from '../../src/modules/analysis/research-automation/market-14-rules.js';
-import { CAPTURE_ROW_PROFILE } from '../../src/modules/analysis/research-automation/capture-row-quality.js';
+import { CAPTURE_ROW_PROFILE, CAPTURE_ROW_PROFILE_V2 } from '../../src/modules/analysis/research-automation/capture-row-quality.js';
+import type { CaptureRelevanceAi } from '../../src/modules/analysis/research-automation/capture-relevance.js';
+import { captureRelevanceConfiguration } from '../../src/modules/analysis/research-automation/capture-relevance-cliproxy-transport.js';
 import { readerRowsFromMetricCapture } from '../../src/modules/analysis/reader-report/metric-capture-rows.js';
 import { marketChartSource } from '../../src/modules/analysis/research-automation/market-presentation-report.js';
 import { renderMarketCharts } from '../../src/modules/analysis/reader-report/market-charts.js';
@@ -162,7 +164,7 @@ test('capture-confirmed Market run refuses the workbook-only presentation revisi
 });
 
 /** Fresh Market run confirmed either with the prepared capture or with no Metric source at all. */
-async function confirmedCaptureRun(t: TestContext, decision: 'USE_PREPARED' | 'SKIPPED', shops = true, suppliedSnapshot?: AutomationMetricWebSnapshotV1) {
+async function confirmedCaptureRun(t: TestContext, decision: 'USE_PREPARED' | 'SKIPPED', shops = true, suppliedSnapshot?: AutomationMetricWebSnapshotV1, captureRelevance?: CaptureRelevanceAi) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), `tdn-metric-capture-209-${decision.toLowerCase()}-`));
   const db = openDatabase({ databasePath: path.join(root, 'test.sqlite'), now }).db;
   const artifacts = new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
@@ -171,9 +173,11 @@ async function confirmedCaptureRun(t: TestContext, decision: 'USE_PREPARED' | 'S
   await discovery.createWorkspace({ contractVersion: '1.0.0', workspaceKey: `metric-capture-209-${decision.toLowerCase()}`, title: 'Synthetic Metric capture confirmation' });
   const service = new ResearchAutomationService({ db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discovery),
     metricAttachmentStore: new RequestScopedArtifactStore(path.join(root, 'artifacts')), uuid: () => runId, now, readerReportFlint: false,
+    ...(captureRelevance ? { captureRelevance } : {}),
     renderer: buildResearchAutomationReport });
+  const confirmedKeyword = suppliedSnapshot?.scope.keywords[0] ?? 'synthetic jar';
   await service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: '33333333-3333-4333-8333-333333333333',
-    mode: 'CATEGORY', keyword: 'synthetic jar', requestedPeriod: { startDate: '2026-01-01', endDate: '2026-01-30' }, reports: ['MARKET'] });
+    mode: 'CATEGORY', keyword: confirmedKeyword, requestedPeriod: { startDate: '2026-01-01', endDate: '2026-01-30' }, reports: ['MARKET'] });
   await service.processNext();
   const awaiting = await service.getRun(workspaceId, runId);
   const archive = captureArchive(suppliedSnapshot ?? captureSnapshot(shops));
@@ -181,7 +185,7 @@ async function confirmedCaptureRun(t: TestContext, decision: 'USE_PREPARED' | 'S
     requestKey: '66666666-6666-4666-8666-666666666666', expectedRevision: awaiting.revision, sourceContext: 'Synthetic capture fixture' },
   archive.snapshotBytes, archive.manifestBytes);
   await service.confirmScope(workspaceId, runId, { contractVersion: 'research-automation-confirm-v2', requestKey: '55555555-5555-4555-8555-555555555555',
-    expectedRevision: awaiting.revision, definition: 'Synthetic reader scope', includeTerms: ['synthetic jar'], excludeTerms: [], selectedProductIds: [], peerProductIds: [],
+    expectedRevision: awaiting.revision, definition: 'Synthetic reader scope', includeTerms: [confirmedKeyword], excludeTerms: [], selectedProductIds: [], peerProductIds: [],
     sources: { metric: decision === 'USE_PREPARED' ? { decision: 'USE_PREPARED', packageId: receipt.packageId } : { decision: 'SKIPPED' }, nativeReview: 'SKIP' } });
   for (let i = 0; i < 10 && (await service.getRun(workspaceId, runId)).status !== 'DRAFT_READY'; i++) await service.processNext();
   const pair = (await service.listReportVersions(workspaceId, runId))[0]!;
@@ -352,6 +356,7 @@ test('capture revenue survives presentation revision while legacy captures revea
 
 
 test('new captures clean both parsers, restore shops, and exclude irrelevant and implausible rows from reports and charts', async t => {
+  assert.equal(process.env.TDN_RESEARCH_CAPTURE_RELEVANCE_AI_MODEL, undefined, 'this new capture runs with the model flag unset');
   const snapshot = captureSnapshot();
   snapshot.scope.platforms = ['shopee', 'tiktok'];
   const table = snapshot.groups.W12_topProducts;
@@ -386,9 +391,14 @@ test('new captures clean both parsers, restore shops, and exclude irrelevant and
   const draft = await f.service.readReport(workspaceId, runId, 'MARKET');
   const semantic = JSON.parse((await f.artifacts.read(draft.versionId)).toString('utf8'));
   const methods = semantic.metricMethods as AutomationMetricMethodSnapshot;
-  assert.equal(methods.result.input.profileId, CAPTURE_ROW_PROFILE);
-  assert.equal(methods.capture!.rowPolicyVersion, CAPTURE_ROW_PROFILE);
+  assert.equal(methods.result.input.profileId, CAPTURE_ROW_PROFILE_V2);
+  assert.equal(methods.capture!.rowPolicyVersion, CAPTURE_ROW_PROFILE_V2);
+  assert.equal(methods.capture!.relevance, undefined, 'flag-off captures retain no AI relevance record');
   assert.equal(methods.capture!.excludedRows!.length, 6);
+  // Exact outputs for this synthetic input on main 71128df977bdca765486a61455e6b1be87de1dd0.
+  // JSON is canonicalized; HTML and SVG content are compared without normalization.
+  assert.equal(hash(Buffer.from(canonicalJson(methods.capture!.excludedRows))),
+    'e28d55ac60bb9bc6ab1fb9b1fa513b2be805ae12eea75e09785cb1368b38102c', 'excluded rows match main');
   const configFile = f.db.prepare("SELECT artifact_sha256 sha FROM foundation_source_package_files WHERE package_id=? AND logical_path='methods/metric-run.json'").get(methods.sourcePackage.packageId) as { sha: string };
   const config = JSON.parse((await f.artifacts.read(configFile.sha)).toString());
   const bridge = new AutomationMetricMethodBridge({ db: f.db, artifactStore: f.artifacts, workspaces: new FlowDiscoveryWorkspaceReader(f.discovery), now });
@@ -402,7 +412,7 @@ test('new captures clean both parsers, restore shops, and exclude irrelevant and
 
   assert.deepEqual(methods.capture!.platforms.map(({result}) => result.scopes.find(scope => scope.key === 'all')!.revenue.value), ['6000000', '600000000']);
   assert.deepEqual(methods.capture!.platforms.map(({result}) => result.scopes.find(scope => scope.key === 'all')!.shopCount), [3, 3]);
-  const parsed = readerRowsFromMetricCapture(snapshot, ['shopee', 'tiktok'], CAPTURE_ROW_PROFILE);
+  const parsed = readerRowsFromMetricCapture(snapshot, ['shopee', 'tiktok'], methods.capture!.rowPolicyVersion!);
   assert.equal(parsed.excluded.length, 6);
   assert.equal(parsed.unattributed.length, 1);
   assert.deepEqual(parsed.rows.map(row => row.title), methods.capture!.platforms.flatMap(({result}) => result.input.records.map(row => row.title)));
@@ -410,6 +420,8 @@ test('new captures clean both parsers, restore shops, and exclude irrelevant and
   assert.equal(parsed.rows[0]!.units, 10, 'lifetime sold is never substituted for period units');
   assert.equal(parsed.rows[1]!.shopName, 'Gian hàng riêng');
   assert.equal(parsed.rows[0]!.shopName, 'Gian hàng Mẫu 0');
+  assert.equal(hash(Buffer.from(canonicalJson(parsed))),
+    'a52d86c92567a9bb50701e1676c86557fa5f99761e316e07ed8def991b710b56', 'reader rows, exclusions and unattributed rows match main');
   const html = draft.bytes.toString('utf8');
   assert.doesNotMatch(html, /reviews|Total sold products|Created date|nguồn không ghi gian hàng/iu);
   const dom = new JSDOM(html);
@@ -419,12 +431,16 @@ test('new captures clean both parsers, restore shops, and exclude irrelevant and
     assert.match(lines[0]!, /Đã loại 2 dòng không phải sản phẩm chính.*và 2 dòng có doanh thu/);
     assert.match(lines[1]!, /Đã loại 1 dòng không phải sản phẩm chính.*và 1 dòng có doanh thu/);
     for (const line of lines) assert.doesNotMatch(line, /0|%|Metric|Google/);
+    assert.equal(hash(Buffer.from(canonicalJson(lines))),
+      'b059f5840126fceca8da3312af7a04663e717b4302f4d833d3b3c1f774fa2364', 'M03 exclusion lines match main');
   } finally { dom.window.close(); }
   const source = marketChartSource([], methods);
   const charts = await renderMarketCharts(source.rows, { ...source, flint: false });
   assert.ok(charts.some(chart => chart.kind === 'concentration'));
   assert.match(charts.find(chart => chart.kind === 'product-ranking')!.svg, /Synthetic jar/);
   assert.doesNotMatch(charts.map(chart => chart.svg).join(''), /Moter|Power Bank|reviews/);
+  assert.equal(hash(Buffer.from(canonicalJson(charts))),
+    'ffe7c87f4a0b88fd8399f474a874f9f8527459604bc9b6d584c9e85845421182', 'chart metadata and SVG bytes match main');
   const queued = await f.service.requestReportRevision(workspaceId, runId, {
     contractVersion: 'automation-market-presentation-revision-v1', requestKey: randomUUID(), previousPairId: f.pair.pairId,
     sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } },
@@ -442,8 +458,10 @@ test('new captures clean both parsers, restore shops, and exclude irrelevant and
   }, { actorId: 'owner:synthetic', role: 'OWNER' });
   const recordRow = f.db.prepare('SELECT input_sha256 inputSha FROM analysis_reader_report_revisions WHERE revision_id=?').get(build.revision.revisionId) as { inputSha: string };
   const record = JSON.parse((await f.artifacts.read(recordRow.inputSha)).toString());
-  assert.equal(record.captureRowPolicy, CAPTURE_ROW_PROFILE);
+  assert.equal(record.captureRowPolicy, CAPTURE_ROW_PROFILE_V2);
   assert.equal(record.captureExcludedRows.length, 6);
+  assert.deepEqual(record.input.rows, parsed.rows);
+  assert.deepEqual(record.captureExcludedRows, parsed.excluded);
   assert.deepEqual(record.defaultMarketPeers.input.records.map((row: { title: string }) => row.title), parsed.rows.map(row => row.title));
   const readerHtml = (await f.service.readReaderReport(workspaceId, runId, build.revision.revisionId)).bytes.toString('utf8');
   assert.doesNotMatch(readerHtml, /reviews|Total sold products|Created date|nguồn không ghi gian hàng/iu);
@@ -453,6 +471,74 @@ test('new captures clean both parsers, restore shops, and exclude irrelevant and
   assert.equal((readerHtml.match(/TikTok Shop: Đã loại/g) ?? []).length, 1);
   assert.deepEqual(reportVisibleText(readerHtml).match(/.{0,45}%.{0,45}/gu) ?? [], []);
   assert.deepEqual((await f.service.readReaderReport(workspaceId, runId, build.revision.revisionId)).bytes, Buffer.from(readerHtml));
+  assert.equal(hash(Buffer.from(readerHtml)),
+    '5330ea7e8f960f28becf0c417999e660ec76274c899af89eb1a380e776eb39f9', 'reader HTML bytes match main');
+});
+
+for (const item of ['jar', 'slipper', 'biscuit']) test(`a new ${item} capture with the configured fake classifier freezes v3 through reader build and replay`, async t => {
+  const snapshot = captureSnapshot();
+  const keyword = `synthetic ${item}`;
+  const title = (suffix: string) => suffix === 'main' ? `Synthetic ${item} main` : suffix === 'unsure' ? `Sleeve dùng cho synthetic ${item}` : `Pouch tặng synthetic ${item}`;
+  snapshot.scope.keywords = [keyword];
+  snapshot.scope.platforms = ['shopee', 'tiktok'];
+  const table = snapshot.groups.W12_topProducts;
+  assert.ok(!('absent' in table));
+  const base = table.rows[0]!;
+  const specs = [
+    [title('main'), 'shopee'], [title('unsure'), 'shopee'],
+    [title('rival'), 'shopee'], [title('main'), 'tiktok'],
+  ] as const;
+  table.rows = specs.map(([title, platform], i) => {
+    const row = structuredClone(base);
+    row.cells.name = { label: 'Tên', text: title, sourcePointer: `p[${i}].name` };
+    row.cells.platform = { label: 'Sàn', text: platform, sourcePointer: `p[${i}].platform` };
+    for (const key of ['revenue', 'units']) {
+      const cell = row.cells[key]!;
+      assert.ok('value' in cell);
+      cell.platform = platform;
+      cell.sourcePointer = `p[${i}].${key}`;
+    }
+    return row;
+  });
+  let calls = 0;
+  // Inject the configured flag-on dependency directly; no transport or model runs.
+  const ai: CaptureRelevanceAi = { configuration: captureRelevanceConfiguration('synthetic-jar-model'), classifier: { async classify({ keyword, items }) {
+    calls++;
+    assert.equal(keyword, `synthetic ${item}`);
+    assert.deepEqual(items.map(item => item.title), [title('main'), title('unsure'), title('rival')]);
+    return items.map(({ id, title }) => ({ id, label: title.startsWith('Pouch') ? 'NOT_MAIN' : title.startsWith('Sleeve') ? 'UNSURE' : 'MAIN' }));
+  } } };
+  const f = await confirmedCaptureRun(t, 'USE_PREPARED', true, snapshot, ai);
+  assert.equal((await f.service.getRun(workspaceId, runId)).status, 'DRAFT_READY');
+  const draft = await f.service.readReport(workspaceId, runId, 'MARKET');
+  const methods = JSON.parse((await f.artifacts.read(draft.versionId)).toString()).metricMethods as AutomationMetricMethodSnapshot;
+  assert.equal(methods.result.input.profileId, CAPTURE_ROW_PROFILE);
+  assert.equal(methods.capture!.rowPolicyVersion, CAPTURE_ROW_PROFILE);
+  assert.equal(calls, 1);
+  assert.deepEqual(methods.capture!.relevance!.decisions.map(row => row.label), ['MAIN', 'UNSURE', 'NOT_MAIN']);
+  assert.deepEqual(methods.capture!.excludedRows!.map(row => [row.title, row.reason]), [[title('rival'), 'NOT_MAIN_PRODUCT']]);
+  assert.deepEqual(methods.capture!.platforms.flatMap(({ platform, result }) => result.input.records.map(row => [platform, row.title])), [
+    ['shopee', title('main')], ['shopee', title('unsure')], ['tiktok', title('main')],
+  ]);
+  const parsed = readerRowsFromMetricCapture(snapshot, ['shopee', 'tiktok'], methods.capture!.rowPolicyVersion!, methods.capture!.relevance);
+  const configFile = f.db.prepare("SELECT artifact_sha256 sha FROM foundation_source_package_files WHERE package_id=? AND logical_path='methods/metric-run.json'").get(methods.sourcePackage.packageId) as { sha: string };
+  const config = JSON.parse((await f.artifacts.read(configFile.sha)).toString());
+  const replay = new AutomationMetricMethodBridge({ db: f.db, artifactStore: f.artifacts, workspaces: new FlowDiscoveryWorkspaceReader(f.discovery), now });
+  assert.deepEqual(await replay.verify(methods, config.input), methods);
+  assert.deepEqual(await replay.execute(config.input), methods, 'replay keeps the frozen v3 labels after the classifier is removed');
+  const build = await f.service.buildReaderReport(workspaceId, runId, {
+    contractVersion: 'reader-report-build-v1.1', requestKey: '77777777-7777-4777-8777-777777777777', metricPackageId: methods.originalSourcePackage.packageId,
+    platforms: ['shopee', 'tiktok'], profile, cover: null, webSnapshot: snapshot, webSnapshotSha256: webSnapshotDigest(snapshot),
+  }, { actorId: 'owner:synthetic', role: 'OWNER' });
+  const saved = f.db.prepare('SELECT input_sha256 sha FROM analysis_reader_report_revisions WHERE revision_id=?').get(build.revision.revisionId) as { sha: string };
+  const record = JSON.parse((await f.artifacts.read(saved.sha)).toString());
+  assert.equal(record.captureRowPolicy, CAPTURE_ROW_PROFILE);
+  assert.deepEqual(record.input.rows, parsed.rows);
+  assert.deepEqual(record.captureExcludedRows, parsed.excluded);
+  const reader = await f.service.readReaderReport(workspaceId, runId, build.revision.revisionId);
+  assert.doesNotMatch(reportVisibleText(reader.bytes.toString()), new RegExp(`Pouch tặng synthetic ${item}|synthetic-jar-model`, 'u'));
+  assert.deepEqual((await f.service.readReaderReport(workspaceId, runId, build.revision.revisionId)).bytes, reader.bytes);
+  assert.equal(calls, 1, 'verification, reader build and reads never classify again');
 });
 
 test('one shop\'s separate listings that share a cleaned title both stay in the capture methods and the reader rows', async t => {

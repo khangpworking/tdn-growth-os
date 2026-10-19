@@ -251,13 +251,13 @@ function captureMetricMethodSection(snapshot: AutomationMetricMethodSnapshot, se
       const sourceMarks = readerPlainText ? [...new Set(marks)].join(' ') : marks.join('<br>');
       return `<tr><td>${escape(platformLabel(platform))}</td><td>${retainedSourceName(row.title)}</td><td>${number(row.revenue.value, 'VND')}</td><td>${number(row.units.value)}</td><td>${sourceMarks}</td></tr>`;
     });
-    const notice = sectionId === 'M03' ? captureExclusionNotice(capture.excludedRows ?? [], platform) : '';
+    const notice = sectionId === 'M03' ? captureExclusionNotice(capture.excludedRows ?? [], platform, capture.rowPolicyVersion) : '';
     return `<h3>${escape(platformLabel(platform))}</h3>${platformSummary(platform, result)}${notice ? `<p>${escape(notice)}</p>` : ''}${sectionId === 'M03'
       ? table(`${platformLabel(platform)} · số liệu từ bảng kết quả tìm kiếm đã lưu`, ['Nền tảng', 'Tên trên bảng kết quả', 'Doanh thu (VND)', 'Sản lượng', 'Nguồn'], records)
       : table(`${platformLabel(platform)} · cơ cấu trong bảng kết quả đã lưu`, ['Nền tảng', 'Tên trên bảng kết quả', 'Doanh thu (VND)', 'Sản lượng', 'Nguồn'], records)}`;
   }).join('') + capture.capture.platforms.filter(platform => !capture.platforms.some(value => value.platform === platform))
     .map(platform => {
-      const notice = sectionId === 'M03' ? captureExclusionNotice(capture.excludedRows ?? [], platform) : '';
+      const notice = sectionId === 'M03' ? captureExclusionNotice(capture.excludedRows ?? [], platform, capture.rowPolicyVersion) : '';
       return `<h3>${escape(platformLabel(platform))}</h3>${platformSummary(platform, null)}${notice ? `<p>${escape(notice)}</p>` : ''}`;
     }).join('');
   const unknown = capture.unattributedRows.length

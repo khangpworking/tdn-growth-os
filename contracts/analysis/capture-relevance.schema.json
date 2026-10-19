@@ -1,0 +1,173 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/capture-relevance.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "promptVersion",
+    "modelIdentity",
+    "configuration",
+    "decisions",
+    "methodNotes"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": "capture-relevance-record-v1"
+    },
+    "promptVersion": {
+      "type": "string",
+      "pattern": "^capture-relevance-prompt-v[1-9][0-9]*$"
+    },
+    "modelIdentity": {
+      "type": "string",
+      "pattern": "^cliproxy:[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "configuration": {
+      "$ref": "#/$defs/configuration"
+    },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "keyword",
+          "titleSha256",
+          "label"
+        ],
+        "properties": {
+          "keyword": {
+            "type": "string",
+            "minLength": 1
+          },
+          "titleSha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "label": {
+            "enum": [
+              "MAIN",
+              "NOT_MAIN",
+              "UNSURE",
+              null
+            ]
+          }
+        },
+        "title": "CaptureRelevanceDecision"
+      }
+    },
+    "methodNotes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "batches",
+        "retriedBatches",
+        "failedBatches",
+        "cappedTitles"
+      ],
+      "properties": {
+        "batches": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 40
+        },
+        "retriedBatches": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 40
+        },
+        "failedBatches": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 40
+        },
+        "cappedTitles": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  },
+  "title": "CaptureRelevanceRecord",
+  "$defs": {
+    "configuration": {
+      "title": "CaptureRelevanceConfiguration",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "providerId",
+        "modelId",
+        "temperature",
+        "maxOutputTokens",
+        "timeoutMs",
+        "maxResponseBytes"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "capture-relevance-configuration-v1"
+        },
+        "providerId": {
+          "const": "cliproxy"
+        },
+        "modelId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        },
+        "temperature": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 2
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "maxOutputTokens": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65536
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 600000
+        },
+        "maxResponseBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1048576
+        }
+      }
+    },
+    "response": {
+      "type": "array",
+      "maxItems": 40,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "label"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "label": {
+            "enum": [
+              "MAIN",
+              "NOT_MAIN",
+              "UNSURE"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

@@ -10,7 +10,7 @@ import { UNKNOWN_SHOP } from '../../src/modules/analysis/reader-report/market-ch
 import { plainCaptureNumbers } from '../../src/modules/analysis/reader-report/format.js';
 import { renderAutomationMarketFindings } from '../../src/modules/analysis/research-automation/market-presentation-report.js';
 import { buildAutomationMarketPresentation, marketPresentationDigest } from '../../src/modules/analysis/research-automation/market-presentation-method.js';
-import { marketSourceScopeSection, projectMarketSourceScope } from '../../src/modules/analysis/research-automation/market-scope-report.js';
+import { captureSampleSentence, marketSourceScopeSection, projectMarketSourceScope } from '../../src/modules/analysis/research-automation/market-scope-report.js';
 import { deliverMarketReader, stripTraceDetails } from '../../src/modules/analysis/research-automation/market-reader-delivery.js';
 import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
 import { buildAutomationSourceClaims } from '../../src/modules/analysis/research-automation/source-claims.js';
@@ -19,6 +19,7 @@ import type { CaptureMetricMethodDetails } from '../../src/modules/analysis/rese
 import type { ReportCitations } from '../../src/modules/analysis/research-automation/descriptive-report.js';
 import { metricFixture } from '../fixtures/metric-scope-synthetic.js';
 import { fullMarket14Input } from '../helpers/market14-full-fixture.js';
+import { CAPTURE_ROW_PROFILE, CAPTURE_ROW_PROFILE_V2, type CaptureRowExclusionReason } from '../../src/modules/analysis/research-automation/capture-row-quality.js';
 
 const hash = (value: string | Uint8Array) => createHash('sha256').update(value).digest('hex');
 const banned = /%|toàn thị trường|tổng|cộng|gộp|Metric|Kalodata|TradeInt|Dami|Apify|SerpApi|PageIndex|Gemini|OpenCLI|zen-studio|Google|nhất|hàng đầu|ưu tiên/iu;
@@ -51,6 +52,95 @@ function assertCitations(document: Document) {
   const marks = [...document.querySelectorAll('sup.cite')].map(mark => `cite-${mark.textContent!.slice(1, -1)}`);
   assert.deepEqual([...new Set(marks)], ids, 'every mark resolves, with no unused source entries');
 }
+
+function excludedRow(platform: 'shopee' | 'tiktok', reason: CaptureRowExclusionReason, rowIndex = 1) {
+  return { platform, reason, rowIndex, listingId: `synthetic-excluded-${platform}-${rowIndex}`, title: 'Mẫu thử bị loại', shop: UNKNOWN_SHOP, revenue: null, units: null };
+}
+
+test('capture sample sentence uses final v3 copy and frozen v2 copy for none, parts, outliers or both', async () => {
+  const { capture } = await fixture();
+  const base = { ...capture, capture: { ...capture.capture, keyword: '<b>x</b>' }, rowPolicyVersion: CAPTURE_ROW_PROFILE };
+  const cases: [CaptureRowExclusionReason[], string, string][] = [
+    [[], '', 'không có dòng nào phải loại trước khi tính'],
+    [['NOT_MAIN_PRODUCT'], 'đã loại dòng có dấu hiệu nằm ngoài nhóm sản phẩm đang xét trước khi tính', 'đã loại phụ kiện, linh kiện hoặc sản phẩm khác trước khi tính'],
+    [['UNIT_REVENUE_OUTLIER'], 'đã loại dòng có doanh thu hoặc đơn vị bán bất thường trước khi tính', 'đã loại dòng có doanh thu hoặc đơn vị bán bất thường trước khi tính'],
+    [['REVENUE_WITHOUT_UNITS'], 'đã loại dòng có doanh thu hoặc đơn vị bán bất thường trước khi tính', 'đã loại dòng có doanh thu hoặc đơn vị bán bất thường trước khi tính'],
+    [['NOT_MAIN_PRODUCT', 'UNIT_REVENUE_OUTLIER', 'REVENUE_WITHOUT_UNITS'], 'đã loại dòng có dấu hiệu nằm ngoài nhóm sản phẩm đang xét và dòng có doanh thu hoặc đơn vị bán bất thường trước khi tính', 'đã loại phụ kiện, linh kiện hoặc sản phẩm khác và dòng có doanh thu hoặc đơn vị bán bất thường trước khi tính'],
+  ];
+  for (const [reasons, current, frozen] of cases) for (const profile of [CAPTURE_ROW_PROFILE, CAPTURE_ROW_PROFILE_V2]) {
+    const phrase = profile === CAPTURE_ROW_PROFILE ? current : frozen;
+    const actual = captureSampleSentence({ ...base, rowPolicyVersion: profile, excludedRows: reasons.map((reason, i) => excludedRow('shopee', reason, i)) });
+    assert.equal(actual, `Mẫu gồm các sản phẩm trả về cho từ khóa “&lt;b&gt;x&lt;/b&gt;”${phrase ? `; ${phrase}` : ''}; chưa chia nhóm sản phẩm.`, profile);
+    assert.doesNotMatch(actual, /<b>|%|\b0\b|Metric|Kalodata|TradeInt|Dami|Apify|SerpApi|PageIndex|Gemini|OpenCLI|Google/iu);
+  }
+  assert.equal(captureSampleSentence(base), captureSampleSentence({ ...base, excludedRows: [] }), 'missing exclusions mean none');
+});
+
+test('sample filter withholds provider-bearing keywords without changing retained evidence', async () => {
+  const { input, capture } = await fixture();
+  for (const name of ['Metric', 'Kalodata', 'TradeInt', 'Dami', 'Apify', 'SerpApi', 'PageIndex', 'Gemini', 'OpenCLI', 'zen-studio', 'Agent-Reach', 'Google']) {
+    const value = { ...capture, rowPolicyVersion: CAPTURE_ROW_PROFILE, capture: { ...capture.capture, keyword: `quạt ${name}` } };
+    const before = canonicalJson(value);
+    const html = stripTraceDetails(marketSourceScopeSection(projectMarketSourceScope(input), 'M02', registry().citations, true, value));
+    assert.ok(!html.toLowerCase().includes(name.toLowerCase()), name);
+    assert.match(html, /Từ khóa được giữ trong bản lưu/u);
+    assert.equal(canonicalJson(value), before);
+  }
+});
+
+test('Phần 2 reports removed rows per platform only for v3, including empty and untouched platforms', async () => {
+  const { input, capture } = await fixture();
+  const excludedRows = [excludedRow('shopee', 'NOT_MAIN_PRODUCT'), excludedRow('shopee', 'UNIT_REVENUE_OUTLIER', 2), excludedRow('tiktok', 'REVENUE_WITHOUT_UNITS', 3)];
+  const render = (value: CaptureMetricMethodDetails) => stripTraceDetails(marketSourceScopeSection(projectMarketSourceScope(input), 'M02', registry().citations, true, value));
+  for (const empty of [false, true]) {
+    const filtered = { ...capture, rowPolicyVersion: CAPTURE_ROW_PROFILE, excludedRows,
+      platforms: empty ? [{ platform: 'shopee' as const, result: platformResult('shopee', 0) }] : capture.platforms };
+    const dom = new JSDOM(render(filtered));
+    const lines = [...dom.window.document.querySelectorAll('ul > li')].map(text);
+    assert.equal(lines.length, 2);
+    assert.ok(lines[0]!.endsWith('; đã loại 2 dòng trước khi tính.'));
+    assert.ok(lines[1]!.endsWith('; đã loại 1 dòng trước khi tính.'));
+    if (empty) for (const line of lines) assert.match(line, /không còn dòng phù hợp sau khi lọc;/u);
+    assert.doesNotMatch(dom.window.document.body.textContent!, /đã loại 3|%|\b0\b|Metric|Kalodata|TradeInt|Dami|Apify|SerpApi|PageIndex|Gemini|OpenCLI|Google/iu);
+    dom.window.close();
+  }
+  const noRemoved = new JSDOM(render({ ...capture, rowPolicyVersion: CAPTURE_ROW_PROFILE, excludedRows: excludedRows.slice(0, 2) }));
+  const tiktokLine = [...noRemoved.window.document.querySelectorAll('li')].find(li => text(li).startsWith('TikTok Shop:'))!;
+  assert.doesNotMatch(text(tiktokLine), /đã loại/u);
+  noRemoved.window.close();
+  const { rowPolicyVersion: _policy, excludedRows: _excluded, ...legacy } = capture;
+  assert.equal(render({ ...legacy, excludedRows }), render(legacy), 'no policy keeps every old scope byte despite stray exclusions');
+  assert.equal(render({ ...legacy, rowPolicyVersion: CAPTURE_ROW_PROFILE_V2, excludedRows }), render(legacy), 'retained v2 keeps the main scope bytes, including when it excluded rows');
+  assert.match(render(legacy), /Chưa áp dụng phân loại đã duyệt; không suy phạm vi rộng hoặc phạm vi cốt lõi từ từ khóa\./u);
+});
+
+test('capture reader scope declares its sample filter only for v3; historical scope wording stays exact', async () => {
+  const input = await fullMarket14Input();
+  const original = { ...input, scope: { ...input.scope, includeTerms: [], excludeTerms: [] } };
+  const before = buildResearchAutomationReport(original, 'MARKET');
+  const beforeDom = new JSDOM(before.html.toString());
+  const legacy = beforeDom.window.document.querySelector('#M02')!.innerHTML;
+  assert.equal((legacy.match(/Không thêm điều kiện/gu) ?? []).length, 2);
+  assert.ok(legacy.includes('Chưa phân loại phạm vi.'));
+  assert.ok(!legacy.includes('Bộ lọc mẫu'));
+  for (const rowPolicyVersion of [CAPTURE_ROW_PROFILE]) {
+    const metricMethods = { ...original.metricMethods!, capture: { ...original.metricMethods!.capture!, rowPolicyVersion, excludedRows: [] } };
+    const report = buildResearchAutomationReport({ ...original, metricMethods }, 'MARKET');
+    const dom = new JSDOM(report.html.toString());
+    const scope = dom.window.document.querySelector('#M02')!;
+    assert.match(text(scope), /Bộ lọc mẫu/u);
+    assert.match(text(scope), /Mọi sản phẩm trả về cho từ khóa đã tìm/u);
+    assert.match(text(scope), /Không có điều kiện riêng ngoài bộ lọc mẫu/u);
+    assert.match(text(scope), /Chưa chia nhóm sản phẩm\./u);
+    assert.doesNotMatch(text(scope), /Không thêm điều kiện|Chưa phân loại phạm vi|%|\b0\b|Metric|Kalodata|TradeInt|Dami|Apify|SerpApi|PageIndex|Gemini|OpenCLI|Google/iu);
+    const { rowPolicyVersion: _policy, excludedRows: _excluded, ...noPolicy } = metricMethods.capture;
+    const historical = buildResearchAutomationReport({ ...original, metricMethods: { ...metricMethods, capture: noPolicy } }, 'MARKET');
+    assert.deepEqual(historical.html, before.html, 'removing the marker restores the complete legacy report bytes');
+    assert.deepEqual(historical.traceHtml, before.traceHtml);
+    dom.window.close();
+  }
+  beforeDom.window.close();
+});
 
 test('capture findings read platforms separately, suppress unknown shops, and retain every M03 finding and citation in trace', async () => {
   const { input, capture } = await fixture();
@@ -150,16 +240,16 @@ test('capture source scope localizes dates, excludes unattributed rows and escap
   dom.window.close();
 });
 
-test('filtered-empty capture keeps the empty-sample notice and each platform page figure in the reader', async () => {
+for (const profile of [CAPTURE_ROW_PROFILE_V2, CAPTURE_ROW_PROFILE]) test(`${profile}: filtered-empty capture keeps the empty-sample notice and each platform page figure in the reader`, async () => {
   const { input, capture } = await fixture();
   const empty = metricFixture();
-  empty.profileId = 'automation-metric-capture-v2';
+  empty.profileId = profile;
   empty.records = [];
   const result = calculateMetricScopes(empty);
   const method = buildAutomationMarketPresentation({ ...input.marketPresentation!.binding,
     metric: { ...input.marketPresentation!.binding.metric!, resultSha256: marketPresentationDigest(result) } },
   { metric: result, rows: [], unitSpec: null });
-  const filtered: CaptureMetricMethodDetails = { ...capture, rowPolicyVersion: 'automation-metric-capture-v2',
+  const filtered: CaptureMetricMethodDetails = { ...capture, rowPolicyVersion: profile,
     platforms: capture.platforms.map(({ platform }) => ({ platform,
       result: calculateMetricScopes({ ...empty, scope: { ...empty.scope, platform } }) })),
     platformHeadlines: [
@@ -225,15 +315,37 @@ test('automation reports without capture pin the M13 pointer; without presentati
   }
 });
 
-test('row policy number formatting runs after reader delivery and leaves semantic citations and trace bytes intact', async () => {
+test('retained v1 and v2 capture HTML and trace match main 71128df9, including excluded rows', async () => {
+  const input = await fullMarket14Input();
+  // Recomputed on clean main 71128df9 with this same synthetic input.
+  // These cover the scope copy and removed-row list that method-only replay cannot check.
+  const variants = [
+    { policy: undefined, presentation: true, html: 'c7023da4e23e8c825b064b1624a44ed3ae9c0cd5e2e411daf543a6606c556a8a', trace: '082c4b57b75edb5998dbede8e597a6436a2bb8158821c7fd600f3650b4ca28bb' },
+    { policy: undefined, presentation: false, html: '4678e1fbce3e75dd8c6485bdc690f32bcf8fbbb74fde862e9179941b480ec7af', trace: null },
+    { policy: CAPTURE_ROW_PROFILE_V2, presentation: true, html: '621dea6b96d636b849ad12259e63292babe4f14a799e3ed033b80f7c7fc9bf26', trace: 'dacff2d299cf20c646d1ed4f153057f1bd3ab031e3c8a5c8d802efc43add9257' },
+    { policy: CAPTURE_ROW_PROFILE_V2, presentation: false, html: '1b755331abea5bd7428e64c005fefaf91b17869006daf388bec03d82a9d58f69', trace: null },
+  ];
+  for (const variant of variants) {
+    const { marketPresentation: _presentation, ...noPresentation } = input;
+    const metricMethods = { ...input.metricMethods!, capture: { ...input.metricMethods!.capture!,
+      ...(variant.policy ? { rowPolicyVersion: variant.policy } : {}),
+      excludedRows: [{ platform: 'shopee' as const, reason: 'NOT_MAIN_PRODUCT' as const, rowIndex: 0,
+        listingId: 'synthetic-excluded', title: 'Synthetic part', shop: 'Gian hàng mẫu', revenue: null, units: null }] } };
+    const report = buildResearchAutomationReport({ ...(variant.presentation ? input : noPresentation), metricMethods }, 'MARKET');
+    assert.equal(hash(report.html), variant.html);
+    assert.equal(report.traceHtml ? hash(report.traceHtml) : null, variant.trace);
+  }
+});
+
+test('v2 preserves main wording; v3 changes exactly the sample scope copy, retaining semantic citations and all other bytes', async t => {
   const input = await fullMarket14Input();
   const retained = canonicalJson(input);
-  for (const presentation of [true, false]) {
+  for (const presentation of [true, false]) for (const rowPolicyVersion of [CAPTURE_ROW_PROFILE_V2, CAPTURE_ROW_PROFILE]) {
     const { marketPresentation: _presentation, ...noPresentation } = input;
     const original = presentation ? input : noPresentation;
     const withPolicy = { ...original, metricMethods: { ...original.metricMethods!,
-      capture: { ...original.metricMethods!.capture!, rowPolicyVersion: 'automation-metric-capture-v2' as const } } };
-    for (const kind of ['MARKET', 'INSIGHT'] as const) {
+      capture: { ...original.metricMethods!.capture!, rowPolicyVersion } } };
+    for (const kind of ['MARKET', 'INSIGHT'] as const) await t.test(`${rowPolicyVersion}, ${kind}, presentation=${presentation}`, () => {
       const before = buildResearchAutomationReport(original, kind);
       const after = buildResearchAutomationReport(withPolicy, kind);
       const chartSvgs = (html: string) => html.match(/<svg\b[\s\S]*?<\/svg>/gu) ?? [];
@@ -243,15 +355,29 @@ test('row policy number formatting runs after reader delivery and leaves semanti
       const expectedHtml = kind === 'MARKET' ? plainCaptureNumbers(before.html.toString()
         .replaceAll('không đổi thành 0.</p><dl class="reader-context">', 'không đổi thành số không.</p><dl class="reader-context">'))
         .replaceAll('không thay bằng số không.</p><dl class="reader-context">', 'không đổi thành số không.</p><dl class="reader-context">') : before.html.toString();
-      assert.equal(hash(after.html), hash(expectedHtml), `${kind}, presentation=${presentation}`);
+      // The declared scope copy occurs both in M02 and the source appendix.
+      // Enumerate every allowed byte change, preserving the original whole-report assertion.
+      const scopeCopy = (html: string) => rowPolicyVersion === CAPTURE_ROW_PROFILE && kind === 'MARKET' && presentation ? html
+        .replaceAll('<dt>Điều kiện bao gồm</dt><dd>Không thêm điều kiện</dd><dt>Điều kiện loại trừ</dt><dd>Không thêm điều kiện</dd></dl>',
+          '<dt>Điều kiện bao gồm</dt><dd>Mọi sản phẩm trả về cho từ khóa đã tìm</dd><dt>Điều kiện loại trừ</dt><dd>Không có điều kiện riêng ngoài bộ lọc mẫu</dd><dt>Bộ lọc mẫu</dt><dd>Loại phụ kiện, linh kiện, sản phẩm khác và dòng có doanh thu hoặc đơn vị bán bất thường khỏi mẫu tính; số dòng đã loại của từng sàn ghi tại mục Phạm vi từng nguồn.</dd></dl>')
+        .replaceAll('Điều kiện trên là ý định nghiên cứu đã lưu. Chưa xác nhận các truy vấn nguồn áp dụng đầy đủ điều kiện này.',
+          'Điều kiện bao gồm và loại trừ là ý định nghiên cứu đã lưu; chưa xác nhận truy vấn nguồn áp dụng đầy đủ. Bộ lọc mẫu do hệ thống áp dụng trên bảng kết quả đã lưu.')
+        .replaceAll('Chưa phân loại phạm vi.', 'Chưa chia nhóm sản phẩm.')
+        .replaceAll('Chưa áp dụng phân loại đã duyệt; không suy phạm vi rộng hoặc phạm vi cốt lõi từ từ khóa.',
+          'Mẫu gồm các sản phẩm trả về cho từ khóa “synthetic jar”; chưa chia nhóm sản phẩm.') : html;
+      assert.equal(hash(after.html), hash(scopeCopy(expectedHtml)), `${rowPolicyVersion}, ${kind}, presentation=${presentation}`);
       const expectedTrace = before.traceHtml?.toString().replaceAll('không đổi thành 0.</p><dl class="reader-context">', 'không đổi thành số không.</p><dl class="reader-context">');
-      assert.equal(after.traceHtml ? hash(after.traceHtml) : undefined, expectedTrace ? hash(expectedTrace) : undefined);
+      assert.equal(after.traceHtml ? hash(after.traceHtml) : undefined, expectedTrace ? hash(scopeCopy(expectedTrace)) : undefined);
       // The input marker itself is retained; the formatting pass changes no semantic content.
       assert.deepEqual(after.semantic, kind === 'MARKET' ? { ...before.semantic, metricMethods: withPolicy.metricMethods } : before.semantic);
       const dom = new JSDOM(after.html.toString());
+      if (rowPolicyVersion === CAPTURE_ROW_PROFILE && kind === 'MARKET' && presentation) {
+        // This whole-report fixture uses M02 for the capture source/sample notice.
+        assert.doesNotMatch(text(dom.window.document.querySelector('#M02')!), /%|\b0\b|Metric|Kalodata|TradeInt|Dami|Apify|SerpApi|PageIndex|Gemini|OpenCLI|zen-studio|Google|cliproxy|synthetic-lumo-model|OpenAI|Anthropic/iu);
+      }
       assertCitations(dom.window.document);
       dom.window.close();
-    }
+    });
   }
   assert.equal(canonicalJson(input), retained);
 });

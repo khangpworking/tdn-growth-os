@@ -1,3 +1,4 @@
+import type { CaptureRelevanceRecord } from './capture-relevance.js';
 import type { PdfExcerpt } from './pdf-excerpt.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
@@ -28,7 +29,7 @@ import { assertMarket14MachineRules } from './market-14-rules.js';
 import type { RequestScopedArtifactStore } from '../../../platform/artifacts/request-scoped-artifact-store.js';
 import { MarketUnitPriceError, type RetainedUnitPriceSource } from '../reader-report/market-unit-prices.js';
 import { ReaderMetricRowsError, readerRowsFromMetricWorkbook, type ReaderRow } from '../reader-report/metric-rows.js';
-import { CAPTURE_ROW_PROFILE } from './capture-row-quality.js';
+import type { CaptureRowProfile } from './capture-row-quality.js';
 import { readerRowsFromMetricCapture } from '../reader-report/metric-capture-rows.js';
 import { nonFlintCharts } from '../reader-report/flint.js';
 import { isMacroChartId } from '../reader-report/macro-charts.js';
@@ -116,7 +117,7 @@ export interface ReaderDraftContext {
   readonly testReviewSample?: import('./test-review-sample.js').ExactTestReviewContext;
   readonly metric:
     | { readonly packageId: string; readonly workbook: Buffer; readonly measurementPeriod: { readonly startDate: string; readonly endDate: string } }
-    | { readonly packageId: string; readonly capture: { readonly snapshot: AutomationMetricWebSnapshotV1; readonly snapshotSha256: string; readonly truncation: { readonly cap: number; readonly totalShown: number | null; readonly pagesRead: number; readonly rowsRead: number; readonly truncated: boolean } };
+    | { readonly packageId: string; readonly capture: { readonly snapshot: AutomationMetricWebSnapshotV1; readonly snapshotSha256: string; readonly rowPolicy: CaptureRowProfile; readonly relevance?: CaptureRelevanceRecord; readonly truncation: { readonly cap: number; readonly totalShown: number | null; readonly pagesRead: number; readonly rowsRead: number; readonly truncated: boolean } };
         readonly measurementPeriod: { readonly startDate: string; readonly endDate: string } };
 }
 export interface ReaderBinding { readonly workspaceId: string; readonly runId: string }
@@ -233,7 +234,7 @@ export class AutomationReaderReports {
 
   #captureRows(context: ReaderDraftContext, platforms: readonly ReaderPlatform[]) {
     if (!('capture' in context.metric)) return null;
-    return readerRowsFromMetricCapture(context.metric.capture.snapshot, platforms, CAPTURE_ROW_PROFILE);
+    return readerRowsFromMetricCapture(context.metric.capture.snapshot, platforms, context.metric.capture.rowPolicy, context.metric.capture.relevance);
   }
 
   async build(context: ReaderDraftContext, value: unknown, actor: { actorId: string; role: 'OWNER' }): Promise<ResearchAutomationReaderBuildReceipt> {
@@ -309,7 +310,7 @@ export class AutomationReaderReports {
       profile: request.profile, platforms, rows, rowLineage: { sha256: rowLineageSha256 },
       ...(request.source === undefined ? {} : { source: request.source }),
       ...(capture ? {
-        captureRowPolicy: CAPTURE_ROW_PROFILE,
+        captureRowPolicy: capture.rowPolicy,
         webSnapshot: capture.snapshot,
         webSnapshotSha256: webSnapshotDigest(capture.snapshot),
       } : request.webSnapshot === undefined ? {} : {
@@ -354,7 +355,7 @@ export class AutomationReaderReports {
     );
     const at = this.now(), createdAt = at.toISOString(), revisionId = randomUUID();
     const webResults = context.webResults ?? [];
-    const built = await buildMarketReport(data, { limitations, builtOn: builtOn(at), cover, flint: this.options.flint ?? true, webResults, ...(context.webPageTypes ? { webPageTypes: true as const } : {}), ...(capture ? { captureSource: true, captureRowPolicy: CAPTURE_ROW_PROFILE, captureExcludedRows: captureRows?.excluded ?? [] } : {}), ...(context.searchInterest ? { searchInterest: context.searchInterest } : {}), ...(context.searchGeo ? { searchGeo: context.searchGeo } : {}), ...(context.searchGeoCapture ? { searchGeoCapture: context.searchGeoCapture } : {}), ...(context.worldBank ? { worldBank: context.worldBank } : {}), ...(context.comtrade ? { comtrade: context.comtrade } : {}), ...(context.searchAds ? { searchAds: context.searchAds } : {}), ...(context.officialStats ? { officialStats: context.officialStats } : {}), ...(context.pdfDiscovery ? { pdfDiscovery: context.pdfDiscovery } : {}), ...(context.pdfExcerpts?.length ? { pdfExcerpts: context.pdfExcerpts } : {}), ...(context.sellerVideos ? { sellerVideos: context.sellerVideos } : {}), ...(context.metaAds?.length ? { metaAds: context.metaAds } : {}), ...(context.metaAuto ? { metaAuto: context.metaAuto } : {}), ...(context.tiktokTopAds ? { tiktokTopAds: context.tiktokTopAds } : {}), ...(next && context.testReviewSample ? { testReviewSample: context.testReviewSample } : {}) });
+    const built = await buildMarketReport(data, { limitations, builtOn: builtOn(at), cover, flint: this.options.flint ?? true, webResults, ...(context.webPageTypes ? { webPageTypes: true as const } : {}), ...(capture ? { captureSource: true, captureRowPolicy: capture.rowPolicy, captureExcludedRows: captureRows?.excluded ?? [] } : {}), ...(context.searchInterest ? { searchInterest: context.searchInterest } : {}), ...(context.searchGeo ? { searchGeo: context.searchGeo } : {}), ...(context.searchGeoCapture ? { searchGeoCapture: context.searchGeoCapture } : {}), ...(context.worldBank ? { worldBank: context.worldBank } : {}), ...(context.comtrade ? { comtrade: context.comtrade } : {}), ...(context.searchAds ? { searchAds: context.searchAds } : {}), ...(context.officialStats ? { officialStats: context.officialStats } : {}), ...(context.pdfDiscovery ? { pdfDiscovery: context.pdfDiscovery } : {}), ...(context.pdfExcerpts?.length ? { pdfExcerpts: context.pdfExcerpts } : {}), ...(context.sellerVideos ? { sellerVideos: context.sellerVideos } : {}), ...(context.metaAds?.length ? { metaAds: context.metaAds } : {}), ...(context.metaAuto ? { metaAuto: context.metaAuto } : {}), ...(context.tiktokTopAds ? { tiktokTopAds: context.tiktokTopAds } : {}), ...(next && context.testReviewSample ? { testReviewSample: context.testReviewSample } : {}) });
     // Sample charts require Flint; country-background charts retain their explicit SVG fallback.
     assertFlintCharts(built.charts, this.options.flint ?? true);
     // The gate blocks report publication and revision insertion; cover/sidecar artifacts may already be written.
@@ -378,7 +379,7 @@ export class AutomationReaderReports {
       workspaceId: context.workspaceId, runId: context.runId, draftPairId: context.draftPairId, metricPackageId: request.metricPackageId,
       requestSha256: requestSha, profileSha256: profile.sha256, input, limitations, webResults: built.webResults,
       ...(next && context.testReviewSample ? { testReviewSample: context.testReviewSample } : {}),
-      ...(captureRows ? { captureRowPolicy: CAPTURE_ROW_PROFILE, captureExcludedRows: captureRows.excluded } : {}),
+      ...(capture && captureRows ? { captureRowPolicy: capture.rowPolicy, captureExcludedRows: captureRows.excluded } : {}),
       defaultMarketPeers: data.defaultMarketPeers,
       cover: stored && request.cover ? { sha256: stored.coverSha256, imageSha256: stored.imageSha256, mime: stored.mime,
         licence: request.cover.licence, credit: request.cover.credit ?? null } : null,

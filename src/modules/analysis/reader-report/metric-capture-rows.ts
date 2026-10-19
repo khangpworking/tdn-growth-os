@@ -1,3 +1,4 @@
+import type { CaptureRelevanceRecord } from '../research-automation/capture-relevance.js';
 import { createHash } from 'node:crypto';
 import type { AutomationMetricWebSnapshotV1, Table, Value, Text } from '../../../../contracts/analysis/automation-metric-web-snapshot-v1.generated.js';
 import type { ReaderReportInput } from '../../../../contracts/analysis/reader-report-input.generated.js';
@@ -5,7 +6,7 @@ import type { ReaderPlatform } from './build.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import { UNKNOWN_SHOP } from './market-charts.js';
 import { ReaderMetricRowsError } from './metric-rows.js';
-import { CAPTURE_ROW_PROFILE, captureRowExclusions, readCaptureProductRows, type CaptureRowExclusionReason } from '../research-automation/capture-row-quality.js';
+import { CAPTURE_ROW_PROFILE_V2, CAPTURE_ROW_PROFILE, assessCaptureProductRows, isCaptureRowProfile, type CaptureRowExclusionReason, type CaptureRowProfile } from '../research-automation/capture-row-quality.js';
 
 export type ReaderRow = ReaderReportInput['rows'][number];
 export type MetricCaptureUnattributedRow = {
@@ -36,21 +37,23 @@ const rowCell = (row: CaptureTableRow, key: string): Value | Text | undefined =>
  * attribution is returned separately so it can be displayed without entering
  * either platform's arithmetic.
  */
-export function readerRowsFromMetricCapture(snapshot: AutomationMetricWebSnapshotV1, platforms: readonly ReaderPlatform[], profile: 'automation-metric-capture-v1' | typeof CAPTURE_ROW_PROFILE = CAPTURE_ROW_PROFILE): {
+export function readerRowsFromMetricCapture(snapshot: AutomationMetricWebSnapshotV1, platforms: readonly ReaderPlatform[], profile: 'automation-metric-capture-v1' | CaptureRowProfile = CAPTURE_ROW_PROFILE_V2, relevance?: CaptureRelevanceRecord): {
   readonly rows: ReaderRow[];
   readonly unattributed: MetricCaptureUnattributedRow[];
   readonly excluded: (ReaderRow & { reason: CaptureRowExclusionReason })[];
 } {
   const table = snapshot.groups.W12_topProducts;
   if ('absent' in table || table.rows.length === 0) throw new ReaderMetricRowsError('NO_ROWS', 'groups.W12_topProducts');
-  const clean = profile === CAPTURE_ROW_PROFILE ? readCaptureProductRows(snapshot) : null;
-  const exclusions = clean ? captureRowExclusions(clean, snapshot.scope.keywords) : null;
+  const rowProfile = isCaptureRowProfile(profile) ? profile : null;
+  const quality = rowProfile ? assessCaptureProductRows(snapshot, rowProfile, relevance) : null;
+  const clean = quality?.rows, exclusions = quality?.exclusions;
   const excluded: (ReaderRow & { reason: CaptureRowExclusionReason })[] = [];
   const rows: ReaderRow[] = [];
   const unattributed: MetricCaptureUnattributedRow[] = [];
   const identities = new Set<string>();
   for (const [i, sourceRow] of table.rows.entries()) {
     const title = clean?.[i]?.title ?? textCell(rowCell(sourceRow, 'name'));
+    if (!title && rowProfile === CAPTURE_ROW_PROFILE) continue;
     if (!title) throw new ReaderMetricRowsError('BLANK_TITLE', `groups.W12_topProducts.rows[${i}].name`);
     const platformText = textCell(rowCell(sourceRow, 'platform')).toLowerCase();
     const platform = platformText === 'shopee' || platformText === 'tiktok' || platformText === 'unknown' ? platformText : 'unknown';
@@ -80,7 +83,7 @@ export function readerRowsFromMetricCapture(snapshot: AutomationMetricWebSnapsho
     if (reason) excluded.push({ ...readerRow, reason });
     else rows.push(readerRow);
   }
-  if (profile !== CAPTURE_ROW_PROFILE) {
+  if (!rowProfile) {
     if (!rows.length) throw new ReaderMetricRowsError('NO_ATTRIBUTED_ROWS', 'groups.W12_topProducts');
     for (const platform of platforms) if (!rows.some(row => row.platform === platform))
       throw new ReaderMetricRowsError('DECLARED_PLATFORM_HAS_NO_ROWS', platform);

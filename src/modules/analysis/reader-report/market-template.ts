@@ -1,4 +1,4 @@
-import { CAPTURE_ROW_PROFILE, type CaptureRowExclusionReason } from '../research-automation/capture-row-quality.js';
+import { isCaptureRowProfile, type CaptureRowExclusionReason, type CaptureRowProfile } from '../research-automation/capture-row-quality.js';
 // Generic market "bản đọc": one template for any product profile, one or two
 // marketplaces. Narrative reaches numbers only through the bundle; labels that
 // carry digits (segment names, price bands, brand or shop names) are collected
@@ -55,7 +55,7 @@ export type MarketReportOptions = {
   webPageTypes?: true;
   /** Capture-backed builds use wording that does not imply a complete comparison. */
   captureSource?: boolean;
-  captureRowPolicy?: typeof CAPTURE_ROW_PROFILE;
+  captureRowPolicy?: CaptureRowProfile;
   captureExcludedRows?: readonly { readonly platform: string; readonly reason: CaptureRowExclusionReason }[];
   /** The run's stored relative search-interest series; drawn in the demand section when it has enough dated points. */
   searchInterest?: StepSearchInterest;
@@ -127,7 +127,7 @@ const ps = (v: number): string => sp(v.toFixed(1)) + '%';
 
 /** Builds the generic market reader report. The caller gates and stores it with publishReaderReport. */
 export async function buildMarketReport(d: ReaderReportData, options: MarketReportOptions): Promise<BuiltMarketReport> {
-  if (options.captureRowPolicy === CAPTURE_ROW_PROFILE) return buildMarketReportV2(d, options);
+  if (isCaptureRowProfile(options.captureRowPolicy)) return buildMarketReportV2(d, options);
   if (d.input.contractVersion === '1.4.0') return buildMarketReportV2(d, options);
   if ((d.input.contractVersion === '1.2.0' || d.input.contractVersion === '1.3.0') && d.input.platforms.some(P => d.scopes[P] === undefined)) return buildMarketReportV2(d, options);
   const current = d.input.contractVersion === '1.2.0' || d.input.contractVersion === '1.3.0';
