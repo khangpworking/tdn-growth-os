@@ -91,9 +91,10 @@ import { LEGACY_SEARCH_GEO_NOTE, searchGeoAverageText, searchGeoRenderable, sear
 /**
  * Current Market reader print layout (L14, M7e). Forced page breaks stay structural: each top-level section (`.sheet`,
  * the appendix included) starts a page and nothing else forces one. A figure keeps its label, a definition term keeps its
- * definition, an exhibit label keeps the exhibit it names; long tables still split, with the header row repeated.
+ * definition and each key/value list stays whole (every `dl` on this reader is a short metadata block of at most eight
+ * pairs), an exhibit label keeps the exhibit it names; long tables still split, with the header row repeated.
  */
-export const MARKET_READER_PRINT_CSS = '@media print{figure.market-chart,.capture-sample{break-inside:avoid}.exh{break-after:avoid}dt{break-after:avoid}dd{break-before:avoid}.table-wrap>.exh+table{break-before:avoid}}';
+export const MARKET_READER_PRINT_CSS = '@media print{figure.market-chart,.capture-sample{break-inside:avoid}.exh{break-after:avoid}dl{break-inside:avoid}dt{break-after:avoid}dd{break-before:avoid}.table-wrap>.exh+table{break-before:avoid}}';
 
 const reportRequire = createRequire(import.meta.url);
 const { Ajv2020 } = reportRequire('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');

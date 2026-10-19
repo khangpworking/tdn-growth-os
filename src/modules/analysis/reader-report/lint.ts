@@ -60,7 +60,7 @@ export function lint(html: string, { providers = FORBIDDEN_PROVIDER_NAMES, secti
   add('F1 tên nhà cung cấp số liệu', prov.length === 0, prov.length ? 'thấy: ' + prov.join(', ') : 'không thấy ' + providers.join('/'));
 
   const ex = [...html.matchAll(/<(figure|div) class="ex">([\s\S]*?)(?=<(figure|div) class="ex">|<\/section>)/g)];
-  const noSrc = ex.filter(m => !/class="ex-src">Nguồn:/.test(m[2] ?? '')).map(m => ((m[2] ?? '').match(/class="exn">([^<]+)/) ?? [])[1]);
+  const noSrc = ex.filter(m => !/class="ex-src">Nguồn:/.test(m[2] ?? '')).map(m => ((m[2] ?? '').match(/class="exn"[^>]*>([^<]+)/) ?? [])[1]);
   const noteInSrc = [...html.matchAll(/class="ex-src">([^<]*)/g)].filter(m => /Chú thích/i.test(m[1] ?? '')).length;
   add('F2 hình/bảng có "Nguồn:", "Chú thích:" tách dòng', noSrc.length === 0 && noteInSrc === 0, `${ex.length} hình/bảng; thiếu nguồn: ${noSrc.join(', ') || 0}; chú thích lẫn trong nguồn: ${noteInSrc}`);
 
@@ -99,7 +99,7 @@ export function lint(html: string, { providers = FORBIDDEN_PROVIDER_NAMES, secti
   const okRec = /đề xuất/i.test(m12) && /chờ chủ duyệt/i.test(m12), okCls = /đề xuất, chờ (chủ )?duyệt|chờ duyệt/.test(vis);
   add('F6 khuyến nghị và phân loại mang nhãn đề xuất, chờ duyệt', okRec && okCls, `Phần ${reportKind === 'INSIGHT' ? '15' : '12'}: ${okRec ? 'có' : 'THIẾU'}; phân loại: ${okCls ? 'có' : 'THIẾU'}`);
 
-  const have = new Set([...html.matchAll(/class="exn">(Hình|Bảng) ([\w.]+)</g)].map(m => `${m[1]} ${m[2]}`));
+  const have = new Set([...html.matchAll(/class="exn"[^>]*>(Hình|Bảng) ([\w.]+)</g)].map(m => `${m[1]} ${m[2]}`));
   const refs = [...vis.matchAll(/(Hình|Bảng) (\d+\.\d+|PL\.\d+)((?:,\s*\d+\.\d+)*)/g)]
     .flatMap(m => [`${m[1]} ${m[2]}`, ...(m[3] ?? '').split(',').map(s => s.trim()).filter(Boolean).map(s => `${m[1]} ${s}`)]);
   const dangling = [...new Set(refs.filter(r => !have.has(r)))];

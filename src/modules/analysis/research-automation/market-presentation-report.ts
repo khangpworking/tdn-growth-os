@@ -83,12 +83,13 @@ export function renderCaptureSampleSentences(capture: CaptureMetricMethodDetails
     const label = PLATFORM_LABELS[P], result = results.get(P);
     if (!capture.capture.platforms.includes(P)) return `<p>${label} không có trong mẫu của báo cáo này.</p>`;
     if (!result || result.input.records.length === 0) return `<p>Mẫu ${label}: chưa có dòng sản phẩm nào gán được cho sàn này trong bảng kết quả đã lưu.</p>`;
-    const records = result.input.records, distinct = new Set(records.map(record => record.title.normalize('NFC').trim().replace(/\s+/gu, ' ').toLocaleLowerCase('vi-VN'))).size;
+    // A product is a distinct listing identity (the row identity behind the sample table), never its title text.
+    const records = result.input.records, distinct = new Set(records.map(record => JSON.stringify([record.shopId, record.listingId]))).size;
     const acquired = result.input.scope.acquiredAt ?? null;
     const day = acquired ? `ngày ${isoDay(acquired.slice(0, 10))}` : 'chưa ghi ngày lưu';
     const source = citations.mark({ sourceKind: 'METRIC_ROW', identity: result.inputSha256, locator: null,
       label: 'Số liệu đã tính từ nguồn đã lưu', retrievedAt: null, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' });
-    return `<p>Mẫu ${label}: n = ${records.length} dòng sản phẩm${distinct !== records.length ? `, gồm ${distinct} sản phẩm khác tên` : ''}, lấy từ bảng kết quả tìm kiếm đã lưu, ${escape(day)}.${source}</p>`;
+    return `<p>Mẫu ${label}: n = ${records.length} dòng sản phẩm${distinct !== records.length ? `, gồm ${distinct} sản phẩm khác nhau` : ''}, lấy từ bảng kết quả tìm kiếm đã lưu, ${escape(day)}.${source}</p>`;
   });
   return `<div class="capture-sample" data-capture-sample="1">${sentences.join('')}<p class="lim"><b>Chú thích:</b> Mỗi sàn giữ riêng số dòng đã lưu và được đọc riêng; số dòng không suy rộng ra toàn thị trường.</p></div>`;
 }

@@ -348,7 +348,7 @@ export function annotateExhibits(section: string, searchPoints?: readonly Search
     const context = (!SAMPLE_CAPTION.test(caption) && CONTEXT.test(caption)) || /data-chart-id="M0[56]\./u.test(block);
     const note = hasNote ? '' : `<p class="lim"><b>Chú thích:</b> ${esc(context ? CONTEXT_NOTE : SAMPLE_NOTE)}</p>`;
     const interp = exhibit.kind === 'table' ? tableInterpretation(block)
-      : figureInterpretation(block, /^<figure\b[^>]*\sdata-search-interest="1"|<span class="exn">Hình 5\.2<\/span>/u.test(block) ? searchPoints : undefined);
+      : figureInterpretation(block, /^<figure\b[^>]*\sdata-search-interest="1"|<span class="exn"[^>]*>Hình 5\.2<\/span>/u.test(block) ? searchPoints : undefined);
     const marks = /data-market-prices=/u.test(block) ? [...new Set(block.match(/<sup class="cite"[\s\S]*?<\/sup>/gu) ?? [])].join('') : '';
     out += section.slice(from, exhibit.end) + after + note + (interp ? `<p class="interp"><b>Diễn giải:</b> ${esc(interp)}${marks}</p>` : '');
     from = exhibit.end + after.length;
@@ -420,7 +420,7 @@ export function deliverMarketReader(html: string, searchPoints?: readonly Search
 /** Separator printed between an exhibit number and its title ("Bảng 5.1: Tên"). */
 export const EXHIBIT_LABEL_SEPARATOR = ': ';
 
-type NumberedExhibit = { start: number; end: number; open: string; kind: 'Bảng' | 'Hình'; inBox: boolean };
+type NumberedExhibit = { start: number; end: number; open: string; kind: 'Bảng' | 'Hình'; inBox: boolean; bare: boolean };
 
 /** Visible tables and figures of one section in order of appearance; a sources box (`div.ex`) may hold its own captioned table. */
 function numberedExhibits(section: string): NumberedExhibit[] {
@@ -436,7 +436,9 @@ function numberedExhibits(section: string): NumberedExhibit[] {
     if (box ? !/^<div\b[^>]*>\s*<div class="exh"/u.test(block) && !/<table\b/u.test(block) : !figure && !/<table\b/u.test(block)) continue;
     // Inside a sources box only a table with its own caption is a separate exhibit.
     if (outer && !/<caption\b/u.test(block)) continue;
-    found.push({ start: at, end, open, kind: figure && /<svg\b|<img\b/u.test(block) ? 'Hình' : figure && /<table\b/u.test(block) ? 'Bảng' : figure ? 'Hình' : 'Bảng', inBox: Boolean(outer) });
+    // A box whose only table content is its own captioned tables (or a plain list) is not a table: it keeps its heading unnumbered.
+    const bare = box && ![...block.matchAll(/<table\b[\s\S]*?<\/table>/gu)].some(t => !/<caption\b/u.test(t[0]));
+    found.push({ start: at, end, open, kind: figure && /<svg\b|<img\b/u.test(block) ? 'Hình' : figure && /<table\b/u.test(block) ? 'Bảng' : figure ? 'Hình' : 'Bảng', inBox: Boolean(outer), bare });
   }
   return found;
 }
@@ -456,7 +458,13 @@ export function numberMarketExhibits(html: string): string {
     const counts = { Bảng: 0, Hình: 0 };
     const edits: { start: number; end: number; to: string }[] = [];
     for (const exhibit of numberedExhibits(inner)) {
-      const no = `${prefix}.${++counts[exhibit.kind]}`, label = `${exhibit.kind} ${no}`;
+      if (exhibit.bare) {
+        const own = inner.slice(exhibit.start, exhibit.end), head = /<div class="exh"[^>]*>([\s\S]*?)<\/div>/u.exec(own.slice(0, Math.max(0, own.search(/<(?:div class="table-wrap|table\b)/u)) || own.length));
+        if (head && EXN_SPAN.test(head[1]!))
+          edits.push({ start: exhibit.start + head.index, end: exhibit.start + head.index + head[0].length, to: `<div class="exh">${head[1]!.replace(EXN_SPAN, '').trim()}</div>` });
+        continue;
+      }
+      const no =`${prefix}.${++counts[exhibit.kind]}`, label = `${exhibit.kind} ${no}`;
       const elementId = `exh-${prefix.toLowerCase()}-${exhibit.kind === 'Bảng' ? 'b' : 'h'}${counts[exhibit.kind]}`;
       const exn = `<span class="exn" data-exhibit-no="${no}">${label}</span>`;
       const block = inner.slice(exhibit.start, exhibit.end);
@@ -470,6 +478,11 @@ export function numberMarketExhibits(html: string): string {
       if (oldLabel && oldLabel !== label && !relabel.has(oldLabel)) relabel.set(oldLabel, label);
       const at = exhibit.start;
       const titled = (rest: string): string => rest ? `${exn}<span class="exs">${EXHIBIT_LABEL_SEPARATOR}</span>${rest}` : exn;
+      // A figure titled by its heading (no figcaption of its own) gets the same accessible name association as a table.
+      const labelFigure = (): void => {
+        if (exhibit.open.startsWith('<figure') && !/\saria-label(?:ledby)?=/u.test(exhibit.open))
+          edits.push({ start: at + exhibit.open.length - 1, end: at + exhibit.open.length - 1, to: ` aria-labelledby="${elementId}"` });
+      };
       if (head) {
         const rest = head[1]!.replace(EXN_SPAN, '').trim();
         edits.push({ start: at + head.index, end: at + head.index + head[0].length, to: `<div class="exh" id="${elementId}">${titled(rest)}</div>` });
@@ -481,6 +494,7 @@ export function numberMarketExhibits(html: string): string {
             edits.push({ start: at + tableOpen.index + tableOpen[0].length - 1, end: at + tableOpen.index + tableOpen[0].length - 1, to: ` aria-labelledby="${elementId}"` });
         }
         if (figcaption && text(figcaption[1]!) === title) edits.push({ start: at + figcaption.index, end: at + figcaption.index + figcaption[0].length, to: '' });
+        if (!figcaption || text(figcaption[1]!) === title) labelFigure();
       } else if (caption && tableOpen) {
         const body = caption[1]!.replace(EXN_SPAN, '').replace(/^<span class="ext">([\s\S]*)<\/span>$/u, '$1').trim();
         const capAt = at + tableOpen.index + caption.index, openEnd = caption[0].indexOf('>') + 1;
@@ -493,6 +507,7 @@ export function numberMarketExhibits(html: string): string {
         edits.push({ start: at + exhibit.open.length, end: at + exhibit.open.length, to: `<caption>${exn}</caption>` });
       } else {
         edits.push({ start: at + exhibit.open.length, end: at + exhibit.open.length, to: `<div class="exh" id="${elementId}">${exn}</div>` });
+        labelFigure();
       }
     }
     let out = inner;
