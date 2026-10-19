@@ -80,7 +80,7 @@ import { pdfDiscoverySourceRows, pdfExcerptBlockHtml, pdfExcerptReaderCitation, 
 import { sellerVideoBlockHtml, sellerVideoNote, sellerVideoSrc, SELLER_VIDEO_SECTION } from './seller-video.js';
 import { searchAdsBrandNotice, searchAdsNotice, searchAdsOkBrands, SEARCH_ADS_NOTE, SEARCH_ADS_SOURCE_LABEL, SEARCH_ADS_SOURCE_NOTE, SEARCH_ADS_TABLE_TITLE } from './google-ads-lane.js';
 import { officialStatsCitation, officialStatsTechnicalCitation, officialStatsNotice, officialStatsProvinceCellText, officialStatsProvinceCitation, officialStatsProvinceContext, officialStatsProvinceRowLabel, officialStatsProvinceRows, officialStatsRenderable, officialStatsRenderableRows, officialStatsRowLabel, officialStatsStatusText, officialStatsUnitText, officialStatsValueText, OFFICIAL_STATS_LIMIT, OFFICIAL_STATS_NOTE, OFFICIAL_STATS_PROVINCE_LIMIT, OFFICIAL_STATS_PROVINCE_NOTE, OFFICIAL_STATS_PROVINCE_TITLE, OFFICIAL_STATS_SOURCE_LABEL, OFFICIAL_STATS_SRC, OFFICIAL_STATS_TABLE_TEXT, OFFICIAL_STATS_TABLE_TITLE } from './official-statistics-lane.js';
-import { comtradeFlowText, comtradeReaderLabel, comtradeReaderSide, comtradeWholeUsd, comtradeNotice, comtradeOfficialText, comtradeRenderable, comtradeRenderableRows, comtradeRowNote, comtradeSideText, COMTRADE_NOTE, COMTRADE_SOURCE_LABEL, COMTRADE_SRC, COMTRADE_TABLE_TITLE } from './comtrade-lane.js';
+import { comtradeFlowText, comtradeReaderLabel, comtradeReaderSide, comtradeWholeUsd, comtradeNotice, comtradeOfficialText, comtradeRenderableRows, comtradeRowNote, comtradeSideText, COMTRADE_NOTE, COMTRADE_SOURCE_LABEL, COMTRADE_SRC, COMTRADE_TABLE_TITLE } from './comtrade-lane.js';
 import { formatWorldBankValue, worldBankReaderNote, WORLD_BANK_READER_SRC, worldBankRenderable, worldBankRenderableRows, worldBankSourceNote, worldBankTableNote, worldBankUnitText, WORLD_BANK_LIMIT, WORLD_BANK_SOURCE_LABEL, WORLD_BANK_SRC, WORLD_BANK_TITLE } from './world-bank-lane.js';
 import { E13_ATTRIBUTION } from '../source-appendix-projection.js';
 import { withKalodataReplayNotice } from './kalodata-replay.js';
@@ -231,7 +231,7 @@ export function marketSourceRows(input: AutomationReportInput, webResultCount: n
     ? [[SEARCH_INTEREST_SOURCE_LABEL, 'Đã dùng trong lượt này: chỉ số tương đối, không phải doanh số.']] : [];
   const macro: readonly (readonly [string, string])[] = worldBankRenderable(input.collection?.worldBank)
     ? [[WORLD_BANK_SOURCE_LABEL, 'Đã dùng trong lượt này: số liệu cả nước, chỉ là bối cảnh.']] : [];
-  const trade: readonly (readonly [string, string])[] = comtradeRenderable(input.collection?.comtrade)
+  const trade: readonly (readonly [string, string])[] = comtradeRenderableRows(input.collection?.comtrade, Boolean(input.marketPresentation)).length
     ? [[COMTRADE_SOURCE_LABEL, 'Đã dùng trong lượt này: số liệu cả nước, chỉ là bối cảnh.']] : [];
   const searchAds: readonly (readonly [string, string])[] = searchAdsOkBrands(input.collection?.searchAds).length
     ? [[SEARCH_ADS_SOURCE_LABEL, SEARCH_ADS_SOURCE_NOTE]] : [];
@@ -261,7 +261,7 @@ export function marketSourceTypes(input: AutomationReportInput, webResultCount: 
     ...(searchInterestRenderable(collection?.searchInterest) ? ['Mức quan tâm tìm kiếm theo thời gian'] : []),
     ...(searchGeoRenderable(collection?.searchGeo) ? ['Mức quan tâm tìm kiếm theo khu vực'] : []),
     ...(worldBankRenderable(collection?.worldBank) ? [input.marketPresentation ? 'Ngân hàng Thế giới' : 'Ngân hàng Thế giới (World Bank Open Data)'] : []),
-    ...(comtradeRenderable(collection?.comtrade) ? [COMTRADE_SOURCE_LABEL] : []),
+    ...(comtradeRenderableRows(collection?.comtrade, Boolean(input.marketPresentation)).length ? [COMTRADE_SOURCE_LABEL] : []),
     ...(searchAdsOkBrands(collection?.searchAds).length ? [SEARCH_ADS_TABLE_TITLE] : []),
     ...(officialStatsRenderable(collection?.officialStats) ? [OFFICIAL_STATS_SOURCE_LABEL] : []),
     ...(input.pdfExcerpts?.length && input.sourceEvidence?.pdfExcerpts === true ? ['Tài liệu PDF đã lưu'] : []),
@@ -338,9 +338,26 @@ function webMark(row: StepWebResult, citations: ReportCitations): string {
     technical: { position: String(row.position), capture: String(row.captureIndex), ...(site === '' ? {} : { site }) } });
 }
 /** Copied search-result text follows the stored-literal rule and is also withheld when it names a provider or the search engine. */
-const webText = (value: string, withheld: string): string => webTextHidden(value) ? withheld : storedLiteral(value, withheld);
+const webText = (value: string, withheld: string, currentReader = false): string => webTextHidden(value) || (currentReader && /\bM(?:0[1-9]|1[0-3])\b/u.test(value)) ? withheld : currentReader ? storedLiteral(value, withheld, true) : storedLiteral(value, withheld);
 /** A title, site name or free-form publication label is source wording, not the report's own claim. */
-const webSourceText = (value: string, withheld: string): string => { const text = webText(value, withheld); return text === withheld ? text : `<q data-quote>${text}</q>`; };
+const webSourceText = (value: string, withheld: string, currentReader = false): string => { const text = webText(value, withheld, currentReader); return text === withheld ? text : `<q data-quote>${text}</q>`; };
+
+/** Current-reader prose transforms leave copied evidence and opaque markup intact. */
+function currentReaderProse(html: string, rewrite: (text: string) => string): string {
+  const quoted: string[] = [];
+  return html.split(/(<!--[\s\S]*?-->|<head\b[\s\S]*?<\/head\s*>|<script\b[\s\S]*?<\/script\s*>|<style\b[\s\S]*?<\/style\s*>|<svg\b[\s\S]*?<\/svg\s*>|<select\b[\s\S]*?<\/select\s*>|<(?:[^<>"']|"[^"]*"|'[^']*')+>)/giu).map((part, index) => {
+    if (index % 2) {
+      if (/^<!--|^<(?:head|script|style|svg|select)\b/iu.test(part)) return part;
+      const tag = /^<(\/?)\s*([\w-]+)/u.exec(part);
+      if (tag?.[1] && tag[2]?.toLowerCase() === quoted.at(-1)) quoted.pop();
+      else if (tag && !tag[1] && !/\/>$/u.test(part) && !/^(?:br|hr|img|input|wbr|area|base|col|embed|link|meta|param|source|track)$/iu.test(tag[2]!)) {
+        if (quoted.length || /^(?:q|blockquote)$/iu.test(tag[2]!) || /\sdata-quote(?:\s|=|>)/iu.test(part.replace(/"[^"]*"|'[^']*'/gu, ''))) quoted.push(tag[2]!.toLowerCase());
+      }
+      return part;
+    }
+    return quoted.length ? part : rewrite(part);
+  }).join('');
+}
 /** A closed machine code stays in the report's technical trace without sitting in the reader's sentence. */
 const codeNote = (code: string): string => `<details class="evidence-trace"><summary>Mã đối chiếu của trạng thái này</summary><p><code>${escape(code)}</code></p></details>`;
 const literalFamilies: readonly LiteralFamily[] = ['I02', 'I04', 'I05', 'I07', 'I08'];
@@ -1184,7 +1201,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   const expandedRows = Boolean(marketPresentation) || webResults.some(row => row.origin !== undefined);
   const webGroupKey = (row: StepWebResult): string => `${row.origin ?? 'BASIC'}:${row.captureIndex}`;
   const webGroups = [...new Set(webResults.map(webGroupKey))];
-  const webRowHtml = (row: StepWebResult): string => `<tr><td>${row.position}</td><td>${webSourceText(row.title, WEB_TITLE_WITHHELD)}</td><td>${row.site === undefined || row.site === null ? 'Chưa rõ trang' : webSourceText(row.site, WEB_SITE_WITHHELD)}</td>${expandedRows ? `<td>${escape(kind === 'MARKET' && readerPlainText ? expandedSearchReaderLabel(row, Boolean(marketPresentation)) : row.origin ? EXPANDED_SEARCH_LABEL[row.origin] : '')}</td>` : ''}${pageTypes ? `<td>${pageTypeCell(row)}</td>` : ''}${marketPresentation ? `<td>${escape(webReaderDay(row.published))}</td>` : ''}<td>${escape(marketPresentation ? webReaderRetrieved(row.retrievedAt) : row.retrievedAt)}</td><td>${webMark(row, citations)}</td></tr>`;
+  const webRowHtml = (row: StepWebResult): string => `<tr><td>${row.position}</td><td>${webSourceText(row.title, WEB_TITLE_WITHHELD, Boolean(marketPresentation))}</td><td>${row.site === undefined || row.site === null ? 'Chưa rõ trang' : webSourceText(row.site, WEB_SITE_WITHHELD, Boolean(marketPresentation))}</td>${expandedRows ? `<td>${escape(kind === 'MARKET' && readerPlainText ? expandedSearchReaderLabel(row, Boolean(marketPresentation)) : row.origin ? EXPANDED_SEARCH_LABEL[row.origin] : '')}</td>` : ''}${pageTypes ? `<td>${pageTypeCell(row)}</td>` : ''}${marketPresentation ? `<td>${escape(webReaderDay(row.published))}</td>` : ''}<td>${escape(marketPresentation ? webReaderRetrieved(row.retrievedAt) : row.retrievedAt)}</td><td>${webMark(row, citations)}</td></tr>`;
   const webGroupedRows = (): string => {
     let previous = '';
     return webResults.map(row => {
@@ -1199,7 +1216,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   const pageTypeCell = (row: StepWebResult): string => {
     const type = classifyWebPage(row);
     const quotedLabel = type === 'S26' && row.published && (!marketPresentation || webReaderDay(row.published) === 'Chưa có ngày đăng');
-    return `${WEB_PAGE_TYPE_LABEL[type]}${quotedLabel ? `<br>Đăng ${webSourceText(row.published!, 'Ngày đăng được giữ trong bản lưu')}` : ''}`;
+    return `${WEB_PAGE_TYPE_LABEL[type]}${quotedLabel ? `<br>Đăng ${webSourceText(row.published!, 'Ngày đăng được giữ trong bản lưu', Boolean(marketPresentation))}` : ''}`;
   };
   // A web source that failed or timed out leaves no rows; the reader is told
   // plainly instead of seeing an empty area.
@@ -1258,9 +1275,10 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     const number = Number(match[1]);
     return number === 13 ? 'Phụ lục' : `Phần ${number}`;
   };
-  const marketReaderLabels = (source: string): string => source.split(/(<[^>]+>)/gu).map((part, index) => index % 2 === 0
-    ? part.replace(/(?<![\p{L}\p{N}_-])M(0[1-9]|1[0-3])(?![\p{L}\p{N}_-])/gu, (_match, digits: string) => marketSectionLabel(`M${digits}`))
-    : part).join('');
+  const marketReaderLabels = (source: string): string => {
+    const rewrite = (part: string): string => part.replace(/(?<![\p{L}\p{N}_-])M(0[1-9]|1[0-3])(?![\p{L}\p{N}_-])/gu, (_match, digits: string) => marketSectionLabel(`M${digits}`));
+    return marketPresentation ? currentReaderProse(source, rewrite) : source.split(/(<[^>]+>)/gu).map((part, index) => index % 2 ? part : rewrite(part)).join('');
+  };
   const marketSourceList = `<div class="table-wrap market14-sources"><div class="exh"><span class="exn">Bảng PL.1</span><span class="ext">Nguồn dữ liệu của báo cáo</span></div><table><caption>Nguồn dữ liệu của báo cáo</caption><thead><tr><th>Hạng mục</th><th>Trạng thái</th></tr></thead><tbody>` +
     marketSourceRows(input, webResults.length, webSourceFailed).map(([label, status]) => `<tr><td>${label}</td><td>${escape(status)}</td></tr>`).join('') +
     '</tbody></table></div>';
@@ -1563,14 +1581,14 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   const labelledHtml = readerPlainText && kind === 'MARKET' ? marketReaderLabels(html) : html;
   const scopedHtml = marketPresentation ? labelledHtml.replace('<body', `<body data-market-platforms="${marketPlatforms.join(',')}" data-market-chart-rows="${marketChartRows(chartRows).length}"${marketShopsUnrecorded(chartRows) ? ' data-market-shops-unrecorded="1"' : ''}`) : labelledHtml;
   // Platform icons and reader labels apply to both copies; only the reader copy drops the trace and gains notes/interpretations.
-  const sanitize = (page: string): string => platIcons(page, { shopee: '#c2410c', tiktok: '#1d2327' }, undefined, { compoundPlatformLabels: true, preserveQuotes: true }).html
-    .replace(/<span class="cite-locator">[^<]*\bSheet1\b[^<]*<\/span>/giu, '').split(/(<[^>]+>)/gu).map((part, index) => index % 2 ? part : part
+  const sanitize = (page: string): string => currentReaderProse(platIcons(page, { shopee: '#c2410c', tiktok: '#1d2327' }, undefined, { compoundPlatformLabels: true, preserveQuotes: true }).html
+    .replace(/<span class="cite-locator">[^<]*\bSheet1\b[^<]*<\/span>/giu, ''), part => part
       .replace(/\b[0-9a-f]{64}\b/giu, '[mã nguồn được giữ trong hồ sơ]')
       .replace(/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/gu, 'chi tiết nguồn được giữ trong hồ sơ')
       .replace(/\bCORE\b/gu, 'phạm vi cốt lõi')
       .replace(/\bWIDE\b/gu, 'phạm vi rộng')
       .replace(/\bALL\b/gu, 'toàn bộ mẫu')
-      .replace(/\bUNKNOWN\b/gu, 'chưa rõ')).join('');
+      .replace(/\bUNKNOWN\b/gu, 'chưa rõ'));
   // Delivery drops trace blocks; the reader renumbers the citations it still shows after semanticCitations and scopedHtml keep per-claim identity.
   const deliveredHtml = marketPresentation ? sanitize(marketReaderCitations(deliverMarketReader(scopedHtml, input.collection?.searchInterest ? searchInterestReadingPoints(input.collection.searchInterest) : undefined, Boolean(input.metricMethods?.capture), Boolean(input.publicReviewSource)), registry, { publicReviewSource: Boolean(input.publicReviewSource) })) : scopedHtml;
   const readerRenderedHtml = kind === 'MARKET' && input.metricMethods?.capture?.rowPolicyVersion ? plainCaptureNumbers(deliveredHtml) : deliveredHtml;

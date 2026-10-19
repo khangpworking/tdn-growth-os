@@ -67,7 +67,7 @@ export function platIcons(html: string, col: { shopee: string; tiktok: string },
         const tag = /^<(\/?)\s*([\w-]+)/u.exec(part);
         if (tag?.[1] && tag[2]?.toLowerCase() === quoted.at(-1)) quoted.pop();
         else if (tag && !tag[1] && !/\/>$/u.test(part) && !/^(?:br|hr|img|input|wbr|area|base|col|embed|link|meta|param|source|track)$/iu.test(tag[2]!)) {
-          if (quoted.length || /^(?:q|blockquote)$/iu.test(tag[2]!) || /\bdata-quote(?:\s|=|>)/iu.test(part)) quoted.push(tag[2]!.toLowerCase());
+          if (quoted.length || /^(?:q|blockquote)$/iu.test(tag[2]!) || /\sdata-quote(?:\s|=|>)/iu.test(part.replace(/"[^"]*"|'[^']*'/gu, ''))) quoted.push(tag[2]!.toLowerCase());
         }
         return part;
       }

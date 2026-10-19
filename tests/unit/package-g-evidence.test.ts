@@ -18,6 +18,7 @@ import {
 // The public Market presentation builder selects MacroChart.currentReader automatically.
 // Round 2 requires explicit preparation context for HS-only charts; historical calls stay unchanged.
 import { renderComtradeCharts } from '../../src/modules/analysis/reader-report/macro-charts.js';
+import { platIcons } from '../../src/modules/analysis/reader-report/layout.js';
 const bindCurrentReader = async (input: AutomationReportInput): Promise<AutomationReportInput> => ({
   ...input, comtradeCharts: await renderComtradeCharts(input.collection?.comtrade, { currentReader: true }),
 });
@@ -394,16 +395,33 @@ test('[contract 9,16,27] all machine rules pass; every non-icon rule matches mai
 test('[contract 27d] negative control: an authored platform mention without an icon still fails rule 11', async () => {
   for (const shape of G_SHAPES) {
     const { html } = await render(shape);
-    const missing = html.replace('</main>', '<p id="g-missing-icon">Shopee</p></main>');
-    assert.equal(basicRules(missing).find(rule => rule.rule === '11')!.ok, false, shape);
-    assert.deepEqual(exceptIcons(basicRules(missing)), exceptIcons(basicRules(html)));
+    for (const attrs of ['', 'title=" data-quote "', 'data-label=" data-quote "']) {
+      const missing = html.replace('</main>', `<p id="g-missing-icon" ${attrs}>Shopee</p></main>`);
+      assert.equal(basicRules(missing).find(rule => rule.rule === '11')!.ok, false, `${shape}: ${attrs}`);
+      assert.deepEqual(exceptIcons(basicRules(missing)), exceptIcons(basicRules(html)));
+    }
+  }
+});
+
+test('[contract 27a,b] a quote-attribute name inside another attribute value does not suppress authored icons', () => {
+  for (const attrs of ['title=" data-quote "', "data-label=' data-quote '"]) {
+    const result = platIcons(`<style></style><p ${attrs}>Shopee và TikTok Shop</p>`, { shopee: 'red', tiktok: 'black' }, undefined,
+      { compoundPlatformLabels: true, preserveQuotes: true });
+    const dom = new JSDOM(result.html);
+    try { assert.equal(dom.window.document.querySelectorAll('p .pi').length, 2); }
+    finally { dom.window.close(); }
   }
 });
 
 test('[contract 27d] defect detector: quote-only icon removal does not fail the checker', async () => {
-  const { html } = await render('G1'), dom = new JSDOM(html);
+  const { html } = await render('G1');
+  const quotedIcons = '<q><i class="pi s">Shopee</i></q><blockquote><i class="pi t">TikTok Shop</i></blockquote><span data-quote><i class="pi s">Shopee</i></span>';
+  const withIcons = html.replace('</main>', `${quotedIcons}</main>`), dom = new JSDOM(withIcons);
   try {
-    for (const icon of dom.window.document.querySelectorAll('q .pi,blockquote .pi,[data-quote] .pi')) icon.replaceWith(...icon.childNodes);
+    const icons = dom.window.document.querySelectorAll('q .pi,blockquote .pi,[data-quote] .pi');
+    assert.equal(icons.length, 3, 'the negative control must remove actual quote icons');
+    assert.equal(basicRules(withIcons).find(rule => rule.rule === '11')!.ok, true);
+    for (const icon of icons) icon.replaceWith(...icon.childNodes);
     const protectedQuotes = dom.serialize();
     assert.equal(basicRules(protectedQuotes).find(rule => rule.rule === '11')!.ok, true);
     assert.deepEqual(exceptIcons(basicRules(protectedQuotes)), exceptIcons(basicRules(html)));
@@ -444,6 +462,44 @@ test('[contract 26a] defect detector: unchecked and no-website states stay disti
     }
     assert.deepEqual(ads.brands.map(brand => brand.status), ['OK', 'CANCELLED', 'SKIPPED_NO_DOMAIN']);
   } finally { dom.window.close(); }
+});
+
+test('[contract 24a] malformed ISO publication metadata never becomes a guessed date', async () => {
+  const base = (await render('G3')).input;
+  for (const published of ['2026-10-02Tbad', '2026-10-02T99:99:99Z', '2026-10-02T', '2026-02-30']) {
+    const webResults = base.collection!.webResults!.map(row => ({ ...row, published }));
+    const built = buildCurrentReader({ ...base, collection: { ...base.collection!, webResults } });
+    const dom = new JSDOM(built.html.toString());
+    try {
+      const web = needTable(dom.window.document, MARK.web);
+      const dateAt = [...web.querySelectorAll('th')].map(text).indexOf(COPY.dateHeader);
+      assert.ok(dateAt >= 0);
+      assert.ok(bodyRows(web).every(row => cells(row)[dateAt] === COPY.unavailable), published);
+      assert.ok(webResults.every(row => row.published === published));
+    } finally { dom.window.close(); }
+  }
+});
+
+test('[contract 10,24,27] unsafe source titles are withheld whole rather than rewritten inside quotes', async () => {
+  const base = (await render('G3')).input;
+  for (const title of ['Mẫu CORE Shopee -- 2025-12-15', 'Mẫu UNKNOWN Shopee', 'Mẫu shop_label Shopee', 'Mẫu M05 Shopee']) {
+    const webResults = base.collection!.webResults!.map(row => ({ ...row, title }));
+    const built = buildCurrentReader({ ...base, collection: { ...base.collection!, webResults } });
+    const dom = new JSDOM(built.html.toString());
+    try {
+      const web = needTable(dom.window.document, MARK.web);
+      assert.ok(bodyRows(web).every(row => cells(row)[1] === 'Tiêu đề được giữ trong bản lưu nguồn'));
+      assert.equal(web.querySelectorAll('q').length, webResults.length, 'only the unchanged site names remain quoted');
+      assert.ok([...web.querySelectorAll('q')].every(quote => text(quote) === 'Trang mẫu'));
+      assert.ok(webResults.every(row => row.title === title));
+    } finally { dom.window.close(); }
+  }
+});
+
+test('[contract 22] HS-only trade is disclosed in the current used-source list', async () => {
+  const { doc } = await render('G2');
+  const sources = [...doc.querySelectorAll('.pl-srclist li')].map(text);
+  assert.match(sources.join(' '), /Cơ sở dữ liệu thương mại của Liên Hợp Quốc/u);
 });
 
 test('[contract 23a] preliminary and estimated status facts stay on their own row', async () => {

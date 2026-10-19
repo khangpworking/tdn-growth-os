@@ -55,7 +55,7 @@ export function webReaderDay(raw: string | null | undefined): string {
     const index = months.findIndex(names => names.includes((english[1] ?? english[4] ?? '').toLowerCase()));
     if (index >= 0) { day = english[2] ?? english[3]; month = String(index + 1); year = english[5]; }
   }
-  if (!day || !month || !year) return 'Chưa có ngày đăng';
+  if (!day || !month || !year || (iso && !Number.isFinite(Date.parse(value)))) return 'Chưa có ngày đăng';
   const date = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
   const parsed = Date.parse(`${date}T00:00:00Z`);
   return Number.isFinite(parsed) && new Date(parsed).toISOString().slice(0, 10) === date ? `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}` : 'Chưa có ngày đăng';

@@ -306,7 +306,7 @@ export function auditMarket14(html: string, trace?: string, options: { requireFl
     const protectedPart = quoteStack.length > 0;
     if (tag?.[1] && tag[2]?.toLowerCase() === quoteStack.at(-1)) quoteStack.pop();
     else if (tag && !tag[1] && !/\/>$/u.test(part) && !/^(?:br|hr|img|input|wbr|area|base|col|embed|link|meta|param|source|track)$/iu.test(tag[2]!)) {
-      if (quoteStack.length || /^(?:q|blockquote)$/iu.test(tag[2]!) || /\bdata-quote(?:\s|=|>)/iu.test(part)) quoteStack.push(tag[2]!.toLowerCase());
+      if (quoteStack.length || /^(?:q|blockquote)$/iu.test(tag[2]!) || /\sdata-quote(?:\s|=|>)/iu.test(part.replace(/"[^"]*"|'[^']*'/gu, ''))) quoteStack.push(tag[2]!.toLowerCase());
     }
     return protectedPart || quoteStack.length ? '' : part;
   }).join('');
