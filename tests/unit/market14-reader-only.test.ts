@@ -299,6 +299,8 @@ test('full synthetic market14 report is delivered as a reader copy with notes an
   assert.doesNotMatch(html, /<p class="warning">[^<]*Mục phân tích hoàn chỉnh/u);
   for (const [id, inner] of sections) for (const chip of inner.matchAll(/<span class="state">([^<]*)<\/span>/gu)) {
     if (id === 'M08') assert.equal(chip[1], 'Có giá tham khảo, chưa xác minh');
+    else if (id === 'M06') assert.equal(chip[1], 'Chỉ có số liệu nền cả nước');
+    else if (id === 'M07') assert.equal(chip[1], 'Có một phần số liệu');
     else assert.match(chip[1]!, /^(?:Có số liệu|Chưa đủ dữ liệu)$/u);
   }
   // D30 + B13: exhibits have notes; readings are omitted only for tables without a useful cell-based statement.
