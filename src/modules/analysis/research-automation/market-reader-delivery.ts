@@ -375,11 +375,17 @@ export function deliverMarketReader(html: string, searchPoints?: readonly Search
       proposalFigures ||= block.startsWith('<div class="table-wrap market14-proposals has-figures">');
       return '';
     }) : annotated;
-    const data = /<table\b|<figure\b/u.test(evidence) || proposalFigures || (id === 'M01' && /data-market-headline="1"/u.test(evidence));
+    // Country-level background is not data about this product: a section holding only that says so instead of "Có số liệu".
+    const data = /<table\b(?![^>]*data-exhibit-scope="national")|<figure\b(?![^>]*data-exhibit-scope="national")/u.test(evidence) || proposalFigures
+      || (id === 'M01' && /data-market-headline="1"/u.test(evidence));
+    const national = /data-exhibit-scope="national"/u.test(evidence);
+    // The report marks a section whose method found no usable records (or Phần 9 holding launch dates only) as a gap.
+    const gap = /<span class="state"[^>]*\sdata-section-gap="1"/u.test(inner);
     const priceState = /data-market-prices="reference"/u.test(evidence) || hasReadablePrice(evidence) ? 'Có giá tham khảo, chưa xác minh'
       : /data-market-prices="unavailable"/u.test(evidence) ? 'Chưa có giá đọc được' : 'Chưa đủ dữ liệu';
-    const chip = id === 'M02' || id === 'M13' ? '' : `<span class="state">${id === 'M08' ? priceState : data ? 'Có số liệu' : 'Chưa đủ dữ liệu'}</span>`;
-    return `<section class="sheet" id="${id}">${annotated.replace(/<span class="state">[^<]*<\/span>/u, chip)}</section>`;
+    const label = id === 'M08' ? priceState : data ? gap ? 'Có một phần số liệu' : 'Có số liệu' : national ? 'Chỉ có số liệu nền cả nước' : 'Chưa đủ dữ liệu';
+    const chip = id === 'M02' || id === 'M13' ? '' : `<span class="state">${label}</span>`;
+    return `<section class="sheet" id="${id}">${annotated.replace(/<span class="state"[^>]*>[^<]*<\/span>/u, chip)}</section>`;
   });
   return filterReaderGlossary(head + body + tail);
 }
