@@ -516,6 +516,12 @@ export function numberMarketExhibits(html: string): string {
   });
   if (!relabel.size) return numbered;
   // References in prose follow their exhibit; labels, drawn charts, styles and quotes keep their bytes.
-  return numbered.split(/(<span class="exn"[^>]*>[^<]*<\/span>|<svg\b[\s\S]*?<\/svg>|<style\b[\s\S]*?<\/style>|<script\b[\s\S]*?<\/script>|<q\b[\s\S]*?<\/q>|<blockquote\b[\s\S]*?<\/blockquote>)/u)
-    .map((part, index) => index % 2 ? part : part.replace(/(?<![\p{L}\p{N}])(Bảng|Hình) (\d+|PL)\.(\d+)(?![\d.]*\d)/gu, all => relabel.get(all) ?? all)).join('');
+  let quotedUntil = 0;
+  return numbered.replace(/<span class="exn"[^>]*>[^<]*<\/span>|<svg\b[\s\S]*?<\/svg>|<style\b[\s\S]*?<\/style>|<script\b[\s\S]*?<\/script>|<q\b[\s\S]*?<\/q>|<blockquote\b[\s\S]*?<\/blockquote>|<(?:[^<>"']|"[^"]*"|'[^']*')+>|[^<]+/gu,
+    (part: string, at: number) => {
+      if (at < quotedUntil) return part;
+      const quote = /^<([\w-]+)\b[^>]*\sdata-quote(?:\s|=|>)/u.exec(part);
+      if (quote) quotedUntil = elementEnd(numbered, at, quote[1]!);
+      return part.startsWith('<') ? part : part.replace(/(?<![\p{L}\p{N}])(Bảng|Hình) (\d+|PL)\.(\d+)(?![\d.]*\d)/gu, all => relabel.get(all) ?? all);
+    });
 }
