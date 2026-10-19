@@ -29,13 +29,16 @@ test('absent precision preserves old World Bank and Comtrade exact digits', () =
 test('units prefer the source unit; only exact source-name patterns can supply a missing unit', () => {
   const unit = (name: string, code = 'NE.CON.PRVT.PC.KD', explicit: string | null = null) =>
     worldBankUnitText({ ...row, sourceIndicatorName: name, unit: explicit }, code);
-  assert.equal(unit('Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)'), 'USD, giá cố định năm 2015');
-  assert.equal(unit('GDP (constant 2020 US$)'), 'USD, giá cố định năm 2020');
-  assert.equal(unit('GDP (current US$)'), 'USD, giá hiện hành');
+  assert.equal(unit('Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)'), 'USD/người, giá cố định năm 2015');
+  assert.equal(unit('GDP (constant 2020 US$)', 'NY.GDP.MKTP.KD'), 'USD, giá cố định năm 2020');
+  assert.equal(unit('GDP (current US$)', 'NY.GDP.MKTP.CD'), 'USD, giá hiện hành');
   assert.equal(unit('Population, total', 'SP.POP.TOTL'), 'người');
   assert.equal(unit('Population, total', 'SP.POP.TOTL', '  người nguồn  '), '  người nguồn  ');
   assert.equal(unit('GDP (constant 2015 US$)', 'NE.CON.PRVT.PC.KD', 'EUR'), 'EUR');
-  assert.equal(unit('GDP (current US$)', 'NE.CON.PRVT.PC.KD', ' \t '), 'USD, giá hiện hành');
+  for (const explicit of ['USD', 'US$', 'USD/người']) assert.equal(unit('Consumption per capita (constant 2015 US$)', 'NE.CON.PRVT.PC.KD', `${explicit}, giá cố định năm 2015`), 'USD/người, giá cố định năm 2015');
+  assert.equal(unit('Consumption per capita (constant 2015 US$)', 'NE.CON.PRVT.PC.KD', 'USD'), 'USD/người, giá cố định năm 2015');
+  assert.equal(unit('Consumption per capita (current US$)', 'NE.CON.PRVT.PC.KD', 'USD'), 'USD/người, giá hiện hành');
+  assert.equal(unit('GDP (current US$)', 'NE.CON.PRVT.PC.KD', ' \t '), 'USD/người, giá hiện hành');
   for (const name of ['Population, total', 'Population, total ', 'population, total', 'Population total', 'GDP (constant 2015 USD)',
     'GDP (Constant 2015 US$)', 'GDP (constant 15 US$)', 'GDP (current USD)', 'GDP (current US$ )', 'Synthetic population indicator', 'GDP (%)'])
     assert.equal(unit(name), 'nguồn chưa ghi đơn vị', name);

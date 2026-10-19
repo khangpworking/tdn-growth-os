@@ -206,14 +206,15 @@ test('capture sample wording is idempotent, avoids repeated saved wording, and p
   assert.ok(deliverMarketReader(html).includes('<p>Mẫu xuất đã lưu; mẫu xuất theo từ khóa.</p>'), 'no capture retains prior wording');
 });
 
-// Without capture, the presentation copy changes only by the reader proofread; semantic bytes and the legacy copy stay at eedcb369.
-test('automation reports without capture or presentation keep eedcb369 semantic and legacy bytes', async () => {
+// Without capture, the presentation copy changes only by the reader proofread and the context copy; semantic bytes stay at eedcb369.
+// The no-presentation html differs only by the fixture's charts from the current renderers; legacy chart bytes stay pinned at bfdaca27 in macro-charts-report.
+test('automation reports without capture or presentation retain semantic pins with explained rendering changes', async () => {
   const input = await fullMarket14Input();
   const { capture: _capture, ...metricMethods } = input.metricMethods!;
   const { marketPresentation: _presentation, ...noPresentation } = input;
   const variants = [
-    { value: { ...input, metricMethods }, html: '99e15f75c3f56be58b249d8bf9561ef1c1a751f148ee03064041cd463a39b393', semantic: 'f09ff348de6036dbf7866d069d8dc833c37ab9a52c6e1b0ea82eaed9bb7742ab', trace: '58619ae7e45626818bd8f31ff4c827d1400310fd8054d6516476377cbae00f00' },
-    { value: noPresentation, html: 'bfdaca277bee00e28b823d042b11dd75846dba38381704d3b0042ca06f5cbab5', semantic: '89b388819561c90b6082847afb079b85aa911457862ca7d542d5335860c3f8a5', trace: null },
+    { value: { ...input, metricMethods }, html: 'ada74b0ed1e5531e14197e56ad134e618c88de8601aad23adca57474cebb9284', semantic: 'f09ff348de6036dbf7866d069d8dc833c37ab9a52c6e1b0ea82eaed9bb7742ab', trace: '6d6a13d0eaf09314fa4edadec8adc20d43b68f235b47322cf03c6893edb65009' },
+    { value: noPresentation, html: '92ada31fa0a8a276d05aedc38fe418c3b5204f0750ef89020453a998526c6da9', semantic: '89b388819561c90b6082847afb079b85aa911457862ca7d542d5335860c3f8a5', trace: null },
   ];
   for (const variant of variants) {
     const report = buildResearchAutomationReport(variant.value, 'MARKET');
@@ -234,6 +235,9 @@ test('row policy number formatting runs after reader delivery and leaves semanti
     for (const kind of ['MARKET', 'INSIGHT'] as const) {
       const before = buildResearchAutomationReport(original, kind);
       const after = buildResearchAutomationReport(withPolicy, kind);
+      const chartSvgs = (html: string) => html.match(/<svg\b[\s\S]*?<\/svg>/gu) ?? [];
+      assert.deepEqual(chartSvgs(after.html.toString()), chartSvgs(before.html.toString()),
+        `${kind}, presentation=${presentation}: number formatting must preserve chart SVG bytes, including zero ticks`);
       // Main also changes M03's authored missing-value phrase for this marker.
       const expectedHtml = kind === 'MARKET' ? plainCaptureNumbers(before.html.toString()
         .replaceAll('không đổi thành 0.</p><dl class="reader-context">', 'không đổi thành số không.</p><dl class="reader-context">'))

@@ -6,11 +6,11 @@ import { lineChart } from './svg-charts.js';
 import { renderChart, type FlintChartInput } from './flint.js';
 import { UNKNOWN_SHOP, marketChartRows, marketShopsUnrecorded, renderMarketCharts, renderSearchInterestChart } from './market-charts.js';
 import { renderComtradeCharts, renderWorldBankCharts, type MacroChart } from './macro-charts.js';
-import { searchInterestChartPoints, searchInterestRenderable, SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_LIMIT, SEARCH_INTEREST_NOTE, SEARCH_INTEREST_SOURCE_LABEL, SEARCH_INTEREST_SRC, SEARCH_INTEREST_UNIT } from '../research-automation/search-interest.js';
+import { SEARCH_INTEREST_EMPTY, searchInterestChartPoints, searchInterestRenderable, SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_LIMIT, SEARCH_INTEREST_NOTE, SEARCH_INTEREST_SOURCE_LABEL, SEARCH_INTEREST_SRC, SEARCH_INTEREST_UNIT } from '../research-automation/search-interest.js';
 import { searchGeoAverageText, searchGeoRenderable, searchGeoText, summarizeSearchGeo, SEARCH_GEO_DONT, SEARCH_GEO_HEADERS, SEARCH_GEO_NOTE, SEARCH_GEO_TABLE_NO, SEARCH_GEO_TABLE_TITLE } from '../research-automation/search-geo.js';
 import { formatWorldBankValue, worldBankRenderableRows, worldBankSourceNote, worldBankTableNote, worldBankUnitText, WORLD_BANK_LIMIT, WORLD_BANK_SOURCE_LABEL, WORLD_BANK_SRC, WORLD_BANK_TITLE } from '../research-automation/world-bank-lane.js';
 import { E12_ATTRIBUTION, E13_ATTRIBUTION, E14_ATTRIBUTION } from '../source-appendix-projection.js';
-import { officialStatsCitation, officialStatsCitationSheet, officialStatsNotice, officialStatsProvinceCellText, officialStatsProvinceCitation, officialStatsProvinceContext, officialStatsProvinceRowLabel, officialStatsProvinceRows, officialStatsRenderableRows, officialStatsRowLabel, officialStatsStatusText, officialStatsUnitText, officialStatsValueText, OFFICIAL_STATS_LIMIT, OFFICIAL_STATS_NOTE, OFFICIAL_STATS_PROVINCE_LIMIT, OFFICIAL_STATS_PROVINCE_NOTE, OFFICIAL_STATS_PROVINCE_TITLE, OFFICIAL_STATS_SRC, OFFICIAL_STATS_TABLE_TEXT, OFFICIAL_STATS_TABLE_TITLE } from '../research-automation/official-statistics-lane.js';
+import { officialStatsCitation, officialStatsTechnicalCitation, officialStatsNotice, officialStatsProvinceCellText, officialStatsProvinceCitation, officialStatsProvinceContext, officialStatsProvinceRowLabel, officialStatsProvinceRows, officialStatsRenderableRows, officialStatsRowLabel, officialStatsStatusText, officialStatsUnitText, officialStatsValueText, OFFICIAL_STATS_LIMIT, OFFICIAL_STATS_NOTE, OFFICIAL_STATS_PROVINCE_LIMIT, OFFICIAL_STATS_PROVINCE_NOTE, OFFICIAL_STATS_PROVINCE_TITLE, OFFICIAL_STATS_SRC, OFFICIAL_STATS_TABLE_TEXT, OFFICIAL_STATS_TABLE_TITLE } from '../research-automation/official-statistics-lane.js';
 import { comtradeFlowText, comtradeNotice, comtradeOfficialText, comtradeRenderableRows, comtradeRowNote, comtradeSideText, COMTRADE_LIMIT, COMTRADE_NOTE, COMTRADE_SOURCE_LABEL, COMTRADE_SRC, COMTRADE_TABLE_TITLE } from '../research-automation/comtrade-lane.js';
 import { searchAdsBrandNotice, searchAdsNotice, searchAdsOkBrands, SEARCH_ADS_NOTE, SEARCH_ADS_SOURCE_LABEL, SEARCH_ADS_SOURCE_NOTE, SEARCH_ADS_TABLE_TITLE } from '../research-automation/google-ads-lane.js';
 import { pdfDiscoverySourceRows, pdfExcerptBlockHtml, pdfExcerptCitation, PDF_EXCERPT_NOTE, PDF_EXCERPT_SRC } from '../research-automation/pdf-excerpt.js';
@@ -139,7 +139,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   sections.push(section('M04', 'Cơ cấu thị trường', 'Các nhóm đặt cạnh nhau theo quy tắc phân loại, tính riêng từng sàn.',
     m04Charts + tbl('4.1', 'Cơ cấu doanh số trong mẫu theo nhóm', '', ['Sàn', 'Nhóm', 'Doanh thu', 'Đơn vị bán', 'Tỷ trọng doanh thu lõi'], PLATS.flatMap(P => profile.core.map(k => [plat(P), label(segName(k)), n(bf(`${P}.seg.${k}.rev`)), n(bf(`${P}.seg.${k}.units`)), n(bf(`${P}.seg.${k}.revShare`))]))), 'Tỷ trọng trong mẫu; không phải thị phần.'));
   // The stored search-interest series is drawn only here, on its own axis; the same predicate marks the source as used.
-  const interest = next && searchInterestRenderable(options.searchInterest) ? options.searchInterest : undefined;
+  const interest = next && searchInterestRenderable(options.searchInterest) && searchInterestChartPoints(options.searchInterest).some(point => point.value !== null) ? options.searchInterest : undefined;
   const interestChart = interest ? await renderSearchInterestChart(searchInterestChartPoints(interest), { flint: options.flint !== false }) : undefined;
   if (interestChart) charts.push({ id: 'M05.search-interest', engine: interestChart.engine, ...(interestChart.error ? { error: interestChart.error } : {}) });
   // The stored province map follows Hình 5.2 as six region rows; a pure rule picks a region or says nationwide. Never with sales.
@@ -178,8 +178,8 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
       tbl('5.4', OFFICIAL_STATS_TABLE_TITLE, '', ['Bảng', 'Dòng', 'Kỳ', 'Giá trị', 'Đơn vị', 'Trạng thái'],
         officialRows.map(row => {
           const file = officialStats.files.find(item => item.captureIndex === row.captureIndex);
-          const citation = officialStatsCitation(officialStats, row).replace(/^[^,]+/u, E12_ATTRIBUTION);
-          const no = file ? registry.cite({ sourceKind: 'CAPTURE', identity: file.sha256, locator: { kind: 'xlsx', sheet: officialStatsCitationSheet(row), cell: row.cell }, technical: { sheet: row.sheet },
+          const citation = officialStatsCitation(officialStats, row);
+          const no = file ? registry.cite({ sourceKind: 'CAPTURE', identity: file.sha256, locator: null, technical: { ...officialStatsTechnicalCitation(officialStats, row), cell: row.cell },
             label: citation, retrievedAt: file.retrievedAt, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' }) : null;
           return [label(OFFICIAL_STATS_TABLE_TEXT[row.table]), label(officialStatsRowLabel(row)), label(row.period), label(officialStatsValueText(row)) + (no === null ? '' : renderCitationMark(no)),
             label(officialStatsUnitText(row)), label(officialStatsStatusText(officialStats, row))];
@@ -193,16 +193,16 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     return `<p>${label(officialStatsProvinceContext(officialStats))}</p>` +
       tbl('5.5', OFFICIAL_STATS_PROVINCE_TITLE, 'chỉ số', ['Dòng', ...sheet.provinces.map(label)],
         rows.map(row => {
-          const citation = officialStatsProvinceCitation(officialStats, row).replace(/^[^,]+/u, E12_ATTRIBUTION);
-          const no = registry.cite({ sourceKind: 'CAPTURE', identity: file.sha256, locator: { kind: 'xlsx', sheet: officialStatsCitationSheet({ sheet: sheet.sheet! }), cell: `A${row.row}` }, technical: { sheet: sheet.sheet! },
+          const citation = officialStatsProvinceCitation(officialStats, row);
+          const no = registry.cite({ sourceKind: 'CAPTURE', identity: file.sha256, locator: null, technical: officialStatsTechnicalCitation(officialStats, { captureIndex: sheet.captureIndex, sheet: sheet.sheet!, row: row.row }),
             label: citation, retrievedAt: file.retrievedAt, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' });
-          return [label(officialStatsProvinceRowLabel(row.label)) + (no === null ? '' : renderCitationMark(no)), ...row.cells.map(cell => label(officialStatsProvinceCellText(cell)))];
+          return [label(officialStatsProvinceRowLabel(row.label, sheet.base)) + (no === null ? '' : renderCitationMark(no)), ...row.cells.map(cell => label(officialStatsProvinceCellText(cell)))];
         }), { src: OFFICIAL_STATS_SRC, note: OFFICIAL_STATS_PROVINCE_NOTE });
   }
   sections.push(section('M05', 'Nhu cầu (tín hiệu bán)', 'Nhu cầu, đo bằng doanh số (ước tính) trong mẫu.', salesTable('5.1') +
     (interestChart ? `<p>Kỳ ${period}; nguồn: dữ liệu bán hàng ước tính trên từng sàn. Mức quan tâm tìm kiếm ghi riêng ở Hình 5.2, là chỉ số tương đối, không cộng hay so với số bán.</p>` +
       fig('5.2', SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_UNIT, interestChart.svg, { engine: interestChart.engine, src: SEARCH_INTEREST_SRC, note: SEARCH_INTEREST_NOTE })
-      : `<p>Kỳ ${period}; nguồn: dữ liệu bán hàng ước tính trên từng sàn. Mức quan tâm tìm kiếm ghi riêng, chưa có chuỗi tìm kiếm phù hợp trong bản này.</p>`) + geoBlock + worldBankTable + worldBankFigures + officialTable,
+      : `<p>Kỳ ${period}; nguồn: dữ liệu bán hàng ước tính trên từng sàn. Mức quan tâm tìm kiếm ghi riêng, chưa có chuỗi tìm kiếm phù hợp trong bản này.</p>${next && searchInterestRenderable(options.searchInterest) ? `<p>${esc(SEARCH_INTEREST_EMPTY)}</p>` : ''}`) + geoBlock + worldBankTable + worldBankFigures + officialTable,
     'Số bán hàng ước tính chưa đối chiếu với người bán, chỉ dùng tham khảo. Không suy ra quy mô ngoài mẫu, số người mua, nhu cầu chưa được đáp ứng hay dự báo.' + (interestChart || geoBlock ? ` ${SEARCH_INTEREST_LIMIT}` : '') + (worldBankTable ? ` ${WORLD_BANK_LIMIT}` : '') + (officialRows.length ? ` ${OFFICIAL_STATS_LIMIT}` : '') + (officialStatsProvinceRows(officialStats).length ? ` ${OFFICIAL_STATS_PROVINCE_LIMIT}` : '')));
   // Country-level trade figures sit in M06 as background; the same predicate marks S24 as used. No sums, shares or comparison with the sample.
   const comtrade = next ? options.comtrade : undefined;

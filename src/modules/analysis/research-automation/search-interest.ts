@@ -21,6 +21,7 @@ export const SEARCH_INTEREST_FIGURE_TITLE = 'Mức quan tâm tìm kiếm theo tu
 export const SEARCH_INTEREST_UNIT = 'chỉ số tương đối 0–100';
 export const SEARCH_INTEREST_SRC = 'Mức quan tâm tìm kiếm đã lưu cho từ khóa của báo cáo, Việt Nam, 12 tháng gần đây.';
 export const SEARCH_INTEREST_NOTE = 'Chỉ số tương đối từ 0 đến 100: 100 là tuần quan tâm cao của chính từ khóa này trong khoảng đã lấy. Không phải số lượt tìm kiếm, không phải doanh số; chỉ so các tuần của cùng chuỗi. Tuần thiếu số để trống.';
+export const SEARCH_INTEREST_EMPTY = 'Chưa có tuần đã kết thúc có số liệu tìm kiếm để hiển thị trong bản này.';
 export const SEARCH_INTEREST_LIMIT = 'Chỉ số tìm kiếm là mức tương đối, chỉ cho từ khóa này; không đo số người tìm và không cộng hay so với số bán.';
 
 export function searchTrendsEnabled(env: Readonly<Record<string, string | undefined>>): boolean {
@@ -95,14 +96,58 @@ export function searchInterestUsage(captures: readonly ProviderRawCapture[]): {
   } };
 }
 
-/** Axis labels: ISO dates become dd/mm (dd/mm/yy when two weeks would collide); any other period text is kept as stored. */
-export function searchInterestChartPoints(value: StepSearchInterest): { readonly label: string; readonly value: number | null }[] {
-  const label = (period: string, withYear: boolean): string => {
-    const iso = /^(\d{4})-(\d{2})-(\d{2})/u.exec(period);
-    return iso ? `${iso[3]}/${iso[2]}${withYear ? `/${iso[1]!.slice(2)}` : ''}` : period;
-  };
-  const unique = (labels: readonly string[]): boolean => new Set(labels).size === labels.length;
-  const short = value.points.map(point => label(point.period, false));
-  const labels = unique(short) ? short : value.points.map(point => label(point.period, true));
-  return value.points.map((point, i) => ({ label: unique(labels) ? labels[i]! : `${labels[i]} (${i + 1})`, value: point.index }));
+const DAY = 86_400_000;
+const calendarDate = (year: number, month: number, day: number): number | null => {
+  const time = Date.UTC(year, month - 1, day), date = new Date(time);
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? time : null;
+};
+
+/** ISO periods name the week's first day; localized ranges explicitly name both ends. Unknown dates are withheld. */
+function searchWeek(period: string): { start: number; end: number } | null {
+  const iso = /^(\d{4})-(\d{2})-(\d{2})(?:\s*[–—/]\s*(\d{4})-(\d{2})-(\d{2}))?$/u.exec(period);
+  if (iso) {
+    const start = calendarDate(Number(iso[1]), Number(iso[2]), Number(iso[3]));
+    const end = iso[4] ? calendarDate(Number(iso[4]), Number(iso[5]), Number(iso[6])) : start === null ? null : start + 6 * DAY;
+    return start !== null && end !== null && end - start === 6 * DAY ? { start, end } : null;
+  }
+  const vi = /^(\d{1,2})(?:\s+thg\s+(\d{1,2}))?(?:,?\s+(\d{4}))?\s*[–—-]\s*(\d{1,2})\s+thg\s+(\d{1,2}),?\s+(\d{4})$/u.exec(period.trim());
+  if (!vi) return null;
+  const endYear = Number(vi[6]), endMonth = Number(vi[5]), startMonth = Number(vi[2] ?? vi[5]);
+  const startYear = vi[3] ? Number(vi[3]) : endYear - (startMonth > endMonth ? 1 : 0);
+  const start = calendarDate(startYear, startMonth, Number(vi[1])), end = calendarDate(endYear, endMonth, Number(vi[4]));
+  return start !== null && end !== null && end - start === 6 * DAY ? { start, end } : null;
+}
+
+function searchWeekLabel({ start, end }: { start: number; end: number }): string {
+  const first = new Date(start).toISOString().slice(0, 10), last = new Date(end).toISOString().slice(0, 10);
+  const date = (iso: string): string => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
+  return first.slice(0, 4) !== last.slice(0, 4) ? `${date(first)}–${date(last)}`
+    : first.slice(5, 7) !== last.slice(5, 7) ? `${date(first).slice(0, 5)}–${date(last)}` : `${first.slice(8, 10)}–${date(last)}`;
+}
+
+/** Rendering only: retained step bytes and their replay/digest inputs stay unchanged. A week ending today is still in progress. */
+export function searchInterestReadingPoints(value: StepSearchInterest): StepSearchInterestPoint[] {
+  const retrieved = value.retrievedAt ? Date.parse(value.retrievedAt) : NaN;
+  if (!Number.isFinite(retrieved)) return [];
+  // The source periods are Vietnam calendar days (UTC+7), independent of the host timezone.
+  const cutoff = Math.floor((retrieved + 7 * 60 * 60 * 1000) / DAY) * DAY;
+  return value.points.flatMap(point => {
+    const week = searchWeek(point.period);
+    return week && week.end < cutoff ? [{ period: searchWeekLabel(week), index: point.index }] : [];
+  });
+}
+
+export function searchInterestChartPoints(value: StepSearchInterest, legacy = false): { readonly label: string; readonly value: number | null }[] {
+  // Frozen labels for reports without marketPresentation.
+  if (legacy) {
+    const label = (period: string, withYear: boolean): string => {
+      const iso = /^(\d{4})-(\d{2})-(\d{2})/u.exec(period);
+      return iso ? `${iso[3]}/${iso[2]}${withYear ? `/${iso[1]!.slice(2)}` : ''}` : period;
+    };
+    const unique = (labels: readonly string[]): boolean => new Set(labels).size === labels.length;
+    const short = value.points.map(point => label(point.period, false));
+    const labels = unique(short) ? short : value.points.map(point => label(point.period, true));
+    return value.points.map((point, i) => ({ label: unique(labels) ? labels[i]! : `${labels[i]} (${i + 1})`, value: point.index }));
+  }
+  return searchInterestReadingPoints(value).map(point => ({ label: point.period, value: point.index }));
 }

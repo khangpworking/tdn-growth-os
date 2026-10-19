@@ -289,7 +289,7 @@ test('full synthetic market14 report is delivered as a reader copy with notes an
   prose.querySelectorAll('style, script, svg, q, blockquote, code, pre, [data-quote]').forEach(node => node.remove());
   assert.doesNotMatch(prose.body.textContent!, /\d{4}-\d{2}-\d{2}|\breview\b|\bexport\b|peer set|danh sách top sản phẩm/u);
   assert.match(prose.body.textContent!, /tỉnh thiếu số để trống, không thay bằng số không/u);
-  assert.match(visible(sections.get('M05')!), /từ 05\/10\/2025 đến 27\/09\/2026/u);
+  assert.match(visible(sections.get('M05')!), /từ 05–11\/10\/2025 đến 20–26\/09\/2026/u);
   // A7: no draft framing in the sections; M12 keeps its own approval label.
   const outsideM12 = [...sections].filter(([id]) => id !== 'M12').map(([, inner]) => visible(inner)).join(' ');
   assert.doesNotMatch(outsideM12, /Bản nháp|bản nháp|chưa duyệt|Chưa duyệt|chưa phải phân tích|Mục phân tích hoàn chỉnh/u);
@@ -346,4 +346,16 @@ test('Market builds without a presentation return no trace copy', async () => {
   const { marketPresentation: _presentation, ...input } = await fullMarket14Input();
   const built = buildResearchAutomationReport(input as Parameters<typeof buildResearchAutomationReport>[0], 'MARKET');
   assert.equal(built.traceHtml, undefined);
+});
+
+
+test('a per-person fallback figure without point labels still states its unit in the reading', () => {
+  const result = figureInterpretation('<figure><span class="exu">(USD/người, giá cố định năm 2015)</span><svg></svg></figure>');
+  assert.match(result, /đơn vị USD\/người, giá cố định năm 2015/u);
+});
+
+
+test('a per-person line with only its first SVG point retains the unit in the reading', () => {
+  const result = figureInterpretation('<figure><span class="exu">(USD/người, giá cố định năm 2015)</span><svg><path aria-label="X-axis for a discrete scale with 3 values: 2022, 2023, ending with 2024"></path><path aria-label="Năm: 2022; Giá trị: 2.000"></path></svg></figure>');
+  assert.match(result, /đơn vị USD\/người, giá cố định năm 2015/u);
 });

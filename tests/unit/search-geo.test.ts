@@ -47,24 +47,25 @@ test('fixture quạt điện: six of the top ten in the Red River Delta picks th
   const text = searchGeoText(summary);
   assert.match(text.result, /^Kết quả: vùng nổi bật là Đồng bằng sông Hồng \(6 trong 10 tỉnh đứng đầu\)\.$/);
   assert.match(text.seen, /^Thấy gì: /);
-  assert.match(text.use, /^Dùng để: chọn vùng ưu tiên/);
+  assert.match(text.use, /^Cách đọc: chỉ số cho biết mức quan tâm tương đối/u);
+  assert.doesNotMatch(text.use, /nhất|hàng đầu|ưu tiên|quảng cáo|chọn kho/u);
   assert.match(text.dont, /^Đừng hiểu là: đây không phải số lượt tìm kiếm, không phải số người mua hay doanh số;/);
-  assert.match(text.topLine, /^5 tỉnh, thành phố đứng đầu về mức quan tâm: Hà Nội \(100\), Hải Phòng \(99\)/);
+  assert.match(text.topLine, /^5 tỉnh, thành phố đứng đầu về mức quan tâm \(theo 63 tỉnh, thành phố trước sáp nhập năm 2025\): Hà Nội \(100\), Hải Phòng \(99\)/);
 });
 
 test('fixture bình giữ nhiệt: four and four is a tie, so nationwide with no filter', () => {
   const summary = summarizeSearchGeo(syntheticGeoProvinces(GEO_FIXTURES['bình giữ nhiệt']));
   assert.deepEqual(summary.choice, { kind: 'NATIONWIDE', why: 'SPREAD', leading: ['Đồng bằng sông Hồng', 'Đông Nam Bộ'], leadingInTop: 4 });
   const text = searchGeoText(summary);
-  assert.match(text.result, /^Kết quả: toàn quốc, không lọc\. Dẫn đầu: Đồng bằng sông Hồng và Đông Nam Bộ \(mỗi vùng 4 tỉnh\), không đủ để lọc\.$/);
-  assert.match(text.use, /không lọc theo vùng/);
+  assert.match(text.result, /^Kết quả: chưa có vùng nổi bật theo quy tắc đếm tỉnh\. Dẫn đầu: Đồng bằng sông Hồng và Đông Nam Bộ \(mỗi vùng 4 tỉnh\)\.$/);
+  assert.match(text.use, /không đo nhu cầu mua hay khả năng giao hàng/u);
 });
 
 test('fixture thạch dừa: at most three per region, so nationwide with no filter', () => {
   const summary = summarizeSearchGeo(syntheticGeoProvinces(GEO_FIXTURES['thạch dừa']));
   assert.equal(summary.choice.kind, 'NATIONWIDE');
   assert.equal(Math.max(...summary.regions.map(row => row.inTop)), 3);
-  assert.match(searchGeoText(summary).result, /^Kết quả: toàn quốc, không lọc\.$/);
+  assert.match(searchGeoText(summary).result, /^Kết quả: chưa có vùng nổi bật theo quy tắc đếm tỉnh\.$/);
 });
 
 test('fewer than ten provinces with a value gives no choice', () => {

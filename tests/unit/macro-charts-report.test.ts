@@ -17,10 +17,13 @@ import { OFFICIAL_STATS_LIMIT, OFFICIAL_STATS_PROVINCE_LIMIT, OFFICIAL_STATS_PRO
 import { assertFlintCharts } from '../../src/modules/analysis/research-automation/reader-report-revisions.js';
 import { buildResearchAutomationReport, type AutomationReportInput } from '../../src/modules/analysis/research-automation/reports.js';
 import { WORLD_BANK_LIMIT, WORLD_BANK_SRC } from '../../src/modules/analysis/research-automation/world-bank-lane.js';
+import { searchInterestChartPoints } from '../../src/modules/analysis/research-automation/search-interest.js';
+import { renderSearchInterestChart } from '../../src/modules/analysis/reader-report/market-charts.js';
+import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { metricFixture } from '../fixtures/metric-scope-synthetic.js';
 import { sync1Options, sync1ReaderFixture } from '../helpers/sync1-reader-fixture.js';
 import { unitPriceFixture } from '../helpers/market-unit-price-fixture.js';
-import { fullMarket14Input, fullWorldBank } from '../helpers/market14-full-fixture.js';
+import { fullMarket14Input, fullWorldBank, fullOfficialStats } from '../helpers/market14-full-fixture.js';
 
 const SHA = 'a'.repeat(64);
 const workspaceId = '11111111-1111-4111-8111-111111111111';
@@ -56,12 +59,11 @@ async function reader(extra: { worldBank?: StepWorldBank; comtrade?: StepComtrad
   return buildMarketReport(computeReaderReportData(input, units.retained), { ...sync1Options, flint, ...extra });
 }
 
-test('World Bank documents without source precision/name preserve pinned HTML bytes in both reader renderers', async () => {
-  // The automation reader pin includes PR #324's two M08 paragraphs and PR #328's descriptive reader copy
-  // (M05/M06/M07/M09) the plain owner copy for periods, peers and ads, the dated Phần 11/12 proposals, the per-platform Phần 1/2 copy and the reader proofread; no World Bank bytes change, and legacy pins stay separate.
+test('current Market renderers pin unscaled per-person charts and corrected context copy', async () => {
+  // Re-pin the 1.4.0 per-person chart scale, automated Market context display, the per-platform Phần 1/2 copy and the reader proofread; legacy readers have separate frozen pins.
   const hash = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
-  assert.equal(hash((await reader({ worldBank: fullWorldBank() }, false)).html), 'f607583cff39b346515681fefa85284abc44bde3da006709d9d7d7b4dde7e578');
-  assert.equal(hash(buildResearchAutomationReport(await fullMarket14Input(), 'MARKET').html), '8764da84f3381754eedfbf670ce6ff7fb445299112f07413195a90c80caf52ce');
+  assert.equal(hash((await reader({ worldBank: fullWorldBank() }, false)).html), '2c6bf440c35405eebeede37f08f57764e549cdc42041bf26b958952340d1d02e');
+  assert.equal(hash(buildResearchAutomationReport(await fullMarket14Input(), 'MARKET').html), '1b2cb8b3ad4d0bd8d0a4cc6ff52551167799e22a748ac20c83d1c74cc9956c55');
 });
 
 test('v2 reader: World Bank lines are Hình 5.3/5.4 after Bảng 5.3 and Comtrade bars are Hình 6.1/6.2 after Bảng 6.2, all Flint', async () => {
@@ -77,7 +79,7 @@ test('v2 reader: World Bank lines are Hình 5.3/5.4 after Bảng 5.3 and Comtrad
   }
   assert.match(wb1!.text, /Chỉ số tổng hợp A, cả nước Việt Nam/u);
   assert.match(wb1!.text, /\(triệu/u);
-  assert.match(wb2!.text, /\(nghìn/u);
+  assert.doesNotMatch(wb2!.text, /nghìn/u);
   assert.match(mirror!.text, /năm 2023/u);
   assert.match(own!.text, /triệu USD/u);
   const doc = new JSDOM(built.html).window.document;
@@ -177,12 +179,15 @@ test('both Market renderers show source precision, source-name units and a round
     const doc = new JSDOM(html).window.document;
     const table = [...doc.querySelectorAll('.table-wrap, .ex')].find(node => /Bảng 5\.3/u.test(node.textContent!))!;
     assert.match(table.textContent!, /101\.598\.527 người/u);
-    assert.match(table.textContent!, /2\.382 USD, giá cố định năm 2015/u);
+    assert.match(table.textContent!, /2\.382 USD\/người, giá cố định năm 2015/u);
     assert.doesNotMatch(table.textContent!, /nguồn chưa ghi đơn vị|2\.381,888|%/u);
     assert.equal((table.textContent!.match(/Các giá trị được làm tròn theo độ chính xác do nguồn công bố\./gu) ?? []).length, 1);
     assert.match(figure(html, 'Hình 5.3')!.text, /triệu người/u);
-    assert.match(figure(html, 'Hình 5.4')!.text, /nghìn USD, giá cố định năm 2015/u);
-    for (const [code, expected] of [['NE.CON.PRVT.PC.KD', '2.382 USD, giá cố định năm 2015'], ['SP.POP.TOTL', '101.598.527 người']]) {
+    assert.match(figure(html, 'Hình 5.4')!.text, /USD\/người, giá cố định năm 2015/u);
+    const consumptionFigure = [...doc.querySelectorAll('figure')].find(node => /Hình 5\.4/u.test(node.textContent!))!;
+    const reading = consumptionFigure.nextElementSibling;
+    if (reading?.classList.contains('interp')) assert.match(reading.textContent!, /2\.382 USD\/người, giá cố định năm 2015/u);
+    for (const [code, expected] of [['NE.CON.PRVT.PC.KD', '2.382 USD/người, giá cố định năm 2015'], ['SP.POP.TOTL', '101.598.527 người']]) {
       const points = [...doc.querySelectorAll(`[data-chart-id="M05.world-bank.${code}"] [aria-roledescription="point"]`)];
       assert.equal(points.at(-1)!.getAttribute('aria-label'), `Năm: 2024; Giá trị: ${expected}`);
     }
@@ -294,4 +299,79 @@ test('a Flint failure in country-background figures retains fallbacks in both re
   const html = draftHtml(await presentationInput({ worldBank: worldBank(true), comtrade: fullTrade }));
   for (const no of ['Hình 5.3', 'Hình 5.4', 'Hình 6.1', 'Hình 6.2']) assert.equal(figure(html, no)!.engine, 'svg-fallback');
   assert.deepEqual(machineFailures(html), []);
+});
+
+
+test('both readers keep CPI row bases and short citations; full source coordinates stay technical', async () => {
+  const original = fullOfficialStats(), row = original.values[0]!;
+  const officialStats = { ...original, values: [
+    { ...row, label: 'CHỈ SỐ GIÁ TIÊU DÙNG', base: 'tháng 9 năm 2025' },
+    { ...row, cell: 'E14', label: 'CHỈ SỐ GIÁ TIÊU DÙNG', base: 'tháng 8 năm 2026' },
+  ] };
+  const before = JSON.stringify(officialStats);
+  const automated = buildResearchAutomationReport(await presentationInput({ officialStats }), 'MARKET');
+  for (const html of [(await reader({ officialStats })).html, automated.html.toString()]) {
+    const doc = new JSDOM(html).window.document;
+    const section = doc.querySelector('#M05, #phan-5')!;
+    assert.match(section.textContent!, /kỳ gốc: tháng 9 năm 2025/u);
+    assert.match(section.textContent!, /kỳ gốc: tháng 8 năm 2026/u);
+    assert.match(section.textContent!, /Chỉ số giá tiêu dùng/u);
+    assert.doesNotMatch(section.textContent!, /CHỈ SỐ GIÁ TIÊU DÙNG|bảng không ghi|Kỳ gốc: tháng trước/u);
+    const prose = doc.body.textContent!;
+    assert.match(prose, /Cục Thống kê, số liệu CPI tháng 9\/2026, công bố 01\/10\/2026/u);
+    assert.doesNotMatch(prose, /CPI-synthetic\.xlsx|bảng Cả nước|bảng Địa phương|dòng 14|ô C14/u);
+    const table = [...section.querySelectorAll('table')].find(node => /Trạng thái/u.test(node.textContent!))!;
+    assert.ok([...table.querySelectorAll('tbody tr')].every(node => node.lastElementChild!.textContent === '—'));
+  }
+  assert.match(automated.traceHtml!.toString(), /CPI-synthetic\.xlsx/u);
+  assert.match(automated.traceHtml!.toString(), /Địa phương/u);
+  assert.equal(JSON.stringify(officialStats), before);
+});
+
+
+test('reviewed base reader 1.2/1.3 and reports without a presentation retain their exact bytes', async () => {
+  const { marketPresentation: _presentation, ...input } = await fullMarket14Input();
+  const before = JSON.stringify(input.collection);
+  const hash = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
+  // Captured from eedcb369 using the same synthetic input and chart engines.
+  for (const [version, expected] of [
+    ['1.2.0', 'c45ee04895526bb20d5510f8a6dd1c3de37611e79a83d4ca5c172fe14059edb4'],
+    ['1.3.0', 'b69c7b6d4220598e5a8a1fd53e82cc569d374945c6b95079b408903458838cd8'],
+  ] as const) {
+    const fixture = sync1ReaderFixture(version);
+    if (version === '1.3.0') fixture.peerRule = { ...DEFAULT_MARKET_PEER_RULE };
+    const built = await buildMarketReport(computeReaderReportData(fixture), { ...sync1Options, searchInterest: input.collection!.searchInterest!, searchGeo: input.collection!.searchGeo!,
+      officialStats: input.collection!.officialStats!, worldBank: input.collection!.worldBank!, comtrade: input.collection!.comtrade! });
+    assert.equal(hash(built.html), expected, version);
+  }
+  const legacy = { ...input,
+    searchInterestChart: await renderSearchInterestChart(searchInterestChartPoints(input.collection!.searchInterest!, true)),
+    worldBankCharts: await renderWorldBankCharts(input.collection!.worldBank, { legacy: true }),
+    comtradeCharts: await renderComtradeCharts(input.collection!.comtrade, { legacy: true }) };
+  const report = buildResearchAutomationReport(legacy, 'MARKET');
+  assert.equal(hash(report.html), 'bfdaca277bee00e28b823d042b11dd75846dba38381704d3b0042ca06f5cbab5');
+  assert.equal(hash(canonicalJson(report.semantic)), '89b388819561c90b6082847afb079b85aa911457862ca7d542d5335860c3f8a5');
+  assert.equal(JSON.stringify(input.collection), before, 'retained step document bytes are untouched');
+});
+
+test('technical CPI JSON is escaped and removed completely from owner copy', async () => {
+  const original = fullOfficialStats(), hostile = '</pre><img data-synthetic-probe="x" src="x">&';
+  const sheet = `Bảng giả lập ${hostile}`;
+  const officialStats = { ...original,
+    files: original.files.map(file => ({ ...file, url: `https://www.nso.gov.vn/wp-content/uploads/2026/10/${encodeURIComponent(hostile)}.xlsx` })),
+    values: original.values.map(row => ({ ...row, sheet })),
+    provinces: { ...original.provinces!, sheet } };
+  const before = JSON.stringify(officialStats);
+  const automated = buildResearchAutomationReport(await presentationInput({ officialStats }), 'MARKET');
+  const trace = new JSDOM(automated.traceHtml!.toString()).window.document;
+  assert.equal(trace.querySelector('[data-synthetic-probe]'), null);
+  const technical = [...trace.querySelectorAll('details.evidence-trace pre')].find(node => node.textContent!.includes('locators'))!;
+  assert.ok(technical);
+  assert.equal(JSON.parse(technical.textContent!)[0].sheet, sheet);
+  for (const html of [(await reader({ officialStats }, false)).html, automated.html.toString()]) {
+    const doc = new JSDOM(html).window.document;
+    assert.equal(doc.querySelector('[data-synthetic-probe]'), null);
+    assert.doesNotMatch(doc.body.textContent!, /data-synthetic-probe|locators|\.xlsx/u);
+  }
+  assert.equal(JSON.stringify(officialStats), before);
 });
