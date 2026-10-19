@@ -33,7 +33,17 @@ const sampleText = (doc: Document) => {
   return text(block);
 };
 
-test('reader M13 and both older renderer paths agree on zero, short and full trial sample wording', async () => {
+const legacyIntro = 'Đây là mẫu thử nhỏ, tối đa 20 đánh giá mỗi sản phẩm, được thu cho báo cáo thử nghiệm. Mẫu này không đại diện cho toàn bộ đánh giá.';
+const currentIntro = 'Đây là mẫu nhỏ, tối đa 20 đánh giá mỗi sản phẩm, được hệ thống thu để đọc trong báo cáo. Mẫu này không đại diện cho toàn bộ đánh giá.';
+// L8: equality pinned experimental-report attribution in the current reader.
+// Require its exact system origin, then compare every remaining count/cap/source statement.
+function assertCurrentSample(current: string, legacy: string) {
+  assert.ok(current.includes(currentIntro));
+  assert.ok(legacy.includes(legacyIntro));
+  assert.equal(current.replace(currentIntro, legacyIntro), legacy);
+}
+
+test('current reader has system attribution; older paths preserve zero, short and full sample wording', async () => {
   const context = trialContext([0, 7, 20]);
   const built = await buildMarketReport(readerData(), { ...sync1Options, flint: true, testReviewSample: context });
   const doc = new JSDOM(built.html).window.document;
@@ -80,7 +90,8 @@ test('reader M13 and both older renderer paths agree on zero, short and full tri
   const { marketPresentation: _presentation, ...draft } = trial;
   for (const report of [trial, draft]) {
     const old = new JSDOM(buildResearchAutomationReport(report, 'MARKET').html.toString()).window.document;
-    assert.equal(sampleText(old), sampleText(doc));
+    if (report === trial) assertCurrentSample(sampleText(old), sampleText(doc));
+    else assert.equal(sampleText(old), sampleText(doc));
   }
   // Machine assertions remain active; evidence-only rules still require human reading.
   assert.doesNotThrow(() => assertMarketBusinessGate(built.html, { presentation: false }));
@@ -105,7 +116,7 @@ test('an empty trial states the attempt and missing review types, without a zero
   assert.deepEqual(marketSourceTypes(input, 0, []).used.filter(label => /đánh giá|bình luận/u.test(label)), []);
   assert.ok(marketSourceTypes(input, 0, []).missing.includes('dữ liệu đánh giá sản phẩm'));
   assert.ok(marketSourceTypes(input, 0, []).missing.includes('dữ liệu bình luận của khách'));
-  assert.equal(sampleText(new JSDOM(buildResearchAutomationReport(input, 'MARKET').html.toString()).window.document), sampleText(doc));
+  assertCurrentSample(sampleText(new JSDOM(buildResearchAutomationReport(input, 'MARKET').html.toString()).window.document), sampleText(doc));
 });
 
 test('a blocked or timed-out source that returned nothing says so once instead of a per-product shortfall', async () => {
@@ -121,7 +132,7 @@ test('a blocked or timed-out source that returned nothing says so once instead o
     assert.match(doc.querySelector('#phu-luc')!.textContent!, /Lượt thu thử này không lấy được đánh giá vì nguồn tạm thời không trả dữ liệu; không suy ra sản phẩm không có đánh giá\./u);
     const base = await fullMarket14Input();
     const input = { ...base, scope: { ...base.scope, ...context.scope }, collection: { ...base.collection!, ...context.collection } };
-    assert.equal(sampleText(new JSDOM(buildResearchAutomationReport(input, 'MARKET').html.toString()).window.document), sample);
+    assertCurrentSample(sampleText(new JSDOM(buildResearchAutomationReport(input, 'MARKET').html.toString()).window.document), sample);
   }
   // A blocked outcome that still returned some reviews keeps the per-product wording.
   const partial = sampleText(new JSDOM((await buildMarketReport(readerData(), { ...sync1Options,

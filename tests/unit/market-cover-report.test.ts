@@ -95,7 +95,7 @@ test('a full market14 reader shows a quarter cover, a plain source list and the 
   assert.equal(text(sources.querySelector('.ext')), 'Nguồn số liệu');
   assert.deepEqual([...sources.querySelectorAll('ul.pl-srclist > li')].map(text), ['Dữ liệu bán hàng trên Shopee', 'Dữ liệu bán hàng trên TikTok Shop']);
   assert.equal(sources.querySelector('table'), null, 'no status table');
-  assert.match(text(sources), /Lượt này chưa có dữ liệu đánh giá sản phẩm, kết quả tìm kiếm trên web, dữ liệu bình luận của khách/u);
+  assert.match(text(sources), /Báo cáo chưa có dữ liệu đánh giá sản phẩm, kết quả tìm kiếm trên web, dữ liệu bình luận của khách/u);
   const note = sources.nextElementSibling!;
   assert.equal(note.outerHTML, '<p class="ex-note"><b>Chú thích:</b> Mọi hình và bảng được dựng tự động từ cùng một bộ dữ liệu đã lưu. Chi tiết kỹ thuật của từng nguồn nằm trong hồ sơ kỹ thuật riêng, không in trong bản đọc.</p>');
   const glossary = document.querySelector('.market14-glossary')!;
@@ -151,7 +151,7 @@ test('cover quarters count inclusive data days, break ties toward the later quar
   assert.match(document.querySelector('#M02')!.textContent!, /Chưa có kỳ số liệu bán hàng hợp lệ/u);
   assert.doesNotMatch(document.querySelector('.cover')!.textContent! + document.querySelector('#M02')!.textContent!, /01\/01\/2026|30\/01\/2026|NaN/u);
   assert.equal(document.querySelectorAll('.market14-sources li').length, 0);
-  assert.match(document.querySelector('.market14-sources')!.textContent!, /Lượt này chưa có dữ liệu bán hàng/u);
+  assert.match(document.querySelector('.market14-sources')!.textContent!, /Báo cáo chưa có dữ liệu bán hàng/u);
   assert.doesNotMatch(document.querySelector('.market14-sources')!.textContent!, /\b0\b/u);
 });
 

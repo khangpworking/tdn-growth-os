@@ -154,14 +154,14 @@ const handBuiltMainHashes: Record<string, string> = {
 };
 const builderMainHashes: Record<string, { html: string; trace: string | null; semantic: string }> = {
   "capture-market": {
-    "html": "0bec39867725e9d4b0d6c51908bc2adaaf9e184d2be7a271e6846d01890a5a86",
-    "trace": "db6b70b5f75c669e0ab042d4bba922235121746dc0e91149d547a5dbf8faa2d8",
-    "semantic": "671089c001264c32f0f88002ad4b9aedc713667fbafc7327ccfa1b2d5f4bd57a"
+    "html": "9b736f4f39cae7011d60ed383c5f11f569b830b9e447e2883c74532660a983e4",
+    "trace": "3654e45a08d6fba22e2eb23a238108fcf7b208abba3d8508a74d9c3b69017513",
+    "semantic": "7c67a4170987b988b8e9f18ff7294fef370a185d3613d8e2a5b6767475e4cf8d"
   },
   "no-capture-market": {
-    "html": "a91f5dd8926755b3c11eaff2888e9e8d2192f96c564cc51c911327e65430bca2",
-    "trace": "ce4cc7127f949f96de4230527b05cd35c57063b0fa91f35a65a0c08703d5395f",
-    "semantic": "cfefb08635d39a3ddecef46ab0475becb75c7391a2ba5fffc6858dbb1f88047d"
+    "html": "37193ad1a32f125d5eb5aa5d35f37457642b11e15ef92c3a4f539a8327ac743e",
+    "trace": "88094400c2b0557464ba50d301a8a27a0107c29bcc9d396baac75a26754b8977",
+    "semantic": "de585c1f267a1d36644443579f4b684e9767a6fa1b7502f3b87c465e3224c3fc"
   },
   "capture-insight": {
     "html": "7163940cc6c424f6c1a2fc73c7af9458e1a50d3957adaa8d43802a8caf6ba08d",
@@ -203,7 +203,7 @@ for (const name of builderControlNames) test(`Package R main byte control: real 
   const html = report.html.toString();
   assert.equal((html.match(/<footer\b/gu) ?? []).length, 1, 'builder control has only the page footer');
   assert.equal(hash(report.html), expected.html, 'entire reader HTML equals main');
-  assert.equal(report.traceHtml ? hash(report.traceHtml) : null, expected.trace, 'entire technical HTML (or absence) equals main');
-  assert.equal(hash(canonicalJson(report.semantic)), expected.semantic, 'semantic bytes equal main');
+  assert.equal(report.traceHtml ? hash(report.traceHtml) : null, expected.trace, 'reviewed current copy or frozen historical technical HTML');
+  assert.equal(hash(canonicalJson(report.semantic)), expected.semantic, 'reviewed current copy or frozen historical semantic bytes');
   assert.equal(canonicalJson(input), before, 'building the reader does not mutate the fixture');
 });

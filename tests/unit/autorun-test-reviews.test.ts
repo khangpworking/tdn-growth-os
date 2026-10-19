@@ -97,7 +97,7 @@ for (const counts of [[20, 20, 20], [20, 7, 0], [0, 0, 0]]) test(`Market-only au
   // Reading re-verifies the scope, retained collection, summary and presentation: no integrity error.
   const report = await f.service.readReport(workspaceId, runId, 'MARKET', false, (await f.service.listReportVersions(workspaceId, runId)).at(-1)!.pairId);
   const html = report.bytes.toString('utf8');
-  assert.match(html, /mẫu thử nhỏ, tối đa 20 đánh giá mỗi sản phẩm, được thu cho báo cáo thử nghiệm/u);
+  assert.match(html, /mẫu nhỏ, tối đa 20 đánh giá mỗi sản phẩm, được hệ thống thu để đọc trong báo cáo/u);
   assert.match(html, /Mẫu này không đại diện cho toàn bộ đánh giá/u);
   if (counts.some(n => n === 20)) assert.match(html, /Đã thu đủ giới hạn thử 20 đánh giá/u);
   else { assert.match(html, /Chưa thu được đánh giá/u); assert.doesNotMatch(html, /Đã thu đủ giới hạn thử/u); }
@@ -120,7 +120,12 @@ for (const counts of [[20, 20, 20], [20, 7, 0], [0, 0, 0]]) test(`Market-only au
   const reader = await f.service.readReaderReport(workspaceId, runId, built.revision.revisionId);
   const readerSample = reader.bytes.toString().match(/<div class="test-review-sample">[\s\S]*?<\/div>/u)![0];
   const plain = (value: string) => value.replace(/<sup class="cite">[\s\S]*?<\/sup>/gu, '').replace(/<[^>]*>/gu, '').replace(/\s+/gu, ' ').trim();
-  assert.equal(plain(readerSample), plain(sample));
+  // L8: current automation attributes the sample to the system; shared legacy bytes stay frozen.
+  const legacyIntro = 'Đây là mẫu thử nhỏ, tối đa 20 đánh giá mỗi sản phẩm, được thu cho báo cáo thử nghiệm. Mẫu này không đại diện cho toàn bộ đánh giá.';
+  const currentIntro = 'Đây là mẫu nhỏ, tối đa 20 đánh giá mỗi sản phẩm, được hệ thống thu để đọc trong báo cáo. Mẫu này không đại diện cho toàn bộ đánh giá.';
+  assert.ok(plain(readerSample).includes(legacyIntro));
+  assert.ok(plain(sample).includes(currentIntro));
+  assert.equal(plain(readerSample), plain(sample).replace(currentIntro, legacyIntro));
   assert.doesNotThrow(() => assertMarketBusinessGate(reader.bytes.toString(), { presentation: false }));
   const recordRow = f.db.prepare('SELECT input_sha256 sha FROM analysis_reader_report_revisions WHERE revision_id=?').get(built.revision.revisionId) as { sha: string };
   const record = await readJson(recordRow.sha);
@@ -167,16 +172,16 @@ test('Market deduplication pins only rendered bytes and section explanations; In
   // 2480414f replaces M04's duplicate capture rows and M13's duplicate scope
   // with pointers. This fixture has no inventory, so M05 retains its tables.
   // Package C adds exhibit-backed Phần 1 findings and its data badge.
-  assert.equal(digest(market.html), '0bec39867725e9d4b0d6c51908bc2adaaf9e184d2be7a271e6846d01890a5a86');
+  assert.equal(digest(market.html), '9b736f4f39cae7011d60ed383c5f11f569b830b9e447e2883c74532660a983e4');
   // All nine semantic citations remain. The sample calculation moves from citation 1 to 3;
   // the per-platform calculation moves from 3 to 1 and gains methodVersion/rounding metadata.
   // Deduplication additionally changes only the M04 and M13 explanations;
   // retained methods, M05 methodOutput and semantic citations stay identical.
-  assert.equal(digest(canonicalJson(market.semantic)), '671089c001264c32f0f88002ad4b9aedc713667fbafc7327ccfa1b2d5f4bd57a');
+  assert.equal(digest(canonicalJson(market.semantic)), '7c67a4170987b988b8e9f18ff7294fef370a185d3613d8e2a5b6767475e4cf8d');
   // The proofread review restores raw capture row/page/display counts inside the technical details.
   // The trace includes the same M04/M13 pointers and revised explanations.
   // Its old platform statements remain in a trace-only disclosure.
-  assert.equal(digest(market.traceHtml!), 'db6b70b5f75c669e0ab042d4bba922235121746dc0e91149d547a5dbf8faa2d8');
+  assert.equal(digest(market.traceHtml!), '3654e45a08d6fba22e2eb23a238108fcf7b208abba3d8508a74d9c3b69017513');
   const insight = buildResearchAutomationReport(input, 'INSIGHT');
   assert.equal(digest(insight.html), '7163940cc6c424f6c1a2fc73c7af9458e1a50d3957adaa8d43802a8caf6ba08d');
   assert.equal(digest(canonicalJson(insight.semantic)), '21c5fa1d4be2b577cc196d0508e84342b0953f1a16ed6505eccbb784b8f05294');

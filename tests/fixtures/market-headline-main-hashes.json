@@ -1,7 +1,7 @@
 {
   "capture-market": {
     "html": "b47fe6f0eeaa47eef354d4ad707dc4f66ab1348ed05740d7ec6424f3d3fffe5e",
-    "semantic": "671089c001264c32f0f88002ad4b9aedc713667fbafc7327ccfa1b2d5f4bd57a",
+    "semantic": "7c67a4170987b988b8e9f18ff7294fef370a185d3613d8e2a5b6767475e4cf8d",
     "trace": "9a9dca7637b8c9569c46ea71a2443ba31fd267494924f58a7b166ecef68a7181"
   },
   "capture-insight": {
@@ -10,9 +10,9 @@
     "trace": null
   },
   "no-capture-market": {
-    "html": "a91f5dd8926755b3c11eaff2888e9e8d2192f96c564cc51c911327e65430bca2",
-    "semantic": "cfefb08635d39a3ddecef46ab0475becb75c7391a2ba5fffc6858dbb1f88047d",
-    "trace": "ce4cc7127f949f96de4230527b05cd35c57063b0fa91f35a65a0c08703d5395f"
+    "html": "37193ad1a32f125d5eb5aa5d35f37457642b11e15ef92c3a4f539a8327ac743e",
+    "semantic": "de585c1f267a1d36644443579f4b684e9767a6fa1b7502f3b87c465e3224c3fc",
+    "trace": "88094400c2b0557464ba50d301a8a27a0107c29bcc9d396baac75a26754b8977"
   },
   "no-capture-insight": {
     "html": "7163940cc6c424f6c1a2fc73c7af9458e1a50d3957adaa8d43802a8caf6ba08d",
@@ -20,9 +20,9 @@
     "trace": null
   },
   "no-figure-4.1-market": {
-    "html": "7b35858c560c81a3149daefc155ac775053428a10998f072ceb2ce96a258b349",
-    "semantic": "ead5bdf2e339fefd90dedbe42207904118e1260f6f21d748b288ae2ddd1d3ffc",
-    "trace": "b521faec68c25e4041387425384acf2aa69101b94707c88d8f7398eb680d5801"
+    "html": "a8401f73688adadd1fd02d516f12af3460047cbd2e57dbb14db5b446a7e7f0f0",
+    "semantic": "ee498e775aadef6a9bcc3fe6ec2207f37ce32985ad5b59c53a3b35f752a4b785",
+    "trace": "d20d57a5cc87d4a7b9e7bff9613175f864a2cfca6ab31504337472ed057208a9"
   },
   "legacy-capture-market": {
     "html": "92ada31fa0a8a276d05aedc38fe418c3b5204f0750ef89020453a998526c6da9",

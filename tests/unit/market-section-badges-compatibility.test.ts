@@ -9,7 +9,7 @@ import { fullMarket14Input } from '../helpers/market14-full-fixture.js';
 import { plainM09ControlInput } from '../helpers/market-section-badges-fixture.js';
 
 // Independently computed on the feature's parent 82459bb9, Node 24.15.0.
-// These controls must never be re-pinned for package D.
+// R changes only market14 section copy; legacy, Insight and plain-m09 pins stay frozen.
 const baseline = JSON.parse(readFileSync(new URL('../fixtures/market-section-badges-main-hashes.json', import.meta.url), 'utf8')) as
   Record<string, { html: string; semantic: string; trace: string | null }>;
 const hash = (value: string | Uint8Array) => createHash('sha256').update(value).digest('hex');
@@ -21,7 +21,7 @@ for (const name of ['legacy-market', 'insight', 'market14', 'plain-m09'] as cons
   const value = name === 'legacy-market' ? legacy : name === 'plain-m09' ? await plainM09ControlInput() : input;
   const report = buildResearchAutomationReport(value, name === 'insight' ? 'INSIGHT' : 'MARKET');
   const expected = baseline[name]!;
-  assert.equal(hash(canonicalJson(report.semantic)), expected.semantic, 'semantic JSON retains parent bytes');
+  assert.equal(hash(canonicalJson(report.semantic)), expected.semantic, 'reviewed current copy or frozen historical semantic bytes');
   if (name !== 'market14') {
     assert.equal(hash(report.html), expected.html, 'reader HTML retains parent bytes');
     assert.equal(report.traceHtml ? hash(report.traceHtml) : null, expected.trace, 'trace identity includes absence');
