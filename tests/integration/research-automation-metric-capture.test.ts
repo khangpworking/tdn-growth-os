@@ -250,12 +250,13 @@ test('capture-backed Market presentation passes rules 1, 2, 3, 5, 7, 9 and 11 wi
     assert.match(sources, /Báo cáo chưa có [^.;]*dữ liệu bình luận của khách/u);
     assert.doesNotMatch(sources, /Dữ liệu đánh giá sản phẩm trên Shopee|Dữ liệu bình luận của khách trên Shopee/u, 'a skipped review source is not listed as used');
     assert.doesNotMatch(reportVisibleText(dom.window.document), /shopee\.vn|product\/\d/iu, 'a skipped review scope keeps listing locators out of reader text');
-    // No owner-accepted classification, so M03 is a source table; the per-platform
-    // record-count figure still has to reach the reader, once, drawn by Flint.
+    // No owner-accepted classification, so M03 is a source table. Package F+ (M9)
+    // states the per-platform record count once, as a sample sentence, not as a figure.
     assert.equal(semantic.metricClassified ?? null, null);
-    const captions = [...dom.window.document.querySelectorAll('figcaption')].filter(caption => /^Bản ghi sản phẩm — /u.test(caption.textContent!));
-    assert.deepEqual(captions.map(caption => [caption.closest('section.sheet')?.id, caption.textContent]), [['M03', 'Bản ghi sản phẩm — Shopee']]);
-    assert.equal(captions[0]!.parentElement!.querySelector('.chart')?.getAttribute('data-engine'), 'flint');
+    const m03 = dom.window.document.getElementById('M03')!;
+    assert.equal([...m03.querySelectorAll('figure')].filter(figure => /Bản ghi sản phẩm/u.test(figure.textContent!)).length, 0, 'no record-count figure');
+    const counts = [...m03.querySelectorAll('p')].filter(p => /^Mẫu Shopee: n = \d+ dòng sản phẩm/u.test(p.textContent!.trim()));
+    assert.equal(counts.length, 1, 'one Shopee record-count sentence');
   } finally { dom.window.close(); }
   const output = path.join(f.root, 'presented.html');
   await fs.writeFile(output, html);
