@@ -303,8 +303,8 @@ export async function publicScenario(t:TestContext, options:ScenarioOptions={}, 
     retryBaseCheckpoint:async()=>{const before=canonicalJson(db.prepare('SELECT * FROM analysis_research_automation_review_stages WHERE run_id=?').all(runId));const moved=await service.processNext();const after=canonicalJson(db.prepare('SELECT * FROM analysis_research_automation_review_stages WHERE run_id=?').all(runId));return {exactRetry:!moved&&before===after};},
     persistBaseCheckpoint:async()=>{db.transaction(()=>{db.prepare('INSERT INTO analysis_research_automation_review_stages SELECT * FROM analysis_research_automation_review_stages WHERE run_id=?').run(runId);})()},
     reopenSettledStep:async()=>{db.prepare("UPDATE analysis_research_automation_steps SET state='RUNNING' WHERE run_id=? AND step_id='COLLECTION'").run(runId);},
-    loadLegacyBaselines:async()=>{
-      let enabled=false;const baseline=fileURLToPath(new URL('../fixtures/shopee-public-g-references/',import.meta.url));
+    loadLegacyBaselines:async(baselineUrl = new URL('../fixtures/shopee-public-g-references/',import.meta.url))=>{
+      let enabled=false;const baseline=fileURLToPath(baselineUrl);
       let current=await candidateBaselines(t,{TDN_TEST_PUBLIC_REPLAY:'0'});
       await assertLegacyBaselineMatches(current,baseline);
       const allBytes=async()=>legacyBaselineBytes(current);

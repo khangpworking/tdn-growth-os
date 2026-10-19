@@ -31,7 +31,7 @@ const REGIONS = ['Trung du và miền núi phía Bắc', 'Đồng bằng sông H
 function geoBlock(html: string) {
   const doc = new JSDOM(html).window.document;
   const section = doc.querySelector('#M05') ?? doc.querySelector('#phan-5')!;
-  const head = [...section.querySelectorAll('.exn')].find(item => /^Bảng 5\.2$/u.test(item.textContent!.trim()));
+  const head = [...section.querySelectorAll('.exn')].find(item => item.textContent!.trim() === (section.id === 'M05' ? 'Bảng 5.1' : 'Bảng 5.2'));
   const table = head ? head.closest('.table-wrap, .ex')!.querySelector('table')! : null;
   return { doc, section, head, table, text: section.textContent!.replace(/\s+/gu, ' ') };
 }
@@ -52,7 +52,7 @@ function assertBlock(html: string, choice: RegExp) {
   assert.doesNotMatch(text, /Dùng để:|chọn kho|chạy quảng cáo|nhất|hàng đầu|ưu tiên/u);
   for (const lead of ['Thấy gì:', 'Cách đọc:', 'Đừng hiểu là:']) assert.ok(text.includes(lead), lead);
   assert.match(text, /Chú thích: Chỉ số tương đối từ 0 đến 100 theo tỉnh/u);
-  const figure = [...section.querySelectorAll('figure')].find(item => item.textContent!.includes('Hình 5.2'));
+  const figure = [...section.querySelectorAll('figure')].find(item => item.matches('[data-search-interest]') || !item.closest('#M05') && item.textContent!.includes('Hình 5.2'));
   if (figure) assert.ok(figure.compareDocumentPosition(head!) & 4, 'right after Hình 5.2');
   assert.doesNotMatch(textOf(html), /Google|serpapi|Metric|Kalodata|TradeInt|Dami|NVIDIA|Jev/iu);
 }

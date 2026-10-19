@@ -69,7 +69,7 @@ test('the first array entry is retained when it is the search peak', async () =>
   const dom = new JSDOM(report.html.toString());
   try {
     const item = [...dom.window.document.querySelectorAll('#M01 .market-findings > li')]
-      .find(li => li.textContent!.includes('Hình 5.2'))!;
+      .find(li => li.textContent!.includes('Hình 5.1'))!;
     assert.ok(item);
     assert.ok(item.textContent!.includes(`tuần ${searchInterestReadingPoints(searchInterest)[0]!.period}, chỉ số 100`));
   } finally { dom.window.close(); }

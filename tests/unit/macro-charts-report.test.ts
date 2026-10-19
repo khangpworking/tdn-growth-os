@@ -49,7 +49,14 @@ const thinTrade = comtrade([row('MIRROR', 'Nước A', 'X', '2023', '3410000')])
 
 const figures = (html: string) => [...new JSDOM(html).window.document.querySelectorAll('figure')].map(figure => ({
   no: figure.querySelector('.exn')?.textContent ?? '', engine: figure.querySelector('.chart')?.getAttribute('data-engine') ?? '', text: figure.textContent!.replace(/\s+/gu, ' ') }));
-const figure = (html: string, no: string) => figures(html).find(item => item.no === no);
+// M8: presentationInput has no earlier sales/interest exhibits; only its macro data.
+// Versioned public templates keep all their original labels.
+const current = (html: string) => html.includes('id="M05"');
+const figureNo = (html: string, no: string) => current(html)
+  ? no.replace('Hình 5.3', 'Hình 5.1').replace('Hình 5.4', 'Hình 5.2') : no;
+const tableNo = (html: string, no: string) => current(html)
+  ? no.replace('Bảng 5.3', 'Bảng 5.1').replace('Bảng 5.4', 'Bảng 5.2').replace('Bảng 5.5', 'Bảng 5.3').replace('Bảng 6.2', 'Bảng 6.1') : no;
+const figure = (html: string, no: string) => figures(html).find(item => item.no === figureNo(html, no));
 const machineFailures = (html: string) => auditMarket14(html, undefined, { requireFlint: true }).filter(item => item.kind === 'machine' && !item.ok).map(item => item.rule);
 
 // v2 reader renderer
@@ -67,7 +74,7 @@ test('current Market renderers pin unscaled per-person charts and corrected cont
   const hash = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
   assert.equal(hash((await reader({ worldBank: fullWorldBank() }, false)).html), '2c6bf440c35405eebeede37f08f57764e549cdc42041bf26b958952340d1d02e');
   // Package C changes only capture Market Phần 1 findings and its data badge.
-  assert.equal(hash(buildResearchAutomationReport(await fullMarket14Input(), 'MARKET').html), '8e17b680f2ee968a797cbe50aea28be736ab8b976918350f38ceb5ae66fa4f38');
+  assert.equal(hash(buildResearchAutomationReport(await fullMarket14Input(), 'MARKET').html), '3abd254fededcc10b68a8cf8fbdfe6eea3a5b02685fc78695ce45d1f706dd511');
 });
 
 test('v2 reader: World Bank lines are Hình 5.3/5.4 after Bảng 5.3 and Comtrade bars are Hình 6.1/6.2 after Bảng 6.2, all Flint', async () => {
@@ -98,7 +105,7 @@ test('v2 reader: absent data, old documents without a series and one mirror row 
   const plain = (await reader()).html;
   assert.equal((await reader({ worldBank: { profile: 'p', indicators: [] } })).html, plain, 'no rows, no bytes');
   const tables = (await reader({ worldBank: worldBank(false), comtrade: thinTrade })).html;
-  assert.doesNotMatch(tables, /Hình 5\.3|Hình 6\.1/u);
+  assert.doesNotMatch(tables, /data-chart-id="M0[56]\.(?:world-bank|comtrade)/u);
   assert.notEqual(tables, plain, 'the tables still render');
   // Same table rows with a stored series: the figures are the only difference.
   const drawn = (await reader({ worldBank: worldBank(true), comtrade: thinTrade })).html;
@@ -185,14 +192,14 @@ test('both Market renderers show source precision, source-name units and a round
   const automationHtml = draftHtml(await presentationInput({ worldBank: updated, comtrade: fullTrade }));
   for (const html of [readerHtml, automationHtml]) {
     const doc = new JSDOM(html).window.document;
-    const table = [...doc.querySelectorAll('.table-wrap, .ex')].find(node => /Bảng 5\.3/u.test(node.textContent!))!;
+    const table = [...doc.querySelectorAll('.table-wrap, .ex')].find(node => node.querySelector('.exn')?.textContent === tableNo(html, 'Bảng 5.3'))!;
     assert.match(table.textContent!, /101\.598\.527 người/u);
     assert.match(table.textContent!, /2\.382 USD\/người, giá cố định năm 2015/u);
     assert.doesNotMatch(table.textContent!, /nguồn chưa ghi đơn vị|2\.381,888|%/u);
     assert.equal((table.textContent!.match(/Các giá trị được làm tròn theo độ chính xác do nguồn công bố\./gu) ?? []).length, 1);
     assert.match(figure(html, 'Hình 5.3')!.text, /triệu người/u);
     assert.match(figure(html, 'Hình 5.4')!.text, /USD\/người, giá cố định năm 2015/u);
-    const consumptionFigure = [...doc.querySelectorAll('figure')].find(node => /Hình 5\.4/u.test(node.textContent!))!;
+    const consumptionFigure = [...doc.querySelectorAll('figure')].find(node => node.querySelector('.exn')?.textContent === figureNo(html, 'Hình 5.4'))!;
     const reading = consumptionFigure.nextElementSibling;
     if (reading?.classList.contains('interp')) assert.match(reading.textContent!, /2\.382 USD\/người, giá cố định năm 2015/u);
     for (const [code, expected] of [['NE.CON.PRVT.PC.KD', '2.382 USD/người, giá cố định năm 2015'], ['SP.POP.TOTL', '101.598.527 người']]) {
@@ -228,12 +235,12 @@ test('both renderers: World Bank figures, national and province tables, and Comt
   for (const html of [readerHtml, automationHtml]) {
     const doc = new JSDOM(html).window.document;
     const exhibits = [...doc.querySelectorAll('.exn')].map(node => node.textContent!.trim());
-    const start = exhibits.indexOf('Bảng 5.3');
+    const start = exhibits.indexOf(tableNo(html, 'Bảng 5.3'));
     assert.ok(start >= 0);
-    assert.deepEqual(exhibits.slice(start, start + 5), ['Bảng 5.3', 'Hình 5.3', 'Hình 5.4', 'Bảng 5.4', 'Bảng 5.5']);
-    const trade = exhibits.indexOf('Bảng 6.2');
+    assert.deepEqual(exhibits.slice(start, start + 5), ['Bảng 5.3', 'Hình 5.3', 'Hình 5.4', 'Bảng 5.4', 'Bảng 5.5'].map(no => no.startsWith('Bảng') ? tableNo(html, no) : figureNo(html, no)));
+    const trade = exhibits.indexOf(tableNo(html, 'Bảng 6.2'));
     assert.ok(trade > start + 4);
-    assert.deepEqual(exhibits.slice(trade, trade + 3), ['Bảng 6.2', 'Hình 6.1', 'Hình 6.2']);
+    assert.deepEqual(exhibits.slice(trade, trade + 3), [tableNo(html, 'Bảng 6.2'), 'Hình 6.1', 'Hình 6.2']);
     for (const no of ['Hình 5.3', 'Hình 5.4', 'Hình 6.1', 'Hình 6.2']) assert.equal(figure(html, no)?.engine, 'flint', no);
     const m05 = doc.querySelector('#phan-5, #M05')!.textContent!;
     for (const text of [WORLD_BANK_LIMIT, OFFICIAL_STATS_LIMIT, OFFICIAL_STATS_PROVINCE_NOTE, OFFICIAL_STATS_PROVINCE_LIMIT]) assert.ok(m05.includes(text), text);
@@ -251,14 +258,14 @@ test('both renderers: World Bank figures, national and province tables, and Comt
 test('automation report: the four macro figures are Flint, numbered after their tables, and pass the gates and the 14 rules with requireFlint', async () => {
   const html = draftHtml(await presentationInput({ worldBank: worldBank(true), comtrade: fullTrade }));
   const list = figures(html);
-  for (const no of ['Hình 5.3', 'Hình 5.4', 'Hình 6.1', 'Hình 6.2']) assert.equal(list.find(item => item.no === no)?.engine, 'flint', no);
+  for (const no of ['Hình 5.3', 'Hình 5.4', 'Hình 6.1', 'Hình 6.2']) assert.equal(list.find(item => item.no === figureNo(html, no))?.engine, 'flint', no);
   // G/L11: English branding was the current-reader defect; the versioned source pin above stays unchanged.
   assert.ok(figure(html, 'Hình 5.3')!.text.includes('Ngân hàng Thế giới, giấy phép CC BY 4.0.') && figure(html, 'Hình 5.3')!.text.includes(WORLD_BANK_CHART_NOTE));
   assert.ok(figure(html, 'Hình 6.1')!.text.includes(COMTRADE_SRC) && figure(html, 'Hình 6.1')!.text.includes(COMTRADE_MIRROR_NOTE));
   assert.ok(figure(html, 'Hình 6.2')!.text.includes(COMTRADE_OWN_NOTE));
   const doc = new JSDOM(html).window.document;
-  assert.ok(doc.querySelector('#M05')!.textContent!.indexOf('Bảng 5.3') < doc.querySelector('#M05')!.textContent!.indexOf('Hình 5.3'));
-  assert.ok(doc.querySelector('#M06')!.textContent!.indexOf('Bảng 6.2') < doc.querySelector('#M06')!.textContent!.indexOf('Hình 6.1'));
+  assert.ok(doc.querySelector('#M05')!.textContent!.indexOf(tableNo(html, 'Bảng 5.3')) < doc.querySelector('#M05')!.textContent!.indexOf(figureNo(html, 'Hình 5.3')));
+  assert.ok(doc.querySelector('#M06')!.textContent!.indexOf(tableNo(html, 'Bảng 6.2')) < doc.querySelector('#M06')!.textContent!.indexOf('Hình 6.1'));
   assert.doesNotThrow(() => assertMarketBusinessGate(html, { presentation: true, partialTotals: [] }));
   const gate = auditMarketReportHtml(html, { presentation: true, partialTotals: [] });
   for (const rule of ['NO_LEAK', 'G08_PROVIDER_NAME', 'WORLD_BANK_NOT_ARITHMETIC']) { const hit = gate.find(item => item.rule === rule); if (hit) assert.equal(hit.ok, true, rule); }
@@ -268,15 +275,15 @@ test('automation report: the four macro figures are Flint, numbered after their 
 test('automation report: no data or no drawable series changes no byte, and a drawable series needs its pre-drawn figure', async () => {
   const none = draftHtml(await presentationInput());
   assert.equal(draftHtml(await presentationInput({ worldBank: worldBank(false), comtrade: thinTrade })), draftHtml(await presentationInput({ worldBank: worldBank(false), comtrade: thinTrade }, false)));
-  assert.doesNotMatch(none, /Hình 5\.3|Hình 6\.1/u);
-  assert.doesNotMatch(draftHtml(await presentationInput({ worldBank: worldBank(false), comtrade: thinTrade })), /Hình 5\.3|Hình 6\.1/u);
+  assert.doesNotMatch(none, /data-chart-id="M0[56]\.(?:world-bank|comtrade)/u);
+  assert.doesNotMatch(draftHtml(await presentationInput({ worldBank: worldBank(false), comtrade: thinTrade })), /data-chart-id="M0[56]\.(?:world-bank|comtrade)/u);
   // Same tables, figures withdrawn: only the figures and their required interpretations differ.
   const drawnWb = draftHtml(await presentationInput({ worldBank: worldBank(true) }));
   const doc = new JSDOM(drawnWb).window.document;
-  const macroFigures = [...doc.querySelectorAll('figure')].filter(figure => /Hình 5\.[34]/u.test(figure.textContent!));
+  const macroFigures = [...doc.querySelectorAll('figure')].filter(figure => Boolean(figure.querySelector('[data-chart-id^="M05.world-bank."]')));
   assert.equal(macroFigures.length, 2);
   for (const figure of macroFigures) assert.equal(figure.nextElementSibling?.className, 'interp');
-  assert.equal(stripFigures(drawnWb, /Hình 5\.[34]/u), draftHtml(await presentationInput({ worldBank: worldBank(false) })));
+  assert.equal(stripFigures(drawnWb, current(drawnWb) ? /Hình 5\.[12]/u : /Hình 5\.[34]/u), draftHtml(await presentationInput({ worldBank: worldBank(false) })));
 });
 test('automation report: a drawable series without its pre-drawn figure throws', async () => {
   const wb = await presentationInput({ worldBank: worldBank(true) }, false);

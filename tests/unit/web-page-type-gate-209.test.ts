@@ -96,7 +96,7 @@ test('a Market presentation with how-to, news and other rows passes every gate a
   const built = buildResearchAutomationReport(withWeb(packet), 'MARKET');
   const html = built.html.toString('utf8');
   const document = new JSDOM(html).window.document;
-  const table = [...document.querySelectorAll('table')].find(t => t.querySelector('caption')?.textContent?.startsWith('Kết quả tìm kiếm trên web'));
+  const table = [...document.querySelectorAll('table')].find(t => (t.querySelector('caption .ext') ?? t.querySelector('caption'))?.textContent?.startsWith('Kết quả tìm kiếm trên web'));
   assert.ok(table, 'the saved search result table is rendered');
   const heads = [...table.querySelectorAll('th')].map(th => th.textContent);
   const typeAt = heads.indexOf('Loại trang');
@@ -126,7 +126,7 @@ test('a Google, operator or spaced provider name in an admitted title, site, dat
     start: { ...input.start, sourceEvidenceVersion: 'automation-source-evidence-v1' },
     collection: { runId, stepId: 'COLLECTION', webResults, coverage: [], comparables: [] } } as unknown as AutomationReportInput, 'MARKET').html.toString('utf8');
   const document = new JSDOM(html).window.document;
-  const table = [...document.querySelectorAll('table')].find(t => t.querySelector('caption')?.textContent?.startsWith('Kết quả tìm kiếm trên web'))!;
+  const table = [...document.querySelectorAll('table')].find(t => (t.querySelector('caption .ext') ?? t.querySelector('caption'))?.textContent?.startsWith('Kết quả tìm kiếm trên web'))!;
   const body = [...table.querySelectorAll('tbody tr')].map(tr => [...tr.querySelectorAll('td')].map(td => td.textContent ?? ''));
   assert.equal(body.length, 4, 'rows stay; only their copied text is withheld');
   assert.deepEqual(body.map(cells => cells[1]), [WEB_TITLE_WITHHELD, WEB_TITLE_WITHHELD, WEB_TITLE_WITHHELD, 'Thạch dừa sạch']);

@@ -27,6 +27,8 @@ const failing = (html: string) => ({
   gate: auditMarketReportHtml(html, { presentation: false }).filter(item => !item.ok).map(item => item.rule),
   rules: auditMarket14(html).filter(item => item.kind === 'machine' && !item.ok).map(item => item.rule),
 });
+const isSearchFigure = (item: Element) => item.matches('[data-search-interest="1"]')
+  || !item.closest('#M05') && /Hình 5\.2/u.test(item.textContent!);
 const deniedAsCount = (text: string) => { const hits = [...text.matchAll(/lượt tìm kiếm/gu)]; return hits.length > 0 && hits.every(hit => /không phải số\s*$/iu.test(text.slice(Math.max(0, hit.index! - 16), hit.index!))); };
 
 async function reader(searchInterest?: StepSearchInterest, version: '1.3.0' | '1.4.0' = '1.4.0', flint = true) {
@@ -40,7 +42,7 @@ async function reader(searchInterest?: StepSearchInterest, version: '1.3.0' | '1
 test('reader report: the series sits in the demand section on its own axis, as a relative index', async () => {
   const built = await reader(syntheticSearchInterest());
   const doc = new JSDOM(built.html).window.document, demand = doc.querySelector('#phan-5')!;
-  const figure = [...demand.querySelectorAll('figure')].find(item => item.textContent!.includes('Hình 5.2'))!;
+  const figure = [...demand.querySelectorAll('figure')].find(isSearchFigure)!;
   assert.ok(figure, 'Hình 5.2 is in the demand section');
   assert.equal(figure.querySelector('.chart')!.getAttribute('data-engine'), 'flint');
   assert.equal(figure.querySelectorAll('table').length, 0);
@@ -118,8 +120,9 @@ test('presentation build with a series passes the business gate, the partial-tot
   const rules = auditMarket14(html);
   for (const id of ['4', '11', '13']) assert.equal(rules.find(rule => rule.rule === id)!.ok, true, `rule ${id}: ${rules.find(rule => rule.rule === id)!.detail}`);
   const doc = new JSDOM(html).window.document, demand = doc.querySelector('#M05')!;
-  const figure = [...demand.querySelectorAll('figure')].find(item => item.textContent!.includes('Hình 5.2'))!;
+  const figure = [...demand.querySelectorAll('figure')].find(isSearchFigure)!;
   assert.ok(figure);
+  assert.equal(figure.querySelector('.exn')!.textContent, 'Hình 5.1');
   assert.equal(figure.querySelectorAll('table').length, 0);
   assert.match(figure.textContent!, /chỉ số tương đối/u);
   assert.match(figure.textContent!, /Không phải số lượt tìm kiếm, không phải doanh số/u);
@@ -136,7 +139,7 @@ test('presentation build with a series passes the business gate, the partial-tot
 test('presentation build: a series the report cannot draw is silent, and a drawn series needs its chart', async () => {
   const none = draftHtml(await presentationInput());
   for (const value of unusable) assert.equal(draftHtml(await presentationInput(value)), none, value.status);
-  assert.doesNotMatch(none, /Hình 5\.2/u);
+  assert.equal(new JSDOM(none).window.document.querySelector('figure[data-search-interest]'), null);
   assert.deepEqual(flintCharts(none), ['flint', 'flint', 'flint']);
   const input = await presentationInput(syntheticSearchInterest(), false);
   assert.throws(() => draftHtml(input), /SEARCH_INTEREST_CHART_MISSING/u);
@@ -153,7 +156,7 @@ test('both readers omit a retrieved in-progress week and the automated reading u
   for (const html of [(await reader(interest)).html, draftHtml(await presentationInput(interest))]) {
     const doc = new JSDOM(html).window.document;
     const section = doc.querySelector('#M05, #phan-5')!;
-    const figure = [...section.querySelectorAll('figure')].find(node => node.textContent!.includes('Hình 5.2'))!;
+    const figure = [...section.querySelectorAll('figure')].find(isSearchFigure)!;
     assert.match(figure.innerHTML, /11–17\/10\/2026/u);
     assert.doesNotMatch(figure.innerHTML, /18–24|thg|chi_so[^;]*: 99/u);
     const reading = figure.nextElementSibling;
@@ -173,7 +176,7 @@ test('filtering all dated values leaves no empty search chart in either reader',
   ] });
   for (const html of [(await reader(interest)).html, draftHtml(await presentationInput(interest))]) {
     const doc = new JSDOM(html).window.document;
-    assert.ok([...doc.querySelectorAll('figure')].every(node => !/Hình 5\.2/u.test(node.textContent!)));
+    assert.ok([...doc.querySelectorAll('figure')].every(node => !isSearchFigure(node)));
     assert.match(doc.querySelector('#M05, #phan-5')!.textContent!, /Chưa có tuần đã kết thúc có số liệu tìm kiếm/u);
   }
 });
@@ -185,7 +188,7 @@ test('missing retrieval time withholds the chart and explains the empty state in
   for (const html of [(await reader(interest)).html, draftHtml(await presentationInput(interest, false))]) {
     const doc = new JSDOM(html).window.document;
     const section = doc.querySelector('#M05, #phan-5')!;
-    assert.ok([...section.querySelectorAll('figure')].every(node => !/Hình 5\.2/u.test(node.textContent!)));
+    assert.ok([...section.querySelectorAll('figure')].every(node => !isSearchFigure(node)));
     const empty = [...section.querySelectorAll('p')].find(node => /Chưa có tuần đã kết thúc/u.test(node.textContent!));
     assert.ok(empty, 'the missing search chart has a plain explanation');
     assert.doesNotMatch(empty.textContent!, /%|\b0\b|Google|SerpApi/u);

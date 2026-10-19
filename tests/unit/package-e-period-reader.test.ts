@@ -21,7 +21,7 @@ import { SYNTHETIC_CARD_ID } from '../helpers/research-synthetic-sources.js';
 const hash = (value: string | Uint8Array) => createHash('sha256').update(value).digest('hex');
 const amount = (value: string | number) => Number(value).toLocaleString('vi-VN');
 const cells = (row: Element) => [...row.querySelectorAll('td')].map(cell => cell.textContent!);
-const priceHeader = 'Giá bình quân do nguồn tính (ước tính)';
+const priceHeader = 'Giá bình quân do nguồn tính, ước tính (VND)';
 const priceNote = 'Chú thích: Mỗi sản phẩm giữ lần thu sau cùng. Giá bình quân là số nguồn tính, chưa xác minh; chưa dùng để tính giá vốn hoặc lợi nhuận.';
 const missingRangeNote = 'Dấu “—” cho biết chưa có khoảng giá nguồn dùng được.';
 
@@ -82,7 +82,7 @@ test('all unknown references omit the platform column in both inventory tables',
   const captures = periodCaptures().map(capture => ({ ...capture, key: `unresolved:${capture.ordinal}` }));
   const snapshot = periodInventory(captures), context = { platforms: new Map<string, string>() };
   const period = view(t, 'M03', snapshot, context, new Map());
-  assert.deepEqual([...period.table.querySelectorAll('th')].map(cell => cell.textContent), ['Sản phẩm', 'Kỳ đo', 'Doanh thu (VND)', 'Sản lượng bán', 'Nguồn']);
+  assert.deepEqual([...period.table.querySelectorAll('th')].map(cell => cell.textContent), ['Sản phẩm', 'Kỳ đo', 'Doanh thu (VND)', 'Sản lượng bán (đơn vị bán)', 'Nguồn']);
   assert.equal(period.table.querySelectorAll('th').length, 5);
   assert.ok(period.rows.every(row => cells(row)[1]!.startsWith('01/')));
   const price = view(t, 'M08', snapshot, context, new Map());

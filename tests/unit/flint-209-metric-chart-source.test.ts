@@ -52,7 +52,7 @@ test('capture rows keep their platform and saved results-table row, and every no
   const charts = await renderMarketCharts(rows, { ...options, flint: false });
   assert.equal(charts.length, 3);
   for (const chart of charts) assert.match(chart.note, /các dòng đầu được giữ của bảng kết quả tìm kiếm/);
-  assert.match(charts[2]!.note, /bảng kết quả tìm kiếm đã lưu/);
+  assert.match(charts[2]!.note, /mỗi nhãn ghi sàn và mã dòng, đúng mã ở cột Mã dòng của bảng mẫu cùng sàn/u);
   const revenue = charts.find(chart => chart.kind === 'platform-revenue')!;
   assert.doesNotMatch(revenue.svg, />7(?:[.,]0)?</, 'no cross-platform total');
 });

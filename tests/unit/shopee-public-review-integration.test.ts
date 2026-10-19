@@ -296,11 +296,11 @@ test('S4 bounded corpus fallback retains exact capture/accounting and a verified
   assert.equal((await g.semantic()).publicReviewCorpusFailure, 'PUBLIC_REVIEW_CORPUS_TOO_LARGE'); assert.ok(await g.sanitizedCapture()); assert.ok(await g.accounting());
 });
 
-test('S9 fresh G-references fixture artifact membership and bytes match candidate output exactly', async t => {
-  // Fresh output at ae561389 plus the reviewed plainCaptureNumbers wording fix.
-  const baselineRoot = new URL('../fixtures/shopee-public-g-references/', import.meta.url);
+test('S9 fresh F+ merged fixture artifact membership and bytes match candidate output exactly', async t => {
+  // Fresh output after F+ presentation fixes and the merged G-references wording fix.
+  const baselineRoot = new URL('../fixtures/shopee-public-f-plus/', import.meta.url);
   const manifest = JSON.parse(await fs.readFile(new URL('manifest.json', baselineRoot), 'utf8'));
-  assert.equal(manifest.revision, 'ae561389ae9c74d882b1ff8195ce0ba455b9fb94+wording-fix');
+  assert.equal(manifest.revision, '2db225d22c52dbd1213b68673302d19a77a3749d');
   const decode = (bytes: Buffer): Map<string, Buffer> => new Map(JSON.parse(gunzipSync(bytes).toString()).map((r: any) => [r.name, Buffer.from(r.base64, 'base64')]));
   const reference = decode(await fs.readFile(new URL('artifacts.json.gz', baselineRoot)));
   for (const env of [{}, { TDN_RESEARCH_SHOPEE_PUBLIC_TOKEN: '\n', TDN_RESEARCH_SHOPEE_PUBLIC_BASE_URL: 'invalid', TDN_RESEARCH_SHOPEE_PUBLIC_MAX_COMMENTS_PER_PRODUCT: '01' }]) {
@@ -317,7 +317,7 @@ test('S9 fresh G-references fixture artifact membership and bytes match candidat
   }
 });
 test('S9 retained source replay while public runtime is enabled keeps same-code bytes and factory untouched', async t => {
-  const f = await binding.scenario(t); const old = await f.loadLegacyBaselines(); const before = await old.allBytes();
+  const f = await binding.scenario(t); const old = await f.loadLegacyBaselines(new URL('../fixtures/shopee-public-f-plus/', import.meta.url)); const before = await old.allBytes();
   const membersBefore = await old.allMembers();
   await old.setRuntime({ enabled: true }); await old.readReportsAndSources(); assert.deepEqual(await old.allBytes(), before);
   const membersAfter = await old.allMembers();

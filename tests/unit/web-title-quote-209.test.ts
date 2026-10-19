@@ -74,7 +74,7 @@ function plainInput(webResults: StepWebResult[]): AutomationReportInput {
 
 const webTable = (html: string): Element => {
   const document = new JSDOM(html).window.document;
-  const table = [...document.querySelectorAll('table')].find(t => t.querySelector('caption')?.textContent?.startsWith('Kết quả tìm kiếm trên web'));
+  const table = [...document.querySelectorAll('table')].find(t => (t.querySelector('caption .ext') ?? t.querySelector('caption'))?.textContent?.startsWith('Kết quả tìm kiếm trên web'));
   assert.ok(table, 'the saved search result table is rendered');
   return table;
 };
