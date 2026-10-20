@@ -58,7 +58,7 @@ test('a Market presentation embeds the AI cover inside the cover text column and
   assert.equal(img.getAttribute('src'), `data:image/jpeg;base64,${ai.bytes.toString('base64')}`);
   assert.equal(img.getAttribute('alt'), marketCoverAlt('synthetic jar', 'ai-generated'));
   assert.equal(img.getAttribute('data-cover-provenance'), 'ai-generated');
-  assert.equal(img.getAttribute('data-cover-model'), 'gpt-image-2');
+  assert.equal(img.getAttribute('data-cover-model'), null);
   assert.deepEqual([img.getAttribute('width'), img.getAttribute('height')], ['1024', '576']);
   assert.equal(document.querySelector('meta[http-equiv="Content-Security-Policy"]')!.getAttribute('content'), CSP);
   assert.equal(new JSDOM(plain).window.document.querySelector('meta[http-equiv="Content-Security-Policy"]')!.getAttribute('content'), CSP);
