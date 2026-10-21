@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  createSearchInterestSource, searchInterestChartPoints, searchInterestCoversPeriod, searchInterestDocument, searchInterestRenderable, searchInterestUsage,
-  SEARCH_INTEREST_MIN_POINTS, SEARCH_INTEREST_WINDOW_DAYS, searchTrendsEnabled, type SearchInterestAttempt,
+  createSearchInterestSource, searchInterestChartPoints, searchInterestCoversPeriod, searchInterestDocument, searchInterestReadingPoints, searchInterestRenderable, searchInterestUsage,
+  searchInterestPeriodSkip, searchInterestRange, searchInterestSourceText, SEARCH_INTEREST_MIN_POINTS, searchTrendsEnabled, type SearchInterestAttempt,
 } from '../../src/modules/analysis/research-automation/search-interest.js';
 import type { TrendsCallResult } from '../../src/modules/analysis/research-automation/search-trends.js';
 import { MAX_SEARCH_INTEREST_POINTS } from '../../src/modules/analysis/research-automation/model.js';
-import { SYNTHETIC_OTHER_KEYWORD, SYNTHETIC_TRENDS_KEYWORD, syntheticSearchInterest, syntheticTrendsSource, syntheticWeeks, type SyntheticTrendsMode } from '../helpers/search-interest-synthetic.js';
+import { SYNTHETIC_SERP_KEY } from '../helpers/research-synthetic-sources.js';
+import { SYNTHETIC_OTHER_KEYWORD, SYNTHETIC_TRENDS_KEYWORD, syntheticSearchInterest, syntheticTrendsBody, syntheticTrendsSource, syntheticWeeks, type SyntheticTrendsMode } from '../helpers/search-interest-synthetic.js';
 
 const NOW = Date.parse('2026-10-02T00:00:00.000Z');
 const DAY = 86_400_000;
@@ -24,17 +25,14 @@ test('only the exact value "1" turns the flag on', () => {
   assert.equal(searchTrendsEnabled({}), false);
 });
 
-test('the period guard covers a common 12-month report and rejects what the fixed window cannot hold', () => {
-  assert.equal(searchInterestCoversPeriod({ startDate: '2025-10-01', endDate: '2026-09-30' }, NOW), true);
-  assert.equal(searchInterestCoversPeriod({ startDate: '2026-09-01', endDate: '2026-10-02' }, NOW), true);
-  const edge = iso(NOW - SEARCH_INTEREST_WINDOW_DAYS * DAY);
-  assert.equal(searchInterestCoversPeriod({ startDate: edge, endDate: '2026-09-30' }, NOW), true, 'the first allowed day');
-  assert.equal(searchInterestCoversPeriod({ startDate: iso(NOW - (SEARCH_INTEREST_WINDOW_DAYS + 1) * DAY), endDate: '2026-09-30' }, NOW), false, 'one day earlier');
-  assert.equal(searchInterestCoversPeriod({ startDate: '2024-01-01', endDate: '2024-12-31' }, NOW), false);
-  assert.equal(searchInterestCoversPeriod({ startDate: '2026-01-01', endDate: '2027-03-31' }, NOW), false, 'a period that ends in the future');
-  assert.equal(searchInterestCoversPeriod({ startDate: '2026-09-01', endDate: '2026-10-03' }, NOW), true, 'one day of clock slack');
-  assert.equal(searchInterestCoversPeriod({ startDate: '2026-09-01', endDate: '2026-10-04' }, NOW), false);
-  assert.equal(searchInterestCoversPeriod({ startDate: 'not-a-date', endDate: '2026-09-30' }, NOW), false);
+test('requested report periods are accepted with explicit provider range gates', () => {
+  assert.equal(searchInterestPeriodSkip({ startDate: '2024-01-01', endDate: '2024-12-31' }, NOW), null);
+  assert.equal(searchInterestCoversPeriod({ startDate: '2024-01-01', endDate: '2024-12-31' }, NOW), true);
+  assert.equal(searchInterestPeriodSkip({ startDate: '2003-12-31', endDate: '2004-01-02' }, NOW), 'PERIOD_BEFORE_PROVIDER_START');
+  assert.equal(searchInterestPeriodSkip({ startDate: '2026-09-01', endDate: '2026-10-04' }, NOW), 'PERIOD_IN_FUTURE');
+  assert.equal(searchInterestPeriodSkip({ startDate: '2026-10-02', endDate: '2026-09-01' }, NOW), 'PERIOD_INVALID');
+  assert.equal(searchInterestPeriodSkip({ startDate: 'bad', endDate: '2026-09-01' }, NOW), 'PERIOD_INVALID');
+  assert.deepEqual(searchInterestRange({ startDate: '2024-01-01', endDate: '2026-10-03' }, NOW), { startDate: '2024-01-01', endDate: '2026-10-02' });
 });
 
 test('the real client makes exactly one request, never retries a failure, and never calls without a key', async () => {
@@ -50,6 +48,19 @@ test('the real client makes exactly one request, never retries a failure, and ne
   assert.deepEqual([result.status, result.captures.length, n], ['NOT_CONFIGURED', 0, 0]);
   const empty = await syntheticTrendsSource(() => assert.fail('no request for an empty keyword')).collect('   ');
   assert.deepEqual([empty.status, empty.captures.length], ['FAILED', 0]);
+});
+
+test('called evidence records the requested range and sends it to the provider', async () => {
+  const calls: URL[] = [];
+  const range = { startDate: '2024-01-01', endDate: '2024-12-31' };
+  const result = await syntheticTrendsSource(url => calls.push(url)).collect(SYNTHETIC_TRENDS_KEYWORD, {}, range);
+  assert.equal(calls[0]!.searchParams.get('date'), '2024-01-01 2024-12-31');
+  const doc = searchInterestDocument({ kind: 'CALLED', keyword: SYNTHETIC_TRENDS_KEYWORD, result, range }, 1);
+  assert.deepEqual(doc.requestedRange, range);
+  assert.equal(doc.window, 'REQUESTED_RANGE');
+  assert.match(searchInterestSourceText(doc), /01\/01\/2024 đến 31\/12\/2024/u);
+  const bad = await syntheticTrendsSource(() => assert.fail('invalid range must not call')).collect(SYNTHETIC_TRENDS_KEYWORD, {}, { startDate: 'bad', endDate: '2024-01-01' });
+  assert.equal(bad.captures.length, 0);
 });
 
 test('a skipped or thrown attempt stores a reason code and no points', () => {
@@ -199,5 +210,70 @@ test('completed weeks use the Vietnam retrieval day at midnight and at the year 
     const source = syntheticSearchInterest({ retrievedAt: '2026-01-04T17:00:00Z', points: [{ period, index: 50 }] });
     assert.deepEqual(searchInterestChartPoints(source), [{ label: '29/12/2025–04/01/2026', value: 50 }]);
     assert.deepEqual(searchInterestChartPoints({ ...source, retrievedAt: '2026-01-04T16:59:59Z' }), []);
+  }
+});
+
+
+test('SRC1 row 4 / Round 2 dates: invalid and impossible periods are rejected; valid leap day is accepted', () => {
+  assert.equal(searchInterestPeriodSkip({ startDate: '2024-02-29', endDate: '2024-03-01' }, NOW), null);
+  for (const period of [
+    { startDate: '2024-02-02', endDate: '2024-02-01' },
+    { startDate: 'not-a-date', endDate: '2024-03-01' },
+    { startDate: '2024-01-01', endDate: 'not-a-date' },
+    { startDate: '2024-02-30', endDate: '2024-03-01' },
+    { startDate: '2023-02-29', endDate: '2023-03-01' },
+    { startDate: '2024-01-01', endDate: '2024-02-30' },
+    { startDate: '2024-04-31', endDate: '2024-05-01' },
+  ]) {
+    const reason = searchInterestPeriodSkip(period, NOW);
+    assert.equal(reason, 'PERIOD_INVALID', JSON.stringify(period));
+    const doc = searchInterestDocument({ kind: 'SKIPPED', keyword: SYNTHETIC_TRENDS_KEYWORD, reason: reason! }, null);
+    assert.equal(doc.status, 'SKIPPED');
+    assert.equal(doc.captureIndex, null);
+    assert.equal(searchInterestUsage([]).usage.requestsIssued, 0);
+  }
+});
+
+test('SRC1 Round 3 row 1: requested-range daily points display individual dates; weekly points retain seven-day labels', async () => {
+  const range = { startDate: '2026-09-01', endDate: '2026-09-05' };
+  const indices = [20, null, 100, 40, 30];
+  for (const localized of [false, true]) {
+    const points = indices.map((index, i) => ({ period: localized ? `${i + 1} thg 9, 2026` : `2026-09-0${i + 1}`, index }));
+    let calls = 0;
+    const source = createSearchInterestSource(SYNTHETIC_SERP_KEY, {
+      fetch: (async () => { calls++; return new Response(syntheticTrendsBody(SYNTHETIC_TRENDS_KEYWORD, points)); }) as typeof fetch,
+      sleep: async () => assert.fail('no wait is needed'), now: () => NOW,
+    });
+    const result = await source.collect(SYNTHETIC_TRENDS_KEYWORD, {}, range);
+    assert.equal(calls, 1);
+    const stored = searchInterestDocument({ kind: 'CALLED', keyword: SYNTHETIC_TRENDS_KEYWORD, result, range }, 1);
+    assert.equal(stored.status, 'COLLECTED');
+    assert.deepEqual(stored.points, points, 'retain the provider labels as evidence');
+    const bytes = JSON.stringify(stored);
+    const expected = indices.map((index, i) => ({ period: `0${i + 1}/09/2026`, index }));
+    assert.deepEqual(searchInterestReadingPoints(stored), expected);
+    assert.deepEqual(searchInterestChartPoints(stored), expected.map(point => ({ label: point.period, value: point.index })));
+    assert.equal(JSON.stringify(stored), bytes, 'rendering leaves retained evidence unchanged');
+  }
+  const weekly = syntheticSearchInterest({ window: 'REQUESTED_RANGE', requestedRange: { startDate: '2026-09-01', endDate: '2026-09-30' },
+    points: [{ period: '2026-09-01', index: 20 }, { period: '2026-09-08', index: 100 }] });
+  assert.deepEqual(searchInterestChartPoints(weekly), [{ label: '01–07/09/2026', value: 20 }, { label: '08–14/09/2026', value: 100 }]);
+});
+
+test('SRC1 Round 3 row 3: completed days follow Vietnam time; today remains hidden', () => {
+  for (const localized of [false, true]) {
+    const points = [
+      { period: localized ? '30 thg 12, 2025' : '2025-12-30', index: null },
+      { period: localized ? '31 thg 12, 2025' : '2025-12-31', index: 40 },
+      { period: localized ? '1 thg 1, 2026' : '2026-01-01', index: 100 },
+    ];
+    const chart = (retrievedAt: string) => searchInterestChartPoints(syntheticSearchInterest({ window: 'REQUESTED_RANGE',
+      requestedRange: { startDate: '2025-12-30', endDate: '2026-01-01' }, retrievedAt, points }));
+    assert.deepEqual(chart('2025-12-31T16:59:59.999Z'), [{ label: '30/12/2025', value: null }]);
+    const completed = [{ label: '30/12/2025', value: null }, { label: '31/12/2025', value: 40 }];
+    assert.deepEqual(chart('2025-12-31T17:00:00.000Z'), completed, 'the previous day completes at Vietnam midnight');
+    assert.deepEqual(chart('2026-01-01T00:00:00+07:00'), completed, 'equivalent timestamps give the same days');
+    assert.deepEqual(chart('2026-01-01T16:59:59.999Z'), completed, 'the unfinished day is still hidden');
+    assert.deepEqual(chart('2026-01-01T17:00:00.000Z'), [...completed, { label: '01/01/2026', value: 100 }]);
   }
 });

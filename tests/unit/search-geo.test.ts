@@ -5,7 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { operatorAppConfigurationFromEnvironment } from '../../src/api/operator-app.js';
 import {
-  normalizeProvince, provinceRegion, searchGeoAverageText, searchGeoDocument, searchGeoEnabled, searchGeoRenderable, searchGeoText, summarizeSearchGeo,
+  normalizeProvince, provinceRegion, searchGeoAverageText, searchGeoDocument, searchGeoEnabled, searchGeoRenderable, searchGeoText, searchGeoNoteText, summarizeSearchGeo,
   SEARCH_GEO_USAGE_ORDINAL, VN_PROVINCES, VN_REGIONS,
 } from '../../src/modules/analysis/research-automation/search-geo.js';
 import { validSearchGeo } from '../../src/modules/analysis/research-automation/service.js';
@@ -150,4 +150,19 @@ test('TDN_RESEARCH_SEARCH_TRENDS_GEO_ENABLED works only when exactly "1" and onl
   assert.equal(both.researchSearchTrendsGeo, true);
   const { researchSearchTrendsGeo: _flag, ...rest } = both;
   assert.deepEqual(rest, trends, 'nothing else changes');
+});
+
+test('SRC1 row 6: range validators reject malformed ranges and retain legacy documents', () => {
+  const range = { startDate: '2024-01-01', endDate: '2024-12-31' };
+  const legacy = syntheticSearchGeo();
+  const current = { ...legacy, window: 'REQUESTED_RANGE', requestedRange: range };
+  assert.equal(validSearchGeo(current), true);
+  assert.equal(validSearchGeo(legacy), true);
+  assert.equal(validSearchGeo(searchGeoDocument({ kind: 'SKIPPED', keyword: 'sản phẩm mẫu', reason: 'PERIOD_NOT_COVERED' }, null)), true);
+  for (const requestedRange of [undefined, null, { ...range, extra: true }, { ...range, startDate: 'bad' },
+    { ...range, startDate: '2024-02-30' }, { startDate: '2025-01-01', endDate: range.endDate }]) {
+    assert.equal(validSearchGeo({ ...current, requestedRange }), false, JSON.stringify(requestedRange));
+  }
+  assert.equal(validSearchGeo({ ...legacy, requestedRange: range }), false);
+  assert.equal(validSearchGeo({ ...current, extra: true }), false);
 });

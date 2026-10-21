@@ -223,8 +223,8 @@ export type MarketHeadline = {
   readonly products: readonly MarketShare[];
   /** Platforms with a Bảng 11.1 price group; n is that platform's sample row count. */
   readonly bands: readonly (PlatformSignal & { readonly n: number })[];
-  /** The first highest week of Hình 5.2 and its count of weeks with a value. */
-  readonly search: { readonly period: string; readonly index: number; readonly weeks: number } | null;
+  /** The first highest period of Hình 5.2 and its count of periods with a value. */
+  readonly search: { readonly period: string; readonly index: number; readonly weeks: number; readonly periodUnit?: 'ngày' } | null;
   /** True when Phần 12 states its options with sample figures. */
   readonly options: boolean;
 };
@@ -258,7 +258,7 @@ function headlineFindings(headline: MarketHeadline, method: Method, capture: Cap
     }), [['M04', 'Hình 4.2 ở phần Cơ cấu trong mẫu']], marks(shops.map(s => s.platform))),
     li(headline.bands.flatMap(({ platform, band, n }) => band ? [`${label(platform)}: nhóm giá ${band.low === band.high ? vnd(band.low) : `${vnd(band.low)}–${vnd(band.high)}`} VND mỗi đơn vị bán có doanh thu lớn trong ba nhóm giá của sàn, ${vnd(band.revenue)} VND từ ${band.count} sản phẩm${sample(platform, n)}.`] : []),
       [['M11', 'Bảng 11.1 ở phần Cơ hội']], marks(headline.bands.map(b => b.platform))),
-    li(headline.search ? [`Mức quan tâm tìm kiếm của từ khóa cao ở tuần ${headline.search.period}, chỉ số ${sp(headline.search.index)} trên thang 0–100; đây là chỉ số tương đối, không phải số người tìm hay doanh số (n = ${headline.search.weeks} tuần có số).`] : [],
+    li(headline.search ? [`Mức quan tâm tìm kiếm của từ khóa cao ở ${headline.search.periodUnit ?? 'tuần'} ${headline.search.period}, chỉ số ${sp(headline.search.index)} trên thang 0–100; đây là chỉ số tương đối, không phải số người tìm hay doanh số (n = ${headline.search.weeks} ${headline.search.periodUnit ?? 'tuần'} có số).`] : [],
       [['M05', 'Hình 5.2 ở phần Nhu cầu (tín hiệu bán)']], ''),
   ].filter(Boolean);
 }

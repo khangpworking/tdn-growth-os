@@ -7,8 +7,8 @@ import { lineChart } from './svg-charts.js';
 import { renderChart, type FlintChartInput } from './flint.js';
 import { UNKNOWN_SHOP, marketChartRows, marketShopsUnrecorded, renderMarketCharts, renderSearchInterestChart } from './market-charts.js';
 import { renderComtradeCharts, renderWorldBankCharts, type MacroChart } from './macro-charts.js';
-import { SEARCH_INTEREST_EMPTY, searchInterestChartPoints, searchInterestRenderable, SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_LIMIT, SEARCH_INTEREST_NOTE, SEARCH_INTEREST_SOURCE_LABEL, SEARCH_INTEREST_SRC, SEARCH_INTEREST_UNIT } from '../research-automation/search-interest.js';
-import { searchGeoAverageText, searchGeoRenderable, searchGeoText, summarizeSearchGeo, SEARCH_GEO_DONT, SEARCH_GEO_HEADERS, SEARCH_GEO_NOTE, SEARCH_GEO_TABLE_NO, SEARCH_GEO_TABLE_TITLE } from '../research-automation/search-geo.js';
+import { SEARCH_INTEREST_EMPTY, searchInterestChartPoints, searchInterestIntervalText, searchInterestRenderable, SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_LIMIT, SEARCH_INTEREST_NOTE, SEARCH_INTEREST_SOURCE_LABEL, searchInterestSourceText, SEARCH_INTEREST_UNIT } from '../research-automation/search-interest.js';
+import { searchGeoAverageText, searchGeoRenderable, searchGeoText, summarizeSearchGeo, SEARCH_GEO_DONT, SEARCH_GEO_HEADERS, searchGeoNoteText, SEARCH_GEO_TABLE_NO, SEARCH_GEO_TABLE_TITLE } from '../research-automation/search-geo.js';
 import { formatWorldBankValue, worldBankRenderableRows, worldBankSourceNote, worldBankTableNote, worldBankUnitText, WORLD_BANK_LIMIT, WORLD_BANK_SOURCE_LABEL, WORLD_BANK_SRC, WORLD_BANK_TITLE } from '../research-automation/world-bank-lane.js';
 import { E12_ATTRIBUTION, E13_ATTRIBUTION, E14_ATTRIBUTION } from '../source-appendix-projection.js';
 import { officialStatsCitation, officialStatsTechnicalCitation, officialStatsNotice, officialStatsProvinceCellText, officialStatsProvinceCitation, officialStatsProvinceContext, officialStatsProvinceRowLabel, officialStatsProvinceRows, officialStatsRenderableRows, officialStatsRowLabel, officialStatsStatusText, officialStatsUnitText, officialStatsValueText, OFFICIAL_STATS_LIMIT, OFFICIAL_STATS_NOTE, OFFICIAL_STATS_PROVINCE_LIMIT, OFFICIAL_STATS_PROVINCE_NOTE, OFFICIAL_STATS_PROVINCE_TITLE, OFFICIAL_STATS_SRC, OFFICIAL_STATS_TABLE_TEXT, OFFICIAL_STATS_TABLE_TITLE } from '../research-automation/official-statistics-lane.js';
@@ -153,10 +153,10 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   const geo = next && searchGeoRenderable(options.searchGeo) ? options.searchGeo : undefined;
   const geoCapture = geo ? options.searchGeoCapture : undefined;
   const geoCitation = geoCapture ? registry.cite({ sourceKind: 'CAPTURE', identity: geoCapture.artifactSha256, locator: null,
-    label: SEARCH_INTEREST_SRC, retrievedAt: geoCapture.retrievedAt, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' }) : null;
+    label: searchInterestSourceText(geo!), retrievedAt: geoCapture.retrievedAt, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' }) : null;
   const geoSummary = geo ? summarizeSearchGeo(geo.provinces) : undefined;
   const geoBlock = !geoSummary ? '' : tbl(SEARCH_GEO_TABLE_NO, SEARCH_GEO_TABLE_TITLE, '', [...SEARCH_GEO_HEADERS],
-    geoSummary.regions.map(row => [esc(row.region), label(searchGeoAverageText(row.average)), label(String(row.inTop))]), { src: label(SEARCH_INTEREST_SRC) + (geoCitation === null ? '' : renderCitationMark(geoCitation)), note: label(SEARCH_GEO_NOTE) }) +
+    geoSummary.regions.map(row => [esc(row.region), label(searchGeoAverageText(row.average)), label(String(row.inTop))]), { src: label(searchInterestSourceText(geo!)) + (geoCitation === null ? '' : renderCitationMark(geoCitation)), note: label(searchGeoNoteText(geo!, false)) }) +
     (({ topLine, result, seen, use, dont }) => [topLine, result, seen, use, dont].filter(Boolean).map(line => `<p>${label(line)}</p>`).join(''))(searchGeoText(geoSummary));
   // Open country-level figures sit beside the sales numbers in M05 (the context section that already holds the search-interest
   // figure). M10 is "Chưa dự báo", where a macro figure would read as a forecast basis. The same predicate marks S23 as used.
@@ -208,8 +208,8 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   }
   sections.push(section('M05', 'Nhu cầu (tín hiệu bán)', 'Nhu cầu, đo bằng doanh số (ước tính) trong mẫu.', salesTable('5.1') +
     (interestChart ? `<p>Kỳ ${period}; nguồn: dữ liệu bán hàng ước tính trên từng sàn. Mức quan tâm tìm kiếm ghi riêng ở Hình 5.2, là chỉ số tương đối, không cộng hay so với số bán.</p>` +
-      fig('5.2', SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_UNIT, interestChart.svg, { engine: interestChart.engine, src: SEARCH_INTEREST_SRC, note: SEARCH_INTEREST_NOTE })
-      : `<p>Kỳ ${period}; nguồn: dữ liệu bán hàng ước tính trên từng sàn. Mức quan tâm tìm kiếm ghi riêng, chưa có chuỗi tìm kiếm phù hợp trong bản này.</p>${next && searchInterestRenderable(options.searchInterest) ? `<p>${esc(SEARCH_INTEREST_EMPTY)}</p>` : ''}`) + geoBlock + worldBankTable + worldBankFigures + officialTable,
+      fig('5.2', searchInterestIntervalText(interest!, SEARCH_INTEREST_FIGURE_TITLE), SEARCH_INTEREST_UNIT, interestChart.svg, { engine: interestChart.engine, src: searchInterestSourceText(interest!), note: searchInterestIntervalText(interest!, SEARCH_INTEREST_NOTE) })
+      : `<p>Kỳ ${period}; nguồn: dữ liệu bán hàng ước tính trên từng sàn. Mức quan tâm tìm kiếm ghi riêng, chưa có chuỗi tìm kiếm phù hợp trong bản này.</p>${next && searchInterestRenderable(options.searchInterest) ? `<p>${esc(searchInterestIntervalText(options.searchInterest, SEARCH_INTEREST_EMPTY))}</p>` : ''}`) + geoBlock + worldBankTable + worldBankFigures + officialTable,
     'Số bán hàng ước tính chưa đối chiếu với người bán, chỉ dùng tham khảo. Không suy ra quy mô ngoài mẫu, số người mua, nhu cầu chưa được đáp ứng hay dự báo.' + (interestChart || geoBlock ? ` ${SEARCH_INTEREST_LIMIT}` : '') + (worldBankTable ? ` ${WORLD_BANK_LIMIT}` : '') + (officialRows.length ? ` ${OFFICIAL_STATS_LIMIT}` : '') + (officialStatsProvinceRows(officialStats).length ? ` ${OFFICIAL_STATS_PROVINCE_LIMIT}` : '')));
   // Country-level trade figures sit in M06 as background; the same predicate marks S24 as used. No sums, shares or comparison with the sample.
   const comtrade = next ? options.comtrade : undefined;
