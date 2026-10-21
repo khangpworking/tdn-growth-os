@@ -6,6 +6,8 @@ Cập nhật: 21/10/2026
 
 | Bản cũ | Bản mới | Lý do cập nhật |
 | --- | --- | --- |
+| [docs/research/ultimate-method/README.md](2026-10-21-5/docs/research/ultimate-method/README.md) | [docs/research/ultimate-method/README.md](../research/ultimate-method/README.md) | Mục 1 thêm dòng tài liệu câu hỏi Insight và semantic layer |
+| [docs/research/ultimate-method/CHANGELOG.md](2026-10-21-5/docs/research/ultimate-method/CHANGELOG.md) | [docs/research/ultimate-method/CHANGELOG.md](../research/ultimate-method/CHANGELOG.md) | Thêm dòng DS-20261021-05 |
 | [docs/research/ultimate-method/source-status.md](2026-10-21-4/docs/research/ultimate-method/source-status.md) | [docs/research/ultimate-method/source-status.md](../research/ultimate-method/source-status.md) | Ghi chú S07, S15, S16; mục 2c mới: đường thu bên ngoài (21/10/2026, lần 4); thêm dòng nhật ký |
 | [docs/research/ultimate-method/input-data-sources-test-log.md](2026-10-21-4/docs/research/ultimate-method/input-data-sources-test-log.md) | [docs/research/ultimate-method/input-data-sources-test-log.md](../research/ultimate-method/input-data-sources-test-log.md) | Thêm ST-20261021-14 đến -31 |
 | [docs/research/ultimate-method/input-data-sources-30-sections.md](2026-10-21-4/docs/research/ultimate-method/input-data-sources-30-sections.md) | [docs/research/ultimate-method/input-data-sources-30-sections.md](../research/ultimate-method/input-data-sources-30-sections.md) | Dòng S07, S15, S16 ở mục 2 và ghi chú M07, I12 ở mục 3 theo lượt thử 21/10/2026 |
