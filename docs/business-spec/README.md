@@ -1,6 +1,6 @@
 # Business spec: nguồn sự thật cho nghiệp vụ
 
-> Phiên bản 1.0, ngày 21/10/2026.
+> Phiên bản 1.1, ngày 21/10/2026.
 
 Thư mục này là nơi duy nhất giữ quy tắc nghiệp vụ của dự án: quy tắc báo cáo, từ điển trường và chỉ số, trạng thái nguồn dữ liệu, quyết định của chủ.
 
@@ -18,6 +18,7 @@ Thư mục này là nơi duy nhất giữ quy tắc nghiệp vụ của dự án
 | [data-sources/input-standard-technical.md](data-sources/input-standard-technical.md) | Chuẩn dữ liệu đầu vào, bản kỹ thuật |
 | [data-sources/source-status.md](data-sources/source-status.md) | Nhãn trạng thái hiện tại của từng nguồn |
 | [decisions/owner-decisions.md](decisions/owner-decisions.md) | Quyết định của chủ, mới nhất ở trên |
+| [research/Nghiên cứu phương pháp viết insight.md](<research/Nghiên cứu phương pháp viết insight.md>) | Nghiên cứu cách viết insight (có link nguồn), đối chiếu với I01–I17. Tài liệu nghiên cứu, không phải quy tắc |
 | [CHANGELOG.md](CHANGELOG.md) | Nhật ký thay đổi của thư mục này |
 
 Tài liệu Insight đầy đủ (câu hỏi của từng section) vẫn nằm ở [insight-cau-hoi-nghiep-vu.md](../research/ultimate-method/insight-cau-hoi-nghiep-vu.md). Mục 6.2 và Phần 7 của tài liệu đó đã chuyển sang `semantic-layer/`.
