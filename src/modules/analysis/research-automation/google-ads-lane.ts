@@ -2,6 +2,7 @@
 //
 // For the run's top brands, count the ads a brand's own website has in the public search-ads transparency library, shown in
 // M07 as table 7.3 beside the Meta table. At most 6 paid calls per run (3 site searches and 3 ads reads), spaced at least 2 seconds apart, never retried.
+// Several suffixes of one brand label are resolved deterministically (Vietnamese suffix first, then search position), not skipped.
 // A website must occur in run rows or one deterministic brand-site search. Advertiser names, advertiser
 // ids, images, links and ad ids stay out of the step document: the library often lists an agency, so it keeps only counts, formats and dates.
 import { boundedRequest, bytesContainSecret, CaptureLog, defaultProviderTransport, httpsUrl, isRecord, parseJson, safeProviderCode, type ProviderTransport } from './provider-common.js';
@@ -125,10 +126,19 @@ export function hostDenied(host: string, extra: readonly string[] = []): boolean
 }
 
 export type DomainChoice = { readonly kind: 'DOMAIN'; readonly domain: string } | { readonly kind: 'NONE' } | { readonly kind: 'AMBIGUOUS' };
-/** Exact registrable label only. Different suffixes are ambiguous; subdomains share one domain.
- * Input order is search position order, so the first observed host of that domain wins. */
+/** Exact registrable label only; subdomains share one registrable domain, which is the value returned.
+ * When the same brand label sits on several suffixes, the choice is deterministic: a Vietnamese suffix (.vn, .com.vn)
+ * first, then the better search position (input order is position order). AMBIGUOUS stays in the type for stored
+ * documents but is no longer returned. */
 export function chooseDomain(brandKey: string, webUrls: readonly string[], deniedHosts: readonly string[] = []): DomainChoice {
-  const domains = new Map<string, string>();
+  const choice = chooseDomainWithDecision(brandKey, webUrls, deniedHosts);
+  return choice.kind === 'DOMAIN' ? { kind: 'DOMAIN', domain: choice.domain } : choice;
+}
+
+function chooseDomainWithDecision(brandKey: string, webUrls: readonly string[], deniedHosts: readonly string[] = []):
+  | { readonly kind: 'DOMAIN'; readonly domain: string; readonly domainDecision: NonNullable<SearchAdsBrandV2['domainDecision']> }
+  | { readonly kind: 'NONE' } {
+  const domains = new Map<string, number>();
   for (const url of webUrls) {
     const host = hostOf(url);
     if (!host || hostDenied(host, deniedHosts)) continue;
@@ -136,11 +146,15 @@ export function chooseDomain(brandKey: string, webUrls: readonly string[], denie
     // A tenant name on a shared hosting/shop suffix is not a registered brand domain.
     if (parsed.isPrivate) continue;
     if (parsed.domain && parsed.domainWithoutSuffix && normalizedKey(parsed.domainWithoutSuffix) === brandKey)
-      if (!domains.has(parsed.domain)) domains.set(parsed.domain, host);
+      if (!domains.has(parsed.domain)) domains.set(parsed.domain, domains.size);
   }
   if (domains.size === 0) return { kind: 'NONE' };
-  if (domains.size > 1) return { kind: 'AMBIGUOUS' };
-  return { kind: 'DOMAIN', domain: [...domains.values()][0]! };
+  const vn = (domain: string): boolean => domain === 'vn' || domain.endsWith('.vn');
+  const best = [...domains.entries()].sort((a, b) => Number(vn(b[0])) - Number(vn(a[0])) || a[1] - b[1])[0]![0];
+  const preferred = [...domains.keys()].filter(vn);
+  const domainDecision = domains.size === 1 ? 'SINGLE_DOMAIN'
+    : preferred.length === 1 ? 'VIETNAMESE_SUFFIX' : 'ORGANIC_POSITION';
+  return { kind: 'DOMAIN', domain: best, domainDecision };
 }
 
 /** The same plain-word validation as expanded searches; no operators, model or inferred domain. */
@@ -235,12 +249,13 @@ export function createGoogleAdsSource(apiKey: string, transport: ProviderTranspo
       };
       const settledStatus = (): StepSearchAdsStatus => out.some(item => item.status === 'OK') ? 'OK' : 'NO_DATA';
       for (const [brandIndex, brand] of brands.entries()) {
-        let choice = chooseDomain(brand.key, input.webUrls, input.deniedHosts);
+        let choice = chooseDomainWithDecision(brand.key, input.webUrls, input.deniedHosts);
+        let domainDecision = choice.kind === 'DOMAIN' ? choice.domainDecision : undefined;
         let domainSource: SearchAdsBrandV2['domainSource'] = choice.kind === 'DOMAIN' ? 'RUN_ROWS' : null;
         let discoveryCapture: ProviderRawCapture | null = null;
         let discoveryUsageOrdinal: SearchAdsBrandV2['discoveryUsageOrdinal'] = null;
         const statusOnly = (domain: string | null, status: StepSearchAdsBrandStatus, reason: Exclude<SearchAdsBrandV2['reason'], null>): SearchAdsBrandResult => ({
-          ...skipped(brand.label, domain, status, reason), domainSource, discoveryCapture, discoveryUsageOrdinal,
+          ...skipped(brand.label, domain, status, reason), ...(domainDecision ? { domainDecision } : {}), domainSource, discoveryCapture, discoveryUsageOrdinal,
         });
         if (choice.kind === 'NONE') {
           let request: ExpandedSearchRequest;
@@ -269,7 +284,8 @@ export function createGoogleAdsSource(apiKey: string, transport: ProviderTranspo
               .filter(row => typeof row.position === 'number' && Number.isSafeInteger(row.position) && row.position >= 1 && row.position <= 5) : [];
             const urls = result.webResults.filter(row => ranked.some(rawRow => rawRow.position === row.position && httpsUrl(rawRow.link) === row.url))
               .sort((a, b) => a.position - b.position).map(row => row.url);
-            choice = chooseDomain(brand.key, urls, input.deniedHosts);
+            choice = chooseDomainWithDecision(brand.key, urls, input.deniedHosts);
+            domainDecision = choice.kind === 'DOMAIN' ? choice.domainDecision : undefined;
             domainSource = choice.kind === 'DOMAIN' ? 'BRAND_SITE_SEARCH' : null;
           } catch {
             discoveryUsageOrdinal = GOOGLE_ADS_DISCOVERY_USAGE_ORDINALS[brandIndex]!;
@@ -281,7 +297,6 @@ export function createGoogleAdsSource(apiKey: string, transport: ProviderTranspo
           }
           if (choice.kind === 'NONE') { out.push(statusOnly(null, 'SKIPPED_NO_DOMAIN', 'DISCOVERY_NO_MATCH')); continue; }
         }
-        if (choice.kind === 'AMBIGUOUS') { out.push(statusOnly(null, 'SKIPPED_AMBIGUOUS_DOMAIN', discoveryUsageOrdinal === null ? 'AMBIGUOUS_RUN_DOMAINS' : 'DISCOVERY_AMBIGUOUS')); continue; }
         if (!(await ready())) { out.push(statusOnly(choice.domain, 'CANCELLED', 'CANCELLED')); return finish('CANCELLED'); }
         const params = { engine: 'google_ads_transparency_center', region: GOOGLE_ADS_REGION, num: String(GOOGLE_ADS_NUM), text: choice.domain } as const;
         const url = new URL(GOOGLE_ADS_ORIGIN + GOOGLE_ADS_PATH);
@@ -317,7 +332,7 @@ export function createGoogleAdsSource(apiKey: string, transport: ProviderTranspo
         const capture = log.record(context, requestedAt, 'OK', 200, response.bytes, providerCode);
         out.push({ label: brand.label, domain: choice.domain, status: 'OK', reason: null, totalResults: summary.totalResults, creativeCount: summary.creativeCount,
           formats: summary.formats, firstShown: summary.firstShown, lastShown: summary.lastShown, maxDaysShown: summary.maxDaysShown, overlapCount: summary.overlapCount,
-          invalidCount: summary.invalidCount, usageOrdinal: GOOGLE_ADS_USAGE_ORDINAL, capture, domainSource, discoveryCapture, discoveryUsageOrdinal });
+          invalidCount: summary.invalidCount, usageOrdinal: GOOGLE_ADS_USAGE_ORDINAL, capture, domainSource, domainDecision: choice.domainDecision, discoveryCapture, discoveryUsageOrdinal });
       }
       return finish(out.some(item => item.status === 'OK') ? 'OK' : 'NO_DATA');
     },
