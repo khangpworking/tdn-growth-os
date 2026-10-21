@@ -156,14 +156,16 @@ const handBuiltMainHashes: Record<string, string> = {
 };
 const builderMainHashes: Record<string, { html: string; trace: string | null; semantic: string }> = {
   "capture-market": {
-    "html": "3abd254fededcc10b68a8cf8fbdfe6eea3a5b02685fc78695ce45d1f706dd511",
-    "trace": "36a2e1a697fdf8f1b36888938a03f03dcad9e28af0141d332eacdd0caccf7419",
-    "semantic": "7c67a4170987b988b8e9f18ff7294fef370a185d3613d8e2a5b6767475e4cf8d"
+    // UNIT-209 C4/C5/C8: current-reader Market unit wording changes these pins; legacy and Insight pins are unchanged.
+    "html": "48a55a635dd6f097392fd80438ec6fdcb436d4fdb4120b73544dde1ae92cab68",
+    "trace": "5bf6373cc9a44d31c0d9853ca881d8309cd306552085c829b3833f6ffd391739",
+    "semantic": "640433a09580596ca7239258e40a3c124b89a676c9bb02846fcde847c990a6a3"
   },
   "no-capture-market": {
-    "html": "0375a88d3b5b73b58a92f77f190e6ebb9ad8a9b8af501b03a88b334c37fe0b5c",
-    "trace": "c6f29e17fbe672e96c17abd49b965b3623c0721e153af411b087adc82df0701e",
-    "semantic": "de585c1f267a1d36644443579f4b684e9767a6fa1b7502f3b87c465e3224c3fc"
+    // UNIT-209 round 2 C4/C8: no-capture summary and per-product source trace.
+    "html": "d96dd89e9dc9046cf5bdbd1c134a96e5eee792a046f4491c7d73a8e620910205",
+    "trace": "337f05580d6debd24497de0f1aae068c53ccf585c805e1ae7d55993f85123117",
+    "semantic": "8e1cb7369302a0700596215cd3f65ba80d3b7c699cea5d3f3af7068b60b13a9b"
   },
   "capture-insight": {
     "html": "7163940cc6c424f6c1a2fc73c7af9458e1a50d3957adaa8d43802a8caf6ba08d",

@@ -123,7 +123,7 @@ test('one missing row makes the sample total undetermined: a partial sum is neve
   const unitsAll = units.scopes.find(scope => scope.key === 'all')!;
   const demand = build(units).findings.find(finding => finding.id === 'demand')!;
   assert.ok(demand.statement.includes('chưa có tổng doanh thu dùng được'), demand.statement);
-  assert.ok(demand.statement.includes(`${shown(unitsAll.units.value!)} đơn vị bán (ước tính)`), demand.statement);
+  assert.ok(!demand.statement.includes(`${shown(unitsAll.units.value!)} đơn vị bán`), demand.statement);
   assert.ok(!demand.statement.includes(`${shown(unitsAll.revenue.value!)} VND`), demand.statement);
 });
 

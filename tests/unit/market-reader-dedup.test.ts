@@ -68,7 +68,7 @@ test('M04 capture reader points to Phần 3 while M03 retains its exact per-plat
     assert.ok(captions.some(value => value.includes('TikTok Shop')));
     assert.match(m03.textContent!, /Synthetic L1/u);
     // R L5/L7/L8 change current method copy; retained per-platform rows stay asserted above.
-    assert.equal(hash(m03.outerHTML), '8656ffbde556549dd49433262446f5da4b001e62d559ce713d4ca4b220f1b42d');
+    assert.equal(hash(m03.outerHTML), 'ed57c19617d79bf8d070b452d70473d9a81194b54695dd53018b212e76ebfbf7');
   } finally { dom.window.close(); }
   assert.equal(canonicalJson(input), retained);
 });
@@ -90,7 +90,7 @@ test('M04 negative controls retain legacy capture bytes and the reader without c
         assert.equal(hash(m04.outerHTML), '72224d428e028b18fffbb3a179a24ba3eb16273a10e220178dd3b72223484f4d');
       } else {
         // G-references general report-text rule spells out percentages and zero in the current reader.
-        assert.equal(hash(m04.outerHTML), '75f5a2b6319a606a6c1e7c8fe892f69c049b19a2e8795b0ff34348aa56ca7d9d');
+        assert.equal(hash(m04.outerHTML), '4190e8bd195af9b95c570d1598b95842ff3642332391ab327b02cb4a5dfa2c47');
       }
     } finally { dom.window.close(); }
   }
