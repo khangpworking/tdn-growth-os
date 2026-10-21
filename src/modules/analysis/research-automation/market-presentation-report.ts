@@ -2,6 +2,7 @@ import type { AutomationMarketPresentationMethod } from '../../../../contracts/a
 import type { AutomationMetricMethodSnapshot, CaptureMetricHeadlineValue, CaptureMetricMethodDetails } from './metric-method-bridge.js';
 import { CAPTURE_ROW_REF_HEADER, TOP_GROUPS, UNKNOWN_SHOP, captureRowRefLabel, type CaptureCountChart, type MarketChartRow, type MarketShare } from '../reader-report/market-charts.js';
 import { vnd, type PlatformSignal } from '../reader-report/market-actions.js';
+import { TITLE_UNIT_BASIS, convertedLine, projectTitleUnitPrices, titleQuantityCell, type UnitProfile } from '../reader-report/market-title-quantity.js';
 import { sp } from '../reader-report/format.js';
 import { readerPriceState, readerProductLabel, readerStoredOrJson } from './reader-plain-text.js';
 import { escapeHtml as escape, readerPointer, storedLiteral, type ReportCitations } from './descriptive-report.js';
@@ -195,13 +196,13 @@ function capturePlatformFindings(capture: CaptureMetricMethodDetails, citations:
       ? `${label}: mẫu đã lưu có ${all.listingCount} dòng sản phẩm${shops}, kỳ ${isoDay(result.input.scope.start)} đến ${isoDay(result.input.scope.end)}. Mẫu là các dòng đầu của bảng kết quả tìm kiếm, không phải toàn bộ sản phẩm của sàn.`
       : `${label}: chưa có dòng nào gán được cho sàn này trong bảng kết quả đã lưu; báo cáo không suy ra số liệu từ các dòng.`;
     let figures = '', marks = '';
+    // Units sold are never summed across products: pack sizes differ (UNIT-209 C4).
     if (page) {
-      const units = page.units?.value ?? null;
-      figures = `${label}: bảng kết quả theo bộ lọc ghi doanh thu (ước tính) ${grouped(page.revenue.value!)} VND${units === null ? '; chưa có số đơn vị bán' : ` và ${grouped(units)} đơn vị bán`}. Đây là số của cả tập kết quả trên trang; phạm vi này khác với các dòng đã lưu.`;
-      marks = pageMark(page.revenue) + (page.units?.value ? pageMark(page.units) : '');
+      figures = `${label}: bảng kết quả theo bộ lọc ghi doanh thu (ước tính) ${grouped(page.revenue.value!)} VND. Đây là số của cả tập kết quả trên trang; phạm vi này khác với các dòng đã lưu.`;
+      marks = pageMark(page.revenue);
     } else if (hasRows) {
       const total = (value: typeof all.revenue, unit: string): string => value.missingCount === 0 && value.value !== null ? `${grouped(value.value)}${unit}` : 'chưa xác định vì có dòng thiếu số liệu';
-      figures = `${label}: doanh thu (ước tính) của các dòng đã lưu là ${total(all.revenue, ' VND')}; đơn vị bán (ước tính) là ${total(all.units, '')}.`;
+      figures = `${label}: doanh thu (ước tính) của các dòng đã lưu là ${total(all.revenue, ' VND')}; đơn vị bán chỉ đọc theo từng sản phẩm vì quy cách chào bán có thể khác nhau.`;
       marks = calculation;
     }
     if (hasRows) {
@@ -223,8 +224,10 @@ export type MarketHeadline = {
   readonly products: readonly MarketShare[];
   /** Platforms with a Bảng 11.1 price group; n is that platform's sample row count. */
   readonly bands: readonly (PlatformSignal & { readonly n: number })[];
-  /** The first highest week of Hình 5.2 and its count of weeks with a value. */
-  readonly search: { readonly period: string; readonly index: number; readonly weeks: number } | null;
+  /** Price unit of those groups (market-title-quantity.ts); bands is empty when it is null. */
+  readonly unitStandard: string | null;
+  /** The first highest period of Hình 5.2 and its count of periods with a value. */
+  readonly search: { readonly period: string; readonly index: number; readonly weeks: number; readonly periodUnit?: 'ngày' } | null;
   /** True when Phần 12 states its options with sample figures. */
   readonly options: boolean;
 };
@@ -256,9 +259,9 @@ function headlineFindings(headline: MarketHeadline, method: Method, capture: Cap
       const j = [2, 1].find(j => s.shops![j] != null), wider = j === undefined ? '' : `; ${TOP_GROUPS[j]} gian hàng doanh thu cao giữ ${pct(s.shops![j]!)}`;
       return `${label(s.platform)}: 1 gian hàng doanh thu cao giữ ${pct(s.shops![0]!)} doanh thu trong mẫu của sàn${wider}${sample(s.platform, s.n)}.`;
     }), [['M04', 'Hình 4.2 ở phần Cơ cấu trong mẫu']], marks(shops.map(s => s.platform))),
-    li(headline.bands.flatMap(({ platform, band, n }) => band ? [`${label(platform)}: nhóm giá ${band.low === band.high ? vnd(band.low) : `${vnd(band.low)}–${vnd(band.high)}`} VND mỗi đơn vị bán có doanh thu lớn trong ba nhóm giá của sàn, ${vnd(band.revenue)} VND từ ${band.count} sản phẩm${sample(platform, n)}.`] : []),
+    li(headline.bands.flatMap(({ platform, band, n }) => band ? [`${label(platform)}: nhóm giá ${band.low === band.high ? vnd(band.low) : `${vnd(band.low)}–${vnd(band.high)}`} ${headline.unitStandard} có doanh thu lớn trong ba nhóm giá của sàn, ${vnd(band.revenue)} VND từ ${band.count} sản phẩm quy đổi được theo quy cách trong tên sản phẩm${sample(platform, n)}.`] : []),
       [['M11', 'Bảng 11.1 ở phần Cơ hội']], marks(headline.bands.map(b => b.platform))),
-    li(headline.search ? [`Mức quan tâm tìm kiếm của từ khóa cao ở tuần ${headline.search.period}, chỉ số ${sp(headline.search.index)} trên thang 0–100; đây là chỉ số tương đối, không phải số người tìm hay doanh số (n = ${headline.search.weeks} tuần có số).`] : [],
+    li(headline.search ? [`Mức quan tâm tìm kiếm của từ khóa cao ở ${headline.search.periodUnit ?? 'tuần'} ${headline.search.period}, chỉ số ${sp(headline.search.index)} trên thang 0–100; đây là chỉ số tương đối, không phải số người tìm hay doanh số (n = ${headline.search.weeks} ${headline.search.periodUnit ?? 'tuần'} có số).`] : [],
       [['M05', 'Hình 5.2 ở phần Nhu cầu (tín hiệu bán)']], ''),
   ].filter(Boolean);
 }
@@ -303,19 +306,48 @@ export function renderAutomationMarketFindings(method: Method, citations: Report
     `<p>Số bán hàng là ước tính${sampleStatement}. Không suy số người mua, quy mô ngoài mẫu hoặc nguyên nhân.</p>${note}`;
 }
 
-export function renderAutomationMarketUnitPrices(method: Method, citations: ReportCitations, readerPlainText = false, capturedPrices = false): string {
+/** Rows listed per platform in the title-unit price table of Phần 8. */
+export type MarketTitleUnitRow = Pick<Method['input']['rows'][number], 'i' | 'platform' | 'listing' | 'title' | 'rev' | 'units'>;
+const TITLE_UNIT_TOP = 10;
+
+/** C7: per platform, the top converted rows by revenue with the title pack size used; '' when no row converts. */
+function titleUnitTables(rows: readonly MarketTitleUnitRow[], profile: UnitProfile, productLabel: (listing: string) => string, title: (value: string) => string): string {
+  const projection = projectTitleUnitPrices(rows.map(row => ({ title: row.title, revenue: row.rev, units: row.units, platform: row.platform })), profile);
+  if (!projection.convertedCount) return '';
+  return (['shopee', 'tiktok'] as const).flatMap(platform => {
+    const own = rows.flatMap((row, index) => row.platform === platform ? [{ row, price: projection.rows[index]! }] : []);
+    const converted = own.filter(entry => entry.price.unitPrice !== null), label = PLATFORM_LABELS[platform];
+    if (!own.length) return [];
+    if (!converted.length) return [`<p>${escape(`${label}: ${convertedLine(0, own.length)}`)}</p>`];
+    const top = [...converted].sort((a, b) => (b.row.rev ?? 0) - (a.row.rev ?? 0) || a.row.i - b.row.i).slice(0, TITLE_UNIT_TOP);
+    return [table(`Giá quy đổi theo quy cách trong tên sản phẩm · ${label} (tối đa ${TITLE_UNIT_TOP} sản phẩm doanh thu cao)`,
+      // "Đơn giá quy đổi" is an estimate from revenue, units and the title pack size, not a read listing price: the M08 badge keeps reading quotes only.
+      ['Sàn', 'Sản phẩm', 'Tiêu đề nguồn', 'Quy cách', `Đơn giá quy đổi (${profile.standard})`, 'Doanh thu (VND)', 'Cơ sở'],
+      top.map(({ row, price }) => [escape(label), productLabel(row.listing), title(row.title), escape(titleQuantityCell(price)), vnd(price.unitPrice!), vnd(row.rev!), escape(TITLE_UNIT_BASIS)]))
+      + `<p class="lim">${escape(`${label}: ${convertedLine(converted.length, own.length)}`)}</p>`];
+  }).join('');
+}
+
+export function renderAutomationMarketUnitPrices(method: Method, citations: ReportCitations, readerPlainText = false, capturedPrices = false, titleProfile: UnitProfile | null = null, titleRows: readonly MarketTitleUnitRow[] = method.input.rows): string {
   const groups = new Map<string, Method['unitPrices']>(), missing: Method['unitPrices'] = [];
   for (const row of method.unitPrices) {
     if (row.value === null) missing.push(row);
     else groups.set(row.comparisonKey, [...(groups.get(row.comparisonKey) ?? []), row]);
   }
-  const titleByListing = new Map(method.input.rows.flatMap(row => row.title.trim() ? [[row.listing, row.title.trim()] as const] : []));
+  const titleByListing = new Map(titleRows.flatMap(row => row.title.trim() ? [[row.listing, row.title.trim()] as const] : []));
   const listingOrdinals = new Map<string, number>();
   const productLabel = (listing: string): string => {
     const ordinal = listingOrdinals.get(listing) ?? listingOrdinals.size + 1;
     listingOrdinals.set(listing, ordinal);
     return readerPlainText ? escape(readerProductLabel(listing, titleByListing.get(listing), ordinal)) : literal(listing, false);
   };
+  // An owner pack packet and captured listing prices keep their own path; only without both does the title pack size price the rows.
+  const titled = readerPlainText && !capturedPrices && !method.unitPrices.length && titleProfile
+    ? titleUnitTables(titleRows, titleProfile, productLabel, value => literal(value, readerPlainText)) : '';
+  if (titled) return `<p>Chưa có quy cách do chủ khai báo; giá dưới đây quy đổi theo quy cách ghi trong tên sản phẩm (${escape(titleProfile!.standard)}). Sản phẩm có nhiều quy cách hoặc khác loại quy cách không được quy đổi.</p>` + titled +
+    '<p>Giá quy đổi là doanh thu chia lượt bán rồi chia quy cách trong tên sản phẩm; đây là ước tính, không thay cho giá niêm yết. Chỉ so giá trong cùng sàn; hàng dùng lâu bán theo bộ không chia nhỏ.</p>' +
+    '<p>Chưa có số liệu chi phí quảng cáo nên chưa tính ROAS (doanh thu trên chi phí quảng cáo) và CPA (chi phí cho mỗi đơn hàng).</p>' +
+    '<p class="lim"><b>Chú thích:</b> Quy cách đọc từ tên sản phẩm trong bản lưu; người bán có thể ghi sai, nên số này chỉ để so sánh trong mẫu.</p>';
   const prices = { LISTED: 'Giá niêm yết', PAYMENT: 'Giá thanh toán', CONDITIONAL_PROMO: 'Giá khuyến mãi có điều kiện' };
   const headings = readerPlainText
     ? ['Sàn', 'Sản phẩm', 'Biến thể', 'Ngành hàng', 'Giá (VND)', 'Số lượng', 'Đơn vị nguồn', 'Giá theo đơn vị chuẩn (VND)', 'Đơn vị chuẩn / cơ sở', 'Loại giá', 'Kỳ giá', 'Trạng thái', 'Nguồn', 'Điều kiện giá']

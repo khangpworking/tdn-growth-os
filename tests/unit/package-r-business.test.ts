@@ -6,7 +6,7 @@ const renderCurrent = (input: AutomationReportInput) => buildResearchAutomationR
 const COPY = {
   priceTitle: 'Giá và quy cách sản phẩm',
   separateMeasures: 'Mỗi dòng là một thước đo riêng, đọc theo đơn vị của chính nó.',
-  bandHeaders: ['Sàn', 'Khoảng giá (VND mỗi đơn vị bán)', 'Số dòng trong khoảng giá', 'Số dòng đủ dữ liệu giá', 'Số dòng được giữ'],
+  bandHeaders: ['Sàn', 'Khoảng giá (đồng/sản phẩm)', 'Số dòng trong khoảng giá', 'Số sản phẩm quy đổi được', 'Số dòng được giữ'],
   optionTitles: ['A. Kiểm tra mức giá dự kiến trong khoảng giá của mẫu', 'B. Kiểm tra quy cách chào bán trong khoảng giá của mẫu', 'C. Kiểm tra điều kiện bán trong khoảng giá của mẫu'],
   firstSteps: ['Đối chiếu mức giá dự kiến với khoảng giá cùng sàn; trình chủ duyệt trước khi thay đổi giá', 'Đối chiếu quy cách đã xác minh của tối đa năm sản phẩm cùng sàn và khoảng giá; trình chủ duyệt quy cách cần xem xét', 'Đối chiếu điều kiện giao hàng và đổi trả đã lưu của tối đa năm sản phẩm cùng sàn và khoảng giá; trình chủ duyệt điều kiện cần xem xét'],
   quickTasks: ['Kiểm tra mức giá dự kiến cho một quy cách đã xác minh', 'Kiểm tra một điều kiện giao hàng hoặc đổi trả dự kiến'],
@@ -33,6 +33,9 @@ import { periodCaptures, periodInventory, periodProducts } from '../helpers/pack
 import { syntheticSearchInterest } from '../helpers/search-interest-synthetic.js';
 import { searchInterestChartPoints } from '../../src/modules/analysis/research-automation/search-interest.js';
 import { renderSearchInterestChart } from '../../src/modules/analysis/reader-report/market-charts.js';
+import { headlineInput, headlineRows, type HeadlineRow } from '../helpers/market-headline-fixture.js';
+import { chooseUnitProfile } from '../../src/modules/analysis/reader-report/market-title-quantity.js';
+import { assertMarketBusinessGate, auditMarketReportHtml } from '../../src/modules/analysis/research-automation/market-business-gate.js';
 
 const text = (node: Node | null | undefined) => node?.textContent?.replace(/\s+/gu, ' ').trim() ?? '';
 const amount = (n: number) => n.toLocaleString('vi-VN');
@@ -364,7 +367,8 @@ test('L12 keep positive price and missing state: P2 source zero never becomes a 
   assert.ok(table);
   assert.match(text(table), /Chưa có giá đọc được/u);
   assert.doesNotMatch(text(table), /(?<!\d)0(?: VND)?(?!\d)/u);
-  assert.equal(m08.querySelector('.interp'), null);
+  // UNIT-209 C7 adds a title-unit table with its own reading; no reading may turn the source zero into a price.
+  for (const reading of m08.querySelectorAll('.interp')) assert.doesNotMatch(text(reading), /(?<!\d)0(?: VND)?(?!\d)|Giá tham khảo/u);
 });
 
 test('L12 keep source quote bytes: P1 bundle words inside a retained title remain verbatim', async t => {
@@ -496,4 +500,265 @@ test('shared action default bytes: standalone 1.4 reader retains the main frozen
   const report = await buildMarketReport(computeReaderReportData(input), sync1Options);
   // Frozen on main in market-reader-test-reviews.test.ts, not inferred from the R implementation.
   assert.equal(createHash('sha256').update(report.html).digest('hex'), '7895f2f4334a688aadd4bb64049417e37a9e38023d62b92407ef20913a940df9');
+});
+
+// UNIT-209: independent, hand-calculated prices. The six sizes are 100,200,500,100,200,500 g.
+// Shopee normalized thirds: 10k–20k | 30k–40k (7m revenue) | 50k–60k.
+// TikTok normalized thirds: 70k–80k | 90k–100k | 110k–120k (23m revenue).
+// The ambiguous Shopee row has revenue, so it stays in n and revenue rankings, but never in a band.
+function titleUnitRows(): HeadlineRow[] {
+  const templates = headlineRows();
+  const titles = ['Bột ngũ cốc 100g', 'Kem dưỡng 200g', 'Trà lá 500g', 'Muối hạt 100g', 'Xà phòng 200g', 'Bánh gạo 500g'];
+  const rows = templates.map((row, index) => {
+    const j = index % 6, p = index < 6 ? 0 : 1;
+    const rev = (p === 0 ? [100_000, 200_000, 3_000_000, 4_000_000, 500_000, 600_000]
+      : [700_000, 800_000, 900_000, 1_000_000, 11_000_000, 12_000_000])[j]!;
+    const asp = (p * 6 + j + 1) * 10_000 * [1, 2, 5, 1, 2, 5][j]!;
+    return { ...row, title: titles[j]!, rev, units: rev / asp, asp };
+  });
+  rows.push({ ...rows[0]!, i: 6, listing: 'ambiguous-food', title: 'Thạch dừa 100g/500g', rev: 1_000_000, units: 1, asp: 1_000_000 });
+  return rows;
+}
+const titleUnitInput = () => headlineInput(titleUnitRows());
+const titleUnitNoCaptureInput = async () => {
+  const input = await headlineInput(titleUnitRows().filter(row => row.platform === 'shopee'));
+  const { capture: _capture, ...metricMethods } = input.metricMethods!;
+  return { ...input, metricMethods };
+};
+const mixedTitleRows = (): HeadlineRow[] => headlineRows().slice(0, 3).map((row, i) => ({ ...row,
+  title: ['Trà 12 gói', 'Nước hoa 100ml', 'Quạt đứng 16 inch'][i]!, rev: [40_000, 35_000, 25_000][i]!, units: 1,
+}));
+const titleUnitNoComparison = 'Chưa so giá giữa các sản phẩm vì quy cách khác nhau hoặc không ghi trong tên sản phẩm.';
+const titlePriceTables = (node: Element) => [...node.querySelectorAll('table')].filter(table =>
+  [...table.querySelectorAll('thead th')].some(th => /^Đơn giá quy đổi/u.test(text(th))));
+
+test('C4 no cross-product unit sums: keep product sales and per-platform revenue', async t => {
+  const { doc, input } = await documentFor(t, 'P1', titleUnitInput);
+  const m03 = section(doc, 'M03');
+  const productTables = [...m03.querySelectorAll('table')].filter(table =>
+    [...table.querySelectorAll('thead th')].some(th => text(th) === 'Lượt bán (đơn vị chào bán)'));
+  assert.equal(productTables.length, 2);
+  assert.deepEqual(productTables.map(table => table.querySelectorAll('tbody tr').length), [7, 6]);
+  for (const table of productTables) {
+    const headers = [...table.querySelectorAll('thead th')].map(text), index = headers.indexOf('Lượt bán (đơn vị chào bán)');
+    const platform = text(table).includes('TikTok Shop') ? 'tiktok' : 'shopee';
+    assert.deepEqual([...table.querySelectorAll('tbody tr')].map(tr => text(tr.querySelectorAll('td')[index])),
+      titleUnitRows().filter(row => row.platform === platform).map(row => amount(row.units!)));
+  }
+  assert.ok(text(m03).includes('9.400.000'));
+  assert.ok(text(m03).includes('26.400.000'));
+  const authored = [...doc.querySelectorAll('p,li,figcaption')].filter(node => !node.closest('table')).map(text).join(' ');
+  assert.doesNotMatch(authored, /143 đơn vị bán|97 đơn vị bán|sản lượng\s*:/iu);
+  assert.doesNotMatch(text(section(doc, 'M04')), /143|97|240 đơn vị bán/u);
+  const demand = input.marketPresentation!.findings.find(finding => finding.id === 'demand');
+  assert.ok(demand);
+  assert.match(demand.statement, /đơn vị bán chỉ đọc theo từng sản phẩm/u);
+  assert.doesNotMatch(demand.statement, /143 đơn vị bán/u);
+  // The current reader without a capture uses a separate summary/trace renderer.
+  const noCapture = await documentFor(t, 'P1', titleUnitNoCaptureInput);
+  assert.equal(noCapture.input.metricMethods!.capture, undefined);
+  const source = section(noCapture.doc, 'M03');
+  const summary = [...source.querySelectorAll('table')].find(table => text(table.querySelector('thead')).includes('Doanh thu quan sát'));
+  assert.ok(summary);
+  assert.deepEqual([...summary.querySelectorAll('thead th')].map(text),
+    ['Phạm vi', 'Bản ghi sản phẩm', 'Gian hàng', 'Doanh thu quan sát', 'Nguồn']);
+  assert.match(text(summary), /9\.400\.000 VND/u);
+  assert.doesNotMatch(text(source), /Sản lượng nguồn|143(?: đơn vị|\b)/u);
+  assert.ok(noCapture.report.traceHtml);
+  const traceDom = new JSDOM(noCapture.report.traceHtml.toString());
+  t.after(() => traceDom.window.close());
+  const trace = [...section(traceDom.window.document, 'M03').querySelectorAll('table')].find(table =>
+    [...table.querySelectorAll('thead th')].some(th => text(th) === 'Lượt bán (đơn vị chào bán)'));
+  assert.ok(trace, 'per-product units survive in the no-capture source trace');
+  assert.deepEqual([...trace.querySelectorAll('tbody tr')].map(tr => text(tr.querySelectorAll('td')[3])),
+    ['10', '5', '20', '100', '5', '2', '1']);
+});
+
+test('C5 price bands: converted prices only, separate platforms and honest k/n', async t => {
+  const { doc } = await documentFor(t, 'P1', titleUnitInput);
+  const m04 = section(doc, 'M04');
+  for (const [platform, name, eligible, retained, bands] of [
+    ['shopee', 'Shopee', 6, 7, ['10.000–20.000', '30.000–40.000', '50.000–60.000']],
+    ['tiktok', 'TikTok Shop', 6, 6, ['70.000–80.000', '90.000–100.000', '110.000–120.000']],
+  ] as const) {
+    const table = m04.querySelector(`table[data-market-price-bands][data-platform="${platform}"]`);
+    assert.ok(table);
+    assert.deepEqual([...table.querySelectorAll('thead th')].map(text),
+      ['Sàn', 'Khoảng giá (đồng/100g)', 'Số dòng trong khoảng giá', 'Số sản phẩm quy đổi được', 'Số dòng được giữ']);
+    assert.deepEqual([...table.querySelectorAll('tbody tr')].map(tr => [...tr.querySelectorAll('td')].map(text)),
+      bands.map(band => [name, band, '2', String(eligible), String(retained)]));
+  }
+  const opportunity = section(doc, 'M11');
+  assert.match(text(opportunity.querySelector('thead')), /Khoảng giá có doanh thu lớn \(đồng\/100g\)/u);
+  assert.deepEqual([...opportunity.querySelectorAll('tbody tr')].map(tr => [...tr.querySelectorAll('td')].map(text)), [
+    ['Shopee', '30.000–40.000', '7.000.000', '2', '9.100.000', '5'],
+    ['TikTok Shop', '110.000–120.000', '23.000.000', '2', '25.700.000', '5'],
+  ]);
+  for (const id of ['M04', 'M11', 'M12']) {
+    const content = text(section(doc, id));
+    assert.ok(content.includes('Shopee: 6/7 sản phẩm quy đổi được theo quy cách trong tên sản phẩm; 1 sản phẩm chưa quy đổi được, không đưa vào so sánh giá.'), id);
+    assert.ok(content.includes('TikTok Shop: 6/6 sản phẩm quy đổi được theo quy cách trong tên sản phẩm.'), id);
+    assert.doesNotMatch(content, /0 sản phẩm chưa quy đổi|mỗi đơn vị bán/u);
+  }
+  const headline = text(section(doc, 'M01')), options = [...optionRows(doc)].map(text);
+  assert.match(headline, /Shopee: nhóm giá 30\.000–40\.000 đồng\/100g/u);
+  assert.match(headline, /TikTok Shop: nhóm giá 110\.000–120\.000 đồng\/100g/u);
+  for (const option of options) {
+    assert.match(option, /Shopee: khoảng giá 30\.000–40\.000 đồng\/100g/u);
+    assert.match(option, /TikTok Shop: khoảng giá 110\.000–120\.000 đồng\/100g/u);
+    assert.doesNotMatch(option, /1\.000\.000–1\.000\.000/u, 'the ambiguous row must never become a band');
+  }
+  // Six single items must still form bands when a model suffix resembles a pack multiplier.
+  const titles = ['Máy ảnh X100V', 'Quạt x100s', 'Son 3CE', 'Giày size 40', 'Điện thoại 5G', 'Quạt đứng 16 inch'];
+  const durables = titleUnitRows().slice(0, 6).map((row, i) => ({ ...row, title: titles[i]!, units: row.rev! / ((i + 1) * 10_000) }));
+  durables.push({ ...durables[0]!, i: 6, listing: 'durable-pack', title: 'Bộ 3 giày', rev: 1_000_000, units: 1 });
+  const durable = await documentFor(t, 'P1', () => headlineInput(durables));
+  const durableBand = section(durable.doc, 'M04').querySelector('[data-market-price-bands][data-platform="shopee"]');
+  assert.ok(durableBand, 'model suffixes must not reduce six convertible products below the band threshold');
+  assert.deepEqual([...durableBand.querySelectorAll('thead th')].map(text),
+    ['Sàn', 'Khoảng giá (đồng/sản phẩm)', 'Số dòng trong khoảng giá', 'Số sản phẩm quy đổi được', 'Số dòng được giữ']);
+  assert.deepEqual([...durableBand.querySelectorAll('tbody tr')].map(tr => [...tr.querySelectorAll('td')].map(text)),
+    ['10.000–20.000', '30.000–40.000', '50.000–60.000'].map(band => ['Shopee', band, '2', '6', '7']));
+  assert.deepEqual([...section(durable.doc, 'M11').querySelectorAll('tbody tr')].map(tr => [...tr.querySelectorAll('td')].map(text)),
+    [['Shopee', '30.000–40.000', '7.000.000', '2', '9.100.000', '5']]);
+  assert.ok(text(section(durable.doc, 'M04')).includes('Shopee: 6/7 sản phẩm quy đổi được theo quy cách trong tên sản phẩm; 1 sản phẩm chưa quy đổi được, không đưa vào so sánh giá.'));
+});
+
+test('C6 no profile or zero conversions: replace bands and retain revenue exhibits', async t => {
+  const mixed = mixedTitleRows();
+  assert.equal(chooseUnitProfile(mixed.map(row => ({ title: row.title, revenue: row.rev, units: row.units, platform: row.platform }))), null);
+  // The positive comparison control ensures absence is caused by the input, not a missing exhibit selector.
+  const positive = await documentFor(t, 'P1', titleUnitInput);
+  assert.ok(section(positive.doc, 'M04').querySelector('[data-market-price-bands]'));
+  for (const rows of [mixed, titleUnitRows().map(row => ({ ...row, units: 0 }))]) {
+    const { doc } = await documentFor(t, 'P1', () => headlineInput(rows));
+    const m04 = section(doc, 'M04'), m11 = section(doc, 'M11');
+    assert.ok(text(m04).includes(titleUnitNoComparison));
+    assert.equal(m04.querySelector('[data-market-price-bands]'), null);
+    // Contract C6 also applies when a profile exists but k=0: only the band part disappears.
+    assert.deepEqual([...m11.querySelectorAll('thead th')].map(text),
+      ['Sàn', 'Doanh thu của nhóm sản phẩm doanh thu lớn (VND)', 'Số sản phẩm trong nhóm']);
+    assert.ok(text(m11).includes(titleUnitNoComparison));
+    assert.ok(m11.querySelector('tbody tr'), 'revenue leaders survive');
+    assert.ok(m04.querySelector('figure[data-chart-kind="platform-revenue"], figure[data-chart-id="platform-revenue"]')
+      ?? [...m04.querySelectorAll('figure')].find(figure => /Doanh thu/u.test(text(figure))), 'revenue chart survives');
+    assert.doesNotMatch(text(section(doc, 'M01')), /nhóm giá [\d.]/u);
+    assert.doesNotMatch(text(section(doc, 'M12')), /khoảng giá [\d.]/u);
+    assert.doesNotMatch([text(m04), text(m11), text(section(doc, 'M12'))].join(' '), /0\/\d+|0 sản phẩm/u);
+  }
+  // Six same-platform products retain revenue leaders even when the ambiguous row leaves only five prices.
+  const shopee = titleUnitRows().filter(row => row.platform === 'shopee');
+  const partial = [...shopee.slice(0, 5), shopee.at(-1)!];
+  for (const fallback of [false, true]) {
+    const { doc, input } = await documentFor(t, 'P1', () => headlineInput(partial, { fallback }));
+    assert.equal(input.marketPresentation!.input.rows.length, fallback ? 0 : 6);
+    assert.equal(input.metricMethods!.capture!.platforms[0]!.result.input.records.length, 6);
+    const m04 = section(doc, 'M04'), m11 = section(doc, 'M11');
+    assert.equal(m04.querySelector('[data-market-price-bands]'), null, 'five converted prices cannot form bands');
+    assert.match(text(m04), /Shopee: chưa đủ dữ liệu giá để chia khoảng giá trong mẫu\./u);
+    assert.deepEqual([...m11.querySelectorAll('thead th')].map(text),
+      ['Sàn', 'Doanh thu của nhóm sản phẩm doanh thu lớn (VND)', 'Số sản phẩm trong nhóm']);
+    assert.deepEqual([...m11.querySelectorAll('tbody tr')].map(tr => [...tr.querySelectorAll('td')].map(text)),
+      [['Shopee', '8.700.000', '5']], 'top five revenues still include the ambiguous product');
+    const coverage = 'Shopee: 5/6 sản phẩm quy đổi được theo quy cách trong tên sản phẩm; 1 sản phẩm chưa quy đổi được, không đưa vào so sánh giá.';
+    for (const id of ['M04', 'M11', 'M12']) assert.ok(text(section(doc, id)).includes(coverage), `${id}, fallback: ${fallback}`);
+    assert.ok(m04.querySelector('figure[data-chart-kind="platform-revenue"], figure[data-chart-id="platform-revenue"]')
+      ?? [...m04.querySelectorAll('figure')].find(figure => /Doanh thu/u.test(text(figure))), 'revenue chart survives partial conversion');
+    assert.doesNotMatch(text(section(doc, 'M01')), /nhóm giá [\d.]/u);
+    assert.doesNotMatch(text(section(doc, 'M12')), /khoảng giá [\d.]/u);
+  }
+});
+
+test('C7 unit-price section: title and Metric fallback, revenue order, missing profile and owner precedence', async t => {
+  for (const fallback of [false, true]) {
+    const { doc, input } = await documentFor(t, 'P1', () => headlineInput(titleUnitRows(), { fallback }));
+    assert.equal(input.marketPresentation!.input.rows.length, fallback ? 0 : 13);
+    assert.equal(input.marketPresentation!.unitPrices.length, 0, 'no owner unit-price packet');
+    assert.deepEqual(input.metricMethods!.capture!.platforms.map(({ result }) => result.input.records.length), [7, 6]);
+    const tables = titlePriceTables(section(doc, 'M08'));
+    assert.equal(tables.length, 2, `fallback: ${fallback}`);
+    for (const [i, name, prices, titles] of [
+      [0, 'Shopee', ['40.000', '30.000', '60.000', '50.000', '20.000', '10.000'],
+        ['Muối hạt 100g', 'Trà lá 500g', 'Bánh gạo 500g', 'Xà phòng 200g', 'Kem dưỡng 200g', 'Bột ngũ cốc 100g']],
+      [1, 'TikTok Shop', ['120.000', '110.000', '100.000', '90.000', '80.000', '70.000'],
+        ['Bánh gạo 500g', 'Xà phòng 200g', 'Muối hạt 100g', 'Trà lá 500g', 'Kem dưỡng 200g', 'Bột ngũ cốc 100g']],
+    ] as const) {
+      const table = tables[i]!;
+      assert.match(text(table.querySelector('thead')), /Đơn giá quy đổi \(đồng\/100g\)/u);
+      assert.deepEqual([...table.querySelectorAll('tbody tr')].map(tr => text(tr.querySelectorAll('td')[4])), prices);
+      assert.deepEqual([...table.querySelectorAll('tbody tr')].map(tr => text(tr.querySelectorAll('td')[2])), titles);
+      for (const tr of table.querySelectorAll('tbody tr')) {
+        assert.equal(text(tr.querySelectorAll('td')[0]), name);
+        assert.equal(text(tr.querySelectorAll('td')[6]), 'quy cách theo tên sản phẩm');
+      }
+      assert.doesNotMatch(text(table), /Thạch dừa 100g\/500g/u);
+    }
+  }
+  const missing = await documentFor(t, 'P1', () => headlineInput(mixedTitleRows()));
+  assert.equal(titlePriceTables(section(missing.doc, 'M08')).length, 0);
+  assert.match(text(section(missing.doc, 'M08')), /Chưa quy đổi được/u);
+  const owner = await documentFor(t, 'P3');
+  const ownerSection = section(owner.doc, 'M08');
+  assert.equal(titlePriceTables(ownerSection).length, 0);
+  assert.match(text(ownerSection), /Số lượng do chủ khai báo/u);
+  assert.match(text(ownerSection), /10\.000/u);
+});
+
+test('C8 per-product quantities: show matched evidence and explicit rejection', async t => {
+  const { doc } = await documentFor(t, 'P1', titleUnitInput);
+  const tables = [...section(doc, 'M03').querySelectorAll('table')].filter(table =>
+    [...table.querySelectorAll('thead th')].some(th => text(th) === 'Lượt bán (đơn vị chào bán)'));
+  assert.equal(tables.length, 2);
+  for (const table of tables) {
+    const headers = [...table.querySelectorAll('thead th')].map(text), quantity = headers.indexOf('Quy cách');
+    assert.ok(quantity >= 0);
+    for (const tr of table.querySelectorAll('tbody tr')) {
+      const cells = [...tr.querySelectorAll('td')];
+      const title = text(cells[2]);
+      assert.equal(text(cells[quantity]), title === 'Thạch dừa 100g/500g' ? 'chưa quy đổi được' : title.match(/\d+g/u)![0], title);
+      assert.equal(text(cells[2]!.querySelector('[data-quote]')), title, 'source title is preserved');
+    }
+  }
+  for (const table of titlePriceTables(section(doc, 'M08'))) {
+    assert.equal(text(table.querySelectorAll('thead th')[3]), 'Quy cách');
+    for (const tr of table.querySelectorAll('tbody tr'))
+      assert.equal(text(tr.querySelectorAll('td')[3]), text(tr.querySelectorAll('td')[2]).match(/\d+g/u)![0]);
+  }
+  const durable = await documentFor(t, 'P1', () => headlineInput(headlineRows().slice(0, 3).map((row, i) => ({ ...row,
+    title: ['Quạt đứng 16 inch', 'Son 3CE', 'Bộ 3 giày'][i]!, rev: 100_000, units: 1 }))));
+  const durableTable = [...section(durable.doc, 'M03').querySelectorAll('table')].find(table => text(table.querySelector('thead')).includes('Quy cách'))!;
+  const headers = [...durableTable.querySelectorAll('thead th')].map(text);
+  assert.deepEqual([...durableTable.querySelectorAll('tbody tr')].map(tr => text(tr.querySelectorAll('td')[headers.indexOf('Quy cách')])),
+    ['không ghi số lượng; tính 1 sản phẩm', 'không ghi số lượng; tính 1 sản phẩm', 'chưa quy đổi được']);
+  const noCapture = await documentFor(t, 'P1', titleUnitNoCaptureInput);
+  assert.ok(noCapture.report.traceHtml);
+  const traceDom = new JSDOM(noCapture.report.traceHtml.toString());
+  t.after(() => traceDom.window.close());
+  const sourceTable = [...section(traceDom.window.document, 'M03').querySelectorAll('table')].find(table =>
+    [...table.querySelectorAll('thead th')].some(th => text(th) === 'Lượt bán (đơn vị chào bán)'));
+  assert.ok(sourceTable, 'exercise the no-capture per-product trace');
+  assert.deepEqual([...sourceTable.querySelectorAll('thead th')].map(text),
+    ['Mã sản phẩm / gian hàng', 'Tên theo nguồn', 'Doanh thu kỳ (VND)', 'Lượt bán (đơn vị chào bán)', 'Quy cách', 'Nguồn']);
+  assert.deepEqual([...sourceTable.querySelectorAll('tbody tr')].map(tr => text(tr.querySelectorAll('td')[4])),
+    ['100g', '200g', '500g', '100g', '200g', '500g', 'chưa quy đổi được']);
+  assert.deepEqual([...sourceTable.querySelectorAll('tbody tr')].map(tr => text(tr.querySelectorAll('td')[1])),
+    titleUnitRows().filter(row => row.platform === 'shopee').map(row => row.title));
+});
+
+test('C9 unchanged guards: existing fixtures pass and visible provider names are rejected', async t => {
+  for (const shape of BUSINESS_SHAPES) {
+    const { report, doc } = await documentFor(t, shape), html = report.html.toString();
+    assert.deepEqual(auditMarket14(html).filter(row => row.kind === 'machine' && !row.ok), [], shape);
+    assert.doesNotThrow(() => assertMarketBusinessGate(html), shape);
+    assert.doesNotMatch(text(doc.body), /Google|OpenAI|gpt-4o|Gemini/u);
+    for (const node of doc.querySelectorAll('.state, [role="status"], [role="progressbar"], .progress')) {
+      assert.notEqual(text(node), '0');
+      assert.doesNotMatch(text(node), /%/u);
+    }
+    for (const forbidden of ['Google', 'gpt-4o']) {
+      const bad = html.replace('</body>', `<p>${forbidden}</p></body>`);
+      assert.equal(auditMarketReportHtml(bad).find(row => row.rule === 'G08_PROVIDER_NAME')!.ok, false);
+      assert.throws(() => assertMarketBusinessGate(bad), /G08_PROVIDER_NAME/u);
+    }
+  }
 });

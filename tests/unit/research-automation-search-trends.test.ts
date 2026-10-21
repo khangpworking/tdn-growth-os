@@ -5,7 +5,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { bytesContainSecret, type ProviderTransport } from '../../src/modules/analysis/research-automation/provider-common.js';
 import {
-  SEARCH_TRENDS_LIMITS, fetchTrends, parseTrends, planTrendsRequests, trendsCacheKey,
+  SEARCH_TRENDS_LIMITS, fetchTrends, parseTrends, planTrendsRequests, trendsCacheKey, trendsDateParam,
   type TrendsDataType, type TrendsRequest,
 } from '../../src/modules/analysis/research-automation/search-trends.js';
 
@@ -221,4 +221,13 @@ test('trendsCacheKey depends on the request and the retrieval day and never carr
   assert.notEqual(trendsCacheKey(base, '2026-10-07'), trendsCacheKey(request('GEO_MAP_0', base.keywords), '2026-10-07'));
   assert.notEqual(trendsCacheKey(base, '2026-10-07'), trendsCacheKey(request('TIMESERIES', ['bình giữ nhiệt An Nhiên']), '2026-10-07'));
   assert.equal(trendsCacheKey(base, '2026-10-07').includes(KEY), false);
+});
+
+test('SRC1 row 8: cache identity separates ranges and reuses the same range', () => {
+  const first = { ...request('TIMESERIES'), range: { startDate: '2024-01-01', endDate: '2024-12-31' } };
+  const second = { ...first, range: { startDate: '2025-01-01', endDate: '2025-12-31' } };
+  const key = trendsCacheKey(first, '2026-10-07');
+  assert.equal(key, trendsCacheKey(structuredClone(first), '2026-10-07'));
+  assert.notEqual(key, trendsCacheKey(second, '2026-10-07'));
+  assert.notEqual(key, trendsCacheKey(request('TIMESERIES'), '2026-10-07'));
 });

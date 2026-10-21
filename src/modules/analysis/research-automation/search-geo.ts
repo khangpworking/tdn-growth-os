@@ -8,6 +8,7 @@ import { defaultProviderTransport, type ProviderTransport } from './provider-com
 import type { ProviderCallOptions } from './providers.js';
 import { MAX_SEARCH_GEO_PROVINCES, type SearchGeoReason, type StepSearchGeo, type StepSearchGeoProvince } from './model.js';
 import { fetchTrends, planTrendsRequests, type TrendsCallResult } from './search-trends.js';
+import { searchRangeText, type SearchInterestRange } from './search-interest.js';
 
 export const SEARCH_GEO_FLAG = 'TDN_RESEARCH_SEARCH_TRENDS_GEO_ENABLED';
 /** Usage ordinal of the province call inside the collection step (0-15 are taken by the other lanes). */
@@ -31,18 +32,25 @@ export function searchGeoEnabled(env: Readonly<Record<string, string | undefined
 /** The executor-side port. It makes at most one paid request and never retries it. */
 export interface SearchGeoSource {
   readonly id: 'SERPAPI';
-  collect(keyword: string, options?: ProviderCallOptions): Promise<TrendsCallResult>;
+  /** `range` is the report period the provider is asked for; without it the provider's default last 12 months is used. */
+  collect(keyword: string, options?: ProviderCallOptions, range?: SearchInterestRange): Promise<TrendsCallResult>;
 }
 
 export function createSearchGeoSource(apiKey: string | null, transport: ProviderTransport = defaultProviderTransport): SearchGeoSource {
   return {
     id: 'SERPAPI',
-    async collect(keyword, options = {}) {
+    async collect(keyword, options = {}, range) {
       const request = planTrendsRequests([keyword]).find(item => item.dataType === 'GEO_MAP_0');
       if (!request) return { status: 'FAILED', facts: null, captures: [] };
-      return fetchTrends(apiKey, transport, request, options);
+      return fetchTrends(apiKey, transport, range ? { ...request, range } : request, options);
     },
   };
+}
+
+/** Note of the province table: names the asked range when the document carries one, else the older "12 tháng gần đây" text. */
+export function searchGeoNoteText(value: { readonly requestedRange?: SearchInterestRange }, legacy: boolean): string {
+  const note = legacy ? LEGACY_SEARCH_GEO_NOTE : SEARCH_GEO_NOTE;
+  return value.requestedRange ? note.replace('trong 12 tháng gần đây', `trong khoảng ${searchRangeText(value.requestedRange)}`) : note;
 }
 
 // ---------- province -> region (63 provinces before the 2025 merger, 6 regions, statistics office standard) ----------
@@ -95,8 +103,8 @@ export function provinceRegion(name: string): VnRegion | null {
 
 export type SearchGeoAttempt =
   | { readonly kind: 'SKIPPED'; readonly keyword: string; readonly reason: SearchGeoReason }
-  | { readonly kind: 'THROWN'; readonly keyword: string }
-  | { readonly kind: 'CALLED'; readonly keyword: string; readonly result: TrendsCallResult };
+  | { readonly kind: 'THROWN'; readonly keyword: string; readonly range?: SearchInterestRange }
+  | { readonly kind: 'CALLED'; readonly keyword: string; readonly result: TrendsCallResult; readonly range?: SearchInterestRange };
 
 /** NFC, trimmed, single-spaced and case-folded; diacritics are kept because a different word is a different query. */
 const queryKey = (text: string): string => text.normalize('NFC').trim().replace(/\s+/gu, ' ').toLowerCase().normalize('NFC');
@@ -104,7 +112,9 @@ const valued = (provinces: readonly StepSearchGeoProvince[]): StepSearchGeoProvi
 
 /** The stored step field. A failure keeps a reason code and no provinces; it never changes the step outcome. */
 export function searchGeoDocument(attempt: SearchGeoAttempt, captureIndex: number | null): StepSearchGeo {
-  const base = { keyword: attempt.keyword, geo: 'VN', unit: 'INDEX_0_100', window: 'LAST_12_MONTHS' } as const;
+  // A skipped attempt made no call, so it carries no range; a called one binds the document to the range it asked for.
+  const range = attempt.kind === 'SKIPPED' ? undefined : attempt.range;
+  const base = { keyword: attempt.keyword, geo: 'VN', unit: 'INDEX_0_100', window: range ? 'REQUESTED_RANGE' : 'LAST_12_MONTHS', ...(range ? { requestedRange: { startDate: range.startDate, endDate: range.endDate } } : {}) } as const;
   const failed = (reason: SearchGeoReason, retrievedAt: string | null, index: number | null): StepSearchGeo =>
     ({ status: 'FAILED', reason, ...base, retrievedAt, provinces: [], captureIndex: index });
   if (attempt.kind === 'SKIPPED') return { status: 'SKIPPED', reason: attempt.reason, ...base, retrievedAt: null, provinces: [], captureIndex: null };

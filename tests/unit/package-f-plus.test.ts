@@ -389,7 +389,7 @@ test('[contract 24b,27,28,29] exact source values, quotes, citation targets and 
     assert.equal(doc.querySelector('.citation-register')?.outerHTML, main.shapes[shape].register);
     for (const table of fSampleTables(doc)) {
       const headings = fCells(table.querySelector('thead tr')!);
-      const revenueIndex = headings.findIndex(h => /Doanh thu/u.test(h)), unitsIndex = headings.findIndex(h => /Sản lượng|Số lượng bán/u.test(h));
+      const revenueIndex = headings.findIndex(h => /Doanh thu/u.test(h)), unitsIndex = headings.findIndex(h => /Sản lượng|Số lượng bán|Lượt bán/u.test(h)); // UNIT-209 C4 header 'Lượt bán (đơn vị chào bán)'
       const platform = /TikTok Shop/u.test(fText(table.querySelector('caption')) + table.getAttribute('aria-label')) ? 'tiktok' : 'shopee';
       const expected = fRows(shape).filter(row => row.platform === platform);
       [...table.querySelectorAll('tbody tr')].forEach((row, index) => {

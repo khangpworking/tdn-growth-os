@@ -4,14 +4,13 @@
 // of searches and never sales, and it is shown beside the sales sections, never in the same total or axis.
 import { defaultProviderTransport, isAmbiguous, type ProviderTransport } from './provider-common.js';
 import type { ProviderCallOptions, ProviderRawCapture } from './providers.js';
-import { MAX_SEARCH_INTEREST_POINTS, type SearchInterestReason, type StepSearchInterest, type StepSearchInterestPoint } from './model.js';
-import { fetchTrends, planTrendsRequests, type TrendsCallResult } from './search-trends.js';
+import { MAX_SEARCH_INTEREST_POINTS, MAX_SEARCH_INTEREST_RANGE_POINTS, type SearchInterestReason, type StepSearchInterest, type StepSearchInterestPoint } from './model.js';
+import { fetchTrends, planTrendsRequests, type TrendsCallResult, type TrendsDateRange } from './search-trends.js';
 
 export const SEARCH_TRENDS_FLAG = 'TDN_RESEARCH_SEARCH_TRENDS_ENABLED';
 /** Usage ordinal of the trends call inside the collection step (0 Kalodata, 1 exact Shopee, 2 web, 3 trends). */
 export const SEARCH_INTEREST_USAGE_ORDINAL = 3;
-/** The provider window is fixed at the last 12 months of weekly points (365 days; the first point's week may start up to 7 days
- * earlier). A period that starts before that, or ends in the future, is skipped before any paid call. */
+/** The provider's default window (last 12 months of weekly points). Kept for documents stored before the report period was sent; no longer a gate. */
 export const SEARCH_INTEREST_WINDOW_DAYS = 372;
 /** A series with fewer dated, non-empty points is not drawn. */
 export const SEARCH_INTEREST_MIN_POINTS = 4;
@@ -33,31 +32,67 @@ export function searchTrendsEnabled(env: Readonly<Record<string, string | undefi
 /** The executor-side port. It makes at most one paid request and never retries it. */
 export interface SearchInterestSource {
   readonly id: 'SERPAPI';
-  collect(keyword: string, options?: ProviderCallOptions): Promise<TrendsCallResult>;
+  /** `range` is the report period the provider is asked for; without it the provider's default last 12 months is used. */
+  collect(keyword: string, options?: ProviderCallOptions, range?: SearchInterestRange): Promise<TrendsCallResult>;
 }
+
+export type SearchInterestRange = TrendsDateRange;
 
 export function createSearchInterestSource(apiKey: string | null, transport: ProviderTransport = defaultProviderTransport): SearchInterestSource {
   return {
     id: 'SERPAPI',
-    async collect(keyword, options = {}) {
+    async collect(keyword, options = {}, range) {
       const request = planTrendsRequests([keyword]).find(item => item.dataType === 'TIMESERIES');
       if (!request) return { status: 'FAILED', facts: null, captures: [] };
-      return fetchTrends(apiKey, transport, request, options);
+      return fetchTrends(apiKey, transport, range ? { ...request, range } : request, options);
     },
   };
 }
 
-/** True when the measurement period lies inside the provider's last-12-months window (no paid call otherwise). */
+/** The provider has no data before this day. */
+export const SEARCH_INTEREST_EARLIEST_DAY = '2004-01-01';
+
+/** Why the report period cannot be asked for (null when it can). Checked before any paid call; each case has its own reason. */
+export function searchInterestPeriodSkip(period: { readonly startDate: string; readonly endDate: string }, nowMs: number): Extract<SearchInterestReason, 'PERIOD_INVALID' | 'PERIOD_BEFORE_PROVIDER_START' | 'PERIOD_IN_FUTURE'> | null {
+  const parseDay = (value: string): number | null => {
+    if (!/^\d{4}-\d{2}-\d{2}$/u.test(value)) return null;
+    const time = Date.parse(`${value}T00:00:00Z`);
+    return Number.isFinite(time) && new Date(time).toISOString().slice(0, 10) === value ? time : null;
+  };
+  const start = parseDay(period.startDate), end = parseDay(period.endDate);
+  if (start === null || end === null || start > end) return 'PERIOD_INVALID';
+  if (start < Date.parse(`${SEARCH_INTEREST_EARLIEST_DAY}T00:00:00Z`)) return 'PERIOD_BEFORE_PROVIDER_START';
+  if (end > nowMs + 86_400_000) return 'PERIOD_IN_FUTURE';
+  return null;
+}
+
+/** True when the provider can be asked for the measurement period (no paid call otherwise). */
 export function searchInterestCoversPeriod(period: { readonly startDate: string; readonly endDate: string }, nowMs: number): boolean {
-  const start = Date.parse(`${period.startDate}T00:00:00Z`), end = Date.parse(`${period.endDate}T00:00:00Z`);
-  if (!Number.isFinite(start) || !Number.isFinite(end)) return false;
-  return start >= nowMs - SEARCH_INTEREST_WINDOW_DAYS * 86_400_000 && end <= nowMs + 86_400_000;
+  return searchInterestPeriodSkip(period, nowMs) === null;
+}
+
+/** The range sent to the provider: the report period, with an end day after today pulled back to today. */
+export function searchInterestRange(period: { readonly startDate: string; readonly endDate: string }, nowMs: number): SearchInterestRange {
+  const today = new Date(nowMs).toISOString().slice(0, 10);
+  const endDate = period.endDate > today ? today : period.endDate;
+  return { startDate: period.startDate, endDate: endDate < period.startDate ? period.startDate : endDate };
+}
+
+/** dd/mm/yyyy for a stored ISO day. */
+const dayText = (iso: string): string => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
+/** Report text for the range a stored series or map was asked for. */
+export function searchRangeText(range: SearchInterestRange): string {
+  return `từ ${dayText(range.startDate)} đến ${dayText(range.endDate)}`;
+}
+/** Source line of the series or map: the asked range when the document carries one, else the older fixed text. */
+export function searchInterestSourceText(value: { readonly requestedRange?: SearchInterestRange }): string {
+  return value.requestedRange ? `Mức quan tâm tìm kiếm đã lưu cho từ khóa của báo cáo, Việt Nam, ${searchRangeText(value.requestedRange)}.` : SEARCH_INTEREST_SRC;
 }
 
 export type SearchInterestAttempt =
   | { readonly kind: 'SKIPPED'; readonly keyword: string; readonly reason: SearchInterestReason }
-  | { readonly kind: 'THROWN'; readonly keyword: string }
-  | { readonly kind: 'CALLED'; readonly keyword: string; readonly result: TrendsCallResult };
+  | { readonly kind: 'THROWN'; readonly keyword: string; readonly range?: SearchInterestRange }
+  | { readonly kind: 'CALLED'; readonly keyword: string; readonly result: TrendsCallResult; readonly range?: SearchInterestRange };
 
 /** NFC, trimmed, single-spaced and case-folded; diacritics are kept because a different word is a different query. */
 const queryKey = (text: string): string => text.normalize('NFC').trim().replace(/\s+/gu, ' ').toLowerCase().normalize('NFC');
@@ -65,7 +100,9 @@ const nonNull = (points: readonly StepSearchInterestPoint[]): number => points.f
 
 /** The stored step field. A failure keeps a reason code and no points; it never changes the step outcome. */
 export function searchInterestDocument(attempt: SearchInterestAttempt, captureIndex: number | null): StepSearchInterest {
-  const base = { keyword: attempt.keyword, geo: 'VN', unit: 'INDEX_0_100', window: 'LAST_12_MONTHS' } as const;
+  // A skipped attempt made no call, so it carries no range; a called one binds the document to the range it asked for.
+  const range = attempt.kind === 'SKIPPED' ? undefined : attempt.range;
+  const base = { keyword: attempt.keyword, geo: 'VN', unit: 'INDEX_0_100', window: range ? 'REQUESTED_RANGE' : 'LAST_12_MONTHS', ...(range ? { requestedRange: { startDate: range.startDate, endDate: range.endDate } } : {}) } as const;
   const failed = (reason: SearchInterestReason, retrievedAt: string | null, index: number | null): StepSearchInterest =>
     ({ status: 'FAILED', reason, ...base, retrievedAt, points: [], captureIndex: index });
   if (attempt.kind === 'SKIPPED') return { status: 'SKIPPED', reason: attempt.reason, ...base, retrievedAt: null, points: [], captureIndex: null };
@@ -77,7 +114,9 @@ export function searchInterestDocument(attempt: SearchInterestAttempt, captureIn
   // Only the series the provider echoes for the requested keyword is trusted; a different query (diacritics count) is never used instead.
   const wanted = queryKey(attempt.keyword), matches = result.facts.series.filter(item => queryKey(item.keyword) === wanted);
   if (matches.length !== 1) return failed('PROVIDER_FAILED', retrievedAt, index);
-  const points = matches[0]!.points.slice(-MAX_SEARCH_INTEREST_POINTS).map(point => ({ period: point.period, index: point.index }));
+  const series = matches[0]!.points;
+  if (range && series.length > MAX_SEARCH_INTEREST_RANGE_POINTS) return failed('PROVIDER_FAILED', retrievedAt, index);
+  const points = (range ? series : series.slice(-MAX_SEARCH_INTEREST_POINTS)).map(point => ({ period: point.period, index: point.index }));
   if (nonNull(points) < SEARCH_INTEREST_MIN_POINTS) return failed('EMPTY_SERIES', retrievedAt, index);
   return { status: 'COLLECTED', reason: null, ...base, retrievedAt, points, captureIndex: index };
 }
@@ -104,6 +143,26 @@ const calendarDate = (year: number, month: number, day: number): number | null =
   return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? time : null;
 };
 
+function searchDay(period: string): number | null {
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(period.trim());
+  if (iso) return calendarDate(Number(iso[1]), Number(iso[2]), Number(iso[3]));
+  const vi = /^(\d{1,2})\s+thg\s+(\d{1,2}),?\s+(\d{4})$/u.exec(period.trim());
+  return vi ? calendarDate(Number(vi[3]), Number(vi[2]), Number(vi[1])) : null;
+}
+
+/** Localized single dates are daily; ISO dates need a sub-week cadence to distinguish them from week starts. */
+export function searchInterestIsDaily(value: StepSearchInterest): boolean {
+  if (value.window !== 'REQUESTED_RANGE') return false;
+  const days = value.points.map(point => searchDay(point.period)).filter((day): day is number => day !== null);
+  return value.points.some(point => /thg/u.test(point.period) && searchDay(point.period) !== null)
+    || days.some((day, i) => i > 0 && Math.abs(day - days[i - 1]!) > 0 && Math.abs(day - days[i - 1]!) < 7 * DAY);
+}
+
+/** Keep weekly reader wording for stored default-window documents and weekly custom-range responses. */
+export function searchInterestIntervalText(value: StepSearchInterest, text: string): string {
+  return searchInterestIsDaily(value) ? text.replace(/tuần/gu, 'ngày').replace(/Tuần/gu, 'Ngày') : text;
+}
+
 /** ISO periods name the week's first day; localized ranges explicitly name both ends. Unknown dates are withheld. */
 function searchWeek(period: string): { start: number; end: number } | null {
   const iso = /^(\d{4})-(\d{2})-(\d{2})(?:\s*[–—/]\s*(\d{4})-(\d{2})-(\d{2}))?$/u.exec(period);
@@ -127,13 +186,18 @@ function searchWeekLabel({ start, end }: { start: number; end: number }): string
     : first.slice(5, 7) !== last.slice(5, 7) ? `${date(first).slice(0, 5)}–${date(last)}` : `${first.slice(8, 10)}–${date(last)}`;
 }
 
-/** Rendering only: retained step bytes and their replay/digest inputs stay unchanged. A week ending today is still in progress. */
+/** Rendering only: retained step bytes and their replay/digest inputs stay unchanged. A period ending today is still in progress. */
 export function searchInterestReadingPoints(value: StepSearchInterest): StepSearchInterestPoint[] {
   const retrieved = value.retrievedAt ? Date.parse(value.retrievedAt) : NaN;
   if (!Number.isFinite(retrieved)) return [];
   // The source periods are Vietnam calendar days (UTC+7), independent of the host timezone.
   const cutoff = Math.floor((retrieved + 7 * 60 * 60 * 1000) / DAY) * DAY;
+  const daily = searchInterestIsDaily(value);
   return value.points.flatMap(point => {
+    if (daily) {
+      const day = searchDay(point.period);
+      return day !== null && day < cutoff ? [{ period: dayText(new Date(day).toISOString().slice(0, 10)), index: point.index }] : [];
+    }
     const week = searchWeek(point.period);
     return week && week.end < cutoff ? [{ period: searchWeekLabel(week), index: point.index }] : [];
   });

@@ -125,7 +125,10 @@ export interface StepExpandedSearch { readonly queries: readonly StepExpandedQue
 
 /** One relative search-interest series per collection (0-100, peak = 100); never a count of searches. */
 export const MAX_SEARCH_INTEREST_POINTS = 128;
-export const SEARCH_INTEREST_REASONS = ['PERIOD_NOT_COVERED', 'PROVIDER_FAILED', 'EMPTY_SERIES', 'CANCELLED'] as const;
+/** Custom ranges can return daily or multi-year series; retain the whole response within this bound. */
+export const MAX_SEARCH_INTEREST_RANGE_POINTS = 2048;
+/** PERIOD_NOT_COVERED is the older single skip reason (last-12-months window); new documents use the three period reasons. */
+export const SEARCH_INTEREST_REASONS = ['PERIOD_NOT_COVERED', 'PERIOD_INVALID', 'PERIOD_BEFORE_PROVIDER_START', 'PERIOD_IN_FUTURE', 'PROVIDER_FAILED', 'EMPTY_SERIES', 'CANCELLED'] as const;
 export type SearchInterestReason = typeof SEARCH_INTEREST_REASONS[number];
 
 export interface StepSearchInterestPoint {
@@ -140,7 +143,9 @@ export interface StepSearchInterest {
   readonly keyword: string;
   readonly geo: 'VN';
   readonly unit: 'INDEX_0_100';
-  readonly window: 'LAST_12_MONTHS';
+  /** REQUESTED_RANGE: the provider was asked for requestedRange. LAST_12_MONTHS: older documents. */
+  readonly window: 'LAST_12_MONTHS' | 'REQUESTED_RANGE';
+  readonly requestedRange?: { readonly startDate: string; readonly endDate: string };
   readonly retrievedAt: string | null;
   readonly points: readonly StepSearchInterestPoint[];
   /** Index into the same step's captures; null when no call was made. */
@@ -149,7 +154,7 @@ export interface StepSearchInterest {
 
 /** One relative search-interest map by province per collection (0-100, top place = 100); never a count of searches or buyers. */
 export const MAX_SEARCH_GEO_PROVINCES = 80;
-export const SEARCH_GEO_REASONS = ['PERIOD_NOT_COVERED', 'PROVIDER_FAILED', 'EMPTY_MAP', 'CANCELLED'] as const;
+export const SEARCH_GEO_REASONS = ['PERIOD_NOT_COVERED', 'PERIOD_INVALID', 'PERIOD_BEFORE_PROVIDER_START', 'PERIOD_IN_FUTURE', 'PROVIDER_FAILED', 'EMPTY_MAP', 'CANCELLED'] as const;
 export type SearchGeoReason = typeof SEARCH_GEO_REASONS[number];
 
 export interface StepSearchGeoProvince {
@@ -164,7 +169,9 @@ export interface StepSearchGeo {
   readonly keyword: string;
   readonly geo: 'VN';
   readonly unit: 'INDEX_0_100';
-  readonly window: 'LAST_12_MONTHS';
+  /** REQUESTED_RANGE: the provider was asked for requestedRange. LAST_12_MONTHS: older documents. */
+  readonly window: 'LAST_12_MONTHS' | 'REQUESTED_RANGE';
+  readonly requestedRange?: { readonly startDate: string; readonly endDate: string };
   readonly retrievedAt: string | null;
   readonly provinces: readonly StepSearchGeoProvince[];
   /** Index into the same step's captures; null when no call was made. */

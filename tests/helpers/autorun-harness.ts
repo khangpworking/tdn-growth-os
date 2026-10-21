@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import type { TestContext } from 'node:test';
 import type BetterSqlite3 from 'better-sqlite3';
@@ -122,7 +123,7 @@ function sequence(): () => string {
 export async function fixture(t: TestContext, autoRun: 'on' | 'off' | 'absent' = 'on', behaviour?: (runId: string) => Behaviour,
   runCapture?: (capture: FakeCapture) => RunCapture,
   reviews?: { cap?: number; factory?: ResearchAutomationServiceOptions['shopeeCollectorFactory'] }) {
-  const root = await fs.mkdtemp(path.resolve('../tdn-autorun-'));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-autorun-'));
   const databasePath = path.join(root, 'test.sqlite');
   const artifactRoot = path.join(root, 'artifacts');
   const db = openDatabase({ databasePath, now }).db;

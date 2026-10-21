@@ -173,17 +173,18 @@ test('Market deduplication pins only rendered bytes and section explanations; In
   // with pointers. This fixture has no inventory, so M05 retains its tables.
   // Package C adds exhibit-backed Phần 1 findings and its data badge.
   // G: old current-reader bytes pinned defective evidence labels/empty states; semantic and Insight pins stay frozen.
-  assert.equal(digest(market.html), '3abd254fededcc10b68a8cf8fbdfe6eea3a5b02685fc78695ce45d1f706dd511');
+  // UNIT-209 C4/C5/C8: current-reader Market unit wording changes these pins; legacy and Insight pins are unchanged.
+  assert.equal(digest(market.html), '48a55a635dd6f097392fd80438ec6fdcb436d4fdb4120b73544dde1ae92cab68');
   // All nine semantic citations remain. The sample calculation moves from citation 1 to 3;
   // the per-platform calculation moves from 3 to 1 and gains methodVersion/rounding metadata.
   // Deduplication additionally changes only the M04 and M13 explanations;
   // retained methods, M05 methodOutput and semantic citations stay identical.
-  assert.equal(digest(canonicalJson(market.semantic)), '7c67a4170987b988b8e9f18ff7294fef370a185d3613d8e2a5b6767475e4cf8d');
+  assert.equal(digest(canonicalJson(market.semantic)), '640433a09580596ca7239258e40a3c124b89a676c9bb02846fcde847c990a6a3');
   // The proofread review restores raw capture row/page/display counts inside the technical details.
   // The trace includes the same M04/M13 pointers and revised explanations.
   // Its old platform statements remain in a trace-only disclosure.
   // G: current trace embeds the same corrected evidence exhibits; raw methods and semantic pins stay frozen.
-  assert.equal(digest(market.traceHtml!), '36a2e1a697fdf8f1b36888938a03f03dcad9e28af0141d332eacdd0caccf7419');
+  assert.equal(digest(market.traceHtml!), '5bf6373cc9a44d31c0d9853ca881d8309cd306552085c829b3833f6ffd391739');
   const insight = buildResearchAutomationReport(input, 'INSIGHT');
   assert.equal(digest(insight.html), '7163940cc6c424f6c1a2fc73c7af9458e1a50d3957adaa8d43802a8caf6ba08d');
   assert.equal(digest(canonicalJson(insight.semantic)), '21c5fa1d4be2b577cc196d0508e84342b0953f1a16ed6505eccbb784b8f05294');

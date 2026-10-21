@@ -1,6 +1,6 @@
 # Phương pháp 30 section: nghiệp vụ Ultimate và phần TDN đang áp dụng
 
-> Bản cập nhật 20/10/2026. Bản trước: [bản 20/10/2026 trước khi sửa](../../outdated/2026-10-20/docs/research/ultimate-method/README.md).
+> Bản cập nhật 21/10/2026. Bản trước: [bản 21/10/2026 lần 5](../../outdated/2026-10-21-6/docs/research/ultimate-method/README.md).
 
 Cập nhật: 20/10/2026
 
@@ -33,7 +33,8 @@ Nghiệp vụ luôn đi trước, hệ thống theo sau. Một quy tắc có tro
 | Nghiệp vụ Ultimate | Quy tắc chung, ngoại lệ chủ đã duyệt, phương pháp từng section, nguồn dữ liệu được dùng | `docs/research/ultimate-method/ultimate-method-30-sections.md` | Chủ dự án quyết; AI soạn và ghi lại |
 | Nghiệp vụ: Input data sources for 30 sections | Nguồn dữ liệu đầu vào (mã S), hạng tin cậy, độ đại diện, section dùng nguồn nào, nhật ký thử nguồn | `docs/research/ultimate-method/input-data-sources-30-sections.md` | Như trên |
 | Nghiệp vụ: nhật ký test và kiểm định nguồn | Mỗi lần thử thu hoặc kiểm định một nguồn: cách làm, chi phí, kết quả, đổi trạng thái | `docs/research/ultimate-method/input-data-sources-test-log.md` | Agent ghi sau mỗi lần test; chủ xem |
-| Nghiệp vụ: trạng thái nguồn | Nhãn hiện tại của từng nguồn (5 nhãn) và nhật ký đổi nhãn; chỉ để đọc, không code nào đọc | `docs/research/ultimate-method/source-status.md` | Chủ quyết nhãn; PR đổi trạng thái hoặc người điều phối sau mỗi lần chạy ghi lại |
+| Nghiệp vụ: trạng thái nguồn | Nhãn hiện tại của từng nguồn (5 nhãn) và nhật ký đổi nhãn; chỉ để đọc, không code nào đọc | `docs/business-spec/data-sources/source-status.md` | Chủ quyết nhãn; PR đổi trạng thái hoặc người điều phối sau mỗi lần chạy ghi lại |
+| Nghiệp vụ: câu hỏi Insight, từ điển trường và từ điển chỉ số | Mỗi section Insight trả lời câu hỏi gì; trường chung của từng nguồn (mục 6.2); chỉ số, cách đo, quy tắc so và cộng (Phần 7, semantic layer) | `docs/research/ultimate-method/insight-cau-hoi-nghiep-vu.md` (từ điển trường và chỉ số: `docs/business-spec/semantic-layer/`) | Chủ duyệt nội dung; mã theo sau (Phần 7, mục 7.8) |
 | TDN: recipe (A40) | Đặc tả kỹ thuật từng section, quyết định còn mở D01–D12 | `docs/research/section-methods-v1/` | Theo quy trình review kỹ thuật, không tự nới so với Ultimate |
 | TDN: cấu hình (A41) | Cấu hình có thể triển khai, khuyến nghị chính sách | `docs/research/method-configurations-v1/` | Như trên |
 | TDN: code và test | Phần thật sự chạy | `src/modules/analysis/` (research-automation, reader-report và các method), `tests/` | PR, review, chủ merge |

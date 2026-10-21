@@ -79,10 +79,10 @@ export function buildAutomationMarketPresentation(binding: MarketPresentationBin
     // with values is never stated as the sample's demand.
     const revenue = all.revenue.missingCount === 0 ? all.revenue.value : null;
     const units = all.units.missingCount === 0 ? all.units.value : null;
+    // Units sold are never summed across products: pack sizes differ (UNIT-209 C4); the finding still exists when only units are complete.
     if (revenue !== null || units !== null) {
-      const amounts = [revenue === null ? 'chưa có tổng doanh thu dùng được' : `${integer(revenue)} VND doanh thu (ước tính)`,
-        units === null ? 'chưa có tổng đơn vị bán dùng được' : `${integer(units)} đơn vị bán (ước tính)`];
-      add('demand', `Doanh số (ước tính) mô tả nhu cầu trong mẫu: ${amounts.join('; ')}; không suy ra số người mua hoặc nguyên nhân.`, `/scopes/${index}`);
+      const amount = revenue === null ? 'chưa có tổng doanh thu dùng được' : `${integer(revenue)} VND doanh thu (ước tính)`;
+      add('demand', `Doanh số (ước tính) mô tả nhu cầu trong mẫu: ${amount}; đơn vị bán chỉ đọc theo từng sản phẩm vì quy cách chào bán có thể khác nhau; không suy ra số người mua hoặc nguyên nhân.`, `/scopes/${index}`);
     }
     add('missing', `Trong mẫu có ${all.revenue.missingCount} dòng thiếu doanh thu và ${all.units.missingCount} dòng thiếu đơn vị bán; phần thiếu không thay bằng số không.`, `/scopes/${index}`);
     add('precision', `Trong các dòng quan sát có ${all.revenue.nonExactCount} giá trị doanh thu và ${all.units.nonExactCount} giá trị đơn vị bán chưa xác nhận độ chính xác tuyệt đối; các số bán hàng giữ nhãn ước tính.`, `/scopes/${index}`);
