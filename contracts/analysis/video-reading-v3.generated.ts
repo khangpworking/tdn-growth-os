@@ -69,7 +69,7 @@ export interface AutomatedVideoReading {
 export interface AutomatedVideoIdentity {
   videoUrl: string;
   videoId: string;
-  origin: 'SELECTION' | 'EXPANDED_SEARCH';
+  origin: 'SELECTION' | 'TOP_SELLING' | 'EXPANDED_SEARCH';
   videoKind: 'SELLER_VIDEO' | 'REVIEW_VIDEO' | 'OTHER';
   aboutProduct: boolean;
   durationSeconds: number;

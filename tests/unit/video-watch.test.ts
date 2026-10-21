@@ -64,16 +64,24 @@ test('candidates: selection first, then TIKTOK rows in position order, deduped b
   assert.deepEqual(videoWatchCandidates([], undefined).candidates, []);
 });
 
+test('candidates: top-selling videos follow selection, rank order is preserved, and malformed URLs are excluded', () => {
+  const top = [{ url: url('2001') }, { url: 'https://example.test/not-a-video' }, { url: url('2002') }, { url: url('1001') }];
+  const plan = videoWatchCandidates([{ url: url('1001') }], [query('TIKTOK', [{ position: 1, url: url('3001') }])], top);
+  assert.deepEqual(plan.candidates.map(c => [c.videoId, c.origin]), [['1001', 'SELECTION'], ['2001', 'TOP_SELLING'], ['2002', 'TOP_SELLING'], ['3001', 'EXPANDED_SEARCH']]);
+  const malformed = videoWatchCandidates([], undefined, [{ url: 'not-a-url' }]);
+  assert.deepEqual(malformed.candidates, [], 'malformed or missing URLs never become candidates');
+});
+
 const at = (account: string, id: string) => `https://www.tiktok.com/@${account}/video/${id}`;
-test('candidates: spread across accounts round-robin, order inside an account kept, before the cap', () => {
+test('candidates: selection precedes account-spread search rows before the cap', () => {
   const four = videoWatchCandidates([], [query('TIKTOK', [['a', '11'], ['a', '12'], ['a', '13'], ['b', '21']].map(([account, id], i) => ({ position: i + 1, url: at(account!, id!) })))]);
   assert.deepEqual(four.candidates.map(c => c.videoId), ['11', '21', '12', '13'], 'a1, b1, a2, a3');
   const twelve = [...['1', '2', '3', '4', '5', '6'].map(n => at('shop.a', `10${n}`)), ...['1', '2', '3', '4'].map(n => at('shop.b', `20${n}`)), at('shop.c', '301'), at('shop.c', '302')];
   const plan = videoWatchCandidates(twelve.slice(0, 2).map(url => ({ url })), [query('TIKTOK', twelve.slice(2).map((url, i) => ({ position: i + 1, url })))]);
-  assert.deepEqual(plan.candidates.map(c => c.videoId), ['101', '201', '301', '102', '202', '302', '103', '203', '104', '204']);
+  assert.deepEqual(plan.candidates.map(c => c.videoId), ['101', '102', '103', '201', '301', '104', '202', '302', '105', '203']);
   assert.equal(new Set(plan.candidates.map(c => c.url.split('/')[3])).size, 3, 'the 10 kept cover all 3 accounts');
-  assert.deepEqual(plan.skipped, [{ videoId: '105', reason: 'OVER_10_VIDEOS' }, { videoId: '106', reason: 'OVER_10_VIDEOS' }], 'the skipped ones are the last-pass ones');
-  assert.deepEqual(plan.candidates.slice(0, 2).map(c => c.origin), ['SELECTION', 'EXPANDED_SEARCH']);
+  assert.deepEqual(plan.skipped, [{ videoId: '106', reason: 'OVER_10_VIDEOS' }, { videoId: '204', reason: 'OVER_10_VIDEOS' }], 'the skipped ones are the last-pass ones');
+  assert.deepEqual(plan.candidates.slice(0, 2).map(c => c.origin), ['SELECTION', 'SELECTION']);
   const mixed = videoWatchCandidates([], [query('TIKTOK', [at('ShopA', '1'), at('shopa', '2'), at('other', '3')].map((url, i) => ({ position: i + 1, url })))]);
   assert.deepEqual(mixed.candidates.map(c => c.videoId), ['1', '3', '2'], '@ShopA and @shopa are one account');
 });
@@ -554,4 +562,18 @@ test('sweep: a symlinked marker counts as absent', async t => {
   assert.deepEqual(await sweepVideoMedia(dir, NOW), { deleted: 0, removedDirs: 0 });
   assert.deepEqual((await fs.readdir(runDir)).sort(), ['.video-watch-run', '1001.mp4']);
   assert.ok((await fs.lstat(outside)).isFile());
+});
+
+
+test('SRC3 S14 Media limits remain 180 seconds and 14 MiB; over-limit videos are rejected', async t => {
+  const dir = await tmp(t);
+  const config = { mediaDir: dir, ytdlpBin: 'yt-dlp', ffprobeBin: 'ffprobe' };
+  const read = async (duration: number, bytes: number) => downloadVideo(config,
+    fakeRunner([], { files: { mp4: Buffer.alloc(bytes, 'v') }, probe: { format: { duration: String(duration), format_name: 'mp4' }, streams: [{ codec_type: 'video' }] } }),
+    () => new Date('2026-10-02T00:00:00.000Z'), RUN, { ...candidate(), origin: 'TOP_SELLING' });
+  assert.equal((await read(180, 14 * 1024 * 1024)).ok, true);
+  for (const [duration, bytes, reason] of [[181, 20, 'VIDEO_TOO_LONG'], [10, 14 * 1024 * 1024 + 1, 'VIDEO_TOO_LARGE']] as const) {
+    const result = await read(duration, bytes);
+    assert.equal(result.ok ? 'ACCEPTED' : result.reason, reason);
+  }
 });

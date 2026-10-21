@@ -17,10 +17,14 @@ export const PDF_EXCERPT_NOTE = 'Các đoạn trích này lấy nguyên văn t�
 export const PDF_EXCERPT_SRC = 'Tài liệu PDF đã lưu trong hồ sơ nguồn của lượt này.';
 export const PDF_DISCOVERY_SOURCE_LABEL = 'Tài liệu ngành dạng PDF';
 export const PDF_DISCOVERY_MISSING = 'Chưa tìm thấy tài liệu phù hợp trong lượt này.';
+export const PDF_DISCOVERY_NOT_READ_IN_TIME = 'Đã tìm thấy tài liệu nhưng chưa đọc kịp trong lượt này.';
+export const PDF_DISCOVERY_NOT_READ = 'Đã tìm thấy tài liệu nhưng chưa đọc được trong lượt này.';
 
 /** A stored attempt with no report excerpt gets one plain source-status row; receipts never become citations. */
 export function pdfDiscoverySourceRows(discovery: StepPdfDiscovery | undefined, excerpts: readonly PdfExcerpt[]): readonly (readonly [string, string])[] {
-  return discovery !== undefined && excerpts.length === 0 ? [[PDF_DISCOVERY_SOURCE_LABEL, PDF_DISCOVERY_MISSING]] : [];
+  if (discovery === undefined || excerpts.length > 0) return [];
+  return [[PDF_DISCOVERY_SOURCE_LABEL, discovery.readState === 'NOT_READ_IN_TIME' ? PDF_DISCOVERY_NOT_READ_IN_TIME
+    : discovery.readState === 'NOT_READ' ? PDF_DISCOVERY_NOT_READ : PDF_DISCOVERY_MISSING]];
 }
 /** Longest document name shown; a longer title reads as a pasted heading or sentence, so the order wording is used instead. */
 export const PDF_DOCUMENT_TITLE_MAX = 160;

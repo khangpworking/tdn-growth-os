@@ -116,6 +116,7 @@ import { brandsFromPick, GOOGLE_ADS_PROFILE, GOOGLE_ADS_USAGE_ORDINAL, searchAds
 import { WORLD_BANK_SERIES_YEARS, worldBankDocument, worldBankFailed, worldBankRenderable, worldBankUsage, WORLD_BANK_PROVIDER, WORLD_BANK_USAGE_ORDINAL, type WorldBankAttempt, type WorldBankSource } from './world-bank-lane.js';
 import { publishAutomatedVideoReading, verifyAutomatedVideoReading, videoWatchCandidates, videoWatchDocument, videoWatchFailed, videoWatchReadingRefs, videoWatchUsage, VIDEO_WATCH_MAX_VIDEOS, VIDEO_WATCH_PROFILE, VIDEO_WATCH_USAGE_ORDINAL, type VideoWatchAttempt, type VideoWatchLane, type VideoWatchPlan } from './video-watch-lane.js';
 import { VIDEO_WATCH_PROVIDER } from './video-watch-gemini.js';
+import { topSellingTikTokVideos } from './tiktok-video-selection.js';
 import { META_AUTO_PROVIDER, META_AUTO_USAGE_ORDINAL, metaBrandsFromPick, metaAutoDocument, metaAutoFailed, metaAutoHasEvidence, metaAutoReportView, metaAutoUsage, publishMetaAutoEvidence, validMetaAuto, verifyMetaAutoEvidence, type MetaAutoCollection, type MetaAutoReportView, type MetaAutoSource } from './meta-auto-lane.js';
 import { TIKTOK_TOP_ADS_PROVIDER, TIKTOK_TOP_ADS_USAGE_ORDINAL, publishTikTokTopAdsEvidence, tiktokTopAdsDocument, tiktokTopAdsFailed, tiktokTopAdsHasEvidence, tiktokTopAdsReportView, tiktokTopAdsUsage, validTikTokTopAds, verifyTikTokTopAdsEvidence, type TikTokTopAdsCollection, type TikTokTopAdsReportView, type TikTokTopAdsSource } from './tiktok-top-ads-lane.js';
 import { PDF_DISCOVERY_DOWNLOAD_USAGE_ORDINAL, PDF_DISCOVERY_MAX_FILES, PDF_DISCOVERY_PROVIDER, PDF_DISCOVERY_SEARCH_USAGE_ORDINAL, isPdfPath, pdfCandidates, pdfDiscoveryDocument, pdfDiscoveryDownloaded, pdfDiscoveryFailed, pdfDiscoveryMaxPages, PDF_DISCOVERY_MAX_PAGES_ENV, pdfDiscoveryUsage, validPdfDiscovery, type PdfCandidate, type PdfDiscoverySource, type PdfDownloadRun, type PdfSearchAttempt } from './pdf-discovery-lane.js';
@@ -169,7 +170,8 @@ import { CAPTURE_ROW_PROFILE, CAPTURE_ROW_PROFILE_V2 } from './capture-row-quali
 import { PageIndexCloudClient } from '../pageindex-cloud.js';
 import { estimatePageIndexBalance, estimatePageIndexLedgerBalance } from '../pageindex-balance.js';
 import { extractPageIndexPdf, readPageIndexPdfTitle, planPageIndexQuestions, orderRunPdfsForQuestions, verifyPageIndexQuotes, buildVerifiedQuotesArtifact,
-  PAGEINDEX_ELIGIBLE_SECTIONS, type RunPdfOrigin, type PageIndexLocalPage, type PageIndexQuotesArtifact, type PageIndexVerifiedQuote } from '../pageindex-questions.js';
+  PAGEINDEX_ELIGIBLE_SECTIONS, type RunPdfOrigin, type PageIndexLocalPage, type PageIndexQuotesArtifact, type PageIndexVerifiedQuote,
+  type PageIndexDocumentReadState, type PageIndexDocumentReading } from '../pageindex-questions.js';
 import type { PageIndexStatusSummary } from './source-status.js';
 import {
   indexRunPdfsForPageIndex,
@@ -177,6 +179,7 @@ import {
   setPageIndexUsageLimited,
   listPageIndexDocuments,
   readPageIndexDocument,
+  refreshPageIndexStatus,
   type EnsureIndexedDeps,
 } from '../pageindex-documents.js';
 import { AutomationLocatedReviewBridge, type AutomationLocatedReviewSnapshot } from './located-review-bridge.js';
@@ -245,6 +248,7 @@ import {
   type StartSnapshot,
   type StepResultDocument,
   type StepId,
+  type StepState,
   message,
   marketSourceWindowsMissingCode,
   marketSourceWindowsMissingMessage,
@@ -442,6 +446,11 @@ export interface ResearchAutomationServiceOptions {
     readonly maxQuestionsPerRun?: number;
     readonly extractPdf?: (bytes: Uint8Array) => Promise<readonly PageIndexLocalPage[]>;
     readonly readPdfTitle?: (bytes: Uint8Array) => Promise<string | null>;
+    /** Wait for an uploaded document to finish indexing before its questions: poll gap (default 20 s) and total cap (default 10 min). */
+    readonly readyPollIntervalMs?: number;
+    readonly readyWaitCapMs?: number;
+    /** Test seam for the wait between polls; the default honours the run's abort signal. */
+    readonly sleep?: (ms: number) => Promise<void>;
   };
   /** Page cap for automatically captured PDFs; absent reads TDN_RESEARCH_PDF_DISCOVERY_MAX_PAGES (default 60). Owner uploads are never capped by it. */
   readonly pdfCaptureMaxPages?: number;
@@ -1675,6 +1684,38 @@ export class ResearchAutomationService {
     return row ? this.#readJson<PageIndexQuotesArtifact>(row.sha, MAX_JSON_ARTIFACT_BYTES, 'application/json') : null;
   }
 
+  /** The run's stored quotes row; undefined when there is none or the database predates the quotes table (migration 0049). */
+  #runQuotesRow(runId: string): { sha: string } | undefined {
+    try {
+      return this.#db.prepare('SELECT artifact_sha256 sha FROM analysis_pageindex_run_quotes WHERE run_id=?').get(runId) as { sha: string } | undefined;
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('no such table: analysis_pageindex_run_quotes')) return undefined;
+      throw error;
+    }
+  }
+
+  async #pdfReadingsStepArtifact(runId: string, outcome: StepResultDocument['outcome']): Promise<StoredArtifact | null> {
+    const row = this.#runQuotesRow(runId);
+    if (!row) return null;
+    const artifact = await this.#readJson<PageIndexQuotesArtifact>(row.sha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+    if (artifact.documents === undefined) return null;
+    const step: StepResultDocument = { contractVersion: 'research-automation-step-result-v1', runId, stepId: 'REPORTS',
+      outcome, productCards: [], comparables: [], coverage: [], limitations: [], pdfReadings: artifact.documents };
+    assertStepDocument(step, runId, 'REPORTS');
+    return this.#putJson(step, this.#now().toISOString());
+  }
+
+  /** Whether a retained document of the run was not read, from the per-document outcomes stored beside its quotes; undefined when all were read or none is recorded. */
+  async #pdfReadState(runId: string): Promise<'NOT_READ_IN_TIME' | 'NOT_READ' | undefined> {
+    try {
+      const row = this.#db.prepare('SELECT artifact_sha256 sha FROM analysis_pageindex_run_quotes WHERE run_id=?').get(runId) as { sha: string } | undefined;
+      if (!row) return undefined;
+      const artifact = await this.#readJson<PageIndexQuotesArtifact>(row.sha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+      const unread = (artifact?.documents ?? []).filter(document => document.state !== 'READ');
+      return !unread.length ? undefined : unread.some(document => document.state === 'NOT_READY_AFTER_WAIT') ? 'NOT_READ_IN_TIME' : 'NOT_READ';
+    } catch { return undefined; }
+  }
+
   /** Verified document excerpts for the Market report: read from the run's stored quotes only, never a question or a provider call. */
   async #pdfExcerpts(runId: string): Promise<readonly PdfExcerpt[]> {
     const row = this.#db.prepare('SELECT artifact_sha256 sha FROM analysis_pageindex_run_quotes WHERE run_id=?').get(runId) as { sha: string } | undefined;
@@ -1717,11 +1758,11 @@ export class ResearchAutomationService {
 
   /** The video-watch binding, the run's frozen product keyword and its stored selection videos (when any); a missing or unreadable selection just gives none.
    * The keyword is the start snapshot's (`startSha`), checked against the run row; the confirmed scope snapshot has no keyword field of its own. */
-  async #videoWatchContext(runId: string): Promise<{ binding: { workspaceId: string; runId: string; scopeSha256: string; sourceSetSha256: string | null }; productKeyword: string;
-    selectionVideos: readonly { url: string }[] }> {
+  async #videoWatchContext(runId: string, collection: StepResultDocument): Promise<{ binding: { workspaceId: string; runId: string; scopeSha256: string; sourceSetSha256: string | null }; productKeyword: string;
+    selectionVideos: readonly { url: string }[]; topSellingVideos: readonly { url: string }[]; topSellingGap: boolean }> {
     const row = this.#current(runId);
     if (!row?.scopeSha) throw new ResearchAutomationStateError('Video watch needs a confirmed scope.');
-    await this.#readScopeSnapshot(row.scopeSha, row.workspaceId, row.runId);
+    const scope = await this.#readScopeSnapshot(row.scopeSha, row.workspaceId, row.runId);
     const start = await this.#readStartSnapshot(row.startSha, row.workspaceId);
     if (start.keyword !== row.keyword) throw new ResearchAutomationIntegrityError('Run row does not match its frozen start snapshot.');
     const productKeyword = start.keyword;
@@ -1742,14 +1783,52 @@ export class ResearchAutomationService {
         }
       } catch { /* no P9 context: TikTok rows only */ }
     }
-    return { binding, productKeyword, selectionVideos };
+    // A same-run upload alone cannot authorize reads: each row must link to a
+    // confirmed product with verified sales evidence in this collection.
+    let topSellingVideos: { url: string }[] = [];
+    let topSellingGap = true;
+    try {
+      const confirmed = new Set([...scope.selectedProductIds, ...scope.peerProductIds]);
+      const collected = new Set(collection.comparables.filter(value => value.provider === 'kalodata' && confirmed.has(value.productId)).map(value => value.productId));
+      const cards = (await this.#stepDocument(runId, 'QUICK_SEARCH'))?.productCards ?? [];
+      const productUrls = cards.filter(card => card.provider === 'kalodata' && collected.has(card.productId)).flatMap(card => card.sourceUrl === null ? [] : [card.sourceUrl]);
+      const result = await topSellingTikTokVideos(this.#boundedSourceReader(), { workspaceId: row.workspaceId, runId: row.runId }, productUrls);
+      topSellingVideos = result.videos.map(video => ({ url: video.url }));
+      topSellingGap = result.videos.length === 0 || result.rowsWithoutUsableVideo > 0;
+    } catch (error) { console.error(JSON.stringify({ event: 'research_automation_top_selling_videos_failed', runId, error: error instanceof Error ? error.name : 'UNKNOWN' })); }
+    return { binding, productKeyword, selectionVideos, topSellingVideos, topSellingGap };
   }
 
   /** The run worker alone performs bounded indexing waits and durable no-retry questions. */
-  async #processRunPdfs(runId: string, reports: readonly string[]): Promise<void> {
+  async #processRunPdfs(runId: string, reports: readonly string[], signal?: AbortSignal): Promise<void> {
     if (!this.#pageIndexEnabled()) return;
     const transport = this.#pageIndexTransport();
     if (!transport) return;
+    // One closed outcome per retained document, kept beside the quotes so the report can say why a document was not read.
+    const started = Date.now(), logicalStarted = this.#now().getTime();
+    const waitCap = Math.max(0, Math.min(this.#pageIndex?.readyWaitCapMs ?? 600_000, 600_000));
+    const remaining = (): number => Math.max(0, waitCap - Math.max(Date.now() - started, this.#now().getTime() - logicalStarted));
+    const bounded = async <T>(call: (requestSignal: AbortSignal) => Promise<T>): Promise<T> => {
+      signal?.throwIfAborted();
+      if (remaining() <= 0) throw new Error('PAGEINDEX_READY_DEADLINE');
+      const controller = new AbortController();
+      const requestSignal = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      let onAbort: (() => void) | undefined;
+      try {
+        return await Promise.race([new Promise<never>((_resolve, reject) => {
+          onAbort = () => reject(new Error(signal?.aborted ? 'PAGEINDEX_CANCELLED' : 'PAGEINDEX_READY_DEADLINE'));
+          requestSignal.addEventListener('abort', onAbort, { once: true });
+          timer = setTimeout(() => controller.abort(), remaining());
+        }), call(requestSignal)]);
+      } finally {
+        clearTimeout(timer);
+        if (onAbort) requestSignal.removeEventListener('abort', onAbort);
+      }
+    };
+    const statusAttempts = new Map<string, import('../pageindex-documents.js').PageIndexStatusAttempt[]>();
+    const readings = new Map<string, PageIndexDocumentReadState>();
+    const note = (sha256: string, state: PageIndexDocumentReadState): void => { if (!readings.has(sha256)) readings.set(sha256, state); };
     // Owner uploads are planned first, so automatic PDFs never take the cap from them.
     const files = orderRunPdfsForQuestions(this.#runPdfs(runId));
     const sections = PAGEINDEX_ELIGIBLE_SECTIONS.filter(id => reports.includes(id.startsWith('M') ? 'MARKET' : 'INSIGHT'));
@@ -1757,9 +1836,24 @@ export class ResearchAutomationService {
     const plan = planPageIndexQuestions({ sections, pdfCount: files.length, maxPerRun: cap });
     const reader = new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts });
     const local = new Map<number, { bytes: Buffer; pages: readonly PageIndexLocalPage[] }>();
+    const prepare = async (index: number, file: RunPdfRow, bytes: Uint8Array): Promise<void> => {
+      const pages = await (this.#pageIndex?.extractPdf ?? extractPageIndexPdf)(bytes);
+      local.set(index, { bytes: Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength), pages });
+      // No usable search title: the title stored in the PDF itself, read locally from the same verified bytes (never a provider call).
+      if (file.documentTitle === null) {
+        const title = pdfDocumentTitle(await (this.#pageIndex?.readPdfTitle ?? readPageIndexPdfTitle)(bytes));
+        if (title !== null) this.#db.prepare(`UPDATE analysis_pageindex_run_pdfs SET document_title=? WHERE run_id=? AND source_sha256=? AND document_title IS NULL`)
+          .run(title, runId, file.sha256);
+      }
+    };
+    const unreadState = (ledger: ReturnType<typeof readPageIndexDocument>): PageIndexDocumentReadState =>
+      ledger?.status === 'FAILED' ? 'INDEX_FAILED' : ledger?.status === 'SKIPPED_LOW_BALANCE' || ledger?.status === 'SKIPPED_USAGE_LIMIT' ? 'PAUSED' : 'NOT_UPLOADED';
+    // Files whose upload is acknowledged but not yet indexed; they are polled below instead of being skipped.
+    const pending = new Map<number, Uint8Array>();
     for (const [index, file] of files.entries()) {
+      if (signal?.aborted) { note(file.sha256, 'CANCELLED'); continue; }
       // A file with no planned question is never sent (or re-sent) for indexing here.
-      if (!plan.some(question => question.pdfIndex === index)) continue;
+      if (!plan.some(question => question.pdfIndex === index)) { note(file.sha256, 'NO_QUESTION_PLANNED'); continue; }
       try {
         const packageValue = await reader.readVerified(file.packageId, {
           maxFileBytes: 32 * 1024 * 1024,
@@ -1767,23 +1861,64 @@ export class ResearchAutomationService {
           maxTotalBytes: 32 * 1024 * 1024 + 64 * 1024,
         });
         const member = packageValue.files.find(entry => entry.path === file.logicalPath);
-        if (packageValue.manifestArtifactSha256 !== file.manifestSha256 || !member || member.sha256 !== file.sha256 || member.mediaType !== 'application/pdf') continue;
-        await indexRunPdfsForPageIndex([{ sha256: file.sha256, fileName: file.fileName, bytes: member.bytes }], this.#pageIndexDeps());
+        if (packageValue.manifestArtifactSha256 !== file.manifestSha256 || !member || member.sha256 !== file.sha256 || member.mediaType !== 'application/pdf') { note(file.sha256, 'NOT_VERIFIED'); continue; }
+        if (signal?.aborted) { note(file.sha256, 'CANCELLED'); continue; }
+        // Readiness is polled once below under the shared deadline, without a preliminary wait loop.
+        const deps = this.#pageIndexDeps();
+        await indexRunPdfsForPageIndex([{ sha256: file.sha256, fileName: file.fileName, bytes: member.bytes }], {
+          ...deps, maxStatusPolls: 0,
+          upload: input => bounded(async requestSignal => {
+            const doc = await transport.uploadDocument(input, requestSignal);
+            return { cloudDocId: doc.cloudDocId, pageCount: doc.pageCount };
+          }),
+        });
         const ledger = readPageIndexDocument(this.#db, file.sha256);
-        if (ledger?.status !== 'READY' || !ledger.cloudDocId) continue;
-        const pages = await (this.#pageIndex?.extractPdf ?? extractPageIndexPdf)(member.bytes);
-        local.set(index, { bytes: member.bytes, pages });
-        // No usable search title: the title stored in the PDF itself, read locally from the same verified bytes (never a provider call).
-        if (file.documentTitle === null) {
-          const title = pdfDocumentTitle(await (this.#pageIndex?.readPdfTitle ?? readPageIndexPdfTitle)(member.bytes));
-          if (title !== null) this.#db.prepare(`UPDATE analysis_pageindex_run_pdfs SET document_title=? WHERE run_id=? AND source_sha256=? AND document_title IS NULL`)
-            .run(title, runId, file.sha256);
-        }
-      } catch { /* Local verification failure never authorizes a query. */ }
+        if (ledger?.status === 'INDEXING' && ledger.cloudDocId) { pending.set(index, member.bytes); continue; }
+        if (ledger?.status !== 'READY' || !ledger.cloudDocId) { note(file.sha256, unreadState(ledger)); continue; }
+        await prepare(index, file, member.bytes);
+      } catch (error) {
+        // Local verification failure never authorizes a query; the reason is kept and logged.
+        note(file.sha256, 'LOCAL_READ_FAILED'); logPdfReadingFailure(runId, 'PREPARE', error);
+      }
     }
+    // Bounded wait: poll the stored status of each pending document until READY or FAILED, or the total cap runs out.
+    const interval = Math.max(1, Math.min(this.#pageIndex?.readyPollIntervalMs ?? 20_000, 60_000));
+    const sleep = async (ms: number): Promise<void> => {
+      if (signal?.aborted || ms <= 0) return;
+      if (this.#pageIndex?.sleep) { await this.#pageIndex.sleep(ms); return; }
+      await new Promise<void>(resolve => {
+        const done = (): void => { clearTimeout(timer); signal?.removeEventListener('abort', done); resolve(); };
+        const timer = setTimeout(done, ms);
+        signal?.addEventListener('abort', done, { once: true });
+      });
+    };
+    const fetchStatus = async (id: string) => bounded(async requestSignal => (await transport.documentStatus(id, requestSignal)).status);
+    for (let round = 0; pending.size > 0 && remaining() > 0 && !signal?.aborted; round += 1) {
+      if (round > 0) await sleep(Math.min(interval, remaining()));
+      if (signal?.aborted || remaining() <= 0) break;
+      for (const [index, bytes] of [...pending]) {
+        if (signal?.aborted || remaining() <= 0) break;
+        const file = files[index]!;
+        const attempts = statusAttempts.get(file.sha256) ?? [];
+        statusAttempts.set(file.sha256, attempts);
+        const ledger = await refreshPageIndexStatus(this.#db, file.sha256, { fetchStatus, now: this.#now, maxPolls: 1, ...(signal ? { signal } : {}),
+          onAttempt: attempt => { attempts.push(attempt); } });
+        if (signal?.aborted) break;
+        if (ledger?.status === 'INDEXING' && !ledger.failureCode) continue;
+        if (ledger?.status === 'INDEXING' && ledger.failureCode) {
+          pending.delete(index); note(file.sha256, remaining() <= 0 ? 'NOT_READY_AFTER_WAIT' : 'STATUS_FAILED'); continue;
+        }
+        pending.delete(index);
+        if (ledger?.status !== 'READY' || !ledger.cloudDocId) { note(file.sha256, unreadState(ledger)); continue; }
+        try { await prepare(index, file, bytes); } catch (error) { note(file.sha256, 'LOCAL_READ_FAILED'); logPdfReadingFailure(runId, 'PREPARE', error); }
+      }
+    }
+    for (const [index] of pending) note(files[index]!.sha256, signal?.aborted ? 'CANCELLED' : 'NOT_READY_AFTER_WAIT');
     for (const question of plan) {
+      if (signal?.aborted) break;
       const file = files[question.pdfIndex]!; const extracted = local.get(question.pdfIndex);
       const ledger = readPageIndexDocument(this.#db, file.sha256);
+      if (extracted && ledger?.status === 'READY' && ledger.cloudDocId && this.#pageIndexPaused()) note(file.sha256, 'PAUSED');
       if (!extracted || ledger?.status !== 'READY' || !ledger.cloudDocId || this.#pageIndexPaused()) continue;
       const reserved = this.#db.prepare(`INSERT INTO analysis_pageindex_questions(run_id,source_sha256,section_id,attempted_at)
         SELECT ?,?,?,? WHERE (SELECT count(*) FROM analysis_pageindex_questions WHERE run_id=?) < ?
@@ -1793,7 +1928,7 @@ export class ResearchAutomationService {
       try {
         const result = await transport.query({ contractVersion: 'pageindex-cloud-query-v1', sourcePackageId: file.packageId,
           manifestSha256: file.manifestSha256, logicalPath: file.logicalPath, sourceSha256: file.sha256,
-          cloudDocId: ledger.cloudDocId, cloudFileName: ledger.cloudFileName, pageCount: extracted.pages.length, question: question.question }, extracted.bytes, extracted.pages);
+          cloudDocId: ledger.cloudDocId, cloudFileName: ledger.cloudFileName, pageCount: extracted.pages.length, question: question.question }, extracted.bytes, extracted.pages, signal);
         const drops: string[] = [];
         const verified = verifyPageIndexQuotes({ candidates: result.candidates, localPages: extracted.pages,
           pageCount: extracted.pages.length, sourceSha256: file.sha256, cloudDocId: ledger.cloudDocId,
@@ -1812,13 +1947,32 @@ export class ResearchAutomationService {
         }
         try { this.#db.prepare(`UPDATE analysis_pageindex_questions SET failure_code=? WHERE run_id=? AND source_sha256=? AND section_id=?
           AND result_sha256 IS NULL`).run(code, runId, file.sha256, question.sectionId); } catch { /* reserved question is never retried */ }
+        logPdfReadingFailure(runId, 'QUERY', error);
       }
     }
     const rows = this.#db.prepare(`SELECT result_sha256 sha FROM analysis_pageindex_questions WHERE run_id=? AND result_sha256 IS NOT NULL
       ORDER BY source_sha256,section_id`).all(runId) as Array<{ sha: string }>;
     const quotes: PageIndexVerifiedQuote[] = [];
     for (const row of rows) quotes.push(...(await this.#readJson<PageIndexQuotesArtifact>(row.sha, MAX_JSON_ARTIFACT_BYTES, 'application/json')).quotes);
-    const artifact = await this.#putJson(buildVerifiedQuotesArtifact(runId, quotes), this.#now().toISOString());
+    // A document that reached its questions is read when one answer was stored; otherwise the question outcome says why not.
+    for (const file of files) {
+      if (readings.has(file.sha256)) continue;
+      const asked = this.#db.prepare(`SELECT count(result_sha256) answered, count(failure_code) failed FROM analysis_pageindex_questions WHERE run_id=? AND source_sha256=?`)
+        .get(runId, file.sha256) as { answered: number | bigint; failed: number | bigint };
+      note(file.sha256, Number(asked.answered) > 0 ? 'READ' : signal?.aborted ? 'CANCELLED' : Number(asked.failed) > 0 ? 'QUESTION_FAILED' : 'NO_QUESTION_BUDGET');
+    }
+    const documents = files.map((file): PageIndexDocumentReading => {
+      const ledger = readPageIndexDocument(this.#db, file.sha256);
+      const questions = this.#db.prepare(`SELECT section_id sectionId,result_sha256 resultSha,failure_code reason
+        FROM analysis_pageindex_questions WHERE run_id=? AND source_sha256=? ORDER BY section_id`).all(runId, file.sha256) as
+        { sectionId: string; resultSha: string | null; reason: string | null }[];
+      return { sourceSha256: file.sha256, state: readings.get(file.sha256)!,
+        ...(ledger?.failureCode ? { reason: ledger.failureCode } : {}),
+        ...(statusAttempts.has(file.sha256) ? { statusAttempts: statusAttempts.get(file.sha256)! } : {}),
+        ...(questions.length ? { questionAttempts: questions.map(question => ({ sectionId: question.sectionId,
+          state: question.resultSha ? 'ANSWERED' : question.reason ? 'FAILED' : 'RESERVED', reason: question.reason })) } : {}) };
+    });
+    const artifact = await this.#putJson(buildVerifiedQuotesArtifact(runId, quotes, documents), this.#now().toISOString());
     this.#db.transaction(() => {
       this.#registerManifest(artifact, 'application/json', this.#now().toISOString());
       this.#db.prepare(`INSERT INTO analysis_pageindex_run_quotes(run_id,artifact_sha256) VALUES (?,?)
@@ -1964,8 +2118,7 @@ export class ResearchAutomationService {
       // Reader rows follow the verified draft's frozen row policy for this exact snapshot; drafts before v3 keep v2.
       const draftCapture = isRecord(marketSemantic.metricMethods) ? (marketSemantic.metricMethods as unknown as AutomationMetricMethodSnapshot).capture : undefined;
       const rowPolicy = draftCapture?.snapshotSha256 === rawSnapshotSha256 && draftCapture.rowPolicyVersion === CAPTURE_ROW_PROFILE ? CAPTURE_ROW_PROFILE : CAPTURE_ROW_PROFILE_V2;
-      const collection = this.#db.prepare(`SELECT result_sha256 resultSha FROM analysis_research_automation_steps WHERE run_id=? AND step_id='COLLECTION'`).get(runId) as { resultSha: string | null } | undefined;
-      const webCollection = collection?.resultSha ? await this.#readStepDocument(collection.resultSha, runId, 'COLLECTION') : null;
+      const webCollection = await this.#reportCollection(runId, undefined, false);
       const searchInterest = webCollection?.searchInterest;
       const webResults = webCollection?.sourceEvidence ? admitWebResults(webCollection.sourceEvidence, collectionWebRows(webCollection), await this.#captureRecords(runId), webCollection.sourceEvidence.jevTriage ?? null) : webCollection ? collectionWebRows(webCollection) : [];
       return { workspaceId, runId, draftPairId: latest.pairId, marketSemantic, ...(marketSemantic.publicReviewSource ? { publicReviewSource: marketSemantic.publicReviewSource as PublicReviewSource } : {}), ...(webCollection?.sourceEvidence?.webPageTypes ? { webPageTypes: true } : {}),
@@ -1982,8 +2135,7 @@ export class ResearchAutomationService {
     if (!prepared) throw new ResearchAutomationValidationError('Tệp danh sách sản phẩm này không thuộc lượt research.');
     const workbook = source.files.find(file => file.path === 'metric/export.xlsx');
     if (!workbook) throw new ResearchAutomationIntegrityError('Prepared product-list workbook is missing.');
-    const collection = this.#db.prepare(`SELECT result_sha256 resultSha FROM analysis_research_automation_steps WHERE run_id=? AND step_id='COLLECTION'`).get(runId) as { resultSha: string | null } | undefined;
-    const webCollection = collection?.resultSha ? await this.#readStepDocument(collection.resultSha, runId, 'COLLECTION') : null;
+    const webCollection = await this.#reportCollection(runId, undefined, false);
     const searchInterest = webCollection?.searchInterest;
     const webResults = webCollection?.sourceEvidence ? admitWebResults(webCollection.sourceEvidence, collectionWebRows(webCollection), await this.#captureRecords(runId), webCollection.sourceEvidence.jevTriage ?? null) : webCollection ? collectionWebRows(webCollection) : [];
     return { workspaceId, runId, draftPairId: latest.pairId, marketSemantic, ...(marketSemantic.publicReviewSource ? { publicReviewSource: marketSemantic.publicReviewSource as PublicReviewSource } : {}), ...(webCollection?.sourceEvidence?.webPageTypes ? { webPageTypes: true } : {}),
@@ -2204,12 +2356,18 @@ export class ResearchAutomationService {
       if (TERMINAL_STATUSES.has(current.status)) throw new ResearchAutomationStateError('The run is already closed.');
       const acceptedAt = this.#now().toISOString();
       this.#db.transaction(() => {
-        if (current.status === 'QUICK_SEARCH_RUNNING' || current.status === 'COLLECTING') {
+        if (current.status === 'QUICK_SEARCH_RUNNING' || current.status === 'COLLECTING' || current.status === 'CANCELLING') {
           this.#transition(runId, current.revision, 'CANCELLING', acceptedAt);
         } else if (current.status === 'RENDERING') {
-          this.#transition(runId, current.revision, 'CANCELLED', acceptedAt);
-          this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='CANCELLED',message_code='CANCELLED_BY_OWNER',finished_at=? WHERE run_id=? AND step_id='REPORTS' AND state IN ('QUEUED','RUNNING')`).run(acceptedAt, runId);
-          this.#skipPendingSteps(runId, acceptedAt);
+          const reports = this.#db.prepare(`SELECT state FROM analysis_research_automation_steps WHERE run_id=? AND step_id='REPORTS'`).get(runId) as { state: StepState } | undefined;
+          if (reports?.state === 'RUNNING') {
+            // The worker attaches final PDF diagnostics atomically with settlement.
+            this.#transition(runId, current.revision, 'CANCELLING', acceptedAt);
+          } else {
+            this.#transition(runId, current.revision, 'CANCELLED', acceptedAt);
+            this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='CANCELLED',message_code='CANCELLED_BY_OWNER',finished_at=? WHERE run_id=? AND step_id='REPORTS' AND state='QUEUED'`).run(acceptedAt, runId);
+            this.#skipPendingSteps(runId, acceptedAt);
+          }
         } else {
           this.#transition(runId, current.revision, 'CANCELLED', acceptedAt);
           const queuedStep = current.status === 'QUICK_SEARCH_QUEUED' ? 'QUICK_SEARCH' : current.status === 'COLLECTION_QUEUED' ? 'COLLECTION' : null;
@@ -3336,6 +3494,13 @@ export class ResearchAutomationService {
       const runIds = (this.#db.prepare('SELECT run_id runId FROM analysis_research_automation_runs').all() as Array<{ runId: string }>).map(row => row.runId);
       for (const runId of runIds) if (this.#replayOutOfScope(runId)) await this.#quarantineReplayRun(runId);
     }
+    // Settle cancelled reporting before collection checkpoint recovery can requeue it.
+    const cancellingReports = this.#db.prepare(`SELECT r.run_id runId FROM analysis_research_automation_runs r
+      JOIN analysis_research_automation_steps s ON s.run_id=r.run_id AND s.step_id='REPORTS'
+      WHERE r.status='CANCELLING' AND s.state='RUNNING'`).all() as Array<{ runId: string }>;
+    for (const row of cancellingReports) {
+      await this.#settleSourceFailure(row.runId, 'REPORTS', 'CANCELLED_DURING_REPORT_RENDERING', 'CANCELLED');
+    }
     await withDatabaseMutationMutex(this.#db, async () => {
       const rows = this.#db.prepare(`SELECT run_id runId,revision,status FROM analysis_research_automation_runs WHERE status IN ('QUICK_SEARCH_RUNNING','COLLECTING','CANCELLING','RENDERING')`).all() as Array<{ runId: string; revision: bigint | number; status: ResearchAutomationRun['status'] }>;
       const resumable = new Set<string>();
@@ -3664,7 +3829,7 @@ export class ResearchAutomationService {
     // settle. Best effort only: indexing never fails the run. Skipped entirely
     // while the kill switch is off, so existing runs are untouched.
     if (this.#pageIndexEnabled() && !attempt && !controller.signal.aborted) {
-      try { await this.#processRunPdfs(fresh.runId, start.reports); } catch { /* indexing never breaks reporting */ }
+      try { await this.#processRunPdfs(fresh.runId, start.reports, controller.signal); } catch (error) { logPdfReadingFailure(fresh.runId, 'RUN', error); /* indexing never breaks reporting */ }
     }
     const run = await this.getRun(fresh.workspaceId, fresh.runId);
     const collection = await this.#stepDocument(fresh.runId, 'COLLECTION');
@@ -3679,11 +3844,12 @@ export class ResearchAutomationService {
         if (missing > 0) throw new MarketSourceWindowsMissingError(missing);
       }
       const sources = attempt ? await this.#readAttemptSources(fresh, attempt) : await this.#readFrozenSources(fresh);
-      const reviewCollection = attempt ? await this.#reportCollection(fresh.runId, sources, true) : collection;
+      const reportCollection = await this.#reportCollection(fresh.runId, sources, false);
+      const reviewCollection = attempt ? await this.#reportCollection(fresh.runId, sources, true) : reportCollection;
       // The Market report reads the full collection, but a revision that skips or replaces the
       // exact review source must not keep that source's missing-review notice.
-      const marketCollection = collection?.exactShopeeOutcome && !reviewCollection?.exactShopee
-        ? (({ exactShopeeOutcome: _outcome, ...rest }) => rest)(collection) : collection;
+      const marketCollection = reportCollection?.exactShopeeOutcome && !reviewCollection?.exactShopee
+        ? (({ exactShopeeOutcome: _outcome, ...rest }) => rest)(reportCollection) : reportCollection;
       const revisionRequest = attempt ? await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json') : undefined;
       const priorMarket = attempt && start.reports.includes('MARKET') ? await this.#previousSemantic(fresh, attempt, 'MARKET') : undefined;
       const priorInsight = attempt && start.reports.includes('INSIGHT') ? await this.#previousSemantic(fresh, attempt, 'INSIGHT') : undefined;
@@ -4109,6 +4275,7 @@ export class ResearchAutomationService {
     if (!beforeSave || (!attempt && TERMINAL_STATUSES.has(beforeSave.status))) return true;
     const finished = this.#now().toISOString();
     try {
+      const stepArtifact = attempt ? null : await this.#pdfReadingsStepArtifact(row.runId, 'SUCCEEDED');
       const previous = attempt ? (await this.listReportVersions(row.workspaceId, row.runId)).at(-1)! : undefined;
       if (attempt && previous!.pairId !== attempt.previousPairId) throw new ResearchAutomationIntegrityError('Revision predecessor changed.');
       const pairArtifact = attempt ? await this.#putJson(pairDocument(row, previous!.versionNumber + 1, outputArtifacts.map(output => ({ reportKind: output.kind,
@@ -4143,8 +4310,9 @@ export class ResearchAutomationService {
             this.#autorunAfterAttempt(attempt.runId, finished);
             return;
           }
+          if (stepArtifact) this.#registerManifest(stepArtifact, 'application/vnd.tdn.research-automation.step+json', finished);
           this.#transition(row.runId, toNumber(current.revision), 'DRAFT_READY', finished);
-          this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='SUCCEEDED',finished_at=? WHERE run_id=? AND step_id='REPORTS' AND state='RUNNING'`).run(finished, row.runId);
+          this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='SUCCEEDED',finished_at=?,result_sha256=? WHERE run_id=? AND step_id='REPORTS' AND state='RUNNING'`).run(finished, stepArtifact?.sha256 ?? null, row.runId);
         })();
       });
     } catch (error) {
@@ -4488,8 +4656,10 @@ export class ResearchAutomationService {
     if (stepId === 'COLLECTION' && this.#videoWatch) {
       let plan: VideoWatchPlan = videoWatchCandidates([], undefined);
       try {
-        const context = await this.#videoWatchContext(runId);
-        plan = videoWatchCandidates(context.selectionVideos, step.expandedSearch?.queries);
+        const context = await this.#videoWatchContext(runId, step);
+        if (context.topSellingGap) step = { ...step, limitations: [...step.limitations, { code: 'TOP_SELLING_VIDEO_LOCATORS_UNAVAILABLE', provider: null,
+          message: 'Dữ liệu sản phẩm đã chọn còn thiếu đường dẫn video bán chạy dùng được.' }] };
+        plan = videoWatchCandidates(context.selectionVideos, step.expandedSearch?.queries, context.topSellingVideos);
         const binding = { ...context.binding, candidatesSha256: plan.candidatesSha256 };
         const writer = new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
         videoWatchAttempts = await this.#videoWatch.run({ binding, productKeyword: context.productKeyword, candidates: plan.candidates, ...(signal ? { signal } : {}),
@@ -4860,11 +5030,13 @@ export class ResearchAutomationService {
 
   async #settleSourceFailure(runId: string, stepId: SourceStepId | 'REPORTS', code: string, state: 'FAILED' | 'CANCELLED' | 'SKIPPED'): Promise<void> {
     const at = this.#now().toISOString();
+    const artifact = stepId === 'REPORTS' && state !== 'SKIPPED' ? await this.#pdfReadingsStepArtifact(runId, state) : null;
     await withDatabaseMutationMutex(this.#db, async () => {
       this.#db.transaction(() => {
         const current = this.#current(runId); if (!current) return;
         if (TERMINAL_STATUSES.has(current.status)) return;
-        this.#db.prepare(`UPDATE analysis_research_automation_steps SET state=?,message_code=?,finished_at=? WHERE run_id=? AND step_id=? AND state='RUNNING'`).run(state, code, at, runId, stepId);
+        if (artifact) this.#registerManifest(artifact, 'application/vnd.tdn.research-automation.step+json', at);
+        this.#db.prepare(`UPDATE analysis_research_automation_steps SET state=?,message_code=?,finished_at=?,result_sha256=? WHERE run_id=? AND step_id=? AND state='RUNNING'`).run(state, code, at, artifact?.sha256 ?? null, runId, stepId);
         if (state === 'CANCELLED') {
           this.#transition(runId, toNumber(current.revision), 'CANCELLED', at);
           this.#skipPendingSteps(runId, at);
@@ -5162,7 +5334,10 @@ export class ResearchAutomationService {
     return native;
   }
   async #reportCollection(runId: string, sources: FrozenSources | undefined, supplemental: boolean): Promise<StepResultDocument | null> {
-    const original = await this.#stepDocument(runId, 'COLLECTION');
+    const collection = await this.#stepDocument(runId, 'COLLECTION');
+    // Rebuilt reports share the saved reading outcome; the stored step document stays as written.
+    const pdfReadState = collection?.pdfDiscovery ? await this.#pdfReadState(runId) : undefined;
+    const original = collection && pdfReadState ? { ...collection, pdfDiscovery: { ...collection.pdfDiscovery!, readState: pdfReadState } } : collection;
     if (!supplemental || !sources || !original) return original;
     const { reviewSample: _sample, privateShopee: _private, exactShopee: _exact, exactShopeeOutcome: _outcome, nativeReview: _native, publicReviewAcquisition: _public, ...baseWithoutReviews } = original;
     const withoutReviews = _public ? { ...baseWithoutReviews, coverage: baseWithoutReviews.coverage.filter(c => c.provider !== 'shopee-public-review'), limitations: baseWithoutReviews.limitations.filter(l => l.provider !== 'shopee-public-review') } : baseWithoutReviews;
@@ -6185,7 +6360,7 @@ function validVideoWatch(value: unknown): boolean {
   const seen = new Set<string>();
   const candidatesOk = value.candidates.every(item => {
     if (!isRecord(item) || Object.keys(item).sort().join() !== 'origin,url,videoId' || typeof item.videoId !== 'string' || !id.test(item.videoId) || seen.has(item.videoId) ||
-      (item.origin !== 'SELECTION' && item.origin !== 'EXPANDED_SEARCH') || typeof item.url !== 'string' ||
+      (item.origin !== 'SELECTION' && item.origin !== 'TOP_SELLING' && item.origin !== 'EXPANDED_SEARCH') || typeof item.url !== 'string' ||
       !/^https:\/\/www\.tiktok\.com\/@[A-Za-z0-9._]{1,64}\/video\/[1-9][0-9]{0,19}$/.test(item.url) || !item.url.endsWith(`/video/${item.videoId}`)) return false;
     seen.add(item.videoId); return true;
   });
@@ -6242,6 +6417,20 @@ function assertStepDocument(value: unknown, runId: string, stepId: StepId): asse
   const outcomes = new Set(['SUCCEEDED', 'PARTIAL', 'UNAVAILABLE', 'FAILED', 'CANCELLED', 'INTERRUPTED']);
   if (!isRecord(value) || value.contractVersion !== 'research-automation-step-result-v1' || value.runId !== runId || value.stepId !== stepId || !outcomes.has(String(value.outcome)) ||
       !Array.isArray(value.productCards) || !Array.isArray(value.comparables) || !Array.isArray(value.coverage) || !Array.isArray(value.limitations)) throw new ResearchAutomationIntegrityError('Stored step result has inconsistent identity.');
+  if (value.pdfReadings !== undefined && (stepId !== 'REPORTS' || !Array.isArray(value.pdfReadings) || value.pdfReadings.some(item =>
+    !isRecord(item) || !/^[a-f0-9]{64}$/.test(String(item.sourceSha256)) ||
+    !['READ', 'NOT_READY_AFTER_WAIT', 'INDEX_FAILED', 'NOT_UPLOADED', 'PAUSED', 'NO_QUESTION_PLANNED', 'NO_QUESTION_BUDGET', 'QUESTION_FAILED', 'NOT_VERIFIED', 'LOCAL_READ_FAILED', 'STATUS_FAILED', 'CANCELLED'].includes(String(item.state)) ||
+    (item.reason !== undefined && (typeof item.reason !== 'string' || !/^[A-Za-z0-9_]{1,80}$/.test(item.reason))) ||
+    (item.statusAttempts !== undefined && (!Array.isArray(item.statusAttempts) || item.statusAttempts.some(attempt => !isRecord(attempt) ||
+      !['processing', 'completed', 'failed', 'unknown', 'error'].includes(String(attempt.state)) ||
+      (attempt.reason !== undefined && (typeof attempt.reason !== 'string' || !/^[A-Za-z0-9_]{1,80}$/.test(attempt.reason)))))))))
+    throw new ResearchAutomationIntegrityError('Stored PDF readings are invalid.');
+  if (Array.isArray(value.pdfReadings) && value.pdfReadings.some(item => isRecord(item) && item.questionAttempts !== undefined &&
+    (!Array.isArray(item.questionAttempts) || item.questionAttempts.some(question => !isRecord(question) ||
+      typeof question.sectionId !== 'string' || !(PAGEINDEX_ELIGIBLE_SECTIONS as readonly string[]).includes(question.sectionId) ||
+      !['ANSWERED', 'FAILED', 'RESERVED'].includes(String(question.state)) ||
+      (question.reason !== null && (typeof question.reason !== 'string' || !/^[A-Z0-9_]{1,80}$/.test(question.reason)))))))
+    throw new ResearchAutomationIntegrityError('Stored PDF question attempts are invalid.');
   if (value.privateShopee !== undefined && (value.exactShopee !== undefined || value.nativeReview !== undefined || !isRecord(value.privateShopee) ||
     Object.keys(value.privateShopee).sort().join(',') !== 'collectionId,collectionSha256,privateVersion,requestSha256' || value.privateShopee.privateVersion !== '3.0.0' ||
     !UUID.test(String(value.privateShopee.collectionId)) || !/^[a-f0-9]{64}$/.test(String(value.privateShopee.collectionSha256)) || !/^[a-f0-9]{64}$/.test(String(value.privateShopee.requestSha256)))) throw new ResearchAutomationIntegrityError('Stored private collection reference is invalid.');
@@ -6553,6 +6742,11 @@ function logMetricMethodFailure(runId: string, code: MetricMethodFailureCode, er
   const name = error instanceof Error ? error.name : typeof error;
   const text = error instanceof Error ? error.message : String(error);
   console.error(JSON.stringify({ event: 'research_automation_metric_method_failed', runId, code, errorName: name, errorMessage: text }));
+}
+/** Document reading never fails a run; log closed diagnostic codes without source or credential text. */
+function logPdfReadingFailure(runId: string, stage: 'PREPARE' | 'QUERY' | 'RUN', error: unknown): void {
+  const reason = error instanceof Error && /^PAGEINDEX_[A-Z0-9_]{1,64}$/.test(error.message) ? error.message : 'PDF_READING_FAILED';
+  console.error(JSON.stringify({ event: 'research_automation_pdf_reading_failed', runId, stage, reason }));
 }
 function logReportFailure(runId: string, stage: 'RENDER' | 'PUBLICATION', error: unknown): void {
   const name = error instanceof Error ? error.name : typeof error;
