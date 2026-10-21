@@ -1684,8 +1684,18 @@ export class ResearchAutomationService {
     return row ? this.#readJson<PageIndexQuotesArtifact>(row.sha, MAX_JSON_ARTIFACT_BYTES, 'application/json') : null;
   }
 
+  /** The run's stored quotes row; undefined when there is none or the database predates the quotes table (migration 0049). */
+  #runQuotesRow(runId: string): { sha: string } | undefined {
+    try {
+      return this.#db.prepare('SELECT artifact_sha256 sha FROM analysis_pageindex_run_quotes WHERE run_id=?').get(runId) as { sha: string } | undefined;
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('no such table: analysis_pageindex_run_quotes')) return undefined;
+      throw error;
+    }
+  }
+
   async #pdfReadingsStepArtifact(runId: string, outcome: StepResultDocument['outcome']): Promise<StoredArtifact | null> {
-    const row = this.#db.prepare('SELECT artifact_sha256 sha FROM analysis_pageindex_run_quotes WHERE run_id=?').get(runId) as { sha: string } | undefined;
+    const row = this.#runQuotesRow(runId);
     if (!row) return null;
     const artifact = await this.#readJson<PageIndexQuotesArtifact>(row.sha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
     if (artifact.documents === undefined) return null;
