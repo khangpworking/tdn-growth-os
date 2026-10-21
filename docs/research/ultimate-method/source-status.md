@@ -1,6 +1,6 @@
 # Trạng thái nguồn dữ liệu
 
-> Bản cập nhật 21/10/2026. Bản trước: [bản 21/10/2026 trước khi sửa](../../outdated/2026-10-21/docs/research/ultimate-method/source-status.md).
+> Bản cập nhật 21/10/2026 (lần 2). Bản trước: [bản 21/10/2026 lần 1](../../outdated/2026-10-21-2/docs/research/ultimate-method/source-status.md).
 
 Trạng thái từng nguồn dữ liệu đầu vào và nhật ký đổi trạng thái · cập nhật 21/10/2026 · đi kèm [Input data sources for 30 sections](input-data-sources-30-sections.md)
 
@@ -43,7 +43,7 @@ Ngày 21/10/2026, ghi chú được cập nhật theo kết quả kiểm tra ngu
 | S04 | Trang bán sản phẩm | Đã duyệt | 21/10/2026 | Đang dùng; 3/3 lượt ngày 20/10 có dữ liệu |
 | S05 | Review Shopee | Đã duyệt | 21/10/2026 | Dịch vụ Shopee API mới (gói S, #346) đã triển khai, tối đa 300 mỗi sản phẩm. Chưa lần nào ra dữ liệu: 3/3 lượt ngày 20/10 bị chặn, 0 review. Lỗi ở phía ứng dụng, không ở phía Shopee; cách sửa chờ chủ duyệt. Báo cáo Market chỉ đếm, không trích nguyên văn (phương án A) |
 | S06 | Review TikTok Shop | Đề xuất | 08/10/2026 | Chưa có bộ thu |
-| S07 | Bình luận dưới video TikTok | Đã duyệt | 21/10/2026 | Chủ duyệt 12/10; vào hệ thống qua gói P9. Chưa chạy trên máy chủ: tài khoản thu đã hết tiền, và Insight tạm dừng từ 19/10. Nạp tiền là việc của chủ |
+| S07 | Bình luận dưới video TikTok | Đã duyệt | 21/10/2026 | Chủ duyệt 12/10; vào hệ thống qua gói P9. Chưa chạy trên máy chủ: tài khoản thu đã hết tiền, và Insight tạm dừng từ 19/10. Nạp tiền là việc của chủ. Thử bộ thu khác ở gói miễn phí ngày 21/10 (ST-20261021-01): 10 bình luận tiếng Việt đúng chủ đề; gói miễn phí chỉ cho 10 dòng |
 | S08 | Bài viết Facebook công khai | Không thu | 08/10/2026 | Chủ tạm ngừng 08/10 |
 | S09 | Instagram | Không thu | 08/10/2026 | Test không đạt: không lấy được nội dung |
 | S10 | X (Twitter) | Đã test | 08/10/2026 | Một phần; chỉ nguồn phụ, phải lọc |
@@ -51,8 +51,8 @@ Ngày 21/10/2026, ghi chú được cập nhật theo kết quả kiểm tra ngu
 | S12 | Dữ liệu của chính shop chủ | Không thu | 08/10/2026 | Chưa có dữ liệu |
 | S13 | Công thức, bài hướng dẫn dùng sản phẩm | Đề xuất | 08/10/2026 | Tìm qua S19 |
 | S14 | Nội dung video bán hàng | Chạy thử | 21/10/2026 | Gói P9, đã có checklist. Chạy 3/3 lượt ngày 20/10: đọc 2–3 trong 9 video ứng viên mỗi lượt, 0 đoạn lên báo cáo. Ứng viên chỉ đến từ kết quả tìm kiếm chung, nên mọi video đã đọc bị chấm "không nói về sản phẩm". Video dài hơn 180 giây hoặc nặng hơn 14 MB bị bỏ |
-| S15 | Thư viện quảng cáo Meta | Đã duyệt | 21/10/2026 | Chủ duyệt 12/10; chỉ đọc theo trang, không đăng nhập. Máy tự đọc (cờ TDN_RESEARCH_META_AUTO_ENABLED) đã chạy, nhưng chưa lần nào ra dữ liệu: 3/3 lượt dừng ở trang đầu, vì trình duyệt trên máy chủ đang đăng nhập Facebook. Cách xử lý chờ chủ quyết |
-| S16 | Quảng cáo nổi bật trên TikTok | Chạy thử | 21/10/2026 | Chủ duyệt bộ máy tự đọc 17/10; không đăng nhập (cờ TDN_RESEARCH_TIKTOK_TOPADS_ENABLED). Máy tự đọc đã chạy, nhưng chưa lần nào ra dữ liệu: 3/3 lượt dừng, vì trang đòi đăng nhập. Hướng đi chờ chủ quyết |
+| S15 | Thư viện quảng cáo Meta | Đã duyệt | 21/10/2026 | Chủ duyệt 12/10; chỉ đọc theo trang, không đăng nhập. Máy tự đọc (cờ TDN_RESEARCH_META_AUTO_ENABLED) đã chạy, nhưng chưa lần nào ra dữ liệu: 3/3 lượt dừng ở trang đầu, vì trình duyệt trên máy chủ đang đăng nhập Facebook. Cách xử lý chờ chủ quyết. Thử đường đọc qua Apify ngày 21/10 (ST-20261021-04 đến -06): tìm đúng cụm từ, chỉ tiếng Việt thì 5/10 quảng cáo đúng ngành; không có lượt tiếp cận, tiền chi. Chưa đưa vào hệ thống |
+| S16 | Quảng cáo nổi bật trên TikTok | Chạy thử | 21/10/2026 | Chủ duyệt bộ máy tự đọc 17/10; không đăng nhập (cờ TDN_RESEARCH_TIKTOK_TOPADS_ENABLED). Máy tự đọc đã chạy, nhưng chưa lần nào ra dữ liệu: 3/3 lượt dừng, vì trang đòi đăng nhập. Hướng đi chờ chủ quyết. Thử 2 bộ thu Apify ngày 21/10 (ST-20261021-02, -03): 0/10 quảng cáo đúng chủ đề ở cả 2 bộ; chưa có cách thu đạt cho Việt Nam |
 | S17 | Thư viện quảng cáo công khai của công cụ tìm kiếm | Đã duyệt | 21/10/2026 | Chủ duyệt 17/10; bước tự tìm trang web chính thức của thương hiệu có từ 19/10 (cờ TDN_RESEARCH_GOOGLE_ADS_ENABLED). Chạy 3/3 lượt ngày 20/10, chưa có mẫu quảng cáo nào: 9 lần tra thương hiệu thì 6 lần không tìm được trang web, 2 lần ra nhiều trang, 1 lần có trang web nhưng 0 quảng cáo. Chưa dùng cho phép kiểm 3 của E5 |
 | S18 | Trang thương hiệu Facebook | Đề xuất | 08/10/2026 | — |
 | S19 | Kết quả tìm kiếm Google mở rộng | Chạy thử | 21/10/2026 | Chạy trong mọi lượt Market: 3 câu tìm, 9 kết quả mỗi lượt, đúng trần; 3/3 lượt ngày 20/10 có dữ liệu |
@@ -113,6 +113,7 @@ Dòng trước 12/10/2026 ghi lại từ danh mục nguồn, nhật ký test và
 
 | Ngày | Mã nguồn | Nhãn cũ → nhãn mới | Lý do | Ai quyết |
 |---|---|---|---|---|
+| 21/10/2026 | S07, S15, S16 | Giữ nhãn (S07, S15 Đã duyệt; S16 Chạy thử) | Thử 6 lượt bộ thu Apify trên máy chủ, tổng khoảng $0,026 (ST-20261021-01 đến -06). S07: 10 bình luận đúng chủ đề, gói miễn phí giới hạn 10 dòng. S15: 5/10 đúng ngành khi tìm đúng cụm từ, tiếng Việt. S16: 0/10 ở cả 2 bộ. Chưa đổi gì trong hệ thống (DS-20261021-02) | Ghi kết quả; đưa vào hệ thống chờ chủ quyết |
 | 21/10/2026 | S11 | Đề xuất → Không thu | Chủ bỏ bình luận YouTube ngày 17/10/2026; trang này chưa ghi lại (DS-20261021-01) | Chủ (17/10) |
 | 21/10/2026 | S05, S15, S16 | Giữ nhãn (S05, S15 Đã duyệt; S16 Chạy thử) | Kiểm tra nguồn 21/10 (mục 2b): bộ thu đã chạy 3/3 lượt Market ngày 20/10 nhưng chưa lần nào ra dữ liệu. S05: lỗi phía ứng dụng. S15: trình duyệt trên máy chủ đang đăng nhập. S16: trang đòi đăng nhập (DS-20261021-01) | Ghi kết quả; nhãn chờ chủ quyết |
 | 21/10/2026 | S14, S17, S20, S21, S22, S24, S25 | Giữ nhãn | Kiểm tra nguồn 21/10 (mục 2b): bộ thu chạy nhưng kết quả sai hoặc thiếu. S25 chưa lần nào ra trích dẫn; S14 có 0 đoạn video lên báo cáo; S17 có 0 mẫu quảng cáo; S20 bỏ qua kỳ cũ; S21, S22, S24 hỏng 1/3 lượt vì bước AI không hỏi lại (DS-20261021-01) | Ghi kết quả; cách sửa chờ chủ duyệt |
