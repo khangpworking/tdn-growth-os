@@ -6,6 +6,9 @@ Cập nhật: 21/10/2026
 
 | Bản cũ | Bản mới | Lý do cập nhật |
 | --- | --- | --- |
+| [docs/research/ultimate-method/source-status.md](2026-10-21-2/docs/research/ultimate-method/source-status.md) | [docs/research/ultimate-method/source-status.md](../research/ultimate-method/source-status.md) | Ghi chú S07, S15, S16 theo lượt thử 21/10/2026 (lần 2); thêm dòng nhật ký |
+| [docs/research/ultimate-method/input-data-sources-test-log.md](2026-10-21-2/docs/research/ultimate-method/input-data-sources-test-log.md) | [docs/research/ultimate-method/input-data-sources-test-log.md](../research/ultimate-method/input-data-sources-test-log.md) | Thêm ST-20261021-01 đến -06 |
+| [docs/research/ultimate-method/CHANGELOG.md](2026-10-21-2/docs/research/ultimate-method/CHANGELOG.md) | [docs/research/ultimate-method/CHANGELOG.md](../research/ultimate-method/CHANGELOG.md) | Thêm dòng DS-20261021-02 |
 | [docs/vi/README.md](2026-10-21/docs/vi/README.md) | [docs/vi/README.md](../vi/README.md) | Ngày cập nhật cuối của trạng thái nguồn: 19/10 thành 21/10/2026 |
 | [docs/vi/market-report/tai-lieu-ky-thuat.md](2026-10-21/docs/vi/market-report/tai-lieu-ky-thuat.md) | [docs/vi/market-report/tai-lieu-ky-thuat.md](../vi/market-report/tai-lieu-ky-thuat.md) | Phần 5: thêm trạng thái chạy thật của từng nguồn (kiểm tra 21/10/2026); quy chuẩn v1.37 |
 | [docs/research/ultimate-method/source-status.md](2026-10-21/docs/research/ultimate-method/source-status.md) | [docs/research/ultimate-method/source-status.md](../research/ultimate-method/source-status.md) | Kết quả kiểm tra nguồn 21/10/2026 (mục 2b); S11 Không thu; thêm dòng nhật ký |
