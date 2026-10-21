@@ -7,7 +7,11 @@ import test, { type TestContext } from 'node:test';
 import { JSDOM } from 'jsdom';
 import { openDatabase } from '../../src/platform/db/index.js';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/artifact-store.js';
+import { RequestScopedArtifactStore } from '../../src/platform/artifacts/request-scoped-artifact-store.js';
 import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../src/modules/flow/index.js';
+import { SourcePackageService } from '../../src/modules/foundation/source-package-service.js';
+import { deriveReaderSource } from '../../src/modules/analysis/reader-report/web-facts.js';
+import { normaliseMetricWebSnapshot } from '../../src/modules/analysis/research-automation/metric-web-facts.js';
 import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
 import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
 import { CaptureLog } from '../../src/modules/analysis/research-automation/provider-common.js';
@@ -18,10 +22,11 @@ import type { ProviderTransport } from '../../src/modules/analysis/research-auto
 import type { AutomationSourcePort } from '../../src/modules/analysis/research-automation/source-binding.js';
 import { auditMarket14 } from '../../src/modules/analysis/research-automation/market-14-rules.js';
 import { assertMarketBusinessGate } from '../../src/modules/analysis/research-automation/market-business-gate.js';
-import { PDF_DISCOVERY_MISSING, PDF_DISCOVERY_SOURCE_LABEL, PDF_EXCERPT_TITLE } from '../../src/modules/analysis/research-automation/pdf-excerpt.js';
+import { PDF_DISCOVERY_MISSING, PDF_DISCOVERY_NOT_READ_IN_TIME, PDF_DISCOVERY_SOURCE_LABEL, PDF_EXCERPT_TITLE } from '../../src/modules/analysis/research-automation/pdf-excerpt.js';
 import { createPdfDiscoverySource, type PdfDiscoverySource, type PdfResolver } from '../../src/modules/analysis/research-automation/pdf-discovery-lane.js';
 import { SYNTHETIC_CARD_ID, SYNTHETIC_SERP_KEY, syntheticProductSource, syntheticWebSource } from '../helpers/research-synthetic-sources.js';
 import { providerNameViolations } from '../helpers/report-visible-text.js';
+import { captureFiles } from '../helpers/autorun-harness.js';
 
 const KEYWORD = 'bình giữ nhiệt';
 const workspaceId = '11111111-1111-4111-8111-111111111111';
@@ -77,6 +82,7 @@ function pdfTransport(searchRows: unknown[], large = false, failSearch = false) 
 
 /** PageIndex fake that keeps each uploaded file name, so citations name the retained `source-N.pdf`. */
 function pageIndexFake() {
+  let notReady = false;
   const docs = new Map<string, string>();
   const calls = { upload: 0, question: 0, localReads: 0, titleReads: 0 };
   const fetchFake: typeof fetch = async (input, init) => {
@@ -86,7 +92,7 @@ function pageIndexFake() {
     if (pathname === '/doc/') { calls.upload += 1; const id = `pi-${docs.size + 1}`; docs.set(id, ((init?.body as FormData).get('file') as File).name); return Response.json({ ...docOf(id), status: 'processing' }); }
     if (pathname === '/docs') return Response.json({ documents: [...docs.keys()].map(docOf) });
     const match = /^\/doc\/([^/]+)\/(metadata|block\/p1_text_1\/)$/u.exec(pathname);
-    if (match?.[2] === 'metadata') return Response.json(docOf(match[1]!));
+    if (match?.[2] === 'metadata') return Response.json({ ...docOf(match[1]!), status: notReady ? 'processing' : 'completed' });
     if (match) return Response.json({ doc_id: match[1], page: 1, block_id: 'p1_text_1', block_type: 'text', bbox: [1, 1, 20, 20], text: 'Thị trường tăng đều theo quý' });
     if (pathname === '/chat/completions') {
       calls.question += 1;
@@ -95,7 +101,7 @@ function pageIndexFake() {
     }
     throw new Error(`Unexpected connector request ${pathname}`);
   };
-  return { fetchFake, calls };
+  return { fetchFake, calls, markNotReady: () => { notReady = true; } };
 }
 
 interface RunOptions {
@@ -105,7 +111,7 @@ interface RunOptions {
   /** Local page count per file (default 1); a file whose bytes contain `longLabel` reports `longPages`. */
   readonly longLabel?: string; readonly longPages?: number; readonly maxPages?: number; readonly readerOff?: boolean;
   readonly genericPdfLabel?: string; readonly uncountableLabel?: string;
-  readonly reports?: ('MARKET' | 'INSIGHT')[];
+  readonly reports?: ('MARKET' | 'INSIGHT')[]; readonly notReady?: boolean;
 }
 async function runToDraft(t: TestContext, options: RunOptions) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-pdf-discovery-'));
@@ -123,14 +129,18 @@ async function runToDraft(t: TestContext, options: RunOptions) {
   t.after(async () => { db.close(); await fs.rm(root, { recursive: true, force: true }); });
   const pdf = pdfTransport(options.searchRows ?? [], options.large, options.failSearch);
   const pageIndex = pageIndexFake();
+  const sourceCalls = { quickSearch: 0, collect: 0, web: 0, keywords: 0 };
+  let elapsed = 0;
   // The keyword draft needs the sales capture to carry the product name (same wrapper as the P9 source test).
   const product = syntheticProductSource();
   const sales: AutomationSourcePort = { ...product, quickSearch: async (input, opts) => {
+    sourceCalls.quickSearch++;
     const result = await product.quickSearch(input, opts);
     const responseBytes = Buffer.from('{"data":[{"product_id":"12345","product_name":"Bình giữ nhiệt từ nguồn bán hàng"}]}');
     return { ...result, result: { ...result.result, captures: result.result.captures.map(c => ({ ...c, responseBytes,
       responseSha256: createHash('sha256').update(responseBytes).digest('hex'), responseByteLength: responseBytes.length })) } };
   }, collect: async (input, opts) => {
+    sourceCalls.collect++;
     const result = await product.collect(input, opts);
     // Two bounded synthetic exchanges leave room for one full-size PDF, but not two.
     const log = new CaptureLog('KALODATA', pdf.transport, undefined, 2);
@@ -144,10 +154,13 @@ async function runToDraft(t: TestContext, options: RunOptions) {
   } };
   const reportInputs = new Map<string, AutomationReportInput>();
   const source: PdfDiscoverySource = createPdfDiscoverySource(SYNTHETIC_SERP_KEY, pdf.transport, options.resolve ?? publicDns, pdf.transport.fetch);
-  const service = new ResearchAutomationService({ db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discovery), uuid: () => runId, now,
-    renderer: (input, kind) => { reportInputs.set(kind, input); return buildResearchAutomationReport(input, kind); }, source: sales, webSource: syntheticWebSource(() => {}, options.organic),
-    sourceEvidence: { modelIdentity: 'synthetic-model', promptVersion: 'synthetic-v1', transport: { draftLists: async () => { if (options.noAdmission) throw new Error('synthetic admission failure'); return { keywords: [KEYWORD], exclusions: [] }; } } },
-    pageIndex: { enabled: !options.readerOff, apiKey: 'synthetic-pdf-key', fetch: pageIndex.fetchFake, startingCreditMicroDollars: 10_000_000, maxQuestionsPerRun: options.questionCap ?? 10,
+  const service = new ResearchAutomationService({ db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discovery), uuid: () => runId, now: () => new Date(now().getTime() + elapsed),
+    metricAttachmentStore: new RequestScopedArtifactStore(path.join(root, 'artifacts')), readerReportFlint: false,
+    readerRows: () => [0, 1, 2].map(i => ({ i, platform: 'shopee', listing: `listing-${i}`, shop: `shop-${i}`,
+      cat: 'Bình', title: `Bình thử ${i}`, brand: '(không ghi)', rev: (i + 1) * 100, units: 2, asp: (i + 1) * 50, start: null })),
+    renderer: (input, kind) => { reportInputs.set(kind, input); return buildResearchAutomationReport(input, kind); }, source: sales, webSource: syntheticWebSource(() => { sourceCalls.web++; }, options.organic),
+    sourceEvidence: { modelIdentity: 'synthetic-model', promptVersion: 'synthetic-v1', transport: { draftLists: async () => { sourceCalls.keywords++; if (options.noAdmission) throw new Error('synthetic admission failure'); return { keywords: [KEYWORD], exclusions: [] }; } } },
+    pageIndex: { readyWaitCapMs: 40_000, readyPollIntervalMs: 20_000, sleep: async ms => { elapsed += ms; }, enabled: !options.readerOff, apiKey: 'synthetic-pdf-key', fetch: pageIndex.fetchFake, startingCreditMicroDollars: 10_000_000, maxQuestionsPerRun: options.questionCap ?? 10,
       readPdfTitle: async () => { pageIndex.calls.titleReads += 1; return null; },
       extractPdf: async bytes => { pageIndex.calls.localReads += 1;
         if (options.uncountableLabel && Buffer.from(bytes).includes(Buffer.from(options.uncountableLabel))) throw new Error('synthetic local reader unavailable');
@@ -163,7 +176,13 @@ async function runToDraft(t: TestContext, options: RunOptions) {
   if (options.ownerPdf) await service.attachRunPdf(workspaceId, runId, 'owner.pdf', pdfBytes(options.ownerPdfLabel ?? 'owner'));
   await service.confirmScope(workspaceId, runId, { contractVersion: 'research-automation-confirm-v1', requestKey: '44444444-4444-4444-8444-444444444444',
     expectedRevision: (await service.getRun(workspaceId, runId)).revision, definition: 'Synthetic scope', includeTerms: [], excludeTerms: [], selectedProductIds: [SYNTHETIC_CARD_ID], peerProductIds: [], exactShopeeUrls: [] });
-  for (let i = 0; i < 10 && (await service.getRun(workspaceId, runId)).status !== 'DRAFT_READY'; i++) await service.processNext();
+  for (let i = 0; i < 10 && (await service.getRun(workspaceId, runId)).status !== 'DRAFT_READY'; i++) {
+    if (options.notReady && db.prepare("SELECT 1 FROM analysis_research_automation_steps WHERE run_id=? AND step_id='REPORTS' AND state='QUEUED'").get(runId)) {
+      db.prepare("UPDATE analysis_pageindex_documents SET status='INDEXING'").run();
+      pageIndex.markNotReady();
+    }
+    await service.processNext();
+  }
   assert.equal((await service.getRun(workspaceId, runId)).status, 'DRAFT_READY', 'a report PDF never fails the run');
   const step = db.prepare(`SELECT result_sha256 sha FROM analysis_research_automation_steps WHERE run_id=? AND step_id='COLLECTION'`).get(runId) as { sha: string };
   const document = JSON.parse((await artifacts.read(step.sha)).toString('utf8')) as StepResultDocument;
@@ -177,7 +196,63 @@ async function runToDraft(t: TestContext, options: RunOptions) {
     const out = db.prepare('SELECT version_sha256 sha FROM analysis_research_automation_outputs WHERE run_id=? AND report_kind=?').get(runId, 'MARKET') as { sha: string };
     return JSON.parse((await artifacts.read(out.sha)).toString('utf8')) as Record<string, unknown>;
   };
-  return { db, artifacts, service, document, usage, captures, runPdfs, html, semantic, pdf, pageIndex, reportInputs };
+  return { db, artifacts, service, document, usage, captures, runPdfs, html, semantic, pdf, pageIndex, sourceCalls, reportInputs };
+}
+
+async function buildPdfReader(t: TestContext, f: Awaited<ReturnType<typeof runToDraft>>, kind: 'WORKBOOK' | 'CAPTURE') {
+  const period = { startDate: '2025-10-01', endDate: '2026-09-30' };
+  const expectedRevision = (await f.service.getRun(workspaceId, runId)).revision;
+  let readerSource: ReturnType<typeof deriveReaderSource> = { measurementPeriod: { start: period.startDate, end: period.endDate }, rowCap: 5000,
+    displayedHeadlines: { revenueVnd: 600, soldListings: 3, shops: 3, units: 6 }, platformBreakdown: { shopee: { displayedRevenueVnd: 600 } } };
+  let packageId: string;
+  let restore = () => {};
+  if (kind === 'WORKBOOK') {
+    // Workbook parsing is outside this contract; the readerRows seam supplies synthetic rows.
+    // Keep real finalized-package verification and stub only the prepared-source inventory.
+    const bytes = Buffer.from('Synthetic workbook for injected reader rows');
+    const packages = new SourcePackageService({ db: f.db, artifactStore: f.artifacts, now });
+    const stored = await packages.intakeAutomationAttachment({ contractVersion: '1.0.0',
+      packageKey: `synthetic-pdf-reader-workbook:${runId}`, version: 1, sourceLabel: 'Synthetic workbook', sourceAcquiredAt: null,
+      files: [{ path: 'metric/export.xlsx', sha256: createHash('sha256').update(bytes).digest('hex'), byteSize: bytes.length,
+        mediaType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', representationRole: 'structured',
+        evidenceFamily: 'synthetic-pdf-reader', independence: 'non_independent', providerProvenance: 'synthetic', provenanceBasis: 'Synthetic reader fixture' }] },
+    new Map([['metric/export.xlsx', bytes]]), 'a'.repeat(64));
+    packageId = stored.packageId;
+    const inventory = t.mock.method(f.service, 'listPreparedMetricSources', async () => ({
+      contractVersion: 'automation-prepared-metric-list-v1', workspaceId, runId,
+      sources: [{ packageId, request: { measurementPeriod: period } }],
+    }));
+    restore = () => inventory.mock.restore();
+  } else {
+    const archive = captureFiles(runId, period);
+    const snapshot = JSON.parse(archive.snapshotBytes.toString());
+    snapshot.scope.keywords = [KEYWORD];
+    for (const [index, entry] of snapshot.groups.W12_topProducts.rows.entries()) entry.cells.name.text = `${KEYWORD} mẫu ${index + 1}`;
+    readerSource = deriveReaderSource(normaliseMetricWebSnapshot(snapshot), 5000, { nullable: true });
+    const snapshotBytes = Buffer.from(JSON.stringify(snapshot));
+    const manifest = JSON.parse(archive.manifestBytes.toString());
+    manifest.appliedFilters.keywords = [KEYWORD];
+    manifest.files[0].sha256 = createHash('sha256').update(snapshotBytes).digest('hex');
+    manifest.files[0].byteSize = snapshotBytes.length;
+    const receipt = await f.service.prepareMetricCapture(workspaceId, runId, { contractVersion: 'automation-metric-capture-prepare-v1',
+      requestKey: '66666666-6666-4666-8666-666666666666', expectedRevision, sourceContext: 'Synthetic PDF reader fixture' },
+    snapshotBytes, Buffer.from(JSON.stringify(manifest)));
+    packageId = receipt.packageId;
+  }
+  const request = { contractVersion: 'reader-report-build-v1.2',
+    requestKey: kind === 'WORKBOOK' ? '77777777-7777-4777-8777-777777777777' : '88888888-8888-4888-8888-888888888888',
+    metricPackageId: packageId, platforms: ['shopee'], cover: null,
+    profile: { slug: 'synthetic-pdf-reader', product: 'Bình thử nghiệm', status: 'proposed', segments: { S1: 'Bình nhỏ', N1: 'Hàng khác' },
+      short: { S1: 'Nhỏ' }, core: ['S1'], non: ['N1'], rules: [{ seg: 'S1', when: {} }], signals: [] },
+    source: readerSource };
+  const owner = { actorId: 'owner:synthetic', role: 'OWNER' as const };
+  try {
+    const built = await f.service.buildReaderReport(workspaceId, runId, request, owner).catch((cause: unknown) => { throw new Error(`${kind} reader build failed`, { cause }); });
+    const saved = await f.service.readReaderReport(workspaceId, runId, built.revision.revisionId);
+    assert.deepEqual(await f.service.buildReaderReport(workspaceId, runId, request, owner), { ...built, exactRetry: true });
+    assert.deepEqual((await f.service.readReaderReport(workspaceId, runId, built.revision.revisionId)).bytes, saved.bytes);
+    return saved.bytes.toString();
+  } finally { restore(); }
 }
 
 type Appendix = { sourceAppendix: { rows: { registryId: string; binding: { kind: string; ref: string } }[] } };
@@ -526,4 +601,99 @@ test('both search paths vet original titles before bounded projections can hide 
   assert.match(block, /Tài liệu PDF số 1, trang 1/u);
   assert.match(block, /Tài liệu PDF số 2, trang 1/u);
   assert.doesNotMatch(block, /Báo cáo ngành|source-\d+\.pdf/u);
+});
+
+
+test('SRC3 S25 SEARCH_FAILED and NOT_ADMITTED retain reasons without relaxing admission', async t => {
+  const failed = await runToDraft(t, { lane: true, throwSearch: true, organic: [row(1, 'https://example.test/brand')] });
+  assert.equal(failed.document.pdfDiscovery?.search.reason, 'SEARCH_FAILED');
+  assert.equal(failed.runPdfs.length, 0);
+  const refused = await runToDraft(t, { lane: true, organic: [row(1, 'https://example.test/brand')], searchRows: [{ ...row(1, 'https://irrelevant.example.test/cooking.pdf', 'Tài liệu nấu ăn'), snippet: 'Công thức nấu ăn tổng hợp' }] });
+  assert.equal(refused.document.pdfDiscovery?.search.reason, 'NOT_ADMITTED');
+  assert.equal(refused.pdf.calls.download, 0, 'an irrelevant discovery result cannot be retained');
+  assert.equal(refused.runPdfs.length, 0);
+});
+
+
+test('SRC3 S25 Poll cap exceeded renders found-but-unread state from stored service outcomes', async t => {
+  const late = await runToDraft(t, { organic: [row(1, RUN_PDF)], lane: true, notReady: true });
+  const absent = await runToDraft(t, { organic: [], lane: true });
+  assert.ok(late.runPdfs.length > 0);
+  assert.equal(late.pageIndex.calls.question, 0);
+  const html = await late.html();
+  assert.ok(html.includes('Đã tìm thấy tài liệu nhưng chưa đọc kịp trong lượt này'), 'rendered timeout state must come from persisted service outcomes');
+  const readings = await late.service.readPageIndexQuotes(workspaceId, runId);
+  assert.ok(readings?.documents?.length);
+  assert.ok(readings.documents.every(document => document.state === 'NOT_READY_AFTER_WAIT'));
+  assert.ok(!html.includes(PDF_DISCOVERY_MISSING), 'retained files cannot be rendered as undiscovered');
+  assert.ok((await absent.html()).includes(PDF_DISCOVERY_MISSING), 'a run with no retained file keeps its missing-document state');
+  assert.ok(!(await absent.html()).includes('Đã tìm thấy tài liệu nhưng chưa đọc kịp'));
+});
+
+test('SRC3 S25 Timeout preserves found-but-unread wording in both reader branches; no retained PDFs preserves missing-document wording without extra calls', async t => {
+  const late = await runToDraft(t, { organic: [row(1, RUN_PDF)], lane: true, notReady: true });
+  const absent = await runToDraft(t, { organic: [], lane: true });
+  assert.ok(late.runPdfs.length > 0);
+  assert.equal(absent.runPdfs.length, 0);
+  assert.equal(late.pageIndex.calls.question, 0);
+  assert.ok((await late.service.readPageIndexQuotes(workspaceId, runId))?.documents?.every(document => document.state === 'NOT_READY_AFTER_WAIT'));
+  for (const f of [late, absent]) {
+    const calls = { pdf: { ...f.pdf.calls, queries: [...f.pdf.calls.queries], headers: [...f.pdf.calls.headers] }, pageIndex: { ...f.pageIndex.calls }, sources: { ...f.sourceCalls } };
+    for (const kind of ['WORKBOOK', 'CAPTURE'] as const) {
+      const html = await buildPdfReader(t, f, kind);
+      const expected = f === late ? PDF_DISCOVERY_NOT_READ_IN_TIME : PDF_DISCOVERY_MISSING;
+      const forbidden = f === late ? PDF_DISCOVERY_MISSING : PDF_DISCOVERY_NOT_READ_IN_TIME;
+      const dom = new JSDOM(html);
+      try {
+        const rows = [...dom.window.document.querySelectorAll('tr')].filter(row => row.firstElementChild?.textContent === PDF_DISCOVERY_SOURCE_LABEL);
+        assert.equal(rows.length, 1, `${kind} has one visible PDF source row`);
+        assert.equal(rows[0]!.lastElementChild?.textContent, expected, kind);
+        assert.equal(rows[0]!.closest('details'), null, `${kind} PDF status is visible`);
+      } finally { dom.window.close(); }
+      assert.ok(!html.includes(forbidden), `${kind} must not substitute the opposite PDF state`);
+      assert.deepEqual(providerNameViolations(html), []);
+      assert.deepEqual({ pdf: f.pdf.calls, pageIndex: f.pageIndex.calls, sources: f.sourceCalls }, calls, `${kind} reader builds and exact retries are offline`);
+    }
+  }
+});
+
+test('SRC3 S25 Report rebuilds reuse saved reading outcomes; legacy and successfully read documents retain existing behavior', async t => {
+  for (const state of ['TIMEOUT', 'READ', 'LEGACY'] as const) {
+    const f = await runToDraft(t, { organic: [row(1, RUN_PDF)], lane: true, reports: ['MARKET', 'INSIGHT'],
+      ...(state === 'TIMEOUT' ? { notReady: true } : state === 'LEGACY' ? { readerOff: true, ownerPdf: true } : {}) });
+    assert.ok(f.runPdfs.length > 0);
+    assert.equal(f.document.pdfDiscovery?.readState, undefined, 'the stored COLLECTION has no report-time overlay');
+    const outcomes = await f.service.readPageIndexQuotes(workspaceId, runId);
+    if (state === 'LEGACY') assert.equal(outcomes, null, 'older runs have no saved reading outcomes');
+    else assert.ok(outcomes?.documents?.every(document => document.state === (state === 'TIMEOUT' ? 'NOT_READY_AFTER_WAIT' : 'READ')));
+    const calls = { pdf: { ...f.pdf.calls, queries: [...f.pdf.calls.queries], headers: [...f.pdf.calls.headers] }, pageIndex: { ...f.pageIndex.calls }, sources: { ...f.sourceCalls } };
+    const previousPairId = (await f.service.listReportVersions(workspaceId, runId)).at(-1)!.pairId;
+    await f.service.requestReportRevision(workspaceId, runId, { contractVersion: 'automation-report-revision-v1',
+      requestKey: '99999999-9999-4999-8999-999999999999', previousPairId,
+      sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } } });
+    assert.equal(await f.service.processNext(), true);
+    const revised = (await f.service.listReportVersions(workspaceId, runId)).at(-1)!;
+    assert.notEqual(revised.pairId, previousPairId);
+    for (const kind of ['MARKET', 'INSIGHT'] as const) {
+      const input = f.reportInputs.get(kind)!;
+      assert.equal(input.collection?.pdfDiscovery?.readState, state === 'TIMEOUT' ? 'NOT_READ_IN_TIME' : undefined, `${kind} rebuild context`);
+      const saved = await f.service.readReport(workspaceId, runId, kind, false, revised.pairId);
+      const html = saved.bytes.toString();
+      if (state === 'TIMEOUT') {
+        if (kind === 'MARKET') {
+          assert.ok(html.includes(PDF_DISCOVERY_NOT_READ_IN_TIME), kind);
+          assert.ok(!html.includes(PDF_DISCOVERY_MISSING), `${kind} retained PDFs cannot be reported as missing`);
+        }
+      } else {
+        assert.ok(!html.includes(PDF_DISCOVERY_NOT_READ_IN_TIME), `${kind} cannot acquire a timeout`);
+        if (kind === 'MARKET') {
+          assert.equal(html.includes(PDF_DISCOVERY_MISSING), state === 'LEGACY');
+          assert.equal(html.includes(`<h3>${PDF_EXCERPT_TITLE}`), state === 'READ');
+        }
+      }
+      assert.deepEqual((await f.service.readReport(workspaceId, runId, kind, false, revised.pairId)).bytes, saved.bytes);
+    }
+    assert.deepEqual(await f.service.readPageIndexQuotes(workspaceId, runId), outcomes, 'revisions cannot replace the saved outcomes');
+    assert.deepEqual({ pdf: f.pdf.calls, pageIndex: f.pageIndex.calls, sources: f.sourceCalls }, calls, 'revisions and verified reads cannot poll, upload, download or ask again');
+  }
 });

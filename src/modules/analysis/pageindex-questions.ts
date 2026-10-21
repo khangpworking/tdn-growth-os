@@ -233,18 +233,33 @@ export function verifyPageIndexQuotes(input: VerifyPageIndexQuotesInput): readon
   return verified;
 }
 
+/** Why a retained document was read or not: closed codes, one per document, recorded beside the quotes. */
+export type PageIndexDocumentReadState =
+  | 'READ' | 'NOT_READY_AFTER_WAIT' | 'INDEX_FAILED' | 'NOT_UPLOADED' | 'PAUSED' | 'NO_QUESTION_PLANNED' | 'NO_QUESTION_BUDGET'
+  | 'QUESTION_FAILED' | 'NOT_VERIFIED' | 'LOCAL_READ_FAILED' | 'STATUS_FAILED' | 'CANCELLED';
+
+export interface PageIndexDocumentReading {
+  readonly sourceSha256: string;
+  readonly state: PageIndexDocumentReadState;
+  readonly reason?: string;
+  readonly statusAttempts?: readonly import('./pageindex-documents.js').PageIndexStatusAttempt[];
+  readonly questionAttempts?: readonly { readonly sectionId: string; readonly state: 'ANSWERED' | 'FAILED' | 'RESERVED'; readonly reason: string | null }[];
+}
+
 export interface PageIndexQuotesArtifact {
   readonly contractVersion: 'pageindex-verified-quotes-v1';
   readonly approvalState: 'UNREVIEWED';
   readonly runId: string;
   readonly quotes: readonly PageIndexVerifiedQuote[];
+  /** Per-document reading outcome; absent on artifacts stored before it was kept. */
+  readonly documents?: readonly PageIndexDocumentReading[];
 }
 
 /**
  * Builds the run artifact holding verified quotes. Only verified quotes enter;
  * the vendor answer text is never stored as report content.
  */
-export function buildVerifiedQuotesArtifact(runId: string, quotes: readonly PageIndexVerifiedQuote[]): PageIndexQuotesArtifact {
+export function buildVerifiedQuotesArtifact(runId: string, quotes: readonly PageIndexVerifiedQuote[], documents?: readonly PageIndexDocumentReading[]): PageIndexQuotesArtifact {
   if (typeof runId !== 'string' || !runId || !Array.isArray(quotes) ||
     quotes.some(quote => !quote || quote.quoteVerification !== 'EXTERNAL_VERIFIER_ATTESTED' ||
       !Number.isSafeInteger(quote.page) || quote.page < 1 || typeof quote.quote !== 'string' || !quote.quote)) {
@@ -255,6 +270,7 @@ export function buildVerifiedQuotesArtifact(runId: string, quotes: readonly Page
     approvalState: 'UNREVIEWED',
     runId,
     quotes: [...quotes],
+    ...(documents ? { documents: [...documents] } : {}),
   };
 }
 

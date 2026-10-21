@@ -351,7 +351,14 @@ export async function ensureIndexed(pdf: PageIndexPdfFile, deps: EnsureIndexedDe
   }
 }
 
+export interface PageIndexStatusAttempt {
+  readonly state: 'processing' | 'completed' | 'failed' | 'unknown' | 'error';
+  readonly reason?: string;
+}
+
 export interface RefreshPageIndexStatusDeps {
+  readonly onAttempt?: (attempt: PageIndexStatusAttempt) => void;
+  readonly signal?: AbortSignal;
   readonly fetchStatus: (cloudDocId: string) => Promise<'processing' | 'completed' | 'failed' | 'unknown'>;
   readonly now?: () => Date;
   /** Upper bound on status polls. Defaults to 3. */
@@ -360,8 +367,8 @@ export interface RefreshPageIndexStatusDeps {
 
 /**
  * Re-reads one INDEXING row's vendor status and settles terminal states.
- * Bounded and never throws: any failure leaves the row untouched and returns
- * the current row (or null when unreadable).
+ * Status failures have at most one retry; sanitized causes stay in the ledger.
+ * Never throws; an unreadable ledger returns null.
  */
 export async function refreshPageIndexStatus(
   db: Database.Database,
@@ -375,12 +382,28 @@ export async function refreshPageIndexStatus(
     const at = (): string => (deps.now ?? (() => new Date()))().toISOString();
     const polls = Math.max(1, Math.min(deps.maxPolls ?? 3, 20));
     for (let attempt = 0; attempt < polls; attempt += 1) {
-      let state: 'processing' | 'completed' | 'failed' | 'unknown';
-      try {
-        state = await deps.fetchStatus(current.cloudDocId);
-      } catch {
-        state = 'unknown';
+      if (deps.signal?.aborted) break;
+      let state: 'processing' | 'completed' | 'failed' | 'unknown' = 'unknown';
+      let failure: string | null = null;
+      for (let retry = 0; retry < 2 && !deps.signal?.aborted; retry++) {
+        try {
+          state = await deps.fetchStatus(current.cloudDocId);
+          deps.onAttempt?.({ state });
+          failure = null;
+          break;
+        } catch (error) {
+          const cause = error instanceof Error && error.cause instanceof Error ? error.cause : error;
+          failure = cause instanceof Error && /^[A-Za-z0-9_]{1,80}$/.test(cause.message) ? cause.message : 'PAGEINDEX_STATUS_FAILED';
+          deps.onAttempt?.({ state: 'error', reason: failure });
+          console.error(JSON.stringify({ event: 'research_automation_pdf_status_failed', sourceSha256, attempt: retry + 1, reason: failure }));
+        }
       }
+      if (failure) {
+        upsert(db, { sourceSha256, cloudDocId: current.cloudDocId, cloudFileName: current.cloudFileName,
+          pageCount: current.pageCount, uploadedAt: current.uploadedAt, status: 'INDEXING', failureCode: failure, updatedAt: at() });
+        return readPageIndexDocument(db, sourceSha256);
+      }
+      if (deps.signal?.aborted) break;
       if (state === 'completed') {
         upsert(db, { sourceSha256, cloudDocId: current.cloudDocId, cloudFileName: current.cloudFileName,
           pageCount: current.pageCount, uploadedAt: current.uploadedAt, status: 'READY', failureCode: null, updatedAt: at() });
@@ -391,6 +414,13 @@ export async function refreshPageIndexStatus(
           pageCount: current.pageCount, uploadedAt: current.uploadedAt, status: 'FAILED',
           failureCode: 'PAGEINDEX_INDEX_FAILED', updatedAt: at() });
         return readPageIndexDocument(db, sourceSha256);
+      }
+      // Keep the ledger's freshness marker aligned with the status service even
+      // while indexing is still in progress. The row remains INDEXING and is
+      // eligible for the next bounded poll.
+      if (state === 'processing' || state === 'unknown') {
+        upsert(db, { sourceSha256, cloudDocId: current.cloudDocId, cloudFileName: current.cloudFileName,
+          pageCount: current.pageCount, uploadedAt: current.uploadedAt, status: 'INDEXING', failureCode: null, updatedAt: at() });
       }
       if (state !== 'processing' && state !== 'unknown') return current;
     }

@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { estimatePageIndexBalance } from '../../src/modules/analysis/pageindex-balance.js';
 import BetterSqlite3 from 'better-sqlite3';
 import { openDatabase } from '../../src/platform/db/index.js';
 import {
@@ -191,6 +192,10 @@ test('exhausted polls stay INDEXING and a failed remote settles FAILED; refresh 
     const other = Buffer.from(pdfBytes().toString('utf8').replace('Calcium', 'Sắt'));
     await ensureIndexed({ sha256: shaOf(other), fileName: 'b.pdf', bytes: other }, deps(db, { fetchStatus: async () => 'failed' }));
     assert.equal(readPageIndexDocument(db, shaOf(other))?.status, 'FAILED');
+    let queried = 0;
+    const unchanged = await refreshPageIndexStatus(db, shaOf(other), { fetchStatus: async () => { queried += 1; return 'completed'; }, now: fixedNow });
+    assert.equal(unchanged?.status, 'FAILED');
+    assert.equal(queried, 0, 'FAILED is never queried');
   } finally { close(); }
 });
 
@@ -247,5 +252,28 @@ test('shared hook indexes every PDF once and deletes stay blocked', async () => 
     assert.throws(() => db.prepare(`DELETE FROM analysis_pageindex_documents WHERE source_sha256 = ?`).run(shaOf(first)), /immutable_pageindex_document/);
     assert.throws(() => db.prepare(`DELETE FROM analysis_pageindex_flags WHERE flag_key = 'usage_limit_reached'`).run(), /immutable_pageindex_flag/);
     assert.throws(() => readPageIndexDocument(db, 'not-a-sha'), error => error instanceof PageIndexDocumentError && error.code === 'INVALID_SHA256');
+  } finally { close(); }
+});
+
+
+test('SRC3 S25 Balance gates and per-page accounting remain unchanged', async () => {
+  const { db, close } = migratedDb();
+  try {
+    const bytes = pdfBytes();
+    const input = { sha256: shaOf(bytes), fileName: 'synthetic.pdf', bytes };
+    let uploads = 0;
+    const transport = deps(db, { countPages: () => 3, upload: async () => { uploads++; return { cloudDocId: 'synthetic-three-pages', pageCount: 3 }; } });
+    await ensureIndexed(input, transport);
+    await refreshPageIndexStatus(db, input.sha256, { fetchStatus: async () => 'completed' });
+    await ensureIndexed(input, transport);
+    assert.equal(uploads, 1);
+    const pages = readPageIndexDocument(db, input.sha256)!.pageCount;
+    assert.equal(pages, 3);
+    assert.equal(estimatePageIndexBalance({ startingCreditMicroDollars: 10_000_000, indexedPagesTotal: pages, activePages: pages }).indexedCostMicroDollars, 30_000);
+    const other = Buffer.concat([bytes, Buffer.from('synthetic second document')]);
+    const rejected = { sha256: shaOf(other), fileName: 'other.pdf', bytes: other };
+    assert.equal((await ensureIndexed(rejected, { ...transport, lowBalance: true })).outcome, 'SKIPPED_LOW_BALANCE');
+    assert.equal((await ensureIndexed(rejected, { ...transport, usageLimited: true })).outcome, 'SKIPPED_USAGE_LIMIT');
+    assert.equal(uploads, 1, 'balance and usage gates never dispatch another upload');
   } finally { close(); }
 });

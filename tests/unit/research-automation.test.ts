@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import test from 'node:test';
 import { openDatabase } from '../../src/platform/db/index.js';
 import { withDatabaseMutationMutex } from '../../src/platform/db/database-mutation-mutex.js';
@@ -16,6 +17,10 @@ import {
 } from '../../src/modules/analysis/research-automation/index.js';
 import type { ResearchAutomationRun } from '../../contracts/api/research-automation-api.generated.js';
 import type { StepResultDocument } from '../../src/modules/analysis/research-automation/model.js';
+import { buildVerifiedQuotesArtifact } from '../../src/modules/analysis/pageindex-questions.js';
+import { ensureIndexed } from '../../src/modules/analysis/pageindex-documents.js';
+import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
+import { publicScenario } from '../helpers/shopee-public-scenario.js';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
 const runId = '22222222-2222-4222-8222-222222222222';
@@ -233,7 +238,7 @@ test('an explicit no-product scope drafts without requesting or claiming product
   }
 });
 
-test('cancelling a delayed renderer closes the reports step and never publishes a draft', async () => {
+test('SRC3 S25 Owner cancellation during rendering defers settlement; terminal cancellation never publishes', async () => {
   let rendererStarted!: () => void;
   let releaseRenderer!: () => void;
   const started = new Promise<void>((resolve) => { rendererStarted = resolve; });
@@ -244,29 +249,143 @@ test('cancelling a delayed renderer closes the reports step and never publishes 
     if (signal?.aborted) throw new Error('renderer aborted');
     return { semantic: { contractVersion: 'research-automation-report-v1', kind, runId: input.run.runId, workspaceId: input.run.workspaceId }, html: Buffer.from(`<html><body>${kind}</body></html>`) };
   });
-  const worker = new ResearchAutomationWorker({ service: state.service, db: state.db });
+  let rendering: Promise<boolean> | undefined;
   try {
-    const start = await state.service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: '66666666-6666-4666-8666-666666666666', mode: 'PRODUCT', keyword: 'calcium', requestedPeriod: { startDate: '2026-09-01', endDate: '2026-09-30' }, reports: ['MARKET'] });
-    await worker.start();
-    const awaiting = await waitFor(state.service, workspaceId, runId, 'AWAITING_SCOPE', worker);
+    await state.service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: '66666666-6666-4666-8666-666666666666', mode: 'PRODUCT', keyword: 'calcium', requestedPeriod: { startDate: '2026-09-01', endDate: '2026-09-30' }, reports: ['MARKET'] });
+    await state.service.processNext();
+    const awaiting = await state.service.getRun(workspaceId, runId);
     await state.service.confirmScope(workspaceId, runId, { contractVersion: 'research-automation-confirm-v1', requestKey: '77777777-7777-4777-8777-777777777777', expectedRevision: awaiting.revision, definition: 'Vietnam calcium products', includeTerms: ['calcium'], excludeTerms: [], selectedProductIds: [cardId], peerProductIds: [cardId] });
-    worker.wake();
-    await waitFor(state.service, workspaceId, runId, 'RENDERING');
+    await state.service.processNext();
+    rendering = state.service.processNext();
     await started;
-    const rendering = await state.service.getRun(workspaceId, runId);
-    const cancelled = await state.service.cancel(workspaceId, runId, { contractVersion: 'research-automation-cancel-v1', requestKey: '88888888-8888-4888-8888-888888888888', expectedRevision: rendering.revision });
-    assert.equal(cancelled.run.status, 'CANCELLED');
-    assert.equal(cancelled.run.steps.find((step) => step.stepId === 'REPORTS')?.state, 'CANCELLED');
+    const running = await state.service.getRun(workspaceId, runId);
+    const cancelled = await state.service.cancel(workspaceId, runId, { contractVersion: 'research-automation-cancel-v1', requestKey: '88888888-8888-4888-8888-888888888888', expectedRevision: running.revision });
+    assert.equal(cancelled.run.status, 'CANCELLING');
+    assert.equal(cancelled.run.steps.find((step) => step.stepId === 'REPORTS')?.state, 'RUNNING');
+    assert.deepEqual(state.db.prepare("SELECT result_sha256,finished_at FROM analysis_research_automation_steps WHERE run_id=? AND step_id='REPORTS'").get(runId),
+      { result_sha256: null, finished_at: null }, 'owner cancellation cannot settle REPORTS before the worker finishes');
+    assert.equal(cancelled.run.outputs, undefined);
     releaseRenderer();
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await rendering;
     const final = await state.service.getRun(workspaceId, runId);
     assert.equal(final.status, 'CANCELLED');
+    assert.equal(final.steps.find(step => step.stepId === 'REPORTS')?.state, 'CANCELLED');
     assert.equal(final.outputs, undefined);
+    assert.deepEqual(state.db.prepare('SELECT count(*) n FROM analysis_research_automation_outputs WHERE run_id=?').get(runId), { n: 0n });
   } finally {
     releaseRenderer();
-    await worker.close();
+    await rendering;
     state.db.close();
     await fs.rm(state.root, { recursive: true, force: true });
+  }
+});
+
+test('SRC3 S25 Restart reaches terminal CANCELLED with retained diagnostics; no COLLECTION reopening, accounting changes, provider calls or publication', async t => {
+  const f = await publicScenario(t, { productCount: 1, cap: 1, reports: ['MARKET'] });
+  const confirmed = await f.confirmPublic();
+  assert.equal(confirmed.contractVersion, 'automation-confirmed-source-set-v2');
+  await f.service.processNext();
+  assert.equal(await f.statusCode(), 'RENDERING');
+  const collection = await f.collectionStep();
+  assert.equal(collection.state, 'PARTIAL');
+  assert.ok(collection.result_sha256);
+  assert.ok(collection.finished_at);
+  const base = await f.baseRows();
+  assert.equal(base.stage.length, 1, 'the completed public-review checkpoint exercises collection recovery');
+  f.transport.done();
+
+  const artifacts = new ContentAddressedArtifactStore(f.artifactRoot);
+  const pdf = Buffer.from('%PDF-1.4\nSynthetic retained document\n%%EOF');
+  const sourceSha256 = createHash('sha256').update(pdf).digest('hex');
+  let uploads = 0;
+  const indexed = await ensureIndexed({ sha256: sourceSha256, fileName: 'synthetic.pdf', bytes: pdf }, {
+    db: f.db, enabled: true, now: f.clock.now, countPages: () => 2, maxStatusPolls: 0,
+    upload: async () => { uploads++; return { cloudDocId: 'synthetic-pending-document', pageCount: 2 }; },
+  });
+  assert.equal(indexed.outcome, 'INDEXING');
+  assert.equal(uploads, 1);
+  const quotes = buildVerifiedQuotesArtifact(f.runId, [], [{ sourceSha256, state: 'NOT_READY_AFTER_WAIT',
+    statusAttempts: [{ state: 'processing' }, { state: 'processing' }], questionAttempts: [] }]);
+  const stored = await artifacts.put(Buffer.from(canonicalJson(quotes)));
+  const at = f.clock.now().toISOString();
+  f.db.prepare(`INSERT INTO artifact_manifests(sha256,byte_size,media_type,relative_path,acquired_at,contract_version,retention_status,created_at)
+    VALUES (?,?,'application/json',?,?,'1.0.0','active',?)`).run(stored.sha256, stored.byteSize, stored.relativePath, at, at);
+  f.db.prepare('INSERT INTO analysis_pageindex_run_quotes(run_id,artifact_sha256) VALUES (?,?)').run(f.runId, stored.sha256);
+
+  const calls: string[] = [];
+  const forbidden = (name: string): never => { calls.push(name); throw new Error('Unexpected dispatch after collection'); };
+  const make = (db: ReturnType<typeof openDatabase>['db'], renderer: ResearchAutomationReportRenderer) => new ResearchAutomationService({
+    db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(new DiscoveryWorkspaceService({ db, artifactStore: artifacts, now: f.clock.now })),
+    now: f.clock.now, source: { id: 'KALODATA', quickSearch: async () => forbidden('quickSearch'), collect: async () => forbidden('collect') },
+    shopeePublicReviews: { maxReviewsPerProduct: 1, factory: () => forbidden('publicReview') }, renderer,
+  });
+  let rendererStarted!: () => void;
+  let releaseRenderer!: () => void;
+  const started = new Promise<void>(resolve => { rendererStarted = resolve; });
+  const release = new Promise<void>(resolve => { releaseRenderer = resolve; });
+  const reporting = make(f.db, async (_input, _kind, signal) => {
+    rendererStarted();
+    await release;
+    signal?.throwIfAborted();
+    return forbidden('publish');
+  });
+  const active = reporting.processNext();
+  let restartedDb: ReturnType<typeof openDatabase>['db'] | undefined;
+  try {
+    await started;
+    const running = await reporting.getRun(f.workspaceId, f.runId);
+    const receipt = await reporting.cancel(f.workspaceId, f.runId, { contractVersion: 'research-automation-cancel-v1',
+      requestKey: '99999999-9999-4999-8999-999999999999', expectedRevision: running.revision });
+    assert.equal(receipt.run.status, 'CANCELLING');
+    assert.deepEqual(f.db.prepare("SELECT state,result_sha256,finished_at FROM analysis_research_automation_steps WHERE run_id=? AND step_id='REPORTS'").get(f.runId),
+      { state: 'RUNNING', result_sha256: null, finished_at: null });
+    const usage = f.db.prepare('SELECT * FROM analysis_research_automation_usage WHERE run_id=? ORDER BY step_id,ordinal').all(f.runId);
+    assert.ok(usage.length > 0, 'accounting preservation is checked against collected usage');
+    const pageIndexUsage = f.db.prepare('SELECT * FROM analysis_pageindex_documents').all();
+    assert.equal(pageIndexUsage.length, 1, 'document accounting preservation must cover an acknowledged upload');
+    const transportCalls = [...f.transport.calls];
+
+    // Capture the durable state at process exit, before the blocked worker can settle cancellation.
+    const restartPath = path.join(f.root, 'restart.sqlite');
+    await f.db.backup(restartPath);
+    releaseRenderer();
+    await active;
+    restartedDb = openDatabase({ databasePath: restartPath, now: f.clock.now }).db;
+    const restarted = make(restartedDb, () => forbidden('render'));
+    await restarted.recoverOnStart();
+    const cancelled = await restarted.getRun(f.workspaceId, f.runId);
+    assert.equal(cancelled.status, 'CANCELLED');
+    assert.equal(cancelled.outputs, undefined);
+    const step = restartedDb.prepare("SELECT state,result_sha256 sha,finished_at finishedAt,message_code code FROM analysis_research_automation_steps WHERE run_id=? AND step_id='REPORTS'").get(f.runId) as
+      { state: string; sha: string | null; finishedAt: string | null; code: string };
+    assert.equal(step.state, 'CANCELLED');
+    assert.equal(step.code, 'CANCELLED_DURING_REPORT_RENDERING');
+    assert.ok(step.finishedAt);
+    assert.ok(step.sha, 'restart attaches diagnostics while settling REPORTS');
+    const diagnostics = JSON.parse((await artifacts.read(step.sha)).toString()) as StepResultDocument;
+    assert.equal(diagnostics.runId, f.runId);
+    assert.equal(diagnostics.stepId, 'REPORTS');
+    assert.equal(diagnostics.outcome, 'CANCELLED');
+    assert.deepEqual(diagnostics.pdfReadings, quotes.documents);
+    assert.deepEqual(await restarted.readPageIndexQuotes(f.workspaceId, f.runId), quotes);
+    assert.deepEqual(restartedDb.prepare('SELECT artifact_sha256 FROM analysis_pageindex_run_quotes WHERE run_id=?').get(f.runId), { artifact_sha256: stored.sha256 });
+    assert.deepEqual(restartedDb.prepare("SELECT * FROM analysis_research_automation_steps WHERE run_id=? AND step_id='COLLECTION'").get(f.runId), collection);
+    assert.deepEqual(restartedDb.prepare('SELECT * FROM analysis_research_automation_review_stages WHERE run_id=?').all(f.runId), base.stage);
+    assert.deepEqual(restartedDb.prepare('SELECT * FROM analysis_research_automation_captures WHERE run_id=?').all(f.runId), base.captures);
+    assert.deepEqual(restartedDb.prepare('SELECT * FROM analysis_research_automation_usage WHERE run_id=? ORDER BY step_id,ordinal').all(f.runId), usage);
+    assert.deepEqual(restartedDb.prepare('SELECT * FROM analysis_pageindex_documents').all(), pageIndexUsage);
+    assert.deepEqual(restartedDb.prepare('SELECT count(*) n FROM analysis_research_automation_outputs WHERE run_id=?').get(f.runId), { n: 0n });
+    assert.equal(await restarted.processNext(), false, 'cancelled reporting cannot requeue collection');
+    await restarted.recoverOnStart();
+    assert.deepEqual(await restarted.getRun(f.workspaceId, f.runId), cancelled, 'repeated restart keeps cancellation terminal');
+    assert.equal(await restarted.processNext(), false);
+    assert.deepEqual(calls, [], 'no provider, renderer or publication dispatch after owner cancellation');
+    assert.deepEqual(f.transport.calls, transportCalls);
+    assert.equal(uploads, 1, 'recovery cannot repeat the acknowledged document upload');
+  } finally {
+    releaseRenderer();
+    await active;
+    restartedDb?.close();
   }
 });
 

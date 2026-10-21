@@ -3,9 +3,9 @@ import { createRequire } from 'node:module';
 import keywordSchema from '../../../../contracts/analysis/keyword-meaning-filter.schema.json' with { type: 'json' };
 import selectionSchema from '../../../../contracts/analysis/tiktok-comment-collection-v1.schema.json' with { type: 'json' };
 import type { TikTokRunBinding, TikTokVideoSelection, TikTokVideoSelectionRequest } from '../../../../contracts/analysis/tiktok-comment-collection-v1.generated.js';
-import type { FinalizedSourcePackageReader, SourceAttachmentOriginReader } from '../../foundation/source-package-reader.js';
+import type { AutomationSourcePackageLookup, FinalizedSourcePackageReader, SourceAttachmentOriginReader } from '../../foundation/source-package-reader.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
-import { parseVideoTable, verifyPreparedVideoSource, VIDEO_READ_BUDGET, VIDEO_TABLE_PATH } from './kalodata-video-intake.js';
+import { parseVideoTable, verifyPreparedVideoSource, videoPackageKeyPrefix, VIDEO_READ_BUDGET, VIDEO_TABLE_PATH } from './kalodata-video-intake.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -24,6 +24,52 @@ const scaled = (value: string): bigint => {
   const [whole, fraction = ''] = value.split('.');
   return BigInt(whole! + fraction.padEnd(10, '0'));
 };
+
+export interface TopSellingTikTokVideos {
+  /** Exact TikTok videos of the run's stored video tables, best seller first. Never invented: a row without a usable video id or URL is only counted. */
+  readonly videos: readonly { readonly videoId: string; readonly url: string }[];
+  readonly rowsWithoutUsableVideo: number;
+  readonly tablesNotVerified: number;
+}
+/**
+ * The run's own top-selling TikTok videos from verified rows linked to confirmed, collected products, ranked by revenue then units (largest first, a missing value
+ * last, never zero), ties in stored order. Read-only: no network, no paid call, no selection step. A table that fails verification is left out.
+ */
+export async function topSellingTikTokVideos(reader: FinalizedSourcePackageReader & SourceAttachmentOriginReader & AutomationSourcePackageLookup,
+  bound: { readonly workspaceId: string; readonly runId: string }, collectedProductUrls: readonly string[] = []): Promise<TopSellingTikTokVideos> {
+  const ranked: { videoId: string; url: string; revenue: bigint | null; units: bigint | null; order: number }[] = [];
+  const products = new Set(collectedProductUrls);
+  const identities = new Set<string>();
+  let rowsWithoutUsableVideo = 0, tablesNotVerified = 0, order = 0;
+  for (const entry of (await reader.findAutomationAttachmentPackagesByKeyPrefix(videoPackageKeyPrefix(bound.runId))).slice(0, 100)) {
+    try {
+      const source = await reader.readFinalizedSourcePackage(entry.packageId, VIDEO_READ_BUDGET);
+      await verifyPreparedVideoSource(reader, bound, source, { packageId: source.packageId, packageKey: source.manifest.packageKey,
+        manifestArtifactSha256: source.manifestArtifactSha256, version: source.manifest.version });
+      const member = source.files.find(file => file.path === VIDEO_TABLE_PATH);
+      const table = member && sha(member.bytes) === member.sha256 ? parseVideoTable(member.bytes) : undefined;
+      if (!table) { tablesNotVerified++; continue; }
+      if (!table.tables.includes('video')) continue;
+      for (const row of table.videos) {
+        if (row.productLink === null || !products.has(row.productLink)) continue;
+        let video: ReturnType<typeof exactTikTokVideoUrl>;
+        try { video = exactTikTokVideoUrl(row.video ?? ''); } catch { rowsWithoutUsableVideo++; continue; }
+        const number = (read: () => bigint | null): bigint | null => { try { return read(); } catch { return null; } };
+        ranked.push({ videoId: video.videoId, url: video.url, revenue: number(() => row.revenue === null ? null : scaled(row.revenue)),
+          units: number(() => row.units === null ? null : BigInt(row.units)), order: order++ });
+      }
+    } catch { tablesNotVerified++; }
+  }
+  const value = (n: bigint | null): bigint => n ?? -1n;
+  ranked.sort((a, b) => value(a.revenue) !== value(b.revenue) ? (value(a.revenue) > value(b.revenue) ? -1 : 1)
+    : value(a.units) !== value(b.units) ? (value(a.units) > value(b.units) ? -1 : 1) : a.order - b.order);
+  const videos = ranked.flatMap(({ videoId, url }) => {
+    if (identities.has(videoId)) return [];
+    identities.add(videoId);
+    return [{ videoId, url }];
+  });
+  return { videos, rowsWithoutUsableVideo, tablesNotVerified };
+}
 
 /** Uses the existing P4 parser/verified reader; owning caller supplies frozen binding. */
 export async function selectTikTokVideos(reader: FinalizedSourcePackageReader & SourceAttachmentOriginReader,

@@ -100,9 +100,10 @@ export function spreadAcrossAccounts<T extends { readonly url: string }>(list: r
   for (let pass = 0; out.length < list.length; pass++) for (const group of groups.values()) if (group[pass]) out.push(group[pass]!);
   return out;
 }
-/** Pure: selection videos first (stored order), then exact TikTok video rows of the stored TIKTOK searches in position order; dedupe by video id;
- * spread across accounts; cap 10. The final order is pinned in the step document and never recomputed on replay. */
-export function videoWatchCandidates(selectionVideos: readonly { readonly url: string }[], queries: readonly StepExpandedQuery[] | undefined): VideoWatchPlan {
+/** Pure: selection videos first (stored order), then the run's own top-selling videos (best seller first), then exact TikTok video rows of the stored
+ * TIKTOK searches in position order; dedupe by video id (first origin wins); spread search rows across accounts; cap 10. The final order is pinned in the step document and never recomputed on replay. */
+export function videoWatchCandidates(selectionVideos: readonly { readonly url: string }[], queries: readonly StepExpandedQuery[] | undefined,
+  topSellingVideos: readonly { readonly url: string }[] = []): VideoWatchPlan {
   const all: StepVideoWatchCandidate[] = [], seen = new Set<string>();
   const add = (url: unknown, origin: StepVideoWatchCandidate['origin']): void => {
     const video = exact(url);
@@ -110,10 +111,11 @@ export function videoWatchCandidates(selectionVideos: readonly { readonly url: s
     seen.add(video.videoId); all.push({ videoId: video.videoId, url: video.url, origin });
   };
   for (const video of selectionVideos) add(video.url, 'SELECTION');
+  for (const video of topSellingVideos) add(video.url, 'TOP_SELLING');
   const rows = (queries ?? []).filter(query => query.kind === 'TIKTOK' && query.status === 'COLLECTED').flatMap(query => query.results)
     .map((row, index) => ({ row, index })).sort((a, b) => a.row.position - b.row.position || a.index - b.index);
-  for (const { row } of rows) add(row.url, 'EXPANDED_SEARCH');
-  const spread = spreadAcrossAccounts(all);
+  for (const row of spreadAcrossAccounts(rows.map(item => item.row))) add(row.url, 'EXPANDED_SEARCH');
+  const spread = all;
   const candidates = spread.slice(0, VIDEO_WATCH_MAX_VIDEOS);
   return { candidates, skipped: spread.slice(VIDEO_WATCH_MAX_VIDEOS).map(video => ({ videoId: video.videoId, reason: 'OVER_10_VIDEOS' as const })),
     candidatesSha256: sha(canonicalJson(candidates)) };

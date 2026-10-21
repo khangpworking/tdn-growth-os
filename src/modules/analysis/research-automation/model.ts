@@ -441,7 +441,7 @@ export interface StepTikTokTopAds {
 }
 
 /** One considered public TikTok video of the video-watch lane, pinned at collection time. */
-export interface StepVideoWatchCandidate { readonly videoId: string; readonly url: string; readonly origin: 'SELECTION' | 'EXPANDED_SEARCH' }
+export interface StepVideoWatchCandidate { readonly videoId: string; readonly url: string; readonly origin: 'SELECTION' | 'TOP_SELLING' | 'EXPANDED_SEARCH' }
 export type StepVideoWatchReason = 'OVER_10_VIDEOS' | 'DOWNLOAD_FAILED' | 'VIDEO_TOO_LONG' | 'VIDEO_TOO_LARGE' | 'NOT_A_VIDEO'
   | 'MODEL_FAILED' | 'MODEL_ANSWER_INVALID' | 'CREDENTIAL_ECHO_REFUSED' | 'PUBLICATION_FAILED' | 'CANCELLED' | 'PROVIDER_FAILED' | 'DOCUMENT_INVALID' | 'VIDEO_MODEL_NOT_CONFIGURED';
 export interface StepVideoWatchMedia { readonly sha256: string; readonly byteSize: number; readonly durationSeconds: number; readonly downloadedAt: string }
@@ -495,6 +495,8 @@ export interface StepPdfDiscovery {
   readonly files: readonly StepPdfDiscoveryFile[];
   /** Set when no file was downloaded. */
   readonly reason: PdfDiscoveryReason | null;
+  /** Report-time overlay, never stored in the step document: some retained document was not read (late) or was read in full. */
+  readonly readState?: 'NOT_READ_IN_TIME' | 'NOT_READ';
 }
 
 /** Normalized step outcome retained as canonical JSON; raw bytes are separate capture artifacts. */
@@ -504,7 +506,8 @@ export interface StepResultDocument {
   readonly sourceEvidence?: import('../../../../contracts/analysis/automation-source-evidence.generated.js').AutomationSourceEvidence;
   readonly contractVersion: 'research-automation-step-result-v1';
   readonly runId: string;
-  readonly stepId: SourceStepId;
+  readonly stepId: StepId;
+  readonly pdfReadings?: readonly import('../pageindex-questions.js').PageIndexDocumentReading[];
   readonly outcome: 'SUCCEEDED' | 'PARTIAL' | 'UNAVAILABLE' | 'FAILED' | 'CANCELLED' | 'INTERRUPTED';
   readonly productCards: readonly ResearchAutomationProductCard[];
   readonly comparables: readonly TypedComparable[];

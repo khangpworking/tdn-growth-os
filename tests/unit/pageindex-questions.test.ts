@@ -86,6 +86,13 @@ test('artifacts carry verified quotes only and cite as PDF_PAGE without answer t
     error => error instanceof PageIndexQuestionError && error.code === 'INVALID_QUOTE_INPUT');
 });
 
+test('reading outcomes record a late document and reject an unverified quote', () => {
+  const quote = { sourceSha256: 'b'.repeat(64), cloudDocId: 'pi-2', sectionId: 'I04', page: 3, quote: 'Uống sau ăn', quoteVerification: 'EXTERNAL_VERIFIER_ATTESTED' as const };
+  const artifact = buildVerifiedQuotesArtifact('run-1', [quote], [{ sourceSha256: quote.sourceSha256, state: 'NOT_READY_AFTER_WAIT' }]);
+  assert.deepEqual(artifact.documents, [{ sourceSha256: quote.sourceSha256, state: 'NOT_READY_AFTER_WAIT' }]);
+  assert.throws(() => buildVerifiedQuotesArtifact('run-1', [{ ...quote, quoteVerification: 'MODEL' as never }]), /INVALID_QUOTE_INPUT/u);
+});
+
 test('optional local title reader returns null for invalid input or a failed Python launch', async () => {
   const python = process.env.TDN_PAGEINDEX_PYTHON;
   try {

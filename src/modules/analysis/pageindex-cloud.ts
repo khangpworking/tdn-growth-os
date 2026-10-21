@@ -122,13 +122,14 @@ export class PageIndexCloudClient {
   }
 
   /** A `FormData` body goes out as multipart (fetch sets the boundary content type); any other body as JSON. */
-  async #request(endpoint: string, body?: unknown): Promise<Record<string, unknown>> {
+  async #request(endpoint: string, body?: unknown, signal?: AbortSignal): Promise<Record<string, unknown>> {
     try {
+      signal?.throwIfAborted();
       const form = body instanceof FormData;
       const response = await this.#fetch(ORIGIN + endpoint, {
         method: body === undefined ? 'GET' : 'POST', redirect: 'error',
         headers: body === undefined || form ? { api_key: this.#key } : { api_key: this.#key, 'Content-Type': 'application/json' },
-        ...(body === undefined ? {} : { body: form ? body : JSON.stringify(body) }), signal: AbortSignal.timeout(90_000),
+        ...(body === undefined ? {} : { body: form ? body : JSON.stringify(body) }), signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(90_000)]) : AbortSignal.timeout(90_000),
       });
       // Single attempt only: this connector never retries a paid call.
       if (!response.ok) {
@@ -153,7 +154,7 @@ export class PageIndexCloudClient {
       return object(data);
     } catch (error) {
       if (error instanceof PageIndexCloudError) throw error;
-      return fail('TRANSPORT_FAILED');
+      throw new PageIndexCloudError('PAGEINDEX_TRANSPORT_FAILED', { cause: error });
     }
   }
 
@@ -162,15 +163,15 @@ export class PageIndexCloudClient {
    * (no file → 422 on `body.file`); no real upload was sent. Vendor docs: the reply carries `doc_id`, indexing is asynchronous and
    * a name already in use gains a suffix, so a reply without `name` or `pageNum` is completed by the free metadata read.
    */
-  async uploadDocument(input: PageIndexCloudUpload): Promise<PageIndexCloudDocument> {
+  async uploadDocument(input: PageIndexCloudUpload, signal?: AbortSignal): Promise<PageIndexCloudDocument> {
     if (typeof input.fileName !== 'string' || !input.fileName.trim() || input.fileName.length > 256 || /[\r\n]/u.test(input.fileName)) fail('INPUT_INVALID');
     if (!(input.bytes instanceof Uint8Array) || input.bytes.byteLength < 1 || input.bytes.byteLength > MAX_UPLOAD_BYTES) fail('INPUT_INVALID');
     const form = new FormData();
     form.append('file', new Blob([Buffer.from(input.bytes)], { type: 'application/pdf' }), input.fileName);
-    const response = await this.#request(PAGEINDEX_UPLOAD_PATH, form);
+    const response = await this.#request(PAGEINDEX_UPLOAD_PATH, form, signal);
     if (response.name === undefined || response.name === null || response.pageNum === undefined) {
       const id = response.id ?? response.doc_id;
-      return this.documentStatus(typeof id === 'string' ? id : fail('RESPONSE_INVALID'));
+      return this.documentStatus(typeof id === 'string' ? id : fail('RESPONSE_INVALID'), signal);
     }
     return toDocument(response);
   }
@@ -178,9 +179,9 @@ export class PageIndexCloudClient {
   /**
    * Reads one document's indexing state via its metadata. Single attempt, no retry.
    */
-  async documentStatus(cloudDocId: string): Promise<PageIndexCloudDocument> {
+  async documentStatus(cloudDocId: string, signal?: AbortSignal): Promise<PageIndexCloudDocument> {
     if (typeof cloudDocId !== 'string' || !cloudDocId.trim() || cloudDocId.length > 256 || /[\r\n]/u.test(cloudDocId)) fail('INPUT_INVALID');
-    return toDocument(await this.#request('/doc/' + encodeURIComponent(cloudDocId) + '/metadata'));
+    return toDocument(await this.#request('/doc/' + encodeURIComponent(cloudDocId) + '/metadata', undefined, signal));
   }
 
   /**
@@ -205,20 +206,20 @@ export class PageIndexCloudClient {
 
   /** Local pages must be extracted from these exact bytes, never from Cloud OCR. */
   async query(request: PageIndexCloudQuery, sourceBytes: Uint8Array,
-    localPages: readonly { page: number; text: string }[]): Promise<PageIndexCloudResult> {
+    localPages: readonly { page: number; text: string }[], signal?: AbortSignal): Promise<PageIndexCloudResult> {
     if (!validateQuery(request) || !request.question.trim() || hash(sourceBytes) !== request.sourceSha256) fail('INPUT_INVALID');
     if (!Buffer.from(sourceBytes.subarray(0, 5)).equals(Buffer.from('%PDF-')) ||
       !Number.isSafeInteger(request.pageCount) || request.pageCount < 1 || request.pageCount > 1000 ||
         localPages.length !== request.pageCount || localPages.some((p, i) => !p || p.page !== i + 1 || typeof p.text !== 'string')) fail('LOCAL_PDF_INVALID');
     const docPath = '/doc/' + encodeURIComponent(request.cloudDocId);
-    const metadata = await this.#request(docPath + '/metadata');
+    const metadata = await this.#request(docPath + '/metadata', undefined, signal);
     // The vendor returns id, not doc_id, on this endpoint.
     if (metadata.id !== request.cloudDocId || metadata.name !== request.cloudFileName || metadata.pageNum !== request.pageCount) fail('DOCUMENT_MISMATCH');
     if (metadata.status !== 'completed') fail('INDEX_NOT_READY');
     const response = await this.#request('/chat/completions', {
       doc_id: request.cloudDocId, stream: false, temperature: 0, enable_citations: true,
       messages: [{ role: 'user', content: request.question }],
-    });
+    }, signal);
     if (!Array.isArray(response.choices) || response.choices.length !== 1) return fail('RESPONSE_INVALID');
     const answer = string(object(object(response.choices[0]).message).content, 100_000);
     // Both tag forms pass the same identity checks: `<doc=NAME;page=N;block=ID>` (this parser's original form) and
@@ -248,7 +249,7 @@ export class PageIndexCloudClient {
     if (citationMetadata.size !== refs.size) fail('CITATION_IDENTITY_MISMATCH');
     const candidates: PageIndexCloudCandidate[] = [];
     for (const ref of refs.values()) {
-      const block = await this.#request(docPath + '/block/' + encodeURIComponent(ref.blockId) + '/');
+      const block = await this.#request(docPath + '/block/' + encodeURIComponent(ref.blockId) + '/', undefined, signal);
       const meta = citationMetadata.get(ref.blockId)!;
       if (block.doc_id !== request.cloudDocId || block.page !== ref.page || block.block_id !== ref.blockId ||
         block.block_type !== meta.block_type || JSON.stringify(block.bbox) !== JSON.stringify(meta.bbox)) fail('BLOCK_IDENTITY_MISMATCH');
