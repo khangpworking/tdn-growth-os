@@ -6,6 +6,10 @@ Cập nhật: 21/10/2026
 
 | Bản cũ | Bản mới | Lý do cập nhật |
 | --- | --- | --- |
+| [docs/research/ultimate-method/source-status.md](2026-10-21-4/docs/research/ultimate-method/source-status.md) | [docs/research/ultimate-method/source-status.md](../research/ultimate-method/source-status.md) | Ghi chú S07, S15, S16; mục 2c mới: đường thu bên ngoài (21/10/2026, lần 4); thêm dòng nhật ký |
+| [docs/research/ultimate-method/input-data-sources-test-log.md](2026-10-21-4/docs/research/ultimate-method/input-data-sources-test-log.md) | [docs/research/ultimate-method/input-data-sources-test-log.md](../research/ultimate-method/input-data-sources-test-log.md) | Thêm ST-20261021-14 đến -31 |
+| [docs/research/ultimate-method/input-data-sources-30-sections.md](2026-10-21-4/docs/research/ultimate-method/input-data-sources-30-sections.md) | [docs/research/ultimate-method/input-data-sources-30-sections.md](../research/ultimate-method/input-data-sources-30-sections.md) | Dòng S07, S15, S16 ở mục 2 và ghi chú M07, I12 ở mục 3 theo lượt thử 21/10/2026 |
+| [docs/research/ultimate-method/CHANGELOG.md](2026-10-21-4/docs/research/ultimate-method/CHANGELOG.md) | [docs/research/ultimate-method/CHANGELOG.md](../research/ultimate-method/CHANGELOG.md) | Thêm dòng DS-20261021-04 |
 | [docs/research/ultimate-method/source-status.md](2026-10-21-3/docs/research/ultimate-method/source-status.md) | [docs/research/ultimate-method/source-status.md](../research/ultimate-method/source-status.md) | Ghi chú S15 theo 7 lượt thử quạt điện 21/10/2026 (lần 3); thêm dòng nhật ký |
 | [docs/research/ultimate-method/input-data-sources-test-log.md](2026-10-21-3/docs/research/ultimate-method/input-data-sources-test-log.md) | [docs/research/ultimate-method/input-data-sources-test-log.md](../research/ultimate-method/input-data-sources-test-log.md) | Thêm ST-20261021-07 đến -13 |
 | [docs/research/ultimate-method/CHANGELOG.md](2026-10-21-3/docs/research/ultimate-method/CHANGELOG.md) | [docs/research/ultimate-method/CHANGELOG.md](../research/ultimate-method/CHANGELOG.md) | Thêm dòng DS-20261021-03 |
