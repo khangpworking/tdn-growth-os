@@ -20,9 +20,19 @@ export const SEARCH_TRENDS_LIMITS = Object.freeze({
 
 export type TrendsDataType = 'TIMESERIES' | 'RELATED_QUERIES' | 'GEO_MAP_0';
 
+export interface TrendsDateRange { readonly startDate: string; readonly endDate: string }
+
 export interface TrendsRequest {
   readonly dataType: TrendsDataType;
   readonly keywords: readonly string[];
+  /** Custom date range; absent means the default last 12 months. */
+  readonly range?: TrendsDateRange;
+}
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/u;
+/** The provider's custom range text: two ISO days separated by one space. Null when either end is not an ISO day or the start is after the end. */
+export function trendsDateParam(range: TrendsDateRange): string | null {
+  return ISO_DAY.test(range.startDate) && ISO_DAY.test(range.endDate) && range.startDate <= range.endDate ? `${range.startDate} ${range.endDate}` : null;
 }
 
 export interface TrendsSeriesPoint { readonly period: string; readonly index: number | null }
@@ -85,7 +95,7 @@ export function planTrendsRequests(confirmedKeywords: readonly string[]): readon
 
 /** Stable, secret-free cache identity: same params and retrieval day give the same key. */
 export function trendsCacheKey(req: TrendsRequest, retrievedDate: string): string {
-  return `google_trends|${req.dataType}|${JSON.stringify(req.keywords.map(normalizeKeyword))}|${retrievedDate}`;
+  return `google_trends|${req.dataType}|${JSON.stringify(req.keywords.map(normalizeKeyword))}|${req.range ? `range:${req.range.startDate}:${req.range.endDate}|` : ''}${retrievedDate}`;
 }
 
 function indexOrNull(value: unknown, extracted: unknown): number | null {
@@ -183,6 +193,8 @@ export async function fetchTrends(
 ): Promise<TrendsCallResult> {
   if (!apiKey) return { status: 'NOT_CONFIGURED', facts: null, captures: [] };
   if (options.signal?.aborted) return { status: 'CANCELLED', facts: null, captures: [] };
+  const date = req.range ? trendsDateParam(req.range) : SEARCH_TRENDS_LIMITS.date;
+  if (date === null) return { status: 'FAILED', facts: null, captures: [] };
 
   const params: Record<string, string> = {
     engine: 'google_trends',
@@ -190,7 +202,7 @@ export async function fetchTrends(
     data_type: req.dataType,
     geo: SEARCH_TRENDS_LIMITS.geo,
     hl: SEARCH_TRENDS_LIMITS.hl,
-    date: SEARCH_TRENDS_LIMITS.date,
+    date,
   };
   const endpoint = SERPAPI_LIMITS.origin + SERPAPI_LIMITS.endpointPath;
   const url = new URL(endpoint);

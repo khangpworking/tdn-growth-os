@@ -90,7 +90,7 @@ test('three brands: exactly three pinned GETs, at least 2 s apart, key only on t
   assert.equal(f.urls.length, 3);
   assert.deepEqual(f.urls.map(u => `${u.origin}${u.pathname}?${[...u.searchParams].filter(([k]) => k !== 'api_key').map(([k, v]) => `${k}=${v}`).join('&')}`), [
     'https://serpapi.com/search.json?engine=google_ads_transparency_center&region=2704&num=100&text=thuonghieumau-a.example',
-    'https://serpapi.com/search.json?engine=google_ads_transparency_center&region=2704&num=100&text=www.thuonghieumau-b.example',
+    'https://serpapi.com/search.json?engine=google_ads_transparency_center&region=2704&num=100&text=thuonghieumau-b.example',
     'https://serpapi.com/search.json?engine=google_ads_transparency_center&region=2704&num=100&text=thuonghieumau-c.example',
   ]);
   assert.ok(f.urls.every(u => u.searchParams.get('api_key') === API_KEY));
@@ -127,20 +127,21 @@ test('top three distinct brands come from the pick record by revenue', () => {
   assert.deepEqual(brandsFromPick({ links: 'x' }), []);
 });
 
-test('ambiguous run domains use no call; NONE brands get one discovery each', async () => {
+test('same-brand suffixes select a domain; NONE brands get one discovery each', async () => {
   const f = fake(() => ({}));
   const web = ['https://thuonghieumau-a.example/', 'https://thuonghieumau-a.test/', 'https://khac.example/'];
   const result = await createGoogleAdsSource(API_KEY, f.transport).collect({ ...INPUT, webUrls: web });
-  assert.deepEqual(result.brands.map(b => b.status), ['SKIPPED_AMBIGUOUS_DOMAIN', 'SKIPPED_NO_DOMAIN', 'SKIPPED_NO_DOMAIN']);
-  assert.equal(f.urls.length, 2);
-  assert.ok(f.urls.every(url => url.searchParams.get('engine') === 'google'));
-  assert.equal(result.status, 'NO_DATA');
+  assert.deepEqual(result.brands.map(b => b.status), ['OK', 'SKIPPED_NO_DOMAIN', 'SKIPPED_NO_DOMAIN']);
+  assert.equal(f.urls.length, 3);
+  assert.ok(f.urls.slice(1).every(url => url.searchParams.get('engine') === 'google'));
+  assert.equal(result.status, 'OK');
 });
 
 test('strict registrable matching: observed subdomains, country suffixes, lookalikes, resellers and ambiguity', () => {
   for (const host of ['vn.panasonic.com', 'www.panasonic.com.vn', 'panasonic.net.vn', 'panasonic.org.vn', 'panasonic.vn', 'panasonic.com',
     'panasonic.net', 'panasonic.org', 'panasonic.co', 'panasonic.asia', 'panasonic.global', 'vn.panasonic.co.uk']) {
-    assert.deepEqual(chooseDomain('panasonic', [`https://${host}/san-pham`]), { kind: 'DOMAIN', domain: host }, host);
+    const expected = host === 'vn.panasonic.com' ? 'panasonic.com' : host === 'vn.panasonic.co.uk' ? 'panasonic.co.uk' : host.startsWith('www.') ? host.slice(4) : host;
+    assert.deepEqual(chooseDomain('panasonic', [`https://${host}/san-pham`]), { kind: 'DOMAIN', domain: expected }, host);
   }
   for (const host of ['mypanasonicfake.vn', 'panasonic-sieuthi.com', 'panasonic.reseller.vn', 'panasonic.com.reseller.vn', 'panasonic.com.vn.evil.test',
     'panasonic.shopee.vn', 'panasonic.lazada.vn', 'panasonic.tiki.vn', 'panasonic.sendo.vn', 'panasonic.facebook.com', 'panasonic.tiktok.com',
@@ -154,8 +155,8 @@ test('strict registrable matching: observed subdomains, country suffixes, lookal
   }
   assert.deepEqual(chooseDomain('panasonic', ['https://hc.panasonic.com/']), { kind: 'NONE' });
   assert.deepEqual(chooseDomain('panasonic', ['https://panasonic.com/'], ['panasonic.com']), { kind: 'NONE' });
-  assert.deepEqual(chooseDomain('panasonic', ['https://vn.panasonic.com/', 'https://panasonic.com/']), { kind: 'DOMAIN', domain: 'vn.panasonic.com' });
-  assert.deepEqual(chooseDomain('panasonic', ['https://panasonic.com/', 'https://panasonic.com.vn/', 'https://panasonic.com/']), { kind: 'AMBIGUOUS' });
+  assert.deepEqual(chooseDomain('panasonic', ['https://vn.panasonic.com/', 'https://panasonic.com/']), { kind: 'DOMAIN', domain: 'panasonic.com' });
+  assert.deepEqual(chooseDomain('panasonic', ['https://panasonic.com/', 'https://panasonic.com.vn/', 'https://panasonic.com/']), { kind: 'DOMAIN', domain: 'panasonic.com.vn' });
 });
 
 test('shared-hosting tenants, public-sector domains and IDN lookalikes cannot nominate a brand site', () => {
@@ -347,7 +348,7 @@ test('collection reads the real auto-run pick and this run\'s expanded rows befo
   });
   await service.processNext();
   assert.equal(f.urls.length, 3);
-  assert.deepEqual(f.urls.map(url => url.searchParams.get('text')), ['vn.branda.example', 'brandb.example', 'brandc.example']);
+  assert.deepEqual(f.urls.map(url => url.searchParams.get('text')), ['branda.example', 'brandb.example', 'brandc.example']);
   const step = fixture.db.prepare("SELECT result_sha256 sha FROM analysis_research_automation_steps WHERE run_id=? AND step_id='COLLECTION'").get(autoRunId) as { sha: string };
   assert.equal(JSON.parse((await artifacts.read(step.sha)).toString()).searchAds.status, 'OK');
   const activity = await service.readSourceActivity(workspaceId);
@@ -429,7 +430,7 @@ test('original brand names containing comparative words remain quoted in rows an
   assert.deepEqual(auditMarketReportHtml(run.html).filter(check => !check.ok), []);
 });
 
-test('discovery: one exact plain-word query only for NONE; ads use the observed host and share spacing', async () => {
+test('discovery: one exact plain-word query only for NONE; ads use the registrable domain and share spacing', async () => {
   const f = fake(url => url.searchParams.get('engine') === 'google' ? { body: {
     search_parameters: { q: url.searchParams.get('q') }, organic_results: [
       { position: 4, title: 'Trang chủ', link: 'https://vn.thuonghieumau-c.com.vn/official' },
@@ -440,28 +441,29 @@ test('discovery: one exact plain-word query only for NONE; ads use the observed 
   } } : {});
   const result = await createGoogleAdsSource(API_KEY, f.transport).collect({ ...INPUT,
     webUrls: ['https://thuonghieumau-a.example/', 'https://thuonghieumau-b.example/', 'https://thuonghieumau-b.test/'] });
-  assert.deepEqual(result.brands.map(b => b.status), ['OK', 'SKIPPED_AMBIGUOUS_DOMAIN', 'OK']);
-  assert.deepEqual(f.urls.map(u => u.searchParams.get('engine')), ['google_ads_transparency_center', 'google', 'google_ads_transparency_center']);
-  assert.deepEqual(Object.fromEntries([...f.urls[1]!.searchParams].filter(([k]) => k !== 'api_key')), {
+  assert.deepEqual(result.brands.map(b => b.status), ['OK', 'OK', 'OK']);
+  assert.deepEqual(f.urls.map(u => u.searchParams.get('engine')), ['google_ads_transparency_center', 'google_ads_transparency_center', 'google', 'google_ads_transparency_center']);
+  assert.deepEqual(Object.fromEntries([...f.urls[2]!.searchParams].filter(([k]) => k !== 'api_key')), {
     engine: 'google', q: 'Thương hiệu Mẫu C trang chủ chính hãng', gl: 'vn', hl: 'vi', num: '10',
   });
-  assert.equal(f.urls[2]!.searchParams.get('text'), 'www.thuonghieumau-c.com.vn');
+  assert.equal(f.urls[3]!.searchParams.get('text'), 'thuonghieumau-c.com.vn');
   assert.equal(result.brands[0]!.domainSource, 'RUN_ROWS');
   assert.equal(result.brands[2]!.domainSource, 'BRAND_SITE_SEARCH');
   assert.equal(result.brands[2]!.discoveryUsageOrdinal, 19);
   assert.ok(result.brands[2]!.discoveryCapture!.responseBytes!.includes(Buffer.from('https://www.thuonghieumau-c.com.vn/')));
-  assert.equal(result.requests, 3);
+  assert.equal(result.requests, 4);
   for (let i = 1; i < f.at.length; i++) assert.ok(f.at[i]! - f.at[i - 1]! >= 2_000);
 });
 
-test('discovery positions six and above cannot nominate a domain; distinct exact domains stay ambiguous', async () => {
+test('discovery positions six and above cannot nominate a domain; eligible domains prefer Vietnamese suffixes', async () => {
   for (const positions of [[6, 10], [1, 5]]) {
     const f = fake(url => ({ body: { search_parameters: { q: url.searchParams.get('q') }, organic_results: positions.map((position, i) => ({
       position, title: 'Trang chủ', link: `https://thuonghieumau-a.${i === 0 ? 'com' : 'com.vn'}/`,
     })) } }));
     const result = await createGoogleAdsSource(API_KEY, f.transport).collect({ ...INPUT, brands: [BRANDS[0]!], webUrls: [] });
-    assert.equal(f.urls.length, 1, 'no ads call and no repeat search');
-    assert.equal(result.brands[0]!.reason, positions[0] === 6 ? 'DISCOVERY_NO_MATCH' : 'DISCOVERY_AMBIGUOUS');
+    assert.equal(f.urls.length, positions[0] === 6 ? 1 : 2, 'one discovery and at most one ads call');
+    assert.equal(result.brands[0]!.reason, positions[0] === 6 ? 'DISCOVERY_NO_MATCH' : 'INVALID_PAYLOAD');
+    if (positions[0] === 1) assert.equal(f.urls[1]!.searchParams.get('text'), 'thuonghieumau-a.com.vn');
   }
 });
 
@@ -492,7 +494,7 @@ test('three missing sites: exactly six paid calls maximum, captures, separate us
   assert.equal(result.requests, 6);
   assert.equal(f.urls.length, 6);
   assert.equal(f.urls.filter(u => u.searchParams.get('engine') === 'google').length, 3);
-  for (let i = 0; i < 3; i++) assert.equal(f.urls[i * 2 + 1]!.searchParams.get('text'), `vn.${BRANDS[i]!.key}.com.vn`);
+  for (let i = 0; i < 3; i++) assert.equal(f.urls[i * 2 + 1]!.searchParams.get('text'), `${BRANDS[i]!.key}.com.vn`);
   const doc = searchAdsDocument(result, [1, 3, 5], [0, 2, 4]);
   assert.equal(doc.profile, 'search-ads-v2');
   assert.equal(validSearchAds(doc), true);
@@ -677,4 +679,82 @@ test('an abort at the search-provider boundary bills no undispatched discovery',
   assert.equal(f.urls.length, 0);
   assert.equal(result.requests, 0);
   assert.deepEqual(searchAdsUsageEntries(result), []);
+});
+
+
+test('SRC1 row 9: registrable domains collapse subdomains and prefer Vietnamese suffixes then position', async () => {
+  const brand = { label: 'Thương hiệu Mẫu', key: 'thuonghieumau' };
+  const urls = (hosts: string[]) => hosts.map(host => `https://${host}/`);
+  const domain = (hosts: string[], expected: string) => assert.deepEqual(chooseDomain(brand.key, urls(hosts)), { kind: 'DOMAIN', domain: expected });
+  domain(['vn.thuonghieumau.com'], 'thuonghieumau.com');
+  domain(['www.thuonghieumau.com', 'm.thuonghieumau.com', 'vn.thuonghieumau.com'], 'thuonghieumau.com');
+  domain(['thuonghieumau.com', 'thuonghieumau.com.vn'], 'thuonghieumau.com.vn');
+  domain(['thuonghieumau.com.vn', 'thuonghieumau.com'], 'thuonghieumau.com.vn');
+  domain(['thuonghieumau.com', 'thuonghieumau.net'], 'thuonghieumau.com');
+  domain(['thuonghieumau.net', 'thuonghieumau.com'], 'thuonghieumau.net');
+  assert.deepEqual(chooseDomain(brand.key, urls(['thuonghieumaushop.com', 'thuonghieumau.shopee.vn'])), { kind: 'NONE' });
+  const f = fake(() => ({}));
+  const result = await createGoogleAdsSource(API_KEY, f.transport).collect({ ...INPUT, brands: [brand], webUrls: urls(['thuonghieumau.com', 'thuonghieumau.com.vn']) });
+  assert.equal(f.urls.length, 1);
+  assert.equal(f.urls[0]!.searchParams.get('text'), 'thuonghieumau.com.vn');
+  assert.equal(result.requests, 1);
+  assert.equal(result.brands[0]!.status, 'OK');
+});
+
+test('SRC1 brief row 10 / Round 2 decisions: store the domain selection rule and accept legacy documents', async () => {
+  for (const [hosts, expectedDomain, expectedDecision] of [
+    [['www.thuonghieumau.com', 'm.thuonghieumau.com'], 'thuonghieumau.com', 'SINGLE_DOMAIN'],
+    [['thuonghieumau.com', 'thuonghieumau.vn'], 'thuonghieumau.vn', 'VIETNAMESE_SUFFIX'],
+    [['thuonghieumau.vn', 'thuonghieumau.com.vn'], 'thuonghieumau.vn', 'ORGANIC_POSITION'],
+    [['thuonghieumau.net', 'thuonghieumau.com'], 'thuonghieumau.net', 'ORGANIC_POSITION'],
+  ] as const) {
+    const f = fake(() => ({}));
+    const result = await createGoogleAdsSource(API_KEY, f.transport).collect({ ...INPUT, brands: [{ label: 'Thương hiệu Mẫu', key: 'thuonghieumau' }], webUrls: hosts.map(host => `https://${host}/`) });
+    const document = searchAdsDocument(result, [0]);
+    assert.equal(document.profile, 'search-ads-v2');
+    if (document.profile !== 'search-ads-v2') assert.fail('expected current ads document');
+    assert.equal(document.brands[0]!.domain, expectedDomain);
+    assert.equal(document.brands[0]!.domainDecision, expectedDecision);
+    assert.equal(document.brands[0]!.status, 'OK');
+    assert.equal(validSearchAds(document), true);
+    assert.equal(result.requests, 1);
+    assert.equal(f.urls.length, 1);
+    const { domainDecision: _decision, ...legacyBrand } = document.brands[0]!;
+    assert.equal(validSearchAds({ ...document, brands: [legacyBrand] }), true, 'legacy v2 has no decision field');
+  }
+});
+
+test('SRC1 Round 2 decision validation: reject unsupported rules and decisions without a domain', async () => {
+  const f = fake(() => ({}));
+  const result = await createGoogleAdsSource(API_KEY, f.transport).collect({ ...INPUT, brands: [BRANDS[0]!] });
+  const document = searchAdsDocument(result, [0]);
+  for (const domainDecision of ['SINGLE_DOMAIN', 'VIETNAMESE_SUFFIX', 'ORGANIC_POSITION']) {
+    assert.equal(validSearchAds({ ...document, brands: [{ ...document.brands[0]!, domainDecision }] }), true);
+  }
+  for (const domainDecision of ['UNKNOWN', '', null, 1]) {
+    assert.equal(validSearchAds({ ...document, brands: [{ ...document.brands[0]!, domainDecision }] }), false, JSON.stringify(domainDecision));
+  }
+  const noMatch = await createGoogleAdsSource(API_KEY, f.transport).collect({ ...INPUT, brands: [BRANDS[0]!], webUrls: [] });
+  const noDomain = searchAdsDocument(noMatch, [null], [0]);
+  assert.equal(validSearchAds(noDomain), true);
+  assert.equal(noDomain.brands[0]!.domain, null);
+  for (const domainDecision of ['SINGLE_DOMAIN', 'VIETNAMESE_SUFFIX', 'ORGANIC_POSITION']) {
+    assert.equal(validSearchAds({ ...noDomain, brands: [{ ...noDomain.brands[0]!, domainDecision }] }), false);
+  }
+});
+
+test('SRC1 brief row 11: NO_MATCH retains a per-brand reason without an unsupported advertiser-name call', async () => {
+  const f = fake(() => ({}));
+  const result = await createGoogleAdsSource(API_KEY, f.transport).collect({ ...INPUT, brands: [BRANDS[0]!], webUrls: [] });
+  assert.equal(f.urls.length, 1);
+  assert.equal(f.urls[0]!.searchParams.get('engine'), 'google');
+  assert.equal(result.requests, 1);
+  assert.equal(result.brands[0]!.status, 'SKIPPED_NO_DOMAIN');
+  const document = searchAdsDocument(result, [null], [0]);
+  assert.equal(document.brands[0]!.reason, 'DISCOVERY_NO_MATCH');
+  assert.equal(document.brands[0]!.captureIndex, null);
+  assert.equal(f.urls.some(url => url.searchParams.get('text') === BRANDS[0]!.label), false);
+  const usage = searchAdsUsageEntries(result).map(row => row.result.usage);
+  assert.equal(usage.reduce((sum, row) => sum + row.requestsIssued, 0), 1);
+  assert.equal(usage.reduce((sum, row) => sum + row.paidRequestsIssued, 0), 1);
 });

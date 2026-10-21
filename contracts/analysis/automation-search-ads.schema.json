@@ -504,6 +504,13 @@
             10
           ]
         },
+        "domainDecision": {
+          "enum": [
+            "SINGLE_DOMAIN",
+            "VIETNAMESE_SUFFIX",
+            "ORGANIC_POSITION"
+          ]
+        },
         "domainSource": {
           "enum": [
             null,

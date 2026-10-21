@@ -7,15 +7,15 @@ import { JSDOM } from 'jsdom';
 import { openDatabase } from '../../src/platform/db/index.js';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/artifact-store.js';
 import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../src/modules/flow/index.js';
-import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
+import { ResearchAutomationService, validSearchGeo } from '../../src/modules/analysis/research-automation/service.js';
 import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
 import type { AutomationSourcePort } from '../../src/modules/analysis/research-automation/source-binding.js';
 import type { StepResultDocument } from '../../src/modules/analysis/research-automation/model.js';
 import type { SearchInterestSource } from '../../src/modules/analysis/research-automation/search-interest.js';
-import type { SearchGeoSource } from '../../src/modules/analysis/research-automation/search-geo.js';
+import { searchGeoNoteText, type SearchGeoSource } from '../../src/modules/analysis/research-automation/search-geo.js';
 import { SYNTHETIC_CARD_ID, SYNTHETIC_SERP_KEY, syntheticProductSource, syntheticWebSource } from '../helpers/research-synthetic-sources.js';
 import { SYNTHETIC_TRENDS_KEYWORD, syntheticTrendsSource } from '../helpers/search-interest-synthetic.js';
-import { syntheticGeoSource, type SyntheticGeoMode } from '../helpers/search-geo-synthetic.js';
+import { syntheticGeoSource, syntheticSearchGeo, type SyntheticGeoMode } from '../helpers/search-geo-synthetic.js';
 import { citationRegisterViolations, providerNameViolations, reportVisibleText, visibleTextViolations } from '../helpers/report-visible-text.js';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
@@ -67,7 +67,7 @@ async function reportDocument(f: Awaited<ReturnType<typeof runToDraft>>) {
   return { html, doc: new JSDOM(html).window.document };
 }
 
-const geoParams = [['engine', 'google_trends'], ['q', SYNTHETIC_TRENDS_KEYWORD], ['data_type', 'GEO_MAP_0'], ['geo', 'VN'], ['hl', 'vi'], ['date', 'today 12-m']];
+const geoParams = [['engine', 'google_trends'], ['q', SYNTHETIC_TRENDS_KEYWORD], ['data_type', 'GEO_MAP_0'], ['geo', 'VN'], ['hl', 'vi'], ['date', '2025-10-01 2026-09-30']];
 
 test('flag on: one province-map request after the series, its own capture and usage row, drawn as Bảng 5.2 with its capture cited', async t => {
   const trendsCalls: URL[] = [], geoCalls: URL[] = [];
@@ -80,7 +80,7 @@ test('flag on: one province-map request after the series, its own capture and us
     [[0, 'kalodata', 'kalodata.product.rank'], [1, 'serpapi', 'serpapi.google.trends'], [2, 'serpapi', 'serpapi.google.trends']]);
   const geo = f.document?.searchGeo;
   assert.ok(geo);
-  assert.deepEqual([geo.status, geo.reason, geo.keyword, geo.geo, geo.unit, geo.window, geo.captureIndex], ['COLLECTED', null, SYNTHETIC_TRENDS_KEYWORD, 'VN', 'INDEX_0_100', 'LAST_12_MONTHS', 2]);
+  assert.deepEqual([geo.status, geo.reason, geo.keyword, geo.geo, geo.unit, geo.window, geo.captureIndex], ['COLLECTED', null, SYNTHETIC_TRENDS_KEYWORD, 'VN', 'INDEX_0_100', 'REQUESTED_RANGE', 2]);
   assert.equal(geo.provinces.length, 63);
   assert.equal(geo.provinces.filter(item => item.index === null).length, 3, 'a blank province stays empty, never 0');
   assert.deepEqual(f.usage.map(u => [u.ordinal, u.provider, u.operation, u.n]), [[0, 'kalodata', 'provider.run', 1], [3, 'serpapi', 'provider.run', 1], [16, 'serpapi', 'provider.run', 1]]);
@@ -126,12 +126,43 @@ test('the province map is never called without the series lane', async t => {
   assert.equal(f.document?.searchGeo, undefined);
 });
 
-test('a period before the provider window skips the map before any paid request', async t => {
-  const calls: URL[] = [];
-  const f = await runToDraft(t, { source: syntheticProductSource(), trendsSource: syntheticTrendsSource(() => {}), trendsGeoSource: syntheticGeoSource(url => calls.push(url)) }, { startDate: '2024-01-01', endDate: '2024-12-31' });
-  assert.equal(calls.length, 0);
-  assert.deepEqual([f.document?.searchGeo?.status, f.document?.searchGeo?.reason, f.document?.searchGeo?.captureIndex], ['SKIPPED', 'PERIOD_NOT_COVERED', null]);
-  assert.deepEqual(f.usage.map(u => u.ordinal), [0]);
+test('SRC1 row 5: geo shares the period gate, binds called ranges and preserves legacy rendering', async t => {
+  for (const [period, reason] of [
+    [{ startDate: '2024-01-01', endDate: '2024-12-31' }, null],
+    [{ startDate: '2003-12-31', endDate: '2004-01-31' }, 'PERIOD_BEFORE_PROVIDER_START'],
+    [{ startDate: '2026-09-01', endDate: '2026-10-05' }, 'PERIOD_IN_FUTURE'],
+  ] as const) {
+    const calls: URL[] = [], series: URL[] = [];
+    const f = await runToDraft(t, { source: syntheticProductSource(), trendsSource: syntheticTrendsSource(url => series.push(url)), trendsGeoSource: syntheticGeoSource(url => calls.push(url)) }, period);
+    const geo = f.document!.searchGeo!;
+    assert.equal(validSearchGeo(geo), true);
+    assert.equal(calls.length, reason ? 0 : 1);
+    assert.equal(series.length, calls.length);
+    assert.equal(geo.reason, reason);
+    if (reason) {
+      assert.equal(geo.status, 'SKIPPED');
+      assert.equal('requestedRange' in geo, false);
+      assert.equal(geo.captureIndex, null);
+      assert.equal(f.usage.some(row => row.ordinal === 16), false);
+    } else {
+      assert.equal(geo.status, 'COLLECTED');
+      assert.deepEqual(geo.requestedRange, period);
+      assert.equal(geo.window, 'REQUESTED_RANGE');
+      assert.equal(calls[0]!.searchParams.get('date'), '2024-01-01 2024-12-31');
+      const envelope = JSON.parse((await f.artifacts.read(f.captures[geo.captureIndex!]!.sha)).toString());
+      assert.equal(envelope.requestParameters.date, '2024-01-01 2024-12-31');
+      for (const legacy of [false, true]) {
+        assert.match(searchGeoNoteText(geo, legacy), /từ 01\/01\/2024 đến 31\/12\/2024/u);
+        assert.doesNotMatch(searchGeoNoteText(geo, legacy), /12 tháng gần đây/u);
+      }
+      assert.match((await reportDocument(f)).doc.querySelector('#M05')!.textContent!, /từ 01\/01\/2024 đến 31\/12\/2024/u);
+    }
+  }
+  const legacy = syntheticSearchGeo();
+  assert.equal(validSearchGeo(legacy), true);
+  assert.equal(legacy.window, 'LAST_12_MONTHS');
+  assert.equal('requestedRange' in legacy, false);
+  assert.match(searchGeoNoteText(legacy, false), /12 tháng gần đây/u);
 });
 
 for (const [mode, reason] of [['http-error', 'PROVIDER_FAILED'], ['invalid', 'PROVIDER_FAILED'], ['empty', 'EMPTY_MAP'], ['other-keyword', 'PROVIDER_FAILED']] as [SyntheticGeoMode, string][]) {

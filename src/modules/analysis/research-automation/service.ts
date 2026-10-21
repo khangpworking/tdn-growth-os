@@ -15,7 +15,7 @@ import type { DefaultMarketPeers } from '../../../../contracts/analysis/default-
 import { filterSerpApiResults } from './serpapi-l9-filter.js';
 import { boundedText, httpsUrl, parseProviderProductRef, splitPeriodIntoWindows } from './provider-common.js';
 import { KALODATA_LIMITS } from './provider-kalodata.js';
-import { searchInterestChartPoints, searchInterestCoversPeriod, searchInterestDocument, searchInterestRenderable, searchInterestUsage, SEARCH_INTEREST_USAGE_ORDINAL, type SearchInterestAttempt, type SearchInterestSource } from './search-interest.js';
+import { searchInterestChartPoints, searchInterestPeriodSkip, searchInterestRange, searchInterestDocument, searchInterestRenderable, searchInterestUsage, SEARCH_INTEREST_USAGE_ORDINAL, type SearchInterestAttempt, type SearchInterestSource } from './search-interest.js';
 import { normalizeProvince, searchGeoDocument, searchGeoRenderable, SEARCH_GEO_USAGE_ORDINAL, type SearchGeoAttempt, type SearchGeoSource } from './search-geo.js';
 import { collectionWebRows, expandedQueryDocument, EXPANDED_SEARCH_USAGE_ORDINAL, webResultUrlKey, type ExpandedSearchAttempt, type ExpandedSearchSource } from './expanded-search-lane.js';
 import type { AutomationInsightPersonaReportRevisionRequest, PersonaReportSelection, PersonaSelectedReportSnapshot } from '../../../../contracts/analysis/automation-insight-persona-report.generated.js';
@@ -227,6 +227,7 @@ import {
   MAX_PDF_BYTES,
   MAX_WEB_RESULTS,
   MAX_SEARCH_INTEREST_POINTS,
+  MAX_SEARCH_INTEREST_RANGE_POINTS,
   SEARCH_INTEREST_REASONS,
   MAX_SEARCH_GEO_PROVINCES,
   SEARCH_GEO_REASONS,
@@ -3520,18 +3521,20 @@ export class ResearchAutomationService {
       let trends: TrendsAttempt | undefined;
       if (stepId === 'COLLECTION' && this.#trendsSource && !controller.signal.aborted) {
         const { keyword, requestedPeriod } = input as CollectInput;
+        // The provider is asked for the report period itself; only a period it cannot cover is skipped, each with its own reason.
+        const nowMs = this.#now().getTime(), skip = searchInterestPeriodSkip(requestedPeriod, nowMs), range = searchInterestRange(requestedPeriod, nowMs);
         try {
-          trends = searchInterestCoversPeriod(requestedPeriod, this.#now().getTime())
-            ? { attempt: { kind: 'CALLED', keyword, result: await this.#trendsSource.collect(keyword, { signal: controller.signal }) } }
-            : { attempt: { kind: 'SKIPPED', keyword, reason: 'PERIOD_NOT_COVERED' } };
-        } catch { trends = { attempt: { kind: 'THROWN', keyword } }; }
+          trends = skip === null
+            ? { attempt: { kind: 'CALLED', keyword, range, result: await this.#trendsSource.collect(keyword, { signal: controller.signal }, range) } }
+            : { attempt: { kind: 'SKIPPED', keyword, reason: skip } };
+        } catch { trends = { attempt: { kind: 'THROWN', keyword, range } }; }
         // One province map follows the series under the same period check; it is never repeated after a restart.
         if (this.#trendsGeoSource && !controller.signal.aborted) {
           let geo: SearchGeoAttempt;
           try {
-            geo = trends.attempt.kind === 'SKIPPED' ? { kind: 'SKIPPED', keyword, reason: 'PERIOD_NOT_COVERED' }
-              : { kind: 'CALLED', keyword, result: await this.#trendsGeoSource.collect(keyword, { signal: controller.signal }) };
-          } catch { geo = { kind: 'THROWN', keyword }; }
+            geo = skip !== null ? { kind: 'SKIPPED', keyword, reason: skip }
+              : { kind: 'CALLED', keyword, range, result: await this.#trendsGeoSource.collect(keyword, { signal: controller.signal }, range) };
+          } catch { geo = { kind: 'THROWN', keyword, range }; }
           trends = { ...trends, geo };
         }
       }
@@ -6015,13 +6018,24 @@ function assertScopeSnapshot(value: unknown, workspaceId: string, runId: string)
   }
 }
 
+/** The reasons a search lane is skipped before any call (the first is the older single reason). */
+const SEARCH_PERIOD_SKIP_REASONS: readonly unknown[] = ['PERIOD_NOT_COVERED', 'PERIOD_INVALID', 'PERIOD_BEFORE_PROVIDER_START', 'PERIOD_IN_FUTURE'];
+
+/** Older documents say LAST_12_MONTHS and carry no range; newer ones say REQUESTED_RANGE and carry the asked days. */
+function validSearchWindow(value: Record<string, unknown>): boolean {
+  const range = value.requestedRange;
+  if (value.window === 'LAST_12_MONTHS') return range === undefined;
+  return value.window === 'REQUESTED_RANGE' && isRecord(range) && Object.keys(range).sort().join() === 'endDate,startDate' &&
+    typeof range.startDate === 'string' && typeof range.endDate === 'string' && validDate(range.startDate) && validDate(range.endDate) && range.startDate <= range.endDate;
+}
+
 function validSearchInterest(value: unknown): boolean {
-  if (!isRecord(value) || !['COLLECTED', 'FAILED', 'SKIPPED'].includes(value.status) || value.geo !== 'VN' || value.unit !== 'INDEX_0_100' || value.window !== 'LAST_12_MONTHS' ||
+  if (!isRecord(value) || !['COLLECTED', 'FAILED', 'SKIPPED'].includes(value.status) || value.geo !== 'VN' || value.unit !== 'INDEX_0_100' || !validSearchWindow(value) ||
       (value.reason !== null && !(SEARCH_INTEREST_REASONS as readonly unknown[]).includes(value.reason)) || (value.status === 'COLLECTED') !== (value.reason === null) ||
       typeof value.keyword !== 'string' || value.keyword.length < 1 || value.keyword.length > 200 || CONTROL.test(value.keyword) ||
       (value.retrievedAt !== null && (typeof value.retrievedAt !== 'string' || !Number.isFinite(Date.parse(value.retrievedAt)))) ||
       (value.captureIndex !== null && (!Number.isSafeInteger(value.captureIndex) || value.captureIndex < 0)) ||
-      !Array.isArray(value.points) || value.points.length > MAX_SEARCH_INTEREST_POINTS || (value.status !== 'COLLECTED' && value.points.length > 0) ||
+      !Array.isArray(value.points) || value.points.length > (value.window === 'REQUESTED_RANGE' ? MAX_SEARCH_INTEREST_RANGE_POINTS : MAX_SEARCH_INTEREST_POINTS) || (value.status !== 'COLLECTED' && value.points.length > 0) ||
       (value.status === 'COLLECTED' && (value.captureIndex === null || value.retrievedAt === null))) return false;
   return value.points.every(point => isRecord(point) && typeof point.period === 'string' && point.period.length >= 1 && point.period.length <= 64 && !CONTROL.test(point.period) &&
     (point.index === null || (Number.isInteger(point.index) && point.index >= 0 && point.index <= 100)));
@@ -6029,10 +6043,10 @@ function validSearchInterest(value: unknown): boolean {
 
 /** Stored-document check of the province map; exported for tests only. */
 export function validSearchGeo(value: unknown): boolean {
-  if (!isRecord(value) || Object.keys(value).sort().join() !== 'captureIndex,geo,keyword,provinces,reason,retrievedAt,status,unit,window' ||
-      !['COLLECTED', 'FAILED', 'SKIPPED'].includes(value.status as string) || value.geo !== 'VN' || value.unit !== 'INDEX_0_100' || value.window !== 'LAST_12_MONTHS' ||
+  if (!isRecord(value) || Object.keys(value).filter(key => key !== 'requestedRange').sort().join() !== 'captureIndex,geo,keyword,provinces,reason,retrievedAt,status,unit,window' ||
+      !['COLLECTED', 'FAILED', 'SKIPPED'].includes(value.status as string) || value.geo !== 'VN' || value.unit !== 'INDEX_0_100' || !validSearchWindow(value) ||
       (value.reason !== null && !(SEARCH_GEO_REASONS as readonly unknown[]).includes(value.reason)) || (value.status === 'COLLECTED') !== (value.reason === null) ||
-      (value.status === 'SKIPPED') !== (value.reason === 'PERIOD_NOT_COVERED') ||
+      (value.status === 'SKIPPED') !== SEARCH_PERIOD_SKIP_REASONS.includes(value.reason) ||
       typeof value.keyword !== 'string' || value.keyword.trim().length < 1 || value.keyword.length > 200 || CONTROL.test(value.keyword) ||
       (value.retrievedAt !== null && (typeof value.retrievedAt !== 'string' || !Number.isFinite(Date.parse(value.retrievedAt)))) ||
       (value.captureIndex !== null && (!Number.isSafeInteger(value.captureIndex) || (value.captureIndex as number) < 0 || value.captureIndex >= MAX_CAPTURES_PER_STEP)) ||
@@ -6102,6 +6116,7 @@ export function validSearchAds(value: unknown): boolean {
         discoveryOrdinals.add(brand.discoveryUsageOrdinal);
       }
       if ((discovery !== null && (!Number.isSafeInteger(discovery) || discovery < 0 || indexes.has(discovery))) ||
+          (brand.domainDecision !== undefined && brand.domain === null) ||
           (discovery !== null && brand.discoveryUsageOrdinal === null) ||
           (brand.domainSource === 'BRAND_SITE_SEARCH' && brand.discoveryUsageOrdinal === null) ||
           ((brand.domain === null) !== (brand.domainSource === null)) ||

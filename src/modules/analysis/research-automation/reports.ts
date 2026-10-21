@@ -86,8 +86,8 @@ import { formatWorldBankValue, worldBankReaderNote, WORLD_BANK_READER_SRC, world
 import { E13_ATTRIBUTION } from '../source-appendix-projection.js';
 import { withKalodataReplayNotice } from './kalodata-replay.js';
 import { exactTestReviewSample, exactTestReviewSection, exactTestReviewSourceRows, TEST_REVIEW_SOURCE_TYPE } from './test-review-sample.js';
-import { SEARCH_INTEREST_EMPTY, searchInterestReadingPoints, searchInterestRenderable,SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_LIMIT, SEARCH_INTEREST_NOTE, SEARCH_INTEREST_READER_TITLE, SEARCH_INTEREST_SOURCE_LABEL, SEARCH_INTEREST_SRC, SEARCH_INTEREST_UNIT } from './search-interest.js';
-import { LEGACY_SEARCH_GEO_NOTE, searchGeoAverageText, searchGeoRenderable, searchGeoText, summarizeSearchGeo, SEARCH_GEO_DONT, SEARCH_GEO_HEADERS, SEARCH_GEO_NOTE, SEARCH_GEO_TABLE_NO, SEARCH_GEO_TABLE_TITLE } from './search-geo.js';
+import { SEARCH_INTEREST_EMPTY, searchInterestIntervalText, searchInterestIsDaily, searchInterestReadingPoints, searchInterestRenderable,SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_LIMIT, SEARCH_INTEREST_NOTE, SEARCH_INTEREST_READER_TITLE, SEARCH_INTEREST_SOURCE_LABEL, searchInterestSourceText, SEARCH_INTEREST_UNIT } from './search-interest.js';
+import { searchGeoAverageText, searchGeoNoteText, searchGeoRenderable, searchGeoText, summarizeSearchGeo, SEARCH_GEO_DONT, SEARCH_GEO_HEADERS, SEARCH_GEO_TABLE_NO, SEARCH_GEO_TABLE_TITLE } from './search-geo.js';
 
 /**
  * Current Market reader print layout (L14, M7e). Forced page breaks stay structural: each top-level section (`.sheet`,
@@ -726,7 +726,7 @@ function marketHeadline(input: AutomationReportInput, presentation: AutomationMa
     bands: plan.signals.flatMap(signal => signal.band && signal.band.low > 0 && signal.band.revenue > 0
       ? [{ ...signal, n: rows.filter(row => row.platform === signal.platform).length }] : []),
     unitStandard: unit.profile?.standard ?? null,
-    search: peak && peak.index > 0 ? { ...peak, weeks: weeks.length } : null,
+    search: peak && peak.index > 0 ? { ...peak, weeks: weeks.length, ...(searchInterestIsDaily(interest!) ? { periodUnit: 'ngày' as const } : {}) } : null,
     options: plan.hasFigures,
   };
 }
@@ -1379,14 +1379,14 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   const searchInterestFigure = (sectionId: string): string => {
     const interest = input.collection?.searchInterest;
     if (kind !== 'MARKET' || sectionId !== 'M05' || !searchInterestRenderable(interest)) return '';
-    if (marketPresentation && !searchInterestReadingPoints(interest).some(point => point.index !== null)) return `<p>${escape(SEARCH_INTEREST_EMPTY)}</p>`;
+    if (marketPresentation && !searchInterestReadingPoints(interest).some(point => point.index !== null)) return `<p>${escape(searchInterestIntervalText(interest, SEARCH_INTEREST_EMPTY))}</p>`;
     if (!input.searchInterestChart) throw new TypeError('SEARCH_INTEREST_CHART_MISSING');
     const capture = input.captures.find(item => item.stepId === 'COLLECTION' && item.ordinal === interest.captureIndex);
     // Current reader: the unit is stated once (in the unit span) and a weekly axis keeps at most SEARCH_AXIS_LABEL_MAX labels.
     const searchSvg = marketPresentation && input.searchInterestChart.engine !== 'svg-fallback' ? thinSearchAxisLabels(input.searchInterestChart.svg) : input.searchInterestChart.svg;
-    return `<p>Mức quan tâm tìm kiếm của từ khóa được ghi riêng ở Hình 5.2: chỉ số tương đối, không cộng hay so với số bán.</p><figure class="market-chart"${marketPresentation ? ' data-search-interest="1"' : ''}><div class="exh"><span class="exn">Hình 5.2</span> <span class="ext">${escape(marketPresentation ? SEARCH_INTEREST_READER_TITLE : SEARCH_INTEREST_FIGURE_TITLE)}</span> <span class="exu">(${escape(SEARCH_INTEREST_UNIT)})</span></div>` +
+    return `<p>Mức quan tâm tìm kiếm của từ khóa được ghi riêng ở Hình 5.2: chỉ số tương đối, không cộng hay so với số bán.</p><figure class="market-chart"${marketPresentation ? ' data-search-interest="1"' : ''}><div class="exh"><span class="exn">Hình 5.2</span> <span class="ext">${escape(searchInterestIntervalText(interest, marketPresentation ? SEARCH_INTEREST_READER_TITLE : SEARCH_INTEREST_FIGURE_TITLE))}</span> <span class="exu">(${escape(SEARCH_INTEREST_UNIT)})</span></div>` +
       `<div class="chart flint" data-engine="${escape(input.searchInterestChart.engine)}">${searchSvg}</div>` +
-      `<p class="lim"><b>Chú thích:</b> ${escape(SEARCH_INTEREST_NOTE)} ${escape(SEARCH_INTEREST_LIMIT)}</p><p class="ex-src">Nguồn: ${escape(SEARCH_INTEREST_SRC)}${capture ? captureMark(capture, citations) : ''}</p></figure>`;
+      `<p class="lim"><b>Chú thích:</b> ${escape(searchInterestIntervalText(interest, SEARCH_INTEREST_NOTE))} ${escape(SEARCH_INTEREST_LIMIT)}</p><p class="ex-src">Nguồn: ${escape(searchInterestSourceText(interest))}${capture ? captureMark(capture, citations) : ''}</p></figure>`;
   };
   // The stored province map sits right after Hình 5.2, as regions only; a pure rule picks a region or says nationwide. Never with sales.
   const searchGeoBlock = (sectionId: string): string => {
@@ -1398,7 +1398,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     return `<div class="table-wrap" role="region" aria-label="${escape(SEARCH_GEO_TABLE_TITLE)}" tabindex="0"><div class="exh"><span class="exn">Bảng ${SEARCH_GEO_TABLE_NO}</span><span class="ext">${escape(SEARCH_GEO_TABLE_TITLE)}</span></div><table aria-label="${escape(SEARCH_GEO_TABLE_TITLE)}">` +
       `<thead><tr>${SEARCH_GEO_HEADERS.map(head => `<th>${escape(head)}</th>`).join('')}</tr></thead><tbody>` +
       summary.regions.map(row => `<tr><td>${escape(row.region)}</td><td>${escape(searchGeoAverageText(row.average))}</td><td>${marketPresentation && row.inTop === 0 ? 'không có tỉnh nào đạt ngưỡng' : row.inTop}</td></tr>`).join('') +
-      `</tbody></table><p class="lim"><b>Chú thích:</b> ${escape(marketPresentation ? SEARCH_GEO_NOTE + ' Số liệu cho Việt Nam; không cộng các vùng với nhau.' : LEGACY_SEARCH_GEO_NOTE)}</p><p class="ex-src">Nguồn: ${escape(SEARCH_INTEREST_SRC)}${capture ? captureMark(capture, citations) : ''}</p></div>` +
+      `</tbody></table><p class="lim"><b>Chú thích:</b> ${escape(marketPresentation ? searchGeoNoteText(geo, false) + ' Số liệu cho Việt Nam; không cộng các vùng với nhau.' : searchGeoNoteText(geo, true))}</p><p class="ex-src">Nguồn: ${escape(searchInterestSourceText(geo))}${capture ? captureMark(capture, citations) : ''}</p></div>` +
       [text.topLine, text.result, text.seen, text.use, text.dont].filter(Boolean).map(line => `<p>${escape(line)}</p>`).join('');
   };
   // Country-level exhibits carry a marker so the market14 reader never counts them as data about the product; legacy bytes stay unmarked.

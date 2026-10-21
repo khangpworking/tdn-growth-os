@@ -76,6 +76,7 @@ export interface SearchAdsBrandV2 {
   retrievedAt: string | null;
   responseSha256: string | null;
   usageOrdinal: null | 10;
+  domainDecision?: 'SINGLE_DOMAIN' | 'VIETNAMESE_SUFFIX' | 'ORGANIC_POSITION';
   domainSource: null | 'RUN_ROWS' | 'BRAND_SITE_SEARCH';
   discoveryCaptureIndex: number | null;
   discoveryUsageOrdinal: null | 17 | 18 | 19;
