@@ -1,8 +1,8 @@
 # Tài liệu tiếng Việt
 
-Cập nhật: 20/10/2026 · Commit chính: `e9e0f444`
+Cập nhật: 21/10/2026 · Commit chính: `e9e0f444`
 
-> Bản cập nhật 20/10/2026. Bản trước: [bản 20/10/2026 trước khi sửa](../outdated/2026-10-20/docs/vi/README.md).
+> Bản cập nhật 21/10/2026. Bản trước: [bản 21/10/2026 trước khi sửa](../outdated/2026-10-21/docs/vi/README.md).
 
 Mục lục các tài liệu tiếng Việt cho ba phần của hệ thống. Mỗi phần có ba loại tài liệu:
 
@@ -61,4 +61,4 @@ Các tài liệu dưới đây là tài liệu nghiên cứu gốc. Chúng chưa
 
 - [Ultimate Method cho 30 section](../research/ultimate-method/ultimate-method-30-sections.md): phương pháp và trạng thái của từng section.
 - [Nguồn dữ liệu cho 30 section](../research/ultimate-method/input-data-sources-30-sections.md): section nào dùng nguồn nào.
-- [Trạng thái nguồn dữ liệu](../research/ultimate-method/source-status.md): nguồn nào đã chạy, nguồn nào còn chờ (cập nhật lần cuối 19/10/2026).
+- [Trạng thái nguồn dữ liệu](../research/ultimate-method/source-status.md): nguồn nào đã chạy, nguồn nào còn chờ (cập nhật lần cuối 21/10/2026, có kết quả kiểm tra nguồn trên 3 lượt chạy thật).

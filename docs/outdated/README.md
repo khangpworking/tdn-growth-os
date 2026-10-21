@@ -2,10 +2,15 @@
 
 Thư mục này giữ bản cũ của các tài liệu đã cập nhật. Mọi bản cũ nằm nguyên trạng để so sánh. Không sửa các bản này. Liên kết trong bản cũ có thể không dùng được, vì thư mục đã đổi độ sâu.
 
-Cập nhật: 20/10/2026
+Cập nhật: 21/10/2026
 
 | Bản cũ | Bản mới | Lý do cập nhật |
 | --- | --- | --- |
+| [docs/vi/README.md](2026-10-21/docs/vi/README.md) | [docs/vi/README.md](../vi/README.md) | Ngày cập nhật cuối của trạng thái nguồn: 19/10 thành 21/10/2026 |
+| [docs/vi/market-report/tai-lieu-ky-thuat.md](2026-10-21/docs/vi/market-report/tai-lieu-ky-thuat.md) | [docs/vi/market-report/tai-lieu-ky-thuat.md](../vi/market-report/tai-lieu-ky-thuat.md) | Phần 5: thêm trạng thái chạy thật của từng nguồn (kiểm tra 21/10/2026); quy chuẩn v1.37 |
+| [docs/research/ultimate-method/source-status.md](2026-10-21/docs/research/ultimate-method/source-status.md) | [docs/research/ultimate-method/source-status.md](../research/ultimate-method/source-status.md) | Kết quả kiểm tra nguồn 21/10/2026 (mục 2b); S11 Không thu; thêm dòng nhật ký |
+| [docs/research/ultimate-method/input-data-sources-30-sections.md](2026-10-21/docs/research/ultimate-method/input-data-sources-30-sections.md) | [docs/research/ultimate-method/input-data-sources-30-sections.md](../research/ultimate-method/input-data-sources-30-sections.md) | Cột trạng thái mục 2 theo kiểm tra 21/10/2026; S11 bỏ khỏi mục 3, thêm vào mục 4; S24 bỏ "(đề xuất)" |
+| [docs/research/ultimate-method/CHANGELOG.md](2026-10-21/docs/research/ultimate-method/CHANGELOG.md) | [docs/research/ultimate-method/CHANGELOG.md](../research/ultimate-method/CHANGELOG.md) | Thêm dòng DS-20261021-01 |
 | [docs/vi/README.md](2026-10-20/docs/vi/README.md) | [docs/vi/README.md](../vi/README.md) | Ngày cập nhật cuối của trạng thái nguồn: 12/10 thành 19/10/2026 |
 | [docs/vi/market-report/tai-lieu-ky-thuat.md](2026-10-20/docs/vi/market-report/tai-lieu-ky-thuat.md) | [docs/vi/market-report/tai-lieu-ky-thuat.md](../vi/market-report/tai-lieu-ky-thuat.md) | Phần 9: #345, #346, #347 đã gộp, chưa triển khai |
 | [docs/vi/market-report/huong-dan-su-dung.md](2026-10-20/docs/vi/market-report/huong-dan-su-dung.md) | [docs/vi/market-report/huong-dan-su-dung.md](../vi/market-report/huong-dan-su-dung.md) | Nguồn review Shopee chạy từ lần triển khai tới; sửa quy tắc 11 và 13; thêm 8 ảnh minh họa; sửa mô tả khung "Bản đọc" và số bước |
