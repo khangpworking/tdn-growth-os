@@ -16,7 +16,7 @@
 | observations/ | Tín hiệu, lỗi và nhu cầu đã làm sạch |
 | decisions/ | Index quyết định; ADR canonical ở docs/adr |
 | scripts/, tools/ | Lệnh workflow và công cụ maintainer |
-| docs/ | Plan, status, task và operating docs |
+| docs/ | Plan, status, task và operating docs. Quy tắc nghiệp vụ nằm ở `docs/business-spec/` |
 
 Không có SKILL.md ở root: đây là ứng dụng, không phải một skill. Descriptor con dưới `skills/` chỉ mô tả capability đã đăng ký và không được load như code hoặc authority. AGENTS.md là entry point coding dùng chung; CLAUDE.md trỏ tới đó.
 Không cài thêm Spec Kit/OAC/QMD/agent framework trong scaffold. Các pattern đã chọn được áp dụng bằng tài liệu nhỏ.
