@@ -41,6 +41,7 @@ const validUtc = ajv.compile<string>({ type: 'string', format: 'date-time', patt
 const validRows = ajv.compile<ShopeePublicRows>({ $ref: 'shopee-public-rows.schema.json' });
 const validJournal = ajv.compile<ShopeePublicJournal>({ $ref: 'shopee-public-journal.schema.json' });
 const validJob = ajv.compile<NonNullable<ShopeePublicJournal['job']>>({ $ref: 'shopee-public-collection.schema.json#/$defs/job' });
+const validJobId = ajv.compile<string>({ type: 'string', format: 'uuid' });
 const validEnvelope = ajv.compile<PublicReviewEnvelope>({ $ref: 'shopee-public-collection.schema.json#/$defs/envelope' });
 const validCollection = ajv.compile<ShopeePublicCollection>({ $ref: 'shopee-public-collection.schema.json' });
 const validSource = ajv.compile<import('../../../contracts/foundation/shopee-public-collection.generated.js').PublicReviewSource>({ $ref: 'shopee-public-collection.schema.json#/$defs/publicReviewSource' });
@@ -77,6 +78,18 @@ export function normalizePublicReviewUrl(value: unknown): string {
   if (u.protocol !== 'https:' || !['shopee.vn', 'www.shopee.vn'].includes(u.hostname) || u.username || u.password || u.port) return fail();
   const m = u.pathname.match(/^\/product\/([1-9][0-9]{0,19})\/([1-9][0-9]{0,19})\/?$/) ?? u.pathname.match(/-i\.([1-9][0-9]{0,19})\.([1-9][0-9]{0,19})\/?$/);
   return m ? `https://shopee.vn/product/${m[1]}/${m[2]}` : fail();
+}
+/** One row of the shared job list. A row that is not ours or not valid never throws; the caller decides what that means. */
+function listRow(raw: unknown): { id: string | null; url: string | null; job: NonNullable<ShopeePublicJournal['job']> | null } {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return { id: null, url: null, job: null };
+  const v = raw as Record<string, unknown>;
+  const id = validJobId(v.id) ? v.id : null;
+  const r = typeof v.request === 'object' && v.request !== null && !Array.isArray(v.request) ? v.request as Record<string, unknown> : null;
+  let url: string | null = null; try { url = r ? normalizePublicReviewUrl(r.url) : null; } catch { url = null; }
+  if (!r || url === null) return { id, url, job: null };
+  const job = { id: v.id, request: { url, max_comments: r.max_comments }, state: v.state, created_at: v.created_at, updated_at: v.updated_at,
+    result_available: v.result_available, ...(v.collected === undefined ? {} : { collected: v.collected }) };
+  return { id, url, job: validJob(job) ? job : null };
 }
 function bounded(v: string, max: number) { if (Buffer.byteLength(v) > max) fail('SHOPEE_REVIEW_LIMIT'); return v; }
 export function mapPublicReviewResult(raw: unknown, job: NonNullable<ShopeePublicJournal['job']>, listing: ShopeeTransportListing, cap: number, checkpoint = false): PublicReviewEnvelope {
@@ -213,8 +226,8 @@ export class ShopeePublicReviewCollector implements ShopeeCollector<PublicCollec
       };
       const get = async (op: string, id?: string): Promise<unknown> => {
         for (let attempt = 0; ; attempt++) { try { return await request(op, id); } catch (e) {
-          if (!(e instanceof ShopeePublicReviewError) || attempt >= 2 || !['SHOPEE_REVIEW_TIMEOUT','SHOPEE_REVIEW_TRANSPORT'].includes(e.code) && !(e.httpStatus && e.httpStatus >= 500)) throw e;
-          await pause(attempt === 0 ? 3000 : 6000);
+          if (!(e instanceof ShopeePublicReviewError) || attempt >= 1 || !['SHOPEE_REVIEW_TIMEOUT','SHOPEE_REVIEW_TRANSPORT'].includes(e.code) && !(e.httpStatus && e.httpStatus >= 500)) throw e;
+          await pause(3000);
         } }
       };
       const parseJob = (raw: unknown, bound = true) => {
@@ -228,9 +241,12 @@ export class ShopeePublicReviewCollector implements ShopeeCollector<PublicCollec
       };
       const reconcile = async () => {
         const list = await request('list'); if (!Array.isArray(list) || list.length > 100) return fail();
-        const parsed = list.map(raw => { const v = object(raw), r = object(v.request); const job = { id: v.id, request: { url: normalizePublicReviewUrl(r.url), max_comments: r.max_comments }, state: v.state, created_at: v.created_at, updated_at: v.updated_at, result_available: v.result_available, ...(v.collected === undefined ? {} : { collected: v.collected }) }; if (!validJob(job)) return fail(); return job; });
+        // Foreign rows (known baseline id, or another listing URL) are ignored. A new row that claims our listing but is invalid cannot be trusted.
+        const rows = list.map(listRow), known = new Set(j.baselineIds);
+        if (rows.some(row => (row.id === null || !known.has(row.id)) && row.url === listing.productUrl && row.job === null)) fail('SUBMISSION_UNCERTAIN');
+        const parsed = rows.flatMap(row => row.job ? [row.job] : []);
         const now = this.#clock().getTime(), lo = Date.parse(j.submitWindowStart!), hi = Date.parse(j.submitWindowEnd!);
-        if (now < Date.parse(j.intentAt!) || parsed.some(v => Date.parse(v.created_at) > now + 2000) || parsed.length === 100 && !parsed.some(v => Date.parse(v.created_at) < lo)) fail('SUBMISSION_UNCERTAIN');
+        if (now < Date.parse(j.intentAt!) || parsed.some(v => Date.parse(v.created_at) > now + 2000) || list.length === 100 && !parsed.some(v => Date.parse(v.created_at) < lo)) fail('SUBMISSION_UNCERTAIN');
         const matches = parsed.filter(v => !j.baselineIds.includes(v.id) && v.request.url === listing.productUrl && v.request.max_comments === this.maxReviewsPerProduct && Date.parse(v.created_at) >= lo && Date.parse(v.created_at) <= hi);
         if (matches.length !== 1) fail('SUBMISSION_UNCERTAIN'); j.job = parseJob(matches[0], false); await save();
       };
@@ -243,7 +259,8 @@ export class ShopeePublicReviewCollector implements ShopeeCollector<PublicCollec
               const health = object(await request('health'));
               if (health.status !== 'ok' || health.browser !== 'ready') fail('HEALTH_NOT_READY');
               const list = await request('list'); if (!Array.isArray(list) || list.length > 100) return fail();
-              j.baselineIds = list.map(raw => { const v = object(raw), r = object(v.request); const safe = { id: v.id, request: { url: normalizePublicReviewUrl(r.url), max_comments: r.max_comments }, state: v.state, created_at: v.created_at, updated_at: v.updated_at, result_available: v.result_available, ...(v.collected === undefined ? {} : { collected: v.collected }) }; if (!validJob(safe)) return fail(); return safe.id; });
+              // Keep every usable id; a foreign or malformed row must not block the first submit.
+              j.baselineIds = list.flatMap(raw => { const { id } = listRow(raw); return id === null ? [] : [id]; });
               const at = this.#clock().getTime(); j.intentAt = new Date(at).toISOString(); j.submitWindowStart = new Date(at - 2000).toISOString(); j.submitWindowEnd = new Date(at + 12000).toISOString();
               j.deadline = new Date(at + 40 * 60000).toISOString(); acquisitionDeadline ??= new Date(at + selected.length * 40 * 60000).toISOString(); j.acquisitionDeadline = acquisitionDeadline;
               await save(); // From here onward no recovery path may submit again.

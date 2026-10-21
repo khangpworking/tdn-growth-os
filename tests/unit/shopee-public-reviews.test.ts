@@ -8,6 +8,7 @@ import { AT, IDS, PRODUCTS, RAW_SENTINELS, READY, RESULT_A, RESULT_B, RESULT_C, 
 // BEGIN PHASE-2 BINDING: only this section adapts source names/signatures/projections.
 // The contract specifies behavior, not these test-facade function/property names.
 import { ShopeePublicReviewCollector } from '../../src/platform/collectors/shopee-public-reviews.js';
+import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { researchAutomationProviderConfigFromEnv } from '../../src/modules/analysis/research-automation/providers.js';
 import { sanitizeProjection, corpusProjection, classifyProjection, receiptProjection, withCollectorCrash, observeBudgets, journalProjection } from '../helpers/shopee-public-binding.js';
 type OpenOptions = { journalRoot: string; fetch: typeof fetch; clock: FakeClock; cap?: number; signal?: AbortSignal; sourceSet?: string; requestDigest?: string; mapping?: string; faultAt?: string };
@@ -42,6 +43,129 @@ const bindings = {
 const enabled = { TDN_RESEARCH_SHOPEE_PUBLIC_ENABLED: '1', TDN_RESEARCH_SHOPEE_PUBLIC_TOKEN: TOKEN };
 const setting = 'TDN_RESEARCH_SHOPEE_PUBLIC_MAX_COMMENTS_PER_PRODUCT';
 const baseSetting = 'TDN_RESEARCH_SHOPEE_PUBLIC_BASE_URL';
+
+async function s05Journal(journalRoot: string) {
+  const name = (await fs.readdir(journalRoot, { recursive: true })).find(name => name.endsWith('.json'));
+  assert.ok(name);
+  const file = path.join(journalRoot, name);
+  return { file, value: JSON.parse(await fs.readFile(file, 'utf8')) };
+}
+
+test('S05 row 1: baseline tolerates foreign and malformed rows but rejects non-array or oversized lists', async t => {
+  const rows = [job(1, 'invented', { request: { url: 'https://example.invalid/item', max_comments: 20 } }),
+    job(2, 'invented'), { id: IDS[0] }, null, 'synthetic-row', [], { id: 'invalid-id' }];
+  for (const [list, accepted] of [[rows, true], [{ jobs: [] }, false], [Array(101).fill(null), false]] as const) {
+    const store = await temporaryPublicStore(t), clock = new FakeClock();
+    const script = accepted ? successfulScript() : successfulScript().slice(0, 2);
+    script[1]!.body = list;
+    const transport = new FakeTransport(script), client = bindings.open({ ...store, clock, fetch: transport.fetch });
+    const value = await client.run(); transport.done();
+    assert.equal(transport.posts().length, accepted ? 1 : 0);
+    assert.equal(value.listings[0].stopCode, accepted ? null : 'SHOPEE_REVIEW_INVALID_RESPONSE');
+    assert.equal(value.listings[0].requestCount, accepted ? 8 : 2);
+    assert.equal(client.requestsIssued(), transport.calls.length);
+    const { value: journal } = await s05Journal(store.journalRoot);
+    assert.deepEqual(journal.baselineIds, accepted ? [IDS[1], IDS[2], IDS[0]] : []);
+    assert.equal(journal.intentAt, accepted ? AT : null);
+    assert.equal(journal.deadline, accepted ? '2026-02-01T00:40:00.000Z' : null);
+  }
+});
+
+test('S05 row 2: baseline retains UUID ids from invalid bodies and excludes unusable ids', async t => {
+  const store = await temporaryPublicStore(t), clock = new FakeClock();
+  const script = successfulScript();
+  script[1]!.body = [{ id: IDS[1] }, job(2, 'invented'), { id: '' }, { id: 42 },
+    { id: 'not-a-uuid' }, {}, null, [IDS[0]]];
+  const transport = new FakeTransport(script);
+  const value = await bindings.open({ ...store, clock, fetch: transport.fetch }).run(); transport.done();
+  assert.equal(value.listings[0].stopCode, null); assert.equal(transport.posts().length, 1);
+  assert.deepEqual((await s05Journal(store.journalRoot)).value.baselineIds, [IDS[1], IDS[2]]);
+});
+
+test('S05 row 3: recovery finds our job among foreign and malformed rows and rejects two matches', async t => {
+  for (const duplicate of [false, true]) {
+    const store = await temporaryPublicStore(t), clock = new FakeClock();
+    const script = successfulScript().slice(0, 2);
+    script.push({ method: 'POST', path: '/jobs', error: new TypeError('synthetic disconnect') },
+      { method: 'GET', path: '/jobs?limit=100', body: [job(1), null, { id: IDS[2] },
+        job(2, 'invented', { request: { url: 'https://example.invalid/item', max_comments: 20 } }),
+        job(0, 'queued', { request: { url: `https://shopee.vn/synthetic-i.${PRODUCTS[0].shopId}.${PRODUCTS[0].itemId}`, max_comments: 20 } }),
+        ...(duplicate ? [job(0, 'queued', { id: IDS[2] })] : [])] });
+    if (!duplicate) script.push(...successfulScript().slice(3));
+    const transport = new FakeTransport(script), client = bindings.open({ ...store, clock, fetch: transport.fetch });
+    const value = await client.run(); transport.done();
+    assert.equal(value.listings[0].stopCode, duplicate ? 'SUBMISSION_UNCERTAIN' : null);
+    assert.equal(value.listings[0].jobId, duplicate ? null : IDS[0]);
+    assert.equal(transport.posts().length, 1);
+    assert.equal(value.listings[0].requestCount, transport.calls.length);
+    const replay = new FakeTransport([]);
+    await bindings.open({ ...store, clock, fetch: replay.fetch }).run(); replay.done();
+  }
+});
+
+test('S05 row 4: invalid new rows claiming our URL refuse recovery while baseline and foreign rows are ignored', async t => {
+  for (const kind of ['new', 'baseline', 'foreign', 'missing-id'] as const) {
+    const store = await temporaryPublicStore(t), clock = new FakeClock();
+    const invalid = job(0, 'invented', { id: kind === 'missing-id' ? 'invalid-id' : IDS[1],
+      request: { url: kind === 'foreign' ? PRODUCTS[1].productUrl : PRODUCTS[0].productUrl, max_comments: 20 } });
+    const refused = kind === 'new' || kind === 'missing-id';
+    const script = successfulScript().slice(0, 2);
+    script[1]!.body = kind === 'baseline' ? [{ id: IDS[1] }] : [];
+    script.push({ method: 'POST', path: '/jobs', status: 503 },
+      { method: 'GET', path: '/jobs?limit=100', body: [invalid, job()] });
+    if (!refused) script.push(...successfulScript().slice(3));
+    const transport = new FakeTransport(script);
+    const value = await bindings.open({ ...store, clock, fetch: transport.fetch }).run(); transport.done();
+    assert.equal(value.listings[0].stopCode, refused ? 'SUBMISSION_UNCERTAIN' : null, kind);
+    assert.equal(transport.posts().length, 1);
+  }
+});
+
+test('S05 row 5: recovery preserves raw 100-row window, created_at window and future-time refusals', async t => {
+  const old = job(1, 'queued', { created_at: '2026-01-31T23:59:57.999Z' });
+  const recent = Array.from({ length: 99 }, (_, n) => job(1, 'queued', {
+    id: `20000000-0000-4000-8000-${String(n + 1).padStart(12, '0')}` }));
+  const cases: Array<[string, unknown[], boolean, number]> = [
+    ['complete-window', [job(), ...recent.slice(0, 98), old], true, 0],
+    ['full-window', [job(), ...recent], false, 0],
+    // Malformed rows still count toward the raw window limit.
+    ['full-window-with-malformed', [job(), ...Array(99).fill(null)], false, 0],
+    ['too-old', [job(0, 'queued', { created_at: '2026-01-31T23:59:57.999Z' })], false, 0],
+    ['outside-submit-window', [job(0, 'queued', { created_at: '2026-02-01T00:00:12.001Z' })], false, 15000],
+    ['future', [job(0, 'queued', { created_at: '2026-02-01T00:00:02.001Z' })], false, 0],
+    ['foreign-future', [job(), job(1, 'queued', { created_at: '2026-02-01T00:00:02.001Z' })], false, 0],
+  ];
+  const actual: unknown[] = [], expected: unknown[] = [];
+  for (const [name, rows, accepted, advance] of cases) {
+    const store = await temporaryPublicStore(t), clock = new FakeClock();
+    const script = successfulScript().slice(0, 2);
+    script.push({ method: 'POST', path: '/jobs', status: 503 },
+      { method: 'GET', path: '/jobs?limit=100', body: rows, inspect: () => clock.advance(advance) });
+    // A terminal status makes an incorrectly adopted job observable without a polling loop.
+    const transport = new FakeTransport([...script, { method: 'GET', path: `/jobs/${IDS[0]}`, body: job(0, 'failed') }]);
+    const value = await bindings.open({ ...store, clock, fetch: transport.fetch }).run();
+    assert.equal(transport.unlisted.length, 0); assert.equal(transport.posts().length, 1);
+    actual.push([name, value.listings[0].stopCode, transport.calls.length]);
+    expected.push([name, accepted ? null : 'SUBMISSION_UNCERTAIN', accepted ? 5 : 4]);
+  }
+  assert.deepEqual(actual, expected);
+});
+
+test('S05 row 6: old journals with UUID baselineIds still verify and malformed ids are rejected', async t => {
+  const store = await temporaryPublicStore(t), clock = new FakeClock();
+  const script = successfulScript(); script[1]!.body = [job(1)];
+  const transport = new FakeTransport(script);
+  const first = await bindings.open({ ...store, clock, fetch: transport.fetch }).run(); transport.done();
+  const { file, value: journal } = await s05Journal(store.journalRoot);
+  assert.equal(journal.contractVersion, 'shopee-public-journal-v1');
+  assert.deepEqual(journal.baselineIds, [IDS[1]]);
+  const replay = new FakeTransport([]);
+  assert.deepEqual(await bindings.open({ ...store, clock, fetch: replay.fetch }).run(), { ...first, reused: true }); replay.done();
+  await fs.writeFile(file, canonicalJson({ ...journal, baselineIds: ['invalid-id'] }));
+  const invalid = new FakeTransport([]);
+  await assert.rejects(bindings.open({ ...store, clock, fetch: invalid.fetch }).run()); invalid.done();
+});
+
 test('S1 disabled ignores malformed companions and exposes no public configuration', () => {
   const expected = bindings.config({});
   for (const flag of [undefined, '0']) {
@@ -120,13 +244,34 @@ for (const status of [401, 403, 404, 409, 422, 429]) test(`S2 HTTP ${status} sto
   const collected = await client.run(PRODUCTS); transport.done(); assert.equal(client.requestsIssued(), 1); assert.equal(transport.calls.length, 1);
   assert.equal(bindings.classify(bindings.receipts(collected), 20).outcome, 'PROVIDER_BLOCKED');
 });
-test('S2 GET 5xx retries twice at 3000 then 6000 ms; no new POST', async t => {
-  const store = await temporaryPublicStore(t), clock = new FakeClock();
-  const script = successfulScript(); script.splice(3, script.length - 3, ...[500, 502, 503].map(status => ({ method: 'GET' as const, path: `/jobs/${IDS[0]}`, status })));
-  const transport = new FakeTransport(script);
-  const client = bindings.open({ ...store, clock, fetch: transport.fetch });
-  await client.run(); transport.done(); assert.deepEqual(clock.sleeps.slice(-2), [3000, 6000]);
-  assert.equal(transport.posts().length, 1); assert.equal(client.requestsIssued(), transport.calls.length);
+test('S05 row 7: retryable GET permits at most two dispatches with accurate counters; success and non-retryable errors dispatch once', async t => {
+  for (const kind of ['success', 'non-retryable', '5xx', 'transport', 'timeout', 'retry-success'] as const) {
+    const store = await temporaryPublicStore(t), clock = new FakeClock();
+    const statusPath = `/jobs/${IDS[0]}`;
+    const retryable = !['success', 'non-retryable'].includes(kind);
+    const accepted = kind === 'success' || kind === 'retry-success';
+    const failure: Exchange = kind === 'transport' ? { method: 'GET', path: statusPath, error: new TypeError('synthetic disconnect') }
+      : kind === 'timeout' ? { method: 'GET', path: statusPath, error: new DOMException('synthetic timeout', 'TimeoutError') }
+      : { method: 'GET', path: statusPath, status: kind === 'non-retryable' ? 422 : 503 };
+    const terminal: Exchange = { method: 'GET', path: statusPath, body: job(0, 'failed') };
+    const script = successfulScript().slice(0, 3);
+    script.push(...(kind === 'success' ? [terminal] : kind === 'retry-success' ? [failure, terminal]
+      : retryable ? [failure, { ...failure }] : [failure]));
+    const transport = new FakeTransport(script), client = bindings.open({ ...store, clock, fetch: transport.fetch });
+    const value = await client.run(); transport.done();
+    const count = retryable ? 5 : 4;
+    assert.equal(transport.calls.filter(call => call.method === 'GET' && new URL(call.url).pathname === statusPath).length, retryable ? 2 : 1, kind);
+    assert.deepEqual(clock.sleeps, retryable ? [3000] : [], kind);
+    assert.equal(transport.posts().length, 1, kind);
+    assert.equal(client.requestsIssued(), count, kind);
+    assert.equal(value.listings[0].requestCount, count, kind);
+    assert.equal(value.listings[0].requestCountUncertain, false, kind);
+    assert.equal(value.listings[0].stopCode, accepted ? null : kind === 'timeout' ? 'SHOPEE_REVIEW_TIMEOUT' : kind === 'transport' ? 'SHOPEE_REVIEW_TRANSPORT' : kind === 'non-retryable' ? 'SHOPEE_REVIEW_HTTP_422' : 'SHOPEE_REVIEW_HTTP_5XX', kind);
+    const { value: journal } = await s05Journal(store.journalRoot);
+    assert.equal(journal.requestCount, count, kind);
+    assert.equal(journal.terminal.requestCount, count, kind);
+    assert.equal(journal.terminal.stopCode, value.listings[0].stopCode, kind);
+  }
 });
 for (const operation of ['health', 'list', 'submit', 'status', 'cancel', 'result']) test(`S2 ${operation} request/body deadline budget`, async () => {
   for (const remaining of [100000, 1250]) {
