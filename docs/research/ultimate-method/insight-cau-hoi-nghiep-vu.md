@@ -2,6 +2,8 @@
 
 Bản nháp 20/10/2026, dùng để bàn nghiệp vụ. Cập nhật 21/10/2026: mục 6.2 thành từ điển trường (lớp 2), khớp với mã; Phần 7 sửa theo kết quả kiểm mã và tra tài liệu nguồn, thêm chỉ số quảng cáo và số nền. Đây là bản đầu tiên trong repo.
 
+> **Cập nhật 21/10/2026 (F74):** thứ tự và nhóm section mới nằm ở [business-spec insight.md mục 8–9](../../business-spec/business-rules/insight.md). Bản đó thắng tài liệu này. Thay đổi chính: I06 gộp vào I04, I12 gộp vào I13, thêm I18 "Xung đột và câu insight", "Kết luận chính" thành "Insight chính". Phần 1 và các mục I06, I12 bên dưới là bản cũ, giữ để tham khảo.
+
 - **Căn cứ:** Ultimate Method v1.12 (mục 5 và mục 6) và bảng nguồn "Input data sources for 30 sections".
 - **Ví dụ:** dùng sản phẩm thạch dừa. Mọi con số trong ví dụ là **số giả định để minh hoạ**, không phải kết quả thật.
 - **Đơn vị đếm:** "bản ghi" là một review hoặc một bình luận. Báo cáo đếm bản ghi, không đếm người.
@@ -337,7 +339,7 @@ Các section dưới đây xếp theo thứ tự mới.
 ## Phần 3. Điểm cần chốt với đồng nghiệp
 
 1. **Thứ tự mới.** Đồng nghiệp có đồng ý đi theo hành trình mua (phần C) không? Có đồng ý giữ nguyên mã, chỉ đổi thứ tự hiển thị không?
-2. **I06 có nên đứng riêng không.** Dữ liệu cho I06 rất ít vì chỉ ghép trong cùng một bản ghi. Có hai cách:
+2. **I06 có nên đứng riêng không.** *Đã chốt 21/10: gộp I06 vào I04 (insight.md mục 8).* Dữ liệu cho I06 rất ít vì chỉ ghép trong cùng một bản ghi. Có hai cách:
    - giữ I06 làm khung mở đầu phần C;
    - gộp I06 thành một đoạn mở đầu của phần C.
 3. **I11 khi chỉ có Shopee.** Hiện chưa có dữ liệu TikTok, nên không so được giữa hai sàn. Khi đó chỉ còn so mua sỉ với mua lẻ. Giữ hay ẩn I11?

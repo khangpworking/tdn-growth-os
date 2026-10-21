@@ -1,6 +1,6 @@
 # Nghiên cứu phương pháp viết insight
 
-Phiên bản 1.0, ngày 21/10/2026. Loại: tài liệu nghiên cứu. Đây không phải quy tắc nghiệp vụ. Các đề xuất ở Phần 5 chờ chủ duyệt.
+Phiên bản 1.1, ngày 21/10/2026. Loại: tài liệu nghiên cứu. Đây không phải quy tắc nghiệp vụ. Các đề xuất ở Phần 5 đã áp dụng ngày 21/10 (xem [insight.md mục 8–9](../business-rules/insight.md)).
 Nguồn: 3 trang web và 1 đoạn tóm tắt của chủ. Danh sách nguồn có link ở Phần 1.
 Tài liệu này là bản tự viết lại. Tài liệu không chép nguyên văn nguồn.
 
@@ -135,7 +135,9 @@ Nhận xét:
 - **3C** đang rải ở 3 mục: ngành (I10 + phần thị trường), thương hiệu (I13), khách (I07, I08). Chưa có chỗ nào đặt 3 cột cạnh nhau.
 - **Dữ liệu**: các bước 4–13 cần lời khách. Hôm nay lời khách = 0 (S05 lỗi app, S07 chưa nạp tiền). Vì vậy phương pháp này chưa chạy được trên báo cáo thật. Chỉ bước 1–3 và 14–17 chạy được.
 
-## Phần 5. Đề xuất, chờ chủ duyệt (tối đa 3)
+## Phần 5. Đề xuất (đã áp dụng 21/10)
+
+> Chủ cho phép sửa cấu trúc section (F74). Cả 3 đề xuất đã vào [insight.md](../business-rules/insight.md) 1.1: đề xuất 1 thành I18 và R-I29, R-I30; đề xuất 2 thành R-I31 (bảng 3C đặt ở I18); đề xuất 3 thành R-I33.
 
 1. **Thêm "câu insight xung đột" vào đầu I09.** Ghép 1 mã ở I07 và 1 mã ở I08 khi cùng bản ghi có cả hai. Viết theo mẫu ngôi thứ ba có số đếm ở Phần 3. Chỉ ra câu khi có ≥ số bản ghi tối thiểu (chủ chọn ngưỡng). Cần PR vào `docs/business-spec/business-rules/insight.md` (quy tắc mới R-I29).
 2. **Thêm bảng 3C ở I13 hoặc I09.** 3 cột: sự thật ngành (từ khóa), sự thật thương hiệu đang bán, sự thật khách (mã I07/I08). Mỗi ô trỏ tới bản ghi.
