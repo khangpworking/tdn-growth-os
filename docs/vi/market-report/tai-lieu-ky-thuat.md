@@ -2,9 +2,9 @@
 
 Mục đích: mô tả báo cáo Thị trường tự động. Tài liệu gồm module, route, bảng dữ liệu, cờ cấu hình, nguồn, vòng kiểm định, đường PDF, kiểm thử, triển khai và xử lý sự cố.
 
-Cập nhật: 20/10/2026 · Commit chính: `e9e0f444`
+Cập nhật: 21/10/2026 (Phần 5) · Commit chính: `e9e0f444`
 
-> Bản cập nhật 20/10/2026. Bản trước: [bản 20/10/2026 trước khi sửa](../../outdated/2026-10-20/docs/vi/market-report/tai-lieu-ky-thuat.md).
+> Bản cập nhật 21/10/2026. Bản trước: [bản 21/10/2026 trước khi sửa](../../outdated/2026-10-21/docs/vi/market-report/tai-lieu-ky-thuat.md).
 
 Quy ước: đường dẫn là tương đối so với gốc repo. Chỗ nào chưa xác nhận trong mã đã đọc thì ghi "(cần xác nhận)". Mục chưa làm ghi "Chưa làm" hoặc "Kế hoạch".
 
@@ -154,7 +154,7 @@ Trạng thái bật/tắt trên môi trường chạy thật không nằm trong 
 
 ## Phần 5. Nguồn, adapter và giới hạn
 
-Quy chuẩn dữ liệu đầu vào liệt kê các nguồn S01–S28. Đây là tài liệu quản lý ngoài repo, bản v1.36. Tài liệu này không sao chép bảng đầy đủ. Khi sửa, hãy đối chiếu tài liệu đó. Bảng sau tóm tắt các nhóm nguồn và giới hạn đã xác nhận:
+Quy chuẩn dữ liệu đầu vào liệt kê các nguồn S01–S28. Đây là tài liệu quản lý ngoài repo, bản v1.37. Tài liệu này không sao chép bảng đầy đủ. Khi sửa, hãy đối chiếu tài liệu đó. Bảng sau tóm tắt các nhóm nguồn và giới hạn đã xác nhận:
 
 | Nhóm | Nhà cung cấp / công cụ | Ghi chú giới hạn |
 | --- | --- | --- |
@@ -167,6 +167,26 @@ Quy chuẩn dữ liệu đầu vào liệt kê các nguồn S01–S28. Đây là
 | Tài liệu PDF | PageIndex (`pdf-discovery-lane.ts`, `pdf-excerpt.ts`) | Tối đa 32 MiB mỗi tệp đính kèm; ngưỡng số dư trong `src/modules/analysis/pageindex-balance.ts`: cảnh báo khi còn tối đa 2 USD, chặn khi còn tối đa 0,5 USD, tính 0,01 USD mỗi trang lập chỉ mục; trích dẫn phải được kiểm chứng |
 | Video người bán | Làn xem video (`video-watch-lane.ts`, `video-watch-media.ts`) | Tải TikTok chỉ chạy được ở máy chủ triển khai; giữ 45 ngày rồi tự xóa trong ứng dụng (`VIDEO_WATCH_RETENTION_DAYS` trong `video-watch-media.ts`) |
 | Bộ persona tổng hợp (S28) | Kế hoạch, chưa nối vào báo cáo Market | Không bao giờ nêu tên bộ dữ liệu trong báo cáo |
+
+### Trạng thái chạy thật (kiểm tra 21/10/2026)
+
+Căn cứ: 3 lượt Market chạy thật ngày 20/10/2026 (2 lượt quạt điện, 1 lượt thạch dừa). Bảng chỉ ghi nguồn chạy sai, chạy thiếu hoặc chưa ra dữ liệu. S01, S02, S04 và S19 chạy đúng ở cả 3 lượt. Bảng tóm tắt cho người đọc không chuyên ở `docs/research/ultimate-method/source-status.md` mục 2b.
+
+| Nguồn | Kết quả 3 lượt | Nguyên nhân | Chỗ trong mã |
+| --- | --- | --- | --- |
+| S05 Shopee công khai | 3/3 bị chặn, 0 đánh giá | Bước đọc danh sách việc gốc (`GET /jobs?limit=100`) kiểm từng dòng; một dòng sai mẫu làm cả bước lỗi `INVALID_RESPONSE`; việc mới không bao giờ được gửi | `shopee-public-reviews.ts` |
+| S14 Video người bán | Đọc 2–3/9 video mỗi lượt, 0 đoạn lên báo cáo | Ứng viên chỉ đến từ tìm kiếm chung (`EXPANDED_SEARCH`); mọi bài đọc bị loại `NOT_ABOUT_PRODUCT`; giới hạn 180 giây, 14 MiB | `video-watch-lane.ts`, `video-watch-media.ts`, `seller-video.ts` |
+| S15 Quảng cáo Meta | 3/3 dừng `STOPPED` | Trình duyệt trên máy chủ đang đăng nhập (`LOGGED_IN_SESSION_PRESENT`); làn chỉ đọc khi không đăng nhập | `meta-auto-lane.ts` |
+| S16 Quảng cáo TikTok nổi bật | 3/3 dừng | Trang đòi đăng nhập (`LOGIN_REQUIRED`) | `tiktok-top-ads-lane.ts` |
+| S17 Quảng cáo tìm kiếm | 0 mẫu quảng cáo | Cần đúng 1 trang trong top 5 kết quả tự nhiên khớp tên thương hiệu; 6/9 lần tra `NO_MATCH`, 2/9 `AMBIGUOUS` | `google-ads-lane.ts` |
+| S20 Mức quan tâm tìm kiếm | 2/3 bỏ qua | Luôn hỏi 12 tháng gần nhất; cổng 372 ngày loại kỳ cũ → `PERIOD_NOT_COVERED` | `search-interest.ts`, `search-geo.ts` |
+| S21, S22 Thống kê chính thức | 2/3 có số | Lượt thạch dừa: bước chọn nhóm hàng không ra kết quả → `CATEGORY_NOT_MAPPED`, không thử lại | `official-statistics-lane.ts` |
+| S23 Ngân hàng Thế giới | 3/3 có số | 1 chỉ số `TIMEOUT`, không thử lại | `world-bank-lane.ts` |
+| S24 Thương mại quốc tế | 2/3 có số | 1 lượt `HS_CODE_NOT_CONFIRMED` vì câu trả lời xác nhận mã hàng sai mẫu, không hỏi lại | `comtrade-lane.ts` |
+| S25 Tài liệu PDF | 0 trích dẫn | Lượt 1 `SEARCH_FAILED`, lượt 2 `NOT_ADMITTED`; lượt 3 giữ 2 tệp, nhưng báo cáo dựng khi tệp còn đang lập chỉ mục, nên 0 câu hỏi | `service.ts` (`#processRunPdfs`), `pdf-discovery-lane.ts` |
+| S07 Bình luận dưới video | Chưa chạy | Tài khoản thu hết tiền; Insight tạm dừng từ 19/10/2026 | — |
+
+Cách sửa các lỗi trên nằm trong gói sửa đang chờ chủ duyệt. Tài liệu này sẽ cập nhật khi gói được gộp.
 
 Mọi nhà cung cấp đứng sau cổng `AutomationSourcePort` (ADR 0006): thông tin xác thực và giao thức nằm ở adapter, không nằm ở dịch vụ lõi. Chi phí và số lượt gọi được ghi theo từng bước; chi phí chưa biết hiển thị là "chưa có số liệu", không hiển thị 0.
 

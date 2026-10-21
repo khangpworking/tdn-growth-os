@@ -1,8 +1,8 @@
 # Trạng thái nguồn dữ liệu
 
-> Bản cập nhật 20/10/2026. Bản trước: [bản 20/10/2026 trước khi sửa](../../outdated/2026-10-20/docs/research/ultimate-method/source-status.md).
+> Bản cập nhật 21/10/2026. Bản trước: [bản 21/10/2026 trước khi sửa](../../outdated/2026-10-21/docs/research/ultimate-method/source-status.md).
 
-Trạng thái từng nguồn dữ liệu đầu vào và nhật ký đổi trạng thái · cập nhật 19/10/2026 · đi kèm [Input data sources for 30 sections](input-data-sources-30-sections.md)
+Trạng thái từng nguồn dữ liệu đầu vào và nhật ký đổi trạng thái · cập nhật 21/10/2026 · đi kèm [Input data sources for 30 sections](input-data-sources-30-sections.md)
 
 Trang này cho biết mỗi nguồn (mã S) **đang ở trạng thái nào** và **đổi trạng thái khi nào, vì sao**. Trang chỉ để đọc thông tin:
 - không có code nào đọc nhãn ở đây;
@@ -33,35 +33,75 @@ E14 của file Ultimate nói về "nguồn đang dùng hoặc đã duyệt". Ở
 
 "Ngày cập nhật" là ngày trạng thái được ghi lần gần nhất. Danh mục nguồn ghi trạng thái tính tới 08/10/2026; chủ duyệt S07, S15, S21, S22 ngày 12/10/2026 (S15, S21, S22 cập nhật thêm ngày 17/10/2026); S05 và S17 cập nhật ngày 19/10/2026; dòng nào ghi ngày mới hơn thì theo ngày đó.
 
+Ngày 21/10/2026, ghi chú được cập nhật theo kết quả kiểm tra nguồn trên 3 lượt Market chạy thật ngày 20/10/2026 (mục 2b). Nhãn giữ nguyên, trừ S11 (chủ bỏ ngày 17/10/2026). Đổi nhãn khác là việc của chủ.
+
 | Mã | Nguồn | Nhãn | Ngày cập nhật | Ghi chú |
 |---|---|---|---|---|
-| S01 | Dữ liệu bán hàng trên sàn | Đã duyệt | 08/10/2026 | Đang dùng |
-| S02 | Dữ liệu video bán hàng TikTok | Đã duyệt | 08/10/2026 | Đang dùng một phần |
+| S01 | Dữ liệu bán hàng trên sàn | Đã duyệt | 21/10/2026 | Đang dùng; 3/3 lượt ngày 20/10 có dữ liệu |
+| S02 | Dữ liệu video bán hàng TikTok | Đã duyệt | 21/10/2026 | Đang dùng; 3/3 lượt có dữ liệu, khoảng 61 lần gọi trả phí mỗi lượt; hết điểm thì dừng |
 | S03 | Dữ liệu xuất nhập khẩu theo doanh nghiệp | Không thu | 08/10/2026 | Chưa có phiên truy cập hợp lệ |
-| S04 | Trang bán sản phẩm | Đã duyệt | 08/10/2026 | Đang dùng |
-| S05 | Review Shopee | Đã duyệt | 19/10/2026 | Đang dùng. Từ 19/10 bình luận Shopee đến từ dịch vụ Shopee API mới (gói S, #346, đã gộp, chưa triển khai, tối đa 300 mỗi sản phẩm). Báo cáo Market chỉ đếm, không trích nguyên văn (phương án A) |
+| S04 | Trang bán sản phẩm | Đã duyệt | 21/10/2026 | Đang dùng; 3/3 lượt ngày 20/10 có dữ liệu |
+| S05 | Review Shopee | Đã duyệt | 21/10/2026 | Dịch vụ Shopee API mới (gói S, #346) đã triển khai, tối đa 300 mỗi sản phẩm. Chưa lần nào ra dữ liệu: 3/3 lượt ngày 20/10 bị chặn, 0 review. Lỗi ở phía ứng dụng, không ở phía Shopee; cách sửa chờ chủ duyệt. Báo cáo Market chỉ đếm, không trích nguyên văn (phương án A) |
 | S06 | Review TikTok Shop | Đề xuất | 08/10/2026 | Chưa có bộ thu |
-| S07 | Bình luận dưới video TikTok | Đã duyệt | 12/10/2026 | Chủ duyệt 12/10; vào hệ thống qua gói P9 |
+| S07 | Bình luận dưới video TikTok | Đã duyệt | 21/10/2026 | Chủ duyệt 12/10; vào hệ thống qua gói P9. Chưa chạy trên máy chủ: tài khoản thu đã hết tiền, và Insight tạm dừng từ 19/10. Nạp tiền là việc của chủ |
 | S08 | Bài viết Facebook công khai | Không thu | 08/10/2026 | Chủ tạm ngừng 08/10 |
 | S09 | Instagram | Không thu | 08/10/2026 | Test không đạt: không lấy được nội dung |
 | S10 | X (Twitter) | Đã test | 08/10/2026 | Một phần; chỉ nguồn phụ, phải lọc |
-| S11 | Bình luận YouTube | Đề xuất | 08/10/2026 | — |
+| S11 | Bình luận YouTube | Không thu | 21/10/2026 | Chủ bỏ nguồn này ngày 17/10/2026 |
 | S12 | Dữ liệu của chính shop chủ | Không thu | 08/10/2026 | Chưa có dữ liệu |
 | S13 | Công thức, bài hướng dẫn dùng sản phẩm | Đề xuất | 08/10/2026 | Tìm qua S19 |
-| S14 | Nội dung video bán hàng | Chạy thử | 08/10/2026 | Gói P9, đã có checklist |
-| S15 | Thư viện quảng cáo Meta | Đã duyệt | 17/10/2026 | Chủ duyệt 12/10; chỉ đọc theo trang; máy tự đọc trang công khai sau cờ TDN_RESEARCH_META_AUTO_ENABLED (mặc định tắt), cách đọc chưa được kiểm chứng trên trang thật |
-| S16 | Quảng cáo nổi bật trên TikTok | Chạy thử | 17/10/2026 | Chủ duyệt bộ máy tự đọc 17/10; máy tự đọc trang quảng cáo nổi bật công khai theo từ khoá sản phẩm, không đăng nhập, sau cờ TDN_RESEARCH_TIKTOK_TOPADS_ENABLED (mặc định tắt); cách đọc chưa được kiểm chứng trên trang thật, lượt chạy thử đầu là bản kiểm chứng |
-| S17 | Thư viện quảng cáo công khai của công cụ tìm kiếm | Đã duyệt | 19/10/2026 | Chủ duyệt 17/10; ngày 19/10 thêm bước tự tìm trang web chính thức của thương hiệu (commit `acd42991`, đã có trong bản chạy thật `f026acd9`); chỉ đếm quảng cáo theo trang web của tối đa 3 thương hiệu đầu (cờ TDN_RESEARCH_GOOGLE_ADS_ENABLED); chưa dùng cho phép kiểm 3 của E5 |
+| S14 | Nội dung video bán hàng | Chạy thử | 21/10/2026 | Gói P9, đã có checklist. Chạy 3/3 lượt ngày 20/10: đọc 2–3 trong 9 video ứng viên mỗi lượt, 0 đoạn lên báo cáo. Ứng viên chỉ đến từ kết quả tìm kiếm chung, nên mọi video đã đọc bị chấm "không nói về sản phẩm". Video dài hơn 180 giây hoặc nặng hơn 14 MB bị bỏ |
+| S15 | Thư viện quảng cáo Meta | Đã duyệt | 21/10/2026 | Chủ duyệt 12/10; chỉ đọc theo trang, không đăng nhập. Máy tự đọc (cờ TDN_RESEARCH_META_AUTO_ENABLED) đã chạy, nhưng chưa lần nào ra dữ liệu: 3/3 lượt dừng ở trang đầu, vì trình duyệt trên máy chủ đang đăng nhập Facebook. Cách xử lý chờ chủ quyết |
+| S16 | Quảng cáo nổi bật trên TikTok | Chạy thử | 21/10/2026 | Chủ duyệt bộ máy tự đọc 17/10; không đăng nhập (cờ TDN_RESEARCH_TIKTOK_TOPADS_ENABLED). Máy tự đọc đã chạy, nhưng chưa lần nào ra dữ liệu: 3/3 lượt dừng, vì trang đòi đăng nhập. Hướng đi chờ chủ quyết |
+| S17 | Thư viện quảng cáo công khai của công cụ tìm kiếm | Đã duyệt | 21/10/2026 | Chủ duyệt 17/10; bước tự tìm trang web chính thức của thương hiệu có từ 19/10 (cờ TDN_RESEARCH_GOOGLE_ADS_ENABLED). Chạy 3/3 lượt ngày 20/10, chưa có mẫu quảng cáo nào: 9 lần tra thương hiệu thì 6 lần không tìm được trang web, 2 lần ra nhiều trang, 1 lần có trang web nhưng 0 quảng cáo. Chưa dùng cho phép kiểm 3 của E5 |
 | S18 | Trang thương hiệu Facebook | Đề xuất | 08/10/2026 | — |
-| S19 | Kết quả tìm kiếm Google mở rộng | Chạy thử | 08/10/2026 | Chờ chạy thử Phase 0 |
-| S20 | Mức quan tâm tìm kiếm trên Google (Trends) | Chạy thử | 08/10/2026 | Chờ chạy thử Phase 0 |
-| S21 | Cục Thống kê | Đã duyệt | 17/10/2026 | Chủ duyệt 12/10; bộ thu tự động sau cờ TDN_RESEARCH_OFFICIAL_STATS_ENABLED (mặc định tắt); M05 Bảng 5.4 chỉ là bối cảnh cả nước |
-| S22 | Cục Thống kê theo tỉnh | Đã duyệt | 17/10/2026 | Chủ duyệt 12/10; máy tự đọc bảng chỉ số giá theo tỉnh trong cùng file CPI của S21, sau cờ TDN_RESEARCH_OFFICIAL_STATS_PROVINCE_ENABLED (mặc định tắt, cần bật cả cờ S21); khi bật cờ, file CPI được tải ở mọi lượt Market (tổng vẫn tối đa 3 lần gọi, không thử lại); Bảng 5.4 không đổi; M05 Bảng 5.5 chỉ là bối cảnh theo tỉnh |
-| S23 | Ngân hàng Thế giới (dữ liệu mở) | Đã duyệt | 17/10/2026 | Duyệt theo E13; bộ thu đã vào hệ thống, chạy sau cờ TDN_RESEARCH_WORLD_BANK_ENABLED (mặc định tắt); bối cảnh cả nước |
-| S24 | Cơ sở dữ liệu thương mại của Liên Hợp Quốc | Đã duyệt | 17/10/2026 | Chủ duyệt; bộ thu đã vào hệ thống, chạy sau cờ TDN_RESEARCH_COMTRADE_ENABLED (mặc định tắt); M06 là bối cảnh cả nước |
-| S25 | Báo cáo ngành, báo cáo thường niên doanh nghiệp | Đã duyệt | 17/10/2026 | Đang dùng ở M09; tự tìm và tải tối đa 2 tệp PDF mỗi lượt sau cờ TDN_RESEARCH_PDF_DISCOVERY_ENABLED (mặc định tắt); mỗi tệp tự tải mặc định dài tối đa 60 trang (TDN_RESEARCH_PDF_DISCOVERY_MAX_PAGES), tệp dài hơn bị bỏ, không lưu; tài liệu chủ gửi được hỏi trước, vẫn theo giới hạn 1–1000 trang của bộ đọc; chỉ tải thêm tệp có chỗ trong kế hoạch hỏi, tính cả tài liệu đã thu; khi chưa bật bộ đọc tài liệu hoặc hết chỗ thì không tự tìm, không tự tải |
+| S19 | Kết quả tìm kiếm Google mở rộng | Chạy thử | 21/10/2026 | Chạy trong mọi lượt Market: 3 câu tìm, 9 kết quả mỗi lượt, đúng trần; 3/3 lượt ngày 20/10 có dữ liệu |
+| S20 | Mức quan tâm tìm kiếm trên Google (Trends) | Chạy thử | 21/10/2026 | Chạy cả theo thời gian và theo tỉnh, nhưng chỉ khi kỳ báo cáo kết thúc trong khoảng 7 ngày trước ngày chạy. Kỳ cũ hơn bị bỏ qua: 2/3 lượt ngày 20/10. Cách sửa: hỏi đúng khoảng ngày của kỳ |
+| S21 | Cục Thống kê | Đã duyệt | 21/10/2026 | Chủ duyệt 12/10; bộ thu tự động (cờ TDN_RESEARCH_OFFICIAL_STATS_ENABLED) có số ở 2/3 lượt ngày 20/10. Lượt thạch dừa có 0 số, vì bước AI chọn nhóm hàng không ra kết quả và không hỏi lại. M05 Bảng 5.4 chỉ là bối cảnh cả nước |
+| S22 | Cục Thống kê theo tỉnh | Đã duyệt | 21/10/2026 | Chủ duyệt 12/10; đọc bảng chỉ số giá theo tỉnh trong cùng file CPI của S21 (cờ TDN_RESEARCH_OFFICIAL_STATS_PROVINCE_ENABLED, cần cả cờ S21), nên cùng kết quả với S21: 2/3 lượt có số. M05 Bảng 5.5 chỉ là bối cảnh theo tỉnh |
+| S23 | Ngân hàng Thế giới (dữ liệu mở) | Đã duyệt | 21/10/2026 | Duyệt theo E13; bộ thu (cờ TDN_RESEARCH_WORLD_BANK_ENABLED) có số ở 3/3 lượt ngày 20/10. Một lượt thiếu 1 chỉ số: lần gọi quá giờ, và hệ thống không gọi lại. Bối cảnh cả nước |
+| S24 | Cơ sở dữ liệu thương mại của Liên Hợp Quốc | Đã duyệt | 21/10/2026 | Chủ duyệt; bộ thu (cờ TDN_RESEARCH_COMTRADE_ENABLED) có số ở 2/3 lượt ngày 20/10. Một lượt có 0 dòng, vì bước AI xác nhận mã hàng trả lời sai mẫu và không hỏi lại. M06 là bối cảnh cả nước |
+| S25 | Báo cáo ngành, báo cáo thường niên doanh nghiệp | Đã duyệt | 21/10/2026 | Dùng ở M09. Tự tìm PDF (cờ TDN_RESEARCH_PDF_DISCOVERY_ENABLED) đã chạy, nhưng chưa lần nào ra trích dẫn: 1 lượt bước tìm bị lỗi, 1 lượt bộ lọc loại hết kết quả, 1 lượt tải 2 tệp nhưng báo cáo được dựng trước khi đọc xong tệp. Giới hạn không đổi: tối đa 2 tệp mỗi lượt, 60 trang mỗi tệp tự tải; chi tiết ở nhật ký ngày 17/10/2026 |
 | S26 | Báo chí, tin an toàn thực phẩm | Đề xuất | 08/10/2026 | Tìm qua S19 |
 | S27 | Bản quét review của bên thứ ba | Không thu | 08/10/2026 | Thiếu số sao và người viết; đã thay bằng S05 |
+
+### 2b. Kết quả kiểm tra nguồn ngày 21/10/2026
+
+Căn cứ: 3 lượt Market chạy thật trên máy chủ ngày 20/10/2026. Lượt 1 và lượt 3 là quạt điện, kỳ 13/10/2025–12/10/2026. Lượt 2 là thạch dừa, kỳ 21/10/2025–20/10/2026; lượt này bị huỷ trước khi xong báo cáo, nhưng bước thu dữ liệu đã chạy.
+
+| Mã | Lượt 1 | Lượt 2 | Lượt 3 |
+|---|---|---|---|
+| S01, S04 | Có | Có | Có |
+| S02 | Có | Có | Có |
+| S19 | Có | Có | Có |
+| S23 | Thiếu 1 chỉ số (quá giờ) | Có | Có |
+| S21, S22 | Có | Không ghép được nhóm hàng | Có |
+| S24 | Có | Có | Không xác nhận được mã hàng |
+| S20 (theo thời gian và theo tỉnh) | Bỏ qua (kỳ cũ) | Có | Bỏ qua (kỳ cũ) |
+| S17 | Không có dữ liệu | Chạy, 0 quảng cáo | Không có dữ liệu |
+| S25 | Bước tìm bị lỗi | Bộ lọc loại hết | Tải 2 tệp, chưa đọc xong |
+| S14 | Đọc 3/9 video, 0 lên báo cáo | Đọc 2/9, 0 | Đọc 2/9, 0 |
+| S05 | Bị chặn | Bị chặn | Bị chặn |
+| S15 | Dừng (trình duyệt đang đăng nhập) | Dừng | Dừng |
+| S16 | Dừng (trang đòi đăng nhập) | Dừng | Dừng |
+
+```mermaid
+pie showData
+    title Nguồn S01–S27 theo kết quả kiểm tra 21/10/2026
+    "Chạy đúng" : 7
+    "Chạy nhưng sai hoặc thiếu" : 7
+    "Chưa lần nào ra dữ liệu" : 3
+    "Chưa chạy trên máy chủ" : 1
+    "Chưa triển khai hoặc không thu" : 9
+```
+
+- **Chạy đúng:** S01, S02, S04, S13, S19, S23, S26 (S13 và S26 tìm qua S19).
+- **Chạy nhưng sai hoặc thiếu:** S14, S17, S20, S21, S22, S24, S25.
+- **Chưa lần nào ra dữ liệu:** S05, S15, S16.
+- **Chưa chạy trên máy chủ:** S07.
+- **Chưa triển khai hoặc không thu:** S03, S06, S08, S09, S10, S11, S12, S18, S27.
+
+Gói sửa cho nhóm "sai hoặc thiếu" và cho S05 đang chờ chủ duyệt. S15, S16 cần chủ chọn cách xử lý. Trang này chỉ ghi kết quả; nhãn đổi khi chủ quyết.
 
 ---
 
@@ -73,6 +113,11 @@ Dòng trước 12/10/2026 ghi lại từ danh mục nguồn, nhật ký test và
 
 | Ngày | Mã nguồn | Nhãn cũ → nhãn mới | Lý do | Ai quyết |
 |---|---|---|---|---|
+| 21/10/2026 | S11 | Đề xuất → Không thu | Chủ bỏ bình luận YouTube ngày 17/10/2026; trang này chưa ghi lại (DS-20261021-01) | Chủ (17/10) |
+| 21/10/2026 | S05, S15, S16 | Giữ nhãn (S05, S15 Đã duyệt; S16 Chạy thử) | Kiểm tra nguồn 21/10 (mục 2b): bộ thu đã chạy 3/3 lượt Market ngày 20/10 nhưng chưa lần nào ra dữ liệu. S05: lỗi phía ứng dụng. S15: trình duyệt trên máy chủ đang đăng nhập. S16: trang đòi đăng nhập (DS-20261021-01) | Ghi kết quả; nhãn chờ chủ quyết |
+| 21/10/2026 | S14, S17, S20, S21, S22, S24, S25 | Giữ nhãn | Kiểm tra nguồn 21/10 (mục 2b): bộ thu chạy nhưng kết quả sai hoặc thiếu. S25 chưa lần nào ra trích dẫn; S14 có 0 đoạn video lên báo cáo; S17 có 0 mẫu quảng cáo; S20 bỏ qua kỳ cũ; S21, S22, S24 hỏng 1/3 lượt vì bước AI không hỏi lại (DS-20261021-01) | Ghi kết quả; cách sửa chờ chủ duyệt |
+| 21/10/2026 | S01, S02, S04, S19, S23 | Giữ nhãn | Kiểm tra nguồn 21/10 (mục 2b): chạy đúng ở 3/3 lượt; S23 thiếu 1 chỉ số ở 1 lượt vì quá giờ (DS-20261021-01) | Ghi kết quả |
+| 21/10/2026 | S07 | Giữ nhãn Đã duyệt | Chưa chạy trên máy chủ: tài khoản thu đã hết tiền; Insight tạm dừng từ 19/10 (DS-20261021-01) | Ghi kết quả |
 | 19/10/2026 | S17 | Đã duyệt → Đã duyệt | Thêm bước tự tìm trang web chính thức của thương hiệu (v2, commit `acd42991`); đã triển khai trong `f026acd9`; nhãn không đổi | Chủ (duyệt 17/10) |
 | 19/10/2026 | S05 | Đã duyệt → Đã duyệt | Bình luận Shopee chuyển sang dịch vụ Shopee API mới (gói S, #346, đã gộp, chưa triển khai, tối đa 300 mỗi sản phẩm); báo cáo Market chỉ đếm, không trích nguyên văn (phương án A); nhãn không đổi | Chủ (19/10) |
 | 17/10/2026 | S25 | Đã duyệt → Đã duyệt | Thêm giới hạn cho tệp tự tải: mặc định tối đa 60 trang mỗi tệp, tệp dài hơn bị bỏ, không lưu; tài liệu chủ gửi được hỏi trước; chỉ tải thêm tệp có chỗ trong kế hoạch hỏi, tính cả tài liệu đã thu; khi chưa bật bộ đọc tài liệu hoặc hết chỗ thì không tự tìm, không tự tải; nhãn không đổi | Chủ (duyệt 17/10) |
