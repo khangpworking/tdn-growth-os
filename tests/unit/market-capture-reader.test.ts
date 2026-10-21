@@ -188,7 +188,8 @@ test('page figures keep their own citation even without attributed rows; missing
     const dom = new JSDOM(stripTraceDetails(renderAutomationMarketFindings(input.marketPresentation!, citations, true, varied)));
     const pageItem = [...dom.window.document.querySelectorAll('li')].find(li => text(li).includes('12.345 VND'))!;
     assert.ok(pageItem, 'a page figure does not depend on attributed sample rows');
-    assert.match(text(pageItem), /chưa có số đơn vị bán/u);
+    // UNIT-209 C4: a page figure states revenue only; units sold across products are never stated.
+    assert.doesNotMatch(text(pageItem), /đơn vị bán/u);
     const n = Number(pageItem.querySelector('sup.cite')!.textContent!.slice(1, -1));
     assert.equal(source.entries().find(entry => entry.number === n)!.label, 'Số liệu nền tảng trong bản lưu nguồn');
     const trace = source.technicalTrace().entries.find(entry => entry.number === n)!;
@@ -306,7 +307,7 @@ test('automation reports without capture pin the M13 pointer; without presentati
   const { capture: _capture, ...metricMethods } = input.metricMethods!;
   const { marketPresentation: _presentation, ...noPresentation } = input;
   const variants = [
-    { value: { ...input, metricMethods }, html: '0375a88d3b5b73b58a92f77f190e6ebb9ad8a9b8af501b03a88b334c37fe0b5c', semantic: 'de585c1f267a1d36644443579f4b684e9767a6fa1b7502f3b87c465e3224c3fc', trace: 'c6f29e17fbe672e96c17abd49b965b3623c0721e153af411b087adc82df0701e' },
+    { value: { ...input, metricMethods }, html: '05c8f5d3b884d2c2c6197ca42accbe9ebaa71d10faf3aa9af355272c7c1b221d', semantic: 'de585c1f267a1d36644443579f4b684e9767a6fa1b7502f3b87c465e3224c3fc', trace: 'c6f29e17fbe672e96c17abd49b965b3623c0721e153af411b087adc82df0701e' },
     { value: noPresentation, html: '92ada31fa0a8a276d05aedc38fe418c3b5204f0750ef89020453a998526c6da9', semantic: '89b388819561c90b6082847afb079b85aa911457862ca7d542d5335860c3f8a5', trace: null },
   ];
   for (const variant of variants) {

@@ -5,7 +5,8 @@
  * never summed, and no budget, uplift or forecast is produced.
  */
 export type ActionPlatform = 'shopee' | 'tiktok';
-export type ActionRow = { readonly platform: string; readonly rev: number | null | undefined; readonly units: number | null | undefined };
+/** `unitPrice` (from market-title-quantity.ts) is set only by the current reader; legacy readers group on revenue per unit sold. */
+export type ActionRow = { readonly platform: string; readonly rev: number | null | undefined; readonly units: number | null | undefined; readonly title?: string; readonly unitPrice?: number | null };
 export type PriceBand = { readonly low: number; readonly high: number; readonly revenue: number; readonly count: number };
 export type RevenueGroup = { readonly revenue: number; readonly count: number };
 export type PlatformSignal = { readonly platform: ActionPlatform; readonly name: string; readonly band: PriceBand | null; readonly leaders: RevenueGroup | null };
@@ -25,8 +26,9 @@ const sum = (values: readonly number[]): number => values.reduce((total, value) 
 export const vnd = (value: number): string => Math.round(value).toLocaleString('vi-VN');
 
 /** One shared grouping basis; keep raw revenue for the legacy winning-band tie rule. */
-function priceGroups(rows: readonly ActionRow[]) {
-  const priced = rows.flatMap(row => positive(row.rev) && positive(row.units) ? [{ rev: row.rev, asp: row.rev / row.units }] : [])
+function priceGroups(rows: readonly ActionRow[], byUnit = false) {
+  const priced = rows.flatMap(row => !positive(row.rev) ? [] : byUnit ? positive(row.unitPrice) ? [{ rev: row.rev, asp: row.unitPrice }] : []
+    : positive(row.units) ? [{ rev: row.rev, asp: row.rev / row.units }] : [])
     .sort((a, b) => a.asp - b.asp || a.rev - b.rev);
   const cuts = [0, Math.floor(priced.length / 3), Math.floor((2 * priced.length) / 3), priced.length];
   return { eligible: priced.length, groups: priced.length < MIN_BAND_ROWS ? [] : [0, 1, 2].map(index => priced.slice(cuts[index], cuts[index + 1])) };
@@ -36,20 +38,20 @@ const priceBand = (group: readonly { rev: number; asp: number }[]): PriceBand =>
 });
 
 /** The same three equal-count groups used by platformSignals, with their eligible denominator. */
-export function platformPriceBands(rows: readonly ActionRow[]): { platform: ActionPlatform; name: string; bands: PriceBand[]; eligible: number; retained: number }[] {
+export function platformPriceBands(rows: readonly ActionRow[], byUnit = false): { platform: ActionPlatform; name: string; bands: PriceBand[]; eligible: number; retained: number }[] {
   return PLATFORMS.filter(platform => rows.some(row => row.platform === platform)).map(platform => {
     const own = rows.filter(row => row.platform === platform);
-    const { eligible, groups } = priceGroups(own);
+    const { eligible, groups } = priceGroups(own, byUnit);
     const bands = groups.map(priceBand);
     return { platform, name: NAMES[platform], bands, eligible, retained: own.length };
   });
 }
 
 /** Per platform: the price group (of three, by revenue per unit sold) carrying the most in-sample revenue, and the high-revenue product group. */
-export function platformSignals(rows: readonly ActionRow[]): PlatformSignal[] {
+export function platformSignals(rows: readonly ActionRow[], byUnit = false): PlatformSignal[] {
   return PLATFORMS.filter(platform => rows.some(row => row.platform === platform)).map(platform => {
     const own = rows.filter(row => row.platform === platform);
-    const { groups } = priceGroups(own);
+    const { groups } = priceGroups(own, byUnit);
     // A tie keeps the lower price group, using unrounded revenue.
     const band = groups.length ? priceBand(groups.reduce((top, group) => sum(group.map(row => row.rev)) > sum(top.map(row => row.rev)) ? group : top)) : null;
     const sold = own.flatMap(row => positive(row.rev) ? [row.rev] : []).sort((a, b) => b - a);
@@ -92,9 +94,11 @@ export const ACTION_NOTE = 'Phương án, người phụ trách và hạn là đ
 export const QUICK_WIN_HEADING = 'Làm ngay (không tốn chi phí)';
 export const OPPORTUNITY_READING = 'Mỗi sàn đọc riêng: sản phẩm có cả doanh thu và đơn vị bán được chia theo giá thành ba nhóm gần bằng nhau về số sản phẩm, và khoảng giá ở bảng là nhóm có doanh thu lớn trong ba nhóm đó. Nhóm sản phẩm doanh thu lớn gồm tối đa năm sản phẩm của sàn đó. Hai nhóm có thể trùng sản phẩm, nên mỗi cột chỉ đọc riêng.';
 
+export const OPPORTUNITY_UNIT_READING = 'Mỗi sàn đọc riêng: sản phẩm quy đổi được theo quy cách trong tên sản phẩm được chia theo giá quy đổi thành ba nhóm gần bằng nhau về số sản phẩm, và khoảng giá ở bảng là nhóm có doanh thu lớn trong ba nhóm đó. Nhóm sản phẩm doanh thu lớn gồm tối đa năm sản phẩm của sàn đó. Hai nhóm có thể trùng sản phẩm, nên mỗi cột chỉ đọc riêng.';
+
 export function opportunityExplanation(hasFigures: boolean, reviewsCollected: boolean, currentReader = false): string {
   if (currentReader) return hasFigures
-    ? 'Các khoảng giá được đọc riêng từng sàn từ doanh thu và đơn vị bán trong mẫu. Các đề xuất ở Phần 12 là những bước kiểm tra kinh doanh, chờ chủ duyệt; chưa xác định khả năng sinh lời.'
+    ? 'Các khoảng giá được đọc riêng từng sàn từ giá đã quy đổi theo quy cách trong tên sản phẩm. Các đề xuất ở Phần 12 là những bước kiểm tra kinh doanh, chờ chủ duyệt; chưa xác định khả năng sinh lời.'
     : 'Chưa đủ dữ liệu để nêu cơ hội theo khoảng giá trong mẫu.';
   const reviews = reviewsCollected ? 'Lần chạy này đã thu đánh giá của khách; điểm khen và chê được đọc ở phương án C, Phần 12.'
     : 'Lần chạy này chưa thu đánh giá của khách, nên chưa biết khách chưa hài lòng ở điểm nào.';
@@ -104,15 +108,17 @@ export function opportunityExplanation(hasFigures: boolean, reviewsCollected: bo
 }
 
 /** Three options (A–C) with in-sample related revenue per platform, plus quick wins; dates count from `startDay` (yyyy-mm-dd). */
-export function marketActionPlan(rows: readonly ActionRow[], { reviewsCollected, startDay, currentReader = false }: { reviewsCollected: boolean; startDay: string | null; currentReader?: boolean }): MarketActionPlan {
-  const signals = platformSignals(rows).map(signal => currentReader && signal.band && (signal.band.low <= 0 || signal.band.high <= 0)
+export function marketActionPlan(rows: readonly ActionRow[], { reviewsCollected, startDay, currentReader = false, unitStandard }: { reviewsCollected: boolean; startDay: string | null; currentReader?: boolean; unitStandard?: string | null }): MarketActionPlan {
+  // undefined keeps revenue per unit sold; a string or null means title-unit prices (null = no comparison).
+  const byUnit = currentReader && unitStandard !== undefined;
+  const signals = platformSignals(rows, byUnit).map(signal => currentReader && signal.band && (signal.band.low <= 0 || signal.band.high <= 0)
     ? { ...signal, band: null } : signal);
   const day = actionStartDay(startDay);
   const deadline = (days: number): string => day === null ? 'Chưa có ngày bắt đầu hợp lệ' : dayPlus(day, days);
   if (currentReader) {
     const related = signals.length ? signals.map(({ name, band }) => band
-      ? `${name}: khoảng giá ${vnd(band.low)}–${vnd(band.high)} VND mỗi đơn vị bán; ${band.count} sản phẩm, doanh thu nhóm ${vnd(band.revenue)} VND`
-      : `${name}: chưa đủ dữ liệu giá để xác định khoảng giá`) : ['Chưa đủ dữ liệu giá để xác định khoảng giá theo sàn'];
+      ? `${name}: khoảng giá ${vnd(band.low)}–${vnd(band.high)} ${byUnit ? unitStandard : 'VND mỗi đơn vị bán'}; ${band.count} sản phẩm, doanh thu nhóm ${vnd(band.revenue)} VND`
+      : `${name}: ${missingBandText(byUnit, unitStandard)}`) : ['Chưa đủ dữ liệu giá để xác định khoảng giá theo sàn'];
     const options: ActionOption[] = [
       { name: 'A. Kiểm tra mức giá dự kiến trong khoảng giá của mẫu', related,
         firstStep: 'Đối chiếu mức giá dự kiến với khoảng giá cùng sàn; trình chủ duyệt trước khi thay đổi giá',
@@ -160,13 +166,23 @@ export function marketActionPlan(rows: readonly ActionRow[], { reviewsCollected,
 
 export const OPTION_HEADINGS = ['Phương án', 'Doanh thu liên quan trong mẫu', 'Bước kiểm đầu tiên', 'Người phụ trách', 'Hạn'] as const;
 export const QUICK_WIN_HEADINGS = ['Việc', 'Người phụ trách', 'Hạn', 'Đầu ra'] as const;
+/** Band cell when a platform has no price group; title-unit wording only when `byUnit`. */
+export function missingBandText(byUnit: boolean, unitStandard: string | null | undefined): string {
+  if (!byUnit) return 'chưa đủ dữ liệu giá để xác định khoảng giá';
+  return unitStandard ? 'chưa đủ dữ liệu giá quy đổi được để chia khoảng giá' : 'chưa so giá giữa các sản phẩm vì quy cách khác nhau hoặc không ghi trong tên sản phẩm';
+}
+
 export const OPPORTUNITY_HEADINGS = ['Sàn', 'Khoảng giá có doanh thu lớn (VND mỗi đơn vị bán)', 'Doanh thu của khoảng giá (VND)', 'Số sản phẩm trong khoảng giá',
   'Doanh thu của nhóm sản phẩm doanh thu lớn (VND)', 'Số sản phẩm trong nhóm'] as const;
 
+/** Current reader: the price column names the title-unit standard. */
+export const opportunityHeadings = (unitStandard: string): readonly string[] =>
+  OPPORTUNITY_HEADINGS.map((heading, index) => index === 1 ? `Khoảng giá có doanh thu lớn (${unitStandard})` : heading);
+
 /** Cell text of the per-platform opportunity table (escaped by the caller). */
-export function opportunityRows(signals: readonly PlatformSignal[]): string[][] {
+export function opportunityRows(signals: readonly PlatformSignal[], missingBand = 'chưa đủ dòng có cả doanh thu và đơn vị bán'): string[][] {
   const missing = 'chưa có dữ liệu';
   return signals.map(({ name, band, leaders }) => [name,
-    band ? `${vnd(band.low)}–${vnd(band.high)}` : 'chưa đủ dòng có cả doanh thu và đơn vị bán', band ? vnd(band.revenue) : missing, band ? String(band.count) : missing,
+    band ? `${vnd(band.low)}–${vnd(band.high)}` : missingBand, band ? vnd(band.revenue) : missing, band ? String(band.count) : missing,
     leaders ? vnd(leaders.revenue) : missing, leaders ? String(leaders.count) : missing]);
 }

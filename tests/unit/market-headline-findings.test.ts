@@ -156,7 +156,7 @@ test('Phần 1 price band with low equal high prints one value from Bảng 11.1'
   const { dom, section } = reader(await headlineInput());
   try {
     assert.equal(statement(finding(section, 'Bảng 11.1')).split(' TikTok Shop:')[0],
-      'Shopee: nhóm giá 100.000 VND mỗi đơn vị bán có doanh thu lớn trong ba nhóm giá của sàn, 6.500.000 VND từ 2 sản phẩm' + scope('shopee', 6));
+      'Shopee: nhóm giá 100.000 đồng/sản phẩm có doanh thu lớn trong ba nhóm giá của sàn, 6.500.000 VND từ 2 sản phẩm quy đổi được theo quy cách trong tên sản phẩm' + scope('shopee', 6));
     const cells = [...dom.window.document.querySelector('#M11 tbody tr')!.querySelectorAll('td')].map(text);
     assert.deepEqual(cells.slice(0, 4), ['Shopee', '100.000–100.000', '6.500.000', '2']);
   } finally { dom.window.close(); }
@@ -166,7 +166,7 @@ test('Phần 1 price band with low below high prints that platform range from B�
   const { dom, section } = reader(await headlineInput());
   try {
     assert.equal(statement(finding(section, 'Bảng 11.1')).split(' TikTok Shop:')[1],
-      ' nhóm giá 300.000–900.000 VND mỗi đơn vị bán có doanh thu lớn trong ba nhóm giá của sàn, 12.000.000 VND từ 2 sản phẩm' + scope('tiktok', 6));
+      ' nhóm giá 300.000–900.000 đồng/sản phẩm có doanh thu lớn trong ba nhóm giá của sàn, 12.000.000 VND từ 2 sản phẩm quy đổi được theo quy cách trong tên sản phẩm' + scope('tiktok', 6));
     const cells = [...dom.window.document.querySelectorAll('#M11 tbody tr')[1]!.querySelectorAll('td')].map(text);
     assert.deepEqual(cells.slice(0, 4), ['TikTok Shop', '300.000–900.000', '12.000.000', '2']);
   } finally { dom.window.close(); }

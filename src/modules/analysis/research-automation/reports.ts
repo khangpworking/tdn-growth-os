@@ -70,7 +70,8 @@ import { formatReaderValue, readerProductLabel, readerShopLabel } from './reader
 import type { AutomationQualitativeDraft } from '../../../../contracts/analysis/automation-qualitative-draft-v1.generated.js';
 import { qualitativeDraftSection, qualitativeDraftSummary } from '../reader-report/qualitative-draft-report.js';
 import { platIcons } from '../reader-report/layout.js';
-import { ACTION_LEAD, OPPORTUNITY_HEADINGS, OPPORTUNITY_READING, OPTION_HEADINGS, QUICK_WIN_HEADING, QUICK_WIN_HEADINGS, actionStartDay, marketActionPlan, opportunityExplanation, opportunityRows, platformPriceBands, type ActionRow, type MarketActionPlan } from '../reader-report/market-actions.js';
+import { ACTION_LEAD, OPPORTUNITY_HEADINGS, OPPORTUNITY_UNIT_READING,OPTION_HEADINGS, QUICK_WIN_HEADING, QUICK_WIN_HEADINGS, actionStartDay, marketActionPlan, missingBandText, opportunityExplanation, opportunityHeadings, opportunityRows, platformPriceBands, type ActionRow, type MarketActionPlan } from '../reader-report/market-actions.js';
+import { NO_PRICE_COMPARISON, chooseUnitProfile, convertedLine, projectTitleUnitPrices, type UnitProfile } from '../reader-report/market-title-quantity.js';
 import { deliverMarketReader, marketReaderGuide, numberMarketExhibits } from './market-reader-delivery.js';
 import { plainCaptureNumbers } from '../reader-report/format.js';
 import { UNKNOWN_SHOP, marketChartRows, marketRankedRows, marketShares, marketShopsUnrecorded, thinSearchAxisLabels, type CaptureCountChart, type MarketChart } from '../reader-report/market-charts.js';
@@ -673,8 +674,23 @@ function marketActionRows(input: AutomationReportInput, presentationRows: readon
   const records = metric.capture ? metric.capture.platforms.flatMap(({ platform, result }) => result.input.records.map(record => ({ platform: platform as string, record })))
     : metric.result.input.records.map(record => ({ platform: record.measurement.platform as string, record }));
   return records.filter(({ record }) => record.label?.classification !== 'OUTSIDE')
-    .map(({ platform, record }) => ({ platform, rev: value(record.revenue.value), units: value(record.units.value) }));
+    .map(({ platform, record }) => ({ platform, rev: value(record.revenue.value), units: value(record.units.value), title: record.title }));
 }
+
+/** Title pack sizes over the same rows (UNIT-209 C2/C3): one profile for the report, a unit price per row, and per-platform k/n lines. */
+type MarketUnitRows = { rows: ActionRow[]; profile: UnitProfile | null; lines: string[] };
+function marketUnitRows(input: AutomationReportInput, presentationRows: readonly ActionRow[]): MarketUnitRows {
+  const base = marketActionRows(input, presentationRows);
+  const titled = base.map(row => ({ title: row.title ?? '', revenue: row.rev, units: row.units, platform: row.platform }));
+  const profile = chooseUnitProfile(titled), projection = projectTitleUnitPrices(titled, profile);
+  const rows = base.map((row, index) => ({ ...row, unitPrice: projection.rows[index]!.unitPrice }));
+  const lines = !profile ? [] : platformPriceBands(rows, true).map(({ platform, name }) => {
+    const own = rows.filter(row => row.platform === platform);
+    return `${name}: ${convertedLine(own.filter(row => row.unitPrice !== null).length, own.length)}`;
+  });
+  return { rows, profile, lines };
+}
+const unitLines = (unit: MarketUnitRows): string => unit.profile ? unit.lines.map(line => `<p class="lim">${escape(line)}</p>`).join('') : `<p>${escape(NO_PRICE_COMPARISON)}</p>`;
 
 /** Vietnam calendar day the report run was created; the proposal deadlines count from it. */
 function marketActionStartDay(input: AutomationReportInput): string | null {
@@ -692,7 +708,8 @@ const marketReviewsCollected = (input: AutomationReportInput): boolean =>
 /** Phần 1 figures, each from the function behind its exhibit: Hình 4.1/4.2 shares, Bảng 11.1 price groups, Hình 5.2 weeks, Phần 12 options. */
 function marketHeadline(input: AutomationReportInput, presentation: AutomationMarketPresentationMethod): MarketHeadline {
   const drawn = (chartKind: MarketChart['kind']): boolean => Boolean(input.marketPresentationCharts?.some(chart => chart.kind === chartKind));
-  const rows = marketActionRows(input, presentation.input.rows), plan = marketActionPlan(rows, { reviewsCollected: marketReviewsCollected(input), startDay: marketActionStartDay(input), currentReader: true });
+  const unit = marketUnitRows(input, presentation.input.rows), rows = unit.rows;
+  const plan = marketActionPlan(rows, { reviewsCollected: marketReviewsCollected(input), startDay: marketActionStartDay(input), currentReader: true, unitStandard: unit.profile?.standard ?? null });
   const interest = input.collection?.searchInterest;
   const weeks = searchInterestRenderable(interest) && input.searchInterestChart
     ? searchInterestReadingPoints(interest).flatMap(point => point.index === null ? [] : [{ period: point.period, index: point.index }]) : [];
@@ -708,6 +725,7 @@ function marketHeadline(input: AutomationReportInput, presentation: AutomationMa
     }),
     bands: plan.signals.flatMap(signal => signal.band && signal.band.low > 0 && signal.band.revenue > 0
       ? [{ ...signal, n: rows.filter(row => row.platform === signal.platform).length }] : []),
+    unitStandard: unit.profile?.standard ?? null,
     search: peak && peak.index > 0 ? { ...peak, weeks: weeks.length } : null,
     options: plan.hasFigures,
   };
@@ -720,18 +738,27 @@ function marketActionTable(no: string, title: string, extraClass: string, headin
 }
 
 /** Phần 11: the two in-sample opportunities per platform, or one plain line when no platform has enough revenue rows. */
-function marketOpportunitySection(plan: MarketActionPlan, reviewsCollected: boolean): string {
-  const explanation = `<p>${escape(opportunityExplanation(plan.hasFigures, reviewsCollected, true))}</p>`;
-  if (!plan.hasFigures) return explanation;
+function marketOpportunitySection(plan: MarketActionPlan, reviewsCollected: boolean, unit: MarketUnitRows): string {
   const title = 'Cơ hội trong mẫu, ghi riêng từng sàn (đề xuất, chờ chủ duyệt)';
+  // C6: without one pack kind across most revenue, only the price-band part becomes one sentence; revenue columns stay.
+  if (!unit.profile) {
+    if (!plan.signals.some(signal => signal.leaders)) return unitLines(unit);
+    const rows = opportunityRows(plan.signals).map(row => [row[0]!, row[4]!, row[5]!].map(cell => escape(cell)));
+    return `<p>${escape('Cơ hội trong mẫu đọc từ nhóm sản phẩm doanh thu lớn của từng sàn. Các đề xuất ở Phần 12 là những bước kiểm tra kinh doanh, chờ chủ duyệt; chưa xác định khả năng sinh lời.')}</p>` +
+      marketActionTable('11.1', title, '', ['Sàn', OPPORTUNITY_HEADINGS[4], OPPORTUNITY_HEADINGS[5]], rows,
+        ` data-reading="${escape('Mỗi sàn đọc riêng: nhóm sản phẩm doanh thu lớn gồm tối đa năm sản phẩm của sàn đó.')}"`) + unitLines(unit);
+  }
+  const explanation = `<p>${escape(opportunityExplanation(plan.hasFigures, reviewsCollected, true))}</p>`;
+  if (!plan.hasFigures) return explanation + unitLines(unit);
   return explanation +
-    marketActionTable('11.1', title, '', OPPORTUNITY_HEADINGS, opportunityRows(plan.signals).map(row => row.map(cell => escape(cell))), ` data-reading="${escape(OPPORTUNITY_READING)}"`);
+    marketActionTable('11.1', title, '', opportunityHeadings(unit.profile.standard), opportunityRows(plan.signals, missingBandText(true, unit.profile.standard)).map(row => row.map(cell => escape(cell))),
+      ` data-reading="${escape(OPPORTUNITY_UNIT_READING)}"`) + unitLines(unit);
 }
 
 /** Phần 12: three options with in-sample related revenue, then the no-cost quick wins; every row is a proposal awaiting the owner. */
-function marketActionSection(plan: MarketActionPlan): string {
+function marketActionSection(plan: MarketActionPlan, unit: MarketUnitRows): string {
   const options = marketActionTable('12.1', 'Phương án đề xuất, chờ chủ duyệt', ` market14-proposals${plan.hasFigures ? ' has-figures' : ''}`, OPTION_HEADINGS,
-    plan.options.map(option => [escape(option.name), option.related.map(line => escape(line)).join('<br>'), escape(option.firstStep), escape(option.owner), escape(option.deadline)]));
+    plan.options.map(option => [escape(option.name), option.related.map(line => escape(line)).join('<br>'), escape(option.firstStep), escape(option.owner), escape(option.deadline)])) + unitLines(unit);
   const quick = marketActionTable('12.2', 'Việc làm ngay, không tốn chi phí (đề xuất, chờ chủ duyệt)', ' market14-proposals', QUICK_WIN_HEADINGS,
     plan.quickWins.map(win => [win.task, win.owner, win.deadline, win.output].map(cell => escape(cell))));
   return `${options}<h3>${escape(QUICK_WIN_HEADING)}</h3>${quick}<p>${escape('Phương án, người phụ trách và hạn là đề xuất của TDN, chờ chủ duyệt; chủ dự án có thể sửa. Các bước kiểm tra chưa xác nhận khả năng sinh lời hay mức tăng doanh số.')}</p>`;
@@ -973,7 +1000,8 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     if (marketPresentation && (section.sectionId === 'M01' || section.sectionId === 'M08')) {
       locatedViews.set(section.sectionId, () => section.sectionId === 'M01'
         ? renderAutomationMarketFindings(marketPresentation, citations, readerPlainText, input.metricMethods?.capture,
-          readerPlainText && input.metricMethods?.capture ? marketHeadline(input, marketPresentation) : undefined) : renderAutomationMarketUnitPrices(marketPresentation, citations, readerPlainText, Boolean(input.marketInventory?.quotes.input.quotes.length)));
+          readerPlainText && input.metricMethods?.capture ? marketHeadline(input, marketPresentation) : undefined) : renderAutomationMarketUnitPrices(marketPresentation, citations, readerPlainText, Boolean(input.marketInventory?.quotes.input.quotes.length),
+            marketUnitRows(input, marketPresentation.input.rows).profile));
       return { sectionId: section.sectionId, title: section.title, state: 'EVIDENCE_INVENTORY', rows: [],
         method: marketPresentation.methodVersion,
         explanation: section.sectionId === 'M01' ? 'Nhận định chỉ mô tả dữ liệu đã lưu trong phạm vi khai báo.'
@@ -982,8 +1010,9 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     // Phần 11/12 are built from the sample rows alone: per-platform figures, proposals awaiting the owner, no AI text.
     if (marketPresentation && (section.sectionId === 'M11' || section.sectionId === 'M12')) {
       const reviewsCollected = marketReviewsCollected(input);
-      const plan = marketActionPlan(marketActionRows(input, marketPresentation.input.rows), { reviewsCollected, startDay: marketActionStartDay(input), currentReader: true });
-      locatedViews.set(section.sectionId, () => section.sectionId === 'M11' ? marketOpportunitySection(plan, reviewsCollected) : marketActionSection(plan));
+      const unit = marketUnitRows(input, marketPresentation.input.rows);
+      const plan = marketActionPlan(unit.rows, { reviewsCollected, startDay: marketActionStartDay(input), currentReader: true, unitStandard: unit.profile?.standard ?? null });
+      locatedViews.set(section.sectionId, () => section.sectionId === 'M11' ? marketOpportunitySection(plan, reviewsCollected, unit) : marketActionSection(plan, unit));
       return { sectionId: section.sectionId, title: section.title, state: 'EVIDENCE_INVENTORY', rows: [], method: marketPresentation.methodVersion,
         explanation: section.sectionId === 'M11' ? 'Cơ hội đọc từ doanh thu quan sát trong mẫu, ghi riêng từng sàn; là đề xuất của TDN, chờ chủ duyệt.' : ACTION_LEAD };
     }
@@ -1327,13 +1356,20 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   // Rows that do not record their shop get no concentration chart; the section says why instead of staying silent.
   const shopsUnrecorded = (): boolean => marketPresentation !== undefined && marketShopsUnrecorded(marketChartSource(marketPresentation.input.rows, input.metricMethods).rows);
   const presentationCharts = (sectionId: string): string => {
-    const priceBandTables = (): string => !marketPresentation ? '' : platformPriceBands(marketActionRows(input, marketPresentation.input.rows)).map(signal => {
-      if (!signal.bands.length || signal.bands.some(band => band.low <= 0 || band.high <= 0)) return `<p>${escape(signal.name)}: chưa đủ dữ liệu giá để chia khoảng giá trong mẫu.</p>`;
-      return marketActionTable('4.3', `Cơ cấu khoảng giá trong mẫu · ${signal.name}`, '',
-        ['Sàn', 'Khoảng giá (VND mỗi đơn vị bán)', 'Số dòng trong khoảng giá', 'Số dòng đủ dữ liệu giá', 'Số dòng được giữ'],
-        signal.bands.map(band => [escape(signal.name), `${band.low.toLocaleString('vi-VN')}–${band.high.toLocaleString('vi-VN')}`, String(band.count), String(signal.eligible), String(signal.retained)]),
-        ` data-market-price-bands="true" data-platform="${signal.platform}" data-reading="${escape('Mỗi dòng là một khoảng giá của riêng sàn này; số dòng đủ dữ liệu giá và số dòng được giữ là mẫu số của sàn, không đếm lặp qua các khoảng giá.')}"`);
-    }).join('');
+    // Bands use the title-unit price of convertible rows only (UNIT-209 C5); no profile → one sentence (C6).
+    const priceBandTables = (): string => {
+      if (!marketPresentation) return '';
+      const unit = marketUnitRows(input, marketPresentation.input.rows), standard = unit.profile?.standard;
+      if (!standard) return unitLines(unit);
+      return platformPriceBands(unit.rows, true).map((signal, index) => {
+        const line = `<p class="lim">${escape(unit.lines[index]!)}</p>`;
+        if (!signal.bands.length || signal.bands.some(band => band.low <= 0 || band.high <= 0)) return `<p>${escape(signal.name)}: chưa đủ dữ liệu giá để chia khoảng giá trong mẫu.</p>${line}`;
+        return marketActionTable('4.3', `Cơ cấu khoảng giá trong mẫu · ${signal.name}`, '',
+          ['Sàn', `Khoảng giá (${standard})`, 'Số dòng trong khoảng giá', 'Số sản phẩm quy đổi được', 'Số dòng được giữ'],
+          signal.bands.map(band => [escape(signal.name), `${band.low.toLocaleString('vi-VN')}–${band.high.toLocaleString('vi-VN')}`, String(band.count), String(signal.eligible), String(signal.retained)]),
+          ` data-market-price-bands="true" data-platform="${signal.platform}" data-reading="${escape('Mỗi dòng là một khoảng giá của riêng sàn này, tính trên giá quy đổi theo quy cách trong tên sản phẩm; số sản phẩm quy đổi được và số dòng được giữ là mẫu số của sàn, không đếm lặp qua các khoảng giá.')}"`) + line;
+      }).join('');
+    };
     return sectionId === 'M04'
     ? priceBandTables() + presentationChart('platform-revenue', '4.1') + (presentationChart('concentration', '4.2') ||
       (shopsUnrecorded() ? '<p>Không có hình mức tập trung theo gian hàng: nguồn không ghi gian hàng cho từng sản phẩm trong mẫu, nên báo cáo không đếm số gian hàng.</p>' : ''))
@@ -1514,7 +1550,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     if (kind === 'MARKET' && (sectionId === 'M03' || sectionId === 'M04')) {
        // The capture's per-platform tables already print in Phần 3; M04 points there instead of repeating them.
        if (sectionId === 'M04' && marketPresentation && input.metricMethods?.capture) return '<p>Danh sách sản phẩm và số liệu của từng sàn nằm ở Phần 3; phần này không in lại.</p>';
-       if (input.metricMethods) return metricMethodSection(input.metricMethods, sectionId, input.metricClassified, citations, Boolean(marketPresentation), readerPlainText, Boolean(marketPresentation)) + (sectionId === 'M03' && input.marketInventory ? (readerPlainText ? '<h3>Số liệu từng kỳ của các sản phẩm được chọn (đọc riêng, không cộng vào bảng mẫu)</h3>' : '<h3>Bằng chứng riêng của nguồn sàn: không cộng vào số liệu nguồn</h3>') + marketInventorySection(input.marketInventory, sectionId, citations, labels, readerPlainText, inventoryReader) : '');
+       if (input.metricMethods) return metricMethodSection(input.metricMethods, sectionId, input.metricClassified, citations, Boolean(marketPresentation), readerPlainText, Boolean(marketPresentation), marketPresentation ? marketUnitRows(input, marketPresentation.input.rows).profile : null) + (sectionId === 'M03' && input.marketInventory ? (readerPlainText ? '<h3>Số liệu từng kỳ của các sản phẩm được chọn (đọc riêng, không cộng vào bảng mẫu)</h3>' : '<h3>Bằng chứng riêng của nguồn sàn: không cộng vào số liệu nguồn</h3>') + marketInventorySection(input.marketInventory, sectionId, citations, labels, readerPlainText, inventoryReader) : '');
       if (input.metricMethodsFailure) return `<p class="warning">${escape(metricFailureCopy[input.metricMethodsFailure].next)}</p>` + codeNote(input.metricMethodsFailure);
     }
     if (kind === 'MARKET' && (sectionId === 'M03' || sectionId === 'M08')) {

@@ -6,7 +6,7 @@ const renderCurrent = (input: AutomationReportInput) => buildResearchAutomationR
 const COPY = {
   priceTitle: 'Giá và quy cách sản phẩm',
   separateMeasures: 'Mỗi dòng là một thước đo riêng, đọc theo đơn vị của chính nó.',
-  bandHeaders: ['Sàn', 'Khoảng giá (VND mỗi đơn vị bán)', 'Số dòng trong khoảng giá', 'Số dòng đủ dữ liệu giá', 'Số dòng được giữ'],
+  bandHeaders: ['Sàn', 'Khoảng giá (đồng/sản phẩm)', 'Số dòng trong khoảng giá', 'Số sản phẩm quy đổi được', 'Số dòng được giữ'],
   optionTitles: ['A. Kiểm tra mức giá dự kiến trong khoảng giá của mẫu', 'B. Kiểm tra quy cách chào bán trong khoảng giá của mẫu', 'C. Kiểm tra điều kiện bán trong khoảng giá của mẫu'],
   firstSteps: ['Đối chiếu mức giá dự kiến với khoảng giá cùng sàn; trình chủ duyệt trước khi thay đổi giá', 'Đối chiếu quy cách đã xác minh của tối đa năm sản phẩm cùng sàn và khoảng giá; trình chủ duyệt quy cách cần xem xét', 'Đối chiếu điều kiện giao hàng và đổi trả đã lưu của tối đa năm sản phẩm cùng sàn và khoảng giá; trình chủ duyệt điều kiện cần xem xét'],
   quickTasks: ['Kiểm tra mức giá dự kiến cho một quy cách đã xác minh', 'Kiểm tra một điều kiện giao hàng hoặc đổi trả dự kiến'],
@@ -364,7 +364,8 @@ test('L12 keep positive price and missing state: P2 source zero never becomes a 
   assert.ok(table);
   assert.match(text(table), /Chưa có giá đọc được/u);
   assert.doesNotMatch(text(table), /(?<!\d)0(?: VND)?(?!\d)/u);
-  assert.equal(m08.querySelector('.interp'), null);
+  // UNIT-209 C7 adds a title-unit table with its own reading; no reading may turn the source zero into a price.
+  for (const reading of m08.querySelectorAll('.interp')) assert.doesNotMatch(text(reading), /(?<!\d)0(?: VND)?(?!\d)|Giá tham khảo/u);
 });
 
 test('L12 keep source quote bytes: P1 bundle words inside a retained title remain verbatim', async t => {
