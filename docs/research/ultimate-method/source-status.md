@@ -1,6 +1,6 @@
 # Trạng thái nguồn dữ liệu
 
-> Bản cập nhật 21/10/2026 (lần 2). Bản trước: [bản 21/10/2026 lần 1](../../outdated/2026-10-21-2/docs/research/ultimate-method/source-status.md).
+> Bản cập nhật 21/10/2026 (lần 3). Bản trước: [bản 21/10/2026 lần 2](../../outdated/2026-10-21-3/docs/research/ultimate-method/source-status.md).
 
 Trạng thái từng nguồn dữ liệu đầu vào và nhật ký đổi trạng thái · cập nhật 21/10/2026 · đi kèm [Input data sources for 30 sections](input-data-sources-30-sections.md)
 
@@ -51,7 +51,7 @@ Ngày 21/10/2026, ghi chú được cập nhật theo kết quả kiểm tra ngu
 | S12 | Dữ liệu của chính shop chủ | Không thu | 08/10/2026 | Chưa có dữ liệu |
 | S13 | Công thức, bài hướng dẫn dùng sản phẩm | Đề xuất | 08/10/2026 | Tìm qua S19 |
 | S14 | Nội dung video bán hàng | Chạy thử | 21/10/2026 | Gói P9, đã có checklist. Chạy 3/3 lượt ngày 20/10: đọc 2–3 trong 9 video ứng viên mỗi lượt, 0 đoạn lên báo cáo. Ứng viên chỉ đến từ kết quả tìm kiếm chung, nên mọi video đã đọc bị chấm "không nói về sản phẩm". Video dài hơn 180 giây hoặc nặng hơn 14 MB bị bỏ |
-| S15 | Thư viện quảng cáo Meta | Đã duyệt | 21/10/2026 | Chủ duyệt 12/10; chỉ đọc theo trang, không đăng nhập. Máy tự đọc (cờ TDN_RESEARCH_META_AUTO_ENABLED) đã chạy, nhưng chưa lần nào ra dữ liệu: 3/3 lượt dừng ở trang đầu, vì trình duyệt trên máy chủ đang đăng nhập Facebook. Cách xử lý chờ chủ quyết. Thử đường đọc qua Apify ngày 21/10 (ST-20261021-04 đến -06): tìm đúng cụm từ, chỉ tiếng Việt thì 5/10 quảng cáo đúng ngành; không có lượt tiếp cận, tiền chi. Chưa đưa vào hệ thống |
+| S15 | Thư viện quảng cáo Meta | Đã duyệt | 21/10/2026 | Chủ duyệt 12/10; chỉ đọc theo trang, không đăng nhập. Máy tự đọc (cờ TDN_RESEARCH_META_AUTO_ENABLED) đã chạy, nhưng chưa lần nào ra dữ liệu: 3/3 lượt dừng ở trang đầu, vì trình duyệt trên máy chủ đang đăng nhập Facebook. Cách xử lý chờ chủ quyết. Thử đường đọc qua bộ thu bên ngoài, không đăng nhập, ngày 21/10. Thạch dừa (ST-20261021-04 đến -06): tìm đúng cụm từ, chỉ tiếng Việt thì 5/10 quảng cáo đúng ngành. Quạt điện (ST-20261021-07 đến -13, khoảng $0,51): tối đa 150 quảng cáo mỗi lượt; cụm từ "quạt điện" có 22/136 là quạt thật, phần lớn của đại lý nhỏ; 0 quảng cáo dẫn về shop trong mẫu; bộ lọc ngày của bộ thu không có tác dụng. Không có lượt tiếp cận, tiền chi. Chưa đưa vào hệ thống |
 | S16 | Quảng cáo nổi bật trên TikTok | Chạy thử | 21/10/2026 | Chủ duyệt bộ máy tự đọc 17/10; không đăng nhập (cờ TDN_RESEARCH_TIKTOK_TOPADS_ENABLED). Máy tự đọc đã chạy, nhưng chưa lần nào ra dữ liệu: 3/3 lượt dừng, vì trang đòi đăng nhập. Hướng đi chờ chủ quyết. Thử 2 bộ thu Apify ngày 21/10 (ST-20261021-02, -03): 0/10 quảng cáo đúng chủ đề ở cả 2 bộ; chưa có cách thu đạt cho Việt Nam |
 | S17 | Thư viện quảng cáo công khai của công cụ tìm kiếm | Đã duyệt | 21/10/2026 | Chủ duyệt 17/10; bước tự tìm trang web chính thức của thương hiệu có từ 19/10 (cờ TDN_RESEARCH_GOOGLE_ADS_ENABLED). Chạy 3/3 lượt ngày 20/10, chưa có mẫu quảng cáo nào: 9 lần tra thương hiệu thì 6 lần không tìm được trang web, 2 lần ra nhiều trang, 1 lần có trang web nhưng 0 quảng cáo. Chưa dùng cho phép kiểm 3 của E5 |
 | S18 | Trang thương hiệu Facebook | Đề xuất | 08/10/2026 | — |
@@ -113,6 +113,7 @@ Dòng trước 12/10/2026 ghi lại từ danh mục nguồn, nhật ký test và
 
 | Ngày | Mã nguồn | Nhãn cũ → nhãn mới | Lý do | Ai quyết |
 |---|---|---|---|---|
+| 21/10/2026 | S15 | Giữ nhãn Đã duyệt | Thử 7 lượt bộ thu trả phí với ca quạt điện, tổng khoảng $0,51 (ST-20261021-07 đến -13). Đọc được khi không đăng nhập, tối đa 150 quảng cáo mỗi lượt. Cụm từ "quạt điện": 22/136 là quạt thật. 0 quảng cáo dẫn về 5 shop trong mẫu. Trang lớn: 150 quảng cáo chỉ phủ khoảng 10 ngày gần nhất. Bộ lọc ngày của bộ thu không có tác dụng, nên code phải tự lọc. Chưa đổi gì trong hệ thống (DS-20261021-03) | Ghi kết quả; đưa vào hệ thống chờ chủ quyết |
 | 21/10/2026 | S07, S15, S16 | Giữ nhãn (S07, S15 Đã duyệt; S16 Chạy thử) | Thử 6 lượt bộ thu Apify trên máy chủ, tổng khoảng $0,026 (ST-20261021-01 đến -06). S07: 10 bình luận đúng chủ đề, gói miễn phí giới hạn 10 dòng. S15: 5/10 đúng ngành khi tìm đúng cụm từ, tiếng Việt. S16: 0/10 ở cả 2 bộ. Chưa đổi gì trong hệ thống (DS-20261021-02) | Ghi kết quả; đưa vào hệ thống chờ chủ quyết |
 | 21/10/2026 | S11 | Đề xuất → Không thu | Chủ bỏ bình luận YouTube ngày 17/10/2026; trang này chưa ghi lại (DS-20261021-01) | Chủ (17/10) |
 | 21/10/2026 | S05, S15, S16 | Giữ nhãn (S05, S15 Đã duyệt; S16 Chạy thử) | Kiểm tra nguồn 21/10 (mục 2b): bộ thu đã chạy 3/3 lượt Market ngày 20/10 nhưng chưa lần nào ra dữ liệu. S05: lỗi phía ứng dụng. S15: trình duyệt trên máy chủ đang đăng nhập. S16: trang đòi đăng nhập (DS-20261021-01) | Ghi kết quả; nhãn chờ chủ quyết |
