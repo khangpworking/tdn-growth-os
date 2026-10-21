@@ -1,6 +1,6 @@
 # Business spec: nguồn sự thật cho nghiệp vụ
 
-> Phiên bản 1.1, ngày 21/10/2026.
+> Phiên bản 1.2, ngày 21/10/2026.
 
 Thư mục này là nơi duy nhất giữ quy tắc nghiệp vụ của dự án: quy tắc báo cáo, từ điển trường và chỉ số, trạng thái nguồn dữ liệu, quyết định của chủ.
 
@@ -9,7 +9,7 @@ Thư mục này là nơi duy nhất giữ quy tắc nghiệp vụ của dự án
 | File | Nội dung |
 | --- | --- |
 | [business-rules/market.md](business-rules/market.md) | Quy tắc báo cáo Market (R-M…): 14 quy tắc, quy tắc của cổng, quy tắc đơn vị |
-| [business-rules/insight.md](business-rules/insight.md) | Quy tắc báo cáo Insight (R-I…) |
+| [business-rules/insight.md](business-rules/insight.md) | Quy tắc báo cáo Insight (R-I…). Từ 1.1: cấu trúc 16 section theo phương pháp insight (mục 8–9) |
 | [business-rules/report-language.md](business-rules/report-language.md) | Quy tắc chung cho mọi báo cáo (R-L…) |
 | [semantic-layer/fields.md](semantic-layer/fields.md) | Từ điển trường của từng nguồn |
 | [semantic-layer/metrics.md](semantic-layer/metrics.md) | Từ điển chỉ số, cách đo, quy tắc so và cộng |

@@ -1,6 +1,6 @@
 # Quy tắc nghiệp vụ: báo cáo Insight
 
-> Phiên bản 1.0, ngày 21/10/2026. Thư mục gốc: [business-spec](../README.md).
+> Phiên bản 1.1, ngày 21/10/2026. Thư mục gốc: [business-spec](../README.md).
 
 Tài liệu này giữ các quy tắc của Insight. Mỗi quy tắc có mã R-I…. Nội dung đầy đủ từng section Insight nằm ở [tài liệu câu hỏi Insight](../../research/ultimate-method/insight-cau-hoi-nghiep-vu.md). Từ điển trường và từ điển chỉ số đã chuyển sang [fields.md](../semantic-layer/fields.md) và [metrics.md](../semantic-layer/metrics.md).
 
@@ -79,3 +79,76 @@ flowchart LR
   E -- không --> G[Chỉ đếm, không so]
   F --> H[Báo cáo: nhãn và số đếm, không chữ gốc R-I11]
 ```
+
+## 8. Cấu trúc section theo phương pháp insight (chủ 21/10, F74)
+
+Cấu trúc này theo [Nghiên cứu phương pháp viết insight](<../research/Nghiên cứu phương pháp viết insight.md>): Brief → Sự thật quan sát → Khách nói gì → Đào sâu → Câu insight → Hành động. Báo cáo cũ chỉ đi tới bước "khách nói gì". Cấu trúc mới thêm bước đào sâu và câu insight.
+
+Thay đổi so với 17 section cũ:
+
+- **Gộp:** I06 Hành trình vào I04. I12 Điểm tiếp xúc vào I13.
+- **Thêm:** I18 Xung đột và câu insight.
+- **Đổi vai:** Kết luận chính thành "Insight chính". I01 thành brief có loại câu hỏi.
+- **Giữ mã:** I01–I17 giữ mã cũ. I06 và I12 không dùng nữa, không cấp lại cho mục khác. M11 vẫn nhận I08 và I09.
+
+| Thứ tự | Phần | Mã | Section | Bước phương pháp | Trả lời câu hỏi |
+| --- | --- | --- | --- | --- | --- |
+| 0 | — | — | Insight chính | Câu insight | Câu trả lời cho I01 là gì? Có câu insight nào đủ bằng chứng? |
+| 1 | A. Brief | I01 | Brief nghiên cứu | Brief | Quyết định gì? Đối tượng nào? Khám phá hay kiểm chứng? Dừng ở đâu? |
+| 2 | A. Brief | I03 | Phương pháp và nguồn | Kiểm tra nguồn | Tin báo cáo tới mức nào? Mỗi nguồn do ai làm, khi nào, cỡ mẫu bao nhiêu? |
+| 3 | B. Sự thật quan sát | I02 | Khách hàng và hoàn cảnh | Fact | Ai mua, mua cho dịp gì? |
+| 4 | B. Sự thật quan sát | I04 | Hành vi và hành trình | Fact | Khách mua, dùng, mua lại ra sao? Vấp ở bước nào? |
+| 5 | B. Sự thật quan sát | I13 | Thương hiệu, đối thủ và kênh | Fact (sự thật thương hiệu của 3C) | Ai bán nhiều? Người bán nói gì, ở kênh nào? |
+| 6 | C. Khách nói gì | I10 | Chủ đề và mối quan tâm | Observation (sự thật ngành của 3C) | Khách nói về chuyện gì, bao nhiêu lần, khen hay chê? |
+| 7 | C. Khách nói gì | I05 | Cảm nhận và thái độ | Observation | Khách khen gì, chê gì? |
+| 8 | C. Khách nói gì | I11 | Khác biệt giữa các nhóm | Observation theo nhóm | Hai nhóm khác nhau ở đâu? |
+| 9 | D. Đào sâu | I07 | Lý do lựa chọn | Motivation (vế A) | Khách muốn đạt gì khi mua? |
+| 10 | D. Đào sâu | I08 | Rào cản | Tension (vế B) | Khách bị cản bởi gì? |
+| 11 | D. Đào sâu | I09 | Nhu cầu chưa được đáp ứng | Khoảng trống | Khách mong gì mà chưa có? |
+| 12 | D. Đào sâu | I18 | Xung đột và câu insight | Tại sao ×3, Tension, 3C, câu insight | Khách muốn A nhưng vướng B ở đâu? Vì sao? |
+| 13 | E. Hành động | I14 | Hướng cơ hội | Insight → hướng đi | Mỗi câu insight mở ra hướng nào? |
+| 14 | E. Hành động | I15 | Định hướng chiến lược | Hành động | Chủ chọn phương án nào? |
+| 15 | E. Hành động | I16 | Thử nghiệm và đo lường | Kiểm chứng | Làm sao kiểm phương án và câu hỏi kiểm chứng? |
+| 16 | — | I17 | Phụ lục và bằng chứng | Bằng chứng, nhật ký | Ý này lấy từ bản ghi nào? Các vòng thu và mã hóa ra sao? |
+
+```mermaid
+flowchart TD
+  K["Insight chính"] --> A
+  subgraph A["A. Brief"]
+    I01["I01 Brief nghiên cứu"] --> I03["I03 Phương pháp và nguồn"]
+  end
+  subgraph B["B. Sự thật quan sát"]
+    I02["I02 Khách hàng"] --> I04["I04 Hành vi và hành trình"] --> I13["I13 Thương hiệu, đối thủ, kênh"]
+  end
+  subgraph C["C. Khách nói gì"]
+    I10["I10 Chủ đề"] --> I05["I05 Cảm nhận"] --> I11["I11 Khác biệt nhóm"]
+  end
+  subgraph D["D. Đào sâu"]
+    I07["I07 Lý do chọn: vế A"] --> I18
+    I08["I08 Rào cản: vế B"] --> I18
+    I09["I09 Nhu cầu chưa đáp ứng"] --> I18
+    I18["I18 Xung đột và câu insight"]
+  end
+  subgraph E["E. Hành động"]
+    I14["I14 Hướng cơ hội"] --> I15["I15 Định hướng"] --> I16["I16 Thử nghiệm"]
+  end
+  A --> B --> C --> D --> E --> P["I17 Phụ lục"]
+  I13 -. sự thật thương hiệu .-> I18
+  I10 -. sự thật ngành .-> I18
+```
+
+Mã nguồn chưa theo cấu trúc này. `insight-template.ts` vẫn dựng 17 section cũ. Sửa mã là việc riêng, sau khi Insight được chạy lại.
+
+## 9. Đào sâu và câu insight
+
+Các ngưỡng có chữ "tạm" là đề xuất. Chủ chốt số cuối cùng.
+
+| Mã | Quy tắc | Mã kiểm |
+| --- | --- | --- |
+| R-I29 | Câu insight là một câu xung đột: "Trên [sàn], [n] bản ghi khen [A]; trong đó [m] bản ghi cũng chê [B]." A là mã ở I07 hoặc mã khen ở I05. B là mã ở I08 hoặc mã chê ở I05. m đếm bản ghi có cả A và B. Viết ngôi thứ ba (R-I27). Đếm theo từng sàn (R-I06). Chỉ ra câu khi m ≥ 10 bản ghi và các bản ghi đó thuộc ≥ 2 sản phẩm (ngưỡng tạm). | Chưa có mã kiểm |
+| R-I30 | Chuỗi "tại sao" có tối đa 3 tầng. Mỗi tầng là một mã lý do do chính khách viết ("vì…", "do…"), gắn với mã tầng trên trong cùng bản ghi, có vị trí nguồn (R-I05). Tầng không có bản ghi thì dừng và ghi "chưa đủ bằng chứng". Không suy nhân quả mà khách không nói. | Chưa có mã kiểm |
+| R-I31 | Bảng 3C ở I18 có 3 cột. Sự thật ngành: chỉ chủ đề đạt R-I08 (≥ 3 sản phẩm khác thương hiệu), ghi bằng từ khóa. Sự thật thương hiệu: lời người bán, gắn nhãn R-I12; nếu chủ có sản phẩm thì dùng điểm mạnh chủ khai ở I01. Sự thật khách: mã ở I07 và I08. Mỗi ô trỏ tới bản ghi hoặc nguồn. | Chưa có mã kiểm |
+| R-I32 | "Insight chính" hiện tối đa 3 câu đạt R-I29, xếp theo m, mỗi câu trỏ tới I18. Không gọi câu nào là "quan trọng nhất" (R-I10). Không có câu đạt thì ghi "Chưa có insight đủ bằng chứng" và hiện tối đa 4 quan sát, mỗi quan sát gắn nhãn "quan sát, chưa phải insight". | Chưa có mã kiểm |
+| R-I33 | Mỗi câu hỏi ở I01 có nhãn "khám phá" hoặc "kiểm chứng". Câu khám phá có điểm dừng (theo R-I03). Câu kiểm chứng có giả thuyết, định nghĩa đo được và kết quả làm chủ đổi quyết định. Câu kiểm chứng mà dữ liệu quan sát không trả lời được thì chuyển sang I16. | Chưa có mã kiểm |
+| R-I34 | Mỗi hướng ở I14 trỏ tới ít nhất một câu insight ở I18 hoặc một nhu cầu ở I09 (mở rộng R-I20). | Chưa có mã kiểm |
+| R-I35 | I03 ghi bối cảnh của mỗi nguồn: bên làm, ngày thu, nơi (sàn, nước), cỡ mẫu. I17 có nhật ký theo vòng: vòng thu, vòng thu thêm (R-I09), phiên bản bộ mã. | Chưa có mã kiểm |

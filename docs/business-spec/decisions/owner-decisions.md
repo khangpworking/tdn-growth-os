@@ -1,11 +1,12 @@
 # Quyết định của chủ (nghiệp vụ)
 
-> Phiên bản 1.0, ngày 21/10/2026. Thư mục gốc: [business-spec](../README.md).
+> Phiên bản 1.1, ngày 21/10/2026. Thư mục gốc: [business-spec](../README.md).
 
 Mỗi dòng là một quyết định của chủ về nghiệp vụ. Dòng mới nhất nằm trên cùng. Cột "Áp dụng" nêu mã quy tắc. Tài liệu này không ghi quyết định về công cụ, hạ tầng hay cách làm việc của các agent.
 
 | Ngày | Quyết định | Áp dụng |
 | --- | --- | --- |
+| 21/10/2026 | Chủ cho phép sửa, gom, thêm, xóa section Insight cho khớp phương pháp insight đã nghiên cứu (F74). Kết quả: gộp I06 vào I04, I12 vào I13, thêm I18 "Xung đột và câu insight", "Kết luận chính" thành "Insight chính". Ngưỡng R-I29 là ngưỡng tạm, chờ chủ chốt. | [insight.md mục 8–9](../business-rules/insight.md), R-I29 đến R-I35 |
 | 21/10/2026 | Báo cáo Market tự động quy về một đơn vị trước khi so, cho mọi ngành hàng (F66). Làm theo cách đơn giản (F67): doanh thu giữ vì là tiền; không cộng số lượng bán giữa các sản phẩm; chỉ so đơn giá trong một đơn vị chuẩn; đọc quy cách từ tên chỉ khi tên có đúng một quy cách, gắn nhãn "quy cách theo tên sản phẩm"; còn lại ghi "chưa quy đổi được". | R-M27 đến R-M32, R-I14 đến R-I19 |
 | 21/10/2026 | Hoãn tài liệu số đo của nguồn (F58). Chưa viết, chưa sửa Ultimate. | [source-methods.md](../semantic-layer/source-methods.md) |
 | 20/10/2026 | Cần tài khoản quảng cáo Facebook và TikTok để có số "nhóm quan tâm" thật (F29). Đến lúc đó cột này ghi "Chưa có số". | R-I28 |
