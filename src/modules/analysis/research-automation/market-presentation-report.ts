@@ -310,7 +310,7 @@ export function renderAutomationMarketFindings(method: Method, citations: Report
 const TITLE_UNIT_TOP = 10;
 
 /** C7: per platform, the top converted rows by revenue with the title pack size used; '' when no row converts. */
-function titleUnitTables(method: Method, profile: UnitProfile, productLabel: (listing: string) => string): string {
+function titleUnitTables(method: Method, profile: UnitProfile, productLabel: (listing: string) => string, title: (value: string) => string): string {
   const projection = projectTitleUnitPrices(method.input.rows.map(row => ({ title: row.title, revenue: row.rev, units: row.units, platform: row.platform })), profile);
   if (!projection.convertedCount) return '';
   return (['shopee', 'tiktok'] as const).flatMap(platform => {
@@ -320,8 +320,9 @@ function titleUnitTables(method: Method, profile: UnitProfile, productLabel: (li
     if (!converted.length) return [`<p>${escape(`${label}: ${convertedLine(0, own.length)}`)}</p>`];
     const top = [...converted].sort((a, b) => (b.row.rev ?? 0) - (a.row.rev ?? 0) || a.row.i - b.row.i).slice(0, TITLE_UNIT_TOP);
     return [table(`Giá quy đổi theo quy cách trong tên sản phẩm · ${label} (tối đa ${TITLE_UNIT_TOP} sản phẩm doanh thu cao)`,
-      ['Sàn', 'Sản phẩm', 'Quy cách', `Giá quy đổi (${profile.standard})`, 'Doanh thu (VND)', 'Cơ sở'],
-      top.map(({ row, price }) => [escape(label), productLabel(row.listing), escape(titleQuantityCell(price)), vnd(price.unitPrice!), vnd(row.rev!), escape(TITLE_UNIT_BASIS)]))
+      // "Đơn giá quy đổi" is an estimate from revenue, units and the title pack size, not a read listing price: the M08 badge keeps reading quotes only.
+      ['Sàn', 'Sản phẩm', 'Tiêu đề nguồn', 'Quy cách', `Đơn giá quy đổi (${profile.standard})`, 'Doanh thu (VND)', 'Cơ sở'],
+      top.map(({ row, price }) => [escape(label), productLabel(row.listing), title(row.title), escape(titleQuantityCell(price)), vnd(price.unitPrice!), vnd(row.rev!), escape(TITLE_UNIT_BASIS)]))
       + `<p class="lim">${escape(`${label}: ${convertedLine(converted.length, own.length)}`)}</p>`];
   }).join('');
 }
@@ -339,8 +340,9 @@ export function renderAutomationMarketUnitPrices(method: Method, citations: Repo
     listingOrdinals.set(listing, ordinal);
     return readerPlainText ? escape(readerProductLabel(listing, titleByListing.get(listing), ordinal)) : literal(listing, false);
   };
-  // An owner pack packet keeps its own table; only without one does the title pack size price the rows.
-  const titled = readerPlainText && !method.unitPrices.length && titleProfile ? titleUnitTables(method, titleProfile, productLabel) : '';
+  // An owner pack packet and captured listing prices keep their own path; only without both does the title pack size price the rows.
+  const titled = readerPlainText && !capturedPrices && !method.unitPrices.length && titleProfile
+    ? titleUnitTables(method, titleProfile, productLabel, value => literal(value, readerPlainText)) : '';
   if (titled) return `<p>Chưa có quy cách do chủ khai báo; giá dưới đây quy đổi theo quy cách ghi trong tên sản phẩm (${escape(titleProfile!.standard)}). Sản phẩm có nhiều quy cách hoặc khác loại quy cách không được quy đổi.</p>` + titled +
     '<p>Giá quy đổi là doanh thu chia lượt bán rồi chia quy cách trong tên sản phẩm; đây là ước tính, không thay cho giá niêm yết. Chỉ so giá trong cùng sàn; hàng dùng lâu bán theo bộ không chia nhỏ.</p>' +
     '<p>Chưa có số liệu chi phí quảng cáo nên chưa tính ROAS (doanh thu trên chi phí quảng cáo) và CPA (chi phí cho mỗi đơn hàng).</p>' +

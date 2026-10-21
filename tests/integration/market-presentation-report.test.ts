@@ -257,7 +257,9 @@ test('auto presentation without a receipt preserves zero/missing, keeps referenc
   const method = await readMarketPresentation(f.artifacts, semantic);
   assert.equal(method.findings.length, 4);
   assert.ok(method.findings[1]!.statement.includes('0 VND'));
-  assert.ok(method.findings[1]!.statement.includes('chưa có tổng đơn vị bán'));
+  // UNIT-209 C4: units sold are read per product, never as a sample total (missing units stay counted in the 'missing' finding).
+  assert.ok(method.findings[1]!.statement.includes('đơn vị bán chỉ đọc theo từng sản phẩm'));
+  assert.doesNotMatch(method.findings[1]!.statement, /\d đơn vị bán/u);
   assert.equal(method.input.metric!.scopes[0]!.units.value, null);
   assert.equal(method.unitPrices.length, 0);
   assert.ok(report.bytes.toString().includes('Chưa quy đổi được giá theo đơn vị chuẩn'));

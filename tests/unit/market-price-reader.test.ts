@@ -219,8 +219,9 @@ test('reader digests pin the M08 badge control with capture headlines', async ()
   // Package C adds Phần 1 findings and its badge only to the capture control.
   // Round-2 wording fix clarifies numeric zero and removes the extra space after '(' in current no-capture prose.
   for (const [reportInput, parent] of [
-    [input, '10532b4a9e6c403e7732cd585241f940dec5a0516a79d17cc90ee3359282d434'],
-    [{ ...input, metricMethods }, '5f82a336c3d7e4fc478b3f027bda12d0c456345626bf6ba55ba99a0a863b22ca'],
+    // UNIT-209 C4/C5/C8: current-reader Market unit wording changes these pins; legacy and Insight pins are unchanged.
+    [input, '0306adb4fd4d94119d6f9eea3ac6ca72ef3cfa5c09353eb4f9eada499c632cdb'],
+    [{ ...input, metricMethods }, '5ae3f02f8e01e2ebba72753c2784a08587dff052d563e2a21eb051760fd71ae2'],
   ] as const) {
     const html = buildResearchAutomationReport(reportInput, 'MARKET').html.toString();
     assert.equal(hash(html.replace('<span class="state">Có giá tham khảo, chưa xác minh</span>', '<span class="state">Có số liệu</span>')), parent);
@@ -236,7 +237,7 @@ test('automated reader uses the price projection without changing retained input
   // Latest-price review: preserve range-only evidence, explicit estimate wording, and corrected price-only readings.
   // 2480414f additionally points M04/M05 to Phần 3 and M13 to Phần 2.
   // Package C adds Phần 1 findings and its data badge to this capture report.
-  assert.equal(hash(report.html), 'fe0b89edf9f933f47f52f7f91062b1a969fffb41da57a1e65efe3cad621540ae');
+  assert.equal(hash(report.html), '2fc36391199feb0cec5d033771476c02fe100104d51444e70b8043cf89f2af41');
   const doc = new JSDOM(report.html.toString()).window.document;
   const section = doc.querySelector('#M08')!;
   assert.equal(section.querySelectorAll('tbody tr').length, 8);
