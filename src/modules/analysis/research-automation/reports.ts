@@ -12,7 +12,7 @@ import { privateReviewReportView } from './private-review-contracts.js';
 import type { PrivateReviewReportView } from '../../../../contracts/analysis/private-review-report-view.generated.js';
 import type { AutomationMarketPresentationMethod } from '../../../../contracts/analysis/automation-market-presentation-method.generated.js';
 import { verifyAutomationMarketPresentation } from './market-presentation-method.js';
-import { marketChartSource, renderAutomationMarketFindings, renderAutomationMarketUnitPrices, renderCaptureSampleSentences, type MarketHeadline } from './market-presentation-report.js';
+import { marketChartSource, renderAutomationMarketFindings, renderAutomationMarketUnitPrices, renderCaptureSampleSentences, type MarketHeadline, type MarketTitleUnitRow } from './market-presentation-report.js';
 import { admitWebResults, checkSourceEvidence } from './source-evidence.js';
 import { collectionWebRows, webReaderDay, webReaderRetrieved, expandedSearchReaderLabel, EXPANDED_SEARCH_COLUMN, EXPANDED_SEARCH_LABEL, EXPANDED_SEARCH_NOTE } from './expanded-search-lane.js';
 import { CURRENT_MARKET_READER_TERMS, MARKET_READER_TERMS } from './market-reader-glossary.js';
@@ -664,22 +664,22 @@ function readerDay(value: string): string {
 }
 
 /** Phần 11/12 rows, in the precedence the Market charts use; Metric records labelled outside the scope are left out. */
-function marketActionRows(input: AutomationReportInput, presentationRows: readonly ActionRow[]): ActionRow[] {
+function marketActionRows(input: AutomationReportInput, presentationRows: readonly MarketTitleUnitRow[]): MarketTitleUnitRow[] {
   const metric = input.metricMethods;
   if (presentationRows.length || !metric) return [...presentationRows];
   const value = (stored: string | null): number | null => {
     const parsed = stored === null ? Number.NaN : Number(stored);
     return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
   };
-  const records = metric.capture ? metric.capture.platforms.flatMap(({ platform, result }) => result.input.records.map(record => ({ platform: platform as string, record })))
-    : metric.result.input.records.map(record => ({ platform: record.measurement.platform as string, record }));
+  const records = metric.capture ? metric.capture.platforms.flatMap(({ platform, result }) => result.input.records.map(record => ({ platform, record })))
+    : metric.result.input.records.map(record => ({ platform: record.measurement.platform, record }));
   return records.filter(({ record }) => record.label?.classification !== 'OUTSIDE')
-    .map(({ platform, record }) => ({ platform, rev: value(record.revenue.value), units: value(record.units.value), title: record.title }));
+    .map(({ platform, record }, i) => ({ i, listing: record.listingId, platform, rev: value(record.revenue.value), units: value(record.units.value), title: record.title }));
 }
 
 /** Title pack sizes over the same rows (UNIT-209 C2/C3): one profile for the report, a unit price per row, and per-platform k/n lines. */
-type MarketUnitRows = { rows: ActionRow[]; profile: UnitProfile | null; lines: string[] };
-function marketUnitRows(input: AutomationReportInput, presentationRows: readonly ActionRow[]): MarketUnitRows {
+type MarketUnitRows = { rows: (MarketTitleUnitRow & ActionRow)[]; profile: UnitProfile | null; lines: string[] };
+function marketUnitRows(input: AutomationReportInput, presentationRows: readonly MarketTitleUnitRow[]): MarketUnitRows {
   const base = marketActionRows(input, presentationRows);
   const titled = base.map(row => ({ title: row.title ?? '', revenue: row.rev, units: row.units, platform: row.platform }));
   const profile = chooseUnitProfile(titled), projection = projectTitleUnitPrices(titled, profile);
@@ -740,8 +740,8 @@ function marketActionTable(no: string, title: string, extraClass: string, headin
 /** Phần 11: the two in-sample opportunities per platform, or one plain line when no platform has enough revenue rows. */
 function marketOpportunitySection(plan: MarketActionPlan, reviewsCollected: boolean, unit: MarketUnitRows): string {
   const title = 'Cơ hội trong mẫu, ghi riêng từng sàn (đề xuất, chờ chủ duyệt)';
-  // C6: without one pack kind across most revenue, only the price-band part becomes one sentence; revenue columns stay.
-  if (!unit.profile) {
+  // C6: revenue columns stay whenever price bands are unavailable, including partial conversion.
+  if (!unit.profile || !plan.hasFigures) {
     if (!plan.signals.some(signal => signal.leaders)) return unitLines(unit);
     const rows = opportunityRows(plan.signals).map(row => [row[0]!, row[4]!, row[5]!].map(cell => escape(cell)));
     return `<p>${escape('Cơ hội trong mẫu đọc từ nhóm sản phẩm doanh thu lớn của từng sàn. Các đề xuất ở Phần 12 là những bước kiểm tra kinh doanh, chờ chủ duyệt; chưa xác định khả năng sinh lời.')}</p>` +
@@ -749,7 +749,6 @@ function marketOpportunitySection(plan: MarketActionPlan, reviewsCollected: bool
         ` data-reading="${escape('Mỗi sàn đọc riêng: nhóm sản phẩm doanh thu lớn gồm tối đa năm sản phẩm của sàn đó.')}"`) + unitLines(unit);
   }
   const explanation = `<p>${escape(opportunityExplanation(plan.hasFigures, reviewsCollected, true))}</p>`;
-  if (!plan.hasFigures) return explanation + unitLines(unit);
   return explanation +
     marketActionTable('11.1', title, '', opportunityHeadings(unit.profile.standard), opportunityRows(plan.signals, missingBandText(true, unit.profile.standard)).map(row => row.map(cell => escape(cell))),
       ` data-reading="${escape(OPPORTUNITY_UNIT_READING)}"`) + unitLines(unit);
@@ -998,10 +997,11 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
         explanation: 'Chân dung và thẻ bằng chứng là đề xuất AI từ lời nguồn đã lưu, chờ chủ duyệt; chưa đủ điều kiện phát hành kết luận.' };
     }
     if (marketPresentation && (section.sectionId === 'M01' || section.sectionId === 'M08')) {
+      const unit = marketUnitRows(input, marketPresentation.input.rows);
       locatedViews.set(section.sectionId, () => section.sectionId === 'M01'
         ? renderAutomationMarketFindings(marketPresentation, citations, readerPlainText, input.metricMethods?.capture,
           readerPlainText && input.metricMethods?.capture ? marketHeadline(input, marketPresentation) : undefined) : renderAutomationMarketUnitPrices(marketPresentation, citations, readerPlainText, Boolean(input.marketInventory?.quotes.input.quotes.length),
-            marketUnitRows(input, marketPresentation.input.rows).profile));
+            unit.profile, unit.rows));
       return { sectionId: section.sectionId, title: section.title, state: 'EVIDENCE_INVENTORY', rows: [],
         method: marketPresentation.methodVersion,
         explanation: section.sectionId === 'M01' ? 'Nhận định chỉ mô tả dữ liệu đã lưu trong phạm vi khai báo.'

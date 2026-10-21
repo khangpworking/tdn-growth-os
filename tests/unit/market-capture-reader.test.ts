@@ -308,7 +308,8 @@ test('automation reports without capture pin the M13 pointer; without presentati
   const { marketPresentation: _presentation, ...noPresentation } = input;
   const variants = [
     // UNIT-209 C4/C5/C8: current-reader Market unit wording changes these pins; legacy and Insight pins are unchanged.
-    { value: { ...input, metricMethods }, html: '05c8f5d3b884d2c2c6197ca42accbe9ebaa71d10faf3aa9af355272c7c1b221d', semantic: '8e1cb7369302a0700596215cd3f65ba80d3b7c699cea5d3f3af7068b60b13a9b', trace: 'cceb96fffbce7675959f63f2a8e255a0abe0da9bac10e91752b0bdc85cdd818f' },
+    // Round 2 C4/C8 also removes the no-capture units total and adds quantity evidence to its source trace.
+    { value: { ...input, metricMethods }, html: 'd96dd89e9dc9046cf5bdbd1c134a96e5eee792a046f4491c7d73a8e620910205', semantic: '8e1cb7369302a0700596215cd3f65ba80d3b7c699cea5d3f3af7068b60b13a9b', trace: '337f05580d6debd24497de0f1aae068c53ccf585c805e1ae7d55993f85123117' },
     { value: noPresentation, html: '92ada31fa0a8a276d05aedc38fe418c3b5204f0750ef89020453a998526c6da9', semantic: '89b388819561c90b6082847afb079b85aa911457862ca7d542d5335860c3f8a5', trace: null },
   ];
   for (const variant of variants) {

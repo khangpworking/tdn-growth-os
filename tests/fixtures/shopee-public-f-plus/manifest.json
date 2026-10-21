@@ -977,6 +977,16 @@
       "sha256": "1a2d08c7ab59320c34512aa81e6b7fbb531811aa5a7d91ed80300ac71f823537"
     },
     {
+      "name": "trial-run/artifacts/sha256/21/21da436c79a184bf73f858f8a12fb2cf1cbea039c9d1cb255f5fa65d32a9b4da",
+      "byteSize": 54227,
+      "sha256": "21da436c79a184bf73f858f8a12fb2cf1cbea039c9d1cb255f5fa65d32a9b4da"
+    },
+    {
+      "name": "trial-run/artifacts/sha256/27/27fc9b568c28c41ff8ca70fc2d200cb2a4abfbbac54d253df0a3201106784ece",
+      "byteSize": 23850,
+      "sha256": "27fc9b568c28c41ff8ca70fc2d200cb2a4abfbbac54d253df0a3201106784ece"
+    },
+    {
       "name": "trial-run/artifacts/sha256/28/28cb47b1fcb2516d46e4625c7976b2e2556822b560c54eb1789dff4619cf6d5b",
       "byteSize": 1461,
       "sha256": "28cb47b1fcb2516d46e4625c7976b2e2556822b560c54eb1789dff4619cf6d5b"
@@ -985,11 +995,6 @@
       "name": "trial-run/artifacts/sha256/2c/2cab6cb46d264530c5f6d0514e8c40250c6264f4d9944c28610356c83f2cf604",
       "byteSize": 3533,
       "sha256": "2cab6cb46d264530c5f6d0514e8c40250c6264f4d9944c28610356c83f2cf604"
-    },
-    {
-      "name": "trial-run/artifacts/sha256/2d/2da1f5cb6e5aa36585dac98bc43fc9776a9e61e8a81e8da2ff5804e6719f9617",
-      "byteSize": 636,
-      "sha256": "2da1f5cb6e5aa36585dac98bc43fc9776a9e61e8a81e8da2ff5804e6719f9617"
     },
     {
       "name": "trial-run/artifacts/sha256/34/34e09b7296500e6159c5dab55f9e0da3a56b09447e8eb971ecf4977739e5eec7",
@@ -1037,11 +1042,6 @@
       "sha256": "76e2ddc25c7907dc15d7595f2557df908498359900695f210ab4bdd9b8142f40"
     },
     {
-      "name": "trial-run/artifacts/sha256/7d/7d67f196e43312133788b180ee2451c2a71add029f994c1baa4111be23da1d17",
-      "byteSize": 54227,
-      "sha256": "7d67f196e43312133788b180ee2451c2a71add029f994c1baa4111be23da1d17"
-    },
-    {
       "name": "trial-run/artifacts/sha256/80/803b67eec358887b450a1fa2115bc8c61ea63247ff2d5cbe6bbf73b19aae0f60",
       "byteSize": 386,
       "sha256": "803b67eec358887b450a1fa2115bc8c61ea63247ff2d5cbe6bbf73b19aae0f60"
@@ -1050,16 +1050,6 @@
       "name": "trial-run/artifacts/sha256/80/8083baaeb56263010d103bcd00341c19f568c2f6461ca0e2c23de7a98e2fd26e",
       "byteSize": 7717,
       "sha256": "8083baaeb56263010d103bcd00341c19f568c2f6461ca0e2c23de7a98e2fd26e"
-    },
-    {
-      "name": "trial-run/artifacts/sha256/80/8090340728351f7305ca2c568f9c17022dfbfb951dde2d12e5c46fab47815648",
-      "byteSize": 278874,
-      "sha256": "8090340728351f7305ca2c568f9c17022dfbfb951dde2d12e5c46fab47815648"
-    },
-    {
-      "name": "trial-run/artifacts/sha256/85/85d0cb09c2ece10875cb3a5ae19b44d91220487dc6d1f74f744e2fcb724a11ce",
-      "byteSize": 23850,
-      "sha256": "85d0cb09c2ece10875cb3a5ae19b44d91220487dc6d1f74f744e2fcb724a11ce"
     },
     {
       "name": "trial-run/artifacts/sha256/87/87b99f177461345670ffac50dd255bf420faf74e92dcff2533d54902310040cf",
@@ -1117,11 +1107,6 @@
       "sha256": "b8b4fcba7f0f6d673d6fbd237ebab6e514307e852ebb1d6dc36275a3278bf05d"
     },
     {
-      "name": "trial-run/artifacts/sha256/c1/c19fb0a02e3bff67609da467dcc6bd970a11260142238f6b1da7e4e317587d25",
-      "byteSize": 288682,
-      "sha256": "c19fb0a02e3bff67609da467dcc6bd970a11260142238f6b1da7e4e317587d25"
-    },
-    {
       "name": "trial-run/artifacts/sha256/cb/cb7c9167a3bdb2a65970d5a693bc0874e43685d8a950cc6cbd988df20024b99f",
       "byteSize": 272,
       "sha256": "cb7c9167a3bdb2a65970d5a693bc0874e43685d8a950cc6cbd988df20024b99f"
@@ -1157,9 +1142,19 @@
       "sha256": "dfc20eab7281f232e70bf1451b8c9722ed1505bfceb6f972d525151df4f42865"
     },
     {
+      "name": "trial-run/artifacts/sha256/e1/e135f865994b0c483cd76cd5a3aef22b8a4dc1417df62c823330628eff9ffda9",
+      "byteSize": 282114,
+      "sha256": "e135f865994b0c483cd76cd5a3aef22b8a4dc1417df62c823330628eff9ffda9"
+    },
+    {
       "name": "trial-run/artifacts/sha256/e9/e9bb643fd9255f0fe1efd3ef0943f1bfe8a7b047e0e5289a8ad68e3347580005",
       "byteSize": 1586,
       "sha256": "e9bb643fd9255f0fe1efd3ef0943f1bfe8a7b047e0e5289a8ad68e3347580005"
+    },
+    {
+      "name": "trial-run/artifacts/sha256/eb/ebc935862c7311623c468707e6ce6d3a4c7d6f21d13a79b8be0565262d2a1709",
+      "byteSize": 636,
+      "sha256": "ebc935862c7311623c468707e6ce6d3a4c7d6f21d13a79b8be0565262d2a1709"
     },
     {
       "name": "trial-run/artifacts/sha256/f1/f144c383562f3e4e49f8a1b49acb085295d878bcc634e676357737ed6507b011",
@@ -1182,14 +1177,19 @@
       "sha256": "f6ca7fa17d2df0cdf07a2ddcc18e383ace99512dc389b76de319bd1c3c9fce9e"
     },
     {
+      "name": "trial-run/artifacts/sha256/fb/fb023c7c4d2d0b869ea6d7784c40b6e524f8748f79c0a45e676f3ee543669f4e",
+      "byteSize": 290969,
+      "sha256": "fb023c7c4d2d0b869ea6d7784c40b6e524f8748f79c0a45e676f3ee543669f4e"
+    },
+    {
       "name": "trial-run/artifacts/sha256/fb/fbd2a71b4bc8ac37415c74fc89d610e241f42cd1fe8e88279c01292972564a39",
       "byteSize": 430,
       "sha256": "fbd2a71b4bc8ac37415c74fc89d610e241f42cd1fe8e88279c01292972564a39"
     },
     {
       "name": "trial-run/market.html",
-      "byteSize": 278874,
-      "sha256": "8090340728351f7305ca2c568f9c17022dfbfb951dde2d12e5c46fab47815648"
+      "byteSize": 282114,
+      "sha256": "e135f865994b0c483cd76cd5a3aef22b8a4dc1417df62c823330628eff9ffda9"
     },
     {
       "name": "trial-run/reader.html",
@@ -1204,7 +1204,7 @@
     {
       "name": "trial-run/records/analysis_reader_report_revisions.json",
       "byteSize": 1269,
-      "sha256": "759a2d5c89abae950fffef76910cd809d3b1ab6f267640f76d3aa192c3916c4e"
+      "sha256": "4494a1b21c1e91e65b90f89ad5980fdc67c473154fdaf8664774740f97ac3169"
     },
     {
       "name": "trial-run/records/analysis_research_automation_ai_executions.json",
@@ -1214,7 +1214,7 @@
     {
       "name": "trial-run/records/analysis_research_automation_attempt_outputs.json",
       "byteSize": 404,
-      "sha256": "912d56799a0a2692898a489cb73ff8b8644e42359c3ab4baf7089259f122e240"
+      "sha256": "359edf56fe5f599588194b458d44f7f35e4ce76087f81614e5f19613a6c382f2"
     },
     {
       "name": "trial-run/records/analysis_research_automation_attempt_requests.json",
@@ -1224,7 +1224,7 @@
     {
       "name": "trial-run/records/analysis_research_automation_attempts.json",
       "byteSize": 708,
-      "sha256": "da03865cc23b5f29488a44e0ecd0704934590860d116540ecbdb7da43c0c662e"
+      "sha256": "bc9ed7002bd88a09f47b64e019d44d9bcb9c0fe7a6c17d5d7ff2522b41c316ca"
     },
     {
       "name": "trial-run/records/analysis_research_automation_captures.json",

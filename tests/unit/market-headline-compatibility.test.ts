@@ -14,6 +14,7 @@ import { fullMarket14Input } from '../helpers/market14-full-fixture.js';
 // G updates two current Market HTML fixture pins: old evidence labels/empty states were the defects.
 // R updates only current Market copy: M6/M10/M17 and L5/L7/L8/L9/L12/L13.
 // UNIT-209 updates only current Market unit copy (C4 per-product units, C5 converted price, C8 Quy cách column); legacy and Insight pins are unchanged.
+// Round 2 also updates no-capture Market HTML/trace for C4/C8; its semantic pin stays the same.
 const baseline = JSON.parse(readFileSync(new URL('../fixtures/market-headline-main-hashes.json', import.meta.url), 'utf8')) as
   Record<string, { html: string; semantic: string; trace: string | null }>;
 const hash = (value: string | Uint8Array) => createHash('sha256').update(value).digest('hex');

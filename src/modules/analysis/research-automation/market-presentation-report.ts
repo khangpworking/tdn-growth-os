@@ -307,14 +307,15 @@ export function renderAutomationMarketFindings(method: Method, citations: Report
 }
 
 /** Rows listed per platform in the title-unit price table of Phần 8. */
+export type MarketTitleUnitRow = Pick<Method['input']['rows'][number], 'i' | 'platform' | 'listing' | 'title' | 'rev' | 'units'>;
 const TITLE_UNIT_TOP = 10;
 
 /** C7: per platform, the top converted rows by revenue with the title pack size used; '' when no row converts. */
-function titleUnitTables(method: Method, profile: UnitProfile, productLabel: (listing: string) => string, title: (value: string) => string): string {
-  const projection = projectTitleUnitPrices(method.input.rows.map(row => ({ title: row.title, revenue: row.rev, units: row.units, platform: row.platform })), profile);
+function titleUnitTables(rows: readonly MarketTitleUnitRow[], profile: UnitProfile, productLabel: (listing: string) => string, title: (value: string) => string): string {
+  const projection = projectTitleUnitPrices(rows.map(row => ({ title: row.title, revenue: row.rev, units: row.units, platform: row.platform })), profile);
   if (!projection.convertedCount) return '';
   return (['shopee', 'tiktok'] as const).flatMap(platform => {
-    const own = method.input.rows.flatMap((row, index) => row.platform === platform ? [{ row, price: projection.rows[index]! }] : []);
+    const own = rows.flatMap((row, index) => row.platform === platform ? [{ row, price: projection.rows[index]! }] : []);
     const converted = own.filter(entry => entry.price.unitPrice !== null), label = PLATFORM_LABELS[platform];
     if (!own.length) return [];
     if (!converted.length) return [`<p>${escape(`${label}: ${convertedLine(0, own.length)}`)}</p>`];
@@ -327,13 +328,13 @@ function titleUnitTables(method: Method, profile: UnitProfile, productLabel: (li
   }).join('');
 }
 
-export function renderAutomationMarketUnitPrices(method: Method, citations: ReportCitations, readerPlainText = false, capturedPrices = false, titleProfile: UnitProfile | null = null): string {
+export function renderAutomationMarketUnitPrices(method: Method, citations: ReportCitations, readerPlainText = false, capturedPrices = false, titleProfile: UnitProfile | null = null, titleRows: readonly MarketTitleUnitRow[] = method.input.rows): string {
   const groups = new Map<string, Method['unitPrices']>(), missing: Method['unitPrices'] = [];
   for (const row of method.unitPrices) {
     if (row.value === null) missing.push(row);
     else groups.set(row.comparisonKey, [...(groups.get(row.comparisonKey) ?? []), row]);
   }
-  const titleByListing = new Map(method.input.rows.flatMap(row => row.title.trim() ? [[row.listing, row.title.trim()] as const] : []));
+  const titleByListing = new Map(titleRows.flatMap(row => row.title.trim() ? [[row.listing, row.title.trim()] as const] : []));
   const listingOrdinals = new Map<string, number>();
   const productLabel = (listing: string): string => {
     const ordinal = listingOrdinals.get(listing) ?? listingOrdinals.size + 1;
@@ -342,7 +343,7 @@ export function renderAutomationMarketUnitPrices(method: Method, citations: Repo
   };
   // An owner pack packet and captured listing prices keep their own path; only without both does the title pack size price the rows.
   const titled = readerPlainText && !capturedPrices && !method.unitPrices.length && titleProfile
-    ? titleUnitTables(method, titleProfile, productLabel, value => literal(value, readerPlainText)) : '';
+    ? titleUnitTables(titleRows, titleProfile, productLabel, value => literal(value, readerPlainText)) : '';
   if (titled) return `<p>Chưa có quy cách do chủ khai báo; giá dưới đây quy đổi theo quy cách ghi trong tên sản phẩm (${escape(titleProfile!.standard)}). Sản phẩm có nhiều quy cách hoặc khác loại quy cách không được quy đổi.</p>` + titled +
     '<p>Giá quy đổi là doanh thu chia lượt bán rồi chia quy cách trong tên sản phẩm; đây là ước tính, không thay cho giá niêm yết. Chỉ so giá trong cùng sàn; hàng dùng lâu bán theo bộ không chia nhỏ.</p>' +
     '<p>Chưa có số liệu chi phí quảng cáo nên chưa tính ROAS (doanh thu trên chi phí quảng cáo) và CPA (chi phí cho mỗi đơn hàng).</p>' +

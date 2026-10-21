@@ -32,13 +32,16 @@ const UNIT_AHEAD = `(?!\\s*(?:${MASS_ALT}|${VOLUME_ALT}|${COUNT_ALT})${END})`;
 const MASS = new RegExp(`${BEFORE}${NUM}\\s*(${MASS_ALT})${END}`, 'gu');
 const VOLUME = new RegExp(`${BEFORE}${NUM}\\s*(${VOLUME_ALT})${END}`, 'gu');
 const COUNT = new RegExp(`${BEFORE}${NUM}\\s*(${COUNT_ALT})${END}`, 'gu');
+// A multiplier count must be complete: "x3" is a pack, while "X100V" is a model code.
 const MULTIPLIERS = [
-  new RegExp(`(?<![\\p{L}])x\\s*(\\d+)(?![\\d.,])${UNIT_AHEAD}`, 'gu'),
+  new RegExp(`(?<![\\p{L}])x\\s*(\\d+)(?![\\p{L}\\d.,])${UNIT_AHEAD}`, 'gu'),
   new RegExp(`(?<![\\p{L}\\d.,])(\\d+)\\s*x(?![\\p{L}])`, 'gu'),
-  new RegExp(`(?<![\\p{L}])(?:combo|set|bo|loc|thung|pack)\\s*(\\d+)(?![\\d.,])${UNIT_AHEAD}`, 'gu'),
+  new RegExp(`(?<![\\p{L}])(?:combo|set|bo|loc|thung|pack)\\s*(\\d+)(?![\\p{L}\\d.,])${UNIT_AHEAD}`, 'gu'),
 ];
-// Dimensions (30x40cm, 16 x 20 inch) are sizes of one item, never a pack.
-const DIMENSION = /\d+(?:[.,]\d+)?\s*[x*]\s*\d+(?:[.,]\d+)?(?:\s*[x*]\s*\d+(?:[.,]\d+)?)?\s*(?:cm|mm|m|inch)(?![\p{L}\d])/gu;
+// Dimensions (30x40cm, 30cm x 50cm, 16 x 20 inch) are sizes of one item, never a pack.
+const DIMENSION = /\d+(?:[.,]\d+)?\s*(?:(?:cm|mm|m|inch)\s*)?[x*]\s*\d+(?:[.,]\d+)?(?:\s*(?:cm|mm|m|inch)?\s*[x*]\s*\d+(?:[.,]\d+)?)?\s*(?:cm|mm|m|inch)(?![\p{L}\d])/gu;
+// Explicitly labelled codes ("mã X3-100G", "SKU: X3-100G") are never quantities or pack multipliers.
+const MODEL_CODE = /(?<![\p{L}\d])(?:ma|model|msp|sku|art|code)(?:\s*[:#]\s*|\s+)[\p{L}\d][\p{L}\d._/-]*/gu;
 
 /** Lower case, NFC, diacritics folded one character to one character so match offsets stay on the original text. */
 function fold(text: string): string {
@@ -75,7 +78,8 @@ const describesContents = (hit: Hit, sizes: readonly Hit[], folded: string): boo
 export function parseTitleQuantity(title: string): TitleQuantity {
   const original = title.normalize('NFC');
   if (!original.trim()) return { state: 'NONE' };
-  const folded = fold(original.toLowerCase()).replace(DIMENSION, part => ' '.repeat(part.length));
+  const folded = fold(original.toLowerCase()).replace(MODEL_CODE, part => ' '.repeat(part.length))
+    .replace(DIMENSION, part => ' '.repeat(part.length));
   const mass = hits(MASS, folded).filter(hit => !isNetwork(hit, folded)).map(hit => ({ ...hit, value: hit.word === 'kg' ? hit.value * 1000 : hit.value }));
   const volume = hits(VOLUME, folded).map(hit => ({ ...hit, value: hit.word === 'ml' ? hit.value : hit.value * 1000 }));
   const counts = hits(COUNT, folded).filter(hit => !describesContents(hit, [...mass, ...volume], folded));

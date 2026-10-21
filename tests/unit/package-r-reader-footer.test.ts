@@ -162,8 +162,9 @@ const builderMainHashes: Record<string, { html: string; trace: string | null; se
     "semantic": "640433a09580596ca7239258e40a3c124b89a676c9bb02846fcde847c990a6a3"
   },
   "no-capture-market": {
-    "html": "05c8f5d3b884d2c2c6197ca42accbe9ebaa71d10faf3aa9af355272c7c1b221d",
-    "trace": "cceb96fffbce7675959f63f2a8e255a0abe0da9bac10e91752b0bdc85cdd818f",
+    // UNIT-209 round 2 C4/C8: no-capture summary and per-product source trace.
+    "html": "d96dd89e9dc9046cf5bdbd1c134a96e5eee792a046f4491c7d73a8e620910205",
+    "trace": "337f05580d6debd24497de0f1aae068c53ccf585c805e1ae7d55993f85123117",
     "semantic": "8e1cb7369302a0700596215cd3f65ba80d3b7c699cea5d3f3af7068b60b13a9b"
   },
   "capture-insight": {

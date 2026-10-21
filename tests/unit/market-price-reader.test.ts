@@ -221,7 +221,8 @@ test('reader digests pin the M08 badge control with capture headlines', async ()
   for (const [reportInput, parent] of [
     // UNIT-209 C4/C5/C8: current-reader Market unit wording changes these pins; legacy and Insight pins are unchanged.
     [input, '0306adb4fd4d94119d6f9eea3ac6ca72ef3cfa5c09353eb4f9eada499c632cdb'],
-    [{ ...input, metricMethods }, '5ae3f02f8e01e2ebba72753c2784a08587dff052d563e2a21eb051760fd71ae2'],
+    // Round 2 C4/C8: no-capture summary no longer totals units; the M08 badge control stays the same.
+    [{ ...input, metricMethods }, '388e7c019e4775bf4eb091daf57c66b50a27c43567fe39468417908ba4df717d'],
   ] as const) {
     const html = buildResearchAutomationReport(reportInput, 'MARKET').html.toString();
     assert.equal(hash(html.replace('<span class="state">Có giá tham khảo, chưa xác minh</span>', '<span class="state">Có số liệu</span>')), parent);
