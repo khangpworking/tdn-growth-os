@@ -6,6 +6,8 @@ Cập nhật: 21/10/2026
 
 | Bản cũ | Bản mới | Lý do cập nhật |
 | --- | --- | --- |
+| [docs/business-spec/README.md](2026-10-21-7/docs/business-spec/README.md) | [docs/business-spec/README.md](../business-spec/README.md) | Thêm dòng mục lục cho tài liệu nghiên cứu insight |
+| [docs/business-spec/CHANGELOG.md](2026-10-21-7/docs/business-spec/CHANGELOG.md) | [docs/business-spec/CHANGELOG.md](../business-spec/CHANGELOG.md) | Thêm dòng 1.1 |
 | [docs/research/ultimate-method/insight-cau-hoi-nghiep-vu.md](2026-10-21-6/docs/research/ultimate-method/insight-cau-hoi-nghiep-vu.md) | [docs/research/ultimate-method/insight-cau-hoi-nghiep-vu.md](../research/ultimate-method/insight-cau-hoi-nghiep-vu.md) | Mục 6.2 và Phần 7 chuyển sang docs/business-spec/semantic-layer/. Giữ một dòng liên kết |
 | [docs/research/ultimate-method/cach-nguon-tinh-so.md](2026-10-21-6/docs/research/ultimate-method/cach-nguon-tinh-so.md) | [docs/business-spec/semantic-layer/source-methods.md](../business-spec/semantic-layer/source-methods.md) | Chuyển sang business-spec. File cũ còn stub |
 | [docs/research/ultimate-method/source-status.md](2026-10-21-6/docs/research/ultimate-method/source-status.md) | [docs/business-spec/data-sources/source-status.md](../business-spec/data-sources/source-status.md) | Chuyển sang business-spec. File cũ còn stub |
