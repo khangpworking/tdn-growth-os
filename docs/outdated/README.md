@@ -6,6 +6,10 @@ Cập nhật: 22/10/2026
 
 | Bản cũ | Bản mới | Lý do cập nhật |
 | --- | --- | --- |
+| [docs/research/ultimate-method/input-data-sources-30-sections.md](2026-10-22-2/docs/research/ultimate-method/input-data-sources-30-sections.md) | [docs/research/ultimate-method/input-data-sources-30-sections.md](../research/ultimate-method/input-data-sources-30-sections.md) | Ghi gói sửa nguồn đã triển khai 22/10 (S05, S14, S17, S20, S25); SRC2 tạm gác |
+| [docs/business-spec/data-sources/input-standard.md](2026-10-22-2/docs/business-spec/data-sources/input-standard.md) | [docs/business-spec/data-sources/input-standard.md](../business-spec/data-sources/input-standard.md) | Lên bản 1.38: trạng thái nguồn sau gói sửa 22/10 |
+| [docs/research/ultimate-method/CHANGELOG.md](2026-10-22-2/docs/research/ultimate-method/CHANGELOG.md) | [docs/research/ultimate-method/CHANGELOG.md](../research/ultimate-method/CHANGELOG.md) | Thêm dòng DS-20261022-01 |
+| [docs/business-spec/CHANGELOG.md](2026-10-22-2/docs/business-spec/CHANGELOG.md) | [docs/business-spec/CHANGELOG.md](../business-spec/CHANGELOG.md) | Thêm dòng 1.3 |
 | [docs/business-spec/data-sources/source-status.md](2026-10-22/docs/business-spec/data-sources/source-status.md) | [docs/business-spec/data-sources/source-status.md](../business-spec/data-sources/source-status.md) | Gói sửa nguồn ngày 21–22/10 đã gộp và đã triển khai; SRC2 tạm gác |
 | [docs/business-spec/CHANGELOG.md](2026-10-22/docs/business-spec/CHANGELOG.md) | [docs/business-spec/CHANGELOG.md](../business-spec/CHANGELOG.md) | Thêm dòng 1.2 |
 | [docs/business-spec/README.md](2026-10-21-7/docs/business-spec/README.md) | [docs/business-spec/README.md](../business-spec/README.md) | Thêm dòng mục lục cho tài liệu nghiên cứu insight |
