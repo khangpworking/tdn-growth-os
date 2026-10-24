@@ -165,7 +165,9 @@ export function decisionPacketSection(packet: AutomationDecisionPacket, claims: 
     const contextLinks = item.contextClaimRefs?.map(ref => `<a href="#decision-${escape(packet.sectionId)}-${escape(ref)}">Bối cảnh nguồn đi kèm</a>${claimMark(ref, citations)}`).join(' · ') ?? '';
     return `<article class="evidence-entry"><h4>Bằng chứng từ ${escape(item.sectionId)}</h4>${value}<p>${item.basis === 'DECLARED' ? 'Lời tự thuật được định vị, chưa xác thực độc lập.' : 'Quan sát nguồn, không tự suy thành nhu cầu thị trường.'} ${support}</p>${contextLinks ? `<p>${contextLinks}</p>` : ''}${sourceDetails(claim, `decision-${packet.sectionId}`, citations)}</article>`;
   }).join('');
-  const intro = `<p>${purpose} Các bằng chứng dưới đây được giữ theo section gốc, không xếp hạng.</p><p><strong>Chưa cung cấp:</strong> ${ownerMissing}. Hệ thống không tự điền thay người dùng.</p><p>Cùng lượt nghiên cứu không chứng minh cùng người, sản phẩm, listing hoặc kỳ đo. Không cộng gộp mẫu số hay tính lại bằng chứng tái dùng như nguồn độc lập.</p>`;
+  // R-L14 / owner Q4: M12 names options, so it carries the full proposal label even before any AI proposal exists.
+  const m12Label = packet.sectionId === 'M12' ? '<p>Mọi phương án, người phụ trách và thời hạn ở phần này, khi có, là đề xuất, chờ chủ duyệt.</p>' : '';
+  const intro = `<p>${purpose} Các bằng chứng dưới đây được giữ theo section gốc, không xếp hạng.</p><p><strong>Chưa cung cấp:</strong> ${ownerMissing}. Hệ thống không tự điền thay người dùng.</p>${m12Label}<p>Cùng lượt nghiên cứu không chứng minh cùng người, sản phẩm, listing hoặc kỳ đo. Không cộng gộp mẫu số hay tính lại bằng chứng tái dùng như nguồn độc lập.</p>`;
   const inventory = entries || '<p>Chưa có claim nguồn phù hợp trong phiên bản này.</p>';
   const closing = 'Danh sách bằng chứng không phải phân tích hoàn chỉnh; không có phản chứng đã mã hóa cũng không có nghĩa là không tồn tại phản chứng.';
   if (!synthesis) return `${intro}${inventory}<p>Chưa có bước sinh đề xuất AI cho mục này. ${closing}</p>${methodLimits(packet.limitations)}`;
