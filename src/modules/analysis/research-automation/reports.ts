@@ -65,8 +65,8 @@ import type { CaptureRecord, ScopeSnapshot, StartSnapshot, StepOfficialStats, St
 import { CitationRegistry, type CitationInput } from '../citation-registry.js';
 import { orderReportCitations, renderCitationMarkOrMissing, renderCitationRegister } from '../citation-register-html.js';
 import { lintVisibleReportText } from '../report-visible-text-lint.js';
-import { assertMarketBusinessGate, partialRowTotals, type PartialRowTotal } from './market-business-gate.js';
-import { assertMarket14MachineRules } from './market-14-rules.js';
+import { partialRowTotals, type PartialRowTotal } from './market-business-gate.js';
+import { assertMarketReport } from './market-report-check.js';
 import { formatReaderValue, readerProductLabel, readerShopLabel } from './reader-plain-text.js';
 import type { AutomationQualitativeDraft } from '../../../../contracts/analysis/automation-qualitative-draft-v1.generated.js';
 import { qualitativeDraftSection, qualitativeDraftSummary } from '../reader-report/qualitative-draft-report.js';
@@ -1658,16 +1658,17 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   // Source appendix v18 also serves existing Market and accepted Insight
   // methods. Preserve the family-draft lint boundary independently of the
   // renderer identity, so its source marker cannot bypass the applicable gate.
-  if (insightPersona || marketPresentation || (draftInsight && (input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3' || input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4' || insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v5'))) {
+  if (insightPersona || (draftInsight && (input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3' || input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4' || insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v5'))) {
     const failed = lintVisibleReportText(readerRenderedHtml).filter(check => !check.ok);
-    if (failed.length) throw new TypeError(`${marketPresentation ? 'MARKET' : 'INSIGHT'}_VISIBLE_TEXT_LINT_FAILED:${failed.map(check => check.rule).join(',')}`);
+    if (failed.length) throw new TypeError(`INSIGHT_VISIBLE_TEXT_LINT_FAILED:${failed.map(check => check.rule).join(',')}`);
   }
-  // The visible-text lint keeps its own error; the business gate adds the remaining Market rules.
-  if (marketPresentation) {
-    assertMarketBusinessGate(readerRenderedHtml, { presentation: true, publicReviewSource: Boolean(input.publicReviewSource), partialTotals: marketPartialRowTotals(input) });
-    assertMarket14MachineRules(readerRenderedHtml, undefined, { publicReviewSource: Boolean(input.publicReviewSource) });
+  // The Market check owns its order and errors: visible-text lint, business gate, 14 rules, public-review names.
+  if (kind === 'MARKET') {
+    assertMarketReport(readerRenderedHtml, marketPresentation
+      ? { kind: 'DRAFT_PRESENTATION', publicReviewSource: Boolean(input.publicReviewSource), partialTotals: marketPartialRowTotals(input) }
+      : { kind: 'DRAFT_PLAIN', publicReviewSource: Boolean(input.publicReviewSource) });
   }
-  if (kind === 'INSIGHT' || input.publicReviewSource) {
+  if (kind === 'INSIGHT') {
     const nameFailure = lintReaderReport(readerRenderedHtml, { reportKind: kind, publicReviewSource: Boolean(input.publicReviewSource) }).filter(r => (r.rule.startsWith('F1 ') || r.rule.startsWith('W6 ')) && !r.ok);
     if (nameFailure.length) throw new TypeError(input.publicReviewSource ? 'PUBLIC_REVIEW_READER_NAME_REFUSED' : 'INSIGHT_READER_NAME_REFUSED');
   }

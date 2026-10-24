@@ -1,5 +1,5 @@
 import { MAX_COVER_JPEG_BYTES } from './cover-image-codec.js';
-import { auditMarketReportHtml } from './market-business-gate.js';
+import { auditMarketReportHtml, type MarketBusinessGateResult } from './market-business-gate.js';
 import { isMacroChartId } from '../reader-report/macro-charts.js';
 
 const AI_COVER_PREFIX = 'data:image/jpeg;base64,';
@@ -12,6 +12,7 @@ const isAiCoverJpeg = (src: string): boolean => {
   return bytes.length >= 4 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[bytes.length - 2] === 0xff && bytes[bytes.length - 1] === 0xd9;
 };
 
+export type Market14Options = { requireFlint?: boolean; publicReviewSource?: boolean; gate?: readonly MarketBusinessGateResult[] };
 export type Market14Result = {
   rule: string;
   ok: boolean;
@@ -249,11 +250,13 @@ function coverBlock(html: string): { open: string; block: string } {
  * Country-background figures may retain their registered SVG fallback after a Flint failure.
  * `requireFlint: false` mirrors the builder's explicit test opt-out: charts may be the
  * hand-drawn SVG, but each still needs an engine marker, drawn content and the count of three.
+ * `gate` is a business-gate result already computed on the same html with the same
+ * `publicReviewSource`; rules 4 and 7 read its G08 and U32 rows. Without it the gate runs here.
  */
-export function auditMarket14(html: string, trace?: string, options: { requireFlint?: boolean; publicReviewSource?: boolean } = {}): Market14Result[] {
+export function auditMarket14(html: string, trace?: string, options: Market14Options = {}): Market14Result[] {
   const requireFlint = options.requireFlint ?? true;
   const text = visible(html);
-  const gate = auditMarketReportHtml(html, { presentation: false, publicReviewSource: Boolean(options.publicReviewSource) });
+  const gate = options.gate ?? auditMarketReportHtml(html, { presentation: false, publicReviewSource: Boolean(options.publicReviewSource) });
   const gateResult = (rule: string): { ok: boolean; detail: string } => {
     const found = gate.find(item => item.rule === rule);
     return found === undefined ? { ok: false, detail: `${rule} result unavailable` } : found;
@@ -341,7 +344,7 @@ export function auditMarket14(html: string, trace?: string, options: { requireFl
   ];
 }
 
-export function assertMarket14MachineRules(html: string, trace?: string, options: { requireFlint?: boolean; publicReviewSource?: boolean } = {}): void {
+export function assertMarket14MachineRules(html: string, trace?: string, options: Market14Options = {}): void {
   const audited = auditMarket14(html, trace, options);
   const failed = audited.filter(rule => rule.kind === 'machine' && !rule.ok);
   if (failed.length) throw new TypeError(`MARKET_14_RULES_FAILED:${failed.map(rule => rule.rule).join(',')}`);
