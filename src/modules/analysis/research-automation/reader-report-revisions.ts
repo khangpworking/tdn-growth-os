@@ -19,14 +19,12 @@ import type { ReaderReportInput } from '../../../../contracts/analysis/reader-re
 import type { AutomationMetricWebSnapshotV1 } from '../../../../contracts/analysis/automation-metric-web-snapshot-v1.generated.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import { DEFAULT_MARKET_PEER_RULE } from '../default-market-peers.js';
-import type { ContentAddressedArtifactStore, StoredArtifact } from '../../../platform/artifacts/artifact-store.js';
+import type { ContentAddressedArtifactStore } from '../../../platform/artifacts/artifact-store.js';
 import {
-  buildMarketReport, computeReaderReportData, publishReaderReport, ReaderAssetError, ReaderReportGateError, ReaderReportInputError,
-  ReaderSourceError, storeCoverImage, storeReaderProfile, type CoverImage, type ReaderPlatform, type ReaderWebResult, type StoredCoverImage,
+  buildMarketReport, computeReaderReportData, ReaderAssetError, ReaderReportInputError,
+  ReaderSourceError, storeCoverImage, type CoverImage, type ReaderPlatform, type ReaderWebResult, type StoredCoverImage,
 } from '../reader-report/index.js';
 import { ReaderUnitSpecIntakes } from './reader-unit-spec-intake.js';
-import { checkMarketReport } from './market-report-check.js';
-import { marketCheckReasons, readerLintReasons } from './market-check-reasons.js';
 import type { RequestScopedArtifactStore } from '../../../platform/artifacts/request-scoped-artifact-store.js';
 import { MarketUnitPriceError, type RetainedUnitPriceSource } from '../reader-report/market-unit-prices.js';
 import { ReaderMetricRowsError, readerRowsFromMetricWorkbook, type ReaderRow } from '../reader-report/metric-rows.js';
@@ -41,7 +39,7 @@ import { ResearchAutomationConflictError, ResearchAutomationIntegrityError, Rese
 import { verifyInsightReaderInput, type InsightReaderInput } from '../reader-report/insight-input-v1.js';
 import { prepareTikTokReaderBuild } from '../reader-report/tiktok-build-v1.js';
 import type { InsightReaderPage } from '../reader-report/insight-template.js';
-import { latestRevision, MAX_READER_HTML_BYTES, publishInsightFamilyRevision, registerReaderManifest, revisionByRequestKey, SELECT, type ReaderPublishOutcome, type RevisionRow } from './reader-publish.js';
+import { latestRevision, MAX_READER_HTML_BYTES, publishInsightFamilyRevision, publishMarketRevision, revisionByRequestKey, SELECT, type ReaderPublishOutcome, type RevisionRow } from './reader-publish.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -355,61 +353,25 @@ export class AutomationReaderReports {
     const built = await buildMarketReport(data, { ...(context.publicReviewSource ? { publicReviewSource: context.publicReviewSource } : {}), limitations, builtOn: builtOn(at), cover, flint: this.options.flint ?? true, webResults, ...(context.webPageTypes ? { webPageTypes: true as const } : {}), ...(capture ? { captureSource: true, captureRowPolicy: capture.rowPolicy, captureExcludedRows: captureRows?.excluded ?? [] } : {}), ...(context.searchInterest ? { searchInterest: context.searchInterest } : {}), ...(context.searchGeo ? { searchGeo: context.searchGeo } : {}), ...(context.searchGeoCapture ? { searchGeoCapture: context.searchGeoCapture } : {}), ...(context.worldBank ? { worldBank: context.worldBank } : {}), ...(context.comtrade ? { comtrade: context.comtrade } : {}), ...(context.searchAds ? { searchAds: context.searchAds } : {}), ...(context.officialStats ? { officialStats: context.officialStats } : {}), ...(context.pdfDiscovery ? { pdfDiscovery: context.pdfDiscovery } : {}), ...(context.pdfExcerpts?.length ? { pdfExcerpts: context.pdfExcerpts } : {}), ...(context.sellerVideos ? { sellerVideos: context.sellerVideos } : {}), ...(context.metaAds?.length ? { metaAds: context.metaAds } : {}), ...(context.metaAuto ? { metaAuto: context.metaAuto } : {}), ...(context.tiktokTopAds ? { tiktokTopAds: context.tiktokTopAds } : {}), ...(next && context.testReviewSample ? { testReviewSample: context.testReviewSample } : {}) });
     // Sample charts require Flint; country-background charts retain their explicit SVG fallback.
     assertFlintCharts(built.charts, this.options.flint ?? true);
-    // The gate blocks report publication and revision insertion; cover/sidecar artifacts may already be written.
-    // One Market check by contract version (gate, plus the fourteen rules for v1.2); the owner sees plain reasons, ops get the ids (owner Q2).
-    const check = checkMarketReport(built.html, { kind: 'READER', contractVersion: request.contractVersion, requireFlint: this.options.flint ?? true, publicReviewSource: Boolean(context.publicReviewSource) });
-    if (check.failure) throw new ResearchAutomationValidationError(
-      `Bản đọc chưa đạt kiểm tra bằng chứng hoặc cách trình bày: ${marketCheckReasons(check.failure.message).join(' ')} Hãy sửa cách trình bày trước khi tạo phiên bản mới.`,
-      { cause: new TypeError(check.failure.message) });
-    let published;
-    try { published = await publishReaderReport(this.artifacts, { html: built.html, narrator: built.narrator, extraOk: built.extraOk, visibleTextRules: next, ...(check.visibleText ? { visibleTextResults: check.visibleText } : {}), publicReviewSource: Boolean(context.publicReviewSource) }); }
-    catch (error) {
-      if (error instanceof ReaderReportGateError) throw new ResearchAutomationValidationError(
-        `Bản đọc chưa đạt kiểm tra bằng chứng hoặc cách trình bày: ${readerLintReasons(error.lint.filter(row => !row.ok).map(row => row.rule), error.hardcoded.length, error.notInBundle.length).join(' ')} Hãy kiểm tra nguồn, nhận định và nhãn phân loại chờ chủ duyệt trước khi tạo phiên bản mới.`,
-        { cause: error });
-      throw error;
-    }
-    const profile = (await storeReaderProfile(this.artifacts, request.profile)).artifact;
-    const record = await this.artifacts.put(json({
-      contractVersion: 'reader-report-build-record-v1', builderVersion, revisionId,
-      ...(context.publicReviewSource ? { publicReviewSource: context.publicReviewSource } : {}),
-      ...(intakeEnvelope ? { unitSpecIntakeSha256: intakeEnvelope.intakeSha256 } : {}),
-      workspaceId: context.workspaceId, runId: context.runId, draftPairId: context.draftPairId, metricPackageId: request.metricPackageId,
-      requestSha256: requestSha, profileSha256: profile.sha256, input, limitations, webResults: built.webResults,
-      ...(next && context.testReviewSample ? { testReviewSample: context.testReviewSample } : {}),
-      ...(capture && captureRows ? { captureRowPolicy: capture.rowPolicy, captureExcludedRows: captureRows.excluded } : {}),
-      defaultMarketPeers: data.defaultMarketPeers,
-      cover: stored && request.cover ? { sha256: stored.coverSha256, imageSha256: stored.imageSha256, mime: stored.mime,
-        licence: request.cover.licence, credit: request.cover.credit ?? null } : null,
-      charts: built.charts, htmlSha256: published.html.sha256, actorId: actor.actorId, createdAt,
-    }));
-
-    this.db.exec('BEGIN IMMEDIATE');
-    try {
-      // A concurrent writer on another connection may have claimed the key.
-      const raced = this.#byRequestKey(request.requestKey);
-      if (raced) {
-        this.db.exec('ROLLBACK');
-        return { contractVersion: 'reader-report-build-receipt-v1', exactRetry: true, revision: this.#exactBuildRetry(raced, context, requestSha, actor) };
-      }
-      this.#manifest(published.html, 'text/html; charset=utf-8', createdAt);
-      for (const a of [published.metrics, published.claims, profile, record]) this.#manifest(a, 'application/json', createdAt);
-      if (stored) { this.#manifest(stored.image, stored.mime, createdAt); this.#manifest(stored.sidecar, 'application/json', createdAt); }
-      const next = Number((this.db.prepare("SELECT COALESCE(max(revision_number),0)+1 n FROM analysis_reader_report_revisions WHERE run_id=? AND report_kind='MARKET'").get(context.runId) as { n: number | bigint }).n);
-      this.db.prepare(`INSERT INTO analysis_reader_report_revisions(revision_id,workspace_id,run_id,revision_number,request_key,request_sha256,
-        draft_pair_id,metric_package_id,platforms,profile_status,input_sha256,profile_sha256,cover_sha256,html_sha256,metrics_sha256,claims_sha256,
-        builder_version,actor_id,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-        revisionId, context.workspaceId, context.runId, next, request.requestKey, requestSha, context.draftPairId, request.metricPackageId,
-        platforms.join(','), request.profile.status, record.sha256, profile.sha256, stored?.coverSha256 ?? null,
-        published.html.sha256, published.metrics.sha256, published.claims.sha256, builderVersion, actor.actorId, createdAt);
-      this.db.exec('COMMIT');
-    } catch (error) {
-      if (this.db.inTransaction) this.db.exec('ROLLBACK');
-      if (error instanceof Error && /reader_report_requires_draft_ready_sequence/.test(error.message))
-        throw new ResearchAutomationConflictError('invalid_state', 'Chỉ dựng bản đọc khi bản nháp đã sẵn sàng.');
-      throw error;
-    }
-    return { contractVersion: 'reader-report-build-receipt-v1', exactRetry: false, revision: this.#project(this.#byId(context.runId, revisionId)!) };
+    const outcome = await publishMarketRevision(this.db, this.artifacts, { workspaceId: context.workspaceId, runId: context.runId, actorId: actor.actorId,
+      draftPairId: context.draftPairId, requestKey: request.requestKey, requestSha256: requestSha, contractVersion: request.contractVersion,
+      metricPackageId: request.metricPackageId, platforms, profile: request.profile, builderVersion, publicReviewSource: Boolean(context.publicReviewSource),
+      requireFlint: this.options.flint ?? true, createdAt, revisionId, page: built, cover: stored,
+      record: ({ revisionId, profileSha256, htmlSha256 }) => ({
+        contractVersion: 'reader-report-build-record-v1', builderVersion, revisionId,
+        ...(context.publicReviewSource ? { publicReviewSource: context.publicReviewSource } : {}),
+        ...(intakeEnvelope ? { unitSpecIntakeSha256: intakeEnvelope.intakeSha256 } : {}),
+        workspaceId: context.workspaceId, runId: context.runId, draftPairId: context.draftPairId, metricPackageId: request.metricPackageId,
+        requestSha256: requestSha, profileSha256, input, limitations, webResults: built.webResults,
+        ...(next && context.testReviewSample ? { testReviewSample: context.testReviewSample } : {}),
+        ...(capture && captureRows ? { captureRowPolicy: capture.rowPolicy, captureExcludedRows: captureRows.excluded } : {}),
+        defaultMarketPeers: data.defaultMarketPeers,
+        cover: stored && request.cover ? { sha256: stored.coverSha256, imageSha256: stored.imageSha256, mime: stored.mime,
+          licence: request.cover.licence, credit: request.cover.credit ?? null } : null,
+        charts: built.charts, htmlSha256, actorId: actor.actorId, createdAt,
+      }) });
+    return { contractVersion: 'reader-report-build-receipt-v1', exactRetry: outcome.exactRetry,
+      revision: outcome.exactRetry ? this.#exactBuildRetry(outcome.row, context, requestSha, actor) : this.#project(this.#byId(context.runId, outcome.revisionId)!) };
   }
 
   async buildInsight(context: InsightReaderDraftContext, value: unknown, actor: { actorId: string; role: 'OWNER' }): Promise<ResearchAutomationReaderBuildReceiptV2> {
@@ -755,8 +717,5 @@ export class AutomationReaderReports {
     if (row.builder_version !== QUALITATIVE_READER_BUILDER_VERSION && !validRevisionV2(revision))
       throw new ResearchAutomationIntegrityError('Stored kind-bound reader revision is invalid.');
     return revision;
-  }
-  #manifest(artifact: StoredArtifact, mediaType: string, at: string): void {
-    registerReaderManifest(this.db, artifact, mediaType, at);
   }
 }

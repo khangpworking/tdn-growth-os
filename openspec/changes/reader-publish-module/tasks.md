@@ -13,11 +13,13 @@
 
 ## 2. PR3: Market và các sửa hành vi
 
-- [ ] 2.1 Market `#build` gọi mô-đun (sau c2 PR3)
-- [ ] 2.2 Market: kiểm duyệt trong giao dịch (D8), giới hạn cỡ HTML (D9); giữ kiểm duyệt sớm trước kiểm đầu vào
-- [ ] 2.3 TikTok/Shopee: kiểm phạm vi trang với `input.scope` (D3)
-- [ ] 2.4 Thử lại: kiểm đúng họ báo cáo (D6)
-- [ ] 2.5 Kiểm thử cho 2.2–2.4, mỗi ca có ca đối chứng âm
+- [x] 2.1 Market `#build` gọi `publishMarketRevision` (sau c2 PR3); thử lại Market giữ như nay
+- [x] 2.2 Market: kiểm duyệt trong giao dịch (D8), giới hạn cỡ HTML (D9); giữ kiểm duyệt sớm trước kiểm đầu vào
+- [x] 2.3 TikTok/Shopee: kiểm phạm vi trang với `input.scope` (D3)
+- [ ] 2.4 Hoãn: thử lại kiểm đúng họ báo cáo (D6); thử lại chặt nhất cho Market (b2, cần bộ kiểm bản ghi Market và kiểm thử dòng cũ)
+- [x] 2.5a Dòng «row 4 Market» của kiểm thử mô tả: nay từ chối trang quá cỡ
+- [ ] 2.5 Kiểm thử cho 2.2–2.3, mỗi ca có ca đối chứng âm (phiên khác người viết mã)
+- [ ] 2.6 CI Linux xanh tại SHA cuối
 
 ## 3. Sau khi gộp
 
