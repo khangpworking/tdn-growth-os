@@ -87,9 +87,9 @@ const rejectionCases = [
   { boundary: 'status' as const, name: 'compact zero offset', field: 'updated_at', value: '2026-02-01T00:00:00+0000' },
 ];
 for (const entry of rejectionCases) {
-  const todo = entry.boundary === 'submit' ? 'S05-F1: submit validation failure is rewritten to SUBMISSION_UNCERTAIN (collector:276)'
-    : entry.boundary === 'list' ? 'S05-F2: invalid reconciliation row yields SUBMISSION_UNCERTAIN (collector:250,276)' : false;
-  test(`S05 UTC row 2: ${entry.boundary} rejects ${entry.field} ${entry.name} with INVALID_RESPONSE`, { todo }, async t => {
+  // Submit/list cannot bind a valid job after dispatch: preserve the existing SUBMISSION_UNCERTAIN policy (S05 row 4).
+  const expectedCode = entry.boundary === 'status' ? 'SHOPEE_REVIEW_INVALID_RESPONSE' : 'SUBMISSION_UNCERTAIN';
+  test(`S05 UTC row 2: ${entry.boundary} rejects ${entry.field} ${entry.name} with ${expectedCode}`, async t => {
     const bad = job(0, 'queued', { [entry.field]: entry.value });
     let script: Exchange[];
     if (entry.boundary === 'status') {
@@ -105,8 +105,9 @@ for (const entry of rejectionCases) {
     const { value, journals, transport } = await run(t, script);
     transport.done();
     assert.equal(value.envelopes.length, 0);
-    assert.equal(value.listings[0]!.stopCode, 'SHOPEE_REVIEW_INVALID_RESPONSE');
-    assert.equal(journals[0]!.terminal!.stopCode, 'SHOPEE_REVIEW_INVALID_RESPONSE');
+    assert.equal(value.listings[0]!.stopCode, expectedCode);
+    assert.equal(journals[0]!.terminal!.stopCode, expectedCode);
+    if (entry.boundary !== 'status') assert.equal(journals[0]!.job, null);
   });
 }
 
