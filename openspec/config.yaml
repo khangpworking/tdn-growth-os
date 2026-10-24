@@ -1,0 +1,38 @@
+schema: spec-driven
+
+context: |
+  Language: Vietnamese
+  All artifacts must be written in Vietnamese.
+  Keep OpenSpec structural headings and SHALL/MUST keywords in English.
+
+  Dự án: TDN Growth OS. Một ứng dụng TypeScript dạng modular monolith, một SQLite.
+  Máy chạy thật: Fedora (Linux). Windows chỉ để phát triển.
+  Hai sản phẩm chính: báo cáo Market và báo cáo Insight, sinh tự động từ tên sản phẩm.
+  Báo cáo là các khối HTML đã lưu, qua Reader, ra PDF. Không phải bảng điều khiển.
+  Chủ (owner) không đọc mã. Mọi đề xuất viết bằng tiếng Việt đơn giản, câu ngắn.
+
+  Bản đồ nhanh:
+  - Quy tắc nghiệp vụ: openspec/specs/{market-report,insight-report,report-language,report-metrics}.
+  - Luồng mã của hai báo cáo: openspec/specs/report-pipeline (file, hàm, cờ môi trường).
+  - Mã: src/modules/analysis/research-automation (dựng báo cáo, cổng, 14 quy tắc),
+    src/modules/analysis/reader-report (Reader, đơn giá, lint), src/platform/collectors (nguồn).
+  - Quy tắc làm việc của agent: AGENTS.md.
+
+  Giai đoạn chuyển (từ 24/10/2026): quy tắc báo cáo nằm ở openspec/specs; docs/business-spec/business-rules chỉ còn stub.
+  Quy tắc R-M, R-I, R-L chép từ business-spec bản 1.0 (21/10/2026), giữ nguyên mã; từ điển chỉ số chép từ metrics.md bản 21/10/2026.
+  Từ điển trường, nguồn dữ liệu, quyết định của chủ còn ở docs/business-spec (bản chép ở openspec/reference).
+  Khi hai nơi nói khác nhau: báo lại cho chủ, không tự chọn. Xem openspec/MIGRATION.md.
+
+rules:
+  proposal:
+    - 'Nêu mã quy tắc bị ảnh hưởng (R-M…, R-I…, R-L…) và câu quyết định của chủ kèm ngày.'
+    - 'Có mục "Ngoài phạm vi". Không thêm khối, nguồn hay phần mới nếu chưa trả lời 3 câu: phương pháp có cần không, lợi ích đáng kể hay nhỏ, đặt ở đâu.'
+    - 'Không gọi nguồn trả phí, không triển khai, không đổi cờ môi trường nếu chủ chưa nói rõ.'
+  specs:
+    - 'Mỗi requirement giữ mã quy tắc ở đầu tiêu đề. Mã mới lấy số kế tiếp, không dùng lại số cũ.'
+    - 'Mỗi requirement có dòng "Mã kiểm" (file và hàm) hoặc "chưa có mã kiểm", và dòng "Vì sao" (quyết định của chủ, ngày).'
+    - 'Không ghi đường dẫn máy, địa chỉ IP, tên máy, khóa, token, dữ liệu khách thật.'
+  tasks:
+    - 'Người viết mã và người viết kiểm thử là hai phiên khác nhau. Kiểm thử phải có một ca đối chứng âm.'
+    - 'Chỉ kiểm thử theo dòng hợp đồng (contract row). CI là cổng cuối; không chạy cả bộ kiểm thử trên máy.'
+    - 'Sửa lỗi phải áp dụng cho cả hệ thống, không chỉnh riêng cho một lần chạy.'
