@@ -67,10 +67,10 @@ const rows: Row[] = [
     const directory = await mkdtemp(path.join(tmpdir(), 'c2-legacy-review-'));
     t.after(() => rm(directory, { recursive: true, force: true }));
     const store = new ContentAddressedArtifactStore(directory);
-    // Frozen from a8bcafe7 lint on these synthetic legacy pages; includes order and every detail.
+    // Frozen from a8bcafe7 lint with main's restored F1 pass detail (#372); includes order and every detail.
     for (const [version, digest] of [
-      ['1.0.0', 'd92e49525b35276233198f007fcac3b8ddbfb0b8e00da99ef4b6cf7f8408acca'],
-      ['1.3.0', '8a1e5598587bd8228b57c4da87bc5702c9555dc9d654afd93b9eafd6e4c7b981'],
+      ['1.0.0', 'fc9e02c29b7b075c56395ff8e47d4e6872a91dcb5078bf45f799e6330151de18'],
+      ['1.3.0', '92440ece98ef241e4bedf23627b1ff42c4cc06619f258fe28b369148de52f09b'],
     ] as const) {
       const input = sync1ReaderFixture(version);
       if (version === '1.3.0') input.peerRule = { ...DEFAULT_MARKET_PEER_RULE };
