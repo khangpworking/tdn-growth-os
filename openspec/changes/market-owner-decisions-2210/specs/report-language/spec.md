@@ -5,7 +5,7 @@ Báo cáo Market MAY cộng Shopee với TikTok Shop theo R-M16 (có nhãn «C�
 
 - Loại kiểm: Máy
 - Mã kiểm: cổng `U32_NO_CROSS_PLATFORM_TOTAL` (đổi nghĩa cho Market, xem R-M16)
-- Vì sao: U-32 ngày 11/10/2026 cấm cộng. Chủ cho phép cộng ở Market ngày 22/10/2026 (F100). Insight chưa có quyết định mới.
+- Vì sao: U-32 ngày 11/10/2026 cấm cộng. Chủ cho phép cộng ở Market ngày 22/10/2026 (F100). Ngày 24/10/2026 chủ giữ luật không cộng cho Insight (R-I06).
 - Ghi chú: khi archive, đổi tên thành "R-L04 Cộng hai sàn chỉ ở Market, có nhãn".
 
 #### Scenario: Hai sàn cạnh nhau

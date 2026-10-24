@@ -1,6 +1,6 @@
 # Đưa quyết định của chủ ngày 22/10/2026 vào báo cáo Market tự động
 
-> Trạng thái: **đề xuất, chờ chủ duyệt**. Chưa đổi mã. Chưa đổi business-spec.
+> Trạng thái: **đề xuất, chủ đã trả lời 2 câu hỏi ngày 24/10/2026**. Chưa đổi mã. Chưa đổi business-spec.
 
 ## Why
 
@@ -18,7 +18,8 @@ Câu của chủ:
 
 - **MODIFIED** R-M07: bỏ vế "không cộng giữa hai sàn". Giữ "số trong mẫu, có n, không nêu quy mô thị trường".
 - **MODIFIED** R-M16: tổng hai sàn được phép, với điều kiện có nhãn «Cộng 2 sàn», số từng sàn đứng cạnh, và không là tổng thiếu thành viên (R-M18 giữ nguyên).
-- **MODIFIED** R-L04: Market theo R-M16 mới. Insight vẫn đếm riêng từng sàn (R-I06 không đổi).
+- **MODIFIED** R-L04: Market theo R-M16 mới. Insight vẫn đếm riêng từng sàn.
+- **MODIFIED** R-I06 (Insight): mỗi sàn một cột; chủ đề có ở cả hai sàn ghi «có ở cả 2 sàn»; không có tổng tiền, tổng lượt bán (chỉ Market có).
 - **ADDED** R-M33: không hiện mã chỉ số trong báo cáo gửi đọc.
 - **ADDED** R-M34: tên chỉ số giá là «giá bán trung bình», có ghi chú cách tính.
 - **ADDED** R-M35: mỗi phép so có chú thích chỉ số và kỳ so, kèm ngày.
@@ -29,16 +30,17 @@ Câu của chủ:
 
 - Mã: `src/modules/analysis/research-automation/market-business-gate.ts` (`CROSS_PLATFORM_TOTAL_PHRASES`, kết quả `U32_NO_CROSS_PLATFORM_TOTAL`), `market-14-rules.ts` (quy tắc 7), bộ dựng bản đọc `src/modules/analysis/reader-report/market-template.ts` và `market-template-v2.ts`, biểu đồ `reader-report/market-charts.ts`.
 - Kiểm thử: `tests/unit/gate-209-market-business.test.ts`, `tests/unit/rules14-209-market-14.test.ts`, fixture vàng của bản đọc Market (băm sẽ đổi).
-- Tài liệu: khi chủ duyệt, `docs/business-spec/business-rules/market.md` và `report-language.md` phải đổi cùng PR (luật giai đoạn chuyển, xem `openspec/MIGRATION.md`).
+- Bản đọc Insight: kiểm cột theo sàn và nhãn «có ở cả 2 sàn» (R-I06).
+- Tài liệu: khi chủ duyệt, `docs/business-spec/business-rules/market.md`, `insight.md` và `report-language.md` phải đổi cùng PR (luật giai đoạn chuyển, xem `openspec/MIGRATION.md`).
 - Không đổi nguồn, không gọi nguồn trả phí, không đổi cờ môi trường.
 
 ## Ngoài phạm vi
 
-- Báo cáo Insight: R-I06 vẫn cấm cộng hai sàn. Chủ chưa nói gì cho Insight.
+- Từ xếp hạng («dẫn đầu», «số 1», «nhiều nhất»): change riêng `report-ranking-words`.
 - Biểu đồ khác ngoài biểu đồ đường.
 - Triển khai lên máy chạy thật: cần câu «deploy <SHA>» riêng của chủ.
 
-## Câu hỏi cho chủ
+## Câu trả lời của chủ (24/10/2026)
 
-1. Insight có được cộng hai sàn như Market không? Đề xuất: không, vì đơn vị của Insight là bản ghi bình luận, không phải tiền.
-2. Đề xuất này có giải quyết điểm mở số 2 trong `market-report` (R-M17 cấm "xếp hạng", R-M27 giữ xếp theo doanh thu) không? Đề xuất: chưa; để thành một change riêng.
+1. Insight có được cộng hai sàn như Market không? **Không.** «Insight không cộng 2 sàn. Mỗi sàn một cột. Chủ đề có ở cả 2 sàn thì ghi «có ở cả 2 sàn». Tổng tiền và tổng lượt bán chỉ có ở Market.» Ghi vào R-I06.
+2. Từ xếp hạng: **làm thành change riêng** `report-ranking-words` (R-L20).
