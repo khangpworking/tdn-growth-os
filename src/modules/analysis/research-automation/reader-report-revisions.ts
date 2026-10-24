@@ -25,8 +25,8 @@ import {
   ReaderSourceError, storeCoverImage, storeReaderProfile, type CoverImage, type ReaderPlatform, type ReaderWebResult, type StoredCoverImage,
 } from '../reader-report/index.js';
 import { ReaderUnitSpecIntakes } from './reader-unit-spec-intake.js';
-import { assertMarketBusinessGate } from './market-business-gate.js';
-import { assertMarket14MachineRules } from './market-14-rules.js';
+import { checkMarketReport } from './market-report-check.js';
+import { marketCheckReasons, readerLintReasons } from './market-check-reasons.js';
 import type { RequestScopedArtifactStore } from '../../../platform/artifacts/request-scoped-artifact-store.js';
 import { MarketUnitPriceError, type RetainedUnitPriceSource } from '../reader-report/market-unit-prices.js';
 import { ReaderMetricRowsError, readerRowsFromMetricWorkbook, type ReaderRow } from '../reader-report/metric-rows.js';
@@ -356,17 +356,17 @@ export class AutomationReaderReports {
     // Sample charts require Flint; country-background charts retain their explicit SVG fallback.
     assertFlintCharts(built.charts, this.options.flint ?? true);
     // The gate blocks report publication and revision insertion; cover/sidecar artifacts may already be written.
-    try { assertMarketBusinessGate(built.html, { presentation: false, publicReviewSource: Boolean(context.publicReviewSource) }); if (built.visibleTextRules) assertMarket14MachineRules(built.html, undefined, { requireFlint: this.options.flint ?? true, publicReviewSource: Boolean(context.publicReviewSource) }); }
-    catch (error) {
-      if (error instanceof TypeError && (error.message.startsWith('MARKET_BUSINESS_GATE_FAILED:') || error.message.startsWith('MARKET_14_RULES_FAILED:'))) throw new ResearchAutomationValidationError(
-        `Bản đọc chưa đạt kiểm tra bằng chứng hoặc cách trình bày (quy tắc: ${error.message.replace(/^MARKET_(?:BUSINESS_GATE|14_RULES)_FAILED:/u, '')}). Hãy sửa cách trình bày trước khi tạo phiên bản mới.`);
-      throw error;
-    }
+    // One Market check by contract version (gate, plus the fourteen rules for v1.2); the owner sees plain reasons, ops get the ids (owner Q2).
+    const check = checkMarketReport(built.html, { kind: 'READER', contractVersion: request.contractVersion, requireFlint: this.options.flint ?? true, publicReviewSource: Boolean(context.publicReviewSource) });
+    if (check.failure) throw new ResearchAutomationValidationError(
+      `Bản đọc chưa đạt kiểm tra bằng chứng hoặc cách trình bày: ${marketCheckReasons(check.failure.message).join(' ')} Hãy sửa cách trình bày trước khi tạo phiên bản mới.`,
+      { cause: new TypeError(check.failure.message) });
     let published;
-    try { published = await publishReaderReport(this.artifacts, { html: built.html, narrator: built.narrator, extraOk: built.extraOk, visibleTextRules: next, publicReviewSource: Boolean(context.publicReviewSource) }); }
+    try { published = await publishReaderReport(this.artifacts, { html: built.html, narrator: built.narrator, extraOk: built.extraOk, visibleTextRules: next, ...(check.visibleText ? { visibleTextResults: check.visibleText } : {}), publicReviewSource: Boolean(context.publicReviewSource) }); }
     catch (error) {
-      if (error instanceof ReaderReportGateError) throw new ResearchAutomationValidationError(next
-        ? 'Bản đọc chưa đạt kiểm tra bằng chứng hoặc cách trình bày. Hãy kiểm tra nguồn, nhận định và nhãn phân loại chờ chủ duyệt trước khi tạo phiên bản mới.' : error.message);
+      if (error instanceof ReaderReportGateError) throw new ResearchAutomationValidationError(
+        `Bản đọc chưa đạt kiểm tra bằng chứng hoặc cách trình bày: ${readerLintReasons(error.lint.filter(row => !row.ok).map(row => row.rule), error.hardcoded.length, error.notInBundle.length).join(' ')} Hãy kiểm tra nguồn, nhận định và nhãn phân loại chờ chủ duyệt trước khi tạo phiên bản mới.`,
+        { cause: error });
       throw error;
     }
     const profile = (await storeReaderProfile(this.artifacts, request.profile)).artifact;

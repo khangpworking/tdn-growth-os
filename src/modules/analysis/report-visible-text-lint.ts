@@ -1,6 +1,8 @@
 /** U13, opt-in for new renderer versions. Callers mark every pending classified
  * measurement with data-classified="pending"; a table row is one statement.
  * No method-module imports: Market, Insight and auto reports share this contract. */
+import { balancedOpenings, hiddenElement, quoteElement, tagAttributes } from './report-visible-text.js';
+
 export type VisibleTextLintResult = { rule: string; ok: boolean; detail: string };
 
 type Chunk = { text: string; pending: boolean; own: boolean; cell: number | null };
@@ -11,49 +13,8 @@ const decode = (text: string): string => text.replace(/&#x([\da-f]+);|&#(\d+);|&
   });
 
 const VOID_TAGS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
-const RAW_TEXT_TAGS = new Set(['script', 'style']);
 
-function tagAttributes(value: string): Map<string, string> {
-  const out = new Map<string, string>();
-  for (const match of value.matchAll(/\s([:\w-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'`=<>]+)))?/gu)) {
-    out.set((match[1] ?? '').toLowerCase(), decode(match[2] ?? match[3] ?? match[4] ?? ''));
-  }
-  return out;
-}
-
-function isHiddenOpening(value: string): boolean {
-  const attrs = tagAttributes(value);
-  return attrs.has('hidden') || /^(?:true|1)$/iu.test(attrs.get('aria-hidden') ?? '') ||
-    /(?:^|[;\s])(?:display\s*:\s*none|visibility\s*:\s*hidden)(?:\s*!important)?(?:[;\s]|$)/iu.test(attrs.get('style') ?? '');
-}
-
-// A quote exempts text only when its own closing tag appears before an
-// enclosing element closes it implicitly; an unmatched quote quotes nothing.
-export function balancedOpenings(tokens: readonly string[]): Set<number> {
-  const open: { tag: string; index: number; hidden: boolean; raw: boolean }[] = [];
-  const balanced = new Set<number>();
-  tokens.forEach((value, index) => {
-    if (!value.startsWith('<') || value.startsWith('<!--')) return;
-    const rawFrame = open.at(-1)?.raw ? open.at(-1) : undefined;
-    const tag = /^<\/?([\w:-]+)/.exec(value)?.[1]?.toLowerCase();
-    if (!tag) return;
-    if (value.startsWith('</')) {
-      if (rawFrame) {
-        if (tag === rawFrame.tag) open.pop();
-        return;
-      }
-      const top = open.at(-1);
-      if (!top || top.tag !== tag) return;
-      open.pop();
-      if (!top.hidden) balanced.add(top.index);
-    } else if (!rawFrame && !/\/$/.test(value.slice(0, -1)) && !VOID_TAGS.has(tag)) {
-      open.push({ tag, index, hidden: open.some(item => item.hidden) || isHiddenOpening(value), raw: RAW_TEXT_TAGS.has(tag) });
-    }
-  });
-  return balanced;
-}
-
-export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
+function visibleBlocks(html: string): { chunks: Chunk[]; region: number }[] {
   const blocks: { chunks: Chunk[]; region: number }[] = [], stack: { tag: string; quote: boolean; hidden: boolean; pending: boolean; cell?: number }[] = [];
   let region = 0;
   let nextCell = 0;
@@ -78,10 +39,11 @@ export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
       block.push({ text: ' ', pending: false, own: true, cell: activeCell() });
     } else if (!/\/$/.test(value.slice(0, -1)) && !VOID_TAGS.has(tag)) {
       if (tag === 'section') region++;
+      // Hidden and quoted text as the shared visible-text reader defines them (c2 b5, owner Q3).
+      const attrs = tagAttributes(value);
       stack.push({ tag,
-        quote: balanced.has(tokenIndex) && (/\bdata-quote(?:\s|=|>)/i.test(value) || tag === 'q' || tag === 'blockquote'),
-        hidden: ['script', 'style'].includes(tag) || /\shidden(?:\s|=|>)/i.test(value) || /aria-hidden\s*=\s*["']true["']/i.test(value)
-          || /style\s*=\s*["'][^"']*(?:display\s*:\s*none|visibility\s*:\s*hidden)/i.test(value),
+        quote: balanced.has(tokenIndex) && quoteElement(tag, attrs),
+        hidden: hiddenElement(tag, attrs),
         pending: /data-classified\s*=\s*(?:"pending"|'pending'|pending(?=\s|>))/i.test(value),
         ...(tag === 'td' || tag === 'th' ? { cell: nextCell++ } : {}),
       });
@@ -89,8 +51,18 @@ export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
     }
   }
   flush();
-  const superlatives: string[] = [], priorities: string[] = [], drafts: string[] = [];
-  const regionText = new Map<number, string[]>();
+  return blocks;
+}
+
+export function lintVisibleReportText(html: string): VisibleTextLintResult[];
+export function lintVisibleReportText(html: string, rawHtml: string): { gate: VisibleTextLintResult[]; raw: VisibleTextLintResult[] };
+/** Reader U13 evaluates both historical inline views together. Separate finding
+ * buckets preserve the gate's failure stage and the raw lint saved in claims. */
+export function lintVisibleReportText(html: string, rawHtml?: string): VisibleTextLintResult[] | { gate: VisibleTextLintResult[]; raw: VisibleTextLintResult[] } {
+  const views = rawHtml === undefined ? [html] : [html, rawHtml];
+  const findingsByView = views.map(() => ({ superlatives: [] as string[], priorities: [] as string[], drafts: [] as string[] }));
+  const blocks = views.flatMap((markup, view) => visibleBlocks(markup).map(block => ({ ...block, view })));
+  const regionText = new Map<string, string[]>();
   const isSuperlative = (text: string): boolean => {
     if (/(?<![\p{L}\p{M}])hàng\s+đầu(?![\p{L}\p{M}])/iu.test(text)) return true;
     for (const match of text.matchAll(/(?<![\p{L}\p{M}])nhất(?![\p{L}\p{M}])/giu)) {
@@ -101,7 +73,8 @@ export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
     }
     return false;
   };
-  for (const { chunks, region } of blocks) {
+  for (const { chunks, region, view } of blocks) {
+    const { superlatives, drafts } = findingsByView[view]!;
     const own = chunks.map(c => c.own ? c.text : ' ').join('').replace(/\s+/g, ' ').trim();
     // Numeric lower bounds are measurement/method conditions, not a claim
     // that a product is superior (for example the frozen E11 threshold).
@@ -123,7 +96,8 @@ export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
       })
       .replace(/dòng trùng đồng nhất/giu, 'dòng trùng hệt');
     if (isSuperlative(findings)) superlatives.push(own);
-    regionText.set(region, [...(regionText.get(region) ?? []), own]);
+    const regionKey = `${view}:${region}`;
+    regionText.set(regionKey, [...(regionText.get(regionKey) ?? []), own]);
     // Keep decimal points intact. Sentences separated by punctuation, including
     // across inline tags, cannot borrow a draft label from their neighbour.
     // A table cell is its own scope so a sibling cell cannot provide the label.
@@ -147,7 +121,8 @@ export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
       check();
     }
   }
-  for (const parts of regionText.values()) {
+  for (const [regionKey, parts] of regionText) {
+    const { priorities } = findingsByView[Number(regionKey.split(':')[0])]!;
     for (let i = 0; i < parts.length; i++) {
       const start = /làm ngay/iu.exec(parts[i] ?? '');
       if (!start) continue;
@@ -171,9 +146,10 @@ export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
         && !/phụ thuộc|điều kiện tiên quyết|chỉ[^.!?]*sau khi/iu.test(text)) priorities.push(text);
     }
   }
-  return [
+  const results = findingsByView.map(({ superlatives, priorities, drafts }) => [
     { rule: 'U13_SUPERLATIVE', ok: superlatives.length === 0, detail: superlatives.slice(0, 3).join(' | ') || 'Không có so sánh nhất trong nhận định.' },
     { rule: 'U13_PRIORITY', ok: priorities.length === 0, detail: priorities.slice(0, 3).join(' | ') || 'Không có thứ tự ưu tiên thiếu phụ thuộc.' },
     { rule: 'U13_PENDING_NUMBER', ok: drafts.length === 0, detail: drafts.slice(0, 3).join(' | ') || 'Số phân loại chưa duyệt có nhãn cùng câu.' },
-  ];
+  ]);
+  return rawHtml === undefined ? results[0]! : { gate: results[0]!, raw: results[1]! };
 }
