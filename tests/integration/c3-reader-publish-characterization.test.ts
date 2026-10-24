@@ -259,15 +259,15 @@ for (const family of ['Insight', 'TikTok', 'Shopee'] as const) {
   });
 }
 
-test('row 4 Market TODAY: c3 PR3 adds the cap (owner c3 Q2)', async t => {
-  const f = await fixture(t), a = f.adapter('Market');
-  const context: ReaderDraftContext = { ...(a.context as ReaderDraftContext), // Bounded text nodes avoid a regex stack limit unrelated to the missing total-page cap.
+// Re-bound in c3 PR3: owner c3 Q2 refuses Market pages above the cap at build, like Insight.
+test('row 4 Market: oversized HTML is refused before any revision row (owner c3 Q2)', async t => {
+  const f = await fixture(t), a = f.adapter('Market'), before = f.snapshot();
+  const context: ReaderDraftContext = { ...(a.context as ReaderDraftContext), // Bounded text nodes avoid a regex stack limit unrelated to the total-page cap.
     webResults: Array.from({ length: 1024 }, (_, i) => ({ position: i + 1, title: 'Synthetic retained page',
       url: 'https://example.com/synthetic', snippet: 'x'.repeat(MAX_READER_HTML_BYTES / 1024), retrievedAt: at })) };
-  const built = await a.build(a.request, owner, context);
-  const html = await f.artifacts.read(built.revision.htmlSha256);
-  assert.ok(html.byteLength > MAX_READER_HTML_BYTES);
-  assert.equal(f.snapshot().revisions.length, 1);
+  await assert.rejects(a.build(a.request, owner, context),
+    (error: unknown) => error instanceof ResearchAutomationValidationError && error.message === 'Bản đọc vượt giới hạn bản lưu; không cắt dữ liệu hoặc tự thu lại.');
+  assert.deepEqual(f.snapshot(), before);
 });
 
 // randomUUID is deliberately not mocked. Pin every stored byte after replacing only the
