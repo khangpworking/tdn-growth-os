@@ -139,7 +139,8 @@ test('a throwing extra source is recorded as unsettled usage and the run still r
   const f = await runToDraft(t, { source: syntheticProductSource(), webSource: syntheticWebSource(() => {}, organic), expandedSource: failing });
   assert.equal(f.step.state, 'SUCCEEDED');
   assert.equal(f.document!.expandedSearch, undefined, 'no attempt, nothing stored');
-  assert.deepEqual(f.usage.map(u => u.ordinal), [0, 2]);
+  // c1 PR4 owner decision 24/10/2026: Q1
+  assert.deepEqual(f.usage.map(u => u.ordinal), [0, 2, 4]);
 });
 
 test('without the plain web source the extra searches are not made', async t => {

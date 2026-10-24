@@ -26,6 +26,8 @@ export interface SaveStepCaptures {
   /** Appends in order through the service's capture closure; `retainPdf: false` skips its `%PDF-` retention. */
   readonly put: (envelopes: readonly CaptureEnvelope[], retainPdf?: boolean) => Promise<void>;
   readonly rows: () => readonly CaptureRecord[];
+  /** Cuts the list back to an earlier length: a lane whose capture write failed keeps none of its captures (owner c1 Q3). */
+  readonly truncate?: (length: number) => void;
   /** Stored bytes of the captures so far. */
   readonly byteSize: () => number;
 }
@@ -86,13 +88,22 @@ export function videoLane(source: VideoWatchLane): SaveStepLane<VideoLaneFacts> 
           publish: prepared => facts.publish(binding, prepared) });
       } catch { /* thrown: one UNKNOWN row below */ }
       const indexes: (number | null)[] = [];
-      for (const attempt of attempts ?? []) {
-        const envelopes = attempt.captures.length ? captures.envelopes(attempt.captures) : null;
-        if (!envelopes?.length) { indexes.push(null); continue; }
-        await captures.put(envelopes);
-        indexes.push(captures.rows().length - 1);
+      const start = captures.rows().length;
+      let writeFailed = false;
+      try {
+        for (const attempt of attempts ?? []) {
+          const envelopes = attempt.captures.length ? captures.envelopes(attempt.captures) : null;
+          if (!envelopes?.length) { indexes.push(null); continue; }
+          await captures.put(envelopes);
+          indexes.push(captures.rows().length - 1);
+        }
+      } catch {
+        // A failed capture write fails only this lane (owner c1 Q3): none of its captures are kept, it gets the document a
+        // thrown run gives, its usage stays as the readings made it, and the save goes on.
+        writeFailed = true;
+        captures.truncate?.(start);
       }
-      const probe = { ...step, videoWatch: attempts ? videoWatchDocument(plan, attempts, indexes) : videoWatchFailed(plan, 'PROVIDER_FAILED') };
+      const probe = { ...step, videoWatch: attempts && !writeFailed ? videoWatchDocument(plan, attempts, indexes) : videoWatchFailed(plan, 'PROVIDER_FAILED') };
       try {
         check(probe);
         step = probe;
@@ -221,7 +232,8 @@ export function pdfLane(source: PdfDiscoverySource): SaveStepLane<PdfLaneFacts> 
           const knownPdfs = new Set(facts.runPdfShas());
           // Download sequentially: a duplicate or refused file consumes an attempt, not a question slot.
           // Never try beyond the original two candidates, and stop before fetching a file that cannot be asked.
-          // A thrown download falls to the outer catch (TRANSPORT) and, as before, records no UNKNOWN row (M3).
+          // A thrown download falls to the outer catch (TRANSPORT) and records no UNKNOWN row (M3): downloads are plain
+          // unpaid GETs, so the thrown-lane cost rule (owner c1 Q1) does not apply to them.
           for (const candidate of candidates.slice(0, PDF_DISCOVERY_MAX_FILES)) {
             if (signal?.aborted || facts.remainingPdfSlots() === 0) break;
             const downloaded = await source.download([candidate], signal ? { signal } : {});
