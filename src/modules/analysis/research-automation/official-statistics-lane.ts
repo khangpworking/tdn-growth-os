@@ -9,7 +9,7 @@ import { boundedRequest, CaptureLog, defaultProviderTransport, isRecord, type Pr
 import type { ProviderCallOptions, ProviderRawCapture } from './providers.js';
 import { E12_ATTRIBUTION } from '../source-appendix-projection.js';
 import { containsForbiddenProviderName, containsTechnicalId } from '../citation-registry.js';
-import { lintVisibleReportText } from '../report-visible-text-lint.js';
+import { marketSnippetWordingPasses } from './market-report-check.js';
 import { webTextHidden } from './web-page-type.js';
 import { hasHiddenName } from '../report-language/index.js';
 import { MAX_CAPTURE_BYTES } from './model.js';
@@ -506,7 +506,7 @@ export function officialStatsStatusText(value: StepOfficialStats, row: Pick<Step
 const citationName = (name: string, fallback: string): string => {
   const escaped = name.replace(/&/gu, '&amp;').replace(/</gu, '&lt;').replace(/>/gu, '&gt;');
   return ownerText(name) && !webTextHidden(name) && !containsForbiddenProviderName(name) && !containsTechnicalId(name)
-    && lintVisibleReportText(`<p>${escaped}</p>`).every(check => check.ok) ? name : fallback;
+    && marketSnippetWordingPasses(`<p>${escaped}</p>`) ? name : fallback;
 };
 export const officialStatsCitationSheet = (row: Pick<StepOfficialStatsValue, 'sheet'>): string => citationName(row.sheet, 'bảng số liệu đã lưu');
 /** Reader wording only. File, sheet and row belong in the technical citation. */

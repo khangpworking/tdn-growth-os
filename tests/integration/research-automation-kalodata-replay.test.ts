@@ -220,8 +220,9 @@ test('the report-builder renderer path (as the API wires it) also carries the no
 
 // Flag-off identity: digests from main e0754a3 with the same fixed-UUID fixture.
 // The original renderer golden was nondeterministic because package UUIDs were not fixed.
+// c2 PR3 re-froze rendererHtmlSha256 only: owner Q4 (R-L14): the M12 evidence inventory now writes the full proposal label sentence; that sentence is the only byte change.
 const MAIN_E0754A3 = {
-  fallbackHtmlSha256: 'de6bfa2bc1439e19ebf2b7df2d400883a378afab53f91f7014bdc89c585975f3', rendererHtmlSha256: '6348f67e6d7673aa5d81c03fb008200a806dcf795e3a71b3bf014593b9908040', usage: 'fcb8b1c018c4684f0d28d3982be7ee2640acaec7f28dfe1fe16f0d0270e1541a', captures: '918b01c1fbd95b2c726f05b3e38c5acf1a89fc3f7c5ba3b3748e1070abaf9f39',
+  fallbackHtmlSha256: 'de6bfa2bc1439e19ebf2b7df2d400883a378afab53f91f7014bdc89c585975f3', rendererHtmlSha256: '4ed5fd382e9dd4fc214369eb4985e86c3586550fb136df9730da9f883b993eeb', usage: 'fcb8b1c018c4684f0d28d3982be7ee2640acaec7f28dfe1fe16f0d0270e1541a', captures: '918b01c1fbd95b2c726f05b3e38c5acf1a89fc3f7c5ba3b3748e1070abaf9f39',
 };
 test('flag off: outputs and usage rows are byte-identical to main', async t => {
   // SourcePackageService creates UUIDs outside the service fixture's injected uuid.
