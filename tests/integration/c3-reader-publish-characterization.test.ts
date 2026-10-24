@@ -119,7 +119,7 @@ async function fixture(t: TestContext, status = 'DRAFT_READY') {
     tiktok: db.prepare('SELECT * FROM analysis_tiktok_report_consumption ORDER BY revision_id').all(),
     shopee: db.prepare('SELECT * FROM analysis_shopee_report_consumption ORDER BY revision_id').all(),
   });
-  const files = async () => (await fs.readdir(root, { recursive: true })).filter(name => name.startsWith('artifacts/sha256/')).sort();
+  const files = async () => (await fs.readdir(path.join(root, 'artifacts', 'sha256'), { recursive: true })).sort();
   return { root, db, artifacts, readers, adapter, snapshot, files };
 }
 
