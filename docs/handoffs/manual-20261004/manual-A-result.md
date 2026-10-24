@@ -48,9 +48,9 @@ The service recursively inherits the previous quote/bounded selection when that 
 
 ## Evidence actually run
 
-Linux scratch, not the live operator: `/home/pkhang/.cache/tdn-p1-isolation-20261003-ZVXHsB`.
+Linux scratch, not the live operator: `<scratch-dir>`.
 
-Toolchain: Node 24.15.0 / npm 11.12.1 from `/home/pkhang/.nanobot/workspace/.toolchains/node-v24.15.0-linux-x64/bin`.
+Toolchain: Node 24.15.0 / npm 11.12.1 from `<node24-toolchain>/bin`.
 
 - Linux `npm run contracts:generate`: PASS.
 - Linux backend typecheck: PASS, including after the verifier repair.
