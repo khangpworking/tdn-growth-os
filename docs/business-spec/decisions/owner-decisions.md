@@ -6,6 +6,7 @@ Mỗi dòng là một quyết định của chủ về nghiệp vụ. Dòng mớ
 
 | Ngày | Quyết định | Áp dụng |
 | --- | --- | --- |
+| 24/10/2026 | Ba chỗ quy tắc lệch mã, chốt theo mã: (1) thiếu ảnh bìa Market không chặn báo cáo, chỉ để ghi chú cho người đọc soát; ảnh trỏ ra ngoài hoặc sai dạng vẫn chặn. (2) Sửa U-26: hủy chạy giữ dữ liệu đã thu và các dòng nhật ký chi phí, không xóa dữ liệu dở. (3) File dấu vết kỹ thuật dạng HTML được chấp nhận. | R-M10, R-P02, R-M03, R-L01 |
 | 21/10/2026 | Báo cáo Market tự động quy về một đơn vị trước khi so, cho mọi ngành hàng (F66). Làm theo cách đơn giản (F67): doanh thu giữ vì là tiền; không cộng số lượng bán giữa các sản phẩm; chỉ so đơn giá trong một đơn vị chuẩn; đọc quy cách từ tên chỉ khi tên có đúng một quy cách, gắn nhãn "quy cách theo tên sản phẩm"; còn lại ghi "chưa quy đổi được". | R-M27 đến R-M32, R-I14 đến R-I19 |
 | 21/10/2026 | Hoãn tài liệu số đo của nguồn (F58). Chưa viết, chưa sửa Ultimate. | [source-methods.md](../semantic-layer/source-methods.md) |
 | 20/10/2026 | Cần tài khoản quảng cáo Facebook và TikTok để có số "nhóm quan tâm" thật (F29). Đến lúc đó cột này ghi "Chưa có số". | R-I28 |
@@ -27,7 +28,7 @@ Mỗi dòng là một quyết định của chủ về nghiệp vụ. Dòng mớ
 | 12/10/2026 | Mọi báo cáo Market tự động được thử với đủ 14 quy tắc sửa tay, không chỉ 9 quy tắc của cổng. | R-M01 đến R-M26 |
 | 12/10/2026 | Market chạy được trước Insight. | [insight.md](../business-rules/insight.md) |
 | 11/10/2026 | Không có tổng giữa các sàn (U-32). | R-L04, R-M16 |
-| 11/10/2026 | Hủy chạy chỉ là hủy: xóa dữ liệu dở, giữ một dòng nhật ký chi phí (U-26). | [market.md](../business-rules/market.md) |
+| 11/10/2026 | Hủy chạy chỉ là hủy: xóa dữ liệu dở, giữ một dòng nhật ký chi phí (U-26). Phần "xóa dữ liệu dở" đã sửa ngày 24/10/2026, xem dòng trên. | [market.md](../business-rules/market.md) |
 | 11/10/2026 | Xếp hạng theo tần suất (chủ đề × khen/chê), một AI mã hóa; bước AI thứ hai kiểm chứng để sau (U-11). | R-I09, R-I10 |
 | 11/10/2026 | U-40 làm cuối, chạy thử một trường hợp. | [market.md](../business-rules/market.md) |
 | 11/10/2026 | Báo cáo là ranh giới sản phẩm: khối HTML đã lưu, qua Reader, ra PDF; không phải bảng điều khiển. Không hiện % tiến độ. | R-L16, R-L17 |

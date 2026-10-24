@@ -19,7 +19,7 @@ Báo cáo Market SHALL NOT có tổng giữa Shopee và TikTok Shop. Bản nháp
 - **WHEN** bản nháp hoặc bản đọc viết "tổng cả hai sàn"
 - **THEN** U32 ở bản nháp và W3 ở bản đọc cùng trượt
 
-### Requirement: R-M26 Chế độ trình bày có nhãn đề xuất đầy đủ trong M12
+### Requirement: R-M26 Chế độ trình bày có chữ đề xuất trong M12
 Ở chế độ trình bày (presentation), chữ đề xuất trong M12 SHALL có nhãn "đề xuất, chờ chủ duyệt".
 
 - Loại kiểm: Máy

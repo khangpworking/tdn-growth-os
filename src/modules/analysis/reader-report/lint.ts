@@ -8,7 +8,7 @@ export type LintOptions = {
   legacyTotals?: boolean;
   /** @deprecated ignored: names come from report-language (R-L01). */
   providers?: readonly string[];
-  /** @deprecated ignored: public-review names are always checked (R-L01). */
+  /** Names: ignored, public-review names are always checked (R-L01). Kept for the F1 pass detail wording only. */
   publicReviewSource?: boolean;
   sectionIds?: readonly string[];
   /** Family label every web number must carry; defaults to the snapshot wording. */
@@ -57,14 +57,14 @@ function decodeCss(css: string): string {
   });
 }
 
-export function lint(html: string, { sectionIds = [], familyLabel = 'toàn kết quả tìm kiếm', visibleTextRules = false, reportKind = 'MARKET', legacyTotals = false }: LintOptions = {}): LintResult[] {
+export function lint(html: string, { sectionIds = [], familyLabel = 'toàn kết quả tìm kiếm', visibleTextRules = false, reportKind = 'MARKET', legacyTotals = false, publicReviewSource = false }: LintOptions = {}): LintResult[] {
   const out: LintResult[] = [], add = (rule: string, ok: boolean, detail: string) => { out.push({ rule, ok, detail }); };
   const all = visibleText(html), vis = visibleText(html.replace(QUOTED, ' ')), svgText = [...html.matchAll(/<svg[\s\S]*?<\/svg>/g)].map(m => m[0].replace(/<[^>]+>/g, ' ')).join(' ');
   const titleTag = html.match(/<title>[\s\S]*?<\/title>/)?.[0] ?? '';
   // R-L01: hidden text, SVG text, <title> and alt/title/aria-label values count too; link targets do not.
   const labels = [...html.matchAll(/\s(?:alt|title|aria-label)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'`=<>]+))/giu)].map(m => m[1] ?? m[2] ?? m[3] ?? '');
   const prov = [...new Set(findHiddenNames(decodeAttr([all, svgText, titleTag, ...labels].join(' ')), 'READER').map(hit => hit.match))];
-  add('F1 tên nhà cung cấp số liệu', prov.length === 0, prov.length ? 'thấy: ' + prov.join(', ') : 'không thấy tên bị cấm (R-L01)');
+  add('F1 tên nhà cung cấp số liệu', prov.length === 0, prov.length ? 'thấy: ' + prov.join(', ') : 'không thấy ' + (publicReviewSource ? PUBLIC_SOURCE_FORBIDDEN_PROVIDER_NAMES : FORBIDDEN_PROVIDER_NAMES).join('/'));
 
   const ex = [...html.matchAll(/<(figure|div) class="ex">([\s\S]*?)(?=<(figure|div) class="ex">|<\/section>)/g)];
   const noSrc = ex.filter(m => !/class="ex-src">Nguồn:/.test(m[2] ?? '')).map(m => ((m[2] ?? '').match(/class="exn"[^>]*>([^<]+)/) ?? [])[1]);
