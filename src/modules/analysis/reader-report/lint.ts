@@ -4,7 +4,7 @@ import { lintVisibleReportText } from '../report-visible-text-lint.js';
 import { crossPlatformTotalMatches, findHiddenNames, HIDDEN_NAMES, type HiddenNameGroup } from '../report-language/index.js';
 export type LintResult = { rule: string; ok: boolean; detail: string };
 export type LintOptions = {
-  /** Saved v1/v1.1 claims retain the pre-union W3 content and order. */
+  /** Saved v1/v1.1 claims retain the pre-union W3 content and order. Defaults to true unless `visibleTextRules` marks a v1.2 page. */
   legacyTotals?: boolean;
   /** @deprecated ignored: names come from report-language (R-L01). */
   providers?: readonly string[];
@@ -57,7 +57,7 @@ function decodeCss(css: string): string {
   });
 }
 
-export function lint(html: string, { sectionIds = [], familyLabel = 'toàn kết quả tìm kiếm', visibleTextRules = false, reportKind = 'MARKET', legacyTotals = false, publicReviewSource = false }: LintOptions = {}): LintResult[] {
+export function lint(html: string, { sectionIds = [], familyLabel = 'toàn kết quả tìm kiếm', visibleTextRules = false, reportKind = 'MARKET', legacyTotals = !visibleTextRules, publicReviewSource = false }: LintOptions = {}): LintResult[] {
   const out: LintResult[] = [], add = (rule: string, ok: boolean, detail: string) => { out.push({ rule, ok, detail }); };
   const all = visibleText(html), vis = visibleText(html.replace(QUOTED, ' ')), svgText = [...html.matchAll(/<svg[\s\S]*?<\/svg>/g)].map(m => m[0].replace(/<[^>]+>/g, ' ')).join(' ');
   const titleTag = html.match(/<title>[\s\S]*?<\/title>/)?.[0] ?? '';

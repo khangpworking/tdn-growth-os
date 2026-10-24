@@ -108,7 +108,8 @@ const rows: Row[] = [
     for (const phrase of ['Shopee + TikTok', 'gộp Shopee và TikTok', 'tổng cả hai sàn']) {
       const html = `<p>${phrase}</p>`;
       assert.equal(verdict(lint(html, { reportKind: 'INSIGHT' }), 'W3 không cộng gộp sàn khi trang không ghi tổng'), phrase !== 'tổng cả hai sàn');
-      assert.equal(verdict(lint(html), 'W3 không cộng gộp sàn khi trang không ghi tổng'), false);
+      // The union is the v1.2 Market path; lint() keeps the historical W3 unless the caller marks v1.2.
+      assert.equal(verdict(lint(html, { legacyTotals: false }), 'W3 không cộng gộp sàn khi trang không ghi tổng'), false);
     }
   } },
   { name: 'review O1: hidden inline subtrees cannot split a visible superlative', run: () => {
@@ -189,7 +190,7 @@ const rows: Row[] = [
     ] as const) {
       const html = `<p>${text}</p>`;
       assert.equal(verdict(auditMarketReportHtml(html, { presentation: false }), 'U32_NO_CROSS_PLATFORM_TOTAL'), ok, `U32: ${text}`);
-      assert.equal(verdict(lint(html), 'W3 không cộng gộp sàn khi trang không ghi tổng'), ok, `W3: ${text}`);
+      assert.equal(verdict(lint(html, { legacyTotals: false }), 'W3 không cộng gộp sàn khi trang không ghi tổng'), ok, `W3: ${text}`);
     }
   } },
   { name: 'row 6: M12 requires the full proposal label', run: () => {
