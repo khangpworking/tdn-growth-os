@@ -12,14 +12,15 @@ context: |
   Chủ (owner) không đọc mã. Mọi đề xuất viết bằng tiếng Việt đơn giản, câu ngắn.
 
   Bản đồ nhanh:
-  - Quy tắc nghiệp vụ: openspec/specs/{market-report,insight-report,report-language}.
+  - Quy tắc nghiệp vụ: openspec/specs/{market-report,insight-report,report-language,report-metrics}.
   - Luồng mã của hai báo cáo: openspec/specs/report-pipeline (file, hàm, cờ môi trường).
   - Mã: src/modules/analysis/research-automation (dựng báo cáo, cổng, 14 quy tắc),
     src/modules/analysis/reader-report (Reader, đơn giá, lint), src/platform/collectors (nguồn).
-  - Quy tắc làm việc của agent: AGENTS.md (không sửa trong lúc chuyển sang OpenSpec).
+  - Quy tắc làm việc của agent: AGENTS.md.
 
-  Giai đoạn chuyển (từ 24/10/2026): docs/business-spec vẫn còn nguyên, chưa sửa.
+  Giai đoạn chuyển (từ 24/10/2026): quy tắc báo cáo nằm ở openspec/specs; docs/business-rules chỉ còn stub.
   openspec/specs chép từ business-spec bản 1.0–1.3 (21–22/10/2026), giữ nguyên mã R-M, R-I, R-L.
+  Từ điển trường, nguồn dữ liệu, quyết định của chủ còn ở docs/business-spec (bản chép ở openspec/reference).
   Khi hai nơi nói khác nhau: báo lại cho chủ, không tự chọn. Xem openspec/MIGRATION.md.
 
 rules:

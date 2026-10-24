@@ -2,10 +2,17 @@
 
 Thư mục này giữ bản cũ của các tài liệu đã cập nhật. Mọi bản cũ nằm nguyên trạng để so sánh. Không sửa các bản này. Liên kết trong bản cũ có thể không dùng được, vì thư mục đã đổi độ sâu.
 
-Cập nhật: 22/10/2026
+Cập nhật: 24/10/2026
 
 | Bản cũ | Bản mới | Lý do cập nhật |
 | --- | --- | --- |
+| [docs/business-spec/README.md](2026-10-24/docs/business-spec/README.md) | [docs/business-spec/README.md](../../../docs/business-spec/README.md) | Quy tắc xung đột: openspec/specs thắng; mô tả ba file business-rules thành stub; lên bản 1.4 |
+| [docs/business-spec/CHANGELOG.md](2026-10-24/docs/business-spec/CHANGELOG.md) | [docs/business-spec/CHANGELOG.md](../../../docs/business-spec/CHANGELOG.md) | Thêm dòng 1.4 |
+| [docs/business-spec/business-rules/market.md](2026-10-24/docs/business-spec/business-rules/market.md) | [docs/business-spec/business-rules/market.md](../../../../docs/business-spec/business-rules/market.md) | Chuyển sang openspec/specs/market-report; file cũ còn stub có link |
+| [docs/business-spec/business-rules/insight.md](2026-10-24/docs/business-spec/business-rules/insight.md) | [docs/business-spec/business-rules/insight.md](../../../../docs/business-spec/business-rules/insight.md) | Chuyển sang openspec/specs/insight-report; file cũ còn stub có link |
+| [docs/business-spec/business-rules/report-language.md](2026-10-24/docs/business-spec/business-rules/report-language.md) | [docs/business-spec/business-rules/report-language.md](../../../../docs/business-spec/business-rules/report-language.md) | Chuyển sang openspec/specs/report-language; file cũ còn stub có link |
+| [docs/REPOSITORY_MAP.md](2026-10-24/docs/REPOSITORY_MAP.md) | [docs/REPOSITORY_MAP.md](../../docs/REPOSITORY_MAP.md) | Bỏ dòng cấm cài spec framework; thêm dòng openspec/ |
+| [AGENTS.md](2026-10-24/AGENTS.md) | [AGENTS.md](../AGENTS.md) | Thêm đoạn Business rules: quy tắc ở openspec/specs, việc mới bắt đầu bằng /opsx:propose |
 | [docs/research/ultimate-method/input-data-sources-30-sections.md](2026-10-22-2/docs/research/ultimate-method/input-data-sources-30-sections.md) | [docs/research/ultimate-method/input-data-sources-30-sections.md](../research/ultimate-method/input-data-sources-30-sections.md) | Ghi gói sửa nguồn đã triển khai 22/10 (S05, S14, S17, S20, S25); SRC2 tạm gác |
 | [docs/business-spec/data-sources/input-standard.md](2026-10-22-2/docs/business-spec/data-sources/input-standard.md) | [docs/business-spec/data-sources/input-standard.md](../business-spec/data-sources/input-standard.md) | Lên bản 1.38: trạng thái nguồn sau gói sửa 22/10 |
 | [docs/research/ultimate-method/CHANGELOG.md](2026-10-22-2/docs/research/ultimate-method/CHANGELOG.md) | [docs/research/ultimate-method/CHANGELOG.md](../research/ultimate-method/CHANGELOG.md) | Thêm dòng DS-20261022-01 |

@@ -34,6 +34,10 @@ Workers own execution mechanics; Box services own workflow state and policy.
 Production target is Linux; local development may use Windows.
 Pi and automated model routing are deferred per ARCHITECTURE.md.
 
+## Business rules
+
+Business rules for the Market and Insight reports live in openspec/specs. New rule work starts with /opsx:propose. Before you change report code, read the matching spec first.
+
 ## Development coordination
 
 Orca coordinates coding tasks and worktrees. It is separate from product Box 3.
