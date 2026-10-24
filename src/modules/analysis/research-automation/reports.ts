@@ -1,5 +1,6 @@
 import { publicReviewReportHtml } from './public-review-report.js';
 import { lint as lintReaderReport } from '../reader-report/lint.js';
+import { hasHiddenName } from '../report-language/index.js';
 import type { PersonaSelectedReportSnapshot } from '../../../../contracts/analysis/automation-insight-persona-report.generated.js';
 import { checkPersonaSelectedReport, personaDigest as personaViewDigest } from './insight-persona-contracts.js';
 import { insightPersonaSection } from './insight-persona-report.js';
@@ -339,10 +340,10 @@ function webMark(row: StepWebResult, citations: ReportCitations): string {
   // an otherwise valid https citation disappear.
   const url = canonical;
   // An address naming a provider or the search engine is never cited: the register would print it.
-  if (url !== null && webTextHidden(url)) return escape(WEB_LINK_WITHHELD);
+  if (url !== null && (webTextHidden(url) || hasHiddenName(url, 'CITATION'))) return escape(WEB_LINK_WITHHELD);
   const site = row.site ?? '';
   return citations.mark({ sourceKind: 'WEB_RESULT', identity: url, locator: null,
-    label: site !== '' && readerSafe(site) && !webTextHidden(site) ? site : 'Kết quả tìm kiếm trên web', retrievedAt: storedDate(row.retrievedAt), url,
+    label: site !== '' && readerSafe(site) && !webTextHidden(site) && !hasHiddenName(site, 'CITATION') ? site : 'Kết quả tìm kiếm trên web', retrievedAt: storedDate(row.retrievedAt), url,
     quote: null, quoteVerification: 'NOT_APPLICABLE',
     technical: { position: String(row.position), capture: String(row.captureIndex), ...(site === '' ? {} : { site }) } });
 }
@@ -1666,9 +1667,9 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     assertMarketBusinessGate(readerRenderedHtml, { presentation: true, publicReviewSource: Boolean(input.publicReviewSource), partialTotals: marketPartialRowTotals(input) });
     assertMarket14MachineRules(readerRenderedHtml, undefined, { publicReviewSource: Boolean(input.publicReviewSource) });
   }
-  if (input.publicReviewSource) {
-    const nameFailure = lintReaderReport(readerRenderedHtml, { publicReviewSource: true }).filter(r => (r.rule.startsWith('F1 ') || r.rule.startsWith('W6 ')) && !r.ok);
-    if (nameFailure.length) throw new TypeError('PUBLIC_REVIEW_READER_NAME_REFUSED');
+  if (kind === 'INSIGHT' || input.publicReviewSource) {
+    const nameFailure = lintReaderReport(readerRenderedHtml, { reportKind: kind, publicReviewSource: Boolean(input.publicReviewSource) }).filter(r => (r.rule.startsWith('F1 ') || r.rule.startsWith('W6 ')) && !r.ok);
+    if (nameFailure.length) throw new TypeError(input.publicReviewSource ? 'PUBLIC_REVIEW_READER_NAME_REFUSED' : 'INSIGHT_READER_NAME_REFUSED');
   }
   return { semantic: { ...semanticBase, ...semanticCitations }, html: Buffer.from(readerRenderedHtml, 'utf8'), ...(traceHtml ? { traceHtml } : {}) };
 }

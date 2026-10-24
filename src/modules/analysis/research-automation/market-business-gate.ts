@@ -420,7 +420,9 @@ function result(rule: string, ok: boolean, detail: string): MarketBusinessGateRe
 export function auditMarketReportHtml(html: string, options: MarketBusinessGateOptions = {}): MarketBusinessGateResult[] {
   const presentation = options.presentation ?? true;
   const scan = scanHtml(html);
-  const provider = providerMatches(options.publicReviewSource ? scan.named + ' ' + decodeHtml(html) : scan.named);
+  // Public-review metadata remains checked, but href targets are outside R-L01 (owner Q5 / c4 I2).
+  const publicText = options.publicReviewSource ? decodeHtml(html.replace(/\shref\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'`=<>]+)/giu, ' ')) : '';
+  const provider = providerMatches(scan.named + ' ' + publicText);
   const crossPlatform = CROSS_PLATFORM_TOTAL_PHRASES.flatMap(phrase => matches(scan.visible, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'giu')));
   const e2 = e2Matches(scan.authored);
   const missingOrDuplicate = MARKET_SECTION_IDS.filter(id => scan.sectionCounts.get(id) !== 1).map(id => `${id}=${scan.sectionCounts.get(id)}`);

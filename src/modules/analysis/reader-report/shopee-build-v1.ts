@@ -12,6 +12,8 @@ import type { ShopeeDraftCoding, ShopeeCitedSynthesis } from '../../../../contra
 import { rankReviewTopicMentions, type ReviewTopicRanking } from '../research-automation/review-topic-ranking.js';
 import type { PrivateReviewReportView } from '../../../../contracts/analysis/private-review-report-view.generated.js';
 import { SOURCE_REGISTRY } from '../research-automation/source-status.js';
+import { hasHiddenName } from '../report-language/index.js';
+import { retainedQuoteHtml } from '../research-automation/descriptive-report.js';
 
 const digest = (value: unknown) => createHash('sha256').update(canonicalJson(value)).digest('hex');
 
@@ -86,9 +88,9 @@ export function prepareShopeeReaderBuild(identity: ShopeeReaderSourceIdentity, d
   const recordsCoded = String(report.counts.recordsCoded), codesProposed = String(report.counts.codesProposed);
   const mark = (recordIndex: number) => renderCitationMarkOrMissing(registry.cite(citeRow(recordIndex)));
   const quoteBlock = (occurrence: { recordIndex: number; quote: string; context: string | null }) =>
-    `<blockquote>${esc(occurrence.quote)}</blockquote>` +
+    (hasHiddenName(occurrence.quote, 'READER') ? retainedQuoteHtml(occurrence.quote, 'blockquote') : `<blockquote>${esc(occurrence.quote)}</blockquote>`) +
     (occurrence.context === null || occurrence.context === occurrence.quote ? ''
-      : `<details><summary>Ngữ cảnh bản ghi</summary><p>${esc(occurrence.context)}</p></details>`);
+      : `<details><summary>Ngữ cảnh bản ghi</summary>${hasHiddenName(occurrence.context, 'READER') ? retainedQuoteHtml(occurrence.context, 'blockquote') : `<p>${esc(occurrence.context)}</p>`}</details>`);
   const exclusions: string[] = [];
   let unreadable = 0;
   for (const record of view.records) {

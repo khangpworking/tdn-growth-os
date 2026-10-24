@@ -18,6 +18,7 @@ import { SourcePackageService, type VerifiedFinalizedSourcePackage } from '../..
 import { FoundationSourcePackageReader } from '../../foundation/source-package-reader.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import { CitationRegistry } from '../citation-registry.js';
+import { hasHiddenName } from '../report-language/index.js';
 import type { RetainedKeywordListDraftRecord } from '../keyword-list-draft-record.js';
 import type { AutomationSynthesisTextPort } from './synthesis-execution.js';
 import { buildTikTokCodingContext, type TikTokCodingContext } from './tiktok-coding-context.js';
@@ -301,7 +302,7 @@ export class AutomationTikTokCoding {
       if (!row || entry.quote.end <= entry.quote.start || entry.quote.start < 0 ||
         entry.quote.end > row.text.length || row.text.slice(entry.quote.start, entry.quote.end) !== entry.quote.text) fail();
       const citationId = registry.cite({ sourceKind: 'REVIEW', identity: row.pageSha256, locator: row.locator,
-        label: 'bình luận công khai dưới video TikTok', retrievedAt: acquiredAt, url: row.videoUrl,
+        label: 'bình luận công khai dưới video TikTok', retrievedAt: acquiredAt, url: hasHiddenName(row.videoUrl, 'CITATION') ? null : row.videoUrl,
         quote: null, quoteVerification: 'NOT_APPLICABLE' });
       if (citationId === null) fail();
       return { code: entry.code, label: entry.label, ...('topic' in entry ? { topic: entry.topic } : {}), recordIndex: entry.recordIndex,
@@ -544,7 +545,7 @@ export class AutomationTikTokCoding {
         record.text.slice(entry.quote.start, entry.quote.end) !== entry.quote.text) fail();
       // retrievedAt is actual package acquisition time or unknown; source-createdAt never proves retrieval.
       const citationId = registry.cite({ sourceKind: 'REVIEW', identity: ref.pageSha256, locator: `bình luận ${record.commentId}`,
-        label: 'bình luận công khai dưới video TikTok', retrievedAt: acquiredAt, url: record.videoUrl,
+        label: 'bình luận công khai dưới video TikTok', retrievedAt: acquiredAt, url: hasHiddenName(record.videoUrl, 'CITATION') ? null : record.videoUrl,
         quote: null, quoteVerification: 'NOT_APPLICABLE' });
       if (citationId === null || citationId !== entry.citationId) fail();
       return { citationId, locator: `bình luận ${record.commentId}`, url: record.videoUrl };

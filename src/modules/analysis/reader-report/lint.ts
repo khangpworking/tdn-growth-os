@@ -60,7 +60,7 @@ export function lint(html: string, { sectionIds = [], familyLabel = 'toàn kết
   const all = visibleText(html), vis = visibleText(html.replace(QUOTED, ' ')), svgText = [...html.matchAll(/<svg[\s\S]*?<\/svg>/g)].map(m => m[0].replace(/<[^>]+>/g, ' ')).join(' ');
   const titleTag = html.match(/<title>[\s\S]*?<\/title>/)?.[0] ?? '';
   // R-L01: hidden text, SVG text, <title> and alt/title/aria-label values count too; link targets do not.
-  const labels = [...html.matchAll(/\s(?:alt|title|aria-label)\s*=\s*(?:"([^"]*)"|'([^']*)')/giu)].map(m => m[1] ?? m[2] ?? '');
+  const labels = [...html.matchAll(/\s(?:alt|title|aria-label)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'`=<>]+))/giu)].map(m => m[1] ?? m[2] ?? m[3] ?? '');
   const prov = [...new Set(findHiddenNames(decodeAttr([all, svgText, titleTag, ...labels].join(' ')), 'READER').map(hit => hit.match))];
   add('F1 tên nhà cung cấp số liệu', prov.length === 0, prov.length ? 'thấy: ' + prov.join(', ') : 'không thấy tên bị cấm (R-L01)');
 
