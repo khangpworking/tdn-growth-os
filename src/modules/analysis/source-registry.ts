@@ -27,4 +27,9 @@ export const REPORT_SOURCE_REGISTRY = {
   S25: [null, 'báo cáo đã công bố của …', 'DOCUMENTS'],
   S26: ['C', 'tin đã đăng trên …', 'DOCUMENTS'],
   S27: ['C', 'bản quét review gian hàng của bên thứ ba', 'CUSTOMER_VOICE'],
+  S28: [null, 'Dữ liệu dân số mô phỏng', 'POPULATION_BASELINE'],
 } as const;
+
+/** Registry rows that are never evidence: no grade, kept out of every evidence count. S28 is only an unnamed whole-population baseline (owner 20/10). */
+export const NON_EVIDENCE_REGISTRY_IDS: readonly string[] = ['S28'];
+export const NON_EVIDENCE_TIER_DETAIL = 'Không xếp hạng: không phải bằng chứng, chỉ là mốc toàn dân';

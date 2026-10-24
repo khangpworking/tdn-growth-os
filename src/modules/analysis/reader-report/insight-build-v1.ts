@@ -1,4 +1,5 @@
 import { insightPersonaSection } from '../research-automation/insight-persona-report.js';
+import { populationBaselineSection } from '../research-automation/population-baseline.js';
 import { createHash } from 'node:crypto';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import { CitationRegistry } from '../citation-registry.js';
@@ -16,7 +17,7 @@ import { insightCrosscheckAppendix } from '../research-automation/insight-crossc
 import { insightWebContextSection } from './insight-web-context.js';
 import { INSIGHT_META_AD_EXPLANATION, INSIGHT_META_AD_SECTIONS, insightMetaAdSection } from './insight-meta-ads.js';
 import { projectRetainedInsightFindings, projectInsightFindings, type InsightSectionId } from './insight-projection.js';
-import type { InsightReaderPage, InsightReaderSection } from './insight-template.js';
+import { INSIGHT_EMPTY_SECTION_EXPLANATION, INSIGHT_EMPTY_SECTION_HTML, type InsightReaderPage, type InsightReaderSection } from './insight-template.js';
 import { qualitativeDraftSection, type QualitativeDraftReportSection } from './qualitative-draft-report.js';
 import type { AutomationQualitativeDraft } from '../../../../contracts/analysis/automation-qualitative-draft-v1.generated.js';
 
@@ -190,6 +191,10 @@ export function prepareInsightReaderBuild(identity: InsightReaderSourceIdentity,
   }
   if (qualitativeDraft) for (const id of ['I02', 'I05', 'I06', 'I10', 'I17'] as QualitativeDraftReportSection[])
     append(id, qualitativeDraftSection(qualitativeDraft, id, citations), 'Đề xuất qualitative bám bản ghi nguồn đã lưu; chờ chủ duyệt, U11_STATISTIC_UNAVAILABLE và không dùng trong kết luận chính.');
+  // S28 whole-population baseline: drawn only from a stored, validated read; never an input to coding, personas or counts.
+  // When I02 has no other content, the template's own empty wording is kept ahead of the block.
+  const baseline = populationBaselineSection(methods.collection);
+  if (baseline) append('I02', (sections.has('I02') ? '' : INSIGHT_EMPTY_SECTION_HTML) + baseline, INSIGHT_EMPTY_SECTION_EXPLANATION);
   return { input, page: { keyword: scope.keyword, definition: scope.definition, period: scope.requestedPeriod,
     registry, sections: [...sections.values()], findings: persona26 ? projectRetainedInsightFindings(undefined, true) : private25 || crosscheck23 ? projectRetainedInsightFindings(methods.insightCoding?.output, true) : projectInsightFindings(methods) } };
 }

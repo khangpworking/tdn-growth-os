@@ -7,6 +7,9 @@ import { cover, page } from './layout.js';
 import { INSIGHT_SECTION_IDS, INSIGHT_TITLES, type InsightFindings, type InsightSectionId } from './insight-projection.js';
 import { SYNTHESIS_EVIDENCE_CSS } from '../research-automation/synthesis-evidence-report.js';
 
+/** Wording of a section with no verified method output; shared so an appended baseline block keeps it unchanged. */
+export const INSIGHT_EMPTY_SECTION_HTML = '<p>Chưa có kết quả phương pháp đã xác minh cho mục này. Không suy ra không có hiện tượng trong nguồn.</p>';
+export const INSIGHT_EMPTY_SECTION_EXPLANATION = 'Chưa đủ bằng chứng cho mục này.';
 const INSIGHT_CSS = `${SYNTHESIS_EVIDENCE_CSS}
 :root{--bd:var(--line);--blue:var(--acc)}
 section,td,blockquote,code{overflow-wrap:anywhere}.table-wrap{overflow-x:auto;max-width:100%}
@@ -65,8 +68,8 @@ export function buildInsightReaderTemplate(input: InsightReaderPage): { html: st
     const selected = known.get(id);
     const missing = id === 'I15'
       ? '<p>Chưa có phương án hoặc đề xuất đã lưu đủ điều kiện trình bày. Mọi đề xuất cần mang nhãn đề xuất, chờ chủ duyệt; người phụ trách và hạn chót cũng là đề xuất. Phương án của chủ giữ riêng.</p>'
-      : '<p>Chưa có kết quả phương pháp đã xác minh cho mục này. Không suy ra không có hiện tượng trong nguồn.</p>';
-    return `<section id="${id}"><div class="sh"><span class="sid">${id}</span><h2>${esc(INSIGHT_TITLES[id])}</h2></div><p class="ans">${esc(selected?.explanation ?? 'Chưa đủ bằng chứng cho mục này.')}</p>${selected?.body ?? missing}</section>`;
+      : INSIGHT_EMPTY_SECTION_HTML;
+    return `<section id="${id}"><div class="sh"><span class="sid">${id}</span><h2>${esc(INSIGHT_TITLES[id])}</h2></div><p class="ans">${esc(selected?.explanation ?? INSIGHT_EMPTY_SECTION_EXPLANATION)}</p>${selected?.body ?? missing}</section>`;
   }).join('\n');
   body = orderReportCitations(body, registry);
   body += renderCitationRegister(registry.entries(), { format: 'web' });

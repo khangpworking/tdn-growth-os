@@ -88,6 +88,7 @@ import { createSearchInterestSource } from '../modules/analysis/research-automat
 import { createSearchGeoSource } from '../modules/analysis/research-automation/search-geo.js';
 import { createExpandedSearchSource } from '../modules/analysis/research-automation/expanded-search-lane.js';
 import { createWorldBankSource } from '../modules/analysis/research-automation/world-bank-lane.js';
+import { createPopulationBaselineSource, type PopulationBaselineConfig } from '../modules/analysis/research-automation/population-baseline.js';
 import { createComtradeSource } from '../modules/analysis/research-automation/comtrade-lane.js';
 import { createGoogleAdsSource } from '../modules/analysis/research-automation/google-ads-lane.js';
 import { createOfficialStatsSource } from '../modules/analysis/research-automation/official-statistics-lane.js';
@@ -160,6 +161,8 @@ export interface ResearchAutomationApiConfiguration {
   readonly expandedSearch?: true;
   /** World Bank open-data lane for the OWNER writer only; present only when its flag is exactly "1". Needs no key. */
   readonly worldBank?: true;
+  /** S28 whole-population baseline file for the OWNER writer only; present only when its flag is exactly "1". Local file, no network. */
+  readonly populationBaseline?: PopulationBaselineConfig;
   /** UN Comtrade lane for the OWNER writer only; present only when its flag is exactly "1". Needs no key; HS selection uses the configured Insight coding model. */
   readonly comtrade?: true;
   /** Public search-ads library lane for the OWNER writer only; present only when its flag is exactly "1". Uses the configured web-search key. */
@@ -417,6 +420,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       const trendsGeoSource = trendsSource && configuration.searchTrendsGeo ? createSearchGeoSource(configuration.providers!.serpApiKey!, transport) : undefined;
       const expandedSource = configuration.expandedSearch && configuration.providers?.serpApiKey ? createExpandedSearchSource(configuration.providers.serpApiKey, transport) : undefined;
       const worldBankSource = configuration.worldBank ? createWorldBankSource(transport) : undefined;
+      const populationBaselineSource = configuration.populationBaseline ? createPopulationBaselineSource(configuration.populationBaseline) : undefined;
       // UN Comtrade lane: HS selection reuses the already configured CLIProxy text model (no new provider config); without one it reports MODEL_NOT_CONFIGURED.
       const comtradeModel = insightCodingAi ? { generateText: async (request: { readonly systemText: string; readonly userText: string; readonly signal?: AbortSignal }): Promise<string> =>
         (await insightCodingAi.port.generateText({ configuration: insightCodingAi.configuration, systemText: request.systemText, userText: request.userText,
@@ -443,6 +447,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         ...(trendsSource ? { trendsSource } : {}), ...(trendsGeoSource ? { trendsGeoSource } : {}),
         ...(expandedSource ? { expandedSource } : {}),
         ...(worldBankSource ? { worldBankSource } : {}),
+        ...(populationBaselineSource ? { populationBaselineSource } : {}),
         ...(comtradeSource ? { comtradeSource } : {}),
         ...(searchAdsSource ? { searchAdsSource } : {}),
         ...(officialStatsSource ? { officialStatsSource } : {}),

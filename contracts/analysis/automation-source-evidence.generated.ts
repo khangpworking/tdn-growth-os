@@ -200,7 +200,8 @@ export interface SourceAppendixRow {
     | 'S24'
     | 'S25'
     | 'S26'
-    | 'S27';
+    | 'S27'
+    | 'S28';
   tier: ('A' | 'B' | 'C') | null;
   tierDetail: string | null;
   group: string;
