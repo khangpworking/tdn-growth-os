@@ -143,6 +143,8 @@ export interface MarketPublish {
   readonly builderVersion: string; readonly publicReviewSource: boolean; readonly requireFlint: boolean;
   /** Taken before the page was built (footer date). */
   readonly createdAt: string;
+  /** Allocated before page construction and artifact writes to preserve Market record bytes. */
+  readonly revisionId: string;
   readonly page: Pick<BuiltMarketReport, 'html' | 'narrator' | 'extraOk'>;
   /** Cover image and sidecar, already stored; registered in the revision transaction. */
   readonly cover: StoredCoverImage | null;
@@ -173,7 +175,7 @@ export async function publishMarketRevision(db: Database.Database, artifacts: Co
       { cause: error });
     throw error;
   }
-  const revisionId = randomUUID(), { createdAt, cover } = build;
+  const { revisionId, createdAt, cover } = build;
   const profile = (await storeReaderProfile(artifacts, build.profile)).artifact;
   const record = await artifacts.put(json(build.record({ revisionId, profileSha256: profile.sha256, htmlSha256: published.html.sha256 })));
   const raced = commitRevision(db, { kind: 'MARKET', runId: build.runId, requestKey: build.requestKey, createdAt, approved: MARKET_APPROVED,

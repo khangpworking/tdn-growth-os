@@ -1,7 +1,7 @@
 import type { PublicReviewSource } from './public-shopee-bridge.js';
 import type { CaptureRelevanceRecord } from './capture-relevance.js';
 import type { PdfExcerpt } from './pdf-excerpt.js';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
 import type Database from 'better-sqlite3';
 import apiSchema from '../../../../contracts/api/research-automation-api.schema.json' with { type: 'json' };
@@ -344,7 +344,7 @@ export class AutomationReaderReports {
       ...(captureRows.unattributed.length ? [`${captureRows.unattributed.length} dòng không gán được sàn được giữ riêng, không cộng vào Shopee hoặc TikTok Shop.`] : []),
       'Bảng kết quả không có ngày bắt đầu bán ở cấp sản phẩm và không đủ trường cho một số mục; các mục đó ghi không có số liệu.',
     );
-    const at = this.now(), createdAt = at.toISOString();
+    const at = this.now(), createdAt = at.toISOString(), revisionId = randomUUID();
     const webResults = context.webResults ?? [];
     if (context.publicReviewSource) {
       if (!this.options.verifyPublicReviewSource) throw new ResearchAutomationIntegrityError('Public reader requires source verification.');
@@ -356,7 +356,7 @@ export class AutomationReaderReports {
     const outcome = await publishMarketRevision(this.db, this.artifacts, { workspaceId: context.workspaceId, runId: context.runId, actorId: actor.actorId,
       draftPairId: context.draftPairId, requestKey: request.requestKey, requestSha256: requestSha, contractVersion: request.contractVersion,
       metricPackageId: request.metricPackageId, platforms, profile: request.profile, builderVersion, publicReviewSource: Boolean(context.publicReviewSource),
-      requireFlint: this.options.flint ?? true, createdAt, page: built, cover: stored,
+      requireFlint: this.options.flint ?? true, createdAt, revisionId, page: built, cover: stored,
       record: ({ revisionId, profileSha256, htmlSha256 }) => ({
         contractVersion: 'reader-report-build-record-v1', builderVersion, revisionId,
         ...(context.publicReviewSource ? { publicReviewSource: context.publicReviewSource } : {}),

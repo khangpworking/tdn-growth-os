@@ -63,7 +63,7 @@ async function fixture(t: TestContext) {
   });
   async function marketPublish(): Promise<MarketPublish> {
     const page = await buildMarketReport(computeReaderReportData(sample), sync1Options);
-    return { workspaceId, runId, actorId: owner.actorId, draftPairId: market.draftPairId,
+    return { workspaceId, runId, revisionId: randomUUID(), actorId: owner.actorId, draftPairId: market.draftPairId,
       requestKey: request.requestKey, requestSha256: digest(canonicalJson(request)), contractVersion: request.contractVersion,
       metricPackageId, platforms: sample.platforms, profile: sample.profile, builderVersion: 'reader-report-market-v3',
       publicReviewSource: false, requireFlint: false, createdAt: at, cover: null, page,
