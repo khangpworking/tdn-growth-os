@@ -95,6 +95,11 @@ export interface CollectionLaneContext extends CollectionRunContext {
 
 /** Stores the captures in order through the service's capture closure; returns the first capture's index, null when unstorable. */
 export type LaneCaptureStore = (captures: readonly ProviderRawCapture[]) => Promise<number | null>;
+/** The service's capture list: its length, and a cut back to an earlier length (a lane whose capture write failed keeps none). */
+export interface LaneCaptureRewind {
+  readonly length: () => number;
+  readonly truncate: (length: number) => void;
+}
 /** The service's step-document check; `lineage: false` skips the capture-lineage check (lanes that store no capture). */
 export type LaneCheck = (probe: StepResultDocument, options?: { readonly lineage: boolean }) => void;
 
@@ -120,6 +125,8 @@ export interface LaneProduced {
 export interface CollectionLaneRun {
   readonly name: CollectionLaneName;
   readonly store: (step: StepResultDocument, captures: LaneCaptureStore, check: LaneCheck) => Promise<StepResultDocument>;
+  /** The lane's failed document after one of its capture writes failed (owner c1 Q3); stores no capture. Without it the failure is not contained. */
+  readonly writeFailed?: (step: StepResultDocument, check: LaneCheck) => Promise<StepResultDocument>;
   readonly usage: () => LaneUsageRow[];
   /** The lane's own provider result reported a cancelled call (product, web, trends and expanded count for the step outcome). */
   readonly cancelled?: boolean;
@@ -141,6 +148,8 @@ interface LaneSpec<I, C> {
   readonly thrown?: (input: I) => C;
   /** Stores the lane's captures and merges its document (or its own failed document) into the step. */
   readonly store: (step: StepResultDocument, collection: C | undefined, input: I, captures: LaneCaptureStore, check: LaneCheck) => Promise<StepResultDocument>;
+  /** The failed document after a capture write failed; without it, the document a thrown collect would give. */
+  readonly writeFailed?: (step: StepResultDocument, collection: C | undefined, input: I) => StepResultDocument;
   /** Usage rows of a collect that returned (or of the lane's own thrown value). */
   readonly usage: (collection: C) => LaneUsageRow[];
   readonly cancelled?: (collection: C) => boolean;
@@ -160,6 +169,8 @@ function lane<I, C>(spec: LaneSpec<I, C>): CollectionLane {
       return {
         name: spec.name,
         store: (step, captures, check) => spec.store(step, collection, input, captures, check),
+        writeFailed: async (step, check) => spec.writeFailed ? spec.writeFailed(step, collection, input)
+          : spec.store(step, spec.thrown?.(input), input, noCaptureStore, check),
         // A thrown collect is one ambiguous call: one UNKNOWN row with the lane's own ordinal and provider.
         usage: () => collection !== undefined ? spec.usage(collection)
           : [{ kind: 'UNSETTLED', ordinal: laneEntry(spec.name).ordinal, provider: laneEntry(spec.name).provider! }],
@@ -192,6 +203,9 @@ function fieldLane<I, C, F extends LaneField>(spec: Omit<LaneSpec<I, C>, 'store'
     },
   });
 }
+
+// The thrown documents store no capture; an empty capture list still reports where it would start.
+const noCaptureStore: LaneCaptureStore = async values => { if (values.length) throw new Error('A failed lane document stores no capture.'); return null; };
 
 const runFacts = (context: CollectionRunContext): CollectionRunFacts => {
   if (!context.run) throw new Error('This collection lane needs the run facts.');
@@ -270,7 +284,8 @@ function trendsLane(source: SearchInterestSource): CollectionLane {
     thrown: ({ keyword, range }) => ({ kind: 'THROWN', keyword, range }),
     async store(step, attempt, _input, captures, check) {
       if (!attempt) return step; // unreachable: a thrown collect leaves a THROWN attempt
-      const thrown: SearchInterestAttempt = { kind: 'THROWN', keyword: attempt.keyword };
+      // The failed series keeps the range the attempt had (c1 bug 2), so one failed series always gives the same window.
+      const thrown: SearchInterestAttempt = { kind: 'THROWN', keyword: attempt.keyword, ...(attempt.kind !== 'SKIPPED' && attempt.range ? { range: attempt.range } : {}) };
       const values = attempt.kind === 'CALLED' ? attempt.result.captures : [];
       const index = await captures(values);
       const probe = { ...step, searchInterest: searchInterestDocument(index !== null ? attempt : thrown, index !== null && values.length ? index + values.length - 1 : null) };
@@ -298,7 +313,7 @@ function geoLane(source: SearchGeoSource): CollectionLane {
     thrown: ({ keyword, range }) => ({ kind: 'THROWN', keyword, range }),
     async store(step, attempt, _input, captures, check) {
       if (!attempt) return step; // unreachable: a thrown collect leaves a THROWN attempt
-      const thrown: SearchGeoAttempt = { kind: 'THROWN', keyword: attempt.keyword };
+      const thrown: SearchGeoAttempt = { kind: 'THROWN', keyword: attempt.keyword, ...(attempt.kind !== 'SKIPPED' && attempt.range ? { range: attempt.range } : {}) };
       const values = attempt.kind === 'CALLED' ? attempt.result.captures : [];
       const index = await captures(values);
       try {
@@ -321,8 +336,7 @@ function expandedLane(source: ExpandedSearchSource): CollectionLane {
     name: 'expanded',
     input: runFacts,
     collect: (run, options) => source.collect(run.input, options),
-    // The port never throws; a throw leaves no query (and, as today, no usage row).
-    thrown: () => [],
+    // The port never throws; a throw leaves no query and, like every lane, one UNKNOWN row (ordinal 4, owner c1 Q1).
     async store(step, attempts = [], _run, captures, check) {
       if (!attempts.length) return step;
       const seen = new Set((step.webResults ?? []).map(row => webResultUrlKey(row.url)));
@@ -342,6 +356,9 @@ function expandedLane(source: ExpandedSearchSource): CollectionLane {
           requestedWindow: null, retrievedAt: null, captureIndex: null, results: [] })) } };
       }
     },
+    // A failed capture write fails every query of the attempt, as a failed check does.
+    writeFailed: (step, attempts = []) => !attempts.length ? step : { ...step, expandedSearch: { queries: attempts.map(attempt => ({ kind: attempt.kind,
+      status: 'FAILED' as const, reason: 'PROVIDER_FAILED' as const, requestedWindow: null, retrievedAt: null, captureIndex: null, results: [] })) } },
     usage: attempts => [
       ...attempts.flatMap((item): LaneUsageRow[] => item.state === 'CALLED' && item.result.captures.length
         ? [{ kind: 'USAGE', ordinal: EXPANDED_SEARCH_USAGE_ORDINAL[item.kind], result: item.result }] : []),
@@ -533,9 +550,28 @@ export const lanesBeforeVideo = (runs: readonly CollectionLaneRun[]): Collection
 /** The runs stored (and whose usage is written) after the video readings, in run order. */
 export const lanesAfterVideo = (runs: readonly CollectionLaneRun[]): CollectionLaneRun[] => runs.filter(run => AFTER_VIDEO.has(run.name));
 
-/** Stores each attempted lane's captures in run order and merges its document (or its failed document) into the step. */
-export async function storeCollectionLanes(runs: readonly CollectionLaneRun[], step: StepResultDocument, captures: LaneCaptureStore, check: LaneCheck): Promise<StepResultDocument> {
-  for (const run of runs) step = await run.store(step, captures, check);
+/** A capture write of one lane failed. */
+class LaneCaptureWriteError extends Error {}
+
+/**
+ * Stores each attempted lane's captures in run order and merges its document (or its failed document) into the step.
+ * A failed capture write fails only that lane (owner c1 Q3): its captures are cut from the list (`rewind`), it gets its
+ * own failed document, its usage rows stay as the attempt made them, and the later lanes still store.
+ */
+export async function storeCollectionLanes(runs: readonly CollectionLaneRun[], step: StepResultDocument, captures: LaneCaptureStore, check: LaneCheck, rewind?: LaneCaptureRewind): Promise<StepResultDocument> {
+  const guarded: LaneCaptureStore = async values => {
+    try { return await captures(values); } catch (cause) { throw new LaneCaptureWriteError('A lane capture write failed.', { cause }); }
+  };
+  for (const run of runs) {
+    const length = rewind?.length();
+    try { step = await run.store(step, guarded, check); }
+    catch (error) {
+      if (!(error instanceof LaneCaptureWriteError)) throw error;
+      if (!run.writeFailed) throw error.cause;
+      if (length !== undefined) rewind!.truncate(length);
+      step = await run.writeFailed(step, check);
+    }
+  }
   return step;
 }
 
