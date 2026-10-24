@@ -37,6 +37,8 @@ type Options = {
   throwLane?: Lane;
   unstorable?: boolean;
   failCaptureWrite?: string;
+  failCaptureWriteAt?: number;
+  throwProduct?: boolean;
   abortBeforeWeb?: boolean;
 };
 
@@ -54,8 +56,10 @@ async function fixture(t: TestContext, options: Options = {}) {
   const db = openDatabase({ databasePath: path.join(root, 'test.sqlite'), now }).db;
   const artifacts = new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
   const put = artifacts.put.bind(artifacts);
+  let matchingWrites = 0;
   artifacts.put = async bytes => {
-    if (options.failCaptureWrite && Buffer.from(bytes).includes(Buffer.from(`"operation":"${options.failCaptureWrite}"`)))
+    if (options.failCaptureWrite && Buffer.from(bytes).includes(Buffer.from(`"operation":"${options.failCaptureWrite}"`)) &&
+      ++matchingWrites === (options.failCaptureWriteAt ?? 1))
       throw new Error('synthetic capture write failure');
     return put(bytes);
   };
@@ -160,7 +164,12 @@ async function fixture(t: TestContext, options: Options = {}) {
   const pdf = createPdfDiscoverySource(SYNTHETIC_SERP_KEY, pdfTransport, async () => ['203.0.113.10'], pdfTransport.fetch);
   const enabled = new Set(options.lanes ?? lanes);
   const service = new ResearchAutomationService({ db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discovery), uuid: () => runId, now,
-    source: { ...product, collect: async (input, opts) => { const bound = await product.collect(input, opts); if (options.abortBeforeWeb) controller.abort(); return bound; } },
+    source: { ...product, collect: async (input, opts) => {
+      if (options.throwProduct) throw new Error('synthetic product collect failure');
+      const bound = await product.collect(input, opts);
+      if (options.abortBeforeWeb) controller.abort();
+      return bound;
+    } },
     sourceEvidence: { modelIdentity: 'synthetic', promptVersion: 'c1-v1', transport: { draftLists: async () => ({ keywords: [keyword], exclusions: [] }) } },
     pageIndex: { enabled: true, apiKey: 'synthetic-pdf-key', fetch: async () => { throw new Error('unexpected PageIndex call'); },
       extractPdf: async () => [{ page: 1, text: 'Synthetic PDF' }] },
@@ -203,16 +212,17 @@ async function fixture(t: TestContext, options: Options = {}) {
       expectedRevision: (await service.getRun(workspaceId, runId)).revision, definition: 'Synthetic scope', includeTerms: [], excludeTerms: [],
       selectedProductIds: [SYNTHETIC_CARD_ID], peerProductIds: [], exactShopeeUrls: [] });
   };
-  return { service, calls, exchanges, read, confirm, controller };
+  return { service, calls, exchanges, read, confirm, controller, db };
 }
 
 const unsettledLanes = [
+  ['web', 2, 'serpapi'], ['trends', 3, 'serpapi'], ['geo', 16, 'serpapi'], ['worldBank', 7, 'world-bank'],
   ['comtrade', 9, 'comtrade'], ['ads', 10, 'serpapi'], ['stats', 11, 'official-stats'],
   ['meta', 12, 'meta-ad-library'], ['tiktok', 13, 'tiktok-top-ads'], ['video', 8, 'video-watch'], ['pdf', 14, 'serpapi'],
 ] as const;
 for (const [lane, ordinal, provider] of unsettledLanes) test(`row 1: ${lane} throw stores one UNKNOWN settlement; normal return stores none`, async t => {
   for (const thrown of [true, false]) {
-    const f = await fixture(t, { lanes: [lane], ...(thrown ? { throwLane: lane } : {}) });
+    const f = await fixture(t, { lanes: lane === 'geo' ? ['trends', 'geo'] : [lane], ...(thrown ? { throwLane: lane } : {}) });
     await f.confirm();
     await f.service.processNext();
     const stored = await f.read();
@@ -223,17 +233,23 @@ for (const [lane, ordinal, provider] of unsettledLanes) test(`row 1: ${lane} thr
   }
 });
 
-test('row 2 TODAY: c1 PR4 records UNKNOWN (owner c1 Q1): whole expanded collect throw has no row', async t => {
-  const f = await fixture(t, { lanes: ['web', 'expanded'], throwLane: 'expanded' });
-  await f.confirm(); await f.service.processNext();
-  const stored = await f.read();
-  assert.equal(f.calls.expanded, 1);
-  assert.ok(stored.document);
-  assert.equal(stored.document.expandedSearch, undefined);
-  assert.deepEqual(stored.usage.map(row => row.ordinal), [0, 2]);
+test('row 2: whole expanded collect throw stores one UNKNOWN row; normal return stores none', async t => {
+  for (const thrown of [true, false]) {
+    const f = await fixture(t, { lanes: ['web', 'expanded'], ...(thrown ? { throwLane: 'expanded' } : {}) });
+    await f.confirm(); await f.service.processNext();
+    const stored = await f.read();
+    assert.equal(f.calls.expanded, 1);
+    assert.ok(stored.document);
+    if (thrown) assert.equal(stored.document.expandedSearch, undefined);
+    else assert.deepEqual(stored.document.expandedSearch?.queries.map(query => query.kind), ['WINDOW', 'SHOPEE', 'TIKTOK']);
+    // c1 PR4 owner decision 24/10/2026: Q1
+    assert.deepEqual(stored.usage.map(row => row.ordinal), thrown ? [0, 2, 4] : [0, 2, 4, 5, 6]);
+    assert.deepEqual(stored.usage.filter(row => row.operation === 'unsettled-collection'), thrown
+      ? [{ ordinal: 4, provider: 'serpapi', operation: 'unsettled-collection', request_count: 0, cost_state: 'UNKNOWN', cost_unit: null, cost_amount: null }] : []);
+  }
 });
 
-test('row 3 TODAY: c1 PR4 keeps the requested range (bug 2): unstorable trends/geo fallback loses it', async t => {
+test('row 3: unstorable trends/geo fallback keeps the requested range', async t => {
   for (const unstorable of [true, false]) {
     const f = await fixture(t, { lanes: ['trends', 'geo'], unstorable });
     await f.confirm(); await f.service.processNext();
@@ -242,8 +258,9 @@ test('row 3 TODAY: c1 PR4 keeps the requested range (bug 2): unstorable trends/g
     assert.deepEqual([f.calls.trends, f.calls.geo], [1, 1]);
     for (const series of [document.searchInterest, document.searchGeo]) {
       assert.equal(series.status, unstorable ? 'FAILED' : 'COLLECTED');
-      assert.equal(series.window, unstorable ? 'LAST_12_MONTHS' : 'REQUESTED_RANGE');
-      assert.deepEqual(series.requestedRange, unstorable ? undefined : period);
+      // c1 PR4 owner decision 24/10/2026: bug 2
+      assert.equal(series.window, 'REQUESTED_RANGE');
+      assert.deepEqual(series.requestedRange, period);
       if (unstorable) { assert.equal(series.reason, 'PROVIDER_FAILED'); assert.equal(series.captureIndex, null); }
     }
     assert.equal(captures.length, unstorable ? 1 : 3);
@@ -313,14 +330,71 @@ test('row 6: abort before web prevents collection and usage; flag off also preve
   }
 });
 
-test('row 7 TODAY: c1 PR4 marks only that source failed (owner c1 Q3): non-pdf capture write fails the save', async t => {
-  const f = await fixture(t, { lanes: ['web'], failCaptureWrite: 'serpapi.google.search' });
-  await f.confirm();
-  await assert.rejects(f.service.processNext(), /synthetic capture write failure/);
-  const { step, document, usage, captures } = await f.read();
-  assert.equal(step.state, 'RUNNING'); assert.equal(document, null);
-  assert.deepEqual(usage, []); assert.deepEqual(captures, []);
-  assert.equal((await f.service.getRun(workspaceId, runId)).status, 'COLLECTING');
+test('row 7: a capture write failure drops only that lane, keeps usage and saves later lanes', async t => {
+  for (const lane of ['web', 'expanded'] as const) for (const failure of [true, false]) {
+    const f = await fixture(t, { lanes: lane === 'web' ? ['web', 'trends'] : ['web', 'expanded', 'worldBank'],
+      ...(failure ? { failCaptureWrite: 'serpapi.google.search', failCaptureWriteAt: lane === 'web' ? 1 : 3 } : {}) });
+    await f.confirm();
+    // c1 PR4 owner decision 24/10/2026: Q3
+    assert.equal(await f.service.processNext(), true);
+    const { step, document, usage, captures } = await f.read();
+    assert.equal(step.state, failure && lane === 'web' ? 'PARTIAL' : 'SUCCEEDED'); assert.ok(document);
+    assert.equal((await f.service.getRun(workspaceId, runId)).status, 'RENDERING');
+    assert.equal((await f.read('REPORTS')).step.state, 'QUEUED');
+    assert.deepEqual(usage.map(row => [row.ordinal, row.provider, row.operation, row.request_count, row.cost_state, row.cost_unit, row.cost_amount]), lane === 'web'
+      ? [[0, 'kalodata', 'provider.run', 1, 'KNOWN', 'CREDITS', '0'], [2, 'serpapi', 'provider.run', 1, 'UNKNOWN', null, null], [3, 'serpapi', 'provider.run', 1, 'UNKNOWN', null, null]]
+      : [[0, 'kalodata', 'provider.run', 1, 'KNOWN', 'CREDITS', '0'], ...[2, 4, 5, 6].map(ordinal => [ordinal, 'serpapi', 'provider.run', 1, 'UNKNOWN', null, null]), [7, 'world-bank', 'provider.run', 4, 'KNOWN', 'CREDITS', '0']]);
+    const expected = ['kalodata.product.rank', ...(!failure || lane !== 'web' ? ['serpapi.google.search'] : []),
+      ...(lane === 'web' ? ['serpapi.google.trends'] : [
+        ...(!failure ? Array<string>(3).fill('serpapi.google.search') : []),
+        'worldbank.observations', 'worldbank.metadata', 'worldbank.observations', 'worldbank.metadata',
+      ])];
+    assert.deepEqual(captures.map(row => [row.ordinal, row.operation]), expected.map((operation, ordinal) => [ordinal, operation]));
+    if (lane === 'web') {
+      assert.deepEqual(document.coverage.filter(row => row.provider === 'serpapi').map(row => [row.dataset, row.state]),
+        [['web_discovery_current', failure ? 'FAILED' : 'COLLECTED']]);
+      assert.deepEqual(document.limitations.filter(row => row.code === 'PROVIDER_FAILED').map(row => row.provider), failure ? ['serpapi'] : []);
+      assert.equal(document.webResults?.length, failure ? undefined : 1);
+      assert.equal(document.searchInterest?.status, 'COLLECTED');
+      assert.equal(document.searchInterest?.captureIndex, failure ? 1 : 2);
+      assert.equal(f.calls.trends, 1);
+    } else {
+      assert.deepEqual(document.expandedSearch?.queries.map(query => [query.kind, query.status, query.reason, query.captureIndex]), failure
+        ? [['WINDOW', 'FAILED', 'PROVIDER_FAILED', null], ['SHOPEE', 'FAILED', 'PROVIDER_FAILED', null], ['TIKTOK', 'FAILED', 'PROVIDER_FAILED', null]]
+        : [['WINDOW', 'COLLECTED', null, 2], ['SHOPEE', 'COLLECTED', null, 3], ['TIKTOK', 'COLLECTED', null, 4]]);
+      assert.deepEqual(document.worldBank?.indicators.map(row => [row.captureIndex, row.metadataCaptureIndex]), failure ? [[2, 3], [4, 5]] : [[5, 6], [7, 8]]);
+      assert.equal(document.webResults?.length, 1);
+      assert.equal(f.calls.worldBank, 1);
+    }
+  }
+});
+
+test('c1 PR4 item 13: a product throw settles one UNKNOWN row with the failed step, or continues once with web', async t => {
+  for (const path of ['terminal', 'web', 'rollback'] as const) {
+    const f = await fixture(t, { lanes: path === 'web' ? ['web', 'stats'] : ['stats'], throwProduct: true });
+    await f.confirm();
+    if (path === 'rollback') {
+      // Reject the durable step write: its cost row must roll back in the same transaction.
+      f.db.exec(`CREATE TRIGGER reject_collection_settlement BEFORE UPDATE OF state ON analysis_research_automation_steps
+        WHEN NEW.step_id='COLLECTION' AND NEW.state='FAILED'
+        BEGIN SELECT RAISE(ABORT, 'synthetic collection settlement failure'); END`);
+      await assert.rejects(f.service.processNext(), /synthetic collection settlement failure/);
+    } else assert.equal(await f.service.processNext(), true);
+    const { step, document, usage, captures } = await f.read();
+    assert.deepEqual(usage.filter(row => row.ordinal === 0), path === 'rollback' ? [] : [{
+      ordinal: 0, provider: 'kalodata', operation: 'unsettled-collection', request_count: 0,
+      cost_state: 'UNKNOWN', cost_unit: null, cost_amount: null,
+    }]);
+    assert.deepEqual(usage.map(row => row.ordinal), path === 'web' ? [0, 2, 11] : path === 'terminal' ? [0] : []);
+    assert.equal(step.state, path === 'web' ? 'PARTIAL' : path === 'terminal' ? 'FAILED' : 'RUNNING');
+    assert.equal((await f.service.getRun(workspaceId, runId)).status, path === 'rollback' ? 'COLLECTING' : 'RENDERING');
+    assert.equal(f.calls.stats, path === 'web' ? 1 : 0, 'terminal product failure stops before later lanes');
+    if (path === 'web') {
+      assert.equal(document?.limitations.filter(row => row.code === 'PROVIDER_FAILED').length, 1);
+      assert.equal(f.calls.web, 1);
+      assert.deepEqual(captures.map(row => row.provider), ['serpapi', 'official-stats']);
+    } else { assert.equal(document, null); assert.deepEqual(captures, []); }
+  }
 });
 
 test('row 7: pdf capture write failure is contained as TRANSPORT and collection is saved', async t => {
