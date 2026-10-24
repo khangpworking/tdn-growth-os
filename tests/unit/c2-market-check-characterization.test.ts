@@ -175,7 +175,8 @@ const rows: Row[] = [
       assert.doesNotThrow(() => assertMarketBusinessGate(cleanHtml, { presentation: false }));
       const bad = f.request(version, '10000000-0000-4000-8000-000000000002', 'M01');
       if (version === 'reader-report-build-v1.2') {
-        await assert.rejects(f.service.buildReaderReport(workspaceId, runId, bad, owner), /quy tắc: 2\)/u);
+        // c2 PR3 owner Q2: the owner sees the plain reason for rule 2, not its code.
+        await assert.rejects(f.service.buildReaderReport(workspaceId, runId, bad, owner), /Trang thiếu nhãn Phần\/Phụ lục hoặc còn hiện mã kỹ thuật của phần\./u);
       } else {
         const saved = await f.service.buildReaderReport(workspaceId, runId, bad, owner);
         const html = (await f.service.readReaderReport(workspaceId, runId, saved.revision.revisionId)).bytes.toString();
@@ -250,23 +251,23 @@ const rows: Row[] = [
     assert.deepEqual(failures(gate('<p>xếp hạng theo doanh thu</p>')), ['E2_NO_REVENUE_ORDER']);
   } },
   ...(['hidden', 'aria-hidden="true"', 'style="display:none"'] as const).map(attribute => ({
-    name: `TODAY: A2 hidden inline ${attribute} passes raw U13 but fails gate U13`, run: () => {
-      // expected to change in c2 PR3 (owner Q3, 24/10/2026)
+    name: `PR3: A2 hidden inline ${attribute} passes raw and gate U13`, run: () => {
       const html = `<p><span ${attribute}>Sản phẩm tốt nhất.</span></p>`;
       assert.deepEqual(failures(lintVisibleReportText(html)), []);
-      assert.deepEqual(failures(gate(html)), ['U13_SUPERLATIVE']);
+      // c2 PR3 owner Q3: hidden text no longer counts for U13 inside the gate.
+      assert.deepEqual(failures(gate(html)), []);
       assert.equal(readerVerdict(html, 'U13_SUPERLATIVE'), true);
       assert.deepEqual(failures(gate(`<p><span ${attribute}>Thông tin nguồn.</span></p>`)), []);
       assert.deepEqual(failures(lintVisibleReportText('<p>Sản phẩm tốt nhất.</p>')), ['U13_SUPERLATIVE']);
     },
   })),
   ...(['<p aria-hidden="1">TEXT</p>', '<template><p>TEXT</p></template>'] as const).map(markup => ({
-    name: `TODAY: A3 ${markup.split('>')[0]}> hides E2 but raw and gate U13 still count it`, run: () => {
-      // expected to change in c2 PR3 (owner Q3, 24/10/2026)
+    name: `PR3: A3 ${markup.split('>')[0]}> hides E2 and U13 alike`, run: () => {
       const html = markup.replace('TEXT', 'Sản phẩm tốt nhất. xếp hạng theo doanh thu.');
-      assert.deepEqual(failures(gate(html)), ['U13_SUPERLATIVE']);
-      assert.deepEqual(failures(lintVisibleReportText(html)), ['U13_SUPERLATIVE']);
-      assert.equal(readerVerdict(html, 'U13_SUPERLATIVE'), false);
+      // c2 PR3 owner Q3 / b5: one hidden definition (aria-hidden="1", template) for gate, raw and Reader U13.
+      assert.deepEqual(failures(gate(html)), []);
+      assert.deepEqual(failures(lintVisibleReportText(html)), []);
+      assert.equal(readerVerdict(html, 'U13_SUPERLATIVE'), true);
       assert.deepEqual(failures(gate(markup.replace('TEXT', 'Thông tin nguồn.'))), []);
       assert.equal(verdict(gate('<p>xếp hạng theo doanh thu.</p>'), 'E2_NO_REVENUE_ORDER'), false);
     },
@@ -284,15 +285,14 @@ const rows: Row[] = [
   ...([
     ['tổng cả hai sàn', true, false],
     ['Shopee + TikTok', false, true],
-  ] as const).map(([text, u32, w3]) => ({ name: `TODAY: C9 ${text} differs between U32 and Reader W3`, run: () => {
-    // U32 kept (out of scope)
-    assert.equal(verdict(auditMarketReportHtml(presentation(`<p>${text}</p>`)), 'U32_NO_CROSS_PLATFORM_TOTAL'), u32);
-    assert.equal(readerVerdict(`<p>${text}</p>`, 'W3 '), w3);
+  ] as const).map(([text]) => ({ name: `PR3: C9 ${text} is refused by both U32 and Reader W3`, run: () => {
+    // c2 PR3 handoff totals decision: one phrase list (union) for U32 and W3; totals still refused.
+    assert.equal(verdict(auditMarketReportHtml(presentation(`<p>${text}</p>`)), 'U32_NO_CROSS_PLATFORM_TOTAL'), false);
+    assert.equal(readerVerdict(`<p>${text}</p>`, 'W3 '), false);
     assert.equal(verdict(gate('<p>Shopee và TikTok Shop được ghi riêng.</p>'), 'U32_NO_CROSS_PLATFORM_TOTAL'), true);
     assert.equal(readerVerdict('<p>Shopee và TikTok Shop được ghi riêng.</p>', 'W3 '), true);
   } })),
-  { name: 'TODAY: verify 10 hidden statements still count for partial totals and all drawn lanes', run: () => {
-    // expected to change in c2 PR3 (owner Q3, 24/10/2026)
+  { name: 'PR3: verify 10 hidden statements no longer count for partial totals and drawn lanes', run: () => {
     const cases = [
       ['PARTIAL_TOTAL_FORBIDDEN', '', 'Doanh thu là 1.234 VND.'],
       ['SEARCH_INTEREST_NOT_COUNT', 'Mức quan tâm tìm kiếm', 'Có 80 lượt tìm kiếm.'],
@@ -303,7 +303,9 @@ const rows: Row[] = [
     const options = { partialTotals: [{ measure: 'revenue' as const, value: '1234' }] };
     for (const [rule, title, statement] of cases) {
       assert.ok(rule);
-      assert.equal(verdict(gate(`<h2>${title}</h2><p hidden>${statement}</p>`, options), rule), false, rule);
+      // c2 PR3 owner Q3: hidden text is not a statement.
+      assert.equal(verdict(gate(`<h2>${title}</h2><p hidden>${statement}</p>`, options), rule), true, rule);
+      assert.equal(verdict(gate(`<h2>${title}</h2><p>${statement}</p>`, options), rule), false, rule);
       assert.equal(verdict(gate(`<h2>${title}</h2><p hidden>Thông tin nguồn.</p>`, options), rule), true, rule);
     }
   } },

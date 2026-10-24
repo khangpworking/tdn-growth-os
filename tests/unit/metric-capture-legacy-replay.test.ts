@@ -47,6 +47,8 @@ test('a synthetic stored pre-change capture verifies its v1 receipt and re-rende
   const { platformHeadlines: _headlines, ...oldCapture } = snapshot.capture!;
   assert.deepEqual(await bridge.verify({ ...snapshot, capture: oldCapture }, config.input), { ...snapshot, capture: oldCapture });
   assert.deepEqual(db.prepare('SELECT total_changes() n').get(), before, 'verification is read only');
+  // fixture.htmlSha256 pins today's renderer on stored input; no production path compares a re-render with stored bytes.
+  // c2 PR3 re-froze it: owner Q4 (R-L14): the M12 evidence inventory now writes the full proposal label sentence; that sentence is the only byte change.
   const rendered = buildResearchAutomationReport(fixture.reportInput, 'MARKET');
   assert.equal(createHash('sha256').update(rendered.html).digest('hex'), fixture.htmlSha256);
   assert.match(rendered.html.toString('utf8'), /reviews Total sold products/);
