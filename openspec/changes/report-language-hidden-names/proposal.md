@@ -18,6 +18,7 @@ Quyết định của chủ (24/10/2026):
 - **MODIFIED** R-L01: một danh sách tên đầy đủ, áp dụng cho cả Market và Insight; ghi rõ Q2 đến Q5. Mã kiểm trỏ về `src/modules/analysis/report-language/hidden-names.ts`.
 - **MODIFIED** R-M15: danh sách tên của cổng `G08_PROVIDER_NAME` lấy từ module trên. Cổng đọc cả chữ ẩn.
 - **ADDED** R-I29: Insight tuân đầy đủ R-L01. Lint F1 và W6 chạy trên bản đọc Insight cuối cùng.
+- Phụ lục kiểm chéo của Insight không còn nêu tên mô hình và nhà cung cấp của hai lượt. Câu mới: «Lượt đầu và lượt kiểm chéo dùng hai mô hình khác nhau.»
 
 ## Impact
 
