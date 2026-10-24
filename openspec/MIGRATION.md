@@ -43,6 +43,9 @@ flowchart LR
 2. `docs/REPOSITORY_MAP.md`: bỏ dòng cấm cài spec framework, thêm dòng `openspec/`.
 3. `AGENTS.md`: thêm một đoạn "Quy tắc nghiệp vụ ở openspec/specs; việc mới bắt đầu bằng /opsx:propose".
 4. Chụp bản cũ vào `docs/outdated/<ngày>/` theo luật hiện có.
+5. Thêm một kiểm thử trong `npm test`: mọi file và hàm ghi ở dòng "Mã kiểm" của `openspec/specs` phải có thật trong mã (bắt lỗi kiểu R-M24 trỏ sai đường dẫn). Khoảng 1 giây.
+6. Thêm một job CI nhỏ: PR đổi một trong 4 file luật bằng mã (`market-business-gate.ts`, `market-14-rules.ts`, `report-visible-text-lint.ts`, `reader-report/lint.ts`) mà không đổi `openspec/` thì trượt. Thoát bằng nhãn `skip-spec-drift` khi chỉ đổi tên hoặc sửa tốc độ. Khoảng 10 giây, chạy song song với `Check`.
+7. Không thêm hook chặn commit (chỉ chặn được Claude) và không thêm cảnh báo chiều ngược (spec đổi mà mã không đổi): lợi ích nhỏ.
 
 ## 5. Cách quay lại
 
