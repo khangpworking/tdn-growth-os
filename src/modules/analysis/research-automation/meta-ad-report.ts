@@ -5,8 +5,8 @@
 // it is never customer voice, persona evidence or a frequency input.
 import type { CitationInput } from '../citation-registry.js';
 import { esc } from '../reader-report/format.js';
-import { auditMarketReportHtml } from './market-business-gate.js';
 import { technicalLeaks } from './market-14-rules.js';
+import { marketSnippetPasses } from './market-report-check.js';
 import type { MetaPageSourceView } from './meta-page-intake.js';
 import { webTextHidden } from './web-page-type.js';
 
@@ -54,8 +54,6 @@ export function metaAdExcerpt(text: string, max = META_AD_EXCERPT_MAX): { readon
 }
 
 const BENIGN = '<p><span data-quote>Bình giữ nhiệt inox</span></p>';
-const failingRules = (html: string): string[] => auditMarketReportHtml(html, { presentation: false }).filter(item => !item.ok).map(item => item.rule);
-let baseline: ReadonlySet<string> | undefined;
 // Wording the Market rules read in any visible text, quotation or not.
 const RESERVED_WORDING = /Ghi chú\s*:|Chú thích\s*:|Chú thích mang|(?<![\p{L}\p{N}])M(?:0[1-9]|1[0-3])(?![\p{L}\p{N}])|(?:thị phần|quy mô thị trường)\s+(?:là|đạt|tăng|giảm|chiếm)\s*\d/iu;
 /** Copied third-party text is shown only when the Market gates would accept it as a quotation; otherwise the report says it is kept in the saved capture. */
@@ -64,8 +62,7 @@ export function metaTextReportSafe(text: string): boolean {
   if (text.trim() === '' || normalized.includes('%') || webTextHidden(text) || RESERVED_WORDING.test(normalized)) return false;
   const quoted = `<p><span data-quote>${esc(text)}</span></p>`;
   if (technicalLeaks(quoted).length > 0) return false;
-  baseline ??= new Set(failingRules(BENIGN));
-  return failingRules(quoted).every(rule => baseline!.has(rule));
+  return marketSnippetPasses(quoted, BENIGN);
 }
 
 interface Counted {
