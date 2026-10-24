@@ -97,5 +97,6 @@ test('flag-off service output retains the pre-Jev fixed hashes', async t => {
   const result = await run(t);
   assert.equal(result.stepSha, '0046d7dc3327333e165edb4a62190a8daa32e9d24b410bef5b256b0f76c23494');
   // WEBTITLE-209 re-froze the report bytes only: the copied web title is now wrapped in <q data-quote>.
-  assert.equal(sha(result.report.bytes), '5d7152e330ee68192cbf5966f07748a0762cb6ad26e03e8b953440e7446fcb11');
+  // c2 PR3 re-froze the report bytes only: owner Q4 (R-L14): the M12 evidence inventory now writes the full proposal label sentence; that sentence is the only byte change.
+  assert.equal(sha(result.report.bytes), '40d3004d3e9f0fe621f7b615ba5e77c9c934becb78f17171c7deb801d875ce3c');
 });
