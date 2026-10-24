@@ -1,6 +1,7 @@
 import { MAX_COVER_JPEG_BYTES } from './cover-image-codec.js';
 import { auditMarketReportHtml } from './market-business-gate.js';
 import { isMacroChartId } from '../reader-report/macro-charts.js';
+import { MARKET_GLOSSARY, glossaryTermPattern } from '../report-language/glossary.js';
 
 const AI_COVER_PREFIX = 'data:image/jpeg;base64,';
 const MAX_AI_COVER_BASE64 = Math.ceil(MAX_COVER_JPEG_BYTES / 3) * 4;
@@ -48,25 +49,9 @@ function result(rule: string, ok: boolean, kind: Market14Result['kind'], detail:
   return { rule, ok, kind, detail };
 }
 
-export const GLOSSARY: readonly [RegExp, RegExp][] = [
-  [/\blisting\b/iu, /sản phẩm/iu],
-  [/\breview\b/iu, /đánh giá/iu],
-  [/\breviews\b/iu, /đánh giá/iu],
-  [/\bvariant\b/iu, /biến thể/iu],
-  [/\bpack\b/iu, /gói/iu],
-  [/\binsight\b/iu, /hiểu biết/iu],
-  [/\bsection\b/iu, /phần/iu],
-  [/\bexport\b/iu, /tệp dữ liệu/iu],
-  [/peer\s*set/iu, /nhóm đối thủ/iu],
-  [/giá\s*TB/iu, /giá trung bình/iu],
-  [/P25/iu, /mốc\s*25(?:%|\s+phần trăm)/iu],
-  [/P75/iu, /mốc\s*75(?:%|\s+phần trăm)/iu],
-  [/\bNSX\b/iu, /nhà sản xuất/iu],
-  [/\bH1\b/iu, /giả thuyết\s*1/iu],
-  [/\bROAS\b/iu, /doanh thu trên chi phí quảng cáo|tỷ lệ doanh thu trên chi phí quảng cáo/iu],
-  [/\bCPA\b/iu, /chi phí trên đơn|chi phí mỗi đơn/iu],
-  [/\bAI\b/iu, /trí tuệ nhân tạo|mô hình/iu],
-];
+/** Checker rule 1 terms, derived from the one Market glossary list (MARKET_GLOSSARY order). */
+export const GLOSSARY: readonly [RegExp, RegExp][] = MARKET_GLOSSARY.filter(entry => !entry.readerOnly)
+  .map(entry => [glossaryTermPattern(entry.term), entry.meaningPattern]);
 
 function glossaryHtml(html: string): string {
   const match = html.match(/<(?:dl|table)\b[^>]*(?:class=["'][^"']*pl-terms|data-glossary=["'][^"']*true)[^>]*>[\s\S]*?<\/(?:dl|table)>/iu);
