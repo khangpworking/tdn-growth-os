@@ -2,11 +2,13 @@ import { randomUUID } from 'node:crypto';
 import type Database from 'better-sqlite3';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import type { ContentAddressedArtifactStore, StoredArtifact } from '../../../platform/artifacts/artifact-store.js';
-import { publishReaderReport, ReaderReportGateError } from '../reader-report/index.js';
+import { publishReaderReport, ReaderReportGateError, storeReaderProfile, type BuiltMarketReport, type StoredCoverImage } from '../reader-report/index.js';
 import type { InsightReaderInput } from '../reader-report/insight-input-v1.js';
 import { buildInsightReaderTemplate, type InsightReaderPage } from '../reader-report/insight-template.js';
 import { INSIGHT_SECTION_IDS } from '../reader-report/insight-projection.js';
 import { ResearchAutomationConflictError, ResearchAutomationIntegrityError, ResearchAutomationValidationError } from './model.js';
+import { checkMarketReport } from './market-report-check.js';
+import { marketCheckReasons, readerLintReasons } from './market-check-reasons.js';
 
 export const MAX_READER_HTML_BYTES = 32 * 1024 * 1024;
 const json = (value: unknown): Buffer => Buffer.from(canonicalJson(value), 'utf8');
@@ -37,6 +39,38 @@ export function registerReaderManifest(db: Database.Database, artifact: StoredAr
     throw new ResearchAutomationIntegrityError('Artifact manifest conflict.');
 }
 
+const HTML = 'text/html; charset=utf-8', JSON_TYPE = 'application/json';
+const INSIGHT_APPROVED = 'Bản đọc insight mới nhất đã được chủ duyệt.';
+const MARKET_APPROVED = 'Bản đọc mới nhất đã được chủ duyệt.';
+
+/**
+ * The one revision transaction: request-key race recheck, latest-APPROVED
+ * recheck, manifests, next revision number, row insert, optional ledger row.
+ * Returns the row that claimed the key first (nothing written), else undefined.
+ */
+function commitRevision(db: Database.Database, tx: {
+  readonly kind: 'MARKET' | 'INSIGHT'; readonly runId: string; readonly requestKey: string; readonly createdAt: string; readonly approved: string;
+  readonly manifests: readonly (readonly [StoredArtifact, string])[]; readonly insert: (next: number) => void; readonly ledger?: () => void;
+}): RevisionRow | undefined {
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    // A concurrent writer on another connection may have claimed the key.
+    const raced = revisionByRequestKey(db, tx.requestKey);
+    if (raced) { db.exec('ROLLBACK'); return raced; }
+    if (latestRevision(db, tx.runId, tx.kind)?.decision === 'APPROVED') throw new ResearchAutomationConflictError('invalid_state', tx.approved);
+    for (const [artifact, mediaType] of tx.manifests) registerReaderManifest(db, artifact, mediaType, tx.createdAt);
+    const next = Number((db.prepare('SELECT COALESCE(max(revision_number),0)+1 n FROM analysis_reader_report_revisions WHERE run_id=? AND report_kind=?').get(tx.runId, tx.kind) as { n: number | bigint }).n);
+    tx.insert(next);
+    tx.ledger?.();
+    db.exec('COMMIT');
+  } catch (error) {
+    if (db.inTransaction) db.exec('ROLLBACK');
+    if (error instanceof Error && /reader_report_requires_draft_ready_sequence/.test(error.message)) throw new ResearchAutomationConflictError('invalid_state', 'Chỉ dựng bản đọc khi bản nháp đã sẵn sàng.');
+    throw error;
+  }
+  return undefined;
+}
+
 /** One Insight-family (Insight, TikTok, Shopee) reader build after the family's own checks passed. */
 export interface InsightFamilyPublish {
   /** Family word in the owner-visible size and gate messages. */
@@ -60,7 +94,10 @@ export type ReaderPublishOutcome = { readonly exactRetry: true; readonly row: Re
  * An exact-retry row is returned unverified; the caller re-verifies its page.
  */
 export async function publishInsightFamilyRevision(db: Database.Database, artifacts: ContentAddressedArtifactStore, build: InsightFamilyPublish): Promise<ReaderPublishOutcome> {
-  const { input } = build;
+  const { input, page } = build;
+  // D3: every Insight-family page restates its frozen scope (c3 b3).
+  if (page.keyword !== input.scope.keyword || page.definition !== input.scope.definition || canonicalJson(page.period) !== canonicalJson(input.scope.requestedPeriod))
+    throw new ResearchAutomationIntegrityError(`${build.family === 'insight' ? 'Insight' : build.family} reader context differs from its exact frozen binding.`);
   const retry = (row: RevisionRow): ReaderPublishOutcome => {
     if (row.report_kind !== 'INSIGHT' || row.workspace_id !== build.workspaceId || row.run_id !== build.runId || row.draft_pair_id !== input.draftPairId ||
         row.semantic_sha256 !== input.semanticSha256 || row.source_report_sha256 !== input.sourceReportSha256 || row.actor_id !== build.actorId || row.request_sha256 !== build.requestSha256)
@@ -68,7 +105,7 @@ export async function publishInsightFamilyRevision(db: Database.Database, artifa
     return { exactRetry: true, row };
   };
   const prior = revisionByRequestKey(db, build.requestKey); if (prior) return retry(prior);
-  if (latestRevision(db, build.runId, 'INSIGHT')?.decision === 'APPROVED') throw new ResearchAutomationConflictError('invalid_state', 'Bản đọc insight mới nhất đã được chủ duyệt.');
+  if (latestRevision(db, build.runId, 'INSIGHT')?.decision === 'APPROVED') throw new ResearchAutomationConflictError('invalid_state', INSIGHT_APPROVED);
   const built = buildInsightReaderTemplate(build.page);
   if (Buffer.byteLength(built.html) > MAX_READER_HTML_BYTES) throw new ResearchAutomationValidationError(`Bản đọc ${build.family} vượt giới hạn bản lưu; không cắt dữ liệu hoặc tự thu lại.`);
   let published;
@@ -80,25 +117,73 @@ export async function publishInsightFamilyRevision(db: Database.Database, artifa
   const createdAt = build.createdAt(), revisionId = randomUUID();
   const record = await artifacts.put(json({ contractVersion: 'insight-reader-build-record-v1', input,
     revisionId, requestSha256: build.requestSha256, htmlSha256: published.html.sha256, citationTrace: built.citationTrace, actorId: build.actorId, createdAt }));
-  db.exec('BEGIN IMMEDIATE');
-  try {
-    const raced = revisionByRequestKey(db, build.requestKey);
-    if (raced) { db.exec('ROLLBACK'); return retry(raced); }
-    if (latestRevision(db, build.runId, 'INSIGHT')?.decision === 'APPROVED') throw new ResearchAutomationConflictError('invalid_state', 'Bản đọc insight mới nhất đã được chủ duyệt.');
-    registerReaderManifest(db, published.html, 'text/html; charset=utf-8', createdAt);
-    for (const artifact of [published.metrics, published.claims, record]) registerReaderManifest(db, artifact, 'application/json', createdAt);
-    const next = Number((db.prepare("SELECT COALESCE(max(revision_number),0)+1 n FROM analysis_reader_report_revisions WHERE run_id=? AND report_kind='INSIGHT'").get(build.runId) as { n: number | bigint }).n);
-    db.prepare(`INSERT INTO analysis_reader_report_revisions(report_kind,semantic_sha256,source_report_sha256,
+  const raced = commitRevision(db, { kind: 'INSIGHT', runId: build.runId, requestKey: build.requestKey, createdAt, approved: INSIGHT_APPROVED,
+    manifests: [[published.html, HTML], [published.metrics, JSON_TYPE], [published.claims, JSON_TYPE], [record, JSON_TYPE]],
+    insert: next => db.prepare(`INSERT INTO analysis_reader_report_revisions(report_kind,semantic_sha256,source_report_sha256,
       revision_id,workspace_id,run_id,revision_number,request_key,request_sha256,draft_pair_id,input_sha256,html_sha256,metrics_sha256,claims_sha256,builder_version,actor_id,created_at)
       VALUES ('INSIGHT',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(input.semanticSha256, input.sourceReportSha256,
       revisionId, build.workspaceId, build.runId, next, build.requestKey, build.requestSha256, input.draftPairId, record.sha256,
-      published.html.sha256, published.metrics.sha256, published.claims.sha256, input.builderVersion, build.actorId, createdAt);
-    build.ledger?.(revisionId, createdAt);
-    db.exec('COMMIT');
-  } catch (error) {
-    if (db.inTransaction) db.exec('ROLLBACK');
-    if (error instanceof Error && /reader_report_requires_draft_ready_sequence/.test(error.message)) throw new ResearchAutomationConflictError('invalid_state', 'Chỉ dựng bản đọc khi bản nháp đã sẵn sàng.');
+      published.html.sha256, published.metrics.sha256, published.claims.sha256, input.builderVersion, build.actorId, createdAt),
+    ...(build.ledger ? { ledger: () => build.ledger!(revisionId, createdAt) } : {}) });
+  if (raced) return retry(raced);
+  return { exactRetry: false, revisionId };
+}
+
+/**
+ * One Market reader build after the Market adapter's own steps passed (request
+ * checks, rows, peers, unit prices, cover storage, public review source, page
+ * build, Flint). The caller owns the request-key retry and the early APPROVED
+ * check before its input checks, and projects the receipt.
+ */
+export interface MarketPublish {
+  readonly workspaceId: string; readonly runId: string; readonly actorId: string; readonly draftPairId: string;
+  readonly requestKey: string; readonly requestSha256: string; readonly contractVersion: string;
+  readonly metricPackageId: string; readonly platforms: readonly string[];
+  readonly profile: { readonly status: 'proposed' | 'approved' };
+  readonly builderVersion: string; readonly publicReviewSource: boolean; readonly requireFlint: boolean;
+  /** Taken before the page was built (footer date). */
+  readonly createdAt: string;
+  readonly page: Pick<BuiltMarketReport, 'html' | 'narrator' | 'extraOk'>;
+  /** Cover image and sidecar, already stored; registered in the revision transaction. */
+  readonly cover: StoredCoverImage | null;
+  /** Stored build record contents; canonical JSON. */
+  readonly record: (stored: { readonly revisionId: string; readonly profileSha256: string; readonly htmlSha256: string }) => Record<string, unknown>;
+}
+
+/**
+ * Publishes one Market reader revision: size bound (D9), Market check then
+ * Reader gate, profile and build record, and the shared transaction with the
+ * APPROVED recheck (D8). Any refusal here comes after the cover artifacts were
+ * written, never after a revision row.
+ */
+export async function publishMarketRevision(db: Database.Database, artifacts: ContentAddressedArtifactStore, build: MarketPublish): Promise<ReaderPublishOutcome> {
+  const { page } = build;
+  if (Buffer.byteLength(page.html) > MAX_READER_HTML_BYTES) throw new ResearchAutomationValidationError('Bản đọc vượt giới hạn bản lưu; không cắt dữ liệu hoặc tự thu lại.');
+  // The gate blocks report publication and revision insertion; cover/sidecar artifacts may already be written.
+  // One Market check by contract version (gate, plus the fourteen rules for v1.2); the owner sees plain reasons, ops get the ids (owner Q2).
+  const check = checkMarketReport(page.html, { kind: 'READER', contractVersion: build.contractVersion, requireFlint: build.requireFlint, publicReviewSource: build.publicReviewSource });
+  if (check.failure) throw new ResearchAutomationValidationError(
+    `Bản đọc chưa đạt kiểm tra bằng chứng hoặc cách trình bày: ${marketCheckReasons(check.failure.message).join(' ')} Hãy sửa cách trình bày trước khi tạo phiên bản mới.`,
+    { cause: new TypeError(check.failure.message) });
+  let published;
+  try { published = await publishReaderReport(artifacts, { html: page.html, narrator: page.narrator, extraOk: page.extraOk, visibleTextRules: build.contractVersion === 'reader-report-build-v1.2', ...(check.visibleText ? { visibleTextResults: check.visibleText } : {}), publicReviewSource: build.publicReviewSource }); }
+  catch (error) {
+    if (error instanceof ReaderReportGateError) throw new ResearchAutomationValidationError(
+      `Bản đọc chưa đạt kiểm tra bằng chứng hoặc cách trình bày: ${readerLintReasons(error.lint.filter(row => !row.ok).map(row => row.rule), error.hardcoded.length, error.notInBundle.length).join(' ')} Hãy kiểm tra nguồn, nhận định và nhãn phân loại chờ chủ duyệt trước khi tạo phiên bản mới.`,
+      { cause: error });
     throw error;
   }
-  return { exactRetry: false, revisionId };
+  const revisionId = randomUUID(), { createdAt, cover } = build;
+  const profile = (await storeReaderProfile(artifacts, build.profile)).artifact;
+  const record = await artifacts.put(json(build.record({ revisionId, profileSha256: profile.sha256, htmlSha256: published.html.sha256 })));
+  const raced = commitRevision(db, { kind: 'MARKET', runId: build.runId, requestKey: build.requestKey, createdAt, approved: MARKET_APPROVED,
+    manifests: [[published.html, HTML], [published.metrics, JSON_TYPE], [published.claims, JSON_TYPE], [profile, JSON_TYPE], [record, JSON_TYPE],
+      ...(cover ? [[cover.image, cover.mime], [cover.sidecar, JSON_TYPE]] as const : [])],
+    insert: next => db.prepare(`INSERT INTO analysis_reader_report_revisions(revision_id,workspace_id,run_id,revision_number,request_key,request_sha256,
+      draft_pair_id,metric_package_id,platforms,profile_status,input_sha256,profile_sha256,cover_sha256,html_sha256,metrics_sha256,claims_sha256,
+      builder_version,actor_id,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+      revisionId, build.workspaceId, build.runId, next, build.requestKey, build.requestSha256, build.draftPairId, build.metricPackageId,
+      build.platforms.join(','), build.profile.status, record.sha256, profile.sha256, cover?.coverSha256 ?? null,
+      published.html.sha256, published.metrics.sha256, published.claims.sha256, build.builderVersion, build.actorId, createdAt) });
+  return raced ? { exactRetry: true, row: raced } : { exactRetry: false, revisionId };
 }
