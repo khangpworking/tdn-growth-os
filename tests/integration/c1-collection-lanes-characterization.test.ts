@@ -38,6 +38,7 @@ type Options = {
   unstorable?: boolean;
   failCaptureWrite?: string;
   failCaptureWriteAt?: number;
+  videoCaptureCount?: number;
   throwProduct?: boolean;
   abortBeforeWeb?: boolean;
 };
@@ -149,7 +150,8 @@ async function fixture(t: TestContext, options: Options = {}) {
   video.run = input => invoke('video', async () => {
     exchanges.video++;
     return input.candidates.map(candidate => ({ candidate, reason: 'MODEL_FAILED', media: null, reading: null,
-      captures: [capture('VIDEO-WATCH', 'videowatch.generate')], requests: 1, paidRequests: 1, downloads: 0 }));
+      captures: Array.from({ length: options.videoCaptureCount ?? 1 }, () => capture('VIDEO-WATCH', 'videowatch.generate')),
+      requests: 1, paidRequests: 1, downloads: 0 }));
   });
   const pdfTransport = transport(url => {
     if (url.pathname === '/search.json') {
@@ -365,6 +367,82 @@ test('row 7: a capture write failure drops only that lane, keeps usage and saves
       assert.deepEqual(document.worldBank?.indicators.map(row => [row.captureIndex, row.metadataCaptureIndex]), failure ? [[2, 3], [4, 5]] : [[5, 6], [7, 8]]);
       assert.equal(document.webResults?.length, 1);
       assert.equal(f.calls.worldBank, 1);
+    }
+  }
+  // Each fallback has its own document vocabulary; video also has a separate write/rewind branch.
+  const groups: readonly (readonly [Lane | 'product', readonly string[]])[] = [
+    ['product', ['kalodata.product.rank']], ['web', ['serpapi.google.search']],
+    ['trends', ['serpapi.google.trends']], ['geo', ['serpapi.google.trends']],
+    ['expanded', Array<string>(3).fill('serpapi.google.search')],
+    ['worldBank', ['worldbank.observations', 'worldbank.metadata', 'worldbank.observations', 'worldbank.metadata']],
+    ['comtrade', Array<string>(3).fill('comtrade.data')],
+    ['ads', Array.from({ length: 3 }, () => ['serpapi.google.search', 'serpapi.google_ads.transparency']).flat()],
+    ['stats', ['officialstats.list']], ['video', ['videowatch.generate', 'videowatch.generate']],
+    ['pdf', ['serpapi.google.search', 'pdfdiscovery.download']],
+  ];
+  const attempts = [
+    ['video', 'videowatch.generate', 2], ['trends', 'serpapi.google.trends', 1],
+    ['geo', 'serpapi.google.trends', 2], ['worldBank', 'worldbank.metadata', 1],
+    ['comtrade', 'comtrade.data', 2], ['ads', 'serpapi.google_ads.transparency', 1], ['stats', 'officialstats.list', 1],
+  ] as const;
+  const receipts = [
+    [0, 'kalodata', 1], [2, 'serpapi', 1], [3, 'serpapi', 1], [4, 'serpapi', 1], [5, 'serpapi', 1], [6, 'serpapi', 1],
+    [7, 'world-bank', 4], [8, 'video-watch', 1], [9, 'comtrade', 3], [10, 'serpapi', 3], [11, 'official-stats', 1],
+    [12, 'meta-ad-library', 2], [13, 'tiktok-top-ads', 1], [14, 'serpapi', 1], [15, 'pdf-discovery', 1],
+    [16, 'serpapi', 1], [17, 'serpapi', 1], [18, 'serpapi', 1], [19, 'serpapi', 1],
+  ] as const;
+  for (const [lane, operation, at] of attempts) for (const failure of [true, false]) {
+    const f = await fixture(t, { videoCaptureCount: 2,
+      ...(failure ? { failCaptureWrite: operation, failCaptureWriteAt: at } : {}) });
+    await f.confirm();
+    // c1 PR4 owner decision 24/10/2026: Q3
+    assert.equal(await f.service.processNext(), true, lane);
+    const { step, document, usage, captures } = await f.read();
+    assert.ok(document);
+    assert.equal(step.state, 'SUCCEEDED', lane);
+    assert.equal((await f.service.getRun(workspaceId, runId)).status, 'RENDERING', lane);
+    assert.equal((await f.read('REPORTS')).step.state, 'QUEUED', lane);
+    const expected = groups.flatMap(([owner, operations]) => failure && owner === lane ? [] : operations);
+    assert.deepEqual(captures.map(row => [row.ordinal, row.operation]), expected.map((op, ordinal) => [ordinal, op]), lane);
+    assert.deepEqual(usage.map(row => [row.ordinal, row.provider, row.operation, row.request_count, row.cost_state, row.cost_unit, row.cost_amount]),
+      receipts.map(([ordinal, provider, requests]) => {
+        const paid = provider === 'serpapi' || provider === 'video-watch';
+        return [ordinal, provider, 'provider.run', requests, paid ? 'UNKNOWN' : 'KNOWN', paid ? null : 'CREDITS', paid ? null : '0'];
+      }), lane);
+    // These later reads use the rewound ordinals, including after a partially written video attempt.
+    assert.equal(document.pdfDiscovery?.search.captureIndex, expected.length - 2, lane);
+    assert.deepEqual(document.pdfDiscovery?.files.map(file => [file.status, file.reason, file.captureIndex]),
+      [['DOWNLOADED', null, expected.length - 1]], lane);
+    assert.equal(f.calls[lane], 1, lane);
+    assert.equal(f.calls.pdf, 1, lane);
+    if (lane === 'trends' || lane === 'geo') {
+      const series = lane === 'trends' ? document.searchInterest : document.searchGeo;
+      assert.deepEqual([series?.status, series?.reason, series?.captureIndex, series?.requestedRange],
+        [failure ? 'FAILED' : 'COLLECTED', failure ? 'PROVIDER_FAILED' : null, failure ? null : lane === 'trends' ? 2 : 3, period]);
+    } else if (lane === 'worldBank') {
+      const start = expected.indexOf('worldbank.observations');
+      assert.deepEqual(document.worldBank?.indicators.map(row => [row.status, row.reason, row.captureIndex, row.metadataCaptureIndex, row.row === null]),
+        [0, 1].map(i => failure ? ['FAILED', 'PROVIDER_FAILED', null, null, true] : ['COLLECTED', null, start + i * 2, start + i * 2 + 1, false]));
+    } else if (lane === 'comtrade') {
+      const start = expected.indexOf('comtrade.data');
+      assert.deepEqual([document.comtrade?.status, document.comtrade?.calls.map(call => call.captureIndex)],
+        failure ? ['FAILED', []] : ['OK', [start, start + 1, start + 2]]);
+      if (failure) assert.deepEqual(document.comtrade?.rows, []);
+    } else if (lane === 'ads') {
+      const start = expected.indexOf('serpapi.google_ads.transparency');
+      assert.deepEqual(document.searchAds?.brands.map(brand => {
+        assert.ok('discoveryCaptureIndex' in brand);
+        return [brand.captureIndex, brand.discoveryCaptureIndex];
+      }),
+        failure ? [] : [0, 2, 4].map(i => [start + i, start + i - 1]));
+      if (failure) assert.equal(document.searchAds?.status, 'FAILED');
+    } else if (lane === 'stats') {
+      assert.deepEqual([document.officialStats?.status, document.officialStats?.listCaptureIndex,
+        document.officialStats?.files, document.officialStats?.tables, document.officialStats?.values],
+      [failure ? 'FAILED' : 'NO_DATA', failure ? null : expected.indexOf('officialstats.list'), [], [], []]);
+    } else {
+      assert.deepEqual(document.videoWatch?.videos.map(video => [video.status, video.reason, video.captureIndex, video.reading]),
+        [['SKIPPED', failure ? 'PROVIDER_FAILED' : 'MODEL_FAILED', failure ? null : expected.indexOf('videowatch.generate') + 1, null]]);
     }
   }
 });

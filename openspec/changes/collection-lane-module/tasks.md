@@ -28,5 +28,5 @@
 - [x] 4.2 Chuỗi xu hướng/bản đồ tỉnh lỗi giữ khoảng thời gian lượt gọi đã có (lỗi 2); chỉ nhánh capture không lưu được hoặc tài liệu không hợp lệ đổi byte bước (M8)
 - [x] 4.3 Lỗi ghi capture chỉ làm hỏng làn đó (Q3): bỏ capture của làn, tài liệu lỗi của làn (mã sẵn có, b4), dòng chi phí giữ như lượt gọi, các làn sau và giao dịch cuối vẫn chạy; nguồn sản phẩm và đường Shopee/native không đổi
 - [x] 4.4 Mục 13: nguồn sản phẩm ném lỗi, không URL chính xác, không tìm kiếm web: ghi dòng `UNKNOWN` ordinal 0 trong giao dịch sẵn có của `#settleSourceFailure`
-- [ ] 4.5 Kiểm thử ở giao diện module (phiên khác người viết mã; đổi các ca TODAY)
+- [x] 4.5 Kiểm thử ở giao diện module (phiên khác người viết mã; đổi các ca TODAY)
 - [ ] 4.6 `/opsx:archive` change này
