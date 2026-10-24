@@ -67,9 +67,7 @@ test('S06 row 3: credit, auth and rate stops prevent subsequent paid requests an
   assert.equal(result.usage.credits.attribution, 'ACCOUNT_WIDE_MAY_INCLUDE_CONCURRENT_USAGE');
 });
 
-test('S06 row 3: auth or rate rejection on the balance preflight stops paid requests', {
-  todo: 'provider-kalodata.ts:164-170 loses the preflight rejection; productCommentInsight continues paid calls at line 380',
-}, async () => {
+test('S06 row 3: auth or rate rejection on the balance preflight stops paid requests', async () => {
   const paid: [number, number][] = [];
   for (const status of [401, 403, 429]) {
     const f = offlineTransport({ balanceStatus: status });

@@ -161,11 +161,15 @@ export function createKalodataProvider(secretKey: string | null, transport: Prov
     return { capture: log.record(context, requestedAt, 'OK', result.status, result.bytes, providerCode), data, rejection: null };
   }
 
-  async function balance(log: CaptureLog, key: string, options: ProviderCallOptions) {
-    const result = await call(log, key, options, {
+  async function balanceResponse(log: CaptureLog, key: string, options: ProviderCallOptions) {
+    return call(log, key, options, {
       operation: 'kalodata.credit.balance', path: '/openapi/v1/credit/balance', method: 'GET', body: null,
       queryWindow: null, productRef: null,
     }, data => isRecord(data) && finiteNonNegative(data.totalRemain) !== null ? finiteNonNegative(data.totalRemain)! : undefined);
+  }
+
+  async function balance(log: CaptureLog, key: string, options: ProviderCallOptions) {
+    const result = await balanceResponse(log, key, options);
     return result?.data === null || result === null ? null : { value: result.data, captureId: result.capture.captureId };
   }
 
@@ -372,10 +376,12 @@ export function createKalodataProvider(secretKey: string | null, transport: Prov
       if (!secretKey) return { status: 'NOT_CONFIGURED', balanceBefore: null, creditExhausted: false, products: [],
         usage: emptyUsage('KALODATA'), captures: [] };
       const log = new CaptureLog('KALODATA', transport, options.onProgress, productIds.length + 2);
-      const before = productIds.length ? await balance(log, secretKey, options) : null;
-      // An observed zero balance means no paid call in this phase; an unobserved balance keeps the normal path.
-      let creditStop = before?.value === 0;
-      let stopped = creditStop;
+      const preflight = productIds.length ? await balanceResponse(log, secretKey, options) : null;
+      const before = preflight === null || preflight.data === null ? null
+        : { value: preflight.data, captureId: preflight.capture.captureId };
+      // A rejected preflight stops the phase even when no numeric balance was returned.
+      let creditStop = before?.value === 0 || preflight?.rejection === 'CREDIT_EXHAUSTED';
+      let stopped = creditStop || preflight?.rejection === 'AUTH_OR_RATE_REJECTED';
       const products: KalodataCommentInsightResult['products'][number][] = [];
       for (const id of productIds) {
         const answer = stopped || options.signal?.aborted ? null : await call(log, secretKey, options, {
