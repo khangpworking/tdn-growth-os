@@ -10,6 +10,7 @@ import { RequestScopedArtifactStore } from '../../src/platform/artifacts/request
 import { openDatabase } from '../../src/platform/db/index.js';
 import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../src/modules/flow/index.js';
 import { lint } from '../../src/modules/analysis/reader-report/lint.js';
+import { webSnapshotDigest } from '../../src/modules/analysis/reader-report/web-facts.js';
 import { lintVisibleReportText } from '../../src/modules/analysis/report-visible-text-lint.js';
 import { buildLocatedInsightMethods } from '../../src/modules/analysis/located-insight-methods.js';
 import { projectDraftInsightGroupCounts } from '../../src/modules/analysis/research-automation/selected-insight-projection.js';
@@ -20,6 +21,7 @@ import { ResearchAutomationService } from '../../src/modules/analysis/research-a
 import { fullMarket14Input } from '../helpers/market14-full-fixture.js';
 import { nextInsightFixture } from '../helpers/next-insight-fixture.js';
 import { sync1ReaderFixture } from '../helpers/sync1-reader-fixture.js';
+import { policyRun } from '../helpers/capture-policy-harness.js';
 
 // c2 PR1: observable contracts only. TODAY rows preserve drift, not desired fixes.
 // Existing gate tests own individual lexical rules; these rows own their combination,
@@ -95,6 +97,17 @@ async function readerRun(t: TestContext) {
   }) };
 }
 
+async function snapshotReaderRun(t: TestContext) {
+  // A retained capture exercises v1.1 without the workbook renderer's unrelated U13 refusal.
+  const { service, first } = await policyRun(t);
+  const profile = sync1ReaderFixture().profile;
+  return { service, request: (version: string, requestKey: string, product: string) => ({
+    contractVersion: version, requestKey, metricPackageId: first.packageId,
+    platforms: ['shopee'], profile: { ...profile, product }, cover: null,
+    webSnapshot: first.snapshot, webSnapshotSha256: webSnapshotDigest(first.snapshot),
+  }) };
+}
+
 type Row = { name: string; run: (t: TestContext) => void | Promise<void> };
 const rows: Row[] = [
   { name: 'row 1/7: draft builder preserves the business-gate prefix before 14 rules', run: async () => {
@@ -152,10 +165,10 @@ const rows: Row[] = [
     assert.throws(() => assertMarketBusinessGate(html, { presentation: false, partialTotals: [{ measure: 'revenue', value: '1234' }] }),
       { name: 'TypeError', message: 'MARKET_BUSINESS_GATE_FAILED:PARTIAL_TOTAL_FORBIDDEN' });
   } },
-  ...(['reader-report-build-v1', 'reader-report-build-v1.2'] as const).map(version => ({
+  ...(['reader-report-build-v1', 'reader-report-build-v1.1', 'reader-report-build-v1.2'] as const).map(version => ({
     name: `row 3: ${version} ${version.endsWith('v1.2') ? 'enforces' : 'omits'} the 14-rule presentation check`,
     run: async (t: TestContext) => {
-      const f = await readerRun(t);
+      const f = version === 'reader-report-build-v1.1' ? await snapshotReaderRun(t) : await readerRun(t);
       const clean = await f.service.buildReaderReport(workspaceId, runId,
         f.request(version, '10000000-0000-4000-8000-000000000001', 'Bình thử'), owner);
       const cleanHtml = (await f.service.readReaderReport(workspaceId, runId, clean.revision.revisionId)).bytes.toString();
