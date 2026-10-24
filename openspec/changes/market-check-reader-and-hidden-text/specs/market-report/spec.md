@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: R-M16 Không có tổng giữa Shopee và TikTok Shop
-Báo cáo Market SHALL NOT có tổng giữa Shopee và TikTok Shop. Bản nháp (U32) và bản đọc (W3) SHALL chặn cùng một danh sách cụm.
+Báo cáo Market SHALL NOT có tổng giữa Shopee và TikTok Shop. Bản nháp (U32) và bản đọc v1.2 (W3) SHALL chặn cùng một danh sách cụm. Bản đọc v1/v1.1 SHALL giữ mảng lint W3 cũ trong claims và vẫn chạy cổng U32.
 
 - Loại kiểm: Máy
 - Mã kiểm: Cổng `U32_NO_CROSS_PLATFORM_TOTAL` và lint Reader W3: `crossPlatformTotalMatches` (trong `src/modules/analysis/report-language/cross-platform-total.ts`)

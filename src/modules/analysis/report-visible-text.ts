@@ -66,17 +66,19 @@ export function withoutHiddenText(html: string): string {
   const out: string[] = [];
   const stack: { tag: string; hidden: boolean }[] = [];
   for (const [token] of html.matchAll(/<!--[\s\S]*?-->|<![^>]*>|<[^>]*>|[^<]+|</gu)) {
-    const inContainer = stack.some(frame => HIDDEN_CONTAINER_TAGS.has(frame.tag));
+    // script/style are raw text; template/noscript still have nested HTML tags.
+    const rawContainer = stack.findLast(frame => RAW_TEXT_TAGS.has(frame.tag));
     const hidden = stack.some(frame => frame.hidden);
     const tag = /^<\/?([\w:-]+)/u.exec(token)?.[1]?.toLowerCase();
     if (!tag) { if (!hidden) out.push(token); continue; }
     if (token.startsWith('</')) {
+      if (rawContainer && tag !== rawContainer.tag) continue;
       const index = stack.map(frame => frame.tag).lastIndexOf(tag);
-      if (index >= 0 && (!inContainer || HIDDEN_CONTAINER_TAGS.has(tag))) stack.splice(index);
+      if (index >= 0) stack.splice(index);
       if (!hidden) out.push(token);
       continue;
     }
-    if (inContainer) continue;
+    if (rawContainer) continue;
     const own = hiddenElement(tag, tagAttributes(token));
     if (!VOID_TAGS.has(tag) && !/\/\s*>$/u.test(token)) stack.push({ tag, hidden: own });
     if (!hidden && !own) out.push(token);

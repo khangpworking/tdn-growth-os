@@ -7,6 +7,8 @@ Báo cáo SHALL NOT cộng Shopee với TikTok Shop, và hai sàn SHALL đứng 
 - Mã kiểm: Cổng `U32_NO_CROSS_PLATFORM_TOTAL` và lint Reader W3, cùng gọi `crossPlatformTotalMatches` (`src/modules/analysis/report-language/cross-platform-total.ts`)
 - Vì sao: Chủ quyết định ngày 11/10/2026: không có tổng giữa các sàn (U-32). Bàn giao 24/10/2026: một danh sách là hợp của danh sách U32 và mẫu W3 cũ; tổng vẫn bị cấm.
 
+W3 của Insight và mảng lint trong claims của bản đọc Market v1/v1.1 SHALL giữ nội dung và thứ tự cũ. Danh sách hợp áp dụng cho U32 và W3 của bản đọc Market v1.2; cổng U32 vẫn chặn tổng ở mọi phiên bản Market.
+
 #### Scenario: Hai sàn cạnh nhau
 - **WHEN** báo cáo đặt cột Shopee cạnh cột TikTok Shop và không có dòng tổng
 - **THEN** quy tắc R-L04 đạt

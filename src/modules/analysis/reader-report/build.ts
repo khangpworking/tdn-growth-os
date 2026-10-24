@@ -220,7 +220,7 @@ export async function publishReaderReport(
       visibleTextResults?: readonly LintResult[];
       reportKind?: 'MARKET' | 'INSIGHT'; publicReviewSource?: boolean },
 ): Promise<PublishedReaderReport> {
-  const lintResults = lint(html, { sectionIds, visibleTextRules: visibleTextRules && !visibleTextResults, reportKind, publicReviewSource });
+  const lintResults = lint(html, { sectionIds, visibleTextRules: visibleTextRules && !visibleTextResults, legacyTotals: !visibleTextRules, reportKind, publicReviewSource });
   if (visibleTextResults) lintResults.push(...visibleTextResults.map(row => ({ rule: row.rule, ok: row.ok, detail: row.detail })));
   const { checked, hardcoded } = narrator.checkHardcoded(extraOk);
   const notInBundle = narrator.notInBundle(extraOk);

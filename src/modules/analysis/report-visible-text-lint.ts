@@ -14,7 +14,7 @@ const decode = (text: string): string => text.replace(/&#x([\da-f]+);|&#(\d+);|&
 
 const VOID_TAGS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
 
-export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
+function visibleBlocks(html: string): { chunks: Chunk[]; region: number }[] {
   const blocks: { chunks: Chunk[]; region: number }[] = [], stack: { tag: string; quote: boolean; hidden: boolean; pending: boolean; cell?: number }[] = [];
   let region = 0;
   let nextCell = 0;
@@ -51,8 +51,18 @@ export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
     }
   }
   flush();
-  const superlatives: string[] = [], priorities: string[] = [], drafts: string[] = [];
-  const regionText = new Map<number, string[]>();
+  return blocks;
+}
+
+export function lintVisibleReportText(html: string): VisibleTextLintResult[];
+export function lintVisibleReportText(html: string, rawHtml: string): { gate: VisibleTextLintResult[]; raw: VisibleTextLintResult[] };
+/** Reader U13 evaluates both historical inline views together. Separate finding
+ * buckets preserve the gate's failure stage and the raw lint saved in claims. */
+export function lintVisibleReportText(html: string, rawHtml?: string): VisibleTextLintResult[] | { gate: VisibleTextLintResult[]; raw: VisibleTextLintResult[] } {
+  const views = rawHtml === undefined ? [html] : [html, rawHtml];
+  const findingsByView = views.map(() => ({ superlatives: [] as string[], priorities: [] as string[], drafts: [] as string[] }));
+  const blocks = views.flatMap((markup, view) => visibleBlocks(markup).map(block => ({ ...block, view })));
+  const regionText = new Map<string, string[]>();
   const isSuperlative = (text: string): boolean => {
     if (/(?<![\p{L}\p{M}])hàng\s+đầu(?![\p{L}\p{M}])/iu.test(text)) return true;
     for (const match of text.matchAll(/(?<![\p{L}\p{M}])nhất(?![\p{L}\p{M}])/giu)) {
@@ -63,7 +73,8 @@ export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
     }
     return false;
   };
-  for (const { chunks, region } of blocks) {
+  for (const { chunks, region, view } of blocks) {
+    const { superlatives, drafts } = findingsByView[view]!;
     const own = chunks.map(c => c.own ? c.text : ' ').join('').replace(/\s+/g, ' ').trim();
     // Numeric lower bounds are measurement/method conditions, not a claim
     // that a product is superior (for example the frozen E11 threshold).
@@ -85,7 +96,8 @@ export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
       })
       .replace(/dòng trùng đồng nhất/giu, 'dòng trùng hệt');
     if (isSuperlative(findings)) superlatives.push(own);
-    regionText.set(region, [...(regionText.get(region) ?? []), own]);
+    const regionKey = `${view}:${region}`;
+    regionText.set(regionKey, [...(regionText.get(regionKey) ?? []), own]);
     // Keep decimal points intact. Sentences separated by punctuation, including
     // across inline tags, cannot borrow a draft label from their neighbour.
     // A table cell is its own scope so a sibling cell cannot provide the label.
@@ -109,7 +121,8 @@ export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
       check();
     }
   }
-  for (const parts of regionText.values()) {
+  for (const [regionKey, parts] of regionText) {
+    const { priorities } = findingsByView[Number(regionKey.split(':')[0])]!;
     for (let i = 0; i < parts.length; i++) {
       const start = /làm ngay/iu.exec(parts[i] ?? '');
       if (!start) continue;
@@ -133,9 +146,10 @@ export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
         && !/phụ thuộc|điều kiện tiên quyết|chỉ[^.!?]*sau khi/iu.test(text)) priorities.push(text);
     }
   }
-  return [
+  const results = findingsByView.map(({ superlatives, priorities, drafts }) => [
     { rule: 'U13_SUPERLATIVE', ok: superlatives.length === 0, detail: superlatives.slice(0, 3).join(' | ') || 'Không có so sánh nhất trong nhận định.' },
     { rule: 'U13_PRIORITY', ok: priorities.length === 0, detail: priorities.slice(0, 3).join(' | ') || 'Không có thứ tự ưu tiên thiếu phụ thuộc.' },
     { rule: 'U13_PENDING_NUMBER', ok: drafts.length === 0, detail: drafts.slice(0, 3).join(' | ') || 'Số phân loại chưa duyệt có nhãn cùng câu.' },
-  ];
+  ]);
+  return rawHtml === undefined ? results[0]! : { gate: results[0]!, raw: results[1]! };
 }

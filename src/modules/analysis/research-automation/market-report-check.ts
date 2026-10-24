@@ -1,6 +1,6 @@
 import { lint as lintReaderReport } from '../reader-report/lint.js';
 import { lintVisibleReportText, type VisibleTextLintResult } from '../report-visible-text-lint.js';
-import { auditMarketReportHtml, gateVisibleTextLint, type MarketBusinessGateResult, type PartialRowTotal } from './market-business-gate.js';
+import { auditMarketReportHtml, readerVisibleTextLint, type MarketBusinessGateResult, type PartialRowTotal } from './market-business-gate.js';
 import { auditMarket14 } from './market-14-rules.js';
 
 /**
@@ -16,7 +16,7 @@ import { auditMarket14 } from './market-14-rules.js';
  *     reader-report-build-v1, -v1.1: business gate (plain, U13 inside); no fourteen rules.
  *     reader-report-build-v1.2:      business gate (plain, U13 inside), then the fourteen rules.
  *   The Reader lint (RR/lint.ts, F0–F8/W1–W6, structure) and the Narrator checks stay in
- *   publishReaderReport; for v1.2 it reuses `visibleText` instead of running U13 again.
+ *   publishReaderReport; for v1.2 it reuses the raw inline view in `visibleText`.
  */
 export type MarketCheckContext =
   | { readonly kind: 'DRAFT_PRESENTATION'; readonly publicReviewSource?: boolean; readonly partialTotals?: readonly PartialRowTotal[]; readonly requireFlint?: boolean }
@@ -83,9 +83,9 @@ function steps(html: string, context: MarketCheckContext, visibleText: readonly 
 export function checkMarketReport(html: string, context: MarketCheckContext): MarketCheckOutcome {
   const results: MarketCheckRow[] = [];
   const index = new Map<string, number>();
-  const visibleText = context.kind === 'READER' && READER_FULL_CHECK.has(context.contractVersion) ? gateVisibleTextLint(html) : undefined;
-  const extra = visibleText ? { visibleText } : {};
-  for (const step of steps(html, context, visibleText ?? [])) {
+  const wording = context.kind === 'READER' && READER_FULL_CHECK.has(context.contractVersion) ? readerVisibleTextLint(html) : undefined;
+  const extra = wording ? { visibleText: wording.raw } : {};
+  for (const step of steps(html, context, wording?.gate ?? [])) {
     const { rows, failed, message } = step();
     for (const row of rows) {
       const at = index.get(row.rule);

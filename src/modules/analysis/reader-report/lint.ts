@@ -4,6 +4,8 @@ import { lintVisibleReportText } from '../report-visible-text-lint.js';
 import { crossPlatformTotalMatches, findHiddenNames, HIDDEN_NAMES, type HiddenNameGroup } from '../report-language/index.js';
 export type LintResult = { rule: string; ok: boolean; detail: string };
 export type LintOptions = {
+  /** Saved v1/v1.1 claims retain the pre-union W3 content and order. */
+  legacyTotals?: boolean;
   /** @deprecated ignored: names come from report-language (R-L01). */
   providers?: readonly string[];
   /** @deprecated ignored: public-review names are always checked (R-L01). */
@@ -55,7 +57,7 @@ function decodeCss(css: string): string {
   });
 }
 
-export function lint(html: string, { sectionIds = [], familyLabel = 'toàn kết quả tìm kiếm', visibleTextRules = false, reportKind = 'MARKET' }: LintOptions = {}): LintResult[] {
+export function lint(html: string, { sectionIds = [], familyLabel = 'toàn kết quả tìm kiếm', visibleTextRules = false, reportKind = 'MARKET', legacyTotals = false }: LintOptions = {}): LintResult[] {
   const out: LintResult[] = [], add = (rule: string, ok: boolean, detail: string) => { out.push({ rule, ok, detail }); };
   const all = visibleText(html), vis = visibleText(html.replace(QUOTED, ' ')), svgText = [...html.matchAll(/<svg[\s\S]*?<\/svg>/g)].map(m => m[0].replace(/<[^>]+>/g, ' ')).join(' ');
   const titleTag = html.match(/<title>[\s\S]*?<\/title>/)?.[0] ?? '';
@@ -176,8 +178,10 @@ export function lint(html: string, { sectionIds = [], familyLabel = 'toàn kết
   add('W2 không cộng trừ hai họ số', mixed.length === 0,
     mixed.length ? mixed.slice(0, 2).map(s => s.trim().slice(0, 80)).join(' | ') : 'không lẫn hai họ số');
 
-  // One phrase list with the draft gate's U32 (R-M16 / R-L04).
-  const summed = sentences.filter(s => crossPlatformTotalMatches(s).length > 0);
+  // New Market readers share U32's list; Insight and legacy claims retain W3.
+  const summed = sentences.filter(s => reportKind === 'INSIGHT' || legacyTotals
+    ? /tổng\s+(hai sàn|cả hai sàn|shopee và tiktok|tiktok và shopee)/i.test(s)
+    : crossPlatformTotalMatches(s).length > 0);
   add('W3 không cộng gộp sàn khi trang không ghi tổng', summed.length === 0,
     summed.length ? summed.slice(0, 2).map(s => s.trim().slice(0, 80)).join(' | ') : 'không cộng gộp sàn');
 

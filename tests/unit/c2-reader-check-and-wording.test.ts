@@ -1,8 +1,15 @@
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import test, { type TestContext } from 'node:test';
+import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/index.js';
 import { lint } from '../../src/modules/analysis/reader-report/lint.js';
-import { ReaderReportGateError } from '../../src/modules/analysis/reader-report/build.js';
+import { publishReaderReport, ReaderReportGateError } from '../../src/modules/analysis/reader-report/build.js';
+import { buildMarketReport, computeReaderReportData } from '../../src/modules/analysis/reader-report/index.js';
+import { DEFAULT_MARKET_PEER_RULE } from '../../src/modules/analysis/default-market-peers.js';
+import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { lintVisibleReportText } from '../../src/modules/analysis/report-visible-text-lint.js';
 import { auditMarketReportHtml } from '../../src/modules/analysis/research-automation/market-business-gate.js';
 import { checkMarketReport, marketSnippetWordingPasses } from '../../src/modules/analysis/research-automation/market-report-check.js';
@@ -11,7 +18,7 @@ import { buildResearchAutomationReport } from '../../src/modules/analysis/resear
 import { deriveReaderSource, verifyWebSnapshot, webSnapshotDigest } from '../../src/modules/analysis/reader-report/web-facts.js';
 import { fullMarket14Input } from '../helpers/market14-full-fixture.js';
 import { policyRun, policyRunId, policyWorkspaceId } from '../helpers/capture-policy-harness.js';
-import { sync1ReaderFixture } from '../helpers/sync1-reader-fixture.js';
+import { sync1Options, sync1ReaderFixture } from '../helpers/sync1-reader-fixture.js';
 
 // PR2 owns the old entry contract; these rows own the PR3 Reader/wording decisions.
 // Each changed verdict has a passing control; Q2 exercises real publication errors.
@@ -56,6 +63,69 @@ const reasons = [
 ] as const;
 
 const rows: Row[] = [
+  { name: 'review Sol-2: legacy claims retain the complete PR2 lint array bytes', run: async t => {
+    const directory = await mkdtemp(path.join(tmpdir(), 'c2-legacy-review-'));
+    t.after(() => rm(directory, { recursive: true, force: true }));
+    const store = new ContentAddressedArtifactStore(directory);
+    // Frozen from a8bcafe7 lint on these synthetic legacy pages; includes order and every detail.
+    for (const [version, digest] of [
+      ['1.0.0', 'd92e49525b35276233198f007fcac3b8ddbfb0b8e00da99ef4b6cf7f8408acca'],
+      ['1.3.0', '8a1e5598587bd8228b57c4da87bc5702c9555dc9d654afd93b9eafd6e4c7b981'],
+    ] as const) {
+      const input = sync1ReaderFixture(version);
+      if (version === '1.3.0') input.peerRule = { ...DEFAULT_MARKET_PEER_RULE };
+      const built = await buildMarketReport(computeReaderReportData(input), sync1Options);
+      const published = await publishReaderReport(store, { html: built.html, narrator: built.narrator, extraOk: built.extraOk });
+      const claims = JSON.parse((await store.read(published.claims.sha256)).toString()) as { lint: unknown };
+      assert.equal(createHash('sha256').update(canonicalJson(claims.lint)).digest('hex'), digest);
+    }
+  } },
+  { name: 'review Sol-1: Reader keeps raw inline U13 failures at publication', run: async t => {
+    const directory = await mkdtemp(path.join(tmpdir(), 'c2-reader-review-'));
+    t.after(() => rm(directory, { recursive: true, force: true }));
+    const store = new ContentAddressedArtifactStore(directory);
+    const built = await buildMarketReport(computeReaderReportData({ ...sync1ReaderFixture('1.4.0'), peerRule: { ...DEFAULT_MARKET_PEER_RULE } }), sync1Options);
+    const clean = built.html;
+    for (const phrase of ['hàng<span>đầu</span>', 'tốt<span>nhất</span>']) {
+      for (const bad of [false, true]) {
+        const html = append(clean, `<p>${bad ? phrase : phrase.replace(/<[^>]*>/g, '')}</p>`);
+        const checked = checkMarketReport(html, reader);
+        assert.equal(checked.failure, null);
+        assert.ok(checked.visibleText);
+        const published = publishReaderReport(store, { html, narrator: built.narrator, extraOk: built.extraOk,
+          visibleTextRules: true, visibleTextResults: checked.visibleText });
+        if (bad) await assert.rejects(published, (error: unknown) => {
+          assert.ok(error instanceof ReaderReportGateError);
+          assert.deepEqual(ids(error.lint.filter(row => !row.ok)), ['U13_SUPERLATIVE']);
+          assert.match(error.message, /^bản đọc chưa qua cổng kiểm: U13_SUPERLATIVE;/u);
+          return true;
+        });
+        else await published;
+      }
+    }
+  } },
+  { name: 'review Sol-2: totals union leaves Insight W3 verdicts unchanged', run: () => {
+    for (const phrase of ['Shopee + TikTok', 'gộp Shopee và TikTok', 'tổng cả hai sàn']) {
+      const html = `<p>${phrase}</p>`;
+      assert.equal(verdict(lint(html, { reportKind: 'INSIGHT' }), 'W3 không cộng gộp sàn khi trang không ghi tổng'), phrase !== 'tổng cả hai sàn');
+      assert.equal(verdict(lint(html), 'W3 không cộng gộp sàn khi trang không ghi tổng'), false);
+    }
+  } },
+  { name: 'review O1: hidden inline subtrees cannot split a visible superlative', run: () => {
+    for (const hidden of ['hidden', 'aria-hidden="1"', 'style="display:none!important"']) {
+      const bad = `<p>Sản phẩm tốt nh<span ${hidden}>chữ ẩn</span>ất.</p>`;
+      assert.equal(verdict(auditMarketReportHtml(bad, { presentation: false }), 'U13_SUPERLATIVE'), false);
+      assert.equal(verdict(auditMarketReportHtml(`<p>Sản phẩm tốt nhất.</p>`, { presentation: false }), 'U13_SUPERLATIVE'), false);
+      assert.equal(verdict(auditMarketReportHtml(`<p><span ${hidden}>Sản phẩm tốt nhất.</span></p>`, { presentation: false }), 'U13_SUPERLATIVE'), true);
+    }
+  } },
+  { name: 'review O2: nested templates keep lane statements hidden', run: () => {
+    const title = '<p>mức quan tâm tìm kiếm</p>';
+    const statement = '<p>10 lượt tìm kiếm.</p>';
+    const hidden = `${title}<template><template></template>${statement}</template>`;
+    assert.equal(verdict(auditMarketReportHtml(hidden, { presentation: false }), 'SEARCH_INTEREST_NOT_COUNT'), true);
+    assert.equal(verdict(auditMarketReportHtml(title + statement, { presentation: false }), 'SEARCH_INTEREST_NOT_COUNT'), false);
+  } },
   ...shared.map(([label, fragment, rule, ok]): Row => ({
     name: `row 1: draft and Reader agree on ${label}`, run: async () => {
       const clean = await cleanReport();

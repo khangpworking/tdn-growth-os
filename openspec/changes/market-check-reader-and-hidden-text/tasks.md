@@ -15,7 +15,7 @@
 ## 2. Kiểm thử (phiên khác người viết mã)
 
 - [x] 2.1 Đổi các dòng `TODAY:` và hai chỗ ghim thông báo, mỗi chỗ một dòng lý do
-- [ ] 2.2 Ca theo dòng hợp đồng cho ngữ cảnh `READER`, chữ ẩn, danh sách tổng, nhãn M12, lý do bằng lời; mỗi ca có ca đối chứng âm
+- [x] 2.2 Ca theo dòng hợp đồng cho ngữ cảnh `READER`, chữ ẩn, danh sách tổng, nhãn M12, lý do bằng lời; mỗi ca có ca đối chứng âm
 - [x] 2.3 Chạy lại trên báo cáo thật đã lưu; danh sách đổi theo quy tắc gửi chủ
 - [ ] 2.4 CI Linux xanh tại SHA cuối
 

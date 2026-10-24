@@ -24,6 +24,8 @@ Câu của chủ (24/10/2026):
 
 ## Impact
 
+- Rà soát PR3: U13 của bản đọc v1.2 kiểm hai cách đọc thẻ nội dòng cũ trong một lần gọi, giữ riêng kết quả cổng và kết quả lint thô để không đổi kết luận hoặc nơi báo lỗi. Xóa cả cây chữ ẩn trước khi nối từ; theo dõi thẻ template lồng nhau. W3 của Insight và mảng lint lưu trong claims của bản đọc v1/v1.1 giữ nguyên; danh sách tổng hợp chỉ thay W3 của Market mới.
+
 - Mã: RA `market-report-check.ts`, `market-check-reasons.ts` (mới), `market-business-gate.ts`, `reader-report-revisions.ts`, `official-statistics-lane.ts`; RR `build.ts`, `lint.ts` (W3); ANA `report-visible-text.ts` (mới), `report-visible-text-lint.ts`; `report-language/cross-platform-total.ts` (mới).
 - Kết quả trên 49 báo cáo thật đã lưu (1378 dòng): 19 bản nháp Market đổi `M12_PROPOSAL_LABEL` từ đạt sang trượt (Q4); cả 19 đã trượt quy tắc 14 số 9 hôm nay. Không dòng nào khác đổi.
 - Kiểm thử: các dòng `TODAY:` của `tests/unit/c2-market-check-characterization.test.ts` và hai chỗ ghim thông báo lỗi bản đọc đổi theo quyết định trên.

@@ -281,9 +281,10 @@ function balancedQuoteTagOffsets(html: string): Set<number> {
   }));
 }
 
-/** Drops plain inline tags so split words join, but keeps balanced plain q and
- * data-quote/data-classified elements, and hidden ones (owner Q3), with their own closing tags. */
+/** Remove hidden subtrees without adding word boundaries, then join plain inline
+ * tags; keep balanced quotes and data-classified elements with their closing tags. */
 function normalizeInlineTagsForLint(html: string): string {
+  html = withoutHiddenText(html);
   if (hasUnbalancedQuoteOpenings(html)) return html;
   const balancedQuotes = balancedQuoteTagOffsets(html);
   const open = new Map<string, boolean[]>();
@@ -295,7 +296,7 @@ function normalizeInlineTagsForLint(html: string): string {
     if (/^<\//u.test(token)) return stack.pop() ? token : '';
     const keep = (name === 'q' || /\bdata-quote\b/iu.test(token)
       ? balancedQuotes.has(offset)
-      : /\bdata-classified\b/iu.test(token)) || hiddenElement(name, attributes(token));
+      : /\bdata-classified\b/iu.test(token));
     if (!/\/\s*>$/u.test(token)) stack.push(keep);
     return keep ? token : '';
   });
@@ -404,6 +405,11 @@ function sellerVideoMisuse(html: string, scan: Scan): string[] | null {
 /** U13 as the gate reads it: inline tags joined, hidden text out. */
 export function gateVisibleTextLint(html: string): VisibleTextLintResult[] {
   return lintVisibleReportText(normalizeInlineTagsForLint(html));
+}
+
+/** One U13 evaluation retaining both historical inline views and their error stages. */
+export function readerVisibleTextLint(html: string): { gate: VisibleTextLintResult[]; raw: VisibleTextLintResult[] } {
+  return lintVisibleReportText(normalizeInlineTagsForLint(html), html);
 }
 
 function result(rule: string, ok: boolean, detail: string): MarketBusinessGateResult { return { rule, ok, detail }; }
