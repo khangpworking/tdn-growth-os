@@ -115,7 +115,7 @@ import { COMTRADE_PROFILE, comtradeRenderable, type ComtradeSource } from './com
 import { GOOGLE_ADS_PROFILE, GOOGLE_ADS_USAGE_ORDINAL, type SearchAdsSource } from './google-ads-lane.js';
 import { WORLD_BANK_SERIES_YEARS, worldBankRenderable, type WorldBankSource } from './world-bank-lane.js';
 import { pdfLane, runSaveStepLane, videoLane, type CaptureEnvelope, type PdfLaneFacts, type SaveStepCaptures, type SaveStepContext, type SaveStepLane, type VideoLaneFacts } from './collection-lanes-save-step.js';
-import { attemptCollectionLanes, collectionLaneOrdinals, collectionLanes, collectionLanesCancelled, collectionLaneUsage, lanesAfterVideo, lanesBeforeVideo, storeCollectionLanes, type CollectionLane, type CollectionLaneRun, type LaneCaptureStore, type LaneCheck, type LaneUsageRow } from './collection-lanes.js';
+import { attemptCollectionLanes, collectionLaneOrdinals, collectionLanes, collectionLanesCancelled, collectionLaneUsage, lanesAfterVideo, lanesBeforeVideo, storeCollectionLanes, type CollectionLane, type CollectionLaneRun, type LaneCaptureRewind, type LaneCaptureStore, type LaneCheck, type LaneUsageRow } from './collection-lanes.js';
 import { publishAutomatedVideoReading, verifyAutomatedVideoReading, videoWatchReadingRefs, VIDEO_WATCH_MAX_VIDEOS, VIDEO_WATCH_PROFILE, type VideoWatchLane } from './video-watch-lane.js';
 import { topSellingTikTokVideos } from './tiktok-video-selection.js';
 import { metaAutoReportView, validMetaAuto, verifyMetaAutoEvidence, type MetaAutoReportView, type MetaAutoSource } from './meta-auto-lane.js';
@@ -3612,7 +3612,10 @@ export class ResearchAutomationService {
             outcome: 'UNAVAILABLE', productCards: [], comparables: [], coverage: [], limitations: [] } };
       } catch {
         if (stepId !== 'COLLECTION' || (!scope?.exactShopeeUrls?.length && !this.#webSource) || controller.signal.aborted) {
-          await this.#settleSourceFailure(row.runId, stepId, controller.signal.aborted ? 'CANCELLED_DURING_PROVIDER_OPERATION' : 'PROVIDER_FAILED', controller.signal.aborted ? 'CANCELLED' : 'FAILED');
+          // The product call may have been paid: a collection that ends here still records its one UNKNOWN row (ordinal 0,
+          // c1 item 13), as the path that continues does.
+          await this.#settleSourceFailure(row.runId, stepId, controller.signal.aborted ? 'CANCELLED_DURING_PROVIDER_OPERATION' : 'PROVIDER_FAILED', controller.signal.aborted ? 'CANCELLED' : 'FAILED',
+            stepId === 'COLLECTION' && !controller.signal.aborted && source ? source.id.toLowerCase() : undefined);
           return true;
         }
         result = { result: null, unsettledProvider: source!.id.toLowerCase(), step: { ...invalidProviderStep(row.runId, stepId), limitations: [{ code: 'PROVIDER_FAILED', provider: source!.id.toLowerCase(), message: 'Lượt nguồn chưa có biên nhận hoàn tất. Số request và chi phí chưa đối soát; tổng request chỉ gồm các lượt đã ghi nhận.' }] } };
@@ -4401,13 +4404,16 @@ export class ResearchAutomationService {
       assertStepDocument(probe, runId, stepId);
       if (options?.lineage !== false) assertCaptureLineage(probe, captures.map(value => value.row));
     };
-    step = await storeCollectionLanes(lanesBeforeVideo(lanes), step, storeLaneCaptures, checkLane);
+    // A lane whose capture write fails keeps none of its captures; the later lanes and the final transaction go on.
+    const rewind: LaneCaptureRewind = { length: () => captures.length, truncate: length => { captures.length = length; } };
+    step = await storeCollectionLanes(lanesBeforeVideo(lanes), step, storeLaneCaptures, checkLane, rewind);
     // The video readings come next, inside the save step, reading the step as the lanes above left it (M5); their captures
     // follow those lanes' captures. Each reading is published before any usage row exists, as before (M2).
     const captureList: SaveStepCaptures = {
       envelopes: values => captureEnvelopes({ captures: values }),
       put: putCaptures,
       rows: () => captures.map(value => value.row),
+      truncate: rewind.truncate,
       byteSize: () => captures.reduce((sum, value) => sum + value.artifact.byteSize, 0),
     };
     const saveStep: SaveStepContext = { stepId, signal, captures: captureList, check: checkLane };
@@ -4424,7 +4430,7 @@ export class ResearchAutomationService {
     });
     step = video.step;
     // Meta and TikTok top-ads reads publish Foundation attachments (no step capture) after the video readings.
-    step = await storeCollectionLanes(lanesAfterVideo(lanes), step, storeLaneCaptures, checkLane);
+    step = await storeCollectionLanes(lanesAfterVideo(lanes), step, storeLaneCaptures, checkLane, rewind);
     let cancelledSourceEvidence: (() => AutomationSourceEvidence) | undefined;
     if (stepId === 'COLLECTION' && sourceStart.reviewCollectionPolicy && step.privateShopee) {
       const reviewSample = await this.#shopee.reviewSample(step.privateShopee, { runId, start: sourceStart,
@@ -4566,12 +4572,16 @@ export class ResearchAutomationService {
     });
   }
 
-  async #settleSourceFailure(runId: string, stepId: SourceStepId | 'REPORTS', code: string, state: 'FAILED' | 'CANCELLED' | 'SKIPPED'): Promise<void> {
+  /** `unsettledProvider`: the provider of a product call that threw, recorded as one UNKNOWN row (ordinal 0) with the step. */
+  async #settleSourceFailure(runId: string, stepId: SourceStepId | 'REPORTS', code: string, state: 'FAILED' | 'CANCELLED' | 'SKIPPED', unsettledProvider?: string): Promise<void> {
     const at = this.#now().toISOString();
     const artifact = stepId === 'REPORTS' && state !== 'SKIPPED' ? await this.#pdfReadingsStepArtifact(runId, state) : null;
     await withDatabaseMutationMutex(this.#db, async () => {
       this.#db.transaction(() => {
         const current = this.#current(runId); if (!current) return;
+        // Like the save step, the cost row is kept even when the run already ended.
+        if (unsettledProvider && stepId !== 'REPORTS') this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,0,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
+          .run(runId, stepId, unsettledProvider, at);
         if (TERMINAL_STATUSES.has(current.status)) return;
         if (artifact) this.#registerManifest(artifact, 'application/vnd.tdn.research-automation.step+json', at);
         this.#db.prepare(`UPDATE analysis_research_automation_steps SET state=?,message_code=?,finished_at=?,result_sha256=? WHERE run_id=? AND step_id=? AND state='RUNNING'`).run(state, code, at, artifact?.sha256 ?? null, runId, stepId);

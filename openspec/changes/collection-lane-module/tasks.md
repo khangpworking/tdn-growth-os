@@ -22,9 +22,11 @@
 - [x] 3.2 PDF: giới hạn capture, giữ tệp PDF, lỗi ghi tệp chỉ làm hỏng làn PDF như hiện nay; bước nhận L9 ở lại service, dòng đã nhận là đầu vào rõ ràng; tải lỗi vẫn không ghi dòng `UNKNOWN` (M3); byte đã lưu không đổi
 - [x] 3.3 Kiểm thử ở giao diện module (phiên khác người viết mã)
 
-## 4. PR4: sửa lỗi (đổi hành vi)
+## 4. PR4: sửa lỗi (đổi hành vi; chủ duyệt Q1, Q3, mục 13 ngày 24/10/2026)
 
-- [ ] 4.1 Tìm kiếm mở rộng ném lỗi ghi dòng `UNKNOWN` (lỗi 1); đổi cả phép kiểm, không chỉ tên ca
-- [ ] 4.2 Chuỗi xu hướng/bản đồ tỉnh lỗi giữ khoảng thời gian đã hỏi (lỗi 2); ghi lại băm bước đổi
-- [ ] 4.3 Mục 9 và 13 chỉ khi chủ duyệt
-- [ ] 4.4 `/opsx:archive` change này
+- [x] 4.1 Mọi làn ném lỗi ghi đúng một dòng `UNKNOWN` với ordinal và nhà cung cấp của làn (Q1); tìm kiếm mở rộng ném cả lượt ghi ordinal 4 (lỗi 1); 11 làn kia đã ghi từ trước; tải PDF ném lỗi vẫn không ghi (M3: GET không trả phí)
+- [x] 4.2 Chuỗi xu hướng/bản đồ tỉnh lỗi giữ khoảng thời gian lượt gọi đã có (lỗi 2); chỉ nhánh capture không lưu được hoặc tài liệu không hợp lệ đổi byte bước (M8)
+- [x] 4.3 Lỗi ghi capture chỉ làm hỏng làn đó (Q3): bỏ capture của làn, tài liệu lỗi của làn (mã sẵn có, b4), dòng chi phí giữ như lượt gọi, các làn sau và giao dịch cuối vẫn chạy; nguồn sản phẩm và đường Shopee/native không đổi
+- [x] 4.4 Mục 13: nguồn sản phẩm ném lỗi, không URL chính xác, không tìm kiếm web: ghi dòng `UNKNOWN` ordinal 0 trong giao dịch sẵn có của `#settleSourceFailure`
+- [x] 4.5 Kiểm thử ở giao diện module (phiên khác người viết mã; đổi các ca TODAY)
+- [ ] 4.6 `/opsx:archive` change này
