@@ -6,28 +6,35 @@ import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { openDatabase } from '../../src/platform/db/index.js';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/artifact-store.js';
+import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { CitationRegistry } from '../../src/modules/analysis/citation-registry.js';
 import { Bundle } from '../../src/modules/analysis/reader-report/bundle.js';
 import { buildInsightReaderTemplate, type InsightReaderPage } from '../../src/modules/analysis/reader-report/insight-template.js';
+import { prepareTikTokReaderBuild } from '../../src/modules/analysis/reader-report/tiktok-build-v1.js';
 import { publishInsightFamilyRevision, type InsightFamilyPublish } from '../../src/modules/analysis/research-automation/reader-publish.js';
+import { AutomationReaderReports } from '../../src/modules/analysis/research-automation/reader-report-revisions.js';
 import { ResearchAutomationConflictError, ResearchAutomationValidationError } from '../../src/modules/analysis/research-automation/model.js';
 
 const at = '2026-10-08T00:00:00.000Z';
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 
-// These rows own only the new module's callback/result contracts and inclusive
-// byte boundary. Family adapters, messages and record goldens belong to PR1.
+// These rows own the new module's callback/result contracts, inclusive byte
+// boundary and overlapping-key retry. Family messages and record goldens belong to PR1.
 async function fixture(t: TestContext) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-c3-module-'));
   const db = openDatabase({ databasePath: path.join(root, 'test.sqlite'), now: () => new Date(at) }).db;
   const artifactRoot = path.join(root, 'artifacts');
   const artifacts = new ContentAddressedArtifactStore(artifactRoot);
   t.after(async () => { db.close(); await fs.rm(root, { recursive: true, force: true }); });
-  const source = await artifacts.put(Buffer.from('{"synthetic":"module source"}'));
-  db.prepare(`INSERT INTO artifact_manifests
-    (sha256,byte_size,media_type,relative_path,acquired_at,contract_version,retention_status,created_at)
-    VALUES (?,?,'application/json',?,?,'1.0.0','active',?)`)
-    .run(source.sha256, source.byteSize, source.relativePath, at, at);
+  async function retain(bytes: Buffer) {
+    const source = await artifacts.put(bytes);
+    db.prepare(`INSERT INTO artifact_manifests
+      (sha256,byte_size,media_type,relative_path,acquired_at,contract_version,retention_status,created_at)
+      VALUES (?,?,'application/json',?,?,'1.0.0','active',?)`)
+      .run(source.sha256, source.byteSize, source.relativePath, at, at);
+    return source;
+  }
+  const source = await retain(Buffer.from('{"synthetic":"module source"}'));
   const workspaceId = '11111111-1111-4111-8111-111111111111';
   const runId = '22222222-2222-4222-8222-222222222222';
   const actorId = 'owner:synthetic';
@@ -60,7 +67,7 @@ async function fixture(t: TestContext) {
   const ledger = (revisionId: string, createdAt: string) => {
     db.prepare('INSERT INTO module_ledger VALUES (?,?)').run(revisionId, createdAt);
   };
-  return { db, artifacts, build, snapshot, files, ledger };
+  return { db, artifacts, build, snapshot, files, ledger, retain };
 }
 
 // Mutation control: omit the callback or move it before registration/after COMMIT.
@@ -121,6 +128,35 @@ test('module exact retry returns the stored row without clock, ledger or writes;
   assert.deepEqual(f.snapshot(), before);
   assert.deepEqual(await f.files(), files);
   assert.deepEqual(f.db.prepare('SELECT total_changes() n').get(), changes);
+});
+
+// Mutation control: remove the transaction-time request-key recheck.
+test('overlapping TikTok builds return one publication and one exact retry with one consumption row', async t => {
+  const f = await fixture(t);
+  type Args = Parameters<typeof prepareTikTokReaderBuild>;
+  const frozen = JSON.parse(await fs.readFile(new URL('../fixtures/tiktok-v1-reader-origin-input.json', import.meta.url), 'utf8')) as {
+    identity: Args[0]; draft: Args[1]; report: Args[2]; source: Args[3]; acquiredAt: Args[4]; scope: Args[5];
+  };
+  await f.retain(Buffer.from(canonicalJson(frozen.report)));
+  const context = { workspaceId: f.build.workspaceId, runId: f.build.runId,
+    ...prepareTikTokReaderBuild(frozen.identity, frozen.draft, frozen.report, frozen.source, frozen.acquiredAt, frozen.scope),
+    consumption: { corpusPackageId: frozen.draft.corpus.packageId, corpusPackageContentSha256: frozen.draft.corpus.packageContentSha256,
+      codingDraftSha256: frozen.identity.draftPairId, reportIdentitySha256: frozen.identity.semanticSha256 } };
+  const readers = new AutomationReaderReports(f.db, f.artifacts, () => new Date(at));
+  const owner = { actorId: f.build.actorId, role: 'OWNER' as const };
+  const request = { contractVersion: 'insight-reader-build-tiktok-v1', reportKind: 'INSIGHT', sourceKind: 'TIKTOK',
+    requestKey: f.build.requestKey, draftPairId: context.input.draftPairId, semanticSha256: context.input.semanticSha256 };
+  // Both calls reach the asynchronous artifact write before either can commit.
+  const pending = [readers.buildTikTok(context, request, owner), readers.buildTikTok(context, request, owner)] as const;
+  const outcomes = Promise.all(pending);
+  assert.equal(f.snapshot().revisions.length, 0);
+  const [first, second] = await outcomes;
+  assert.deepEqual([first.exactRetry, second.exactRetry].sort(), [false, true]);
+  assert.deepEqual(first.revision, second.revision);
+  assert.equal(first.revision.revisionNumber, 1);
+  assert.equal(f.snapshot().revisions.length, 1);
+  assert.deepEqual(f.db.prepare('SELECT revision_id FROM analysis_tiktok_report_consumption').all(),
+    [{ revision_id: first.revision.revisionId }]);
 });
 
 // Mutation control: read the clock before the gate or read it twice on success.
