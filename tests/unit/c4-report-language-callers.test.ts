@@ -190,7 +190,8 @@ test('copied web citation labels decode names without aborting report assembly',
 
 test('saved PDF excerpts with newly hidden names are omitted before citation registration', () => {
   const registry = new CitationRegistry();
-  const texts = ['Thông tin từ Shopee.', 'Thông tin từ Gemini.', 'Theo G e m i n i.', 'Theo N V I D I A.'];
+  const texts = ['Thông tin từ Shopee.', 'Thông tin từ Gemini.', 'Theo G e m i n i.', 'Theo N V I D I A.',
+    'Thông tin từ Gem&#105;ni.', 'Theo NVID&#x49;A.'];
   const excerpts = texts.map((text, index) => ({ sourceSha256: SHA, page: index + 1, text, label: `Tài liệu ngành hàng, trang ${index + 1}` }));
   const html = pdfExcerptBlockHtml(excerpts, value => value, excerpt => String(registry.cite(pdfExcerptCitation(excerpt))));
   assert.match(html, /Thông tin từ Shopee\./);

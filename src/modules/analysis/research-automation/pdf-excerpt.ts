@@ -313,7 +313,7 @@ export const pdfExcerptDocuments = (excerpts: readonly PdfExcerpt[]): string[] =
  */
 export function pdfExcerptBlockHtml(excerpts: readonly PdfExcerpt[], esc: (value: string) => string, mark: (excerpt: PdfExcerpt) => string = () => ''): string {
   // Saved packets may predate the current name table; withhold each copied item before its citation can throw.
-  const shown = excerpts.filter(excerpt => !providerNamed(excerpt.text));
+  const shown = excerpts.filter(excerpt => !providerNamed(excerpt.text) && !hasHiddenName(excerpt.text, 'CITATION'));
   if (shown.length === 0) return '';
   return `<h3>${esc(PDF_EXCERPT_TITLE)}</h3><ul class="pdf-excerpts">${readerPdfExcerpts(shown).map(excerpt =>
     `<li><blockquote data-quote><p>${esc(excerpt.text)}</p><footer>${esc(excerpt.label)}; nhà xuất bản: ${PDF_EXCERPT_UNRECORDED}; năm: ${PDF_EXCERPT_UNRECORDED}; độ tin cậy: ${PDF_EXCERPT_UNRATED}.</footer></blockquote>${mark(excerpt)}</li>`).join('')}</ul>`;
