@@ -27,7 +27,7 @@ Mã kiểm của 14 quy tắc nằm ở `src/modules/analysis/research-automatio
 
 | Mã | Quy tắc | Loại kiểm | Mã kiểm |
 | --- | --- | --- | --- |
-| R-M01 | Mọi thuật ngữ khó có giải thích bằng tiếng Việt đơn giản (bảng thuật ngữ). | Máy | `market-14-rules.ts`: `GLOSSARY`, `glossaryHtml` |
+| R-M01 | Mọi thuật ngữ khó có giải thích bằng tiếng Việt đơn giản (bảng thuật ngữ). | Máy | `market-14-rules.ts`: `GLOSSARY`, `glossaryHtml`. Danh sách thuật ngữ và cách nhận ra thuật ngữ nằm ở một chỗ (`report-language/glossary.ts`), dùng chung cho bộ kiểm tra và bảng thuật ngữ của báo cáo. |
 | R-M02 | Nhãn phần dùng "Phần n". Không để mã M trong thân báo cáo. Phụ lục dùng "Bảng PL.x". | Máy | `market-14-rules.ts`: kiểm nhãn |
 | R-M03 | Thân báo cáo không có chữ kỹ thuật. Dấu vết kỹ thuật nằm ở file .md riêng. | Máy | `market-14-rules.ts`: `technicalLeaks` |
 | R-M04 | Báo cáo không nêu tên nhà cung cấp dữ liệu, mô hình AI hoặc "Google". Chi tiết ở R-L01. | Máy | `market-14-rules.ts` và cổng `G08_PROVIDER_NAME` (mục 3) |
