@@ -11,6 +11,8 @@
 - [x] 1.4 Một danh sách cụm tổng hai sàn cho U32 và W3
 - [x] 1.5 `M12_PROPOSAL_LABEL` đòi nhãn đầy đủ
 - [x] 1.6 Lý do bằng lời khi bản đọc trượt kiểm (`market-check-reasons.ts`)
+- [x] 1.7 Bản nháp M12 khi chưa có đề xuất AI (`synthesis-evidence-report.ts`) ghi nhãn đầy đủ "đề xuất, chờ chủ duyệt" (Q4, R-L14)
+- [x] 1.8 `market-business-gate.ts` giữ `CROSS_PLATFORM_TOTAL_PHRASES` trỏ tới danh sách chung, để dòng "Mã kiểm" của R-M16 trong `openspec/specs` hôm nay vẫn đúng
 
 ## 2. Kiểm thử (phiên khác người viết mã)
 
@@ -22,3 +24,4 @@
 ## 3. Sau khi gộp
 
 - [ ] 3.1 `/opsx:archive` change này; spec `report-language`, `market-report`, `report-pipeline` nhận các thay đổi
+- [ ] 3.2 Khi spec nhận R-M16 mới, dòng "Mã kiểm" đổi từ `CROSS_PLATFORM_TOTAL_PHRASES` (trong `market-business-gate.ts`) sang `crossPlatformTotalMatches` (trong `report-language/cross-platform-total.ts`); sau đó bỏ hằng trỏ trong `market-business-gate.ts`

@@ -2,7 +2,7 @@ import type { Total } from '../../../../contracts/analysis/metric-scope-output.g
 import { findHiddenNames } from '../report-language/index.js';
 import { lintVisibleReportText, type VisibleTextLintResult } from '../report-visible-text-lint.js';
 import { balancedOpenings, hiddenElement, HIDDEN_CONTAINER_TAGS, quoteElement, withoutHiddenText } from '../report-visible-text.js';
-import { crossPlatformTotalMatches } from '../report-language/index.js';
+import { CROSS_PLATFORM_TOTAL_PHRASES as SHARED_CROSS_PLATFORM_TOTAL_PHRASES, crossPlatformTotalMatches } from '../report-language/index.js';
 
 export type MarketBusinessGateResult = { rule: string; ok: boolean; detail: string };
 export type PartialRowTotal = { readonly measure: 'revenue' | 'units'; readonly value: string };
@@ -49,7 +49,9 @@ export function partialRowTotals(results: readonly (TotalsSource | null | undefi
   return [...found].filter(([value]) => !complete.has(value)).map(([, total]) => total);
 }
 
-const MARKET_SECTION_IDS = Array.from({ length: 13 }, (_, index) => `M${String(index + 1).padStart(2, '0')}`);
+// R-M16 "Mã kiểm" names this list in this file; U32 and the Reader W3 share the one list in report-language.
+export const CROSS_PLATFORM_TOTAL_PHRASES: readonly string[] = SHARED_CROSS_PLATFORM_TOTAL_PHRASES;
+const MARKET_SECTION_IDS =Array.from({ length: 13 }, (_, index) => `M${String(index + 1).padStart(2, '0')}`);
 
 const PROPOSAL_TERMS = /(?:phương án|lựa chọn|(?<![\p{L}\p{N}_])option(?![\p{L}\p{N}_])|(?<![\p{L}\p{N}_])proposal(?![\p{L}\p{N}_])|(?<![\p{L}\p{N}_])action_option(?![\p{L}\p{N}_]))/iu;
 const E2_ALWAYS_TERMS = /(?:Thứ tự theo doanh thu|(?<![\p{L}\p{N}_])top\s*3(?![\p{L}\p{N}_]))/giu;

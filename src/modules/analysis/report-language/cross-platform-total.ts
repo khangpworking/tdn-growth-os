@@ -3,7 +3,7 @@
 // same phrases: the union of the two earlier lists (handoff decision, 24/10/2026).
 // This is intentionally an explicit list. Do not replace it with a fuzzy
 // cross-platform or arithmetic heuristic: separate platform text is allowed.
-const PHRASES: readonly string[] = [
+export const CROSS_PLATFORM_TOTAL_PHRASES: readonly string[] = [
   'tổng hai sàn',
   'cộng hai sàn',
   'tổng cộng hai nền tảng',
@@ -19,7 +19,7 @@ const PHRASES: readonly string[] = [
   'cộng TikTok Shop và Shopee',
 ];
 const PATTERNS: readonly RegExp[] = [
-  ...PHRASES.map(phrase => new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'giu')),
+  ...CROSS_PLATFORM_TOTAL_PHRASES.map(phrase => new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'giu')),
   // The Reader's former W3 wording: "tổng" then two platforms, any spacing.
   /tổng\s+(?:hai sàn|cả hai sàn|shopee và tiktok|tiktok và shopee)/giu,
 ];
