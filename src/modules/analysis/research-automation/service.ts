@@ -110,10 +110,11 @@ import { readPreparedMetricCaptureSources } from './metric-capture-inventory.js'
 import { AutomationWorldBankSourceIntake, readConfirmedWorldBankSource, readWorldBankHistory, WORLD_BANK_INDICATORS, WORLD_BANK_PROFILE } from './world-bank-intake.js';
 import { pdfDocumentTitle, selectPdfExcerpts, storedPdfExcerpts, type PdfExcerpt } from './pdf-excerpt.js';
 import { readSellerVideoInputs, selectSellerVideos, storedSellerVideos, type AutomatedReadingInput, type SellerVideoAutomatedRef, type SellerVideos, type SellerVideoSources } from './seller-video.js';
-import { OFFICIAL_STATS_PROVIDER, OFFICIAL_STATS_USAGE_ORDINAL, officialStatsDocument, officialStatsFailed, officialStatsUsage, validOfficialStats, type OfficialStatsCollection, type OfficialStatsSource } from './official-statistics-lane.js';
-import { COMTRADE_PROFILE, COMTRADE_PROVIDER, COMTRADE_USAGE_ORDINAL, comtradeDocument, comtradeFailed, comtradeRenderable, comtradeUsage, type ComtradeCollection, type ComtradeSource } from './comtrade-lane.js';
-import { brandsFromPick, GOOGLE_ADS_PROFILE, GOOGLE_ADS_USAGE_ORDINAL, searchAdsDocument, searchAdsFailed, searchAdsUsageEntries, GOOGLE_ADS_DISCOVERY_USAGE_ORDINALS, type SearchAdsCollection, type SearchAdsSource } from './google-ads-lane.js';
-import { WORLD_BANK_SERIES_YEARS, worldBankDocument, worldBankFailed, worldBankRenderable, worldBankUsage, WORLD_BANK_PROVIDER, WORLD_BANK_USAGE_ORDINAL, type WorldBankAttempt, type WorldBankSource } from './world-bank-lane.js';
+import { validOfficialStats, type OfficialStatsSource } from './official-statistics-lane.js';
+import { COMTRADE_PROFILE, comtradeRenderable, type ComtradeSource } from './comtrade-lane.js';
+import { GOOGLE_ADS_PROFILE, GOOGLE_ADS_USAGE_ORDINAL, type SearchAdsSource } from './google-ads-lane.js';
+import { WORLD_BANK_SERIES_YEARS, worldBankRenderable, type WorldBankSource } from './world-bank-lane.js';
+import { attemptCollectionLanes, collectionLaneOrdinals, collectionLanes, collectionLaneUsage, storeCollectionLanes, WEB_USAGE_ORDINAL, type CollectionLane, type CollectionLaneRun } from './collection-lanes.js';
 import { publishAutomatedVideoReading, verifyAutomatedVideoReading, videoWatchCandidates, videoWatchDocument, videoWatchFailed, videoWatchReadingRefs, videoWatchUsage, VIDEO_WATCH_MAX_VIDEOS, VIDEO_WATCH_PROFILE, VIDEO_WATCH_USAGE_ORDINAL, type VideoWatchAttempt, type VideoWatchLane, type VideoWatchPlan } from './video-watch-lane.js';
 import { VIDEO_WATCH_PROVIDER } from './video-watch-gemini.js';
 import { topSellingTikTokVideos } from './tiktok-video-selection.js';
@@ -520,13 +521,8 @@ interface PersistableSourceResult {
 
 /** The independent web-search lane of one collection; its usage is recorded at ordinal 2. */
 type WebSearchAttempt = { readonly bound: BoundCollectResult } | { readonly failedProvider: string };
-const WEB_USAGE_ORDINAL = 2;
 type TrendsAttempt = { readonly attempt: SearchInterestAttempt; readonly geo?: SearchGeoAttempt };
 type ExpandedAttempts = { readonly attempts: readonly ExpandedSearchAttempt[] };
-type WorldBankRun = { readonly attempts: readonly WorldBankAttempt[] } | { readonly thrown: true };
-type ComtradeRun = { readonly collection: ComtradeCollection } | { readonly thrown: true };
-type SearchAdsRun = { readonly collection: SearchAdsCollection } | { readonly thrown: true };
-type OfficialStatsRun = { readonly collection: OfficialStatsCollection } | { readonly thrown: true };
 type MetaAutoRun = { readonly collection: MetaAutoCollection } | { readonly thrown: true };
 type TikTokTopAdsRun = { readonly collection: TikTokTopAdsCollection } | { readonly thrown: true; readonly keyword: string | null };
 
@@ -590,10 +586,8 @@ export class ResearchAutomationService {
   readonly #webSource: AutomationSourcePort | undefined;
   readonly #trendsSource: SearchInterestSource | undefined;
   readonly #trendsGeoSource: SearchGeoSource | undefined;
-  readonly #worldBankSource: WorldBankSource | undefined;
-  readonly #comtradeSource: ComtradeSource | undefined;
-  readonly #searchAdsSource: SearchAdsSource | undefined;
-  readonly #officialStatsSource: OfficialStatsSource | undefined;
+  /** World Bank, UN Comtrade, search-ads library and Cục Thống kê, in run order (only the configured ones). */
+  readonly #collectionLanes: readonly CollectionLane[];
   readonly #videoWatch: VideoWatchLane | undefined;
   readonly #metaAutoSource: MetaAutoSource | undefined;
   readonly #tiktokTopAdsSource: TikTokTopAdsSource | undefined;
@@ -655,10 +649,7 @@ export class ResearchAutomationService {
     this.#webSource = options.webSource;
     this.#trendsSource = options.trendsSource;
     this.#trendsGeoSource = options.trendsGeoSource;
-    this.#worldBankSource = options.worldBankSource;
-    this.#comtradeSource = options.comtradeSource;
-    this.#searchAdsSource = options.searchAdsSource;
-    this.#officialStatsSource = options.officialStatsSource;
+    this.#collectionLanes = collectionLanes(options);
     this.#videoWatch = options.videoWatch;
     this.#metaAutoSource = options.metaAutoSource;
     this.#tiktokTopAdsSource = options.tiktokTopAdsSource;
@@ -2425,7 +2416,7 @@ export class ResearchAutomationService {
     const publicActivity = publicHistory.lastAt || publicUsage.lastAt ? { 'shopee-public-review': { lastDataAt: publicHistory.lastAt, dataCount: toNumber(publicHistory.total), lastUsageAt: publicUsage.lastAt, requestCountUncertain: publicUncertain } } : {};
     const searchAdsUsageAt = this.#db.prepare(`SELECT MAX(u.recorded_at) lastAt FROM analysis_research_automation_usage u
       JOIN analysis_research_automation_runs r ON r.run_id=u.run_id
-      WHERE r.workspace_id=? AND u.step_id='COLLECTION' AND u.ordinal IN (?,?,?,?) AND u.provider='serpapi' AND u.request_count>0`).get(workspaceId, GOOGLE_ADS_USAGE_ORDINAL, ...GOOGLE_ADS_DISCOVERY_USAGE_ORDINALS) as { lastAt: string | null };
+      WHERE r.workspace_id=? AND u.step_id='COLLECTION' AND u.ordinal IN (?,?,?,?) AND u.provider='serpapi' AND u.request_count>0`).get(workspaceId, ...collectionLaneOrdinals('searchAds')) as { lastAt: string | null };
     activity['search-ads-library'].lastUsageAt = searchAdsUsageAt.lastAt;
     const metaAutoUsageAt = this.#db.prepare(`SELECT MAX(u.recorded_at) lastAt FROM analysis_research_automation_usage u
       JOIN analysis_research_automation_runs r ON r.run_id=u.run_id
@@ -3709,48 +3700,27 @@ export class ResearchAutomationService {
         try { expanded = { attempts: await this.#expandedSource.collect(input as CollectInput, { signal: controller.signal }) }; }
         catch { expanded = { attempts: [] }; }
       }
-      // Open country-level data comes last; it is one attempt per run and is never repeated after a restart.
-      let worldBank: WorldBankRun | undefined;
-      if (stepId === 'COLLECTION' && this.#worldBankSource && !controller.signal.aborted) {
-        try { worldBank = { attempts: await this.#worldBankSource.collect({ signal: controller.signal }) }; }
-        catch { worldBank = { thrown: true }; }
-      }
-      // UN Comtrade follows World Bank: one attempt per run, never repeated after a restart.
-      let comtrade: ComtradeRun | undefined;
-      if (stepId === 'COLLECTION' && this.#comtradeSource && !controller.signal.aborted) {
-        const { keyword, requestedPeriod } = input as CollectInput;
-        const productTitles = [
-          ...(result.result && 'productObservations' in result.result ? result.result.productObservations.flatMap(item => item.productName ? [item.productName] : []) : []),
-          ...result.step.productCards.flatMap(card => card.title ? [card.title] : []),
-        ];
-        try { comtrade = { collection: await this.#comtradeSource.collect({ keyword, description: start.description ?? null, mode: start.mode, periodEndDate: requestedPeriod.endDate, productTitles }, { signal: controller.signal }) }; }
-        catch { comtrade = { thrown: true }; }
-      }
-      // Search-ads library comes last: at most six paid calls including site discovery, never repeated after a restart. Brands come only from the auto-run pick record.
-      let searchAds: SearchAdsRun | undefined;
       const readPick = async (): Promise<unknown> => {
         try {
           const pickId = this.#hasAutorunTable() ? this.#autorunRow(row.runId)?.pickArtifactId : null;
           return pickId ? await this.#readJson<unknown>(pickId, MAX_JSON_ARTIFACT_BYTES, 'application/json') : null;
         } catch { return null; }
       };
-      if (stepId === 'COLLECTION' && this.#searchAdsSource && !controller.signal.aborted) {
-        const { requestedPeriod } = input as CollectInput;
-        const brands = brandsFromPick(await readPick());
-        const plainRows = web && 'bound' in web ? web.bound.step.webResults ?? [] : [];
-        const seen = new Set(plainRows.map(item => webResultUrlKey(item.url)));
-        const expandedRows = (expanded?.attempts ?? []).flatMap(attempt => expandedQueryDocument(attempt, 0, seen).results);
-        const webUrls = [...plainRows, ...expandedRows].sort((a, b) => a.position - b.position).map(item => item.url);
-        try { searchAds = { collection: await this.#searchAdsSource.collect({ brands, webUrls, periodStartDate: requestedPeriod.startDate, periodEndDate: requestedPeriod.endDate }, { signal: controller.signal }) }; }
-        catch { searchAds = { thrown: true }; }
-      }
-      // Cục Thống kê follows UN Comtrade: one listing and at most two workbooks per run, never repeated after a restart.
-      let officialStats: OfficialStatsRun | undefined;
-      if (stepId === 'COLLECTION' && this.#officialStatsSource && !controller.signal.aborted) {
-        const { keyword } = input as CollectInput;
-        try { officialStats = { collection: await this.#officialStatsSource.collect({ keyword, description: start.description ?? null, mode: start.mode }, { signal: controller.signal }) }; }
-        catch { officialStats = { thrown: true }; }
-      }
+      // World Bank, UN Comtrade, search-ads library and Cục Thống kê: one attempt each per run, never repeated after a restart.
+      const lanes = await attemptCollectionLanes(this.#collectionLanes, stepId, {
+        keyword: start.keyword, description: start.description ?? null, mode: start.mode, requestedPeriod: (input as CollectInput).requestedPeriod,
+        productTitles: () => [
+          ...(result.result && 'productObservations' in result.result ? result.result.productObservations.flatMap(item => item.productName ? [item.productName] : []) : []),
+          ...result.step.productCards.flatMap(card => card.title ? [card.title] : []),
+        ],
+        webUrls: () => {
+          const plainRows = web && 'bound' in web ? web.bound.step.webResults ?? [] : [];
+          const seen = new Set(plainRows.map(item => webResultUrlKey(item.url)));
+          const expandedRows = (expanded?.attempts ?? []).flatMap(attempt => expandedQueryDocument(attempt, 0, seen).results);
+          return [...plainRows, ...expandedRows].sort((a, b) => a.position - b.position).map(item => item.url);
+        },
+        readPick,
+      }, controller.signal);
       // Meta ad library auto-read comes after the paid lanes: at most five logged-out page opens for the top two pick brands
       // (the search-ads input; E11 peers exist only after REPORTS), never repeated after a restart. It shares the one browser-CLI lock with the Metric capture.
       let metaAuto: MetaAutoRun | undefined;
@@ -3771,7 +3741,7 @@ export class ResearchAutomationService {
       }
       try {
         // The report-PDF lane runs inside the save step, after L9 admission of this run's rows, so its candidates are admitted rows only.
-        await this.#persistSourceResult(row.runId, stepId, result, controller.signal.aborted, exact, web, controller.signal, trends, expanded, worldBank, comtrade, searchAds, officialStats, metaAuto, tiktokTopAds,
+        await this.#persistSourceResult(row.runId, stepId, result, controller.signal.aborted, exact, web, controller.signal, trends, expanded, lanes, metaAuto, tiktokTopAds,
           stepId === 'COLLECTION' && this.#pdfDiscoverySource ? input as CollectInput : undefined,
           sources?.value.contractVersion === 'automation-confirmed-source-set-v2' ? sources : undefined);
         if (sources?.value.contractVersion === 'automation-confirmed-source-set-v2') await this.#executePublicTail(row, sources, controller.signal);
@@ -4420,7 +4390,7 @@ export class ResearchAutomationService {
     })(); });
   }
 
-  async #persistSourceResult(runId: string, stepId: SourceStepId, bound: PersistableSourceResult, aborted: boolean, exact?: ExactShopeeAttempt, web?: WebSearchAttempt, signal?: AbortSignal, trends?: TrendsAttempt, expanded?: ExpandedAttempts, worldBank?: WorldBankRun, comtrade?: ComtradeRun, searchAds?: SearchAdsRun, officialStats?: OfficialStatsRun, metaAuto?: MetaAutoRun, tiktokTopAds?: TikTokTopAdsRun, pdfInput?: CollectInput, publicSources?: FrozenSources): Promise<void> {
+  async #persistSourceResult(runId: string, stepId: SourceStepId, bound: PersistableSourceResult, aborted: boolean, exact?: ExactShopeeAttempt, web?: WebSearchAttempt, signal?: AbortSignal, trends?: TrendsAttempt, expanded?: ExpandedAttempts, lanes: readonly CollectionLaneRun[] = [], metaAuto?: MetaAutoRun, tiktokTopAds?: TikTokTopAdsRun, pdfInput?: CollectInput, publicSources?: FrozenSources): Promise<void> {
     const result = bound.result;
     let step = bound.step;
     const nativeCoverage = bound.step.coverage.filter(value => value.provider === 'apify-dami');
@@ -4571,83 +4541,17 @@ export class ResearchAutomationService {
           requestedWindow: null, retrievedAt: null, captureIndex: null, results: [] })) } };
       }
     }
-    // World Bank captures follow the extra searches. A dropped indicator keeps a reason code only and never changes the
-    // step outcome, coverage or run blockers; only responses that passed the inspector are stored.
-    const worldBankAttempts = worldBank && 'attempts' in worldBank ? worldBank.attempts : [];
-    if (worldBank) {
-      const indexes: ([number, number] | null)[] = [];
-      for (const attempt of worldBankAttempts) {
-        const envelopes = attempt.observation && attempt.metadata ? captureEnvelopes({ captures: [attempt.observation, attempt.metadata] }) : null;
-        if (!envelopes) { indexes.push(null); continue; }
-        indexes.push([captures.length, captures.length + 1]);
-        await putCaptures(envelopes);
-      }
-      const probe = { ...step, worldBank: worldBankAttempts.length ? worldBankDocument(worldBankAttempts, indexes) : worldBankFailed('PROVIDER_FAILED') };
-      try {
-        assertStepDocument(probe, runId, stepId);
-        assertCaptureLineage(probe, captures.map(value => value.row));
-        step = probe;
-      } catch { step = { ...step, worldBank: worldBankFailed('DOCUMENT_INVALID') }; }
-    }
-    // UN Comtrade captures follow World Bank. Only responses of the confirmed code are stored; without a confirmed code the
-    // document is a status only and no number is kept.
-    const comtradeCollection = comtrade && 'collection' in comtrade ? comtrade.collection : undefined;
-    if (comtrade) {
-      const indexes: (number | null)[] = [];
-      for (const item of comtradeCollection?.calls ?? []) {
-        const envelopes = captureEnvelopes({ captures: [item.capture] });
-        if (!envelopes) { indexes.push(null); continue; }
-        indexes.push(captures.length);
-        await putCaptures(envelopes);
-      }
-      const probe = { ...step, comtrade: comtradeCollection ? comtradeDocument(comtradeCollection, indexes) : comtradeFailed('FAILED') };
-      try {
-        assertStepDocument(probe, runId, stepId);
-        assertCaptureLineage(probe, captures.map(value => value.row));
-        step = probe;
-      } catch { step = { ...step, comtrade: comtradeFailed('FAILED') }; }
-    }
-    // Search-ads library captures follow Comtrade: discovery and ads responses per called brand; no advertiser detail is kept in the document.
-    const searchAdsCollection = searchAds && 'collection' in searchAds ? searchAds.collection : undefined;
-    if (searchAds) {
-      const indexes: (number | null)[] = [], discoveryIndexes: (number | null)[] = [];
-      for (const item of searchAdsCollection?.brands ?? []) {
-        const discovery = item.discoveryCapture ? captureEnvelopes({ captures: [item.discoveryCapture] }) : null;
-        discoveryIndexes.push(discovery?.length ? captures.length : null);
-        if (discovery) await putCaptures(discovery);
-        const envelopes = item.capture ? captureEnvelopes({ captures: [item.capture] }) : null;
-        if (!envelopes) { indexes.push(null); continue; }
-        indexes.push(captures.length);
-        await putCaptures(envelopes);
-      }
-      const probe = { ...step, searchAds: searchAdsCollection ? searchAdsDocument(searchAdsCollection, indexes, discoveryIndexes) : searchAdsFailed('FAILED') };
-      try {
-        assertStepDocument(probe, runId, stepId);
-        assertCaptureLineage(probe, captures.map(value => value.row));
-        step = probe;
-      } catch { step = { ...step, searchAds: searchAdsFailed('FAILED') }; }
-    }
-    // Cục Thống kê captures follow UN Comtrade: the listing, then each downloaded workbook. Without a confirmed category the
-    // document is a status only and no number is kept.
-    const officialStatsCollection = officialStats && 'collection' in officialStats ? officialStats.collection : undefined;
-    if (officialStats) {
-      let listIndex: number | null = null;
-      const fileIndexes: (number | null)[] = [];
-      const listEnvelopes = officialStatsCollection?.list ? captureEnvelopes({ captures: [officialStatsCollection.list] }) : null;
-      if (listEnvelopes) { listIndex = captures.length; await putCaptures(listEnvelopes); }
-      for (const item of officialStatsCollection?.files ?? []) {
-        const envelopes = captureEnvelopes({ captures: [item.capture] });
-        if (!envelopes) { fileIndexes.push(null); continue; }
-        fileIndexes.push(captures.length);
-        await putCaptures(envelopes);
-      }
-      const probe = { ...step, officialStats: officialStatsCollection ? officialStatsDocument(officialStatsCollection, listIndex, fileIndexes) : officialStatsFailed('FAILED') };
-      try {
-        assertStepDocument(probe, runId, stepId);
-        assertCaptureLineage(probe, captures.map(value => value.row));
-        step = probe;
-      } catch { step = { ...step, officialStats: officialStatsFailed('FAILED') }; }
-    }
+    // World Bank, UN Comtrade, search-ads library and Cục Thống kê captures follow the extra searches, in that order.
+    step = await storeCollectionLanes(lanes, step, async values => {
+      const envelopes = captureEnvelopes({ captures: values });
+      if (!envelopes) return null;
+      const index = captures.length;
+      await putCaptures(envelopes);
+      return index;
+    }, probe => {
+      assertStepDocument(probe, runId, stepId);
+      assertCaptureLineage(probe, captures.map(value => value.row));
+    });
     // Video readings come last: candidates are the run's stored selection and the stored TikTok search rows (no new search),
     // and their model-answer captures follow the World Bank captures. A skipped video keeps a reason code only and never
     // changes the step outcome, coverage or run blockers.
@@ -4949,18 +4853,11 @@ export class ResearchAutomationService {
         for (const item of expandedCalled) if (item.result.captures.length) this.#persistUsage(runId, stepId, item.result, now, EXPANDED_SEARCH_USAGE_ORDINAL[item.kind]);
         for (const item of expandedThrown) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,'serpapi','unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
           .run(runId, stepId, EXPANDED_SEARCH_USAGE_ORDINAL[item.kind], now);
-        if (worldBankAttempts.some(item => item.requests > 0)) this.#persistUsage(runId, stepId, worldBankUsage(worldBankAttempts), now, WORLD_BANK_USAGE_ORDINAL);
-        else if (worldBank && 'thrown' in worldBank) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
-          .run(runId, stepId, WORLD_BANK_USAGE_ORDINAL, WORLD_BANK_PROVIDER.toLowerCase(), now);
-        if (comtradeCollection && comtradeCollection.requests > 0) this.#persistUsage(runId, stepId, comtradeUsage(comtradeCollection), now, COMTRADE_USAGE_ORDINAL);
-        else if (comtrade && 'thrown' in comtrade) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
-          .run(runId, stepId, COMTRADE_USAGE_ORDINAL, COMTRADE_PROVIDER.toLowerCase(), now);
-        if (searchAdsCollection) for (const entry of searchAdsUsageEntries(searchAdsCollection)) this.#persistUsage(runId, stepId, entry.result, now, entry.ordinal);
-        else if (searchAds && 'thrown' in searchAds) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,'serpapi','unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
-          .run(runId, stepId, GOOGLE_ADS_USAGE_ORDINAL, now);
-        if (officialStatsCollection && officialStatsCollection.requests > 0) this.#persistUsage(runId, stepId, officialStatsUsage(officialStatsCollection), now, OFFICIAL_STATS_USAGE_ORDINAL);
-        else if (officialStats && 'thrown' in officialStats) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
-          .run(runId, stepId, OFFICIAL_STATS_USAGE_ORDINAL, OFFICIAL_STATS_PROVIDER.toLowerCase(), now);
+        for (const row of collectionLaneUsage(lanes)) {
+          if (row.kind === 'USAGE') this.#persistUsage(runId, stepId, row.result, now, row.ordinal);
+          else this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
+            .run(runId, stepId, row.ordinal, row.provider, now);
+        }
         if (videoWatchAttempts?.some(item => item.requests > 0)) this.#persistUsage(runId, stepId, videoWatchUsage(videoWatchAttempts), now, VIDEO_WATCH_USAGE_ORDINAL);
         else if (videoWatchThrown) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
           .run(runId, stepId, VIDEO_WATCH_USAGE_ORDINAL, VIDEO_WATCH_PROVIDER.toLowerCase(), now);
