@@ -12,8 +12,9 @@
 
 ## 2. PR2: làn phụ thuộc làn trước
 
-- [ ] 2.1 Web, xu hướng, bản đồ tỉnh, tìm kiếm mở rộng; đầu vào "làn trước đã cho gì" thay biến cục bộ
-- [ ] 2.2 Meta và TikTok top-ads; việc đăng bằng chứng giữ đúng chỗ hiện nay (M2)
+- [x] 2.1 Web, xu hướng, bản đồ tỉnh, tìm kiếm mở rộng; đầu vào "làn trước đã cho gì" thay biến cục bộ (bản đồ tỉnh đọc kỳ của xu hướng, quảng cáo tìm kiếm đọc dòng web và tìm kiếm mở rộng); byte đã lưu không đổi, chưa sửa lỗi 1 và 2
+- [x] 2.2 Meta và TikTok top-ads; việc đăng bằng chứng giữ đúng chỗ hiện nay (M2): sau video, trước dòng chi phí, cùng điều kiện trạng thái lượt chạy
+- [ ] 2.3 Kiểm thử ở giao diện module (phiên khác người viết mã)
 
 ## 3. PR3: làn sau L9
 
