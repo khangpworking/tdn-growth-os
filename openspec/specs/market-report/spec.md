@@ -236,7 +236,7 @@ Báo cáo Market SHALL dùng link review đa dạng thương hiệu và SHALL l�
 - Vì sao: Chủ yêu cầu trong lần chạy bình giữ nhiệt (06/10/2026) và nói áp dụng rộng cho cả hệ thống. Cũng là một trong 14 quy tắc sửa tay (05/10/2026).
 
 #### Scenario: Link review trải đều thương hiệu
-- **WHEN** các link review của một sản phẩm thuộc nhiều thương hiệu khác nhau và có 300 bình luận mỗi sản phẩm
+- **WHEN** các link review của các sản phẩm thuộc nhiều thương hiệu khác nhau và có 300 bình luận mỗi sản phẩm
 - **THEN** người đọc soát xác nhận quy tắc R-M14 đạt
 
 #### Scenario: Link review chỉ một thương hiệu

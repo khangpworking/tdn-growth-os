@@ -70,8 +70,8 @@ Hệ thống SHALL chạy luồng tự động Market (thu, chuẩn bị, chọn
 - **WHEN** lần chạy tự động tới pha `PRESENT`
 - **THEN** hệ thống gọi `requestReportRevision(buildRevisionValue(...))` để tạo bản trình bày của báo cáo Market
 
-### Requirement: R-P04 Mỗi nguồn là một làn có cờ riêng
-Bước `COLLECTION` SHALL chỉ gọi một làn nguồn khi cờ của làn đó bật. Cờ làn chỉ bật khi giá trị đúng bằng `1`; cờ `*_AI_ENABLED` và cờ PageIndex chỉ bật khi đúng bằng `true`.
+### Requirement: R-P04 Cờ bật tắt của các làn nguồn
+Với làn nguồn có cờ bật tắt, bước `COLLECTION` SHALL chỉ gọi làn đó khi cờ bật. Cờ làn chỉ bật khi giá trị đúng bằng `1`; cờ `*_AI_ENABLED` và cờ PageIndex chỉ bật khi đúng bằng `true`. Các nguồn cơ sở trong `providers.ts` (dữ liệu bán hàng ước tính, tìm kiếm web, review trả phí) được cấu hình bằng thông tin truy cập và giới hạn tương ứng, không có cờ bật tắt riêng cho từng nguồn.
 
 - Cờ đọc ở `src/api/operator-app.ts` (`operatorAppConfigurationFromEnvironment`).
 - Làn và mã:
@@ -110,13 +110,13 @@ Hệ thống SHALL dừng lúc khởi động nếu một cờ `TDN_RESEARCH_*_A
 - **THEN** dòng dữ liệu thu được lọc bằng luật, không gọi AI
 
 ### Requirement: R-P06 Dựng báo cáo nháp
-Bước `REPORTS` SHALL dựng HTML nháp cho mỗi loại báo cáo của lần chạy (`MARKET`, `INSIGHT`). Với báo cáo Market dạng trình bày (`marketPresentation`), bước này SHALL giữ thêm file dấu vết kỹ thuật riêng, là một artifact ẩn. Các báo cáo khác không giữ file dấu vết riêng.
+Bước `REPORTS` SHALL dựng HTML nháp cho mỗi loại báo cáo của lần chạy (`MARKET`, `INSIGHT`). Với báo cáo Market dạng trình bày (`marketPresentation`), bước này SHALL thử giữ thêm file dấu vết kỹ thuật riêng, là một artifact ẩn. Nếu dấu vết quá lớn hoặc lưu lỗi, báo cáo ghi `TRACE_HTML_TOO_LARGE` hoặc `TRACE_HTML_STORE_FAILED` thay cho artifact dấu vết. Các báo cáo khác không giữ file dấu vết riêng.
 
 - Mã: RA `reports.ts` `buildResearchAutomationReport(input, 'MARKET'|'INSIGHT')` trả `{semantic, html, traceHtml}`; gọi từ RA `service.ts` `#executeReports`. Biểu đồ: RA `market-presentation-report.ts`, RR `market-charts.ts`, RR `macro-charts.ts`, RR `flint.ts`. Bìa: RA `market-cover.ts` (`buildMarketCover`), RA `cover-image-codec.ts`.
 - Quy tắc liên quan: R-M03 (dấu vết kỹ thuật ở file riêng), R-M10, R-M11.
 
 #### Scenario: Dấu vết kỹ thuật tách khỏi thân
-- **WHEN** báo cáo Market dạng trình bày được dựng
+- **WHEN** báo cáo Market dạng trình bày được dựng và `traceHtml` được lưu thành công
 - **THEN** tên công cụ và chi tiết kỹ thuật nằm trong `traceHtml`, được giữ thành artifact ẩn riêng, và không nằm trong `html` (RA `service.ts` `#executeReports`: `traceHtml` chỉ giữ khi `kind === 'MARKET' && input.marketPresentation`)
 
 #### Scenario: Báo cáo khác không có file dấu vết riêng
@@ -136,17 +136,17 @@ Hệ thống SHALL chạy `assertMarketBusinessGate` trên HTML nháp loại `MA
 
 #### Scenario: Báo cáo Insight
 - **WHEN** HTML nháp thuộc loại `INSIGHT`
-- **THEN** `assertMarketBusinessGate` không chạy; chỉ lint chữ nhìn thấy chạy
+- **THEN** `assertMarketBusinessGate` không chạy; lint chữ nhìn thấy chỉ chạy khi có `insightPersona`, hoặc `draftInsight` với snapshot mã hóa v3, v4 hay v5 (RA `reports.ts`)
 
 ### Requirement: R-P08 Kiểm 14 quy tắc trên báo cáo Market
-Hệ thống SHALL chạy `auditMarket14` trên bản đọc Market, và SHALL làm lần dựng lỗi với mã `MARKET_14_RULES_FAILED:<số quy tắc>` khi một quy tắc loại "Máy" trượt. Quy tắc loại "Bằng chứng" (6, 8, 14) luôn ghi "đạt" kèm chi tiết cho người đọc soát. Quy tắc 10 (ảnh bìa) là loại "Máy" khi bìa là ảnh ngoài, sai dạng, hoặc ảnh JPEG do AI tạo hợp lệ. Khi không có ảnh bìa nhúng, quy tắc 10 thành loại "Bằng chứng", ghi "chưa đạt" kèm chữ "READ" cho người đọc soát, và không làm lần dựng lỗi.
+Hệ thống SHALL chạy `auditMarket14` trên báo cáo Market dạng trình bày (`marketPresentation`) và bản đọc Market có `built.visibleTextRules`, và SHALL làm lần dựng lỗi với mã `MARKET_14_RULES_FAILED:<số quy tắc>` khi một quy tắc loại "Máy" trượt. Quy tắc loại "Bằng chứng" (6, 8, 14) luôn ghi "đạt" kèm chi tiết cho người đọc soát. Quy tắc 10 (ảnh bìa) là loại "Máy" khi bìa là ảnh ngoài, sai dạng, hoặc ảnh JPEG do AI tạo hợp lệ. Khi không có bìa AI hợp lệ và không có lỗi ảnh ngoài hay sai dạng, kể cả khi có bìa nhúng không phải do AI tạo, quy tắc 10 thành loại "Bằng chứng", ghi "chưa đạt" kèm chữ "READ" cho người đọc soát, và không làm lần dựng lỗi.
 
 - Mã: RA `market-14-rules.ts` (`auditMarket14`, `assertMarket14MachineRules`). Số `result('1')` đến `result('14')` ứng với R-M01 đến R-M14.
 - Lệnh tay: `tsx scripts/audit-market-14.ts <report.html> [trace.md]` (không có trong npm scripts).
 - Kiểm thử: `tests/unit/rules14-209-market-14.test.ts`, `market14-reader-only.test.ts`, `market14-pdf-citation.test.ts`.
 
 #### Scenario: Ảnh bìa ngoài hoặc sai dạng
-- **WHEN** bản đọc Market có ảnh bìa trỏ ra ngoài, hoặc ảnh bìa không phải JPEG base64 có giới hạn và có chữ alt
+- **WHEN** bản đọc Market được kiểm 14 quy tắc có ảnh bìa trỏ ra ngoài, ảnh nhúng sai dạng, hoặc ảnh tự nhận do AI tạo không phải JPEG base64 có giới hạn và có chữ alt
 - **THEN** lần dựng lỗi với `MARKET_14_RULES_FAILED:10`
 
 #### Scenario: Thiếu ảnh bìa
@@ -169,15 +169,15 @@ Hệ thống SHALL lưu mỗi lần sinh lại báo cáo (revision) thành một
 - **THEN** một dòng mới xuất hiện trong `analysis_research_automation_attempt_outputs` và bản nháp cũ giữ nguyên
 
 ### Requirement: R-P10 Reader dựng bản đọc qua cổng
-Reader SHALL dựng bản đọc Market chỉ khi bản đó qua kiểm biểu đồ Flint, cổng Market, 14 quy tắc máy và lint của Reader, theo thứ tự đó.
+Reader SHALL dựng bản đọc Market chỉ khi bản đó qua kiểm biểu đồ Flint, cổng Market và lint của Reader, theo thứ tự đó. Khi `built.visibleTextRules` bật, Reader SHALL kiểm thêm 14 quy tắc máy sau cổng Market và trước lint của Reader. Biểu đồ số nền được phép dùng SVG dự phòng; `flint: false` là tùy chọn bỏ yêu cầu Flint trong kiểm thử.
 
-- Mã: RA `reader-report-revisions.ts` (`AutomationReaderReports.build`, `buildInsight`, `buildTikTok`, `buildShopee`, `decide`). Market: `buildMarketReport` ở RR `market-template.ts`; khi có nguồn review công khai thì gọi `buildMarketReportV2` ở RR `market-template-v2.ts`. Sau đó `assertFlintCharts`, `assertMarketBusinessGate`, `assertMarket14MachineRules`, rồi `publishReaderReport` ở RR `build.ts` (lỗi `ReaderReportGateError`, chạy RR `lint.ts`).
+- Mã: RA `reader-report-revisions.ts` (`AutomationReaderReports.build`, `buildInsight`, `buildTikTok`, `buildShopee`, `decide`). Market: `buildMarketReport` ở RR `market-template.ts`; khi có nguồn review công khai thì gọi `buildMarketReportV2` ở RR `market-template-v2.ts`. Sau đó `assertFlintCharts`, `assertMarketBusinessGate`, `assertMarket14MachineRules` khi `built.visibleTextRules` bật, rồi `publishReaderReport` ở RR `build.ts` (lỗi `ReaderReportGateError`, chạy RR `lint.ts`).
 - Phiên bản: `reader-report-market-v3` / `v4` / `v5`; Insight `reader-report-insight-v9`, TikTok `reader-report-insight-tiktok-v1`, Shopee `reader-report-insight-shopee-v1`.
 - Bảng: `analysis_reader_report_revisions`, `analysis_reader_report_decisions` (0048, 0050).
 - Quy tắc liên quan: R-L16.
 
 #### Scenario: Biểu đồ không phải Flint
-- **WHEN** bản đọc Market có biểu đồ SVG viết tay thay vì Flint
+- **WHEN** bản đọc Market có biểu đồ mẫu SVG viết tay thay vì Flint và không bật tùy chọn kiểm thử `flint: false`
 - **THEN** Reader không xuất bản bản đọc
 
 ### Requirement: R-P11 PDF in từ bản đọc đã lưu
@@ -204,7 +204,7 @@ Luồng Insight SHALL mã hóa bình luận (bằng luật và, khi bật cờ, 
 - **THEN** báo cáo hiện nhãn đã mã hóa và số đếm, còn vị trí nguồn nằm ở I17
 
 ### Requirement: R-P13 Thử nghiệm không tốn phí nguồn
-Môi trường thử SHALL dùng lại dữ liệu đã thu khi có `TDN_RESEARCH_KALODATA_REPLAY_SOURCE_RUN_ID`, và SHALL giới hạn review tối đa 20 mỗi sản phẩm khi `TDN_RESEARCH_AUTORUN_TEST_REVIEWS=1`.
+Môi trường thử SHALL dùng lại dữ liệu đã thu khi có `TDN_RESEARCH_KALODATA_REPLAY_SOURCE_RUN_ID`. Chế độ review thử SHALL dùng `TDN_RESEARCH_AUTORUN_TEST_REVIEWS=1` cùng trần review đã cấu hình tối đa 20 mỗi sản phẩm; cờ không tự giảm trần. Với nguồn review công khai, trần trên 20 làm cấu hình lỗi; với nguồn trả phí, chỉ khi đã có token, trần phí và trần review không quá 20 thì cấu hình mới có `autorunTestReviewCap` (`providers.ts`).
 
 - Mã: RA `kalodata-replay.ts`, `scripts/replay-test-instance.sh`.
 - Vì sao: thử không tốn điểm nguồn trả phí (replay mode, 18/10/2026).
@@ -226,6 +226,8 @@ Mỗi thay đổi mã SHALL qua `npm run check` trên CI Linux trước khi gộ
 
 ## Điểm chưa xác minh
 
+- Khoảng trống R-P02 với U-26 (`docs/business-spec/decisions/owner-decisions.md`): nguồn yêu cầu xóa dữ liệu dở và giữ một dòng chi phí. Mã `cancel`, `#settleSourceFailure` và `#persistSourceResult` ở RA `service.ts` giữ capture và các dòng usage đã thu, kể cả bằng chứng về muộn sau khi hủy. Giữ nguyên yêu cầu nguồn; chưa có bằng chứng mã thực hiện việc xóa theo U-26.
+- Khoảng trống R-M03, R-L01 với R-P06: nguồn yêu cầu file dấu vết `.md` riêng, còn RA `reports.ts` và `service.ts` dựng và giữ `traceHtml` dạng HTML cho Market trình bày. Giữ nguyên quy tắc nguồn; chưa có file `.md` tương ứng trong luồng này.
 - Khoảng trống R-M10 và R-P08: R-M10 ghi loại kiểm "Máy" cho ảnh bìa, nhưng code chỉ làm lần dựng lỗi khi ảnh bìa sai. Thiếu hẳn ảnh bìa chỉ ra kết quả "Bằng chứng" cho người đọc soát. Cần chủ quyết định sửa code hay sửa quy tắc.
 - Giá trị đầy đủ của trạng thái lần chạy (chỉ đọc `TERMINAL_STATUSES` trong RA `model.ts`).
 - Cách `reports.ts` chọn phiên bản bộ dựng `automation-report-kit-vNN`.
