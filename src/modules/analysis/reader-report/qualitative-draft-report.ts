@@ -6,7 +6,8 @@ import type {
   QualitativeDraftSourceRecord,
 } from '../../../../contracts/analysis/automation-qualitative-draft-v1.generated.js';
 import type { ReportCitations } from '../research-automation/descriptive-report.js';
-import { escapeHtml, readerPointer, technicalLiteral } from '../research-automation/descriptive-report.js';
+import { escapeHtml, readerPointer, retainedQuoteHtml, technicalLiteral } from '../research-automation/descriptive-report.js';
+import { hasHiddenName } from '../report-language/index.js';
 
 export type QualitativeDraftReportSection = 'I02' | 'I05' | 'I06' | 'I10' | 'I17';
 
@@ -35,7 +36,8 @@ const classificationName: Record<QualitativeDraftClassification['status'], strin
 function canonicalHttps(value: string): string | null {
   try {
     const url = new URL(value);
-    return url.protocol === 'https:' && url.username === '' && url.password === '' ? `${url.origin}${url.pathname}` : null;
+    const shown = `${url.origin}${url.pathname}`;
+    return url.protocol === 'https:' && url.username === '' && url.password === '' && !hasHiddenName(shown, 'CITATION') ? shown : null;
   } catch { return null; }
 }
 
@@ -72,15 +74,20 @@ function quoteMark(draft: AutomationQualitativeDraft, quote: QualitativeDraftQuo
   });
 }
 
+function copiedQuoteHtml(text: string): string {
+  return hasHiddenName(text, 'READER') ? retainedQuoteHtml(text, 'blockquote') : `<blockquote data-quote style="white-space:pre-wrap;overflow-wrap:anywhere">${escape(text)}</blockquote>`;
+}
+
 function quoteHtml(draft: AutomationQualitativeDraft, quote: QualitativeDraftQuote, citations: ReportCitations): string {
-  return `<blockquote data-quote style="white-space:pre-wrap;overflow-wrap:anywhere">${escape(quote.text)}</blockquote> ${quoteMark(draft, quote, citations)} <small>(UTF-16 ${quote.start}–${quote.end})</small>`;
+  const html = copiedQuoteHtml(quote.text);
+  return hasHiddenName(quote.text, 'READER') ? html : `${html} ${quoteMark(draft, quote, citations)} <small>(UTF-16 ${quote.start}–${quote.end})</small>`;
 }
 
 function recordContext(draft: AutomationQualitativeDraft, record: QualitativeDraftSourceRecord, citations: ReportCitations): string {
   const attribution = authorDisclosure(record);
   return `<details class="qualitative-context"><summary>Toàn văn và vị trí bản ghi ${escape(record.recordId)}</summary>`
     + `<p>${sourceMark(draft, record, citations)} · ${escape(admissionName[record.admission])}${record.admissionReason ? ` · ${escape(record.admissionReason)}` : ''}</p>`
-    + `<p>${attribution}</p>${record.text === null ? '<p>Không có văn bản đọc được.</p>' : `<blockquote data-quote style="white-space:pre-wrap;overflow-wrap:anywhere">${escape(record.text)}</blockquote>`}`
+    + `<p>${attribution}</p>${record.text === null ? '<p>Không có văn bản đọc được.</p>' : copiedQuoteHtml(record.text)}`
     + `<p><small>Vị trí: ${technicalLiteral(record.locator.owner)} · trang ${record.locator.pageIndex} · dòng ${record.locator.rowIndex} · ${technicalLiteral(record.locator.textPointer)} · mã băm bản ghi ${technicalLiteral(record.sourceHash)}</small></p></details>`;
 }
 
@@ -152,7 +159,7 @@ function recordsAppendix(draft: AutomationQualitativeDraft, citations: ReportCit
   const map = classificationFor(draft);
   const rows = draft.records.map(record => {
     const classification = map.get(record.recordIndex);
-    return `<tr><td>${escape(record.recordId)}<br>${sourceMark(draft, record, citations)}</td><td>${record.text === null ? 'Không có văn bản đọc được.' : `<blockquote data-quote style="white-space:pre-wrap;overflow-wrap:anywhere">${escape(record.text)}</blockquote>`}<br><small>${escape(admissionName[record.admission])}${record.admissionReason ? ` · ${escape(record.admissionReason)}` : ''}<br>${escape(authorDisclosure(record))}</small></td><td>${classification ? `${escape(classificationName[classification.status])}<br>Độ tin cậy: ${escape(confidenceName[classification.confidence])}<br>Tình huống: ${classification.situation === null ? 'Chưa có' : escape(classification.situation)}<br>Hành trình: ${classification.journey === null ? 'Chưa có' : escape(classification.journey)}<br>Chủ đề: ${classification.topic === null ? 'Chưa có' : escape(classification.topic)}<br>Cảm nhận: ${classification.statedSentiment === null ? 'Chưa có' : escape(sentimentName[classification.statedSentiment])}${classification.uncertainty ? `<br>Mơ hồ/chưa có dữ liệu: ${escape(classification.uncertainty.detail)}` : ''}${classification.quotes.map(quote => `<br>${quoteHtml(draft, quote, citations)}`).join('')}` : 'Chưa có phân loại'}</td><td><small>owner=${technicalLiteral(record.locator.owner)}; pageSha256=${technicalLiteral(record.locator.pageSha256)}; trang=${record.locator.pageIndex}; dòng=${record.locator.rowIndex}; pointer=${technicalLiteral(record.locator.textPointer)}; sourceHash=${technicalLiteral(record.sourceHash)}</small></td></tr>`;
+    return `<tr><td>${escape(record.recordId)}<br>${sourceMark(draft, record, citations)}</td><td>${record.text === null ? 'Không có văn bản đọc được.' : copiedQuoteHtml(record.text)}<br><small>${escape(admissionName[record.admission])}${record.admissionReason ? ` · ${escape(record.admissionReason)}` : ''}<br>${escape(authorDisclosure(record))}</small></td><td>${classification ? `${escape(classificationName[classification.status])}<br>Độ tin cậy: ${escape(confidenceName[classification.confidence])}<br>Tình huống: ${classification.situation === null ? 'Chưa có' : escape(classification.situation)}<br>Hành trình: ${classification.journey === null ? 'Chưa có' : escape(classification.journey)}<br>Chủ đề: ${classification.topic === null ? 'Chưa có' : escape(classification.topic)}<br>Cảm nhận: ${classification.statedSentiment === null ? 'Chưa có' : escape(sentimentName[classification.statedSentiment])}${classification.uncertainty ? `<br>Mơ hồ/chưa có dữ liệu: ${escape(classification.uncertainty.detail)}` : ''}${classification.quotes.map(quote => `<br>${quoteHtml(draft, quote, citations)}`).join('')}` : 'Chưa có phân loại'}</td><td><small>owner=${technicalLiteral(record.locator.owner)}; pageSha256=${technicalLiteral(record.locator.pageSha256)}; trang=${record.locator.pageIndex}; dòng=${record.locator.rowIndex}; pointer=${technicalLiteral(record.locator.textPointer)}; sourceHash=${technicalLiteral(record.sourceHash)}</small></td></tr>`;
   }).join('');
   return `<h3>Toàn văn, con trỏ và trạng thái từng bản ghi</h3><p>Toàn văn được giữ riêng với diễn giải. Đoạn trích chỉ được trình bày khi thuộc đúng bản ghi, con trỏ và khoảng UTF-16 đã lưu; phần không đọc được hoặc mơ hồ không được thay bằng câu mới.</p><div class="table-wrap" role="region" aria-label="Toàn văn và trạng thái bản ghi qualitative" tabindex="0"><table><caption>${platformName[draft.source.platform]} · nguồn, toàn văn, mã hóa và locator</caption><thead><tr><th>Bản ghi và citation</th><th>Toàn văn nguồn</th><th>Phân loại đề xuất</th><th>Locator và mã băm</th></tr></thead><tbody>${rows || '<tr><td colspan="4">Chưa có bản ghi.</td></tr>'}</tbody></table></div>`;
 }

@@ -312,7 +312,7 @@ function m09(methods: DescriptiveMarketMethods, citations: ReportCitations): Omi
 }
 
 const readerDate = (value: string): string => value.replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$3/$2/$1');
-const plainCopy = (value: string): boolean => readerSafe(value) && !containsForbiddenProviderName(value) && !/\b(?:Google|Gemini)\b|%/i.test(value);
+const plainCopy = (value: string): boolean => readerSafe(value) && !containsForbiddenProviderName(value) && !value.includes('%');
 const readerPeriod = (period: Observation['period']): string => period === null
   ? 'Chưa rõ kỳ quan sát' : `${readerDate(period.start)} đến ${readerDate(period.end)}`;
 const readerProduct = (id: string | null, ordinal: number, context: DescriptiveReaderContext): string => {

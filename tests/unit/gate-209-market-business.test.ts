@@ -48,8 +48,10 @@ for (const [rule, extra] of failingRules) {
   });
 }
 
-test('hidden and script provider text do not trigger G08', () => {
-  assert.equal(check(reportHtml('<div hidden>Metric OpenAI</div><script>Anthropic</script><p>Shopee TikTok</p>'), 'G08_PROVIDER_NAME').ok, true);
+test('hidden provider text triggers G08 while script text remains excluded', () => {
+  // Owner Q5, 24/10/2026: a name in hidden text is a leak; script text remains excluded.
+  assert.equal(check(reportHtml('<div hidden>Metric OpenAI</div><p>Shopee TikTok</p>'), 'G08_PROVIDER_NAME').ok, false);
+  assert.equal(check(reportHtml('<script>Anthropic</script><p>Shopee TikTok</p>'), 'G08_PROVIDER_NAME').ok, true);
 });
 
 test('G08 checks reader-visible provider attributes but ignores href URLs', () => {

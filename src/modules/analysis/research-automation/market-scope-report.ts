@@ -108,7 +108,7 @@ export function captureSampleSentence(capture: CaptureMetricMethodDetails): stri
     ...(rows.some(row => row.reason !== 'NOT_MAIN_PRODUCT') ? ['dòng có doanh thu hoặc đơn vị bán bất thường'] : [])];
   const removed = reasons.length ? `đã loại ${reasons.join(' và ')} trước khi tính` : current ? '' : 'không có dòng nào phải loại trước khi tính';
   const withheld = 'Từ khóa được giữ trong bản lưu';
-  const keyword = containsForbiddenProviderName(capture.capture.keyword) || /\b(?:Gemini|Google)\b/iu.test(capture.capture.keyword)
+  const keyword = containsForbiddenProviderName(capture.capture.keyword)
     ? withheld : storedLiteral(capture.capture.keyword, withheld, true);
   return `Mẫu gồm các sản phẩm trả về cho từ khóa “${keyword}”${removed ? `; ${removed}` : ''}; chưa chia nhóm sản phẩm.`;
 }

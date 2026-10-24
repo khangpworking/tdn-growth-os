@@ -3,7 +3,8 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import test, { type TestContext } from 'node:test';
 import { JSDOM } from 'jsdom';
-import { CitationRegistry, CITATION_FORBIDDEN_NAMES } from '../../src/modules/analysis/citation-registry.js';
+import { CitationRegistry } from '../../src/modules/analysis/citation-registry.js';
+import { hasHiddenName } from '../../src/modules/analysis/report-language/index.js';
 import { renderCitationMarkOrMissing, renderCitationRegister } from '../../src/modules/analysis/citation-register-html.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { marketInventorySection, type MarketInventoryReaderContext } from '../../src/modules/analysis/research-automation/market-inventory-report.js';
@@ -347,7 +348,7 @@ test('new reader prose and empty states use plain Vietnamese without percentages
     while (walker.nextNode()) text.push(walker.currentNode.textContent ?? '');
     const visible = text.join(' ').replace(/\s+/gu, ' ').trim();
     assert.doesNotMatch(visible, /%|(?:^|\s)0(?:\s|$)|\breview\b|\bexport\b|peer set|listing|variant|pack_size|\d{4}-\d{2}-\d{2}/iu);
-    for (const forbidden of CITATION_FORBIDDEN_NAMES) assert.ok(!visible.toLowerCase().includes(forbidden), 'technical name in reader text');
+    assert.equal(hasHiddenName(visible, 'CITATION'), false, 'technical name in reader text');
     assert.ok(auditMarketReportHtml(html).find(result => result.rule === 'G08_PROVIDER_NAME')!.ok);
     // A complete ASCII word must be an approved Vietnamese word, unit or platform.
     // This also excludes vendor/model names beyond the shared provider denylist.

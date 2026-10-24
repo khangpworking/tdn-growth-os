@@ -15,9 +15,9 @@ import type { DefaultMarketPeers } from '../../../../contracts/analysis/default-
 import { filterSerpApiResults } from './serpapi-l9-filter.js';
 import { boundedText, httpsUrl, parseProviderProductRef, splitPeriodIntoWindows } from './provider-common.js';
 import { KALODATA_LIMITS } from './provider-kalodata.js';
-import { searchInterestChartPoints, searchInterestPeriodSkip, searchInterestRange, searchInterestDocument, searchInterestRenderable, searchInterestUsage, SEARCH_INTEREST_USAGE_ORDINAL, type SearchInterestAttempt, type SearchInterestSource } from './search-interest.js';
-import { normalizeProvince, searchGeoDocument, searchGeoRenderable, SEARCH_GEO_USAGE_ORDINAL, type SearchGeoAttempt, type SearchGeoSource } from './search-geo.js';
-import { collectionWebRows, expandedQueryDocument, EXPANDED_SEARCH_USAGE_ORDINAL, webResultUrlKey, type ExpandedSearchAttempt, type ExpandedSearchSource } from './expanded-search-lane.js';
+import { searchInterestChartPoints, searchInterestRenderable, type SearchInterestSource } from './search-interest.js';
+import { normalizeProvince, searchGeoRenderable, type SearchGeoSource } from './search-geo.js';
+import { collectionWebRows, type ExpandedSearchSource } from './expanded-search-lane.js';
 import type { AutomationInsightPersonaReportRevisionRequest, PersonaReportSelection, PersonaSelectedReportSnapshot } from '../../../../contracts/analysis/automation-insight-persona-report.generated.js';
 import type { InsightModelAI } from './insight-model-execution.js';
 import { reviewCollectionPolicy } from './review-collection-policy.js';
@@ -32,7 +32,7 @@ import type { PrivateReviewReportView } from '../../../../contracts/analysis/pri
 import { buildResearchAutomationReport, marketPartialRowTotals, type MarketCoverInput } from './reports.js';
 import { buildMarketCover, marketCoverAlt, verifyMarketCoverRecord, type MarketCover, type MarketCoverAi } from './market-cover.js';
 import { MAX_COVER_JPEG_BYTES } from './cover-image-codec.js';
-import { assertMarketBusinessGate } from './market-business-gate.js';
+import { assertMarketReport } from './market-report-check.js';
 import { prepareInsightReaderBuild } from '../reader-report/insight-build-v1.js';
 import { ReaderReportInputError } from '../reader-report/build.js';
 import readerInputSchema from '../../../../contracts/analysis/reader-report-input.schema.json' with { type: 'json' };
@@ -110,17 +110,18 @@ import { readPreparedMetricCaptureSources } from './metric-capture-inventory.js'
 import { AutomationWorldBankSourceIntake, readConfirmedWorldBankSource, readWorldBankHistory, WORLD_BANK_INDICATORS, WORLD_BANK_PROFILE } from './world-bank-intake.js';
 import { pdfDocumentTitle, selectPdfExcerpts, storedPdfExcerpts, type PdfExcerpt } from './pdf-excerpt.js';
 import { readSellerVideoInputs, selectSellerVideos, storedSellerVideos, type AutomatedReadingInput, type SellerVideoAutomatedRef, type SellerVideos, type SellerVideoSources } from './seller-video.js';
-import { OFFICIAL_STATS_PROVIDER, OFFICIAL_STATS_USAGE_ORDINAL, officialStatsDocument, officialStatsFailed, officialStatsUsage, validOfficialStats, type OfficialStatsCollection, type OfficialStatsSource } from './official-statistics-lane.js';
-import { COMTRADE_PROFILE, COMTRADE_PROVIDER, COMTRADE_USAGE_ORDINAL, comtradeDocument, comtradeFailed, comtradeRenderable, comtradeUsage, type ComtradeCollection, type ComtradeSource } from './comtrade-lane.js';
-import { brandsFromPick, GOOGLE_ADS_PROFILE, GOOGLE_ADS_USAGE_ORDINAL, searchAdsDocument, searchAdsFailed, searchAdsUsageEntries, GOOGLE_ADS_DISCOVERY_USAGE_ORDINALS, type SearchAdsCollection, type SearchAdsSource } from './google-ads-lane.js';
-import { WORLD_BANK_SERIES_YEARS, worldBankDocument, worldBankFailed, worldBankRenderable, worldBankUsage, WORLD_BANK_PROVIDER, WORLD_BANK_USAGE_ORDINAL, type WorldBankAttempt, type WorldBankSource } from './world-bank-lane.js';
-import { publishAutomatedVideoReading, verifyAutomatedVideoReading, videoWatchCandidates, videoWatchDocument, videoWatchFailed, videoWatchReadingRefs, videoWatchUsage, VIDEO_WATCH_MAX_VIDEOS, VIDEO_WATCH_PROFILE, VIDEO_WATCH_USAGE_ORDINAL, type VideoWatchAttempt, type VideoWatchLane, type VideoWatchPlan } from './video-watch-lane.js';
-import { VIDEO_WATCH_PROVIDER } from './video-watch-gemini.js';
+import { validOfficialStats, type OfficialStatsSource } from './official-statistics-lane.js';
+import { COMTRADE_PROFILE, comtradeRenderable, type ComtradeSource } from './comtrade-lane.js';
+import { GOOGLE_ADS_PROFILE, GOOGLE_ADS_USAGE_ORDINAL, type SearchAdsSource } from './google-ads-lane.js';
+import { WORLD_BANK_SERIES_YEARS, worldBankRenderable, type WorldBankSource } from './world-bank-lane.js';
+import { pdfLane, runSaveStepLane, videoLane, type CaptureEnvelope, type PdfLaneFacts, type SaveStepCaptures, type SaveStepContext, type SaveStepLane, type VideoLaneFacts } from './collection-lanes-save-step.js';
+import { attemptCollectionLanes, collectionLaneManifests, collectionLaneOrdinals, collectionLanes, collectionLanesCancelled, collectionLaneUsage, lanesAfterVideo, lanesBeforeVideo, storeCollectionLanes, type CollectionLane, type CollectionLaneRun, type LaneCaptureStore, type LaneCheck, type LaneUsageRow } from './collection-lanes.js';
+import { publishAutomatedVideoReading, verifyAutomatedVideoReading, videoWatchReadingRefs, VIDEO_WATCH_MAX_VIDEOS, VIDEO_WATCH_PROFILE, type VideoWatchLane } from './video-watch-lane.js';
 import { topSellingTikTokVideos } from './tiktok-video-selection.js';
-import { TIKTOK_SHOP_REVIEWS_DOCUMENT_MEDIA_TYPE, TIKTOK_SHOP_REVIEWS_USAGE_ORDINAL, tiktokShopChannelDecision, tiktokShopReviewsDocument, tiktokShopReviewsFailed, tiktokShopReviewsStep, tiktokShopReviewsUsage, validTikTokShopReviewsStep, type TikTokShopReviewCandidate, type TikTokShopReviewsCollection, type TikTokShopReviewsSource } from './tiktok-shop-reviews.js';
-import { META_AUTO_PROVIDER, META_AUTO_USAGE_ORDINAL, metaBrandsFromPick, metaAutoDocument, metaAutoFailed, metaAutoHasEvidence, metaAutoReportView, metaAutoUsage, publishMetaAutoEvidence, validMetaAuto, verifyMetaAutoEvidence, type MetaAutoCollection, type MetaAutoReportView, type MetaAutoSource } from './meta-auto-lane.js';
-import { TIKTOK_TOP_ADS_PROVIDER, TIKTOK_TOP_ADS_USAGE_ORDINAL, publishTikTokTopAdsEvidence, tiktokTopAdsDocument, tiktokTopAdsFailed, tiktokTopAdsHasEvidence, tiktokTopAdsReportView, tiktokTopAdsUsage, validTikTokTopAds, verifyTikTokTopAdsEvidence, type TikTokTopAdsCollection, type TikTokTopAdsReportView, type TikTokTopAdsSource } from './tiktok-top-ads-lane.js';
-import { PDF_DISCOVERY_DOWNLOAD_USAGE_ORDINAL, PDF_DISCOVERY_MAX_FILES, PDF_DISCOVERY_PROVIDER, PDF_DISCOVERY_SEARCH_USAGE_ORDINAL, isPdfPath, pdfCandidates, pdfDiscoveryDocument, pdfDiscoveryDownloaded, pdfDiscoveryFailed, pdfDiscoveryMaxPages, PDF_DISCOVERY_MAX_PAGES_ENV, pdfDiscoveryUsage, validPdfDiscovery, type PdfCandidate, type PdfDiscoverySource, type PdfDownloadRun, type PdfSearchAttempt } from './pdf-discovery-lane.js';
+import { tiktokShopChannelDecision, validTikTokShopReviewsStep, type TikTokShopReviewCandidate, type TikTokShopReviewsSource } from './tiktok-shop-reviews.js';
+import { metaAutoReportView, validMetaAuto, verifyMetaAutoEvidence, type MetaAutoReportView, type MetaAutoSource } from './meta-auto-lane.js';
+import { tiktokTopAdsReportView, validTikTokTopAds, verifyTikTokTopAdsEvidence, type TikTokTopAdsReportView, type TikTokTopAdsSource } from './tiktok-top-ads-lane.js';
+import { PDF_DISCOVERY_PROVIDER, pdfDiscoveryDownloaded, pdfDiscoveryMaxPages, PDF_DISCOVERY_MAX_PAGES_ENV, validPdfDiscovery, type PdfDiscoverySource } from './pdf-discovery-lane.js';
 import type { Binding as WorldBankBinding } from '../../../../contracts/analysis/world-bank-intake-v1.generated.js';
 import type { PackageRef as WorldBankPackageRef, PrepareReceipt as WorldBankPrepareReceipt, View as WorldBankView, History as WorldBankHistory } from '../../../../contracts/api/research-automation-macro-intake-api.generated.js';
 import { AutomationMetricRuleAdoptions, type MetricRuleBinding } from './metric-rule-adoption.js';
@@ -165,7 +166,7 @@ import type Database from 'better-sqlite3';
 import type { DescriptiveMarketMethods } from '../../../../contracts/analysis/descriptive-market-methods.generated.js';
 import { AutomationDescriptiveMethodBridge } from './descriptive-method-bridge.js';
 import { DEFAULT_MARKET_PEER_RULE, classifiedMetricDefaultPeers, verifyDefaultMarketPeerRule } from '../default-market-peers.js';
-import { AutomationMarketMethodBridge, MARKET_CAPTURE_READ_BUDGET_BYTES, type AutomationMarketMethodSnapshot } from './market-method-bridge.js';
+import { AutomationMarketMethodBridge, type AutomationMarketMethodSnapshot } from './market-method-bridge.js';
 import { AutomationMetricMethodBridge, MetricMethodFailure, metricMethodFailureCode, type AutomationMetricMethodSnapshot, type MetricMethodFailureCode } from './metric-method-bridge.js';
 import { CAPTURE_ROW_PROFILE, CAPTURE_ROW_PROFILE_V2 } from './capture-row-quality.js';
 import { PageIndexCloudClient } from '../pageindex-cloud.js';
@@ -210,14 +211,12 @@ import { withDatabaseMutationMutex } from '../../../platform/db/database-mutatio
 import { ContentAddressedArtifactStore, type StoredArtifact } from '../../../platform/artifacts/artifact-store.js';
 import type {
   CollectInput,
-  CollectResult,
   ProviderCallOptions,
   ProviderRawCapture,
   QuickSearchInput,
 } from './providers.js';
 import {
   invalidProviderStep,
-  toWebResults,
   type AutomationSourcePort,
   type BoundCollectResult,
   type BoundQuickSearchResult,
@@ -241,8 +240,6 @@ import {
   STEP_IDS,
   TERMINAL_STATUSES,
   type CaptureRecord,
-  type StepExpandedQuery,
-  type StepPdfDiscovery,
   type StepWebResult,
   type ScopeSnapshot,
   type SourceStepId,
@@ -521,19 +518,6 @@ interface PersistableSourceResult {
   step: StepResultDocument;
 }
 
-/** The independent web-search lane of one collection; its usage is recorded at ordinal 2. */
-type WebSearchAttempt = { readonly bound: BoundCollectResult } | { readonly failedProvider: string };
-const WEB_USAGE_ORDINAL = 2;
-type TrendsAttempt = { readonly attempt: SearchInterestAttempt; readonly geo?: SearchGeoAttempt };
-type ExpandedAttempts = { readonly attempts: readonly ExpandedSearchAttempt[] };
-type WorldBankRun = { readonly attempts: readonly WorldBankAttempt[] } | { readonly thrown: true };
-type ComtradeRun = { readonly collection: ComtradeCollection } | { readonly thrown: true };
-type SearchAdsRun = { readonly collection: SearchAdsCollection } | { readonly thrown: true };
-type OfficialStatsRun = { readonly collection: OfficialStatsCollection } | { readonly thrown: true };
-type MetaAutoRun = { readonly collection: MetaAutoCollection } | { readonly thrown: true };
-type TikTokTopAdsRun = { readonly collection: TikTokTopAdsCollection } | { readonly thrown: true; readonly keyword: string | null };
-type TikTokShopReviewsRun = { readonly collection: TikTokShopReviewsCollection } | { readonly thrown: true };
-
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const REQUEST_KEY = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const DATE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
@@ -592,19 +576,12 @@ export class ResearchAutomationService {
   readonly #workspaces: DiscoveryWorkspaceReader;
   readonly #source: AutomationSourcePort | undefined;
   readonly #webSource: AutomationSourcePort | undefined;
-  readonly #trendsSource: SearchInterestSource | undefined;
-  readonly #trendsGeoSource: SearchGeoSource | undefined;
-  readonly #worldBankSource: WorldBankSource | undefined;
-  readonly #comtradeSource: ComtradeSource | undefined;
-  readonly #searchAdsSource: SearchAdsSource | undefined;
-  readonly #officialStatsSource: OfficialStatsSource | undefined;
-  readonly #videoWatch: VideoWatchLane | undefined;
-  readonly #metaAutoSource: MetaAutoSource | undefined;
-  readonly #tiktokTopAdsSource: TikTokTopAdsSource | undefined;
-  readonly #tiktokShopReviewsSource: TikTokShopReviewsSource | undefined;
+  /** Web, trends, province map, extra searches, World Bank, UN Comtrade, search-ads library, Cục Thống kê, Meta and TikTok top-ads, in run order (only the configured ones). */
+  readonly #collectionLanes: readonly CollectionLane[];
+  readonly #videoLane: SaveStepLane<VideoLaneFacts> | undefined;
+  readonly #pdfLane: SaveStepLane<PdfLaneFacts> | undefined;
   readonly #pdfDiscoverySource: PdfDiscoverySource | undefined;
   readonly #pdfCaptureMaxPages: number;
-  readonly #expandedSource: ExpandedSearchSource | undefined;
   readonly #renderer: ResearchAutomationReportRenderer | undefined;
   readonly #kalodataReplay: KalodataReplaySource | undefined;
   readonly #now: () => Date;
@@ -658,19 +635,11 @@ export class ResearchAutomationService {
     this.#workspaces = options.workspaceReader;
     this.#source = options.source;
     this.#webSource = options.webSource;
-    this.#trendsSource = options.trendsSource;
-    this.#trendsGeoSource = options.trendsGeoSource;
-    this.#worldBankSource = options.worldBankSource;
-    this.#comtradeSource = options.comtradeSource;
-    this.#searchAdsSource = options.searchAdsSource;
-    this.#officialStatsSource = options.officialStatsSource;
-    this.#videoWatch = options.videoWatch;
-    this.#metaAutoSource = options.metaAutoSource;
-    this.#tiktokTopAdsSource = options.tiktokTopAdsSource;
-    this.#tiktokShopReviewsSource = options.tiktokShopReviewsSource;
+    this.#collectionLanes = collectionLanes(options);
+    this.#videoLane = options.videoWatch ? videoLane(options.videoWatch) : undefined;
+    this.#pdfLane = options.pdfDiscoverySource ? pdfLane(options.pdfDiscoverySource) : undefined;
     this.#pdfDiscoverySource = options.pdfDiscoverySource;
     this.#pdfCaptureMaxPages = pdfDiscoveryMaxPages(options.pdfCaptureMaxPages === undefined ? process.env : { [PDF_DISCOVERY_MAX_PAGES_ENV]: String(options.pdfCaptureMaxPages) });
-    this.#expandedSource = options.expandedSource;
     this.#renderer = options.renderer;
     this.#kalodataReplay = options.kalodataReplay;
     this.#pageIndex = options.pageIndex;
@@ -2431,7 +2400,7 @@ export class ResearchAutomationService {
     const publicActivity = publicHistory.lastAt || publicUsage.lastAt ? { 'shopee-public-review': { lastDataAt: publicHistory.lastAt, dataCount: toNumber(publicHistory.total), lastUsageAt: publicUsage.lastAt, requestCountUncertain: publicUncertain } } : {};
     const searchAdsUsageAt = this.#db.prepare(`SELECT MAX(u.recorded_at) lastAt FROM analysis_research_automation_usage u
       JOIN analysis_research_automation_runs r ON r.run_id=u.run_id
-      WHERE r.workspace_id=? AND u.step_id='COLLECTION' AND u.ordinal IN (?,?,?,?) AND u.provider='serpapi' AND u.request_count>0`).get(workspaceId, GOOGLE_ADS_USAGE_ORDINAL, ...GOOGLE_ADS_DISCOVERY_USAGE_ORDINALS) as { lastAt: string | null };
+      WHERE r.workspace_id=? AND u.step_id='COLLECTION' AND u.ordinal IN (?,?,?,?) AND u.provider='serpapi' AND u.request_count>0`).get(workspaceId, ...collectionLaneOrdinals('searchAds')) as { lastAt: string | null };
     activity['search-ads-library'].lastUsageAt = searchAdsUsageAt.lastAt;
     const metaAutoUsageAt = this.#db.prepare(`SELECT MAX(u.recorded_at) lastAt FROM analysis_research_automation_usage u
       JOIN analysis_research_automation_runs r ON r.run_id=u.run_id
@@ -3684,124 +3653,60 @@ export class ResearchAutomationService {
           result.step = nativeSourceBlocked(result.step, resolution.state === 'AMBIGUOUS' ? 'NATIVE_SOURCE_AMBIGUOUS' : 'NATIVE_SOURCE_SCOPE_UNSUPPORTED');
         }
       }
-      let web: WebSearchAttempt | undefined;
-      if (stepId === 'COLLECTION' && this.#webSource && !controller.signal.aborted) {
-        try { web = { bound: await this.#webSource.collect(input as CollectInput, { signal: controller.signal }) }; }
-        catch { web = { failedProvider: this.#webSource.id.toLowerCase() }; }
-      }
-      let trends: TrendsAttempt | undefined;
-      if (stepId === 'COLLECTION' && this.#trendsSource && !controller.signal.aborted) {
-        const { keyword, requestedPeriod } = input as CollectInput;
-        // The provider is asked for the report period itself; only a period it cannot cover is skipped, each with its own reason.
-        const nowMs = this.#now().getTime(), skip = searchInterestPeriodSkip(requestedPeriod, nowMs), range = searchInterestRange(requestedPeriod, nowMs);
-        try {
-          trends = skip === null
-            ? { attempt: { kind: 'CALLED', keyword, range, result: await this.#trendsSource.collect(keyword, { signal: controller.signal }, range) } }
-            : { attempt: { kind: 'SKIPPED', keyword, reason: skip } };
-        } catch { trends = { attempt: { kind: 'THROWN', keyword, range } }; }
-        // One province map follows the series under the same period check; it is never repeated after a restart.
-        if (this.#trendsGeoSource && !controller.signal.aborted) {
-          let geo: SearchGeoAttempt;
-          try {
-            geo = skip !== null ? { kind: 'SKIPPED', keyword, reason: skip }
-              : { kind: 'CALLED', keyword, range, result: await this.#trendsGeoSource.collect(keyword, { signal: controller.signal }, range) };
-          } catch { geo = { kind: 'THROWN', keyword, range }; }
-          trends = { ...trends, geo };
-        }
-      }
-      // Extra searches run last, only when the plain web search was configured, and never repeat after a restart.
-      let expanded: ExpandedAttempts | undefined;
-      if (stepId === 'COLLECTION' && this.#expandedSource && this.#webSource && !controller.signal.aborted) {
-        try { expanded = { attempts: await this.#expandedSource.collect(input as CollectInput, { signal: controller.signal }) }; }
-        catch { expanded = { attempts: [] }; }
-      }
-      // Open country-level data comes last; it is one attempt per run and is never repeated after a restart.
-      let worldBank: WorldBankRun | undefined;
-      if (stepId === 'COLLECTION' && this.#worldBankSource && !controller.signal.aborted) {
-        try { worldBank = { attempts: await this.#worldBankSource.collect({ signal: controller.signal }) }; }
-        catch { worldBank = { thrown: true }; }
-      }
-      // UN Comtrade follows World Bank: one attempt per run, never repeated after a restart.
-      let comtrade: ComtradeRun | undefined;
-      if (stepId === 'COLLECTION' && this.#comtradeSource && !controller.signal.aborted) {
-        const { keyword, requestedPeriod } = input as CollectInput;
-        const productTitles = [
-          ...(result.result && 'productObservations' in result.result ? result.result.productObservations.flatMap(item => item.productName ? [item.productName] : []) : []),
-          ...result.step.productCards.flatMap(card => card.title ? [card.title] : []),
-        ];
-        try { comtrade = { collection: await this.#comtradeSource.collect({ keyword, description: start.description ?? null, mode: start.mode, periodEndDate: requestedPeriod.endDate, productTitles }, { signal: controller.signal }) }; }
-        catch { comtrade = { thrown: true }; }
-      }
-      // Search-ads library comes last: at most six paid calls including site discovery, never repeated after a restart. Brands come only from the auto-run pick record.
-      let searchAds: SearchAdsRun | undefined;
       const readPick = async (): Promise<unknown> => {
         try {
           const pickId = this.#hasAutorunTable() ? this.#autorunRow(row.runId)?.pickArtifactId : null;
           return pickId ? await this.#readJson<unknown>(pickId, MAX_JSON_ARTIFACT_BYTES, 'application/json') : null;
         } catch { return null; }
       };
-      if (stepId === 'COLLECTION' && this.#searchAdsSource && !controller.signal.aborted) {
-        const { requestedPeriod } = input as CollectInput;
-        const brands = brandsFromPick(await readPick());
-        const plainRows = web && 'bound' in web ? web.bound.step.webResults ?? [] : [];
-        const seen = new Set(plainRows.map(item => webResultUrlKey(item.url)));
-        const expandedRows = (expanded?.attempts ?? []).flatMap(attempt => expandedQueryDocument(attempt, 0, seen).results);
-        const webUrls = [...plainRows, ...expandedRows].sort((a, b) => a.position - b.position).map(item => item.url);
-        try { searchAds = { collection: await this.#searchAdsSource.collect({ brands, webUrls, periodStartDate: requestedPeriod.startDate, periodEndDate: requestedPeriod.endDate }, { signal: controller.signal }) }; }
-        catch { searchAds = { thrown: true }; }
-      }
-      // Cục Thống kê follows UN Comtrade: one listing and at most two workbooks per run, never repeated after a restart.
-      let officialStats: OfficialStatsRun | undefined;
-      if (stepId === 'COLLECTION' && this.#officialStatsSource && !controller.signal.aborted) {
-        const { keyword } = input as CollectInput;
-        try { officialStats = { collection: await this.#officialStatsSource.collect({ keyword, description: start.description ?? null, mode: start.mode }, { signal: controller.signal }) }; }
-        catch { officialStats = { thrown: true }; }
-      }
-      // Meta ad library auto-read comes after the paid lanes: at most five logged-out page opens for the top two pick brands
-      // (the search-ads input; E11 peers exist only after REPORTS), never repeated after a restart. It shares the one browser-CLI lock with the Metric capture.
-      let metaAuto: MetaAutoRun | undefined;
-      if (stepId === 'COLLECTION' && this.#metaAutoSource && !controller.signal.aborted) {
-        try {
-          const brands = metaBrandsFromPick(await readPick());
-          metaAuto = { collection: await this.#metaAutoSource.collect({ brands }, { signal: controller.signal }) };
-        }
-        catch { metaAuto = { thrown: true }; }
-      }
-      // TikTok top-ads auto-read follows the Meta read: one logged-out open of the public top-ads list for the product keyword
-      // (at most five, 30 s apart), never repeated after a restart. It shares the one browser-CLI lock with Metric and Meta.
-      let tiktokTopAds: TikTokTopAdsRun | undefined;
-      if (stepId === 'COLLECTION' && this.#tiktokTopAdsSource && !controller.signal.aborted) {
-        const { keyword } = input as CollectInput;
-        try { tiktokTopAds = { collection: await this.#tiktokTopAdsSource.collect({ keyword }, { signal: controller.signal }) }; }
-        catch { tiktokTopAds = { thrown: true, keyword }; }
-      }
-      // TikTok Shop reviews (S06) come last: Insight runs only, at most three confirmed and collected TikTok Shop products
-      // with a quick-search card (the set the top-selling videos use), top by the run's own revenue, one paid call each,
-      // never repeated after a restart. The main-channel rule needs the run's sales data and is evaluated at report build.
-      let tiktokShopReviews: TikTokShopReviewsRun | undefined;
-      if (stepId === 'COLLECTION' && this.#tiktokShopReviewsSource && !controller.signal.aborted) {
-        try {
-          const confirmed = new Set([...(scope?.selectedProductIds ?? []), ...(scope?.peerProductIds ?? [])]);
-          const carded = new Set(((await this.#stepDocument(row.runId, 'QUICK_SEARCH'))?.productCards ?? []).filter(card => card.provider === 'kalodata').map(card => card.productId));
-          const revenue = new Map<string, number | null>();
-          for (const value of result.step.comparables) {
-            if (value.provider !== 'kalodata' || !confirmed.has(value.productId) || !carded.has(value.productId)) continue;
-            const amount = value.metric === 'GMV_VND' ? Number(value.value) : NaN;
-            const prior = revenue.get(value.productId) ?? null;
-            revenue.set(value.productId, Number.isFinite(amount) ? (prior ?? 0) + amount : prior);
-          }
-          const candidates: TikTokShopReviewCandidate[] = [...revenue].flatMap(([ref, amount]) => {
-            const parsed = parseProviderProductRef(ref);
-            return parsed ? [{ productId: parsed.sourceProductId, revenue: amount }] : [];
-          });
-          tiktokShopReviews = { collection: await this.#tiktokShopReviewsSource.collect({ reports: start.reports, candidates }, { signal: controller.signal }) };
-        } catch { tiktokShopReviews = { thrown: true }; }
-      }
+      // Web, trends, province map, extra searches, World Bank, UN Comtrade, search-ads library, Cục Thống kê, Meta and TikTok
+      // top-ads reads and TikTok Shop reviews: one attempt each per run, in that order, never repeated after a restart.
+      const lanes = await attemptCollectionLanes(this.#collectionLanes, stepId, {
+        keyword: start.keyword, description: start.description ?? null, mode: start.mode, requestedPeriod: (input as CollectInput).requestedPeriod,
+        productTitles: () => [
+          ...(result.result && 'productObservations' in result.result ? result.result.productObservations.flatMap(item => item.productName ? [item.productName] : []) : []),
+          ...result.step.productCards.flatMap(card => card.title ? [card.title] : []),
+        ],
+        readPick,
+        run: {
+          input: input as CollectInput,
+          productAttempted: result.result !== null || result.unsettledProvider !== undefined || exact !== undefined || result.step.coverage.some(value => value.provider === 'apify-dami'),
+          now: this.#now,
+          publish: (refusal, write) => {
+            const writer = new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
+            return withDatabaseMutationMutex(this.#db, async () => {
+              const current = this.#current(row.runId);
+              if (!current || ['FAILED', 'CANCELLING', 'CANCELLED', 'INTERRUPTED'].includes(current.status)) throw new ResearchAutomationStateError(refusal);
+              return write(writer);
+            });
+          },
+        },
+        tiktokShopReviews: {
+          reports: start.reports,
+          // Confirmed products (selected and peers) with a quick-search card, summed by the run's own revenue.
+          candidates: async () => {
+            const confirmed = new Set([...(scope?.selectedProductIds ?? []), ...(scope?.peerProductIds ?? [])]);
+            const carded = new Set(((await this.#stepDocument(row.runId, 'QUICK_SEARCH'))?.productCards ?? []).filter(card => card.provider === 'kalodata').map(card => card.productId));
+            const revenue = new Map<string, number | null>();
+            for (const value of result.step.comparables) {
+              if (value.provider !== 'kalodata' || !confirmed.has(value.productId) || !carded.has(value.productId)) continue;
+              const amount = value.metric === 'GMV_VND' ? Number(value.value) : NaN;
+              const prior = revenue.get(value.productId) ?? null;
+              revenue.set(value.productId, Number.isFinite(amount) ? (prior ?? 0) + amount : prior);
+            }
+            return [...revenue].flatMap(([ref, amount]): TikTokShopReviewCandidate[] => {
+              const parsed = parseProviderProductRef(ref);
+              return parsed ? [{ productId: parsed.sourceProductId, revenue: amount }] : [];
+            });
+          },
+          putDocument: bytes => this.#artifacts.put(bytes),
+        },
+      }, controller.signal);
       try {
         // The report-PDF lane runs inside the save step, after L9 admission of this run's rows, so its candidates are admitted rows only.
-        await this.#persistSourceResult(row.runId, stepId, result, controller.signal.aborted, exact, web, controller.signal, trends, expanded, worldBank, comtrade, searchAds, officialStats, metaAuto, tiktokTopAds,
+        await this.#persistSourceResult(row.runId, stepId, result, controller.signal.aborted, exact, controller.signal, lanes,
           stepId === 'COLLECTION' && this.#pdfDiscoverySource ? input as CollectInput : undefined,
-          sources?.value.contractVersion === 'automation-confirmed-source-set-v2' ? sources : undefined, tiktokShopReviews);
+          sources?.value.contractVersion === 'automation-confirmed-source-set-v2' ? sources : undefined);
         if (sources?.value.contractVersion === 'automation-confirmed-source-set-v2') await this.#executePublicTail(row, sources, controller.signal);
       } catch (error) {
         if (!(error instanceof ResearchAutomationProviderOutputError)) throw error;
@@ -4286,7 +4191,7 @@ export class ResearchAutomationService {
         if (semanticBytes.byteLength > MAX_JSON_ARTIFACT_BYTES || html.byteLength > MAX_HTML_BYTES) throw new ResearchAutomationIntegrityError('Research report output exceeds its bound.');
         // Partial row sums are checked on the presentation report, whose renderer never states them;
         // the older plain renderer is kept unchanged for earlier runs.
-        if (kind === 'MARKET') assertMarketBusinessGate(html.toString('utf8'), { presentation: Boolean(input.marketPresentation), ...(input.publicReviewSource ? { publicReviewSource: true } : {}),
+        if (kind === 'MARKET') assertMarketReport(html.toString('utf8'), { kind: 'STORED', presentation: Boolean(input.marketPresentation), publicReviewSource: Boolean(input.publicReviewSource),
           ...(input.marketPresentation ? { partialTotals: marketPartialRowTotals(input) } : {}) });
         const semantic = await this.#artifacts.put(semanticBytes);
         const htmlArtifact = await this.#artifacts.put(html);
@@ -4456,7 +4361,7 @@ export class ResearchAutomationService {
     })(); });
   }
 
-  async #persistSourceResult(runId: string, stepId: SourceStepId, bound: PersistableSourceResult, aborted: boolean, exact?: ExactShopeeAttempt, web?: WebSearchAttempt, signal?: AbortSignal, trends?: TrendsAttempt, expanded?: ExpandedAttempts, worldBank?: WorldBankRun, comtrade?: ComtradeRun, searchAds?: SearchAdsRun, officialStats?: OfficialStatsRun, metaAuto?: MetaAutoRun, tiktokTopAds?: TikTokTopAdsRun, pdfInput?: CollectInput, publicSources?: FrozenSources, tiktokShopReviews?: TikTokShopReviewsRun): Promise<void> {
+  async #persistSourceResult(runId: string, stepId: SourceStepId, bound: PersistableSourceResult, aborted: boolean, exact?: ExactShopeeAttempt, signal?: AbortSignal, lanes: readonly CollectionLaneRun[] = [], pdfInput?: CollectInput, publicSources?: FrozenSources): Promise<void> {
     const result = bound.result;
     let step = bound.step;
     const nativeCoverage = bound.step.coverage.filter(value => value.provider === 'apify-dami');
@@ -4472,7 +4377,7 @@ export class ResearchAutomationService {
       envelopes = [];
       step = invalidProviderStep(runId, stepId);
     }
-    const putCaptures = async (values: NonNullable<ReturnType<typeof captureEnvelopes>>, retainPdf = true): Promise<void> => {
+    const putCaptures = async (values: readonly CaptureEnvelope[], retainPdf = true): Promise<void> => {
       for (const { capture, body } of values) {
         if (retainPdf && stepId === 'COLLECTION' && capture.responseBytes && !aborted &&
           Buffer.from(capture.responseBytes.subarray(0, 5)).toString('utf8') === '%PDF-') {
@@ -4500,30 +4405,6 @@ export class ResearchAutomationService {
       // cannot be admitted. No invalid observation enters a report.
       step = invalidProviderStep(runId, stepId);
     }
-    // Web captures follow the product source's captures, so existing
-    // comparable indexes stay valid and web results are offset past them.
-    let webStep: StepResultDocument | undefined;
-    if (web && 'bound' in web) {
-      const offset = captures.length;
-      const webEnvelopes = captureEnvelopes(web.bound.result);
-      await putCaptures(webEnvelopes ?? []);
-      const provider = web.bound.result.provider.toLowerCase();
-      const shifted = { ...web.bound.step, ...(web.bound.step.webResults ? { webResults: web.bound.step.webResults.map(value => ({ ...value, captureIndex: value.captureIndex + offset })) } : {}) };
-      try {
-        if (!webEnvelopes) throw new ResearchAutomationProviderOutputError('Web search capture exceeds its retention bound.');
-        assertStepDocument(shifted, runId, stepId);
-        assertCaptureLineage(shifted, captures.map(value => value.row));
-        webStep = shifted;
-      } catch {
-        webStep = { ...invalidProviderStep(runId, stepId),
-          coverage: [{ provider, dataset: 'web_discovery_current', state: 'FAILED', observedStartDate: null, observedEndDate: null, truncated: false, note: null }],
-          limitations: [{ code: 'PROVIDER_OUTPUT_INVALID', provider, message: message('PROVIDER_OUTPUT_INVALID') }] };
-      }
-    } else if (web) {
-      webStep = { ...invalidProviderStep(runId, stepId),
-        coverage: [{ provider: web.failedProvider, dataset: 'web_discovery_current', state: 'FAILED', observedStartDate: null, observedEndDate: null, truncated: false, note: null }],
-        limitations: [{ code: 'PROVIDER_FAILED', provider: web.failedProvider, message: message('PROVIDER_FAILED') }] };
-    }
     if (nativeCoverage.length) step = { ...step,
       outcome: bound.step.nativeReview || step.outcome === 'SUCCEEDED' || step.outcome === 'PARTIAL' ? 'PARTIAL' : 'FAILED',
       ...(bound.step.nativeReview ? { nativeReview: bound.step.nativeReview } : {}),
@@ -4538,256 +4419,44 @@ export class ResearchAutomationService {
       ...(exact.privateReference ? { privateShopee: exact.privateReference } : {}),
       ...(exact.reference ? { exactShopee: exact.reference } : {}),
       ...(exact.reference && exact.exactShopeeOutcome ? { exactShopeeOutcome: exact.exactShopeeOutcome } : {}) };
-    if (webStep) {
-      // Without any product-source attempt the web lane alone decides the outcome.
-      const productAttempted = result !== null || bound.unsettledProvider !== undefined || exact !== undefined || nativeCoverage.length > 0;
-      const useful = (value: StepResultDocument['outcome']) => value === 'SUCCEEDED' || value === 'PARTIAL';
-      step = { ...step,
-        outcome: !productAttempted ? webStep.outcome
-          : step.outcome === 'SUCCEEDED' && webStep.outcome === 'SUCCEEDED' ? 'SUCCEEDED'
-            : useful(step.outcome) || useful(webStep.outcome) ? 'PARTIAL' : step.outcome,
-        coverage: [...step.coverage, ...webStep.coverage], limitations: [...step.limitations, ...webStep.limitations],
-        ...(webStep.webResults?.length ? { webResults: webStep.webResults } : {}) };
-    }
-    // The search-interest capture follows the web captures. Its reason code lives only in the step's own field:
-    // a failed series never changes the step outcome, coverage or run blockers.
-    let trendsResult: Extract<SearchInterestAttempt, { kind: 'CALLED' }>['result'] | null = null;
-    if (trends) {
-      const attempt = trends.attempt, thrown: SearchInterestAttempt = { kind: 'THROWN', keyword: attempt.keyword };
-      const offset = captures.length;
-      const trendsEnvelopes = attempt.kind === 'CALLED' ? captureEnvelopes(attempt.result) : [];
-      await putCaptures(trendsEnvelopes ?? []);
-      const document = searchInterestDocument(trendsEnvelopes ? attempt : thrown, captures.length > offset ? captures.length - 1 : null);
-      const probe = { ...step, searchInterest: document };
-      try {
-        assertStepDocument(probe, runId, stepId);
-        assertCaptureLineage(probe, captures.map(value => value.row));
-        step = probe;
-      } catch { step = { ...step, searchInterest: searchInterestDocument(thrown, null) }; }
-      if (attempt.kind === 'CALLED') trendsResult = attempt.result;
-    }
-    // The province-map capture follows the series capture; a failure keeps only its own reason code.
-    let geoResult: Extract<SearchGeoAttempt, { kind: 'CALLED' }>['result'] | null = null;
-    if (trends?.geo) {
-      const attempt = trends.geo, thrown: SearchGeoAttempt = { kind: 'THROWN', keyword: attempt.keyword };
-      const offset = captures.length;
-      const geoEnvelopes = attempt.kind === 'CALLED' ? captureEnvelopes(attempt.result) : [];
-      await putCaptures(geoEnvelopes ?? []);
-      try {
-        const document = searchGeoDocument(geoEnvelopes ? attempt : thrown, captures.length > offset ? captures.length - 1 : null);
-        const probe = { ...step, searchGeo: document };
-        assertStepDocument(probe, runId, stepId);
-        assertCaptureLineage(probe, captures.map(value => value.row));
-        step = probe;
-      } catch { step = { ...step, searchGeo: searchGeoDocument(thrown, null) }; }
-      if (attempt.kind === 'CALLED') geoResult = attempt.result;
-    }
-    // The extra searches' captures follow the trends capture. Rows already seen in the plain web rows are dropped (plain wins).
-    // Like the series, a failed query keeps only a reason code and never changes the step outcome, coverage or run blockers.
-    const expandedCalled: Extract<ExpandedSearchAttempt, { state: 'CALLED' }>[] = [];
-    const expandedThrown: ExpandedSearchAttempt[] = [];
-    if (expanded?.attempts.length) {
-      const seen = new Set((step.webResults ?? []).map(row => webResultUrlKey(row.url)));
-      const queries: StepExpandedQuery[] = [];
-      for (const attempt of expanded.attempts) {
-        const offset = captures.length;
-        const envelopes = attempt.state === 'CALLED' ? captureEnvelopes(attempt.result) : [];
-        await putCaptures(envelopes ?? []);
-        const thrown: ExpandedSearchAttempt = { kind: attempt.kind, state: 'THROWN' };
-        queries.push(expandedQueryDocument(envelopes ? attempt : thrown, captures.length > offset ? offset : null, seen));
-        if (attempt.state === 'CALLED') expandedCalled.push(attempt); else if (attempt.state === 'THROWN') expandedThrown.push(attempt);
-      }
-      const probe = { ...step, expandedSearch: { queries } };
-      try {
-        assertStepDocument(probe, runId, stepId);
-        assertCaptureLineage(probe, captures.map(value => value.row));
-        step = probe;
-      } catch {
-        step = { ...step, expandedSearch: { queries: queries.map(query => ({ kind: query.kind, status: 'FAILED' as const, reason: 'PROVIDER_FAILED' as const,
-          requestedWindow: null, retrievedAt: null, captureIndex: null, results: [] })) } };
-      }
-    }
-    // World Bank captures follow the extra searches. A dropped indicator keeps a reason code only and never changes the
-    // step outcome, coverage or run blockers; only responses that passed the inspector are stored.
-    const worldBankAttempts = worldBank && 'attempts' in worldBank ? worldBank.attempts : [];
-    if (worldBank) {
-      const indexes: ([number, number] | null)[] = [];
-      for (const attempt of worldBankAttempts) {
-        const envelopes = attempt.observation && attempt.metadata ? captureEnvelopes({ captures: [attempt.observation, attempt.metadata] }) : null;
-        if (!envelopes) { indexes.push(null); continue; }
-        indexes.push([captures.length, captures.length + 1]);
-        await putCaptures(envelopes);
-      }
-      const probe = { ...step, worldBank: worldBankAttempts.length ? worldBankDocument(worldBankAttempts, indexes) : worldBankFailed('PROVIDER_FAILED') };
-      try {
-        assertStepDocument(probe, runId, stepId);
-        assertCaptureLineage(probe, captures.map(value => value.row));
-        step = probe;
-      } catch { step = { ...step, worldBank: worldBankFailed('DOCUMENT_INVALID') }; }
-    }
-    // UN Comtrade captures follow World Bank. Only responses of the confirmed code are stored; without a confirmed code the
-    // document is a status only and no number is kept.
-    const comtradeCollection = comtrade && 'collection' in comtrade ? comtrade.collection : undefined;
-    if (comtrade) {
-      const indexes: (number | null)[] = [];
-      for (const item of comtradeCollection?.calls ?? []) {
-        const envelopes = captureEnvelopes({ captures: [item.capture] });
-        if (!envelopes) { indexes.push(null); continue; }
-        indexes.push(captures.length);
-        await putCaptures(envelopes);
-      }
-      const probe = { ...step, comtrade: comtradeCollection ? comtradeDocument(comtradeCollection, indexes) : comtradeFailed('FAILED') };
-      try {
-        assertStepDocument(probe, runId, stepId);
-        assertCaptureLineage(probe, captures.map(value => value.row));
-        step = probe;
-      } catch { step = { ...step, comtrade: comtradeFailed('FAILED') }; }
-    }
-    // Search-ads library captures follow Comtrade: discovery and ads responses per called brand; no advertiser detail is kept in the document.
-    const searchAdsCollection = searchAds && 'collection' in searchAds ? searchAds.collection : undefined;
-    if (searchAds) {
-      const indexes: (number | null)[] = [], discoveryIndexes: (number | null)[] = [];
-      for (const item of searchAdsCollection?.brands ?? []) {
-        const discovery = item.discoveryCapture ? captureEnvelopes({ captures: [item.discoveryCapture] }) : null;
-        discoveryIndexes.push(discovery?.length ? captures.length : null);
-        if (discovery) await putCaptures(discovery);
-        const envelopes = item.capture ? captureEnvelopes({ captures: [item.capture] }) : null;
-        if (!envelopes) { indexes.push(null); continue; }
-        indexes.push(captures.length);
-        await putCaptures(envelopes);
-      }
-      const probe = { ...step, searchAds: searchAdsCollection ? searchAdsDocument(searchAdsCollection, indexes, discoveryIndexes) : searchAdsFailed('FAILED') };
-      try {
-        assertStepDocument(probe, runId, stepId);
-        assertCaptureLineage(probe, captures.map(value => value.row));
-        step = probe;
-      } catch { step = { ...step, searchAds: searchAdsFailed('FAILED') }; }
-    }
-    // Cục Thống kê captures follow UN Comtrade: the listing, then each downloaded workbook. Without a confirmed category the
-    // document is a status only and no number is kept.
-    const officialStatsCollection = officialStats && 'collection' in officialStats ? officialStats.collection : undefined;
-    if (officialStats) {
-      let listIndex: number | null = null;
-      const fileIndexes: (number | null)[] = [];
-      const listEnvelopes = officialStatsCollection?.list ? captureEnvelopes({ captures: [officialStatsCollection.list] }) : null;
-      if (listEnvelopes) { listIndex = captures.length; await putCaptures(listEnvelopes); }
-      for (const item of officialStatsCollection?.files ?? []) {
-        const envelopes = captureEnvelopes({ captures: [item.capture] });
-        if (!envelopes) { fileIndexes.push(null); continue; }
-        fileIndexes.push(captures.length);
-        await putCaptures(envelopes);
-      }
-      const probe = { ...step, officialStats: officialStatsCollection ? officialStatsDocument(officialStatsCollection, listIndex, fileIndexes) : officialStatsFailed('FAILED') };
-      try {
-        assertStepDocument(probe, runId, stepId);
-        assertCaptureLineage(probe, captures.map(value => value.row));
-        step = probe;
-      } catch { step = { ...step, officialStats: officialStatsFailed('FAILED') }; }
-    }
-    // Video readings come last: candidates are the run's stored selection and the stored TikTok search rows (no new search),
-    // and their model-answer captures follow the World Bank captures. A skipped video keeps a reason code only and never
-    // changes the step outcome, coverage or run blockers.
-    let videoWatchAttempts: VideoWatchAttempt[] | undefined;
-    let videoWatchThrown = false;
-    if (stepId === 'COLLECTION' && this.#videoWatch) {
-      let plan: VideoWatchPlan = videoWatchCandidates([], undefined);
-      try {
-        const context = await this.#videoWatchContext(runId, step);
-        if (context.topSellingGap) step = { ...step, limitations: [...step.limitations, { code: 'TOP_SELLING_VIDEO_LOCATORS_UNAVAILABLE', provider: null,
-          message: 'Dữ liệu sản phẩm đã chọn còn thiếu đường dẫn video bán chạy dùng được.' }] };
-        plan = videoWatchCandidates(context.selectionVideos, step.expandedSearch?.queries, context.topSellingVideos);
-        const binding = { ...context.binding, candidatesSha256: plan.candidatesSha256 };
-        const writer = new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
-        videoWatchAttempts = await this.#videoWatch.run({ binding, productKeyword: context.productKeyword, candidates: plan.candidates, ...(signal ? { signal } : {}),
-          publish: prepared => withDatabaseMutationMutex(this.#db, async () => {
-            const current = this.#current(runId);
-            if (!current || signal?.aborted || ['FAILED', 'CANCELLING', 'CANCELLED', 'INTERRUPTED'].includes(current.status)) throw new ResearchAutomationStateError('This run cannot publish a video reading.');
-            return publishAutomatedVideoReading(writer, binding, prepared);
-          }) });
-      } catch { videoWatchThrown = true; }
-      const indexes: (number | null)[] = [];
-      for (const attempt of videoWatchAttempts ?? []) {
-        const envelopes = attempt.captures.length ? captureEnvelopes({ captures: attempt.captures }) : null;
-        if (!envelopes?.length) { indexes.push(null); continue; }
-        await putCaptures(envelopes);
-        indexes.push(captures.length - 1);
-      }
-      const probe = { ...step, videoWatch: videoWatchAttempts ? videoWatchDocument(plan, videoWatchAttempts, indexes) : videoWatchFailed(plan, 'PROVIDER_FAILED') };
-      try {
-        assertStepDocument(probe, runId, stepId);
-        assertCaptureLineage(probe, captures.map(value => value.row));
-        step = probe;
-      } catch { step = { ...step, videoWatch: videoWatchFailed(plan, 'DOCUMENT_INVALID') }; }
-    }
-    // Meta ad library auto-read: retained reads (final URL, capped text, fingerprint; never raw HTML) go into one Foundation
-    // attachment bound to this run. Without stored evidence the document keeps no figures.
-    const metaAutoCollection = metaAuto && 'collection' in metaAuto ? metaAuto.collection : undefined;
-    if (metaAuto) {
-      let document = metaAutoCollection ? metaAutoDocument(metaAutoCollection, null) : metaAutoFailed('FAILED');
-      if (metaAutoCollection && metaAutoHasEvidence(metaAutoCollection)) {
-        try {
-          const writer = new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
-          document = await withDatabaseMutationMutex(this.#db, async () => {
-            const current = this.#current(runId);
-            if (!current || ['FAILED', 'CANCELLING', 'CANCELLED', 'INTERRUPTED'].includes(current.status)) throw new ResearchAutomationStateError('This run cannot publish a Meta ad library read.');
-            return publishMetaAutoEvidence(writer, runId, metaAutoCollection);
-          });
-        } catch { /* keeps the evidence-free document */ }
-      }
-      const probe = { ...step, metaAuto: document };
-      try {
-        assertStepDocument(probe, runId, stepId);
-        step = probe;
-      } catch { step = { ...step, metaAuto: metaAutoFailed('FAILED', metaAutoCollection?.opens ?? 0) }; }
-    }
-    // TikTok top-ads auto-read: same evidence rule as the Meta read (final URL, capped text, fingerprint; never raw HTML).
-    const tiktokTopAdsCollection = tiktokTopAds && 'collection' in tiktokTopAds ? tiktokTopAds.collection : undefined;
-    if (tiktokTopAds) {
-      const keyword = tiktokTopAdsCollection ? tiktokTopAdsCollection.keyword : 'keyword' in tiktokTopAds ? tiktokTopAds.keyword : null;
-      let document = tiktokTopAdsCollection ? tiktokTopAdsDocument(tiktokTopAdsCollection, null) : tiktokTopAdsFailed(keyword);
-      if (tiktokTopAdsCollection && tiktokTopAdsHasEvidence(tiktokTopAdsCollection)) {
-        try {
-          const writer = new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
-          document = await withDatabaseMutationMutex(this.#db, async () => {
-            const current = this.#current(runId);
-            if (!current || ['FAILED', 'CANCELLING', 'CANCELLED', 'INTERRUPTED'].includes(current.status)) throw new ResearchAutomationStateError('This run cannot publish a TikTok top-ads read.');
-            return publishTikTokTopAdsEvidence(writer, runId, tiktokTopAdsCollection);
-          });
-        } catch { /* keeps the evidence-free document */ }
-      }
-      const probe = { ...step, tiktokTopAds: document };
-      try {
-        assertStepDocument(probe, runId, stepId);
-        step = probe;
-      } catch { step = { ...step, tiktokTopAds: tiktokTopAdsFailed(keyword, 'FAILED', tiktokTopAdsCollection?.opens ?? 0) }; }
-    }
-    // TikTok Shop reviews (S06): each raw response is a private capture; the normalized document (review text, no personal
-    // field) is a separate private artifact. The step keeps counts and digests only, never review text.
-    const tiktokShopReviewsCollection = tiktokShopReviews && 'collection' in tiktokShopReviews ? tiktokShopReviews.collection : undefined;
-    let tiktokShopReviewsArtifact: StoredArtifact | null = null;
-    if (tiktokShopReviews) {
-      let probe: StepResultDocument;
-      try {
-        if (!tiktokShopReviewsCollection) throw new ResearchAutomationProviderOutputError('TikTok Shop reviews lane failed.');
-        const indexes = new Map<string, number | null>();
-        const phase = tiktokShopReviewsCollection.result;
-        for (const capture of phase?.captures ?? []) {
-          const envelopes = captureEnvelopes({ captures: [capture] });
-          if (!envelopes) continue;
-          const product = phase!.products.find(item => item.captureId === capture.captureId);
-          if (product) indexes.set(product.productId, captures.length);
-          await putCaptures(envelopes, false);
-        }
-        const document = tiktokShopReviewsDocument(tiktokShopReviewsCollection);
-        tiktokShopReviewsArtifact = document.status === 'SKIPPED' ? null : await this.#artifacts.put(Buffer.from(canonicalJson(document), 'utf8'));
-        probe = { ...step, tiktokShopReviews: tiktokShopReviewsStep(document, tiktokShopReviewsArtifact?.sha256 ?? null, indexes) };
-      } catch { tiktokShopReviewsArtifact = null; probe = { ...step, tiktokShopReviews: tiktokShopReviewsFailed() }; }
-      try {
-        assertStepDocument(probe, runId, stepId);
-        assertCaptureLineage(probe, captures.map(value => value.row));
-        step = probe;
-      } catch { tiktokShopReviewsArtifact = null; step = { ...step, tiktokShopReviews: tiktokShopReviewsFailed() }; }
-    }
+    // The lanes' captures follow the product source's captures, in run order: web, trends, province map, extra searches,
+    // World Bank, UN Comtrade, search-ads library and Cục Thống kê.
+    const storeLaneCaptures: LaneCaptureStore = async (values, options) => {
+      const envelopes = captureEnvelopes({ captures: values });
+      if (!envelopes) return null;
+      const index = captures.length;
+      await putCaptures(envelopes, options?.retainPdf);
+      return index;
+    };
+    const checkLane: LaneCheck = (probe, options) => {
+      assertStepDocument(probe, runId, stepId);
+      if (options?.lineage !== false) assertCaptureLineage(probe, captures.map(value => value.row));
+    };
+    step = await storeCollectionLanes(lanesBeforeVideo(lanes), step, storeLaneCaptures, checkLane);
+    // The video readings come next, inside the save step, reading the step as the lanes above left it (M5); their captures
+    // follow those lanes' captures. Each reading is published before any usage row exists, as before (M2).
+    const captureList: SaveStepCaptures = {
+      envelopes: values => captureEnvelopes({ captures: values }),
+      put: putCaptures,
+      rows: () => captures.map(value => value.row),
+      byteSize: () => captures.reduce((sum, value) => sum + value.artifact.byteSize, 0),
+    };
+    const saveStep: SaveStepContext = { stepId, signal, captures: captureList, check: checkLane };
+    const video = await runSaveStepLane(this.#videoLane, step, saveStep, () => {
+      const writer = new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
+      return {
+        context: evolving => this.#videoWatchContext(runId, evolving),
+        publish: (binding, prepared) => withDatabaseMutationMutex(this.#db, async () => {
+          const current = this.#current(runId);
+          if (!current || signal?.aborted || ['FAILED', 'CANCELLING', 'CANCELLED', 'INTERRUPTED'].includes(current.status)) throw new ResearchAutomationStateError('This run cannot publish a video reading.');
+          return publishAutomatedVideoReading(writer, binding, prepared);
+        }),
+      };
+    });
+    step = video.step;
+    // Meta and TikTok top-ads reads publish Foundation attachments (no step capture) after the video readings; the TikTok
+    // Shop reviews captures follow them.
+    step = await storeCollectionLanes(lanesAfterVideo(lanes), step, storeLaneCaptures, checkLane);
     let cancelledSourceEvidence: (() => AutomationSourceEvidence) | undefined;
     if (stepId === 'COLLECTION' && sourceStart.reviewCollectionPolicy && step.privateShopee) {
       const reviewSample = await this.#shopee.reviewSample(step.privateShopee, { runId, start: sourceStart,
@@ -4827,159 +4496,23 @@ export class ResearchAutomationService {
       step = { ...step, sourceEvidence };
       keywordDraft = draft;
     }
-    // Report PDFs (S25 AUTO) come after L9 admission: candidates are admitted rows of this run, then at most one extra search whose
-    // rows pass the same draft's L9 filter, then at most two guarded downloads. Each stored file is an ordinary COLLECTION capture
-    // starting with `%PDF-`, so putCaptures retains it as a run PDF. A failure keeps a reason code only and never changes the step.
-    let pdfSearchResult: CollectResult | null = null;
-    let pdfSearchThrown = false;
-    let pdfDownloads: PdfDownloadRun | null = null;
-    if (stepId === 'COLLECTION' && sourceStart.reports.includes('MARKET') && this.#pdfDiscoverySource && pdfInput && !aborted && !signal?.aborted) {
-      let search: StepPdfDiscovery['search'] = { status: 'FAILED', reason: 'SEARCH_FAILED', captureIndex: null, retrievedAt: null };
-      try {
-        // All optional envelopes, including the extra search, share the bridge's exact capture budget.
-        // Owner uploads remain in their existing packages and do not consume this inventory.
-        const fits = (values: NonNullable<ReturnType<typeof captureEnvelopes>>): boolean =>
-          captures.length + values.length <= MAX_CAPTURES_PER_STEP &&
-          captures.reduce((sum, value) => sum + value.artifact.byteSize, 0) + values.reduce((sum, value) => sum + value.body.byteLength, 0) <= MARKET_CAPTURE_READ_BUDGET_BYTES;
-        const source = this.#pdfDiscoverySource;
-        const seen = new Set<string>();
-        // Search projections truncate text before this lane. Vet the exact retained search title,
-        // so truncation cannot hide a file extension, provider name or other unsafe suffix.
-        const candidatesForRows = async (rows: readonly StepWebResult[], origin: PdfCandidate['origin']): Promise<PdfCandidate[]> => {
-          const titled: StepWebResult[] = [];
-          const payloads = new Map<string, unknown>();
-          for (const row of rows) {
-            let title = '';
-            try {
-              const capture = captures.find(c => c.row.ordinal === row.captureIndex)?.row;
-              if (capture?.provider === 'serpapi' && capture.operation === 'serpapi.google.search') {
-                if (!payloads.has(capture.artifactSha256)) {
-                  // These content-addressed bytes are retained already; their manifests commit with the step below.
-                  const envelope = JSON.parse((await this.#artifacts.read(capture.artifactSha256, { maxBytes: MAX_CAPTURE_ENVELOPE_BYTES })).toString('utf8')) as Record<string, unknown>;
-                  if (envelope.outcome !== 'OK' || typeof envelope.responseBytesBase64 !== 'string') throw new Error('Missing search bytes');
-                  const bytes = Buffer.from(envelope.responseBytesBase64, 'base64');
-                  if (createHash('sha256').update(bytes).digest('hex') !== envelope.responseSha256) throw new Error('Search byte mismatch');
-                  payloads.set(capture.artifactSha256, JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)));
-                }
-                const payload = payloads.get(capture.artifactSha256);
-                const matches = isRecord(payload) && Array.isArray(payload.organic_results) ? payload.organic_results.filter((raw: unknown, index: number) =>
-                  isRecord(raw) && (typeof raw.position === 'number' && Number.isSafeInteger(raw.position) && raw.position > 0 ? raw.position : index + 1) === row.position &&
-                  httpsUrl(raw.link, 2048) === row.url) : [];
-                if (matches.length === 1 && isRecord(matches[0])) title = pdfDocumentTitle(matches[0].title) ?? '';
-              }
-            } catch { /* No authentic usable search title: embedded metadata or the ordinal remains available. */ }
-            titled.push({ ...row, title });
-          }
-          return pdfCandidates(titled, origin, seen);
-        };
-        let candidates: PdfCandidate[] = [];
-        // The M09 excerpt block shows only stored reader quotes: with the document reader off an automatic PDF adds nothing,
-        // so neither the extra search nor any download is made. With it on, owner uploads planned first may already fill the
-        // question cap: then an automatic PDF could never be asked either. Later uploads stay first by ordering.
-        const readerOff = !this.#pageIndexEnabled();
-        const downloadSlots = Math.min(PDF_DISCOVERY_MAX_FILES, this.#remainingCapturePdfSlots(runId, sourceStart.reports));
-        const noQuestionBudget = !readerOff && downloadSlots === 0;
-        if (!readerOff && !noQuestionBudget) try {
-          const runRows = step.sourceEvidence
-            ? admitWebResults(step.sourceEvidence, collectionWebRows(step), [...await this.#captureRecords(runId), ...captures.map(c => c.row)], step.sourceEvidence.jevTriage ?? null)
-            : [];
-          candidates = await candidatesForRows(runRows, 'RUN_ROWS');
-        } catch { candidates = []; }
-        if (readerOff) search = { status: 'SKIPPED', reason: 'SKIPPED_READER_OFF', captureIndex: null, retrievedAt: null };
-        else if (noQuestionBudget) search ={ status: 'SKIPPED', reason: 'SKIPPED_NO_QUESTION_BUDGET', captureIndex: null, retrievedAt: null };
-        else if (candidates.length >= downloadSlots) search = { status: 'SKIPPED', reason: 'SEARCH_SKIPPED_ENOUGH', captureIndex: null, retrievedAt: null };
-        else if (!keywordDraft) search = { status: 'SKIPPED', reason: 'SEARCH_NO_ADMISSION', captureIndex: null, retrievedAt: null };
-        else {
-          let attempt: PdfSearchAttempt;
-          try { attempt = await source.search(pdfInput, signal ? { signal } : {}); } catch { attempt = { state: 'THROWN' }; }
-          const offset = captures.length;
-          const envelopes = attempt.state === 'CALLED' ? captureEnvelopes(attempt.result) : null;
-          if (attempt.state === 'CALLED') pdfSearchResult = attempt.result; else pdfSearchThrown = true;
-          if (envelopes?.length && fits(envelopes)) await putCaptures(envelopes);
-          const stored = captures.length > offset ? captures[offset]!.row : null;
-          if (attempt.state === 'CALLED' && stored && stored.provider === 'serpapi' && stored.operation === 'serpapi.google.search') {
-            search = { status: 'CALLED', reason: attempt.result.status === 'SUCCEEDED' ? null : 'SEARCH_FAILED', captureIndex: offset, retrievedAt: stored.retrievedAt };
-            if (attempt.result.status === 'SUCCEEDED') {
-              try {
-                const rows = toWebResults(attempt.result).filter(row => row.captureIndex === 0).map(row => ({ ...row, captureIndex: offset }));
-                const admitted = new Set(filterSerpApiResults({ results: rows.map(row => ({ captureId: stored.artifactSha256, position: row.position, title: row.title, snippet: row.snippet })),
-                  filter: keywordDraft.output }).includedRecordIds);
-                const found = await candidatesForRows(rows.filter(row => admitted.has(`${stored.artifactSha256}#${row.position}`)), 'PDF_SEARCH');
-                if (!found.length && rows.some(row => isPdfPath(row.url))) search = { ...search, reason: 'NOT_ADMITTED' };
-                candidates = [...candidates, ...found];
-              } catch { search = { ...search, reason: 'SEARCH_FAILED' }; }
-            }
-          } else search = { status: 'FAILED', reason: envelopes?.length && !fits(envelopes) ? 'BRIDGE_BUDGET_LIMIT' : 'SEARCH_FAILED', captureIndex: null, retrievedAt: null };
-        }
-        const fileIndexes: (number | null)[] = [];
-        if (candidates.length && !signal?.aborted) {
-          pdfDownloads = { requests: 0, items: [] };
-          const items: PdfDownloadRun['items'][number][] = [];
-          const knownPdfs = new Set(this.#runPdfs(runId).map(pdf => pdf.sha256));
-          // Download sequentially: a duplicate or refused file consumes an attempt, not a question slot.
-          // Never try beyond the original two candidates, and stop before fetching a file that cannot be asked.
-          for (const candidate of candidates.slice(0, PDF_DISCOVERY_MAX_FILES)) {
-            if (signal?.aborted || this.#remainingCapturePdfSlots(runId, sourceStart.reports) === 0) break;
-            const downloaded = await source.download([candidate], signal ? { signal } : {});
-            pdfDownloads = { requests: pdfDownloads.requests + downloaded.requests, items: [...pdfDownloads.items, ...downloaded.items] };
-            const item = downloaded.items[0];
-            if (!item) continue;
-            const envelopes = item.kind === 'DOWNLOADED' ? captureEnvelopes({ captures: [item.capture] }) : null;
-            if (!envelopes?.length) { fileIndexes.push(null); items.push(item); continue; }
-            if (item.kind === 'DOWNLOADED' && knownPdfs.has(item.sha256)) {
-              fileIndexes.push(null);
-              items.push({ candidate: item.candidate, kind: 'FAILED', reason: 'DUPLICATE', requested: true });
-              continue;
-            }
-            // Page cap before any persistence: an over-cap file is neither stored as a capture nor retained, so it is
-            // never indexed and never cited as a file the report cannot read.
-            const pageCheck = item.kind === 'DOWNLOADED' ? await this.#capturePageCheck(item.bytes) : 'OK';
-            if (pageCheck !== 'OK') {
-              fileIndexes.push(null);
-              items.push({ candidate: item.candidate, kind: 'FAILED', reason: pageCheck, requested: true });
-              continue;
-            }
-            if (!fits(envelopes)) {
-              fileIndexes.push(null);
-              items.push({ candidate: item.candidate, kind: 'FAILED', reason: 'BRIDGE_BUDGET_LIMIT', requested: true });
-              continue;
-            }
-            // Persist the capture before reader retention so a failed optional write cannot leave an uncited run PDF.
-            const index = captures.length;
-            try { await putCaptures(envelopes, false); }
-            catch {
-              fileIndexes.push(null);
-              items.push({ candidate: item.candidate, kind: 'FAILED', reason: 'TRANSPORT', requested: true });
-              continue;
-            }
-            if (item.kind === 'DOWNLOADED') {
-              try { await this.#retainRunPdf(runId, `source-${captures.length}.pdf`, item.bytes, 'CAPTURE', item.candidate.title ?? null); }
-              catch {
-                // Indexing may fail after source retention; that follows the upload path's existing reader state.
-                if (!this.#runPdfs(runId).some(pdf => pdf.sha256 === item.sha256)) {
-                  fileIndexes.push(null);
-                  items.push({ candidate: item.candidate, kind: 'FAILED', reason: 'DOCUMENT_INVALID', requested: true });
-                  continue;
-                }
-              }
-              knownPdfs.add(item.sha256);
-            }
-            fileIndexes.push(index);
-            items.push(item);
-            step = { ...step, pdfDiscovery: pdfDiscoveryDocument(search, { ...pdfDownloads, items }, fileIndexes, search.reason ?? 'NO_CANDIDATE') };
-          }
-          pdfDownloads = { ...pdfDownloads, items };
-        }
-        const probe = { ...step, pdfDiscovery: pdfDiscoveryDocument(search, pdfDownloads, fileIndexes, search.reason ?? 'NO_CANDIDATE') };
-        try {
-          assertStepDocument(probe, runId, stepId);
-          assertCaptureLineage(probe, captures.map(value => value.row));
-          step = probe;
-        } catch { step = { ...step, pdfDiscovery: { ...pdfDiscoveryFailed('DOCUMENT_INVALID'), search } }; }
-      } catch { step = { ...step, pdfDiscovery: step.pdfDiscovery ?? { ...pdfDiscoveryFailed('TRANSPORT'), search } }; }
-    }
+    // Report PDFs (S25 AUTO) come after the L9 admission step above; their candidates start from the rows it admitted.
+    const admissionStep = step;
+    const pdf = await runSaveStepLane(this.#pdfLane, step, saveStep, () => ({
+      input: pdfInput, market: sourceStart.reports.includes('MARKET'), aborted,
+      readerOn: () => this.#pageIndexEnabled(),
+      remainingPdfSlots: () => this.#remainingCapturePdfSlots(runId, sourceStart.reports),
+      admittedRows: async () => admissionStep.sourceEvidence
+        ? admitWebResults(admissionStep.sourceEvidence, collectionWebRows(admissionStep), [...await this.#captureRecords(runId), ...captures.map(c => c.row)], admissionStep.sourceEvidence.jevTriage ?? null)
+        : [],
+      keywordFilter: keywordDraft?.output ?? null,
+      readArtifact: (sha256: string, maxBytes: number) => this.#artifacts.read(sha256, { maxBytes }),
+      pageCheck: (bytes: Uint8Array) => this.#capturePageCheck(bytes),
+      runPdfShas: () => this.#runPdfs(runId).map(value => value.sha256),
+      retainPdf: (fileName: string, bytes: Uint8Array, title: string | null) => this.#retainRunPdf(runId, fileName, bytes, 'CAPTURE', title),
+    }));
+    step = pdf.step;
     if (publicSources) step = { ...step, publicReviewAcquisition: publicStage(publicSources, 'PENDING') };
-    const webResult = web && 'bound' in web ? web.bound.result : null;
     let resultArtifact = await this.#artifacts.put(Buffer.from(canonicalJson(step), 'utf8'));
     await withDatabaseMutationMutex(this.#db, async () => {
       // A cancellation can complete during the preceding CAS await. Publish
@@ -4987,7 +4520,7 @@ export class ResearchAutomationService {
       // manifests and actual late capture/usage evidence. No transaction spans I/O.
       const statusAtPublication = this.#current(runId)?.status;
       if (cancelledSourceEvidence && step.sourceEvidence?.draftDigest && (aborted || signal?.aborted ||
-          result?.status === 'CANCELLED' || webResult?.status === 'CANCELLED' || trendsResult?.status === 'CANCELLED' || expandedCalled.some(item => item.result.status === 'CANCELLED') ||
+          result?.status === 'CANCELLED' || collectionLanesCancelled(lanes) ||
           !statusAtPublication || ['CANCELLING', 'CANCELLED', 'FAILED', 'INTERRUPTED'].includes(statusAtPublication))) {
         step = { ...step, sourceEvidence: cancelledSourceEvidence() };
         resultArtifact = await this.#artifacts.put(Buffer.from(canonicalJson(step), 'utf8'));
@@ -4995,52 +4528,23 @@ export class ResearchAutomationService {
       this.#db.transaction(() => {
         for (const value of captures) this.#registerManifest(value.artifact, 'application/vnd.tdn.research-automation.capture+json', value.row.retrievedAt);
         this.#registerManifest(resultArtifact, 'application/vnd.tdn.research-automation.step+json', now);
-        if (tiktokShopReviewsArtifact) this.#registerManifest(tiktokShopReviewsArtifact, TIKTOK_SHOP_REVIEWS_DOCUMENT_MEDIA_TYPE, now);
+        for (const value of collectionLaneManifests(lanes)) this.#registerManifest(value.artifact, value.mediaType, now);
         for (const value of captures) this.#db.prepare(`INSERT INTO analysis_research_automation_captures(run_id,step_id,ordinal,artifact_sha256,media_type,provider,operation,retrieved_at,window_start,window_end,truncated,retained_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
           .run(runId, stepId, value.row.ordinal, value.row.artifactSha256, value.row.mediaType, value.row.provider, value.row.operation, value.row.retrievedAt, value.row.window?.startDate ?? null, value.row.window?.endDate ?? null, value.row.truncated ? 1 : 0, now);
         if (result) this.#persistUsage(runId, stepId, result, now);
         else if (bound.unsettledProvider) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,0,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
           .run(runId, stepId, bound.unsettledProvider, now);
-        if (webResult) this.#persistUsage(runId, stepId, webResult, now, WEB_USAGE_ORDINAL);
-        else if (web && 'failedProvider' in web) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
-          .run(runId, stepId, WEB_USAGE_ORDINAL, web.failedProvider, now);
-        if (trendsResult?.captures.length) this.#persistUsage(runId, stepId, searchInterestUsage(trendsResult.captures), now, SEARCH_INTEREST_USAGE_ORDINAL);
-        else if (trends?.attempt.kind === 'THROWN') this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,'serpapi','unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
-          .run(runId, stepId, SEARCH_INTEREST_USAGE_ORDINAL, now);
-        if (geoResult?.captures.length) this.#persistUsage(runId, stepId, searchInterestUsage(geoResult.captures), now, SEARCH_GEO_USAGE_ORDINAL);
-        else if (trends?.geo?.kind === 'THROWN') this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,'serpapi','unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
-          .run(runId, stepId, SEARCH_GEO_USAGE_ORDINAL, now);
-        for (const item of expandedCalled) if (item.result.captures.length) this.#persistUsage(runId, stepId, item.result, now, EXPANDED_SEARCH_USAGE_ORDINAL[item.kind]);
-        for (const item of expandedThrown) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,'serpapi','unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
-          .run(runId, stepId, EXPANDED_SEARCH_USAGE_ORDINAL[item.kind], now);
-        if (worldBankAttempts.some(item => item.requests > 0)) this.#persistUsage(runId, stepId, worldBankUsage(worldBankAttempts), now, WORLD_BANK_USAGE_ORDINAL);
-        else if (worldBank && 'thrown' in worldBank) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
-          .run(runId, stepId, WORLD_BANK_USAGE_ORDINAL, WORLD_BANK_PROVIDER.toLowerCase(), now);
-        if (comtradeCollection && comtradeCollection.requests > 0) this.#persistUsage(runId, stepId, comtradeUsage(comtradeCollection), now, COMTRADE_USAGE_ORDINAL);
-        else if (comtrade && 'thrown' in comtrade) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
-          .run(runId, stepId, COMTRADE_USAGE_ORDINAL, COMTRADE_PROVIDER.toLowerCase(), now);
-        if (searchAdsCollection) for (const entry of searchAdsUsageEntries(searchAdsCollection)) this.#persistUsage(runId, stepId, entry.result, now, entry.ordinal);
-        else if (searchAds && 'thrown' in searchAds) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,'serpapi','unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
-          .run(runId, stepId, GOOGLE_ADS_USAGE_ORDINAL, now);
-        if (officialStatsCollection && officialStatsCollection.requests > 0) this.#persistUsage(runId, stepId, officialStatsUsage(officialStatsCollection), now, OFFICIAL_STATS_USAGE_ORDINAL);
-        else if (officialStats && 'thrown' in officialStats) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
-          .run(runId, stepId, OFFICIAL_STATS_USAGE_ORDINAL, OFFICIAL_STATS_PROVIDER.toLowerCase(), now);
-        if (videoWatchAttempts?.some(item => item.requests > 0)) this.#persistUsage(runId, stepId, videoWatchUsage(videoWatchAttempts), now, VIDEO_WATCH_USAGE_ORDINAL);
-        else if (videoWatchThrown) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
-          .run(runId, stepId, VIDEO_WATCH_USAGE_ORDINAL, VIDEO_WATCH_PROVIDER.toLowerCase(), now);
-        if (metaAutoCollection && metaAutoCollection.opens > 0) this.#persistUsage(runId, stepId, metaAutoUsage(metaAutoCollection.opens), now, META_AUTO_USAGE_ORDINAL);
-        else if (metaAuto && 'thrown' in metaAuto) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
-          .run(runId, stepId, META_AUTO_USAGE_ORDINAL, META_AUTO_PROVIDER.toLowerCase(), now);
-        if (tiktokTopAdsCollection && tiktokTopAdsCollection.opens > 0) this.#persistUsage(runId, stepId, tiktokTopAdsUsage(tiktokTopAdsCollection.opens), now, TIKTOK_TOP_ADS_USAGE_ORDINAL);
-        else if (tiktokTopAds && 'thrown' in tiktokTopAds) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
-          .run(runId, stepId, TIKTOK_TOP_ADS_USAGE_ORDINAL, TIKTOK_TOP_ADS_PROVIDER.toLowerCase(), now);
-        if (tiktokShopReviewsCollection?.result && tiktokShopReviewsCollection.result.usage.requestsIssued > 0) this.#persistUsage(runId, stepId, tiktokShopReviewsUsage(tiktokShopReviewsCollection.result), now, TIKTOK_SHOP_REVIEWS_USAGE_ORDINAL);
-        else if (tiktokShopReviews && 'thrown' in tiktokShopReviews) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,'kalodata','unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
-          .run(runId, stepId, TIKTOK_SHOP_REVIEWS_USAGE_ORDINAL, now);
-        if (pdfSearchResult?.captures.length) this.#persistUsage(runId, stepId, pdfSearchResult, now, PDF_DISCOVERY_SEARCH_USAGE_ORDINAL);
-        else if (pdfSearchThrown) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,'serpapi','unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
-          .run(runId, stepId, PDF_DISCOVERY_SEARCH_USAGE_ORDINAL, now);
-        if (pdfDownloads && pdfDownloads.requests > 0) this.#persistUsage(runId, stepId, pdfDiscoveryUsage(pdfDownloads.requests), now, PDF_DISCOVERY_DOWNLOAD_USAGE_ORDINAL);
+        const persistLaneUsage = (rows: readonly LaneUsageRow[]) => {
+          for (const row of rows) {
+            if (row.kind === 'USAGE') this.#persistUsage(runId, stepId, row.result, now, row.ordinal);
+            else this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
+              .run(runId, stepId, row.ordinal, row.provider, now);
+          }
+        };
+        persistLaneUsage(collectionLaneUsage(lanesBeforeVideo(lanes)));
+        persistLaneUsage(video.usage);
+        persistLaneUsage(collectionLaneUsage(lanesAfterVideo(lanes)));
+        persistLaneUsage(pdf.usage);
         if (exact) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,1,'apify-shopee','reviews',?,?,?,?,?)`)
           .run(runId, stepId, exact.requestsIssued, exact.costUsd === null ? 'UNKNOWN' : 'KNOWN', exact.costUsd === null ? null : 'USD', exact.costUsd, now);
         const current = this.#current(runId);
@@ -5054,7 +4558,7 @@ export class ResearchAutomationService {
             .run(runId, publicSources.sha256, resultArtifact.sha256, now);
           return;
         }
-        const outcome = aborted || signal?.aborted || result?.status === 'CANCELLED' || webResult?.status === 'CANCELLED' || trendsResult?.status === 'CANCELLED' || expandedCalled.some(item => item.result.status === 'CANCELLED') || current.status === 'CANCELLING' ? 'CANCELLED' : step.outcome;
+        const outcome = aborted || signal?.aborted || result?.status === 'CANCELLED' || collectionLanesCancelled(lanes) || current.status === 'CANCELLING' ? 'CANCELLED' : step.outcome;
         const code = outcome === 'CANCELLED' ? 'CANCELLED_DURING_PROVIDER_OPERATION' : outcome === 'UNAVAILABLE' ? 'PROVIDER_NOT_CONFIGURED' : outcome === 'FAILED'
           ? step.limitations.some(value => value.code === 'PROVIDER_OUTPUT_INVALID') ? 'PROVIDER_OUTPUT_INVALID'
             : step.limitations.some(value => value.code === 'PROVIDER_CREDIT_EXHAUSTED') ? 'PROVIDER_CREDIT_EXHAUSTED'

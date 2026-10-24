@@ -1,0 +1,50 @@
+name: Spec drift
+
+# OpenSpec finish-move step 6 (openspec/MIGRATION.md §4): a PR that changes a rule-owning
+# file must also change openspec/. Label `skip-spec-drift` exits for renames or speed fixes.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: spec-drift-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  spec-drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-spec-drift') }}
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Require openspec change with rule-file change
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          SKIP: ${{ contains(github.event.pull_request.labels.*.name, 'skip-spec-drift') }}
+        run: |
+          if [ "$SKIP" = "true" ]; then
+            echo "Nhãn skip-spec-drift: bỏ qua. / Label skip-spec-drift: skipped."
+            exit 0
+          fi
+          rule_files='src/modules/analysis/research-automation/market-business-gate.ts
+          src/modules/analysis/research-automation/market-14-rules.ts
+          src/modules/analysis/report-visible-text-lint.ts
+          src/modules/analysis/reader-report/lint.ts
+          src/modules/analysis/report-language/hidden-names.ts'
+          changed="$(git diff --name-only "origin/${BASE_REF}...HEAD")"
+          touched_rules="$(printf '%s\n' "$changed" | grep -Fx -f <(printf '%s\n' "$rule_files" | sed 's/^ *//') || true)"
+          touched_spec="$(printf '%s\n' "$changed" | grep '^openspec/' || true)"
+          if [ -n "$touched_rules" ] && [ -z "$touched_spec" ]; then
+            echo "::error::PR đổi file luật bằng mã nhưng không đổi openspec/. Cập nhật spec hoặc gắn nhãn skip-spec-drift nếu chỉ đổi tên hay sửa tốc độ. / PR changes a rule file but nothing under openspec/. Update the spec, or add label skip-spec-drift for renames or speed-only fixes."
+            printf '%s\n' "$touched_rules"
+            exit 1
+          fi
+          echo "Không lệch spec. / No spec drift."

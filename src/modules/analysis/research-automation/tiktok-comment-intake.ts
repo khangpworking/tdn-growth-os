@@ -9,6 +9,7 @@ import { canonicalJson } from '../../foundation/canonical-json.js';
 import { filterKeywordMeanings, type KeywordMeaningFilterData } from '../keyword-meaning-filter.js';
 import { applyL9JevDecisions, type L9JevTriageSidecar } from './l9-jev-triage.js';
 import { CitationRegistry } from '../citation-registry.js';
+import { hasHiddenName } from '../report-language/index.js';
 import type { LocatedInsightMethods } from '../../../../contracts/analysis/located-insight-methods.generated.js';
 import type { TikTokCommentCapture, SanitizedTikTokComment } from '../../../platform/collectors/apify-tiktok-comments.js';
 import type { selectTikTokVideos } from './tiktok-video-selection.js';
@@ -117,7 +118,7 @@ export function citeTikTokCommentCorpus(corpus: TikTokCommentCorpus, registry: C
     text: row.text, sourceType: row.sourceType, voice: row.voice, createdAt: row.createdAt, likeCount: row.likeCount,
     citation: registry.cite({ sourceKind: 'REVIEW', identity: row.versions[0]!.sourceRefs[0]!.pageSha256,
       locator: `bình luận ${row.commentId}`, label: 'bình luận công khai dưới video TikTok',
-      retrievedAt: row.createdAt, url: row.videoUrl, quote: null, quoteVerification: 'NOT_APPLICABLE',
+      retrievedAt: row.createdAt, url: hasHiddenName(row.videoUrl, 'CITATION') ? null : row.videoUrl, quote: null, quoteVerification: 'NOT_APPLICABLE',
       technical: { registryId: 'S07', sourceType: row.sourceType, auditForm: corpus.auditForm } }),
   }));
 }

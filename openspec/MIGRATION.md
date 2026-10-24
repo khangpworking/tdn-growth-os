@@ -39,14 +39,14 @@ flowchart LR
 - Hai nơi nói khác nhau: báo cho chủ, không tự chọn.
 - Quyết định mới của chủ: viết thành một change trong `openspec/changes/`, không sửa thẳng `openspec/specs/`.
 
-## 4. Để chuyển hẳn (chủ duyệt 24/10/2026; bước 1 đến 4 xong, bước 5 và 6 chờ phiên mã)
+## 4. Để chuyển hẳn (chủ duyệt 24/10/2026; bước 1 đến 6 xong)
 
 1. (Xong 24/10/2026) `docs/business-spec/README.md`: đổi "business-spec thắng" thành "openspec/specs thắng"; các file `business-rules/*.md` thành stub có link.
 2. (Xong 24/10/2026) `docs/REPOSITORY_MAP.md`: bỏ dòng cấm cài spec framework, thêm dòng `openspec/`.
 3. (Xong 24/10/2026) `AGENTS.md`: thêm một đoạn "Quy tắc nghiệp vụ ở openspec/specs; việc mới bắt đầu bằng /opsx:propose".
 4. (Xong 24/10/2026) Chụp bản cũ vào `docs/outdated/<ngày>/` theo luật hiện có. Bản chụp ở `docs/outdated/2026-10-24/`.
-5. (Chưa làm; PR 0 của phiên mã kiến trúc) Thêm một kiểm thử trong `npm test`: mọi file và hàm ghi ở dòng "Mã kiểm" của `openspec/specs` phải có thật trong mã (bắt lỗi kiểu R-M24 trỏ sai đường dẫn). Khoảng 1 giây.
-6. (Chưa làm; PR 0 của phiên mã kiến trúc) Thêm một job CI nhỏ: PR đổi một trong 4 file luật bằng mã (`market-business-gate.ts`, `market-14-rules.ts`, `report-visible-text-lint.ts`, `reader-report/lint.ts`) mà không đổi `openspec/` thì trượt. Thoát bằng nhãn `skip-spec-drift` khi chỉ đổi tên hoặc sửa tốc độ. Khoảng 10 giây, chạy song song với `Check`.
+5. (Xong 24/10/2026, PR này) Thêm một kiểm thử trong `npm test`: mọi file và hàm ghi ở dòng "Mã kiểm" của `openspec/specs` phải có thật trong mã (bắt lỗi kiểu R-M24 trỏ sai đường dẫn). Khoảng 1 giây. File: `tests/unit/openspec-code-links.test.ts`.
+6. (Xong 24/10/2026, PR này) Thêm một job CI nhỏ: PR đổi một trong 4 file luật bằng mã (`market-business-gate.ts`, `market-14-rules.ts`, `report-visible-text-lint.ts`, `reader-report/lint.ts`) mà không đổi `openspec/` thì trượt. Thoát bằng nhãn `skip-spec-drift` khi chỉ đổi tên hoặc sửa tốc độ. Khoảng 10 giây, chạy song song với `Check`. File: `.github/workflows/spec-drift.yml`; danh sách có thêm `report-language/hidden-names.ts` (giữ tên ẩn của R-L01).
 7. Không thêm hook chặn commit (chỉ chặn được Claude) và không thêm cảnh báo chiều ngược (spec đổi mà mã không đổi): lợi ích nhỏ.
 
 ## 5. Cách quay lại

@@ -1,8 +1,7 @@
-import { PUBLIC_REVIEW_FORBIDDEN_NAMES } from './research-automation/public-review-report.js';
 import { createHash } from 'node:crypto';
 import { canonicalJson } from '../foundation/canonical-json.js';
 import { normalizeReportCitationLocator, type ReportCitationLocator } from './report-citations.js';
-import { FORBIDDEN_PROVIDER_NAMES } from './reader-report/lint.js';
+import { HIDDEN_NAMES, hasHiddenName } from './report-language/index.js';
 
 /**
  * Shared [n] numbering for report citations. Pure and deterministic: numbers
@@ -66,17 +65,15 @@ export class CitationLabelError extends Error {
 
 const SOURCE_KINDS: ReadonlySet<string> = new Set<CitationSourceKind>(['CAPTURE', 'METRIC_ROW', 'REVIEW', 'WEB_RESULT', 'PDF_PAGE', 'UPSTREAM_CLAIM']);
 const VERIFICATIONS: ReadonlySet<string> = new Set<QuoteVerification>(['NOT_APPLICABLE', 'APP_VERIFIED', 'UNVERIFIED', 'EXTERNAL_VERIFIER_ATTESTED']);
-const EXTRA_FORBIDDEN_NAMES = ['SerpApi', 'Apify', 'PageIndex', 'Agent-Reach', 'OpenCLI', 'zen-studio'] as const;
-/** Lower-cased; matched as a substring of the lower-cased text. */
-export const CITATION_FORBIDDEN_NAMES: readonly string[] = [...FORBIDDEN_PROVIDER_NAMES, ...EXTRA_FORBIDDEN_NAMES].map(name => name.toLowerCase());
-export const PUBLIC_SOURCE_CITATION_FORBIDDEN_NAMES: readonly string[] = [...CITATION_FORBIDDEN_NAMES, ...PUBLIC_REVIEW_FORBIDDEN_NAMES.map(n => n.toLowerCase())];
+/** @deprecated use report-language. Lower-cased data and tool names (the old citation list). */
+export const CITATION_FORBIDDEN_NAMES: readonly string[] = HIDDEN_NAMES.filter(entry => entry.group === 'DATA' || entry.group === 'TOOL').map(entry => entry.name.toLowerCase());
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})?)?$/;
 
 const sha256 = (text: string): string => createHash('sha256').update(text, 'utf8').digest('hex');
 
-export function containsForbiddenProviderName(text: string, options: { publicReviewSource?: boolean } = {}): boolean {
-  const lower = (options.publicReviewSource ? text.replace(/&#x([0-9a-f]+);?|&#(\d+);?/gi, (all, hex, dec) => { const n = parseInt(hex ?? dec, hex ? 16 : 10); return n <= 0x10ffff ? String.fromCodePoint(n) : all; }) : text).toLowerCase();
-  return (options.publicReviewSource ? PUBLIC_SOURCE_CITATION_FORBIDDEN_NAMES : CITATION_FORBIDDEN_NAMES).some(name => lower.includes(name));
+/** R-L01 names in citation text. `options` is kept for callers; names no longer depend on it. */
+export function containsForbiddenProviderName(text: string, _options: { publicReviewSource?: boolean } = {}): boolean {
+  return hasHiddenName(text, 'CITATION');
 }
 
 /** A digest-like run of 32+ hex characters (sha256, artifact or package ids) is technical identity, never reader text. */

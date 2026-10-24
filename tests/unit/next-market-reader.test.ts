@@ -82,7 +82,8 @@ test('cited web rows never show the search engine, an operator or a spaced provi
   assert.deepEqual(cited.map(w => [w.title, w.snippet, w.site, w.published]), [
     [WEB_TITLE_WITHHELD, WEB_SNIPPET_WITHHELD, null, '3 ngày trước'], [WEB_TITLE_WITHHELD, WEB_SNIPPET_WITHHELD, 'Báo synthetic', null],
     ['Thạch dừa sạch', 'Hàng mới về', 'Cửa hàng da-min', null]]);
-  assert.deepEqual(readerWebResults(webResults).map(w => w.title), webResults.map(w => w.title), 'the uncited legacy mode is unchanged');
+  // Owner R-L01, 24/10/2026 (PR2 move 7): full-table masking and provider-host filtering also apply to legacy web rows.
+  assert.deepEqual(readerWebResults(webResults).map(w => w.title), ['Thạch dừa trên […]', 'Thạch dừa G o o g l e', 'Thạch dừa sạch']);
   const f = data();
   const built = await buildMarketReport(computeReaderReportData(f.input, f.retained), { ...sync1Options, webResults, webPageTypes: true });
   const doc = new JSDOM(built.html).window.document;

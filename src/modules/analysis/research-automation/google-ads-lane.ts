@@ -79,9 +79,8 @@ export function normalizedKey(value: string): string | null {
 }
 
 const CONTROL = /[\u0000-\u001f\u007f]/u;
-const FORBIDDEN_NAME = /\bgemini\b/iu;
 /** Brand text may be printed; refuse control characters, percent signs and provider names. */
-export const brandLabelOk = (value: unknown): value is string => typeof value === 'string' && value.trim() === value && value.length >= 1 && value.length <= 120 && !CONTROL.test(value) && !value.includes('%') && !FORBIDDEN_NAME.test(value) && !webTextHidden(value);
+export const brandLabelOk = (value: unknown): value is string => typeof value === 'string' && value.trim() === value && value.length >= 1 && value.length <= 120 && !CONTROL.test(value) && !value.includes('%') && !webTextHidden(value);
 
 /**
  * Top distinct pick brands by revenue; empty when none is usable. The default preserves search-ads ranking.
@@ -121,7 +120,7 @@ export function hostOf(url: string): string | null {
 export function hostDenied(host: string, extra: readonly string[] = []): boolean {
   if (/\.(?:gov|edu|mil)(?:\.[a-z]{2})?$/u.test(host)) return true;
   if (host.split('.').some(label => DENIED_NAMES.has(label) || RETAILER_AGGREGATOR_DENY.has(label))) return true;
-  if (webTextHidden(host) || FORBIDDEN_NAME.test(host) || NEWS_DOMAINS.some(value => host === value || host.endsWith(`.${value}`))) return true;
+  if (webTextHidden(host) || NEWS_DOMAINS.some(value => host === value || host.endsWith(`.${value}`))) return true;
   return extra.some(value => { const other = value.toLowerCase().replace(/^www\./u, ''); return other.length > 0 && (host === other || host.endsWith(`.${other}`)); });
 }
 

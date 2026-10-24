@@ -7,6 +7,7 @@
 // and then rejected.
 import { boundedRequest, CaptureLog, defaultProviderTransport, isRecord, type ProviderTransport } from './provider-common.js';
 import type { ProviderCallOptions, ProviderRawCapture } from './providers.js';
+import { hasHiddenName } from '../report-language/index.js';
 import type { StepComtrade, StepComtradeAttempt, StepComtradeCall, StepComtradeRow, StepComtradeStatus } from './model.js';
 
 export const COMTRADE_FLAG = 'TDN_RESEARCH_COMTRADE_ENABLED';
@@ -104,15 +105,10 @@ function parseObject(text: string): Record<string, unknown> | null {
   return isRecord(value) ? value : null;
 }
 const plainText = (v: unknown): v is string => typeof v === 'string' && v.trim().length >= 1 && v.length <= 400 && !CONTROL.test(v) && !v.includes('%') && !/google/iu.test(v);
-// `Metric` is also an ordinary English adjective in official HS descriptions
-// (for example, a description can mention a metric unit). Keep the owner-facing
-// provider spelling blocked while allowing the lowercase common word in source
-// text. Model-authored Vietnamese remains strict through `ownerText`.
-const forbiddenProviderName = /\b(?:google|kalodata|tradeint|dami|apify|serpapi|pageindex|gemini)\b/iu;
-const forbiddenMetricBrand = /\b(?:Metric|METRIC)\b/u;
-const forbiddenOwnerName = (value: string): boolean => forbiddenProviderName.test(value) || /\b(?:metric|agent-reach|opencli|zen-studio|jev|typesafe|cliproxy|openai|anthropic|glm)\b/iu.test(value);
-const forbiddenSourceName = (value: string): boolean => forbiddenProviderName.test(value);
-const ownerText = (v: unknown): v is string => plainText(v) && !forbiddenOwnerName(v);
+// R-L01 names (report-language READER rule). `Metric` is also an ordinary English adjective in official HS
+// descriptions ("metric tons"): only "Metric"/"METRIC" count, so the lowercase word passes in source and owner text.
+const forbiddenName = (value: string): boolean => hasHiddenName(value, 'READER');
+const ownerText = (v: unknown): v is string => plainText(v) && !forbiddenName(v);
 const dataBlock = (name: 'PRODUCT_DATA' | 'COLLECTED_PRODUCT_TITLES_DATA' | 'OFFICIAL_DESCRIPTION_DATA', value: unknown): string =>
   `BEGIN_UNTRUSTED_${name}\n${JSON.stringify(value)}\nEND_UNTRUSTED_${name}`;
 
@@ -149,8 +145,8 @@ function parseResponse(bytes: Buffer, side: 'OWN' | 'MIRROR', hsCode: string, fl
   for (const item of root.data) {
     if (!isRecord(item) || String(item.period) !== year || String(item.cmdCode) !== hsCode || item.flowCode !== flow) return null;
     const reporter = item.reporterDesc, value = decimalText(item.primaryValue), desc = item.cmdDesc;
-    if (typeof reporter !== 'string' || reporter.length < 1 || reporter.length > 120 || CONTROL.test(reporter) || forbiddenOwnerName(reporter) || value === null || seen.has(reporter)) return null;
-    if (typeof desc !== 'string' || desc.length < 1 || desc.length > 600 || CONTROL.test(desc) || forbiddenSourceName(desc) || forbiddenMetricBrand.test(desc)) return null;
+    if (typeof reporter !== 'string' || reporter.length < 1 || reporter.length > 120 || CONTROL.test(reporter) || forbiddenName(reporter) || value === null || seen.has(reporter)) return null;
+    if (typeof desc !== 'string' || desc.length < 1 || desc.length > 600 || CONTROL.test(desc) || forbiddenName(desc)) return null;
     if (description === null) description = desc;
     else if (description !== desc) return null;
     seen.add(reporter);
