@@ -525,8 +525,8 @@ export async function attemptCollectionLanes(lanes: readonly CollectionLane[], s
   return runs;
 }
 
-// The Meta and TikTok reads publish attachments after the video readings (which stay in the service until PR3); every
-// other lane stores before them.
+// The Meta and TikTok reads publish attachments after the video readings (collection-lanes-save-step.ts); every other
+// lane stores before them.
 const AFTER_VIDEO: ReadonlySet<CollectionLaneName> = new Set(['metaAuto', 'tiktokTopAds']);
 /** The runs stored (and whose usage is written) before the video readings, in run order. */
 export const lanesBeforeVideo = (runs: readonly CollectionLaneRun[]): CollectionLaneRun[] => runs.filter(run => !AFTER_VIDEO.has(run.name));

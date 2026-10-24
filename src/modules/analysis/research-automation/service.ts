@@ -114,13 +114,13 @@ import { validOfficialStats, type OfficialStatsSource } from './official-statist
 import { COMTRADE_PROFILE, comtradeRenderable, type ComtradeSource } from './comtrade-lane.js';
 import { GOOGLE_ADS_PROFILE, GOOGLE_ADS_USAGE_ORDINAL, type SearchAdsSource } from './google-ads-lane.js';
 import { WORLD_BANK_SERIES_YEARS, worldBankRenderable, type WorldBankSource } from './world-bank-lane.js';
+import { pdfLane, runSaveStepLane, videoLane, type CaptureEnvelope, type PdfLaneFacts, type SaveStepCaptures, type SaveStepContext, type SaveStepLane, type VideoLaneFacts } from './collection-lanes-save-step.js';
 import { attemptCollectionLanes, collectionLaneOrdinals, collectionLanes, collectionLanesCancelled, collectionLaneUsage, lanesAfterVideo, lanesBeforeVideo, storeCollectionLanes, type CollectionLane, type CollectionLaneRun, type LaneCaptureStore, type LaneCheck, type LaneUsageRow } from './collection-lanes.js';
-import { publishAutomatedVideoReading, verifyAutomatedVideoReading, videoWatchCandidates, videoWatchDocument, videoWatchFailed, videoWatchReadingRefs, videoWatchUsage, VIDEO_WATCH_MAX_VIDEOS, VIDEO_WATCH_PROFILE, VIDEO_WATCH_USAGE_ORDINAL, type VideoWatchAttempt, type VideoWatchLane, type VideoWatchPlan } from './video-watch-lane.js';
-import { VIDEO_WATCH_PROVIDER } from './video-watch-gemini.js';
+import { publishAutomatedVideoReading, verifyAutomatedVideoReading, videoWatchReadingRefs, VIDEO_WATCH_MAX_VIDEOS, VIDEO_WATCH_PROFILE, type VideoWatchLane } from './video-watch-lane.js';
 import { topSellingTikTokVideos } from './tiktok-video-selection.js';
 import { metaAutoReportView, validMetaAuto, verifyMetaAutoEvidence, type MetaAutoReportView, type MetaAutoSource } from './meta-auto-lane.js';
 import { tiktokTopAdsReportView, validTikTokTopAds, verifyTikTokTopAdsEvidence, type TikTokTopAdsReportView, type TikTokTopAdsSource } from './tiktok-top-ads-lane.js';
-import { PDF_DISCOVERY_DOWNLOAD_USAGE_ORDINAL, PDF_DISCOVERY_MAX_FILES, PDF_DISCOVERY_PROVIDER, PDF_DISCOVERY_SEARCH_USAGE_ORDINAL, isPdfPath, pdfCandidates, pdfDiscoveryDocument, pdfDiscoveryDownloaded, pdfDiscoveryFailed, pdfDiscoveryMaxPages, PDF_DISCOVERY_MAX_PAGES_ENV, pdfDiscoveryUsage, validPdfDiscovery, type PdfCandidate, type PdfDiscoverySource, type PdfDownloadRun, type PdfSearchAttempt } from './pdf-discovery-lane.js';
+import { PDF_DISCOVERY_PROVIDER, pdfDiscoveryDownloaded, pdfDiscoveryMaxPages, PDF_DISCOVERY_MAX_PAGES_ENV, validPdfDiscovery, type PdfDiscoverySource } from './pdf-discovery-lane.js';
 import type { Binding as WorldBankBinding } from '../../../../contracts/analysis/world-bank-intake-v1.generated.js';
 import type { PackageRef as WorldBankPackageRef, PrepareReceipt as WorldBankPrepareReceipt, View as WorldBankView, History as WorldBankHistory } from '../../../../contracts/api/research-automation-macro-intake-api.generated.js';
 import { AutomationMetricRuleAdoptions, type MetricRuleBinding } from './metric-rule-adoption.js';
@@ -165,7 +165,7 @@ import type Database from 'better-sqlite3';
 import type { DescriptiveMarketMethods } from '../../../../contracts/analysis/descriptive-market-methods.generated.js';
 import { AutomationDescriptiveMethodBridge } from './descriptive-method-bridge.js';
 import { DEFAULT_MARKET_PEER_RULE, classifiedMetricDefaultPeers, verifyDefaultMarketPeerRule } from '../default-market-peers.js';
-import { AutomationMarketMethodBridge, MARKET_CAPTURE_READ_BUDGET_BYTES, type AutomationMarketMethodSnapshot } from './market-method-bridge.js';
+import { AutomationMarketMethodBridge, type AutomationMarketMethodSnapshot } from './market-method-bridge.js';
 import { AutomationMetricMethodBridge, MetricMethodFailure, metricMethodFailureCode, type AutomationMetricMethodSnapshot, type MetricMethodFailureCode } from './metric-method-bridge.js';
 import { CAPTURE_ROW_PROFILE, CAPTURE_ROW_PROFILE_V2 } from './capture-row-quality.js';
 import { PageIndexCloudClient } from '../pageindex-cloud.js';
@@ -210,14 +210,12 @@ import { withDatabaseMutationMutex } from '../../../platform/db/database-mutatio
 import { ContentAddressedArtifactStore, type StoredArtifact } from '../../../platform/artifacts/artifact-store.js';
 import type {
   CollectInput,
-  CollectResult,
   ProviderCallOptions,
   ProviderRawCapture,
   QuickSearchInput,
 } from './providers.js';
 import {
   invalidProviderStep,
-  toWebResults,
   type AutomationSourcePort,
   type BoundCollectResult,
   type BoundQuickSearchResult,
@@ -241,7 +239,6 @@ import {
   STEP_IDS,
   TERMINAL_STATUSES,
   type CaptureRecord,
-  type StepPdfDiscovery,
   type StepWebResult,
   type ScopeSnapshot,
   type SourceStepId,
@@ -578,7 +575,8 @@ export class ResearchAutomationService {
   readonly #webSource: AutomationSourcePort | undefined;
   /** Web, trends, province map, extra searches, World Bank, UN Comtrade, search-ads library, Cục Thống kê, Meta and TikTok top-ads, in run order (only the configured ones). */
   readonly #collectionLanes: readonly CollectionLane[];
-  readonly #videoWatch: VideoWatchLane | undefined;
+  readonly #videoLane: SaveStepLane<VideoLaneFacts> | undefined;
+  readonly #pdfLane: SaveStepLane<PdfLaneFacts> | undefined;
   readonly #pdfDiscoverySource: PdfDiscoverySource | undefined;
   readonly #pdfCaptureMaxPages: number;
   readonly #renderer: ResearchAutomationReportRenderer | undefined;
@@ -635,7 +633,8 @@ export class ResearchAutomationService {
     this.#source = options.source;
     this.#webSource = options.webSource;
     this.#collectionLanes = collectionLanes(options);
-    this.#videoWatch = options.videoWatch;
+    this.#videoLane = options.videoWatch ? videoLane(options.videoWatch) : undefined;
+    this.#pdfLane = options.pdfDiscoverySource ? pdfLane(options.pdfDiscoverySource) : undefined;
     this.#pdfDiscoverySource = options.pdfDiscoverySource;
     this.#pdfCaptureMaxPages = pdfDiscoveryMaxPages(options.pdfCaptureMaxPages === undefined ? process.env : { [PDF_DISCOVERY_MAX_PAGES_ENV]: String(options.pdfCaptureMaxPages) });
     this.#renderer = options.renderer;
@@ -4347,7 +4346,7 @@ export class ResearchAutomationService {
       envelopes = [];
       step = invalidProviderStep(runId, stepId);
     }
-    const putCaptures = async (values: NonNullable<ReturnType<typeof captureEnvelopes>>, retainPdf = true): Promise<void> => {
+    const putCaptures = async (values: readonly CaptureEnvelope[], retainPdf = true): Promise<void> => {
       for (const { capture, body } of values) {
         if (retainPdf && stepId === 'COLLECTION' && capture.responseBytes && !aborted &&
           Buffer.from(capture.responseBytes.subarray(0, 5)).toString('utf8') === '%PDF-') {
@@ -4403,41 +4402,27 @@ export class ResearchAutomationService {
       if (options?.lineage !== false) assertCaptureLineage(probe, captures.map(value => value.row));
     };
     step = await storeCollectionLanes(lanesBeforeVideo(lanes), step, storeLaneCaptures, checkLane);
-    // Video readings come last: candidates are the run's stored selection and the stored TikTok search rows (no new search),
-    // and their model-answer captures follow the World Bank captures. A skipped video keeps a reason code only and never
-    // changes the step outcome, coverage or run blockers.
-    let videoWatchAttempts: VideoWatchAttempt[] | undefined;
-    let videoWatchThrown = false;
-    if (stepId === 'COLLECTION' && this.#videoWatch) {
-      let plan: VideoWatchPlan = videoWatchCandidates([], undefined);
-      try {
-        const context = await this.#videoWatchContext(runId, step);
-        if (context.topSellingGap) step = { ...step, limitations: [...step.limitations, { code: 'TOP_SELLING_VIDEO_LOCATORS_UNAVAILABLE', provider: null,
-          message: 'Dữ liệu sản phẩm đã chọn còn thiếu đường dẫn video bán chạy dùng được.' }] };
-        plan = videoWatchCandidates(context.selectionVideos, step.expandedSearch?.queries, context.topSellingVideos);
-        const binding = { ...context.binding, candidatesSha256: plan.candidatesSha256 };
-        const writer = new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
-        videoWatchAttempts = await this.#videoWatch.run({ binding, productKeyword: context.productKeyword, candidates: plan.candidates, ...(signal ? { signal } : {}),
-          publish: prepared => withDatabaseMutationMutex(this.#db, async () => {
-            const current = this.#current(runId);
-            if (!current || signal?.aborted || ['FAILED', 'CANCELLING', 'CANCELLED', 'INTERRUPTED'].includes(current.status)) throw new ResearchAutomationStateError('This run cannot publish a video reading.');
-            return publishAutomatedVideoReading(writer, binding, prepared);
-          }) });
-      } catch { videoWatchThrown = true; }
-      const indexes: (number | null)[] = [];
-      for (const attempt of videoWatchAttempts ?? []) {
-        const envelopes = attempt.captures.length ? captureEnvelopes({ captures: attempt.captures }) : null;
-        if (!envelopes?.length) { indexes.push(null); continue; }
-        await putCaptures(envelopes);
-        indexes.push(captures.length - 1);
-      }
-      const probe = { ...step, videoWatch: videoWatchAttempts ? videoWatchDocument(plan, videoWatchAttempts, indexes) : videoWatchFailed(plan, 'PROVIDER_FAILED') };
-      try {
-        assertStepDocument(probe, runId, stepId);
-        assertCaptureLineage(probe, captures.map(value => value.row));
-        step = probe;
-      } catch { step = { ...step, videoWatch: videoWatchFailed(plan, 'DOCUMENT_INVALID') }; }
-    }
+    // The video readings come next, inside the save step, reading the step as the lanes above left it (M5); their captures
+    // follow those lanes' captures. Each reading is published before any usage row exists, as before (M2).
+    const captureList: SaveStepCaptures = {
+      envelopes: values => captureEnvelopes({ captures: values }),
+      put: putCaptures,
+      rows: () => captures.map(value => value.row),
+      byteSize: () => captures.reduce((sum, value) => sum + value.artifact.byteSize, 0),
+    };
+    const saveStep: SaveStepContext = { stepId, signal, captures: captureList, check: checkLane };
+    const video = await runSaveStepLane(this.#videoLane, step, saveStep, () => {
+      const writer = new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
+      return {
+        context: evolving => this.#videoWatchContext(runId, evolving),
+        publish: (binding, prepared) => withDatabaseMutationMutex(this.#db, async () => {
+          const current = this.#current(runId);
+          if (!current || signal?.aborted || ['FAILED', 'CANCELLING', 'CANCELLED', 'INTERRUPTED'].includes(current.status)) throw new ResearchAutomationStateError('This run cannot publish a video reading.');
+          return publishAutomatedVideoReading(writer, binding, prepared);
+        }),
+      };
+    });
+    step = video.step;
     // Meta and TikTok top-ads reads publish Foundation attachments (no step capture) after the video readings.
     step = await storeCollectionLanes(lanesAfterVideo(lanes), step, storeLaneCaptures, checkLane);
     let cancelledSourceEvidence: (() => AutomationSourceEvidence) | undefined;
@@ -4479,157 +4464,22 @@ export class ResearchAutomationService {
       step = { ...step, sourceEvidence };
       keywordDraft = draft;
     }
-    // Report PDFs (S25 AUTO) come after L9 admission: candidates are admitted rows of this run, then at most one extra search whose
-    // rows pass the same draft's L9 filter, then at most two guarded downloads. Each stored file is an ordinary COLLECTION capture
-    // starting with `%PDF-`, so putCaptures retains it as a run PDF. A failure keeps a reason code only and never changes the step.
-    let pdfSearchResult: CollectResult | null = null;
-    let pdfSearchThrown = false;
-    let pdfDownloads: PdfDownloadRun | null = null;
-    if (stepId === 'COLLECTION' && sourceStart.reports.includes('MARKET') && this.#pdfDiscoverySource && pdfInput && !aborted && !signal?.aborted) {
-      let search: StepPdfDiscovery['search'] = { status: 'FAILED', reason: 'SEARCH_FAILED', captureIndex: null, retrievedAt: null };
-      try {
-        // All optional envelopes, including the extra search, share the bridge's exact capture budget.
-        // Owner uploads remain in their existing packages and do not consume this inventory.
-        const fits = (values: NonNullable<ReturnType<typeof captureEnvelopes>>): boolean =>
-          captures.length + values.length <= MAX_CAPTURES_PER_STEP &&
-          captures.reduce((sum, value) => sum + value.artifact.byteSize, 0) + values.reduce((sum, value) => sum + value.body.byteLength, 0) <= MARKET_CAPTURE_READ_BUDGET_BYTES;
-        const source = this.#pdfDiscoverySource;
-        const seen = new Set<string>();
-        // Search projections truncate text before this lane. Vet the exact retained search title,
-        // so truncation cannot hide a file extension, provider name or other unsafe suffix.
-        const candidatesForRows = async (rows: readonly StepWebResult[], origin: PdfCandidate['origin']): Promise<PdfCandidate[]> => {
-          const titled: StepWebResult[] = [];
-          const payloads = new Map<string, unknown>();
-          for (const row of rows) {
-            let title = '';
-            try {
-              const capture = captures.find(c => c.row.ordinal === row.captureIndex)?.row;
-              if (capture?.provider === 'serpapi' && capture.operation === 'serpapi.google.search') {
-                if (!payloads.has(capture.artifactSha256)) {
-                  // These content-addressed bytes are retained already; their manifests commit with the step below.
-                  const envelope = JSON.parse((await this.#artifacts.read(capture.artifactSha256, { maxBytes: MAX_CAPTURE_ENVELOPE_BYTES })).toString('utf8')) as Record<string, unknown>;
-                  if (envelope.outcome !== 'OK' || typeof envelope.responseBytesBase64 !== 'string') throw new Error('Missing search bytes');
-                  const bytes = Buffer.from(envelope.responseBytesBase64, 'base64');
-                  if (createHash('sha256').update(bytes).digest('hex') !== envelope.responseSha256) throw new Error('Search byte mismatch');
-                  payloads.set(capture.artifactSha256, JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)));
-                }
-                const payload = payloads.get(capture.artifactSha256);
-                const matches = isRecord(payload) && Array.isArray(payload.organic_results) ? payload.organic_results.filter((raw: unknown, index: number) =>
-                  isRecord(raw) && (typeof raw.position === 'number' && Number.isSafeInteger(raw.position) && raw.position > 0 ? raw.position : index + 1) === row.position &&
-                  httpsUrl(raw.link, 2048) === row.url) : [];
-                if (matches.length === 1 && isRecord(matches[0])) title = pdfDocumentTitle(matches[0].title) ?? '';
-              }
-            } catch { /* No authentic usable search title: embedded metadata or the ordinal remains available. */ }
-            titled.push({ ...row, title });
-          }
-          return pdfCandidates(titled, origin, seen);
-        };
-        let candidates: PdfCandidate[] = [];
-        // The M09 excerpt block shows only stored reader quotes: with the document reader off an automatic PDF adds nothing,
-        // so neither the extra search nor any download is made. With it on, owner uploads planned first may already fill the
-        // question cap: then an automatic PDF could never be asked either. Later uploads stay first by ordering.
-        const readerOff = !this.#pageIndexEnabled();
-        const downloadSlots = Math.min(PDF_DISCOVERY_MAX_FILES, this.#remainingCapturePdfSlots(runId, sourceStart.reports));
-        const noQuestionBudget = !readerOff && downloadSlots === 0;
-        if (!readerOff && !noQuestionBudget) try {
-          const runRows = step.sourceEvidence
-            ? admitWebResults(step.sourceEvidence, collectionWebRows(step), [...await this.#captureRecords(runId), ...captures.map(c => c.row)], step.sourceEvidence.jevTriage ?? null)
-            : [];
-          candidates = await candidatesForRows(runRows, 'RUN_ROWS');
-        } catch { candidates = []; }
-        if (readerOff) search = { status: 'SKIPPED', reason: 'SKIPPED_READER_OFF', captureIndex: null, retrievedAt: null };
-        else if (noQuestionBudget) search ={ status: 'SKIPPED', reason: 'SKIPPED_NO_QUESTION_BUDGET', captureIndex: null, retrievedAt: null };
-        else if (candidates.length >= downloadSlots) search = { status: 'SKIPPED', reason: 'SEARCH_SKIPPED_ENOUGH', captureIndex: null, retrievedAt: null };
-        else if (!keywordDraft) search = { status: 'SKIPPED', reason: 'SEARCH_NO_ADMISSION', captureIndex: null, retrievedAt: null };
-        else {
-          let attempt: PdfSearchAttempt;
-          try { attempt = await source.search(pdfInput, signal ? { signal } : {}); } catch { attempt = { state: 'THROWN' }; }
-          const offset = captures.length;
-          const envelopes = attempt.state === 'CALLED' ? captureEnvelopes(attempt.result) : null;
-          if (attempt.state === 'CALLED') pdfSearchResult = attempt.result; else pdfSearchThrown = true;
-          if (envelopes?.length && fits(envelopes)) await putCaptures(envelopes);
-          const stored = captures.length > offset ? captures[offset]!.row : null;
-          if (attempt.state === 'CALLED' && stored && stored.provider === 'serpapi' && stored.operation === 'serpapi.google.search') {
-            search = { status: 'CALLED', reason: attempt.result.status === 'SUCCEEDED' ? null : 'SEARCH_FAILED', captureIndex: offset, retrievedAt: stored.retrievedAt };
-            if (attempt.result.status === 'SUCCEEDED') {
-              try {
-                const rows = toWebResults(attempt.result).filter(row => row.captureIndex === 0).map(row => ({ ...row, captureIndex: offset }));
-                const admitted = new Set(filterSerpApiResults({ results: rows.map(row => ({ captureId: stored.artifactSha256, position: row.position, title: row.title, snippet: row.snippet })),
-                  filter: keywordDraft.output }).includedRecordIds);
-                const found = await candidatesForRows(rows.filter(row => admitted.has(`${stored.artifactSha256}#${row.position}`)), 'PDF_SEARCH');
-                if (!found.length && rows.some(row => isPdfPath(row.url))) search = { ...search, reason: 'NOT_ADMITTED' };
-                candidates = [...candidates, ...found];
-              } catch { search = { ...search, reason: 'SEARCH_FAILED' }; }
-            }
-          } else search = { status: 'FAILED', reason: envelopes?.length && !fits(envelopes) ? 'BRIDGE_BUDGET_LIMIT' : 'SEARCH_FAILED', captureIndex: null, retrievedAt: null };
-        }
-        const fileIndexes: (number | null)[] = [];
-        if (candidates.length && !signal?.aborted) {
-          pdfDownloads = { requests: 0, items: [] };
-          const items: PdfDownloadRun['items'][number][] = [];
-          const knownPdfs = new Set(this.#runPdfs(runId).map(pdf => pdf.sha256));
-          // Download sequentially: a duplicate or refused file consumes an attempt, not a question slot.
-          // Never try beyond the original two candidates, and stop before fetching a file that cannot be asked.
-          for (const candidate of candidates.slice(0, PDF_DISCOVERY_MAX_FILES)) {
-            if (signal?.aborted || this.#remainingCapturePdfSlots(runId, sourceStart.reports) === 0) break;
-            const downloaded = await source.download([candidate], signal ? { signal } : {});
-            pdfDownloads = { requests: pdfDownloads.requests + downloaded.requests, items: [...pdfDownloads.items, ...downloaded.items] };
-            const item = downloaded.items[0];
-            if (!item) continue;
-            const envelopes = item.kind === 'DOWNLOADED' ? captureEnvelopes({ captures: [item.capture] }) : null;
-            if (!envelopes?.length) { fileIndexes.push(null); items.push(item); continue; }
-            if (item.kind === 'DOWNLOADED' && knownPdfs.has(item.sha256)) {
-              fileIndexes.push(null);
-              items.push({ candidate: item.candidate, kind: 'FAILED', reason: 'DUPLICATE', requested: true });
-              continue;
-            }
-            // Page cap before any persistence: an over-cap file is neither stored as a capture nor retained, so it is
-            // never indexed and never cited as a file the report cannot read.
-            const pageCheck = item.kind === 'DOWNLOADED' ? await this.#capturePageCheck(item.bytes) : 'OK';
-            if (pageCheck !== 'OK') {
-              fileIndexes.push(null);
-              items.push({ candidate: item.candidate, kind: 'FAILED', reason: pageCheck, requested: true });
-              continue;
-            }
-            if (!fits(envelopes)) {
-              fileIndexes.push(null);
-              items.push({ candidate: item.candidate, kind: 'FAILED', reason: 'BRIDGE_BUDGET_LIMIT', requested: true });
-              continue;
-            }
-            // Persist the capture before reader retention so a failed optional write cannot leave an uncited run PDF.
-            const index = captures.length;
-            try { await putCaptures(envelopes, false); }
-            catch {
-              fileIndexes.push(null);
-              items.push({ candidate: item.candidate, kind: 'FAILED', reason: 'TRANSPORT', requested: true });
-              continue;
-            }
-            if (item.kind === 'DOWNLOADED') {
-              try { await this.#retainRunPdf(runId, `source-${captures.length}.pdf`, item.bytes, 'CAPTURE', item.candidate.title ?? null); }
-              catch {
-                // Indexing may fail after source retention; that follows the upload path's existing reader state.
-                if (!this.#runPdfs(runId).some(pdf => pdf.sha256 === item.sha256)) {
-                  fileIndexes.push(null);
-                  items.push({ candidate: item.candidate, kind: 'FAILED', reason: 'DOCUMENT_INVALID', requested: true });
-                  continue;
-                }
-              }
-              knownPdfs.add(item.sha256);
-            }
-            fileIndexes.push(index);
-            items.push(item);
-            step = { ...step, pdfDiscovery: pdfDiscoveryDocument(search, { ...pdfDownloads, items }, fileIndexes, search.reason ?? 'NO_CANDIDATE') };
-          }
-          pdfDownloads = { ...pdfDownloads, items };
-        }
-        const probe = { ...step, pdfDiscovery: pdfDiscoveryDocument(search, pdfDownloads, fileIndexes, search.reason ?? 'NO_CANDIDATE') };
-        try {
-          assertStepDocument(probe, runId, stepId);
-          assertCaptureLineage(probe, captures.map(value => value.row));
-          step = probe;
-        } catch { step = { ...step, pdfDiscovery: { ...pdfDiscoveryFailed('DOCUMENT_INVALID'), search } }; }
-      } catch { step = { ...step, pdfDiscovery: step.pdfDiscovery ?? { ...pdfDiscoveryFailed('TRANSPORT'), search } }; }
-    }
+    // Report PDFs (S25 AUTO) come after the L9 admission step above; their candidates start from the rows it admitted.
+    const admissionStep = step;
+    const pdf = await runSaveStepLane(this.#pdfLane, step, saveStep, () => ({
+      input: pdfInput, market: sourceStart.reports.includes('MARKET'), aborted,
+      readerOn: () => this.#pageIndexEnabled(),
+      remainingPdfSlots: () => this.#remainingCapturePdfSlots(runId, sourceStart.reports),
+      admittedRows: async () => admissionStep.sourceEvidence
+        ? admitWebResults(admissionStep.sourceEvidence, collectionWebRows(admissionStep), [...await this.#captureRecords(runId), ...captures.map(c => c.row)], admissionStep.sourceEvidence.jevTriage ?? null)
+        : [],
+      keywordFilter: keywordDraft?.output ?? null,
+      readArtifact: (sha256: string, maxBytes: number) => this.#artifacts.read(sha256, { maxBytes }),
+      pageCheck: (bytes: Uint8Array) => this.#capturePageCheck(bytes),
+      runPdfShas: () => this.#runPdfs(runId).map(value => value.sha256),
+      retainPdf: (fileName: string, bytes: Uint8Array, title: string | null) => this.#retainRunPdf(runId, fileName, bytes, 'CAPTURE', title),
+    }));
+    step = pdf.step;
     if (publicSources) step = { ...step, publicReviewAcquisition: publicStage(publicSources, 'PENDING') };
     let resultArtifact = await this.#artifacts.put(Buffer.from(canonicalJson(step), 'utf8'));
     await withDatabaseMutationMutex(this.#db, async () => {
@@ -4659,14 +4509,9 @@ export class ResearchAutomationService {
           }
         };
         persistLaneUsage(collectionLaneUsage(lanesBeforeVideo(lanes)));
-        if (videoWatchAttempts?.some(item => item.requests > 0)) this.#persistUsage(runId, stepId, videoWatchUsage(videoWatchAttempts), now, VIDEO_WATCH_USAGE_ORDINAL);
-        else if (videoWatchThrown) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
-          .run(runId, stepId, VIDEO_WATCH_USAGE_ORDINAL, VIDEO_WATCH_PROVIDER.toLowerCase(), now);
+        persistLaneUsage(video.usage);
         persistLaneUsage(collectionLaneUsage(lanesAfterVideo(lanes)));
-        if (pdfSearchResult?.captures.length) this.#persistUsage(runId, stepId, pdfSearchResult, now, PDF_DISCOVERY_SEARCH_USAGE_ORDINAL);
-        else if (pdfSearchThrown) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,'serpapi','unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
-          .run(runId, stepId, PDF_DISCOVERY_SEARCH_USAGE_ORDINAL, now);
-        if (pdfDownloads && pdfDownloads.requests > 0) this.#persistUsage(runId, stepId, pdfDiscoveryUsage(pdfDownloads.requests), now, PDF_DISCOVERY_DOWNLOAD_USAGE_ORDINAL);
+        persistLaneUsage(pdf.usage);
         if (exact) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,1,'apify-shopee','reviews',?,?,?,?,?)`)
           .run(runId, stepId, exact.requestsIssued, exact.costUsd === null ? 'UNKNOWN' : 'KNOWN', exact.costUsd === null ? null : 'USD', exact.costUsd, now);
         const current = this.#current(runId);
