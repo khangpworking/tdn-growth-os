@@ -1,6 +1,8 @@
 /** U13, opt-in for new renderer versions. Callers mark every pending classified
  * measurement with data-classified="pending"; a table row is one statement.
  * No method-module imports: Market, Insight and auto reports share this contract. */
+import { balancedOpenings, hiddenElement, quoteElement, tagAttributes } from './report-visible-text.js';
+
 export type VisibleTextLintResult = { rule: string; ok: boolean; detail: string };
 
 type Chunk = { text: string; pending: boolean; own: boolean; cell: number | null };
@@ -11,47 +13,6 @@ const decode = (text: string): string => text.replace(/&#x([\da-f]+);|&#(\d+);|&
   });
 
 const VOID_TAGS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
-const RAW_TEXT_TAGS = new Set(['script', 'style']);
-
-function tagAttributes(value: string): Map<string, string> {
-  const out = new Map<string, string>();
-  for (const match of value.matchAll(/\s([:\w-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'`=<>]+)))?/gu)) {
-    out.set((match[1] ?? '').toLowerCase(), decode(match[2] ?? match[3] ?? match[4] ?? ''));
-  }
-  return out;
-}
-
-function isHiddenOpening(value: string): boolean {
-  const attrs = tagAttributes(value);
-  return attrs.has('hidden') || /^(?:true|1)$/iu.test(attrs.get('aria-hidden') ?? '') ||
-    /(?:^|[;\s])(?:display\s*:\s*none|visibility\s*:\s*hidden)(?:\s*!important)?(?:[;\s]|$)/iu.test(attrs.get('style') ?? '');
-}
-
-// A quote exempts text only when its own closing tag appears before an
-// enclosing element closes it implicitly; an unmatched quote quotes nothing.
-export function balancedOpenings(tokens: readonly string[]): Set<number> {
-  const open: { tag: string; index: number; hidden: boolean; raw: boolean }[] = [];
-  const balanced = new Set<number>();
-  tokens.forEach((value, index) => {
-    if (!value.startsWith('<') || value.startsWith('<!--')) return;
-    const rawFrame = open.at(-1)?.raw ? open.at(-1) : undefined;
-    const tag = /^<\/?([\w:-]+)/.exec(value)?.[1]?.toLowerCase();
-    if (!tag) return;
-    if (value.startsWith('</')) {
-      if (rawFrame) {
-        if (tag === rawFrame.tag) open.pop();
-        return;
-      }
-      const top = open.at(-1);
-      if (!top || top.tag !== tag) return;
-      open.pop();
-      if (!top.hidden) balanced.add(top.index);
-    } else if (!rawFrame && !/\/$/.test(value.slice(0, -1)) && !VOID_TAGS.has(tag)) {
-      open.push({ tag, index, hidden: open.some(item => item.hidden) || isHiddenOpening(value), raw: RAW_TEXT_TAGS.has(tag) });
-    }
-  });
-  return balanced;
-}
 
 export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
   const blocks: { chunks: Chunk[]; region: number }[] = [], stack: { tag: string; quote: boolean; hidden: boolean; pending: boolean; cell?: number }[] = [];
@@ -78,10 +39,11 @@ export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
       block.push({ text: ' ', pending: false, own: true, cell: activeCell() });
     } else if (!/\/$/.test(value.slice(0, -1)) && !VOID_TAGS.has(tag)) {
       if (tag === 'section') region++;
+      // Hidden and quoted text as the shared visible-text reader defines them (c2 b5, owner Q3).
+      const attrs = tagAttributes(value);
       stack.push({ tag,
-        quote: balanced.has(tokenIndex) && (/\bdata-quote(?:\s|=|>)/i.test(value) || tag === 'q' || tag === 'blockquote'),
-        hidden: ['script', 'style'].includes(tag) || /\shidden(?:\s|=|>)/i.test(value) || /aria-hidden\s*=\s*["']true["']/i.test(value)
-          || /style\s*=\s*["'][^"']*(?:display\s*:\s*none|visibility\s*:\s*hidden)/i.test(value),
+        quote: balanced.has(tokenIndex) && quoteElement(tag, attrs),
+        hidden: hiddenElement(tag, attrs),
         pending: /data-classified\s*=\s*(?:"pending"|'pending'|pending(?=\s|>))/i.test(value),
         ...(tag === 'td' || tag === 'th' ? { cell: nextCell++ } : {}),
       });

@@ -1,10 +1,16 @@
 import type { Total } from '../../../../contracts/analysis/metric-scope-output.generated.js';
 import { findHiddenNames } from '../report-language/index.js';
-import { balancedOpenings, lintVisibleReportText } from '../report-visible-text-lint.js';
+import { lintVisibleReportText, type VisibleTextLintResult } from '../report-visible-text-lint.js';
+import { balancedOpenings, hiddenElement, HIDDEN_CONTAINER_TAGS, quoteElement, withoutHiddenText } from '../report-visible-text.js';
+import { crossPlatformTotalMatches } from '../report-language/index.js';
 
 export type MarketBusinessGateResult = { rule: string; ok: boolean; detail: string };
 export type PartialRowTotal = { readonly measure: 'revenue' | 'units'; readonly value: string };
-export type MarketBusinessGateOptions = { publicReviewSource?: boolean; presentation?: boolean; partialTotals?: readonly PartialRowTotal[] };
+export type MarketBusinessGateOptions = {
+  publicReviewSource?: boolean; presentation?: boolean; partialTotals?: readonly PartialRowTotal[];
+  /** U13 rows already computed by `gateVisibleTextLint` on the same html (the Reader check reuses them). */
+  visibleText?: readonly VisibleTextLintResult[];
+};
 type TotalsSource = { readonly scopes: readonly {
   readonly key: string; readonly revenue: Total; readonly units: Total;
   readonly groups: readonly { readonly revenue: Total; readonly units: Total }[];
@@ -45,31 +51,12 @@ export function partialRowTotals(results: readonly (TotalsSource | null | undefi
 
 const MARKET_SECTION_IDS = Array.from({ length: 13 }, (_, index) => `M${String(index + 1).padStart(2, '0')}`);
 
-// This is intentionally an explicit list. Do not replace it with a fuzzy
-// cross-platform or arithmetic heuristic: separate platform text is allowed.
-const CROSS_PLATFORM_TOTAL_PHRASES: readonly string[] = [
-  'tổng hai sàn',
-  'cộng hai sàn',
-  'tổng cộng hai nền tảng',
-  'Shopee + TikTok',
-  'Shopee + TikTok Shop',
-  'gộp Shopee và TikTok',
-  'gộp Shopee và TikTok Shop',
-  'gộp TikTok và Shopee',
-  'gộp TikTok Shop và Shopee',
-  'cộng Shopee và TikTok',
-  'cộng Shopee và TikTok Shop',
-  'cộng TikTok và Shopee',
-  'cộng TikTok Shop và Shopee',
-];
-
 const PROPOSAL_TERMS = /(?:phương án|lựa chọn|(?<![\p{L}\p{N}_])option(?![\p{L}\p{N}_])|(?<![\p{L}\p{N}_])proposal(?![\p{L}\p{N}_])|(?<![\p{L}\p{N}_])action_option(?![\p{L}\p{N}_]))/iu;
 const E2_ALWAYS_TERMS = /(?:Thứ tự theo doanh thu|(?<![\p{L}\p{N}_])top\s*3(?![\p{L}\p{N}_]))/giu;
 const E2_NEGATABLE_TERMS = /(?:xếp hạng|thị phần)/giu;
 const TAG_NAME = /^<\/?([\w:-]+)/u;
 const VOID_TAGS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
 const BLOCK_TAGS = new Set(['address', 'article', 'aside', 'blockquote', 'caption', 'div', 'dl', 'dt', 'dd', 'figcaption', 'figure', 'footer', 'form', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'header', 'hr', 'li', 'main', 'nav', 'ol', 'p', 'pre', 'section', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr', 'ul']);
-const HIDDEN_CONTAINER_TAGS = new Set(['script', 'style', 'noscript', 'template']);
 const INLINE_TAGS = new Set(['a', 'abbr', 'b', 'bdi', 'bdo', 'cite', 'code', 'del', 'dfn', 'em', 'i', 'ins', 'kbd', 'mark', 'q', 's', 'samp', 'small', 'span', 'strong', 'sub', 'sup', 'time', 'u', 'var']);
 
 type Frame = { tag: string; hidden: boolean; quote: boolean; heading: boolean; sectionId: string | null };
@@ -159,14 +146,12 @@ function scanHtml(html: string): Scan {
     }
     const attrs = attributes(value);
     const parentHidden = stack.some(frame => frame.hidden);
-    const hidden = parentHidden || HIDDEN_CONTAINER_TAGS.has(name) || attrs.has('hidden') ||
-      /^(?:true|1|hidden)$/iu.test(attrs.get('aria-hidden') ?? '') ||
-      /(?:^|[;\s])(?:display\s*:\s*none|visibility\s*:\s*hidden)(?:[;\s]|$)/iu.test(attrs.get('style') ?? '');
+    const hidden = parentHidden || hiddenElement(name, attrs);
     if (BLOCK_TAGS.has(name) || name === 'br') addBoundary();
     const ownSectionId = name === 'section' && /^M(?:0[1-9]|1[0-3])$/u.test(attrs.get('id') ?? '') ? attrs.get('id')!.toUpperCase() : null;
     if (ownSectionId) sectionCounts.set(ownSectionId, (sectionCounts.get(ownSectionId) ?? 0) + 1);
     const frame: Frame = { tag: name, hidden,
-      quote: stack.some(item => item.quote) || (balanced.has(tokenIndex) && (name === 'q' || name === 'blockquote' || attrs.has('data-quote'))),
+      quote: stack.some(item => item.quote) || (balanced.has(tokenIndex) && quoteElement(name, attrs)),
       heading: stack.some(item => item.heading) || /^h[1-6]$/u.test(name),
       sectionId: ownSectionId ?? [...stack].reverse().find(item => item.sectionId !== null)?.sectionId ?? null };
     for (const attr of ['title', 'alt', 'aria-label']) {
@@ -297,7 +282,7 @@ function balancedQuoteTagOffsets(html: string): Set<number> {
 }
 
 /** Drops plain inline tags so split words join, but keeps balanced plain q and
- * data-quote/data-classified elements with their own closing tags. */
+ * data-quote/data-classified elements, and hidden ones (owner Q3), with their own closing tags. */
 function normalizeInlineTagsForLint(html: string): string {
   if (hasUnbalancedQuoteOpenings(html)) return html;
   const balancedQuotes = balancedQuoteTagOffsets(html);
@@ -308,18 +293,19 @@ function normalizeInlineTagsForLint(html: string): string {
     const stack = open.get(name) ?? [];
     open.set(name, stack);
     if (/^<\//u.test(token)) return stack.pop() ? token : '';
-    const keep = name === 'q' || /\bdata-quote\b/iu.test(token)
+    const keep = (name === 'q' || /\bdata-quote\b/iu.test(token)
       ? balancedQuotes.has(offset)
-      : /\bdata-classified\b/iu.test(token);
+      : /\bdata-classified\b/iu.test(token)) || hiddenElement(name, attributes(token));
     if (!/\/\s*>$/u.test(token)) stack.push(keep);
     return keep ? token : '';
   });
 }
 
-/** Text of each statement block (paragraph, list item, description). Row tables
- * inside them are dropped: a table cell states one row's own value, not a total. */
+/** Text of each visible statement block (paragraph, list item, description). Row tables
+ * inside them are dropped: a table cell states one row's own value, not a total.
+ * Hidden text is not a statement (owner Q3). */
 function statementTexts(html: string): string[] {
-  const body = html.replace(/<!--[\s\S]*?-->|<(script|style|template)\b[\s\S]*?<\/\1\s*>/giu, ' ');
+  const body = withoutHiddenText(html).replace(/<!--[\s\S]*?-->|<(script|style|template)\b[\s\S]*?<\/\1\s*>/giu, ' ');
   return [...body.matchAll(/<(p|li|dd)\b[^>]*>([\s\S]*?)<\/\1\s*>/giu)]
     .map(match => decodeHtml((match[2] ?? '').replace(/<table\b[\s\S]*?<\/table\s*>/giu, ' ').replace(/<[^>]*>/gu, ' ')).replace(/\s+/gu, ' ').trim());
 }
@@ -415,6 +401,11 @@ function sellerVideoMisuse(html: string, scan: Scan): string[] | null {
   }));
 }
 
+/** U13 as the gate reads it: inline tags joined, hidden text out. */
+export function gateVisibleTextLint(html: string): VisibleTextLintResult[] {
+  return lintVisibleReportText(normalizeInlineTagsForLint(html));
+}
+
 function result(rule: string, ok: boolean, detail: string): MarketBusinessGateResult { return { rule, ok, detail }; }
 
 export function auditMarketReportHtml(html: string, options: MarketBusinessGateOptions = {}): MarketBusinessGateResult[] {
@@ -423,19 +414,20 @@ export function auditMarketReportHtml(html: string, options: MarketBusinessGateO
   // Public-review metadata remains checked, but href targets are outside R-L01 (owner Q5 / c4 I2).
   const publicText = options.publicReviewSource ? decodeHtml(html.replace(/\shref\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'`=<>]+)/giu, ' ')) : '';
   const provider = providerMatches(scan.named + ' ' + publicText);
-  const crossPlatform = CROSS_PLATFORM_TOTAL_PHRASES.flatMap(phrase => matches(scan.visible, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'giu')));
+  const crossPlatform = crossPlatformTotalMatches(scan.visible);
   const e2 = e2Matches(scan.authored);
   const missingOrDuplicate = MARKET_SECTION_IDS.filter(id => scan.sectionCounts.get(id) !== 1).map(id => `${id}=${scan.sectionCounts.get(id)}`);
   const m12 = scan.sections.get('M12') ?? '';
   const m12Proposal = PROPOSAL_TERMS.test(m12);
-  const m12Label = /đề xuất/iu.test(m12);
+  // R-L14: the full label, as the Reader and the fourteen rules require (owner Q4).
+  const m12Label = /đề xuất,\s*chờ chủ duyệt/iu.test(m12);
   const leaks = noLeakMatches(html, scan);
   const partial = partialTotalMatches(html, options.partialTotals ?? []);
   const interestMisuse = searchInterestMisuse(html, scan);
   const macroMisuse = worldBankMisuse(html, scan);
   const excerptMisuse = pdfExcerptMisuse(html, scan);
   const videoMisuse = sellerVideoMisuse(html, scan);
-  const u13 = lintVisibleReportText(normalizeInlineTagsForLint(html));
+  const u13 = options.visibleText ?? gateVisibleTextLint(html);
   const content = [
     result('G08_PROVIDER_NAME', provider.length === 0, snippets(provider)),
     result('U32_NO_CROSS_PLATFORM_TOTAL', crossPlatform.length === 0, snippets(crossPlatform)),

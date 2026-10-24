@@ -73,6 +73,6 @@ test('the Market reader revision path runs the business gate before storing a re
   const before = revisionCount(f.db);
   // A provider name that the reader's own lint does not list is still caught by the shared Market gate.
   await assert.rejects(f.service.buildReaderReport(workspaceId, runId, f.build('10000000-0000-4000-8000-000000002092', 'Hũ OpenAI'), owner),
-    /chưa đạt kiểm tra bằng chứng hoặc cách trình bày \(quy tắc: [^)]*G08_PROVIDER_NAME/);
+    /chưa đạt kiểm tra bằng chứng hoặc cách trình bày: Trang có tên nhà cung cấp số liệu hoặc công cụ\./);
   assert.equal(revisionCount(f.db), before);
 });

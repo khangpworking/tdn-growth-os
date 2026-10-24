@@ -1,7 +1,7 @@
 // Reader-report rule lint on the final HTML (F1–F8, plus offline assets).
 // Display checks at desktop, 375 px and A4 run separately in a browser.
 import { lintVisibleReportText } from '../report-visible-text-lint.js';
-import { findHiddenNames, HIDDEN_NAMES, type HiddenNameGroup } from '../report-language/index.js';
+import { crossPlatformTotalMatches, findHiddenNames, HIDDEN_NAMES, type HiddenNameGroup } from '../report-language/index.js';
 export type LintResult = { rule: string; ok: boolean; detail: string };
 export type LintOptions = {
   /** @deprecated ignored: names come from report-language (R-L01). */
@@ -176,8 +176,8 @@ export function lint(html: string, { sectionIds = [], familyLabel = 'toàn kết
   add('W2 không cộng trừ hai họ số', mixed.length === 0,
     mixed.length ? mixed.slice(0, 2).map(s => s.trim().slice(0, 80)).join(' | ') : 'không lẫn hai họ số');
 
-  const summed = sentences.filter(s =>
-    /tổng\s+(hai sàn|cả hai sàn|shopee và tiktok|tiktok và shopee)/i.test(s));
+  // One phrase list with the draft gate's U32 (R-M16 / R-L04).
+  const summed = sentences.filter(s => crossPlatformTotalMatches(s).length > 0);
   add('W3 không cộng gộp sàn khi trang không ghi tổng', summed.length === 0,
     summed.length ? summed.slice(0, 2).map(s => s.trim().slice(0, 80)).join(' | ') : 'không cộng gộp sàn');
 
