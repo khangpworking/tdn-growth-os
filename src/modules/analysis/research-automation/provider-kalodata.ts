@@ -12,7 +12,7 @@ import {
   type CardDescription, type CollectInput, type CollectResult, type CoverageStatus, type CreditUsage, type DateWindow,
   type PeriodSum, type ProductCard, type ProductPeriodSummary, type ProductWindowObservation, type ProviderCallOptions,
   type ProviderCapabilityReport, type ProviderCoverage, type ProviderOperation, type ProviderRawCapture,
-  type QueryWindowCoverage, type QuickSearchInput, type QuickSearchResult, type ResearchAutomationProvider,
+  type ProviderUsage, type QueryWindowCoverage, type QuickSearchInput, type QuickSearchResult, type ResearchAutomationProvider,
 } from './providers.js';
 
 export const KALODATA_LIMITS = Object.freeze({
@@ -52,7 +52,38 @@ const COLLECT_LIMITATIONS = [
 type Rejection = 'AUTH_OR_RATE_REJECTED' | 'CREDIT_EXHAUSTED' | null;
 const CREDIT_EXHAUSTED_PROVIDER_CODE = '2016';
 
-export function createKalodataProvider(secretKey: string | null, transport: ProviderTransport): ResearchAutomationProvider {
+/** S06: at most three products per run; the provider charges about one point per product call. */
+export const KALODATA_COMMENT_INSIGHT_LIMITS = Object.freeze({
+  maxProducts: 3, maxComments: 2_000, textMaxChars: 2_000, skuMaxChars: 200, pointLabelMaxChars: 500, maxPointsPerKind: 50,
+});
+
+/** One product's reviews and provider-AI points, personal fields already dropped. */
+export interface KalodataCommentInsightRecord {
+  readonly productId: string;
+  readonly cachedAt: string | null;
+  readonly reviews: readonly { readonly id: string; readonly text: string | null; readonly sku: string | null; readonly dateRaw: string | null }[];
+  readonly points: readonly { readonly kind: 'PAIN_POINT' | 'POSITIVE_POINT' | 'USAGE_SCENARIO'; readonly label: string; readonly reviewIds: readonly string[] }[];
+}
+export type KalodataCommentInsightOutcome = 'OK' | 'EMPTY' | 'FAILED' | 'AMBIGUOUS_NO_RETRY' | 'NOT_RUN_CREDIT_EXHAUSTED' | 'NOT_RUN_STOPPED' | 'NOT_RUN_CANCELLED';
+export interface KalodataCommentInsightResult {
+  readonly status: 'NOT_CONFIGURED' | 'COMPLETED';
+  /** Balance observed before the phase; null when it was not observed. */
+  readonly balanceBefore: number | null;
+  /** True when a zero balance or the provider's credit answer stopped the phase. */
+  readonly creditExhausted: boolean;
+  readonly products: readonly { readonly productId: string; readonly outcome: KalodataCommentInsightOutcome;
+    readonly captureId: string | null; readonly responseSha256: string | null; readonly record: KalodataCommentInsightRecord | null }[];
+  readonly usage: ProviderUsage;
+  readonly captures: readonly ProviderRawCapture[];
+}
+export interface KalodataProvider extends ResearchAutomationProvider {
+  /** S06 product reviews. Explicit product ids only (digits, at most three); never auto-retries a paid request. */
+  productCommentInsight(productIds: readonly string[], options?: ProviderCallOptions): Promise<KalodataCommentInsightResult>;
+  /** Free account balance read; null when not configured or not observed. */
+  creditBalance(options?: ProviderCallOptions): Promise<number | null>;
+}
+
+export function createKalodataProvider(secretKey: string | null, transport: ProviderTransport): KalodataProvider {
   const limiters = {
     rank: new RateLimiter(KALODATA_LIMITS.rankRequestsPer10s, 10_000),
     detail: new RateLimiter(KALODATA_LIMITS.detailRequestsPer10s, 10_000),
@@ -82,7 +113,7 @@ export function createKalodataProvider(secretKey: string | null, transport: Prov
     parse: (data: unknown) => T | undefined,
   ): Promise<{ capture: ProviderRawCapture; data: T | null; rejection: Rejection } | null> {
     const limiter = request.operation === 'kalodata.product.rank' ? limiters.rank
-      : request.operation === 'kalodata.product.detail' ? limiters.detail : limiters.credit;
+      : request.operation === 'kalodata.product.detail' || request.operation === 'kalodata.product.comment.insight' ? limiters.detail : limiters.credit;
     if (!await limiter.acquire(transport, options.signal)) return null;
     const bodyText = request.body ? JSON.stringify(request.body) : null;
     const context: CaptureContext = {
@@ -130,11 +161,15 @@ export function createKalodataProvider(secretKey: string | null, transport: Prov
     return { capture: log.record(context, requestedAt, 'OK', result.status, result.bytes, providerCode), data, rejection: null };
   }
 
-  async function balance(log: CaptureLog, key: string, options: ProviderCallOptions) {
-    const result = await call(log, key, options, {
+  async function balanceResponse(log: CaptureLog, key: string, options: ProviderCallOptions) {
+    return call(log, key, options, {
       operation: 'kalodata.credit.balance', path: '/openapi/v1/credit/balance', method: 'GET', body: null,
       queryWindow: null, productRef: null,
     }, data => isRecord(data) && finiteNonNegative(data.totalRemain) !== null ? finiteNonNegative(data.totalRemain)! : undefined);
+  }
+
+  async function balance(log: CaptureLog, key: string, options: ProviderCallOptions) {
+    const result = await balanceResponse(log, key, options);
     return result?.data === null || result === null ? null : { value: result.data, captureId: result.capture.captureId };
   }
 
@@ -328,7 +363,86 @@ export function createKalodataProvider(secretKey: string | null, transport: Prov
         productObservations: observations, productPeriodSummaries: summaries, coverage: [coverage], usage,
         captures: log.captures };
     },
+
+    async creditBalance(options: ProviderCallOptions = {}): Promise<number | null> {
+      if (!secretKey) return null;
+      return (await balance(new CaptureLog('KALODATA', transport, options.onProgress, 1), secretKey, options))?.value ?? null;
+    },
+
+    async productCommentInsight(productIds: readonly string[], options: ProviderCallOptions = {}): Promise<KalodataCommentInsightResult> {
+      if (!Array.isArray(productIds) || productIds.length > KALODATA_COMMENT_INSIGHT_LIMITS.maxProducts
+        || productIds.some(id => typeof id !== 'string' || !/^\d{1,32}$/.test(id)) || new Set(productIds).size !== productIds.length)
+        throw new ProviderInputError('Comment insight needs at most three distinct numeric product ids');
+      if (!secretKey) return { status: 'NOT_CONFIGURED', balanceBefore: null, creditExhausted: false, products: [],
+        usage: emptyUsage('KALODATA'), captures: [] };
+      const log = new CaptureLog('KALODATA', transport, options.onProgress, productIds.length + 2);
+      const preflight = productIds.length ? await balanceResponse(log, secretKey, options) : null;
+      const before = preflight === null || preflight.data === null ? null
+        : { value: preflight.data, captureId: preflight.capture.captureId };
+      // A rejected preflight stops the phase even when no numeric balance was returned.
+      let creditStop = before?.value === 0 || preflight?.rejection === 'CREDIT_EXHAUSTED';
+      let stopped = creditStop || preflight?.rejection === 'AUTH_OR_RATE_REJECTED';
+      const products: KalodataCommentInsightResult['products'][number][] = [];
+      for (const id of productIds) {
+        const answer = stopped || options.signal?.aborted ? null : await call(log, secretKey, options, {
+          operation: 'kalodata.product.comment.insight', path: '/openapi/v1/tiktok/product/comment/insight', method: 'POST',
+          body: { product_id: id, country_code: 'VN' }, queryWindow: null, productRef: formatProviderProductRef('KALODATA', id),
+        }, data => parseCommentInsight(data, id));
+        if (answer?.rejection) stopped = true;
+        if (answer?.rejection === 'CREDIT_EXHAUSTED') creditStop = true;
+        const outcome: KalodataCommentInsightOutcome = creditStop && (!answer || answer.rejection === 'CREDIT_EXHAUSTED') ? 'NOT_RUN_CREDIT_EXHAUSTED'
+          : !answer ? (options.signal?.aborted ? 'NOT_RUN_CANCELLED' : 'NOT_RUN_STOPPED')
+          : answer.capture.outcome === 'OK' ? (answer.data?.record ? 'OK' : 'EMPTY')
+          : isAmbiguous(answer.capture.outcome) ? 'AMBIGUOUS_NO_RETRY' : 'FAILED';
+        products.push({ productId: id, outcome, captureId: answer?.capture.captureId ?? null,
+          responseSha256: answer?.capture.responseSha256 ?? null, record: outcome === 'OK' ? answer!.data!.record : null });
+      }
+      const usage = log.usage(await credits(log, secretKey, options, before));
+      return { status: 'COMPLETED', balanceBefore: before?.value ?? null, creditExhausted: creditStop, products, usage, captures: log.captures };
+    },
   };
+}
+
+// ---- comment insight normalization (S06; no reviewer name, avatar, user id or other personal field is read) ----
+
+const COMMENT_POINT_FIELDS = [['pain_points', 'PAIN_POINT'], ['positive_points', 'POSITIVE_POINT'], ['usage_scenarios', 'USAGE_SCENARIO']] as const;
+
+/** Returns undefined for a malformed payload, `{ record: null }` when the provider returned no record. */
+function parseCommentInsight(data: unknown, expectedId: string): { record: KalodataCommentInsightRecord | null } | undefined {
+  if (data === null || data === undefined) return { record: null };
+  if (!isRecord(data) || data.product_id !== expectedId) return undefined;
+  const country = data.country_code;
+  if (country !== undefined && country !== null && !(typeof country === 'string' && /^vn$/i.test(country))) return undefined;
+  const limits = KALODATA_COMMENT_INSIGHT_LIMITS;
+  const comments = data.original_comments ?? [];
+  if (!Array.isArray(comments) || comments.length > limits.maxComments) return undefined;
+  const id = (value: unknown) => typeof value === 'string' && /^\d{1,32}$/.test(value) ? value : null;
+  const dateRaw = (value: unknown) => (typeof value === 'string' || (typeof value === 'number' && Number.isFinite(value)))
+    && /^[0-9A-Za-z:.+\- ]{1,40}$/.test(String(value)) ? String(value) : null;
+  const seen = new Set<string>();
+  const reviews: KalodataCommentInsightRecord['reviews'][number][] = [];
+  for (const row of comments) {
+    if (!isRecord(row) || (row.product_id !== undefined && row.product_id !== null && row.product_id !== expectedId)) continue;
+    const review = isRecord(row.review) ? row.review : {};
+    const reviewId = id(review.review_id) ?? id(row.review_id);
+    if (!reviewId || seen.has(reviewId)) continue;
+    seen.add(reviewId);
+    reviews.push({ id: reviewId,
+      text: boundedText(review.display_text, limits.textMaxChars) ?? boundedText(review.comment, limits.textMaxChars) ?? boundedText(row.display_text, limits.textMaxChars),
+      sku: boundedText(row.sku_specification, limits.skuMaxChars), dateRaw: dateRaw(review.review_timestamp) ?? dateRaw(row.review_timestamp) });
+  }
+  const points: KalodataCommentInsightRecord['points'][number][] = [];
+  for (const [field, kind] of COMMENT_POINT_FIELDS) {
+    const list = data[field] ?? [];
+    if (!Array.isArray(list) || list.length > limits.maxPointsPerKind) return undefined;
+    for (const point of list) {
+      const label = isRecord(point) ? boundedText(point.view_point, limits.pointLabelMaxChars) : null;
+      if (!label || !isRecord(point)) continue;
+      const ids = Array.isArray(point.id_list) ? point.id_list.map(id).filter((value): value is string => value !== null) : [];
+      points.push({ kind, label, reviewIds: [...new Set(ids)] });
+    }
+  }
+  return { record: { productId: expectedId, cachedAt: boundedText(data.cached_at, 40), reviews, points } };
 }
 
 // ---- payload normalization (provider fields only) ----
