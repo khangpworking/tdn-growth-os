@@ -30,6 +30,7 @@ import { googleAdsEnabled } from '../modules/analysis/research-automation/google
 import { officialStatsEnabled, officialStatsProvinceEnabled } from '../modules/analysis/research-automation/official-statistics-lane.js';
 import { metaAutoEnabled } from '../modules/analysis/research-automation/meta-auto-lane.js';
 import { tiktokTopAdsEnabled } from '../modules/analysis/research-automation/tiktok-top-ads-lane.js';
+import { tiktokShopReviewsEnabled } from '../modules/analysis/research-automation/tiktok-shop-reviews.js';
 import { pdfDiscoveryEnabled } from '../modules/analysis/research-automation/pdf-discovery-lane.js';
 import { videoWatchConfigFromEnv, videoWatchEnabled, type VideoWatchConfig } from '../modules/analysis/research-automation/video-watch-lane.js';
 import { expandedSearchEnabled } from '../modules/analysis/research-automation/expanded-search-lane.js';
@@ -113,6 +114,8 @@ export interface OperatorAppConfiguration {
   readonly researchMetaAuto?: true;
   /** Public TikTok top-ads lane of the Market flow; present only when TDN_RESEARCH_TIKTOK_TOPADS_ENABLED is exactly "1". Reads public pages only, never logs in. */
   readonly researchTikTokTopAds?: true;
+  /** TikTok Shop product reviews (S06) of the Insight flow; present only when TDN_RESEARCH_TIKTOK_SHOP_REVIEWS_ENABLED is exactly "1". Paid, at most three products per run. */
+  readonly researchTikTokShopReviews?: true;
   readonly researchPdfDiscovery?: true;
   /** Video-watch lane of the Market flow; present only when TDN_RESEARCH_VIDEO_WATCH_ENABLED is exactly "1". Uses the existing CLIProxy settings. */
   readonly researchVideoWatch?: VideoWatchConfig;
@@ -234,6 +237,7 @@ export function operatorAppConfigurationFromEnvironment(
     ...(officialStatsProvinceEnabled(environment) ? { researchOfficialStatsProvinces: true as const } : {}),
     ...(metaAutoEnabled(environment) ? { researchMetaAuto: true as const } : {}),
     ...(tiktokTopAdsEnabled(environment) ? { researchTikTokTopAds: true as const } : {}),
+    ...(tiktokShopReviewsEnabled(environment) ? { researchTikTokShopReviews: true as const } : {}),
     ...(pdfDiscoveryEnabled(environment) ? { researchPdfDiscovery: true as const } : {}),
     ...(videoWatchEnabled(environment) ? { researchVideoWatch: videoWatchConfigFromEnv(environment) } : {}),
     ...(environment.TDN_R2_ENABLED !== 'true' ? {} : { r2: {
@@ -321,6 +325,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
       ...(configuration.researchOfficialStats && configuration.researchOfficialStatsProvinces ? { officialStatsProvinces: true as const } : {}),
       ...(configuration.researchMetaAuto ? { metaAuto: true as const } : {}),
       ...(configuration.researchTikTokTopAds ? { tiktokTopAds: true as const } : {}),
+      ...(configuration.researchTikTokShopReviews ? { tiktokShopReviews: true as const } : {}),
       ...(configuration.researchPdfDiscovery ? { pdfDiscovery: true as const } : {}),
       ...(configuration.researchVideoWatch ? { videoWatch: configuration.researchVideoWatch } : {}),
       ...(configuration.ownerWritesEnabled ? { owner: {
