@@ -219,7 +219,7 @@ Báo cáo SHALL đặt số nền (VM, TM, TK; hạng A, đại diện Cao) ở 
 - **THEN** quy tắc bị vi phạm
 
 ### Requirement: DT Doanh thu
-Chỉ số DT (Doanh thu) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo DT-1, DT-2, DT-3, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Mã cách đo chỉ ghi ở bảng "Chỉ số đã dùng" cuối báo cáo.
+Chỉ số DT (Doanh thu) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo DT-1, DT-2, DT-3, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Bảng "Chỉ số đã dùng" cuối báo cáo ghi mã cách đo.
 
 - Định nghĩa chung: tiền bán được của sản phẩm trong một kỳ.
 - Đơn vị: đồng.
@@ -310,7 +310,7 @@ Số theo cách đo DT-3 SHALL mang nhãn "số của shop" và SHALL chỉ so v
 - **THEN** báo cáo không nêu số DT-3
 
 ### Requirement: LB Lượt bán
-Chỉ số LB (Lượt bán) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo LB-1, LB-2, LB-3, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Mã cách đo chỉ ghi ở bảng "Chỉ số đã dùng" cuối báo cáo.
+Chỉ số LB (Lượt bán) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo LB-1, LB-2, LB-3, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Bảng "Chỉ số đã dùng" cuối báo cáo ghi mã cách đo.
 
 - Định nghĩa chung: số đơn vị hàng bán được trong một kỳ.
 - Đơn vị: đơn vị đếm của hồ sơ đơn vị (mục 6.6).
@@ -401,7 +401,7 @@ Số theo cách đo LB-3 SHALL mang nhãn "đã bán, cộng dồn tới <ngày 
 - **THEN** quy tắc LB-3 bị vi phạm
 
 ### Requirement: GIA Giá
-Chỉ số GIA (Giá) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo GIA-1, GIA-2, GIA-3, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Mã cách đo chỉ ghi ở bảng "Chỉ số đã dùng" cuối báo cáo.
+Chỉ số GIA (Giá) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo GIA-1, GIA-2, GIA-3, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Bảng "Chỉ số đã dùng" cuối báo cáo ghi mã cách đo.
 
 - Định nghĩa chung: tiền khách trả cho một đơn vị so giá.
 - Đơn vị: đồng mỗi đơn vị so giá (mục 6.6).
@@ -488,7 +488,7 @@ Cách đo GIA-3 SHALL NOT cho ra con số giá, và SHALL chỉ đếm số lầ
 - **THEN** quy tắc GIA-3 bị vi phạm
 
 ### Requirement: DG Số đánh giá
-Chỉ số DG (Số đánh giá) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo DG-1, DG-2, DG-3, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Mã cách đo chỉ ghi ở bảng "Chỉ số đã dùng" cuối báo cáo.
+Chỉ số DG (Số đánh giá) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo DG-1, DG-2, DG-3, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Bảng "Chỉ số đã dùng" cuối báo cáo ghi mã cách đo.
 
 - Định nghĩa chung: số bản ghi đánh giá.
 - Đơn vị: bản ghi (không phải người, không phải đơn hàng).
@@ -575,7 +575,7 @@ Số theo cách đo DG-3 SHALL mang nhãn "sàn hiển thị" và SHALL NOT so v
 - **THEN** quy tắc DG-3 bị vi phạm
 
 ### Requirement: SAO Điểm sao
-Chỉ số SAO (Điểm sao) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo SAO-1, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Mã cách đo chỉ ghi ở bảng "Chỉ số đã dùng" cuối báo cáo.
+Chỉ số SAO (Điểm sao) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo SAO-1, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Bảng "Chỉ số đã dùng" cuối báo cáo ghi mã cách đo.
 
 - Định nghĩa chung: mức sao khách cho, từ 1 tới 5.
 - Cách đo: SAO-1
@@ -616,7 +616,7 @@ Số theo cách đo SAO-1 SHALL là phân bố số bản ghi theo 1 đến 5 sa
 - **THEN** quy tắc SAO-1 bị vi phạm
 
 ### Requirement: NH Tỉ lệ nhắc chủ đề
-Chỉ số NH (Tỉ lệ nhắc chủ đề) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo NH-1, NH-2, NH-3, NH-4, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Mã cách đo chỉ ghi ở bảng "Chỉ số đã dùng" cuối báo cáo.
+Chỉ số NH (Tỉ lệ nhắc chủ đề) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo NH-1, NH-2, NH-3, NH-4, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Bảng "Chỉ số đã dùng" cuối báo cáo ghi mã cách đo.
 
 - Định nghĩa chung: phần bản ghi có nhắc một chủ đề đã duyệt.
 - Đơn vị: n/N bản ghi. Đây là chỉ số chính của Insight.
@@ -726,7 +726,7 @@ Số theo cách đo NH-4 SHALL mang nhãn "<n>/<N> quảng cáo nổi bật, l�
 - **THEN** quy tắc NH-4 bị vi phạm
 
 ### Requirement: XEM Lượt xem
-Chỉ số XEM (Lượt xem) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo XEM-1, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Mã cách đo chỉ ghi ở bảng "Chỉ số đã dùng" cuối báo cáo.
+Chỉ số XEM (Lượt xem) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo XEM-1, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Bảng "Chỉ số đã dùng" cuối báo cáo ghi mã cách đo.
 
 - Định nghĩa chung: số lần video được xem.
 - Cách đo: XEM-1
@@ -766,7 +766,7 @@ Số theo cách đo XEM-1 SHALL mang nhãn "lượt xem, <kỳ>", SHALL chỉ so
 - **THEN** quy tắc XEM-1 bị vi phạm
 
 ### Requirement: QT Mức quan tâm tìm kiếm
-Chỉ số QT (Mức quan tâm tìm kiếm) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo QT-1, QT-2, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Mã cách đo chỉ ghi ở bảng "Chỉ số đã dùng" cuối báo cáo.
+Chỉ số QT (Mức quan tâm tìm kiếm) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo QT-1, QT-2, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Bảng "Chỉ số đã dùng" cuối báo cáo ghi mã cách đo.
 
 - Định nghĩa chung: mức tìm một từ khoá so với đỉnh của chính nó.
 - Cách đo: QT-1, QT-2
@@ -829,7 +829,7 @@ Số theo cách đo QT-2 SHALL mang nhãn "nơi tìm nhiều (0–100)", SHALL c
 - **THEN** quy tắc QT-2 bị vi phạm
 
 ### Requirement: QC Số quảng cáo
-Chỉ số QC (Số quảng cáo) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo QC-1, QC-2, QC-3, QC-4, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Mã cách đo chỉ ghi ở bảng "Chỉ số đã dùng" cuối báo cáo.
+Chỉ số QC (Số quảng cáo) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo QC-1, QC-2, QC-3, QC-4, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Bảng "Chỉ số đã dùng" cuối báo cáo ghi mã cách đo.
 
 - Định nghĩa chung: số quảng cáo của một thương hiệu mà thư viện quảng cáo hiển thị.
 - Đơn vị: quảng cáo.
@@ -940,7 +940,7 @@ Số theo cách đo QC-4 SHALL mang nhãn "hiện lâu nhất <n> ngày" và SHA
 - **THEN** quy tắc QC-4 bị vi phạm
 
 ### Requirement: TL Lượt thích quảng cáo
-Chỉ số TL (Lượt thích quảng cáo) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo TL-1, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Mã cách đo chỉ ghi ở bảng "Chỉ số đã dùng" cuối báo cáo.
+Chỉ số TL (Lượt thích quảng cáo) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo TL-1, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Bảng "Chỉ số đã dùng" cuối báo cáo ghi mã cách đo.
 
 - Định nghĩa chung: lượt thích trên một thẻ quảng cáo nổi bật.
 - Cách đo: TL-1
@@ -981,7 +981,7 @@ Số theo cách đo TL-1 SHALL mang nhãn "lượt thích, quảng cáo nổi b�
 - **THEN** quy tắc TL-1 bị vi phạm
 
 ### Requirement: VM Chỉ tiêu vĩ mô
-Chỉ số VM (Chỉ tiêu vĩ mô) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo VM-1, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Mã cách đo chỉ ghi ở bảng "Chỉ số đã dùng" cuối báo cáo.
+Chỉ số VM (Chỉ tiêu vĩ mô) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo VM-1, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Bảng "Chỉ số đã dùng" cuối báo cáo ghi mã cách đo.
 
 - Định nghĩa chung: giá trị một chỉ tiêu quốc gia trong một năm.
 - Cách đo: VM-1
@@ -1022,7 +1022,7 @@ Số theo cách đo VM-1 SHALL mang nhãn "<tên chỉ tiêu>, <năm>, <đơn v�
 - **THEN** quy tắc VM-1 bị vi phạm
 
 ### Requirement: TM Kim ngạch thương mại
-Chỉ số TM (Kim ngạch thương mại) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo TM-1, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Mã cách đo chỉ ghi ở bảng "Chỉ số đã dùng" cuối báo cáo.
+Chỉ số TM (Kim ngạch thương mại) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo TM-1, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Bảng "Chỉ số đã dùng" cuối báo cáo ghi mã cách đo.
 
 - Định nghĩa chung: giá trị nhập hoặc xuất của một mã hàng HS.
 - Cách đo: TM-1
@@ -1067,7 +1067,7 @@ Số theo cách đo TM-1 SHALL mang nhãn "kim ngạch <nhập/xuất>, mã HS <
 - **THEN** quy tắc TM-1 bị vi phạm
 
 ### Requirement: TK Số thống kê nhà nước
-Chỉ số TK (Số thống kê nhà nước) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo TK-1, TK-2, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Mã cách đo chỉ ghi ở bảng "Chỉ số đã dùng" cuối báo cáo.
+Chỉ số TK (Số thống kê nhà nước) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo TK-1, TK-2, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Bảng "Chỉ số đã dùng" cuối báo cáo ghi mã cách đo.
 
 - Định nghĩa chung: số liệu Cục Thống kê công bố.
 - Cách đo: TK-1, TK-2

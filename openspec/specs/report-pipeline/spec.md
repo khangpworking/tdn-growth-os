@@ -34,12 +34,12 @@ Hệ thống SHALL tạo và đổi lần chạy nghiên cứu chỉ qua lệnh 
 - **THEN** hệ thống không tạo lần chạy
 
 #### Scenario: Lệnh ghi đánh thức worker
-- **WHEN** một lệnh ghi dưới `owner-api` thành công và lệnh đó không phải dựng hay quyết định bản đọc Reader
-- **THEN** API gọi `worker.wake()`
+- **WHEN** một trong các lệnh sau thành công: tạo lần chạy, `confirm-scope`, `cancel`, `report-revisions` (kể cả hủy bản sửa), hoặc `auto-run/retry` không phải lần gửi lại y hệt
+- **THEN** API gọi `worker.wake()` (`src/api/research-automation-api.ts`, khoảng dòng 1227–1243)
 
-#### Scenario: Dựng và quyết định bản đọc không đánh thức worker
-- **WHEN** lệnh `reader-reports` (dựng bản đọc) hoặc `reader-reports/decisions` (quyết định) thành công, kể cả bản đọc Insight, TikTok và Shopee
-- **THEN** API trả biên nhận mà không gọi `worker.wake()` (`src/api/research-automation-api.ts`, khoảng dòng 1185–1225: dựng bản đọc chỉ nói lại một bản nháp đã xong)
+#### Scenario: Lệnh ghi khác không đánh thức worker
+- **WHEN** một lệnh ghi khác dưới `owner-api` thành công, ví dụ dựng hay quyết định bản đọc Reader, `metric-rule-adoptions`, mã hóa Insight, hoặc `auto-run/retry` gửi lại y hệt (`exactRetry`)
+- **THEN** API trả biên nhận mà không gọi `worker.wake()` trực tiếp
 
 ### Requirement: R-P02 Worker là máy trạng thái của lần chạy
 Worker SHALL xử lý lần chạy qua ba bước `QUICK_SEARCH`, `COLLECTION`, `REPORTS`, theo thứ tự đó. Trạng thái cuối là một trong `DRAFT_READY`, `FAILED`, `CANCELLED`, `INTERRUPTED`.
@@ -139,15 +139,19 @@ Hệ thống SHALL chạy `assertMarketBusinessGate` trên HTML nháp loại `MA
 - **THEN** `assertMarketBusinessGate` không chạy; chỉ lint chữ nhìn thấy chạy
 
 ### Requirement: R-P08 Kiểm 14 quy tắc trên báo cáo Market
-Hệ thống SHALL chạy `auditMarket14` trên bản đọc Market, và SHALL làm lần dựng lỗi với mã `MARKET_14_RULES_FAILED:<số quy tắc>` khi một quy tắc loại "Máy" trượt. Quy tắc loại "Bằng chứng" (6, 8, 14) luôn ghi "đạt" kèm chi tiết cho người đọc soát.
+Hệ thống SHALL chạy `auditMarket14` trên bản đọc Market, và SHALL làm lần dựng lỗi với mã `MARKET_14_RULES_FAILED:<số quy tắc>` khi một quy tắc loại "Máy" trượt. Quy tắc loại "Bằng chứng" (6, 8, 14) luôn ghi "đạt" kèm chi tiết cho người đọc soát. Quy tắc 10 (ảnh bìa) là loại "Máy" khi bìa là ảnh ngoài, sai dạng, hoặc ảnh JPEG do AI tạo hợp lệ. Khi không có ảnh bìa nhúng, quy tắc 10 thành loại "Bằng chứng", ghi "chưa đạt" kèm chữ "READ" cho người đọc soát, và không làm lần dựng lỗi.
 
 - Mã: RA `market-14-rules.ts` (`auditMarket14`, `assertMarket14MachineRules`). Số `result('1')` đến `result('14')` ứng với R-M01 đến R-M14.
 - Lệnh tay: `tsx scripts/audit-market-14.ts <report.html> [trace.md]` (không có trong npm scripts).
 - Kiểm thử: `tests/unit/rules14-209-market-14.test.ts`, `market14-reader-only.test.ts`, `market14-pdf-citation.test.ts`.
 
-#### Scenario: Thiếu ảnh bìa
-- **WHEN** bản đọc Market không có ảnh bìa JPEG do AI tạo
+#### Scenario: Ảnh bìa ngoài hoặc sai dạng
+- **WHEN** bản đọc Market có ảnh bìa trỏ ra ngoài, hoặc ảnh bìa không phải JPEG base64 có giới hạn và có chữ alt
 - **THEN** lần dựng lỗi với `MARKET_14_RULES_FAILED:10`
+
+#### Scenario: Thiếu ảnh bìa
+- **WHEN** bản đọc Market không có ảnh bìa nhúng nào
+- **THEN** quy tắc 10 có `kind: 'evidence'`, `ok: false`, chi tiết bắt đầu bằng "READ", và không làm lần dựng lỗi (RA `market-14-rules.ts`, `result('10', ...)`)
 
 #### Scenario: Quy tắc bằng chứng
 - **WHEN** `auditMarket14` chạy quy tắc 6
@@ -221,6 +225,8 @@ Mỗi thay đổi mã SHALL qua `npm run check` trên CI Linux trước khi gộ
 - **THEN** người làm chạy `tests/unit/gate-209-market-business.test.ts` trên máy và CI chạy cả bộ
 
 ## Điểm chưa xác minh
+
+- Khoảng trống R-M10 và R-P08: R-M10 ghi loại kiểm "Máy" cho ảnh bìa, nhưng code chỉ làm lần dựng lỗi khi ảnh bìa sai. Thiếu hẳn ảnh bìa chỉ ra kết quả "Bằng chứng" cho người đọc soát. Cần chủ quyết định sửa code hay sửa quy tắc.
 - Giá trị đầy đủ của trạng thái lần chạy (chỉ đọc `TERMINAL_STATUSES` trong RA `model.ts`).
 - Cách `reports.ts` chọn phiên bản bộ dựng `automation-report-kit-vNN`.
 - Migration 0001–0004, 0008–0029, thư mục `contracts/` và `gates/` chưa đọc cho spec này.
