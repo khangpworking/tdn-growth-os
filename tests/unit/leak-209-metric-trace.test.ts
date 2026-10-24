@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { CITATION_FORBIDDEN_NAMES } from '../../src/modules/analysis/citation-registry.js';
+import { hasHiddenName } from '../../src/modules/analysis/report-language/index.js';
 import type { AutomationClassifiedMetricSnapshot } from '../../contracts/analysis/automation-classified-metric.generated.js';
 import type { AutomationMetricMethodSnapshot } from '../../src/modules/analysis/research-automation/metric-method-bridge.js';
 import { metricMethodSection } from '../../src/modules/analysis/research-automation/metric-method-report.js';
@@ -60,8 +60,7 @@ test('M03 and M04 traces keep provider names, raw limitation codes and method id
   for (const sectionId of ['M03', 'M04'] as const) {
     for (const isClassified of [false, true]) {
       const html = render(sectionId, isClassified);
-      const lower = html.toLowerCase();
-      for (const name of CITATION_FORBIDDEN_NAMES) assert.equal(lower.includes(name.toLowerCase()), false, `${sectionId} ${isClassified}: ${name}`);
+      assert.equal(hasHiddenName(html, 'CITATION'), false, `${sectionId} ${isClassified}`);
       for (const [code] of LIMITATIONS) assert.equal(html.includes(code), false, `${sectionId} ${isClassified}: ${code}`);
       for (const id of METHOD_IDS) assert.equal(html.includes(id), false, `${sectionId} ${isClassified}: ${id}`);
     }

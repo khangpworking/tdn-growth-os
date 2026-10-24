@@ -1,5 +1,6 @@
 import { JSDOM } from 'jsdom';
-import { CITATION_FORBIDDEN_NAMES, containsTechnicalId } from '../../src/modules/analysis/citation-registry.js';
+import { containsTechnicalId } from '../../src/modules/analysis/citation-registry.js';
+import { findHiddenNames } from '../../src/modules/analysis/report-language/index.js';
 
 /**
  * P1-11: the text a reader actually reads. Style, script and every disclosure are
@@ -23,22 +24,14 @@ export function reportContainsToken(source: string | Document, token: string): b
 /** Source status codes such as AUTOMATION_PARTIAL must not reach reader text. */
 const SOURCE_CODE = /\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/g;
 
-/** P1-12: every character outside the disclosures is written by the renderer, so any provider name is a leak. */
-const anyName = (text: string): string[] => {
-  const lower = text.toLowerCase();
-  return CITATION_FORBIDDEN_NAMES.filter(name => lower.includes(name));
-};
-
 /** P1-12: provider names, 32+ hex runs and source codes found in reader text. */
 export function visibleTextViolations(visibleText: string): string[] {
-  const violations = anyName(visibleText).map(name => `provider name "${name}"`);
+  const names = [...new Set(findHiddenNames(visibleText, 'CITATION').map(hit => hit.name.toLowerCase()))];
+  const violations = names.map(name => `provider name "${name}"`);
   for (const code of visibleText.match(SOURCE_CODE) ?? []) violations.push(`source code "${code}"`);
   if (containsTechnicalId(visibleText)) violations.push('32+ hex run');
   return violations;
 }
-
-// Codes and method identifiers may remain technical; standalone names and path segments may not.
-const namedAsWord = (name: string): RegExp => new RegExp('(?<![\\p{L}\\p{N}_-])' + name + '(?![\\p{L}\\p{N}_-])', 'iu');
 
 /**
  * P1-13: provider names are banned from the whole document, disclosures included.
@@ -51,7 +44,7 @@ export function providerNameViolations(html: string): string[] {
   while (walker.nextNode()) nodes.push(walker.currentNode.textContent ?? '');
   const text = nodes.join(' ') + ' ' + [...document.querySelectorAll('*')]
     .flatMap(node => [...node.attributes].map(attribute => attribute.value)).join(' ');
-  const violations = CITATION_FORBIDDEN_NAMES.filter(name => namedAsWord(name).test(text));
+  const violations = [...new Set(findHiddenNames(text, 'READER').map(hit => hit.name.toLowerCase()))];
   document.defaultView?.close();
   return violations;
 }
