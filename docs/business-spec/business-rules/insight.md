@@ -4,6 +4,8 @@
 
 Tài liệu này giữ các quy tắc của Insight. Mỗi quy tắc có mã R-I…. Nội dung đầy đủ từng section Insight nằm ở [tài liệu câu hỏi Insight](../../research/ultimate-method/insight-cau-hoi-nghiep-vu.md). Từ điển trường và từ điển chỉ số đã chuyển sang [fields.md](../semantic-layer/fields.md) và [metrics.md](../semantic-layer/metrics.md).
 
+Quy tắc R-L01 (không nêu tên nhà cung cấp, công cụ, AI, "Google") áp dụng đầy đủ cho Insight, giống Market. Xem [report-language.md](report-language.md).
+
 Insight chờ Market ổn định rồi mới chạy (chủ 17/10, 12/10). Quy tắc chung cho mọi báo cáo nằm ở [report-language.md](report-language.md). Cột "Mã kiểm" ghi "chưa có mã kiểm" khi chưa có hàm trong mã nguồn.
 
 ## 1. Đếm và chọn mẫu

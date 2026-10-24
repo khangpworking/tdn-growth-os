@@ -2,7 +2,7 @@
 // stored, never asked for again. No reworded text, no guessed metadata, no grade: every excerpt is shown as "chưa xếp hạng độ tin cậy".
 import { CitationRegistry, type CitationInput } from '../citation-registry.js';
 import { PAGEINDEX_ELIGIBLE_SECTIONS, toCitationInput, type PageIndexQuotesArtifact } from '../pageindex-questions.js';
-import { CAPTURED_PROVIDER_NAMES, FORBIDDEN_PROVIDER_NAMES } from '../reader-report/lint.js';
+import { HIDDEN_NAMES as REPORT_HIDDEN_NAMES, hasHiddenName } from '../report-language/index.js';
 import { readerTextSafe } from './reader-plain-text.js';
 import type { StepPdfDiscovery } from './model.js';
 
@@ -43,8 +43,8 @@ export interface PdfExcerpt {
 export interface PdfExcerptLeftOut { readonly sourceSha256: string; readonly page: number; readonly reason: PdfExcerptLeftOutReason }
 export interface PdfExcerptSelection { readonly excerpts: readonly PdfExcerpt[]; readonly leftOut: readonly PdfExcerptLeftOut[] }
 
-const PROVIDER_WORDS = [...new Set([...FORBIDDEN_PROVIDER_NAMES, ...CAPTURED_PROVIDER_NAMES, 'PageIndex', 'Google', 'Jev', 'TypeSafe', 'CLIProxy', 'OpenAI', 'Anthropic', 'GLM'])];
-const providerPattern = new RegExp(`(?<![\\p{L}\\p{N}_])(?:${PROVIDER_WORDS.map(name => name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')).join('|')})(?![\\p{L}\\p{N}_])`, 'iu');
+// R-L01 names: an excerpt is copied text, so a name leaves the excerpt out (report-language COPIED rule).
+const providerNamed = (text: string): boolean => hasHiddenName(text, 'COPIED');
 /**
  * Text that could expose a path, link, address, account or secret is not shown. The report's own leak gates do not catch every
  * shape (an ordinary `/tmp/...` path passes them), so these are checked here, beside the shared reader-text check.
@@ -72,7 +72,7 @@ const plainLetters = (text: string): boolean => PLAIN_BASE.test(text.normalize('
 const FULLWIDTH = /[＀-￯]/u;
 /** Letters and digits only, lower case, so no space, dash or dot can split a name ("Page Index", "Agent–Reach", "api  key"). */
 const squash = (text: string): string => text.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
-const HIDDEN_NAMES = [...PROVIDER_WORDS, 'token', 'password', 'passwd', 'secret', 'apikey', 'bearer', 'accesskey', 'mật khẩu', 'mã truy cập',
+const HIDDEN_NAMES = [...REPORT_HIDDEN_NAMES.map(entry => entry.name), 'token', 'password', 'passwd', 'secret', 'apikey', 'bearer', 'accesskey', 'mật khẩu', 'mã truy cập',
   'khóa bí mật', 'khoá bí mật'].map(name => squash(name.normalize('NFC')));
 /** A provider name or secret label anywhere in the text once it is joined up; an ordinary word that holds one is left out too. */
 const namesHidden = (text: string): boolean => { const joined = squash(text.normalize('NFC')); return HIDDEN_NAMES.some(name => joined.includes(name)); };
@@ -199,7 +199,7 @@ const leaks = (text: string): boolean => !plainProse(text) || LEAK_PATTERNS.some
 
 const words = (text: string): number => text.trim().split(/\s+/u).filter(Boolean).length;
 /** The same closed plain-prose, leak and provider checks, for other verbatim operator text (seller video speech). */
-export const pdfPlainTextSafe = (text: string): boolean => !providerPattern.test(text) && !leaks(text) && readerTextSafe(text);
+export const pdfPlainTextSafe = (text: string): boolean => !providerNamed(text) && !leaks(text) && readerTextSafe(text);
 
 /**
  * A title in capitals is read word by word in lower case, keeping the listed acronyms, so "BÁO CÁO NGÀNH" or "VIỆT NAM" reads as
@@ -213,7 +213,7 @@ const capitalsRead = (text: string): string => text.split(' ').map(token => {
 const titleShown = (title: string): boolean => {
   const count = title.split(/\s+/u).filter(token => /[\p{L}\p{N}]/u.test(token)).length;
   // Vietnamese words are syllables: a name of one or two ("Báo cáo") says nothing about the document.
-  return title.length <= PDF_DOCUMENT_TITLE_MAX && count >= 3 && count <= PDF_EXCERPT_MAX_WORDS && /\p{L}/u.test(title) && !providerPattern.test(title)
+  return title.length <= PDF_DOCUMENT_TITLE_MAX && count >= 3 && count <= PDF_EXCERPT_MAX_WORDS && /\p{L}/u.test(title) && !providerNamed(title)
     && !/%|\b(?!Q[1-4]\b)[A-Z]\d{1,2}[A-Z]?\b/u.test(title)
     && !LEAK_PATTERNS.some(pattern => pattern.test(title)) && readerTextSafe(title) && !leaks(capitalsRead(title));
 };
@@ -269,7 +269,7 @@ export function pdfExcerptReaderCitation(excerpt: PdfExcerpt): CitationInput {
 }
 
 function readerSafe(text: string, citation: CitationInput): boolean {
-  if (providerPattern.test(text) || leaks(text) || !readerTextSafe(text)) return false;
+  if (providerNamed(text) || leaks(text) || !readerTextSafe(text)) return false;
   try { new CitationRegistry().cite(citation); return true; } catch { return false; }
 }
 

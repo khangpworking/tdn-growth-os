@@ -47,7 +47,7 @@ export function exactTestReviewSection(value: TestReviewSample,
     if (!reader) return `Sản phẩm #${index + 1}`;
     const match = /^https:\/\/shopee\.vn\/product\/(\d+)\/(\d+)(?:[?#].*)?$/u.exec(url);
     const title = reader.productLabels.get(url) ?? (match ? reader.productLabels.get(`shopee:${match[1]}:${match[2]}`) : undefined);
-    const safe = title && !containsForbiddenProviderName(title) && !/\b(?:Gemini|Google|Nemotron|NVIDIA)\b/iu.test(title) ? title : undefined;
+    const safe = title && !containsForbiddenProviderName(title) ? title : undefined;
     const resolved = readerProductLabel(url, safe, index + 1);
     const escaped = escapeHtml(resolved);
     // A verified source title must survive the reader's authored-copy localization.

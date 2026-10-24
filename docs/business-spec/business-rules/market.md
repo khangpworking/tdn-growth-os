@@ -50,7 +50,7 @@ Hàm `auditMarketReportHtml` trong `src/modules/analysis/research-automation/mar
 
 | Mã | Quy tắc | Mã cổng | Hàm kiểm |
 | --- | --- | --- | --- |
-| R-M15 | Không nêu tên nhà cung cấp, công cụ, mô hình AI hay "Google". Tên sàn như Shopee thì được. | `G08_PROVIDER_NAME` | `providerMatches`. Danh sách tên nằm ở `FORBIDDEN_PROVIDER_NAMES`, `CAPTURED_PROVIDER_NAMES` trong `src/modules/analysis/reader-report/lint.ts` |
+| R-M15 | Không nêu tên nhà cung cấp, công cụ, mô hình AI hay "Google". Tên sàn như Shopee thì được. | `G08_PROVIDER_NAME` | `providerMatches`. Danh sách tên nằm ở `HIDDEN_NAMES` trong `src/modules/analysis/report-language/hidden-names.ts` (R-L01) |
 | R-M16 | Không có tổng giữa Shopee và TikTok Shop. | `U32_NO_CROSS_PLATFORM_TOTAL` | `CROSS_PLATFORM_TOTAL_PHRASES` |
 | R-M17 | Không xếp thứ tự theo doanh thu bằng lời "Thứ tự theo doanh thu" hay "top 3". Chữ "xếp hạng" và "thị phần" bị cấm, trừ khi câu đó phủ định. | `E2_NO_REVENUE_ORDER` | `e2Matches` |
 | R-M18 | Một tổng có thành viên thiếu thì không được nêu như tổng. | `PARTIAL_TOTAL_FORBIDDEN` | `partialRowTotals`, `partialTotalMatches` |
