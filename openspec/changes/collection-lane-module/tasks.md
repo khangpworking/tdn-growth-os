@@ -18,8 +18,9 @@
 
 ## 3. PR3: làn sau L9
 
-- [ ] 3.1 Video đọc bước đang dựng sau khi các làn trước đã gộp (M5)
-- [ ] 3.2 PDF: giới hạn capture, giữ tệp PDF, lỗi ghi tệp chỉ làm hỏng làn PDF như hiện nay
+- [x] 3.1 Video đọc bước đang dựng sau khi các làn trước đã gộp (M5); không có cổng dừng như hiện nay; việc đăng bài đọc giữ đúng chỗ (M2); RA `collection-lanes-save-step.ts`
+- [x] 3.2 PDF: giới hạn capture, giữ tệp PDF, lỗi ghi tệp chỉ làm hỏng làn PDF như hiện nay; bước nhận L9 ở lại service, dòng đã nhận là đầu vào rõ ràng; tải lỗi vẫn không ghi dòng `UNKNOWN` (M3); byte đã lưu không đổi
+- [ ] 3.3 Kiểm thử ở giao diện module (phiên khác người viết mã)
 
 ## 4. PR4: sửa lỗi (đổi hành vi)
 
