@@ -53,7 +53,7 @@ Worker SHALL xử lý lần chạy qua ba bước `QUICK_SEARCH`, `COLLECTION`, 
 
 #### Scenario: Hủy lần chạy
 - **WHEN** chủ gửi `cancel`
-- **THEN** lần chạy về `CANCELLED`, dữ liệu dở bị xóa và một dòng nhật ký chi phí được giữ (quyết định U-26, 11/10/2026)
+- **THEN** lần chạy về `CANCELLED`; dữ liệu đã thu và các dòng nhật ký chi phí được giữ lại, kể cả dữ liệu về muộn sau khi hủy (quyết định U-26 ngày 11/10/2026, chủ sửa ngày 24/10/2026: không xóa dữ liệu dở)
 
 ### Requirement: R-P03 Tự chạy Market chỉ khi bật cờ
 Hệ thống SHALL chạy luồng tự động Market (thu, chuẩn bị, chọn link, xác nhận, chờ nháp, trình bày) chỉ khi `TDN_METRIC_OPENCLI_ENABLED=1`.
@@ -226,9 +226,6 @@ Mỗi thay đổi mã SHALL qua `npm run check` trên CI Linux trước khi gộ
 
 ## Điểm chưa xác minh
 
-- Khoảng trống R-P02 với U-26 (`docs/business-spec/decisions/owner-decisions.md`): nguồn yêu cầu xóa dữ liệu dở và giữ một dòng chi phí. Mã `cancel`, `#settleSourceFailure` và `#persistSourceResult` ở RA `service.ts` giữ capture và các dòng usage đã thu, kể cả bằng chứng về muộn sau khi hủy. Giữ nguyên yêu cầu nguồn; chưa có bằng chứng mã thực hiện việc xóa theo U-26.
-- Khoảng trống R-M03, R-L01 với R-P06: nguồn yêu cầu file dấu vết `.md` riêng, còn RA `reports.ts` và `service.ts` dựng và giữ `traceHtml` dạng HTML cho Market trình bày. Giữ nguyên quy tắc nguồn; chưa có file `.md` tương ứng trong luồng này.
-- Khoảng trống R-M10 và R-P08: R-M10 ghi loại kiểm "Máy" cho ảnh bìa, nhưng code chỉ làm lần dựng lỗi khi ảnh bìa sai. Thiếu hẳn ảnh bìa chỉ ra kết quả "Bằng chứng" cho người đọc soát. Cần chủ quyết định sửa code hay sửa quy tắc.
 - Giá trị đầy đủ của trạng thái lần chạy (chỉ đọc `TERMINAL_STATUSES` trong RA `model.ts`).
 - Cách `reports.ts` chọn phiên bản bộ dựng `automation-report-kit-vNN`.
 - Migration 0001–0004, 0008–0029, thư mục `contracts/` và `gates/` chưa đọc cho spec này.
