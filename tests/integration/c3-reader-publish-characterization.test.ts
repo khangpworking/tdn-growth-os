@@ -119,7 +119,7 @@ async function fixture(t: TestContext, status = 'DRAFT_READY') {
     tiktok: db.prepare('SELECT * FROM analysis_tiktok_report_consumption ORDER BY revision_id').all(),
     shopee: db.prepare('SELECT * FROM analysis_shopee_report_consumption ORDER BY revision_id').all(),
   });
-  const files = async () => (await fs.readdir(root, { recursive: true })).filter(name => name.startsWith('artifacts/sha256/')).sort();
+  const files = async () => (await fs.readdir(path.join(root, 'artifacts', 'sha256'), { recursive: true })).sort();
   return { root, db, artifacts, readers, adapter, snapshot, files };
 }
 
@@ -187,8 +187,18 @@ for (const family of families) {
   test(`row 8 ${family}: gate failure stores no revision; clean page commits`, async t => {
     const f = await fixture(t), a = f.adapter(family), before = f.snapshot();
     if (family === 'Market') {
+      // Owner Q2 via c2 PR3: plain Vietnamese reasons for the owner; rule ids stay in the cause.
       await assert.rejects(a.build({ ...a.request, profile: { ...a.request.profile!, product: 'NaN' } }),
-        (error: unknown) => error instanceof ResearchAutomationValidationError && /F3/.test(error.message));
+        (error: unknown) => {
+          assert.ok(error instanceof ResearchAutomationValidationError);
+          assert.doesNotMatch(error.message, /[A-Z][A-Z0-9]*_[A-Z0-9_]+/);
+          assert.doesNotMatch(error.message, /\bF3\b/);
+          assert.equal(error.message,
+            'Bản đọc chưa đạt kiểm tra bằng chứng hoặc cách trình bày: Trang còn sót chữ máy như undefined, NaN hoặc null. Hãy kiểm tra nguồn, nhận định và nhãn phân loại chờ chủ duyệt trước khi tạo phiên bản mới.');
+          assert.ok(error.cause instanceof Error);
+          assert.match(error.cause.message, /\bF3\b/);
+          return true;
+        });
     } else {
       const context = a.context as InsightReaderDraftContext;
       const page: InsightReaderPage = { ...context.page, sections: [...context.page.sections,
