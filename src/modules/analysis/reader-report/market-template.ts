@@ -19,10 +19,10 @@ import { renderChart, type FlintChartInput, type FlintPalette } from './flint.js
 import { marketChartRows, renderMarketCharts, type MarketChartKind } from './market-charts.js';
 import { esc, num, sp } from './format.js';
 import { cover, hlNum, makeExhibits, n as numberCell, page, plat, platIcons, PLATFORM_LABEL, section, type CoverImage } from './layout.js';
-import { FORBIDDEN_PROVIDER_NAMES } from './lint.js';
+import { hasHiddenName, maskHiddenNames } from '../report-language/index.js';
 import { NO_BRAND, type Scope } from './scope-metrics.js';
 import { barChart, lineChart, paretoChart } from './svg-charts.js';
-import { CITATION_FORBIDDEN_NAMES, CitationRegistry, containsTechnicalId, displayCitationUrl } from '../citation-registry.js';
+import { CitationRegistry, containsTechnicalId, displayCitationUrl } from '../citation-registry.js';
 import { orderReportCitations, renderCitationMark, renderCitationRegister } from '../citation-register-html.js';
 import { DISPLAY_ROUNDED_NOTE, WEB_FAMILY_LABEL, WEB_MONTHLY_METHOD, webMonthlyStats } from './web-facts.js';
 import type { CaptureRecord, ExpandedSearchKind, StepComtrade, StepPdfDiscovery, StepSearchAds, StepOfficialStats, StepSearchInterest, StepSearchGeo, StepWorldBank } from '../research-automation/model.js';
@@ -97,25 +97,25 @@ export type BuiltMarketReport = {
 // A report never names a data provider, even inside a quotation: the name is
 // masked, and a page hosted by a provider is not cited at all. Other wording in
 // a quotation is the page's own and stays as written.
-const PROVIDER_NAME = new RegExp(`\\b(?:${[...FORBIDDEN_PROVIDER_NAMES, 'SerpApi'].join('|')})\\b`, 'gi');
-const mask = (s: string): string => s.replace(PROVIDER_NAME, '[…]');
+const mask = (s: string): string => maskHiddenNames(s, 'READER');
 function citableUrl(value: string): boolean {
   try {
     const url = new URL(value);
-    return url.protocol === 'https:' && !url.username && !url.password && !new RegExp(PROVIDER_NAME.source, 'i').test(url.hostname);
+    return url.protocol === 'https:' && !url.username && !url.password && !hasHiddenName(url.hostname, 'READER');
   } catch { return false; }
 }
 /** Results that can be cited: https pages not hosted by a provider, provider names masked, in search order.
  * Cited results (the automated report) also never show the search engine or a search operator: such an
  * address drops the row, and such a title, snippet, site or date is withheld. */
 export function readerWebResults(values: readonly ReaderWebResult[], citations = false): ReaderWebResult[] {
-  const citationProviders = new RegExp(CITATION_FORBIDDEN_NAMES.join('|'), 'gi');
-  const safe = (text: string): string => citations ? mask(text).replace(citationProviders, '[.]') : mask(text);
+  // Citation masking only runs on a hit, so name-free text keeps its bytes (no entity decoding).
+  const citationSafe = (text: string): string => hasHiddenName(text, 'CITATION') ? maskHiddenNames(text, 'CITATION', '[.]') : text;
+  const safe = (text: string): string => citations ? citationSafe(mask(text)) : mask(text);
   const safeOrNull = (text: string | null | undefined): string | null => text ? safe(text) : null;
   // The check reads the stored text, before masking, so a cited row is withheld as a whole like Market and Insight.
   const shown = (text: string | null | undefined, withheld: string | null): string | null => citations && text && webTextHidden(text) ? withheld : safeOrNull(text);
   return values.filter(v => citableUrl(v.url) && (!citations ||
-    (!new RegExp(citationProviders.source, 'i').test(displayCitationUrl(v.url)) && !containsTechnicalId(displayCitationUrl(v.url)) && !webTextHidden(v.url))))
+    (!hasHiddenName(displayCitationUrl(v.url), 'CITATION') && !containsTechnicalId(displayCitationUrl(v.url)) && !webTextHidden(v.url))))
     .map(v => ({ position: v.position, title: shown(v.title, WEB_TITLE_WITHHELD) ?? '', url: v.url, snippet: shown(v.snippet, WEB_SNIPPET_WITHHELD), retrievedAt: v.retrievedAt,
       site: shown(v.site, null), published: shown(v.published, null), ...(v.origin ? { origin: v.origin } : {}) }))
     .sort((a, b) => a.position - b.position);

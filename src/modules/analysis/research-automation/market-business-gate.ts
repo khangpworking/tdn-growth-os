@@ -1,6 +1,5 @@
-import { PUBLIC_REVIEW_FORBIDDEN_NAMES } from './public-review-report.js';
 import type { Total } from '../../../../contracts/analysis/metric-scope-output.generated.js';
-import { CAPTURED_PROVIDER_NAMES, FORBIDDEN_PROVIDER_NAMES } from '../reader-report/lint.js';
+import { findHiddenNames } from '../report-language/index.js';
 import { balancedOpenings, lintVisibleReportText } from '../report-visible-text-lint.js';
 
 export type MarketBusinessGateResult = { rule: string; ok: boolean; detail: string };
@@ -67,8 +66,6 @@ const CROSS_PLATFORM_TOTAL_PHRASES: readonly string[] = [
 const PROPOSAL_TERMS = /(?:phương án|lựa chọn|(?<![\p{L}\p{N}_])option(?![\p{L}\p{N}_])|(?<![\p{L}\p{N}_])proposal(?![\p{L}\p{N}_])|(?<![\p{L}\p{N}_])action_option(?![\p{L}\p{N}_]))/iu;
 const E2_ALWAYS_TERMS = /(?:Thứ tự theo doanh thu|(?<![\p{L}\p{N}_])top\s*3(?![\p{L}\p{N}_]))/giu;
 const E2_NEGATABLE_TERMS = /(?:xếp hạng|thị phần)/giu;
-const COMMON_WORD_PROVIDERS = new Set(['Metric']);
-const MODEL_ID =/\b(?:gpt|claude)-[A-Za-z0-9][A-Za-z0-9._-]*\b/giu;
 const TAG_NAME = /^<\/?([\w:-]+)/u;
 const VOID_TAGS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
 const BLOCK_TAGS = new Set(['address', 'article', 'aside', 'blockquote', 'caption', 'div', 'dl', 'dt', 'dd', 'figcaption', 'figure', 'footer', 'form', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'header', 'hr', 'li', 'main', 'nav', 'ol', 'p', 'pre', 'section', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr', 'ul']);
@@ -76,7 +73,8 @@ const HIDDEN_CONTAINER_TAGS = new Set(['script', 'style', 'noscript', 'template'
 const INLINE_TAGS = new Set(['a', 'abbr', 'b', 'bdi', 'bdo', 'cite', 'code', 'del', 'dfn', 'em', 'i', 'ins', 'kbd', 'mark', 'q', 's', 'samp', 'small', 'span', 'strong', 'sub', 'sup', 'time', 'u', 'var']);
 
 type Frame = { tag: string; hidden: boolean; quote: boolean; heading: boolean; sectionId: string | null };
-type Scan = { visible: string; authored: string; sections: Map<string, string>; sectionCounts: Map<string, number> };
+/** `named` = visible text plus hidden text and hidden attribute labels (R-L01: a name there is a leak too). */
+type Scan = { visible: string; named: string; authored: string; sections: Map<string, string>; sectionCounts: Map<string, number> };
 
 function decodeHtml(value: string): string {
   const named: Record<string, string> = { amp: '&', apos: "'", gt: '>', lt: '<', nbsp: ' ', quot: '"' };
@@ -108,15 +106,19 @@ function appendText(parts: string[], value: string, boundary = false): void {
 function scanHtml(html: string): Scan {
   const stack: Frame[] = [];
   const visible: string[] = [];
+  const named: string[] = [];
   const authored: string[] = [];
   const sections = new Map<string, string[]>();
   const sectionCounts = new Map(MARKET_SECTION_IDS.map(id => [id, 0]));
   const addBoundary = (): void => {
     appendBoundary(visible);
+    appendBoundary(named);
     appendBoundary(authored);
     for (const parts of sections.values()) appendBoundary(parts);
   };
+  const addNamed = (value: string, boundary = false): void => { if (value) appendText(named, decodeHtml(value), boundary); };
   const addText = (value: string, frame: Frame | undefined, boundary = false): void => {
+    addNamed(value, boundary);
     if (!value || frame?.hidden) return;
     const text = decodeHtml(value);
     if (!text) return;
@@ -136,6 +138,7 @@ function scanHtml(html: string): Scan {
     if (value.startsWith('<!--') || value.startsWith('<!')) continue;
     if (!value.startsWith('<')) {
       if (!stack.some(frame => HIDDEN_CONTAINER_TAGS.has(frame.tag))) addText(value, stack.at(-1));
+      else if (!stack.some(frame => frame.tag === 'script' || frame.tag === 'style')) addNamed(value, true);
       continue;
     }
     const name = TAG_NAME.exec(value)?.[1]?.toLowerCase();
@@ -166,15 +169,15 @@ function scanHtml(html: string): Scan {
       quote: stack.some(item => item.quote) || (balanced.has(tokenIndex) && (name === 'q' || name === 'blockquote' || attrs.has('data-quote'))),
       heading: stack.some(item => item.heading) || /^h[1-6]$/u.test(name),
       sectionId: ownSectionId ?? [...stack].reverse().find(item => item.sectionId !== null)?.sectionId ?? null };
-    if (!hidden) {
-      for (const attr of ['title', 'alt', 'aria-label']) {
-        const text = attrs.get(attr);
-        if (text) addText(text, frame, true);
-      }
+    for (const attr of ['title', 'alt', 'aria-label']) {
+      const text = attrs.get(attr);
+      if (!text) continue;
+      if (hidden) appendText(named, text, true);
+      else addText(text, frame, true);
     }
     if (!VOID_TAGS.has(name) && !/\/\s*>$/u.test(value)) stack.push(frame);
   }
-  return { visible: visible.join(''), authored: authored.join(''), sections: new Map([...sections].map(([id, parts]) => [id, parts.join('')])), sectionCounts };
+  return { visible: visible.join(''), named: named.join(''), authored: authored.join(''), sections: new Map([...sections].map(([id, parts]) => [id, parts.join('')])), sectionCounts };
 }
 
 function snippets(values: Iterable<string>): string {
@@ -243,16 +246,9 @@ function e2Matches(text: string): string[] {
   return hits;
 }
 
-function providerMatches(text: string, publicReviewSource = false): string[] {
-  const names = [...new Set([...FORBIDDEN_PROVIDER_NAMES, ...CAPTURED_PROVIDER_NAMES, ...(publicReviewSource ? PUBLIC_REVIEW_FORBIDDEN_NAMES : []), 'Jev', 'TypeSafe', 'CLIProxy', 'OpenAI', 'Anthropic', 'GLM', 'Gemini', 'Google'])];
-  const found = names.flatMap(name => {
-    const escaped = name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
-    // A brand that is also a common lowercase word matches only as written or in capitals,
-    // so a method identifier such as "metric-scope-v1" is not a provider name.
-    const pattern = COMMON_WORD_PROVIDERS.has(name) ? `(?:${escaped}|${escaped.toUpperCase()})` : escaped;
-    return matches(text, new RegExp(`(?<![\\p{L}\\p{N}_])${pattern}(?![\\p{L}\\p{N}_])`, COMMON_WORD_PROVIDERS.has(name) ? 'gu' : 'giu'));
-  });
-  return [...found, ...matches(text, MODEL_ID)];
+// R-L01 names (report-language READER rule): whole word; "Metric" only as written or in capitals.
+function providerMatches(text: string): string[] {
+  return findHiddenNames(text, 'READER').map(hit => hit.match);
 }
 
 function privateIpv4Matches(value: string): string[] {
@@ -424,7 +420,9 @@ function result(rule: string, ok: boolean, detail: string): MarketBusinessGateRe
 export function auditMarketReportHtml(html: string, options: MarketBusinessGateOptions = {}): MarketBusinessGateResult[] {
   const presentation = options.presentation ?? true;
   const scan = scanHtml(html);
-  const provider = providerMatches(options.publicReviewSource ? scan.visible + ' ' + decodeHtml(html) : scan.visible, options.publicReviewSource);
+  // Public-review metadata remains checked, but href targets are outside R-L01 (owner Q5 / c4 I2).
+  const publicText = options.publicReviewSource ? decodeHtml(html.replace(/\shref\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'`=<>]+)/giu, ' ')) : '';
+  const provider = providerMatches(scan.named + ' ' + publicText);
   const crossPlatform = CROSS_PLATFORM_TOTAL_PHRASES.flatMap(phrase => matches(scan.visible, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'giu')));
   const e2 = e2Matches(scan.authored);
   const missingOrDuplicate = MARKET_SECTION_IDS.filter(id => scan.sectionCounts.get(id) !== 1).map(id => `${id}=${scan.sectionCounts.get(id)}`);

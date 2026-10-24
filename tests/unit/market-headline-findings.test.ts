@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
-import { CITATION_FORBIDDEN_NAMES } from '../../src/modules/analysis/citation-registry.js';
+import { hasHiddenName } from '../../src/modules/analysis/report-language/index.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import * as marketCharts from '../../src/modules/analysis/reader-report/market-charts.js';
 import type { MarketChartRow } from '../../src/modules/analysis/reader-report/market-charts.js';
@@ -242,7 +242,7 @@ test('rendered Phần 1 has no banned claims, provider names, product titles or 
     try {
       const visible = reportVisibleText(section.outerHTML);
       assert.doesNotMatch(visible, /%|thị phần|quy mô thị trường|nhất|hàng đầu|Google/iu);
-      for (const name of CITATION_FORBIDDEN_NAMES) assert.equal(visible.toLowerCase().includes(name), false, name);
+      assert.equal(hasHiddenName(visible, 'CITATION'), false);
       for (const row of headlineRows()) assert.equal(visible.includes(row.title), false, row.title);
       // Decimal shares (100,0) and the explicit relative scale (0–100) are allowed.
       assert.doesNotMatch(visible.replaceAll('0–100', '').replace(/\d+(?:[.,]\d+)*/gu, token => token === '0' ? '0' : ''), /(?<!\d)0(?!\d)/u);

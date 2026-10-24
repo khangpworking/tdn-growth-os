@@ -11,6 +11,7 @@ import { E12_ATTRIBUTION } from '../source-appendix-projection.js';
 import { containsForbiddenProviderName, containsTechnicalId } from '../citation-registry.js';
 import { lintVisibleReportText } from '../report-visible-text-lint.js';
 import { webTextHidden } from './web-page-type.js';
+import { hasHiddenName } from '../report-language/index.js';
 import { MAX_CAPTURE_BYTES } from './model.js';
 import type { StepOfficialStats, StepOfficialStatsFile, StepOfficialStatsProvinces, StepOfficialStatsProvinceValue, StepOfficialStatsStatus, StepOfficialStatsTable, StepOfficialStatsTableId, StepOfficialStatsValue } from './model.js';
 import {
@@ -95,7 +96,8 @@ export interface OfficialStatsSource {
 }
 
 const CONTROL = /[\u0000-\u001f\u007f]/u;
-const forbiddenOwnerName = (value: string): boolean => /\b(?:google|kalodata|tradeint|dami|apify|serpapi|pageindex|gemini|metric|opencli)\b/iu.test(value);
+// R-L01 names in model-authored text (report-language READER rule).
+const forbiddenOwnerName = (value: string): boolean => hasHiddenName(value, 'READER');
 const ownerText = (v: unknown): v is string => typeof v === 'string' && v.length >= 1 && v.length <= 400 && !CONTROL.test(v) && !v.includes('%') && !forbiddenOwnerName(v);
 const dataBlock = (name: 'PRODUCT_DATA' | 'CATEGORY_DATA', value: unknown): string => `BEGIN_UNTRUSTED_${name}\n${JSON.stringify(value)}\nEND_UNTRUSTED_${name}`;
 function parseObject(text: string): Record<string, unknown> | null {

@@ -48,6 +48,7 @@ export async function historicalPrivateCompatibilityHashes() {
     marketSemantic: digest(jsonBytes(market.semantic)), marketHtml: digest(market.html) };
 }
 
-test('historical raw v2 corpus and marker-free v1 report SHA256 stay byte-identical to pre-consumer baseline', async () => {
-  assert.deepEqual(await historicalPrivateCompatibilityHashes(), {"rawPage":"c5d52855d1d08f6ab4f3153a721d037a47d4fab20da0d6a6a52fd38b837ac297","rawPacket":"2970a44f6f35285efd6449e83368247e431decc2379337ea570ffa741f1fc2e1","rawCorpus":"ada1806822a31a95de7ceeb5c8db1f105e31f5b2601a7e6cd6fd6c1a8b348de5","insightSemantic":"7cbfbcbc22955c8625ddceb1cb3008d3a8e2fda614585bdfda97154e34e3c85c","insightHtml":"da43f057f66c821e4c21369a146c7e0277472db8f813c80ec4c5613a12688002","marketSemantic":"a029f2d029ab9bce2fa36e05a0872f77d4e2c6014775ab78109b61dc9fe30544","marketHtml":"4804012b4bf193e970c46c5383ffd63387d2cdbc6f84810f0a5c0c2f5785de08"});
+test('historical raw v2 corpus, semantics and Market HTML retain baseline; Insight HTML follows R-L01', async () => {
+  // Owner Q1 / R-L01, 24/10/2026: the Insight reader withholds the Apify mapping id; retained source and semantic bytes stay pinned.
+  assert.deepEqual(await historicalPrivateCompatibilityHashes(), {"rawPage":"c5d52855d1d08f6ab4f3153a721d037a47d4fab20da0d6a6a52fd38b837ac297","rawPacket":"2970a44f6f35285efd6449e83368247e431decc2379337ea570ffa741f1fc2e1","rawCorpus":"ada1806822a31a95de7ceeb5c8db1f105e31f5b2601a7e6cd6fd6c1a8b348de5","insightSemantic":"7cbfbcbc22955c8625ddceb1cb3008d3a8e2fda614585bdfda97154e34e3c85c","insightHtml":"65103d46cb8e3f16417717f4d48c7939c5e89278ecb9bf9246497aeaec4af7e4","marketSemantic":"a029f2d029ab9bce2fa36e05a0872f77d4e2c6014775ab78109b61dc9fe30544","marketHtml":"4804012b4bf193e970c46c5383ffd63387d2cdbc6f84810f0a5c0c2f5785de08"});
 });

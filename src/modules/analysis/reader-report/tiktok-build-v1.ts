@@ -12,6 +12,8 @@ import type { TikTokDraftCoding, TikTokCodedReport } from '../../../../contracts
 import { rankReviewTopicMentions, type ReviewTopicRanking } from '../research-automation/review-topic-ranking.js';
 import type { TikTokCommentCorpus } from '../../../../contracts/analysis/tiktok-comment-collection-v1.generated.js';
 import { SOURCE_REGISTRY } from '../research-automation/source-status.js';
+import { hasHiddenName } from '../report-language/index.js';
+import { retainedQuoteHtml } from '../research-automation/descriptive-report.js';
 
 const digest = (value: unknown) => createHash('sha256').update(canonicalJson(value)).digest('hex');
 
@@ -54,7 +56,7 @@ export function prepareTikTokReaderBuild(identity: TikTokReaderSourceIdentity, d
     const ref = record?.versions[0]?.sourceRefs[0];
     if (!record || !ref) throw new ReaderReportInputError('TikTok finding cites a record without retained identity.');
     return { sourceKind: 'REVIEW', identity: ref.pageSha256, locator: `bình luận ${record.commentId}`,
-      label: 'bình luận công khai dưới video TikTok', retrievedAt: record.createdAt, url: record.videoUrl,
+      label: 'bình luận công khai dưới video TikTok', retrievedAt: record.createdAt, url: hasHiddenName(record.videoUrl, 'CITATION') ? null : record.videoUrl,
       quote: null, quoteVerification: 'NOT_APPLICABLE' };
   };
   const draftByCode = new Map<string, { label: string; occurrences: { recordIndex: number; quote: string; context: string }[] }>();
@@ -86,10 +88,11 @@ export function prepareTikTokReaderBuild(identity: TikTokReaderSourceIdentity, d
   const recordsCoded = String(report.counts.recordsCoded), codesProposed = String(report.counts.codesProposed);
   const mark = (recordIndex: number) => renderCitationMarkOrMissing(registry.cite(citeRow(recordIndex)));
   const quoteBlock = (occurrence: { recordIndex: number; quote: string; context: string }) =>
-    `<blockquote>${esc(occurrence.quote)}</blockquote><details><summary>Ngữ cảnh bản ghi</summary><p>${esc(occurrence.context)}</p></details>`;
+    (hasHiddenName(occurrence.quote, 'READER') ? retainedQuoteHtml(occurrence.quote, 'blockquote') : `<blockquote>${esc(occurrence.quote)}</blockquote>`) +
+    `<details><summary>Ngữ cảnh bản ghi</summary>${hasHiddenName(occurrence.context, 'READER') ? retainedQuoteHtml(occurrence.context, 'blockquote') : `<p>${esc(occurrence.context)}</p>`}</details>`;
   const rankingQuoteBlock = (occurrence: { recordIndex: number; quote: string; context: string | null }) =>
-    `<blockquote>${esc(occurrence.quote)}</blockquote>` +
-    (occurrence.context === null ? '' : `<details><summary>Ngữ cảnh bản ghi</summary><p>${esc(occurrence.context)}</p></details>`);
+    (hasHiddenName(occurrence.quote, 'READER') ? retainedQuoteHtml(occurrence.quote, 'blockquote') : `<blockquote>${esc(occurrence.quote)}</blockquote>`) +
+    (occurrence.context === null ? '' : `<details><summary>Ngữ cảnh bản ghi</summary>${hasHiddenName(occurrence.context, 'READER') ? retainedQuoteHtml(occurrence.context, 'blockquote') : `<p>${esc(occurrence.context)}</p>`}</details>`);
   const topicRanking: ReviewTopicRanking | null = draft.promptVersion.endsWith('-v2')
     ? rankReviewTopicMentions(draft.codes.map(entry => ({ platform: 'TIKTOK' as const, recordIndex: entry.recordIndex,
         topic: ('topic' in entry ? entry.topic : entry.label), polarity: entry.polarity ?? 'KHONG_RO', quote: entry.quote.text,
