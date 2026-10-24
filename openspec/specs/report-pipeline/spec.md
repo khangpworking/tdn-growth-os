@@ -33,9 +33,13 @@ Hệ thống SHALL tạo và đổi lần chạy nghiên cứu chỉ qua lệnh 
 - **WHEN** một yêu cầu POST tạo lần chạy đi vào đường `/api/...`
 - **THEN** hệ thống không tạo lần chạy
 
-#### Scenario: Mỗi lệnh ghi đánh thức worker
-- **WHEN** một lệnh ghi dưới `owner-api` thành công
+#### Scenario: Lệnh ghi đánh thức worker
+- **WHEN** một lệnh ghi dưới `owner-api` thành công và lệnh đó không phải dựng hay quyết định bản đọc Reader
 - **THEN** API gọi `worker.wake()`
+
+#### Scenario: Dựng và quyết định bản đọc không đánh thức worker
+- **WHEN** lệnh `reader-reports` (dựng bản đọc) hoặc `reader-reports/decisions` (quyết định) thành công, kể cả bản đọc Insight, TikTok và Shopee
+- **THEN** API trả biên nhận mà không gọi `worker.wake()` (`src/api/research-automation-api.ts`, khoảng dòng 1185–1225: dựng bản đọc chỉ nói lại một bản nháp đã xong)
 
 ### Requirement: R-P02 Worker là máy trạng thái của lần chạy
 Worker SHALL xử lý lần chạy qua ba bước `QUICK_SEARCH`, `COLLECTION`, `REPORTS`, theo thứ tự đó. Trạng thái cuối là một trong `DRAFT_READY`, `FAILED`, `CANCELLED`, `INTERRUPTED`.
@@ -106,14 +110,18 @@ Hệ thống SHALL dừng lúc khởi động nếu một cờ `TDN_RESEARCH_*_A
 - **THEN** dòng dữ liệu thu được lọc bằng luật, không gọi AI
 
 ### Requirement: R-P06 Dựng báo cáo nháp
-Bước `REPORTS` SHALL dựng HTML nháp và file dấu vết kỹ thuật riêng cho mỗi loại báo cáo của lần chạy (`MARKET`, `INSIGHT`).
+Bước `REPORTS` SHALL dựng HTML nháp cho mỗi loại báo cáo của lần chạy (`MARKET`, `INSIGHT`). Với báo cáo Market dạng trình bày (`marketPresentation`), bước này SHALL giữ thêm file dấu vết kỹ thuật riêng, là một artifact ẩn. Các báo cáo khác không giữ file dấu vết riêng.
 
 - Mã: RA `reports.ts` `buildResearchAutomationReport(input, 'MARKET'|'INSIGHT')` trả `{semantic, html, traceHtml}`; gọi từ RA `service.ts` `#executeReports`. Biểu đồ: RA `market-presentation-report.ts`, RR `market-charts.ts`, RR `macro-charts.ts`, RR `flint.ts`. Bìa: RA `market-cover.ts` (`buildMarketCover`), RA `cover-image-codec.ts`.
 - Quy tắc liên quan: R-M03 (dấu vết kỹ thuật ở file riêng), R-M10, R-M11.
 
 #### Scenario: Dấu vết kỹ thuật tách khỏi thân
-- **WHEN** báo cáo nháp được dựng
-- **THEN** tên công cụ và chi tiết kỹ thuật nằm trong `traceHtml`, không nằm trong `html`
+- **WHEN** báo cáo Market dạng trình bày được dựng
+- **THEN** tên công cụ và chi tiết kỹ thuật nằm trong `traceHtml`, được giữ thành artifact ẩn riêng, và không nằm trong `html` (RA `service.ts` `#executeReports`: `traceHtml` chỉ giữ khi `kind === 'MARKET' && input.marketPresentation`)
+
+#### Scenario: Báo cáo khác không có file dấu vết riêng
+- **WHEN** báo cáo Insight hoặc báo cáo Market không ở dạng trình bày được dựng
+- **THEN** bước `REPORTS` không giữ file dấu vết kỹ thuật riêng
 
 ### Requirement: R-P07 Cổng máy chặn báo cáo Market trượt
 Hệ thống SHALL chạy `assertMarketBusinessGate` trên HTML nháp loại `MARKET`, và SHALL làm lần dựng lỗi với mã `MARKET_BUSINESS_GATE_FAILED:<các mã cổng>` khi có quy tắc trượt.

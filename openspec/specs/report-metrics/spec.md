@@ -219,7 +219,7 @@ Báo cáo SHALL đặt số nền (VM, TM, TK; hạng A, đại diện Cao) ở 
 - **THEN** quy tắc bị vi phạm
 
 ### Requirement: DT Doanh thu
-Chỉ số DT (Doanh thu) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo DT-1, DT-2, DT-3, và mỗi con số SHALL kèm mã cách đo của nó.
+Chỉ số DT (Doanh thu) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo DT-1, DT-2, DT-3, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Mã cách đo chỉ ghi ở bảng "Chỉ số đã dùng" cuối báo cáo.
 
 - Định nghĩa chung: tiền bán được của sản phẩm trong một kỳ.
 - Đơn vị: đồng.
@@ -229,7 +229,7 @@ Chỉ số DT (Doanh thu) SHALL chỉ được đưa vào báo cáo qua một tr
 - Vì sao: Từ điển chỉ số ngày 21/10/2026 (metrics.md), mục 7.3. Định nghĩa (và đơn vị, nếu bản gốc có ghi) lấy nguyên từ dòng đầu của chỉ số.
 
 #### Scenario: Số có cách đo
-- **WHEN** báo cáo nêu một số của chỉ số DT kèm mã cách đo (DT-1)
+- **WHEN** báo cáo nêu một số của chỉ số DT kèm nhãn cách đo của DT-1, ở cạnh số hoặc ở tiêu đề cột
 - **THEN** quy tắc đạt
 
 #### Scenario: Số không có cách đo
@@ -310,7 +310,7 @@ Số theo cách đo DT-3 SHALL mang nhãn "số của shop" và SHALL chỉ so v
 - **THEN** báo cáo không nêu số DT-3
 
 ### Requirement: LB Lượt bán
-Chỉ số LB (Lượt bán) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo LB-1, LB-2, LB-3, và mỗi con số SHALL kèm mã cách đo của nó.
+Chỉ số LB (Lượt bán) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo LB-1, LB-2, LB-3, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Mã cách đo chỉ ghi ở bảng "Chỉ số đã dùng" cuối báo cáo.
 
 - Định nghĩa chung: số đơn vị hàng bán được trong một kỳ.
 - Đơn vị: đơn vị đếm của hồ sơ đơn vị (mục 6.6).
@@ -320,7 +320,7 @@ Chỉ số LB (Lượt bán) SHALL chỉ được đưa vào báo cáo qua một
 - Vì sao: Từ điển chỉ số ngày 21/10/2026 (metrics.md), mục 7.3. Định nghĩa (và đơn vị, nếu bản gốc có ghi) lấy nguyên từ dòng đầu của chỉ số.
 
 #### Scenario: Số có cách đo
-- **WHEN** báo cáo nêu một số của chỉ số LB kèm mã cách đo (LB-1)
+- **WHEN** báo cáo nêu một số của chỉ số LB kèm nhãn cách đo của LB-1, ở cạnh số hoặc ở tiêu đề cột
 - **THEN** quy tắc đạt
 
 #### Scenario: Số không có cách đo
@@ -401,7 +401,7 @@ Số theo cách đo LB-3 SHALL mang nhãn "đã bán, cộng dồn tới <ngày 
 - **THEN** quy tắc LB-3 bị vi phạm
 
 ### Requirement: GIA Giá
-Chỉ số GIA (Giá) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo GIA-1, GIA-2, GIA-3, và mỗi con số SHALL kèm mã cách đo của nó.
+Chỉ số GIA (Giá) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo GIA-1, GIA-2, GIA-3, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Mã cách đo chỉ ghi ở bảng "Chỉ số đã dùng" cuối báo cáo.
 
 - Định nghĩa chung: tiền khách trả cho một đơn vị so giá.
 - Đơn vị: đồng mỗi đơn vị so giá (mục 6.6).
@@ -411,7 +411,7 @@ Chỉ số GIA (Giá) SHALL chỉ được đưa vào báo cáo qua một trong 
 - Vì sao: Từ điển chỉ số ngày 21/10/2026 (metrics.md), mục 7.3. Định nghĩa (và đơn vị, nếu bản gốc có ghi) lấy nguyên từ dòng đầu của chỉ số.
 
 #### Scenario: Số có cách đo
-- **WHEN** báo cáo nêu một số của chỉ số GIA kèm mã cách đo (GIA-1)
+- **WHEN** báo cáo nêu một số của chỉ số GIA kèm nhãn cách đo của GIA-1, ở cạnh số hoặc ở tiêu đề cột
 - **THEN** quy tắc đạt
 
 #### Scenario: Số không có cách đo
@@ -488,7 +488,7 @@ Cách đo GIA-3 SHALL NOT cho ra con số giá, và SHALL chỉ đếm số lầ
 - **THEN** quy tắc GIA-3 bị vi phạm
 
 ### Requirement: DG Số đánh giá
-Chỉ số DG (Số đánh giá) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo DG-1, DG-2, DG-3, và mỗi con số SHALL kèm mã cách đo của nó.
+Chỉ số DG (Số đánh giá) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo DG-1, DG-2, DG-3, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Mã cách đo chỉ ghi ở bảng "Chỉ số đã dùng" cuối báo cáo.
 
 - Định nghĩa chung: số bản ghi đánh giá.
 - Đơn vị: bản ghi (không phải người, không phải đơn hàng).
@@ -498,7 +498,7 @@ Chỉ số DG (Số đánh giá) SHALL chỉ được đưa vào báo cáo qua m
 - Vì sao: Từ điển chỉ số ngày 21/10/2026 (metrics.md), mục 7.3. Định nghĩa (và đơn vị, nếu bản gốc có ghi) lấy nguyên từ dòng đầu của chỉ số.
 
 #### Scenario: Số có cách đo
-- **WHEN** báo cáo nêu một số của chỉ số DG kèm mã cách đo (DG-1)
+- **WHEN** báo cáo nêu một số của chỉ số DG kèm nhãn cách đo của DG-1, ở cạnh số hoặc ở tiêu đề cột
 - **THEN** quy tắc đạt
 
 #### Scenario: Số không có cách đo
@@ -575,7 +575,7 @@ Số theo cách đo DG-3 SHALL mang nhãn "sàn hiển thị" và SHALL NOT so v
 - **THEN** quy tắc DG-3 bị vi phạm
 
 ### Requirement: SAO Điểm sao
-Chỉ số SAO (Điểm sao) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo SAO-1, và mỗi con số SHALL kèm mã cách đo của nó.
+Chỉ số SAO (Điểm sao) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo SAO-1, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Mã cách đo chỉ ghi ở bảng "Chỉ số đã dùng" cuối báo cáo.
 
 - Định nghĩa chung: mức sao khách cho, từ 1 tới 5.
 - Cách đo: SAO-1
@@ -585,7 +585,7 @@ Chỉ số SAO (Điểm sao) SHALL chỉ được đưa vào báo cáo qua một
 - Vì sao: Từ điển chỉ số ngày 21/10/2026 (metrics.md), mục 7.3. Định nghĩa (và đơn vị, nếu bản gốc có ghi) lấy nguyên từ dòng đầu của chỉ số. SAO-2 bỏ ở bản 21/10/2026 (mục 7.7, điểm 4).
 
 #### Scenario: Số có cách đo
-- **WHEN** báo cáo nêu một số của chỉ số SAO kèm mã cách đo (SAO-1)
+- **WHEN** báo cáo nêu một số của chỉ số SAO kèm nhãn cách đo của SAO-1, ở cạnh số hoặc ở tiêu đề cột
 - **THEN** quy tắc đạt
 
 #### Scenario: Số không có cách đo
@@ -616,7 +616,7 @@ Số theo cách đo SAO-1 SHALL là phân bố số bản ghi theo 1 đến 5 sa
 - **THEN** quy tắc SAO-1 bị vi phạm
 
 ### Requirement: NH Tỉ lệ nhắc chủ đề
-Chỉ số NH (Tỉ lệ nhắc chủ đề) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo NH-1, NH-2, NH-3, NH-4, và mỗi con số SHALL kèm mã cách đo của nó.
+Chỉ số NH (Tỉ lệ nhắc chủ đề) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo NH-1, NH-2, NH-3, NH-4, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Mã cách đo chỉ ghi ở bảng "Chỉ số đã dùng" cuối báo cáo.
 
 - Định nghĩa chung: phần bản ghi có nhắc một chủ đề đã duyệt.
 - Đơn vị: n/N bản ghi. Đây là chỉ số chính của Insight.
@@ -626,7 +626,7 @@ Chỉ số NH (Tỉ lệ nhắc chủ đề) SHALL chỉ được đưa vào bá
 - Vì sao: Từ điển chỉ số ngày 21/10/2026 (metrics.md), mục 7.3. Định nghĩa (và đơn vị, nếu bản gốc có ghi) lấy nguyên từ dòng đầu của chỉ số.
 
 #### Scenario: Số có cách đo
-- **WHEN** báo cáo nêu một số của chỉ số NH kèm mã cách đo (NH-1)
+- **WHEN** báo cáo nêu một số của chỉ số NH kèm nhãn cách đo của NH-1, ở cạnh số hoặc ở tiêu đề cột
 - **THEN** quy tắc đạt
 
 #### Scenario: Số không có cách đo
@@ -726,7 +726,7 @@ Số theo cách đo NH-4 SHALL mang nhãn "<n>/<N> quảng cáo nổi bật, l�
 - **THEN** quy tắc NH-4 bị vi phạm
 
 ### Requirement: XEM Lượt xem
-Chỉ số XEM (Lượt xem) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo XEM-1, và mỗi con số SHALL kèm mã cách đo của nó.
+Chỉ số XEM (Lượt xem) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo XEM-1, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Mã cách đo chỉ ghi ở bảng "Chỉ số đã dùng" cuối báo cáo.
 
 - Định nghĩa chung: số lần video được xem.
 - Cách đo: XEM-1
@@ -735,7 +735,7 @@ Chỉ số XEM (Lượt xem) SHALL chỉ được đưa vào báo cáo qua một
 - Vì sao: Từ điển chỉ số ngày 21/10/2026 (metrics.md), mục 7.3. Định nghĩa (và đơn vị, nếu bản gốc có ghi) lấy nguyên từ dòng đầu của chỉ số.
 
 #### Scenario: Số có cách đo
-- **WHEN** báo cáo nêu một số của chỉ số XEM kèm mã cách đo (XEM-1)
+- **WHEN** báo cáo nêu một số của chỉ số XEM kèm nhãn cách đo của XEM-1, ở cạnh số hoặc ở tiêu đề cột
 - **THEN** quy tắc đạt
 
 #### Scenario: Số không có cách đo
@@ -766,7 +766,7 @@ Số theo cách đo XEM-1 SHALL mang nhãn "lượt xem, <kỳ>", SHALL chỉ so
 - **THEN** quy tắc XEM-1 bị vi phạm
 
 ### Requirement: QT Mức quan tâm tìm kiếm
-Chỉ số QT (Mức quan tâm tìm kiếm) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo QT-1, QT-2, và mỗi con số SHALL kèm mã cách đo của nó.
+Chỉ số QT (Mức quan tâm tìm kiếm) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo QT-1, QT-2, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Mã cách đo chỉ ghi ở bảng "Chỉ số đã dùng" cuối báo cáo.
 
 - Định nghĩa chung: mức tìm một từ khoá so với đỉnh của chính nó.
 - Cách đo: QT-1, QT-2
@@ -775,7 +775,7 @@ Chỉ số QT (Mức quan tâm tìm kiếm) SHALL chỉ được đưa vào báo
 - Vì sao: Từ điển chỉ số ngày 21/10/2026 (metrics.md), mục 7.3. Định nghĩa (và đơn vị, nếu bản gốc có ghi) lấy nguyên từ dòng đầu của chỉ số.
 
 #### Scenario: Số có cách đo
-- **WHEN** báo cáo nêu một số của chỉ số QT kèm mã cách đo (QT-1)
+- **WHEN** báo cáo nêu một số của chỉ số QT kèm nhãn cách đo của QT-1, ở cạnh số hoặc ở tiêu đề cột
 - **THEN** quy tắc đạt
 
 #### Scenario: Số không có cách đo
@@ -829,7 +829,7 @@ Số theo cách đo QT-2 SHALL mang nhãn "nơi tìm nhiều (0–100)", SHALL c
 - **THEN** quy tắc QT-2 bị vi phạm
 
 ### Requirement: QC Số quảng cáo
-Chỉ số QC (Số quảng cáo) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo QC-1, QC-2, QC-3, QC-4, và mỗi con số SHALL kèm mã cách đo của nó.
+Chỉ số QC (Số quảng cáo) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo QC-1, QC-2, QC-3, QC-4, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Mã cách đo chỉ ghi ở bảng "Chỉ số đã dùng" cuối báo cáo.
 
 - Định nghĩa chung: số quảng cáo của một thương hiệu mà thư viện quảng cáo hiển thị.
 - Đơn vị: quảng cáo.
@@ -840,7 +840,7 @@ Chỉ số QC (Số quảng cáo) SHALL chỉ được đưa vào báo cáo qua 
 - Vì sao: Từ điển chỉ số ngày 21/10/2026 (metrics.md), mục 7.3. Định nghĩa (và đơn vị, nếu bản gốc có ghi) lấy nguyên từ dòng đầu của chỉ số.
 
 #### Scenario: Số có cách đo
-- **WHEN** báo cáo nêu một số của chỉ số QC kèm mã cách đo (QC-1)
+- **WHEN** báo cáo nêu một số của chỉ số QC kèm nhãn cách đo của QC-1, ở cạnh số hoặc ở tiêu đề cột
 - **THEN** quy tắc đạt
 
 #### Scenario: Số không có cách đo
@@ -940,7 +940,7 @@ Số theo cách đo QC-4 SHALL mang nhãn "hiện lâu nhất <n> ngày" và SHA
 - **THEN** quy tắc QC-4 bị vi phạm
 
 ### Requirement: TL Lượt thích quảng cáo
-Chỉ số TL (Lượt thích quảng cáo) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo TL-1, và mỗi con số SHALL kèm mã cách đo của nó.
+Chỉ số TL (Lượt thích quảng cáo) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo TL-1, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Mã cách đo chỉ ghi ở bảng "Chỉ số đã dùng" cuối báo cáo.
 
 - Định nghĩa chung: lượt thích trên một thẻ quảng cáo nổi bật.
 - Cách đo: TL-1
@@ -950,7 +950,7 @@ Chỉ số TL (Lượt thích quảng cáo) SHALL chỉ được đưa vào báo
 - Vì sao: Từ điển chỉ số ngày 21/10/2026 (metrics.md), mục 7.3. Định nghĩa (và đơn vị, nếu bản gốc có ghi) lấy nguyên từ dòng đầu của chỉ số.
 
 #### Scenario: Số có cách đo
-- **WHEN** báo cáo nêu một số của chỉ số TL kèm mã cách đo (TL-1)
+- **WHEN** báo cáo nêu một số của chỉ số TL kèm nhãn cách đo của TL-1, ở cạnh số hoặc ở tiêu đề cột
 - **THEN** quy tắc đạt
 
 #### Scenario: Số không có cách đo
@@ -981,7 +981,7 @@ Số theo cách đo TL-1 SHALL mang nhãn "lượt thích, quảng cáo nổi b�
 - **THEN** quy tắc TL-1 bị vi phạm
 
 ### Requirement: VM Chỉ tiêu vĩ mô
-Chỉ số VM (Chỉ tiêu vĩ mô) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo VM-1, và mỗi con số SHALL kèm mã cách đo của nó.
+Chỉ số VM (Chỉ tiêu vĩ mô) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo VM-1, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Mã cách đo chỉ ghi ở bảng "Chỉ số đã dùng" cuối báo cáo.
 
 - Định nghĩa chung: giá trị một chỉ tiêu quốc gia trong một năm.
 - Cách đo: VM-1
@@ -991,7 +991,7 @@ Chỉ số VM (Chỉ tiêu vĩ mô) SHALL chỉ được đưa vào báo cáo qu
 - Vì sao: Từ điển chỉ số ngày 21/10/2026 (metrics.md), mục 7.3. Định nghĩa (và đơn vị, nếu bản gốc có ghi) lấy nguyên từ dòng đầu của chỉ số.
 
 #### Scenario: Số có cách đo
-- **WHEN** báo cáo nêu một số của chỉ số VM kèm mã cách đo (VM-1)
+- **WHEN** báo cáo nêu một số của chỉ số VM kèm nhãn cách đo của VM-1, ở cạnh số hoặc ở tiêu đề cột
 - **THEN** quy tắc đạt
 
 #### Scenario: Số không có cách đo
@@ -1022,7 +1022,7 @@ Số theo cách đo VM-1 SHALL mang nhãn "<tên chỉ tiêu>, <năm>, <đơn v�
 - **THEN** quy tắc VM-1 bị vi phạm
 
 ### Requirement: TM Kim ngạch thương mại
-Chỉ số TM (Kim ngạch thương mại) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo TM-1, và mỗi con số SHALL kèm mã cách đo của nó.
+Chỉ số TM (Kim ngạch thương mại) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo TM-1, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Mã cách đo chỉ ghi ở bảng "Chỉ số đã dùng" cuối báo cáo.
 
 - Định nghĩa chung: giá trị nhập hoặc xuất của một mã hàng HS.
 - Cách đo: TM-1
@@ -1032,7 +1032,7 @@ Chỉ số TM (Kim ngạch thương mại) SHALL chỉ được đưa vào báo 
 - Vì sao: Từ điển chỉ số ngày 21/10/2026 (metrics.md), mục 7.3. Định nghĩa (và đơn vị, nếu bản gốc có ghi) lấy nguyên từ dòng đầu của chỉ số.
 
 #### Scenario: Số có cách đo
-- **WHEN** báo cáo nêu một số của chỉ số TM kèm mã cách đo (TM-1)
+- **WHEN** báo cáo nêu một số của chỉ số TM kèm nhãn cách đo của TM-1, ở cạnh số hoặc ở tiêu đề cột
 - **THEN** quy tắc đạt
 
 #### Scenario: Số không có cách đo
@@ -1067,7 +1067,7 @@ Số theo cách đo TM-1 SHALL mang nhãn "kim ngạch <nhập/xuất>, mã HS <
 - **THEN** quy tắc TM-1 bị vi phạm
 
 ### Requirement: TK Số thống kê nhà nước
-Chỉ số TK (Số thống kê nhà nước) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo TK-1, TK-2, và mỗi con số SHALL kèm mã cách đo của nó.
+Chỉ số TK (Số thống kê nhà nước) SHALL chỉ được đưa vào báo cáo qua một trong các cách đo TK-1, TK-2, và mỗi con số SHALL có nhãn cách đo ngay cạnh hoặc ở tiêu đề cột (mục 7.5). Mã cách đo chỉ ghi ở bảng "Chỉ số đã dùng" cuối báo cáo.
 
 - Định nghĩa chung: số liệu Cục Thống kê công bố.
 - Cách đo: TK-1, TK-2
@@ -1077,7 +1077,7 @@ Chỉ số TK (Số thống kê nhà nước) SHALL chỉ được đưa vào b�
 - Vì sao: Từ điển chỉ số ngày 21/10/2026 (metrics.md), mục 7.3. Định nghĩa (và đơn vị, nếu bản gốc có ghi) lấy nguyên từ dòng đầu của chỉ số.
 
 #### Scenario: Số có cách đo
-- **WHEN** báo cáo nêu một số của chỉ số TK kèm mã cách đo (TK-1)
+- **WHEN** báo cáo nêu một số của chỉ số TK kèm nhãn cách đo của TK-1, ở cạnh số hoặc ở tiêu đề cột
 - **THEN** quy tắc đạt
 
 #### Scenario: Số không có cách đo
