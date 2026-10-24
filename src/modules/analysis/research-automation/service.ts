@@ -4736,22 +4736,6 @@ export class ResearchAutomationService {
         step = probe;
       } catch { step = { ...step, tiktokTopAds: tiktokTopAdsFailed(keyword, 'FAILED', tiktokTopAdsCollection?.opens ?? 0) }; }
     }
-    // The population baseline read comes after every other lane capture, so earlier capture ordinals stay unchanged.
-    // A skipped read keeps a reason code only and never changes the step outcome, coverage or run blockers.
-    if (populationBaseline) {
-      const envelopes = populationBaseline.capture ? captureEnvelopes({ captures: [populationBaseline.capture] }) : null;
-      const index = envelopes?.length ? captures.length : null;
-      if (envelopes?.length) await putCaptures(envelopes, false);
-      const document = populationBaselineDocument(populationBaseline, index);
-      if (document) {
-        const probe = { ...step, populationBaseline: document };
-        try {
-          assertStepDocument(probe, runId, stepId);
-          assertCaptureLineage(probe, captures.map(value => value.row));
-          step = probe;
-        } catch { step = { ...step, populationBaseline: populationBaselineDocument({ reason: 'FILE_INVALID', baseline: null, sourceSha256: null, capture: null }, null)! }; }
-      }
-    }
     let cancelledSourceEvidence: (() => AutomationSourceEvidence) | undefined;
     if (stepId === 'COLLECTION' && sourceStart.reviewCollectionPolicy && step.privateShopee) {
       const reviewSample = await this.#shopee.reviewSample(step.privateShopee, { runId, start: sourceStart,
@@ -4941,6 +4925,22 @@ export class ResearchAutomationService {
           step = probe;
         } catch { step = { ...step, pdfDiscovery: { ...pdfDiscoveryFailed('DOCUMENT_INVALID'), search } }; }
       } catch { step = { ...step, pdfDiscovery: step.pdfDiscovery ?? { ...pdfDiscoveryFailed('TRANSPORT'), search } }; }
+    }
+    // The population baseline read comes after every other lane capture, so earlier capture ordinals stay unchanged.
+    // A skipped read keeps a reason code only and never changes the step outcome, coverage or run blockers.
+    if (populationBaseline) {
+      const envelopes = populationBaseline.capture ? captureEnvelopes({ captures: [populationBaseline.capture] }) : null;
+      const index = envelopes?.length ? captures.length : null;
+      if (envelopes?.length) await putCaptures(envelopes, false);
+      const document = populationBaselineDocument(populationBaseline, index);
+      if (document) {
+        const probe = { ...step, populationBaseline: document };
+        try {
+          assertStepDocument(probe, runId, stepId);
+          assertCaptureLineage(probe, captures.map(value => value.row));
+          step = probe;
+        } catch { step = { ...step, populationBaseline: populationBaselineDocument({ reason: 'FILE_INVALID', baseline: null, sourceSha256: null, capture: null }, null)! }; }
+      }
     }
     if (publicSources) step = { ...step, publicReviewAcquisition: publicStage(publicSources, 'PENDING') };
     const webResult = web && 'bound' in web ? web.bound.result : null;

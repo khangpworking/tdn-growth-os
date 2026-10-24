@@ -20,7 +20,7 @@ import { createPopulationBaselineSource, populationBaselineSection, type Populat
 import { buildResearchAutomationReport, type AutomationReportInput } from '../../src/modules/analysis/research-automation/reports.js';
 import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
 import { buildSourceEvidence, sourceEvidenceForReport } from '../../src/modules/analysis/research-automation/source-evidence.js';
-import { SYNTHETIC_CARD_ID, syntheticProductSource } from '../helpers/research-synthetic-sources.js';
+import { SYNTHETIC_CARD_ID, syntheticProductSource, syntheticWebSource } from '../helpers/research-synthetic-sources.js';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
 const runId = '22222222-2222-4222-8222-222222222222';
@@ -101,7 +101,7 @@ async function temporary(t: TestContext): Promise<string> {
   return root;
 }
 
-async function runToDraft(t: TestContext, options: { reports: ('MARKET' | 'INSIGHT')[]; bytes?: Buffer; mode?: 'ABSENT' | 'FLAG_OFF' | 'MISSING' } = { reports: ['MARKET', 'INSIGHT'] }) {
+async function runToDraft(t: TestContext, options: { reports: ('MARKET' | 'INSIGHT')[]; bytes?: Buffer; mode?: 'ABSENT' | 'FLAG_OFF' | 'MISSING'; pdfSearch?: boolean } = { reports: ['MARKET', 'INSIGHT'] }) {
   const root = await temporary(t);
   const db = openDatabase({ databasePath: path.join(root, 'test.sqlite'), now }).db;
   t.after(() => db.close());
@@ -112,9 +112,16 @@ async function runToDraft(t: TestContext, options: { reports: ('MARKET' | 'INSIG
   if (options.mode !== 'MISSING') await fs.writeFile(file, options.bytes ?? fileBytes());
   const source = createPopulationBaselineSource(options.mode === 'FLAG_OFF' ? null : { path: file }, now);
   const attempts: PopulationBaselineAttempt[] = [];
+  const pdfSearch = syntheticWebSource(() => {}, []);
   const service = new ResearchAutomationService({ db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discovery),
-    uuid: () => runId, now, renderer: buildResearchAutomationReport, source: syntheticProductSource({ salesBytes: Buffer.from('{"data":[]}') }),
-    sourceEvidence: { modelIdentity: 'synthetic', promptVersion: 'v1' },
+    uuid: () => runId, now, renderer: buildResearchAutomationReport, source: syntheticProductSource({ salesBytes: Buffer.from(options.pdfSearch
+      ? '{"data":[{"product_id":"12345","product_name":"Mẫu tổng hợp"}]}' : '{"data":[]}') }),
+    sourceEvidence: { modelIdentity: 'synthetic', promptVersion: 'v1', ...(options.pdfSearch
+      ? { transport: { draftLists: async () => ({ keywords: ['Mẫu tổng hợp'], exclusions: [] }) } } : {}) },
+    ...(options.pdfSearch ? { pageIndex: { enabled: true }, pdfDiscoverySource: {
+      search: async (input, callOptions) => ({ state: 'CALLED' as const, result: (await pdfSearch.collect(input, callOptions)).result }),
+      download: async () => { throw new Error('No PDF candidates in the synthetic search'); },
+    } } : {}),
     ...(options.mode === 'ABSENT' ? {} : { populationBaselineSource: { read: async (input: { reports: readonly string[] }) => {
       const attempt = await source.read(input); attempts.push(attempt); return attempt;
     } } }) });
@@ -233,6 +240,14 @@ test('S28 row 4: exact bytes and hash survive capture storage, lineage and repla
     assert.deepEqual((await result.service.readReport(workspaceId, runId, 'INSIGHT')).bytes, first.bytes, 'stored lineage replays');
     assert.equal(documentOf(first.bytes).querySelectorAll('#I02 .population-baseline').length, 1);
   }
+  // PDF discovery saves captures after admission; S28 must follow those too.
+  const pdfOff = await runToDraft(t, { reports: ['MARKET', 'INSIGHT'], mode: 'ABSENT', pdfSearch: true });
+  const pdfOn = await runToDraft(t, { reports: ['MARKET', 'INSIGHT'], pdfSearch: true });
+  assert.equal(pdfOff.stored.pdfDiscovery?.search.status, 'CALLED', 'the later lane really stores a capture');
+  assert.deepEqual(pdfOn.stored.pdfDiscovery, pdfOff.stored.pdfDiscovery, 'PDF capture references stay unchanged');
+  assert.deepEqual(pdfOn.captures.slice(0, pdfOff.captures.length), pdfOff.captures, 'all earlier captures keep their ordinals');
+  assert.equal(pdfOn.stored.populationBaseline?.captureIndex, pdfOff.captures.length, 'S28 is the last collection capture');
+  assert.deepEqual(pdfOn.usage, pdfOff.usage);
 });
 
 test('S28 row 5: null-grade non-evidence appendix is used only by rendered Insight blocks', () => {
