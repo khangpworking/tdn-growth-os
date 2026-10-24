@@ -1,3 +1,4 @@
+import { populationBaselineSection } from './population-baseline.js';
 import { publicReviewReportHtml } from './public-review-report.js';
 import { lint as lintReaderReport } from '../reader-report/lint.js';
 import type { PersonaSelectedReportSnapshot } from '../../../../contracts/analysis/automation-insight-persona-report.generated.js';
@@ -1523,6 +1524,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
           card.sourceUrl && labels.has(card.productId) ? [[card.sourceUrl, labels.get(card.productId)!] as const] : []),
       ]) } : undefined) : '') +
     presentationCharts(sectionId) + searchInterestFigure(sectionId) + searchGeoBlock(sectionId) + worldBankTable(sectionId) + officialStatsTable(sectionId) + comtradeTable(sectionId) + searchAdsTable(sectionId) + pdfExcerptBlock(sectionId) + sellerVideoBlock(sectionId) +
+    (kind === 'INSIGHT' && sectionId === 'I02' ? populationBaselineSection(input.collection) : '') +
     (reviewOutcome && kind === 'INSIGHT' && (sectionId === 'I03' || sectionId === 'I17') ? `<p class="warning">${escape(reviewOutcomeLead(reviewOutcome))}</p>` : '') +
     baseAppendix(sectionId) +
     (input.sourceEvidence && traceAppendix(sectionId) && (sectionId === 'M13' || sectionId === 'I17') ? sourceEvidenceHtml(input.sourceEvidence) +

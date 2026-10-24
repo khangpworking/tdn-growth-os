@@ -113,6 +113,7 @@ import { readSellerVideoInputs, selectSellerVideos, storedSellerVideos, type Aut
 import { OFFICIAL_STATS_PROVIDER, OFFICIAL_STATS_USAGE_ORDINAL, officialStatsDocument, officialStatsFailed, officialStatsUsage, validOfficialStats, type OfficialStatsCollection, type OfficialStatsSource } from './official-statistics-lane.js';
 import { COMTRADE_PROFILE, COMTRADE_PROVIDER, COMTRADE_USAGE_ORDINAL, comtradeDocument, comtradeFailed, comtradeRenderable, comtradeUsage, type ComtradeCollection, type ComtradeSource } from './comtrade-lane.js';
 import { brandsFromPick, GOOGLE_ADS_PROFILE, GOOGLE_ADS_USAGE_ORDINAL, searchAdsDocument, searchAdsFailed, searchAdsUsageEntries, GOOGLE_ADS_DISCOVERY_USAGE_ORDINALS, type SearchAdsCollection, type SearchAdsSource } from './google-ads-lane.js';
+import { populationBaselineDocument, validPopulationBaseline, POPULATION_BASELINE_OPERATION, type PopulationBaselineAttempt, type PopulationBaselineSource } from './population-baseline.js';
 import { WORLD_BANK_SERIES_YEARS, worldBankDocument, worldBankFailed, worldBankRenderable, worldBankUsage, WORLD_BANK_PROVIDER, WORLD_BANK_USAGE_ORDINAL, type WorldBankAttempt, type WorldBankSource } from './world-bank-lane.js';
 import { publishAutomatedVideoReading, verifyAutomatedVideoReading, videoWatchCandidates, videoWatchDocument, videoWatchFailed, videoWatchReadingRefs, videoWatchUsage, VIDEO_WATCH_MAX_VIDEOS, VIDEO_WATCH_PROFILE, VIDEO_WATCH_USAGE_ORDINAL, type VideoWatchAttempt, type VideoWatchLane, type VideoWatchPlan } from './video-watch-lane.js';
 import { VIDEO_WATCH_PROVIDER } from './video-watch-gemini.js';
@@ -399,6 +400,8 @@ export interface ResearchAutomationServiceOptions {
   readonly trendsGeoSource?: SearchGeoSource;
   /** Optional World Bank open data, at most four free GET requests per collection; absent keeps every stored byte. */
   readonly worldBankSource?: WorldBankSource;
+  /** S28 whole-population baseline (local file, Insight runs only); present only when its flag is exactly "1". */
+  readonly populationBaselineSource?: PopulationBaselineSource;
   /** UN Comtrade lane; absent unless its flag is on. */
   readonly comtradeSource?: ComtradeSource;
   /** Public search-ads library lane; absent unless its flag is on. */
@@ -591,6 +594,7 @@ export class ResearchAutomationService {
   readonly #trendsSource: SearchInterestSource | undefined;
   readonly #trendsGeoSource: SearchGeoSource | undefined;
   readonly #worldBankSource: WorldBankSource | undefined;
+  readonly #populationBaselineSource: PopulationBaselineSource | undefined;
   readonly #comtradeSource: ComtradeSource | undefined;
   readonly #searchAdsSource: SearchAdsSource | undefined;
   readonly #officialStatsSource: OfficialStatsSource | undefined;
@@ -656,6 +660,7 @@ export class ResearchAutomationService {
     this.#trendsSource = options.trendsSource;
     this.#trendsGeoSource = options.trendsGeoSource;
     this.#worldBankSource = options.worldBankSource;
+    this.#populationBaselineSource = options.populationBaselineSource;
     this.#comtradeSource = options.comtradeSource;
     this.#searchAdsSource = options.searchAdsSource;
     this.#officialStatsSource = options.officialStatsSource;
@@ -3409,7 +3414,7 @@ export class ResearchAutomationService {
       if (videosMarked ? kind !== 'MARKET' || !storedVideos || digest(storedVideos) !== digest(await this.#sellerVideos(frozenRun, storedVideos.sources)) : semantic.sellerVideos !== undefined)
         throw new ResearchAutomationIntegrityError('Report video uploads differ from the pinned stored packages.');
       const expected = sourceEvidenceForReport(basePacket, { collection, ...(marked ? { pdfExcerpts: storedExcerpts } : {}), ...(videosMarked ? { sellerVideos: storedVideos } : {}),
-        ...(collection?.searchInterest || collection?.searchGeo || collection?.worldBank || collection?.comtrade || collection?.searchAds || collection?.officialStats || collection?.pdfDiscovery ? { captures: await this.#captureRecords(runId) } : {}),
+        ...(collection?.searchInterest || collection?.searchGeo || collection?.worldBank || collection?.comtrade || collection?.searchAds || collection?.officialStats || collection?.pdfDiscovery || collection?.populationBaseline ? { captures: await this.#captureRecords(runId) } : {}),
         ...(verifiedPublicReview ? { publicReviewSource: verifiedPublicReview.context, ...(kind === 'INSIGHT' && verifiedPublicReview.corpus ? { publicReviewCorpus: verifiedPublicReview.corpus } : {}) } : {}),
         ...(verifiedPrivateView ? { privateReviewCorpus: verifiedPrivateView } : {}),
         ...(verifiedReviewSample ? { reviewSample: verifiedReviewSample } : {}),
@@ -3769,11 +3774,17 @@ export class ResearchAutomationService {
         try { tiktokTopAds = { collection: await this.#tiktokTopAdsSource.collect({ keyword }, { signal: controller.signal }) }; }
         catch { tiktokTopAds = { thrown: true, keyword }; }
       }
+      // The whole-population baseline is a local file read for runs that include INSIGHT: no network, never repeated after a restart.
+      let populationBaseline: PopulationBaselineAttempt | undefined;
+      if (stepId === 'COLLECTION' && this.#populationBaselineSource && !controller.signal.aborted) {
+        try { populationBaseline = await this.#populationBaselineSource.read({ reports: start.reports }); }
+        catch { populationBaseline = undefined; }
+      }
       try {
         // The report-PDF lane runs inside the save step, after L9 admission of this run's rows, so its candidates are admitted rows only.
         await this.#persistSourceResult(row.runId, stepId, result, controller.signal.aborted, exact, web, controller.signal, trends, expanded, worldBank, comtrade, searchAds, officialStats, metaAuto, tiktokTopAds,
           stepId === 'COLLECTION' && this.#pdfDiscoverySource ? input as CollectInput : undefined,
-          sources?.value.contractVersion === 'automation-confirmed-source-set-v2' ? sources : undefined);
+          sources?.value.contractVersion === 'automation-confirmed-source-set-v2' ? sources : undefined, populationBaseline);
         if (sources?.value.contractVersion === 'automation-confirmed-source-set-v2') await this.#executePublicTail(row, sources, controller.signal);
       } catch (error) {
         if (!(error instanceof ResearchAutomationProviderOutputError)) throw error;
@@ -4420,7 +4431,7 @@ export class ResearchAutomationService {
     })(); });
   }
 
-  async #persistSourceResult(runId: string, stepId: SourceStepId, bound: PersistableSourceResult, aborted: boolean, exact?: ExactShopeeAttempt, web?: WebSearchAttempt, signal?: AbortSignal, trends?: TrendsAttempt, expanded?: ExpandedAttempts, worldBank?: WorldBankRun, comtrade?: ComtradeRun, searchAds?: SearchAdsRun, officialStats?: OfficialStatsRun, metaAuto?: MetaAutoRun, tiktokTopAds?: TikTokTopAdsRun, pdfInput?: CollectInput, publicSources?: FrozenSources): Promise<void> {
+  async #persistSourceResult(runId: string, stepId: SourceStepId, bound: PersistableSourceResult, aborted: boolean, exact?: ExactShopeeAttempt, web?: WebSearchAttempt, signal?: AbortSignal, trends?: TrendsAttempt, expanded?: ExpandedAttempts, worldBank?: WorldBankRun, comtrade?: ComtradeRun, searchAds?: SearchAdsRun, officialStats?: OfficialStatsRun, metaAuto?: MetaAutoRun, tiktokTopAds?: TikTokTopAdsRun, pdfInput?: CollectInput, publicSources?: FrozenSources, populationBaseline?: PopulationBaselineAttempt): Promise<void> {
     const result = bound.result;
     let step = bound.step;
     const nativeCoverage = bound.step.coverage.filter(value => value.provider === 'apify-dami');
@@ -4724,6 +4735,22 @@ export class ResearchAutomationService {
         assertStepDocument(probe, runId, stepId);
         step = probe;
       } catch { step = { ...step, tiktokTopAds: tiktokTopAdsFailed(keyword, 'FAILED', tiktokTopAdsCollection?.opens ?? 0) }; }
+    }
+    // The population baseline read comes after every other lane capture, so earlier capture ordinals stay unchanged.
+    // A skipped read keeps a reason code only and never changes the step outcome, coverage or run blockers.
+    if (populationBaseline) {
+      const envelopes = populationBaseline.capture ? captureEnvelopes({ captures: [populationBaseline.capture] }) : null;
+      const index = envelopes?.length ? captures.length : null;
+      if (envelopes?.length) await putCaptures(envelopes, false);
+      const document = populationBaselineDocument(populationBaseline, index);
+      if (document) {
+        const probe = { ...step, populationBaseline: document };
+        try {
+          assertStepDocument(probe, runId, stepId);
+          assertCaptureLineage(probe, captures.map(value => value.row));
+          step = probe;
+        } catch { step = { ...step, populationBaseline: populationBaselineDocument({ reason: 'FILE_INVALID', baseline: null, sourceSha256: null, capture: null }, null)! }; }
+      }
     }
     let cancelledSourceEvidence: (() => AutomationSourceEvidence) | undefined;
     if (stepId === 'COLLECTION' && sourceStart.reviewCollectionPolicy && step.privateShopee) {
@@ -6469,6 +6496,8 @@ function assertStepDocument(value: unknown, runId: string, stepId: StepId): asse
     throw new ResearchAutomationIntegrityError('Stored extra searches are invalid.');
   if (value.worldBank !== undefined && (stepId !== 'COLLECTION' || !validWorldBank(value.worldBank)))
     throw new ResearchAutomationIntegrityError('Stored World Bank context is invalid.');
+  if (value.populationBaseline !== undefined && (stepId !== 'COLLECTION' || !validPopulationBaseline(value.populationBaseline)))
+    throw new ResearchAutomationIntegrityError('Stored population baseline is invalid.');
   if (value.comtrade !== undefined && (stepId !== 'COLLECTION' || !validComtrade(value.comtrade)))
     throw new ResearchAutomationIntegrityError('Stored UN Comtrade context is invalid.');
   if (value.searchAds !== undefined && (stepId !== 'COLLECTION' || !validSearchAds(value.searchAds)))
@@ -6533,6 +6562,12 @@ function assertCaptureLineage(document: StepResultDocument, captures: readonly C
     if (!observation || observation.truncated || observation.provider !== 'world-bank' || observation.operation !== 'worldbank.observations' || observation.retrievedAt !== item.retrievedAt ||
         !metadata || metadata.truncated || metadata.provider !== 'world-bank' || metadata.operation !== 'worldbank.metadata')
       throw new ResearchAutomationIntegrityError('Stored World Bank context references an incompatible capture.');
+  }
+  const baseline = document.populationBaseline;
+  if (baseline?.status === 'COLLECTED') {
+    const capture = stepCaptures.get(baseline.captureIndex);
+    if (!capture || capture.truncated || capture.provider !== 'population-baseline' || capture.operation !== POPULATION_BASELINE_OPERATION || capture.retrievedAt !== baseline.retrievedAt)
+      throw new ResearchAutomationIntegrityError('Stored population baseline references an incompatible capture.');
   }
   for (const call of document.comtrade?.calls ?? []) {
     const capture = stepCaptures.get(call.captureIndex);

@@ -14,6 +14,7 @@ import { classifyWebPage } from './web-page-type.js';
 import { searchInterestRenderable } from './search-interest.js';
 import { searchGeoRenderable } from './search-geo.js';
 import { worldBankRenderableRows } from './world-bank-lane.js';
+import { populationBaselineRenderable, POPULATION_BASELINE_OPERATION } from './population-baseline.js';
 import { comtradeRenderable } from './comtrade-lane.js';
 import { searchAdsOkBrands } from './google-ads-lane.js';
 import { officialStatsProvinceRows, officialStatsRenderableRows } from './official-statistics-lane.js';
@@ -158,6 +159,14 @@ export function sourceEvidenceForReport(packet: AutomationSourceEvidence, input:
     if (!observation || observation.provider !== 'world-bank' || observation.operation !== 'worldbank.observations'
       || !metadata || metadata.provider !== 'world-bank' || metadata.operation !== 'worldbank.metadata') throw new ResearchAutomationIntegrityError('World Bank capture lineage is unavailable');
     add('S23', 'capture', observation.artifactSha256);
+  }
+  // S28 is used only when the Insight report draws the I02 whole-population baseline (same predicate as both renderers). It is a baseline, never evidence.
+  const baseline = input.collection?.populationBaseline;
+  if (kind === 'INSIGHT' && populationBaselineRenderable(baseline)) {
+    const capture = input.captures?.find(c => c.stepId === 'COLLECTION' && c.ordinal === baseline.captureIndex);
+    if (!capture || capture.truncated || capture.retrievedAt !== baseline.retrievedAt || capture.provider !== 'population-baseline' || capture.operation !== POPULATION_BASELINE_OPERATION)
+      throw new ResearchAutomationIntegrityError('Population baseline capture lineage is unavailable');
+    add('S28', 'capture', capture.artifactSha256);
   }
   // S21 is used only when the Market report draws table 5.4 (same predicate as both renderers), once per stored workbook that has a drawn row.
   if (kind === 'MARKET') for (const index of new Set(officialStatsRenderableRows(input.collection?.officialStats).map(row => row.captureIndex))) {

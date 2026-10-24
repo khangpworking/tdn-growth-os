@@ -25,6 +25,7 @@ import { researchAutomationProviderConfigFromEnv, type ResearchAutomationProvide
 import { searchTrendsEnabled } from '../modules/analysis/research-automation/search-interest.js';
 import { searchGeoEnabled } from '../modules/analysis/research-automation/search-geo.js';
 import { worldBankEnabled } from '../modules/analysis/research-automation/world-bank-lane.js';
+import { populationBaselineConfig, type PopulationBaselineConfig } from '../modules/analysis/research-automation/population-baseline.js';
 import { comtradeEnabled } from '../modules/analysis/research-automation/comtrade-lane.js';
 import { googleAdsEnabled } from '../modules/analysis/research-automation/google-ads-lane.js';
 import { officialStatsEnabled, officialStatsProvinceEnabled } from '../modules/analysis/research-automation/official-statistics-lane.js';
@@ -101,6 +102,8 @@ export interface OperatorAppConfiguration {
   readonly researchExpandedSearch?: true;
   /** World Bank open-data lane of the Market flow; present only when TDN_RESEARCH_WORLD_BANK_ENABLED is exactly "1". */
   readonly researchWorldBank?: true;
+  /** S28 whole-population baseline for Insight I02; present only when TDN_RESEARCH_POPULATION_BASELINE_ENABLED is exactly "1" (then TDN_RESEARCH_POPULATION_BASELINE_PATH must be absolute). */
+  readonly researchPopulationBaseline?: PopulationBaselineConfig;
   /** UN Comtrade lane of the Market flow; present only when TDN_RESEARCH_COMTRADE_ENABLED is exactly "1". */
   readonly researchComtrade?: true;
   /** Public search-ads library lane; present only when TDN_RESEARCH_GOOGLE_ADS_ENABLED is exactly "1". */
@@ -202,6 +205,7 @@ export function operatorAppConfigurationFromEnvironment(
     ...(autoRunSha ? { adapterManifestSha256: autoRunSha } : {}),
   };
   const kalodataReplaySourceRunId = kalodataReplaySourceRunIdFromEnvironment(environment);
+  const researchPopulationBaseline = populationBaselineConfig(environment);
   const configuration: OperatorAppConfiguration = {
     databasePath: environment.TDN_WORKSPACE_DB ?? '', artifactRoot: environment.TDN_ARTIFACT_ROOT ?? '',
     frontendDist: defaults.frontendDist, version: defaults.version,
@@ -228,6 +232,7 @@ export function operatorAppConfigurationFromEnvironment(
     ...(searchTrendsEnabled(environment) && searchGeoEnabled(environment) ? { researchSearchTrendsGeo: true as const } : {}),
     ...(expandedSearchEnabled(environment) ? { researchExpandedSearch: true as const } : {}),
     ...(worldBankEnabled(environment) ? { researchWorldBank: true as const } : {}),
+    ...(researchPopulationBaseline ? { researchPopulationBaseline } : {}),
     ...(comtradeEnabled(environment) ? { researchComtrade: true as const } : {}),
     ...(googleAdsEnabled(environment) ? { researchSearchAds: true as const } : {}),
     ...(officialStatsEnabled(environment) ? { researchOfficialStats: true as const } : {}),
@@ -315,6 +320,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
       ...(configuration.researchSearchTrendsGeo ? { searchTrendsGeo: true as const } : {}),
       ...(configuration.researchExpandedSearch ? { expandedSearch: true as const } : {}),
       ...(configuration.researchWorldBank ? { worldBank: true as const } : {}),
+      ...(configuration.researchPopulationBaseline ? { populationBaseline: configuration.researchPopulationBaseline } : {}),
       ...(configuration.researchComtrade ? { comtrade: true as const } : {}),
       ...(configuration.researchSearchAds ? { searchAds: true as const } : {}),
       ...(configuration.researchOfficialStats ? { officialStats: true as const } : {}),

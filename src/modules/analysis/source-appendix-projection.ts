@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
 import schema from '../../../contracts/analysis/source-appendix-projection.schema.json' with { type: 'json' };
 import type { SourceAppendixProjection, SourceAppendixProjectionInput, SourceAppendixUsage, SourceAppendixRow } from '../../../contracts/analysis/source-appendix-projection.generated.js';
-import { REPORT_SOURCE_REGISTRY } from './source-registry.js';
+import { NON_EVIDENCE_REGISTRY_IDS, NON_EVIDENCE_TIER_DETAIL, REPORT_SOURCE_REGISTRY } from './source-registry.js';
 export type { SourceAppendixProjection, SourceAppendixProjectionInput, SourceAppendixUsage, SourceAppendixRow } from '../../../contracts/analysis/source-appendix-projection.generated.js';
 export const SOURCE_APPENDIX_PROJECTION_CONTRACT = 'source-appendix-projection-v2' as const;
 export const E12_ATTRIBUTION = 'Cục Thống kê (nso.gov.vn)' as const;
@@ -28,7 +28,7 @@ export function buildSourceAppendixProjection(input: SourceAppendixProjectionInp
       if (Object.values(usage.l9.byReason).reduce((sum, count) => sum + count, 0) !== usage.l9.excluded + usage.l9.unclear) fail('L9 reasons differ from accounting');
     }
     if (usage.l10SourceType !== null && usage.registryId !== 'S07') fail('L10 source type requires S07');
-    return { registryId: usage.registryId, tier: entry[0], tierDetail: usage.registryId === 'S19' ? 'Theo trang gốc; chưa chấm hạng' : usage.registryId === 'S25' ? 'B (báo cáo thường niên đã kiểm toán) / C (khảo sát ngành)' : null,
+    return { registryId: usage.registryId, tier: entry[0], tierDetail: usage.registryId === 'S19' ? 'Theo trang gốc; chưa chấm hạng' : usage.registryId === 'S25' ? 'B (báo cáo thường niên đã kiểm toán) / C (khảo sát ngành)' : NON_EVIDENCE_REGISTRY_IDS.includes(usage.registryId) ? NON_EVIDENCE_TIER_DETAIL : null,
       group: entry[2], reportName: entry[1], binding: { ...usage.binding }, l9Excluded: usage.l9?.excluded ?? null,
       l9Unclear: usage.l9?.unclear ?? null, l9Reasons: { ...(usage.l9?.byReason ?? {}) }, l10SourceType: usage.l10SourceType,
       attribution: ['S21', 'S22'].includes(usage.registryId) ? E12_ATTRIBUTION : usage.registryId === 'S23' ? E13_ATTRIBUTION : usage.registryId === 'S24' ? E14_ATTRIBUTION : null };
