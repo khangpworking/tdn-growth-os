@@ -27,6 +27,14 @@ Quyết định của chủ (24/10/2026, nhận các khuyến nghị):
 
 PR1 không đổi yêu cầu nào. R-P04 nêu `#persistSourceResult` và các file làn; cả hai vẫn đúng (module chạy bên trong `#persistSourceResult`, file làn giữ nguyên). Không dòng "Mã kiểm" nào nêu ký hiệu bị chuyển. PR sau nếu đổi chuỗi gọi hoặc bảng ordinal mà một yêu cầu đã duyệt nêu tên thì thêm delta ở đây.
 
+PR4 không đổi yêu cầu nào: không yêu cầu đã duyệt nào nêu dòng chi phí `UNKNOWN` hay việc ghi capture. Kịch bản "Một làn lỗi" của R-P04 (các làn khác vẫn được lưu) trước đây chưa đúng khi một làn không phải PDF lỗi ghi capture; PR4 làm mã khớp với kịch bản này.
+
+## PR4 (chủ duyệt 24/10/2026)
+
+- Q1: mọi làn ném lỗi ghi đúng một dòng `UNKNOWN` (ordinal và nhà cung cấp của làn); tìm kiếm mở rộng ném cả lượt ghi ordinal 4. Mục 13: nguồn sản phẩm ném lỗi khi bước dừng ngay cũng ghi dòng `UNKNOWN` ordinal 0. Tải PDF ném lỗi không ghi (M3).
+- Lỗi 2: chuỗi xu hướng/bản đồ tỉnh lỗi giữ khoảng thời gian đã hỏi; byte bước đổi chỉ ở nhánh lỗi đó (M8).
+- Q3: lỗi ghi capture chỉ làm hỏng làn đó; lần chạy tiếp tục. Không đổi hợp đồng, không migration.
+
 ## Impact
 
 - Mã: RA `collection-lanes.ts` (mới), `service.ts` (bỏ 4 khối gọi, 4 khối lưu, 4 cặp dòng chi phí, 4 trường nguồn). Không đổi `research-automation-api.ts`, `src/api/operator-app.ts`: service dựng danh sách làn từ các tùy chọn nguồn có sẵn.
