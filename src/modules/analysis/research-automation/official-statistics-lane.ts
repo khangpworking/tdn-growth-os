@@ -9,8 +9,9 @@ import { boundedRequest, CaptureLog, defaultProviderTransport, isRecord, type Pr
 import type { ProviderCallOptions, ProviderRawCapture } from './providers.js';
 import { E12_ATTRIBUTION } from '../source-appendix-projection.js';
 import { containsForbiddenProviderName, containsTechnicalId } from '../citation-registry.js';
-import { lintVisibleReportText } from '../report-visible-text-lint.js';
+import { marketSnippetWordingPasses } from './market-report-check.js';
 import { webTextHidden } from './web-page-type.js';
+import { hasHiddenName } from '../report-language/index.js';
 import { MAX_CAPTURE_BYTES } from './model.js';
 import type { StepOfficialStats, StepOfficialStatsFile, StepOfficialStatsProvinces, StepOfficialStatsProvinceValue, StepOfficialStatsStatus, StepOfficialStatsTable, StepOfficialStatsTableId, StepOfficialStatsValue } from './model.js';
 import {
@@ -95,7 +96,8 @@ export interface OfficialStatsSource {
 }
 
 const CONTROL = /[\u0000-\u001f\u007f]/u;
-const forbiddenOwnerName = (value: string): boolean => /\b(?:google|kalodata|tradeint|dami|apify|serpapi|pageindex|gemini|metric|opencli)\b/iu.test(value);
+// R-L01 names in model-authored text (report-language READER rule).
+const forbiddenOwnerName = (value: string): boolean => hasHiddenName(value, 'READER');
 const ownerText = (v: unknown): v is string => typeof v === 'string' && v.length >= 1 && v.length <= 400 && !CONTROL.test(v) && !v.includes('%') && !forbiddenOwnerName(v);
 const dataBlock = (name: 'PRODUCT_DATA' | 'CATEGORY_DATA', value: unknown): string => `BEGIN_UNTRUSTED_${name}\n${JSON.stringify(value)}\nEND_UNTRUSTED_${name}`;
 function parseObject(text: string): Record<string, unknown> | null {
@@ -504,7 +506,7 @@ export function officialStatsStatusText(value: StepOfficialStats, row: Pick<Step
 const citationName = (name: string, fallback: string): string => {
   const escaped = name.replace(/&/gu, '&amp;').replace(/</gu, '&lt;').replace(/>/gu, '&gt;');
   return ownerText(name) && !webTextHidden(name) && !containsForbiddenProviderName(name) && !containsTechnicalId(name)
-    && lintVisibleReportText(`<p>${escaped}</p>`).every(check => check.ok) ? name : fallback;
+    && marketSnippetWordingPasses(`<p>${escaped}</p>`) ? name : fallback;
 };
 export const officialStatsCitationSheet = (row: Pick<StepOfficialStatsValue, 'sheet'>): string => citationName(row.sheet, 'bảng số liệu đã lưu');
 /** Reader wording only. File, sheet and row belong in the technical citation. */

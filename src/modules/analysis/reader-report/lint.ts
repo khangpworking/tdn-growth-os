@@ -1,10 +1,14 @@
-import { PUBLIC_REVIEW_FORBIDDEN_NAMES } from '../research-automation/public-review-report.js';
 // Reader-report rule lint on the final HTML (F1–F8, plus offline assets).
 // Display checks at desktop, 375 px and A4 run separately in a browser.
 import { lintVisibleReportText } from '../report-visible-text-lint.js';
+import { crossPlatformTotalMatches, findHiddenNames, HIDDEN_NAMES, type HiddenNameGroup } from '../report-language/index.js';
 export type LintResult = { rule: string; ok: boolean; detail: string };
 export type LintOptions = {
+  /** Saved v1/v1.1 claims retain the pre-union W3 content and order. Defaults to true unless `visibleTextRules` marks a v1.2 page. */
+  legacyTotals?: boolean;
+  /** @deprecated ignored: names come from report-language (R-L01). */
   providers?: readonly string[];
+  /** Names: ignored, public-review names are always checked (R-L01). Kept for the F1 pass detail wording only. */
   publicReviewSource?: boolean;
   sectionIds?: readonly string[];
   /** Family label every web number must carry; defaults to the snapshot wording. */
@@ -15,12 +19,15 @@ export type LintOptions = {
   reportKind?: 'MARKET' | 'INSIGHT';
 };
 
-// Data providers that must never be named in a report (owner rule).
-export const FORBIDDEN_PROVIDER_NAMES: readonly string[] = ['Metric', 'Kalodata', 'TradeInt', 'Dami'];
-export const CAPTURED_PROVIDER_NAMES: readonly string[] = [...FORBIDDEN_PROVIDER_NAMES, 'SerpApi', 'Apify', 'PageIndex', 'Agent-Reach', 'OpenCLI', 'zen-studio'];
-
-export const PUBLIC_SOURCE_FORBIDDEN_PROVIDER_NAMES: readonly string[] = [...FORBIDDEN_PROVIDER_NAMES, ...PUBLIC_REVIEW_FORBIDDEN_NAMES];
-export const PUBLIC_SOURCE_CAPTURED_PROVIDER_NAMES: readonly string[] = [...CAPTURED_PROVIDER_NAMES, ...PUBLIC_REVIEW_FORBIDDEN_NAMES];
+const namesIn = (...groups: HiddenNameGroup[]): readonly string[] => HIDDEN_NAMES.filter(entry => groups.includes(entry.group)).map(entry => entry.name);
+/** @deprecated use report-language */
+export const FORBIDDEN_PROVIDER_NAMES: readonly string[] = namesIn('DATA');
+/** @deprecated use report-language */
+export const CAPTURED_PROVIDER_NAMES: readonly string[] = namesIn('DATA', 'TOOL');
+/** @deprecated use report-language */
+export const PUBLIC_SOURCE_FORBIDDEN_PROVIDER_NAMES: readonly string[] = namesIn('DATA', 'PUBLIC_REVIEW');
+/** @deprecated use report-language */
+export const PUBLIC_SOURCE_CAPTURED_PROVIDER_NAMES: readonly string[] = namesIn('DATA', 'TOOL', 'PUBLIC_REVIEW');
 
 export function visibleText(html: string): string {
   return html.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>|<svg[\s\S]*?<\/svg>/g, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ');
@@ -50,14 +57,14 @@ function decodeCss(css: string): string {
   });
 }
 
-export function lint(html: string, { providers = FORBIDDEN_PROVIDER_NAMES, sectionIds = [], familyLabel = 'toàn kết quả tìm kiếm', visibleTextRules = false, reportKind = 'MARKET', publicReviewSource = false }: LintOptions = {}): LintResult[] {
-  if (publicReviewSource) providers = [...providers, ...PUBLIC_REVIEW_FORBIDDEN_NAMES];
-  const capturedProviders = publicReviewSource ? PUBLIC_SOURCE_CAPTURED_PROVIDER_NAMES : CAPTURED_PROVIDER_NAMES;
+export function lint(html: string, { sectionIds = [], familyLabel = 'toàn kết quả tìm kiếm', visibleTextRules = false, reportKind = 'MARKET', legacyTotals = !visibleTextRules, publicReviewSource = false }: LintOptions = {}): LintResult[] {
   const out: LintResult[] = [], add = (rule: string, ok: boolean, detail: string) => { out.push({ rule, ok, detail }); };
   const all = visibleText(html), vis = visibleText(html.replace(QUOTED, ' ')), svgText = [...html.matchAll(/<svg[\s\S]*?<\/svg>/g)].map(m => m[0].replace(/<[^>]+>/g, ' ')).join(' ');
   const titleTag = html.match(/<title>[\s\S]*?<\/title>/)?.[0] ?? '';
-  const prov = providers.filter(p => new RegExp(`\\b${p}\\b`, 'i').test(publicReviewSource ? decodeAttr(html) : all + ' ' + svgText + ' ' + titleTag));
-  add('F1 tên nhà cung cấp số liệu', prov.length === 0, prov.length ? 'thấy: ' + prov.join(', ') : 'không thấy ' + providers.join('/'));
+  // R-L01: hidden text, SVG text, <title> and alt/title/aria-label values count too; link targets do not.
+  const labels = [...html.matchAll(/\s(?:alt|title|aria-label)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'`=<>]+))/giu)].map(m => m[1] ?? m[2] ?? m[3] ?? '');
+  const prov = [...new Set(findHiddenNames(decodeAttr([all, svgText, titleTag, ...labels].join(' ')), 'READER').map(hit => hit.match))];
+  add('F1 tên nhà cung cấp số liệu', prov.length === 0, prov.length ? 'thấy: ' + prov.join(', ') : 'không thấy ' + (publicReviewSource ? PUBLIC_SOURCE_FORBIDDEN_PROVIDER_NAMES : FORBIDDEN_PROVIDER_NAMES).join('/'));
 
   const ex = [...html.matchAll(/<(figure|div) class="ex">([\s\S]*?)(?=<(figure|div) class="ex">|<\/section>)/g)];
   const noSrc = ex.filter(m => !/class="ex-src">Nguồn:/.test(m[2] ?? '')).map(m => ((m[2] ?? '').match(/class="exn"[^>]*>([^<]+)/) ?? [])[1]);
@@ -171,8 +178,10 @@ export function lint(html: string, { providers = FORBIDDEN_PROVIDER_NAMES, secti
   add('W2 không cộng trừ hai họ số', mixed.length === 0,
     mixed.length ? mixed.slice(0, 2).map(s => s.trim().slice(0, 80)).join(' | ') : 'không lẫn hai họ số');
 
-  const summed = sentences.filter(s =>
-    /tổng\s+(hai sàn|cả hai sàn|shopee và tiktok|tiktok và shopee)/i.test(s));
+  // New Market readers share U32's list; Insight and legacy claims retain W3.
+  const summed = sentences.filter(s => reportKind === 'INSIGHT' || legacyTotals
+    ? /tổng\s+(hai sàn|cả hai sàn|shopee và tiktok|tiktok và shopee)/i.test(s)
+    : crossPlatformTotalMatches(s).length > 0);
   add('W3 không cộng gộp sàn khi trang không ghi tổng', summed.length === 0,
     summed.length ? summed.slice(0, 2).map(s => s.trim().slice(0, 80)).join(' | ') : 'không cộng gộp sàn');
 
@@ -192,8 +201,7 @@ export function lint(html: string, { providers = FORBIDDEN_PROVIDER_NAMES, secti
   add('W5 M10 không có số dự báo', !forecastBad, forecastBad ? 'M10 có số kèm từ dự báo' : 'M10 chỉ xu hướng đã qua');
 
   const captured = [...html.matchAll(/data-web-label="([^"]*)"/g)].map(m => m[1] ?? '');
-  const hitLabels = captured.filter(l => [...providers, ...capturedProviders].some(p =>
-    new RegExp(`\\b${p}\\b`, 'i').test(decodeAttr(l))));
+  const hitLabels = captured.filter(l => findHiddenNames(decodeAttr(l), 'COPIED').length > 0);
   add('W6 nhãn thu thập không nêu tên nhà cung cấp', hitLabels.length === 0,
     hitLabels.length ? 'thấy: ' + hitLabels.slice(0, 2).map(s => s.slice(0, 60)).join(' | ') : `${captured.length} nhãn đã kiểm`);
   if (visibleTextRules) out.push(...lintVisibleReportText(html));

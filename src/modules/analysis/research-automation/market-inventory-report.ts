@@ -247,7 +247,7 @@ function latestReaderPrices(snapshot: AutomationMarketMethodSnapshot, trace: Tra
     readable ||= price !== null || Boolean(validRange);
     missingRange ||= !validRange;
     const candidate = capture.keys.length ? names.label(capture.keys).replace(/Sản phẩm #/g, 'Sản phẩm ') : '';
-    const label = candidate && !containsForbiddenProviderName(candidate) && !/\b(?:Gemini|Google)\b/iu.test(candidate)
+    const label = candidate && !containsForbiddenProviderName(candidate)
       ? candidate : `Sản phẩm ${formatReaderCount(capture.keys.length ? names.ordinal(capture.keys) : index + 1)}`;
     const platformLabel = platforms[index]!;
     const date = Number.isFinite(capture.acquiredAt) ? readerDate(new Date(capture.acquiredAt).toISOString().slice(0, 10)) : null;

@@ -1,3 +1,5 @@
+import { hasHiddenName } from '../report-language/index.js';
+
 const WITHHELD = '\u0050h\u1ea1m vi v\u00e0 n\u1ed9i dung \u0111\u01b0\u1ee3c gi\u1eef trong b\u1ea3n l\u01b0u ngu\u1ed3n';
 
 const MEASURE_NAMES: Readonly<Record<string, string>> = {
@@ -32,7 +34,8 @@ const QUOTE_VALUE_STATES: Readonly<Record<string, string>> = {
 };
 
 const DECIMAL = /^([+-]?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/;
-const READER_PROVIDER = /\b(?:Metric|Kalodata|TradeInt|Dami|Apify|SerpApi|Jev|TypeSafe)\b/i;
+// Method ids such as metric-scope-v1 are technical, not reader wording (the name rule lets lower-case "metric" pass).
+const READER_METHOD_ID = /(?<![\p{L}\p{N}_])metric-[\p{L}\p{N}-]+/iu;
 const READER_HASH = /\b(?:[a-f0-9]{32,}|sha-?256)\b/i;
 const READER_PATH = /(?:[A-Za-z]:[\\/]|\/data\/|\b[\w.-]+\/[\w.-]+\.json\b|(?:^|[\s(])(?:\.\.?[\\/]|(?:[\w.-]+[\\/]){2,})[\w.-]+)/;
 // A standalone calendar date such as 12/10/2026 is reader wording, not a path.
@@ -55,7 +58,7 @@ const READER_ENUM = (value: string): boolean => value.split(/\s+/).some(token =>
 });
 const hasUnsafeReaderToken = (value: string): boolean =>
   /\b[a-z][a-z0-9-]*_[a-z0-9_-]*\b|\b[a-z][a-z0-9-]*:\d+\b|\bcapture-\d+\b|\/data\//.test(value) ||
-  READER_PROVIDER.test(value) || READER_HASH.test(value) || READER_PATH.test(value.replace(READER_CALENDAR_DATE, ' ')) || READER_JSON_OBJECT.test(value) ||
+  hasHiddenName(value, 'READER') || READER_METHOD_ID.test(value) || READER_HASH.test(value) || READER_PATH.test(value.replace(READER_CALENDAR_DATE, ' ')) || READER_JSON_OBJECT.test(value) ||
   READER_POINTER.test(value) || READER_VERSIONED_METHOD.test(value) || READER_UPPER_SNAKE.test(value) || READER_ENUM(value);
 
 export const readerTextSafe = (value: string): boolean => !hasUnsafeReaderToken(value);

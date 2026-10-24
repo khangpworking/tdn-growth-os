@@ -118,7 +118,8 @@ test('web search results are cited in the appendix with links, kept despite thei
     assert.ok(pub.lint.every(x => x.ok), JSON.stringify(pub.lint.filter(x => !x.ok)));
     assert.deepEqual(r.webResults.map(w => w.position), [1, 2, 4, 5, 6, 7, 8]);
     const masked = r.webResults.find(w => w.position === 6)!;
-    assert.deepEqual([masked.title, masked.snippet, masked.site], ['Bình theo […]', 'Số liệu […] và […]', '[…] blog'], 'provider names are masked, the rest is quoted');
+    // Owner Q2 24/10/2026 (R-L01): lower-case "metric" is an ordinary word and stays; only Metric/METRIC are masked (c4 PR2).
+    assert.deepEqual([masked.title, masked.snippet, masked.site], ['Bình theo […]', 'Số liệu […] và metric', '[…] blog'], 'provider names are masked, the rest is quoted');
     assert.match(r.html, /\.pl-url\{overflow-wrap:anywhere/, 'long addresses wrap instead of widening the page');
     const vis = visibleText(r.html);
     assert.match(vis, /Bảng PL\.3/);
@@ -133,7 +134,9 @@ test('web search results are cited in the appendix with links, kept despite thei
     assert.match(vis, /chép theo kết quả tìm kiếm, không phải từ trang gốc: đoạn mô tả có thể bị cắt ngắn/, 'the note says where the text comes from');
     assert.doesNotMatch(vis, /nguyên văn/, 'search-result text is not claimed to be verbatim from the page');
     assert.doesNotMatch(r.html, /src="https?:/);
-    assert.doesNotMatch(vis, /SerpApi|Kalodata|\bDami\b|\bmetric\b/i);
+    // Owner Q2 24/10/2026 (R-L01): lower-case "metric" may appear; Metric/METRIC may not (c4 PR2).
+    assert.doesNotMatch(vis, /SerpApi|Kalodata|\bDami\b/i);
+    assert.doesNotMatch(vis, /\b(?:Metric|METRIC)\b/);
 
     const none = await buildMarketReport(computeReaderReportData(input()), options);
     assert.doesNotMatch(none.html, /Bảng PL\.3|Kết quả tìm kiếm tại Việt Nam/);

@@ -60,6 +60,9 @@ const object = (v: unknown): Record<string, unknown> => typeof v === 'object' &&
 const integer = (v: unknown, min = 0, max = Number.MAX_SAFE_INTEGER): v is number => Number.isSafeInteger(v) && (v as number) >= min && (v as number) <= max;
 const reviewIdentity = (v: unknown): string | null => typeof v === 'string' && v.length > 0 && v.length <= 2000 ? v : null;
 const utc = (v: unknown): v is string => validUtc(v) && Number.isFinite(Date.parse(v));
+const validZeroOffset = ajv.compile<string>({ type: 'string', format: 'date-time', pattern: '\\+00:00$' });
+/** Service timestamps may carry an explicit zero offset (Python isoformat). Read as UTC and stored as canonical Z; anything else passes through for the normal check. */
+const serviceUtc = (v: unknown): unknown => validZeroOffset(v) && Number.isFinite(Date.parse(v)) ? new Date(Date.parse(v)).toISOString() : v;
 const active = (v: string) => v === 'queued' || v === 'running';
 const blocking = (r: PublicReviewReceipt) => r.stopCode !== null || r.state === 'needs_login' || r.state === 'needs_verification';
 const mutexes = new Map<string, Promise<unknown>>();
@@ -87,7 +90,7 @@ function listRow(raw: unknown): { id: string | null; url: string | null; job: No
   const r = typeof v.request === 'object' && v.request !== null && !Array.isArray(v.request) ? v.request as Record<string, unknown> : null;
   let url: string | null = null; try { url = r ? normalizePublicReviewUrl(r.url) : null; } catch { url = null; }
   if (!r || url === null) return { id, url, job: null };
-  const job = { id: v.id, request: { url, max_comments: r.max_comments }, state: v.state, created_at: v.created_at, updated_at: v.updated_at,
+  const job = { id: v.id, request: { url, max_comments: r.max_comments }, state: v.state, created_at: serviceUtc(v.created_at), updated_at: serviceUtc(v.updated_at),
     result_available: v.result_available, ...(v.collected === undefined ? {} : { collected: v.collected }) };
   return { id, url, job: validJob(job) ? job : null };
 }
@@ -139,11 +142,12 @@ export function mapPublicReviewResult(raw: unknown, job: NonNullable<ShopeePubli
     if (!integer(p.page, 1, 500) || !integer(p.cards) || !integer(p.collected) || !Array.isArray(p.ids)) return fail();
     pages.push({ page: p.page, cards: p.cards, collected: p.collected, ids: p.ids.map(reviewIdentity) });
   }
+  const startedAt = serviceUtc(v.started_at), finishedAt = serviceUtc(v.finished_at);
   return validatePublicEnvelope({ contractVersion: 'shopee-public-sanitized-result-v1', jobId: job.id, productUrl: listing.productUrl,
     shopId: listing.shopId, itemId: listing.itemId, maxReviewsPerProduct: cap, complete: !checkpoint && v.complete === true,
     stopReason: ['record_limit','expected_count_reached','last_page'].includes(String(v.stop_reason)) ? v.stop_reason : 'OTHER_OR_MISSING',
     filter: 'HAS_COMMENTS', expectedWithComments: integer(v.expected_with_comments) ? v.expected_with_comments : null,
-    startedAt: utc(v.started_at) ? v.started_at : null, finishedAt: utc(v.finished_at) ? v.finished_at : null, excluded, diagnostics, pages, rows });
+    startedAt: utc(startedAt) ? startedAt : null, finishedAt: utc(finishedAt) ? finishedAt : null, excluded, diagnostics, pages, rows });
 }
 
 /** Worker-only transport. A durable intent is a one-use permission to submit. */
@@ -233,7 +237,7 @@ export class ShopeePublicReviewCollector implements ShopeeCollector<PublicCollec
       const parseJob = (raw: unknown, bound = true) => {
         const v = object(raw), r = object(v.request);
         const job = { id: v.id, request: { url: normalizePublicReviewUrl(r.url), max_comments: r.max_comments }, state: v.state,
-          created_at: v.created_at, updated_at: v.updated_at, result_available: v.result_available,
+          created_at: serviceUtc(v.created_at), updated_at: serviceUtc(v.updated_at), result_available: v.result_available,
           ...(v.collected === undefined ? {} : { collected: v.collected }) };
         if (!validJob(job) || !utc(job.created_at) || !utc(job.updated_at) || Date.parse(job.created_at) > this.#clock().getTime() + 2000 || Date.parse(job.updated_at) < Date.parse(job.created_at) || (job.collected ?? 0) > this.maxReviewsPerProduct || job.request.url !== listing.productUrl || job.request.max_comments !== this.maxReviewsPerProduct ||
           bound && j.job && (job.id !== j.job.id || job.created_at !== j.job.created_at)) return fail();

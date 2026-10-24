@@ -7,6 +7,7 @@ import type { OperatorVideoReading, PreparedVideoReading } from '../../../../con
 export type { OperatorVideoReading, PreparedVideoReading } from '../../../../contracts/analysis/video-reading-v2.generated.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import { CitationRegistry } from '../citation-registry.js';
+import { hasHiddenName } from '../report-language/index.js';
 import { exactTikTokVideoUrl } from './tiktok-video-selection.js';
 
 const require = createRequire(import.meta.url);
@@ -77,5 +78,5 @@ export function citeVideoReading(reading: PreparedVideoReading, readingSha256: s
     voiceLabel: voiceLabelFor(reading.input.videoKind), captionSource: segment.captionSource, startSeconds: segment.startSeconds, endSeconds: segment.endSeconds,
     citation: registry.cite({ sourceKind: 'CAPTURE', identity: readingSha256,
       locator: `giây ${segment.startSeconds}–${segment.endSeconds}`, label: 'nội dung video', retrievedAt: null,
-      url: reading.input.videoUrl, quote: null, quoteVerification: 'NOT_APPLICABLE', technical: { registryId: 'S14' } }) }));
+      url: hasHiddenName(reading.input.videoUrl, 'CITATION') ? null : reading.input.videoUrl, quote: null, quoteVerification: 'NOT_APPLICABLE', technical: { registryId: 'S14' } }) }));
 }

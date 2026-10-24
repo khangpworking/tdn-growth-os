@@ -214,10 +214,14 @@ export type PublishedReaderReport = {
  */
 export async function publishReaderReport(
   store: ContentAddressedArtifactStore,
-  { html, narrator, extraOk = [], sectionIds = READER_SECTION_ANCHORS, visibleTextRules = false, reportKind = 'MARKET', publicReviewSource = false }:
-    { html: string; narrator: Narrator; extraOk?: readonly string[]; sectionIds?: readonly string[]; visibleTextRules?: boolean; reportKind?: 'MARKET' | 'INSIGHT'; publicReviewSource?: boolean },
+  { html, narrator, extraOk = [], sectionIds = READER_SECTION_ANCHORS, visibleTextRules = false, visibleTextResults, reportKind = 'MARKET', publicReviewSource = false }:
+    { html: string; narrator: Narrator; extraOk?: readonly string[]; sectionIds?: readonly string[]; visibleTextRules?: boolean;
+      /** U13 rows the Market check already ran on this html: appended in the lint's place instead of running U13 again. */
+      visibleTextResults?: readonly LintResult[];
+      reportKind?: 'MARKET' | 'INSIGHT'; publicReviewSource?: boolean },
 ): Promise<PublishedReaderReport> {
-  const lintResults = lint(html, { sectionIds, visibleTextRules, reportKind, publicReviewSource });
+  const lintResults = lint(html, { sectionIds, visibleTextRules: visibleTextRules && !visibleTextResults, legacyTotals: !visibleTextRules, reportKind, publicReviewSource });
+  if (visibleTextResults) lintResults.push(...visibleTextResults.map(row => ({ rule: row.rule, ok: row.ok, detail: row.detail })));
   const { checked, hardcoded } = narrator.checkHardcoded(extraOk);
   const notInBundle = narrator.notInBundle(extraOk);
   const failed = lintResults.filter(r => !r.ok);
