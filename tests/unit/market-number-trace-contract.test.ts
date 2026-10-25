@@ -1,12 +1,22 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
+import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/artifact-store.js';
+import { openDatabase } from '../../src/platform/db/index.js';
+import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../src/modules/flow/index.js';
+import type { StepResultDocument } from '../../src/modules/analysis/research-automation/model.js';
 import { type MarketNumberTraceGateResult, scanMarketReportNumbers } from '../../src/modules/analysis/research-automation/market-number-trace.js';
 import { assertMarketReport, checkMarketReport, MarketNumberTraceBlockedError, type MarketCheckContext, type MarketCheckOutcome } from '../../src/modules/analysis/research-automation/market-report-check.js';
 import { readMarketRawSeries, resolveMarketRawSource } from '../../src/modules/analysis/research-automation/market-raw-series.js';
 import type { MarketNumberTrace, MarketTraceInput } from '../../src/modules/analysis/research-automation/market-trace-map.js';
 import { buildResearchAutomationReport, type AutomationReportInput } from '../../src/modules/analysis/research-automation/reports.js';
+import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
 import { fullMarket14Input } from '../helpers/market14-full-fixture.js';
+import { SYNTHETIC_CARD_ID, syntheticProductSource } from '../helpers/research-synthetic-sources.js';
 import zinc30 from '../fixtures/market-raw-series/zinc-30d-4platform.synthetic.raw-responses.json' with { type: 'json' };
 import zinc12 from '../fixtures/market-raw-series/zinc-12m-4platform.synthetic.raw-responses.json' with { type: 'json' };
 
@@ -75,6 +85,83 @@ test('T2 an injected 36,2 tỷ in a covered block blocks delivery and lists its 
     assert.equal(error.numberTrace.untraced[0]?.token, '36,2 tỷ', 'the thrown block must carry the saved diagnostic');
     return true;
   });
+});
+
+test('R1 an M03 number inside q data-quote blocks delivery', async () => {
+  const { html, context } = await zincReport();
+  assertT2(checkMarketReport(inject(html, 'M03', '<q data-quote>Giá trị bổ sung: 36,2 tỷ.</q>'), context));
+});
+
+test('R2 an M03 number inside details open blocks delivery', async () => {
+  const { html, context } = await zincReport();
+  assertT2(checkMarketReport(inject(html, 'M03', `<details open><summary>Số liệu bổ sung</summary>${injected}</details>`), context));
+});
+
+test('R3 a blocked run exposes its gate artifact digest and path through its REPORTS step', async t => {
+  // Silence diagnostics: the result must be discoverable from the retained run
+  // and step alone, with no dependency on the log line or captured stderr.
+  t.mock.method(console, 'error', () => {});
+  const { html, context } = await zincReport();
+  const tampered = inject(html, 'M03', injected);
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'market-number-trace-run-'));
+  let db: ReturnType<typeof openDatabase>['db'] | undefined;
+  t.after(async () => { db?.close(); await fs.rm(root, { recursive: true, force: true }); });
+  const now = () => new Date('2026-10-25T00:00:00.000Z');
+  db = openDatabase({ databasePath: path.join(root, 'test.sqlite'), now }).db;
+  const artifactRoot = path.join(root, 'artifacts');
+  const artifacts = new ContentAddressedArtifactStore(artifactRoot);
+  const workspaceId = '11111111-1111-4111-8111-111111111111';
+  const runId = '22222222-2222-4222-8222-222222222222';
+  const workspaces = new DiscoveryWorkspaceService({ db, artifactStore: artifacts, uuid: () => workspaceId, now });
+  await workspaces.createWorkspace({ contractVersion: '1.0.0', workspaceKey: 'number-trace', title: 'Synthetic number trace run' });
+  const service = new ResearchAutomationService({ db, artifactStore: artifacts,
+    workspaceReader: new FlowDiscoveryWorkspaceReader(workspaces), uuid: () => runId, now,
+    source: syntheticProductSource(),
+    renderer: async (input, kind) => {
+      // Exercise the real gate at the existing renderer boundary. Persistence
+      // and the run's terminal transition remain entirely owned by the service.
+      assertMarketReport(tampered, context);
+      return buildResearchAutomationReport(input, kind);
+    },
+  });
+  await service.start(workspaceId, { contractVersion: 'research-automation-start-v1',
+    requestKey: '33333333-3333-4333-8333-333333333333', mode: 'CATEGORY', keyword: 'viên uống kẽm',
+    requestedPeriod: { startDate: '2026-09-21', endDate: '2026-10-20' }, reports: ['MARKET'] });
+  await service.processNext();
+  const awaiting = await service.getRun(workspaceId, runId);
+  await service.confirmScope(workspaceId, runId, { contractVersion: 'research-automation-confirm-v1',
+    requestKey: '44444444-4444-4444-8444-444444444444', expectedRevision: awaiting.revision,
+    definition: 'Synthetic scope', includeTerms: [], excludeTerms: [], selectedProductIds: [SYNTHETIC_CARD_ID], peerProductIds: [], exactShopeeUrls: [] });
+  for (let i = 0; i < 10; i++) {
+    const { status } = await service.getRun(workspaceId, runId);
+    if (status === 'FAILED' || status === 'DRAFT_READY') break;
+    await service.processNext();
+  }
+  const failed = await service.getRun(workspaceId, runId);
+  assert.equal(failed.status, 'FAILED');
+  assert.equal(failed.steps.find(step => step.stepId === 'REPORTS')?.code, 'MARKET_NUMBER_TRACE_BLOCKED');
+  assert.equal(failed.outputs, undefined, 'a blocked report must not be delivered');
+  const step = db.prepare("SELECT result_sha256 sha FROM analysis_research_automation_steps WHERE run_id=? AND step_id='REPORTS'").get(runId) as { sha: string | null };
+  assert.ok(step.sha, 'the failed REPORTS step must retain a readable result document');
+  const document = JSON.parse((await artifacts.read(step.sha)).toString()) as StepResultDocument;
+  assert.equal(document.runId, runId);
+  assert.equal(document.stepId, 'REPORTS');
+  assert.equal(document.outcome, 'FAILED');
+  const reference = document.numberTraceGate;
+  assert.ok(reference, 'the step must expose the gate artifact reference without stderr');
+  assert.match(reference.resultSha256, /^[a-f0-9]{64}$/u);
+  assert.equal(reference.coveredUntraced, 1);
+  assert.equal(reference.mismatches, 0);
+  const bytes = await artifacts.read(reference.resultSha256);
+  assert.equal(createHash('sha256').update(bytes).digest('hex'), reference.resultSha256);
+  assert.equal(reference.resultPath, path.relative(artifactRoot, artifacts.pathForDigest(reference.resultSha256)));
+  assert.deepEqual(await fs.readFile(path.join(artifactRoot, reference.resultPath)), bytes, 'the persisted path must locate the artifact named by its digest');
+  const gate = JSON.parse(bytes.toString()) as MarketNumberTraceGateResult;
+  assert.equal(reference.gateVersion, gate.contractVersion);
+  assert.equal(gate.ok, false);
+  assert.equal(gate.coveredUntraced, 1);
+  assert.deepEqual(gate.mismatches, []);
+  assert.deepEqual(gate.untraced, [{ token: '36,2 tỷ', block: 'M03', context: 'Giá trị bổ sung: 36,2 tỷ.' }]);
 });
 
 test('T3 a change percentage with the wrong previous-period base blocks delivery', async () => {
