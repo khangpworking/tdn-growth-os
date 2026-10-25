@@ -254,3 +254,22 @@ test('R4/R5 interval platforms survive an absent search response with missing KP
   assert.equal(series.totals.scope.kpi.revenue.value, null);
   assert.equal(series.totals.all.kpi.revenue.value, null);
 });
+
+test('R4/R5 a completed insight without intervals never falls back to older windows', () => {
+  const raw = structuredClone(canxi30);
+  // Keep the older populated insight, then complete the later response with
+  // an empty result for the same request. Missing data must stay missing.
+  const older = raw[2]!;
+  const empty = { ...older, responseOrder: older.responseOrder + 1, body: { data: [] } };
+  const capture = [...raw.slice(0, 3), empty];
+  const series = readMarketRawSeries(capture);
+
+  assert.equal(series.totals.scope.kpi.revenue.value, 175_353_302_840);
+  for (const platform of series.platforms) {
+    assert.equal(platform.intervals, null, 'the latest completed insight has no windows');
+    assert.match(platform.intervalsReason ?? '', /\S/);
+  }
+  assert.equal(series.intervalDays.value, 7);
+  assertSource(capture, series.intervalDays.source, 7);
+  assert.equal(series.intervalDays.source?.responseIndex, 3);
+});

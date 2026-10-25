@@ -186,9 +186,9 @@ function entriesOf(rawResponses: unknown): RawEntry[] {
 }
 
 /**
- * The latest completed response for a path that carries data. Captures hold a
- * stale pre-search response first and can end with an empty one, so neither
- * capture order alone nor the last entry is enough.
+ * The latest completed response for a path. Captures can end with an in-flight
+ * entry whose body is null; skip it, but keep completed empty results so they
+ * never fall back to stale data.
  */
 function latest(entries: readonly RawEntry[], path: RegExp, hasData: (body: unknown) => boolean): RawEntry | null {
   return entries.filter(entry => path.test(entry.url) && entry.ok && hasData(entry.body))
@@ -200,12 +200,6 @@ const searchAggregations = (body: unknown): unknown[] => {
   const basic = data && isRecord(data.search_basic) ? data.search_basic : null;
   return basic && Array.isArray(basic.aggregations) ? basic.aggregations : [];
 };
-
-function hasIntervals(node: unknown): boolean {
-  if (Array.isArray(node)) return node.some(hasIntervals);
-  if (!isRecord(node)) return false;
-  return Array.isArray(node.order_revenue_intervals) || Object.values(node).some(hasIntervals);
-}
 
 function numberValue(raw: unknown, source: MarketRawSource): MarketRawValue {
   if (raw === null || raw === undefined) return missing('field-missing', source);
@@ -348,7 +342,7 @@ export function readMarketRawSeries(rawResponses: unknown, options: MarketRawSer
   // A completed search without aggregations is missing data for that request,
   // not permission to reuse an older query's numbers.
   const search = latest(entries, SEARCH_BASIC_PATH, isRecord);
-  const insight = latest(entries, INSIGHT_PATH, hasIntervals);
+  const insight = latest(entries, INSIGHT_PATH, isRecord);
   const aggregations = search ? searchAggregations(search.body) : [];
   const reason = aggregations.length ? undefined : entries.some(entry => SEARCH_BASIC_PATH.test(entry.url)) ? 'search-basic-aggregations-missing' : 'search-basic-response-missing';
   const requested = requestedPlatformIds(search);
