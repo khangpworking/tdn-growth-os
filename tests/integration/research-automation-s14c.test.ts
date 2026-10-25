@@ -8,7 +8,7 @@ import { operatorAppConfigurationFromEnvironment } from '../../src/api/operator-
 import { createKalodataProvider } from '../../src/modules/analysis/research-automation/provider-kalodata.js';
 import { createTopSellingVideoSource } from '../../src/modules/analysis/research-automation/top-selling-videos.js';
 import type { ProviderTransport } from '../../src/modules/analysis/research-automation/provider-common.js';
-import { S14C_NOW, S14C_RUN, s14cCollection } from './research-automation-s14c.fixtures.js';
+import { S14C_NOW, S14C_RUN, S14C_WORKSPACE, s14cCollection } from './research-automation-s14c.fixtures.js';
 
 // Generated with this same synthetic fixture in git-archived origin/main (06a6658d), without a top-selling source.
 const MAIN_COLLECTION_SHA256 = '78a5635a460b3e7387c996985425d13ea97ef12153ecafe2f2e0394285b1a033';
@@ -47,7 +47,7 @@ test('S14C row 7: only exactly "1" enables ranking; off values issue no rank cal
     results.push({ value, sha256: sha(run.bytes) });
   }
   assert.equal(new Set(results.map(result => result.sha256)).size, 1, 'all off values store identical bytes');
-  await t.test('flag-off collection bytes match origin/main', { todo: 'Defect: video-watch-lane.ts:304 and :372 add path:VIDEO even with the new flag off.' }, () => {
+  await t.test('flag-off collection bytes match origin/main', () => {
     for (const result of results) assert.equal(result.sha256, MAIN_COLLECTION_SHA256, String(result.value));
   });
 });
@@ -82,7 +82,19 @@ test('S14C row 8: Market and Insight persist rank lineage; handles stay only in 
       const html = await run.html();
       assert.ok(html.includes('Câu giả lập.'), 'the reader actually renders a verified subtitle reading');
       for (const handle of handles) assert.equal(html.includes(handle), false, 'handle absent from all HTML, including attributes');
+      const callsBefore = { ...run.calls }, paidBefore = f.paid.length;
+      assert.equal(await run.html(), html, 'stored native reading replay keeps exact HTML');
+      const previousPairId = (await run.service.listReportVersions(S14C_WORKSPACE, S14C_RUN)).at(-1)!.pairId;
+      await run.service.requestReportRevision(S14C_WORKSPACE, S14C_RUN, {
+        contractVersion: 'automation-report-revision-v1', requestKey: '55555555-5555-4555-8555-555555555555', previousPairId,
+        sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } },
+      });
+      await run.service.processNext();
+      assert.ok((await run.html()).includes('Câu giả lập.'), 'revision keeps the native subtitle reading');
+      assert.deepEqual(run.calls, callsBefore, 'replay and revision make no subtitle, video or model call');
+      assert.equal(f.paid.length, paidBefore, 'replay and revision never repeat the paid video rank');
     }
   }
   for (const handle of handles) assert.equal(logs.join('\n').includes(handle), false, 'handle absent from application logs');
+  assert.equal(logs.join('\n').includes('Câu giả lập.'), false, 'raw subtitle text absent from application logs');
 });

@@ -362,14 +362,16 @@ export class VideoWatchLane {
   }
 }
 
-/** The stored step field. `indexes[i]` is the step capture ordinal of attempt i's last (answer) capture, null when none was stored. */
-export function videoWatchDocument(plan: VideoWatchPlan, attempts: readonly VideoWatchAttempt[], indexes: readonly (number | null)[]): StepVideoWatch {
+/** The stored step field. `indexes[i]` is the step capture ordinal of attempt i's last (answer) capture, null when none was stored.
+ * With ranking off, omit the VIDEO marker to preserve legacy fallback bytes; SUBTITLE is always explicit. */
+export function videoWatchDocument(plan: VideoWatchPlan, attempts: readonly VideoWatchAttempt[], indexes: readonly (number | null)[], recordVideoPath = false): StepVideoWatch {
   return { profile: VIDEO_WATCH_PROFILE, candidatesSha256: plan.candidatesSha256, candidates: plan.candidates, skipped: plan.skipped,
     videos: plan.candidates.map((candidate, i): StepVideoWatchVideo => {
       const attempt = attempts[i], index = indexes[i] ?? null;
       if (!attempt || attempt.candidate.videoId !== candidate.videoId) return { videoId: candidate.videoId, status: 'SKIPPED', reason: 'DOCUMENT_INVALID', captureIndex: null, retrievedAt: null, media: null, reading: null };
       const answer = index === null ? null : attempt.captures[attempt.captures.length - 1] ?? null;
-      const stored = { captureIndex: answer ? index : null, retrievedAt: answer?.completedAt ?? null, media: attempt.media, ...(attempt.path ? { path: attempt.path } : {}) };
+      const stored = { captureIndex: answer ? index : null, retrievedAt: answer?.completedAt ?? null, media: attempt.media,
+        ...(attempt.path === 'SUBTITLE' || (recordVideoPath && attempt.path === 'VIDEO') ? { path: attempt.path } : {}) };
       if (attempt.reading && answer) return { videoId: candidate.videoId, status: 'READ', reason: null, ...stored, reading: attempt.reading };
       return { videoId: candidate.videoId, status: 'SKIPPED', reason: attempt.reason ?? 'DOCUMENT_INVALID', ...stored, reading: null };
     }) };

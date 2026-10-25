@@ -128,7 +128,7 @@ export function videoLane(source: VideoWatchLane, topSelling?: TopSellingVideoSo
         writeFailed = true;
         captures.truncate?.(start);
       }
-      const watched = attempts && !writeFailed ? videoWatchDocument(plan, attempts, indexes) : videoWatchFailed(plan, 'PROVIDER_FAILED');
+      const watched = attempts && !writeFailed ? videoWatchDocument(plan, attempts, indexes, topSelling !== undefined) : videoWatchFailed(plan, 'PROVIDER_FAILED');
       const ranked = rank !== undefined && !writeFailed ? { topSellingRank: topSellingVideoRankStep(rank, rankIndexes, kept) } : {};
       const probe = { ...step, videoWatch: { ...watched, ...ranked } };
       try {
