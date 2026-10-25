@@ -236,7 +236,8 @@ function coverBlock(html: string): { open: string; block: string } {
  * `requireFlint: false` mirrors the builder's explicit test opt-out: charts may be the
  * hand-drawn SVG, but each still needs an engine marker, drawn content and the count of three.
  * `gate` is a business-gate result already computed on the same html with the same
- * `publicReviewSource`; rules 4 and 7 read its G08 and U32 rows. Without it the gate runs here.
+ * `publicReviewSource`; rule 4 reads its G08 row. Without it the gate runs here. Rule 7 no longer reads U32:
+ * a labelled «Cộng 2 sàn» total is allowed (R-M07, R-M16 owner 22/10/2026).
  */
 export function auditMarket14(html: string, trace?: string, options: Market14Options = {}): Market14Result[] {
   const requireFlint = options.requireFlint ?? true;
@@ -318,7 +319,7 @@ export function auditMarket14(html: string, trace?: string, options: Market14Opt
     result('4', gateResult('G08_PROVIDER_NAME').ok && !/\bGoogle\b/iu.test(text), 'machine', /\bGoogle\b/iu.test(text) ? 'visible provider/tool name: Google' : gateResult('G08_PROVIDER_NAME').detail),
     result('5', notes.blocks.length > 0 && notes.bad.length === 0, 'machine', notes.blocks.length === 0 ? 'missing standalone Chú thích: note block' : notes.bad.length ? snippets(notes.bad) : 'notes use their own line'),
     result('6', true, 'evidence', evidenceDetail(html, [/doanh thu|tỷ trọng|giá trung bình/iu])),
-    result('7', gateResult('U32_NO_CROSS_PLATFORM_TOTAL').ok && hasSampleStatement(text) && sampleIssues.length === 0 && zeroSampleIssues.length === 0 && !/(?:thị phần|quy mô thị trường)\s+(?:là|đạt|tăng|giảm|chiếm)\s*\d/iu.test(text), 'machine', sampleIssues.length ? snippets(sampleIssues) : zeroSampleIssues.length ? snippets(zeroSampleIssues) : hasSampleStatement(text) ? gateResult('U32_NO_CROSS_PLATFORM_TOTAL').detail : 'missing n = sample statement'),
+    result('7', hasSampleStatement(text) && sampleIssues.length === 0 && zeroSampleIssues.length === 0 && !/(?:thị phần|quy mô thị trường)\s+(?:là|đạt|tăng|giảm|chiếm)\s*\d/iu.test(text), 'machine', sampleIssues.length ? snippets(sampleIssues) : zeroSampleIssues.length ? snippets(zeroSampleIssues) : hasSampleStatement(text) ? 'n = sample statement present' : 'missing n = sample statement'),
     result('8', true, 'evidence', evidenceDetail(html, [/nhận định|nhóm|doanh thu|giá/iu])),
     result('9', m12Structure, 'machine', m12Structure ? 'M12 has three labelled options and a labelled quick-win table, each row with an owner and a dated deadline' : 'M12 is missing the three-option table, the quick-win table, an owner, a dd/mm/yyyy deadline or the approval label'),
     result('10', externalCover || malformedCover ? false : aiCover, externalCover || malformedCover || aiCover ? 'machine' : 'evidence', externalCover || malformedCover ? 'cover must be an embedded stored asset; external or malformed cover markup (or an AI cover that is not a bounded base64 JPEG with alt text) is not allowed' : aiCover ? 'cover image is embedded with AI-generated provenance and alt text; a generic illustration, no licence claimed' : licensedCover ? 'READ: a licensed or owner-supplied cover needs owner review; only an embedded AI-generated JPEG with alt text passes automatically' : 'READ: no embedded AI-generated JPEG cover with alt text'),

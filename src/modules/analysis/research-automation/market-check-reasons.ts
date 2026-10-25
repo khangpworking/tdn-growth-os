@@ -5,7 +5,7 @@
  */
 const GATE: Readonly<Record<string, string>> = {
   G08_PROVIDER_NAME: 'Trang có tên nhà cung cấp số liệu hoặc công cụ.',
-  U32_NO_CROSS_PLATFORM_TOTAL: 'Trang cộng gộp số của Shopee và TikTok Shop thành một tổng.',
+  U32_NO_CROSS_PLATFORM_TOTAL: 'Trang có tổng hai sàn thiếu nhãn «Cộng 2 sàn» hoặc thiếu số từng sàn đứng cạnh.',
   E2_NO_REVENUE_ORDER: 'Trang xếp hạng hoặc nói thị phần theo doanh thu.',
   SECTIONS_PRESENT: 'Trang thiếu hoặc lặp một phần của báo cáo.',
   M12_PROPOSAL_LABEL: 'Phương án trong phần đề xuất thiếu nhãn "đề xuất, chờ chủ duyệt".',
@@ -18,6 +18,8 @@ const GATE: Readonly<Record<string, string>> = {
   U13_SUPERLATIVE: 'Nhận định dùng so sánh nhất như "tốt nhất" hay "hàng đầu".',
   U13_PRIORITY: 'Thứ tự ưu tiên được nêu mà không ghi điều kiện phụ thuộc.',
   U13_PENDING_NUMBER: 'Số phân loại chưa duyệt thiếu nhãn "đề xuất, chờ chủ duyệt" trong cùng câu.',
+  U13_METRIC_CODE: 'Trang hiện mã chỉ số như DT-1 hay GIA-2; báo cáo chỉ ghi tên chỉ số.',
+  U13_REAL_PRICE: 'Trang dùng chữ «giá thật»; tên chỉ số là «giá bán trung bình».',
 };
 const FOURTEEN: Readonly<Record<string, string>> = {
   1: 'Thuật ngữ dùng trong trang chưa có giải thích trong bảng thuật ngữ.',
@@ -25,7 +27,7 @@ const FOURTEEN: Readonly<Record<string, string>> = {
   3: 'Trang còn hiện mã hoặc tên kỹ thuật.',
   4: 'Trang có tên nhà cung cấp số liệu hoặc công cụ.',
   5: 'Chú thích chưa nằm trên dòng riêng.',
-  7: 'Trang thiếu câu nêu cỡ mẫu, nêu cỡ mẫu sai, hoặc cộng gộp hai sàn.',
+  7: 'Trang thiếu câu nêu cỡ mẫu, nêu cỡ mẫu sai, hoặc nêu quy mô thị trường.',
   9: 'Phần đề xuất thiếu bảng phương án, người phụ trách, hạn dd/mm/yyyy hoặc nhãn chờ duyệt.',
   10: 'Ảnh bìa không phải ảnh lưu sẵn hợp lệ.',
   11: 'Biểu đồ hoặc biểu tượng sàn chưa đúng mẫu.',

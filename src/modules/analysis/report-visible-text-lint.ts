@@ -12,6 +12,10 @@ const decode = (text: string): string => text.replace(/&#x([\da-f]+);|&#(\d+);|&
     return ({ amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' } as Record<string, string>)[name!.toLowerCase()]!;
   });
 
+/** Metric code shape: two to four capital letters, a hyphen, one or two digits (DT-1, GIA-2). */
+const METRIC_CODE = /(?<![\p{L}\p{N}-])\p{Lu}{2,4}-\d{1,2}(?![\p{L}\p{N}]|[.,]\d)/gu;
+const REAL_PRICE = /(?<![\p{L}\p{M}])giá\s+thật(?![\p{L}\p{M}])/iu;
+
 const VOID_TAGS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
 
 function visibleBlocks(html: string): { chunks: Chunk[]; region: number }[] {
@@ -60,7 +64,7 @@ export function lintVisibleReportText(html: string, rawHtml: string): { gate: Vi
  * buckets preserve the gate's failure stage and the raw lint saved in claims. */
 export function lintVisibleReportText(html: string, rawHtml?: string): VisibleTextLintResult[] | { gate: VisibleTextLintResult[]; raw: VisibleTextLintResult[] } {
   const views = rawHtml === undefined ? [html] : [html, rawHtml];
-  const findingsByView = views.map(() => ({ superlatives: [] as string[], priorities: [] as string[], drafts: [] as string[] }));
+  const findingsByView = views.map(() => ({ superlatives: [] as string[], priorities: [] as string[], drafts: [] as string[], metricCodes: [] as string[], realPrices: [] as string[] }));
   const blocks = views.flatMap((markup, view) => visibleBlocks(markup).map(block => ({ ...block, view })));
   const regionText = new Map<string, string[]>();
   const isSuperlative = (text: string): boolean => {
@@ -74,8 +78,11 @@ export function lintVisibleReportText(html: string, rawHtml?: string): VisibleTe
     return false;
   };
   for (const { chunks, region, view } of blocks) {
-    const { superlatives, drafts } = findingsByView[view]!;
+    const { superlatives, drafts, metricCodes, realPrices } = findingsByView[view]!;
     const own = chunks.map(c => c.own ? c.text : ' ').join('').replace(/\s+/g, ' ').trim();
+    // R-M33: no metric code (DT-1, LB-1, GIA-2, SS-1 and the same shape); R-M34: no «giá thật».
+    metricCodes.push(...(own.match(METRIC_CODE) ?? []));
+    if (REAL_PRICE.test(own)) realPrices.push(own);
     // Numeric lower bounds are measurement/method conditions, not a claim
     // that a product is superior (for example the frozen E11 threshold).
     // A counted product phrase is exempt only when its own sentence names a
@@ -146,10 +153,12 @@ export function lintVisibleReportText(html: string, rawHtml?: string): VisibleTe
         && !/phụ thuộc|điều kiện tiên quyết|chỉ[^.!?]*sau khi/iu.test(text)) priorities.push(text);
     }
   }
-  const results = findingsByView.map(({ superlatives, priorities, drafts }) => [
+  const results = findingsByView.map(({ superlatives, priorities, drafts, metricCodes, realPrices }) => [
     { rule: 'U13_SUPERLATIVE', ok: superlatives.length === 0, detail: superlatives.slice(0, 3).join(' | ') || 'Không có so sánh nhất trong nhận định.' },
     { rule: 'U13_PRIORITY', ok: priorities.length === 0, detail: priorities.slice(0, 3).join(' | ') || 'Không có thứ tự ưu tiên thiếu phụ thuộc.' },
     { rule: 'U13_PENDING_NUMBER', ok: drafts.length === 0, detail: drafts.slice(0, 3).join(' | ') || 'Số phân loại chưa duyệt có nhãn cùng câu.' },
+    { rule: 'U13_METRIC_CODE', ok: metricCodes.length === 0, detail: [...new Set(metricCodes)].slice(0, 5).join(' | ') || 'Không hiện mã chỉ số.' },
+    { rule: 'U13_REAL_PRICE', ok: realPrices.length === 0, detail: realPrices.slice(0, 3).join(' | ') || 'Không dùng chữ «giá thật».' },
   ]);
   return rawHtml === undefined ? results[0]! : { gate: results[0]!, raw: results[1]! };
 }

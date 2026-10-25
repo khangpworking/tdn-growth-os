@@ -22,10 +22,12 @@ import { tiktokTopAdsNote, TIKTOK_TOP_ADS_CITATION_LABEL, TIKTOK_TOP_ADS_HEADERS
 import { Narrator } from './bundle.js';
 import { esc, plainCaptureNumbers } from './format.js';
 import { cover, makeExhibits, n, page, plat, platIcons, PLATFORM_LABEL, section as legacySection } from './layout.js';
+import { NO_BRAND } from './scope-metrics.js';
 import { currentProposals } from './market-proposals.js';
 import { ACTION_LEAD, ACTION_NOTE, OPPORTUNITY_HEADINGS, OPPORTUNITY_READING, OPTION_HEADINGS, QUICK_WIN_HEADING, QUICK_WIN_HEADINGS, actionStartDay, isoFromReaderDay, marketActionPlan, opportunityExplanation, opportunityRows } from './market-actions.js';
 import { MARKET_TOC, readerWebResults, type BuiltMarketReport, type MarketReportOptions, type ReaderWebResult } from './market-template.js';
 import { CitationRegistry } from '../citation-registry.js';
+import { CROSS_PLATFORM_TOTAL_LABEL } from '../report-language/index.js';
 import { renderCitationMark, renderCitationRegister } from '../citation-register-html.js';
 import type { MetricWebCellFact, MetricWebTableFact } from '../research-automation/metric-web-facts.js';
 import { classifyWebPage, WEB_PAGE_TYPE_LABEL } from '../research-automation/web-page-type.js';
@@ -48,6 +50,15 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   const label = (s: string): string => { if (/\d/.test(s)) extraOk.add(s); return options.captureRowPolicy ? `<span data-quote>${esc(s)}</span>` : esc(s); };
   const source = input.source!;
   const period = `${source.measurementPeriod.start.split('-').reverse().join('/')} – ${source.measurementPeriod.end.split('-').reverse().join('/')}`;
+  // R-M35: the period as dd/mm–dd/mm/yyyy (the start keeps its year only when the years differ).
+  const [startDay, endDay] = [source.measurementPeriod.start, source.measurementPeriod.end].map(day => day.split('-').reverse());
+  const span = `${startDay!.slice(0, startDay![2] === endDay![2] ? 2 : 3).join('/')}–${endDay!.join('/')}`;
+  /** R-M35: small grey note beside a comparison, ratio, rise or fall: which metric, against what, which dates. */
+  const compareNote = (text: string): string => { extraOk.add(text); return ` <small class="cmp-note" style="color:#6b7280;font-size:11.5px">(${esc(text)})</small>`; };
+  // R-M34: the sales ÷ units price is «giá bán trung bình», always with how it is computed.
+  extraOk.add(span); extraOk.add(CROSS_PLATFORM_TOTAL_LABEL);
+  const totalLabel = esc(CROSS_PLATFORM_TOTAL_LABEL);
+  const priceNote = 'giá bán trung bình = doanh thu ÷ đơn vị bán trong kỳ, tính theo lượt bán từng ngày; không phải giá người mua trả sau voucher.';
   const sourceText = options.captureRowPolicy && rows.length === 0
     ? `Chưa có dòng sản phẩm phù hợp để tính số liệu mẫu; kỳ ${period}.`
     : next
@@ -79,9 +90,20 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   if (next) {
     const findings = marketFindings(d);
     const groups = profile.core.map(k => label(segName(k))).join('; ');
+    // R-M16 / R-M18: a «Cộng 2 sàn» column beside the two platform columns, only when both have every number.
+    const totals = ([['rev', 'Doanh thu ước tính', 'ty'], ['units', 'Đơn vị bán ước tính', 'num']] as const).map(([field, name, fmt]) => {
+      const values = PLATS.map(P => B.value(`${P}.core.${field}`));
+      const complete = PLATS.length === 2 && values.every(value => value !== null);
+      if (complete) B.set(`both.core.${field}`, values[0]! + values[1]!, fmt);
+      return { field, name, complete };
+    });
+    const withTotal = totals.every(total => total.complete);
+    const totalTable = tbl('1.1', 'Doanh số lõi trong mẫu, từng sàn', '', ['Chỉ số', ...PLATS.map(P => esc(PLATFORM_LABEL[P]!)), ...(withTotal ? [totalLabel] : [])],
+      totals.map(total => [total.name, ...PLATS.map(P => n(bf(`${P}.core.${total.field}`))), ...(withTotal ? [n(bf(`both.core.${total.field}`))] : [])]),
+      withTotal ? { note: `cột ${totalLabel} là số của Shopee cộng số của TikTok Shop trong mẫu, cùng kỳ ${span}.` } : {});
     sections.push(section('M01', 'Kết luận chính', 'Các nhận định mô tả mẫu đã lưu, không sắp theo mức quan trọng.',
-      `<p>Phạm vi: trong mẫu sản phẩm đã lưu; kỳ ${period}; sản phẩm ${label(profile.product)}; nhóm lõi theo thứ tự hồ sơ: ${groups}. Mỗi sàn giữ riêng.</p>` +
-      `<ul class="market-findings">${findings.map(finding => `<li><p><b>Nhận định:</b> ${nar(finding.template, `M01.finding.${finding.id}`)}</p><p><b>Bằng chứng:</b> ${finding.exhibit}${cite()}.</p><p><b>Trạng thái:</b> ${finding.classified && profile.status === 'proposed' ? 'Phân loại đề xuất, chờ chủ duyệt; số ước tính trong mẫu.' : 'Quan sát mô tả từ bản lưu; số bán hàng là ước tính.'} Phạm vi ${label(profile.product)}, nhóm ${groups}, kỳ ${period}.</p></li>`).join('')}</ul>` +
+      `<p>Phạm vi: trong mẫu sản phẩm đã lưu; kỳ ${period}; sản phẩm ${label(profile.product)}; nhóm lõi theo thứ tự hồ sơ: ${groups}. Mỗi sàn giữ riêng; số cộng của hai sàn chỉ có khi cả hai sàn đủ số.</p>` + totalTable +
+      `<ul class="market-findings">${findings.map(finding => `<li><p><b>Nhận định:</b> ${nar(finding.template, `M01.finding.${finding.id}`)}${finding.id === 'structure' ? compareNote(`tỷ trọng doanh thu lõi của từng nhóm so với doanh thu lõi của sàn, kỳ ${span}`) : ''}</p><p><b>Bằng chứng:</b> ${finding.exhibit}${cite()}.</p><p><b>Trạng thái:</b> ${finding.classified && profile.status === 'proposed' ? 'Phân loại đề xuất, chờ chủ duyệt; số ước tính trong mẫu.' : 'Quan sát mô tả từ bản lưu; số bán hàng là ước tính.'} Phạm vi ${label(profile.product)}, nhóm ${groups}, kỳ ${period}.</p></li>`).join('')}</ul>` +
       (findings.length < 4 ? '<p>Chưa đủ bằng chứng để có bốn nhận định; không bổ sung nhận định không có nguồn. Phần kết luận còn thiếu.</p>' : '') +
       '<p>Số ước tính chưa đối chiếu với người bán. Không suy ra số người mua, quy mô ngoài mẫu hay nguyên nhân.</p>', sourceText));
   } else sections.push(section('M01', 'Kết luận chính', summary,
@@ -100,16 +122,17 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     tbl('2.2', `Quy tắc phân loại (${status})`, '', ['Nhóm', 'Quy tắc', 'Dòng khớp'], profile.rules.map((rule, i) => {
       B.set(`rule.${i}.n`, d.ruleHits[i] ?? 0, 'num'); return [label(segName(rule.seg)), label(rule.why ?? 'Luật khớp đầu tiên của hồ sơ đã lưu'), n(bf(`rule.${i}.n`))];
     })) + captureFilter + limitations.map(limit => `<p>${esc(limit)}</p>`).join('') + reconciliationState + reconciliation,
-    'Chưa đủ căn cứ về kỳ, múi giờ, khung mẫu và tính rời nhau để cộng chéo sàn. Tổng và tỷ lệ cần đủ dữ liệu của đúng phạm vi.'));
+    next ? 'Số cộng của hai sàn chỉ cộng doanh số trong mẫu cùng kỳ, luôn đứng cạnh số từng sàn; chưa đủ căn cứ về múi giờ, khung mẫu và tính rời nhau để đối chiếu chéo sàn. Tổng và tỷ lệ cần đủ dữ liệu của đúng phạm vi.'
+      : 'Chưa đủ căn cứ về kỳ, múi giờ, khung mẫu và tính rời nhau để cộng chéo sàn. Tổng và tỷ lệ cần đủ dữ liệu của đúng phạm vi.'));
   const exclusionNotes = PLATS.map(platform => {
     const notice = captureExclusionNotice(options.captureExcludedRows ?? [], platform, options.captureRowPolicy);
     const empty = options.captureRowPolicy && !rows.some(row => row.platform === platform)
       ? `<p>${esc(PLATFORM_LABEL[platform]!)}: không có dòng phù hợp để tính số liệu mẫu trong lượt này.</p>` : '';
     return (notice ? `<p>${esc(PLATFORM_LABEL[platform]!)}: ${esc(notice)}</p>` : '') + empty;
   }).join('');
-  const salesTable = (no: string) => tbl(no, next ? 'Doanh số trong mẫu và giá trung bình từ dữ liệu bán hàng, từng sàn' : 'Doanh số trong mẫu, từng sàn', '',
-    next ? ['Sàn', 'Doanh thu ước tính', 'Đơn vị bán ước tính', 'Giá trung bình từ doanh thu ÷ đơn vị bán'] : ['Sàn', 'Doanh thu ước tính', 'Đơn vị bán ước tính', 'Giá trung bình'],
-    PLATS.map(P => [plat(P), n(bf(`${P}.core.rev`)), n(bf(`${P}.core.units`)), n(bf(`${P}.core.asp`))]));
+  const salesTable = (no: string) => tbl(no, next ? 'Doanh số trong mẫu và giá bán trung bình từ dữ liệu bán hàng, từng sàn' : 'Doanh số trong mẫu, từng sàn', '',
+    next ? ['Sàn', 'Doanh thu ước tính', 'Đơn vị bán ước tính', 'Giá bán trung bình'] : ['Sàn', 'Doanh thu ước tính', 'Đơn vị bán ước tính', 'Giá trung bình'],
+    PLATS.map(P => [plat(P), n(bf(`${P}.core.rev`)), n(bf(`${P}.core.units`)), n(bf(`${P}.core.asp`))]), next ? { note: priceNote } : {});
   let monthly = '';
   if (d.webFacts !== null && !('absent' in d.webFacts.monthly)) {
     const facts = d.webFacts, groups = d.webFacts.monthly;
@@ -130,7 +153,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     })), { src: 'Trang kết quả tìm kiếm đã lưu (toàn kết quả tìm kiếm)' + mark });
     if (drawn) charts.push({ id: 'M03.monthly', engine: drawn.engine, ...(drawn.error ? { error: drawn.error } : {}) });
   }
-  sections.push(section('M03', 'Quy mô và diễn biến', monthly ? 'Doanh số trong mẫu và chuỗi trên trang nguồn giữ riêng; có số theo tháng cho từng sàn ở Hình 3.1.' : 'Chỉ mô tả doanh số trong mẫu; chưa có chuỗi phù hợp để xác định diễn biến.', exclusionNotes + salesTable(MARKET_SALES_AVERAGE_EXHIBIT) + monthly, 'Một thành viên thiếu làm tổng chưa xác định; mẫu số bằng không không tạo ra giá trung bình.'));
+  sections.push(section('M03', 'Quy mô và diễn biến', monthly ? 'Doanh số trong mẫu và chuỗi trên trang nguồn giữ riêng; có số theo tháng cho từng sàn ở Hình 3.1.' : 'Chỉ mô tả doanh số trong mẫu; chưa có chuỗi phù hợp để xác định diễn biến.', exclusionNotes + salesTable(MARKET_SALES_AVERAGE_EXHIBIT) + monthly, `Một thành viên thiếu làm tổng chưa xác định; mẫu số bằng không không tạo ra ${next ? 'giá bán trung bình' : 'giá trung bình'}.`));
   // The three required charts come from the same saved product rows as the appendix.
   const chartRows = marketChartRows(rows);
   const required = !flintMarks ? [] : await renderMarketCharts(rows, { flint: options.flint !== false, titleLabels: Boolean(options.captureRowPolicy), rowListNote: 'số dòng khớp chú dẫn “dòng sản phẩm” của nguồn' });
@@ -144,7 +167,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   const m04Charts = requiredFig('platform-revenue', '4.1') + (requiredFig('concentration', '4.2') ||
     (shopsUnrecorded ? '<p>Không có hình mức tập trung theo gian hàng: nguồn không ghi gian hàng cho từng sản phẩm trong mẫu, nên báo cáo không đếm số gian hàng.</p>' : ''));
   sections.push(section('M04', 'Cơ cấu thị trường', 'Các nhóm đặt cạnh nhau theo quy tắc phân loại, tính riêng từng sàn.',
-    m04Charts + tbl('4.1', 'Cơ cấu doanh số trong mẫu theo nhóm', '', ['Sàn', 'Nhóm', 'Doanh thu', 'Đơn vị bán', 'Tỷ trọng doanh thu lõi'], PLATS.flatMap(P => profile.core.map(k => [plat(P), label(segName(k)), n(bf(`${P}.seg.${k}.rev`)), n(bf(`${P}.seg.${k}.units`)), n(bf(`${P}.seg.${k}.revShare`))]))), 'Tỷ trọng trong mẫu; không phải thị phần.'));
+    m04Charts + tbl('4.1', 'Cơ cấu doanh số trong mẫu theo nhóm', '', ['Sàn', 'Nhóm', 'Doanh thu', 'Đơn vị bán', 'Tỷ trọng doanh thu lõi'], PLATS.flatMap(P => profile.core.map(k => [plat(P), label(segName(k)), n(bf(`${P}.seg.${k}.rev`)), n(bf(`${P}.seg.${k}.units`)), n(bf(`${P}.seg.${k}.revShare`)) + (next ? compareNote(`doanh thu lõi của nhóm so với doanh thu lõi của ${PLATFORM_LABEL[P]}, kỳ ${span}`) : '')]))), 'Tỷ trọng trong mẫu; không phải thị phần.'));
   // The stored search-interest series is drawn only here, on its own axis; the same predicate marks the source as used.
   const interest = next && searchInterestRenderable(options.searchInterest) && searchInterestChartPoints(options.searchInterest).some(point => point.value !== null) ? options.searchInterest : undefined;
   const interestChart = interest ? await renderSearchInterestChart(searchInterestChartPoints(interest), { flint: options.flint !== false }) : undefined;
@@ -228,10 +251,26 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   // Bars per reporting side follow table 6.2 (Hình 6.1, 6.2 in drawn order): mirror reporters of one year, then Việt Nam's own two flows of one year. Never summed.
   const comtradeFigures = comtradeRows.length === 0 ? '' : (await renderComtradeCharts(comtrade, { flint: options.flint !== false }))
     .map((chart, i) => macroFig(chart, `6.${1 + i}`)).join('');
+  // R-M37: one row per brand, in first source-row order; two rows merge only when the brand text is exactly equal
+  // (after the existing whitespace squash and profile alias). The total exists only when both platform sums are known.
+  const brandNames = [...new Set(rows.filter(row => profile.core.includes(row.seg!) && row.brand !== NO_BRAND).map(row => row.brand))].slice(0, 10);
+  const brandTable = !next || brandNames.length === 0 ? '' : tbl('6.3', 'Nhãn thương hiệu trong mẫu lõi, mỗi thương hiệu một dòng', '',
+    ['Nhãn thương hiệu', ...(PLATS.length === 2 ? [totalLabel] : []), ...PLATS.map(P => esc(PLATFORM_LABEL[P]!))],
+    brandNames.map((brand, j) => {
+      const sums = PLATS.map(P => {
+        const members = rows.filter(row => row.platform === P && row.brand === brand && profile.core.includes(row.seg!));
+        const id = `brands.${j}.${P}.core.rev`, rev = completeSum(members, 'rev');
+        if (rev === null) B.setMissing(id, 'ty'); else B.set(id, rev, 'ty');
+        return { id, rev, present: members.length > 0 };
+      });
+      const totalId = `brands.${j}.both.core.rev`;
+      if (PLATS.length === 2) { if (sums.every(sum => sum.rev !== null)) B.set(totalId, sums[0]!.rev! + sums[1]!.rev!, 'ty'); else B.setMissing(totalId, 'ty'); }
+      return [label(brand), ...(PLATS.length === 2 ? [n(bf(totalId))] : []), ...sums.map(sum => sum.present ? n(bf(sum.id)) : 'Không có trong mẫu')];
+    }), { note: `nhãn thương hiệu theo tiêu đề người bán; hai dòng chỉ gộp khi tên trùng hẳn. ${PLATS.length === 2 ? `Cột ${totalLabel} là doanh thu lõi Shopee cộng TikTok Shop, kỳ ${span}; sàn không có dòng của thương hiệu tính là không trong mẫu. ` : ''}Tên trùng không chứng minh cùng người bán hay người mua.` });
   sections.push(section('M06', 'Nguồn cung', 'Giữ riêng nhãn thương hiệu theo tiêu đề người bán trên từng sàn.',
     tbl('6.1', 'Ngày mở bán và phần chưa rõ', '', ['Sàn', 'Có ngày', 'Thiếu ngày', 'Mở bán trong kỳ', 'Doanh thu mở bán trong kỳ'],
       PLATS.map(P => [plat(P), n(bf(`${P}.coh.known`)), n(bf(`${P}.coh.nodate`)), n(bf(`${P}.coh.n`)), n(bf(`${P}.coh.rev`))])) +
-    `<p>Tên giống nhau không chứng minh cùng thương hiệu, người bán hay người mua giữa các sàn. Nhãn trên dòng nguồn nằm ở Phụ lục.</p>` + comtradeTable + comtradeFigures, comtradeRows.length ? COMTRADE_LIMIT : undefined));
+    `<p>Tên giống nhau không chứng minh cùng thương hiệu, người bán hay người mua giữa các sàn. Nhãn trên dòng nguồn nằm ở Phụ lục.</p>` + comtradeTable + comtradeFigures + brandTable, comtradeRows.length ? COMTRADE_LIMIT : undefined));
   const missingShopNote = rows.some(row => row.shop === UNKNOWN_SHOP)
     ? '<p>Nguồn không ghi gian hàng cho một số dòng sản phẩm; các dòng này được giữ ở Phụ lục, không gộp thành một gian hàng trong bảng.</p>' : '';
   const shops = PLATS.flatMap(P => [...new Set(rows.filter(row => row.platform === P).map(row => row.shop))].flatMap((shop, i) => {
@@ -476,7 +515,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     return [`<span data-quote><a href="${esc(w.url)}" target="_blank" rel="noopener noreferrer">${esc(w.title)}</a>${mark}${meta ? `<span class="pl-meta">${esc(meta)}</span>` : ''}</span>`, ...(originated ? [esc(expandedSearchReaderLabel(w))] : []), ...(typed ? [pageType(w)] : []), `<span data-quote>${esc(w.snippet ?? '')}</span>`];
   }), { src: 'Kết quả tìm kiếm đã lưu.', note: 'Tiêu đề và đoạn mô tả chép theo kết quả tìm kiếm, chưa mở trang gốc để đối chiếu; không phải nhận định của báo cáo.' + (originated ? ' ' + EXPANDED_SEARCH_NOTE : '') });
   sections.push(section('M13', 'Nguồn, thuật ngữ và danh sách sản phẩm', options.captureRowPolicy && !rows.length ? 'Không có dòng phù hợp trong mẫu; bản lưu nguồn vẫn được giữ để đối chiếu.' : nar('Giữ đủ {{src.rows}} dòng nguồn để tra lại.', 'M13'),
-    tbl('PL.1', 'Dòng dữ liệu đã lưu, theo từng sàn', '', ['Sàn', 'Gian hàng', 'Nhãn thương hiệu', 'Doanh thu', 'Đơn vị bán', 'Giá trung bình', 'Tiêu đề nguồn'], appendix) + tbl('PL.2', 'Nguồn số liệu đã lưu', '', ['Hạng mục', 'Nguồn / giá trị'], sourceRows) + trialBlock + publicBlock + (publicReviewCitation === null ? '' : renderCitationMark(publicReviewCitation)) + (next ? glossaryTable : '') + webTable + retainedSourceTables + renderCitationRegister(registry.entries(), { format: 'web' })));
+    tbl('PL.1', 'Dòng dữ liệu đã lưu, theo từng sàn', '', ['Sàn', 'Gian hàng', 'Nhãn thương hiệu', 'Doanh thu', 'Đơn vị bán', next ? 'Giá bán trung bình' : 'Giá trung bình', 'Tiêu đề nguồn'], appendix) + tbl('PL.2', 'Nguồn số liệu đã lưu', '', ['Hạng mục', 'Nguồn / giá trị'], sourceRows) + trialBlock + publicBlock + (publicReviewCitation === null ? '' : renderCitationMark(publicReviewCitation)) + (next ? glossaryTable : '') + webTable + retainedSourceTables + renderCitationRegister(registry.entries(), { format: 'web' })));
   const html = page({ title: `Báo cáo thị trường – ${profile.product}`, coverHtml: cover(options.cover ?? null, `Dữ liệu ${period}`, ['Báo cáo thị trường', profile.product, 'Bản đọc cho chủ dự án']),
     intro: `<div class="box"><p>Số ước tính trong mẫu. Mỗi sàn tính riêng. Phân loại ${status}.</p></div>`, toc: MARKET_TOC, sections, foot: `TDN · ${esc(options.builtOn)}` });
   const renderedHtml = next ? html.replace('<body', '<body data-report-rules="market-visible-v1"') : html;
