@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 import { assertCliproxyConfiguration, type CliproxyConfiguration } from '../../../platform/ai/cliproxy-configuration.js';
 import { bytesContainSecret, CaptureLog, defaultProviderTransport, isRecord, parseJson, type ProviderTransport } from './provider-common.js';
 import type { CaptureOutcome, ProviderRawCapture } from './providers.js';
+import { SUBTITLE_MAX_CAPTION_CHARS } from './video-watch-subtitles.js';
 
 export const VIDEO_WATCH_PROVIDER = 'VIDEO-WATCH' as const;
 export const VIDEO_WATCH_CALL_TIMEOUT_MS = 180_000;
@@ -50,9 +51,6 @@ export function videoWatchPrompt(input: { readonly productKeyword: string; reado
   ].join('\n');
 }
 
-/** Longest subtitle text placed in the text-only prompt (code points); the subtitle file itself is bounded at 256 KiB. */
-export const VIDEO_WATCH_CAPTION_MAX_CHARS = 200_000;
-
 /** The instruction for one video read through its own subtitle text. It asks only whether the video is about the product type and what kind
  * of video it is; the subtitle text and the product keyword are untrusted data placed only as JSON string literals on data lines. */
 export function videoWatchSubtitlePrompt(input: { readonly productKeyword: string; readonly durationSeconds: number; readonly captionText: string }): string {
@@ -60,7 +58,7 @@ export function videoWatchSubtitlePrompt(input: { readonly productKeyword: strin
   if (!product) throw new TypeError('The video-watch product keyword is empty.');
   if (!Number.isFinite(input.durationSeconds) || input.durationSeconds <= 0) throw new TypeError('The video-watch duration must be a positive number of seconds.');
   const caption = String(input.captionText).normalize('NFC');
-  if (!caption.trim() || [...caption].length > VIDEO_WATCH_CAPTION_MAX_CHARS) throw new TypeError('The video-watch subtitle text is empty or too long.');
+  if (!caption.trim() || [...caption].length > SUBTITLE_MAX_CAPTION_CHARS) throw new TypeError('The video-watch subtitle text is empty or too long.');
   return [
     'You are given the subtitle text of one short public marketplace video, not the video itself.',
     'Answer only in the JSON shape required.',

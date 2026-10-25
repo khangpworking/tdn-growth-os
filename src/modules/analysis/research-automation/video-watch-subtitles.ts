@@ -7,6 +7,8 @@ export const SUBTITLE_MAX_BYTES = 256 * 1024;
 export const SUBTITLE_MAX_CUES = 500;
 /** Longest text of one segment, as in the reading intake. */
 export const SUBTITLE_MAX_SEGMENT_CHARS = 20_000;
+/** Longest caption text (all cues joined, NFC, code points) the model reads in its text-only question. A longer track is "no subtitles". */
+export const SUBTITLE_MAX_CAPTION_CHARS = 200_000;
 export interface SubtitleSegment { readonly startSeconds: number; readonly endSeconds: number; readonly text: string }
 
 const TIME = /^(?:(\d{2,}):)?([0-5]\d):([0-5]\d)\.(\d{3})$/;
@@ -25,7 +27,7 @@ const cueText = (lines: readonly string[]): string => lines.join('\n').replace(/
  * Strict WebVTT read: a `WEBVTT` header, cues with `hh:mm:ss.mmm --> hh:mm:ss.mmm` timings (hours optional, cue settings ignored),
  * NOTE/STYLE/REGION blocks skipped, tags stripped, empty cues dropped, exact duplicates (same times and text) merged. Cues must be in
  * start order without overlap, each start before its end and every end inside the video length. Bounded by file size, cue
- * count and segment length. Returns null for an invalid file or one with no spoken text: the caller treats both as "no subtitles".
+ * count, segment length and the joined caption length the model reads. Returns null for an invalid file or one with no spoken text: the caller treats both as "no subtitles".
  */
 export function parseVttSubtitles(bytes: Uint8Array, durationSeconds: number): SubtitleSegment[] | null {
   if (bytes.byteLength === 0 || bytes.byteLength > SUBTITLE_MAX_BYTES || !Number.isFinite(durationSeconds) || durationSeconds <= 0) return null;
@@ -61,7 +63,8 @@ export function parseVttSubtitles(bytes: Uint8Array, durationSeconds: number): S
     if (said.trim() === '') continue;
     out.push({ startSeconds: start, endSeconds: end, text: said });
   }
-  return out.length ? out : null;
+  if (!out.length || [...subtitleCaptionText(out).normalize('NFC')].length > SUBTITLE_MAX_CAPTION_CHARS) return null;
+  return out;
 }
 
 /** The caption text the model reads: one cue per line, in order. */
