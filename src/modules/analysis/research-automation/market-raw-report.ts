@@ -158,6 +158,11 @@ function platformSplit(series: MarketRawSeries, period: PeriodText, trace: Marke
   const scope = series.totals.scope;
   const scoped = scope.platformIds.length === MARKET_RAW_SCOPE_PLATFORM_IDS.length && scope.platformIds.every(id => MARKET_RAW_SCOPE_PLATFORM_IDS.includes(id));
   const total = scoped ? scope.kpi.revenue : null;
+  // The «2» of «Cộng 2 sàn» is data: the scope's platform count, traced to the request's platform list.
+  const countInputs = series.requestedPlatformsSource ? [series.requestedPlatformsSource]
+    : series.platforms.flatMap(platform => Object.values(platform.kpi).flatMap(value => value.source ? [value.source] : []));
+  const totalLabel = (at: string): string =>
+    `Cộng ${trace.record(String(scope.platformIds.length), `${blockId}.${at}.count`, 'computed', countInputs, 'count(scope platforms)')} sàn`;
   const parts = PLATFORMS.map(platform => {
     const revenue = byId.get(platform.id)?.kpi.revenue;
     if (!revenue || revenue.value === null) return `${platform.label} chưa có số doanh thu`;
@@ -168,9 +173,9 @@ function platformSplit(series: MarketRawSeries, period: PeriodText, trace: Marke
     return `${platform.label} ${escape(value)}${share}`;
   });
   const sum = total && total.value !== null
-    ? ` · Cộng 2 sàn ${escape(trace.record(formatMarketMoney(total.value), `${blockId}.scope`, 'computed', total.members, `sum(Shopee, TikTok Shop revenue); ${SCALE_FORMULA}`))}`
-    + ` <small class="cmp-note">${escape(`(tỷ lệ = doanh thu từng sàn ÷ doanh thu Cộng 2 sàn, cùng kỳ ${period.text(`${blockId}.note`)}: ${period.range(`${blockId}.note`)})`)}</small>`
-    : ' <small class="cmp-note">Chưa nêu Cộng 2 sàn vì thiếu số doanh thu của một sàn.</small>';
+    ? ` · ${escape(totalLabel('scope'))} ${escape(trace.record(formatMarketMoney(total.value), `${blockId}.scope`, 'computed', total.members, `sum(Shopee, TikTok Shop revenue); ${SCALE_FORMULA}`))}`
+    + ` <small class="cmp-note">${escape(`(tỷ lệ = doanh thu từng sàn ÷ doanh thu ${totalLabel('note')}, cùng kỳ ${period.text(`${blockId}.note`)}: ${period.range(`${blockId}.note`)})`)}</small>`
+    : ` <small class="cmp-note">Chưa nêu ${escape(totalLabel('missing'))} vì thiếu số doanh thu của một sàn.</small>`;
   return `<p data-market-raw-split="${escape(blockId)}">${parts.join(' · ')}${sum}</p>`;
 }
 

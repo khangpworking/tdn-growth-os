@@ -104,6 +104,8 @@ export interface MarketRawSeries {
   readonly period: MarketRawPeriod;
   /** Platform ids the search request asked for (include_query.platforms); null when the request does not say. */
   readonly requestedPlatformIds: readonly number[] | null;
+  /** Pointer to include_query.platforms of that request; null when the request does not say. */
+  readonly requestedPlatformsSource: MarketRawSource | null;
   /** Interval length the insight request asked for (7 for a 30-day period, 30 for a 12-month period). */
   readonly intervalDays: MarketRawValue;
   /** Requested and returned platforms in id order. */
@@ -391,6 +393,7 @@ export function readMarketRawSeries(rawResponses: unknown, options: MarketRawSer
     contractVersion: MARKET_RAW_SERIES_VERSION,
     period: periodOf(search),
     requestedPlatformIds: requested,
+    requestedPlatformsSource: search && requested ? sourceAt(search, 'requestBody', 'include_query', 'platforms') : null,
     intervalDays,
     platforms: [...platforms.values()],
     totals: { scope: totalsFor(scopeIds, platforms), all: totalsFor(ids, platforms) },
