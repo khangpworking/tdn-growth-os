@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readMarketRawSeries, type MarketRawSeries, type MarketRawSource } from '../../src/modules/analysis/research-automation/market-raw-series.js';
+import { readMarketRawSeries, resolveMarketRawSource, type MarketRawSeries, type MarketRawSource } from '../../src/modules/analysis/research-automation/market-raw-series.js';
 import canxi30 from '../fixtures/market-raw-series/canxi-30d-dev.raw-responses.json' with { type: 'json' };
 import zinc30 from '../fixtures/market-raw-series/zinc-30d-4platform.synthetic.raw-responses.json' with { type: 'json' };
 import zinc12 from '../fixtures/market-raw-series/zinc-12m-4platform.synthetic.raw-responses.json' with { type: 'json' };
+import zinc30Dev from '../fixtures/market-raw-series/zinc-30d-dev.raw-responses.json' with { type: 'json' };
+import zinc12Dev from '../fixtures/market-raw-series/zinc-12m-dev.raw-responses.json' with { type: 'json' };
 
 // Four-platform zinc totals are synthetic canaries, not real-source acceptance.
 // Real dev captures (canxi and zinc, two platforms) are listed in the fixtures' README.
@@ -87,27 +89,33 @@ test('R3 reads each PREVIOUS twin from the completed dev search and computes (cu
   assert.equal(series.totals.scope.change.revenue.value, (175_353_302_840 - 172_771_290_224) / 172_771_290_224);
 });
 
-test('R4 preserves per-platform 7-day intervals for 30 days and twelve monthly intervals for the synthetic year', () => {
+test('R4 preserves all six weekly and thirteen rolling-year windows per platform, marking partial endpoints', () => {
   const weeklyWindows = [
-    ['2026-09-21', '2026-09-27'], ['2026-09-28', '2026-10-04'], ['2026-10-05', '2026-10-11'],
-    ['2026-10-12', '2026-10-18'], ['2026-10-19', '2026-10-20'],
+    ['2026-09-20', '2026-09-20'], ['2026-09-21', '2026-09-27'], ['2026-09-28', '2026-10-04'],
+    ['2026-10-05', '2026-10-11'], ['2026-10-12', '2026-10-18'], ['2026-10-19', '2026-10-19'],
   ];
   const monthlyWindows = [
-    '2025-11-30', '2025-12-31', '2026-01-31', '2026-02-28', '2026-03-31', '2026-04-30',
-    '2026-05-31', '2026-06-30', '2026-07-31', '2026-08-31', '2026-09-30', '2026-10-31',
-  ].map(end => [`${end.slice(0, 7)}-01`, end]);
+    ['2025-10-20', '2025-10-31'],
+    ...[
+      '2025-11-30', '2025-12-31', '2026-01-31', '2026-02-28', '2026-03-31', '2026-04-30',
+      '2026-05-31', '2026-06-30', '2026-07-31', '2026-08-31', '2026-09-30',
+    ].map(end => [`${end.slice(0, 7)}-01`, end]),
+    ['2026-10-01', '2026-10-19'],
+  ];
   for (const row of [
-    { raw: canxi30, days: 7, windows: weeklyWindows, values: [
-      { id: 1, revenue: [15_318_235_845, 13_553_476_354, 15_862_222_806, 20_715_194_547, 6_668_726_695],
-        units: [76_611, 67_007, 75_352, 86_842, 26_348] },
-      { id: 8, revenue: [22_426_775_853, 22_827_135_270, 24_400_293_965, 27_286_922_940, 6_294_318_565],
-        units: [103_741, 102_984, 105_024, 110_917, 29_600] },
+    { raw: zinc30Dev, days: 7, windows: weeklyWindows, partial: [true, false, false, false, false, true], values: [
+      { id: 1, kpiRevenue: 215_923_446, revenue: [9_408_305, 58_247_480, 45_798_661, 51_420_000, 46_169_000, 4_880_000],
+        units: [41, 268, 201, 198, 160, 14] },
+      { id: 8, kpiRevenue: 62_194_727, revenue: [1_472_830, 15_232_563, 15_096_352, 15_113_109, 13_098_062, 2_181_811],
+        units: [11, 84, 83, 73, 63, 12] },
     ] },
-    { raw: zinc12, days: 30, windows: monthlyWindows, values: [
-      { id: 1, revenue: Array(12).fill(7_500_000_000), units: [...Array(11).fill(39_166), 39_174] },
-      { id: 2, revenue: [...Array(11).fill(316_666_666), 316_666_674], units: [...Array(11).fill(1_666), 1_674] },
-      { id: 3, revenue: Array(12).fill(125_000_000), units: [...Array(11).fill(666), 674] },
-      { id: 8, revenue: Array(12).fill(23_750_000_000), units: [...Array(11).fill(133_333), 133_337] },
+    { raw: zinc12Dev, days: 30, windows: monthlyWindows, partial: [true, ...Array<boolean>(11).fill(false), true], values: [
+      { id: 1, kpiRevenue: 3_557_718_985, revenue: [133_205_973, 326_449_120, 348_236_437, 377_542_489, 231_527_970,
+        322_844_738, 359_111_351, 351_072_299, 259_534_745, 227_489_505, 240_582_566, 250_182_306, 129_939_486],
+        units: [528, 1_134, 1_106, 1_228, 774, 1_203, 1_451, 1_376, 987, 949, 998, 1_086, 483] },
+      { id: 8, kpiRevenue: 1_381_741_869, revenue: [66_647_993, 167_839_456, 174_053_029, 198_544_747, 142_507_270,
+        209_103_601, 76_972_337, 97_509_828, 44_976_668, 44_338_242, 56_188_045, 64_078_922, 38_981_731],
+        units: [456, 1_195, 1_220, 1_433, 1_033, 1_490, 596, 676, 317, 341, 339, 327, 195] },
     ] },
   ]) {
     const series = readMarketRawSeries(row.raw);
@@ -117,7 +125,9 @@ test('R4 preserves per-platform 7-day intervals for 30 days and twelve monthly i
     for (const expected of row.values) {
       const platform = series.platforms.find(item => item.platformId === expected.id);
       assert.ok(platform?.intervals);
+      assert.equal(platform.kpi.revenue.value, expected.kpiRevenue);
       assert.deepEqual(platform.intervals.map(interval => [interval.startDate, interval.endDate]), row.windows);
+      assert.deepEqual(platform.intervals.map(interval => interval.partial), row.partial);
       assert.deepEqual(platform.intervals.map(interval => interval.revenue.value), expected.revenue);
       assert.deepEqual(platform.intervals.map(interval => interval.units.value), expected.units);
       for (const interval of platform.intervals) {
@@ -125,6 +135,41 @@ test('R4 preserves per-platform 7-day intervals for 30 days and twelve monthly i
         assertSource(row.raw, interval.units.source, interval.units.value);
       }
     }
+  }
+
+  // Change one source window without changing search-basic: KPIs must not be
+  // recomputed from the interval series, even when source totals once matched.
+  const raw = structuredClone(zinc12Dev);
+  const data = raw[2]!.body!.data;
+  assert.ok(Array.isArray(data));
+  data[0]!.order_revenue_intervals[0]!.revenue_custom_sum = 1;
+  const series = readMarketRawSeries(raw);
+  const shopee = series.platforms.find(platform => platform.platformId === 1)!;
+  assert.equal(shopee.intervals![0]!.revenue.value, 1);
+  assert.equal(shopee.kpi.revenue.value, 3_557_718_985);
+  assert.equal(series.totals.scope.kpi.revenue.value, 4_939_460_854);
+});
+
+test('R6 source pointers replay JSON-string requests on the untouched real zinc fixtures', () => {
+  for (const row of [
+    { raw: zinc30Dev, start: '20260920', intervalDays: 7 },
+    { raw: zinc12Dev, start: '20251020', intervalDays: 30 },
+  ]) {
+    const before = JSON.stringify(row.raw);
+    const series = readMarketRawSeries(row.raw);
+    for (const [source, path, expected] of [
+      [series.period.source, '/start_date', row.start],
+      [series.intervalDays.source, '/interval_days', row.intervalDays],
+    ] as const) {
+      assert.ok(source);
+      assert.equal(typeof row.raw[source.responseIndex]!.requestBody, 'string', 'the reader receives stored request bytes');
+      assert.equal(source.jsonPath, '/requestBody');
+      assert.equal(source.encoding, 'json-string');
+      assert.equal(source.decodedPath, path);
+      assertSource(row.raw, source, expected);
+      assert.equal(resolveMarketRawSource(row.raw, source), expected, 'P5 can replay the pointer on the stored fixture');
+    }
+    assert.equal(JSON.stringify(row.raw), before, 'requestBody remains a JSON string in the original capture');
   }
 });
 
