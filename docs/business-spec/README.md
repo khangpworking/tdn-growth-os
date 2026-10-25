@@ -1,8 +1,8 @@
 # Business spec: nguồn sự thật cho nghiệp vụ
 
-> Phiên bản 1.4, ngày 24/10/2026.
+> Phiên bản 1.5, ngày 25/10/2026.
 
-Từ 24/10/2026, quy tắc báo cáo (R-M…, R-I…, R-L…) nằm ở [openspec/specs](../../openspec/specs/). Thư mục này vẫn giữ từ điển trường và chỉ số, trạng thái nguồn dữ liệu và quyết định của chủ. Ba file trong `business-rules/` chỉ còn là stub có link tới spec.
+Từ 24/10/2026, quy tắc báo cáo (R-M…, R-I…, R-L…) nằm ở [openspec/specs](../../openspec/specs/). Từ 25/10/2026, từ điển trường và cách nguồn tính số nằm ở [openspec/reference](../../openspec/reference/). Thư mục này vẫn giữ từ điển chỉ số, trạng thái nguồn dữ liệu và quyết định của chủ. Ba file trong `business-rules/` chỉ còn là stub có link tới spec.
 
 ## Mục lục
 
@@ -11,9 +11,9 @@ Từ 24/10/2026, quy tắc báo cáo (R-M…, R-I…, R-L…) nằm ở [openspe
 | [business-rules/market.md](business-rules/market.md) | Stub. Quy tắc báo cáo Market (R-M…) nằm ở [openspec/specs/market-report](../../openspec/specs/market-report/spec.md) |
 | [business-rules/insight.md](business-rules/insight.md) | Stub. Quy tắc báo cáo Insight (R-I…) nằm ở [openspec/specs/insight-report](../../openspec/specs/insight-report/spec.md) |
 | [business-rules/report-language.md](business-rules/report-language.md) | Stub. Quy tắc chung (R-L…) nằm ở [openspec/specs/report-language](../../openspec/specs/report-language/spec.md) |
-| [semantic-layer/fields.md](semantic-layer/fields.md) | Từ điển trường của từng nguồn |
+| [semantic-layer/fields.md](semantic-layer/fields.md) | Stub. Từ điển trường của từng nguồn nằm ở [openspec/reference/fields.md](../../openspec/reference/fields.md) |
 | [semantic-layer/metrics.md](semantic-layer/metrics.md) | Từ điển chỉ số, cách đo, quy tắc so và cộng. Đã chép sang [openspec/specs/report-metrics](../../openspec/specs/report-metrics/spec.md) |
-| [semantic-layer/source-methods.md](semantic-layer/source-methods.md) | Cách mỗi nguồn tính ra con số |
+| [semantic-layer/source-methods.md](semantic-layer/source-methods.md) | Stub. Cách mỗi nguồn tính ra con số nằm ở [openspec/reference/source-methods.md](../../openspec/reference/source-methods.md) |
 | [data-sources/input-standard.md](data-sources/input-standard.md) | Chuẩn dữ liệu đầu vào |
 | [data-sources/input-standard-technical.md](data-sources/input-standard-technical.md) | Chuẩn dữ liệu đầu vào, bản kỹ thuật |
 | [data-sources/source-status.md](data-sources/source-status.md) | Nhãn trạng thái hiện tại của từng nguồn |

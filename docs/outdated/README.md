@@ -2,10 +2,14 @@
 
 Thư mục này giữ bản cũ của các tài liệu đã cập nhật. Mọi bản cũ nằm nguyên trạng để so sánh. Không sửa các bản này. Liên kết trong bản cũ có thể không dùng được, vì thư mục đã đổi độ sâu.
 
-Cập nhật: 24/10/2026
+Cập nhật: 25/10/2026
 
 | Bản cũ | Bản mới | Lý do cập nhật |
 | --- | --- | --- |
+| [semantic-layer/fields.md](2026-10-25/docs/business-spec/semantic-layer/fields.md) | [semantic-layer/fields.md](../business-spec/semantic-layer/fields.md) | Chuyển sang openspec/reference/fields.md (25/10/2026); file cũ thành stub |
+| [semantic-layer/source-methods.md](2026-10-25/docs/business-spec/semantic-layer/source-methods.md) | [semantic-layer/source-methods.md](../business-spec/semantic-layer/source-methods.md) | Chuyển sang openspec/reference/source-methods.md (25/10/2026); file cũ thành stub |
+| [README.md](2026-10-25/docs/business-spec/README.md) | [README.md](../business-spec/README.md) | Bản 1.5: đổi mô tả fields.md và source-methods.md |
+| [CHANGELOG.md](2026-10-25/docs/business-spec/CHANGELOG.md) | [CHANGELOG.md](../business-spec/CHANGELOG.md) | Thêm dòng 1.5 |
 | [docs/business-spec/README.md](2026-10-24/docs/business-spec/README.md) | [docs/business-spec/README.md](../business-spec/README.md) | Quy tắc xung đột: openspec/specs thắng; mô tả ba file business-rules thành stub; lên bản 1.4 |
 | [docs/business-spec/CHANGELOG.md](2026-10-24/docs/business-spec/CHANGELOG.md) | [docs/business-spec/CHANGELOG.md](../business-spec/CHANGELOG.md) | Thêm dòng 1.4 |
 | [docs/business-spec/business-rules/market.md](2026-10-24/docs/business-spec/business-rules/market.md) | [docs/business-spec/business-rules/market.md](../business-spec/business-rules/market.md) | Chuyển sang openspec/specs/market-report; file cũ còn stub có link |

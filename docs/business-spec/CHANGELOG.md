@@ -4,6 +4,7 @@ Mỗi dòng là một lần đổi. Mới nhất ở trên.
 
 | Ngày | Phiên bản | Thay đổi |
 | --- | --- | --- |
+| 25/10/2026 | 1.5 | Chuyển `semantic-layer/fields.md` và `semantic-layer/source-methods.md` sang `openspec/reference/` (chủ duyệt 25/10/2026). Hai file cũ thành stub có link. Nội dung không đổi, chỉ thêm ghi chú đầu file và sửa link tương đối. README: đổi mô tả hai file. `metrics.md` giữ nguyên. Bản cũ ở `docs/outdated/2026-10-25/`, giữ nguyên văn. |
 | 24/10/2026 | 1.4 | Chuyển quy tắc báo cáo sang OpenSpec (chủ duyệt 24/10/2026). README: "business-spec thắng" thành "openspec/specs thắng", thêm bước 6 vào cách dùng, đổi mô tả ba file `business-rules/`. `business-rules/market.md`, `insight.md`, `report-language.md` thành stub có link tới `openspec/specs/`. Mã R-M, R-I, R-L giữ nguyên. Từ điển chỉ số `semantic-layer/metrics.md` được chép sang `openspec/specs/report-metrics` và vẫn còn nguyên. Bản cũ ở `docs/outdated/2026-10-24/`. |
 | 22/10/2026 | 1.3 | `data-sources/input-standard.md` lên bản 1.38: trạng thái và giới hạn S05, S11, S14, S15, S16, S17, S20, S20b, S25 theo gói sửa nguồn đã triển khai 22/10 (bản `2fc699d1`); SRC2 tạm gác. Bản cũ ở `docs/outdated/2026-10-22-2/`. |
 | 22/10/2026 | 1.2 | `data-sources/source-status.md`: thêm mục 2d về gói sửa nguồn ngày 21–22/10. S05 (#365), S20 và S17 (#366), S14 và S25 (#367), giá theo quy cách Market (#362) đã gộp và đã triển khai ngày 22/10 (bản `2fc699d1`). SRC2 (S21, S22, S23, S24) tạm gác. Sửa ghi chú S05, S14, S17, S20, S21–S25; thêm dòng nhật ký. Nhãn không đổi. Bản cũ ở `docs/outdated/2026-10-22/`. |
