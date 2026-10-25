@@ -87,6 +87,8 @@ function rawCapture(scenario: Scenario) {
 
 async function scopeRun(t: TestContext, scenario: Scenario, transport?: KeywordListDraftTransport) {
   const payloads: MetricCaptureSpec[] = [];
+  /** Adapter stderr by capture call number (1-based); that call exits 1. */
+  const failures = new Map<number, string>();
   const adapterManifest = Buffer.from('synthetic pinned adapter manifest');
   const raw = rawCapture(scenario);
   const f = await fixture(t, 'on', undefined, () => async (config, request) => runMetricCapture({
@@ -100,6 +102,8 @@ async function scopeRun(t: TestContext, scenario: Scenario, transport?: KeywordL
       const output = argv[argv.indexOf('--out') + 1]!;
       const spec = JSON.parse(await readFile(specPath, 'utf8')) as MetricCaptureSpec;
       payloads.push(spec);
+      const failure = failures.get(payloads.length);
+      if (failure) return { child: { kill: () => true }, completion: Promise.resolve({ exitCode: 1, stdout: '', stderr: failure }) };
       const base = captureFiles(request.runId, spec.period);
       const snapshot = JSON.parse(base.snapshotBytes.toString());
       snapshot.captureId += `-${payloads.length}`;
@@ -127,7 +131,7 @@ async function scopeRun(t: TestContext, scenario: Scenario, transport?: KeywordL
     ...(scenario.productType ? { interview: { productType: scenario.productType } } : {}),
   });
   const runId = receipt.run.runId;
-  return { ...f, payloads, runId,
+  return { ...f, payloads, failures, runId,
     scope: async () => JSON.parse(await readFile(join(f.capture.captureRoot, runId, 'scope.json'), 'utf8')) as AutorunScopeRecord,
   };
 }
@@ -503,4 +507,33 @@ test('titles without readable product revenue cannot back a top-revenue keyword 
   assert.equal(scope.keyword2.chosen, null, 'unknown revenues must not become observed zero and admit five unrankable titles');
   assert.equal(scope.keyword2.titleCount, 1, 'the observed zero remains a usable revenue value');
   assert.deepEqual(f.payloads[1]!.keywords, [zinc.keyword]);
+});
+
+test('R7 a capture-2 retry after a saved CATEGORY_NOT_SELECTABLE restores the category decision with the capture', async t => {
+  const f = await scopeRun(t, zinc);
+  f.failures.set(2, `Metric option is missing: ${health.label}`);
+  // Capture 2 stops on the category and its scope file is saved, but the phase write-back fails before commit.
+  f.db.exec(`CREATE TRIGGER r7_capture_settlement_failure BEFORE UPDATE OF phase ON research_automation_autorun
+    WHEN OLD.phase='CAPTURE' AND NEW.phase='PREPARE'
+    BEGIN SELECT RAISE(ABORT, 'synthetic temporary settlement failure'); END`);
+  await driveUntil(f.service, () => f.payloads.length === 2);
+  await f.service.settleAutoRunCaptures();
+  assert.equal((await f.scope()).capture2?.outcome, 'CATEGORY_NOT_SELECTABLE');
+  f.db.exec('DROP TRIGGER r7_capture_settlement_failure');
+  const restarted = f.make();
+  await restarted.recoverOnStart();
+  assert.equal(autorun(f.db, f.runId)!.stopCode, 'CAPTURE_INTERRUPTED');
+  await restarted.retryAutoRunCapture(workspaceId, f.runId, {
+    contractVersion: 'research-automation-autorun-retry-v1', requestKey: randomUUID(),
+  });
+  await driveUntil(restarted, () => ['CONFIRM', 'STOPPED'].includes(autorun(f.db, f.runId)!.phase));
+  assert.equal(autorun(f.db, f.runId)!.phase, 'CONFIRM');
+  assert.equal(f.payloads[2]!.category, health.label, 'the retry repeats capture 2 with the category');
+  const scope = await f.scope();
+  assert.equal(scope.capture2?.outcome, 'OK');
+  assert.equal(scope.category.reason, 'DOMINANT', 'the category decision matches the capture the report uses');
+  const { snapshot, context } = await prepared(f);
+  assert.equal(snapshot.scope.category, health.label);
+  assert.ok(context.searchScope.lines.some((line: string) => line.startsWith(`Danh mục: ${health.label}`)), context.searchScope.lines.join(' | '));
+  assert.ok(!context.searchScope.lines.some((line: string) => line.includes('tất cả danh mục')), 'no All note for a category-filtered capture');
 });

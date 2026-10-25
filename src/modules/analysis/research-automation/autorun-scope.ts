@@ -406,6 +406,17 @@ export function categoryNotSelectable(record: AutorunScopeRecord): AutorunScopeR
     capture2: record.capture2 ? { ...record.capture2, outcome: 'CATEGORY_NOT_SELECTABLE' } : null };
 }
 
+/**
+ * The second capture succeeded. A retry after a saved CATEGORY_NOT_SELECTABLE did select the
+ * category, so the decision returns to DOMINANT (the only reason that names a category).
+ */
+export function captureTwoOk(record: AutorunScopeRecord): AutorunScopeRecord {
+  if (!record.capture2) throw new RangeError('scope record has no second capture');
+  const category = record.category.reason === 'CATEGORY_NOT_SELECTABLE' && record.category.category && record.capture2.category !== null
+    ? { ...record.category, reason: 'DOMINANT' as const } : record.category;
+  return { ...record, category, capture2: { ...record.capture2, outcome: 'OK' } };
+}
+
 /** Keywords and category of the capture the report uses. */
 export function usedScope(record: AutorunScopeRecord | null): { keywords: readonly string[]; category: string | null; captureNumber: 1 | 2 } | null {
   if (!record) return null;

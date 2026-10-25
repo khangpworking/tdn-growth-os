@@ -106,7 +106,7 @@ import type { ResearchAutomationMetricCapturePrepareRequest, ResearchAutomationM
 import { AutomationMetricCaptureSourceIntake, MAX_METRIC_CAPTURE_BYTES, MAX_METRIC_CAPTURE_TOTAL_BYTES, verifyMetricCaptureArchive, SNAPSHOT_PATH, MANIFEST_PATH, MetricCaptureRejection } from './metric-capture-intake.js';
 import { autorunRequestKey, buildConfirmValue, buildPrepareValue, buildRevisionValue, deriveIncludeTerms, isAutorunCaptureStopCode, pickShopeeLinks, planCapturePeriod, sourceContextVi, type DatePeriod as AutorunPeriod } from './autorun-derive.js';
 import { METRIC_CAPTURE_DIRS, runMetricCapture, type MetricCaptureRequest, type MetricCaptureRunnerConfig, type MetricCaptureRunResult } from './metric-capture-runner.js';
-import { AUTORUN_SCOPE_RECORD_VERSION, answerKeyword2, categoryNotSelectable, chooseKeyword2, decideCategory, planScope, readCategoryShares, scopeLinesVi, titlePhraseCandidates, topRevenueTitles, usedScope,
+import { AUTORUN_SCOPE_RECORD_VERSION, answerKeyword2, captureTwoOk, categoryNotSelectable, chooseKeyword2, decideCategory, planScope, readCategoryShares, scopeLinesVi, titlePhraseCandidates, topRevenueTitles, usedScope,
   type AutorunModelVariants, type AutorunScopeRecord, type AutorunTitleRow } from './autorun-scope.js';
 import { readPreparedMetricCaptureSources } from './metric-capture-inventory.js';
 import { AutomationWorldBankSourceIntake, readConfirmedWorldBankSource, readWorldBankHistory, WORLD_BANK_INDICATORS, WORLD_BANK_PROFILE } from './world-bank-intake.js';
@@ -5583,7 +5583,7 @@ export class ResearchAutomationService {
           ...(second?.capture2 ? { second: { keywords: second.capture2.keywords, category: second.capture2.category } } : {}) });
         if (second?.capture2) {
           // The category label comes from data; a page without that option keeps the first capture (All).
-          if (result.ok) scope = { ...second, capture2: { ...second.capture2, outcome: 'OK' } };
+          if (result.ok) scope = captureTwoOk(second);
           else if (result.code === 'CAPTURE_CATEGORY_NOT_SELECTABLE') scope = categoryNotSelectable(second);
         } else if (result.ok) scope = await this.#planAutorunScope(runId, start, result.captureDir, controller.signal);
         if (scope) await this.#writeAutorunScope(runId, scope);
