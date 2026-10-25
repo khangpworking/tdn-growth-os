@@ -2794,7 +2794,7 @@ export class ResearchAutomationService {
   async readInsightSourceContext(workspaceId: string, runId: string, pairId: string): Promise<InsightSourceContext> {
     if (!/^[0-9a-f]{64}$/.test(pairId)) throw new ResearchAutomationValidationError('Invalid exact report pair.');
     // The owning report reader verifies pair membership, fallback artifacts and KEEP method lineage.
-    const { report, scopeSha256, verifiedLocated, verifiedNative, verifiedPublicCorpus, reviewCollection } = await this.#readVerifiedReport(workspaceId, runId, 'INSIGHT', false, pairId);
+    const { report, scopeSha256, verifiedLocated, verifiedNative, verifiedPublicCorpus, reviewCollection, revisionSources } = await this.#readVerifiedReport(workspaceId, runId, 'INSIGHT', false, pairId);
     if (!scopeSha256) throw new ResearchAutomationIntegrityError('Insight source context lacks its frozen scope.');
     if (verifiedNative && verifiedLocated) throw new ResearchAutomationIntegrityError('Insight source context has more than one review source.');
     // A v1 located snapshot is a rule proposal only, never accepted literal context.
@@ -2803,7 +2803,7 @@ export class ResearchAutomationService {
     if (!snapshot) {
       // Free sources: the public Shopee corpus the report reader just replay-verified and/or the stored S06 document.
       // The S06 main-channel rule stays a report-build gate; coding may run on S06 records regardless.
-      const free = await this.#publicInsightSource(verifiedPublicCorpus, reviewCollection);
+      const free = await this.#publicInsightSource(verifiedPublicCorpus ?? await this.#keptPublicCorpus(runId, revisionSources), reviewCollection);
       if (!free) throw new ResearchAutomationConflictError('invalid_state', 'This exact report has no verified adopted review source.');
       return { binding: { workspaceId, runId, pairId, scopeSha256, reportSha256: report.versionId, sourceKind: 'PUBLIC_REVIEWS' as const,
         sourcePackageSha256: publicInsightSourceSha256(free.projection), inputSha256: digest(free.input) }, input: structuredClone(free.input),
@@ -2816,6 +2816,18 @@ export class ResearchAutomationService {
       // These two replay-verified adapters bind exact Shopee listings. No platform is inferred from text,
       // source attribution or a missing field; another adapter must supply its own authenticated proof.
       ...(verifiedNative?.nativeSource.selected || located?.proposal ? { verifiedPlatform: 'SHOPEE' as const } : {}) };
+  }
+
+  /**
+   * Coding only: a revision pair's report omits the public Shopee corpus (supplemental collection), but a revision whose
+   * review source was kept (nativeReview KEEP or a qualitative draft) carries the run's original reviewAcquisition in its
+   * v2 source set, verified against its predecessor by #readAttemptSources. Then the original confirmed collection's corpus
+   * is rebuilt and verified exactly as the base pair verifies it. Any other review decision yields v1 → undefined.
+   */
+  async #keptPublicCorpus(runId: string, sources: FrozenSources | undefined) {
+    if (sources?.value.contractVersion !== 'automation-confirmed-source-set-v2') return undefined;
+    const original = await this.#reportCollection(runId, sources, false);
+    return (await this.#publicReportSource(this.#current(runId)!, sources, original, false))?.fullCorpus;
   }
 
   /** Read-only: no provider, network or inference. Undefined when neither free source has a record. */
@@ -2965,6 +2977,8 @@ export class ResearchAutomationService {
     /** The replay-verified public Shopee corpus (always built, also when not inlined) and the report's own collection. */
     verifiedPublicCorpus?: import('../../../../contracts/analysis/research-review-corpus-v2.generated.js').ResearchReviewCorpusV2;
     reviewCollection: StepResultDocument | null;
+    /** Set for a revision pair only: its verified source set (coding reads the kept public corpus from it). */
+    revisionSources?: FrozenSources;
   }> {
     const run = await this.getRun(workspaceId, runId);
     const frozenRun = this.#current(runId)!;
@@ -3486,7 +3500,7 @@ export class ResearchAutomationService {
       } };
     }
     return { report: { kind, versionId: output.versionSha, bytes, mediaType: pdf ? 'application/pdf' : 'text/html; charset=utf-8' },
-      scopeSha256: frozenRun.scopeSha, verifiedLocated, verifiedNative, verifiedPrivateSource, reviewCollection: publicCollection,
+      scopeSha256: frozenRun.scopeSha, verifiedLocated, verifiedNative, verifiedPrivateSource, reviewCollection: publicCollection, ...(attempt && sources ? { revisionSources: sources } : {}),
       ...(verifiedPublicReview?.fullCorpus ? { verifiedPublicCorpus: verifiedPublicReview.fullCorpus } : {}), ...(insightReader ? { insightReader } : {}) };
   }
 
