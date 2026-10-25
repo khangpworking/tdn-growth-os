@@ -34,10 +34,12 @@ Change này thay PR #364 (21/10/2026). PR đó xếp 16 section theo 5 phần A�
 - Đóng PR #364 vì change này thay nó.
 - Trang cho sếp và quy chuẩn dữ liệu đầu vào không đổi. Chủ giữ hai tài liệu này đến khi chủ và sếp cùng đồng ý (F112).
 
+Điểm chặn cần chủ quyết: [R-L12](../../specs/report-language/spec.md) ghi «SHALL chỉ đọc bình luận và video», trong khi [R-I34](specs/insight-report/spec.md) theo trang bản 9 dùng «Gợi ý tìm kiếm Google» làm nguồn chính cho câu 2, cùng các nguồn khác ngoài bình luận và video. Hai phạm vi nguồn không khớp nhau. Change này giữ nguyên nghĩa của trang chủ đã duyệt và chưa sửa R-L12; cần chủ chốt cách giải quyết trước khi áp dụng.
+
 ## Ngoài phạm vi
 
 - Sửa code, sửa trang cho sếp, chạy thử, gọi nguồn trả phí, đổi cờ môi trường.
-- Bảng đổi mã section cũ (I01–I17) sang Phần 1–17 trong các quy tắc R-I13, R-I21, R-I28. Việc này làm cùng lúc với code (xem tasks.md).
+- Bảng đổi mã section cũ (I01–I17) sang 18 phần mới (Phần 1–17 và Phụ lục), cập nhật R-I11, R-I21, R-I28 và bảng section của `report-metrics` (mục 7.5, 7.6). Việc này làm cùng lúc với code (xem tasks.md).
 - Thêm nguồn mới. Bảng nguồn ở R-I34 chỉ ghi các nguồn chủ đã duyệt; nguồn «Đã duyệt, chưa chạy» giữ nguyên tình trạng.
 
 Ba câu hỏi phạm vi (config.yaml):
