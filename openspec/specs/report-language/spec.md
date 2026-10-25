@@ -15,11 +15,13 @@ flowchart LR
 ## Requirements
 
 ### Requirement: R-L01 Không nêu tên nhà cung cấp, công cụ, mô hình AI hay Google
-Báo cáo SHALL NOT nêu tên nhà cung cấp dữ liệu, công cụ, mô hình AI hay "Google". Tên sàn như Shopee và TikTok Shop thì được. Báo cáo SHALL dùng lời trung tính, ví dụ "dữ liệu bán hàng ước tính", "review công khai trên Shopee". File dấu vết kỹ thuật riêng (dạng HTML hoặc `.md`) được nêu tên công cụ.
+Báo cáo SHALL NOT nêu tên nhà cung cấp dữ liệu, công cụ, mô hình AI hay "Google". Tên sàn như Shopee và TikTok Shop thì được. Báo cáo SHALL dùng lời trung tính, ví dụ "dữ liệu bán hàng ước tính", "review công khai trên Shopee". File dấu vết kỹ thuật (.md riêng) được nêu tên công cụ.
+
+Quy tắc áp dụng cho cả Market và Insight, với cùng một danh sách tên đầy đủ. Tên công cụ thu review công khai bị cấm ở mọi báo cáo. Chữ thường "metric" được phép; "Metric" và "METRIC" bị cấm. Tên trong chữ ẩn cũng tính là lộ tên: thuộc tính hidden, display:none, aria-hidden, alt/title/aria-label, `<title>`, chữ trong SVG. Địa chỉ liên kết (href) không tính. Chữ chép từ nguồn (trích review, tiêu đề web, đoạn PDF, chữ quảng cáo) có tên bị cấm thì chỉ ẩn mục đó. Chữ do hệ thống tự viết có tên bị cấm thì báo cáo dừng.
 
 - Loại kiểm: Máy
-- Mã kiểm: Cổng `G08_PROVIDER_NAME` (xem R-M15)
-- Vì sao: Chủ quyết định ngày 05/10/2026: báo cáo không nêu tên nhà cung cấp dữ liệu, tên sàn như Shopee thì được, chú thích đặt ở dòng riêng. Ngày 20/10/2026 chủ dùng "toàn dân" làm mốc so, không nêu tên nguồn dữ liệu mô phỏng (F22 đến F25). Ngày 24/10/2026 chủ chấp nhận file dấu vết dạng HTML.
+- Mã kiểm: Danh sách và cách so khớp: `HIDDEN_NAMES`, `findHiddenNames` trong `src/modules/analysis/report-language/hidden-names.ts`. Market: cổng `G08_PROVIDER_NAME` (xem R-M15). Cả hai báo cáo: lint F1 và W6 trong `src/modules/analysis/reader-report/lint.ts`
+- Vì sao: Chủ quyết định ngày 05/10/2026: báo cáo không nêu tên nhà cung cấp dữ liệu, tên sàn như Shopee thì được, chú thích đặt ở dòng riêng. Ngày 20/10/2026 chủ dùng "toàn dân" làm mốc so, không nêu tên nguồn dữ liệu mô phỏng (F22 đến F25). Ngày 24/10/2026 chủ chốt c4 Q1 đến Q5: Insight cấm đủ tên như Market; chữ thường "metric" được phép; chữ chép từ nguồn chỉ bị ẩn; tên công cụ review công khai luôn bị cấm; chữ ẩn cũng tính.
 
 #### Scenario: Lời trung tính
 - **WHEN** báo cáo nêu nguồn là "review công khai trên Shopee"
@@ -27,7 +29,27 @@ Báo cáo SHALL NOT nêu tên nhà cung cấp dữ liệu, công cụ, mô hình
 
 #### Scenario: Nêu tên công cụ trong thân báo cáo
 - **WHEN** thân báo cáo nêu tên một công cụ thu dữ liệu
-- **THEN** quy tắc R-L01 bị vi phạm, còn file dấu vết kỹ thuật riêng được nêu tên công cụ
+- **THEN** quy tắc R-L01 bị vi phạm, còn file dấu vết kỹ thuật .md riêng được nêu tên công cụ
+
+#### Scenario: Chữ thường "metric"
+- **WHEN** báo cáo viết "metric tons"
+- **THEN** tên "Metric" không bị tính; chỉ "Metric" và "METRIC" bị cấm
+
+#### Scenario: Tên trong chữ ẩn
+- **WHEN** báo cáo có `<div hidden>OpenAI</div>` hoặc `alt="Kalodata"`
+- **THEN** quy tắc R-L01 bị vi phạm
+
+#### Scenario: Tên trong địa chỉ liên kết
+- **WHEN** tên chỉ nằm trong `href` của một liên kết
+- **THEN** quy tắc R-L01 đạt
+
+#### Scenario: Chữ chép từ nguồn có tên bị cấm
+- **WHEN** tiêu đề một kết quả tìm kiếm có chữ "Google"
+- **THEN** tiêu đề đó bị ẩn, báo cáo vẫn được dựng
+
+#### Scenario: Insight nêu tên AI
+- **WHEN** chữ do hệ thống viết trong báo cáo Insight nêu "OpenAI"
+- **THEN** quy tắc R-L01 bị vi phạm và báo cáo dừng
 
 ### Requirement: R-L02 Giải thích ở dòng Chú thích riêng
 Báo cáo SHALL đặt giải thích và chú thích ở dòng "Chú thích:" riêng, SHALL NOT chèn vào câu chính, và SHALL NOT chèn vào dòng "Nguồn:".
@@ -60,11 +82,13 @@ Báo cáo SHALL viết bằng tiếng Việt đơn giản, thuật ngữ khó SH
 - **THEN** quy tắc R-L03 bị vi phạm
 
 ### Requirement: R-L04 Không cộng Shopee với TikTok Shop
-Báo cáo SHALL NOT cộng Shopee với TikTok Shop, và hai sàn SHALL đứng cạnh nhau. (Chủ 11/10, U-32)
+Báo cáo SHALL NOT cộng Shopee với TikTok Shop, và hai sàn SHALL đứng cạnh nhau. (Chủ 11/10, U-32) Bản nháp và bản đọc SHALL chặn cùng một danh sách cụm tổng hai sàn.
 
 - Loại kiểm: Máy
-- Mã kiểm: Cổng `U32_NO_CROSS_PLATFORM_TOTAL`
-- Vì sao: Chủ quyết định ngày 11/10/2026: không có tổng giữa các sàn (U-32).
+- Mã kiểm: Cổng `U32_NO_CROSS_PLATFORM_TOTAL` và lint Reader W3, cùng gọi `crossPlatformTotalMatches` (`src/modules/analysis/report-language/cross-platform-total.ts`)
+- Vì sao: Chủ quyết định ngày 11/10/2026: không có tổng giữa các sàn (U-32). Bàn giao 24/10/2026: một danh sách là hợp của danh sách U32 và mẫu W3 cũ; tổng vẫn bị cấm.
+
+W3 của Insight và mảng lint trong claims của bản đọc Market v1/v1.1 SHALL giữ nội dung và thứ tự cũ. Danh sách hợp áp dụng cho U32 và W3 của bản đọc Market v1.2; cổng U32 vẫn chặn tổng ở mọi phiên bản Market.
 
 #### Scenario: Hai sàn cạnh nhau
 - **WHEN** báo cáo đặt cột Shopee cạnh cột TikTok Shop và không có dòng tổng
@@ -73,6 +97,10 @@ Báo cáo SHALL NOT cộng Shopee với TikTok Shop, và hai sàn SHALL đứng 
 #### Scenario: Có tổng hai sàn
 - **WHEN** báo cáo có dòng "Tổng hai sàn"
 - **THEN** cổng `U32_NO_CROSS_PLATFORM_TOTAL` trượt
+
+#### Scenario: Cụm trước đây chỉ một bên chặn
+- **WHEN** báo cáo viết "tổng cả hai sàn" hoặc "Shopee + TikTok"
+- **THEN** cổng `U32_NO_CROSS_PLATFORM_TOTAL` và lint Reader W3 cùng trượt
 
 ### Requirement: R-L05 Không cộng các nước đối tác của dữ liệu thương mại
 Báo cáo SHALL NOT cộng các nước đối tác của dữ liệu thương mại.
@@ -210,11 +238,11 @@ Báo cáo SHALL coi bản ghi không phải người, và SHALL coi tần suất
 - **THEN** quy tắc R-L13 bị vi phạm
 
 ### Requirement: R-L14 Đề xuất hành động có người phụ trách, hạn và nhãn
-Đề xuất hành động SHALL được phép, nhưng SHALL có người phụ trách, hạn dd/mm/yyyy và nhãn "đề xuất, chờ chủ duyệt". Con số làm căn cứ SHALL chỉ là doanh thu quan sát trong mẫu. Báo cáo SHALL NOT bịa ngân sách hay mức tăng. (Chủ 05/10)
+Đề xuất hành động SHALL được phép, nhưng SHALL có người phụ trách, hạn dd/mm/yyyy và nhãn "đề xuất, chờ chủ duyệt". Nhãn SHALL là nhãn đầy đủ ở mọi nơi kiểm, kể cả cổng nháp; chữ "đề xuất" đứng một mình không đủ. Con số làm căn cứ SHALL chỉ là doanh thu quan sát trong mẫu. Báo cáo SHALL NOT bịa ngân sách hay mức tăng. (Chủ 05/10)
 
 - Loại kiểm: Máy
-- Mã kiểm: `hasM12ProposalRows` (xem R-M09)
-- Vì sao: Chủ quyết định ngày 05/10/2026: báo cáo được phép đề xuất; M12 có ba phương án, người phụ trách, hạn, nhãn "đề xuất, chờ chủ duyệt"; chủ bỏ ý "AI không chọn hành động".
+- Mã kiểm: `hasM12ProposalRows` (xem R-M09); cổng `M12_PROPOSAL_LABEL` (xem R-M26)
+- Vì sao: Chủ quyết định ngày 05/10/2026: báo cáo được phép đề xuất; M12 có ba phương án, người phụ trách, hạn, nhãn "đề xuất, chờ chủ duyệt"; chủ bỏ ý "AI không chọn hành động". Ngày 24/10/2026 (Q4): nhãn đầy đủ ở mọi nơi.
 
 #### Scenario: Đề xuất đủ thông tin
 - **WHEN** một đề xuất có người phụ trách, hạn 31/10/2026, nhãn "đề xuất, chờ chủ duyệt" và căn cứ là doanh thu quan sát trong mẫu
@@ -222,6 +250,10 @@ Báo cáo SHALL coi bản ghi không phải người, và SHALL coi tần suất
 
 #### Scenario: Bịa mức tăng
 - **WHEN** đề xuất nêu mức tăng doanh thu không có trong dữ liệu
+- **THEN** quy tắc R-L14 bị vi phạm
+
+#### Scenario: Nhãn ngắn
+- **WHEN** phương án trong M12 chỉ ghi "đề xuất"
 - **THEN** quy tắc R-L14 bị vi phạm
 
 ### Requirement: R-L15 Chân dung khách do AI tổng hợp có thẻ bằng chứng và nhãn
@@ -298,3 +330,22 @@ Mỗi khối mang kết luận SHALL có ba nhãn "Thấy gì / Dùng để / Đ
 #### Scenario: Khối kết luận thiếu nhãn
 - **WHEN** một khối mang kết luận thiếu nhãn "Đừng hiểu là"
 - **THEN** quy tắc R-L19 bị vi phạm
+
+### Requirement: R-L21 Chữ ẩn không tính cho luật câu chữ
+Chữ ẩn trên trang SHALL NOT làm trượt luật câu chữ: U13 (R-M24), E2 (R-M17), U32 (R-M16, R-L04), M12 (R-M26), tổng thiếu thành phần và luật câu của các khối nguồn (R-M20 đến R-M23). Chữ ẩn là chữ trong phần tử có thuộc tính `hidden`, `aria-hidden` bằng true, 1 hoặc hidden, kiểu `display:none` hoặc `visibility:hidden`, hoặc nằm trong script, style, noscript, template. Tên nhà cung cấp (R-L01) SHALL vẫn bị tính cả trong chữ ẩn. Áp dụng cho cả Market và Insight.
+
+- Loại kiểm: Máy
+- Mã kiểm: `src/modules/analysis/report-visible-text.ts` (`hiddenElement`, `withoutHiddenText`, `balancedOpenings`); dùng ở `market-business-gate.ts` và `report-visible-text-lint.ts`
+- Vì sao: Chủ quyết định ngày 24/10/2026 (Q3): người đọc không thấy chữ ẩn, nên chữ ẩn không làm trượt luật câu chữ. Lint Reader cũ F2–F8, W1–W5 giữ nguyên như trước (RR `lint.ts`: "historical gates remain byte-identical").
+
+#### Scenario: So sánh nhất trong chữ ẩn
+- **WHEN** trang có `<span hidden>Sản phẩm tốt nhất.</span>`
+- **THEN** U13 đạt ở cổng, ở lint chữ nhìn thấy và ở bản đọc
+
+#### Scenario: Cùng câu, không ẩn
+- **WHEN** trang có `<p>Sản phẩm tốt nhất.</p>`
+- **THEN** U13 trượt
+
+#### Scenario: Tên nhà cung cấp trong chữ ẩn
+- **WHEN** trang có `<p hidden>Metric</p>`
+- **THEN** cổng `G08_PROVIDER_NAME` trượt

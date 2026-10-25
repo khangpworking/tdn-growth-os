@@ -8,7 +8,7 @@
 - [x] 1.1 RA `collection-lanes.ts`: hợp đồng làn, cổng, try/catch, lưu capture qua `putCaptures`, tài liệu lỗi riêng, dòng chi phí
 - [x] 1.2 Bảng ordinal và nhà cung cấp, kiểm trùng khi nạp; truy vấn hoạt động quảng cáo tìm kiếm đọc bảng
 - [x] 1.3 Chuyển World Bank, UN Comtrade, quảng cáo tìm kiếm, Cục Thống kê; byte đã lưu không đổi
-- [ ] 1.4 Kiểm thử ở giao diện module (phiên khác người viết mã)
+- [x] 1.4 Kiểm thử ở giao diện module (phiên khác người viết mã)
 
 ## 2. PR2: làn phụ thuộc làn trước
 
@@ -29,4 +29,4 @@
 - [x] 4.3 Lỗi ghi capture chỉ làm hỏng làn đó (Q3): bỏ capture của làn, tài liệu lỗi của làn (mã sẵn có, b4), dòng chi phí giữ như lượt gọi, các làn sau và giao dịch cuối vẫn chạy; nguồn sản phẩm và đường Shopee/native không đổi
 - [x] 4.4 Mục 13: nguồn sản phẩm ném lỗi, không URL chính xác, không tìm kiếm web: ghi dòng `UNKNOWN` ordinal 0 trong giao dịch sẵn có của `#settleSourceFailure`
 - [x] 4.5 Kiểm thử ở giao diện module (phiên khác người viết mã; đổi các ca TODAY)
-- [ ] 4.6 `/opsx:archive` change này
+- [x] 4.6 `/opsx:archive` change này

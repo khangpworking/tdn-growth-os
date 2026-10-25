@@ -25,5 +25,5 @@
 
 ## 4. Sau khi gộp
 
-- [ ] 4.1 CI Linux xanh tại SHA cuối
-- [ ] 4.2 `/opsx:archive` change này
+- [x] 4.1 CI Linux xanh tại SHA cuối
+- [x] 4.2 `/opsx:archive` change này

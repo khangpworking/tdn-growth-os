@@ -19,9 +19,9 @@
 - [x] 2.1 Đổi các dòng `TODAY:` và hai chỗ ghim thông báo, mỗi chỗ một dòng lý do
 - [x] 2.2 Ca theo dòng hợp đồng cho ngữ cảnh `READER`, chữ ẩn, danh sách tổng, nhãn M12, lý do bằng lời; mỗi ca có ca đối chứng âm
 - [x] 2.3 Chạy lại trên báo cáo thật đã lưu; danh sách đổi theo quy tắc gửi chủ
-- [ ] 2.4 CI Linux xanh tại SHA cuối
+- [x] 2.4 CI Linux xanh tại SHA cuối
 
 ## 3. Sau khi gộp
 
-- [ ] 3.1 `/opsx:archive` change này; spec `report-language`, `market-report`, `report-pipeline` nhận các thay đổi
-- [ ] 3.2 Khi spec nhận R-M16 mới, dòng "Mã kiểm" đổi từ `CROSS_PLATFORM_TOTAL_PHRASES` (trong `market-business-gate.ts`) sang `crossPlatformTotalMatches` (trong `report-language/cross-platform-total.ts`); sau đó bỏ hằng trỏ trong `market-business-gate.ts`
+- [x] 3.1 `/opsx:archive` change này; spec `report-language`, `market-report`, `report-pipeline` nhận các thay đổi
+- [ ] 3.2 Khi spec nhận R-M16 mới, dòng "Mã kiểm" đổi từ `CROSS_PLATFORM_TOTAL_PHRASES` (trong `market-business-gate.ts`) sang `crossPlatformTotalMatches` (trong `report-language/cross-platform-total.ts`); sau đó bỏ hằng trỏ trong `market-business-gate.ts` (Phần «Mã kiểm» xong khi archive. Hằng trong `market-business-gate.ts` còn, để sau.)
