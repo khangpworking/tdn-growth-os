@@ -5,7 +5,10 @@
 - [x] 1.3 Viết ADR 0007: video chạy trong app (O1 phương án A kèm 4 lớp bảo vệ, F176–F177); ADR 0007 sửa ADR 0003 quyết định 8 («không video»); chụp bản cũ ADR 0003 vào docs/outdated
 - [x] 1.4 Sửa mở rộng nhỏ: openspec/config.yaml, AGENTS.md, INTENT.md (2 dòng có ngày sau 03/10/2026, không đánh số D)
 - [x] 1.5 `openspec validate --all` qua
-- [x] 1.6 Rà lại theo EGM, chủ duyệt PR này và change này
+- [x] 1.6 Rà lại theo EGM
+- [ ] 1.7 Chủ duyệt PR này và change này
+
+Cách chia việc dưới đây chỉ áp dụng khi xây Video Factory (F173, F175 ngày 25/10/2026). Mỗi lát phải chốt bảng dòng hợp đồng đánh số trước khi viết mã. Mỗi dòng ghi quy tắc R-V, hành vi và ca đối chứng âm. Mỗi lát cập nhật hướng dẫn vận hành, STATUS và bàn giao. Sửa lỗi áp dụng cho cả hệ thống, không chỉnh riêng một lần chạy. Chi tiết câu hỏi phải trả lời và đường dẫn sở hữu ở §7 brief 054.
 
 ## 2. Lát 1 — video thật đầu tiên, chủ tự chọn clip (nhiệm vụ 055)
 
@@ -23,6 +26,8 @@
 - [ ] 2.12 Một phiên Sol 6.1 xhigh mới khác rà soát
 - [ ] 2.13 Kiểm thử theo dòng hợp đồng; CI Linux xanh tại SHA cuối là cổng cuối, không chạy cả bộ trên máy
 - [ ] 2.14 Merge chỉ khi chủ đồng ý; triển khai chỉ khi chủ viết «deploy <SHA>»
+- [ ] 2.15 Ẩn và khôi phục clip, nhạc và video; không dọn file tự động (R-V16)
+- [ ] 2.16 Giữ hành vi kịch bản/cài đặt đã duyệt ngày 01/10: bản nháp tạo mới riêng, tự lưu script vào video, phiên bản viết lại, từ chối kết quả cũ, quay về duyệt 1, nhắc video đang chờ; xem §6 brief 054 (R-V02, R-V13, R-V15)
 
 ## 3. Lát 2 — ghép clip tự động (nhiệm vụ 056)
 
@@ -30,8 +35,8 @@
 - [ ] 3.2 App gợi ý 3 clip cho mỗi cảnh; chủ vẫn có thể đổi (R-V04, R-V07)
 - [ ] 3.3 Tìm stock Pexels; clip stock được chọn vào thư viện kèm nguồn và giấy phép; số lượt phân tích hiện trước khi chạy (R-V05, R-V10)
 - [ ] 3.4 Angle trở thành nguồn script (R-V01)
-- [ ] 3.5 Nhập thư mục nhúng: sao chép vào, không đụng nguồn, bỏ qua tập tin trùng cùng vân tay; nút «Quét thư mục» (R-V08)
-- [ ] 3.6 Cảnh không có clip: khi duyệt bật, chặn duyệt; khi «Bỏ qua duyệt» bật, video thất bại kèm thông báo rõ, không khung đen (R-V12)
+- [ ] 3.5 Nhập thư mục thả clip: quét mỗi vài phút và nút «Quét thư mục»; sao chép rồi kiểm vân tay, không đụng nguồn, bỏ qua tập tin trùng (R-V08)
+- [ ] 3.6 Cảnh không có clip: chặn duyệt 2, hiện «Chưa có cảnh phù hợp» (R-V12); bỏ duyệt chưa có ở lát này
 - [ ] 3.7 GLM 5.3 Flash viết mã
 - [ ] 3.8 Sol 6.1 xhigh viết kiểm thử ở phiên riêng; mỗi ca có một ca đối chứng âm
 - [ ] 3.9 Một phiên Sol 6.1 xhigh mới khác rà soát
@@ -40,10 +45,10 @@
 
 ## 4. Lát 3 — chế độ không cần duyệt (nhiệm vụ 057)
 
-- [ ] 4.1 Kiểm an toàn lời đọc cho tuyên bố sức khỏe và pháp lý; «Bỏ qua duyệt» không bao giờ bỏ qua nó (R-V03)
-- [ ] 4.2 «Bỏ qua duyệt» và chế độ hàng loạt, hiện một con số lượt gọi gộp trước khi lô bắt đầu; câu trả lời O3 và O4 áp dụng tại đây (R-V02, R-V10)
+- [ ] 4.1 Kiểm an toàn lời đọc cho tuyên bố sức khỏe, pháp lý và sự thật thương hiệu; «Bỏ qua duyệt» không bao giờ bỏ qua nó (R-V03)
+- [ ] 4.2 Chỉ bật «Bỏ qua duyệt» và hàng loạt sau khi chủ trả lời O3 và O4 về video của thương hiệu thực phẩm bổ sung. Hiện số lượt gọi gộp trước khi xếp hàng; thiếu clip thì video thất bại rõ, không khung đen (R-V02, R-V10, R-V12)
 - [ ] 4.3 Lớp preset thương hiệu, nhà cung cấp giọng thứ hai, Pixabay, chuyển cảnh slide (R-V11)
-- [ ] 4.4 Dùng lại phiên bản script và giữ lựa chọn clip cũ (đơn giản hóa 2, F179): sửa script chỉ chọn lại các cảnh đã đổi, rồi dựng lại giọng và dựng lại video (R-V15)
+- [ ] 4.4 «Dùng lại bản này» tạo phiên bản mới và trở về duyệt 1. Giữ lựa chọn clip khi đủ năm điều kiện ở §6 brief 054; nếu không thì chọn lại, hiện «Lựa chọn trước» cùng lý do có thể hoặc không thể dùng lại. Dựng lại giọng và video khi script đổi (R-V15; F179)
 - [ ] 4.5 GLM 5.3 Flash viết mã
 - [ ] 4.6 Sol 6.1 xhigh viết kiểm thử ở phiên riêng; mỗi ca có một ca đối chứng âm
 - [ ] 4.7 Một phiên Sol 6.1 xhigh mới khác rà soát
@@ -64,4 +69,5 @@
 ## 6. Kết thúc
 
 - [ ] 6.1 Viết mã kiểm thật (file, hàm) vào dòng «Mã kiểm» của từng requirement R-V01 đến R-V16
-- [ ] 6.2 `/opsx:archive` change video-factory-v1
+- [ ] 6.2 Khi có mã kiểm video thật, thêm file liên quan vào spec-drift và xác nhận kiểm thử liên kết OpenSpec tìm đúng file/hàm; không thêm cổng này ở lát 0
+- [ ] 6.3 `/opsx:archive` change video-factory-v1

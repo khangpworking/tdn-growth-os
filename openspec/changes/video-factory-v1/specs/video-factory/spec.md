@@ -12,19 +12,23 @@ Video Factory SHALL là máy làm video tự động (automation creator), SHALL
 - **THEN** chủ chỉ chỉnh sửa theo cài đặt và chọn của mình, không thao tác trên dòng thời gian
 
 #### Scenario: Video của Angle chiến dịch
-- **WHEN** chủ tạo video từ một Angle đã duyệt
+- **WHEN** chủ tạo video từ một Angle của chiến dịch
 - **THEN** script dùng Big Idea, Angle, mục đích và sự thật sản phẩm của chiến dịch đó
 
 ### Requirement: R-V02 Ba điểm duyệt và công tắc «Bỏ qua duyệt»
-Mỗi video SHALL đi qua ba điểm duyệt: sau script, sau khi chọn cảnh, và ở video cuối. Ba điểm duyệt SHALL bật mặc định. Mỗi video SHALL có một công tắc «Bỏ qua duyệt» chỉ áp dụng cho video đó. Khi «Bỏ qua duyệt» bật, các bước xử lý tiếp theo chạy không chờ chủ. Mỗi yêu cầu viết lại mà chủ gửi SHALL luôn dừng ở điểm duyệt 1, dù công tắc «Bỏ qua duyệt» đang bật hay tắt (quyết định 9 của script vs setup).
+Mỗi video SHALL đi qua ba điểm duyệt: sau script, sau khi chọn cảnh, và ở video cuối. Ba điểm duyệt SHALL bật mặc định. Mỗi video SHALL có một công tắc «Bỏ qua duyệt» chỉ áp dụng cho video đó. Đổi công tắc SHALL áp dụng khi xử lý bắt đầu lần tiếp theo, SHALL NOT tự tiếp tục video đang dừng. Khi chủ bắt đầu xử lý với công tắc bật, các điểm duyệt tiếp theo SHALL không chờ chủ. Mỗi yêu cầu viết lại mà chủ gửi SHALL luôn dừng ở điểm duyệt 1, dù công tắc đang bật hay tắt.
 
 - Loại kiểm: Người đọc
 - Mã kiểm: Chưa có mã kiểm
-- Vì sao: Chủ duyệt ba điểm duyệt, công tắc và hàng loạt (batch) ngày 01/10/2026 (§1). Ngày 01/10/2026 chủ duyệt cách chạy «script vs setup»: viết lại luôn dừng ở duyệt 1. Ngày 25/10/2026 chủ duyệt hàng loạt + «Bỏ qua duyệt» thành lát 3 (F179).
+- Vì sao: Chủ duyệt ba điểm duyệt, công tắc và hàng loạt (batch) ngày 01/10/2026 (§1), cùng cách chạy «script vs setup» (quyết định 9). Kế hoạch ngày 25/10/2026 đặt batch và bỏ duyệt ở lát 3 (F178); F179 chỉ duyệt bốn đơn giản hóa.
 
 #### Scenario: Bỏ duyệt cho một video
-- **WHEN** chủ bật «Bỏ qua duyệt» cho video trước khi xử lý chạy tiếp
-- **THEN** các bước sau điểm duyệt hiện tại chạy tiếp mà không chờ chủ
+- **WHEN** chủ bật «Bỏ qua duyệt» rồi chủ động bắt đầu xử lý tiếp
+- **THEN** các bước tiếp theo chạy không chờ chủ, trừ yêu cầu viết lại và kiểm an toàn lời đọc
+
+#### Scenario: Đổi công tắc khi đang dừng
+- **WHEN** chủ chỉ bật «Bỏ qua duyệt» khi video đang đợi duyệt
+- **THEN** video vẫn dừng cho tới khi chủ bắt đầu xử lý tiếp
 
 #### Scenario: Viết lại vẫn dừng ở duyệt 1
 - **WHEN** chủ yêu cầu «Viết lại bằng AI» trong khi công tắc «Bỏ qua duyệt» đang bật
@@ -38,7 +42,7 @@ Mỗi video SHALL chạy một kiểm an toàn lời đọc (trên câu tiếng 
 - Vì sao: Chủ duyệt kế hoạch đơn giản nhất ngày 25/10/2026 (F178), với luật «Bỏ qua duyệt» không ra mắt thiếu kiểm an toàn lời đọc (lát 3).
 
 #### Scenario: Lô bỏ duyệt vẫn kiểm lời đọc
-- **WHEN** một video trong lô «Bỏ qua duyệt» có câu tuyên bố tác dụng phụ ngoài giấy phép
+- **WHEN** một video trong lô «Bỏ qua duyệt» có tuyên bố sức khỏe không có căn cứ
 - **THEN** video đó dừng lại vì kiểm an toàn, dù công tắc «Bỏ qua duyệt» đang bật
 
 #### Scenario: Lời đọc sạch
@@ -105,15 +109,15 @@ Mỗi clip SHALL là chung (Tổng hợp) hoặc thuộc đúng một thương h
 - **WHEN** app gợi ý 3 clip cho một cảnh của video thương hiệu B
 - **THEN** không có clip nào của riêng thương hiệu A trong gợi ý đó
 
-### Requirement: R-V08 File gốc nguyên trạng; thư mục nhúng chỉ sao chép
-App SHALL NOT đổi tập tin clip gốc bất kỳ lúc nào. Quét thư mục nhúng SHALL sao chép tập tin vào app, SHALL NOT dời hay xóa tập tin gốc. Một tập tin đã nhập trước đó (cùng vân tay) SHALL bị bỏ qua khi quét lại.
+### Requirement: R-V08 File gốc nguyên trạng; thư mục thả clip chỉ sao chép
+App SHALL NOT đổi tập tin clip gốc bất kỳ lúc nào. Quét thư mục thả clip SHALL sao chép tập tin vào app, SHALL NOT dời hay xóa tập tin gốc. Một tập tin đã nhập trước đó (cùng vân tay) SHALL bị bỏ qua khi quét lại.
 
 - Loại kiểm: Người đọc; Kiểm thử
 - Mã kiểm: Chưa có mã kiểm
 - Vì sao: Chủ duyệt «file gốc không đổi» ngày 01/10/2026 (§1). Ngày 25/10/2026 chủ duyệt phần cắt 10 của kế hoạch: sao chép, không đụng nguồn, bỏ qua file trùng (F178).
 
-#### Scenario: Quét thư mục nhúng
-- **WHEN** app quét thư mục nhúng và tập tin mới
+#### Scenario: Quét thư mục thả clip
+- **WHEN** app quét thư mục thả clip và phát hiện tập tin mới
 - **THEN** tập tin được sao chép vào thư viện; tập tin trên thư mục vẫn ở chỗ cũ, nguyên trạng
 
 #### Scenario: Quét lại lần hai
@@ -121,7 +125,7 @@ App SHALL NOT đổi tập tin clip gốc bất kỳ lúc nào. Quét thư mục
 - **THEN** app bỏ qua tập tin đó và không tạo bản sao nữa
 
 #### Scenario: Ca đối chứng âm
-- **WHEN** kiểm thử nhập clip từ thư mục nhúng rồi so vân tay tập tin gốc trước và sau
+- **WHEN** kiểm thử nhập clip từ thư mục thả clip rồi so vân tay tập tin gốc trước và sau
 - **THEN** vân tay gốc không đổi và tập tin gốc vẫn tồn tại
 
 ### Requirement: R-V09 Nhạc cần giấy phép đã ghi
@@ -136,7 +140,7 @@ Mỗi bài nhạc trong thư viện SHALL có giấy phép đã ghi vào app. B�
 - **THEN** app không cho chọn và hiện lý do cần giấy phép
 
 ### Requirement: R-V10 Hiện con số trước mọi lời gọi trả phí
-Trước khi chạy một lời gọi trả phí, app SHALL hiện số lời gọi sẽ chạy. Gemini SHALL chỉ đọc clip khi chủ bấm «Phân tích n clip (n lượt Gemini)»; clip chưa phân tích SHALL hiện «Chưa phân tích». Một lô hàng SHALL hiện một con số gộp của mọi lời gọi trả phí trước khi lô bắt đầu. App SHALL NOT tự chạy lại lời gọi lỗi; chủ SHALL bấm «Thử lại».
+Trước khi chạy một lời gọi trả phí, app SHALL hiện số lời gọi sẽ chạy, gồm mức tối đa cho phân tích phát sinh từ clip stock. Giọng đọc SHALL hiện cả số ký tự. Gemini SHALL chỉ đọc clip khi chủ bấm «Phân tích n clip (n lượt Gemini)»; clip chưa phân tích SHALL hiện «Chưa phân tích». Một lô video SHALL hiện số lượt gọi gộp trước khi vào hàng đợi. App SHALL NOT tự chạy lại lời gọi lỗi; chủ SHALL bấm «Thử lại».
 
 - Loại kiểm: Người đọc; Kiểm thử
 - Mã kiểm: Chưa có mã kiểm
@@ -147,7 +151,7 @@ Trước khi chạy một lời gọi trả phí, app SHALL hiện số lời g�
 - **THEN** app đọc đúng 4 clip và ghi lại 4 lời gọi
 
 #### Scenario: Clip chưa bấm thì chưa phân tích
-- **WHEN** một clip vừa nhập từ thư mục nhúng
+- **WHEN** một clip vừa nhập từ thư mục thả clip
 - **THEN** clip hiện «Chưa phân tích» và chưa có lời gọi Gemini nào chạy cho nó
 
 #### Scenario: Ca đối chứng âm, không tự chạy lại
@@ -181,7 +185,7 @@ Một cảnh không tìm được clip phù hợp SHALL hiện «Chưa có cản
 - **THEN** video thất bại kèm thông báo rõ về cảnh thiếu, không ra tập tin có khung đen
 
 ### Requirement: R-V13 Mỗi lần dựng giữ bản chụp cài đặt
-Mỗi video khi dựng xong SHALL nhớ nguyên bản sao cài đặt (preset và các mục đè) dùng cho lần dựng đó. Đổi preset SHALL NOT đổi một video đã có. Sau khi cài đặt tương ứng đổi, app SHALL đánh dấu video đó «Cần dựng lại».
+Mỗi lần dựng SHALL đóng băng bản sao cài đặt (preset và các mục ghi đè) khi bắt đầu. Đổi preset SHALL NOT đổi video đã có hoặc cài đặt của lần đang chạy. Khi chủ đổi cài đặt áp dụng cho video, thay đổi SHALL dành cho lần chạy tiếp theo và video SHALL được đánh dấu «Cần dựng lại».
 
 - Loại kiểm: Người đọc
 - Mã kiểm: Chưa có mã kiểm
@@ -189,7 +193,11 @@ Mỗi video khi dựng xong SHALL nhớ nguyên bản sao cài đặt (preset v�
 
 #### Scenario: Đổi preset
 - **WHEN** chủ đổi một preset mà có một video đã dựng
-- **THEN** video đã dựng giữ nguyên cài đặt cũ và không đổi; app chỉ đánh dấu nó «Cần dựng lại»
+- **THEN** video đã dựng giữ nguyên cài đặt cũ và không đổi
+
+#### Scenario: Đổi cài đặt ở điểm duyệt
+- **WHEN** chủ đổi giọng đọc tại một điểm duyệt của video đã dựng
+- **THEN** video đã dựng giữ cài đặt cũ; thay đổi dành cho lần dựng tiếp theo và video hiện «Cần dựng lại»
 
 ### Requirement: R-V14 Cô lập lỗi và khởi động lại
 Một lỗi của ffmpeg hay một dịch vụ ngoài (sụp, chậm quá giới hạn thời gian) SHALL chỉ làm job liên quan đó thất bại. App SHALL tiếp tục chạy. Sau khi app khởi động lại, job đang chạy SHALL hiện là gián đoạn và SHALL NOT tự chạy lại.
@@ -215,7 +223,7 @@ Khi chủ sửa script (lát 1–2), app SHALL chọn lại clip cho các cảnh
 
 - Loại kiểm: Kiểm thử
 - Mã kiểm: Chưa có mã kiểm
-- Vì sao: Chủ duyệt «viết lại là chọn lại clip cho tới lát 3» ngày 01/10/2026 (script vs setup, quyết định 8) và ngày 25/10/2026 (F179).
+- Vì sao: Chủ duyệt điều kiện giữ clip sau viết lại ngày 01/10/2026 (script vs setup, quyết định 8). Ngày 25/10/2026 chủ duyệt chọn lại clip ở lát 1–2, giữ clip cũ từ lát 3 (F179).
 
 #### Scenario: Chỉnh câu của một cảnh
 - **WHEN** chủ đổi câu tiếng Việt của một cảnh rồi duyệt script

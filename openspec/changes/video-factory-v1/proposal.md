@@ -1,17 +1,17 @@
 ## Why
 
-Chủ quyết định làm Video Factory từ phỏng vấn thiết kế và các câu trả lời ngày 25/10/2026. Mỗi quyết định dưới đây là câu của chủ, giữ nguyên ý:
+Chủ đã duyệt thiết kế Video Factory ngày 01/10/2026 và cập nhật ngày 25/10/2026. Các ý dưới đây tóm tắt quyết định. Chỉ phần trong «» là lời trích nguyên văn hoặc tên nút.
 
-- 26/09–01/10/2026: chủ phỏng vấn thiết kế và duyệt toàn bộ §1 của brief 054. Mục nào của §1 không ghi «Later» (Làm sau) là phạm vi v1.
-- 01/10/2026: chủ đặt thứ tự làm — định nghĩa → giao diện nhấp được (bản mẫu 2.2, chỉ dữ liệu demo) → triển khai sớm → chủ góp ý → phần chạy phía sau → đoạn dọc đầu tiên.
-- 01/10/2026: chủ duyệt cách chạy «script vs setup» (tạo video là biểu mẫu cài đặt; nội dung ghi thuộc video; viết lại luôn dừng ở điểm duyệt 1).
-- 01/10/2026: chủ từ chối mọi ý từ notivn/AIEV (đo thẳng lời đọc, trạm kiểm chất lượng, giọng VieNeu-TTS, hiệu ứng âm). Không đề xuất lại.
+- 01/10/2026: chủ xác nhận toàn bộ §1 của brief 054 sau phỏng vấn từ 26/09. Mục nào không ghi Later (làm sau) là phạm vi v1.
+- 01/10/2026: chủ đặt thứ tự làm — định nghĩa → giao diện nhấp được → triển khai sớm → chủ góp ý → phần chạy phía sau → lát cắt dọc đầu tiên. Bản mẫu 2.2 đã có, chỉ dùng dữ liệu demo.
+- 01/10/2026: chủ duyệt cách tách kịch bản và cài đặt. «Tạo video» là biểu mẫu cài đặt; kịch bản thuộc video. Viết lại luôn dừng ở điểm duyệt 1.
+- 01/10/2026: chủ từ chối mọi ý từ notivn/AIEV: căn chỉnh lời đọc bằng Whisper, cổng kiểm chất lượng, VieNeu-TTS và hiệu ứng âm thanh. Không đề xuất lại.
 - 25/10/2026 (F172): «change the name to video factory». Tên cũ là Video Studio. Tên mới: Video Factory.
 - 25/10/2026 (F175, O9): «O9 - definitely». Video Factory có change và spec OpenSpec riêng, mã quy tắc R-V.
-- 25/10/2026 (F173, F175): GLM 5.3 Flash viết mã. Sol 6.1 xhigh viết kiểm thử ở phiên riêng. Một phiên Sol mới khác rà soát.
-- 25/10/2026 (F176, F177, O1): chủ chọn phương án A kèm bốn lớp bảo vệ (ffmpeg chạy con có giới hạn, đọc ghi file bằng luồng, giới hạn thời gian từng lời gọi, có kiểm thử crash). Mục tiêu: «khi một dịch vụ hỏng, tôi không muốn cả con tàu chìm theo». Rủi ro chấp nhận: lỗi của chính mã Video Factory có thể khởi động lại app.
-- 25/10/2026 (F176, O2): «agree, wait for a click». Clip từ thư mục nhúng hiện «Chưa phân tích». Gemini chỉ chạy khi chủ bấm «Phân tích n clip (n lượt Gemini)».
-- 25/10/2026 (F178): chủ yêu cầu «a simplest way, non over engineer but we still deliver work as my intended». Kế hoạch là simplest-plan-2510.md với 10 phần cắt giảm.
+- 25/10/2026 (F173, F175): GLM 5.3 Flash viết mã. Sol 6.1 xhigh viết kiểm thử ở phiên riêng. Một phiên Sol 6.1 xhigh mới khác rà soát. Cách chia việc này chỉ áp dụng khi xây Video Factory.
+- 25/10/2026 (F176, F177, O1): chủ chọn «option A with the isolation protections (ffmpeg helper with limits, streamed files, per-call time limits, crash test).» Video chạy trong app; ffmpeg chạy con có giới hạn. File được đọc ghi từng phần; mỗi lời gọi có giới hạn thời gian; có kiểm thử khi tiến trình sập. Mục tiêu nguyên văn: «when a service down. I don't want the whole ship to sink with it». Chủ muốn lỗi một dịch vụ chỉ dừng việc đang gọi dịch vụ đó. Chủ chấp nhận rủi ro lỗi của chính mã Video Factory có thể khởi động lại app.
+- 25/10/2026 (F176, O2): «agree, wait for a click». Clip từ thư mục thả clip hiện «Chưa phân tích». Gemini chỉ chạy khi chủ bấm «Phân tích n clip (n lượt Gemini)».
+- 25/10/2026 (F178): chủ yêu cầu «a simplest way, non over engineer but we still deliver work as my intended». Kế hoạch có 10 phần cắt giảm, ghi ở §5 brief 054.
 - 25/10/2026 (F179): chủ duyệt cả 4 đơn giản hóa: prompt viết script cố định trong mã; viết lại thì chọn lại clip cho tới lát 3; xóa là ẩn; không có khay «Đang tạo» toàn cục trong v1.
 - 25/10/2026 (F180, O7): «start Video Factory slice 0 (documents) now, in parallel with Market».
 
@@ -38,7 +38,7 @@ flowchart LR
 - Thêm R-V05: clip stock đã dùng được thêm vào thư viện kèm nguồn và giấy phép; clip stock không giấy phép thì bị từ chối.
 - Thêm R-V06: clip do AI tạo ở riêng các project của chúng, không bao giờ vào thư viện.
 - Thêm R-V07: mỗi clip là Tổng hợp hoặc thuộc một thương hiệu; clip thương hiệu chỉ xuất hiện trong video của thương hiệu đó.
-- Thêm R-V08: tập tin gốc không bao giờ bị thay đổi; tập tin từ thư mục nhúng được sao chép vào, không dời, không xóa; tập tin đã nhập (cùng vân tay) bị bỏ qua.
+- Thêm R-V08: tập tin gốc không bao giờ bị thay đổi; tập tin từ thư mục thả clip được sao chép vào, không dời, không xóa; tập tin đã nhập (cùng vân tay) bị bỏ qua.
 - Thêm R-V09: bài nhạc cần giấy phép đã ghi.
 - Thêm R-V10: trước mọi lời gọi trả phí, app hiện số lượt; Gemini chỉ đọc clip sau khi chủ bấm «Phân tích n clip (n lượt Gemini)»; một lô hiển thị một con số gộp trước khi chạy; không tự chạy lại, chủ bấm «Thử lại».
 - Thêm R-V11: app không bao giờ tự chuyển sang nhà cung cấp hay tài khoản khác; chủ có thể chọn thủ công.
@@ -58,7 +58,7 @@ flowchart LR
 
 ## Impact
 
-- Mã: chưa có. Code làm trong lát 1–3 (xem tasks.md: nhiệm vụ 055, 056, 057).
+- Mã: chưa có. Code làm trong lát 1–3 (nhiệm vụ 055–057). Nhiệm vụ 058 chạy thử thật trên Fedora theo ngân sách chủ duyệt. Xem tasks.md.
 - Lát 0 này chỉ thêm tài liệu: brief 054 bản mới (docs/tasks/054-video-factory-design.md), ADR 0007, và các sửa nhỏ ở openspec/config.yaml, AGENTS.md, INTENT.md.
 - Không ảnh hưởng quy tắc R-M, R-I, R-L.
 
@@ -67,10 +67,10 @@ Ba câu phạm vi (config.yaml) cho mỗi khối và nguồn mới:
 | Khối hoặc nguồn | Phương pháp có cần không | Lợi ích đáng kể hay nhỏ | Đặt ở đâu |
 |---|---|---|---|
 | Pexels | Cần. Thư viện riêng không đủ b-roll | Đáng kể: đa cảnh, có giấy phép rõ | Adapter stock của Video Factory, mã và quy tắc ở Box 4 Flow |
-| Pixabay | Cần thêm nguồn hai, phòng khi Pexels không có cảnh | Nhỏ ở lát 1, đáng kể khi danh mục rộng hơn | Cùng adapter stock, làm sau Pexels |
-| Vbee | Cần ở lát 1: video tiếng Việt cần giọng đọc | Đáng kể: không có giọng thì không có video | Adapter giọng đọc của Video Factory |
-| ElevenLabs | Cần như lựa chọn hai để chủ nghe thử (F2) | Đang mở: thắng hay thua sau bài nghe thử VIP | Cùng adapter giọng đọc; bên thắng làm trước |
-| Gemini đọc clip | Cần cho việc hiểu clip và gợi ý 3 clip | Đáng kể: không mô tả clip thì tìm theo chữ không chạy được | Đường đọc clip tái dùng từ module nghiên cứu; chủ bấm mới chạy |
+| Pixabay | Cần nguồn stock thứ hai theo thiết kế đã duyệt | Nhỏ ở video đầu; thêm lựa chọn khi Pexels thiếu cảnh | Bộ nối riêng trong Flow, lát 3, sau Pexels |
+| Vbee | Cần nghe thử F2 để chủ chọn giọng tiếng Việt | Giọng đọc có lợi ích đáng kể; chất lượng Vbee còn chờ chủ nghe | Bộ nối giọng riêng trong Flow; nếu thắng F2 thì lát 1, nếu không thì lát 3 |
+| ElevenLabs | Cần nghe thử F2, cùng văn bản với Vbee | Giọng đọc có lợi ích đáng kể; chất lượng ElevenLabs còn chờ chủ nghe | Bộ nối giọng riêng trong Flow; nếu thắng F2 thì lát 1, nếu không thì lát 3 |
+| Gemini đọc clip | Cần để tự mô tả clip và gợi ý 3 clip từ lát 2 | Đáng kể: giảm việc chủ gắn nhãn và chọn từng cảnh; lát 1 vẫn tìm bằng nhãn tự gõ | Bộ nối video trong Flow, tái dùng hàm cần thiết từ module nghiên cứu; F1 chốt đường gọi, chủ bấm mới chạy |
 
 ## Ngoài phạm vi
 
@@ -85,6 +85,6 @@ Ba câu phạm vi (config.yaml) cho mỗi khối và nguồn mới:
 Chủ chưa quyết. Không ai quyết thay chủ.
 
 - O3: không trần chi tiêu + lô + bỏ duyệt → có thể gọi trả phí khi không ai nhìn. Chốt trước lát 3.
-- O4: video bổ sung thương hiệu có được bỏ duyệt không. Chốt trước lát 3.
+- O4: video của thương hiệu thực phẩm bổ sung có được bỏ duyệt không. Chốt trước lát 3.
 - F1: tài khoản nào mà CLIProxy trên Fedora dùng (quyết định đường đọc clip Gemini tái dùng CLIProxy hay cần khóa chính thức riêng). Kiểm tra chỉ đọc.
 - F2: bài nghe thử giọng tiếng Việt giữa Vbee và ElevenLabs. Chủ nghe; lời gọi trả phí nhỏ cần chủ cho phép.
