@@ -1,3 +1,5 @@
+import { traceMarketNumber } from './market-trace-map.js';
+import { storedInput } from './market-trace-inputs.js';
 import { captureRelevanceLookup, type CaptureRelevanceRecord } from './capture-relevance.js';
 import type { AutomationMetricWebSnapshotV1 } from '../../../../contracts/analysis/automation-metric-web-snapshot-v1.generated.js';
 
@@ -225,13 +227,18 @@ function salesQualityExclusions(rows: readonly CaptureQualityRow[], excluded: Ma
 }
 
 /** One factual line per platform; zero counts are omitted. */
-export function captureExclusionNotice(rows: readonly { readonly platform: string; readonly reason: CaptureRowExclusionReason }[], platform: string, profile: CaptureRowProfile = CAPTURE_ROW_PROFILE_V2): string {
+export function captureExclusionNotice(rows: readonly { readonly platform: string; readonly reason: CaptureRowExclusionReason; readonly rowIndex?: number; readonly title?: string }[], platform: string, profile: CaptureRowProfile = CAPTURE_ROW_PROFILE_V2,
+  snapshotSha256 = ''): string {
   const own = rows.filter(row => row.platform === platform);
-  const irrelevant = own.filter(row => row.reason === 'NOT_MAIN_PRODUCT').length;
+  const notMain = own.filter(row => row.reason === 'NOT_MAIN_PRODUCT');
+  const irrelevant = notMain.length;
   const implausible = own.length - irrelevant;
+  // Each count is recorded against the excluded rows of the stored results table it counts.
+  const counted = (value: number, members: typeof own): string => traceMarketNumber(String(value), `M03.capture.excluded.${platform}`, 'computed',
+    members.map(row => storedInput('capture-table', snapshotSha256, `/groups/W12_topProducts/rows/${row.rowIndex ?? ''}`, row.title ?? row.reason)), 'count(excluded rows)', 'count');
   const parts = [
-    ...(irrelevant ? [profile === CAPTURE_ROW_PROFILE ? `${irrelevant} dòng có dấu hiệu nằm ngoài nhóm sản phẩm đang xét` : `${irrelevant} dòng không phải sản phẩm chính (phụ kiện, linh kiện hoặc sản phẩm khác)`] : []),
-    ...(implausible ? [`${implausible} dòng có doanh thu hoặc đơn vị bán bất thường`] : []),
+    ...(irrelevant ? [profile === CAPTURE_ROW_PROFILE ? `${counted(irrelevant, notMain)} dòng có dấu hiệu nằm ngoài nhóm sản phẩm đang xét` : `${counted(irrelevant, notMain)} dòng không phải sản phẩm chính (phụ kiện, linh kiện hoặc sản phẩm khác)`] : []),
+    ...(implausible ? [`${counted(implausible, own.filter(row => row.reason !== 'NOT_MAIN_PRODUCT'))} dòng có doanh thu hoặc đơn vị bán bất thường`] : []),
   ];
   return parts.length ? `Đã loại ${parts.join(' và ')} khỏi mẫu tính toán. Số liệu của toàn bộ kết quả tìm kiếm trên trang nguồn được giữ riêng, chưa áp dụng bộ lọc này.` : '';
 }

@@ -3,7 +3,8 @@ import { escapeHtml as escape, providerProvenanceLabel, readerSafe, storedLitera
 import { containsForbiddenProviderName } from '../citation-registry.js';
 import type { AutomationMetricMethodSnapshot, CaptureMetricMethodDetails, MetricMethodSourceFile } from './metric-method-bridge.js';
 import type { StartSnapshot } from './model.js';
-import type { MarketTraceInput } from './market-trace-map.js';
+import { traceMarketNumber, type MarketTraceInput } from './market-trace-map.js';
+import { capturedAtInput, rowInputs, scopePeriodInputs, storedInput } from './market-trace-inputs.js';
 
 type Input = Pick<AutomationReportInput, 'start' | 'captures' | 'metricMethods' | 'metricClassified'>;
 
@@ -80,24 +81,34 @@ const isoDay = (value: string): string => {
   return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
 };
 const vietnamDay = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric' });
-const acquiredDay = (value: string | null): string => {
+/** Vietnam calendar day of a stored timestamp, dd/mm/yyyy. */
+export const marketVietnamDay = (value: string): string => vietnamDay.format(Date.parse(value));
+const acquiredDay = (value: string | null, blockId = '', identity = ''): string => {
   const time = value === null ? Number.NaN : Date.parse(value);
-  return Number.isNaN(time) ? 'chưa xác nhận ngày lấy' : `lấy ngày ${vietnamDay.format(time)}`;
+  return Number.isNaN(time) ? 'chưa xác nhận ngày lấy'
+    : `lấy ngày ${traceMarketNumber(vietnamDay.format(time), blockId, 'raw', [capturedAtInput(identity, value!)], 'capture time, Vietnam day dd/mm/yyyy', 'vn-day')}`;
 };
 
 /** Reader lines of a results-page capture: one per platform, read separately (never summed). */
 function capturePlatformScope(capture: CaptureMetricMethodDetails): string {
   const results = new Map(capture.platforms.map(entry => [entry.platform, entry.result] as const));
+  const id = capture.snapshotSha256;
+  // Excluded and unattributed rows point at their row of the stored results table.
+  const tableRows = (rows: readonly { readonly rowIndex: number; readonly title: string }[]) =>
+    rows.map(row => storedInput('capture-table', id, `/groups/W12_topProducts/rows/${row.rowIndex}`, row.title));
   const lines = capture.capture.platforms.map(platform => {
-    const result = results.get(platform);
-    const removed = capture.rowPolicyVersion === 'automation-metric-capture-v3' ? (capture.excludedRows ?? []).filter(row => row.platform === platform).length : 0;
-    const removedNote = removed ? `; đã loại ${removed} dòng trước khi tính` : '';
-    return result && result.input.records.length
-      ? `<li>${PLATFORM_LABELS[platform]}: ${escape(acquiredDay(result.input.scope.acquiredAt))}; ${result.input.records.length} dòng sản phẩm; kỳ ${escape(isoDay(result.input.scope.start))} đến ${escape(isoDay(result.input.scope.end))}${removedNote}.</li>`
-      : `<li>${PLATFORM_LABELS[platform]}: ${removed ? `không còn dòng phù hợp sau khi lọc${removedNote}` : 'chưa có dòng nào gán được cho sàn này'}.</li>`;
+    const result = results.get(platform), block = `M02.capture.${platform}`;
+    const excluded = capture.rowPolicyVersion === 'automation-metric-capture-v3' ? (capture.excludedRows ?? []).filter(row => row.platform === platform) : [];
+    const removed = excluded.length;
+    const removedNote = removed ? `; đã loại ${traceMarketNumber(String(removed), `${block}.removed`, 'computed', tableRows(excluded), 'count(excluded rows)', 'count')} dòng trước khi tính` : '';
+    if (!(result && result.input.records.length)) return `<li>${PLATFORM_LABELS[platform]}: ${removed ? `không còn dòng phù hợp sau khi lọc${removedNote}` : 'chưa có dòng nào gán được cho sàn này'}.</li>`;
+    const { scope, records } = result.input;
+    const [start, end] = scopePeriodInputs(id, scope);
+    const day = (input: MarketTraceInput, value: string): string => traceMarketNumber(isoDay(value), `${block}.period`, 'raw', [input], 'stored day dd/mm/yyyy', 'vi-date');
+    return `<li>${PLATFORM_LABELS[platform]}: ${escape(acquiredDay(scope.acquiredAt, `${block}.acquired`, id))}; ${traceMarketNumber(String(records.length), `${block}.rows`, 'computed', rowInputs(records), 'count(sample rows)', 'count')} dòng sản phẩm; kỳ ${escape(day(start!, scope.start))} đến ${escape(day(end!, scope.end))}${removedNote}.</li>`;
   });
   const unattributed = capture.unattributedRows.length
-    ? `<p>${capture.unattributedRows.length} dòng không ghi rõ sàn nên không dùng trong số liệu; các dòng này được giữ trong hồ sơ đối chiếu.</p>` : '';
+    ? `<p>${traceMarketNumber(String(capture.unattributedRows.length), 'M02.capture.unattributed', 'computed', tableRows(capture.unattributedRows), 'count(rows without a platform)', 'count')} dòng không ghi rõ sàn nên không dùng trong số liệu; các dòng này được giữ trong hồ sơ đối chiếu.</p>` : '';
   return `<ul>${lines.join('')}</ul>${unattributed}`;
 }
 

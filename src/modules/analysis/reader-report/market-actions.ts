@@ -71,6 +71,9 @@ export function dayPlus(isoDay: string, days: number): string {
   return `${day}/${month}/${year}`;
 }
 
+/** Day offsets the plan's deadlines count from its start day (quick wins 3, options 7 and 14). */
+export const ACTION_DEADLINE_DAYS = [3, 7, 14] as const;
+
 /** Pick a retained calendar day that can support every deadline, without guessing today's date. */
 export function actionStartDay(...candidates: readonly (string | null | undefined)[]): string | null {
   for (const candidate of candidates) {

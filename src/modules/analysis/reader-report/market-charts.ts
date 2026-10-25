@@ -96,6 +96,30 @@ export function marketShares(rows: readonly MarketChartRow[]): MarketShare[] {
   });
 }
 
+/**
+ * The rows behind one share of `marketShares`: `part` is the platform's leading `k` products (or the rows of its
+ * leading `k` shops), `total` every usable row of the platform. Same order and ties as `marketShares`.
+ */
+export function marketShareMembers<R extends MarketChartRow>(rows: readonly R[], platform: MarketChartPlatform, by: 'products' | 'shops', k: number): { part: R[]; total: R[] } {
+  const total = marketChartRows(rows).filter(row => row.platform === platform);
+  if (by === 'products') return { part: [...total].sort((a, b) => b.rev! - a.rev!).slice(0, k), total };
+  const byShop = new Map<string, R[]>();
+  for (const row of total) byShop.set(row.shop, [...(byShop.get(row.shop) ?? []), row]);
+  const sum = (members: readonly R[]): number => members.reduce((s, row) => s + row.rev!, 0);
+  return { part: [...byShop.values()].sort((a, b) => sum(b) - sum(a)).slice(0, k).flat(), total };
+}
+
+/** Category label of a row on the product-ranking chart (Hình 7.1), as `renderMarketCharts` draws it. */
+export function marketRankingRowLabel(row: MarketChartRow & { readonly platform: MarketChartPlatform }, { currentReader = false, titleLabels = false, rowNumber = (value: MarketChartRow) => value.i + 1 }: {
+  currentReader?: boolean; titleLabels?: boolean; rowNumber?: (row: MarketChartRow) => number } = {}): string {
+  return currentReader && row.ref
+    ? (row.title ? `${rankingAlias(row.title)} · ${LABEL[row.platform]} · ${row.ref}` : `${LABEL[row.platform]} · ${row.ref}`)
+    : titleLabels && row.title ? `${row.title.length > 64 ? row.title.slice(0, 61) + '…' : row.title} · ${LABEL[row.platform]} · ${rowNumber(row)}` : `Dòng ${rowNumber(row)}`;
+}
+
+/** Platform label as the Market charts print it. */
+export const marketChartPlatformLabel = (platform: MarketChartPlatform): string => LABEL[platform];
+
 export const keepOrder = (field: string, order: readonly string[]) => (spec: any): void => {
   const walk = (node: any): void => {
     if (!node || typeof node !== 'object') return;
@@ -177,9 +201,7 @@ export async function renderMarketCharts(rows: readonly MarketChartRow[], { flin
 
   // 3. Leading product rows by in-sample revenue, labelled by their source row number.
   const ranked = marketRankedRows(rows);
-  const rowLabel = (row: MarketChartRow & { readonly platform: MarketChartPlatform }): string => currentReader && row.ref
-    ? (row.title ? `${rankingAlias(row.title)} · ${LABEL[row.platform]} · ${row.ref}` : `${LABEL[row.platform]} · ${row.ref}`)
-    : titleLabels && row.title ? `${row.title.length > 64 ? row.title.slice(0, 61) + '…' : row.title} · ${LABEL[row.platform]} · ${rowNumber(row)}` : `Dòng ${rowNumber(row)}`;
+  const rowLabel = (row: MarketChartRow & { readonly platform: MarketChartPlatform }): string => marketRankingRowLabel(row, { currentReader, titleLabels, rowNumber });
   const rankedValues = ranked.map(row => ({ dong: rowLabel(row), san: LABEL[row.platform], doanh_thu: millions(row.rev!) }));
   const order = rankedValues.map(row => row.dong);
   out.push({ id: 'market.product-ranking', kind: 'product-ranking', title: 'Sản phẩm có doanh thu cao trong mẫu', unit: 'triệu đồng, ước tính trong mẫu',

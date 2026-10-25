@@ -2,6 +2,8 @@ import { lint as lintReaderReport } from '../reader-report/lint.js';
 import { lintVisibleReportText, type VisibleTextLintResult } from '../report-visible-text-lint.js';
 import { auditMarketReportHtml, readerVisibleTextLint, type MarketBusinessGateResult, type PartialRowTotal } from './market-business-gate.js';
 import { auditMarket14 } from './market-14-rules.js';
+import { checkMarketNumberTrace, marketNumberTraceRows, type MarketNumberTraceGateOptions, type MarketNumberTraceGateResult } from './market-number-trace.js';
+import type { MarketNumberTrace } from './market-trace-map.js';
 
 /**
  * One check of a Market report. The caller names its situation; this module owns
@@ -17,10 +19,15 @@ import { auditMarket14 } from './market-14-rules.js';
  *     reader-report-build-v1.2:      business gate (plain, U13 inside), then the fourteen rules.
  *   The Reader lint (RR/lint.ts, F0–F8/W1–W6, structure) and the Narrator checks stay in
  *   publishReaderReport; for v1.2 it reuses the raw inline view in `visibleText`.
+ * A draft built with a number trace map (`numberTrace`, raw-response series) ends with the
+ * number-trace gate (market-number-trace.ts, N01/N02; owner plan F201, 25/10/2026).
  */
+/** The draft's trace map and, when the check can re-read stored sources, their resolver. */
+export interface MarketNumberTraceCheck extends MarketNumberTraceGateOptions { readonly trace: MarketNumberTrace }
+
 export type MarketCheckContext =
-  | { readonly kind: 'DRAFT_PRESENTATION'; readonly publicReviewSource?: boolean; readonly partialTotals?: readonly PartialRowTotal[]; readonly requireFlint?: boolean }
-  | { readonly kind: 'DRAFT_PLAIN'; readonly publicReviewSource?: boolean }
+  | { readonly kind: 'DRAFT_PRESENTATION'; readonly publicReviewSource?: boolean; readonly partialTotals?: readonly PartialRowTotal[]; readonly requireFlint?: boolean; readonly numberTrace?: MarketNumberTraceCheck }
+  | { readonly kind: 'DRAFT_PLAIN'; readonly publicReviewSource?: boolean; readonly numberTrace?: MarketNumberTraceCheck }
   | { readonly kind: 'STORED'; readonly presentation: boolean; readonly publicReviewSource?: boolean; readonly partialTotals?: readonly PartialRowTotal[] }
   | { readonly kind: 'READER'; readonly contractVersion: string; readonly publicReviewSource?: boolean; readonly requireFlint?: boolean };
 
@@ -30,13 +37,37 @@ const READER_FULL_CHECK: ReadonlySet<string> = new Set(['reader-report-build-v1.
 export type MarketCheckRow = { readonly rule: string; readonly ok: boolean; readonly detail: string };
 /** The first failing step: its ordered failed rule ids and the message `assertMarketReport` throws. */
 export type MarketCheckFailure = { readonly failed: readonly string[]; readonly message: string };
-/** `visibleText`: the U13 rows the check ran (READER v1.2), for the Reader lint to reuse. */
-export interface MarketCheckOutcome { readonly results: readonly MarketCheckRow[]; readonly failure: MarketCheckFailure | null; readonly visibleText?: readonly VisibleTextLintResult[] }
+/**
+ * `visibleText`: the U13 rows the check ran (READER v1.2), for the Reader lint to reuse.
+ * `numberTrace`: the number-trace gate result when the gate ran; it is saved with the run.
+ */
+export interface MarketCheckOutcome {
+  readonly results: readonly MarketCheckRow[];
+  readonly failure: MarketCheckFailure | null;
+  readonly visibleText?: readonly VisibleTextLintResult[];
+  readonly numberTrace?: MarketNumberTraceGateResult;
+}
+
+/** A blocked draft: the stop code message plus the gate result, so the run can keep the list. */
+export class MarketNumberTraceBlockedError extends TypeError {
+  constructor(message: string, readonly numberTrace: MarketNumberTraceGateResult) {
+    super(message);
+    this.name = 'MarketNumberTraceBlockedError';
+  }
+}
 
 type Step = () => { readonly rows: readonly MarketCheckRow[]; readonly failed: readonly string[]; readonly message: string };
 
-function steps(html: string, context: MarketCheckContext, visibleText: readonly VisibleTextLintResult[]): Step[] {
+function steps(html: string, context: MarketCheckContext, visibleText: readonly VisibleTextLintResult[], traced: (result: MarketNumberTraceGateResult) => void): Step[] {
   const publicReviewSource = Boolean(context.publicReviewSource);
+  const numberTrace = (check: MarketNumberTraceCheck): Step => () => {
+    const result = checkMarketNumberTrace(html, check.trace, check);
+    traced(result);
+    const rows = marketNumberTraceRows(result);
+    const failed = rows.filter(row => !row.ok).map(row => row.rule);
+    return { rows, failed, message: `MARKET_NUMBER_TRACE_FAILED:${failed.join(',')}` };
+  };
+  const traceStep = (context.kind === 'DRAFT_PRESENTATION' || context.kind === 'DRAFT_PLAIN') && context.numberTrace ? [numberTrace(context.numberTrace)] : [];
   const names: Step = () => {
     const rows = lintReaderReport(html, { reportKind: 'MARKET', publicReviewSource: true }).filter(r => r.rule.startsWith('F1 ') || r.rule.startsWith('W6 '));
     return { rows, failed: rows.filter(r => !r.ok).map(r => r.rule), message: 'PUBLIC_REVIEW_READER_NAME_REFUSED' };
@@ -48,7 +79,7 @@ function steps(html: string, context: MarketCheckContext, visibleText: readonly 
   if (context.kind === 'STORED') {
     return [() => gateStep(auditMarketReportHtml(html, { presentation: context.presentation, publicReviewSource, partialTotals: context.partialTotals ?? [] }))];
   }
-  if (context.kind === 'DRAFT_PLAIN') return publicReviewSource ? [names] : [];
+  if (context.kind === 'DRAFT_PLAIN') return [...(publicReviewSource ? [names] : []), ...traceStep];
   // The gate runs once; the fourteen rules read its G08 and U32 rows (neither depends on presentation or totals).
   let gate: readonly MarketBusinessGateResult[] = [];
   const fourteen = (requireFlint: boolean | undefined): Step => () => {
@@ -72,6 +103,7 @@ function steps(html: string, context: MarketCheckContext, visibleText: readonly 
     () => gateStep(gate = auditMarketReportHtml(html, { presentation: true, publicReviewSource, partialTotals: context.partialTotals ?? [] })),
     fourteen(context.requireFlint),
     ...(publicReviewSource ? [names] : []),
+    ...traceStep,
   ];
 }
 
@@ -84,23 +116,30 @@ export function checkMarketReport(html: string, context: MarketCheckContext): Ma
   const results: MarketCheckRow[] = [];
   const index = new Map<string, number>();
   const wording = context.kind === 'READER' && READER_FULL_CHECK.has(context.contractVersion) ? readerVisibleTextLint(html) : undefined;
-  const extra = wording ? { visibleText: wording.raw } : {};
-  for (const step of steps(html, context, wording?.gate ?? [])) {
+  let numberTrace: MarketNumberTraceGateResult | undefined;
+  const extra = (): Partial<MarketCheckOutcome> => ({ ...(wording ? { visibleText: wording.raw } : {}), ...(numberTrace ? { numberTrace } : {}) });
+  for (const step of steps(html, context, wording?.gate ?? [], result => { numberTrace = result; })) {
     const { rows, failed, message } = step();
     for (const row of rows) {
       const at = index.get(row.rule);
       if (at === undefined) { index.set(row.rule, results.length); results.push({ rule: row.rule, ok: row.ok, detail: row.detail }); }
       else if (!row.ok && results[at]!.ok) results[at] = { rule: row.rule, ok: false, detail: row.detail };
     }
-    if (failed.length) return { results, failure: { failed, message }, ...extra };
+    if (failed.length) return { results, failure: { failed, message }, ...extra() };
   }
-  return { results, failure: null, ...extra };
+  return { results, failure: null, ...extra() };
 }
 
-/** Throws a TypeError with today's message for the first failing step (prefix and ordered ids). */
-export function assertMarketReport(html: string, context: MarketCheckContext): void {
-  const { failure } = checkMarketReport(html, context);
+/**
+ * Throws a TypeError with today's message for the first failing step (prefix and ordered ids);
+ * a number-trace block throws `MarketNumberTraceBlockedError`, which carries the gate result.
+ */
+export function assertMarketReport(html: string, context: MarketCheckContext): MarketCheckOutcome {
+  const outcome = checkMarketReport(html, context);
+  const { failure } = outcome;
+  if (failure && outcome.numberTrace && failure.message.startsWith('MARKET_NUMBER_TRACE_FAILED:')) throw new MarketNumberTraceBlockedError(failure.message, outcome.numberTrace);
   if (failure) throw new TypeError(failure.message);
+  return outcome;
 }
 
 /** A page fragment passes U13 (the visible-text lint) on its own. */

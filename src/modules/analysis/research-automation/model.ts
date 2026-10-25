@@ -604,6 +604,9 @@ export interface CaptureRecord {
   readonly truncated: boolean;
 }
 
+/** Step message code when the Market number-trace gate blocks the draft (market-number-trace.ts). */
+export const MARKET_NUMBER_TRACE_BLOCKED = 'MARKET_NUMBER_TRACE_BLOCKED';
+
 /** Step message and limitation code when the sales-data source stopped for credit. */
 export const PROVIDER_CREDIT_EXHAUSTED = 'PROVIDER_CREDIT_EXHAUSTED';
 
@@ -624,6 +627,7 @@ export const MESSAGES: Readonly<Record<string, string>> = {
   SKIPPED_AFTER_STOP: 'Not run because an earlier step stopped the run.',
   NO_APPROVED_PRODUCT_REFS: 'No product was approved for collection, so no product period detail was requested or collected.',
   REPORT_RENDER_FAILED: 'Draft rendering failed; collected data and raw captures are preserved.',
+  MARKET_NUMBER_TRACE_BLOCKED: 'Báo cáo bị chặn: có con số không truy được về số liệu đã lưu, hoặc tính lại không ra đúng số in. Danh sách số, phần và ngữ cảnh được lưu cùng lần chạy.',
   INTERRUPTED_DURING_PROVIDER_OPERATION: 'A paid provider operation was interrupted. It was not retried automatically; captures returned before interruption are preserved and an in-flight response may be unavailable.',
   USAGE_UNKNOWN: 'At least one provider operation ended without a settled usage receipt; its cost is unknown, not zero.',
   PDF_RENDERER_NOT_CONFIGURED: 'PDF renderer is not configured on this operator.',

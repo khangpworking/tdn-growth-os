@@ -259,8 +259,19 @@ function chartPoints(svg: string): Chart {
   return { points: [...byKey.values()], series, share, ...(axis ? { axis } : {}) };
 }
 
+/**
+ * Number trace of a bar chart reading: the caller records each printed bar value, bar count and bar label against
+ * the chart's stored rows and returns the text to print (market-number-trace.ts). Without it the text is unchanged.
+ */
+export interface MarketChartReadingTrace {
+  /** `text` is the printed amount: the bar's value and unit. */
+  value(block: string, point: { readonly label: string; readonly group: string }, text: string): string;
+  count(block: string, points: readonly { readonly label: string; readonly group: string }[]): string;
+  label(block: string, point: { readonly label: string; readonly group: string }): string;
+}
+
 /** Figures: capture counts, or low/high (bars, per platform) and first→last direction (series) read from the drawn points. */
-export function figureInterpretation(block: string, searchPoints?: readonly SearchPoint[]): string {
+export function figureInterpretation(block: string, searchPoints?: readonly SearchPoint[], chartTrace?: MarketChartReadingTrace): string {
   const caption = block.match(/<figcaption\b[^>]*>([\s\S]*?)<\/figcaption>/iu)?.[1];
   if (caption !== undefined) {
     const n = /n = (\d+) bản ghi/u.exec(text(block))?.[1];
@@ -308,7 +319,12 @@ export function figureInterpretation(block: string, searchPoints?: readonly Sear
     return span + extremes + gaps;
   }
   // Bar values carry the unit of the chart's measure ("5.621,7 triệu đồng").
-  const amount = (point: Point): string => `${point.shown}${point.unit ? ` ${point.unit}` : ''}`;
+  const amount = (point: Point): string => {
+    const text = `${point.shown}${point.unit ? ` ${point.unit}` : ''}`;
+    return chartTrace ? chartTrace.value(block, point, text) : text;
+  };
+  const name = (point: Point): string => chartTrace ? chartTrace.label(block, point) : point.label;
+  const bars = (members: readonly Point[]): string => chartTrace ? chartTrace.count(block, members) : String(members.length);
   if (points.every(point => SALES_PLATFORMS.test(point.label)))
     return `${points.map((point, i) => `${i ? 'thanh' : 'Thanh'} ${point.label} ở mức ${amount(point)}`).join('; ')} theo trục của hình. Mỗi sàn đọc riêng.`;
   const groups = new Map<string, Point[]>();
@@ -316,8 +332,8 @@ export function figureInterpretation(block: string, searchPoints?: readonly Sear
   const parts = [...groups].map(([group, members]) => {
     const low = members.reduce((a, b) => b.value < a.value ? b : a), high = members.reduce((a, b) => b.value > a.value ? b : a);
     const value = (point: Point): string => share ? '' : ` (${amount(point)})`;
-    const body = members.length === 1 ? `một thanh ${high.label}${share ? '' : ` ở mức ${amount(high)}`}`
-      : low.value === high.value ? `${members.length} thanh cùng mức${share ? '' : ` ${amount(high)}`}` : `${members.length} thanh, thanh dài là ${high.label}${value(high)}, thanh ngắn là ${low.label}${value(low)}`;
+    const body = members.length === 1 ? `một thanh ${name(high)}${share ? '' : ` ở mức ${amount(high)}`}`
+      : low.value === high.value ? `${bars(members)} thanh cùng mức${share ? '' : ` ${amount(high)}`}` : `${bars(members)} thanh, thanh dài là ${name(high)}${value(high)}, thanh ngắn là ${name(low)}${value(low)}`;
     return group ? `${group}: ${body}.` : `Hình có ${body}.`;
   });
   return `${parts.join(' ')} Giá trị đọc theo trục của hình; ${groups.size > 1 ? 'mỗi sàn đọc riêng' : 'mỗi thanh đọc riêng'}.`;
@@ -338,7 +354,7 @@ function exhibits(section: string): Exhibit[] {
 }
 
 /** Adds a standalone note and any useful cell/point-based reading right under the exhibit. */
-export function annotateExhibits(section: string, searchPoints?: readonly SearchPoint[]): string {
+export function annotateExhibits(section: string, searchPoints?: readonly SearchPoint[], chartTrace?: MarketChartReadingTrace): string {
   let out = '', from = 0;
   for (const exhibit of exhibits(section)) {
     const block = section.slice(exhibit.start, exhibit.end);
@@ -348,7 +364,7 @@ export function annotateExhibits(section: string, searchPoints?: readonly Search
     const context = (!SAMPLE_CAPTION.test(caption) && CONTEXT.test(caption)) || /data-chart-id="M0[56]\./u.test(block);
     const note = hasNote ? '' : `<p class="lim"><b>Chú thích:</b> ${esc(context ? CONTEXT_NOTE : SAMPLE_NOTE)}</p>`;
     const interp = exhibit.kind === 'table' ? tableInterpretation(block)
-      : figureInterpretation(block, /^<figure\b[^>]*\sdata-search-interest="1"|<span class="exn"[^>]*>Hình 5\.2<\/span>/u.test(block) ? searchPoints : undefined);
+      : figureInterpretation(block, /^<figure\b[^>]*\sdata-search-interest="1"|<span class="exn"[^>]*>Hình 5\.2<\/span>/u.test(block) ? searchPoints : undefined, chartTrace);
     const marks = /data-market-prices=/u.test(block) ? [...new Set(block.match(/<sup class="cite"[\s\S]*?<\/sup>/gu) ?? [])].join('') : '';
     out += section.slice(from, exhibit.end) + after + note + (interp ? `<p class="interp"><b>Diễn giải:</b> ${esc(interp)}${marks}</p>` : '');
     from = exhibit.end + after.length;
@@ -384,7 +400,7 @@ function hasReadablePrice(html: string): boolean {
 }
 
 /** Reader copy of a market14 page (before platform icons and label sanitising). Sections are never nested. */
-export function deliverMarketReader(html: string, searchPoints?: readonly SearchPoint[], captureCopy = false, publicReviewSource = false): string {
+export function deliverMarketReader(html: string, searchPoints?: readonly SearchPoint[], captureCopy = false, publicReviewSource = false, chartTrace?: MarketChartReadingTrace): string {
   const open = html.indexOf('<div id="sections">');
   if (open < 0) return html;
   // Quoted excerpts carry their own <footer> inside a section: the page footer is the first one after the last section.
@@ -395,7 +411,7 @@ export function deliverMarketReader(html: string, searchPoints?: readonly Search
   body = body.replace(PHRASES[0]![0], PHRASES[0]![1]);
   body = body.replace(/<a\b[^>]*href="#bounded-method-evidence"[^>]*>([\s\S]*?)<\/a>/gu, '$1');
   body = body.replace(/<section class="sheet" id="(M\d\d)">([\s\S]*?)<\/section>/gu, (_all, id: string, inner: string) => {
-    const annotated = DATA_SECTIONS.test(id) ? annotateExhibits(inner, searchPoints) : inner;
+    const annotated = DATA_SECTIONS.test(id) ? annotateExhibits(inner, searchPoints, chartTrace) : inner;
     // Proposal tables only count as data when they cite in-sample figures.
     let proposalFigures = false;
     const evidence = id === 'M12' ? annotated.replace(/<div class="table-wrap market14-proposals(?: has-figures)?">[\s\S]*?<\/table><\/div>/gu, block => {

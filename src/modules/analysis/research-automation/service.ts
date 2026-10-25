@@ -32,7 +32,7 @@ import type { PrivateReviewReportView } from '../../../../contracts/analysis/pri
 import { buildResearchAutomationReport, marketPartialRowTotals, type MarketCoverInput } from './reports.js';
 import { buildMarketCover, marketCoverAlt, verifyMarketCoverRecord, type MarketCover, type MarketCoverAi } from './market-cover.js';
 import { MAX_COVER_JPEG_BYTES } from './cover-image-codec.js';
-import { assertMarketReport } from './market-report-check.js';
+import { assertMarketReport, MarketNumberTraceBlockedError } from './market-report-check.js';
 import { prepareInsightReaderBuild } from '../reader-report/insight-build-v1.js';
 import { ReaderReportInputError } from '../reader-report/build.js';
 import readerInputSchema from '../../../../contracts/analysis/reader-report-input.schema.json' with { type: 'json' };
@@ -256,6 +256,7 @@ import {
   type StepId,
   type StepState,
   message,
+  MARKET_NUMBER_TRACE_BLOCKED,
   marketSourceWindowsMissingCode,
   marketSourceWindowsMissingMessage,
   ResearchAutomationConflictError,
@@ -4300,10 +4301,13 @@ export class ResearchAutomationService {
       }
     } catch (error) {
       logReportFailure(row.runId, 'RENDER', error);
+      // A blocked number trace keeps its machine-readable result (untraced numbers with block and context) as a stored artifact of the run.
+      if (error instanceof MarketNumberTraceBlockedError) await this.#keepNumberTraceResult(row.runId, error);
       if (attempt) { await this.#settleAttempt(attempt.attemptId, controller.signal.aborted ? 'CANCELLED' : 'FAILED'); return true; }
       const current = this.#current(row.runId);
       if (!current || TERMINAL_STATUSES.has(current.status)) return true;
-      const failureCode = error instanceof MarketSourceWindowsMissingError ? marketSourceWindowsMissingCode(error.products) : 'REPORT_RENDER_FAILED';
+      const failureCode = error instanceof MarketSourceWindowsMissingError ? marketSourceWindowsMissingCode(error.products)
+        : error instanceof MarketNumberTraceBlockedError ? MARKET_NUMBER_TRACE_BLOCKED : 'REPORT_RENDER_FAILED';
       await this.#settleSourceFailure(row.runId, 'REPORTS', controller.signal.aborted ? 'CANCELLED_DURING_REPORT_RENDERING' : failureCode, controller.signal.aborted ? 'CANCELLED' : 'FAILED');
       return true;
     }
@@ -5916,6 +5920,17 @@ export class ResearchAutomationService {
     this.#db.prepare(`UPDATE research_automation_autorun SET phase_state='QUEUED',updated_at=? WHERE run_id=? AND phase='PRESENT' AND phase_state='RUNNING'`).run(at, runId);
   }
 
+  /** Stores the number-trace gate result of a blocked draft; the operator log names it with the run. A failed store is logged, never thrown. */
+  async #keepNumberTraceResult(runId: string, error: MarketNumberTraceBlockedError): Promise<void> {
+    try {
+      const at = this.#now().toISOString(), artifact = await this.#putJson(error.numberTrace, at);
+      this.#registerManifest(artifact, 'application/json', at);
+      console.error(JSON.stringify({ event: 'research_automation_number_trace_blocked', runId, code: MARKET_NUMBER_TRACE_BLOCKED, resultSha256: artifact.sha256,
+        coveredUntraced: error.numberTrace.coveredUntraced, mismatches: error.numberTrace.mismatches.length }));
+    } catch (storeError) {
+      logReportFailure(runId, 'RENDER', storeError);
+    }
+  }
   async #putJson(value: unknown, _at: string): Promise<StoredArtifact> {
     const bytes = Buffer.from(canonicalJson(value), 'utf8');
     if (bytes.byteLength > MAX_JSON_ARTIFACT_BYTES) throw new ResearchAutomationValidationError('Research automation input exceeds its bound.');

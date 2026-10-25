@@ -14,7 +14,7 @@ import { privateReviewReportView } from './private-review-contracts.js';
 import type { PrivateReviewReportView } from '../../../../contracts/analysis/private-review-report-view.generated.js';
 import type { AutomationMarketPresentationMethod } from '../../../../contracts/analysis/automation-market-presentation-method.generated.js';
 import { verifyAutomationMarketPresentation } from './market-presentation-method.js';
-import { marketChartSource, renderAutomationMarketFindings, renderAutomationMarketUnitPrices, renderCaptureSampleSentences, type MarketHeadline, type MarketTitleUnitRow } from './market-presentation-report.js';
+import { marketChartRowInputs, marketChartRowSource, marketChartSource, renderAutomationMarketFindings, renderAutomationMarketUnitPrices, renderCaptureSampleSentences, type MarketHeadline, type MarketTitleUnitRow } from './market-presentation-report.js';
 import { admitWebResults, checkSourceEvidence } from './source-evidence.js';
 import { collectionWebRows, webReaderDay, webReaderRetrieved, expandedSearchReaderLabel, EXPANDED_SEARCH_COLUMN, EXPANDED_SEARCH_LABEL, EXPANDED_SEARCH_NOTE } from './expanded-search-lane.js';
 import { CURRENT_MARKET_READER_TERMS, MARKET_READER_TERMS } from './market-reader-glossary.js';
@@ -54,7 +54,10 @@ import type { AutomationInsightCodingSnapshot } from '../../../../contracts/anal
 import type { LiteralFamily, LiteralPendingReason } from './literal-review-coding.js';
 import { marketInventorySection } from './market-inventory-report.js';
 import { marketRawScaleSection, marketRawScopeSection, type MarketRawReportInput } from './market-raw-report.js';
-import { MarketNumberTraceCollector } from './market-trace-map.js';
+import { MarketNumberTraceCollector, marketNumberTraceActive, traceMarketNumber, withMarketNumberTrace, type MarketTraceInput } from './market-trace-map.js';
+import { resolveMarketRawSource } from './market-raw-series.js';
+import { scopePeriodInputs, storedInput } from './market-trace-inputs.js';
+import { marketMainQuarter, marketNumberTokens } from './market-number-trace.js';
 import type { ResearchAutomationRun } from '../../../../contracts/api/research-automation-api.generated.js';
 import { REPORT_KIT_CSS as REPORT_KIT_BASE_CSS } from '../report-kit-theme.js';
 import { reportKitFontCss } from '../report-kit-fonts.js';
@@ -74,11 +77,11 @@ import { formatReaderValue, readerProductLabel, readerShopLabel } from './reader
 import type { AutomationQualitativeDraft } from '../../../../contracts/analysis/automation-qualitative-draft-v1.generated.js';
 import { qualitativeDraftSection, qualitativeDraftSummary } from '../reader-report/qualitative-draft-report.js';
 import { platIcons } from '../reader-report/layout.js';
-import { ACTION_LEAD, OPPORTUNITY_HEADINGS, OPPORTUNITY_UNIT_READING,OPTION_HEADINGS, QUICK_WIN_HEADING, QUICK_WIN_HEADINGS, actionStartDay, marketActionPlan, missingBandText, NO_DERIVED_PRICE, opportunityExplanation, opportunityHeadings, opportunityRows, platformPriceBands, type ActionRow, type MarketActionPlan } from '../reader-report/market-actions.js';
+import { ACTION_DEADLINE_DAYS, ACTION_LEAD, dayPlus, OPPORTUNITY_HEADINGS, OPPORTUNITY_UNIT_READING,OPTION_HEADINGS, QUICK_WIN_HEADING, QUICK_WIN_HEADINGS, actionStartDay, marketActionPlan, missingBandText, NO_DERIVED_PRICE, opportunityExplanation, opportunityHeadings, opportunityRows, platformPriceBands, type ActionRow, type MarketActionPlan } from '../reader-report/market-actions.js';
 import { NO_PRICE_COMPARISON, chooseUnitProfile, convertedLine, projectTitleUnitPrices, type UnitProfile } from '../reader-report/market-title-quantity.js';
-import { deliverMarketReader, marketReaderGuide, numberMarketExhibits } from './market-reader-delivery.js';
+import { deliverMarketReader, type MarketChartReadingTrace, marketReaderGuide, numberMarketExhibits } from './market-reader-delivery.js';
 import { plainCaptureNumbers } from '../reader-report/format.js';
-import { UNKNOWN_SHOP, marketChartRows, marketRankedRows, marketShares, marketShopsUnrecorded, thinSearchAxisLabels, type CaptureCountChart, type MarketChart } from '../reader-report/market-charts.js';
+import { TOP_GROUPS, UNKNOWN_SHOP, marketChartPlatformLabel, marketChartRows, marketRankingRowLabel, marketShareMembers, type MarketChartRow, marketRankedRows, marketShares, marketShopsUnrecorded, thinSearchAxisLabels, type CaptureCountChart, type MarketChart } from '../reader-report/market-charts.js';
 import type { RenderedChart } from '../reader-report/flint.js';
 import { comtradeChartCount, worldBankChartCount, type MacroChart } from '../reader-report/macro-charts.js';
 import { pdfDiscoverySourceRows, pdfExcerptBlockHtml, pdfExcerptReaderCitation, PDF_EXCERPT_NOTE, PDF_EXCERPT_SECTION, PDF_EXCERPT_SRC } from './pdf-excerpt.js';
@@ -90,7 +93,7 @@ import { formatWorldBankValue, worldBankReaderNote, WORLD_BANK_READER_SRC, world
 import { E13_ATTRIBUTION } from '../source-appendix-projection.js';
 import { withKalodataReplayNotice } from './kalodata-replay.js';
 import { exactTestReviewSample, exactTestReviewSection, exactTestReviewSourceRows, TEST_REVIEW_SOURCE_TYPE } from './test-review-sample.js';
-import { SEARCH_INTEREST_EMPTY, searchInterestIntervalText, searchInterestIsDaily, searchInterestReadingPoints, searchInterestRenderable,SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_LIMIT, SEARCH_INTEREST_NOTE, SEARCH_INTEREST_READER_TITLE, SEARCH_INTEREST_SOURCE_LABEL, searchInterestSourceText, SEARCH_INTEREST_UNIT } from './search-interest.js';
+import { SEARCH_INTEREST_EMPTY, searchInterestIntervalText, searchInterestIsDaily, searchInterestPeriodText, searchInterestReadingPoints, searchInterestRenderable,SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_LIMIT, SEARCH_INTEREST_NOTE, SEARCH_INTEREST_READER_TITLE, SEARCH_INTEREST_SOURCE_LABEL, searchInterestSourceText, SEARCH_INTEREST_UNIT } from './search-interest.js';
 import { searchGeoAverageText, searchGeoNoteText, searchGeoRenderable, searchGeoText, summarizeSearchGeo, SEARCH_GEO_DONT, SEARCH_GEO_HEADERS, SEARCH_GEO_TABLE_NO, SEARCH_GEO_TABLE_TITLE } from './search-geo.js';
 
 /**
@@ -301,20 +304,22 @@ function marketSamplePeriod(input: AutomationReportInput): { start: string; end:
   return scopes.flatMap(scope => scope && validDay(scope.start) && validDay(scope.end) && scope.start <= scope.end
     ? [{ start: scope.start, end: scope.end }] : [])[0] ?? null;
 }
+/** Trace inputs of the sales-sample period: the capture snapshot's scope, or the metric method input's scope. */
+function marketSamplePeriodInputs(input: AutomationReportInput, period: { start: string; end: string }): MarketTraceInput[] {
+  const capture = input.metricMethods?.capture;
+  if (capture) return scopePeriodInputs(capture.snapshotSha256, period);
+  const identity = input.metricMethods?.result.inputSha256 ?? 'automation-market-presentation-method';
+  return [storedInput('stored-source', identity, '/input/scope/start', period.start, 'start'), storedInput('stored-source', identity, '/input/scope/end', period.end, 'end')];
+}
 /** The sales-sample quarter holding most of its inclusive days, the later one on a tie. A requested period is not evidence of data. */
 export function marketReportQuarter(input: AutomationReportInput): { quarter: string; range: string } {
   const period = marketSamplePeriod(input);
   if (!period) return { quarter: 'Chưa xác định quý dữ liệu', range: 'Chưa có kỳ số liệu bán hàng hợp lệ' };
-  const days = new Map<string, { quarter: number; year: number; count: number }>();
-  for (let day = Date.parse(`${period.start}T00:00:00Z`), end = Date.parse(`${period.end}T00:00:00Z`); day <= end; day += 86_400_000) {
-    const date = new Date(day);
-    const quarter = Math.floor(date.getUTCMonth() / 3) + 1, year = date.getUTCFullYear();
-    const key = `${year}-${quarter}`;
-    days.set(key, { quarter, year, count: (days.get(key)?.count ?? 0) + 1 });
-  }
-  const main = [...days.values()].reduce((best, item) => item.count >= best.count ? item : best,
-    { quarter: Math.floor((Number(period.end.slice(5, 7)) - 1) / 3) + 1, year: Number(period.end.slice(0, 4)), count: 0 });
-  return { quarter: `Quý ${main.quarter} năm ${main.year}`, range: `Dữ liệu từ ${escape(readerDay(period.start))} đến ${escape(readerDay(period.end))}` };
+  const main = marketMainQuarter(period.start, period.end), inputs = marketSamplePeriodInputs(input, period);
+  const record = (token: string, formula: string, formulaId: 'quarter' | 'year'): string => traceMarketNumber(token, 'page.cover.quarter', 'computed', inputs, formula, formulaId);
+  const day = (value: string, at: number): string => traceMarketNumber(readerDay(value), 'page.cover.period', 'raw', [inputs[at]!], 'stored day dd/mm/yyyy', 'vi-date');
+  return { quarter: `Quý ${record(String(main.quarter), 'quarter holding most inclusive days of the sample period, later on a tie', 'quarter')} năm ${record(String(main.year), 'year of that quarter', 'year')}`,
+    range: `Dữ liệu từ ${escape(day(period.start, 0))} đến ${escape(day(period.end, 1))}` };
 }
 interface CatalogSection { sectionId: string; title: string; methodId: string; methodVersion: string; requiredInputs: string[] }
 export interface MethodOutputRef { methodOutputId: string; locatedRecordCount: number; unresolvedPointers: readonly string[]; blockers: readonly string[] }
@@ -702,13 +707,90 @@ function marketUnitRows(input: AutomationReportInput, presentationRows: readonly
 }
 const unitLines = (unit: MarketUnitRows): string => unit.withoutAveragePrice ? `<p>${escape(NO_DERIVED_PRICE)}</p>` : unit.profile ? unit.lines.map(line => `<p class="lim">${escape(line)}</p>`).join('') : `<p>${escape(NO_PRICE_COMPARISON)}</p>`;
 
-/** Vietnam calendar day the report run was created; the proposal deadlines count from it. */
-function marketActionStartDay(input: AutomationReportInput): string | null {
+/** One bar of a Market chart (Hình 4.1, 4.2, 7.1) with the stored rows it plots: `part` (÷ `total` for a share). */
+type MarketChartDatum = { readonly kind: MarketChart['kind']; readonly label: string; readonly group: string; readonly part: readonly MarketChartRow[]; readonly total?: readonly MarketChartRow[] };
+
+/**
+ * Number trace of the Market charts: their value labels (drawn by the chart engine before the build) and the
+ * delivery's chart readings are recorded against the rows each bar plots. Null outside a traced build.
+ */
+function marketChartTrace(input: AutomationReportInput, presentation: AutomationMarketPresentationMethod | undefined): { embed: (chart: MarketChart) => void; reading: MarketChartReadingTrace } | null {
+  if (!presentation || !marketNumberTraceActive()) return null;
+  const source = marketChartSource(presentation.input.rows, input.metricMethods), rows = source.rows;
+  const rowSource = marketChartRowSource(presentation.input.rows, presentation.binding, input.metricMethods);
+  const usable = marketChartRows(rows), platforms = (['shopee', 'tiktok'] as const).filter(P => usable.some(row => row.platform === P));
+  const datums: MarketChartDatum[] = [
+    ...platforms.map(P => ({ kind: 'platform-revenue' as const, label: marketChartPlatformLabel(P), group: '', part: usable.filter(row => row.platform === P) })),
+    ...marketShares(rows).filter(share => share.shops).flatMap(share => TOP_GROUPS.flatMap((k, j) => share.shops![j] === null ? [] : [(() => {
+      const members = marketShareMembers(rows, share.platform, 'shops', k);
+      return { kind: 'concentration' as const, label: `${k} gian hàng doanh thu cao`, group: marketChartPlatformLabel(share.platform), part: members.part, total: members.total };
+    })()])),
+    ...marketRankedRows(rows).map(row => ({ kind: 'product-ranking' as const, label: marketRankingRowLabel(row, source), group: marketChartPlatformLabel(row.platform), part: [row] })),
+  ];
+  const block = (kind: MarketChart['kind']): string => `${kind === 'product-ranking' ? 'M07' : 'M04'}.chart.${kind}`;
+  const find = (kind: MarketChart['kind'] | undefined, point: { label: string; group: string }): MarketChartDatum | undefined =>
+    datums.find(datum => datum.kind === kind && datum.label === point.label && (point.group === '' || datum.group === '' || datum.group === point.group));
+  const value = (kind: MarketChart['kind'] | undefined, point: { label: string; group: string }, token: string): string => {
+    const datum = find(kind, point);
+    const part = datum && marketChartRowInputs(datum.part, rowSource, 'part'), total = datum?.total ? marketChartRowInputs(datum.total, rowSource, 'total') : undefined;
+    if (!datum || !part || total === null) return token;
+    return traceMarketNumber(token, block(datum.kind), 'computed', [...part, ...(total ?? [])],
+      total ? '100 × sum(leading shops) ÷ sum(platform rows), at the printed precision' : 'sum(row revenue) ÷ 1e6, at the printed precision', 'chart-label');
+  };
+  const kindOf = (html: string): MarketChart['kind'] | undefined => input.marketPresentationCharts?.find(chart => html.includes(`<span class="ext">${escape(chart.title)}</span>`))?.kind;
+  const unescape = (text: string): string => text.replace(/&quot;/gu, '"').replace(/&#39;/gu, "'").replace(/&lt;/gu, '<').replace(/&gt;/gu, '>').replace(/&amp;/gu, '&');
+  return {
+    // Value labels are the text marks of the drawn bars; their aria label names the bar.
+    embed: chart => {
+      for (const group of chart.svg.matchAll(/<g class="mark-text role-mark[^"]*"[^>]*>([\s\S]*?)<\/g>/gu)) {
+        for (const [, aria = '', label = ''] of group[1]!.matchAll(/<text\b[^>]*aria-label="([^"]*)"[^>]*>([^<]*)<\/text>/gu)) {
+          const bar = /^([^;]+): (-?[\d.,]+);\s+: ([^;]+)(?:;.*?\b[Ss](?:àn|an): ([^;]+))?/u.exec(unescape(aria));
+          if (bar && marketNumberTokens(label).length) value(chart.kind, { label: bar[3]!.trim(), group: (bar[4] ?? '').trim() }, unescape(label).trim());
+        }
+      }
+    },
+    reading: {
+      value: (html, point, text) => value(kindOf(html), point, text),
+      count: (html, points) => {
+        const kind = kindOf(html), found = points.map(point => find(kind, point));
+        const inputs = found.every(datum => datum !== undefined) ? marketChartRowInputs(found.map(datum => datum!.part[0]!), rowSource) : null;
+        return inputs ? traceMarketNumber(String(points.length), block(kind!), 'computed', inputs, 'count(bars), one row per bar', 'count') : String(points.length);
+      },
+      label: (html, point) => {
+        const kind = kindOf(html), datum = find(kind, point), numbers = marketNumberTokens(point.label);
+        // A ranking label is the product title, platform and row ref: its numbers are recorded against that row.
+        const at = datum && datum.kind === 'product-ranking' ? rowSource(datum.part[0]!) : null;
+        if (at && numbers.length) for (const number of numbers) traceMarketNumber(number, block(datum!.kind), 'raw',
+          [storedInput('capture-table', at.sourceSha256, at.locator, datum!.part[0]!.title ?? ''), storedInput('capture-table', at.sourceSha256, at.locator, datum!.part[0]!.ref ?? String(datum!.part[0]!.i + 1))],
+          'number as written in the row title or row ref', 'as-stored');
+        return point.label;
+      },
+    },
+  };
+}
+
+/** Candidate start days of the proposal deadlines, in order, each with where it is stored. */
+function marketActionStartCandidates(input: AutomationReportInput): [string | null | undefined, MarketTraceInput][] {
   const created = Date.parse(input.run.createdAt);
   const vietnamDay = new Date(created + 7 * 3_600_000);
-  return actionStartDay(Number.isFinite(vietnamDay.getTime()) ? vietnamDay.toISOString().slice(0, 10) : null,
-    input.start.requestedPeriod.endDate, input.start.requestedPeriod.startDate,
-    input.marketPresentation?.input.metric?.input.scope.end);
+  const run = (pointer: string, value: string): MarketTraceInput => storedInput('run-record', input.run.runId, pointer, value, 'base');
+  const scopeEnd = input.marketPresentation?.input.metric?.input.scope.end;
+  return [
+    [Number.isFinite(vietnamDay.getTime()) ? vietnamDay.toISOString().slice(0, 10) : null, run('/createdAt', input.run.createdAt)],
+    [input.start.requestedPeriod.endDate, run('/start/requestedPeriod/endDate', input.start.requestedPeriod.endDate ?? '')],
+    [input.start.requestedPeriod.startDate, run('/start/requestedPeriod/startDate', input.start.requestedPeriod.startDate ?? '')],
+    [scopeEnd, storedInput('stored-source', 'automation-market-presentation-method', '/input/metric/input/scope/end', scopeEnd ?? '', 'base')],
+  ];
+}
+/** Vietnam calendar day the report run was created; the proposal deadlines count from it. */
+function marketActionStartDay(input: AutomationReportInput): string | null {
+  return actionStartDay(...marketActionStartCandidates(input).map(([day]) => day));
+}
+/** The start day the deadlines count from and its stored source. */
+function marketActionStart(input: AutomationReportInput): { day: string; input: MarketTraceInput } | null {
+  const day = marketActionStartDay(input);
+  const found = day === null ? undefined : marketActionStartCandidates(input).find(([candidate]) => candidate === day);
+  return found ? { day: day!, input: found[1] } : null;
 }
 
 const marketReviewsCollected = (input: AutomationReportInput): boolean =>
@@ -724,10 +806,24 @@ function marketHeadline(input: AutomationReportInput, presentation: AutomationMa
   const weeks = searchInterestRenderable(interest) && input.searchInterestChart
     ? searchInterestReadingPoints(interest).flatMap(point => point.index === null ? [] : [{ period: point.period, index: point.index }]) : [];
   const peak = weeks.reduce<(typeof weeks)[number] | undefined>((top, week) => top && top.index >= week.index ? top : week, undefined);
+  // The stored points behind the reading: the peak's period and index, and every point with a number.
+  const daily = interest ? searchInterestIsDaily(interest) : false;
+  const searchStore = `COLLECTION#${interest?.captureIndex ?? 'unknown'}`;
+  const pointAt = (period: string) => interest?.points.findIndex(point => point.index !== null && searchInterestPeriodText(point.period, daily) === period) ?? -1;
+  const peakAt = peak ? pointAt(peak.period) : -1;
+  const counted = weeks.map(week => pointAt(week.period));
+  const searchTrace = interest && peakAt >= 0 && counted.every(at => at >= 0) ? {
+    period: storedInput('stored-source', searchStore, `/points/${peakAt}/period`, interest.points[peakAt]!.period),
+    index: storedInput('stored-source', searchStore, `/points/${peakAt}/index`, interest.points[peakAt]!.index!),
+    weeks: counted.map(at => storedInput('stored-source', searchStore, `/points/${at}/index`, interest.points[at]!.index!)),
+    daily,
+  } : undefined;
   const chartRows = marketChartSource(presentation.input.rows, input.metricMethods).rows;
   const shares = drawn('platform-revenue') ? marketShares(chartRows).map(share => drawn('concentration') ? share : { ...share, shops: null }) : [];
   const ranked = drawn('product-ranking') ? marketRankedRows(chartRows) : [];
   return {
+    rows: chartRows,
+    rowSource: marketChartRowSource(presentation.input.rows, presentation.binding, input.metricMethods),
     shares,
     products: shares.flatMap(share => {
       const shown = ranked.filter(row => row.platform === share.platform).length;
@@ -736,7 +832,7 @@ function marketHeadline(input: AutomationReportInput, presentation: AutomationMa
     bands: plan.signals.flatMap(signal => signal.band && signal.band.low > 0 && signal.band.revenue > 0
       ? [{ ...signal, n: rows.filter(row => row.platform === signal.platform).length }] : []),
     unitStandard: unit.profile?.standard ?? null,
-    search: peak && peak.index > 0 ? { ...peak, weeks: weeks.length, ...(searchInterestIsDaily(interest!) ? { periodUnit: 'ngày' as const } : {}) } : null,
+    search: peak && peak.index > 0 ? { ...peak, weeks: weeks.length, ...(searchInterestIsDaily(interest!) ? { periodUnit: 'ngày' as const } : {}), ...(searchTrace ? { trace: searchTrace } : {}) } : null,
     options: plan.hasFigures,
   };
 }
@@ -765,11 +861,17 @@ function marketOpportunitySection(plan: MarketActionPlan, reviewsCollected: bool
 }
 
 /** Phần 12: three options with in-sample related revenue, then the no-cost quick wins; every row is a proposal awaiting the owner. */
-function marketActionSection(plan: MarketActionPlan, unit: MarketUnitRows, plannedDates = false): string {
+function marketActionSection(plan: MarketActionPlan, unit: MarketUnitRows, plannedDates = false, start: { day: string; input: MarketTraceInput } | null = null): string {
+  // A deadline is the start day plus one of the plan's offsets; it is recorded with the start day's source.
+  const deadline = (text: string, block: string): string => {
+    const days = start ? ACTION_DEADLINE_DAYS.find(offset => dayPlus(start.day, offset) === text) : undefined;
+    return start && days !== undefined ? traceMarketNumber(text, block, 'computed',
+      [start.input, storedInput('stored-source', 'template:market-actions', '/ACTION_DEADLINE_DAYS', days, 'offset')], 'start day + deadline offset, dd/mm/yyyy', 'date-plus-days') : text;
+  };
   const options = marketActionTable('12.1', 'Phương án đề xuất, chờ chủ duyệt', ` market14-proposals${plan.hasFigures ? ' has-figures' : ''}`, OPTION_HEADINGS,
-    plan.options.map(option => [escape(option.name), option.related.map(line => escape(line)).join('<br>'), escape(option.firstStep), escape(option.owner), escape(option.deadline)])) + unitLines(unit);
+    plan.options.map(option => [escape(option.name), option.related.map(line => escape(line)).join('<br>'), escape(option.firstStep), escape(option.owner), escape(deadline(option.deadline, 'M12.options'))])) + unitLines(unit);
   const quick = marketActionTable('12.2', 'Việc làm ngay, không tốn chi phí (đề xuất, chờ chủ duyệt)', ' market14-proposals', QUICK_WIN_HEADINGS,
-    plan.quickWins.map(win => [win.task, win.owner, win.deadline, win.output].map(cell => escape(cell))));
+    plan.quickWins.map(win => [win.task, win.owner, deadline(win.deadline, 'M12.quick'), win.output].map(cell => escape(cell))));
   return `${options}<h3>${escape(QUICK_WIN_HEADING)}</h3>${quick}<p>${escape('Phương án, người phụ trách và hạn là đề xuất của TDN, chờ chủ duyệt; chủ dự án có thể sửa. Các bước kiểm tra chưa xác nhận khả năng sinh lời hay mức tăng doanh số.')}${plannedDates ? ' Mọi hạn trong hai bảng là ngày dự kiến.' : ''}</p>`;
 }
 
@@ -874,12 +976,14 @@ export function marketPartialRowTotals(input: Pick<AutomationReportInput, 'marke
 }
 
 export function buildResearchAutomationReport(input: AutomationReportInput, kind: 'MARKET' | 'INSIGHT'): { semantic: object; html: Buffer; traceHtml?: Buffer } {
-  const report = buildResearchAutomationReportBody(input, kind);
+  // A raw-series Market draft records every number it prints; blocks deep in the build record through traceMarketNumber.
+  const numberTrace = kind === 'MARKET' && input.marketRawSeries ? new MarketNumberTraceCollector() : null;
+  const report = withMarketNumberTrace(numberTrace, () => buildResearchAutomationReportBody(input, kind, numberTrace));
   // Replay test instance only: the field is never set in production, so production bytes are unchanged.
   return input.kalodataReplayNotice ? { ...report, html: withKalodataReplayNotice(report.html) } : report;
 }
 
-function buildResearchAutomationReportBody(input: AutomationReportInput, kind: 'MARKET' | 'INSIGHT'): { semantic: object; html: Buffer; traceHtml?: Buffer } {
+function buildResearchAutomationReportBody(input: AutomationReportInput, kind: 'MARKET' | 'INSIGHT', numberTrace: MarketNumberTraceCollector | null): { semantic: object; html: Buffer; traceHtml?: Buffer } {
   if (input.qualitativeDraft && kind !== 'INSIGHT') throw new Error('Qualitative draft is an Insight-only report dependency');
   if (input.qualitativeDraft) {
     const draft = input.qualitativeDraft;
@@ -1024,7 +1128,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
       const reviewsCollected = marketReviewsCollected(input);
       const unit = marketUnitRows(input, marketPresentation.input.rows);
       const plan = marketActionPlan(unit.rows, { reviewsCollected, startDay: marketActionStartDay(input), currentReader: true, unitStandard: unit.profile?.standard ?? null, withoutAveragePrice: unit.withoutAveragePrice === true });
-      locatedViews.set(section.sectionId, () => section.sectionId === 'M11' ? marketOpportunitySection(plan, reviewsCollected, unit) : marketActionSection(plan, unit, Boolean(input.marketRawSeries)));
+      locatedViews.set(section.sectionId, () => section.sectionId === 'M11' ? marketOpportunitySection(plan, reviewsCollected, unit) : marketActionSection(plan, unit, Boolean(input.marketRawSeries), marketActionStart(input)));
       return { sectionId: section.sectionId, title: section.title, state: 'EVIDENCE_INVENTORY', rows: [], method: marketPresentation.methodVersion,
         explanation: section.sectionId === 'M11' ? 'Cơ hội đọc từ doanh thu quan sát trong mẫu, ghi riêng từng sàn; là đề xuất của TDN, chờ chủ duyệt.' : ACTION_LEAD };
     }
@@ -1276,24 +1380,35 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   const samplePeriod = marketPresentation ? marketSamplePeriod(input) : null;
   const requested = input.start.requestedPeriod;
   const sampleDays = samplePeriod ? Math.round((Date.parse(samplePeriod.end) - Date.parse(samplePeriod.start)) / 86_400_000) + 1 : 0;
+  const sampleInputs = samplePeriod ? marketSamplePeriodInputs(input, samplePeriod) : [];
+  const sampleDay = (value: string, at: number): string => traceMarketNumber(readerDay(value), 'M02.period.sample', 'raw', [sampleInputs[at]!], 'stored day dd/mm/yyyy', 'vi-date');
+  // The requested period is a field of the run record.
+  const requestedDay = (value: string | undefined, field: 'startDate' | 'endDate'): string => value
+    ? traceMarketNumber(readerDay(value), 'M02.period.requested', 'raw', [storedInput('run-record', input.run.runId, `/start/requestedPeriod/${field}`, value)], 'run record day dd/mm/yyyy', 'vi-date')
+    : readerDay('chưa rõ ngày');
   // Describe retained product windows separately, using the same query-window precedence as E's period table.
-  const seriesWindows = marketPresentation ? [...new Set((input.marketInventory?.temporal.input.observations ?? []).flatMap(row => {
-    const window = row.rawQuery?.start && row.rawQuery.end ? row.rawQuery : row.requestedWindow;
+  const windowTexts = new Map<string, MarketTraceInput[]>();
+  if (marketPresentation) (input.marketInventory?.temporal.input.observations ?? []).forEach((row, at) => {
+    const raw = Boolean(row.rawQuery?.start && row.rawQuery.end), window = raw ? row.rawQuery : row.requestedWindow;
     const valid = (day: string): boolean => /^\d{4}-\d{2}-\d{2}$/u.test(day) && Number.isFinite(Date.parse(day))
       && new Date(day).toISOString().slice(0, 10) === day;
-    return window?.start && window.end && valid(window.start) && valid(window.end) && window.start <= window.end
-      && (!samplePeriod || window.start !== samplePeriod.start || window.end !== samplePeriod.end)
-      ? [`${readerDay(window.start)}–${readerDay(window.end)}`] : [];
-  }))] : [];
+    if (!(window?.start && window.end && valid(window.start) && valid(window.end) && window.start <= window.end
+      && (!samplePeriod || window.start !== samplePeriod.start || window.end !== samplePeriod.end))) return;
+    const text = `${readerDay(window.start)}–${readerDay(window.end)}`, field = raw ? 'rawQuery' : 'requestedWindow';
+    // Each window is printed once, recorded with the stored observation it was first read from.
+    if (!windowTexts.has(text)) windowTexts.set(text, [storedInput('stored-source', 'market-inventory', `/temporal/input/observations/${at}/${field}/start`, window.start, 'start'),
+      storedInput('stored-source', 'market-inventory', `/temporal/input/observations/${at}/${field}/end`, window.end, 'end')]);
+  });
+  const seriesWindows = [...windowTexts].map(([text, inputs]) => traceMarketNumber(text, 'M02.period.windows', 'raw', inputs, 'stored window dd/mm/yyyy–dd/mm/yyyy', 'vi-date-range'));
   const crossesQuarter = samplePeriod && `${samplePeriod.start.slice(0, 4)}-${Math.floor((Number(samplePeriod.start.slice(5, 7)) - 1) / 3)}`
     !== `${samplePeriod.end.slice(0, 4)}-${Math.floor((Number(samplePeriod.end.slice(5, 7)) - 1) / 3)}`;
   const quarterConvention = marketPresentation && crossesQuarter
     ? '<p>Quý báo cáo là quý chứa phần lớn số ngày của kỳ mẫu bán hàng; nếu hai quý có số ngày bằng nhau, chọn quý sau.</p>' : '';
   const periodRows = !marketPresentation ? `<dt>Kỳ báo cáo yêu cầu</dt><dd>${escape(period)}</dd>`
-    : `<dt>Kỳ số liệu bán hàng</dt><dd>${samplePeriod ? `Mẫu ${sampleDays} ngày, từ ${escape(readerDay(samplePeriod.start))} đến ${escape(readerDay(samplePeriod.end))}`
+    : `<dt>Kỳ số liệu bán hàng</dt><dd>${samplePeriod ? `Mẫu ${traceMarketNumber(String(sampleDays), 'M02.period.sample', 'computed', sampleInputs, 'inclusive days of the sample period', 'day-count')} ngày, từ ${escape(sampleDay(samplePeriod.start, 0))} đến ${escape(sampleDay(samplePeriod.end, 1))}`
       : 'Chưa có kỳ số liệu bán hàng hợp lệ'}</dd>${seriesWindows.length
       ? `<dt>Kỳ số liệu từng sản phẩm</dt><dd>Các kỳ đã lưu: ${escape(seriesWindows.join('; '))}. Các kỳ này tách riêng với kỳ mẫu bán hàng.</dd>` : input.descriptiveMethods
-      ? `<dt>Diễn biến từng sản phẩm</dt><dd>Theo từng kỳ trong khoảng từ ${escape(readerDay(requested.startDate ?? 'chưa rõ ngày'))} đến ${escape(readerDay(requested.endDate ?? 'chưa rõ ngày'))}</dd>` : ''}`;
+      ? `<dt>Diễn biến từng sản phẩm</dt><dd>Theo từng kỳ trong khoảng từ ${escape(requestedDay(requested.startDate, 'startDate'))} đến ${escape(requestedDay(requested.endDate, 'endDate'))}</dd>` : ''}`;
   // Only v3 adopts the sample-filter copy; retained v1/v2 reports keep their exact wording.
   const captureFiltered = Boolean(marketPresentation && input.metricMethods?.capture?.rowPolicyVersion === 'automation-metric-capture-v3');
   const periodWarning = marketPresentation ? 'Mỗi nguồn chỉ có số trong kỳ của nguồn đó; không kéo dài hay chia tỷ lệ cho khớp kỳ khác.'
@@ -1362,8 +1477,10 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     (marketPresentation ? CURRENT_MARKET_READER_TERMS : MARKET_READER_TERMS).map(([term, meaning]) => `<tr><td>${escape(term)}</td><td>${escape(meaning)}</td></tr>`).join('') +
     '</tbody></table></div>';
   // Presentation charts: revenue by platform and concentration in Phần 4, product rows in Phần 7.
+  const chartTrace = kind === 'MARKET' ? marketChartTrace(input, marketPresentation) : null;
   const presentationChart = (chartKind: MarketChart['kind'], no: string): string => {
     const chart = marketPresentation ? input.marketPresentationCharts?.find(item => item.kind === chartKind) : undefined;
+    if (chart) chartTrace?.embed(chart);
     return chart === undefined ? '' : `<figure class="market-chart"><div class="exh"><span class="exn">Hình ${no}</span> <span class="ext">${escape(chart.title)}</span> <span class="exu">(${escape(chart.unit)})</span></div>` +
       `<div class="chart flint" data-engine="${escape(chart.engine)}">${chart.svg}</div>` +
       `<p class="lim"><b>Chú thích:</b> ${escape(chart.note)}</p><p class="ex-src">Nguồn: dữ liệu bán hàng đã lưu, chỉ tính trong mẫu.</p></figure>`;
@@ -1531,7 +1648,6 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   // market14 reader: M13 trace receipts and evidence details stay in semantic (sourceEvidence, quoteMethods, boundedMethods), not the reader.
   const traceAppendix = (sectionId: string): boolean => !(marketPresentation && sectionId === 'M13');
   // Raw-response scale blocks are built once, so the number trace records each printed number once.
-  const numberTrace = kind === 'MARKET' && input.marketRawSeries ? new MarketNumberTraceCollector() : null;
   const rawScale = numberTrace ? marketRawScaleSection(input.marketRawSeries!, numberTrace) : '';
   const rawScope = numberTrace ? marketRawScopeSection(input.marketRawSeries!, numberTrace) : '';
   const rawBlock = (sectionId: string): string => !numberTrace ? '' : sectionId === 'M02' ? rawScope : sectionId === 'M03' ? rawScale : '';
@@ -1671,7 +1787,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
       .replace(/\bALL\b/gu, 'toàn bộ mẫu')
       .replace(/\bUNKNOWN\b/gu, 'chưa rõ'));
   // Delivery drops trace blocks; the reader renumbers the citations it still shows after semanticCitations and scopedHtml keep per-claim identity.
-  const deliveredHtml = marketPresentation ? sanitize(marketReaderCitations(numberMarketExhibits(deliverMarketReader(scopedHtml, input.collection?.searchInterest ? searchInterestReadingPoints(input.collection.searchInterest) : undefined, Boolean(input.metricMethods?.capture), Boolean(input.publicReviewSource))), registry, { publicReviewSource: Boolean(input.publicReviewSource) })) : scopedHtml;
+  const deliveredHtml = marketPresentation ? sanitize(marketReaderCitations(numberMarketExhibits(deliverMarketReader(scopedHtml, input.collection?.searchInterest ? searchInterestReadingPoints(input.collection.searchInterest) : undefined, Boolean(input.metricMethods?.capture), Boolean(input.publicReviewSource), chartTrace?.reading)), registry, { publicReviewSource: Boolean(input.publicReviewSource) })) : scopedHtml;
   const plainNumbers = kind === 'MARKET' && Boolean(input.metricMethods?.capture?.rowPolicyVersion || (marketPresentation && !input.metricMethods?.capture));
   const readerRenderedHtml = plainNumbers ? plainCaptureNumbers(deliveredHtml) : deliveredHtml;
   // Hidden technical copy for retrieval: the same page before reader delivery, trace blocks kept. Never linked from the reader.
@@ -1683,20 +1799,23 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     const failed = lintVisibleReportText(readerRenderedHtml).filter(check => !check.ok);
     if (failed.length) throw new TypeError(`INSIGHT_VISIBLE_TEXT_LINT_FAILED:${failed.map(check => check.rule).join(',')}`);
   }
-  // The Market check owns its order and errors: visible-text lint, business gate, 14 rules, public-review names.
-  if (kind === 'MARKET') {
-    assertMarketReport(readerRenderedHtml, marketPresentation
-      ? { kind: 'DRAFT_PRESENTATION', publicReviewSource: Boolean(input.publicReviewSource), partialTotals: marketPartialRowTotals(input) }
-      : { kind: 'DRAFT_PLAIN', publicReviewSource: Boolean(input.publicReviewSource) });
-  }
+  // Trace tokens as the delivered page prints them («12%» reads «12 phần trăm» when numbers are spelled out).
+  const recordedTrace = numberTrace?.snapshot();
+  const marketNumberTrace = recordedTrace && plainNumbers
+    ? { ...recordedTrace, entries: recordedTrace.entries.map(entry => ({ ...entry, token: plainCaptureNumbers(entry.token) })) } : recordedTrace;
+  // Raw-response pointers are re-read in the stored capture when the caller holds its content.
+  const rawCaptures = new Map((input.marketRawSeries?.periods ?? []).flatMap(period => period.raw === undefined ? [] : [[period.captureId, period.raw] as const]));
+  const traceCheck = marketNumberTrace ? { numberTrace: { trace: marketNumberTrace,
+    resolve: (traceInput: MarketTraceInput) => 'store' in traceInput || !rawCaptures.has(traceInput.captureId) ? undefined : resolveMarketRawSource(rawCaptures.get(traceInput.captureId), traceInput) } } : {};
+  // The Market check owns its order and errors: visible-text lint, business gate, 14 rules, public-review names, number trace.
+  const marketCheck = kind === 'MARKET' ? assertMarketReport(readerRenderedHtml, marketPresentation
+    ? { kind: 'DRAFT_PRESENTATION', publicReviewSource: Boolean(input.publicReviewSource), partialTotals: marketPartialRowTotals(input), ...traceCheck }
+    : { kind: 'DRAFT_PLAIN', publicReviewSource: Boolean(input.publicReviewSource), ...traceCheck }) : undefined;
   if (kind === 'INSIGHT') {
     const nameFailure = lintReaderReport(readerRenderedHtml, { reportKind: kind, publicReviewSource: Boolean(input.publicReviewSource) }).filter(r => (r.rule.startsWith('F1 ') || r.rule.startsWith('W6 ')) && !r.ok);
     if (nameFailure.length) throw new TypeError(input.publicReviewSource ? 'PUBLIC_REVIEW_READER_NAME_REFUSED' : 'INSIGHT_READER_NAME_REFUSED');
   }
-  // Trace tokens as the delivered page prints them («12%» reads «12 phần trăm» when numbers are spelled out).
-  const marketNumberTrace = numberTrace?.snapshot();
-  const semanticTrace = marketNumberTrace ? { marketNumberTrace: plainNumbers
-    ? { ...marketNumberTrace, entries: marketNumberTrace.entries.map(entry => ({ ...entry, token: plainCaptureNumbers(entry.token) })) } : marketNumberTrace } : {};
+  const semanticTrace = marketNumberTrace ? { marketNumberTrace, ...(marketCheck?.numberTrace ? { marketNumberTraceGate: marketCheck.numberTrace } : {}) } : {};
   return { semantic: { ...semanticBase, ...semanticCitations, ...semanticTrace }, html: Buffer.from(readerRenderedHtml, 'utf8'), ...(traceHtml ? { traceHtml } : {}) };
 }
 
