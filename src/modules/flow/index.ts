@@ -155,3 +155,26 @@ export {
 } from './content-ai-attempt-service.js';
 export { contentAiCallCount, type ContentAiCallCount, type ContentAiPlannedAction } from './content-ai-call-count.js';
 export { CONTENT_AI_NOT_CONFIGURED, createContentAiStatusSource, type ContentAiStatus, type ContentAiStatusSource } from './content-ai-status.js';
+export {
+  VIDEO_JOB_ERROR_CODES,
+  VIDEO_JOB_KINDS,
+  VIDEO_JOB_STATES,
+  VIDEO_PROJECT_STATES,
+  createVideoJobStore,
+  type VideoJobErrorCode,
+  type VideoJobFailureCode,
+  type VideoJobKind,
+  type VideoJobRecord,
+  type VideoJobState,
+  type VideoJobStore,
+  type VideoProjectRecord,
+  type VideoProjectState,
+} from './video-jobs.js';
+export {
+  VideoJobConflictError,
+  VideoJobNotFoundError,
+  VideoProjectNotFoundError,
+  createVideoService,
+  type VideoService,
+} from './video-service.js';
+export { VIDEO_JOB_COMMANDS, VIDEO_JOB_OUTPUT_BYTES, VIDEO_JOB_TIMEOUT_MS, VideoWorker } from './video-worker.js';

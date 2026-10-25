@@ -12,6 +12,10 @@ import { disabledCreativeGateway } from '../platform/ai/fake-creative-gateway.js
 import { readMigrations } from '../platform/db/migrations.js';
 import { createContentAiAttemptService } from '../modules/flow/content-ai-attempt-service.js';
 import { createContentAiStatusSource } from '../modules/flow/content-ai-status.js';
+import { createVideoJobStore } from '../modules/flow/video-jobs.js';
+import { createVideoService } from '../modules/flow/video-service.js';
+import { VideoWorker } from '../modules/flow/video-worker.js';
+import { defaultVideoProcessRunner } from '../platform/video-process-runner.js';
 import { openContentOwnerApi, openContentReadApi, type ContentApiApplication } from './content-api.js';
 import { openOwnerApi, type OwnerApiApplication } from './owner-api.js';
 import { openWorkspaceApi, type WorkspaceApiApplication } from './workspace-api.js';
@@ -286,6 +290,8 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
   let reports: ReportApiApplication | undefined;
   let researchGeneration: ResearchGenerationApiApplication | undefined;
   let researchAutomation: ResearchAutomationApiApplication | undefined;
+  let videoWriter: BetterSqlite3.Database | undefined;
+  let videoWorker: VideoWorker | undefined;
   let r2: ReturnType<typeof createR2MediaArchive> | undefined;
   try {
     if (configuration.r2) r2 = createR2MediaArchive(configuration.r2);
@@ -355,16 +361,44 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
         token: ownerToken, actorId: configuration.ownerActorId!, allowedOrigin: origin,
       } } : {}),
     });
+    // Video Factory owns one extra write connection under the same executor lock (ADR 0007,
+    // Consequences): the worker runs its jobs on it and close() settles it before the lock is released.
+    if (configuration.ownerWritesEnabled) {
+      videoWriter = new BetterSqlite3(databasePath, { fileMustExist: true });
+      videoWriter.pragma('foreign_keys = ON'); videoWriter.pragma('busy_timeout = 5000'); videoWriter.defaultSafeIntegers(true);
+      videoWorker = new VideoWorker({
+        service: createVideoService({
+          db: videoWriter, clock,
+          onWake: () => videoWorker?.wake(),
+          onCancel: (jobId) => videoWorker?.cancel(jobId),
+        }),
+        db: videoWriter, runner: defaultVideoProcessRunner,
+      });
+      // start() is synchronous; wake() catches and records asynchronous drain failures.
+      videoWorker.start();
+    }
   } catch (error) {
     let stopped = true;
-    try { researchGeneration?.close(); } catch { stopped = false; }
-    try { contentOwner?.close(); } catch { stopped = false; }
-    try { contentRead?.close(); } catch { stopped = false; }
-    try { reports?.close(); } catch { stopped = false; }
-    try { owner?.close(); } catch { stopped = false; }
-    try { read?.close(); } catch { stopped = false; }
-    try { r2?.close(); } catch { stopped = false; }
-    if (stopped) { try { lock?.release(); } catch { /* preserve startup failure; the lock stays for manual recovery */ } }
+    const finishRollback = () => {
+      try { researchGeneration?.close(); } catch { stopped = false; }
+      try { contentOwner?.close(); } catch { stopped = false; }
+      try { contentRead?.close(); } catch { stopped = false; }
+      try { reports?.close(); } catch { stopped = false; }
+      try { owner?.close(); } catch { stopped = false; }
+      try { read?.close(); } catch { stopped = false; }
+      try { r2?.close(); } catch { stopped = false; }
+      if (stopped) { try { lock?.release(); } catch { /* preserve startup failure; the lock stays for manual recovery */ } }
+    };
+    // Before either worker is opened, release authority before the caller sees the failure.
+    if (!videoWorker && !researchAutomation) finishRollback();
+    else {
+      // Active workers must finish stopping before connections and authority are released.
+      void (async () => {
+        try { await videoWorker?.close(); videoWriter?.close(); } catch { stopped = false; }
+        try { await researchAutomation?.close(); } catch { stopped = false; }
+        finishRollback();
+      })();
+    }
     throw error;
   }
   const executorLock = lock;
@@ -409,6 +443,9 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
         });
         try { await contentOwnerApplication?.drainMediaArchive?.(); } catch (error) { errors.push(error); }
         try { await researchAutomationApplication.close(); } catch (error) { errors.push(error); }
+        // The video worker closes before its connection, and both before the lock is released;
+        // a failed worker close keeps the lock for manual recovery (the existing rule).
+        try { await videoWorker?.close(); videoWriter?.close(); } catch (error) { errors.push(error); }
         try { contentOwnerApplication?.close(); } catch (error) { errors.push(error); }
         try { researchGenerationApplication?.close(); } catch (error) { errors.push(error); }
         try { contentReadApplication.close(); } catch (error) { errors.push(error); }
@@ -434,8 +471,8 @@ function reportApiPath(pathname: string): boolean {
 
 /**
  * Refuses a database that is not at the schema head (read-only, never creates or migrates). An executor then
- * counts `running` attempts on the same connection and, only when there are some, sweeps them to
- * `interrupted` on a short-lived writable connection.
+ * counts `running` AI attempts and video jobs on the same connection and, only when there are some, sweeps
+ * them to `interrupted` on a short-lived writable connection. A read-only operator never sweeps (055-Q2).
  */
 function prepareDatabase(databasePath: string, artifactRoot: string, executor: boolean, clock: () => Date): void {
   let running = 0;
@@ -446,7 +483,7 @@ function prepareDatabase(databasePath: string, artifactRoot: string, executor: b
     let recorded: number | undefined;
     try { recorded = Number(reader.prepare('SELECT MAX(version) FROM schema_migrations').pluck().get()); } catch { recorded = undefined; }
     if (userVersion !== head || recorded !== head) throw new Error(`Database schema is at v${userVersion}; apply migrations up to v${head} before starting`);
-    if (executor) running = attemptService(reader, artifactRoot, clock).countRunning();
+    if (executor) running = attemptService(reader, artifactRoot, clock).countRunning() + videoJobs(reader, clock).countRunning();
   } finally {
     reader.close();
   }
@@ -456,6 +493,7 @@ function prepareDatabase(databasePath: string, artifactRoot: string, executor: b
     writer.pragma('foreign_keys = ON');
     writer.pragma('busy_timeout = 5000');
     attemptService(writer, artifactRoot, clock).sweepInterrupted(clock());
+    videoJobs(writer, clock).sweepInterrupted();
   } finally {
     writer.close();
   }
@@ -466,6 +504,10 @@ function attemptService(db: BetterSqlite3.Database, artifactRoot: string, clock:
     db, gateway: disabledCreativeGateway(), artifactRoot, clock,
     newId: () => { throw new Error('Startup never records AI attempts'); },
   });
+}
+
+function videoJobs(db: BetterSqlite3.Database, clock: () => Date) {
+  return createVideoJobStore({ db, clock });
 }
 
 function validateConfiguration(configuration: OperatorAppConfiguration): StaticFiles {
