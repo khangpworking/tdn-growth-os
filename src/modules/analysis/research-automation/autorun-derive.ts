@@ -156,13 +156,13 @@ export interface MetricCaptureSpec {
 
 /**
  * Keywords are the first two terms in the given order, deduplicated after
- * NFC, trim, whitespace collapse and lowercase; the first spelling is kept.
+ * NFC, trim and lowercase; the first spelling is kept.
  */
 export function buildCaptureSpec(terms: string | readonly string[], period: DatePeriod): MetricCaptureSpec {
   const keywords: string[] = [];
   const seen = new Set<string>();
   for (const term of typeof terms === 'string' ? [terms] : terms) {
-    const normalized = typeof term === 'string' ? term.normalize('NFC').trim().replace(/\s+/gu, ' ') : '';
+    const normalized = typeof term === 'string' ? term.normalize('NFC').trim() : '';
     const key = normalized.toLowerCase();
     if (!normalized || seen.has(key)) continue;
     seen.add(key);

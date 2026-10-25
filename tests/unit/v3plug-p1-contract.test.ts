@@ -36,7 +36,7 @@ function assertA4(spec: Record<string, unknown>): void {
 
 // Derived from metric-capture-runner.test.ts: replay the READY response and
 // manifest read-back without starting OpenCLI or accessing a browser/provider.
-async function capture(readBack: boolean | undefined) {
+async function capture(readBack: boolean | undefined, keyword = 'viên uống kẽm') {
   const root = await mkdtemp(join(tmpdir(), 'v3plug-p1-'));
   const manifest = new TextEncoder().encode('synthetic adapter manifest for tests');
   const payloads: Record<string, unknown>[] = [];
@@ -45,7 +45,7 @@ async function capture(readBack: boolean | undefined) {
       enabledEnv: '1', captureRoot: root, adapterManifestPath: '/synthetic/adapter/manifest.json',
       adapterManifestSha256: createHash('sha256').update(manifest).digest('hex'),
     }, {
-      runId: '00000000-0000-4000-8000-000000000001', keyword: 'viên uống kẽm',
+      runId: '00000000-0000-4000-8000-000000000001', keyword,
       requestedPeriod: { startDate: '2025-10-05', endDate: '2026-10-02' },
     }, {
       sourceEnv: {}, readManifest: async () => manifest,
@@ -77,6 +77,12 @@ test('A4 Smart query reaches the adapter payload at the last app-side hop', asyn
   assert.equal(result.ok, true);
   assert.equal(payloads.length, 1, 'the adapter received one capture request');
   assertA4(payloads[0]!);
+});
+
+test('capture preserves internal keyword spaces required by the intake run binding', async () => {
+  const { result, payloads } = await capture(true, 'viên  uống kẽm');
+  assert.equal(result.ok, true);
+  assert.deepEqual(payloads[0]!.keywords, ['viên  uống kẽm']);
 });
 
 test('A5 adapter Smart query false or absent stops with CAPTURE_SMART_QUERY_OFF', async () => {
