@@ -1530,7 +1530,8 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   // Raw-response scale blocks are built once, so the number trace records each printed number once.
   const numberTrace = kind === 'MARKET' && input.marketRawSeries ? new MarketNumberTraceCollector() : null;
   const rawScale = numberTrace ? marketRawScaleSection(input.marketRawSeries!, numberTrace) : '';
-  const rawBlock = (sectionId: string): string => !numberTrace ? '' : sectionId === 'M02' ? marketRawScopeSection(input.marketRawSeries!) : sectionId === 'M03' ? rawScale : '';
+  const rawScope = numberTrace ? marketRawScopeSection(input.marketRawSeries!, numberTrace) : '';
+  const rawBlock = (sectionId: string): string => !numberTrace ? '' : sectionId === 'M02' ? rawScope : sectionId === 'M03' ? rawScale : '';
   const appendix = (sectionId: string): string =>
     (input.publicReviewSource && (sectionId === 'M13' || sectionId === 'I03' || sectionId === 'I17') ? publicReviewReportHtml(input.publicReviewSource) + (publicReviewCitation === null ? '' : renderCitationMarkOrMissing(publicReviewCitation)) : '') +
     (testReviewSample && sectionId === 'M13'

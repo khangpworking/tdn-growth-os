@@ -306,7 +306,37 @@ export function marketRawScaleSection(input: MarketRawReportInput, trace: Market
   return `<div class="market-raw-scale"><h3>Quy mô và diễn biến theo kỳ</h3>${periods.map(entry => periodBlock(entry, trace)).join('')}</div>`;
 }
 
-/** Phần 2 scope line of the raw-response numbers. */
-export function marketRawScopeSection(input: MarketRawReportInput): string {
-  return marketCaptureScopeLine(input.scope);
+/** Numbers inside stored text, cut as the HTML number scan cuts them («kẽm 50mg B12» -> 50, 12). */
+const TEXT_NUMBER = /[+−-]?\d+(?:[.,]\d+)*(?:\s*(?:tỷ|triệu|nghìn|đồng|%|phần trăm))?/gu;
+
+/**
+ * Phần 2 scope line of the raw-response numbers. Each number inside a keyword is recorded against the
+ * keyword the capture's search request sent; one inside the category text against the category's pointer.
+ * A text whose numbers have no pointer is withheld rather than printed untraced.
+ */
+export function marketRawScopeSection(input: MarketRawReportInput, collector: MarketNumberTraceCollector): string {
+  const pointer = (text: string, part: 'keyword' | 'category'): { captureId: string; source: MarketRawSource } | null => {
+    if (part === 'category') {
+      const stored = input.scope.category?.source;
+      if (!stored) return null;
+      const { captureId, ...source } = stored;
+      return { captureId, source };
+    }
+    for (const entry of input.periods) {
+      const query = entry.series.requestedQueries.find(candidate => candidate.text === text);
+      if (query) return { captureId: entry.captureId, source: query.source };
+    }
+    return null;
+  };
+  return marketCaptureScopeLine(input.scope, (text, part, index) => {
+    const numbers = text.match(TEXT_NUMBER) ?? [];
+    if (!numbers.length) return text;
+    const found = pointer(text, part);
+    if (!found) return null;
+    const trace = collector.forCapture(found.captureId);
+    const block = part === 'keyword' ? `M02.scope.keyword.${index}` : 'M02.scope.category';
+    const formula = part === 'keyword' ? 'number as written in the keyword the search request sent (include_query.queries)' : 'number as written in the stored category text';
+    for (const number of numbers) trace.record(number, block, 'raw', [found.source], formula);
+    return text;
+  });
 }

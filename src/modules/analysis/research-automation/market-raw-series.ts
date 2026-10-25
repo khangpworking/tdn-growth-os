@@ -106,6 +106,8 @@ export interface MarketRawSeries {
   readonly requestedPlatformIds: readonly number[] | null;
   /** Pointer to include_query.platforms of that request; null when the request does not say. */
   readonly requestedPlatformsSource: MarketRawSource | null;
+  /** Keywords the search request sent (include_query.queries), each with its pointer; empty when the request does not say. */
+  readonly requestedQueries: readonly { readonly text: string; readonly source: MarketRawSource }[];
   /** Interval length the insight request asked for (7 for a 30-day period, 30 for a 12-month period). */
   readonly intervalDays: MarketRawValue;
   /** Requested and returned platforms in id order. */
@@ -293,6 +295,12 @@ function requestedPlatformIds(entry: RawEntry | null): number[] | null {
   return ids.every((id): id is number => id !== null) ? [...new Set(ids)].sort((a, b) => a - b) : null;
 }
 
+function requestedQueries(entry: RawEntry | null): MarketRawSeries['requestedQueries'] {
+  const query = entry && isRecord(entry.requestBody) && isRecord(entry.requestBody.include_query) ? entry.requestBody.include_query : null;
+  if (!entry || !query || !Array.isArray(query.queries)) return [];
+  return query.queries.flatMap((text, i) => typeof text === 'string' ? [{ text, source: sourceAt(entry, 'requestBody', 'include_query', 'queries', i) }] : []);
+}
+
 function intervalDaysOf(entry: RawEntry | null): MarketRawValue {
   if (!entry) return missing('insight-response-missing');
   const source = sourceAt(entry, 'requestBody', 'interval_days');
@@ -394,6 +402,7 @@ export function readMarketRawSeries(rawResponses: unknown, options: MarketRawSer
     period: periodOf(search),
     requestedPlatformIds: requested,
     requestedPlatformsSource: search && requested ? sourceAt(search, 'requestBody', 'include_query', 'platforms') : null,
+    requestedQueries: requestedQueries(search),
     intervalDays,
     platforms: [...platforms.values()],
     totals: { scope: totalsFor(scopeIds, platforms), all: totalsFor(ids, platforms) },

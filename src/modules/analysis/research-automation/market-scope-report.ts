@@ -3,6 +3,7 @@ import { escapeHtml as escape, providerProvenanceLabel, readerSafe, storedLitera
 import { containsForbiddenProviderName } from '../citation-registry.js';
 import type { AutomationMetricMethodSnapshot, CaptureMetricMethodDetails, MetricMethodSourceFile } from './metric-method-bridge.js';
 import type { StartSnapshot } from './model.js';
+import type { MarketTraceInput } from './market-trace-map.js';
 
 type Input = Pick<AutomationReportInput, 'start' | 'captures' | 'metricMethods' | 'metricClassified'>;
 
@@ -122,24 +123,40 @@ export interface MarketCaptureScope {
   readonly category?: MarketCaptureCategory | null;
 }
 
-export type MarketCaptureCategory =
+export type MarketCaptureCategory = (
   | { readonly chosen: string; readonly note?: undefined }
-  | { readonly chosen: null; readonly note: string };
+  | { readonly chosen: null; readonly note: string }) & {
+  /** Capture pointer of the category text, so numbers inside it can be traced. */
+  readonly source?: MarketTraceInput;
+};
+
+/**
+ * Records the numbers inside a stored text before it is printed (`part` and `index` name the text);
+ * returns the text to print, or null when its numbers have no pointer, so the text is withheld.
+ */
+export type MarketScopeTextTrace = (text: string, part: 'keyword' | 'category', index: number) => string | null;
 
 /** Hook for the category step: the category line of the scope, or an unknown state while the run record has none. */
-export function marketCaptureCategoryText(category: MarketCaptureCategory | null | undefined): string {
+export function marketCaptureCategoryText(category: MarketCaptureCategory | null | undefined, trace?: MarketScopeTextTrace): string {
   const withheld = 'Ngành được giữ trong bản lưu';
+  const text = (value: string): string => {
+    const traced = containsForbiddenProviderName(value) ? null : trace ? trace(value, 'category', 0) : value;
+    return traced === null ? withheld : escape(traced);
+  };
   if (!category) return 'Ngành: chưa có trong bản lưu.';
-  if (category.chosen !== null) return `Ngành: ${containsForbiddenProviderName(category.chosen) ? withheld : escape(category.chosen)}.`;
-  return `Ngành: chưa chọn. ${containsForbiddenProviderName(category.note) ? withheld : escape(category.note)}`;
+  if (category.chosen !== null) return `Ngành: ${text(category.chosen)}.`;
+  return `Ngành: chưa chọn. ${text(category.note)}`;
 }
 
 /** Scope line of the market numbers: keywords, expanded search, category. */
-export function marketCaptureScopeLine(scope: MarketCaptureScope): string {
+export function marketCaptureScopeLine(scope: MarketCaptureScope, trace?: MarketScopeTextTrace): string {
   const withheld = 'Từ khóa được giữ trong bản lưu';
-  const keywords = scope.keywords.map(keyword => `“<span data-quote>${containsForbiddenProviderName(keyword) ? withheld : escape(keyword)}</span>”`).join(', ');
+  const keywords = scope.keywords.map((keyword, i) => {
+    const traced = containsForbiddenProviderName(keyword) ? null : trace ? trace(keyword, 'keyword', i) : keyword;
+    return `“<span data-quote>${traced === null ? withheld : escape(traced)}</span>”`;
+  }).join(', ');
   const expanded = scope.smartQuery === true ? 'bật tìm mở rộng' : scope.smartQuery === false ? 'tắt tìm mở rộng, chỉ khớp đúng cụm từ' : 'chưa rõ có bật tìm mở rộng';
-  return `<p class="market-capture-scope">Từ khóa: ${keywords || 'chưa có trong bản lưu'}; ${expanded}. ${marketCaptureCategoryText(scope.category)}</p>`;
+  return `<p class="market-capture-scope">Từ khóa: ${keywords || 'chưa có trong bản lưu'}; ${expanded}. ${marketCaptureCategoryText(scope.category, trace)}</p>`;
 }
 
 export interface MarketSourceScopeOptions {
