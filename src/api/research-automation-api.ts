@@ -112,6 +112,7 @@ import type { CliproxyConfiguration } from '../platform/ai/cliproxy-configuratio
 import { createCliproxyCreativeGateway } from '../platform/ai/cliproxy-creative-gateway.js';
 import { MARKET_COVER_MODEL, type MarketCoverAi } from '../modules/analysis/research-automation/market-cover.js';
 import { ApifyShopeeCollector } from '../platform/collectors/apify-shopee.js';
+import { FREE_TIKTOK_COMMENTS, TIKTOK_COMMENT_ACTORS } from '../platform/collectors/apify-tiktok-comments.js';
 import { ResearchAutomationConflictError, ResearchAutomationNotFoundError, ResearchAutomationValidationError } from '../modules/analysis/research-automation/model.js';
 import { MetricCaptureScopeMismatch } from '../modules/analysis/research-automation/metric-method-bridge.js';
 import { defaultProviderTransport } from '../modules/analysis/research-automation/provider-common.js';
@@ -124,6 +125,8 @@ export interface ResearchAutomationApiConfiguration {
   readonly reviewCollection?: import('../modules/analysis/research-automation/service.js').ResearchAutomationServiceOptions['reviewCollection'];
   /** Explicit injected collector/profile and approved cap; absent never activates P9. */
   readonly tikTokCommentsCollector?: import('../platform/collectors/apify-tiktok-comments.js').ApifyTikTokCommentsCollector;
+  /** Temporary free S07 collector (one run per video, fixed 0.05 USD per run); absent when TDN_RESEARCH_TIKTOK_COMMENTS_FREE_ENABLED is not "1". */
+  readonly tikTokFreeCommentsCollector?: import('../platform/collectors/apify-tiktok-comments.js').ApifyTikTokCommentsCollector;
   /** Explicit TikTok draft-coding model; absent refuses model dispatch, never a default model. */
   readonly tiktokCoding?: { readonly cliproxy: CliproxyConfiguration; readonly configuration: TikTokCodingConfiguration };
   /** Explicit Shopee draft-coding model; absent refuses model dispatch, never a default model. */
@@ -360,6 +363,15 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     (!Boolean(configuration.providers?.apifyTokenConfigured || configuration.providers?.apifyReviews) ||
       configuration.providers?.apifyTikTokComments?.maxChargeUsd !== configuration.tikTokCommentsCollector.collectionConfiguration.approvedMaxTotalChargeUsd))
     throw new TypeError('P9 collection requires the existing configured credential and the same explicitly approved cap');
+  // P9 stays on the paid actors and their approved cap (TDN_RESEARCH_TIKTOK_COMMENTS_MAX_CHARGE_USD). The free collector is checked
+  // against its own fixed per-run cap instead, so that paid cap (5 on prod) never has to equal it and startup does not fail.
+  if (configuration.tikTokCommentsCollector?.collectionConfiguration.actor === TIKTOK_COMMENT_ACTORS.free)
+    throw new TypeError('P9_FREE_ACTOR_REFUSED: P9 collection uses the paid actors only');
+  if (configuration.tikTokFreeCommentsCollector && !configuration.owner) throw new TypeError('S07 free collection requires the OWNER writer');
+  if (configuration.tikTokFreeCommentsCollector && (!configuration.providers?.apifyTikTokFreeComments ||
+      configuration.tikTokFreeCommentsCollector.collectionConfiguration.actor !== TIKTOK_COMMENT_ACTORS.free ||
+      configuration.tikTokFreeCommentsCollector.collectionConfiguration.approvedMaxTotalChargeUsd !== FREE_TIKTOK_COMMENTS.maxTotalChargeUsdPerRun))
+    throw new TypeError('S07 free collection requires the existing configured credential, the free actor and its fixed per-run cap');
   const captureRelevance = configuration.captureRelevance ? { configuration: configuration.captureRelevance.configuration, classifier: createCaptureRelevanceCliproxyTransport(configuration.captureRelevance) } : undefined;
   const keywordTransport = configuration.keywordDrafting ? createKeywordCliproxyTransport(configuration.keywordDrafting) : undefined;
   const sourceEvidence = { modelIdentity: configuration.keywordDrafting ? `cliproxy:${configuration.keywordDrafting.configuration.modelId}` : 'unconfigured',

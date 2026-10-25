@@ -369,6 +369,9 @@ export interface ResearchAutomationProviderConfig {
    * defaulted to the approved test-run value. Token custody belongs to P9.
    */
   readonly apifyTikTokComments?: { readonly maxChargeUsd: number };
+  /** Temporary free TikTok comment collector (S07, owner 25/10); present only when TDN_RESEARCH_TIKTOK_COMMENTS_FREE_ENABLED is exactly "1".
+   * Uses the existing Apify credential and its own fixed per-run cap, independent of the paid cap above. */
+  readonly apifyTikTokFreeComments?: { readonly token: string };
 }
 
 export class ProviderConfigurationError extends Error {
@@ -400,6 +403,8 @@ export function researchAutomationProviderConfigFromEnv(env: NodeJS.ProcessEnv):
   const tiktokCapValue = env.TDN_RESEARCH_TIKTOK_COMMENTS_MAX_CHARGE_USD;
   const tiktokCap = tiktokCapValue ? Number(tiktokCapValue) : null;
   if (tiktokCapValue && (tiktokCap === null || !Number.isFinite(tiktokCap) || tiktokCap <= 0 || tiktokCap > 10000)) throw new ProviderConfigurationError('TDN_RESEARCH_TIKTOK_COMMENTS_MAX_CHARGE_USD requires an approved positive cap');
+  const freeTikTokComments = env.TDN_RESEARCH_TIKTOK_COMMENTS_FREE_ENABLED === '1';
+  if (freeTikTokComments && !token) throw new ProviderConfigurationError('TDN_RESEARCH_TIKTOK_COMMENTS_FREE_ENABLED requires the APIFY token');
   if (publicReviews && token && cap !== null) throw new ProviderConfigurationError('TDN_RESEARCH_SHOPEE_PUBLIC_ENABLED conflicts with approved paid reviews');
   if (publicReviews && env.TDN_RESEARCH_AUTORUN_TEST_REVIEWS === '1' && publicReviews.maxReviewsPerProduct > 20)
     throw new ProviderConfigurationError('TDN_RESEARCH_AUTORUN_TEST_REVIEWS requires a public cap at most 20');
@@ -413,6 +418,7 @@ export function researchAutomationProviderConfigFromEnv(env: NodeJS.ProcessEnv):
       : env.TDN_RESEARCH_AUTORUN_TEST_REVIEWS === '1' && token && cap !== null && perListing !== null && perListing <= 20
       ? { autorunTestReviewCap: perListing } : {}),
     ...(tiktokCap !== null ? { apifyTikTokComments: { maxChargeUsd: tiktokCap } } : {}),
+    ...(freeTikTokComments && token ? { apifyTikTokFreeComments: { token } } : {}),
   };
 }
 

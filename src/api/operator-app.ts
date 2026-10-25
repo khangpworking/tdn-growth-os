@@ -35,6 +35,8 @@ import { tiktokShopReviewsEnabled } from '../modules/analysis/research-automatio
 import { pdfDiscoveryEnabled } from '../modules/analysis/research-automation/pdf-discovery-lane.js';
 import { videoWatchConfigFromEnv, videoWatchEnabled, type VideoWatchConfig } from '../modules/analysis/research-automation/video-watch-lane.js';
 import { topSellingVideosEnabled } from '../modules/analysis/research-automation/top-selling-videos.js';
+import { createFreeTikTokCommentsCollector, readTikTokCommentPrivacyFile, tiktokCommentsFreeEnabled } from '../platform/collectors/apify-tiktok-comments-free.js';
+import type { TikTokCommentPrivacy } from '../platform/collectors/apify-tiktok-comments.js';
 import { expandedSearchEnabled } from '../modules/analysis/research-automation/expanded-search-lane.js';
 import { i14CliproxySynthesisConfiguration, decisionCliproxySynthesisConfiguration, insightCodingCliproxyConfiguration, tiktokCodingCliproxyConfiguration, shopeeCodingCliproxyConfiguration } from '../modules/analysis/research-automation/i14-cliproxy-transport.js';
 import type { AutomationI14SynthesisConfiguration } from '../modules/analysis/research-automation/i14-synthesis-execution.js';
@@ -125,6 +127,9 @@ export interface OperatorAppConfiguration {
   readonly researchVideoWatch?: VideoWatchConfig;
   /** Automated top-selling video lookup (S14) feeding the video-watch lane; present only when TDN_RESEARCH_TOP_SELLING_VIDEOS_ENABLED is exactly "1". Paid, at most three products per run. */
   readonly researchTopSellingVideos?: true;
+  /** Temporary free TikTok comment collector (S07); present only when TDN_RESEARCH_TIKTOK_COMMENTS_FREE_ENABLED is exactly "1". The privacy key comes from
+   * the mode-600 file named by TDN_RESEARCH_TIKTOK_COMMENTS_PRIVACY_FILE; only the profile and sanitizer are held, never the salt. */
+  readonly researchTikTokFreeComments?: { readonly privacy: TikTokCommentPrivacy };
 }
 export interface OperatorAppDependencies {
   readonly creativeAiTransport?: typeof fetch;
@@ -212,6 +217,8 @@ export function operatorAppConfigurationFromEnvironment(
   };
   const kalodataReplaySourceRunId = kalodataReplaySourceRunIdFromEnvironment(environment);
   const researchPopulationBaseline = populationBaselineConfig(environment);
+  const researchTikTokFreeComments = tiktokCommentsFreeEnabled(environment)
+    ? { privacy: readTikTokCommentPrivacyFile(environment.TDN_RESEARCH_TIKTOK_COMMENTS_PRIVACY_FILE) } : undefined;
   const configuration: OperatorAppConfiguration = {
     databasePath: environment.TDN_WORKSPACE_DB ?? '', artifactRoot: environment.TDN_ARTIFACT_ROOT ?? '',
     frontendDist: defaults.frontendDist, version: defaults.version,
@@ -249,6 +256,7 @@ export function operatorAppConfigurationFromEnvironment(
     ...(pdfDiscoveryEnabled(environment) ? { researchPdfDiscovery: true as const } : {}),
     ...(videoWatchEnabled(environment) ? { researchVideoWatch: videoWatchConfigFromEnv(environment) } : {}),
     ...(topSellingVideosEnabled(environment) ? { researchTopSellingVideos: true as const } : {}),
+    ...(researchTikTokFreeComments ? { researchTikTokFreeComments } : {}),
     ...(environment.TDN_R2_ENABLED !== 'true' ? {} : { r2: {
       TDN_R2_ENABLED: 'true', TDN_R2_ACCOUNT_ID: environment.TDN_R2_ACCOUNT_ID,
       TDN_R2_ACCESS_KEY_ID: environment.TDN_R2_ACCESS_KEY_ID,
@@ -339,6 +347,9 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
       ...(configuration.researchPdfDiscovery ? { pdfDiscovery: true as const } : {}),
       ...(configuration.researchVideoWatch ? { videoWatch: configuration.researchVideoWatch } : {}),
       ...(configuration.researchTopSellingVideos ? { topSellingVideos: true as const } : {}),
+      // Validation pins this to the OWNER executor with the Apify credential configured.
+      ...(configuration.researchTikTokFreeComments ? { tikTokFreeCommentsCollector: createFreeTikTokCommentsCollector({
+        token: configuration.researchProviders!.apifyTikTokFreeComments!.token, privacy: configuration.researchTikTokFreeComments.privacy }) } : {}),
       ...(configuration.ownerWritesEnabled ? { owner: {
         databasePath, artifactRoot: configuration.artifactRoot, writeEnabled: true,
         token: ownerToken, actorId: configuration.ownerActorId!, allowedOrigin: origin,
@@ -475,6 +486,8 @@ function validateConfiguration(configuration: OperatorAppConfiguration): StaticF
   if (configuration.researchTikTokCodingAi !== undefined && (!configuration.cliproxy || !configuration.ownerWritesEnabled)) throw new TypeError('TDN_RESEARCH_TIKTOK_CODING_AI_ENABLED requires CLIProxy and OWNER writes to be enabled');
   if (configuration.researchShopeeCodingAi !== undefined && (!configuration.cliproxy || !configuration.ownerWritesEnabled)) throw new TypeError('TDN_RESEARCH_SHOPEE_CODING_AI_ENABLED requires CLIProxy and OWNER writes to be enabled');
   if (configuration.researchMarketCoverAi !== undefined && (configuration.researchMarketCoverAi !== true || !configuration.cliproxy || !configuration.ownerWritesEnabled)) throw new TypeError('TDN_RESEARCH_COVER_AI_ENABLED requires CLIProxy and OWNER writes to be enabled');
+  if (configuration.researchTikTokFreeComments !== undefined && (!configuration.researchProviders?.apifyTikTokFreeComments || !configuration.ownerWritesEnabled))
+    throw new TypeError('TDN_RESEARCH_TIKTOK_COMMENTS_FREE_ENABLED requires the APIFY token and OWNER writes to be enabled');
   if (configuration.researchKalodataReplaySourceRunId !== undefined) {
     if (!configuration.ownerWritesEnabled) throw new KalodataReplayRefusedError(`${KALODATA_REPLAY_REFUSED}: replay mode requires OWNER writes`);
     assertKalodataReplayNotProduction({ databasePath: configuration.databasePath, artifactRoot: configuration.artifactRoot, port: configuration.port });
