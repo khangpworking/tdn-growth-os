@@ -38,7 +38,7 @@ async function temp(t: TestContext) {
 
 // Only the OS and HTTP ports are substituted. Parsing, request construction, answer validation and publication bytes are real.
 async function fixture(t: TestContext, options: { subtitle?: 'valid' | 'missing' | 'english' | 'invalid' | 'failed' | 'timeout';
-  answers?: unknown[]; configured?: boolean; videoFailure?: 'DOWNLOAD_FAILED' | 'NOT_A_VIDEO' | 'VIDEO_TOO_LONG' } = {}) {
+  subtitleBytes?: Uint8Array; answers?: unknown[]; configured?: boolean; videoFailure?: 'DOWNLOAD_FAILED' | 'NOT_A_VIDEO' | 'VIDEO_TOO_LONG' } = {}) {
   const root = await temp(t), calls: { bin: string; args: readonly string[]; timeout: number }[] = [];
   const bodies: any[] = [], published: PreparedAutomatedVideoReading[] = [];
   const subtitle = options.subtitle ?? 'valid';
@@ -47,7 +47,7 @@ async function fixture(t: TestContext, options: { subtitle?: 'valid' | 'missing'
     if (args.includes('--skip-download')) {
       const template = args[args.indexOf('-o') + 1]!;
       if (subtitle === 'valid' || subtitle === 'invalid' || subtitle === 'english') {
-        await fs.writeFile(template.replace('%(ext)s', subtitle === 'english' ? 'eng-US.vtt' : 'vie-VN.vtt'), subtitle === 'invalid' ? 'invalid' : VTT);
+        await fs.writeFile(template.replace('%(ext)s', subtitle === 'english' ? 'eng-US.vtt' : 'vie-VN.vtt'), subtitle === 'invalid' ? 'invalid' : options.subtitleBytes ?? VTT);
       }
       return { ...processOk, code: subtitle === 'failed' ? 1 : 0, timedOut: subtitle === 'timeout', stdout: `${candidate.videoId} 10\n` };
     }
@@ -202,5 +202,26 @@ test('S14C row 6: subtitle CLI is bounded, Vietnamese-only and cleans only the c
     assert.deepEqual(args.slice(-2), ['--', candidate.url]);
     assert.deepEqual((await fs.readdir(dir)).sort(), ['910010.vie-VN.vtt', '92002.vie-VN.vtt', 'operator.txt']);
     for (const name of await fs.readdir(dir)) assert.equal(await fs.readFile(path.join(dir, name), 'utf8'), 'sentinel');
+  }
+});
+
+test('S14C row 10: joined captions just under the prompt cap use subtitles; just over fall back to video', async t => {
+  // Independent 200,000-character prompt contract: ten legal cues, including the nine joining newlines.
+  // Both tracks fit the 256 KiB file cap and the 20,000-character per-cue cap.
+  for (const { captionChars, expectedPath, captionSource } of [
+    { captionChars: 199_999, expectedPath: 'SUBTITLE', captionSource: 'NATIVE_SUBTITLE' },
+    { captionChars: 200_001, expectedPath: 'VIDEO', captionSource: 'MODEL_TRANSCRIBED' },
+  ]) {
+    const texts = Array.from({ length: 10 }, (_, i) => 'A'.repeat(i < 9 ? 20_000 : captionChars - 180_000 - 9));
+    const subtitleBytes = vtt(...texts.map((text, i) => cue(`00:00:${String(i).padStart(2, '0')}.000`, `00:00:${String(i + 1).padStart(2, '0')}.000`, text)));
+    const f = await fixture(t, { subtitleBytes }), [attempt] = await f.run();
+    const context = `${captionChars} joined caption characters must publish through ${expectedPath}`;
+    assert.equal(attempt?.reason, null, context);
+    assert.equal(attempt.path, expectedPath, context);
+    assert.equal(f.published.length, 1, context);
+    assert.equal(f.published[0]?.reading.captionSource, captionSource, context);
+    assert.equal(f.calls.some(call => call.bin === 'synthetic-ytdlp' && !call.args.includes('--skip-download')), expectedPath === 'VIDEO', context);
+    assert.equal(f.bodies.length, 1, 'one model request through the selected path');
+    assert.equal(f.bodies[0].contents[0].parts.some((part: any) => part.inlineData), expectedPath === 'VIDEO', context);
   }
 });
