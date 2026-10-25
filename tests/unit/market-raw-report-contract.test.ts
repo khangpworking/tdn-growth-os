@@ -4,6 +4,7 @@ import { JSDOM } from 'jsdom';
 import { DEFAULT_MARKET_PEER_RULE } from '../../src/modules/analysis/default-market-peers.js';
 import { buildMarketReport, computeReaderReportData } from '../../src/modules/analysis/reader-report/index.js';
 import { auditMarket14, technicalLeaks } from '../../src/modules/analysis/research-automation/market-14-rules.js';
+import { buildAutomationMarketPresentation } from '../../src/modules/analysis/research-automation/market-presentation-method.js';
 import { marketRawScaleSection, type MarketRawReportInput } from '../../src/modules/analysis/research-automation/market-raw-report.js';
 import { readMarketRawSeries, resolveMarketRawSource } from '../../src/modules/analysis/research-automation/market-raw-series.js';
 import { MarketNumberTraceCollector, type MarketNumberTrace, type MarketNumberTraceEntry } from '../../src/modules/analysis/research-automation/market-trace-map.js';
@@ -65,12 +66,35 @@ test('B1 raw-input report removes average prices from populated inventory and al
     quotes: { input: { quotes: [{ quoteId: 'capture-1-unit-price', acquiredAt: source.scope.acquiredAt, offerText: null,
       price: { value: price, range: null, currency: 'VND', state: 'NON_EXACT' }, source: ref }] } },
   } as unknown as NonNullable<AutomationReportInput['marketInventory']>;
-  const input = { ...await baseInput(), marketInventory: inventory };
+  const base = await baseInput(), presentation = base.marketPresentation!;
+  const input = { ...base, marketInventory: inventory,
+    marketPresentation: buildAutomationMarketPresentation(presentation.binding, {
+      ...presentation.input,
+      rows: presentation.input.rows.map(row => ({ ...row, title: 'Viên kẽm 10 viên' })),
+      // No listed-price receipt: every đồng/viên price in this fixture comes from sales arithmetic.
+      unitSpec: null,
+    }),
+  };
+  const assertNoPackPrice = (document: Document): void => {
+    assert.doesNotMatch(document.body.textContent!, /(?:đồng|VND)\s*\/\s*viên/iu,
+      'B1 forbids pack-size prices derived from revenue/units in every draft block');
+  };
   withDocument(buildResearchAutomationReport(input, 'MARKET').html.toString(), document => {
     assert.match(document.querySelector('#M08')!.textContent!, /Giá bình quân/u, 'fixture exercises the former average-price column');
+    for (const id of ['M11', 'M12']) {
+      const section = document.getElementById(id);
+      assert.ok(section, `unguarded draft retains ${id}`);
+      assert.match(section.textContent!, /đồng\/viên/u, 'unguarded draft labels pack-size derived prices');
+      assert.match(section.textContent!, /10\.000–10\.000/u, 'Shopee control divides 100,000 per sale by the ten-piece pack');
+      assert.match(section.textContent!, /20\.000–20\.000/u, 'TikTok control divides 200,000 per sale by the ten-piece pack');
+    }
+    assert.throws(() => assertNoPackPrice(document), { name: 'AssertionError', message: /B1 forbids pack-size prices/u },
+      'the same B1 assertion rejects derived prices when the raw-input guard is disabled');
   });
   withDocument(buildResearchAutomationReport({ ...input, marketRawSeries: synthetic }, 'MARKET').html.toString(), document => {
     assert.ok(document.querySelector('#M08 [data-market-prices] tbody tr'), 'inventory is still rendered');
+    for (const id of ['M01', 'M04', 'M08', 'M11', 'M12']) assert.ok(document.getElementById(id), `raw-enabled draft retains ${id}`);
+    assertNoPackPrice(document);
     assert.deepEqual(document.body.textContent!.match(/giá\s*(?:TB|(?:bán\s+)?trung bình|bình quân)/giu) ?? [], [],
       'B1 bans average-price labels; the existing caveat about a possible estimate is not a printed average price');
   });
