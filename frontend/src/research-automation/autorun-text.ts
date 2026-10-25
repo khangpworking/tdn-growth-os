@@ -37,6 +37,9 @@ export const AUTORUN_PHASE_TEXT: Readonly<Record<Exclude<AutoRunPhase, 'STOPPED'
   DONE: 'Phần tự động đã xong: bản nháp, bìa và biểu đồ. Bản đọc để xem và duyệt nằm ở mục "Bản đọc" phía trên.',
 };
 
+/** An Insight-only run has no presentation phase: no cover and no charts. */
+export const AUTORUN_INSIGHT_DONE_TEXT = 'Phần tự động đã xong: bản nháp. Bản đọc để xem và duyệt nằm ở mục "Bản đọc" phía trên.';
+
 const LOGIN = 'Cần đăng nhập lại công cụ số liệu trên máy chạy. Báo cáo đã dừng, chưa tốn thêm lượt tra cứu.';
 const DISABLED = 'Chế độ tự lấy số liệu đang tắt hoặc chưa cài đặt xong. Có thể làm thủ công như trước.';
 const PERIOD = 'Khoảng thời gian của báo cáo không khớp 30 ngày gần nhất nên không tự lấy được.';
@@ -104,8 +107,9 @@ export function autoRunLinksText(found: number): string {
 export const AUTORUN_RETRY_LABEL = 'Thử lại (dùng thêm một lượt tra cứu)';
 
 /** The main line of the card for one projection. */
-export function autoRunText(autoRun: AutoRunView): string {
+export function autoRunText(autoRun: AutoRunView, reports: readonly string[] = []): string {
   if (autoRun.phase === 'STOPPED') return autoRunStopText(autoRun.stopCode);
+  if (autoRun.phase === 'DONE' && reports.includes('INSIGHT') && !reports.includes('MARKET')) return AUTORUN_INSIGHT_DONE_TEXT;
   if (autoRun.phase === 'CAPTURE' && autoRun.state === 'QUEUED') return AUTORUN_CAPTURE_QUEUED_TEXT;
   return AUTORUN_PHASE_TEXT[autoRun.phase] ?? AUTORUN_FALLBACK_TEXT;
 }
