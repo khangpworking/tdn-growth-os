@@ -232,7 +232,7 @@ export class ApifyTikTokCommentsCollector {
       const maxRows = maximum * 4;
       const pages: { sha256: string; bytes: Buffer; offset: number; rows: SanitizedTikTokComment[] }[] = [];
       const comments = new Set<string>();
-      let offset = 0, notices = 0, replies = 0, sellerRows = 0;
+      let offset = 0, notices = 0, replies = 0, sellerRows = 0, keptRows = 0;
       while (true) {
         signal?.throwIfAborted();
         const raw = await this.options.transport.readPage(receipt, offset, Math.min(1000, maxRows - offset + 1), signal);
@@ -241,6 +241,8 @@ export class ApifyTikTokCommentsCollector {
         if (!Array.isArray(returned)) fail();
         if (!returned.length) break;
         const rows = this.options.privacy.sanitizePage(actor, raw, [url], pages.length);
+        // The free input caps items, so replies and duplicates also count toward ten retained comments.
+        keptRows += rows.length; if (keptRows > maximum) fail();
         notices += returned.length - rows.length;
         for (const row of rows) {
           if (row.isReply) replies++; else { comments.add(row.commentId); if (comments.size > maximum) fail(); }

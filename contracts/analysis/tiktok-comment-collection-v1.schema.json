@@ -767,12 +767,12 @@
         "replies": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 40
+          "maximum": 10
         },
         "sellerOrCreatorRows": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 40
+          "maximum": 10
         },
         "pages": {
           "type": "array",

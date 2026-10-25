@@ -7,8 +7,9 @@ import path from 'node:path';
 import { ApifyTikTokCommentsCollector, createTikTokCommentPrivacy, retainedPerVideoCapture,
   TIKTOK_COMMENT_ACTORS, TikTokCommentCollectorError, tikTokCommentActorInput,
   type TikTokCommentsTransport, type TikTokCommentRunReceipt } from '../../src/platform/collectors/apify-tiktok-comments.js';
-import { createFreeTikTokCommentsCollector } from '../../src/platform/collectors/apify-tiktok-comments-free.js';
-import { operatorAppConfigurationFromEnvironment } from '../../src/api/operator-app.js';
+import { ApifyTikTokCommentsHttpTransport, createFreeTikTokCommentsCollector } from '../../src/platform/collectors/apify-tiktok-comments-free.js';
+import { openOperatorApp, operatorAppConfigurationFromEnvironment } from '../../src/api/operator-app.js';
+import { openDatabase } from '../../src/platform/db/index.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { buildTikTokCommentCorpus } from '../../src/modules/analysis/research-automation/tiktok-comment-intake.js';
 import { legacyCaptureBytes } from '../integration/research-automation-s07f.fixtures.js';
@@ -65,6 +66,14 @@ test('S07F row 1: free dispatch protocol and rejected selection/configuration ta
       privacy: privacy(), approvedMaxTotalChargeUsd: 0.05, maxCommentsPerVideo: maximum }), TikTokCommentCollectorError);
   }
   assert.throws(() => tikTokCommentActorInput(TIKTOK_COMMENT_ACTORS.free, [url(), url(1002)], 10), TikTokCommentCollectorError);
+  for (const values of [
+    Array.from({ length: 11 }, (_, i) => row({ cid: String(2001 + i) })),
+    Array.from({ length: 11 }, (_, i) => row({ cid: String(2001 + i), reply_id: '1999' })),
+    Array.from({ length: 11 }, () => row()),
+  ]) {
+    await assert.rejects(fake([values]).collector.collectPerVideo([url()], request), TikTokCommentCollectorError,
+      'the free actor retains at most ten comment rows, including replies and duplicates');
+  }
 });
 
 test('S07F row 2: mapping, allowlisted retained bytes, notices and contradictory locators table', async () => {
@@ -140,12 +149,67 @@ test('S07F row 4: every per-video receipt retained and per-run usage boundary ta
   }
 });
 
+test('S07F HTTP receipts reject excess usage and cap drift throughout polling and settlement', async () => {
+  for (const scenario of ['valid', 'start-usage', 'poll-usage', 'settled-usage', 'unsettled-usage', 'settled-cap'] as const) {
+    let posts = 0, reads = 0, datasetReads = 0;
+    const transport = new ApifyTikTokCommentsHttpTransport({ token: 'synthetic-http-auth', sleep: async () => {},
+      fetch: async (input, init) => {
+        const endpoint = new URL(String(input));
+        assert.equal(endpoint.origin, 'https://api.apify.com');
+        if (init?.method === 'POST') {
+          posts++;
+          assert.equal(endpoint.searchParams.get('maxTotalChargeUsd'), '0.05');
+        } else if (endpoint.pathname.startsWith('/v2/actor-runs/')) reads++;
+        else if (endpoint.pathname === '/v2/datasets/syntheticData') {
+          datasetReads++;
+          return Response.json({ data: { itemCount: scenario === 'unsettled-usage' ? datasetReads : 0 } });
+        } else if (endpoint.pathname.endsWith('/items')) return Response.json([]);
+        else assert.fail('unexpected provider endpoint');
+        return Response.json({ data: { id: 'syntheticRun', defaultDatasetId: 'syntheticData', buildId: null,
+          status: scenario === 'poll-usage' && posts === 1 && reads === 0 ? 'RUNNING' : 'SUCCEEDED',
+          usageTotalUsd: (scenario === 'start-usage' && reads === 0) ||
+            (['poll-usage', 'settled-usage', 'unsettled-usage'].includes(scenario) && reads > 0) ? 0.06 : 0.002,
+          options: { maxTotalChargeUsd: scenario === 'settled-cap' && reads > 0 ? 5 : 0.05 } } });
+      } });
+    const collector = createFreeTikTokCommentsCollector({ token: 'synthetic-unused', privacy: privacy(), transport });
+    if (scenario === 'valid') {
+      const capture = await collector.collectPerVideo([url()], request);
+      assert.equal(capture.runs[0]!.receipt.usageTotalUsd, 0.002);
+    } else await assert.rejects(collector.collectPerVideo([url()], request), Error, scenario);
+    assert.equal(posts, 1, 'a failed receipt never causes a second dispatch');
+  }
+});
+
+test('S07F HTTP malformed responses and request failures expose no provider content or retries', async () => {
+  const sentinel = 'S07PRIV'; // Short enough that JSON.parse includes it in a syntax error.
+  for (const stage of ['start', 'poll', 'settled-run', 'dataset', 'http-error', 'network-error'] as const) {
+    let posts = 0;
+    const transport = new ApifyTikTokCommentsHttpTransport({ token: 'synthetic-http-auth', sleep: async () => {},
+      fetch: async (input, init) => {
+        const endpoint = new URL(String(input)), post = init?.method === 'POST';
+        if (post) posts++;
+        if (stage === 'network-error') throw new Error(sentinel);
+        if (stage === 'http-error') return new Response(sentinel, { status: 500 });
+        const bad = (post && stage === 'start') || (!post && stage === 'poll') ||
+          (!post && stage === 'settled-run') || (endpoint.pathname.startsWith('/v2/datasets/') && stage === 'dataset');
+        if (bad) return new Response(sentinel);
+        return Response.json({ data: { id: 'syntheticRun', defaultDatasetId: 'syntheticData', buildId: null,
+          status: stage === 'poll' ? 'RUNNING' : 'SUCCEEDED', usageTotalUsd: 0.002, options: { maxTotalChargeUsd: 0.05 } } });
+      } });
+    await assert.rejects(transport.start(TIKTOK_COMMENT_ACTORS.free, { startUrls: [url()], maxItems: 10, includeReplies: false }, 0.05),
+      error => error instanceof Error && !String(error.stack).includes(sentinel) && !String(error.stack).includes('synthetic-http-auth'), stage);
+    assert.equal(posts, 1, 'malformed metadata and failed HTTP are never retried');
+  }
+});
+
 test('S07F row 4: legacy v1 capture bytes match origin/main', async () => {
   // Frozen independently in git-archived origin/main; see tests-s07f.md for revision and command.
   assert.equal(sha(await legacyCaptureBytes()), '7ccb634d59b65dd22c33714d5a70b021acafe91139bf1d630995475c88223eb4');
 });
 
 test('S07F row 5: strict flag and privacy startup validation table', async t => {
+  let networkCalls = 0;
+  t.mock.method(globalThis, 'fetch', async () => { networkCalls++; throw new Error('unexpected startup network'); });
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-s07f-config-'));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const frontendDist = path.join(root, 'frontend'); await fs.mkdir(frontendDist);
@@ -173,4 +237,8 @@ test('S07F row 5: strict flag and privacy startup validation table', async t => 
   assert.ok(operatorAppConfigurationFromEnvironment(enabled, defaults).researchTikTokFreeComments);
   assert.throws(() => operatorAppConfigurationFromEnvironment({ ...enabled, TDN_APIFY_TOKEN: '' }, defaults), /requires the APIFY token/);
   assert.throws(() => operatorAppConfigurationFromEnvironment({ ...enabled, TDN_OWNER_API_ENABLED: 'false' }, defaults), /OWNER writes/);
+  openDatabase({ databasePath: base.TDN_WORKSPACE_DB }).db.close();
+  const app = openOperatorApp(operatorAppConfigurationFromEnvironment(enabled, defaults));
+  await app.close();
+  assert.equal(networkCalls, 0, 'prod-like flag-on startup constructs the collector without dispatching');
 });

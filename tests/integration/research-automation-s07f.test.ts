@@ -1,11 +1,7 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
 import test from 'node:test';
 import { createTikTokCommentPrivacy, type TikTokCommentsTransport } from '../../src/platform/collectors/apify-tiktok-comments.js';
 import { createFreeTikTokCommentsCollector } from '../../src/platform/collectors/apify-tiktok-comments-free.js';
-import { operatorAppConfigurationFromEnvironment } from '../../src/api/operator-app.js';
 import { tiktokCodingCliproxyConfiguration } from '../../src/modules/analysis/research-automation/i14-cliproxy-transport.js';
 import { fakeCodingPort } from '../fixtures/tiktok-coding-fixture.js';
 import { providerNameViolations } from '../helpers/report-visible-text.js';
@@ -46,21 +42,12 @@ function objects(value: unknown): Record<string, unknown>[] {
   return Array.isArray(value) ? value.flatMap(objects) : [value as Record<string, unknown>, ...Object.values(value).flatMap(objects)];
 }
 
-test('S07F row 5: off flag table constructs no collector, adds no S07 step and matches main bytes', async t => {
+test('S07F row 5: disabled collection preserves independently frozen main bytes', async t => {
   t.mock.method(globalThis, 'fetch', async () => { throw new Error('unexpected network'); });
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-s07f-off-'));
-  t.after(() => fs.rm(root, { recursive: true, force: true }));
-  await fs.writeFile(path.join(root, 'index.html'), '<!doctype html><title>Synthetic</title>');
-  for (const flag of [undefined, '0', 'true']) {
-    const config = operatorAppConfigurationFromEnvironment({ TDN_WORKSPACE_DB: path.join(root, 'test.sqlite'),
-      TDN_ARTIFACT_ROOT: path.join(root, 'artifacts'), ...(flag === undefined ? {} : { TDN_RESEARCH_TIKTOK_COMMENTS_FREE_ENABLED: flag }) },
-    { frontendDist: root, version: 'synthetic' });
-    assert.equal(config.researchTikTokFreeComments, undefined);
-    const run = await s14cCollection(t, { reports: ['INSIGHT'] });
-    assert.equal(JSON.stringify(run.step).includes('S07'), false);
-    // Frozen by running this fixture in archived origin/main, independently of this branch.
-    assert.equal(sha(run.bytes), '877de38d63c6183797726c12c60613ac5336641fe576aa761cc8a87964959072');
-  }
+  // Strict flag parsing belongs to the startup table in the unit file. This
+  // independent storage boundary runs once; its fixture never consumes that flag.
+  const run = await s14cCollection(t, { reports: ['INSIGHT'] });
+  assert.equal(sha(run.bytes), '877de38d63c6183797726c12c60613ac5336641fe576aa761cc8a87964959072');
 });
 
 for (const scenario of [

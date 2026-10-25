@@ -39,12 +39,18 @@ const TERMINAL: Readonly<Record<string, TikTokCommentRunReceipt['status']>> = { 
 const SETTLE_READS = 6, SETTLE_MS = 5000;
 const providerId = (value: unknown): value is string => typeof value === 'string' && /^[A-Za-z0-9]{1,100}$/.test(value);
 interface Run { id: string; datasetId: string; buildId: string | null; status: string; usageTotalUsd: number | null; maxTotalChargeUsd: number | null }
-function parseRun(bytes: Buffer): Run {
-  const data = (JSON.parse(bytes.toString('utf8')) as { data?: Record<string, unknown> } | null)?.data;
+function parseProviderJson(bytes: Buffer): unknown {
+  try { return JSON.parse(bytes.toString('utf8')); }
+  catch { throw new Error('Invalid TikTok comment response'); }
+}
+function parseRun(bytes: Buffer, maxTotalChargeUsd: number): Run {
+  const data = (parseProviderJson(bytes) as { data?: Record<string, unknown> } | null)?.data;
   if (!data || !providerId(data.id) || !providerId(data.defaultDatasetId) || typeof data.status !== 'string' || !/^[A-Z-]{1,40}$/.test(data.status) ||
     (data.buildId != null && !providerId(data.buildId)) ||
-    (data.usageTotalUsd != null && (typeof data.usageTotalUsd !== 'number' || !Number.isFinite(data.usageTotalUsd) || data.usageTotalUsd < 0))) throw new Error('Invalid run');
+    (data.usageTotalUsd != null && (typeof data.usageTotalUsd !== 'number' || !Number.isFinite(data.usageTotalUsd) || data.usageTotalUsd < 0 || data.usageTotalUsd > maxTotalChargeUsd))) throw new Error('Invalid run');
   const cap = (data.options as { maxTotalChargeUsd?: unknown } | undefined)?.maxTotalChargeUsd;
+  // Check every observation before unsettled metadata can be discarded as unknown.
+  if (cap !== maxTotalChargeUsd) throw new Error('Run charge cap differs');
   return { id: data.id, datasetId: data.defaultDatasetId, buildId: (data.buildId as string | null | undefined) ?? null, status: data.status,
     usageTotalUsd: (data.usageTotalUsd as number | null | undefined) ?? null, maxTotalChargeUsd: typeof cap === 'number' && Number.isFinite(cap) ? cap : null };
 }
@@ -69,7 +75,7 @@ export class ApifyTikTokCommentsHttpTransport implements TikTokCommentsTransport
     const deadline = Date.now() + this.#maxWaitMs;
     // The actor's own timeout ends the provider run inside the local wait bound.
     const query = new URLSearchParams({ maxTotalChargeUsd: String(maxTotalChargeUsd), timeout: String(Math.max(30, Math.floor(this.#maxWaitMs / 1000) - 30)) });
-    let run = parseRun(await this.#request(`/acts/${actor.replace('/', '~')}/runs?${query}`, { method: 'POST', body: JSON.stringify(input) }, 30_000, signal));
+    let run = parseRun(await this.#request(`/acts/${actor.replace('/', '~')}/runs?${query}`, { method: 'POST', body: JSON.stringify(input) }, 30_000, signal), maxTotalChargeUsd);
     // The provider-side cap is the hard spend guard (reported usage settles late): the started run must carry exactly ours.
     if (run.maxTotalChargeUsd !== maxTotalChargeUsd) throw new Error('Run charge cap differs');
     while (!(run.status in TERMINAL)) {
@@ -77,7 +83,7 @@ export class ApifyTikTokCommentsHttpTransport implements TikTokCommentsTransport
       if (left <= 0) break;
       const wait = Math.min(60, Math.floor(left / 1000));
       if (wait < 1) { await this.#sleep(left, signal); continue; }
-      const next = parseRun(await this.#request(`/actor-runs/${run.id}?waitForFinish=${wait}`, {}, (wait + 30) * 1000, signal));
+      const next = parseRun(await this.#request(`/actor-runs/${run.id}?waitForFinish=${wait}`, {}, (wait + 30) * 1000, signal), maxTotalChargeUsd);
       if (next.id !== run.id || next.datasetId !== run.datasetId || next.maxTotalChargeUsd !== maxTotalChargeUsd) throw new Error('Run identity drift');
       run = next;
     }
@@ -88,14 +94,14 @@ export class ApifyTikTokCommentsHttpTransport implements TikTokCommentsTransport
       // finish, 10 rows and 0.006 USD later; usage once still 0 after two reads 3 s apart). Re-read until two
       // spaced reads agree; otherwise both stay unknown. Reported usage is a record, the run cap is the guard.
       const itemCount = async () => {
-        const data = (JSON.parse((await this.#request(`/datasets/${run.datasetId}`, {}, 30_000, signal)).toString('utf8')) as { data?: { itemCount?: unknown } } | null)?.data;
+        const data = (parseProviderJson(await this.#request(`/datasets/${run.datasetId}`, {}, 30_000, signal)) as { data?: { itemCount?: unknown } } | null)?.data;
         return typeof data?.itemCount === 'number' && Number.isSafeInteger(data.itemCount) && data.itemCount >= 0 ? data.itemCount : null;
       };
       // The terminal read itself is never trusted as settled: compare reads taken after a pause only.
       let previous: { rows: number | null; usage: number | null } | null = null, settled = false;
       for (let read = 0; read < SETTLE_READS && !settled; read++) {
         await this.#sleep(SETTLE_MS, signal);
-        const next = parseRun(await this.#request(`/actor-runs/${run.id}`, {}, 30_000, signal));
+        const next = parseRun(await this.#request(`/actor-runs/${run.id}`, {}, 30_000, signal), maxTotalChargeUsd);
         if (next.id !== run.id || next.datasetId !== run.datasetId || next.status !== run.status) throw new Error('Run identity drift');
         const current = { rows: await itemCount(), usage: next.usageTotalUsd };
         settled = previous !== null && current.rows !== null && current.rows === previous.rows && current.usage === previous.usage;
