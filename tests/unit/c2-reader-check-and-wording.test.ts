@@ -24,7 +24,7 @@ import { sync1Options, sync1ReaderFixture } from '../helpers/sync1-reader-fixtur
 // Each changed verdict has a passing control; Q2 exercises real publication errors.
 const draft = { kind: 'DRAFT_PRESENTATION', requireFlint: false } as const;
 const reader = { kind: 'READER', contractVersion: 'reader-report-build-v1.2', requireFlint: false } as const;
-const u13 = ['U13_SUPERLATIVE', 'U13_PRIORITY', 'U13_PENDING_NUMBER'];
+const u13 = ['U13_SUPERLATIVE', 'U13_PRIORITY', 'U13_PENDING_NUMBER', 'U13_METRIC_CODE', 'U13_REAL_PRICE', 'L20_RANKING_WORD'];
 const ids = (rows: readonly { rule: string }[]) => rows.map(row => row.rule);
 const verdict = (rows: readonly { rule: string; ok: boolean }[], rule: string) => {
   const found = rows.find(row => row.rule === rule);
@@ -53,7 +53,7 @@ const reasons = [
     sentences: ['Trang có tên nhà cung cấp số liệu hoặc công cụ.'] },
   { label: 'ordered gate ids', version: 'reader-report-build-v1.1', product: 'OpenAI; tổng hai sàn',
     cause: 'MARKET_BUSINESS_GATE_FAILED:G08_PROVIDER_NAME,U32_NO_CROSS_PLATFORM_TOTAL',
-    sentences: ['Trang có tên nhà cung cấp số liệu hoặc công cụ.', 'Trang cộng gộp số của Shopee và TikTok Shop thành một tổng.'] },
+    sentences: ['Trang có tên nhà cung cấp số liệu hoặc công cụ.', 'Trang có tổng hai sàn thiếu nhãn «Cộng 2 sàn» hoặc thiếu số từng sàn đứng cạnh.'] },
   { label: '14-rule', version: 'reader-report-build-v1.2', product: 'M01',
     cause: 'MARKET_14_RULES_FAILED:2',
     sentences: ['Trang thiếu nhãn Phần/Phụ lục hoặc còn hiện mã kỹ thuật của phần.'] },
@@ -96,8 +96,9 @@ const rows: Row[] = [
           visibleTextRules: true, visibleTextResults: checked.visibleText });
         if (bad) await assert.rejects(published, (error: unknown) => {
           assert.ok(error instanceof ReaderReportGateError);
-          assert.deepEqual(ids(error.lint.filter(row => !row.ok)), ['U13_SUPERLATIVE']);
-          assert.match(error.message, /^bản đọc chưa qua cổng kiểm: U13_SUPERLATIVE;/u);
+          const expected = phrase.startsWith('tốt') ? ['U13_SUPERLATIVE', 'L20_RANKING_WORD'] : ['U13_SUPERLATIVE'];
+          assert.deepEqual(ids(error.lint.filter(row => !row.ok)), expected);
+          assert.ok(error.message.startsWith(`bản đọc chưa qua cổng kiểm: ${expected.join(', ')};`));
           return true;
         });
         else await published;
@@ -170,14 +171,14 @@ const rows: Row[] = [
     const clean = await cleanReport();
     const checked = checkMarketReport(clean, reader);
     assert.equal(checked.failure, null);
-    assert.deepEqual(ids(checked.results.filter(row => row.rule.startsWith('U13_'))), u13);
-    assert.deepEqual(ids(checked.results).slice(-17), [...u13,
+    assert.deepEqual(ids(checked.results.filter(row => row.rule.startsWith('U13_') || row.rule === 'L20_RANKING_WORD')), u13);
+    assert.deepEqual(ids(checked.results).slice(-20), [...u13,
       '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14']);
     const bad = checkMarketReport(append(clean, '<p>Sản phẩm tốt nhất. Ưu tiên số 1.</p>'), reader);
-    assert.deepEqual(ids(bad.results.filter(row => row.rule.startsWith('U13_'))), u13);
-    assert.deepEqual(bad.failure?.failed, ['U13_SUPERLATIVE', 'U13_PRIORITY']);
+    assert.deepEqual(ids(bad.results.filter(row => row.rule.startsWith('U13_') || row.rule === 'L20_RANKING_WORD')), u13);
+    assert.deepEqual(bad.failure?.failed, ['U13_SUPERLATIVE', 'U13_PRIORITY', 'L20_RANKING_WORD']);
   } },
-  { name: 'row 5: U32 and W3 refuse the union of total phrases', run: () => {
+  { name: 'row 5: U32 and W3 refuse unlabelled total phrases', run: () => {
     const phrases = [
       'tổng hai sàn', 'cộng hai sàn', 'tổng cộng hai nền tảng', 'Shopee + TikTok', 'Shopee + TikTok Shop',
       'gộp Shopee và TikTok', 'gộp Shopee và TikTok Shop', 'gộp TikTok và Shopee', 'gộp TikTok Shop và Shopee',
@@ -193,6 +194,21 @@ const rows: Row[] = [
       assert.equal(verdict(lint(html, { legacyTotals: false }), 'W3 không cộng gộp sàn khi trang không ghi tổng'), ok, `W3: ${text}`);
     }
   } },
+  ...([
+    ['complete labelled total', 'Tổng hai sàn: 300; Cộng 2 sàn: 300; Shopee: 100; TikTok Shop: 200.', true],
+    ['missing label', 'Tổng hai sàn: 300; Shopee: 100; TikTok Shop: 200.', false],
+    ['missing TikTok number', 'Shopee: 100; TikTok Shop: chưa có dữ liệu; Cộng 2 sàn: 300.', false],
+    ['missing Shopee number', 'Shopee: chưa có dữ liệu; TikTok Shop: 200; Cộng 2 sàn: 300.', false],
+  ] as const).map(([name, text, ok]): Row => ({ name: `R-M16/R-L04 ${name}: U32 and W3 agree`, run: () => {
+    const html = `<p>${text}</p>`;
+    assert.deepEqual([
+      verdict(auditMarketReportHtml(html, { presentation: false }), 'U32_NO_CROSS_PLATFORM_TOTAL'),
+      verdict(lint(html, { legacyTotals: false }), 'W3 không cộng gộp sàn khi trang không ghi tổng'),
+    ], [ok, ok]);
+    if (name === 'complete labelled total') {
+      assert.equal(verdict(lint(html, { reportKind: 'INSIGHT' }), 'W3 không cộng gộp sàn khi trang không ghi tổng'), false);
+    }
+  } })),
   { name: 'row 6: M12 requires the full proposal label', run: () => {
     const presentation = (label: string) => '<html><body>' + Array.from({ length: 13 }, (_, i) =>
       `<section id="M${String(i + 1).padStart(2, '0')}">${i === 11
@@ -243,7 +259,7 @@ const rows: Row[] = [
       '<p aria-hidden="1">Sản phẩm tốt nhất.</p>',
       '<template><p>Sản phẩm tốt nhất.</p></template>',
     ]) assert.deepEqual(ids(lintVisibleReportText(insight(fragment)).filter(row => !row.ok)), []);
-    assert.deepEqual(ids(lintVisibleReportText(insight('<p>Sản phẩm tốt nhất.</p>')).filter(row => !row.ok)), ['U13_SUPERLATIVE']);
+    assert.deepEqual(ids(lintVisibleReportText(insight('<p>Sản phẩm tốt nhất.</p>')).filter(row => !row.ok)), ['U13_SUPERLATIVE', 'L20_RANKING_WORD']);
   } },
   { name: 'row 9: a class containing hidden leaves wording visible', run: async () => {
     // HTML hides via the hidden attribute; a class token alone has no such meaning.

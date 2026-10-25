@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { lintVisibleReportText } from '../../src/modules/analysis/report-visible-text-lint.js';
 import { createHash } from 'node:crypto';
 import { JSDOM } from 'jsdom';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
@@ -24,7 +25,7 @@ import { CAPTURE_ROW_PROFILE, CAPTURE_ROW_PROFILE_V2, type CaptureRowExclusionRe
 // G round 2: current source-list snapshots remove English product branding (L11(b));
 // G: current HTML/trace exhibit pins included defective evidence copy; legacy/Insight pins stay frozen.
 const hash = (value: string | Uint8Array) => createHash('sha256').update(value).digest('hex');
-const banned = /%|toàn thị trường|tổng|cộng|gộp|Metric|Kalodata|TradeInt|Dami|Apify|SerpApi|PageIndex|Gemini|OpenCLI|zen-studio|Google|nhất|hàng đầu|ưu tiên/iu;
+const banned = /%|toàn thị trường|tổng|cộng|gộp|Metric|Kalodata|TradeInt|Dami|Apify|SerpApi|PageIndex|Gemini|OpenCLI|zen-studio|Google|số 1 thị trường|tốt nhất|dẫn đầu ngành|hàng đầu|ưu tiên/iu;
 const text = (node: Element) => node.textContent!.replace(/\s+/gu, ' ').trim();
 const registry = () => {
   const source = new CitationRegistry();
@@ -158,6 +159,7 @@ test('capture findings read platforms separately, suppress unknown shops, and re
   assert.match(text(items[3]!), /TikTok Shop:.*700 VND/u);
   assert.doesNotMatch(reader.window.document.body.textContent!, /gian hàng|tập trung|900 VND/u);
   assert.doesNotMatch(reader.window.document.body.textContent!, banned);
+  assert.ok(lintVisibleReportText(reader.serialize()).every(row => row.ok));
   for (const item of items) assert.ok(item.querySelector('sup.cite'));
   const old = new JSDOM(renderAutomationMarketFindings(input.marketPresentation!, registry().citations, true));
   for (const doc of [old, fragment]) doc.window.document.querySelectorAll('sup.cite').forEach(mark => mark.remove());
@@ -202,6 +204,7 @@ test('page figures keep their own citation even without attributed rows; missing
       assert.equal(source.technicalTrace().entries.find(entry => entry.number === rowNumber)!.identity, missingResult.inputSha256);
     }
     assert.doesNotMatch(dom.window.document.body.textContent!, banned);
+    assert.ok(lintVisibleReportText(dom.serialize()).every(row => row.ok));
     dom.window.close();
   }
   for (const count of [0, 2]) {
@@ -409,4 +412,13 @@ test('M01 period inventory stays cited in trace and is hidden only for the captu
     trace.window.close(); reader.window.close();
   }
   assert.equal(canonicalJson({ sourceClaims, m01Inventory }), retained);
+});
+
+
+test('R-M33 metric code retained only in the technical trace passes the reader visible-text gate', () => {
+  const traceHtml = '<html><body><div id="sections"><section class="sheet" id="M13"><p>Doanh thu trong mẫu.</p><details class="evidence-trace"><summary>Hồ sơ tính</summary><p>DT-1</p></details></section></div><footer></footer></body></html>';
+  const readerHtml = deliverMarketReader(traceHtml, undefined, true);
+  assert.match(traceHtml, /DT-1/);
+  assert.doesNotMatch(readerHtml, /DT-1/);
+  assert.equal(lintVisibleReportText(readerHtml).find(row => row.rule === 'U13_METRIC_CODE')!.ok, true);
 });

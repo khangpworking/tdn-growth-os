@@ -242,3 +242,13 @@ test('rule 1 accepts Vietnamese percentile explanations and still rejects a miss
   assert.equal(rule(vietnamese.replace('mốc 25 phần trăm', 'mốc 20 phần trăm'), '1').ok, false);
   assert.equal(rule(vietnamese.replace('mốc 75 phần trăm', ''), '1').ok, false);
 });
+
+
+test('R-M07 rule 7 accepts a labelled Market total with n and still refuses market-size claims', () => {
+  const total = '<table><thead><tr><th>Chỉ số</th><th>Shopee</th><th>TikTok Shop</th><th>Cộng 2 sàn</th></tr></thead><tbody><tr><td>Doanh thu trong mẫu (n = 4)</td><td>10 (n = 2)</td><td>20 (n = 2)</td><td>30 (n = 4)</td></tr></tbody></table>';
+  const html = valid.replace('</body>', total + '</body>');
+  assert.equal(rule(html, '7').ok, true);
+  for (const phrase of ['quy mô thị trường', 'thị phần']) {
+    assert.equal(rule(html.replace('</body>', `<p>${phrase} là 30 trong mẫu (n = 4).</p></body>`), '7').ok, false, phrase);
+  }
+});

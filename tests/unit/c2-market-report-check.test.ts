@@ -12,7 +12,7 @@ import { fullMarket14Input } from '../helpers/market14-full-fixture.js';
 // These rows own the new module's context, combined results and error contracts.
 const draft = { kind: 'DRAFT_PRESENTATION' } as const;
 const totals = [{ measure: 'revenue', value: '1234' }] as const;
-const u13 = ['U13_SUPERLATIVE', 'U13_PRIORITY', 'U13_PENDING_NUMBER'];
+const u13 = ['U13_SUPERLATIVE', 'U13_PRIORITY', 'U13_PENDING_NUMBER', 'U13_METRIC_CODE', 'U13_REAL_PRICE', 'L20_RANKING_WORD'];
 const ids = (rows: readonly { rule: string }[]) => rows.map(row => row.rule);
 const failed = (rows: readonly { rule: string; ok: boolean }[]) => ids(rows.filter(row => !row.ok));
 const append = (html: string, fragment: string) => html.replace('</body>', `${fragment}</body>`);
@@ -28,7 +28,7 @@ const errors: readonly {
     message: 'MARKET_BUSINESS_GATE_FAILED:G08_PROVIDER_NAME' },
   { label: 'raw U13 precedes the business gate',
     fragment: '<p>Sản phẩm tốt nhất. Làm ngay việc A, tiếp theo việc B. Metric.</p>', context: draft,
-    message: 'MARKET_VISIBLE_TEXT_LINT_FAILED:U13_SUPERLATIVE,U13_PRIORITY' },
+    message: 'MARKET_VISIBLE_TEXT_LINT_FAILED:U13_SUPERLATIVE,U13_PRIORITY,L20_RANKING_WORD' },
   { label: '14-rule machine refusal retains its rule number', fragment: '<p>M01</p>', context: draft,
     message: 'MARKET_14_RULES_FAILED:2' },
   { label: 'plain public-review name refusal retains its message', fragment: '<img alt="Metric">',
@@ -66,8 +66,8 @@ const rows: Row[] = [
     const clean = await cleanReport();
     assert.equal(checkMarketReport(append(clean, '<p>Sản phẩm thông thường.</p>'), draft).failure, null);
     const result = checkMarketReport(append(clean, '<p>Sản phẩm tốt nh<span>ất</span>.</p>'), draft);
-    assert.deepEqual(result.failure, { failed: ['U13_SUPERLATIVE'], message: 'MARKET_BUSINESS_GATE_FAILED:U13_SUPERLATIVE' });
-    assert.deepEqual(failed(result.results), ['U13_SUPERLATIVE']);
+    assert.deepEqual(result.failure, { failed: ['U13_SUPERLATIVE', 'L20_RANKING_WORD'], message: 'MARKET_BUSINESS_GATE_FAILED:U13_SUPERLATIVE,L20_RANKING_WORD' });
+    assert.deepEqual(failed(result.results), ['U13_SUPERLATIVE', 'L20_RANKING_WORD']);
     assert.equal(result.results.filter(row => row.rule === 'U13_SUPERLATIVE').length, 1);
   } },
   ...errors.map(({ label, fragment, context, message }): Row => ({ name: `row 4: ${label}`, run: async () => {
@@ -120,7 +120,7 @@ const rows: Row[] = [
   } },
   ...([
     ['clean', '', []],
-    ['provider and total', '<p>Metric; tổng hai sàn.</p>', ['4', '7']],
+    ['provider and unlabelled total', '<p>Metric; tổng hai sàn.</p>', ['4']],
   ] as const).map(([label, fragment, expected]): Row => ({
     name: `row 6: default and precomputed 14-rule gate agree for ${label} HTML`, run: async () => {
       const html = append(await cleanReport(), fragment);
@@ -130,7 +130,7 @@ const rows: Row[] = [
       assert.deepEqual(auditMarket14(html, undefined, { gate }), fallback);
     },
   })),
-  { name: 'row 6: a disagreeing supplied gate changes rules 4 and 7', run: async () => {
+  { name: 'row 6: a disagreeing supplied U32 gate no longer changes rule 7', run: async () => {
     const html = await cleanReport();
     const gate = auditMarketReportHtml(html, { presentation: false });
     const clean = auditMarket14(html, undefined, { gate });
@@ -138,8 +138,8 @@ const rows: Row[] = [
     const disagrees = gate.map(row => ['G08_PROVIDER_NAME', 'U32_NO_CROSS_PLATFORM_TOTAL'].includes(row.rule)
       ? { ...row, ok: false, detail: 'synthetic precomputed refusal' } : row);
     const result = auditMarket14(html, undefined, { gate: disagrees });
-    assert.deepEqual(failed(result.filter(row => row.kind === 'machine')), ['4', '7']);
-    assert.deepEqual(result.filter(row => !['4', '7'].includes(row.rule)), clean.filter(row => !['4', '7'].includes(row.rule)));
+    assert.deepEqual(failed(result.filter(row => row.kind === 'machine')), ['4']);
+    assert.deepEqual(result.filter(row => row.rule !== '4'), clean.filter(row => row.rule !== '4'));
   } },
   { name: 'row 7: snippet baseline accepts identical and quoted snippets, refuses authored ranking', run: () => {
     const baseline = '<p>Thông tin nguồn.</p>';

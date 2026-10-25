@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { lintVisibleReportText } from '../../src/modules/analysis/report-visible-text-lint.js';
 
 import { JSDOM } from 'jsdom';
 import { actionStartDay, dayPlus, isoFromReaderDay, marketActionPlan, opportunityRows, platformSignals, type ActionRow } from '../../src/modules/analysis/reader-report/market-actions.js';
@@ -111,7 +112,8 @@ test('1.4.0 Phần 11 and 12 share sample signals, independent of classification
   assert.deepEqual([...doc.querySelectorAll('#phan-11 tbody tr')].map(row => [...row.querySelectorAll('td')].map(cell => cell.textContent)), expected);
   assert.equal(doc.querySelector('#phan-11 [data-classified]'), null);
   const sections = ['#phan-11', '#phan-12'].map(id => doc.querySelector(id)!.textContent!).join(' ');
-  assert.doesNotMatch(sections, /%|\b0 VND\b|Metric|Kalodata|TradeInt|Dami|Apify|SerpApi|PageIndex|Gemini|OpenCLI|zen-studio|Google|nhất|hàng đầu|ưu tiên/iu);
+  assert.doesNotMatch(sections, /%|\b0 VND\b|Metric|Kalodata|TradeInt|Dami|Apify|SerpApi|PageIndex|Gemini|OpenCLI|zen-studio|Google|số 1 thị trường|tốt nhất|dẫn đầu ngành|hàng đầu|ưu tiên/iu);
+  assert.ok(lintVisibleReportText(['#phan-11', '#phan-12'].map(id => doc.querySelector(id)!.outerHTML).join('')).every(row => row.ok));
   assert.match(sections, /không cộng thêm/u);
   assert.equal((await render('31/02/2026')).querySelector('#phan-12 tbody tr td:last-child')!.textContent, '07/02/2026');
   // Simulate malformed retained metadata after the normal input validation boundary.

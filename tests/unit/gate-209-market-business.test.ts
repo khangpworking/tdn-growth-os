@@ -28,7 +28,7 @@ function check(html: string, rule: string) {
 test('synthetic Market HTML passes the complete business gate and includes all U13 checks', () => {
   const results = auditMarketReportHtml(reportHtml());
   assert.ok(results.every(result => result.ok), JSON.stringify(results));
-  assert.deepEqual(results.slice(-3).map(result => result.rule), ['U13_SUPERLATIVE', 'U13_PRIORITY', 'U13_PENDING_NUMBER']);
+  assert.deepEqual(results.slice(-6).map(result => result.rule), ['U13_SUPERLATIVE', 'U13_PRIORITY', 'U13_PENDING_NUMBER', 'U13_METRIC_CODE', 'U13_REAL_PRICE', 'L20_RANKING_WORD']);
   assert.ok(results.every(result => result.detail.length <= 3 * 160 + 6));
 });
 
