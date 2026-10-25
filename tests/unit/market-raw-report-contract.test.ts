@@ -16,7 +16,8 @@ import zinc12Dev from '../fixtures/market-raw-series/zinc-12m-dev.raw-responses.
 // P4 is builder-only. The four-platform KPI targets are synthetic canaries;
 // the dev captures exercise real window shapes, not Smart-query acceptance.
 const scope: MarketRawReportInput['scope'] = { keywords: ['viên uống kẽm'], smartQuery: true };
-const synthetic = { periods: [readMarketRawSeries(zinc30), readMarketRawSeries(zinc12)], scope };
+const captured = (captureId: string, raw: unknown) => ({ captureId, series: readMarketRawSeries(raw) });
+const synthetic = { periods: [captured('zinc-30d', zinc30), captured('zinc-12m', zinc12)], scope };
 let fixture: Promise<AutomationReportInput> | undefined;
 const baseInput = () => fixture ??= fullMarket14Input();
 
@@ -73,7 +74,7 @@ test('B1 raw-input report removes average prices from populated inventory and al
 });
 
 test('B2 weekly and monthly charts each retain separate Shopee and TikTok Shop series', async () => {
-  const raw = { periods: [readMarketRawSeries(zinc30Dev), readMarketRawSeries(zinc12Dev)],
+  const raw = { periods: [captured('zinc-30d-dev', zinc30Dev), captured('zinc-12m-dev', zinc12Dev)],
     scope: { ...scope, smartQuery: false } };
   withDocument(await reportHtml(raw), document => {
     assertB2(document);
@@ -105,7 +106,7 @@ test('B3 trend sentences distinguish rising, falling and mixed full intervals', 
     for (const platform of data) platform.order_revenue_intervals.forEach((interval, i) => {
       interval.revenue_custom_sum = (values[i] ?? partial) * 1e9;
     });
-    const html = marketRawScaleSection({ periods: [readMarketRawSeries(raw)], scope }, new MarketNumberTraceCollector());
+    const html = marketRawScaleSection({ periods: [captured('zinc-30d', raw)], scope }, new MarketNumberTraceCollector());
     withDocument(html, document => {
       const text = [...document.querySelectorAll('p')].map(p => p.textContent).find(text => text?.startsWith('Shopee:'));
       assert.ok(text, 'the builder emits the trend sentence');
@@ -169,7 +170,7 @@ test('B6 synthetic zinc KPI prints 35,0 tỷ total, 34,9 tỷ scope, 27,0 tỷ T
   const data = raw[1]!.body.data;
   assert.ok(Array.isArray(data));
   for (const platform of data) for (const interval of platform.order_revenue_intervals) interval.revenue_custom_sum = 1;
-  withDocument(await reportHtml({ ...synthetic, periods: [readMarketRawSeries(raw)] }), document => {
+  withDocument(await reportHtml({ ...synthetic, periods: [captured('zinc-30d', raw)] }), document => {
     const period = document.querySelector('[data-market-raw-period="30d"]')!;
     assert.equal(period.querySelector('[data-kpi="revenue"] b')!.textContent, '35,0 tỷ');
     assert.equal(period.querySelector('[data-kpi="products"] b')!.textContent, '956');

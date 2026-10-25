@@ -8,14 +8,22 @@
  * Optional input: reports without `marketRawSeries` keep their current output.
  */
 import { escapeHtml as escape } from './descriptive-report.js';
-import { MARKET_RAW_PLATFORM_IDS, MARKET_RAW_SCOPE_PLATFORM_IDS, type MarketRawInterval, type MarketRawKpiField,
+import { MARKET_RAW_PLATFORM_IDS, MARKET_RAW_SCOPE_PLATFORM_IDS, marketRawPeriodEndSource, type MarketRawInterval, type MarketRawKpiField,
   type MarketRawSeries, type MarketRawSource, type MarketRawTotalValue } from './market-raw-series.js';
 import { marketCaptureScopeLine, type MarketCaptureScope } from './market-scope-report.js';
-import type { MarketNumberTraceCollector } from './market-trace-map.js';
+import type { MarketCaptureTrace, MarketNumberTraceCollector } from './market-trace-map.js';
+
+/** One captured period: the stored raw-responses capture and the series read from it. */
+export interface MarketRawCapturePeriod {
+  /** Identity of the stored raw-responses capture (e.g. its capture artifact sha256); every trace input names it. */
+  readonly captureId: string;
+  /** `readMarketRawSeries` output of that capture. */
+  readonly series: MarketRawSeries;
+}
 
 export interface MarketRawReportInput {
-  /** `readMarketRawSeries` output, one per captured period (e.g. 30 days, 12 months), in print order. */
-  readonly periods: readonly MarketRawSeries[];
+  /** One entry per captured period (e.g. 30 days, 12 months), in print order. */
+  readonly periods: readonly MarketRawCapturePeriod[];
   /** Search settings of the capture, from the run record. */
   readonly scope: MarketCaptureScope;
 }
@@ -75,13 +83,18 @@ function siblingSource(source: MarketRawSource, field: string): MarketRawSource 
 
 export type MarketTrendWord = 'tăng đều' | 'giảm đều' | 'tăng nhưng dao động' | 'giảm nhưng dao động' | 'đi ngang';
 
+/** Fixed sentence in place of a trend word when an interval of the series is missing. */
+export const MARKET_TREND_MISSING = 'chưa đủ dữ liệu để nhận xét xu hướng';
+
 /**
  * Trend of a series: «tăng đều» only when every step rises, «giảm đều» only
  * when every step falls; otherwise first against last decides «tăng/giảm nhưng
- * dao động», and equal first and last is «đi ngang». Null below two values.
+ * dao động», and equal first and last is «đi ngang». Null below two values or
+ * when any value is missing: a gap never becomes a trend.
  */
-export function marketTrendWord(values: readonly number[]): MarketTrendWord | null {
-  if (values.length < 2) return null;
+export function marketTrendWord(series: readonly (number | null)[]): MarketTrendWord | null {
+  if (series.length < 2 || series.some(value => value === null)) return null;
+  const values = series as readonly number[];
   const steps = values.slice(1).map((value, i) => value - values[i]!);
   if (steps.every(step => step > 0)) return 'tăng đều';
   if (steps.every(step => step < 0)) return 'giảm đều';
@@ -96,22 +109,33 @@ export function marketChangeNote(metric: string, periodLabel: string, previousRa
 
 // --- blocks ---
 
-type Point = { readonly interval: MarketRawInterval; readonly value: number; readonly source: MarketRawSource };
+type Point = { readonly interval: MarketRawInterval; readonly value: number | null; readonly source: MarketRawSource | null };
+type Line = (typeof PLATFORMS)[number] & { readonly points: ReadonlyMap<string, Point>; readonly undated: number; readonly hasData: boolean };
 
-function periodLabel(series: MarketRawSeries, trace: MarketNumberTraceCollector, blockId: string): { text: string; key: string } | null {
-  const period = series.period;
-  if (period.startDate === null) return null;
+/** The period as printed: «30 ngày» / «12 tháng», its dates and the previous period's dates, recorded at every place they print. */
+interface PeriodText {
+  readonly key: string;
+  text(blockId: string): string;
+  range(blockId: string): string;
+  previous(blockId: string): string;
+}
+
+function periodText(period: Extract<MarketRawSeries['period'], { startDate: string }>, trace: MarketCaptureTrace): PeriodText {
+  const end = marketRawPeriodEndSource(period.source);
+  const inputs = end ? [period.source, end] : [period.source];
   const year = period.days >= 365;
-  const count = trace.record(year ? '12' : String(period.days), blockId, 'computed', [period.source],
-    year ? 'inclusive days of the request period ≥ 365 → 12 tháng' : 'inclusive days of the request period');
-  return { text: `${count} ${year ? 'tháng' : 'ngày'}`, key: year ? '12m' : `${period.days}d` };
+  const previous = marketPreviousPeriod(period.startDate, period.endDate);
+  return {
+    key: year ? '12m' : `${period.days}d`,
+    text: blockId => `${trace.record(year ? '12' : String(period.days), blockId, 'computed', inputs,
+      year ? 'inclusive days of the request period ≥ 365 → 12 tháng' : 'inclusive days from request start_date to end_date')} ${year ? 'tháng' : 'ngày'}`,
+    range: blockId => trace.record(formatMarketRange(period.startDate, period.endDate), blockId, 'raw', inputs, 'request start_date–end_date, dd/mm[/yyyy]'),
+    previous: blockId => trace.record(formatMarketRange(previous.startDate, previous.endDate), blockId, 'computed', inputs,
+      'same length as the request period, ending the day before its start_date; dd/mm[/yyyy]'),
+  };
 }
 
-function recordRange(trace: MarketNumberTraceCollector, blockId: string, start: string, end: string, inputs: readonly MarketRawSource[], formula: string): string {
-  return trace.record(formatMarketRange(start, end), blockId, inputs.length ? 'raw' : 'computed', inputs, formula);
-}
-
-function totalCard(field: MarketRawKpiField, series: MarketRawSeries, previousLabel: string, previousRange: string, trace: MarketNumberTraceCollector, blockId: string): string {
+function totalCard(field: MarketRawKpiField, series: MarketRawSeries, period: PeriodText, trace: MarketCaptureTrace, blockId: string): string {
   const total: MarketRawTotalValue = series.totals.all.kpi[field];
   const name = KPI_LABELS[field];
   if (total.value === null) return `<div class="kpi" data-kpi="${field}"><b>Chưa có số</b><span>${escape(name.card)}</span></div>`;
@@ -123,12 +147,13 @@ function totalCard(field: MarketRawKpiField, series: MarketRawSeries, previousLa
   const changeHtml = change.value === null ? '' : (() => {
     const token = trace.record(formatMarketChange(change.value), `${blockId}.${field}.change`, 'computed', [...total.members, ...previous.members],
       'round((current - previous) / previous × 100)%, signed');
-    return ` <span class="chg">${arrow(token)}${escape(token)}</span> <small class="cmp-note">${escape(marketChangeNote(name.metric, previousLabel, previousRange))}</small>`;
+    const note = `${blockId}.${field}.change.note`;
+    return ` <span class="chg">${arrow(token)}${escape(token)}</span> <small class="cmp-note">${escape(marketChangeNote(name.metric, period.text(note), period.previous(note)))}</small>`;
   })();
   return `<div class="kpi" data-kpi="${field}"><b>${escape(value)}</b><span>${escape(name.card)}</span>${changeHtml}</div>`;
 }
 
-function platformSplit(series: MarketRawSeries, periodText: string, range: string, trace: MarketNumberTraceCollector, blockId: string): string {
+function platformSplit(series: MarketRawSeries, period: PeriodText, trace: MarketCaptureTrace, blockId: string): string {
   const byId = new Map(series.platforms.map(platform => [platform.platformId, platform] as const));
   const scope = series.totals.scope;
   const scoped = scope.platformIds.length === MARKET_RAW_SCOPE_PLATFORM_IDS.length && scope.platformIds.every(id => MARKET_RAW_SCOPE_PLATFORM_IDS.includes(id));
@@ -144,105 +169,133 @@ function platformSplit(series: MarketRawSeries, periodText: string, range: strin
   });
   const sum = total && total.value !== null
     ? ` · Cộng 2 sàn ${escape(trace.record(formatMarketMoney(total.value), `${blockId}.scope`, 'computed', total.members, `sum(Shopee, TikTok Shop revenue); ${SCALE_FORMULA}`))}`
-    + ` <small class="cmp-note">${escape(`(tỷ lệ = doanh thu từng sàn ÷ doanh thu Cộng 2 sàn, cùng kỳ ${periodText}: ${range})`)}</small>`
+    + ` <small class="cmp-note">${escape(`(tỷ lệ = doanh thu từng sàn ÷ doanh thu Cộng 2 sàn, cùng kỳ ${period.text(`${blockId}.note`)}: ${period.range(`${blockId}.note`)})`)}</small>`
     : ' <small class="cmp-note">Chưa nêu Cộng 2 sàn vì thiếu số doanh thu của một sàn.</small>';
   return `<p data-market-raw-split="${escape(blockId)}">${parts.join(' · ')}${sum}</p>`;
 }
 
-/** One line per platform over the same interval axis; partial intervals are hollow points. No axis numbers: values are in the table below. */
-function intervalSvg(axis: readonly string[], lines: readonly { key: string; label: string; color: string; points: ReadonlyMap<string, Point> }[], labels: readonly string[]): string {
+/**
+ * One line per platform over the same interval axis; partial intervals are hollow points. A missing interval
+ * breaks the line at its date; a platform with no numbers keeps its legend entry, marked «không có dữ liệu».
+ * No axis numbers: values are in the table below.
+ */
+function intervalSvg(axis: readonly string[], lines: readonly Line[], labels: readonly string[]): string {
   const w = 760, h = 260, left = 24, right = 24, top = 30, bottom = 46;
-  const values = lines.flatMap(line => [...line.points.values()].map(point => point.value));
+  const values = lines.flatMap(line => [...line.points.values()].flatMap(point => point.value === null ? [] : [point.value]));
   const max = Math.max(0, ...values) || 1;
   const X = (i: number): number => left + i * (w - left - right) / Math.max(1, axis.length - 1);
   const Y = (value: number): number => top + (h - top - bottom) * (1 - value / max);
   let body = '', legend = left;
   for (const line of lines) {
-    body += `<rect x="${legend}" y="6" width="11" height="11" fill="${line.color}"/><text x="${legend + 15}" y="16" class="lg">${escape(line.label)}</text>`;
-    legend += 40 + line.label.length * 7;
-    const coords = axis.flatMap((key, i) => { const point = line.points.get(key); return point ? [{ i, point }] : []; });
-    body += `<polyline data-platform="${line.key}" fill="none" stroke="${line.color}" stroke-width="2.5" points="${coords.map(({ i, point }) => `${X(i).toFixed(1)},${Y(point.value).toFixed(1)}`).join(' ')}"/>`;
-    for (const { i, point } of coords) body += `<circle data-platform="${line.key}" cx="${X(i).toFixed(1)}" cy="${Y(point.value).toFixed(1)}" r="3.5" fill="${point.interval.partial ? '#fff' : line.color}" stroke="${line.color}"/>`;
+    const name = line.hasData ? line.label : `${line.label}: không có dữ liệu`;
+    body += `<rect x="${legend}" y="6" width="11" height="11" fill="${line.hasData ? line.color : '#fff'}" stroke="${line.color}"/><text x="${legend + 15}" y="16" class="lg">${escape(name)}</text>`;
+    legend += 40 + name.length * 7;
+    if (!line.hasData) continue;
+    const coords = axis.map((key, i) => { const point = line.points.get(key); return point && point.value !== null ? { i, point, value: point.value } : null; });
+    // Each run of known intervals is its own segment, so a missing interval stays a gap at its date.
+    let run: string[] = [];
+    const flush = (): void => { if (run.length > 1) body += `<polyline data-platform="${line.key}" fill="none" stroke="${line.color}" stroke-width="2.5" points="${run.join(' ')}"/>`; run = []; };
+    for (const coord of coords) if (coord) run.push(`${X(coord.i).toFixed(1)},${Y(coord.value).toFixed(1)}`); else flush();
+    flush();
+    for (const coord of coords) if (coord) body += `<circle data-platform="${line.key}" cx="${X(coord.i).toFixed(1)}" cy="${Y(coord.value).toFixed(1)}" r="3.5" fill="${coord.point.interval.partial ? '#fff' : line.color}" stroke="${line.color}"/>`;
   }
   axis.forEach((_, i) => { body += `<text x="${X(i).toFixed(1)}" y="${h - bottom + 20}" class="ax" text-anchor="middle">${escape(labels[i]!)}</text>`; });
   return `<svg viewBox="0 0 ${w} ${h}" role="img" xmlns="http://www.w3.org/2000/svg">${body}</svg>`;
 }
 
-function intervalBlock(series: MarketRawSeries, periodText: string, range: string, trace: MarketNumberTraceCollector, blockId: string): string {
+function intervalBlock(series: MarketRawSeries, period: PeriodText, trace: MarketCaptureTrace, blockId: string): string {
   const monthly = series.intervalDays.value !== null && series.intervalDays.value >= 28;
+  const unit = monthly ? 'tháng' : 'tuần';
   const byId = new Map(series.platforms.map(platform => [platform.platformId, platform] as const));
-  const lines = PLATFORMS.flatMap(platform => {
-    const intervals = byId.get(platform.id)?.intervals ?? [];
+  // Every interval stays, null revenue included; only an interval without dates has no place on the axis.
+  const lines: Line[] = PLATFORMS.map(platform => {
     const points = new Map<string, Point>();
-    for (const interval of intervals) if (interval.startDate && interval.endDate && interval.revenue.value !== null)
-      points.set(`${interval.startDate}|${interval.endDate}`, { interval, value: interval.revenue.value, source: interval.revenue.source });
-    return points.size ? [{ ...platform, points }] : [];
+    let undated = 0;
+    for (const interval of byId.get(platform.id)?.intervals ?? []) {
+      if (interval.startDate && interval.endDate) points.set(`${interval.startDate}|${interval.endDate}`, { interval, value: interval.revenue.value, source: interval.revenue.source });
+      else undated++;
+    }
+    return { ...platform, points, undated, hasData: [...points.values()].some(point => point.value !== null) };
   });
-  if (!lines.length) return `<p>Chưa có số doanh thu theo ${monthly ? 'tháng' : 'tuần'} của từng sàn cho kỳ này.</p>`;
+  if (!lines.some(line => line.points.size)) return `<p>Chưa có số doanh thu theo ${unit} của Shopee và TikTok Shop cho kỳ này.</p>`;
   const axis = [...new Set(lines.flatMap(line => [...line.points.keys()]))].sort();
-  const sample = (key: string): Point => lines.map(line => line.points.get(key)).find(point => point !== undefined)!;
+  const sample = (key: string): Point => lines.map(line => line.points.get(key)).find(point => point?.source)
+    ?? lines.map(line => line.points.get(key)).find(point => point !== undefined)!;
   // Interval dates print as stored; full months print as mm/yyyy.
   const label = (key: string, block: string): string => {
     const { interval, source } = sample(key);
-    const inputs = [siblingSource(source, 'start_date'), siblingSource(source, 'end_date')];
+    const inputs = source ? [siblingSource(source, 'start_date'), siblingSource(source, 'end_date')] : [];
     if (monthly && !interval.partial) return trace.record(`${interval.startDate!.slice(5, 7)}/${interval.startDate!.slice(0, 4)}`, block, 'raw', inputs, 'mm/yyyy of start_date');
-    return recordRange(trace, block, interval.startDate!, interval.endDate!, inputs, 'start_date–end_date, dd/mm[/yyyy]');
+    return trace.record(formatMarketRange(interval.startDate!, interval.endDate!), block, 'raw', inputs, 'start_date–end_date, dd/mm[/yyyy]');
   };
+  const short = (block: string): string => monthly ? 'tháng' : series.intervalDays.value !== null && series.intervalDays.source
+    ? `${trace.record(String(series.intervalDays.value), block, 'raw', [series.intervalDays.source], 'interval_days of the request')} ngày` : 'kỳ';
   const axisLabels = axis.map(key => label(key, `${blockId}.axis`));
+  let missing = false;
   const rows = axis.map(key => {
     const interval = sample(key).interval;
     // A partial interval's label is already its exact dates.
-    const partial = interval.partial ? ` <small>(chưa đủ ${monthly ? 'tháng' : '7 ngày'})</small>` : '';
-    const cells = PLATFORMS.map(platform => {
-      const point = lines.find(line => line.id === platform.id)?.points.get(key);
-      return `<td>${point ? escape(trace.record(formatMarketMoney(point.value), `${blockId}.table.${platform.key}`, 'raw', [point.source], SCALE_FORMULA)) : 'Chưa có số'}</td>`;
+    const partial = interval.partial ? ` <small>(chưa đủ ${short(`${blockId}.table.partial`)})</small>` : '';
+    const cells = lines.map(line => {
+      const point = line.points.get(key);
+      if (!line.hasData) return '<td>không có dữ liệu</td>';
+      if (!point || point.value === null || !point.source) { missing = true; return '<td>thiếu</td>'; }
+      return `<td>${escape(trace.record(formatMarketMoney(point.value), `${blockId}.table.${line.key}`, 'raw', [point.source], SCALE_FORMULA))}</td>`;
     }).join('');
     return `<tr${interval.partial ? ' data-period-incomplete="true"' : ''}><td>${escape(label(key, `${blockId}.table`))}${partial}</td>${cells}</tr>`;
   }).join('');
-  const unit = monthly ? 'tháng' : 'tuần';
   const trends = lines.map(line => {
-    const full = axis.flatMap(key => { const point = line.points.get(key); return point && point.interval.partial === false ? [{ key, point }] : []; });
+    if (!line.hasData) return `${line.label}: không có dữ liệu theo ${unit} trong kỳ này.`;
+    // Any missing interval (null revenue, no dates, or absent where the other platform has one) leaves the trend unsaid.
+    const all = axis.map(key => line.points.get(key)?.value ?? null);
+    if (line.undated || all.some(value => value === null)) return `${line.label}: ${MARKET_TREND_MISSING}.`;
+    const full = axis.flatMap(key => { const point = line.points.get(key)!; return point.interval.partial === false && point.source ? [{ key, point, source: point.source }] : []; });
     const word = marketTrendWord(full.map(({ point }) => point.value));
     if (!word) return `${line.label}: chưa đủ ${unit} đủ ngày để nói xu hướng.`;
     const first = full[0]!, last = full[full.length - 1]!;
     const block = `${blockId}.trend.${line.key}`;
-    const amount = (entry: { key: string; point: Point }): string =>
-      `${trace.record(formatMarketMoney(entry.point.value), block, 'raw', [entry.point.source], SCALE_FORMULA)} (${label(entry.key, block)})`;
+    const amount = (entry: typeof first): string =>
+      `${trace.record(formatMarketMoney(entry.point.value!), block, 'raw', [entry.source], SCALE_FORMULA)} (${label(entry.key, block)})`;
     return `${line.label}: ${word}, từ ${amount(first)} đến ${amount(last)} (doanh thu từng ${unit} đủ ngày).`;
   });
-  const partialNote = axis.some(key => sample(key).interval.partial)
-    ? ` Điểm rỗng là ${unit} chưa đủ ngày, ghi đúng ngày ở bảng; không dùng để nói xu hướng.` : '';
-  return `<figure class="market-raw-line" data-market-raw-chart="${monthly ? 'monthly' : 'weekly'}" data-series-count="${lines.length}"><figcaption>${escape(`Doanh thu theo ${unit}, từng sàn, kỳ ${periodText}: ${range}`)}</figcaption>`
+  const absent = lines.filter(line => !line.hasData).map(line => line.label);
+  const notes = ['Mỗi sàn một đường riêng; biểu đồ không có đường tổng.',
+    ...(absent.length ? [`${absent.join(', ')}: không có dữ liệu theo ${unit} trong kỳ này, nên không có đường.`] : []),
+    ...(missing ? [`Chỗ đứt của đường là ${unit} thiếu doanh thu, ghi «thiếu» ở bảng; không phải bằng không.`] : []),
+    ...(axis.some(key => sample(key).interval.partial) ? [`Điểm rỗng là ${unit} chưa đủ ngày, ghi đúng ngày ở bảng; không dùng để nói xu hướng.`] : [])];
+  const missingPlatforms = lines.filter(line => !line.hasData).map(line => line.key).join(' ');
+  return `<figure class="market-raw-line" data-market-raw-chart="${monthly ? 'monthly' : 'weekly'}" data-series-count="${lines.length - absent.length}"${missingPlatforms ? ` data-platform-missing="${missingPlatforms}"` : ''}>`
+    + `<div class="exh"><span class="ext">${escape(`Doanh thu theo ${unit}, từng sàn, kỳ ${period.text(`${blockId}.title`)}: ${period.range(`${blockId}.title`)}`)}</span></div>`
     + intervalSvg(axis, lines, axisLabels) + '</figure>'
-    + `<div class="table-wrap" role="region" aria-label="${escape(`Doanh thu theo ${unit}, từng sàn`)}" tabindex="0"><table data-market-raw-intervals="${monthly ? 'monthly' : 'weekly'}"><caption>${escape(`Doanh thu theo ${unit}, từng sàn`)}</caption>`
+    + `<p class="lim"><b>Chú thích:</b> ${escape(notes.join(' '))}</p>`
+    + `<div class="table-wrap" role="region" aria-label="${escape(`Doanh thu theo ${unit}, từng sàn`)}" tabindex="0"><table data-market-raw-intervals="${monthly ? 'monthly' : 'weekly'}" data-reading=""><caption>${escape(`Doanh thu theo ${unit}, từng sàn`)}</caption>`
     + `<thead><tr><th>Kỳ</th>${PLATFORMS.map(platform => `<th>${platform.label} (doanh thu)</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`
-    + `<p>${trends.map(escape).join(' ')}</p>`
-    + `<p class="lim"><b>Chú thích:</b> Mỗi sàn một đường riêng; biểu đồ không có đường tổng.${escape(partialNote)}</p>`;
+    + '<p class="lim"><b>Chú thích:</b> Doanh thu ước tính trên sàn của từng kỳ, đọc riêng từng sàn; ô «thiếu» là kỳ nguồn không ghi doanh thu, không phải bằng không.</p>'
+    + `<p>${trends.map(escape).join(' ')}</p>`;
 }
 
-function periodBlock(series: MarketRawSeries, trace: MarketNumberTraceCollector): string {
-  const head = periodLabel(series, trace, 'M03.period');
-  if (!head || series.period.startDate === null) return '<p>Chưa đọc được kỳ của số liệu thị trường; không in số của kỳ này.</p>';
-  const blockId = `M03.${head.key}`;
-  const { startDate, endDate, source } = series.period;
-  const range = recordRange(trace, `${blockId}.period`, startDate, endDate, [source], 'request start_date–end_date');
-  const previous = marketPreviousPeriod(startDate, endDate);
-  const previousRange = recordRange(trace, `${blockId}.previous`, previous.startDate, previous.endDate, [],
-    'same length as the request period, ending the day before its start');
+function periodBlock(entry: MarketRawCapturePeriod, collector: MarketNumberTraceCollector): string {
+  const { series } = entry;
+  const trace = collector.forCapture(entry.captureId);
+  if (series.period.startDate === null) return '<p>Chưa đọc được kỳ của số liệu thị trường; không in số của kỳ này.</p>';
+  const period = periodText(series.period, trace);
+  const blockId = `M03.${period.key}`;
   const count = series.totals.all.platformIds.length;
-  const allLabel = count ? `cả ${trace.record(String(count), `${blockId}.kpi`, 'computed', series.totals.all.kpi.revenue.members, 'count(platforms in the response)')} sàn` : 'các sàn';
-  const cards = (Object.keys(KPI_LABELS) as MarketRawKpiField[]).map(field => totalCard(field, series, head.text, previousRange, trace, `${blockId}.kpi`)).join('');
-  return `<section class="market-raw-period" data-market-raw-period="${head.key}"><h3>${escape(`${head.text} · ${range}`)}</h3>`
+  const countInputs = series.platforms.flatMap(platform => Object.values(platform.kpi).flatMap(value => value.source ? [value.source] : []));
+  const allLabel = count && countInputs.length
+    ? `cả ${trace.record(String(count), `${blockId}.kpi`, 'computed', countInputs, 'count(platforms in the response)')} sàn` : 'các sàn';
+  const cards = (Object.keys(KPI_LABELS) as MarketRawKpiField[]).map(field => totalCard(field, series, period, trace, `${blockId}.kpi`)).join('');
+  return `<section class="market-raw-period" data-market-raw-period="${period.key}"><h3>${escape(`${period.text(`${blockId}.head`)} · ${period.range(`${blockId}.head`)}`)}</h3>`
     + `<p>${escape(`Số của ${allLabel}, ước tính trên sàn.`)}</p><div class="grid4">${cards}</div>`
-    + platformSplit(series, head.text, range, trace, `${blockId}.split`)
-    + intervalBlock(series, head.text, range, trace, `${blockId}.intervals`) + '</section>';
+    + platformSplit(series, period, trace, `${blockId}.split`)
+    + intervalBlock(series, period, trace, `${blockId}.intervals`) + '</section>';
 }
 
 /** Phần 3 scale blocks from raw-response numbers, one per captured period. */
 export function marketRawScaleSection(input: MarketRawReportInput, trace: MarketNumberTraceCollector): string {
-  const periods = input.periods.filter(series => series.platforms.length > 0);
+  const periods = input.periods.filter(entry => entry.series.platforms.length > 0);
   if (!periods.length) return '';
-  return `<div class="market-raw-scale"><h3>Quy mô và diễn biến theo kỳ</h3>${periods.map(series => periodBlock(series, trace)).join('')}</div>`;
+  return `<div class="market-raw-scale"><h3>Quy mô và diễn biến theo kỳ</h3>${periods.map(entry => periodBlock(entry, trace)).join('')}</div>`;
 }
 
 /** Phần 2 scope line of the raw-response numbers. */

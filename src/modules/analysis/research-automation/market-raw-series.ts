@@ -274,6 +274,16 @@ function periodOf(entry: RawEntry | null): MarketRawPeriod {
   return { startDate: null, endDate: null, days: null, source: null, reason: 'request-period-missing' };
 }
 
+/** Source of a period's end date: the end key paired with the start key `period.source` points at. */
+export function marketRawPeriodEndSource(source: MarketRawSource): MarketRawSource | null {
+  const path = source.encoding === 'json-string' ? source.decodedPath ?? '' : source.jsonPath;
+  const startKey = path.slice(path.lastIndexOf('/') + 1);
+  const endKey = PERIOD_KEYS.find(([start]) => start === startKey)?.[1];
+  if (!endKey) return null;
+  const endPath = `${path.slice(0, path.lastIndexOf('/'))}/${endKey}`;
+  return source.encoding === 'json-string' ? { ...source, decodedPath: endPath } : { ...source, jsonPath: endPath };
+}
+
 function requestedPlatformIds(entry: RawEntry | null): number[] | null {
   const query = entry && isRecord(entry.requestBody) && isRecord(entry.requestBody.include_query) ? entry.requestBody.include_query : null;
   if (!query || !Array.isArray(query.platforms)) return null;
