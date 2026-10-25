@@ -62,13 +62,15 @@ type VideoRunContext = { readonly binding: Omit<VideoWatchBinding, 'candidatesSh
   readonly selectionVideos: readonly { readonly url: string }[]; readonly topSellingVideos: readonly { readonly url: string }[]; readonly topSellingGap: boolean };
 
 export interface VideoLaneFacts {
+  /** The run asks for the Market report: only Market reads the video readings today, so an Insight-only run makes none. */
+  readonly market: boolean;
   /** The run's binding, stored selection and top-selling videos for the step as the earlier lanes left it (M5). */
   readonly context: (step: StepResultDocument) => Promise<VideoRunContext>;
   /** Publishes one reading under the database mutex, refused once the run stopped or the signal aborted (M2). */
   readonly publish: (binding: VideoWatchBinding, prepared: PreparedAutomatedVideoReading) => Promise<VideoWatchRef>;
 }
 
-// Video readings: candidates are the run's stored selection and the stored TikTok search rows (no new search). There is
+// Video readings, Market runs only: candidates are the run's stored selection and the stored TikTok search rows (no new search). There is
 // no abort gate: the lane skips each video as CANCELLED itself. Each attempt's model-answer captures follow the earlier
 // lanes' captures and the attempt points at its last one. A skipped video keeps a reason code only and never changes the
 // step outcome, coverage or run blockers.
@@ -76,6 +78,7 @@ export function videoLane(source: VideoWatchLane): SaveStepLane<VideoLaneFacts> 
   return {
     name: 'video',
     async run(step, { signal, captures, check }, facts) {
+      if (!facts.market) return { step, usage: [] };
       let plan: VideoWatchPlan = videoWatchCandidates([], undefined);
       let attempts: VideoWatchAttempt[] | undefined;
       try {
