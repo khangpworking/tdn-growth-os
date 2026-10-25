@@ -1298,7 +1298,8 @@ export class ResearchAutomationService {
         for (const stepId of STEP_IDS) this.#db.prepare(`INSERT INTO analysis_research_automation_steps(run_id,step_id,state) VALUES (?,?,'${stepId === 'QUICK_SEARCH' ? 'QUEUED' : 'PENDING'}')`).run(runId, stepId);
         this.#db.prepare(`INSERT INTO analysis_research_automation_requests(request_key,run_id,request_kind,request_sha256,accepted_at) VALUES (?,?,?,?,?)`)
           .run(input.requestKey, runId, 'START', requestSha, createdAt);
-        if (this.#autoRun && input.reports.includes('MARKET')) {
+        // Insight-only runs also capture Metric: its pick gives Insight exact Shopee links and L9 names.
+        if (this.#autoRun && (input.reports.includes('MARKET') || input.reports.includes('INSIGHT'))) {
           this.#db.prepare(`INSERT INTO research_automation_autorun(run_id,workspace_id,phase,phase_state,capture_dir_key,prepare_request_key,confirm_request_key,revision_request_key,created_at,updated_at)
             VALUES (?,?,'WAITING_SCOPE','QUEUED',?,?,?,?,?,?)`).run(runId, workspaceId, runId, autorunRequestKey(runId, 'prepare'), autorunRequestKey(runId, 'confirm'),
             autorunRequestKey(runId, 'revision'), createdAt, createdAt);
@@ -5541,7 +5542,9 @@ export class ResearchAutomationService {
       const run = this.#current(runId);
       if (!run) throw new ResearchAutomationIntegrityError('Auto-run source run is missing.');
       const at = this.#now().toISOString();
-      if (run.status === 'DRAFT_READY') this.#db.prepare(`UPDATE research_automation_autorun SET phase='PRESENT',phase_state='QUEUED',updated_at=? WHERE run_id=? AND phase='WAIT_DRAFT'`).run(at, runId);
+      // PRESENT revises the Market report only; an Insight-only run ends with its draft.
+      if (run.status === 'DRAFT_READY') this.#db.prepare(`UPDATE research_automation_autorun SET phase=?,phase_state='QUEUED',updated_at=? WHERE run_id=? AND phase='WAIT_DRAFT'`)
+        .run(run.reports.split(',').includes('MARKET') ? 'PRESENT' : 'DONE', at, runId);
       else if (AUTORUN_RUN_END_STATUSES.has(run.status)) this.#autorunStop(runId, `RUN_${run.status}`, at);
       // Not ready yet: wait RUNNING until the run's transition hook queues the row again.
       else this.#db.prepare(`UPDATE research_automation_autorun SET phase_state='RUNNING',updated_at=? WHERE run_id=? AND phase='WAIT_DRAFT'`).run(at, runId);
