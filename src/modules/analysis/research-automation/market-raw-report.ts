@@ -211,7 +211,9 @@ function intervalSvg(axis: readonly string[], lines: readonly Line[], labels: re
 
 function intervalBlock(series: MarketRawSeries, period: PeriodText, trace: MarketCaptureTrace, blockId: string): string {
   const monthly = series.intervalDays.value !== null && series.intervalDays.value >= 28;
-  const unit = monthly ? 'tháng' : 'tuần';
+  // Missing interval metadata does not establish a weekly frequency.
+  const frequency = series.intervalDays.value === null ? 'unknown' : monthly ? 'monthly' : 'weekly';
+  const unit = frequency === 'unknown' ? 'kỳ' : monthly ? 'tháng' : 'tuần';
   const byId = new Map(series.platforms.map(platform => [platform.platformId, platform] as const));
   // Every interval stays, null revenue included; only an interval without dates has no place on the axis.
   const lines: Line[] = PLATFORMS.map(platform => {
@@ -270,11 +272,11 @@ function intervalBlock(series: MarketRawSeries, period: PeriodText, trace: Marke
     ...(missing ? [`Chỗ đứt của đường là ${unit} thiếu doanh thu, ghi «thiếu» ở bảng; không phải bằng không.`] : []),
     ...(axis.some(key => sample(key).interval.partial) ? [`Điểm rỗng là ${unit} chưa đủ ngày, ghi đúng ngày ở bảng; không dùng để nói xu hướng.`] : [])];
   const missingPlatforms = lines.filter(line => !line.hasData).map(line => line.key).join(' ');
-  return `<figure class="market-raw-line" data-market-raw-chart="${monthly ? 'monthly' : 'weekly'}" data-series-count="${lines.length - absent.length}"${missingPlatforms ? ` data-platform-missing="${missingPlatforms}"` : ''}>`
+  return `<figure class="market-raw-line" data-market-raw-chart="${frequency}" data-series-count="${lines.length - absent.length}"${missingPlatforms ? ` data-platform-missing="${missingPlatforms}"` : ''}>`
     + `<div class="exh"><span class="ext">${escape(`Doanh thu theo ${unit}, từng sàn, kỳ ${period.text(`${blockId}.title`)}: ${period.range(`${blockId}.title`)}`)}</span></div>`
     + intervalSvg(axis, lines, axisLabels) + '</figure>'
     + `<p class="lim"><b>Chú thích:</b> ${escape(notes.join(' '))}</p>`
-    + `<div class="table-wrap" role="region" aria-label="${escape(`Doanh thu theo ${unit}, từng sàn`)}" tabindex="0"><table data-market-raw-intervals="${monthly ? 'monthly' : 'weekly'}" data-reading=""><caption>${escape(`Doanh thu theo ${unit}, từng sàn`)}</caption>`
+    + `<div class="table-wrap" role="region" aria-label="${escape(`Doanh thu theo ${unit}, từng sàn`)}" tabindex="0"><table data-market-raw-intervals="${frequency}" data-reading=""><caption>${escape(`Doanh thu theo ${unit}, từng sàn`)}</caption>`
     + `<thead><tr><th>Kỳ</th>${PLATFORMS.map(platform => `<th>${platform.label} (doanh thu)</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`
     + '<p class="lim"><b>Chú thích:</b> Doanh thu ước tính trên sàn của từng kỳ, đọc riêng từng sàn; ô «thiếu» là kỳ nguồn không ghi doanh thu, không phải bằng không.</p>'
     + `<p>${trends.map(escape).join(' ')}</p>`;

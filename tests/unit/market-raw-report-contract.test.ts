@@ -137,6 +137,26 @@ test('B2 weekly and monthly charts each retain separate Shopee and TikTok Shop s
   });
 });
 
+test('B2 missing interval metadata retains every window without claiming a weekly frequency', () => {
+  for (const fixtureRaw of [zinc30, zinc12]) {
+    const raw = structuredClone(fixtureRaw);
+    Object.assign(raw[1]!, { requestBody: null });
+    const data = raw[1]!.body.data;
+    assert.ok(Array.isArray(data));
+    withDocument(marketRawScaleSection({ periods: [captured('missing-interval-metadata', raw)], scope }, new MarketNumberTraceCollector()), document => {
+      const chart = document.querySelector('figure')!;
+      assert.ok(chart, 'known interval revenues remain available');
+      assert.match(chart.textContent!, /Doanh thu theo kỳ, từng sàn/u);
+      assert.doesNotMatch(chart.textContent!, /Doanh thu theo (?:tuần|tháng),/u,
+        'a missing interval length cannot silently become weekly');
+      const rows = [...document.querySelectorAll('tbody tr')];
+      assert.equal(rows.length, data[0]!.order_revenue_intervals.length);
+      for (const row of rows) assert.match(row.querySelector('td')!.textContent!, /^\d{2}\/\d{2}–\d{2}\/\d{2}\/\d{4}$/u,
+        'unknown interval completeness keeps its exact date range');
+    });
+  }
+});
+
 test('B3 trend sentences distinguish rising, falling and mixed full intervals', () => {
   for (const [values, word, partial] of [
     [[1, 2, 3, 4], 'tăng đều', 0],
