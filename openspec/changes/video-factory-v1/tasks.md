@@ -16,10 +16,10 @@ Cách chia việc dưới đây chỉ áp dụng khi xây Video Factory (F173, F
 - [ ] 2.2 Script qua cổng AI sẵn có, điểm duyệt 1 (R-V02)
 - [ ] 2.3 Thư viện clip: tải lên đọc theo phần nhỏ, không giữ cả tập tin trong bộ nhớ; kiểm kích thước; xem trước và hình thu nhỏ; nhãn tự gõ; Tổng hợp hoặc bộ sưu tập thương hiệu (R-V07, R-V08)
 - [ ] 2.4 Thư viện nhạc: tải lên, tâm trạng, giấy phép (R-V09)
-- [ ] 2.5 Điểm duyệt 2: chủ chọn clip cho từng cảnh, tìm theo nhãn; clip ngắn hơn cảnh không chọn được (R-V04, R-V12)
+- [ ] 2.5 Điểm duyệt 2: chủ chọn clip cho từng cảnh, tìm theo nhãn; clip ngắn hơn cảnh không chọn được; quy tắc khi giọng thật dài hơn clip đã chọn — mở (055-Q1) (R-V04, R-V12)
 - [ ] 2.6 Giọng đọc: dựng với giọng giả trong CI; chỉ nối nhà cung cấp thật khi F2 đã xong (điểm chốt cuối của lát 1); nếu nhà cung cấp thắng F2 cần webhook thì hỏi chủ trước khi dựng; một lời gọi mỗi cảnh (R-V10, R-V11, F183)
 - [ ] 2.7 Dựng: ffmpeg chạy con ưu tiên thấp có giới hạn bộ nhớ và thời gian; cắt cứng hoặc mờ; logo; nhạc hạ dưới lời đọc; −14 LUFS. Duyệt 3 rồi tải về; tập tin tải về mang nhãn «Chưa kiểm lời đọc» (R-V02, R-V03, R-V13, R-V14, F183)
-- [ ] 2.8 Bài kiểm thử: giết ffmpeg giữa lần dựng, app vẫn chạy; độ dài video bằng độ dài lời đọc; lỗi một nhà cung cấp chỉ làm hỏng job của nó (R-V14)
+- [ ] 2.8 Bài kiểm thử: giết ffmpeg giữa lần dựng, app vẫn chạy; kill -9 giữa lần dựng: app tự giao tiếp lại không cần bước thủ công, lần dựng hiện gián đoạn, không còn ffmpeg cũ chạy; độ dài video bằng độ dài lời đọc; lỗi một nhà cung cấp chỉ làm hỏng job của nó (R-V14)
 - [ ] 2.9 Script và viết lại hiện «n lượt AI»; model script cố định trong mã (F183). Lời gọi trả phí mới của lát này chỉ là giọng đọc: giọng giả kiểm trong CI; sau triển khai chủ dựng một video thật với ngân sách giọng nhỏ do chủ đặt lúc triển khai (R-V10, R-V11)
 - [ ] 2.10 GLM 5.3 Flash viết mã
 - [ ] 2.11 Sol 6.1 xhigh viết kiểm thử ở phiên riêng; mỗi ca có một ca đối chứng âm
@@ -28,7 +28,7 @@ Cách chia việc dưới đây chỉ áp dụng khi xây Video Factory (F173, F
 - [ ] 2.14 Merge chỉ khi chủ đồng ý; triển khai chỉ khi chủ viết «deploy <SHA>»
 - [ ] 2.15 Ẩn và khôi phục clip, nhạc và video; không dọn file tự động (R-V16)
 - [ ] 2.16 Giữ hành vi kịch bản/cài đặt đã duyệt ngày 01/10: bản nháp tạo mới riêng, tự lưu script vào video, phiên bản viết lại, từ chối kết quả cũ, quay về duyệt 1, nhắc video đang chờ; xem §6 brief 054 (R-V02, R-V13, R-V15)
-- [ ] 2.17 Tự khởi động lại an toàn sau khi app sập cứng; chứng minh tiến trình giữ khóa đã tắt trước khi nhận khóa, không bao giờ hai executor cùng quyền ghi. Sửa mã khởi động/khóa dùng chung ở điểm chốt CI 1 cùng schema, worker, sweep và fake runner; làm đủ bốn điểm chốt CI theo §7 brief 054 (R-V14, F183)
+- [ ] 2.17 Tự khởi động lại an toàn sau khi app sập cứng (F185): một unit systemd của người dùng với `Restart=on-failure` và giới hạn số lần khởi động, theo mẫu unit user sẵn có (như CLIProxy); khóa cấp qua environment file của nhiệm 053 phương án (b); cài lên Fedora chỉ khi chủ viết «deploy <SHA>»; trước khi viết unit, kiểm chỉ đọc cách operator khởi động trên Fedora hôm nay (055-Q19). Nhận lại khóa cũ chỉ khi hostname khớp, metadata hợp lệ và tiến trình giữ khóa được chứng minh đã tắt, không bao giờ hai executor cùng quyền ghi, không để con ffmpeg nào của tiến trình cũ còn sống. Cập nhật chú thích `executor-lock.ts` và phần khóa trong runbook ở điểm chốt 1. Sửa mã khởi động/khóa dùng chung ở điểm chốt CI 1 cùng schema, worker, sweep và fake runner (khối thay đổi này có thể gộp thành PR nhỏ riêng bên trong 055); làm đủ bốn điểm chốt CI theo §7 brief 054 (R-V14, F183, F185)
 
 ## 3. Lát 2 — ghép clip tự động (nhiệm vụ 056)
 

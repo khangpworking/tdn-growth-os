@@ -204,11 +204,11 @@ Mỗi lần dựng SHALL đóng băng bản sao cài đặt (preset và các m�
 - **THEN** video đã dựng giữ cài đặt cũ; thay đổi dành cho lần dựng tiếp theo và video hiện «Cần dựng lại»
 
 ### Requirement: R-V14 Cô lập lỗi và khởi động lại
-Một lỗi của ffmpeg hay một dịch vụ ngoài (sụp, chậm quá giới hạn thời gian) SHALL chỉ làm job liên quan đó thất bại. App SHALL tiếp tục chạy. Từ lát 1 (055), app SHALL tự khởi động lại an toàn sau khi sập cứng (F183); trước khi nhận khóa executor, app SHALL chứng minh tiến trình từng giữ khóa đã tắt và SHALL NOT cho phép hai executor cùng quyền ghi. Sau khi app khởi động lại, job đang chạy SHALL hiện là gián đoạn và SHALL NOT tự chạy lại.
+Một lỗi của ffmpeg hay một dịch vụ ngoài (sụp, chậm quá giới hạn thời gian) SHALL chỉ làm job liên quan đó thất bại. App SHALL tiếp tục chạy. Từ lát 1 (055), app SHALL tự khởi động lại an toàn sau khi sập cứng bằng một unit systemd của người dùng (F185: với `Restart=on-failure` và giới hạn số lần khởi động, theo mẫu unit user sẵn có như CLIProxy; khóa cấp qua environment file của nhiệm 053 phương án (b); cài lên Fedora chỉ khi chủ viết «deploy <SHA>»). Trước khi nhận khóa executor, app SHALL chỉ nhận khóa cũ khi hostname khớp, metadata hợp lệ và tiến trình giữ khóa được chứng minh đã tắt (kể cả trường hợp PID tái sử dụng); việc nhận khóa SHALL nguyên tử với đúng một bên thắng; SHALL NOT có con ffmpeg nào của tiến trình cũ còn sống. App SHALL NOT cho phép hai executor cùng quyền ghi. Khóa từ host khác, khóa không đọc được và khóa không chứng minh được SHALL giữ quy trình thủ công. Sau khi app khởi động lại, job đang chạy SHALL hiện là gián đoạn và SHALL NOT tự chạy lại.
 
 - Loại kiểm: Kiểm thử
 - Mã kiểm: Chưa có mã kiểm
-- Vì sao: Ngày 25/10/2026 chủ chọn phương án A kèm bốn lớp bảo vệ (F176–F177, O1). Rủi ro được ghi đúng: app sập cứng làm khóa executor còn lại, app dừng cho tới khi quy trình gỡ khóa cũ được chạy. Ngày 25/10/2026 (F183) chủ xác nhận lại phương án A và yêu cầu lát 1 (055) thêm tự khởi động lại an toàn: chứng minh tiến trình giữ khóa đã tắt trước khi nhận khóa, không bao giờ có hai bên ghi.
+- Vì sao: Ngày 25/10/2026 chủ chọn phương án A kèm bốn lớp bảo vệ (F176–F177, O1). Rủi ro được ghi đúng: app sập cứng làm khóa executor còn lại, app dừng cho tới khi quy trình gỡ khóa cũ được chạy. Ngày 25/10/2026 (F183) chủ xác nhận lại phương án A và yêu cầu lát 1 (055) thêm tự khởi động lại an toàn; ngày 25/10/2026 (F185) chủ chọn cách tái khởi động bằng unit systemd của người dùng, chỉ cài trên Fedora khi chủ viết «deploy <SHA>».
 
 #### Scenario: ffmpeg sập giữa lần dựng
 - **WHEN** tiến trình ffmpeg con sập giữa lần dựng trong khi app vẫn chạy
@@ -222,12 +222,16 @@ Một lỗi của ffmpeg hay một dịch vụ ngoài (sụp, chậm quá giới
 - **WHEN** app sập cứng khi một job video đang chạy, để lại khóa executor, và tiến trình giữ khóa được chứng minh đã tắt
 - **THEN** từ lát 1 (055), app tự khởi động lại không cần gỡ khóa thủ công; job đó hiện là gián đoạn và không tự chạy lại
 
+#### Scenario: Kill -9 giữa lần dựng
+- **WHEN** app bị kết thúc cứng bằng kill -9 trong khi một lần dựng đang chạy
+- **THEN** app giao tiếp lại không cần bước thủ công của chủ; lần dựng hiện là gián đoạn; không còn tiến trình ffmpeg cũ nào chạy
+
 #### Scenario: Tiến trình giữ khóa còn sống
 - **WHEN** một tiến trình khởi động thấy khóa của executor còn sống
 - **THEN** tiến trình đó không nhận khóa và không có executor ghi thứ hai
 
 ### Requirement: R-V15 Sửa script làm mất lựa chọn clip của cảnh bị đổi
-Khi chủ sửa script (lát 1–2), một cảnh bị thay đổi SHALL mất lựa chọn clip hiện có và SHALL bị đánh dấu; giọng đọc của các cảnh bị thay đổi SHALL được dựng lại, rồi video SHALL được dựng lại. Chức năng giữ lựa chọn clip cũ chỉ có từ lát 3 (đơn giản hóa 2, F179).
+Khi chủ sửa script (lát 1–2), một cảnh bị thay đổi SHALL mất lựa chọn clip hiện có và SHALL bị đánh dấu; các cảnh bị thay đổi SHALL chỉ được dựng lại giọng và dựng lại video khi chủ khởi động, sau khi số ký tự đã hiện (R-V10). Chức năng giữ lựa chọn clip cũ chỉ có từ lát 3 (đơn giản hóa 2, F179).
 
 - Loại kiểm: Kiểm thử
 - Mã kiểm: Chưa có mã kiểm
@@ -235,7 +239,7 @@ Khi chủ sửa script (lát 1–2), một cảnh bị thay đổi SHALL mất l
 
 #### Scenario: Chỉnh câu của một cảnh
 - **WHEN** chủ đổi câu tiếng Việt của một cảnh rồi duyệt script
-- **THEN** cảnh đó mất lựa chọn clip cũ, bị đánh dấu, giọng đọc của cảnh được dựng lại rồi video dựng lại; chủ chọn clip mới cho cảnh khi duyệt 2
+- **THEN** cảnh đó mất lựa chọn clip cũ và bị đánh dấu; chủ chọn clip mới cho cảnh khi duyệt 2; giọng đọc và dựng lại video chỉ chạy khi chủ khởi động, sau khi app hiện số ký tự
 
 #### Scenario: Đổi cài đặt đổi chữ
 - **WHEN** chủ đổi một thứ thuộc nhóm «đổi chữ» (chủ đề, Angle, thương hiệu, giọng văn, hook, độ dài)

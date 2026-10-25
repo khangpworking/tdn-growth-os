@@ -91,3 +91,4 @@ decision 2's manual-only stale-lock recovery rule.
 | A timeline editor or a professional editing suite | The owner asked for an automation creator, not an editor; no timeline UI, drag/trim/tracks, project export, or editing product. |
 | The Vbee batch API | The draft says it requires a public webhook; verify this claim in the voice slice. The agreed plan uses one voice call per scene. |
 | A second Gemini key next to CLIProxy | Decided by F1: if the CLIProxy accounts are official keys, reuse that route. Open a dedicated key only if F1 shows it is needed. |
+| Relaunch by a user systemd unit versus a clean next start only | The owner chose the relaunch (F185, 25/10/2026): slice 1 adds a user systemd unit following the existing CLIProxy user-unit pattern, with `Restart=on-failure` and a start limit, plus a runbook entry; keys come from the task 053 option (b) environment file; installation on Fedora happens only on «deploy <SHA>». |
