@@ -33,7 +33,7 @@ import { parseVietnameseDisplayNumber } from './metric-web-facts.js';
 import { METRIC_CURRENT_HEADERS, MetricSourceRejection, normalizeMetricWorkbookInput } from '../metric-source-profile.js';
 import { MAX_JSON_ARTIFACT_BYTES, ResearchAutomationIntegrityError, type ScopeSnapshot, type StartSnapshot } from './model.js';
 import { createRetainedSchemaCache } from './retained-schema-cache.js';
-import { verifyMetricCaptureArchive, CONTEXT_PATH as CAPTURE_CONTEXT_PATH, DESCRIPTOR_PATH as CAPTURE_DESCRIPTOR_PATH,
+import { captureContextScopeLines, verifyMetricCaptureArchive, CONTEXT_PATH as CAPTURE_CONTEXT_PATH, DESCRIPTOR_PATH as CAPTURE_DESCRIPTOR_PATH,
   MANIFEST_PATH as CAPTURE_MANIFEST_PATH, SNAPSHOT_PATH as CAPTURE_SNAPSHOT_PATH } from './metric-capture-intake.js';
 
 import { CAPTURE_ROW_PROFILE_V2, readCaptureProductRows, CAPTURE_ROW_PROFILE, isCaptureRowProfile, assessCaptureProductRows, type CaptureRowExclusionReason, type CaptureRowProfile } from './capture-row-quality.js';
@@ -175,6 +175,8 @@ export interface CaptureMetricMethodDetails {
   readonly relevance?: CaptureRelevanceRecord;
   readonly excludedRows?: readonly (CaptureMetricUnattributedRow & { readonly platform: 'shopee' | 'tiktok'; readonly reason: CaptureRowExclusionReason })[];
   readonly unattributedRows: readonly CaptureMetricUnattributedRow[];
+  /** Auto-run scope lines (keyword 2 and category evidence) from a v2 capture context; absent otherwise. */
+  readonly searchScope?: { readonly lines: readonly string[] };
 }
 
 export interface MetricRunInput {
@@ -779,7 +781,7 @@ function verifyCaptureSelection(selected: CaptureSelected, input: Pick<MetricRun
       selected.descriptor.sourceContextPath !== selected.context.path)
     fail('METRIC_SOURCE_INTEGRITY_FAILED', 'Metric capture descriptor differs from its retained archive.');
   const context = jsonRecord(selected.context.bytes);
-  if (!context || context.contractVersion !== 'automation-metric-capture-context-v1' || context.provenance !== 'results-page capture' ||
+  if (!context || (context.contractVersion !== 'automation-metric-capture-context-v1' && !captureContextScopeLines(context)) || context.provenance !== 'results-page capture' ||
       context.snapshotSha256 !== sha(selected.snapshot.bytes) || context.manifestSha256 !== sha(selected.manifest.bytes))
     fail('METRIC_SOURCE_INTEGRITY_FAILED', 'Metric capture context differs from its retained archive.');
   assertCaptureFilterScope(verified.snapshot.scope, input.scope);
@@ -972,7 +974,9 @@ function captureMethodDetails(snapshot: AutomationMetricWebSnapshotV1, selected:
     }
   }
   const verified = verifyMetricCaptureArchive(selected.snapshot.bytes, selected.manifest.bytes);
-  return { ...(relevance ? { relevance } : {}), provenance: 'RESULTS_PAGE_CAPTURE', snapshotSha256: selected.snapshot.sha256, manifestSha256: selected.manifest.sha256,
+  const context = jsonRecord(selected.context.bytes);
+  const searchScope = context ? captureContextScopeLines(context) : null;
+  return { ...(relevance ? { relevance } : {}), ...(searchScope ? { searchScope: { lines: searchScope } } : {}), provenance: 'RESULTS_PAGE_CAPTURE', snapshotSha256: selected.snapshot.sha256, manifestSha256: selected.manifest.sha256,
     contextSha256: selected.context.sha256, descriptorSha256: selected.descriptorFile.sha256,
     capture: verified.capture, platforms: platformResults, platformHeadlines: capturePlatformHeadlines(verified.snapshot), unattributedRows,
     ...(quality && clean && rowProfile ? { rowPolicyVersion: rowProfile, excludedRows: [...quality.exclusions].flatMap(([i, reason]) => {

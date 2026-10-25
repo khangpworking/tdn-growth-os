@@ -22,3 +22,13 @@ v3plug P1: trial-run entries regenerated with the same generator (`--candidate`,
 Only the auto-run pick record changes: `autorun-pick-record-v2` adds `capture` (applied keywords and Smart query).
 It is content-addressed, so one member is renamed (`0457f4ce…` -> `f7a3a228…`); all 287 other members stay byte-identical.
 Membership stays at 288 entries. The revision field keeps the F+ base revision that the S9 test pins.
+
+v3plug P2: trial-run entries regenerated with the same generator (`--candidate`, output outside the checkout).
+Only the auto-run pick record changes: `autorun-pick-record-v3` adds `scope` (category decision and keyword-2 evidence; this synthetic capture has neither).
+It is content-addressed, so one member is renamed (`f7a3a228…` -> `9c3fff9e…`); all 287 other members stay byte-identical.
+Membership stays at 288 entries. The revision field keeps the F+ base revision that the S9 test pins.
+
+v3plug P2 round 2: regenerated with the same generator (`--candidate`, output outside the checkout).
+The run API now emits `research-automation-run-v2`, so only the `contractVersion` string changes in the five
+scenario `run.json` outputs (absent, exact, native, trial, unconfigured; same byte size, not content-addressed, no rename).
+All 283 other members stay byte-identical; membership stays at 288. The revision field keeps the pinned F+ base revision.

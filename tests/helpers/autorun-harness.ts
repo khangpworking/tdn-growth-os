@@ -84,7 +84,7 @@ export class FakeCapture {
       }
       if (behaviour === 'hold' && !(await new Promise<boolean>(resolve => this.#held.set(request.runId, resolve))))
         return { ok: false, code: 'METRIC_UI_CHANGED', detail: 'synthetic failure', executorCalls: 1 };
-      const dir = path.join(this.captureRoot, request.runId, 'run1');
+      const dir = path.join(this.captureRoot, request.runId, request.second ? 'run2' : 'run1');
       await writeCaptureFiles(dir, request.runId);
       return { ok: true, captureDir: dir, period: capturePeriod, executorCalls: 1 };
     } finally { this.active--; }
@@ -123,7 +123,7 @@ function sequence(): () => string {
 export async function fixture(t: TestContext, autoRun: 'on' | 'off' | 'absent' = 'on', behaviour?: (runId: string) => Behaviour,
   runCapture?: (capture: FakeCapture) => RunCapture,
   reviews?: { cap?: number; factory?: ResearchAutomationServiceOptions['shopeeCollectorFactory'] },
-  lanes: Pick<ResearchAutomationServiceOptions, 'searchAdsSource' | 'metaAutoSource'> = {}) {
+  lanes: Pick<ResearchAutomationServiceOptions, 'searchAdsSource' | 'metaAutoSource' | 'sourceEvidence' | 'renderer'> = {}) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-autorun-'));
   const databasePath = path.join(root, 'test.sqlite');
   const artifactRoot = path.join(root, 'artifacts');

@@ -7,6 +7,7 @@
     { "$ref": "#/$defs/confirmRequest" },
     { "$ref": "#/$defs/cancelRequest" },
     { "$ref": "#/$defs/autoRunRetryRequest" },
+    { "$ref": "#/$defs/autoRunKeywordRequest" },
     { "$ref": "#/$defs/run" },
     { "$ref": "#/$defs/runList" },
     { "$ref": "#/$defs/receipt" },
@@ -119,6 +120,17 @@
         "requestKey": { "$ref": "#/$defs/requestKey" }
       }
     },
+    "autoRunKeywordRequest": {
+      "title": "ResearchAutomationAutoRunKeywordRequest",
+      "description": "Owner answer to the suggested keyword 2 after the first automatic capture: the accepted or edited term, or null to remove it. The second capture then runs (one more lookup).",
+      "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "requestKey", "keyword2"],
+      "properties": {
+        "contractVersion": { "const": "research-automation-autorun-keyword-v1" },
+        "requestKey": { "$ref": "#/$defs/requestKey" },
+        "keyword2": { "oneOf": [{ "$ref": "#/$defs/term" }, { "type": "null" }] }
+      }
+    },
     "autoRun": {
       "title": "ResearchAutomationAutoRun",
       "description": "Market auto-runner state; present only for a run that has an auto-run row.",
@@ -129,7 +141,19 @@
         "state": { "enum": ["QUEUED", "RUNNING"] },
         "stopCode": { "type": "string", "pattern": "^[A-Z0-9_]{1,64}$" },
         "linksFound": { "type": "integer", "minimum": 0, "maximum": 5 },
-        "canRetry": { "type": "boolean" }
+        "canRetry": { "type": "boolean" },
+        "keyword2Suggestion": {
+          "description": "research-automation-run-v2 only. Present while the auto-run waits for the owner's answer on keyword 2: the suggested term and its evidence in the first capture's top-revenue titles.",
+          "type": "object", "additionalProperties": false,
+          "required": ["keyword1", "term", "titles", "titleCount", "brands"],
+          "properties": {
+            "keyword1": { "$ref": "#/$defs/text120" },
+            "term": { "$ref": "#/$defs/term" },
+            "titles": { "type": "integer", "minimum": 0, "maximum": 1000 },
+            "titleCount": { "type": "integer", "minimum": 1, "maximum": 1000 },
+            "brands": { "type": "integer", "minimum": 0, "maximum": 1000 }
+          }
+        }
       }
     },
     "runStatus": {
@@ -344,7 +368,7 @@
         "requestedPeriod", "reports", "definition", "productCards", "coverage", "usage", "steps", "blockers", "createdAt", "updatedAt"
       ],
       "properties": {
-        "contractVersion": { "const": "research-automation-run-v1" },
+        "contractVersion": { "enum": ["research-automation-run-v1", "research-automation-run-v2"] },
         "runId": { "$ref": "#/$defs/uuid" },
         "workspaceId": { "$ref": "#/$defs/uuid" },
         "revision": { "type": "integer", "minimum": 1 },
@@ -373,7 +397,9 @@
         "autoRun": { "$ref": "#/$defs/autoRun" },
         "createdAt": { "$ref": "#/$defs/timestamp" },
         "updatedAt": { "$ref": "#/$defs/timestamp" }
-      }
+      },
+      "if": { "properties": { "contractVersion": { "const": "research-automation-run-v1" } } },
+      "then": { "properties": { "autoRun": { "type": "object", "properties": { "keyword2Suggestion": false } } } }
     },
     "runSummary": {
       "title": "ResearchAutomationRunSummary",

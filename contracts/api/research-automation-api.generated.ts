@@ -5,6 +5,7 @@ export type ResearchAutomationApiContract =
   | ResearchAutomationConfirmRequest
   | ResearchAutomationCancelRequest
   | ResearchAutomationAutoRunRetryRequest
+  | ResearchAutomationAutoRunKeywordRequest
   | ResearchAutomationRun
   | ResearchAutomationRunList
   | ResearchAutomationMutationReceipt
@@ -125,8 +126,16 @@ export interface ResearchAutomationAutoRunRetryRequest {
   contractVersion: 'research-automation-autorun-retry-v1';
   requestKey: RequestKey;
 }
+/**
+ * Owner answer to the suggested keyword 2 after the first automatic capture: the accepted or edited term, or null to remove it. The second capture then runs (one more lookup).
+ */
+export interface ResearchAutomationAutoRunKeywordRequest {
+  contractVersion: 'research-automation-autorun-keyword-v1';
+  requestKey: RequestKey;
+  keyword2: Term | null;
+}
 export interface ResearchAutomationRun {
-  contractVersion: 'research-automation-run-v1';
+  contractVersion: 'research-automation-run-v1' | 'research-automation-run-v2';
   runId: Uuid;
   workspaceId: Uuid;
   revision: number;
@@ -306,6 +315,16 @@ export interface ResearchAutomationAutoRun {
   stopCode?: string;
   linksFound?: number;
   canRetry: boolean;
+  /**
+   * research-automation-run-v2 only. Present while the auto-run waits for the owner's answer on keyword 2: the suggested term and its evidence in the first capture's top-revenue titles.
+   */
+  keyword2Suggestion?: {
+    keyword1: Text120;
+    term: Term;
+    titles: number;
+    titleCount: number;
+    brands: number;
+  };
 }
 export interface ResearchAutomationRunList {
   contractVersion: 'research-automation-run-list-v1';

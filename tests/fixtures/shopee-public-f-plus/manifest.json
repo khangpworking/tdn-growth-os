@@ -149,7 +149,7 @@
     {
       "name": "absent-run/run.json",
       "byteSize": 4518,
-      "sha256": "43f3c74e9cd5e0c070c320b2f2d7ff1bdbb0c2093d9d82ba15f296dd7f548a47"
+      "sha256": "3f4c5ec89340ed3d9e3613d6a41e1bf29fe2835df68b8db68863b5221b0fb95b"
     },
     {
       "name": "absent/confirmation.json",
@@ -449,7 +449,7 @@
     {
       "name": "exact-run/run.json",
       "byteSize": 5131,
-      "sha256": "d1edeb44c5e113671d6398e9e32befcd7eac39f94859b797afad5aa503f5d919"
+      "sha256": "d5e856244d061ca02054cf96a9e7f34edc942f1d7463a0e4036728fd915c9433"
     },
     {
       "name": "ignored/confirmation.json",
@@ -779,7 +779,7 @@
     {
       "name": "native-run/run.json",
       "byteSize": 5369,
-      "sha256": "c2b0cef5baf4ba4e6c1a5c56b6ec728723a6d663f4ceb654aef6f371dc3eda05"
+      "sha256": "c614a581a3b7e95678b19341a6eab2fa22ba1143c83b48fdb5f66c45550686a8"
     },
     {
       "name": "paid/confirmation.json",
@@ -1062,6 +1062,11 @@
       "sha256": "9b8193d753946d4e089bb21e07d71f7cff1476aca31d913309ac7c4e1ba2ee6a"
     },
     {
+      "name": "trial-run/artifacts/sha256/9c/9c3fff9e2cce157ca60609b1bf86c074e2cfff3a7ab59bd53345b03683435e55",
+      "byteSize": 1434,
+      "sha256": "9c3fff9e2cce157ca60609b1bf86c074e2cfff3a7ab59bd53345b03683435e55"
+    },
+    {
       "name": "trial-run/artifacts/sha256/9f/9f3a4cca08edc81247458fe505ad2e38f164462e605bd1ae819f57594b427150",
       "byteSize": 11516,
       "sha256": "9f3a4cca08edc81247458fe505ad2e38f164462e605bd1ae819f57594b427150"
@@ -1172,11 +1177,6 @@
       "sha256": "f6ca7fa17d2df0cdf07a2ddcc18e383ace99512dc389b76de319bd1c3c9fce9e"
     },
     {
-      "name": "trial-run/artifacts/sha256/f7/f7a3a228fdf08bd6fb14d03f243c8ff41a8b574706532112f6106fca3cc0f407",
-      "byteSize": 1065,
-      "sha256": "f7a3a228fdf08bd6fb14d03f243c8ff41a8b574706532112f6106fca3cc0f407"
-    },
-    {
       "name": "trial-run/artifacts/sha256/fb/fb023c7c4d2d0b869ea6d7784c40b6e524f8748f79c0a45e676f3ee543669f4e",
       "byteSize": 290969,
       "sha256": "fb023c7c4d2d0b869ea6d7784c40b6e524f8748f79c0a45e676f3ee543669f4e"
@@ -1269,7 +1269,7 @@
     {
       "name": "trial-run/run.json",
       "byteSize": 5251,
-      "sha256": "2b4b18031eea1cf344087df8369bf5f128cdbff129f2c78fd1945337bc9eaf5f"
+      "sha256": "7fbd54d33937d8c776f30e0c337ed9047868ebad1bc37d7ddf19e8aa909339df"
     },
     {
       "name": "trial/confirmation.json",
@@ -1429,7 +1429,7 @@
     {
       "name": "unconfigured-run/run.json",
       "byteSize": 4518,
-      "sha256": "bb617710ab5ae592b5fd278315685fa03c9f0941c789e8fb827fe7eee10f5678"
+      "sha256": "48449621dbeb88cbb52bf0f98d84cf9a590692a6168cf646ec383e3b00ea5b0f"
     },
     {
       "name": "unconfigured/confirmation.json",
