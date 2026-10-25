@@ -58,6 +58,8 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   // R-M34: the sales ÷ units price is «giá bán trung bình», always with how it is computed.
   extraOk.add(span); extraOk.add(CROSS_PLATFORM_TOTAL_LABEL);
   const totalLabel = esc(CROSS_PLATFORM_TOTAL_LABEL);
+  // Raw-series reports drop every revenue ÷ units price (owner F118/F119, 23/10/2026): column, note, finding, price groups.
+  const withAverage = options.withoutAveragePrice !== true;
   const priceNote = 'giá bán trung bình = doanh thu ÷ đơn vị bán trong kỳ, tính theo lượt bán từng ngày; không phải giá người mua trả sau voucher.';
   const sourceText = options.captureRowPolicy && rows.length === 0
     ? `Chưa có dòng sản phẩm phù hợp để tính số liệu mẫu; kỳ ${period}.`
@@ -88,7 +90,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   const sections: string[] = [], charts: BuiltMarketReport['charts'] = [];
   const summary = next ? '' : PLATS.map(P => nar(`${PLATFORM_LABEL[P]}: {{${P}.core.rev}} doanh thu, {{${P}.core.units}} đơn vị bán trong mẫu`, `M01.${P}`)).join('; ');
   if (next) {
-    const findings = marketFindings(d);
+    const findings = marketFindings(d, { withoutAveragePrice: !withAverage });
     const groups = profile.core.map(k => label(segName(k))).join('; ');
     // R-M16 / R-M18: a «Cộng 2 sàn» column beside the two platform columns, only when both have every number.
     const totals = ([['rev', 'Doanh thu ước tính', 'ty'], ['units', 'Đơn vị bán ước tính', 'num']] as const).map(([field, name, fmt]) => {
@@ -130,9 +132,11 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
       ? `<p>${esc(PLATFORM_LABEL[platform]!)}: không có dòng phù hợp để tính số liệu mẫu trong lượt này.</p>` : '';
     return (notice ? `<p>${esc(PLATFORM_LABEL[platform]!)}: ${esc(notice)}</p>` : '') + empty;
   }).join('');
-  const salesTable = (no: string) => tbl(no, next ? 'Doanh số trong mẫu và giá bán trung bình từ dữ liệu bán hàng, từng sàn' : 'Doanh số trong mẫu, từng sàn', '',
-    next ? ['Sàn', 'Doanh thu ước tính', 'Đơn vị bán ước tính', 'Giá bán trung bình'] : ['Sàn', 'Doanh thu ước tính', 'Đơn vị bán ước tính', 'Giá trung bình'],
-    PLATS.map(P => [plat(P), n(bf(`${P}.core.rev`)), n(bf(`${P}.core.units`)), n(bf(`${P}.core.asp`))]), next ? { note: priceNote } : {});
+  const salesTable = (no: string) => !withAverage
+    ? tbl(no, 'Doanh số trong mẫu, từng sàn', '', ['Sàn', 'Doanh thu ước tính', 'Đơn vị bán ước tính'], PLATS.map(P => [plat(P), n(bf(`${P}.core.rev`)), n(bf(`${P}.core.units`))]))
+    : tbl(no, next ? 'Doanh số trong mẫu và giá bán trung bình từ dữ liệu bán hàng, từng sàn' : 'Doanh số trong mẫu, từng sàn', '',
+      next ? ['Sàn', 'Doanh thu ước tính', 'Đơn vị bán ước tính', 'Giá bán trung bình'] : ['Sàn', 'Doanh thu ước tính', 'Đơn vị bán ước tính', 'Giá trung bình'],
+      PLATS.map(P => [plat(P), n(bf(`${P}.core.rev`)), n(bf(`${P}.core.units`)), n(bf(`${P}.core.asp`))]), next ? { note: priceNote } : {});
   let monthly = '';
   if (d.webFacts !== null && !('absent' in d.webFacts.monthly)) {
     const facts = d.webFacts, groups = d.webFacts.monthly;
@@ -153,7 +157,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     })), { src: 'Trang kết quả tìm kiếm đã lưu (toàn kết quả tìm kiếm)' + mark });
     if (drawn) charts.push({ id: 'M03.monthly', engine: drawn.engine, ...(drawn.error ? { error: drawn.error } : {}) });
   }
-  sections.push(section('M03', 'Quy mô và diễn biến', monthly ? 'Doanh số trong mẫu và chuỗi trên trang nguồn giữ riêng; có số theo tháng cho từng sàn ở Hình 3.1.' : 'Chỉ mô tả doanh số trong mẫu; chưa có chuỗi phù hợp để xác định diễn biến.', exclusionNotes + salesTable(MARKET_SALES_AVERAGE_EXHIBIT) + monthly, `Một thành viên thiếu làm tổng chưa xác định; mẫu số bằng không không tạo ra ${next ? 'giá bán trung bình' : 'giá trung bình'}.`));
+  sections.push(section('M03', 'Quy mô và diễn biến', monthly ? 'Doanh số trong mẫu và chuỗi trên trang nguồn giữ riêng; có số theo tháng cho từng sàn ở Hình 3.1.' : 'Chỉ mô tả doanh số trong mẫu; chưa có chuỗi phù hợp để xác định diễn biến.', exclusionNotes + salesTable(MARKET_SALES_AVERAGE_EXHIBIT) + monthly, !withAverage ? 'Một thành viên thiếu làm tổng chưa xác định.' : `Một thành viên thiếu làm tổng chưa xác định; mẫu số bằng không không tạo ra ${next ? 'giá bán trung bình' : 'giá trung bình'}.`));
   // The three required charts come from the same saved product rows as the appendix.
   const chartRows = marketChartRows(rows);
   const required = !flintMarks ? [] : await renderMarketCharts(rows, { flint: options.flint !== false, titleLabels: Boolean(options.captureRowPolicy), rowListNote: 'số dòng khớp chú dẫn “dòng sản phẩm” của nguồn' });
@@ -402,7 +406,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     if (absent.length && d.unitPrices.length) unitPriceTables += tbl(`8.${no}`, 'Sản phẩm chưa có quy cách/giá đã xác minh — không đưa vào sắp xếp', '', ['Sàn', 'Tiêu đề nguồn', 'Trạng thái'], absent.map(row => [plat(row.platform), `<span data-quote>${esc(row.title)}</span>`, 'Chưa rõ số lượng và giá niêm yết' + cite(row.i)]));
     unitPriceTables += '<p>Kỳ quan sát giá ghi ở từng dòng và giữ riêng với kỳ doanh số. Khối lượng tịnh và khối lượng cái giữ riêng; thể tích tính theo đơn vị chuẩn, hàng đếm giữ cùng loại đơn vị. Quy đổi chỉ từ quy cách có vị trí nguồn hoặc khai báo của chủ. Đây là đối chiếu khai báo với bản lưu nguồn, không xác thực người bán. Không suy chất lượng, biên lợi nhuận hay mức giá nên bán.</p><p>Chưa có trường ROAS hoặc CPA với nguồn đã xác nhận trong đầu vào đã lưu; chưa có số liệu quảng cáo (ước tính) để tham khảo. Không suy từ doanh thu hoặc chi tiêu quảng cáo.</p><p>Dữ liệu được thu từ kênh công khai và xử lý bằng mô hình; doanh thu và chi tiêu quảng cáo có thể khác số thực tế.</p>';
   }
-  sections.push(section('M08', 'Giá và kinh tế đơn vị', next ? 'Giá niêm yết, thanh toán, khuyến mãi có điều kiện và giá theo đơn vị chuẩn chỉ lấy từ quy cách đã lưu.' : 'Giá trung bình chỉ có khi doanh thu và đơn vị bán cùng dòng đều có số, mẫu số khác không.', next ? unitPriceTables : salesTable('8.1') + unitPriceTables, next ? 'Giữ riêng các giá từ quy cách với doanh thu trong mẫu. Chưa tính lãi vì không có giá vốn.' : 'Không có giá vốn hoặc phép quy đổi đã xác minh; chưa tính lãi hay giá theo đơn vị chuẩn.'));
+  sections.push(section('M08', 'Giá và kinh tế đơn vị', next ? 'Giá niêm yết, thanh toán, khuyến mãi có điều kiện và giá theo đơn vị chuẩn chỉ lấy từ quy cách đã lưu.' : !withAverage ? 'Không tính giá từ doanh thu chia đơn vị bán.' : 'Giá trung bình chỉ có khi doanh thu và đơn vị bán cùng dòng đều có số, mẫu số khác không.', next ? unitPriceTables : salesTable('8.1') + unitPriceTables, next ? 'Giữ riêng các giá từ quy cách với doanh thu trong mẫu. Chưa tính lãi vì không có giá vốn.' : 'Không có giá vốn hoặc phép quy đổi đã xác minh; chưa tính lãi hay giá theo đơn vị chuẩn.'));
   // Verified document excerpts (S25) sit in the context section, as copied text with a fixed note; the same list marks the source as used.
   const pdfExcerpts = next ? options.pdfExcerpts ?? [] : [];
   const pdfExcerptHtml = pdfExcerptBlockHtml(pdfExcerpts, esc, excerpt => { const no = registry.cite(pdfExcerptCitation(excerpt)); return no === null ? '' : renderCitationMark(no); }) + (pdfExcerpts.length ? `<p class="ex-src">Nguồn: ${esc(PDF_EXCERPT_SRC)}</p>` : '');
@@ -414,7 +418,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     const reviewsCollected = Boolean(options.publicReviewSource?.accounting.capturedReviewRecords || options.testReviewSample && exactTestReviewSample(options.testReviewSample)?.listings.some(row => row.reviews > 0));
     const startDay = actionStartDay(/^\d{2}\/\d{2}\/\d{4}$/u.test(options.builtOn) ? isoFromReaderDay(options.builtOn) : null,
       source.measurementPeriod.end, source.measurementPeriod.start);
-    const plan = marketActionPlan(rows, { reviewsCollected, startDay });
+    const plan = marketActionPlan(rows, { reviewsCollected, startDay, ...(withAverage ? {} : { currentReader: true, unitStandard: null }) });
     const opportunity = plan.hasFigures ? tbl('11.1', 'Cơ hội trong mẫu, ghi riêng từng sàn (đề xuất, chờ chủ duyệt)', '', [...OPPORTUNITY_HEADINGS].map(esc),
       opportunityRows(plan.signals).map(row => row.map(label)), { note: esc(OPPORTUNITY_READING) }) : '';
     const options12 = tbl('12.1', 'Phương án đề xuất, chờ chủ duyệt', '', [...OPTION_HEADINGS].map(esc),
@@ -422,7 +426,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
       { src: 'TDN đề xuất từ doanh thu trong mẫu, ghi riêng từng sàn.' });
     const quick = tbl('12.2', 'Việc làm ngay, không tốn chi phí (đề xuất, chờ chủ duyệt)', '', [...QUICK_WIN_HEADINGS].map(esc),
       plan.quickWins.map(win => [win.task, win.owner, win.deadline, win.output].map(cell => label(cell))), { src: 'TDN đề xuất.' });
-    return [section('M11', 'Cơ hội', esc(opportunityExplanation(plan.hasFigures, reviewsCollected)), opportunity),
+    return [section('M11', 'Cơ hội', esc(opportunityExplanation(plan.hasFigures, reviewsCollected, !withAverage)), opportunity),
       section('M12', 'Khuyến nghị và hành động', esc(ACTION_LEAD), `${options12}<h3>${esc(QUICK_WIN_HEADING)}</h3>${quick}`, esc(ACTION_NOTE))];
   };
   // 1.4.0 readers use the same sample signals in Phần 11/12; legacy bytes stay as they were.
@@ -433,7 +437,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
       if (row[field] === null) B.setMissing(id, 'num'); else B.set(id, row[field]!, 'num');
       return n(B.f(id)) + cite(row.i);
     };
-    return [plat(row.platform), label(row.shopName || row.shop), label(row.brand) + ' (theo tiêu đề người bán)', value('rev'), value('units'), value('asp'), `<span data-quote>${esc(row.title)}</span>`];
+    return [plat(row.platform), label(row.shopName || row.shop), label(row.brand) + ' (theo tiêu đề người bán)', value('rev'), value('units'), ...(withAverage ? [value('asp')] : []), `<span data-quote>${esc(row.title)}</span>`];
   });
   const web = readerWebResults(options.webResults ?? [], true);
   const testSample = next && !options.publicReviewSource && options.testReviewSample ? exactTestReviewSample(options.testReviewSample) : null;
@@ -529,7 +533,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     return [`<span data-quote><a href="${esc(w.url)}" target="_blank" rel="noopener noreferrer">${esc(w.title)}</a>${mark}${meta ? `<span class="pl-meta">${esc(meta)}</span>` : ''}</span>`, ...(originated ? [esc(expandedSearchReaderLabel(w))] : []), ...(typed ? [pageType(w)] : []), `<span data-quote>${esc(w.snippet ?? '')}</span>`];
   }), { src: 'Kết quả tìm kiếm đã lưu.', note: 'Tiêu đề và đoạn mô tả chép theo kết quả tìm kiếm, chưa mở trang gốc để đối chiếu; không phải nhận định của báo cáo.' + (originated ? ' ' + EXPANDED_SEARCH_NOTE : '') });
   sections.push(section('M13', 'Nguồn, thuật ngữ và danh sách sản phẩm', options.captureRowPolicy && !rows.length ? 'Không có dòng phù hợp trong mẫu; bản lưu nguồn vẫn được giữ để đối chiếu.' : nar('Giữ đủ {{src.rows}} dòng nguồn để tra lại.', 'M13'),
-    tbl('PL.1', 'Dòng dữ liệu đã lưu, theo từng sàn', '', ['Sàn', 'Gian hàng', 'Nhãn thương hiệu', 'Doanh thu', 'Đơn vị bán', next ? 'Giá bán trung bình' : 'Giá trung bình', 'Tiêu đề nguồn'], appendix) + tbl('PL.2', 'Nguồn số liệu đã lưu', '', ['Hạng mục', 'Nguồn / giá trị'], sourceRows) + trialBlock + publicBlock + (publicReviewCitation === null ? '' : renderCitationMark(publicReviewCitation)) + (next ? glossaryTable : '') + webTable + retainedSourceTables + renderCitationRegister(registry.entries(), { format: 'web' })));
+    tbl('PL.1', 'Dòng dữ liệu đã lưu, theo từng sàn', '', ['Sàn', 'Gian hàng', 'Nhãn thương hiệu', 'Doanh thu', 'Đơn vị bán', ...(withAverage ? [next ? 'Giá bán trung bình' : 'Giá trung bình'] : []), 'Tiêu đề nguồn'], appendix) + tbl('PL.2', 'Nguồn số liệu đã lưu', '', ['Hạng mục', 'Nguồn / giá trị'], sourceRows) + trialBlock + publicBlock + (publicReviewCitation === null ? '' : renderCitationMark(publicReviewCitation)) + (next ? glossaryTable : '') + webTable + retainedSourceTables + renderCitationRegister(registry.entries(), { format: 'web' })));
   const html = page({ title: `Báo cáo thị trường – ${profile.product}`, coverHtml: cover(options.cover ?? null, `Dữ liệu ${period}`, ['Báo cáo thị trường', profile.product, 'Bản đọc cho chủ dự án']),
     intro: `<div class="box"><p>Số ước tính trong mẫu. Mỗi sàn tính riêng. Phân loại ${status}.</p></div>`, toc: MARKET_TOC, sections, foot: `TDN · ${esc(options.builtOn)}` });
   const renderedHtml = next ? html.replace('<body', '<body data-report-rules="market-visible-v1"') : html;
