@@ -19,6 +19,7 @@ import { VIDEO_WATCH_PROVIDER } from './video-watch-gemini.js';
 import { META_AUTO_PROVIDER, META_AUTO_USAGE_ORDINAL, metaAutoDocument, metaAutoFailed, metaAutoHasEvidence, metaAutoUsage, metaBrandsFromPick, publishMetaAutoEvidence, type MetaAutoCollection, type MetaAutoSource, type MetaAutoWriter } from './meta-auto-lane.js';
 import { TIKTOK_TOP_ADS_PROVIDER, TIKTOK_TOP_ADS_USAGE_ORDINAL, publishTikTokTopAdsEvidence, tiktokTopAdsDocument, tiktokTopAdsFailed, tiktokTopAdsHasEvidence, tiktokTopAdsUsage, type TikTokTopAdsCollection, type TikTokTopAdsSource, type TikTokTopAdsWriter } from './tiktok-top-ads-lane.js';
 import { PDF_DISCOVERY_DOWNLOAD_USAGE_ORDINAL, PDF_DISCOVERY_PROVIDER, PDF_DISCOVERY_SEARCH_USAGE_ORDINAL } from './pdf-discovery-lane.js';
+import { TOP_SELLING_VIDEOS_USAGE_ORDINAL } from './top-selling-videos.js';
 import { TIKTOK_SHOP_REVIEWS_DOCUMENT_MEDIA_TYPE, TIKTOK_SHOP_REVIEWS_USAGE_ORDINAL, tiktokShopReviewsDocument, tiktokShopReviewsFailed, tiktokShopReviewsStep, tiktokShopReviewsUsage, type TikTokShopReviewCandidate, type TikTokShopReviewsCollection, type TikTokShopReviewsSource } from './tiktok-shop-reviews.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import type { StoredArtifact } from '../../../platform/artifacts/artifact-store.js';
@@ -51,6 +52,8 @@ export const COLLECTION_LANE_ORDINALS: readonly { readonly lane: CollectionLaneN
   { lane: 'geo', ordinal: SEARCH_GEO_USAGE_ORDINAL, provider: 'serpapi' },
   ...GOOGLE_ADS_DISCOVERY_USAGE_ORDINALS.map(ordinal => ({ lane: 'searchAds' as const, ordinal, provider: GOOGLE_ADS_PROVIDER.toLowerCase() })),
   { lane: 'tiktokShopReviews', ordinal: TIKTOK_SHOP_REVIEWS_USAGE_ORDINAL, provider: 'kalodata' },
+  // The video lane's paid top-selling lookup (its first entry above stays the lane's own ordinal).
+  { lane: 'video', ordinal: TOP_SELLING_VIDEOS_USAGE_ORDINAL, provider: 'kalodata' },
 ];
 
 function assertDistinctOrdinals(table: typeof COLLECTION_LANE_ORDINALS): void {

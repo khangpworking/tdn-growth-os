@@ -67,7 +67,8 @@ export function buildSourceEvidence(input: {
   }
   for (const capture of [...input.captures].sort((a, b) => a.stepId.localeCompare(b.stepId) || a.ordinal - b.ordinal)) {
     // TikTok Shop review captures (S06) are never used by this collection packet; a report adds their use only when it reads them.
-    const registryId = capture.provider === 'kalodata' ? capture.operation === 'kalodata.product.comment.insight' ? 'S06' : 'S02' : capture.provider === 'serpapi'
+    // Ranked top-selling video captures feed the seller-video lane (S14), never the sales-name evidence of S02.
+    const registryId = capture.provider === 'kalodata' ? capture.operation === 'kalodata.product.comment.insight' ? 'S06' : capture.operation === 'kalodata.video.rank' ? 'S14' : 'S02' : capture.provider === 'serpapi'
       ? capture.operation === 'serpapi.google.trends' ? 'S20' : 'S19' : null;
     const used = registryId === 'S02' ? input.draft?.salesNameRefs.some(ref => 'captureDigest' in ref && ref.captureDigest === capture.artifactSha256) || input.usedCaptureDigests?.includes(capture.artifactSha256)
       : registryId === 'S19' ? admission && located.some(row => row.captureId === capture.artifactSha256) : false;

@@ -461,6 +461,8 @@ export interface StepVideoWatchCandidate { readonly videoId: string; readonly ur
 export type StepVideoWatchReason = 'OVER_10_VIDEOS' | 'DOWNLOAD_FAILED' | 'VIDEO_TOO_LONG' | 'VIDEO_TOO_LARGE' | 'NOT_A_VIDEO'
   | 'MODEL_FAILED' | 'MODEL_ANSWER_INVALID' | 'CREDENTIAL_ECHO_REFUSED' | 'PUBLICATION_FAILED' | 'CANCELLED' | 'PROVIDER_FAILED' | 'DOCUMENT_INVALID' | 'VIDEO_MODEL_NOT_CONFIGURED';
 export interface StepVideoWatchMedia { readonly sha256: string; readonly byteSize: number; readonly durationSeconds: number; readonly downloadedAt: string }
+/** How a video was read: its own Vietnamese subtitle file, or the downloaded video watched by the model. */
+export type StepVideoWatchPath = 'SUBTITLE' | 'VIDEO';
 export interface StepVideoWatchVideo {
   readonly videoId: string;
   readonly status: 'READ' | 'SKIPPED';
@@ -468,8 +470,19 @@ export interface StepVideoWatchVideo {
   /** Step capture ordinal of the stored model answer; null when no answer was stored. */
   readonly captureIndex: number | null;
   readonly retrievedAt: string | null;
+  /** For a SUBTITLE read, the subtitle file (sha256/size of its bytes, length from the video's metadata). */
   readonly media: StepVideoWatchMedia | null;
+  /** Absent when neither path was reached (and on documents stored before subtitles were read). */
+  readonly path?: StepVideoWatchPath;
   readonly reading: { readonly packageId: string; readonly manifestArtifactSha256: string; readonly packageContentSha256: string; readonly readingSha256: string } | null;
+}
+/** The automated top-selling video lookup (S14): per product its outcome and stored capture, and how many videos were kept. */
+export interface StepTopSellingVideoRank {
+  readonly creditExhausted: boolean;
+  /** Top-selling videos taken from the lookup (at most five), before the candidate cap. */
+  readonly kept: number;
+  readonly products: readonly { readonly productId: string; readonly outcome: 'OK' | 'EMPTY' | 'FAILED' | 'AMBIGUOUS_NO_RETRY' | 'NOT_RUN_CREDIT_EXHAUSTED' | 'NOT_RUN_STOPPED' | 'NOT_RUN_CANCELLED';
+    readonly captureIndex: number | null }[];
 }
 /** Automated seller-video watching; absent unless the video-watch lane was on for the run. */
 export interface StepVideoWatch {
@@ -478,6 +491,8 @@ export interface StepVideoWatch {
   readonly candidates: readonly StepVideoWatchCandidate[];
   readonly skipped: readonly { readonly videoId: string; readonly reason: 'OVER_10_VIDEOS' }[];
   readonly videos: readonly StepVideoWatchVideo[];
+  /** Absent unless the automated top-selling video lookup was on for the run. */
+  readonly topSellingRank?: StepTopSellingVideoRank;
 }
 
 /** Closed reason codes of the automatic report-PDF lane (S25); a reason never fails the run. */

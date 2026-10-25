@@ -34,6 +34,7 @@ import { tiktokTopAdsEnabled } from '../modules/analysis/research-automation/tik
 import { tiktokShopReviewsEnabled } from '../modules/analysis/research-automation/tiktok-shop-reviews.js';
 import { pdfDiscoveryEnabled } from '../modules/analysis/research-automation/pdf-discovery-lane.js';
 import { videoWatchConfigFromEnv, videoWatchEnabled, type VideoWatchConfig } from '../modules/analysis/research-automation/video-watch-lane.js';
+import { topSellingVideosEnabled } from '../modules/analysis/research-automation/top-selling-videos.js';
 import { expandedSearchEnabled } from '../modules/analysis/research-automation/expanded-search-lane.js';
 import { i14CliproxySynthesisConfiguration, decisionCliproxySynthesisConfiguration, insightCodingCliproxyConfiguration, tiktokCodingCliproxyConfiguration, shopeeCodingCliproxyConfiguration } from '../modules/analysis/research-automation/i14-cliproxy-transport.js';
 import type { AutomationI14SynthesisConfiguration } from '../modules/analysis/research-automation/i14-synthesis-execution.js';
@@ -122,6 +123,8 @@ export interface OperatorAppConfiguration {
   readonly researchPdfDiscovery?: true;
   /** Video-watch lane of the Market flow; present only when TDN_RESEARCH_VIDEO_WATCH_ENABLED is exactly "1". Uses the existing CLIProxy settings. */
   readonly researchVideoWatch?: VideoWatchConfig;
+  /** Automated top-selling video lookup (S14) feeding the video-watch lane; present only when TDN_RESEARCH_TOP_SELLING_VIDEOS_ENABLED is exactly "1". Paid, at most three products per run. */
+  readonly researchTopSellingVideos?: true;
 }
 export interface OperatorAppDependencies {
   readonly creativeAiTransport?: typeof fetch;
@@ -245,6 +248,7 @@ export function operatorAppConfigurationFromEnvironment(
     ...(tiktokShopReviewsEnabled(environment) ? { researchTikTokShopReviews: true as const } : {}),
     ...(pdfDiscoveryEnabled(environment) ? { researchPdfDiscovery: true as const } : {}),
     ...(videoWatchEnabled(environment) ? { researchVideoWatch: videoWatchConfigFromEnv(environment) } : {}),
+    ...(topSellingVideosEnabled(environment) ? { researchTopSellingVideos: true as const } : {}),
     ...(environment.TDN_R2_ENABLED !== 'true' ? {} : { r2: {
       TDN_R2_ENABLED: 'true', TDN_R2_ACCOUNT_ID: environment.TDN_R2_ACCOUNT_ID,
       TDN_R2_ACCESS_KEY_ID: environment.TDN_R2_ACCESS_KEY_ID,
@@ -334,6 +338,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
       ...(configuration.researchTikTokShopReviews ? { tiktokShopReviews: true as const } : {}),
       ...(configuration.researchPdfDiscovery ? { pdfDiscovery: true as const } : {}),
       ...(configuration.researchVideoWatch ? { videoWatch: configuration.researchVideoWatch } : {}),
+      ...(configuration.researchTopSellingVideos ? { topSellingVideos: true as const } : {}),
       ...(configuration.ownerWritesEnabled ? { owner: {
         databasePath, artifactRoot: configuration.artifactRoot, writeEnabled: true,
         token: ownerToken, actorId: configuration.ownerActorId!, allowedOrigin: origin,

@@ -8,8 +8,10 @@ import type { StepExpandedQuery, StepVideoWatchCandidate } from '../../src/modul
 import type { ProviderTransport } from '../../src/modules/analysis/research-automation/provider-common.js';
 import { answerOf, createVideoWatchModel, VIDEO_WATCH_PRODUCT_MAX_CHARS, VIDEO_WATCH_RESPONSE_SCHEMA, videoWatchProductKeyword,
   videoWatchPrompt } from '../../src/modules/analysis/research-automation/video-watch-gemini.js';
-import { buildAutomatedVideoReading, validateModelAnswer, VideoWatchLane, videoWatchCandidates, videoWatchConfigFromEnv, videoWatchEnabled,
+import { buildAutomatedVideoReading, publishAutomatedVideoReading, validateModelAnswer, verifyAutomatedVideoReading, VideoWatchLane, videoWatchCandidates, videoWatchConfigFromEnv, videoWatchEnabled,
   videoWatchLaneFromConfig } from '../../src/modules/analysis/research-automation/video-watch-lane.js';
+import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
+import { createHash } from 'node:crypto';
 import { createProcessRunner, downloadVideo, processSpawnOptions, sweepVideoMedia, ytdlpArgs, VIDEO_WATCH_MAX_BYTES,
   type ProcessRunner } from '../../src/modules/analysis/research-automation/video-watch-media.js';
 
@@ -393,6 +395,27 @@ test('reading: v3 contract, unverified model provenance and model-transcribed ca
   assert.equal(prepared.reading.captionSource, 'MODEL_TRANSCRIBED');
   assert.deepEqual(prepared.reading.segments, [{ startSeconds: 1, endSeconds: 3, text: 'Bình giữ nóng rất lâu' }]);
   assert.deepEqual(prepared.reading.onScreenText, [{ startSeconds: 0, endSeconds: 2, text: 'GIẢM 50%' }]);
+});
+
+test('replay: a model-transcribed v3 reading keeps the exact bytes, request and binding of the code before subtitles, and still verifies', async () => {
+  // The three digests were computed with the unchanged code of 852b5b1f for this exact input.
+  const candidatesSha256 = createHash('sha256').update(canonicalJson([candidate()])).digest('hex');
+  const binding = { workspaceId: '11111111-1111-4111-8111-111111111111', runId: RUN, scopeSha256: 'a'.repeat(64), sourceSetSha256: null, candidatesSha256 };
+  const prepared = buildAutomatedVideoReading(binding, candidate(), validateModelAnswer(goodAnswer, 10)!,
+    { sha256: 'c'.repeat(64), byteSize: 5, durationSeconds: 10, downloadedAt: '2026-10-02T00:00:00.000Z' }, { modelId: MODEL, responseSha256: 'd'.repeat(64) });
+  assert.equal(prepared.readingSha256, '33f9e90c08faaffd84151fcd23261fa0e38654f25a4ba7dc851020fa58d8d86f');
+  let request: { packageKey: string; files: object[] } | undefined, bindingSha256 = '';
+  const ref = await publishAutomatedVideoReading({ intakeAutomationAttachment: async (input, _files, bound) => { request = input as typeof request; bindingSha256 = bound;
+    return { packageId: 'p', manifestArtifactSha256: 'e'.repeat(64), packageContentSha256: 'f'.repeat(64) }; } }, binding, prepared);
+  assert.equal(createHash('sha256').update(canonicalJson(request)).digest('hex'), '82a8955149b080f58752feffce4fe95e01bfad87da60654b22110b32e53e662b');
+  assert.equal(bindingSha256, 'a7cbcdbea8c400963c45c0c656b1a03bdfc8a43e382f41b13e0ed92f85c44f8b');
+  const reader = {
+    readFinalizedSourcePackage: async () => ({ packageId: 'p', manifestArtifactSha256: ref.manifestArtifactSha256, packageContentSha256: ref.packageContentSha256,
+      manifest: { version: 1, packageKey: request!.packageKey }, files: request!.files.map(file => ({ ...file, bytes: prepared.bytes })) }),
+    readAutomationAttachmentOrigin: async () => ({ manifestArtifactSha256: ref.manifestArtifactSha256, bindingSha256 }),
+  } as unknown as Parameters<typeof verifyAutomatedVideoReading>[0];
+  assert.deepEqual(await verifyAutomatedVideoReading(reader, ref, { ...binding, candidates: [candidate()], readingSha256: prepared.readingSha256 }),
+    { readingSha256: prepared.readingSha256, voiceLabel: 'lời người bán', segments: [{ text: 'Bình giữ nóng rất lâu', startSeconds: 1, endSeconds: 3 }] });
 });
 
 // ---- VW2: the lane passes the keyword, retries one invalid answer, never clamps ----

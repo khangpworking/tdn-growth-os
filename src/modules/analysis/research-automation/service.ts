@@ -119,7 +119,8 @@ import { attemptCollectionLanes, collectionLaneManifests, collectionLaneOrdinals
 import { publishAutomatedVideoReading, verifyAutomatedVideoReading, videoWatchReadingRefs, VIDEO_WATCH_MAX_VIDEOS, VIDEO_WATCH_PROFILE, type VideoWatchLane } from './video-watch-lane.js';
 import { validPopulationBaseline, POPULATION_BASELINE_OPERATION, type PopulationBaselineSource } from './population-baseline.js';
 import { topSellingTikTokVideos } from './tiktok-video-selection.js';
-import { tiktokShopChannelDecision, validTikTokShopReviewsStep, type TikTokShopReviewCandidate, type TikTokShopReviewsSource } from './tiktok-shop-reviews.js';
+import { tiktokShopChannelDecision, tiktokShopProductCandidates, validTikTokShopReviewsStep, type TikTokShopReviewCandidate, type TikTokShopReviewsSource } from './tiktok-shop-reviews.js';
+import { TOP_SELLING_VIDEO_RANK_OUTCOMES, type TopSellingVideoSource } from './top-selling-videos.js';
 import { metaAutoReportView, validMetaAuto, verifyMetaAutoEvidence, type MetaAutoReportView, type MetaAutoSource } from './meta-auto-lane.js';
 import { tiktokTopAdsReportView, validTikTokTopAds, verifyTikTokTopAdsEvidence, type TikTokTopAdsReportView, type TikTokTopAdsSource } from './tiktok-top-ads-lane.js';
 import { PDF_DISCOVERY_PROVIDER, pdfDiscoveryDownloaded, pdfDiscoveryMaxPages, PDF_DISCOVERY_MAX_PAGES_ENV, validPdfDiscovery, type PdfDiscoverySource } from './pdf-discovery-lane.js';
@@ -408,6 +409,8 @@ export interface ResearchAutomationServiceOptions {
   readonly officialStatsSource?: OfficialStatsSource;
   /** Automated seller-video watching (S14); only set when its flag is exactly "1". */
   readonly videoWatch?: VideoWatchLane;
+  /** Automated top-selling video lookup (S14, paid) feeding the video-watch lane; only set when its flag is exactly "1". */
+  readonly topSellingVideoSource?: TopSellingVideoSource;
   /** Meta ad library auto-read (S15 AUTO); only set when its flag is exactly "1". */
   readonly metaAutoSource?: MetaAutoSource;
   readonly tiktokTopAdsSource?: TikTokTopAdsSource;
@@ -639,7 +642,7 @@ export class ResearchAutomationService {
     this.#source = options.source;
     this.#webSource = options.webSource;
     this.#collectionLanes = collectionLanes(options);
-    this.#videoLane = options.videoWatch ? videoLane(options.videoWatch) : undefined;
+    this.#videoLane = options.videoWatch ? videoLane(options.videoWatch, options.topSellingVideoSource) : undefined;
     this.#pdfLane = options.pdfDiscoverySource ? pdfLane(options.pdfDiscoverySource) : undefined;
     this.#pdfDiscoverySource = options.pdfDiscoverySource;
     this.#pdfCaptureMaxPages = pdfDiscoveryMaxPages(options.pdfCaptureMaxPages === undefined ? process.env : { [PDF_DISCOVERY_MAX_PAGES_ENV]: String(options.pdfCaptureMaxPages) });
@@ -1747,7 +1750,7 @@ export class ResearchAutomationService {
   /** The video-watch binding, the run's frozen product keyword and its stored selection videos (when any); a missing or unreadable selection just gives none.
    * The keyword is the start snapshot's (`startSha`), checked against the run row; the confirmed scope snapshot has no keyword field of its own. */
   async #videoWatchContext(runId: string, collection: StepResultDocument): Promise<{ binding: { workspaceId: string; runId: string; scopeSha256: string; sourceSetSha256: string | null }; productKeyword: string;
-    selectionVideos: readonly { url: string }[]; topSellingVideos: readonly { url: string }[]; topSellingGap: boolean }> {
+    selectionVideos: readonly { url: string }[]; topSellingVideos: readonly { url: string }[]; topSellingGap: boolean; topSellingProducts: readonly TikTokShopReviewCandidate[] }> {
     const row = this.#current(runId);
     if (!row?.scopeSha) throw new ResearchAutomationStateError('Video watch needs a confirmed scope.');
     const scope = await this.#readScopeSnapshot(row.scopeSha, row.workspaceId, row.runId);
@@ -1775,16 +1778,18 @@ export class ResearchAutomationService {
     // confirmed product with verified sales evidence in this collection.
     let topSellingVideos: { url: string }[] = [];
     let topSellingGap = true;
+    let topSellingProducts: TikTokShopReviewCandidate[] = [];
     try {
       const confirmed = new Set([...scope.selectedProductIds, ...scope.peerProductIds]);
       const collected = new Set(collection.comparables.filter(value => value.provider === 'kalodata' && confirmed.has(value.productId)).map(value => value.productId));
       const cards = (await this.#stepDocument(runId, 'QUICK_SEARCH'))?.productCards ?? [];
+      topSellingProducts = tiktokShopProductCandidates(confirmed, new Set(cards.filter(card => card.provider === 'kalodata').map(card => card.productId)), collection.comparables);
       const productUrls = cards.filter(card => card.provider === 'kalodata' && collected.has(card.productId)).flatMap(card => card.sourceUrl === null ? [] : [card.sourceUrl]);
       const result = await topSellingTikTokVideos(this.#boundedSourceReader(), { workspaceId: row.workspaceId, runId: row.runId }, productUrls);
       topSellingVideos = result.videos.map(video => ({ url: video.url }));
       topSellingGap = result.videos.length === 0 || result.rowsWithoutUsableVideo > 0;
     } catch (error) { console.error(JSON.stringify({ event: 'research_automation_top_selling_videos_failed', runId, error: error instanceof Error ? error.name : 'UNKNOWN' })); }
-    return { binding, productKeyword, selectionVideos, topSellingVideos, topSellingGap };
+    return { binding, productKeyword, selectionVideos, topSellingVideos, topSellingGap, topSellingProducts };
   }
 
   /** The run worker alone performs bounded indexing waits and durable no-retry questions. */
@@ -3705,17 +3710,7 @@ export class ResearchAutomationService {
           candidates: async () => {
             const confirmed = new Set([...(scope?.selectedProductIds ?? []), ...(scope?.peerProductIds ?? [])]);
             const carded = new Set(((await this.#stepDocument(row.runId, 'QUICK_SEARCH'))?.productCards ?? []).filter(card => card.provider === 'kalodata').map(card => card.productId));
-            const revenue = new Map<string, number | null>();
-            for (const value of result.step.comparables) {
-              if (value.provider !== 'kalodata' || !confirmed.has(value.productId) || !carded.has(value.productId)) continue;
-              const amount = value.metric === 'GMV_VND' ? Number(value.value) : NaN;
-              const prior = revenue.get(value.productId) ?? null;
-              revenue.set(value.productId, Number.isFinite(amount) ? (prior ?? 0) + amount : prior);
-            }
-            return [...revenue].flatMap(([ref, amount]): TikTokShopReviewCandidate[] => {
-              const parsed = parseProviderProductRef(ref);
-              return parsed ? [{ productId: parsed.sourceProductId, revenue: amount }] : [];
-            });
+            return tiktokShopProductCandidates(confirmed, carded, result.step.comparables);
           },
           putDocument: bytes => this.#artifacts.put(bytes),
         },
@@ -5955,12 +5950,22 @@ function validComtrade(value: unknown): boolean {
 
 const VIDEO_WATCH_REASONS =new Set(['OVER_10_VIDEOS', 'DOWNLOAD_FAILED', 'VIDEO_TOO_LONG', 'VIDEO_TOO_LARGE', 'NOT_A_VIDEO', 'MODEL_FAILED', 'MODEL_ANSWER_INVALID',
   'CREDENTIAL_ECHO_REFUSED', 'PUBLICATION_FAILED', 'CANCELLED', 'PROVIDER_FAILED', 'DOCUMENT_INVALID', 'VIDEO_MODEL_NOT_CONFIGURED']);
+/** The automated top-selling lookup record: at most three products, closed outcomes, capture ordinals only. */
+function validTopSellingRank(value: unknown): boolean {
+  if (!isRecord(value) || Object.keys(value).sort().join() !== 'creditExhausted,kept,products' || typeof value.creditExhausted !== 'boolean' ||
+      !Number.isSafeInteger(value.kept) || (value.kept as number) < 0 || (value.kept as number) > 5 || !Array.isArray(value.products) || value.products.length > 3) return false;
+  const ids = new Set<string>();
+  return value.products.every(item => isRecord(item) && Object.keys(item).sort().join() === 'captureIndex,outcome,productId' && typeof item.productId === 'string' &&
+    /^\d{1,32}$/.test(item.productId) && !ids.has(item.productId) && ids.add(item.productId) !== undefined &&
+    TOP_SELLING_VIDEO_RANK_OUTCOMES.includes(item.outcome as never) && (item.captureIndex === null || (Number.isSafeInteger(item.captureIndex) && (item.captureIndex as number) >= 0)));
+}
 function validVideoWatch(value: unknown): boolean {
   const hex = /^[a-f0-9]{64}$/, id = /^[1-9][0-9]{0,19}$/;
-  if (!isRecord(value) || Object.keys(value).sort().join() !== 'candidates,candidatesSha256,profile,skipped,videos' || value.profile !== VIDEO_WATCH_PROFILE ||
+  if (!isRecord(value) || Object.keys(value).filter(key => key !== 'topSellingRank').sort().join() !== 'candidates,candidatesSha256,profile,skipped,videos' || value.profile !== VIDEO_WATCH_PROFILE ||
       typeof value.candidatesSha256 !== 'string' || !hex.test(value.candidatesSha256) || !Array.isArray(value.candidates) || value.candidates.length > VIDEO_WATCH_MAX_VIDEOS ||
       !Array.isArray(value.skipped) || value.skipped.length > MAX_WEB_RESULTS * EXPANDED_SEARCH_KINDS.length + 1000 || !Array.isArray(value.videos) || value.videos.length !== value.candidates.length) return false;
   const seen = new Set<string>();
+  if ('topSellingRank' in value && !validTopSellingRank(value.topSellingRank)) return false;
   const candidatesOk = value.candidates.every(item => {
     if (!isRecord(item) || Object.keys(item).sort().join() !== 'origin,url,videoId' || typeof item.videoId !== 'string' || !id.test(item.videoId) || seen.has(item.videoId) ||
       (item.origin !== 'SELECTION' && item.origin !== 'TOP_SELLING' && item.origin !== 'EXPANDED_SEARCH') || typeof item.url !== 'string' ||
@@ -5971,7 +5976,9 @@ function validVideoWatch(value: unknown): boolean {
   if (!value.skipped.every(item => isRecord(item) && Object.keys(item).sort().join() === 'reason,videoId' && item.reason === 'OVER_10_VIDEOS' &&
     typeof item.videoId === 'string' && id.test(item.videoId) && !seen.has(item.videoId))) return false;
   return value.videos.every((video, i) => {
-    if (!isRecord(video) || Object.keys(video).sort().join() !== 'captureIndex,media,reading,reason,retrievedAt,status,videoId' ||
+    // `path` is optional: documents stored before subtitles were read have none.
+    const keys = Object.keys(video ?? {}).filter(key => key !== 'path').sort().join();
+    if (!isRecord(video) || keys !== 'captureIndex,media,reading,reason,retrievedAt,status,videoId' || ('path' in video && video.path !== 'SUBTITLE' && video.path !== 'VIDEO') ||
       video.videoId !== (value.candidates[i] as { videoId: string }).videoId) return false;
     if ((video.captureIndex === null) !== (video.retrievedAt === null) || (video.captureIndex !== null && (!Number.isSafeInteger(video.captureIndex) || (video.captureIndex as number) < 0)) ||
       (video.retrievedAt !== null && (typeof video.retrievedAt !== 'string' || !Number.isFinite(Date.parse(video.retrievedAt))))) return false;
@@ -6179,6 +6186,12 @@ function assertCaptureLineage(document: StepResultDocument, captures: readonly C
     const capture = stepCaptures.get(file.captureIndex);
     if (!capture || capture.truncated || capture.provider !== 'official-stats' || capture.operation !== 'officialstats.download' || capture.retrievedAt !== file.retrievedAt)
       throw new ResearchAutomationIntegrityError('Stored official statistics workbook references an incompatible capture.');
+  }
+  for (const product of document.videoWatch?.topSellingRank?.products ?? []) {
+    if (product.captureIndex === null) continue;
+    const capture = stepCaptures.get(product.captureIndex);
+    if (!capture || capture.truncated || capture.provider !== 'kalodata' || capture.operation !== 'kalodata.video.rank')
+      throw new ResearchAutomationIntegrityError('Stored top-selling video lookup references an incompatible capture.');
   }
   for (const video of document.videoWatch?.videos ?? []) {
     if (video.captureIndex === null) continue;

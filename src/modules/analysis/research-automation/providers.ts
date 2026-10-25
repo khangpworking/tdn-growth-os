@@ -80,7 +80,7 @@ export interface ExpandedSearchProvider extends ResearchAutomationProvider {
 }
 
 export type ProviderOperation =
-  | 'kalodata.product.rank' | 'kalodata.product.detail' | 'kalodata.credit.balance' | 'kalodata.product.comment.insight'
+  | 'kalodata.product.rank' | 'kalodata.product.detail' | 'kalodata.credit.balance' | 'kalodata.product.comment.insight' | 'kalodata.video.rank'
   | 'serpapi.google.search' | 'serpapi.google.trends' | 'worldbank.observations' | 'worldbank.metadata' | 'videowatch.generate' | 'comtrade.data' | 'serpapi.google_ads.transparency'
   | 'officialstats.list' | 'officialstats.download' | 'pdfdiscovery.download' | 'populationbaseline.read' | 'none';
 

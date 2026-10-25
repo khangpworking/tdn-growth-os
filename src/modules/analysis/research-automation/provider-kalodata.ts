@@ -76,7 +76,22 @@ export interface KalodataCommentInsightResult {
   readonly usage: ProviderUsage;
   readonly captures: readonly ProviderRawCapture[];
 }
+/** S14 top-selling videos: at most three products per run, one ranked page of ten videos each (about 0.1 point per call). */
+export const KALODATA_VIDEO_RANK_LIMITS = Object.freeze({ maxProducts: 3, pageSize: 10 });
+/** One ranked video row. The creator handle only builds the public video URL; it is never shown, logged or put in step text. */
+export interface KalodataVideoRankRow { readonly videoId: string; readonly handle: string; readonly revenue: number | null; readonly views: number | null }
+export type KalodataVideoRankOutcome = 'OK' | 'EMPTY' | 'FAILED' | 'AMBIGUOUS_NO_RETRY' | 'NOT_RUN_CREDIT_EXHAUSTED' | 'NOT_RUN_STOPPED' | 'NOT_RUN_CANCELLED';
+export interface KalodataVideoRankResult {
+  readonly status: 'NOT_CONFIGURED' | 'COMPLETED';
+  readonly balanceBefore: number | null;
+  readonly creditExhausted: boolean;
+  readonly products: readonly { readonly productId: string; readonly outcome: KalodataVideoRankOutcome; readonly captureId: string | null; readonly rows: readonly KalodataVideoRankRow[] }[];
+  readonly usage: ProviderUsage;
+  readonly captures: readonly ProviderRawCapture[];
+}
 export interface KalodataProvider extends ResearchAutomationProvider {
+  /** S14 top-selling videos of explicit products (digits, at most three), ranked by revenue; never auto-retries a paid request. */
+  topSellingVideos(productIds: readonly string[], options?: ProviderCallOptions): Promise<KalodataVideoRankResult>;
   /** S06 product reviews. Explicit product ids only (digits, at most three); never auto-retries a paid request. */
   productCommentInsight(productIds: readonly string[], options?: ProviderCallOptions): Promise<KalodataCommentInsightResult>;
   /** Free account balance read; null when not configured or not observed. */
@@ -112,7 +127,7 @@ export function createKalodataProvider(secretKey: string | null, transport: Prov
       queryWindow: DateWindow | null; productRef: string | null },
     parse: (data: unknown) => T | undefined,
   ): Promise<{ capture: ProviderRawCapture; data: T | null; rejection: Rejection } | null> {
-    const limiter = request.operation === 'kalodata.product.rank' ? limiters.rank
+    const limiter = request.operation === 'kalodata.product.rank' || request.operation === 'kalodata.video.rank' ? limiters.rank
       : request.operation === 'kalodata.product.detail' || request.operation === 'kalodata.product.comment.insight' ? limiters.detail : limiters.credit;
     if (!await limiter.acquire(transport, options.signal)) return null;
     const bodyText = request.body ? JSON.stringify(request.body) : null;
@@ -400,7 +415,54 @@ export function createKalodataProvider(secretKey: string | null, transport: Prov
       const usage = log.usage(await credits(log, secretKey, options, before));
       return { status: 'COMPLETED', balanceBefore: before?.value ?? null, creditExhausted: creditStop, products, usage, captures: log.captures };
     },
+
+    // Same credit rules as the S06 reviews: the balance is read first, an observed zero means no paid call, the credit answer (code 2016)
+    // stops the phase and every later product is NOT_RUN_CREDIT_EXHAUSTED, an auth or rate rejection stops it, nothing is retried, and the
+    // balance delta is recorded.
+    async topSellingVideos(productIds: readonly string[], options: ProviderCallOptions = {}): Promise<KalodataVideoRankResult> {
+      if (!Array.isArray(productIds) || productIds.length > KALODATA_VIDEO_RANK_LIMITS.maxProducts
+        || productIds.some(id => typeof id !== 'string' || !/^\d{1,32}$/.test(id)) || new Set(productIds).size !== productIds.length)
+        throw new ProviderInputError('Top-selling videos need at most three distinct numeric product ids');
+      if (!secretKey) return { status: 'NOT_CONFIGURED', balanceBefore: null, creditExhausted: false, products: [], usage: emptyUsage('KALODATA'), captures: [] };
+      const log = new CaptureLog('KALODATA', transport, options.onProgress, productIds.length + 2);
+      const preflight = productIds.length ? await balanceResponse(log, secretKey, options) : null;
+      const before = preflight === null || preflight.data === null ? null : { value: preflight.data, captureId: preflight.capture.captureId };
+      let creditStop = before?.value === 0 || preflight?.rejection === 'CREDIT_EXHAUSTED';
+      let stopped = creditStop || preflight?.rejection === 'AUTH_OR_RATE_REJECTED';
+      const products: KalodataVideoRankResult['products'][number][] = [];
+      for (const id of productIds) {
+        const answer = stopped || options.signal?.aborted ? null : await call(log, secretKey, options, {
+          operation: 'kalodata.video.rank', path: '/openapi/v1/tiktok/video/rank', method: 'POST',
+          body: { product_id: id, page_size: KALODATA_VIDEO_RANK_LIMITS.pageSize, page_number: 1, rank_field: 'revenue', asc: false },
+          queryWindow: null, productRef: formatProviderProductRef('KALODATA', id),
+        }, parseVideoRank);
+        if (answer?.rejection) stopped = true;
+        if (answer?.rejection === 'CREDIT_EXHAUSTED') creditStop = true;
+        const outcome: KalodataVideoRankOutcome = creditStop && (!answer || answer.rejection === 'CREDIT_EXHAUSTED') ? 'NOT_RUN_CREDIT_EXHAUSTED'
+          : !answer ? (options.signal?.aborted ? 'NOT_RUN_CANCELLED' : 'NOT_RUN_STOPPED')
+          : answer.capture.outcome === 'OK' ? (answer.data?.length ? 'OK' : 'EMPTY')
+          : isAmbiguous(answer.capture.outcome) ? 'AMBIGUOUS_NO_RETRY' : 'FAILED';
+        products.push({ productId: id, outcome, captureId: answer?.capture.captureId ?? null, rows: outcome === 'OK' ? answer!.data! : [] });
+      }
+      const usage = log.usage(await credits(log, secretKey, options, before));
+      return { status: 'COMPLETED', balanceBefore: before?.value ?? null, creditExhausted: creditStop, products, usage, captures: log.captures };
+    },
   };
+}
+
+/** Ranked video rows: a list is required; a row without a numeric video id or a plain creator handle is left out; revenue and views are
+ * kept only as finite non-negative numbers (null otherwise). No title, creator id or other field is read. */
+function parseVideoRank(data: unknown): KalodataVideoRankRow[] | undefined {
+  if (!Array.isArray(data)) return undefined;
+  const rows: KalodataVideoRankRow[] = [];
+  for (const row of data.slice(0, KALODATA_VIDEO_RANK_LIMITS.pageSize * 10)) {
+    if (!isRecord(row)) continue;
+    const videoId = typeof row.video_id === 'string' ? row.video_id : typeof row.video_id === 'number' && Number.isSafeInteger(row.video_id) ? String(row.video_id) : null;
+    const handle = typeof row.belonged_creator_handle === 'string' ? row.belonged_creator_handle : null;
+    if (!videoId || !/^[1-9][0-9]{0,19}$/.test(videoId) || !handle || !/^[A-Za-z0-9._]{1,64}$/.test(handle)) continue;
+    rows.push({ videoId, handle, revenue: finiteNonNegative(row.revenue), views: finiteNonNegative(row.views) });
+  }
+  return rows;
 }
 
 // ---- comment insight normalization (S06; no reviewer name, avatar, user id or other personal field is read) ----
