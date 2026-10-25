@@ -1532,7 +1532,7 @@ export class ResearchAutomationService {
     this.#db.prepare(`INSERT INTO analysis_pageindex_run_pdfs(run_id,source_sha256,file_name,package_id,manifest_sha256,logical_path,origin,document_title)
       VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(run_id,source_sha256) DO UPDATE SET origin='UPLOAD' WHERE excluded.origin='UPLOAD'`)
       .run(runId, sha256, fileName, receipt.packageId, receipt.manifestArtifactSha256, logicalPath, origin, pdfDocumentTitle(title));
-    if (!this.#pageIndexEnabled()) return;
+    if (!this.#pageIndexEnabled() || !this.#current(runId)!.reports.split(',').includes('MARKET')) return;
     await indexRunPdfsForPageIndex([{ sha256, fileName, bytes }], this.#pageIndexDeps());
   }
 
