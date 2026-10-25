@@ -3,6 +3,7 @@
 - [x] 1.1 Viết R-I30 đến R-I39 từ trang bản 9 (chủ duyệt 22/10/2026, F117)
 - [x] 1.2 `openspec validate --all` qua
 - [x] 1.3 Đóng PR #364, ghi lý do: change này thay nó
+- [x] 1.4 Sửa R-L12 theo quyết định của chủ ngày 25/10/2026 (phương án A, F165)
 
 ## 2. Code (chờ chủ cho phép)
 

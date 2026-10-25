@@ -18,6 +18,7 @@ Change này thay PR #364 (21/10/2026). PR đó xếp 16 section theo 5 phần A�
 - Thêm R-I37: mục «Những gì báo cáo chưa trả lời được»; chưa có dữ liệu thì để trống.
 - Thêm R-I38: brief ở Phần 2 (G1, G2).
 - Thêm R-I39: câu insight (G4 đến G7, G9): hỏi «Tại sao» có bằng chứng, câu có mâu thuẫn, 3C, ngôi thứ ba kèm số đếm, một câu cho mỗi bước mua.
+- Sửa R-L12 (report-language): vẫn cấm bịa insight cảm xúc hay sáng tạo về quảng cáo; động cơ và rào cản của khách chỉ lấy từ lời khách và video; các sự thật khác dùng nguồn theo R-I34.
 
 ## Capabilities
 
@@ -26,6 +27,7 @@ Change này thay PR #364 (21/10/2026). PR đó xếp 16 section theo 5 phần A�
 
 ### Modified Capabilities
 - `insight-report`: thêm R-I30 đến R-I39. Không sửa R-I01 đến R-I29.
+- `report-language`: sửa R-L12.
 
 ## Impact
 
@@ -34,7 +36,7 @@ Change này thay PR #364 (21/10/2026). PR đó xếp 16 section theo 5 phần A�
 - Đóng PR #364 vì change này thay nó.
 - Trang cho sếp và quy chuẩn dữ liệu đầu vào không đổi. Chủ giữ hai tài liệu này đến khi chủ và sếp cùng đồng ý (F112).
 
-Điểm chặn cần chủ quyết: [R-L12](../../specs/report-language/spec.md) ghi «SHALL chỉ đọc bình luận và video», trong khi [R-I34](specs/insight-report/spec.md) theo trang bản 9 dùng «Gợi ý tìm kiếm Google» làm nguồn chính cho câu 2, cùng các nguồn khác ngoài bình luận và video. Hai phạm vi nguồn không khớp nhau. Change này giữ nguyên nghĩa của trang chủ đã duyệt và chưa sửa R-L12; cần chủ chốt cách giải quyết trước khi áp dụng.
+Quyết định của chủ về phạm vi nguồn: R-L12 cũ ghi Insight «chỉ đọc bình luận và video», còn R-I34 theo trang bản 9 dùng cả từ khóa Google, tên sản phẩm, số bán. Ngày 25/10/2026 chủ chọn: «Chọn A: sửa R-L12 trong change này. Vẫn cấm bịa insight cảm xúc về quảng cáo; động cơ và rào cản của khách chỉ lấy từ lời khách và video; các sự thật khác được dùng nguồn theo bảng R-I34.» (F165). Change này sửa R-L12 theo câu đó.
 
 ## Ngoài phạm vi
 
