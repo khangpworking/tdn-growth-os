@@ -50,3 +50,5 @@ export {
 } from './model.js';
 export * from './model.js';
 export * from './market-raw-series.js';
+export * from './market-trace-map.js';
+export * from './market-raw-report.js';

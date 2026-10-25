@@ -113,6 +113,35 @@ export function captureSampleSentence(capture: CaptureMetricMethodDetails): stri
   return `Mẫu gồm các sản phẩm trả về cho từ khóa “${keyword}”${removed ? `; ${removed}` : ''}; chưa chia nhóm sản phẩm.`;
 }
 
+/** Search settings the market capture ran with, as the run record holds them. */
+export interface MarketCaptureScope {
+  readonly keywords: readonly string[];
+  /** Smart query (expanded search); null when the run record does not say. */
+  readonly smartQuery: boolean | null;
+  /** Category step hook: the chosen category, or the note kept when none was chosen. Absent until that step records one. */
+  readonly category?: MarketCaptureCategory | null;
+}
+
+export type MarketCaptureCategory =
+  | { readonly chosen: string; readonly note?: undefined }
+  | { readonly chosen: null; readonly note: string };
+
+/** Hook for the category step: the category line of the scope, or a plain «not chosen» line while the run record has none. */
+export function marketCaptureCategoryText(category: MarketCaptureCategory | null | undefined): string {
+  const withheld = 'Ngành được giữ trong bản lưu';
+  if (!category) return 'Ngành: chưa chọn, tìm trong mọi ngành.';
+  if (category.chosen !== null) return `Ngành: ${containsForbiddenProviderName(category.chosen) ? withheld : escape(category.chosen)}.`;
+  return `Ngành: chưa chọn. ${containsForbiddenProviderName(category.note) ? withheld : escape(category.note)}`;
+}
+
+/** Scope line of the market numbers: keywords, expanded search, category. */
+export function marketCaptureScopeLine(scope: MarketCaptureScope): string {
+  const withheld = 'Từ khóa được giữ trong bản lưu';
+  const keywords = scope.keywords.map(keyword => `“<span data-quote>${containsForbiddenProviderName(keyword) ? withheld : escape(keyword)}</span>”`).join(', ');
+  const expanded = scope.smartQuery === true ? 'bật tìm mở rộng' : scope.smartQuery === false ? 'tắt tìm mở rộng, chỉ khớp đúng cụm từ' : 'chưa rõ có bật tìm mở rộng';
+  return `<p class="market-capture-scope">Từ khóa: ${keywords || 'chưa có trong bản lưu'}; ${expanded}. ${marketCaptureCategoryText(scope.category)}</p>`;
+}
+
 export interface MarketSourceScopeOptions {
   readonly reviewsPresent?: boolean;
   readonly currentReader?: boolean;
