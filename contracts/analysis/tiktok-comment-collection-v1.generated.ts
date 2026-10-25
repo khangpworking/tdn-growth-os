@@ -8,6 +8,7 @@ export type TikTokCommentCollectionV1 =
   | TikTokVideoSelection
   | TikTokCommentCollectionIntent
   | TikTokCommentRetainedCapture
+  | TikTokCommentPerVideoCapture
   | TikTokCommentCorpus
   | TikTokCommentReadView
   | TikTokCommentSourceReceipt
@@ -202,6 +203,41 @@ export interface TikTokHashedAuthorIdentity {
 export interface TikTokMissingAuthorIdentity {
   state: 'MISSING' | 'INVALID';
   hash: null;
+}
+/**
+ * Temporary free collector (owner decision 25/10): one bounded run per video, every receipt retained. v1 captures are unchanged.
+ */
+export interface TikTokCommentPerVideoCapture {
+  contractVersion: 'tiktok-comment-capture-v2';
+  actor: 'epctex/tiktok-comment-scraper';
+  privacy: TikTokCommentPrivacyProfile;
+  maxCommentsPerVideo: 10;
+  maxTotalChargeUsdPerRun: 0.05;
+  auditForm: 'SANITIZED_ALLOWLIST';
+  /**
+   * @minItems 1
+   * @maxItems 5
+   */
+  runs: TikTokFreeCommentRun[];
+}
+/**
+ * One provider run for exactly one video. Counts are per video; provider notices (rows without a comment id) are counted and never stored. Page offset is the provider dataset offset.
+ */
+export interface TikTokFreeCommentRun {
+  videoId: string;
+  videoUrl: string;
+  inputSha256: string;
+  receipt: TikTokCommentRunReceipt;
+  returnedRows: number;
+  providerNotices: number;
+  comments: number;
+  replies: number;
+  sellerOrCreatorRows: number;
+  /**
+   * @minItems 0
+   * @maxItems 40
+   */
+  pages: TikTokSanitizedAuditPage[];
 }
 export interface TikTokCommentCorpus {
   contractVersion: 'tiktok-comment-corpus-v1';

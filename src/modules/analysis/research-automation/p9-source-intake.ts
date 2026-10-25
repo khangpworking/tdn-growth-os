@@ -17,7 +17,7 @@ import { FoundationSourcePackageReader } from '../../foundation/source-package-r
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import type { RetainedKeywordListDraftRecord } from '../keyword-list-draft-record.js';
 import { CitationRegistry } from '../citation-registry.js';
-import { ApifyTikTokCommentsCollector, retainedTikTokCapture, tikTokCommentActorInput } from '../../../platform/collectors/apify-tiktok-comments.js';
+import { ApifyTikTokCommentsCollector, retainedTikTokCapture, TIKTOK_COMMENT_ACTORS, tikTokCommentActorInput } from '../../../platform/collectors/apify-tiktok-comments.js';
 import { selectTikTokVideos, type TikTokVideoSelectionBinding } from './tiktok-video-selection.js';
 import { buildTikTokCommentCorpus, citeTikTokCommentCorpus } from './tiktok-comment-intake.js';
 import { l9JevTriageMatches, unavailableL9JevTriage, validatesL9JevTriageSidecar, type L9JevTriageSidecar } from './l9-jev-triage.js';
@@ -173,10 +173,12 @@ export class AutomationP9SourceIntake {
     const collector = this.options.collector; if (!collector) fail();
     const draft = await this.options.keywordDraft(keywordDigest);
     signal?.throwIfAborted();
-    const configuration = collector.collectionConfiguration;
+    const { actor, ...configuration } = collector.collectionConfiguration;
+    // P9 is the paid OWNER path; the temporary free actor never enters a P9 intent.
+    if (actor === TIKTOK_COMMENT_ACTORS.free) fail();
     const intent: TikTokCommentCollectionIntent = { contractVersion: 'tiktok-comment-intent-v1', requestKey,
       binding: { ...binding, sourcePeriod: selected.selection.sourcePeriod }, selection: selected.selection,
-      selectionSha256: selected.selectionSha256, keywordData: draft.output, ...configuration,
+      selectionSha256: selected.selectionSha256, keywordData: draft.output, actor, ...configuration,
       privacy: collector.privacyProfile, replyPolicy: 'TOP_LEVEL_ONLY', auditForm: 'SANITIZED_ALLOWLIST' };
     if (!validateIntent(intent)) fail();
     // A persisted unfinished attempt is evidence of a possible paid dispatch,

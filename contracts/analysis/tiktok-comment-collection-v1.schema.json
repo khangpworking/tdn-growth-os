@@ -17,6 +17,9 @@
       "$ref": "#/$defs/capture"
     },
     {
+      "$ref": "#/$defs/captureV2"
+    },
+    {
       "$ref": "#/$defs/corpus"
     },
     {
@@ -710,6 +713,117 @@
           },
           "maxItems": 24000,
           "minItems": 0
+        }
+      }
+    },
+    "freeRun": {
+      "title": "TikTokFreeCommentRun",
+      "description": "One provider run for exactly one video. Counts are per video; provider notices (rows without a comment id) are counted and never stored. Page offset is the provider dataset offset.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "videoId",
+        "videoUrl",
+        "inputSha256",
+        "receipt",
+        "returnedRows",
+        "providerNotices",
+        "comments",
+        "replies",
+        "sellerOrCreatorRows",
+        "pages"
+      ],
+      "properties": {
+        "videoId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,19}$"
+        },
+        "videoUrl": {
+          "type": "string",
+          "pattern": "^https://www\\.tiktok\\.com/@[A-Za-z0-9._]{1,64}/video/[1-9][0-9]{0,19}$"
+        },
+        "inputSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "receipt": {
+          "$ref": "#/$defs/providerReceipt"
+        },
+        "returnedRows": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 40
+        },
+        "providerNotices": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 40
+        },
+        "comments": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10
+        },
+        "replies": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 40
+        },
+        "sellerOrCreatorRows": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 40
+        },
+        "pages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/auditPage"
+          },
+          "maxItems": 40,
+          "minItems": 0
+        }
+      }
+    },
+    "captureV2": {
+      "title": "TikTokCommentPerVideoCapture",
+      "description": "Temporary free collector (owner decision 25/10): one bounded run per video, every receipt retained. v1 captures are unchanged.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "actor",
+        "privacy",
+        "maxCommentsPerVideo",
+        "maxTotalChargeUsdPerRun",
+        "auditForm",
+        "runs"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "tiktok-comment-capture-v2"
+        },
+        "actor": {
+          "const": "epctex/tiktok-comment-scraper"
+        },
+        "privacy": {
+          "$ref": "#/$defs/privacy"
+        },
+        "maxCommentsPerVideo": {
+          "const": 10
+        },
+        "maxTotalChargeUsdPerRun": {
+          "const": 0.05
+        },
+        "auditForm": {
+          "const": "SANITIZED_ALLOWLIST"
+        },
+        "runs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/freeRun"
+          },
+          "maxItems": 5,
+          "minItems": 1
         }
       }
     },
