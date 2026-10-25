@@ -1,10 +1,15 @@
+## RENAMED Requirements
+
+- FROM: `### Requirement: R-M16 Không có tổng giữa Shopee và TikTok Shop`
+- TO: `### Requirement: R-M16 Tổng hai sàn có nhãn và số từng sàn`
+
 ## MODIFIED Requirements
 
 ### Requirement: R-M07 Con số là số trong mẫu, có ghi n
 Báo cáo Market SHALL trình bày con số là số trong mẫu và ghi n; SHALL NOT nêu quy mô thị trường. Tổng hai sàn theo R-M16.
 
 - Loại kiểm: Máy
-- Mã kiểm: `src/modules/analysis/research-automation/market-14-rules.ts`: `sampleSizeIssues`, `zeroSampleSizeIssues`, `hasSampleStatement`, kiểm chữ "thị phần" và "quy mô thị trường". Bỏ phụ thuộc vào cổng `U32_NO_CROSS_PLATFORM_TOTAL` cũ.
+- Mã kiểm: `src/modules/analysis/research-automation/market-14-rules.ts`: `sampleSizeIssues`, `zeroSampleSizeIssues`, `hasSampleStatement`, kiểm chữ "thị phần" và "quy mô thị trường". Quy tắc 7 không còn đọc kết quả U32.
 - Vì sao: một trong 14 quy tắc sửa tay (05/10/2026). Vế "không cộng hai sàn" bị chủ bỏ ngày 22/10/2026 (F100).
 
 #### Scenario: Số trong mẫu có n
@@ -19,13 +24,12 @@ Báo cáo Market SHALL trình bày con số là số trong mẫu và ghi n; SHAL
 - **WHEN** báo cáo có ô «Cộng 2 sàn» đạt R-M16 và mọi số có n
 - **THEN** quy tắc R-M07 đạt
 
-### Requirement: R-M16 Không có tổng giữa Shopee và TikTok Shop
-Báo cáo Market MAY nêu tổng giữa Shopee và TikTok Shop, nhưng mỗi tổng SHALL có nhãn «Cộng 2 sàn», SHALL có số của từng sàn đứng cạnh, và SHALL đạt R-M18 (không tổng thiếu thành viên).
+### Requirement: R-M16 Tổng hai sàn có nhãn và số từng sàn
+Báo cáo Market MAY nêu tổng giữa Shopee và TikTok Shop, nhưng mỗi tổng SHALL có nhãn «Cộng 2 sàn», SHALL có số của từng sàn đứng cạnh, và SHALL đạt R-M18 (không tổng thiếu thành viên). Bản đọc v1/v1.1 SHALL giữ mảng lint W3 cũ trong claims và vẫn chạy cổng U32.
 
 - Loại kiểm: Máy
-- Mã kiểm: cổng `U32_NO_CROSS_PLATFORM_TOTAL` và lint Reader W3, cùng gọi `crossPlatformTotalMatches` (`src/modules/analysis/report-language/cross-platform-total.ts`), đổi nghĩa: trượt khi tổng hai sàn thiếu nhãn hoặc thiếu số từng sàn. Chưa có mã kiểm cho luật mới.
+- Mã kiểm: cổng `U32_NO_CROSS_PLATFORM_TOTAL` và lint Reader W3 của bản đọc Market, cùng gọi `crossPlatformTotalMatches` (`src/modules/analysis/report-language/cross-platform-total.ts`) trên cùng phần chữ nhìn thấy: trượt khi tổng hai sàn thiếu nhãn «Cộng 2 sàn» hoặc thiếu số Shopee và số TikTok Shop đứng cạnh. Ô «Cộng 2 sàn» ở Phần 1 do `buildMarketReportV2` (`src/modules/analysis/reader-report/market-template-v2.ts`) in, chỉ khi cả hai sàn có số.
 - Vì sao: chủ 22/10/2026, «giờ tôi cho phép cộng như metric» (F100), thay U-32 ngày 11/10/2026. Chủ muốn con số tổng quen thuộc của trang gốc, cộng thêm phần tách từng sàn của ta.
-- Ghi chú: tiêu đề requirement giữ chữ cũ để khớp spec gốc; khi archive, đổi tên thành "R-M16 Tổng hai sàn có nhãn và số từng sàn".
 
 #### Scenario: Hai sàn đứng cạnh nhau
 - **WHEN** báo cáo nêu số của Shopee và số của TikTok Shop riêng từng sàn, không có tổng
@@ -52,8 +56,8 @@ Báo cáo Market MAY nêu tổng giữa Shopee và TikTok Shop, nhưng mỗi t�
 ### Requirement: R-M33 Không hiện mã chỉ số trong báo cáo gửi đọc
 Báo cáo Market SHALL NOT hiện mã chỉ số (ví dụ DT-1, LB-1, GIA-2, SS-1) trong phần chữ nhìn thấy. Báo cáo chỉ ghi tên chỉ số và cách tính.
 
-- Loại kiểm: Máy (đề xuất: thêm vào `lintVisibleReportText` ở `src/modules/analysis/report-visible-text-lint.ts`)
-- Mã kiểm: chưa có mã kiểm
+- Loại kiểm: Máy
+- Mã kiểm: `lintVisibleReportText` (`src/modules/analysis/report-visible-text-lint.ts`), luật U13_METRIC_CODE: hai đến bốn chữ in hoa, gạch nối, một hoặc hai chữ số, ngoài phần trích dẫn và phần ẩn
 - Vì sao: chủ 22/10/2026, «không cần mã chỉ số đâu». Mã chỉ số là nhiễu với người đọc không chuyên.
 
 #### Scenario: Mã chỉ số trong bảng
@@ -67,8 +71,8 @@ Báo cáo Market SHALL NOT hiện mã chỉ số (ví dụ DT-1, LB-1, GIA-2, SS
 ### Requirement: R-M34 Chỉ số giá tên là giá bán trung bình
 Báo cáo Market SHALL gọi chỉ số doanh số chia lượt bán trong kỳ là «giá bán trung bình», và SHALL kèm chú thích: tính theo lượt bán từng ngày, không phải giá người mua trả sau voucher. Báo cáo SHALL NOT dùng chữ «giá thật».
 
-- Loại kiểm: Máy (đề xuất)
-- Mã kiểm: chưa có mã kiểm
+- Loại kiểm: Máy (một phần)
+- Mã kiểm: `lintVisibleReportText` (`src/modules/analysis/report-visible-text-lint.ts`), luật U13_REAL_PRICE cho chữ «giá thật». Nhãn «giá bán trung bình» và dòng «Chú thích:» do `buildMarketReportV2` (`src/modules/analysis/reader-report/market-template-v2.ts`) in; chưa có mã kiểm cho nhãn và chú thích.
 - Vì sao: chủ 22/10/2026 hỏi «giá thật» lấy từ đâu (F106), rồi duyệt đổi tên (F107). Quy chuẩn dữ liệu đầu vào 1.43, L5a.
 
 #### Scenario: Dùng chữ giá thật
@@ -83,7 +87,7 @@ Báo cáo Market SHALL gọi chỉ số doanh số chia lượt bán trong kỳ 
 Mỗi phép so, tỷ lệ, tăng hoặc giảm trong báo cáo Market SHALL có chú thích nói (1) chỉ số hoặc đơn vị được so và (2) so với kỳ nào, kèm ngày dạng dd/mm–dd/mm/yyyy.
 
 - Loại kiểm: Bằng chứng (người đọc soát); đề xuất kiểm máy cho dấu "▲", "▼" và "%" không có chú thích đi kèm
-- Mã kiểm: chưa có mã kiểm
+- Mã kiểm: chưa có mã kiểm. Chú thích do `buildMarketReportV2` (`src/modules/analysis/reader-report/market-template-v2.ts`) in (hàm `compareNote`).
 - Vì sao: chủ 22/10/2026: "▼ −13%", "gấp 3,5 lần" không có chú thích làm người đọc không chuyên hiểu sai.
 
 #### Scenario: Phần trăm trần
@@ -98,7 +102,7 @@ Mỗi phép so, tỷ lệ, tăng hoặc giảm trong báo cáo Market SHALL có 
 Biểu đồ đường của báo cáo Market (theo tuần, theo 12 tháng) SHALL chỉ có đường Shopee và đường TikTok Shop. Biểu đồ đường SHALL NOT có đường «Cộng 2 sàn». Tổng chỉ nằm ở ô số, bảng thương hiệu và chữ.
 
 - Loại kiểm: Máy (đề xuất, kiểm trên spec biểu đồ Flint)
-- Mã kiểm: chưa có mã kiểm
+- Mã kiểm: chưa có mã kiểm. Biểu đồ đường theo tháng vẽ một đường mỗi sàn trong `buildMarketReportV2` (`src/modules/analysis/reader-report/market-template-v2.ts`).
 - Vì sao: chủ 22/10/2026, «chart thì không cần làm line của cộng 2 sàn đâu» (F116).
 
 #### Scenario: Biểu đồ tuần có đường tổng
@@ -109,7 +113,7 @@ Biểu đồ đường của báo cáo Market (theo tuần, theo 12 tháng) SHAL
 Bảng thương hiệu đứng đầu của báo cáo Market SHALL có một dòng cho mỗi thương hiệu, với cột «Cộng 2 sàn» và cột Shopee, cột TikTok Shop đứng cạnh. Hai dòng SHALL chỉ gộp khi tên thương hiệu trùng hẳn.
 
 - Loại kiểm: Máy (đề xuất)
-- Mã kiểm: chưa có mã kiểm
+- Mã kiểm: chưa có mã kiểm. Bảng do `buildMarketReportV2` (`src/modules/analysis/reader-report/market-template-v2.ts`) dựng: gộp khi chuỗi tên thương hiệu bằng nhau hẳn, sau bước gộp khoảng trắng và bí danh hồ sơ đã có; phân biệt hoa thường và dấu.
 - Vì sao: chủ 22/10/2026 thấy một thương hiệu xuất hiện hai lần và yêu cầu cộng dồn; chủ giữ "Now" và "Now Food" là hai thương hiệu.
 
 #### Scenario: Cùng thương hiệu trên hai sàn
