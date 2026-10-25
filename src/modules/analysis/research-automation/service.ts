@@ -3669,7 +3669,7 @@ export class ResearchAutomationService {
       // top-ads reads, the population baseline file and TikTok Shop reviews: one attempt each per run, in that order, never
       // repeated after a restart.
       const lanes = await attemptCollectionLanes(this.#collectionLanes, stepId, {
-        keyword: start.keyword, description: start.description ?? null, mode: start.mode, reports: start.reports, requestedPeriod: (input as CollectInput).requestedPeriod,
+        keyword: start.keyword, description: start.description ?? null, mode: start.mode, reports: start.reports, market: start.reports.includes('MARKET'), requestedPeriod: (input as CollectInput).requestedPeriod,
         productTitles: () => [
           ...(result.result && 'productObservations' in result.result ? result.result.productObservations.flatMap(item => item.productName ? [item.productName] : []) : []),
           ...result.step.productCards.flatMap(card => card.title ? [card.title] : []),
@@ -4452,9 +4452,11 @@ export class ResearchAutomationService {
       byteSize: () => captures.reduce((sum, value) => sum + value.artifact.byteSize, 0),
     };
     const saveStep: SaveStepContext = { stepId, signal, captures: captureList, check: checkLane };
+    const market = sourceStart.reports.includes('MARKET');
     const video = await runSaveStepLane(this.#videoLane, step, saveStep, () => {
       const writer = new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
       return {
+        market,
         context: evolving => this.#videoWatchContext(runId, evolving),
         publish: (binding, prepared) => withDatabaseMutationMutex(this.#db, async () => {
           const current = this.#current(runId);
@@ -4509,7 +4511,7 @@ export class ResearchAutomationService {
     // Report PDFs (S25 AUTO) come after the L9 admission step above; their candidates start from the rows it admitted.
     const admissionStep = step;
     const pdf = await runSaveStepLane(this.#pdfLane, step, saveStep, () => ({
-      input: pdfInput, market: sourceStart.reports.includes('MARKET'), aborted,
+      input: pdfInput, market, aborted,
       readerOn: () => this.#pageIndexEnabled(),
       remainingPdfSlots: () => this.#remainingCapturePdfSlots(runId, sourceStart.reports),
       admittedRows: async () => admissionStep.sourceEvidence

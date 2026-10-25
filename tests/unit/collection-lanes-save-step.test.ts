@@ -70,7 +70,7 @@ async function videoSource(t: TestContext) {
   return new VideoWatchLane({ media: { mediaDir: root, ytdlpBin: 'unused', ffprobeBin: 'unused' }, model: null, now, runner: fail });
 }
 function videoFacts(overrides: Partial<VideoLaneFacts> = {}): VideoLaneFacts {
-  return { context: async () => ({ binding: { workspaceId: '11111111-1111-4111-8111-111111111111', runId: step.runId,
+  return { market: true, context: async () => ({ binding: { workspaceId: '11111111-1111-4111-8111-111111111111', runId: step.runId,
     scopeSha256: 'a'.repeat(64), sourceSetSha256: null }, productKeyword: keyword,
     selectionVideos: videoUrls.map(url => ({ url })), topSellingVideos: [], topSellingGap: false }), publish: fail, ...overrides };
 }
