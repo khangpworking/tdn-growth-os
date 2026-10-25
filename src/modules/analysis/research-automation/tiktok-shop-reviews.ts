@@ -127,6 +127,22 @@ export function validTikTokShopReviewsStep(value: unknown): value is StepTikTokS
   return validateStep(value);
 }
 
+/**
+ * A stored S06 document as the coding source: its canonical schema, and the counts and outcomes the COLLECTION step pointer
+ * recorded for it. Returns the document; throws when they differ. No provider call, no inference.
+ */
+export function verifyTikTokShopReviewsDocument(value: unknown, step: StepTikTokShopReviews): AutomationTikTokShopReviews {
+  if (!validateDocument(value) || !validateStep(step)) throw new TypeError('TIKTOK_SHOP_REVIEWS_DOCUMENT_INVALID');
+  const document = value as AutomationTikTokShopReviews;
+  if (document.status !== step.status || document.skipReason !== step.skipReason || document.products.length !== step.products.length ||
+    document.products.some((product, index) => {
+      const recorded = step.products[index]!;
+      return product.productId !== recorded.productId || product.outcome !== recorded.outcome ||
+        product.reviewCount !== recorded.reviewCount || product.reviews.length !== product.reviewCount;
+    })) throw new TypeError('TIKTOK_SHOP_REVIEWS_DOCUMENT_DIFFERS');
+  return document;
+}
+
 export function tiktokShopReviewsUsage(result: KalodataCommentInsightResult): { readonly provider: string; readonly usage: KalodataCommentInsightResult['usage'] } {
   return { provider: 'KALODATA', usage: result.usage };
 }

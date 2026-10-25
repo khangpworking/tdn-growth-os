@@ -29,7 +29,7 @@ type Operation = { kind: 'ADOPT'; body: InsightCodingAdoptRequest }
 type LoadFailure = { kind: ResearchAutomationError['kind'] | 'unknown'; message: string };
 const PAGE_SIZE = 30;
 const mismatch = () => new ResearchAutomationError('integrity', 'Phản hồi không khớp nội dung đã xác nhận. Chưa chuyển sang bước tiếp theo.');
-const sourceKinds = { PRIVATE_SHOPEE: 'Review Shopee từ nguồn riêng đã đối chiếu, đã loại metadata định danh', NATIVE: 'Review gốc đã lưu cùng phiên bản', EXACT_SHOPEE: 'Review Shopee đúng sản phẩm đã lưu' } as const;
+const sourceKinds = { PRIVATE_SHOPEE: 'Review Shopee từ nguồn riêng đã đối chiếu, đã loại metadata định danh', NATIVE: 'Review gốc đã lưu cùng phiên bản', EXACT_SHOPEE: 'Review Shopee đúng sản phẩm đã lưu', PUBLIC_REVIEWS: 'Review công khai đã lưu (Shopee, TikTok Shop)' } as const;
 const failureCopy = (failure: LoadFailure) => failure.kind === 'notFound' ? `${failure.message} Phiên bản này chưa có nguồn review lưu kèm để mã hóa; bổ sung nguồn review ở một phiên bản mới trước.`
   : failure.kind === 'integrity' ? `${failure.message} Nguồn hoặc lịch sử mã hóa không vượt qua kiểm tra toàn vẹn. Không thao tác tiếp; báo người vận hành kiểm tra.`
     : failure.kind === 'connection' || failure.kind === 'unknown' ? `${failure.message} Chưa kết nối được; tải lại khi có mạng.` : failure.message;

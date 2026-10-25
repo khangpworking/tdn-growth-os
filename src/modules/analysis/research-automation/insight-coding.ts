@@ -24,6 +24,7 @@ import type { InsightCodingAdoptRequest, InsightCodingProposeRequest, InsightCod
 import type { AutomationInsightSelection } from '../../../../contracts/analysis/automation-insight-selection.generated.js';
 import type { LocatedInsightMethods } from '../../../../contracts/analysis/located-insight-methods.generated.js';
 import type { PrivateInsightSourceProjection } from '../../../../contracts/analysis/private-insight-source-projection.generated.js';
+import type { PublicInsightSourceProjection } from '../../../../contracts/analysis/public-insight-source-projection.generated.js';
 import privateSourceSchema from '../../../../contracts/analysis/private-insight-source-projection.schema.json' with { type: 'json' };
 import { registerPrivateReviewSchemas } from './private-review-contracts.js';
 import { DEFAULT_PRIVATE_INSIGHT_POLICY } from './insight-default-coding.js';
@@ -74,7 +75,9 @@ type Request = Evidence['request'];
 type Kind = 'ADOPTION' | 'PROPOSAL' | 'RECEIPT';
 interface Row { evidence_id: string; kind: Kind; run_id: string; pair_sha256: string; parent_id: string | null; request_key: string; sequence: number | bigint; artifact_sha256: string; artifact_json: string }
 interface Owner { actorId: string; role: 'OWNER' }
-export interface InsightSourceContext { binding: InsightSourceBinding; input: LocatedInsightMethods['input']; verifiedPlatform?: 'SHOPEE' }
+export interface InsightSourceContext { binding: InsightSourceBinding; input: LocatedInsightMethods['input']; verifiedPlatform?: 'SHOPEE';
+  /** PUBLIC_REVIEWS only: per-record platform, product key, rating and anonymous writer key, bound by sourcePackageSha256. Server-side; not in the view. */
+  publicSource?: PublicInsightSourceProjection }
 export type InsightCodingSourceContext = Omit<InsightSourceContext, 'binding'> & { binding: AnyInsightSourceBinding; privateSource?: PrivateInsightSourceProjection };
 type SourceReads = Map<string, Promise<InsightCodingSourceContext>>;
 interface Options {
