@@ -162,3 +162,43 @@ test('R1 negative control rejects a reader that sums all four platforms into the
     actual: 35_000_000_000, expected: 34_900_000_000,
   });
 });
+
+test('R5 a completed search with missing aggregations preserves its request and never falls back to a stale search', () => {
+  const raw = structuredClone(canxi30);
+  const body = raw[1]!.body;
+  assert.ok(body && !Array.isArray(body.data));
+  body.data.search_basic.aggregations = [];
+
+  const series = readMarketRawSeries(raw);
+  assert.equal(series.totals.all.kpi.revenue.value, null);
+  assert.deepEqual(series.requestedPlatformIds, [1, 8]);
+  assert.deepEqual([series.period.startDate, series.period.endDate], ['2026-09-21', '2026-10-20']);
+  assert.equal(series.period.source?.responseIndex, 1);
+  assert.equal(series.reason, 'search-basic-aggregations-missing');
+  assert.deepEqual(series.platforms.map(platform => platform.platformId), [1, 8]);
+  for (const platform of series.platforms) {
+    for (const field of ['revenue', 'units', 'products', 'shops'] as const) {
+      assert.equal(platform.kpi[field].value, null);
+      assert.match(platform.kpi[field].reason ?? '', /\S/);
+      assert.equal(platform.previous[field].value, null);
+      assert.match(platform.previous[field].reason ?? '', /\S/);
+    }
+    assert.equal(platform.intervals?.length, 5, 'available interval data survives missing headline aggregations');
+  }
+  assert.equal(series.totals.scope.kpi.revenue.value, null);
+});
+
+test('R4/R5 interval platforms survive an absent search response with missing KPIs and no partial totals', () => {
+  const raw = zinc30.filter(entry => entry.urlPath === '/v2/market/analytics/insight/');
+  const series = readMarketRawSeries(raw);
+  assert.deepEqual(series.platforms.map(platform => platform.platformId), [1, 2, 3, 8]);
+  assert.equal(series.reason, 'search-basic-response-missing');
+  for (const platform of series.platforms) {
+    assert.equal(platform.kpi.revenue.value, null);
+    assert.match(platform.kpi.revenue.reason ?? '', /\S/);
+    assert.equal(platform.intervals?.length, 5);
+    for (const interval of platform.intervals ?? []) assertSource(raw, interval.revenue.source, interval.revenue.value);
+  }
+  assert.equal(series.totals.scope.kpi.revenue.value, null);
+  assert.equal(series.totals.all.kpi.revenue.value, null);
+});

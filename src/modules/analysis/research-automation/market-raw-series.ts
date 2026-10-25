@@ -282,10 +282,12 @@ function totalsFor(ids: readonly number[], platforms: ReadonlyMap<number, Market
 /** Reads typed Market numbers from a capture's raw-responses.json content. */
 export function readMarketRawSeries(rawResponses: unknown, options: MarketRawSeriesOptions = {}): MarketRawSeries {
   const entries = entriesOf(rawResponses);
-  const search = latest(entries, SEARCH_BASIC_PATH, body => searchAggregations(body).length > 0);
+  // A completed search without aggregations is missing data for that request,
+  // not permission to reuse an older query's numbers.
+  const search = latest(entries, SEARCH_BASIC_PATH, isRecord);
   const insight = latest(entries, INSIGHT_PATH, hasIntervals);
   const aggregations = search ? searchAggregations(search.body) : [];
-  const reason = search ? undefined : entries.some(entry => SEARCH_BASIC_PATH.test(entry.url)) ? 'search-basic-aggregations-missing' : 'search-basic-response-missing';
+  const reason = aggregations.length ? undefined : entries.some(entry => SEARCH_BASIC_PATH.test(entry.url)) ? 'search-basic-aggregations-missing' : 'search-basic-response-missing';
   const requested = requestedPlatformIds(search);
 
   const current = new Map<MarketRawKpiField, Map<number, MarketRawValue> | null>();
@@ -295,9 +297,10 @@ export function readMarketRawSeries(rawResponses: unknown, options: MarketRawSer
     current.set(field, search ? aggregationByPlatform(search, aggregations, name) : null);
     prior.set(field, search ? aggregationByPlatform(search, aggregations, `PREVIOUS_${name}`) : null);
   }
-  // A requested platform with no row is still a platform: its values stay missing and block the totals.
-  const ids = [...new Set([...(requested ?? []), ...[...current.values(), ...prior.values()].flatMap(map => map ? [...map.keys()] : [])])].sort((a, b) => a - b);
   const intervals = intervalsOf(insight);
+  // Requested and interval-only platforms retain missing KPIs and block totals.
+  const ids = [...new Set([...(requested ?? []), ...intervals.byPlatform.keys(), ...intervals.ambiguous,
+    ...[...current.values(), ...prior.values()].flatMap(map => map ? [...map.keys()] : [])])].sort((a, b) => a - b);
   const read = (maps: Map<MarketRawKpiField, Map<number, MarketRawValue> | null>, id: number, prefix: string) =>
     Object.fromEntries(KPI_FIELDS.map(field => {
       const map = maps.get(field);
