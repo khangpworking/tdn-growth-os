@@ -362,7 +362,7 @@ export async function renderMarketRawCharts(input: Pick<MarketRawReportInput, 'p
 const intervalPatch = (labels: readonly string[]) => (spec: any): void => {
   const walk = (node: any): void => {
     if (!node || typeof node !== 'object') return;
-    if (node.mark?.type === 'line' && node.encoding?.color) {
+    if ((node.mark === 'line' || node.mark?.type === 'line') && node.encoding?.color) {
       const color = node.encoding.color;
       node.encoding.x = { ...node.encoding.x, sort: [...labels] };
       node.encoding.y = { ...node.encoding.y, axis: { ...node.encoding.y.axis, labels: false, ticks: false } };

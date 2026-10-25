@@ -5249,8 +5249,9 @@ export class ResearchAutomationService {
     if (bytes.byteLength !== used.byteSize || createHash('sha256').update(bytes).digest('hex') !== used.sha256)
       throw new ResearchAutomationIntegrityError('Stored raw-responses artifact differs from its capture reference.');
     const series = readMarketRawSeries(JSON.parse(bytes.toString('utf8')));
-    // A capture whose raw responses hold no platform number keeps the current blocks.
-    if (!series.platforms.some(platform => Object.values(platform.kpi).some(value => value.value !== null))) return null;
+    // Keep available interval revenues even when headline KPIs are missing; captures without either keep the current blocks.
+    if (!series.platforms.some(platform => Object.values(platform.kpi).some(value => value.value !== null) ||
+      platform.intervals?.some(interval => interval.revenue.value !== null))) return null;
     const filters = (JSON.parse(manifestFile.bytes.toString('utf8')) as { appliedFilters?: { keywords?: unknown; category?: unknown; smartQuery?: unknown } }).appliedFilters;
     const keywords = Array.isArray(filters?.keywords) && filters.keywords.every(keyword => typeof keyword === 'string') ? filters.keywords as string[] : [pinned.capture.keyword];
     const scope: MarketRawReportInput['scope'] = { keywords, smartQuery: typeof filters?.smartQuery === 'boolean' ? filters.smartQuery : null,

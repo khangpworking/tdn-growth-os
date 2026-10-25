@@ -21,7 +21,7 @@ import zinc30 from '../fixtures/market-raw-series/zinc-30d-4platform.synthetic.r
 const keyword = 'viên uống kẽm';
 const period = { startDate: '2026-09-21', endDate: '2026-10-20' };
 const hash = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
-interface Scenario { second?: boolean; tamper?: boolean; secrets?: boolean; excluded?: boolean }
+interface Scenario { second?: boolean; tamper?: boolean; secrets?: boolean; excluded?: boolean; noHeadlines?: boolean }
 
 async function zincRun(t: TestContext, options: Scenario = {}) {
   const captures: Array<{ dir: string; rawBytes: Buffer; manifestBytes: Buffer }> = [];
@@ -62,6 +62,7 @@ async function zincRun(t: TestContext, options: Scenario = {}) {
       { key: 'c1000000001', platforms: [{ platform_id: 1, value: 90 }, { platform_id: 8, value: 90 }] },
       { key: 'c1000000002', platforms: [{ platform_id: 1, value: 10 }, { platform_id: 8, value: 10 }] },
     ] });
+    if (options.noHeadlines) search.aggregations = [];
     const responses: unknown[] = [...raw, { urlPath: '/v2/market/analytics/products/', responseOrder: 30, status: 200,
       requestBody: raw[0]!.requestBody, body: { data: { products } } }];
     if (options.secrets) responses.push({ account: { id: 'synthetic-account' }, session: 'synthetic-session',
@@ -122,6 +123,10 @@ function assertZincBlocks(document: Document): void {
     assert.equal(chart.querySelector('[data-engine]')?.getAttribute('data-engine'), 'flint');
     // Flint line paths, rather than the builder's claimed series count.
     assert.equal(chart.querySelectorAll('svg .mark-line path').length, 2, 'W4 chart draws two platform lines');
+    assert.equal(chart.querySelectorAll('svg .mark-symbol.role-mark path[fill="#ffffff"]').length, 2,
+      'the final partial interval is a hollow point on each platform line');
+    assert.equal(chart.querySelectorAll('svg .mark-line path[aria-label], svg .mark-symbol.role-mark path[aria-label]').length, 0,
+      'chart marks do not introduce untraced numeric aria values');
     assert.match(chart.textContent!, /Shopee/u);
     assert.match(chart.textContent!, /TikTok Shop/u);
   }
@@ -235,6 +240,20 @@ test('W4b Reader still refuses publication when every product is excluded from t
     return true;
   });
   assert.deepEqual((await f.service.listReaderReports(workspaceId, f.runId)).revisions, [], 'the failed Reader build publishes no revision');
+});
+
+test('W4 available raw interval revenues survive missing headline KPIs', async t => {
+  const f = await zincRun(t, { noHeadlines: true });
+  await drain(f.service);
+  assert.equal(autorun(f.db, f.runId)!.phase, 'DONE');
+  const built = await report(f);
+  withDocument(built.bytes, document => {
+    const block = document.querySelector('[data-market-raw-period="30d"]');
+    assert.ok(block, 'available interval data must not silently fall back to the old report');
+    assert.equal(block.querySelector('[data-kpi="revenue"] b')!.textContent, 'Chưa có số');
+    assert.equal(block.querySelectorAll('figure svg .mark-line path').length, 2);
+    assert.equal(block.querySelectorAll('table[data-market-raw-intervals] tbody tr').length, 5);
+  });
 });
 
 test('W5 capture 2 supplies report values and artifact pointers while capture 1 stays retained', async t => {
