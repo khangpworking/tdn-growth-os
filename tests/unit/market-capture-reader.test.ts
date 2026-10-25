@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { JSDOM } from 'jsdom';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { calculateMetricScopes } from '../../src/modules/analysis/metric-scope-calculator.js';
+import { buildDescriptiveMarketMethods } from '../../src/modules/analysis/descriptive-market-methods.js';
 import { CitationRegistry, type CitationEntry } from '../../src/modules/analysis/citation-registry.js';
 import { renderCitationMarkOrMissing } from '../../src/modules/analysis/citation-register-html.js';
 import { UNKNOWN_SHOP } from '../../src/modules/analysis/reader-report/market-charts.js';
@@ -20,6 +21,7 @@ import type { CaptureMetricMethodDetails } from '../../src/modules/analysis/rese
 import type { ReportCitations } from '../../src/modules/analysis/research-automation/descriptive-report.js';
 import { metricFixture } from '../fixtures/metric-scope-synthetic.js';
 import { fullMarket14Input } from '../helpers/market14-full-fixture.js';
+import { descriptiveMarketFixture } from '../helpers/descriptive-market-fixture.js';
 import { CAPTURE_ROW_PROFILE, CAPTURE_ROW_PROFILE_V2, type CaptureRowExclusionReason } from '../../src/modules/analysis/research-automation/capture-row-quality.js';
 
 // G round 2: current source-list snapshots remove English product branding (L11(b));
@@ -415,10 +417,16 @@ test('M01 period inventory stays cited in trace and is hidden only for the captu
 });
 
 
-test('R-M33 metric code retained only in the technical trace passes the reader visible-text gate', () => {
-  const traceHtml = '<html><body><div id="sections"><section class="sheet" id="M13"><p>Doanh thu trong mẫu.</p><details class="evidence-trace"><summary>Hồ sơ tính</summary><p>DT-1</p></details></section></div><footer></footer></body></html>';
-  const readerHtml = deliverMarketReader(traceHtml, undefined, true);
+test('R-M33 generated reader keeps a source metric code only in the technical trace', async () => {
+  const { marketPresentation: _presentation, ...input } = await fullMarket14Input();
+  const { descriptor } = descriptiveMarketFixture();
+  descriptor.sources[0]!.evidenceFamily = 'DT-1';
+  const descriptiveMethods = buildDescriptiveMarketMethods({ ...descriptor,
+    sourcePackage: input.descriptiveMethods!.input.sourcePackage }, { methodVersion: '1.1.0' }).output;
+  const report = buildResearchAutomationReport({ ...input, descriptiveMethods }, 'MARKET');
+  const traceHtml = report.html.toString(), readerHtml = deliverMarketReader(traceHtml, undefined, true);
   assert.match(traceHtml, /DT-1/);
   assert.doesNotMatch(readerHtml, /DT-1/);
   assert.equal(lintVisibleReportText(readerHtml).find(row => row.rule === 'U13_METRIC_CODE')!.ok, true);
+  assert.equal(lintVisibleReportText(readerHtml.replace('</h2>', ' DT-1</h2>')).find(row => row.rule === 'U13_METRIC_CODE')!.ok, false);
 });

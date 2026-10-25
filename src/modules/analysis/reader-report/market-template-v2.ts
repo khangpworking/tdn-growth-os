@@ -254,11 +254,18 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   // R-M37 / owner L5: one row per brand, sorted by the «Cộng 2 sàn» core revenue, high to low, top 10; brands whose total
   // is unknown follow in first source-row order. Two rows merge only when the brand text is exactly equal (after the
   // existing whitespace squash and profile alias). The total exists only when both platform sums are known.
-  const brandRows = [...new Set(rows.filter(row => profile.core.includes(row.seg!) && row.brand !== NO_BRAND).map(row => row.brand))].map(brand => {
-    const sums = PLATS.map(P => {
-      const members = rows.filter(row => row.platform === P && row.brand === brand && profile.core.includes(row.seg!));
-      return { P, rev: completeSum(members, 'rev'), present: members.length > 0 };
-    });
+  const observedPlatforms = new Set<string>(), brands = new Map<string, Map<string, number | null>>();
+  if (next) for (const row of rows) {
+    observedPlatforms.add(row.platform);
+    if (!profile.core.includes(row.seg!) || row.brand === NO_BRAND) continue;
+    let sums = brands.get(row.brand);
+    if (!sums) { sums = new Map(); brands.set(row.brand, sums); }
+    const previous = sums.get(row.platform);
+    sums.set(row.platform, previous === null || row.rev === null ? null : (previous ?? 0) + row.rev);
+  }
+  const brandRows = [...brands].map(([brand, revenue]) => {
+    const sums = PLATS.map(P => ({ P, present: revenue.has(P),
+      rev: !observedPlatforms.has(P) ? null : revenue.has(P) ? revenue.get(P)! : 0 }));
     return { brand, sums, total: PLATS.length === 2 && sums.every(sum => sum.rev !== null) ? sums[0]!.rev! + sums[1]!.rev! : null };
   });
   const brandList = [...brandRows.filter(row => row.total !== null).sort((a, b) => b.total! - a.total!), ...brandRows.filter(row => row.total === null)].slice(0, 10);
@@ -268,7 +275,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
       const cells = sums.map(({ P, rev, present }) => {
         const id = `brands.${j}.${P}.core.rev`;
         if (rev === null) B.setMissing(id, 'ty'); else B.set(id, rev, 'ty');
-        return present ? n(bf(id)) : 'Không có trong mẫu';
+        return n(bf(id)) + (!present && rev !== null ? ' (Không có trong mẫu)' : '');
       });
       const totalId = `brands.${j}.both.core.rev`;
       if (PLATS.length === 2) { if (total !== null) B.set(totalId, total, 'ty'); else B.setMissing(totalId, 'ty'); }

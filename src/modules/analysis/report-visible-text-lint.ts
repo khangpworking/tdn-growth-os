@@ -36,7 +36,7 @@ function visibleBlocks(html: string): { chunks: Chunk[]; region: number }[] {
     const tag = /^<\/?([\w-]+)/.exec(value)?.[1]?.toLowerCase();
     if (!tag) continue;
     const row = stack.some(f => f.tag === 'tr');
-    if (['p', 'li', 'tr', 'section', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'figcaption'].includes(tag) || (tag === 'br' && !row)) flush();
+    if (['p', 'li', 'tr', 'section', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'figcaption', 'caption'].includes(tag) || (['br', 'div'].includes(tag) && !row)) flush();
     if (value.startsWith('</')) {
       const index = stack.map(f => f.tag).lastIndexOf(tag);
       if (index >= 0) stack.splice(index);

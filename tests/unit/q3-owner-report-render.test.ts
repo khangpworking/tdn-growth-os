@@ -6,6 +6,9 @@ import type { ReaderReportInput } from '../../contracts/analysis/reader-report-i
 import { buildMarketReport, computeReaderReportData } from '../../src/modules/analysis/reader-report/index.js';
 import { webSnapshotDigest } from '../../src/modules/analysis/reader-report/web-facts.js';
 import { DEFAULT_MARKET_PEER_RULE } from '../../src/modules/analysis/default-market-peers.js';
+import { CAPTURE_ROW_PROFILE } from '../../src/modules/analysis/research-automation/capture-row-quality.js';
+import { auditMarketReportHtml } from '../../src/modules/analysis/research-automation/market-business-gate.js';
+import { lint } from '../../src/modules/analysis/reader-report/lint.js';
 import { lintVisibleReportText } from '../../src/modules/analysis/report-visible-text-lint.js';
 import { sync1Options, sync1ReaderFixture } from '../helpers/sync1-reader-fixture.js';
 
@@ -57,6 +60,52 @@ test('R-M34 v2 names the sales average and explains daily units and voucher limi
     assert.ok(sales, 'sales table has the approved price name');
     assert.match(sales.querySelector('.ex-note')!.textContent!, /^Chú thích:.*giá bán trung bình.*doanh thu ÷ đơn vị bán.*lượt bán từng ngày.*không phải giá người mua trả sau voucher\./iu);
     assert.doesNotMatch(dom.window.document.body.textContent!, /giá thật/iu);
+  } finally { dom.window.close(); }
+});
+
+test('O3 an entirely excluded capture platform leaves every brand total unknown', async () => {
+  const value = input();
+  value.captureRowPolicy = CAPTURE_ROW_PROFILE;
+  delete value.source;
+  value.webSnapshot = snapshot(); value.webSnapshotSha256 = webSnapshotDigest(value.webSnapshot);
+  value.rows = value.rows.filter(row => row.platform === 'shopee').slice(0, 1);
+  const dom = await documentFor(value);
+  try {
+    const doc = dom.window.document;
+    assert.doesNotMatch(exhibit(doc, '1.1').textContent!, /Cộng 2 sàn/);
+    const cells = [...exhibit(doc, '6.3').querySelectorAll('tbody tr:first-child td')].map(text);
+    assert.deepEqual(cells, ['Tên giống nhau', 'Chưa có dữ liệu', '0,00 tỷ', 'Chưa có dữ liệu']);
+  } finally { dom.window.close(); }
+});
+
+test('O4 legacy nullable reader renders 20,000 distinct brands within three seconds without a brand table', async () => {
+  const value = sync1ReaderFixture('1.2.0');
+  delete value.rowLineage;
+  value.rows = Array.from({ length: 20_000 }, (_, i) => ({ ...value.rows[i % value.rows.length]!,
+    i, listing: `sample-${i}`, brand: `Brand ${i}`, shop: 'same-shop', rev: 100, units: 1, asp: 100 }));
+  value.rows[0]!.rev = null; value.rows[0]!.asp = null;
+  value.source!.rowCap = 20_000;
+  const data = computeReaderReportData(value);
+  const start = performance.now();
+  const report = await buildMarketReport(data, sync1Options);
+  const elapsed = performance.now() - start;
+  assert.ok(elapsed < 3000, `20,000-row render took ${Math.round(elapsed)} ms`);
+  assert.doesNotMatch(report.html, /Bảng 6\.3/);
+});
+
+test('O8 a brand absent from an observed platform prints its sample zero beside the total', async () => {
+  const value = input();
+  for (const row of value.rows) row.brand = row.platform === 'shopee' ? 'Only Shopee' : 'Only TikTok';
+  const dom = await documentFor(value);
+  try {
+    const table = exhibit(dom.window.document, '6.3');
+    const cells = [...table.querySelectorAll('tbody tr')].map(row => [...row.querySelectorAll('td')].map(text));
+    assert.deepEqual(cells, [
+      ['Only TikTok', '0,04 tỷ', '0,00 tỷ (Không có trong mẫu)', '0,04 tỷ'],
+      ['Only Shopee', '0,02 tỷ', '0,02 tỷ', '0,00 tỷ (Không có trong mẫu)'],
+    ]);
+    assert.equal(auditMarketReportHtml(table.outerHTML, { presentation: false }).find(row => row.rule === 'U32_NO_CROSS_PLATFORM_TOTAL')!.ok, true);
+    assert.equal(lint(table.outerHTML, { legacyTotals: false }).find(row => row.rule.startsWith('W3 '))!.ok, true);
   } finally { dom.window.close(); }
 });
 

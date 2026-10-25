@@ -37,6 +37,8 @@ const rankingRows = [
   ['missing period', '<p>Thương hiệu A dẫn đầu về doanh thu trong 120 sản phẩm Shopee của mẫu.</p>', ['L20_RANKING_WORD']],
   ['complete Insight nhiều nhất', '<p>Giao hàng chậm là chủ đề chê được nhắc nhiều nhất trong 300 bình luận TikTok Shop, kỳ 01/09–30/09/2026.</p>', []],
   ['complete table title', '<h3>Sản phẩm dẫn đầu theo doanh thu, 200 sản phẩm trong mẫu, Shopee và TikTok Shop, kỳ 20/09–19/10/2026</h3>', []],
+  ...['caption', 'div class="ext"'].map(tag => [`O9 ${tag} cannot borrow ranking context from a sibling`,
+    `<table><${tag}>Sản phẩm dẫn đầu</${tag.split(' ')[0]}></table><div>Doanh thu trong 120 sản phẩm Shopee, kỳ 19/10/2026</div>`, ['L20_RANKING_WORD']] as const),
   ...['số 1 thị trường', 'tốt nhất', 'dẫn đầu ngành'].map(word => [word, `<p>Thương hiệu A ${word} về doanh thu trong 120 sản phẩm Shopee của mẫu, kỳ 20/09–19/10/2026.</p>`, word === 'tốt nhất' ? ['U13_SUPERLATIVE', 'L20_RANKING_WORD'] : ['L20_RANKING_WORD']] as const),
   ...['cao nhất', 'lớn nhất'].map(word => [word, `<p>Doanh thu ${word} trong 120 sản phẩm Shopee của mẫu, kỳ 20/09–19/10/2026.</p>`, ['U13_SUPERLATIVE']] as const),
 ] as const;
