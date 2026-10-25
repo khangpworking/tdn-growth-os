@@ -12,7 +12,7 @@
  * Covered blocks block delivery on any untraced number. The blocks listed in
  * `MARKET_TRACE_NOT_COVERED` are counted and listed, not blocking yet.
  */
-import { hiddenElement, tagAttributes } from '../report-visible-text.js';
+import { HIDDEN_CONTAINER_TAGS, tagAttributes } from '../report-visible-text.js';
 import { sp } from '../reader-report/format.js';
 import { formatMarketChange, formatMarketCount, formatMarketMoney, formatMarketRange, marketPreviousPeriod } from './market-raw-report.js';
 import { marketVietnamDay } from './market-scope-report.js';
@@ -32,9 +32,16 @@ export const MARKET_TRACE_NOT_COVERED: Readonly<Record<string, string>> = {
   M11: 'opportunity rows from the capture table',
 };
 
-/** Parts of the page that are the trace appendix, not report text (T5): never scanned. */
+/** The trace appendix section, not report text (T5): never scanned. No element or class is skipped this way. */
 const APPENDIX_SECTIONS: ReadonlySet<string> = new Set(['M13']);
-const APPENDIX_CLASSES: ReadonlySet<string> = new Set(['citation-register', 'evidence-trace']);
+
+/**
+ * Text no reader sees: script, style, template, the hidden attribute, or display/visibility off (style or SVG attribute).
+ * aria-hidden text is still on screen, so it is scanned.
+ */
+const unseen = (tag: string, attrs: ReadonlyMap<string, string>): boolean => HIDDEN_CONTAINER_TAGS.has(tag) || attrs.has('hidden')
+  || /(?:^|[;\s])(?:display\s*:\s*none|visibility\s*:\s*hidden)(?:\s*!important)?(?:[;\s]|$)/iu.test(attrs.get('style') ?? '')
+  || /^none$/iu.test(attrs.get('display') ?? '') || /^hidden$/iu.test(attrs.get('visibility') ?? '');
 
 /** Allow-list of numbers that are template text, each with its reason (brief item 5). */
 export const MARKET_TRACE_ALLOWED: Readonly<Record<string, string>> = {
@@ -42,7 +49,6 @@ export const MARKET_TRACE_ALLOWED: Readonly<Record<string, string>> = {
   'exhibit-label': 'figure and table numbers given at delivery («Hình 4.1», «Bảng 3.1»)',
   'row-label': 'row label of the stored sample table («Dòng 3») or the ordinal of an unnamed row («Sản phẩm #2», «Gian hàng #2»)',
   citation: 'citation numbers and source-register entries',
-  'axis-tick': 'axis scale mark placed by the chart engine; the plotted values are traced in the table or text beside it',
   'index-scale': 'fixed 0–100 scale of the search-interest index',
   'top-group': 'group size of the template’s leading-product and leading-shop shares (TOP_GROUPS 1/3/5/10)',
   'pack-default': 'template rule: a title without a pack size counts as 1 product',
@@ -88,7 +94,7 @@ export interface MarketScannedNumber {
   readonly allowed?: string;
 }
 
-interface ElementAllowance { readonly id: string; readonly text?: RegExp }
+interface ElementAllowance { readonly id: string; readonly text: RegExp }
 interface Frame { readonly tag: string; readonly hidden: boolean; readonly appendix: boolean; readonly allowed?: ElementAllowance; readonly block?: string }
 
 /**
@@ -101,8 +107,6 @@ const ELEMENT_ALLOWED = (tag: string, attrs: ReadonlyMap<string, string>): Eleme
   if (classes.has('sh-id')) return { id: 'section-label', text: /^(?:(?:Phần|Phụ lục)\s+\d+|M\d{2})$/u };
   if (classes.has('exn')) return { id: 'exhibit-label', text: /^(?:Hình|Bảng)\s+(?:PL\.)?\d+(?:\.\d+)*$/u };
   if (classes.has('row-ref')) return { id: 'row-label', text: /^Dòng\s+\d+$/u };
-  // Chart-engine scale marks: only a bare number counts as a tick (a date or category label stays data).
-  if (classes.has('role-axis-label')) return { id: 'axis-tick' };
   return undefined;
 };
 
@@ -123,12 +127,12 @@ export function scanMarketReportNumbers(html: string): MarketScannedNumber[] {
       for (const [pattern, id] of LABELS) for (const match of text.matchAll(pattern)) labels.push({ start: match.index, end: match.index + match[0].length, id });
       const block = stack.findLast(frame => frame.block)?.block ?? 'page';
       const allowance = stack.findLast(frame => frame.allowed)?.allowed;
-      const element = allowance && (!allowance.text || allowance.text.test(text.replace(/[\s\u00a0]+/gu, ' ').trim())) ? allowance.id : undefined;
+      const element = allowance && (allowance.text.test(text.replace(/[\s\u00a0]+/gu, ' ').trim())) ? allowance.id : undefined;
       for (const match of text.matchAll(NUMBER)) {
         const token = normalizeMarketNumber(match[0]);
-        const label = labels.find(span => match.index >= span.start && match.index < span.end)?.id;
-        // An axis label that is a date or a category stays data; only bare scale numbers are ticks.
-        const allowed = label ?? (element === 'axis-tick' && !/^[+−-]?\d+(?:[.,]\d+)*$/u.test(token) ? undefined : element);
+        // A template string allows a number only when it holds the whole printed token («Sản phẩm #36,2 tỷ» does not).
+        const label = labels.find(span => match.index >= span.start && match.index + match[0].length <= span.end)?.id;
+        const allowed = label ?? element;
         const context = text.slice(Math.max(0, match.index - 40), match.index + match[0].length + 40).replace(/\s+/gu, ' ').trim();
         out.push({ token, block, context, ...(allowed ? { allowed } : {}) });
       }
@@ -147,8 +151,8 @@ export function scanMarketReportNumbers(html: string): MarketScannedNumber[] {
     const allowed = ELEMENT_ALLOWED(tag, attrs);
     stack.push({
       tag,
-      hidden: Boolean(top?.hidden) || hiddenElement(tag, attrs),
-      appendix: Boolean(top?.appendix) || tag === 'head' || (block !== undefined && APPENDIX_SECTIONS.has(block)) || classes.some(name => APPENDIX_CLASSES.has(name)),
+      hidden: Boolean(top?.hidden) || unseen(tag, attrs),
+      appendix: Boolean(top?.appendix) || tag === 'head' || (block !== undefined && APPENDIX_SECTIONS.has(block)),
       ...(allowed ? { allowed } : {}),
       ...(block ? { block } : {}),
     });
@@ -268,6 +272,15 @@ export const MARKET_TRACE_FORMULAS: Readonly<Record<MarketTraceFormulaId, Formul
     const text = /^-?[\d.,]+/u.exec(normalizeMarketNumber(token))?.[0] ?? '', decimals = /,(\d+)$/u.exec(text)?.[1]?.length ?? 0;
     const printed = Number(text.replace(/\./gu, '').replace(',', '.'));
     return Number.isFinite(printed) && Math.abs(printed - plotted) <= 0.5 * 10 ** -decimals + 1e-9 ? token : plotted.toLocaleString('vi-VN', { maximumFractionDigits: decimals });
+  },
+  // A value-axis tick drawn by the chart engine: a scale mark from 0 up to twice the largest plotted value (`part` ÷ 1e6),
+  // or up to 100 on a share axis (`part` ÷ `total`).
+  'axis-tick': (inputs, token) => {
+    const part = sum(byRole(inputs, 'part')), share = byRole(inputs, 'total').length > 0, total = share ? sum(byRole(inputs, 'total')) : null;
+    if (part === null || total === 0 || (share && total === null)) return null;
+    const top = share ? 100 : 2 * part / 1e6;
+    const text = normalizeMarketNumber(token), tick = /^\d+(?:[.,]\d+)*$/u.test(text) ? Number(text.replace(/\./gu, '').replace(',', '.')) : Number.NaN;
+    return Number.isFinite(tick) && tick >= 0 && tick <= top + 1e-9 ? token : `0–${top.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}`;
   },
   // A timestamp base (the run's creation time) counts from its Vietnam calendar day (UTC+7).
   'date-plus-days': inputs => {

@@ -1,5 +1,8 @@
 import { escapeHtml } from './research-automation/descriptive-report.js';
 import { assertReaderSafeCitation, type CitationEntry, type CitationRegistry } from './citation-registry.js';
+import { marketNumberTokens } from './research-automation/market-number-trace.js';
+import { traceMarketNumber } from './research-automation/market-trace-map.js';
+import { storedInput } from './research-automation/market-trace-inputs.js';
 
 /** "Nguồn tham khảo" register for web and PDF. Reader text only: no ids or digests. */
 
@@ -13,18 +16,25 @@ const SOURCE_FAMILY: Readonly<Record<CitationEntry['sourceKind'], string>> = {
   WEB_RESULT: 'Trang web', PDF_PAGE: 'Tài liệu PDF', UPSTREAM_CLAIM: 'Nhận định nguồn',
 };
 
+/** Market number trace (P5): a register field prints as stored on its citation entry; each number in it is recorded. No-op outside a traced build. */
+function traceField(entry: CitationEntry, field: 'label' | 'locatorText', text: string): string {
+  for (const number of marketNumberTokens(text)) traceMarketNumber(number, 'page.citations', 'raw', [storedInput('stored-source', `citation:${entry.citationId}`, `/${field}`, text)], `citation ${field}, as stored`, 'as-stored');
+  return text;
+}
+
 function renderItem(entry: CitationEntry, format: 'web' | 'pdf', currentReader: boolean): string {
   // A PDF page reads as one name with its page: "<document name>, trang N".
   const pdfPage = entry.sourceKind === 'PDF_PAGE' && entry.locatorText !== null;
   const name = pdfPage && entry.label.endsWith(`, ${entry.locatorText}`) ? entry.label.slice(0, -`, ${entry.locatorText}`.length) : entry.label;
   // A copied site name is shown as copied text, so the owned-wording rules do not read it as the report's claim.
   const copied = entry.sourceKind === 'WEB_RESULT' && !AUTHORED_WEB_LABELS.has(name);
-  const label = `<span class="cite-label">${copied ? `<q data-quote>${escapeHtml(name)}</q>` : escapeHtml(name)}</span>`;
-  const parts = [`<span class="cite-number">[${entry.number}]</span>`, pdfPage ? `${label}, <span class="cite-locator">${escapeHtml(entry.locatorText!)}</span>` : label];
+  const label = `<span class="cite-label">${copied ? `<q data-quote>${escapeHtml(traceField(entry, 'label', name))}</q>` : escapeHtml(traceField(entry, 'label', name))}</span>`;
+  const parts = [`<span class="cite-number">[${entry.number}]</span>`, pdfPage ? `${label}, <span class="cite-locator">${escapeHtml(traceField(entry, 'locatorText', entry.locatorText!))}</span>` : label];
   // This ordinal identifies the register entry, never an inferred source filename or date.
   if (currentReader) parts.push(`<span class="cite-family">${SOURCE_FAMILY[entry.sourceKind]} · mục nguồn ${entry.number}</span>`);
-  if (entry.retrievedAt !== null) parts.push(`<span class="cite-date">ngày ${escapeHtml(displayDate(entry.retrievedAt))}</span>`);
-  if (entry.locatorText !== null && !pdfPage) parts.push(`<span class="cite-locator">${escapeHtml(entry.locatorText)}</span>`);
+  if (entry.retrievedAt !== null) parts.push(`<span class="cite-date">ngày ${escapeHtml(traceMarketNumber(displayDate(entry.retrievedAt), 'page.citations', 'raw',
+    [storedInput('stored-source', `citation:${entry.citationId}`, '/retrievedAt', entry.retrievedAt)], 'citation retrieval day dd/mm/yyyy', 'vi-date'))}</span>`);
+  if (entry.locatorText !== null && !pdfPage) parts.push(`<span class="cite-locator">${escapeHtml(traceField(entry, 'locatorText', entry.locatorText))}</span>`);
   if (entry.url !== null) {
     const href = escapeHtml(entry.url);
     // The current reader keeps the short link text; the PDF renderer alone prints the exact address once.

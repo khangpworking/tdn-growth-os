@@ -737,6 +737,17 @@ function marketChartTrace(input: AutomationReportInput, presentation: Automation
     return traceMarketNumber(token, block(datum.kind), 'computed', [...part, ...(total ?? [])],
       total ? '100 × sum(leading shops) ÷ sum(platform rows), at the printed precision' : 'sum(row revenue) ÷ 1e6, at the printed precision', 'chart-label');
   };
+  // A value-axis tick is bounded by the chart's largest plotted bar (its rows, or its share of the platform rows).
+  const plotted = (datum: MarketChartDatum): number => {
+    const part = datum.part.reduce((total, row) => total + (row.rev ?? 0), 0), whole = datum.total?.reduce((total, row) => total + (row.rev ?? 0), 0);
+    return whole === undefined ? part / 1e6 : whole ? 100 * part / whole : 0;
+  };
+  const tick = (kind: MarketChart['kind'], token: string): void => {
+    const largest = datums.filter(datum => datum.kind === kind).reduce<MarketChartDatum | undefined>((best, datum) => !best || plotted(datum) > plotted(best) ? datum : best, undefined);
+    const part = largest && marketChartRowInputs(largest.part, rowSource, 'part'), total = largest?.total ? marketChartRowInputs(largest.total, rowSource, 'total') : undefined;
+    if (largest && part && total !== null) traceMarketNumber(token, block(kind), 'computed', [...part, ...(total ?? [])],
+      total ? 'value-axis tick, 0 to 100 (share)' : 'value-axis tick, 0 to 2 × largest plotted bar (sum(row revenue) ÷ 1e6)', 'axis-tick');
+  };
   const kindOf = (html: string): MarketChart['kind'] | undefined => input.marketPresentationCharts?.find(chart => html.includes(`<span class="ext">${escape(chart.title)}</span>`))?.kind;
   const unescape = (text: string): string => text.replace(/&quot;/gu, '"').replace(/&#39;/gu, "'").replace(/&lt;/gu, '<').replace(/&gt;/gu, '>').replace(/&amp;/gu, '&');
   return {
@@ -747,6 +758,12 @@ function marketChartTrace(input: AutomationReportInput, presentation: Automation
           const bar = /^([^;]+): (-?[\d.,]+);\s+: ([^;]+)(?:;.*?\b[Ss](?:àn|an): ([^;]+))?/u.exec(unescape(aria));
           if (bar && marketNumberTokens(label).length) value(chart.kind, { label: bar[3]!.trim(), group: (bar[4] ?? '').trim() }, unescape(label).trim());
         }
+      }
+      // Tick labels of each linear (value) axis.
+      for (const axis of chart.svg.matchAll(/aria-label="[XY]-axis[^"]*for a linear scale[^"]*"/gu)) {
+        const start = chart.svg.indexOf('<g class="mark-text role-axis-label"', axis.index), end = start < 0 ? -1 : chart.svg.indexOf('</g>', start);
+        if (end < 0) continue;
+        for (const [, label = ''] of chart.svg.slice(start, end).matchAll(/<text\b[^>]*>([^<]*)<\/text>/gu)) for (const token of marketNumberTokens(unescape(label))) tick(chart.kind, token);
       }
     },
     reading: {

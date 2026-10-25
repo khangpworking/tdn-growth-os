@@ -11,10 +11,10 @@ R-P07 hiện ghi đúng các bước kiểm của bản nháp Market và thứ t
 ## What Changes
 
 - **MODIFIED** R-P07: bản nháp Market có bản đồ số (báo cáo có số chuỗi thô) SHALL chạy thêm bước dò số sau các bước hiện có. Bước này:
-  - cắt mọi con số trên trang đọc (bỏ CSS, thuộc tính, chữ ẩn, phụ lục truy nguồn); số trong trích dẫn nguyên văn và trong `<details>` vẫn được đọc;
+  - cắt mọi con số trên trang đọc (bỏ CSS, thuộc tính, chữ ẩn, phụ lục truy nguồn); không bỏ qua số theo thẻ, lớp hay tiền tố: số trong trích dẫn nguyên văn, trong `<details>` và trong danh sách nguồn vẫn được đọc;
   - mỗi số SHALL có một dòng trong bản đồ số cùng phần, mỗi lần in một dòng;
   - mỗi dòng của bản đồ SHALL tính lại được bằng công thức đã đăng ký, ra đúng số in;
-  - số mẫu cố định (số phần, số hình và bảng, số trích dẫn, vạch chia trục…) nằm trong một danh sách cho phép, mỗi mục có lý do; danh sách chỉ giữ chuỗi mẫu cố định, không cho phép theo loại thẻ;
+  - số mẫu cố định (số phần, số hình và bảng, số trích dẫn…) nằm trong một danh sách cho phép, mỗi mục có lý do; danh sách chỉ giữ chuỗi mẫu cố định chứa trọn con số, không cho phép theo loại thẻ; vạch chia trục được truy về cột lớn nhất của biểu đồ;
   - phần «chưa phủ» (M05, M06, M08, M09, M10, M11) chỉ được đếm và liệt kê, chưa chặn;
   - có số không truy được ở phần đã phủ, hoặc dòng không tính lại được: lần dựng lỗi với mã `MARKET_NUMBER_TRACE_FAILED:<N01_UNTRACED_NUMBER,N02_TRACE_REPLAY>`; bước REPORTS của lần chạy ghi mã `MARKET_NUMBER_TRACE_BLOCKED`; kết quả cổng (số, phần, ngữ cảnh) được lưu thành tệp JSON, và kết quả bước REPORTS ghi sha256 cùng đường dẫn của tệp đó.
 - Báo cáo không có số chuỗi thô không chạy bước này; byte không đổi.
