@@ -1,0 +1,371 @@
+[
+ {
+  "urlPath": "/v2/market/analytics/search-basic/",
+  "responseOrder": 10,
+  "status": 200,
+  "body": {
+   "data": {
+    "search_basic": {
+     "aggregations": [
+      {
+       "aggregation": "SHOP_TOTAL",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 160
+         },
+         {
+          "platform_id": 2,
+          "value": 12
+         },
+         {
+          "platform_id": 3,
+          "value": 8
+         },
+         {
+          "platform_id": 8,
+          "value": 210
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "PREVIOUS_SHOP_TOTAL",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 150
+         },
+         {
+          "platform_id": 2,
+          "value": 11
+         },
+         {
+          "platform_id": 3,
+          "value": 8
+         },
+         {
+          "platform_id": 8,
+          "value": 200
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "PRODUCT_TOTAL",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 412
+         },
+         {
+          "platform_id": 2,
+          "value": 30
+         },
+         {
+          "platform_id": 3,
+          "value": 16
+         },
+         {
+          "platform_id": 8,
+          "value": 498
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "PREVIOUS_PRODUCT_TOTAL",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 400
+         },
+         {
+          "platform_id": 2,
+          "value": 28
+         },
+         {
+          "platform_id": 3,
+          "value": 15
+         },
+         {
+          "platform_id": 8,
+          "value": 470
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "ORDER_TOTAL_CUSTOM",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 41000
+         },
+         {
+          "platform_id": 2,
+          "value": 300
+         },
+         {
+          "platform_id": 3,
+          "value": 200
+         },
+         {
+          "platform_id": 8,
+          "value": 152000
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "PREVIOUS_ORDER_TOTAL_CUSTOM",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 38000
+         },
+         {
+          "platform_id": 2,
+          "value": 280
+         },
+         {
+          "platform_id": 3,
+          "value": 210
+         },
+         {
+          "platform_id": 8,
+          "value": 140000
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "REVENUE_TOTAL_CUSTOM",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 7900000000
+         },
+         {
+          "platform_id": 2,
+          "value": 60000000
+         },
+         {
+          "platform_id": 3,
+          "value": 40000000
+         },
+         {
+          "platform_id": 8,
+          "value": 27000000000
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "PREVIOUS_REVENUE_TOTAL_CUSTOM",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 7000000000
+         },
+         {
+          "platform_id": 2,
+          "value": 50000000
+         },
+         {
+          "platform_id": 3,
+          "value": 50000000
+         },
+         {
+          "platform_id": 8,
+          "value": 24000000000
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  },
+  "requestBody": {
+   "start_date": "20260921",
+   "end_date": "20261020",
+   "use_ai_normalized": false,
+   "include_query": {
+    "platforms": [
+     1,
+     2,
+     3,
+     8
+    ],
+    "queries": [
+     "viên uống kẽm"
+    ],
+    "is_smart_queries": true
+   }
+  }
+ },
+ {
+  "urlPath": "/v2/market/analytics/insight/",
+  "responseOrder": 11,
+  "status": 200,
+  "body": {
+   "data": [
+    {
+     "platform_id": 1,
+     "order_revenue_intervals": [
+      {
+       "start_date": "2026-09-21",
+       "end_date": "2026-09-27",
+       "revenue_custom_sum": 1580000000,
+       "order_custom_sum": 8200
+      },
+      {
+       "start_date": "2026-09-28",
+       "end_date": "2026-10-04",
+       "revenue_custom_sum": 1580000000,
+       "order_custom_sum": 8200
+      },
+      {
+       "start_date": "2026-10-05",
+       "end_date": "2026-10-11",
+       "revenue_custom_sum": 1580000000,
+       "order_custom_sum": 8200
+      },
+      {
+       "start_date": "2026-10-12",
+       "end_date": "2026-10-18",
+       "revenue_custom_sum": 1580000000,
+       "order_custom_sum": 8200
+      },
+      {
+       "start_date": "2026-10-19",
+       "end_date": "2026-10-20",
+       "revenue_custom_sum": 1580000000,
+       "order_custom_sum": 8200
+      }
+     ]
+    },
+    {
+     "platform_id": 2,
+     "order_revenue_intervals": [
+      {
+       "start_date": "2026-09-21",
+       "end_date": "2026-09-27",
+       "revenue_custom_sum": 12000000,
+       "order_custom_sum": 60
+      },
+      {
+       "start_date": "2026-09-28",
+       "end_date": "2026-10-04",
+       "revenue_custom_sum": 12000000,
+       "order_custom_sum": 60
+      },
+      {
+       "start_date": "2026-10-05",
+       "end_date": "2026-10-11",
+       "revenue_custom_sum": 12000000,
+       "order_custom_sum": 60
+      },
+      {
+       "start_date": "2026-10-12",
+       "end_date": "2026-10-18",
+       "revenue_custom_sum": 12000000,
+       "order_custom_sum": 60
+      },
+      {
+       "start_date": "2026-10-19",
+       "end_date": "2026-10-20",
+       "revenue_custom_sum": 12000000,
+       "order_custom_sum": 60
+      }
+     ]
+    },
+    {
+     "platform_id": 3,
+     "order_revenue_intervals": [
+      {
+       "start_date": "2026-09-21",
+       "end_date": "2026-09-27",
+       "revenue_custom_sum": 8000000,
+       "order_custom_sum": 40
+      },
+      {
+       "start_date": "2026-09-28",
+       "end_date": "2026-10-04",
+       "revenue_custom_sum": 8000000,
+       "order_custom_sum": 40
+      },
+      {
+       "start_date": "2026-10-05",
+       "end_date": "2026-10-11",
+       "revenue_custom_sum": 8000000,
+       "order_custom_sum": 40
+      },
+      {
+       "start_date": "2026-10-12",
+       "end_date": "2026-10-18",
+       "revenue_custom_sum": 8000000,
+       "order_custom_sum": 40
+      },
+      {
+       "start_date": "2026-10-19",
+       "end_date": "2026-10-20",
+       "revenue_custom_sum": 8000000,
+       "order_custom_sum": 40
+      }
+     ]
+    },
+    {
+     "platform_id": 8,
+     "order_revenue_intervals": [
+      {
+       "start_date": "2026-09-21",
+       "end_date": "2026-09-27",
+       "revenue_custom_sum": 5400000000,
+       "order_custom_sum": 30400
+      },
+      {
+       "start_date": "2026-09-28",
+       "end_date": "2026-10-04",
+       "revenue_custom_sum": 5400000000,
+       "order_custom_sum": 30400
+      },
+      {
+       "start_date": "2026-10-05",
+       "end_date": "2026-10-11",
+       "revenue_custom_sum": 5400000000,
+       "order_custom_sum": 30400
+      },
+      {
+       "start_date": "2026-10-12",
+       "end_date": "2026-10-18",
+       "revenue_custom_sum": 5400000000,
+       "order_custom_sum": 30400
+      },
+      {
+       "start_date": "2026-10-19",
+       "end_date": "2026-10-20",
+       "revenue_custom_sum": 5400000000,
+       "order_custom_sum": 30400
+      }
+     ]
+    }
+   ]
+  },
+  "requestBody": {
+   "use_ai_normalized": false,
+   "start_date": "20260921",
+   "end_date": "20261020",
+   "interval_days": 7
+  }
+ }
+]

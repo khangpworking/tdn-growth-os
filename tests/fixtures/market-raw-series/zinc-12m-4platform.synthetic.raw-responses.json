@@ -1,0 +1,539 @@
+[
+ {
+  "urlPath": "/v2/market/analytics/search-basic/",
+  "responseOrder": 10,
+  "status": 200,
+  "body": {
+   "data": {
+    "search_basic": {
+     "aggregations": [
+      {
+       "aggregation": "SHOP_TOTAL",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 300
+         },
+         {
+          "platform_id": 2,
+          "value": 20
+         },
+         {
+          "platform_id": 3,
+          "value": 10
+         },
+         {
+          "platform_id": 8,
+          "value": 420
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "PREVIOUS_SHOP_TOTAL",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 280
+         },
+         {
+          "platform_id": 2,
+          "value": 19
+         },
+         {
+          "platform_id": 3,
+          "value": 11
+         },
+         {
+          "platform_id": 8,
+          "value": 380
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "PRODUCT_TOTAL",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 900
+         },
+         {
+          "platform_id": 2,
+          "value": 60
+         },
+         {
+          "platform_id": 3,
+          "value": 30
+         },
+         {
+          "platform_id": 8,
+          "value": 1100
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "PREVIOUS_PRODUCT_TOTAL",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 820
+         },
+         {
+          "platform_id": 2,
+          "value": 58
+         },
+         {
+          "platform_id": 3,
+          "value": 31
+         },
+         {
+          "platform_id": 8,
+          "value": 950
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "ORDER_TOTAL_CUSTOM",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 470000
+         },
+         {
+          "platform_id": 2,
+          "value": 20000
+         },
+         {
+          "platform_id": 3,
+          "value": 8000
+         },
+         {
+          "platform_id": 8,
+          "value": 1600000
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "PREVIOUS_ORDER_TOTAL_CUSTOM",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 400000
+         },
+         {
+          "platform_id": 2,
+          "value": 21000
+         },
+         {
+          "platform_id": 3,
+          "value": 9000
+         },
+         {
+          "platform_id": 8,
+          "value": 1200000
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "REVENUE_TOTAL_CUSTOM",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 90000000000
+         },
+         {
+          "platform_id": 2,
+          "value": 3800000000
+         },
+         {
+          "platform_id": 3,
+          "value": 1500000000
+         },
+         {
+          "platform_id": 8,
+          "value": 285000000000
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "PREVIOUS_REVENUE_TOTAL_CUSTOM",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 70000000000
+         },
+         {
+          "platform_id": 2,
+          "value": 4000000000
+         },
+         {
+          "platform_id": 3,
+          "value": 2000000000
+         },
+         {
+          "platform_id": 8,
+          "value": 200000000000
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  },
+  "requestBody": {
+   "start_date": "20251101",
+   "end_date": "20261031",
+   "use_ai_normalized": false,
+   "include_query": {
+    "platforms": [
+     1,
+     2,
+     3,
+     8
+    ],
+    "queries": [
+     "viên uống kẽm"
+    ],
+    "is_smart_queries": true
+   }
+  }
+ },
+ {
+  "urlPath": "/v2/market/analytics/insight/",
+  "responseOrder": 11,
+  "status": 200,
+  "body": {
+   "data": [
+    {
+     "platform_id": 1,
+     "order_revenue_intervals": [
+      {
+       "start_date": "2025-11-01",
+       "end_date": "2025-11-30",
+       "revenue_custom_sum": 7500000000,
+       "order_custom_sum": 39166
+      },
+      {
+       "start_date": "2025-12-01",
+       "end_date": "2025-12-31",
+       "revenue_custom_sum": 7500000000,
+       "order_custom_sum": 39166
+      },
+      {
+       "start_date": "2026-01-01",
+       "end_date": "2026-01-31",
+       "revenue_custom_sum": 7500000000,
+       "order_custom_sum": 39166
+      },
+      {
+       "start_date": "2026-02-01",
+       "end_date": "2026-02-28",
+       "revenue_custom_sum": 7500000000,
+       "order_custom_sum": 39166
+      },
+      {
+       "start_date": "2026-03-01",
+       "end_date": "2026-03-31",
+       "revenue_custom_sum": 7500000000,
+       "order_custom_sum": 39166
+      },
+      {
+       "start_date": "2026-04-01",
+       "end_date": "2026-04-30",
+       "revenue_custom_sum": 7500000000,
+       "order_custom_sum": 39166
+      },
+      {
+       "start_date": "2026-05-01",
+       "end_date": "2026-05-31",
+       "revenue_custom_sum": 7500000000,
+       "order_custom_sum": 39166
+      },
+      {
+       "start_date": "2026-06-01",
+       "end_date": "2026-06-30",
+       "revenue_custom_sum": 7500000000,
+       "order_custom_sum": 39166
+      },
+      {
+       "start_date": "2026-07-01",
+       "end_date": "2026-07-31",
+       "revenue_custom_sum": 7500000000,
+       "order_custom_sum": 39166
+      },
+      {
+       "start_date": "2026-08-01",
+       "end_date": "2026-08-31",
+       "revenue_custom_sum": 7500000000,
+       "order_custom_sum": 39166
+      },
+      {
+       "start_date": "2026-09-01",
+       "end_date": "2026-09-30",
+       "revenue_custom_sum": 7500000000,
+       "order_custom_sum": 39166
+      },
+      {
+       "start_date": "2026-10-01",
+       "end_date": "2026-10-31",
+       "revenue_custom_sum": 7500000000,
+       "order_custom_sum": 39174
+      }
+     ]
+    },
+    {
+     "platform_id": 2,
+     "order_revenue_intervals": [
+      {
+       "start_date": "2025-11-01",
+       "end_date": "2025-11-30",
+       "revenue_custom_sum": 316666666,
+       "order_custom_sum": 1666
+      },
+      {
+       "start_date": "2025-12-01",
+       "end_date": "2025-12-31",
+       "revenue_custom_sum": 316666666,
+       "order_custom_sum": 1666
+      },
+      {
+       "start_date": "2026-01-01",
+       "end_date": "2026-01-31",
+       "revenue_custom_sum": 316666666,
+       "order_custom_sum": 1666
+      },
+      {
+       "start_date": "2026-02-01",
+       "end_date": "2026-02-28",
+       "revenue_custom_sum": 316666666,
+       "order_custom_sum": 1666
+      },
+      {
+       "start_date": "2026-03-01",
+       "end_date": "2026-03-31",
+       "revenue_custom_sum": 316666666,
+       "order_custom_sum": 1666
+      },
+      {
+       "start_date": "2026-04-01",
+       "end_date": "2026-04-30",
+       "revenue_custom_sum": 316666666,
+       "order_custom_sum": 1666
+      },
+      {
+       "start_date": "2026-05-01",
+       "end_date": "2026-05-31",
+       "revenue_custom_sum": 316666666,
+       "order_custom_sum": 1666
+      },
+      {
+       "start_date": "2026-06-01",
+       "end_date": "2026-06-30",
+       "revenue_custom_sum": 316666666,
+       "order_custom_sum": 1666
+      },
+      {
+       "start_date": "2026-07-01",
+       "end_date": "2026-07-31",
+       "revenue_custom_sum": 316666666,
+       "order_custom_sum": 1666
+      },
+      {
+       "start_date": "2026-08-01",
+       "end_date": "2026-08-31",
+       "revenue_custom_sum": 316666666,
+       "order_custom_sum": 1666
+      },
+      {
+       "start_date": "2026-09-01",
+       "end_date": "2026-09-30",
+       "revenue_custom_sum": 316666666,
+       "order_custom_sum": 1666
+      },
+      {
+       "start_date": "2026-10-01",
+       "end_date": "2026-10-31",
+       "revenue_custom_sum": 316666674,
+       "order_custom_sum": 1674
+      }
+     ]
+    },
+    {
+     "platform_id": 3,
+     "order_revenue_intervals": [
+      {
+       "start_date": "2025-11-01",
+       "end_date": "2025-11-30",
+       "revenue_custom_sum": 125000000,
+       "order_custom_sum": 666
+      },
+      {
+       "start_date": "2025-12-01",
+       "end_date": "2025-12-31",
+       "revenue_custom_sum": 125000000,
+       "order_custom_sum": 666
+      },
+      {
+       "start_date": "2026-01-01",
+       "end_date": "2026-01-31",
+       "revenue_custom_sum": 125000000,
+       "order_custom_sum": 666
+      },
+      {
+       "start_date": "2026-02-01",
+       "end_date": "2026-02-28",
+       "revenue_custom_sum": 125000000,
+       "order_custom_sum": 666
+      },
+      {
+       "start_date": "2026-03-01",
+       "end_date": "2026-03-31",
+       "revenue_custom_sum": 125000000,
+       "order_custom_sum": 666
+      },
+      {
+       "start_date": "2026-04-01",
+       "end_date": "2026-04-30",
+       "revenue_custom_sum": 125000000,
+       "order_custom_sum": 666
+      },
+      {
+       "start_date": "2026-05-01",
+       "end_date": "2026-05-31",
+       "revenue_custom_sum": 125000000,
+       "order_custom_sum": 666
+      },
+      {
+       "start_date": "2026-06-01",
+       "end_date": "2026-06-30",
+       "revenue_custom_sum": 125000000,
+       "order_custom_sum": 666
+      },
+      {
+       "start_date": "2026-07-01",
+       "end_date": "2026-07-31",
+       "revenue_custom_sum": 125000000,
+       "order_custom_sum": 666
+      },
+      {
+       "start_date": "2026-08-01",
+       "end_date": "2026-08-31",
+       "revenue_custom_sum": 125000000,
+       "order_custom_sum": 666
+      },
+      {
+       "start_date": "2026-09-01",
+       "end_date": "2026-09-30",
+       "revenue_custom_sum": 125000000,
+       "order_custom_sum": 666
+      },
+      {
+       "start_date": "2026-10-01",
+       "end_date": "2026-10-31",
+       "revenue_custom_sum": 125000000,
+       "order_custom_sum": 674
+      }
+     ]
+    },
+    {
+     "platform_id": 8,
+     "order_revenue_intervals": [
+      {
+       "start_date": "2025-11-01",
+       "end_date": "2025-11-30",
+       "revenue_custom_sum": 23750000000,
+       "order_custom_sum": 133333
+      },
+      {
+       "start_date": "2025-12-01",
+       "end_date": "2025-12-31",
+       "revenue_custom_sum": 23750000000,
+       "order_custom_sum": 133333
+      },
+      {
+       "start_date": "2026-01-01",
+       "end_date": "2026-01-31",
+       "revenue_custom_sum": 23750000000,
+       "order_custom_sum": 133333
+      },
+      {
+       "start_date": "2026-02-01",
+       "end_date": "2026-02-28",
+       "revenue_custom_sum": 23750000000,
+       "order_custom_sum": 133333
+      },
+      {
+       "start_date": "2026-03-01",
+       "end_date": "2026-03-31",
+       "revenue_custom_sum": 23750000000,
+       "order_custom_sum": 133333
+      },
+      {
+       "start_date": "2026-04-01",
+       "end_date": "2026-04-30",
+       "revenue_custom_sum": 23750000000,
+       "order_custom_sum": 133333
+      },
+      {
+       "start_date": "2026-05-01",
+       "end_date": "2026-05-31",
+       "revenue_custom_sum": 23750000000,
+       "order_custom_sum": 133333
+      },
+      {
+       "start_date": "2026-06-01",
+       "end_date": "2026-06-30",
+       "revenue_custom_sum": 23750000000,
+       "order_custom_sum": 133333
+      },
+      {
+       "start_date": "2026-07-01",
+       "end_date": "2026-07-31",
+       "revenue_custom_sum": 23750000000,
+       "order_custom_sum": 133333
+      },
+      {
+       "start_date": "2026-08-01",
+       "end_date": "2026-08-31",
+       "revenue_custom_sum": 23750000000,
+       "order_custom_sum": 133333
+      },
+      {
+       "start_date": "2026-09-01",
+       "end_date": "2026-09-30",
+       "revenue_custom_sum": 23750000000,
+       "order_custom_sum": 133333
+      },
+      {
+       "start_date": "2026-10-01",
+       "end_date": "2026-10-31",
+       "revenue_custom_sum": 23750000000,
+       "order_custom_sum": 133337
+      }
+     ]
+    }
+   ]
+  },
+  "requestBody": {
+   "use_ai_normalized": false,
+   "start_date": "20251101",
+   "end_date": "20261031",
+   "interval_days": 30
+  }
+ }
+]

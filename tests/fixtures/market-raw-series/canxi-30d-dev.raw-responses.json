@@ -1,0 +1,325 @@
+[
+ {
+  "urlPath": "/v2/market/analytics/search-basic/",
+  "responseOrder": 88,
+  "status": 200,
+  "body": {
+   "data": {
+    "search_basic": {
+     "aggregations": [
+      {
+       "aggregation": "SHOP_TOTAL",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 210818
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "PREVIOUS_SHOP_TOTAL",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 207934
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "PRODUCT_TOTAL",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 5281212
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "PREVIOUS_PRODUCT_TOTAL",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 5560236
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "ORDER_TOTAL_CUSTOM",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 135393508
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "PREVIOUS_ORDER_TOTAL_CUSTOM",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 159251738
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "REVENUE_TOTAL_CUSTOM",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 20517697215754
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "PREVIOUS_REVENUE_TOTAL_CUSTOM",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 23210728933256
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  },
+  "requestBody": "{\"include_query\":{\"platforms\":[1],\"queries\":[],\"categories\":[\"1__100635\",\"1__100631\",\"1__100015\",\"1__100634\",\"1__100012\",\"1__100532\",\"1__100644\",\"1__100641\",\"1__100632\",\"1__100636\",\"1__100009\",\"1__100643\",\"1__100630\",\"1__100639\",\"1__100001\",\"1__100535\",\"1__100010\",\"1__100637\",\"1__100011\",\"1__100017\",\"1__100633\",\"1__100629\",\"1__100533\",\"1__100016\",\"1__100642\",\"1__100638\",\"1__100640\",\"1__100013\",\"1__100534\",\"1__102053\",\"1__102187\",\"1__1999888999\"],\"is_remove_bad_product\":true,\"official_types\":[1,0],\"is_smart_queries\":false,\"brands\":[],\"composite_compare_lst\":[[{\"first_field\":\"rating_count\",\"second_field\":\"order_count\",\"first_rate\":1,\"second_rate\":0.03,\"compare_condition\":\">\"}]]},\"exclude_query\":{\"is_smart_queries\":false,\"queries\":[]},\"use_ai_normalized\":false,\"notIncludeDeletedProduct\":true,\"limit\":20,\"page\":0,\"is_filter_gift\":true,\"sort_by\":\"revenue_custom__desc\",\"start_date\":\"20260921\",\"end_date\":\"20261020\"}"
+ },
+ {
+  "urlPath": "/v2/market/analytics/search-basic/",
+  "responseOrder": 194,
+  "status": 200,
+  "body": {
+   "data": {
+    "search_basic": {
+     "aggregations": [
+      {
+       "aggregation": "SHOP_TOTAL",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 3312
+         },
+         {
+          "platform_id": 8,
+          "value": 1848
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "PREVIOUS_SHOP_TOTAL",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 3572
+         },
+         {
+          "platform_id": 8,
+          "value": 1928
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "PRODUCT_TOTAL",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 6986
+         },
+         {
+          "platform_id": 8,
+          "value": 3740
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "PREVIOUS_PRODUCT_TOTAL",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 7616
+         },
+         {
+          "platform_id": 8,
+          "value": 3861
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "ORDER_TOTAL_CUSTOM",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 332160
+         },
+         {
+          "platform_id": 8,
+          "value": 452266
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "PREVIOUS_ORDER_TOTAL_CUSTOM",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 373030
+         },
+         {
+          "platform_id": 8,
+          "value": 433163
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "REVENUE_TOTAL_CUSTOM",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 72117856247
+         },
+         {
+          "platform_id": 8,
+          "value": 103235446593
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "PREVIOUS_REVENUE_TOTAL_CUSTOM",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 77930226374
+         },
+         {
+          "platform_id": 8,
+          "value": 94841063850
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  },
+  "requestBody": "{\"include_query\":{\"platforms\":[1,8],\"queries\":[\"canxi\"],\"bee_categories\":[\"c1144728673\",\"c1189843250\",\"c1513215936\",\"c1890857051\",\"c950887968\",\"c1919231407\",\"c997967148\",\"c1478997685\",\"c1182326609\",\"c349363110\",\"c1776859460\",\"c2146627932\",\"c2035652732\",\"c984920598\",\"c952389459\",\"c1149754732\",\"c937408522\",\"c1000062491\",\"c41293969\",\"c890463890\",\"c109830509\",\"c1049283522\",\"c1278655688\",\"c796145721\",\"c945324293\",\"c1704246187\",\"c806141846\",\"c230833630\",\"c1000000000\"],\"is_remove_bad_product\":true,\"official_types\":[1,0],\"is_smart_queries\":false,\"brands\":[],\"composite_compare_lst\":[[{\"first_field\":\"rating_count\",\"second_field\":\"order_count\",\"first_rate\":1,\"second_rate\":0.02,\"compare_condition\":\">\"}]]},\"exclude_query\":{\"is_smart_queries\":false,\"queries\":[]},\"use_ai_normalized\":false,\"notIncludeDeletedProduct\":true,\"limit\":20,\"page\":0,\"is_filter_gift\":true,\"sort_by\":\"revenue_custom__desc\",\"start_date\":\"20260921\",\"end_date\":\"20261020\"}"
+ },
+ {
+  "urlPath": "/v2/market/analytics/insight/",
+  "responseOrder": 202,
+  "status": 200,
+  "body": {
+   "data": [
+    {
+     "platform_id": 1,
+     "order_revenue_intervals": [
+      {
+       "start_date": "2026-09-21",
+       "end_date": "2026-09-27",
+       "revenue_custom_sum": 15318235845,
+       "order_custom_sum": 76611
+      },
+      {
+       "start_date": "2026-09-28",
+       "end_date": "2026-10-04",
+       "revenue_custom_sum": 13553476354,
+       "order_custom_sum": 67007
+      },
+      {
+       "start_date": "2026-10-05",
+       "end_date": "2026-10-11",
+       "revenue_custom_sum": 15862222806,
+       "order_custom_sum": 75352
+      },
+      {
+       "start_date": "2026-10-12",
+       "end_date": "2026-10-18",
+       "revenue_custom_sum": 20715194547,
+       "order_custom_sum": 86842
+      },
+      {
+       "start_date": "2026-10-19",
+       "end_date": "2026-10-20",
+       "revenue_custom_sum": 6668726695,
+       "order_custom_sum": 26348
+      }
+     ]
+    },
+    {
+     "platform_id": 8,
+     "order_revenue_intervals": [
+      {
+       "start_date": "2026-09-21",
+       "end_date": "2026-09-27",
+       "revenue_custom_sum": 22426775853,
+       "order_custom_sum": 103741
+      },
+      {
+       "start_date": "2026-09-28",
+       "end_date": "2026-10-04",
+       "revenue_custom_sum": 22827135270,
+       "order_custom_sum": 102984
+      },
+      {
+       "start_date": "2026-10-05",
+       "end_date": "2026-10-11",
+       "revenue_custom_sum": 24400293965,
+       "order_custom_sum": 105024
+      },
+      {
+       "start_date": "2026-10-12",
+       "end_date": "2026-10-18",
+       "revenue_custom_sum": 27286922940,
+       "order_custom_sum": 110917
+      },
+      {
+       "start_date": "2026-10-19",
+       "end_date": "2026-10-20",
+       "revenue_custom_sum": 6294318565,
+       "order_custom_sum": 29600
+      }
+     ]
+    }
+   ]
+  },
+  "requestBody": "{\"include_query\":{\"platforms\":[1,8],\"queries\":[\"canxi\"],\"bee_categories\":[\"c1144728673\",\"c1189843250\",\"c1513215936\",\"c1890857051\",\"c950887968\",\"c1919231407\",\"c997967148\",\"c1478997685\",\"c1182326609\",\"c349363110\",\"c1776859460\",\"c2146627932\",\"c2035652732\",\"c984920598\",\"c952389459\",\"c1149754732\",\"c937408522\",\"c1000062491\",\"c41293969\",\"c890463890\",\"c109830509\",\"c1049283522\",\"c1278655688\",\"c796145721\",\"c945324293\",\"c1704246187\",\"c806141846\",\"c230833630\",\"c1000000000\"],\"is_remove_bad_product\":true,\"official_types\":[1,0],\"is_smart_queries\":false,\"brands\":[],\"composite_compare_lst\":[[{\"first_field\":\"rating_count\",\"second_field\":\"order_count\",\"first_rate\":1,\"second_rate\":0.02,\"compare_condition\":\">\"}]]},\"exclude_query\":{\"is_smart_queries\":false,\"queries\":[]},\"use_ai_normalized\":false,\"start_date\":\"20260921\",\"end_date\":\"20261020\",\"interval_days\":7}"
+ },
+ {
+  "urlPath": "/v2/market/analytics/insight/",
+  "responseOrder": 203,
+  "status": 200,
+  "body": null,
+  "requestBody": ""
+ }
+]
