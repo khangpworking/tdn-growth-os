@@ -104,6 +104,10 @@ export interface MarketRawSeries {
   readonly period: MarketRawPeriod;
   /** Platform ids the search request asked for (include_query.platforms); null when the request does not say. */
   readonly requestedPlatformIds: readonly number[] | null;
+  /** Pointer to include_query.platforms of that request; null when the request does not say. */
+  readonly requestedPlatformsSource: MarketRawSource | null;
+  /** Keywords the search request sent (include_query.queries), each with its pointer; empty when the request does not say. */
+  readonly requestedQueries: readonly { readonly text: string; readonly source: MarketRawSource }[];
   /** Interval length the insight request asked for (7 for a 30-day period, 30 for a 12-month period). */
   readonly intervalDays: MarketRawValue;
   /** Requested and returned platforms in id order. */
@@ -274,11 +278,27 @@ function periodOf(entry: RawEntry | null): MarketRawPeriod {
   return { startDate: null, endDate: null, days: null, source: null, reason: 'request-period-missing' };
 }
 
+/** Source of a period's end date: the end key paired with the start key `period.source` points at. */
+export function marketRawPeriodEndSource(source: MarketRawSource): MarketRawSource | null {
+  const path = source.encoding === 'json-string' ? source.decodedPath ?? '' : source.jsonPath;
+  const startKey = path.slice(path.lastIndexOf('/') + 1);
+  const endKey = PERIOD_KEYS.find(([start]) => start === startKey)?.[1];
+  if (!endKey) return null;
+  const endPath = `${path.slice(0, path.lastIndexOf('/'))}/${endKey}`;
+  return source.encoding === 'json-string' ? { ...source, decodedPath: endPath } : { ...source, jsonPath: endPath };
+}
+
 function requestedPlatformIds(entry: RawEntry | null): number[] | null {
   const query = entry && isRecord(entry.requestBody) && isRecord(entry.requestBody.include_query) ? entry.requestBody.include_query : null;
   if (!query || !Array.isArray(query.platforms)) return null;
   const ids = query.platforms.map(platformIdOf);
   return ids.every((id): id is number => id !== null) ? [...new Set(ids)].sort((a, b) => a - b) : null;
+}
+
+function requestedQueries(entry: RawEntry | null): MarketRawSeries['requestedQueries'] {
+  const query = entry && isRecord(entry.requestBody) && isRecord(entry.requestBody.include_query) ? entry.requestBody.include_query : null;
+  if (!entry || !query || !Array.isArray(query.queries)) return [];
+  return query.queries.flatMap((text, i) => typeof text === 'string' ? [{ text, source: sourceAt(entry, 'requestBody', 'include_query', 'queries', i) }] : []);
 }
 
 function intervalDaysOf(entry: RawEntry | null): MarketRawValue {
@@ -381,6 +401,8 @@ export function readMarketRawSeries(rawResponses: unknown, options: MarketRawSer
     contractVersion: MARKET_RAW_SERIES_VERSION,
     period: periodOf(search),
     requestedPlatformIds: requested,
+    requestedPlatformsSource: search && requested ? sourceAt(search, 'requestBody', 'include_query', 'platforms') : null,
+    requestedQueries: requestedQueries(search),
     intervalDays,
     platforms: [...platforms.values()],
     totals: { scope: totalsFor(scopeIds, platforms), all: totalsFor(ids, platforms) },

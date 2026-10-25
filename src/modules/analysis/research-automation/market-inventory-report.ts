@@ -15,6 +15,8 @@ export type MarketInventoryReaderContext = {
   readonly scope?: Pick<ScopeSnapshot, 'selectedProductIds' | 'peerProductIds'>;
   readonly sampleWindow?: Window | null;
   readonly captures?: readonly CaptureRecord[];
+  /** Raw-number reports print no average price (revenue ÷ units, or the source's own average); only listed price ranges stay. */
+  readonly withoutAveragePrice?: boolean;
 };
 
 export function marketInventorySection(snapshot: AutomationMarketMethodSnapshot, section: 'M03' | 'M08', citations: ReportCitations, productLabels?: ReadonlyMap<string, string>, readerPlainText = false, reader?: MarketInventoryReaderContext): string {
@@ -28,7 +30,7 @@ export function marketInventorySection(snapshot: AutomationMarketMethodSnapshot,
   };
   if (readerPlainText) {
     if (section === 'M03') return readerPeriodSection(snapshot, trace, productLabels, reader);
-    const retained = readerPriceSection(snapshot, trace, productLabels);
+    const retained = readerPriceSection(snapshot, trace, productLabels, reader?.withoutAveragePrice === true);
     if (!reader) return retained;
     const raw = snapshot.quotes.input.quotes.map(quote => `<tr><td>${escape(quote.quoteId)}</td><td>${escape(quote.price.value ?? (quote.price.range ? `${quote.price.range.minimum} đến ${quote.price.range.maximum}` : 'Không có giá đọc được'))}</td><td>${trace(quote.source)}</td></tr>`).join('');
     return latestReaderPrices(snapshot, trace, productLabels, reader) + `<details class="evidence-trace"><summary>Bản ghi giá theo từng lần thu</summary>${retained}<table><thead><tr><th>Bản ghi</th><th>Giá trị nguồn (VND)</th><th>Nguồn</th></tr></thead><tbody>${raw}</tbody></table></details>`;
@@ -232,6 +234,7 @@ function latestReaderPrices(snapshot: AutomationMarketMethodSnapshot, trace: Tra
     const formatted = formatReaderValue(value, { currency: 'VND' });
     return formatted === '0' ? null : formatted;
   };
+  const average = reader.withoutAveragePrice !== true;
   let readable = false, missingRange = false;
   const bases: { label: string; basis: string }[] = [];
   const ordered = [...products.values()].sort((a, b) => names.ordinal(a.keys) - names.ordinal(b.keys) || a.index - b.index);
@@ -244,7 +247,7 @@ function latestReaderPrices(snapshot: AutomationMarketMethodSnapshot, trace: Tra
     const minimum = money(range?.minimum), maximum = money(range?.maximum);
     const validRange = range && minimum && maximum && minimum !== maximum && compareAmounts(range.minimum, range.maximum) < 0
       && (price === null || (compareAmounts(range.minimum, unit!.price.value!) <= 0 && compareAmounts(unit!.price.value!, range.maximum) <= 0));
-    readable ||= price !== null || Boolean(validRange);
+    readable ||= (average && price !== null) || Boolean(validRange);
     missingRange ||= !validRange;
     const candidate = capture.keys.length ? names.label(capture.keys).replace(/Sản phẩm #/g, 'Sản phẩm ') : '';
     const label = candidate && !containsForbiddenProviderName(candidate)
@@ -252,18 +255,18 @@ function latestReaderPrices(snapshot: AutomationMarketMethodSnapshot, trace: Tra
     const platformLabel = platforms[index]!;
     const date = Number.isFinite(capture.acquiredAt) ? readerDate(new Date(capture.acquiredAt).toISOString().slice(0, 10)) : null;
     bases.push({ label: `${platformLabel} · ${label}`, basis: `${date ? `thu ngày ${date} (UTC)` : 'chưa rõ ngày thu'}; ${capture.window?.start && capture.window.end ? `kỳ ${windowText(capture.window)}` : 'chưa rõ kỳ đo'}` });
-    return `<tr${capture.window && shortWindowDays(capture.window) !== null ? ' data-period-incomplete="true"' : ''}>${platformColumn ? `<td>${escape(platformLabel)}</td>` : ''}<td>${escape(label)}</td><td>${escape(price ?? 'Chưa có giá đọc được')}</td><td>${escape(validRange ? `${minimum} đến ${maximum}` : '—')}</td><td>${marks(capture.quotes.map(quote => quote.source), trace)}</td></tr>`;
+    return `<tr${capture.window && shortWindowDays(capture.window) !== null ? ' data-period-incomplete="true"' : ''}>${platformColumn ? `<td>${escape(platformLabel)}</td>` : ''}<td>${escape(label)}</td>${average ? `<td>${escape(price ?? 'Chưa có giá đọc được')}</td>` : ''}<td>${escape(validRange ? `${minimum} đến ${maximum}` : '—')}</td><td>${marks(capture.quotes.map(quote => quote.source), trace)}</td></tr>`;
   }).join('');
   const sharedBasis = bases.length > 0 && bases.every(row => row.basis === bases[0]!.basis);
   const basisNote = bases.length ? sharedBasis ? ` Tất cả sản phẩm: ${bases[0]!.basis}.`
     : ` Bản thu giữ lại của từng sản phẩm: ${bases.map(row => `${row.label}: ${row.basis}`).join('; ')}.` : '';
   return '<p class="warning">Chưa rõ phiên bản, combo hay điều kiện giá.</p>' +
-    `<div class="table-wrap" role="region" aria-label="Giá tham khảo của từng sản phẩm" tabindex="0"><table data-market-prices="${readable ? 'reference' : 'unavailable'}"><caption>Giá tham khảo của từng sản phẩm</caption><thead><tr>${platformColumn ? '<th>Sàn</th>' : ''}<th>Sản phẩm</th><th>Giá bình quân do nguồn tính, ước tính (VND)</th><th>Khoảng giá nguồn (VND)</th><th>Nguồn</th></tr></thead><tbody>${rows || `<tr><td colspan="${4 + Number(platformColumn)}">Chưa có giá đọc được</td></tr>`}</tbody></table></div>` +
-    `<p class="lim"><b>Chú thích:</b> Mỗi sản phẩm giữ lần thu sau cùng. Giá bình quân là số nguồn tính, chưa xác minh; chưa dùng để tính giá vốn hoặc lợi nhuận.${escape(basisNote)}${missingRange ? ' Dấu “—” cho biết chưa có khoảng giá nguồn dùng được.' : ''}</p>`;
+    `<div class="table-wrap" role="region" aria-label="Giá tham khảo của từng sản phẩm" tabindex="0"><table data-market-prices="${readable ? 'reference' : 'unavailable'}"><caption>Giá tham khảo của từng sản phẩm</caption><thead><tr>${platformColumn ? '<th>Sàn</th>' : ''}<th>Sản phẩm</th>${average ? '<th>Giá bình quân do nguồn tính, ước tính (VND)</th>' : ''}<th>Khoảng giá nguồn (VND)</th><th>Nguồn</th></tr></thead><tbody>${rows || `<tr><td colspan="${3 + Number(average) + Number(platformColumn)}">Chưa có giá đọc được</td></tr>`}</tbody></table></div>` +
+    `<p class="lim"><b>Chú thích:</b> Mỗi sản phẩm giữ lần thu sau cùng.${average ? ' Giá bình quân là số nguồn tính, chưa xác minh; chưa dùng để tính giá vốn hoặc lợi nhuận.' : ''}${escape(basisNote)}${missingRange ? ' Dấu “—” cho biết chưa có khoảng giá nguồn dùng được.' : ''}</p>`;
 }
 
 /** M08 reader view: listed price range once per product, then revenue ÷ units per query window as an estimate. */
-function readerPriceSection(snapshot: AutomationMarketMethodSnapshot, trace: Trace, productLabels: ReadonlyMap<string, string> | undefined): string {
+function readerPriceSection(snapshot: AutomationMarketMethodSnapshot, trace: Trace, productLabels: ReadonlyMap<string, string> | undefined, withoutAveragePrice = false): string {
   const names = productNamer(snapshot, productLabels);
   const captures = new Map<string, { keys: readonly string[]; window: Window; observations: Observation[] }>();
   for (const observation of snapshot.temporal.input.observations) {
@@ -306,11 +309,11 @@ function readerPriceSection(snapshot: AutomationMarketMethodSnapshot, trace: Tra
   const parts = ['<p class="warning">Chưa rõ phiên bản, combo hay điều kiện giá. Không tính biên lợi nhuận và không so sánh như cùng loại hàng.</p>'];
   if (listedRows) parts.push('<div class="table-wrap" role="region" aria-label="Giá do nguồn ghi cho từng sản phẩm" tabindex="0"><table><caption>Giá do nguồn ghi cho từng sản phẩm</caption><thead><tr><th>Sản phẩm</th><th>Giá từ (VND)</th><th>Giá đến (VND)</th><th>Nguồn</th></tr></thead><tbody>' + listedRows + '</tbody></table></div>' +
     '<p class="lim"><b>Chú thích:</b> Khoảng giá bao quát các mức nguồn ghi cho từng sản phẩm qua các lần thu đã lưu; hai số bằng nhau khi nguồn chỉ ghi một mức giá. Các lần thu có thể có kỳ đo và điều kiện giá khác nhau.</p>');
-  if (estimateRows) parts.push('<div class="table-wrap" role="region" aria-label="Doanh thu chia sản lượng bán theo kỳ" tabindex="0"><table><caption>Doanh thu chia sản lượng bán theo kỳ (ước tính, không phải giá niêm yết)</caption><thead><tr><th>Sản phẩm</th><th>Kỳ đo</th><th>Doanh thu chia sản lượng bán (VND)</th><th>Nguồn</th></tr></thead><tbody>' + estimateRows + '</tbody></table></div>' +
+  if (estimateRows && !withoutAveragePrice) parts.push('<div class="table-wrap" role="region" aria-label="Doanh thu chia sản lượng bán theo kỳ" tabindex="0"><table><caption>Doanh thu chia sản lượng bán theo kỳ (ước tính, không phải giá niêm yết)</caption><thead><tr><th>Sản phẩm</th><th>Kỳ đo</th><th>Doanh thu chia sản lượng bán (VND)</th><th>Nguồn</th></tr></thead><tbody>' + estimateRows + '</tbody></table></div>' +
     '<p class="lim"><b>Chú thích:</b> Số ước tính bằng doanh thu chia sản lượng bán trong từng kỳ; có thể khác giá nguồn ghi vì khuyến mãi, phiên bản hoặc combo.</p>');
-  if (!listedRows && !estimateRows) parts.push('<p>Chưa có giá nguồn dùng được.</p>');
-  if (noSale) parts.push(`<p>Có ${escape(formatReaderCount(noSale))} bản ghi thuộc kỳ không ghi nhận lượt bán; không đưa vào bảng ước tính vì không thể chia cho sản lượng bằng không.</p>`);
-  if (zeroEstimate) parts.push(`<p>Có ${escape(formatReaderCount(zeroEstimate))} bản ghi ước tính bằng không; không đưa vào bảng. Giá trị này không đủ để kết luận kỳ đó không có lượt bán.</p>`);
+  if (!listedRows && (!estimateRows || withoutAveragePrice)) parts.push('<p>Chưa có giá nguồn dùng được.</p>');
+  if (noSale && !withoutAveragePrice) parts.push(`<p>Có ${escape(formatReaderCount(noSale))} bản ghi thuộc kỳ không ghi nhận lượt bán; không đưa vào bảng ước tính vì không thể chia cho sản lượng bằng không.</p>`);
+  if (zeroEstimate && !withoutAveragePrice) parts.push(`<p>Có ${escape(formatReaderCount(zeroEstimate))} bản ghi ước tính bằng không; không đưa vào bảng. Giá trị này không đủ để kết luận kỳ đó không có lượt bán.</p>`);
   if (unreadable) parts.push(`<p>Có ${escape(formatReaderCount(unreadable) ?? 'một số')} bản ghi giá không đọc được; không đưa vào bảng.</p>`);
   return parts.join('');
 }

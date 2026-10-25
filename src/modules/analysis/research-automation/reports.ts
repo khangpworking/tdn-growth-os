@@ -53,6 +53,8 @@ import type { LocatedInsightMethods } from '../../../../contracts/analysis/locat
 import type { AutomationInsightCodingSnapshot } from '../../../../contracts/analysis/automation-insight-coding-snapshot.generated.js';
 import type { LiteralFamily, LiteralPendingReason } from './literal-review-coding.js';
 import { marketInventorySection } from './market-inventory-report.js';
+import { marketRawScaleSection, marketRawScopeSection, type MarketRawReportInput } from './market-raw-report.js';
+import { MarketNumberTraceCollector } from './market-trace-map.js';
 import type { ResearchAutomationRun } from '../../../../contracts/api/research-automation-api.generated.js';
 import { REPORT_KIT_CSS as REPORT_KIT_BASE_CSS } from '../report-kit-theme.js';
 import { reportKitFontCss } from '../report-kit-fonts.js';
@@ -72,7 +74,7 @@ import { formatReaderValue, readerProductLabel, readerShopLabel } from './reader
 import type { AutomationQualitativeDraft } from '../../../../contracts/analysis/automation-qualitative-draft-v1.generated.js';
 import { qualitativeDraftSection, qualitativeDraftSummary } from '../reader-report/qualitative-draft-report.js';
 import { platIcons } from '../reader-report/layout.js';
-import { ACTION_LEAD, OPPORTUNITY_HEADINGS, OPPORTUNITY_UNIT_READING,OPTION_HEADINGS, QUICK_WIN_HEADING, QUICK_WIN_HEADINGS, actionStartDay, marketActionPlan, missingBandText, opportunityExplanation, opportunityHeadings, opportunityRows, platformPriceBands, type ActionRow, type MarketActionPlan } from '../reader-report/market-actions.js';
+import { ACTION_LEAD, OPPORTUNITY_HEADINGS, OPPORTUNITY_UNIT_READING,OPTION_HEADINGS, QUICK_WIN_HEADING, QUICK_WIN_HEADINGS, actionStartDay, marketActionPlan, missingBandText, NO_DERIVED_PRICE, opportunityExplanation, opportunityHeadings, opportunityRows, platformPriceBands, type ActionRow, type MarketActionPlan } from '../reader-report/market-actions.js';
 import { NO_PRICE_COMPARISON, chooseUnitProfile, convertedLine, projectTitleUnitPrices, type UnitProfile } from '../reader-report/market-title-quantity.js';
 import { deliverMarketReader, marketReaderGuide, numberMarketExhibits } from './market-reader-delivery.js';
 import { plainCaptureNumbers } from '../reader-report/format.js';
@@ -162,6 +164,8 @@ export interface AutomationReportInput {
   readonly insightPersona?: PersonaSelectedReportSnapshot;
   readonly marketInventory?: AutomationMarketMethodSnapshot;
   readonly marketInventoryFailure?: 'MARKET_INVENTORY_FAILED';
+  /** Raw-response numbers of the market capture (`readMarketRawSeries`) and its search settings. Optional: without it the Market report keeps its current blocks. */
+  readonly marketRawSeries?: MarketRawReportInput;
   readonly marketPresentation?: AutomationMarketPresentationMethod;
   /** Flint charts drawn from `marketPresentation.input.rows` before the synchronous build (see renderMarketCharts). */
   readonly marketPresentationCharts?: readonly MarketChart[];
@@ -680,19 +684,23 @@ function marketActionRows(input: AutomationReportInput, presentationRows: readon
 }
 
 /** Title pack sizes over the same rows (UNIT-209 C2/C3): one profile for the report, a unit price per row, and per-platform k/n lines. */
-type MarketUnitRows = { rows: (MarketTitleUnitRow & ActionRow)[]; profile: UnitProfile | null; lines: string[] };
+/** `packProfile` names the pack kind for the quantity column; `profile` (null with raw-series input) prices rows. */
+type MarketUnitRows = { rows: (MarketTitleUnitRow & ActionRow)[]; profile: UnitProfile | null; packProfile: UnitProfile | null; lines: string[]; withoutAveragePrice?: true };
 function marketUnitRows(input: AutomationReportInput, presentationRows: readonly MarketTitleUnitRow[]): MarketUnitRows {
   const base = marketActionRows(input, presentationRows);
   const titled = base.map(row => ({ title: row.title ?? '', revenue: row.rev, units: row.units, platform: row.platform }));
-  const profile = chooseUnitProfile(titled), projection = projectTitleUnitPrices(titled, profile);
+  const packProfile = chooseUnitProfile(titled);
+  // A title-unit price is revenue ÷ units ÷ pack size: raw-series reports print none (owner F118/F119, 23/10/2026).
+  if (input.marketRawSeries) return { rows: base.map(row => ({ ...row, unitPrice: null })), profile: null, packProfile, lines: [], withoutAveragePrice: true };
+  const profile = packProfile, projection = projectTitleUnitPrices(titled, profile);
   const rows = base.map((row, index) => ({ ...row, unitPrice: projection.rows[index]!.unitPrice }));
   const lines = !profile ? [] : platformPriceBands(rows, true).map(({ platform, name }) => {
     const own = rows.filter(row => row.platform === platform);
     return `${name}: ${convertedLine(own.filter(row => row.unitPrice !== null).length, own.length)}`;
   });
-  return { rows, profile, lines };
+  return { rows, profile, packProfile, lines };
 }
-const unitLines = (unit: MarketUnitRows): string => unit.profile ? unit.lines.map(line => `<p class="lim">${escape(line)}</p>`).join('') : `<p>${escape(NO_PRICE_COMPARISON)}</p>`;
+const unitLines = (unit: MarketUnitRows): string => unit.withoutAveragePrice ? `<p>${escape(NO_DERIVED_PRICE)}</p>` : unit.profile ? unit.lines.map(line => `<p class="lim">${escape(line)}</p>`).join('') : `<p>${escape(NO_PRICE_COMPARISON)}</p>`;
 
 /** Vietnam calendar day the report run was created; the proposal deadlines count from it. */
 function marketActionStartDay(input: AutomationReportInput): string | null {
@@ -711,7 +719,7 @@ const marketReviewsCollected = (input: AutomationReportInput): boolean =>
 function marketHeadline(input: AutomationReportInput, presentation: AutomationMarketPresentationMethod): MarketHeadline {
   const drawn = (chartKind: MarketChart['kind']): boolean => Boolean(input.marketPresentationCharts?.some(chart => chart.kind === chartKind));
   const unit = marketUnitRows(input, presentation.input.rows), rows = unit.rows;
-  const plan = marketActionPlan(rows, { reviewsCollected: marketReviewsCollected(input), startDay: marketActionStartDay(input), currentReader: true, unitStandard: unit.profile?.standard ?? null });
+  const plan = marketActionPlan(rows, { reviewsCollected: marketReviewsCollected(input), startDay: marketActionStartDay(input), currentReader: true, unitStandard: unit.profile?.standard ?? null, withoutAveragePrice: unit.withoutAveragePrice === true });
   const interest = input.collection?.searchInterest;
   const weeks = searchInterestRenderable(interest) && input.searchInterestChart
     ? searchInterestReadingPoints(interest).flatMap(point => point.index === null ? [] : [{ period: point.period, index: point.index }]) : [];
@@ -757,12 +765,12 @@ function marketOpportunitySection(plan: MarketActionPlan, reviewsCollected: bool
 }
 
 /** Phần 12: three options with in-sample related revenue, then the no-cost quick wins; every row is a proposal awaiting the owner. */
-function marketActionSection(plan: MarketActionPlan, unit: MarketUnitRows): string {
+function marketActionSection(plan: MarketActionPlan, unit: MarketUnitRows, plannedDates = false): string {
   const options = marketActionTable('12.1', 'Phương án đề xuất, chờ chủ duyệt', ` market14-proposals${plan.hasFigures ? ' has-figures' : ''}`, OPTION_HEADINGS,
     plan.options.map(option => [escape(option.name), option.related.map(line => escape(line)).join('<br>'), escape(option.firstStep), escape(option.owner), escape(option.deadline)])) + unitLines(unit);
   const quick = marketActionTable('12.2', 'Việc làm ngay, không tốn chi phí (đề xuất, chờ chủ duyệt)', ' market14-proposals', QUICK_WIN_HEADINGS,
     plan.quickWins.map(win => [win.task, win.owner, win.deadline, win.output].map(cell => escape(cell))));
-  return `${options}<h3>${escape(QUICK_WIN_HEADING)}</h3>${quick}<p>${escape('Phương án, người phụ trách và hạn là đề xuất của TDN, chờ chủ duyệt; chủ dự án có thể sửa. Các bước kiểm tra chưa xác nhận khả năng sinh lời hay mức tăng doanh số.')}</p>`;
+  return `${options}<h3>${escape(QUICK_WIN_HEADING)}</h3>${quick}<p>${escape('Phương án, người phụ trách và hạn là đề xuất của TDN, chờ chủ duyệt; chủ dự án có thể sửa. Các bước kiểm tra chưa xác nhận khả năng sinh lời hay mức tăng doanh số.')}${plannedDates ? ' Mọi hạn trong hai bảng là ngày dự kiến.' : ''}</p>`;
 }
 
 function observationTable(rows: readonly TypedComparable[], captures: ReadonlyMap<number, CaptureRecord>, citations: ReportCitations, labels: ReadonlyMap<string, string>, readerPlainText = false, productOrder: readonly string[] = []): string {
@@ -1015,8 +1023,8 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     if (marketPresentation && (section.sectionId === 'M11' || section.sectionId === 'M12')) {
       const reviewsCollected = marketReviewsCollected(input);
       const unit = marketUnitRows(input, marketPresentation.input.rows);
-      const plan = marketActionPlan(unit.rows, { reviewsCollected, startDay: marketActionStartDay(input), currentReader: true, unitStandard: unit.profile?.standard ?? null });
-      locatedViews.set(section.sectionId, () => section.sectionId === 'M11' ? marketOpportunitySection(plan, reviewsCollected, unit) : marketActionSection(plan, unit));
+      const plan = marketActionPlan(unit.rows, { reviewsCollected, startDay: marketActionStartDay(input), currentReader: true, unitStandard: unit.profile?.standard ?? null, withoutAveragePrice: unit.withoutAveragePrice === true });
+      locatedViews.set(section.sectionId, () => section.sectionId === 'M11' ? marketOpportunitySection(plan, reviewsCollected, unit) : marketActionSection(plan, unit, Boolean(input.marketRawSeries)));
       return { sectionId: section.sectionId, title: section.title, state: 'EVIDENCE_INVENTORY', rows: [], method: marketPresentation.methodVersion,
         explanation: section.sectionId === 'M11' ? 'Cơ hội đọc từ doanh thu quan sát trong mẫu, ghi riêng từng sàn; là đề xuất của TDN, chờ chủ duyệt.' : ACTION_LEAD };
     }
@@ -1229,7 +1237,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   const labels = productLabels(input);
   const inventoryReader = marketPresentation ? { platforms: new Map([...(input.collection?.productCards ?? []), ...(input.run.productCards ?? [])]
     .map(card => [card.productId, card.provider === 'kalodata' ? 'tiktok' : card.productId.startsWith('shopee:') ? 'shopee' : ''] as const)),
-    scope: input.scope, sampleWindow: marketSamplePeriod(input), captures: input.captures } : undefined;
+    scope: input.scope, sampleWindow: marketSamplePeriod(input), captures: input.captures, ...(input.marketRawSeries ? { withoutAveragePrice: true } : {}) } : undefined;
   // Discovery exchanges are technical receipts; only verified PDF excerpts earn visible S25 citations.
   const discoverySearchIndex = input.collection?.pdfDiscovery?.search.captureIndex;
   const visibleCaptures = input.captures.filter(capture => !(capture.stepId === 'COLLECTION' &&
@@ -1522,6 +1530,11 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     ? sellerVideoBlockHtml(input.sellerVideos, escape) + `<p class="lim"><b>Chú thích:</b> ${escape(sellerVideoNote(input.sellerVideos))}</p><p class="ex-src">Nguồn: ${escape(sellerVideoSrc(input.sellerVideos))}</p>` : '';
   // market14 reader: M13 trace receipts and evidence details stay in semantic (sourceEvidence, quoteMethods, boundedMethods), not the reader.
   const traceAppendix = (sectionId: string): boolean => !(marketPresentation && sectionId === 'M13');
+  // Raw-response scale blocks are built once, so the number trace records each printed number once.
+  const numberTrace = kind === 'MARKET' && input.marketRawSeries ? new MarketNumberTraceCollector() : null;
+  const rawScale = numberTrace ? marketRawScaleSection(input.marketRawSeries!, numberTrace) : '';
+  const rawScope = numberTrace ? marketRawScopeSection(input.marketRawSeries!, numberTrace) : '';
+  const rawBlock = (sectionId: string): string => !numberTrace ? '' : sectionId === 'M02' ? rawScope : sectionId === 'M03' ? rawScale : '';
   const appendix = (sectionId: string): string =>
     (input.publicReviewSource && (sectionId === 'M13' || sectionId === 'I03' || sectionId === 'I17') ? publicReviewReportHtml(input.publicReviewSource) + (publicReviewCitation === null ? '' : renderCitationMarkOrMissing(publicReviewCitation)) : '') +
     (testReviewSample && sectionId === 'M13'
@@ -1529,7 +1542,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
         ...labels, ...[...(input.collection?.productCards ?? []), ...(input.run.productCards ?? [])].flatMap(card =>
           card.sourceUrl && labels.has(card.productId) ? [[card.sourceUrl, labels.get(card.productId)!] as const] : []),
       ]) } : undefined) : '') +
-    presentationCharts(sectionId) + searchInterestFigure(sectionId) + searchGeoBlock(sectionId) + worldBankTable(sectionId) + officialStatsTable(sectionId) + comtradeTable(sectionId) + searchAdsTable(sectionId) + pdfExcerptBlock(sectionId) + sellerVideoBlock(sectionId) +
+    rawBlock(sectionId) + presentationCharts(sectionId) + searchInterestFigure(sectionId) + searchGeoBlock(sectionId) + worldBankTable(sectionId) + officialStatsTable(sectionId) + comtradeTable(sectionId) + searchAdsTable(sectionId) + pdfExcerptBlock(sectionId) + sellerVideoBlock(sectionId) +
     (kind === 'INSIGHT' && sectionId === 'I02' ? populationBaselineSection(input.collection) : '') +
     (reviewOutcome && kind === 'INSIGHT' && (sectionId === 'I03' || sectionId === 'I17') ? `<p class="warning">${escape(reviewOutcomeLead(reviewOutcome))}</p>` : '') +
     baseAppendix(sectionId) +
@@ -1558,7 +1571,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     if (kind === 'MARKET' && (sectionId === 'M03' || sectionId === 'M04')) {
        // The capture's per-platform tables already print in Phần 3; M04 points there instead of repeating them.
        if (sectionId === 'M04' && marketPresentation && input.metricMethods?.capture) return '<p>Danh sách sản phẩm và số liệu của từng sàn nằm ở Phần 3; phần này không in lại.</p>';
-       if (input.metricMethods) return metricMethodSection(input.metricMethods, sectionId, input.metricClassified, citations, Boolean(marketPresentation), readerPlainText, Boolean(marketPresentation), marketPresentation ? marketUnitRows(input, marketPresentation.input.rows).profile : null) + (sectionId === 'M03' && input.marketInventory ? (readerPlainText ? '<h3>Số liệu từng kỳ của các sản phẩm được chọn (đọc riêng, không cộng vào bảng mẫu)</h3>' : '<h3>Bằng chứng riêng của nguồn sàn: không cộng vào số liệu nguồn</h3>') + marketInventorySection(input.marketInventory, sectionId, citations, labels, readerPlainText, inventoryReader) : '');
+       if (input.metricMethods) return metricMethodSection(input.metricMethods, sectionId, input.metricClassified, citations, Boolean(marketPresentation), readerPlainText, Boolean(marketPresentation), marketPresentation ? marketUnitRows(input, marketPresentation.input.rows).packProfile : null) + (sectionId === 'M03' && input.marketInventory ? (readerPlainText ? '<h3>Số liệu từng kỳ của các sản phẩm được chọn (đọc riêng, không cộng vào bảng mẫu)</h3>' : '<h3>Bằng chứng riêng của nguồn sàn: không cộng vào số liệu nguồn</h3>') + marketInventorySection(input.marketInventory, sectionId, citations, labels, readerPlainText, inventoryReader) : '');
       if (input.metricMethodsFailure) return `<p class="warning">${escape(metricFailureCopy[input.metricMethodsFailure].next)}</p>` + codeNote(input.metricMethodsFailure);
     }
     if (kind === 'MARKET' && (sectionId === 'M03' || sectionId === 'M08')) {
@@ -1659,7 +1672,8 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
       .replace(/\bUNKNOWN\b/gu, 'chưa rõ'));
   // Delivery drops trace blocks; the reader renumbers the citations it still shows after semanticCitations and scopedHtml keep per-claim identity.
   const deliveredHtml = marketPresentation ? sanitize(marketReaderCitations(numberMarketExhibits(deliverMarketReader(scopedHtml, input.collection?.searchInterest ? searchInterestReadingPoints(input.collection.searchInterest) : undefined, Boolean(input.metricMethods?.capture), Boolean(input.publicReviewSource))), registry, { publicReviewSource: Boolean(input.publicReviewSource) })) : scopedHtml;
-  const readerRenderedHtml = kind === 'MARKET' && (input.metricMethods?.capture?.rowPolicyVersion || (marketPresentation && !input.metricMethods?.capture)) ? plainCaptureNumbers(deliveredHtml) : deliveredHtml;
+  const plainNumbers = kind === 'MARKET' && Boolean(input.metricMethods?.capture?.rowPolicyVersion || (marketPresentation && !input.metricMethods?.capture));
+  const readerRenderedHtml = plainNumbers ? plainCaptureNumbers(deliveredHtml) : deliveredHtml;
   // Hidden technical copy for retrieval: the same page before reader delivery, trace blocks kept. Never linked from the reader.
   const traceHtml = marketPresentation ? Buffer.from(sanitize(scopedHtml), 'utf8') : undefined;
   // Source appendix v18 also serves existing Market and accepted Insight
@@ -1679,7 +1693,11 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     const nameFailure = lintReaderReport(readerRenderedHtml, { reportKind: kind, publicReviewSource: Boolean(input.publicReviewSource) }).filter(r => (r.rule.startsWith('F1 ') || r.rule.startsWith('W6 ')) && !r.ok);
     if (nameFailure.length) throw new TypeError(input.publicReviewSource ? 'PUBLIC_REVIEW_READER_NAME_REFUSED' : 'INSIGHT_READER_NAME_REFUSED');
   }
-  return { semantic: { ...semanticBase, ...semanticCitations }, html: Buffer.from(readerRenderedHtml, 'utf8'), ...(traceHtml ? { traceHtml } : {}) };
+  // Trace tokens as the delivered page prints them («12%» reads «12 phần trăm» when numbers are spelled out).
+  const marketNumberTrace = numberTrace?.snapshot();
+  const semanticTrace = marketNumberTrace ? { marketNumberTrace: plainNumbers
+    ? { ...marketNumberTrace, entries: marketNumberTrace.entries.map(entry => ({ ...entry, token: plainCaptureNumbers(entry.token) })) } : marketNumberTrace } : {};
+  return { semantic: { ...semanticBase, ...semanticCitations, ...semanticTrace }, html: Buffer.from(readerRenderedHtml, 'utf8'), ...(traceHtml ? { traceHtml } : {}) };
 }
 
 /** Counts describe the retained capture, never a product/platform population or people. */

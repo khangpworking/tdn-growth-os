@@ -83,6 +83,9 @@ export type MarketReportOptions = {
   tiktokTopAds?: TikTokTopAdsReportView;
   /** Exact collection and confirmed trial cap, verified by the owning service; new reader builds only. */
   testReviewSample?: ExactTestReviewContext;
+  /** Set when the report has raw-series numbers: no revenue ÷ units price anywhere (owner F118/F119, 23/10/2026).
+   * Only the current reader (buildMarketReportV2) reads it; legacy 1.0–1.3 builds never have raw series. */
+  withoutAveragePrice?: true;
 };
 /** site and published are the page name and date as the search engine shows them; older runs have neither. */
 export type ReaderWebResult = { position: number; title: string; url: string; snippet: string | null; retrievedAt: string; site?: string | null; published?: string | null; origin?: ExpandedSearchKind };
