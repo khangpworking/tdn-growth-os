@@ -498,8 +498,8 @@ test('shared action default bytes: standalone 1.4 reader retains the main frozen
   const input = sync1ReaderFixture('1.4.0');
   input.peerRule = { ...DEFAULT_MARKET_PEER_RULE };
   const report = await buildMarketReport(computeReaderReportData(input), sync1Options);
-  // Frozen on main in market-reader-test-reviews.test.ts, not inferred from the R implementation.
-  assert.equal(createHash('sha256').update(report.html).digest('hex'), '7895f2f4334a688aadd4bb64049417e37a9e38023d62b92407ef20913a940df9');
+  // Q3 owner rules (R-M16/R-M34/R-M35/R-M37) re-pin the reader; the main frozen action-plan bytes are unchanged.
+  assert.equal(createHash('sha256').update(report.html).digest('hex'), '127668490504254548fd2cfcfa0ee082a5bb0466516c596054f25143900e878b');
 });
 
 // UNIT-209: independent, hand-calculated prices. The six sizes are 100,200,500,100,200,500 g.
