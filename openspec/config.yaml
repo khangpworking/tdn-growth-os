@@ -8,11 +8,12 @@ context: |
   Dự án: TDN Growth OS. Một ứng dụng TypeScript dạng modular monolith, một SQLite.
   Máy chạy thật: Fedora (Linux). Windows chỉ để phát triển.
   Hai sản phẩm chính: báo cáo Market và báo cáo Insight, sinh tự động từ tên sản phẩm.
+  Video Factory (từ 25/10/2026) là luồng làm video tự động, không phải báo cáo; quy tắc ở openspec/specs/video-factory (mã R-V).
   Báo cáo là các khối HTML đã lưu, qua Reader, ra PDF. Không phải bảng điều khiển.
   Chủ (owner) không đọc mã. Mọi đề xuất viết bằng tiếng Việt đơn giản, câu ngắn.
 
   Bản đồ nhanh:
-  - Quy tắc nghiệp vụ: openspec/specs/{market-report,insight-report,report-language,report-metrics}.
+  - Quy tắc nghiệp vụ: openspec/specs/{market-report,insight-report,report-language,report-metrics,video-factory}.
   - Luồng mã của hai báo cáo: openspec/specs/report-pipeline (file, hàm, cờ môi trường).
   - Mã: src/modules/analysis/research-automation (dựng báo cáo, cổng, 14 quy tắc),
     src/modules/analysis/reader-report (Reader, đơn giá, lint), src/platform/collectors (nguồn).
@@ -25,7 +26,7 @@ context: |
 
 rules:
   proposal:
-    - 'Nêu mã quy tắc bị ảnh hưởng (R-M…, R-I…, R-L…) và câu quyết định của chủ kèm ngày.'
+    - 'Nêu mã quy tắc bị ảnh hưởng (R-M…, R-I…, R-L…, R-V…) và câu quyết định của chủ kèm ngày.'
     - 'Có mục "Ngoài phạm vi". Không thêm khối, nguồn hay phần mới nếu chưa trả lời 3 câu: phương pháp có cần không, lợi ích đáng kể hay nhỏ, đặt ở đâu.'
     - 'Không gọi nguồn trả phí, không triển khai, không đổi cờ môi trường nếu chủ chưa nói rõ.'
   specs:

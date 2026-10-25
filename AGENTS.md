@@ -36,7 +36,7 @@ Pi and automated model routing are deferred per ARCHITECTURE.md.
 
 ## Business rules
 
-Business rules for the Market and Insight reports live in openspec/specs. New rule work starts with /opsx:propose. Before you change report code, read the matching spec first.
+Business rules for the Market and Insight reports and Video Factory live in openspec/specs. New rule work starts with /opsx:propose. Before you change report code, read the matching spec first.
 
 ## Development coordination
 

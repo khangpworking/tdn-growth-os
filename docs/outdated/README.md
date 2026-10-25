@@ -6,6 +6,8 @@ Cập nhật: 25/10/2026
 
 | Bản cũ | Bản mới | Lý do cập nhật |
 | --- | --- | --- |
+| [docs/adr/0003-content-studio-b11-b13.md](2026-10-25/docs/adr/0003-content-studio-b11-b13.md) | [docs/adr/0003-content-studio-b11-b13.md](../adr/0003-content-studio-b11-b13.md) | ADR 0007 (25/10/2026) sửa quyết định 8: video là luồng riêng, Video Factory |
+| [docs/adr/0004-content-ai-synchronous-attempts.md](2026-10-25/docs/adr/0004-content-ai-synchronous-attempts.md) | [docs/adr/0004-content-ai-synchronous-attempts.md](../adr/0004-content-ai-synchronous-attempts.md) | ADR 0007 (25/10/2026) sửa quyết định 1, 2 và 5: script/rerank video chạy đồng bộ, quy tắc nhận lại khóa executor; ADR 0004 thêm ghi chú sửa |
 | [semantic-layer/fields.md](2026-10-25/docs/business-spec/semantic-layer/fields.md) | [semantic-layer/fields.md](../business-spec/semantic-layer/fields.md) | Chuyển sang openspec/reference/fields.md (25/10/2026); file cũ thành stub |
 | [semantic-layer/source-methods.md](2026-10-25/docs/business-spec/semantic-layer/source-methods.md) | [semantic-layer/source-methods.md](../business-spec/semantic-layer/source-methods.md) | Chuyển sang openspec/reference/source-methods.md (25/10/2026); file cũ thành stub |
 | [README.md](2026-10-25/docs/business-spec/README.md) | [README.md](../business-spec/README.md) | Bản 1.5: đổi mô tả fields.md và source-methods.md |
