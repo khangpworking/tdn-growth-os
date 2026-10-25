@@ -100,6 +100,8 @@ Một chủ đề trong đánh giá SHALL chỉ thành kết luận khi có từ
 ### Requirement: R-I34 Vai trò của từng nguồn
 Với mỗi câu hỏi, báo cáo Insight SHALL ghi vai trò của từng nguồn: Nguồn chính (gần nhất với điều cần biết), Nguồn phụ, hoặc Chỉ gợi ý. Nguồn chính chưa chắc đo trực tiếp; báo cáo SHALL nói rõ nguồn đo được gì và không đo được gì. Câu trả lời của AI (ví dụ AI Overview trên trang tìm kiếm) SHALL chỉ dùng để gợi ý giả thuyết, SHALL NOT dùng làm bằng chứng, và SHALL NOT cho mức Chắc ở phần nói về khách. Báo chí SHALL chỉ dùng cho bối cảnh ngành ở Phần 2, và chỉ bài có dẫn lời cơ quan chuyên môn. Lời người bán (tên sản phẩm, video bán hàng) SHALL được gọi là lời chào hàng, không phải lý do khách chọn.
 
+Gợi ý tìm kiếm Google chỉ cho biết người tìm hỏi gì; báo cáo SHALL NOT dùng từ khóa làm bằng chứng về động cơ hay rào cản của khách (R-L12).
+
 Báo cáo SHALL dùng dữ liệu công khai, rồi phân loại và đếm; SHALL NOT khảo sát hay phỏng vấn. Vai trò các nguồn dưới đây SHALL theo bảng (số câu theo R-I30; «—» là không dùng cho câu đó):
 
 | Nguồn | Câu 1 | Câu 2 | Câu 3 | Câu 4 | Câu 5 |
@@ -218,5 +220,5 @@ Vế nào thiếu bằng chứng thì câu đó SHALL mang nhãn Giả thuyết.
 - **THEN** quy tắc R-I39 bị vi phạm
 
 #### Scenario: Vế nhưng không có bằng chứng
-- **WHEN** câu insight có vế «nhưng sợ táo bón» mà không có từ khóa hay đánh giá nào làm bằng chứng
-- **THEN** câu đó mang nhãn Giả thuyết
+- **WHEN** câu insight có vế «nhưng sợ táo bón» mà không có lời khách hay video làm bằng chứng
+- **THEN** câu đó mang nhãn Giả thuyết; từ khóa tìm kiếm không thay thế được bằng chứng về rào cản của khách (R-L12)
