@@ -86,7 +86,11 @@ export interface MarketRawSeries {
   readonly contractVersion: typeof MARKET_RAW_SERIES_VERSION;
   /** Period of the search request, from the request body. */
   readonly period: MarketRawPeriod;
-  /** Platforms in id order, as the search-basic response lists them. */
+  /** Platform ids the search request asked for (include_query.platforms); null when the request does not say. */
+  readonly requestedPlatformIds: readonly number[] | null;
+  /** Interval length the insight request asked for (7 for a 30-day period, 30 for a 12-month period). */
+  readonly intervalDays: MarketRawValue;
+  /** Requested and returned platforms in id order. */
   readonly platforms: readonly MarketRawPlatform[];
   readonly totals: { readonly scope: MarketRawTotal; readonly all: MarketRawTotal };
   /** Set when the search-basic response is absent or has no aggregations. */
@@ -126,10 +130,26 @@ function entriesOf(rawResponses: unknown): RawEntry[] {
   });
 }
 
-/** The latest completed response for a path: stale pre-search responses come first in capture order. */
-function latest(entries: readonly RawEntry[], path: RegExp): RawEntry | null {
-  return entries.filter(entry => path.test(entry.url) && entry.ok && entry.body !== null && entry.body !== undefined)
+/**
+ * The latest completed response for a path that carries data. Captures hold a
+ * stale pre-search response first and can end with an empty one, so neither
+ * capture order alone nor the last entry is enough.
+ */
+function latest(entries: readonly RawEntry[], path: RegExp, hasData: (body: unknown) => boolean): RawEntry | null {
+  return entries.filter(entry => path.test(entry.url) && entry.ok && hasData(entry.body))
     .reduce<RawEntry | null>((best, entry) => !best || entry.order >= best.order ? entry : best, null);
+}
+
+const searchAggregations = (body: unknown): unknown[] => {
+  const data = isRecord(body) && isRecord(body.data) ? body.data : null;
+  const basic = data && isRecord(data.search_basic) ? data.search_basic : null;
+  return basic && Array.isArray(basic.aggregations) ? basic.aggregations : [];
+};
+
+function hasIntervals(node: unknown): boolean {
+  if (Array.isArray(node)) return node.some(hasIntervals);
+  if (!isRecord(node)) return false;
+  return Array.isArray(node.order_revenue_intervals) || Object.values(node).some(hasIntervals);
 }
 
 function numberValue(raw: unknown, source: MarketRawSource): MarketRawValue {
@@ -179,9 +199,10 @@ function total(values: readonly (MarketRawValue | undefined)[], ids: readonly nu
 const isoDate = (raw: unknown): string | null => {
   if (typeof raw !== 'string' && typeof raw !== 'number') return null;
   const text = String(raw).trim();
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(text) ?? /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(text);
+  // The search request sends YYYYMMDD; interval rows use YYYY-MM-DD.
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(text) ?? /^(\d{4})(\d{2})(\d{2})$/.exec(text);
   if (!match) return null;
-  const [y, m, d] = match[0].includes('/') ? [match[3], match[2], match[1]] : [match[1], match[2], match[3]];
+  const [y, m, d] = [match[1], match[2], match[3]];
   const date = `${y}-${m}-${d}`;
   return Number.isNaN(Date.parse(`${date}T00:00:00Z`)) ? null : date;
 };
@@ -204,6 +225,19 @@ function periodOf(entry: RawEntry | null): MarketRawPeriod {
     }
   }
   return { startDate: null, endDate: null, days: null, source: null, reason: 'request-period-missing' };
+}
+
+function requestedPlatformIds(entry: RawEntry | null): number[] | null {
+  const query = entry && isRecord(entry.requestBody) && isRecord(entry.requestBody.include_query) ? entry.requestBody.include_query : null;
+  if (!query || !Array.isArray(query.platforms)) return null;
+  const ids = query.platforms.map(platformIdOf);
+  return ids.every((id): id is number => id !== null) ? [...new Set(ids)].sort((a, b) => a - b) : null;
+}
+
+function intervalDaysOf(entry: RawEntry | null): MarketRawValue {
+  if (!entry) return missing('insight-response-missing');
+  const source: MarketRawSource = { url: entry.url, responseIndex: entry.index, jsonPath: pointer('requestBody', 'interval_days') };
+  return isRecord(entry.requestBody) ? numberValue(entry.requestBody.interval_days, source) : missing('request-body-missing');
 }
 
 /** Per-platform interval series from the market insight response; one series per platform id, never merged. */
@@ -248,12 +282,11 @@ function totalsFor(ids: readonly number[], platforms: ReadonlyMap<number, Market
 /** Reads typed Market numbers from a capture's raw-responses.json content. */
 export function readMarketRawSeries(rawResponses: unknown, options: MarketRawSeriesOptions = {}): MarketRawSeries {
   const entries = entriesOf(rawResponses);
-  const search = latest(entries, SEARCH_BASIC_PATH);
-  const insight = latest(entries, INSIGHT_PATH);
-  const searchBody = search && isRecord(search.body) ? search.body : null;
-  const basic = searchBody && isRecord(searchBody.data) && isRecord(searchBody.data.search_basic) ? searchBody.data.search_basic : null;
-  const aggregations = basic && Array.isArray(basic.aggregations) ? basic.aggregations : [];
-  const reason = !search ? 'search-basic-response-missing' : !aggregations.length ? 'search-basic-aggregations-missing' : undefined;
+  const search = latest(entries, SEARCH_BASIC_PATH, body => searchAggregations(body).length > 0);
+  const insight = latest(entries, INSIGHT_PATH, hasIntervals);
+  const aggregations = search ? searchAggregations(search.body) : [];
+  const reason = search ? undefined : entries.some(entry => SEARCH_BASIC_PATH.test(entry.url)) ? 'search-basic-aggregations-missing' : 'search-basic-response-missing';
+  const requested = requestedPlatformIds(search);
 
   const current = new Map<MarketRawKpiField, Map<number, MarketRawValue> | null>();
   const prior = new Map<MarketRawKpiField, Map<number, MarketRawValue> | null>();
@@ -262,7 +295,8 @@ export function readMarketRawSeries(rawResponses: unknown, options: MarketRawSer
     current.set(field, search ? aggregationByPlatform(search, aggregations, name) : null);
     prior.set(field, search ? aggregationByPlatform(search, aggregations, `PREVIOUS_${name}`) : null);
   }
-  const ids = [...new Set([...current.values(), ...prior.values()].flatMap(map => map ? [...map.keys()] : []))].sort((a, b) => a - b);
+  // A requested platform with no row is still a platform: its values stay missing and block the totals.
+  const ids = [...new Set([...(requested ?? []), ...[...current.values(), ...prior.values()].flatMap(map => map ? [...map.keys()] : [])])].sort((a, b) => a - b);
   const intervals = intervalsOf(insight);
   const read = (maps: Map<MarketRawKpiField, Map<number, MarketRawValue> | null>, id: number, prefix: string) =>
     Object.fromEntries(KPI_FIELDS.map(field => {
@@ -285,6 +319,8 @@ export function readMarketRawSeries(rawResponses: unknown, options: MarketRawSer
   return {
     contractVersion: MARKET_RAW_SERIES_VERSION,
     period: periodOf(search),
+    requestedPlatformIds: requested,
+    intervalDays: intervalDaysOf(insight),
     platforms: [...platforms.values()],
     totals: { scope: totalsFor(scopeIds, platforms), all: totalsFor(ids, platforms) },
     ...(reason ? { reason } : {}),
