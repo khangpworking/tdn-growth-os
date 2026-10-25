@@ -49,3 +49,4 @@ export {
   ResearchAutomationIntegrityError,
 } from './model.js';
 export * from './model.js';
+export * from './market-raw-series.js';
