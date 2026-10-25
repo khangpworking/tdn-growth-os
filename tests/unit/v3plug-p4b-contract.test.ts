@@ -7,6 +7,7 @@ import { JSDOM } from 'jsdom';
 import { deriveReaderSource, verifyWebSnapshot, webSnapshotDigest } from '../../src/modules/analysis/reader-report/web-facts.js';
 import { buildRevisionValue } from '../../src/modules/analysis/research-automation/autorun-derive.js';
 import { CONTEXT_PATH, MANIFEST_PATH, SNAPSHOT_PATH, type MetricRawResponsesRef } from '../../src/modules/analysis/research-automation/metric-capture-intake.js';
+import type { MarketNumberTraceGateResult } from '../../src/modules/analysis/research-automation/market-number-trace.js';
 import { resolveMarketRawSource } from '../../src/modules/analysis/research-automation/market-raw-series.js';
 import type { MarketNumberTrace } from '../../src/modules/analysis/research-automation/market-trace-map.js';
 import { buildResearchAutomationReport, type AutomationReportInput } from '../../src/modules/analysis/research-automation/reports.js';
@@ -107,6 +108,7 @@ async function report(f: ZincRun, service = f.service) {
   const semantic = JSON.parse((await f.artifacts.read(html.versionId)).toString()) as {
     marketRawResponses: { usedSha256: string; captures: Array<{ captureNumber: number; sha256: string; byteSize: number }> };
     marketNumberTrace: MarketNumberTrace;
+    marketNumberTraceGate?: MarketNumberTraceGateResult;
   };
   return { pair, bytes: html.bytes, semantic };
 }
@@ -229,6 +231,21 @@ test('W4 zinc P4 KPIs and two Flint lines survive PRESENT into the stored Reader
   await drain(f.service);
   assert.equal(autorun(f.db, f.runId)!.phase, 'DONE', JSON.stringify(await f.service.getRun(workspaceId, f.runId)));
   const built = await report(f);
+  await t.test('R7 the P4b W4 zinc fixture delivers through the gate with zero covered untraced', async () => {
+    const run = await f.service.getRun(workspaceId, f.runId);
+    assert.equal(run.status, 'DRAFT_READY');
+    assert.equal(run.steps.find(step => step.stepId === 'REPORTS')?.state, 'SUCCEEDED');
+    const gate = built.semantic.marketNumberTraceGate;
+    assert.ok(gate, 'the stored W4 report must retain the gate result');
+    assert.equal(gate.ok, true);
+    assert.equal(gate.coveredUntraced, 0);
+    assert.deepEqual(gate.untraced, []);
+    assert.deepEqual(gate.mismatches, []);
+    assert.ok(gate.replayedPointers > 0, 'the gate must replay the retained raw-response pointers');
+    const scale = gate.covered.find(row => row.block === 'M03');
+    assert.ok(scale && scale.numbers > 0 && scale.traced > 0, 'the stored zinc scale numbers must be scanned and traced');
+    for (const row of gate.covered) assert.equal(row.untraced, 0, `${row.block} must have no untraced numbers`);
+  });
   withDocument(built.bytes, assertZincBlocks);
   const receipt = await buildReader(f);
   const reader = await f.service.readReaderReport(workspaceId, f.runId, receipt.revision.revisionId);

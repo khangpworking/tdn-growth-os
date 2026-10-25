@@ -176,6 +176,15 @@ test('R5 an M03 evidence-trace details class cannot hide an untraced number', ()
   assertT2(checkMarketReport(html, { kind: 'DRAFT_PLAIN', numberTrace: { trace } }), '36,2 tỷ');
 });
 
+test('R6 hiding attributes and hidden-looking classes cannot exempt an M03 number', () => {
+  const trace: MarketNumberTrace = { contractVersion: 'market-number-trace-v2', entries: [] };
+  for (const attributes of ['display="none"', 'visibility="hidden"', 'hidden', 'aria-hidden="true"',
+    'class="hidden display-none"', 'style="display:none"', 'style="visibility:hidden"']) {
+    const html = `<section class="sheet" id="M03"><p ${attributes}>36,2 tỷ</p></section>`;
+    assertT2(checkMarketReport(html, { kind: 'DRAFT_PLAIN', numberTrace: { trace } }), '36,2 tỷ');
+  }
+});
+
 test('T3 a change percentage with the wrong previous-period base blocks delivery', async () => {
   const { html, trace, context } = await zincReport();
   const index = trace.entries.findIndex(entry => entry.blockId.startsWith('M03.30d.') && entry.formulaId === 'change-percent');
