@@ -892,6 +892,8 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     if (binding.workspaceId !== input.run.workspaceId || binding.runId !== input.run.runId) throw new Error('Report insight coding lineage mismatch');
     const receiptIds = new Set(receipts.map(receipt => receipt.receiptId));
     if (receiptIds.size !== receipts.length || selection.receiptIds.length !== receipts.length || !selection.receiptIds.every(id => receiptIds.has(id))) throw new Error('Report insight coding receipt mismatch');
+    // PUBLIC_REVIEWS is coding only (no per-platform counts, text-free rendering or S06 gate yet): never rendered.
+    if (binding.sourceKind === 'PUBLIC_REVIEWS') throw new Error('Public review coding is not yet supported in reports');
     if (binding.sourceKind === 'NATIVE' ? input.locatedReview || input.locatedReviewFallback : input.nativeReview || input.nativeReviewFallback) throw new Error('Report insight coding source kind mismatch');
   }
   const privateView = kind === 'INSIGHT' && input.privateReviewCorpus ? privateReviewReportView(input.privateReviewCorpus) : undefined;

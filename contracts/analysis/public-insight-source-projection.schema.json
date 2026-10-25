@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/public-insight-source-projection.schema.json",
+  "title": "PublicInsightSourceProjection",
+  "description": "Server-derived per-record metadata of one PUBLIC_REVIEWS coding source: the verified public Shopee review corpus and/or the verified S06 TikTok Shop reviews document of the same run. It is parallel to the coding input records by recordIndex. It never holds a writer name, avatar or raw user id. writerKey is a one-way anonymous key and is null when the source gives no per-writer id. Counts built from it are record counts, never people, unless a writer key is present.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "shopeePublic",
+    "tiktokShop",
+    "records"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": "public-insight-source-projection-v1"
+    },
+    "shopeePublic": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "corpusId",
+            "collectionSha256"
+          ],
+          "properties": {
+            "corpusId": {
+              "$ref": "#/$defs/digest"
+            },
+            "collectionSha256": {
+              "$ref": "#/$defs/digest"
+            }
+          }
+        }
+      ]
+    },
+    "tiktokShop": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "documentSha256"
+          ],
+          "properties": {
+            "documentSha256": {
+              "$ref": "#/$defs/digest"
+            }
+          }
+        }
+      ]
+    },
+    "records": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "$ref": "#/$defs/record"
+      }
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "record": {
+      "title": "PublicInsightSourceRecord",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "recordIndex",
+        "platform",
+        "productKey",
+        "rating",
+        "writerKey"
+      ],
+      "properties": {
+        "recordIndex": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9999
+        },
+        "platform": {
+          "enum": [
+            "SHOPEE",
+            "TIKTOK_SHOP"
+          ]
+        },
+        "productKey": {
+          "type": "string",
+          "pattern": "^(?:shopee:[1-9][0-9]{0,19}:[1-9][0-9]{0,19}|tiktok-shop:[0-9]{1,32})$"
+        },
+        "rating": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "writerKey": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/digest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

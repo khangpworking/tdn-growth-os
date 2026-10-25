@@ -83,7 +83,7 @@ export interface InsightSourceBinding {
   pairId: Digest;
   scopeSha256: Digest;
   reportSha256: Digest;
-  sourceKind: 'NATIVE' | 'EXACT_SHOPEE';
+  sourceKind: 'NATIVE' | 'EXACT_SHOPEE' | 'PUBLIC_REVIEWS';
   sourcePackageSha256: Digest;
   inputSha256: Digest;
 }

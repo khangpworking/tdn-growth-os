@@ -708,7 +708,7 @@ export interface InsightSourceBinding {
   pairId: string;
   scopeSha256: string;
   reportSha256: string;
-  sourceKind: 'NATIVE' | 'EXACT_SHOPEE';
+  sourceKind: 'NATIVE' | 'EXACT_SHOPEE' | 'PUBLIC_REVIEWS';
   sourcePackageSha256: string;
   inputSha256: string;
 }

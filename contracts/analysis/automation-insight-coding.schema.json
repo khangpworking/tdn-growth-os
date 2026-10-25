@@ -76,7 +76,8 @@
         "sourceKind": {
           "enum": [
             "NATIVE",
-            "EXACT_SHOPEE"
+            "EXACT_SHOPEE",
+            "PUBLIC_REVIEWS"
           ]
         },
         "sourcePackageSha256": {

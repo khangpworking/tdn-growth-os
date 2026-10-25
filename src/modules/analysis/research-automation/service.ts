@@ -119,7 +119,8 @@ import { attemptCollectionLanes, collectionLaneManifests, collectionLaneOrdinals
 import { publishAutomatedVideoReading, verifyAutomatedVideoReading, videoWatchReadingRefs, VIDEO_WATCH_MAX_VIDEOS, VIDEO_WATCH_PROFILE, type VideoWatchLane } from './video-watch-lane.js';
 import { validPopulationBaseline, POPULATION_BASELINE_OPERATION, type PopulationBaselineSource } from './population-baseline.js';
 import { topSellingTikTokVideos } from './tiktok-video-selection.js';
-import { tiktokShopChannelDecision, tiktokShopProductCandidates, validTikTokShopReviewsStep, type TikTokShopReviewCandidate, type TikTokShopReviewsSource } from './tiktok-shop-reviews.js';
+import { TIKTOK_SHOP_REVIEWS_DOCUMENT_MEDIA_TYPE, tiktokShopChannelDecision, tiktokShopProductCandidates, validTikTokShopReviewsStep, verifyTikTokShopReviewsDocument, type TikTokShopReviewCandidate, type TikTokShopReviewsSource } from './tiktok-shop-reviews.js';
+import { projectPublicInsightSource, publicInsightSourceSha256, type PublicInsightSource } from './public-insight-source.js';
 import { TOP_SELLING_VIDEO_RANK_OUTCOMES, type TopSellingVideoSource } from './top-selling-videos.js';
 import { metaAutoReportView, validMetaAuto, verifyMetaAutoEvidence, type MetaAutoReportView, type MetaAutoSource } from './meta-auto-lane.js';
 import { tiktokTopAdsReportView, validTikTokTopAds, verifyTikTokTopAdsEvidence, type TikTokTopAdsReportView, type TikTokTopAdsSource } from './tiktok-top-ads-lane.js';
@@ -132,7 +133,7 @@ import { AutomationInsightCrosscheck } from './insight-crosscheck.js';
 import type { InsightCrosscheckSnapshot, InsightCrosscheckSelection } from '../../../../contracts/analysis/automation-insight-crosscheck.generated.js';
 import { projectPrivateInsightSource } from './private-insight-source.js';
 import type { PrivateInsightSourceProjection } from '../../../../contracts/analysis/private-insight-source-projection.generated.js';
-import { AutomationInsightCoding, type InsightSourceContext, type InsightCodingSourceContext } from './insight-coding.js';
+import { AutomationInsightCoding, rejectPublicReviewsInReport, type InsightSourceContext, type InsightCodingSourceContext } from './insight-coding.js';
 import type { AutomationMetricRuleAdoptionList, AutomationMetricRuleAdoptionReceipt } from '../../../../contracts/analysis/automation-metric-rule-adoption.generated.js';
 import { readPreparedMetricSources } from './metric-source-inventory.js';
 import { AutomationReaderReports, type ReaderDraftContext, type ReaderRowsReader } from './reader-report-revisions.js';
@@ -2802,13 +2803,21 @@ export class ResearchAutomationService {
   async readInsightSourceContext(workspaceId: string, runId: string, pairId: string): Promise<InsightSourceContext> {
     if (!/^[0-9a-f]{64}$/.test(pairId)) throw new ResearchAutomationValidationError('Invalid exact report pair.');
     // The owning report reader verifies pair membership, fallback artifacts and KEEP method lineage.
-    const { report, scopeSha256, verifiedLocated, verifiedNative } = await this.#readVerifiedReport(workspaceId, runId, 'INSIGHT', false, pairId);
+    const { report, scopeSha256, verifiedLocated, verifiedNative, verifiedPublicCorpus, reviewCollection, revisionSources } = await this.#readVerifiedReport(workspaceId, runId, 'INSIGHT', false, pairId);
     if (!scopeSha256) throw new ResearchAutomationIntegrityError('Insight source context lacks its frozen scope.');
     if (verifiedNative && verifiedLocated) throw new ResearchAutomationIntegrityError('Insight source context has more than one review source.');
     // A v1 located snapshot is a rule proposal only, never accepted literal context.
     const located = verifiedLocated?.contractVersion === 'automation-located-review-snapshot-v2' ? verifiedLocated : undefined;
     const snapshot = verifiedNative ?? located;
-    if (!snapshot) throw new ResearchAutomationConflictError('invalid_state', 'This exact report has no verified adopted review source.');
+    if (!snapshot) {
+      // Free sources: the public Shopee corpus the report reader just replay-verified and/or the stored S06 document.
+      // The S06 main-channel rule stays a report-build gate; coding may run on S06 records regardless.
+      const free = await this.#publicInsightSource(verifiedPublicCorpus ?? await this.#keptPublicCorpus(runId, revisionSources), reviewCollection);
+      if (!free) throw new ResearchAutomationConflictError('invalid_state', 'This exact report has no verified adopted review source.');
+      return { binding: { workspaceId, runId, pairId, scopeSha256, reportSha256: report.versionId, sourceKind: 'PUBLIC_REVIEWS' as const,
+        sourcePackageSha256: publicInsightSourceSha256(free.projection), inputSha256: digest(free.input) }, input: structuredClone(free.input),
+        publicSource: structuredClone(free.projection), ...(free.verifiedPlatform ? { verifiedPlatform: free.verifiedPlatform } : {}) };
+    }
     const input = structuredClone(snapshot.output.input);
     return { binding: { workspaceId, runId, pairId, scopeSha256, reportSha256: report.versionId,
       sourceKind: verifiedNative ? 'NATIVE' as const : 'EXACT_SHOPEE' as const,
@@ -2816,6 +2825,35 @@ export class ResearchAutomationService {
       // These two replay-verified adapters bind exact Shopee listings. No platform is inferred from text,
       // source attribution or a missing field; another adapter must supply its own authenticated proof.
       ...(verifiedNative?.nativeSource.selected || located?.proposal ? { verifiedPlatform: 'SHOPEE' as const } : {}) };
+  }
+
+  /**
+   * Coding only: a revision pair's report omits the public Shopee corpus (supplemental collection), but a revision whose
+   * review source was kept (nativeReview KEEP or a qualitative draft) carries the run's original reviewAcquisition in its
+   * v2 source set, verified against its predecessor by #readAttemptSources. Then the original confirmed collection's corpus
+   * is rebuilt and verified exactly as the base pair verifies it. Any other review decision yields v1 → undefined.
+   */
+  async #keptPublicCorpus(runId: string, sources: FrozenSources | undefined) {
+    if (sources?.value.contractVersion !== 'automation-confirmed-source-set-v2') return undefined;
+    const original = await this.#reportCollection(runId, sources, false);
+    return (await this.#publicReportSource(this.#current(runId)!, sources, original, false))?.fullCorpus;
+  }
+
+  /** Read-only: no provider, network or inference. Undefined when neither free source has a record. */
+  async #publicInsightSource(corpus: import('../../../../contracts/analysis/research-review-corpus-v2.generated.js').ResearchReviewCorpusV2 | undefined,
+    collection: StepResultDocument | null): Promise<PublicInsightSource | undefined> {
+    const step = collection?.tiktokShopReviews;
+    let tiktokShop: { document: import('./tiktok-shop-reviews.js').AutomationTikTokShopReviews; documentSha256: string } | undefined;
+    if (step?.documentSha256 && (step.status === 'COLLECTED' || step.status === 'PARTIAL')) {
+      const stored = await this.#readJson<unknown>(step.documentSha256, MAX_JSON_ARTIFACT_BYTES, TIKTOK_SHOP_REVIEWS_DOCUMENT_MEDIA_TYPE);
+      try { tiktokShop = { document: verifyTikTokShopReviewsDocument(stored, step), documentSha256: step.documentSha256 }; }
+      catch { throw new ResearchAutomationIntegrityError('Stored TikTok Shop reviews differ from their collection pointer.'); }
+      if (!tiktokShop.document.products.some(product => product.reviews.length > 0)) tiktokShop = undefined;
+    }
+    const shopee = corpus && corpus.records.length > 0 ? corpus : undefined;
+    if (!shopee && !tiktokShop) return undefined;
+    try { return projectPublicInsightSource({ ...(shopee ? { shopee } : {}), ...(tiktokShop ? { tiktokShop } : {}) }); }
+    catch { throw new ResearchAutomationConflictError('invalid_state', 'The free review records do not form one bounded coding source.'); }
   }
 
   /** Additive private source context; the historical public v1 context stays private-ineligible. */
@@ -2922,6 +2960,7 @@ export class ResearchAutomationService {
       response.snapshot.request.binding.pairId !== pairId || response.snapshot.request.firstProposalId !== selection.firstProposalId ||
       response.snapshot.request.firstProposalSha256 !== selection.firstProposalSha256)
       throw new ResearchAutomationIntegrityError('Selected crosscheck differs from retained proposal/source/output.');
+    rejectPublicReviewsInReport(response.snapshot.request.binding);
     if (current && (await this.listReportVersions(workspaceId, runId)).at(-1)?.pairId !== pairId)
       throw new ResearchAutomationConflictError('revision_conflict', 'Crosscheck report parent changed.');
     return response.snapshot;
@@ -2945,6 +2984,11 @@ export class ResearchAutomationService {
     report: ResearchAutomationReadReport; scopeSha256: string | null;
     verifiedLocated: AutomationLocatedReviewSnapshot | undefined; verifiedNative: NativeSourceReviewSnapshot | undefined;
     verifiedPrivateSource: PrivateInsightSourceProjection | undefined;
+    /** The replay-verified public Shopee corpus (always built, also when not inlined) and the report's own collection. */
+    verifiedPublicCorpus?: import('../../../../contracts/analysis/research-review-corpus-v2.generated.js').ResearchReviewCorpusV2;
+    reviewCollection: StepResultDocument | null;
+    /** Set for a revision pair only: its verified source set (coding reads the kept public corpus from it). */
+    revisionSources?: FrozenSources;
   }> {
     const run = await this.getRun(workspaceId, runId);
     const frozenRun = this.#current(runId)!;
@@ -3466,7 +3510,8 @@ export class ResearchAutomationService {
       } };
     }
     return { report: { kind, versionId: output.versionSha, bytes, mediaType: pdf ? 'application/pdf' : 'text/html; charset=utf-8' },
-      scopeSha256: frozenRun.scopeSha, verifiedLocated, verifiedNative, verifiedPrivateSource, ...(insightReader ? { insightReader } : {}) };
+      scopeSha256: frozenRun.scopeSha, verifiedLocated, verifiedNative, verifiedPrivateSource, reviewCollection: publicCollection, ...(attempt && sources ? { revisionSources: sources } : {}),
+      ...(verifiedPublicReview?.fullCorpus ? { verifiedPublicCorpus: verifiedPublicReview.fullCorpus } : {}), ...(insightReader ? { insightReader } : {}) };
   }
 
   /** Worker entry point: claims and settles at most one durable step. */
@@ -4297,7 +4342,8 @@ export class ResearchAutomationService {
     }
   }
 
-  async #publicReportSource(row: RunRow, sources: FrozenSources | undefined, collection: StepResultDocument | null, retain: boolean, inlineOmitted = false): Promise<{ context: PublicReviewSource; corpus?: import('../../../../contracts/analysis/research-review-corpus-v2.generated.js').ResearchReviewCorpusV2 } | undefined> {
+  async #publicReportSource(row: RunRow, sources: FrozenSources | undefined, collection: StepResultDocument | null, retain: boolean, inlineOmitted = false): Promise<{ context: PublicReviewSource; corpus?: import('../../../../contracts/analysis/research-review-corpus-v2.generated.js').ResearchReviewCorpusV2;
+    fullCorpus?: import('../../../../contracts/analysis/research-review-corpus-v2.generated.js').ResearchReviewCorpusV2 } | undefined> {
     if (!collection?.publicReviewAcquisition) return undefined;
     if (sources?.value.contractVersion !== 'automation-confirmed-source-set-v2') throw new ResearchAutomationIntegrityError('Public report lacks frozen acquisition.');
     const stage = collection.publicReviewAcquisition;
@@ -4330,7 +4376,8 @@ export class ResearchAutomationService {
         humanBlocked: source.packet.listings.some(r => r.stopCode === 'HUMAN_LOGIN_REQUIRED' || r.stopCode === 'HUMAN_VERIFICATION_REQUIRED'), ...(!tooLarge && (inlineOmitted || raw.length >= MAX_JSON_ARTIFACT_BYTES / 4) ? { corpusInlineUnavailableReason: 'PUBLIC_REVIEW_CORPUS_RETAINED_SEPARATELY' as const } : {}), corpusSha256, corpusUnavailableReason: tooLarge ? 'PUBLIC_REVIEW_CORPUS_TOO_LARGE' : null };
       // Inline only when comfortably bounded; the exact separately retained corpus remains authoritative.
       validatePublicReviewSource(context);
-      return { context, ...(!tooLarge && raw.length < MAX_JSON_ARTIFACT_BYTES / 4 ? { corpus } : {}) };
+      // fullCorpus is the same verified rebuild for the coding source context only; reports keep using corpus.
+      return { context, fullCorpus: corpus, ...(!tooLarge && raw.length < MAX_JSON_ARTIFACT_BYTES / 4 ? { corpus } : {}) };
     } catch { throw new ResearchAutomationIntegrityError('Public review report source replay differs.'); }
   }
 
