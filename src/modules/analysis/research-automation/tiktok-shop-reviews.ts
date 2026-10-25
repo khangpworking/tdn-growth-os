@@ -12,6 +12,8 @@ import schema from '../../../../contracts/analysis/automation-tiktok-shop-review
 import type { AutomationTikTokShopReviews, StepTikTokShopReviews, TikTokShopReviewsSkipReason } from '../../../../contracts/analysis/automation-tiktok-shop-reviews.generated.js';
 import { KALODATA_COMMENT_INSIGHT_LIMITS, type KalodataCommentInsightResult, type KalodataProvider } from './provider-kalodata.js';
 import type { ProviderCallOptions } from './providers.js';
+import type { TypedComparable } from './model.js';
+import { parseProviderProductRef } from './provider-common.js';
 import type { AutomationMetricMethodSnapshot } from './metric-method-bridge.js';
 import { marketChartSource } from './market-presentation-report.js';
 export type { AutomationTikTokShopReviews, StepTikTokShopReviews, TikTokShopReviewsSkipReason } from '../../../../contracts/analysis/automation-tiktok-shop-reviews.generated.js';
@@ -37,6 +39,21 @@ export function tiktokShopReviewsEnabled(env: Readonly<Record<string, string | u
 
 /** A confirmed TikTok Shop product of the run; revenue is the run's own summed product revenue, null when unknown. */
 export interface TikTokShopReviewCandidate { readonly productId: string; readonly revenue: number | null }
+
+/** Confirmed products (selected and peers) with a quick-search card, summed by the run's own revenue (GMV); unknown when no figure is usable. */
+export function tiktokShopProductCandidates(confirmed: ReadonlySet<string>, carded: ReadonlySet<string>, comparables: readonly TypedComparable[]): TikTokShopReviewCandidate[] {
+  const revenue = new Map<string, number | null>();
+  for (const value of comparables) {
+    if (value.provider !== 'kalodata' || !confirmed.has(value.productId) || !carded.has(value.productId)) continue;
+    const amount = value.metric === 'GMV_VND' ? Number(value.value) : NaN;
+    const prior = revenue.get(value.productId) ?? null;
+    revenue.set(value.productId, Number.isFinite(amount) ? (prior ?? 0) + amount : prior);
+  }
+  return [...revenue].flatMap(([ref, amount]): TikTokShopReviewCandidate[] => {
+    const parsed = parseProviderProductRef(ref);
+    return parsed ? [{ productId: parsed.sourceProductId, revenue: amount }] : [];
+  });
+}
 
 /** Top by revenue (unknown last, then id), at most three distinct numeric ids. */
 export function pickTikTokShopReviewProducts(candidates: readonly TikTokShopReviewCandidate[]): string[] {

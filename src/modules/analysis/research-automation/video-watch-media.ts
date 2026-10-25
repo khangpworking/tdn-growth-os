@@ -1,4 +1,5 @@
-// Local media of the video-watch lane: one bounded yt-dlp download per candidate, one ffprobe read, and the 45-day sweep.
+// Local media of the video-watch lane: one bounded yt-dlp subtitle read per candidate, else one bounded video download and one ffprobe
+// read, and the 45-day sweep.
 // Processes run without a shell, with a minimal environment that never carries a credential; media bytes never enter Foundation.
 import { spawn, type ChildProcess, type SpawnOptions } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -6,12 +7,16 @@ import { createReadStream } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { StepVideoWatchCandidate, StepVideoWatchMedia } from './model.js';
+import { parseVttSubtitles, SUBTITLE_MAX_BYTES, type SubtitleSegment } from './video-watch-subtitles.js';
 
 export const VIDEO_WATCH_MAX_SECONDS = 180;
 /** 14 MiB keeps the one inline answer request body under ~19 MB. */
 export const VIDEO_WATCH_MAX_BYTES = 14 * 1024 * 1024;
 export const VIDEO_WATCH_DOWNLOAD_TIMEOUT_MS = 120_000;
 export const VIDEO_WATCH_PROBE_TIMEOUT_MS = 30_000;
+export const VIDEO_WATCH_SUBTITLE_TIMEOUT_MS = 60_000;
+/** The only subtitle track read: the video's own Vietnamese subtitles (never automatic captions, never another language). */
+export const VIDEO_WATCH_SUBTITLE_LANGUAGE = 'vie-VN';
 export const VIDEO_WATCH_RETENTION_DAYS = 45;
 const RETENTION_MS = VIDEO_WATCH_RETENTION_DAYS * 86_400_000;
 const OUTPUT_BYTES = 256 * 1024;
@@ -21,6 +26,9 @@ const LEDGER_BYTES = 1024 * 1024;
 const RUN_MARKER = '.video-watch-run';
 const RUN_DIR = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const MEDIA_FILE = /^([1-9][0-9]{0,19})\.(mp4|webm|mkv|mov|m4v)$/;
+const SUBTITLE_FILE = /^([1-9][0-9]{0,19})\.vie-VN\.vtt$/;
+/** Candidate files the ledger and the sweep handle: a downloaded video or its Vietnamese subtitle file. */
+const keptFile = (name: string): boolean => MEDIA_FILE.test(name) || SUBTITLE_FILE.test(name);
 /** Only these containers are sent; the probed container must agree with the file extension. */
 const MIME: Readonly<Record<string, { readonly mimeType: string; readonly format: string }>> = { mp4: { mimeType: 'video/mp4', format: 'mp4' }, webm: { mimeType: 'video/webm', format: 'webm' } };
 
@@ -119,7 +127,7 @@ async function readLedger(runDir: string): Promise<Record<string, string>> {
   try {
     const value: unknown = JSON.parse(await fs.readFile(file, 'utf8'));
     if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
-    return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string] => MEDIA_FILE.test(entry[0]) && typeof entry[1] === 'string'));
+    return Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string] => keptFile(entry[0]) && typeof entry[1] === 'string'));
   } catch { return {}; }
 }
 async function writeLedger(runDir: string, ledger: Record<string, string>): Promise<void> {
@@ -154,22 +162,81 @@ async function probe(config: VideoMediaConfig, runner: ProcessRunner, file: stri
   } catch { return 'NOT_A_VIDEO'; }
 }
 
+/** The run folder (created when missing); null when the media folder or the run folder is not a plain folder. */
+async function prepareRunDir(config: VideoMediaConfig, runId: string): Promise<string | null> {
+  const runDir = path.join(config.mediaDir, runId);
+  try {
+    const parent = await fs.lstat(config.mediaDir).catch(() => null);
+    if (parent && !parent.isDirectory()) return null;
+    await fs.mkdir(config.mediaDir, { recursive: true });
+    let created = true;
+    try { await fs.mkdir(runDir); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error; created = false; }
+    if (!(await fs.lstat(runDir)).isDirectory()) return null;
+    // Only a folder this app just created gets the marker; an older or foreign folder stays on the ledger-only rule.
+    if (created) await writeRunMarker(runDir);
+    return runDir;
+  } catch { return null; }
+}
+
+/** The fixed yt-dlp argument list of the subtitle read: same hardening and length filter as the download, no media download, only the
+ * uploaded Vietnamese subtitle track in WebVTT, and one printed line `<id> <duration>` (printed only when the length filter passes). */
+export function ytdlpSubtitleArgs(runDir: string, candidate: StepVideoWatchCandidate): string[] {
+  return ['--ignore-config', '--no-cookies', '--no-cookies-from-browser', '--no-playlist', '--no-progress', '--no-mtime', '--restrict-filenames',
+    '--match-filter', `duration<=${VIDEO_WATCH_MAX_SECONDS}`, '--skip-download', '--no-simulate', '--write-subs', '--no-write-auto-subs',
+    '--sub-langs', VIDEO_WATCH_SUBTITLE_LANGUAGE, '--sub-format', 'vtt', '--print', '%(id)s %(duration)s',
+    '-o', path.join(runDir, `${candidate.videoId}.%(ext)s`), '--', candidate.url];
+}
+
+export type DownloadedSubtitles = { readonly ok: true; readonly segments: readonly SubtitleSegment[]; readonly media: StepVideoWatchMedia }
+  | { readonly ok: false; readonly reason: 'NO_SUBTITLES' | 'CANCELLED' };
+
+/** The printed `<id> <duration>` line: exactly one line, the candidate's id, a length above 0 and at most 180 s. */
+function printedDuration(stdout: string, videoId: string): number | null {
+  const lines = stdout.split(/\r?\n/u).filter(line => line.trim() !== '');
+  const match = lines.length === 1 ? /^([1-9][0-9]{0,19}) ([0-9]{1,6}(?:\.[0-9]{1,6})?)$/u.exec(lines[0]!.trim()) : null;
+  if (!match || match[1] !== videoId) return null;
+  const duration = Math.round(Number(match[2]) * 1000) / 1000;
+  return Number.isFinite(duration) && duration > 0 && duration <= VIDEO_WATCH_MAX_SECONDS ? duration : null;
+}
+
+/** One subtitle read for one candidate, before any video download. Anything other than exactly one bounded `<id>.vie-VN.vtt` file that
+ * passes the strict WebVTT read and one valid printed length is NO_SUBTITLES (the lane then downloads the video as before); every file left behind is then removed. A kept file
+ * goes on the ledger like a video and is swept after 45 days. */
+export async function downloadSubtitles(config: VideoMediaConfig, runner: ProcessRunner, now: () => Date, runId: string, candidate: StepVideoWatchCandidate,
+  signal?: AbortSignal): Promise<DownloadedSubtitles> {
+  if (!RUN_DIR.test(runId) || !/^[1-9][0-9]{0,19}$/.test(candidate.videoId)) return { ok: false, reason: 'NO_SUBTITLES' };
+  if (signal?.aborted) return { ok: false, reason: 'CANCELLED' };
+  const runDir = await prepareRunDir(config, runId);
+  if (!runDir) return { ok: false, reason: 'NO_SUBTITLES' };
+  const skip = async (reason: 'NO_SUBTITLES' | 'CANCELLED'): Promise<DownloadedSubtitles> => { await removeCandidateFiles(runDir, candidate.videoId); return { ok: false, reason }; };
+  await removeCandidateFiles(runDir, candidate.videoId);
+  const result = await runner(config.ytdlpBin, ytdlpSubtitleArgs(runDir, candidate), { timeoutMs: VIDEO_WATCH_SUBTITLE_TIMEOUT_MS, maxBytes: OUTPUT_BYTES, ...(signal ? { signal } : {}) });
+  if (signal?.aborted) return skip('CANCELLED');
+  if (result.timedOut || result.code !== 0) return skip('NO_SUBTITLES');
+  const durationSeconds = printedDuration(result.stdout, candidate.videoId);
+  const names = (await fs.readdir(runDir).catch(() => [] as string[])).filter(name => name.startsWith(`${candidate.videoId}.`));
+  const name = `${candidate.videoId}.${VIDEO_WATCH_SUBTITLE_LANGUAGE}.vtt`;
+  if (durationSeconds === null || names.length !== 1 || names[0] !== name) return skip('NO_SUBTITLES');
+  const file = path.join(runDir, name), stat = await regularFile(file);
+  if (!stat || stat.size === 0 || stat.size > SUBTITLE_MAX_BYTES) return skip('NO_SUBTITLES');
+  const downloadedAt = now().toISOString();
+  try {
+    const bytes = new Uint8Array(await fs.readFile(file));
+    const segments = bytes.byteLength === stat.size ? parseVttSubtitles(bytes, durationSeconds) : null;
+    if (!segments) return skip('NO_SUBTITLES');
+    const sha256 = createHash('sha256').update(bytes).digest('hex');
+    const ledger = await readLedger(runDir); ledger[name] = downloadedAt; await writeLedger(runDir, ledger);
+    return { ok: true, segments, media: { sha256, byteSize: bytes.byteLength, durationSeconds, downloadedAt } };
+  } catch { return skip('NO_SUBTITLES'); }
+}
+
 /** One download for one candidate. Every failure is a skip code; a skip never fails the run, and a skipped file is removed. */
 export async function downloadVideo(config: VideoMediaConfig, runner: ProcessRunner, now: () => Date, runId: string, candidate: StepVideoWatchCandidate,
   signal?: AbortSignal): Promise<DownloadedVideo> {
   if (!RUN_DIR.test(runId) || !/^[1-9][0-9]{0,19}$/.test(candidate.videoId)) return { ok: false, reason: 'DOWNLOAD_FAILED' };
   if (signal?.aborted) return { ok: false, reason: 'CANCELLED' };
-  const runDir = path.join(config.mediaDir, runId);
-  try {
-    const parent = await fs.lstat(config.mediaDir).catch(() => null);
-    if (parent && !parent.isDirectory()) return { ok: false, reason: 'DOWNLOAD_FAILED' };
-    await fs.mkdir(config.mediaDir, { recursive: true });
-    let created = true;
-    try { await fs.mkdir(runDir); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error; created = false; }
-    if (!(await fs.lstat(runDir)).isDirectory()) return { ok: false, reason: 'DOWNLOAD_FAILED' };
-    // Only a folder this app just created gets the marker; an older or foreign folder stays on the ledger-only rule.
-    if (created) await writeRunMarker(runDir);
-  } catch { return { ok: false, reason: 'DOWNLOAD_FAILED' }; }
+  const runDir = await prepareRunDir(config, runId);
+  if (!runDir) return { ok: false, reason: 'DOWNLOAD_FAILED' };
   const skip = async (reason: VideoMediaSkip): Promise<DownloadedVideo> => { await removeCandidateFiles(runDir, candidate.videoId); return { ok: false, reason }; };
   await removeCandidateFiles(runDir, candidate.videoId);
   const result = await runner(config.ytdlpBin, ytdlpArgs(runDir, candidate), { timeoutMs: VIDEO_WATCH_DOWNLOAD_TIMEOUT_MS, maxBytes: OUTPUT_BYTES, ...(signal ? { signal } : {}) });
@@ -198,7 +265,7 @@ export async function downloadVideo(config: VideoMediaConfig, runner: ProcessRun
   } catch { return skip('DOWNLOAD_FAILED'); }
 }
 
-/** Deletes media older than 45 days. Only regular `<runId>/<videoId>.<ext>` files are touched and links are never followed:
+/** Deletes media older than 45 days. Only regular `<runId>/<videoId>.<ext>` and `<runId>/<videoId>.vie-VN.vtt` files are touched and links are never followed:
  * - a file with a valid ledger entry goes by its recorded download time (any folder, as before);
  * - in a folder with the app's marker, a file with no valid entry (missing, corrupt or linked ledger) goes by its file time;
  * - in a folder without the marker (foreign, or made by the first deployed version) such a file is kept: it may be operator data.
@@ -217,7 +284,7 @@ export async function sweepVideoMedia(mediaDir: string, now: Date): Promise<{ re
     let changed = false;
     const children = await fs.readdir(runDir, { withFileTypes: true }).catch(() => []);
     for (const child of children) {
-      if (!child.isFile() || !MEDIA_FILE.test(child.name)) continue;
+      if (!child.isFile() || !keptFile(child.name)) continue;
       const file = path.join(runDir, child.name), stat = await regularFile(file);
       if (!stat) continue;
       const recorded = Object.hasOwn(ledger, child.name) ? Date.parse(ledger[child.name]!) : Number.NaN;

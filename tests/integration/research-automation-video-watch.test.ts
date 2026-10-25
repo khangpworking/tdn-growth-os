@@ -67,6 +67,8 @@ function spies(mediaDir: string) {
   const prompts: string[] = [];
   const runner: ProcessRunner = async (bin, args) => {
     if (bin === 'yt-dlp') {
+      // The subtitle read comes first; these synthetic videos have no subtitles, so each one is downloaded as before.
+      if (args.includes('--skip-download')) return { code: 0, stdout: '', stderr: '', timedOut: false };
       calls.downloads++;
       const template = args[args.indexOf('-o') + 1]!;
       const id = path.basename(template).split('.')[0]!;

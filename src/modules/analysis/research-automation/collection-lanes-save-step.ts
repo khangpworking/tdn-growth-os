@@ -15,6 +15,9 @@ import { videoWatchCandidates, videoWatchDocument, videoWatchFailed, videoWatchU
 import { VIDEO_WATCH_PROVIDER } from './video-watch-gemini.js';
 import { isPdfPath, pdfCandidates, pdfDiscoveryDocument, pdfDiscoveryFailed, pdfDiscoveryUsage, PDF_DISCOVERY_DOWNLOAD_USAGE_ORDINAL, PDF_DISCOVERY_MAX_FILES, PDF_DISCOVERY_SEARCH_USAGE_ORDINAL, type PdfCandidate, type PdfDiscoverySource, type PdfDownloadRun, type PdfSearchAttempt } from './pdf-discovery-lane.js';
 import type { LaneCheck, LaneUsageRow } from './collection-lanes.js';
+import type { KalodataVideoRankResult } from './provider-kalodata.js';
+import type { TikTokShopReviewCandidate } from './tiktok-shop-reviews.js';
+import { rankTopSellingVideos, topSellingVideoRankStep, topSellingVideosUsage, TOP_SELLING_VIDEOS_USAGE_ORDINAL, type TopSellingVideoSource } from './top-selling-videos.js';
 
 /** One raw capture with its bounded stored envelope. */
 export type CaptureEnvelope = { readonly capture: ProviderRawCapture; readonly body: Buffer };
@@ -59,7 +62,9 @@ export async function runSaveStepLane<F>(lane: SaveStepLane<F> | undefined, step
 }
 
 type VideoRunContext = { readonly binding: Omit<VideoWatchBinding, 'candidatesSha256'>; readonly productKeyword: string;
-  readonly selectionVideos: readonly { readonly url: string }[]; readonly topSellingVideos: readonly { readonly url: string }[]; readonly topSellingGap: boolean };
+  readonly selectionVideos: readonly { readonly url: string }[]; readonly topSellingVideos: readonly { readonly url: string }[]; readonly topSellingGap: boolean;
+  /** Confirmed, collected TikTok Shop products with the run's revenue: the automated top-selling lookup picks from these. */
+  readonly topSellingProducts?: readonly TikTokShopReviewCandidate[] };
 
 export interface VideoLaneFacts {
   /** The run asks for the Market report: only Market reads the video readings today, so an Insight-only run makes none. */
@@ -70,30 +75,47 @@ export interface VideoLaneFacts {
   readonly publish: (binding: VideoWatchBinding, prepared: PreparedAutomatedVideoReading) => Promise<VideoWatchRef>;
 }
 
-// Video readings, Market runs only: candidates are the run's stored selection and the stored TikTok search rows (no new search). There is
-// no abort gate: the lane skips each video as CANCELLED itself. Each attempt's model-answer captures follow the earlier
-// lanes' captures and the attempt points at its last one. A skipped video keeps a reason code only and never changes the
-// step outcome, coverage or run blockers.
-export function videoLane(source: VideoWatchLane): SaveStepLane<VideoLaneFacts> {
+// Video readings, Market runs only (Market and Insight runs alike when the automated top-selling lookup is on): candidates are the run's
+// stored selection, its top-selling videos and the stored TikTok search rows (no new search). There is no abort gate: the lane skips each
+// video as CANCELLED itself. The top-selling lookup's captures come first, then each attempt's model-answer captures, and the attempt
+// points at its last one. A skipped video keeps a reason code only and never changes the step outcome, coverage or run blockers.
+export function videoLane(source: VideoWatchLane, topSelling?: TopSellingVideoSource): SaveStepLane<VideoLaneFacts> {
   return {
     name: 'video',
     async run(step, { signal, captures, check }, facts) {
-      if (!facts.market) return { step, usage: [] };
+      if (!facts.market && !topSelling) return { step, usage: [] };
       let plan: VideoWatchPlan = videoWatchCandidates([], undefined);
       let attempts: VideoWatchAttempt[] | undefined;
+      // undefined: lookup off; null: on, but no product to look up (no call) or the lookup threw.
+      let rank: KalodataVideoRankResult | null | undefined, rankThrown = false, kept = 0;
       try {
         const context = await facts.context(step);
-        if (context.topSellingGap) step = { ...step, limitations: [...step.limitations, { code: 'TOP_SELLING_VIDEO_LOCATORS_UNAVAILABLE', provider: null,
+        let automated: { url: string }[] | undefined;
+        if (topSelling) {
+          try { rank = await topSelling.collect(context.topSellingProducts ?? [], signal ? { signal } : {}); } catch { rank = null; rankThrown = true; }
+          automated = rankTopSellingVideos(rank);
+          kept = automated.length;
+        }
+        // With the lookup on, the gap means no top-selling video from either the uploaded tables or the lookup.
+        const gap = automated ? context.topSellingVideos.length === 0 && automated.length === 0 : context.topSellingGap;
+        if (gap) step = { ...step, limitations: [...step.limitations, { code: 'TOP_SELLING_VIDEO_LOCATORS_UNAVAILABLE', provider: null,
           message: 'Dữ liệu sản phẩm đã chọn còn thiếu đường dẫn video bán chạy dùng được.' }] };
-        plan = videoWatchCandidates(context.selectionVideos, step.expandedSearch?.queries, context.topSellingVideos);
+        plan = videoWatchCandidates(context.selectionVideos, step.expandedSearch?.queries, context.topSellingVideos, automated);
         const binding = { ...context.binding, candidatesSha256: plan.candidatesSha256 };
         attempts = await source.run({ binding, productKeyword: context.productKeyword, candidates: plan.candidates, ...(signal ? { signal } : {}),
           publish: prepared => facts.publish(binding, prepared) });
       } catch { /* thrown: one UNKNOWN row below */ }
       const indexes: (number | null)[] = [];
+      const rankIndexes = new Map<string, number>();
       const start = captures.rows().length;
       let writeFailed = false;
       try {
+        for (const capture of rank?.captures ?? []) {
+          const envelopes = captures.envelopes([capture]);
+          if (!envelopes?.length) continue;
+          await captures.put(envelopes, false);
+          rankIndexes.set(capture.captureId, captures.rows().length - 1);
+        }
         for (const attempt of attempts ?? []) {
           const envelopes = attempt.captures.length ? captures.envelopes(attempt.captures) : null;
           if (!envelopes?.length) { indexes.push(null); continue; }
@@ -106,13 +128,18 @@ export function videoLane(source: VideoWatchLane): SaveStepLane<VideoLaneFacts> 
         writeFailed = true;
         captures.truncate?.(start);
       }
-      const probe = { ...step, videoWatch: attempts && !writeFailed ? videoWatchDocument(plan, attempts, indexes) : videoWatchFailed(plan, 'PROVIDER_FAILED') };
+      const watched = attempts && !writeFailed ? videoWatchDocument(plan, attempts, indexes, topSelling !== undefined) : videoWatchFailed(plan, 'PROVIDER_FAILED');
+      const ranked = rank !== undefined && !writeFailed ? { topSellingRank: topSellingVideoRankStep(rank, rankIndexes, kept) } : {};
+      const probe = { ...step, videoWatch: { ...watched, ...ranked } };
       try {
         check(probe);
         step = probe;
       } catch { step = { ...step, videoWatch: videoWatchFailed(plan, 'DOCUMENT_INVALID') }; }
       const usage: LaneUsageRow[] = attempts?.some(item => item.requests > 0) ? [{ kind: 'USAGE', ordinal: VIDEO_WATCH_USAGE_ORDINAL, result: videoWatchUsage(attempts) }]
         : !attempts ? [{ kind: 'UNSETTLED', ordinal: VIDEO_WATCH_USAGE_ORDINAL, provider: VIDEO_WATCH_PROVIDER.toLowerCase() }] : [];
+      // The paid lookup's usage stays as the calls made it, whatever happened to the document.
+      if (rank && rank.usage.requestsIssued > 0) usage.push({ kind: 'USAGE', ordinal: TOP_SELLING_VIDEOS_USAGE_ORDINAL, result: topSellingVideosUsage(rank) });
+      else if (rankThrown) usage.push({ kind: 'UNSETTLED', ordinal: TOP_SELLING_VIDEOS_USAGE_ORDINAL, provider: 'kalodata' });
       return { step, usage };
     },
   };

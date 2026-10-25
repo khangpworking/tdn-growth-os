@@ -98,6 +98,7 @@ import { createTikTokShopReviewsSource } from '../modules/analysis/research-auto
 import { createKalodataProvider } from '../modules/analysis/research-automation/provider-kalodata.js';
 import { createPdfDiscoverySource } from '../modules/analysis/research-automation/pdf-discovery-lane.js';
 import { videoWatchLaneFromConfig, type VideoWatchConfig } from '../modules/analysis/research-automation/video-watch-lane.js';
+import { createTopSellingVideoSource } from '../modules/analysis/research-automation/top-selling-videos.js';
 import { createResearchAutomationProviderRegistry, type ResearchAutomationProviderConfig, type ProviderTransport } from '../modules/analysis/research-automation/providers.js';
 import { buildResearchAutomationReport } from '../modules/analysis/research-automation/reports.js';
 import { createChromiumPdfRenderer } from '../modules/analysis/research-automation/pdf.js';
@@ -183,6 +184,8 @@ export interface ResearchAutomationApiConfiguration {
   readonly pdfDiscovery?: true;
   /** Video-watch lane for the OWNER writer only; present only when its flag is exactly "1". Model calls go through the existing CLIProxy. */
   readonly videoWatch?: VideoWatchConfig;
+  /** Automated top-selling video lookup (S14, paid); used only with the video-watch lane. */
+  readonly topSellingVideos?: true;
 }
 export interface ResearchAutomationApiApplication {
   handler(request: IncomingMessage, response: ServerResponse): void;
@@ -439,6 +442,9 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         ? createTikTokShopReviewsSource(createKalodataProvider(registryProviders.kalodataSecretKey, registryTransport ?? defaultProviderTransport)) : undefined;
       const pdfDiscoverySource = configuration.pdfDiscovery && configuration.providers?.serpApiKey ? createPdfDiscoverySource(configuration.providers.serpApiKey, transport) : undefined;
       const videoWatch = configuration.videoWatch ? videoWatchLaneFromConfig(configuration.videoWatch, () => new Date()) : undefined;
+      // Same key and transport as the sales-data provider; it only feeds the video-watch lane, so it is made only with that lane.
+      const topSellingVideoSource = videoWatch && configuration.topSellingVideos
+        ? createTopSellingVideoSource(createKalodataProvider(registryProviders.kalodataSecretKey, registryTransport ?? defaultProviderTransport)) : undefined;
       // Start-up retention sweep (45 days); a failure never blocks start-up and the lane sweeps again when it runs.
       if (videoWatch) void videoWatch.sweep().catch(() => undefined);
       if (configuration.pdfExecutablePath) pdf = createChromiumPdfRenderer({ executablePath: configuration.pdfExecutablePath });
@@ -463,6 +469,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         ...(tiktokShopReviewsSource ? { tiktokShopReviewsSource } : {}),
         ...(pdfDiscoverySource ? { pdfDiscoverySource } : {}),
         ...(videoWatch ? { videoWatch } : {}),
+        ...(topSellingVideoSource ? { topSellingVideoSource } : {}),
         ...(i14SynthesisAi ? { i14SynthesisAi } : {}),
         ...(marketCoverAi ? { marketCoverAi } : {}),
         ...(configuration.metricAutoRun ? { autoRun: { enabled: true,
