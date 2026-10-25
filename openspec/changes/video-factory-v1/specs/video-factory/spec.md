@@ -208,7 +208,7 @@ Một lỗi của ffmpeg hay một dịch vụ ngoài (sụp, chậm quá giới
 
 - Loại kiểm: Kiểm thử
 - Mã kiểm: Chưa có mã kiểm
-- Vì sao: Ngày 25/10/2026 chủ chọn phương án A kèm bốn lớp bảo vệ (F176–F177, O1). Rủi ro được ghi đúng: app sập cứng làm khóa executor còn lại, app dừng cho tới khi quy trình gỡ khóa cũ được chạy. Ngày 25/10/2026 (F183) chủ xác nhận lại phương án A và yêu cầu lát 1 (055) thêm tự khởi động lại an toàn; ngày 25/10/2026 (F185) chủ chọn cách tái khởi động bằng unit systemd của người dùng, chỉ cài trên Fedora khi chủ viết «deploy <SHA>».
+- Vì sao: Ngày 25/10/2026 chủ chọn phương án A kèm bốn lớp bảo vệ (F176–F177, O1). Tại af53534a, app sập cứng làm khóa executor còn lại, app dừng cho tới khi quy trình gỡ khóa cũ được chạy. Ngày 25/10/2026 (F183) chủ xác nhận lại phương án A và yêu cầu lát 1 (055) thêm tự khởi động lại an toàn; ngày 25/10/2026 (F185) chủ chọn cách tái khởi động bằng unit systemd của người dùng, chỉ cài trên Fedora khi chủ viết «deploy <SHA>».
 
 #### Scenario: ffmpeg sập giữa lần dựng
 - **WHEN** tiến trình ffmpeg con sập giữa lần dựng trong khi app vẫn chạy

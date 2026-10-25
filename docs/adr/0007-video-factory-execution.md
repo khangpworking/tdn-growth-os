@@ -38,7 +38,8 @@ work executes and how a failure stays contained.
   Factory copies the small helpers it needs (process runner and spawn options,
   `sha256File`, secret-echo check, answer parsing) into its own Flow or platform
   files, each with a source note; research-automation code is not changed, so
-  Market and the reports are untouched and no cross-lane coordination is needed.
+  no coordination on research code is needed. Before checkpoint 1, 055 records
+  the shared writer slot with the Market lane (brief 054 §10).
   The copied runner filters the parent environment and provides time limits;
   slice 1 must add render priority, memory limits and media hardening to the
   copy. Voice audio responses must stream; the research lane's bounded response
@@ -56,13 +57,13 @@ work executes and how a failure stays contained.
   next to Content Studio, Video Factory. The earlier copy of ADR 0003 is kept
   at `docs/outdated/2026-10-25/docs/adr/0003-content-studio-b11-b13.md`.
 
-Accepted risk: a hard crash in Video Factory code leaves the executor lock, so
-the whole application (reports and Content Studio included) stays down until
-the manual stale-lock recovery runs. The owner re-confirmed option A on
-25/10/2026 (F183) and asked for an automatic safe restart in slice 1: after 055
-the app comes back by itself; 055 must prove the lock-owner process is gone
-before taking the lock, so there are never two writers. This amends ADR 0004
-decision 2's manual-only stale-lock recovery rule.
+Accepted risk: a hard crash in Video Factory code can stop the whole application,
+including reports and Content Studio. At af53534a, the leftover executor lock
+blocks restart until the manual stale-lock recovery runs. The owner re-confirmed
+option A on 25/10/2026 (F183) and chose a user systemd relauncher (F185): from 055,
+the unit restarts the app after a crash, and lock takeover must satisfy the full
+rule in brief 054 §3; unclear locks still require manual recovery. There are never
+two writers. This amends ADR 0004 decision 2's manual-only stale-lock recovery rule.
 
 ## Consequences
 

@@ -16,7 +16,7 @@ Cách chia việc dưới đây chỉ áp dụng khi xây Video Factory (F173, F
 - [ ] 2.2 Script qua cổng AI sẵn có, điểm duyệt 1 (R-V02)
 - [ ] 2.3 Thư viện clip: tải lên đọc theo phần nhỏ, không giữ cả tập tin trong bộ nhớ; kiểm kích thước; xem trước và hình thu nhỏ; nhãn tự gõ; Tổng hợp hoặc bộ sưu tập thương hiệu (R-V07, R-V08)
 - [ ] 2.4 Thư viện nhạc: tải lên, tâm trạng, giấy phép (R-V09)
-- [ ] 2.5 Điểm duyệt 2: chủ chọn clip cho từng cảnh, tìm theo nhãn; clip ngắn hơn cảnh không chọn được; quy tắc khi giọng thật dài hơn clip đã chọn — mở (055-Q1) (R-V04, R-V12)
+- [ ] 2.5 Điểm duyệt 2: chủ chọn clip cho từng cảnh, tìm theo nhãn; chặn duyệt cho tới khi mọi cảnh đều có clip; clip ngắn hơn số giây mục tiêu trong script không chọn được; quy tắc khi giọng thật dài hơn clip đã chọn — mở (055-Q1) (R-V04, R-V12)
 - [ ] 2.6 Giọng đọc: dựng với giọng giả trong CI; chỉ nối nhà cung cấp thật khi F2 đã xong (điểm chốt cuối của lát 1); nếu nhà cung cấp thắng F2 cần webhook thì hỏi chủ trước khi dựng; một lời gọi mỗi cảnh (R-V10, R-V11, F183)
 - [ ] 2.7 Dựng: ffmpeg chạy con ưu tiên thấp có giới hạn bộ nhớ và thời gian; cắt cứng hoặc mờ; logo; nhạc hạ dưới lời đọc; −14 LUFS. Duyệt 3 rồi tải về; tập tin tải về mang nhãn «Chưa kiểm lời đọc» (R-V02, R-V03, R-V13, R-V14, F183)
 - [ ] 2.8 Bài kiểm thử: giết ffmpeg giữa lần dựng, app vẫn chạy; kill -9 giữa lần dựng: app tự giao tiếp lại không cần bước thủ công, lần dựng hiện gián đoạn, không còn ffmpeg cũ chạy; độ dài video bằng độ dài lời đọc; lỗi một nhà cung cấp chỉ làm hỏng job của nó (R-V14)
@@ -49,7 +49,7 @@ Cách chia việc dưới đây chỉ áp dụng khi xây Video Factory (F173, F
 - [ ] 4.1 Kiểm an toàn lời đọc cho tuyên bố sức khỏe, pháp lý và sự thật thương hiệu; «Bỏ qua duyệt» không bao giờ bỏ qua nó (R-V03)
 - [ ] 4.2 Chỉ bật «Bỏ qua duyệt» và hàng loạt sau khi chủ trả lời O3 và O4 về video của thương hiệu thực phẩm bổ sung. Hiện số lượt gọi gộp trước khi xếp hàng; thiếu clip thì video thất bại rõ, không khung đen (R-V02, R-V10, R-V12)
 - [ ] 4.3 Lớp preset thương hiệu, nhà cung cấp giọng thứ hai, Pixabay, chuyển cảnh slide (R-V11)
-- [ ] 4.4 «Dùng lại bản này» tạo phiên bản mới và trở về duyệt 1. Giữ lựa chọn clip khi đủ năm điều kiện ở §6 brief 054; nếu không thì chọn lại, hiện «Lựa chọn trước» cùng lý do có thể hoặc không thể dùng lại. Dựng lại giọng và video khi script đổi (R-V15; F179)
+- [ ] 4.4 «Dùng lại bản này» tạo phiên bản mới và trở về duyệt 1. Giữ lựa chọn clip khi đủ năm điều kiện ở §6 brief 054; nếu không thì chọn lại, hiện «Lựa chọn trước» cùng lý do có thể hoặc không thể dùng lại. Khi script đổi, chỉ dựng lại giọng và video khi chủ khởi động, sau khi app hiện số ký tự (R-V10, R-V15; F179)
 - [ ] 4.5 GLM 5.3 Flash viết mã
 - [ ] 4.6 Sol 6.1 xhigh viết kiểm thử ở phiên riêng; mỗi ca có một ca đối chứng âm
 - [ ] 4.7 Một phiên Sol 6.1 xhigh mới khác rà soát
