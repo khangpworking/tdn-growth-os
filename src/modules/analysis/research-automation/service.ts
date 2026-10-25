@@ -483,10 +483,19 @@ interface AutorunRow {
 }
 const AUTORUN_ENVIRONMENT_STOPS = new Set(['METRIC_LOGIN_REQUIRED', 'METRIC_CAPTCHA', 'BRIDGE_DISCONNECTED']);
 const AUTORUN_RUN_END_STATUSES = new Set<ResearchAutomationRun['status']>(['DRAFT_READY', 'FAILED', 'CANCELLED', 'INTERRUPTED']);
-const AUTORUN_PICK_RECORD_VERSION = 'autorun-pick-record-v1';
+// v2 adds `capture` (keywords and Smart query the page applied); v1 records stay readable.
+const AUTORUN_PICK_RECORD_VERSION = 'autorun-pick-record-v2';
 /** Short, path-free stop detail; owner-facing wording is mapped from the code in a later step. */
 function autorunStopDetail(code: string): string {
   return `Automatic run stopped: ${code}.`;
+}
+/** Keywords and Smart query the capture page applied, from the adapter manifest read-back; null when unreadable. */
+function autorunAppliedSearch(bytes: Uint8Array): { keywords: string[]; smartQuery: boolean | null } | null {
+  try {
+    const applied = (JSON.parse(Buffer.from(bytes).toString('utf8')) as { appliedFilters?: { keywords?: unknown; smartQuery?: unknown } }).appliedFilters;
+    if (!Array.isArray(applied?.keywords) || !applied.keywords.every(keyword => typeof keyword === 'string')) return null;
+    return { keywords: [...applied.keywords as string[]], smartQuery: typeof applied.smartQuery === 'boolean' ? applied.smartQuery : null };
+  } catch { return null; }
 }
 /** The period the capture actually used (snapshot scope), when it is readable. */
 function autorunSnapshotPeriod(bytes: Uint8Array): AutorunPeriod | null {
@@ -5453,8 +5462,12 @@ export class ResearchAutomationService {
     if (!claimed) return progressed;
     const run = this.#current(runId)!;
     const row = this.#autorunRow(runId)!;
-    let raw: unknown;
-    try { raw = JSON.parse(await readFile(joinPath(this.#autorunCaptureDir(runId), 'raw-responses.json'), 'utf8')); }
+    let raw: unknown, applied: ReturnType<typeof autorunAppliedSearch>;
+    try {
+      const dir = this.#autorunCaptureDir(runId);
+      raw = JSON.parse(await readFile(joinPath(dir, 'raw-responses.json'), 'utf8'));
+      applied = autorunAppliedSearch(await readFile(joinPath(dir, 'manifest.json')));
+    }
     catch { await this.#autorunStopRunning(runId, 'PICK', 'CAPTURE_FILES_MISSING'); return true; }
     let stored: StoredArtifact;
     try {
@@ -5462,9 +5475,9 @@ export class ResearchAutomationService {
       if (principal.length === 0) { await this.#autorunStopRunning(runId, 'PICK', 'NO_PRINCIPAL_PRODUCTS'); return true; }
       const start = await this.#readStartSnapshot(run.startSha, run.workspaceId);
       const pick = pickShopeeLinks(raw, deriveIncludeTerms(start.keyword, principal.map(card => card.title)), { profile: this.#captureRelevance ? CAPTURE_ROW_PROFILE : CAPTURE_ROW_PROFILE_V2 });
-      // Audit record only: chosen ids, revenue, brand, shop, URL and counts; no raw capture content.
+      // Audit record only: chosen ids, revenue, brand, shop, URL and counts, plus the applied search; no raw capture content.
       stored = await this.#putJson({ contractVersion: AUTORUN_PICK_RECORD_VERSION, runId, workspaceId: run.workspaceId, packageId: row.packageId,
-        principalProductIds: principal.map(card => card.productId), ...pick }, this.#now().toISOString());
+        principalProductIds: principal.map(card => card.productId), ...pick, capture: applied }, this.#now().toISOString());
     } catch (error) {
       await this.#autorunStopRunning(runId, 'PICK', this.#autorunErrorCode(runId, error, 'PICK_FAILED'));
       return true;

@@ -120,7 +120,7 @@ test('period window: first attempt, pre-check, observed parse and retry decision
 
 test('capture spec is the fixed derived shape', () => {
   assert.deepEqual(buildCaptureSpec('  son môi ', { startDate: '2026-09-03', endDate: '2026-10-02' }),
-    { keywords: ['son môi'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-09-03', endDate: '2026-10-02' }, category: null });
+    { keywords: ['son môi'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-09-03', endDate: '2026-10-02' }, category: null, smartQuery: true });
   assert.throws(() => buildCaptureSpec(' ', firstAttemptPeriod(runPeriod)));
 });
 

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import type { ChildProcess, SpawnOptions } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { mkdir, mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { after } from 'node:test';
@@ -31,6 +31,12 @@ const READY: MetricOpenCliProcessResult = { exitCode: 0, stdout: '[{"status":"RE
 const periodFailure = (start: string, end: string): MetricOpenCliProcessResult => ({ exitCode: 1, stdout: '',
   stderr: `METRIC_PERIOD_UNSUPPORTED: Metric lookups currently support only the page default period; details={"observedPeriod":{"startDate":"${start}","endDate":"${end}"},"requestedPeriod":{"startDate":"x","endDate":"y"}}; debug folder: ${root}/secret-path/debug` });
 
+/** The adapter's capture manifest with the Smart query toggle read back on, as a successful capture writes it. */
+async function writeCaptureManifest(argv: readonly string[]): Promise<void> {
+  await mkdir(argv[5]!, { recursive: true });
+  await writeFile(join(argv[5]!, 'manifest.json'), JSON.stringify({ appliedFilters: { smartQuery: true } }));
+}
+
 interface Call { executable: string; argv: readonly string[]; options: MetricOpenCliProcessOptions; spec: any; input?: MetricOpenCliExecutorInput }
 
 /** Fake runner: replays scripted results and records each call with the spec on disk at that moment. */
@@ -43,6 +49,7 @@ function fake(results: (MetricOpenCliProcessResult | Promise<MetricOpenCliProces
     createProcessRunner: () => async (executable, argv, options) => {
       const spec = JSON.parse(await readFile(argv[3]!, 'utf8'));
       await mkdir(join(argv[5]!, 'debug'), { recursive: true }); // the adapter writes run1/debug before searching
+      await writeCaptureManifest(argv);
       calls.push({ executable, argv, options, spec });
       const next = results.shift() ?? READY;
       return { child: { pid: 1, kill: () => true }, completion: Promise.resolve(next) };
@@ -76,7 +83,7 @@ test('happy path: no shell, detached, explicit long timeout, allow-listed env, p
   assert.deepEqual(call!.options.env, { PATH: '/usr/bin', HOME: '/home/synthetic', DISPLAY: ':0', OPENCLI_BROWSER_COMMAND_TIMEOUT: '1500', CI: '1' });
   assert.equal(input!.timeoutMs, METRIC_CAPTURE_TIMEOUT_MS); assert.equal(METRIC_CAPTURE_TIMEOUT_MS, 1_620_000);
   assert.equal(input!.expectedAdapterManifestSha256, sha); assert.equal(input!.adapterManifestPath, '/synthetic/adapter/manifest.json');
-  assert.deepEqual(call!.spec, { keywords: ['son môi'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-09-03', endDate: '2026-10-02' }, category: null });
+  assert.deepEqual(call!.spec, { keywords: ['son môi'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-09-03', endDate: '2026-10-02' }, category: null, smartQuery: true });
   if (process.platform !== 'win32') assert.equal((await stat(join(runDir, 'spec.json'))).mode & 0o777, 0o600);
 });
 
@@ -137,7 +144,7 @@ test('the in-process lock serializes two captures', async () => {
   const firstRunning = new Promise<void>(resolve => { firstStarted = resolve; });
   const deps = (name: string, completion: () => Promise<MetricOpenCliProcessResult>): MetricCaptureRunnerDependencies => ({
     sourceEnv: {}, readManifest: async () => manifest,
-    createProcessRunner: () => async () => { events.push(`${name}:start`); return { child: { kill: () => true }, completion: completion().then(r => { events.push(`${name}:end`); return r; }) }; },
+    createProcessRunner: () => async (_executable, argv) => { await writeCaptureManifest(argv); events.push(`${name}:start`); return { child: { kill: () => true }, completion: completion().then(r => { events.push(`${name}:end`); return r; }) }; },
   });
   const a = runMetricCapture(config(), request(), deps('a', () => { firstStarted(); return first; }));
   const b = runMetricCapture(config(), request(), deps('b', async () => READY));
@@ -195,7 +202,7 @@ test('abort while waiting for the lock returns without starting a process', asyn
   const first = new Promise<MetricOpenCliProcessResult>(resolve => { finishFirst = resolve; });
   let secondStarted = false;
   const a = runMetricCapture(config(), request(), { sourceEnv: {}, readManifest: async () => manifest,
-    createProcessRunner: () => async () => ({ child: { kill: () => true }, completion: first }) });
+    createProcessRunner: () => async (_executable, argv) => { await writeCaptureManifest(argv); return { child: { kill: () => true }, completion: first }; } });
   const controller = new AbortController();
   const b = runMetricCapture(config(), request({ signal: controller.signal }), { sourceEnv: {}, readManifest: async () => manifest,
     createProcessRunner: () => async () => { secondStarted = true; return { child: { kill: () => true }, completion: Promise.resolve(READY) }; } });
