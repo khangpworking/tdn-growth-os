@@ -85,17 +85,23 @@ const cases: { row: number; name: string; run: (t: TestContext) => Promise<void>
     assert.equal(first.context.binding.sourcePackageSha256, sha(context.publicSource));
     assert.equal(first.context.binding.inputSha256, sha(first.context.input));
   } },
-  { row: 5, name: 'default HTTP proposal and receipt reverify on a public source', async run(t) {
-    const f = await publicCodingFixture(t), api = await codingApi(t, f), view = await successfulView(api);
-    const response = await api.post('insight-coding-default-model-proposals', modelRequest(view.context.binding));
-    assert.equal(response.status, 201, JSON.stringify(response.body)); assert.equal(response.body.status, 'PROPOSED');
-    const fresh = await successfulView(api), proposal = fresh.evidence.find((row: any) => row.evidenceId === response.body.proposal.evidenceId);
-    assert.equal(proposal.request.contractVersion, 'insight-coding-default-propose-v1');
-    assert.equal(proposal.binding.sourceKind, 'PUBLIC_REVIEWS'); assert.equal(api.modelCalls(), 1);
-    const receipt = await api.post('insight-coding-receipts', receiptRequest(response.body.proposal));
-    assert.equal(receipt.status, 201, `handoff requires a default receipt: ${JSON.stringify(receipt.body)}`);
-    const accepted = await successfulView(api);
-    assert.ok(accepted.evidence.some((row: any) => row.kind === 'RECEIPT' && row.request.proposalId === proposal.evidenceId));
+  { row: 5, name: 'default HTTP proposal reverifies and rejects receipts equally on NATIVE and PUBLIC_REVIEWS', async run(t) {
+    for (const source of ['NATIVE', 'PUBLIC'] as const) {
+      const f = await publicCodingFixture(t, { source }), api = await codingApi(t, f), view = await successfulView(api);
+      assert.equal(view.context.binding.sourceKind, source === 'NATIVE' ? 'NATIVE' : 'PUBLIC_REVIEWS');
+      const response = await api.post('insight-coding-default-model-proposals', modelRequest(view.context.binding));
+      assert.equal(response.status, 201, JSON.stringify(response.body)); assert.equal(response.body.status, 'PROPOSED');
+      const fresh = await successfulView(api), proposal = fresh.evidence.find((row: any) => row.evidenceId === response.body.proposal.evidenceId);
+      assert.equal(proposal.request.contractVersion, 'insight-coding-default-propose-v1');
+      assert.deepEqual(fresh.context.binding, view.context.binding);
+      assert.deepEqual(proposal.binding, view.context.binding); assert.equal(api.modelCalls(), 1);
+      const receipt = await api.post('insight-coding-receipts', receiptRequest(proposal));
+      assert.equal(receipt.status, 400, JSON.stringify(receipt.body));
+      assert.equal(receipt.body.error.code, 'bad_request');
+      const after = await successfulView(api);
+      assert.deepEqual(after.context.binding, view.context.binding);
+      assert.deepEqual(after.evidence, fresh.evidence);
+    }
   } },
   { row: 6, name: 'v2 default request on PUBLIC_REVIEWS is rejected before model dispatch', async run(t) {
     const f = await publicCodingFixture(t), api = await codingApi(t, f), view = await successfulView(api);
@@ -174,7 +180,7 @@ const cases: { row: number; name: string; run: (t: TestContext) => Promise<void>
     assert.ok(input.nativeReview);
     assert.throws(() => buildResearchAutomationReport({ ...input, insightCoding: snapshot }, 'INSIGHT'), /Report insight coding source kind mismatch/);
   } },
-  { row: 14, name: 'KEEP revision preserves the public corpus and supports default proposal and receipt', async run(t) {
+  { row: 14, name: 'KEEP revision preserves the public corpus and receipt-free default proposal lifecycle', async run(t) {
     const f = await publicCodingFixture(t, { s06: true }), base = await f.context(), next = await f.revise(), api = await codingApi(t, f);
     const view = await successfulView(api, next.pairId), context = await f.context(next.pairId);
     assert.equal(view.context.binding.sourceKind, 'PUBLIC_REVIEWS');
@@ -185,9 +191,16 @@ const cases: { row: number; name: string; run: (t: TestContext) => Promise<void>
     const proposed = await api.post('insight-coding-default-model-proposals', modelRequest(view.context.binding));
     assert.equal(proposed.status, 201, JSON.stringify(proposed.body));
     const fresh = await successfulView(api, next.pairId);
-    assert.ok(fresh.evidence.some((row: any) => row.evidenceId === proposed.body.proposal.evidenceId));
-    const receipt = await api.post('insight-coding-receipts', receiptRequest(proposed.body.proposal));
-    assert.equal(receipt.status, 201, `handoff requires a default receipt: ${JSON.stringify(receipt.body)}`);
+    const proposal = fresh.evidence.find((row: any) => row.evidenceId === proposed.body.proposal.evidenceId);
+    assert.equal(proposal.request.contractVersion, 'insight-coding-default-propose-v1');
+    assert.deepEqual(fresh.context.binding, view.context.binding);
+    assert.deepEqual(proposal.binding, view.context.binding);
+    const receipt = await api.post('insight-coding-receipts', receiptRequest(proposal));
+    assert.equal(receipt.status, 400, JSON.stringify(receipt.body));
+    assert.equal(receipt.body.error.code, 'bad_request');
+    const after = await successfulView(api, next.pairId);
+    assert.deepEqual(after.context.binding, view.context.binding);
+    assert.deepEqual(after.evidence, fresh.evidence);
   } },
   { row: 15, name: 'SKIP revision drops Shopee, leaving S06 or the old no-source conflict', async run(t) {
     for (const s06 of [true, false]) {
