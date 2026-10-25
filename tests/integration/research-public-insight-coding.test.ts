@@ -190,7 +190,7 @@ const cases: { row: number; name: string; run: (t: TestContext) => Promise<void>
       });
     }
   } },
-  { row: 14, name: 'KEEP revision preserves the public corpus and receipt-free default proposal lifecycle', async run(t) {
+  { row: 14, name: 'KEEP revision preserves the public corpus and receipt-free default proposal chaining', async run(t) {
     const f = await publicCodingFixture(t, { s06: true }), base = await f.context(), next = await f.revise(), api = await codingApi(t, f);
     const view = await successfulView(api, next.pairId), context = await f.context(next.pairId);
     assert.equal(view.context.binding.sourceKind, 'PUBLIC_REVIEWS');
@@ -211,6 +211,17 @@ const cases: { row: number; name: string; run: (t: TestContext) => Promise<void>
     const after = await successfulView(api, next.pairId);
     assert.deepEqual(after.context.binding, view.context.binding);
     assert.deepEqual(after.evidence, fresh.evidence);
+    const continued = await api.post('insight-coding-default-model-proposals', { ...modelRequest(view.context.binding),
+      defaultRuleId: proposal.request.defaultRuleId, defaultRuleSha256: proposal.request.defaultRuleSha256,
+      previousProposalId: proposal.evidenceId, previousProposalSha256: proposal.sha256, recordIndexes: [6] });
+    assert.equal(continued.status, 201, JSON.stringify(continued.body));
+    const chained = await successfulView(api, next.pairId);
+    const chainedProposal = chained.evidence.find((row: any) => row.evidenceId === continued.body.proposal.evidenceId);
+    assert.equal(chainedProposal.request.previousProposalId, proposal.evidenceId);
+    assert.equal(chainedProposal.request.defaultRuleId, proposal.request.defaultRuleId);
+    assert.deepEqual(chainedProposal.request.annotations.i05.map((row: any) => row.recordIndex), [0, 6]);
+    assert.deepEqual(chained.evidence.find((row: any) => row.evidenceId === proposal.evidenceId), proposal);
+    assert.equal(api.modelCalls(), 2);
   } },
   { row: 15, name: 'SKIP revision drops Shopee, leaving S06 or the old no-source conflict', async run(t) {
     for (const s06 of [true, false]) {
