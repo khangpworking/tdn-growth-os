@@ -11,7 +11,7 @@ My first build order was interview, then collectors, then packaging. That order 
 
 ## Decision
 
-1. **FE-first prototype**, deployed early. This is a single-file vanilla JS prototype with demo data, published as a private Artifact. It is iterated on owner feedback; v1–v5 are done ([LOG](../../LOG.md)).
+1. **FE-first prototype**, deployed early. This is a single-file vanilla JS prototype with demo data, published as a private Artifact. It is iterated on owner feedback; v1–v5 are done (LOG).
 2. After the owner accepts the prototype, design the data and backend.
 3. **Slice 1 is one thin end-to-end run:**
    - a simple fixed-intent interview;
