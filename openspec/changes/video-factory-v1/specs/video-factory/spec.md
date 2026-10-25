@@ -16,11 +16,11 @@ Video Factory SHALL là máy làm video tự động (automation creator), SHALL
 - **THEN** script dùng Big Idea, Angle, mục đích và sự thật sản phẩm của chiến dịch đó
 
 ### Requirement: R-V02 Ba điểm duyệt và công tắc «Bỏ qua duyệt»
-Mỗi video SHALL đi qua ba điểm duyệt: sau script, sau khi chọn cảnh, và ở video cuối. Ba điểm duyệt SHALL bật mặc định. Mỗi video SHALL có một công tắc «Bỏ qua duyệt» chỉ áp dụng cho video đó. Đổi công tắc SHALL áp dụng khi xử lý bắt đầu lần tiếp theo, SHALL NOT tự tiếp tục video đang dừng. Khi chủ bắt đầu xử lý với công tắc bật, các điểm duyệt tiếp theo SHALL không chờ chủ. Mỗi yêu cầu viết lại mà chủ gửi SHALL luôn dừng ở điểm duyệt 1, dù công tắc đang bật hay tắt.
+Mỗi video SHALL đi qua ba điểm duyệt: duyệt 1 (sau script), duyệt 2 (sau khi chọn cảnh), duyệt 3 (video cuối). Ba điểm duyệt SHALL bật mặc định. Mỗi video SHALL có một công tắc «Bỏ qua duyệt» chỉ áp dụng cho video đó. Đổi công tắc SHALL áp dụng khi xử lý bắt đầu lần tiếp theo, SHALL NOT tự tiếp tục video đang dừng. Khi chủ bắt đầu xử lý với công tắc bật, các điểm duyệt tiếp theo SHALL không chờ chủ. Mỗi yêu cầu viết lại mà chủ gửi SHALL luôn dừng ở duyệt 1, dù công tắc đang bật hay tắt.
 
 - Loại kiểm: Người đọc
 - Mã kiểm: Chưa có mã kiểm
-- Vì sao: Chủ duyệt ba điểm duyệt, công tắc và hàng loạt (batch) ngày 01/10/2026 (§1), cùng cách chạy «script vs setup» (quyết định 9). Kế hoạch ngày 25/10/2026 đặt batch và bỏ duyệt ở lát 3 (F178); F179 chỉ duyệt bốn đơn giản hóa.
+- Vì sao: Chủ duyệt ba điểm duyệt, công tắc và hàng loạt (batch) ngày 01/10/2026 (§1), cùng cách chạy «script vs setup» (quyết định 9 trong script-vs-setup-decision.md, chủ duyệt dựng 01/10/2026). Kế hoạch ngày 25/10/2026 đặt batch và bỏ duyệt ở lát 3 (F178); F179 chỉ duyệt bốn đơn giản hóa.
 
 #### Scenario: Bỏ duyệt cho một video
 - **WHEN** chủ bật «Bỏ qua duyệt» rồi chủ động bắt đầu xử lý tiếp
@@ -35,11 +35,11 @@ Mỗi video SHALL đi qua ba điểm duyệt: sau script, sau khi chọn cảnh,
 - **THEN** bản viết lại mới vẫn dừng ở điểm duyệt 1 để chủ đọc
 
 ### Requirement: R-V03 Kiểm an toàn lời đọc không bao giờ bị bỏ qua
-Mỗi video SHALL chạy một kiểm an toàn lời đọc (trên câu tiếng Việt của script) trước khi dựng. Kiểm tra SHALL xét: tuyên bố về sức khỏe, tuyên bố pháp lý, và sự thật thương hiệu. Kiểm tra này là kiểm an toàn, không phải điểm duyệt, nên công tắc «Bỏ qua duyệt» SHALL NOT được phép bỏ qua nó. Video vi phạm SHALL dừng lại để chủ xem.
+Từ lát 3, mỗi video SHALL chạy một kiểm an toàn lời đọc (trên câu tiếng Việt của script) trước khi dựng. Kiểm tra SHALL xét: tuyên bố về sức khỏe, tuyên bố pháp lý, và sự thật thương hiệu. Kiểm tra này là kiểm an toàn, không phải điểm duyệt, nên công tắc «Bỏ qua duyệt» SHALL NOT được phép bỏ qua nó. Video vi phạm SHALL dừng lại để chủ xem. Cho tới lát 3, kiểm tra tự động chưa tồn tại (F183): phép kiểm duy nhất là duyệt của chủ ở duyệt 1 và duyệt 3, «Bỏ qua duyệt» chưa tồn tại, và video làm ra ở lát 1–2 SHALL mang nhãn «Chưa kiểm lời đọc».
 
 - Loại kiểm: Người đọc
 - Mã kiểm: Chưa có mã kiểm
-- Vì sao: Chủ duyệt kế hoạch đơn giản nhất ngày 25/10/2026 (F178), với luật «Bỏ qua duyệt» không ra mắt thiếu kiểm an toàn lời đọc (lát 3).
+- Vì sao: Chủ duyệt kế hoạch đơn giản nhất ngày 25/10/2026 (F178), với luật «Bỏ qua duyệt» không ra mắt thiếu kiểm an toàn lời đọc (lát 3). Ngày 25/10/2026 (F183) chủ xác nhận video lát 1–2 mang nhãn «Chưa kiểm lời đọc». Phần sự thật thương hiệu đặt trên `brandFactCheck`; cách ghi nhận sức khỏe và pháp lý do nhiệm 057 quyết.
 
 #### Scenario: Lô bỏ duyệt vẫn kiểm lời đọc
 - **WHEN** một video trong lô «Bỏ qua duyệt» có tuyên bố sức khỏe không có căn cứ
@@ -48,6 +48,10 @@ Mỗi video SHALL chạy một kiểm an toàn lời đọc (trên câu tiếng 
 #### Scenario: Lời đọc sạch
 - **WHEN** lời đọc không có tuyên bố sức khỏe, pháp lý hay sự thật thương hiệu nào sai
 - **THEN** kiểm an toàn cho qua và video chạy tiếp
+
+#### Scenario: Video trước lát 3 mang nhãn
+- **WHEN** chủ tải về một video làm ra trước lát 3 (lát 1–2)
+- **THEN** video đó mang nhãn «Chưa kiểm lời đọc»; duyệt của chủ ở duyệt 1 và duyệt 3 là phép kiểm duy nhất
 
 ### Requirement: R-V04 Thứ tự nguồn clip: thư viện → stock → AI
 Khi tìm clip cho một cảnh, app SHALL thử nguồn theo thứ tự: clip thư viện của mình trước, rồi stock (Pexels, Pixabay), rồi tạo bằng AI. Ở v1, chức năng tạo clip bằng AI SHALL chỉ là nút mờ «Tạo bằng AI — sắp có», không chạy.
@@ -114,7 +118,7 @@ App SHALL NOT đổi tập tin clip gốc bất kỳ lúc nào. Quét thư mục
 
 - Loại kiểm: Người đọc; Kiểm thử
 - Mã kiểm: Chưa có mã kiểm
-- Vì sao: Chủ duyệt «file gốc không đổi» ngày 01/10/2026 (§1). Ngày 25/10/2026 chủ duyệt phần cắt 10 của kế hoạch: sao chép, không đụng nguồn, bỏ qua file trùng (F178).
+- Vì sao: Ngày 25/10/2026 chủ duyệt cắt 10 của kế hoạch đơn giản nhất (F178): «Copy files in and never touch the source» — sao chép vào, không dời hay xóa nguồn, bỏ qua tập tin trùng vân tay.
 
 #### Scenario: Quét thư mục thả clip
 - **WHEN** app quét thư mục thả clip và phát hiện tập tin mới
@@ -133,18 +137,18 @@ Mỗi bài nhạc trong thư viện SHALL có giấy phép đã ghi vào app. B�
 
 - Loại kiểm: Người đọc
 - Mã kiểm: Chưa có mã kiểm
-- Vì sao: Chủ duyệt «chỉ dùng nhạc có giấy phép» ngày 01/10/2026 (§1).
+- Vì sao: Chủ duyệt toàn bộ §1 bản nháp 054 ngày 01/10/2026 (hàng «Nhạc»: thư viện nhạc royalty-free của chủ); luật «chỉ dùng nhạc có giấy phép đã ghi» lấy nguyên văn từ bản nháp 054 phần 9 (kho tái sử dụng): «Music: only tracks with a recorded licence».
 
 #### Scenario: Bài nhạc thiếu giấy phép
 - **WHEN** một bài nhạc không nhập giấy phép nhưng được chọn làm nhạc nền
 - **THEN** app không cho chọn và hiện lý do cần giấy phép
 
 ### Requirement: R-V10 Hiện con số trước mọi lời gọi trả phí
-Trước khi chạy một lời gọi trả phí, app SHALL hiện số lời gọi sẽ chạy, gồm mức tối đa cho phân tích phát sinh từ clip stock. Giọng đọc SHALL hiện cả số ký tự. Gemini SHALL chỉ đọc clip khi chủ bấm «Phân tích n clip (n lượt Gemini)»; clip chưa phân tích SHALL hiện «Chưa phân tích». Một lô video SHALL hiện số lượt gọi gộp trước khi vào hàng đợi. App SHALL NOT tự chạy lại lời gọi lỗi; chủ SHALL bấm «Thử lại».
+Trước khi chạy một lời gọi trả phí, app SHALL hiện số lời gọi sẽ chạy. Lời gọi script và viết lại SHALL hiện «n lượt AI», và model script SHALL cố định trong mã (F183). Giọng đọc SHALL hiện cả số ký tự. Gemini SHALL chỉ đọc clip khi chủ bấm «Phân tích n clip (n lượt Gemini)»; clip chưa bấm SHALL hiện «Chưa phân tích»; phân tích phát sinh theo clip stock SHALL được đếm bên trong lần bấm đó, và SHALL NOT có phân tích nào chạy nếu thiếu lần bấm. Một lô video SHALL hiện số lượt gọi gộp trước khi vào hàng đợi (lát 3). App SHALL NOT tự chạy lại lời gọi lỗi; chủ SHALL bấm «Thử lại».
 
 - Loại kiểm: Người đọc; Kiểm thử
 - Mã kiểm: Chưa có mã kiểm
-- Vì sao: Ngày 25/10/2026 chủ quyết định O2 «agree, wait for a click» (F176). Chủ duyệt «mỗi thao tác hiện số lượt trước khi chạy, không tự chạy lại» ngày 01/10/2026 (§1); luật «một lô hiện một con số gộp» theo kế hoạch lát 3 (F178).
+- Vì sao: Ngày 25/10/2026 chủ quyết định O2 «agree, wait for a click» (F176). Chủ duyệt «mỗi thao tác hiện số lượt trước khi chạy, không tự chạy lại» ngày 01/10/2026 (§1); ngày 25/10/2026 (F183) chủ xác nhận lời gọi script và viết lại hiện «n lượt AI» và model script cố định trong mã; stock được đếm bên trong lần bấm phân tích (M5). Luật «một lô hiện một con số gộp» theo kế hoạch lát 3 (F178).
 
 #### Scenario: Bấm phân tích
 - **WHEN** chủ bấm «Phân tích 4 clip (4 lượt Gemini)»
@@ -174,7 +178,7 @@ Một cảnh không tìm được clip phù hợp SHALL hiện «Chưa có cản
 
 - Loại kiểm: Người đọc
 - Mã kiểm: Chưa có mã kiểm
-- Vì sao: Chủ duyệt cảnh «Chưa có cảnh phù hợp» ngày 01/10/2026 (§1); luật «thất bại kèm thông báo rõ, không bao giờ khung đen» theo rà soát EGM và kế hoạch lát 2–3 (F178).
+- Vì sao: Chủ duyệt toàn bộ §1 bản nháp 054 ngày 01/10/2026; hành vi «Chưa có cảnh phù hợp» và «no silent black frames» nằm nguyên văn ở bản nháp 054, phần 4, bước Match; phần lát 2–3 theo kế hoạch đơn giản nhất (F178).
 
 #### Scenario: Duyệt bật, cảnh rỗng
 - **WHEN** một cảnh không có clip và công tắc «Bỏ qua duyệt» đang tắt
@@ -204,7 +208,7 @@ Một lỗi của ffmpeg hay một dịch vụ ngoài (sụp, chậm quá giới
 
 - Loại kiểm: Kiểm thử
 - Mã kiểm: Chưa có mã kiểm
-- Vì sao: Ngày 25/10/2026 chủ chọn phương án A kèm bốn lớp bảo vệ và chấp nhận rủi ro lỗi của chính mã Video Factory khởi động lại app (F176, F177, O1).
+- Vì sao: Ngày 25/10/2026 chủ chọn phương án A kèm bốn lớp bảo vệ (F176–F177, O1). Rủi ro được ghi đúng: app sập cứng làm khóa executor còn lại, app dừng cho tới khi quy trình gỡ khóa cũ được chạy. Ngày 25/10/2026 (F183) chủ xác nhận lại phương án A và yêu cầu lát 1 (055) thêm tự khởi động lại an toàn: chứng minh tiến trình giữ khóa đã tắt trước khi nhận khóa, không bao giờ có hai bên ghi.
 
 #### Scenario: ffmpeg sập giữa lần dựng
 - **WHEN** tiến trình ffmpeg con sập giữa lần dựng trong khi app vẫn chạy
@@ -218,16 +222,16 @@ Một lỗi của ffmpeg hay một dịch vụ ngoài (sụp, chậm quá giới
 - **WHEN** app khởi động lại khi một job video đang chạy
 - **THEN** job đó hiện là gián đoạn và app không tự chạy lại
 
-### Requirement: R-V15 Sửa script làm chọn lại clip
-Khi chủ sửa script (lát 1–2), app SHALL chọn lại clip cho các cảnh bị thay đổi và SHALL dựng lại giọng đọc, rồi dựng lại video. Chức năng giữ lựa chọn clip cũ chỉ có từ lát 3 (đơn giản hóa 2, F179).
+### Requirement: R-V15 Sửa script làm mất lựa chọn clip của cảnh bị đổi
+Khi chủ sửa script (lát 1–2), một cảnh bị thay đổi SHALL mất lựa chọn clip hiện có và SHALL bị đánh dấu; giọng đọc của các cảnh bị thay đổi SHALL được dựng lại, rồi video SHALL được dựng lại. Chức năng giữ lựa chọn clip cũ chỉ có từ lát 3 (đơn giản hóa 2, F179).
 
 - Loại kiểm: Kiểm thử
 - Mã kiểm: Chưa có mã kiểm
-- Vì sao: Chủ duyệt điều kiện giữ clip sau viết lại ngày 01/10/2026 (script vs setup, quyết định 8). Ngày 25/10/2026 chủ duyệt chọn lại clip ở lát 1–2, giữ clip cũ từ lát 3 (F179).
+- Vì sao: Chủ duyệt điều kiện giữ clip sau viết lại ngày 01/10/2026 (quyết định 8 trong script-vs-setup-decision.md). Ngày 25/10/2026 chủ duyệt đơn giản hóa 2: viết lại chọn lại clip ở lát 1–2, giữ clip cũ từ lát 3 (F179, mục 4.2 của kế hoạch đơn giản nhất).
 
 #### Scenario: Chỉnh câu của một cảnh
 - **WHEN** chủ đổi câu tiếng Việt của một cảnh rồi duyệt script
-- **THEN** app chọn lại clip cho cảnh đó và dựng lại toàn bộ giọng đọc và video
+- **THEN** cảnh đó mất lựa chọn clip cũ, bị đánh dấu, giọng đọc của cảnh được dựng lại rồi video dựng lại; chủ chọn clip mới cho cảnh khi duyệt 2
 
 #### Scenario: Đổi cài đặt đổi chữ
 - **WHEN** chủ đổi một thứ thuộc nhóm «đổi chữ» (chủ đề, Angle, thương hiệu, giọng văn, hook, độ dài)

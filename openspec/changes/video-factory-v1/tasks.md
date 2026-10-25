@@ -8,7 +8,7 @@
 - [x] 1.6 Rà lại theo EGM
 - [ ] 1.7 Chủ duyệt PR này và change này
 
-Cách chia việc dưới đây chỉ áp dụng khi xây Video Factory (F173, F175 ngày 25/10/2026). Mỗi lát phải chốt bảng dòng hợp đồng đánh số trước khi viết mã. Mỗi dòng ghi quy tắc R-V, hành vi và ca đối chứng âm. Mỗi lát cập nhật hướng dẫn vận hành, STATUS và bàn giao. Sửa lỗi áp dụng cho cả hệ thống, không chỉnh riêng một lần chạy. Chi tiết câu hỏi phải trả lời và đường dẫn sở hữu ở §7 brief 054.
+Cách chia việc dưới đây chỉ áp dụng khi xây Video Factory (F173, F175 ngày 25/10/2026). Mỗi lát mở đầu bằng bảng dòng hợp đồng đánh số (055-Q1…, chia «trước khi viết mã» và «trước khi hợp nhất»): GLM soạn bảng, một phiên Sol mới rà soát, điều phối viên kiểm lại, câu hỏi còn mở hỏi chủ; GLM chỉ viết mã sau khi bảng đã chốt và được rà (M7). Mỗi dòng ghi quy tắc R-V, hành vi và ca đối chứng âm. Mỗi lát cập nhật hướng dẫn vận hành, STATUS và bàn giao. Sửa lỗi áp dụng cho cả hệ thống, không chỉnh riêng một lần chạy. Chi tiết câu hỏi phải trả lời và đường dẫn sở hữu ở §7 brief 054.
 
 ## 2. Lát 1 — video thật đầu tiên, chủ tự chọn clip (nhiệm vụ 055)
 
@@ -17,10 +17,10 @@ Cách chia việc dưới đây chỉ áp dụng khi xây Video Factory (F173, F
 - [ ] 2.3 Thư viện clip: tải lên đọc theo phần nhỏ, không giữ cả tập tin trong bộ nhớ; kiểm kích thước; xem trước và hình thu nhỏ; nhãn tự gõ; Tổng hợp hoặc bộ sưu tập thương hiệu (R-V07, R-V08)
 - [ ] 2.4 Thư viện nhạc: tải lên, tâm trạng, giấy phép (R-V09)
 - [ ] 2.5 Điểm duyệt 2: chủ chọn clip cho từng cảnh, tìm theo nhãn; clip ngắn hơn cảnh không chọn được (R-V04, R-V12)
-- [ ] 2.6 Giọng đọc: bên thắng bài nghe thử F2, một lời gọi mỗi cảnh (R-V10, R-V11)
-- [ ] 2.7 Dựng: ffmpeg chạy con ưu tiên thấp có giới hạn bộ nhớ và thời gian; cắt cứng hoặc mờ; logo; nhạc hạ dưới lời đọc; −14 LUFS. Duyệt 3 rồi tải về (R-V02, R-V13, R-V14)
+- [ ] 2.6 Giọng đọc: dựng với giọng giả trong CI; chỉ nối nhà cung cấp thật khi F2 đã xong (điểm chốt cuối của lát 1); nếu nhà cung cấp thắng F2 cần webhook thì hỏi chủ trước khi dựng; một lời gọi mỗi cảnh (R-V10, R-V11, F183)
+- [ ] 2.7 Dựng: ffmpeg chạy con ưu tiên thấp có giới hạn bộ nhớ và thời gian; cắt cứng hoặc mờ; logo; nhạc hạ dưới lời đọc; −14 LUFS. Duyệt 3 rồi tải về; tập tin tải về mang nhãn «Chưa kiểm lời đọc» (R-V02, R-V03, R-V13, R-V14, F183)
 - [ ] 2.8 Bài kiểm thử: giết ffmpeg giữa lần dựng, app vẫn chạy; độ dài video bằng độ dài lời đọc; lỗi một nhà cung cấp chỉ làm hỏng job của nó (R-V14)
-- [ ] 2.9 Lời gọi trả phí mới của lát này: chỉ giọng đọc (R-V10, R-V11)
+- [ ] 2.9 Script và viết lại hiện «n lượt AI»; model script cố định trong mã (F183). Lời gọi trả phí mới của lát này chỉ là giọng đọc: giọng giả kiểm trong CI; sau triển khai chủ dựng một video thật với ngân sách giọng nhỏ do chủ đặt lúc triển khai (R-V10, R-V11)
 - [ ] 2.10 GLM 5.3 Flash viết mã
 - [ ] 2.11 Sol 6.1 xhigh viết kiểm thử ở phiên riêng; mỗi ca có một ca đối chứng âm
 - [ ] 2.12 Một phiên Sol 6.1 xhigh mới khác rà soát
@@ -60,11 +60,7 @@ Cách chia việc dưới đây chỉ áp dụng khi xây Video Factory (F173, F
 - [ ] 5.1 Chạy thật cả luồng: chủ tạo video, duyệt ba điểm, tải về; mỗi nhà cung cấp được gọi thật theo ngân sách riêng chủ đặt trước (R-V10, R-V14, R-V12)
 - [ ] 5.2 Ghi biên bản từng nhà cung cấp: số lời gọi, chi phí, kết quả; không tự chạy lại; sau khi khởi động lại, job đang chạy hiện là gián đoạn (R-V10, R-V11, R-V14)
 - [ ] 5.3 Triển khai chỉ khi chủ viết «deploy <SHA>»
-- [ ] 5.4 GLM 5.3 Flash viết mã
-- [ ] 5.5 Sol 6.1 xhigh viết kiểm thử ở phiên riêng; mỗi ca có một ca đối chứng âm
-- [ ] 5.6 Một phiên Sol 6.1 xhigh mới khác rà soát
-- [ ] 5.7 Kiểm thử theo dòng hợp đồng; CI Linux xanh tại SHA cuối là cổng cuối, không chạy cả bộ trên máy
-- [ ] 5.8 Merge chỉ khi chủ đồng ý
+- [ ] 5.4 Merge chỉ khi chủ đồng ý
 
 ## 6. Kết thúc
 

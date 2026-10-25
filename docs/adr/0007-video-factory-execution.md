@@ -1,7 +1,9 @@
 # ADR 0007: Video Factory execution boundary
 
-Status: Proposed (25/10/2026). Owner direction: option A with the isolation
-protections (O1, F176–F177); the owner accepted the crash risk (F177).
+Status: Proposed (25/10/2026); Accepted when the owner approves the slice-0 PR.
+Owner direction: option A with the isolation protections (O1, F176–F177). On
+25/10/2026 the owner re-confirmed option A (F183) and asked for an automatic
+safe restart after a crash in slice 1 (task 055).
 
 ## Context
 
@@ -22,8 +24,9 @@ work executes and how a failure stays contained.
   in `src/modules/flow/video-*` with `flow_video_*` tables (including a new
   `flow_video_provider_attempts` table). Task 049's attempts table accepts
   creative text/image calls; it has no voice or clip-analysis provider kinds.
-  Its target names are not restricted to Content Studio. Slice 1 defines audit
-  ownership for script and rerank calls without duplicate attempts.
+  Its target names are not restricted to Content Studio. Script and rerank
+  calls go through the existing attempt service with a video target type; the
+  new table holds only voice, clip-analysis and stock calls.
 - Video execution uses the ADR 0006 pattern: one `VideoWorker` attached to the
   existing operator executor. No second Node process, no second queue. Four job
   kinds only: import, analyse, voice, render. One video job at a time.
@@ -31,9 +34,15 @@ work executes and how a failure stays contained.
   currently Content Studio-only: video script writing and AI rerank also run
   synchronously through `CreativeAiGateway`. There is no script job kind.
 - ffmpeg runs as a low-priority child process with memory and time limits, no
-  shell and an environment containing only required non-secret values. The
-  existing runner filters the parent environment; slice 1 must add render
-  priority, memory limits and media hardening to its existing time limits.
+  shell and an environment containing only required non-secret values. Video
+  Factory copies the small helpers it needs (process runner and spawn options,
+  `sha256File`, secret-echo check, answer parsing) into its own Flow or platform
+  files, each with a source note; research-automation code is not changed, so
+  Market and the reports are untouched and no cross-lane coordination is needed.
+  The copied runner filters the parent environment and provides time limits;
+  slice 1 must add render priority, memory limits and media hardening to the
+  copy. Voice audio responses must stream; the research lane's bounded response
+  reader holds the whole response in memory and is not reused for audio.
 - Files are read and written as streams, never whole in memory.
 - Every outside call has a time limit and fails only its own job; the app keeps
   running. A synchronous script or rerank failure stops only that action.
@@ -46,9 +55,12 @@ work executes and how a failure stays contained.
   next to Content Studio, Video Factory. The earlier copy of ADR 0003 is kept
   at `docs/outdated/2026-10-25/docs/adr/0003-content-studio-b11-b13.md`.
 
-Accepted risk: a bug in Video Factory code itself can restart the application.
-The owner explicitly accepted this on 25/10/2026 (F177) in exchange for the
-simplicity of one process.
+Accepted risk: a hard crash in Video Factory code leaves the executor lock, so
+the whole application (reports and Content Studio included) stays down until
+the manual stale-lock recovery runs. The owner re-confirmed option A on
+25/10/2026 (F183) and asked for an automatic safe restart in slice 1: after 055
+the app comes back by itself; 055 must prove the lock-owner process is gone
+before taking the lock, so there are never two writers.
 
 ## Consequences
 
@@ -71,7 +83,7 @@ simplicity of one process.
 
 | Alternative | Reason rejected |
 |---|---|
-| A separate worker process (option B) | The owner chose option A with limits, streamed files, per-call time limits and a crash test (O1, F176–F177). It reduces worker supervision and key-delivery work; the accepted shared-process crash risk remains. |
+| A separate worker process (option B) | The owner chose option A with limits, streamed files, per-call time limits and a crash test (O1, F176–F177). It reduces worker supervision and key-delivery work; the corrected hard-crash risk above remains, and slice 1 adds the automatic safe restart (F183). |
 | A second job queue for video | Duplicates leases, retries and cancellation truth and violates the one-coordinated-decision rule of ADR 0004 decision 5. |
 | Embeddings and vector search over clip moments | Not an owner-visible need in v1; text search over stored English descriptions plus AI rerank answers the need and stays behind one search function. |
 | A timeline editor or a professional editing suite | The owner asked for an automation creator, not an editor; no timeline UI, drag/trim/tracks, project export, or editing product. |
