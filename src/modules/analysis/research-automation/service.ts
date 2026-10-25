@@ -103,7 +103,9 @@ import { AutomationI14SynthesisExecutions, type AutomationI14ExecutionRequest, t
 import type { ResearchAutomationMetricPrepareRequest, ResearchAutomationMetricPrepareReceipt, ResearchAutomationPreparedMetricList } from '../../../../contracts/api/research-automation-metric-intake-api.generated.js';
 import { AutomationMetricSourceIntake, MAX_METRIC_UPLOAD_BYTES } from './metric-source-intake.js';
 import type { ResearchAutomationMetricCapturePrepareRequest, ResearchAutomationMetricCapturePrepareReceipt, ResearchAutomationPreparedMetricCaptureList } from '../../../../contracts/api/research-automation-metric-capture-intake-api.generated.js';
-import { AutomationMetricCaptureSourceIntake, MAX_METRIC_CAPTURE_BYTES, MAX_METRIC_CAPTURE_TOTAL_BYTES, verifyMetricCaptureArchive, verifyMetricRawResponses, SNAPSHOT_PATH, MANIFEST_PATH, MetricCaptureRejection, type MetricRawResponsesRef } from './metric-capture-intake.js';
+import { AutomationMetricCaptureSourceIntake, MAX_METRIC_CAPTURE_BYTES, MAX_METRIC_CAPTURE_TOTAL_BYTES, captureContextRawRefs, verifyMetricCaptureArchive, verifyMetricRawResponses, SNAPSHOT_PATH, MANIFEST_PATH, MetricCaptureRejection, type MetricRawResponsesRef } from './metric-capture-intake.js';
+import { readMarketRawSeries } from './market-raw-series.js';
+import { renderMarketRawCharts, type MarketRawReportInput } from './market-raw-report.js';
 import { autorunRequestKey, buildConfirmValue, buildPrepareValue, buildRevisionValue, deriveIncludeTerms, isAutorunCaptureStopCode, pickShopeeLinks, planCapturePeriod, sourceContextVi, type DatePeriod as AutorunPeriod } from './autorun-derive.js';
 import { METRIC_CAPTURE_DIRS, runMetricCapture, type MetricCaptureRequest, type MetricCaptureRunnerConfig, type MetricCaptureRunResult } from './metric-capture-runner.js';
 import { AUTORUN_SCOPE_RECORD_VERSION, answerKeyword2, captureTwoOk, categoryNotSelectable, chooseKeyword2, decideCategory, planScope, readCategoryShares, scopeLinesVi, titlePhraseCandidates, topRevenueTitles, usedScope,
@@ -295,6 +297,8 @@ export interface ResearchAutomationReportInput {
   readonly marketInventory?: AutomationMarketMethodSnapshot;
   readonly marketInventoryFailure?: 'MARKET_INVENTORY_FAILED';
   readonly marketPresentation?: AutomationMarketPresentationMethod;
+  /** Raw-response numbers of the stored capture artifact, with their Flint interval charts; filled by the service. */
+  readonly marketRawSeries?: MarketRawReportInput;
   /** Market charts drawn by Flint before the synchronous report build; filled by the service. */
   readonly marketPresentationCharts?: readonly MarketChart[];
   /** Flint record-count bars of the capture sample; filled by the service. */
@@ -4035,6 +4039,8 @@ export class ResearchAutomationService {
       // The video uploads are decided at the first build; a revision re-reads exactly the packages its previous Market version pinned.
       const priorVideos = priorMarket ? storedSellerVideos(priorMarket) : null;
       const sellerVideos = start.reports.includes('MARKET') && start.sourceEvidenceVersion && (!attempt || priorVideos) ? await this.#sellerVideos(fresh, priorVideos?.sources) : null;
+      // Read from the stored artifact the capture package names, never from the capture folder.
+      const marketRaw = start.reports.includes('MARKET') ? await this.#marketRawSeries(metricMethods) : null;
       for (const kind of (['INSIGHT', 'MARKET'] as const).filter(kind => start.reports.includes(kind))) {
         if (controller.signal.aborted) throw new Error('aborted');
         let input: ResearchAutomationReportInput = { run, start, scope, captures,
@@ -4065,6 +4071,7 @@ export class ResearchAutomationService {
           ...(kind === 'MARKET' && metricMethods ? { metricMethods } : {}),
           ...(kind === 'MARKET' && metricClassified ? { metricClassified } : {}),
           ...(kind === 'MARKET' && metricMethodsFailure ? { metricMethodsFailure } : {}),
+          ...(kind === 'MARKET' && marketRaw ? { marketRawSeries: marketRaw.input } : {}),
           ...(kind === 'MARKET' && start.sourceEvidenceVersion && pdfExcerpts.length ? { pdfExcerpts } : {}),
           ...(kind === 'MARKET' && start.sourceEvidenceVersion && sellerVideos ? { sellerVideos } : {}),
         };
@@ -4177,6 +4184,7 @@ export class ResearchAutomationService {
             input = { ...input, marketPresentationCharts: await renderMarketCharts(chartRows, chartOptions),
               ...(capture ? { marketCaptureCharts: await renderCaptureCountCharts(captureSampleCounts(capture)) } : {}) };
           }
+          if (kind === 'MARKET' && input.marketRawSeries) input = { ...input, marketRawSeries: { ...input.marketRawSeries, charts: await renderMarketRawCharts(input.marketRawSeries) } };
           const interest = kind === 'MARKET' ? input.collection?.searchInterest : undefined;
           if (searchInterestRenderable(interest)) input = { ...input, searchInterestChart: await renderSearchInterestChart(searchInterestChartPoints(interest, !input.marketPresentation)) };
           // Country-level figures (S23 yearly lines, S24 bars per reporting side), drawn only from stored rows that the tables also show.
@@ -4201,7 +4209,7 @@ export class ResearchAutomationService {
           // Method persistence is owned here, not delegated to an optional presentation adapter.
           const { decisionPackets: _untrustedPackets, decisionSourceClaims: _untrustedDecisionClaims, decisionPairedInsightVersionId: _untrustedPair,
             decisionSynthesis: _untrustedDecisionSynthesis, decisionExecutionIds: _untrustedDecisionExecutions,
-            insightPersona: _untrustedPersona, qualitativeDraft: _untrustedQualitativeDraft, reviewSample: _untrustedSample, privateReviewCorpus: _untrustedPrivateCorpus, marketPresentation: _untrustedMarketPresentation, marketPresentationArtifact: _untrustedMarketReference, marketTraceHtmlArtifact: _untrustedTraceReference, marketTraceHtmlUnavailableCode: _untrustedTraceFailure, sourceEvidence: _untrustedSourceEvidence, pdfExcerpts: _untrustedExcerpts, sellerVideos: _untrustedSellerVideos, defaultMarketPeers: _untrustedPeers, quoteMethods: _untrustedQuote, boundedMethods: _untrustedBounded, metricClassified: _untrustedClassified, insightCoding: _untrustedCoding, insightCrosscheck: _untrustedCrosscheck, insightLiteral: _untrustedLiteral, sourceClaims: _untrustedClaims, sourceClaimsArtifact: _untrustedReference,
+            insightPersona: _untrustedPersona, qualitativeDraft: _untrustedQualitativeDraft, reviewSample: _untrustedSample, privateReviewCorpus: _untrustedPrivateCorpus, marketPresentation: _untrustedMarketPresentation, marketPresentationArtifact: _untrustedMarketReference, marketTraceHtmlArtifact: _untrustedTraceReference, marketTraceHtmlUnavailableCode: _untrustedTraceFailure, marketRawResponses: _untrustedRawResponses, sourceEvidence: _untrustedSourceEvidence, pdfExcerpts: _untrustedExcerpts, sellerVideos: _untrustedSellerVideos, defaultMarketPeers: _untrustedPeers, quoteMethods: _untrustedQuote, boundedMethods: _untrustedBounded, metricClassified: _untrustedClassified, insightCoding: _untrustedCoding, insightCrosscheck: _untrustedCrosscheck, insightLiteral: _untrustedLiteral, sourceClaims: _untrustedClaims, sourceClaimsArtifact: _untrustedReference,
             m01Inventory: _untrustedM01, m01InventoryArtifact: _untrustedM01Reference,
             i14Admission: _untrustedI14, i14AdmissionArtifact: _untrustedI14Reference,
             i14Synthesis: _untrustedSynthesis, i14ExecutionId: _untrustedExecution, marketCover: _untrustedCover, ...presentation } = (authoritative?.semantic ?? rendered.semantic) as Record<string, unknown>;
@@ -4241,6 +4249,9 @@ export class ResearchAutomationService {
             ...(kind === 'MARKET' && metricMethodsFailure ? { metricMethodsFailure } : {}),
             ...(marketCover ? { marketCover: marketCover.record } : {}),
             ...(trace ? { marketTraceHtmlArtifact: { contractVersion: 'automation-market-trace-html-reference-v1', sha256: trace.sha256, byteSize: trace.byteSize } } : {}),
+            // The stored raw-responses artifacts behind the raw-number blocks: the trace map's capture ids are `usedSha256`.
+            ...(kind === 'MARKET' && marketRaw ? { marketRawResponses: { contractVersion: 'automation-market-raw-responses-reference-v1', usedSha256: marketRaw.input.periods[0]!.captureId,
+              captures: marketRaw.refs.map(({ captureNumber, sha256, byteSize }) => ({ captureNumber, sha256, byteSize })) } } : {}),
             ...(traceUnavailableCode ? { marketTraceHtmlUnavailableCode: traceUnavailableCode } : {}) };
           const semanticBytes = Buffer.from(canonicalJson(reportSemantic), 'utf8');
           const html = Buffer.from(rendered.html);
@@ -5213,6 +5224,38 @@ export class ResearchAutomationService {
       }
     } else if (request.unitSpecIntakeSha256) throw new ResearchAutomationValidationError('Unit-spec receipt requires the exact retained Metric source.');
     return { binding, input, retained };
+  }
+  /**
+   * Raw-response numbers of a results-page capture, read only from stored data: the capture package's
+   * context names the stored raw-responses artifacts (v3), and its manifest the search settings. The
+   * report uses the last artifact (capture 2 when the run used it); capture 1's stays referenced for the
+   * trace. Null for captures stored before v3, which render as before. A stored artifact that differs from
+   * its reference is an integrity break, never a silent skip.
+   */
+  async #marketRawSeries(metric: AutomationMetricMethodSnapshot | undefined): Promise<{ input: MarketRawReportInput; refs: MetricRawResponsesRef[] } | null> {
+    const pinned = metric?.capture;
+    if (!metric || !pinned) return null;
+    const source = await this.#boundedSourceReader().readFinalizedSourcePackage(metric.originalSourcePackage.packageId,
+      { maxFileBytes: MAX_METRIC_CAPTURE_BYTES, maxTotalBytes: MAX_METRIC_CAPTURE_TOTAL_BYTES + 128 * 1024 });
+    if (source.manifestArtifactSha256 !== metric.originalSourcePackage.manifestArtifactSha256 || source.packageContentSha256 !== metric.originalSourcePackage.packageContentSha256)
+      throw new ResearchAutomationIntegrityError('Market raw-responses source package differs.');
+    const file = (sha256: string) => source.files.find(value => value.sha256 === sha256);
+    const contextFile = file(pinned.contextSha256), manifestFile = file(pinned.manifestSha256);
+    if (!contextFile || !manifestFile) throw new ResearchAutomationIntegrityError('Market raw-responses capture context differs from retained Metric input.');
+    const refs = captureContextRawRefs(JSON.parse(contextFile.bytes.toString('utf8')) as Record<string, unknown>);
+    if (!refs) return null;
+    const used = refs[refs.length - 1]!;
+    const bytes = await this.#readArtifact(used.sha256, MAX_METRIC_CAPTURE_BYTES, 'application/json');
+    if (bytes.byteLength !== used.byteSize || createHash('sha256').update(bytes).digest('hex') !== used.sha256)
+      throw new ResearchAutomationIntegrityError('Stored raw-responses artifact differs from its capture reference.');
+    const series = readMarketRawSeries(JSON.parse(bytes.toString('utf8')));
+    // A capture whose raw responses hold no platform number keeps the current blocks.
+    if (!series.platforms.some(platform => Object.values(platform.kpi).some(value => value.value !== null))) return null;
+    const filters = (JSON.parse(manifestFile.bytes.toString('utf8')) as { appliedFilters?: { keywords?: unknown; category?: unknown; smartQuery?: unknown } }).appliedFilters;
+    const keywords = Array.isArray(filters?.keywords) && filters.keywords.every(keyword => typeof keyword === 'string') ? filters.keywords as string[] : [pinned.capture.keyword];
+    const scope: MarketRawReportInput['scope'] = { keywords, smartQuery: typeof filters?.smartQuery === 'boolean' ? filters.smartQuery : null,
+      category: typeof filters?.category === 'string' && filters.category.trim() ? { chosen: filters.category } : { chosen: null, note: 'Tìm trong tất cả danh mục.' } };
+    return { input: { periods: [{ captureId: used.sha256, series }], scope }, refs };
   }
 
   /** The prior pair's verified AI cover, when its record and retained image still verify; anything else builds anew. */

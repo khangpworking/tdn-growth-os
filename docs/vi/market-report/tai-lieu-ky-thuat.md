@@ -136,6 +136,8 @@ Lượt thu thập thứ hai (v3plug P2, `autorun-scope.ts`): lượt đầu tì
 
 Số thô lưu cùng phiên (v3plug P4b, `metric-capture-intake.ts`): ở bước PREPARE, `raw-responses.json` của lượt thu thập được đối chiếu với mục của nó trong `manifest.files` (sha256 và số byte). Thiếu mục hoặc lệch thì phiên dừng với mã `CAPTURE_RAW_MISMATCH`, không bỏ qua. Trường tài khoản, phiên, token còn sót bị bỏ trước khi lưu; byte đã lưu là byte được băm. Tệp được lưu thành artifact theo nội dung; ngữ cảnh gói `automation-metric-capture-context-v3` ghi `rawResponses` (lượt 1, rồi lượt 2 khi phiên dùng lượt 2; lượt cuối là lượt báo cáo dùng). Ngữ cảnh v1 và v2 cũ không có số thô và vẫn hợp lệ.
 
+Khi dựng báo cáo Market (`service.ts`, `#marketRawSeries`), hệ thống đọc lại artifact số thô mà ngữ cảnh gói ghi (lượt cuối), kiểm sha256 và số byte, chạy `readMarketRawSeries` và đưa kết quả vào các khối số thô của P4 (`market-raw-report.ts`); không đọc thư mục thu thập. Từ khóa, tìm mở rộng và danh mục lấy từ `appliedFilters` của manifest đã lưu trong gói. Bản đồ dấu vết số ghi mã artifact (sha256) và con trỏ JSON trong artifact đó; ngữ nghĩa báo cáo ghi `marketRawResponses` (`automation-market-raw-responses-reference-v1`) với các artifact của lượt 1 và lượt 2. Có `marketRawResponses` thì Reader bỏ giá bán trung bình (`withoutAveragePrice`). Biểu đồ doanh thu theo kỳ vẽ bằng Flint như các biểu đồ Market khác; Flint lỗi thì dùng SVG vẽ tay và ghi `svg-fallback`. Số thô không có số nào của sàn thì báo cáo giữ như cũ.
+
 Quy tắc chọn liên kết Shopee của bộ tự chạy có phiên bản: `autorun-pick-v3`. Bản `autorun-pick-v2` còn giữ để tương thích. Quy tắc chọn tối đa 5 liên kết. Cửa sổ kết quả của Metric là 30 ngày, gồm cả hai đầu.
 
 ## Phần 4. Cờ cấu hình (chỉ tên)
