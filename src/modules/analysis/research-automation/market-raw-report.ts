@@ -20,6 +20,8 @@ export interface MarketRawCapturePeriod {
   readonly captureId: string;
   /** `readMarketRawSeries` output of that capture. */
   readonly series: MarketRawSeries;
+  /** The stored raw-responses content itself, when the caller holds it: the number-trace gate re-reads every pointer in it. */
+  readonly raw?: unknown;
 }
 
 export interface MarketRawReportInput {

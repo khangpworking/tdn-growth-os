@@ -116,6 +116,8 @@ export interface ReaderDraftContext {
   readonly metaAuto?: import('./meta-auto-lane.js').MetaAutoReportView;
   readonly tiktokTopAds?: import('./tiktok-top-ads-lane.js').TikTokTopAdsReportView;
   readonly testReviewSample?: import('./test-review-sample.js').ExactTestReviewContext;
+  /** The draft's raw-response numbers, re-read from the stored artifact the draft used; absent for drafts without them. */
+  readonly marketRaw?: import('./market-raw-report.js').MarketRawReportInput;
   readonly metric:
     | { readonly packageId: string; readonly workbook: Buffer; readonly measurementPeriod: { readonly startDate: string; readonly endDate: string } }
     | { readonly packageId: string; readonly capture: { readonly snapshot: AutomationMetricWebSnapshotV1; readonly snapshotSha256: string; readonly rowPolicy: CaptureRowProfile; readonly relevance?: CaptureRelevanceRecord; readonly truncation: { readonly cap: number; readonly totalShown: number | null; readonly pagesRead: number; readonly rowsRead: number; readonly truncated: boolean } };
@@ -352,7 +354,7 @@ export class AutomationReaderReports {
     }
     const built = await buildMarketReport(data, { ...(context.publicReviewSource ? { publicReviewSource: context.publicReviewSource } : {}), limitations, builtOn: builtOn(at), cover, flint: this.options.flint ?? true, webResults, ...(context.webPageTypes ? { webPageTypes: true as const } : {}), ...(capture ? { captureSource: true, captureRowPolicy: capture.rowPolicy, captureExcludedRows: captureRows?.excluded ?? [] } : {}), ...(context.searchInterest ? { searchInterest: context.searchInterest } : {}), ...(context.searchGeo ? { searchGeo: context.searchGeo } : {}), ...(context.searchGeoCapture ? { searchGeoCapture: context.searchGeoCapture } : {}), ...(context.worldBank ? { worldBank: context.worldBank } : {}), ...(context.comtrade ? { comtrade: context.comtrade } : {}), ...(context.searchAds ? { searchAds: context.searchAds } : {}), ...(context.officialStats ? { officialStats: context.officialStats } : {}), ...(context.pdfDiscovery ? { pdfDiscovery: context.pdfDiscovery } : {}), ...(context.pdfExcerpts?.length ? { pdfExcerpts: context.pdfExcerpts } : {}), ...(context.sellerVideos ? { sellerVideos: context.sellerVideos } : {}), ...(context.metaAds?.length ? { metaAds: context.metaAds } : {}), ...(context.metaAuto ? { metaAuto: context.metaAuto } : {}), ...(context.tiktokTopAds ? { tiktokTopAds: context.tiktokTopAds } : {}), ...(next && context.testReviewSample ? { testReviewSample: context.testReviewSample } : {}),
       // A draft built from stored raw responses prints no revenue ÷ units price; the reader drops it too (owner F118/F119).
-      ...(context.marketSemantic.marketRawResponses ? { withoutAveragePrice: true as const } : {}) });
+      ...(context.marketSemantic.marketRawResponses ? { withoutAveragePrice: true as const } : {}), ...(context.marketRaw ? { marketRaw: context.marketRaw } : {}) });
     // Sample charts require Flint; country-background charts retain their explicit SVG fallback.
     assertFlintCharts(built.charts, this.options.flint ?? true);
     const outcome = await publishMarketRevision(this.db, this.artifacts, { workspaceId: context.workspaceId, runId: context.runId, actorId: actor.actorId,

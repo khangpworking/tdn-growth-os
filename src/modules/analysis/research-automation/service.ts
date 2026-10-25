@@ -2141,10 +2141,12 @@ export class ResearchAutomationService {
       // Reader rows follow the verified draft's frozen row policy for this exact snapshot; drafts before v3 keep v2.
       const draftCapture = isRecord(marketSemantic.metricMethods) ? (marketSemantic.metricMethods as unknown as AutomationMetricMethodSnapshot).capture : undefined;
       const rowPolicy = draftCapture?.snapshotSha256 === rawSnapshotSha256 && draftCapture.rowPolicyVersion === CAPTURE_ROW_PROFILE ? CAPTURE_ROW_PROFILE : CAPTURE_ROW_PROFILE_V2;
+      // The draft's raw-response blocks are rebuilt from the same stored artifact the draft used, never from the capture folder.
+      const marketRaw = await this.#readerMarketRaw(marketSemantic);
       const webCollection = await this.#reportCollection(runId, undefined, false);
       const searchInterest = webCollection?.searchInterest;
       const webResults = webCollection?.sourceEvidence ? admitWebResults(webCollection.sourceEvidence, collectionWebRows(webCollection), await this.#captureRecords(runId), webCollection.sourceEvidence.jevTriage ?? null) : webCollection ? collectionWebRows(webCollection) : [];
-      return { workspaceId, runId, draftPairId: latest.pairId, marketSemantic, ...(marketSemantic.publicReviewSource ? { publicReviewSource: marketSemantic.publicReviewSource as PublicReviewSource } : {}), ...(webCollection?.sourceEvidence?.webPageTypes ? { webPageTypes: true } : {}),
+      return { workspaceId, runId, draftPairId: latest.pairId, marketSemantic, ...(marketRaw ? { marketRaw } : {}), ...(marketSemantic.publicReviewSource ? { publicReviewSource: marketSemantic.publicReviewSource as PublicReviewSource } : {}), ...(webCollection?.sourceEvidence?.webPageTypes ? { webPageTypes: true } : {}),
         ...(scope?.testReviewCap !== undefined && marketSemantic.exactTestReviewSample !== undefined && webCollection?.exactShopee && webCollection.exactShopeeOutcome ? { testReviewSample: {
           scope: { testReviewCap: scope.testReviewCap }, collection: { exactShopee: webCollection.exactShopee, exactShopeeOutcome: webCollection.exactShopeeOutcome },
         } } : {}),
@@ -5248,7 +5250,8 @@ export class ResearchAutomationService {
     const bytes = await this.#readArtifact(used.sha256, MAX_METRIC_CAPTURE_BYTES, 'application/json');
     if (bytes.byteLength !== used.byteSize || createHash('sha256').update(bytes).digest('hex') !== used.sha256)
       throw new ResearchAutomationIntegrityError('Stored raw-responses artifact differs from its capture reference.');
-    const series = readMarketRawSeries(JSON.parse(bytes.toString('utf8')));
+    const raw: unknown = JSON.parse(bytes.toString('utf8'));
+    const series = readMarketRawSeries(raw);
     // Keep available interval revenues even when headline KPIs are missing; captures without either keep the current blocks.
     if (!series.platforms.some(platform => Object.values(platform.kpi).some(value => value.value !== null) ||
       platform.intervals?.some(interval => interval.revenue.value !== null))) return null;
@@ -5256,7 +5259,17 @@ export class ResearchAutomationService {
     const keywords = Array.isArray(filters?.keywords) && filters.keywords.every(keyword => typeof keyword === 'string') ? filters.keywords as string[] : [pinned.capture.keyword];
     const scope: MarketRawReportInput['scope'] = { keywords, smartQuery: typeof filters?.smartQuery === 'boolean' ? filters.smartQuery : null,
       category: typeof filters?.category === 'string' && filters.category.trim() ? { chosen: filters.category } : { chosen: null, note: 'Tìm trong tất cả danh mục.' } };
-    return { input: { periods: [{ captureId: used.sha256, series }], scope }, refs };
+    return { input: { periods: [{ captureId: used.sha256, series, raw }], scope }, refs };
+  }
+
+  /** Raw-response input of a draft that printed the raw blocks; the artifact read must be the one the draft recorded. */
+  async #readerMarketRaw(semantic: Record<string, unknown>): Promise<MarketRawReportInput | undefined> {
+    const recorded = semantic.marketRawResponses as { usedSha256?: unknown } | undefined;
+    if (!recorded || !isRecord(semantic.metricMethods)) return undefined;
+    const loaded = await this.#marketRawSeries(semantic.metricMethods as unknown as AutomationMetricMethodSnapshot);
+    if (!loaded || loaded.input.periods[0]?.captureId !== recorded.usedSha256)
+      throw new ResearchAutomationIntegrityError('Market raw-responses artifact differs from the draft.');
+    return loaded.input;
   }
 
   /** The prior pair's verified AI cover, when its record and retained image still verify; anything else builds anew. */

@@ -86,6 +86,9 @@ export type MarketReportOptions = {
   /** Set when the report has raw-series numbers: no revenue ÷ units price anywhere (owner F118/F119, 23/10/2026).
    * Only the current reader (buildMarketReportV2) reads it; legacy 1.0–1.3 builds never have raw series. */
   withoutAveragePrice?: true;
+  /** The draft's raw-response numbers, read again from the stored artifact: the P4 scope line, KPI cards, platform
+   * split and interval charts print as in the draft. Only the current reader (buildMarketReportV2) reads it. */
+  marketRaw?: import('../research-automation/market-raw-report.js').MarketRawReportInput;
 };
 /** site and published are the page name and date as the search engine shows them; older runs have neither. */
 export type ReaderWebResult = { position: number; title: string; url: string; snippet: string | null; retrievedAt: string; site?: string | null; published?: string | null; origin?: ExpandedSearchKind };
