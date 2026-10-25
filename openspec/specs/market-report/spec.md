@@ -30,11 +30,11 @@ Hàm `auditMarketReportHtml` trong `src/modules/analysis/research-automation/mar
 ## Requirements
 
 ### Requirement: R-M01 Bảng thuật ngữ tiếng Việt đơn giản
-Báo cáo Market SHALL giải thích mọi thuật ngữ khó bằng tiếng Việt đơn giản, trong một bảng thuật ngữ.
+Báo cáo Market SHALL giải thích mọi thuật ngữ khó bằng tiếng Việt đơn giản, trong một bảng thuật ngữ. Danh sách thuật ngữ và cách nhận ra một thuật ngữ SHALL nằm ở một chỗ, dùng chung cho bộ kiểm quy tắc 1 và bảng thuật ngữ của bản đọc: thuật ngữ được nhận ra theo cả từ, không phân biệt hoa thường, khoảng trắng bên trong có thể thiếu.
 
 - Loại kiểm: Máy
-- Mã kiểm: `src/modules/analysis/research-automation/market-14-rules.ts`: `GLOSSARY`, `glossaryHtml`
-- Vì sao: Một trong 14 quy tắc sửa tay của chủ trên báo cáo thạch dừa (05/10/2026). Ngày 12/10/2026 chủ yêu cầu mọi báo cáo Market tự động được thử với đủ 14 quy tắc sửa tay, không chỉ 9 quy tắc của cổng. Ngày 15/10/2026 chủ yêu cầu 14/14 đến từ luồng tự động và đều qua các lần sinh lại. Ngày 19/10/2026 chủ yêu cầu sửa lỗi tự động áp dụng cho cả hệ thống, không chỉnh riêng cho một lần chạy.
+- Mã kiểm: `src/modules/analysis/report-language/glossary.ts`: `MARKET_GLOSSARY`, `glossaryTermPattern`; `src/modules/analysis/research-automation/market-14-rules.ts`: `GLOSSARY`, `glossaryHtml`; `src/modules/analysis/research-automation/market-reader-glossary.ts`: `filterReaderGlossary`
+- Vì sao: Một trong 14 quy tắc sửa tay của chủ trên báo cáo thạch dừa (05/10/2026). Ngày 12/10/2026 chủ yêu cầu mọi báo cáo Market tự động được thử với đủ 14 quy tắc sửa tay, không chỉ 9 quy tắc của cổng. Ngày 15/10/2026 chủ yêu cầu 14/14 đến từ luồng tự động và đều qua các lần sinh lại. Ngày 19/10/2026 chủ yêu cầu sửa lỗi tự động áp dụng cho cả hệ thống, không chỉnh riêng cho một lần chạy. Ngày 24/10/2026 chủ duyệt dùng một danh sách và một cách nhận thuật ngữ (rà kiến trúc c4, lỗi D7), để bộ kiểm và bảng thuật ngữ không quyết định khác nhau.
 
 #### Scenario: Thuật ngữ khó có giải thích
 - **WHEN** báo cáo dùng một thuật ngữ khó
@@ -43,6 +43,14 @@ Báo cáo Market SHALL giải thích mọi thuật ngữ khó bằng tiếng Vi�
 #### Scenario: Thuật ngữ khó không có giải thích
 - **WHEN** báo cáo dùng một thuật ngữ khó mà bảng thuật ngữ không giải thích
 - **THEN** quy tắc R-M01 trượt
+
+#### Scenario: Viết liền vẫn là thuật ngữ
+- **WHEN** báo cáo viết "peerset"
+- **THEN** bộ kiểm quy tắc 1 đòi giải thích "peer set", và bảng thuật ngữ của bản đọc giữ dòng "peer set"
+
+#### Scenario: Thuật ngữ dính số không tính
+- **WHEN** báo cáo viết "P250" và không viết "P25"
+- **THEN** bộ kiểm quy tắc 1 không đòi giải thích "P25", và bảng thuật ngữ của bản đọc bỏ dòng "P25"
 
 ### Requirement: R-M02 Nhãn phần và nhãn bảng phụ lục
 Báo cáo Market SHALL dùng nhãn "Phần n" cho các phần, SHALL NOT để mã M trong thân báo cáo, và phụ lục SHALL dùng nhãn "Bảng PL.x".
@@ -252,11 +260,11 @@ Báo cáo Market SHALL dùng link review đa dạng thương hiệu và SHALL l�
 - **THEN** người đọc soát ghi quy tắc R-M14 trượt
 
 ### Requirement: R-M15 Cổng không nêu tên nhà cung cấp, công cụ, mô hình AI hay Google
-Cổng Market SHALL kiểm rằng báo cáo không nêu tên nhà cung cấp, công cụ, mô hình AI hay "Google". Tên sàn như Shopee thì được.
+Cổng Market SHALL kiểm rằng báo cáo không nêu tên nhà cung cấp, công cụ, mô hình AI hay "Google". Tên sàn như Shopee thì được. Cổng SHALL đọc cả chữ ẩn (hidden, display:none, aria-hidden, alt/title/aria-label của phần tử ẩn), theo R-L01.
 
 - Loại kiểm: Máy
-- Mã kiểm: Cổng `G08_PROVIDER_NAME`: `providerMatches` trong `src/modules/analysis/research-automation/market-business-gate.ts`. Danh sách tên nằm ở `FORBIDDEN_PROVIDER_NAMES`, `CAPTURED_PROVIDER_NAMES` trong `src/modules/analysis/reader-report/lint.ts`
-- Vì sao: Chủ quyết định ngày 05/10/2026: báo cáo không nêu tên nhà cung cấp dữ liệu; tên sàn như Shopee thì được. Ngày 12/10/2026 chủ yêu cầu thử với đủ 14 quy tắc sửa tay, không chỉ 9 quy tắc của cổng.
+- Mã kiểm: Cổng `G08_PROVIDER_NAME`: `providerMatches` trong `src/modules/analysis/research-automation/market-business-gate.ts`. Danh sách tên nằm ở `HIDDEN_NAMES` trong `src/modules/analysis/report-language/hidden-names.ts` (R-L01)
+- Vì sao: Chủ quyết định ngày 05/10/2026: báo cáo không nêu tên nhà cung cấp dữ liệu; tên sàn như Shopee thì được. Ngày 12/10/2026 chủ yêu cầu thử với đủ 14 quy tắc sửa tay, không chỉ 9 quy tắc của cổng. Ngày 24/10/2026 chủ chốt chữ ẩn cũng tính (c4 Q5).
 
 #### Scenario: Chỉ nêu tên sàn
 - **WHEN** chữ nhìn thấy trong báo cáo chỉ nêu "Shopee"
@@ -266,12 +274,16 @@ Cổng Market SHALL kiểm rằng báo cáo không nêu tên nhà cung cấp, c�
 - **WHEN** chữ nhìn thấy trong báo cáo nêu tên một công cụ trong danh sách cấm
 - **THEN** cổng `G08_PROVIDER_NAME` trượt
 
+#### Scenario: Tên trong chữ ẩn
+- **WHEN** báo cáo có `<div hidden>OpenAI</div>`
+- **THEN** cổng `G08_PROVIDER_NAME` trượt
+
 ### Requirement: R-M16 Không có tổng giữa Shopee và TikTok Shop
-Báo cáo Market SHALL NOT có tổng giữa Shopee và TikTok Shop.
+Báo cáo Market SHALL NOT có tổng giữa Shopee và TikTok Shop. Bản nháp (U32) và bản đọc v1.2 (W3) SHALL chặn cùng một danh sách cụm. Bản đọc v1/v1.1 SHALL giữ mảng lint W3 cũ trong claims và vẫn chạy cổng U32.
 
 - Loại kiểm: Máy
-- Mã kiểm: Cổng `U32_NO_CROSS_PLATFORM_TOTAL`: `CROSS_PLATFORM_TOTAL_PHRASES` (trong `src/modules/analysis/research-automation/market-business-gate.ts`)
-- Vì sao: Chủ quyết định ngày 11/10/2026: không có tổng giữa các sàn (U-32).
+- Mã kiểm: Cổng `U32_NO_CROSS_PLATFORM_TOTAL` và lint Reader W3: `crossPlatformTotalMatches` (trong `src/modules/analysis/report-language/cross-platform-total.ts`)
+- Vì sao: Chủ quyết định ngày 11/10/2026: không có tổng giữa các sàn (U-32). Bàn giao 24/10/2026: một danh sách, là hợp của hai danh sách cũ; tổng vẫn bị cấm.
 
 #### Scenario: Hai sàn đứng cạnh nhau
 - **WHEN** báo cáo nêu số của Shopee và số của TikTok Shop riêng từng sàn
@@ -280,6 +292,10 @@ Báo cáo Market SHALL NOT có tổng giữa Shopee và TikTok Shop.
 #### Scenario: Có tổng hai sàn
 - **WHEN** báo cáo nêu một tổng cộng Shopee và TikTok Shop
 - **THEN** cổng `U32_NO_CROSS_PLATFORM_TOTAL` trượt
+
+#### Scenario: Cùng cụm, cùng kết quả ở hai luồng
+- **WHEN** bản nháp hoặc bản đọc viết "tổng cả hai sàn"
+- **THEN** U32 ở bản nháp và W3 ở bản đọc cùng trượt
 
 ### Requirement: R-M17 Không xếp thứ tự theo doanh thu bằng lời cấm
 Báo cáo Market SHALL NOT xếp thứ tự theo doanh thu bằng lời "Thứ tự theo doanh thu" hay "top 3". Chữ "xếp hạng" và "thị phần" SHALL bị cấm, trừ khi câu đó phủ định.
@@ -417,18 +433,18 @@ Chữ nhìn thấy trong báo cáo Market SHALL NOT dùng so sánh cao nhất, �
 - **THEN** cổng `SECTIONS_PRESENT` trượt
 
 ### Requirement: R-M26 Chế độ trình bày có chữ đề xuất trong M12
-Ở chế độ trình bày (presentation), chữ đề xuất trong M12 SHALL có chữ "đề xuất".
+Ở chế độ trình bày (presentation), chữ đề xuất trong M12 SHALL có nhãn "đề xuất, chờ chủ duyệt".
 
 - Loại kiểm: Máy
 - Mã kiểm: Cổng `M12_PROPOSAL_LABEL`: `src/modules/analysis/research-automation/market-business-gate.ts` (chỉ chế độ presentation)
-- Vì sao: Ngày 12/10/2026 chủ yêu cầu thử mọi báo cáo Market tự động với đủ quy tắc, kể cả quy tắc cổng. Chủ cho phép đề xuất ngày 05/10/2026 với nhãn "đề xuất, chờ chủ duyệt" (xem R-M09).
+- Vì sao: Ngày 12/10/2026 chủ yêu cầu thử mọi báo cáo Market tự động với đủ quy tắc, kể cả quy tắc cổng. Chủ cho phép đề xuất ngày 05/10/2026 với nhãn "đề xuất, chờ chủ duyệt" (xem R-M09). Ngày 24/10/2026 (Q4): nhãn đầy đủ ở mọi nơi (R-L14).
 
-#### Scenario: Có chữ đề xuất
-- **WHEN** báo cáo ở chế độ trình bày và mục đề xuất trong M12 có chữ "đề xuất"
+#### Scenario: Có nhãn đầy đủ
+- **WHEN** báo cáo ở chế độ trình bày và mục đề xuất trong M12 có "đề xuất, chờ chủ duyệt"
 - **THEN** cổng `M12_PROPOSAL_LABEL` đạt
 
-#### Scenario: Thiếu chữ đề xuất
-- **WHEN** báo cáo ở chế độ trình bày và một mục đề xuất trong M12 không có chữ "đề xuất"
+#### Scenario: Chỉ có chữ đề xuất
+- **WHEN** báo cáo ở chế độ trình bày và một mục đề xuất trong M12 chỉ có chữ "đề xuất"
 - **THEN** cổng `M12_PROPOSAL_LABEL` trượt
 
 ### Requirement: R-M27 Doanh thu không có đơn vị đếm

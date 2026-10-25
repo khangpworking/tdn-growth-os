@@ -23,9 +23,10 @@ Mã quy tắc (R-M…, R-I…, R-L…) giữ nguyên, để mọi link cũ vẫn
 ## 2. Chưa làm gì (cố ý)
 
 - `semantic-layer/`, `data-sources/`, `decisions/` còn ở `docs/business-spec/` và vẫn là nguồn. Bản chép ở `openspec/reference/` chỉ để tham chiếu. `metrics.md` đã thành spec `report-metrics`; bản gốc vẫn còn.
-- Bước 5 và 6 của mục 4 (kiểm thử liên kết spec, job CI chống lệch) chưa làm. Đó là mã, thuộc PR 0 của phiên mã kiến trúc.
+- Bước 5 và 6 của mục 4 (kiểm thử liên kết spec, job CI chống lệch) đã xong ở PR #375.
 - Không đổi mã app, không đổi kiểm thử, không triển khai.
 - Hai change đang chờ chủ (`market-owner-decisions-2210`, `report-ranking-words`) còn câu "sửa `docs/business-spec/business-rules/*.md`" trong `tasks.md`. Các file đó nay là stub. Khi change được duyệt, sửa spec trong `openspec/specs/` thay cho file stub.
+- `market-owner-decisions-2210` viết lại R-M16 và R-L04 từ bản trước c2. Ngày 25/10/2026, spec chính đã nhận mã kiểm mới của c2 (`crossPlatformTotalMatches` trong `src/modules/analysis/report-language/cross-platform-total.ts`). Change này đã được cập nhật theo: thêm lại 2 ca «cùng một danh sách cụm» (theo luật mới) và dòng «Mã kiểm» mới. Khi làm code cho change này, sửa dòng «Mã kiểm» theo mã lúc đó.
 
 ## 3. Trong giai đoạn chuyển
 

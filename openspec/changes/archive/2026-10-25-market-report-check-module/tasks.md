@@ -11,11 +11,11 @@
 
 ## 2. Kiểm thử (phiên khác người viết mã)
 
-- [ ] 2.1 Ca theo dòng hợp đồng cho chỗ kiểm mới, mỗi ca có một ca đối chứng âm
+- [x] 2.1 Ca theo dòng hợp đồng cho chỗ kiểm mới, mỗi ca có một ca đối chứng âm
 - [x] 2.2 Kiểm thử c2 PR1 và kiểm thử cổng, 14 quy tắc chạy qua, không sửa
 - [x] 2.3 Kết quả trên báo cáo thật đã giữ không đổi (khác biệt 0 dòng)
-- [ ] 2.4 CI Linux xanh tại SHA cuối
+- [x] 2.4 CI Linux xanh tại SHA cuối
 
 ## 3. Sau khi gộp
 
-- [ ] 3.1 `/opsx:archive` change này; spec `report-pipeline` nhận dòng mã mới của R-P07, R-P08
+- [x] 3.1 `/opsx:archive` change này; spec `report-pipeline` nhận dòng mã mới của R-P07, R-P08

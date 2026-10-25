@@ -15,4 +15,4 @@
 
 ## 3. Sau khi gộp
 
-- [ ] 3.1 `/opsx:archive` change này; spec `market-report` nhận R-M01 mới
+- [x] 3.1 `/opsx:archive` change này; spec `market-report` nhận R-M01 mới

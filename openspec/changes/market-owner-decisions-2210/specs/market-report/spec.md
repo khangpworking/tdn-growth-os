@@ -23,7 +23,7 @@ Báo cáo Market SHALL trình bày con số là số trong mẫu và ghi n; SHAL
 Báo cáo Market MAY nêu tổng giữa Shopee và TikTok Shop, nhưng mỗi tổng SHALL có nhãn «Cộng 2 sàn», SHALL có số của từng sàn đứng cạnh, và SHALL đạt R-M18 (không tổng thiếu thành viên).
 
 - Loại kiểm: Máy
-- Mã kiểm: cổng `U32_NO_CROSS_PLATFORM_TOTAL` trong `src/modules/analysis/research-automation/market-business-gate.ts` đổi nghĩa: trượt khi tổng hai sàn thiếu nhãn hoặc thiếu số từng sàn. Chưa có mã kiểm cho luật mới.
+- Mã kiểm: cổng `U32_NO_CROSS_PLATFORM_TOTAL` và lint Reader W3, cùng gọi `crossPlatformTotalMatches` (`src/modules/analysis/report-language/cross-platform-total.ts`), đổi nghĩa: trượt khi tổng hai sàn thiếu nhãn hoặc thiếu số từng sàn. Chưa có mã kiểm cho luật mới.
 - Vì sao: chủ 22/10/2026, «giờ tôi cho phép cộng như metric» (F100), thay U-32 ngày 11/10/2026. Chủ muốn con số tổng quen thuộc của trang gốc, cộng thêm phần tách từng sàn của ta.
 - Ghi chú: tiêu đề requirement giữ chữ cũ để khớp spec gốc; khi archive, đổi tên thành "R-M16 Tổng hai sàn có nhãn và số từng sàn".
 
@@ -42,6 +42,10 @@ Báo cáo Market MAY nêu tổng giữa Shopee và TikTok Shop, nhưng mỗi t�
 #### Scenario: Một sàn thiếu số
 - **WHEN** TikTok Shop thiếu số doanh thu của kỳ
 - **THEN** báo cáo không nêu ô «Cộng 2 sàn» cho doanh thu, và cổng `PARTIAL_TOTAL_FORBIDDEN` (R-M18) trượt nếu ô đó có mặt
+
+#### Scenario: Cùng cụm, cùng kết quả ở hai luồng
+- **WHEN** bản nháp hoặc bản đọc viết "tổng cả hai sàn" mà không có nhãn «Cộng 2 sàn» và không có số từng sàn đứng cạnh
+- **THEN** U32 ở bản nháp và W3 ở bản đọc cùng trượt
 
 ## ADDED Requirements
 

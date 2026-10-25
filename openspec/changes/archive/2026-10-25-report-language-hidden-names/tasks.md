@@ -18,5 +18,5 @@
 
 ## 3. Sau khi gộp
 
-- [ ] 3.1 Chủ viết «deploy <SHA>» rồi mới triển khai
-- [ ] 3.2 `/opsx:archive` change này; spec nhận R-L01, R-M15 mới và R-I29
+- [x] 3.1 Chủ viết «deploy <SHA>» rồi mới triển khai
+- [x] 3.2 `/opsx:archive` change này; spec nhận R-L01, R-M15 mới và R-I29
