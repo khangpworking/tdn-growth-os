@@ -7,6 +7,7 @@ import { buildResearchAutomationReport } from '../../src/modules/analysis/resear
 import { buildLocatedInsightMethods } from '../../src/modules/analysis/located-insight-methods.js';
 import { locatedInsightFixture } from '../helpers/located-insight-fixture.js';
 import type { InsightSourceBinding } from '../../contracts/analysis/automation-insight-coding.generated.js';
+import type { AutomationInsightReportRevisionRequest } from '../../contracts/analysis/automation-insight-report-revision.generated.js';
 import { projectPublicInsightSource } from '../../src/modules/analysis/research-automation/public-insight-source.js';
 import { tiktokShopChannelDecision, type AutomationTikTokShopReviews } from '../../src/modules/analysis/research-automation/tiktok-shop-reviews.js';
 import { codingApi, publicCodingFixture, sha, workspaceId, runId } from '../helpers/public-insight-coding-fixture.js';
@@ -18,6 +19,11 @@ const modelRequest = (binding: InsightSourceBinding) => ({ contractVersion: 'ins
 const receiptRequest = (proposal: { evidenceId: string; sha256: string }) => ({ contractVersion: 'insight-coding-accept-v1', requestKey: randomUUID(),
   proposalId: proposal.evidenceId, proposalSha256: proposal.sha256,
   selection: { contractVersion: 'automation-insight-selection-v2', i02: [], i04: [], i05: [0], i06: [], i07: [], i08: [], i09: [], i13Mentions: [], corpora: [] } });
+const defaultRevisionRequest = (pairId: string, proposal: { evidenceId: string; sha256: string }) => ({
+  contractVersion: 'automation-insight-default-report-revision-v1' as const, requestKey: randomUUID(), previousPairId: pairId,
+  sources: { metric: { decision: 'KEEP' as const }, nativeReview: { decision: 'KEEP' as const } },
+  defaultInsight: { contractVersion: 'insight-default-draft-select-v1' as const, proposalId: proposal.evidenceId, proposalSha256: proposal.sha256 },
+});
 const successfulView = async (api: Awaited<ReturnType<typeof codingApi>>, pairId?: string) => {
   const result = await api.get(pairId); assert.equal(result.status, 200, JSON.stringify(result.body)); return result.body;
 };
@@ -166,7 +172,7 @@ const cases: { row: number; name: string; run: (t: TestContext) => Promise<void>
     const api = await codingApi(t, f), view = await successfulView(api);
     assert.equal(view.context.binding.sourceKind, 'PUBLIC_REVIEWS'); assert.equal(view.context.input.records.length, 4);
   } },
-  { row: 13, name: 'report rejects a PUBLIC_REVIEWS snapshot with native source input', async run(t: TestContext) {
+  { row: 13, name: 'report rejects every PUBLIC_REVIEWS snapshot with or without native source input', async run(t: TestContext) {
     const f = await publicCodingFixture(t, { source: 'NATIVE' });
     const input = f.collectedInputs.find(input => input.nativeReview)!;
     const snapshot: AutomationInsightCodingAcceptedSnapshot = { contractVersion: 'automation-insight-coding-snapshot-v1',
@@ -175,10 +181,14 @@ const cases: { row: number; name: string; run: (t: TestContext) => Promise<void>
       selection: { proposalId: '33333333-3333-4333-8333-333333333333', receiptIds: ['55555555-5555-4555-8555-555555555555'] },
       receipts: [{ receiptId: '55555555-5555-4555-8555-555555555555', sha256: '7'.repeat(64) }],
       adoptionId: '44444444-4444-4444-8444-444444444444', proposalSha256: '6'.repeat(64), output: buildLocatedInsightMethods(locatedInsightFixture()).output };
-    // The renderer guard owns only source-kind compatibility, not source verification.
-    // Reuse a real native snapshot from the report fixture rather than inventing a source shape.
+    // This direct builder input covers defence in depth; row 18 covers verified selection and persistence.
     assert.ok(input.nativeReview);
-    assert.throws(() => buildResearchAutomationReport({ ...input, insightCoding: snapshot }, 'INSIGHT'), /Report insight coding source kind mismatch/);
+    const { nativeReview, nativeReviewFallback, ...withoutNative } = input;
+    for (const reportInput of [input, withoutNative]) {
+      assert.throws(() => buildResearchAutomationReport({ ...reportInput, insightCoding: snapshot }, 'INSIGHT'), {
+        message: 'Public review coding is not yet supported in reports',
+      });
+    }
   } },
   { row: 14, name: 'KEEP revision preserves the public corpus and receipt-free default proposal lifecycle', async run(t) {
     const f = await publicCodingFixture(t, { s06: true }), base = await f.context(), next = await f.revise(), api = await codingApi(t, f);
@@ -230,6 +240,96 @@ const cases: { row: number; name: string; run: (t: TestContext) => Promise<void>
       previousProposalId: proposal.evidenceId, previousProposalSha256: proposal.sha256 });
     assert.equal(result.status, 409); assert.equal(result.body.error.code, 'revision_conflict'); assert.equal(api.modelCalls(), 1);
     assert.equal((await f.service.getRun(workspaceId, runId)).status, 'DRAFT_READY');
+  } },
+  { row: 18, name: 'PUBLIC_REVIEWS default, draft and accepted report revisions reject before any commit, including retry', async run(t) {
+    const f = await publicCodingFixture(t, { s06: true }), api = await codingApi(t, f), view = await successfulView(api);
+    assert.equal(view.context.binding.sourceKind, 'PUBLIC_REVIEWS');
+    const proposed = await api.post('insight-coding-default-model-proposals', modelRequest(view.context.binding));
+    assert.equal(proposed.status, 201, JSON.stringify(proposed.body));
+    const fresh = await successfulView(api);
+    const proposal = fresh.evidence.find((row: any) => row.evidenceId === proposed.body.proposal.evidenceId);
+    assert.ok(proposal);
+
+    const rejectedWithoutWrites = async (request: AutomationInsightReportRevisionRequest) => {
+      const versions = await f.service.listReportVersions(workspaceId, runId);
+      const attempts = f.db.prepare('SELECT * FROM analysis_research_automation_attempts WHERE run_id=?').all(runId);
+      for (let retry = 0; retry < 2; retry++) {
+        // HTTP intentionally masks conflict messages; the owning service preserves the precise reason.
+        noSource(await api.post('report-revisions', request));
+        await assert.rejects(f.service.requestReportRevision(workspaceId, runId, request), {
+          code: 'invalid_state', message: 'Public review coding is not yet supported in reports.',
+        });
+        assert.deepEqual(f.db.prepare('SELECT * FROM analysis_research_automation_attempts WHERE run_id=?').all(runId), attempts);
+        assert.deepEqual(await f.service.listReportVersions(workspaceId, runId), versions);
+        assert.equal(f.db.prepare('SELECT 1 FROM analysis_research_automation_attempt_requests WHERE request_key=?').get(request.requestKey), undefined);
+      }
+    };
+    await rejectedWithoutWrites(defaultRevisionRequest(f.pair.pairId, proposal));
+
+    // Legacy selections need a real owner-adopted proposal and receipt; default proposals cannot be accepted.
+    const adopted = await api.post('insight-coding-adoptions', { contractVersion: 'insight-coding-adopt-v1', requestKey: randomUUID(),
+      binding: view.context.binding, rules: { ruleId: 'synthetic-public-rules-v1', revision: 1, question: 'Which opinions are stated?',
+        inclusionRule: 'Included synthetic records', adjudicationRule: 'Leave disagreements pending', corpora: [] } });
+    assert.equal(adopted.status, 201, JSON.stringify(adopted.body));
+    const authored = await api.post('insight-coding-proposals', { contractVersion: 'insight-coding-propose-v1', requestKey: randomUUID(),
+      adoptionId: adopted.body.evidenceId, previousProposalId: null, annotations: proposal.request.annotations });
+    assert.equal(authored.status, 201, JSON.stringify(authored.body));
+    const authoredView = await successfulView(api);
+    const authoredProposal = authoredView.evidence.find((row: any) => row.evidenceId === authored.body.evidenceId);
+    assert.ok(authoredProposal);
+    const common = { contractVersion: 'automation-insight-report-revision-v1' as const, previousPairId: f.pair.pairId,
+      sources: { metric: { decision: 'KEEP' as const }, nativeReview: { decision: 'KEEP' as const } } };
+    for (const contractVersion of ['insight-draft-select-v1', 'insight-draft-select-v2'] as const) {
+      await rejectedWithoutWrites({ ...common, requestKey: randomUUID(), draftInsight: { contractVersion, proposalId: authoredProposal.evidenceId } });
+    }
+    const accepted = await api.post('insight-coding-receipts', receiptRequest(authoredProposal));
+    assert.equal(accepted.status, 201, JSON.stringify(accepted.body));
+    await rejectedWithoutWrites({ ...common, requestKey: randomUUID(),
+      acceptedInsight: { proposalId: authoredProposal.evidenceId, receiptIds: [accepted.body.evidenceId] } });
+    assert.equal(api.modelCalls(), 1);
+  } },
+  { row: 19, name: 'NATIVE default report revision commits and replays the main-branch draft contract', async run(t) {
+    const f = await publicCodingFixture(t, { source: 'NATIVE' }), api = await codingApi(t, f), view = await successfulView(api);
+    assert.equal(view.context.binding.sourceKind, 'NATIVE');
+    const original = await f.service.readReport(workspaceId, runId, 'INSIGHT', false, f.pair.pairId);
+    const proposed = await api.post('insight-coding-default-model-proposals', modelRequest(view.context.binding));
+    assert.equal(proposed.status, 201, JSON.stringify(proposed.body));
+    const fresh = await successfulView(api);
+    const proposal = fresh.evidence.find((row: any) => row.evidenceId === proposed.body.proposal.evidenceId);
+    assert.ok(proposal);
+    const request = defaultRevisionRequest(f.pair.pairId, proposal);
+    const revision = await api.post('report-revisions', request);
+    assert.equal(revision.status, 202, JSON.stringify(revision.body));
+    let attempt = await f.service.getReportRevision(workspaceId, runId, revision.body.attemptId);
+    for (let i = 0; i < 200 && attempt.state !== 'COMMITTED'; i++) {
+      assert.notEqual(attempt.state, 'FAILED', JSON.stringify(attempt));
+      await new Promise(resolve => setTimeout(resolve, 10));
+      attempt = await f.service.getReportRevision(workspaceId, runId, revision.body.attemptId);
+    }
+    assert.equal(attempt.state, 'COMMITTED', JSON.stringify(attempt));
+    const versions = await f.service.listReportVersions(workspaceId, runId);
+    assert.equal(versions.length, 2);
+    const next = versions[1]!;
+    assert.equal(next.attemptId, revision.body.attemptId);
+    const report = await f.service.readReport(workspaceId, runId, 'INSIGHT', false, next.pairId);
+    const semantic = JSON.parse((await f.artifacts.read(report.versionId)).toString());
+    // Pinned to the paid-source default contract on origin/main (c9bbbb95), not the new free-source policy.
+    assert.equal(semantic.rendererVersion, 'automation-report-kit-v21');
+    assert.equal(semantic.insightCoding.contractVersion, 'automation-insight-coding-snapshot-v4');
+    assert.equal(semantic.insightCoding.binding.sourceKind, 'NATIVE');
+    assert.deepEqual(semantic.insightCoding.draftSelection, request.defaultInsight);
+    assert.deepEqual(semantic.insightCoding.selection, { proposalId: proposal.evidenceId, receiptIds: [] });
+    assert.deepEqual(semantic.insightCoding.receipts, []);
+    assert.match(report.bytes.toString(), /Quy tắc và bộ mã là đề xuất/);
+    assert.match(report.bytes.toString(), /đề xuất, chờ chủ duyệt/);
+    const replay = await api.post('report-revisions', request);
+    assert.equal(replay.status, 200, JSON.stringify(replay.body));
+    assert.equal(replay.body.exactRetry, true);
+    assert.equal(replay.body.attemptId, revision.body.attemptId);
+    assert.deepEqual(await f.service.listReportVersions(workspaceId, runId), versions);
+    assert.deepEqual(await f.service.readReport(workspaceId, runId, 'INSIGHT', false, next.pairId), report);
+    assert.deepEqual(await f.service.readReport(workspaceId, runId, 'INSIGHT', false, f.pair.pairId), original);
+    assert.equal(api.modelCalls(), 1);
   } },
 ];
 
