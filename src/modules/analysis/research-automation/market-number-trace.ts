@@ -40,7 +40,7 @@ const APPENDIX_CLASSES: ReadonlySet<string> = new Set(['citation-register', 'evi
 export const MARKET_TRACE_ALLOWED: Readonly<Record<string, string>> = {
   'section-label': 'section number of the report template («Phần 3», «Phụ lục 1»)',
   'exhibit-label': 'figure and table numbers given at delivery («Hình 4.1», «Bảng 3.1»)',
-  'row-label': 'row label of the stored sample table («Dòng 3»)',
+  'row-label': 'row label of the stored sample table («Dòng 3») or the ordinal of an unnamed row («Sản phẩm #2», «Gian hàng #2»)',
   citation: 'citation numbers and source-register entries',
   'axis-tick': 'axis scale mark placed by the chart engine; the plotted values are traced in the table or text beside it',
   'index-scale': 'fixed 0–100 scale of the search-interest index',
@@ -54,6 +54,7 @@ const LABELS: readonly (readonly [RegExp, string])[] = [
   [/(?:Phần|Phụ lục)\s+\d+/gu, 'section-label'],
   [/(?:Hình|Bảng)\s+\d+(?:\.\d+)*/gu, 'exhibit-label'],
   [/Dòng\s+\d+/gu, 'row-label'],
+  [/(?:Sản phẩm|Gian hàng) #\d+/gu, 'row-label'],
   [/mục nguồn\s+\d+/gu, 'citation'],
   [/0–100/gu, 'index-scale'],
   [/\b(?:1|3|5|10) (?:sản phẩm|gian hàng) doanh thu cao/gu, 'top-group'],
