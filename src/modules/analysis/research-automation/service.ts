@@ -133,7 +133,7 @@ import { AutomationInsightCrosscheck } from './insight-crosscheck.js';
 import type { InsightCrosscheckSnapshot, InsightCrosscheckSelection } from '../../../../contracts/analysis/automation-insight-crosscheck.generated.js';
 import { projectPrivateInsightSource } from './private-insight-source.js';
 import type { PrivateInsightSourceProjection } from '../../../../contracts/analysis/private-insight-source-projection.generated.js';
-import { AutomationInsightCoding, type InsightSourceContext, type InsightCodingSourceContext } from './insight-coding.js';
+import { AutomationInsightCoding, rejectPublicReviewsInReport, type InsightSourceContext, type InsightCodingSourceContext } from './insight-coding.js';
 import type { AutomationMetricRuleAdoptionList, AutomationMetricRuleAdoptionReceipt } from '../../../../contracts/analysis/automation-metric-rule-adoption.generated.js';
 import { readPreparedMetricSources } from './metric-source-inventory.js';
 import { AutomationReaderReports, type ReaderDraftContext, type ReaderRowsReader } from './reader-report-revisions.js';
@@ -2951,6 +2951,7 @@ export class ResearchAutomationService {
       response.snapshot.request.binding.pairId !== pairId || response.snapshot.request.firstProposalId !== selection.firstProposalId ||
       response.snapshot.request.firstProposalSha256 !== selection.firstProposalSha256)
       throw new ResearchAutomationIntegrityError('Selected crosscheck differs from retained proposal/source/output.');
+    rejectPublicReviewsInReport(response.snapshot.request.binding);
     if (current && (await this.listReportVersions(workspaceId, runId)).at(-1)?.pairId !== pairId)
       throw new ResearchAutomationConflictError('revision_conflict', 'Crosscheck report parent changed.');
     return response.snapshot;

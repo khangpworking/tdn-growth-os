@@ -65,6 +65,15 @@ const MAX_VIEW_BYTES = 32 * 1024 * 1024;
 function invalid(): never { throw new ResearchAutomationValidationError('Invalid source-bound Insight coding request.'); }
 function corrupt(): never { throw new ResearchAutomationIntegrityError('Insight coding evidence failed verification.'); }
 function conflict(): never { throw new ResearchAutomationConflictError('revision_conflict', 'Insight source, rules or proposal changed. Reload before confirming.'); }
+/**
+ * PUBLIC_REVIEWS (free Shopee reviews + S06) is coding only in this package. A report would need per-platform counts,
+ * text-free rendering and the S06 channel gate first; until then every report snapshot of that kind fails closed,
+ * before any revision row is written.
+ */
+export const PUBLIC_REVIEWS_NOT_IN_REPORTS = 'Public review coding is not yet supported in reports.';
+export function rejectPublicReviewsInReport(binding: { sourceKind: string }): void {
+  if (binding.sourceKind === 'PUBLIC_REVIEWS') throw new ResearchAutomationConflictError('invalid_state', PUBLIC_REVIEWS_NOT_IN_REPORTS);
+}
 function tooLarge(): never { throw new ResearchAutomationConflictError('invalid_state', 'Insight coding history exceeds the bounded pair view.'); }
 type Evidence = InsightCodingEvidence | InsightDefaultCodingEvidence | InsightPrivateDefaultCodingEvidence;
 type DefaultRule = InsightDefaultRuleRequest | InsightPrivateDefaultRuleRequest;
@@ -492,6 +501,7 @@ export class AutomationInsightCoding {
   async reportDefaultDraftSnapshot(workspaceId: string, runId: string, pairId: string, draft: InsightDefaultDraftSelection, current = false): Promise<AutomationInsightCodingDefaultDraftSnapshot | AutomationInsightCodingPrivateDefaultDraftSnapshot> {
     const proposal = await this.read(draft.proposalId, workspaceId, runId);
     if (!isDefaultProposal(proposal.request) || hash(proposal) !== draft.proposalSha256) invalid();
+    rejectPublicReviewsInReport(proposal.binding);
     if (proposal.binding.pairId !== pairId) conflict();
     if (current) await this.options.assertCurrent(proposal.binding);
     const context = await this.context(workspaceId, runId, pairId);
@@ -676,6 +686,7 @@ export class AutomationInsightCoding {
   /** A report freezes exactly the selected receipts, not all receipts saved later. */
   async reportSnapshot(workspaceId: string, runId: string, pairId: string, selection: InsightReportSelection, current = false): Promise<AutomationInsightCodingAcceptedSnapshot> {
     const resolved = await this.resolve(workspaceId, runId, selection.proposalId, selection.receiptIds);
+    rejectPublicReviewsInReport(resolved.binding);
     if (resolved.binding.pairId !== pairId) conflict();
     if (current) {
       await this.currentAdoption(resolved.adoption);
@@ -725,6 +736,7 @@ export class AutomationInsightCoding {
   /** A report freezes exactly the named draft proposal with zero receipts, not an implicit latest. */
   async reportDraftSnapshot(workspaceId: string, runId: string, pairId: string, draft: InsightDraftSelection, current = false): Promise<AutomationInsightCodingDraftSnapshot | AutomationInsightCodingFamilyDraftSnapshot> {
     const resolved = await this.resolveDraftProposal(workspaceId, runId, draft.proposalId, draft.contractVersion);
+    rejectPublicReviewsInReport(resolved.binding);
     if (resolved.binding.pairId !== pairId) conflict();
     if (current) {
       await this.currentAdoption(resolved.adoption);
