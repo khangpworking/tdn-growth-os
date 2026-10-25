@@ -1475,10 +1475,19 @@ export class ResearchAutomationService {
     return Number.isSafeInteger(rawCap) && rawCap >= 0 ? Math.min(rawCap, 100) : 0;
   }
 
+  /**
+   * Planning slots for PageIndex questions: none unless the run has a Market report. Insight sections still hold their
+   * slots so every Market question keeps today's PDF and cap position, but only Market questions are asked
+   * (the plan filter in `#processRunPdfs`): the report keeps Market quotes only.
+   */
+  #pageIndexPlanSections(reports: readonly string[]): readonly string[] {
+    return reports.includes('MARKET') ? PAGEINDEX_ELIGIBLE_SECTIONS.filter(id => reports.includes(id.startsWith('M') ? 'MARKET' : 'INSIGHT')) : [];
+  }
+
   /** Each existing PDF consumes a full section plan before another PDF can get its first question. */
   #remainingCapturePdfSlots(runId: string, reports: readonly string[]): number {
     if (!this.#pageIndexEnabled()) return 0;
-    const sections = PAGEINDEX_ELIGIBLE_SECTIONS.filter(id => reports.includes(id.startsWith('M') ? 'MARKET' : 'INSIGHT')).length;
+    const sections = this.#pageIndexPlanSections(reports).length;
     return sections ? Math.max(0, Math.ceil(this.#pageIndexQuestionCap() / sections) - this.#runPdfs(runId).length) : 0;
   }
 
@@ -1809,9 +1818,10 @@ export class ResearchAutomationService {
     const note = (sha256: string, state: PageIndexDocumentReadState): void => { if (!readings.has(sha256)) readings.set(sha256, state); };
     // Owner uploads are planned first, so automatic PDFs never take the cap from them.
     const files = orderRunPdfsForQuestions(this.#runPdfs(runId));
-    const sections = PAGEINDEX_ELIGIBLE_SECTIONS.filter(id => reports.includes(id.startsWith('M') ? 'MARKET' : 'INSIGHT'));
     const cap = this.#pageIndexQuestionCap();
-    const plan = planPageIndexQuestions({ sections, pdfCount: files.length, maxPerRun: cap });
+    // An empty plan (no Market report or no PDF) sends nothing and asks nothing; each file is noted NO_QUESTION_PLANNED.
+    const plan = planPageIndexQuestions({ sections: this.#pageIndexPlanSections(reports), pdfCount: files.length, maxPerRun: cap })
+      .filter(question => question.sectionId.startsWith('M'));
     const reader = new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts });
     const local = new Map<number, { bytes: Buffer; pages: readonly PageIndexLocalPage[] }>();
     const prepare = async (index: number, file: RunPdfRow, bytes: Uint8Array): Promise<void> => {
