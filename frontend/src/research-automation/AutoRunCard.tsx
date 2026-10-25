@@ -51,7 +51,7 @@ export default function AutoRunCard({ workspaceId, run, ownerToken, writesAvaila
   };
   return <section className="ra-block" aria-labelledby="ra-autorun-title" data-autorun-phase={autoRun.phase}>
     <h3 id="ra-autorun-title">Phần tự động</h3>
-    <p role="status">{autoRunText(autoRun)}</p>
+    <p role="status">{autoRunText(autoRun, run.reports)}</p>
     {showLinks && <p className="ra-muted">{autoRunLinksText(autoRun.linksFound ?? 0)}</p>}
     {autoRun.canRetry && <div className="ra-actions">
       <button type="button" className="button" disabled={!canWrite || pending} onClick={() => void retry()}>{pending ? 'Đang gửi yêu cầu…' : AUTORUN_RETRY_LABEL}</button>

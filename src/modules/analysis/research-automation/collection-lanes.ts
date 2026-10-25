@@ -75,6 +75,8 @@ export interface CollectionRunContext {
   readonly mode: string;
   /** The reports the run asks for (the population baseline reads only for INSIGHT runs). */
   readonly reports: readonly string[];
+  /** The run asks for the Market report (the report-PDF lane's fact); without it the Market-only lanes attempt nothing. */
+  readonly market: boolean;
   readonly requestedPeriod: { readonly startDate: string; readonly endDate: string };
   /** Product titles of the product-source result. */
   readonly productTitles: () => string[];
@@ -630,6 +632,10 @@ export function collectionLanes(sources: CollectionLaneSources): readonly Collec
   ];
 }
 
+// Lanes whose output only the Market report reads (owner Q2): an Insight-only run attempts none of them, so they make no
+// provider or model call and leave no document, usage row or capture, like a source that is off.
+const MARKET_ONLY: ReadonlySet<CollectionLaneName> = new Set(['trends', 'geo', 'worldBank', 'comtrade', 'searchAds', 'officialStats', 'metaAuto', 'tiktokTopAds']);
+
 /**
  * Attempts each lane in order; COLLECTION only (QUICK_SEARCH runs none) and never after the run was aborted. Each lane
  * sees what the earlier lanes produced.
@@ -637,7 +643,7 @@ export function collectionLanes(sources: CollectionLaneSources): readonly Collec
 export async function attemptCollectionLanes(lanes: readonly CollectionLane[], stepId: SourceStepId, context: CollectionRunContext, signal: AbortSignal): Promise<CollectionLaneRun[]> {
   const runs: CollectionLaneRun[] = [];
   const laneContext: CollectionLaneContext = { ...context, webUrls: () => earlierWebUrls(runs) };
-  for (const item of lanes) if (stepId === 'COLLECTION' && !signal.aborted) {
+  for (const item of lanes) if (stepId === 'COLLECTION' && !signal.aborted && (context.market || !MARKET_ONLY.has(item.name))) {
     const run = await item.attempt(laneContext, signal, [...runs]);
     if (run) runs.push(run);
   }

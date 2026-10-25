@@ -17,7 +17,7 @@ import { syntheticTrendsSource } from '../helpers/search-interest-synthetic.js';
 import { syntheticGeoSource } from '../helpers/search-geo-synthetic.js';
 
 const context: CollectionLaneContext = {
-  keyword: 'synthetic product', description: null, mode: 'CATEGORY', reports: ['MARKET'],
+  keyword: 'synthetic product', description: null, mode: 'CATEGORY', reports: ['MARKET'], market: true,
   requestedPeriod: { startDate: '2025-10-01', endDate: '2026-09-30' },
   productTitles: () => [], webUrls: () => [], readPick: async () => null,
 };

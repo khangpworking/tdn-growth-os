@@ -48,6 +48,45 @@ test('local metadata reader reads the embedded title and never returns a truncat
   assert.equal(await readPageIndexPdfTitle(pdfFixture('Báo cáo ngành '.repeat(30) + '.pdf')), null);
 });
 
+test('Q2 O1: enabled PageIndex retains Insight-only attachments locally and indexes runs with Market', async t => {
+  const cases: ('MARKET' | 'INSIGHT')[][] = [['INSIGHT'], ['MARKET'], ['MARKET', 'INSIGHT']];
+  for (const reports of cases) await t.test(reports.join('+'), async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-pageindex-reports-'));
+    const opened = openDatabase({ databasePath: path.join(root, 'db.sqlite') });
+    try {
+      const db = opened.db; const artifacts = new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
+      const discovery = new DiscoveryWorkspaceService({ db, artifactStore: artifacts, uuid: () => workspaceId, now: fixedNow });
+      await discovery.createWorkspace({ contractVersion: '1.0.0', workspaceKey: 'pageindex-reports', title: 'Synthetic report selection' });
+      const bytes = pdfFixture(); const requests: string[] = []; const uploaded: { name: string; bytes: Buffer }[] = [];
+      const service = new ResearchAutomationService({ db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discovery), now: fixedNow,
+        pageIndex: { enabled: true, apiKey: 'synthetic-pdf-key', startingCreditMicroDollars: 10_000_000,
+          extractPdf: async () => [{ page: 1, text: 'Synthetic local verifier' }],
+          fetch: async (url, init) => {
+            const pathname = new URL(String(url)).pathname; requests.push(pathname);
+            if (pathname === '/doc/') {
+              const file = (init?.body as FormData).get('file') as File;
+              uploaded.push({ name: file.name, bytes: Buffer.from(await file.arrayBuffer()) });
+              return Response.json({ id: 'pi-reports', name: 'fixture.pdf', pageNum: 1, status: 'processing' });
+            }
+            if (pathname === '/doc/pi-reports/metadata') return Response.json({ id: 'pi-reports', name: 'fixture.pdf', pageNum: 1, status: 'completed' });
+            throw new Error('Unexpected connector request');
+          } } });
+      const receipt = await service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: '33333333-3333-4333-8333-333333333333',
+        mode: 'CATEGORY', keyword: 'synthetic PDF', requestedPeriod: { startDate: '2026-09-01', endDate: '2026-09-30' }, reports });
+      await service.processNext();
+      const states = await service.attachRunPdf(workspaceId, receipt.run.runId, 'fixture.pdf', bytes);
+      const market = reports.includes('MARKET');
+      assert.deepEqual(requests, market ? ['/doc/', '/doc/pi-reports/metadata'] : [], 'Insight-only intake makes no upload or status call');
+      assert.deepEqual(uploaded, market ? [{ name: 'fixture.pdf', bytes }] : [], 'Market upload keeps the exact file name and bytes');
+      assert.equal(states.documents.length, 1);
+      assert.deepEqual(await artifacts.read(states.documents[0]!.sourceSha256), bytes, 'all report selections retain the exact local PDF');
+      if (market) assert.equal(states.documents[0]!.state, 'READY');
+      else assert.equal(db.prepare('SELECT 1 FROM analysis_pageindex_documents').get(), undefined, 'skipped indexing writes no failure or cost ledger row');
+      assert.equal((await service.getRun(workspaceId, receipt.run.runId)).status, 'AWAITING_SCOPE', 'attachment never fails the run');
+    } finally { opened.db.close(); await fs.rm(root, { recursive: true, force: true }); }
+  });
+});
+
 // The service owns attachment, indexing, local verification and artifact persistence;
 // only HTTP responses are fake, so the fixture cannot supply missing wiring.
 test('fixture run indexes attached PDF once, persists verified quotes and exposes live stored states', async () => {

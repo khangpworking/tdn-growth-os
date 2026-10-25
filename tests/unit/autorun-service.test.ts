@@ -44,6 +44,54 @@ test('happy path: capture, prepare, pick and confirm with SKIP review, then PRES
   assert.equal(manifest?.mediaType, 'application/json', 'pick record is a registered content-addressed artifact');
 });
 
+test('Q2 rows 1 and 3: Insight-only confirms picked Shopee URLs and brands, finishes without PRESENT or ad reads', async t => {
+  for (const reports of [['INSIGHT'], ['MARKET'], ['MARKET', 'INSIGHT']] as ('MARKET' | 'INSIGHT')[][]) await t.test(reports.join('+'), async st => {
+    const adBrands: string[][] = [], metaBrands: string[][] = [];
+    const f = await fixture(st, 'on', undefined, undefined, undefined, {
+      searchAdsSource: { collect: async input => {
+        adBrands.push(input.brands.map(brand => brand.label));
+        return { status: 'NO_DATA', brands: [], requests: 0, ambiguousRequests: 0 };
+      } },
+      metaAutoSource: { collect: async input => {
+        metaBrands.push(input.brands.map(brand => brand.label));
+        return { status: 'NO_DATA', stop: null, reasonVi: null, opens: 0, reads: [], brands: [] };
+      } },
+    });
+    const runId = await startRun(f.service, reports);
+    assert.equal(autorun(f.db, runId)?.phase, 'WAITING_SCOPE');
+    const phases: string[] = [];
+    for (let i = 0; i < 200; i++) {
+      const phase = autorun(f.db, runId)!.phase;
+      phases.push(phase);
+      if (phase === 'DONE' || phase === 'STOPPED') break;
+      if (!(await f.service.processNext())) await f.service.settleAutoRunCaptures();
+    }
+    assert.equal(f.capture.calls.length, 1);
+    const row = autorun(f.db, runId)!;
+    assert.deepEqual([row.phase, row.stopCode], ['DONE', null]);
+    const market = reports.includes('MARKET');
+    assert.equal(phases.includes('PRESENT'), market);
+    assert.deepEqual(f.db.prepare('SELECT state FROM analysis_research_automation_attempts WHERE run_id=?').all(runId), market ? [{ state: 'COMMITTED' }] : []);
+    assert.equal(f.service.revisions.length, market ? 1 : 0);
+    assert.equal(row.revisionAttemptId !== null, market);
+    const run = await f.service.getRun(workspaceId, runId);
+    assert.equal(run.status, 'DRAFT_READY');
+    assert.equal(f.service.confirms.length, 1);
+    const expectedUrls = ['https://shopee.vn/product/201/101', 'https://shopee.vn/product/202/102', 'https://shopee.vn/product/203/103'];
+    assert.deepEqual((f.service.confirms[0] as { exactShopeeUrls: string[] }).exactShopeeUrls, expectedUrls);
+    assert.deepEqual(run.definition?.exactShopeeUrls, expectedUrls, 'the accepted scope retains the exact picked links');
+    assert.ok(row.pickId);
+    const pick = JSON.parse((await f.artifacts.read(row.pickId)).toString()) as { links: { brand: string }[] };
+    assert.deepEqual(pick.links.map(item => item.brand), ['Brand A', 'Brand B', 'Brand C']);
+    assert.deepEqual(adBrands, market ? [['Brand A', 'Brand B', 'Brand C']] : []);
+    assert.deepEqual(metaBrands, market ? [['Brand A', 'Brand B']] : []);
+    if (!market) {
+      assert.equal((await f.service.readReport(workspaceId, runId, 'INSIGHT')).kind, 'INSIGHT');
+      assert.deepEqual(f.db.prepare('SELECT report_kind FROM analysis_research_automation_outputs WHERE run_id=?').all(runId), [{ report_kind: 'INSIGHT' }]);
+    }
+  });
+});
+
 test('restart during CAPTURE stops the row as CAPTURE_INTERRUPTED and never re-runs the capture', async t => {
   const f = await fixture(t, 'on', () => 'hold');
   const runId = await startRun(f.service);

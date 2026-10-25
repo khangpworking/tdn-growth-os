@@ -1298,7 +1298,8 @@ export class ResearchAutomationService {
         for (const stepId of STEP_IDS) this.#db.prepare(`INSERT INTO analysis_research_automation_steps(run_id,step_id,state) VALUES (?,?,'${stepId === 'QUICK_SEARCH' ? 'QUEUED' : 'PENDING'}')`).run(runId, stepId);
         this.#db.prepare(`INSERT INTO analysis_research_automation_requests(request_key,run_id,request_kind,request_sha256,accepted_at) VALUES (?,?,?,?,?)`)
           .run(input.requestKey, runId, 'START', requestSha, createdAt);
-        if (this.#autoRun && input.reports.includes('MARKET')) {
+        // Insight-only runs also capture Metric: its pick gives Insight exact Shopee links and L9 names.
+        if (this.#autoRun && (input.reports.includes('MARKET') || input.reports.includes('INSIGHT'))) {
           this.#db.prepare(`INSERT INTO research_automation_autorun(run_id,workspace_id,phase,phase_state,capture_dir_key,prepare_request_key,confirm_request_key,revision_request_key,created_at,updated_at)
             VALUES (?,?,'WAITING_SCOPE','QUEUED',?,?,?,?,?,?)`).run(runId, workspaceId, runId, autorunRequestKey(runId, 'prepare'), autorunRequestKey(runId, 'confirm'),
             autorunRequestKey(runId, 'revision'), createdAt, createdAt);
@@ -1475,10 +1476,19 @@ export class ResearchAutomationService {
     return Number.isSafeInteger(rawCap) && rawCap >= 0 ? Math.min(rawCap, 100) : 0;
   }
 
+  /**
+   * Planning slots for PageIndex questions: none unless the run has a Market report. Insight sections still hold their
+   * slots so every Market question keeps today's PDF and cap position, but only Market questions are asked
+   * (the plan filter in `#processRunPdfs`): the report keeps Market quotes only.
+   */
+  #pageIndexPlanSections(reports: readonly string[]): readonly string[] {
+    return reports.includes('MARKET') ? PAGEINDEX_ELIGIBLE_SECTIONS.filter(id => reports.includes(id.startsWith('M') ? 'MARKET' : 'INSIGHT')) : [];
+  }
+
   /** Each existing PDF consumes a full section plan before another PDF can get its first question. */
   #remainingCapturePdfSlots(runId: string, reports: readonly string[]): number {
     if (!this.#pageIndexEnabled()) return 0;
-    const sections = PAGEINDEX_ELIGIBLE_SECTIONS.filter(id => reports.includes(id.startsWith('M') ? 'MARKET' : 'INSIGHT')).length;
+    const sections = this.#pageIndexPlanSections(reports).length;
     return sections ? Math.max(0, Math.ceil(this.#pageIndexQuestionCap() / sections) - this.#runPdfs(runId).length) : 0;
   }
 
@@ -1522,7 +1532,7 @@ export class ResearchAutomationService {
     this.#db.prepare(`INSERT INTO analysis_pageindex_run_pdfs(run_id,source_sha256,file_name,package_id,manifest_sha256,logical_path,origin,document_title)
       VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(run_id,source_sha256) DO UPDATE SET origin='UPLOAD' WHERE excluded.origin='UPLOAD'`)
       .run(runId, sha256, fileName, receipt.packageId, receipt.manifestArtifactSha256, logicalPath, origin, pdfDocumentTitle(title));
-    if (!this.#pageIndexEnabled()) return;
+    if (!this.#pageIndexEnabled() || !this.#current(runId)!.reports.split(',').includes('MARKET')) return;
     await indexRunPdfsForPageIndex([{ sha256, fileName, bytes }], this.#pageIndexDeps());
   }
 
@@ -1809,9 +1819,10 @@ export class ResearchAutomationService {
     const note = (sha256: string, state: PageIndexDocumentReadState): void => { if (!readings.has(sha256)) readings.set(sha256, state); };
     // Owner uploads are planned first, so automatic PDFs never take the cap from them.
     const files = orderRunPdfsForQuestions(this.#runPdfs(runId));
-    const sections = PAGEINDEX_ELIGIBLE_SECTIONS.filter(id => reports.includes(id.startsWith('M') ? 'MARKET' : 'INSIGHT'));
     const cap = this.#pageIndexQuestionCap();
-    const plan = planPageIndexQuestions({ sections, pdfCount: files.length, maxPerRun: cap });
+    // An empty plan (no Market report or no PDF) sends nothing and asks nothing; each file is noted NO_QUESTION_PLANNED.
+    const plan = planPageIndexQuestions({ sections: this.#pageIndexPlanSections(reports), pdfCount: files.length, maxPerRun: cap })
+      .filter(question => question.sectionId.startsWith('M'));
     const reader = new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts });
     const local = new Map<number, { bytes: Buffer; pages: readonly PageIndexLocalPage[] }>();
     const prepare = async (index: number, file: RunPdfRow, bytes: Uint8Array): Promise<void> => {
@@ -3669,7 +3680,7 @@ export class ResearchAutomationService {
       // top-ads reads, the population baseline file and TikTok Shop reviews: one attempt each per run, in that order, never
       // repeated after a restart.
       const lanes = await attemptCollectionLanes(this.#collectionLanes, stepId, {
-        keyword: start.keyword, description: start.description ?? null, mode: start.mode, reports: start.reports, requestedPeriod: (input as CollectInput).requestedPeriod,
+        keyword: start.keyword, description: start.description ?? null, mode: start.mode, reports: start.reports, market: start.reports.includes('MARKET'), requestedPeriod: (input as CollectInput).requestedPeriod,
         productTitles: () => [
           ...(result.result && 'productObservations' in result.result ? result.result.productObservations.flatMap(item => item.productName ? [item.productName] : []) : []),
           ...result.step.productCards.flatMap(card => card.title ? [card.title] : []),
@@ -4452,9 +4463,11 @@ export class ResearchAutomationService {
       byteSize: () => captures.reduce((sum, value) => sum + value.artifact.byteSize, 0),
     };
     const saveStep: SaveStepContext = { stepId, signal, captures: captureList, check: checkLane };
+    const market = sourceStart.reports.includes('MARKET');
     const video = await runSaveStepLane(this.#videoLane, step, saveStep, () => {
       const writer = new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
       return {
+        market,
         context: evolving => this.#videoWatchContext(runId, evolving),
         publish: (binding, prepared) => withDatabaseMutationMutex(this.#db, async () => {
           const current = this.#current(runId);
@@ -4509,7 +4522,7 @@ export class ResearchAutomationService {
     // Report PDFs (S25 AUTO) come after the L9 admission step above; their candidates start from the rows it admitted.
     const admissionStep = step;
     const pdf = await runSaveStepLane(this.#pdfLane, step, saveStep, () => ({
-      input: pdfInput, market: sourceStart.reports.includes('MARKET'), aborted,
+      input: pdfInput, market, aborted,
       readerOn: () => this.#pageIndexEnabled(),
       remainingPdfSlots: () => this.#remainingCapturePdfSlots(runId, sourceStart.reports),
       admittedRows: async () => admissionStep.sourceEvidence
@@ -5541,7 +5554,9 @@ export class ResearchAutomationService {
       const run = this.#current(runId);
       if (!run) throw new ResearchAutomationIntegrityError('Auto-run source run is missing.');
       const at = this.#now().toISOString();
-      if (run.status === 'DRAFT_READY') this.#db.prepare(`UPDATE research_automation_autorun SET phase='PRESENT',phase_state='QUEUED',updated_at=? WHERE run_id=? AND phase='WAIT_DRAFT'`).run(at, runId);
+      // PRESENT revises the Market report only; an Insight-only run ends with its draft.
+      if (run.status === 'DRAFT_READY') this.#db.prepare(`UPDATE research_automation_autorun SET phase=?,phase_state='QUEUED',updated_at=? WHERE run_id=? AND phase='WAIT_DRAFT'`)
+        .run(run.reports.split(',').includes('MARKET') ? 'PRESENT' : 'DONE', at, runId);
       else if (AUTORUN_RUN_END_STATUSES.has(run.status)) this.#autorunStop(runId, `RUN_${run.status}`, at);
       // Not ready yet: wait RUNNING until the run's transition hook queues the row again.
       else this.#db.prepare(`UPDATE research_automation_autorun SET phase_state='RUNNING',updated_at=? WHERE run_id=? AND phase='WAIT_DRAFT'`).run(at, runId);
