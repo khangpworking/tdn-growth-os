@@ -19,12 +19,15 @@ import { VIDEO_WATCH_PROVIDER } from './video-watch-gemini.js';
 import { META_AUTO_PROVIDER, META_AUTO_USAGE_ORDINAL, metaAutoDocument, metaAutoFailed, metaAutoHasEvidence, metaAutoUsage, metaBrandsFromPick, publishMetaAutoEvidence, type MetaAutoCollection, type MetaAutoSource, type MetaAutoWriter } from './meta-auto-lane.js';
 import { TIKTOK_TOP_ADS_PROVIDER, TIKTOK_TOP_ADS_USAGE_ORDINAL, publishTikTokTopAdsEvidence, tiktokTopAdsDocument, tiktokTopAdsFailed, tiktokTopAdsHasEvidence, tiktokTopAdsUsage, type TikTokTopAdsCollection, type TikTokTopAdsSource, type TikTokTopAdsWriter } from './tiktok-top-ads-lane.js';
 import { PDF_DISCOVERY_DOWNLOAD_USAGE_ORDINAL, PDF_DISCOVERY_PROVIDER, PDF_DISCOVERY_SEARCH_USAGE_ORDINAL } from './pdf-discovery-lane.js';
+import { TIKTOK_SHOP_REVIEWS_DOCUMENT_MEDIA_TYPE, TIKTOK_SHOP_REVIEWS_USAGE_ORDINAL, tiktokShopReviewsDocument, tiktokShopReviewsFailed, tiktokShopReviewsStep, tiktokShopReviewsUsage, type TikTokShopReviewCandidate, type TikTokShopReviewsCollection, type TikTokShopReviewsSource } from './tiktok-shop-reviews.js';
+import { canonicalJson } from '../../foundation/canonical-json.js';
+import type { StoredArtifact } from '../../../platform/artifacts/artifact-store.js';
 
 /** Usage ordinal of the plain web search (0 product source, 1 exact Shopee / public tail). */
 export const WEB_USAGE_ORDINAL = 2;
 
 export type CollectionLaneName = 'web' | 'trends' | 'expanded' | 'worldBank' | 'video' | 'comtrade' | 'searchAds' | 'officialStats'
-  | 'metaAuto' | 'tiktokTopAds' | 'pdfDiscovery' | 'geo';
+  | 'metaAuto' | 'tiktokTopAds' | 'pdfDiscovery' | 'geo' | 'tiktokShopReviews';
 
 /**
  * Every lane usage ordinal of the collection step, with the provider an "unsettled-collection" row names. The DB key is
@@ -46,6 +49,7 @@ export const COLLECTION_LANE_ORDINALS: readonly { readonly lane: CollectionLaneN
   { lane: 'pdfDiscovery', ordinal: PDF_DISCOVERY_DOWNLOAD_USAGE_ORDINAL, provider: PDF_DISCOVERY_PROVIDER.toLowerCase() },
   { lane: 'geo', ordinal: SEARCH_GEO_USAGE_ORDINAL, provider: 'serpapi' },
   ...GOOGLE_ADS_DISCOVERY_USAGE_ORDINALS.map(ordinal => ({ lane: 'searchAds' as const, ordinal, provider: GOOGLE_ADS_PROVIDER.toLowerCase() })),
+  { lane: 'tiktokShopReviews', ordinal: TIKTOK_SHOP_REVIEWS_USAGE_ORDINAL, provider: 'kalodata' },
 ];
 
 function assertDistinctOrdinals(table: typeof COLLECTION_LANE_ORDINALS): void {
@@ -75,6 +79,17 @@ export interface CollectionRunContext {
   readonly readPick: () => Promise<unknown>;
   /** Run facts of the web, trends, geo, expanded, Meta and TikTok lanes; the service passes them on every run it collects. */
   readonly run?: CollectionRunFacts;
+  /** Run facts of the TikTok Shop reviews lane; the service passes them on every run it collects. */
+  readonly tiktokShopReviews?: TikTokShopReviewsFacts;
+}
+
+export interface TikTokShopReviewsFacts {
+  /** The run's report kinds (the lane collects for INSIGHT runs only). */
+  readonly reports: readonly string[];
+  /** Confirmed products with a quick-search card and the run's own revenue; read inside the lane's try/catch. */
+  readonly candidates: () => Promise<TikTokShopReviewCandidate[]>;
+  /** Stores the normalized private document; its manifest is registered in the service's final transaction. */
+  readonly putDocument: (bytes: Buffer) => Promise<StoredArtifact>;
 }
 
 export interface CollectionRunFacts {
@@ -93,8 +108,11 @@ export interface CollectionLaneContext extends CollectionRunContext {
   readonly webUrls: () => string[];
 }
 
-/** Stores the captures in order through the service's capture closure; returns the first capture's index, null when unstorable. */
-export type LaneCaptureStore = (captures: readonly ProviderRawCapture[]) => Promise<number | null>;
+/**
+ * Stores the captures in order through the service's capture closure; returns the first capture's index, null when unstorable.
+ * `retainPdf: false` skips the service's `%PDF-` retention.
+ */
+export type LaneCaptureStore = (captures: readonly ProviderRawCapture[], options?: { readonly retainPdf?: boolean }) => Promise<number | null>;
 /** The service's capture list: its length, and a cut back to an earlier length (a lane whose capture write failed keeps none). */
 export interface LaneCaptureRewind {
   readonly length: () => number;
@@ -110,6 +128,9 @@ export type LaneUsageResult = {
 export type LaneUsageRow =
   | { readonly kind: 'USAGE'; readonly ordinal: number; readonly result: LaneUsageResult }
   | { readonly kind: 'UNSETTLED'; readonly ordinal: number; readonly provider: string };
+
+/** A private artifact a lane stored, registered with its media type in the service's final transaction. */
+export type LaneManifest = { readonly artifact: StoredArtifact; readonly mediaType: string };
 
 /** What a later lane reads from an earlier one. */
 export interface LaneProduced {
@@ -131,6 +152,8 @@ export interface CollectionLaneRun {
   /** The lane's own provider result reported a cancelled call (product, web, trends and expanded count for the step outcome). */
   readonly cancelled?: boolean;
   readonly produced?: LaneProduced;
+  /** Private artifacts the lane's store kept (read after store). */
+  readonly manifests?: () => readonly LaneManifest[];
 }
 
 export interface CollectionLane {
@@ -154,6 +177,7 @@ interface LaneSpec<I, C> {
   readonly usage: (collection: C) => LaneUsageRow[];
   readonly cancelled?: (collection: C) => boolean;
   readonly produced?: (input: I, collection: C | undefined) => LaneProduced;
+  readonly manifests?: (input: I) => readonly LaneManifest[];
 }
 
 function lane<I, C>(spec: LaneSpec<I, C>): CollectionLane {
@@ -176,6 +200,7 @@ function lane<I, C>(spec: LaneSpec<I, C>): CollectionLane {
           : [{ kind: 'UNSETTLED', ordinal: laneEntry(spec.name).ordinal, provider: laneEntry(spec.name).provider! }],
         ...(spec.cancelled && collection !== undefined ? { cancelled: spec.cancelled(collection) } : {}),
         ...(spec.produced ? { produced: spec.produced(input, collection) } : {}),
+        ...(spec.manifests ? { manifests: () => spec.manifests!(input) } : {}),
       };
     },
   };
@@ -496,6 +521,50 @@ function tiktokTopAdsLane(source: TikTokTopAdsSource): CollectionLane {
   });
 }
 
+// TikTok Shop reviews (S06) come last: Insight runs only, at most three confirmed and collected TikTok Shop products with a
+// quick-search card (the set the top-selling videos use), top by the run's own revenue, one paid call each, never repeated
+// after a restart. The main-channel rule needs the run's sales data and is evaluated at report build. Each raw response is
+// a private capture; the normalized document (review text, no personal field) is a separate private artifact. The step
+// keeps counts and digests only, never review text.
+type TikTokShopReviewsInput = TikTokShopReviewsFacts & { kept: StoredArtifact | null };
+function tiktokShopReviewsLane(source: TikTokShopReviewsSource): CollectionLane {
+  return lane<TikTokShopReviewsInput, TikTokShopReviewsCollection>({
+    name: 'tiktokShopReviews',
+    input: context => {
+      if (!context.tiktokShopReviews) throw new Error('The TikTok Shop reviews lane needs its run facts.');
+      return { ...context.tiktokShopReviews, kept: null };
+    },
+    collect: async ({ reports, candidates }, options) => source.collect({ reports, candidates: await candidates() }, options),
+    async store(step, collection, input, captures, check) {
+      let probe: StepResultDocument;
+      input.kept = null;
+      // A capture write that throws leaves this store: storeCollectionLanes then cuts this lane's captures and stores the
+      // thrown-collect document (this store without a collection), so only this lane fails.
+      const indexes = new Map<string, number | null>();
+      const phase = collection?.result ?? null;
+      for (const capture of phase?.captures ?? []) {
+        const index = await captures([capture], { retainPdf: false });
+        if (index === null) continue;
+        const product = phase!.products.find(item => item.captureId === capture.captureId);
+        if (product) indexes.set(product.productId, index);
+      }
+      try {
+        if (!collection) throw new Error('TikTok Shop reviews lane failed.');
+        const document = tiktokShopReviewsDocument(collection);
+        input.kept = document.status === 'SKIPPED' ? null : await input.putDocument(Buffer.from(canonicalJson(document), 'utf8'));
+        probe = { ...step, tiktokShopReviews: tiktokShopReviewsStep(document, input.kept?.sha256 ?? null, indexes) };
+      } catch { input.kept = null; probe = { ...step, tiktokShopReviews: tiktokShopReviewsFailed() }; }
+      try {
+        check(probe);
+        return probe;
+      } catch { input.kept = null; return { ...step, tiktokShopReviews: tiktokShopReviewsFailed() }; }
+    },
+    usage: collection => collection.result && collection.result.usage.requestsIssued > 0
+      ? [{ kind: 'USAGE', ordinal: TIKTOK_SHOP_REVIEWS_USAGE_ORDINAL, result: tiktokShopReviewsUsage(collection.result) }] : [],
+    manifests: input => input.kept ? [{ artifact: input.kept, mediaType: TIKTOK_SHOP_REVIEWS_DOCUMENT_MEDIA_TYPE }] : [],
+  });
+}
+
 export interface CollectionLaneSources {
   readonly webSource?: AutomationSourcePort;
   readonly trendsSource?: SearchInterestSource;
@@ -507,6 +576,7 @@ export interface CollectionLaneSources {
   readonly officialStatsSource?: OfficialStatsSource;
   readonly metaAutoSource?: MetaAutoSource;
   readonly tiktokTopAdsSource?: TikTokTopAdsSource;
+  readonly tiktokShopReviewsSource?: TikTokShopReviewsSource;
 }
 
 /**
@@ -525,6 +595,7 @@ export function collectionLanes(sources: CollectionLaneSources): readonly Collec
     ...(sources.officialStatsSource ? [officialStatsLane(sources.officialStatsSource)] : []),
     ...(sources.metaAutoSource ? [metaAutoLane(sources.metaAutoSource)] : []),
     ...(sources.tiktokTopAdsSource ? [tiktokTopAdsLane(sources.tiktokTopAdsSource)] : []),
+    ...(sources.tiktokShopReviewsSource ? [tiktokShopReviewsLane(sources.tiktokShopReviewsSource)] : []),
   ];
 }
 
@@ -542,9 +613,9 @@ export async function attemptCollectionLanes(lanes: readonly CollectionLane[], s
   return runs;
 }
 
-// The Meta and TikTok reads publish attachments after the video readings (collection-lanes-save-step.ts); every other
-// lane stores before them.
-const AFTER_VIDEO: ReadonlySet<CollectionLaneName> = new Set(['metaAuto', 'tiktokTopAds']);
+// The Meta and TikTok reads publish attachments after the video readings (collection-lanes-save-step.ts), and the TikTok
+// Shop reviews store after them; every other lane stores before them.
+const AFTER_VIDEO: ReadonlySet<CollectionLaneName> = new Set(['metaAuto', 'tiktokTopAds', 'tiktokShopReviews']);
 /** The runs stored (and whose usage is written) before the video readings, in run order. */
 export const lanesBeforeVideo = (runs: readonly CollectionLaneRun[]): CollectionLaneRun[] => runs.filter(run => !AFTER_VIDEO.has(run.name));
 /** The runs stored (and whose usage is written) after the video readings, in run order. */
@@ -559,8 +630,8 @@ class LaneCaptureWriteError extends Error {}
  * own failed document, its usage rows stay as the attempt made them, and the later lanes still store.
  */
 export async function storeCollectionLanes(runs: readonly CollectionLaneRun[], step: StepResultDocument, captures: LaneCaptureStore, check: LaneCheck, rewind?: LaneCaptureRewind): Promise<StepResultDocument> {
-  const guarded: LaneCaptureStore = async values => {
-    try { return await captures(values); } catch (cause) { throw new LaneCaptureWriteError('A lane capture write failed.', { cause }); }
+  const guarded: LaneCaptureStore = async (values, options) => {
+    try { return await captures(values, options); } catch (cause) { throw new LaneCaptureWriteError('A lane capture write failed.', { cause }); }
   };
   for (const run of runs) {
     const length = rewind?.length();
@@ -577,6 +648,9 @@ export async function storeCollectionLanes(runs: readonly CollectionLaneRun[], s
 
 /** Usage rows of the attempted lanes, in run order, for the service's final transaction. */
 export const collectionLaneUsage = (runs: readonly CollectionLaneRun[]): LaneUsageRow[] => runs.flatMap(run => run.usage());
+
+/** Private artifacts the stored lanes kept, in run order, for the service's final transaction. */
+export const collectionLaneManifests = (runs: readonly CollectionLaneRun[]): LaneManifest[] => runs.flatMap(run => run.manifests?.() ?? []);
 
 /** Whether a lane's own provider result reported a cancelled call. */
 export const collectionLanesCancelled = (runs: readonly CollectionLaneRun[]): boolean => runs.some(run => run.cancelled === true);

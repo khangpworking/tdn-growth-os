@@ -115,9 +115,10 @@ import { COMTRADE_PROFILE, comtradeRenderable, type ComtradeSource } from './com
 import { GOOGLE_ADS_PROFILE, GOOGLE_ADS_USAGE_ORDINAL, type SearchAdsSource } from './google-ads-lane.js';
 import { WORLD_BANK_SERIES_YEARS, worldBankRenderable, type WorldBankSource } from './world-bank-lane.js';
 import { pdfLane, runSaveStepLane, videoLane, type CaptureEnvelope, type PdfLaneFacts, type SaveStepCaptures, type SaveStepContext, type SaveStepLane, type VideoLaneFacts } from './collection-lanes-save-step.js';
-import { attemptCollectionLanes, collectionLaneOrdinals, collectionLanes, collectionLanesCancelled, collectionLaneUsage, lanesAfterVideo, lanesBeforeVideo, storeCollectionLanes, type CollectionLane, type CollectionLaneRun, type LaneCaptureRewind, type LaneCaptureStore, type LaneCheck, type LaneUsageRow } from './collection-lanes.js';
+import { attemptCollectionLanes, collectionLaneManifests, collectionLaneOrdinals, collectionLanes, collectionLanesCancelled, collectionLaneUsage, lanesAfterVideo, lanesBeforeVideo, storeCollectionLanes, type CollectionLane, type CollectionLaneRun, type LaneCaptureRewind, type LaneCaptureStore, type LaneCheck, type LaneUsageRow } from './collection-lanes.js';
 import { publishAutomatedVideoReading, verifyAutomatedVideoReading, videoWatchReadingRefs, VIDEO_WATCH_MAX_VIDEOS, VIDEO_WATCH_PROFILE, type VideoWatchLane } from './video-watch-lane.js';
 import { topSellingTikTokVideos } from './tiktok-video-selection.js';
+import { tiktokShopChannelDecision, validTikTokShopReviewsStep, type TikTokShopReviewCandidate, type TikTokShopReviewsSource } from './tiktok-shop-reviews.js';
 import { metaAutoReportView, validMetaAuto, verifyMetaAutoEvidence, type MetaAutoReportView, type MetaAutoSource } from './meta-auto-lane.js';
 import { tiktokTopAdsReportView, validTikTokTopAds, verifyTikTokTopAdsEvidence, type TikTokTopAdsReportView, type TikTokTopAdsSource } from './tiktok-top-ads-lane.js';
 import { PDF_DISCOVERY_PROVIDER, pdfDiscoveryDownloaded, pdfDiscoveryMaxPages, PDF_DISCOVERY_MAX_PAGES_ENV, validPdfDiscovery, type PdfDiscoverySource } from './pdf-discovery-lane.js';
@@ -407,6 +408,8 @@ export interface ResearchAutomationServiceOptions {
   /** Meta ad library auto-read (S15 AUTO); only set when its flag is exactly "1". */
   readonly metaAutoSource?: MetaAutoSource;
   readonly tiktokTopAdsSource?: TikTokTopAdsSource;
+  /** TikTok Shop product reviews (S06) for Insight runs; only set when its flag is exactly "1". */
+  readonly tiktokShopReviewsSource?: TikTokShopReviewsSource;
   /** Automatic industry-report PDFs (S25 AUTO): at most one extra search and two downloads per run; only set when its flag is exactly "1". */
   readonly pdfDiscoverySource?: PdfDiscoverySource;
   /** Optional extra searches (dated and per-marketplace), at most three paid requests per collection; absent keeps every stored byte. */
@@ -3660,7 +3663,7 @@ export class ResearchAutomationService {
         } catch { return null; }
       };
       // Web, trends, province map, extra searches, World Bank, UN Comtrade, search-ads library, Cục Thống kê, Meta and TikTok
-      // top-ads reads: one attempt each per run, in that order, never repeated after a restart.
+      // top-ads reads and TikTok Shop reviews: one attempt each per run, in that order, never repeated after a restart.
       const lanes = await attemptCollectionLanes(this.#collectionLanes, stepId, {
         keyword: start.keyword, description: start.description ?? null, mode: start.mode, requestedPeriod: (input as CollectInput).requestedPeriod,
         productTitles: () => [
@@ -3680,6 +3683,26 @@ export class ResearchAutomationService {
               return write(writer);
             });
           },
+        },
+        tiktokShopReviews: {
+          reports: start.reports,
+          // Confirmed products (selected and peers) with a quick-search card, summed by the run's own revenue.
+          candidates: async () => {
+            const confirmed = new Set([...(scope?.selectedProductIds ?? []), ...(scope?.peerProductIds ?? [])]);
+            const carded = new Set(((await this.#stepDocument(row.runId, 'QUICK_SEARCH'))?.productCards ?? []).filter(card => card.provider === 'kalodata').map(card => card.productId));
+            const revenue = new Map<string, number | null>();
+            for (const value of result.step.comparables) {
+              if (value.provider !== 'kalodata' || !confirmed.has(value.productId) || !carded.has(value.productId)) continue;
+              const amount = value.metric === 'GMV_VND' ? Number(value.value) : NaN;
+              const prior = revenue.get(value.productId) ?? null;
+              revenue.set(value.productId, Number.isFinite(amount) ? (prior ?? 0) + amount : prior);
+            }
+            return [...revenue].flatMap(([ref, amount]): TikTokShopReviewCandidate[] => {
+              const parsed = parseProviderProductRef(ref);
+              return parsed ? [{ productId: parsed.sourceProductId, revenue: amount }] : [];
+            });
+          },
+          putDocument: bytes => this.#artifacts.put(bytes),
         },
       }, controller.signal);
       try {
@@ -3909,6 +3932,14 @@ export class ResearchAutomationService {
           descriptiveMethodFailure = 'DESCRIPTIVE_METHOD_FAILED';
         }
         }
+      }
+      // S06 main-channel rule: TikTok Shop must hold at least half of this run's in-scope sales-data revenue. That revenue
+      // exists only here (Market sales-data records), so the decision is evaluated at build and logged as a code; the share
+      // is never printed. No report section reads the stored reviews yet (coding path gap), so nothing else changes.
+      if (start.reports.includes('INSIGHT') && collection?.tiktokShopReviews?.documentSha256) {
+        const channel = tiktokShopChannelDecision(metricMethods);
+        console.error(JSON.stringify({ event: 'research_automation_tiktok_shop_reviews_channel', runId: fresh.runId,
+          decision: channel.decision, ...('reason' in channel ? { reason: channel.reason } : {}) }));
       }
       if (revisionRequest?.contractVersion === 'automation-market-presentation-revision-v1') {
         const verified = await this.#marketPresentationInputs(fresh, revisionRequest, true);
@@ -4393,11 +4424,11 @@ export class ResearchAutomationService {
       ...(exact.reference && exact.exactShopeeOutcome ? { exactShopeeOutcome: exact.exactShopeeOutcome } : {}) };
     // The lanes' captures follow the product source's captures, in run order: web, trends, province map, extra searches,
     // World Bank, UN Comtrade, search-ads library and Cục Thống kê.
-    const storeLaneCaptures: LaneCaptureStore = async values => {
+    const storeLaneCaptures: LaneCaptureStore = async (values, options) => {
       const envelopes = captureEnvelopes({ captures: values });
       if (!envelopes) return null;
       const index = captures.length;
-      await putCaptures(envelopes);
+      await putCaptures(envelopes, options?.retainPdf);
       return index;
     };
     const checkLane: LaneCheck = (probe, options) => {
@@ -4429,7 +4460,8 @@ export class ResearchAutomationService {
       };
     });
     step = video.step;
-    // Meta and TikTok top-ads reads publish Foundation attachments (no step capture) after the video readings.
+    // Meta and TikTok top-ads reads publish Foundation attachments (no step capture) after the video readings; the TikTok
+    // Shop reviews captures follow them.
     step = await storeCollectionLanes(lanesAfterVideo(lanes), step, storeLaneCaptures, checkLane, rewind);
     let cancelledSourceEvidence: (() => AutomationSourceEvidence) | undefined;
     if (stepId === 'COLLECTION' && sourceStart.reviewCollectionPolicy && step.privateShopee) {
@@ -4502,6 +4534,7 @@ export class ResearchAutomationService {
       this.#db.transaction(() => {
         for (const value of captures) this.#registerManifest(value.artifact, 'application/vnd.tdn.research-automation.capture+json', value.row.retrievedAt);
         this.#registerManifest(resultArtifact, 'application/vnd.tdn.research-automation.step+json', now);
+        for (const value of collectionLaneManifests(lanes)) this.#registerManifest(value.artifact, value.mediaType, now);
         for (const value of captures) this.#db.prepare(`INSERT INTO analysis_research_automation_captures(run_id,step_id,ordinal,artifact_sha256,media_type,provider,operation,retrieved_at,window_start,window_end,truncated,retained_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
           .run(runId, stepId, value.row.ordinal, value.row.artifactSha256, value.row.mediaType, value.row.provider, value.row.operation, value.row.retrievedAt, value.row.window?.startDate ?? null, value.row.window?.endDate ?? null, value.row.truncated ? 1 : 0, now);
         if (result) this.#persistUsage(runId, stepId, result, now);
@@ -6031,6 +6064,8 @@ function assertStepDocument(value: unknown, runId: string, stepId: StepId): asse
     throw new ResearchAutomationIntegrityError('Stored TikTok top-ads read is invalid.');
   if (value.pdfDiscovery !== undefined && (stepId !== 'COLLECTION' || !validPdfDiscovery(value.pdfDiscovery)))
     throw new ResearchAutomationIntegrityError('Stored report file discovery is invalid.');
+  if (value.tiktokShopReviews !== undefined && (stepId !== 'COLLECTION' || !validTikTokShopReviewsStep(value.tiktokShopReviews)))
+    throw new ResearchAutomationIntegrityError('Stored TikTok Shop reviews are invalid.');
   if (value.sourceEvidence !== undefined) checkSourceEvidence(value.sourceEvidence);
   for (const comparable of value.comparables) {
     if (!isRecord(comparable) || typeof comparable.productId !== 'string' || typeof comparable.provider !== 'string' || (comparable.metric !== 'GMV_VND' && comparable.metric !== 'UNITS_SOLD') ||
@@ -6055,6 +6090,12 @@ function assertCaptureLineage(document: StepResultDocument, captures: readonly C
   for (const result of document.webResults ?? []) {
     const capture = stepCaptures.get(result.captureIndex);
     if (!capture || capture.truncated || capture.retrievedAt !== result.retrievedAt) throw new ResearchAutomationIntegrityError('Stored web result references an incompatible capture.');
+  }
+  for (const product of document.tiktokShopReviews?.products ?? []) {
+    if (product.captureIndex === null) continue;
+    const capture = stepCaptures.get(product.captureIndex);
+    if (!capture || capture.truncated || capture.provider !== 'kalodata' || capture.operation !== 'kalodata.product.comment.insight')
+      throw new ResearchAutomationIntegrityError('Stored TikTok Shop reviews reference an incompatible capture.');
   }
   for (const query of document.expandedSearch?.queries ?? []) {
     if (query.captureIndex === null) continue;
