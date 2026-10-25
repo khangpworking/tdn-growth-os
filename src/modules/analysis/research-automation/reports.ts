@@ -1805,8 +1805,9 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     ? { ...recordedTrace, entries: recordedTrace.entries.map(entry => ({ ...entry, token: plainCaptureNumbers(entry.token) })) } : recordedTrace;
   // Raw-response pointers are re-read in the stored capture when the caller holds its content.
   const rawCaptures = new Map((input.marketRawSeries?.periods ?? []).flatMap(period => period.raw === undefined ? [] : [[period.captureId, period.raw] as const]));
+  // A supplied capture must contain its pointers; a missing value must fail replay, not mean an unavailable store.
   const traceCheck = marketNumberTrace ? { numberTrace: { trace: marketNumberTrace,
-    resolve: (traceInput: MarketTraceInput) => 'store' in traceInput || !rawCaptures.has(traceInput.captureId) ? undefined : resolveMarketRawSource(rawCaptures.get(traceInput.captureId), traceInput) } } : {};
+    resolve: (traceInput: MarketTraceInput) => 'store' in traceInput || !rawCaptures.has(traceInput.captureId) ? undefined : resolveMarketRawSource(rawCaptures.get(traceInput.captureId), traceInput) ?? null } } : {};
   // The Market check owns its order and errors: visible-text lint, business gate, 14 rules, public-review names, number trace.
   const marketCheck = kind === 'MARKET' ? assertMarketReport(readerRenderedHtml, marketPresentation
     ? { kind: 'DRAFT_PRESENTATION', publicReviewSource: Boolean(input.publicReviewSource), partialTotals: marketPartialRowTotals(input), ...traceCheck }

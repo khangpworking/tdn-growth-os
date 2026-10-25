@@ -99,6 +99,18 @@ test('T3 a change percentage with the wrong previous-period base blocks delivery
   assert.deepEqual(outcome.numberTrace?.mismatches, [{ token: original.token, blockId: original.blockId, reason: 'change-percent gives «−44%»' }]);
 });
 
+test('a supplied raw capture with missing source pointers blocks delivery', async () => {
+  const { input } = await zincReport();
+  const rawSeries = input.marketRawSeries!;
+  const periods = rawSeries.periods.map(period => ({ ...period, raw: [] }));
+  assert.throws(() => buildResearchAutomationReport({ ...input, marketRawSeries: { ...rawSeries, periods } }, 'MARKET'), error => {
+    assert.ok(error instanceof MarketNumberTraceBlockedError);
+    assert.ok(error.message.includes('N02_TRACE_REPLAY'));
+    assert.ok(error.numberTrace.mismatches.length > 0, 'numbers cannot trace to pointers absent from the supplied raw capture');
+    return true;
+  });
+});
+
 test('T4 section labels and source dates pass; M12 deadlines follow the Vietnam run date', async () => {
   const { input } = await zincReport();
   const { html, gate, context } = build({ ...input, run: { ...input.run, createdAt: '2026-10-25T18:30:00.000Z' } });
