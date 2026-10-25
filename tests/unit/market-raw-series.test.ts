@@ -5,17 +5,24 @@ import canxi30 from '../fixtures/market-raw-series/canxi-30d-dev.raw-responses.j
 import zinc30 from '../fixtures/market-raw-series/zinc-30d-4platform.synthetic.raw-responses.json' with { type: 'json' };
 import zinc12 from '../fixtures/market-raw-series/zinc-12m-4platform.synthetic.raw-responses.json' with { type: 'json' };
 
-// Zinc totals are synthetic canaries, not real-source acceptance. Only canxi30
-// is a retained dev capture; the 12-month boundaries and other platform IDs
-// remain unconfirmed (see the fixtures' README).
+// Four-platform zinc totals are synthetic canaries, not real-source acceptance.
+// Real dev captures (canxi and zinc, two platforms) are listed in the fixtures' README.
 function assertSource(raw: readonly unknown[], source: MarketRawSource | null, expected: unknown) {
   assert.ok(source, 'an observed value has a source');
   let value = raw[source.responseIndex];
   assert.ok(value && typeof value === 'object');
   assert.equal(source.url, (value as { urlPath: string }).urlPath);
-  for (const part of source.jsonPath.split('/').slice(1)) {
-    assert.ok(value !== null && typeof value === 'object', 'source pointer resolves through the capture');
-    value = (value as Record<string, unknown>)[part.replace(/~1/g, '/').replace(/~0/g, '~')];
+  const walk = (path: string) => {
+    for (const part of path.split('/').slice(1)) {
+      assert.ok(value !== null && typeof value === 'object', 'source pointer resolves through the capture');
+      value = (value as Record<string, unknown>)[part.replace(/~1/g, '/').replace(/~0/g, '~')];
+    }
+  };
+  walk(source.jsonPath);
+  if (source.encoding === 'json-string') {
+    assert.equal(typeof value, 'string', 'an encoded source points at the stored JSON string');
+    value = JSON.parse(String(value));
+    walk(source.decodedPath ?? '');
   }
   assert.equal(value, expected, 'source pointer resolves to the original request/response value');
 }

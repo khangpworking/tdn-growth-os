@@ -1,0 +1,421 @@
+[
+ {
+  "urlPath": "/v2/market/analytics/search-basic/",
+  "responseOrder": 59,
+  "status": 200,
+  "body": {
+   "data": {
+    "search_basic": {
+     "aggregations": [
+      {
+       "aggregation": "SHOP_TOTAL",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 173189
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "PREVIOUS_SHOP_TOTAL",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 208294
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "PRODUCT_TOTAL",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 3955425
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "PREVIOUS_PRODUCT_TOTAL",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 5804431
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "ORDER_TOTAL_CUSTOM",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 120033667
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "PREVIOUS_ORDER_TOTAL_CUSTOM",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 160831384
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "REVENUE_TOTAL_CUSTOM",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 18675392940254
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "PREVIOUS_REVENUE_TOTAL_CUSTOM",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 23498426352768
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  },
+  "requestBody": "{\"include_query\":{\"platforms\":[1],\"queries\":[],\"categories\":[\"1__100635\",\"1__100631\",\"1__100015\",\"1__100634\",\"1__100012\",\"1__100532\",\"1__100644\",\"1__100641\",\"1__100632\",\"1__100636\",\"1__100009\",\"1__100643\",\"1__100630\",\"1__100639\",\"1__100001\",\"1__100535\",\"1__100010\",\"1__100637\",\"1__100011\",\"1__100017\",\"1__100633\",\"1__100629\",\"1__100533\",\"1__100016\",\"1__100642\",\"1__100638\",\"1__100640\",\"1__100013\",\"1__100534\",\"1__102053\",\"1__102187\",\"1__1999888999\"],\"is_remove_bad_product\":true,\"official_types\":[1,0],\"is_smart_queries\":false,\"brands\":[],\"composite_compare_lst\":[[{\"first_field\":\"rating_count\",\"second_field\":\"order_count\",\"first_rate\":1,\"second_rate\":0.03,\"compare_condition\":\">\"}]]},\"exclude_query\":{\"is_smart_queries\":false,\"queries\":[]},\"use_ai_normalized\":false,\"notIncludeDeletedProduct\":true,\"limit\":20,\"page\":0,\"is_filter_gift\":true,\"sort_by\":\"revenue_custom__desc\",\"start_date\":\"20260921\",\"end_date\":\"20261020\"}"
+ },
+ {
+  "urlPath": "/v2/market/analytics/search-basic/",
+  "responseOrder": 181,
+  "status": 200,
+  "body": {
+   "data": {
+    "search_basic": {
+     "aggregations": [
+      {
+       "aggregation": "SHOP_TOTAL",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 91
+         },
+         {
+          "platform_id": 8,
+          "value": 51
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "PREVIOUS_SHOP_TOTAL",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 91
+         },
+         {
+          "platform_id": 8,
+          "value": 46
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "PRODUCT_TOTAL",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 118
+         },
+         {
+          "platform_id": 8,
+          "value": 75
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "PREVIOUS_PRODUCT_TOTAL",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 118
+         },
+         {
+          "platform_id": 8,
+          "value": 70
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "ORDER_TOTAL_CUSTOM",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 13303
+         },
+         {
+          "platform_id": 8,
+          "value": 9618
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "PREVIOUS_ORDER_TOTAL_CUSTOM",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 18369
+         },
+         {
+          "platform_id": 8,
+          "value": 45075
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "REVENUE_TOTAL_CUSTOM",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 3557718985
+         },
+         {
+          "platform_id": 8,
+          "value": 1381741869
+         }
+        ]
+       }
+      },
+      {
+       "aggregation": "PREVIOUS_REVENUE_TOTAL_CUSTOM",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 3392990238
+         },
+         {
+          "platform_id": 8,
+          "value": 7141075905
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  },
+  "requestBody": "{\"include_query\":{\"platforms\":[1,8],\"queries\":[\"viên uống kẽm\"],\"bee_categories\":[\"c1144728673\",\"c1189843250\",\"c1513215936\",\"c1890857051\",\"c950887968\",\"c1919231407\",\"c997967148\",\"c1478997685\",\"c1182326609\",\"c349363110\",\"c1776859460\",\"c2146627932\",\"c2035652732\",\"c984920598\",\"c952389459\",\"c1149754732\",\"c937408522\",\"c1000062491\",\"c41293969\",\"c890463890\",\"c109830509\",\"c1049283522\",\"c1278655688\",\"c796145721\",\"c945324293\",\"c1704246187\",\"c806141846\",\"c230833630\",\"c1000000000\"],\"is_remove_bad_product\":true,\"official_types\":[1,0],\"is_smart_queries\":false,\"brands\":[],\"composite_compare_lst\":[[{\"first_field\":\"rating_count\",\"second_field\":\"order_count\",\"first_rate\":1,\"second_rate\":0.02,\"compare_condition\":\">\"}]]},\"exclude_query\":{\"is_smart_queries\":false,\"queries\":[]},\"use_ai_normalized\":false,\"notIncludeDeletedProduct\":true,\"limit\":20,\"page\":0,\"is_filter_gift\":true,\"sort_by\":\"revenue_custom__desc\",\"start_date\":\"20251020\",\"end_date\":\"20261019\"}"
+ },
+ {
+  "urlPath": "/v2/market/analytics/insight/",
+  "responseOrder": 189,
+  "status": 200,
+  "body": {
+   "data": [
+    {
+     "platform_id": 1,
+     "order_revenue_intervals": [
+      {
+       "start_date": "2025-10-20",
+       "end_date": "2025-10-31",
+       "revenue_custom_sum": 133205973,
+       "order_custom_sum": 528
+      },
+      {
+       "start_date": "2025-11-01",
+       "end_date": "2025-11-30",
+       "revenue_custom_sum": 326449120,
+       "order_custom_sum": 1134
+      },
+      {
+       "start_date": "2025-12-01",
+       "end_date": "2025-12-31",
+       "revenue_custom_sum": 348236437,
+       "order_custom_sum": 1106
+      },
+      {
+       "start_date": "2026-01-01",
+       "end_date": "2026-01-31",
+       "revenue_custom_sum": 377542489,
+       "order_custom_sum": 1228
+      },
+      {
+       "start_date": "2026-02-01",
+       "end_date": "2026-02-28",
+       "revenue_custom_sum": 231527970,
+       "order_custom_sum": 774
+      },
+      {
+       "start_date": "2026-03-01",
+       "end_date": "2026-03-31",
+       "revenue_custom_sum": 322844738,
+       "order_custom_sum": 1203
+      },
+      {
+       "start_date": "2026-04-01",
+       "end_date": "2026-04-30",
+       "revenue_custom_sum": 359111351,
+       "order_custom_sum": 1451
+      },
+      {
+       "start_date": "2026-05-01",
+       "end_date": "2026-05-31",
+       "revenue_custom_sum": 351072299,
+       "order_custom_sum": 1376
+      },
+      {
+       "start_date": "2026-06-01",
+       "end_date": "2026-06-30",
+       "revenue_custom_sum": 259534745,
+       "order_custom_sum": 987
+      },
+      {
+       "start_date": "2026-07-01",
+       "end_date": "2026-07-31",
+       "revenue_custom_sum": 227489505,
+       "order_custom_sum": 949
+      },
+      {
+       "start_date": "2026-08-01",
+       "end_date": "2026-08-31",
+       "revenue_custom_sum": 240582566,
+       "order_custom_sum": 998
+      },
+      {
+       "start_date": "2026-09-01",
+       "end_date": "2026-09-30",
+       "revenue_custom_sum": 250182306,
+       "order_custom_sum": 1086
+      },
+      {
+       "start_date": "2026-10-01",
+       "end_date": "2026-10-19",
+       "revenue_custom_sum": 129939486,
+       "order_custom_sum": 483
+      }
+     ]
+    },
+    {
+     "platform_id": 8,
+     "order_revenue_intervals": [
+      {
+       "start_date": "2025-10-20",
+       "end_date": "2025-10-31",
+       "revenue_custom_sum": 66647993,
+       "order_custom_sum": 456
+      },
+      {
+       "start_date": "2025-11-01",
+       "end_date": "2025-11-30",
+       "revenue_custom_sum": 167839456,
+       "order_custom_sum": 1195
+      },
+      {
+       "start_date": "2025-12-01",
+       "end_date": "2025-12-31",
+       "revenue_custom_sum": 174053029,
+       "order_custom_sum": 1220
+      },
+      {
+       "start_date": "2026-01-01",
+       "end_date": "2026-01-31",
+       "revenue_custom_sum": 198544747,
+       "order_custom_sum": 1433
+      },
+      {
+       "start_date": "2026-02-01",
+       "end_date": "2026-02-28",
+       "revenue_custom_sum": 142507270,
+       "order_custom_sum": 1033
+      },
+      {
+       "start_date": "2026-03-01",
+       "end_date": "2026-03-31",
+       "revenue_custom_sum": 209103601,
+       "order_custom_sum": 1490
+      },
+      {
+       "start_date": "2026-04-01",
+       "end_date": "2026-04-30",
+       "revenue_custom_sum": 76972337,
+       "order_custom_sum": 596
+      },
+      {
+       "start_date": "2026-05-01",
+       "end_date": "2026-05-31",
+       "revenue_custom_sum": 97509828,
+       "order_custom_sum": 676
+      },
+      {
+       "start_date": "2026-06-01",
+       "end_date": "2026-06-30",
+       "revenue_custom_sum": 44976668,
+       "order_custom_sum": 317
+      },
+      {
+       "start_date": "2026-07-01",
+       "end_date": "2026-07-31",
+       "revenue_custom_sum": 44338242,
+       "order_custom_sum": 341
+      },
+      {
+       "start_date": "2026-08-01",
+       "end_date": "2026-08-31",
+       "revenue_custom_sum": 56188045,
+       "order_custom_sum": 339
+      },
+      {
+       "start_date": "2026-09-01",
+       "end_date": "2026-09-30",
+       "revenue_custom_sum": 64078922,
+       "order_custom_sum": 327
+      },
+      {
+       "start_date": "2026-10-01",
+       "end_date": "2026-10-19",
+       "revenue_custom_sum": 38981731,
+       "order_custom_sum": 195
+      }
+     ]
+    }
+   ]
+  },
+  "requestBody": "{\"include_query\":{\"platforms\":[1,8],\"queries\":[\"viên uống kẽm\"],\"bee_categories\":[\"c1144728673\",\"c1189843250\",\"c1513215936\",\"c1890857051\",\"c950887968\",\"c1919231407\",\"c997967148\",\"c1478997685\",\"c1182326609\",\"c349363110\",\"c1776859460\",\"c2146627932\",\"c2035652732\",\"c984920598\",\"c952389459\",\"c1149754732\",\"c937408522\",\"c1000062491\",\"c41293969\",\"c890463890\",\"c109830509\",\"c1049283522\",\"c1278655688\",\"c796145721\",\"c945324293\",\"c1704246187\",\"c806141846\",\"c230833630\",\"c1000000000\"],\"is_remove_bad_product\":true,\"official_types\":[1,0],\"is_smart_queries\":false,\"brands\":[],\"composite_compare_lst\":[[{\"first_field\":\"rating_count\",\"second_field\":\"order_count\",\"first_rate\":1,\"second_rate\":0.02,\"compare_condition\":\">\"}]]},\"exclude_query\":{\"is_smart_queries\":false,\"queries\":[]},\"use_ai_normalized\":false,\"start_date\":\"20251020\",\"end_date\":\"20261019\",\"interval_days\":30}"
+ },
+ {
+  "urlPath": "/v2/market/analytics/insight/",
+  "responseOrder": 190,
+  "status": 200,
+  "body": null,
+  "requestBody": ""
+ }
+]
