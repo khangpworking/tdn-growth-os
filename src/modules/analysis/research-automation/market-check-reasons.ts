@@ -20,6 +20,8 @@ const GATE: Readonly<Record<string, string>> = {
   U13_PENDING_NUMBER: 'Số phân loại chưa duyệt thiếu nhãn "đề xuất, chờ chủ duyệt" trong cùng câu.',
   U13_METRIC_CODE: 'Trang hiện mã chỉ số như DT-1 hay GIA-2; báo cáo chỉ ghi tên chỉ số.',
   U13_REAL_PRICE: 'Trang dùng chữ «giá thật»; tên chỉ số là «giá bán trung bình».',
+  N01_UNTRACED_NUMBER: 'Trang có con số không truy được về số liệu đã lưu.',
+  N02_TRACE_REPLAY: 'Có con số tính lại từ số liệu đã lưu không ra đúng số in trên trang.',
   L20_RANKING_WORD: 'Câu dùng "dẫn đầu", "số 1" hoặc "nhiều nhất" mà thiếu thước đo, mẫu hoặc kỳ, hoặc dùng cụm luôn cấm như "tốt nhất".',
 };
 const FOURTEEN: Readonly<Record<string, string>> = {

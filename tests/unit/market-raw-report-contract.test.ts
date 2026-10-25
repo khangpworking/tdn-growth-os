@@ -7,7 +7,7 @@ import { auditMarket14, technicalLeaks } from '../../src/modules/analysis/resear
 import { buildAutomationMarketPresentation } from '../../src/modules/analysis/research-automation/market-presentation-method.js';
 import { marketRawScaleSection, type MarketRawReportInput } from '../../src/modules/analysis/research-automation/market-raw-report.js';
 import { readMarketRawSeries, resolveMarketRawSource } from '../../src/modules/analysis/research-automation/market-raw-series.js';
-import { MarketNumberTraceCollector, type MarketNumberTrace, type MarketNumberTraceEntry } from '../../src/modules/analysis/research-automation/market-trace-map.js';
+import { MarketNumberTraceCollector, type MarketNumberTrace, type MarketNumberTraceEntry, type MarketRawTraceInput } from '../../src/modules/analysis/research-automation/market-trace-map.js';
 import { buildResearchAutomationReport, type AutomationReportInput } from '../../src/modules/analysis/research-automation/reports.js';
 import { fullMarket14Input } from '../helpers/market14-full-fixture.js';
 import { metricFixture } from '../fixtures/metric-scope-synthetic.js';
@@ -317,7 +317,9 @@ test('B9 every printed number in the touched raw blocks has a capture-bound trac
   const trace = (report.semantic as { marketNumberTrace?: MarketNumberTrace }).marketNumberTrace;
   assert.ok(trace?.entries.length, 'trace is stored with the report output');
   const captures = new Map<string, unknown>([['zinc-30d', raw], ['zinc-12m', zinc12]]);
-  for (const entry of trace.entries) {
+  // Since P5 the map also records blocks fed by other stored sources; this row checks the raw-response blocks.
+  const rawEntries = trace.entries.filter(entry => /^(?:M02\.scope\.|M03\.(?:\d+d|12m)\.)/u.test(entry.blockId)) as (Omit<MarketNumberTraceEntry, 'inputs'> & { inputs: readonly MarketRawTraceInput[] })[];
+  for (const entry of rawEntries) {
     assert.ok(entry.token.trim() && entry.blockId.trim() && entry.formula.trim());
     assert.ok(entry.kind === 'raw' || entry.kind === 'computed');
     assert.ok(entry.inputs.length > 0, `${entry.token} cannot have unbound computed inputs`);
@@ -329,7 +331,7 @@ test('B9 every printed number in the touched raw blocks has a capture-bound trac
       assert.notEqual(resolveMarketRawSource(captures.get(input.captureId), input), undefined, `${entry.token}: pointer resolves in the named capture`);
     }
   }
-  const keywordEntries = trace.entries.filter(entry => entry.blockId.startsWith('M02.scope.keyword.'));
+  const keywordEntries = rawEntries.filter(entry => entry.blockId.startsWith('M02.scope.keyword.'));
   assert.deepEqual(keywordEntries.map(entry => entry.token), ['50', '12'], 'both numbers inside the scope keyword are traced');
   for (const entry of keywordEntries) {
     assert.equal(entry.kind, 'raw', 'keyword numbers are source text, not computed measurements');
@@ -342,7 +344,7 @@ test('B9 every printed number in the touched raw blocks has a capture-bound trac
     ['22/08–20/09/2026', 'zinc-30d', ['20260921', '20261020']],
     ['01/11/2024–31/10/2025', 'zinc-12m', ['20251101', '20261031']],
   ] as const) {
-    const entry: MarketNumberTraceEntry | undefined = trace.entries.find(candidate => candidate.token === token);
+    const entry = rawEntries.find(candidate => candidate.token === token);
     assert.ok(entry, `trace includes ${token}`);
     assert.ok(entry.inputs.every(input => input.captureId === captureId));
     assert.deepEqual(entry.inputs.map(input => resolveMarketRawSource(captures.get(input.captureId), input)), [...values],

@@ -14,7 +14,7 @@ import { privateReviewReportView } from './private-review-contracts.js';
 import type { PrivateReviewReportView } from '../../../../contracts/analysis/private-review-report-view.generated.js';
 import type { AutomationMarketPresentationMethod } from '../../../../contracts/analysis/automation-market-presentation-method.generated.js';
 import { verifyAutomationMarketPresentation } from './market-presentation-method.js';
-import { marketChartSource, renderAutomationMarketFindings, renderAutomationMarketUnitPrices, renderCaptureSampleSentences, type MarketHeadline, type MarketTitleUnitRow } from './market-presentation-report.js';
+import { marketChartRowInputs, marketChartRowSource, marketChartSource, renderAutomationMarketFindings, renderAutomationMarketUnitPrices, renderCaptureSampleSentences, type MarketHeadline, type MarketTitleUnitRow } from './market-presentation-report.js';
 import { admitWebResults, checkSourceEvidence } from './source-evidence.js';
 import { collectionWebRows, webReaderDay, webReaderRetrieved, expandedSearchReaderLabel, EXPANDED_SEARCH_COLUMN, EXPANDED_SEARCH_LABEL, EXPANDED_SEARCH_NOTE } from './expanded-search-lane.js';
 import { CURRENT_MARKET_READER_TERMS, MARKET_READER_TERMS } from './market-reader-glossary.js';
@@ -54,7 +54,10 @@ import type { AutomationInsightCodingSnapshot } from '../../../../contracts/anal
 import type { LiteralFamily, LiteralPendingReason } from './literal-review-coding.js';
 import { marketInventorySection } from './market-inventory-report.js';
 import { marketRawScaleSection, marketRawScopeSection, type MarketRawReportInput } from './market-raw-report.js';
-import { MarketNumberTraceCollector } from './market-trace-map.js';
+import { MarketNumberTraceCollector, marketNumberTraceActive, traceMarketNumber, withMarketNumberTrace, type MarketTraceInput } from './market-trace-map.js';
+import { resolveMarketRawSource } from './market-raw-series.js';
+import { scopePeriodInputs, storedInput } from './market-trace-inputs.js';
+import { marketMainQuarter, marketNumberTokens } from './market-number-trace.js';
 import type { ResearchAutomationRun } from '../../../../contracts/api/research-automation-api.generated.js';
 import { REPORT_KIT_CSS as REPORT_KIT_BASE_CSS } from '../report-kit-theme.js';
 import { reportKitFontCss } from '../report-kit-fonts.js';
@@ -74,11 +77,11 @@ import { formatReaderValue, readerProductLabel, readerShopLabel } from './reader
 import type { AutomationQualitativeDraft } from '../../../../contracts/analysis/automation-qualitative-draft-v1.generated.js';
 import { qualitativeDraftSection, qualitativeDraftSummary } from '../reader-report/qualitative-draft-report.js';
 import { platIcons } from '../reader-report/layout.js';
-import { ACTION_LEAD, OPPORTUNITY_HEADINGS, OPPORTUNITY_UNIT_READING,OPTION_HEADINGS, QUICK_WIN_HEADING, QUICK_WIN_HEADINGS, actionStartDay, marketActionPlan, missingBandText, NO_DERIVED_PRICE, opportunityExplanation, opportunityHeadings, opportunityRows, platformPriceBands, type ActionRow, type MarketActionPlan } from '../reader-report/market-actions.js';
+import { ACTION_DEADLINE_DAYS, ACTION_LEAD, dayPlus, OPPORTUNITY_HEADINGS, OPPORTUNITY_UNIT_READING,OPTION_HEADINGS, QUICK_WIN_HEADING, QUICK_WIN_HEADINGS, actionStartDay, marketActionPlan, missingBandText, NO_DERIVED_PRICE, opportunityExplanation, opportunityHeadings, opportunityRows, platformPriceBands, type ActionRow, type MarketActionPlan } from '../reader-report/market-actions.js';
 import { NO_PRICE_COMPARISON, chooseUnitProfile, convertedLine, projectTitleUnitPrices, type UnitProfile } from '../reader-report/market-title-quantity.js';
-import { deliverMarketReader, marketReaderGuide, numberMarketExhibits } from './market-reader-delivery.js';
+import { deliverMarketReader, type MarketChartReadingTrace, marketReaderGuide, numberMarketExhibits } from './market-reader-delivery.js';
 import { plainCaptureNumbers } from '../reader-report/format.js';
-import { UNKNOWN_SHOP, marketChartRows, marketRankedRows, marketShares, marketShopsUnrecorded, thinSearchAxisLabels, type CaptureCountChart, type MarketChart } from '../reader-report/market-charts.js';
+import { TOP_GROUPS, UNKNOWN_SHOP, marketChartPlatformLabel, marketChartRows, marketRankingRowLabel, marketShareMembers, type MarketChartRow, marketRankedRows, marketShares, marketShopsUnrecorded, thinSearchAxisLabels, type CaptureCountChart, type MarketChart } from '../reader-report/market-charts.js';
 import type { RenderedChart } from '../reader-report/flint.js';
 import { comtradeChartCount, worldBankChartCount, type MacroChart } from '../reader-report/macro-charts.js';
 import { pdfDiscoverySourceRows, pdfExcerptBlockHtml, pdfExcerptReaderCitation, PDF_EXCERPT_NOTE, PDF_EXCERPT_SECTION, PDF_EXCERPT_SRC } from './pdf-excerpt.js';
@@ -90,7 +93,7 @@ import { formatWorldBankValue, worldBankReaderNote, WORLD_BANK_READER_SRC, world
 import { E13_ATTRIBUTION } from '../source-appendix-projection.js';
 import { withKalodataReplayNotice } from './kalodata-replay.js';
 import { exactTestReviewSample, exactTestReviewSection, exactTestReviewSourceRows, TEST_REVIEW_SOURCE_TYPE } from './test-review-sample.js';
-import { SEARCH_INTEREST_EMPTY, searchInterestIntervalText, searchInterestIsDaily, searchInterestReadingPoints, searchInterestRenderable,SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_LIMIT, SEARCH_INTEREST_NOTE, SEARCH_INTEREST_READER_TITLE, SEARCH_INTEREST_SOURCE_LABEL, searchInterestSourceText, SEARCH_INTEREST_UNIT } from './search-interest.js';
+import { SEARCH_INTEREST_EMPTY, searchInterestIntervalText, searchInterestIsDaily, searchInterestPeriodText, searchInterestReadingPoints, searchInterestRenderable,SEARCH_INTEREST_FIGURE_TITLE, SEARCH_INTEREST_LIMIT, SEARCH_INTEREST_NOTE, SEARCH_INTEREST_READER_TITLE, SEARCH_INTEREST_SOURCE_LABEL, searchInterestSourceText, SEARCH_INTEREST_UNIT } from './search-interest.js';
 import { searchGeoAverageText, searchGeoNoteText, searchGeoRenderable, searchGeoText, summarizeSearchGeo, SEARCH_GEO_DONT, SEARCH_GEO_HEADERS, SEARCH_GEO_TABLE_NO, SEARCH_GEO_TABLE_TITLE } from './search-geo.js';
 
 /**
@@ -301,20 +304,30 @@ function marketSamplePeriod(input: AutomationReportInput): { start: string; end:
   return scopes.flatMap(scope => scope && validDay(scope.start) && validDay(scope.end) && scope.start <= scope.end
     ? [{ start: scope.start, end: scope.end }] : [])[0] ?? null;
 }
+/** Trace inputs of the sales-sample period: the capture snapshot's scope, or the metric method input's scope. */
+function marketSamplePeriodInputs(input: AutomationReportInput, period: { start: string; end: string }): MarketTraceInput[] {
+  const capture = input.metricMethods?.capture;
+  if (capture) return scopePeriodInputs(capture.snapshotSha256, period);
+  const identity = input.metricMethods?.result.inputSha256 ?? 'automation-market-presentation-method';
+  return [storedInput('stored-source', identity, '/input/scope/start', period.start, 'start'), storedInput('stored-source', identity, '/input/scope/end', period.end, 'end')];
+}
 /** The sales-sample quarter holding most of its inclusive days, the later one on a tie. A requested period is not evidence of data. */
 export function marketReportQuarter(input: AutomationReportInput): { quarter: string; range: string } {
   const period = marketSamplePeriod(input);
   if (!period) return { quarter: 'Chưa xác định quý dữ liệu', range: 'Chưa có kỳ số liệu bán hàng hợp lệ' };
-  const days = new Map<string, { quarter: number; year: number; count: number }>();
-  for (let day = Date.parse(`${period.start}T00:00:00Z`), end = Date.parse(`${period.end}T00:00:00Z`); day <= end; day += 86_400_000) {
-    const date = new Date(day);
-    const quarter = Math.floor(date.getUTCMonth() / 3) + 1, year = date.getUTCFullYear();
-    const key = `${year}-${quarter}`;
-    days.set(key, { quarter, year, count: (days.get(key)?.count ?? 0) + 1 });
-  }
-  const main = [...days.values()].reduce((best, item) => item.count >= best.count ? item : best,
-    { quarter: Math.floor((Number(period.end.slice(5, 7)) - 1) / 3) + 1, year: Number(period.end.slice(0, 4)), count: 0 });
-  return { quarter: `Quý ${main.quarter} năm ${main.year}`, range: `Dữ liệu từ ${escape(readerDay(period.start))} đến ${escape(readerDay(period.end))}` };
+  const inputs = marketSamplePeriodInputs(input, period);
+  const day = (value: string, at: number): string => traceMarketNumber(readerDay(value), 'page.cover.period', 'raw', [inputs[at]!], 'stored day dd/mm/yyyy', 'vi-date');
+  return { quarter: marketQuarterText(period, inputs, 'page.cover.quarter'), range: `Dữ liệu từ ${escape(day(period.start, 0))} đến ${escape(day(period.end, 1))}` };
+}
+/** The page title's copy of the cover quarter («Quý 3 năm 2026»), recorded for the title it is printed in. */
+export function marketReportQuarterTitle(input: AutomationReportInput): string {
+  const period = marketSamplePeriod(input);
+  return period ? marketQuarterText(period, marketSamplePeriodInputs(input, period), 'page.title') : 'Chưa xác định quý dữ liệu';
+}
+function marketQuarterText(period: { start: string; end: string }, inputs: MarketTraceInput[], blockId: string): string {
+  const main = marketMainQuarter(period.start, period.end);
+  const record = (token: string, formula: string, formulaId: 'quarter' | 'year'): string => traceMarketNumber(token, blockId, 'computed', inputs, formula, formulaId);
+  return `Quý ${record(String(main.quarter), 'quarter holding most inclusive days of the sample period, later on a tie', 'quarter')} năm ${record(String(main.year), 'year of that quarter', 'year')}`;
 }
 interface CatalogSection { sectionId: string; title: string; methodId: string; methodVersion: string; requiredInputs: string[] }
 export interface MethodOutputRef { methodOutputId: string; locatedRecordCount: number; unresolvedPointers: readonly string[]; blockers: readonly string[] }
@@ -702,13 +715,121 @@ function marketUnitRows(input: AutomationReportInput, presentationRows: readonly
 }
 const unitLines = (unit: MarketUnitRows): string => unit.withoutAveragePrice ? `<p>${escape(NO_DERIVED_PRICE)}</p>` : unit.profile ? unit.lines.map(line => `<p class="lim">${escape(line)}</p>`).join('') : `<p>${escape(NO_PRICE_COMPARISON)}</p>`;
 
-/** Vietnam calendar day the report run was created; the proposal deadlines count from it. */
-function marketActionStartDay(input: AutomationReportInput): string | null {
+/** One bar of a Market chart (Hình 4.1, 4.2, 7.1) with the stored rows it plots: `part` (÷ `total` for a share). */
+type MarketChartDatum = { readonly kind: MarketChart['kind']; readonly label: string; readonly group: string; readonly part: readonly MarketChartRow[]; readonly total?: readonly MarketChartRow[] };
+
+/**
+ * Number trace of the Market charts: their value labels (drawn by the chart engine before the build) and the
+ * delivery's chart readings are recorded against the rows each bar plots. Null outside a traced build.
+ */
+function marketChartTrace(input: AutomationReportInput, presentation: AutomationMarketPresentationMethod | undefined): { embed: (chart: MarketChart) => void; reading: MarketChartReadingTrace } | null {
+  if (!presentation || !marketNumberTraceActive()) return null;
+  const source = marketChartSource(presentation.input.rows, input.metricMethods), rows = source.rows;
+  const rowSource = marketChartRowSource(presentation.input.rows, presentation.binding, input.metricMethods);
+  const usable = marketChartRows(rows), platforms = (['shopee', 'tiktok'] as const).filter(P => usable.some(row => row.platform === P));
+  const datums: MarketChartDatum[] = [
+    ...platforms.map(P => ({ kind: 'platform-revenue' as const, label: marketChartPlatformLabel(P), group: '', part: usable.filter(row => row.platform === P) })),
+    ...marketShares(rows).filter(share => share.shops).flatMap(share => TOP_GROUPS.flatMap((k, j) => share.shops![j] === null ? [] : [(() => {
+      const members = marketShareMembers(rows, share.platform, 'shops', k);
+      return { kind: 'concentration' as const, label: `${k} gian hàng doanh thu cao`, group: marketChartPlatformLabel(share.platform), part: members.part, total: members.total };
+    })()])),
+    ...marketRankedRows(rows).map(row => ({ kind: 'product-ranking' as const, label: marketRankingRowLabel(row, source), group: marketChartPlatformLabel(row.platform), part: [row] })),
+  ];
+  const block = (kind: MarketChart['kind']): string => `${kind === 'product-ranking' ? 'M07' : 'M04'}.chart.${kind}`;
+  const find = (kind: MarketChart['kind'] | undefined, point: { label: string; group: string }): MarketChartDatum | undefined =>
+    datums.find(datum => datum.kind === kind && datum.label === point.label && (point.group === '' || datum.group === '' || datum.group === point.group));
+  const value = (kind: MarketChart['kind'] | undefined, point: { label: string; group: string }, token: string): string => {
+    const datum = find(kind, point);
+    const part = datum && marketChartRowInputs(datum.part, rowSource, 'part'), total = datum?.total ? marketChartRowInputs(datum.total, rowSource, 'total') : undefined;
+    if (!datum || !part || total === null) return token;
+    return traceMarketNumber(token, block(datum.kind), 'computed', [...part, ...(total ?? [])],
+      total ? '100 × sum(leading shops) ÷ sum(platform rows), at the printed precision' : 'sum(row revenue) ÷ 1e6, at the printed precision', 'chart-label');
+  };
+  // A value-axis tick is bounded by the chart's largest plotted bar (its rows, or its share of the platform rows).
+  const plotted = (datum: MarketChartDatum): number => {
+    const part = datum.part.reduce((total, row) => total + (row.rev ?? 0), 0), whole = datum.total?.reduce((total, row) => total + (row.rev ?? 0), 0);
+    return whole === undefined ? part / 1e6 : whole ? 100 * part / whole : 0;
+  };
+  const tick = (kind: MarketChart['kind'], token: string): void => {
+    const largest = datums.filter(datum => datum.kind === kind).reduce<MarketChartDatum | undefined>((best, datum) => !best || plotted(datum) > plotted(best) ? datum : best, undefined);
+    const part = largest && marketChartRowInputs(largest.part, rowSource, 'part'), total = largest?.total ? marketChartRowInputs(largest.total, rowSource, 'total') : undefined;
+    if (largest && part && total !== null) traceMarketNumber(token, block(kind), 'computed', [...part, ...(total ?? [])],
+      total ? 'value-axis tick, 0 to 100 (share)' : 'value-axis tick, 0 to 2 × largest plotted bar (sum(row revenue) ÷ 1e6)', 'axis-tick');
+  };
+  // A ranking label is the row's title (its numbers as stored), platform and row number: the row's position in its
+  // platform's stored records (`ref`, current reader) or in the stored table, plus one.
+  const rankingLabel = (datum: MarketChartDatum | undefined, label: string): void => {
+    const row = datum?.kind === 'product-ranking' ? datum.part[0]! : undefined, at = row && rowSource(row);
+    if (!row || !at) return;
+    const position = source.currentReader && row.ref ? row.refAt : row.i;
+    const rowNumber = position === undefined ? null : String(position + 1);
+    for (const number of marketNumberTokens(label)) {
+      if (number === rowNumber && label.endsWith(row.ref && source.currentReader ? row.ref : ` ${rowNumber}`)) traceMarketNumber(number, block(datum!.kind), 'computed',
+        [storedInput('capture-table', at.sourceSha256, at.locator, position!, 'offset')], source.currentReader && row.ref ? 'position of the row in its platform’s stored records + 1' : 'row of the stored table + 1', 'row-number');
+      else traceMarketNumber(number, block(datum!.kind), 'raw', [storedInput('capture-table', at.sourceSha256, at.locator, row.title ?? '')], 'number as written in the row title', 'as-stored');
+    }
+  };
+  const kindOf = (html: string): MarketChart['kind'] | undefined => input.marketPresentationCharts?.find(chart => html.includes(`<span class="ext">${escape(chart.title)}</span>`))?.kind;
+  const unescape = (text: string): string => text.replace(/&quot;/gu, '"').replace(/&#39;/gu, "'").replace(/&lt;/gu, '<').replace(/&gt;/gu, '>').replace(/&amp;/gu, '&');
+  return {
+    // Value labels are the text marks of the drawn bars; their aria label names the bar.
+    embed: chart => {
+      for (const group of chart.svg.matchAll(/<g class="mark-text role-mark[^"]*"[^>]*>([\s\S]*?)<\/g>/gu)) {
+        for (const [, aria = '', label = ''] of group[1]!.matchAll(/<text\b[^>]*aria-label="([^"]*)"[^>]*>([^<]*)<\/text>/gu)) {
+          const bar = /^([^;]+): (-?[\d.,]+);\s+: ([^;]+)(?:;.*?\b[Ss](?:àn|an): ([^;]+))?/u.exec(unescape(aria));
+          if (bar && marketNumberTokens(label).length) value(chart.kind, { label: bar[3]!.trim(), group: (bar[4] ?? '').trim() }, unescape(label).trim());
+        }
+      }
+      // Category labels of a discrete axis name their bars.
+      for (const axis of chart.svg.matchAll(/aria-label="[XY]-axis[^"]*for a discrete scale[^"]*"/gu)) {
+        const start = chart.svg.indexOf('<g class="mark-text role-axis-label"', axis.index), end = start < 0 ? -1 : chart.svg.indexOf('</g>', start);
+        if (end < 0) continue;
+        for (const [, label = ''] of chart.svg.slice(start, end).matchAll(/<text\b[^>]*>([^<]*)<\/text>/gu)) rankingLabel(find(chart.kind, { label: unescape(label).trim(), group: '' }), unescape(label).trim());
+      }
+      // Tick labels of each linear (value) axis.
+      for (const axis of chart.svg.matchAll(/aria-label="[XY]-axis[^"]*for a linear scale[^"]*"/gu)) {
+        const start = chart.svg.indexOf('<g class="mark-text role-axis-label"', axis.index), end = start < 0 ? -1 : chart.svg.indexOf('</g>', start);
+        if (end < 0) continue;
+        for (const [, label = ''] of chart.svg.slice(start, end).matchAll(/<text\b[^>]*>([^<]*)<\/text>/gu)) for (const token of marketNumberTokens(unescape(label))) tick(chart.kind, token);
+      }
+    },
+    reading: {
+      value: (html, point, text) => value(kindOf(html), point, text),
+      count: (html, points) => {
+        const kind = kindOf(html), found = points.map(point => find(kind, point));
+        const inputs = found.every(datum => datum !== undefined) ? marketChartRowInputs(found.map(datum => datum!.part[0]!), rowSource) : null;
+        return inputs ? traceMarketNumber(String(points.length), block(kind!), 'computed', inputs, 'count(bars), one row per bar', 'count') : String(points.length);
+      },
+      label: (html, point) => {
+        rankingLabel(find(kindOf(html), point), point.label);
+        return point.label;
+      },
+    },
+  };
+}
+
+/** Candidate start days of the proposal deadlines, in order, each with where it is stored. */
+function marketActionStartCandidates(input: AutomationReportInput): [string | null | undefined, MarketTraceInput][] {
   const created = Date.parse(input.run.createdAt);
   const vietnamDay = new Date(created + 7 * 3_600_000);
-  return actionStartDay(Number.isFinite(vietnamDay.getTime()) ? vietnamDay.toISOString().slice(0, 10) : null,
-    input.start.requestedPeriod.endDate, input.start.requestedPeriod.startDate,
-    input.marketPresentation?.input.metric?.input.scope.end);
+  const run = (pointer: string, value: string): MarketTraceInput => storedInput('run-record', input.run.runId, pointer, value, 'base');
+  const scopeEnd = input.marketPresentation?.input.metric?.input.scope.end;
+  return [
+    [Number.isFinite(vietnamDay.getTime()) ? vietnamDay.toISOString().slice(0, 10) : null, run('/createdAt', input.run.createdAt)],
+    [input.start.requestedPeriod.endDate, run('/start/requestedPeriod/endDate', input.start.requestedPeriod.endDate ?? '')],
+    [input.start.requestedPeriod.startDate, run('/start/requestedPeriod/startDate', input.start.requestedPeriod.startDate ?? '')],
+    [scopeEnd, storedInput('stored-source', 'automation-market-presentation-method', '/input/metric/input/scope/end', scopeEnd ?? '', 'base')],
+  ];
+}
+/** Vietnam calendar day the report run was created; the proposal deadlines count from it. */
+function marketActionStartDay(input: AutomationReportInput): string | null {
+  return actionStartDay(...marketActionStartCandidates(input).map(([day]) => day));
+}
+/** The start day the deadlines count from and its stored source. */
+function marketActionStart(input: AutomationReportInput): { day: string; input: MarketTraceInput } | null {
+  const day = marketActionStartDay(input);
+  const found = day === null ? undefined : marketActionStartCandidates(input).find(([candidate]) => candidate === day);
+  return found ? { day: day!, input: found[1] } : null;
 }
 
 const marketReviewsCollected = (input: AutomationReportInput): boolean =>
@@ -724,10 +845,24 @@ function marketHeadline(input: AutomationReportInput, presentation: AutomationMa
   const weeks = searchInterestRenderable(interest) && input.searchInterestChart
     ? searchInterestReadingPoints(interest).flatMap(point => point.index === null ? [] : [{ period: point.period, index: point.index }]) : [];
   const peak = weeks.reduce<(typeof weeks)[number] | undefined>((top, week) => top && top.index >= week.index ? top : week, undefined);
+  // The stored points behind the reading: the peak's period and index, and every point with a number.
+  const daily = interest ? searchInterestIsDaily(interest) : false;
+  const searchStore = `COLLECTION#${interest?.captureIndex ?? 'unknown'}`;
+  const pointAt = (period: string) => interest?.points.findIndex(point => point.index !== null && searchInterestPeriodText(point.period, daily) === period) ?? -1;
+  const peakAt = peak ? pointAt(peak.period) : -1;
+  const counted = weeks.map(week => pointAt(week.period));
+  const searchTrace = interest && peakAt >= 0 && counted.every(at => at >= 0) ? {
+    period: storedInput('stored-source', searchStore, `/points/${peakAt}/period`, interest.points[peakAt]!.period),
+    index: storedInput('stored-source', searchStore, `/points/${peakAt}/index`, interest.points[peakAt]!.index!),
+    weeks: counted.map(at => storedInput('stored-source', searchStore, `/points/${at}/index`, interest.points[at]!.index!)),
+    daily,
+  } : undefined;
   const chartRows = marketChartSource(presentation.input.rows, input.metricMethods).rows;
   const shares = drawn('platform-revenue') ? marketShares(chartRows).map(share => drawn('concentration') ? share : { ...share, shops: null }) : [];
   const ranked = drawn('product-ranking') ? marketRankedRows(chartRows) : [];
   return {
+    rows: chartRows,
+    rowSource: marketChartRowSource(presentation.input.rows, presentation.binding, input.metricMethods),
     shares,
     products: shares.flatMap(share => {
       const shown = ranked.filter(row => row.platform === share.platform).length;
@@ -736,7 +871,7 @@ function marketHeadline(input: AutomationReportInput, presentation: AutomationMa
     bands: plan.signals.flatMap(signal => signal.band && signal.band.low > 0 && signal.band.revenue > 0
       ? [{ ...signal, n: rows.filter(row => row.platform === signal.platform).length }] : []),
     unitStandard: unit.profile?.standard ?? null,
-    search: peak && peak.index > 0 ? { ...peak, weeks: weeks.length, ...(searchInterestIsDaily(interest!) ? { periodUnit: 'ngày' as const } : {}) } : null,
+    search: peak && peak.index > 0 ? { ...peak, weeks: weeks.length, ...(searchInterestIsDaily(interest!) ? { periodUnit: 'ngày' as const } : {}), ...(searchTrace ? { trace: searchTrace } : {}) } : null,
     options: plan.hasFigures,
   };
 }
@@ -765,11 +900,17 @@ function marketOpportunitySection(plan: MarketActionPlan, reviewsCollected: bool
 }
 
 /** Phần 12: three options with in-sample related revenue, then the no-cost quick wins; every row is a proposal awaiting the owner. */
-function marketActionSection(plan: MarketActionPlan, unit: MarketUnitRows, plannedDates = false): string {
+function marketActionSection(plan: MarketActionPlan, unit: MarketUnitRows, plannedDates = false, start: { day: string; input: MarketTraceInput } | null = null): string {
+  // A deadline is the start day plus one of the plan's offsets; it is recorded with the start day's source.
+  const deadline = (text: string, block: string): string => {
+    const days = start ? ACTION_DEADLINE_DAYS.find(offset => dayPlus(start.day, offset) === text) : undefined;
+    return start && days !== undefined ? traceMarketNumber(text, block, 'computed',
+      [start.input, storedInput('stored-source', 'template:market-actions', '/ACTION_DEADLINE_DAYS', days, 'offset')], 'start day + deadline offset, dd/mm/yyyy', 'date-plus-days') : text;
+  };
   const options = marketActionTable('12.1', 'Phương án đề xuất, chờ chủ duyệt', ` market14-proposals${plan.hasFigures ? ' has-figures' : ''}`, OPTION_HEADINGS,
-    plan.options.map(option => [escape(option.name), option.related.map(line => escape(line)).join('<br>'), escape(option.firstStep), escape(option.owner), escape(option.deadline)])) + unitLines(unit);
+    plan.options.map(option => [escape(option.name), option.related.map(line => escape(line)).join('<br>'), escape(option.firstStep), escape(option.owner), escape(deadline(option.deadline, 'M12.options'))])) + unitLines(unit);
   const quick = marketActionTable('12.2', 'Việc làm ngay, không tốn chi phí (đề xuất, chờ chủ duyệt)', ' market14-proposals', QUICK_WIN_HEADINGS,
-    plan.quickWins.map(win => [win.task, win.owner, win.deadline, win.output].map(cell => escape(cell))));
+    plan.quickWins.map(win => [win.task, win.owner, deadline(win.deadline, 'M12.quick'), win.output].map(cell => escape(cell))));
   return `${options}<h3>${escape(QUICK_WIN_HEADING)}</h3>${quick}<p>${escape('Phương án, người phụ trách và hạn là đề xuất của TDN, chờ chủ duyệt; chủ dự án có thể sửa. Các bước kiểm tra chưa xác nhận khả năng sinh lời hay mức tăng doanh số.')}${plannedDates ? ' Mọi hạn trong hai bảng là ngày dự kiến.' : ''}</p>`;
 }
 
@@ -849,16 +990,26 @@ function defaultPeerSection(snapshot: DefaultMarketPeers, citations: ReportCitat
   const additions = snapshot.input.ownerAdditions.length
     ? `<ul>${snapshot.input.ownerAdditions.map(id => `<li>Đối tượng nguồn: ${escape(sourceMemberLabel(id, readerPlainText))}</li>`).join('')}</ul>`
     : '<p>Chưa có bổ sung của chủ.</p>';
-  const record = `<details><summary>Hồ sơ đối chiếu tập đối thủ</summary><p>Phiên bản quy tắc: <code>${escape(snapshot.input.rule.version)}</code>. Đầu vào, thành viên, lý do loại và kết quả chính xác được giữ trong bản lưu bất biến. Số lần loại dòng ở các nhóm và sàn: ${escape(exclusions.length)}.</p><ul>${exclusions.map(row => `<li><code>${escape(row.reason)}</code> ${mark(row.source)}</li>`).join('')}</ul></details>`;
+  // The rule and the exclusions print as stored in the peer snapshot.
+  const peers = (token: string, pointer: string, value: string | number): string => traceMarketNumber(token, 'M07.peers.rule', 'raw',
+    [storedInput('stored-source', 'default-market-peers', pointer, value)], `peer snapshot ${pointer}, as stored`, 'as-stored');
+  const excludedCount = exclusions.length ? traceMarketNumber(String(exclusions.length), 'M07.peers.excluded', 'computed',
+    snapshot.frames.flatMap((frame, at) => frame.excluded.map((_row, row) => storedInput('stored-source', 'default-market-peers', `/frames/${at}/excluded/${row}`, frame.excluded[row]!.reason))),
+    'count(excluded rows of every frame)', 'count') : String(exclusions.length);
+  const thresholdValue = snapshot.input.rule.thresholdPercent;
+  traceMarketNumber(`${thresholdValue}%`, 'M07.peers.rule', 'raw', [storedInput('stored-source', 'default-market-peers', '/input/rule/thresholdPercent', thresholdValue)],
+    'peer snapshot threshold percent, as stored', 'stored-percent');
+  const threshold = String(thresholdValue);
+  const record = `<details><summary>Hồ sơ đối chiếu tập đối thủ</summary><p>Phiên bản quy tắc: <code>${escape(peers(snapshot.input.rule.version, '/input/rule/version', snapshot.input.rule.version))}</code>. Đầu vào, thành viên, lý do loại và kết quả chính xác được giữ trong bản lưu bất biến. Số lần loại dòng ở các nhóm và sàn: ${escape(excludedCount)}.</p><ul>${exclusions.map(row => `<li><code>${escape(row.reason)}</code> ${mark(row.source)}</li>`).join('')}</ul></details>`;
   if (owner) {
     // The section explanation already says whether peers were chosen; the body gives the rule in plain words, without tie-break or identity-order notes.
-    const rule = `<p>Cách chọn đối thủ mặc định, chốt trước khi đọc doanh số: chọn đối thủ theo doanh thu giảm dần trong cùng nhóm, cùng sàn cho tới khi đạt tối thiểu ${escape(snapshot.input.rule.thresholdPercent)} phần trăm doanh thu của nhóm trong mẫu.</p>`;
+    const rule = `<p>Cách chọn đối thủ mặc định, chốt trước khi đọc doanh số: chọn đối thủ theo doanh thu giảm dần trong cùng nhóm, cùng sàn cho tới khi đạt tối thiểu ${escape(threshold)} phần trăm doanh thu của nhóm trong mẫu.</p>`;
     const empty = owner.rankingShown ? '<p>Hình dưới chỉ liệt kê sản phẩm có doanh thu cao trong mẫu, chưa phải đối thủ đã chọn.</p>' : '';
     const ownerAdditions = snapshot.input.ownerAdditions.length
       ? `<h3>Đối thủ do chủ bổ sung, giữ riêng</h3>${additions}<p>Phần bổ sung không thay đổi cách chọn mặc định.</p>` : '<p>Chưa có đối thủ do chủ bổ sung.</p>';
     return `${rule}${frames || empty}<p>Số bán hàng là số ước tính của nguồn, chưa đối chiếu với người bán. Không cộng doanh thu giữa các sàn, không coi hai sản phẩm là cùng thương hiệu chỉ vì tên giống nhau.</p>${ownerAdditions}${record}`;
   }
-  return `<p>Quy tắc đã chốt trước khi đọc doanh số: chọn theo doanh thu giảm dần tới khi đạt ít nhất ${escape(snapshot.input.rule.thresholdPercent)}${readerPlainText ? ' phần trăm' : '%'} doanh thu cùng nhóm trong mẫu; khi bằng nhau dùng mã danh tính ổn định. Bảng hiển thị theo danh tính, không xếp ưu tiên.</p>${frames || `<p>Chưa có nhóm doanh số đã phân loại tương thích. Quan sát sản phẩm và thẻ tìm kiếm không cung cấp thành viên doanh số; phần thiếu không phải ${readerPlainText ? 'bằng không' : '0'}.</p>`}<p>Số bán hàng ước tính chưa đối chiếu với người bán, chỉ dùng tham khảo. Không cộng doanh thu giữa các sàn hoặc suy cùng thương hiệu từ tên giống nhau.</p><h3>Bổ sung của chủ, giữ riêng</h3>${additions}<p>Bổ sung không thay đổi mẫu số hoặc quy tắc mặc định.</p>${record}`;
+  return `<p>Quy tắc đã chốt trước khi đọc doanh số: chọn theo doanh thu giảm dần tới khi đạt ít nhất ${escape(threshold)}${readerPlainText ? ' phần trăm' : '%'} doanh thu cùng nhóm trong mẫu; khi bằng nhau dùng mã danh tính ổn định. Bảng hiển thị theo danh tính, không xếp ưu tiên.</p>${frames || `<p>Chưa có nhóm doanh số đã phân loại tương thích. Quan sát sản phẩm và thẻ tìm kiếm không cung cấp thành viên doanh số; phần thiếu không phải ${readerPlainText ? 'bằng không' : '0'}.</p>`}<p>Số bán hàng ước tính chưa đối chiếu với người bán, chỉ dùng tham khảo. Không cộng doanh thu giữa các sàn hoặc suy cùng thương hiệu từ tên giống nhau.</p><h3>Bổ sung của chủ, giữ riêng</h3>${additions}<p>Bổ sung không thay đổi mẫu số hoặc quy tắc mặc định.</p>${record}`;
 }
 
 /**
@@ -874,12 +1025,14 @@ export function marketPartialRowTotals(input: Pick<AutomationReportInput, 'marke
 }
 
 export function buildResearchAutomationReport(input: AutomationReportInput, kind: 'MARKET' | 'INSIGHT'): { semantic: object; html: Buffer; traceHtml?: Buffer } {
-  const report = buildResearchAutomationReportBody(input, kind);
+  // A raw-series Market draft records every number it prints; blocks deep in the build record through traceMarketNumber.
+  const numberTrace = kind === 'MARKET' && input.marketRawSeries ? new MarketNumberTraceCollector() : null;
+  const report = withMarketNumberTrace(numberTrace, () => buildResearchAutomationReportBody(input, kind, numberTrace));
   // Replay test instance only: the field is never set in production, so production bytes are unchanged.
   return input.kalodataReplayNotice ? { ...report, html: withKalodataReplayNotice(report.html) } : report;
 }
 
-function buildResearchAutomationReportBody(input: AutomationReportInput, kind: 'MARKET' | 'INSIGHT'): { semantic: object; html: Buffer; traceHtml?: Buffer } {
+function buildResearchAutomationReportBody(input: AutomationReportInput, kind: 'MARKET' | 'INSIGHT', numberTrace: MarketNumberTraceCollector | null): { semantic: object; html: Buffer; traceHtml?: Buffer } {
   if (input.qualitativeDraft && kind !== 'INSIGHT') throw new Error('Qualitative draft is an Insight-only report dependency');
   if (input.qualitativeDraft) {
     const draft = input.qualitativeDraft;
@@ -1024,7 +1177,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
       const reviewsCollected = marketReviewsCollected(input);
       const unit = marketUnitRows(input, marketPresentation.input.rows);
       const plan = marketActionPlan(unit.rows, { reviewsCollected, startDay: marketActionStartDay(input), currentReader: true, unitStandard: unit.profile?.standard ?? null, withoutAveragePrice: unit.withoutAveragePrice === true });
-      locatedViews.set(section.sectionId, () => section.sectionId === 'M11' ? marketOpportunitySection(plan, reviewsCollected, unit) : marketActionSection(plan, unit, Boolean(input.marketRawSeries)));
+      locatedViews.set(section.sectionId, () => section.sectionId === 'M11' ? marketOpportunitySection(plan, reviewsCollected, unit) : marketActionSection(plan, unit, Boolean(input.marketRawSeries), marketActionStart(input)));
       return { sectionId: section.sectionId, title: section.title, state: 'EVIDENCE_INVENTORY', rows: [], method: marketPresentation.methodVersion,
         explanation: section.sectionId === 'M11' ? 'Cơ hội đọc từ doanh thu quan sát trong mẫu, ghi riêng từng sàn; là đề xuất của TDN, chờ chủ duyệt.' : ACTION_LEAD };
     }
@@ -1225,7 +1378,13 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
       metricMethods: input.metricMethods ?? null, ...(input.metricClassified ? { metricClassified: input.metricClassified } : {}), ...(input.metricMethodsFailure ? { metricMethodsFailure: input.metricMethodsFailure } : {}) } : {}), completion,
   };
   const title = kind === 'MARKET' ? 'Báo cáo thị trường' : 'Báo cáo insight';
-  const period = `${input.start.requestedPeriod.startDate} đến ${input.start.requestedPeriod.endDate} · ${input.start.requestedPeriod.dayCount} ngày`;
+  // The requested period of the run record, as stored; each place that prints it records its numbers.
+  const period = (blockId: string): string => {
+    const requested = input.start.requestedPeriod;
+    const field = <K extends keyof typeof requested>(key: K): string => traceMarketNumber(String(requested[key]), blockId, 'raw',
+      [storedInput('run-record', input.run.runId, `/start/requestedPeriod/${key}`, requested[key])], `run record requestedPeriod.${key}, as stored`, 'as-stored');
+    return `${field('startDate')} đến ${field('endDate')} · ${field('dayCount')} ngày`;
+  };
   const retainedSources = (kind === 'MARKET' ? [
     input.metricMethods || input.metricMethodsFailure ? 'gói số liệu thị trường gắn kèm (M03, M04)' : '', input.quoteMethods ? 'gói báo giá bổ sung (M08)' : '',
     input.m01Inventory ? 'bằng chứng đầu nguồn (M01)' : '', input.boundedMethods ? 'hồ sơ nguồn bổ sung (M10)' : '',
@@ -1276,31 +1435,45 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   const samplePeriod = marketPresentation ? marketSamplePeriod(input) : null;
   const requested = input.start.requestedPeriod;
   const sampleDays = samplePeriod ? Math.round((Date.parse(samplePeriod.end) - Date.parse(samplePeriod.start)) / 86_400_000) + 1 : 0;
+  const sampleInputs = samplePeriod ? marketSamplePeriodInputs(input, samplePeriod) : [];
+  const sampleDay = (value: string, at: number): string => traceMarketNumber(readerDay(value), 'M02.period.sample', 'raw', [sampleInputs[at]!], 'stored day dd/mm/yyyy', 'vi-date');
+  // The requested period is a field of the run record.
+  const requestedDay = (value: string | undefined, field: 'startDate' | 'endDate'): string => value
+    ? traceMarketNumber(readerDay(value), 'M02.period.requested', 'raw', [storedInput('run-record', input.run.runId, `/start/requestedPeriod/${field}`, value)], 'run record day dd/mm/yyyy', 'vi-date')
+    : readerDay('chưa rõ ngày');
   // Describe retained product windows separately, using the same query-window precedence as E's period table.
-  const seriesWindows = marketPresentation ? [...new Set((input.marketInventory?.temporal.input.observations ?? []).flatMap(row => {
-    const window = row.rawQuery?.start && row.rawQuery.end ? row.rawQuery : row.requestedWindow;
+  const windowTexts = new Map<string, MarketTraceInput[]>();
+  if (marketPresentation) (input.marketInventory?.temporal.input.observations ?? []).forEach((row, at) => {
+    const raw = Boolean(row.rawQuery?.start && row.rawQuery.end), window = raw ? row.rawQuery : row.requestedWindow;
     const valid = (day: string): boolean => /^\d{4}-\d{2}-\d{2}$/u.test(day) && Number.isFinite(Date.parse(day))
       && new Date(day).toISOString().slice(0, 10) === day;
-    return window?.start && window.end && valid(window.start) && valid(window.end) && window.start <= window.end
-      && (!samplePeriod || window.start !== samplePeriod.start || window.end !== samplePeriod.end)
-      ? [`${readerDay(window.start)}–${readerDay(window.end)}`] : [];
-  }))] : [];
+    if (!(window?.start && window.end && valid(window.start) && valid(window.end) && window.start <= window.end
+      && (!samplePeriod || window.start !== samplePeriod.start || window.end !== samplePeriod.end))) return;
+    const text = `${readerDay(window.start)}–${readerDay(window.end)}`, field = raw ? 'rawQuery' : 'requestedWindow';
+    // Each window is printed once, recorded with the stored observation it was first read from.
+    if (!windowTexts.has(text)) windowTexts.set(text, [storedInput('stored-source', 'market-inventory', `/temporal/input/observations/${at}/${field}/start`, window.start, 'start'),
+      storedInput('stored-source', 'market-inventory', `/temporal/input/observations/${at}/${field}/end`, window.end, 'end')]);
+  });
+  const seriesWindows = [...windowTexts].map(([text, inputs]) => traceMarketNumber(text, 'M02.period.windows', 'raw', inputs, 'stored window dd/mm/yyyy–dd/mm/yyyy', 'vi-date-range'));
   const crossesQuarter = samplePeriod && `${samplePeriod.start.slice(0, 4)}-${Math.floor((Number(samplePeriod.start.slice(5, 7)) - 1) / 3)}`
     !== `${samplePeriod.end.slice(0, 4)}-${Math.floor((Number(samplePeriod.end.slice(5, 7)) - 1) / 3)}`;
   const quarterConvention = marketPresentation && crossesQuarter
     ? '<p>Quý báo cáo là quý chứa phần lớn số ngày của kỳ mẫu bán hàng; nếu hai quý có số ngày bằng nhau, chọn quý sau.</p>' : '';
-  const periodRows = !marketPresentation ? `<dt>Kỳ báo cáo yêu cầu</dt><dd>${escape(period)}</dd>`
-    : `<dt>Kỳ số liệu bán hàng</dt><dd>${samplePeriod ? `Mẫu ${sampleDays} ngày, từ ${escape(readerDay(samplePeriod.start))} đến ${escape(readerDay(samplePeriod.end))}`
+  const periodRows = !marketPresentation ? `<dt>Kỳ báo cáo yêu cầu</dt><dd>${escape(period('M02.period.requested'))}</dd>`
+    : `<dt>Kỳ số liệu bán hàng</dt><dd>${samplePeriod ? `Mẫu ${traceMarketNumber(String(sampleDays), 'M02.period.sample', 'computed', sampleInputs, 'inclusive days of the sample period', 'day-count')} ngày, từ ${escape(sampleDay(samplePeriod.start, 0))} đến ${escape(sampleDay(samplePeriod.end, 1))}`
       : 'Chưa có kỳ số liệu bán hàng hợp lệ'}</dd>${seriesWindows.length
       ? `<dt>Kỳ số liệu từng sản phẩm</dt><dd>Các kỳ đã lưu: ${escape(seriesWindows.join('; '))}. Các kỳ này tách riêng với kỳ mẫu bán hàng.</dd>` : input.descriptiveMethods
-      ? `<dt>Diễn biến từng sản phẩm</dt><dd>Theo từng kỳ trong khoảng từ ${escape(readerDay(requested.startDate ?? 'chưa rõ ngày'))} đến ${escape(readerDay(requested.endDate ?? 'chưa rõ ngày'))}</dd>` : ''}`;
+      ? `<dt>Diễn biến từng sản phẩm</dt><dd>Theo từng kỳ trong khoảng từ ${escape(requestedDay(requested.startDate, 'startDate'))} đến ${escape(requestedDay(requested.endDate, 'endDate'))}</dd>` : ''}`;
   // Only v3 adopts the sample-filter copy; retained v1/v2 reports keep their exact wording.
   const captureFiltered = Boolean(marketPresentation && input.metricMethods?.capture?.rowPolicyVersion === 'automation-metric-capture-v3');
   const periodWarning = marketPresentation ? 'Mỗi nguồn chỉ có số trong kỳ của nguồn đó; không kéo dài hay chia tỷ lệ cho khớp kỳ khác.'
     : 'Kỳ yêu cầu không chứng minh mọi nguồn có đủ dữ liệu trong kỳ này.';
   // Auto-run captures carry fixed scope lines: keyword 2 and the category chosen from data, or why all categories were kept.
   const searchScopeLines = kind === 'MARKET' ? input.metricMethods?.capture?.searchScope?.lines ?? [] : [];
-  const searchScope = searchScopeLines.length ? `<dt>Phạm vi tìm kiếm</dt><dd>${searchScopeLines.map(line => escape(line)).join('<br>')}</dd>` : '';
+  // Each line prints as stored on the capture's method details; its numbers are recorded with it.
+  const searchScopeLine = (line: string, at: number): string => marketNumberTokens(line).length ? traceMarketNumber(line, 'M02.scope.search', 'raw',
+    [storedInput('stored-source', `metric-capture:${input.metricMethods!.capture!.snapshotSha256}`, `/searchScope/lines/${at}`, line)], 'search scope line, as stored', 'as-stored') : line;
+  const searchScope = searchScopeLines.length ? `<dt>Phạm vi tìm kiếm</dt><dd>${searchScopeLines.map((line, at) => escape(searchScopeLine(line, at))).join('<br>')}</dd>` : '';
   const scope = `<dl><dt>Thị trường</dt><dd>Việt Nam</dd><dt>Định nghĩa đã xác nhận</dt><dd>${storedLiteral(input.scope.definition, 'Định nghĩa được giữ trong bản lưu')}</dd>${periodRows}<dt>Điều kiện bao gồm</dt><dd>${storedLiteral(input.scope.includeTerms.join(', ') || (captureFiltered ? 'Mọi sản phẩm trả về cho từ khóa đã tìm' : 'Không thêm điều kiện'),'Điều kiện được giữ trong bản lưu')}</dd><dt>Điều kiện loại trừ</dt><dd>${storedLiteral(input.scope.excludeTerms.join(', ') || (captureFiltered ? 'Không có điều kiện riêng ngoài bộ lọc mẫu' : 'Không thêm điều kiện'), 'Điều kiện được giữ trong bản lưu')}</dd>${searchScope}${captureFiltered
     ? '<dt>Bộ lọc mẫu</dt><dd>Loại phụ kiện, linh kiện, sản phẩm khác và dòng có doanh thu hoặc đơn vị bán bất thường khỏi mẫu tính; số dòng đã loại của từng sàn ghi tại mục Phạm vi từng nguồn.</dd>' : ''}</dl><p class="warning">${captureFiltered
     ? 'Điều kiện bao gồm và loại trừ là ý định nghiên cứu đã lưu; chưa xác nhận truy vấn nguồn áp dụng đầy đủ. Bộ lọc mẫu do hệ thống áp dụng trên bảng kết quả đã lưu.'
@@ -1312,11 +1485,16 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   };
   const analyticalCompletion = kind === 'MARKET' && input.publicReviewSource && completion.completedAnalyticalSections === 0
     ? 'Chưa có mục phân tích hoàn chỉnh' : `Mục phân tích hoàn chỉnh: ${completion.completedAnalyticalSections}`;
-  const coverSummary = `Trong ${sections.length} mục: ${([
-    [completion.boundedMethodOutputSections, 'có kết quả phương pháp từng phần'], [completion.evidenceInventorySectionIds.length, 'kiểm tra bằng chứng'],
-    [completion.contextSections, 'ngữ cảnh nguồn'], [completion.sourceTableSections, 'bảng nguồn'],
-    [completion.boundedMethodNoUsableRecordSectionIds.length, 'đã chạy phương pháp nhưng không có bản ghi dùng được'], [completion.blockedSections, 'chưa có kết quả'],
-  ] as const).flatMap(([count, label]) => count ? [`${count} mục ${label}`] : []).join('; ')}. ${analyticalCompletion}; không tuyên bố báo cáo hoàn chỉnh.`;
+  // Section counts of the plain draft's cover and opening, each recorded over the stored states of the sections it counts
+  // (the report semantic's `sections`). The market14 reader prints neither.
+  const counted = (ids: readonly string[]): string => !marketPresentation && ids.length ? traceMarketNumber(String(ids.length), 'page.summary', 'computed',
+    ids.map(id => { const at = sections.findIndex(section => section.sectionId === id); return storedInput('stored-source', 'report-semantic', `/sections/${at}/state`, sections[at]!.state); }),
+    'count(report sections in these states)', 'count') : String(ids.length);
+  const coverSummary = `Trong ${counted(sections.map(section => section.sectionId))} mục: ${([
+    [ids('METHOD_OUTPUT'), 'có kết quả phương pháp từng phần'], [completion.evidenceInventorySectionIds, 'kiểm tra bằng chứng'],
+    [ids('SOURCE_CONTEXT'), 'ngữ cảnh nguồn'], [ids('SOURCE_TABLE'), 'bảng nguồn'],
+    [completion.boundedMethodNoUsableRecordSectionIds, 'đã chạy phương pháp nhưng không có bản ghi dùng được'], [ids('BLOCKED'), 'chưa có kết quả'],
+  ] as const).flatMap(([members, label]) => members.length ? [`${counted(members)} mục ${label}`] : []).join('; ')}. ${analyticalCompletion}; không tuyên bố báo cáo hoàn chỉnh.`;
   const methodIds = completion.boundedMethodOutputSectionIds;
   const emptyIds = completion.boundedMethodNoUsableRecordSectionIds;
   const literalIds = methodIds.filter(id => isLiteralFamily(id) && !usesCodingFamily(insightCoding, id));
@@ -1327,11 +1505,12 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     `${analyticalCompletion}.`,
     completion.evidenceInventorySectionIds.length ? `Đã kiểm tra bằng chứng, chưa có kết luận: ${completion.evidenceInventorySectionIds.join(', ')}.` : '',
     decisionProposedIds.length ? `Đề xuất AI đã lưu ở ${decisionProposedIds.join(', ')} là bản nháp chưa duyệt, không tính là mục phân tích hoàn chỉnh.` : '',
-    kind === 'MARKET' ? descriptive ? `Kết quả phương pháp mô tả có giới hạn, chưa duyệt: ${methodIds.length} mục${methodIds.length ? ` (${methodIds.join(', ')})` : ''}.` : input.descriptiveMethodFailure ? '' : `Không có kết quả phương pháp mô tả thị trường: ${input.collection?.comparables.length ? 'các quan sát sản phẩm đã thu chưa tạo được kết quả được lưu' : 'lượt này không có quan sát sản phẩm từ bản thu nguồn mới'}.` : '',
+    kind === 'MARKET' ? descriptive ? `Kết quả phương pháp mô tả có giới hạn, chưa duyệt: ${marketPresentation ? methodIds.length : traceMarketNumber(String(methodIds.length), 'page.summary', 'computed',
+      [storedInput('stored-source', 'report-semantic', '/completion/boundedMethodOutputSectionIds', methodIds)], 'count(stored method-output section ids)', 'count')} mục${methodIds.length ? ` (${methodIds.join(', ')})` : ''}.` : input.descriptiveMethodFailure ? '' : `Không có kết quả phương pháp mô tả thị trường: ${input.collection?.comparables.length ? 'các quan sát sản phẩm đã thu chưa tạo được kết quả được lưu' : 'lượt này không có quan sát sản phẩm từ bản thu nguồn mới'}.` : '',
     located ? `Mã hóa lời nguồn có giới hạn: ${literalIds.length} mục${literalIds.length ? ` (${literalIds.join(', ')})` : ''}. ${located.projection.pending.length} mục chờ xử lý vẫn được giữ riêng. Chưa có kết luận hoặc tỷ lệ đại diện thị trường.` : '',
     insightCoding ? `Mã hóa ${'draftSelection' in insightCoding ? 'đề xuất (đề xuất, chờ chủ duyệt)' : 'đã chọn'} trên đề xuất (${(('draftSelection' in insightCoding) || ('selectionContractVersion' in insightCoding && insightCoding.selectionContractVersion === 'automation-insight-selection-v2') ? semanticCodingFamilies : codingFamilies).join(', ')}): có kết quả dùng được ở ${codingIds.length ? codingIds.join(', ') : 'chưa mục nào'}. Đây là mã hóa bám lời nguồn, không phải quan sát độc lập${sections.some(section => usesCodingFamily(insightCoding, section.sectionId) && section.methodOutput?.unresolvedPointers.length) ? '; phần chưa chọn vẫn chờ xử lý' : ''}.` : '',
     emptyIds.length ? `Phương pháp đã chạy nhưng không có bản ghi dùng được: ${emptyIds.join(', ')}.` : '',
-    `Ngữ cảnh hoặc bảng nguồn: ${completion.contextSections + completion.sourceTableSections} mục. Chưa có kết quả: ${completion.blockedSections + emptyIds.length} mục.`,
+    `Ngữ cảnh hoặc bảng nguồn: ${counted([...ids('SOURCE_CONTEXT'), ...ids('SOURCE_TABLE')])} mục. Chưa có kết quả: ${counted([...ids('BLOCKED'), ...emptyIds])} mục.`,
     'Ngữ cảnh, bảng nguồn, kết quả phương pháp từng phần và tệp PDF không đồng nghĩa với phân tích hoàn chỉnh.',
   ].filter(Boolean).join(' ');
   const reviewOutcome = missingReviewOutcome(input);
@@ -1362,8 +1541,10 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     (marketPresentation ? CURRENT_MARKET_READER_TERMS : MARKET_READER_TERMS).map(([term, meaning]) => `<tr><td>${escape(term)}</td><td>${escape(meaning)}</td></tr>`).join('') +
     '</tbody></table></div>';
   // Presentation charts: revenue by platform and concentration in Phần 4, product rows in Phần 7.
+  const chartTrace = kind === 'MARKET' ? marketChartTrace(input, marketPresentation) : null;
   const presentationChart = (chartKind: MarketChart['kind'], no: string): string => {
     const chart = marketPresentation ? input.marketPresentationCharts?.find(item => item.kind === chartKind) : undefined;
+    if (chart) chartTrace?.embed(chart);
     return chart === undefined ? '' : `<figure class="market-chart"><div class="exh"><span class="exn">Hình ${no}</span> <span class="ext">${escape(chart.title)}</span> <span class="exu">(${escape(chart.unit)})</span></div>` +
       `<div class="chart flint" data-engine="${escape(chart.engine)}">${chart.svg}</div>` +
       `<p class="lim"><b>Chú thích:</b> ${escape(chart.note)}</p><p class="ex-src">Nguồn: dữ liệu bán hàng đã lưu, chỉ tính trong mẫu.</p></figure>`;
@@ -1531,7 +1712,6 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   // market14 reader: M13 trace receipts and evidence details stay in semantic (sourceEvidence, quoteMethods, boundedMethods), not the reader.
   const traceAppendix = (sectionId: string): boolean => !(marketPresentation && sectionId === 'M13');
   // Raw-response scale blocks are built once, so the number trace records each printed number once.
-  const numberTrace = kind === 'MARKET' && input.marketRawSeries ? new MarketNumberTraceCollector() : null;
   const rawScale = numberTrace ? marketRawScaleSection(input.marketRawSeries!, numberTrace) : '';
   const rawScope = numberTrace ? marketRawScopeSection(input.marketRawSeries!, numberTrace) : '';
   const rawBlock = (sectionId: string): string => !numberTrace ? '' : sectionId === 'M02' ? rawScope : sectionId === 'M03' ? rawScale : '';
@@ -1561,7 +1741,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
       ? `<details open id="bounded-method-evidence"><summary>Hồ sơ phương pháp M10/I11/I12/I16 và vị trí nguồn</summary><p>Nguồn bổ sung do người dùng chọn, không phải dữ liệu tự thu hoặc xác nhận độ phủ. Hồ sơ giữ riêng kỳ, phạm vi và điều kiện còn thiếu; không cộng gộp với số liệu thị trường hoặc review.</p>${retainedEvidenceHtml(input.boundedMethods)}</details>` : '');
   const baseAppendix = (sectionId: string): string => {
     if (sourceScope && sectionId === 'M02') return marketSourceScopeSection(sourceScope, 'M02', citations, readerPlainText, marketPresentation ? input.metricMethods?.capture : undefined,
-      { ...(marketPresentation ? { reviewsPresent: marketReviewsCollected(input) } : {}), currentReader: Boolean(input.publicReviewSource) });
+      { ...(marketPresentation ? { reviewsPresent: marketReviewsCollected(input) } : { trace: { metricInput: input.metricMethods?.result.inputSha256 ?? null, captures: input.captures } }), currentReader: Boolean(input.publicReviewSource) });
     if (kind === 'MARKET' && sectionId === 'M01' && input.m01Inventory && input.sourceClaims) {
       const inventory = m01InventorySection(input.m01Inventory, input.sourceClaims, citations, readerPlainText);
       // Phần 1 states the per-platform findings; the per-period evidence rows stay in the technical copy.
@@ -1636,7 +1816,14 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
       && !(input.sellerVideos && input.sourceEvidence?.sellerVideos === true)));
   const sectionReading = (section: DraftSection): string => readerPlainText && section.state === 'METHOD_NO_USABLE_RECORDS' && views.has(section.sectionId)
     ? '' : `<p class="section-reading">${escape(section.explanation)}</p>`;
-  const body = orderReportCitations(readerOpening + sections.map(section => `<section class="sheet" id="${section.sectionId}"><header class="sh-head"><div><span class="sh-id">${readerPlainText && kind === 'MARKET' ? marketSectionLabel(section.sectionId) : section.sectionId}</span><h2>${escape(section.title)}</h2></div><span class="state"${sectionGap(section) ? ' data-section-gap="1"' : ''}>${escape(stateLabel[section.state])}</span></header>${sectionReading(section)}${methodBody(section)}${section.state === 'SOURCE_CONTEXT' ? marketPresentation && section.sectionId === 'M13' ? '<p>Phạm vi, kỳ số liệu và điều kiện của mẫu ghi ở Phần 2.</p>' : scope : ''}${section.sectionId === 'M13' || section.sectionId === 'I17' ? sourceTable + webResultsTable : ''}${observationTable(section.rows, captures, citations, labels, readerPlainText, [...input.scope.selectedProductIds, ...input.scope.peerProductIds])}${appendix(section.sectionId)}${readerPlainText && kind === 'MARKET' ? '' : `<details class="method-reference"><summary>Hồ sơ đối chiếu phương pháp</summary><p><small>${fallbackIds.has(section.sectionId) ? 'Phương pháp ghi trong danh mục, chưa chạy trong lượt này' : 'Phương pháp'}: ${methodReference(section.method)}</small></p></details>`}</section>`).join(''), registry);
+  // A method reference prints the section's method as stored in the report semantic (`sections[i].method`); its numbers (versions) are recorded.
+  const tracedMethodReference = (section: DraftSection): string => {
+    const text = methodReference(section.method);
+    if (text === escape(section.method) && marketNumberTokens(section.method).length) traceMarketNumber(section.method, `${section.sectionId}.method`, 'raw',
+      [storedInput('stored-source', 'report-semantic', `/sections/${sections.indexOf(section)}/method`, section.method)], 'section method, as stored', 'as-stored');
+    return text;
+  };
+  const body = orderReportCitations(readerOpening + sections.map(section => `<section class="sheet" id="${section.sectionId}"><header class="sh-head"><div><span class="sh-id">${readerPlainText && kind === 'MARKET' ? marketSectionLabel(section.sectionId) : section.sectionId}</span><h2>${escape(section.title)}</h2></div><span class="state"${sectionGap(section) ? ' data-section-gap="1"' : ''}>${escape(stateLabel[section.state])}</span></header>${sectionReading(section)}${methodBody(section)}${section.state === 'SOURCE_CONTEXT' ? marketPresentation && section.sectionId === 'M13' ? '<p>Phạm vi, kỳ số liệu và điều kiện của mẫu ghi ở Phần 2.</p>' : scope : ''}${section.sectionId === 'M13' || section.sectionId === 'I17' ? sourceTable + webResultsTable : ''}${observationTable(section.rows, captures, citations, labels, readerPlainText, [...input.scope.selectedProductIds, ...input.scope.peerProductIds])}${appendix(section.sectionId)}${readerPlainText && kind === 'MARKET' ? '' : `<details class="method-reference"><summary>Hồ sơ đối chiếu phương pháp</summary><p><small>${fallbackIds.has(section.sectionId) ? 'Phương pháp ghi trong danh mục, chưa chạy trong lượt này' : 'Phương pháp'}: ${tracedMethodReference(section)}</small></p></details>`}</section>`).join(''), registry, { trace: !marketPresentation });
   // Snapshot the original register, then renumber only citations still visible in the reader.
   const semanticCitations = { citations: registry.technicalTrace(), citationEntries: registry.entries() };
   const readerBody = marketPresentation ? orderReportCitations(body.replace(/<template data-market14-source-trace>[\s\S]*?<\/template>/gu, ''), registry) : body;
@@ -1645,20 +1832,22 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   const coverName = marketPresentation ? storedLiteral(input.start.keyword.trim().charAt(0).toLocaleUpperCase('vi') + input.start.keyword.trim().slice(1), '') : '';
   const coverTitle = `Báo cáo thị trường sản phẩm${coverName ? ` ${coverName}` : ''}`;
   const coverQuarter = marketPresentation ? marketReportQuarter(input) : null;
-  const pageTitle = coverQuarter ? `${coverTitle} · ${coverQuarter.quarter}` : `${escape(title)} · ${storedLiteral(input.start.keyword, 'Từ khóa được giữ trong bản lưu')}`;
+  const pageTitle = coverQuarter ? `${coverTitle} · ${marketReportQuarterTitle(input)}` : `${escape(title)} · ${storedLiteral(input.start.keyword, 'Từ khóa được giữ trong bản lưu')}`;
   const coverText = coverQuarter ? `<h1>${coverTitle}</h1><p class="cv-quarter">${coverQuarter.quarter}</p><p class="cv-period">${coverQuarter.range}</p></div><div class="cv-meta"></div>`
-    : `<p class="cv-eyebrow">Bản nháp từ nguồn · Chưa được duyệt</p><h1>${escape(title)}</h1><h2>${storedLiteral(input.start.keyword, 'Từ khóa được giữ trong bản lưu')}</h2><p class="cv-lede">Hai lớp tách biệt: dữ liệu đã thu và những điều chưa đủ bằng chứng.</p></div><div class="cv-meta"><b>Việt Nam</b><span>${escape(period)}</span><span>${escape(coverSummary)}</span></div>`;
+    : `<p class="cv-eyebrow">Bản nháp từ nguồn · Chưa được duyệt</p><h1>${escape(title)}</h1><h2>${storedLiteral(input.start.keyword, 'Từ khóa được giữ trong bản lưu')}</h2><p class="cv-lede">Hai lớp tách biệt: dữ liệu đã thu và những điều chưa đủ bằng chứng.</p></div><div class="cv-meta"><b>Việt Nam</b><span>${escape(period('page.cover.period'))}</span><span>${escape(coverSummary)}</span></div>`;
   const footerText = marketPresentation
     ? `${decisionGeneratedIds.length || input.i14Synthesis?.status === 'VALID' ? 'Nội dung do AI đề xuất chưa được chủ duyệt. ' : ''}Các phương án ở Phần 12 là đề xuất, chờ chủ duyệt; báo cáo không tự đưa ra quyết định kinh doanh. “Chưa có dữ liệu” nghĩa là nguồn chưa có số, không phải bằng không.`
     : `${insightPersona ? 'Chân dung và thẻ bằng chứng do AI đề xuất, chờ chủ duyệt; không phải một khách hàng có thật, kết luận đã phát hành hoặc quyết định kinh doanh.' : decisionGeneratedIds.length ? 'Kết quả xử lý AI được lưu riêng, chưa được người dùng duyệt; không phải sự thật đã xác minh, phương án đã chọn hoặc quyết định kinh doanh.' : input.i14Synthesis?.status === 'VALID' ? 'Nhận định AI được lưu riêng, chưa được người dùng duyệt; không phải sự thật đã xác minh hoặc quyết định kinh doanh.' : 'Không có nhận định AI hoặc quyết định kinh doanh tự động trong bản nháp này.'} Không có dữ liệu không đồng nghĩa với giá trị bằng ${input.publicReviewSource ? 'không' : '0'}.`;
   const coverArt = cover ?`<img class="cv-art" src="data:image/jpeg;base64,${cover.base64}" alt="${escape(cover.alt)}" width="${cover.width}" height="${cover.height}" data-cover-provenance="${escape(cover.provenance)}">` : '';
+  // market14 delivery replaces this register with the reader's (marketReaderCitations), which records its numbers.
+  const registerHtml = withMarketNumberTrace(marketPresentation ? null : numberTrace, () => renderCitationRegister(registry.entries(), { format: 'web' }));
   const html = `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src data:; base-uri 'none'; form-action 'none'"><title>${pageTitle}</title><style>${reportKitFontCss()}\n${REPORT_KIT_CSS}\n.sheet{break-before:page}.sheet h2{font-size:26px}.state{font-size:12px;color:var(--warn-ink)}.warning{padding:12px;background:var(--warn-bg);color:var(--warn-ink)}dl{display:grid;grid-template-columns:180px minmax(0,1fr);gap:8px}dt{font-weight:700}dd{margin:0}.table-wrap{overflow-x:auto}.table-wrap table{min-width:720px}table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:10px;text-align:left;border:1px solid var(--bd);vertical-align:top}code{word-break:break-all}code.loc{word-break:normal;overflow-wrap:break-word}`
   // Desktop cover: keep text off the diagonal (yellow stripe spans 61.5%→39.6% of the cover width, top→bottom).
   + `@media screen and (min-width:901px){.cover{container-type:inline-size}.cv-left>div:nth-child(2){max-width:calc(46cqi - 40px)}.cv-meta{max-width:calc(38cqi - 40px)}.cv-right{padding-left:11cqi}}`
   // Narrow screens: tables keep their width and scroll; say so, show edge shadows and keep captions in view.
   + `@media screen and (max-width:800px){.table-wrap:not(:has(>.evidence-table)){container-type:inline-size;background:linear-gradient(90deg,#fff 30%,#fff0) left/24px 100% no-repeat local,linear-gradient(270deg,#fff 30%,#fff0) right/24px 100% no-repeat local,radial-gradient(farthest-side at 0 50%,#0f172a33,#0000) left/10px 100% no-repeat scroll,radial-gradient(farthest-side at 100% 50%,#0f172a33,#0000) right/10px 100% no-repeat scroll}.table-wrap:not(:has(>.evidence-table))::before{content:"Nếu bảng vượt chiều rộng màn hình, vuốt ngang để xem đủ cột. Bàn phím: Tab để chọn bảng, rồi dùng phím mũi tên.";display:block;position:sticky;left:0;padding:0 0 6px;color:var(--mut);font-size:12px}.table-wrap:not(:has(>.evidence-table)) caption{position:sticky;left:0;max-width:100cqi;box-sizing:border-box}.table-wrap:focus-visible{outline-offset:-3px}}`
   + `.reader-summary,.section-reading,.reader-guide{max-width:72ch}.reader-context{margin-bottom:24px}.method-reference{margin-top:24px;color:var(--mut)}.method-reference summary{cursor:pointer}.reader-summary{font-weight:500}td,dd{font-variant-numeric:tabular-nums}`
-  + `@media(max-width:600px){dl{grid-template-columns:1fr}.sheet{padding:20px}.cover{display:block}.cv-right{background:var(--blue);padding:24px}.cv-left{padding:24px}}@media print{@page{size:A4;margin:14mm}body{background:white}main{padding:0}.cover{min-height:240mm}.toc{gap:4px}.toc a{min-height:0}#sections>.reader-guide+.sheet{break-before:auto}.sh-head{break-after:avoid}.sheet{padding:16px 0;border:0;break-inside:auto}.sheet:after{display:none}.table-wrap{overflow:visible}.table-wrap table{min-width:0}tr{break-inside:avoid}thead{display:table-header-group}.jump{display:none}.sheet h3,.sheet h4,caption,summary{break-after:avoid}thead{break-after:avoid}tbody>tr:first-child{break-before:avoid}details{break-inside:auto}summary+p{break-before:avoid}.limits li{break-inside:avoid}${marketPresentation ? '' : '.citation-register a::after{content:" (" attr(href) ")"}'}.citation-register ol{padding-left:20px}.citation-register li{break-inside:avoid}}${coverArt ? COVER_ART_CSS : ''}${coverQuarter ? '.cv-quarter{margin:14px 0 0;font-size:20px;font-weight:800;color:var(--blue)}.cv-period{margin:6px 0 0;font-size:14px;color:var(--mut)}' : ''}${marketPresentation ? MARKET_READER_PRINT_CSS : ''}</style></head><body><a class="skip" href="#sections">Đến nội dung báo cáo</a><main><section class="cover"><div class="cv-left"><div class="brand"><i></i><b>TDN GROWTH OS</b></div><div>${coverArt}${coverText}</div><nav class="cv-right" aria-label="Mục lục"><h2>Nội dung</h2><ul class="toc">${sections.map(section => `<li><a href="#${section.sectionId}"><em>${section.sectionId}</em>${escape(marketPresentation && section.sectionId === 'M13' ? ` · ${section.title.replace(/^Phụ lục\s*(?:[·:–—-]\s*)?/iu, '')}` : section.title)}</a></li>`).join('')}</ul></nav></section><div id="sections">${readerBody}</div>${renderCitationRegister(registry.entries(), { format: 'web' })}<footer><p>${footerText}</p></footer></main></body></html>`;
+  + `@media(max-width:600px){dl{grid-template-columns:1fr}.sheet{padding:20px}.cover{display:block}.cv-right{background:var(--blue);padding:24px}.cv-left{padding:24px}}@media print{@page{size:A4;margin:14mm}body{background:white}main{padding:0}.cover{min-height:240mm}.toc{gap:4px}.toc a{min-height:0}#sections>.reader-guide+.sheet{break-before:auto}.sh-head{break-after:avoid}.sheet{padding:16px 0;border:0;break-inside:auto}.sheet:after{display:none}.table-wrap{overflow:visible}.table-wrap table{min-width:0}tr{break-inside:avoid}thead{display:table-header-group}.jump{display:none}.sheet h3,.sheet h4,caption,summary{break-after:avoid}thead{break-after:avoid}tbody>tr:first-child{break-before:avoid}details{break-inside:auto}summary+p{break-before:avoid}.limits li{break-inside:avoid}${marketPresentation ? '' : '.citation-register a::after{content:" (" attr(href) ")"}'}.citation-register ol{padding-left:20px}.citation-register li{break-inside:avoid}}${coverArt ? COVER_ART_CSS : ''}${coverQuarter ? '.cv-quarter{margin:14px 0 0;font-size:20px;font-weight:800;color:var(--blue)}.cv-period{margin:6px 0 0;font-size:14px;color:var(--mut)}' : ''}${marketPresentation ? MARKET_READER_PRINT_CSS : ''}</style></head><body><a class="skip" href="#sections">Đến nội dung báo cáo</a><main><section class="cover"><div class="cv-left"><div class="brand"><i></i><b>TDN GROWTH OS</b></div><div>${coverArt}${coverText}</div><nav class="cv-right" aria-label="Mục lục"><h2>Nội dung</h2><ul class="toc">${sections.map(section => `<li><a href="#${section.sectionId}"><em>${section.sectionId}</em>${escape(marketPresentation && section.sectionId === 'M13' ? ` · ${section.title.replace(/^Phụ lục\s*(?:[·:–—-]\s*)?/iu, '')}` : section.title)}</a></li>`).join('')}</ul></nav></section><div id="sections">${readerBody}</div>${registerHtml}<footer><p>${footerText}</p></footer></main></body></html>`;
   const labelledHtml = readerPlainText && kind === 'MARKET' ? marketReaderLabels(html) : html;
   const scopedHtml = marketPresentation ? labelledHtml.replace('<body', `<body data-market-platforms="${marketPlatforms.join(',')}" data-market-chart-rows="${marketChartRows(chartRows).length}"${marketShopsUnrecorded(chartRows) ? ' data-market-shops-unrecorded="1"' : ''}`) : labelledHtml;
   // Platform icons and reader labels apply to both copies; only the reader copy drops the trace and gains notes/interpretations.
@@ -1671,7 +1860,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
       .replace(/\bALL\b/gu, 'toàn bộ mẫu')
       .replace(/\bUNKNOWN\b/gu, 'chưa rõ'));
   // Delivery drops trace blocks; the reader renumbers the citations it still shows after semanticCitations and scopedHtml keep per-claim identity.
-  const deliveredHtml = marketPresentation ? sanitize(marketReaderCitations(numberMarketExhibits(deliverMarketReader(scopedHtml, input.collection?.searchInterest ? searchInterestReadingPoints(input.collection.searchInterest) : undefined, Boolean(input.metricMethods?.capture), Boolean(input.publicReviewSource))), registry, { publicReviewSource: Boolean(input.publicReviewSource) })) : scopedHtml;
+  const deliveredHtml = marketPresentation ? sanitize(marketReaderCitations(numberMarketExhibits(deliverMarketReader(scopedHtml, input.collection?.searchInterest ? searchInterestReadingPoints(input.collection.searchInterest) : undefined, Boolean(input.metricMethods?.capture), Boolean(input.publicReviewSource), chartTrace?.reading)), registry, { publicReviewSource: Boolean(input.publicReviewSource) })) : scopedHtml;
   const plainNumbers = kind === 'MARKET' && Boolean(input.metricMethods?.capture?.rowPolicyVersion || (marketPresentation && !input.metricMethods?.capture));
   const readerRenderedHtml = plainNumbers ? plainCaptureNumbers(deliveredHtml) : deliveredHtml;
   // Hidden technical copy for retrieval: the same page before reader delivery, trace blocks kept. Never linked from the reader.
@@ -1683,20 +1872,27 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     const failed = lintVisibleReportText(readerRenderedHtml).filter(check => !check.ok);
     if (failed.length) throw new TypeError(`INSIGHT_VISIBLE_TEXT_LINT_FAILED:${failed.map(check => check.rule).join(',')}`);
   }
-  // The Market check owns its order and errors: visible-text lint, business gate, 14 rules, public-review names.
-  if (kind === 'MARKET') {
-    assertMarketReport(readerRenderedHtml, marketPresentation
-      ? { kind: 'DRAFT_PRESENTATION', publicReviewSource: Boolean(input.publicReviewSource), partialTotals: marketPartialRowTotals(input) }
-      : { kind: 'DRAFT_PLAIN', publicReviewSource: Boolean(input.publicReviewSource) });
-  }
+  // Trace tokens as the delivered page prints them («12%» reads «12 phần trăm» when numbers are spelled out).
+  const recordedTrace = numberTrace?.snapshot();
+  // Axis ticks are drawn inside the chart SVG, which that pass leaves as drawn. A number the page spells out in words
+  // («0» reads «không») prints no number, so its entry traces nothing and is dropped.
+  const marketNumberTrace = recordedTrace && plainNumbers
+    ? { ...recordedTrace, entries: recordedTrace.entries.map(entry => entry.formulaId === 'axis-tick' ? entry : { ...entry, token: plainCaptureNumbers(entry.token) })
+      .filter(entry => marketNumberTokens(entry.token).length > 0) } : recordedTrace;
+  // Raw-response pointers are re-read in the stored capture when the caller holds its content.
+  const rawCaptures = new Map((input.marketRawSeries?.periods ?? []).flatMap(period => period.raw === undefined ? [] : [[period.captureId, period.raw] as const]));
+  // A supplied capture must contain its pointers; a missing value must fail replay, not mean an unavailable store.
+  const traceCheck = marketNumberTrace ? { numberTrace: { trace: marketNumberTrace,
+    resolve: (traceInput: MarketTraceInput) => 'store' in traceInput || !rawCaptures.has(traceInput.captureId) ? undefined : resolveMarketRawSource(rawCaptures.get(traceInput.captureId), traceInput) ?? null } } : {};
+  // The Market check owns its order and errors: visible-text lint, business gate, 14 rules, public-review names, number trace.
+  const marketCheck = kind === 'MARKET' ? assertMarketReport(readerRenderedHtml, marketPresentation
+    ? { kind: 'DRAFT_PRESENTATION', publicReviewSource: Boolean(input.publicReviewSource), partialTotals: marketPartialRowTotals(input), ...traceCheck }
+    : { kind: 'DRAFT_PLAIN', publicReviewSource: Boolean(input.publicReviewSource), ...traceCheck }) : undefined;
   if (kind === 'INSIGHT') {
     const nameFailure = lintReaderReport(readerRenderedHtml, { reportKind: kind, publicReviewSource: Boolean(input.publicReviewSource) }).filter(r => (r.rule.startsWith('F1 ') || r.rule.startsWith('W6 ')) && !r.ok);
     if (nameFailure.length) throw new TypeError(input.publicReviewSource ? 'PUBLIC_REVIEW_READER_NAME_REFUSED' : 'INSIGHT_READER_NAME_REFUSED');
   }
-  // Trace tokens as the delivered page prints them («12%» reads «12 phần trăm» when numbers are spelled out).
-  const marketNumberTrace = numberTrace?.snapshot();
-  const semanticTrace = marketNumberTrace ? { marketNumberTrace: plainNumbers
-    ? { ...marketNumberTrace, entries: marketNumberTrace.entries.map(entry => ({ ...entry, token: plainCaptureNumbers(entry.token) })) } : marketNumberTrace } : {};
+  const semanticTrace = marketNumberTrace ? { marketNumberTrace, ...(marketCheck?.numberTrace ? { marketNumberTraceGate: marketCheck.numberTrace } : {}) } : {};
   return { semantic: { ...semanticBase, ...semanticCitations, ...semanticTrace }, html: Buffer.from(readerRenderedHtml, 'utf8'), ...(traceHtml ? { traceHtml } : {}) };
 }
 

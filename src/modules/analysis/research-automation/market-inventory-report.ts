@@ -1,9 +1,11 @@
 import type { AutomationMarketMethodSnapshot } from './market-method-bridge.js';
 import { escapeHtml as escape, readerPointer, sourceMemberLabel, storedLiteral, type ReportCitations } from './descriptive-report.js';
-import { formatReaderCount, formatReaderValue, readerMeasureName, readerProductLabel, readerQuoteLabel } from './reader-plain-text.js';
+import { formatReaderCount, formatReaderValue, readerMeasureName, readerProductLabel, readerQuoteLabel, readerValueKind } from './reader-plain-text.js';
 import { containsForbiddenProviderName } from '../citation-registry.js';
 import { inclusiveDayCount, parseProviderProductRef } from './provider-common.js';
 import type { CaptureRecord, ScopeSnapshot } from './model.js';
+import { traceMarketNumber, type MarketTraceInput } from './market-trace-map.js';
+import { storedInput } from './market-trace-inputs.js';
 
 type Observation = AutomationMarketMethodSnapshot['temporal']['input']['observations'][number];
 type Quote = AutomationMarketMethodSnapshot['quotes']['input']['quotes'][number];
@@ -92,8 +94,11 @@ function selectionText(reader: MarketInventoryReaderContext, keys: readonly stri
   const selected = new Set(reader.scope?.selectedProductIds ?? []), peers = new Set(reader.scope?.peerProductIds ?? []);
   const count = (scope: ReadonlySet<string>): number => keys.filter(key => scope.has(key)).length;
   const principalCount = count(selected), peerCount = count(peers);
-  const roles = [principalCount ? `${formatReaderCount(principalCount)} sản phẩm chính` : '',
-    peerCount ? `${formatReaderCount(peerCount)} sản phẩm đối chiếu` : ''].filter(Boolean);
+  // Each role count is recorded against the run scope's product ids it counts.
+  const counted = (value: number, field: 'selectedProductIds' | 'peerProductIds'): string => traceMarketNumber(formatReaderCount(value)!, 'M03.inventory.selection', 'computed',
+    keys.filter(key => (field === 'selectedProductIds' ? selected : peers).has(key)).map(key => storedInput('run-record', 'scope', `/${field}/${(reader.scope?.[field] ?? []).indexOf(key)}`, key)), 'count(scope products in the table)', 'count');
+  const roles = [principalCount ? `${counted(principalCount, 'selectedProductIds')} sản phẩm chính` : '',
+    peerCount ? `${counted(peerCount, 'peerProductIds')} sản phẩm đối chiếu` : ''].filter(Boolean);
   return roles.length ? `Gồm ${roles.join(' và ')} được chọn trong phạm vi đã xác nhận.`
     : 'Chưa có thông tin xác nhận vai trò sản phẩm chính và sản phẩm đối chiếu.';
 }
@@ -154,24 +159,39 @@ function readerPeriodSection(snapshot: AutomationMarketMethodSnapshot, trace: Tr
         observations: [...previous.observations, ...row.observations], periods: previous.periods + row.periods };
     } else rows.push(row);
   }
+  // Every number of the table is recorded against the stored observation it is read from.
+  const at = (observation: Observation, field: string, value: string, role?: 'start' | 'end'): MarketTraceInput =>
+    storedInput('stored-source', observation.source.sourceSha256, field === 'value' ? observation.source.fieldPointer : `/temporal/input/observations/${snapshot.temporal.input.observations.indexOf(observation)}/${field}`, value, role);
   const cell = (observations: readonly Observation[] | undefined): string => {
     if (!observations?.length) return 'Chưa có dữ liệu';
     return observations.map(observation => {
       const decimal = observedDecimal(observation);
       if (isZero(decimal)) return 'Không ghi nhận';
-      return formatReaderValue(decimal, { measure: observation.measure?.literal, unit: observation.measure?.unit, currency: observation.measure?.currency }) ?? 'Chưa có dữ liệu';
+      const kind = readerValueKind({ measure: observation.measure?.literal, unit: observation.measure?.unit, currency: observation.measure?.currency });
+      const text = formatReaderValue(decimal, { measure: observation.measure?.literal, unit: observation.measure?.unit, currency: observation.measure?.currency });
+      return text === null ? 'Chưa có dữ liệu' : traceMarketNumber(text, 'M03.inventory.values', 'raw', [at(observation, 'value', decimal!)], `stored decimal, reader ${kind} format`, `reader-${kind}`);
     }).join('; ');
+  };
+  const windowOf = (row: Row): MarketTraceInput[] => {
+    const first = row.observations[0]!, last = row.observations[row.observations.length - 1]!, field = (observation: Observation) => observation.rawQuery?.start && observation.rawQuery.end ? 'rawQuery' : 'requestedWindow';
+    return [at(first, `${field(first)}/start`, row.window.start ?? '', 'start'), at(last, `${field(last)}/end`, row.window.end ?? '', 'end')];
+  };
+  const periodText = (row: Row): string => {
+    const start = readerDate(row.window.start), end = readerDate(row.window.end), [startInput, endInput] = windowOf(row);
+    return start && end ? `${traceMarketNumber(start, 'M03.inventory.period', 'raw', [startInput!], 'stored day dd/mm/yyyy', 'vi-date')} đến ${traceMarketNumber(end, 'M03.inventory.period', 'raw', [endInput!], 'stored day dd/mm/yyyy', 'vi-date')}`
+      : windowText(row.window);
   };
   const platforms = reader ? rows.map(row => readerPlatform(snapshot, reader, row.keys)) : [];
   const platformColumn = platforms.some(platform => /Shopee|TikTok Shop/u.test(platform));
   const body = rows.map(row => {
     const values = noSales(row)
-      ? `<td colspan="${measures.length}">${row.periods > 1 ? `Không ghi nhận bán trong ${escape(formatReaderCount(row.periods) ?? 'các')} kỳ liền nhau` : 'Không ghi nhận bán trong kỳ'}</td>`
+      ? `<td colspan="${measures.length}">${row.periods > 1 ? `Không ghi nhận bán trong ${escape(formatReaderCount(row.periods) === null ? 'các' : traceMarketNumber(formatReaderCount(row.periods)!, 'M03.inventory.periods', 'computed',
+        [...new Map(row.observations.map(observation => [JSON.stringify(observationWindow(observation)), observation] as const)).values()].map(observation => at(observation, 'value', observedDecimal(observation) ?? '')), 'count(merged periods)', 'count'))} kỳ liền nhau` : 'Không ghi nhận bán trong kỳ'}</td>`
       : measures.map(measure => `<td>${escape(cell(row.cells.get(measure)))}</td>`).join('');
     const days = reader ? shortWindowDays(row.window) : null;
     const beyondSample = reader?.sampleWindow?.end && row.window.end && row.window.end > reader.sampleWindow.end
-      ? `; vượt ngày cuối mẫu ${readerDate(reader.sampleWindow.end)}` : '';
-    const period = windowText(row.window) + (days === null ? '' : `; kỳ chưa đủ (${days} ngày)`) + beyondSample;
+      ? `; vượt ngày cuối mẫu ${traceMarketNumber(readerDate(reader.sampleWindow.end)!, 'M03.inventory.period', 'raw', [storedInput('stored-source', 'market-sample-window', '/end', reader.sampleWindow.end)], 'sample end day dd/mm/yyyy', 'vi-date')}` : '';
+    const period = periodText(row) + (days === null ? '' : `; kỳ chưa đủ (${traceMarketNumber(String(days), 'M03.inventory.period', 'computed', windowOf(row), 'inclusive days of the window', 'day-count')} ngày)`) + beyondSample;
     return `<tr${days === null ? '' : ' data-period-incomplete="true"'}>${platformColumn ? `<td>${escape(readerPlatform(snapshot, reader!, row.keys))}</td>` : ''}<td>${escape(names.label(row.keys))}</td><td>${escape(period)}</td>${values}<td>${marks(row.observations.map(observation => observation.source), trace)}</td></tr>`;
   }).join('');
   // Current reader: each measure states its unit once, in the header; count measures use the one sold-unit term.

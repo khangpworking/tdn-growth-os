@@ -187,6 +187,16 @@ function searchWeekLabel({ start, end }: { start: number; end: number }): string
 }
 
 /** Rendering only: retained step bytes and their replay/digest inputs stay unchanged. A period ending today is still in progress. */
+/** Printed label of one stored period, as the reading points print it: the day (daily series) or the week. Null when it does not parse. */
+export function searchInterestPeriodText(period: string, daily: boolean): string | null {
+  if (daily) {
+    const day = searchDay(period);
+    return day === null ? null : dayText(new Date(day).toISOString().slice(0, 10));
+  }
+  const week = searchWeek(period);
+  return week ? searchWeekLabel(week) : null;
+}
+
 export function searchInterestReadingPoints(value: StepSearchInterest): StepSearchInterestPoint[] {
   const retrieved = value.retrievedAt ? Date.parse(value.retrievedAt) : NaN;
   if (!Number.isFinite(retrieved)) return [];

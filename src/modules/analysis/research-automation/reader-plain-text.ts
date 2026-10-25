@@ -125,10 +125,14 @@ function isCount(measure: string | undefined, unit: string | null | undefined): 
   return measure === 'sales_volumn' || measure === 'sales_volume' || /l\u01b0\u1ee3t|s\u1ea3n l\u01b0\u1ee3ng|\u0111\u01a1n v\u1ecb|unit|count/i.test(`${measure ?? ''} ${unit ?? ''}`);
 }
 
+/** The number format `formatReaderValue` uses for a measure. */
+export function readerValueKind(options: { readonly measure?: string | undefined; readonly unit?: string | null | undefined; readonly currency?: string | null | undefined } = {}): 'money' | 'count' | 'decimal' {
+  return isMoney(options.measure, options.unit ?? options.currency) ? 'money' : isCount(options.measure, options.unit) ? 'count' : 'decimal';
+}
+
 export function formatReaderValue(value: string | null | undefined, options: { readonly measure?: string | undefined; readonly unit?: string | null | undefined; readonly currency?: string | null | undefined } = {}): string | null {
   if (value === null || value === undefined) return null;
-  const kind = isMoney(options.measure, options.unit ?? options.currency) ? 'money' : isCount(options.measure, options.unit) ? 'count' : 'decimal';
-  return formatReaderNumber(value, kind);
+  return formatReaderNumber(value, readerValueKind(options));
 }
 
 export function formatReaderCount(value: string | number | null | undefined): string | null {

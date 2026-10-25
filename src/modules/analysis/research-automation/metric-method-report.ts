@@ -4,8 +4,11 @@ import type { AutomationMetricMethodSnapshot, CaptureMetricHeadlineValue, Captur
 import type { AutomationClassifiedMetricSnapshot } from '../../../../contracts/analysis/automation-classified-metric.generated.js';
 import { formatReaderCount, readerProductLabel, readerShopLabel, readerStoredOrJson } from './reader-plain-text.js';
 import { escapeHtml as escape, readerPointer, storedLiteral, type ReportCitations } from './descriptive-report.js';
-import { CAPTURE_ROW_REF_HEADER, UNKNOWN_SHOP, captureRowRef, captureRowRefLabel } from '../reader-report/market-charts.js';
+import { CAPTURE_ROW_REF_HEADER, UNKNOWN_SHOP, captureRowRef } from '../reader-report/market-charts.js';
 import { projectTitleUnitPrices, titleQuantityCell, type UnitProfile } from '../reader-report/market-title-quantity.js';
+import { traceMarketNumber, type MarketTraceInput } from './market-trace-map.js';
+import { marketNumberTokens } from './market-number-trace.js';
+import { rowInputs, scopePeriodInputs, storedInput, tracedRowRefLabel } from './market-trace-inputs.js';
 
 /** Current reader per-product units header: units are the seller's own pack, never summed (UNIT-209 C4). */
 export const OFFER_UNITS_HEADER = 'Lượt bán (đơn vị chào bán)';
@@ -88,9 +91,22 @@ function concentration(scope: Scope, result: MetricScopeOutput, citations: Repor
  */
 const retainedSourceName = (value: string): string => `<q data-quote>${escape(value)}</q>`;
 
+/** A quoted source name is still scanned by the number-trace gate (P5): each number in it is recorded against its stored cell. */
+const tracedSourceName = (value: string, blockId: string, input: MarketTraceInput | undefined): string => {
+  if (input) for (const number of marketNumberTokens(value)) traceMarketNumber(number, blockId, 'raw', [input], 'number as written in the quoted source text', 'as-stored');
+  return retainedSourceName(value);
+};
+
 /** C8: the title span used for the report's pack kind, or why the row is not converted. */
-const quantityCell = (title: string | null | undefined, revenue: string | null, units: string | null, platform: string, unitProfile: UnitProfile | null): string => escape(titleQuantityCell(
-  projectTitleUnitPrices([{ title: title ?? '', revenue: revenue === null ? null : Number(revenue), units: units === null ? null : Number(units), platform }], unitProfile).rows[0]!));
+const quantityCell = (title: string | null | undefined, revenue: string | null, units: string | null, platform: string, unitProfile: UnitProfile | null,
+  source?: { readonly sourceSha256: string; readonly locator: string }, sectionId = 'M03'): string => {
+  const price = projectTitleUnitPrices([{ title: title ?? '', revenue: revenue === null ? null : Number(revenue), units: units === null ? null : Number(units), platform }], unitProfile).rows[0]!;
+  const text = titleQuantityCell(price);
+  // A pack size is text read from the product title: each number in it is recorded against the title.
+  if (source && price.unitPrice !== null && price.matched) for (const number of marketNumberTokens(price.matched))
+    traceMarketNumber(number, `${sectionId}.capture.${platform}.rows.pack`, 'raw', [storedInput('capture-table', source.sourceSha256, source.locator, title ?? '')], 'number as written in the product title', 'as-stored');
+  return escape(text);
+};
 
 function legacyMetricMethodSection(snapshot: AutomationMetricMethodSnapshot, sectionId: 'M03' | 'M04', classified: AutomationClassifiedMetricSnapshot | undefined, citations: ReportCitations, neutralCopy = false): string {
 const legacyInteger = (value: string | null): string => value === null ? 'Chưa có số liệu' : BigInt(value).toLocaleString('vi-VN');
@@ -212,14 +228,30 @@ export function metricMethodSection(snapshot: AutomationMetricMethodSnapshot, se
 }
 
 function captureMetricMethodSection(snapshot: AutomationMetricMethodSnapshot, sectionId: 'M03' | 'M04', citations: ReportCitations, readerPlainText: boolean, currentReader: boolean, unitProfile: UnitProfile | null): string {
-  const capture = snapshot.capture!;
-  const number = (value: string | null, unit = ''): string => value === null ? 'không có số liệu' : `${BigInt(value).toLocaleString('vi-VN')}${unit ? ` ${unit}` : ''}`;
+  const capture = snapshot.capture!, id = capture.snapshotSha256;
+  // Every printed number is recorded with the stored cells it is read or counted from.
+  const traced = (value: string | null, unit: string, blockId: string, inputs: readonly MarketTraceInput[], formulaId: 'vi-number' | 'sum-number'): string => value === null ? 'không có số liệu'
+    : `${traceMarketNumber(BigInt(value).toLocaleString('vi-VN'), blockId, formulaId === 'vi-number' ? 'raw' : 'computed', inputs, formulaId === 'vi-number' ? 'stored cell, vi-VN integer' : 'sum(row cells), vi-VN integer', formulaId)}${unit ? ` ${unit}` : ''}`;
+  const cell = (value: { readonly value: string | null; readonly source: { readonly sourceSha256: string; readonly locator: string } }, unit: string, blockId: string): string =>
+    traced(value.value, unit, blockId, value.value === null ? [] : [storedInput('capture-table', value.source.sourceSha256, value.source.locator, Number(value.value))], 'vi-number');
+  const count = (value: number, blockId: string, inputs: readonly MarketTraceInput[], formula: string): string => traceMarketNumber(String(value), blockId, 'computed', inputs, formula, 'count');
+  const stored = (field: 'cap' | 'rowsRead', blockId: string): string => {
+    const value = capture.capture.truncation[field];
+    return traceMarketNumber(String(value), blockId, 'raw', [storedInput('capture-table', id, `/capture/truncation/${field}`, value)], `capture truncation ${field}, as stored`, 'as-stored');
+  };
+  const excludedOf = (platform: string) => (capture.excludedRows ?? []).filter(row => row.platform === platform);
+  const tableRows = (rows: readonly { readonly rowIndex: number; readonly title: string }[]): MarketTraceInput[] =>
+    rows.map(row => storedInput('capture-table', id, `/groups/W12_topProducts/rows/${row.rowIndex}`, row.title));
+  // Rows without a platform keep their cells on their row of the stored results table.
+  const unattributedCell = (row: { readonly rowIndex: number; readonly revenue: string | null; readonly units: string | null }, field: 'revenue' | 'units', unit: string): string =>
+    traced(row[field], unit, `${sectionId}.capture.unattributed.${field}`, row[field] === null ? [] : [storedInput('capture-table', id, `/groups/W12_topProducts/rows/${row.rowIndex}`, Number(row[field]))], 'vi-number');
+  const recordsOf = (platform: string) => capture.platforms.find(value => value.platform === platform)?.result.input.records ?? [];
   const platformLabel = (platform: string): string => platform === 'shopee' ? 'Shopee' : platform === 'tiktok' ? 'TikTok Shop' : platform;
   const source = (result: MetricScopeOutput): string => calculationMark(result, citations);
   /** The capture's per-platform figure, cited to the exact cell it was read from. */
   const headlineValue = (value: CaptureMetricHeadlineValue | null, unit: string): string => value === null || value.value === null
     ? '<strong>không có số liệu</strong>'
-    : `<strong>${number(value.value, unit)}</strong>${value.precision === 'exact' ? '' : ' <small>số làm tròn như trên trang</small>'} ${citations.mark({
+    : `<strong>${traced(value.value, unit, `${sectionId}.capture.headline`, [storedInput('capture-table', id, value.locator, Number(value.value))], 'vi-number')}</strong>${value.precision === 'exact' ? '' : ' <small>số làm tròn như trên trang</small>'} ${citations.mark({
       sourceKind: 'CAPTURE', identity: capture.snapshotSha256, locator: readerPointer(value.locator, true).locator,
       label: 'Số liệu nền tảng trong bản lưu nguồn', retrievedAt: null, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE',
       technical: { sourceSha256: capture.snapshotSha256, locator: value.locator } })}`;
@@ -240,13 +272,17 @@ function captureMetricMethodSection(snapshot: AutomationMetricMethodSnapshot, se
     if (figure === null) {
       if (result === null) return `<p class="warning">${escape(platformLabel(platform))}: <strong>không có số liệu</strong> trong lượt này. ${noRowsNote.trim()}</p>`;
       const observed = result.scopes.find(scope => scope.key === 'all')!;
-      const rowTotal = (value: Total, unit = ''): string => value.value !== null && value.missingCount > 0
+      const records = result.input.records, block = `${sectionId}.capture.${platform}.summary`;
+      const rowTotal = (value: Total, field: 'revenue' | 'units', unit = ''): string => value.value !== null && value.missingCount > 0
         ? `<strong>chưa xác định</strong> (${missingNote(value)})`
-        : `<strong>${number(value.value, unit)}</strong>`;
+        : `<strong>${traced(value.value, unit, `${block}.${field}`, records.flatMap(row => row[field].value === null ? []
+          : [storedInput('capture-table', row[field].source.sourceSha256, row[field].source.locator, Number(row[field].value))]), 'sum-number')}</strong>`;
       // Rows without a recorded shop share one placeholder shop id; their shops are not counted.
-      const shops = result.input.records.some(row => row.shopId === UNKNOWN_SHOP) ? 'nguồn không ghi gian hàng cho từng dòng' : `${observed.shopCount} gian hàng`;
+      const firstOfShop = [...new Map(records.map(row => [row.shopId, row] as const)).values()];
+      const shops = records.some(row => row.shopId === UNKNOWN_SHOP) ? 'nguồn không ghi gian hàng cho từng dòng'
+        : `${count(observed.shopCount, `${block}.shops`, firstOfShop.map(row => storedInput('capture-table', row.source.sourceSha256, row.source.locator, row.shopId)), 'count(distinct shops)')} gian hàng`;
       // Current reader: no units total across products (pack sizes differ).
-      return `<p>Doanh thu quan sát: ${rowTotal(observed.revenue, 'VND')}; ${currentReader ? '' : `sản lượng: ${rowTotal(observed.units)}; `}${observed.listingCount} dòng, ${shops}. ${source(result)}</p>`;
+      return `<p>Doanh thu quan sát: ${rowTotal(observed.revenue, 'revenue', 'VND')}; ${currentReader ? '' : `sản lượng: ${rowTotal(observed.units, 'units')}; `}${count(observed.listingCount, `${block}.rows`, rowInputs(records), 'count(sample rows)')} dòng, ${shops}. ${source(result)}</p>`;
     }
     const rows = result === null
       ? noRowsNote
@@ -260,40 +296,48 @@ function captureMetricMethodSection(snapshot: AutomationMetricMethodSnapshot, se
       const sourceMarks = readerPlainText ? [...new Set(marks)].join(' ') : marks.join('<br>');
       // Current reader: a stable per-platform row ref leads the row and the unit lives only in the header.
       return currentReader
-        ? `<tr data-row-ref="${escape(captureRowRef(platform, index))}"><td>${escape(platformLabel(platform))}</td><td class="row-ref">${escape(captureRowRefLabel(index))}</td><td>${retainedSourceName(row.title)}</td><td>${number(row.revenue.value)}</td><td>${number(row.units.value)}</td><td>${quantityCell(row.title, row.revenue.value, row.units.value, platform, unitProfile)}</td><td>${sourceMarks}</td></tr>`
-        :`<tr><td>${escape(platformLabel(platform))}</td><td>${retainedSourceName(row.title)}</td><td>${number(row.revenue.value, 'VND')}</td><td>${number(row.units.value)}</td><td>${sourceMarks}</td></tr>`;
+        ? `<tr data-row-ref="${escape(captureRowRef(platform, index))}"><td>${escape(platformLabel(platform))}</td><td class="row-ref">${escape(tracedRowRefLabel(index, `${sectionId}.capture.${platform}.rows.ref`, result.inputSha256))}</td><td>${tracedSourceName(row.title, `${sectionId}.capture.${platform}.rows.title`, row.source ? storedInput('capture-table', row.source.sourceSha256, row.source.locator, row.title) : undefined)}</td><td>${cell(row.revenue, '', `${sectionId}.capture.${platform}.rows.revenue`)}</td><td>${cell(row.units, '', `${sectionId}.capture.${platform}.rows.units`)}</td><td>${quantityCell(row.title, row.revenue.value, row.units.value, platform, unitProfile, row.source, sectionId)}</td><td>${sourceMarks}</td></tr>`
+        :`<tr><td>${escape(platformLabel(platform))}</td><td>${tracedSourceName(row.title, `${sectionId}.capture.${platform}.rows.title`, row.source ? storedInput('capture-table', row.source.sourceSha256, row.source.locator, row.title) : undefined)}</td><td>${cell(row.revenue, 'VND', `${sectionId}.capture.${platform}.rows.revenue`)}</td><td>${cell(row.units, '', `${sectionId}.capture.${platform}.rows.units`)}</td><td>${sourceMarks}</td></tr>`;
     });
     const headers = currentReader
       ? ['Nền tảng', CAPTURE_ROW_REF_HEADER, 'Tên trên bảng kết quả', 'Doanh thu (VND)', OFFER_UNITS_HEADER, 'Quy cách', 'Nguồn']
       : ['Nền tảng', 'Tên trên bảng kết quả', 'Doanh thu (VND)', 'Sản lượng', 'Nguồn'];
-    const notice = sectionId === 'M03' ? captureExclusionNotice(capture.excludedRows ?? [], platform, capture.rowPolicyVersion) : '';
+    const notice = sectionId === 'M03' ? captureExclusionNotice(capture.excludedRows ?? [], platform, capture.rowPolicyVersion, id) : '';
     return `<h3>${escape(platformLabel(platform))}</h3>${platformSummary(platform, result)}${notice ? `<p>${escape(notice)}</p>` : ''}${sectionId === 'M03'
       ? table(`${platformLabel(platform)} · số liệu từ bảng kết quả tìm kiếm đã lưu`, headers, records)
       : table(`${platformLabel(platform)} · cơ cấu trong bảng kết quả đã lưu`, headers, records)}`;
   }).join('') + capture.capture.platforms.filter(platform => !capture.platforms.some(value => value.platform === platform))
     .map(platform => {
-      const notice = sectionId === 'M03' ? captureExclusionNotice(capture.excludedRows ?? [], platform, capture.rowPolicyVersion) : '';
+      const notice = sectionId === 'M03' ? captureExclusionNotice(capture.excludedRows ?? [], platform, capture.rowPolicyVersion, id) : '';
       return `<h3>${escape(platformLabel(platform))}</h3>${platformSummary(platform, null)}${notice ? `<p>${escape(notice)}</p>` : ''}`;
     }).join('');
   const unknown = capture.unattributedRows.length
-    ? `<h3>Phụ lục: dòng không gán được sàn</h3><p>${currentReader ? `${capture.unattributedRows.length} dòng sau` : 'Các dòng sau'} không nêu được sàn, được đánh mã nội bộ ổn định trong bản lưu và <strong>không cộng vào Shopee hoặc TikTok Shop</strong>.</p>${table('Dòng không gán được sàn', ['Dòng nguồn', 'Tên trên bảng kết quả', 'Gian hàng', 'Doanh thu (VND)', ...(currentReader ? [OFFER_UNITS_HEADER, 'Quy cách'] : ['Sản lượng'])], capture.unattributedRows.map((row, index) => `<tr><td>${escape(readerProductLabel(row.listingId, null, index + 1))}</td><td>${retainedSourceName(row.title)}</td><td>${retainedSourceName(row.shop)}</td><td>${currentReader ? number(row.revenue) : number(row.revenue, 'VND')}</td><td>${number(row.units)}</td>${currentReader ? `<td>${quantityCell(row.title, row.revenue, row.units, '', unitProfile)}</td>` : ''}</tr>`))}`
+    ? `<h3>Phụ lục: dòng không gán được sàn</h3><p>${currentReader ? `${count(capture.unattributedRows.length, `${sectionId}.capture.unattributed.rows`, tableRows(capture.unattributedRows), 'count(rows without a platform)')} dòng sau` : 'Các dòng sau'} không nêu được sàn, được đánh mã nội bộ ổn định trong bản lưu và <strong>không cộng vào Shopee hoặc TikTok Shop</strong>.</p>${table('Dòng không gán được sàn', ['Dòng nguồn', 'Tên trên bảng kết quả', 'Gian hàng', 'Doanh thu (VND)', ...(currentReader ? [OFFER_UNITS_HEADER, 'Quy cách'] : ['Sản lượng'])], capture.unattributedRows.map((row, index) => `<tr><td>${escape(readerProductLabel(row.listingId, null, index + 1))}</td><td>${tracedSourceName(row.title, `${sectionId}.capture.unattributed.title`, storedInput('capture-table', id, `/groups/W12_topProducts/rows/${row.rowIndex}/title`, row.title))}</td><td>${tracedSourceName(row.shop, `${sectionId}.capture.unattributed.shop`, storedInput('capture-table', id, `/groups/W12_topProducts/rows/${row.rowIndex}/shop`, row.shop))}</td><td>${unattributedCell(row, 'revenue', currentReader ? '' : 'VND')}</td><td>${unattributedCell(row, 'units', '')}</td>${currentReader ? `<td>${quantityCell(row.title, row.revenue, row.units, '', unitProfile)}</td>` : ''}</tr>`))}`
     : currentReader ? '' : readerPlainText ? '<p>Mọi dòng đều đã gán sàn.</p>' : '<p>Không có dòng không gán được sàn.</p>';
   const truncation = capture.capture.truncation;
-  const technicalLimitation = `Nguồn là <strong>bảng kết quả tìm kiếm đã lưu</strong>; danh sách bị giới hạn <strong>${escape(String(truncation.cap))} dòng đầu</strong> và giữ ${escape(String(truncation.rowsRead))} dòng trong ${escape(String(truncation.pagesRead))} trang${truncation.totalShown === null ? '' : ` trên ${escape(String(truncation.totalShown))} dòng hiển thị`}.${truncation.truncated ? ' Phần còn lại không được suy ra.' : ''}`;
+  const measured = capture.capture.measurementPeriod;
+  const periodDay = (side: 'start' | 'end'): string => {
+    const [start, end] = scopePeriodInputs(id, { start: measured.startDate, end: measured.endDate });
+    return traceMarketNumber(side === 'start' ? measured.startDate : measured.endDate, `${sectionId}.capture.context`, 'raw', [side === 'start' ? start! : end!], 'stored day', 'vi-date');
+  };
+  const truncationField = (field: 'pagesRead' | 'totalShown', value: number): string =>
+    traceMarketNumber(String(value), `${sectionId}.capture.limit.technical`, 'raw', [storedInput('capture-table', id, `/capture/truncation/${field}`, value)], `capture truncation ${field}, as stored`, 'as-stored');
+  const technicalLimitation = `Nguồn là <strong>bảng kết quả tìm kiếm đã lưu</strong>; danh sách bị giới hạn <strong>${escape(stored('cap', `${sectionId}.capture.limit.technical`))} dòng đầu</strong> và giữ ${escape(stored('rowsRead', `${sectionId}.capture.limit.technical`))} dòng trong ${escape(truncationField('pagesRead', truncation.pagesRead))} trang${truncation.totalShown === null ? '' : ` trên ${escape(truncationField('totalShown', truncation.totalShown))} dòng hiển thị`}.${truncation.truncated ? ' Phần còn lại không được suy ra.' : ''}`;
   const limitation = currentReader
-    ? `Nguồn là <strong>bảng kết quả tìm kiếm đã lưu</strong>; giới hạn lấy ${escape(String(truncation.cap))} dòng đầu. ${truncation.rowsRead ? `Đã quan sát ${truncation.rowsRead} dòng trong bảng kết quả` : 'Chưa có dòng quan sát trong bảng kết quả'}; số dòng tìm thấy theo từng sàn chưa có trong nguồn, không chia số chung cho các sàn. ${capture.capture.platforms.map(platform => {
-      const kept = capture.platforms.find(value => value.platform === platform)?.result.input.records.length ?? 0;
-      if (capture.excludedRows === undefined) return `${escape(platformLabel(platform))}: ${kept ? `giữ ${kept} dòng` : 'chưa có dòng được giữ'}; số dòng bị loại chưa có trong nguồn, chưa xác định số dòng quan sát trước lọc theo sàn`;
-      const removed = capture.excludedRows.filter(row => row.platform === platform).length;
-      const count = (value: number): string => value ? String(value) : 'không có';
-      return `${escape(platformLabel(platform))}: ${kept + removed ? `đã quan sát ${kept + removed} dòng đã gán sàn = ${count(removed)} dòng bị loại + ${count(kept)} dòng được giữ` : 'chưa có dòng đã gán sàn để đối chiếu'}`;
-    }).join('; ')}.${capture.unattributedRows.length ? ` Có ${capture.unattributedRows.length} dòng chưa gán sàn, giữ riêng ngoài số từng sàn.` : ''}${truncation.truncated ? ' Bảng kết quả đã bị cắt theo giới hạn thu; không suy ra phần còn lại.' : ''}`
+    ? `Nguồn là <strong>bảng kết quả tìm kiếm đã lưu</strong>; giới hạn lấy ${escape(stored('cap', `${sectionId}.capture.limit.cap`))} dòng đầu. ${truncation.rowsRead ? `Đã quan sát ${stored('rowsRead', `${sectionId}.capture.limit.read`)} dòng trong bảng kết quả` : 'Chưa có dòng quan sát trong bảng kết quả'}; số dòng tìm thấy theo từng sàn chưa có trong nguồn, không chia số chung cho các sàn. ${capture.capture.platforms.map(platform => {
+      const records = recordsOf(platform), kept = records.length, block = `${sectionId}.capture.limit.${platform}`;
+      if (capture.excludedRows === undefined) return `${escape(platformLabel(platform))}: ${kept ? `giữ ${count(kept, `${block}.kept`, rowInputs(records), 'count(kept rows)')} dòng` : 'chưa có dòng được giữ'}; số dòng bị loại chưa có trong nguồn, chưa xác định số dòng quan sát trước lọc theo sàn`;
+      const excluded = excludedOf(platform), removed = excluded.length;
+      const shown = (value: number, at: string, inputs: readonly MarketTraceInput[]): string => value ? count(value, at, inputs, 'count(rows)') : 'không có';
+      return `${escape(platformLabel(platform))}: ${kept + removed ? `đã quan sát ${count(kept + removed, `${block}.seen`, [...tableRows(excluded), ...rowInputs(records)], 'count(excluded rows) + count(kept rows)')} dòng đã gán sàn = ${shown(removed, `${block}.removed`, tableRows(excluded))} dòng bị loại + ${shown(kept, `${block}.kept`, rowInputs(records))} dòng được giữ` : 'chưa có dòng đã gán sàn để đối chiếu'}`;
+    }).join('; ')}.${capture.unattributedRows.length ? ` Có ${count(capture.unattributedRows.length, `${sectionId}.capture.limit.unattributed`, tableRows(capture.unattributedRows), 'count(rows without a platform)')} dòng chưa gán sàn, giữ riêng ngoài số từng sàn.` : ''}${truncation.truncated ? ' Bảng kết quả đã bị cắt theo giới hạn thu; không suy ra phần còn lại.' : ''}`
     : readerPlainText
-    ? `Nguồn là <strong>bảng kết quả tìm kiếm đã lưu</strong>; giới hạn lấy ${escape(String(truncation.cap))} dòng đầu của bảng kết quả. ${capture.capture.platforms.map(platform => {
-      const kept = capture.platforms.find(value => value.platform === platform)?.result.input.records.length ?? 0;
-      return `${escape(platformLabel(platform))}: ${kept ? `giữ ${escape(String(kept))} dòng` : 'chưa có dòng được giữ'}`;
+    ? `Nguồn là <strong>bảng kết quả tìm kiếm đã lưu</strong>; giới hạn lấy ${escape(stored('cap', `${sectionId}.capture.limit.cap`))} dòng đầu của bảng kết quả. ${capture.capture.platforms.map(platform => {
+      const records = recordsOf(platform), kept = records.length;
+      return `${escape(platformLabel(platform))}: ${kept ? `giữ ${escape(count(kept, `${sectionId}.capture.limit.${platform}.kept`, rowInputs(records), 'count(kept rows)'))} dòng` : 'chưa có dòng được giữ'}`;
     }).join('; ')}.${truncation.truncated ? ' Phần còn lại không được suy ra.' : ''}`
     : technicalLimitation;
-  const context = `<p class="warning">${limitation} Đây là số liệu quan sát theo từng nền tảng từ bảng kết quả đã lưu, không phải quy mô toàn thị trường. Trường không có trong bảng kết quả được hiển thị là <strong>không có số liệu</strong>, không đổi thành ${capture.rowPolicyVersion ? 'số không' : '0'}.</p><dl class="reader-context"><dt>Nguồn gốc số liệu</dt><dd>${currentReader ? `Bảng kết quả tìm kiếm được hệ thống lưu lại; ngày thu ${capture.platforms.map(({ platform, result }) => `${escape(platformLabel(platform))}: ${escape(result.input.scope.acquiredAt?.slice(0, 10).replace(/^(\d{4})-(\d{2})-(\d{2})$/u, '$3/$2/$1') ?? 'chưa xác nhận')}`).join('; ') || 'chưa xác nhận'} · kỳ` : 'Bảng kết quả tìm kiếm do người vận hành lưu lại · kỳ'} ${escape(capture.capture.measurementPeriod.startDate)} đến ${escape(capture.capture.measurementPeriod.endDate)}</dd><dt>Nền tảng</dt><dd>${capture.capture.platforms.map(platformLabel).map(escape).join(', ')}</dd></dl>`;
+  const context = `<p class="warning">${limitation} Đây là số liệu quan sát theo từng nền tảng từ bảng kết quả đã lưu, không phải quy mô toàn thị trường. Trường không có trong bảng kết quả được hiển thị là <strong>không có số liệu</strong>, không đổi thành ${capture.rowPolicyVersion ? 'số không' : '0'}.</p><dl class="reader-context"><dt>Nguồn gốc số liệu</dt><dd>${currentReader ? `Bảng kết quả tìm kiếm được hệ thống lưu lại; ngày thu ${capture.platforms.map(({ platform, result }) => `${escape(platformLabel(platform))}: ${escape(result.input.scope.acquiredAt ? traceMarketNumber(result.input.scope.acquiredAt.slice(0, 10).replace(/^(\d{4})-(\d{2})-(\d{2})$/u, '$3/$2/$1'),
+    `${sectionId}.capture.context`, 'raw', [storedInput('capture-table', id, '/capturedAt', result.input.scope.acquiredAt)], 'capture time, UTC day dd/mm/yyyy', 'vi-date') : 'chưa xác nhận')}`).join('; ') || 'chưa xác nhận'} · kỳ` : 'Bảng kết quả tìm kiếm do người vận hành lưu lại · kỳ'} ${escape(periodDay('start'))} đến ${escape(periodDay('end'))}</dd><dt>Nền tảng</dt><dd>${capture.capture.platforms.map(platformLabel).map(escape).join(', ')}</dd></dl>`;
   return context + platformRows + unknown + `<details class="evidence-trace"><summary>Hồ sơ kỹ thuật của nguồn số liệu</summary>${readerPlainText ? `<p>${technicalLimitation}</p>` : ''}<p>Không có tệp bảng tính trong nguồn này. Bảng kết quả tìm kiếm đã lưu, bản kê và mô tả nguồn được giữ trong gói phương pháp; mã kiểm tra toàn vẹn được đối chiếu khi dựng và mở báo cáo.</p><ul>${snapshot.limitations.map(limit => `<li>${escape(limit === 'CAPTURE_RESULTS_PAGE_TOP_N_LIMITED' ? 'Danh sách chỉ gồm các dòng đầu của bảng kết quả; không suy ra phần còn lại.' : limitationCopy(limit))}</li>`).join('')}</ul></details>`;
 }
