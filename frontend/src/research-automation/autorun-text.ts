@@ -51,6 +51,13 @@ const OWNER = 'Bạn đã tự xác nhận hoặc chỉnh báo cáo, nên phần
 const RUN_ENDED = 'Phiên nghiên cứu đã kết thúc hoặc bị hủy, nên phần tự động dừng lại.';
 const STEP_FAILED = 'Bước tự kiểm tra số liệu chưa làm được. Bạn có thể làm tiếp thủ công như trước.';
 
+export const AUTORUN_KEYWORD2_WAIT_TEXT = 'Đã lấy số liệu lượt đầu. Chờ bạn duyệt từ khóa 2 trước lượt lấy số liệu thứ hai.';
+
+/** Evidence line of the suggested keyword 2 (counts, no percentage). */
+export function autoRunKeyword2Text(suggestion: { readonly keyword1: string; readonly term: string; readonly titles: number; readonly titleCount: number; readonly brands: number }): string {
+  return `Từ khóa 2 gợi ý cho "${suggestion.keyword1}": "${suggestion.term}". Có trong ${suggestion.titles}/${suggestion.titleCount} tên sản phẩm doanh thu cao ở lượt đầu, thuộc ${suggestion.brands} thương hiệu. Lượt lấy số liệu thứ hai dùng thêm một lượt tra cứu.`;
+}
+
 /** Text for every stop code the auto-run can record. */
 export const AUTORUN_STOP_TEXT: Readonly<Record<string, string>> = {
   // Capture runner and executor codes (the "Thử lại" family).
@@ -71,6 +78,7 @@ export const AUTORUN_STOP_TEXT: Readonly<Record<string, string>> = {
   CAPTURE_INPUT_INVALID: INCOMPLETE,
   CAPTURE_IO_FAILED: INTERRUPTED,
   CAPTURE_SMART_QUERY_OFF: FILTER,
+  CAPTURE_CATEGORY_NOT_SELECTABLE: FILTER,
   // Intake rejections and later automatic steps.
   CAPTURE_OVERSIZE: INCOMPLETE,
   CAPTURE_INVALID_JSON: INCOMPLETE,
@@ -94,6 +102,8 @@ export const AUTORUN_STOP_TEXT: Readonly<Record<string, string>> = {
   RUN_CANCELLED: RUN_ENDED,
   RUN_INTERRUPTED: RUN_ENDED,
   CANCELLED: RUN_ENDED,
+  // Not an error: the first lookup is done and the card asks the owner about keyword 2.
+  KEYWORD2_AWAITING: AUTORUN_KEYWORD2_WAIT_TEXT,
 };
 
 export function autoRunStopText(code: string | undefined): string {

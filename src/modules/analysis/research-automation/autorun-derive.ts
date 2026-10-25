@@ -25,7 +25,7 @@ const CAPTURE_STOP_CODE_SET: Readonly<Record<MetricCaptureStopCode, true>> = {
   METRIC_FILTER_MISMATCH: true, METRIC_ROW_CAP: true, METRIC_SEARCH_NOT_APPLIED: true, BRIDGE_DISCONNECTED: true,
   EXECUTOR_DISABLED: true, TIMEOUT: true, MANIFEST_HASH_MISMATCH: true, EXECUTOR_NOT_CONFIGURED: true,
   PERIOD_OUTSIDE_RUN: true, CAPTURE_INTERRUPTED: true, CAPTURE_INPUT_INVALID: true, CAPTURE_IO_FAILED: true,
-  CAPTURE_SMART_QUERY_OFF: true,
+  CAPTURE_SMART_QUERY_OFF: true, CAPTURE_CATEGORY_NOT_SELECTABLE: true,
 };
 /** CAPTURE-family stop codes: the only stops the owner's "Thử lại" may re-run. */
 export const AUTORUN_CAPTURE_STOP_CODES: readonly MetricCaptureStopCode[] = Object.freeze(Object.keys(CAPTURE_STOP_CODE_SET) as MetricCaptureStopCode[]);
@@ -149,7 +149,8 @@ export interface MetricCaptureSpec {
   readonly keywords: readonly [string] | readonly [string, string];
   readonly platforms: readonly ['shopee', 'tiktok'];
   readonly period: DatePeriod;
-  readonly category: null;
+  /** Null is "All". The auto-run's second capture may name the category its first capture found dominant. */
+  readonly category: string | null;
   /** Always on: with it off the page matches only the exact phrase. */
   readonly smartQuery: true;
 }
@@ -158,7 +159,7 @@ export interface MetricCaptureSpec {
  * Keywords are the first two terms in the given order, deduplicated after
  * NFC, trim and lowercase; the first spelling is kept.
  */
-export function buildCaptureSpec(terms: string | readonly string[], period: DatePeriod): MetricCaptureSpec {
+export function buildCaptureSpec(terms: string | readonly string[], period: DatePeriod, category: string | null = null): MetricCaptureSpec {
   const keywords: string[] = [];
   const seen = new Set<string>();
   for (const term of typeof terms === 'string' ? [terms] : terms) {
@@ -171,8 +172,10 @@ export function buildCaptureSpec(terms: string | readonly string[], period: Date
   }
   if (keywords.length === 0) throw new RangeError('capture keyword is empty');
   if (!isPeriod(period)) throw new RangeError('capture period is invalid');
+  const label = typeof category === 'string' ? category.normalize('NFC').trim() : null;
+  if (category !== null && !label) throw new RangeError('capture category is empty');
   return { keywords: keywords as unknown as MetricCaptureSpec['keywords'], platforms: ['shopee', 'tiktok'],
-    period: { startDate: period.startDate, endDate: period.endDate }, category: null, smartQuery: true };
+    period: { startDate: period.startDate, endDate: period.endDate }, category: label, smartQuery: true };
 }
 
 // ---------------------------------------------------------------------------
@@ -371,9 +374,9 @@ export function pickShopeeLinks(rawResponses: unknown, terms: readonly string[],
 // ---------------------------------------------------------------------------
 
 /** Plain Vietnamese capture context. Names only Shopee and TikTok Shop, never a data provider or tool. */
-export function sourceContextVi(keyword: string, period: DatePeriod): string {
-  const name = keyword.normalize('NFC').trim();
-  return `Tự động thu thập số liệu bán hàng Shopee và TikTok Shop cho từ khóa "${name}", từ ngày ${period.startDate} đến ngày ${period.endDate}.`;
+export function sourceContextVi(keyword: string | readonly string[], period: DatePeriod): string {
+  const names = (typeof keyword === 'string' ? [keyword] : keyword).map(name => `"${name.normalize('NFC').trim()}"`);
+  return `Tự động thu thập số liệu bán hàng Shopee và TikTok Shop cho từ khóa ${names.join(' và ')}, từ ngày ${period.startDate} đến ngày ${period.endDate}.`;
 }
 
 export function buildPrepareValue(input: { runId: string; expectedRevision: number; sourceContext: string }): ResearchAutomationMetricCapturePrepareRequest {

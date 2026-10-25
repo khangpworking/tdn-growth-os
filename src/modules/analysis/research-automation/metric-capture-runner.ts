@@ -35,11 +35,20 @@ export interface MetricCaptureRequest {
   readonly keyword: string;
   readonly requestedPeriod: DatePeriod;
   readonly signal?: AbortSignal;
+  /**
+   * The auto-run's second capture of the same run: keyword 1 plus an optional
+   * keyword 2 and the category chosen from the first capture (null is All).
+   * It writes spec-2.json and run2/, so the first capture stays readable.
+   */
+  readonly second?: { readonly keywords: readonly string[]; readonly category: string | null };
 }
+
+/** Output folder of the first and of the second capture of a run. */
+export const METRIC_CAPTURE_DIRS = Object.freeze({ first: 'run1', second: 'run2' } as const);
 
 export type MetricCaptureStopCode =
   | MetricOpenCliCode | 'EXECUTOR_NOT_CONFIGURED' | 'PERIOD_OUTSIDE_RUN' | 'CAPTURE_INTERRUPTED' | 'CAPTURE_INPUT_INVALID' | 'CAPTURE_IO_FAILED'
-  | 'CAPTURE_SMART_QUERY_OFF';
+  | 'CAPTURE_SMART_QUERY_OFF' | 'CAPTURE_CATEGORY_NOT_SELECTABLE';
 
 export type MetricCaptureRunResult =
   | { readonly ok: true; readonly captureDir: string; readonly period: DatePeriod; readonly executorCalls: number }
@@ -97,6 +106,18 @@ async function smartQueryApplied(outputDir: string): Promise<boolean> {
   } catch { return false; }
 }
 
+/**
+ * The page has no option with the asked category text, or did not keep it
+ * selected. The label comes from capture data and the page may name it
+ * differently, so this is reported apart from a general page change.
+ */
+function categoryNotSelectable(category: string | null, result: Extract<MetricOpenCliResult, { ok: false }>): boolean {
+  if (category === null) return false;
+  if (result.code === 'METRIC_UI_CHANGED') return result.message.includes(`Metric option is missing: ${category}`) || result.message.includes('Metric category select is not visible');
+  // Read-back mismatch details name the field, also when re-escaped inside JSON output.
+  return result.code === 'METRIC_FILTER_MISMATCH' && /field\\*"\s*:\s*\\*"category\\*"/.test(result.message);
+}
+
 function stop(code: MetricCaptureStopCode, detail: string, executorCalls: number): MetricCaptureRunResult {
   return { ok: false, code, detail, executorCalls };
 }
@@ -113,14 +134,16 @@ export async function runMetricCapture(config: MetricCaptureRunnerConfig, reques
   const planned = planCapturePeriod(request.requestedPeriod);
   if (!planned.ok) return stop('PERIOD_OUTSIDE_RUN', 'the 30-day capture window is not inside the requested period', 0);
   let spec;
-  try { spec = buildCaptureSpec(request.keyword, planned.period); } catch { return stop('CAPTURE_INPUT_INVALID', 'keyword or period is invalid', 0); }
+  try { spec = request.second ? buildCaptureSpec(request.second.keywords, planned.period, request.second.category) : buildCaptureSpec(request.keyword, planned.period); }
+  catch { return stop('CAPTURE_INPUT_INVALID', 'keyword or period is invalid', 0); }
+  if (request.second && spec.keywords[0].toLowerCase() !== request.keyword.normalize('NFC').trim().toLowerCase()) return stop('CAPTURE_INPUT_INVALID', 'second capture must keep keyword 1', 0);
 
   const { signal } = request;
   const interrupted = (calls: number) => stop('CAPTURE_INTERRUPTED', 'capture was aborted', calls);
   return withCaptureLock(signal, async () => {
     const runDir = join(config.captureRoot, request.runId);
-    const specPath = join(runDir, 'spec.json');
-    const outputDir = join(runDir, 'run1');
+    const specPath = join(runDir, request.second ? 'spec-2.json' : 'spec.json');
+    const outputDir = join(runDir, request.second ? METRIC_CAPTURE_DIRS.second : METRIC_CAPTURE_DIRS.first);
     const execute = dependencies.execute ?? executeMetricOpenCli;
     const readManifest = dependencies.readManifest ?? (async (path: string) => readFile(path));
     const env = metricCaptureEnv(dependencies.sourceEnv ?? process.env);
@@ -150,6 +173,7 @@ export async function runMetricCapture(config: MetricCaptureRunnerConfig, reques
         if (spec.smartQuery && !(await smartQueryApplied(outputDir))) return stop('CAPTURE_SMART_QUERY_OFF', 'capture stopped: CAPTURE_SMART_QUERY_OFF', calls);
         return { ok: true, captureDir: outputDir, period, executorCalls: calls };
       }
+      if (categoryNotSelectable(spec.category, result)) return stop('CAPTURE_CATEGORY_NOT_SELECTABLE', 'capture stopped: CAPTURE_CATEGORY_NOT_SELECTABLE', calls);
       if (result.code !== 'METRIC_PERIOD_UNSUPPORTED' || calls >= MAX_EXECUTOR_CALLS) return stop(result.code, detailFor(result), calls);
       const decision = decidePeriodRetry(result.message, request.requestedPeriod, period);
       if (!decision.retry) {

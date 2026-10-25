@@ -2,6 +2,7 @@
 // API types, so reconciling with the published schema changes this file and nothing else.
 import type {
   ResearchAutomationAutoRun,
+  ResearchAutomationAutoRunKeywordRequest,
   ResearchAutomationAutoRunRetryRequest,
   ResearchAutomationCancelRequest,
   ResearchAutomationConfirmRequest,
@@ -33,7 +34,7 @@ export type ResearchAutomationPreparedMetricCaptureEntry = { readonly packageId:
 export type { ResearchAutomationSourceStatus, ResearchAutomationSourceStatusEntry };
 export type { ResearchAutomationRunPdfStates };
 export type ResearchAutomationCancelBody = ResearchAutomationCancelRequest;
-export type ResearchAutomationAutoRunRetryBody = ResearchAutomationAutoRunRetryRequest;
+export type ResearchAutomationAutoRunRetryBody = ResearchAutomationAutoRunRetryRequest | ResearchAutomationAutoRunKeywordRequest;
 export type { ResearchAutomationAutoRun };
 export type ResearchAutomationReceipt = ResearchAutomationMutationReceipt;
 export type ResearchAutomationInterview = NonNullable<ResearchAutomationStartRequest['interview']>;

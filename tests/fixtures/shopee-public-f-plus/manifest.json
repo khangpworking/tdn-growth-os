@@ -1062,6 +1062,11 @@
       "sha256": "9b8193d753946d4e089bb21e07d71f7cff1476aca31d913309ac7c4e1ba2ee6a"
     },
     {
+      "name": "trial-run/artifacts/sha256/9c/9c3fff9e2cce157ca60609b1bf86c074e2cfff3a7ab59bd53345b03683435e55",
+      "byteSize": 1434,
+      "sha256": "9c3fff9e2cce157ca60609b1bf86c074e2cfff3a7ab59bd53345b03683435e55"
+    },
+    {
       "name": "trial-run/artifacts/sha256/9f/9f3a4cca08edc81247458fe505ad2e38f164462e605bd1ae819f57594b427150",
       "byteSize": 11516,
       "sha256": "9f3a4cca08edc81247458fe505ad2e38f164462e605bd1ae819f57594b427150"
@@ -1170,11 +1175,6 @@
       "name": "trial-run/artifacts/sha256/f6/f6ca7fa17d2df0cdf07a2ddcc18e383ace99512dc389b76de319bd1c3c9fce9e",
       "byteSize": 6511,
       "sha256": "f6ca7fa17d2df0cdf07a2ddcc18e383ace99512dc389b76de319bd1c3c9fce9e"
-    },
-    {
-      "name": "trial-run/artifacts/sha256/f7/f7a3a228fdf08bd6fb14d03f243c8ff41a8b574706532112f6106fca3cc0f407",
-      "byteSize": 1065,
-      "sha256": "f7a3a228fdf08bd6fb14d03f243c8ff41a8b574706532112f6106fca3cc0f407"
     },
     {
       "name": "trial-run/artifacts/sha256/fb/fb023c7c4d2d0b869ea6d7784c40b6e524f8748f79c0a45e676f3ee543669f4e",

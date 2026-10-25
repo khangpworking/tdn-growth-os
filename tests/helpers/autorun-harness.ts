@@ -84,7 +84,7 @@ export class FakeCapture {
       }
       if (behaviour === 'hold' && !(await new Promise<boolean>(resolve => this.#held.set(request.runId, resolve))))
         return { ok: false, code: 'METRIC_UI_CHANGED', detail: 'synthetic failure', executorCalls: 1 };
-      const dir = path.join(this.captureRoot, request.runId, 'run1');
+      const dir = path.join(this.captureRoot, request.runId, request.second ? 'run2' : 'run1');
       await writeCaptureFiles(dir, request.runId);
       return { ok: true, captureDir: dir, period: capturePeriod, executorCalls: 1 };
     } finally { this.active--; }

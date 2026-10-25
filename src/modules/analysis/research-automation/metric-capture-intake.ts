@@ -45,6 +45,19 @@ const norm = (value: string): string => value.normalize('NFC').trim().toLowerCas
 // these page toggles, which the snapshot scope deliberately does not model.
 // The snapshot schema keeps `scope` closed, so a toggle can never appear there.
 const APPLIED_FILTER_TOGGLES = ['smartQuery', 'aiNormalisation', 'usefulFilters'] as const;
+/** v2 adds `searchScope`: the auto-run's fixed scope lines (keyword 2 and category evidence). v1 stays readable. */
+export const METRIC_CAPTURE_CONTEXT_VERSIONS: readonly string[] = Object.freeze(['automation-metric-capture-context-v1', 'automation-metric-capture-context-v2']);
+/** Bounds of the server-authored scope lines in a v2 context. */
+export const MAX_SEARCH_SCOPE_LINES = 4;
+export const MAX_SEARCH_SCOPE_LINE_LENGTH = 400;
+/** The `searchScope.lines` of a capture context; null when absent (v1) or out of bounds. */
+export function captureContextScopeLines(context: Record<string, unknown>): string[] | null {
+  if (context.contractVersion !== 'automation-metric-capture-context-v2') return null;
+  const scope = context.searchScope as { lines?: unknown } | undefined;
+  const lines = scope?.lines;
+  return Array.isArray(lines) && lines.length >= 1 && lines.length <= MAX_SEARCH_SCOPE_LINES &&
+    lines.every(line => typeof line === 'string' && line.trim() !== '' && line.length <= MAX_SEARCH_SCOPE_LINE_LENGTH) ? [...lines as string[]] : null;
+}
 
 export type MetricCaptureRejectionCode =
   | 'CAPTURE_OVERSIZE' | 'CAPTURE_INVALID_JSON' | 'CAPTURE_SCHEMA_INVALID' | 'CAPTURE_MANIFEST_INVALID'
@@ -129,9 +142,11 @@ function gateCleared(value: boolean | { readonly [key: string]: unknown } | unde
   return Object.keys(value).length === 1 && value.cleared === true;
 }
 
+/** Keyword 1 is the run keyword; the auto-run's second capture may add one different keyword 2. */
 function assertRunScope(snapshot: AutomationMetricWebSnapshotV1, start: StartSnapshot): void {
   const requestedKeyword = norm(start.keyword);
-  if (snapshot.scope.keywords.length !== 1 || norm(snapshot.scope.keywords[0]!) !== requestedKeyword)
+  const keywords = snapshot.scope.keywords;
+  if (keywords.length < 1 || keywords.length > 2 || norm(keywords[0]!) !== requestedKeyword || (keywords.length === 2 && norm(keywords[1]!) === requestedKeyword))
     throw new MetricCaptureRejection('CAPTURE_SCOPE_MISMATCH', 'snapshot.scope.keywords');
   if (snapshot.scope.period.startDate < start.requestedPeriod.startDate || snapshot.scope.period.endDate > start.requestedPeriod.endDate)
     throw new MetricCaptureRejection('CAPTURE_SCOPE_MISMATCH', 'snapshot.scope.period');
@@ -149,7 +164,7 @@ export class AutomationMetricCaptureSourceIntake {
   }
 
   async prepare(input: ResearchAutomationMetricCapturePrepareRequest, snapshotBytes: Buffer, manifestBytes: Buffer,
-    bound: { readonly runId: string; readonly start: StartSnapshot; readonly scope: ScopeSnapshot }): Promise<ResearchAutomationMetricCapturePrepareReceipt> {
+    bound: { readonly runId: string; readonly start: StartSnapshot; readonly scope: ScopeSnapshot; readonly searchScope?: readonly string[] }): Promise<ResearchAutomationMetricCapturePrepareReceipt> {
     const verified = verifyMetricCaptureArchive(snapshotBytes, manifestBytes, bound);
     // The capture can be uploaded before scope confirmation. Bind it to the
     // immutable run start, not the temporary empty/proposed scope used by the
@@ -163,11 +178,13 @@ export class AutomationMetricCaptureSourceIntake {
     if (!validateDescriptor(descriptor)) throw new MetricCaptureRejection('CAPTURE_INTEGRITY_FAILED', DESCRIPTOR_PATH);
     const family = `metric-capture-${bound.runId}`;
     const provenanceBasis = 'Exact sanitized results-page capture supplied by the owner; the capture gate, page scope and snapshot digest were checked, but provider authenticity and market completeness are not independently established.';
+    const lines = bound.searchScope?.length ? [...bound.searchScope] : null;
     const context = {
-      contractVersion: 'automation-metric-capture-context-v1', request: input, provenance: METRIC_CAPTURE_SOURCE_LABEL,
+      contractVersion: lines ? 'automation-metric-capture-context-v2' : 'automation-metric-capture-context-v1', request: input, provenance: METRIC_CAPTURE_SOURCE_LABEL,
       capture: verified.capture, snapshotSha256: hash(snapshotBytes), manifestSha256: hash(manifestBytes),
-      truncation: verified.capture.truncation,
+      truncation: verified.capture.truncation, ...(lines ? { searchScope: { lines } } : {}),
     };
+    if (lines && !captureContextScopeLines(context)) throw new MetricCaptureRejection('CAPTURE_INTEGRITY_FAILED', CONTEXT_PATH, 'searchScope');
     const documents = [
       { path: SNAPSHOT_PATH, bytes: snapshotBytes, mediaType: 'application/json', representationRole: 'primary' as const, providerProvenance: 'provider_reported' as const, basis: provenanceBasis },
       { path: MANIFEST_PATH, bytes: manifestBytes, mediaType: 'application/json', representationRole: 'derived' as const, providerProvenance: 'provider_reported' as const, basis: provenanceBasis },
