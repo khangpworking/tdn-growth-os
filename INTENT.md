@@ -11,6 +11,8 @@
 - 19/10/2026: nguyên văn bình luận thô không bao giờ xuất hiện trên báo cáo.
 - Mục tiêu: báo cáo Market tự động đạt 14/14 quy tắc, không sửa tay (không ghi ngày trong nguồn).
 - 20/10/2026: tài liệu viết gần chuẩn ASD-STE100 (khoảng 80%) và có sơ đồ. Bản cũ giữ ở `docs/outdated/`.
+- 01/10/2026: Video Factory (tên cũ Video Studio) là luồng riêng, tự làm video b-roll 9:16 tiếng Việt bằng ffmpeg; nguồn cảnh: thư viện → stock → AI; clip AI không vào thư viện. Xem `docs/tasks/054-video-factory-design.md`.
+- 25/10/2026: đổi tên thành Video Factory; video chạy trong app (ADR 0007); Gemini chỉ đọc clip khi chủ bấm; quy tắc video ở OpenSpec (mã R-V).
 
 ## Quyết định bổ sung 27/09/2026 — độ ổn định báo cáo nghiên cứu
 

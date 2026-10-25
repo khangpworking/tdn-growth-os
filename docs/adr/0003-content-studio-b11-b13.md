@@ -17,6 +17,7 @@ Content Studio hiện chạy như một ứng dụng Express/SQLite độc lập
 6. **Prompt hai lớp.** Người dùng chỉ viết hoặc chọn phần sáng tạo; hệ thống luôn thêm dữ liệu khóa, quy tắc an toàn/sự thật và định dạng đầu ra. Prompt có thể lấy từ Thư viện prompt hoặc tự viết (lưu được vào thư viện).
 7. **AI đề xuất, con người quyết định.** Sửa bằng AI tạo đề xuất; chỉ người dùng áp dụng hoặc bỏ. Khối liên hệ của Caption do hệ thống thêm từ hồ sơ, không do AI viết.
 8. **Ngoài phạm vi.** Không đăng lên Facebook hay mạng xã hội; không video; chỉ OWNER dùng (qua cơ chế OWNER hiện có); không dùng Codex CLI làm dịch vụ tạo ảnh.
+   > Sửa bởi ADR 0007 (25/10/2026): video là luồng riêng, Video Factory. Bản trước: [bản trước khi sửa](../outdated/2026-10-25/docs/adr/0003-content-studio-b11-b13.md).
 
 ## Hệ quả
 
