@@ -19,6 +19,10 @@ Hệ thống SHALL chạy luồng tự động (thu, chuẩn bị, chọn link, 
 - **WHEN** cờ bật, `reports` chỉ có INSIGHT, và bản nháp của lần chạy sẵn sàng (`DRAFT_READY`) sau khi luồng tự động đã xác nhận phạm vi
 - **THEN** dòng auto-run chuyển từ `WAIT_DRAFT` sang `DONE`, không tạo bản sửa trình bày nào
 
+#### Scenario: Câu hoàn tất trên giao diện
+- **WHEN** thẻ auto-run hiện pha `DONE` của lần chạy chỉ Insight
+- **THEN** thẻ chỉ nói bản nháp đã xong, không nói bìa hay biểu đồ; câu hoàn tất của lần chạy có MARKET giữ nguyên
+
 #### Scenario: Lỗi thu trên lần chạy chỉ Insight
 - **WHEN** lượt thu Metric của lần chạy chỉ Insight lỗi
 - **THEN** dòng auto-run dừng `STOPPED` với mã dừng như lần chạy Market, chủ thử lại được theo cùng quy tắc, và lần chạy vẫn chờ chủ xác nhận phạm vi
@@ -57,7 +61,9 @@ Với làn nguồn có cờ bật tắt, bước `COLLECTION` SHALL chỉ gọi 
 ### Requirement: R-P15 PageIndex chỉ hỏi phần Market
 Hệ thống SHALL lập và ước tính câu hỏi PageIndex chỉ cho phần M, và chỉ khi `reports` có MARKET. Câu hỏi phần M SHALL giữ y id, thứ tự, chữ và khóa cache như trước. Kế hoạch rỗng SHALL không gọi PageIndex và không làm bước lỗi.
 
-- Mã: RA `service.ts` (chỗ ước tính chi phí PDF và chỗ lập kế hoạch câu hỏi, cùng lọc phần M); `src/modules/analysis/pageindex-questions.ts` (`PAGEINDEX_ELIGIBLE_SECTIONS` giữ nguyên để câu hỏi phần I đã lưu vẫn hợp lệ); RA `pdf-excerpt.ts` (`NOT_MARKET_SECTION`).
+Trên lần chạy có cả MARKET và INSIGHT, hệ thống SHALL giữ vị trí của câu phần M trong trần câu hỏi và cách ước tính số PDF còn được thu. Các chỗ phần I từng chiếm SHALL không được chuyển cho câu phần M khác; không có câu phần I nào được hỏi.
+
+- Mã: RA `service.ts` (`#pageIndexPlanSections` giữ các chỗ trong trần; `#remainingCapturePdfSlots` ước tính số PDF còn được thu; `#processRunPdfs` chỉ hỏi câu phần M); `src/modules/analysis/pageindex-questions.ts` (`PAGEINDEX_ELIGIBLE_SECTIONS` giữ nguyên để câu hỏi phần I đã lưu vẫn hợp lệ); RA `pdf-excerpt.ts` (`NOT_MARKET_SECTION`).
 - Vì sao: RA `pdf-excerpt.ts` bỏ mọi trích dẫn không thuộc phần M, nên câu hỏi phần I tốn tiền mà không đổi báo cáo. Chủ quyết định 25/10/2026: nguồn chỉ Market dùng thì không chạy trong lượt làm báo cáo Insight.
 
 #### Scenario: Lần chạy chỉ Insight có PDF
