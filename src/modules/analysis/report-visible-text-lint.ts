@@ -54,13 +54,28 @@ function visibleBlocks(html: string): { chunks: Chunk[]; region: number }[] {
   return blocks;
 }
 
+// R-L20 (owner 24/10/2026): word lists, a number-plus-unit pattern and a full
+// dd/mm/yyyy date. A ranking word passes only when its own sentence or title
+// names the measure, a counted sample with its platform, and a dated period.
+const LETTER = '[\\p{L}\\p{M}]';
+const RANKING_BANNED = new RegExp(`(?<!${LETTER})(?:số\\s*1\\s+thị\\s+trường|tốt\\s+nhất|dẫn\\s+đầu\\s+ngành)(?!${LETTER})`, 'iu');
+const RANKING_WORD = new RegExp(`(?<!${LETTER})(?:dẫn\\s+đầu|số\\s*1(?![\\d.,]*\\d)|nhiều\\s+nhất)(?!${LETTER})`, 'iu');
+const RANKING_MEASURE = new RegExp(`(?<!${LETTER})(?:doanh\\s+thu|doanh\\s+số|lượt\\s+bán|đơn\\s+vị\\s+bán|số\\s+đơn|đơn\\s+hàng|lượt\\s+xem|lượt\\s+thích|lượt\\s+đánh\\s+giá|số\\s+đánh\\s+giá|nhắc)(?!${LETTER})`, 'iu');
+const RANKING_SAMPLE = new RegExp(`\\d[\\d.,]*\\s+(?:nghìn\\s+|triệu\\s+)?(?:sản\\s+phẩm|bản\\s+ghi|bình\\s+luận|đánh\\s+giá|review|dòng)(?!${LETTER})`, 'iu');
+const RANKING_PLATFORM = /(?<![\p{L}\p{M}])(?:shopee|tiktok(?:\s+shop)?|lazada|tiki)(?![\p{L}\p{M}])/iu;
+const RANKING_PERIOD = /(?<!\d)\d{1,2}\/\d{1,2}\/\d{4}(?!\d)/u;
+const rankingComplete = (sentence: string): boolean => RANKING_MEASURE.test(sentence) && RANKING_SAMPLE.test(sentence)
+  && RANKING_PLATFORM.test(sentence) && RANKING_PERIOD.test(sentence);
+/** Sentences of one block; a dot between digits (7.4, 1.234) does not end one. */
+const sentencesOf = (text: string): string[] => text.split(/(?<=[!?…])|(?<=(?<!\d)\.)|(?<=\.)(?!\d)/u).filter(s => s.trim());
+
 export function lintVisibleReportText(html: string): VisibleTextLintResult[];
 export function lintVisibleReportText(html: string, rawHtml: string): { gate: VisibleTextLintResult[]; raw: VisibleTextLintResult[] };
 /** Reader U13 evaluates both historical inline views together. Separate finding
  * buckets preserve the gate's failure stage and the raw lint saved in claims. */
 export function lintVisibleReportText(html: string, rawHtml?: string): VisibleTextLintResult[] | { gate: VisibleTextLintResult[]; raw: VisibleTextLintResult[] } {
   const views = rawHtml === undefined ? [html] : [html, rawHtml];
-  const findingsByView = views.map(() => ({ superlatives: [] as string[], priorities: [] as string[], drafts: [] as string[] }));
+  const findingsByView = views.map(() => ({ superlatives: [] as string[], priorities: [] as string[], drafts: [] as string[], rankings: [] as string[] }));
   const blocks = views.flatMap((markup, view) => visibleBlocks(markup).map(block => ({ ...block, view })));
   const regionText = new Map<string, string[]>();
   const isSuperlative = (text: string): boolean => {
@@ -74,8 +89,12 @@ export function lintVisibleReportText(html: string, rawHtml?: string): VisibleTe
     return false;
   };
   for (const { chunks, region, view } of blocks) {
-    const { superlatives, drafts } = findingsByView[view]!;
+    const { superlatives, drafts, rankings } = findingsByView[view]!;
     const own = chunks.map(c => c.own ? c.text : ' ').join('').replace(/\s+/g, ' ').trim();
+    const ownSentences = sentencesOf(own);
+    for (const sentence of ownSentences) {
+      if (RANKING_BANNED.test(sentence) || (RANKING_WORD.test(sentence) && !rankingComplete(sentence))) rankings.push(sentence.trim());
+    }
     // Numeric lower bounds are measurement/method conditions, not a claim
     // that a product is superior (for example the frozen E11 threshold).
     // A counted product phrase is exempt only when its own sentence names a
@@ -86,7 +105,9 @@ export function lintVisibleReportText(html: string, rawHtml?: string): VisibleTe
       for (const stop of input.slice(0, offset).matchAll(/[!?…]|\.(?!\d)/gu)) start = (stop.index ?? 0) + 1;
       return /(?<![\p{L}\p{M}])(?:tệp|mẫu|danh sách|kết quả tìm kiếm|gồm|lấy|xem đủ|thu thập)(?![\p{L}\p{M}])[\s\S]{0,160}$/iu.test(input.slice(start, offset));
     };
-    const findings = own.replace(/ít nhất(?=\s+\d)/giu, 'tối thiểu')
+    // R-L20 allows «nhiều nhất» in a sentence that names measure, sample and period.
+    const findings = ownSentences.map(s => rankingComplete(s) ? s.replace(/nhiều\s+nhất/giu, 'nhiều') : s).join('')
+      .replace(/ít nhất(?=\s+\d)/giu, 'tối thiểu')
       .replace(/(\d[\d.,]*(?:\s*\[\d+\])*\s+sản phẩm\s+)doanh thu cao nhất/giu, (match, prefix: string, offset: number, input: string) =>
         countedSample(input, offset) ? `${prefix}theo ngưỡng doanh thu` : match)
       .replace(/(bản ghi|đối tượng)\s+duy nhất/giu, (match, kind: string, offset: number, input: string) => {
@@ -146,10 +167,11 @@ export function lintVisibleReportText(html: string, rawHtml?: string): VisibleTe
         && !/phụ thuộc|điều kiện tiên quyết|chỉ[^.!?]*sau khi/iu.test(text)) priorities.push(text);
     }
   }
-  const results = findingsByView.map(({ superlatives, priorities, drafts }) => [
+  const results = findingsByView.map(({ superlatives, priorities, drafts, rankings }) => [
     { rule: 'U13_SUPERLATIVE', ok: superlatives.length === 0, detail: superlatives.slice(0, 3).join(' | ') || 'Không có so sánh nhất trong nhận định.' },
     { rule: 'U13_PRIORITY', ok: priorities.length === 0, detail: priorities.slice(0, 3).join(' | ') || 'Không có thứ tự ưu tiên thiếu phụ thuộc.' },
     { rule: 'U13_PENDING_NUMBER', ok: drafts.length === 0, detail: drafts.slice(0, 3).join(' | ') || 'Số phân loại chưa duyệt có nhãn cùng câu.' },
+    { rule: 'L20_RANKING_WORD', ok: rankings.length === 0, detail: rankings.slice(0, 3).join(' | ') || 'Từ xếp hạng có đủ thước đo, mẫu và kỳ.' },
   ]);
   return rawHtml === undefined ? results[0]! : { gate: results[0]!, raw: results[1]! };
 }

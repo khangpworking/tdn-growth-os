@@ -18,6 +18,7 @@ const GATE: Readonly<Record<string, string>> = {
   U13_SUPERLATIVE: 'Nhận định dùng so sánh nhất như "tốt nhất" hay "hàng đầu".',
   U13_PRIORITY: 'Thứ tự ưu tiên được nêu mà không ghi điều kiện phụ thuộc.',
   U13_PENDING_NUMBER: 'Số phân loại chưa duyệt thiếu nhãn "đề xuất, chờ chủ duyệt" trong cùng câu.',
+  L20_RANKING_WORD: 'Câu dùng "dẫn đầu", "số 1" hoặc "nhiều nhất" mà thiếu thước đo, mẫu hoặc kỳ, hoặc dùng cụm luôn cấm như "tốt nhất".',
 };
 const FOURTEEN: Readonly<Record<string, string>> = {
   1: 'Thuật ngữ dùng trong trang chưa có giải thích trong bảng thuật ngữ.',
