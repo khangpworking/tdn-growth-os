@@ -65,7 +65,8 @@ const LETTER = '[\\p{L}\\p{M}]';
 const RANKING_BANNED = new RegExp(`(?<!${LETTER})(?:số\\s*1\\s+thị\\s+trường|tốt\\s+nhất|dẫn\\s+đầu\\s+ngành)(?!${LETTER})`, 'iu');
 const RANKING_WORD = new RegExp(`(?<!${LETTER})(?:dẫn\\s+đầu|số\\s*1(?![\\d.,]*\\d)|nhiều\\s+nhất)(?!${LETTER})`, 'iu');
 const RANKING_MEASURE = new RegExp(`(?<!${LETTER})(?:doanh\\s+thu|doanh\\s+số|lượt\\s+bán|đơn\\s+vị\\s+bán|số\\s+đơn|đơn\\s+hàng|lượt\\s+xem|lượt\\s+thích|lượt\\s+đánh\\s+giá|số\\s+đánh\\s+giá|nhắc)(?!${LETTER})`, 'iu');
-const RANKING_SAMPLE = new RegExp(`\\d[\\d.,]*\\s+(?:nghìn\\s+|triệu\\s+)?(?:sản\\s+phẩm|bản\\s+ghi|bình\\s+luận|đánh\\s+giá|review|dòng)(?!${LETTER})`, 'iu');
+// A citation marker such as «[3]» or «[3, 4]» may stand between the number and its unit.
+const RANKING_SAMPLE = new RegExp(`\\d[\\d.,]*\\s+(?:\\[\\d+(?:\\s*[,–-]\\s*\\d+)*\\]\\s*)*(?:nghìn\\s+|triệu\\s+)?(?:sản\\s+phẩm|bản\\s+ghi|bình\\s+luận|đánh\\s+giá|review|dòng)(?!${LETTER})`, 'iu');
 const RANKING_PLATFORM = /(?<![\p{L}\p{M}])(?:shopee|tiktok(?:\s+shop)?|lazada|tiki)(?![\p{L}\p{M}])/iu;
 const RANKING_PERIOD = /(?<!\d)\d{1,2}\/\d{1,2}\/\d{4}(?!\d)/u;
 const rankingComplete = (sentence: string): boolean => RANKING_MEASURE.test(sentence) && RANKING_SAMPLE.test(sentence)
