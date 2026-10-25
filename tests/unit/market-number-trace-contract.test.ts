@@ -50,14 +50,14 @@ function inject(html: string, block: string, fragment: string): string {
 }
 
 const injected = '<p>Giá trị bổ sung: 36,2 tỷ.</p>';
-function assertT2(outcome: MarketCheckOutcome): void {
+function assertT2(outcome: MarketCheckOutcome, context = 'Giá trị bổ sung: 36,2 tỷ.'): void {
   assert.equal(outcome.failure?.message, 'MARKET_NUMBER_TRACE_FAILED:N01_UNTRACED_NUMBER', 'T2 requires delivery to be blocked by the HTML scan');
   assert.deepEqual(outcome.failure.failed, ['N01_UNTRACED_NUMBER']);
   assert.ok(outcome.numberTrace);
   assert.equal(outcome.numberTrace.ok, false);
   assert.equal(outcome.numberTrace.coveredUntraced, 1);
   assert.deepEqual(outcome.numberTrace.mismatches, [], 'the injected HTML leaves the valid trace map unchanged');
-  assert.deepEqual(outcome.numberTrace.untraced, [{ token: '36,2 tỷ', block: 'M03', context: 'Giá trị bổ sung: 36,2 tỷ.' }]);
+  assert.deepEqual(outcome.numberTrace.untraced, [{ token: '36,2 tỷ', block: 'M03', context }]);
 }
 
 test('T1 zinc fixture report has zero untraced numbers in every covered block', async () => {
@@ -162,6 +162,18 @@ test('R3 a blocked run exposes its gate artifact digest and path through its REP
   assert.equal(gate.coveredUntraced, 1);
   assert.deepEqual(gate.mismatches, []);
   assert.deepEqual(gate.untraced, [{ token: '36,2 tỷ', block: 'M03', context: 'Giá trị bổ sung: 36,2 tỷ.' }]);
+});
+
+test('R4 an M03 ordinal prefix cannot allow part of an untraced numeric token', () => {
+  const html = '<section class="sheet" id="M03"><p>Sản phẩm #36,2 tỷ</p></section>';
+  const trace: MarketNumberTrace = { contractVersion: 'market-number-trace-v2', entries: [] };
+  assertT2(checkMarketReport(html, { kind: 'DRAFT_PLAIN', numberTrace: { trace } }), 'Sản phẩm #36,2 tỷ');
+});
+
+test('R5 an M03 evidence-trace details class cannot hide an untraced number', () => {
+  const html = '<section class="sheet" id="M03"><details open class="evidence-trace">36,2 tỷ</details></section>';
+  const trace: MarketNumberTrace = { contractVersion: 'market-number-trace-v2', entries: [] };
+  assertT2(checkMarketReport(html, { kind: 'DRAFT_PLAIN', numberTrace: { trace } }), '36,2 tỷ');
 });
 
 test('T3 a change percentage with the wrong previous-period base blocks delivery', async () => {
