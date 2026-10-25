@@ -1,6 +1,8 @@
 # Từ điển trường (lớp 2)
 
-> Đã chuyển nguyên văn từ mục 6.2 của [tài liệu câu hỏi Insight](../../research/ultimate-method/insight-cau-hoi-nghiep-vu.md) ngày 21/10/2026. Bản trước khi chuyển: [bản chụp](../../outdated/2026-10-21-6/docs/research/ultimate-method/insight-cau-hoi-nghiep-vu.md). Nội dung bên dưới không đổi. Số mục (6.2.x) giữ như cũ.
+> Nguồn sự thật từ 25/10/2026 (chủ duyệt chuyển sang OpenSpec). Bản trong `docs/business-spec/semantic-layer/` nay là stub. Bản trước khi chuyển: [bản chụp](../../docs/outdated/2026-10-25/docs/business-spec/semantic-layer/fields.md).
+
+> Đã chuyển nguyên văn từ mục 6.2 của [tài liệu câu hỏi Insight](../../docs/research/ultimate-method/insight-cau-hoi-nghiep-vu.md) ngày 21/10/2026. Bản trước khi chuyển: [bản chụp](../../docs/outdated/2026-10-21-6/docs/research/ultimate-method/insight-cau-hoi-nghiep-vu.md). Nội dung bên dưới không đổi. Số mục (6.2.x) giữ như cũ.
 
 ### 6.2 Từ điển trường (lớp 2)
 

@@ -1,8 +1,10 @@
 # Cách nguồn tính ra con số (Metric và Kalodata)
 
+> Nguồn sự thật từ 25/10/2026 (chủ duyệt chuyển sang OpenSpec). Bản trong `docs/business-spec/semantic-layer/` nay là stub. Bản trước khi chuyển: [bản chụp](../../docs/outdated/2026-10-25/docs/business-spec/semantic-layer/source-methods.md).
+
 Ngày kiểm: 21/10/2026. Tài liệu nghiên cứu. Báo cáo gửi khách **không** nêu tên nguồn.
 
-Tài liệu này ghi lại cách hai nguồn số bán tính ra con số. Mỗi mục có đường dẫn tới tài liệu gốc. Mục 4 nối mỗi cách tính với chỉ số ở Phần 7 của tài liệu câu hỏi Insight, nay là [metrics.md](metrics.md). Mục 5 ghi điều liên quan tới quy đổi đơn vị.
+Tài liệu này ghi lại cách hai nguồn số bán tính ra con số. Mỗi mục có đường dẫn tới tài liệu gốc. Mục 4 nối mỗi cách tính với chỉ số ở Phần 7 của tài liệu câu hỏi Insight, nay là [metrics.md](../specs/report-metrics/spec.md). Mục 5 ghi điều liên quan tới quy đổi đơn vị.
 
 Ký hiệu:
 - **Nguồn nói** = câu lấy từ tài liệu của nguồn. Hệ thống chưa tự kiểm.

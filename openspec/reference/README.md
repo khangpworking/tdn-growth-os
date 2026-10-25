@@ -1,19 +1,17 @@
-# Bản chép tham chiếu
+# Tài liệu tham chiếu
 
-Thư mục này giữ bản chép nguyên văn của một số tài liệu trong `docs/business-spec/`. Mục đích: để người dùng OpenSpec đọc cùng chỗ với `openspec/specs/`. Ngày chép: 24/10/2026.
+Thư mục này giữ tài liệu tham chiếu của OpenSpec: từ điển trường, cách nguồn tính số, và bản chép tài liệu nguồn dữ liệu.
 
-| Bản chép | Chép từ |
-| --- | --- |
-| [fields.md](fields.md) | `docs/business-spec/semantic-layer/fields.md` |
-| [source-methods.md](source-methods.md) | `docs/business-spec/semantic-layer/source-methods.md` |
-| [data-sources/](data-sources/) | `docs/business-spec/data-sources/` (input-standard.md, input-standard-technical.md, source-status.md) |
+| File | Trạng thái | Bản cũ |
+| --- | --- | --- |
+| [fields.md](fields.md) | Nguồn sự thật từ 25/10/2026 | `docs/business-spec/semantic-layer/fields.md` nay là stub |
+| [source-methods.md](source-methods.md) | Nguồn sự thật từ 25/10/2026 | `docs/business-spec/semantic-layer/source-methods.md` nay là stub |
+| [data-sources/](data-sources/) | Bản chép ngày 24/10/2026 | `docs/business-spec/data-sources/` vẫn là nguồn sự thật |
 
 ## Quy tắc
 
-- Bản gốc trong `docs/business-spec/` vẫn là nguồn sự thật. Bản chép ở đây không được sửa tay.
-- Khi bản gốc đổi, chép lại cả file. Nếu hai bản khác nhau, bản gốc đúng.
-- Link tương đối bên trong các file chép có thể không dùng được, vì thư mục đã đổi độ sâu. Mở bản gốc để theo link.
-- Từ điển chỉ số (`semantic-layer/metrics.md`) không chép ở đây. Nó đã thành spec [report-metrics](../specs/report-metrics/spec.md).
-- Sẽ chuyển hẳn các tài liệu này vào `openspec/` ở một lần sau. Khi đó bản gốc thành stub, theo luật của `docs/outdated/`.
+- `fields.md` và `source-methods.md`: sửa ở đây bằng PR. Nếu thay đổi chạm quy tắc báo cáo, bắt đầu bằng `/opsx:propose`.
+- `data-sources/`: bản gốc trong `docs/business-spec/data-sources/` vẫn là nguồn sự thật. Bản chép ở đây không được sửa tay. Khi bản gốc đổi, chép lại cả file. Link tương đối trong bản chép có thể không dùng được.
+- Từ điển chỉ số không nằm ở đây. Nó là spec [report-metrics](../specs/report-metrics/spec.md). Bản `docs/business-spec/semantic-layer/metrics.md` vẫn còn và phải khớp spec đó.
 
 Xem thêm `openspec/MIGRATION.md`.

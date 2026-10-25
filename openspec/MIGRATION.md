@@ -13,7 +13,7 @@ Lần đầu (24/10/2026) chỉ **thêm file mới**. Cùng ngày, chủ duyệt
 | `openspec/specs/report-language/spec.md` | R-L01 đến R-L19 | `docs/business-spec/business-rules/report-language.md` bản 1.0 |
 | `openspec/specs/report-pipeline/spec.md` | Luồng mã của Market và Insight: file, hàm, cổng, cờ | Đọc mã tại `14d33f64` |
 | `openspec/specs/report-metrics/spec.md` | 13 chỉ số và 29 cách đo (DT-1 đến TK-2), quy tắc so và cộng | `docs/business-spec/semantic-layer/metrics.md` bản 21/10/2026 |
-| `openspec/reference/` | Bản chép nguyên văn của `fields.md`, `source-methods.md` và thư mục `data-sources/`, kèm `README.md` | `docs/business-spec/semantic-layer/`, `docs/business-spec/data-sources/` |
+| `openspec/reference/` | `fields.md` và `source-methods.md`: nguồn sự thật từ 25/10/2026 (bản cũ thành stub). `data-sources/`: bản chép, kèm `README.md` | `docs/business-spec/semantic-layer/` (fields, source-methods), `docs/business-spec/data-sources/` |
 | `openspec/changes/market-owner-decisions-2210/` | Đề xuất: đưa quyết định của chủ ngày 22/10 vào quy tắc và mã | Quyết định của chủ 22/10 (quy chuẩn dữ liệu đầu vào 1.42, 1.43) |
 | `openspec/config.yaml` | Ngữ cảnh dự án và luật viết cho agent | Mới |
 | `.claude/`, `.agents/`, `.opencode/` | Lệnh `/opsx:*` và skill OpenSpec cho Claude, Codex, OpenCode | `openspec init` bản 1.15.0 |
@@ -22,7 +22,7 @@ Mã quy tắc (R-M…, R-I…, R-L…) giữ nguyên, để mọi link cũ vẫn
 
 ## 2. Chưa làm gì (cố ý)
 
-- `semantic-layer/`, `data-sources/`, `decisions/` còn ở `docs/business-spec/` và vẫn là nguồn. Bản chép ở `openspec/reference/` chỉ để tham chiếu. `metrics.md` đã thành spec `report-metrics`; bản gốc vẫn còn.
+- Ngày 25/10/2026 chủ duyệt chuyển `fields.md` và `source-methods.md` sang `openspec/reference/` (bản cũ thành stub, bản chụp ở `docs/outdated/2026-10-25/`). `data-sources/`, `decisions/` và `semantic-layer/metrics.md` còn ở `docs/business-spec/` và vẫn là nguồn. Bản chép `data-sources/` ở `openspec/reference/` chỉ để tham chiếu. `metrics.md` đã thành spec `report-metrics`; bản gốc vẫn còn.
 - Bước 5 và 6 của mục 4 (kiểm thử liên kết spec, job CI chống lệch) đã xong ở PR #375.
 - Không đổi mã app, không đổi kiểm thử, không triển khai.
 - Hai change đang chờ chủ (`market-owner-decisions-2210`, `report-ranking-words`) còn câu "sửa `docs/business-spec/business-rules/*.md`" trong `tasks.md`. Các file đó nay là stub. Khi change được duyệt, sửa spec trong `openspec/specs/` thay cho file stub.
