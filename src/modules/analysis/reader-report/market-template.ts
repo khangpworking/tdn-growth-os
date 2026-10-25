@@ -325,8 +325,11 @@ export async function buildMarketReport(d: ReaderReportData, options: MarketRepo
     scope: 'phạm vi tìm kiếm', kpi: 'số liệu tổng quan', split: 'số liệu theo sàn', monthly: 'số liệu theo tháng',
     category: 'số liệu theo ngành hàng', price: 'số liệu theo mức giá', top10brand: 'tỷ trọng top 10 thương hiệu',
     top10shop: 'tỷ trọng top 10 gian hàng', brandshoptype: 'số liệu thương hiệu theo loại gian hàng',
-    shoptype: 'số liệu theo loại gian hàng', location: 'số liệu theo khu vực', topproducts: 'bảng sản phẩm dẫn đầu',
-    topshops: 'bảng gian hàng dẫn đầu', topbrands: 'bảng thương hiệu dẫn đầu', detail: 'lịch sử chi tiết theo tháng',
+    shoptype: 'số liệu theo loại gian hàng', location: 'số liệu theo khu vực',
+    // R-L20: a source label has no room for measure, sample and period, so current versions drop the ranking word.
+    topproducts: current ? 'bảng sản phẩm theo doanh thu' : 'bảng sản phẩm dẫn đầu',
+    topshops: current ? 'bảng gian hàng theo doanh thu' : 'bảng gian hàng dẫn đầu',
+    topbrands: current ? 'bảng thương hiệu theo doanh thu' : 'bảng thương hiệu dẫn đầu', detail: 'lịch sử chi tiết theo tháng',
   };
   const webCites = new Map<string, number>();
   const webSha = d.input.webSnapshotSha256;
@@ -711,8 +714,17 @@ ${tbl('2.2', `Quy tắc phân loại (${statusLabel})`, 'số sản phẩm', ['T
       return typeof c === 'object' && c !== null && 'text' in c ? [String((c as { text: unknown }).text)] : [];
     }).join(' | '))
     : '';
+  /** R-L20: a page ranking title names the measure, the page's sold-product count, platforms and dated period (current versions);
+   * without the count it drops the ranking word. */
+  const webRankTitle = (subject: string, where: string): string => {
+    if (!current || WEB === null || WEB === undefined) return `${subject} dẫn đầu trên trang (${WEB_FAMILY_LABEL})`;
+    const scope = `${WEB.scope.platforms.map(p => PLATFORM_LABEL[p] ?? p).join(' và ')}, kỳ ${vd(WEB.scope.period.startDate)} – ${vd(WEB.scope.period.endDate)}`;
+    return has('web.kpi.listings')
+      ? `${subject} dẫn đầu theo doanh thu trong ${wn('web.kpi.listings', where)} sản phẩm có lượt bán (${WEB_FAMILY_LABEL}), ${scope}`
+      : `${subject} theo doanh thu trên trang (${WEB_FAMILY_LABEL}), ${scope}`;
+  };
   const m07Products = WEB !== null && WEB !== undefined && !('absent' in WEB.topProducts)
-    ? webex(tbl('7.4', `Sản phẩm dẫn đầu trên trang (${WEB_FAMILY_LABEL})`, 'doanh thu: tỷ đồng',
+    ? webex(tbl('7.4', webRankTitle('Sản phẩm', 'T7.4'), 'doanh thu: tỷ đồng',
       ['#', 'Sản phẩm', 'Gian hàng', 'Giá (đồng)', 'Doanh thu', '%doanh số', 'Đơn vị bán', '%đơn vị'],
       WEB.topProducts.map((row, i) => [i + 1, wtext(row['name']) + citeCell('topproducts'), wtext(row['shop']),
         n(wn(`web.top.product.${i}.price`, 'T7.4')), n(wn(`web.top.product.${i}.rev`, 'T7.4')),
@@ -728,7 +740,7 @@ ${tbl('2.2', `Quy tắc phân loại (${statusLabel})`, 'số sản phẩm', ['T
       .map(c => String((c as { text: unknown }).text))).join(' | '))
     : '';
   const m07Shops = WEB !== null && WEB !== undefined && !('absent' in WEB.topShops)
-    ? webex(tbl('7.5', `Gian hàng dẫn đầu trên trang (${WEB_FAMILY_LABEL})`, 'doanh thu: tỷ đồng',
+    ? webex(tbl('7.5', webRankTitle('Gian hàng', 'T7.5'), 'doanh thu: tỷ đồng',
       ['Hạng mới', 'Hạng cũ', 'Gian hàng', 'Sàn', 'Doanh thu', '%doanh số'],
       WEB.topShops.map((row, i) => {
         const cells = row as Record<string, unknown>;
@@ -750,7 +762,7 @@ ${tbl('2.2', `Quy tắc phân loại (${statusLabel})`, 'số sản phẩm', ['T
     }).join(' | '))
     : '';
   const m07Brands = WEB !== null && WEB !== undefined && !('absent' in WEB.topBrands)
-    ? webex(tbl('7.6', `Thương hiệu dẫn đầu trên trang (${WEB_FAMILY_LABEL})`, 'doanh thu: tỷ đồng',
+    ? webex(tbl('7.6', webRankTitle('Thương hiệu', 'T7.6'), 'doanh thu: tỷ đồng',
       ['Hạng mới', 'Hạng cũ', 'Thương hiệu', 'Doanh thu'],
       WEB.topBrands.map((row, i) => {
         const cells = row as Record<string, unknown>;

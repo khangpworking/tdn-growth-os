@@ -579,7 +579,7 @@ test('new skipped-site wording is visible, provider-free and number-free', async
   assert.deepEqual(auditMarketReportHtml(run.html).filter(check => !check.ok), []);
 });
 
-test('frozen v1 documents still validate and render byte-identically to the base commit, including skip notices', async () => {
+test('frozen v1 documents still validate and render pinned Market 1.4 bytes, including skip notices', async () => {
   const input = sync1ReaderFixture('1.4.0');
   input.peerRule = { ...DEFAULT_MARKET_PEER_RULE };
   for (const fixture of compatibility.reader) {

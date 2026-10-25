@@ -26,7 +26,7 @@ import { policyRun } from '../helpers/capture-policy-harness.js';
 // c2 PR1: observable contracts only. TODAY rows preserve drift, not desired fixes.
 // Existing gate tests own individual lexical rules; these rows own their combination,
 // caller options, version boundaries and operational error strings (c2.md §6 rows 1–9).
-const U13 = ['U13_SUPERLATIVE', 'U13_PRIORITY', 'U13_PENDING_NUMBER'];
+const U13 = ['U13_SUPERLATIVE', 'U13_PRIORITY', 'U13_PENDING_NUMBER', 'U13_METRIC_CODE', 'U13_REAL_PRICE', 'L20_RANKING_WORD'];
 const CONTENT = ['G08_PROVIDER_NAME', 'U32_NO_CROSS_PLATFORM_TOTAL', 'E2_NO_REVENUE_ORDER',
   'PARTIAL_TOTAL_FORBIDDEN', 'NO_LEAK', 'SEARCH_INTEREST_NOT_COUNT', ...U13];
 const PRESENTATION = [...CONTENT.slice(0, 3), 'SECTIONS_PRESENT', 'M12_PROPOSAL_LABEL', ...CONTENT.slice(3)];
@@ -122,7 +122,7 @@ const rows: Row[] = [
     assert.doesNotThrow(() => render(input));
     // Stored findings are reprojected by today's builder; this period label reaches its raw lint boundary.
     (input.start.requestedPeriod as { startDate: string }).startDate = 'Sản phẩm tốt nhất. Làm ngay việc A, tiếp theo việc B.';
-    assert.throws(() => render(input), { name: 'TypeError', message: 'MARKET_VISIBLE_TEXT_LINT_FAILED:U13_SUPERLATIVE,U13_PRIORITY' });
+    assert.throws(() => render(input), { name: 'TypeError', message: 'MARKET_VISIBLE_TEXT_LINT_FAILED:U13_SUPERLATIVE,U13_PRIORITY,L20_RANKING_WORD' });
   } },
   { name: 'row 7: non-presentation public-review builder preserves its refusal prefix', run: async () => {
     const { marketPresentation: _presentation, ...base } = await draftInput();
@@ -155,7 +155,7 @@ const rows: Row[] = [
     assert.doesNotThrow(() => buildResearchAutomationReport(clean, 'INSIGHT'));
     clean.insightCoding.groupCounts.groups[0]!.scope.frame = 'Ưu tiên số 1.';
     assert.throws(() => buildResearchAutomationReport(clean, 'INSIGHT'),
-      { name: 'TypeError', message: 'INSIGHT_VISIBLE_TEXT_LINT_FAILED:U13_PRIORITY' });
+      { name: 'TypeError', message: 'INSIGHT_VISIBLE_TEXT_LINT_FAILED:U13_PRIORITY,L20_RANKING_WORD' });
   } },
   { name: 'row 2: a partial total fails only with supplied totals', run: () => {
     const html = '<p>Doanh thu là 1.234 VND.</p>';
@@ -229,8 +229,8 @@ const rows: Row[] = [
     assert.doesNotThrow(() => assertMarket14MachineRules(clean));
     const bad = clean.replace('</body>', '<p>Metric; tổng hai sàn.</p></body>');
     assert.deepEqual(ids(auditMarket14(bad)), RULES14);
-    assert.deepEqual(failures(auditMarket14(bad)), ['4', '7', '10']);
-    assert.throws(() => assertMarket14MachineRules(bad), { name: 'TypeError', message: 'MARKET_14_RULES_FAILED:4,7' });
+    assert.deepEqual(failures(auditMarket14(bad)), ['4', '10']);
+    assert.throws(() => assertMarket14MachineRules(bad), { name: 'TypeError', message: 'MARKET_14_RULES_FAILED:4' });
   } },
   ...([
     ['WORLD_BANK_NOT_ARITHMETIC', 'Bối cảnh vĩ mô', 'Bối cảnh vĩ mô cộng doanh thu.'],
@@ -258,7 +258,7 @@ const rows: Row[] = [
       assert.deepEqual(failures(gate(html)), []);
       assert.equal(readerVerdict(html, 'U13_SUPERLATIVE'), true);
       assert.deepEqual(failures(gate(`<p><span ${attribute}>Thông tin nguồn.</span></p>`)), []);
-      assert.deepEqual(failures(lintVisibleReportText('<p>Sản phẩm tốt nhất.</p>')), ['U13_SUPERLATIVE']);
+      assert.deepEqual(failures(lintVisibleReportText('<p>Sản phẩm tốt nhất.</p>')), ['U13_SUPERLATIVE', 'L20_RANKING_WORD']);
     },
   })),
   ...(['<p aria-hidden="1">TEXT</p>', '<template><p>TEXT</p></template>'] as const).map(markup => ({
@@ -277,7 +277,7 @@ const rows: Row[] = [
     const html = '<p hidden>Metric; tổng hai sàn; xếp hạng theo doanh thu; Sản phẩm tốt nhất.</p>';
     assert.deepEqual(failures(gate(html)), ['G08_PROVIDER_NAME']);
     assert.equal(readerVerdict(html, 'F1 '), false);
-    assert.equal(readerVerdict(html, 'W3 '), false);
+    assert.equal(lint(html, { legacyTotals: true }).find(row => row.rule.startsWith('W3 '))!.ok, false);
     assert.equal(readerVerdict(html, 'F5 '), false);
     assert.equal(readerVerdict(html, 'U13_SUPERLATIVE'), true);
     assert.deepEqual(failures(gate('<p hidden>Thông tin nguồn.</p>')), []);
@@ -320,7 +320,7 @@ const rows: Row[] = [
   } },
   { name: 'row 4: inline word joining makes gate U13 stricter than raw and Reader U13', run: () => {
     const html = '<p>Sản phẩm tốt nh<span>ất</span>.</p>';
-    assert.deepEqual(failures(gate(html)), ['U13_SUPERLATIVE']);
+    assert.deepEqual(failures(gate(html)), ['U13_SUPERLATIVE', 'L20_RANKING_WORD']);
     assert.deepEqual(failures(lintVisibleReportText(html)), []);
     assert.equal(readerVerdict(html, 'U13_SUPERLATIVE'), true);
     assert.deepEqual(failures(gate('<p>Sản phẩm thông thường.</p>')), []);

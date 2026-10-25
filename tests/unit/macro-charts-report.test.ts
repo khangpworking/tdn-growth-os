@@ -71,8 +71,9 @@ test('current Market renderers pin unscaled per-person charts and corrected cont
   // and the Phần 8 reference-price badge. 2480414f removes duplicate M04 tables
   // and M13 scope through pointers; legacy readers have separate frozen pins.
   // G: current full-reader pins included defective evidence copy; legacy/Insight pins stay frozen.
+  // Q3: only the 1.4 reader changes for labelled totals, brand rows, average-price labels and comparison notes.
   const hash = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
-  assert.equal(hash((await reader({ worldBank: fullWorldBank() }, false)).html), '2c6bf440c35405eebeede37f08f57764e549cdc42041bf26b958952340d1d02e');
+  assert.equal(hash((await reader({ worldBank: fullWorldBank() }, false)).html), '39abcfd8126d35e5ae0b7c66274ff54f76a82780c3bab2dde8eb8584dc3f0ac1');
   // Package C changes only capture Market Phần 1 findings and its data badge.
   // UNIT-209 C4/C5/C8: current-reader Market unit wording changes these pins; legacy and Insight pins are unchanged.
   assert.equal(hash(buildResearchAutomationReport(await fullMarket14Input(), 'MARKET').html), '48a55a635dd6f097392fd80438ec6fdcb436d4fdb4120b73544dde1ae92cab68');

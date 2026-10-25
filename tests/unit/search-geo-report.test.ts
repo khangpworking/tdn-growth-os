@@ -89,7 +89,7 @@ const draftHtml = (input: AutomationReportInput): string => buildResearchAutomat
 
 const CASES = [
   ['quạt điện', /Kết quả: vùng nổi bật là Đồng bằng sông Hồng \(6 trong 10 tỉnh đứng đầu\)\./u],
-  ['bình giữ nhiệt', /Kết quả: chưa có vùng nổi bật theo quy tắc đếm tỉnh\. Dẫn đầu: Đồng bằng sông Hồng và Đông Nam Bộ/u],
+  ['bình giữ nhiệt', /Kết quả: chưa có vùng nổi bật theo quy tắc đếm tỉnh\. Trong 10 tỉnh đứng đầu: Đồng bằng sông Hồng và Đông Nam Bộ/u],
   ['thạch dừa', /Kết quả: chưa có vùng nổi bật theo quy tắc đếm tỉnh\./u],
 ] as const;
 

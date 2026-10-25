@@ -4,7 +4,7 @@
 Báo cáo Insight SHALL đếm bản ghi theo từng sàn, mỗi sàn một cột, SHALL NOT cộng Shopee với TikTok Shop, và SHALL ghi n/N khi mẫu số đầy đủ. Khi một chủ đề có ở cả hai sàn, báo cáo SHALL ghi «có ở cả 2 sàn» và SHALL NOT ghi một con số gộp. Báo cáo Insight SHALL NOT nêu tổng tiền hay tổng lượt bán; hai tổng này chỉ có ở báo cáo Market (R-M16).
 
 - Loại kiểm: Máy (một phần)
-- Mã kiểm: Một phần: cổng `U32_NO_CROSS_PLATFORM_TOTAL` (xem R-M16). Chưa có mã kiểm cho nhãn «có ở cả 2 sàn».
+- Mã kiểm: Một phần: lint Reader W3 của Insight trong `lint` (`src/modules/analysis/reader-report/lint.ts`) trượt khi có cụm tổng hai sàn. Chưa có mã kiểm cho nhãn «có ở cả 2 sàn» và cho tổng tiền, tổng lượt bán.
 - Vì sao: Chủ quyết định ngày 11/10/2026: không có tổng giữa các sàn (U-32). Ngày 24/10/2026 chủ giữ luật này cho Insight sau khi cho Market cộng hai sàn: «Insight không cộng 2 sàn. Mỗi sàn một cột. Chủ đề có ở cả 2 sàn thì ghi «có ở cả 2 sàn». Tổng tiền và tổng lượt bán chỉ có ở Market.»
 
 #### Scenario: Đếm riêng từng sàn

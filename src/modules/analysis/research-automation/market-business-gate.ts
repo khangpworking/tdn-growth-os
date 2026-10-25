@@ -422,7 +422,7 @@ export function auditMarketReportHtml(html: string, options: MarketBusinessGateO
   // Public-review metadata remains checked, but href targets are outside R-L01 (owner Q5 / c4 I2).
   const publicText = options.publicReviewSource ? decodeHtml(html.replace(/\shref\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'`=<>]+)/giu, ' ')) : '';
   const provider = providerMatches(scan.named + ' ' + publicText);
-  const crossPlatform = crossPlatformTotalMatches(scan.visible);
+  const crossPlatform = crossPlatformTotalMatches(html);
   const e2 = e2Matches(scan.authored);
   const missingOrDuplicate = MARKET_SECTION_IDS.filter(id => scan.sectionCounts.get(id) !== 1).map(id => `${id}=${scan.sectionCounts.get(id)}`);
   const m12 = scan.sections.get('M12') ?? '';

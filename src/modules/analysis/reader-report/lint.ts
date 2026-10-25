@@ -178,10 +178,12 @@ export function lint(html: string, { sectionIds = [], familyLabel = 'toàn kết
   add('W2 không cộng trừ hai họ số', mixed.length === 0,
     mixed.length ? mixed.slice(0, 2).map(s => s.trim().slice(0, 80)).join(' | ') : 'không lẫn hai họ số');
 
-  // New Market readers share U32's list; Insight and legacy claims retain W3.
-  const summed = sentences.filter(s => reportKind === 'INSIGHT' || legacyTotals
-    ? /tổng\s+(hai sàn|cả hai sàn|shopee và tiktok|tiktok và shopee)/i.test(s)
-    : crossPlatformTotalMatches(s).length > 0);
+  // New Market readers call U32's check on the same visible text, so W3 and U32 agree: a total
+  // passes only with «Cộng 2 sàn» and both platform numbers beside it (R-M16). Insight and
+  // legacy claims retain the old W3 wording (R-L04), where every total fails.
+  const summed = reportKind === 'INSIGHT' || legacyTotals
+    ? sentences.filter(s => /tổng\s+(hai sàn|cả hai sàn|shopee và tiktok|tiktok và shopee)/i.test(s))
+    : crossPlatformTotalMatches(html);
   add('W3 không cộng gộp sàn khi trang không ghi tổng', summed.length === 0,
     summed.length ? summed.slice(0, 2).map(s => s.trim().slice(0, 80)).join(' | ') : 'không cộng gộp sàn');
 

@@ -25,7 +25,7 @@ function page(output?: ReturnType<typeof buildLocatedInsightMethods>['output'], 
 }
 const gate = (html: string) => lint(html, { reportKind: 'INSIGHT', visibleTextRules: true, sectionIds: ['insight-findings', ...INSIGHT_SECTION_IDS] });
 
-test('Insight reader copies exact draft family counts, with shared citations, per-sentence labels and no aggregation', () => {
+test('R-I06 Insight reader keeps family counts separate, without sales totals or merged platform counts', () => {
   const input = nextInsightFixture(); input.draftCountsVersion = 'draft-counts-v2';
   const output = buildLocatedInsightMethods(input).output;
   const before = JSON.stringify(output);
@@ -40,6 +40,7 @@ test('Insight reader copies exact draft family counts, with shared citations, pe
   assert.ok(gate(html).every(check => check.ok), JSON.stringify(gate(html).filter(check => !check.ok)));
   assert.equal(narrator.checkHardcoded().hardcoded.length, 0);
   assert.equal(narrator.notInBundle().length, 0);
+  assert.doesNotMatch(html, /tổng doanh thu|tổng lượt bán|tổng đơn vị bán|Cộng 2 sàn|tổng (?:hai|cả hai) sàn/iu);
   assert.equal(JSON.stringify(output), before);
 });
 

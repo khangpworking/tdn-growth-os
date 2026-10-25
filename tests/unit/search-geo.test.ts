@@ -57,7 +57,7 @@ test('fixture bình giữ nhiệt: four and four is a tie, so nationwide with no
   const summary = summarizeSearchGeo(syntheticGeoProvinces(GEO_FIXTURES['bình giữ nhiệt']));
   assert.deepEqual(summary.choice, { kind: 'NATIONWIDE', why: 'SPREAD', leading: ['Đồng bằng sông Hồng', 'Đông Nam Bộ'], leadingInTop: 4 });
   const text = searchGeoText(summary);
-  assert.match(text.result, /^Kết quả: chưa có vùng nổi bật theo quy tắc đếm tỉnh\. Dẫn đầu: Đồng bằng sông Hồng và Đông Nam Bộ \(mỗi vùng 4 tỉnh\)\.$/);
+  assert.match(text.result, /^Kết quả: chưa có vùng nổi bật theo quy tắc đếm tỉnh\. Trong 10 tỉnh đứng đầu: Đồng bằng sông Hồng và Đông Nam Bộ \(mỗi vùng 4 tỉnh\)\.$/);
   assert.match(text.use, /không đo nhu cầu mua hay khả năng giao hàng/u);
 });
 
