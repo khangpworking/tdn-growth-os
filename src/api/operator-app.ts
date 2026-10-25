@@ -363,15 +363,12 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
         }),
         db: videoWriter, runner: defaultVideoProcessRunner,
       });
+      // start() is synchronous; wake() catches and records asynchronous drain failures.
       videoWorker.start();
     }
   } catch (error) {
-    // Startup remains synchronous, but rollback must await any workers already started.
-    // Keep executor authority until that rollback completes; contain cleanup failures.
-    void (async () => {
-      let stopped = true;
-      try { await videoWorker?.close(); videoWriter?.close(); } catch { stopped = false; }
-      try { await researchAutomation?.close(); } catch { stopped = false; }
+    let stopped = true;
+    const finishRollback = () => {
       try { researchGeneration?.close(); } catch { stopped = false; }
       try { contentOwner?.close(); } catch { stopped = false; }
       try { contentRead?.close(); } catch { stopped = false; }
@@ -380,7 +377,17 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
       try { read?.close(); } catch { stopped = false; }
       try { r2?.close(); } catch { stopped = false; }
       if (stopped) { try { lock?.release(); } catch { /* preserve startup failure; the lock stays for manual recovery */ } }
-    })();
+    };
+    // Before either worker is opened, release authority before the caller sees the failure.
+    if (!videoWorker && !researchAutomation) finishRollback();
+    else {
+      // Active workers must finish stopping before connections and authority are released.
+      void (async () => {
+        try { await videoWorker?.close(); videoWriter?.close(); } catch { stopped = false; }
+        try { await researchAutomation?.close(); } catch { stopped = false; }
+        finishRollback();
+      })();
+    }
     throw error;
   }
   const executorLock = lock;
