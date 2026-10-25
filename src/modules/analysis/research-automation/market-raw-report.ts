@@ -161,8 +161,9 @@ function platformSplit(series: MarketRawSeries, period: PeriodText, trace: Marke
   // The «2» of «Cộng 2 sàn» is data: the scope's platform count, traced to the request's platform list.
   const countInputs = series.requestedPlatformsSource ? [series.requestedPlatformsSource]
     : series.platforms.flatMap(platform => Object.values(platform.kpi).flatMap(value => value.source ? [value.source] : []));
-  const totalLabel = (at: string): string =>
-    `Cộng ${trace.record(String(scope.platformIds.length), `${blockId}.${at}.count`, 'computed', countInputs, 'count(scope platforms)')} sàn`;
+  const totalLabel = (at: string): string => countInputs.length
+    ? `Cộng ${trace.record(String(scope.platformIds.length), `${blockId}.${at}.count`, 'computed', countInputs, 'count(scope platforms)')} sàn`
+    : 'tổng các sàn trong phạm vi';
   const parts = PLATFORMS.map(platform => {
     const revenue = byId.get(platform.id)?.kpi.revenue;
     if (!revenue || revenue.value === null) return `${platform.label} chưa có số doanh thu`;

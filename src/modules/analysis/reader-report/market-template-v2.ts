@@ -427,7 +427,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     const quick = tbl('12.2', 'Việc làm ngay, không tốn chi phí (đề xuất, chờ chủ duyệt)', '', [...QUICK_WIN_HEADINGS].map(esc),
       plan.quickWins.map(win => [win.task, win.owner, win.deadline, win.output].map(cell => label(cell))), { src: 'TDN đề xuất.' });
     return [section('M11', 'Cơ hội', esc(opportunityExplanation(plan.hasFigures, reviewsCollected, !withAverage)), opportunity),
-      section('M12', 'Khuyến nghị và hành động', esc(ACTION_LEAD), `${options12}<h3>${esc(QUICK_WIN_HEADING)}</h3>${quick}`, esc(ACTION_NOTE))];
+      section('M12', 'Khuyến nghị và hành động', esc(ACTION_LEAD), `${options12}<h3>${esc(QUICK_WIN_HEADING)}</h3>${quick}`, esc(ACTION_NOTE + (!withAverage ? ' Mọi hạn trong hai bảng là ngày dự kiến.' : '')))];
   };
   // 1.4.0 readers use the same sample signals in Phần 11/12; legacy bytes stay as they were.
   sections.push(...(next ? nextActionSections() : currentProposals({ PLATS, coreSegs: profile.core, segName, bf, tbl, SRC: sourceText })));
