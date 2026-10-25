@@ -1,6 +1,6 @@
 # Trạng thái nguồn dữ liệu
 
-> Bản cập nhật 22/10/2026. Bản trước: [bản 21/10/2026 lần 4](../../outdated/2026-10-22/docs/business-spec/data-sources/source-status.md).
+> Bản cập nhật 25/10/2026. Bản trước: [bản 22/10/2026](../../outdated/2026-10-25/docs/business-spec/data-sources/source-status.md).
 
 Trạng thái từng nguồn dữ liệu đầu vào và nhật ký đổi trạng thái · cập nhật 21/10/2026 · đi kèm [Input data sources for 30 sections](../../research/ultimate-method/input-data-sources-30-sections.md)
 
@@ -37,28 +37,32 @@ Ngày 21/10/2026, ghi chú được cập nhật theo kết quả kiểm tra ngu
 
 Ngày 22/10/2026, gói sửa nguồn đã gộp và đã triển khai lên máy chủ (bản `2fc699d1`), chi tiết ở mục 2d. Ghi chú S05, S14, S17, S20, S21–S25 cập nhật theo gói này. Nhãn giữ nguyên. Kết quả thật chỉ có sau lượt Market chạy tiếp theo.
 
+Ngày 25/10/2026, có thêm 4 lần triển khai (bản `21f843f1`, `852b5b1f`, `af53534a`, `4f874f44`), chi tiết ở mục 2e. Ghi chú S05, S06, S07, S14, S20 cập nhật; thêm dòng S28. S06 và S28 đổi nhãn sang **Chạy thử**, vì chủ bật hai nguồn này trên máy chủ ngày 25/10/2026. Hai điểm cần nhớ:
+- Từ 20/10/2026 đến nay, máy chủ chưa có lượt chạy thật nào. Các kết quả mới chỉ đến từ lần thử riêng từng nguồn.
+- Máy chủ chưa từng chạy lượt Insight tự động nào: cả 28 lượt đã chạy đều là Market.
+
 | Mã | Nguồn | Nhãn | Ngày cập nhật | Ghi chú |
 |---|---|---|---|---|
 | S01 | Dữ liệu bán hàng trên sàn | Đã duyệt | 21/10/2026 | Đang dùng; 3/3 lượt ngày 20/10 có dữ liệu |
 | S02 | Dữ liệu video bán hàng TikTok | Đã duyệt | 21/10/2026 | Đang dùng; 3/3 lượt có dữ liệu, khoảng 61 lần gọi trả phí mỗi lượt; hết điểm thì dừng |
 | S03 | Dữ liệu xuất nhập khẩu theo doanh nghiệp | Không thu | 08/10/2026 | Chưa có phiên truy cập hợp lệ |
 | S04 | Trang bán sản phẩm | Đã duyệt | 21/10/2026 | Đang dùng; 3/3 lượt ngày 20/10 có dữ liệu |
-| S05 | Review Shopee | Đã duyệt | 22/10/2026 | Dịch vụ Shopee API mới (gói S, #346), tối đa 300 mỗi sản phẩm. 3/3 lượt ngày 20/10 bị chặn, 0 review, do lỗi phía ứng dụng. Đã sửa (#365) và đã triển khai 22/10; chờ lượt chạy thật để kiểm. Báo cáo Market chỉ đếm, không trích nguyên văn (phương án A) |
-| S06 | Review TikTok Shop | Đề xuất | 08/10/2026 | Chưa có bộ thu |
-| S07 | Bình luận dưới video TikTok | Đã duyệt | 21/10/2026 | Chủ duyệt 12/10; vào hệ thống qua gói P9. Chưa chạy trên máy chủ: tài khoản thu đã hết tiền, và Insight tạm dừng từ 19/10. Nạp tiền là việc của chủ. Thử bộ thu khác ở gói miễn phí ngày 21/10 (ST-20261021-01): 10 bình luận tiếng Việt đúng chủ đề; gói miễn phí chỉ cho 10 dòng. Lượt đủ mẫu chờ chủ quyết (mục 2c) |
+| S05 | Review Shopee | Đã duyệt | 25/10/2026 | Dịch vụ Shopee API mới (gói S, #346), tối đa 300 mỗi sản phẩm. 3/3 lượt ngày 20/10 bị chặn, 0 review, do lỗi phía ứng dụng. Đã sửa 2 lần: #365 (triển khai 22/10) và #384 (giờ ghi dạng "+00:00" bị coi là sai; triển khai 25/10). Thử riêng ngày 24/10: 50/50 review đúng sản phẩm, nhưng cả 50 đều 5 sao, vì dịch vụ xếp 5 sao lên trước. Chờ lượt chạy thật. Báo cáo Market chỉ đếm, không trích nguyên văn (phương án A) |
+| S06 | Review TikTok Shop | Chạy thử | 25/10/2026 | Có bộ thu từ #382 (cờ TDN_RESEARCH_TIKTOK_SHOP_REVIEWS_ENABLED). Chủ bật trên máy chủ 25/10. Trả phí: tối đa 3 sản phẩm mỗi lượt Insight, khoảng 0,5 điểm mỗi sản phẩm chưa có sẵn. Thử riêng ngày 24/10: 2 sản phẩm, 452 review, 1 điểm. Chưa có phần báo cáo nào đọc review này: bước mã hoá chỉ chạy cho Shopee (mục 2e) |
+| S07 | Bình luận dưới video TikTok | Đã duyệt | 25/10/2026 | Chủ duyệt 12/10. Đường P9 cũ chỉ là code: app chưa từng tạo bộ thu, chưa có đường gọi bộ thu, và chỉ chủ chọn video được. Ngày 25/10 thêm bộ thu tạm ở gói miễn phí (#398, cờ TDN_RESEARCH_TIKTOK_COMMENTS_FREE_ENABLED): 1 lượt mỗi video, 10 bình luận mỗi video, tối đa 5 video, trần 0,05 USD mỗi lượt. Đã triển khai 25/10, cờ đang TẮT. Gói miễn phí chỉ cho khoảng 4 lượt thật mỗi ngày; các lượt sau trả dòng mẫu, không có bình luận. Chưa có lượt Insight nào gọi bộ thu, và Insight chưa đọc nguồn TikTok nào (mục 2e) |
 | S08 | Bài viết Facebook công khai | Không thu | 08/10/2026 | Chủ tạm ngừng 08/10 |
 | S09 | Instagram | Không thu | 08/10/2026 | Test không đạt: không lấy được nội dung |
 | S10 | X (Twitter) | Đã test | 08/10/2026 | Một phần; chỉ nguồn phụ, phải lọc |
 | S11 | Bình luận YouTube | Không thu | 21/10/2026 | Chủ bỏ nguồn này ngày 17/10/2026 |
 | S12 | Dữ liệu của chính shop chủ | Không thu | 08/10/2026 | Chưa có dữ liệu |
 | S13 | Công thức, bài hướng dẫn dùng sản phẩm | Đề xuất | 08/10/2026 | Tìm qua S19 |
-| S14 | Nội dung video bán hàng | Chạy thử | 22/10/2026 | Gói P9, đã có checklist. 3/3 lượt ngày 20/10: đọc 2–3 trong 9 video ứng viên, 0 đoạn lên báo cáo. Đã sửa cách chọn video (#367): xếp theo doanh số, bỏ video trùng, rồi mới cắt theo trần; bỏ dòng của sản phẩm chưa xác nhận. Đã triển khai 22/10; chờ lượt chạy thật. Video dài hơn 180 giây hoặc nặng hơn 14 MB bị bỏ |
+| S14 | Nội dung video bán hàng | Chạy thử | 25/10/2026 | Gói P9, đã có checklist. 3/3 lượt ngày 20/10: đọc 2–3 trong 9 video ứng viên, 0 đoạn lên báo cáo. Đã sửa cách chọn video (#367, triển khai 22/10). Ngày 25/10 thêm #395: đọc phụ đề tiếng Việt có sẵn trước, không tải video; không có phụ đề thì xem video như cũ. Thêm danh sách tối đa 5 video bán chạy (cờ TDN_RESEARCH_TOP_SELLING_VIDEOS_ENABLED, trả phí, tối đa 3 sản phẩm mỗi lượt), chủ bật 25/10. Thử riêng: 2/3 video đọc qua phụ đề. Phụ đề là lời người bán, không phải lời khách. Insight Phần 9/13 chưa hiện phần tóm tắt (chờ). Còn lỗi: máy chủ không mở được một số video (định dạng không hỗ trợ). Video dài hơn 180 giây hoặc nặng hơn 14 MB bị bỏ |
 | S15 | Thư viện quảng cáo Meta | Đã duyệt | 21/10/2026 | Chủ duyệt 12/10; chỉ đọc theo trang, không đăng nhập. Máy tự đọc (cờ TDN_RESEARCH_META_AUTO_ENABLED) chưa lần nào ra dữ liệu: 3/3 lượt dừng ở trang đầu, vì trình duyệt trên máy chủ đang đăng nhập Facebook. Đường đọc qua bộ thu bên ngoài, không đăng nhập, đọc được (ST-20261021-04 đến -13): tối đa 150 quảng cáo mỗi lượt; cần lọc ngày, loại hàng và chủ trang. Chưa đưa vào hệ thống; cách xử lý chờ chủ quyết (mục 2c) |
 | S16 | Quảng cáo nổi bật trên TikTok | Chạy thử | 21/10/2026 | Chủ duyệt bộ máy tự đọc 17/10; không đăng nhập (cờ TDN_RESEARCH_TIKTOK_TOPADS_ENABLED). Máy tự đọc chưa lần nào ra dữ liệu: 3/3 lượt dừng, vì trang đòi đăng nhập. Thử bộ thu bên ngoài ngày 21/10 (ST-20261021-14 đến -31): thư viện quảng cáo TikTok chỉ có châu Âu, Việt Nam 0; danh sách quảng cáo nổi bật Việt Nam đọc được, không đăng nhập. 2 bộ tốt nhất: 10/27 và 7/20 là quạt thật, khoảng $0,005 mỗi từ khoá. Không có ngày chạy. Chưa đưa vào hệ thống; hướng đi chờ chủ quyết (mục 2c) |
 | S17 | Thư viện quảng cáo công khai của công cụ tìm kiếm | Đã duyệt | 22/10/2026 | Chủ duyệt 17/10 (cờ TDN_RESEARCH_GOOGLE_ADS_ENABLED). 3/3 lượt ngày 20/10 chưa có mẫu quảng cáo: 9 lần tra thì 6 lần không tìm được trang web, 2 lần ra nhiều trang, 1 lần có trang web nhưng 0 quảng cáo. Đã sửa ca "nhiều trang" (#366): chọn 1 tên miền mỗi thương hiệu, ưu tiên .vn, lưu lại lựa chọn. Đã triển khai 22/10; chờ lượt chạy thật. Chưa dùng cho phép kiểm 3 của E5 |
 | S18 | Trang thương hiệu Facebook | Đề xuất | 08/10/2026 | — |
 | S19 | Kết quả tìm kiếm Google mở rộng | Chạy thử | 21/10/2026 | Chạy trong mọi lượt Market: 3 câu tìm, 9 kết quả mỗi lượt, đúng trần; 3/3 lượt ngày 20/10 có dữ liệu |
-| S20 | Mức quan tâm tìm kiếm trên Google (Trends) | Chạy thử | 22/10/2026 | Theo thời gian và theo tỉnh. 2/3 lượt ngày 20/10 bị bỏ qua vì kỳ cũ. Đã sửa (#366): hỏi đúng kỳ báo cáo, bất kỳ ngày nào từ 01/01/2004 đến hôm nay; kỳ sai hoặc ở tương lai bị bỏ qua có lý do, không gọi trả phí; kỳ ngắn ghi rõ "theo ngày". Đã triển khai 22/10; chờ lượt chạy thật |
+| S20 | Mức quan tâm tìm kiếm trên Google (Trends) | Chạy thử | 22/10/2026 | Theo thời gian và theo tỉnh. 2/3 lượt ngày 20/10 bị bỏ qua vì kỳ cũ. Đã sửa (#366): hỏi đúng kỳ báo cáo, bất kỳ ngày nào từ 01/01/2004 đến hôm nay; kỳ sai hoặc ở tương lai bị bỏ qua có lý do, không gọi trả phí; kỳ ngắn ghi rõ "theo ngày". Đã triển khai 22/10. Thử riêng ngày 24/10: chạy được cả theo thời gian và theo tỉnh (4 lần gọi trả phí). Chờ lượt chạy thật |
 | S21 | Cục Thống kê | Đã duyệt | 22/10/2026 | Chủ duyệt 12/10; bộ thu tự động (cờ TDN_RESEARCH_OFFICIAL_STATS_ENABLED) có số ở 2/3 lượt ngày 20/10. Lượt thạch dừa có 0 số, vì bước AI chọn nhóm hàng không ra kết quả và không hỏi lại. Gói sửa (SRC2) tạm gác 21/10, chưa sửa. M05 Bảng 5.4 chỉ là bối cảnh cả nước |
 | S22 | Cục Thống kê theo tỉnh | Đã duyệt | 22/10/2026 | Chủ duyệt 12/10; đọc bảng chỉ số giá theo tỉnh trong cùng file CPI của S21 (cờ TDN_RESEARCH_OFFICIAL_STATS_PROVINCE_ENABLED, cần cả cờ S21), nên cùng kết quả với S21: 2/3 lượt có số. Gói sửa (SRC2) tạm gác, chưa sửa. M05 Bảng 5.5 chỉ là bối cảnh theo tỉnh |
 | S23 | Ngân hàng Thế giới (dữ liệu mở) | Đã duyệt | 22/10/2026 | Duyệt theo E13; bộ thu (cờ TDN_RESEARCH_WORLD_BANK_ENABLED) có số ở 3/3 lượt ngày 20/10. Một lượt thiếu 1 chỉ số: lần gọi quá giờ, và hệ thống không gọi lại. Gói sửa (SRC2) tạm gác, chưa sửa. Bối cảnh cả nước |
@@ -66,6 +70,7 @@ Ngày 22/10/2026, gói sửa nguồn đã gộp và đã triển khai lên máy 
 | S25 | Báo cáo ngành, báo cáo thường niên doanh nghiệp | Đã duyệt | 22/10/2026 | Dùng ở M09 (cờ TDN_RESEARCH_PDF_DISCOVERY_ENABLED). 3/3 lượt ngày 20/10 chưa ra trích dẫn: 1 lượt bước tìm lỗi, 1 lượt bộ lọc loại hết, 1 lượt báo cáo dựng trước khi đọc xong tệp. Đã sửa ca cuối (#367): kết quả đọc PDF đã lưu được đưa vào mọi lần dựng lại báo cáo (cả Insight); chờ đọc PDF có một hạn chung. Đã triển khai 22/10; chờ lượt chạy thật. Giới hạn không đổi: tối đa 2 tệp, 60 trang mỗi tệp |
 | S26 | Báo chí, tin an toàn thực phẩm | Đề xuất | 08/10/2026 | Tìm qua S19 |
 | S27 | Bản quét review của bên thứ ba | Không thu | 08/10/2026 | Thiếu số sao và người viết; đã thay bằng S05 |
+| S28 | Dữ liệu dân số mô phỏng (nền so sánh cho chân dung khách) | Chạy thử | 25/10/2026 | Có từ #383 (cờ TDN_RESEARCH_POPULATION_BASELINE_ENABLED và _PATH). Chủ bật trên máy chủ 25/10. Dùng làm nền "toàn dân" trong khối chân dung khách của Insight (I02); không bao giờ ghi tên bộ dữ liệu trong báo cáo. Thử riêng ngày 25/10: tệp nền hợp lệ, khối I02 đúng, 0 lần lộ tên. Chờ lượt Insight thật |
 
 ### 2b. Kết quả kiểm tra nguồn ngày 21/10/2026
 
@@ -153,6 +158,42 @@ flowchart LR
 
 S15, S16 không nằm trong gói này: cách xử lý vẫn chờ chủ quyết (mục 2c).
 
+### 2e. Thay đổi ngày 24–25/10/2026
+
+Mỗi gói có người viết code, người viết test và người rà soát riêng. Gói chỉ được gộp khi rà soát đạt và kiểm tra tự động đạt. Gói chỉ lên máy chủ khi có lời triển khai của chủ.
+
+| Gói | Nguồn | Thay đổi | PR | Trạng thái |
+|---|---|---|---|---|
+| S06 | S06 | Bộ thu review TikTok Shop; trả phí, tối đa 3 sản phẩm mỗi lượt Insight | #382 | Đã gộp; đã triển khai và bật 25/10 (bản `21f843f1`) |
+| S28 | S28 | Nền dân số mô phỏng cho khối chân dung khách (I02) | #383 | Đã gộp; đã triển khai và bật 25/10 (bản `21f843f1`) |
+| S05 | S05 | Nhận giờ ghi dạng "+00:00" | #384 | Đã gộp; đã triển khai 25/10 (bản `21f843f1`) |
+| S14C | S14 | Phụ đề tiếng Việt có sẵn trước; danh sách video bán chạy tự động | #395 | Đã gộp; đã triển khai 25/10 (bản `af53534a`), cờ video bán chạy BẬT |
+| S07F | S07 | Bộ thu bình luận tạm ở gói miễn phí, sau cờ | #398 | Đã gộp; đã triển khai 25/10 (bản `4f874f44`), cờ TẮT |
+
+Thử riêng từng nguồn trên máy chủ ngày 24–25/10/2026 (không dựng báo cáo):
+
+| Mã | Kết quả |
+|---|---|
+| S05 | 50/50 review đúng sản phẩm; cả 50 đều 5 sao |
+| S06 | 2 sản phẩm, 452 review, 1 điểm |
+| S07 | Gói miễn phí: 4 lượt thật (10 bình luận tiếng Việt mỗi lượt), rồi 2 lượt chỉ có dòng mẫu |
+| S14 | 3 video: 2 đọc qua phụ đề, 1 không mở được |
+| S20 | Chạy được theo thời gian và theo tỉnh |
+| S28 | Tệp nền hợp lệ; khối I02 đúng |
+
+Chỗ còn thiếu:
+- Báo cáo Insight tự động chưa đọc nguồn TikTok nào. Review S06 được thu nhưng không lên báo cáo. Bình luận S07 cũng vậy, kể cả khi bật cờ.
+- Bước mã hoá bình luận TikTok hiện chỉ chạy khi chủ bấm.
+- Quy tắc NH-2 trong spec chỉ số (`openspec/specs/report-metrics/spec.md`) vẫn ghi S07 là "Dừng vì tiền". Muốn đưa S07 vào Insight thì chủ cần quyết lại quy tắc này.
+
+```mermaid
+flowchart LR
+    A[S06 review TikTok Shop] --> C[Đã thu, đã lưu]
+    B[S07 bình luận TikTok, cờ tắt] --> C
+    C -.-> D[Mã hoá tự động: chưa có]
+    D -.-> E[Phần TikTok trong Insight: chưa có]
+```
+
 ---
 
 ## 3. Nhật ký
@@ -163,6 +204,11 @@ Dòng trước 12/10/2026 ghi lại từ danh mục nguồn, nhật ký test và
 
 | Ngày | Mã nguồn | Nhãn cũ → nhãn mới | Lý do | Ai quyết |
 |---|---|---|---|---|
+| 25/10/2026 | S07 | Giữ nhãn Đã duyệt | Bộ thu tạm ở gói miễn phí (#398) đã gộp và đã triển khai (bản `4f874f44`), cờ tắt. Chưa có lượt nào gọi bộ thu; Insight chưa đọc nguồn TikTok (mục 2e) | Chủ (25/10: «merge and deployed it», cờ tắt) |
+| 25/10/2026 | S14 | Giữ nhãn Chạy thử | Phụ đề có sẵn trước, và danh sách video bán chạy tự động (#395), đã triển khai (bản `af53534a`); cờ video bán chạy bật | Chủ (25/10: «deploy af53534a», bật cờ video bán chạy) |
+| 25/10/2026 | S06, S28 | S06 Đề xuất → Chạy thử; S28 — (chưa có dòng) → Chạy thử | Bộ thu S06 (#382) và nền dân số S28 (#383) đã triển khai và bật (bản `21f843f1`). Chưa có lượt Insight thật | Chủ (25/10: «deploy 21f843f1», «bật S06 và S28 trên prod») |
+| 25/10/2026 | S05 | Giữ nhãn Đã duyệt | Sửa giờ "+00:00" (#384), đã triển khai (bản `21f843f1`). Thử riêng 24/10: 50/50 review, đều 5 sao | Chủ (25/10: lời triển khai) |
+| 24/10/2026 | S05, S06, S14, S20, S28 | Giữ nhãn | Thử riêng từng nguồn trên máy chủ, không dựng báo cáo (mục 2e) | Ghi kết quả |
 | 22/10/2026 | S05, S14, S17, S20, S25 | Giữ nhãn (S05, S17, S25 Đã duyệt; S14, S20 Chạy thử) | Gói sửa nguồn (mục 2d): #365, #366, #367 đã gộp; bản `2fc699d1` đã triển khai lên máy chủ 22/10. Chưa có lượt chạy thật sau khi triển khai | Chủ (lời triển khai 22/10) |
 | 22/10/2026 | S21, S22, S23, S24 | Giữ nhãn Đã duyệt | Gói sửa SRC2 (gọi lại, sổ ghi lần gọi AI) tạm gác; lỗi ở mục 2b vẫn còn | Chủ (21/10) |
 | 21/10/2026 | S07, S15, S16 | Giữ nhãn (S07, S15 Đã duyệt; S16 Chạy thử) | Tổng hợp đường thu bên ngoài ở mục 2c. S16: 17 lượt, khoảng $0,47 (ST-20261021-14 đến -31). Thư viện quảng cáo TikTok chỉ có châu Âu. Danh sách quảng cáo nổi bật Việt Nam đọc được; 2 bộ tốt nhất cho 10/27 và 7/20 quạt thật; không có ngày chạy. S07, S15: không thử thêm. Chưa đổi gì trong hệ thống (DS-20261021-04) | Ghi kết quả; đưa vào hệ thống chờ chủ quyết |
