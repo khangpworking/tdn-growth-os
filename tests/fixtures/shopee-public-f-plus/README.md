@@ -17,3 +17,8 @@ and their revision-row digests change. The reader adds table 1.1, comparison
 notes, sales-average labels and calculation notes; claims add U13_METRIC_CODE,
 U13_REAL_PRICE and L20_RANKING_WORD. All 283 other members remain byte-identical,
 including source replays, Insight and capture-row JSON. Membership stays at 288 entries.
+
+v3plug P1: trial-run entries regenerated with the same generator (`--candidate`, output outside the checkout).
+Only the auto-run pick record changes: `autorun-pick-record-v2` adds `capture` (applied keywords and Smart query).
+It is content-addressed, so one member is renamed (`0457f4ce…` -> `f7a3a228…`); all 287 other members stay byte-identical.
+Membership stays at 288 entries. The revision field keeps the F+ base revision that the S9 test pins.
