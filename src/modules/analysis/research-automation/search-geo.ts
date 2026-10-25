@@ -227,7 +227,7 @@ export function searchGeoText(summary: SearchGeoSummary, legacy = false): Search
     dont: SEARCH_GEO_DONT };
   if (choice.why === 'SPREAD') {
     const lead = choice.leading.length <= 2 && choice.leadingInTop >= 2
-      ? ` Dẫn đầu: ${choice.leading.join(' và ')} (${choice.leading.length > 1 ? 'mỗi vùng ' : ''}${choice.leadingInTop} tỉnh).` : '';
+      ? ` Trong 10 tỉnh đứng đầu: ${choice.leading.join(' và ')} (${choice.leading.length > 1 ? 'mỗi vùng ' : ''}${choice.leadingInTop} tỉnh).` : '';
     return { topLine, result: `Kết quả: chưa có vùng nổi bật theo quy tắc đếm tỉnh.${lead}`,
       seen: choice.leadingInTop >= SEARCH_GEO_MIN_IN_TOP
         ? `Thấy gì: hai vùng cùng có ${choice.leadingInTop} tỉnh trong 10 tỉnh, thành phố đứng đầu về mức quan tâm; chưa có vùng nổi bật riêng.`
