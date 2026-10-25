@@ -173,10 +173,15 @@ export function marketCaptureScopeLine(scope: MarketCaptureScope, trace?: Market
 export interface MarketSourceScopeOptions {
   readonly reviewsPresent?: boolean;
   readonly currentReader?: boolean;
+  /**
+   * Market number trace (P5), for a page that prints the declared scope and the query log: the metric method input
+   * (`inputSha256`) and the run's stored captures the query windows are read from.
+   */
+  readonly trace?: { readonly metricInput: string | null; readonly captures: Input['captures'] };
 }
 
 export function marketSourceScopeSection(scope: MarketSourceScope, section: 'M02' | 'M13', citations: ReportCitations, readerPlainText = false,
-  capture?: CaptureMetricMethodDetails, { reviewsPresent, currentReader = false }: MarketSourceScopeOptions = {}): string {
+  capture?: CaptureMetricMethodDetails, { reviewsPresent, currentReader = false, trace }: MarketSourceScopeOptions = {}): string {
   const metric = scope.metric;
   if (section === 'M13') {
     if (!metric) return '<details class="evidence-trace"><summary>Hồ sơ đối chiếu nguồn số liệu</summary><p>Chưa có gói số liệu đã xử lý trong bản báo cáo này; không có dấu vết tính toán để đối chiếu.</p></details>';
@@ -189,12 +194,27 @@ export function marketSourceScopeSection(scope: MarketSourceScope, section: 'M02
       ? `<p>Quy tắc đã chọn: ${code(metric.classification.adoptionId)}. Bằng chứng phân loại: ${code(metric.classification.proofSha256)}.</p><ul>${metric.classification.receiptIds.map(id => `<li>Biên nhận lựa chọn: ${code(id)}</li>`).join('')}</ul>`
       : '<p>Chưa có biên nhận phân loại được chọn cho bản báo cáo này.</p>'}<p>Kiểm tra tính toàn vẹn không chứng nhận nguồn do nhà cung cấp trực tiếp thu thập. Phân loại này chỉ áp dụng cho mẫu số liệu.</p></details>`;
   }
+  // Each traced value is printed as stored; without a trace (or an identity) the text is unchanged and its numbers stay untraced.
+  const stored = (value: string | number, blockId: string, identity: string | null | undefined, pointer: string): string =>
+    trace && identity ? traceMarketNumber(String(value), blockId, 'raw', [storedInput('stored-source', identity, pointer, value)], `${pointer}, as stored`, 'as-stored') : String(value);
   const declared = metric
-    ? `<dl><dt>Kỳ khai báo trong nguồn</dt><dd>${escape(metric.declaredScope.start)} đến ${escape(metric.declaredScope.end)}</dd><dt>Nền tảng</dt><dd>${escape(metric.declaredScope.platform)}</dd><dt>Thời điểm lấy nguồn</dt><dd>${metric.declaredScope.acquiredAt === null ? 'Chưa xác nhận' : escape(metric.declaredScope.acquiredAt)}</dd><dt>Số dòng chuẩn hóa</dt><dd>${metric.sourceRowCount}</dd></dl>` : '';
+    ? `<dl><dt>Kỳ khai báo trong nguồn</dt><dd>${escape(stored(metric.declaredScope.start, 'M02.scope.declared', trace?.metricInput, '/input/scope/start'))} đến ${escape(stored(metric.declaredScope.end, 'M02.scope.declared', trace?.metricInput, '/input/scope/end'))}</dd><dt>Nền tảng</dt><dd>${escape(metric.declaredScope.platform)}</dd><dt>Thời điểm lấy nguồn</dt><dd>${metric.declaredScope.acquiredAt === null ? 'Chưa xác nhận' : escape(stored(metric.declaredScope.acquiredAt, 'M02.scope.declared', trace?.metricInput, '/input/scope/acquiredAt'))}</dd><dt>Số dòng chuẩn hóa</dt><dd>${stored(metric.sourceRowCount, 'M02.scope.declared', metric.preparationSha256, '/normalizedInput/rowCount')}</dd></dl>` : '';
+  // A query window is read from the first stored capture of its group that holds it.
+  const captureOf = (group: MarketSourceScope['queries'][number], window: { startDate: string; endDate: string }) =>
+    trace?.captures.find(row => row.provider === group.provider && row.operation === group.operation && row.stepId === group.step
+      && row.window?.startDate === window.startDate && row.window.endDate === window.endDate);
+  const windowDay = (group: MarketSourceScope['queries'][number], window: { startDate: string; endDate: string }, field: 'startDate' | 'endDate'): string =>
+    stored(window[field], 'M02.scope.queries', captureOf(group, window)?.artifactSha256, `/window/${field}`);
+  const counted = (count: number, inputs: readonly MarketTraceInput[] | null, formula: string): string =>
+    trace && inputs && inputs.length === count ? traceMarketNumber(String(count), 'M02.scope.queries', 'computed', inputs, formula, 'count') : String(count);
+  const windowInputs = (group: MarketSourceScope['queries'][number]): MarketTraceInput[] | null => {
+    const inputs = group.windows.map(window => { const row = captureOf(group, window); return row ? storedInput('stored-source', row.artifactSha256, '/window/startDate', window.startDate) : null; });
+    return inputs.every(input => input !== null) ? inputs as MarketTraceInput[] : null;
+  };
   const metricContent = metric
     ? `${capture ? capturePlatformScope(capture) : declared}<p>${metric.classification ? 'Đã áp dụng lựa chọn phân loại cho mẫu số liệu của bản này.' : capture?.rowPolicyVersion === 'automation-metric-capture-v3' ? captureSampleSentence(capture) : 'Chưa áp dụng phân loại đã duyệt; không suy phạm vi rộng hoặc phạm vi cốt lõi từ từ khóa.'}</p><p>Kỳ này do nguồn khai báo, chưa được xác minh độc lập. Không kéo dài hoặc chia tỷ lệ số liệu để khớp kỳ yêu cầu.</p><details class="evidence-trace"><summary>Hồ sơ đối chiếu kỳ đo và trạng thái tính</summary>${capture ? declared : ''}<p>Căn cứ kỳ khai báo, nguyên văn: ${periodBasisLabel(metric.declaredScope.periodBasis)}</p><p>Trạng thái phép tính: ${metric.scopes.map(s => `${escape(s.scope.toUpperCase())}: ${escape(s.status)}`).join('; ')}.</p></details>`
     : `<p>Chưa có gói số liệu đã xử lý trong bản này. Không xem thiếu nguồn là doanh số bằng ${currentReader ? 'không' : '0'}.</p>`;
-  const queries = scope.queries.map(group => `<li><p>${stepLabel(group.step)}: ${group.windows.length} khoảng truy vấn khác nhau, ${group.captures.length} bản thu${group.truncated ? '; có bản thu bị cắt' : ''}.</p><details><summary>Xem các khoảng đã truy vấn</summary><ul>${group.windows.map(w => `<li>${escape(w.startDate)} đến ${escape(w.endDate)}</li>`).join('')}</ul></details><details><summary>Xem dấu vết các bản thu của nhóm này</summary><ul>${group.captures.map(sha => `<li>${citations.mark({ sourceKind: 'CAPTURE', identity: sha, locator: null, label: 'Bản thu dữ liệu nguồn',
+  const queries = scope.queries.map(group => `<li><p>${stepLabel(group.step)}: ${counted(group.windows.length, windowInputs(group), 'count(distinct query windows of the group)')} khoảng truy vấn khác nhau, ${counted(group.captures.length, group.captures.map(sha => storedInput('stored-source', sha, '/artifactSha256', sha)), 'count(stored captures of the group)')} bản thu${group.truncated ? '; có bản thu bị cắt' : ''}.</p><details><summary>Xem các khoảng đã truy vấn</summary><ul>${group.windows.map(w => `<li>${escape(windowDay(group, w, 'startDate'))} đến ${escape(windowDay(group, w, 'endDate'))}</li>`).join('')}</ul></details><details><summary>Xem dấu vết các bản thu của nhóm này</summary><ul>${group.captures.map(sha => `<li>${citations.mark({ sourceKind: 'CAPTURE', identity: sha, locator: null, label: 'Bản thu dữ liệu nguồn',
     retrievedAt: null, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE', technical: { step: group.step } })}</li>`).join('')}</ul></details></li>`).join('');
   const queryList = `<h4>Truy vấn đã lưu</h4>${queries ? `<ul>${queries}</ul>` : '<p>Chưa có bản thu kèm khoảng truy vấn.</p>'}<p>Các khoảng trên là ngày gửi trong yêu cầu, không chứng minh nguồn có dữ liệu đo đủ cả kỳ hoặc các cửa sổ có thể cộng lại. Quy tắc phân loại của nguồn số liệu không tự áp dụng cho nguồn sàn khác, tìm kiếm hoặc review.</p>`;
   // A results-page capture states how the rows were taken; the query log stays in the technical copy.

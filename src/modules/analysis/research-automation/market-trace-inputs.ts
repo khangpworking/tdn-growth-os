@@ -4,7 +4,7 @@
  * the run record and other stored source records. Builders pass them to
  * `traceMarketNumber` when they print a number.
  */
-import type { MarketStoredSourceKind, MarketStoredTraceInput, MarketTraceRole, MarketTraceValue } from './market-trace-map.js';
+import { traceMarketNumber, type MarketStoredSourceKind, type MarketStoredTraceInput, type MarketTraceRole, type MarketTraceValue } from './market-trace-map.js';
 
 export function storedInput(store: MarketStoredSourceKind, identity: string, pointer: string, value: MarketTraceValue, role?: MarketTraceRole): MarketStoredTraceInput {
   return role ? { store, identity, pointer, value, role } : { store, identity, pointer, value };
@@ -33,3 +33,12 @@ export function scopePeriodInputs(identity: string, scope: { readonly start: str
 
 /** The capture time of a stored snapshot. */
 export const capturedAtInput = (identity: string, value: string): MarketStoredTraceInput => storedInput('capture-table', identity, '/capturedAt', value);
+
+/**
+ * The visible row label «Dòng N» of a capture sample row (`captureRowRefLabel`), its number recorded as the row's
+ * 0-based position in its platform's stored record list (`identity`: that method input) plus one.
+ */
+export function tracedRowRefLabel(index: number, blockId: string, identity: string): string {
+  return `Dòng ${traceMarketNumber(String(index + 1), blockId, 'computed', [storedInput('stored-source', identity, `/input/records/${index}`, index, 'offset')],
+    'position of the row in its platform’s stored record list + 1', 'row-number')}`;
+}

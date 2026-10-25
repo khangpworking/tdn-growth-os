@@ -29,9 +29,11 @@ function renderItem(entry: CitationEntry, format: 'web' | 'pdf', currentReader: 
   // A copied site name is shown as copied text, so the owned-wording rules do not read it as the report's claim.
   const copied = entry.sourceKind === 'WEB_RESULT' && !AUTHORED_WEB_LABELS.has(name);
   const label = `<span class="cite-label">${copied ? `<q data-quote>${escapeHtml(traceField(entry, 'label', name))}</q>` : escapeHtml(traceField(entry, 'label', name))}</span>`;
-  const parts = [`<span class="cite-number">[${entry.number}]</span>`, pdfPage ? `${label}, <span class="cite-locator">${escapeHtml(traceField(entry, 'locatorText', entry.locatorText!))}</span>` : label];
+  const number = (): string => traceMarketNumber(String(entry.number), 'page.citations', 'raw', [storedInput('stored-source', `citation:${entry.citationId}`, '/number', entry.number)],
+    'register entry number, as stored', 'as-stored');
+  const parts = [`<span class="cite-number">[${number()}]</span>`, pdfPage ? `${label}, <span class="cite-locator">${escapeHtml(traceField(entry, 'locatorText', entry.locatorText!))}</span>` : label];
   // This ordinal identifies the register entry, never an inferred source filename or date.
-  if (currentReader) parts.push(`<span class="cite-family">${SOURCE_FAMILY[entry.sourceKind]} · mục nguồn ${entry.number}</span>`);
+  if (currentReader) parts.push(`<span class="cite-family">${SOURCE_FAMILY[entry.sourceKind]} · mục nguồn ${number()}</span>`);
   if (entry.retrievedAt !== null) parts.push(`<span class="cite-date">ngày ${escapeHtml(traceMarketNumber(displayDate(entry.retrievedAt), 'page.citations', 'raw',
     [storedInput('stored-source', `citation:${entry.citationId}`, '/retrievedAt', entry.retrievedAt)], 'citation retrieval day dd/mm/yyyy', 'vi-date'))}</span>`);
   if (entry.locatorText !== null && !pdfPage) parts.push(`<span class="cite-locator">${escapeHtml(traceField(entry, 'locatorText', entry.locatorText))}</span>`);
@@ -56,11 +58,33 @@ export function renderCitationMark(n: number): string {
   return `<sup class="cite">[${n}]</sup>`;
 }
 
-/** Resolve eager section rendering against the completed body before writing its register or semantic trace. */
-export function orderReportCitations(body: string, registry: CitationRegistry): string {
+/** Report block of each position: the id of the enclosing `section.sheet`, or `page`. */
+function sheetAt(html: string): (at: number) => string {
+  const opens: { at: number; block: string | null }[] = [];
+  const stack: (string | null)[] = [];
+  for (const match of html.matchAll(/<section\b([^>]*)>|<\/section>/gu)) {
+    if (match[0] === '</section>') stack.pop();
+    else stack.push(/\bclass="sheet"/u.test(match[1]!) ? /\bid="([^"]+)"/u.exec(match[1]!)?.[1] ?? null : null);
+    opens.push({ at: match.index, block: stack.findLast(block => block !== null) ?? null });
+  }
+  return at => opens.findLast(open => open.at < at)?.block ?? 'page';
+}
+
+/**
+ * Resolve eager section rendering against the completed body before writing its register or semantic trace.
+ * `trace` (the final numbering of a traced Market build): each mark records its number as the stored number of its register entry.
+ */
+export function orderReportCitations(body: string, registry: CitationRegistry, options: { readonly trace?: boolean } = {}): string {
   const mark = /<sup class="cite">\[(\d+)\]<\/sup>/g;
   const mapping = registry.orderByAppearance([...body.matchAll(mark)].map(match => Number(match[1])));
-  return body.replace(mark, (_match, number: string) => renderCitationMark(mapping.get(Number(number))!));
+  const block = options.trace ? sheetAt(body) : null;
+  const entries = options.trace ? new Map(registry.entries().map(entry => [entry.number, entry])) : null;
+  return body.replace(mark, (_match, number: string, at: number) => {
+    const next = mapping.get(Number(number))!, entry = entries?.get(next);
+    if (block && entry) traceMarketNumber(String(next), `${block(at)}.citations`, 'raw', [storedInput('stored-source', `citation:${entry.citationId}`, '/number', next)],
+      'citation mark: the number of its register entry, as stored', 'as-stored');
+    return renderCitationMark(next);
+  });
 }
 
 /** A value the viewer cannot trace to a retained source shows the missing-source phrase instead of a number. */

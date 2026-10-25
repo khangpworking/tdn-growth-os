@@ -7,6 +7,8 @@
  */
 
 import { filterReaderGlossary } from './market-reader-glossary.js';
+import { storedInput } from './market-trace-inputs.js';
+import { traceMarketNumber } from './market-trace-map.js';
 
 const ESCAPES: Readonly<Record<string, string>> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 const esc = (value: string): string => value.replace(/[&<>"']/gu, char => ESCAPES[char]!);
@@ -469,6 +471,13 @@ const EXN_SPAN = /<span class="exn"[^>]*>([^<]*)<\/span>(?:\s*<span class="exs">
  */
 export function numberMarketExhibits(html: string): string {
   const relabel = new Map<string, string>();
+  // Market number trace (P5): every printed label and every prose reference to one records «<phần>.<n>» from its section and ordinal.
+  const exhibits = new Map<string, { id: string; kind: 'Bảng' | 'Hình'; n: number }>();
+  const traceLabel = (label: string, blockId: string): void => {
+    const exhibit = exhibits.get(label);
+    if (exhibit) traceMarketNumber(label.slice(exhibit.kind.length + 1), blockId, 'computed', [storedInput('stored-source', 'template:market-sections', `/${exhibit.id}`, exhibit.id),
+      storedInput('stored-source', 'template:market-exhibits', `/${exhibit.id}/${exhibit.kind}`, exhibit.n, 'offset')], 'section number . ordinal of the exhibit type in its section', 'exhibit-number');
+  };
   const numbered = html.replace(/<section class="sheet" id="(M\d\d)">([\s\S]*?)<\/section>/gu, (_all, id: string, inner: string) => {
     const prefix = id === 'M13' ? 'PL' : String(Number(id.slice(1)));
     const counts = { Bảng: 0, Hình: 0 };
@@ -482,6 +491,8 @@ export function numberMarketExhibits(html: string): string {
       }
       const no =`${prefix}.${++counts[exhibit.kind]}`, label = `${exhibit.kind} ${no}`;
       const elementId = `exh-${prefix.toLowerCase()}-${exhibit.kind === 'Bảng' ? 'b' : 'h'}${counts[exhibit.kind]}`;
+      exhibits.set(label, { id, kind: exhibit.kind, n: counts[exhibit.kind] });
+      traceLabel(label, `${id}.exhibits`);
       const exn = `<span class="exn" data-exhibit-no="${no}">${label}</span>`;
       const block = inner.slice(exhibit.start, exhibit.end);
       // The exhibit's own parts stop at its first nested exhibit (a captioned table inside a sources box).
@@ -530,17 +541,25 @@ export function numberMarketExhibits(html: string): string {
     for (const edit of edits.sort((a, b) => b.start - a.start)) out = out.slice(0, edit.start) + edit.to + out.slice(edit.end);
     return `<section class="sheet" id="${id}">${out}</section>`;
   });
-  if (!relabel.size) return numbered;
   // References in prose follow their exhibit; labels, drawn charts, styles and quotes keep their bytes.
   let protectedTag = '', depth = 0;
+  const sheets: (string | null)[] = [];
   return numbered.replace(/<!--[\s\S]*?(?:-->|$)|<script(?=[\s/>])(?:[^>"']|"[^"]*"|'[^']*')*(?<!\/)>[\s\S]*?(?:<\/script\s*>|$)|<style(?=[\s/>])(?:[^>"']|"[^"]*"|'[^']*')*(?<!\/)>[\s\S]*?(?:<\/style\s*>|$)|<(?:[^<>"']|"[^"]*"|'[^']*')+>|[^<]+/giu,
     (part: string) => {
       if (!part.startsWith('<')) return depth ? part
-        : part.replace(/(?<![\p{L}\p{N}])(Bảng|Hình) (\d+|PL)\.(\d+)(?![\d.]*\d)/gu, all => relabel.get(all) ?? all);
+        : part.replace(/(?<![\p{L}\p{N}])(Bảng|Hình) (\d+|PL)\.(\d+)(?![\d.]*\d)/gu, all => {
+          const label = relabel.get(all) ?? all;
+          traceLabel(label, `${sheets.findLast(sheet => sheet !== null) ?? 'page'}.exhibit-reference`);
+          return label;
+        });
       if (/^<!--|^<(?:script|style)(?=[\s/>])/iu.test(part)) return part;
       const open = /^<(\/?)([\w:-]+)/u.exec(part);
       if (!open) return part;
       const tag = open[2]!.toLowerCase();
+      if (tag === 'section' && !depth) {
+        if (open[1]) sheets.pop();
+        else sheets.push(/\bclass="sheet"/u.test(part) ? /\bid="([^"]+)"/u.exec(part)?.[1] ?? null : null);
+      }
       if (open[1]) {
         if (tag === protectedTag && --depth === 0) protectedTag = '';
       } else if (!/\/\s*>$/u.test(part) && !['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr'].includes(tag)) {

@@ -1,8 +1,8 @@
 /**
  * Machine number-trace gate of a Market report (P5, owner plan F201, 25/10/2026).
  *
- * 1. Every number on the visible page is cut out of the delivered HTML (CSS,
- *    attributes, hidden text and the trace appendix are not read).
+ * 1. Every number in the text of the delivered HTML is cut out; only script,
+ *    style and template content, attributes and the trace appendix are not read.
  * 2. Each one must match an entry of the report's trace map in the same block,
  *    one entry per printed occurrence (an unrecorded, hand-written number has none).
  * 3. Every entry is replayed: its registered formula, run on the input values
@@ -12,8 +12,9 @@
  * Covered blocks block delivery on any untraced number. The blocks listed in
  * `MARKET_TRACE_NOT_COVERED` are counted and listed, not blocking yet.
  */
-import { HIDDEN_CONTAINER_TAGS, tagAttributes } from '../report-visible-text.js';
+import { tagAttributes } from '../report-visible-text.js';
 import { sp } from '../reader-report/format.js';
+import { TOP_GROUPS } from '../reader-report/market-charts.js';
 import { formatMarketChange, formatMarketCount, formatMarketMoney, formatMarketRange, marketPreviousPeriod } from './market-raw-report.js';
 import { marketVietnamDay } from './market-scope-report.js';
 import { searchInterestPeriodText } from './search-interest.js';
@@ -32,41 +33,39 @@ export const MARKET_TRACE_NOT_COVERED: Readonly<Record<string, string>> = {
   M11: 'opportunity rows from the capture table',
 };
 
-/** The trace appendix section, not report text (T5): never scanned. No element or class is skipped this way. */
+/** The trace appendix section, not report text (T5): never scanned. It is a report block, not an element, class or attribute. */
 const APPENDIX_SECTIONS: ReadonlySet<string> = new Set(['M13']);
 
-/**
- * Text no reader sees: script, style, template, the hidden attribute, or display/visibility off (style or SVG attribute).
- * aria-hidden text is still on screen, so it is scanned.
- */
-const unseen = (tag: string, attrs: ReadonlyMap<string, string>): boolean => HIDDEN_CONTAINER_TAGS.has(tag) || attrs.has('hidden')
-  || /(?:^|[;\s])(?:display\s*:\s*none|visibility\s*:\s*hidden)(?:\s*!important)?(?:[;\s]|$)/iu.test(attrs.get('style') ?? '')
-  || /^none$/iu.test(attrs.get('display') ?? '') || /^hidden$/iu.test(attrs.get('visibility') ?? '');
+/** The only elements whose text is never scanned: code and markup no reader sees as text. Nothing else is skipped (no attribute, class, element or hidden state). */
+const NOT_TEXT: ReadonlySet<string> = new Set(['script', 'style', 'template']);
 
-/** Allow-list of numbers that are template text, each with its reason (brief item 5). */
+/** Allow-list of numbers that are fixed template text, each with its reason (brief item 5). */
 export const MARKET_TRACE_ALLOWED: Readonly<Record<string, string>> = {
-  'section-label': 'section number of the report template («Phần 3», «Phụ lục 1»)',
-  'exhibit-label': 'figure and table numbers given at delivery («Hình 4.1», «Bảng 3.1»)',
-  'row-label': 'row label of the stored sample table («Dòng 3») or the ordinal of an unnamed row («Sản phẩm #2», «Gian hàng #2»)',
-  citation: 'citation numbers and source-register entries',
-  'index-scale': 'fixed 0–100 scale of the search-interest index',
+  'section-id': 'section id of the report section catalogue (docs/research/report-section-catalog-v1.json)',
+  'section-label': 'section number of the Market report template («Phần 3»)',
   'top-group': 'group size of the template’s leading-product and leading-shop shares (TOP_GROUPS 1/3/5/10)',
   'pack-default': 'template rule: a title without a pack size counts as 1 product',
+  'index-scale': 'fixed 0–100 scale of the search-interest index',
   'short-period': 'template rule: a period shorter than 30 days is incomplete (the 30-day search sample)',
+  'draft-completion': 'template constant of the draft opening: a draft never counts a complete analytical section',
 };
 
-/** Spans of a text node that are template labels, matched before numbers are cut out. */
-const LABELS: readonly (readonly [RegExp, string])[] = [
-  [/(?:Phần|Phụ lục)\s+\d+/gu, 'section-label'],
-  [/(?:Hình|Bảng)\s+\d+(?:\.\d+)*/gu, 'exhibit-label'],
-  [/Dòng\s+\d+/gu, 'row-label'],
-  [/(?:Sản phẩm|Gian hàng) #\d+/gu, 'row-label'],
-  [/mục nguồn\s+\d+/gu, 'citation'],
-  [/0–100/gu, 'index-scale'],
-  [/\b(?:1|3|5|10) (?:sản phẩm|gian hàng) doanh thu cao/gu, 'top-group'],
-  [/tính 1 sản phẩm/gu, 'pack-default'],
-  [/(?:mẫu tìm kiếm|chưa đủ) 30 ngày/gu, 'short-period'],
-];
+/**
+ * The exact template strings that hold a number, each with its allow-list id. A number is allowed only when an occurrence
+ * of one of these strings, in the same text, holds the whole printed token; no pattern, prefix, class or element allows one.
+ */
+export const MARKET_TRACE_ALLOWED_TEXT: Readonly<Record<string, keyof typeof MARKET_TRACE_ALLOWED>> = {
+  ...Object.fromEntries(['M', 'I'].flatMap(family => Array.from({ length: family === 'M' ? 13 : 17 }, (_, at) => [`${family}${String(at + 1).padStart(2, '0')}`, 'section-id']))),
+  ...Object.fromEntries(Array.from({ length: 12 }, (_, at) => [`Phần ${at + 1}`, 'section-label'])),
+  ...Object.fromEntries(['sản phẩm', 'gian hàng'].flatMap(unit => TOP_GROUPS.map(size => [`${size} ${unit} doanh thu cao`, 'top-group']))),
+  'tính 1 sản phẩm': 'pack-default',
+  'thang 0–100': 'index-scale',
+  'mẫu tìm kiếm 30 ngày': 'short-period',
+  'Kỳ chưa đủ 30 ngày': 'short-period',
+  'Mục phân tích hoàn chỉnh: 0': 'draft-completion',
+};
+
+const ALLOWED_TEXTS = Object.keys(MARKET_TRACE_ALLOWED_TEXT).sort((a, b) => b.length - a.length);
 
 /**
  * A number as the template prints it: a stored day («2026-10-19», read as «19/10/2026»), a date range («20/09–19/10/2026», «21–27/09»), a date («19/10/2026», «10/2026»),
@@ -90,27 +89,13 @@ export interface MarketScannedNumber {
   readonly block: string;
   /** Up to 40 characters each side, for the owner's list. */
   readonly context: string;
-  /** Allow-list id when the number is template text. */
+  /** Allow-list id of the exact template string that holds the number. */
   readonly allowed?: string;
 }
 
-interface ElementAllowance { readonly id: string; readonly text: RegExp }
-interface Frame { readonly tag: string; readonly hidden: boolean; readonly appendix: boolean; readonly allowed?: ElementAllowance; readonly block?: string }
+interface Frame { readonly tag: string; readonly unread: boolean; readonly block?: string }
 
-/**
- * Template marks the report prints in its own elements. The element alone never allows a number:
- * its whole text must be the fixed template string (a quoted or disclosed number is still scanned).
- */
-const ELEMENT_ALLOWED = (tag: string, attrs: ReadonlyMap<string, string>): ElementAllowance | undefined => {
-  const classes = new Set((attrs.get('class') ?? '').split(/\s+/u).filter(Boolean));
-  if (classes.has('cite') || classes.has('cite-number')) return { id: 'citation', text: /^\[\d+\]$/u };
-  if (classes.has('sh-id')) return { id: 'section-label', text: /^(?:(?:Phần|Phụ lục)\s+\d+|M\d{2})$/u };
-  if (classes.has('exn')) return { id: 'exhibit-label', text: /^(?:Hình|Bảng)\s+(?:PL\.)?\d+(?:\.\d+)*$/u };
-  if (classes.has('row-ref')) return { id: 'row-label', text: /^Dòng\s+\d+$/u };
-  return undefined;
-};
-
-/** Every number on the visible page with its block; the appendix, hidden text, CSS and attributes are left out. */
+/** Every number in the page text with its block; only script, style and template content, attributes and the trace appendix are left out. */
 export function scanMarketReportNumbers(html: string): MarketScannedNumber[] {
   const out: MarketScannedNumber[] = [];
   const stack: Frame[] = [];
@@ -120,19 +105,16 @@ export function scanMarketReportNumbers(html: string): MarketScannedNumber[] {
     if (part.startsWith('<!')) continue;
     const tag = /^<\/?([\w:-]+)/u.exec(part)?.[1]?.toLowerCase();
     if (!tag) {
-      if (top?.hidden || top?.appendix) continue;
+      if (top?.unread) continue;
       const text = part.replace(/&#x([\da-f]+);|&#(\d+);|&(amp|lt|gt|quot|apos|nbsp);/giu, (_all, hex: string | undefined, dec: string | undefined, name: string | undefined) =>
         hex || dec ? String.fromCodePoint(hex ? parseInt(hex, 16) : Number(dec)) : ({ amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' } as Record<string, string>)[name!.toLowerCase()]!);
-      const labels: { start: number; end: number; id: string }[] = [];
-      for (const [pattern, id] of LABELS) for (const match of text.matchAll(pattern)) labels.push({ start: match.index, end: match.index + match[0].length, id });
+      const spans: { start: number; end: number; id: string }[] = [];
+      for (const allowed of ALLOWED_TEXTS) for (let at = text.indexOf(allowed); at >= 0; at = text.indexOf(allowed, at + 1)) spans.push({ start: at, end: at + allowed.length, id: MARKET_TRACE_ALLOWED_TEXT[allowed]! });
       const block = stack.findLast(frame => frame.block)?.block ?? 'page';
-      const allowance = stack.findLast(frame => frame.allowed)?.allowed;
-      const element = allowance && (allowance.text.test(text.replace(/[\s\u00a0]+/gu, ' ').trim())) ? allowance.id : undefined;
       for (const match of text.matchAll(NUMBER)) {
         const token = normalizeMarketNumber(match[0]);
-        // A template string allows a number only when it holds the whole printed token («Sản phẩm #36,2 tỷ» does not).
-        const label = labels.find(span => match.index >= span.start && match.index + match[0].length <= span.end)?.id;
-        const allowed = label ?? element;
+        // An allowed string allows a number only when it holds the whole printed token («M036,2 tỷ» is not «M03»).
+        const allowed = spans.find(span => match.index >= span.start && match.index + match[0].length <= span.end)?.id;
         const context = text.slice(Math.max(0, match.index - 40), match.index + match[0].length + 40).replace(/\s+/gu, ' ').trim();
         out.push({ token, block, context, ...(allowed ? { allowed } : {}) });
       }
@@ -148,12 +130,9 @@ export function scanMarketReportNumbers(html: string): MarketScannedNumber[] {
     const classes = (attrs.get('class') ?? '').split(/\s+/u);
     const id = attrs.get('id') ?? '';
     const block = tag === 'section' && classes.includes('sheet') && id ? id : undefined;
-    const allowed = ELEMENT_ALLOWED(tag, attrs);
     stack.push({
       tag,
-      hidden: Boolean(top?.hidden) || unseen(tag, attrs),
-      appendix: Boolean(top?.appendix) || tag === 'head' || (block !== undefined && APPENDIX_SECTIONS.has(block)),
-      ...(allowed ? { allowed } : {}),
+      unread: Boolean(top?.unread) || NOT_TEXT.has(tag) || (block !== undefined && APPENDIX_SECTIONS.has(block)),
       ...(block ? { block } : {}),
     });
   }
@@ -282,6 +261,15 @@ export const MARKET_TRACE_FORMULAS: Readonly<Record<MarketTraceFormulaId, Formul
     const text = normalizeMarketNumber(token), tick = /^\d+(?:[.,]\d+)*$/u.test(text) ? Number(text.replace(/\./gu, '').replace(',', '.')) : Number.NaN;
     return Number.isFinite(tick) && tick >= 0 && tick <= top + 1e-9 ? token : `0–${top.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}`;
   },
+  // An exhibit label «<phần>.<n>»: the section's number (`PL` for the appendix) and the exhibit's ordinal among its type in that section (`offset`).
+  'exhibit-number': inputs => {
+    const section = inputs.find(input => input.role === undefined)?.value, ordinal = num(byRole(inputs, 'offset')[0]?.value);
+    return typeof section !== 'string' || !/^M\d{2}$/u.test(section) || ordinal === null ? null : `${section === 'M13' ? 'PL' : Number(section.slice(1))}.${ordinal}`;
+  },
+  // A percent stored as a number of percent points, printed with its sign («50%», «50 phần trăm»).
+  'stored-percent': inputs => one(num(inputs[0]?.value), value => `${value.toLocaleString('vi-VN', { maximumFractionDigits: 3 })}%`),
+  // A row label «Dòng N» of the stored sample table: the row's 0-based position (`offset`) plus one.
+  'row-number': inputs => one(num(byRole(inputs, 'offset')[0]?.value), at => String(at + 1)),
   // A timestamp base (the run's creation time) counts from its Vietnam calendar day (UTC+7).
   'date-plus-days': inputs => {
     const stored = byRole(inputs, 'base')[0]?.value, time = typeof stored === 'string' && stored.includes('T') ? Date.parse(stored) : Number.NaN;

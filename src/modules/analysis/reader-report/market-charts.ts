@@ -8,7 +8,7 @@ import { sp } from './format.js';
 import { barChart, lineChart } from './svg-charts.js';
 
 export type MarketChartPlatform = 'shopee' | 'tiktok';
-export type MarketChartRow = { readonly i: number; readonly platform: string; readonly shop: string; readonly title?: string; readonly ref?: string; readonly rev: number | null | undefined };
+export type MarketChartRow = { readonly i: number; readonly platform: string; readonly shop: string; readonly title?: string; readonly ref?: string; readonly refAt?: number; readonly rev: number | null | undefined };
 export type MarketChartKind = 'concentration' | 'platform-revenue' | 'product-ranking';
 export type MarketChart = RenderedChart & { id: string; kind: MarketChartKind; title: string; unit: string; note: string };
 

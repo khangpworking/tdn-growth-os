@@ -11,7 +11,7 @@
  * inputs carry the value read at the pointer and entries name a registered
  * formula. v1 maps stay readable: their entries have no `formulaId`.
  *
- * Exhibit labels the reader adds later («Hình 3.1», «Bảng 3.1») are labels, not numbers.
+ * Exhibit labels and citation marks the delivery numbers later («Hình 3.1», «[2]») are recorded by the pass that prints them.
  */
 import type { MarketRawSource } from './market-raw-series.js';
 
@@ -57,7 +57,8 @@ export type MarketTraceInput = MarketRawTraceInput | MarketStoredTraceInput;
 export type MarketTraceFormulaId =
   | 'as-stored' | 'money' | 'count-scaled' | 'sum-money' | 'sum-count' | 'change-percent' | 'share-percent' | 'share-percent-1'
   | 'count' | 'date-range' | 'previous-range' | 'period-length' | 'month-year' | 'vi-date' | 'quarter' | 'year'
-  | 'vi-number' | 'millions-vnd' | 'date-plus-days' | 'vn-day' | 'day-count' | 'chart-label' | 'axis-tick' | 'sum-number' | 'search-week' | 'search-day' | 'vi-date-range' | 'reader-money' | 'reader-count' | 'reader-decimal';
+  | 'vi-number' | 'millions-vnd' | 'date-plus-days' | 'vn-day' | 'day-count' | 'chart-label' | 'axis-tick' | 'sum-number' | 'search-week' | 'search-day' | 'vi-date-range' | 'reader-money' | 'reader-count' | 'reader-decimal'
+  | 'exhibit-number' | 'row-number' | 'stored-percent';
 
 export interface MarketNumberTraceEntry {
   /** The number exactly as printed, e.g. «35,0 tỷ», «−5%», «20/09–19/10/2026». */

@@ -12,6 +12,6 @@ export function marketReaderCitations(page: string, registry: CitationRegistry, 
   // Whitespace between marks belongs to the same claim; element/claim boundaries do not.
   const mapped = page.slice(0, start).replace(/(<sup class="cite">\[(\d+)\]<\/sup>)(?:\s*<sup class="cite">\[\2\]<\/sup>)+/gu,
     (_marks, mark: string) => mark);
-  const readerPage = orderReportCitations(mapped, registry);
+  const readerPage = orderReportCitations(mapped, registry, { trace: true });
   return filterReaderGlossary(readerPage + readerText(renderCitationRegister(registry.entries(), { format: 'web', currentReader: true }), false, options) + page.slice(end), { currentReader: true });
 }

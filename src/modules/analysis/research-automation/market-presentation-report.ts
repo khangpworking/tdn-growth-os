@@ -1,4 +1,4 @@
-import { traceMarketNumber, type MarketTraceInput, type MarketTraceRole } from './market-trace-map.js';
+import { traceMarketNumber, withMarketNumberTrace, type MarketTraceInput, type MarketTraceRole } from './market-trace-map.js';
 import { marketNumberTokens } from './market-number-trace.js';
 import { capturedAtInput, rowInputs, scopePeriodInputs, storedInput } from './market-trace-inputs.js';
 import type { AutomationMarketPresentationMethod } from '../../../../contracts/analysis/automation-market-presentation-method.generated.js';
@@ -37,7 +37,7 @@ export function marketChartSource(presentationRows: readonly MarketChartRow[], m
   const revenue = (value: string | null): number | null => value === null ? null : Number(value);
   if (metric.capture) return {
     rows: metric.capture.platforms.flatMap(({ platform, result }) => result.input.records.map((record, index) => ({
-      i: Number(/^\/groups\/W12_topProducts\/rows\/(\d+)$/u.exec(record.source.locator)?.[1] ?? index), platform, shop: record.shopId, rev: revenue(record.revenue.value), ref: captureRowRefLabel(index), ...(metric.capture?.rowPolicyVersion ? { title: record.title } : {}) }))),
+      i: Number(/^\/groups\/W12_topProducts\/rows\/(\d+)$/u.exec(record.source.locator)?.[1] ?? index), platform, shop: record.shopId, rev: revenue(record.revenue.value), ref: captureRowRefLabel(index), refAt: index, ...(metric.capture?.rowPolicyVersion ? { title: record.title } : {}) }))),
     ...(metric.capture.rowPolicyVersion ? { titleLabels: true } : {}),
     currentReader: true,
     rowListNote: `mỗi nhãn ghi sàn và mã dòng, đúng mã ở cột ${CAPTURE_ROW_REF_HEADER} của bảng mẫu cùng sàn; tên dài được rút gọn, tên đầy đủ nằm trong bảng mẫu`,
@@ -218,22 +218,35 @@ function capturePlatformFindings(capture: CaptureMetricMethodDetails, citations:
     const pageMark = (value: CaptureMetricHeadlineValue): string => citations.mark({ sourceKind: 'CAPTURE', identity: capture.snapshotSha256,
       locator: readerPointer(value.locator, true).locator, label: 'Số liệu nền tảng trong bản lưu nguồn', retrievedAt: null, url: null, quote: null,
       quoteVerification: 'NOT_APPLICABLE', technical: { sourceSha256: capture.snapshotSha256, locator: value.locator } });
-    const shops = hasRows && !result.input.records.some(record => record.shopId === UNKNOWN_SHOP) ? ` của ${all.shopCount} gian hàng` : '';
+    // Every number is recorded with the stored cells it is read or counted from (block M01, where the statements print).
+    const block = `M01.findings.${platform}`, records = result?.input.records ?? [];
+    const count = (value: number, rows: typeof records, formula: string): string => rows.length === value && value > 0
+      ? traceMarketNumber(String(value), block, 'computed', rowInputs(rows), formula, 'count') : String(value);
+    const firstOfShop = [...new Map(records.map(record => [record.shopId, record] as const)).values()];
+    const shops = hasRows && !records.some(record => record.shopId === UNKNOWN_SHOP) ? ` của ${firstOfShop.length === all.shopCount
+      ? traceMarketNumber(String(all.shopCount), block, 'computed', firstOfShop.map(row => storedInput('capture-table', row.source.sourceSha256, row.source.locator, row.shopId)), 'count(distinct shops)', 'count')
+      : all.shopCount} gian hàng` : '';
+    const scopeDay = (field: 'start' | 'end'): string => traceMarketNumber(isoDay(result!.input.scope[field]), block, 'raw',
+      [storedInput('stored-source', result!.inputSha256, `/input/scope/${field}`, result!.input.scope[field])], 'method input scope day dd/mm/yyyy', 'vi-date');
     const sample = hasRows
-      ? `${label}: mẫu đã lưu có ${all.listingCount} dòng sản phẩm${shops}, kỳ ${isoDay(result.input.scope.start)} đến ${isoDay(result.input.scope.end)}. Mẫu là các dòng đầu của bảng kết quả tìm kiếm, không phải toàn bộ sản phẩm của sàn.`
+      ? `${label}: mẫu đã lưu có ${count(all.listingCount, records, 'count(sample rows)')} dòng sản phẩm${shops}, kỳ ${scopeDay('start')} đến ${scopeDay('end')}. Mẫu là các dòng đầu của bảng kết quả tìm kiếm, không phải toàn bộ sản phẩm của sàn.`
       : `${label}: chưa có dòng nào gán được cho sàn này trong bảng kết quả đã lưu; báo cáo không suy ra số liệu từ các dòng.`;
     let figures = '', marks = '';
     // Units sold are never summed across products: pack sizes differ (UNIT-209 C4).
     if (page) {
-      figures = `${label}: bảng kết quả theo bộ lọc ghi doanh thu (ước tính) ${grouped(page.revenue.value!)} VND. Đây là số của cả tập kết quả trên trang; phạm vi này khác với các dòng đã lưu.`;
+      figures = `${label}: bảng kết quả theo bộ lọc ghi doanh thu (ước tính) ${traceMarketNumber(grouped(page.revenue.value!), block, 'raw',
+        [storedInput('capture-table', capture.snapshotSha256, page.revenue.locator, Number(page.revenue.value))], 'stored cell, vi-VN integer', 'vi-number')} VND. Đây là số của cả tập kết quả trên trang; phạm vi này khác với các dòng đã lưu.`;
       marks = pageMark(page.revenue);
     } else if (hasRows) {
-      const total = (value: typeof all.revenue, unit: string): string => value.missingCount === 0 && value.value !== null ? `${grouped(value.value)}${unit}` : 'chưa xác định vì có dòng thiếu số liệu';
+      const total = (value: typeof all.revenue, unit: string): string => value.missingCount === 0 && value.value !== null ? `${traceMarketNumber(grouped(value.value), block, 'computed',
+        records.flatMap(row => row.revenue.value === null ? [] : [storedInput('capture-table', row.revenue.source.sourceSha256, row.revenue.source.locator, Number(row.revenue.value))]),
+        'sum(row revenue cells), vi-VN integer', 'sum-number')}${unit}` : 'chưa xác định vì có dòng thiếu số liệu';
       figures = `${label}: doanh thu (ước tính) của các dòng đã lưu là ${total(all.revenue, ' VND')}; đơn vị bán chỉ đọc theo từng sản phẩm vì quy cách chào bán có thể khác nhau.`;
       marks = calculation;
     }
     if (hasRows) {
-      const missing = [all.revenue.missingCount ? `${all.revenue.missingCount} dòng thiếu doanh thu` : '', all.units.missingCount ? `${all.units.missingCount} dòng thiếu đơn vị bán` : ''].filter(Boolean);
+      const missing = [all.revenue.missingCount ? `${count(all.revenue.missingCount, records.filter(row => row.revenue.value === null), 'count(rows without revenue)')} dòng thiếu doanh thu` : '',
+        all.units.missingCount ? `${count(all.units.missingCount, records.filter(row => row.units.value === null), 'count(rows without units)')} dòng thiếu đơn vị bán` : ''].filter(Boolean);
       figures += missing.length ? ` Có ${missing.join(' và ')} trong các dòng đã lưu; phần thiếu không thay bằng số không.` : ' Không có dòng nào thiếu doanh thu hoặc đơn vị bán trong các dòng đã lưu.';
       // Row completeness is a calculation claim, separate from the page figures.
       if (page) marks += calculation;
@@ -331,7 +344,8 @@ export function renderAutomationMarketFindings(method: Method, citations: Report
   if (emptySample && !(readerPlainText && capture)) return emptySample;
   const metricRecords = method.input.metric?.input.records ?? [];
   const sampleLabel = (): string => sampleCount === null ? 'trong mẫu (chưa có số lượng mẫu)'
-    : `trong mẫu (n = ${metricRecords.length === sampleCount ? traceMarketNumber(String(sampleCount), 'M01.findings.sample', 'computed', rowInputs(metricRecords), 'count(sample rows)', 'count') : sampleCount})`;
+    : `trong mẫu (n = ${metricRecords.length === sampleCount ? traceMarketNumber(String(sampleCount), 'M01.findings.sample', 'computed', sampleCount
+      ? rowInputs(metricRecords) : [storedInput('stored-source', 'automation-market-presentation-method', '/input/metric/input/records', [])], 'count(sample rows)', 'count') : sampleCount})`;
   const withSample = (text: string): string => readerPlainText && /\btrong mẫu\b/iu.test(text)
     ? text.replace(/\btrong mẫu\b/iu, sampleLabel())
     : text;
@@ -347,7 +361,9 @@ export function renderAutomationMarketFindings(method: Method, citations: Report
     `<li><p><b>Nhận định:</b> ${finding.pending ? `<span data-classified="pending">${escape(withSample(readerPlainText ? readerStoredOrJson(finding.statement.replace(/[.]$/, ''), 'Nhận định được giữ trong hồ sơ đối chiếu') : finding.statement.replace(/[.]$/, '')))} (đề xuất, chờ chủ duyệt).</span>` : escape(withSample(readerPlainText ? readerStoredOrJson(finding.statement, 'Nhận định được giữ trong hồ sơ đối chiếu') : finding.statement))}</p><p><b>Bằng chứng:</b> <a href="#${finding.sectionId}">Bảng ${finding.sectionId === 'M03' ? 'số liệu mẫu xuất ở phần Quy mô và diễn biến' : 'quy cách và đơn vị chuẩn ở phần Giá và kinh tế đơn vị'}</a>${finding.evidence.map(ref => mark(ref, citations, readerPlainText)).join('')}.</p><p><b>Trạng thái:</b> Bản nháp chưa được duyệt; ${finding.pending ? 'phân loại đề xuất, chờ chủ duyệt; ' : ''}${escape(readerPlainText ? readerStoredOrJson(finding.scope, 'Phạm vi được giữ trong hồ sơ đối chiếu') : finding.scope)}</p></li>`);
   if (readerPlainText && capture) {
     // Phần 3 statements are built first so citation numbers stay as before; without sample shares they stay the findings.
-    const platformFindings = capturePlatformFindings(capture, citations).join(''), lead = headline?.shares.length ? headlineFindings(headline, method, capture, citations) : [];
+    // Built first (unrecorded) so citation numbers stay as before; recorded again only where the statements print.
+    const platformFindings = withMarketNumberTrace(null, () => capturePlatformFindings(capture, citations)).join(''), lead = headline?.shares.length ? headlineFindings(headline, method, capture, citations) : [];
+    if (!lead.length) capturePlatformFindings(capture, citations);
     const pointer = lead.length && headline!.options ? '<li><p><b>Nhận định:</b> Ba phương án ở Phần 12 đọc từ các số trong mẫu này (đề xuất, chờ chủ duyệt).</p><p><b>Bằng chứng:</b> <a href="#M12">Bảng 12.1 ở phần Khuyến nghị và hành động</a>.</p></li>' : '';
     // Sources only the traced Phần 3 statements cite stay cited in the reader copy.
     const sups = (html: string): string[] => [...new Set(html.match(/<sup class="cite">[^<]*<\/sup>/gu) ?? [])];
