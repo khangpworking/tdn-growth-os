@@ -45,24 +45,106 @@ const norm = (value: string): string => value.normalize('NFC').trim().toLowerCas
 // these page toggles, which the snapshot scope deliberately does not model.
 // The snapshot schema keeps `scope` closed, so a toggle can never appear there.
 const APPLIED_FILTER_TOGGLES = ['smartQuery', 'aiNormalisation', 'usefulFilters'] as const;
-/** v2 adds `searchScope`: the auto-run's fixed scope lines (keyword 2 and category evidence). v1 stays readable. */
-export const METRIC_CAPTURE_CONTEXT_VERSIONS: readonly string[] = Object.freeze(['automation-metric-capture-context-v1', 'automation-metric-capture-context-v2']);
+/**
+ * v2 adds `searchScope`: the auto-run's fixed scope lines (keyword 2 and category evidence).
+ * v3 adds `rawResponses`: the stored raw-responses artifacts of the run's captures (`searchScope` optional).
+ * v1 and v2 stay readable; they have no raw artifact.
+ */
+export const METRIC_CAPTURE_CONTEXT_VERSIONS: readonly string[] = Object.freeze(['automation-metric-capture-context-v1', 'automation-metric-capture-context-v2', 'automation-metric-capture-context-v3']);
+const CONTEXT_V3 = 'automation-metric-capture-context-v3';
 /** Bounds of the server-authored scope lines in a v2 context. */
 export const MAX_SEARCH_SCOPE_LINES = 4;
 export const MAX_SEARCH_SCOPE_LINE_LENGTH = 400;
 /** The `searchScope.lines` of a capture context; null when absent (v1) or out of bounds. */
 export function captureContextScopeLines(context: Record<string, unknown>): string[] | null {
-  if (context.contractVersion !== 'automation-metric-capture-context-v2') return null;
+  if (context.contractVersion !== 'automation-metric-capture-context-v2' && context.contractVersion !== CONTEXT_V3) return null;
   const scope = context.searchScope as { lines?: unknown } | undefined;
   const lines = scope?.lines;
   return Array.isArray(lines) && lines.length >= 1 && lines.length <= MAX_SEARCH_SCOPE_LINES &&
     lines.every(line => typeof line === 'string' && line.trim() !== '' && line.length <= MAX_SEARCH_SCOPE_LINE_LENGTH) ? [...lines as string[]] : null;
 }
 
+/** A context this version reads: v1 as is, v2 with valid scope lines, v3 with valid raw refs and, when present, scope lines. */
+export function captureContextReadable(context: Record<string, unknown>): boolean {
+  if (context.contractVersion === 'automation-metric-capture-context-v1') return true;
+  if (context.contractVersion === 'automation-metric-capture-context-v2') return captureContextScopeLines(context) !== null;
+  return context.contractVersion === CONTEXT_V3 && (context.searchScope === undefined || captureContextScopeLines(context) !== null) && captureContextRawRefs(context) !== null;
+}
+
+/**
+ * One stored raw-responses artifact of a capture. `sha256`/`byteSize` name the stored bytes;
+ * `manifestSha256`/`manifestByteSize` are the capture manifest's entry they were verified against.
+ * They differ only when account/session/token fields had to be stripped (`stripped`).
+ */
+export interface MetricRawResponsesRef {
+  readonly captureNumber: 1 | 2;
+  readonly sha256: string;
+  readonly byteSize: number;
+  readonly manifestSha256: string;
+  readonly manifestByteSize: number;
+  readonly stripped: boolean;
+}
+export interface MetricRawResponses { readonly ref: MetricRawResponsesRef; readonly bytes: Buffer }
+
+const SHA256 = /^[a-f0-9]{64}$/;
+/** The raw refs of a v3 context: capture 1, then capture 2 when the run used it; the last one is the capture the report uses. Null when absent or malformed. */
+export function captureContextRawRefs(context: Record<string, unknown>): MetricRawResponsesRef[] | null {
+  if (context.contractVersion !== CONTEXT_V3) return null;
+  const refs = context.rawResponses;
+  if (!Array.isArray(refs) || refs.length < 1 || refs.length > 2) return null;
+  const valid = refs.every((ref: unknown, index: number) => {
+    const value = ref as Partial<MetricRawResponsesRef> | null;
+    return !!value && typeof value === 'object' && Object.keys(value).length === 6 && value.captureNumber === index + 1 && typeof value.sha256 === 'string' && SHA256.test(value.sha256) &&
+      typeof value.manifestSha256 === 'string' && SHA256.test(value.manifestSha256) && typeof value.stripped === 'boolean' &&
+      Number.isSafeInteger(value.byteSize) && value.byteSize! > 0 && Number.isSafeInteger(value.manifestByteSize) && value.manifestByteSize! > 0 &&
+      (value.stripped || (value.sha256 === value.manifestSha256 && value.byteSize === value.manifestByteSize));
+  });
+  return valid ? refs.map(ref => ({ ...ref as MetricRawResponsesRef })) : null;
+}
+
+// Same key families the capture adapter drops; a stored raw artifact never keeps them.
+const RAW_SECRET_KEY = /authorization|cookie|token|secret|password|credential|session|^account/i;
+function stripSecrets(value: unknown): { value: unknown; stripped: boolean } {
+  if (Array.isArray(value)) {
+    const items = value.map(stripSecrets);
+    return { value: items.map(item => item.value), stripped: items.some(item => item.stripped) };
+  }
+  if (!value || typeof value !== 'object') return { value, stripped: false };
+  let stripped = false;
+  const output: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (RAW_SECRET_KEY.test(key)) { stripped = true; continue; }
+    const next = stripSecrets(child);
+    stripped ||= next.stripped;
+    output[key] = next.value;
+  }
+  return { value: output, stripped };
+}
+
+/**
+ * Checks a capture's raw-responses.json against its manifest entry (sha256 and byte size) and
+ * returns the bytes to store: the same bytes, or canonical JSON without account/session/token
+ * fields when the capture still had any. A missing entry, a mismatch or unreadable JSON stops.
+ */
+export function verifyMetricRawResponses(captureNumber: 1 | 2, rawBytes: Buffer, manifestBytes: Buffer): MetricRawResponses {
+  const locator = `run${captureNumber}/raw-responses.json`;
+  const manifest = parseJson(manifestBytes, `run${captureNumber}/manifest.json`) as Partial<AutomationMetricResultsCaptureV1> | null;
+  const rawPath = manifest?.archive?.rawResponses;
+  const entry = typeof rawPath === 'string' && Array.isArray(manifest?.files) ? manifest.files.filter(file => file?.path === rawPath) : [];
+  if (entry.length !== 1 || !SHA256.test(entry[0]!.sha256) || !Number.isSafeInteger(entry[0]!.byteSize))
+    throw new MetricCaptureRejection('CAPTURE_RAW_MISMATCH', locator, 'no manifest entry');
+  if (rawBytes.byteLength !== entry[0]!.byteSize || hash(rawBytes) !== entry[0]!.sha256)
+    throw new MetricCaptureRejection('CAPTURE_RAW_MISMATCH', locator, 'sha256/byteSize');
+  if (rawBytes.byteLength > MAX_METRIC_CAPTURE_BYTES) throw new MetricCaptureRejection('CAPTURE_OVERSIZE', locator);
+  const clean = stripSecrets(parseJson(rawBytes, locator));
+  const bytes = clean.stripped ? json(clean.value) : rawBytes;
+  return { bytes, ref: { captureNumber, sha256: hash(bytes), byteSize: bytes.byteLength, manifestSha256: entry[0]!.sha256, manifestByteSize: entry[0]!.byteSize, stripped: clean.stripped } };
+}
+
 export type MetricCaptureRejectionCode =
   | 'CAPTURE_OVERSIZE' | 'CAPTURE_INVALID_JSON' | 'CAPTURE_SCHEMA_INVALID' | 'CAPTURE_MANIFEST_INVALID'
   | 'CAPTURE_GATE_NOT_CLEARED' | 'CAPTURE_DIGEST_MISMATCH' | 'CAPTURE_SCOPE_MISMATCH'
-  | 'CAPTURE_PRODUCTS_MISSING' | 'CAPTURE_INTEGRITY_FAILED';
+  | 'CAPTURE_PRODUCTS_MISSING' | 'CAPTURE_INTEGRITY_FAILED' | 'CAPTURE_RAW_MISMATCH';
 
 /** Closed input diagnostics for the capture boundary; no provider text crosses it. */
 export class MetricCaptureRejection extends Error {
@@ -164,7 +246,7 @@ export class AutomationMetricCaptureSourceIntake {
   }
 
   async prepare(input: ResearchAutomationMetricCapturePrepareRequest, snapshotBytes: Buffer, manifestBytes: Buffer,
-    bound: { readonly runId: string; readonly start: StartSnapshot; readonly scope: ScopeSnapshot; readonly searchScope?: readonly string[] }): Promise<ResearchAutomationMetricCapturePrepareReceipt> {
+    bound: { readonly runId: string; readonly start: StartSnapshot; readonly scope: ScopeSnapshot; readonly searchScope?: readonly string[]; readonly rawResponses?: readonly MetricRawResponsesRef[] }): Promise<ResearchAutomationMetricCapturePrepareReceipt> {
     const verified = verifyMetricCaptureArchive(snapshotBytes, manifestBytes, bound);
     // The capture can be uploaded before scope confirmation. Bind it to the
     // immutable run start, not the temporary empty/proposed scope used by the
@@ -179,12 +261,13 @@ export class AutomationMetricCaptureSourceIntake {
     const family = `metric-capture-${bound.runId}`;
     const provenanceBasis = 'Exact sanitized results-page capture supplied by the owner; the capture gate, page scope and snapshot digest were checked, but provider authenticity and market completeness are not independently established.';
     const lines = bound.searchScope?.length ? [...bound.searchScope] : null;
+    const raw = bound.rawResponses?.length ? bound.rawResponses.map(ref => ({ ...ref })) : null;
     const context = {
-      contractVersion: lines ? 'automation-metric-capture-context-v2' : 'automation-metric-capture-context-v1', request: input, provenance: METRIC_CAPTURE_SOURCE_LABEL,
+      contractVersion: raw ? CONTEXT_V3 : lines ? 'automation-metric-capture-context-v2' : 'automation-metric-capture-context-v1', request: input, provenance: METRIC_CAPTURE_SOURCE_LABEL,
       capture: verified.capture, snapshotSha256: hash(snapshotBytes), manifestSha256: hash(manifestBytes),
-      truncation: verified.capture.truncation, ...(lines ? { searchScope: { lines } } : {}),
+      truncation: verified.capture.truncation, ...(lines ? { searchScope: { lines } } : {}), ...(raw ? { rawResponses: raw } : {}),
     };
-    if (lines && !captureContextScopeLines(context)) throw new MetricCaptureRejection('CAPTURE_INTEGRITY_FAILED', CONTEXT_PATH, 'searchScope');
+    if (!captureContextReadable(context)) throw new MetricCaptureRejection('CAPTURE_INTEGRITY_FAILED', CONTEXT_PATH, raw ? 'rawResponses' : 'searchScope');
     const documents = [
       { path: SNAPSHOT_PATH, bytes: snapshotBytes, mediaType: 'application/json', representationRole: 'primary' as const, providerProvenance: 'provider_reported' as const, basis: provenanceBasis },
       { path: MANIFEST_PATH, bytes: manifestBytes, mediaType: 'application/json', representationRole: 'derived' as const, providerProvenance: 'provider_reported' as const, basis: provenanceBasis },

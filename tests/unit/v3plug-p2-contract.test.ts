@@ -18,7 +18,7 @@ import { CONTEXT_PATH, SNAPSHOT_PATH } from '../../src/modules/analysis/research
 import { runMetricCapture } from '../../src/modules/analysis/research-automation/metric-capture-runner.js';
 import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
 import { SourcePackageService } from '../../src/modules/foundation/source-package-service.js';
-import { autorun, captureFiles, driveUntil, fixture, untilIdle, workspaceId } from '../helpers/autorun-harness.js';
+import { autorun, captureFiles, driveUntil, fixture, untilIdle, withRawResponses, workspaceId } from '../helpers/autorun-harness.js';
 import zincRaw from '../fixtures/market-raw-series/zinc-30d-dev.raw-responses.json' with { type: 'json' };
 
 // Offline, synthetic category breakdowns and titles derived from the committed
@@ -117,7 +117,7 @@ async function scopeRun(t: TestContext, scenario: Scenario, transport?: KeywordL
       manifest.files[0] = { ...manifest.files[0], sha256: hash(snapshotBytes), byteSize: snapshotBytes.length };
       await mkdir(output, { recursive: true });
       await writeFile(join(output, 'snapshot.json'), snapshotBytes);
-      await writeFile(join(output, 'manifest.json'), JSON.stringify(manifest));
+      await writeFile(join(output, 'manifest.json'), withRawResponses(Buffer.from(JSON.stringify(manifest)), Buffer.from(JSON.stringify(raw))));
       await writeFile(join(output, 'raw-responses.json'), JSON.stringify(raw));
       return { child: { kill: () => true }, completion: Promise.resolve({ exitCode: 0, stdout: '[{"status":"READY"}]', stderr: '' }) };
     },

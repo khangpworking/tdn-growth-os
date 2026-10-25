@@ -36,14 +36,6 @@ export function captureFiles(runId: string, period: DatePeriod = capturePeriod) 
   snapshot.groups.W12_topProducts = { columns: ['name', 'shop', 'platform', 'revenue', 'units'],
     rows: [cell(0, 'Synthetic A', 'Shop A', 1200, 3), cell(1, 'Synthetic B', 'Shop B', 800, 2), cell(2, 'Synthetic C', 'Shop C', 500, 1)] };
   const snapshotBytes = Buffer.from(JSON.stringify(snapshot, null, 2) + '\n');
-  const manifest = { contractVersion: 'metric-results-capture-v1', captureId: snapshot.captureId, specDigest: snapshot.specDigest,
-    appliedFilters: { ...snapshot.scope, smartQuery: true, aiNormalisation: false, usefulFilters: { fake: false, gifts: true, deleted: false } }, resultCount: 3,
-    productPagination: { cap: 3, totalShown: 5, pageSize: 3, pagesRead: 1, rowsRead: 3, truncated: true },
-    metricDataVersion: 'metric-results-data-v2', chartSeries: { contractVersion: 'metric-results-data-v2',
-      series: [{ series: 'topProducts', platform: 'shopee', name: 'Synthetic A', revenue: 1200, units: 3, source: 'response:/v2/market/analytics/products' }],
-      trendOffered: false, trendNote: 'not offered by the source' },
-    views: [], sourceMap: {}, files: [{ path: 'snapshot.json', sha256: hash(snapshotBytes), byteSize: snapshotBytes.length, mediaType: 'application/json', role: 'normalized' }], screenshotSkips: [],
-    archive: { rawResponses: 'raw/', normalizedSnapshot: 'snapshot.json', resultsHtml: 'results.html', screenshots: [] }, noReportFileRequested: true, captureGate: { cleared: true } };
   // Three synthetic Shopee rows (different brands and shops) plus one unrelated row the pick must skip.
   // Rows carry units sold, as real search rows do; the pick rejects revenue rows without units.
   const rows = [
@@ -52,14 +44,35 @@ export function captureFiles(runId: string, period: DatePeriod = capturePeriod) 
     { product_base_id: '1__103__203', product_name: 'Synthetic jar set', shop_base_id: 'shop-c', revenue_custom: 1000, order_custom: 5, brand: 'Brand C' },
     { product_base_id: '1__104__204', product_name: 'Unrelated item', shop_base_id: 'shop-d', revenue_custom: 9000, order_custom: 30, brand: 'Brand D' },
   ];
-  return { snapshotBytes, manifestBytes: Buffer.from(JSON.stringify(manifest, null, 2) + '\n'), rawBytes: Buffer.from(JSON.stringify({ responses: [{ body: { data: rows } }] })) };
+  const rawBytes = Buffer.from(JSON.stringify({ responses: [{ body: { data: rows } }] }));
+  const manifest = { contractVersion: 'metric-results-capture-v1', captureId: snapshot.captureId, specDigest: snapshot.specDigest,
+    appliedFilters: { ...snapshot.scope, smartQuery: true, aiNormalisation: false, usefulFilters: { fake: false, gifts: true, deleted: false } }, resultCount: 3,
+    productPagination: { cap: 3, totalShown: 5, pageSize: 3, pagesRead: 1, rowsRead: 3, truncated: true },
+    metricDataVersion: 'metric-results-data-v2', chartSeries: { contractVersion: 'metric-results-data-v2',
+      series: [{ series: 'topProducts', platform: 'shopee', name: 'Synthetic A', revenue: 1200, units: 3, source: 'response:/v2/market/analytics/products' }],
+      trendOffered: false, trendNote: 'not offered by the source' },
+    views: [], sourceMap: {}, files: [{ path: 'snapshot.json', sha256: hash(snapshotBytes), byteSize: snapshotBytes.length, mediaType: 'application/json', role: 'normalized' }], screenshotSkips: [],
+    archive: { rawResponses: 'raw/', normalizedSnapshot: 'snapshot.json', resultsHtml: 'results.html', screenshots: [] }, noReportFileRequested: true, captureGate: { cleared: true } };
+  return { snapshotBytes, manifestBytes: Buffer.from(JSON.stringify(manifest, null, 2) + '\n'), rawBytes };
+}
+
+/**
+ * The manifest of a capture folder: as the capture adapter writes it, it lists raw-responses.json.
+ * `captureFiles` leaves that entry out so the frozen upload fixtures built from it keep their bytes.
+ */
+export function withRawResponses(manifestBytes: Uint8Array, rawBytes: Uint8Array): Buffer {
+  const manifest = JSON.parse(Buffer.from(manifestBytes).toString('utf8'));
+  manifest.archive.rawResponses = 'raw-responses.json';
+  manifest.files = [...manifest.files.filter((file: { path: string }) => file.path !== 'raw-responses.json'),
+    { path: 'raw-responses.json', sha256: hash(rawBytes), byteSize: rawBytes.length, mediaType: 'application/json', role: 'raw-responses' }];
+  return Buffer.from(JSON.stringify(manifest, null, 2) + '\n');
 }
 
 export async function writeCaptureFiles(dir: string, runId: string, period: DatePeriod = capturePeriod): Promise<void> {
   const files = captureFiles(runId, period);
   await fs.mkdir(dir, { recursive: true });
   await fs.writeFile(path.join(dir, 'snapshot.json'), files.snapshotBytes);
-  await fs.writeFile(path.join(dir, 'manifest.json'), files.manifestBytes);
+  await fs.writeFile(path.join(dir, 'manifest.json'), withRawResponses(files.manifestBytes, files.rawBytes));
   await fs.writeFile(path.join(dir, 'raw-responses.json'), files.rawBytes);
 }
 

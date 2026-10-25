@@ -103,7 +103,7 @@ import { AutomationI14SynthesisExecutions, type AutomationI14ExecutionRequest, t
 import type { ResearchAutomationMetricPrepareRequest, ResearchAutomationMetricPrepareReceipt, ResearchAutomationPreparedMetricList } from '../../../../contracts/api/research-automation-metric-intake-api.generated.js';
 import { AutomationMetricSourceIntake, MAX_METRIC_UPLOAD_BYTES } from './metric-source-intake.js';
 import type { ResearchAutomationMetricCapturePrepareRequest, ResearchAutomationMetricCapturePrepareReceipt, ResearchAutomationPreparedMetricCaptureList } from '../../../../contracts/api/research-automation-metric-capture-intake-api.generated.js';
-import { AutomationMetricCaptureSourceIntake, MAX_METRIC_CAPTURE_BYTES, MAX_METRIC_CAPTURE_TOTAL_BYTES, verifyMetricCaptureArchive, SNAPSHOT_PATH, MANIFEST_PATH, MetricCaptureRejection } from './metric-capture-intake.js';
+import { AutomationMetricCaptureSourceIntake, MAX_METRIC_CAPTURE_BYTES, MAX_METRIC_CAPTURE_TOTAL_BYTES, verifyMetricCaptureArchive, verifyMetricRawResponses, SNAPSHOT_PATH, MANIFEST_PATH, MetricCaptureRejection, type MetricRawResponsesRef } from './metric-capture-intake.js';
 import { autorunRequestKey, buildConfirmValue, buildPrepareValue, buildRevisionValue, deriveIncludeTerms, isAutorunCaptureStopCode, pickShopeeLinks, planCapturePeriod, sourceContextVi, type DatePeriod as AutorunPeriod } from './autorun-derive.js';
 import { METRIC_CAPTURE_DIRS, runMetricCapture, type MetricCaptureRequest, type MetricCaptureRunnerConfig, type MetricCaptureRunResult } from './metric-capture-runner.js';
 import { AUTORUN_SCOPE_RECORD_VERSION, answerKeyword2, captureTwoOk, categoryNotSelectable, chooseKeyword2, decideCategory, planScope, readCategoryShares, scopeLinesVi, titlePhraseCandidates, topRevenueTitles, usedScope,
@@ -1373,7 +1373,8 @@ export class ResearchAutomationService {
 
   /** An inert, run-bound intake for an already gate-cleared results-page capture. */
   /** `searchScope` is the auto-run's own scope lines; owner uploads never pass it. */
-  async prepareMetricCapture(workspaceId: string, runId: string, value: unknown, snapshotBytes: Uint8Array, manifestBytes: Uint8Array, searchScope: readonly string[] = []): Promise<ResearchAutomationMetricCapturePrepareReceipt> {
+  async prepareMetricCapture(workspaceId: string, runId: string, value: unknown, snapshotBytes: Uint8Array, manifestBytes: Uint8Array, searchScope: readonly string[] = [],
+    rawResponses: readonly MetricRawResponsesRef[] = []): Promise<ResearchAutomationMetricCapturePrepareReceipt> {
     assertUuid(workspaceId); assertUuid(runId);
     if (!validateMetricCapturePrepare(value) || !REQUEST_KEY.test(value.requestKey)) throw new ResearchAutomationValidationError('Invalid capture preparation request.');
     if (snapshotBytes.byteLength < 1 || snapshotBytes.byteLength > MAX_METRIC_CAPTURE_BYTES || manifestBytes.byteLength < 1 ||
@@ -1392,7 +1393,7 @@ export class ResearchAutomationService {
         : { contractVersion: 'research-automation-scope-snapshot-v1', workspaceId, runId, definition: '', includeTerms: [], excludeTerms: [], selectedProductIds: [], peerProductIds: [] };
       if (!row.scopeSha && !prior && ['FAILED', 'CANCELLED', 'INTERRUPTED', 'DRAFT_READY'].includes(current.status))
         throw new ResearchAutomationStateError('This terminal run cannot receive a new prepared capture.');
-      return this.#metricCaptureIntake!.prepare(input, Buffer.from(snapshotBytes), Buffer.from(manifestBytes), { runId, start, scope, ...(searchScope.length ? { searchScope } : {}) });
+      return this.#metricCaptureIntake!.prepare(input, Buffer.from(snapshotBytes), Buffer.from(manifestBytes), { runId, start, scope, ...(searchScope.length ? { searchScope } : {}), ...(rawResponses.length ? { rawResponses } : {}) });
     });
   }
 
@@ -5634,10 +5635,17 @@ export class ResearchAutomationService {
     if (!claimed) return progressed;
     const run = this.#current(runId)!;
     let snapshot: Buffer, manifest: Buffer, scope: AutorunScopeRecord | null;
+    // Raw responses of every capture this run made, capture 1 first: the report reads the used one; capture 1's stays for the trace.
+    let raw: { captureNumber: 1 | 2; bytes: Buffer; manifest: Buffer }[];
     try {
       scope = await this.#autorunScope(runId);
       const dir = this.#autorunCaptureDir(runId, scope);
       [snapshot, manifest] = await Promise.all([readFile(joinPath(dir, 'snapshot.json')), readFile(joinPath(dir, 'manifest.json'))]);
+      raw = [{ captureNumber: usedScope(scope)?.captureNumber ?? 1, bytes: await readFile(joinPath(dir, 'raw-responses.json')), manifest }];
+      if (raw[0]!.captureNumber === 2) {
+        const first = joinPath(this.#autoRun!.runner.captureRoot, runId, METRIC_CAPTURE_DIRS.first);
+        raw.unshift({ captureNumber: 1, bytes: await readFile(joinPath(first, 'raw-responses.json')), manifest: await readFile(joinPath(first, 'manifest.json')) });
+      }
     }
     catch { await this.#autorunStopRunning(runId, 'PREPARE', 'CAPTURE_FILES_MISSING'); return true; }
     let packageId: string;
@@ -5646,7 +5654,15 @@ export class ResearchAutomationService {
       const planned = planCapturePeriod(start.requestedPeriod);
       const period = autorunSnapshotPeriod(snapshot) ?? (planned.ok ? planned.period : start.requestedPeriod);
       const value = buildPrepareValue({ runId, expectedRevision: revision, sourceContext: sourceContextVi(usedScope(scope)?.keywords ?? start.keyword, period) });
-      packageId = (await this.prepareMetricCapture(run.workspaceId, runId, value, snapshot, manifest, scopeLinesVi(scope))).packageId;
+      const rawResponses: MetricRawResponsesRef[] = [];
+      for (const entry of raw) {
+        const verified = verifyMetricRawResponses(entry.captureNumber, entry.bytes, entry.manifest);
+        const stored = await this.#artifacts.put(verified.bytes);
+        if (stored.sha256 !== verified.ref.sha256 || stored.byteSize !== verified.ref.byteSize) throw new MetricCaptureRejection('CAPTURE_RAW_MISMATCH', 'stored raw-responses');
+        this.#registerManifest(stored, 'application/json', this.#now().toISOString());
+        rawResponses.push(verified.ref);
+      }
+      packageId = (await this.prepareMetricCapture(run.workspaceId, runId, value, snapshot, manifest, scopeLinesVi(scope), rawResponses)).packageId;
     } catch (error) {
       await this.#autorunStopRunning(runId, 'PREPARE', this.#autorunErrorCode(runId, error, 'CAPTURE_PREPARE_FAILED'));
       return true;
