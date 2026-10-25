@@ -292,12 +292,13 @@ test('W5 capture 2 supplies report values and artifact pointers while capture 1 
   assert.ok(rawEntries.length > 0, 'raw report numbers have trace entries');
   const used = JSON.parse((await f.artifacts.read(refs[1]!.sha256)).toString());
   for (const entry of rawEntries) for (const input of entry.inputs) {
+    assert.ok(!('store' in input), 'raw report numbers point at the raw-responses artifact');
     assert.equal(input.captureId, refs[1]!.sha256, 'trace names the capture 2 stored artifact');
     assert.notEqual(resolveMarketRawSource(used, input), undefined, 'each trace pointer resolves inside that artifact');
   }
   const shopee = rawEntries.find(entry => entry.token === '7,9 tỷ');
   assert.ok(shopee, 'capture 2 Shopee revenue is traced');
-  assert.deepEqual(shopee.inputs.map(input => resolveMarketRawSource(used, input)), [7_900_000_000]);
+  assert.deepEqual(shopee.inputs.map(input => 'store' in input ? undefined : resolveMarketRawSource(used, input)), [7_900_000_000]);
 });
 
 async function rebuild(f: ZincRun): Promise<Buffer> {
