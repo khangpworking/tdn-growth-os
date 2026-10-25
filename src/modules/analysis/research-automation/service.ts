@@ -252,6 +252,7 @@ import {
   type ScopeSnapshot,
   type SourceStepId,
   type StartSnapshot,
+  type StepNumberTraceGate,
   type StepResultDocument,
   type StepId,
   type StepState,
@@ -1715,13 +1716,12 @@ export class ResearchAutomationService {
     }
   }
 
-  async #pdfReadingsStepArtifact(runId: string, outcome: StepResultDocument['outcome']): Promise<StoredArtifact | null> {
+  async #pdfReadingsStepArtifact(runId: string, outcome: StepResultDocument['outcome'], numberTraceGate?: StepNumberTraceGate): Promise<StoredArtifact | null> {
     const row = this.#runQuotesRow(runId);
-    if (!row) return null;
-    const artifact = await this.#readJson<PageIndexQuotesArtifact>(row.sha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
-    if (artifact.documents === undefined) return null;
+    const documents = row ? (await this.#readJson<PageIndexQuotesArtifact>(row.sha, MAX_JSON_ARTIFACT_BYTES, 'application/json')).documents : undefined;
+    if (documents === undefined && !numberTraceGate) return null;
     const step: StepResultDocument = { contractVersion: 'research-automation-step-result-v1', runId, stepId: 'REPORTS',
-      outcome, productCards: [], comparables: [], coverage: [], limitations: [], pdfReadings: artifact.documents };
+      outcome, productCards: [], comparables: [], coverage: [], limitations: [], ...(documents !== undefined ? { pdfReadings: documents } : {}), ...(numberTraceGate ? { numberTraceGate } : {}) };
     assertStepDocument(step, runId, 'REPORTS');
     return this.#putJson(step, this.#now().toISOString());
   }
@@ -4302,13 +4302,13 @@ export class ResearchAutomationService {
     } catch (error) {
       logReportFailure(row.runId, 'RENDER', error);
       // A blocked number trace keeps its machine-readable result (untraced numbers with block and context) as a stored artifact of the run.
-      if (error instanceof MarketNumberTraceBlockedError) await this.#keepNumberTraceResult(row.runId, error);
+      const numberTraceGate = error instanceof MarketNumberTraceBlockedError ? await this.#keepNumberTraceResult(row.runId, error) : undefined;
       if (attempt) { await this.#settleAttempt(attempt.attemptId, controller.signal.aborted ? 'CANCELLED' : 'FAILED'); return true; }
       const current = this.#current(row.runId);
       if (!current || TERMINAL_STATUSES.has(current.status)) return true;
       const failureCode = error instanceof MarketSourceWindowsMissingError ? marketSourceWindowsMissingCode(error.products)
         : error instanceof MarketNumberTraceBlockedError ? MARKET_NUMBER_TRACE_BLOCKED : 'REPORT_RENDER_FAILED';
-      await this.#settleSourceFailure(row.runId, 'REPORTS', controller.signal.aborted ? 'CANCELLED_DURING_REPORT_RENDERING' : failureCode, controller.signal.aborted ? 'CANCELLED' : 'FAILED');
+      await this.#settleSourceFailure(row.runId, 'REPORTS', controller.signal.aborted ? 'CANCELLED_DURING_REPORT_RENDERING' : failureCode, controller.signal.aborted ? 'CANCELLED' : 'FAILED', undefined, numberTraceGate);
       return true;
     }
     const beforeSave = this.#current(row.runId);
@@ -4709,9 +4709,9 @@ export class ResearchAutomationService {
   }
 
   /** `unsettledProvider`: the provider of a product call that threw, recorded as one UNKNOWN row (ordinal 0) with the step. */
-  async #settleSourceFailure(runId: string, stepId: SourceStepId | 'REPORTS', code: string, state: 'FAILED' | 'CANCELLED' | 'SKIPPED', unsettledProvider?: string): Promise<void> {
+  async #settleSourceFailure(runId: string, stepId: SourceStepId | 'REPORTS', code: string, state: 'FAILED' | 'CANCELLED' | 'SKIPPED', unsettledProvider?: string, numberTraceGate?: StepNumberTraceGate): Promise<void> {
     const at = this.#now().toISOString();
-    const artifact = stepId === 'REPORTS' && state !== 'SKIPPED' ? await this.#pdfReadingsStepArtifact(runId, state) : null;
+    const artifact = stepId === 'REPORTS' && state !== 'SKIPPED' ? await this.#pdfReadingsStepArtifact(runId, state, numberTraceGate) : null;
     await withDatabaseMutationMutex(this.#db, async () => {
       this.#db.transaction(() => {
         const current = this.#current(runId); if (!current) return;
@@ -5920,15 +5920,21 @@ export class ResearchAutomationService {
     this.#db.prepare(`UPDATE research_automation_autorun SET phase_state='QUEUED',updated_at=? WHERE run_id=? AND phase='PRESENT' AND phase_state='RUNNING'`).run(at, runId);
   }
 
-  /** Stores the number-trace gate result of a blocked draft; the operator log names it with the run. A failed store is logged, never thrown. */
-  async #keepNumberTraceResult(runId: string, error: MarketNumberTraceBlockedError): Promise<void> {
+  /**
+   * Stores the number-trace gate result of a blocked draft and returns where it is, for the REPORTS step result of the run;
+   * the operator log names it too. A failed store is logged, never thrown.
+   */
+  async #keepNumberTraceResult(runId: string, error: MarketNumberTraceBlockedError): Promise<StepNumberTraceGate | undefined> {
     try {
       const at = this.#now().toISOString(), artifact = await this.#putJson(error.numberTrace, at);
       this.#registerManifest(artifact, 'application/json', at);
-      console.error(JSON.stringify({ event: 'research_automation_number_trace_blocked', runId, code: MARKET_NUMBER_TRACE_BLOCKED, resultSha256: artifact.sha256,
-        coveredUntraced: error.numberTrace.coveredUntraced, mismatches: error.numberTrace.mismatches.length }));
+      const gate: StepNumberTraceGate = { gateVersion: error.numberTrace.contractVersion, resultSha256: artifact.sha256, resultPath: artifact.relativePath,
+        coveredUntraced: error.numberTrace.coveredUntraced, mismatches: error.numberTrace.mismatches.length };
+      console.error(JSON.stringify({ event: 'research_automation_number_trace_blocked', runId, code: MARKET_NUMBER_TRACE_BLOCKED, ...gate }));
+      return gate;
     } catch (storeError) {
       logReportFailure(runId, 'RENDER', storeError);
+      return undefined;
     }
   }
   async #putJson(value: unknown, _at: string): Promise<StoredArtifact> {
@@ -6331,6 +6337,9 @@ function assertStepDocument(value: unknown, runId: string, stepId: StepId): asse
   const outcomes = new Set(['SUCCEEDED', 'PARTIAL', 'UNAVAILABLE', 'FAILED', 'CANCELLED', 'INTERRUPTED']);
   if (!isRecord(value) || value.contractVersion !== 'research-automation-step-result-v1' || value.runId !== runId || value.stepId !== stepId || !outcomes.has(String(value.outcome)) ||
       !Array.isArray(value.productCards) || !Array.isArray(value.comparables) || !Array.isArray(value.coverage) || !Array.isArray(value.limitations)) throw new ResearchAutomationIntegrityError('Stored step result has inconsistent identity.');
+  if (value.numberTraceGate !== undefined && (stepId !== 'REPORTS' || !isRecord(value.numberTraceGate) || !/^[a-f0-9]{64}$/.test(String(value.numberTraceGate.resultSha256)) ||
+    typeof value.numberTraceGate.resultPath !== 'string' || typeof value.numberTraceGate.gateVersion !== 'string' ||
+    !Number.isSafeInteger(value.numberTraceGate.coveredUntraced) || !Number.isSafeInteger(value.numberTraceGate.mismatches))) throw new ResearchAutomationIntegrityError('Stored step result has an invalid number-trace gate.');
   if (value.pdfReadings !== undefined && (stepId !== 'REPORTS' || !Array.isArray(value.pdfReadings) || value.pdfReadings.some(item =>
     !isRecord(item) || !/^[a-f0-9]{64}$/.test(String(item.sourceSha256)) ||
     !['READ', 'NOT_READY_AFTER_WAIT', 'INDEX_FAILED', 'NOT_UPLOADED', 'PAUSED', 'NO_QUESTION_PLANNED', 'NO_QUESTION_BUDGET', 'QUESTION_FAILED', 'NOT_VERIFIED', 'LOCAL_READ_FAILED', 'STATUS_FAILED', 'CANCELLED'].includes(String(item.state)) ||

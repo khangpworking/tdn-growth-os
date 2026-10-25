@@ -91,6 +91,12 @@ function concentration(scope: Scope, result: MetricScopeOutput, citations: Repor
  */
 const retainedSourceName = (value: string): string => `<q data-quote>${escape(value)}</q>`;
 
+/** A quoted source name is still scanned by the number-trace gate (P5): each number in it is recorded against its stored cell. */
+const tracedSourceName = (value: string, blockId: string, input: MarketTraceInput | undefined): string => {
+  if (input) for (const number of marketNumberTokens(value)) traceMarketNumber(number, blockId, 'raw', [input], 'number as written in the quoted source text', 'as-stored');
+  return retainedSourceName(value);
+};
+
 /** C8: the title span used for the report's pack kind, or why the row is not converted. */
 const quantityCell = (title: string | null | undefined, revenue: string | null, units: string | null, platform: string, unitProfile: UnitProfile | null,
   source?: { readonly sourceSha256: string; readonly locator: string }): string => {
@@ -290,8 +296,8 @@ function captureMetricMethodSection(snapshot: AutomationMetricMethodSnapshot, se
       const sourceMarks = readerPlainText ? [...new Set(marks)].join(' ') : marks.join('<br>');
       // Current reader: a stable per-platform row ref leads the row and the unit lives only in the header.
       return currentReader
-        ? `<tr data-row-ref="${escape(captureRowRef(platform, index))}"><td>${escape(platformLabel(platform))}</td><td class="row-ref">${escape(captureRowRefLabel(index))}</td><td>${retainedSourceName(row.title)}</td><td>${cell(row.revenue, '', `M03.capture.${platform}.rows.revenue`)}</td><td>${cell(row.units, '', `M03.capture.${platform}.rows.units`)}</td><td>${quantityCell(row.title, row.revenue.value, row.units.value, platform, unitProfile, row.source)}</td><td>${sourceMarks}</td></tr>`
-        :`<tr><td>${escape(platformLabel(platform))}</td><td>${retainedSourceName(row.title)}</td><td>${cell(row.revenue, 'VND', `M03.capture.${platform}.rows.revenue`)}</td><td>${cell(row.units, '', `M03.capture.${platform}.rows.units`)}</td><td>${sourceMarks}</td></tr>`;
+        ? `<tr data-row-ref="${escape(captureRowRef(platform, index))}"><td>${escape(platformLabel(platform))}</td><td class="row-ref">${escape(captureRowRefLabel(index))}</td><td>${tracedSourceName(row.title, `M03.capture.${platform}.rows.title`, row.source ? storedInput('capture-table', row.source.sourceSha256, row.source.locator, row.title) : undefined)}</td><td>${cell(row.revenue, '', `M03.capture.${platform}.rows.revenue`)}</td><td>${cell(row.units, '', `M03.capture.${platform}.rows.units`)}</td><td>${quantityCell(row.title, row.revenue.value, row.units.value, platform, unitProfile, row.source)}</td><td>${sourceMarks}</td></tr>`
+        :`<tr><td>${escape(platformLabel(platform))}</td><td>${tracedSourceName(row.title, `M03.capture.${platform}.rows.title`, row.source ? storedInput('capture-table', row.source.sourceSha256, row.source.locator, row.title) : undefined)}</td><td>${cell(row.revenue, 'VND', `M03.capture.${platform}.rows.revenue`)}</td><td>${cell(row.units, '', `M03.capture.${platform}.rows.units`)}</td><td>${sourceMarks}</td></tr>`;
     });
     const headers = currentReader
       ? ['Nền tảng', CAPTURE_ROW_REF_HEADER, 'Tên trên bảng kết quả', 'Doanh thu (VND)', OFFER_UNITS_HEADER, 'Quy cách', 'Nguồn']
@@ -306,7 +312,7 @@ function captureMetricMethodSection(snapshot: AutomationMetricMethodSnapshot, se
       return `<h3>${escape(platformLabel(platform))}</h3>${platformSummary(platform, null)}${notice ? `<p>${escape(notice)}</p>` : ''}`;
     }).join('');
   const unknown = capture.unattributedRows.length
-    ? `<h3>Phụ lục: dòng không gán được sàn</h3><p>${currentReader ? `${capture.unattributedRows.length} dòng sau` : 'Các dòng sau'} không nêu được sàn, được đánh mã nội bộ ổn định trong bản lưu và <strong>không cộng vào Shopee hoặc TikTok Shop</strong>.</p>${table('Dòng không gán được sàn', ['Dòng nguồn', 'Tên trên bảng kết quả', 'Gian hàng', 'Doanh thu (VND)', ...(currentReader ? [OFFER_UNITS_HEADER, 'Quy cách'] : ['Sản lượng'])], capture.unattributedRows.map((row, index) => `<tr><td>${escape(readerProductLabel(row.listingId, null, index + 1))}</td><td>${retainedSourceName(row.title)}</td><td>${retainedSourceName(row.shop)}</td><td>${unattributedCell(row, 'revenue', currentReader ? '' : 'VND')}</td><td>${unattributedCell(row, 'units', '')}</td>${currentReader ? `<td>${quantityCell(row.title, row.revenue, row.units, '', unitProfile)}</td>` : ''}</tr>`))}`
+    ? `<h3>Phụ lục: dòng không gán được sàn</h3><p>${currentReader ? `${count(capture.unattributedRows.length, 'M03.capture.unattributed.rows', tableRows(capture.unattributedRows), 'count(rows without a platform)')} dòng sau` : 'Các dòng sau'} không nêu được sàn, được đánh mã nội bộ ổn định trong bản lưu và <strong>không cộng vào Shopee hoặc TikTok Shop</strong>.</p>${table('Dòng không gán được sàn', ['Dòng nguồn', 'Tên trên bảng kết quả', 'Gian hàng', 'Doanh thu (VND)', ...(currentReader ? [OFFER_UNITS_HEADER, 'Quy cách'] : ['Sản lượng'])], capture.unattributedRows.map((row, index) => `<tr><td>${escape(readerProductLabel(row.listingId, null, index + 1))}</td><td>${tracedSourceName(row.title, 'M03.capture.unattributed.title', storedInput('capture-table', id, `/groups/W12_topProducts/rows/${row.rowIndex}/title`, row.title))}</td><td>${tracedSourceName(row.shop, 'M03.capture.unattributed.shop', storedInput('capture-table', id, `/groups/W12_topProducts/rows/${row.rowIndex}/shop`, row.shop))}</td><td>${unattributedCell(row, 'revenue', currentReader ? '' : 'VND')}</td><td>${unattributedCell(row, 'units', '')}</td>${currentReader ? `<td>${quantityCell(row.title, row.revenue, row.units, '', unitProfile)}</td>` : ''}</tr>`))}`
     : currentReader ? '' : readerPlainText ? '<p>Mọi dòng đều đã gán sàn.</p>' : '<p>Không có dòng không gán được sàn.</p>';
   const truncation = capture.capture.truncation;
   const measured = capture.capture.measurementPeriod;

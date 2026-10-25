@@ -8,7 +8,7 @@ Hệ thống SHALL chạy cổng Market trên HTML nháp loại `MARKET` và tr�
   - `reader-report-build-v1.2`: cổng Market (không trình bày, có U13), rồi 14 quy tắc; U13 kiểm hai cách đọc thẻ nội dòng cũ trong một lần gọi. Cổng dùng kết quả nối từ; lint Reader dùng lại kết quả đọc HTML thô (`visibleTextResults`), giữ nguyên kết luận và nơi báo lỗi. U13 không chạy lại trong lint Reader.
   Lý do bằng lời: RA `market-check-reasons.ts` (`marketCheckReasons`, `readerLintReasons`), mỗi mã một câu. Cổng: RA `market-business-gate.ts` (`auditMarketReportHtml`, `assertMarketBusinessGate`). Lint chữ nhìn thấy: `src/modules/analysis/report-visible-text-lint.ts` (`lintVisibleReportText`), đọc chữ ẩn và trích dẫn qua `src/modules/analysis/report-visible-text.ts`. Danh sách tên cấm: `report-language` (R-L01).
 - Mã kiểm: `src/modules/analysis/research-automation/market-report-check.ts` (`checkMarketReport`, `assertMarketReport`)
-- Dò số: RA `market-number-trace.ts` (`checkMarketNumberTrace`): cắt số trên trang đọc (bỏ CSS, thuộc tính, chữ ẩn, `<head>`, `details`, M13 và danh sách nguồn); so với bản đồ số RA `market-trace-map.ts` (`market-number-trace-v2`) theo phần, mỗi lần in một dòng; tính lại mỗi dòng bằng bảng công thức `MARKET_TRACE_FORMULAS`, cùng cách làm tròn và định dạng của mẫu; số mẫu cố định trong `MARKET_TRACE_ALLOWED`, mỗi mục có lý do. Phần chưa phủ `MARKET_TRACE_NOT_COVERED` (M05, M06, M08, M09, M10, M11): được đếm và liệt kê, chưa chặn. Kết quả cổng nằm trong semantic của báo cáo (`marketNumberTraceGate`); khi bị chặn, RA `service.ts` lưu kết quả thành tệp JSON và ghi mã dừng.
+- Dò số: RA `market-number-trace.ts` (`checkMarketNumberTrace`): cắt số trên trang đọc (bỏ CSS, thuộc tính, chữ ẩn, `<head>`, M13 và danh sách nguồn; số trong trích dẫn nguyên văn `<q>`, `blockquote`, `data-quote` và trong `<details>` vẫn được đọc như mọi số khác); so với bản đồ số RA `market-trace-map.ts` (`market-number-trace-v2`) theo phần, mỗi lần in một dòng; tính lại mỗi dòng bằng bảng công thức `MARKET_TRACE_FORMULAS`, cùng cách làm tròn và định dạng của mẫu; số mẫu cố định trong `MARKET_TRACE_ALLOWED`, mỗi mục có lý do; loại thẻ không tự cho phép số: chữ của thẻ phải đúng một chuỗi mẫu cố định (ví dụ `[3]`, «Bảng 3.1», «Dòng 2»). Phần chưa phủ `MARKET_TRACE_NOT_COVERED` (M05, M06, M08, M09, M10, M11): được đếm và liệt kê, chưa chặn. Kết quả cổng nằm trong semantic của báo cáo (`marketNumberTraceGate`); khi bị chặn, RA `service.ts` lưu kết quả thành tệp JSON, ghi mã dừng, và kết quả bước REPORTS của lần chạy (`numberTraceGate`: sha256, đường dẫn tệp, số chưa truy được, số dòng tính lại sai) chỉ tới tệp đó.
 - Mã cổng và quy tắc: xem R-M15 đến R-M26.
 - Kiểm thử: `tests/unit/gate-209-market-business.test.ts`, `tests/integration/gate-209-market-business.test.ts`, `tests/integration/gate-209-reader-revision.test.ts`, `tests/unit/c2-market-check-characterization.test.ts`.
 - Vì sao: đánh giá kiến trúc c2, chủ duyệt 24/10/2026: một chỗ kiểm cho bản nháp và bản đọc; bản cũ giữ bộ kiểm cũ; chủ thấy lý do bằng lời (Q2). Bước dò số: kế hoạch chủ F201, 25/10/2026 («thêm cổng máy dò số»), thay cho việc soát số bằng tay mỗi lần chạy.
@@ -28,6 +28,14 @@ Hệ thống SHALL chạy cổng Market trên HTML nháp loại `MARKET` và tr�
 #### Scenario: Số viết tay ở phần đã phủ
 - **WHEN** bản nháp Market có bản đồ số và phần M03 in «36,2 tỷ» không có dòng nào trong bản đồ số
 - **THEN** lần dựng lỗi với mã `MARKET_NUMBER_TRACE_FAILED:N01_UNTRACED_NUMBER`, kết quả cổng liệt kê số, phần và ngữ cảnh
+
+#### Scenario: Số trong trích dẫn hoặc phần mở rộng
+- **WHEN** phần M03 in một số trong `<q data-quote>` hoặc trong `<details>` mà không có dòng nào trong bản đồ số
+- **THEN** số đó bị tính là chưa truy được và lần dựng lỗi với mã `MARKET_NUMBER_TRACE_FAILED:N01_UNTRACED_NUMBER`
+
+#### Scenario: Lần chạy bị chặn giữ kết quả cổng
+- **WHEN** bước dò số chặn một lần chạy Market
+- **THEN** bước REPORTS ghi mã `MARKET_NUMBER_TRACE_BLOCKED` và kết quả bước có `numberTraceGate` với sha256 và đường dẫn tệp kết quả cổng
 
 #### Scenario: Tính lại không ra số in
 - **WHEN** một dòng phần trăm thay đổi của bản đồ số có số kỳ trước sai, nên tính lại không ra số in

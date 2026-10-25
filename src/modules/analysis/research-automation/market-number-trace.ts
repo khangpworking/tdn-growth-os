@@ -43,7 +43,6 @@ export const MARKET_TRACE_ALLOWED: Readonly<Record<string, string>> = {
   'row-label': 'row label of the stored sample table («Dòng 3»)',
   citation: 'citation numbers and source-register entries',
   'axis-tick': 'axis scale mark placed by the chart engine; the plotted values are traced in the table or text beside it',
-  'quoted-text': 'source text quoted verbatim (product titles), cited by its source mark',
   'index-scale': 'fixed 0–100 scale of the search-interest index',
   'top-group': 'group size of the template’s leading-product and leading-shop shares (TOP_GROUPS 1/3/5/10)',
   'pack-default': 'template rule: a title without a pack size counts as 1 product',
@@ -88,16 +87,21 @@ export interface MarketScannedNumber {
   readonly allowed?: string;
 }
 
-interface Frame { readonly tag: string; readonly hidden: boolean; readonly appendix: boolean; readonly allowed?: string; readonly block?: string }
+interface ElementAllowance { readonly id: string; readonly text?: RegExp }
+interface Frame { readonly tag: string; readonly hidden: boolean; readonly appendix: boolean; readonly allowed?: ElementAllowance; readonly block?: string }
 
-const ELEMENT_ALLOWED = (tag: string, attrs: ReadonlyMap<string, string>): string | undefined => {
+/**
+ * Template marks the report prints in its own elements. The element alone never allows a number:
+ * its whole text must be the fixed template string (a quoted or disclosed number is still scanned).
+ */
+const ELEMENT_ALLOWED = (tag: string, attrs: ReadonlyMap<string, string>): ElementAllowance | undefined => {
   const classes = new Set((attrs.get('class') ?? '').split(/\s+/u).filter(Boolean));
-  if (tag === 'q' || tag === 'blockquote' || attrs.has('data-quote')) return 'quoted-text';
-  if (classes.has('cite') || [...classes].some(name => name.startsWith('cite-'))) return 'citation';
-  if (classes.has('sh-id')) return 'section-label';
-  if (classes.has('exn')) return 'exhibit-label';
-  if (classes.has('row-ref')) return 'row-label';
-  if (classes.has('role-axis-label')) return 'axis-tick';
+  if (classes.has('cite') || classes.has('cite-number')) return { id: 'citation', text: /^\[\d+\]$/u };
+  if (classes.has('sh-id')) return { id: 'section-label', text: /^(?:(?:Phần|Phụ lục)\s+\d+|M\d{2})$/u };
+  if (classes.has('exn')) return { id: 'exhibit-label', text: /^(?:Hình|Bảng)\s+(?:PL\.)?\d+(?:\.\d+)*$/u };
+  if (classes.has('row-ref')) return { id: 'row-label', text: /^Dòng\s+\d+$/u };
+  // Chart-engine scale marks: only a bare number counts as a tick (a date or category label stays data).
+  if (classes.has('role-axis-label')) return { id: 'axis-tick' };
   return undefined;
 };
 
@@ -117,7 +121,8 @@ export function scanMarketReportNumbers(html: string): MarketScannedNumber[] {
       const labels: { start: number; end: number; id: string }[] = [];
       for (const [pattern, id] of LABELS) for (const match of text.matchAll(pattern)) labels.push({ start: match.index, end: match.index + match[0].length, id });
       const block = stack.findLast(frame => frame.block)?.block ?? 'page';
-      const element = stack.findLast(frame => frame.allowed)?.allowed;
+      const allowance = stack.findLast(frame => frame.allowed)?.allowed;
+      const element = allowance && (!allowance.text || allowance.text.test(text.replace(/[\s\u00a0]+/gu, ' ').trim())) ? allowance.id : undefined;
       for (const match of text.matchAll(NUMBER)) {
         const token = normalizeMarketNumber(match[0]);
         const label = labels.find(span => match.index >= span.start && match.index < span.end)?.id;
@@ -138,11 +143,12 @@ export function scanMarketReportNumbers(html: string): MarketScannedNumber[] {
     const classes = (attrs.get('class') ?? '').split(/\s+/u);
     const id = attrs.get('id') ?? '';
     const block = tag === 'section' && classes.includes('sheet') && id ? id : undefined;
+    const allowed = ELEMENT_ALLOWED(tag, attrs);
     stack.push({
       tag,
       hidden: Boolean(top?.hidden) || hiddenElement(tag, attrs),
-      appendix: Boolean(top?.appendix) || tag === 'details' || tag === 'head' || (block !== undefined && APPENDIX_SECTIONS.has(block)) || classes.some(name => APPENDIX_CLASSES.has(name)),
-      ...(ELEMENT_ALLOWED(tag, attrs) ? { allowed: ELEMENT_ALLOWED(tag, attrs)! } : {}),
+      appendix: Boolean(top?.appendix) || tag === 'head' || (block !== undefined && APPENDIX_SECTIONS.has(block)) || classes.some(name => APPENDIX_CLASSES.has(name)),
+      ...(allowed ? { allowed } : {}),
       ...(block ? { block } : {}),
     });
   }

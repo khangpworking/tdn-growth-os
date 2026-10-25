@@ -530,6 +530,15 @@ export interface StepPdfDiscovery {
   readonly readState?: 'NOT_READ_IN_TIME' | 'NOT_READ';
 }
 
+/** Where a blocked run's number-trace gate result is stored, with its headline counts. */
+export interface StepNumberTraceGate {
+  readonly gateVersion: string;
+  readonly resultSha256: string;
+  readonly resultPath: string;
+  readonly coveredUntraced: number;
+  readonly mismatches: number;
+}
+
 /** Normalized step outcome retained as canonical JSON; raw bytes are separate capture artifacts. */
 export interface StepResultDocument {
   readonly publicReviewAcquisition?: import('../../../platform/collectors/shopee-public-reviews.js').PublicReviewStage;
@@ -539,6 +548,8 @@ export interface StepResultDocument {
   readonly runId: string;
   readonly stepId: StepId;
   readonly pdfReadings?: readonly import('../pageindex-questions.js').PageIndexDocumentReading[];
+  /** REPORTS step blocked by the Market number-trace gate (P5): the stored gate result, findable from the run without the operator log. */
+  readonly numberTraceGate?: StepNumberTraceGate;
   readonly outcome: 'SUCCEEDED' | 'PARTIAL' | 'UNAVAILABLE' | 'FAILED' | 'CANCELLED' | 'INTERRUPTED';
   readonly productCards: readonly ResearchAutomationProductCard[];
   readonly comparables: readonly TypedComparable[];
