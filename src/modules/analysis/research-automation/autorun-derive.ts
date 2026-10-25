@@ -25,6 +25,7 @@ const CAPTURE_STOP_CODE_SET: Readonly<Record<MetricCaptureStopCode, true>> = {
   METRIC_FILTER_MISMATCH: true, METRIC_ROW_CAP: true, METRIC_SEARCH_NOT_APPLIED: true, BRIDGE_DISCONNECTED: true,
   EXECUTOR_DISABLED: true, TIMEOUT: true, MANIFEST_HASH_MISMATCH: true, EXECUTOR_NOT_CONFIGURED: true,
   PERIOD_OUTSIDE_RUN: true, CAPTURE_INTERRUPTED: true, CAPTURE_INPUT_INVALID: true, CAPTURE_IO_FAILED: true,
+  CAPTURE_SMART_QUERY_OFF: true,
 };
 /** CAPTURE-family stop codes: the only stops the owner's "Thử lại" may re-run. */
 export const AUTORUN_CAPTURE_STOP_CODES: readonly MetricCaptureStopCode[] = Object.freeze(Object.keys(CAPTURE_STOP_CODE_SET) as MetricCaptureStopCode[]);
@@ -141,18 +142,37 @@ export function decidePeriodRetry(executorMessage: string, requested: DatePeriod
 // Capture spec
 // ---------------------------------------------------------------------------
 
+/** At most this many confirmed scope terms are sent as capture keywords. */
+export const AUTORUN_MAX_CAPTURE_KEYWORDS = 2;
+
 export interface MetricCaptureSpec {
-  readonly keywords: readonly [string];
+  readonly keywords: readonly [string] | readonly [string, string];
   readonly platforms: readonly ['shopee', 'tiktok'];
   readonly period: DatePeriod;
   readonly category: null;
+  /** Always on: with it off the page matches only the exact phrase. */
+  readonly smartQuery: true;
 }
 
-export function buildCaptureSpec(keyword: string, period: DatePeriod): MetricCaptureSpec {
-  const normalized = keyword.normalize('NFC').trim();
-  if (!normalized) throw new RangeError('capture keyword is empty');
+/**
+ * Keywords are the first two terms in the given order, deduplicated after
+ * NFC, trim, whitespace collapse and lowercase; the first spelling is kept.
+ */
+export function buildCaptureSpec(terms: string | readonly string[], period: DatePeriod): MetricCaptureSpec {
+  const keywords: string[] = [];
+  const seen = new Set<string>();
+  for (const term of typeof terms === 'string' ? [terms] : terms) {
+    const normalized = typeof term === 'string' ? term.normalize('NFC').trim().replace(/\s+/gu, ' ') : '';
+    const key = normalized.toLowerCase();
+    if (!normalized || seen.has(key)) continue;
+    seen.add(key);
+    keywords.push(normalized);
+    if (keywords.length === AUTORUN_MAX_CAPTURE_KEYWORDS) break;
+  }
+  if (keywords.length === 0) throw new RangeError('capture keyword is empty');
   if (!isPeriod(period)) throw new RangeError('capture period is invalid');
-  return { keywords: [normalized], platforms: ['shopee', 'tiktok'], period: { startDate: period.startDate, endDate: period.endDate }, category: null };
+  return { keywords: keywords as unknown as MetricCaptureSpec['keywords'], platforms: ['shopee', 'tiktok'],
+    period: { startDate: period.startDate, endDate: period.endDate }, category: null, smartQuery: true };
 }
 
 // ---------------------------------------------------------------------------

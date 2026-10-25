@@ -38,7 +38,8 @@ export interface MetricCaptureRequest {
 }
 
 export type MetricCaptureStopCode =
-  | MetricOpenCliCode | 'EXECUTOR_NOT_CONFIGURED' | 'PERIOD_OUTSIDE_RUN' | 'CAPTURE_INTERRUPTED' | 'CAPTURE_INPUT_INVALID' | 'CAPTURE_IO_FAILED';
+  | MetricOpenCliCode | 'EXECUTOR_NOT_CONFIGURED' | 'PERIOD_OUTSIDE_RUN' | 'CAPTURE_INTERRUPTED' | 'CAPTURE_INPUT_INVALID' | 'CAPTURE_IO_FAILED'
+  | 'CAPTURE_SMART_QUERY_OFF';
 
 export type MetricCaptureRunResult =
   | { readonly ok: true; readonly captureDir: string; readonly period: DatePeriod; readonly executorCalls: number }
@@ -86,6 +87,14 @@ async function moveAside(dir: string): Promise<void> {
 async function writeSpec(path: string, spec: unknown): Promise<void> {
   await writeFile(path, `${JSON.stringify(spec, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
   await chmod(path, 0o600); // mode only applies on create; a rewritten spec keeps 0600 too.
+}
+
+/** The Smart query toggle the adapter read back into the capture manifest; false when absent or unreadable. */
+async function smartQueryApplied(outputDir: string): Promise<boolean> {
+  try {
+    const manifest = JSON.parse(await readFile(join(outputDir, 'manifest.json'), 'utf8')) as { appliedFilters?: { smartQuery?: unknown } };
+    return manifest.appliedFilters?.smartQuery === true;
+  } catch { return false; }
 }
 
 function stop(code: MetricCaptureStopCode, detail: string, executorCalls: number): MetricCaptureRunResult {
@@ -136,7 +145,11 @@ export async function runMetricCapture(config: MetricCaptureRunnerConfig, reques
         timeoutMs: METRIC_CAPTURE_TIMEOUT_MS, env,
       }, { readManifest, runProcess });
       if (signal?.aborted) return interrupted(calls);
-      if (result.ok) return { ok: true, captureDir: outputDir, period, executorCalls: calls };
+      if (result.ok) {
+        // The spec asked for Smart query; a capture without it read back on is not the requested search.
+        if (spec.smartQuery && !(await smartQueryApplied(outputDir))) return stop('CAPTURE_SMART_QUERY_OFF', 'capture stopped: CAPTURE_SMART_QUERY_OFF', calls);
+        return { ok: true, captureDir: outputDir, period, executorCalls: calls };
+      }
       if (result.code !== 'METRIC_PERIOD_UNSUPPORTED' || calls >= MAX_EXECUTOR_CALLS) return stop(result.code, detailFor(result), calls);
       const decision = decidePeriodRetry(result.message, request.requestedPeriod, period);
       if (!decision.retry) {
