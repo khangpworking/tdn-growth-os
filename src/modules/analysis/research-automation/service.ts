@@ -4830,7 +4830,8 @@ export class ResearchAutomationService {
     let keyword2Suggestion: ResearchAutomationAutoRun['keyword2Suggestion'];
     if (row.phase === 'STOPPED' && row.stopCode === AUTORUN_KEYWORD2_WAIT && run.status === 'AWAITING_SCOPE' && this.#autoRun) {
       const scope = await this.#autorunScope(run.runId);
-      const chosen = scope?.capture2?.outcome === 'AWAITING_KEYWORD2' ? scope.keyword2.chosen : null;
+      // The database wait is authoritative: scope.json may contain an answer whose ledger write failed.
+      const chosen = scope?.keyword2.chosen;
       if (scope && chosen) keyword2Suggestion = { keyword1: scope.keyword1, term: chosen.term, titles: chosen.titles, titleCount: scope.keyword2.titleCount, brands: chosen.brands };
     }
     return { phase: row.phase, state: row.phaseState, ...(row.stopCode ? { stopCode: row.stopCode } : {}),
@@ -4888,7 +4889,7 @@ export class ResearchAutomationService {
       const row = this.#hasAutorunTable() ? this.#autorunRow(runId) : undefined;
       const scope = row && this.#autoRun ? await this.#autorunScope(runId) : null;
       if (!row || row.workspaceId !== workspaceId || row.phase !== 'STOPPED' || row.stopCode !== AUTORUN_KEYWORD2_WAIT || run.status !== 'AWAITING_SCOPE' ||
-          !scope || scope.capture2?.outcome !== 'AWAITING_KEYWORD2')
+          !scope || !scope.keyword2.chosen)
         throw new ResearchAutomationConflictError('invalid_state', 'This automatic step is not waiting for keyword 2.');
       let answered: AutorunScopeRecord;
       try {
@@ -4896,7 +4897,9 @@ export class ResearchAutomationService {
         const evidence = input.keyword2 === null ? null : chooseKeyword2(scope.keyword1,
           topRevenueTitles(JSON.parse(await readFile(joinPath(this.#autoRun!.runner.captureRoot, runId, METRIC_CAPTURE_DIRS.first, 'raw-responses.json'), 'utf8'))),
           [{ term: input.keyword2, source: 'OWNER' }]).candidates[0] ?? null;
-        answered = answerKeyword2(scope, input.keyword2, evidence);
+        // Rebuild the waiting plan when a prior file write outlived a failed/uncommitted transaction.
+        const waiting = planScope({ runId, keyword1: scope.keyword1, category: scope.category, keyword2: scope.keyword2 });
+        answered = answerKeyword2(waiting, input.keyword2, evidence);
       } catch (error) {
         if (error instanceof RangeError) throw new ResearchAutomationValidationError('Keyword 2 must be a different search term.');
         throw error;

@@ -452,3 +452,20 @@ test('C2/C3 negative control: always choosing health fails both category row ass
     });
   }
 });
+
+test('a transient keyword-answer ledger failure keeps the suggestion and remains retryable', async t => {
+  const f = await scopeRun(t, { ...zinc, titles: zincTitles });
+  await assertSuggestion(f, 'viên kẽm');
+  const input = { contractVersion: 'research-automation-autorun-keyword-v1', requestKey: randomUUID(), keyword2: 'viên kẽm' };
+  f.db.exec(`CREATE TRIGGER review_keyword_ledger_failure BEFORE INSERT ON research_automation_autorun_retries
+    BEGIN SELECT RAISE(ABORT, 'synthetic temporary ledger failure'); END`);
+  await assert.rejects(f.service.retryAutoRunCapture(workspaceId, f.runId, input), /synthetic temporary ledger failure/);
+  f.db.exec('DROP TRIGGER review_keyword_ledger_failure');
+  const waiting = await f.service.getRun(workspaceId, f.runId);
+  assert.equal(waiting.autoRun?.keyword2Suggestion?.term, 'viên kẽm', 'a failed answer must keep the owner controls available');
+  const receipt = await f.service.retryAutoRunCapture(workspaceId, f.runId, input);
+  assert.equal(receipt.exactRetry, false);
+  assert.equal((await f.service.retryAutoRunCapture(workspaceId, f.runId, input)).exactRetry, true);
+  await reach(f, 'CONFIRM');
+  assert.deepEqual(f.payloads[1]!.keywords, [zinc.keyword, 'viên kẽm']);
+});
