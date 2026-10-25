@@ -126,10 +126,10 @@ export type MarketCaptureCategory =
   | { readonly chosen: string; readonly note?: undefined }
   | { readonly chosen: null; readonly note: string };
 
-/** Hook for the category step: the category line of the scope, or a plain «not chosen» line while the run record has none. */
+/** Hook for the category step: the category line of the scope, or an unknown state while the run record has none. */
 export function marketCaptureCategoryText(category: MarketCaptureCategory | null | undefined): string {
   const withheld = 'Ngành được giữ trong bản lưu';
-  if (!category) return 'Ngành: chưa chọn, tìm trong mọi ngành.';
+  if (!category) return 'Ngành: chưa có trong bản lưu.';
   if (category.chosen !== null) return `Ngành: ${containsForbiddenProviderName(category.chosen) ? withheld : escape(category.chosen)}.`;
   return `Ngành: chưa chọn. ${containsForbiddenProviderName(category.note) ? withheld : escape(category.note)}`;
 }
