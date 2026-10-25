@@ -7,6 +7,9 @@ import { Socket } from 'node:net';
 import { join } from 'node:path';
 import { Duplex } from 'node:stream';
 import test, { type TestContext } from 'node:test';
+import AjvModule from 'ajv/dist/2020.js';
+import addFormatsModule from 'ajv-formats';
+import automationSchema from '../../contracts/api/research-automation-api.schema.json' with { type: 'json' };
 import { openResearchAutomationApi } from '../../src/api/research-automation-api.js';
 import type { KeywordListDraftTransport } from '../../src/modules/analysis/keyword-list-drafting.js';
 import type { MetricCaptureSpec } from '../../src/modules/analysis/research-automation/autorun-derive.js';
@@ -26,6 +29,11 @@ const electric = { id: 'c1000000002', label: 'Điện Gia Dụng' };
 const beauty = { id: 'c1000000003', label: 'Làm Đẹp' };
 const other = { id: 'c1000000004', label: 'Danh mục khác' };
 const hash = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
+const Ajv = AjvModule.default;
+const ajv = new Ajv({ allErrors: true, strict: true });
+addFormatsModule.default(ajv);
+ajv.addSchema(automationSchema);
+const validateRun = ajv.compile({ $ref: `${automationSchema.$id}#/$defs/run` });
 
 interface Scenario {
   readonly keyword: string;
@@ -34,6 +42,7 @@ interface Scenario {
   readonly topPercent: number;
   readonly titles?: readonly string[];
   readonly brands?: readonly string[];
+  readonly missingCategoryRevenue?: boolean;
 }
 
 const zinc: Scenario = { keyword: 'viên uống kẽm', category: health, topPercent: 93 };
@@ -48,14 +57,15 @@ function rawCapture(scenario: Scenario) {
   const request = JSON.parse(searched.requestBody!);
   request.include_query.queries = [scenario.keyword];
   const requestBody = JSON.stringify(request);
-  const aggregation = (category: typeof health, shopee: number, tiktok: number) => ({
+  const aggregation = (category: typeof health, shopee: number, tiktok: number | null) => ({
     key: category.id, platforms: [{ platform_id: 1, value: shopee }, { platform_id: 8, value: tiktok }],
   });
   // Shopee alone prefers the other category (70%); the combined total is 1000.
   // This catches choosing the first platform, averaging shares, or omitting TikTok.
   const targetRevenue = scenario.topPercent * 10;
   const searchBody = { data: { search_basic: { aggregations: [{ aggregation: 'REVENUE__BY__CATEGORIES_CUSTOM', entities: [
-    aggregation(other, 70, 930 - targetRevenue), aggregation(scenario.category, 30, targetRevenue - 30),
+    aggregation(other, 70, scenario.missingCategoryRevenue ? null : 930 - targetRevenue),
+    aggregation(scenario.category, 30, targetRevenue - 30),
   ] }] } } };
   const titles = scenario.titles ?? Array.from({ length: 6 }, () => scenario.keyword);
   const products = titles.map((title, i) => ({
@@ -218,6 +228,19 @@ test('C5 health share 0.90 conflicts with quạt điện and retains All with IN
   await assertAllWithNote(f, 'INTERVIEW_MISMATCH', 'Phạm vi: tất cả danh mục — danh mục trong dữ liệu khác loại sản phẩm đã khai.');
 });
 
+test('C6 null category revenue retains All with MISSING_REVENUE and its report note', async t => {
+  // The other category is missing a value: dropping it or treating it as zero
+  // would let health's apparently dominant revenue trigger capture 2.
+  const f = await scopeRun(t, { ...zinc, missingCategoryRevenue: true });
+  await assertAllWithNote(f, 'MISSING_REVENUE',
+    'Phạm vi: tất cả danh mục — thiếu doanh thu của một số danh mục nên chưa chọn danh mục.');
+  const category = (await f.scope()).category;
+  assert.equal(category.category, null);
+  assert.equal(category.top, null, 'an unknown denominator must not yield a share');
+  assert.deepEqual(category.shares?.combined, []);
+  assert.deepEqual(category.shares?.missingRevenue, [other.id]);
+});
+
 async function assertSuggestion(f: ScopeRun, term: string): Promise<void> {
   await reach(f, 'STOPPED');
   const run = await f.service.getRun(workspaceId, f.runId);
@@ -299,6 +322,73 @@ test('K4 Remove at scope confirmation runs the second capture with keyword 1 onl
   assert.equal(f.payloads[1]!.category, health.label);
   assert.equal((await f.scope()).keyword2.owner?.decision, 'REMOVED');
   assert.deepEqual((await prepared(f)).snapshot.scope.keywords, ['viên uống kẽm']);
+});
+
+test('K5 a candidate without the product noun is rejected despite enough titles and brands', async t => {
+  const titles = ['Viên uống Alpha', 'Viên uống Beta', 'Viên uống Gamma', ...Array.from({ length: 3 }, () => 'Viên uống kẽm')];
+  const f = await scopeRun(t, { ...zinc, titles }, {
+    draftLists: async () => ({ keywords: ['viên uống'], exclusions: [] }),
+  });
+  await reach(f, 'CONFIRM');
+  const result = (await f.scope()).keyword2;
+  assert.equal(result.modelVariants, 'USED');
+  const candidate = result.candidates.find(candidate => candidate.term === 'viên uống');
+  assert.ok(candidate, 'the proposed form words were scored, rather than silently absent');
+  assert.equal(candidate.titles, 3);
+  assert.equal(candidate.titleShare, 0.5);
+  assert.equal(candidate.brands, 3);
+  assert.equal(candidate.kept, false);
+  assert.equal(candidate.rejected, 'NO_PRODUCT_NOUN', 'evidence thresholds cannot admit a term missing kẽm');
+  assert.equal(result.chosen, null);
+  assert.deepEqual(f.payloads[1]!.keywords, [zinc.keyword]);
+});
+
+test('K6 bare kẽm is suggested as a fallback at 20% and three brands outside keyword-1 titles', async t => {
+  const titles = ['Kẽm A', 'Kẽm B', 'Kẽm C', ...Array.from({ length: 12 }, () => 'Viên uống kẽm')];
+  const f = await scopeRun(t, { ...zinc, titles });
+  await assertSuggestion(f, 'kẽm');
+  const result = (await f.scope()).keyword2;
+  assert.equal(result.titleCount, 15, 'the denominator includes all top-revenue titles');
+  assert.equal(result.chosen?.term, 'kẽm');
+  assert.equal(result.chosen?.titles, 3, 'titles containing keyword 1 contribute no bare-noun evidence');
+  assert.equal(result.chosen?.titleShare, 0.2);
+  assert.equal(result.chosen?.brands, 3);
+  assert.equal(result.chosen?.revenue, 2970, 'only Kẽm A/B/C contribute revenue');
+  assert.deepEqual(result.candidates.filter(candidate => candidate.kept).map(candidate => candidate.term), ['kẽm'],
+    'the bare noun is the only qualifying candidate');
+  await answer(f, 'kẽm');
+  await reach(f, 'CONFIRM');
+  assert.deepEqual(f.payloads[1]!.keywords, [zinc.keyword, 'kẽm']);
+  assert.deepEqual((await prepared(f)).snapshot.scope.keywords, [zinc.keyword, 'kẽm']);
+});
+
+test('V1 an old v1 response still validates while keyword-2 suggestions require v2', async t => {
+  // Frozen response derived from successfulRun in frontend/tests/research-automation.test.ts;
+  // do not build it from the current service response, which could hide a new required field.
+  const period = { startDate: '2025-10-03', endDate: '2026-10-02', dayCount: 365 };
+  const historical = {
+    contractVersion: 'research-automation-run-v1', runId: '22222222-2222-4222-8222-222222222222', workspaceId,
+    revision: 1, status: 'QUICK_SEARCH_QUEUED', country: 'VN', mode: 'CATEGORY', keyword: 'đồ chơi gỗ',
+    description: null, interview: {}, requestedPeriod: period, reports: ['MARKET', 'INSIGHT'], definition: null,
+    productCards: [], coverage: { requestedPeriod: period, sources: [] },
+    usage: { entries: [], requestCount: 0, knownCosts: [], hasUnknownCost: false },
+    steps: [
+      { stepId: 'QUICK_SEARCH', state: 'QUEUED', code: null, message: null, startedAt: null, finishedAt: null },
+      { stepId: 'COLLECTION', state: 'PENDING', code: null, message: null, startedAt: null, finishedAt: null },
+      { stepId: 'REPORTS', state: 'PENDING', code: null, message: null, startedAt: null, finishedAt: null },
+    ],
+    blockers: [], createdAt: '2026-10-02T00:00:00.000Z', updatedAt: '2026-10-02T00:00:00.000Z',
+  };
+  assert.equal(validateRun(historical), true, JSON.stringify(validateRun.errors));
+  assert.equal(validateRun({ ...historical, autoRun: { phase: 'WAITING_SCOPE', state: 'QUEUED', canRetry: false } }), true,
+    JSON.stringify(validateRun.errors));
+  const f = await scopeRun(t, { ...zinc, titles: zincTitles });
+  await assertSuggestion(f, 'viên kẽm');
+  const current = await f.service.getRun(workspaceId, f.runId);
+  assert.equal(current.contractVersion, 'research-automation-run-v2');
+  assert.equal(validateRun(current), true, JSON.stringify(validateRun.errors));
+  assert.equal(validateRun({ ...current, contractVersion: 'research-automation-run-v1' }), false,
+    'a keyword-2 suggestion must not be returned under the old version');
 });
 
 test('an owner edit longer than three tokens retains its actual title evidence', async t => {
