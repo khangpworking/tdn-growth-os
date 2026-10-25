@@ -308,21 +308,33 @@ test('B8 a platform without intervals remains visible and labelled không có d�
 });
 
 test('B9 every printed number in the touched raw blocks has a capture-bound trace entry and replayable pointer', async () => {
-  const report = buildResearchAutomationReport({ ...await baseInput(), marketRawSeries: synthetic }, 'MARKET');
+  const keyword = 'kẽm 50mg B12', raw = structuredClone(zinc30);
+  const query = raw[0]!.requestBody.include_query;
+  assert.ok(query);
+  query.queries = [keyword];
+  const marketRawSeries = { periods: [captured('zinc-30d', raw), synthetic.periods[1]!], scope: { ...scope, keywords: [keyword] } };
+  const report = buildResearchAutomationReport({ ...await baseInput(), marketRawSeries }, 'MARKET');
   const trace = (report.semantic as { marketNumberTrace?: MarketNumberTrace }).marketNumberTrace;
   assert.ok(trace?.entries.length, 'trace is stored with the report output');
-  const captures = new Map<string, unknown>([['zinc-30d', zinc30], ['zinc-12m', zinc12]]);
+  const captures = new Map<string, unknown>([['zinc-30d', raw], ['zinc-12m', zinc12]]);
   for (const entry of trace.entries) {
     assert.ok(entry.token.trim() && entry.blockId.trim() && entry.formula.trim());
     assert.ok(entry.kind === 'raw' || entry.kind === 'computed');
     assert.ok(entry.inputs.length > 0, `${entry.token} cannot have unbound computed inputs`);
-    const expectedCapture = entry.blockId.includes('30d') ? 'zinc-30d' : 'zinc-12m';
+    const expectedCapture = entry.blockId.startsWith('M02.') || entry.blockId.includes('30d') ? 'zinc-30d' : 'zinc-12m';
     for (const input of entry.inputs) {
       assert.equal(input.captureId, expectedCapture, `${entry.blockId} must name the capture of its printed period`);
       assert.ok(Number.isInteger(input.responseIndex) && input.responseIndex >= 0);
       assert.match(input.jsonPath, /^\//u);
       assert.notEqual(resolveMarketRawSource(captures.get(input.captureId), input), undefined, `${entry.token}: pointer resolves in the named capture`);
     }
+  }
+  const keywordEntries = trace.entries.filter(entry => entry.blockId.startsWith('M02.scope.keyword.'));
+  assert.deepEqual(keywordEntries.map(entry => entry.token), ['50', '12'], 'both numbers inside the scope keyword are traced');
+  for (const entry of keywordEntries) {
+    assert.equal(entry.kind, 'raw', 'keyword numbers are source text, not computed measurements');
+    assert.deepEqual(entry.inputs.map(input => resolveMarketRawSource(captures.get(input.captureId), input)), [keyword],
+      'each numeric token resolves to the keyword in its named capture request');
   }
   for (const [token, captureId, values] of [
     ['35,0 tỷ', 'zinc-30d', [7_900_000_000, 60_000_000, 40_000_000, 27_000_000_000]],
@@ -337,10 +349,14 @@ test('B9 every printed number in the touched raw blocks has a capture-bound trac
       'trace inputs retain both request dates or the exact headline aggregation members');
   }
   withDocument(report.html.toString(), document => {
+    const scopeLine = document.querySelector('#M02 .market-capture-scope');
+    assert.ok(scopeLine, 'M02 scope line is rendered');
+    assert.ok(scopeLine.textContent!.includes(keyword), 'the numeric keyword must be printed, not withheld to evade the trace check');
     const missing: string[] = [];
-    for (const period of document.querySelectorAll('.market-raw-period')) {
-      const key = period.getAttribute('data-market-raw-period')!;
-      const remaining = trace.entries.filter(entry => entry.blockId.startsWith(`M03.${key}.`)).map(entry => entry.token);
+    for (const period of document.querySelectorAll('.market-raw-period, #M02 .market-capture-scope')) {
+      const key = period.getAttribute('data-market-raw-period') ?? 'scope';
+      const prefix = key === 'scope' ? 'M02.scope.' : `M03.${key}.`;
+      const remaining = trace.entries.filter(entry => entry.blockId.startsWith(prefix)).map(entry => entry.token);
       const content = period.cloneNode(true) as Element;
       // Exhibit and citation numbers are identifiers, separate from the data.
       content.querySelectorAll('.exn, sup.cite').forEach(node => node.remove());
