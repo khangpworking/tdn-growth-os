@@ -16,7 +16,7 @@ Video Factory SHALL là máy làm video tự động (automation creator), SHALL
 - **THEN** script dùng Big Idea, Angle, mục đích và sự thật sản phẩm của chiến dịch đó
 
 ### Requirement: R-V02 Ba điểm duyệt và công tắc «Bỏ qua duyệt»
-Mỗi video SHALL đi qua ba điểm duyệt: duyệt 1 (sau script), duyệt 2 (sau khi chọn cảnh), duyệt 3 (video cuối). Ba điểm duyệt SHALL bật mặc định. Mỗi video SHALL có một công tắc «Bỏ qua duyệt» chỉ áp dụng cho video đó. Đổi công tắc SHALL áp dụng khi xử lý bắt đầu lần tiếp theo, SHALL NOT tự tiếp tục video đang dừng. Khi chủ bắt đầu xử lý với công tắc bật, các điểm duyệt tiếp theo SHALL không chờ chủ. Mỗi yêu cầu viết lại mà chủ gửi SHALL luôn dừng ở duyệt 1, dù công tắc đang bật hay tắt.
+Mỗi video SHALL đi qua ba điểm duyệt: duyệt 1 (sau script), duyệt 2 (sau khi chọn cảnh), duyệt 3 (video cuối). Ba điểm duyệt SHALL bật mặc định. Từ lát 3, mỗi video SHALL có một công tắc «Bỏ qua duyệt» chỉ áp dụng cho video đó. Đổi công tắc SHALL áp dụng khi xử lý bắt đầu lần tiếp theo, SHALL NOT tự tiếp tục video đang dừng. Khi chủ bắt đầu xử lý với công tắc bật, các điểm duyệt tiếp theo SHALL không chờ chủ. Mỗi yêu cầu viết lại mà chủ gửi SHALL luôn dừng ở duyệt 1, dù công tắc đang bật hay tắt.
 
 - Loại kiểm: Người đọc
 - Mã kiểm: Chưa có mã kiểm
@@ -204,7 +204,7 @@ Mỗi lần dựng SHALL đóng băng bản sao cài đặt (preset và các m�
 - **THEN** video đã dựng giữ cài đặt cũ; thay đổi dành cho lần dựng tiếp theo và video hiện «Cần dựng lại»
 
 ### Requirement: R-V14 Cô lập lỗi và khởi động lại
-Một lỗi của ffmpeg hay một dịch vụ ngoài (sụp, chậm quá giới hạn thời gian) SHALL chỉ làm job liên quan đó thất bại. App SHALL tiếp tục chạy. Sau khi app khởi động lại, job đang chạy SHALL hiện là gián đoạn và SHALL NOT tự chạy lại.
+Một lỗi của ffmpeg hay một dịch vụ ngoài (sụp, chậm quá giới hạn thời gian) SHALL chỉ làm job liên quan đó thất bại. App SHALL tiếp tục chạy. Từ lát 1 (055), app SHALL tự khởi động lại an toàn sau khi sập cứng (F183); trước khi nhận khóa executor, app SHALL chứng minh tiến trình từng giữ khóa đã tắt và SHALL NOT cho phép hai executor cùng quyền ghi. Sau khi app khởi động lại, job đang chạy SHALL hiện là gián đoạn và SHALL NOT tự chạy lại.
 
 - Loại kiểm: Kiểm thử
 - Mã kiểm: Chưa có mã kiểm
@@ -218,9 +218,13 @@ Một lỗi của ffmpeg hay một dịch vụ ngoài (sụp, chậm quá giới
 - **WHEN** một nhà cung cấp vượt quá giới hạn thời gian gọi của nó
 - **THEN** chỉ job chờ nó thất bại; các job khác và app vẫn sống
 
-#### Scenario: Khởi động lại khi đang chạy
-- **WHEN** app khởi động lại khi một job video đang chạy
-- **THEN** job đó hiện là gián đoạn và app không tự chạy lại
+#### Scenario: Tự khởi động lại an toàn sau khi sập cứng
+- **WHEN** app sập cứng khi một job video đang chạy, để lại khóa executor, và tiến trình giữ khóa được chứng minh đã tắt
+- **THEN** từ lát 1 (055), app tự khởi động lại không cần gỡ khóa thủ công; job đó hiện là gián đoạn và không tự chạy lại
+
+#### Scenario: Tiến trình giữ khóa còn sống
+- **WHEN** một tiến trình khởi động thấy khóa của executor còn sống
+- **THEN** tiến trình đó không nhận khóa và không có executor ghi thứ hai
 
 ### Requirement: R-V15 Sửa script làm mất lựa chọn clip của cảnh bị đổi
 Khi chủ sửa script (lát 1–2), một cảnh bị thay đổi SHALL mất lựa chọn clip hiện có và SHALL bị đánh dấu; giọng đọc của các cảnh bị thay đổi SHALL được dựng lại, rồi video SHALL được dựng lại. Chức năng giữ lựa chọn clip cũ chỉ có từ lát 3 (đơn giản hóa 2, F179).

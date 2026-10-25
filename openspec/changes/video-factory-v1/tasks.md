@@ -8,7 +8,7 @@
 - [x] 1.6 Rà lại theo EGM
 - [ ] 1.7 Chủ duyệt PR này và change này
 
-Cách chia việc dưới đây chỉ áp dụng khi xây Video Factory (F173, F175 ngày 25/10/2026). Mỗi lát mở đầu bằng bảng dòng hợp đồng đánh số (055-Q1…, chia «trước khi viết mã» và «trước khi hợp nhất»): GLM soạn bảng, một phiên Sol mới rà soát, điều phối viên kiểm lại, câu hỏi còn mở hỏi chủ; GLM chỉ viết mã sau khi bảng đã chốt và được rà (M7). Mỗi dòng ghi quy tắc R-V, hành vi và ca đối chứng âm. Mỗi lát cập nhật hướng dẫn vận hành, STATUS và bàn giao. Sửa lỗi áp dụng cho cả hệ thống, không chỉnh riêng một lần chạy. Chi tiết câu hỏi phải trả lời và đường dẫn sở hữu ở §7 brief 054.
+Cách chia việc dưới đây chỉ áp dụng khi xây Video Factory (F173, F175 ngày 25/10/2026). Các lát triển khai 055–057 mở đầu bằng bảng dòng hợp đồng đánh số (055-Q1…, chia «trước khi viết mã» và «trước khi hợp nhất»): GLM soạn bảng, một phiên Sol mới rà soát, điều phối viên kiểm lại, câu hỏi còn mở hỏi chủ; GLM chỉ viết mã sau khi bảng đã được commit và rà soát (M7). Mỗi dòng ghi quy tắc R-V, hành vi và ca đối chứng âm. Mỗi lát cập nhật hướng dẫn vận hành, STATUS và bàn giao. Sửa lỗi áp dụng cho cả hệ thống, không chỉnh riêng một lần chạy. Chi tiết câu hỏi phải trả lời và đường dẫn sở hữu ở §7 brief 054.
 
 ## 2. Lát 1 — video thật đầu tiên, chủ tự chọn clip (nhiệm vụ 055)
 
@@ -28,6 +28,7 @@ Cách chia việc dưới đây chỉ áp dụng khi xây Video Factory (F173, F
 - [ ] 2.14 Merge chỉ khi chủ đồng ý; triển khai chỉ khi chủ viết «deploy <SHA>»
 - [ ] 2.15 Ẩn và khôi phục clip, nhạc và video; không dọn file tự động (R-V16)
 - [ ] 2.16 Giữ hành vi kịch bản/cài đặt đã duyệt ngày 01/10: bản nháp tạo mới riêng, tự lưu script vào video, phiên bản viết lại, từ chối kết quả cũ, quay về duyệt 1, nhắc video đang chờ; xem §6 brief 054 (R-V02, R-V13, R-V15)
+- [ ] 2.17 Tự khởi động lại an toàn sau khi app sập cứng; chứng minh tiến trình giữ khóa đã tắt trước khi nhận khóa, không bao giờ hai executor cùng quyền ghi. Sửa mã khởi động/khóa dùng chung ở điểm chốt CI 1 cùng schema, worker, sweep và fake runner; làm đủ bốn điểm chốt CI theo §7 brief 054 (R-V14, F183)
 
 ## 3. Lát 2 — ghép clip tự động (nhiệm vụ 056)
 

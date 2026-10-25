@@ -45,7 +45,7 @@ flowchart LR
 - Thêm R-V11: app không bao giờ tự chuyển sang nhà cung cấp hay tài khoản khác; chủ có thể chọn thủ công.
 - Thêm R-V12: cảnh không có clip phù hợp: khi duyệt bật thì chặn duyệt và cảnh hiện «Chưa có cảnh phù hợp»; khi «Bỏ qua duyệt» bật thì video thất bại kèm thông báo rõ, không bao giờ ra khung đen.
 - Thêm R-V13: mỗi lần dựng giữ nguyên bản sao cài đặt đã dùng; đổi preset không đổi video đã có; cài đặt đã đổi đánh dấu video «Cần dựng lại».
-- Thêm R-V14: cô lập lỗi: ffmpeg sập hay một dịch vụ ngoài sụp, chậm thì chỉ job đó thất bại (sau giới hạn thời gian) và app vẫn chạy; sau khi app khởi động lại, job đang chạy hiện là gián đoạn và không bao giờ tự chạy lại.
+- Thêm R-V14: cô lập lỗi: ffmpeg sập hay một dịch vụ ngoài sụp, chậm thì chỉ job đó thất bại (sau giới hạn thời gian) và app vẫn chạy; từ lát 1 (055), app tự khởi động lại an toàn sau khi sập cứng, chứng minh tiến trình giữ khóa đã tắt trước khi nhận khóa, không bao giờ có hai executor cùng quyền ghi (F183); job đang chạy hiện là gián đoạn và không bao giờ tự chạy lại.
 - Thêm R-V15: sửa script: cảnh bị đổi mất lựa chọn clip của nó và bị đánh dấu; giọng đọc của các cảnh bị đổi được dựng lại, rồi dựng lại video (cho tới lát 3 mới có giữ lựa chọn cũ, F179).
 - Thêm R-V16: xóa là «Ẩn» và có «Khôi phục»; v1 không tự dọn file.
 
@@ -88,4 +88,4 @@ Chủ chưa quyết. Không ai quyết thay chủ.
 - O3: không trần chi tiêu + lô + bỏ duyệt → có thể gọi trả phí khi không ai nhìn. Chốt trước lát 3.
 - O4: video của thương hiệu thực phẩm bổ sung có được bỏ duyệt không. Chốt trước lát 3.
 - F1: tài khoản nào mà CLIProxy trên Fedora dùng (quyết định đường đọc clip Gemini tái dùng CLIProxy hay cần khóa chính thức riêng). Kiểm tra chỉ đọc.
-- F2: bài nghe thử giọng tiếng Việt giữa Vbee và ElevenLabs. Chủ nghe; lời gọi trả phí nhỏ cần chủ cho phép.
+- F2: bài nghe thử giọng tiếng Việt giữa Vbee và ElevenLabs. Chủ nghe; lời gọi trả phí nhỏ cần chủ cho phép. Cần ghi kết quả trước khi 055 nối nhà cung cấp giọng thật ở điểm chốt cuối; nếu cần webhook thì hỏi chủ trước khi xây.

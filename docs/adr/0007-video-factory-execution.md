@@ -43,7 +43,8 @@ work executes and how a failure stays contained.
   slice 1 must add render priority, memory limits and media hardening to the
   copy. Voice audio responses must stream; the research lane's bounded response
   reader holds the whole response in memory and is not reused for audio.
-- Files are read and written as streams, never whole in memory.
+- Files are read and written as streams. Slice 2 must bound the in-memory
+  low-res Gemini preview as an explicit exception.
 - Every outside call has a time limit and fails only its own job; the app keeps
   running. A synchronous script or rerank failure stops only that action.
   No automatic retries and no automatic provider or account switching;
@@ -60,7 +61,8 @@ the whole application (reports and Content Studio included) stays down until
 the manual stale-lock recovery runs. The owner re-confirmed option A on
 25/10/2026 (F183) and asked for an automatic safe restart in slice 1: after 055
 the app comes back by itself; 055 must prove the lock-owner process is gone
-before taking the lock, so there are never two writers.
+before taking the lock, so there are never two writers. This amends ADR 0004
+decision 2's manual-only stale-lock recovery rule.
 
 ## Consequences
 
