@@ -357,7 +357,11 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
       videoWriter = new BetterSqlite3(databasePath, { fileMustExist: true });
       videoWriter.pragma('foreign_keys = ON'); videoWriter.pragma('busy_timeout = 5000'); videoWriter.defaultSafeIntegers(true);
       videoWorker = new VideoWorker({
-        service: createVideoService({ db: videoWriter, clock, onWake: () => videoWorker?.wake() }),
+        service: createVideoService({
+          db: videoWriter, clock,
+          onWake: () => videoWorker?.wake(),
+          onCancel: (jobId) => videoWorker?.cancel(jobId),
+        }),
         db: videoWriter, runner: defaultVideoProcessRunner,
       });
       videoReady = videoWorker.start().catch(() => undefined);

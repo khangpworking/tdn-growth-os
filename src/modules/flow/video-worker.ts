@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3';
 import type { VideoService } from './video-service.js';
-import { VideoProcessError, VideoProcessSpawnError, VideoProcessTimeoutError, type VideoProcessRunner } from '../../platform/video-process-runner.js';
+import { VideoProcessError, VideoProcessTimeoutError, type VideoProcessRunner } from '../../platform/video-process-runner.js';
 
 /**
  * Minimal durable executor for Video Factory (055-Q2), shaped after ResearchAutomationWorker. The
@@ -34,7 +34,7 @@ export class VideoWorker {
   #closing = false;
   #wakePromise: Promise<void> | undefined;
   #wakeAgain = false;
-  #active: AbortController | undefined;
+  #active: { readonly jobId: string; readonly controller: AbortController; fromClose: boolean } | undefined;
   #lastError: unknown = undefined;
 
   constructor(options: { readonly service: VideoService; readonly db: Database.Database; readonly runner: VideoProcessRunner; readonly timeoutMs?: number }) {
@@ -70,11 +70,20 @@ export class VideoWorker {
     });
   }
 
+  /**
+   * Owner cancel of a running job: aborts its runner. The job row was already settled by the
+   * service; a queued job or an unknown id does nothing here.
+   */
+  cancel(jobId: string): void {
+    if (this.#active?.jobId === jobId) this.#active.controller.abort();
+  }
+
   /** Aborts the running job, waits for the runner to finish and the job to settle, then returns. */
   async close(): Promise<void> {
     if (this.#closing) { await this.#wakePromise; return; }
     this.#closing = true;
-    this.#active?.abort();
+    // A shutdown is not an owner cancel (055-Q1): the running job becomes interrupted.
+    if (this.#active) { this.#active.fromClose = true; this.#active.controller.abort(); }
     await this.#wakePromise;
     this.#active = undefined;
     this.#started = false;
@@ -92,17 +101,21 @@ export class VideoWorker {
 
   async #runJob(jobId: string, kind: 'import' | 'voice' | 'render'): Promise<void> {
     const controller = new AbortController();
-    this.#active = controller;
+    const active = { jobId, controller, fromClose: false };
+    this.#active = active;
     try {
       const command = VIDEO_JOB_COMMANDS[kind];
-      await this.#runner(command.bin, command.args, { timeoutMs: this.#timeoutMs, maxBytes: VIDEO_JOB_OUTPUT_BYTES, signal: controller.signal });
-      this.#service.finishJob(jobId);
+      const result = await this.#runner(command.bin, command.args, { timeoutMs: this.#timeoutMs, maxBytes: VIDEO_JOB_OUTPUT_BYTES, signal: controller.signal });
+      // The owner may have cancelled (or a settle may have happened) while the call ran; only a still-running row settles here.
+      if (this.#service.getJob(jobId)?.state !== 'running') return;
+      if (result.code === 0) this.#service.finishJob(jobId);
+      else this.#service.failJob(jobId, 'process_failed');
     } catch (error) {
+      if (this.#service.getJob(jobId)?.state !== 'running') return; // already settled (owner cancel): never an error
       // One failed call fails only this job; the app keeps running. No retry (R-V10, R-V11).
       try {
-        if (error instanceof VideoProcessSpawnError) this.#service.failJob(jobId, 'process_failed');
+        if (active.fromClose) this.#service.interruptJob(jobId);
         else if (error instanceof VideoProcessTimeoutError) this.#service.failJob(jobId, 'timeout');
-        else if (error instanceof VideoProcessError) this.#service.cancelJob(jobId);
         else this.#service.failJob(jobId, 'process_failed');
       } catch (settleError) {
         // Settling must not mask the original failure; the row stays running for the next startup sweep.
@@ -110,7 +123,7 @@ export class VideoWorker {
       }
       if (!(error instanceof VideoProcessError)) this.#lastError = error;
     } finally {
-      if (this.#active === controller) this.#active = undefined;
+      if (this.#active === active) this.#active = undefined;
     }
   }
 }

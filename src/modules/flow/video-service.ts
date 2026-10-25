@@ -43,19 +43,22 @@ export interface VideoService {
   /** Owner retry: a new queued job for the same step, never an automatic one (054 §3). */
   retryJob(jobId: string): VideoJobRecord;
   cancelJob(jobId: string): VideoJobRecord;
+  /** Shutdown path: the running job becomes interrupted, never owner-cancelled (055-Q1). */
+  interruptJob(jobId: string): VideoJobRecord;
   /** Worker entry point: claims the oldest queued job (queued → running, committed before outside work). */
   claimNextJob(): VideoJobRecord | undefined;
   finishJob(jobId: string): VideoJobRecord;
   failJob(jobId: string, errorCode: 'process_failed' | 'timeout'): VideoJobRecord;
 }
 
-export function createVideoService(options: { readonly db: Database.Database; readonly clock?: () => Date; readonly newId?: () => string; readonly onWake?: () => void }): VideoService {
+export function createVideoService(options: { readonly db: Database.Database; readonly clock?: () => Date; readonly newId?: () => string; readonly onWake?: () => void; readonly onCancel?: (jobId: string) => void }): VideoService {
   const jobs: VideoJobStore = createVideoJobStore(options);
   const newId = options.newId ?? randomUUID;
   const now = options.clock ?? ((): Date => new Date());
   const db = options.db;
-  // The worker is created after this service, so the wake callback reads it lazily.
+  // The worker is created after this service, so both callbacks read it lazily.
   const wake = options.onWake ?? (() => undefined);
+  const onCancel = options.onCancel ?? (() => undefined);
 
   return {
     createProject(input) {
@@ -100,7 +103,15 @@ export function createVideoService(options: { readonly db: Database.Database; re
       return job;
     },
     cancelJob(jobId) {
+      const before = jobs.getJob(jobId);
       const job = jobs.cancel(jobId);
+      if (!job) throw new VideoJobNotFoundError(jobId);
+      // Only a real transition stops outside work; a closed job was already settled.
+      if (before && before.state !== job.state) onCancel(jobId);
+      return job;
+    },
+    interruptJob(jobId) {
+      const job = jobs.interrupt(jobId);
       if (!job) throw new VideoJobNotFoundError(jobId);
       return job;
     },

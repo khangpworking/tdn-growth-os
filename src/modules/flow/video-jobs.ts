@@ -57,6 +57,8 @@ export interface VideoJobStore {
   cancel(jobId: string): VideoJobRecord | undefined;
   /** Every running job → interrupted with the restart reason; the projects return to their entry states. */
   sweepInterrupted(): number;
+  /** One running job → interrupted with the restart reason; the project returns to the job's entry state (055-Q1). */
+  interrupt(jobId: string): VideoJobRecord | undefined;
   /** Running → running with a higher progress value (055-Q23). */
   setProgress(jobId: string, progress: number): void;
   getJob(jobId: string): VideoJobRecord | undefined;
@@ -176,6 +178,17 @@ export function createVideoJobStore(options: { readonly db: Database.Database; r
           db.prepare(`UPDATE flow_video_projects SET state = ?, updated_at = ? WHERE project_id = ?`).run(row.entry_state, finishedAt, row.project_id);
         }
         return running.length;
+      })();
+    },
+    interrupt(jobId) {
+      return db.transaction((): VideoJobRecord | undefined => {
+        const row = getJobStmt.get(jobId) as JobRow | undefined;
+        if (!row || row.state !== 'running') return row ? toJob(row) : undefined;
+        const current = now();
+        const finishedAt = current < row.created_at ? row.created_at : current;
+        db.prepare(`UPDATE flow_video_jobs SET state = 'interrupted', error_code = 'interrupted_by_restart', finished_at = ? WHERE job_id = ? AND state = 'running'`).run(finishedAt, jobId);
+        db.prepare(`UPDATE flow_video_projects SET state = ?, updated_at = ? WHERE project_id = ?`).run(row.entry_state, finishedAt, row.project_id);
+        return toJob(getJobStmt.get(jobId) as JobRow);
       })();
     },
     setProgress(jobId, progress) {
