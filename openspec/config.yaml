@@ -20,7 +20,7 @@ context: |
 
   Giai đoạn chuyển (từ 24/10/2026): quy tắc báo cáo nằm ở openspec/specs; docs/business-spec/business-rules chỉ còn stub.
   Quy tắc R-M, R-I, R-L chép từ business-spec bản 1.0 (21/10/2026), giữ nguyên mã; từ điển chỉ số chép từ metrics.md bản 21/10/2026.
-  Từ điển trường, nguồn dữ liệu, quyết định của chủ còn ở docs/business-spec (bản chép ở openspec/reference).
+  Từ điển trường và cách nguồn tính số ở openspec/reference (từ 25/10/2026). Nguồn dữ liệu, quyết định của chủ còn ở docs/business-spec (bản chép nguồn dữ liệu ở openspec/reference).
   Khi hai nơi nói khác nhau: báo lại cho chủ, không tự chọn. Xem openspec/MIGRATION.md.
 
 rules:
