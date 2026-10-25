@@ -251,22 +251,29 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   // Bars per reporting side follow table 6.2 (Hình 6.1, 6.2 in drawn order): mirror reporters of one year, then Việt Nam's own two flows of one year. Never summed.
   const comtradeFigures = comtradeRows.length === 0 ? '' : (await renderComtradeCharts(comtrade, { flint: options.flint !== false }))
     .map((chart, i) => macroFig(chart, `6.${1 + i}`)).join('');
-  // R-M37: one row per brand, in first source-row order; two rows merge only when the brand text is exactly equal
-  // (after the existing whitespace squash and profile alias). The total exists only when both platform sums are known.
-  const brandNames = [...new Set(rows.filter(row => profile.core.includes(row.seg!) && row.brand !== NO_BRAND).map(row => row.brand))].slice(0, 10);
-  const brandTable = !next || brandNames.length === 0 ? '' : tbl('6.3', 'Nhãn thương hiệu trong mẫu lõi, mỗi thương hiệu một dòng', '',
+  // R-M37 / owner L5: one row per brand, sorted by the «Cộng 2 sàn» core revenue, high to low, top 10; brands whose total
+  // is unknown follow in first source-row order. Two rows merge only when the brand text is exactly equal (after the
+  // existing whitespace squash and profile alias). The total exists only when both platform sums are known.
+  const brandRows = [...new Set(rows.filter(row => profile.core.includes(row.seg!) && row.brand !== NO_BRAND).map(row => row.brand))].map(brand => {
+    const sums = PLATS.map(P => {
+      const members = rows.filter(row => row.platform === P && row.brand === brand && profile.core.includes(row.seg!));
+      return { P, rev: completeSum(members, 'rev'), present: members.length > 0 };
+    });
+    return { brand, sums, total: PLATS.length === 2 && sums.every(sum => sum.rev !== null) ? sums[0]!.rev! + sums[1]!.rev! : null };
+  });
+  const brandList = [...brandRows.filter(row => row.total !== null).sort((a, b) => b.total! - a.total!), ...brandRows.filter(row => row.total === null)].slice(0, 10);
+  const brandTable = !next || brandList.length === 0 ? '' : tbl('6.3', 'Nhãn thương hiệu trong mẫu lõi, mỗi thương hiệu một dòng', '',
     ['Nhãn thương hiệu', ...(PLATS.length === 2 ? [totalLabel] : []), ...PLATS.map(P => esc(PLATFORM_LABEL[P]!))],
-    brandNames.map((brand, j) => {
-      const sums = PLATS.map(P => {
-        const members = rows.filter(row => row.platform === P && row.brand === brand && profile.core.includes(row.seg!));
-        const id = `brands.${j}.${P}.core.rev`, rev = completeSum(members, 'rev');
+    brandList.map(({ brand, sums, total }, j) => {
+      const cells = sums.map(({ P, rev, present }) => {
+        const id = `brands.${j}.${P}.core.rev`;
         if (rev === null) B.setMissing(id, 'ty'); else B.set(id, rev, 'ty');
-        return { id, rev, present: members.length > 0 };
+        return present ? n(bf(id)) : 'Không có trong mẫu';
       });
       const totalId = `brands.${j}.both.core.rev`;
-      if (PLATS.length === 2) { if (sums.every(sum => sum.rev !== null)) B.set(totalId, sums[0]!.rev! + sums[1]!.rev!, 'ty'); else B.setMissing(totalId, 'ty'); }
-      return [label(brand), ...(PLATS.length === 2 ? [n(bf(totalId))] : []), ...sums.map(sum => sum.present ? n(bf(sum.id)) : 'Không có trong mẫu')];
-    }), { note: `nhãn thương hiệu theo tiêu đề người bán; hai dòng chỉ gộp khi tên trùng hẳn. ${PLATS.length === 2 ? `Cột ${totalLabel} là doanh thu lõi Shopee cộng TikTok Shop, kỳ ${span}; sàn không có dòng của thương hiệu tính là không trong mẫu. ` : ''}Tên trùng không chứng minh cùng người bán hay người mua.` });
+      if (PLATS.length === 2) { if (total !== null) B.set(totalId, total, 'ty'); else B.setMissing(totalId, 'ty'); }
+      return [label(brand), ...(PLATS.length === 2 ? [n(bf(totalId))] : []), ...cells];
+    }), { note: `nhãn thương hiệu theo tiêu đề người bán; hai dòng chỉ gộp khi tên trùng hẳn. ${PLATS.length === 2 ? `Cột ${totalLabel} là doanh thu lõi Shopee cộng TikTok Shop, kỳ ${span}; sàn không có dòng của thương hiệu tính là không trong mẫu. Thứ tự dòng theo cột ${totalLabel}, từ cao xuống thấp; thương hiệu chưa có số cộng đứng sau, theo thứ tự trong nguồn. ` : ''}Tên trùng không chứng minh cùng người bán hay người mua.` });
   sections.push(section('M06', 'Nguồn cung', 'Giữ riêng nhãn thương hiệu theo tiêu đề người bán trên từng sàn.',
     tbl('6.1', 'Ngày mở bán và phần chưa rõ', '', ['Sàn', 'Có ngày', 'Thiếu ngày', 'Mở bán trong kỳ', 'Doanh thu mở bán trong kỳ'],
       PLATS.map(P => [plat(P), n(bf(`${P}.coh.known`)), n(bf(`${P}.coh.nodate`)), n(bf(`${P}.coh.n`)), n(bf(`${P}.coh.rev`))])) +
