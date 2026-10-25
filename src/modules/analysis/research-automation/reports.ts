@@ -74,7 +74,7 @@ import { formatReaderValue, readerProductLabel, readerShopLabel } from './reader
 import type { AutomationQualitativeDraft } from '../../../../contracts/analysis/automation-qualitative-draft-v1.generated.js';
 import { qualitativeDraftSection, qualitativeDraftSummary } from '../reader-report/qualitative-draft-report.js';
 import { platIcons } from '../reader-report/layout.js';
-import { ACTION_LEAD, OPPORTUNITY_HEADINGS, OPPORTUNITY_UNIT_READING,OPTION_HEADINGS, QUICK_WIN_HEADING, QUICK_WIN_HEADINGS, actionStartDay, marketActionPlan, missingBandText, opportunityExplanation, opportunityHeadings, opportunityRows, platformPriceBands, type ActionRow, type MarketActionPlan } from '../reader-report/market-actions.js';
+import { ACTION_LEAD, OPPORTUNITY_HEADINGS, OPPORTUNITY_UNIT_READING,OPTION_HEADINGS, QUICK_WIN_HEADING, QUICK_WIN_HEADINGS, actionStartDay, marketActionPlan, missingBandText, NO_DERIVED_PRICE, opportunityExplanation, opportunityHeadings, opportunityRows, platformPriceBands, type ActionRow, type MarketActionPlan } from '../reader-report/market-actions.js';
 import { NO_PRICE_COMPARISON, chooseUnitProfile, convertedLine, projectTitleUnitPrices, type UnitProfile } from '../reader-report/market-title-quantity.js';
 import { deliverMarketReader, marketReaderGuide, numberMarketExhibits } from './market-reader-delivery.js';
 import { plainCaptureNumbers } from '../reader-report/format.js';
@@ -684,19 +684,23 @@ function marketActionRows(input: AutomationReportInput, presentationRows: readon
 }
 
 /** Title pack sizes over the same rows (UNIT-209 C2/C3): one profile for the report, a unit price per row, and per-platform k/n lines. */
-type MarketUnitRows = { rows: (MarketTitleUnitRow & ActionRow)[]; profile: UnitProfile | null; lines: string[] };
+/** `packProfile` names the pack kind for the quantity column; `profile` (null with raw-series input) prices rows. */
+type MarketUnitRows = { rows: (MarketTitleUnitRow & ActionRow)[]; profile: UnitProfile | null; packProfile: UnitProfile | null; lines: string[]; withoutAveragePrice?: true };
 function marketUnitRows(input: AutomationReportInput, presentationRows: readonly MarketTitleUnitRow[]): MarketUnitRows {
   const base = marketActionRows(input, presentationRows);
   const titled = base.map(row => ({ title: row.title ?? '', revenue: row.rev, units: row.units, platform: row.platform }));
-  const profile = chooseUnitProfile(titled), projection = projectTitleUnitPrices(titled, profile);
+  const packProfile = chooseUnitProfile(titled);
+  // A title-unit price is revenue ÷ units ÷ pack size: raw-series reports print none (owner F118/F119, 23/10/2026).
+  if (input.marketRawSeries) return { rows: base.map(row => ({ ...row, unitPrice: null })), profile: null, packProfile, lines: [], withoutAveragePrice: true };
+  const profile = packProfile, projection = projectTitleUnitPrices(titled, profile);
   const rows = base.map((row, index) => ({ ...row, unitPrice: projection.rows[index]!.unitPrice }));
   const lines = !profile ? [] : platformPriceBands(rows, true).map(({ platform, name }) => {
     const own = rows.filter(row => row.platform === platform);
     return `${name}: ${convertedLine(own.filter(row => row.unitPrice !== null).length, own.length)}`;
   });
-  return { rows, profile, lines };
+  return { rows, profile, packProfile, lines };
 }
-const unitLines = (unit: MarketUnitRows): string => unit.profile ? unit.lines.map(line => `<p class="lim">${escape(line)}</p>`).join('') : `<p>${escape(NO_PRICE_COMPARISON)}</p>`;
+const unitLines = (unit: MarketUnitRows): string => unit.withoutAveragePrice ? `<p>${escape(NO_DERIVED_PRICE)}</p>` : unit.profile ? unit.lines.map(line => `<p class="lim">${escape(line)}</p>`).join('') : `<p>${escape(NO_PRICE_COMPARISON)}</p>`;
 
 /** Vietnam calendar day the report run was created; the proposal deadlines count from it. */
 function marketActionStartDay(input: AutomationReportInput): string | null {
@@ -715,7 +719,7 @@ const marketReviewsCollected = (input: AutomationReportInput): boolean =>
 function marketHeadline(input: AutomationReportInput, presentation: AutomationMarketPresentationMethod): MarketHeadline {
   const drawn = (chartKind: MarketChart['kind']): boolean => Boolean(input.marketPresentationCharts?.some(chart => chart.kind === chartKind));
   const unit = marketUnitRows(input, presentation.input.rows), rows = unit.rows;
-  const plan = marketActionPlan(rows, { reviewsCollected: marketReviewsCollected(input), startDay: marketActionStartDay(input), currentReader: true, unitStandard: unit.profile?.standard ?? null });
+  const plan = marketActionPlan(rows, { reviewsCollected: marketReviewsCollected(input), startDay: marketActionStartDay(input), currentReader: true, unitStandard: unit.profile?.standard ?? null, withoutAveragePrice: unit.withoutAveragePrice === true });
   const interest = input.collection?.searchInterest;
   const weeks = searchInterestRenderable(interest) && input.searchInterestChart
     ? searchInterestReadingPoints(interest).flatMap(point => point.index === null ? [] : [{ period: point.period, index: point.index }]) : [];
@@ -1019,7 +1023,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     if (marketPresentation && (section.sectionId === 'M11' || section.sectionId === 'M12')) {
       const reviewsCollected = marketReviewsCollected(input);
       const unit = marketUnitRows(input, marketPresentation.input.rows);
-      const plan = marketActionPlan(unit.rows, { reviewsCollected, startDay: marketActionStartDay(input), currentReader: true, unitStandard: unit.profile?.standard ?? null });
+      const plan = marketActionPlan(unit.rows, { reviewsCollected, startDay: marketActionStartDay(input), currentReader: true, unitStandard: unit.profile?.standard ?? null, withoutAveragePrice: unit.withoutAveragePrice === true });
       locatedViews.set(section.sectionId, () => section.sectionId === 'M11' ? marketOpportunitySection(plan, reviewsCollected, unit) : marketActionSection(plan, unit, Boolean(input.marketRawSeries)));
       return { sectionId: section.sectionId, title: section.title, state: 'EVIDENCE_INVENTORY', rows: [], method: marketPresentation.methodVersion,
         explanation: section.sectionId === 'M11' ? 'Cơ hội đọc từ doanh thu quan sát trong mẫu, ghi riêng từng sàn; là đề xuất của TDN, chờ chủ duyệt.' : ACTION_LEAD };
@@ -1563,7 +1567,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     if (kind === 'MARKET' && (sectionId === 'M03' || sectionId === 'M04')) {
        // The capture's per-platform tables already print in Phần 3; M04 points there instead of repeating them.
        if (sectionId === 'M04' && marketPresentation && input.metricMethods?.capture) return '<p>Danh sách sản phẩm và số liệu của từng sàn nằm ở Phần 3; phần này không in lại.</p>';
-       if (input.metricMethods) return metricMethodSection(input.metricMethods, sectionId, input.metricClassified, citations, Boolean(marketPresentation), readerPlainText, Boolean(marketPresentation), marketPresentation ? marketUnitRows(input, marketPresentation.input.rows).profile : null) + (sectionId === 'M03' && input.marketInventory ? (readerPlainText ? '<h3>Số liệu từng kỳ của các sản phẩm được chọn (đọc riêng, không cộng vào bảng mẫu)</h3>' : '<h3>Bằng chứng riêng của nguồn sàn: không cộng vào số liệu nguồn</h3>') + marketInventorySection(input.marketInventory, sectionId, citations, labels, readerPlainText, inventoryReader) : '');
+       if (input.metricMethods) return metricMethodSection(input.metricMethods, sectionId, input.metricClassified, citations, Boolean(marketPresentation), readerPlainText, Boolean(marketPresentation), marketPresentation ? marketUnitRows(input, marketPresentation.input.rows).packProfile : null) + (sectionId === 'M03' && input.marketInventory ? (readerPlainText ? '<h3>Số liệu từng kỳ của các sản phẩm được chọn (đọc riêng, không cộng vào bảng mẫu)</h3>' : '<h3>Bằng chứng riêng của nguồn sàn: không cộng vào số liệu nguồn</h3>') + marketInventorySection(input.marketInventory, sectionId, citations, labels, readerPlainText, inventoryReader) : '');
       if (input.metricMethodsFailure) return `<p class="warning">${escape(metricFailureCopy[input.metricMethodsFailure].next)}</p>` + codeNote(input.metricMethodsFailure);
     }
     if (kind === 'MARKET' && (sectionId === 'M03' || sectionId === 'M08')) {

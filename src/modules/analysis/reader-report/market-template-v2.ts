@@ -24,7 +24,7 @@ import { esc, plainCaptureNumbers } from './format.js';
 import { cover, makeExhibits, n, page, plat, platIcons, PLATFORM_LABEL, section as legacySection } from './layout.js';
 import { NO_BRAND } from './scope-metrics.js';
 import { currentProposals } from './market-proposals.js';
-import { ACTION_LEAD, ACTION_NOTE, OPPORTUNITY_HEADINGS, OPPORTUNITY_READING, OPTION_HEADINGS, QUICK_WIN_HEADING, QUICK_WIN_HEADINGS, actionStartDay, isoFromReaderDay, marketActionPlan, opportunityExplanation, opportunityRows } from './market-actions.js';
+import { ACTION_LEAD, ACTION_NOTE, OPPORTUNITY_HEADINGS, OPPORTUNITY_READING, OPTION_HEADINGS, QUICK_WIN_HEADING, QUICK_WIN_HEADINGS, actionStartDay, isoFromReaderDay, marketActionPlan, NO_DERIVED_PRICE, opportunityExplanation, opportunityRows } from './market-actions.js';
 import { MARKET_TOC, readerWebResults, type BuiltMarketReport, type MarketReportOptions, type ReaderWebResult } from './market-template.js';
 import { CitationRegistry } from '../citation-registry.js';
 import { CROSS_PLATFORM_TOTAL_LABEL } from '../report-language/index.js';
@@ -418,7 +418,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     const reviewsCollected = Boolean(options.publicReviewSource?.accounting.capturedReviewRecords || options.testReviewSample && exactTestReviewSample(options.testReviewSample)?.listings.some(row => row.reviews > 0));
     const startDay = actionStartDay(/^\d{2}\/\d{2}\/\d{4}$/u.test(options.builtOn) ? isoFromReaderDay(options.builtOn) : null,
       source.measurementPeriod.end, source.measurementPeriod.start);
-    const plan = marketActionPlan(rows, { reviewsCollected, startDay, ...(withAverage ? {} : { currentReader: true, unitStandard: null }) });
+    const plan = marketActionPlan(rows, { reviewsCollected, startDay, ...(withAverage ? {} : { currentReader: true, unitStandard: null, withoutAveragePrice: true }) });
     const opportunity = plan.hasFigures ? tbl('11.1', 'Cơ hội trong mẫu, ghi riêng từng sàn (đề xuất, chờ chủ duyệt)', '', [...OPPORTUNITY_HEADINGS].map(esc),
       opportunityRows(plan.signals).map(row => row.map(label)), { note: esc(OPPORTUNITY_READING) }) : '';
     const options12 = tbl('12.1', 'Phương án đề xuất, chờ chủ duyệt', '', [...OPTION_HEADINGS].map(esc),
@@ -426,7 +426,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
       { src: 'TDN đề xuất từ doanh thu trong mẫu, ghi riêng từng sàn.' });
     const quick = tbl('12.2', 'Việc làm ngay, không tốn chi phí (đề xuất, chờ chủ duyệt)', '', [...QUICK_WIN_HEADINGS].map(esc),
       plan.quickWins.map(win => [win.task, win.owner, win.deadline, win.output].map(cell => label(cell))), { src: 'TDN đề xuất.' });
-    return [section('M11', 'Cơ hội', esc(opportunityExplanation(plan.hasFigures, reviewsCollected, !withAverage)), opportunity),
+    return [section('M11', 'Cơ hội', esc(withAverage ? opportunityExplanation(plan.hasFigures, reviewsCollected) : NO_DERIVED_PRICE), opportunity),
       section('M12', 'Khuyến nghị và hành động', esc(ACTION_LEAD), `${options12}<h3>${esc(QUICK_WIN_HEADING)}</h3>${quick}`, esc(ACTION_NOTE + (!withAverage ? ' Mọi hạn trong hai bảng là ngày dự kiến.' : '')))];
   };
   // 1.4.0 readers use the same sample signals in Phần 11/12; legacy bytes stay as they were.

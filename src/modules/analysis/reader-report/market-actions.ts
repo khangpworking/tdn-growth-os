@@ -107,18 +107,21 @@ export function opportunityExplanation(hasFigures: boolean, reviewsCollected: bo
     : 'Chưa đủ dữ liệu để nêu cơ hội trong mẫu. ') + reviews;
 }
 
+/** Raw-series reports (owner F118/F119, 23/10/2026): no price from revenue ÷ units, so no price groups. */
+export const NO_DERIVED_PRICE = 'Báo cáo không tính giá từ doanh thu chia lượt bán, nên không chia khoảng giá.';
+
 /** Three options (A–C) with in-sample related revenue per platform, plus quick wins; dates count from `startDay` (yyyy-mm-dd). */
-export function marketActionPlan(rows: readonly ActionRow[], { reviewsCollected, startDay, currentReader = false, unitStandard }: { reviewsCollected: boolean; startDay: string | null; currentReader?: boolean; unitStandard?: string | null }): MarketActionPlan {
+export function marketActionPlan(rows: readonly ActionRow[], { reviewsCollected, startDay, currentReader = false, unitStandard, withoutAveragePrice = false }: { reviewsCollected: boolean; startDay: string | null; currentReader?: boolean; unitStandard?: string | null; withoutAveragePrice?: boolean }): MarketActionPlan {
   // undefined keeps revenue per unit sold; a string or null means title-unit prices (null = no comparison).
   const byUnit = currentReader && unitStandard !== undefined;
-  const signals = platformSignals(rows, byUnit).map(signal => currentReader && signal.band && (signal.band.low <= 0 || signal.band.high <= 0)
+  const signals = platformSignals(rows, byUnit).map(signal => currentReader && signal.band && (withoutAveragePrice || signal.band.low <= 0 || signal.band.high <= 0)
     ? { ...signal, band: null } : signal);
   const day = actionStartDay(startDay);
   const deadline = (days: number): string => day === null ? 'Chưa có ngày bắt đầu hợp lệ' : dayPlus(day, days);
   if (currentReader) {
     const related = signals.length ? signals.map(({ name, band }) => band
       ? `${name}: khoảng giá ${vnd(band.low)}–${vnd(band.high)} ${byUnit ? unitStandard : 'VND mỗi đơn vị bán'}; ${band.count} sản phẩm, doanh thu nhóm ${vnd(band.revenue)} VND`
-      : `${name}: ${missingBandText(byUnit, unitStandard)}`) : ['Chưa đủ dữ liệu giá để xác định khoảng giá theo sàn'];
+      : `${name}: ${withoutAveragePrice ? NO_DERIVED_PRICE : missingBandText(byUnit, unitStandard)}`) : ['Chưa đủ dữ liệu giá để xác định khoảng giá theo sàn'];
     const options: ActionOption[] = [
       { name: 'A. Kiểm tra mức giá dự kiến trong khoảng giá của mẫu', related,
         firstStep: 'Đối chiếu mức giá dự kiến với khoảng giá cùng sàn; trình chủ duyệt trước khi thay đổi giá',
