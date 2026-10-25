@@ -42,6 +42,7 @@ interface Scenario {
   readonly topPercent: number;
   readonly titles?: readonly string[];
   readonly brands?: readonly string[];
+  readonly productRevenues?: readonly (number | null)[];
   readonly missingCategoryRevenue?: boolean;
 }
 
@@ -70,7 +71,7 @@ function rawCapture(scenario: Scenario) {
   const titles = scenario.titles ?? Array.from({ length: 6 }, () => scenario.keyword);
   const products = titles.map((title, i) => ({
     product_base_id: `${i % 2 === 0 ? 1 : 8}__${101 + i}__${201 + i}`,
-    product_name: title, shop_base_id: String(201 + i), revenue_custom: 1000 - i * 10, order_custom: 10,
+    product_name: title, shop_base_id: String(201 + i), revenue_custom: scenario.productRevenues ? scenario.productRevenues[i] : 1000 - i * 10, order_custom: 10,
     brand: scenario.brands?.[i] ?? `Synthetic brand ${i + 1}`,
     bee_categories: [{ id: scenario.category.id, name: scenario.category.label, level: 0 }, { id: other.id, name: other.label, level: 0 }],
   }));
@@ -468,4 +469,38 @@ test('a transient keyword-answer ledger failure keeps the suggestion and remains
   assert.equal((await f.service.retryAutoRunCapture(workspaceId, f.runId, input)).exactRetry, true);
   await reach(f, 'CONFIRM');
   assert.deepEqual(f.payloads[1]!.keywords, [zinc.keyword, 'viên kẽm']);
+});
+
+test('retry after capture-2 settlement fails preserves the owner-approved search scope', async t => {
+  const f = await scopeRun(t, { ...zinc, titles: zincTitles });
+  await assertSuggestion(f, 'viên kẽm');
+  await answer(f, 'viên kẽm');
+  // The capture and scope file finish, but the phase write-back fails before commit.
+  f.db.exec(`CREATE TRIGGER review_capture_settlement_failure BEFORE UPDATE OF phase ON research_automation_autorun
+    WHEN OLD.phase='CAPTURE' AND NEW.phase='PREPARE'
+    BEGIN SELECT RAISE(ABORT, 'synthetic temporary settlement failure'); END`);
+  await f.service.processNext();
+  await f.service.settleAutoRunCaptures();
+  assert.equal(f.payloads.length, 2);
+  assert.equal((await f.scope()).capture2?.outcome, 'OK');
+  f.db.exec('DROP TRIGGER review_capture_settlement_failure');
+  const restarted = f.make();
+  await restarted.recoverOnStart();
+  assert.equal(autorun(f.db, f.runId)!.stopCode, 'CAPTURE_INTERRUPTED');
+  await restarted.retryAutoRunCapture(workspaceId, f.runId, {
+    contractVersion: 'research-automation-autorun-retry-v1', requestKey: randomUUID(),
+  });
+  await driveUntil(restarted, () => ['CONFIRM', 'STOPPED'].includes(autorun(f.db, f.runId)!.phase));
+  assert.equal(autorun(f.db, f.runId)!.phase, 'CONFIRM', 'a capture retry must not ask the owner to approve the same keyword again');
+  assert.deepEqual(f.payloads[2]!.keywords, [zinc.keyword, 'viên kẽm']);
+  assert.equal(f.payloads[2]!.category, health.label);
+});
+
+test('titles without readable product revenue cannot back a top-revenue keyword suggestion', async t => {
+  const f = await scopeRun(t, { ...zinc, titles: zincTitles, productRevenues: [null, null, null, null, null, 0] });
+  await reach(f, 'CONFIRM');
+  const scope = await f.scope();
+  assert.equal(scope.keyword2.chosen, null, 'unknown revenues must not become observed zero and admit five unrankable titles');
+  assert.equal(scope.keyword2.titleCount, 1, 'the observed zero remains a usable revenue value');
+  assert.deepEqual(f.payloads[1]!.keywords, [zinc.keyword]);
 });

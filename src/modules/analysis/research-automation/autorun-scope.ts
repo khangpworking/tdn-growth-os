@@ -97,9 +97,11 @@ function productRows(entries: readonly Entry[]): { rows: ProductRow[]; labels: M
       const platform = typeof id === 'string' ? PLATFORM_BY_ID.get(Number(id.split('__')[0])) : undefined;
       const title = typeof product.product_name === 'string' ? product.product_name.normalize('NFC').trim().slice(0, 500) : '';
       if (typeof id !== 'string' || !platform || !title) continue;
+      const revenue = finite(product.revenue_custom ?? product.revenue);
+      // A title without readable revenue cannot be ranked among the top-revenue products.
+      if (revenue === null) continue;
       const brand = [product.final_brand, product.brand].find(value => typeof value === 'string' && value.trim()) as string | undefined;
-      rows.set(id, { id, platform, title, brand: brand ? brand.normalize('NFC').trim().toLowerCase() : '',
-        revenue: finite(product.revenue_custom ?? product.revenue) ?? 0 });
+      rows.set(id, { id, platform, title, brand: brand ? brand.normalize('NFC').trim().toLowerCase() : '', revenue });
     }
   }
   return { rows: [...rows.values()], labels };

@@ -5559,9 +5559,10 @@ export class ResearchAutomationService {
     let scope: AutorunScopeRecord | null;
     try { scope = await this.#autorunScope(runId); }
     catch { await this.#autorunStopRunning(runId, 'CAPTURE', 'CAPTURE_IO_FAILED'); return true; }
-    // A first capture whose plan asks for a second one: the next CAPTURE attempt of the run is that second capture.
+    // Keep the planned second capture on retry, including when its scope file settled before the
+    // database phase write-back failed. Only an unanswered suggestion still belongs to capture 1.
     this.#launchCapture(runId, start!, { startDate: start!.requestedPeriod.startDate, endDate: start!.requestedPeriod.endDate },
-      scope?.capture2?.outcome === 'PENDING' ? scope : null);
+      scope?.capture2 && scope.capture2.outcome !== 'AWAITING_KEYWORD2' ? scope : null);
     return progressed;
   }
 
