@@ -33,7 +33,7 @@ import { parseVietnameseDisplayNumber } from './metric-web-facts.js';
 import { METRIC_CURRENT_HEADERS, MetricSourceRejection, normalizeMetricWorkbookInput } from '../metric-source-profile.js';
 import { MAX_JSON_ARTIFACT_BYTES, ResearchAutomationIntegrityError, type ScopeSnapshot, type StartSnapshot } from './model.js';
 import { createRetainedSchemaCache } from './retained-schema-cache.js';
-import { captureContextScopeLines, verifyMetricCaptureArchive, CONTEXT_PATH as CAPTURE_CONTEXT_PATH, DESCRIPTOR_PATH as CAPTURE_DESCRIPTOR_PATH,
+import { captureContextReadable, captureContextScopeLines, verifyMetricCaptureArchive, CONTEXT_PATH as CAPTURE_CONTEXT_PATH, DESCRIPTOR_PATH as CAPTURE_DESCRIPTOR_PATH,
   MANIFEST_PATH as CAPTURE_MANIFEST_PATH, SNAPSHOT_PATH as CAPTURE_SNAPSHOT_PATH } from './metric-capture-intake.js';
 
 import { CAPTURE_ROW_PROFILE_V2, readCaptureProductRows, CAPTURE_ROW_PROFILE, isCaptureRowProfile, assessCaptureProductRows, type CaptureRowExclusionReason, type CaptureRowProfile } from './capture-row-quality.js';
@@ -781,7 +781,7 @@ function verifyCaptureSelection(selected: CaptureSelected, input: Pick<MetricRun
       selected.descriptor.sourceContextPath !== selected.context.path)
     fail('METRIC_SOURCE_INTEGRITY_FAILED', 'Metric capture descriptor differs from its retained archive.');
   const context = jsonRecord(selected.context.bytes);
-  if (!context || (context.contractVersion !== 'automation-metric-capture-context-v1' && !captureContextScopeLines(context)) || context.provenance !== 'results-page capture' ||
+  if (!context || !captureContextReadable(context) || context.provenance !== 'results-page capture' ||
       context.snapshotSha256 !== sha(selected.snapshot.bytes) || context.manifestSha256 !== sha(selected.manifest.bytes))
     fail('METRIC_SOURCE_INTEGRITY_FAILED', 'Metric capture context differs from its retained archive.');
   assertCaptureFilterScope(verified.snapshot.scope, input.scope);

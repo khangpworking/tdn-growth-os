@@ -36,6 +36,8 @@ import { filterReaderGlossary, MARKET_READER_TERMS } from '../research-automatio
 import { readerText } from '../research-automation/market-reader-delivery.js';
 import { MARKET_SALES_AVERAGE_EXHIBIT, marketFindings } from './market-findings.js';
 import { exactTestReviewSample, exactTestReviewSection, exactTestReviewSourceRows } from '../research-automation/test-review-sample.js';
+import { marketRawScaleSection, marketRawScopeSection, renderMarketRawCharts } from '../research-automation/market-raw-report.js';
+import { MarketNumberTraceCollector } from '../research-automation/market-trace-map.js';
 
 const PLATFORM_COLORS = { shopee: '#c2410c', tiktok: '#1d2327' } as const;
 
@@ -88,6 +90,11 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   const segName = (k: string): string => profile.segments[k] ?? k;
   const status = profile.status === 'approved' ? 'đã được chủ duyệt' : 'đề xuất, chờ chủ duyệt';
   const sections: string[] = [], charts: BuiltMarketReport['charts'] = [];
+  // The draft's raw-response blocks (P4): scope line first in Phần 2, scale blocks and interval charts first in Phần 3.
+  const raw = options.marketRaw ? { ...options.marketRaw, charts: await renderMarketRawCharts(options.marketRaw, { flint: options.flint !== false }) } : undefined;
+  const rawTrace = new MarketNumberTraceCollector();
+  const rawScope = raw ? marketRawScopeSection(raw, rawTrace) : '', rawScale = raw ? marketRawScaleSection(raw, rawTrace) : '';
+  for (const chart of raw?.charts ?? []) charts.push({ id: chart.id, engine: chart.engine, ...(chart.error ? { error: chart.error } : {}) });
   const summary = next ? '' : PLATS.map(P => nar(`${PLATFORM_LABEL[P]}: {{${P}.core.rev}} doanh thu, {{${P}.core.units}} đơn vị bán trong mẫu`, `M01.${P}`)).join('; ');
   if (next) {
     const findings = marketFindings(d, { withoutAveragePrice: !withAverage });
@@ -119,7 +126,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   const limitations = [...options.limitations, ...(options.captureRowPolicy === 'automation-metric-capture-v3'
     ? ['Những tiêu đề AI chưa phân loại được hoặc còn chưa chắc chắn vẫn được giữ trong mẫu.'] : [])];
   sections.push(section('M02', 'Phạm vi và phương pháp', `Kỳ ${period}; mỗi sàn là một phạm vi riêng.`,
-    tbl('2.1', 'Phạm vi và độ phủ số liệu', '', ['Sàn', 'Dòng nguồn', 'Thiếu doanh thu', 'Doanh thu bằng không', 'Thiếu đơn vị bán', 'Đơn vị bán bằng không'],
+    rawScope + tbl('2.1', 'Phạm vi và độ phủ số liệu', '', ['Sàn', 'Dòng nguồn', 'Thiếu doanh thu', 'Doanh thu bằng không', 'Thiếu đơn vị bán', 'Đơn vị bán bằng không'],
       PLATS.map(P => [plat(P), n(bf(`${P}.all.n`)), n(bf(`${P}.all.rev.missing`)), n(bf(`${P}.all.rev.zero`)), n(bf(`${P}.all.units.missing`)), n(bf(`${P}.all.units.zero`))])) +
     tbl('2.2', `Quy tắc phân loại (${status})`, '', ['Nhóm', 'Quy tắc', 'Dòng khớp'], profile.rules.map((rule, i) => {
       B.set(`rule.${i}.n`, d.ruleHits[i] ?? 0, 'num'); return [label(segName(rule.seg)), label(rule.why ?? 'Luật khớp đầu tiên của hồ sơ đã lưu'), n(bf(`rule.${i}.n`))];
@@ -157,7 +164,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     })), { src: 'Trang kết quả tìm kiếm đã lưu (toàn kết quả tìm kiếm)' + mark });
     if (drawn) charts.push({ id: 'M03.monthly', engine: drawn.engine, ...(drawn.error ? { error: drawn.error } : {}) });
   }
-  sections.push(section('M03', 'Quy mô và diễn biến', monthly ? 'Doanh số trong mẫu và chuỗi trên trang nguồn giữ riêng; có số theo tháng cho từng sàn ở Hình 3.1.' : 'Chỉ mô tả doanh số trong mẫu; chưa có chuỗi phù hợp để xác định diễn biến.', exclusionNotes + salesTable(MARKET_SALES_AVERAGE_EXHIBIT) + monthly, !withAverage ? 'Một thành viên thiếu làm tổng chưa xác định.' : `Một thành viên thiếu làm tổng chưa xác định; mẫu số bằng không không tạo ra ${next ? 'giá bán trung bình' : 'giá trung bình'}.`));
+  sections.push(section('M03', 'Quy mô và diễn biến', monthly ? 'Doanh số trong mẫu và chuỗi trên trang nguồn giữ riêng; có số theo tháng cho từng sàn ở Hình 3.1.' : 'Chỉ mô tả doanh số trong mẫu; chưa có chuỗi phù hợp để xác định diễn biến.', rawScale + exclusionNotes + salesTable(MARKET_SALES_AVERAGE_EXHIBIT) + monthly, !withAverage ? 'Một thành viên thiếu làm tổng chưa xác định.' : `Một thành viên thiếu làm tổng chưa xác định; mẫu số bằng không không tạo ra ${next ? 'giá bán trung bình' : 'giá trung bình'}.`));
   // The three required charts come from the same saved product rows as the appendix.
   const chartRows = marketChartRows(rows);
   const required = !flintMarks ? [] : await renderMarketCharts(rows, { flint: options.flint !== false, titleLabels: Boolean(options.captureRowPolicy), rowListNote: 'số dòng khớp chú dẫn “dòng sản phẩm” của nguồn' });

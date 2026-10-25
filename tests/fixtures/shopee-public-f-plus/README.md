@@ -32,3 +32,11 @@ v3plug P2 round 2: regenerated with the same generator (`--candidate`, output ou
 The run API now emits `research-automation-run-v2`, so only the `contractVersion` string changes in the five
 scenario `run.json` outputs (absent, exact, native, trial, unconfigured; same byte size, not content-addressed, no rename).
 All 283 other members stay byte-identical; membership stays at 288. The revision field keeps the pinned F+ base revision.
+
+v3plug P4b: regenerated with the same generator (`--candidate`, output outside the checkout).
+The auto-run trial run now stores its capture's `raw-responses.json` as an artifact (verified against the manifest entry),
+and its capture package context is `automation-metric-capture-context-v3` with `rawResponses`; the capture folder manifest lists
+raw-responses.json as the adapter writes it. That adds one member (289 entries) and renames the trial-run package members built on it.
+The extra artifact write takes one more generator UUID (temporary file name), so later scenarios (native-run, private, policy)
+get shifted execution/collection ids and the digests built on them. No report HTML member changes in any scenario.
+The revision field keeps the pinned F+ base revision.

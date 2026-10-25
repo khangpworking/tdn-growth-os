@@ -7,6 +7,7 @@
  *
  * Optional input: reports without `marketRawSeries` keep their current output.
  */
+import { renderChart, type FlintChartInput, type RenderedChart } from '../reader-report/flint.js';
 import { escapeHtml as escape } from './descriptive-report.js';
 import { MARKET_RAW_PLATFORM_IDS, MARKET_RAW_SCOPE_PLATFORM_IDS, marketRawPeriodEndSource, type MarketRawInterval, type MarketRawKpiField,
   type MarketRawSeries, type MarketRawSource, type MarketRawTotalValue } from './market-raw-series.js';
@@ -19,6 +20,8 @@ export interface MarketRawCapturePeriod {
   readonly captureId: string;
   /** `readMarketRawSeries` output of that capture. */
   readonly series: MarketRawSeries;
+  /** The stored raw-responses content itself, when the caller holds it: the number-trace gate re-reads every pointer in it. */
+  readonly raw?: unknown;
 }
 
 export interface MarketRawReportInput {
@@ -26,7 +29,12 @@ export interface MarketRawReportInput {
   readonly periods: readonly MarketRawCapturePeriod[];
   /** Search settings of the capture, from the run record. */
   readonly scope: MarketCaptureScope;
+  /** Interval charts drawn before the synchronous build (`renderMarketRawCharts`); without them the hand-drawn SVG prints. */
+  readonly charts?: readonly MarketRawChart[];
 }
+
+/** One interval chart, keyed by the block id of its period (e.g. `M03.30d.intervals`). */
+export type MarketRawChart = RenderedChart & { readonly id: string };
 
 const DAY_MS = 86_400_000;
 const PLATFORMS = [
@@ -120,13 +128,16 @@ interface PeriodText {
   previous(blockId: string): string;
 }
 
-function periodText(period: Extract<MarketRawSeries['period'], { startDate: string }>, trace: MarketCaptureTrace): PeriodText {
+type DatedPeriod = Extract<MarketRawSeries['period'], { startDate: string }>;
+const periodKey = (period: DatedPeriod): string => period.days >= 365 ? '12m' : `${period.days}d`;
+
+function periodText(period: DatedPeriod, trace: MarketCaptureTrace): PeriodText {
   const end = marketRawPeriodEndSource(period.source);
   const inputs = end ? [period.source, end] : [period.source];
   const year = period.days >= 365;
   const previous = marketPreviousPeriod(period.startDate, period.endDate);
   return {
-    key: year ? '12m' : `${period.days}d`,
+    key: periodKey(period),
     text: blockId => `${trace.record(year ? '12' : String(period.days), blockId, 'computed', inputs,
       year ? 'inclusive days of the request period ≥ 365 → 12 tháng' : 'inclusive days from request start_date to end_date')} ${year ? 'tháng' : 'ngày'}`,
     range: blockId => trace.record(formatMarketRange(period.startDate, period.endDate), blockId, 'raw', inputs, 'request start_date–end_date, dd/mm[/yyyy]'),
@@ -176,7 +187,8 @@ function platformSplit(series: MarketRawSeries, period: PeriodText, trace: Marke
   const sum = total && total.value !== null
     ? ` · ${escape(totalLabel('scope'))} ${escape(trace.record(formatMarketMoney(total.value), `${blockId}.scope`, 'computed', total.members, `sum(Shopee, TikTok Shop revenue); ${SCALE_FORMULA}`))}`
     + ` <small class="cmp-note">${escape(`(tỷ lệ = doanh thu từng sàn ÷ doanh thu ${totalLabel('note')}, cùng kỳ ${period.text(`${blockId}.note`)}: ${period.range(`${blockId}.note`)})`)}</small>`
-    : ` <small class="cmp-note">Chưa nêu ${escape(totalLabel('missing'))} vì thiếu số doanh thu của một sàn.</small>`;
+    // «Cộng 2 sàn» only stands with both platform numbers (R-M16, gate U32), so the missing total is said without it.
+    : ' <small class="cmp-note">Chưa cộng doanh thu các sàn vì thiếu số doanh thu của một sàn.</small>';
   return `<p data-market-raw-split="${escape(blockId)}">${parts.join(' · ')}${sum}</p>`;
 }
 
@@ -209,11 +221,11 @@ function intervalSvg(axis: readonly string[], lines: readonly Line[], labels: re
   return `<svg viewBox="0 0 ${w} ${h}" role="img" xmlns="http://www.w3.org/2000/svg">${body}</svg>`;
 }
 
-function intervalBlock(series: MarketRawSeries, period: PeriodText, trace: MarketCaptureTrace, blockId: string): string {
+/** One line per platform over the dated intervals of a series; `axis` is every dated interval, in date order. */
+function intervalLines(series: MarketRawSeries) {
   const monthly = series.intervalDays.value !== null && series.intervalDays.value >= 28;
   // Missing interval metadata does not establish a weekly frequency.
   const frequency = series.intervalDays.value === null ? 'unknown' : monthly ? 'monthly' : 'weekly';
-  const unit = frequency === 'unknown' ? 'kỳ' : monthly ? 'tháng' : 'tuần';
   const byId = new Map(series.platforms.map(platform => [platform.platformId, platform] as const));
   // Every interval stays, null revenue included; only an interval without dates has no place on the axis.
   const lines: Line[] = PLATFORMS.map(platform => {
@@ -225,16 +237,25 @@ function intervalBlock(series: MarketRawSeries, period: PeriodText, trace: Marke
     }
     return { ...platform, points, undated, hasData: [...points.values()].some(point => point.value !== null) };
   });
-  if (!lines.some(line => line.points.size)) return `<p>Chưa có số doanh thu theo ${unit} của Shopee và TikTok Shop cho kỳ này.</p>`;
   const axis = [...new Set(lines.flatMap(line => [...line.points.keys()]))].sort();
   const sample = (key: string): Point => lines.map(line => line.points.get(key)).find(point => point?.source)
     ?? lines.map(line => line.points.get(key)).find(point => point !== undefined)!;
   // Interval dates print as stored; full months print as mm/yyyy.
+  const labelText = (key: string): string => {
+    const { interval } = sample(key);
+    return monthly && !interval.partial ? `${interval.startDate!.slice(5, 7)}/${interval.startDate!.slice(0, 4)}` : formatMarketRange(interval.startDate!, interval.endDate!);
+  };
+  return { monthly, frequency, lines, axis, sample, labelText };
+}
+
+function intervalBlock(series: MarketRawSeries, period: PeriodText, trace: MarketCaptureTrace, blockId: string, charts: readonly MarketRawChart[] = []): string {
+  const { monthly, frequency, lines, axis, sample, labelText } = intervalLines(series);
+  const unit = frequency === 'unknown' ? 'kỳ' : monthly ? 'tháng' : 'tuần';
+  if (!lines.some(line => line.points.size)) return `<p>Chưa có số doanh thu theo ${unit} của Shopee và TikTok Shop cho kỳ này.</p>`;
   const label = (key: string, block: string): string => {
     const { interval, source } = sample(key);
     const inputs = source ? [siblingSource(source, 'start_date'), siblingSource(source, 'end_date')] : [];
-    if (monthly && !interval.partial) return trace.record(`${interval.startDate!.slice(5, 7)}/${interval.startDate!.slice(0, 4)}`, block, 'raw', inputs, 'mm/yyyy of start_date');
-    return trace.record(formatMarketRange(interval.startDate!, interval.endDate!), block, 'raw', inputs, 'start_date–end_date, dd/mm[/yyyy]');
+    return trace.record(labelText(key), block, 'raw', inputs, monthly && !interval.partial ? 'mm/yyyy of start_date' : 'start_date–end_date, dd/mm[/yyyy]');
   };
   const short = (block: string): string => monthly ? 'tháng' : series.intervalDays.value !== null && series.intervalDays.source
     ? `${trace.record(String(series.intervalDays.value), block, 'raw', [series.intervalDays.source], 'interval_days of the request')} ngày` : 'kỳ';
@@ -272,9 +293,12 @@ function intervalBlock(series: MarketRawSeries, period: PeriodText, trace: Marke
     ...(missing ? [`Chỗ đứt của đường là ${unit} thiếu doanh thu, ghi «thiếu» ở bảng; không phải bằng không.`] : []),
     ...(axis.some(key => sample(key).interval.partial) ? [`Điểm rỗng là ${unit} chưa đủ ngày, ghi đúng ngày ở bảng; không dùng để nói xu hướng.`] : [])];
   const missingPlatforms = lines.filter(line => !line.hasData).map(line => line.key).join(' ');
+  // The pre-drawn chart has the same axis labels, so it prints in place of the hand-drawn SVG.
+  const drawn = charts.find(chart => chart.id === blockId);
+  const chart = drawn ? `<div class="chart flint" data-engine="${escape(drawn.engine)}" data-chart-id="${escape(drawn.id)}">${drawn.svg}</div>` : intervalSvg(axis, lines, axisLabels);
   return `<figure class="market-raw-line" data-market-raw-chart="${frequency}" data-series-count="${lines.length - absent.length}"${missingPlatforms ? ` data-platform-missing="${missingPlatforms}"` : ''}>`
     + `<div class="exh"><span class="ext">${escape(`Doanh thu theo ${unit}, từng sàn, kỳ ${period.text(`${blockId}.title`)}: ${period.range(`${blockId}.title`)}`)}</span></div>`
-    + intervalSvg(axis, lines, axisLabels) + '</figure>'
+    + chart + '</figure>'
     + `<p class="lim"><b>Chú thích:</b> ${escape(notes.join(' '))}</p>`
     + `<div class="table-wrap" role="region" aria-label="${escape(`Doanh thu theo ${unit}, từng sàn`)}" tabindex="0"><table data-market-raw-intervals="${frequency}" data-reading=""><caption>${escape(`Doanh thu theo ${unit}, từng sàn`)}</caption>`
     + `<thead><tr><th>Kỳ</th>${PLATFORMS.map(platform => `<th>${platform.label} (doanh thu)</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`
@@ -282,7 +306,7 @@ function intervalBlock(series: MarketRawSeries, period: PeriodText, trace: Marke
     + `<p>${trends.map(escape).join(' ')}</p>`;
 }
 
-function periodBlock(entry: MarketRawCapturePeriod, collector: MarketNumberTraceCollector): string {
+function periodBlock(entry: MarketRawCapturePeriod, collector: MarketNumberTraceCollector, charts?: readonly MarketRawChart[]): string {
   const { series } = entry;
   const trace = collector.forCapture(entry.captureId);
   if (series.period.startDate === null) return '<p>Chưa đọc được kỳ của số liệu thị trường; không in số của kỳ này.</p>';
@@ -296,15 +320,64 @@ function periodBlock(entry: MarketRawCapturePeriod, collector: MarketNumberTrace
   return `<section class="market-raw-period" data-market-raw-period="${period.key}"><h3>${escape(`${period.text(`${blockId}.head`)} · ${period.range(`${blockId}.head`)}`)}</h3>`
     + `<p>${escape(`Số của ${allLabel}, ước tính trên sàn.`)}</p><div class="grid4">${cards}</div>`
     + platformSplit(series, period, trace, `${blockId}.split`)
-    + intervalBlock(series, period, trace, `${blockId}.intervals`) + '</section>';
+    + intervalBlock(series, period, trace, `${blockId}.intervals`, charts) + '</section>';
 }
 
 /** Phần 3 scale blocks from raw-response numbers, one per captured period. */
 export function marketRawScaleSection(input: MarketRawReportInput, trace: MarketNumberTraceCollector): string {
   const periods = input.periods.filter(entry => entry.series.platforms.length > 0);
   if (!periods.length) return '';
-  return `<div class="market-raw-scale"><h3>Quy mô và diễn biến theo kỳ</h3>${periods.map(entry => periodBlock(entry, trace)).join('')}</div>`;
+  return `<div class="market-raw-scale"><h3>Quy mô và diễn biến theo kỳ</h3>${periods.map(entry => periodBlock(entry, trace, input.charts)).join('')}</div>`;
 }
+
+/**
+ * Interval charts of the scale blocks through Flint, the engine of the other Market charts (R-M11); a Flint
+ * failure keeps the hand-drawn SVG, marked svg-fallback. Same lines, axis labels, gaps and hollow partial
+ * points as the SVG; no value axis numbers and no value labels, since the numbers print in the table below.
+ * `flint: false` is the unit-test opt-out.
+ */
+export async function renderMarketRawCharts(input: Pick<MarketRawReportInput, 'periods'>, { flint = true }: { flint?: boolean } = {}): Promise<MarketRawChart[]> {
+  const charts: MarketRawChart[] = [];
+  for (const { series } of input.periods) {
+    if (!series.platforms.length || series.period.startDate === null) continue;
+    const { lines, axis, sample, labelText } = intervalLines(series);
+    if (!lines.some(line => line.points.size)) continue;
+    const id = `M03.${periodKey(series.period)}.intervals`, labels = axis.map(labelText);
+    const name = (line: Line): string => line.hasData ? line.label : `${line.label}: không có dữ liệu`;
+    const fallback = (): string => intervalSvg(axis, lines, labels);
+    const values = lines.flatMap(line => !line.hasData ? [] : axis.map((key, i) => {
+      const point = line.points.get(key);
+      return { ky: labels[i]!, san: name(line), doanh_thu: point?.value ?? null, chua_du: sample(key).interval.partial };
+    }));
+    const drawn: RenderedChart = !flint ? { svg: fallback(), engine: 'svg-fallback' } : await renderChart({
+      data: { values },
+      semantic_types: { ky: 'Category', san: 'Category', doanh_thu: 'Number' },
+      field_display_names: { ky: 'Kỳ', san: 'Sàn', doanh_thu: 'Doanh thu' },
+      chart_spec: { chartType: 'Line Chart', encodings: { x: 'ky', y: 'doanh_thu', color: 'san' } },
+    } as FlintChartInput, fallback, { palette: { san: Object.fromEntries(lines.map(line => [name(line), line.color])) }, patch: intervalPatch(labels) });
+    charts.push({ id, ...drawn });
+  }
+  return charts;
+}
+
+/** Axis order as the table, no value-axis labels, no per-mark aria text with values; points hollow on partial intervals. */
+const intervalPatch = (labels: readonly string[]) => (spec: any): void => {
+  const walk = (node: any): void => {
+    if (!node || typeof node !== 'object') return;
+    if ((node.mark === 'line' || node.mark?.type === 'line') && node.encoding?.color) {
+      const color = node.encoding.color;
+      node.encoding.x = { ...node.encoding.x, sort: [...labels] };
+      node.encoding.y = { ...node.encoding.y, axis: { ...node.encoding.y.axis, labels: false, ticks: false } };
+      node.layer = [{ mark: { type: 'line', strokeWidth: 2.5, aria: false } },
+        { mark: { type: 'point', filled: true, size: 48, strokeWidth: 1.5, opacity: 1, aria: false },
+          encoding: { color: null, stroke: { ...color, legend: null }, fill: { condition: { test: 'datum.chua_du', value: '#ffffff' }, field: color.field, type: color.type, scale: color.scale, legend: null } } }];
+      delete node.mark;
+      return;
+    }
+    for (const value of Object.values(node)) walk(value);
+  };
+  walk(spec);
+};
 
 /** Numbers inside stored text, cut as the HTML number scan cuts them («kẽm 50mg B12» -> 50, 12). */
 const TEXT_NUMBER = /[+−-]?\d+(?:[.,]\d+)*(?:\s*(?:tỷ|triệu|nghìn|đồng|%|phần trăm))?/gu;
