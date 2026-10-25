@@ -1,13 +1,16 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
+import { DEFAULT_MARKET_PEER_RULE } from '../../src/modules/analysis/default-market-peers.js';
+import { buildMarketReport, computeReaderReportData } from '../../src/modules/analysis/reader-report/index.js';
 import { auditMarket14, technicalLeaks } from '../../src/modules/analysis/research-automation/market-14-rules.js';
 import { marketRawScaleSection, type MarketRawReportInput } from '../../src/modules/analysis/research-automation/market-raw-report.js';
-import { readMarketRawSeries } from '../../src/modules/analysis/research-automation/market-raw-series.js';
-import { MarketNumberTraceCollector } from '../../src/modules/analysis/research-automation/market-trace-map.js';
+import { readMarketRawSeries, resolveMarketRawSource } from '../../src/modules/analysis/research-automation/market-raw-series.js';
+import { MarketNumberTraceCollector, type MarketNumberTrace, type MarketNumberTraceEntry } from '../../src/modules/analysis/research-automation/market-trace-map.js';
 import { buildResearchAutomationReport, type AutomationReportInput } from '../../src/modules/analysis/research-automation/reports.js';
 import { fullMarket14Input } from '../helpers/market14-full-fixture.js';
 import { metricFixture } from '../fixtures/metric-scope-synthetic.js';
+import { sync1Options, sync1ReaderFixture } from '../helpers/sync1-reader-fixture.js';
 import zinc30 from '../fixtures/market-raw-series/zinc-30d-4platform.synthetic.raw-responses.json' with { type: 'json' };
 import zinc12 from '../fixtures/market-raw-series/zinc-12m-4platform.synthetic.raw-responses.json' with { type: 'json' };
 import zinc30Dev from '../fixtures/market-raw-series/zinc-30d-dev.raw-responses.json' with { type: 'json' };
@@ -70,6 +73,25 @@ test('B1 raw-input report removes average prices from populated inventory and al
     assert.ok(document.querySelector('#M08 [data-market-prices] tbody tr'), 'inventory is still rendered');
     assert.deepEqual(document.body.textContent!.match(/giá\s*(?:TB|(?:bán\s+)?trung bình|bình quân)/giu) ?? [], [],
       'B1 bans average-price labels; the existing caveat about a possible estimate is not a printed average price');
+  });
+  const readerInput = sync1ReaderFixture('1.4.0');
+  readerInput.peerRule = { ...DEFAULT_MARKET_PEER_RULE };
+  const readerData = computeReaderReportData(readerInput);
+  const legacy = await buildMarketReport(readerData, sync1Options);
+  withDocument(legacy.html, document => {
+    assert.match(document.body.textContent!, /Giá bán trung bình/iu, 'Reader control has an average price to remove');
+  });
+  const reader = await buildMarketReport(readerData, { ...sync1Options, withoutAveragePrice: true });
+  withDocument(reader.html, document => {
+    assert.deepEqual(document.body.textContent!.match(/giá\s*(?:TB|(?:bán\s+)?trung bình|bình quân)/giu) ?? [], []);
+    for (const id of ['phan-1', 'phan-3', 'phan-8', 'phan-11', 'phan-12', 'phu-luc']) {
+      const section = document.getElementById(id);
+      assert.ok(section, `Reader retains ${id}`);
+      assert.doesNotMatch(section.textContent!, /(?<![\d.])(?:100\.000|200\.000)(?![\d.])/u, `${id} must not retain the fixture's revenue/units price`);
+    }
+    const appendix = document.querySelector('#phu-luc table')!;
+    assert.equal(appendix.querySelectorAll('tbody tr').length, 12, 'removing prices preserves the source rows');
+    assert.ok([...appendix.querySelectorAll('thead th')].some(cell => cell.textContent === 'Đơn vị bán'));
   });
 });
 
@@ -179,6 +201,116 @@ test('B6 synthetic zinc KPI prints 35,0 tỷ total, 34,9 tỷ scope, 27,0 tỷ T
     assert.match(split, /TikTok Shop 27,0 tỷ/u);
     assert.match(split, /Cộng 2 sàn 34,9 tỷ/u);
     assert.doesNotMatch(split, /Cộng 2 sàn 35,0/u);
+  });
+});
+
+test('B7 a null interval remains a chart gap and replaces trend words with the fixed missing-data sentence', async () => {
+  for (const fixtureRaw of [zinc30, zinc12]) {
+    const raw = structuredClone(fixtureRaw);
+    const data = raw[1]!.body.data;
+    assert.ok(Array.isArray(data));
+    for (const platform of data) platform.order_revenue_intervals.forEach((interval, i) => {
+      interval.revenue_custom_sum = (i + 1) * 1e9;
+      if (i === 2) Object.assign(interval, { revenue_custom_sum: null });
+    });
+    const period = captured('zinc-gap', raw);
+    withDocument(await reportHtml({ ...synthetic, periods: [period] }), document => {
+      const chart = document.querySelector('figure[data-market-raw-chart]')!;
+      const table = document.querySelector('table[data-market-raw-intervals]')!;
+      assert.equal(table.querySelectorAll('tbody tr').length, data[0]!.order_revenue_intervals.length);
+      assert.deepEqual([...table.querySelectorAll('tbody tr:nth-child(3) td')].slice(1).map(cell => cell.textContent), ['thiếu', 'thiếu']);
+      const ticks = [...chart.querySelectorAll('svg text')].filter(node => node.getAttribute('text-anchor') === 'middle');
+      assert.equal(ticks.length, data[0]!.order_revenue_intervals.length, 'missing interval retains its place on the date axis');
+      const gapX = Number(ticks[2]!.getAttribute('x'));
+      for (const platform of ['shopee', 'tiktok']) {
+        const segments = [...chart.querySelectorAll(`polyline[data-platform="${platform}"]`)];
+        assert.equal(segments.length, 2, `${platform} has separate segments on either side of the gap`);
+        for (const segment of segments) {
+          const xs = segment.getAttribute('points')!.trim().split(/\s+/u).map(pair => Number(pair.split(',')[0]));
+          assert.ok(!(Math.min(...xs) < gapX && Math.max(...xs) > gapX), 'a line cannot bridge the missing interval');
+        }
+        assert.ok([...chart.querySelectorAll(`circle[data-platform="${platform}"]`)].every(point => Number(point.getAttribute('cx')) !== gapX),
+          'a missing value must not become a zero-valued point');
+      }
+      const trends = [...document.querySelectorAll('.market-raw-period p')].map(p => p.textContent!).find(text => text.startsWith('Shopee:'));
+      assert.equal(trends, 'Shopee: chưa đủ dữ liệu để nhận xét xu hướng. TikTok Shop: chưa đủ dữ liệu để nhận xét xu hướng.');
+      assert.doesNotMatch(trends, /tăng đều|giảm đều|tăng nhưng dao động|giảm nhưng dao động|đi ngang/u);
+    });
+  }
+});
+
+test('B8 a platform without intervals remains visible and labelled không có dữ liệu', async () => {
+  for (const [id, key, label, column] of [[1, 'shopee', 'Shopee', 2], [8, 'tiktok', 'TikTok Shop', 3]] as const) {
+    for (const missing of ['no-intervals', 'all-null'] as const) {
+      const raw = structuredClone(zinc30);
+      const data = raw[1]!.body.data;
+      assert.ok(Array.isArray(data));
+      const platform = data.find(platform => platform.platform_id === id)!;
+      if (missing === 'no-intervals') platform.order_revenue_intervals = [];
+      else for (const interval of platform.order_revenue_intervals) Object.assign(interval, { revenue_custom_sum: null });
+      withDocument(await reportHtml({ ...synthetic, periods: [captured('zinc-missing-platform', raw)] }), document => {
+        const chart = document.querySelector('figure[data-market-raw-chart="weekly"]')!;
+        assert.ok([...chart.querySelectorAll('svg text')].some(text => text.textContent === `${label}: không có dữ liệu`));
+        assert.equal(chart.querySelectorAll(`polyline[data-platform="${key}"], circle[data-platform="${key}"]`).length, 0);
+        const table = document.querySelector('table[data-market-raw-intervals="weekly"]')!;
+        assert.match(table.querySelector(`thead th:nth-child(${column})`)!.textContent!, new RegExp(label, 'u'));
+        const cells = [...table.querySelectorAll(`tbody td:nth-child(${column})`)];
+        assert.equal(cells.length, 5);
+        assert.ok(cells.every(cell => cell.textContent === 'không có dữ liệu'), 'missing platform is neither omitted nor represented as zero');
+        assert.ok([...document.querySelectorAll('.market-raw-period p')].some(p => p.textContent!.includes(`${label}: không có dữ liệu theo tuần trong kỳ này.`)));
+      });
+    }
+  }
+});
+
+test('B9 every printed number in the touched raw blocks has a capture-bound trace entry and replayable pointer', async () => {
+  const report = buildResearchAutomationReport({ ...await baseInput(), marketRawSeries: synthetic }, 'MARKET');
+  const trace = (report.semantic as { marketNumberTrace?: MarketNumberTrace }).marketNumberTrace;
+  assert.ok(trace?.entries.length, 'trace is stored with the report output');
+  const captures = new Map<string, unknown>([['zinc-30d', zinc30], ['zinc-12m', zinc12]]);
+  for (const entry of trace.entries) {
+    assert.ok(entry.token.trim() && entry.blockId.trim() && entry.formula.trim());
+    assert.ok(entry.kind === 'raw' || entry.kind === 'computed');
+    assert.ok(entry.inputs.length > 0, `${entry.token} cannot have unbound computed inputs`);
+    const expectedCapture = entry.blockId.includes('30d') ? 'zinc-30d' : 'zinc-12m';
+    for (const input of entry.inputs) {
+      assert.equal(input.captureId, expectedCapture, `${entry.blockId} must name the capture of its printed period`);
+      assert.ok(Number.isInteger(input.responseIndex) && input.responseIndex >= 0);
+      assert.match(input.jsonPath, /^\//u);
+      assert.notEqual(resolveMarketRawSource(captures.get(input.captureId), input), undefined, `${entry.token}: pointer resolves in the named capture`);
+    }
+  }
+  for (const [token, captureId, values] of [
+    ['35,0 tỷ', 'zinc-30d', [7_900_000_000, 60_000_000, 40_000_000, 27_000_000_000]],
+    ['380,3 tỷ', 'zinc-12m', [90_000_000_000, 3_800_000_000, 1_500_000_000, 285_000_000_000]],
+    ['22/08–20/09/2026', 'zinc-30d', ['20260921', '20261020']],
+    ['01/11/2024–31/10/2025', 'zinc-12m', ['20251101', '20261031']],
+  ] as const) {
+    const entry: MarketNumberTraceEntry | undefined = trace.entries.find(candidate => candidate.token === token);
+    assert.ok(entry, `trace includes ${token}`);
+    assert.ok(entry.inputs.every(input => input.captureId === captureId));
+    assert.deepEqual(entry.inputs.map(input => resolveMarketRawSource(captures.get(input.captureId), input)), [...values],
+      'trace inputs retain both request dates or the exact headline aggregation members');
+  }
+  withDocument(report.html.toString(), document => {
+    const missing: string[] = [];
+    for (const period of document.querySelectorAll('.market-raw-period')) {
+      const key = period.getAttribute('data-market-raw-period')!;
+      const remaining = trace.entries.filter(entry => entry.blockId.startsWith(`M03.${key}.`)).map(entry => entry.token);
+      const content = period.cloneNode(true) as Element;
+      // Exhibit and citation numbers are identifiers, separate from the data.
+      content.querySelectorAll('.exn, sup.cite').forEach(node => node.remove());
+      const walker = document.createTreeWalker(content, 4);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const numbers = node.textContent!.match(/\d{2}\/\d{2}(?:\/\d{4})?–\d{2}\/\d{2}\/\d{4}|\d{2}\/\d{4}|[+−-]?\d+(?:[.,]\d+)*(?:\s*(?:tỷ|triệu|nghìn|đồng|%|phần trăm))?/gu) ?? [];
+        for (const number of numbers) {
+          const at = remaining.indexOf(number);
+          if (at < 0) missing.push(`${key}: ${number} in ${node.textContent!.trim()}`);
+          else remaining.splice(at, 1);
+        }
+      }
+    }
+    assert.deepEqual(missing, [], 'B9 requires a trace entry for each printed numeric occurrence, including template numbers');
   });
 });
 
