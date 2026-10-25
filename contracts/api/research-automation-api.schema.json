@@ -143,7 +143,7 @@
         "linksFound": { "type": "integer", "minimum": 0, "maximum": 5 },
         "canRetry": { "type": "boolean" },
         "keyword2Suggestion": {
-          "description": "Present while the auto-run waits for the owner's answer on keyword 2: the suggested term and its evidence in the first capture's top-revenue titles.",
+          "description": "research-automation-run-v2 only. Present while the auto-run waits for the owner's answer on keyword 2: the suggested term and its evidence in the first capture's top-revenue titles.",
           "type": "object", "additionalProperties": false,
           "required": ["keyword1", "term", "titles", "titleCount", "brands"],
           "properties": {
@@ -368,7 +368,7 @@
         "requestedPeriod", "reports", "definition", "productCards", "coverage", "usage", "steps", "blockers", "createdAt", "updatedAt"
       ],
       "properties": {
-        "contractVersion": { "const": "research-automation-run-v1" },
+        "contractVersion": { "enum": ["research-automation-run-v1", "research-automation-run-v2"] },
         "runId": { "$ref": "#/$defs/uuid" },
         "workspaceId": { "$ref": "#/$defs/uuid" },
         "revision": { "type": "integer", "minimum": 1 },
@@ -397,7 +397,9 @@
         "autoRun": { "$ref": "#/$defs/autoRun" },
         "createdAt": { "$ref": "#/$defs/timestamp" },
         "updatedAt": { "$ref": "#/$defs/timestamp" }
-      }
+      },
+      "if": { "properties": { "contractVersion": { "const": "research-automation-run-v1" } } },
+      "then": { "properties": { "autoRun": { "type": "object", "properties": { "keyword2Suggestion": false } } } }
     },
     "runSummary": {
       "title": "ResearchAutomationRunSummary",

@@ -4806,7 +4806,7 @@ export class ResearchAutomationService {
     const outputs = outputRows.length === 0 ? undefined : Object.fromEntries(outputRows.map((value) => [value.reportKind === 'MARKET' ? 'market' : 'insight', { versionId: value.versionSha, web: true as const, pdf: { available: value.pdfSha !== null, reason: value.pdfSha ? null : message(value.pdfUnavailableCode ?? 'PDF_RENDERER_NOT_CONFIGURED') } }])) as ResearchAutomationRun['outputs'];
     const autoRun = await this.#autoRunProjection(row);
     return {
-      contractVersion: 'research-automation-run-v1', runId: row.runId, workspaceId: row.workspaceId, revision: toNumber(row.revision), status: row.status, country: 'VN', mode: row.mode, keyword: row.keyword,
+      contractVersion: 'research-automation-run-v2', runId: row.runId, workspaceId: row.workspaceId, revision: toNumber(row.revision), status: row.status, country: 'VN', mode: row.mode, keyword: row.keyword,
       description: start.description, interview: start.interview, requestedPeriod: start.requestedPeriod, reports: start.reports as ResearchAutomationRun['reports'],
       definition: scope ? { definition: scope.definition, includeTerms: [...scope.includeTerms], excludeTerms: [...scope.excludeTerms], selectedProductIds: [...scope.selectedProductIds], peerProductIds: [...scope.peerProductIds], confirmedAt: row.scopeConfirmedAt!, ...(scope.exactShopeeUrls !== undefined ? { exactShopeeUrls: [...scope.exactShopeeUrls] } : {}) } : null,
       productCards: [...cards], coverage: { requestedPeriod: start.requestedPeriod, sources: [...coverageSources] }, usage: { entries: usageEntries, requestCount: usageEntries.reduce((total, value) => total + value.requestCount, 0), knownCosts: knownCosts.slice(0, 2), hasUnknownCost: usageEntries.some((value) => value.cost.state === 'UNKNOWN') },
@@ -5443,8 +5443,9 @@ export class ResearchAutomationService {
     const category = decideCategory(readCategoryShares(raw), start.interview?.productType);
     const rows = topRevenueTitles(raw);
     const variants = await this.#keyword2Variants(start.keyword, rows, signal);
-    const keyword2 = chooseKeyword2(start.keyword, rows, [...titlePhraseCandidates(start.keyword, rows).map(term => ({ term, source: 'TITLE' as const })),
-      ...variants.terms.map(term => ({ term, source: 'MODEL' as const }))]);
+    // Model variants first: a title phrase equal to a variant keeps the MODEL source it came from.
+    const keyword2 = chooseKeyword2(start.keyword, rows, [...variants.terms.map(term => ({ term, source: 'MODEL' as const })),
+      ...titlePhraseCandidates(start.keyword, rows, variants.terms).map(term => ({ term, source: 'TITLE' as const }))]);
     return planScope({ runId, keyword1: start.keyword, category, keyword2: { ...keyword2, modelVariants: variants.state } });
   }
   async #keyword2Variants(keyword: string, rows: readonly AutorunTitleRow[], signal: AbortSignal): Promise<{ state: AutorunModelVariants; terms: string[] }> {

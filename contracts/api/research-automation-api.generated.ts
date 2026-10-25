@@ -135,7 +135,7 @@ export interface ResearchAutomationAutoRunKeywordRequest {
   keyword2: Term | null;
 }
 export interface ResearchAutomationRun {
-  contractVersion: 'research-automation-run-v1';
+  contractVersion: 'research-automation-run-v1' | 'research-automation-run-v2';
   runId: Uuid;
   workspaceId: Uuid;
   revision: number;
@@ -316,7 +316,7 @@ export interface ResearchAutomationAutoRun {
   linksFound?: number;
   canRetry: boolean;
   /**
-   * Present while the auto-run waits for the owner's answer on keyword 2: the suggested term and its evidence in the first capture's top-revenue titles.
+   * research-automation-run-v2 only. Present while the auto-run waits for the owner's answer on keyword 2: the suggested term and its evidence in the first capture's top-revenue titles.
    */
   keyword2Suggestion?: {
     keyword1: Text120;

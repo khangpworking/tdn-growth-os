@@ -3,7 +3,8 @@
 // The first capture searches keyword 1 in every category. From its stored raw
 // responses this file derives, without I/O, clock or model:
 // - each category's share of revenue, per platform and for Shopee + TikTok Shop
-//   combined, and whether one category dominates (combined share decides);
+//   combined, and whether one category dominates (combined share decides); a
+//   category without a revenue number leaves no share and no decision;
 // - the cross-check of that category with the interview product type;
 // - keyword-2 candidates from the top-revenue product titles and their evidence.
 // The service runs the model step (name variants) and the second capture; this
@@ -28,6 +29,12 @@ export const AUTORUN_KEYWORD2_MAX_TOKENS = 3;
 const MAX_RECORDED_CANDIDATES = 10;
 const MAX_RECORDED_SHARES = 5;
 const MAX_TERM_LENGTH = 80;
+/**
+ * Words of a product's form or packaging, not of the product itself. The product noun of a keyword
+ * is its first run of other words: «viên uống kẽm» -> «kẽm», «viên uống bổ sung canxi» -> «canxi».
+ */
+const PRODUCT_FORM_WORDS = new Set(['viên', 'uống', 'nang', 'mềm', 'sủi', 'nhai', 'ngậm', 'kẹo', 'dẻo', 'bột', 'gói', 'hộp', 'chai', 'lọ', 'ống',
+  'siro', 'dạng', 'thực', 'phẩm', 'chức', 'năng', 'tpcn', 'bổ', 'sung', 'hỗ', 'trợ']);
 /** Joining words that never start or end a title phrase candidate. */
 const EDGE_WORDS = new Set(['và', 'cho', 'của', 'với', 'có', 'là', 'loại', 'hàng', 'the', 'and', 'for', 'with', 'of']);
 
@@ -106,6 +113,8 @@ export interface CategoryShare { readonly id: string; readonly label: string | n
 export interface CategoryShares {
   readonly combined: readonly CategoryShare[];
   readonly platforms: { readonly shopee: readonly CategoryShare[]; readonly tiktok: readonly CategoryShare[] };
+  /** Categories whose revenue is missing on Shopee or TikTok Shop; when any, the share lists are empty. */
+  readonly missingRevenue?: readonly string[];
 }
 
 function shareList(revenue: ReadonlyMap<string, number>, labels: ReadonlyMap<string, string>): CategoryShare[] {
@@ -119,7 +128,9 @@ function shareList(revenue: ReadonlyMap<string, number>, labels: ReadonlyMap<str
  * Revenue share of each category in the latest keyword search response
  * (REVENUE__BY__CATEGORIES_CUSTOM), per platform and Shopee + TikTok Shop
  * combined. Category ids are named from the product rows. Null when the search
- * response has no category breakdown.
+ * response has no category breakdown. A missing revenue number is never read as
+ * zero: the total would be unknown, so no shares are given, only the categories
+ * that lack revenue.
  */
 export function readCategoryShares(raw: unknown): CategoryShares | null {
   const entries = entriesOf(raw);
@@ -134,22 +145,26 @@ export function readCategoryShares(raw: unknown): CategoryShares | null {
   }
   if (!found) return null;
   const combined = new Map<string, number>(), shopee = new Map<string, number>(), tiktok = new Map<string, number>();
+  const missing = new Set<string>();
   for (const entity of found.entities) {
-    if (!isRecord(entity) || typeof entity.key !== 'string' || !entity.key.trim() || !Array.isArray(entity.platforms)) continue;
+    if (!isRecord(entity) || typeof entity.key !== 'string' || !entity.key.trim()) continue;
+    if (!Array.isArray(entity.platforms)) { missing.add(entity.key); continue; }
     for (const item of entity.platforms) {
       const platform = isRecord(item) ? PLATFORM_BY_ID.get(Number(item.platform_id)) : undefined;
-      const value = isRecord(item) ? finite(item.value) : null;
-      if (!platform || value === null) continue;
+      if (!platform) continue;
+      const value = finite((item as Json).value);
+      if (value === null) { missing.add(entity.key); continue; }
       const target = platform === 'shopee' ? shopee : tiktok;
       target.set(entity.key, (target.get(entity.key) ?? 0) + value);
       combined.set(entity.key, (combined.get(entity.key) ?? 0) + value);
     }
   }
+  if (missing.size) return { combined: [], platforms: { shopee: [], tiktok: [] }, missingRevenue: [...missing].sort() };
   const result = { combined: shareList(combined, labels), platforms: { shopee: shareList(shopee, labels), tiktok: shareList(tiktok, labels) } };
   return result.combined.length ? result : null;
 }
 
-export type AutorunCategoryReason = 'DOMINANT' | 'NO_DOMINANT' | 'INTERVIEW_MISMATCH' | 'CATEGORY_NOT_SELECTABLE' | 'NO_CATEGORY_DATA';
+export type AutorunCategoryReason = 'DOMINANT' | 'NO_DOMINANT' | 'INTERVIEW_MISMATCH' | 'CATEGORY_NOT_SELECTABLE' | 'NO_CATEGORY_DATA' | 'MISSING_REVENUE';
 
 export interface AutorunCategoryDecision {
   readonly reason: AutorunCategoryReason;
@@ -164,16 +179,19 @@ export interface AutorunCategoryDecision {
 }
 
 const trimShares = (shares: CategoryShares): CategoryShares => ({ combined: shares.combined.slice(0, MAX_RECORDED_SHARES),
-  platforms: { shopee: shares.platforms.shopee.slice(0, MAX_RECORDED_SHARES), tiktok: shares.platforms.tiktok.slice(0, MAX_RECORDED_SHARES) } });
+  platforms: { shopee: shares.platforms.shopee.slice(0, MAX_RECORDED_SHARES), tiktok: shares.platforms.tiktok.slice(0, MAX_RECORDED_SHARES) },
+  ...(shares.missingRevenue ? { missingRevenue: shares.missingRevenue.slice(0, MAX_RECORDED_SHARES) } : {}) });
 
 /**
  * Dominant = top combined share >= AUTORUN_DOMINANT_CATEGORY_SHARE. A declared
  * product type must fit the category label; an empty one leaves the data to
  * decide alone. A dominant category without a readable name cannot be selected.
+ * Missing revenue of any category leaves no decision (MISSING_REVENUE).
  */
 export function decideCategory(shares: CategoryShares | null, productType: string | null | undefined): AutorunCategoryDecision {
   const type = typeof productType === 'string' && productType.trim() ? productType.normalize('NFC').trim() : null;
   const base = { threshold: AUTORUN_DOMINANT_CATEGORY_SHARE, productType: type, shares: shares ? trimShares(shares) : null };
+  if (shares?.missingRevenue?.length) return { ...base, reason: 'MISSING_REVENUE', category: null, top: null, interviewMatch: null };
   const top = shares?.combined[0] ?? null;
   if (!top) return { ...base, reason: 'NO_CATEGORY_DATA', category: null, top: null, interviewMatch: null };
   if (top.share < AUTORUN_DOMINANT_CATEGORY_SHARE) return { ...base, reason: 'NO_DOMINANT', category: null, top, interviewMatch: null };
@@ -199,6 +217,32 @@ function indexOfSequence(haystack: readonly string[], needle: readonly string[])
   return -1;
 }
 
+/** First run of tokens that are not form or packaging words; empty when all are. */
+function productNoun(words: readonly string[]): string[] {
+  const start = words.findIndex(word => !PRODUCT_FORM_WORDS.has(word));
+  if (start < 0) return [];
+  const end = words.findIndex((word, index) => index > start && PRODUCT_FORM_WORDS.has(word));
+  return words.slice(start, end < 0 ? words.length : end);
+}
+
+/** Product noun of keyword 1; the whole keyword when it has only form words. */
+const keywordNoun = (keyword: readonly string[]): string[] => { const noun = productNoun(keyword); return noun.length ? noun : [...keyword]; };
+
+/**
+ * Names of the product a keyword-2 candidate must hold (brief 8b): the product noun of keyword 1 and
+ * the product noun of each name variant the keyword drafting model proposed (canxi -> calcium). A
+ * variant noun longer than keyword 1's is a description, not another name («chính hãng»), and is left out.
+ */
+function productNames(keyword1: string, modelTerms: readonly string[]): string[][] {
+  const noun = keywordNoun(tokens(keyword1));
+  const names = new Map<string, string[]>([[noun.join(' '), noun]]);
+  for (const variant of modelTerms.map(term => productNoun(tokens(term))))
+    if (variant.length && variant.length <= noun.length) names.set(variant.join(' '), variant);
+  return [...names.values()];
+}
+
+const holdsName = (words: readonly string[], names: readonly string[][]): boolean => names.some(name => indexOfSequence(words, name) >= 0);
+
 export interface AutorunTitleRow { readonly title: string; readonly brand: string; readonly revenue: number; readonly platform: 'shopee' | 'tiktok' }
 
 /** Product rows of the keyword search (both platforms), highest revenue first, at most AUTORUN_KEYWORD2_TOP_ROWS. */
@@ -211,23 +255,26 @@ export function topRevenueTitles(raw: unknown): AutorunTitleRow[] {
 
 /**
  * Shorter or alternate phrases of keyword 1 found in the titles: token n-grams
- * of 1-3 tokens holding at least one keyword-1 token. A phrase that is part of
- * keyword 1 (or contains all of it) matches the same titles as keyword 1, so it
- * is not a second name for the product and is left out; so are phrases with
- * digits-only tokens or a joining word at either end.
+ * of 1-3 tokens holding the product noun of keyword 1 or of a model name
+ * variant. A phrase that contains all of keyword 1, or is part of it other than
+ * the product noun itself, matches the same titles as keyword 1, so it is not a
+ * second name for the product and is left out; so are phrases with digits-only
+ * tokens or a joining word at either end.
  */
-export function titlePhraseCandidates(keyword1: string, rows: readonly AutorunTitleRow[]): string[] {
+export function titlePhraseCandidates(keyword1: string, rows: readonly AutorunTitleRow[], modelTerms: readonly string[] = []): string[] {
   const keyword = tokens(keyword1);
   if (!keyword.length) return [];
+  const names = productNames(keyword1, modelTerms);
+  const noun = keywordNoun(keyword).join(' ');
   const found = new Set<string>();
   for (const row of rows) {
     const words = tokens(row.title);
     for (let length = 1; length <= AUTORUN_KEYWORD2_MAX_TOKENS; length++) {
       for (let i = 0; i + length <= words.length; i++) {
         const gram = words.slice(i, i + length);
-        if (!gram.some(word => keyword.includes(word)) || gram.some(word => /^\p{N}+$/u.test(word))) continue;
+        if (!holdsName(gram, names) || gram.some(word => /^\p{N}+$/u.test(word))) continue;
         if (EDGE_WORDS.has(gram[0]!) || EDGE_WORDS.has(gram[gram.length - 1]!)) continue;
-        if (indexOfSequence(keyword, gram) >= 0 || indexOfSequence(gram, keyword) >= 0) continue;
+        if ((indexOfSequence(keyword, gram) >= 0 && gram.join(' ') !== noun) || indexOfSequence(gram, keyword) >= 0) continue;
         found.add(gram.join(' '));
       }
     }
@@ -236,7 +283,7 @@ export function titlePhraseCandidates(keyword1: string, rows: readonly AutorunTi
 }
 
 export type Keyword2Source = 'TITLE' | 'MODEL' | 'OWNER';
-export type Keyword2Rejection = 'SAME_AS_KEYWORD' | 'INVALID' | 'LOW_TITLE_SHARE' | 'FEW_BRANDS';
+export type Keyword2Rejection = 'SAME_AS_KEYWORD' | 'INVALID' | 'NO_PRODUCT_NOUN' | 'LOW_TITLE_SHARE' | 'FEW_BRANDS';
 export interface Keyword2Evidence {
   readonly term: string;
   readonly source: Keyword2Source;
@@ -255,15 +302,19 @@ export interface Keyword2Result {
 }
 
 /**
- * Scores every candidate on the top-revenue titles. Kept only when it appears
+ * Scores every candidate on the top-revenue titles; a part of keyword 1 (the
+ * bare product noun) only on the titles without keyword 1. Kept only when it appears
  * (as whole tokens) in >= AUTORUN_KEYWORD2_MIN_TITLE_SHARE of the titles, from
- * >= AUTORUN_KEYWORD2_MIN_BRANDS brands, and is not keyword 1. The kept
- * candidate whose titles hold the most revenue is chosen.
+ * >= AUTORUN_KEYWORD2_MIN_BRANDS brands, is not keyword 1, and (unless the
+ * owner typed it) holds a product name: the product noun of keyword 1 or of a
+ * MODEL candidate. The kept candidate whose titles hold the most revenue is chosen.
  */
 export function chooseKeyword2(keyword1: string, rows: readonly AutorunTitleRow[], candidates: readonly { readonly term: string; readonly source: Keyword2Source }[]): Keyword2Result {
-  const keyword = tokens(keyword1).join(' ');
+  const keywordWords = tokens(keyword1);
+  const keyword = keywordWords.join(' ');
   const titles = rows.map(row => ({ ...row, words: tokens(row.title) }));
-  const seen = new Set<string>();
+  const names = productNames(keyword1, candidates.filter(candidate => candidate.source === 'MODEL' && typeof candidate.term === 'string').map(candidate => candidate.term));
+  const seen = new Set<string>(), broad = new Set<string>();
   const scored: Keyword2Evidence[] = [];
   for (const candidate of candidates) {
     const words = typeof candidate.term === 'string' ? tokens(candidate.term) : [];
@@ -274,15 +325,20 @@ export function chooseKeyword2(keyword1: string, rows: readonly AutorunTitleRow[
       if (term) scored.push({ term, source: candidate.source, titles: 0, titleShare: 0, brands: 0, revenue: 0, kept: false, rejected: 'INVALID' });
       continue;
     }
-    const hits = titles.filter(row => indexOfSequence(row.words, words) >= 0);
+    // A part of keyword 1 (the product noun) is in every keyword-1 title; it counts only the titles keyword 1 misses.
+    const partOfKeyword = indexOfSequence(keywordWords, words) >= 0;
+    const hits = titles.filter(row => indexOfSequence(row.words, words) >= 0 && !(partOfKeyword && indexOfSequence(row.words, keywordWords) >= 0));
     const brands = new Set(hits.map(row => row.brand).filter(Boolean)).size;
     const titleShare = titles.length ? hits.length / titles.length : 0;
     const revenue = hits.reduce((sum, row) => sum + row.revenue, 0);
     const rejected: Keyword2Rejection | undefined = term === keyword ? 'SAME_AS_KEYWORD'
+      : candidate.source !== 'OWNER' && !holdsName(words, names) ? 'NO_PRODUCT_NOUN'
       : titleShare < AUTORUN_KEYWORD2_MIN_TITLE_SHARE ? 'LOW_TITLE_SHARE' : brands < AUTORUN_KEYWORD2_MIN_BRANDS ? 'FEW_BRANDS' : undefined;
     scored.push({ term, source: candidate.source, titles: hits.length, titleShare, brands, revenue, kept: !rejected, ...(rejected ? { rejected } : {}) });
+    if (partOfKeyword) broad.add(term);
   }
-  scored.sort((a, b) => Number(b.kept) - Number(a.kept) || b.revenue - a.revenue || b.titleShare - a.titleShare || (a.term < b.term ? -1 : a.term > b.term ? 1 : 0));
+  // The bare product noun is the broadest search; it is chosen only when no other name passes.
+  scored.sort((a, b) => Number(b.kept) - Number(a.kept) || Number(broad.has(a.term)) - Number(broad.has(b.term)) || b.revenue - a.revenue || b.titleShare - a.titleShare || (a.term < b.term ? -1 : a.term > b.term ? 1 : 0));
   return { titleCount: titles.length, candidates: scored.slice(0, MAX_RECORDED_CANDIDATES), chosen: scored[0]?.kept ? scored[0] : null };
 }
 
@@ -376,6 +432,7 @@ export function scopeLinesVi(record: AutorunScopeRecord | null): string[] {
   if (decision.reason === 'DOMINANT' && used.category && decision.top) lines.push(`Danh mục: ${used.category}, chiếm ${percent(decision.top.share)} doanh thu ở lượt tìm đầu (Shopee và TikTok Shop gộp).`);
   else if (decision.reason === 'NO_DOMINANT') lines.push(`${all}không có danh mục nào chiếm từ ${percent(decision.threshold)} doanh thu.`);
   else if (decision.reason === 'INTERVIEW_MISMATCH') lines.push(`${all}danh mục trong dữ liệu khác loại sản phẩm đã khai.`);
+  else if (decision.reason === 'MISSING_REVENUE') lines.push(`${all}thiếu doanh thu của một số danh mục nên chưa chọn danh mục.`);
   else if (decision.reason === 'CATEGORY_NOT_SELECTABLE') lines.push(`${all}chưa chọn được trên trang tìm kiếm danh mục chiếm từ ${percent(decision.threshold)} doanh thu.`);
   return lines;
 }
