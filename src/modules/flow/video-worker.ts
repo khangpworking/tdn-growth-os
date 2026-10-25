@@ -28,7 +28,6 @@ export class VideoWorker {
   static readonly #owners = new Set<string>();
   readonly #service: VideoService;
   readonly #runner: VideoProcessRunner;
-  readonly #timeoutMs: number;
   readonly #dbKey: string;
   #started = false;
   #closing = false;
@@ -36,17 +35,17 @@ export class VideoWorker {
   #wakeAgain = false;
   #active: { readonly jobId: string; readonly controller: AbortController; fromClose: boolean } | undefined;
   #lastError: unknown = undefined;
+  #stopError: unknown = undefined;
 
-  constructor(options: { readonly service: VideoService; readonly db: Database.Database; readonly runner: VideoProcessRunner; readonly timeoutMs?: number }) {
+  constructor(options: { readonly service: VideoService; readonly db: Database.Database; readonly runner: VideoProcessRunner }) {
     this.#service = options.service;
     this.#runner = options.runner;
-    this.#timeoutMs = options.timeoutMs ?? VIDEO_JOB_TIMEOUT_MS;
     this.#dbKey = options.db.name;
     if (VideoWorker.#owners.has(this.#dbKey)) throw new Error('A video worker already owns this database.');
     VideoWorker.#owners.add(this.#dbKey);
   }
 
-  async start(): Promise<void> {
+  start(): void {
     if (this.#closing) throw new Error('Video worker is closing.');
     if (this.#started) return;
     this.#started = true;
@@ -64,6 +63,7 @@ export class VideoWorker {
       // A storage/integrity failure must be observable to the operator without
       // becoming an unhandled rejection that tears down the Node process.
       this.#lastError = error;
+      this.#stopError = error;
     }).finally(() => {
       this.#wakePromise = undefined;
       if (this.#wakeAgain && !this.#closing) { this.#wakeAgain = false; this.wake(); }
@@ -80,11 +80,17 @@ export class VideoWorker {
 
   /** Aborts the running job, waits for the runner to finish and the job to settle, then returns. */
   async close(): Promise<void> {
-    if (this.#closing) { await this.#wakePromise; return; }
+    if (this.#closing) {
+      await this.#wakePromise;
+      if (this.#stopError !== undefined) throw this.#stopError;
+      return;
+    }
     this.#closing = true;
     // A shutdown is not an owner cancel (055-Q1): the running job becomes interrupted.
     if (this.#active) { this.#active.fromClose = true; this.#active.controller.abort(); }
     await this.#wakePromise;
+    // Failed settlement is an uncertain stop: preserve both connection and authority.
+    if (this.#stopError !== undefined) throw this.#stopError;
     this.#active = undefined;
     this.#started = false;
     VideoWorker.#owners.delete(this.#dbKey);
@@ -105,10 +111,11 @@ export class VideoWorker {
     this.#active = active;
     try {
       const command = VIDEO_JOB_COMMANDS[kind];
-      const result = await this.#runner(command.bin, command.args, { timeoutMs: this.#timeoutMs, maxBytes: VIDEO_JOB_OUTPUT_BYTES, signal: controller.signal });
+      const result = await this.#runner(command.bin, command.args, { timeoutMs: VIDEO_JOB_TIMEOUT_MS, maxBytes: VIDEO_JOB_OUTPUT_BYTES, signal: controller.signal });
       // The owner may have cancelled (or a settle may have happened) while the call ran; only a still-running row settles here.
       if (this.#service.getJob(jobId)?.state !== 'running') return;
-      if (result.code === 0) this.#service.finishJob(jobId);
+      if (active.fromClose) this.#service.interruptJob(jobId);
+      else if (result.code === 0) this.#service.finishJob(jobId);
       else this.#service.failJob(jobId, 'process_failed');
     } catch (error) {
       if (this.#service.getJob(jobId)?.state !== 'running') return; // already settled (owner cancel): never an error
@@ -120,6 +127,7 @@ export class VideoWorker {
       } catch (settleError) {
         // Settling must not mask the original failure; the row stays running for the next startup sweep.
         this.#lastError = settleError;
+        this.#stopError = settleError;
       }
       if (!(error instanceof VideoProcessError)) this.#lastError = error;
     } finally {

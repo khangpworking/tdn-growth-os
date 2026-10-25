@@ -106,8 +106,9 @@ export function createVideoJobStore(options: { readonly db: Database.Database; r
   const clock = options.clock ?? (() => new Date());
   const newId = options.newId ?? randomUUID;
   const now = (): string => clock().toISOString();
-  const getJobStmt = db.prepare('SELECT * FROM flow_video_jobs WHERE job_id = ?');
-  const getProjectStmt = db.prepare('SELECT * FROM flow_video_projects WHERE project_id = ?');
+  // These bounded integer fields are numbers even on the operator's bigint-default connection.
+  const getJobStmt = db.prepare('SELECT * FROM flow_video_jobs WHERE job_id = ?').safeIntegers(false);
+  const getProjectStmt = db.prepare('SELECT * FROM flow_video_projects WHERE project_id = ?').safeIntegers(false);
 
   return {
     enqueue(projectId, kind, entryState) {
@@ -129,7 +130,7 @@ export function createVideoJobStore(options: { readonly db: Database.Database; r
       })();
     },
     countRunning() {
-      return (db.prepare(`SELECT COUNT(*) AS count FROM flow_video_jobs WHERE state = 'running'`).get() as { count: number }).count;
+      return (db.prepare(`SELECT COUNT(*) AS count FROM flow_video_jobs WHERE state = 'running'`).safeIntegers(false).get() as { count: number }).count;
     },
     finish(jobId) {
       db.transaction(() => {
@@ -200,7 +201,7 @@ export function createVideoJobStore(options: { readonly db: Database.Database; r
       return row ? toJob(row) : undefined;
     },
     listJobsByProject(projectId) {
-      return (db.prepare('SELECT * FROM flow_video_jobs WHERE project_id = ? ORDER BY created_at, job_id').all(projectId) as JobRow[]).map(toJob);
+      return (db.prepare('SELECT * FROM flow_video_jobs WHERE project_id = ? ORDER BY created_at, job_id').safeIntegers(false).all(projectId) as JobRow[]).map(toJob);
     },
     getProject(projectId) {
       const row = getProjectStmt.get(projectId) as ProjectRow | undefined;

@@ -58,7 +58,7 @@ function minimalEnv(): NodeJS.ProcessEnv {
  * stdin), minimal environment. `detached` puts each child in its own process group, so cancel and
  * timeout kill the whole group, never an unrelated process (055-Q9).
  */
-export function processSpawnOptions(): SpawnOptions & { stdio: ['ignore', 'pipe', 'pipe'] } {
+function processSpawnOptions(): SpawnOptions & { stdio: ['ignore', 'pipe', 'pipe'] } {
   return { shell: false, windowsHide: true, detached: true, env: minimalEnv(), stdio: ['ignore', 'pipe', 'pipe'] };
 }
 
@@ -70,11 +70,12 @@ function killGroup(child: ChildProcess): void {
   try { child.kill('SIGKILL'); } catch { /* already gone */ }
 }
 
-/** A runner over `spawn` (injectable for tests): bounded output, own time limit, abort kills the child group. */
-export function createVideoProcessRunner(spawnFn: typeof spawn = spawn): VideoProcessRunner {
+/** A runner over `spawn`: bounded output, own time limit, abort kills the child group. */
+export function createVideoProcessRunner(): VideoProcessRunner {
   return (bin, args, options) => new Promise<VideoProcessResult>((resolve, reject) => {
     let stdout = '', stderr = '', settled = false, timedOut = false;
     let abortReason: VideoProcessError | undefined;
+    let processError: VideoProcessError | undefined;
     const done = (result: VideoProcessResult | undefined, error: VideoProcessError | undefined): void => {
       if (settled) return;
       settled = true;
@@ -83,9 +84,10 @@ export function createVideoProcessRunner(spawnFn: typeof spawn = spawn): VideoPr
       if (error) reject(error); else resolve(result!);
     };
     const close = (code: number | null): void => {
-      // The kill settles only through the exit event, so the group is always reaped before the caller continues.
+      // After a successful spawn, settle only on close, after the child is reaped and its pipes close.
       if (abortReason) return done(undefined, abortReason);
       if (timedOut) return done(undefined, new VideoProcessTimeoutError(bin, options.timeoutMs));
+      if (processError) return done(undefined, processError);
       done({ code, stdout: stdout.slice(0, OUTPUT_BYTES), stderr: stderr.slice(0, OUTPUT_BYTES) }, undefined);
     };
     const onAbort = (): void => {
@@ -95,7 +97,7 @@ export function createVideoProcessRunner(spawnFn: typeof spawn = spawn): VideoPr
     const timer = setTimeout(() => { timedOut = true; killGroup(child); }, options.timeoutMs);
     if (options.signal?.aborted) return done(undefined, new VideoProcessAbortedError(bin));
     let child: ChildProcess;
-    try { child = spawnFn(bin, [...args], processSpawnOptions()); }
+    try { child = spawn(bin, [...args], processSpawnOptions()); }
     catch (error) { return done(undefined, new VideoProcessSpawnError(bin, error)); }
     options.signal?.addEventListener('abort', onAbort, { once: true });
     const take = (which: 'out' | 'err') => (chunk: Buffer | string): void => {
@@ -104,43 +106,14 @@ export function createVideoProcessRunner(spawnFn: typeof spawn = spawn): VideoPr
     };
     child.stdout?.on('data', take('out'));
     child.stderr?.on('data', take('err'));
-    child.on('error', error => done(undefined, new VideoProcessSpawnError(bin, error)));
+    child.on('error', error => {
+      processError = new VideoProcessSpawnError(bin, error);
+      // A failed spawn has no child to reap. An error from killing a spawned
+      // child cannot acknowledge its stop; keep waiting and keep authority.
+      if (child.pid === undefined) done(undefined, processError);
+    });
     child.on('close', code => close(typeof code === 'number' ? code : null));
   });
 }
 
 export const defaultVideoProcessRunner: VideoProcessRunner = createVideoProcessRunner();
-
-export type FakeVideoProcessOutcome = 'succeed' | 'fail' | 'timeout';
-export interface FakeVideoProcessBehavior { readonly outcome: FakeVideoProcessOutcome; readonly delayMs: number }
-export interface FakeVideoProcessCall { readonly bin: string; readonly args: readonly string[]; readonly timeoutMs: number; readonly signal: AbortSignal | undefined }
-export interface FakeVideoProcessRunner {
-  readonly runner: VideoProcessRunner;
-  readonly calls: readonly FakeVideoProcessCall[];
-  /** Each call waits `delayMs` or until aborted, then succeeds, fails, or times out. */
-  behavior: FakeVideoProcessBehavior;
-}
-
-/** Test runner for T6/T7 (no real process, no network): waits for the given time or until aborted. */
-export function createFakeVideoProcessRunner(behavior: FakeVideoProcessBehavior = { outcome: 'succeed', delayMs: 0 }): FakeVideoProcessRunner {
-  const calls: FakeVideoProcessCall[] = [];
-  let current = behavior;
-  const runner: VideoProcessRunner = async (bin, args, options) => {
-    calls.push({ bin, args, timeoutMs: options.timeoutMs, signal: options.signal });
-    const settled = await new Promise<'done' | 'aborted'>(resolve => {
-      const timer = setTimeout(() => { options.signal?.removeEventListener('abort', onAbort); resolve('done'); }, current.delayMs);
-      const onAbort = (): void => { clearTimeout(timer); resolve('aborted'); };
-      if (options.signal?.aborted) return onAbort();
-      options.signal?.addEventListener('abort', onAbort, { once: true });
-    });
-    if (settled === 'aborted') throw new VideoProcessAbortedError(bin);
-    if (current.outcome === 'timeout') throw new VideoProcessTimeoutError(bin, options.timeoutMs);
-    if (current.outcome === 'fail') return { code: 1, stdout: '', stderr: 'fake process failure' };
-    return { code: 0, stdout: '', stderr: '' };
-  };
-  return {
-    runner, calls,
-    get behavior(): FakeVideoProcessBehavior { return current; },
-    set behavior(next: FakeVideoProcessBehavior) { current = next; },
-  };
-}

@@ -33,7 +33,7 @@ CREATE TABLE flow_video_jobs (
   CHECK(state <> 'interrupted' OR error_code IS 'interrupted_by_restart'),
   CHECK(state <> 'cancelled' OR error_code IS 'cancelled_by_owner'),
   -- Succeeded jobs carry progress 100; active/queued jobs carry null or a partial value; closed failures keep their last value.
-  CHECK(state <> 'succeeded' OR progress = 100),
+  CHECK(state <> 'succeeded' OR progress IS 100),
   CHECK(state <> 'queued' OR progress IS NULL)
 ) STRICT;
 
@@ -58,8 +58,8 @@ WHEN NOT (
   (OLD.state IS 'queued' AND NEW.state IS 'running' AND NEW.started_at IS NOT NULL AND NEW.finished_at IS NULL AND NEW.progress IS NULL)
   OR (OLD.state IS 'queued' AND NEW.state IS 'cancelled' AND NEW.started_at IS NULL AND NEW.finished_at IS NOT NULL)
   OR (OLD.state IS 'running' AND NEW.state IS 'running' AND NEW.started_at IS OLD.started_at AND NEW.finished_at IS NULL
-    AND (NEW.progress IS NULL OR NEW.progress > coalesce(OLD.progress, -1)))
-  OR (OLD.state IS 'running' AND NEW.state <> 'running' AND NEW.finished_at IS NOT NULL
+    AND NEW.progress IS NOT NULL AND NEW.progress > coalesce(OLD.progress, -1))
+  OR (OLD.state IS 'running' AND NEW.state <> 'running' AND NEW.started_at IS OLD.started_at AND NEW.finished_at IS NOT NULL
     AND ((NEW.progress IS OLD.progress) OR (NEW.state IS 'succeeded' AND NEW.progress IS 100)))
 )
 BEGIN SELECT RAISE(ABORT, 'flow_video_job_transition_invalid'); END;

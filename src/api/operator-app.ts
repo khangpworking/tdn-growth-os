@@ -284,7 +284,6 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
   let researchAutomation: ResearchAutomationApiApplication | undefined;
   let videoWriter: BetterSqlite3.Database | undefined;
   let videoWorker: VideoWorker | undefined;
-  let videoReady: Promise<void> = Promise.resolve();
   let r2: ReturnType<typeof createR2MediaArchive> | undefined;
   try {
     if (configuration.r2) r2 = createR2MediaArchive(configuration.r2);
@@ -364,22 +363,24 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
         }),
         db: videoWriter, runner: defaultVideoProcessRunner,
       });
-      videoReady = videoWorker.start().catch(() => undefined);
+      videoWorker.start();
     }
   } catch (error) {
-    let stopped = true;
-    // The video block is last in the try, so no job is running here; close() never rejects
-    // (drain errors are captured), so the fire-and-forget call cannot become an unhandled rejection.
-    try { void videoWorker?.close(); } catch { stopped = false; }
-    try { videoWriter?.close(); } catch { stopped = false; }
-    try { researchGeneration?.close(); } catch { stopped = false; }
-    try { contentOwner?.close(); } catch { stopped = false; }
-    try { contentRead?.close(); } catch { stopped = false; }
-    try { reports?.close(); } catch { stopped = false; }
-    try { owner?.close(); } catch { stopped = false; }
-    try { read?.close(); } catch { stopped = false; }
-    try { r2?.close(); } catch { stopped = false; }
-    if (stopped) { try { lock?.release(); } catch { /* preserve startup failure; the lock stays for manual recovery */ } }
+    // Startup remains synchronous, but rollback must await any workers already started.
+    // Keep executor authority until that rollback completes; contain cleanup failures.
+    void (async () => {
+      let stopped = true;
+      try { await videoWorker?.close(); videoWriter?.close(); } catch { stopped = false; }
+      try { await researchAutomation?.close(); } catch { stopped = false; }
+      try { researchGeneration?.close(); } catch { stopped = false; }
+      try { contentOwner?.close(); } catch { stopped = false; }
+      try { contentRead?.close(); } catch { stopped = false; }
+      try { reports?.close(); } catch { stopped = false; }
+      try { owner?.close(); } catch { stopped = false; }
+      try { read?.close(); } catch { stopped = false; }
+      try { r2?.close(); } catch { stopped = false; }
+      if (stopped) { try { lock?.release(); } catch { /* preserve startup failure; the lock stays for manual recovery */ } }
+    })();
     throw error;
   }
   const executorLock = lock;
@@ -426,8 +427,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
         try { await researchAutomationApplication.close(); } catch (error) { errors.push(error); }
         // The video worker closes before its connection, and both before the lock is released;
         // a failed worker close keeps the lock for manual recovery (the existing rule).
-        try { await videoReady; await videoWorker?.close(); } catch (error) { errors.push(error); }
-        try { videoWriter?.close(); } catch (error) { errors.push(error); }
+        try { await videoWorker?.close(); videoWriter?.close(); } catch (error) { errors.push(error); }
         try { contentOwnerApplication?.close(); } catch (error) { errors.push(error); }
         try { researchGenerationApplication?.close(); } catch (error) { errors.push(error); }
         try { contentReadApplication.close(); } catch (error) { errors.push(error); }
