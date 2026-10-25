@@ -101,8 +101,10 @@ export function lintVisibleReportText(html: string, rawHtml?: string): VisibleTe
     if (REAL_PRICE.test(own)) realPrices.push(own);
     const ownSentences = sentencesOf(own);
     for (const sentence of ownSentences) {
-      // Retained coverage counters and numbered PDF labels are not ranking claims.
-      const rankingText = sentence.replace(/(?<![\p{L}\p{M}])(?:có\s+số|tài\s+liệu\s+PDF\s+số)\s+(?=1(?![\d.,]*\d))/giu, '');
+      // Exempt only standalone coverage labels and delimited PDF ordinals.
+      const rankingText = sentence
+        .replace(/(^|(?<![\p{L}\p{M}])độ\s+phủ\s+dòng\s+)có\s+số\s+1(?=\s*(?:·|bằng\s+0(?!\d)|[.!?…]?$))/giu, '$1')
+        .replace(/(?<![\p{L}\p{M}])tài\s+liệu\s+PDF\s+số\s+1(?=\s*(?:[,·]|[.!?…]?$))/giu, '');
       if (RANKING_BANNED.test(sentence) || (RANKING_WORD.test(rankingText) && !rankingComplete(sentence))) rankings.push(sentence.trim());
     }
     // Numeric lower bounds are measurement/method conditions, not a claim

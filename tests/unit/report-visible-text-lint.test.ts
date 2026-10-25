@@ -37,6 +37,12 @@ const rankingRows = [
   ['neutral retained document ordinal', '<p>Tài liệu PDF số 1, trang 1.</p>', []],
   ['neutral labels do not excuse a ranking claim', '<p>Có số 1 · Sản phẩm số 1.</p><p>Tài liệu PDF số 1, dẫn đầu.</p>', ['L20_RANKING_WORD']],
   ['neutral labels do not excuse a banned phrase', '<p>Tài liệu PDF số 1 thị trường.</p>', ['L20_RANKING_WORD']],
+  ...[
+    ['period', 'về doanh thu trong 120 sản phẩm Shopee.'],
+    ['sample', 'về doanh thu, kỳ 20/09–19/10/2026.'],
+    ['measure', 'trong 120 sản phẩm Shopee, kỳ 20/09–19/10/2026.'],
+  ].map(([missing, scope]) => [`counter prefix in a ranking still requires ${missing}`, `<p>Thương hiệu A có số 1 ${scope}</p>`, ['L20_RANKING_WORD']] as const),
+  ['complete số 1 ranking', '<p>Thương hiệu A có số 1 về doanh thu trong 120 sản phẩm Shopee, kỳ 20/09–19/10/2026.</p>', []],
   ['complete Market sentence', '<p>Thương hiệu A dẫn đầu về doanh thu trong 120 sản phẩm Shopee của mẫu, kỳ 20/09–19/10/2026.</p>', []],
   ['missing period', '<p>Thương hiệu A dẫn đầu về doanh thu trong 120 sản phẩm Shopee của mẫu.</p>', ['L20_RANKING_WORD']],
   ['complete Insight nhiều nhất', '<p>Giao hàng chậm là chủ đề chê được nhắc nhiều nhất trong 300 bình luận TikTok Shop, kỳ 01/09–30/09/2026.</p>', []],
