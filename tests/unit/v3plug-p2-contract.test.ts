@@ -1,8 +1,13 @@
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
+import { once } from 'node:events';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import http from 'node:http';
+import { Socket } from 'node:net';
 import { join } from 'node:path';
+import { Duplex } from 'node:stream';
 import test, { type TestContext } from 'node:test';
+import { openResearchAutomationApi } from '../../src/api/research-automation-api.js';
 import type { KeywordListDraftTransport } from '../../src/modules/analysis/keyword-list-drafting.js';
 import type { MetricCaptureSpec } from '../../src/modules/analysis/research-automation/autorun-derive.js';
 import type { AutorunScopeRecord } from '../../src/modules/analysis/research-automation/autorun-scope.js';
@@ -294,6 +299,59 @@ test('K4 Remove at scope confirmation runs the second capture with keyword 1 onl
   assert.equal(f.payloads[1]!.category, health.label);
   assert.equal((await f.scope()).keyword2.owner?.decision, 'REMOVED');
   assert.deepEqual((await prepared(f)).snapshot.scope.keywords, ['viên uống kẽm']);
+});
+
+test('an owner edit longer than three tokens retains its actual title evidence', async t => {
+  const term = 'viên uống bổ sung kẽm';
+  const f = await scopeRun(t, { ...zinc, titles: ['Alpha', 'Beta', 'Gamma'].map(brand => `${term} ${brand}`) });
+  await assertSuggestion(f, 'bổ sung kẽm');
+  await answer(f, term);
+  await reach(f, 'CONFIRM');
+  const owner = (await f.scope()).keyword2.owner;
+  assert.equal(owner?.decision, 'EDITED');
+  assert.equal(owner.evidence?.titles, 3);
+  assert.equal(owner.evidence?.titleShare, 1);
+  assert.equal(owner.evidence?.brands, 3);
+  assert.deepEqual((await prepared(f)).snapshot.scope.keywords, [zinc.keyword, term]);
+});
+
+test('keyword 2 owner HTTP route accepts an edited answer and replays its request key', async t => {
+  const f = await scopeRun(t, { ...zinc, titles: zincTitles });
+  await assertSuggestion(f, 'viên kẽm');
+  const origin = 'http://127.0.0.1:3405';
+  const token = 'synthetic-keyword-owner-token-123456-abcdefghijklmnopqrstuvwxyz';
+  const api = openResearchAutomationApi({ databasePath: f.databasePath, artifactRoot: f.artifactRoot, origin,
+    providers: { kalodataSecretKey: null, serpApiKey: null, apifyTokenConfigured: false },
+    owner: { writeEnabled: true, databasePath: f.databasePath, artifactRoot: f.artifactRoot, token, allowedOrigin: origin, actorId: 'owner:synthetic' },
+    metricAutoRun: { captureRoot: f.capture.captureRoot } },
+    { now: () => Date.now(), sleep: async () => {}, fetch: async () => { throw new Error('no provider call expected'); } });
+  t.after(() => api.close());
+  const body = { contractVersion: 'research-automation-autorun-keyword-v1', requestKey: randomUUID(), keyword2: 'kẽm alpha' };
+  // Exercise the real HTTP handler without binding a port (the review sandbox forbids listen).
+  const post = async () => {
+    const socket = new Socket();
+    const request = new http.IncomingMessage(socket);
+    request.method = 'POST';
+    request.url = `/owner-api/workspaces/${workspaceId}/research-automation/runs/${f.runId}/auto-run/retry`;
+    request.headers = { host: new URL(origin).host, origin, authorization: `Bearer ${token}`, 'content-type': 'application/json' };
+    request.push(Buffer.from(JSON.stringify(body))); request.push(null);
+    const chunks: Buffer[] = [];
+    const wire = new Duplex({ read() {}, write(chunk, _encoding, done) { chunks.push(Buffer.from(chunk)); done(); } });
+    const response = new http.ServerResponse(request);
+    response.assignSocket(wire as Socket);
+    const finished = once(response, 'finish');
+    api.handler(request, response);
+    await finished;
+    const text = Buffer.concat(chunks).toString().split('\r\n\r\n').slice(1).join('\r\n\r\n');
+    wire.destroy(); socket.destroy();
+    return { status: response.statusCode, text, json: JSON.parse(text) };
+  };
+  const accepted = await post();
+  assert.equal(accepted.status, 202, accepted.text);
+  assert.equal((await f.scope()).keyword2.owner?.decision, 'EDITED');
+  const repeat = await post();
+  assert.equal(repeat.status, 200, repeat.text);
+  assert.equal(repeat.json.exactRetry, true);
 });
 
 test('C2/C3 negative control: always choosing health fails both category row assertions', () => {

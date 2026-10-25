@@ -270,7 +270,7 @@ export function chooseKeyword2(keyword1: string, rows: readonly AutorunTitleRow[
     const term = words.join(' ');
     if (seen.has(term)) continue;
     seen.add(term);
-    if (!words.length || words.length > AUTORUN_KEYWORD2_MAX_TOKENS || term.length > MAX_TERM_LENGTH) {
+    if (!words.length || (candidate.source !== 'OWNER' && words.length > AUTORUN_KEYWORD2_MAX_TOKENS) || term.length > MAX_TERM_LENGTH) {
       if (term) scored.push({ term, source: candidate.source, titles: 0, titleShare: 0, brands: 0, revenue: 0, kept: false, rejected: 'INVALID' });
       continue;
     }

@@ -259,7 +259,7 @@ const validates = {
   start: ajv.compile({ $ref: `${schema.$id}#/$defs/startRequest` }),
   confirm: ajv.compile({ oneOf: [{ $ref: `${schema.$id}#/$defs/confirmRequest` }, { $ref: sourceSchema.$id }, { $ref: 'research-automation-source-api-v3.schema.json' }] }),
   cancel: ajv.compile({ $ref: `${schema.$id}#/$defs/cancelRequest` }),
-  autoRunRetry: ajv.compile({ $ref: `${schema.$id}#/$defs/autoRunRetryRequest` }),
+  autoRunRetry: ajv.compile({ oneOf: [{ $ref: `${schema.$id}#/$defs/autoRunRetryRequest` }, { $ref: `${schema.$id}#/$defs/autoRunKeywordRequest` }] }),
   revision: (value: unknown) => personaReportRequestValid(value) || historicalRevisionValid(value),
   revisionCancel: ajv.compile({ $ref: `${revisionSchema.$id}#/$defs/cancelRequest` }),
   revisionReceipt: ajv.compile({ $ref: `${revisionSchema.$id}#/$defs/receipt` }),
