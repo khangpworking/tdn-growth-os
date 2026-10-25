@@ -25,6 +25,9 @@ interface Scenario { second?: boolean; tamper?: boolean; secrets?: boolean; excl
 
 async function zincRun(t: TestContext, options: Scenario = {}) {
   const captures: Array<{ dir: string; rawBytes: Buffer; manifestBytes: Buffer }> = [];
+  // Override the shared harness opt-out through its service configuration: W4
+  // must exercise the same Flint requirement as the published Reader.
+  const rendering = { renderer: buildResearchAutomationReport, readerReportFlint: true };
   const f = await fixture(t, 'on', undefined, capture => async (_config, request) => {
     capture.calls.push(request);
     const number = request.second ? 2 : 1;
@@ -77,7 +80,7 @@ async function zincRun(t: TestContext, options: Scenario = {}) {
     await writeFile(join(dir, 'raw-responses.json'), options.tamper ? Buffer.concat([rawBytes, Buffer.from(' ')]) : rawBytes);
     captures.push({ dir, rawBytes, manifestBytes });
     return { ok: true, captureDir: dir, period, executorCalls: 0 };
-  }, undefined, { renderer: buildResearchAutomationReport });
+  }, undefined, rendering);
   const receipt = await f.service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: randomUUID(),
     mode: 'CATEGORY', keyword, requestedPeriod: period, reports: ['MARKET'] });
   return { ...f, runId: receipt.run.runId, captures };
@@ -113,10 +116,16 @@ function withDocument(bytes: Uint8Array, check: (document: Document) => void): v
   try { check(dom.window.document); } finally { dom.window.close(); }
 }
 
-function assertZincBlocks(document: Document): void {
+function assertZincBlocks(document: ParentNode): void {
   const block = document.querySelector('[data-market-raw-period="30d"]');
   assert.ok(block, 'W4 report includes the stored zinc raw-number blocks');
+  assert.deepEqual([...block.querySelectorAll('[data-kpi] b')].map(card => card.textContent),
+    ['35,0 tỷ', '193,5 nghìn', '956', '390'], 'all-platform headline KPIs retain the fixture values');
   assert.match(block.querySelector('[data-market-raw-split]')!.textContent!, /Shopee 7,9 tỷ.*TikTok Shop 27,0 tỷ.*Cộng 2 sàn 34,9 tỷ/u);
+  const intervals = [...block.querySelectorAll('table[data-market-raw-intervals="weekly"] tbody tr')];
+  assert.equal(intervals.length, 5, 'all five stored weekly intervals remain readable');
+  for (const row of intervals) assert.deepEqual([...row.querySelectorAll('td')].slice(1).map(cell => cell.textContent),
+    ['1,6 tỷ', '5,4 tỷ'], 'the interval table retains each platform revenue');
   const charts = [...block.querySelectorAll('figure[data-market-raw-chart]')];
   assert.equal(charts.length, 1, 'the fixture has one weekly chart');
   for (const chart of charts) {
@@ -215,7 +224,7 @@ test('W3 historical capture without a raw artifact retains its frozen report byt
   assert.equal((built.semantic as Record<string, unknown>).marketRawResponses, undefined);
 });
 
-test('W4 zinc fixture reaches PRESENT with P4 numbers and two chart lines, and Reader omits average price', async t => {
+test('W4 zinc P4 KPIs and two Flint lines survive PRESENT into the stored Reader without average price', async t => {
   const f = await zincRun(t);
   await drain(f.service);
   assert.equal(autorun(f.db, f.runId)!.phase, 'DONE', JSON.stringify(await f.service.getRun(workspaceId, f.runId)));
@@ -224,7 +233,14 @@ test('W4 zinc fixture reaches PRESENT with P4 numbers and two chart lines, and R
   const receipt = await buildReader(f);
   const reader = await f.service.readReaderReport(workspaceId, f.runId, receipt.revision.revisionId);
   withDocument(reader.bytes, document => {
-    assert.ok(document.querySelector('#phan-3'), 'Reader has report content');
+    const scope = document.querySelector('#phan-2 .market-capture-scope');
+    assert.ok(scope, 'Reader retains the raw capture scope in its methods section');
+    assert.match(scope.textContent!, /viên uống kẽm/u);
+    assert.match(scope.textContent!, /Tìm trong tất cả danh mục/u);
+    const scale = document.querySelector('#phan-3');
+    assert.ok(scale, 'Reader has its scale section');
+    // Check the persisted Reader served to the PDF path, not only the draft.
+    assertZincBlocks(scale);
     assert.ok(document.querySelectorAll('#phu-luc tbody tr').length > 0, 'the coherent product sample remains published');
     assert.doesNotMatch(document.body.textContent!, /giá\s*(?:TB|(?:bán\s+)?trung bình|bình quân)/iu);
   });
