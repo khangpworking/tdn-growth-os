@@ -122,7 +122,8 @@ function sequence(): () => string {
 
 export async function fixture(t: TestContext, autoRun: 'on' | 'off' | 'absent' = 'on', behaviour?: (runId: string) => Behaviour,
   runCapture?: (capture: FakeCapture) => RunCapture,
-  reviews?: { cap?: number; factory?: ResearchAutomationServiceOptions['shopeeCollectorFactory'] }) {
+  reviews?: { cap?: number; factory?: ResearchAutomationServiceOptions['shopeeCollectorFactory'] },
+  lanes: Pick<ResearchAutomationServiceOptions, 'searchAdsSource' | 'metaAutoSource'> = {}) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-autorun-'));
   const databasePath = path.join(root, 'test.sqlite');
   const artifactRoot = path.join(root, 'artifacts');
@@ -135,22 +136,23 @@ export async function fixture(t: TestContext, autoRun: 'on' | 'off' | 'absent' =
   const uuid = sequence();
   const make = (): SpyService => new SpyService({ db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discovery),
     metricAttachmentStore: new RequestScopedArtifactStore(artifactRoot), uuid, now, readerReportFlint: false, source: syntheticProductSource(),
+    ...lanes,
     ...(reviews?.factory ? { shopeeCollectorFactory: reviews.factory } : {}),
     ...(autoRun === 'absent' ? {} : { autoRun: { enabled: autoRun === 'on', runner: { enabledEnv: '1', captureRoot: capture.captureRoot }, runCapture: run,
       ...(reviews?.cap !== undefined ? { testReviewCap: reviews.cap } : {}) } }),
   } as ResearchAutomationServiceOptions);
   const service = make();
   t.after(async () => { try { db.close(); } catch { /* already closed */ } await fs.rm(root, { recursive: true, force: true }); });
-  return { root, databasePath, artifactRoot, db, service, make, capture };
+  return { root, databasePath, artifactRoot, artifacts, db, service, make, capture };
 }
 
 let requestCounter = 0;
 /** Lets two fixtures start runs with the same request key (flag-off comparison). */
 export function rewindStartKey(): void { requestCounter--; }
-export async function startRun(service: ResearchAutomationService): Promise<string> {
+export async function startRun(service: ResearchAutomationService, reports: ('MARKET' | 'INSIGHT')[] = ['MARKET']): Promise<string> {
   const requestKey = `33333333-3333-4333-8333-${String(++requestCounter).padStart(12, '0')}`;
   const receipt = await service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey, mode: 'CATEGORY', keyword,
-    requestedPeriod: { startDate: '2026-01-01', endDate: '2026-01-30' }, reports: ['MARKET'] });
+    requestedPeriod: { startDate: '2026-01-01', endDate: '2026-01-30' }, reports });
   return receipt.run.runId;
 }
 /** Runs every queued step and phase, waiting for detached captures, until nothing moves. */

@@ -85,8 +85,11 @@ function pageIndexFake() {
   let notReady = false;
   const docs = new Map<string, string>();
   const calls = { upload: 0, question: 0, localReads: 0, titleReads: 0 };
+  const questions: { docId: string; text: string }[] = [];
+  const requests: string[] = [];
   const fetchFake: typeof fetch = async (input, init) => {
     const pathname = new URL(String(input)).pathname;
+    requests.push(pathname);
     const body = typeof init?.body === 'string' ? JSON.parse(init.body) as Record<string, unknown> : {};
     const docOf = (id: string) => ({ id, name: docs.get(id)!, pageNum: 1, status: 'completed' });
     if (pathname === '/doc/') { calls.upload += 1; const id = `pi-${docs.size + 1}`; docs.set(id, ((init?.body as FormData).get('file') as File).name); return Response.json({ ...docOf(id), status: 'processing' }); }
@@ -96,18 +99,20 @@ function pageIndexFake() {
     if (match) return Response.json({ doc_id: match[1], page: 1, block_id: 'p1_text_1', block_type: 'text', bbox: [1, 1, 20, 20], text: 'Thị trường tăng đều theo quý' });
     if (pathname === '/chat/completions') {
       calls.question += 1;
+      questions.push({ docId: String(body.doc_id), text: (body.messages as { content: string }[])[0]!.content });
       const name = docs.get(String(body.doc_id))!;
       return Response.json({ choices: [{ message: { content: `x <doc=${name};page=1;block=p1_text_1>` } }], citations: [{ document: name, page: 1, block_id: 'p1_text_1', block_type: 'text', bbox: [1, 1, 20, 20] }] });
     }
     throw new Error(`Unexpected connector request ${pathname}`);
   };
-  return { fetchFake, calls, markNotReady: () => { notReady = true; } };
+  return { fetchFake, calls, questions, requests, markNotReady: () => { notReady = true; } };
 }
 
 interface RunOptions {
   readonly organic: unknown[]; readonly searchRows?: unknown[]; readonly resolve?: PdfResolver; readonly lane: boolean;
   readonly large?: boolean; readonly failSearch?: boolean; readonly throwDownload?: boolean; readonly throwSearch?: boolean; readonly failCaptureWrite?: boolean; readonly failPdfRetention?: boolean; readonly ownerPdf?: boolean;
   readonly ownerPdfLabel?: string; readonly questionCap?: number; readonly noAdmission?: boolean;
+  readonly offlineOwnerPdfs?: readonly string[];
   /** Local page count per file (default 1); a file whose bytes contain `longLabel` reports `longPages`. */
   readonly longLabel?: string; readonly longPages?: number; readonly maxPages?: number; readonly readerOff?: boolean;
   readonly genericPdfLabel?: string; readonly uncountableLabel?: string;
@@ -173,6 +178,13 @@ async function runToDraft(t: TestContext, options: RunOptions) {
   await service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: '33333333-3333-4333-8333-333333333333',
     mode: 'CATEGORY', keyword: KEYWORD, requestedPeriod: { startDate: '2025-10-01', endDate: '2026-09-30' }, reports: options.reports ?? ['MARKET'] });
   await service.processNext();
+  if (options.offlineOwnerPdfs) {
+    // Retain owner bytes while the connector is off; automatic REPORTS processing below runs with it on.
+    const intake = new ResearchAutomationService({ db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discovery), now,
+      pageIndex: { enabled: false } });
+    for (const [index, label] of options.offlineOwnerPdfs.entries())
+      await intake.attachRunPdf(workspaceId, runId, `owner-${index}.pdf`, pdfBytes(label));
+  }
   if (options.ownerPdf) await service.attachRunPdf(workspaceId, runId, 'owner.pdf', pdfBytes(options.ownerPdfLabel ?? 'owner'));
   await service.confirmScope(workspaceId, runId, { contractVersion: 'research-automation-confirm-v1', requestKey: '44444444-4444-4444-8444-444444444444',
     expectedRevision: (await service.getRun(workspaceId, runId)).revision, definition: 'Synthetic scope', includeTerms: [], excludeTerms: [], selectedProductIds: [SYNTHETIC_CARD_ID], peerProductIds: [], exactShopeeUrls: [] });
@@ -419,6 +431,54 @@ test('Insight-only runs never enter the Market PDF lane', async t => {
   assert.equal(f.document.pdfDiscovery, undefined);
   assert.equal(f.pdf.calls.search + f.pdf.calls.download, 0);
   assert.equal(f.usage.some(u => u[0] >= 14), false);
+});
+
+test('Q2 row 4: automatic PageIndex plans only stable Market questions and uses the same PDF cap allocation', async t => {
+  const marketQuestions = [
+    ['M03', 'Trích nguyên văn con số quy mô hoặc diễn biến thị trường nêu trong tài liệu?'],
+    ['M04', 'Trích nguyên văn câu mô tả cơ cấu hoặc thành phần thị trường trong tài liệu?'],
+    ['M05', 'Trích nguyên văn câu mô tả nhu cầu của khách hàng trong tài liệu?'],
+    ['M06', 'Trích nguyên văn câu mô tả nguồn cung hoặc nhà bán trong tài liệu?'],
+    ['M07', 'Trích nguyên văn câu mô tả đối thủ cạnh tranh trong tài liệu?'],
+    ['M08', 'Trích nguyên văn mức giá hoặc phép tính đơn vị nêu trong tài liệu?'],
+    ['M09', 'Trích nguyên văn câu mô tả động lực hoặc rủi ro thị trường trong tài liệu?'],
+  ] as const;
+  const cases: { reports: ('MARKET' | 'INSIGHT')[]; cap: number; downloads: number; secondPdfQuestions: number }[] = [
+    { reports: ['INSIGHT'], cap: 10, downloads: 0, secondPdfQuestions: 0 },
+    { reports: ['MARKET'], cap: 10, downloads: 1, secondPdfQuestions: 3 },
+    { reports: ['MARKET', 'INSIGHT'], cap: 10, downloads: 0, secondPdfQuestions: 0 },
+    { reports: ['MARKET', 'INSIGHT'], cap: 20, downloads: 1, secondPdfQuestions: 1 },
+  ];
+  for (const rowCase of cases) await t.test(`${rowCase.reports.join('+')} cap ${rowCase.cap}`, async st => {
+    const { reports, cap, downloads, secondPdfQuestions } = rowCase;
+    const f = await runToDraft(st, { lane: true, reports, questionCap: cap, offlineOwnerPdfs: ['offline-owner'],
+      organic: [row(1, RUN_PDF), row(2, RUN_PDF_2)] });
+    assert.equal(f.pdf.calls.download, downloads, 'capture-slot estimate admits exactly the PDFs the preserved plan can ask');
+    const market = reports.includes('MARKET');
+    const expected = market ? [...marketQuestions, ...marketQuestions.slice(0, secondPdfQuestions)] : [];
+    assert.deepEqual(f.pageIndex.questions.map(question => question.text), expected.map(([, text]) => text));
+    const saved = f.db.prepare(`SELECT q.source_sha256 sha, q.section_id id, d.cloud_doc_id docId, q.failure_code failure, q.result_sha256 result
+      FROM analysis_pageindex_questions q LEFT JOIN analysis_pageindex_documents d ON d.source_sha256=q.source_sha256
+      WHERE q.run_id=? ORDER BY q.rowid`).all(runId) as { sha: string; id: string; docId: string; failure: string | null; result: string | null }[];
+    assert.deepEqual(saved.map(question => question.id), expected.map(([id]) => id));
+    assert.deepEqual(saved.map(question => question.docId), f.pageIndex.questions.map(question => question.docId));
+    const ownerSha = createHash('sha256').update(pdfBytes('offline-owner')).digest('hex');
+    assert.ok(saved.slice(0, 7).every(question => question.sha === ownerSha), 'unchanged question identity: run, exact PDF SHA, M-section');
+    assert.ok(saved.slice(7).every(question => question.sha !== ownerSha));
+    assert.ok(saved.every(question => question.failure === null && question.result !== null));
+    assert.equal(f.pageIndex.calls.question, expected.length);
+    assert.equal(f.pageIndex.calls.upload, market ? 1 + downloads : 0);
+    const quotes = await f.service.readPageIndexQuotes(workspaceId, runId);
+    assert.equal(quotes?.quotes.length, expected.length);
+    if (!market) {
+      assert.deepEqual(quotes?.documents?.map(document => document.state), ['NO_QUESTION_PLANNED']);
+      assert.deepEqual(f.pageIndex.calls, { upload: 0, question: 0, localReads: 0, titleReads: 0 });
+      assert.deepEqual(f.pageIndex.requests, [], 'no upload, status, block, list or question request');
+    }
+    const run = await f.service.getRun(workspaceId, runId);
+    assert.equal(run.status, 'DRAFT_READY');
+    assert.equal(run.steps.some(step => step.state === 'FAILED'), false);
+  });
 });
 
 test('bridge budget skips the second full-size PDF before capture and reader retention; owner upload is preserved', async t => {

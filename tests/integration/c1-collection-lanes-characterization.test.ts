@@ -12,6 +12,7 @@ import { CaptureLog } from '../../src/modules/analysis/research-automation/provi
 import type { ProviderTransport, ResearchAutomationProviderId, ProviderOperation } from '../../src/modules/analysis/research-automation/providers.js';
 import { createWorldBankSource } from '../../src/modules/analysis/research-automation/world-bank-lane.js';
 import { createComtradeSource } from '../../src/modules/analysis/research-automation/comtrade-lane.js';
+import { createOfficialStatsSource, type OfficialStatsSource } from '../../src/modules/analysis/research-automation/official-statistics-lane.js';
 import { createGoogleAdsSource } from '../../src/modules/analysis/research-automation/google-ads-lane.js';
 import { createExpandedSearchSource } from '../../src/modules/analysis/research-automation/expanded-search-lane.js';
 import { createMetaAutoSource, metaSearchUrl } from '../../src/modules/analysis/research-automation/meta-auto-lane.js';
@@ -33,6 +34,8 @@ const period = { startDate: '2025-10-01', endDate: '2026-09-30' };
 const lanes = ['web', 'trends', 'geo', 'expanded', 'worldBank', 'comtrade', 'ads', 'stats', 'meta', 'tiktok', 'video', 'pdf'] as const;
 type Lane = typeof lanes[number];
 type Options = {
+  reports?: ('MARKET' | 'INSIGHT')[];
+  officialStatsSource?: OfficialStatsSource;
   lanes?: readonly Lane[];
   throwLane?: Lane;
   unstorable?: boolean;
@@ -69,6 +72,7 @@ async function fixture(t: TestContext, options: Options = {}) {
   await discovery.createWorkspace({ contractVersion: '1.0.0', workspaceKey: 'c1-lanes', title: 'Synthetic collection lanes' });
   const calls: Record<Lane, number> = { web: 0, trends: 0, geo: 0, expanded: 0, worldBank: 0, comtrade: 0, ads: 0, stats: 0, meta: 0, tiktok: 0, video: 0, pdf: 0 };
   const exchanges = { web: 0, trends: 0, geo: 0, expanded: 0, worldBank: 0, comtrade: 0, ads: 0, stats: 0, meta: 0, tiktok: 0, video: 0, pdfSearch: 0, pdfDownload: 0 };
+  let comtradeModelCalls = 0;
   const invoke = async <T>(name: Lane, work: () => Promise<T>): Promise<T> => {
     calls[name]++;
     if (options.throwLane === name) throw new Error(`synthetic ${name} collect failure`);
@@ -103,8 +107,11 @@ async function fixture(t: TestContext, options: Options = {}) {
     return new Response(new Uint8Array(url.pathname.includes('/country/') ? data.observations : data.metadata));
   }));
   const comtrade = createComtradeSource({
-    model: { generateText: async request => request.systemText.includes('map a product') ? '{"candidates":["123456"]}'
-      : JSON.stringify({ typicalProductVi: 'Sản phẩm giả lập.', covers: true, reasonVi: 'Thuộc nhóm giả lập.', descriptionVi: 'Mô tả giả lập.' }) },
+    model: { generateText: async request => {
+      comtradeModelCalls++;
+      return request.systemText.includes('map a product') ? '{"candidates":["123456"]}'
+        : JSON.stringify({ typicalProductVi: 'Sản phẩm giả lập.', covers: true, reasonVi: 'Thuộc nhóm giả lập.', descriptionVi: 'Mô tả giả lập.' });
+    } },
     transport: transport(url => {
       exchanges.comtrade++;
       return Response.json({ data: [{ period: Number(url.searchParams.get('period')), reporterDesc: 'Synthetic reporter',
@@ -188,7 +195,8 @@ async function fixture(t: TestContext, options: Options = {}) {
     ...(enabled.has('worldBank') ? { worldBankSource: { collect: opts => invoke('worldBank', () => worldBank.collect(opts)) } } : {}),
     ...(enabled.has('comtrade') ? { comtradeSource: { collect: (input, opts) => invoke('comtrade', () => comtrade.collect(input, opts)) } } : {}),
     ...(enabled.has('ads') ? { searchAdsSource: { collect: (input, opts) => invoke('ads', () => ads.collect({ ...input, brands, webUrls: [] }, opts)) } } : {}),
-    ...(enabled.has('stats') ? { officialStatsSource: { collect: () => invoke('stats', async () => {
+    ...(enabled.has('stats') ? { officialStatsSource: { collect: (input, opts) => invoke('stats', async () => {
+      if (options.officialStatsSource) return options.officialStatsSource.collect(input, opts);
       exchanges.stats++;
       return { status: 'NO_DATA', categoryGroup: null, reasonVi: null, list: capture('OFFICIAL-STATS', 'officialstats.list'), files: [], tables: [], values: [], requests: 1 };
     }) } } : {}),
@@ -198,7 +206,7 @@ async function fixture(t: TestContext, options: Options = {}) {
     ...(enabled.has('pdf') ? { pdfDiscoverySource: { ...pdf, search: (input, opts) => invoke('pdf', () => pdf.search(input, opts)) } } : {}),
   });
   await service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: '33333333-3333-4333-8333-333333333333',
-    mode: 'CATEGORY', keyword, requestedPeriod: period, reports: ['MARKET'] });
+    mode: 'CATEGORY', keyword, requestedPeriod: period, reports: options.reports ?? ['MARKET'] });
   const read = async (stepId = 'COLLECTION') => {
     const step = db.prepare('SELECT state, result_sha256 sha FROM analysis_research_automation_steps WHERE run_id=? AND step_id=?').get(runId, stepId) as { state: string; sha: string | null };
     const document = step.sha ? JSON.parse((await artifacts.read(step.sha)).toString()) as StepResultDocument : null;
@@ -214,8 +222,43 @@ async function fixture(t: TestContext, options: Options = {}) {
       expectedRevision: (await service.getRun(workspaceId, runId)).revision, definition: 'Synthetic scope', includeTerms: [], excludeTerms: [],
       selectedProductIds: [SYNTHETIC_CARD_ID], peerProductIds: [], exactShopeeUrls: [] });
   };
-  return { service, calls, exchanges, read, confirm, controller, db };
+  return { service, calls, exchanges, read, confirm, controller, db, comtradeModelCalls: () => comtradeModelCalls };
 }
+
+test('Q2 row 2: Insight-only makes no Market-only provider or model calls and stores no lane failure or cost', async t => {
+  for (const reports of [['INSIGHT'], ['MARKET', 'INSIGHT']] as ('MARKET' | 'INSIGHT')[][]) await t.test(reports.join('+'), async st => {
+    const statsCalls = { model: 0, provider: 0 };
+    const officialStatsSource = createOfficialStatsSource({
+      model: { generateText: async request => {
+        statsCalls.model++;
+        return request.systemText.includes('You place a product')
+          ? '{"categoryGroup":"Đồ gia dụng, đồ dùng nhà bếp, thiết bị nhỏ"}'
+          : '{"covers":true,"reasonVi":"Thuộc nhóm giả lập."}';
+      } },
+      transport: { fetch: async () => { statsCalls.provider++; return Response.json([]); }, sleep: async () => {}, now: () => now().getTime() },
+    });
+    const f = await fixture(st, { reports, officialStatsSource });
+    await f.confirm(); await f.service.processNext();
+    const { step, document, usage, captures } = await f.read();
+    assert.equal(step.state, 'SUCCEEDED'); assert.ok(document);
+    const market = reports.includes('MARKET');
+    for (const lane of ['trends', 'geo', 'worldBank', 'comtrade', 'ads', 'stats', 'meta', 'tiktok', 'video'] as const)
+      assert.equal(f.calls[lane], market ? 1 : 0, `${lane} collect`);
+    for (const lane of ['trends', 'geo', 'worldBank', 'comtrade', 'ads', 'meta', 'tiktok', 'video'] as const)
+      assert.equal(f.exchanges[lane] > 0, market, `${lane} provider`);
+    assert.equal(f.comtradeModelCalls() > 0, market, 'HS pick and verification model');
+    assert.deepEqual(statsCalls, market ? { model: 2, provider: 1 } : { model: 0, provider: 0 });
+    if (!market) {
+      for (const field of ['searchInterest', 'searchGeo', 'worldBank', 'comtrade', 'searchAds', 'officialStats', 'metaAuto', 'tiktokTopAds', 'videoWatch'] as const)
+        assert.equal(document[field], undefined, `${field} has no failed or thrown document`);
+      assert.deepEqual(usage.map(row => row.ordinal), [0, 2, 4, 5, 6], 'no Market-only usage, including UNKNOWN or unsettled rows');
+      assert.deepEqual(captures.map(row => row.operation), ['kalodata.product.rank', ...Array<string>(4).fill('serpapi.google.search')]);
+      assert.deepEqual(document.limitations.map(item => [item.code, item.provider]), [
+        ['ORGANIC_RESULTS_ONLY', 'serpapi'], ['RESULT_URLS_ARE_PROVIDER_REPORTED', 'serpapi'],
+      ], 'only the shared web-source limitations remain');
+    }
+  });
+});
 
 const unsettledLanes = [
   ['web', 2, 'serpapi'], ['trends', 3, 'serpapi'], ['geo', 16, 'serpapi'], ['worldBank', 7, 'world-bank'],

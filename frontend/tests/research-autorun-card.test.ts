@@ -51,6 +51,21 @@ test('card renders nothing without autoRun', async t => {
   assert.equal(dom.container.innerHTML, '');
 });
 
+test('Q2 row 5: DONE card describes only the Insight draft and preserves Market completion text', async t => {
+  for (const reports of [['INSIGHT'], ['MARKET'], ['MARKET', 'INSIGHT']] as ('MARKET' | 'INSIGHT')[][]) await t.test(reports.join('+'), async st => {
+    const run = { ...runWith({ phase: 'DONE', state: 'QUEUED', canRetry: false }), reports };
+    const { dom } = await mount(st, run, async () => { throw new Error('rendering must not fetch'); });
+    const text = dom.container.textContent!;
+    assert.match(text, /Phần tự động đã xong: bản nháp/);
+    if (reports.includes('MARKET')) {
+      assert.ok(text.includes('Phần tự động đã xong: bản nháp, bìa và biểu đồ. Bản đọc để xem và duyệt nằm ở mục "Bản đọc" phía trên.'));
+    } else {
+      assert.doesNotMatch(text, /bìa|biểu đồ/iu);
+      assert.ok(text.includes('Phần tự động đã xong: bản nháp. Bản đọc để xem và duyệt nằm ở mục "Bản đọc" phía trên.'));
+    }
+  });
+});
+
 test('retry button shows only when canRetry is true; no progress bar or percent', async t => {
   for (const autoRun of [
     { phase: 'CAPTURE', state: 'RUNNING', canRetry: false },
