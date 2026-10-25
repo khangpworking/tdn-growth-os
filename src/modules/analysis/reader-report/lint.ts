@@ -183,7 +183,7 @@ export function lint(html: string, { sectionIds = [], familyLabel = 'toàn kết
   // legacy claims retain the old W3 wording (R-L04), where every total fails.
   const summed = reportKind === 'INSIGHT' || legacyTotals
     ? sentences.filter(s => /tổng\s+(hai sàn|cả hai sàn|shopee và tiktok|tiktok và shopee)/i.test(s))
-    : crossPlatformTotalMatches(vis);
+    : crossPlatformTotalMatches(html);
   add('W3 không cộng gộp sàn khi trang không ghi tổng', summed.length === 0,
     summed.length ? summed.slice(0, 2).map(s => s.trim().slice(0, 80)).join(' | ') : 'không cộng gộp sàn');
 

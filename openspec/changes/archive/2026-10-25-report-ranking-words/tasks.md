@@ -16,8 +16,8 @@
 
 ## 3. Kiểm thử (phiên khác người viết mã)
 
-- [ ] 3.1 Ca theo dòng hợp đồng cho R-L20, mỗi ca có một ca đối chứng âm (ca đó phải trượt trên mã hiện nay)
-- [ ] 3.2 Đổi các kiểm thử đang cấm chữ «nhất» hoặc «hàng đầu» theo luật mới; ghi lý do trong PR
+- [x] 3.1 Ca theo dòng hợp đồng cho R-L20, mỗi ca có một ca đối chứng âm đã thấy trượt khi hoàn nguyên hành vi được bảo vệ
+- [x] 3.2 Đổi các kiểm thử đang cấm chữ «nhất» hoặc «hàng đầu» theo luật mới; lý do ghi trong bản ghi kiểm thử Q3
 - [ ] 3.3 CI Linux xanh tại SHA cuối
 
 ## 4. Sau khi gộp

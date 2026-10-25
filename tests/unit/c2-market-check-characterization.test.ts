@@ -277,7 +277,7 @@ const rows: Row[] = [
     const html = '<p hidden>Metric; tổng hai sàn; xếp hạng theo doanh thu; Sản phẩm tốt nhất.</p>';
     assert.deepEqual(failures(gate(html)), ['G08_PROVIDER_NAME']);
     assert.equal(readerVerdict(html, 'F1 '), false);
-    assert.equal(readerVerdict(html, 'W3 '), false);
+    assert.equal(lint(html, { legacyTotals: true }).find(row => row.rule.startsWith('W3 '))!.ok, false);
     assert.equal(readerVerdict(html, 'F5 '), false);
     assert.equal(readerVerdict(html, 'U13_SUPERLATIVE'), true);
     assert.deepEqual(failures(gate('<p hidden>Thông tin nguồn.</p>')), []);

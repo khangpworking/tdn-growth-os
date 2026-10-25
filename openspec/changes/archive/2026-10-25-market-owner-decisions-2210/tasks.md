@@ -12,7 +12,7 @@
 
 ## 2. Bản đọc Market
 
-- [x] 2.1 `reader-report/market-template-v2.ts` (bản đọc 1.4.0): thêm ô «Cộng 2 sàn» ở Phần 1 cạnh ô từng sàn (R-M16). Bản đọc cũ 1.0–1.3 (`market-template.ts`) giữ nguyên byte
+- [x] 2.1 `reader-report/market-template-v2.ts` (bản đọc 1.4.0): thêm ô «Cộng 2 sàn» ở Phần 1 cạnh ô từng sàn (R-M16). Bản đọc 1.0/1.1 giữ nguyên byte; 1.2/1.3 chỉ đổi tiêu đề và nhãn nguồn theo change `report-ranking-words`
 - [x] 2.2 Bảng thương hiệu: một dòng mỗi thương hiệu, gộp khi tên trùng hẳn (R-M37)
 - [x] 2.3 Đổi nhãn sang «giá bán trung bình» và thêm dòng «Chú thích:» cách tính (R-M34)
 - [x] 2.4 Hàm phụ cho phép so: nhận chú thích chỉ số và kỳ, in ngoặc xám nhỏ (R-M35)
@@ -20,13 +20,13 @@
 
 ## 2b. Bản đọc Insight
 
-- [ ] 2b.1 Bảng chủ đề: mỗi sàn một cột; chủ đề có ở cả hai sàn ghi «có ở cả 2 sàn», không có số gộp (R-I06). Hiện mỗi sàn một bảng riêng, không có số gộp; nhãn «có ở cả 2 sàn» chờ chủ trả lời
+- [ ] 2b.1 Bảng chủ đề: mỗi sàn một cột; chủ đề có ở cả hai sàn ghi «có ở cả 2 sàn», không có số gộp (R-I06). Chưa làm nhãn: mỗi bản đọc Insight chỉ có một sàn, chưa có bản dựng hai sàn và bộ mã chủ đề chung đã duyệt. Quyết định của chủ đã chốt; đây là phần còn thiếu trong mã
 - [x] 2b.2 Kiểm Insight không có tổng tiền, tổng lượt bán (R-I06): bản đọc Insight không in số nào như vậy; chưa có mã kiểm
 
 ## 3. Kiểm thử (phiên khác người viết mã)
 
-- [ ] 3.1 Ca theo dòng hợp đồng cho R-M16, R-M33 đến R-M37, R-I06, mỗi ca có một ca đối chứng âm
-- [ ] 3.2 Cập nhật băm fixture vàng của bản đọc Market; ghi lý do trong PR
+- [x] 3.1 Ca theo dòng hợp đồng cho R-M16, R-M33 đến R-M37, R-I06 (trừ nhãn còn thiếu ở 2b.1), mỗi ca có một ca đối chứng âm
+- [x] 3.2 Cập nhật băm fixture vàng của bản đọc Market; lý do ghi trong chú thích kiểm thử và bản ghi kiểm thử Q3
 - [ ] 3.3 CI Linux xanh tại SHA cuối
 
 ## 4. Sau khi gộp

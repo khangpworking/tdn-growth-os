@@ -199,8 +199,17 @@ const rows: Row[] = [
     ['missing label', 'Tổng hai sàn: 300; Shopee: 100; TikTok Shop: 200.', false],
     ['missing TikTok number', 'Shopee: 100; TikTok Shop: chưa có dữ liệu; Cộng 2 sàn: 300.', false],
     ['missing Shopee number', 'Shopee: chưa có dữ liệu; TikTok Shop: 200; Cộng 2 sàn: 300.', false],
+    ['missing number beside sample count', 'Shopee: 100; TikTok Shop: chưa có dữ liệu; n = 4. Cộng 2 sàn: 300.', false],
+    ['missing number beside period', 'Shopee: 100; TikTok Shop: chưa có dữ liệu. Kỳ 01/01–31/01/2026. Cộng 2 sàn: 300.', false],
+    ['column name with numeric claim', 'Cột Cộng 2 sàn: 300.', false],
+    ['hidden total', '<p hidden>Tổng hai sàn: 300.</p>', true],
+    ['inline total phrase', '<p>tổ<span>ng hai sàn</span>: 300.</p>', false],
+    ['complete table', '<table><tr><th>Shopee</th><th>TikTok Shop</th><th>Cộng 2 sàn</th></tr><tr><td>100</td><td>200</td><td>300</td></tr></table>', true],
+    ['table missing TikTok cell', '<table><tr><th>Shopee</th><th>TikTok Shop</th><th>Cộng 2 sàn</th></tr><tr><td>100</td><td>—</td><td>300</td></tr></table>', false],
+    ['table missing Shopee cell', '<table><tr><th>Cộng 2 sàn</th><th>Shopee</th><th>TikTok Shop</th></tr><tr><td>300</td><td></td><td>200</td></tr></table>', false],
+    ['table later row missing number', '<table><tr><th>Shopee</th><th>TikTok Shop</th><th>Cộng 2 sàn</th></tr><tr><td>100</td><td>200</td><td>300</td></tr><tr><td>100</td><td>Chưa có dữ liệu</td><td>300</td></tr></table>', false],
   ] as const).map(([name, text, ok]): Row => ({ name: `R-M16/R-L04 ${name}: U32 and W3 agree`, run: () => {
-    const html = `<p>${text}</p>`;
+    const html = text.startsWith('<') ? text : `<p>${text}</p>`;
     assert.deepEqual([
       verdict(auditMarketReportHtml(html, { presentation: false }), 'U32_NO_CROSS_PLATFORM_TOTAL'),
       verdict(lint(html, { legacyTotals: false }), 'W3 không cộng gộp sàn khi trang không ghi tổng'),
