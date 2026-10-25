@@ -16,6 +16,7 @@ const contracts = [
   ['analysis', 'automation-search-ads'],
   ['analysis', 'automation-tiktok-shop-reviews'],
   ['analysis', 'world-bank-intake-v1'],
+  ['analysis', 'population-baseline-v1'],
   ['api', 'research-automation-macro-intake-api'],
   ['analysis', 'automation-market-presentation-revision'],
   ['analysis', 'automation-market-presentation-method'],

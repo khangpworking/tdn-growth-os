@@ -22,17 +22,18 @@ import { PDF_DISCOVERY_DOWNLOAD_USAGE_ORDINAL, PDF_DISCOVERY_PROVIDER, PDF_DISCO
 import { TIKTOK_SHOP_REVIEWS_DOCUMENT_MEDIA_TYPE, TIKTOK_SHOP_REVIEWS_USAGE_ORDINAL, tiktokShopReviewsDocument, tiktokShopReviewsFailed, tiktokShopReviewsStep, tiktokShopReviewsUsage, type TikTokShopReviewCandidate, type TikTokShopReviewsCollection, type TikTokShopReviewsSource } from './tiktok-shop-reviews.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import type { StoredArtifact } from '../../../platform/artifacts/artifact-store.js';
+import { populationBaselineDocument, type PopulationBaselineAttempt, type PopulationBaselineSource } from './population-baseline.js';
 
 /** Usage ordinal of the plain web search (0 product source, 1 exact Shopee / public tail). */
 export const WEB_USAGE_ORDINAL = 2;
 
 export type CollectionLaneName = 'web' | 'trends' | 'expanded' | 'worldBank' | 'video' | 'comtrade' | 'searchAds' | 'officialStats'
-  | 'metaAuto' | 'tiktokTopAds' | 'pdfDiscovery' | 'geo' | 'tiktokShopReviews';
+  | 'metaAuto' | 'tiktokTopAds' | 'pdfDiscovery' | 'geo' | 'tiktokShopReviews' | 'populationBaseline';
 
 /**
  * Every lane usage ordinal of the collection step, with the provider an "unsettled-collection" row names. The DB key is
  * (run_id, step_id, ordinal), so a clash would abort the whole save; it is checked once when this module loads.
- * Web's provider is the configured web source's id (null here).
+ * Web's provider is the configured web source's id (null here). The population baseline is a local file read with no usage row.
  */
 export const COLLECTION_LANE_ORDINALS: readonly { readonly lane: CollectionLaneName; readonly ordinal: number; readonly provider: string | null }[] = [
   { lane: 'web', ordinal: WEB_USAGE_ORDINAL, provider: null },
@@ -72,6 +73,8 @@ export interface CollectionRunContext {
   readonly keyword: string;
   readonly description: string | null;
   readonly mode: string;
+  /** The reports the run asks for (the population baseline reads only for INSIGHT runs). */
+  readonly reports: readonly string[];
   readonly requestedPeriod: { readonly startDate: string; readonly endDate: string };
   /** Product titles of the product-source result. */
   readonly productTitles: () => string[];
@@ -521,9 +524,35 @@ function tiktokTopAdsLane(source: TikTokTopAdsSource): CollectionLane {
   });
 }
 
-// TikTok Shop reviews (S06) come last: Insight runs only, at most three confirmed and collected TikTok Shop products with a
-// quick-search card (the set the top-selling videos use), top by the run's own revenue, one paid call each, never repeated
-// after a restart. The main-channel rule needs the run's sales data and is evaluated at report build. Each raw response is
+// The whole-population baseline is a local file read for runs that include INSIGHT: no network, never repeated after a
+// restart. It stores after the report PDFs (collection-lanes-save-step.ts), so earlier capture ordinals stay unchanged.
+// A skipped read keeps a reason code only and never changes the step outcome, coverage or run blockers.
+function populationBaselineLane(source: PopulationBaselineSource): CollectionLane {
+  return lane<readonly string[], PopulationBaselineAttempt | null>({
+    name: 'populationBaseline',
+    input: context => context.reports,
+    collect: reports => source.read({ reports }),
+    // A thrown read leaves no document and no usage row (its own null value, so no unknown-cost row). A failed capture
+    // write fails only this lane: storeCollectionLanes cuts its capture and stores the thrown document, i.e. none.
+    thrown: () => null,
+    async store(step, attempt, _reports, captures, check) {
+      if (!attempt) return step;
+      const index = attempt.capture ? await captures([attempt.capture], { retainPdf: false }) : null;
+      const document = populationBaselineDocument(attempt, index);
+      if (!document) return step;
+      const probe = { ...step, populationBaseline: document };
+      try {
+        check(probe);
+        return probe;
+      } catch { return { ...step, populationBaseline: populationBaselineDocument({ reason: 'FILE_INVALID', baseline: null, sourceSha256: null, capture: null }, null)! }; }
+    },
+    usage: () => [],
+  });
+}
+
+// TikTok Shop reviews (S06) come last, after the population baseline file read: Insight runs only, at most three confirmed
+// and collected TikTok Shop products with a quick-search card (the set the top-selling videos use), top by the run's own
+// revenue, one paid call each, never repeated after a restart. The main-channel rule needs the run's sales data and is evaluated at report build. Each raw response is
 // a private capture; the normalized document (review text, no personal field) is a separate private artifact. The step
 // keeps counts and digests only, never review text.
 type TikTokShopReviewsInput = TikTokShopReviewsFacts & { kept: StoredArtifact | null };
@@ -577,6 +606,7 @@ export interface CollectionLaneSources {
   readonly metaAutoSource?: MetaAutoSource;
   readonly tiktokTopAdsSource?: TikTokTopAdsSource;
   readonly tiktokShopReviewsSource?: TikTokShopReviewsSource;
+  readonly populationBaselineSource?: PopulationBaselineSource;
 }
 
 /**
@@ -595,6 +625,7 @@ export function collectionLanes(sources: CollectionLaneSources): readonly Collec
     ...(sources.officialStatsSource ? [officialStatsLane(sources.officialStatsSource)] : []),
     ...(sources.metaAutoSource ? [metaAutoLane(sources.metaAutoSource)] : []),
     ...(sources.tiktokTopAdsSource ? [tiktokTopAdsLane(sources.tiktokTopAdsSource)] : []),
+    ...(sources.populationBaselineSource ? [populationBaselineLane(sources.populationBaselineSource)] : []),
     ...(sources.tiktokShopReviewsSource ? [tiktokShopReviewsLane(sources.tiktokShopReviewsSource)] : []),
   ];
 }
@@ -614,12 +645,16 @@ export async function attemptCollectionLanes(lanes: readonly CollectionLane[], s
 }
 
 // The Meta and TikTok reads publish attachments after the video readings (collection-lanes-save-step.ts), and the TikTok
-// Shop reviews store after them; every other lane stores before them.
+// Shop reviews store after them; the population baseline stores after the report PDFs; every other lane stores before the
+// video readings.
 const AFTER_VIDEO: ReadonlySet<CollectionLaneName> = new Set(['metaAuto', 'tiktokTopAds', 'tiktokShopReviews']);
+const AFTER_PDF: ReadonlySet<CollectionLaneName> = new Set(['populationBaseline']);
 /** The runs stored (and whose usage is written) before the video readings, in run order. */
-export const lanesBeforeVideo = (runs: readonly CollectionLaneRun[]): CollectionLaneRun[] => runs.filter(run => !AFTER_VIDEO.has(run.name));
+export const lanesBeforeVideo = (runs: readonly CollectionLaneRun[]): CollectionLaneRun[] => runs.filter(run => !AFTER_VIDEO.has(run.name) && !AFTER_PDF.has(run.name));
 /** The runs stored (and whose usage is written) after the video readings, in run order. */
 export const lanesAfterVideo = (runs: readonly CollectionLaneRun[]): CollectionLaneRun[] => runs.filter(run => AFTER_VIDEO.has(run.name));
+/** The runs stored (and whose usage is written) after the report PDFs, in run order. */
+export const lanesAfterPdf = (runs: readonly CollectionLaneRun[]): CollectionLaneRun[] => runs.filter(run => AFTER_PDF.has(run.name));
 
 /** A capture write of one lane failed. */
 class LaneCaptureWriteError extends Error {}

@@ -37,7 +37,8 @@ export interface SourceAppendixUsage {
     | 'S24'
     | 'S25'
     | 'S26'
-    | 'S27';
+    | 'S27'
+    | 'S28';
   binding: {
     kind: 'package' | 'capture' | 'upload' | 'fetch';
     ref: string;
@@ -88,7 +89,8 @@ export interface SourceAppendixRow {
     | 'S24'
     | 'S25'
     | 'S26'
-    | 'S27';
+    | 'S27'
+    | 'S28';
   tier: ('A' | 'B' | 'C') | null;
   tierDetail: string | null;
   group: string;

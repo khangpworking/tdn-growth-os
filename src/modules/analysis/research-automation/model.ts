@@ -210,6 +210,15 @@ export interface StepWorldBankIndicator {
 }
 export interface StepWorldBankPoint { readonly year: string; readonly value: string | null }
 export interface StepWorldBank { readonly profile: string; readonly indicators: readonly StepWorldBankIndicator[] }
+/** S28 whole-population baseline read from a local built file (no network). Only count tables; never evidence about buyers. */
+export type StepPopulationBaseline = {
+  readonly profile: 'population-baseline-v1'; readonly status: 'COLLECTED'; readonly reason: null; readonly captureIndex: number;
+  readonly retrievedAt: string; readonly sourceSha256: string;
+  readonly baseline: import('../../../../contracts/analysis/population-baseline-v1.generated.js').PopulationBaselineV1;
+} | {
+  readonly profile: 'population-baseline-v1'; readonly status: 'SKIPPED'; readonly reason: 'FILE_MISSING' | 'FILE_INVALID'; readonly captureIndex: null;
+  readonly retrievedAt: null; readonly sourceSha256: null; readonly baseline: null;
+};
 
 /** UN Comtrade country-level trade figures for one estimated HS6 code (S24). Background only; never combined with sample numbers. */
 export type StepComtradeStatus = 'OK' | 'HS_CODE_NOT_CONFIRMED' | 'RATE_LIMITED' | 'NO_DATA' | 'MODEL_NOT_CONFIGURED' | 'FAILED' | 'CANCELLED';
@@ -530,6 +539,8 @@ export interface StepResultDocument {
   readonly expandedSearch?: StepExpandedSearch;
   /** Open country-level background; absent unless the World Bank lane was on for the run. */
   readonly worldBank?: StepWorldBank;
+  /** Whole-population baseline (S28) for Insight I02; absent unless the lane was on and the run includes INSIGHT. */
+  readonly populationBaseline?: StepPopulationBaseline;
   /** Country-level trade figures for the estimated HS code; absent unless the UN Comtrade lane was on for the run. */
   readonly comtrade?: StepComtrade;
   /** Search-ads library counts of the top brands' websites; absent unless the lane was on for the run. */
