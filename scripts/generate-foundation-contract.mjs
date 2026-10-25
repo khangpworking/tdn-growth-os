@@ -14,6 +14,7 @@ const contracts = [
 
   ['analysis', 'capture-relevance'],
   ['analysis', 'automation-search-ads'],
+  ['analysis', 'automation-tiktok-shop-reviews'],
   ['analysis', 'world-bank-intake-v1'],
   ['analysis', 'population-baseline-v1'],
   ['api', 'research-automation-macro-intake-api'],
@@ -265,10 +266,10 @@ for (const [module, contract] of contracts) {
   const schemaPath = path.join(root, `contracts/${module}/${contract}.schema.json`);
   const outputPath = path.join(root, `contracts/${module}/${contract}.generated.ts`);
   const generated = await compileFromFile(schemaPath, {
-    ...(contract.startsWith('shopee-public-') ? { unreachableDefinitions: true } : {}),
+    ...(contract.startsWith('shopee-public-') || contract === 'automation-tiktok-shop-reviews' ? { unreachableDefinitions: true } : {}),
     ...(['automation-market-presentation-method', 'research-automation-metric-intake-api', 'research-automation-reader-report-api', 'research-automation-supplemental-intake-api', 'research-automation-source-api', 'automation-i14-evidence-admission', 'automation-i14-candidates', 'automation-quote-method-snapshot', 'automation-decision-packets', 'automation-decision-synthesis-input', 'automation-decision-synthesis-prompt', 'automation-insight-model', 'automation-insight-crosscheck', 'research-automation-insight-crosscheck-api', 'default-market-peers', 'meta-page-source-v1', 'research-automation-meta-page-api'].includes(contract) ? { ignoreMinAndMaxItems: true } : {}),
     // A3 arrays are assembled incrementally; AJV enforces their canonical schema bounds.
-  ...(['shopee-public-collection', 'shopee-public-rows', 'shopee-public-journal', 'automation-confirmed-source-set-v2', 'research-review-corpus-v2', 'research-automation-source-api-v3', 'automation-search-ads', 'private-insight-source-projection', 'report-section-catalog', 'versioned-report-packet', 'report-semantic-content', 'prepared-report-semantic-content', 'report-assembly-snapshot', 'report-review-state', 'report-interpretation-request', 'report-interpretation-output', 'report-interpretation-artifact', 'report-review-target', 'report-version-record', 'report-api', 'research-automation-api', 'research-automation-revision-api', 'generic-quote-unit', 'temporal-window-method', 'research-review-corpus', 'automation-private-shopee-source', 'research-private-review-corpus', 'private-review-report-view', 'insight-literal-evidence', 'shopee-exact-request', 'shopee-exact-collection', 'shopee-private-collection', 'shopee-private-rows', 'shopee-private-projection', 'tiktok-comment-collection-v1', 'video-reading-v1', 'video-reading-v2', 'video-reading-v3'].includes(contract)
+  ...(['shopee-public-collection', 'shopee-public-rows', 'shopee-public-journal', 'automation-confirmed-source-set-v2', 'research-review-corpus-v2', 'research-automation-source-api-v3', 'automation-search-ads', 'automation-tiktok-shop-reviews', 'private-insight-source-projection', 'report-section-catalog', 'versioned-report-packet', 'report-semantic-content', 'prepared-report-semantic-content', 'report-assembly-snapshot', 'report-review-state', 'report-interpretation-request', 'report-interpretation-output', 'report-interpretation-artifact', 'report-review-target', 'report-version-record', 'report-api', 'research-automation-api', 'research-automation-revision-api', 'generic-quote-unit', 'temporal-window-method', 'research-review-corpus', 'automation-private-shopee-source', 'research-private-review-corpus', 'private-review-report-view', 'insight-literal-evidence', 'shopee-exact-request', 'shopee-exact-collection', 'shopee-private-collection', 'shopee-private-rows', 'shopee-private-projection', 'tiktok-comment-collection-v1', 'video-reading-v1', 'video-reading-v2', 'video-reading-v3'].includes(contract)
       ? { ignoreMinAndMaxItems: true }
       : {}),
     bannerComment: `/* Generated from ${contract}.schema.json. Do not edit by hand. */`,

@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/automation-tiktok-shop-reviews.schema.json",
+  "title": "AutomationTikTokShopReviews",
+  "description": "S06 normalized TikTok Shop product reviews of one run. Private: review text stays out of reports. Reviewer name, avatar, user id and every other personal field are removed. Counts are record counts, never people. Provider-AI points are the provider's own grouping, never this application's coding.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "country", "status", "skipReason", "counting", "products"],
+  "properties": {
+    "contractVersion": { "const": "automation-tiktok-shop-reviews-v1" },
+    "country": { "const": "VN" },
+    "status": { "enum": ["COLLECTED", "PARTIAL", "SKIPPED", "FAILED"] },
+    "skipReason": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/skipReason" }] },
+    "counting": { "const": "RECORDS_NOT_PEOPLE" },
+    "products": { "type": "array", "maxItems": 3, "items": { "$ref": "#/$defs/product" } }
+  },
+  "$defs": {
+    "skipReason": {
+      "title": "TikTokShopReviewsSkipReason",
+      "enum": ["FLAG_OFF", "NOT_INSIGHT_RUN", "CHANNEL_NOT_MAIN", "CHANNEL_SHARE_UNKNOWN", "NO_TIKTOK_PRODUCTS", "CREDIT_EXHAUSTED", "PROVIDER_FAILED"]
+    },
+    "productOutcome": {
+      "title": "TikTokShopReviewsProductOutcome",
+      "enum": ["OK", "EMPTY", "FAILED", "AMBIGUOUS_NO_RETRY", "NOT_RUN_CREDIT_EXHAUSTED", "NOT_RUN_STOPPED", "NOT_RUN_CANCELLED"]
+    },
+    "productId": { "type": "string", "pattern": "^[0-9]{1,32}$" },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "product": {
+      "title": "TikTokShopReviewsProduct",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["productId", "outcome", "responseSha256", "reviewCount", "ratingAvailable", "cachedAt", "reviews", "points"],
+      "properties": {
+        "productId": { "$ref": "#/$defs/productId" },
+        "outcome": { "$ref": "#/$defs/productOutcome" },
+        "responseSha256": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/sha256" }] },
+        "reviewCount": { "type": "integer", "minimum": 0, "maximum": 2000 },
+        "ratingAvailable": { "const": false },
+        "cachedAt": { "type": ["string", "null"], "maxLength": 40 },
+        "reviews": { "type": "array", "maxItems": 2000, "items": { "$ref": "#/$defs/review" } },
+        "points": { "type": "array", "maxItems": 150, "items": { "$ref": "#/$defs/point" } }
+      }
+    },
+    "review": {
+      "title": "TikTokShopReview",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "text", "sku", "dateRaw"],
+      "properties": {
+        "id": { "$ref": "#/$defs/productId" },
+        "text": { "type": ["string", "null"], "maxLength": 2000 },
+        "sku": { "type": ["string", "null"], "maxLength": 200 },
+        "dateRaw": { "type": ["string", "null"], "maxLength": 40 }
+      }
+    },
+    "point": {
+      "title": "TikTokShopReviewPoint",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "label", "reviewIds", "providerAiPoint"],
+      "properties": {
+        "kind": { "enum": ["PAIN_POINT", "POSITIVE_POINT", "USAGE_SCENARIO"] },
+        "label": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "reviewIds": { "type": "array", "maxItems": 2000, "items": { "$ref": "#/$defs/productId" } },
+        "providerAiPoint": { "const": true }
+      }
+    },
+    "stepSummary": {
+      "title": "StepTikTokShopReviews",
+      "description": "COLLECTION step pointer: counts and digests only, never review text.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile", "status", "skipReason", "documentSha256", "products"],
+      "properties": {
+        "profile": { "const": "tiktok-shop-reviews-v1" },
+        "status": { "enum": ["COLLECTED", "PARTIAL", "SKIPPED", "FAILED"] },
+        "skipReason": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/skipReason" }] },
+        "documentSha256": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/sha256" }] },
+        "products": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["productId", "outcome", "captureIndex", "reviewCount"],
+            "properties": {
+              "productId": { "$ref": "#/$defs/productId" },
+              "outcome": { "$ref": "#/$defs/productOutcome" },
+              "captureIndex": { "type": ["integer", "null"], "minimum": 0 },
+              "reviewCount": { "type": "integer", "minimum": 0, "maximum": 2000 }
+            }
+          }
+        }
+      }
+    }
+  }
+}

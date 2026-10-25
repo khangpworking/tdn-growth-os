@@ -372,7 +372,7 @@ test('a throwing web lane still lets trends, geo and expanded run and store in o
   }
 });
 
-test('a whole expanded collect throw keeps no query or UNKNOWN row; a per-query throw keeps its own row today', async () => {
+test('a whole expanded collect throw and a per-query throw each keep one UNKNOWN row at ordinal 4', async () => {
   for (const wholeThrow of [false, true]) {
     const runs = await attempt(collectionLanes({ webSource: webSource(),
       expandedSource: { id: 'SERPAPI', collect: async () => {
@@ -385,7 +385,32 @@ test('a whole expanded collect throw keeps no query or UNKNOWN row; a per-query 
       kind: 'WINDOW', requestedWindow: null, status: 'FAILED', reason: 'PROVIDER_FAILED',
       retrievedAt: null, captureIndex: null, results: [],
     }] });
+    // c1 PR4 owner decision 24/10/2026: Q1
     assert.deepEqual(collectionLaneUsage(runs).filter(row => row.kind === 'UNSETTLED'),
-      wholeThrow ? [] : [{ kind: 'UNSETTLED', ordinal: 4, provider: 'serpapi' }]);
+      [{ kind: 'UNSETTLED', ordinal: 4, provider: 'serpapi' }]);
+  }
+});
+
+test('c1 PR4 bug 2: rejected trends/geo documents keep their range; skipped attempts carry none', async () => {
+  for (const skipped of [false, true]) {
+    const calls: string[] = [];
+    const runs = await attempt(collectionLanes({
+      trendsSource: syntheticTrendsSource(() => calls.push('trends'), 'ok', context.keyword),
+      trendsGeoSource: syntheticGeoSource(() => calls.push('geo'), 'ok', undefined, context.keyword),
+    }), runContext({ now: () => new Date(skipped ? '2020-01-01T00:00:00Z' : '2026-10-02T00:00:00Z') }));
+    const stored = await storeCollectionLanes(runs, step, captureOffset, probe => {
+      if (probe.searchInterest?.status === 'COLLECTED' || probe.searchGeo?.status === 'COLLECTED')
+        throw new Error('synthetic document rejection');
+    });
+    assert.deepEqual(calls, skipped ? [] : ['trends', 'geo']);
+    for (const series of [stored.searchInterest, stored.searchGeo]) {
+      assert.ok(series);
+      assert.deepEqual([series.status, series.reason, series.window, series.requestedRange, series.captureIndex], skipped
+        ? ['SKIPPED', 'PERIOD_IN_FUTURE', 'LAST_12_MONTHS', undefined, null]
+        : ['FAILED', 'PROVIDER_FAILED', 'REQUESTED_RANGE', context.requestedPeriod, null]);
+    }
+    assert.deepEqual(stored.searchInterest?.points, []);
+    assert.deepEqual(stored.searchGeo?.provinces, []);
+    assert.equal(stored.outcome, step.outcome);
   }
 });

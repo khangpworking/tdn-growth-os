@@ -94,6 +94,8 @@ import { createGoogleAdsSource } from '../modules/analysis/research-automation/g
 import { createOfficialStatsSource } from '../modules/analysis/research-automation/official-statistics-lane.js';
 import { createMetaAutoSource } from '../modules/analysis/research-automation/meta-auto-lane.js';
 import { createTikTokTopAdsSource } from '../modules/analysis/research-automation/tiktok-top-ads-lane.js';
+import { createTikTokShopReviewsSource } from '../modules/analysis/research-automation/tiktok-shop-reviews.js';
+import { createKalodataProvider } from '../modules/analysis/research-automation/provider-kalodata.js';
 import { createPdfDiscoverySource } from '../modules/analysis/research-automation/pdf-discovery-lane.js';
 import { videoWatchLaneFromConfig, type VideoWatchConfig } from '../modules/analysis/research-automation/video-watch-lane.js';
 import { createResearchAutomationProviderRegistry, type ResearchAutomationProviderConfig, type ProviderTransport } from '../modules/analysis/research-automation/providers.js';
@@ -175,6 +177,8 @@ export interface ResearchAutomationApiConfiguration {
   readonly metaAuto?: true;
   /** Public TikTok top-ads lane for the OWNER writer only; present only when its flag is exactly "1". Needs no key; reads one public page through the shared browser lock. */
   readonly tiktokTopAds?: true;
+  /** TikTok Shop product reviews (S06) for the OWNER writer only; present only when its flag is exactly "1". Uses the sales-data key; at most three paid calls per Insight run. */
+  readonly tiktokShopReviews?: true;
   /** Automatic industry-report PDFs (S25): one extra search and two guarded downloads per run at most; needs the web search key. */
   readonly pdfDiscovery?: true;
   /** Video-watch lane for the OWNER writer only; present only when its flag is exactly "1". Model calls go through the existing CLIProxy. */
@@ -430,6 +434,9 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       const officialStatsSource = configuration.officialStats ? createOfficialStatsSource({ ...(comtradeModel ? { model: comtradeModel } : {}), ...(transport ? { transport } : {}), ...(configuration.officialStatsProvinces ? { provinces: true } : {}) }) : undefined;
       const metaAutoSource = configuration.metaAuto ? createMetaAutoSource() : undefined;
       const tiktokTopAdsSource = configuration.tiktokTopAds ? createTikTokTopAdsSource() : undefined;
+      // Same key and transport as the sales-data provider (replay mode included); without a key every call reports PROVIDER_FAILED.
+      const tiktokShopReviewsSource = configuration.tiktokShopReviews
+        ? createTikTokShopReviewsSource(createKalodataProvider(registryProviders.kalodataSecretKey, registryTransport ?? defaultProviderTransport)) : undefined;
       const pdfDiscoverySource = configuration.pdfDiscovery && configuration.providers?.serpApiKey ? createPdfDiscoverySource(configuration.providers.serpApiKey, transport) : undefined;
       const videoWatch = configuration.videoWatch ? videoWatchLaneFromConfig(configuration.videoWatch, () => new Date()) : undefined;
       // Start-up retention sweep (45 days); a failure never blocks start-up and the lane sweeps again when it runs.
@@ -453,6 +460,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         ...(officialStatsSource ? { officialStatsSource } : {}),
         ...(metaAutoSource ? { metaAutoSource } : {}),
         ...(tiktokTopAdsSource ? { tiktokTopAdsSource } : {}),
+        ...(tiktokShopReviewsSource ? { tiktokShopReviewsSource } : {}),
         ...(pdfDiscoverySource ? { pdfDiscoverySource } : {}),
         ...(videoWatch ? { videoWatch } : {}),
         ...(i14SynthesisAi ? { i14SynthesisAi } : {}),

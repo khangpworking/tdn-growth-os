@@ -555,6 +555,8 @@ export interface StepResultDocument {
   readonly videoWatch?: StepVideoWatch;
   /** Automatically found industry-report PDFs; absent unless the report-PDF lane was on for the run. */
   readonly pdfDiscovery?: StepPdfDiscovery;
+  /** TikTok Shop review counts and the private document digest (S06); absent unless the lane was on for the run. Never review text. */
+  readonly tiktokShopReviews?: import('../../../../contracts/analysis/automation-tiktok-shop-reviews.generated.js').StepTikTokShopReviews;
   /** Sanitized Foundation3 reference; mutually exclusive with raw/native review. */
   readonly privateShopee?: import('./private-review-corpus.js').PrivateReviewReference;
   readonly exactShopee?: {
