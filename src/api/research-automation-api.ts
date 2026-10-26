@@ -441,7 +441,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       const worldBankSource = configuration.worldBank ? createWorldBankSource(transport) : undefined;
       const populationBaselineSource = configuration.populationBaseline ? createPopulationBaselineSource(configuration.populationBaseline) : undefined;
       // UN Comtrade lane: HS selection reuses the already configured CLIProxy text model (no new provider config); without one it reports MODEL_NOT_CONFIGURED.
-      const comtradeModel = insightCodingAi ? { generateText: async (request: { readonly systemText: string; readonly userText: string; readonly signal?: AbortSignal }): Promise<string> =>
+      const comtradeModel = insightCodingAi ? { identity: insightCodingAi.configuration.modelId, generateText: async (request: { readonly systemText: string; readonly userText: string; readonly signal?: AbortSignal }): Promise<string> =>
         (await insightCodingAi.port.generateText({ configuration: insightCodingAi.configuration, systemText: request.systemText, userText: request.userText,
           signal: request.signal as AbortSignal })).text } : undefined;
       const searchAdsSource = configuration.searchAds && configuration.providers?.serpApiKey ? createGoogleAdsSource(configuration.providers.serpApiKey, transport) : undefined;
@@ -491,6 +491,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
           onWake: () => worker?.wake(), runner: {
           enabledEnv: '1', captureRoot: path.resolve(configuration.metricAutoRun.captureRoot),
           adapterManifestPath: configuration.metricAutoRun.adapterManifestPath, adapterManifestSha256: configuration.metricAutoRun.adapterManifestSha256 } } } : {}),
+        v3Report: { ...(comtradeModel ? { model: comtradeModel } : {}), ...(pdf ? { pdf } : {}) },
         decisionSynthesisAi,
         ...(configuration.providers?.shopeePublicReviews ? { shopeePublicReviews: { maxReviewsPerProduct: configuration.providers.shopeePublicReviews.maxReviewsPerProduct, factory: acquisition => {
           const config = configuration.providers!.shopeePublicReviews!;
