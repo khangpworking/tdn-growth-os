@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
-import { FakeClock, FakeTransport, ORIGIN, assertNoRawLeak, streamedResponse, successfulScript, temporaryPublicStore, type Exchange } from '../helpers/shopee-public-fakes.js';
-import { AT, IDS, PRODUCTS, RAW_SENTINELS, READY, RESULT_A, RESULT_B, RESULT_C, SHARED_ID, TOKEN, WRONG_SOURCE_RESULT, SECRET_ECHO_RESULT, ENCODED_SECRET_ECHO_RESULT, job, result, row } from '../fixtures/shopee-public-results.js';
+import { FakeClock, FakeTransport, ORIGIN, SESSION_READY, assertNoRawLeak, streamedResponse, successfulScript, temporaryPublicStore, type Exchange } from '../helpers/shopee-public-fakes.js';
+import { AT, IDS, PRODUCTS, RAW_SENTINELS, RESULT_A, RESULT_B, RESULT_C, SHARED_ID, TOKEN, WRONG_SOURCE_RESULT, SECRET_ECHO_RESULT, ENCODED_SECRET_ECHO_RESULT, job, result, row } from '../fixtures/shopee-public-results.js';
 
 // BEGIN PHASE-2 BINDING: only this section adapts source names/signatures/projections.
 // The contract specifies behavior, not these test-facade function/property names.
@@ -209,7 +209,7 @@ test('S2 serial ready/preflight/POST/poll/result/consistency protocol and dispat
   const transport = new FakeTransport(successfulScript([20, 20, 20]), () => clock.milliseconds);
   const client = bindings.open({ ...store, clock, fetch: transport.fetch });
   const collected = await client.run(PRODUCTS);
-  transport.done(); assert.equal(transport.calls.length, 24); assert.equal(client.requestsIssued(), 24);
+  transport.done(); assert.equal(transport.calls.length, 22); assert.equal(client.requestsIssued(), 22);
   assert.equal(transport.posts().length, 3);
   assert.deepEqual(transport.posts().map(c => JSON.parse(String(c.init.body)).url), PRODUCTS.map(p => p.productUrl));
   assert.ok(clock.sleeps.length >= 6); assert.ok(clock.sleeps.every(ms => ms === 3000));
@@ -230,19 +230,19 @@ test('S2 serial ready/preflight/POST/poll/result/consistency protocol and dispat
   }
   assert.equal((await fs.stat(store.journalRoot)).mode & 0o777, 0o700);
 });
-for (const browser of ['starting', 'browser_error', 'awaiting_user_login', 'needs_login', 'needs_verification', 'unknown']) test(`S2 non-ready health ${browser} stops all products`, async t => {
+for (const browser of ['starting', 'browser_error', 'awaiting_user_login', 'needs_login', 'needs_verification', 'unknown']) test(`S2 non-ready session ${browser} stops all products`, async t => {
   const store = await temporaryPublicStore(t), clock = new FakeClock();
-  const transport = new FakeTransport([{ method: 'GET', path: '/health', body: { ...READY, browser } }]);
+  const transport = new FakeTransport([{ method: 'GET', path: '/session', body: { ...SESSION_READY, authenticated: null } }, { method: 'POST', path: '/session/check', body: { state: browser } }]);
   const collected = await bindings.open({ ...store, clock, fetch: transport.fetch }).run(PRODUCTS);
-  assert.equal(bindings.classify(bindings.receipts(collected), 20).outcome, 'PROVIDER_BLOCKED');
-  transport.done(); assert.equal(transport.calls.length, 1); assert.equal(transport.posts().length, 0);
+  assert.equal(bindings.classify(bindings.receipts(collected), 20).outcome, ['needs_login', 'awaiting_user_login'].includes(browser) ? 'SHOPEE_LOGIN_REQUIRED' : browser === 'needs_verification' ? 'SHOPEE_VERIFICATION_REQUIRED' : 'SHOPEE_COLLECTOR_DOWN');
+  transport.done(); assert.equal(transport.calls.length, 2); assert.equal(transport.posts().length, 0);
 });
 for (const status of [401, 403, 404, 409, 422, 429]) test(`S2 HTTP ${status} stops without retry`, async t => {
   const store = await temporaryPublicStore(t), clock = new FakeClock();
-  const transport = new FakeTransport([{ method: 'GET', path: '/health', status, body: { detail: 'synthetic untrusted error' } }]);
+  const transport = new FakeTransport([{ method: 'GET', path: '/session', body: { ...SESSION_READY, authenticated: null } }, { method: 'POST', path: '/session/check', status, body: { detail: 'synthetic untrusted error' } }]);
   const client = bindings.open({ ...store, clock, fetch: transport.fetch });
-  const collected = await client.run(PRODUCTS); transport.done(); assert.equal(client.requestsIssued(), 1); assert.equal(transport.calls.length, 1);
-  assert.equal(bindings.classify(bindings.receipts(collected), 20).outcome, 'PROVIDER_BLOCKED');
+  const collected = await client.run(PRODUCTS); transport.done(); assert.equal(client.requestsIssued(), 2); assert.equal(transport.calls.length, 2);
+  assert.equal(bindings.classify(bindings.receipts(collected), 20).outcome, 'SHOPEE_COLLECTOR_DOWN');
 });
 test('S05 row 7: retryable GET permits at most two dispatches with accurate counters; success and non-retryable errors dispatch once', async t => {
   for (const kind of ['success', 'non-retryable', '5xx', 'transport', 'timeout', 'retry-success'] as const) {
@@ -273,10 +273,10 @@ test('S05 row 7: retryable GET permits at most two dispatches with accurate coun
     assert.equal(journal.terminal.stopCode, value.listings[0].stopCode, kind);
   }
 });
-for (const operation of ['health', 'list', 'submit', 'status', 'cancel', 'result']) test(`S2 ${operation} request/body deadline budget`, async () => {
+for (const operation of ['session', 'list', 'submit', 'status', 'cancel', 'result']) test(`S2 ${operation} request/body deadline budget`, async () => {
   for (const remaining of [100000, 1250]) {
     const actual = await bindings.observeRequestBudgets(operation, remaining);
-    const expected = Math.min(operation === 'result' ? 30000 : 10000, remaining);
+    const expected = operation === 'session' ? 65000 : Math.min(operation === 'result' ? 30000 : 10000, remaining);
     assert.equal(actual.request, expected); assert.equal(actual.body, expected); assert.ok(actual.sleep <= remaining);
   }
 });
@@ -296,17 +296,17 @@ for (const change of [{ state: 'invented' }, { id: IDS[1] }, { request: { url: P
 test('S2 response bound cancels streaming reader even without Content-Length', async t => {
   const store = await temporaryPublicStore(t), clock = new FakeClock();
   const streamed = streamedResponse(Array.from({ length: 10 }, () => new Uint8Array(1024 * 1024).fill(32)));
-  const transport = new FakeTransport([{ method: 'GET', path: '/health', response: () => streamed.response }]);
+  const transport = new FakeTransport([{ method: 'GET', path: '/session', body: { ...SESSION_READY, authenticated: null } }, { method: 'POST', path: '/session/check', response: () => streamed.response }]);
   const collected = await bindings.open({ ...store, clock, fetch: transport.fetch }).run();
-  assert.equal(bindings.classify(bindings.receipts(collected), 20).outcome, 'PROVIDER_BLOCKED');
-  assert.equal(streamed.cancelled, true); assert.ok(streamed.chunksRead < 10); assert.equal(transport.calls.length, 1);
+  assert.equal(bindings.classify(bindings.receipts(collected), 20).outcome, 'SHOPEE_COLLECTOR_DOWN');
+  assert.equal(streamed.cancelled, true); assert.ok(streamed.chunksRead < 10); assert.equal(transport.calls.length, 2);
 });
 for (const response of [() => new Response('{}', { headers: { 'content-length': String(8 * 1024 * 1024 + 1) } }),
   () => new Response('{invalid'), () => new Response(null, { status: 302, headers: { location: 'https://example.invalid/' } })]) test('S2 length/malformed/redirect rejection never follows a URL', async t => {
   const store = await temporaryPublicStore(t), clock = new FakeClock();
-  const transport = new FakeTransport([{ method: 'GET', path: '/health', response }]);
-  const collected = await bindings.open({ ...store, clock, fetch: transport.fetch }).run(); transport.done(); assert.equal(transport.calls.length, 1);
-  assert.equal(bindings.classify(bindings.receipts(collected), 20).outcome, 'PROVIDER_BLOCKED');
+  const transport = new FakeTransport([{ method: 'GET', path: '/session', body: { ...SESSION_READY, authenticated: null } }, { method: 'POST', path: '/session/check', response }]);
+  const collected = await bindings.open({ ...store, clock, fetch: transport.fetch }).run(); transport.done(); assert.equal(transport.calls.length, 2);
+  assert.equal(bindings.classify(bindings.receipts(collected), 20).outcome, 'SHOPEE_COLLECTOR_DOWN');
 });
 
 const crashPoints = ['before-intent', 'after-intent-before-dispatch', 'after-accepted-before-id', 'after-202-before-fsync', 'after-durable-id-before-poll', 'during-poll', 'after-terminal-snapshot'] as const;
@@ -486,7 +486,7 @@ for (const [counts, expected] of [[[20, 20, 20], 'OK'], [[20, 7, 0], 'PARTIAL_LI
   const actual = bindings.classify(counts.map(n => receipt(n)), 20); assert.equal(actual.outcome, expected); assert.equal(actual.providerMessage, null);
 });
 for (const state of ['partial', 'failed', 'cancelled', 'interrupted', 'needs_login', 'needs_verification']) for (const n of [0, 20]) test(`S6 ${state} with ${n} admitted rows follows precedence`, () => {
-  const expected = state.startsWith('needs_') || n === 0 ? 'PROVIDER_BLOCKED' : 'PARTIAL_LISTINGS';
+  const expected = state === 'needs_login' ? 'SHOPEE_LOGIN_REQUIRED' : state === 'needs_verification' ? 'SHOPEE_VERIFICATION_REQUIRED' : n === 0 ? 'PROVIDER_BLOCKED' : 'PARTIAL_LISTINGS';
   const actual = bindings.classify([receipt(n, state, { error: 'time limit succeeded synthetic error' })], 20);
   assert.equal(actual.outcome, expected); assert.equal(actual.providerMessage, null);
 });
@@ -498,11 +498,11 @@ test('S6 complete=false, short cap=300, observed deadline and error-text indepen
   assert.equal(bindings.classify([receipt(20, 'succeeded', { complete: false })], 20).outcome, 'PARTIAL_LISTINGS');
   assert.equal(bindings.classify([receipt(20, 'succeeded', { stopReason: 'LAST_PAGE' })], 300).outcome, 'PARTIAL_LISTINGS');
   assert.equal(bindings.classify([receipt(0, 'TIMEOUT', { appObservedTimeout: true })], 20).outcome, 'PROVIDER_TIMEOUT_NO_REVIEWS');
-  assert.equal(bindings.classify([receipt(20), receipt(0, 'needs_login')], 20).outcome, 'PROVIDER_BLOCKED');
+  assert.equal(bindings.classify([receipt(20), receipt(0, 'needs_login')], 20).outcome, 'SHOPEE_LOGIN_REQUIRED');
   assert.deepEqual(bindings.classify([receipt(7, 'failed', { error: 'time limit' })], 20), bindings.classify([receipt(7, 'failed', { error: 'arbitrary untrusted prose' })], 20));
 });
 for (const [code, extra, empty, kept] of [
-  ['HEALTH_NOT_READY', {}, 'PROVIDER_BLOCKED', 'PROVIDER_BLOCKED'],
+  ['HEALTH_NOT_READY', {}, 'SHOPEE_COLLECTOR_DOWN', 'SHOPEE_COLLECTOR_DOWN'],
   ...[401, 403, 404, 409, 422, 429].map(status => [`HTTP_${status}`, { httpStatus: status }, 'PROVIDER_BLOCKED', 'PROVIDER_BLOCKED']),
   ['PROTOCOL_ERROR', {}, 'PROVIDER_BLOCKED', 'PROVIDER_BLOCKED'], ['OVERSIZE', {}, 'PROVIDER_BLOCKED', 'PROVIDER_BLOCKED'],
   ['CREDENTIAL_ECHO_REFUSED', {}, 'PROVIDER_BLOCKED', 'PROVIDER_BLOCKED'], ['UNKNOWN_STATE', {}, 'PROVIDER_BLOCKED', 'PROVIDER_BLOCKED'],

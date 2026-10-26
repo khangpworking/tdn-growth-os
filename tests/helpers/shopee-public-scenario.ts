@@ -30,8 +30,8 @@ import { lint } from '../../src/modules/analysis/reader-report/lint.js';
 import { CitationRegistry, assertReaderSafeCitation } from '../../src/modules/analysis/citation-registry.js';
 import { auditMarketReportHtml } from '../../src/modules/analysis/research-automation/market-business-gate.js';
 import { deriveReaderSource, verifyWebSnapshot, webSnapshotDigest } from '../../src/modules/analysis/reader-report/web-facts.js';
-import { FakeClock, FakeTransport, ORIGIN, retainedFiles, throwingSpy, type Exchange } from './shopee-public-fakes.js';
-import { AT, PRODUCTS, TOKEN, IDS, READY, job, result, row } from '../fixtures/shopee-public-results.js';
+import { FakeClock, FakeTransport, ORIGIN, SESSION_READY, retainedFiles, throwingSpy, type Exchange } from './shopee-public-fakes.js';
+import { AT, PRODUCTS, TOKEN, IDS, job, result, row } from '../fixtures/shopee-public-results.js';
 import { syntheticProductSource } from './research-synthetic-sources.js';
 import { captureFiles, workspaceId, drain, FakeCapture } from './autorun-harness.js';
 import { sync1ReaderFixture } from './sync1-reader-fixture.js';
@@ -92,19 +92,19 @@ function scenarioCaptureFiles(runId:string, noPercentageEvidence=false) {
 }
 function wire(options:ScenarioOptions, values?:unknown[]):Exchange[] {
   const cap=options.cap??20, count=options.productCount??3;
-  return Array.from({length:count},(_,p)=>{
+  return [{method:'GET' as const,path:'/session',body:SESSION_READY}, ...Array.from({length:count},(_,p)=>{
     const product={shopId:String(91001+p),itemId:String(92001+p),productUrl:`https://shopee.vn/product/${91001+p}/${92001+p}`};
     const id=IDS[p]??`10000000-0000-4000-8000-${String(p+1).padStart(12,'0')}`;
     const n=options.counts?.[p]??cap, state=options.state==='successful-empty'?'succeeded':options.state==='app-timeout'?'running':options.state??'succeeded';
     const j=(s:string,available=false)=>({...job(0,s,{id,request:{url:product.productUrl,max_comments:cap},result_available:available,collected:available?n:0},cap)});
     const raw=values?.[p]??result(0,Array.from({length:n},(_,i)=>row(0,{review_id:`synthetic-${i}`,source_url:product.productUrl,...(options.attributesOnly?{comment:'',attributes:['Synthetic attribute'],content_type:'attributes_only'}:{})})),{job_id:id,product_url:product.productUrl,complete:state==='succeeded'});
-    const script:Exchange[]=[{method:'GET',path:'/health',body:READY},{method:'GET',path:'/jobs?limit=100',body:[]},{method:'POST',path:'/jobs',status:202,body:j('queued')},
+    const script:Exchange[]=[{method:'GET',path:'/jobs?limit=100',body:[]},{method:'POST',path:'/jobs',status:202,body:j('queued')},
       {method:'GET',path:`/jobs/${id}`,body:j('queued')},{method:'GET',path:`/jobs/${id}`,body:j('running')},{method:'GET',path:`/jobs/${id}`,body:j(state,true)},
       {method:'GET',path:`/jobs/${id}/result`,body:raw}];
-    if(options.state==='app-timeout')return [script[0]!,script[1]!,script[2]!,{method:'GET' as const,path:`/jobs/${id}`,body:j('running')},{method:'POST' as const,path:`/jobs/${id}/cancel`,status:202,body:j('running')}];
+    if(options.state==='app-timeout')return [script[0]!,script[1]!,{method:'GET' as const,path:`/jobs/${id}`,body:j('running')},{method:'POST' as const,path:`/jobs/${id}/cancel`,status:202,body:j('running')}];
     if(state==='succeeded')script.push({method:'GET',path:`/jobs/${id}`,body:j(state,true)});
     return script;
-  }).flat();
+  }).flat()];
 }
 export async function publicScenario(t:TestContext, options:ScenarioOptions={}, resumeRoot?:string):Promise<any> {
   if(options.faultAt&& !['between-products'].includes(options.faultAt))options={...options,productCount:1};
@@ -224,7 +224,7 @@ export async function publicScenario(t:TestContext, options:ScenarioOptions={}, 
     else try{clock.milliseconds=JSON.parse(await fs.readFile(path.join(root,'clock.json'),'utf8'));}catch{}
     const prior=await fs.readFile(path.join(root,'invocations.jsonl'),'utf8').catch(()=>'');
     const history=prior.trim()?prior.trim().split('\n').filter(Boolean).map(x=>JSON.parse(x)):[...transport.calls];
-    let exchanges=wire(options,values).slice(history.length);if(options.faultAt==='after-request-count-before-fetch')exchanges=[{method:'GET',path:'/jobs?limit=100',body:[job()]},...wire(options,values).slice(3)];transport=new FakeTransport(exchanges,()=>clock.milliseconds);
+    let exchanges=wire(options,values).slice(history.length);if(options.faultAt==='after-request-count-before-fetch')exchanges=[{method:'GET',path:'/jobs?limit=100',body:[job()]},...wire(options,values).slice(3)];if(options.faultAt==='between-products')exchanges.unshift({method:'GET',path:'/session',body:{...SESSION_READY,checked_at:clock.now().toISOString()}});transport=new FakeTransport(exchanges,()=>clock.milliseconds);
     if(options.faultAt==='owner-cancel-before-intent')transport.exchanges.splice(0,transport.exchanges.length,{method:'POST',path:`/jobs/${IDS[0]}/cancel`,status:202,body:job(0,'running')});
     const newPosts=transport.posts.bind(transport); if(!['damaged-base-checkpoint','human-block-finalized','cancel-intent-finalized','after-cancel-intent-before-dispatch'].includes(options.faultAt??''))transport.calls.push(...history);
     transport.posts=()=>newPosts().filter(c=>transport.calls.indexOf(c)>=(['damaged-base-checkpoint','human-block-finalized','cancel-intent-finalized','after-cancel-intent-before-dispatch'].includes(options.faultAt??'')?0:history.length));

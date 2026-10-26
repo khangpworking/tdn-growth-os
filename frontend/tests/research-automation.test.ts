@@ -43,6 +43,65 @@ function successfulReceipt(): string {
   return JSON.stringify({ contractVersion: 'research-automation-receipt-v1', exactRetry: false, run: successfulRun() });
 }
 
+test('SHP RunView source repair is owner-only for the three named errors; ordered buttons require explicit clicks', async t => {
+  const cases = [
+    ['SHOPEE_LOGIN_REQUIRED', /mất đăng nhập Shopee/u],
+    ['SHOPEE_VERIFICATION_REQUIRED', /yêu cầu xác minh/u],
+    ['SHOPEE_COLLECTOR_DOWN', /không phản hồi/u],
+  ] as const;
+  for (const [code, phrase] of cases) await t.test(code, async sub => {
+    const dom = setupDom(), originalFetch = globalThis.fetch;
+    const { createRoot } = await import('react-dom/client');
+    const { default: RunView } = await tsImport('../src/research-automation/RunView.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/research-automation/RunView');
+    const root = createRoot(dom.container), calls: Array<{ url: string; init: RequestInit | undefined }> = [], unlisted: string[] = [];
+    let activeCode: string = code;
+    const base = `/workspaces/${workspaceId}/research-automation/runs/${runId}`;
+    globalThis.fetch = (async (url, init) => {
+      const address = String(url); calls.push({ url: address, init });
+      if (address === `/api${base}`) return Response.json({ ...successfulRun(), status: 'FAILED', reports: ['MARKET'],
+        blockers: [{ code: activeCode, scope: 'SOURCE', provider: 'shopee-public-review', message: 'Nguồn đánh giá Shopee cần xử lý.' }] });
+      if (address === `/api${base}/pageindex`) return Response.json({ contractVersion: 'research-automation-run-pdfs-v1', workspaceId, runId, paused: false, usageLimited: false, documents: [] });
+      const kind = address === `/owner-api${base}/shopee-session/login` ? 'login'
+        : address === `/owner-api${base}/shopee-session/confirm` ? 'confirm' : null;
+      if (kind) {
+        assert.equal(init?.method, 'POST');
+        assert.equal(new Headers(init?.headers).get('Authorization'), `Bearer ${token}`);
+        const request = JSON.parse(String(init?.body));
+        assert.deepEqual(Object.keys(request).sort(), ['contractVersion', 'requestKey']);
+        assert.equal(request.contractVersion, `research-automation-shopee-session-${kind}-v1`);
+        assert.match(request.requestKey, /^[a-f0-9-]{36}$/u);
+        return Response.json({ contractVersion: 'research-automation-shopee-session-v1', exactRetry: false,
+          state: kind === 'login' ? 'AWAITING_USER_LOGIN' : 'READY', checkedAt: '2026-10-26T00:00:00.000Z' }, { status: 201 });
+      }
+      unlisted.push(address); throw new Error('Unlisted UI request');
+    }) as typeof fetch;
+    sub.after(async () => { await act(async () => root.unmount()); globalThis.fetch = originalFetch; dom.cleanup(); assert.deepEqual(unlisted, []); });
+    const render = async (key: string, ownerToken: string | null, writesAvailable: boolean) => act(async () => root.render(createElement(RunView, {
+      key, workspaceId, runId, ownerToken, writesAvailable, notify: () => {}, onStatusChange: () => {},
+    })));
+    for (const [key, owner, writes] of [['reader', null, false], ['locked', null, true], ['writes-off', token, false]] as const) {
+      await render(key, owner, writes);
+      assert.equal(dom.container.querySelector('#ra-shopee-session-title'), null);
+    }
+    await render('owner', token, true);
+    const panel = dom.container.querySelector('#ra-shopee-session-title')!.closest('section')!;
+    assert.match(panel.textContent!, phrase);
+    const buttons = [...panel.querySelectorAll('button')];
+    assert.deepEqual(buttons.map(button => button.textContent), ['Đăng nhập Shopee', 'Tôi đã đăng nhập xong', 'Thu lại đánh giá']);
+    assert.deepEqual(buttons.map(button => button.disabled), [false, false, true]);
+    assert.equal(calls.filter(call => call.init?.method === 'POST').length, 0, 'render and reload never start login');
+    await act(async () => buttons[0]!.click());
+    assert.match(panel.querySelector('[role="status"]')!.textContent!, /Đã mở trang đăng nhập Shopee/u);
+    await act(async () => buttons[1]!.click());
+    assert.match(panel.querySelector('[role="status"]')!.textContent!, /đã sẵn sàng/u);
+    assert.equal(buttons[2]!.disabled, true);
+    assert.deepEqual(calls.filter(call => call.init?.method === 'POST').map(call => call.url), [`/owner-api${base}/shopee-session/login`, `/owner-api${base}/shopee-session/confirm`]);
+    activeCode = 'PROVIDER_BLOCKED';
+    await render('generic-error', token, true);
+    assert.equal(dom.container.querySelector('#ra-shopee-session-title'), null);
+  });
+});
+
 test('run view labels PROVIDER_UNAVAILABLE and keeps the observed HTTP status in technical details', async t => {
   const dom = setupDom(), originalFetch = globalThis.fetch;
   const { createRoot } = await import('react-dom/client');

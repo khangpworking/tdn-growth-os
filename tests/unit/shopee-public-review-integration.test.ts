@@ -37,7 +37,7 @@ const LIMITS = (cap: number) => [
 ];
 const EMPTY = 'Chưa thu được đánh giá trong lượt này; không suy ra sản phẩm không có đánh giá.';
 const NO_COMMENT = 'Chưa có bình luận tự do để đọc.';
-const HUMAN_BLOCK = 'Lượt đọc cần người vận hành xử lý đăng nhập hoặc xác minh. Phần dữ liệu đã đọc được giữ lại; lượt này đã dừng.';
+const HUMAN_BLOCK = 'Lượt đọc không lấy được đánh giá vì bộ thu đánh giá Shopee mất đăng nhập Shopee. Phần dữ liệu đã đọc được giữ lại; lượt này đã dừng.';
 const CAP_MET = 'Đã đạt giới hạn của lượt đọc; điều này không có nghĩa đã đọc hết đánh giá.';
 const short = (cap: number) => `Số bản ghi giữ được ít hơn giới hạn ${cap} đánh giá của lượt đọc.`;
 const trial = (cap: number) => `Đây là mẫu thử nhỏ, tối đa ${cap} đánh giá mỗi sản phẩm, được thu cho báo cáo thử nghiệm. Mẫu này không đại diện cho toàn bộ đánh giá.`;
@@ -192,9 +192,9 @@ test('S2 acquisition-wide absolute deadline stops the next product after restart
 for (const state of ['partial', 'failed', 'cancelled', 'interrupted', 'needs_login', 'needs_verification']) test(`S2 serial continuation policy after ${state}`, async t => {
   const f = await binding.scenario(t, { state, counts: [1, 1, 1] }); await f.confirmPublic(); await f.finish();
   const stopped = state.startsWith('needs_'); assert.equal(f.transport.posts().length, stopped ? 1 : 3);
-  assert.equal(f.transport.calls.filter((c: any) => new URL(c.url).pathname === '/health').length, stopped ? 1 : 3);
+  assert.equal(f.transport.calls.filter((c: any) => new URL(c.url).pathname === '/session').length, 1);
   assert.equal((await f.receipts()).length, 3, 'receipts include unsubmitted products');
-  if (stopped) { assert.equal((await f.outcome()).outcome, 'PROVIDER_BLOCKED'); assert.equal((await f.receipts())[1].jobId, null); }
+  if (stopped) { assert.equal((await f.outcome()).outcome, state === 'needs_login' ? 'SHOPEE_LOGIN_REQUIRED' : 'SHOPEE_VERIFICATION_REQUIRED'); assert.equal((await f.receipts())[1].jobId, null); }
 });
 
 for (const field of ['source-set', 'step', 'collection', 'page', 'envelope', 'corpus', 'report', 'reader-build']) test(`S8 actual reader rejects corrupt ${field} despite rehashed semantic wrapper`, async t => {
