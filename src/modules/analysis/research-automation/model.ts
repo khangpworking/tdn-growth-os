@@ -621,10 +621,19 @@ export const MARKET_NUMBER_TRACE_BLOCKED = 'MARKET_NUMBER_TRACE_BLOCKED';
 /** Step message and limitation code when the sales-data source stopped for credit. */
 export const PROVIDER_CREDIT_EXHAUSTED = 'PROVIDER_CREDIT_EXHAUSTED';
 
+/** Step and limitation code when a provider answered HTTP 5xx or any non-standard status at or above 500. */
+export const PROVIDER_UNAVAILABLE = 'PROVIDER_UNAVAILABLE';
+
+/** Owner-facing text for one observed provider HTTP status. */
+export function providerUnavailableMessage(status: number): string {
+  return `Máy chủ nguồn dữ liệu trả lỗi (HTTP ${status}) nên bước này dừng. Thường chỉ xảy ra một lần; tạo lượt mới để thử lại.`;
+}
+
 /** Fixed, server-authored, safe step/blocker messages. Provider text never reaches these. */
 export const MESSAGES: Readonly<Record<string, string>> = {
   PROVIDER_NOT_CONFIGURED: 'No research data provider is configured on this operator; nothing was collected.',
   PROVIDER_FAILED: 'The provider operation failed and was not retried automatically.',
+  PROVIDER_UNAVAILABLE: 'Máy chủ nguồn dữ liệu trả lỗi nên bước này dừng. Thường chỉ xảy ra một lần; tạo lượt mới để thử lại.',
   PROVIDER_CREDIT_EXHAUSTED: 'The provider stopped because its credit balance is used up; nothing more was requested. Top up and start a new run; it was not retried automatically.',
   KALODATA_REPLAY_MISS: 'Replay test instance: a sales-data request had no stored answer from the source run, so it was not sent to the live source and its data is missing.',
   KALODATA_REPLAY_SCOPE_MISMATCH: 'Replay test instance: the keyword or period of this run differs from the source run, so it was stopped before any provider request.',

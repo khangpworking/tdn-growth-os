@@ -116,6 +116,11 @@ export interface ProviderRawCapture {
   readonly responseByteLength: number | null;
   /** Sanitized provider code (e.g. Kalodata `code`) when the provider rejected the request. */
   readonly providerCode: string | null;
+  /**
+   * Allow-listed response headers (lower-case names, bounded values, no secret echo).
+   * Optional so captures stored before it existed still read.
+   */
+  readonly responseHeaders?: Readonly<Record<string, string>>;
 }
 
 export type ProviderRunStatus =

@@ -258,6 +258,7 @@ import {
   type StepState,
   message,
   MARKET_NUMBER_TRACE_BLOCKED,
+  PROVIDER_UNAVAILABLE,
   marketSourceWindowsMissingCode,
   marketSourceWindowsMissingMessage,
   ResearchAutomationConflictError,
@@ -4671,6 +4672,7 @@ export class ResearchAutomationService {
         const code = outcome === 'CANCELLED' ? 'CANCELLED_DURING_PROVIDER_OPERATION' : outcome === 'UNAVAILABLE' ? 'PROVIDER_NOT_CONFIGURED' : outcome === 'FAILED'
           ? step.limitations.some(value => value.code === 'PROVIDER_OUTPUT_INVALID') ? 'PROVIDER_OUTPUT_INVALID'
             : step.limitations.some(value => value.code === 'PROVIDER_CREDIT_EXHAUSTED') ? 'PROVIDER_CREDIT_EXHAUSTED'
+            : step.limitations.some(value => value.code === PROVIDER_UNAVAILABLE) ? PROVIDER_UNAVAILABLE
             : step.limitations.some(value => value.code === KALODATA_REPLAY_MISS) ? KALODATA_REPLAY_MISS : 'PROVIDER_FAILED'
           : outcome === 'PARTIAL' && step.limitations.some(value => value.code === KALODATA_REPLAY_MISS) ? KALODATA_REPLAY_MISS : null;
         const finished = this.#now().toISOString();
@@ -4829,7 +4831,7 @@ export class ResearchAutomationService {
       definition: scope ? { definition: scope.definition, includeTerms: [...scope.includeTerms], excludeTerms: [...scope.excludeTerms], selectedProductIds: [...scope.selectedProductIds], peerProductIds: [...scope.peerProductIds], confirmedAt: row.scopeConfirmedAt!, ...(scope.exactShopeeUrls !== undefined ? { exactShopeeUrls: [...scope.exactShopeeUrls] } : {}) } : null,
       productCards: [...cards], coverage: { requestedPeriod: start.requestedPeriod, sources: [...coverageSources] }, usage: { entries: usageEntries, requestCount: usageEntries.reduce((total, value) => total + value.requestCount, 0), knownCosts: knownCosts.slice(0, 2), hasUnknownCost: usageEntries.some((value) => value.cost.state === 'UNKNOWN') },
       ...(Object.keys(aiActivity).length ? { aiActivity } : {}),
-      steps: steps.map((value) => ({ stepId: value.stepId, state: value.state, code: value.code, message: value.code ? safeStepMessage(value.code) : null, startedAt: value.startedAt, finishedAt: value.finishedAt })), blockers,
+      steps: steps.map((value) => ({ stepId: value.stepId, state: value.state, code: value.code, message: value.code ? stepMessage(value.code, documents.get(value.stepId)) : null, startedAt: value.startedAt, finishedAt: value.finishedAt })), blockers,
       ...(outputs ? { outputs } : {}), ...(autoRun ? { autoRun } : {}), createdAt: row.createdAt, updatedAt: row.updatedAt,
     };
   }
@@ -5479,6 +5481,15 @@ export class ResearchAutomationService {
   #autorunRunStopCode(status: ResearchAutomationRun['status']): string {
     return status === 'FAILED' || status === 'CANCELLED' || status === 'INTERRUPTED' ? `RUN_${status}` : 'SCOPE_CHANGED_BY_OWNER';
   }
+  /**
+   * A failed quick search leaves the run in AWAITING_SCOPE, so the auto-run must stop with that
+   * step's real code instead of walking on to PICK and reporting NO_PRINCIPAL_PRODUCTS.
+   */
+  #autorunQuickSearchStopCode(runId: string): string | null {
+    const step = this.#db.prepare(`SELECT state,message_code code FROM analysis_research_automation_steps WHERE run_id=? AND step_id='QUICK_SEARCH'`).get(runId) as
+      { state: string; code: string | null } | undefined;
+    return step?.state === 'FAILED' && step.code ? step.code : null;
+  }
   /** The capture the report uses: the second one when it settled OK, otherwise the first. */
   #autorunCaptureDir(runId: string, scope: AutorunScopeRecord | null): string {
     return joinPath(this.#autoRun!.runner.captureRoot, runId, usedScope(scope)?.captureNumber === 2 ? METRIC_CAPTURE_DIRS.second : METRIC_CAPTURE_DIRS.first);
@@ -5611,6 +5622,8 @@ export class ResearchAutomationService {
     }
     const { claimed, progressed } = await this.#autorunClaim(runId, 'CAPTURE', run => {
       if (run.status !== 'AWAITING_SCOPE') return this.#autorunRunStopCode(run.status);
+      const quickSearch = this.#autorunQuickSearchStopCode(runId);
+      if (quickSearch) return quickSearch;
       if (!start || toNumber(run.revision) !== toNumber(before.revision)) return '';
       if (this.#db.prepare(`SELECT 1 FROM research_automation_autorun WHERE phase='CAPTURE' AND phase_state='RUNNING'`).get()) return '';
       // No product to confirm: stop before spending a paid lookup.
@@ -5690,6 +5703,8 @@ export class ResearchAutomationService {
     let revision = 0;
     const { claimed, progressed } = await this.#autorunClaim(runId, 'PREPARE', run => {
       if (run.status !== 'AWAITING_SCOPE') return this.#autorunRunStopCode(run.status);
+      const quickSearch = this.#autorunQuickSearchStopCode(runId);
+      if (quickSearch) return quickSearch;
       revision = toNumber(run.revision);
       return undefined;
     });
@@ -5735,7 +5750,8 @@ export class ResearchAutomationService {
   }
 
   async #autorunPick(runId: string): Promise<boolean> {
-    const { claimed, progressed } = await this.#autorunClaim(runId, 'PICK', run => run.status !== 'AWAITING_SCOPE' ? this.#autorunRunStopCode(run.status) : undefined);
+    const { claimed, progressed } = await this.#autorunClaim(runId, 'PICK', run => run.status !== 'AWAITING_SCOPE' ? this.#autorunRunStopCode(run.status)
+      : this.#autorunQuickSearchStopCode(runId) ?? undefined);
     if (!claimed) return progressed;
     const run = this.#current(runId)!;
     const row = this.#autorunRow(runId)!;
@@ -6625,7 +6641,7 @@ function blockerList(steps: readonly StepRow[], documents: ReadonlyMap<StepId, S
   metricSourceAdmitted: boolean): ResearchAutomationRun['blockers'] {
   const blockers: ResearchAutomationRun['blockers'] = [];
   if (scopeConfirmed) blockers.push({ code: 'SCOPE_FILTERS_NOT_APPLIED', scope: 'RUN', provider: null, message: message('SCOPE_FILTERS_NOT_APPLIED') });
-  for (const step of steps) if (step.code) blockers.push({ code: step.code, scope: 'RUN', provider: null, message: safeStepMessage(step.code) });
+  for (const step of steps) if (step.code) blockers.push({ code: step.code, scope: 'RUN', provider: null, message: stepMessage(step.code, documents.get(step.stepId)) });
   const executed = new Set<string>();
   // Metric never runs through the provider registry: the owner attaches an export
   // or a results-page capture, so admission of that source is the execution.
@@ -6651,6 +6667,11 @@ function blockerList(steps: readonly StepRow[], documents: ReadonlyMap<StepId, S
 function coverageBlocker(state: ResearchAutomationCoverageSource['state']): string { return state === 'UNAVAILABLE' ? 'PROVIDER_NOT_CONFIGURED' : `COVERAGE_${state}`; }
 function dedupeBlockers(values: ResearchAutomationRun['blockers']): ResearchAutomationRun['blockers'] { const seen = new Set<string>(); return values.filter((value) => { const key = `${value.code}:${value.scope}:${value.provider ?? ''}`; if (seen.has(key)) return false; seen.add(key); return true; }); }
 function safeStepMessage(code: string): string { try { return message(code); } catch { return 'This step has a recorded limitation; review the source coverage and run again if needed.'; } }
+/** A server-error step keeps the observed HTTP status in its stored limitation message. */
+function stepMessage(code: string, document: StepResultDocument | undefined): string {
+  const detail = code === PROVIDER_UNAVAILABLE ? document?.limitations.find(item => item.code === PROVIDER_UNAVAILABLE)?.message : undefined;
+  return detail ?? safeStepMessage(code);
+}
 /**
  * The run and its steps keep their safe public wording, so the operator cannot
  * see why rendering stopped. The original class and message are the only

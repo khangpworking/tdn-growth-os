@@ -95,6 +95,13 @@ export const AUTORUN_STOP_TEXT: Readonly<Record<string, string>> = {
   PICK_FAILED: STEP_FAILED,
   CONFIRM_FAILED: STEP_FAILED,
   CONFIRM_REJECTED: STEP_FAILED,
+  // Quick-search step codes: the auto-run stops with the step's own reason instead of NO_PRINCIPAL_PRODUCTS.
+  PROVIDER_UNAVAILABLE: 'Máy chủ nguồn dữ liệu trả lỗi nên bước tìm sản phẩm đã dừng. Thường chỉ xảy ra một lần; tạo lượt mới để thử lại.',
+  PROVIDER_FAILED: 'Nguồn dữ liệu gặp lỗi ở bước tìm sản phẩm nên phần tự động dừng. Tạo lượt mới để thử lại.',
+  PROVIDER_CREDIT_EXHAUSTED: 'Nguồn dữ liệu đã hết lượt tra cứu nên phần tự động dừng. Cần nạp thêm lượt rồi tạo lượt mới.',
+  PROVIDER_OUTPUT_INVALID: 'Dữ liệu nguồn không vượt qua kiểm tra nên phần tự động dừng.',
+  KALODATA_REPLAY_MISS: 'Bản chạy thử thiếu dữ liệu đã lưu cho một yêu cầu nên phần tự động dừng.',
+  KALODATA_REPLAY_SCOPE_MISMATCH: 'Bản chạy thử khác từ khóa hoặc khoảng thời gian của lần chạy gốc nên phần tự động dừng.',
   NO_PRINCIPAL_PRODUCTS: 'Không có sản phẩm chính để xác nhận phạm vi.',
   SCOPE_CHANGED_BY_OWNER: OWNER,
   OWNER_REVISION_EXISTS: OWNER,

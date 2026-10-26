@@ -28,6 +28,7 @@ const limitationLabels: Readonly<Record<string, string>> = {
   PUBLIC_REVIEW_RAW_CAPTURE_ONLY: 'Số đánh giá không phải số người. Nội dung chưa được mã hóa.',
   PROVIDER_NOT_CONFIGURED: 'Nguồn dữ liệu chưa được kết nối trong runtime này.',
   PROVIDER_FAILED: 'Nguồn dữ liệu gặp lỗi; hệ thống không tự chạy lại.',
+  PROVIDER_UNAVAILABLE: 'Máy chủ nguồn dữ liệu trả lỗi nên bước này dừng. Thường chỉ xảy ra một lần; tạo lượt mới để thử lại.',
   PROVIDER_CREDIT_EXHAUSTED: 'Nguồn số liệu bán hàng TikTok Shop đã hết lượt tra cứu. Cần nạp thêm lượt rồi chạy lại; hệ thống không tự chạy lại.',
   KALODATA_REPLAY_MISS: 'Bản chạy thử: không có dữ liệu bán hàng đã lưu cho yêu cầu này nên không gửi đi nguồn thật; phần số liệu đó bị thiếu.',
   KALODATA_REPLAY_SCOPE_MISMATCH: 'Bản chạy thử: từ khóa hoặc khoảng thời gian khác lần chạy gốc nên phiên đã dừng trước khi gọi nguồn.',

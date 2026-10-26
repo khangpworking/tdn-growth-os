@@ -113,9 +113,25 @@ const ALLOWED_HOSTS = new Set(['www.kalodata.com', 'serpapi.com', 'api.worldbank
 const HOST_MAX_BYTES: ReadonlyMap<string, number> = new Map([['www.nso.gov.vn', 20 * 1024 * 1024]]);
 
 export type HttpOutcome =
-  | { kind: 'RECEIVED'; status: number; bytes: Buffer }
-  | { kind: 'OVERSIZE'; status: number }
+  | { kind: 'RECEIVED'; status: number; bytes: Buffer; headers: Readonly<Record<string, string>> }
+  | { kind: 'OVERSIZE'; status: number; headers: Readonly<Record<string, string>> }
   | { kind: 'TIMEOUT' | 'TRANSPORT' | 'ABORTED' };
+
+/** Response header allow-list for captures: enough to tell a provider from a CDN or middlebox, nothing personal. */
+const CAPTURE_RESPONSE_HEADERS = ['server', 'date', 'via', 'cf-ray', 'x-request-id', 'x-amzn-requestid', 'x-cache',
+  'content-type', 'content-length', 'retry-after'] as const;
+const CAPTURE_HEADER_MAX_CHARS = 200;
+
+export function safeResponseHeaders(headers: Headers): Readonly<Record<string, string>> {
+  const out: Record<string, string> = {};
+  for (const name of CAPTURE_RESPONSE_HEADERS) {
+    const raw = headers.get(name);
+    if (raw === null) continue;
+    const value = raw.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, CAPTURE_HEADER_MAX_CHARS);
+    if (value) out[name] = value;
+  }
+  return out;
+}
 
 export async function boundedRequest(transport: ProviderTransport, request: {
   url: URL; method: 'GET' | 'POST'; headers: Record<string, string>; body: string | null;
@@ -139,7 +155,8 @@ export async function boundedRequest(transport: ProviderTransport, request: {
   } catch {
     return classify();
   }
-  if (!response.body) return { kind: 'RECEIVED', status: response.status, bytes: Buffer.alloc(0) };
+  const headers = safeResponseHeaders(response.headers);
+  if (!response.body) return { kind: 'RECEIVED', status: response.status, bytes: Buffer.alloc(0), headers };
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
   let size = 0;
@@ -148,7 +165,7 @@ export async function boundedRequest(transport: ProviderTransport, request: {
       const part = await reader.read();
       if (part.done) break;
       size += part.value.byteLength;
-      if (size > Math.min(request.maxBytes, HOST_MAX_BYTES.get(url.hostname) ?? Number.POSITIVE_INFINITY)) return { kind: 'OVERSIZE', status: response.status };
+      if (size > Math.min(request.maxBytes, HOST_MAX_BYTES.get(url.hostname) ?? Number.POSITIVE_INFINITY)) return { kind: 'OVERSIZE', status: response.status, headers };
       chunks.push(part.value);
     }
   } catch {
@@ -156,7 +173,7 @@ export async function boundedRequest(transport: ProviderTransport, request: {
   } finally {
     await reader.cancel().catch(() => {});
   }
-  return { kind: 'RECEIVED', status: response.status, bytes: Buffer.concat(chunks) };
+  return { kind: 'RECEIVED', status: response.status, bytes: Buffer.concat(chunks), headers };
 }
 
 /** Sliding-window limiter: at most `limit` request starts in any `windowMs`. */
@@ -238,13 +255,15 @@ export class CaptureLog {
   timestamp(): string { return new Date(this.transport.now()).toISOString(); }
 
   record(context: CaptureContext, requestedAt: string, outcome: CaptureOutcome, httpStatus: number | null,
-    responseBytes: Buffer | null, providerCode: string | null): ProviderRawCapture {
+    responseBytes: Buffer | null, providerCode: string | null,
+    responseHeaders?: Readonly<Record<string, string>>): ProviderRawCapture {
     this.#sequence++;
     const capture: ProviderRawCapture = {
       captureId: `${this.provider.toLowerCase()}-${String(this.#sequence).padStart(4, '0')}`,
       provider: this.provider, ...context, requestedAt, completedAt: this.timestamp(), outcome, httpStatus,
       responseBytes, responseSha256: responseBytes ? sha256(responseBytes) : null,
       responseByteLength: responseBytes ? responseBytes.byteLength : null, providerCode,
+      ...(responseHeaders && Object.keys(responseHeaders).length ? { responseHeaders } : {}),
     };
     this.captures.push(capture);
     try {
