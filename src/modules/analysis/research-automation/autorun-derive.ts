@@ -1,6 +1,6 @@
 import type { ResearchAutomationSourceConfirmRequestV3 } from '../../../../contracts/api/research-automation-source-api-v3.generated.js';
 import type { CaptureRelevanceRecord } from './capture-relevance.js';
-import type { MetricV3CaptureSpec } from '../../../../contracts/analysis/metric-v3-capture-spec.generated.js';
+import type { MetricV3CaptureSpec } from './metric-v3-capture-spec.js';
 import { validateMetricV3CaptureSpec } from './metric-v3-capture-spec.js';
 // Pure derivations for the Market auto-runner (P6-209 follow-up, PR1).
 //

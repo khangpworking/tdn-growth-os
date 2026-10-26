@@ -33,7 +33,7 @@ export const MAX_PDF_BYTES = 64 * 1024 * 1024;
 
 /** Exact start snapshot persisted before the run exists; its digest is the request identity. */
 export interface StartSnapshot {
-  readonly metricV3Preset?: import('../../../../contracts/analysis/metric-v3-capture-spec.generated.js').MetricV3CaptureSpec;
+  readonly metricV3Preset?: import('./metric-v3-capture-spec.js').MetricV3CaptureSpec;
   readonly reviewCollectionPolicy?: import('../../../../contracts/analysis/automation-review-collection-policy.generated.js').AutomationReviewCollectionPolicy;
   /** Explicit injected source configuration, frozen only for new private starts. No salt. */
   readonly privateShopeeSource?: import('../../../../contracts/analysis/automation-private-shopee-source.generated.js').AutomationPrivateShopeeSource;
@@ -48,6 +48,8 @@ export interface StartSnapshot {
   readonly interview: ResearchAutomationInterview | null;
   readonly requestedPeriod: { readonly startDate: string; readonly endDate: string; readonly dayCount: number };
   readonly reports: readonly ResearchAutomationReportKind[];
+  /** Start v2 only. False continues with keyword 1 instead of stopping for keyword 2; absent keeps the legacy wait. */
+  readonly waitForKeyword2?: boolean;
   /** Frozen before discovery/sales reads; absent on historical starts. */
   readonly defaultPeerRule?: DefaultMarketPeers['input']['rule'];
 }

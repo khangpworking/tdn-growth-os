@@ -1,7 +1,10 @@
 /* Generated from metric-v3-capture-spec.schema.json. Do not edit by hand. */
 
+/**
+ * Owner-confirmed preset with one or two keywords. Retained two-keyword captures stay on metric-v3-capture-spec-v1.
+ */
 export interface MetricV3CaptureSpec {
-  contractVersion: 'metric-v3-capture-spec-v1';
+  contractVersion: 'metric-v3-capture-spec-v2';
   preset: Preset;
   /**
    * @minItems 2
@@ -11,10 +14,10 @@ export interface MetricV3CaptureSpec {
 }
 export interface Preset {
   /**
-   * @minItems 2
+   * @minItems 1
    * @maxItems 2
    */
-  keywords: [string, string];
+  keywords: [string] | [string, string];
   smartQuery: true;
   category: {
     id: string;

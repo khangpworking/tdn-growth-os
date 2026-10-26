@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ClipboardEvent } from 'react';
+import type { MetricV3PresetSpec } from '../../../src/shared/metric-v3-preset';
 import type { FrontendMode } from '../data-source';
 import { ResearchAutomationError, startRun } from './api';
 import { draftProblem, emptyDraft, interviewQuestions, looksDetailed, splitPastedKeyword, startBody } from './form';
 import type { InterviewIntent, ReportChoice, ResearchDraft } from './form';
 import { defaultPeriod, editPeriodDate, inclusiveDays, periodPresets, periodProblem, presetLabel, resolvePreset, vietnamToday } from './period';
 import type { PeriodDraft, PeriodPreset } from './period';
+import MetricV3PresetForm from './MetricV3PresetForm';
 import { researchAutomationHash } from './routes';
 import { formatDay, modeLabel } from './run-status';
 import StepNav from './StepNav';
@@ -29,6 +31,8 @@ export default function ResearchEditor({ mode, workspaceId, ownerToken, writesAv
   const [step, setStep] = useState<EditorStep>(1);
   const [reached, setReached] = useState<EditorStep>(1);
   const [splitUndo, setSplitUndo] = useState<Pick<ResearchDraft, 'keyword' | 'description' | 'mode'> | null>(null);
+  const [preset, setPreset] = useState<MetricV3PresetSpec | null>(null);
+  const [waitForKeyword2, setWaitForKeyword2] = useState(false);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState('');
   const operation = useRef<{ readonly fingerprint: string; readonly requestKey: string } | null>(null);
@@ -45,7 +49,12 @@ export default function ResearchEditor({ mode, workspaceId, ownerToken, writesAv
   const keywordProblem = draftProblem(draft);
   const datesProblem = periodProblem(draft.period, today);
   const days = inclusiveDays(draft.period.startDate, draft.period.endDate);
-  const update = (patch: Partial<ResearchDraft>) => { setDraft(prior => ({ ...prior, ...patch })); setMessage(''); };
+  // The confirmed preset fixes keyword, windows and category, so it cannot outlive any of them.
+  const update = (patch: Partial<ResearchDraft>) => {
+    setDraft(prior => ({ ...prior, ...patch }));
+    if (patch.keyword !== undefined || patch.period !== undefined || patch.mode !== undefined) setPreset(null);
+    setMessage('');
+  };
   const setPeriod = (period: PeriodDraft) => update({ period });
   const answer = (intent: InterviewIntent, patch: Partial<ResearchDraft['interview'][InterviewIntent]>) =>
     setDraft(prior => ({ ...prior, interview: { ...prior.interview, [intent]: { ...prior.interview[intent], ...patch } } }));
@@ -70,7 +79,8 @@ export default function ResearchEditor({ mode, workspaceId, ownerToken, writesAv
 
   const start = async () => {
     if (busy.current || blockedReason || keywordProblem || datesProblem || !ownerToken) return;
-    const fingerprint = JSON.stringify(startBody(draft, ''));
+    const options = preset ? { metricV3Preset: preset } : { waitForKeyword2 };
+    const fingerprint = JSON.stringify(startBody(draft, '', options));
     if (operation.current?.fingerprint !== fingerprint) operation.current = { fingerprint, requestKey: crypto.randomUUID() };
     const current = operation.current;
     if (!current) return;
@@ -79,14 +89,14 @@ export default function ResearchEditor({ mode, workspaceId, ownerToken, writesAv
     setPending(true);
     setMessage('');
     try {
-      const run = await startRun(workspaceId, startBody(draft, current.requestKey), token);
+      const run = await startRun(workspaceId, startBody(draft, current.requestKey, options), token);
       if (!mounted.current || operation.current !== current || tokenNow.current !== token) return;
       operation.current = null;
       notify('Đã bắt đầu tìm nhanh. Trang theo dõi phiên nghiên cứu đang mở.');
       navigate(researchAutomationHash(workspaceId, run.runId));
     } catch (error) {
       if (!mounted.current || operation.current !== current) return;
-      setMessage(startErrorMessage(error));
+      setMessage(startErrorMessage(error, preset !== null));
     } finally {
       busy.current = false;
       if (mounted.current) setPending(false);
@@ -168,6 +178,22 @@ export default function ResearchEditor({ mode, workspaceId, ownerToken, writesAv
           <div className="ra-seg" role="group" aria-label="Báo cáo cần soạn">{(['BOTH', 'MARKET', 'INSIGHT'] as const satisfies readonly ReportChoice[]).map(choice => <button type="button" key={choice} aria-pressed={draft.reports === choice} onClick={() => update({ reports: choice })}>{choice === 'BOTH' ? 'Cả hai' : choice === 'MARKET' ? 'Chỉ Thị trường' : 'Chỉ Insight'}</button>)}</div>
           <p className="ra-muted">Chọn trước khi bắt đầu; bước duyệt phạm vi sẽ hiển thị lại lựa chọn này.</p>
         </fieldset>
+        <details className="ra-period">
+          <summary>Phạm vi thu thập (tùy chọn)</summary>
+          <p className="ra-muted">Chỉ hỗ trợ danh mục đã xác minh và đủ 4 danh mục con. Sản phẩm ngoài danh mục này để trống phần này. Hai cửa sổ 30 ngày và 12 tháng phải nằm trong kỳ nghiên cứu đã chọn.</p>
+          {datesProblem
+            ? <p className="ra-muted">Sửa kỳ nghiên cứu trước khi đặt phạm vi thu thập.</p>
+            : <MetricV3PresetForm key={`${draft.keyword.trim()}:${draft.period.endDate}`} seed={{ keyword1: draft.keyword.trim(), keyword2: '', categoryId: null, suggested: false }}
+                endDate={draft.period.endDate} disabled={pending || blockedReason !== null} pending={false} confirmLabel="Dùng phạm vi này" onConfirm={setPreset} />}
+          {preset && <div className="ra-actions">
+            <p role="status">Đã chọn phạm vi: {preset.preset.keywords.join(' · ')}.</p>
+            <button type="button" className="button" disabled={pending} onClick={() => setPreset(null)}>Bỏ phạm vi</button>
+          </div>}
+        </details>
+        <label className="ra-label">
+          <span><input type="checkbox" checked={waitForKeyword2} disabled={pending || preset !== null} onChange={event => setWaitForKeyword2(event.target.checked)} /> Chờ tôi chọn từ khóa 2</span>
+          <small>{preset ? 'Đã chọn phạm vi thu thập nên không cần chờ từ khóa 2.' : 'Tắt: tự chạy tiếp với từ khóa 1 khi không có từ khóa 2. Bật: dừng để bạn xem và sửa từ khóa 2.'}</small>
+        </label>
         <div className="ra-start">
           <p>Bấm Bắt đầu để hệ thống tìm nhanh sản phẩm thật trên nguồn đã kết nối. Chưa thu thập đầy đủ cho tới khi bạn duyệt phạm vi.</p>
           {blockedReason && <p className="ra-muted" role="note">{blockedReason}</p>}
@@ -198,11 +224,13 @@ export default function ResearchEditor({ mode, workspaceId, ownerToken, writesAv
   </div>;
 }
 
-function startErrorMessage(error: unknown): string {
+function startErrorMessage(error: unknown, withPreset = false): string {
   if (!(error instanceof ResearchAutomationError)) return 'Chưa gửi được yêu cầu. Bấm Bắt đầu lại: hệ thống dùng lại cùng mã yêu cầu nên không tạo phiên trùng.';
   if (error.kind === 'authorization') return 'OWNER chưa mở khóa hoặc token không còn hợp lệ. Mở khóa ở đầu trang rồi bấm Bắt đầu lại.';
   if (error.kind === 'conflict') return 'Máy chủ báo yêu cầu này trùng với một phiên khác. Xem lịch sử nghiên cứu bên dưới trước khi gửi lại.';
-  if (error.kind === 'rejected') return 'Máy chủ không nhận yêu cầu. Kiểm tra từ khóa, kỳ nghiên cứu và báo cáo đã chọn.';
+  if (error.kind === 'rejected') return withPreset
+    ? 'Máy chủ không nhận phạm vi thu thập: hai cửa sổ của phạm vi phải nằm trong kỳ nghiên cứu đã chọn và phải đủ 4 danh mục con đã xác minh. Kiểm tra lại rồi gửi lại.'
+    : 'Máy chủ không nhận yêu cầu. Kiểm tra từ khóa, kỳ nghiên cứu và báo cáo đã chọn.';
   if (error.kind === 'integrity') return 'Đã gửi nhưng chưa xác minh được phản hồi. Xem lịch sử nghiên cứu bên dưới; bấm Bắt đầu lại sẽ dùng cùng mã yêu cầu.';
   return 'Chưa gửi được yêu cầu. Bấm Bắt đầu lại: hệ thống dùng lại cùng mã yêu cầu nên không tạo phiên trùng.';
 }
