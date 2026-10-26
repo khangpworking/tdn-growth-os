@@ -286,7 +286,7 @@ test('flag off: no field, no usage row, no table, byte-identical reruns', async 
   assert.equal(createHash('sha256').update(first.html).digest('hex'), compatibility.off.htmlSha256);
 });
 
-test('flag on: the step stores no advertiser detail and M07 shows table 7.3 after the Meta table position', async t => {
+test('flag on: the step stores no advertiser detail and M07 labels the S17 table by its real position', async t => {
   const on = await runToDraft(t, transport => createGoogleAdsSource(API_KEY, transport));
   assert.equal(on.document.searchAds?.status, 'OK');
   assert.equal(on.document.searchAds?.brands.length, 3);
@@ -299,8 +299,10 @@ test('flag on: the step stores no advertiser detail and M07 shows table 7.3 afte
   const s17 = [...on.doc.querySelectorAll('#M13 .source-evidence tbody tr')].filter(row => row.firstElementChild?.textContent === 'S17');
   assert.equal(s17.length, 3, 'each retained ad response has its S17 source binding');
   const section = on.doc.querySelector('#M07')!;
-  const table = [...section.querySelectorAll('.table-wrap, figure')].find(node => /Bảng 7\.3/u.test(node.textContent!));
-  assert.ok(table, 'table 7.3 sits in M07');
+  const tables = [...section.querySelectorAll('.table-wrap, figure')].filter(node => /^Bảng 7\.\d+$/u.test(node.querySelector('.exn')?.textContent ?? ''));
+  const table = tables.find(node => node.querySelector('caption')?.textContent === 'Quảng cáo trên công cụ tìm kiếm (thư viện quảng cáo công khai)');
+  assert.ok(table, 'the S17 table sits in M07');
+  assert.equal(table.querySelector('.exn')?.textContent, `Bảng 7.${tables.indexOf(table) + 1}`, 'the S17 label matches its numbered-table position');
   const text = table!.textContent!;
   assert.ok(text.includes('Quảng cáo trên công cụ tìm kiếm (thư viện quảng cáo công khai)'));
   for (const column of ['Thương hiệu', 'Trang web', 'Số mẫu quảng cáo', 'Chữ / Hình / Video', 'Hiện lần đầu – lần cuối', 'Số ngày hiện của mẫu dài ngày']) assert.ok(text.includes(column), column);
@@ -391,7 +393,7 @@ test('S17 evidence requires its own capture and only adds sources for drawn Mark
   assert.deepEqual(sourceEvidenceForReport(packet, { collection: { searchAds: failed } } as unknown as Parameters<typeof sourceEvidenceForReport>[1], 'MARKET'), packet);
 });
 
-test('current reader template shows table 7.3 and the M13 source with clean empty values', async () => {
+test('current reader template labels the S17 table by its real position and shows the M13 source with clean empty values', async () => {
   const f = fake(() => ({ body: { search_metadata: { status: 'Success' } } }));
   const searchAds = searchAdsDocument(await createGoogleAdsSource(API_KEY, f.transport).collect({ ...INPUT,
     brands: INPUT.brands.map(brand => ({ ...brand, label: `${brand.label} Nhất` })) }), [0, 1, 2]);
@@ -400,8 +402,10 @@ test('current reader template shows table 7.3 and the M13 source with clean empt
   const report = await buildMarketReport(computeReaderReportData(input), { ...sync1Options, searchAds });
   const baseline = await buildMarketReport(computeReaderReportData(input), sync1Options);
   const doc = new JSDOM(report.html).window.document;
-  const table = [...doc.querySelectorAll('#phan-7 .ex')].find(node => node.querySelector('.exn')?.textContent === 'Bảng 7.3')!;
+  const tables = [...doc.querySelectorAll('#phan-7 .ex')].filter(node => /^Bảng 7\.\d+$/u.test(node.querySelector('.exn')?.textContent ?? ''));
+  const table = tables.find(node => node.querySelector('.ext')?.textContent === 'Quảng cáo trên công cụ tìm kiếm (thư viện quảng cáo công khai)')!;
   assert.ok(table);
+  assert.equal(table.querySelector('.exn')?.textContent, `Bảng 7.${tables.indexOf(table) + 1}`, 'the S17 label matches its numbered-table position');
   assert.match(table.textContent!, /không có/u);
   assert.doesNotMatch(table.textContent!, /\b0\b|%|Google|SerpApi/iu);
   assert.ok(doc.querySelector('#phu-luc')!.textContent!.includes(SEARCH_ADS_SOURCE_LABEL));
