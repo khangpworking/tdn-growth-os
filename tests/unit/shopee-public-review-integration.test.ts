@@ -300,7 +300,7 @@ test('S9 fresh F+ merged fixture artifact membership and bytes match candidate o
   // Fresh output after F+ presentation fixes and the merged G-references wording fix.
   const baselineRoot = new URL('../fixtures/shopee-public-f-plus/', import.meta.url);
   const manifest = JSON.parse(await fs.readFile(new URL('manifest.json', baselineRoot), 'utf8'));
-  assert.equal(manifest.revision, '2db225d22c52dbd1213b68673302d19a77a3749d');
+  assert.equal(manifest.revision, 'b98e6aa0860a17205ef1e21756f899eb2b60e33d');
   const decode = (bytes: Buffer): Map<string, Buffer> => new Map(JSON.parse(gunzipSync(bytes).toString()).map((r: any) => [r.name, Buffer.from(r.base64, 'base64')]));
   const reference = decode(await fs.readFile(new URL('artifacts.json.gz', baselineRoot)));
   for (const env of [{}, { TDN_RESEARCH_SHOPEE_PUBLIC_TOKEN: '\n', TDN_RESEARCH_SHOPEE_PUBLIC_BASE_URL: 'invalid', TDN_RESEARCH_SHOPEE_PUBLIC_MAX_COMMENTS_PER_PRODUCT: '01' }]) {
