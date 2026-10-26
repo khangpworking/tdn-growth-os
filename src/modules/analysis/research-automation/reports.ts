@@ -79,7 +79,7 @@ import { qualitativeDraftSection, qualitativeDraftSummary } from '../reader-repo
 import { platIcons } from '../reader-report/layout.js';
 import { ACTION_DEADLINE_DAYS, ACTION_LEAD, dayPlus, OPPORTUNITY_HEADINGS, OPPORTUNITY_UNIT_READING,OPTION_HEADINGS, QUICK_WIN_HEADING, QUICK_WIN_HEADINGS, actionStartDay, marketActionPlan, missingBandText, NO_DERIVED_PRICE, opportunityExplanation, opportunityHeadings, opportunityRows, platformPriceBands, type ActionRow, type MarketActionPlan } from '../reader-report/market-actions.js';
 import { NO_PRICE_COMPARISON, chooseUnitProfile, convertedLine, projectTitleUnitPrices, type UnitProfile } from '../reader-report/market-title-quantity.js';
-import { deliverMarketReader, type MarketChartReadingTrace, marketReaderGuide, numberMarketExhibits } from './market-reader-delivery.js';
+import { deliverMarketReader, type MarketChartReadingTrace, marketReaderGuide, numberMarketExhibits, numberSearchAdsExhibit } from './market-reader-delivery.js';
 import { plainCaptureNumbers } from '../reader-report/format.js';
 import { TOP_GROUPS, UNKNOWN_SHOP, marketChartPlatformLabel, marketChartRows, marketRankingRowLabel, marketShareMembers, type MarketChartRow, marketRankedRows, marketShares, marketShopsUnrecorded, thinSearchAxisLabels, type CaptureCountChart, type MarketChart } from '../reader-report/market-charts.js';
 import type { RenderedChart } from '../reader-report/flint.js';
@@ -1685,40 +1685,70 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
       macroFigures(input.comtradeCharts, comtradeChartCount(stored, Boolean(marketPresentation)), 'COMTRADE_CHARTS_MISSING', 6, 1);
   };
   // Public search-ads library counts (S17) for the top brands' own websites sit in the competitor section. Empty values read "không có"; no advertiser detail exists to print.
+  // Every printed value reads from the COLLECTION record row it came from; the table label is counted from its real position in Phần 7.
   const searchAdsTable = (sectionId: string): string => {
     const stored = kind === 'MARKET' && sectionId === 'M07' ? input.collection?.searchAds : undefined;
     if (!stored) return '';
+    const collection = input.productCardSources?.collection;
+    const fieldValue = (index: number, field: string): number | string | undefined => {
+      let value: unknown = stored.brands[index];
+      for (const part of field.split('/')) value = value && typeof value === 'object' ? (value as Record<string, unknown>)[part] : undefined;
+      return typeof value === 'number' || typeof value === 'string' ? value : undefined;
+    };
+    const tracedValue = (text: string, index: number, field: string, formulaId: 'as-stored' | 'vi-date', block: string): string => {
+      const value = fieldValue(index, field);
+      if (!collection || value === undefined) return text;
+      return traceMarketNumber(text, block, 'raw', [storedInput('stored-source', collection, `/searchAds/brands/${index}/${field}`, value)],
+        formulaId === 'vi-date' ? 'stored search-ads day, dd/mm/yyyy' : `stored search-ads ${field}, as stored`, formulaId);
+    };
+    // A stored brand label or domain is text: every number written in it is recorded, never exempted.
+    const tracedText = (text: string, index: number, field: string, block: string): string => {
+      for (const number of marketNumberTokens(text)) tracedValue(number, index, field, 'as-stored', block);
+      return text;
+    };
+    const exhibit = '<span class="exn" data-exhibit-fill="search-ads"></span>';
     if (marketPresentation) {
       if (!stored.brands.length) return `<p>${escape(searchAdsNotice(stored))}</p>`;
       const key = (label: string): string => label.normalize('NFC').trim().replace(/\s+/gu, ' ').toLocaleLowerCase('vi-VN');
       const sampleBrands = new Set(marketPresentation.input.rows.map(row => key(row.brand)));
       const count = (value: number | null): string => value === null ? 'Chưa có số liệu' : value === 0 ? 'không có mẫu quảng cáo' : String(value);
+      const counted = (value: number | null, index: number, field: string): string => value !== null && value > 0
+        ? tracedValue(String(value), index, field, 'as-stored', `M07.searchAds.${field}`) : count(value);
       const state = (brand: typeof stored.brands[number]): string => brand.status === 'SKIPPED_NO_DOMAIN' ? 'Chưa có trang web để kiểm tra'
         : brand.status === 'SKIPPED_AMBIGUOUS_DOMAIN' || brand.status === 'CANCELLED' ? 'Chưa kiểm tra'
           : brand.status !== 'OK' ? 'Kiểm tra thất bại' : brand.creativeCount === null ? 'Đã kiểm tra; chưa có số liệu' : 'Đã kiểm tra';
-      return `<div class="table-wrap"><div class="exh"><span class="exn">Bảng 7.3</span><span class="ext">${escape(SEARCH_ADS_TABLE_TITLE)}</span></div>` +
+      const day = (value: string | null, index: number, field: string): string => value ? tracedValue(value.split('-').reverse().join('/'), index, field, 'vi-date', 'M07.searchAds.days') : 'Chưa có ngày';
+      const formatNames = ['text', 'image', 'video'] as const;
+      return `<div class="table-wrap" data-search-ads="1"><div class="exh">${exhibit}<span class="ext">${escape(SEARCH_ADS_TABLE_TITLE)}</span></div>` +
         `<table><caption>${escape(SEARCH_ADS_TABLE_TITLE)}</caption><thead><tr><th>Thương hiệu</th><th>Trang web</th><th>Trạng thái kiểm tra</th><th>Số mẫu quảng cáo</th><th>Chữ / Hình / Video</th><th>Hiện lần đầu – lần cuối</th><th>Số ngày hiện của mẫu dài ngày</th></tr></thead><tbody>` +
-        stored.brands.map(brand => {
+        stored.brands.map((brand, index) => {
           const checked = brand.status === 'OK';
           const capture = input.captures.find(entry => entry.stepId === 'COLLECTION' && entry.ordinal === brand.captureIndex);
-          const day = (value: string | null): string => value ? value.split('-').reverse().join('/') : 'Chưa có ngày';
-          return `<tr><td><span data-quote>${escape(brand.label)}</span>${checked && !sampleBrands.has(key(brand.label)) ? '<br>Ngoài mẫu hiện tại' : ''}</td><td>${escape(brand.domain ?? 'Chưa có trang web')}</td><td>${state(brand)}</td>` +
-            `<td>${checked ? count(brand.creativeCount) : 'Chưa có số liệu'}${capture ? captureMark(capture, citations, SEARCH_ADS_SOURCE_LABEL) : ''}</td>` +
-            `<td>${checked && brand.formats ? [brand.formats.text, brand.formats.image, brand.formats.video].map(value => value === 0 ? 'không có' : String(value)).join(' / ') : 'Chưa có số liệu'}</td>` +
-            `<td>${checked ? `${day(brand.firstShown)} – ${day(brand.lastShown)}` : 'Chưa có ngày'}</td><td>${checked ? brand.maxDaysShown === 0 ? 'không có ngày ghi nhận' : count(brand.maxDaysShown) : 'Chưa có số liệu'}</td></tr>`;
+          return `<tr><td><span data-quote>${escape(tracedText(brand.label, index, 'label', 'M07.searchAds.brand'))}</span>${checked && !sampleBrands.has(key(brand.label)) ? '<br>Ngoài mẫu hiện tại' : ''}</td><td>${brand.domain ? escape(tracedText(brand.domain, index, 'domain', 'M07.searchAds.domain')) : 'Chưa có trang web'}</td><td>${state(brand)}</td>` +
+            `<td>${checked ? counted(brand.creativeCount, index, 'creativeCount') : 'Chưa có số liệu'}${capture ? captureMark(capture, citations, SEARCH_ADS_SOURCE_LABEL) : ''}</td>` +
+            `<td>${checked && brand.formats ? formatNames.map(name => brand.formats![name] === 0 ? 'không có'
+              : tracedValue(String(brand.formats![name]), index, `formats/${name}`, 'as-stored', 'M07.searchAds.formats')).join(' / ') : 'Chưa có số liệu'}</td>` +
+            `<td>${checked ? `${day(brand.firstShown, index, 'firstShown')} – ${day(brand.lastShown, index, 'lastShown')}` : 'Chưa có ngày'}</td><td>${checked ? brand.maxDaysShown === 0 ? 'không có ngày ghi nhận' : counted(brand.maxDaysShown, index, 'maxDaysShown') : 'Chưa có số liệu'}</td></tr>`;
         }).join('') + `</tbody></table><p class="lim"><b>Chú thích:</b> Các thương hiệu được chọn theo doanh thu trong danh sách sản phẩm đã lưu khi chọn thương hiệu, lấy lần lượt các thương hiệu khác nhau; danh sách đó có thể khác mẫu hiện tại. ${escape(SEARCH_ADS_NOTE)}</p><p class="ex-src">Nguồn: ${escape(SEARCH_ADS_SOURCE_LABEL)}</p></div>`;
     }
     const okBrands = searchAdsOkBrands(stored);
-    const notices = (brands: typeof stored.brands) => brands.map(brand => `<p><span data-quote>${escape(brand.label)}</span>: ${escape(searchAdsBrandNotice(brand, stored.profile))}</p>`).join('');
+    const brandIndex = new Map<object, number>();
+    for (let index = 0; index < stored.brands.length; index++) brandIndex.set(stored.brands[index]!, index);
+    const storedIndex = (brand: object): number => brandIndex.get(brand) ?? -1;
+    const notices = (brands: typeof stored.brands) => brands.map(brand => `<p><span data-quote>${escape(tracedText(brand.label, storedIndex(brand), 'label', 'M07.searchAds.notice'))}</span>: ${escape(searchAdsBrandNotice(brand, stored.profile))}</p>`).join('');
     if (okBrands.length === 0) return `<p>${escape(searchAdsNotice(stored))}</p>` + notices(stored.brands);
-    const num = (v: number | null): string => v === null || v === 0 ? 'không có' : String(v);
-    const day = (v: string | null): string => v === null ? 'không có' : v.split('-').reverse().join('/');
-    return `<div class="table-wrap"><div class="exh"><span class="exn">Bảng 7.3</span><span class="ext">${escape(SEARCH_ADS_TABLE_TITLE)}</span></div>` +
+    const num = (value: number | null, index: number, field: string): string => value === null || value === 0 ? 'không có'
+      : tracedValue(String(value), index, field, 'as-stored', `M07.searchAds.${field}`);
+    const day = (value: string | null, index: number, field: string): string => value === null ? 'không có'
+      : tracedValue(value.split('-').reverse().join('/'), index, field, 'vi-date', 'M07.searchAds.days');
+    const formatNames = ['text', 'image', 'video'] as const;
+    return `<div class="table-wrap" data-search-ads="1"><div class="exh">${exhibit}<span class="ext">${escape(SEARCH_ADS_TABLE_TITLE)}</span></div>` +
       `<table><caption>${escape(SEARCH_ADS_TABLE_TITLE)}</caption><thead><tr><th>Thương hiệu</th><th>Trang web</th><th>Số mẫu quảng cáo</th><th>Chữ / Hình / Video</th><th>Hiện lần đầu – lần cuối</th><th>Số ngày hiện của mẫu dài ngày</th></tr></thead><tbody>` +
       okBrands.map(brand => {
+        const index = storedIndex(brand);
         const capture = input.captures.find(entry => entry.stepId === 'COLLECTION' && entry.ordinal === brand.captureIndex);
         const f = brand.formats!;
-        return `<tr><td data-quote>${escape(brand.label)}</td><td>${escape(brand.domain!)}</td><td>${escape(num(brand.creativeCount))}${capture ? captureMark(capture, citations, SEARCH_ADS_SOURCE_LABEL) : ''}</td><td>${escape(`${num(f.text)} / ${num(f.image)} / ${num(f.video)}`)}</td><td>${escape(`${day(brand.firstShown)} – ${day(brand.lastShown)}`)}</td><td>${escape(num(brand.maxDaysShown))}</td></tr>`;
+        return `<tr><td data-quote>${escape(tracedText(brand.label, index, 'label', 'M07.searchAds.brand'))}</td><td>${escape(tracedText(brand.domain!, index, 'domain', 'M07.searchAds.domain'))}</td><td>${escape(num(brand.creativeCount, index, 'creativeCount'))}${capture ? captureMark(capture, citations, SEARCH_ADS_SOURCE_LABEL) : ''}</td><td>${escape(formatNames.map(name => num(f[name], index, `formats/${name}`)).join(' / '))}</td><td>${escape(`${day(brand.firstShown, index, 'firstShown')} – ${day(brand.lastShown, index, 'lastShown')}`)}</td><td>${escape(num(brand.maxDaysShown, index, 'maxDaysShown'))}</td></tr>`;
       }).join('') + `</tbody></table><p class="lim"><b>Chú thích:</b> ${escape(SEARCH_ADS_NOTE)}</p><p class="ex-src">Nguồn: ${escape(SEARCH_ADS_SOURCE_LABEL)}</p></div>` +
       notices(stored.brands.filter(brand => brand.status !== 'OK'));
   };
@@ -1841,7 +1871,9 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
       [storedInput('stored-source', 'report-semantic', `/sections/${sections.indexOf(section)}/method`, section.method)], 'section method, as stored', 'as-stored');
     return text;
   };
-  const body = orderReportCitations(readerOpening + sections.map(section => `<section class="sheet" id="${section.sectionId}"><header class="sh-head"><div><span class="sh-id">${readerPlainText && kind === 'MARKET' ? marketSectionLabel(section.sectionId) : section.sectionId}</span><h2>${escape(section.title)}</h2></div><span class="state"${sectionGap(section) ? ' data-section-gap="1"' : ''}>${escape(stateLabel[section.state])}</span></header>${sectionReading(section)}${methodBody(section)}${section.state === 'SOURCE_CONTEXT' ? marketPresentation && section.sectionId === 'M13' ? '<p>Phạm vi, kỳ số liệu và điều kiện của mẫu ghi ở Phần 2.</p>' : scope : ''}${section.sectionId === 'M13' || section.sectionId === 'I17' ? sourceTable + webResultsTable : ''}${observationTable(section.rows, captures, citations, labels, readerPlainText, [...input.scope.selectedProductIds, ...input.scope.peerProductIds])}${appendix(section.sectionId)}${readerPlainText && kind === 'MARKET' ? '' : `<details class="method-reference"><summary>Hồ sơ đối chiếu phương pháp</summary><p><small>${fallbackIds.has(section.sectionId) ? 'Phương pháp ghi trong danh mục, chưa chạy trong lượt này' : 'Phương pháp'}: ${tracedMethodReference(section)}</small></p></details>`}</section>`).join(''), registry, { trace: !marketPresentation });
+  const composedBody = orderReportCitations(readerOpening + sections.map(section => `<section class="sheet" id="${section.sectionId}"><header class="sh-head"><div><span class="sh-id">${readerPlainText && kind === 'MARKET' ? marketSectionLabel(section.sectionId) : section.sectionId}</span><h2>${escape(section.title)}</h2></div><span class="state"${sectionGap(section) ? ' data-section-gap="1"' : ''}>${escape(stateLabel[section.state])}</span></header>${sectionReading(section)}${methodBody(section)}${section.state === 'SOURCE_CONTEXT' ? marketPresentation && section.sectionId === 'M13' ? '<p>Phạm vi, kỳ số liệu và điều kiện của mẫu ghi ở Phần 2.</p>' : scope : ''}${section.sectionId === 'M13' || section.sectionId === 'I17' ? sourceTable + webResultsTable : ''}${observationTable(section.rows, captures, citations, labels, readerPlainText, [...input.scope.selectedProductIds, ...input.scope.peerProductIds])}${appendix(section.sectionId)}${readerPlainText && kind === 'MARKET' ? '' : `<details class="method-reference"><summary>Hồ sơ đối chiếu phương pháp</summary><p><small>${fallbackIds.has(section.sectionId) ? 'Phương pháp ghi trong danh mục, chưa chạy trong lượt này' : 'Phương pháp'}: ${tracedMethodReference(section)}</small></p></details>`}</section>`).join(''), registry, { trace: !marketPresentation });
+  // Legacy Market keeps its bytes except the S17 label, which is counted from its position in Phần 7 instead of hard-coded.
+  const body = marketPresentation ? composedBody : numberSearchAdsExhibit(composedBody);
   // Snapshot the original register, then renumber only citations still visible in the reader.
   const semanticCitations = { citations: registry.technicalTrace(), citationEntries: registry.entries() };
   const readerBody = marketPresentation ? orderReportCitations(body.replace(/<template data-market14-source-trace>[\s\S]*?<\/template>/gu, ''), registry) : body;

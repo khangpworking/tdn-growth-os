@@ -463,6 +463,33 @@ function numberedExhibits(section: string): NumberedExhibit[] {
 
 const EXN_SPAN = /<span class="exn"[^>]*>([^<]*)<\/span>(?:\s*<span class="exs">[^<]*<\/span>)?\s*/u;
 
+const SEARCH_ADS_EXHIBIT = '<span class="exn" data-exhibit-fill="search-ads"></span>';
+
+/**
+ * Legacy Market branch only: the S17 table takes its label from its real position in Phần 7, counted with the same
+ * per-type rule as `numberMarketExhibits`, and records «<phần>.<n>» with the `exhibit-number` formula. Other legacy
+ * bytes stay as they were; a section without the placeholder is returned unchanged.
+ */
+export function numberSearchAdsExhibit(html: string): string {
+  return html.replace(/<section class="sheet" id="(M\d\d)">([\s\S]*?)<\/section>/gu, (all, id: string, inner: string) => {
+    if (!inner.includes('data-exhibit-fill="search-ads"')) return all;
+    const counts = { Bảng: 0, Hình: 0 };
+    let ordinal: number | null = null;
+    for (const exhibit of numberedExhibits(inner)) {
+      if (exhibit.bare) continue;
+      counts[exhibit.kind]++;
+      if (ordinal === null && inner.slice(exhibit.start, exhibit.end).includes('data-exhibit-fill="search-ads"')) ordinal = counts[exhibit.kind];
+    }
+    if (ordinal === null) return all;
+    const prefix = id === 'M13' ? 'PL' : String(Number(id.slice(1)));
+    const no = `${prefix}.${ordinal}`, label = `Bảng ${no}`;
+    traceMarketNumber(no, `${id}.exhibits`, 'computed', [storedInput('stored-source', 'template:market-sections', `/${id}`, id),
+      storedInput('stored-source', 'template:market-exhibits', `/${id}/Bảng`, ordinal, 'offset')],
+      'section number . ordinal of the exhibit type in its section', 'exhibit-number');
+    return `<section class="sheet" id="${id}">${inner.replace(SEARCH_ADS_EXHIBIT, `<span class="exn" data-exhibit-no="${no}">${label}</span>`)}</section>`;
+  });
+}
+
 /**
  * Current Market reader only: every visible table and figure carries exactly one label `<Bảng|Hình> <phần>.<n>`, counted
  * separately per type and per section in order of appearance (the appendix uses `PL`), with a literal separator before its

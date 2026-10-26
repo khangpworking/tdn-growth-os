@@ -1,5 +1,5 @@
 import type { ResearchAutomationSourceConfirmRequestV3 } from '../../../../contracts/api/research-automation-source-api-v3.generated.js';
-import type { CaptureRelevanceRecord } from './capture-relevance.js';
+import { captureRelevanceLookup, type CaptureRelevanceRecord } from './capture-relevance.js';
 import type { MetricV3CaptureSpec } from '../../../../contracts/analysis/metric-v3-capture-spec.generated.js';
 import { validateMetricV3CaptureSpec } from './metric-v3-capture-spec.js';
 // Pure derivations for the Market auto-runner (P6-209 follow-up, PR1).
@@ -14,7 +14,7 @@ import type { ResearchAutomationSourceConfirmRequest } from '../../../../contrac
 import type { ResearchAutomationMetricCapturePrepareRequest } from '../../../../contracts/api/research-automation-metric-capture-intake-api.generated.js';
 import type { AutomationMarketPresentationRevisionRequest } from '../../../../contracts/analysis/automation-market-presentation-revision.generated.js';
 import { filterKeywordMeanings, type KeywordMeaningFilterData } from '../keyword-meaning-filter.js';
-import { CAPTURE_ROW_PROFILE_V2, type CaptureRowProfile, assessCaptureRowsTitleOnly, splitCaptureNameCell, type CaptureRowExclusionReason } from './capture-row-quality.js';
+import { CAPTURE_ROW_PROFILE, CAPTURE_ROW_PROFILE_V2, type CaptureRowProfile, assessCaptureRowsTitleOnly, splitCaptureNameCell, type CaptureRowExclusionReason } from './capture-row-quality.js';
 import { MAX_PRINCIPAL_CARDS } from './model.js';
 import type { MetricCaptureStopCode } from './metric-capture-runner.js';
 import { METRIC_V3_STOP_CODES } from './metric-v3-capture-spec.js';
@@ -253,6 +253,10 @@ export interface PickResult {
   readonly links: readonly PickedShopeeLink[];
   readonly urls: readonly string[];
   readonly excludedRows: readonly { readonly productBaseId: string; readonly reason: CaptureRowExclusionReason }[];
+  /** Eligible rows of another category leaf left out because the modal leaf filled the target first. */
+  readonly demotedRows?: readonly { readonly productBaseId: string; readonly leaf: string | null; readonly reason: 'OTHER_LEAF' }[];
+  /** Rows the retained relevance record labels NOT_MAIN for every keyword. */
+  readonly aiExcludedRows?: readonly { readonly productBaseId: string; readonly reason: 'AI_NOT_MAIN' }[];
   readonly counts: {
     readonly walked: number;
     readonly deleted: number;
@@ -265,7 +269,24 @@ export interface PickResult {
 
 interface Candidate {
   id: string; itemId: string; shopId: string; shopKey: string; name: string;
-  revenue: number | null; units: number | null; brand: string | null; brandKey: string; deleted: boolean;
+  revenue: number | null; units: number | null; brand: string | null; brandKey: string; leaf: string | null; deleted: boolean;
+}
+
+/** Leaf of a stored category path («Thiết bị > Thiết bị làm mát») or of the last named entry of a stored list; null when absent. */
+function categoryLeaf(value: unknown): string | null {
+  if (Array.isArray(value)) {
+    let leaf: string | null = null;
+    for (const item of value) leaf = categoryLeaf(item) ?? leaf;
+    return leaf;
+  }
+  if (typeof value !== 'string') return null;
+  const parts = value.normalize('NFC').split(/[>›»|]+/u).map(part => part.trim().replace(/\s+/gu, ' ')).filter(Boolean);
+  return parts.at(-1) ?? null;
+}
+
+/** The stored name cell read as the relevance classifier reads it: trim, collapse inner whitespace, drop the review and sold suffix. */
+function relevanceTitle(name: string): string {
+  return splitCaptureNameCell(name.trim().replace(/\s+/gu, ' '), '').title;
 }
 
 function collectShopeeRows(raw: unknown): Candidate[] {
@@ -291,8 +312,9 @@ function collectShopeeRows(raw: unknown): Candidate[] {
       const unitsValue = record.order_custom ?? record.order_count;
       const unitsNumber = (typeof unitsValue === 'string' && unitsValue.trim()) || typeof unitsValue === 'number' ? Number(unitsValue) : NaN;
       const name = typeof record.product_name === 'string' && record.product_name.length <= FILTER_TEXT_MAX ? record.product_name : '';
+      const leaf = categoryLeaf(record.final_categories) ?? categoryLeaf(record.categories);
       rows.push({ id, itemId, shopId, shopKey, name, revenue: revenueValue !== null && revenueValue !== undefined && revenueValue !== '' && Number.isFinite(revenueNumber) && revenueNumber >= 0 ? revenueNumber : null,
-        units: Number.isFinite(unitsNumber) && unitsNumber >= 0 ? unitsNumber : null,
+        units: Number.isFinite(unitsNumber) && unitsNumber >= 0 ? unitsNumber : null, leaf,
         brand, brandKey: brand ? brand.normalize('NFC').toLowerCase() : '', deleted: record.is_deleted === true });
     }
     const values = Object.values(record);
@@ -344,7 +366,7 @@ export function pickShopeeLinks(rawResponses: unknown, terms: readonly string[],
   }
   const notIncluded = live.length - included.length;
   const guards = keywords.map(term => new RegExp(`(?<![\\p{L}\\p{N}\\p{M}])${escapeRegExp(term.toLowerCase())}(?![\\p{L}\\p{N}\\p{M}])`, 'u'));
-  const excluded = assessCaptureRowsTitleOnly(live.map(row => ({ title: splitCaptureNameCell(row.name, '').title, platform: 'shopee', revenue: row.revenue, units: row.units })), keywords, quality.profile, quality.relevance).exclusions;
+  const excluded = assessCaptureRowsTitleOnly(live.map(row => ({ title: relevanceTitle(row.name), platform: 'shopee', revenue: row.revenue, units: row.units })), keywords, quality.profile, quality.relevance).exclusions;
   const qualityRejected = new Set([...excluded.keys()].map(i => live[i]!.id));
   const eligible = included.filter(row => {
     if (qualityRejected.has(row.id)) return false;
@@ -357,23 +379,50 @@ export function pickShopeeLinks(rawResponses: unknown, terms: readonly string[],
     if (ra !== rb) return rb > ra ? 1 : -1;
     return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
   });
+  const relevanceLabels = quality.profile === CAPTURE_ROW_PROFILE && quality.relevance ? captureRelevanceLookup(quality.relevance) : null;
+  const aiExcludedRows = relevanceLabels && keywords.length
+    ? live.flatMap(row => keywords.every(keyword => relevanceLabels(relevanceTitle(row.name), keyword) === 'NOT_MAIN')
+      ? [{ productBaseId: row.id, reason: 'AI_NOT_MAIN' as const }] : [])
+      .sort((a, b) => a.productBaseId < b.productBaseId ? -1 : a.productBaseId > b.productBaseId ? 1 : 0)
+    : [];
+  // D1: the most common leaf among the eligible rows. Rows without a category form the unknown leaf and are the modal
+  // leaf only when no row has a category; ties keep the higher-revenue leaf, since eligible is already revenue-sorted.
+  const leafCounts = new Map<string, number>();
+  for (const row of eligible) if (row.leaf !== null) leafCounts.set(row.leaf, (leafCounts.get(row.leaf) ?? 0) + 1);
+  let modalLeaf: string | null = null, modalCount = 0;
+  for (const row of eligible) {
+    if (row.leaf === null) continue;
+    const count = leafCounts.get(row.leaf)!;
+    if (count > modalCount) { modalCount = count; modalLeaf = row.leaf; }
+  }
+  const inModalLeaf = (row: Candidate): boolean => row.leaf === modalLeaf;
   const picked: Candidate[] = [];
   const seenBrands = new Set<string>(); const seenShops = new Set<string>();
   const take = (row: Candidate) => { picked.push(row); seenShops.add(row.shopKey); if (row.brandKey) seenBrands.add(row.brandKey); };
   for (const row of eligible) {
     if (picked.length >= AUTORUN_MAX_SHOPEE_LINKS) break;
-    if (row.brandKey && !seenBrands.has(row.brandKey) && !seenShops.has(row.shopKey)) take(row);
+    if (inModalLeaf(row) && row.brandKey && !seenBrands.has(row.brandKey) && !seenShops.has(row.shopKey)) take(row);
   }
   for (const row of eligible) {
     if (picked.length >= AUTORUN_MAX_SHOPEE_LINKS) break;
-    // Fill: a brand may repeat (owner example: 2 of one brand + 3 others), a shop may not.
-    if (picked.includes(row) || seenShops.has(row.shopKey)) continue;
+    // Fill inside the modal leaf: a brand may repeat (owner example: 2 of one brand + 3 others), a shop may not.
+    if (!inModalLeaf(row) || picked.includes(row) || seenShops.has(row.shopKey)) continue;
     take(row);
   }
+  // Other leaves are demoted, never dropped from the sample: they fill only the places the modal leaf left open.
+  for (const row of eligible) {
+    if (picked.length >= AUTORUN_MAX_SHOPEE_LINKS) break;
+    if (inModalLeaf(row) || picked.includes(row) || seenShops.has(row.shopKey)) continue;
+    take(row);
+  }
+  const demotedRows = eligible.flatMap(row => !inModalLeaf(row) && !picked.includes(row)
+    ? [{ productBaseId: row.id, leaf: row.leaf, reason: 'OTHER_LEAF' as const }] : [])
+    .sort((a, b) => a.productBaseId < b.productBaseId ? -1 : a.productBaseId > b.productBaseId ? 1 : 0);
   const links = picked.map(row => ({ productBaseId: row.id, itemId: row.itemId, shopId: row.shopId, revenue: row.revenue, brand: row.brand,
     url: `https://shopee.vn/product/${row.shopId}/${row.itemId}` }));
   return { pickRuleVersion, terms: keywords, links, urls: links.map(link => link.url),
     excludedRows: [...excluded].map(([i, reason]) => ({ productBaseId: live[i]!.id, reason })).sort((a, b) => a.productBaseId < b.productBaseId ? -1 : a.productBaseId > b.productBaseId ? 1 : 0),
+    ...(demotedRows.length ? { demotedRows } : {}), ...(aiExcludedRows.length ? { aiExcludedRows } : {}),
     counts: { walked: rows.length, deleted, notIncluded, tokenGuardRejected, eligible: eligible.length, picked: links.length } };
 }
 
