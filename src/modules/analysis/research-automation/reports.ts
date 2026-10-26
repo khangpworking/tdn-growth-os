@@ -1766,49 +1766,27 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   // The reader derives a reading under each table from its printed cells. S17's reading repeats its row count and the
   // values it quotes, so each printed occurrence is recorded from the same COLLECTION field as the cell that shows it.
   const searchAdsReading: MarketTableReadingTrace = {
-    reading: (block: string, reading: string): string => {
+    reading: (block, reading, sources): string => {
       const stored = kind === 'MARKET' ? input.collection?.searchAds : undefined;
       const collection = input.productCardSources?.collection;
       if (!stored || !collection || !/data-search-ads="1"/u.test(block)) return reading;
       const brandPointer = (index: number, field: string): string => `/searchAds/brands/${index}/${field}`;
-      // «Bảng có N dòng»: the reading counts the stored rows this table prints.
-      const rows = /^Bảng có (\d+) dòng\./u.exec(reading);
-      if (rows) traceMarketNumber(rows[1]!, 'M07.searchAds.reading', 'computed',
-        stored.brands.map((brand, index) => storedInput('stored-source', collection, brandPointer(index, 'label'), brand.label)),
-        'count(stored search-ads rows)', 'count');
-      // «N dòng có số»: the reading counts the rows that hold a value in the column it reads (a positive count).
-      const countedRows = (field: 'creativeCount' | 'maxDaysShown', token: string): boolean => {
-        const rowsWithValue = stored.brands.flatMap((brand, index) => brand[field] !== null && brand[field] > 0 ? [{ index, value: brand[field] }] : []);
-        if (!rowsWithValue.length || String(rowsWithValue.length) !== token) return false;
-        traceMarketNumber(token, 'M07.searchAds.reading', 'computed',
-          rowsWithValue.map(({ index, value }) => storedInput('stored-source', collection, brandPointer(index, field), value)),
-          `count(stored search-ads rows with ${field} above zero)`, 'count');
-        return true;
-      };
-      const source = (token: string): { index: number; field: string; value: number | string; formulaId: 'as-stored' | 'vi-date' } | undefined => {
-        for (let index = 0; index < stored.brands.length; index++) {
-          const brand = stored.brands[index]!;
-          const numbers: readonly (readonly [string, number | null])[] = [['creativeCount', brand.creativeCount], ['maxDaysShown', brand.maxDaysShown],
-            ['formats/text', brand.formats?.text ?? null], ['formats/image', brand.formats?.image ?? null], ['formats/video', brand.formats?.video ?? null]];
-          for (const [field, value] of numbers) if (value !== null && marketNumberTokens(String(value)).includes(token))
-            return { index, field, value, formulaId: 'as-stored' };
-          for (const field of ['firstShown', 'lastShown'] as const) {
-            const value = brand[field];
-            if (value && marketNumberTokens(value.split('-').reverse().join('/')).includes(token)) return { index, field, value, formulaId: 'vi-date' };
-          }
-          for (const field of ['label', 'domain'] as const) {
-            const value = brand[field];
-            if (value && marketNumberTokens(value).includes(token)) return { index, field, value, formulaId: 'as-stored' };
-          }
+      // Sources are carried from the exact cells and row sets used by the reading, never guessed from equal numbers.
+      const fields = ['label', 'domain', null, 'creativeCount', 'formats/text', null, 'maxDaysShown'] as const;
+      for (const source of sources) {
+        if (source.column === undefined) {
+          traceMarketNumber(source.text, 'M07.searchAds.reading', 'computed', source.rows.map(index =>
+            storedInput('stored-source', collection, brandPointer(index, 'label'), stored.brands[index]!.label)),
+          'count(stored search-ads rows used in the reading)', 'count');
+          continue;
         }
-        return undefined;
-      };
-      for (const token of marketNumberTokens(rows ? reading.slice(rows[0].length) : reading)) {
-        const match = source(token);
-        if (match) traceMarketNumber(token, 'M07.searchAds.reading', 'raw',
-          [storedInput('stored-source', collection, brandPointer(match.index, match.field), match.value)],
-          match.formulaId === 'vi-date' ? 'stored search-ads day, dd/mm/yyyy' : `stored search-ads ${match.field}, as stored`, match.formulaId);
-        else countedRows('creativeCount', token) || countedRows('maxDaysShown', token);
+        const index = source.rows[0]!, brand = stored.brands[index]!, field = fields[source.column];
+        if (!field) continue;
+        const value = field === 'formats/text' ? brand.formats?.text : brand[field];
+        if (value === null || value === undefined) continue;
+        for (const token of marketNumberTokens(plainCaptureNumbers(source.text))) traceMarketNumber(token, 'M07.searchAds.reading', 'raw',
+          [storedInput('stored-source', collection, brandPointer(index, field), value)],
+          `stored search-ads ${field}, as stored`, 'as-stored');
       }
       return reading;
     },
@@ -1985,10 +1963,13 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   }
   // Trace tokens as the delivered page prints them («12%» reads «12 phần trăm» when numbers are spelled out).
   const recordedTrace = numberTrace?.snapshot();
-  // Axis ticks are drawn inside the chart SVG, which that pass leaves as drawn. A number the page spells out in words
+  // Axis ticks and S17 source-label tokens retain their printed form: the table quotes the label, and the reading
+  // already records it in its printed context. Formatting an isolated «0» would erase a digit still visible in that text.
+  // A number the page spells out in words
   // («0» reads «không») prints no number, so its entry traces nothing and is dropped.
   const marketNumberTrace = recordedTrace && plainNumbers
-    ? { ...recordedTrace, entries: recordedTrace.entries.map(entry => entry.formulaId === 'axis-tick' ? entry : { ...entry, token: plainCaptureNumbers(entry.token) })
+    ? { ...recordedTrace, entries: recordedTrace.entries.map(entry => entry.formulaId === 'axis-tick' || entry.formulaId === 'as-stored' && entry.inputs.some(source =>
+      'store' in source && /^\/searchAds\/brands\/\d+\/(?:label|domain)$/u.test(source.pointer)) ? entry : { ...entry, token: plainCaptureNumbers(entry.token) })
       .filter(entry => marketNumberTokens(entry.token).length > 0) } : recordedTrace;
   // Raw-response pointers are re-read in the stored capture when the caller holds its content.
   const rawCaptures = new Map((input.marketRawSeries?.periods ?? []).flatMap(period => period.raw === undefined ? [] : [[period.captureId, period.raw] as const]));

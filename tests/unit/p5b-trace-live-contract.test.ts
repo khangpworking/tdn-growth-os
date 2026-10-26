@@ -296,6 +296,24 @@ function buildS17(input: AutomationReportInput) {
 
 for (const presentation of [false, true]) {
   const branch = presentation ? 'with marketPresentation' : 'without marketPresentation';
+  test(`S17 preserves zero tokens in stored source labels ${branch}`, async t => {
+    const base = await s17Input(presentation);
+    for (const { label, range } of [{ label: 'Nhãn Gió 0' }, { label: '0' }, { label: '0', range: true }, { label: 'Nhãn là 0' }]) await t.test(`${label}${range ? ' in a range' : ''}`, () => {
+      const collection = structuredClone(base.collection!);
+      collection.searchAds!.brands[2]!.label = label;
+      if (range) collection.searchAds!.brands[0]!.label = '13';
+      const { html, trace } = buildS17({ ...base, collection });
+      assertCoveredAllTraced(checkMarketNumberTrace(html, trace, { resolve: collectionResolver(collection) }));
+      assert.ok(html.includes(`>${label}</`), 'the stored label must keep its printed bytes');
+      if (presentation && label === '0' && !range) {
+        const changed = structuredClone(collection);
+        changed.searchAds!.brands[2]!.label = 'Nhãn Khác';
+        const outcome = checkMarketReport(html, { kind: 'DRAFT_PLAIN', numberTrace: { trace, resolve: collectionResolver(changed) } });
+        assert.ok(outcome.failure?.failed.includes('N02_TRACE_REPLAY'), 'preserving a source-label zero must still replay its stored value');
+      }
+    });
+  });
+
   test(`S17 traces counts, dates and digit-bearing labels ${branch}`, async () => {
     const { html, trace, input } = buildS17(await s17Input(presentation));
     const gate = checkMarketNumberTrace(html, trace, { resolve: collectionResolver(input.collection) });
@@ -345,4 +363,35 @@ test('S17 undated counts and digit-bearing labels replay COLLECTION; a changed s
   assert.equal(outcome.numberTrace?.ok, false);
   assert.ok(outcome.numberTrace.mismatches.some(row => row.token === '13' && row.blockId.startsWith('M07')
     && row.reason.includes('/searchAds/brands/2/creativeCount')), 'the changed COLLECTION field must cause the mismatch');
+});
+
+test('S17 reading keeps counts and repeated labels tied to their actual sources when numbers collide', async t => {
+  const base = await s17Input(true);
+  for (const equalCounts of [true, false]) await t.test(equalCounts ? 'count versus stored value' : 'measure versus label', () => {
+    const collection = structuredClone(base.collection!);
+    const first = collection.searchAds!.brands[0]!;
+    first.label = 'Nhãn Mây 13';
+    first.creativeCount = equalCounts ? 13 : 17;
+    first.formats = { text: 13, image: 0, video: equalCounts ? 0 : 4 };
+    first.maxDaysShown = 2;
+    const { html, trace } = buildS17({ ...base, collection });
+    assertCoveredAllTraced(checkMarketNumberTrace(html, trace, { resolve: collectionResolver(collection) }));
+    const reading = trace.entries.filter(entry => entry.blockId === 'M07.searchAds.reading');
+    const sources = (token: string) => reading.filter(entry => entry.token === token)
+      .map(entry => ({ formula: entry.formulaId, pointers: entry.inputs.map(input => {
+        assert.ok('store' in input, 'reading inputs must resolve to the retained COLLECTION');
+        assert.equal(input.identity, COLLECTION_SHA);
+        return input.pointer;
+      }) }));
+    if (equalCounts) {
+      assert.ok(html.includes('ở 2 dòng có số'));
+      assert.deepEqual(sources('2'), [{ formula: 'count', pointers: ['/searchAds/brands/0/label', '/searchAds/brands/2/label'] }]);
+    } else {
+      assert.ok(html.includes('mức thấp là 13'));
+      assert.deepEqual(sources('13'), [
+        { formula: 'as-stored', pointers: ['/searchAds/brands/2/creativeCount'] },
+        { formula: 'as-stored', pointers: ['/searchAds/brands/0/label'] },
+      ]);
+    }
+  });
 });

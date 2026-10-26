@@ -6,13 +6,14 @@
 
 ## 1. Mã (một người viết mã)
 
-- [x] 1.1 S17: truy số mẫu, số Chữ/Hình/Video, số ngày (công thức `as-stored`) và ngày (công thức `vi-date`) về `/searchAds/brands/<i>/…` của bản ghi COLLECTION
+- [x] 1.1 S17: truy số mẫu, số Chữ/Hình/Video, số ngày (công thức `as-stored`), ngày riêng (`vi-date`) và khoảng ngày (`vi-date-range`) về `/searchAds/brands/<i>/…` của bản ghi COLLECTION
 - [x] 1.2 S17: truy mọi số trong tên thương hiệu và miền như văn bản đã lưu; không thêm mục vào danh sách miễn trừ
 - [x] 1.3 S17: bỏ nhãn «Bảng 7.3» viết cứng; nhánh trình bày đếm qua `numberMarketExhibits`, nhánh cũ qua `numberSearchAdsExhibit`, cùng công thức `exhibit-number`
 - [x] 1.4 PICK: đọc lá danh mục `final_categories` (thiếu thì `categories`), ưu tiên lá phổ biến nhất, lấp lá khác khi thiếu chỗ, hạ bậc chứ không loại
 - [x] 1.5 PICK: bản ghi `autorun-pick-record-v3` thêm `demotedRows`, `aiExcludedRows` (tùy chọn; bản ghi cũ vẫn đọc)
 - [x] 1.6 Hàm `pickShopeeLinks` nhận và áp dụng bản ghi relevance đã lưu, khớp tiêu đề đã cắt và gộp khoảng trắng
 - [ ] 1.7 D2: truyền bản ghi relevance vào `#autorunPick` (phân loại một lần ở PREPARE, giữ bản ghi, dùng lại ở phương pháp Market) — hoãn, cần đổi máy trạng thái, xem FIX-RESULT
+- [x] 1.8 S17: câu diễn giải truy số đếm bằng `count` trên đúng nhóm dòng; giá trị và nhãn lặp lại truy đúng ô COLLECTION, không ghép nguồn chỉ vì trùng số; giữ token `0` còn in trong nhãn nguồn, vẫn kiểm N02
 
 ## 2. Kiểm thử (phiên khác người viết mã)
 

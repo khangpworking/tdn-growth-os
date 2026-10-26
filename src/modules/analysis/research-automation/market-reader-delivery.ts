@@ -150,16 +150,19 @@ function cells(row: string): string[] {
     .map(match => text((match[1] ?? '').replace(/<small\b[^>]*>[\s\S]*?<\/small>/giu, ' ')));
 }
 
-function rangeSentence(head: string, rows: readonly { label: string; num: Num }[]): string {
+type ReadingRow = { label: string; num: Num; row: number };
+function rangeSentence(head: string, rows: readonly ReadingRow[], trace: {
+  value(row: ReadingRow, prefix: string): string; label(row: ReadingRow): string; count(): number;
+}): string {
   if (rows.length === 0) return '';
-  if (rows.length === 1) return `Cột “${head}” ghi ${rows[0]!.num.shown} (${rows[0]!.label}).`;
+  if (rows.length === 1) return `Cột “${head}” ghi ${trace.value(rows[0]!, 'ghi ')} (${trace.label(rows[0]!)}).`;
   const low = rows.reduce((a, b) => b.num.value < a.num.value ? b : a), high = rows.reduce((a, b) => b.num.value > a.num.value ? b : a);
-  return low.num.value === high.num.value ? `Cột “${head}” có cùng giá trị ${low.num.shown} ở ${rows.length} dòng có số.`
-    : `Ở cột “${head}”, mức thấp là ${low.num.shown} (${low.label}) và mức cao là ${high.num.shown} (${high.label}).`;
+  return low.num.value === high.num.value ? `Cột “${head}” có cùng giá trị ${trace.value(low, 'giá trị ')} ở ${trace.count()} dòng có số.`
+    : `Ở cột “${head}”, mức thấp là ${trace.value(low, 'là ')} (${trace.label(low)}) và mức cao là ${trace.value(high, 'là ')} (${trace.label(high)}).`;
 }
 
 /** At most three sentences from displayed cells; omit the reading when no useful statement is available. */
-function deriveTableInterpretation(block: string): string {
+function deriveTableInterpretation(block: string, sources: MarketTableReadingSource[]): string {
   const table = block.match(/<table\b[\s\S]*?<\/table>/iu)?.[0];
   if (!table) return '';
   // A table that carries its own reading (e.g. Phần 11) says how it was built; no generic sentence is derived for it.
@@ -172,12 +175,21 @@ function deriveTableInterpretation(block: string): string {
   const rows = [...(table.match(/<tbody\b[^>]*>([\s\S]*?)<\/tbody>/iu)?.[1] ?? '').matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/giu)]
     .filter(match => !(periodTable || priceTable) || !/^<tr\b[^>]*\bdata-period-incomplete="true"/u.test(match[0]))
     .map(match => cells(match[1] ?? ''));
+  const cell = (row: number, column: number, shown = rows[row]![column] ?? '', prefix = '', suffix = ''): string => {
+    sources.push({ text: prefix + shown + suffix, rows: [row], column });
+    return shown;
+  };
+  const counted = (members: readonly number[]): number => {
+    sources.push({ text: String(members.length), rows: members });
+    return members.length;
+  };
+  const allRows = rows.map((_row, i) => i);
   const number = (cell: string): Num | undefined => {
     const num = parseNum(cell);
     return priceTable && num && num.value <= 0 ? undefined : num;
   };
-  const count = (periodTable || priceTable) && /data-period-incomplete="true"/u.test(table)
-    ? `Diễn giải dùng ${rows.length} dòng đủ kỳ.` : `Bảng có ${rows.length} dòng.`;
+  const count = () => (periodTable || priceTable) && /data-period-incomplete="true"/u.test(table)
+    ? `Diễn giải dùng ${counted(allRows)} dòng đủ kỳ.` : `Bảng có ${counted(allRows)} dòng.`;
   // Pending classification cells are not quoted as numbers anywhere outside their own cell.
   if (rows.length === 0 || /data-classified="pending"/u.test(table)) return '';
   const numeric = head.map((_h, i) => rows.some(row => number(row[i] ?? '') !== undefined));
@@ -187,10 +199,10 @@ function deriveTableInterpretation(block: string): string {
   // Different columns can carry unrelated units; there is no meaningful range across them.
   if (measure === undefined) {
     for (let i = 0; i < head.length; i++) {
-      const dates = rows.map(row => row[i] ?? '').filter(value => /^\d{2}\/\d{2}\/\d{4}$/u.test(value));
+      const dates = rows.flatMap((row, r) => /^\d{2}\/\d{2}\/\d{4}$/u.test(row[i] ?? '') ? [{ value: row[i]!, row: r }] : []);
       if (!dates.length) continue;
-      const ordered = dates.sort((a, b) => a.split('/').reverse().join('').localeCompare(b.split('/').reverse().join('')));
-      return `Cột “${head[i]}” ghi ngày từ ${ordered[0]} đến ${ordered[ordered.length - 1]}.`;
+      const ordered = dates.sort((a, b) => a.value.split('/').reverse().join('').localeCompare(b.value.split('/').reverse().join('')));
+      return `Cột “${head[i]}” ghi ngày từ ${cell(ordered[0]!.row, i)} đến ${cell(ordered[ordered.length - 1]!.row, i)}.`;
     }
     return '';
   }
@@ -199,7 +211,7 @@ function deriveTableInterpretation(block: string): string {
   if (values.some(num => /\d/u.test(num.unit.replace(/\(kỳ gốc = [\d.,]+\)/u, '')))) return '';
   const incompatible = new Set(values.map(num => num.unit)).size > 1 || head.some((h, i) => /^(?:Phép đo|Thước đo|Đơn vị|Kỳ(?:\s|$))/u.test(h)
     && new Set(rows.map(row => row[i])).size > 1);
-  if (incompatible) return `${count} Các dòng có thước đo, đơn vị hoặc kỳ khác nhau; đọc riêng từng dòng.`;
+  if (incompatible) return `${count()} Các dòng có thước đo, đơn vị hoặc kỳ khác nhau; đọc riêng từng dòng.`;
   const labelIndex = head.findIndex((h, i) => i !== measure && LABEL.test(h) && !numeric[i]);
   const fallbackLabel = head.findIndex((_h, i) => i !== measure && !numeric[i] && !PLATFORM.test(head[i]!) && new Set(rows.map(row => row[i])).size > 1);
   const label = labelIndex >= 0 ? labelIndex : fallbackLabel;
@@ -207,24 +219,34 @@ function deriveTableInterpretation(block: string): string {
   const labels = rows.map((row, r) => label >= 0 ? (row[label] || `dòng ${r + 1}`) : `dòng ${r + 1}`);
   const duplicate = labels.some((value, i) => labels.indexOf(value) !== i);
   const named = rows.map((row, r) => !duplicate ? labels[r]! : second >= 0 ? `${labels[r]} · ${row[second]}` : `dòng ${r + 1}`);
+  const namedCell = (r: number, inRange = false): string => {
+    if (duplicate && second < 0) counted(allRows.slice(0, r + 1));
+    else {
+      if (label >= 0 && rows[r]![label]) cell(r, label, rows[r]![label], inRange ? '(' : '', inRange ? ')' : ':');
+      else counted(allRows.slice(0, r + 1));
+      if (duplicate && second >= 0) cell(r, second, rows[r]![second], ' · ', inRange ? ')' : ':');
+    }
+    return named[r]!;
+  };
   // Rows that are different measures or reporters (macro indicators, trade sides) are listed one by one, never ranged together.
   if (head.some((heading, index) => ROW_PER_MEASURE.test(heading) && new Set(rows.map(row => row[index])).size > 1 && !numeric[index])) {
-    if (rows.length > 4 || head.some(heading => /^Dòng/u.test(heading))) return `${count} Mỗi dòng là một thước đo riêng, đọc theo đơn vị của chính nó.`;
-    const listed = rows.flatMap((row, r) => { const num = number(row[measure] ?? ''); return num ? [`${named[r]}: ${num.shown}`] : []; });
-    return listed.length ? `${count} Cột “${head[measure]}” ghi ${listed.join('; ')}. Mỗi dòng là một thước đo riêng, đọc theo đơn vị của chính nó.` : '';
+    if (rows.length > 4 || head.some(heading => /^Dòng/u.test(heading))) return `${count()} Mỗi dòng là một thước đo riêng, đọc theo đơn vị của chính nó.`;
+    const listed = rows.flatMap((row, r) => { const num = number(row[measure] ?? ''); return num ? [`${namedCell(r)}: ${cell(r, measure, num.shown, ': ')}`] : []; });
+    return listed.length ? `${count()} Cột “${head[measure]}” ghi ${listed.join('; ')}. Mỗi dòng là một thước đo riêng, đọc theo đơn vị của chính nó.` : '';
   }
   const platform = head.findIndex(h => PLATFORM.test(h));
   const groups = new Map<string, number[]>();
   rows.forEach((row, r) => { const key = platform >= 0 ? row[platform] ?? '' : ''; groups.set(key, [...(groups.get(key) ?? []), r]); });
-  const sentences = [count];
+  const sentences = [count()];
   // Each platform is read on its own; values of different platforms are never put in one range.
   for (const [key, members] of groups) {
-    const withNumber = members.flatMap(r => { const num = number(rows[r]![measure] ?? ''); return num ? [{ label: named[r]!, num }] : []; });
-    const sentence = rangeSentence(head[measure]!, withNumber);
+    const withNumber = members.flatMap(r => { const num = number(rows[r]![measure] ?? ''); return num ? [{ label: named[r]!, num, row: r }] : []; });
+    const sentence = rangeSentence(head[measure]!, withNumber, { value: (row, prefix) => cell(row.row, measure, row.num.shown, prefix),
+      label: row => namedCell(row.row, true), count: () => counted(withNumber.map(row => row.row)) });
     if (sentence) sentences.push(groups.size > 1 && key ? `${key}: ${sentence.charAt(0).toLowerCase()}${sentence.slice(1)}` : sentence);
   }
-  const missing = rows.filter(row => number(row[measure] ?? '') === undefined && (EMPTY.test(row[measure] ?? '') || (priceTable && row[measure] === 'Chưa có giá đọc được'))).length;
-  if (missing) sentences[sentences.length - 1] = `${sentences[sentences.length - 1]!.replace(/\.$/u, '')}; ${missing} dòng chưa có dữ liệu ở cột này.`;
+  const missing = allRows.filter(r => number(rows[r]![measure] ?? '') === undefined && (EMPTY.test(rows[r]![measure] ?? '') || (priceTable && rows[r]![measure] === 'Chưa có giá đọc được')));
+  if (missing.length) sentences[sentences.length - 1] = `${sentences[sentences.length - 1]!.replace(/\.$/u, '')}; ${counted(missing)} dòng chưa có dữ liệu ở cột này.`;
   return sentences.join(' ');
 }
 
@@ -232,15 +254,23 @@ function deriveTableInterpretation(block: string): string {
  * Number trace of a table reading: the caller records each number of the printed reading against the stored values
  * it repeats and returns the text to print (market-number-trace.ts). Without it the text is unchanged.
  */
+export interface MarketTableReadingSource {
+  readonly text: string;
+  /** Zero-based printed row positions; absent column means their count, otherwise one cell's text. */
+  readonly rows: readonly number[];
+  readonly column?: number;
+}
+
 export interface MarketTableReadingTrace {
   /** `text` is the reading as it will be printed under the table. */
-  reading(block: string, text: string): string;
+  reading(block: string, text: string, sources: readonly MarketTableReadingSource[]): string;
 }
 
 /** At most three sentences from displayed cells; omit the reading when no useful statement is available. */
 export function tableInterpretation(block: string, trace?: MarketTableReadingTrace): string {
-  const reading = deriveTableInterpretation(block);
-  return reading && trace ? trace.reading(block, reading) : reading;
+  const sources: MarketTableReadingSource[] = [];
+  const reading = deriveTableInterpretation(block, sources);
+  return reading && trace ? trace.reading(block, reading, sources) : reading;
 }
 
 type SearchPoint = { readonly period: string; readonly index: number | null };

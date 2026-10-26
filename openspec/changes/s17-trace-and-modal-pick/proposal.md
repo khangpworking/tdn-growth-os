@@ -8,12 +8,12 @@ Ngày 26/10/2026 hai lần chạy thật (quạt điện, son môi) dừng ở b
 
 ## What Changes
 
-- **MODIFIED** R-P07: bảng S17 in nhãn bảng bằng đúng công thức `exhibit-number`, đếm từ vị trí thật trong Phần 7, ở cả nhánh trình bày và nhánh không trình bày; mọi số trong bảng (số mẫu, Chữ/Hình/Video, số ngày) và mọi nhãn lấy từ dữ liệu (tên thương hiệu, miền) có dòng trong bản đồ số trỏ về bản ghi COLLECTION. Không thêm mục nào vào danh sách miễn trừ; cổng giữ nguyên độ chặt.
+- **MODIFIED** R-P07: bảng S17 in nhãn bảng bằng đúng công thức `exhibit-number`, đếm từ vị trí thật trong Phần 7, ở cả nhánh trình bày và nhánh không trình bày; mọi số trong bảng và câu diễn giải dưới bảng (số mẫu, Chữ/Hình/Video, số ngày, ngày và số đếm dòng) cùng mọi nhãn lấy từ dữ liệu (tên thương hiệu, miền) có dòng trong bản đồ số trỏ về bản ghi COLLECTION. Một ngày dùng `vi-date`, cặp ngày in thành khoảng dùng `vi-date-range`, số đếm dòng dùng `count`; giá trị và nhãn lặp lại trỏ về đúng ô được diễn giải, kể cả khi nhiều trường có cùng số. Nhãn nguồn còn in chữ số `0` vẫn giữ token truy nguồn và vẫn qua kiểm N02. Không thêm mục nào vào danh sách miễn trừ; cổng giữ nguyên độ chặt.
 - **MODIFIED** R-P03: `pickShopeeLinks` đọc lá danh mục từ `final_categories` (thiếu thì `categories`), ưu tiên lá phổ biến nhất trong các dòng đủ điều kiện, chỉ lấy lá khác khi còn thiếu chỗ; dòng lá khác bị hạ bậc chứ không bị loại khỏi mẫu. Bản ghi pick thêm hai trường tùy chọn `demotedRows` và `aiExcludedRows`. Hàm vẫn nhận bản ghi relevance đã lưu để loại dòng `NOT_MAIN`, nhưng bước PICK chưa truyền bản ghi đó (xem «Ngoài phạm vi»).
 
 ## Impact
 
-- Mã: RA `reports.ts` (`searchAdsTable`: truy số mẫu, số Chữ/Hình/Video, ngày, tên thương hiệu, miền; bỏ nhãn «Bảng 7.3» viết cứng), RA `market-reader-delivery.ts` (`numberSearchAdsExhibit` cho nhánh không trình bày), RA `autorun-derive.ts` (`pickShopeeLinks`, `categoryLeaf`, `relevanceTitle`, `PickResult`).
+- Mã: RA `reports.ts` (`searchAdsTable`, `searchAdsReading`: truy số mẫu, số Chữ/Hình/Video, khoảng ngày, tên thương hiệu, miền và câu diễn giải; bỏ nhãn «Bảng 7.3» viết cứng), RA `market-reader-delivery.ts` (`numberSearchAdsExhibit` cho nhánh không trình bày; `MarketTableReadingSource` giữ vị trí ô và nhóm dòng thực sự được diễn giải, không đổi chữ in), RA `autorun-derive.ts` (`pickShopeeLinks`, `categoryLeaf`, `relevanceTitle`, `PickResult`).
 - Bản ghi pick `autorun-pick-record-v3` thêm trường tùy chọn; không có lược đồ JSON riêng nên không đổi lược đồ. Bản ghi cũ vẫn đọc được vì trường mới chỉ ghi khi có.
 - Không đổi nguồn, không gọi mô hình, không đổi cờ môi trường, không đổi cơ sở dữ liệu.
 
