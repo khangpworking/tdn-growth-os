@@ -390,7 +390,7 @@ test('V1 an old v1 response still validates while keyword-2 suggestions require 
   const f = await scopeRun(t, { ...zinc, titles: zincTitles });
   await assertSuggestion(f, 'viên kẽm');
   const current = await f.service.getRun(workspaceId, f.runId);
-  assert.equal(current.contractVersion, 'research-automation-run-v2');
+  assert.equal(current.contractVersion, 'research-automation-run-v3');
   assert.equal(validateRun(current), true, JSON.stringify(validateRun.errors));
   assert.equal(validateRun({ ...current, contractVersion: 'research-automation-run-v1' }), false,
     'a keyword-2 suggestion must not be returned under the old version');

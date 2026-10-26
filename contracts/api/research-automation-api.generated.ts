@@ -71,7 +71,7 @@ export type Code = string;
 export type Digest = string;
 
 export interface ResearchAutomationStartRequest {
-  contractVersion: 'research-automation-start-v1';
+  contractVersion: 'research-automation-start-v1' | 'research-automation-start-v2';
   requestKey: RequestKey;
   mode: ResearchAutomationMode;
   keyword: Text120;
@@ -136,12 +136,18 @@ export interface ResearchAutomationAutoRunRetryRequest {
  * Owner answer to the suggested keyword 2 after the first automatic capture: the accepted or edited term, or null to remove it. The second capture then runs (one more lookup).
  */
 export interface ResearchAutomationAutoRunKeywordRequest {
-  contractVersion: 'research-automation-autorun-keyword-v1';
+  contractVersion: 'research-automation-autorun-keyword-v1' | 'research-automation-autorun-keyword-v2';
   requestKey: RequestKey;
   keyword2: Term | null;
+  /**
+   * Owner-confirmed complete preset, validated by the canonical capture spec service.
+   */
+  metricV3Preset?: {
+    [k: string]: unknown;
+  };
 }
 export interface ResearchAutomationRun {
-  contractVersion: 'research-automation-run-v1' | 'research-automation-run-v2';
+  contractVersion: 'research-automation-run-v1' | 'research-automation-run-v2' | 'research-automation-run-v3';
   runId: Uuid;
   workspaceId: Uuid;
   revision: number;
@@ -322,9 +328,10 @@ export interface ResearchAutomationAutoRun {
   linksFound?: number;
   canRetry: boolean;
   /**
-   * research-automation-run-v2 only. Present while the auto-run waits for the owner's answer on keyword 2: the suggested term and its evidence in the first capture's top-revenue titles.
+   * research-automation-run-v2 and later; categoryId requires v3. Present while the auto-run waits for the owner's answer on keyword 2: the suggested term and its evidence in the first capture's top-revenue titles.
    */
   keyword2Suggestion?: {
+    categoryId?: string | null;
     keyword1: Text120;
     term: Term;
     titles: number;

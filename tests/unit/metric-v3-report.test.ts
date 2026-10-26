@@ -10,6 +10,7 @@ import { JSDOM } from 'jsdom';
 import { buildV3Body, loadV3Archive, renderV3Report, v3Hash, v3Resolver, type V3Archive, type V3TextModel } from '../../src/modules/analysis/research-automation/metric-v3-report.js';
 import { checkMarketNumberTrace } from '../../src/modules/analysis/research-automation/market-number-trace.js';
 import { createChromiumPdfRenderer } from '../../src/modules/analysis/research-automation/pdf.js';
+import { planScope } from '../../src/modules/analysis/research-automation/autorun-scope.js';
 import { fixture, workspaceId, drain, autorun } from '../helpers/autorun-harness.js';
 const adapter = await import(new URL('../../tools/opencli-metric/clis/metric/v3-capture.js', import.meta.url).href);
 const original = JSON.parse(await readFile(new URL('../fixtures/metric-v3/live-map-contract.json', import.meta.url), 'utf8'));
@@ -115,7 +116,7 @@ test('A3 existing Chromium exporter prints the v3 document', { skip: !process.en
 });
 
 // A4: durable production service boundary, then fresh read handle; no test-only production seam.
-test('A4 preset PREPARE stores and replays a report while bypassing legacy collection', async t => {
+for (const presetOrigin of ['start', 'confirmation'] as const) test(`A4 ${presetOrigin} preset PREPARE stores a report and stops interrupted AI on restart`, async t => {
   const bundle = await capture();
   const lane: { model?: V3TextModel } = { model: { ...model } };
   const f = await fixture(t, 'on', undefined, fake => async (_config, request) => {
@@ -125,7 +126,25 @@ test('A4 preset PREPARE stores and replays a report while bypassing legacy colle
     for (const [p, data] of Object.entries(bundle.files)) { await mkdir(join(dir, p, '..'), { recursive: true }); await writeFile(join(dir, p), data); }
     return { ok: true, captureDir: dir, period: bundle.spec.windows[1].period, executorCalls: 1 };
   }, undefined, { v3Report: lane });
-  const receipt = await f.service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: 'cccccccc-0000-4000-8000-000000000001', mode: 'CATEGORY', keyword: bundle.spec.preset.keywords[0], requestedPeriod: bundle.spec.windows[1].period, metricV3Preset: bundle.spec, reports: ['MARKET'] });
+  async function startRun(requestNumber: number) {
+    const receipt = await f.service.start(workspaceId, { contractVersion: 'research-automation-start-v2', requestKey: `cccccccc-0000-4000-8000-${String(requestNumber).padStart(12, '0')}`, mode: 'CATEGORY', keyword: bundle.spec.preset.keywords[0], requestedPeriod: bundle.spec.windows[1].period, ...(presetOrigin === 'start' ? { metricV3Preset: bundle.spec } : {}), reports: ['MARKET'] });
+    if (presetOrigin === 'confirmation') {
+      const id = receipt.run.runId;
+      while ((await f.service.getRun(workspaceId, id)).status !== 'AWAITING_SCOPE') await f.service.processNext();
+      f.db.prepare("UPDATE research_automation_autorun SET phase='STOPPED',phase_state='QUEUED',stop_code='KEYWORD2_AWAITING' WHERE run_id=?").run(id);
+      const dir = join(f.capture.captureRoot, id);
+      await mkdir(join(dir, 'run1'), { recursive: true });
+      await writeFile(join(dir, 'run1', 'raw-responses.json'), JSON.stringify({ responses: [] }));
+      const scope = planScope({ runId: id, keyword1: bundle.spec.preset.keywords[0],
+        category: { reason: 'DOMINANT', category: { id: 'c2140822537', label: 'Thực phẩm chức năng' }, top: null, threshold: 0.7, productType: null, interviewMatch: null, shares: null },
+        keyword2: { chosen: { term: bundle.spec.preset.keywords[1], source: 'TITLE', titles: 5, titleShare: 0.5, brands: 3, revenue: 100, kept: true }, candidates: [], titleCount: 10, modelVariants: 'NOT_CONFIGURED' } });
+      await writeFile(join(dir, 'scope.json'), JSON.stringify(scope));
+      await f.service.retryAutoRunCapture(workspaceId, id, { contractVersion: 'research-automation-autorun-keyword-v2',
+        requestKey: `dddddddd-0000-4000-8000-${String(requestNumber).padStart(12, '0')}`, keyword2: bundle.spec.preset.keywords[1], metricV3Preset: bundle.spec });
+    }
+    return receipt;
+  }
+  const receipt = await startRun(1);
   await drain(f.service);
   const runId = receipt.run.runId;
   const run = await f.service.getRun(workspaceId, runId);
@@ -163,23 +182,34 @@ test('A4 preset PREPARE stores and replays a report while bypassing legacy colle
   await assert.rejects(f.service.readReport(workspaceId, runId, 'MARKET', true), /not available/);
   const steps = f.db.prepare("SELECT state FROM analysis_research_automation_steps WHERE run_id=? AND step_id='COLLECTION'").get(runId) as { state: string };
   assert.equal(steps.state, 'SKIPPED');
-  assert.equal((f.db.prepare("SELECT state FROM analysis_research_automation_steps WHERE run_id=? AND step_id='QUICK_SEARCH'").get(runId) as { state: string }).state, 'SKIPPED');
-  assert.equal((f.db.prepare('SELECT count(*) n FROM analysis_research_automation_usage WHERE run_id=?').get(runId) as { n: bigint }).n, 0n);
+  assert.equal((f.db.prepare("SELECT state FROM analysis_research_automation_steps WHERE run_id=? AND step_id='QUICK_SEARCH'").get(runId) as { state: string }).state, presetOrigin === 'start' ? 'SKIPPED' : 'SUCCEEDED');
+  assert.equal((f.db.prepare(presetOrigin === 'start' ? "SELECT count(*) n FROM analysis_research_automation_usage WHERE run_id=?" : "SELECT count(*) n FROM analysis_research_automation_usage WHERE run_id=? AND step_id='COLLECTION'").get(runId) as { n: bigint }).n, 0n);
   // A process restart after dispatch is ambiguous: stop, never send another model request.
   let signalStarted!: () => void, release!: (text: string) => void, calls = 0;
   const started = new Promise<void>(r => { signalStarted = r; });
   lane.model = { identity: 'synthetic-model', generateText: async () => { calls++; signalStarted(); return new Promise<string>(r => { release = r; }); } };
-  const second = await f.service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: 'cccccccc-0000-4000-8000-000000000002', mode: 'CATEGORY', keyword: bundle.spec.preset.keywords[0], requestedPeriod: bundle.spec.windows[1].period, metricV3Preset: bundle.spec, reports: ['MARKET'] });
+  const second = await startRun(2);
   const working = drain(f.service);
   await started;
-  await f.make().recoverOnStart();
-  release(JSON.stringify(opening));
-  await working;
-  assert.equal(calls, 1);
+  assert.equal(autorun(f.db, second.run.runId)!.phase, 'PREPARE');
+  assert.equal(autorun(f.db, second.run.runId)!.state, 'RUNNING');
+  const restarted = f.make();
+  try {
+    await restarted.recoverOnStart();
+    // Any accidental replay must finish so the counter detects a second dispatch.
+    lane.model = { identity: 'synthetic-model', generateText: async () => { calls++; return JSON.stringify(opening); } };
+    await drain(restarted);
+  } finally {
+    release(JSON.stringify(opening));
+    await working;
+  }
+  assert.equal(calls, 1, 'restart must not dispatch AI again');
+  assert.equal(autorun(f.db, second.run.runId)!.phase, 'STOPPED');
   assert.equal(autorun(f.db, second.run.runId)!.stopCode, 'V3_REPORT_INTERRUPTED');
   await assert.rejects(f.make().readReport(workspaceId, second.run.runId, 'MARKET'), /not available/);
+  if (presetOrigin === 'confirmation') return;
   delete lane.model;
-  const third = await f.service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: 'cccccccc-0000-4000-8000-000000000003', mode: 'CATEGORY', keyword: bundle.spec.preset.keywords[0], requestedPeriod: bundle.spec.windows[1].period, metricV3Preset: bundle.spec, reports: ['MARKET'] });
+  const third = await f.service.start(workspaceId, { contractVersion: 'research-automation-start-v2', requestKey: 'cccccccc-0000-4000-8000-000000000003', mode: 'CATEGORY', keyword: bundle.spec.preset.keywords[0], requestedPeriod: bundle.spec.windows[1].period, metricV3Preset: bundle.spec, reports: ['MARKET'] });
   await drain(f.service);
   assert.equal(autorun(f.db, third.run.runId)!.stopCode, 'V3_REPORT_AI_NOT_CONFIGURED');
   await assert.rejects(f.make().readReport(workspaceId, third.run.runId, 'MARKET'), /not available/);

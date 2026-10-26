@@ -1,3 +1,4 @@
+import { metricV3Category } from '../../../shared/metric-v3-preset.js';
 import { prepareV3MarketRevision } from './reader-publish.js';
 import { loadV3Archive, renderV3Report, buildV3Body, checkV3NumberTrace, v3Hash, type V3TextModel } from './metric-v3-report.js';
 import type { AutomationPdfRenderer } from './pdf.js';
@@ -2828,7 +2829,7 @@ export class ResearchAutomationService {
 
   async readReport(workspaceId: string, runId: string, kind: 'MARKET' | 'INSIGHT', pdf = false, pairId?: string): Promise<ResearchAutomationReadReport> {
     const run = this.#current(runId);
-    if (run && run.workspaceId === workspaceId && (await this.#readStartSnapshot(run.startSha, workspaceId)).metricV3Preset) {
+    if (run && run.workspaceId === workspaceId && (await this.#v3EffectiveStart(run)).metricV3Preset) {
       await this.getRun(workspaceId, runId);
       if (kind !== 'MARKET' || pairId && pairId !== this.#originalPair(run)?.pairId) throw new ResearchAutomationNotFoundError('report_not_available', 'Report version not found.');
       return this.#readV3Report(run, pdf);
@@ -3584,7 +3585,7 @@ export class ResearchAutomationService {
       const preparing = this.#db.prepare(`SELECT run_id runId FROM research_automation_autorun WHERE phase='PREPARE' AND phase_state='RUNNING'`).all() as { runId: string }[];
       for (const { runId } of preparing) {
         const run = this.#current(runId)!;
-        if ((await this.#readStartSnapshot(run.startSha, run.workspaceId)).metricV3Preset) await this.#autorunStopRunning(runId, 'PREPARE', 'V3_REPORT_INTERRUPTED');
+        if ((await this.#v3EffectiveStart(run)).metricV3Preset) await this.#autorunStopRunning(runId, 'PREPARE', 'V3_REPORT_INTERRUPTED');
       }
     }
     // Settle cancelled reporting before collection checkpoint recovery can requeue it.
@@ -3675,7 +3676,7 @@ export class ResearchAutomationService {
       const source = this.#source;
       // Register the operation before reading artifacts so worker shutdown can
       // interrupt both preset routing and legacy provider claims.
-      const start = await this.#readStartSnapshot(row.startSha, row.workspaceId);
+      const start = await this.#v3EffectiveStart(row);
       if (controller.signal.aborted) return false;
       if (stepId === 'QUICK_SEARCH' && start.metricV3Preset) {
         await withDatabaseMutationMutex(this.#db, async () => {
@@ -4868,7 +4869,7 @@ export class ResearchAutomationService {
     const outputs = outputRows.length === 0 ? undefined : Object.fromEntries(outputRows.map((value) => [value.reportKind === 'MARKET' ? 'market' : 'insight', { versionId: value.versionSha, web: true as const, pdf: { available: value.pdfSha !== null, reason: value.pdfSha ? null : message(value.pdfUnavailableCode ?? 'PDF_RENDERER_NOT_CONFIGURED') } }])) as ResearchAutomationRun['outputs'];
     const autoRun = await this.#autoRunProjection(row);
     return {
-      contractVersion: 'research-automation-run-v2', runId: row.runId, workspaceId: row.workspaceId, revision: toNumber(row.revision), status: row.status, country: 'VN', mode: row.mode, keyword: row.keyword,
+      contractVersion: 'research-automation-run-v3', runId: row.runId, workspaceId: row.workspaceId, revision: toNumber(row.revision), status: row.status, country: 'VN', mode: row.mode, keyword: row.keyword,
       description: start.description, interview: start.interview, requestedPeriod: start.requestedPeriod, reports: start.reports as ResearchAutomationRun['reports'],
       definition: scope ? { definition: scope.definition, includeTerms: [...scope.includeTerms], excludeTerms: [...scope.excludeTerms], selectedProductIds: [...scope.selectedProductIds], peerProductIds: [...scope.peerProductIds], confirmedAt: row.scopeConfirmedAt!, ...(scope.exactShopeeUrls !== undefined ? { exactShopeeUrls: [...scope.exactShopeeUrls] } : {}) } : null,
       productCards: [...cards], coverage: { requestedPeriod: start.requestedPeriod, sources: [...coverageSources] }, usage: { entries: usageEntries, requestCount: usageEntries.reduce((total, value) => total + value.requestCount, 0), knownCosts: knownCosts.slice(0, 2), hasUnknownCost: usageEntries.some((value) => value.cost.state === 'UNKNOWN') },
@@ -4894,7 +4895,7 @@ export class ResearchAutomationService {
       const scope = await this.#autorunScope(run.runId);
       // The database wait is authoritative: scope.json may contain an answer whose ledger write failed.
       const chosen = scope?.keyword2.chosen;
-      if (scope && chosen) keyword2Suggestion = { keyword1: scope.keyword1, term: chosen.term, titles: chosen.titles, titleCount: scope.keyword2.titleCount, brands: chosen.brands };
+      if (scope && chosen) keyword2Suggestion = { categoryId: scope.category?.category?.id ?? null, keyword1: scope.keyword1, term: chosen.term, titles: chosen.titles, titleCount: scope.keyword2.titleCount, brands: chosen.brands };
     }
     return { phase: row.phase, state: row.phaseState, ...(row.stopCode ? { stopCode: row.stopCode } : {}),
       ...(linksFound !== undefined ? { linksFound } : {}), canRetry, ...(keyword2Suggestion ? { keyword2Suggestion } : {}) };
@@ -4907,7 +4908,7 @@ export class ResearchAutomationService {
   async retryAutoRunCapture(workspaceId: string, runId: string, value: unknown): Promise<ResearchAutomationMutationReceipt> {
     const input = validateAutoRunRetry(value);
     assertUuid(workspaceId); assertUuid(runId);
-    if (input.contractVersion === 'research-automation-autorun-keyword-v1') return this.#answerAutoRunKeyword2(workspaceId, runId, input);
+    if (input.contractVersion === 'research-automation-autorun-keyword-v1' || input.contractVersion === 'research-automation-autorun-keyword-v2') return this.#answerAutoRunKeyword2(workspaceId, runId, input);
     const requestSha = digest({ kind: 'AUTORUN_RETRY', workspaceId, runId, input });
     return withDatabaseMutationMutex(this.#db, async () => {
       const prior = this.#hasAutorunTable()
@@ -4938,7 +4939,8 @@ export class ResearchAutomationService {
    * repeated request key replays; the second capture then queues as the run's next CAPTURE attempt.
    */
   async #answerAutoRunKeyword2(workspaceId: string, runId: string, input: ResearchAutomationAutoRunKeywordRequest): Promise<ResearchAutomationMutationReceipt> {
-    const requestSha = digest({ kind: 'AUTORUN_KEYWORD2', workspaceId, runId, input });
+    const confirmation = { kind: 'AUTORUN_KEYWORD2', workspaceId, runId, input };
+    const requestSha = digest(confirmation);
     return withDatabaseMutationMutex(this.#db, async () => {
       const prior = this.#hasAutorunTable()
         ? this.#db.prepare(`SELECT run_id runId,request_sha256 sha FROM research_automation_autorun_retries WHERE request_key=?`).get(input.requestKey) as { runId: string; sha: string } | undefined
@@ -4961,14 +4963,27 @@ export class ResearchAutomationService {
           [{ term: input.keyword2, source: 'OWNER' }]).candidates[0] ?? null;
         // Rebuild the waiting plan when a prior file write outlived a failed/uncommitted transaction.
         const waiting = planScope({ runId, keyword1: scope.keyword1, category: scope.category, keyword2: scope.keyword2 });
-        answered = answerKeyword2(waiting, input.keyword2, evidence);
+        if (input.metricV3Preset !== undefined) {
+          const preset = validateMetricV3CaptureSpec(input.metricV3Preset);
+          if (preset.preset.keywords[1] !== input.keyword2 ||
+              (preset.preset.category.id !== metricV3Category.id || preset.preset.category.label !== metricV3Category.label ||
+               preset.preset.category.children.some(child => !metricV3Category.children.some(known => known.id === child.id && known.label === child.label))))
+            throw new ResearchAutomationValidationError('Preset category or keyword is invalid.');
+          answered = { ...waiting, metricV3Preset: preset,
+            keyword2: { ...waiting.keyword2, owner: { decision: input.keyword2 === scope.keyword2.chosen.term ? 'ACCEPTED' : 'EDITED', evidence } },
+            capture2: { keywords: preset.preset.keywords, category: preset.preset.category.label, outcome: 'PENDING' } };
+        } else answered = answerKeyword2(waiting, input.keyword2, evidence);
       } catch (error) {
         if (error instanceof RangeError) throw new ResearchAutomationValidationError('Keyword 2 must be a different search term.');
         throw error;
       }
+      // Retain the exact owner request under the digest already bound by the retry ledger.
+      const confirmationArtifact = input.metricV3Preset
+        ? await this.#artifacts.put(Buffer.from(canonicalJson(confirmation))) : undefined;
       await this.#writeAutorunScope(runId, answered);
       const at = this.#now().toISOString();
       this.#db.transaction(() => {
+        if (confirmationArtifact) this.#registerManifest(confirmationArtifact, 'application/json', at);
         // Remove with no dominant category leaves nothing new to search: the first capture is the final one.
         const change = answered.capture2
           ? this.#db.prepare(`UPDATE research_automation_autorun SET phase='CAPTURE',phase_state='QUEUED',stop_code=NULL,stop_detail=NULL,capture_ready=0,updated_at=? WHERE run_id=? AND phase='STOPPED' AND stop_code=?`).run(at, runId, AUTORUN_KEYWORD2_WAIT)
@@ -5546,7 +5561,8 @@ export class ResearchAutomationService {
     try { value = JSON.parse(await readFile(joinPath(this.#autoRun!.runner.captureRoot, runId, AUTORUN_SCOPE_FILE), 'utf8')); }
     catch { return null; }
     const record = value as AutorunScopeRecord;
-    if (!value || typeof value !== 'object' || record.contractVersion !== AUTORUN_SCOPE_RECORD_VERSION || record.runId !== runId || typeof record.keyword1 !== 'string')
+    if (!value || typeof value !== 'object' || ![AUTORUN_SCOPE_RECORD_VERSION, 'autorun-scope-record-v1'].includes(record.contractVersion) ||
+        (record.contractVersion === 'autorun-scope-record-v1' && Object.hasOwn(record, 'metricV3Preset')) || record.runId !== runId || typeof record.keyword1 !== 'string')
       throw new ResearchAutomationIntegrityError('Auto-run scope record does not match its run.');
     return record;
   }
@@ -5663,7 +5679,7 @@ export class ResearchAutomationService {
     let principal = 0;
     let start: StartSnapshot | undefined;
     if (before.status === 'AWAITING_SCOPE') {
-      start = await this.#readStartSnapshot(before.startSha, before.workspaceId);
+      start = await this.#v3EffectiveStart(before);
       principal = (await this.#principalCards(before.workspaceId, runId)).length;
     }
     const { claimed, progressed } = await this.#autorunClaim(runId, 'CAPTURE', run => {
@@ -5678,11 +5694,16 @@ export class ResearchAutomationService {
     });
     if (!claimed) return progressed;
     let scope: AutorunScopeRecord | null;
-    try { scope = await this.#autorunScope(runId); }
+    try {
+      scope = await this.#autorunScope(runId);
+    }
     catch { await this.#autorunStopRunning(runId, 'CAPTURE', 'CAPTURE_IO_FAILED'); return true; }
     // Keep the planned second capture on retry, including when its scope file settled before the
     // database phase write-back failed. Only an unanswered suggestion still belongs to capture 1.
-    this.#launchCapture(runId, start!, { startDate: start!.requestedPeriod.startDate, endDate: start!.requestedPeriod.endDate },
+    // The wait-point confirmation authorizes both keywords and windows. Use that
+    // effective scope for runner admission while preserving the saved start snapshot.
+    const capturePeriod = start!.metricV3Preset?.windows[1]!.period ?? { startDate: start!.requestedPeriod.startDate, endDate: start!.requestedPeriod.endDate };
+    this.#launchCapture(runId, start!, capturePeriod,
       scope?.capture2 && scope.capture2.outcome !== 'AWAITING_KEYWORD2' ? scope : null);
     return progressed;
   }
@@ -5758,7 +5779,7 @@ export class ResearchAutomationService {
     });
     if (!claimed) return progressed;
     const run = this.#current(runId)!;
-    const start = await this.#readStartSnapshot(run.startSha, run.workspaceId);
+    const start = await this.#v3EffectiveStart(run);
     if (start.metricV3Preset) {
       return this.#autorunV3Report(run, start);
     }
@@ -5799,6 +5820,26 @@ export class ResearchAutomationService {
       this.#db.prepare(`UPDATE research_automation_autorun SET phase='PICK',phase_state='QUEUED',package_id=?,updated_at=? WHERE run_id=? AND phase='PREPARE' AND phase_state='RUNNING'`).run(packageId, at, runId);
     });
     return true;
+  }
+
+  /** Resolve owner-confirmed presets from the durable request ledger, also on read-only API handles. */
+  async #v3EffectiveStart(run: RunRow): Promise<StartSnapshot> {
+    const start = await this.#readStartSnapshot(run.startSha, run.workspaceId);
+    if (start.metricV3Preset || !this.#hasAutorunTable()) return start;
+    const rows = this.#db.prepare(`SELECT r.request_sha256 sha FROM research_automation_autorun_retries r
+      JOIN artifact_manifests a ON a.sha256=r.request_sha256
+      WHERE r.run_id=? AND r.stop_code=? ORDER BY r.retry_number DESC`).all(run.runId, AUTORUN_KEYWORD2_WAIT) as { sha: string }[];
+    for (const row of rows) {
+      const request = await this.#readJson<{ kind: string; workspaceId: string; runId: string; input: unknown }>(row.sha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+      if (request.kind !== 'AUTORUN_KEYWORD2' || request.workspaceId !== run.workspaceId || request.runId !== run.runId)
+        throw new ResearchAutomationIntegrityError('Stored preset confirmation identity differs.');
+      const input = validateAutoRunRetry(request.input);
+      if ('metricV3Preset' in input && input.metricV3Preset) {
+        const preset = validateMetricV3CaptureSpec(input.metricV3Preset);
+        return { ...start, keyword: preset.preset.keywords[0]!, metricV3Preset: preset };
+      }
+    }
+    return start;
   }
 
   /** Preset reports use their own contract; legacy preparation, collectors and checker are untouched. */
@@ -5879,7 +5920,7 @@ export class ResearchAutomationService {
     const output = this.#output(run.runId, 'MARKET');
     if (!output || pdf && !output.pdfSha) throw new ResearchAutomationNotFoundError(pdf ? 'pdf_not_available' : 'report_not_available', 'Report is not available.');
     const semantic = await this.#readJson<Record<string, any>>(output.versionSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
-    const start = await this.#readStartSnapshot(run.startSha, run.workspaceId);
+    const start = await this.#v3EffectiveStart(run);
     if (semantic.contractVersion !== 'research-automation-report-v1' || semantic.rendererVersion !== 'metric-v3-report-v1' || semantic.runId !== run.runId || semantic.workspaceId !== run.workspaceId || semantic.kind !== 'MARKET' || semantic.startSha !== run.startSha ||
         canonicalJson(semantic.spec) !== canonicalJson(start.metricV3Preset) || semantic.htmlSha !== output.htmlSha) throw new ResearchAutomationIntegrityError('Stored v3 report identity differs.');
     const archive = await loadV3Archive(path => this.#readArtifact(semantic.files[path], MAX_JSON_ARTIFACT_BYTES, 'application/json'), semantic.spec);
@@ -6712,11 +6753,12 @@ function stringArray(value: unknown, maxItems: number, maxLength: number): value
 
 function validateStart(value: unknown): ResearchAutomationStartRequest {
   const object = plain(value); keys(object, ['contractVersion', 'requestKey', 'mode', 'keyword', 'description', 'requestedPeriod', 'reports', 'interview', 'metricV3Preset']);
-  if (object.contractVersion !== 'research-automation-start-v1' || typeof object.requestKey !== 'string' || !REQUEST_KEY.test(object.requestKey)) throw new ResearchAutomationValidationError('Invalid start request.');
+  if (!['research-automation-start-v1', 'research-automation-start-v2'].includes(object.contractVersion) || typeof object.requestKey !== 'string' || !REQUEST_KEY.test(object.requestKey)) throw new ResearchAutomationValidationError('Invalid start request.');
   if (object.mode !== 'PRODUCT' && object.mode !== 'CATEGORY') throw new ResearchAutomationValidationError('Invalid research mode.');
   const keyword = text(object.keyword, 120); const period = validatePeriod(object.requestedPeriod); const reports = validateReports(object.reports);
-  const output: ResearchAutomationStartRequest = { contractVersion: 'research-automation-start-v1', requestKey: object.requestKey, mode: object.mode, keyword, requestedPeriod: period, reports };
+  const output: ResearchAutomationStartRequest = { contractVersion: object.contractVersion, requestKey: object.requestKey, mode: object.mode, keyword, requestedPeriod: period, reports };
   if (object.metricV3Preset !== undefined) {
+    if (object.contractVersion === 'research-automation-start-v1') throw new ResearchAutomationValidationError('Capture preset requires contract v2.');
     try {
       const preset = validateMetricV3CaptureSpec(object.metricV3Preset);
       if (preset.preset.keywords[0] !== keyword || preset.windows.some(({ period: window }) => window.startDate < period.startDate || window.endDate > period.endDate))
@@ -6755,11 +6797,17 @@ function validateCancel(value: unknown): ResearchAutomationCancelRequest { const
 function validatePeriod(value: unknown): { startDate: string; endDate: string } { const object = plain(value); keys(object, ['startDate', 'endDate']); if (typeof object.startDate !== 'string' || typeof object.endDate !== 'string' || !DATE.test(object.startDate) || !DATE.test(object.endDate) || !validDate(object.startDate) || !validDate(object.endDate)) throw new ResearchAutomationValidationError('Research period must use valid calendar dates.'); const days = inclusiveDays(object as { startDate: string; endDate: string }); if (days < 1 || days > 1096 || object.endDate > todayVN()) throw new ResearchAutomationValidationError('Research period is out of bounds.'); return { startDate: object.startDate, endDate: object.endDate }; }
 function validateAutoRunRetry(value: unknown): ResearchAutomationAutoRunRetryRequest | ResearchAutomationAutoRunKeywordRequest {
   const object = plain(value);
-  if (object.contractVersion === 'research-automation-autorun-keyword-v1') {
-    keys(object, ['contractVersion', 'requestKey', 'keyword2']);
+  if (object.contractVersion === 'research-automation-autorun-keyword-v1' || object.contractVersion === 'research-automation-autorun-keyword-v2') {
+    keys(object, ['contractVersion', 'requestKey', 'keyword2', 'metricV3Preset']);
     if (typeof object.requestKey !== 'string' || !REQUEST_KEY.test(object.requestKey) || !Object.hasOwn(object, 'keyword2'))
       throw new ResearchAutomationValidationError('Keyword answer is invalid.');
-    return { contractVersion: object.contractVersion, requestKey: object.requestKey, keyword2: object.keyword2 === null ? null : text(object.keyword2, 80) };
+    let metricV3Preset;
+    if (object.metricV3Preset !== undefined) {
+      if (object.contractVersion === 'research-automation-autorun-keyword-v1') throw new ResearchAutomationValidationError('Capture preset requires contract v2.');
+      try { metricV3Preset = validateMetricV3CaptureSpec(object.metricV3Preset); }
+      catch { throw new ResearchAutomationValidationError('Invalid capture preset.'); }
+    }
+    return { ...(metricV3Preset ? { metricV3Preset } : {}), contractVersion: object.contractVersion, requestKey: object.requestKey, keyword2: object.keyword2 === null ? null : text(object.keyword2, 80) };
   }
   keys(object, ['contractVersion', 'requestKey']);
   if (object.contractVersion !== 'research-automation-autorun-retry-v1' || typeof object.requestKey !== 'string' || !REQUEST_KEY.test(object.requestKey))

@@ -204,7 +204,7 @@ test('explicit preset is frozen on start and forwarded to CAPTURE after restart 
   spec.windows[1].period = { startDate: '2025-01-31', endDate: '2026-01-30' };
   const expected = structuredClone(spec);
   const receipt = await f.service.start(workspaceId, {
-    contractVersion: 'research-automation-start-v1', requestKey: '99999999-9999-4999-8999-999999999999',
+    contractVersion: 'research-automation-start-v2', requestKey: '99999999-9999-4999-8999-999999999999',
     mode: 'CATEGORY', keyword, reports: ['MARKET'], requestedPeriod: spec.windows[1].period, metricV3Preset: spec,
   });
   spec.preset.keywords[1] = 'changed after start';

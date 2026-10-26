@@ -31,6 +31,53 @@ async function mount(t: test.TestContext, run: ResearchAutomationRun, handler: t
 }
 const retryButton = (container: HTMLElement) => [...container.querySelectorAll('button')].find(button => button.textContent === AUTORUN_RETRY_LABEL);
 
+test('V3S1 contract rows: prefill, editable scope transport, and invalid scope blocks confirmation', async t => {
+  const calls: any[] = [];
+  const waiting = runWith({ phase: 'STOPPED', state: 'QUEUED', stopCode: 'KEYWORD2_AWAITING', canRetry: false,
+    keyword2Suggestion: { keyword1: 'canxi viên', term: 'calcium', titles: 5, titleCount: 8, brands: 3, categoryId: 'c2140822537' } });
+  const { dom } = await mount(t, waiting, async (_url, init) => {
+    calls.push(JSON.parse(String(init?.body)));
+    return json({ error: { code: 'invalid_state', message: 'Conflict' } }, 409);
+  });
+  const field = (name: string) => dom.container.querySelector<HTMLInputElement>(`input[aria-label="${name}"]`)!;
+  const confirm = () => [...dom.container.querySelectorAll('button')].find(button => button.textContent === 'Xác nhận')!;
+  const change = async (input: HTMLInputElement, value: string) => act(async () => {
+    Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!.call(input, value);
+    input.dispatchEvent(new window.Event('input', { bubbles: true }));
+  });
+  assert.equal(field('Từ khóa 1').value, 'canxi viên');
+  assert.equal(field('Từ khóa 2').value, 'calcium');
+  assert.equal(dom.container.querySelectorAll('input[type=checkbox]:checked').length, 4);
+  for (const text of ['AI gợi ý', 'mặc định', 'Shopee, Lazada, Tiki, TikTok Shop', '2026-09-01', '2025-10-01', '2%']) assert.ok(dom.container.textContent!.includes(text), text);
+  assert.equal(calls.length, 0, 'prefill must never submit');
+  for (const provider of ['Metric', 'Kalodata', 'TradeInt', 'Dami']) assert.ok(!dom.container.textContent!.toLowerCase().includes(provider.toLowerCase()), provider);
+  await change(field('Từ khóa 1'), '');
+  assert.equal(confirm().disabled, true);
+  assert.match(dom.container.textContent!, /Điền đủ hai từ khóa/);
+  await change(field('Từ khóa 1'), 'canxi dạng viên');
+  const category = dom.container.querySelector<HTMLSelectElement>('select[aria-label="Danh mục"]')!;
+  await act(async () => { category.value = ''; category.dispatchEvent(new window.Event('change', { bubbles: true })); });
+  assert.equal(confirm().disabled, true);
+  assert.match(dom.container.textContent!, /Chọn danh mục hợp lệ/);
+  await act(async () => { category.value = 'c2035652732'; category.dispatchEvent(new window.Event('change', { bubbles: true })); });
+  const checkbox = dom.container.querySelector<HTMLInputElement>('input[type=checkbox]')!;
+  await act(async () => checkbox.click());
+  assert.equal(confirm().disabled, true);
+  await act(async () => checkbox.click());
+  await change(field('Từ khóa 2'), 'calcium citrate');
+  await act(async () => confirm().click());
+  assert.equal(calls.length, 1);
+  const body = calls[0];
+  assert.equal(body.contractVersion, 'research-automation-autorun-keyword-v2');
+  assert.equal(body.keyword2, 'calcium citrate');
+  assert.deepEqual(body.metricV3Preset.preset.keywords, ['canxi dạng viên', 'calcium citrate']);
+  assert.deepEqual(body.metricV3Preset.preset.category.children.map((child: any) => child.id), ['c407923064', 'c1221630203', 'c1110582659', 'c2140822537']);
+  assert.deepEqual(body.metricV3Preset.windows, [
+    { id: '30d', period: { startDate: '2026-09-01', endDate: '2026-09-30' }, intervalDays: 7 },
+    { id: '12m', period: { startDate: '2025-10-01', endDate: '2026-09-30' }, intervalDays: 30 },
+  ]);
+});
+
 test('every phase and stop code has plain text with no provider or tool name and no percentage', () => {
   const texts = [...Object.values(AUTORUN_PHASE_TEXT), ...Object.values(AUTORUN_STOP_TEXT), AUTORUN_FALLBACK_TEXT, AUTORUN_CAPTURE_QUEUED_TEXT, AUTORUN_RETRY_LABEL, autoRunLinksText(3)];
   for (const text of texts) {

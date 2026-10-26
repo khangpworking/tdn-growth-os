@@ -1,3 +1,4 @@
+import type { MetricV3CaptureSpec } from '../../../../contracts/analysis/metric-v3-capture-spec.generated.js';
 // Search scope of the Market auto-runner's second capture (v3plug P2).
 //
 // The first capture searches keyword 1 in every category. From its stored raw
@@ -14,7 +15,7 @@
 import { MARKET_RAW_PLATFORM_IDS } from './market-raw-series.js';
 import { productTypeMatchesCategory } from './autorun-category-match.js';
 
-export const AUTORUN_SCOPE_RECORD_VERSION = 'autorun-scope-record-v1' as const;
+export const AUTORUN_SCOPE_RECORD_VERSION = 'autorun-scope-record-v2' as const;
 /** A category is dominant when its combined revenue share is at least this. */
 export const AUTORUN_DOMINANT_CATEGORY_SHARE = 0.8;
 /** Keyword-2 evidence is read from this many top-revenue product rows (both platforms). */
@@ -354,7 +355,8 @@ export type AutorunKeyword2Decision = 'ACCEPTED' | 'EDITED' | 'REMOVED';
 
 /** Written after the first capture; the owner's answer, the second capture and the report read it back. */
 export interface AutorunScopeRecord {
-  readonly contractVersion: typeof AUTORUN_SCOPE_RECORD_VERSION;
+  readonly contractVersion: typeof AUTORUN_SCOPE_RECORD_VERSION | 'autorun-scope-record-v1';
+  readonly metricV3Preset?: MetricV3CaptureSpec;
   readonly runId: string;
   readonly keyword1: string;
   readonly category: AutorunCategoryDecision;
