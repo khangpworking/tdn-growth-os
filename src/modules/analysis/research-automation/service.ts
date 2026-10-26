@@ -1,4 +1,7 @@
 import { metricV3Category } from '../../../shared/metric-v3-preset.js';
+import { prepareV3MarketRevision } from './reader-publish.js';
+import { loadV3Archive, renderV3Report, buildV3Body, checkV3NumberTrace, v3Hash, type V3TextModel } from './metric-v3-report.js';
+import type { AutomationPdfRenderer } from './pdf.js';
 import { validateMetricV3CaptureSpec } from './metric-v3-capture-spec.js';
 import publicSourceConfirmSchema from '../../../../contracts/api/research-automation-source-api-v3.schema.json' with { type: 'json' };
 import publicSourceSetSchema from '../../../../contracts/analysis/automation-confirmed-source-set-v2.schema.json' with { type: 'json' };
@@ -389,6 +392,7 @@ export type ResearchAutomationReportRenderer = (
 ) => Promise<ResearchAutomationRenderedReport> | ResearchAutomationRenderedReport;
 
 export interface ResearchAutomationServiceOptions {
+  readonly v3Report?: { readonly model?: V3TextModel; readonly pdf?: AutomationPdfRenderer };
   readonly captureRelevance?: CaptureRelevanceAi;
   /** Explicit P9 collector injection. No automatic activation or model permission. */
   readonly tikTokCommentsCollector?: ApifyTikTokCommentsCollector;
@@ -621,6 +625,7 @@ export class ResearchAutomationService {
   readonly #pdfDiscoverySource: PdfDiscoverySource | undefined;
   readonly #pdfCaptureMaxPages: number;
   readonly #renderer: ResearchAutomationReportRenderer | undefined;
+  readonly #v3Report: ResearchAutomationServiceOptions['v3Report'];
   readonly #kalodataReplay: KalodataReplaySource | undefined;
   readonly #now: () => Date;
   readonly #uuid: () => string;
@@ -679,6 +684,7 @@ export class ResearchAutomationService {
     this.#pdfDiscoverySource = options.pdfDiscoverySource;
     this.#pdfCaptureMaxPages = pdfDiscoveryMaxPages(options.pdfCaptureMaxPages === undefined ? process.env : { [PDF_DISCOVERY_MAX_PAGES_ENV]: String(options.pdfCaptureMaxPages) });
     this.#renderer = options.renderer;
+    this.#v3Report = options.v3Report;
     this.#kalodataReplay = options.kalodataReplay;
     this.#pageIndex = options.pageIndex;
     this.#sourceEvidence = options.sourceEvidence;
@@ -2822,6 +2828,12 @@ export class ResearchAutomationService {
   }
 
   async readReport(workspaceId: string, runId: string, kind: 'MARKET' | 'INSIGHT', pdf = false, pairId?: string): Promise<ResearchAutomationReadReport> {
+    const run = this.#current(runId);
+    if (run && run.workspaceId === workspaceId && (await this.#v3EffectiveStart(run)).metricV3Preset) {
+      await this.getRun(workspaceId, runId);
+      if (kind !== 'MARKET' || pairId && pairId !== this.#originalPair(run)?.pairId) throw new ResearchAutomationNotFoundError('report_not_available', 'Report version not found.');
+      return this.#readV3Report(run, pdf);
+    }
     return (await this.#readVerifiedReport(workspaceId, runId, kind, pdf, pairId)).report;
   }
 
@@ -3568,6 +3580,14 @@ export class ResearchAutomationService {
       const runIds = (this.#db.prepare('SELECT run_id runId FROM analysis_research_automation_runs').all() as Array<{ runId: string }>).map(row => row.runId);
       for (const runId of runIds) if (this.#replayOutOfScope(runId)) await this.#quarantineReplayRun(runId);
     }
+    // A v3 PREPARE can have dispatched AI: never replay an ambiguous paid call after restart.
+    if (this.#hasAutorunTable()) {
+      const preparing = this.#db.prepare(`SELECT run_id runId FROM research_automation_autorun WHERE phase='PREPARE' AND phase_state='RUNNING'`).all() as { runId: string }[];
+      for (const { runId } of preparing) {
+        const run = this.#current(runId)!;
+        if ((await this.#readStartSnapshot(run.startSha, run.workspaceId)).metricV3Preset) await this.#autorunStopRunning(runId, 'PREPARE', 'V3_REPORT_INTERRUPTED');
+      }
+    }
     // Settle cancelled reporting before collection checkpoint recovery can requeue it.
     const cancellingReports = this.#db.prepare(`SELECT r.run_id runId FROM analysis_research_automation_runs r
       JOIN analysis_research_automation_steps s ON s.run_id=r.run_id AND s.step_id='REPORTS'
@@ -3654,11 +3674,27 @@ export class ResearchAutomationService {
     if (externalSignal?.aborted) controller.abort();
     try {
       const source = this.#source;
+      // Register the operation before reading artifacts so worker shutdown can
+      // interrupt both preset routing and legacy provider claims.
+      const start = await this.#readStartSnapshot(row.startSha, row.workspaceId);
+      if (controller.signal.aborted) return false;
+      if (stepId === 'QUICK_SEARCH' && start.metricV3Preset) {
+        await withDatabaseMutationMutex(this.#db, async () => {
+          if (controller.signal.aborted) return;
+          const current = this.#current(row.runId);
+          if (current?.status !== 'QUICK_SEARCH_QUEUED') return;
+          const at = this.#now().toISOString();
+          this.#db.transaction(() => {
+            this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='SKIPPED',finished_at=? WHERE run_id=? AND step_id='QUICK_SEARCH' AND state='QUEUED'`).run(at, row.runId);
+            this.#transition(row.runId, toNumber(current.revision), 'AWAITING_SCOPE', at);
+          })();
+        });
+        return true;
+      }
       if (!source && stepId === 'QUICK_SEARCH') {
         if (!controller.signal.aborted) await this.#settleUnavailable(row, stepId);
         return true;
       }
-      const start = await this.#readStartSnapshot(row.startSha, row.workspaceId);
       // A queued run outside the source run's scope never reaches the providers in replay mode.
       if (this.#kalodataReplay && !kalodataReplayScopeMatches(this.#kalodataReplay, start.keyword, start.requestedPeriod)) {
         if (!controller.signal.aborted) await this.#quarantineReplayRun(row.runId);
@@ -4903,7 +4939,8 @@ export class ResearchAutomationService {
    * repeated request key replays; the second capture then queues as the run's next CAPTURE attempt.
    */
   async #answerAutoRunKeyword2(workspaceId: string, runId: string, input: ResearchAutomationAutoRunKeywordRequest): Promise<ResearchAutomationMutationReceipt> {
-    const requestSha = digest({ kind: 'AUTORUN_KEYWORD2', workspaceId, runId, input });
+    const confirmation = { kind: 'AUTORUN_KEYWORD2', workspaceId, runId, input };
+    const requestSha = digest(confirmation);
     return withDatabaseMutationMutex(this.#db, async () => {
       const prior = this.#hasAutorunTable()
         ? this.#db.prepare(`SELECT run_id runId,request_sha256 sha FROM research_automation_autorun_retries WHERE request_key=?`).get(input.requestKey) as { runId: string; sha: string } | undefined
@@ -4940,9 +4977,13 @@ export class ResearchAutomationService {
         if (error instanceof RangeError) throw new ResearchAutomationValidationError('Keyword 2 must be a different search term.');
         throw error;
       }
+      // Retain the exact owner request under the digest already bound by the retry ledger.
+      const confirmationArtifact = input.metricV3Preset
+        ? await this.#artifacts.put(Buffer.from(canonicalJson(confirmation))) : undefined;
       await this.#writeAutorunScope(runId, answered);
       const at = this.#now().toISOString();
       this.#db.transaction(() => {
+        if (confirmationArtifact) this.#registerManifest(confirmationArtifact, 'application/json', at);
         // Remove with no dominant category leaves nothing new to search: the first capture is the final one.
         const change = answered.capture2
           ? this.#db.prepare(`UPDATE research_automation_autorun SET phase='CAPTURE',phase_state='QUEUED',stop_code=NULL,stop_detail=NULL,capture_ready=0,updated_at=? WHERE run_id=? AND phase='STOPPED' AND stop_code=?`).run(at, runId, AUTORUN_KEYWORD2_WAIT)
@@ -5648,7 +5689,7 @@ export class ResearchAutomationService {
       if (!start || toNumber(run.revision) !== toNumber(before.revision)) return '';
       if (this.#db.prepare(`SELECT 1 FROM research_automation_autorun WHERE phase='CAPTURE' AND phase_state='RUNNING'`).get()) return '';
       // No product to confirm: stop before spending a paid lookup.
-      if (principal === 0) return 'NO_PRINCIPAL_PRODUCTS';
+      if (principal === 0 && !start.metricV3Preset) return 'NO_PRINCIPAL_PRODUCTS';
       return undefined;
     });
     if (!claimed) return progressed;
@@ -5694,7 +5735,7 @@ export class ResearchAutomationService {
         } else if (result.ok && !start.metricV3Preset) scope = await this.#planAutorunScope(runId, start, result.captureDir, controller.signal);
         if (scope) await this.#writeAutorunScope(runId, scope);
       } catch { result = { ok: false, code: controller.signal.aborted ? 'CAPTURE_INTERRUPTED' : 'CAPTURE_IO_FAILED', detail: 'capture failed', executorCalls: 0 }; scope = null; }
-      try { await this.#settleCapture(runId, result, scope, second?.metricV3Preset !== undefined); }
+      try { await this.#settleCapture(runId, result, scope); }
       catch { /* The row stays RUNNING; the next start stops it as CAPTURE_INTERRUPTED. */ }
       finally {
         this.#autoCaptures.delete(runId);
@@ -5704,14 +5745,8 @@ export class ResearchAutomationService {
     })();
   }
 
-  async #settleCapture(runId: string, result: MetricCaptureRunResult, scope: AutorunScopeRecord | null, confirmedPreset = false): Promise<void> {
+  async #settleCapture(runId: string, result: MetricCaptureRunResult, scope: AutorunScopeRecord | null): Promise<void> {
     await this.#autorunSettle(runId, 'CAPTURE', at => {
-      // A confirmed v3 archive stays behind the same preparation boundary as a start-time preset.
-      // The step-2 lane owns admitting it; never feed it to the legacy snapshot preparation.
-      if (result.ok && confirmedPreset) {
-        this.#autorunStop(runId, 'CAPTURE_V3_PREPARE_UNSUPPORTED', at);
-        return;
-      }
       if (result.ok && scope?.capture2?.outcome === 'AWAITING_KEYWORD2') {
         this.#db.prepare(`UPDATE research_automation_autorun SET phase='STOPPED',phase_state='QUEUED',stop_code=?,stop_detail=?,updated_at=? WHERE run_id=? AND phase='CAPTURE' AND phase_state='RUNNING'`)
           .run(AUTORUN_KEYWORD2_WAIT, 'Automatic run waits for the owner to answer keyword 2.', at, runId);
@@ -5747,12 +5782,9 @@ export class ResearchAutomationService {
     });
     if (!claimed) return progressed;
     const run = this.#current(runId)!;
-    const start = await this.#readStartSnapshot(run.startSha, run.workspaceId);
+    const start = await this.#v3EffectiveStart(run);
     if (start.metricV3Preset) {
-      // Step 2 retains the two-window archive. Legacy PREPARE accepts only snapshot.json;
-      // never reinterpret a four-platform archive as the old two-platform snapshot.
-      await this.#autorunStopRunning(runId, 'PREPARE', 'CAPTURE_V3_PREPARE_UNSUPPORTED');
-      return true;
+      return this.#autorunV3Report(run, start);
     }
     let snapshot: Buffer, manifest: Buffer, scope: AutorunScopeRecord | null;
     // Raw responses of every capture this run made, capture 1 first: the report reads the used one; capture 1's stays for the trace.
@@ -5791,6 +5823,116 @@ export class ResearchAutomationService {
       this.#db.prepare(`UPDATE research_automation_autorun SET phase='PICK',phase_state='QUEUED',package_id=?,updated_at=? WHERE run_id=? AND phase='PREPARE' AND phase_state='RUNNING'`).run(packageId, at, runId);
     });
     return true;
+  }
+
+  /** Resolve owner-confirmed presets from the durable request ledger, also on read-only API handles. */
+  async #v3EffectiveStart(run: RunRow): Promise<StartSnapshot> {
+    const start = await this.#readStartSnapshot(run.startSha, run.workspaceId);
+    if (start.metricV3Preset || !this.#hasAutorunTable()) return start;
+    const rows = this.#db.prepare(`SELECT r.request_sha256 sha FROM research_automation_autorun_retries r
+      JOIN artifact_manifests a ON a.sha256=r.request_sha256
+      WHERE r.run_id=? AND r.stop_code=? ORDER BY r.retry_number DESC`).all(run.runId, AUTORUN_KEYWORD2_WAIT) as { sha: string }[];
+    for (const row of rows) {
+      const request = await this.#readJson<{ kind: string; workspaceId: string; runId: string; input: unknown }>(row.sha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+      if (request.kind !== 'AUTORUN_KEYWORD2' || request.workspaceId !== run.workspaceId || request.runId !== run.runId)
+        throw new ResearchAutomationIntegrityError('Stored preset confirmation identity differs.');
+      const input = validateAutoRunRetry(request.input);
+      if ('metricV3Preset' in input && input.metricV3Preset) {
+        const preset = validateMetricV3CaptureSpec(input.metricV3Preset);
+        return { ...start, keyword: preset.preset.keywords[0]!, metricV3Preset: preset };
+      }
+    }
+    return start;
+  }
+
+  /** Preset reports use their own contract; legacy preparation, collectors and checker are untouched. */
+  async #autorunV3Report(run: RunRow, start: StartSnapshot): Promise<boolean> {
+    const runId = run.runId;
+    const controller = new AbortController();
+    this.#active.set(runId, controller);
+    try {
+      if (start.reports.length !== 1 || start.reports[0] !== 'MARKET') throw new Error('V3_REPORT_MARKET_ONLY');
+      if (!this.#v3Report?.model) throw new Error('V3_REPORT_AI_NOT_CONFIGURED');
+      const dir = joinPath(this.#autoRun!.runner.captureRoot, runId, METRIC_CAPTURE_DIRS.first);
+      const files: Record<string, StoredArtifact> = {};
+      const specBytes = await readFile(joinPath(this.#autoRun!.runner.captureRoot, runId, 'spec.json'));
+      const spec = JSON.parse(specBytes.toString('utf8'));
+      if (canonicalJson(spec) !== canonicalJson(start.metricV3Preset)) throw new Error('V3_CAPTURE_SPEC_MISMATCH');
+      const archive = await loadV3Archive(async path => {
+        const bytes = await readFile(joinPath(dir, path));
+        files[path] = await this.#artifacts.put(bytes);
+        return bytes;
+      }, spec);
+      const built = await renderV3Report(archive, this.#v3Report.model, controller.signal);
+      const html = Buffer.from(built.html);
+      if (html.length > MAX_HTML_BYTES) throw new Error('V3_REPORT_TOO_LARGE');
+      const htmlArtifact = await this.#artifacts.put(html);
+      let pdf: StoredArtifact | null = null;
+      let pdfCode: string | null = 'PDF_RENDERER_NOT_CONFIGURED';
+      if (this.#v3Report.pdf) {
+        try {
+          const bytes = await this.#v3Report.pdf.render(html, controller.signal);
+          if (bytes.length > MAX_PDF_BYTES || bytes.subarray(0, 5).toString() !== '%PDF-') throw new Error('V3_PDF_INVALID');
+          pdf = await this.#artifacts.put(bytes); pdfCode = null;
+        }
+        catch { pdfCode = 'PDF_RENDER_FAILED'; }
+      }
+      const semantic = await this.#artifacts.put(Buffer.from(canonicalJson({ contractVersion: 'research-automation-report-v1',
+        rendererVersion: 'metric-v3-report-v1', runId, workspaceId: run.workspaceId, kind: 'MARKET', startSha: run.startSha,
+        spec, files: Object.fromEntries(Object.entries(files).map(([path, file]) => [path, file.sha256])),
+        modelIdentity: this.#v3Report.model.identity ?? 'configured-text-model', opening: built.opening, numberTrace: built.trace, numberTraceGate: built.gate, htmlSha: htmlArtifact.sha256 })));
+      // Retain the verified capture as a real source package for the Market Reader binding.
+      const sourceFiles = await Promise.all(Object.entries(files).map(async ([path, file]) => ({
+        path, bytes: await this.#artifacts.read(file.sha256, { maxBytes: MAX_JSON_ARTIFACT_BYTES }), file,
+      })));
+      const source = await withDatabaseMutationMutex(this.#db, () => new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts }).intakeAutomationAttachment({
+        contractVersion: '1.0.0', packageKey: `automation-v3-capture:${runId}`, version: 1,
+        sourceAcquiredAt: null, sourceLabel: 'Captured market evidence',
+        files: sourceFiles.map(({ path, file }) => ({ path, sha256: file.sha256, byteSize: file.byteSize,
+          mediaType: 'application/json', evidenceFamily: `metric-v3-${runId}`, representationRole: 'primary',
+          independence: 'non_independent', providerProvenance: 'operator_supplied_unverified',
+          provenanceBasis: 'Exact hash-verified capture retained by the research run' })),
+      }, sourceFiles, run.startSha));
+      const publishReader = await prepareV3MarketRevision(this.#db, this.#artifacts, {
+        workspaceId: run.workspaceId, runId, actorId: run.actorId, packageId: source.packageId,
+        semantic, html: htmlArtifact, trace: built.trace, opening: built.opening,
+      });
+      await this.#autorunSettle(runId, 'PREPARE', at => {
+        const current = this.#current(runId)!;
+        if (current.status !== 'AWAITING_SCOPE' || toNumber(current.revision) !== toNumber(run.revision)) throw new ResearchAutomationConflictError('revision_conflict', 'Run changed during report generation.');
+        for (const file of Object.values(files)) this.#registerManifest(file, 'application/json', at);
+        this.#registerManifest(semantic, 'application/json', at);
+        this.#registerManifest(htmlArtifact, 'text/html; charset=utf-8', at);
+        if (pdf) this.#registerManifest(pdf, 'application/pdf', at);
+        this.#db.prepare(`INSERT INTO analysis_research_automation_outputs(run_id,report_kind,version_sha256,html_sha256,pdf_sha256,pdf_unavailable_code,created_at) VALUES (?,'MARKET',?,?,?,?,?)`)
+          .run(runId, semantic.sha256, htmlArtifact.sha256, pdf?.sha256 ?? null, pdfCode, at);
+        this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='SKIPPED',finished_at=? WHERE run_id=? AND step_id='COLLECTION'`).run(at, runId);
+        this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='SUCCEEDED',finished_at=? WHERE run_id=? AND step_id='REPORTS'`).run(at, runId);
+        this.#transition(runId, toNumber(current.revision), 'DRAFT_READY', at);
+        publishReader(at);
+        this.#db.prepare(`UPDATE research_automation_autorun SET phase='DONE',phase_state='QUEUED',updated_at=? WHERE run_id=?`).run(at, runId);
+      });
+    } catch (error) {
+      const code = controller.signal.aborted ? 'V3_REPORT_INTERRUPTED' : error instanceof Error && /^(?:V3_|MARKET_NUMBER_TRACE_BLOCKED|CAPTURE_)/u.test(error.message) ? error.message : 'V3_REPORT_FAILED';
+      await this.#autorunStopRunning(runId, 'PREPARE', code);
+    } finally { if (this.#active.get(runId) === controller) this.#active.delete(runId); }
+    return true;
+  }
+
+  async #readV3Report(run: RunRow, pdf: boolean): Promise<ResearchAutomationReadReport> {
+    const output = this.#output(run.runId, 'MARKET');
+    if (!output || pdf && !output.pdfSha) throw new ResearchAutomationNotFoundError(pdf ? 'pdf_not_available' : 'report_not_available', 'Report is not available.');
+    const semantic = await this.#readJson<Record<string, any>>(output.versionSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+    const start = await this.#v3EffectiveStart(run);
+    if (semantic.contractVersion !== 'research-automation-report-v1' || semantic.rendererVersion !== 'metric-v3-report-v1' || semantic.runId !== run.runId || semantic.workspaceId !== run.workspaceId || semantic.kind !== 'MARKET' || semantic.startSha !== run.startSha ||
+        canonicalJson(semantic.spec) !== canonicalJson(start.metricV3Preset) || semantic.htmlSha !== output.htmlSha) throw new ResearchAutomationIntegrityError('Stored v3 report identity differs.');
+    const archive = await loadV3Archive(path => this.#readArtifact(semantic.files[path], MAX_JSON_ARTIFACT_BYTES, 'application/json'), semantic.spec);
+    const built = buildV3Body(archive, semantic.opening);
+    const gate = checkV3NumberTrace(built, archive);
+    const html = await this.#readArtifact(output.htmlSha, MAX_HTML_BYTES, 'text/html; charset=utf-8');
+    if (!gate.ok || !html.equals(Buffer.from(built.html)) || v3Hash(html) !== semantic.htmlSha || canonicalJson(built.trace) !== canonicalJson(semantic.numberTrace)) throw new ResearchAutomationIntegrityError('Stored v3 report differs from retained evidence.');
+    const bytes = pdf ? await this.#readArtifact(output.pdfSha!, MAX_PDF_BYTES, 'application/pdf') : html;
+    return { kind: 'MARKET', versionId: output.versionSha, bytes, mediaType: pdf ? 'application/pdf' : 'text/html; charset=utf-8' };
   }
 
   async #autorunPick(runId: string): Promise<boolean> {

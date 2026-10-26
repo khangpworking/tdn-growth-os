@@ -94,7 +94,7 @@ test('V3S1 owner preset survives restart, reaches capture unchanged once, reject
   assert.equal(capture.ok, false);
   assert.equal(!capture.ok && capture.code, 'CAPTURE_LOGIN_REQUIRED', 'confirmed scope must reach the fake browser, past keyword and period guards');
   assert.equal(capture.executorCalls, 1);
-  assert.equal(autorun(f.db, runId)?.stopCode, 'CAPTURE_V3_PREPARE_UNSUPPORTED');
+  assert.equal(autorun(f.db, runId)?.stopCode, 'V3_REPORT_AI_NOT_CONFIGURED', 'confirmed presets enter the v3 renderer at PREPARE');
   await assert.rejects(restarted.retryAutoRunCapture(workspaceId, runId, { ...answer, requestKey: randomUUID() }));
   assert.equal(calls.length, 1);
 });
