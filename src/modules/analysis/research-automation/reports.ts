@@ -52,7 +52,7 @@ import { renderLocatedInsightSection } from '../report-located-insight-pages.js'
 import type { LocatedInsightMethods } from '../../../../contracts/analysis/located-insight-methods.generated.js';
 import type { AutomationInsightCodingSnapshot } from '../../../../contracts/analysis/automation-insight-coding-snapshot.generated.js';
 import type { LiteralFamily, LiteralPendingReason } from './literal-review-coding.js';
-import { marketInventorySection } from './market-inventory-report.js';
+import { marketInventorySection, type MarketProductTitleSource } from './market-inventory-report.js';
 import { marketRawScaleSection, marketRawScopeSection, type MarketRawReportInput } from './market-raw-report.js';
 import { MarketNumberTraceCollector, marketNumberTraceActive, traceMarketNumber, withMarketNumberTrace, type MarketTraceInput } from './market-trace-map.js';
 import { resolveMarketRawSource } from './market-raw-series.js';
@@ -187,6 +187,8 @@ export interface AutomationReportInput {
   readonly metricMethodsFailure?: MetricMethodFailureCode;
   /** Canonical source-bound qualitative draft; injected only after backend verification. */
   readonly qualitativeDraft?: AutomationQualitativeDraft;
+  /** Artifact sha256 of the stored card lists (`productCards`), so a printed title points at its stored cell. */
+  readonly productCardSources?: { readonly collection?: string; readonly quickSearch?: string };
 }
 /** Fixed copy per closed code; the generic entry keeps the original wording so existing output is unchanged. */
 const metricFailureCopy: Readonly<Record<MetricMethodFailureCode, { explanation: string; next: string }>> = {
@@ -663,6 +665,21 @@ function productLabels(input: AutomationReportInput): ReadonlyMap<string, string
     if (title && !labels.has(card.productId)) labels.set(card.productId, title);
   }
   return labels;
+}
+
+/** The stored title cell each printed product label may be traced to, in the same precedence as `productLabels`. */
+function productTitleSources(input: AutomationReportInput): ReadonlyMap<string, MarketProductTitleSource> {
+  const sources = new Map<string, MarketProductTitleSource>();
+  const add = (cards: readonly { readonly productId: string; readonly title: string | null }[] | undefined, sha256: string | undefined): void => {
+    if (!sha256) return;
+    cards?.forEach((card, index) => {
+      if (card.title !== null && card.title !== '' && !sources.has(card.productId))
+        sources.set(card.productId, { sha256, locator: `/productCards/${index}/title`, title: card.title });
+    });
+  };
+  add(input.collection?.productCards, input.productCardSources?.collection);
+  add(input.run.productCards, input.productCardSources?.quickSearch);
+  return sources;
 }
 
 /** The descriptive bridge may retain a source-local ID when its detail has no name. */
@@ -1394,6 +1411,7 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
   ]).filter(Boolean);
   const noCaptureRow = `<tr><td colspan="4">Lượt này không có bản thu từ truy vấn nguồn mới.${retainedSources.length ? ` Nguồn đã lưu và gắn với lượt vẫn được dùng ở: ${retainedSources.join('; ')}.` : ''}</td></tr>`;
   const labels = productLabels(input);
+  const titleSources = productTitleSources(input);
   const inventoryReader = marketPresentation ? { platforms: new Map([...(input.collection?.productCards ?? []), ...(input.run.productCards ?? [])]
     .map(card => [card.productId, card.provider === 'kalodata' ? 'tiktok' : card.productId.startsWith('shopee:') ? 'shopee' : ''] as const)),
     scope: input.scope, sampleWindow: marketSamplePeriod(input), captures: input.captures, ...(input.marketRawSeries ? { withoutAveragePrice: true } : {}) } : undefined;
@@ -1751,11 +1769,11 @@ function buildResearchAutomationReportBody(input: AutomationReportInput, kind: '
     if (kind === 'MARKET' && (sectionId === 'M03' || sectionId === 'M04')) {
        // The capture's per-platform tables already print in Phần 3; M04 points there instead of repeating them.
        if (sectionId === 'M04' && marketPresentation && input.metricMethods?.capture) return '<p>Danh sách sản phẩm và số liệu của từng sàn nằm ở Phần 3; phần này không in lại.</p>';
-       if (input.metricMethods) return metricMethodSection(input.metricMethods, sectionId, input.metricClassified, citations, Boolean(marketPresentation), readerPlainText, Boolean(marketPresentation), marketPresentation ? marketUnitRows(input, marketPresentation.input.rows).packProfile : null) + (sectionId === 'M03' && input.marketInventory ? (readerPlainText ? '<h3>Số liệu từng kỳ của các sản phẩm được chọn (đọc riêng, không cộng vào bảng mẫu)</h3>' : '<h3>Bằng chứng riêng của nguồn sàn: không cộng vào số liệu nguồn</h3>') + marketInventorySection(input.marketInventory, sectionId, citations, labels, readerPlainText, inventoryReader) : '');
+       if (input.metricMethods) return metricMethodSection(input.metricMethods, sectionId, input.metricClassified, citations, Boolean(marketPresentation), readerPlainText, Boolean(marketPresentation), marketPresentation ? marketUnitRows(input, marketPresentation.input.rows).packProfile : null) + (sectionId === 'M03' && input.marketInventory ? (readerPlainText ? '<h3>Số liệu từng kỳ của các sản phẩm được chọn (đọc riêng, không cộng vào bảng mẫu)</h3>' : '<h3>Bằng chứng riêng của nguồn sàn: không cộng vào số liệu nguồn</h3>') + marketInventorySection(input.marketInventory, sectionId, citations, labels, readerPlainText, inventoryReader, titleSources) : '');
       if (input.metricMethodsFailure) return `<p class="warning">${escape(metricFailureCopy[input.metricMethodsFailure].next)}</p>` + codeNote(input.metricMethodsFailure);
     }
     if (kind === 'MARKET' && (sectionId === 'M03' || sectionId === 'M08')) {
-      if (input.marketInventory) return marketInventorySection(input.marketInventory, sectionId, citations, labels, readerPlainText, inventoryReader);
+      if (input.marketInventory) return marketInventorySection(input.marketInventory, sectionId, citations, labels, readerPlainText, inventoryReader, titleSources);
       if (input.marketInventoryFailure) return '<p class="warning">Đã thử xử lý inventory nhưng nguồn hoặc phương pháp không vượt qua kiểm tra; không tự gọi lại nguồn.</p>' + codeNote('MARKET_INVENTORY_FAILED');
     }
     if (sourceScope && sectionId === 'M13' && traceAppendix(sectionId)) return marketSourceScopeSection(sourceScope, 'M13', citations, readerPlainText) + descriptiveAppendix(descriptive, input.descriptiveMethodFailure, readerPlainText, readerPlainText);

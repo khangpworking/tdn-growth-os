@@ -5,6 +5,7 @@ import { containsForbiddenProviderName } from '../citation-registry.js';
 import { inclusiveDayCount, parseProviderProductRef } from './provider-common.js';
 import type { CaptureRecord, ScopeSnapshot } from './model.js';
 import { traceMarketNumber, type MarketTraceInput } from './market-trace-map.js';
+import { marketNumberTokens } from './market-number-trace.js';
 import { storedInput } from './market-trace-inputs.js';
 
 type Observation = AutomationMarketMethodSnapshot['temporal']['input']['observations'][number];
@@ -21,7 +22,7 @@ export type MarketInventoryReaderContext = {
   readonly withoutAveragePrice?: boolean;
 };
 
-export function marketInventorySection(snapshot: AutomationMarketMethodSnapshot, section: 'M03' | 'M08', citations: ReportCitations, productLabels?: ReadonlyMap<string, string>, readerPlainText = false, reader?: MarketInventoryReaderContext): string {
+export function marketInventorySection(snapshot: AutomationMarketMethodSnapshot, section: 'M03' | 'M08', citations: ReportCitations, productLabels?: ReadonlyMap<string, string>, readerPlainText = false, reader?: MarketInventoryReaderContext, titleSources?: ReadonlyMap<string, MarketProductTitleSource>): string {
   const trace: Trace = ref => {
     const pointer = readerPointer(ref.fieldPointer, readerPlainText);
     return citations.mark({
@@ -31,7 +32,7 @@ export function marketInventorySection(snapshot: AutomationMarketMethodSnapshot,
     });
   };
   if (readerPlainText) {
-    if (section === 'M03') return readerPeriodSection(snapshot, trace, productLabels, reader);
+    if (section === 'M03') return readerPeriodSection(snapshot, trace, productLabels, reader, titleSources);
     const retained = readerPriceSection(snapshot, trace, productLabels, reader?.withoutAveragePrice === true);
     if (!reader) return retained;
     const raw = snapshot.quotes.input.quotes.map(quote => `<tr><td>${escape(quote.quoteId)}</td><td>${escape(quote.price.value ?? (quote.price.range ? `${quote.price.range.minimum} đến ${quote.price.range.maximum}` : 'Không có giá đọc được'))}</td><td>${trace(quote.source)}</td></tr>`).join('');
@@ -45,8 +46,12 @@ export function marketInventorySection(snapshot: AutomationMarketMethodSnapshot,
   return `<p class="warning">Giá do nguồn trả về chỉ là quan sát. Chưa biết variant, số lượng mỗi pack, khối lượng tịnh/ráo hay điều kiện giá. Không tính giá mỗi đơn vị, biên lợi nhuận hoặc so sánh như cùng loại hàng.</p><div class="table-wrap" role="region" aria-label="Giá quan sát và khoảng giá nguồn" tabindex="0"><table><caption>Giá quan sát và khoảng giá nguồn, chưa chuẩn hóa đơn vị</caption><thead><tr><th>Bản ghi nguồn</th><th>Giá / khoảng giá</th><th>Giới hạn</th><th>Nguồn</th></tr></thead><tbody>${rows || '<tr><td colspan="4">Chưa có báo giá nguồn.</td></tr>'}</tbody></table></div>`;
 }
 
+/** Stored title cell of a product card in the collection or quick-search artifact. */
+export type MarketProductTitleSource = { readonly sha256: string; readonly locator: string; readonly title: string };
+
 /** Product numbering follows the frozen run scope, then any further key in first-seen order. */
-function productNamer(snapshot: AutomationMarketMethodSnapshot, productLabels: ReadonlyMap<string, string> | undefined) {
+function productNamer(snapshot: AutomationMarketMethodSnapshot, productLabels: ReadonlyMap<string, string> | undefined,
+  titleSources?: ReadonlyMap<string, MarketProductTitleSource>, titleBlock?: string) {
   const ordinals = new Map<string, number>();
   for (const member of snapshot.temporal.input.frame?.members ?? []) if (!ordinals.has(member.memberKey)) ordinals.set(member.memberKey, ordinals.size + 1);
   const ordinal = (key: string): number => {
@@ -54,9 +59,18 @@ function productNamer(snapshot: AutomationMarketMethodSnapshot, productLabels: R
     return ordinals.get(key)!;
   };
   for (const observation of snapshot.temporal.input.observations) for (const key of observation.subjectMemberKeys ?? []) ordinal(key);
+  // A number of a product title is traced only when the whole printed title is the stored title cell.
+  const title = (key: string): string => {
+    const label = readerProductLabel(sourceMemberLabel(key, true), productLabels?.get(key), ordinal(key));
+    const source = titleSources?.get(key);
+    if (!titleBlock || source === undefined || source.title !== label) return label;
+    const input = storedInput('stored-source', source.sha256, source.locator, source.title);
+    for (const number of marketNumberTokens(label)) traceMarketNumber(number, `${titleBlock}.title`, 'raw', [input], 'number as written in the stored product title', 'as-stored');
+    return label;
+  };
   return {
     ordinal: (keys: readonly string[]): number => keys.length ? Math.min(...keys.map(ordinal)) : Number.MAX_SAFE_INTEGER,
-    label: (keys: readonly string[]): string => keys.map(key => readerProductLabel(sourceMemberLabel(key, true), productLabels?.get(key), ordinal(key))).join(', '),
+    label: (keys: readonly string[]): string => keys.map(title).join(', '),
     keys: (): readonly string[] => [...ordinals.keys()],
   };
 }
@@ -126,8 +140,8 @@ const capitalized = (value: string): string => value.charAt(0).toUpperCase() + v
 const marks = (refs: readonly { sourceSha256: string; fieldPointer: string }[], trace: Trace): string => [...new Set(refs.map(trace))].join('');
 
 /** M03 reader view: one row per product and query window, one column per measure. */
-function readerPeriodSection(snapshot: AutomationMarketMethodSnapshot, trace: Trace, productLabels: ReadonlyMap<string, string> | undefined, reader?: MarketInventoryReaderContext): string {
-  const names = productNamer(snapshot, productLabels);
+function readerPeriodSection(snapshot: AutomationMarketMethodSnapshot, trace: Trace, productLabels: ReadonlyMap<string, string> | undefined, reader?: MarketInventoryReaderContext, titleSources?: ReadonlyMap<string, MarketProductTitleSource>): string {
+  const names = productNamer(snapshot, productLabels, titleSources, 'M03.inventory');
   const measures: string[] = [];
   const vnd = new Set<string>();
   type Row = { keys: readonly string[]; window: Window; first: number; cells: Map<string, Observation[]>; observations: Observation[]; periods: number };

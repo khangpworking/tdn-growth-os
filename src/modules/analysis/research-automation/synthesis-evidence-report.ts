@@ -2,7 +2,9 @@ import type { AutomationM01EvidenceInventory } from '../../../../contracts/analy
 import type { AutomationI14EvidenceAdmission, UnassignedClaim } from '../../../../contracts/analysis/automation-i14-evidence-admission.generated.js';
 import type { AutomationSourceClaims, Claim } from '../../../../contracts/analysis/automation-source-claims.generated.js';
 import { attributionText, escapeHtml as escape, readerSafe, retainedQuoteHtml, technicalLiteral, type ReportCitations } from './descriptive-report.js';
-import { formatReaderCount, formatReaderValue as formatReaderPlainValue, readerDateBasis as readerPlainDateBasis, readerMeasureName as readerPlainMeasureName, readerMethodName as readerPlainMethodName, readerScopeText as readerPlainScopeText } from './reader-plain-text.js';
+import { formatReaderCount, formatReaderValue as formatReaderPlainValue, readerDateBasis as readerPlainDateBasis, readerMeasureName as readerPlainMeasureName, readerMethodName as readerPlainMethodName, readerScopeText as readerPlainScopeText, readerValueKind } from './reader-plain-text.js';
+import { traceMarketNumber } from './market-trace-map.js';
+import { storedInput } from './market-trace-inputs.js';
 import type { AutomationI14ExecutionOutcome } from './i14-synthesis-execution.js';
 import type { AutomationDecisionCandidates, AutomationDecisionPacket, DecisionCounterevidenceRelation } from '../../../../contracts/analysis/automation-decision-packets.generated.js';
 import type { AutomationDecisionExecutionOutcome } from './decision-synthesis-execution.js';
@@ -23,6 +25,35 @@ const readerDateBasis = (value: string): string => activeReaderPlainText ? reade
 const readerMeasureName = (field: string | null | undefined): string => activeReaderPlainText ? readerPlainMeasureName(field) : field ?? 'Chưa có định nghĩa';
 const readerMethodName = (code: string): string => activeReaderPlainText ? readerPlainMethodName(code) : code;
 const readerScopeText = (value: string | null | undefined, fallback: string): string => activeReaderPlainText ? readerPlainScopeText(value, fallback) : storedText(value, fallback, fallback);
+/** A pointer into the stored normalized observation record a claim row quotes. */
+const storedRow = (source: { readonly sha256: string; readonly locator: string }, field: string, value: string | number): ReturnType<typeof storedInput> =>
+  storedInput('stored-source', source.sha256, `${source.locator}/${field}`, value);
+/** Prints a stored observation value in reader format, recorded against the stored decimal (P5b). */
+function tracedStoredValue(value: string, blockId: string, source: { readonly sha256: string; readonly locator: string }, options: { readonly measure?: string | undefined; readonly unit?: string | null | undefined }, unitText: string): string {
+  const kind = readerValueKind(options), text = formatReaderValue(value, options);
+  if (text === null) return 'Giá trị được giữ trong bản lưu nguồn';
+  // A zero money value prints with its unit («0 VND»); the entry records both stored fields so the printed text replays.
+  if (text === '0' && unitText !== '' && unitText === options.unit)
+    return traceMarketNumber(`${text} ${unitText}`, `${blockId}.evidence.value`, 'raw',
+      [storedRow(source, 'observation/value', value), storedRow(source, 'unit', unitText)], 'stored value and unit, reader money format', 'reader-money-unit');
+  return traceMarketNumber(text, `${blockId}.evidence.value`, 'raw',
+    [storedRow(source, 'observation/value', value)], `stored value, reader ${kind} format`, `reader-${kind}`);
+}
+/** A stored day printed ISO; the entry replays against the stored day at its pointer (P5b). */
+const tracedDay = (day: string, blockId: string, source: { readonly sha256: string; readonly locator: string }, field: string): string =>
+  traceMarketNumber(day, `${blockId}.evidence.period`, 'raw', [storedRow(source, field, day)], 'stored day, printed ISO', 'as-stored');
+/** A product title printed whole: one entry per printed title, only while the text is the stored title (P5b). */
+const tracedTitle = (title: string, blockId: string, source: { readonly sha256: string; readonly locator: string }): string =>
+  traceMarketNumber(title, `${blockId}.evidence.title`, 'raw', [storedRow(source, 'entityLabel', title)], 'stored product title, printed whole', 'as-stored');
+/** «Dòng sản phẩm N»: N is the row's position in its stored record list, plus one (printed twice per claim). */
+function tracedRowLabel(claim: Claim, blockId: string): string {
+  const row = /\/(?:observations|input\/m\d+)\/(\d+)$/.exec(claim.source.locator);
+  if (!row) return 'Dòng dữ liệu trong tệp số liệu bán hàng';
+  const at = Number(row[1]);
+  const number = traceMarketNumber(String(at + 1), blockId, 'computed', [storedInput('stored-source', claim.source.sha256, claim.source.locator, at, 'offset')],
+    'position of the row in its stored record list + 1', 'row-number');
+  return `Dòng sản phẩm ${number} trong tệp số liệu bán hàng`;
+}
 const claimMark = (claimId: string, citations: ReportCitations): string => citations.mark({
   sourceKind: 'UPSTREAM_CLAIM', identity: claimId, locator: null, label: 'Nhận định nguồn đã lưu',
   retrievedAt: null, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE', technical: { claimId },
@@ -71,16 +102,17 @@ export function i14SynthesisSection(outcome: AutomationI14ExecutionOutcome | und
 
 // Presentation only: these inputs are admitted and retained by the service.
 // This renderer never selects evidence, ranks it, or calls a model.
-function sourceDetails(claim: Claim, anchorPrefix = 'claim', citations: ReportCitations = NO_CITATIONS): string {
+function sourceDetails(claim: Claim, anchorPrefix = 'claim', citations: ReportCitations = NO_CITATIONS, traceBlock?: string): string {
   const limitations = [...new Set([...claim.observation.limitations, ...claim.limitations])];
   if (activeReaderPlainText) {
     const row = /\/(?:observations|input\/m\d+)\/(\d+)$/.exec(claim.source.locator);
-    const label = row ? `Dòng sản phẩm ${Number(row[1]) + 1} trong tệp số liệu bán hàng` : 'Dòng dữ liệu trong tệp số liệu bán hàng';
+    // The label prints twice (summary and body), so each printed occurrence records its own entry.
+    const rowLabel = (): string => row ? (traceBlock ? tracedRowLabel(claim, traceBlock) : `Dòng sản phẩm ${Number(row[1]) + 1} trong tệp số liệu bán hàng`) : 'Dòng dữ liệu trong tệp số liệu bán hàng';
     const visibleLimits = limitations.map(readerLimitation).filter((text): text is string => text !== null);
     const quote = claim.source.statement === null ? '' : retainedQuoteHtml(claim.source.statement, 'blockquote');
     const spans = claim.source.spans.length ? `<ul>${claim.source.spans.map(span => `<li>${retainedQuoteHtml(span.quote)}</li>`).join('')}</ul>` : '';
     const limitBlock = visibleLimits.length ? `<details class="evidence-limitations"><summary>Giới hạn của bằng chứng</summary><ul>${visibleLimits.map(text => `<li>${escape(text)}</li>`).join('')}</ul></details>` : '';
-    return `<details class="evidence-trace" id="${escape(anchorPrefix)}-${claim.claimId}"><summary>Xem nguồn · ${label} ${claimMark(claim.claimId, citations)}</summary><p><b>Nguồn:</b> ${label}</p>${quote}${spans}${limitBlock}</details>`;
+    return `<details class="evidence-trace" id="${escape(anchorPrefix)}-${claim.claimId}"><summary>Xem nguồn · ${rowLabel()} ${claimMark(claim.claimId, citations)}</summary><p><b>Nguồn:</b> ${rowLabel()}</p>${quote}${spans}${limitBlock}</details>`;
   }
   return `<details class="evidence-trace" id="${escape(anchorPrefix)}-${claim.claimId}"><summary>Xem nguồn và giới hạn ${claimMark(claim.claimId, citations)}</summary><p><b>Ghi nhận nguồn:</b> ${storedText(claim.source.attribution, 'Chưa có thông tin', 'Ghi nhận nguồn được giữ trong bản lưu')}</p>${claim.source.statement === null ? '' : `${retainedQuoteHtml(claim.source.statement, 'blockquote')}`}${claim.source.spans.length ? `<ul>${claim.source.spans.map(span => `<li>${retainedQuoteHtml(span.quote)} <small>(vị trí ${span.start} đến ${span.end})</small></li>`).join('')}</ul>` : ''}<details class="evidence-metadata"><summary>Tệp nguồn và phương pháp</summary><dl><dt>Tệp nguồn</dt><dd>${technicalLiteral(claim.source.logicalPath)}</dd><dt>Vị trí</dt><dd><code>${technicalLiteral(claim.source.locator)}</code>${claim.source.recordLocator === null ? '' : `<br><code>${technicalLiteral(claim.source.recordLocator)}</code>`}</dd><dt>Phương pháp đã lưu</dt><dd>${escape(claim.method.methodId)} · ${escape(claim.method.methodVersion)}<br><code>${escape(claim.method.outputPointer)}</code></dd><dt>Dấu kiểm tệp nguồn</dt><dd><code>${escape(claim.source.sha256)}</code></dd></dl></details>${limitations.length ? `<details class="evidence-limitations"><summary>Giới hạn của bằng chứng (${limitations.length})</summary><ul>${limitations.map(text => `<li>${readerText(text)}</li>`).join('')}</ul></details>` : ''}</details>`;
 }
@@ -156,14 +188,14 @@ export function decisionPacketSection(packet: AutomationDecisionPacket, claims: 
   const entries = packet.items.map(item => {
     const claim = byId.get(item.claimId);
     if (!claim) throw new Error('Decision display claim missing');
-    const observation = claim.observation;
-    const value = observation.value === null ? '' : `<p>Quan sát gốc: ${escape(readerMeasureName(observation.measure?.literal))} · ${escape(formatReaderValue(observation.value, { measure: observation.measure?.literal, unit: observation.unit }) ?? 'Giá trị được giữ trong bản lưu nguồn')} ${storedText(observation.unit, '', 'Đơn vị được giữ trong bản lưu nguồn')}.</p>`;
+    const observation = claim.observation, unitText = storedText(observation.unit, '', 'Đơn vị được giữ trong bản lưu nguồn');
+    const value = observation.value === null ? '' : `<p>Quan sát gốc: ${escape(readerMeasureName(observation.measure?.literal))} · ${escape(tracedStoredValue(observation.value, packet.sectionId, claim.source, { measure: observation.measure?.literal, unit: observation.unit }, unitText))} ${unitText}.</p>`;
     const support = item.currentAdapterSupport === 'USE_CONTEXT_ANCHOR' ? 'Có bối cảnh sử dụng đủ điều kiện cho bộ xử lý hiện tại; chưa chứng minh cơ hội.'
       : item.currentAdapterSupport === 'OBSERVED_LITERAL' ? 'Có thể dùng quan sát nguyên văn để đề xuất bản nháp; chưa chứng minh xu hướng, nhu cầu hoặc cơ hội.'
       : item.currentAdapterSupport === 'BEHAVIOR_WITH_USE_CONTEXT' ? 'Có hoàn cảnh nằm trong đoạn khai báo hành vi; chưa chứng minh lý do, mục đích hoặc kết quả.'
       : 'Giữ làm bối cảnh; chưa đủ điều kiện riêng để sinh đề xuất bằng bộ xử lý hiện tại.';
     const contextLinks = item.contextClaimRefs?.map(ref => `<a href="#decision-${escape(packet.sectionId)}-${escape(ref)}">Bối cảnh nguồn đi kèm</a>${claimMark(ref, citations)}`).join(' · ') ?? '';
-    return `<article class="evidence-entry"><h4>Bằng chứng từ ${escape(item.sectionId)}</h4>${value}<p>${item.basis === 'DECLARED' ? 'Lời tự thuật được định vị, chưa xác thực độc lập.' : 'Quan sát nguồn, không tự suy thành nhu cầu thị trường.'} ${support}</p>${contextLinks ? `<p>${contextLinks}</p>` : ''}${sourceDetails(claim, `decision-${packet.sectionId}`, citations)}</article>`;
+    return `<article class="evidence-entry"><h4>Bằng chứng từ ${escape(item.sectionId)}</h4>${value}<p>${item.basis === 'DECLARED' ? 'Lời tự thuật được định vị, chưa xác thực độc lập.' : 'Quan sát nguồn, không tự suy thành nhu cầu thị trường.'} ${support}</p>${contextLinks ? `<p>${contextLinks}</p>` : ''}${sourceDetails(claim, `decision-${packet.sectionId}`, citations, packet.sectionId)}</article>`;
   }).join('');
   // R-L14 / owner Q4: M12 names options, so it carries the full proposal label even before any AI proposal exists.
   const m12Label = packet.sectionId === 'M12' ? '<p>Mọi phương án, người phụ trách và thời hạn ở phần này, khi có, là đề xuất, chờ chủ duyệt.</p>' : '';
@@ -225,13 +257,22 @@ export function m01InventorySection(inventory: AutomationM01EvidenceInventory, c
   const intro = '<p>Đây là danh sách bằng chứng đã lưu, chưa xếp hạng và chưa có kết luận chính. Người dùng chưa đặt câu hỏi quyết định cụ thể; hệ thống không tự chọn ưu tiên.</p>';
   const rows = inventory.items.map(item => {
     const claim = claimById(claimIndex, item.claimId);
-    const value = item.value === null ? 'Không có giá trị số' : `${escape(formatReaderValue(item.value, { measure: item.measure?.literal, unit: item.unit }) ?? 'Giá trị được giữ trong bản lưu nguồn')} ${storedText(item.unit, 'Chưa rõ đơn vị', 'Đơn vị được giữ trong bản lưu nguồn')}`;
-    const period = item.period ? `${escape(item.period.start)} đến ${escape(item.period.end)}<br>${readerDateBasis(storedText(item.period.basis, 'Chưa xác lập kỳ đo', 'Căn cứ kỳ được giữ trong bản lưu nguồn'))}` : storedText(item.periodText, 'Chưa xác lập kỳ đo', 'Kỳ đo được giữ trong bản lưu nguồn');
+    const unitText = storedText(item.unit, 'Chưa rõ đơn vị', 'Đơn vị được giữ trong bản lưu nguồn');
+    const value = item.value === null ? 'Không có giá trị số' : `${escape(tracedStoredValue(item.value, 'M01', claim.source, { measure: item.measure?.literal, unit: item.unit }, unitText))} ${unitText}`;
+    const period = item.period ? `${escape(tracedDay(item.period.start, 'M01', claim.source, 'period/start'))} đến ${escape(tracedDay(item.period.end, 'M01', claim.source, 'period/end'))}<br>${readerDateBasis(storedText(item.period.basis, 'Chưa xác lập kỳ đo', 'Căn cứ kỳ được giữ trong bản lưu nguồn'))}` : storedText(item.periodText, 'Chưa xác lập kỳ đo', 'Kỳ đo được giữ trong bản lưu nguồn');
+    const title = item.measure?.entityLabel;
+    const entity = title && readerSafe(title) ? escape(tracedTitle(title, 'M01', claim.source)) : storedText(title ?? item.source.attribution, 'Chưa có nhãn nguồn', 'Nhãn nguồn được giữ trong bản lưu');
     const separator = activeReaderPlainText ? ' ' : '';
-    return `<tr><td><span class="evidence-cell-label" aria-hidden="true">Bằng chứng</span>${storedText(item.measure?.entityLabel ?? item.source.attribution, 'Chưa có nhãn nguồn', 'Nhãn nguồn được giữ trong bản lưu')}<br>${storedText(item.measure?.definition, 'Lời khai từ nguồn', 'Định nghĩa đo lường được giữ trong bản lưu')}<br><small>${escape(readerMethodName(item.sectionId))}</small></td>${separator}<td><span class="evidence-cell-label" aria-hidden="true">Giá trị và trạng thái</span>${value}<br><small>${item.state === 'observed_zero' ? 'Nguồn ghi nhận bằng 0' : item.state === 'DECLARED' ? 'Lời khai, không phải phép đo' : 'Giá trị nguồn'} · ${item.precision === 'non_exact' ? 'Không chính xác tuyệt đối' : item.precision === 'exact' ? 'Giá trị chính xác theo nguồn' : 'Không áp dụng độ chính xác số'}</small></td>${separator}<td><span class="evidence-cell-label" aria-hidden="true">Kỳ đo và phạm vi</span>${period}<br><small>${readerScopeText(item.scope.description, 'Phạm vi nguồn được giữ trong bản lưu')}</small></td>${separator}<td>${sourceDetails(claim, 'claim', citations)}</td></tr>`;
+    return `<tr><td><span class="evidence-cell-label" aria-hidden="true">Bằng chứng</span>${entity}<br>${storedText(item.measure?.definition, 'Lời khai từ nguồn', 'Định nghĩa đo lường được giữ trong bản lưu')}<br><small>${escape(readerMethodName(item.sectionId))}</small></td>${separator}<td><span class="evidence-cell-label" aria-hidden="true">Giá trị và trạng thái</span>${value}<br><small>${item.state === 'observed_zero' ? 'Nguồn ghi nhận bằng 0' : item.state === 'DECLARED' ? 'Lời khai, không phải phép đo' : 'Giá trị nguồn'} · ${item.precision === 'non_exact' ? 'Không chính xác tuyệt đối' : item.precision === 'exact' ? 'Giá trị chính xác theo nguồn' : 'Không áp dụng độ chính xác số'}</small></td>${separator}<td><span class="evidence-cell-label" aria-hidden="true">Kỳ đo và phạm vi</span>${period}<br><small>${readerScopeText(item.scope.description, 'Phạm vi nguồn được giữ trong bản lưu')}</small></td>${separator}<td>${sourceDetails(claim, 'claim', citations, 'M01')}</td></tr>`;
   }).join('');
+  // The caption counts the inventory items; each one points at its own claim id in the stored claims artifact.
+  const claimOrdinal = new Map(claims.claims.map((claim, index) => [claim.claimId, index]));
   const itemCount = activeReaderPlainText ? formatReaderCount(inventory.items.length) ?? 'chưa rõ' : String(inventory.items.length);
-  return intro + (rows ? `<div class="table-wrap" role="region" aria-label="Danh sách bằng chứng chưa xếp hạng" tabindex="0"><table class="evidence-table"><caption>${itemCount} mục bằng chứng, không phải số khách hàng hoặc tổng thị trường</caption><thead><tr><th scope="col">Bằng chứng</th><th scope="col">Giá trị và trạng thái</th><th scope="col">Kỳ đo và phạm vi</th><th scope="col">Truy nguồn</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="warning">Chưa có bằng chứng đầu nguồn đủ điều kiện cho M01. Không thể viết kết luận từ khoảng trống này.</p>') + methodLimits(inventory.limitations);
+  const tracedItemCount = rows
+    ? traceMarketNumber(itemCount, 'M01.items', 'computed', inventory.items.map(item =>
+      storedInput('stored-source', inventory.sourceClaims.claimsSha256, `/claims/${claimOrdinal.get(item.claimId)!}/claimId`, item.claimId)), 'count(inventory items)', 'count')
+    : itemCount;
+  return intro + (rows ? `<div class="table-wrap" role="region" aria-label="Danh sách bằng chứng chưa xếp hạng" tabindex="0"><table class="evidence-table"><caption>${tracedItemCount} mục bằng chứng, không phải số khách hàng hoặc tổng thị trường</caption><thead><tr><th scope="col">Bằng chứng</th><th scope="col">Giá trị và trạng thái</th><th scope="col">Kỳ đo và phạm vi</th><th scope="col">Truy nguồn</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="warning">Chưa có bằng chứng đầu nguồn đủ điều kiện cho M01. Không thể viết kết luận từ khoảng trống này.</p>') + methodLimits(inventory.limitations);
 }
 
 const unassignedCopy: Readonly<Record<UnassignedClaim['reason'], string>> = {

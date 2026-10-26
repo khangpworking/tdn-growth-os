@@ -57,7 +57,7 @@ export type MarketTraceInput = MarketRawTraceInput | MarketStoredTraceInput;
 export type MarketTraceFormulaId =
   | 'as-stored' | 'money' | 'count-scaled' | 'sum-money' | 'sum-count' | 'change-percent' | 'share-percent' | 'share-percent-1'
   | 'count' | 'date-range' | 'previous-range' | 'period-length' | 'month-year' | 'vi-date' | 'quarter' | 'year'
-  | 'vi-number' | 'millions-vnd' | 'date-plus-days' | 'vn-day' | 'day-count' | 'chart-label' | 'axis-tick' | 'sum-number' | 'search-week' | 'search-day' | 'vi-date-range' | 'reader-money' | 'reader-count' | 'reader-decimal'
+  | 'vi-number' | 'millions-vnd' | 'date-plus-days' | 'vn-day' | 'day-count' | 'chart-label' | 'axis-tick' | 'sum-number' | 'search-week' | 'search-day' | 'vi-date-range' | 'reader-money' | 'reader-count' | 'reader-decimal' | 'reader-money-unit'
   | 'exhibit-number' | 'row-number' | 'stored-percent';
 
 export interface MarketNumberTraceEntry {
