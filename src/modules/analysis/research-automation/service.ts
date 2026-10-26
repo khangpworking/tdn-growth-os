@@ -3658,21 +3658,7 @@ export class ResearchAutomationService {
     while (this.#autoCaptures.size > 0) await Promise.allSettled([...this.#autoCaptures.values()].map(capture => capture.promise));
   }
 
-  async #executeQuick(row: RunRow, externalSignal?: AbortSignal): Promise<boolean> {
-    const start = await this.#readStartSnapshot(row.startSha, row.workspaceId);
-    if (start.metricV3Preset) {
-      await withDatabaseMutationMutex(this.#db, async () => {
-        if (externalSignal?.aborted) return;
-        const current = this.#current(row.runId);
-        if (current?.status !== 'QUICK_SEARCH_QUEUED') return;
-        const at = this.#now().toISOString();
-        this.#db.transaction(() => {
-          this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='SKIPPED',finished_at=? WHERE run_id=? AND step_id='QUICK_SEARCH' AND state='QUEUED'`).run(at, row.runId);
-          this.#transition(row.runId, toNumber(current.revision), 'AWAITING_SCOPE', at);
-        })();
-      });
-      return true;
-    }
+  #executeQuick(row: RunRow, externalSignal?: AbortSignal): Promise<boolean> {
     return this.#executeSource(row, 'QUICK_SEARCH', externalSignal);
   }
   #executeCollection(row: RunRow, externalSignal?: AbortSignal): Promise<boolean> {
@@ -3687,11 +3673,27 @@ export class ResearchAutomationService {
     if (externalSignal?.aborted) controller.abort();
     try {
       const source = this.#source;
+      // Register the operation before reading artifacts so worker shutdown can
+      // interrupt both preset routing and legacy provider claims.
+      const start = await this.#readStartSnapshot(row.startSha, row.workspaceId);
+      if (controller.signal.aborted) return false;
+      if (stepId === 'QUICK_SEARCH' && start.metricV3Preset) {
+        await withDatabaseMutationMutex(this.#db, async () => {
+          if (controller.signal.aborted) return;
+          const current = this.#current(row.runId);
+          if (current?.status !== 'QUICK_SEARCH_QUEUED') return;
+          const at = this.#now().toISOString();
+          this.#db.transaction(() => {
+            this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='SKIPPED',finished_at=? WHERE run_id=? AND step_id='QUICK_SEARCH' AND state='QUEUED'`).run(at, row.runId);
+            this.#transition(row.runId, toNumber(current.revision), 'AWAITING_SCOPE', at);
+          })();
+        });
+        return true;
+      }
       if (!source && stepId === 'QUICK_SEARCH') {
         if (!controller.signal.aborted) await this.#settleUnavailable(row, stepId);
         return true;
       }
-      const start = await this.#readStartSnapshot(row.startSha, row.workspaceId);
       // A queued run outside the source run's scope never reaches the providers in replay mode.
       if (this.#kalodataReplay && !kalodataReplayScopeMatches(this.#kalodataReplay, start.keyword, start.requestedPeriod)) {
         if (!controller.signal.aborted) await this.#quarantineReplayRun(row.runId);
