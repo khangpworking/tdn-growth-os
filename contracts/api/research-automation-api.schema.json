@@ -70,7 +70,7 @@
       "type": "object", "additionalProperties": false,
       "required": ["contractVersion", "requestKey", "mode", "keyword", "requestedPeriod", "reports"],
       "properties": {
-        "contractVersion": { "const": "research-automation-start-v1" },
+        "contractVersion": { "enum": ["research-automation-start-v1", "research-automation-start-v2"] },
         "requestKey": { "$ref": "#/$defs/requestKey" },
         "mode": { "$ref": "#/$defs/mode" },
         "keyword": { "$ref": "#/$defs/text120" },
@@ -79,7 +79,9 @@
         "reports": { "$ref": "#/$defs/reports" },
         "interview": { "$ref": "#/$defs/interview" },
         "metricV3Preset": { "type": "object", "description": "Explicit capture spec, validated by the canonical metric-v3-capture-spec-v1 schema in the start service." }
-      }
+      },
+      "if": { "properties": { "contractVersion": { "const": "research-automation-start-v1" } } },
+      "then": { "properties": { "metricV3Preset": false } }
     },
     "confirmRequest": {
       "title": "ResearchAutomationConfirmRequest",
@@ -127,11 +129,13 @@
       "type": "object", "additionalProperties": false,
       "required": ["contractVersion", "requestKey", "keyword2"],
       "properties": {
-        "contractVersion": { "const": "research-automation-autorun-keyword-v1" },
+        "contractVersion": { "enum": ["research-automation-autorun-keyword-v1", "research-automation-autorun-keyword-v2"] },
         "requestKey": { "$ref": "#/$defs/requestKey" },
         "keyword2": { "oneOf": [{ "$ref": "#/$defs/term" }, { "type": "null" }] },
         "metricV3Preset": { "type": "object", "description": "Owner-confirmed complete preset, validated by the canonical capture spec service." }
-      }
+      },
+      "if": { "properties": { "contractVersion": { "const": "research-automation-autorun-keyword-v1" } } },
+      "then": { "properties": { "metricV3Preset": false } }
     },
     "autoRun": {
       "title": "ResearchAutomationAutoRun",
@@ -145,7 +149,7 @@
         "linksFound": { "type": "integer", "minimum": 0, "maximum": 5 },
         "canRetry": { "type": "boolean" },
         "keyword2Suggestion": {
-          "description": "research-automation-run-v2 only. Present while the auto-run waits for the owner's answer on keyword 2: the suggested term and its evidence in the first capture's top-revenue titles.",
+          "description": "research-automation-run-v2 and later; categoryId requires v3. Present while the auto-run waits for the owner's answer on keyword 2: the suggested term and its evidence in the first capture's top-revenue titles.",
           "type": "object", "additionalProperties": false,
           "required": ["keyword1", "term", "titles", "titleCount", "brands"],
           "properties": {
@@ -371,7 +375,7 @@
         "requestedPeriod", "reports", "definition", "productCards", "coverage", "usage", "steps", "blockers", "createdAt", "updatedAt"
       ],
       "properties": {
-        "contractVersion": { "enum": ["research-automation-run-v1", "research-automation-run-v2"] },
+        "contractVersion": { "enum": ["research-automation-run-v1", "research-automation-run-v2", "research-automation-run-v3"] },
         "runId": { "$ref": "#/$defs/uuid" },
         "workspaceId": { "$ref": "#/$defs/uuid" },
         "revision": { "type": "integer", "minimum": 1 },
@@ -402,7 +406,11 @@
         "updatedAt": { "$ref": "#/$defs/timestamp" }
       },
       "if": { "properties": { "contractVersion": { "const": "research-automation-run-v1" } } },
-      "then": { "properties": { "autoRun": { "type": "object", "properties": { "keyword2Suggestion": false } } } }
+      "then": { "properties": { "autoRun": { "type": "object", "properties": { "keyword2Suggestion": false } } } },
+      "else": {
+        "if": { "properties": { "contractVersion": { "const": "research-automation-run-v2" } } },
+        "then": { "properties": { "autoRun": { "type": "object", "properties": { "keyword2Suggestion": { "type": "object", "properties": { "categoryId": false } } } } } }
+      }
     },
     "runSummary": {
       "title": "ResearchAutomationRunSummary",

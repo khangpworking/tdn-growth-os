@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { Ajv2020 } from 'ajv/dist/2020.js';
+import apiSchema from '../../contracts/api/research-automation-api.schema.json' with { type: 'json' };
 import { randomUUID } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fixture, startRun, workspaceId, autorun, drain } from '../helpers/autorun-harness.js';
 import { metricV3Defaults } from '../../src/shared/metric-v3-preset.js';
@@ -25,9 +27,34 @@ test('V3S1 owner preset survives restart, reaches capture unchanged once, reject
   const scope = planScope({ runId, keyword1: 'canxi viên',
     category: { reason: 'DOMINANT', category: { id: 'c2140822537', label: 'Thực phẩm chức năng' }, top: null, threshold: 0.7, productType: null, interviewMatch: null, shares: null },
     keyword2: { chosen: { term: 'calcium', source: 'TITLE', titles: 5, titleShare: 0.5, brands: 3, revenue: 100, kept: true }, candidates: [], titleCount: 10, modelVariants: 'NOT_CONFIGURED' } });
-  await writeFile(join(dir, 'scope.json'), JSON.stringify(scope));
+  // Legacy scopes remain readable; the new field must not masquerade as v1.
+  const legacyScope = { ...scope, contractVersion: 'autorun-scope-record-v1' };
+  await writeFile(join(dir, 'scope.json'), JSON.stringify(legacyScope));
+  const legacyView = await f.make().getRun(workspaceId, runId);
+  assert.equal(legacyView.autoRun?.keyword2Suggestion?.term, 'calcium');
   // Keyword 2 may equal the original keyword 1 after the owner changes keyword 1.
   const preset = metricV3Defaults('canxi dạng viên', 'canxi viên', '2026-01-30');
+  const ajv = new Ajv2020({ strict: false });
+  ajv.addSchema(apiSchema);
+  const accepts = (definition: string, value: unknown) => ajv.compile({ $ref: `${apiSchema.$id}#/$defs/${definition}` })(value);
+  const start = { contractVersion: 'research-automation-start-v1', requestKey: randomUUID(), mode: 'CATEGORY', keyword: 'canxi dạng viên',
+    requestedPeriod: preset.windows[1]!.period, reports: ['MARKET'] };
+  for (const [definition, oldPayload, newField, newVersion] of [
+    ['startRequest', start, { metricV3Preset: preset }, 'research-automation-start-v2'],
+    ['autoRunKeywordRequest', { contractVersion: 'research-automation-autorun-keyword-v1', requestKey: randomUUID(), keyword2: 'canxi viên' }, { metricV3Preset: preset }, 'research-automation-autorun-keyword-v2'],
+    ['run', { ...legacyView, contractVersion: 'research-automation-run-v2', autoRun: { ...legacyView.autoRun, keyword2Suggestion: { keyword1: 'canxi viên', term: 'calcium', titles: 5, titleCount: 10, brands: 3 } } },
+      { autoRun: legacyView.autoRun }, 'research-automation-run-v3'],
+  ] as const) {
+    assert.equal(accepts(definition, oldPayload), true, `${definition}: legacy payload accepted`);
+    assert.equal(accepts(definition, { ...oldPayload, ...newField }), false, `${definition}: new field rejected under old version`);
+    assert.equal(accepts(definition, { ...oldPayload, ...newField, contractVersion: newVersion }), true, `${definition}: new version accepted`);
+  }
+  assert.equal(accepts('run', { ...legacyView, contractVersion: 'research-automation-run-v1', autoRun: { phase: 'STOPPED', state: 'QUEUED', canRetry: false } }), true, 'v1 run remains readable');
+  await assert.rejects(f.service.start(workspaceId, { ...start, metricV3Preset: preset }), /requires contract v2/);
+  await assert.rejects(f.service.retryAutoRunCapture(workspaceId, runId, { contractVersion: 'research-automation-autorun-keyword-v1', requestKey: randomUUID(), keyword2: 'canxi viên', metricV3Preset: preset }), /requires contract v2/);
+  await writeFile(join(dir, 'scope.json'), JSON.stringify({ ...legacyScope, metricV3Preset: preset }));
+  await assert.rejects(f.make().getRun(workspaceId, runId), /scope record/);
+  await writeFile(join(dir, 'scope.json'), JSON.stringify(legacyScope));
   for (const mutate of [
     (p: any) => { p.preset.keywords[0] = ''; },
     (p: any) => { p.preset.category.id = 'c999'; },
@@ -36,14 +63,17 @@ test('V3S1 owner preset survives restart, reaches capture unchanged once, reject
     (p: any) => { p.preset.keywords[1] = 'different'; },
   ]) {
     const invalid = structuredClone(preset); mutate(invalid);
-    await assert.rejects(f.service.retryAutoRunCapture(workspaceId, runId, { contractVersion: 'research-automation-autorun-keyword-v1', requestKey: randomUUID(), keyword2: 'canxi viên', metricV3Preset: invalid }));
+    await assert.rejects(f.service.retryAutoRunCapture(workspaceId, runId, { contractVersion: 'research-automation-autorun-keyword-v2', requestKey: randomUUID(), keyword2: 'canxi viên', metricV3Preset: invalid }));
     assert.equal(autorun(f.db, runId)?.stopCode, 'KEYWORD2_AWAITING');
     assert.equal(calls.length, 0);
   }
-  const answer = { contractVersion: 'research-automation-autorun-keyword-v1', requestKey: randomUUID(), keyword2: 'canxi viên', metricV3Preset: preset };
+  const answer = { contractVersion: 'research-automation-autorun-keyword-v2', requestKey: randomUUID(), keyword2: 'canxi viên', metricV3Preset: preset };
   const receipt = await f.service.retryAutoRunCapture(workspaceId, runId, answer);
   assert.equal(receipt.exactRetry, false);
   assert.equal(calls.length, 0, 'acceptance queues work without executing it');
+  const savedScope = JSON.parse(await readFile(join(dir, 'scope.json'), 'utf8'));
+  assert.equal(savedScope.contractVersion, 'autorun-scope-record-v2');
+  assert.deepEqual(savedScope.metricV3Preset, preset);
   const restarted = f.make();
   assert.equal((await restarted.retryAutoRunCapture(workspaceId, runId, answer)).exactRetry, true);
   await drain(restarted);

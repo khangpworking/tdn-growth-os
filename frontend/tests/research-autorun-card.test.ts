@@ -68,7 +68,7 @@ test('V3S1 contract rows: prefill, editable scope transport, and invalid scope b
   await act(async () => confirm().click());
   assert.equal(calls.length, 1);
   const body = calls[0];
-  assert.equal(body.contractVersion, 'research-automation-autorun-keyword-v1');
+  assert.equal(body.contractVersion, 'research-automation-autorun-keyword-v2');
   assert.equal(body.keyword2, 'calcium citrate');
   assert.deepEqual(body.metricV3Preset.preset.keywords, ['canxi dạng viên', 'calcium citrate']);
   assert.deepEqual(body.metricV3Preset.preset.category.children.map((child: any) => child.id), ['c407923064', 'c1221630203', 'c1110582659', 'c2140822537']);

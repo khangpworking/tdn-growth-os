@@ -48,7 +48,7 @@ export default function AutoRunCard({ workspaceId, run, ownerToken, writesAvaila
     try {
       await retryAutoRun(workspaceId, run.runId, preset === undefined
         ? { contractVersion: 'research-automation-autorun-retry-v1', requestKey: key }
-        : { contractVersion: 'research-automation-autorun-keyword-v1', requestKey: key, keyword2: preset.preset.keywords[1]!, metricV3Preset: { ...preset } }, ownerToken);
+        : { contractVersion: 'research-automation-autorun-keyword-v2', requestKey: key, keyword2: preset.preset.keywords[1]!, metricV3Preset: { ...preset } }, ownerToken);
       requestKey.current = null;
       onRetried();
     } catch (failure) {

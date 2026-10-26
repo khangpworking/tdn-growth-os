@@ -4833,7 +4833,7 @@ export class ResearchAutomationService {
     const outputs = outputRows.length === 0 ? undefined : Object.fromEntries(outputRows.map((value) => [value.reportKind === 'MARKET' ? 'market' : 'insight', { versionId: value.versionSha, web: true as const, pdf: { available: value.pdfSha !== null, reason: value.pdfSha ? null : message(value.pdfUnavailableCode ?? 'PDF_RENDERER_NOT_CONFIGURED') } }])) as ResearchAutomationRun['outputs'];
     const autoRun = await this.#autoRunProjection(row);
     return {
-      contractVersion: 'research-automation-run-v2', runId: row.runId, workspaceId: row.workspaceId, revision: toNumber(row.revision), status: row.status, country: 'VN', mode: row.mode, keyword: row.keyword,
+      contractVersion: 'research-automation-run-v3', runId: row.runId, workspaceId: row.workspaceId, revision: toNumber(row.revision), status: row.status, country: 'VN', mode: row.mode, keyword: row.keyword,
       description: start.description, interview: start.interview, requestedPeriod: start.requestedPeriod, reports: start.reports as ResearchAutomationRun['reports'],
       definition: scope ? { definition: scope.definition, includeTerms: [...scope.includeTerms], excludeTerms: [...scope.excludeTerms], selectedProductIds: [...scope.selectedProductIds], peerProductIds: [...scope.peerProductIds], confirmedAt: row.scopeConfirmedAt!, ...(scope.exactShopeeUrls !== undefined ? { exactShopeeUrls: [...scope.exactShopeeUrls] } : {}) } : null,
       productCards: [...cards], coverage: { requestedPeriod: start.requestedPeriod, sources: [...coverageSources] }, usage: { entries: usageEntries, requestCount: usageEntries.reduce((total, value) => total + value.requestCount, 0), knownCosts: knownCosts.slice(0, 2), hasUnknownCost: usageEntries.some((value) => value.cost.state === 'UNKNOWN') },
@@ -4872,7 +4872,7 @@ export class ResearchAutomationService {
   async retryAutoRunCapture(workspaceId: string, runId: string, value: unknown): Promise<ResearchAutomationMutationReceipt> {
     const input = validateAutoRunRetry(value);
     assertUuid(workspaceId); assertUuid(runId);
-    if (input.contractVersion === 'research-automation-autorun-keyword-v1') return this.#answerAutoRunKeyword2(workspaceId, runId, input);
+    if (input.contractVersion === 'research-automation-autorun-keyword-v1' || input.contractVersion === 'research-automation-autorun-keyword-v2') return this.#answerAutoRunKeyword2(workspaceId, runId, input);
     const requestSha = digest({ kind: 'AUTORUN_RETRY', workspaceId, runId, input });
     return withDatabaseMutationMutex(this.#db, async () => {
       const prior = this.#hasAutorunTable()
@@ -5520,7 +5520,8 @@ export class ResearchAutomationService {
     try { value = JSON.parse(await readFile(joinPath(this.#autoRun!.runner.captureRoot, runId, AUTORUN_SCOPE_FILE), 'utf8')); }
     catch { return null; }
     const record = value as AutorunScopeRecord;
-    if (!value || typeof value !== 'object' || record.contractVersion !== AUTORUN_SCOPE_RECORD_VERSION || record.runId !== runId || typeof record.keyword1 !== 'string')
+    if (!value || typeof value !== 'object' || ![AUTORUN_SCOPE_RECORD_VERSION, 'autorun-scope-record-v1'].includes(record.contractVersion) ||
+        (record.contractVersion === 'autorun-scope-record-v1' && Object.hasOwn(record, 'metricV3Preset')) || record.runId !== runId || typeof record.keyword1 !== 'string')
       throw new ResearchAutomationIntegrityError('Auto-run scope record does not match its run.');
     return record;
   }
@@ -6613,11 +6614,12 @@ function stringArray(value: unknown, maxItems: number, maxLength: number): value
 
 function validateStart(value: unknown): ResearchAutomationStartRequest {
   const object = plain(value); keys(object, ['contractVersion', 'requestKey', 'mode', 'keyword', 'description', 'requestedPeriod', 'reports', 'interview', 'metricV3Preset']);
-  if (object.contractVersion !== 'research-automation-start-v1' || typeof object.requestKey !== 'string' || !REQUEST_KEY.test(object.requestKey)) throw new ResearchAutomationValidationError('Invalid start request.');
+  if (!['research-automation-start-v1', 'research-automation-start-v2'].includes(object.contractVersion) || typeof object.requestKey !== 'string' || !REQUEST_KEY.test(object.requestKey)) throw new ResearchAutomationValidationError('Invalid start request.');
   if (object.mode !== 'PRODUCT' && object.mode !== 'CATEGORY') throw new ResearchAutomationValidationError('Invalid research mode.');
   const keyword = text(object.keyword, 120); const period = validatePeriod(object.requestedPeriod); const reports = validateReports(object.reports);
-  const output: ResearchAutomationStartRequest = { contractVersion: 'research-automation-start-v1', requestKey: object.requestKey, mode: object.mode, keyword, requestedPeriod: period, reports };
+  const output: ResearchAutomationStartRequest = { contractVersion: object.contractVersion, requestKey: object.requestKey, mode: object.mode, keyword, requestedPeriod: period, reports };
   if (object.metricV3Preset !== undefined) {
+    if (object.contractVersion === 'research-automation-start-v1') throw new ResearchAutomationValidationError('Capture preset requires contract v2.');
     try {
       const preset = validateMetricV3CaptureSpec(object.metricV3Preset);
       if (preset.preset.keywords[0] !== keyword || preset.windows.some(({ period: window }) => window.startDate < period.startDate || window.endDate > period.endDate))
@@ -6656,12 +6658,13 @@ function validateCancel(value: unknown): ResearchAutomationCancelRequest { const
 function validatePeriod(value: unknown): { startDate: string; endDate: string } { const object = plain(value); keys(object, ['startDate', 'endDate']); if (typeof object.startDate !== 'string' || typeof object.endDate !== 'string' || !DATE.test(object.startDate) || !DATE.test(object.endDate) || !validDate(object.startDate) || !validDate(object.endDate)) throw new ResearchAutomationValidationError('Research period must use valid calendar dates.'); const days = inclusiveDays(object as { startDate: string; endDate: string }); if (days < 1 || days > 1096 || object.endDate > todayVN()) throw new ResearchAutomationValidationError('Research period is out of bounds.'); return { startDate: object.startDate, endDate: object.endDate }; }
 function validateAutoRunRetry(value: unknown): ResearchAutomationAutoRunRetryRequest | ResearchAutomationAutoRunKeywordRequest {
   const object = plain(value);
-  if (object.contractVersion === 'research-automation-autorun-keyword-v1') {
+  if (object.contractVersion === 'research-automation-autorun-keyword-v1' || object.contractVersion === 'research-automation-autorun-keyword-v2') {
     keys(object, ['contractVersion', 'requestKey', 'keyword2', 'metricV3Preset']);
     if (typeof object.requestKey !== 'string' || !REQUEST_KEY.test(object.requestKey) || !Object.hasOwn(object, 'keyword2'))
       throw new ResearchAutomationValidationError('Keyword answer is invalid.');
     let metricV3Preset;
     if (object.metricV3Preset !== undefined) {
+      if (object.contractVersion === 'research-automation-autorun-keyword-v1') throw new ResearchAutomationValidationError('Capture preset requires contract v2.');
       try { metricV3Preset = validateMetricV3CaptureSpec(object.metricV3Preset); }
       catch { throw new ResearchAutomationValidationError('Invalid capture preset.'); }
     }
