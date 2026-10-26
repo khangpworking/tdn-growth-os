@@ -51,6 +51,9 @@ const limitationLabels: Readonly<Record<string, string>> = {
   EXACT_SHOPEE_REVIEWS_BLOCKED: 'Không lấy được đánh giá khách hàng Shopee. Báo cáo vẫn được tạo nhưng thiếu phần ý kiến khách hàng.',
   EXACT_SHOPEE_REVIEWS_TIMEOUT: 'Không lấy được đánh giá khách hàng Shopee. Báo cáo vẫn được tạo nhưng thiếu phần ý kiến khách hàng.',
   EXACT_SHOPEE_REVIEWS_PARTIAL: 'Chỉ lấy được đánh giá Shopee cho một phần sản phẩm. Phần ý kiến khách hàng trong báo cáo chưa đủ.',
+  SHOPEE_LOGIN_REQUIRED: 'Bộ thu đánh giá Shopee mất đăng nhập Shopee nên chưa lấy được đánh giá. Vào trang lần chạy, bấm «Đăng nhập Shopee», rồi «Thu lại đánh giá».',
+  SHOPEE_VERIFICATION_REQUIRED: 'Shopee yêu cầu xác minh phiên đăng nhập của bộ thu đánh giá Shopee nên chưa lấy được đánh giá. Vào trang lần chạy, bấm «Đăng nhập Shopee», rồi «Thu lại đánh giá».',
+  SHOPEE_COLLECTOR_DOWN: 'Bộ thu đánh giá Shopee không phản hồi nên chưa lấy được đánh giá. Hệ thống không tự chạy lại; kiểm tra bộ thu rồi mở lại trang lần chạy.',
 };
 
 export function runPhase(status: ResearchAutomationRun['status'] | string): RunPhase { return phaseByStatus[status] ?? 'running'; }
@@ -83,7 +86,7 @@ export function limitationLabel(code: string): string {
 }
 export function providerLabel(provider: string | null): string {
   if (!provider) return '';
-  return ({ KALODATA: 'Kalodata', SERPAPI: 'tìm kiếm web', METRIC: 'Metric', APIFY_SHOPEE: 'Shopee' } as Record<string, string>)[provider.toUpperCase().replaceAll('-', '_')] ?? provider;
+  return ({ KALODATA: 'Kalodata', SERPAPI: 'tìm kiếm web', METRIC: 'Metric', APIFY_SHOPEE: 'Shopee', SHOPEE_PUBLIC_REVIEW: 'bộ thu đánh giá Shopee' } as Record<string, string>)[provider.toUpperCase().replaceAll('-', '_')] ?? provider;
 }
 export function datasetLabel(dataset: string): string {
   return ({
@@ -92,6 +95,7 @@ export function datasetLabel(dataset: string): string {
     WEB_DISCOVERY_CURRENT: 'Kết quả tìm kiếm web hiện tại',
     METRIC_MARKET_EXPORT: 'Bản xuất Metric',
     SHOPEE_PRODUCT_DETAIL: 'Chi tiết sản phẩm Shopee',
+    REVIEWS: 'Đánh giá công khai trên Shopee',
   } as Record<string, string>)[dataset.toUpperCase().replaceAll('-', '_')] ?? dataset;
 }
 export function pdfUnavailableLabel(reason: string | null): string {

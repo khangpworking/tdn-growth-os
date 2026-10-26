@@ -67,6 +67,101 @@ const active = (v: string) => v === 'queued' || v === 'running';
 const blocking = (r: PublicReviewReceipt) => r.stopCode !== null || r.state === 'needs_login' || r.state === 'needs_verification';
 const mutexes = new Map<string, Promise<unknown>>();
 
+export type PublicReviewSessionState = 'READY' | 'AWAITING_USER_LOGIN' | 'LOGIN_REQUIRED' | 'VERIFICATION_REQUIRED' | 'COLLECTOR_BUSY' | 'COLLECTOR_DOWN';
+export interface PublicReviewSessionReceipt { readonly state: PublicReviewSessionState; readonly checkedAt: string | null }
+export interface PublicReviewSessionOptions { token: string; baseUrl?: string; fetch?: typeof fetch; now?: () => Date }
+const SESSION_FRESH_MS = 10 * 60_000, SESSION_READ_MS = 10_000, SESSION_CHECK_MS = 65_000, SESSION_LOGIN_MS = 30_000, SESSION_MAX_BYTES = 64 * 1024;
+const optionalObject = (v: unknown): Record<string, unknown> | null => typeof v === 'object' && v !== null && !Array.isArray(v) ? v as Record<string, unknown> : null;
+
+/**
+ * Reads the collector's own session state. The boot-time `/health` value is never
+ * consulted: it says `ready` before any Shopee page has been opened.
+ */
+export class ShopeePublicReviewSessionClient {
+  readonly #token: string; readonly #base: string; readonly #fetch: typeof fetch; readonly #now: () => Date;
+  constructor(options: PublicReviewSessionOptions) {
+    if (!options.token || options.token.length > 512 || !/^[\x21-\x7e]+$/.test(options.token)) fail();
+    const base = options.baseUrl ?? 'http://127.0.0.1:8877';
+    if (!/^http:\/\/(?:127\.0\.0\.1|\[::1\]):8877\/?$/.test(base)) fail();
+    this.#token = options.token; this.#base = base.replace(/\/$/, '');
+    this.#fetch = options.fetch ?? fetch; this.#now = options.now ?? (() => new Date());
+  }
+  /** GET /session is trusted only for a fresh authenticated ready; otherwise one POST /session/check. */
+  async check(signal?: AbortSignal): Promise<PublicReviewSessionReceipt> {
+    const last = await this.#call('GET', '/session', SESSION_READ_MS, signal);
+    const checkedAt = this.#freshReady(last);
+    if (checkedAt) return { state: 'READY', checkedAt };
+    return this.#checked(await this.#call('POST', '/session/check', SESSION_CHECK_MS, signal));
+  }
+  /** Owner confirmation asks the collector again, even when a cached view looks fresh. */
+  async recheck(signal?: AbortSignal): Promise<PublicReviewSessionReceipt> {
+    return this.#checked(await this.#call('POST', '/session/check', SESSION_CHECK_MS, signal));
+  }
+  /** Owner-only: opens the visible login window; never called by the collector loop. */
+  async login(signal?: AbortSignal): Promise<PublicReviewSessionReceipt> {
+    const result = await this.#call('POST', '/session/login', SESSION_LOGIN_MS, signal);
+    if (!result) return { state: 'COLLECTOR_DOWN', checkedAt: null };
+    const checkedAt = this.#checkedAt(result.value);
+    if (result.status === 409) return { state: 'COLLECTOR_BUSY', checkedAt };
+    if (result.status < 200 || result.status >= 300) return { state: 'COLLECTOR_DOWN', checkedAt };
+    const state = optionalObject(result.value)?.state;
+    if (state === 'ready') return { state: 'READY', checkedAt };
+    if (state === 'needs_verification') return { state: 'VERIFICATION_REQUIRED', checkedAt };
+    if (state === 'needs_login' || state === 'awaiting_user_login') return { state: 'AWAITING_USER_LOGIN', checkedAt };
+    return { state: 'COLLECTOR_DOWN', checkedAt };
+  }
+  /** Owner-only: closes the visible window, reopens the same profile headless and checks it. */
+  async background(signal?: AbortSignal): Promise<PublicReviewSessionReceipt> {
+    return this.#checked(await this.#call('POST', '/session/background', SESSION_CHECK_MS, signal));
+  }
+  #checked(result: { status: number; value: unknown } | null): PublicReviewSessionReceipt {
+    if (!result) return { state: 'COLLECTOR_DOWN', checkedAt: null };
+    const checkedAt = this.#checkedAt(result.value);
+    if (result.status === 409) return { state: 'COLLECTOR_BUSY', checkedAt };
+    if (result.status < 200 || result.status >= 300) return { state: 'COLLECTOR_DOWN', checkedAt };
+    const state = optionalObject(result.value)?.state;
+    if (state === 'ready') return { state: 'READY', checkedAt };
+    if (state === 'needs_login' || state === 'awaiting_user_login') return { state: 'LOGIN_REQUIRED', checkedAt };
+    if (state === 'needs_verification') return { state: 'VERIFICATION_REQUIRED', checkedAt };
+    return { state: 'COLLECTOR_DOWN', checkedAt };
+  }
+  #freshReady(result: { status: number; value: unknown } | null): string | null {
+    if (!result || result.status < 200 || result.status >= 300) return null;
+    const value = optionalObject(result.value);
+    if (value?.state !== 'ready' || value.authenticated !== true || typeof value.checked_at !== 'string') return null;
+    const at = Date.parse(value.checked_at), now = this.#now().getTime();
+    if (!Number.isFinite(at) || at > now + 60_000 || now - at > SESSION_FRESH_MS) return null;
+    return new Date(at).toISOString();
+  }
+  #checkedAt(value: unknown): string | null {
+    const raw = optionalObject(value)?.checked_at;
+    if (typeof raw !== 'string') return null;
+    const at = Date.parse(raw);
+    return Number.isFinite(at) ? new Date(at).toISOString() : null;
+  }
+  async #call(method: 'GET' | 'POST', path: string, timeoutMs: number, signal?: AbortSignal): Promise<{ status: number; value: unknown } | null> {
+    if (signal?.aborted) return null;
+    const controller = new AbortController(), timer = setTimeout(() => controller.abort(), timeoutMs);
+    const abort = () => controller.abort(); signal?.addEventListener('abort', abort, { once: true });
+    try {
+      const response = await this.#fetch(this.#base + path, { method, headers: { Authorization: `Bearer ${this.#token}`, Accept: 'application/json' },
+        redirect: 'error', cache: 'no-store', signal: controller.signal });
+      if (Number(response.headers.get('content-length') ?? '0') > SESSION_MAX_BYTES) { await response.body?.cancel(); return null; }
+      const text = await response.text();
+      if (controller.signal.aborted || text.includes(this.#token) || text.includes(encodeURIComponent(this.#token))) return null;
+      let value: unknown = null;
+      if (text) { try { value = JSON.parse(text); } catch { return null; } }
+      return { status: response.status, value };
+    } catch { return null; }
+    finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
+  }
+}
+
+/** One session check for a caller that does not need the repair commands. */
+export function checkPublicReviewSession(options: PublicReviewSessionOptions, signal?: AbortSignal): Promise<PublicReviewSessionReceipt> {
+  return new ShopeePublicReviewSessionClient(options).check(signal);
+}
+
 /** No source text is rewritten. This conversion never consults the host timezone. */
 export function publicReviewLocalTime(value: string): string | null {
   if (!/^\d{4}-\d\d-\d\d \d\d:\d\d$/.test(value)) return null;
@@ -155,7 +250,7 @@ export class ShopeePublicReviewCollector implements ShopeeCollector<PublicCollec
   readonly mode = 'live' as const;
   readonly maxReviewsPerProduct: number;
   readonly #fetch: typeof fetch; readonly #sleep: NonNullable<ShopeePublicReviewCollectorOptions['sleep']>; readonly #clock: () => Date;
-  readonly #base: string; #requests = 0;
+  readonly #base: string; readonly #session: ShopeePublicReviewSessionClient; #requests = 0;
   constructor(readonly options: ShopeePublicReviewCollectorOptions) {
     if (!options.token || options.token.length > 512 || !/^[\x21-\x7e]+$/.test(options.token)) fail();
     const base = options.baseUrl ?? 'http://127.0.0.1:8877';
@@ -164,6 +259,7 @@ export class ShopeePublicReviewCollector implements ShopeeCollector<PublicCollec
     if (!integer(this.maxReviewsPerProduct, 1, 300) || options.sampleMode === 'TRIAL' && this.maxReviewsPerProduct > 20) fail();
     this.#base = base.replace(/\/$/, ''); this.#fetch = options.fetch ?? fetch;
     this.#sleep = options.sleep ?? ((ms, signal) => delay(ms, undefined, { signal })); this.#clock = options.clock ?? options.now ?? (() => new Date());
+    this.#session = new ShopeePublicReviewSessionClient({ token: options.token, baseUrl: base, fetch: this.#fetch, now: this.#clock });
   }
   requestsIssued = (): number => this.#requests;
   async collect(selected: readonly ShopeeTransportListing[], requestSha256: string, runKey: string, signal?: AbortSignal): Promise<PublicCollectedPages> {
@@ -190,6 +286,16 @@ export class ShopeePublicReviewCollector implements ShopeeCollector<PublicCollec
     }
     await secureDirectory(dir);
     const journals: ShopeePublicJournal[] = []; let acquisitionDeadline: string | null = null, stopped = false, anyNew = false;
+    // At most one session check per collection attempt; later products only see its outcome.
+    let preflight: Promise<PublicReviewSessionReceipt> | undefined;
+    const ensureSession = async (): Promise<void> => {
+      preflight ??= this.#session.check(signal);
+      const session = await preflight;
+      if (session.state === 'READY') return;
+      if (session.state === 'LOGIN_REQUIRED' || session.state === 'AWAITING_USER_LOGIN') fail('HUMAN_LOGIN_REQUIRED');
+      if (session.state === 'VERIFICATION_REQUIRED') fail('HUMAN_VERIFICATION_REQUIRED');
+      fail('HEALTH_NOT_READY');
+    };
     for (const listing of selected) {
       if (normalizePublicReviewUrl(listing.productUrl) !== listing.productUrl || !listing.productUrl.endsWith(`/${listing.shopId}/${listing.itemId}`)) return fail();
       const file = path.join(dir, hash(bytes([listing.shopId, listing.itemId])) + '.json');
@@ -260,8 +366,7 @@ export class ShopeePublicReviewCollector implements ShopeeCollector<PublicCollec
           else {
             if (signal?.aborted || j.cancelIntent) fail('OWNER_ABORTED');
             if (!j.intentAt) {
-              const health = object(await request('health'));
-              if (health.status !== 'ok' || health.browser !== 'ready') fail('HEALTH_NOT_READY');
+              await ensureSession();
               const list = await request('list'); if (!Array.isArray(list) || list.length > 100) return fail();
               // Keep every usable id; a foreign or malformed row must not block the first submit.
               j.baselineIds = list.flatMap(raw => { const { id } = listRow(raw); return id === null ? [] : [id]; });
@@ -315,7 +420,7 @@ export class ShopeePublicReviewCollector implements ShopeeCollector<PublicCollec
   async #request(op: string, j: ShopeePublicJournal, save: () => Promise<void>, remaining: number, signal?: AbortSignal, id?: string, body?: unknown): Promise<unknown> {
     if (signal?.aborted) return fail('OWNER_ABORTED');
     const jobId = id && /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(id) ? id : undefined;
-    const endpoints: Record<string, [string, string, number]> = { health: ['GET','/health',200], list: ['GET','/jobs?limit=100',200], submit: ['POST','/jobs',202],
+    const endpoints: Record<string, [string, string, number]> = { list: ['GET','/jobs?limit=100',200], submit: ['POST','/jobs',202],
       ...(jobId ? { status: ['GET',`/jobs/${jobId}`,200] as [string,string,number], result: ['GET',`/jobs/${jobId}/result`,200] as [string,string,number], cancel: ['POST',`/jobs/${jobId}/cancel`,202] as [string,string,number] } : {}) };
     const endpoint = endpoints[op]; if (!endpoint || body !== undefined && op !== 'submit') return fail();
     const ms = op === 'cancel' && remaining <= 0 ? 10000 : Math.min(op === 'result' ? 30000 : 10000, remaining);

@@ -12,7 +12,7 @@ import publicLegacySchema from '../../../../contracts/foundation/shopee-collecti
 import type { ResearchAutomationSourceConfirmRequestV3 } from '../../../../contracts/api/research-automation-source-api-v3.generated.js';
 import type { AutomationConfirmedSourceSetV2 } from '../../../../contracts/analysis/automation-confirmed-source-set-v2.generated.js';
 import { AutomationPublicShopeeBridge, buildPublicReviewCorpus, publicReviewOutcome, type PublicShopeeConfiguration, type PublicReviewSource } from './public-shopee-bridge.js';
-import { ShopeePublicReviewError, validatePublicReviewSource, validatePublicReviewStage, type PublicReviewStage } from '../../../platform/collectors/shopee-public-reviews.js';
+import { ShopeePublicReviewError, validatePublicReviewSource, validatePublicReviewStage, type PublicReviewSessionState, type PublicReviewStage, type ShopeePublicReviewSessionClient } from '../../../platform/collectors/shopee-public-reviews.js';
 import type { CaptureRelevanceAi } from './capture-relevance.js';
 import searchAdsSchema from '../../../../contracts/analysis/automation-search-ads.schema.json' with { type: 'json' };
 import { selectMetaAdPages, type MetaAdPage } from './meta-ad-report.js';
@@ -202,7 +202,7 @@ import { AutomationNativeSourceReviewBridge, type NativeSourceReviewSnapshot, ty
 import { buildAutomationSourceClaims, validateAutomationSourceClaimsReference, MAX_SOURCE_CLAIMS_BYTES } from './source-claims.js';
 import type { AutomationSourceClaims } from '../../../../contracts/analysis/automation-source-claims.generated.js';
 import { exactShopeeRequest, AutomationExactShopeeBridge, type ExactShopeeAttempt, type ShopeeCollectorFactory, type PrivateShopeeConfiguration, type ReviewPolicyConfiguration } from './exact-shopee-bridge.js';
-import { EXACT_SHOPEE_OUTCOMES, MAX_PROVIDER_MESSAGE_LENGTH, countReviewsPerListing, markReviewShortfalls, type ExactShopeeOutcome } from './exact-shopee-outcome.js';
+import { EXACT_SHOPEE_OUTCOMES, MAX_PROVIDER_MESSAGE_LENGTH, SHOPEE_REPAIRABLE_OUTCOMES, countReviewsPerListing, markReviewShortfalls, type ExactShopeeOutcome } from './exact-shopee-outcome.js';
 import { selectExactShopeeListings } from '../../foundation/shopee-exact-selection.js';
 import type { ResearchReviewCorpus } from '../../../../contracts/analysis/research-review-corpus.generated.js';
 import type {
@@ -216,6 +216,8 @@ import type {
   ResearchAutomationProductCard,
   ResearchAutomationRun,
   ResearchAutomationRunList,
+  ResearchAutomationShopeeSessionReceipt,
+  ResearchAutomationShopeeSessionRequest,
   ResearchAutomationStartRequest,
 } from '../../../../contracts/api/research-automation-api.generated.js';
 import type { DiscoveryWorkspaceReader } from '../../../modules/flow/discovery-workspace-reader.js';
@@ -665,6 +667,7 @@ export class ResearchAutomationService {
   /** Detached captures (D3): the worker drain never awaits a capture. */
   readonly #autoCaptures = new Map<string, { readonly controller: AbortController; readonly promise: Promise<void> }>();
   #autorunTable = false;
+  #shopeeSessionTable = false;
 
   constructor(options: ResearchAutomationServiceOptions) {
     this.#autoRun = options.autoRun?.enabled === true ? options.autoRun : undefined;
@@ -4450,7 +4453,9 @@ export class ResearchAutomationService {
       const products = source.packet.selected.map(p => ({ records: corpus.records.filter(r => r.disposition === 'RETAINED_RAW' && r.identity.listingKey === `shopee:${p.shopId}:${p.itemId}`).length,
         readableComments: corpus.records.filter(r => r.disposition === 'RETAINED_RAW' && r.identity.listingKey === `shopee:${p.shopId}:${p.itemId}` && r.versions[0]!.textState === 'READABLE').length }));
       const context: PublicReviewSource = { acquisition: stage, reference: collection.exactShopee, outcome: { ...outcome, providerMessage: null, listings: [...outcome.listings] }, accounting: corpus.coverage, products,
-        humanBlocked: source.packet.listings.some(r => r.stopCode === 'HUMAN_LOGIN_REQUIRED' || r.stopCode === 'HUMAN_VERIFICATION_REQUIRED'), ...(!tooLarge && (inlineOmitted || raw.length >= MAX_JSON_ARTIFACT_BYTES / 4) ? { corpusInlineUnavailableReason: 'PUBLIC_REVIEW_CORPUS_RETAINED_SEPARATELY' as const } : {}), corpusSha256, corpusUnavailableReason: tooLarge ? 'PUBLIC_REVIEW_CORPUS_TOO_LARGE' : null };
+        humanBlocked: outcome.outcome === 'SHOPEE_LOGIN_REQUIRED' || outcome.outcome === 'SHOPEE_VERIFICATION_REQUIRED' ||
+          source.packet.listings.some(r => r.stopCode === 'HUMAN_LOGIN_REQUIRED' || r.stopCode === 'HUMAN_VERIFICATION_REQUIRED' || r.state === 'needs_login' || r.state === 'needs_verification'),
+        ...(!tooLarge && (inlineOmitted || raw.length >= MAX_JSON_ARTIFACT_BYTES / 4) ? { corpusInlineUnavailableReason: 'PUBLIC_REVIEW_CORPUS_RETAINED_SEPARATELY' as const } : {}), corpusSha256, corpusUnavailableReason: tooLarge ? 'PUBLIC_REVIEW_CORPUS_TOO_LARGE' : null };
       // Inline only when comfortably bounded; the exact separately retained corpus remains authoritative.
       validatePublicReviewSource(context);
       // fullCorpus is the same verified rebuild for the coding source context only; reports keep using corpus.
@@ -4490,7 +4495,7 @@ export class ResearchAutomationService {
     const ownerAborted = signal.aborted || attempt.coverage.state === 'CANCELLED';
     const step: StepResultDocument = { ...base, publicReviewAcquisition: attempt.publicReviewAcquisition,
       outcome: ownerAborted ? 'CANCELLED' : attempt.reference ? 'PARTIAL' : base.outcome === 'SUCCEEDED' ? 'PARTIAL' : base.outcome,
-      coverage: [...base.coverage, attempt.coverage], limitations: [...base.limitations, attempt.limitation],
+      coverage: [...base.coverage, attempt.coverage], limitations: [...base.limitations, attempt.limitation, ...(attempt.outcomeLimitation ? [attempt.outcomeLimitation] : [])],
       ...(attempt.reference ? { exactShopee: attempt.reference, exactShopeeOutcome: attempt.exactShopeeOutcome } : {}) };
     assertStepDocument(step, row.runId, 'COLLECTION');
     const now = this.#now().toISOString(), artifact = await this.#artifacts.put(Buffer.from(canonicalJson(step)));
@@ -4996,6 +5001,57 @@ export class ResearchAutomationService {
       }).immediate();
       return { contractVersion: 'research-automation-receipt-v1', run: await this.getRun(workspaceId, runId), exactRetry: false };
     });
+  }
+
+  /**
+   * Owner repair of a lost Shopee collector login (SHP-BRIEF C1/C2). Only the
+   * owner web action reaches the collector; the receipt is replayed from the
+   * request ledger, so an exact retry never opens or checks the session twice.
+   */
+  async openShopeeReviewLogin(workspaceId: string, runId: string, value: unknown): Promise<ResearchAutomationShopeeSessionReceipt> {
+    return this.#shopeeSessionAction(workspaceId, runId, value, 'LOGIN');
+  }
+  async confirmShopeeReviewSession(workspaceId: string, runId: string, value: unknown): Promise<ResearchAutomationShopeeSessionReceipt> {
+    return this.#shopeeSessionAction(workspaceId, runId, value, 'CONFIRM');
+  }
+  async #shopeeSessionAction(workspaceId: string, runId: string, value: unknown, kind: 'LOGIN' | 'CONFIRM'): Promise<ResearchAutomationShopeeSessionReceipt> {
+    const input = validateShopeeSession(value, kind);
+    assertUuid(workspaceId); assertUuid(runId);
+    const requestSha = digest({ kind: `SHOPEE_SESSION_${kind}`, workspaceId, runId, input });
+    return withDatabaseMutationMutex(this.#db, async () => {
+      const prior = this.#hasShopeeSessionTable()
+        ? this.#db.prepare(`SELECT run_id runId,request_sha256 sha,state,checked_at checkedAt FROM research_automation_shopee_sessions WHERE request_key=?`)
+            .get(input.requestKey) as { runId: string; sha: string; state: PublicReviewSessionState; checkedAt: string | null } | undefined
+        : undefined;
+      if (prior) {
+        if (prior.runId !== runId || prior.sha !== requestSha) throw new ResearchAutomationConflictError('request_key_conflict', 'This request key is bound to another request.');
+        return shopeeSessionReceipt(prior.state, prior.checkedAt, true);
+      }
+      const session = this.#publicShopee.configuration?.session?.();
+      if (!session) throw new ResearchAutomationConflictError('invalid_state', 'Shopee review session repair is not configured.');
+      await this.#assertShopeeSessionRepair(workspaceId, runId);
+      const result = kind === 'LOGIN' ? await session.login() : await this.#confirmShopeeSession(session);
+      const at = this.#now().toISOString();
+      if (!this.#hasShopeeSessionTable()) throw new ResearchAutomationConflictError('invalid_state', 'Shopee review session repair is not available.');
+      this.#db.prepare(`INSERT INTO research_automation_shopee_sessions(request_key,run_id,request_kind,request_sha256,state,checked_at,accepted_at) VALUES (?,?,?,?,?,?,?)`)
+        .run(input.requestKey, runId, kind, requestSha, result.state, result.checkedAt, at);
+      return shopeeSessionReceipt(result.state, result.checkedAt, false);
+    });
+  }
+  /** A confirmed check must also reopen the background browser; a not-ready check is reported as is. */
+  async #confirmShopeeSession(session: ShopeePublicReviewSessionClient): Promise<{ state: PublicReviewSessionState; checkedAt: string | null }> {
+    const checked = await session.recheck();
+    return checked.state === 'READY' ? session.background() : checked;
+  }
+  async #assertShopeeSessionRepair(workspaceId: string, runId: string): Promise<void> {
+    await this.getRun(workspaceId, runId);
+    const outcome = (await this.#stepDocument(runId, 'COLLECTION'))?.exactShopeeOutcome?.outcome;
+    if (!outcome || !SHOPEE_REPAIRABLE_OUTCOMES.includes(outcome))
+      throw new ResearchAutomationConflictError('invalid_state', 'This run has no Shopee review login error to repair.');
+  }
+  #hasShopeeSessionTable(): boolean {
+    if (!this.#shopeeSessionTable) this.#shopeeSessionTable = Boolean(this.#db.prepare(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='research_automation_shopee_sessions'`).get());
+    return this.#shopeeSessionTable;
   }
 
   async #captureRecords(runId: string): Promise<CaptureRecord[]> {
@@ -6815,6 +6871,17 @@ function validateAutoRunRetry(value: unknown): ResearchAutomationAutoRunRetryReq
   if (object.contractVersion !== 'research-automation-autorun-retry-v1' || typeof object.requestKey !== 'string' || !REQUEST_KEY.test(object.requestKey))
     throw new ResearchAutomationValidationError('Retry request is invalid.');
   return { contractVersion: object.contractVersion, requestKey: object.requestKey };
+}
+function validateShopeeSession(value: unknown, kind: 'LOGIN' | 'CONFIRM'): ResearchAutomationShopeeSessionRequest {
+  const object = plain(value);
+  keys(object, ['contractVersion', 'requestKey']);
+  const contractVersion = kind === 'LOGIN' ? 'research-automation-shopee-session-login-v1' : 'research-automation-shopee-session-confirm-v1';
+  if (object.contractVersion !== contractVersion || typeof object.requestKey !== 'string' || !REQUEST_KEY.test(object.requestKey))
+    throw new ResearchAutomationValidationError('Shopee session request is invalid.');
+  return { contractVersion, requestKey: object.requestKey };
+}
+function shopeeSessionReceipt(state: PublicReviewSessionState, checkedAt: string | null, exactRetry: boolean): ResearchAutomationShopeeSessionReceipt {
+  return { contractVersion: 'research-automation-shopee-session-v1', state, checkedAt, exactRetry };
 }
 function validateReports(value: unknown): ResearchAutomationStartRequest['reports'] { if (!Array.isArray(value) || (value.length !== 1 && value.length !== 2) || value.some((item) => item !== 'MARKET' && item !== 'INSIGHT') || new Set(value).size !== value.length || (value.length === 2 && (value[0] !== 'MARKET' || value[1] !== 'INSIGHT'))) throw new ResearchAutomationValidationError('Choose MARKET, INSIGHT, or both in that order.'); return value as ResearchAutomationStartRequest['reports']; }
 function validateInterview(value: unknown): NonNullable<ResearchAutomationStartRequest['interview']> { const object = plain(value); keys(object, ['productType', 'audience', 'useCase', 'priceRange', 'knownProduct']); const output: Record<string, string> = {}; for (const key of ['productType', 'audience', 'useCase', 'priceRange', 'knownProduct']) if (object[key] !== undefined) output[key] = text(object[key], 200); return output; }

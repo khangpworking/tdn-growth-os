@@ -19,19 +19,24 @@ export function exactTestReviewSample(input: ExactTestReviewContext): TestReview
 
 export const TEST_REVIEW_SOURCE_TYPE = 'Dữ liệu đánh giá sản phẩm và dữ liệu bình luận trên Shopee: cùng mẫu thử nhỏ, chưa mã hóa nội dung';
 
-/** A blocked or timed-out attempt that returned nothing says so once; it is not a per-product shortfall. */
+/** A blocked, timed-out or named Shopee source error that returned nothing says so once; it is not a per-product shortfall. */
 function sourceReturnedNothing(value: TestReviewSample): boolean {
-  return (value.outcome === 'PROVIDER_BLOCKED' || value.outcome === 'PROVIDER_TIMEOUT_NO_REVIEWS')
-    && value.listings.every(row => row.reviews === 0);
+  return (['PROVIDER_BLOCKED', 'PROVIDER_TIMEOUT_NO_REVIEWS', 'SHOPEE_LOGIN_REQUIRED', 'SHOPEE_VERIFICATION_REQUIRED', 'SHOPEE_COLLECTOR_DOWN'] as readonly string[])
+    .includes(value.outcome) && value.listings.every(row => row.reviews === 0);
 }
 
-const SOURCE_RETURNED_NOTHING = 'Lượt thu thử này không lấy được đánh giá vì nguồn tạm thời không trả dữ liệu; không suy ra sản phẩm không có đánh giá.';
+function sourceNothingMessage(value: TestReviewSample): string {
+  if (value.outcome === 'SHOPEE_LOGIN_REQUIRED') return 'Lượt thu thử này không lấy được đánh giá vì bộ thu đánh giá Shopee mất đăng nhập Shopee; không suy ra sản phẩm không có đánh giá.';
+  if (value.outcome === 'SHOPEE_VERIFICATION_REQUIRED') return 'Lượt thu thử này không lấy được đánh giá vì Shopee yêu cầu xác minh phiên đăng nhập; không suy ra sản phẩm không có đánh giá.';
+  if (value.outcome === 'SHOPEE_COLLECTOR_DOWN') return 'Lượt thu thử này không lấy được đánh giá vì bộ thu đánh giá Shopee không phản hồi; không suy ra sản phẩm không có đánh giá.';
+  return 'Lượt thu thử này không lấy được đánh giá vì nguồn tạm thời không trả dữ liệu; không suy ra sản phẩm không có đánh giá.';
+}
 
 export function exactTestReviewSourceRows(value: TestReviewSample): { native: string; comments: string } {
   return {
     native: value.listings.some(row => row.reviews > 0)
       ? `Đã thu mẫu thử Shopee, tối đa ${value.testReviewCap} đánh giá mỗi sản phẩm; chưa mã hóa nội dung.`
-      : sourceReturnedNothing(value) ? SOURCE_RETURNED_NOTHING
+      : sourceReturnedNothing(value) ? sourceNothingMessage(value)
         : 'Đã thử thu trên Shopee nhưng chưa có đánh giá trả về; không suy ra sản phẩm không có đánh giá.',
     comments: 'Cùng mẫu đánh giá Shopee nêu trên; không phải một tập bình luận khác.',
   };
@@ -56,7 +61,7 @@ export function exactTestReviewSection(value: TestReviewSample,
   return '<div class="test-review-sample"><h3>Mẫu đánh giá Shopee thu thử</h3>'
     + (reader ? `<p>Đây là mẫu nhỏ, tối đa ${cap} đánh giá mỗi sản phẩm, được hệ thống thu để đọc trong báo cáo. Mẫu này không đại diện cho toàn bộ đánh giá.</p>`
       : `<p>Đây là mẫu thử nhỏ, tối đa ${cap} đánh giá mỗi sản phẩm, được thu cho báo cáo thử nghiệm. Mẫu này không đại diện cho toàn bộ đánh giá.</p>`)
-    + (nothing ? `<p>${SOURCE_RETURNED_NOTHING}</p>` : '')
+    + (nothing ? `<p>${sourceNothingMessage(value)}</p>` : '')
     + `<ul>${value.listings.map((row, index) => `<li>${link(row.listingUrl, label(row.listingUrl, index))}: ${nothing
       ? 'Chưa thu được đánh giá trong lượt này.' : row.reviews === 0
         ? `Chưa thu được đánh giá; chưa đạt giới hạn thử ${cap} đánh giá.` : row.reviews < cap

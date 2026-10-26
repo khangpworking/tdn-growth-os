@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import ConfirmDialog from '../ConfirmDialog';
-import { attachRunPdf, cancelRun, loadRun, loadRunPdfs, reportUrl, ResearchAutomationError } from './api';
-import type { ResearchAutomationReportKind, ResearchAutomationRun, ResearchAutomationRunPdfStates } from './api';
+import { attachRunPdf, cancelRun, confirmShopeeSession, loadRun, loadRunPdfs, loginShopeeSession, reportUrl, ResearchAutomationError } from './api';
+import type { ResearchAutomationReportKind, ResearchAutomationRun, ResearchAutomationRunPdfStates, ResearchAutomationShopeeSessionReceipt } from './api';
 import { coverageStateLabel, datasetLabel, failureTodo, formatDay, formatTime, limitationLabel, modeLabel, pdfUnavailableLabel, providerLabel, reportsLabel, runPhase, shouldPoll, statusLabel, stepStateLabel } from './run-status';
 import type { RunPhase } from './run-status';
 import ScopeConfirm from './ScopeConfirm';
@@ -92,9 +92,69 @@ export default function RunView({ workspaceId, runId, ownerToken, writesAvailabl
     {run.status === 'DRAFT_READY' && <TikTokReportPanel key={`tiktok:${run.runId}`} run={run} ownerToken={ownerToken} writesAvailable={writesAvailable} onBuilt={() => setTiktokBuilds(value => value + 1)} />}
     {run.status === 'DRAFT_READY' && <ShopeeReportPanel key={`shopee:${run.runId}`} run={run} ownerToken={ownerToken} writesAvailable={writesAvailable} />}
     {run.autoRun && <AutoRunCard workspaceId={workspaceId} run={run} ownerToken={ownerToken} writesAvailable={writesAvailable} onRetried={() => { notify('Đã gửi yêu cầu thử lại. Trạng thái đang được tải lại từ máy chủ.'); reload(); }} onConflict={conflict} />}
+    {canWrite && <ShopeeSessionRepair key={`shopee-session:${run.runId}`} workspaceId={workspaceId} run={run} ownerToken={ownerToken} notify={notify} onConflict={conflict} />}
     {phase === 'scope' ? <ScopeConfirm key={`${run.runId}:${run.revision}`} run={run} ownerToken={ownerToken} writesAvailable={writesAvailable} onConfirmed={() => { notify('Đã xác nhận phạm vi. Hệ thống bắt đầu thu thập.'); reload(); }} onConflict={conflict} /> : <RunProgress run={run} phase={phase} workspaceId={workspaceId} canWrite={canWrite} />}
     <RunPdfPanel key={`${workspaceId}:${runId}`} workspaceId={workspaceId} runId={runId} ownerToken={ownerToken} writesAvailable={writesAvailable} runRevision={run.revision} runStatus={run.status} attachmentAllowed={run.status === 'AWAITING_SCOPE' || run.status === 'DRAFT_READY'} />
   </section><aside className="ra-inspector" aria-labelledby="ra-run-facts"><h2 id="ra-run-facts">Phiên nghiên cứu</h2><p className={`status-pill ${phase === 'finished' && run.status !== 'FAILED' && run.status !== 'CANCELLED' && run.status !== 'INTERRUPTED' ? 'good' : ''}`}>{statusLabel(run.status)}</p><dl className="ra-kv"><div><dt>Từ khóa</dt><dd>{run.keyword}</dd></div><div><dt>Chế độ</dt><dd>{modeLabel(run.mode)}</dd></div><div><dt>Kỳ yêu cầu</dt><dd>{formatDay(run.requestedPeriod.startDate)} → {formatDay(run.requestedPeriod.endDate)} · {run.requestedPeriod.dayCount} ngày</dd></div><div><dt>Thị trường</dt><dd>Việt Nam</dd></div><div><dt>Báo cáo</dt><dd>{reportsLabel(run.reports)}</dd></div><div><dt>Bắt đầu</dt><dd>{formatTime(run.createdAt)}</dd></div><div><dt>Cập nhật</dt><dd>{formatTime(run.updatedAt)}</dd></div></dl><h3>Chi phí và lượt gọi</h3><UsageSummary run={run}/><p className="ra-muted">Ưu tiên đủ dữ liệu · Không đặt trần chi phí. Chưa có số liệu nghĩa là nguồn chưa báo, không phải bằng 0.</p>{phase !== 'finished' && <><button type="button" className="button danger" disabled={!canWrite || cancelPending} onClick={() => setCancelOpen(true)}>{cancelPending ? 'Đang hủy…' : 'Hủy phiên nghiên cứu'}</button>{!canWrite && <p className="ra-muted">Mở khóa OWNER để hủy phiên.</p>}</>}{cancelOpen && <ConfirmDialog titleId="ra-cancel-title" descriptionId="ra-cancel-description" title="Hủy phiên nghiên cứu này?" confirmLabel="Hủy phiên" pending={cancelPending} onCancel={() => setCancelOpen(false)} onConfirm={() => void cancel()}><p id="ra-cancel-description">Hệ thống dừng các bước còn lại. Dữ liệu và chi phí đã phát sinh vẫn được ghi lại. Muốn chạy lại cần tạo phiên mới.</p></ConfirmDialog>}</aside></div>;
+}
+
+const SHOPEE_REPAIR_CODES: readonly string[] = ['SHOPEE_LOGIN_REQUIRED', 'SHOPEE_VERIFICATION_REQUIRED', 'SHOPEE_COLLECTOR_DOWN'];
+
+const shopeeSessionStateLabels: Readonly<Record<ResearchAutomationShopeeSessionReceipt['state'], string>> = {
+  READY: 'Phiên đăng nhập Shopee đã sẵn sàng.',
+  AWAITING_USER_LOGIN: 'Đã mở trang đăng nhập Shopee. Đăng nhập xong thì bấm «Tôi đã đăng nhập xong».',
+  LOGIN_REQUIRED: 'Bộ thu vẫn chưa đăng nhập Shopee. Bấm «Đăng nhập Shopee» rồi làm theo trang mở ra.',
+  VERIFICATION_REQUIRED: 'Shopee yêu cầu xác minh phiên đăng nhập. Hoàn tất xác minh trên trang Shopee rồi bấm «Tôi đã đăng nhập xong».',
+  COLLECTOR_BUSY: 'Bộ thu đang bận một lượt khác. Chờ một lát rồi bấm «Tôi đã đăng nhập xong».',
+  COLLECTOR_DOWN: 'Không kết nối được bộ thu đánh giá Shopee. Kiểm tra bộ thu rồi thử lại.',
+};
+
+/** Owner-only repair of a lost Shopee review login: the web action, never an MCP tool, opens or checks the session. */
+function ShopeeSessionRepair({ workspaceId, run, ownerToken, notify, onConflict }: {
+  readonly workspaceId: string; readonly run: ResearchAutomationRun; readonly ownerToken: string;
+  readonly notify: (message: string) => void; readonly onConflict: () => void;
+}) {
+  const code = run.blockers.find(blocker => SHOPEE_REPAIR_CODES.includes(blocker.code))?.code;
+  const [pending, setPending] = useState<'login' | 'confirm' | null>(null);
+  const [state, setState] = useState<ResearchAutomationShopeeSessionReceipt['state'] | null>(null);
+  const [notice, setNotice] = useState('');
+  const keys = useRef({ login: crypto.randomUUID(), confirm: crypto.randomUUID() });
+  const mounted = useRef(false);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  if (!code) return null;
+  const send = async (kind: 'login' | 'confirm') => {
+    if (pending) return;
+    setPending(kind); setNotice('');
+    try {
+      const body = { contractVersion: kind === 'login' ? 'research-automation-shopee-session-login-v1' as const
+        : 'research-automation-shopee-session-confirm-v1' as const, requestKey: keys.current[kind] };
+      const receipt = kind === 'login' ? await loginShopeeSession(workspaceId, run.runId, body, ownerToken)
+        : await confirmShopeeSession(workspaceId, run.runId, body, ownerToken);
+      if (!mounted.current) return;
+      // The accepted key is spent; the next click is a new collector action.
+      keys.current[kind] = crypto.randomUUID();
+      setState(receipt.state);
+      setNotice(shopeeSessionStateLabels[receipt.state]);
+      if (receipt.state === 'AWAITING_USER_LOGIN') notify('Đã mở trang đăng nhập Shopee.');
+      else if (receipt.state === 'READY') notify('Phiên đăng nhập Shopee đã sẵn sàng.');
+    } catch (error) {
+      if (!mounted.current) return;
+      if (error instanceof ResearchAutomationError && error.kind === 'conflict') onConflict();
+      else setNotice(error instanceof ResearchAutomationError ? error.message : 'Chưa gửi được yêu cầu phiên Shopee. Thử lại; hệ thống dùng cùng mã yêu cầu.');
+    } finally { if (mounted.current) setPending(null); }
+  };
+  return <section className="ra-block" aria-labelledby="ra-shopee-session-title">
+    <h3 id="ra-shopee-session-title">Đăng nhập Shopee cho nguồn đánh giá</h3>
+    <p>{limitationLabel(code)}</p>
+    <div className="ra-actions">
+      <button type="button" className="button" disabled={pending !== null} onClick={() => void send('login')}>{pending === 'login' ? 'Đang mở trang đăng nhập…' : 'Đăng nhập Shopee'}</button>
+      <button type="button" className="button" disabled={pending !== null} onClick={() => void send('confirm')}>{pending === 'confirm' ? 'Đang kiểm tra phiên…' : 'Tôi đã đăng nhập xong'}</button>
+      <button type="button" className="button" disabled title="Tính năng thu lại đánh giá sau khi đăng nhập chưa được mở trong bản này.">Thu lại đánh giá</button>
+    </div>
+    {notice && <p role="status">{notice}</p>}
+    {state === 'READY' && <p className="ra-muted">Phiên đã sẵn sàng. Việc thu lại đánh giá sau khi đăng nhập chưa được mở trong bản này; dữ liệu cũ vẫn được giữ nguyên.</p>}
+    <p className="ra-muted">Bộ thu chỉ mở trang đăng nhập và kiểm tra phiên Shopee; hệ thống không tự đăng nhập thay bạn.</p>
+  </section>;
 }
 
 function RunPdfPanel({ workspaceId, runId, ownerToken, writesAvailable, runRevision, runStatus, attachmentAllowed }: Pick<RunViewProps, 'workspaceId' | 'runId' | 'ownerToken' | 'writesAvailable'> & { readonly runRevision: number; readonly runStatus: ResearchAutomationRun['status']; readonly attachmentAllowed: boolean }) {

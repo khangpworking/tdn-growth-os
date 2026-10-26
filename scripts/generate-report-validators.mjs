@@ -139,6 +139,7 @@ const validatorRefs = {
   researchAutomationRun: `${researchAutomationApiSchema.$id}#/$defs/run`,
   researchAutomationRunList: `${researchAutomationApiSchema.$id}#/$defs/runList`,
   researchAutomationReceipt: `${researchAutomationApiSchema.$id}#/$defs/receipt`,
+  researchAutomationShopeeSessionReceipt: `${researchAutomationApiSchema.$id}#/$defs/shopeeSessionReceipt`,
   researchAutomationSourceStatus: `${researchAutomationSourceStatusSchema.$id}#/$defs/status`,
   researchAutomationRunPdfs: `${researchAutomationSourceStatusSchema.$id}#/$defs/runPdfStates`,
   researchAutomationAttachPdf: `${researchAutomationSourceStatusSchema.$id}#/$defs/attachPdfRequest`,

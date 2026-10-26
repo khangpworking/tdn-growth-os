@@ -9,6 +9,8 @@ import type {
   ResearchAutomationMutationReceipt,
   ResearchAutomationRun,
   ResearchAutomationRunList,
+  ResearchAutomationShopeeSessionReceipt,
+  ResearchAutomationShopeeSessionRequest,
   ResearchAutomationStartRequest,
 } from '../../../contracts/api/research-automation-api.generated';
 import type { ResearchAutomationSourceConfirmRequest } from '../../../contracts/api/research-automation-source-api.generated';
@@ -19,7 +21,7 @@ import type { ResearchAutomationSourceStatus, ResearchAutomationSourceStatusEntr
 import { supplementalSourcePrepare, supplementalSourcePrepared, supplementalSourcePreparedList } from '../generated/report-validators.generated.js';
 import { researchAutomationMetricCapturePrepared, researchAutomationMetricCapturePreparedList } from '../generated/report-validators.generated.js';
 import { researchAutomationSourceStatus, researchAutomationRunPdfs, researchAutomationAttachPdf } from '../generated/report-validators.generated.js';
-import { researchAutomationReceipt, researchAutomationRun, researchAutomationRunList, researchAutomationMetricPrepared, researchAutomationMetricPreparedList } from '../generated/report-validators.generated.js';
+import { researchAutomationReceipt, researchAutomationRun, researchAutomationRunList, researchAutomationMetricPrepared, researchAutomationMetricPreparedList, researchAutomationShopeeSessionReceipt } from '../generated/report-validators.generated.js';
 
 export type { ResearchAutomationRun, ResearchAutomationRunList };
 export type ResearchAutomationStartBody = ResearchAutomationStartRequest;
@@ -35,6 +37,8 @@ export type { ResearchAutomationSourceStatus, ResearchAutomationSourceStatusEntr
 export type { ResearchAutomationRunPdfStates };
 export type ResearchAutomationCancelBody = ResearchAutomationCancelRequest;
 export type ResearchAutomationAutoRunRetryBody = ResearchAutomationAutoRunRetryRequest | ResearchAutomationAutoRunKeywordRequest;
+export type ResearchAutomationShopeeSessionBody = ResearchAutomationShopeeSessionRequest;
+export type { ResearchAutomationShopeeSessionReceipt };
 export type { ResearchAutomationAutoRun };
 export type ResearchAutomationReceipt = ResearchAutomationMutationReceipt;
 export type ResearchAutomationInterview = NonNullable<ResearchAutomationStartRequest['interview']>;
@@ -121,6 +125,16 @@ export async function cancelRun(workspaceId: string, runId: string, body: Resear
 /** Owner "Thử lại" for a stopped automatic capture; it uses one more paid lookup on the server. */
 export async function retryAutoRun(workspaceId: string, runId: string, body: ResearchAutomationAutoRunRetryBody, token: string): Promise<ResearchAutomationRun> {
   return verifiedReceipt(await request(`/owner-api${base(workspaceId)}/${encodeURIComponent(runId)}/auto-run/retry`, ownerPost(body, token)), workspaceId, runId).run;
+}
+
+/** Owner repair of a lost Shopee review login; the collector stays behind the server. */
+export async function loginShopeeSession(workspaceId: string, runId: string, body: ResearchAutomationShopeeSessionBody, token: string): Promise<ResearchAutomationShopeeSessionReceipt> {
+  return verifiedShopeeSession(await request(`/owner-api${base(workspaceId)}/${encodeURIComponent(runId)}/shopee-session/login`, ownerPost(body, token), [200, 201]));
+}
+
+/** Owner confirmation that Shopee login finished; the server checks and reopens the background browser. */
+export async function confirmShopeeSession(workspaceId: string, runId: string, body: ResearchAutomationShopeeSessionBody, token: string): Promise<ResearchAutomationShopeeSessionReceipt> {
+  return verifiedShopeeSession(await request(`/owner-api${base(workspaceId)}/${encodeURIComponent(runId)}/shopee-session/confirm`, ownerPost(body, token), [200, 201]));
 }
 
 export async function loadPreparedMetricSources(workspaceId: string, runId: string, signal: AbortSignal): Promise<ResearchAutomationPreparedMetricList> {
@@ -252,6 +266,11 @@ function verifiedReceipt(value: unknown, workspaceId: string, runId: string | nu
   const receipt = value as ResearchAutomationReceipt;
   verifiedRun(receipt.run, workspaceId, runId);
   return receipt;
+}
+
+function verifiedShopeeSession(value: unknown): ResearchAutomationShopeeSessionReceipt {
+  if (!researchAutomationShopeeSessionReceipt(value)) throw new ResearchAutomationError('integrity', 'Phản hồi phiên đăng nhập Shopee không vượt qua kiểm tra dữ liệu.');
+  return value as ResearchAutomationShopeeSessionReceipt;
 }
 
 async function request(url: string, init: RequestInit, expectedStatuses?: readonly number[]): Promise<unknown> {

@@ -9,16 +9,21 @@ import legacyCollectionSchema from '../../../../contracts/foundation/shopee-coll
 import type { ResearchReviewCorpusV2 } from '../../../../contracts/analysis/research-review-corpus-v2.generated.js';
 import type { ShopeeCollector } from '../../../platform/collectors/apify-shopee.js';
 import type { ShopeePublicRows } from '../../../../contracts/foundation/shopee-public-rows.generated.js';
-import { type PublicCollectedPages, type PublicReviewStage, validatePublicReviewStage } from '../../../platform/collectors/shopee-public-reviews.js';
+import { type PublicCollectedPages, type PublicReviewStage, type ShopeePublicReviewSessionClient, validatePublicReviewStage } from '../../../platform/collectors/shopee-public-reviews.js';
 import { ShopeeCollectionService, type VerifiedPublicShopeeCollection } from '../../foundation/shopee-collection-service.js';
 import { ContentAddressedArtifactStore } from '../../../platform/artifacts/artifact-store.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import { selectExactShopeeListings } from '../../foundation/shopee-exact-selection.js';
 import { exactShopeeRequest, type ExactShopeeRunInput, type ExactShopeeAttempt } from './exact-shopee-bridge.js';
-import { classifyPublicExactShopee, markReviewShortfalls, type ExactShopeeOutcomeRecord } from './exact-shopee-outcome.js';
+import { classifyPublicExactShopee, markReviewShortfalls, publicExactShopeeOutcomeLimitation, publicExactShopeeOutcomeMessage, SHOPEE_REPAIRABLE_OUTCOMES, type ExactShopeeOutcomeRecord } from './exact-shopee-outcome.js';
 import type { StepResultDocument } from './model.js';
 export type PublicShopeeCollectorFactory = (acquisition: PublicReviewStage) => { collector: ShopeeCollector<PublicCollectedPages>; requestsIssued: () => number };
-export interface PublicShopeeConfiguration { maxReviewsPerProduct: number; factory: PublicShopeeCollectorFactory }
+export interface PublicShopeeConfiguration {
+  maxReviewsPerProduct: number;
+  factory: PublicShopeeCollectorFactory;
+  /** Owner repair only; absent keeps the login/confirm actions unavailable. */
+  session?: () => ShopeePublicReviewSessionClient;
+}
 export type PublicReviewSource = import('../../../../contracts/foundation/shopee-public-collection.generated.js').PublicReviewSource;
 
 const sha = (v: unknown) => createHash('sha256').update(canonicalJson(v)).digest('hex');
@@ -116,9 +121,11 @@ export class AutomationPublicShopeeBridge {
     const reference = { collectionId: source.packet.collectionId, collectionSha256: source.sha256, requestSha256: source.packet.requestSha256 };
     await this.read(reference, input, stage);
     const outcome = publicReviewOutcome(source, stage), records = outcome.listings.some(r => r.reviews > 0), blocked = outcome.outcome === 'PROVIDER_BLOCKED';
+    const named = publicExactShopeeOutcomeMessage(outcome.outcome), outcomeLimitation = publicExactShopeeOutcomeLimitation(outcome.outcome);
     return { publicReviewAcquisition: final, reference, exactShopeeOutcome: outcome, requestsIssued, costUsd: '0',
-      coverage: { ...base, state: signal?.aborted || source.packet.listings.some(receipt => receipt.stopCode === 'OWNER_ABORTED') ? 'CANCELLED' : outcome.outcome === 'OK' ? 'COLLECTED' : records ? 'PARTIAL' : blocked ? 'UNAVAILABLE' : 'FAILED',
-        note: 'Nguồn: review công khai trên Shopee. Phạm vi này không phải toàn bộ lịch sử đánh giá.' },
-      limitation: { provider: base.provider, code: 'PUBLIC_REVIEW_RAW_CAPTURE_ONLY', message: 'Số đánh giá không phải số người. Nội dung chưa được mã hóa; chưa có kết luận về tỷ lệ ý kiến hay đặc điểm khách hàng.' } };
+      coverage: { ...base, state: signal?.aborted || source.packet.listings.some(receipt => receipt.stopCode === 'OWNER_ABORTED') ? 'CANCELLED' : outcome.outcome === 'OK' ? 'COLLECTED' : records ? 'PARTIAL' : SHOPEE_REPAIRABLE_OUTCOMES.includes(outcome.outcome) ? 'FAILED' : blocked ? 'UNAVAILABLE' : 'FAILED',
+        note: named ?? 'Nguồn: review công khai trên Shopee. Phạm vi này không phải toàn bộ lịch sử đánh giá.' },
+      limitation: { provider: base.provider, code: 'PUBLIC_REVIEW_RAW_CAPTURE_ONLY', message: 'Số đánh giá không phải số người. Nội dung chưa được mã hóa; chưa có kết luận về tỷ lệ ý kiến hay đặc điểm khách hàng.' },
+      ...(outcomeLimitation ? { outcomeLimitation } : {}) };
   }
 }

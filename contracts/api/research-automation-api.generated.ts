@@ -6,6 +6,8 @@ export type ResearchAutomationApiContract =
   | ResearchAutomationCancelRequest
   | ResearchAutomationAutoRunRetryRequest
   | ResearchAutomationAutoRunKeywordRequest
+  | ResearchAutomationShopeeSessionRequest
+  | ResearchAutomationShopeeSessionReceipt
   | ResearchAutomationRun
   | ResearchAutomationRunList
   | ResearchAutomationMutationReceipt
@@ -30,6 +32,7 @@ export type ProductId = string;
  * @maxItems 5
  */
 export type ExactShopeeUrls = string[];
+export type Timestamp = string;
 export type Uuid = string;
 export type ResearchAutomationRunStatus =
   | 'QUICK_SEARCH_QUEUED'
@@ -43,7 +46,6 @@ export type ResearchAutomationRunStatus =
   | 'FAILED'
   | 'CANCELLED'
   | 'INTERRUPTED';
-export type Timestamp = string;
 export type Provider = string;
 export type HttpsUrl = string;
 export type Operation = string;
@@ -145,6 +147,23 @@ export interface ResearchAutomationAutoRunKeywordRequest {
   metricV3Preset?: {
     [k: string]: unknown;
   };
+}
+/**
+ * Owner repair of the Shopee review collector session: open the visible Shopee login, or confirm it and reopen the background browser.
+ */
+export interface ResearchAutomationShopeeSessionRequest {
+  contractVersion: 'research-automation-shopee-session-login-v1' | 'research-automation-shopee-session-confirm-v1';
+  requestKey: RequestKey;
+}
+/**
+ * Result of checking or opening the Shopee review collector session; never carries the collector token.
+ */
+export interface ResearchAutomationShopeeSessionReceipt {
+  contractVersion: 'research-automation-shopee-session-v1';
+  state:
+    'READY' | 'AWAITING_USER_LOGIN' | 'LOGIN_REQUIRED' | 'VERIFICATION_REQUIRED' | 'COLLECTOR_BUSY' | 'COLLECTOR_DOWN';
+  checkedAt: Timestamp | null;
+  exactRetry: boolean;
 }
 export interface ResearchAutomationRun {
   contractVersion: 'research-automation-run-v1' | 'research-automation-run-v2' | 'research-automation-run-v3';
