@@ -1,20 +1,28 @@
 import { createRequire } from 'node:module';
 import schema from '../../../../contracts/analysis/metric-v3-capture-spec.schema.json' with { type: 'json' };
-import type { MetricV3CaptureSpec } from '../../../../contracts/analysis/metric-v3-capture-spec.generated.js';
+import legacySchema from '../../../../contracts/analysis/metric-v3-capture-spec-v1.schema.json' with { type: 'json' };
+import type { MetricV3CaptureSpec as MetricV3CaptureSpecV2 } from '../../../../contracts/analysis/metric-v3-capture-spec.generated.js';
+import type { MetricV3CaptureSpecV1 } from '../../../../contracts/analysis/metric-v3-capture-spec-v1.generated.js';
+
+/** New captures use v2 (one or two keywords); retained records stay on their v1 bytes. */
+export type MetricV3CaptureSpec = MetricV3CaptureSpecV2 | MetricV3CaptureSpecV1;
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
 const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
 const ajv = new Ajv2020({ strict: true, allErrors: true });
 addFormats(ajv);
-const validate = ajv.compile<MetricV3CaptureSpec>(schema);
+const validateV2 = ajv.compile<MetricV3CaptureSpecV2>(schema);
+const validateV1 = ajv.compile<MetricV3CaptureSpecV1>(legacySchema);
 
 /** This mode takes a complete owner-supplied preset; it never derives terms or categories. */
 export function validateMetricV3CaptureSpec(value: unknown): MetricV3CaptureSpec {
-  if (!validate(value)) throw new Error('CAPTURE_PRESET_INVALID');
-  const { preset, windows } = value;
+  const legacy = (value as { contractVersion?: unknown } | null)?.contractVersion === 'metric-v3-capture-spec-v1';
+  const spec = value as MetricV3CaptureSpec;
+  if (!(legacy ? validateV1(value) : validateV2(value))) throw new Error('CAPTURE_PRESET_INVALID');
+  const { preset, windows } = spec;
   if (
-    new Set(preset.keywords.map((s) => s.normalize('NFC').trim().toLowerCase())).size !== 2 ||
+    new Set(preset.keywords.map((s) => s.normalize('NFC').trim().toLowerCase())).size !== preset.keywords.length ||
     preset.keywords.some((s) => !s.trim() || s !== s.normalize('NFC').trim()) ||
     new Set(preset.category.children.map((child) => child.id)).size !== 4 ||
     windows[0]?.id !== '30d' ||
@@ -31,7 +39,7 @@ export function validateMetricV3CaptureSpec(value: unknown): MetricV3CaptureSpec
     days(windows[1].period.startDate, windows[1].period.endDate) !== 365
   )
     throw new Error('CAPTURE_PRESET_INVALID');
-  return structuredClone(value);
+  return structuredClone(spec);
 }
 
 export const METRIC_V3_STOP_CODES = [

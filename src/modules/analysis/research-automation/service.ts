@@ -114,7 +114,7 @@ import { readMarketRawSeries } from './market-raw-series.js';
 import { renderMarketRawCharts, type MarketRawReportInput } from './market-raw-report.js';
 import { autorunRequestKey, buildConfirmValue, buildPrepareValue, buildRevisionValue, deriveIncludeTerms, isAutorunCaptureStopCode, pickShopeeLinks, planCapturePeriod, sourceContextVi, type DatePeriod as AutorunPeriod } from './autorun-derive.js';
 import { METRIC_CAPTURE_DIRS, runMetricCapture, type MetricCaptureRequest, type MetricCaptureRunnerConfig, type MetricCaptureRunResult } from './metric-capture-runner.js';
-import { AUTORUN_SCOPE_RECORD_VERSION, answerKeyword2, captureTwoOk, categoryNotSelectable, chooseKeyword2, decideCategory, planScope, readCategoryShares, scopeLinesVi, titlePhraseCandidates, topRevenueTitles, usedScope,
+import { AUTORUN_SCOPE_RECORD_VERSION, answerKeyword2, captureTwoOk, categoryNotSelectable, chooseKeyword2, decideCategory, planScope, readCategoryShares, scopeLinesVi, skipKeyword2Scope, titlePhraseCandidates, topRevenueTitles, usedScope,
   type AutorunModelVariants, type AutorunScopeRecord, type AutorunTitleRow } from './autorun-scope.js';
 import { readPreparedMetricCaptureSources } from './metric-capture-inventory.js';
 import { AutomationWorldBankSourceIntake, readConfirmedWorldBankSource, readWorldBankHistory, WORLD_BANK_INDICATORS, WORLD_BANK_PROFILE } from './world-bank-intake.js';
@@ -1323,6 +1323,7 @@ export class ResearchAutomationService {
         keyword: input.keyword, description: input.description ?? null, interview: input.interview ?? null,
         requestedPeriod: { startDate: input.requestedPeriod.startDate, endDate: input.requestedPeriod.endDate, dayCount: inclusiveDays(input.requestedPeriod) },
         reports: [...input.reports],
+        ...(input.contractVersion === 'research-automation-start-v2' ? { waitForKeyword2: input.waitForKeyword2 ?? false } : {}),
         ...(input.metricV3Preset !== undefined ? { metricV3Preset: validateMetricV3CaptureSpec(input.metricV3Preset) } : {}),
         ...(this.#privateShopeeSource ? { privateShopeeSource: this.#privateShopeeSource } : {}),
         ...(this.#reviewPolicy ? { reviewCollectionPolicy: this.#reviewPolicy } : {}),
@@ -4966,7 +4967,8 @@ export class ResearchAutomationService {
         const waiting = planScope({ runId, keyword1: scope.keyword1, category: scope.category, keyword2: scope.keyword2 });
         if (input.metricV3Preset !== undefined) {
           const preset = validateMetricV3CaptureSpec(input.metricV3Preset);
-          if (preset.preset.keywords[1] !== input.keyword2 ||
+          const [, presetKeyword2] = preset.preset.keywords;
+          if ((presetKeyword2 ?? null) !== input.keyword2 ||
               (preset.preset.category.id !== metricV3Category.id || preset.preset.category.label !== metricV3Category.label ||
                preset.preset.category.children.some(child => !metricV3Category.children.some(known => known.id === child.id && known.label === child.label))))
             throw new ResearchAutomationValidationError('Preset category or keyword is invalid.');
@@ -5577,9 +5579,11 @@ export class ResearchAutomationService {
    * interview cross-check, and keyword-2 candidates from the top-revenue titles plus name variants
    * the existing keyword drafting model proposes for those titles.
    */
-  async #planAutorunScope(runId: string, start: StartSnapshot, captureDir: string, signal: AbortSignal): Promise<AutorunScopeRecord> {
+  async #planAutorunScope(runId: string, start: StartSnapshot, captureDir: string, signal: AbortSignal, waitForKeyword2 = true): Promise<AutorunScopeRecord> {
     const raw = JSON.parse(await readFile(joinPath(captureDir, 'raw-responses.json'), 'utf8')) as unknown;
     const category = decideCategory(readCategoryShares(raw), start.interview?.productType);
+    // The owner chose at start to continue without keyword 2: no model variants and no wait point.
+    if (!waitForKeyword2) return skipKeyword2Scope(runId, start.keyword, category);
     const rows = topRevenueTitles(raw);
     const variants = await this.#keyword2Variants(start.keyword, rows, signal);
     // Model variants first: a title phrase equal to a variant keeps the MODEL source it came from.
@@ -5730,7 +5734,7 @@ export class ResearchAutomationService {
           // The category label comes from data; a page without that option keeps the first capture (All).
           if (result.ok) scope = captureTwoOk(second);
           else if (result.code === 'CAPTURE_CATEGORY_NOT_SELECTABLE') scope = categoryNotSelectable(second);
-        } else if (result.ok && !start.metricV3Preset) scope = await this.#planAutorunScope(runId, start, result.captureDir, controller.signal);
+        } else if (result.ok && !start.metricV3Preset) scope = await this.#planAutorunScope(runId, start, result.captureDir, controller.signal, start.waitForKeyword2 !== false);
         if (scope) await this.#writeAutorunScope(runId, scope);
       } catch { result = { ok: false, code: controller.signal.aborted ? 'CAPTURE_INTERRUPTED' : 'CAPTURE_IO_FAILED', detail: 'capture failed', executorCalls: 0 }; scope = null; }
       try { await this.#settleCapture(runId, result, scope); }
@@ -6273,7 +6277,8 @@ function assertStartSnapshot(value: unknown, workspaceId: string): asserts value
       value.requestedPeriod.dayCount !== inclusiveDays({ startDate: value.requestedPeriod.startDate, endDate: value.requestedPeriod.endDate }) ||
       !Array.isArray(value.reports) || (value.reports.length !== 1 && value.reports.length !== 2) ||
       value.reports.some((item) => item !== 'MARKET' && item !== 'INSIGHT') || new Set(value.reports).size !== value.reports.length ||
-      (value.reports.length === 2 && (value.reports[0] !== 'MARKET' || value.reports[1] !== 'INSIGHT'))) throw new ResearchAutomationIntegrityError('Stored start snapshot has inconsistent identity.');
+      (value.reports.length === 2 && (value.reports[0] !== 'MARKET' || value.reports[1] !== 'INSIGHT')) ||
+      (value.waitForKeyword2 !== undefined && typeof value.waitForKeyword2 !== 'boolean')) throw new ResearchAutomationIntegrityError('Stored start snapshot has inconsistent identity.');
   if (value.metricV3Preset !== undefined) {
     try { validateMetricV3CaptureSpec(value.metricV3Preset); }
     catch { throw new ResearchAutomationIntegrityError('Stored capture preset is invalid.'); }
@@ -6754,11 +6759,16 @@ function stringArray(value: unknown, maxItems: number, maxLength: number): value
 }
 
 function validateStart(value: unknown): ResearchAutomationStartRequest {
-  const object = plain(value); keys(object, ['contractVersion', 'requestKey', 'mode', 'keyword', 'description', 'requestedPeriod', 'reports', 'interview', 'metricV3Preset']);
+  const object = plain(value); keys(object, ['contractVersion', 'requestKey', 'mode', 'keyword', 'description', 'requestedPeriod', 'reports', 'interview', 'metricV3Preset', 'waitForKeyword2']);
   if (!['research-automation-start-v1', 'research-automation-start-v2'].includes(object.contractVersion) || typeof object.requestKey !== 'string' || !REQUEST_KEY.test(object.requestKey)) throw new ResearchAutomationValidationError('Invalid start request.');
   if (object.mode !== 'PRODUCT' && object.mode !== 'CATEGORY') throw new ResearchAutomationValidationError('Invalid research mode.');
   const keyword = text(object.keyword, 120); const period = validatePeriod(object.requestedPeriod); const reports = validateReports(object.reports);
   const output: ResearchAutomationStartRequest = { contractVersion: object.contractVersion, requestKey: object.requestKey, mode: object.mode, keyword, requestedPeriod: period, reports };
+  if (object.waitForKeyword2 !== undefined) {
+    if (object.contractVersion === 'research-automation-start-v1' || typeof object.waitForKeyword2 !== 'boolean')
+      throw new ResearchAutomationValidationError('Keyword 2 wait requires contract v2.');
+    output.waitForKeyword2 = object.waitForKeyword2;
+  }
   if (object.metricV3Preset !== undefined) {
     if (object.contractVersion === 'research-automation-start-v1') throw new ResearchAutomationValidationError('Capture preset requires contract v2.');
     try {

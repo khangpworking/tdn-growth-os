@@ -78,10 +78,11 @@
         "requestedPeriod": { "$ref": "#/$defs/requestedPeriodInput" },
         "reports": { "$ref": "#/$defs/reports" },
         "interview": { "$ref": "#/$defs/interview" },
-        "metricV3Preset": { "type": "object", "description": "Explicit capture spec, validated by the canonical metric-v3-capture-spec-v1 schema in the start service." }
+        "waitForKeyword2": { "type": "boolean", "description": "Start v2 only. True stops at the keyword-2 wait point; false continues with keyword 1 alone (reason KEYWORD2_NOT_REQUESTED). Absent keeps the legacy wait for start-v1 runs." },
+        "metricV3Preset": { "type": "object", "description": "Explicit capture spec, validated by the canonical metric-v3-capture-spec v2 (or retained v1) schema in the start service." }
       },
       "if": { "properties": { "contractVersion": { "const": "research-automation-start-v1" } } },
-      "then": { "properties": { "metricV3Preset": false } }
+      "then": { "properties": { "metricV3Preset": false, "waitForKeyword2": false } }
     },
     "confirmRequest": {
       "title": "ResearchAutomationConfirmRequest",

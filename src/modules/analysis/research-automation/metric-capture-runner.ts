@@ -6,7 +6,7 @@
 // executor calls). Every deployment value (adapter manifest, digest, capture
 // root, executable) comes from the injected config; nothing machine-specific is
 // hard-coded. Explicit presets use the checkout v3 adapter under the same lock.
-import type { MetricV3CaptureSpec } from '../../../../contracts/analysis/metric-v3-capture-spec.generated.js';
+import type { MetricV3CaptureSpec } from './metric-v3-capture-spec.js';
 import { METRIC_V3_STOP_CODES, type MetricV3StopCode } from './metric-v3-capture-spec.js';
 import { captureMetricV3 } from './metric-v3-browser-capture.js';
 import { chmod, mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
