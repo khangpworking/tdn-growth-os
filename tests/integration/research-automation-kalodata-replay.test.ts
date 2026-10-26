@@ -29,7 +29,7 @@ const replayNow = () => new Date('2026-10-09T00:00:00.000Z');
 
 interface Counts { balance: number; rank: number; detail: number; other: number }
 
-function fakeKalodata(counts: Counts, now: () => Date): ProviderTransport {
+function fakeKalodata(counts: Counts, now: () => Date, responseHeaders: Record<string, string> = { 'content-type': 'application/json' }): ProviderTransport {
   return {
     now: () => now().getTime(),
     sleep: async () => {},
@@ -47,7 +47,7 @@ function fakeKalodata(counts: Counts, now: () => Date): ProviderTransport {
         payload = { success: true, data: { product_id: body.product_id, product_region: 'vn', currency: 'VND', date_range: body.date_range,
           product_name: 'Synthetic thermos', revenue: 1000, sales_volumn: 7, unit_price: 120000 } };
       } else { counts.other += 1; throw new Error(`Unexpected fixture endpoint: ${url.pathname}`); }
-      return new Response(JSON.stringify(payload), { status: 200, headers: { 'content-type': 'application/json' } });
+      return new Response(Buffer.from(JSON.stringify(payload)), { status: 200, headers: responseHeaders });
     }) as typeof fetch,
   };
 }
@@ -86,13 +86,13 @@ async function runMarket(db: BetterSqlite3.Database, artifacts: ContentAddressed
   return { service, run: await service.getRun(options.workspaceId, options.runId) };
 }
 
-async function fixture(t: TestContext, renderer = false) {
+async function fixture(t: TestContext, renderer = false, responseHeaders?: Record<string, string>) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-kalodata-replay-'));
   const db = openDatabase({ databasePath: path.join(root, 'db.sqlite'), now: sourceNow }).db;
   const artifacts = new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
   t.after(async () => { db.close(); await fs.rm(root, { recursive: true, force: true }); });
   const live: Counts = { balance: 0, rank: 0, detail: 0, other: 0 };
-  const source = await runMarket(db, artifacts, { workspaceId: sourceWorkspace, runId: sourceRunId, now: sourceNow, transport: fakeKalodata(live, sourceNow), key: 'synthetic-secret', renderer });
+  const source = await runMarket(db, artifacts, { workspaceId: sourceWorkspace, runId: sourceRunId, now: sourceNow, transport: fakeKalodata(live, sourceNow, responseHeaders), key: 'synthetic-secret', renderer });
   return { db, artifacts, live, source };
 }
 
@@ -106,42 +106,49 @@ const captureShas = (db: BetterSqlite3.Database, runId: string) => (db.prepare(`
   .all(runId) as { sha: string }[]).map(row => row.sha);
 
 test('a Market run replays every sales-data request from the source run with zero live calls', async t => {
-  const { db, artifacts, live, source } = await fixture(t);
-  assert.ok(live.rank > 0 && live.detail > 0, 'the source run made live (fake) calls');
-  const sourceHtml = await outputHtml(db, artifacts, sourceRunId);
-  assert.ok(sourceHtml, `source run produced a Market draft (${source.run.status})`);
-  assert.ok(!sourceHtml.includes(KALODATA_REPLAY_NOTICE_VI), 'flag off: no test notice');
+  for (const legacy of [false, true]) await t.test(legacy ? 'legacy captures without responseHeaders' : 'captures with responseHeaders', async st => {
+    const { db, artifacts, live, source } = await fixture(st, false, legacy ? {} : undefined);
+    for (const sha of captureShas(db, sourceRunId)) {
+      const capture = JSON.parse((await artifacts.read(sha)).toString('utf8'));
+      assert.equal(Object.hasOwn(capture, 'responseHeaders'), !legacy);
+      if (!legacy) assert.deepEqual(capture.responseHeaders, { 'content-type': 'application/json' });
+    }
+    assert.ok(live.rank > 0 && live.detail > 0, 'the source run made live (fake) calls');
+    const sourceHtml = await outputHtml(db, artifacts, sourceRunId);
+    assert.ok(sourceHtml, `source run produced a Market draft (${source.run.status})`);
+    assert.ok(!sourceHtml.includes(KALODATA_REPLAY_NOTICE_VI), 'flag off: no test notice');
 
-  const replay = readKalodataReplaySource(db, sourceRunId);
-  const inner: Counts = { balance: 0, rank: 0, detail: 0, other: 0 };
-  const transport = createKalodataReplayTransport(fakeKalodata(inner, replayNow), () => loadKalodataReplayIndex(db, artifacts, sourceRunId));
-  const result = await runMarket(db, artifacts, { workspaceId: replayWorkspace, runId: replayRunId, now: replayNow, transport, key: KALODATA_REPLAY_PLACEHOLDER_KEY, replay });
+    const replay = readKalodataReplaySource(db, sourceRunId);
+    const inner: Counts = { balance: 0, rank: 0, detail: 0, other: 0 };
+    const transport = createKalodataReplayTransport(fakeKalodata(inner, replayNow), () => loadKalodataReplayIndex(db, artifacts, sourceRunId));
+    const result = await runMarket(db, artifacts, { workspaceId: replayWorkspace, runId: replayRunId, now: replayNow, transport, key: KALODATA_REPLAY_PLACEHOLDER_KEY, replay });
 
-  assert.deepEqual(inner, { balance: 0, rank: 0, detail: 0, other: 0 }, 'no request reached the live transport');
-  assert.equal(transport.stats.missed, 0);
-  assert.ok(transport.stats.replayed > 0);
-  assert.equal(result.run.status, source.run.status, 'the replay run reaches the same state as the source run');
+    assert.deepEqual(inner, { balance: 0, rank: 0, detail: 0, other: 0 }, 'no request reached the live transport');
+    assert.equal(transport.stats.missed, 0);
+    assert.ok(transport.stats.replayed > 0);
+    assert.equal(result.run.status, source.run.status, 'the replay run reaches the same state as the source run');
 
-  const html = await outputHtml(db, artifacts, replayRunId);
-  assert.ok(html, 'replay run produced a Market draft');
-  assert.ok(html.includes(KALODATA_REPLAY_NOTICE_VI), 'visible test notice in the report HTML');
-  const visible = html.replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<[^>]+>/g, ' ');
-  assert.doesNotMatch(visible, /\b(kalodata|metric|tradeint|dami|nvidia|jev)\b/i, 'report text names no data provider');
+    const html = await outputHtml(db, artifacts, replayRunId);
+    assert.ok(html, 'replay run produced a Market draft');
+    assert.ok(html.includes(KALODATA_REPLAY_NOTICE_VI), 'visible test notice in the report HTML');
+    const visible = html.replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<[^>]+>/g, ' ');
+    assert.doesNotMatch(visible, /\b(kalodata|metric|tradeint|dami|nvidia|jev)\b/i, 'report text names no data provider');
 
-  const rows = usage(db, replayRunId).filter(row => row.provider === 'kalodata');
-  assert.ok(rows.length > 0);
-  for (const row of rows) assert.deepEqual([row.operation, row.state, row.unit, row.amount], ['provider.replay', 'KNOWN', 'CREDITS', '0']);
-  assert.ok(usage(db, sourceRunId).every(row => row.operation !== 'provider.replay'), 'source run usage is unchanged');
+    const rows = usage(db, replayRunId).filter(row => row.provider === 'kalodata');
+    assert.ok(rows.length > 0);
+    for (const row of rows) assert.deepEqual([row.operation, row.state, row.unit, row.amount], ['provider.replay', 'KNOWN', 'CREDITS', '0']);
+    assert.ok(usage(db, sourceRunId).every(row => row.operation !== 'provider.replay'), 'source run usage is unchanged');
 
-  // Captures point at the replayed bytes: each replayed response sha is one the source run stored.
-  const sourceResponseShas = new Set<string>();
-  for (const sha of captureShas(db, sourceRunId)) sourceResponseShas.add((JSON.parse((await artifacts.read(sha)).toString('utf8')) as { responseSha256: string }).responseSha256);
-  const replayShas = captureShas(db, replayRunId);
-  assert.ok(replayShas.length > 0);
-  for (const sha of replayShas) {
-    const envelope = JSON.parse((await artifacts.read(sha)).toString('utf8')) as { responseSha256: string; requestParameters: unknown };
-    assert.ok(sourceResponseShas.has(envelope.responseSha256), 'replayed response bytes equal a stored source response');
-  }
+    // Captures point at the replayed bytes: each replayed response sha is one the source run stored.
+    const sourceResponseShas = new Set<string>();
+    for (const sha of captureShas(db, sourceRunId)) sourceResponseShas.add((JSON.parse((await artifacts.read(sha)).toString('utf8')) as { responseSha256: string }).responseSha256);
+    const replayShas = captureShas(db, replayRunId);
+    assert.ok(replayShas.length > 0);
+    for (const sha of replayShas) {
+      const envelope = JSON.parse((await artifacts.read(sha)).toString('utf8')) as { responseSha256: string; requestParameters: unknown };
+      assert.ok(sourceResponseShas.has(envelope.responseSha256), 'replayed response bytes equal a stored source response');
+    }
+  });
 });
 
 test('a run with a different keyword is refused before any work', async t => {
@@ -203,9 +210,16 @@ test('a product with no stored answer fails closed with KALODATA_REPLAY_MISS and
 });
 
 test('the report-builder renderer path (as the API wires it) also carries the notice; flag off it does not', async t => {
-  const { db, artifacts } = await fixture(t, true);
+  const responseHeaders = { server: 'synthetic-edge-header-marker', date: 'Mon, 26 Oct 2026 01:23:45 GMT',
+    'cf-ray': 'synthetic-ray-header-marker', 'x-request-id': 'synthetic-request-header-marker', 'content-type': 'application/json' };
+  const { db, artifacts } = await fixture(t, true, responseHeaders);
+  for (const sha of captureShas(db, sourceRunId)) {
+    const capture = JSON.parse((await artifacts.read(sha)).toString('utf8'));
+    assert.deepEqual(capture.responseHeaders, responseHeaders, 'diagnostic headers are retained in the capture');
+  }
   const sourceHtml = await outputHtml(db, artifacts, sourceRunId);
   assert.ok(sourceHtml && !sourceHtml.includes(KALODATA_REPLAY_NOTICE_VI));
+  for (const value of Object.values(responseHeaders)) assert.equal(sourceHtml.includes(value), false, 'header values never enter report HTML or its PDF input');
   const replay = readKalodataReplaySource(db, sourceRunId);
   const inner: Counts = { balance: 0, rank: 0, detail: 0, other: 0 };
   const transport = createKalodataReplayTransport(fakeKalodata(inner, replayNow), () => loadKalodataReplayIndex(db, artifacts, sourceRunId));
@@ -213,6 +227,7 @@ test('the report-builder renderer path (as the API wires it) also carries the no
   assert.deepEqual(inner, { balance: 0, rank: 0, detail: 0, other: 0 });
   const html = await outputHtml(db, artifacts, replayRunId);
   assert.ok(html && html.includes(KALODATA_REPLAY_NOTICE_VI));
+  for (const value of Object.values(responseHeaders)) assert.equal(html.includes(value), false, 'replay also excludes diagnostic headers from the report');
   assert.equal(html.split('data-test-replay="1"').length - 1, 1, 'exactly one visible notice');
   const visible = html.replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<[^>]+>/g, ' ');
   assert.doesNotMatch(visible, /\b(kalodata|metric|tradeint|dami|nvidia|jev)\b/i, 'API renderer text names no provider');
@@ -221,8 +236,9 @@ test('the report-builder renderer path (as the API wires it) also carries the no
 // Flag-off identity: digests from main e0754a3 with the same fixed-UUID fixture.
 // The original renderer golden was nondeterministic because package UUIDs were not fixed.
 // c2 PR3 re-froze rendererHtmlSha256 only: owner Q4 (R-L14): the M12 evidence inventory now writes the full proposal label sentence; that sentence is the only byte change.
+// wp/kalodata-5xx-2610 re-pins renderer/capture digests: responseHeaders change capture/claim identity and citation order; header values never enter report HTML.
 const MAIN_E0754A3 = {
-  fallbackHtmlSha256: 'de6bfa2bc1439e19ebf2b7df2d400883a378afab53f91f7014bdc89c585975f3', rendererHtmlSha256: '4ed5fd382e9dd4fc214369eb4985e86c3586550fb136df9730da9f883b993eeb', usage: 'fcb8b1c018c4684f0d28d3982be7ee2640acaec7f28dfe1fe16f0d0270e1541a', captures: '918b01c1fbd95b2c726f05b3e38c5acf1a89fc3f7c5ba3b3748e1070abaf9f39',
+  fallbackHtmlSha256: 'de6bfa2bc1439e19ebf2b7df2d400883a378afab53f91f7014bdc89c585975f3', rendererHtmlSha256: 'f03c03b531daceb0d38ad18616d9805e62221ffc9ff2123b27958d24e19cb974', usage: 'fcb8b1c018c4684f0d28d3982be7ee2640acaec7f28dfe1fe16f0d0270e1541a', captures: '817c8ef1bcd9392b343121467841792c044df151ca78fe5a23ce09551a216374',
 };
 test('flag off: outputs and usage rows are byte-identical to main', async t => {
   // SourcePackageService creates UUIDs outside the service fixture's injected uuid.

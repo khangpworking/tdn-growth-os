@@ -379,6 +379,78 @@ test('malformed Kalodata payload is retained as an invalid capture and never ret
   assert.equal(result.captures.find(capture => capture.operation === 'kalodata.product.rank')?.outcome, 'INVALID_PAYLOAD');
 });
 
+test('Kalodata captures keep only lower-case bounded response headers and drop secret echoes', async t => {
+  const key = 'synthetic-header-key';
+  for (const outcome of ['OK', 'HTTP_ERROR', 'INVALID_PAYLOAD', 'PROVIDER_REJECTED', 'CREDENTIAL_ECHO_REFUSED', 'OVERSIZE'] as const) await t.test(outcome, async () => {
+    const headers = {
+      Server: 'synthetic-edge', Date: 'Mon, 26 Oct 2026 00:00:00 GMT', Via: '1.1 synthetic-proxy', 'CF-Ray': 'synthetic-ray',
+      'X-Request-ID': 'r'.repeat(250), 'X-Amzn-RequestId': 'synthetic-request', 'X-Cache': 'HIT\tfrom synthetic-cache',
+      'Content-Type': 'application/json', 'Content-Length': '0', 'Retry-After': '10',
+      'Set-Cookie': 'private=synthetic', Authorization: 'Bearer synthetic-private', 'Proxy-Authenticate': 'synthetic-private',
+      'WWW-Authenticate': 'synthetic-private', 'X-Unknown': 'synthetic-private',
+    };
+    const fixture = transport(async url => {
+      if (url.pathname.endsWith('/credit/balance')) return response({ success: true, data: { totalRemain: 10 } });
+      const body = outcome === 'HTTP_ERROR' ? null : outcome === 'INVALID_PAYLOAD' ? 'invalid json'
+        : outcome === 'PROVIDER_REJECTED' ? JSON.stringify({ success: false, code: 1001 })
+        : outcome === 'CREDENTIAL_ECHO_REFUSED' ? JSON.stringify({ diagnostic: key })
+        : outcome === 'OVERSIZE' ? Buffer.alloc(8 * 1024 * 1024 + 1, 'x') : JSON.stringify({ success: true, data: [] });
+      return new Response(body, { status: outcome === 'HTTP_ERROR' ? 554 : 200, headers });
+    });
+    const provider = createResearchAutomationProviderRegistry({ kalodataSecretKey: key, serpApiKey: null, apifyTokenConfigured: false }, fixture).get('KALODATA');
+    const result = await provider.quickSearch(quickInput());
+    const rank = result.captures.find(capture => capture.operation === 'kalodata.product.rank')!;
+    assert.equal(rank.outcome, outcome);
+    assert.deepEqual(rank.responseHeaders, {
+      server: 'synthetic-edge', date: 'Mon, 26 Oct 2026 00:00:00 GMT', via: '1.1 synthetic-proxy', 'cf-ray': 'synthetic-ray',
+      'x-request-id': 'r'.repeat(200), 'x-amzn-requestid': 'synthetic-request', 'x-cache': 'HIT from synthetic-cache',
+      'content-type': 'application/json', 'content-length': '0', 'retry-after': '10',
+    });
+  });
+  for (const echo of [key, key.replaceAll('-', '%2D')]) await t.test(`secret echo ${echo === key ? 'literal' : 'URL-encoded'}`, async () => {
+    const provider = createResearchAutomationProviderRegistry({ kalodataSecretKey: key, serpApiKey: null, apifyTokenConfigured: false },
+      transport(async () => new Response(JSON.stringify({ success: true, data: [] }), {
+        headers: { server: `edge ${echo}`, 'x-request-id': `request ${key}`, 'cf-ray': 'safe-ray' },
+      }))).get('KALODATA');
+    const result = await provider.quickSearch(quickInput());
+    assert.ok(result.captures.length > 0);
+    for (const capture of result.captures) {
+      assert.equal(capture.responseHeaders?.server, undefined);
+      assert.equal(capture.responseHeaders?.['x-request-id'], undefined);
+      assert.equal(capture.responseHeaders?.['cf-ray'], 'safe-ray');
+      assert.equal(JSON.stringify(capture).includes(key), false);
+    }
+  });
+});
+
+test('shared web captures also retain safe response headers and drop private headers', async () => {
+  const provider = createResearchAutomationProviderRegistry({ kalodataSecretKey: null, serpApiKey: 'synthetic-web-key', apifyTokenConfigured: false },
+    transport(async () => new Response(JSON.stringify({ organic_results: [] }), { headers: {
+      server: 'synthetic-web-edge', 'cf-ray': 'synthetic-web-ray', 'content-type': 'application/json', 'set-cookie': 'private=synthetic', 'x-unknown': 'private',
+    } }))).get('SERPAPI');
+  const result = await provider.collect(collectInput());
+  assert.equal(result.captures.length, 1);
+  assert.deepEqual(result.captures[0]!.responseHeaders, { server: 'synthetic-web-edge', 'cf-ray': 'synthetic-web-ray', 'content-type': 'application/json' });
+});
+
+test('Kalodata auth and rate rejections stop every remaining paid detail call', async t => {
+  for (const status of [401, 403, 429]) await t.test(`HTTP ${status}`, async () => {
+    const calls: string[] = [];
+    const provider = createResearchAutomationProviderRegistry({ kalodataSecretKey: 'synthetic-key', serpApiKey: null, apifyTokenConfigured: false },
+      transport(async url => {
+        calls.push(url.pathname.split('/').slice(-2).join('/'));
+        return url.pathname.endsWith('/credit/balance') ? response({ success: true, data: { totalRemain: 10 } }) : new Response(null, { status });
+      })).get('KALODATA');
+    const result = await provider.collect(collectInput({ selectedProductRefs: ['kalodata:101', 'kalodata:102'] }));
+    assert.deepEqual(calls, ['credit/balance', 'product/detail', 'credit/balance']);
+    assert.equal(result.captures.filter(capture => capture.operation === 'kalodata.product.detail').length, 1);
+    assert.equal(result.captures.find(capture => capture.operation === 'kalodata.product.detail')?.outcome, 'HTTP_ERROR');
+    assert.deepEqual(result.productObservations, []);
+    assert.equal(result.usage.automaticRetries, 0);
+    assert.ok(result.coverage[0]!.queryWindows.every(window => window.status === 'FAILED'));
+  });
+});
+
 test('SerpApi current discovery maps organic results, strips the key from captures, and keeps period semantics honest', async () => {
   const raw = JSON.stringify({ organic_results: [
     { position: 1, title: 'Calcium research', link: 'https://example.test/article', displayed_link: 'example.test', snippet: 'Current result', source: 'Example' },

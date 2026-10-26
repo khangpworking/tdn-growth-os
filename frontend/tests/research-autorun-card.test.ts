@@ -51,6 +51,25 @@ test('card renders nothing without autoRun', async t => {
   assert.equal(dom.container.innerHTML, '');
 });
 
+test('failed quick-search stop codes render specific plain text without offering a retry', async t => {
+  for (const [stopCode, expected] of [
+    ['PROVIDER_UNAVAILABLE', /Máy chủ nguồn dữ liệu trả lỗi.*tạo lượt mới/],
+    ['PROVIDER_FAILED', /Nguồn dữ liệu gặp lỗi ở bước tìm sản phẩm/],
+    ['PROVIDER_CREDIT_EXHAUSTED', /Nguồn dữ liệu đã hết lượt tra cứu/],
+    ['PROVIDER_OUTPUT_INVALID', /Dữ liệu nguồn không vượt qua kiểm tra/],
+    ['KALODATA_REPLAY_MISS', /Bản chạy thử thiếu dữ liệu đã lưu/],
+    ['KALODATA_REPLAY_SCOPE_MISMATCH', /Bản chạy thử khác từ khóa hoặc khoảng thời gian/],
+  ] as const) await t.test(stopCode, async st => {
+    const { dom } = await mount(st, runWith({ phase: 'STOPPED', state: 'QUEUED', stopCode, canRetry: false }), async () => { throw new Error('rendering must not fetch'); });
+    const text = dom.container.textContent!;
+    assert.match(text, expected);
+    assert.equal(text.includes(AUTORUN_FALLBACK_TEXT), false);
+    assert.equal(text.includes(stopCode), false);
+    assert.doesNotMatch(text, /Không có sản phẩm chính/);
+    assert.equal(retryButton(dom.container), undefined);
+  });
+});
+
 test('Q2 row 5: DONE card describes only the Insight draft and preserves Market completion text', async t => {
   for (const reports of [['INSIGHT'], ['MARKET'], ['MARKET', 'INSIGHT']] as ('MARKET' | 'INSIGHT')[][]) await t.test(reports.join('+'), async st => {
     const run = { ...runWith({ phase: 'DONE', state: 'QUEUED', canRetry: false }), reports };
