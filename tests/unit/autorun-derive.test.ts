@@ -10,6 +10,7 @@ import {
   deriveIncludeTerms, firstAttemptPeriod, parseObservedPeriod, periodInside, pickShopeeLinks, planCapturePeriod, sourceContextVi,
 } from '../../src/modules/analysis/research-automation/autorun-derive.js';
 import { CAPTURE_ROW_PROFILE } from '../../src/modules/analysis/research-automation/capture-row-quality.js';
+import { readCaptureRelevanceRecord } from '../../src/modules/analysis/research-automation/capture-relevance.js';
 import { retainedRelevance } from '../helpers/capture-relevance-fixture.js';
 import { selectExactShopeeListings } from '../../src/modules/foundation/shopee-exact-selection.js';
 
@@ -204,6 +205,68 @@ test('pick v3 conserves ambiguous parts on the floor and excludes retained NOT_M
   assert.deepEqual(decided.links.map(link => link.shopId), ['73', '74']);
   assert.equal(decided.counts.eligible, 2);
   assert.deepEqual(pickShopeeLinks(raw(rows.slice(0, 2)), ['quạt điện'], { profile: CAPTURE_ROW_PROFILE, relevance }).links, []);
+});
+
+test('modal leaf keeps a high-revenue other-leaf row out while five modal rows fit, including a same-product combo', () => {
+  const other = row('Pin dự phòng dùng cho quạt điện mẫu thử', 81, 9000, { order_custom: 90, brand: 'Nhãn Ngoài', final_categories: 'Phụ kiện > Pin dự phòng' });
+  const main = [
+    row('Combo 2 quạt điện mẫu thử', 82, 500, { brand: 'Nhãn Mây', final_categories: 'Gia dụng > Làm mát' }),
+    row('Quạt điện mẫu thử nhỏ', 83, 400, { brand: 'Nhãn Mây', final_categories: ['Gia dụng', 'Làm mát'] }),
+    row('Quạt điện mẫu thử bàn', 84, 300, { brand: 'Nhãn Gió', final_categories: 'Gia dụng › Làm mát' }),
+    row('Quạt điện mẫu thử đứng', 85, 200, { categories: 'Gia dụng | Làm mát' }),
+    row('Quạt điện mẫu thử gọn', 86, 100, { brand: 'Nhãn Nắng', final_categories: 'Gia dụng » Làm mát', categories: 'Phụ kiện > Pin dự phòng' }),
+  ];
+  const result = pickShopeeLinks(raw([other, ...main]), ['quạt điện'], { profile: CAPTURE_ROW_PROFILE });
+  assert.deepEqual(result.links.map(link => link.productBaseId), [main[0], main[2], main[4], main[1], main[3]].map(item => item!.product_base_id));
+  assert.deepEqual(result.demotedRows, [{ productBaseId: other.product_base_id, leaf: 'Pin dự phòng', reason: 'OTHER_LEAF' }]);
+  assert.equal(result.counts.eligible, 6, 'another leaf is demoted, not excluded from the eligible sample');
+  assert.deepEqual(result.excludedRows, [], 'the same-product combo is eligible');
+});
+
+test('modal leaf fills first, then other leaves fill the missing places', () => {
+  const rows = [
+    row('Quạt điện mẫu thử ngoài A', 91, 900, { brand: 'Nhãn A', final_categories: 'Phụ kiện > Pin' }),
+    row('Quạt điện mẫu thử ngoài B', 92, 800, { brand: 'Nhãn B', final_categories: 'Phụ kiện > Động cơ' }),
+    row('Quạt điện mẫu thử ngoài C', 93, 700, { brand: 'Nhãn C', final_categories: 'Khác > Đèn' }),
+    row('Quạt điện mẫu thử chính A', 94, 200, { brand: 'Nhãn D', final_categories: 'Gia dụng > Làm mát' }),
+    row('Quạt điện mẫu thử chính B', 95, 100, { brand: 'Nhãn D', final_categories: 'Gia dụng > Làm mát' }),
+  ];
+  const result = pickShopeeLinks(raw(rows), ['quạt điện'], { profile: CAPTURE_ROW_PROFILE });
+  assert.deepEqual(result.links.map(link => link.productBaseId), [rows[3], rows[4], rows[0], rows[1], rows[2]].map(item => item!.product_base_id));
+  assert.equal(result.demotedRows?.length ?? 0, 0, 'other-leaf rows used to fill the target are picked');
+});
+
+test('rows with no category retain the legacy brand-spread and revenue order exactly', () => {
+  const rows = [
+    row('Quạt điện mẫu thử A', 101, 900, { brand: 'Nhãn A' }),
+    row('Quạt điện mẫu thử A khác', 102, 800, { brand: 'Nhãn A' }),
+    row('Quạt điện mẫu thử B cùng shop', 101, 700, { brand: 'Nhãn B' }),
+    row('Quạt điện mẫu thử không nhãn', 103, 600),
+    row('Quạt điện mẫu thử C', 104, 500, { brand: 'Nhãn C' }),
+    row('Quạt điện mẫu thử D', 105, 400, { brand: 'Nhãn D' }),
+    row('Quạt điện mẫu thử E', 106, 300, { brand: 'Nhãn E' }),
+  ];
+  const result = pickShopeeLinks(raw(rows), ['quạt điện'], { profile: CAPTURE_ROW_PROFILE });
+  assert.deepEqual(result.links.map(link => link.productBaseId), [rows[0], rows[4], rows[5], rows[6], rows[1]].map(item => item!.product_base_id));
+  assert.equal(result.demotedRows, undefined);
+  assert.equal(result.aiExcludedRows, undefined);
+});
+
+test('retained AI relevance normalizes raw title spaces and excludes only NOT_MAIN for every keyword', () => {
+  const titles = [{ title: 'Quạt điện mẫu thử ngoài' }, { title: 'Quạt điện mẫu thử đa dụng' }, { title: 'Quạt điện mẫu thử chính' }];
+  const keywords = ['quạt điện', 'quạt'];
+  const first = retainedRelevance(titles, keywords[0]!, title => title === titles[2]!.title ? 'MAIN' : 'NOT_MAIN');
+  const second = retainedRelevance(titles, keywords[1]!, title => title === titles[0]!.title ? 'NOT_MAIN' : 'MAIN');
+  const relevance = readCaptureRelevanceRecord({ ...first, decisions: [...first.decisions, ...second.decisions] }, titles, keywords);
+  const rows = [
+    row('  Quạt   điện mẫu thử   ngoài  ', 111, 900, { brand: 'Nhãn A' }),
+    row(' Quạt điện   mẫu thử đa dụng ', 112, 500, { brand: 'Nhãn B' }),
+    row(titles[2]!.title, 113, 100, { brand: 'Nhãn C' }),
+  ];
+  const result = pickShopeeLinks(raw(rows), keywords, { profile: CAPTURE_ROW_PROFILE, relevance });
+  assert.deepEqual(result.links.map(link => link.productBaseId), [rows[1]!.product_base_id, rows[2]!.product_base_id]);
+  assert.deepEqual(result.aiExcludedRows, [{ productBaseId: rows[0]!.product_base_id, reason: 'AI_NOT_MAIN' }]);
+  assert.equal(result.counts.eligible, 2);
 });
 
 test('explicit capture input requires terms, children, four platforms and both exact-length windows', async () => {

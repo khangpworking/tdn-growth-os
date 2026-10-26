@@ -1,17 +1,18 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
+import { JSDOM } from 'jsdom';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import type { AutomationSourceClaims } from '../../contracts/analysis/automation-source-claims.generated.js';
-import type { ScopeSnapshot } from '../../src/modules/analysis/research-automation/model.js';
+import type { ScopeSnapshot, StepSearchAds } from '../../src/modules/analysis/research-automation/model.js';
 import { calculateMetricScopes } from '../../src/modules/analysis/metric-scope-calculator.js';
 import { CAPTURE_ROW_PROFILE } from '../../src/modules/analysis/research-automation/capture-row-quality.js';
 import { buildAutomationDecisionPacket } from '../../src/modules/analysis/research-automation/decision-packets.js';
 import { buildAutomationM01EvidenceInventory } from '../../src/modules/analysis/research-automation/m01-evidence-inventory.js';
 import type { AutomationMarketMethodSnapshot } from '../../src/modules/analysis/research-automation/market-method-bridge.js';
 import type { AutomationMetricMethodSnapshot } from '../../src/modules/analysis/research-automation/metric-method-bridge.js';
-import { checkMarketReport, type MarketCheckContext } from '../../src/modules/analysis/research-automation/market-report-check.js';
-import type { MarketNumberTraceGateResult } from '../../src/modules/analysis/research-automation/market-number-trace.js';
+import { checkMarketReport, MarketNumberTraceBlockedError, type MarketCheckContext } from '../../src/modules/analysis/research-automation/market-report-check.js';
+import { checkMarketNumberTrace, type MarketNumberTraceGateResult } from '../../src/modules/analysis/research-automation/market-number-trace.js';
 import { readMarketRawSeries, resolveMarketRawSource } from '../../src/modules/analysis/research-automation/market-raw-series.js';
 import type { MarketNumberTrace, MarketTraceInput } from '../../src/modules/analysis/research-automation/market-trace-map.js';
 import { buildResearchAutomationReport, type AutomationReportInput } from '../../src/modules/analysis/research-automation/reports.js';
@@ -246,4 +247,102 @@ test('negative control: removing the P5b trace entries makes the A1 assertion fa
   assert.ok(preP5b.coveredUntraced > 0);
   assert.ok(preP5b.untraced.some(({ block }) => block === 'M01'), 'the M01 annotations must be untraced without their entries');
   assert.throws(() => assertCoveredAllTraced(preP5b), { name: 'AssertionError' });
+});
+
+// Three invented brands: a checked zero, a skipped label with digits, and positive
+// counts/dates. The domain also contains digits, so it must trace as stored text.
+const searchAds: StepSearchAds = {
+  profile: 'search-ads-v1', status: 'OK', brands: [
+    { label: 'Nhãn Mây', domain: 'may.example', status: 'OK', reason: null, totalResults: 0, creativeCount: 0,
+      formats: { text: 0, image: 0, video: 0 }, firstShown: null, lastShown: null, maxDaysShown: 0,
+      overlapCount: 0, invalidCount: 0, captureIndex: null, retrievedAt: '2026-10-01T00:00:00.000Z', responseSha256: null, usageOrdinal: null },
+    { label: '7LX', domain: null, status: 'SKIPPED_NO_DOMAIN', reason: null, totalResults: null, creativeCount: null,
+      formats: null, firstShown: null, lastShown: null, maxDaysShown: null, overlapCount: null, invalidCount: null,
+      captureIndex: null, retrievedAt: null, responseSha256: null, usageOrdinal: null },
+    { label: 'Nhãn Gió', domain: 'gio27.example', status: 'OK', reason: null, totalResults: 13, creativeCount: 13,
+      formats: { text: 6, image: 4, video: 3 }, firstShown: '2026-09-03', lastShown: '2026-09-21', maxDaysShown: 19,
+      overlapCount: 0, invalidCount: 0, captureIndex: null, retrievedAt: '2026-10-01T00:00:00.000Z', responseSha256: null, usageOrdinal: null },
+  ],
+};
+
+function collectionResolver(collection: AutomationReportInput['collection']) {
+  return (input: MarketTraceInput): unknown => {
+    if (!('store' in input) || input.identity !== COLLECTION_SHA) return resolve(input);
+    return input.pointer.slice(1).split('/').reduce<unknown>((value, key) =>
+      value && typeof value === 'object' ? (value as Record<string, unknown>)[key] : undefined, collection);
+  };
+}
+
+const s17Inputs = new Map<boolean, Promise<AutomationReportInput>>();
+function s17Input(presentation: boolean): Promise<AutomationReportInput> {
+  if (!s17Inputs.has(presentation)) s17Inputs.set(presentation, (async () => {
+    const { input: base } = await p5bReport();
+    const presented = presentation ? await fullMarket14Input() : undefined;
+    return { ...base, ...(presented ? { marketPresentation: presented.marketPresentation!,
+      marketPresentationCharts: presented.marketPresentationCharts! } : {}),
+      collection: { ...base.collection!, searchAds: structuredClone(searchAds) } };
+  })());
+  return s17Inputs.get(presentation)!;
+}
+
+function buildS17(input: AutomationReportInput) {
+  try { return build(input); }
+  catch (error) {
+    if (error instanceof MarketNumberTraceBlockedError) assert.fail(`${error.message}: ${JSON.stringify({
+      untraced: error.numberTrace.untraced, mismatches: error.numberTrace.mismatches })}`);
+    throw error;
+  }
+}
+
+for (const presentation of [false, true]) {
+  const branch = presentation ? 'with marketPresentation' : 'without marketPresentation';
+  test(`S17 traces counts, dates and digit-bearing labels ${branch}`, async () => {
+    const { html, trace, input } = buildS17(await s17Input(presentation));
+    const gate = checkMarketNumberTrace(html, trace, { resolve: collectionResolver(input.collection) });
+    assertCoveredAllTraced(gate);
+    const { start, end } = section(html, 'M07');
+    for (const value of ['7LX', 'gio27.example', '13', '6 / 4 / 3', '03/09/2026', '21/09/2026', '19']) {
+      assert.ok(html.slice(start, end).includes(value), `M07 must print «${value}»`);
+    }
+  });
+
+  test(`S17 table label follows its real position ${branch}`, async () => {
+    const input = await s17Input(presentation);
+    // Check the visible label independently of trace acceptance, so an unrelated
+    // untraced value cannot conceal an ordinal regression.
+    const { marketRawSeries: _rawSeries, ...withoutRawSeries } = input;
+    const report = buildResearchAutomationReport(withoutRawSeries, 'MARKET');
+    const dom = new JSDOM(report.html.toString());
+    try {
+      const sheet = dom.window.document.querySelector('#M07')!;
+      assert.ok(sheet);
+      const tables = [...sheet.querySelectorAll('table')];
+      const table = tables.find(table => table.tHead?.textContent?.includes('Số mẫu quảng cáo'));
+      assert.ok(table, 'S17 must print its search-ads table');
+      const ordinal = tables.indexOf(table) + 1;
+      assert.notEqual(ordinal, 3, 'the fixture must put S17 away from the old hard-coded position');
+      assert.match(table.parentElement!.textContent!, new RegExp(`Bảng 7\\.${ordinal}(?!\\d)`, 'u'));
+      assert.doesNotMatch(sheet.textContent!, /Bảng 7\.3/u);
+    } finally { dom.window.close(); }
+  });
+}
+
+test('S17 undated counts and digit-bearing labels replay COLLECTION; a changed stored creative count blocks with N02', async () => {
+  const input = await s17Input(false);
+  const collection = structuredClone(input.collection!);
+  collection.searchAds!.brands[2]!.firstShown = null;
+  collection.searchAds!.brands[2]!.lastShown = null;
+  const { html, trace } = buildS17({ ...input, collection });
+  const gate = checkMarketNumberTrace(html, trace, { resolve: collectionResolver(collection) });
+  assertCoveredAllTraced(gate);
+  assert.ok(gate.replayedPointers > 0);
+
+  // Leave the page and trace unchanged, and alter the retained record instead.
+  const changed = structuredClone(collection);
+  changed.searchAds!.brands[2]!.creativeCount = 14;
+  const outcome = checkMarketReport(html, { kind: 'DRAFT_PLAIN', numberTrace: { trace, resolve: collectionResolver(changed) } });
+  assert.ok(outcome.failure?.failed.includes('N02_TRACE_REPLAY'));
+  assert.equal(outcome.numberTrace?.ok, false);
+  assert.ok(outcome.numberTrace.mismatches.some(row => row.token === '13' && row.blockId.startsWith('M07')
+    && row.reason.includes('/searchAds/brands/2/creativeCount')), 'the changed COLLECTION field must cause the mismatch');
 });
