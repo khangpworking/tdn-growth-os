@@ -18,7 +18,10 @@
   ],
   "properties": {
     "contractVersion": {
-      "const": "metric-v3-window-capture-v1"
+      "enum": [
+        "metric-v3-window-capture-v1",
+        "metric-v3-window-capture-v2"
+      ]
     },
     "captureId": {
       "type": "string",
@@ -122,9 +125,82 @@
           }
         }
       }
+    },
+    "captureMethod": {
+      "enum": [
+        "ui",
+        "page-request"
+      ]
+    },
+    "fallbackReason": {
+      "type": "string",
+      "pattern": "^CAPTURE_[A-Z_]+$"
     }
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://tdn.local/metric-v3-window-capture.schema.json",
-  "title": "MetricV3WindowCapture"
+  "title": "MetricV3WindowCapture",
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "contractVersion": {
+            "const": "metric-v3-window-capture-v2"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "captureMethod"
+        ],
+        "properties": {
+          "captureMethod": {
+            "$ref": "#/properties/captureMethod"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "captureMethod": false,
+          "fallbackReason": false
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "captureMethod"
+        ],
+        "properties": {
+          "captureMethod": {
+            "const": "page-request"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "fallbackReason"
+        ],
+        "properties": {
+          "fallbackReason": {
+            "type": "string",
+            "pattern": "^CAPTURE_[A-Z_]+$"
+          }
+        }
+      },
+      "else": {
+        "not": {
+          "required": [
+            "fallbackReason"
+          ],
+          "properties": {
+            "fallbackReason": {
+              "type": "string",
+              "pattern": "^CAPTURE_[A-Z_]+$"
+            }
+          }
+        }
+      }
+    }
+  ]
 }

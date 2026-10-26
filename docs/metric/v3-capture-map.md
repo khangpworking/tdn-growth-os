@@ -77,3 +77,24 @@ five required response bodies and at least 15 first-page rows in each table.
 Its values match the corrected Phase A observations above; historical numeric
 differences remain disclosed. The live unknown-category run stopped with
 `CAPTURE_CATEGORY_NOT_SELECTABLE` before submit and closed its owned tab.
+
+## Automatic page-request fallback
+
+The preset runner tries the OpenCLI UI adapter first. Explicit UI/control,
+selector, period-control, keyword-application or bridge timeout failures permit
+one fallback; login, unknown category, invalid scope/preset and provider-data
+errors stop. Fallback retains partial UI output under `ui-failed/` and captures
+both windows afresh, so no published window mixes methods.
+
+The fallback builds all five request bodies from the preset and validates every
+retained request with the same publication gate. It reuses the logged-in page's
+read-only signed-header builder and page-context fetch; credentials stay inside
+the page. It does not invoke the site's session refresh/logout handlers.
+Taxonomy still resolves against the live category component. Missing taxonomy
+or session machinery fails closed. Each window records `captureMethod` and,
+for page requests, `fallbackReason`; its applied state describes validated
+request scope, with that distinction disclosed in `sourceLimitations`.
+
+The forced live fallback matched the prior UI capture's four KPI platform
+arrays exactly for both reference windows. Detailed evidence and limitations:
+[`M3-fallback-page-request.md`](../handoffs/M3-fallback-page-request.md).
