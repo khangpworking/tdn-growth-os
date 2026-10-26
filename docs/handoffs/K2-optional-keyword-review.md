@@ -1,0 +1,10 @@
+# Handoff — optional keyword 2 review
+
+Updated: 2026-10-26
+Worktree/branch: wp-kw2-optional-2610 · wp/kw2-optional-2610 · reviewed HEAD d61753c9 against origin/main eab8acd5.
+Completed: Reviewed implementation and tests against K2-BRIEF A/B/C. Fixed creation-preset keyword mismatch and guarded the existing Market-only preset boundary. Added report-skip/capture-count assertions and adapter version/cardinality contract rows. No OpenSpec rule defines the changed wait/start fields; no rule change is needed.
+Changed paths: frontend/src/research-automation/ResearchEditor.tsx; frontend/tests/research-automation.test.ts; tests/unit/autorun-service.test.ts; tests/unit/metric-v3-capture.test.ts; this handoff. All review edits remain uncommitted.
+Evidence (commands, results, relevant revision): npm run contracts:generate, npm run typecheck and npm run frontend:typecheck passed. The five requested unit files, excluding the three HTTP A4 cases, passed 65 tests with 2 Chromium skips. Both requested frontend files passed with the repository runner; focused K2/V3S1 rows passed 9 checks. Real baseline service/validator/adapter negative controls and pre-fix frontend regressions failed for the intended reasons; exact fixed bytes were restored. git diff --check passed. Full command details and logs are in SOL-FIX-REVIEW-RESULT.md in the worktree root.
+Unresolved: The exact combined backend command could not complete because this sandbox refuses localhost listeners (EPERM); a bounded integration diagnostic also reached a null child exit status. The full unit run had 65 passes, 3 HTTP-listener failures, 2 Chromium skips. Presets retain existing Market-only support; other report combinations continue without a preset.
+Next action: Rerun the exact requested backend command in an environment permitting localhost listeners/child execution, then review and commit the uncommitted fixes where Git metadata is writable. No push, deploy or live call was made.
+Business decisions pending: None required for this repair. Supporting v3 presets for combined/Insight-only reports would be a separate pipeline change.

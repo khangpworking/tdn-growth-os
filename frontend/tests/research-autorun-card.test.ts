@@ -53,7 +53,11 @@ test('V3S1 contract rows: prefill, editable scope transport, and invalid scope b
   for (const provider of ['Metric', 'Kalodata', 'TradeInt', 'Dami']) assert.ok(!dom.container.textContent!.toLowerCase().includes(provider.toLowerCase()), provider);
   await change(field('Từ khóa 1'), '');
   assert.equal(confirm().disabled, true);
-  assert.match(dom.container.textContent!, /Điền đủ hai từ khóa/);
+  assert.match(dom.container.textContent!, /Điền ít nhất từ khóa 1/);
+  await change(field('Từ khóa 1'), 'CALCIUM');
+  assert.equal(confirm().disabled, true);
+  assert.match(dom.container.textContent!, /Hai từ khóa cần khác nhau/);
+  assert.equal(calls.length, 0, 'missing keyword 1 and duplicates cannot submit');
   await change(field('Từ khóa 1'), 'canxi dạng viên');
   const category = dom.container.querySelector<HTMLSelectElement>('select[aria-label="Danh mục"]')!;
   await act(async () => { category.value = ''; category.dispatchEvent(new window.Event('change', { bubbles: true })); });
@@ -76,6 +80,35 @@ test('V3S1 contract rows: prefill, editable scope transport, and invalid scope b
     { id: '30d', period: { startDate: '2026-09-01', endDate: '2026-09-30' }, intervalDays: 7 },
     { id: '12m', period: { startDate: '2025-10-01', endDate: '2026-09-30' }, intervalDays: 30 },
   ]);
+});
+
+test('K2 wait-point one-keyword confirmation sends keyword2 null and a v2 preset', async t => {
+  const calls: { url: string; body: any }[] = [];
+  const waiting = runWith({ phase: 'STOPPED', state: 'QUEUED', stopCode: 'KEYWORD2_AWAITING', canRetry: false,
+    keyword2Suggestion: { keyword1: 'synthetic jar', term: 'alternate jar', titles: 3, titleCount: 3, brands: 3, categoryId: 'c2140822537' } });
+  const { dom, events } = await mount(t, waiting, async (url, init) => {
+    calls.push({ url: String(url), body: JSON.parse(String(init?.body)) });
+    return json({ contractVersion: 'research-automation-receipt-v1', exactRetry: false, run: {
+      ...runWith({ phase: 'CAPTURE', state: 'QUEUED', canRetry: false }),
+      steps: ['QUICK_SEARCH', 'COLLECTION', 'REPORTS'].map(stepId => ({ stepId, state: 'PENDING', code: null, message: null, startedAt: null, finishedAt: null })),
+    } });
+  });
+  const second = dom.container.querySelector<HTMLInputElement>('input[aria-label="Từ khóa 2"]')!;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!.call(second, '');
+    second.dispatchEvent(new window.Event('input', { bubbles: true }));
+  });
+  const confirm = [...dom.container.querySelectorAll('button')].find(button => button.textContent === 'Xác nhận')!;
+  assert.equal(confirm.disabled, false);
+  assert.equal(calls.length, 0);
+  await act(async () => confirm.click());
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0]!.url, `/owner-api/workspaces/${workspaceId}/research-automation/runs/${runId}/auto-run/retry`);
+  assert.equal(calls[0]!.body.contractVersion, 'research-automation-autorun-keyword-v2');
+  assert.equal(calls[0]!.body.keyword2, null);
+  assert.equal(calls[0]!.body.metricV3Preset.contractVersion, 'metric-v3-capture-spec-v2');
+  assert.deepEqual(calls[0]!.body.metricV3Preset.preset.keywords, ['synthetic jar']);
+  assert.equal(events.retried, 1);
 });
 
 test('every phase and stop code has plain text with no provider or tool name and no percentage', () => {

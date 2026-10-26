@@ -1,5 +1,7 @@
 import type { MetricV3CaptureSpec } from '../../contracts/analysis/metric-v3-capture-spec.generated.js';
 
+export type MetricV3PresetSpec = MetricV3CaptureSpec;
+
 // The verified tree in docs/metric/v3-capture-map.md; no unverified taxonomy is offered.
 export const metricV3Category: MetricV3CaptureSpec['preset']['category'] = {
   id: 'c2035652732', label: 'Sức Khoẻ', children: [
@@ -10,10 +12,12 @@ export const metricV3Category: MetricV3CaptureSpec['preset']['category'] = {
   ],
 };
 
-export function metricV3Defaults(keyword1: string, keyword2: string, endDate: string): MetricV3CaptureSpec {
+/** One keyword is enough; the second is optional and omitted from the preset when blank. */
+export function metricV3Defaults(keyword1: string, keyword2: string | null | undefined, endDate: string): MetricV3CaptureSpec {
   const start = (days: number) => new Date(Date.parse(endDate) - (days - 1) * 86400000).toISOString().slice(0, 10);
-  return { contractVersion: 'metric-v3-capture-spec-v1', preset: {
-    keywords: [keyword1, keyword2], smartQuery: true, category: structuredClone(metricV3Category),
+  const second = keyword2?.normalize('NFC').trim() ?? '';
+  return { contractVersion: 'metric-v3-capture-spec-v2', preset: {
+    keywords: (second ? [keyword1, second] : [keyword1]) as [string] | [string, string], smartQuery: true, category: structuredClone(metricV3Category),
     usefulFilters: { fake: true, gifts: true, deleted: true },
     advancedFilter: { firstField: 'rating_count', operator: '>', firstRate: 1, secondField: 'order_count', secondRate: 0.02 },
     shopTypes: ['mall', 'regular'], platforms: ['shopee', 'lazada', 'tiki', 'tiktok'],

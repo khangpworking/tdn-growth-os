@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
-import type { MetricV3CaptureSpec } from '../../../../contracts/analysis/metric-v3-capture-spec.generated.js';
+import type { MetricV3CaptureSpec } from './metric-v3-capture-spec.js';
 import type { MetricOpenCliProcessRunner } from './metric-opencli-executor.js';
 
 /** Checkout adapter, shared by autorun and the guarded operator command. Owns only its new tab. */

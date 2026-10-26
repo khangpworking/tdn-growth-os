@@ -1,4 +1,4 @@
-import type { MetricV3CaptureSpec } from '../../../../contracts/analysis/metric-v3-capture-spec.generated.js';
+import type { MetricV3CaptureSpec } from './metric-v3-capture-spec.js';
 // Search scope of the Market auto-runner's second capture (v3plug P2).
 //
 // The first capture searches keyword 1 in every category. From its stored raw
@@ -364,6 +364,8 @@ export interface AutorunScopeRecord {
     readonly modelVariants: AutorunModelVariants;
     /** The owner's answer to `chosen`, with the evidence of the term kept (an edited term is scored on the same titles). */
     readonly owner?: { readonly decision: AutorunKeyword2Decision; readonly evidence: Keyword2Evidence | null };
+    /** The start asked to continue without keyword 2, so no wait point was shown. */
+    readonly skipped?: 'KEYWORD2_NOT_REQUESTED';
   };
   /**
    * Null when the first capture already is the final one. AWAITING_KEYWORD2: a data-backed keyword 2
@@ -400,6 +402,15 @@ export function answerKeyword2(record: AutorunScopeRecord, term: string | null, 
   const decision: AutorunKeyword2Decision = value === null ? 'REMOVED' : value === record.keyword2.chosen.term ? 'ACCEPTED' : 'EDITED';
   return { ...record, keyword2: { ...record.keyword2, owner: { decision, evidence: decision === 'ACCEPTED' ? record.keyword2.chosen : value === null ? null : evidence } },
     capture2: captureTwo(record.keyword1, value, record.capture2.category) };
+}
+
+/** The start chose not to wait for keyword 2: keep the category decision and continue with keyword 1 only. */
+export function skipKeyword2Scope(runId: string, keyword1: string, category: AutorunCategoryDecision): AutorunScopeRecord {
+  const keyword = keyword1.normalize('NFC').trim();
+  return { contractVersion: AUTORUN_SCOPE_RECORD_VERSION, runId, keyword1: keyword, category,
+    keyword2: { titleCount: 0, candidates: [], chosen: null, modelVariants: 'NOT_CONFIGURED',
+      owner: { decision: 'REMOVED', evidence: null }, skipped: 'KEYWORD2_NOT_REQUESTED' },
+    capture2: captureTwo(keyword, null, category.category?.label ?? null) };
 }
 
 /** The second capture's category could not be selected: the run keeps the first capture (All, keyword 1). */
@@ -441,7 +452,8 @@ export function scopeLinesVi(record: AutorunScopeRecord | null): string[] {
   const lines: string[] = [];
   const keyword2 = used.keywords[1];
   const evidence = record.keyword2.owner ? record.keyword2.owner.evidence : record.keyword2.chosen;
-  if (keyword2 && evidence) lines.push(`Từ khóa: "${used.keywords[0]}" và "${keyword2}"${record.keyword2.owner?.decision === 'EDITED' ? ' (từ khóa 2 do người dùng sửa)' : ''}. Từ khóa 2 có trong ${percent(evidence.titleShare)} tên sản phẩm, xét ${record.keyword2.titleCount} sản phẩm doanh thu cao ở lượt tìm đầu, thuộc ${evidence.brands} thương hiệu.`);
+  if (record.keyword2.skipped === 'KEYWORD2_NOT_REQUESTED') lines.push(`Từ khóa: chỉ dùng "${used.keywords[0]}". Từ khóa 2 không được yêu cầu ở bước bắt đầu nên tự động bỏ qua.`);
+  else if (keyword2 && evidence) lines.push(`Từ khóa: "${used.keywords[0]}" và "${keyword2}"${record.keyword2.owner?.decision === 'EDITED' ? ' (từ khóa 2 do người dùng sửa)' : ''}. Từ khóa 2 có trong ${percent(evidence.titleShare)} tên sản phẩm, xét ${record.keyword2.titleCount} sản phẩm doanh thu cao ở lượt tìm đầu, thuộc ${evidence.brands} thương hiệu.`);
   const decision = record.category;
   const all = 'Phạm vi: tất cả danh mục — ';
   if (decision.reason === 'DOMINANT' && used.category && decision.top) lines.push(`Danh mục: ${used.category}, chiếm ${percent(decision.top.share)} doanh thu ở lượt tìm đầu (Shopee và TikTok Shop gộp).`);

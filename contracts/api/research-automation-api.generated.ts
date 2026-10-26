@@ -80,7 +80,11 @@ export interface ResearchAutomationStartRequest {
   reports: ResearchAutomationReports;
   interview?: ResearchAutomationInterview;
   /**
-   * Explicit capture spec, validated by the canonical metric-v3-capture-spec-v1 schema in the start service.
+   * Start v2 only. True stops at the keyword-2 wait point; false continues with keyword 1 alone (reason KEYWORD2_NOT_REQUESTED). Absent keeps the legacy wait for start-v1 runs.
+   */
+  waitForKeyword2?: boolean;
+  /**
+   * Explicit capture spec, validated by the canonical metric-v3-capture-spec v2 (or retained v1) schema in the start service.
    */
   metricV3Preset?: {
     [k: string]: unknown;

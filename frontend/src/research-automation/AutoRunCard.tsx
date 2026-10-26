@@ -1,5 +1,5 @@
 import MetricV3PresetForm from './MetricV3PresetForm';
-import type { MetricV3CaptureSpec } from '../../../contracts/analysis/metric-v3-capture-spec.generated';
+import type { MetricV3PresetSpec } from '../../../src/shared/metric-v3-preset';
 import { useEffect, useRef, useState } from 'react';
 import { ResearchAutomationError, retryAutoRun } from './api';
 import type { ResearchAutomationAutoRun, ResearchAutomationRun } from './api';
@@ -39,16 +39,17 @@ export default function AutoRunCard({ workspaceId, run, ownerToken, writesAvaila
   const showLinks = autoRun.linksFound !== undefined && autoRun.linksFound < 5 && AFTER_PICK.has(autoRun.phase);
   const canWrite = writesAvailable && ownerToken !== null;
   // Confirmation sends the complete owner-reviewed preset through the existing keyword answer route.
-  const send = async (preset?: MetricV3CaptureSpec) => {
+  const send = async (preset?: MetricV3PresetSpec) => {
     if (!canWrite || !ownerToken || pending) return;
     if (preset === undefined ? !autoRun.canRetry : !suggestion) return;
     if (requestKey.current?.revision !== run.revision) requestKey.current = { revision: run.revision, key: crypto.randomUUID() };
     const key = requestKey.current.key;
+    const [, presetKeyword2] = preset?.preset.keywords ?? [];
     setPending(true); setError('');
     try {
       await retryAutoRun(workspaceId, run.runId, preset === undefined
         ? { contractVersion: 'research-automation-autorun-retry-v1', requestKey: key }
-        : { contractVersion: 'research-automation-autorun-keyword-v2', requestKey: key, keyword2: preset.preset.keywords[1]!, metricV3Preset: { ...preset } }, ownerToken);
+        : { contractVersion: 'research-automation-autorun-keyword-v2', requestKey: key, keyword2: presetKeyword2 ?? null, metricV3Preset: { ...preset } }, ownerToken);
       requestKey.current = null;
       onRetried();
     } catch (failure) {
@@ -60,8 +61,9 @@ export default function AutoRunCard({ workspaceId, run, ownerToken, writesAvaila
     <h3 id="ra-autorun-title">Phần tự động</h3>
     <p role="status">{autoRunText(autoRun, run.reports)}</p>
     {showLinks && <p className="ra-muted">{autoRunLinksText(autoRun.linksFound ?? 0)}</p>}
-    {suggestion && <MetricV3PresetForm key={`${run.runId}:${suggestion.term}`} suggestion={suggestion} endDate={run.requestedPeriod.endDate}
-      disabled={!canWrite} pending={pending} onConfirm={preset => void send(preset)} />}
+    {suggestion && <MetricV3PresetForm key={`${run.runId}:${suggestion.term}`}
+      seed={{ keyword1: suggestion.keyword1, keyword2: suggestion.term, categoryId: suggestion.categoryId ?? null, suggested: true }}
+      endDate={run.requestedPeriod.endDate} disabled={!canWrite} pending={pending} onConfirm={preset => void send(preset)} />}
     {autoRun.canRetry && <div className="ra-actions">
       <button type="button" className="button" disabled={!canWrite || pending} onClick={() => void send()}>{pending ? 'Đang gửi yêu cầu…' : AUTORUN_RETRY_LABEL}</button>
       {!canWrite && <p className="ra-muted">Mở khóa OWNER để thử lại.</p>}
