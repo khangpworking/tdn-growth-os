@@ -59,8 +59,9 @@ test('expanded search flag-unset and explicit-false bytes match the base snapsho
   const first = await createExpandedSearchRunner({ ...input, transport: webTransport(), budget: new SearchCallBudget({ trends: 0, search: 1 }) }).execute(request, filter);
   deterministicJevForFlag('false');
   const second = await createExpandedSearchRunner({ ...input, transport: webTransport(), budget: new SearchCallBudget({ trends: 0, search: 1 }) }).execute(request, filter);
-  assert.equal(sha(canonicalJson(first)), '43a0a26a72a80e432f83246e84d9aafe2824a902f1bdfbfb811ea3a9f705af19');
-  assert.equal(sha(canonicalJson(second)), '43a0a26a72a80e432f83246e84d9aafe2824a902f1bdfbfb811ea3a9f705af19');
+  // PR #410: capture responseHeaders change identity only; verified against the header-only revert.
+  assert.equal(sha(canonicalJson(first)), 'd8046948849766242d9e63bca397233598a346583d27858836987e5bea4e486b');
+  assert.equal(sha(canonicalJson(second)), 'd8046948849766242d9e63bca397233598a346583d27858836987e5bea4e486b');
   assert.equal(first[0]?.mainCount, 1);
 });
 

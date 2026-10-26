@@ -95,7 +95,8 @@ test('Jev failure completes the run and records the unavailable note without cha
 
 test('flag-off service output retains the pre-Jev fixed hashes', async t => {
   const result = await run(t);
-  assert.equal(result.stepSha, '0046d7dc3327333e165edb4a62190a8daa32e9d24b410bef5b256b0f76c23494');
+  // PR #410: capture responseHeaders change identity only; verified against the header-only revert.
+  assert.equal(result.stepSha, '276dcf565d4e62ead7ae205e92d8d68ba832e57ae15554269a849eb8e9287329');
   // WEBTITLE-209 re-froze the report bytes only: the copied web title is now wrapped in <q data-quote>.
   // c2 PR3 re-froze the report bytes only: owner Q4 (R-L14): the M12 evidence inventory now writes the full proposal label sentence; that sentence is the only byte change.
   assert.equal(sha(result.report.bytes), '40d3004d3e9f0fe621f7b615ba5e77c9c934becb78f17171c7deb801d875ce3c');
