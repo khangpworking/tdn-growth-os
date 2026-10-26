@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import http from 'node:http';
+import { once } from 'node:events';
+import type { AddressInfo } from 'node:net';
+import { openResearchAutomationApi } from '../../src/api/research-automation-api.js';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { JSDOM } from 'jsdom';
@@ -12,7 +16,7 @@ const original = JSON.parse(await readFile(new URL('../fixtures/metric-v3/live-m
 const bytes = (v: unknown) => Buffer.from(`${JSON.stringify(v, null, 2)}\n`);
 
 // Extends the existing synthetic publication fixture at the external response boundary.
-async function capture() {
+async function capture(shopCase: 'known' | 'missing' | 'unknown' | 'conflicting' = 'missing') {
   const f = structuredClone(original);
   const files: Record<string, Buffer> = {};
   const refs = [];
@@ -22,13 +26,17 @@ async function capture() {
       for (const endpoint of ['products', 'shops', 'groups']) {
         if (!response.body.data?.[endpoint]) continue;
         response.body.data[endpoint] = Array.from({ length: 20 }, (_, n) => ({
-          product_name: `Synthetic item ${n + 1}`, shop_name: `Synthetic shop ${n + 1}`, brand: `Synthetic brand ${n + 1}`,
+          shop_base_id: n === 0 ? 'known-shop' : null, product_name: `Synthetic item ${n + 1}`, shop_name: `Synthetic shop ${n + 1}`, brand: `Synthetic brand ${n + 1}`,
           platform_id: endpoint === 'products' ? null : n % 2 ? 1 : 8, official_type: n % 2,
           price: 123000, revenue_custom: 2000000000 - n * 1000000, previous_revenue_custom: 1000000000,
           revenue_custom_sum: 2000000000 - n * 1000000, previous_revenue_custom_sum: 1000000000,
         }));
       }
     }
+    const shops = row.responses.find((r: any) => r.body.data?.shops).body.data.shops;
+    if (shopCase === 'missing') shops[0].shop_base_id = 'unmatched-shop';
+    if (shopCase === 'unknown') shops[0].platform_id = null;
+    if (shopCase === 'conflicting') shops[1].shop_base_id = 'known-shop';
     // The published source map selects the last valid response, not an earlier same-scope result.
     const publishedBasic = structuredClone(row.responses[0]);
     row.responses[0].body.data.search_basic.aggregations.find((a: any) => a.aggregation === 'SHOP_TOTAL').entity.platforms[0].value = 777;
@@ -64,6 +72,20 @@ test('A1 v3 renders ordered sections, nine figures and capture values, preservin
   assert.match(doc.querySelector('#phan-4')!.textContent!, /so với kỳ/);
   dom.window.close();
 });
+
+// Product platform evidence: identity-linked shop vs absent/unknown/ambiguous evidence.
+for (const shopCase of ['known', 'missing', 'unknown', 'conflicting'] as const) {
+  test(`product platform colour from captured shops: ${shopCase}`, async () => {
+    const { archive } = await capture(shopCase);
+    const dom = new JSDOM((await renderV3Report(archive, model)).html);
+    for (const figure of dom.window.document.querySelectorAll('#phan-5 figure')) {
+      const row = figure.querySelector('.hb-r')!;
+      assert.ok(row.querySelector(shopCase === 'known' ? '.bg-tiktok' : '.bg-unk'));
+      assert.match(row.textContent!, shopCase === 'known' ? /TikTok Shop/ : /Chưa xác định sàn/);
+    }
+    dom.window.close();
+  });
+}
 
 // A2: independently mutate source bytes and an AI claim; each must stop at its own guard.
 test('A2 hash and number-trace guards block captured-value drift and invented AI numbers', async () => {
@@ -109,7 +131,34 @@ test('A4 preset PREPARE stores and replays a report while bypassing legacy colle
   const run = await f.service.getRun(workspaceId, runId);
   assert.equal(run.status, 'DRAFT_READY', JSON.stringify(autorun(f.db, runId), (_key, value) => typeof value === 'bigint' ? String(value) : value));
   assert.equal(autorun(f.db, runId)!.phase, 'DONE');
-  const report = await f.make().readReport(workspaceId, runId, 'MARKET');
+  const fresh = f.make();
+  const revisions = (await fresh.listReaderReports(workspaceId, runId)).revisions;
+  assert.equal(revisions.length, 1, 'completed v3 must be available in Reader');
+  const report = await fresh.readReport(workspaceId, runId, 'MARKET');
+  const reader = await fresh.readReaderReport(workspaceId, runId, revisions[0]!.revisionId);
+  assert.deepEqual(reader.bytes, report.bytes, 'Reader preserves the v3 HTML');
+  const server = http.createServer();
+  server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const api = openResearchAutomationApi({ databasePath: f.databasePath, artifactRoot: f.artifactRoot, origin: base,
+    ...(process.env.TDN_RESEARCH_PDF_CHROMIUM ? { pdfExecutablePath: process.env.TDN_RESEARCH_PDF_CHROMIUM } : {}),
+    owner: { writeEnabled: true, databasePath: f.databasePath, artifactRoot: f.artifactRoot,
+      token: 'synthetic-owner-token-for-v3-reader-1234567890', allowedOrigin: base, actorId: 'synthetic-owner' } });
+  server.on('request', api.handler);
+  try {
+    const root = `${base}/api/workspaces/${workspaceId}/research-automation/runs/${runId}/reader-reports`;
+    const page = await fetch(`${root}/${revisions[0]!.revisionId}/html`);
+    assert.equal(page.status, 200);
+    assert.deepEqual(Buffer.from(await page.arrayBuffer()), report.bytes);
+    if (process.env.TDN_RESEARCH_PDF_CHROMIUM) {
+      const download = await fetch(`${root}/${revisions[0]!.revisionId}/pdf`);
+      assert.equal(download.status, 200);
+      assert.equal(download.headers.get('content-type'), 'application/pdf');
+      assert.match(download.headers.get('content-disposition')!, /attachment; filename="reader-report-/);
+      assert.equal(Buffer.from(await download.arrayBuffer()).subarray(0, 5).toString(), '%PDF-');
+    } else t.diagnostic('PDF route requires TDN_RESEARCH_PDF_CHROMIUM; HTML delivery still checked');
+  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await api.close(); }
+
   assert.match(report.bytes.toString(), /id="phan-7"/);
   await assert.rejects(f.service.readReport(workspaceId, runId, 'MARKET', true), /not available/);
   const steps = f.db.prepare("SELECT state FROM analysis_research_automation_steps WHERE run_id=? AND step_id='COLLECTION'").get(runId) as { state: string };

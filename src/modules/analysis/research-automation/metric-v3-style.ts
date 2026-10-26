@@ -160,7 +160,12 @@ details.twin[open] summary{margin-bottom:8px}
   .no-print{display:none!important}
   .wrap{max-width:none;padding-inline:0}
   .fig,.box,.kpi,.pcard,.finds li{box-shadow:none;break-inside:avoid}
-  .sec{break-before:auto}
+  .sec{display:block;break-before:auto}
+  .sec> * + *{margin-top:18px}
+  .sec-h,h2,h3.sub{break-inside:avoid;break-after:avoid-page;page-break-after:avoid}
+  .sec-h + *{break-before:avoid-page;page-break-before:avoid}
+  .finds{display:block}
+  .finds li + li{margin-top:10px}
   .v-wide{display:block!important}.v-narrow{display:none!important}
   .tablewrap{overflow:visible}.tablewrap.scroll{max-height:none}
   .t th{position:static}

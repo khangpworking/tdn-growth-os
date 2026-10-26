@@ -46,25 +46,27 @@ const MARKET_APPROVED = 'Bản đọc mới nhất đã được chủ duyệt.'
 /**
  * The one revision transaction: request-key race recheck, latest-APPROVED
  * recheck, manifests, next revision number, row insert, optional ledger row.
+ * Joins an enclosing run transaction when publication must commit with DONE.
  * Returns the row that claimed the key first (nothing written), else undefined.
  */
 function commitRevision(db: Database.Database, tx: {
   readonly kind: 'MARKET' | 'INSIGHT'; readonly runId: string; readonly requestKey: string; readonly createdAt: string; readonly approved: string;
   readonly manifests: readonly (readonly [StoredArtifact, string])[]; readonly insert: (next: number) => void; readonly ledger?: () => void;
 }): RevisionRow | undefined {
-  db.exec('BEGIN IMMEDIATE');
+  const ownsTransaction = !db.inTransaction;
+  if (ownsTransaction) db.exec('BEGIN IMMEDIATE');
   try {
     // A concurrent writer on another connection may have claimed the key.
     const raced = revisionByRequestKey(db, tx.requestKey);
-    if (raced) { db.exec('ROLLBACK'); return raced; }
+    if (raced) { if (ownsTransaction) db.exec('ROLLBACK'); return raced; }
     if (latestRevision(db, tx.runId, tx.kind)?.decision === 'APPROVED') throw new ResearchAutomationConflictError('invalid_state', tx.approved);
     for (const [artifact, mediaType] of tx.manifests) registerReaderManifest(db, artifact, mediaType, tx.createdAt);
     const next = Number((db.prepare('SELECT COALESCE(max(revision_number),0)+1 n FROM analysis_reader_report_revisions WHERE run_id=? AND report_kind=?').get(tx.runId, tx.kind) as { n: number | bigint }).n);
     tx.insert(next);
     tx.ledger?.();
-    db.exec('COMMIT');
+    if (ownsTransaction) db.exec('COMMIT');
   } catch (error) {
-    if (db.inTransaction) db.exec('ROLLBACK');
+    if (ownsTransaction && db.inTransaction) db.exec('ROLLBACK');
     if (error instanceof Error && /reader_report_requires_draft_ready_sequence/.test(error.message)) throw new ResearchAutomationConflictError('invalid_state', 'Chỉ dựng bản đọc khi bản nháp đã sẵn sàng.');
     throw error;
   }
@@ -188,4 +190,30 @@ export async function publishMarketRevision(db: Database.Database, artifacts: Co
       build.platforms.join(','), build.profile.status, record.sha256, profile.sha256, cover?.coverSha256 ?? null,
       published.html.sha256, published.metrics.sha256, published.claims.sha256, build.builderVersion, build.actorId, createdAt) });
   return raced ? { exactRetry: true, row: raced } : { exactRetry: false, revisionId };
+}
+
+/** Save already-gated v3 HTML in the normal Market Reader ledger. The caller
+ * commits this revision with DRAFT_READY/DONE; no legacy template rebuild. */
+export async function prepareV3MarketRevision(db: Database.Database, artifacts: ContentAddressedArtifactStore, build: {
+  workspaceId: string; runId: string; actorId: string; packageId: string;
+  semantic: StoredArtifact; html: StoredArtifact; trace: unknown; opening: unknown;
+}): Promise<(createdAt: string) => void> {
+  const revisionId = randomUUID();
+  const profile = await artifacts.put(json({ status: 'proposed', source: 'metric-v3-capture-v1' }));
+  const metrics = await artifacts.put(json(build.trace));
+  const claims = await artifacts.put(json(build.opening));
+  const record = await artifacts.put(json({ contractVersion: 'metric-v3-reader-build-v1', revisionId,
+    sourcePackageId: build.packageId, semanticSha256: build.semantic.sha256, htmlSha256: build.html.sha256 }));
+  return createdAt => {
+    commitRevision(db, { kind: 'MARKET', runId: build.runId, requestKey: `v3-reader-${build.runId}`,
+      createdAt, approved: MARKET_APPROVED,
+      manifests: [[build.html, HTML], [profile, JSON_TYPE], [metrics, JSON_TYPE], [claims, JSON_TYPE], [record, JSON_TYPE]],
+      insert: next => db.prepare(`INSERT INTO analysis_reader_report_revisions(
+        revision_id,workspace_id,run_id,revision_number,request_key,request_sha256,draft_pair_id,metric_package_id,
+        platforms,profile_status,input_sha256,profile_sha256,html_sha256,metrics_sha256,claims_sha256,builder_version,actor_id,created_at)
+        VALUES (?,?,?,?,?,?,?,?,'shopee,tiktok','proposed',?,?,?,?,?,'metric-v3-report-v1',?,?)`).run(
+          revisionId, build.workspaceId, build.runId, next, `v3-reader-${build.runId}`, build.semantic.sha256,
+          build.semantic.sha256, build.packageId, record.sha256, profile.sha256, build.html.sha256,
+          metrics.sha256, claims.sha256, build.actorId, createdAt) });
+  };
 }

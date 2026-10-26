@@ -217,8 +217,16 @@ export function buildV3Body(archive: V3Archive, opening?: { points: string[]; pr
       const prev = r[`previous_${key}`];
       const suffix = ` · ${share([input], total(w))}${prev === null || prev === undefined ? '' : ` · ${change([input], [ref(w, `${path}/previous_${key}`)])}`}`;
       let label = rawText(w, `${path}/${endpoint === 'groups' ? 'brand' : endpoint === 'shops' ? 'shop_name' : 'product_name'}`);
-      if (endpoint !== 'groups') label += `<small>${platforms[r.platform_id] ?? 'Chưa xác định sàn'}${endpoint === 'products' ? ` · ${rawText(w, `${path}/shop_name`)} · ${emit([ref(w, `${path}/price`)], 'vi-number')}đ` : r.official_type === 1 ? ' · Mall' : ''}</small>`;
-      return { label, values: [{ p: endpoint === 'groups' ? 'brand' : r.platform_id, inputs: [input], suffix }] };
+      // Only an explicit identity join to shops in this same window supplies a missing platform.
+      // Names, URL shapes and identifier prefixes are never platform evidence.
+      let platform = r.platform_id;
+      if (endpoint === 'products' && !platforms[platform] && typeof r.shop_base_id === 'string' && r.shop_base_id) {
+        const shops = rows(w, `${at(w, 'shops')}/shops`).filter(shop => shop.shop_base_id === r.shop_base_id);
+        const known = new Set(shops.map(shop => shop.platform_id));
+        if (known.size === 1 && platforms[[...known][0]]) platform = [...known][0];
+      }
+      if (endpoint !== 'groups') label += `<small>${platforms[platform] ?? 'Chưa xác định sàn'}${endpoint === 'products' ? ` · ${rawText(w, `${path}/shop_name`)} · ${emit([ref(w, `${path}/price`)], 'vi-number')}đ` : r.official_type === 1 ? ' · Mall' : ''}</small>`;
+      return { label, values: [{ p: endpoint === 'groups' ? 'brand' : platform, inputs: [input], suffix }] };
     }), endpoint === 'products');
   };
   section(4, fig(fixed('3 thương hiệu đầu giữ hơn một nửa doanh số'), `${fixed('10 thương hiệu')} · % trên doanh số cả bốn sàn. ▲▼ ${comparison(0)}; ${comparison(1)}.`, two(w => top(w, 'groups')), '', '') + fig('Shop: phần lớn là shop TikTok Shop', `${fixed('10 shop')} · % trên doanh số cả bốn sàn. ▲▼ ${comparison(0)}; ${comparison(1)}.`, two(w => top(w, 'shops'))));

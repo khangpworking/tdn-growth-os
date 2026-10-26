@@ -1,3 +1,4 @@
+import { prepareV3MarketRevision } from './reader-publish.js';
 import { loadV3Archive, renderV3Report, buildV3Body, checkV3NumberTrace, v3Hash, type V3TextModel } from './metric-v3-report.js';
 import type { AutomationPdfRenderer } from './pdf.js';
 import { validateMetricV3CaptureSpec } from './metric-v3-capture-spec.js';
@@ -5834,6 +5835,22 @@ export class ResearchAutomationService {
         rendererVersion: 'metric-v3-report-v1', runId, workspaceId: run.workspaceId, kind: 'MARKET', startSha: run.startSha,
         spec, files: Object.fromEntries(Object.entries(files).map(([path, file]) => [path, file.sha256])),
         modelIdentity: this.#v3Report.model.identity ?? 'configured-text-model', opening: built.opening, numberTrace: built.trace, numberTraceGate: built.gate, htmlSha: htmlArtifact.sha256 })));
+      // Retain the verified capture as a real source package for the Market Reader binding.
+      const sourceFiles = await Promise.all(Object.entries(files).map(async ([path, file]) => ({
+        path, bytes: await this.#artifacts.read(file.sha256, { maxBytes: MAX_JSON_ARTIFACT_BYTES }), file,
+      })));
+      const source = await withDatabaseMutationMutex(this.#db, () => new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts }).intakeAutomationAttachment({
+        contractVersion: '1.0.0', packageKey: `automation-v3-capture:${runId}`, version: 1,
+        sourceAcquiredAt: null, sourceLabel: 'Captured market evidence',
+        files: sourceFiles.map(({ path, file }) => ({ path, sha256: file.sha256, byteSize: file.byteSize,
+          mediaType: 'application/json', evidenceFamily: `metric-v3-${runId}`, representationRole: 'primary',
+          independence: 'non_independent', providerProvenance: 'operator_supplied_unverified',
+          provenanceBasis: 'Exact hash-verified capture retained by the research run' })),
+      }, sourceFiles, run.startSha));
+      const publishReader = await prepareV3MarketRevision(this.#db, this.#artifacts, {
+        workspaceId: run.workspaceId, runId, actorId: run.actorId, packageId: source.packageId,
+        semantic, html: htmlArtifact, trace: built.trace, opening: built.opening,
+      });
       await this.#autorunSettle(runId, 'PREPARE', at => {
         const current = this.#current(runId)!;
         if (current.status !== 'AWAITING_SCOPE' || toNumber(current.revision) !== toNumber(run.revision)) throw new ResearchAutomationConflictError('revision_conflict', 'Run changed during report generation.');
@@ -5846,6 +5863,7 @@ export class ResearchAutomationService {
         this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='SKIPPED',finished_at=? WHERE run_id=? AND step_id='COLLECTION'`).run(at, runId);
         this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='SUCCEEDED',finished_at=? WHERE run_id=? AND step_id='REPORTS'`).run(at, runId);
         this.#transition(runId, toNumber(current.revision), 'DRAFT_READY', at);
+        publishReader(at);
         this.#db.prepare(`UPDATE research_automation_autorun SET phase='DONE',phase_state='QUEUED',updated_at=? WHERE run_id=?`).run(at, runId);
       });
     } catch (error) {
