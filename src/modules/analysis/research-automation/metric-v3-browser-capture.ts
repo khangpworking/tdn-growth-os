@@ -29,10 +29,16 @@ export async function captureMetricV3(spec: MetricV3CaptureSpec, outputDir: stri
         new Promise<never>((_, reject) => { timer = setTimeout(() => {
           try { execution.child.killGroup?.('SIGKILL'); } catch { /* best effort */ }
           try { execution.child.kill('SIGKILL'); } catch { /* best effort */ }
-          reject(new Error('TIMEOUT'));
+          reject(new Error('CAPTURE_BRIDGE_TIMEOUT'));
         }, cleanup ? 60_000 : Math.min(60_000, Math.max(1, deadline - Date.now()))); }),
       ]);
-      if (result.exitCode !== 0) throw new Error('CAPTURE_FAILED');
+      if (result.exitCode !== 0) {
+        if (/bridge.*(?:timeout|timed out)|(?:timeout|timed out).*bridge|BROWSER_(?:COMMAND_)?TIMEOUT/i.test(result.stderr))
+          throw new Error('CAPTURE_BRIDGE_TIMEOUT');
+        if (/selector.*(?:timeout|timed out)|(?:timeout|timed out).*selector/i.test(result.stderr))
+          throw new Error('CAPTURE_SELECTOR_TIMEOUT');
+        throw new Error('CAPTURE_FAILED');
+      }
       return JSON.parse(result.stdout);
     } finally { if (timer) clearTimeout(timer); }
   };
@@ -43,7 +49,7 @@ export async function captureMetricV3(spec: MetricV3CaptureSpec, outputDir: stri
     tab = opened.page;
     await writeFile(join(outputDir, 'session.json'), `${JSON.stringify({ session, tab })}\n`, { flag: 'wx', mode: 0o600 });
     const moduleUrl = new URL('../../../../tools/opencli-metric/clis/metric/v3-capture.js', import.meta.url);
-    const { captureV3Preset } = await import(moduleUrl.href);
+    const { captureV3WithFallback } = await import(moduleUrl.href);
     const page = {
       evaluate: async (fn: (...args: never[]) => unknown, arg?: unknown) => {
         check();
@@ -55,10 +61,11 @@ export async function captureMetricV3(spec: MetricV3CaptureSpec, outputDir: stri
       if ((await page.evaluate(() => ({ ready: document.readyState !== 'loading' }))).ready) break;
       await page.wait(500);
     }
-    await captureV3Preset(page, spec, outputDir);
+    await captureV3WithFallback(page, spec, outputDir);
   } catch (error) {
     const code = signal?.aborted ? 'CAPTURE_INTERRUPTED' : error instanceof Error ? error.message : 'CAPTURE_FAILED';
-    await writeFile(join(outputDir, 'stopped.json'), `${JSON.stringify({ code })}\n`, { flag: 'wx', mode: 0o600 });
+    const errors = (error as { details?: object })?.details;
+    await writeFile(join(outputDir, 'stopped.json'), `${JSON.stringify({ code, ...(errors ? { errors } : {}) })}\n`, { flag: 'wx', mode: 0o600 });
     throw error;
   } finally {
     if (tab) await command(['tab', 'close', tab], true);

@@ -256,11 +256,14 @@ test('process runner: over-cap output kills the group; spawn errors keep their c
 
 // The real adapter runs against a synthetic browser-CLI transcript. Existing legacy
 // happy-path coverage above owns the absent-preset row; no live process is launched.
-test('CAPTURE preset rows publish both applied-state manifests or stop without legacy fallback', async () => {
+test('CAPTURE preset fallback contract rows publish one method per window or preserve stop errors', async (t) => {
   const fixture = JSON.parse(await readFile(new URL('../fixtures/metric-v3/live-map-contract.json', import.meta.url), 'utf8'));
-  for (const outcome of ['ready', 'unknown-category', 'logged-out'] as const) {
+  for (const outcome of ['ready', 'ui-broken', 'bridge-timeout', 'late-ui-break', 'unknown-category', 'logged-out', 'invalid-preset', 'provider-error', 'both-fail'] as const) await t.test(outcome, async () => {
     const spec = structuredClone(fixture.spec);
     if (outcome === 'unknown-category') spec.preset.category.id = 'c9999999999';
+    if (outcome === 'invalid-preset') spec.preset.platforms = [];
+    let pageRequests = 0;
+    let uiBroken = false;
     let windowIndex = 0;
     let selected: string[] = [];
     const keywords: string[] = [];
@@ -276,7 +279,16 @@ test('CAPTURE preset rows publish both applied-state manifests or stop without l
           else { closed = true; response = { ok: true }; }
         } else {
           const js = argv[5]!;
-          if (js.includes('function readV3Page(')) {
+          if (js.includes('function readV3RequestContext(')) {
+            response = { taxonomy: fixture.windows[0].observation.taxonomy };
+          } else if (js.includes('function requestV3InPage(')) {
+            pageRequests++;
+            const request = JSON.parse(js.slice(js.lastIndexOf('\n})(') + 4, -1));
+            const index = request.requestBody.interval_days === 30 || request.requestBody.start_date === '20251020' ? 1 : 0;
+            const expected = fixture.windows[index].responses.find((r: any) => r.urlPath === request.urlPath);
+            assert.deepEqual(request.requestBody, expected.requestBody, 'page requests must match the independent live-map scope');
+            response = outcome === 'both-fail' ? { stop: 'CAPTURE_PROVIDER_DATA_ERROR' } : { ...expected, requestBody: request.requestBody };
+          } else if (js.includes('function readV3Page(')) {
             response = outcome === 'logged-out' ? { stop: 'CAPTURE_LOGIN_REQUIRED' } : {
               ...structuredClone(fixture.windows[windowIndex].observation),
               advancedVisible: true, submitIdle: true, submitReady: true,
@@ -284,6 +296,11 @@ test('CAPTURE preset rows publish both applied-state manifests or stop without l
               appliedState: { ...structuredClone(fixture.spec.preset), keywords: [...keywords] },
             };
           } else if (js.includes('function formAction(')) {
+            if (!uiBroken && (['ui-broken', 'both-fail', 'bridge-timeout'].includes(outcome) || (outcome === 'late-ui-break' && windowIndex === 1))) {
+              uiBroken = true;
+              if (outcome === 'bridge-timeout') return { child: { kill: () => true }, completion: Promise.resolve({ exitCode: 1, stdout: '', stderr: 'bridge timeout' }) };
+              return { child: { kill: () => true }, completion: Promise.resolve({ exitCode: 0, stdout: JSON.stringify({ stop: 'CAPTURE_CONTROL_NOT_SELECTABLE' }), stderr: '' }) };
+            }
             const action = JSON.parse(js.slice(js.lastIndexOf('\n})(') + 4, -1));
             if (action.kind === 'categoryAll') selected = [];
             if (action.kind === 'categoryChild') selected.push(fixture.spec.preset.category.children.find((c: any) => action.labels.includes(c.label)).id);
@@ -293,7 +310,10 @@ test('CAPTURE preset rows publish both applied-state manifests or stop without l
           } else if (js.includes('ready:')) response = { ready: true };
           else if (js.includes('pending:')) response = { pending: 0, quiet: 1001, overflow: false };
           else if (js.includes('.filter((r)')) response = fixture.windows[windowIndex].responses.map((r: any) => r.urlPath);
-          else if (js.includes('=> window.__tdnV3Capture.responses')) response = fixture.windows[windowIndex].responses;
+          else if (js.includes('=> window.__tdnV3Capture.responses')) {
+            response = structuredClone(fixture.windows[windowIndex].responses);
+            if (outcome === 'provider-error') (response as any[])[0].body.status = 'error';
+          }
           else response = { ok: true };
         }
         return { child: { kill: () => true }, completion: Promise.resolve({ exitCode: 0, stdout: JSON.stringify(response), stderr: '' }) };
@@ -301,10 +321,17 @@ test('CAPTURE preset rows publish both applied-state manifests or stop without l
     };
     const req = { runId: newRunId(), keyword: spec.preset.keywords[0], requestedPeriod: spec.windows[1].period, metricV3Preset: spec };
     const result = await runMetricCapture(config({ adapterManifestPath: undefined, adapterManifestSha256: undefined }), req, transport);
+    if (outcome === 'invalid-preset') {
+      assert.equal(result.ok, false);
+      assert.equal(!result.ok && result.code, 'CAPTURE_PRESET_INVALID');
+      assert.equal(opened, false);
+      assert.equal(pageRequests, 0);
+      return;
+    }
     assert.equal(opened, true); assert.equal(closed, true, 'owned tab must close even on control failure');
     assert.equal(result.executorCalls, 1);
     const dir = join(root, req.runId, 'run1');
-    if (outcome === 'ready') {
+    if (['ready', 'ui-broken', 'bridge-timeout', 'late-ui-break'].includes(outcome)) {
       assert.ok(result.ok, JSON.stringify(result));
       const manifest = JSON.parse(await readFile(join(dir, 'manifest.json'), 'utf8'));
       assert.deepEqual(manifest.windows.map((w: any) => w.window), ['30d', '12m']);
@@ -312,12 +339,21 @@ test('CAPTURE preset rows publish both applied-state manifests or stop without l
         const window = JSON.parse(await readFile(join(dir, id, 'manifest.json'), 'utf8'));
         assert.deepEqual(window.appliedState, fixture.spec.preset);
         assert.equal(window.captureGate, 'PASSED');
+        assert.equal(window.captureMethod, outcome === 'ready' ? 'ui' : 'page-request');
+        assert.equal(window.fallbackReason, outcome === 'ready' ? undefined : outcome === 'bridge-timeout' ? 'CAPTURE_BRIDGE_TIMEOUT' : 'CAPTURE_CONTROL_NOT_SELECTABLE');
         assert.equal(window.window.id, id);
       }
+      assert.equal(pageRequests, outcome === 'ready' ? 0 : 10);
     } else {
-      assert.equal(!result.ok && result.code, outcome === 'logged-out' ? 'CAPTURE_LOGIN_REQUIRED' : 'CAPTURE_CATEGORY_NOT_SELECTABLE');
+      assert.equal(!result.ok && result.code, outcome === 'logged-out' ? 'CAPTURE_LOGIN_REQUIRED' : outcome === 'unknown-category' ? 'CAPTURE_CATEGORY_NOT_SELECTABLE' : outcome === 'both-fail' ? 'CAPTURE_FALLBACK_FAILED' : 'CAPTURE_RESPONSE_MISSING');
+      assert.equal(pageRequests, outcome === 'both-fail' ? 1 : 0);
+      if (outcome === 'both-fail') {
+        assert.match(!result.ok ? result.detail : '', /ui: CAPTURE_CONTROL_NOT_SELECTABLE; page-request: CAPTURE_PROVIDER_DATA_ERROR/);
+        const stopped = JSON.parse(await readFile(join(dir, 'stopped.json'), 'utf8'));
+        assert.deepEqual(stopped.errors, { uiCode: 'CAPTURE_CONTROL_NOT_SELECTABLE', pageRequestCode: 'CAPTURE_PROVIDER_DATA_ERROR' });
+      }
       if (outcome === 'logged-out') assert.match(!result.ok ? result.detail : '', /^DECISION NEEDED:/);
       await assert.rejects(readFile(join(dir, 'manifest.json')), { code: 'ENOENT' });
     }
-  }
+  });
 });

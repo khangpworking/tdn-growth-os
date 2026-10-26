@@ -192,3 +192,23 @@ test('unknown parent or child stops at category resolution without falling back 
     );
   }
 });
+
+// The runner fixture checks the reference preset. This row protects new owner
+// inputs from being replaced by recorded reference keywords or dates.
+test('page requests use changed preset terms and dates for every mapped endpoint', () => {
+  const spec = structuredClone(fixture.spec);
+  spec.preset.keywords = ['another synthetic term', 'different synthetic term'];
+  spec.windows[0].period = { startDate: '2026-09-21', endDate: '2026-10-20' };
+  spec.windows[1].period = { startDate: '2025-10-21', endDate: '2026-10-20' };
+  for (const [i, window] of spec.windows.entries()) {
+    const requests = adapter.buildV3PageRequests(spec, window);
+    assert.equal(requests.length, 5);
+    for (const request of requests) {
+      const expected = structuredClone(fixture.windows[i].responses.find((r: any) => r.urlPath === request.urlPath).requestBody);
+      expected.include_query.queries = ['another synthetic term', 'different synthetic term'];
+      expected.start_date = i === 0 ? '20260921' : '20251021';
+      expected.end_date = '20261020';
+      assert.deepEqual(request.requestBody, expected);
+    }
+  }
+});

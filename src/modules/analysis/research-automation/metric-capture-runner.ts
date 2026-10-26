@@ -223,11 +223,12 @@ async function runPresetCapture(config: MetricCaptureRunnerConfig, request: Metr
       });
       return { ok: true, captureDir: outputDir, period: spec.windows[1].period, executorCalls: 1 };
     } catch (error) {
+      const errors = (error as { details?: { uiCode?: string; pageRequestCode?: string } })?.details;
       const message = error instanceof Error ? error.message : '';
       const code = signal?.aborted ? 'CAPTURE_INTERRUPTED' :
         METRIC_V3_STOP_CODES.find(code => code === message) ?? (message === 'TIMEOUT' ? 'TIMEOUT' : 'CAPTURE_FAILED');
       return stop(code, code === 'CAPTURE_LOGIN_REQUIRED'
-        ? 'DECISION NEEDED: The owner must log in before capture can continue.' : `capture stopped: ${code}`, 1);
+        ? 'DECISION NEEDED: The owner must log in before capture can continue.' : `capture stopped: ${code}${errors?.uiCode && errors.pageRequestCode ? ` (ui: ${errors.uiCode}; page-request: ${errors.pageRequestCode})` : ''}`, 1);
     }
   }, interrupted);
 }

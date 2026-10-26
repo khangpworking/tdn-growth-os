@@ -14,7 +14,8 @@
     "comparison",
     "captureGate",
     "sourceLimitations",
-    "files"
+    "files",
+    "captureMethod"
   ],
   "properties": {
     "contractVersion": {
@@ -122,9 +123,54 @@
           }
         }
       }
+    },
+    "captureMethod": {
+      "enum": [
+        "ui",
+        "page-request"
+      ]
+    },
+    "fallbackReason": {
+      "type": "string",
+      "pattern": "^CAPTURE_[A-Z_]+$"
     }
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://tdn.local/metric-v3-window-capture.schema.json",
-  "title": "MetricV3WindowCapture"
+  "title": "MetricV3WindowCapture",
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "captureMethod": {
+            "const": "page-request"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "fallbackReason"
+        ],
+        "properties": {
+          "fallbackReason": {
+            "type": "string",
+            "pattern": "^CAPTURE_[A-Z_]+$"
+          }
+        }
+      },
+      "else": {
+        "not": {
+          "required": [
+            "fallbackReason"
+          ],
+          "properties": {
+            "fallbackReason": {
+              "type": "string",
+              "pattern": "^CAPTURE_[A-Z_]+$"
+            }
+          }
+        }
+      }
+    }
+  ]
 }

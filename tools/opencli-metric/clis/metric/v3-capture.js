@@ -1,6 +1,6 @@
 // Explicit two-window capture. Launched from the checkout; no installed adapter changes.
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -499,7 +499,7 @@ export function assertV3Applied(spec, window, observation) {
     stop('CAPTURE_APPLIED_STATE_MISMATCH');
 }
 
-export function buildV3WindowManifest(spec, window, observation, rawResponses, capturedAt) {
+export function buildV3WindowManifest(spec, window, observation, rawResponses, capturedAt, captureMethod = 'ui', fallbackReason) {
   assertV3Applied(spec, window, observation);
   if (!observation.comparisonDefault) stop('CAPTURE_COMPARISON_MISMATCH');
   const platformIds = { shopee: 1, lazada: 2, tiki: 3, tiktok: 8 };
@@ -586,6 +586,8 @@ export function buildV3WindowManifest(spec, window, observation, rawResponses, c
   const manifest = {
     contractVersion: 'metric-v3-window-capture-v1',
     captureId: randomUUID(),
+    captureMethod,
+    ...(fallbackReason ? { fallbackReason } : {}),
     capturedAt,
     specDigest: digest(bytes(spec)),
     window,
@@ -595,7 +597,10 @@ export function buildV3WindowManifest(spec, window, observation, rawResponses, c
     displayedKPIs: observation.displayedKPIs,
     comparison: 'source-previous-period',
     captureGate: 'PASSED',
-    sourceLimitations: ['insight request does not carry gifts/deleted switches', 'absent platform rows are not zero'],
+    sourceLimitations: [
+      'insight request does not carry gifts/deleted switches', 'absent platform rows are not zero',
+      ...(captureMethod === 'page-request' ? ['appliedState records validated request scope, not DOM control state'] : []),
+    ],
     files: [
       {
         path: 'raw-responses.json',
@@ -767,4 +772,173 @@ export async function captureV3Preset(page, spec, outputDir, progress = () => {}
   const manifest = { contractVersion: 'metric-v3-capture-v1', specDigest: digest(bytes(spec)), windows: manifests };
   await writeFile(join(outputDir, 'manifest.json'), bytes(manifest), { flag: 'wx', mode: 0o600 });
   return manifest;
+}
+
+
+/** UI breakage only: data, authentication, scope and category failures must stop. */
+const fallbackCodes = new Set([
+  'CAPTURE_UI_CHANGED', 'CAPTURE_CONTROL_NOT_SELECTABLE', 'CAPTURE_PERIOD_NOT_SELECTABLE',
+  'CAPTURE_KEYWORDS_NOT_APPLIED', 'CAPTURE_BRIDGE_TIMEOUT', 'CAPTURE_SELECTOR_TIMEOUT',
+]);
+const errorCode = (error) => /^CAPTURE_[A-Z_]+$/.test(error?.message) ? error.message : 'CAPTURE_FAILED';
+
+/** Builds every request from the validated preset; never replays recorded request bodies. */
+export function buildV3PageRequests(spec, window) {
+  if (!validateSpec(spec)) stop('CAPTURE_PRESET_INVALID');
+  const p = spec.preset;
+  const ids = { shopee: 1, lazada: 2, tiki: 3, tiktok: 8 };
+  const base = {
+    start_date: window.period.startDate.replaceAll('-', ''),
+    end_date: window.period.endDate.replaceAll('-', ''),
+    include_query: {
+      queries: [...p.keywords], is_smart_queries: p.smartQuery,
+      bee_categories: p.category.children.map((c) => c.id),
+      platforms: p.platforms.map((v) => ids[v]),
+      official_types: p.shopTypes.map((v) => v === 'mall' ? 1 : 0),
+      brands: [], is_remove_bad_product: p.usefulFilters.fake,
+      composite_compare_lst: [[{
+        first_field: p.advancedFilter.firstField, second_field: p.advancedFilter.secondField,
+        first_rate: p.advancedFilter.firstRate, second_rate: p.advancedFilter.secondRate,
+        compare_condition: p.advancedFilter.operator,
+      }]],
+    },
+    exclude_query: { queries: [...p.exclusions], is_smart_queries: false },
+    use_ai_normalized: p.aiNormalisation,
+  };
+  return endpoints.map((endpoint) => ({
+    urlPath: `/v2/market/analytics/${endpoint}/`,
+    requestBody: {
+      ...structuredClone(base),
+      ...(endpoint === 'insight' ? { interval_days: window.intervalDays } : {
+        is_filter_gift: p.usefulFilters.gifts, notIncludeDeletedProduct: p.usefulFilters.deleted,
+        page: 0, limit: 20,
+        sort_by: ['shops', 'groups'].includes(endpoint) ? 'revenue_custom_sum__desc' : 'revenue_custom__desc',
+        ...(endpoint === 'search-basic' ? {} : { fields: null }),
+      }),
+    },
+  }));
+}
+
+/** Runs in the logged-in page. No credentials or headers cross the bridge. */
+export async function requestV3InPage({ urlPath, requestBody }) {
+  if (location.protocol !== 'https:' || !['metric.vn', 'www.metric.vn'].includes(location.hostname))
+    return { stop: 'CAPTURE_ORIGIN_CHANGED' };
+  if (document.querySelector('input[type=password]') || /\/login|\/sign-in/.test(location.pathname))
+    return { stop: 'CAPTURE_LOGIN_REQUIRED' };
+  if (!/^\/v2\/market\/analytics\/(search-basic|insight|products|shops|groups)\/$/.test(urlPath))
+    return { stop: 'CAPTURE_REQUEST_SCOPE_MISMATCH' };
+  try {
+    // Reuse the page's read-only header builder. Do not use its HTTP client:
+    // that client's 401 handler clears credentials and reloads the page.
+    const script = [...document.scripts].map((s) => s.src).find((src) => {
+      const u = new URL(src, location.href);
+      return u.origin === location.origin && /^\/metric_nuxt\/[^/]+\.js$/.test(u.pathname);
+    });
+    if (!script) return { stop: 'CAPTURE_PAGE_SESSION_UNAVAILABLE' };
+    const module = await import(script);
+    const builders = Object.values(module).filter((value) => typeof value === 'function' &&
+      ['X-D-CR', 'PlatformId', 'VisitorId'].every((key) => value.toString().includes(key)));
+    if (builders.length !== 1) return { stop: 'CAPTURE_PAGE_SESSION_UNAVAILABLE' };
+    const headers = await builders[0]();
+    if (!headers.Token) return { stop: 'CAPTURE_LOGIN_REQUIRED' };
+    const response = await fetch(`https://apiv4.metric.vn${urlPath}`, {
+      method: 'POST', credentials: 'include',
+      headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(requestBody),
+      signal: AbortSignal.timeout(45000),
+    });
+    if (response.status === 401) return { stop: 'CAPTURE_LOGIN_REQUIRED' };
+    if (response.status === 403) return { stop: 'CAPTURE_ACCESS_RESTRICTED' };
+    const text = await response.text();
+    if (text.length > 12000000) return { stop: 'CAPTURE_RESPONSE_LIMIT' };
+    let body;
+    try { body = JSON.parse(text); } catch { return { stop: 'CAPTURE_PROVIDER_DATA_ERROR' }; }
+    if (response.status !== 200 || body?.status !== 'success') return { stop: 'CAPTURE_PROVIDER_DATA_ERROR' };
+    return { urlPath, method: 'POST', status: response.status, requestBody, body };
+  } catch { return { stop: 'CAPTURE_PAGE_REQUEST_FAILED' }; }
+}
+
+/** Taxonomy read independently of selectors so a missing form can use page requests. */
+export function readV3RequestContext({ categoryId }) {
+  if (location.protocol !== 'https:' || !['metric.vn', 'www.metric.vn'].includes(location.hostname))
+    return { stop: 'CAPTURE_ORIGIN_CHANGED' };
+  if (document.querySelector('input[type=password]') || /\/login|\/sign-in/.test(location.pathname) ||
+      (!document.querySelector('#QuerySearchBuilder') && /đăng nhập|log in|sign in/i.test(document.body.innerText)))
+    return { stop: 'CAPTURE_LOGIN_REQUIRED' };
+  const stack = [document.querySelector('#__nuxt')?._vnode], seen = new Set();
+  while (stack.length) {
+    const v = stack.pop();
+    if (!v || typeof v !== 'object') continue;
+    const c = v.component;
+    if (c && !seen.has(c)) {
+      seen.add(c);
+      if ((c.type?.name || c.type?.__name) === 'CategorySelector') {
+        const n = c.props.option?.options?.find((n) => n.value === categoryId);
+        if (n) return { taxonomy: {
+          id: n.value, label: n.label,
+          children: (n.children || []).map((n) => ({ id: n.value, label: n.label })),
+        } };
+      }
+      stack.push(c.subTree);
+    }
+    if (Array.isArray(v.children)) stack.push(...v.children);
+    if (v.suspense) stack.push(v.suspense.activeBranch);
+  }
+  return { taxonomy: null };
+}
+
+export async function captureV3PageRequests(page, spec, outputDir, fallbackReason) {
+  if (!validateSpec(spec)) stop('CAPTURE_PRESET_INVALID');
+  const observed = await page.evaluate(readV3RequestContext, { categoryId: spec.preset.category.id });
+  if (observed.stop) stop(observed.stop);
+  resolveV3Category(spec.preset, observed.taxonomy);
+  const manifests = [];
+  for (const window of spec.windows) {
+    const raw = [];
+    for (const request of buildV3PageRequests(spec, window)) {
+      const result = await page.evaluate(requestV3InPage, request);
+      if (result.stop) stop(result.stop);
+      raw.push({ ...result, responseOrder: raw.length });
+    }
+    const sanitized = sanitizeNetworkResponses(raw);
+    // This state describes the request applied to the provider, not DOM controls.
+    // The same publication gate independently checks every retained request.
+    const observation = {
+      taxonomy: observed.taxonomy, appliedState: structuredClone(spec.preset),
+      selectedCategoryIds: spec.preset.category.children.map((c) => c.id),
+      keywordInput: '', period: window.period, categoryMode: 'Advanced', multi: true,
+      comparisonDefault: true, displayedKPIs: 'Page-request capture; see raw source values.',
+    };
+    const manifest = buildV3WindowManifest(spec, window, observation, sanitized, new Date().toISOString(), 'page-request', fallbackReason);
+    const dir = join(outputDir, window.id);
+    await mkdir(dir, { mode: 0o700 });
+    await writeFile(join(dir, 'raw-responses.json'), bytes(sanitized), { flag: 'wx', mode: 0o600 });
+    const manifestBytes = bytes(manifest);
+    await writeFile(join(dir, 'manifest.json'), manifestBytes, { flag: 'wx', mode: 0o600 });
+    manifests.push({ window: window.id, path: `${window.id}/manifest.json`, sha256: digest(manifestBytes) });
+  }
+  const manifest = { contractVersion: 'metric-v3-capture-v1', specDigest: digest(bytes(spec)), windows: manifests };
+  await writeFile(join(outputDir, 'manifest.json'), bytes(manifest), { flag: 'wx', mode: 0o600 });
+  return manifest;
+}
+
+/** Runner policy: OpenCLI UI first, then one complete request capture after UI breakage. */
+export async function captureV3WithFallback(page, spec, outputDir) {
+  try { return await captureV3Preset(page, spec, outputDir); }
+  catch (uiError) {
+    const uiCode = errorCode(uiError);
+    if (!fallbackCodes.has(uiCode)) throw uiError;
+    const diagnostics = join(outputDir, 'ui-failed');
+    await mkdir(diagnostics, { mode: 0o700 });
+    for (const name of [...spec.windows.map((w) => w.id), 'manifest.json']) {
+      try { await rename(join(outputDir, name), join(diagnostics, name)); }
+      catch (error) { if (error.code !== 'ENOENT') throw error; }
+    }
+    await writeFile(join(diagnostics, 'stopped.json'), bytes({ code: uiCode }), { flag: 'wx', mode: 0o600 });
+    try { return await captureV3PageRequests(page, spec, outputDir, uiCode); }
+    catch (requestError) {
+      const pageRequestCode = errorCode(requestError);
+      stop(pageRequestCode === 'CAPTURE_LOGIN_REQUIRED' ? pageRequestCode : 'CAPTURE_FALLBACK_FAILED',
+        { uiCode, pageRequestCode });
+    }
+  }
 }
