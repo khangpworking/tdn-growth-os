@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { fixture, startRun, workspaceId, autorun, drain } from '../helpers/autorun-harness.js';
 import { metricV3Defaults } from '../../src/shared/metric-v3-preset.js';
 import { planScope } from '../../src/modules/analysis/research-automation/autorun-scope.js';
+import { runMetricCapture } from '../../src/modules/analysis/research-automation/metric-capture-runner.js';
 
 test('V3S1 owner preset survives restart, reaches capture unchanged once, rejects invalid rows and preserves the preparation boundary', async t => {
   const calls: any[] = [];
@@ -49,6 +50,20 @@ test('V3S1 owner preset survives restart, reaches capture unchanged once, reject
   assert.equal(calls.length, 1);
   assert.deepEqual(calls[0].metricV3Preset, preset);
   assert.equal(calls[0].second, undefined, 'the full preset uses the v3 capture path');
+  // Exercise the real runner's admission guards: a fake capture returning OK alone
+  // cannot prove the edited keyword and both windows are accepted by the runner.
+  const capture = await runMetricCapture({ enabledEnv: '1', captureRoot: f.capture.captureRoot }, calls[0], {
+    sourceEnv: {},
+    createProcessRunner: () => async (_executable, argv) => ({
+      child: { kill: () => true },
+      completion: Promise.resolve({ exitCode: 0, stderr: '', stdout: JSON.stringify(
+        argv[2] === 'tab' ? { page: 'ABC123' } : argv[5]?.includes('ready:') ? { ready: true } : { stop: 'CAPTURE_LOGIN_REQUIRED' },
+      ) }),
+    }),
+  });
+  assert.equal(capture.ok, false);
+  assert.equal(!capture.ok && capture.code, 'CAPTURE_LOGIN_REQUIRED', 'confirmed scope must reach the fake browser, past keyword and period guards');
+  assert.equal(capture.executorCalls, 1);
   assert.equal(autorun(f.db, runId)?.stopCode, 'CAPTURE_V3_PREPARE_UNSUPPORTED');
   await assert.rejects(restarted.retryAutoRunCapture(workspaceId, runId, { ...answer, requestKey: randomUUID() }));
   assert.equal(calls.length, 1);

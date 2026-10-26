@@ -50,6 +50,7 @@ test('V3S1 contract rows: prefill, editable scope transport, and invalid scope b
   assert.equal(dom.container.querySelectorAll('input[type=checkbox]:checked').length, 4);
   for (const text of ['AI gợi ý', 'mặc định', 'Shopee, Lazada, Tiki, TikTok Shop', '2026-09-01', '2025-10-01', '2%']) assert.ok(dom.container.textContent!.includes(text), text);
   assert.equal(calls.length, 0, 'prefill must never submit');
+  for (const provider of ['Metric', 'Kalodata', 'TradeInt', 'Dami']) assert.ok(!dom.container.textContent!.toLowerCase().includes(provider.toLowerCase()), provider);
   await change(field('Từ khóa 1'), '');
   assert.equal(confirm().disabled, true);
   assert.match(dom.container.textContent!, /Điền đủ hai từ khóa/);

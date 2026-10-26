@@ -23,7 +23,7 @@ export default function MetricV3PresetForm({ suggestion, endDate, disabled, pend
     onConfirm(metricV3Defaults(keyword1.normalize('NFC').trim(), keyword2.normalize('NFC').trim(), endDate));
   };
   return <div className="ra-block">
-    <h3>Metric v3</h3>
+    <h3>Phạm vi thu thập</h3>
     <p>Kiểm tra phạm vi trước khi thu thập đầy đủ. Chỉ tiếp tục khi bạn xác nhận.</p>
     <fieldset disabled={disabled || pending}>
       <legend>Phạm vi tìm kiếm</legend>

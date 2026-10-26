@@ -5652,11 +5652,19 @@ export class ResearchAutomationService {
     });
     if (!claimed) return progressed;
     let scope: AutorunScopeRecord | null;
-    try { scope = await this.#autorunScope(runId); }
+    let confirmedPreset: ReturnType<typeof validateMetricV3CaptureSpec> | undefined;
+    try {
+      scope = await this.#autorunScope(runId);
+      if (scope?.metricV3Preset) confirmedPreset = validateMetricV3CaptureSpec(scope.metricV3Preset);
+    }
     catch { await this.#autorunStopRunning(runId, 'CAPTURE', 'CAPTURE_IO_FAILED'); return true; }
     // Keep the planned second capture on retry, including when its scope file settled before the
     // database phase write-back failed. Only an unanswered suggestion still belongs to capture 1.
-    this.#launchCapture(runId, scope?.metricV3Preset ? { ...start!, metricV3Preset: validateMetricV3CaptureSpec(scope.metricV3Preset) } : start!, { startDate: start!.requestedPeriod.startDate, endDate: start!.requestedPeriod.endDate },
+    // The wait-point confirmation authorizes both keywords and windows. Use that
+    // effective scope for runner admission while preserving the saved start snapshot.
+    const captureStart = confirmedPreset ? { ...start!, keyword: confirmedPreset.preset.keywords[0]!, metricV3Preset: confirmedPreset } : start!;
+    const capturePeriod = confirmedPreset ? confirmedPreset.windows[1]!.period : { startDate: start!.requestedPeriod.startDate, endDate: start!.requestedPeriod.endDate };
+    this.#launchCapture(runId, captureStart, capturePeriod,
       scope?.capture2 && scope.capture2.outcome !== 'AWAITING_KEYWORD2' ? scope : null);
     return progressed;
   }
