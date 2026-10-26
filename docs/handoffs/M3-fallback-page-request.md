@@ -15,3 +15,12 @@ Unresolved: page requests depend on the current page's taxonomy component and re
 Next action: review PR; no merge or deployment authorized.
 Business decisions pending: none.
 Safety: no export/download, login/logout/settings change, production write, port 8787 access, merge or deployment. Credentials stayed in the page; no headers were saved.
+
+## PR #412 owner-text CI repair (2026-10-26)
+
+Completed: checked all six stop codes added by this PR and mapped each to existing plain Vietnamese owner text, with no provider/tool names or percentages.
+Changed paths: `frontend/src/research-automation/autorun-text.ts` and this handoff.
+Evidence: on base head `17f204beb48e1dfd81b620748f2ac0b594e7750e`, the existing owner-text coverage test reproduced `text for CAPTURE_BRIDGE_TIMEOUT`. After the repair, `node --import tsx --test tests/unit/autorun-present.test.ts tests/unit/metric-capture-runner.test.ts tests/unit/metric-v3-capture.test.ts` passed all 43 tests, including all-stop-code coverage and the PR's two touched test files. No tests changed.
+Checks: `npm run typecheck` passed.
+Unresolved: none.
+Next action: push the repair for CI; no merge or deployment authorized.
