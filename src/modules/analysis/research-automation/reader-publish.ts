@@ -211,7 +211,7 @@ export async function prepareV3MarketRevision(db: Database.Database, artifacts: 
       insert: next => db.prepare(`INSERT INTO analysis_reader_report_revisions(
         revision_id,workspace_id,run_id,revision_number,request_key,request_sha256,draft_pair_id,metric_package_id,
         platforms,profile_status,input_sha256,profile_sha256,html_sha256,metrics_sha256,claims_sha256,builder_version,actor_id,created_at)
-        VALUES (?,?,?,?,?,?,?,?,'shopee,tiktok','proposed',?,?,?,?,?,'metric-v3-report-v1',?,?)`).run(
+        VALUES (?,?,?,?,?,?,?,?,'shopee,tiktok','proposed',?,?,?,?,?,'metric-v3-report-v2',?,?)`).run(
           revisionId, build.workspaceId, build.runId, next, `v3-reader-${build.runId}`, build.semantic.sha256,
           build.semantic.sha256, build.packageId, record.sha256, profile.sha256, build.html.sha256,
           metrics.sha256, claims.sha256, build.actorId, createdAt) });
