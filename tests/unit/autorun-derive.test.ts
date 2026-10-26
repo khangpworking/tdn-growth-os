@@ -205,3 +205,25 @@ test('pick v3 conserves ambiguous parts on the floor and excludes retained NOT_M
   assert.equal(decided.counts.eligible, 2);
   assert.deepEqual(pickShopeeLinks(raw(rows.slice(0, 2)), ['quạt điện'], { profile: CAPTURE_ROW_PROFILE, relevance }).links, []);
 });
+
+test('explicit capture input requires terms, children, four platforms and both exact-length windows', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const { validateMetricV3CaptureSpec } = await import('../../src/modules/analysis/research-automation/metric-v3-capture-spec.js');
+  const fixture = JSON.parse(await readFile(new URL('../fixtures/metric-v3/live-map-contract.json', import.meta.url), 'utf8'));
+  const explicit = buildCaptureSpec(validateMetricV3CaptureSpec(fixture.spec));
+  assert.deepEqual(explicit, fixture.spec);
+  assert.notEqual(explicit, fixture.spec);
+  for (const mutate of [
+    (s: any) => s.preset.keywords.pop(),
+    (s: any) => { s.preset.keywords[1] = s.preset.keywords[0].toUpperCase(); },
+    (s: any) => { delete s.preset.category; },
+    (s: any) => s.preset.category.children.pop(),
+    (s: any) => s.preset.platforms.pop(),
+    (s: any) => s.windows.pop(),
+    (s: any) => { s.windows[0].period.startDate = '2026-09-21'; },
+    (s: any) => { s.windows[1].intervalDays = 7; },
+  ]) {
+    const input = structuredClone(fixture.spec); mutate(input);
+    assert.throws(() => validateMetricV3CaptureSpec(input), { message: 'CAPTURE_PRESET_INVALID' });
+  }
+});

@@ -79,6 +79,12 @@ export interface ResearchAutomationStartRequest {
   requestedPeriod: ResearchAutomationRequestedPeriodInput;
   reports: ResearchAutomationReports;
   interview?: ResearchAutomationInterview;
+  /**
+   * Explicit capture spec, validated by the canonical metric-v3-capture-spec-v1 schema in the start service.
+   */
+  metricV3Preset?: {
+    [k: string]: unknown;
+  };
 }
 export interface ResearchAutomationRequestedPeriodInput {
   startDate: Date;

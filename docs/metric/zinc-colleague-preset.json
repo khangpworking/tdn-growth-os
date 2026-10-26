@@ -1,0 +1,75 @@
+{
+  "contractVersion": "metric-v3-capture-spec-v1",
+  "preset": {
+    "keywords": [
+      "viên kẽm",
+      "viên uống kẽm"
+    ],
+    "smartQuery": true,
+    "category": {
+      "id": "c2035652732",
+      "label": "Sức Khoẻ",
+      "children": [
+        {
+          "id": "c407923064",
+          "label": "Chăm sóc sức khỏe"
+        },
+        {
+          "id": "c1221630203",
+          "label": "Dinh dưỡng thể thao, protein"
+        },
+        {
+          "id": "c1110582659",
+          "label": "Sức khỏe khác"
+        },
+        {
+          "id": "c2140822537",
+          "label": "Thực phẩm chức năng"
+        }
+      ]
+    },
+    "usefulFilters": {
+      "fake": true,
+      "gifts": true,
+      "deleted": true
+    },
+    "advancedFilter": {
+      "firstField": "rating_count",
+      "operator": ">",
+      "firstRate": 1,
+      "secondField": "order_count",
+      "secondRate": 0.02
+    },
+    "shopTypes": [
+      "mall",
+      "regular"
+    ],
+    "platforms": [
+      "shopee",
+      "lazada",
+      "tiki",
+      "tiktok"
+    ],
+    "aiNormalisation": false,
+    "customizeCategory": false,
+    "exclusions": []
+  },
+  "windows": [
+    {
+      "id": "30d",
+      "period": {
+        "startDate": "2026-09-20",
+        "endDate": "2026-10-19"
+      },
+      "intervalDays": 7
+    },
+    {
+      "id": "12m",
+      "period": {
+        "startDate": "2025-10-20",
+        "endDate": "2026-10-19"
+      },
+      "intervalDays": 30
+    }
+  ]
+}

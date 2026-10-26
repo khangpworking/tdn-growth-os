@@ -1,5 +1,7 @@
 import type { ResearchAutomationSourceConfirmRequestV3 } from '../../../../contracts/api/research-automation-source-api-v3.generated.js';
 import type { CaptureRelevanceRecord } from './capture-relevance.js';
+import type { MetricV3CaptureSpec } from '../../../../contracts/analysis/metric-v3-capture-spec.generated.js';
+import { validateMetricV3CaptureSpec } from './metric-v3-capture-spec.js';
 // Pure derivations for the Market auto-runner (P6-209 follow-up, PR1).
 //
 // Every value the operator used to type by hand is derived here from run data
@@ -15,17 +17,19 @@ import { filterKeywordMeanings, type KeywordMeaningFilterData } from '../keyword
 import { CAPTURE_ROW_PROFILE_V2, type CaptureRowProfile, assessCaptureRowsTitleOnly, splitCaptureNameCell, type CaptureRowExclusionReason } from './capture-row-quality.js';
 import { MAX_PRINCIPAL_CARDS } from './model.js';
 import type { MetricCaptureStopCode } from './metric-capture-runner.js';
+import { METRIC_V3_STOP_CODES } from './metric-v3-capture-spec.js';
 
 // Every runner and executor result code: a stop in the CAPTURE phase itself. The record
 // type forces a new runner/executor code to be classified here. Only these stops may be
 // re-run, and only by the owner's explicit "Thử lại"; intake, pick, confirm, present,
 // run-end and owner stops are never retryable.
 const CAPTURE_STOP_CODE_SET: Readonly<Record<MetricCaptureStopCode, true>> = {
+  ...Object.fromEntries(METRIC_V3_STOP_CODES.map(code => [code, true])) as Record<typeof METRIC_V3_STOP_CODES[number], true>,
   METRIC_LOGIN_REQUIRED: true, METRIC_CAPTCHA: true, METRIC_PERIOD_UNSUPPORTED: true, METRIC_UI_CHANGED: true,
   METRIC_FILTER_MISMATCH: true, METRIC_ROW_CAP: true, METRIC_SEARCH_NOT_APPLIED: true, BRIDGE_DISCONNECTED: true,
   EXECUTOR_DISABLED: true, TIMEOUT: true, MANIFEST_HASH_MISMATCH: true, EXECUTOR_NOT_CONFIGURED: true,
   PERIOD_OUTSIDE_RUN: true, CAPTURE_INTERRUPTED: true, CAPTURE_INPUT_INVALID: true, CAPTURE_IO_FAILED: true,
-  CAPTURE_SMART_QUERY_OFF: true, CAPTURE_CATEGORY_NOT_SELECTABLE: true,
+  CAPTURE_SMART_QUERY_OFF: true,
 };
 /** CAPTURE-family stop codes: the only stops the owner's "Thử lại" may re-run. */
 export const AUTORUN_CAPTURE_STOP_CODES: readonly MetricCaptureStopCode[] = Object.freeze(Object.keys(CAPTURE_STOP_CODE_SET) as MetricCaptureStopCode[]);
@@ -159,10 +163,14 @@ export interface MetricCaptureSpec {
  * Keywords are the first two terms in the given order, deduplicated after
  * NFC, trim and lowercase; the first spelling is kept.
  */
-export function buildCaptureSpec(terms: string | readonly string[], period: DatePeriod, category: string | null = null): MetricCaptureSpec {
+export function buildCaptureSpec(preset: MetricV3CaptureSpec): MetricV3CaptureSpec;
+export function buildCaptureSpec(terms: string | readonly string[], period: DatePeriod, category?: string | null): MetricCaptureSpec;
+export function buildCaptureSpec(terms: string | readonly string[] | MetricV3CaptureSpec, period?: DatePeriod, category: string | null = null): MetricCaptureSpec | MetricV3CaptureSpec {
+  if (typeof terms === 'object' && !Array.isArray(terms)) return validateMetricV3CaptureSpec(terms);
+  const legacyTerms = terms as string | readonly string[];
   const keywords: string[] = [];
   const seen = new Set<string>();
-  for (const term of typeof terms === 'string' ? [terms] : terms) {
+  for (const term of typeof legacyTerms === 'string' ? [legacyTerms] : legacyTerms) {
     const normalized = typeof term === 'string' ? term.normalize('NFC').trim() : '';
     const key = normalized.toLowerCase();
     if (!normalized || seen.has(key)) continue;

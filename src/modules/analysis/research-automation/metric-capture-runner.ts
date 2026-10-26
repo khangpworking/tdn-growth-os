@@ -5,7 +5,10 @@
 // captures in-process, and applies the D1 period probe-retry (at most two
 // executor calls). Every deployment value (adapter manifest, digest, capture
 // root, executable) comes from the injected config; nothing machine-specific is
-// hard-coded. Not wired into the app yet.
+// hard-coded. Explicit presets use the checkout v3 adapter under the same lock.
+import type { MetricV3CaptureSpec } from '../../../../contracts/analysis/metric-v3-capture-spec.generated.js';
+import { METRIC_V3_STOP_CODES, type MetricV3StopCode } from './metric-v3-capture-spec.js';
+import { captureMetricV3 } from './metric-v3-browser-capture.js';
 import { chmod, mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { buildCaptureSpec, decidePeriodRetry, planCapturePeriod, type DatePeriod } from './autorun-derive.js';
@@ -32,6 +35,7 @@ export interface MetricCaptureRunnerConfig {
 
 export interface MetricCaptureRequest {
   readonly runId: string;
+  readonly metricV3Preset?: MetricV3CaptureSpec;
   readonly keyword: string;
   readonly requestedPeriod: DatePeriod;
   readonly signal?: AbortSignal;
@@ -48,7 +52,8 @@ export const METRIC_CAPTURE_DIRS = Object.freeze({ first: 'run1', second: 'run2'
 
 export type MetricCaptureStopCode =
   | MetricOpenCliCode | 'EXECUTOR_NOT_CONFIGURED' | 'PERIOD_OUTSIDE_RUN' | 'CAPTURE_INTERRUPTED' | 'CAPTURE_INPUT_INVALID' | 'CAPTURE_IO_FAILED'
-  | 'CAPTURE_SMART_QUERY_OFF' | 'CAPTURE_CATEGORY_NOT_SELECTABLE';
+  | 'CAPTURE_SMART_QUERY_OFF' | MetricV3StopCode;
+
 
 export type MetricCaptureRunResult =
   | { readonly ok: true; readonly captureDir: string; readonly period: DatePeriod; readonly executorCalls: number }
@@ -128,6 +133,7 @@ function detailFor(result: Extract<MetricOpenCliResult, { ok: false }>): string 
 }
 
 export async function runMetricCapture(config: MetricCaptureRunnerConfig, request: MetricCaptureRequest, dependencies: MetricCaptureRunnerDependencies = {}): Promise<MetricCaptureRunResult> {
+  if (request.metricV3Preset !== undefined) return runPresetCapture(config, request, dependencies);
   if (!config.adapterManifestPath || !config.adapterManifestSha256) return stop('EXECUTOR_NOT_CONFIGURED', 'adapter manifest path or digest is not configured', 0);
   if (!config.captureRoot || !isAbsolute(config.captureRoot)) return stop('EXECUTOR_NOT_CONFIGURED', 'capture directory is not an absolute path', 0);
   if (typeof request.runId !== 'string' || !RUN_ID.test(request.runId)) return stop('CAPTURE_INPUT_INVALID', 'run id is not a UUID', 0);
@@ -184,4 +190,44 @@ export async function runMetricCapture(config: MetricCaptureRunnerConfig, reques
     }
     return stop('METRIC_PERIOD_UNSUPPORTED', 'capture stopped: METRIC_PERIOD_UNSUPPORTED', calls);
   }, () => interrupted(0));
+}
+
+/** Same CAPTURE boundary and browser lock; preset failures never enter the legacy retry. */
+async function runPresetCapture(config: MetricCaptureRunnerConfig, request: MetricCaptureRequest, dependencies: MetricCaptureRunnerDependencies): Promise<MetricCaptureRunResult> {
+  if (config.enabledEnv !== '1') return stop('EXECUTOR_DISABLED', 'capture stopped: EXECUTOR_DISABLED', 0);
+  if (!isAbsolute(config.captureRoot)) return stop('EXECUTOR_NOT_CONFIGURED', 'capture directory is not an absolute path', 0);
+  if (!RUN_ID.test(request.runId) || request.second) return stop('CAPTURE_INPUT_INVALID', 'preset capture cannot use a legacy second capture', 0);
+  let spec: MetricV3CaptureSpec;
+  try { spec = buildCaptureSpec(request.metricV3Preset!); }
+  catch { return stop('CAPTURE_PRESET_INVALID', 'capture stopped: CAPTURE_PRESET_INVALID', 0); }
+  if (spec.preset.keywords[0] !== request.keyword) return stop('CAPTURE_INPUT_INVALID', 'preset keyword must match the run keyword', 0);
+  if (spec.windows.some(({ period }) =>
+    period.startDate < request.requestedPeriod.startDate || period.endDate > request.requestedPeriod.endDate))
+    return stop('PERIOD_OUTSIDE_RUN', 'preset windows must lie inside the requested period', 0);
+  const { signal } = request;
+  const interrupted = () => stop('CAPTURE_INTERRUPTED', 'capture was aborted', 0);
+  return withCaptureLock(signal, async () => {
+    const runDir = join(config.captureRoot, request.runId);
+    const outputDir = join(runDir, METRIC_CAPTURE_DIRS.first);
+    try {
+      await mkdir(runDir, { recursive: true, mode: 0o700 });
+      await writeSpec(join(runDir, 'spec.json'), spec);
+      await moveAside(outputDir);
+      await mkdir(outputDir, { mode: 0o700 });
+    } catch { return stop('CAPTURE_IO_FAILED', 'capture folder could not be prepared', 0); }
+    try {
+      await captureMetricV3(spec, outputDir, config.opencliExecutable ?? 'opencli', {
+        env: metricCaptureEnv(dependencies.sourceEnv ?? process.env),
+        createProcessRunner: dependencies.createProcessRunner ?? (s => createMetricOpenCliProcessRunner(s ? { signal: s } : {})),
+        ...(signal ? { signal } : {}),
+      });
+      return { ok: true, captureDir: outputDir, period: spec.windows[1].period, executorCalls: 1 };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      const code = signal?.aborted ? 'CAPTURE_INTERRUPTED' :
+        METRIC_V3_STOP_CODES.find(code => code === message) ?? (message === 'TIMEOUT' ? 'TIMEOUT' : 'CAPTURE_FAILED');
+      return stop(code, code === 'CAPTURE_LOGIN_REQUIRED'
+        ? 'DECISION NEEDED: The owner must log in before capture can continue.' : `capture stopped: ${code}`, 1);
+    }
+  }, interrupted);
 }

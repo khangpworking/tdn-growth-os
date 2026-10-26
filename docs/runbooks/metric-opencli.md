@@ -339,3 +339,69 @@ product variant price range `a₫ - b₫` gives `minPrice` its low end. Captures
 made before v11 keep those cells empty.
 
 Adapter manifest SHA-256: `66e0ef819c80d6fe1e736c53d5e0ccb8b079b156002300ba2948575436b24745`.
+
+## M3 step 2 — explicit colleague preset
+
+The v3 CAPTURE runner takes a complete JSON preset and two explicit
+windows. The example is [zinc-colleague-preset.json](../metric/zinc-colleague-preset.json);
+control identities, source fields, and historical differences are recorded in
+[the live map](../metric/v3-capture-map.md).
+
+With Node 24.15.0 and the existing OpenCLI browser bridge available:
+
+```sh
+node --import tsx scripts/capture-metric-preset.ts \
+  docs/metric/zinc-colleague-preset.json \
+  /absolute/outside-git/new-capture-directory \
+  /absolute/operator-database.sqlite \
+  /absolute/path/to/opencli
+```
+
+This command invokes the same `runMetricCapture` preset branch used by autorun.
+The successful receipt names `<output>/<runId>/run1`, which contains the
+window directories and root manifest. `<output>/<runId>/spec.json` freezes the
+validated preset.
+
+The third argument is the existing operator database used only for the
+read-only `research_automation_autorun` busy check. The command waits while a
+CAPTURE phase is RUNNING, creates its own browser session/tab, and closes that
+tab on success, failure, or interruption. Python 3 is needed for this read-only
+check. Existing output directories, repository output, and the production
+state/share roots are refused. Run from the checkout; installing an adapter is
+not part of this command.
+
+`buildCaptureSpec(explicitPreset)` validates the canonical v3 schema without
+adding a second keyword, inferring a category, or shifting dates. The adapter
+clears the complete category tree before selecting the explicit children,
+verifies page controls before submitting, then verifies the actual request
+scope on every required response. An unknown parent/child returns
+`CAPTURE_CATEGORY_NOT_SELECTABLE`; unavailable controls, applied-state drift,
+request drift, missing responses, login, and restrictions have distinct stop
+codes. No lookup is automatically retried and no default date range is silently
+substituted.
+
+Each `30d/` and `12m/` directory contains sanitized `raw-responses.json` and a
+schema-validated `manifest.json` with actual applied state, requested period,
+source pointers, displayed KPIs, and raw-file hash/size. The root manifest is
+written only after both windows pass and binds both window manifests. A stopped
+run keeps its completed window and diagnostics; it has no successful root
+manifest. `spec.json`, `session.json`, and any `stopped.json` are local receipts.
+The source's first 20 rows retain the requested top 15 products and top 10
+shops/brands without pagination or export.
+
+To opt a new owner-api run into this mode, include `metricV3Preset` in the
+existing `research-automation-start-v1` body. Its value is the complete example
+spec, not just its inner `preset`. The first keyword must equal the run keyword,
+and both windows must lie inside `requestedPeriod`. The start service validates
+against the canonical v3 schema and freezes the input in the start snapshot;
+CAPTURE forwards it unchanged after restart. No preset field means the existing
+legacy runner, pinned adapter, period probe and second-capture policy remain in
+use. Preset captures use the same enable flag, browser lock, allow-listed
+environment and abort lifecycle, with no legacy retry or scope inference.
+
+These artifacts are the input for the later report-layout package. The current
+legacy PREPARE reader requires a two-platform `snapshot.json`; it cannot consume
+the v3 archive. After successful autorun CAPTURE, PREPARE stops explicitly with
+`CAPTURE_V3_PREPARE_UNSUPPORTED`, retaining both window manifests/raw responses.
+Report consumption/rendering remains step 3; no legacy snapshot is fabricated.
+The adapter is loaded from this checkout and is never installed into production.

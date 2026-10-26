@@ -1,0 +1,130 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "captureId",
+    "capturedAt",
+    "specDigest",
+    "window",
+    "appliedState",
+    "selectedCategoryIds",
+    "sourceMap",
+    "displayedKPIs",
+    "comparison",
+    "captureGate",
+    "sourceLimitations",
+    "files"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": "metric-v3-window-capture-v1"
+    },
+    "captureId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "capturedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "specDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "window": {
+      "$ref": "https://tdn.local/metric-v3-capture-spec.schema.json#/$defs/window"
+    },
+    "appliedState": {
+      "$ref": "https://tdn.local/metric-v3-capture-spec.schema.json#/$defs/preset"
+    },
+    "selectedCategoryIds": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "sourceMap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "search-basic",
+        "insight",
+        "products",
+        "shops",
+        "groups"
+      ],
+      "properties": {
+        "search-basic": {
+          "type": "string",
+          "pattern": "^raw-responses.json#/[0-9]+/body/data$"
+        },
+        "insight": {
+          "type": "string",
+          "pattern": "^raw-responses.json#/[0-9]+/body/data$"
+        },
+        "products": {
+          "type": "string",
+          "pattern": "^raw-responses.json#/[0-9]+/body/data$"
+        },
+        "shops": {
+          "type": "string",
+          "pattern": "^raw-responses.json#/[0-9]+/body/data$"
+        },
+        "groups": {
+          "type": "string",
+          "pattern": "^raw-responses.json#/[0-9]+/body/data$"
+        }
+      }
+    },
+    "displayedKPIs": {
+      "type": "string",
+      "minLength": 1
+    },
+    "comparison": {
+      "const": "source-previous-period"
+    },
+    "captureGate": {
+      "const": "PASSED"
+    },
+    "sourceLimitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "sha256",
+          "byteSize"
+        ],
+        "properties": {
+          "path": {
+            "const": "raw-responses.json"
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "byteSize": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/metric-v3-window-capture.schema.json",
+  "title": "MetricV3WindowCapture"
+}

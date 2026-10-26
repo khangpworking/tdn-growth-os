@@ -253,3 +253,71 @@ test('process runner: over-cap output kills the group; spawn errors keep their c
   spawned[2]!.child.emit('close', 0);
   await winExecution.completion;
 });
+
+// The real adapter runs against a synthetic browser-CLI transcript. Existing legacy
+// happy-path coverage above owns the absent-preset row; no live process is launched.
+test('CAPTURE preset rows publish both applied-state manifests or stop without legacy fallback', async () => {
+  const fixture = JSON.parse(await readFile(new URL('../fixtures/metric-v3/live-map-contract.json', import.meta.url), 'utf8'));
+  for (const outcome of ['ready', 'unknown-category', 'logged-out'] as const) {
+    const spec = structuredClone(fixture.spec);
+    if (outcome === 'unknown-category') spec.preset.category.id = 'c9999999999';
+    let windowIndex = 0;
+    let selected: string[] = [];
+    const keywords: string[] = [];
+    let closed = false;
+    let opened = false;
+    const transport: MetricCaptureRunnerDependencies = {
+      sourceEnv: {},
+      createProcessRunner: () => async (_executable, argv) => {
+        assert.equal(argv[0], 'browser', 'preset must never launch the legacy capture command');
+        let response: unknown;
+        if (argv[2] === 'tab') {
+          if (argv[3] === 'new') { opened = true; response = { page: 'ABC123' }; }
+          else { closed = true; response = { ok: true }; }
+        } else {
+          const js = argv[5]!;
+          if (js.includes('function readV3Page(')) {
+            response = outcome === 'logged-out' ? { stop: 'CAPTURE_LOGIN_REQUIRED' } : {
+              ...structuredClone(fixture.windows[windowIndex].observation),
+              advancedVisible: true, submitIdle: true, submitReady: true,
+              selectedCategoryIds: [...selected],
+              appliedState: { ...structuredClone(fixture.spec.preset), keywords: [...keywords] },
+            };
+          } else if (js.includes('function formAction(')) {
+            const action = JSON.parse(js.slice(js.lastIndexOf('\n})(') + 4, -1));
+            if (action.kind === 'categoryAll') selected = [];
+            if (action.kind === 'categoryChild') selected.push(fixture.spec.preset.category.children.find((c: any) => action.labels.includes(c.label)).id);
+            if (action.kind === 'keyword') keywords.push(action.value);
+            if (action.kind === 'option' && action.labels.includes('365 days')) windowIndex = 1;
+            response = action.kind === 'date' ? { done: true } : { ok: true };
+          } else if (js.includes('ready:')) response = { ready: true };
+          else if (js.includes('pending:')) response = { pending: 0, quiet: 1001, overflow: false };
+          else if (js.includes('.filter((r)')) response = fixture.windows[windowIndex].responses.map((r: any) => r.urlPath);
+          else if (js.includes('=> window.__tdnV3Capture.responses')) response = fixture.windows[windowIndex].responses;
+          else response = { ok: true };
+        }
+        return { child: { kill: () => true }, completion: Promise.resolve({ exitCode: 0, stdout: JSON.stringify(response), stderr: '' }) };
+      },
+    };
+    const req = { runId: newRunId(), keyword: spec.preset.keywords[0], requestedPeriod: spec.windows[1].period, metricV3Preset: spec };
+    const result = await runMetricCapture(config({ adapterManifestPath: undefined, adapterManifestSha256: undefined }), req, transport);
+    assert.equal(opened, true); assert.equal(closed, true, 'owned tab must close even on control failure');
+    assert.equal(result.executorCalls, 1);
+    const dir = join(root, req.runId, 'run1');
+    if (outcome === 'ready') {
+      assert.ok(result.ok, JSON.stringify(result));
+      const manifest = JSON.parse(await readFile(join(dir, 'manifest.json'), 'utf8'));
+      assert.deepEqual(manifest.windows.map((w: any) => w.window), ['30d', '12m']);
+      for (const id of ['30d', '12m']) {
+        const window = JSON.parse(await readFile(join(dir, id, 'manifest.json'), 'utf8'));
+        assert.deepEqual(window.appliedState, fixture.spec.preset);
+        assert.equal(window.captureGate, 'PASSED');
+        assert.equal(window.window.id, id);
+      }
+    } else {
+      assert.equal(!result.ok && result.code, outcome === 'logged-out' ? 'CAPTURE_LOGIN_REQUIRED' : 'CAPTURE_CATEGORY_NOT_SELECTABLE');
+      if (outcome === 'logged-out') assert.match(!result.ok ? result.detail : '', /^DECISION NEEDED:/);
+      await assert.rejects(readFile(join(dir, 'manifest.json')), { code: 'ENOENT' });
+    }
+  }
+});
