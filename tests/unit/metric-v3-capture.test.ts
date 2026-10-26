@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
 import { buildCaptureSpec } from '../../src/modules/analysis/research-automation/autorun-derive.js';
@@ -10,6 +11,27 @@ const fixture = JSON.parse(
   await readFile(new URL('../fixtures/metric-v3/live-map-contract.json', import.meta.url), 'utf8'),
 );
 const formHtml = await readFile(new URL('../fixtures/metric-v3/form.html', import.meta.url), 'utf8');
+const require = createRequire(import.meta.url);
+const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
+const ajv = new Ajv2020({ strict: true });
+require('ajv-formats')(ajv);
+ajv.addSchema(JSON.parse(await readFile(new URL('../../contracts/analysis/metric-v3-capture-spec.schema.json', import.meta.url), 'utf8')));
+const validateWindowManifest = ajv.compile<Record<string, unknown>>(JSON.parse(await readFile(new URL('../../contracts/analysis/metric-v3-window-capture.schema.json', import.meta.url), 'utf8')));
+
+test('window manifest versions retain old captures and require method provenance for new captures', () => {
+  const row = fixture.windows[0];
+  const current = adapter.buildV3WindowManifest(fixture.spec, fixture.spec.windows[0], row.observation, row.responses, '2026-10-26T07:00:00.000Z');
+  const legacy = { ...current, contractVersion: 'metric-v3-window-capture-v1' };
+  delete legacy.captureMethod;
+  assert.ok(validateWindowManifest(legacy), JSON.stringify(validateWindowManifest.errors));
+  assert.equal(current.contractVersion, 'metric-v3-window-capture-v2');
+  assert.ok(validateWindowManifest(current));
+  assert.equal(validateWindowManifest({ ...legacy, contractVersion: 'metric-v3-window-capture-v2' }), false);
+  assert.equal(validateWindowManifest({ ...legacy, captureMethod: 'ui' }), false);
+  assert.equal(validateWindowManifest({ ...current, captureMethod: 'page-request' }), false);
+  assert.ok(validateWindowManifest({ ...current, captureMethod: 'page-request', fallbackReason: 'CAPTURE_UI_CHANGED' }));
+  assert.equal(validateWindowManifest({ ...current, fallbackReason: 'CAPTURE_UI_CHANGED' }), false);
+});
 
 // One owner at the publication gate: a UI match alone cannot publish wrong-scope responses.
 // Existing v1 fixtures only cover two platforms, no child tree, and no parameter filter.

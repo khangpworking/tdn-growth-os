@@ -14,12 +14,14 @@
     "comparison",
     "captureGate",
     "sourceLimitations",
-    "files",
-    "captureMethod"
+    "files"
   ],
   "properties": {
     "contractVersion": {
-      "const": "metric-v3-window-capture-v1"
+      "enum": [
+        "metric-v3-window-capture-v1",
+        "metric-v3-window-capture-v2"
+      ]
     },
     "captureId": {
       "type": "string",
@@ -141,6 +143,34 @@
   "allOf": [
     {
       "if": {
+        "properties": {
+          "contractVersion": {
+            "const": "metric-v3-window-capture-v2"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "captureMethod"
+        ],
+        "properties": {
+          "captureMethod": {
+            "$ref": "#/properties/captureMethod"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "captureMethod": false,
+          "fallbackReason": false
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "captureMethod"
+        ],
         "properties": {
           "captureMethod": {
             "const": "page-request"

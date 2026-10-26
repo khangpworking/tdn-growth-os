@@ -584,7 +584,7 @@ export function buildV3WindowManifest(spec, window, observation, rawResponses, c
   )
     stop('CAPTURE_RESPONSE_MISSING');
   const manifest = {
-    contractVersion: 'metric-v3-window-capture-v1',
+    contractVersion: 'metric-v3-window-capture-v2',
     captureId: randomUUID(),
     captureMethod,
     ...(fallbackReason ? { fallbackReason } : {}),
@@ -615,6 +615,10 @@ export function buildV3WindowManifest(spec, window, observation, rawResponses, c
 
 export async function captureV3Preset(page, spec, outputDir, progress = () => {}) {
   if (!validateSpec(spec)) stop('CAPTURE_PRESET_INVALID');
+  for (let i = 0; i < 30; i++) {
+    if ((await page.evaluate(() => ({ ready: document.readyState !== 'loading' }))).ready) break;
+    await page.wait(500);
+  }
   // Nuxt may mount after document.readyState becomes complete. Authentication
   // and access stops still terminate immediately; only a missing form may wait.
   for (let i = 0; i < 60; i++) {

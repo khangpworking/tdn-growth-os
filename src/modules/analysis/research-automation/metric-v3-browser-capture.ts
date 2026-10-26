@@ -43,6 +43,7 @@ export async function captureMetricV3(spec: MetricV3CaptureSpec, outputDir: stri
     } finally { if (timer) clearTimeout(timer); }
   };
   let tab: string | undefined;
+  let stopped: { code: string; errors?: object } | undefined;
   try {
     const opened = await command(['tab', 'new', 'https://metric.vn/analytics']);
     if (typeof opened.page !== 'string' || !/^[A-Fa-f0-9]+$/.test(opened.page)) throw new Error('CAPTURE_TAB_UNAVAILABLE');
@@ -57,17 +58,21 @@ export async function captureMetricV3(spec: MetricV3CaptureSpec, outputDir: stri
       },
       wait: async (ms: number) => { check(); await delay(ms, undefined, signal ? { signal } : {}); },
     };
-    for (let i = 0; i < 30; i++) {
-      if ((await page.evaluate(() => ({ ready: document.readyState !== 'loading' }))).ready) break;
-      await page.wait(500);
-    }
     await captureV3WithFallback(page, spec, outputDir);
   } catch (error) {
     const code = signal?.aborted ? 'CAPTURE_INTERRUPTED' : error instanceof Error ? error.message : 'CAPTURE_FAILED';
     const errors = (error as { details?: object })?.details;
-    await writeFile(join(outputDir, 'stopped.json'), `${JSON.stringify({ code, ...(errors ? { errors } : {}) })}\n`, { flag: 'wx', mode: 0o600 });
+    stopped = { code, ...(errors ? { errors } : {}) };
+    await writeFile(join(outputDir, 'stopped.json'), `${JSON.stringify(stopped)}\n`, { flag: 'wx', mode: 0o600 });
     throw error;
   } finally {
-    if (tab) await command(['tab', 'close', tab], true);
+    if (tab) {
+      try { await command(['tab', 'close', tab], true); }
+      catch (error) {
+        if (!stopped) throw error;
+        const cleanupCode = error instanceof Error ? error.message : 'CAPTURE_FAILED';
+        await writeFile(join(outputDir, 'stopped.json'), `${JSON.stringify({ ...stopped, cleanupCode })}\n`, { mode: 0o600 });
+      }
+    }
   }
 }

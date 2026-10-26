@@ -258,7 +258,7 @@ test('process runner: over-cap output kills the group; spawn errors keep their c
 // happy-path coverage above owns the absent-preset row; no live process is launched.
 test('CAPTURE preset fallback contract rows publish one method per window or preserve stop errors', async (t) => {
   const fixture = JSON.parse(await readFile(new URL('../fixtures/metric-v3/live-map-contract.json', import.meta.url), 'utf8'));
-  for (const outcome of ['ready', 'ui-broken', 'bridge-timeout', 'late-ui-break', 'unknown-category', 'logged-out', 'invalid-preset', 'provider-error', 'both-fail'] as const) await t.test(outcome, async () => {
+  for (const outcome of ['ready', 'ui-broken', 'bridge-timeout', 'bridge-first-eval-timeout', 'late-ui-break', 'unknown-category', 'logged-out', 'invalid-preset', 'provider-error', 'both-fail', 'both-fail-close-timeout'] as const) await t.test(outcome, async () => {
     const spec = structuredClone(fixture.spec);
     if (outcome === 'unknown-category') spec.preset.category.id = 'c9999999999';
     if (outcome === 'invalid-preset') spec.preset.platforms = [];
@@ -276,8 +276,16 @@ test('CAPTURE preset fallback contract rows publish one method per window or pre
         let response: unknown;
         if (argv[2] === 'tab') {
           if (argv[3] === 'new') { opened = true; response = { page: 'ABC123' }; }
-          else { closed = true; response = { ok: true }; }
+          else {
+            closed = true;
+            if (outcome === 'both-fail-close-timeout') return { child: { kill: () => true }, completion: Promise.resolve({ exitCode: 1, stdout: '', stderr: 'bridge timeout' }) };
+            response = { ok: true };
+          }
         } else {
+          if (outcome === 'bridge-first-eval-timeout' && !uiBroken) {
+            uiBroken = true;
+            return { child: { kill: () => true }, completion: Promise.resolve({ exitCode: 1, stdout: '', stderr: 'bridge timeout' }) };
+          }
           const js = argv[5]!;
           if (js.includes('function readV3RequestContext(')) {
             response = { taxonomy: fixture.windows[0].observation.taxonomy };
@@ -287,7 +295,7 @@ test('CAPTURE preset fallback contract rows publish one method per window or pre
             const index = request.requestBody.interval_days === 30 || request.requestBody.start_date === '20251020' ? 1 : 0;
             const expected = fixture.windows[index].responses.find((r: any) => r.urlPath === request.urlPath);
             assert.deepEqual(request.requestBody, expected.requestBody, 'page requests must match the independent live-map scope');
-            response = outcome === 'both-fail' ? { stop: 'CAPTURE_PROVIDER_DATA_ERROR' } : { ...expected, requestBody: request.requestBody };
+            response = outcome.startsWith('both-fail') ? { stop: 'CAPTURE_PROVIDER_DATA_ERROR' } : { ...expected, requestBody: request.requestBody };
           } else if (js.includes('function readV3Page(')) {
             response = outcome === 'logged-out' ? { stop: 'CAPTURE_LOGIN_REQUIRED' } : {
               ...structuredClone(fixture.windows[windowIndex].observation),
@@ -296,7 +304,7 @@ test('CAPTURE preset fallback contract rows publish one method per window or pre
               appliedState: { ...structuredClone(fixture.spec.preset), keywords: [...keywords] },
             };
           } else if (js.includes('function formAction(')) {
-            if (!uiBroken && (['ui-broken', 'both-fail', 'bridge-timeout'].includes(outcome) || (outcome === 'late-ui-break' && windowIndex === 1))) {
+            if (!uiBroken && (['ui-broken', 'both-fail', 'both-fail-close-timeout', 'bridge-timeout'].includes(outcome) || (outcome === 'late-ui-break' && windowIndex === 1))) {
               uiBroken = true;
               if (outcome === 'bridge-timeout') return { child: { kill: () => true }, completion: Promise.resolve({ exitCode: 1, stdout: '', stderr: 'bridge timeout' }) };
               return { child: { kill: () => true }, completion: Promise.resolve({ exitCode: 0, stdout: JSON.stringify({ stop: 'CAPTURE_CONTROL_NOT_SELECTABLE' }), stderr: '' }) };
@@ -331,7 +339,7 @@ test('CAPTURE preset fallback contract rows publish one method per window or pre
     assert.equal(opened, true); assert.equal(closed, true, 'owned tab must close even on control failure');
     assert.equal(result.executorCalls, 1);
     const dir = join(root, req.runId, 'run1');
-    if (['ready', 'ui-broken', 'bridge-timeout', 'late-ui-break'].includes(outcome)) {
+    if (['ready', 'ui-broken', 'bridge-timeout', 'bridge-first-eval-timeout', 'late-ui-break'].includes(outcome)) {
       assert.ok(result.ok, JSON.stringify(result));
       const manifest = JSON.parse(await readFile(join(dir, 'manifest.json'), 'utf8'));
       assert.deepEqual(manifest.windows.map((w: any) => w.window), ['30d', '12m']);
@@ -340,17 +348,18 @@ test('CAPTURE preset fallback contract rows publish one method per window or pre
         assert.deepEqual(window.appliedState, fixture.spec.preset);
         assert.equal(window.captureGate, 'PASSED');
         assert.equal(window.captureMethod, outcome === 'ready' ? 'ui' : 'page-request');
-        assert.equal(window.fallbackReason, outcome === 'ready' ? undefined : outcome === 'bridge-timeout' ? 'CAPTURE_BRIDGE_TIMEOUT' : 'CAPTURE_CONTROL_NOT_SELECTABLE');
+        assert.equal(window.fallbackReason, outcome === 'ready' ? undefined : outcome.startsWith('bridge-') ? 'CAPTURE_BRIDGE_TIMEOUT' : 'CAPTURE_CONTROL_NOT_SELECTABLE');
         assert.equal(window.window.id, id);
       }
       assert.equal(pageRequests, outcome === 'ready' ? 0 : 10);
     } else {
-      assert.equal(!result.ok && result.code, outcome === 'logged-out' ? 'CAPTURE_LOGIN_REQUIRED' : outcome === 'unknown-category' ? 'CAPTURE_CATEGORY_NOT_SELECTABLE' : outcome === 'both-fail' ? 'CAPTURE_FALLBACK_FAILED' : 'CAPTURE_RESPONSE_MISSING');
-      assert.equal(pageRequests, outcome === 'both-fail' ? 1 : 0);
-      if (outcome === 'both-fail') {
+      assert.equal(!result.ok && result.code, outcome === 'logged-out' ? 'CAPTURE_LOGIN_REQUIRED' : outcome === 'unknown-category' ? 'CAPTURE_CATEGORY_NOT_SELECTABLE' : outcome.startsWith('both-fail') ? 'CAPTURE_FALLBACK_FAILED' : 'CAPTURE_RESPONSE_MISSING');
+      assert.equal(pageRequests, outcome.startsWith('both-fail') ? 1 : 0);
+      if (outcome.startsWith('both-fail')) {
         assert.match(!result.ok ? result.detail : '', /ui: CAPTURE_CONTROL_NOT_SELECTABLE; page-request: CAPTURE_PROVIDER_DATA_ERROR/);
         const stopped = JSON.parse(await readFile(join(dir, 'stopped.json'), 'utf8'));
         assert.deepEqual(stopped.errors, { uiCode: 'CAPTURE_CONTROL_NOT_SELECTABLE', pageRequestCode: 'CAPTURE_PROVIDER_DATA_ERROR' });
+        if (outcome === 'both-fail-close-timeout') assert.equal(stopped.cleanupCode, 'CAPTURE_BRIDGE_TIMEOUT');
       }
       if (outcome === 'logged-out') assert.match(!result.ok ? result.detail : '', /^DECISION NEEDED:/);
       await assert.rejects(readFile(join(dir, 'manifest.json')), { code: 'ENOENT' });
