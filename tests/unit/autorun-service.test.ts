@@ -7,6 +7,7 @@ import { autorunRequestKey } from '../../src/modules/analysis/research-automatio
 import { SYNTHETIC_CARD_ID } from '../helpers/research-synthetic-sources.js';
 import { autorun, drain, driveUntil, dump, fixture, keyword, requestCount, rewindStartKey, startRun, untilIdle, withRawResponses, workspaceId } from '../helpers/autorun-harness.js';
 import type { AutorunScopeRecord } from '../../src/modules/analysis/research-automation/autorun-scope.js';
+import { scopeLinesVi } from '../../src/modules/analysis/research-automation/autorun-scope.js';
 
 // Synthetic fixtures only: no real keyword, product, shop or customer data; no process is spawned.
 
@@ -65,11 +66,13 @@ test('K2 no wait by default: omitted and false match a null answer with keyword 
       assert.deepEqual([row.phase, row.state, row.stopCode], [category ? 'CAPTURE' : 'PREPARE', 'QUEUED', null]);
       const scope = await keywordScope(f, runId);
       assert.equal(scope.keyword2.skipped, 'KEYWORD2_NOT_REQUESTED');
+      assert.equal(scopeLinesVi(scope)[0], `Từ khóa: chỉ dùng "${keyword}". Từ khóa 2 không được yêu cầu ở bước bắt đầu nên tự động bỏ qua.`);
       assert.deepEqual(scope.capture2, expected);
       assert.equal((await f.service.getRun(workspaceId, runId)).autoRun?.keyword2Suggestion, undefined);
       if (category) {
         await f.service.processNext(); await f.service.settleAutoRunCaptures();
         assert.deepEqual(f.capture.calls[1]?.second, { keywords: [keyword], category });
+        assert.equal(f.capture.calls.length, 2, 'the category change requires exactly the same extra capture as a null answer');
         assert.equal(autorun(f.db, runId)?.phase, 'PREPARE');
       } else assert.equal(f.capture.calls.length, 1, 'All + keyword 1 reuses the first capture');
     });

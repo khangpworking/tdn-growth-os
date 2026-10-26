@@ -52,7 +52,7 @@ export default function ResearchEditor({ mode, workspaceId, ownerToken, writesAv
   // The confirmed preset fixes keyword, windows and category, so it cannot outlive any of them.
   const update = (patch: Partial<ResearchDraft>) => {
     setDraft(prior => ({ ...prior, ...patch }));
-    if (patch.keyword !== undefined || patch.period !== undefined || patch.mode !== undefined) setPreset(null);
+    if (patch.keyword !== undefined || patch.period !== undefined || patch.mode !== undefined || patch.reports !== undefined) setPreset(null);
     setMessage('');
   };
   const setPeriod = (period: PeriodDraft) => update({ period });
@@ -181,10 +181,14 @@ export default function ResearchEditor({ mode, workspaceId, ownerToken, writesAv
         <details className="ra-period">
           <summary>Phạm vi thu thập (tùy chọn)</summary>
           <p className="ra-muted">Chỉ hỗ trợ danh mục đã xác minh và đủ 4 danh mục con. Sản phẩm ngoài danh mục này để trống phần này. Hai cửa sổ 30 ngày và 12 tháng phải nằm trong kỳ nghiên cứu đã chọn.</p>
-          {datesProblem
+          {draft.reports !== 'MARKET'
+            ? <p className="ra-muted">Phạm vi này chỉ dùng cho báo cáo Thị trường. Chọn “Chỉ Thị trường” để đặt phạm vi.</p>
+            : datesProblem
             ? <p className="ra-muted">Sửa kỳ nghiên cứu trước khi đặt phạm vi thu thập.</p>
-            : <MetricV3PresetForm key={`${draft.keyword.trim()}:${draft.period.endDate}`} seed={{ keyword1: draft.keyword.trim(), keyword2: '', categoryId: null, suggested: false }}
-                endDate={draft.period.endDate} disabled={pending || blockedReason !== null} pending={false} confirmLabel="Dùng phạm vi này" onConfirm={setPreset} />}
+            : <MetricV3PresetForm key={`${draft.keyword.trim()}:${draft.period.endDate}`}
+                seed={{ keyword1: draft.keyword.trim(), keyword2: preset?.preset.keywords[1] ?? '', categoryId: preset?.preset.category.id ?? null, suggested: false }}
+                endDate={draft.period.endDate} disabled={pending || blockedReason !== null} pending={false} confirmLabel="Dùng phạm vi này"
+                onConfirm={value => { update({ keyword: value.preset.keywords[0] }); setPreset(value); }} />}
           {preset && <div className="ra-actions">
             <p role="status">Đã chọn phạm vi: {preset.preset.keywords.join(' · ')}.</p>
             <button type="button" className="button" disabled={pending} onClick={() => setPreset(null)}>Bỏ phạm vi</button>
