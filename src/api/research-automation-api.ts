@@ -419,7 +419,14 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     // Replay mode: both handles carry the source scope, so reader pages (HTML and PDF) show the replay notice too.
     const kalodataReplay: KalodataReplaySource | undefined = configuration.kalodataReplaySourceRunId !== undefined
       ? readKalodataReplaySource(reader, configuration.kalodataReplaySourceRunId) : undefined;
-    readService = create(reader, kalodataReplay ? { kalodataReplay } : {});
+    readService = create(reader, {
+      ...(kalodataReplay ? { kalodataReplay } : {}),
+      ...(configuration.metricAutoRun ? { autoRun: { enabled: true, runner: {
+        enabledEnv: '1', captureRoot: path.resolve(configuration.metricAutoRun.captureRoot),
+        adapterManifestPath: configuration.metricAutoRun.adapterManifestPath,
+        adapterManifestSha256: configuration.metricAutoRun.adapterManifestSha256,
+      } } } : {}),
+    });
     if (configuration.owner) {
       writer = new BetterSqlite3(path.resolve(configuration.databasePath), { fileMustExist: true });
       writer.pragma('foreign_keys = ON'); writer.pragma('busy_timeout = 5000'); writer.defaultSafeIntegers(true);

@@ -148,6 +148,7 @@ async function withApi<T>(
   decisionSynthesis?: Parameters<typeof openResearchAutomationApi>[0]['decisionSynthesis'],
   insightCoding?: Parameters<typeof openResearchAutomationApi>[0]['insightCoding'],
   pdfExecutablePath?: string,
+  metricAutoRun?: Parameters<typeof openResearchAutomationApi>[0]['metricAutoRun'],
 ): Promise<T> {
   const probe = http.createServer();
   probe.listen(0, '127.0.0.1');
@@ -165,6 +166,7 @@ async function withApi<T>(
     ...(decisionSynthesis ? { decisionSynthesis } : {}),
     ...(insightCoding ? { insightCoding } : {}),
     ...(pdfExecutablePath ? { pdfExecutablePath } : {}),
+    ...(metricAutoRun ? { metricAutoRun } : {}),
     ...(ownerEnabled
       ? {
           owner: {
@@ -1895,4 +1897,36 @@ test('capture source uploaded after scope confirmation follows the prepared-sour
     assert.match(await market.text(), /Late capture product/);
     assert.equal((await getRun(base, awaiting.runId)).blockers.some((blocker: { code: string }) => blocker.code === 'METRIC_MANUAL_EXPORT_REQUIRED'), false);
   });
+});
+
+test('read-only API projects the saved keyword 2 suggestion without running capture', async () => {
+  const fixture = await createFixture();
+  let runId = '';
+  await withApi(fixture, true, async base => {
+    runId = (await startAndWaitForScope(base, randomUUID())).runId;
+  });
+  // Persisted stopped-run fixture: the read-only server must use its configured
+  // capture root to replay the suggestion; it must not need an OWNER writer.
+  const captureRoot = path.join(fixture.root, 'capture');
+  fs.mkdirSync(path.join(captureRoot, runId), { recursive: true });
+  fs.writeFileSync(path.join(captureRoot, runId, 'scope.json'), JSON.stringify({
+    contractVersion: 'autorun-scope-record-v1', runId, keyword1: 'wireless earbuds',
+    keyword2: { chosen: { term: 'tai nghe', titles: 4, brands: 3 }, titleCount: 8 },
+  }));
+  const db = new BetterSqlite3(fixture.databasePath);
+  try {
+    db.prepare(`INSERT INTO research_automation_autorun
+      (run_id,workspace_id,phase,phase_state,stop_code,capture_dir_key,
+       prepare_request_key,confirm_request_key,revision_request_key,created_at,updated_at)
+      VALUES (?,?,'STOPPED','QUEUED','KEYWORD2_AWAITING',?,?,?,?,?,?)`)
+      .run(runId, workspaceId, runId, randomUUID(), randomUUID(), randomUUID(),
+        '2026-01-31T00:00:00.000Z', '2026-01-31T00:00:00.000Z');
+  } finally { db.close(); }
+  await withApi(fixture, false, async base => {
+    const run = await getRun(base, runId);
+    assert.deepEqual(run.autoRun.keyword2Suggestion, {
+      keyword1: 'wireless earbuds', term: 'tai nghe', titles: 4, titleCount: 8, brands: 3,
+    });
+    assert.equal(run.autoRun.phase, 'STOPPED');
+  }, undefined, undefined, undefined, undefined, { captureRoot });
 });
