@@ -8,7 +8,7 @@ import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import { request as httpsRequest } from 'node:https';
 import { Readable } from 'node:stream';
-import { CaptureLog, defaultProviderTransport, sha256, type ProviderTransport } from './provider-common.js';
+import { CaptureLog, defaultProviderTransport, safeCaptureHeaders, safeResponseHeaders, sha256, type ProviderTransport } from './provider-common.js';
 import { createSerpApiProvider } from './provider-serpapi.js';
 import { SearchCallBudget, type ExpandedSearchRequest } from './expanded-search-queries.js';
 import type { CollectInput, CollectResult, ProviderCallOptions, ProviderRawCapture } from './providers.js';
@@ -237,7 +237,8 @@ export async function guardedPdfDownload(input: {
     const bytes = Buffer.concat(chunks);
     if (bytes.subarray(0, 5).toString('latin1') !== '%PDF-') return { kind: 'FAILED', reason: 'NOT_A_PDF', requested };
     const capture = input.log.record({ operation: 'pdfdiscovery.download', billing: 'FREE_ACCOUNT_QUERY', method: 'GET', endpoint: `${url.origin}${url.pathname}`,
-      requestParameters: {}, requestBodyBytes: null, queryWindow: null, pageNumber: null, productRef: null }, requestedAt, 'OK', 200, bytes, null);
+      requestParameters: {}, requestBodyBytes: null, queryWindow: null, pageNumber: null, productRef: null }, requestedAt, 'OK', 200, bytes, null,
+      safeCaptureHeaders(safeResponseHeaders(response.headers)));
     return { kind: 'DOWNLOADED', capture, bytes, sha256: sha256(bytes) };
   }
 }

@@ -148,8 +148,9 @@ const cases: { row: number; name: string; run: (t: TestContext) => Promise<void>
     syncBuiltinESMExports();
     t.after(() => { globalThis.Date = RealDate; uuid.mock.restore(); syncBuiltinESMExports(); });
     // Frozen from this deterministic fixture against origin/main; see tests-report.md.
-    const expected = { NATIVE: '50f5a67398298cc45610b146247f167cd1a48b04d1aad95b5b9fdc541f4a04db',
-      EXACT: '909bfdbe5a0d233167c5aa2224487c17c747bfe2efc5232157817a912a81cd60' };
+    // PR #410: capture responseHeaders change identity only; verified against the header-only revert.
+    const expected = { NATIVE: '33cd887cc5f6ae1ed22eaf1b5b76de1f7d01459ff174e8f096b0fe102e085f1e',
+      EXACT: 'e47b2ccbfdc6a2da859698452f01edaad96069e9e9c7358ffae13593ad36cedf' };
     const actual: Record<string, string> = {};
     for (const source of ['NATIVE', 'EXACT'] as const) {
       const f = await publicCodingFixture(t, { source, s06: true }), api = await codingApi(t, f), view = await successfulView(api);

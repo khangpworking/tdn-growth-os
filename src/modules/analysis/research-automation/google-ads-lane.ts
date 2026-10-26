@@ -5,7 +5,7 @@
 // Several suffixes of one brand label are resolved deterministically (Vietnamese suffix first, then search position), not skipped.
 // A website must occur in run rows or one deterministic brand-site search. Advertiser names, advertiser
 // ids, images, links and ad ids stay out of the step document: the library often lists an agency, so it keeps only counts, formats and dates.
-import { boundedRequest, bytesContainSecret, CaptureLog, defaultProviderTransport, httpsUrl, isRecord, parseJson, safeProviderCode, type ProviderTransport } from './provider-common.js';
+import { boundedRequest, bytesContainSecret, CaptureLog, defaultProviderTransport, httpsUrl, isRecord, parseJson, safeCaptureHeaders, safeProviderCode, type ProviderTransport } from './provider-common.js';
 import { parse as parseDomain } from 'tldts';
 import { createSerpApiProvider } from './provider-serpapi.js';
 import { planExpandedSearch, SearchCallBudget, type ExpandedSearchRequest } from './expanded-search-queries.js';
@@ -318,17 +318,18 @@ export function createGoogleAdsSource(apiKey: string, transport: ProviderTranspo
           fail('CANCELLED', log.record(context, requestedAt, 'ABORTED_AMBIGUOUS', null, null, null), 'CANCELLED');
           return finish('CANCELLED');
         }
+        const responseHeaders = response.kind === 'RECEIVED' || response.kind === 'OVERSIZE' ? safeCaptureHeaders(response.headers, apiKey) : undefined;
         if (response.kind === 'TIMEOUT') { ambiguousRequests++; fail('TIMEOUT', log.record(context, requestedAt, 'TIMEOUT_AMBIGUOUS', null, null, null)); return finish(settledStatus()); }
         if (response.kind === 'TRANSPORT') { ambiguousRequests++; fail('TRANSPORT_ERROR', log.record(context, requestedAt, 'TRANSPORT_AMBIGUOUS', null, null, null)); return finish(settledStatus()); }
-        if (response.kind === 'OVERSIZE') { fail('RESPONSE_TOO_LARGE', log.record(context, requestedAt, 'OVERSIZE', response.status, null, null)); return finish(settledStatus()); }
+        if (response.kind === 'OVERSIZE') { fail('RESPONSE_TOO_LARGE', log.record(context, requestedAt, 'OVERSIZE', response.status, null, null, responseHeaders)); return finish(settledStatus()); }
         if (response.kind !== 'RECEIVED') { fail('REQUEST_REFUSED', null); return finish(settledStatus()); }
-        if (bytesContainSecret(response.bytes, apiKey)) { fail('CREDENTIAL_ECHO_REFUSED', log.record(context, requestedAt, 'CREDENTIAL_ECHO_REFUSED', response.status, null, null)); return finish(settledStatus()); }
+        if (bytesContainSecret(response.bytes, apiKey)) { fail('CREDENTIAL_ECHO_REFUSED', log.record(context, requestedAt, 'CREDENTIAL_ECHO_REFUSED', response.status, null, null, responseHeaders)); return finish(settledStatus()); }
         const json = parseJson(response.bytes);
         const providerCode = isRecord(json) ? safeProviderCode(json.error_code ?? (isRecord(json.search_metadata) ? json.search_metadata.id : undefined)) : null;
-        if (response.status !== 200) { fail('HTTP_ERROR', log.record(context, requestedAt, 'HTTP_ERROR', response.status, response.bytes, providerCode)); return finish(settledStatus()); }
+        if (response.status !== 200) { fail('HTTP_ERROR', log.record(context, requestedAt, 'HTTP_ERROR', response.status, response.bytes, providerCode, responseHeaders)); return finish(settledStatus()); }
         const summary = summarizeResponse(response.bytes, input.periodStartDate, input.periodEndDate);
-        if (!summary) { fail('INVALID_PAYLOAD', log.record(context, requestedAt, 'INVALID_PAYLOAD', 200, response.bytes, providerCode)); return finish(settledStatus()); }
-        const capture = log.record(context, requestedAt, 'OK', 200, response.bytes, providerCode);
+        if (!summary) { fail('INVALID_PAYLOAD', log.record(context, requestedAt, 'INVALID_PAYLOAD', 200, response.bytes, providerCode, responseHeaders)); return finish(settledStatus()); }
+        const capture = log.record(context, requestedAt, 'OK', 200, response.bytes, providerCode, responseHeaders);
         out.push({ label: brand.label, domain: choice.domain, status: 'OK', reason: null, totalResults: summary.totalResults, creativeCount: summary.creativeCount,
           formats: summary.formats, firstShown: summary.firstShown, lastShown: summary.lastShown, maxDaysShown: summary.maxDaysShown, overlapCount: summary.overlapCount,
           invalidCount: summary.invalidCount, usageOrdinal: GOOGLE_ADS_USAGE_ORDINAL, capture, domainSource, domainDecision: choice.domainDecision, discoveryCapture, discoveryUsageOrdinal });

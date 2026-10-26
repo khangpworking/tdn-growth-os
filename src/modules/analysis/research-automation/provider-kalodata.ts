@@ -3,7 +3,7 @@
 import {
   CaptureLog, ProviderInputError, RateLimiter, boundedRequest, boundedText, bytesContainSecret, emptyUsage,
   finiteNonNegative, formatProviderProductRef, httpsUrl, isAmbiguous, isRecord, parseJson, parseProviderProductRef,
-  recentWindowBefore, runStatusFromCoverage, safeProviderCode, splitPeriodIntoWindows, unavailableCoverage,
+  recentWindowBefore, runStatusFromCoverage, safeCaptureHeaders, safeProviderCode, splitPeriodIntoWindows, unavailableCoverage,
   validateCountry, validateKeyword, validatePeriod, windowRelation,
   type CaptureContext, type ProviderTransport,
 } from './provider-common.js';
@@ -150,30 +150,31 @@ export function createKalodataProvider(secretKey: string | null, transport: Prov
       const outcome = result.kind === 'TIMEOUT' ? 'TIMEOUT_AMBIGUOUS' : result.kind === 'ABORTED' ? 'ABORTED_AMBIGUOUS' : 'TRANSPORT_AMBIGUOUS';
       return { capture: log.record(context, requestedAt, outcome, null, null, null), data: null, rejection: null };
     }
+    const responseHeaders = safeCaptureHeaders(result.headers, key);
     if (result.kind === 'OVERSIZE') {
-      return { capture: log.record(context, requestedAt, 'OVERSIZE', result.status, null, null), data: null, rejection: null };
+      return { capture: log.record(context, requestedAt, 'OVERSIZE', result.status, null, null, responseHeaders), data: null, rejection: null };
     }
     if (bytesContainSecret(result.bytes, key)) {
-      return { capture: log.record(context, requestedAt, 'CREDENTIAL_ECHO_REFUSED', result.status, null, null), data: null, rejection: null };
+      return { capture: log.record(context, requestedAt, 'CREDENTIAL_ECHO_REFUSED', result.status, null, null, responseHeaders), data: null, rejection: null };
     }
     const rejection: Rejection = [401, 403, 429].includes(result.status) ? 'AUTH_OR_RATE_REJECTED' : null;
     const payload = parseJson(result.bytes);
     const providerCode = isRecord(payload) ? safeProviderCode(payload.code) : null;
     if (result.status < 200 || result.status > 299) {
-      return { capture: log.record(context, requestedAt, 'HTTP_ERROR', result.status, result.bytes, providerCode), data: null, rejection };
+      return { capture: log.record(context, requestedAt, 'HTTP_ERROR', result.status, result.bytes, providerCode, responseHeaders), data: null, rejection };
     }
     if (!isRecord(payload) || typeof payload.success !== 'boolean') {
-      return { capture: log.record(context, requestedAt, 'INVALID_PAYLOAD', result.status, result.bytes, null), data: null, rejection: null };
+      return { capture: log.record(context, requestedAt, 'INVALID_PAYLOAD', result.status, result.bytes, null, responseHeaders), data: null, rejection: null };
     }
     if (payload.success !== true) {
-      return { capture: log.record(context, requestedAt, 'PROVIDER_REJECTED', result.status, result.bytes, providerCode), data: null,
+      return { capture: log.record(context, requestedAt, 'PROVIDER_REJECTED', result.status, result.bytes, providerCode, responseHeaders), data: null,
         rejection: providerCode === CREDIT_EXHAUSTED_PROVIDER_CODE ? 'CREDIT_EXHAUSTED' : null };
     }
     const data = parse(payload.data);
     if (data === undefined) {
-      return { capture: log.record(context, requestedAt, 'INVALID_PAYLOAD', result.status, result.bytes, providerCode), data: null, rejection: null };
+      return { capture: log.record(context, requestedAt, 'INVALID_PAYLOAD', result.status, result.bytes, providerCode, responseHeaders), data: null, rejection: null };
     }
-    return { capture: log.record(context, requestedAt, 'OK', result.status, result.bytes, providerCode), data, rejection: null };
+    return { capture: log.record(context, requestedAt, 'OK', result.status, result.bytes, providerCode, responseHeaders), data, rejection: null };
   }
 
   async function balanceResponse(log: CaptureLog, key: string, options: ProviderCallOptions) {

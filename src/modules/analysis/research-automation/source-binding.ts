@@ -10,7 +10,7 @@ import type {
 } from './providers.js';
 import type { ResearchAutomationProductCard } from '../../../../contracts/api/research-automation-api.generated.js';
 import { KALODATA_REPLAY_MISS } from './kalodata-replay.js';
-import { MAX_WEB_RESULTS, message, PROVIDER_CREDIT_EXHAUSTED, ResearchAutomationProviderOutputError, type SourceLimitation, type SourceStepId, type StepResultDocument, type StepWebResult, type TypedComparable } from './model.js';
+import { MAX_WEB_RESULTS, message, PROVIDER_CREDIT_EXHAUSTED, PROVIDER_UNAVAILABLE, providerUnavailableMessage, ResearchAutomationProviderOutputError, type SourceLimitation, type SourceStepId, type StepResultDocument, type StepWebResult, type TypedComparable } from './model.js';
 import type { DateWindow } from './providers.js';
 
 /** The backend-facing source port. Provider-specific credentials and transport stay behind this port. */
@@ -75,7 +75,7 @@ function quickSearchStep(runId: string, result: QuickSearchResult): StepResultDo
     productCards: result.cards.map((card) => toPublicCard(card, result.captures)),
     comparables: [],
     coverage: result.coverage.map(toCoverage),
-    limitations: [...result.limitations.map((code) => limitation(code, result.provider)), ...creditLimitation(result), ...replayMissLimitation(result)],
+    limitations: [...result.limitations.map((code) => limitation(code, result.provider)), ...creditLimitation(result), ...providerUnavailableLimitation(result), ...replayMissLimitation(result)],
   };
 }
 
@@ -83,6 +83,20 @@ function quickSearchStep(runId: string, result: QuickSearchResult): StepResultDo
 function creditLimitation(result: { readonly provider: string; readonly coverage: readonly { readonly queryWindows: readonly { readonly status: string }[] }[] }): SourceLimitation[] {
   return result.coverage.some(item => item.queryWindows.some(window => window.status === 'NOT_RUN_CREDIT_EXHAUSTED'))
     ? [{ code: PROVIDER_CREDIT_EXHAUSTED, provider: result.provider.toLowerCase(), message: message(PROVIDER_CREDIT_EXHAUSTED) }] : [];
+}
+
+/** Marks a step whose provider answered with a server error (HTTP 500 and above), unless credit already explains the stop. */
+function providerUnavailableLimitation(result: {
+  readonly provider: string;
+  readonly coverage: readonly { readonly queryWindows: readonly { readonly status: string; readonly captureIds: readonly string[] }[] }[];
+  readonly captures: readonly { readonly captureId: string; readonly outcome: string; readonly httpStatus: number | null }[];
+}): SourceLimitation[] {
+  if (result.coverage.some(item => item.queryWindows.some(window => window.status === 'NOT_RUN_CREDIT_EXHAUSTED'))) return [];
+  const failedIds = new Set(result.coverage.flatMap(item => item.queryWindows.filter(window => window.status === 'FAILED').flatMap(window => window.captureIds)));
+  const failures = result.captures.filter(capture => failedIds.has(capture.captureId) && capture.outcome === 'HTTP_ERROR');
+  if (failures.some(capture => capture.httpStatus !== null && [401, 403, 429].includes(capture.httpStatus))) return [];
+  const failed = failures.find(capture => capture.httpStatus !== null && capture.httpStatus >= 500);
+  return failed ? [{ code: PROVIDER_UNAVAILABLE, provider: result.provider.toLowerCase(), message: providerUnavailableMessage(failed.httpStatus!) }] : [];
 }
 
 /** Replay test instance only: a sales-data request had no stored answer and was never sent live. */
@@ -93,7 +107,7 @@ function replayMissLimitation(result: { readonly provider: string; readonly capt
 
 function collectStep(runId: string, result: CollectResult): StepResultDocument {
   const comparables: TypedComparable[] = [];
-  const limitations = [...result.limitations.map((code) => limitation(code, result.provider)), ...creditLimitation(result), ...replayMissLimitation(result)];
+  const limitations = [...result.limitations.map((code) => limitation(code, result.provider)), ...creditLimitation(result), ...providerUnavailableLimitation(result), ...replayMissLimitation(result)];
   const seen = new Set<string>();
   for (const observation of result.productObservations) {
     const captureIndex = result.captures.findIndex(capture => capture.captureId === observation.captureId);

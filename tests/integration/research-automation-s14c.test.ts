@@ -11,7 +11,8 @@ import type { ProviderTransport } from '../../src/modules/analysis/research-auto
 import { S14C_NOW, S14C_RUN, S14C_WORKSPACE, s14cCollection } from './research-automation-s14c.fixtures.js';
 
 // Generated with this same synthetic fixture in git-archived origin/main (06a6658d), without a top-selling source.
-const MAIN_COLLECTION_SHA256 = '78a5635a460b3e7387c996985425d13ea97ef12153ecafe2f2e0394285b1a033';
+// PR #410: capture responseHeaders change identity only; verified against the header-only revert.
+const MAIN_COLLECTION_SHA256 = 'fb134d226f9d91e4c3770560880e67ddefcbf27104ed80447c73dc69404f699a';
 const sha = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 const handles = ['synthetic.rank.one', 'synthetic.rank.two'];
 

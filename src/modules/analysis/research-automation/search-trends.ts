@@ -5,7 +5,7 @@
 // Values are Google Trends relative interest indexes (0-100), never an absolute count or traffic
 // figure. A missing or "<1" value stays null; it is never replaced with 0.
 import {
-  CaptureLog, boundedRequest, boundedText, bytesContainSecret, isRecord, parseJson, safeProviderCode,
+  CaptureLog, boundedRequest, boundedText, bytesContainSecret, isRecord, parseJson, safeCaptureHeaders, safeProviderCode,
   type CaptureContext, type ProviderTransport,
 } from './provider-common.js';
 import { SERPAPI_LIMITS, type ProviderCallOptions, type ProviderRawCapture } from './providers.js';
@@ -226,26 +226,27 @@ export async function fetchTrends(
 
   let capture: ProviderRawCapture;
   let facts: TrendsFacts | null = null;
+  const responseHeaders = response.kind === 'RECEIVED' || response.kind === 'OVERSIZE' ? safeCaptureHeaders(response.headers, apiKey) : undefined;
   if (response.kind === 'RECEIVED') {
     const value = parseJson(response.bytes);
     const providerCode = isRecord(value)
       ? safeProviderCode(value.error_code ?? (isRecord(value.search_metadata) ? value.search_metadata.id : undefined))
       : null;
     if (bytesContainSecret(response.bytes, apiKey)) {
-      capture = log.record(context, requestedAt, 'CREDENTIAL_ECHO_REFUSED', response.status, null, null);
+      capture = log.record(context, requestedAt, 'CREDENTIAL_ECHO_REFUSED', response.status, null, null, responseHeaders);
     } else if (response.status < 200 || response.status > 299) {
-      capture = log.record(context, requestedAt, 'HTTP_ERROR', response.status, response.bytes, providerCode);
+      capture = log.record(context, requestedAt, 'HTTP_ERROR', response.status, response.bytes, providerCode, responseHeaders);
     } else {
       const parsed = parseTrends(req.dataType, value);
       if (!parsed) {
-        capture = log.record(context, requestedAt, 'INVALID_PAYLOAD', response.status, response.bytes, providerCode);
+        capture = log.record(context, requestedAt, 'INVALID_PAYLOAD', response.status, response.bytes, providerCode, responseHeaders);
       } else {
-        capture = log.record(context, requestedAt, 'OK', response.status, response.bytes, providerCode);
+        capture = log.record(context, requestedAt, 'OK', response.status, response.bytes, providerCode, responseHeaders);
         facts = parsed;
       }
     }
   } else if (response.kind === 'OVERSIZE') {
-    capture = log.record(context, requestedAt, 'OVERSIZE', response.status, null, null);
+    capture = log.record(context, requestedAt, 'OVERSIZE', response.status, null, null, responseHeaders);
   } else {
     const outcome = response.kind === 'TIMEOUT' ? 'TIMEOUT_AMBIGUOUS'
       : response.kind === 'ABORTED' ? 'ABORTED_AMBIGUOUS' : 'TRANSPORT_AMBIGUOUS';

@@ -43,6 +43,33 @@ function successfulReceipt(): string {
   return JSON.stringify({ contractVersion: 'research-automation-receipt-v1', exactRetry: false, run: successfulRun() });
 }
 
+test('run view labels PROVIDER_UNAVAILABLE and keeps the observed HTTP status in technical details', async t => {
+  const dom = setupDom(), originalFetch = globalThis.fetch;
+  const { createRoot } = await import('react-dom/client');
+  const { default: RunView } = await tsImport('../src/research-automation/RunView.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/research-automation/RunView');
+  const root = createRoot(dom.container);
+  const message = 'Máy chủ nguồn dữ liệu trả lỗi (HTTP 554) nên bước này dừng. Thường chỉ xảy ra một lần; tạo lượt mới để thử lại.';
+  const run: ResearchAutomationRun = { ...successfulRun(), status: 'FAILED', reports: ['MARKET'],
+    steps: successfulRun().steps.map(step => step.stepId === 'QUICK_SEARCH' ? { ...step, state: 'FAILED', code: 'PROVIDER_UNAVAILABLE', message } : step),
+    blockers: [{ code: 'PROVIDER_UNAVAILABLE', scope: 'RUN', provider: null, message }],
+  };
+  globalThis.fetch = (async (url, init) => {
+    assert.notEqual(init?.method, 'POST');
+    if (String(url).endsWith('/pageindex')) return new Response(JSON.stringify({ contractVersion: 'research-automation-run-pdfs-v1', workspaceId, runId, paused: false, usageLimited: false, documents: [] }));
+    return new Response(JSON.stringify(run));
+  }) as typeof fetch;
+  t.after(async () => { await act(async () => root.unmount()); globalThis.fetch = originalFetch; dom.cleanup(); });
+  await act(async () => root.render(createElement(RunView, { workspaceId, runId, ownerToken: null, writesAvailable: false, notify: () => {}, onStatusChange: () => {} })));
+  const label = 'Máy chủ nguồn dữ liệu trả lỗi nên bước này dừng. Thường chỉ xảy ra một lần; tạo lượt mới để thử lại.';
+  for (const selector of ['.ra-run-steps', '.ra-blockers']) {
+    const section = dom.container.querySelector(selector)!;
+    assert.ok(section, selector);
+    assert.ok(section.textContent!.includes(label), 'the new code gets its owner label');
+    assert.match(section.querySelector('details')!.textContent!, /HTTP 554/);
+    assert.doesNotMatch(section.textContent!, /PROVIDER_UNAVAILABLE|kalodata/i);
+  }
+});
+
 // UI owns the distinction between source requests, AI lifecycle counts and
 // unknown billing; execution-state correctness is tested at the service boundary.
 test('run inspector keeps AI activity separate from source requests and never displays unknown billing as zero', async () => {

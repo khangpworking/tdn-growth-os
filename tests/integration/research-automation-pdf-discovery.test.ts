@@ -380,13 +380,16 @@ test('flag off: no call, no field, no capture, no usage row, and no S25 row', as
   // Frozen on e009d9ee with this same synthetic fixture: stored documents and both renderers are byte-identical.
   // WEBTITLE-209 re-froze only the two HTML digests: copied web titles are now wrapped in <q data-quote>; documents, captures, usage and semantic digests are unchanged.
   // c2 PR3 re-froze the MARKET HTML digest only: owner Q4 (R-L14): the M12 evidence inventory now writes the full proposal label sentence; that sentence is the only byte change.
+  // Shared responseHeaders retention changes the SerpApi capture digest and its derived record/citation IDs.
+  // Verified against origin/main's SerpApi adapter: response bytes, usage, prose and data are unchanged;
+  // replacing only those identities makes both full HTML and semantic outputs identical.
   const digest = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
-  assert.equal(digest(JSON.stringify(f.document)), 'e0c90c1116c96b18508dff74c646c3ce594a89aee6e46e1507a735357eff1018');
-  assert.equal(digest(JSON.stringify(f.captures)), '6fe81a13cc6fe4a54417efde083d79eb8beb34ecdd242a868b4a35eeee14201a');
+  assert.equal(digest(JSON.stringify(f.document)), '708191ee677f838467a4829c7a2db0ad56fd8c11452cdc462ea91f4a30d3b50d');
+  assert.equal(digest(JSON.stringify(f.captures)), '47263a21611ff773d3f16fbbceb289356529de24a652d4494b5b2ec98293acf8');
   assert.equal(digest(JSON.stringify(f.usage)), '2a267b2f584266350053a7a4d917439936a5ff8a4bdc5587ad3430180707ceaa');
   for (const [kind, htmlDigest, semanticDigest] of [
-    ['MARKET', 'e40893ead4a4933888bc26d0d5ce07a5de85f1658f3fa7ad48f1cbf00ee438de', '04d5cec28cfaf12284fb5b64055f261915fa01128c5bf690ffa75d09b51bdd8f'],
-    ['INSIGHT', '94724e129362d437a4622b87d33c33e52ecf8f1c7a898c97d5dac312c8f61559', '836f890780481d66e8227069107804fea6e5ecd28f64dae345681485219855bc'],
+    ['MARKET', 'e40893ead4a4933888bc26d0d5ce07a5de85f1658f3fa7ad48f1cbf00ee438de', 'd85920fb6e43cf4318d0730142dc74ef2a3bbcbfd5ab3f2f40c7ff9de0acf485'],
+    ['INSIGHT', '94724e129362d437a4622b87d33c33e52ecf8f1c7a898c97d5dac312c8f61559', '3ca87d41daf84d8252b2de2a5055913d4028322995e5faf99c8413768156f697'],
   ] as const) {
     const report = buildResearchAutomationReport(f.reportInputs.get(kind)!, kind);
     assert.equal(digest(report.html), htmlDigest, kind);

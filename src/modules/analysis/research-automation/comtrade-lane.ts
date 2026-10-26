@@ -5,7 +5,7 @@
 // The HS code is proposed by the existing text model, then confirmed against the official description the source returns;
 // an unconfirmed code prints no numbers. Nothing a model returns is repaired or clamped: an invalid answer is retried once
 // and then rejected.
-import { boundedRequest, CaptureLog, defaultProviderTransport, isRecord, type ProviderTransport } from './provider-common.js';
+import { boundedRequest, CaptureLog, defaultProviderTransport, isRecord, safeCaptureHeaders, type ProviderTransport } from './provider-common.js';
 import type { ProviderCallOptions, ProviderRawCapture } from './providers.js';
 import { hasHiddenName } from '../report-language/index.js';
 import type { StepComtrade, StepComtradeAttempt, StepComtradeCall, StepComtradeRow, StepComtradeStatus } from './model.js';
@@ -215,19 +215,20 @@ export function createComtradeSource(options: { readonly model?: ComtradeModelPo
           if (outcome.kind === 'ABORTED') { log.record(context, requestedAt, 'ABORTED_AMBIGUOUS', null, null, null); return 'CANCELLED'; }
           if (outcome.kind === 'TIMEOUT') { log.record(context, requestedAt, 'TIMEOUT_AMBIGUOUS', null, null, null); return 'FAILED'; }
           if (outcome.kind === 'TRANSPORT') { log.record(context, requestedAt, 'TRANSPORT_AMBIGUOUS', null, null, null); return 'FAILED'; }
-          if (outcome.kind === 'OVERSIZE') { log.record(context, requestedAt, 'OVERSIZE', outcome.status, null, null); return 'FAILED'; }
+          const responseHeaders = outcome.kind === 'RECEIVED' || outcome.kind === 'OVERSIZE' ? safeCaptureHeaders(outcome.headers) : undefined;
+          if (outcome.kind === 'OVERSIZE') { log.record(context, requestedAt, 'OVERSIZE', outcome.status, null, null, responseHeaders); return 'FAILED'; }
           if (outcome.kind !== 'RECEIVED') return 'FAILED';
           if (outcome.status === 429) {
-            log.record(context, requestedAt, 'HTTP_ERROR', 429, null, null);
+            log.record(context, requestedAt, 'HTTP_ERROR', 429, null, null, responseHeaders);
             if (rateWaited) return 'RATE_LIMITED';
             rateWaited = true;
             if (!(await pause(COMTRADE_RATE_WAIT_MS))) return 'CANCELLED';
             continue;
           }
-          if (outcome.status !== 200) { log.record(context, requestedAt, 'HTTP_ERROR', outcome.status, null, null); return 'FAILED'; }
+          if (outcome.status !== 200) { log.record(context, requestedAt, 'HTTP_ERROR', outcome.status, null, null, responseHeaders); return 'FAILED'; }
           const parsed = parseResponse(outcome.bytes, side, hsCode, flow, String(callYear));
-          if (!parsed) { log.record(context, requestedAt, 'INVALID_PAYLOAD', 200, null, null); return 'FAILED'; }
-          const capture = log.record(context, requestedAt, 'OK', 200, outcome.bytes, null);
+          if (!parsed) { log.record(context, requestedAt, 'INVALID_PAYLOAD', 200, null, null, responseHeaders); return 'FAILED'; }
+          const capture = log.record(context, requestedAt, 'OK', 200, outcome.bytes, null, responseHeaders);
           const rows = side === 'MIRROR' ? topMirror(parsed.rows) : parsed.rows;
           return { result: { kind, year: String(callYear), capture, rows }, parsed };
         }

@@ -47,7 +47,8 @@ test('S07F row 5: disabled collection preserves independently frozen main bytes'
   // Strict flag parsing belongs to the startup table in the unit file. This
   // independent storage boundary runs once; its fixture never consumes that flag.
   const run = await s14cCollection(t, { reports: ['INSIGHT'] });
-  assert.equal(sha(run.bytes), '877de38d63c6183797726c12c60613ac5336641fe576aa761cc8a87964959072');
+  // PR #410: capture responseHeaders change identity only; verified against the header-only revert.
+  assert.equal(sha(run.bytes), '0cff76f8ef95957f17e75b446e42e1855b4d785c67872fa00bb7a2cdecf4dcff');
 });
 
 for (const scenario of [
