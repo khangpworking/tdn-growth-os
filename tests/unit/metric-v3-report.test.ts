@@ -8,7 +8,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { JSDOM } from 'jsdom';
 import { chromium } from 'playwright-core';
-import { checkV3NumberTrace, loadV3Archive, renderV3Report, v3Hash, v3Resolver, type V3Archive, type V3TextModel } from '../../src/modules/analysis/research-automation/metric-v3-report.js';
+import { buildV3Body, checkV3NumberTrace, loadV3Archive, renderV3Report, v3Hash, v3Resolver, type V3Archive, type V3TextModel } from '../../src/modules/analysis/research-automation/metric-v3-report.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { checkMarketNumberTrace } from '../../src/modules/analysis/research-automation/market-number-trace.js';
 import { createChromiumPdfRenderer } from '../../src/modules/analysis/research-automation/pdf.js';
@@ -19,8 +19,16 @@ const original = JSON.parse(await readFile(new URL('../fixtures/metric-v3/live-m
 const bytes = (v: unknown) => Buffer.from(`${JSON.stringify(v, null, 2)}\n`);
 
 // Extends the existing synthetic publication fixture at the external response boundary.
-async function capture(shopCase: 'known' | 'missing' | 'unknown' | 'conflicting' = 'missing', products?: { platforms: (number | null)[]; firstTitle: string }) {
+async function capture(shopCase: 'known' | 'missing' | 'unknown' | 'conflicting' = 'missing', products?: { platforms: (number | null)[]; firstTitle: string }, singleKeyword?: string) {
   const f = structuredClone(original);
+  if (singleKeyword) {
+    f.spec.contractVersion = 'metric-v3-capture-spec-v2';
+    f.spec.preset.keywords = [singleKeyword];
+    for (const row of f.windows) {
+      row.observation.appliedState.keywords = [singleKeyword];
+      for (const response of row.responses) response.requestBody.include_query.queries = [singleKeyword];
+    }
+  }
   const files: Record<string, Buffer> = {};
   const refs = [];
   for (const [i, window] of f.spec.windows.entries()) {
@@ -64,6 +72,15 @@ const findings = [
 ];
 const opening = { points: findings.map(f => `${f.headline} ${f.detail}`), proposals: ['Đề xuất kiểm tra phạm vi tìm kiếm.', 'Đề xuất đối chiếu hồ sơ sản phẩm.', 'Đề xuất rà soát các sàn trước khi quyết định.'] };
 const model = { identity: 'synthetic-model', generateText: async () => JSON.stringify(opening) };
+
+test('K2 one-keyword report title falls back to keyword 1 after archive validation', async () => {
+  const { archive } = await capture('missing', undefined, 'synthetic jar');
+  const dom = new JSDOM(buildV3Body(archive).html);
+  try {
+    assert.equal(dom.window.document.querySelector('h1')!.textContent, 'Synthetic jar trên Shopee và TikTok Shop');
+    assert.match(dom.window.document.querySelector('.filters')!.textContent!, /Từ khóa: synthetic jar,/);
+  } finally { dom.window.close(); }
+});
 
 // A1: external report shape and independently known fixture amounts; legacy tests own legacy rules.
 test('V3L A1 summary precedes evidence, with complete conclusions last and nine unchanged figures', async () => {
