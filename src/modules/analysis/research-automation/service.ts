@@ -1,3 +1,4 @@
+import { validateMetricV3CaptureSpec } from './metric-v3-capture-spec.js';
 import publicSourceConfirmSchema from '../../../../contracts/api/research-automation-source-api-v3.schema.json' with { type: 'json' };
 import publicSourceSetSchema from '../../../../contracts/analysis/automation-confirmed-source-set-v2.schema.json' with { type: 'json' };
 import publicCollectionSchema from '../../../../contracts/foundation/shopee-public-collection.schema.json' with { type: 'json' };
@@ -491,7 +492,7 @@ interface AutorunRow {
   confirmExpectedRevision: bigint | number | null; packageId: string | null; pickArtifactId: string | null;
   revisionAttemptId: string | null; stopCode: string | null;
 }
-const AUTORUN_ENVIRONMENT_STOPS = new Set(['METRIC_LOGIN_REQUIRED', 'METRIC_CAPTCHA', 'BRIDGE_DISCONNECTED']);
+const AUTORUN_ENVIRONMENT_STOPS = new Set(['METRIC_LOGIN_REQUIRED', 'METRIC_CAPTCHA', 'BRIDGE_DISCONNECTED', 'CAPTURE_LOGIN_REQUIRED', 'CAPTURE_ACCESS_RESTRICTED']);
 const AUTORUN_RUN_END_STATUSES = new Set<ResearchAutomationRun['status']>(['DRAFT_READY', 'FAILED', 'CANCELLED', 'INTERRUPTED']);
 // v2 adds `capture` (keywords and Smart query the page applied); v3 adds `scope` (category decision and
 // keyword-2 evidence of the first capture, the second capture's outcome). v1 and v2 records stay readable.
@@ -1313,6 +1314,7 @@ export class ResearchAutomationService {
         keyword: input.keyword, description: input.description ?? null, interview: input.interview ?? null,
         requestedPeriod: { startDate: input.requestedPeriod.startDate, endDate: input.requestedPeriod.endDate, dayCount: inclusiveDays(input.requestedPeriod) },
         reports: [...input.reports],
+        ...(input.metricV3Preset !== undefined ? { metricV3Preset: validateMetricV3CaptureSpec(input.metricV3Preset) } : {}),
         ...(this.#privateShopeeSource ? { privateShopeeSource: this.#privateShopeeSource } : {}),
         ...(this.#reviewPolicy ? { reviewCollectionPolicy: this.#reviewPolicy } : {}),
         defaultPeerRule: { ...DEFAULT_MARKET_PEER_RULE },
@@ -5650,12 +5652,14 @@ export class ResearchAutomationService {
       const keyword = start.keyword;
       try {
         result = await run(options.runner, { runId, keyword, requestedPeriod, signal: controller.signal,
-          ...(second?.capture2 ? { second: { keywords: second.capture2.keywords, category: second.capture2.category } } : {}) });
-        if (second?.capture2) {
+          ...(start.metricV3Preset !== undefined ? { metricV3Preset: start.metricV3Preset } : {}),
+          ...(second?.capture2 && !start.metricV3Preset ? { second: { keywords: second.capture2.keywords, category: second.capture2.category } } : {}) });
+        // A preset already freezes both terms/category/windows; skip legacy scope inference.
+        if (!start.metricV3Preset && second?.capture2) {
           // The category label comes from data; a page without that option keeps the first capture (All).
           if (result.ok) scope = captureTwoOk(second);
           else if (result.code === 'CAPTURE_CATEGORY_NOT_SELECTABLE') scope = categoryNotSelectable(second);
-        } else if (result.ok) scope = await this.#planAutorunScope(runId, start, result.captureDir, controller.signal);
+        } else if (result.ok && !start.metricV3Preset) scope = await this.#planAutorunScope(runId, start, result.captureDir, controller.signal);
         if (scope) await this.#writeAutorunScope(runId, scope);
       } catch { result = { ok: false, code: controller.signal.aborted ? 'CAPTURE_INTERRUPTED' : 'CAPTURE_IO_FAILED', detail: 'capture failed', executorCalls: 0 }; scope = null; }
       try { await this.#settleCapture(runId, result, scope); }
@@ -5703,6 +5707,13 @@ export class ResearchAutomationService {
     });
     if (!claimed) return progressed;
     const run = this.#current(runId)!;
+    const start = await this.#readStartSnapshot(run.startSha, run.workspaceId);
+    if (start.metricV3Preset) {
+      // Step 2 retains the two-window archive. Legacy PREPARE accepts only snapshot.json;
+      // never reinterpret a four-platform archive as the old two-platform snapshot.
+      await this.#autorunStopRunning(runId, 'PREPARE', 'CAPTURE_V3_PREPARE_UNSUPPORTED');
+      return true;
+    }
     let snapshot: Buffer, manifest: Buffer, scope: AutorunScopeRecord | null;
     // Raw responses of every capture this run made, capture 1 first: the report reads the used one; capture 1's stays for the trace.
     let raw: { captureNumber: 1 | 2; bytes: Buffer; manifest: Buffer }[];
@@ -6081,6 +6092,10 @@ function assertStartSnapshot(value: unknown, workspaceId: string): asserts value
       !Array.isArray(value.reports) || (value.reports.length !== 1 && value.reports.length !== 2) ||
       value.reports.some((item) => item !== 'MARKET' && item !== 'INSIGHT') || new Set(value.reports).size !== value.reports.length ||
       (value.reports.length === 2 && (value.reports[0] !== 'MARKET' || value.reports[1] !== 'INSIGHT'))) throw new ResearchAutomationIntegrityError('Stored start snapshot has inconsistent identity.');
+  if (value.metricV3Preset !== undefined) {
+    try { validateMetricV3CaptureSpec(value.metricV3Preset); }
+    catch { throw new ResearchAutomationIntegrityError('Stored capture preset is invalid.'); }
+  }
   if (value.reviewCollectionPolicy !== undefined) {
     try {
       const policy = reviewCollectionPolicy(value.reviewCollectionPolicy);
@@ -6557,11 +6572,19 @@ function stringArray(value: unknown, maxItems: number, maxLength: number): value
 }
 
 function validateStart(value: unknown): ResearchAutomationStartRequest {
-  const object = plain(value); keys(object, ['contractVersion', 'requestKey', 'mode', 'keyword', 'description', 'requestedPeriod', 'reports', 'interview']);
+  const object = plain(value); keys(object, ['contractVersion', 'requestKey', 'mode', 'keyword', 'description', 'requestedPeriod', 'reports', 'interview', 'metricV3Preset']);
   if (object.contractVersion !== 'research-automation-start-v1' || typeof object.requestKey !== 'string' || !REQUEST_KEY.test(object.requestKey)) throw new ResearchAutomationValidationError('Invalid start request.');
   if (object.mode !== 'PRODUCT' && object.mode !== 'CATEGORY') throw new ResearchAutomationValidationError('Invalid research mode.');
   const keyword = text(object.keyword, 120); const period = validatePeriod(object.requestedPeriod); const reports = validateReports(object.reports);
   const output: ResearchAutomationStartRequest = { contractVersion: 'research-automation-start-v1', requestKey: object.requestKey, mode: object.mode, keyword, requestedPeriod: period, reports };
+  if (object.metricV3Preset !== undefined) {
+    try {
+      const preset = validateMetricV3CaptureSpec(object.metricV3Preset);
+      if (preset.preset.keywords[0] !== keyword || preset.windows.some(({ period: window }) => window.startDate < period.startDate || window.endDate > period.endDate))
+        throw new Error('Preset outside run scope');
+      output.metricV3Preset = { ...preset };
+    } catch { throw new ResearchAutomationValidationError('Invalid explicit capture preset or run scope.'); }
+  }
   if (object.description !== undefined) output.description = text(object.description, 2000, true);
   if (object.interview !== undefined) output.interview = validateInterview(object.interview);
   return output;

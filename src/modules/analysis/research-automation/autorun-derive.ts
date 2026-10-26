@@ -17,17 +17,19 @@ import { filterKeywordMeanings, type KeywordMeaningFilterData } from '../keyword
 import { CAPTURE_ROW_PROFILE_V2, type CaptureRowProfile, assessCaptureRowsTitleOnly, splitCaptureNameCell, type CaptureRowExclusionReason } from './capture-row-quality.js';
 import { MAX_PRINCIPAL_CARDS } from './model.js';
 import type { MetricCaptureStopCode } from './metric-capture-runner.js';
+import { METRIC_V3_STOP_CODES } from './metric-v3-capture-spec.js';
 
 // Every runner and executor result code: a stop in the CAPTURE phase itself. The record
 // type forces a new runner/executor code to be classified here. Only these stops may be
 // re-run, and only by the owner's explicit "Thử lại"; intake, pick, confirm, present,
 // run-end and owner stops are never retryable.
 const CAPTURE_STOP_CODE_SET: Readonly<Record<MetricCaptureStopCode, true>> = {
+  ...Object.fromEntries(METRIC_V3_STOP_CODES.map(code => [code, true])) as Record<typeof METRIC_V3_STOP_CODES[number], true>,
   METRIC_LOGIN_REQUIRED: true, METRIC_CAPTCHA: true, METRIC_PERIOD_UNSUPPORTED: true, METRIC_UI_CHANGED: true,
   METRIC_FILTER_MISMATCH: true, METRIC_ROW_CAP: true, METRIC_SEARCH_NOT_APPLIED: true, BRIDGE_DISCONNECTED: true,
   EXECUTOR_DISABLED: true, TIMEOUT: true, MANIFEST_HASH_MISMATCH: true, EXECUTOR_NOT_CONFIGURED: true,
   PERIOD_OUTSIDE_RUN: true, CAPTURE_INTERRUPTED: true, CAPTURE_INPUT_INVALID: true, CAPTURE_IO_FAILED: true,
-  CAPTURE_SMART_QUERY_OFF: true, CAPTURE_CATEGORY_NOT_SELECTABLE: true,
+  CAPTURE_SMART_QUERY_OFF: true,
 };
 /** CAPTURE-family stop codes: the only stops the owner's "Thử lại" may re-run. */
 export const AUTORUN_CAPTURE_STOP_CODES: readonly MetricCaptureStopCode[] = Object.freeze(Object.keys(CAPTURE_STOP_CODE_SET) as MetricCaptureStopCode[]);

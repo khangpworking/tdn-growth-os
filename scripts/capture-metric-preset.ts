@@ -5,6 +5,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'nod
 import { homedir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { runMetricCapture } from '../src/modules/analysis/research-automation/metric-capture-runner.js';
 import { buildCaptureSpec } from '../src/modules/analysis/research-automation/autorun-derive.js';
 import { validateMetricV3CaptureSpec } from '../src/modules/analysis/research-automation/metric-v3-capture-spec.js';
 
@@ -43,71 +44,27 @@ async function main() {
   }
   await mkdir(actualOutput, { mode: 0o700 }); // Existing output is never overwritten.
   await writeFile(join(actualOutput, 'spec.json'), `${JSON.stringify(spec, null, 2)}\n`, { flag: 'wx', mode: 0o600 });
-  const session = `m3-${randomUUID()}`;
-  const command = async (args: string[]) => {
-    const { stdout } = await exec(executable, ['browser', session, ...args], {
-      env: { ...process.env, CI: '1' },
-      maxBuffer: 32 * 1024 * 1024,
-      timeout: 60_000,
-    });
-    return JSON.parse(stdout) as unknown;
-  };
-  let tab: string | undefined;
-  let interrupted = false;
-  const interrupt = () => {
-    interrupted = true;
-  };
+  const controller = new AbortController();
+  const interrupt = () => controller.abort();
   process.on('SIGINT', interrupt);
   process.on('SIGTERM', interrupt);
   try {
-    const opened = (await command(['tab', 'new', 'https://metric.vn/analytics'])) as { page?: unknown };
-    if (typeof opened.page !== 'string' || !/^[A-Fa-f0-9]+$/.test(opened.page))
-      throw new Error('CAPTURE_TAB_UNAVAILABLE');
-    tab = opened.page;
-    await writeFile(join(actualOutput, 'session.json'), `${JSON.stringify({ session, tab })}\n`, {
-      flag: 'wx',
-      mode: 0o600,
+    const result = await runMetricCapture({ enabledEnv: '1', captureRoot: actualOutput, opencliExecutable: executable }, {
+      runId: randomUUID(), keyword: spec.preset.keywords[0],
+      requestedPeriod: spec.windows[1].period, metricV3Preset: spec, signal: controller.signal,
     });
-    const moduleUrl = new URL('../tools/opencli-metric/clis/metric/v3-capture.js', import.meta.url);
-    const { captureV3Preset } = await import(moduleUrl.href);
-    const page = {
-      evaluate: async (fn: (...args: never[]) => unknown, arg?: unknown) => {
-        if (interrupted) throw new Error('CAPTURE_INTERRUPTED');
-        const js = `(${fn.toString()})(${arg === undefined ? '' : JSON.stringify(arg)})`;
-        return command(['eval', '--tab', tab!, js]);
-      },
-      wait: sleep,
-    };
-    // Initial navigation may still be loading. This wait does not retry login or a restriction.
-    for (let i = 0; i < 30; i++) {
-      const status = await page.evaluate(() => ({ ready: document.readyState !== 'loading' }));
-      if ((status as { ready: boolean }).ready) break;
-      await sleep(500);
-    }
-    const result = await captureV3Preset(page, spec, actualOutput, (message: string) =>
-      process.stderr.write(`${message}\n`),
-    );
     process.stdout.write(`${JSON.stringify(result)}\n`);
-  } catch (error) {
-    const code = error instanceof Error && /^CAPTURE_[A-Z_]+$/.test(error.message) ? error.message : 'CAPTURE_FAILED';
-    const details = error instanceof Error && 'details' in error ? error.details : undefined;
-    await writeFile(join(actualOutput, 'stopped.json'), `${JSON.stringify({ code, details })}\n`, {
-      flag: 'wx',
-      mode: 0o600,
-    });
-    throw error;
+    if (!result.ok) throw new Error(result.code);
   } finally {
-    try {
-      if (tab) await command(['tab', 'close', tab]);
-    } finally {
-      process.off('SIGINT', interrupt);
-      process.off('SIGTERM', interrupt);
-    }
+    process.off('SIGINT', interrupt);
+    process.off('SIGTERM', interrupt);
   }
 }
 
 main().catch((error: unknown) => {
   const message = error instanceof Error && /^CAPTURE_[A-Z_]+$/.test(error.message) ? error.message : 'CAPTURE_FAILED';
+  if (message === 'CAPTURE_LOGIN_REQUIRED')
+    process.stderr.write('DECISION NEEDED: The owner must log in before capture can continue.\n');
   process.stderr.write(`${message}\n`);
   process.exitCode = 1;
 });

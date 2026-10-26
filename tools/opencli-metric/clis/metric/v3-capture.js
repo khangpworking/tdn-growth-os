@@ -508,63 +508,65 @@ export function buildV3WindowManifest(spec, window, observation, rawResponses, c
     const rows = rawResponses
       .map((r, i) => ({ r, i }))
       .filter(({ r }) => r.urlPath === `/v2/market/analytics/${endpoint}/`);
-    const found = rows.at(-1);
-    if (!found || found.r.status !== 200 || found.r.body?.status !== 'success') stop('CAPTURE_RESPONSE_MISSING');
-    const q = found.r.requestBody,
-      inc = q?.include_query;
-    const comparisons = inc?.composite_compare_lst;
-    const comparison = comparisons?.[0]?.[0];
-    const expectedComparison = {
-      first_field: 'rating_count',
-      second_field: 'order_count',
-      first_rate: 1,
-      second_rate: 0.02,
-      compare_condition: '>',
-    };
-    const comparisonMatches =
-      Array.isArray(comparisons) &&
-      comparisons.length === 1 &&
-      Array.isArray(comparisons[0]) &&
-      comparisons[0].length === 1 &&
-      comparison &&
-      Object.keys(comparison).length === 5 &&
-      Object.entries(expectedComparison).every(([key, value]) => comparison[key] === value);
-    if (
-      !inc ||
-      !equalSet(
-        inc.platforms,
-        spec.preset.platforms.map((p) => platformIds[p]),
-      ) ||
-      !equalSet(inc.queries, spec.preset.keywords) ||
-      !equalSet(
-        inc.bee_categories,
-        spec.preset.category.children.map((n) => n.id),
-      ) ||
-      inc.is_smart_queries !== true ||
-      inc.is_remove_bad_product !== true ||
-      !equalSet(inc.official_types, [1, 0]) ||
-      !equalSet(inc.brands, []) ||
-      !equalSet(q.exclude_query?.queries, []) ||
-      q.exclude_query?.is_smart_queries !== false ||
-      q.use_ai_normalized !== false ||
-      q.start_date !== window.period.startDate.replaceAll('-', '') ||
-      q.end_date !== window.period.endDate.replaceAll('-', '') ||
-      !comparisonMatches
-    )
-      stop('CAPTURE_REQUEST_SCOPE_MISMATCH');
-    if (endpoint === 'insight') {
-      if (q.interval_days !== window.intervalDays || !Array.isArray(found.r.body.data))
-        stop('CAPTURE_TREND_INTERVAL_MISMATCH');
-    } else if (q.is_filter_gift !== true || q.notIncludeDeletedProduct !== true) stop('CAPTURE_REQUEST_SCOPE_MISMATCH');
-    if (
-      ['products', 'shops', 'groups'].includes(endpoint) &&
-      (!Array.isArray(found.r.body.data?.[endpoint]) ||
-        q.page !== 0 ||
-        q.limit < 15 ||
-        !/^revenue_custom(_sum)?__desc$/.test(q.sort_by))
-    )
-      stop('CAPTURE_RESPONSE_MISSING');
-    sourceMap[endpoint] = `raw-responses.json#/${found.i}/body/data`;
+    if (rows.length === 0) stop('CAPTURE_RESPONSE_MISSING');
+    for (const found of rows) {
+      if (found.r.status !== 200 || found.r.body?.status !== 'success') stop('CAPTURE_RESPONSE_MISSING');
+      const q = found.r.requestBody,
+        inc = q?.include_query;
+      const comparisons = inc?.composite_compare_lst;
+      const comparison = comparisons?.[0]?.[0];
+      const expectedComparison = {
+        first_field: 'rating_count',
+        second_field: 'order_count',
+        first_rate: 1,
+        second_rate: 0.02,
+        compare_condition: '>',
+      };
+      const comparisonMatches =
+        Array.isArray(comparisons) &&
+        comparisons.length === 1 &&
+        Array.isArray(comparisons[0]) &&
+        comparisons[0].length === 1 &&
+        comparison &&
+        Object.keys(comparison).length === 5 &&
+        Object.entries(expectedComparison).every(([key, value]) => comparison[key] === value);
+      if (
+        !inc ||
+        !equalSet(
+          inc.platforms,
+          spec.preset.platforms.map((p) => platformIds[p]),
+        ) ||
+        !equalSet(inc.queries, spec.preset.keywords) ||
+        !equalSet(
+          inc.bee_categories,
+          spec.preset.category.children.map((n) => n.id),
+        ) ||
+        inc.is_smart_queries !== true ||
+        inc.is_remove_bad_product !== true ||
+        !equalSet(inc.official_types, [1, 0]) ||
+        !equalSet(inc.brands, []) ||
+        !equalSet(q.exclude_query?.queries, []) ||
+        q.exclude_query?.is_smart_queries !== false ||
+        q.use_ai_normalized !== false ||
+        q.start_date !== window.period.startDate.replaceAll('-', '') ||
+        q.end_date !== window.period.endDate.replaceAll('-', '') ||
+        !comparisonMatches
+      )
+        stop('CAPTURE_REQUEST_SCOPE_MISMATCH');
+      if (endpoint === 'insight') {
+        if (q.interval_days !== window.intervalDays || !Array.isArray(found.r.body.data))
+          stop('CAPTURE_TREND_INTERVAL_MISMATCH');
+      } else if (q.is_filter_gift !== true || q.notIncludeDeletedProduct !== true) stop('CAPTURE_REQUEST_SCOPE_MISMATCH');
+      if (
+        ['products', 'shops', 'groups'].includes(endpoint) &&
+        (!Array.isArray(found.r.body.data?.[endpoint]) ||
+          q.page !== 0 ||
+          q.limit < 15 ||
+          !/^revenue_custom(_sum)?__desc$/.test(q.sort_by))
+      )
+        stop('CAPTURE_RESPONSE_MISSING');
+      sourceMap[endpoint] = `raw-responses.json#/${found.i}/body/data`;
+    }
   }
   const basic = rawResponses.findLast((r) => r.urlPath.endsWith('/search-basic/')).body.data.search_basic;
   const required = ['REVENUE_TOTAL_CUSTOM', 'ORDER_TOTAL_CUSTOM', 'PRODUCT_TOTAL', 'SHOP_TOTAL'];

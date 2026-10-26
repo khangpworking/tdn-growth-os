@@ -302,7 +302,7 @@ test('retry route: OWNER POST returns 202, exact retry 200, and 409 when not ret
 test('owner text covers every phase and every stop code, with no provider or tool name and no percent', () => {
   const intake: MetricCaptureRejectionCode[] = ['CAPTURE_OVERSIZE', 'CAPTURE_INVALID_JSON', 'CAPTURE_SCHEMA_INVALID', 'CAPTURE_MANIFEST_INVALID',
     'CAPTURE_GATE_NOT_CLEARED', 'CAPTURE_DIGEST_MISMATCH', 'CAPTURE_SCOPE_MISMATCH', 'CAPTURE_PRODUCTS_MISSING', 'CAPTURE_INTEGRITY_FAILED'];
-  const service = ['CAPTURE_FILES_MISSING', 'CAPTURE_PREPARE_FAILED', 'PICK_FAILED', 'CONFIRM_FAILED', 'CONFIRM_REJECTED', 'NO_PRINCIPAL_PRODUCTS',
+  const service = ['CAPTURE_FILES_MISSING', 'CAPTURE_PREPARE_FAILED', 'CAPTURE_V3_PREPARE_UNSUPPORTED', 'PICK_FAILED', 'CONFIRM_FAILED', 'CONFIRM_REJECTED', 'NO_PRINCIPAL_PRODUCTS',
     'SCOPE_CHANGED_BY_OWNER', 'OWNER_REVISION_EXISTS', 'PRESENTATION_FAILED', 'RUN_FAILED', 'RUN_CANCELLED', 'RUN_INTERRUPTED', 'CANCELLED'];
   for (const code of [...AUTORUN_CAPTURE_STOP_CODES, ...intake, ...service]) assert.ok(AUTORUN_STOP_TEXT[code], `text for ${code}`);
   const phases = (schema.$defs.autoRun.properties.phase.enum as string[]).filter(phase => phase !== 'STOPPED');

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFile } from 'node:fs/promises';
 import { autorunRequestKey } from '../../src/modules/analysis/research-automation/autorun-derive.js';
 import { SYNTHETIC_CARD_ID } from '../helpers/research-synthetic-sources.js';
 import { autorun, drain, dump, fixture, keyword, requestCount, rewindStartKey, startRun, untilIdle, workspaceId } from '../helpers/autorun-harness.js';
@@ -191,4 +192,28 @@ test('a login stop also stops the other queued captures of the workspace', async
   assert.equal(f.capture.calls.length, 1);
   for (const runId of [a, b]) assert.deepEqual([autorun(f.db, runId)!.phase, autorun(f.db, runId)!.stopCode], ['STOPPED', 'METRIC_LOGIN_REQUIRED']);
   for (const runId of [a, b]) assert.equal((await f.service.getRun(workspaceId, runId)).status, 'AWAITING_SCOPE', 'the run stays open for the owner');
+});
+
+// Frozen owner input must survive a service restart to reach CAPTURE unchanged.
+// Runner transport/publication behavior is owned by metric-capture-runner.test.ts.
+test('explicit preset is frozen on start and forwarded to CAPTURE after restart without category fallback', async t => {
+  const f = await fixture(t, 'on', () => ({ ok: false, code: 'CAPTURE_CATEGORY_NOT_SELECTABLE', detail: 'capture stopped', executorCalls: 1 }));
+  const { spec } = JSON.parse(await readFile(new URL('../fixtures/metric-v3/live-map-contract.json', import.meta.url), 'utf8'));
+  spec.preset.keywords[0] = keyword;
+  spec.windows[0].period = { startDate: '2026-01-01', endDate: '2026-01-30' };
+  spec.windows[1].period = { startDate: '2025-01-31', endDate: '2026-01-30' };
+  const expected = structuredClone(spec);
+  const receipt = await f.service.start(workspaceId, {
+    contractVersion: 'research-automation-start-v1', requestKey: '99999999-9999-4999-8999-999999999999',
+    mode: 'CATEGORY', keyword, reports: ['MARKET'], requestedPeriod: spec.windows[1].period, metricV3Preset: spec,
+  });
+  spec.preset.keywords[1] = 'changed after start';
+  await drain(f.make());
+  assert.equal(f.capture.calls.length, 1);
+  assert.deepEqual(f.capture.calls[0]!.metricV3Preset, expected);
+  assert.equal(f.capture.calls[0]!.second, undefined);
+  const state = autorun(f.db, receipt.run.runId)!;
+  assert.equal(state.phase, 'STOPPED');
+  assert.equal(state.stopCode, 'CAPTURE_CATEGORY_NOT_SELECTABLE');
+  assert.equal(Number(state.captureReady), 0);
 });

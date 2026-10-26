@@ -342,7 +342,7 @@ Adapter manifest SHA-256: `66e0ef819c80d6fe1e736c53d5e0ccb8b079b156002300ba29485
 
 ## M3 step 2 — explicit colleague preset
 
-The checkout-only v3 capture takes a complete JSON preset and two explicit
+The v3 CAPTURE runner takes a complete JSON preset and two explicit
 windows. The example is [zinc-colleague-preset.json](../metric/zinc-colleague-preset.json);
 control identities, source fields, and historical differences are recorded in
 [the live map](../metric/v3-capture-map.md).
@@ -356,6 +356,11 @@ node --import tsx scripts/capture-metric-preset.ts \
   /absolute/operator-database.sqlite \
   /absolute/path/to/opencli
 ```
+
+This command invokes the same `runMetricCapture` preset branch used by autorun.
+The successful receipt names `<output>/<runId>/run1`, which contains the
+window directories and root manifest. `<output>/<runId>/spec.json` freezes the
+validated preset.
 
 The third argument is the existing operator database used only for the
 read-only `research_automation_autorun` busy check. The command waits while a
@@ -384,6 +389,19 @@ manifest. `spec.json`, `session.json`, and any `stopped.json` are local receipts
 The source's first 20 rows retain the requested top 15 products and top 10
 shops/brands without pagination or export.
 
-These v3 capture artifacts are the input for the later report-layout package.
-They are not the older two-platform normalized snapshot contract. Report
-rendering and automatic selection of the new mode are step 3 integration work.
+To opt a new owner-api run into this mode, include `metricV3Preset` in the
+existing `research-automation-start-v1` body. Its value is the complete example
+spec, not just its inner `preset`. The first keyword must equal the run keyword,
+and both windows must lie inside `requestedPeriod`. The start service validates
+against the canonical v3 schema and freezes the input in the start snapshot;
+CAPTURE forwards it unchanged after restart. No preset field means the existing
+legacy runner, pinned adapter, period probe and second-capture policy remain in
+use. Preset captures use the same enable flag, browser lock, allow-listed
+environment and abort lifecycle, with no legacy retry or scope inference.
+
+These artifacts are the input for the later report-layout package. The current
+legacy PREPARE reader requires a two-platform `snapshot.json`; it cannot consume
+the v3 archive. After successful autorun CAPTURE, PREPARE stops explicitly with
+`CAPTURE_V3_PREPARE_UNSUPPORTED`, retaining both window manifests/raw responses.
+Report consumption/rendering remains step 3; no legacy snapshot is fabricated.
+The adapter is loaded from this checkout and is never installed into production.

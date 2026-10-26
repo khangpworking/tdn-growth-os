@@ -120,6 +120,16 @@ test('explicit preset contract rows preserve applied state and reject page or re
       'CAPTURE_REQUEST_SCOPE_MISMATCH',
     ],
     [
+      'earlier request smart off before correct latest response',
+      (r) => {
+        const later = structuredClone(r.responses[0]);
+        later.responseOrder = r.responses.length;
+        r.responses[0].requestBody.include_query.is_smart_queries = false;
+        r.responses.push(later);
+      },
+      'CAPTURE_REQUEST_SCOPE_MISMATCH',
+    ],
+    [
       'request omits platform',
       (r) => r.responses[0].requestBody.include_query.platforms.pop(),
       'CAPTURE_REQUEST_SCOPE_MISMATCH',

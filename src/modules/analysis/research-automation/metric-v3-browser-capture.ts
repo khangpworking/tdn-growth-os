@@ -1,0 +1,66 @@
+import { randomUUID } from 'node:crypto';
+import { writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
+import type { MetricV3CaptureSpec } from '../../../../contracts/analysis/metric-v3-capture-spec.generated.js';
+import type { MetricOpenCliProcessRunner } from './metric-opencli-executor.js';
+
+/** Checkout adapter, shared by autorun and the guarded operator command. Owns only its new tab. */
+export async function captureMetricV3(spec: MetricV3CaptureSpec, outputDir: string, executable: string, options: {
+  readonly env: Readonly<Record<string, string>>;
+  readonly createProcessRunner: (signal?: AbortSignal) => MetricOpenCliProcessRunner;
+  readonly signal?: AbortSignal;
+}): Promise<void> {
+  const session = `m3-${randomUUID()}`;
+  const deadline = Date.now() + 1_620_000;
+  const signal = options.signal;
+  const check = () => {
+    signal?.throwIfAborted();
+    if (Date.now() >= deadline) throw new Error('TIMEOUT');
+  };
+  const command = async (args: string[], cleanup = false): Promise<any> => {
+    if (!cleanup) check();
+    const run = options.createProcessRunner(cleanup ? undefined : signal);
+    const execution = await run(executable, ['browser', session, ...args], { shell: false, detached: true, env: options.env });
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      const result = await Promise.race([
+        execution.completion,
+        new Promise<never>((_, reject) => { timer = setTimeout(() => {
+          try { execution.child.killGroup?.('SIGKILL'); } catch { /* best effort */ }
+          try { execution.child.kill('SIGKILL'); } catch { /* best effort */ }
+          reject(new Error('TIMEOUT'));
+        }, cleanup ? 60_000 : Math.min(60_000, Math.max(1, deadline - Date.now()))); }),
+      ]);
+      if (result.exitCode !== 0) throw new Error('CAPTURE_FAILED');
+      return JSON.parse(result.stdout);
+    } finally { if (timer) clearTimeout(timer); }
+  };
+  let tab: string | undefined;
+  try {
+    const opened = await command(['tab', 'new', 'https://metric.vn/analytics']);
+    if (typeof opened.page !== 'string' || !/^[A-Fa-f0-9]+$/.test(opened.page)) throw new Error('CAPTURE_TAB_UNAVAILABLE');
+    tab = opened.page;
+    await writeFile(join(outputDir, 'session.json'), `${JSON.stringify({ session, tab })}\n`, { flag: 'wx', mode: 0o600 });
+    const moduleUrl = new URL('../../../../tools/opencli-metric/clis/metric/v3-capture.js', import.meta.url);
+    const { captureV3Preset } = await import(moduleUrl.href);
+    const page = {
+      evaluate: async (fn: (...args: never[]) => unknown, arg?: unknown) => {
+        check();
+        return command(['eval', '--tab', tab!, `(${fn.toString()})(${arg === undefined ? '' : JSON.stringify(arg)})`]);
+      },
+      wait: async (ms: number) => { check(); await delay(ms, undefined, signal ? { signal } : {}); },
+    };
+    for (let i = 0; i < 30; i++) {
+      if ((await page.evaluate(() => ({ ready: document.readyState !== 'loading' }))).ready) break;
+      await page.wait(500);
+    }
+    await captureV3Preset(page, spec, outputDir);
+  } catch (error) {
+    const code = signal?.aborted ? 'CAPTURE_INTERRUPTED' : error instanceof Error ? error.message : 'CAPTURE_FAILED';
+    await writeFile(join(outputDir, 'stopped.json'), `${JSON.stringify({ code })}\n`, { flag: 'wx', mode: 0o600 });
+    throw error;
+  } finally {
+    if (tab) await command(['tab', 'close', tab], true);
+  }
+}

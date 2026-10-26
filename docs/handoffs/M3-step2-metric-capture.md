@@ -35,3 +35,16 @@ Unresolved: source-side historical drift; insight requests omit gifts/deleted sw
 Next action: review this capture PR; step 3 consumes the new artifacts for the requested report layout and application integration.
 Business decisions pending: none required to implement this explicit capture preset; historical differences remain disclosed for review.
 Safety: each live session checked the operator DB read-only first; only owned tabs used/closed. No export/download, authentication/account changes, port 8787 access, production writes, adapter installation, merge, or deployment.
+
+
+Round 2 (2026-10-26):
+- Applied the Sol review patch, retaining its earlier-wrong-request negative row; every retained response is now scope-validated. Logged-out CLI stops print DECISION NEEDED.
+- Added explicit `metricV3Preset` input to the existing owner-api start request. The canonical v3 validator remains the sole owner of its contents; start snapshots freeze it and CAPTURE forwards it after restart.
+- `runMetricCapture` dispatches explicit input to the actual two-window adapter under the existing enable flag and browser lock, with an owned tab, allow-listed environment, timeout/abort handling and no legacy fallback. Absent-preset execution remains unchanged.
+- The guarded checkout CLI now calls that same runner branch. No production install or new application flow.
+- Downstream boundary: v3 artifacts are not a legacy snapshot. PREPARE stops with CAPTURE_V3_PREPARE_UNSUPPORTED until step 3 consumes the archive; CAPTURE output remains retained.
+- Added runner-boundary synthetic browser transcript rows for both-window publication, unknown-category and login stops/tab cleanup, plus start-snapshot restart forwarding coverage at the service boundary. Legacy rows remain the owner for absent-preset behavior.
+- Baseline regression: the new runner row fails on the original runner before opening a preset session; repaired runner passes. Service tests initially could not load the unbuilt local SQLite native module; rebuilding only better-sqlite3 repaired the environment, then all scoped tests passed.
+- Round-2 validation (Node 24.15.0): `npm run typecheck` PASS; four touched test files 44/44 PASS plus the touched `autorun-present.test.ts` owner-text/lifecycle file 13/13 PASS (57 total); no full suite. New stop codes reuse existing neutral owner wording. Final retained-request negative row also reproduced the expected pre-patch failure.
+- Additional changed paths: API start schema/generated type, start snapshot/model/service, shared browser transport helper, existing autorun text table and its coverage row, runner regression, runbook and this handoff.
+- Live runner verification is waiting for the required external `AB-bench.md` receipt; no round-2 Metric access yet.
