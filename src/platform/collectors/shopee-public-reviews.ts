@@ -69,22 +69,39 @@ const mutexes = new Map<string, Promise<unknown>>();
 
 export type PublicReviewSessionState = 'READY' | 'AWAITING_USER_LOGIN' | 'LOGIN_REQUIRED' | 'VERIFICATION_REQUIRED' | 'COLLECTOR_BUSY' | 'COLLECTOR_DOWN';
 export interface PublicReviewSessionReceipt { readonly state: PublicReviewSessionState; readonly checkedAt: string | null }
-export interface PublicReviewSessionOptions { token: string; baseUrl?: string; fetch?: typeof fetch; now?: () => Date }
+export interface PublicReviewSessionExchange { readonly status: number; readonly value: unknown }
+/** Collector-owned bookkeeping; when present every session call is journaled and counted like a job call. */
+export type PublicReviewSessionDispatch = (method: 'GET' | 'POST', path: string, timeoutMs: number, signal?: AbortSignal) => Promise<PublicReviewSessionExchange | null>;
+export interface PublicReviewSessionOptions { token: string; baseUrl?: string; fetch?: typeof fetch; now?: () => Date; dispatch?: PublicReviewSessionDispatch }
 const SESSION_FRESH_MS = 10 * 60_000, SESSION_READ_MS = 10_000, SESSION_CHECK_MS = 65_000, SESSION_LOGIN_MS = 30_000, SESSION_MAX_BYTES = 64 * 1024;
 const optionalObject = (v: unknown): Record<string, unknown> | null => typeof v === 'object' && v !== null && !Array.isArray(v) ? v as Record<string, unknown> : null;
+/** Cumulative streamed-body cap; a declared length is checked separately. An oversized body is cancelled, not consumed. */
+async function readBoundedText(response: Response, limit: number, signal: AbortSignal, abortedCode: () => string): Promise<string> {
+  if (!response.body) return '';
+  const reader = response.body.getReader(), parts: Uint8Array[] = []; let size = 0;
+  const onAbort = () => { void reader.cancel().catch(() => {}); }; signal.addEventListener('abort', onAbort, { once: true });
+  try {
+    while (true) {
+      if (signal.aborted) throw new ShopeePublicReviewError(abortedCode());
+      const part = await reader.read(); if (part.done) break;
+      size += part.value.byteLength; if (size > limit) throw new ShopeePublicReviewError('SHOPEE_REVIEW_LIMIT'); parts.push(part.value);
+    }
+  } finally { signal.removeEventListener('abort', onAbort); await reader.cancel().catch(() => {}); }
+  try { return new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(parts)); } catch { throw new ShopeePublicReviewError('SHOPEE_REVIEW_INVALID_RESPONSE'); }
+}
 
 /**
  * Reads the collector's own session state. The boot-time `/health` value is never
  * consulted: it says `ready` before any Shopee page has been opened.
  */
 export class ShopeePublicReviewSessionClient {
-  readonly #token: string; readonly #base: string; readonly #fetch: typeof fetch; readonly #now: () => Date;
+  readonly #token: string; readonly #base: string; readonly #fetch: typeof fetch; readonly #now: () => Date; readonly #dispatch: PublicReviewSessionDispatch | undefined;
   constructor(options: PublicReviewSessionOptions) {
     if (!options.token || options.token.length > 512 || !/^[\x21-\x7e]+$/.test(options.token)) fail();
     const base = options.baseUrl ?? 'http://127.0.0.1:8877';
     if (!/^http:\/\/(?:127\.0\.0\.1|\[::1\]):8877\/?$/.test(base)) fail();
     this.#token = options.token; this.#base = base.replace(/\/$/, '');
-    this.#fetch = options.fetch ?? fetch; this.#now = options.now ?? (() => new Date());
+    this.#fetch = options.fetch ?? fetch; this.#now = options.now ?? (() => new Date()); this.#dispatch = options.dispatch;
   }
   /** GET /session is trusted only for a fresh authenticated ready; otherwise one POST /session/check. */
   async check(signal?: AbortSignal): Promise<PublicReviewSessionReceipt> {
@@ -139,15 +156,26 @@ export class ShopeePublicReviewSessionClient {
     const at = Date.parse(raw);
     return Number.isFinite(at) ? new Date(at).toISOString() : null;
   }
-  async #call(method: 'GET' | 'POST', path: string, timeoutMs: number, signal?: AbortSignal): Promise<{ status: number; value: unknown } | null> {
+  async #call(method: 'GET' | 'POST', path: string, timeoutMs: number, signal?: AbortSignal): Promise<PublicReviewSessionExchange | null> {
     if (signal?.aborted) return null;
+    try {
+      return this.#dispatch ? await this.#dispatch(method, path, timeoutMs, signal) : await this.#direct(method, path, timeoutMs, signal);
+    } catch {
+      // Losing the caller's abort must reach the collector finalizer, not become "collector down".
+      if (signal?.aborted) throw new ShopeePublicReviewError('OWNER_ABORTED');
+      return null;
+    }
+  }
+  async #direct(method: 'GET' | 'POST', path: string, timeoutMs: number, signal?: AbortSignal): Promise<PublicReviewSessionExchange | null> {
     const controller = new AbortController(), timer = setTimeout(() => controller.abort(), timeoutMs);
     const abort = () => controller.abort(); signal?.addEventListener('abort', abort, { once: true });
     try {
       const response = await this.#fetch(this.#base + path, { method, headers: { Authorization: `Bearer ${this.#token}`, Accept: 'application/json' },
         redirect: 'error', cache: 'no-store', signal: controller.signal });
+      if (controller.signal.aborted) { await response.body?.cancel(); return null; }
       if (Number(response.headers.get('content-length') ?? '0') > SESSION_MAX_BYTES) { await response.body?.cancel(); return null; }
-      const text = await response.text();
+      if (!response.body) return { status: response.status, value: null };
+      const text = await readBoundedText(response, SESSION_MAX_BYTES, controller.signal, () => 'OWNER_ABORTED');
       if (controller.signal.aborted || text.includes(this.#token) || text.includes(encodeURIComponent(this.#token))) return null;
       let value: unknown = null;
       if (text) { try { value = JSON.parse(text); } catch { return null; } }
@@ -250,7 +278,7 @@ export class ShopeePublicReviewCollector implements ShopeeCollector<PublicCollec
   readonly mode = 'live' as const;
   readonly maxReviewsPerProduct: number;
   readonly #fetch: typeof fetch; readonly #sleep: NonNullable<ShopeePublicReviewCollectorOptions['sleep']>; readonly #clock: () => Date;
-  readonly #base: string; readonly #session: ShopeePublicReviewSessionClient; #requests = 0;
+  readonly #base: string; #requests = 0;
   constructor(readonly options: ShopeePublicReviewCollectorOptions) {
     if (!options.token || options.token.length > 512 || !/^[\x21-\x7e]+$/.test(options.token)) fail();
     const base = options.baseUrl ?? 'http://127.0.0.1:8877';
@@ -259,7 +287,6 @@ export class ShopeePublicReviewCollector implements ShopeeCollector<PublicCollec
     if (!integer(this.maxReviewsPerProduct, 1, 300) || options.sampleMode === 'TRIAL' && this.maxReviewsPerProduct > 20) fail();
     this.#base = base.replace(/\/$/, ''); this.#fetch = options.fetch ?? fetch;
     this.#sleep = options.sleep ?? ((ms, signal) => delay(ms, undefined, { signal })); this.#clock = options.clock ?? options.now ?? (() => new Date());
-    this.#session = new ShopeePublicReviewSessionClient({ token: options.token, baseUrl: base, fetch: this.#fetch, now: this.#clock });
   }
   requestsIssued = (): number => this.#requests;
   async collect(selected: readonly ShopeeTransportListing[], requestSha256: string, runKey: string, signal?: AbortSignal): Promise<PublicCollectedPages> {
@@ -288,8 +315,9 @@ export class ShopeePublicReviewCollector implements ShopeeCollector<PublicCollec
     const journals: ShopeePublicJournal[] = []; let acquisitionDeadline: string | null = null, stopped = false, anyNew = false;
     // At most one session check per collection attempt; later products only see its outcome.
     let preflight: Promise<PublicReviewSessionReceipt> | undefined;
-    const ensureSession = async (): Promise<void> => {
-      preflight ??= this.#session.check(signal);
+    const ensureSession = async (j: ShopeePublicJournal, save: () => Promise<void>): Promise<void> => {
+      preflight ??= new ShopeePublicReviewSessionClient({ token: this.options.token, baseUrl: this.#base, now: this.#clock,
+        dispatch: (method, path, timeoutMs, sig) => this.#sessionExchange(j, save, method, path, timeoutMs, sig) }).check(signal);
       const session = await preflight;
       if (session.state === 'READY') return;
       if (session.state === 'LOGIN_REQUIRED' || session.state === 'AWAITING_USER_LOGIN') fail('HUMAN_LOGIN_REQUIRED');
@@ -366,7 +394,7 @@ export class ShopeePublicReviewCollector implements ShopeeCollector<PublicCollec
           else {
             if (signal?.aborted || j.cancelIntent) fail('OWNER_ABORTED');
             if (!j.intentAt) {
-              await ensureSession();
+              await ensureSession(j, save);
               const list = await request('list'); if (!Array.isArray(list) || list.length > 100) return fail();
               // Keep every usable id; a foreign or malformed row must not block the first submit.
               j.baselineIds = list.flatMap(raw => { const { id } = listRow(raw); return id === null ? [] : [id]; });
@@ -417,16 +445,13 @@ export class ShopeePublicReviewCollector implements ShopeeCollector<PublicCollec
       confirmedSourceSetSha256: this.options.confirmedSourceSetSha256, usageTotalUsd: 0, warnings: [], pages, envelopes,
       listings: journals.map(j => j.terminal!), attemptedAt: journals.map(j => j.terminal!.attemptedAt).sort().at(-1)!, reused: !anyNew };
   }
-  async #request(op: string, j: ShopeePublicJournal, save: () => Promise<void>, remaining: number, signal?: AbortSignal, id?: string, body?: unknown): Promise<unknown> {
+  /** Every dispatched request — job or session — persists its count before the fetch and counts only at dispatch. */
+  async #exchange(j: ShopeePublicJournal, save: () => Promise<void>, spec: { op: string; method: 'GET' | 'POST'; path: string; expected: number | null; timeoutMs: number; signal?: AbortSignal | undefined; body?: unknown; maxBytes: number; allowEmpty?: boolean }): Promise<PublicReviewSessionExchange> {
+    const { op, method, path, expected, timeoutMs, signal, body, maxBytes, allowEmpty = false } = spec;
     if (signal?.aborted) return fail('OWNER_ABORTED');
-    const jobId = id && /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(id) ? id : undefined;
-    const endpoints: Record<string, [string, string, number]> = { list: ['GET','/jobs?limit=100',200], submit: ['POST','/jobs',202],
-      ...(jobId ? { status: ['GET',`/jobs/${jobId}`,200] as [string,string,number], result: ['GET',`/jobs/${jobId}/result`,200] as [string,string,number], cancel: ['POST',`/jobs/${jobId}/cancel`,202] as [string,string,number] } : {}) };
-    const endpoint = endpoints[op]; if (!endpoint || body !== undefined && op !== 'submit') return fail();
-    const ms = op === 'cancel' && remaining <= 0 ? 10000 : Math.min(op === 'result' ? 30000 : 10000, remaining);
-    if (ms <= 0) return fail('DEADLINE');
+    if (timeoutMs <= 0) return fail('DEADLINE');
     const controller = new AbortController(); let timedOut = false;
-    const timer = setTimeout(() => { timedOut = true; controller.abort(); }, ms);
+    const timer = setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs);
     const abort = () => controller.abort(); signal?.addEventListener('abort', abort, { once: true });
     const priorUncertainty = j.requestCountUncertain, priorRequestCount = j.requestCount;
     let dispatched = false;
@@ -435,22 +460,20 @@ export class ShopeePublicReviewCollector implements ShopeeCollector<PublicCollec
       if (signal?.aborted) return fail('OWNER_ABORTED');
       if (controller.signal.aborted) return fail(timedOut ? 'SHOPEE_REVIEW_TIMEOUT' : 'OWNER_ABORTED');
       dispatched = true; this.#requests++;
-      const work = async () => {
-        const response = await this.#fetch(this.#base + endpoint[1], { method: endpoint[0], headers: { Authorization: `Bearer ${this.options.token}`, ...(op === 'submit' ? { 'Content-Type': 'application/json' } : {}) },
-          ...(op === 'submit' ? { body: canonicalJson(body) } : {}), redirect: 'error', cache: 'no-store', signal: controller.signal });
+      const work = async (): Promise<PublicReviewSessionExchange> => {
+        const response = await this.#fetch(this.#base + path, { method, headers: { Authorization: `Bearer ${this.options.token}`, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+          ...(body === undefined ? {} : { body: canonicalJson(body) }), redirect: 'error', cache: 'no-store', signal: controller.signal });
         if (controller.signal.aborted || j.terminal) { await response.body?.cancel(); return fail(timedOut ? 'SHOPEE_REVIEW_TIMEOUT' : 'OWNER_ABORTED'); }
         j.requestCountUncertain = priorUncertainty; await save();
-        if (response.status !== endpoint[2]) { await response.body?.cancel(); throw new ShopeePublicReviewError(response.status >= 500 ? 'SHOPEE_REVIEW_HTTP_5XX' : `SHOPEE_REVIEW_HTTP_${response.status}`, op, response.status); }
-        if (Number(response.headers.get('content-length') ?? '0') > PUBLIC_REVIEW_MAX_BYTES) { await response.body?.cancel(); return fail('SHOPEE_REVIEW_LIMIT'); }
-        if (!response.body) return fail(); const reader = response.body.getReader(); let size = 0; const parts: Uint8Array[] = [];
-        const onAbort = () => { void reader.cancel().catch(() => {}); }; controller.signal.addEventListener('abort', onAbort, { once: true });
-        try { while (true) { if (controller.signal.aborted) return fail(timedOut ? 'SHOPEE_REVIEW_TIMEOUT' : 'OWNER_ABORTED'); const part = await reader.read(); if (part.done) break; size += part.value.byteLength; if (size > PUBLIC_REVIEW_MAX_BYTES) return fail('SHOPEE_REVIEW_LIMIT'); parts.push(part.value); } }
-        finally { controller.signal.removeEventListener('abort', onAbort); await reader.cancel().catch(() => {}); }
-        let text: string; try { text = new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(parts)); } catch { return fail(); }
+        if (Number(response.headers.get('content-length') ?? '0') > maxBytes) { await response.body?.cancel(); return fail('SHOPEE_REVIEW_LIMIT'); }
+        if (expected !== null && response.status !== expected) { await response.body?.cancel(); throw new ShopeePublicReviewError(response.status >= 500 ? 'SHOPEE_REVIEW_HTTP_5XX' : `SHOPEE_REVIEW_HTTP_${response.status}`, op, response.status); }
+        if (!response.body) return allowEmpty ? { status: response.status, value: null } : fail();
+        const text = await readBoundedText(response, maxBytes, controller.signal, () => timedOut ? 'SHOPEE_REVIEW_TIMEOUT' : 'OWNER_ABORTED');
         if (text.includes(this.options.token) || text.includes(encodeURIComponent(this.options.token))) return fail('CREDENTIAL_ECHO_REFUSED');
-        let parsed: unknown; try { parsed = JSON.parse(text); } catch { return fail(); }
-        if (canonicalJson(parsed).includes(this.options.token) || canonicalJson(parsed).includes(encodeURIComponent(this.options.token))) return fail('CREDENTIAL_ECHO_REFUSED');
-        return parsed;
+        if (!text) return allowEmpty ? { status: response.status, value: null } : fail();
+        let value: unknown; try { value = JSON.parse(text); } catch { return fail(); }
+        if (canonicalJson(value).includes(this.options.token) || canonicalJson(value).includes(encodeURIComponent(this.options.token))) return fail('CREDENTIAL_ECHO_REFUSED');
+        return { status: response.status, value };
       };
       return await Promise.race([work(), new Promise<never>((_, reject) => {
         const rejectAbort = () => reject(new ShopeePublicReviewError(timedOut ? 'SHOPEE_REVIEW_TIMEOUT' : 'OWNER_ABORTED', op));
@@ -461,6 +484,21 @@ export class ShopeePublicReviewCollector implements ShopeeCollector<PublicCollec
       if (e instanceof ShopeePublicReviewError) throw e;
       throw new ShopeePublicReviewError(timedOut || e instanceof Error && e.name === 'TimeoutError' ? 'SHOPEE_REVIEW_TIMEOUT' : signal?.aborted ? 'OWNER_ABORTED' : 'SHOPEE_REVIEW_TRANSPORT', op);
     } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
+  }
+  /** The session client may only reach the fixed collector session endpoints, always through the shared journal path. */
+  #sessionExchange(j: ShopeePublicJournal, save: () => Promise<void>, method: 'GET' | 'POST', path: string, timeoutMs: number, signal?: AbortSignal): Promise<PublicReviewSessionExchange> {
+    const allowed = method === 'GET' ? path === '/session' : ['/session/check', '/session/login', '/session/background'].includes(path);
+    if (!allowed || !integer(timeoutMs, 1)) return fail();
+    return this.#exchange(j, save, { op: path, method, path, expected: null, timeoutMs, signal, maxBytes: SESSION_MAX_BYTES, allowEmpty: true });
+  }
+  async #request(op: string, j: ShopeePublicJournal, save: () => Promise<void>, remaining: number, signal?: AbortSignal, id?: string, body?: unknown): Promise<unknown> {
+    if (signal?.aborted) return fail('OWNER_ABORTED');
+    const jobId = id && /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(id) ? id : undefined;
+    const endpoints: Record<string, ['GET' | 'POST', string, number]> = { list: ['GET','/jobs?limit=100',200], submit: ['POST','/jobs',202],
+      ...(jobId ? { status: ['GET',`/jobs/${jobId}`,200] as ['GET',string,number], result: ['GET',`/jobs/${jobId}/result`,200] as ['GET',string,number], cancel: ['POST',`/jobs/${jobId}/cancel`,202] as ['GET' | 'POST',string,number] } : {}) };
+    const endpoint = endpoints[op]; if (!endpoint || body !== undefined && op !== 'submit') return fail();
+    const ms = op === 'cancel' && remaining <= 0 ? 10000 : Math.min(op === 'result' ? 30000 : 10000, remaining);
+    return (await this.#exchange(j, save, { op, method: endpoint[0], path: endpoint[1], expected: endpoint[2], timeoutMs: ms, signal, body: op === 'submit' ? body : undefined, maxBytes: PUBLIC_REVIEW_MAX_BYTES })).value;
   }
 }
 async function secureDirectory(dir: string) {
