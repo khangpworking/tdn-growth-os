@@ -1,3 +1,4 @@
+import { metricV3Category } from '../../../shared/metric-v3-preset.js';
 import { validateMetricV3CaptureSpec } from './metric-v3-capture-spec.js';
 import publicSourceConfirmSchema from '../../../../contracts/api/research-automation-source-api-v3.schema.json' with { type: 'json' };
 import publicSourceSetSchema from '../../../../contracts/analysis/automation-confirmed-source-set-v2.schema.json' with { type: 'json' };
@@ -4858,7 +4859,7 @@ export class ResearchAutomationService {
       const scope = await this.#autorunScope(run.runId);
       // The database wait is authoritative: scope.json may contain an answer whose ledger write failed.
       const chosen = scope?.keyword2.chosen;
-      if (scope && chosen) keyword2Suggestion = { keyword1: scope.keyword1, term: chosen.term, titles: chosen.titles, titleCount: scope.keyword2.titleCount, brands: chosen.brands };
+      if (scope && chosen) keyword2Suggestion = { categoryId: scope.category?.category?.id ?? null, keyword1: scope.keyword1, term: chosen.term, titles: chosen.titles, titleCount: scope.keyword2.titleCount, brands: chosen.brands };
     }
     return { phase: row.phase, state: row.phaseState, ...(row.stopCode ? { stopCode: row.stopCode } : {}),
       ...(linksFound !== undefined ? { linksFound } : {}), canRetry, ...(keyword2Suggestion ? { keyword2Suggestion } : {}) };
@@ -4925,7 +4926,16 @@ export class ResearchAutomationService {
           [{ term: input.keyword2, source: 'OWNER' }]).candidates[0] ?? null;
         // Rebuild the waiting plan when a prior file write outlived a failed/uncommitted transaction.
         const waiting = planScope({ runId, keyword1: scope.keyword1, category: scope.category, keyword2: scope.keyword2 });
-        answered = answerKeyword2(waiting, input.keyword2, evidence);
+        if (input.metricV3Preset !== undefined) {
+          const preset = validateMetricV3CaptureSpec(input.metricV3Preset);
+          if (preset.preset.keywords[1] !== input.keyword2 ||
+              (preset.preset.category.id !== metricV3Category.id || preset.preset.category.label !== metricV3Category.label ||
+               preset.preset.category.children.some(child => !metricV3Category.children.some(known => known.id === child.id && known.label === child.label))))
+            throw new ResearchAutomationValidationError('Preset category or keyword is invalid.');
+          answered = { ...waiting, metricV3Preset: preset,
+            keyword2: { ...waiting.keyword2, owner: { decision: input.keyword2 === scope.keyword2.chosen.term ? 'ACCEPTED' : 'EDITED', evidence } },
+            capture2: { keywords: preset.preset.keywords, category: preset.preset.category.label, outcome: 'PENDING' } };
+        } else answered = answerKeyword2(waiting, input.keyword2, evidence);
       } catch (error) {
         if (error instanceof RangeError) throw new ResearchAutomationValidationError('Keyword 2 must be a different search term.');
         throw error;
@@ -5646,7 +5656,7 @@ export class ResearchAutomationService {
     catch { await this.#autorunStopRunning(runId, 'CAPTURE', 'CAPTURE_IO_FAILED'); return true; }
     // Keep the planned second capture on retry, including when its scope file settled before the
     // database phase write-back failed. Only an unanswered suggestion still belongs to capture 1.
-    this.#launchCapture(runId, start!, { startDate: start!.requestedPeriod.startDate, endDate: start!.requestedPeriod.endDate },
+    this.#launchCapture(runId, scope?.metricV3Preset ? { ...start!, metricV3Preset: validateMetricV3CaptureSpec(scope.metricV3Preset) } : start!, { startDate: start!.requestedPeriod.startDate, endDate: start!.requestedPeriod.endDate },
       scope?.capture2 && scope.capture2.outcome !== 'AWAITING_KEYWORD2' ? scope : null);
     return progressed;
   }
@@ -5675,7 +5685,7 @@ export class ResearchAutomationService {
         } else if (result.ok && !start.metricV3Preset) scope = await this.#planAutorunScope(runId, start, result.captureDir, controller.signal);
         if (scope) await this.#writeAutorunScope(runId, scope);
       } catch { result = { ok: false, code: controller.signal.aborted ? 'CAPTURE_INTERRUPTED' : 'CAPTURE_IO_FAILED', detail: 'capture failed', executorCalls: 0 }; scope = null; }
-      try { await this.#settleCapture(runId, result, scope); }
+      try { await this.#settleCapture(runId, result, scope, second?.metricV3Preset !== undefined); }
       catch { /* The row stays RUNNING; the next start stops it as CAPTURE_INTERRUPTED. */ }
       finally {
         this.#autoCaptures.delete(runId);
@@ -5685,8 +5695,14 @@ export class ResearchAutomationService {
     })();
   }
 
-  async #settleCapture(runId: string, result: MetricCaptureRunResult, scope: AutorunScopeRecord | null): Promise<void> {
+  async #settleCapture(runId: string, result: MetricCaptureRunResult, scope: AutorunScopeRecord | null, confirmedPreset = false): Promise<void> {
     await this.#autorunSettle(runId, 'CAPTURE', at => {
+      // A confirmed v3 archive stays behind the same preparation boundary as a start-time preset.
+      // The step-2 lane owns admitting it; never feed it to the legacy snapshot preparation.
+      if (result.ok && confirmedPreset) {
+        this.#autorunStop(runId, 'CAPTURE_V3_PREPARE_UNSUPPORTED', at);
+        return;
+      }
       if (result.ok && scope?.capture2?.outcome === 'AWAITING_KEYWORD2') {
         this.#db.prepare(`UPDATE research_automation_autorun SET phase='STOPPED',phase_state='QUEUED',stop_code=?,stop_detail=?,updated_at=? WHERE run_id=? AND phase='CAPTURE' AND phase_state='RUNNING'`)
           .run(AUTORUN_KEYWORD2_WAIT, 'Automatic run waits for the owner to answer keyword 2.', at, runId);
@@ -6633,10 +6649,15 @@ function validatePeriod(value: unknown): { startDate: string; endDate: string } 
 function validateAutoRunRetry(value: unknown): ResearchAutomationAutoRunRetryRequest | ResearchAutomationAutoRunKeywordRequest {
   const object = plain(value);
   if (object.contractVersion === 'research-automation-autorun-keyword-v1') {
-    keys(object, ['contractVersion', 'requestKey', 'keyword2']);
+    keys(object, ['contractVersion', 'requestKey', 'keyword2', 'metricV3Preset']);
     if (typeof object.requestKey !== 'string' || !REQUEST_KEY.test(object.requestKey) || !Object.hasOwn(object, 'keyword2'))
       throw new ResearchAutomationValidationError('Keyword answer is invalid.');
-    return { contractVersion: object.contractVersion, requestKey: object.requestKey, keyword2: object.keyword2 === null ? null : text(object.keyword2, 80) };
+    let metricV3Preset;
+    if (object.metricV3Preset !== undefined) {
+      try { metricV3Preset = validateMetricV3CaptureSpec(object.metricV3Preset); }
+      catch { throw new ResearchAutomationValidationError('Invalid capture preset.'); }
+    }
+    return { ...(metricV3Preset ? { metricV3Preset } : {}), contractVersion: object.contractVersion, requestKey: object.requestKey, keyword2: object.keyword2 === null ? null : text(object.keyword2, 80) };
   }
   keys(object, ['contractVersion', 'requestKey']);
   if (object.contractVersion !== 'research-automation-autorun-retry-v1' || typeof object.requestKey !== 'string' || !REQUEST_KEY.test(object.requestKey))

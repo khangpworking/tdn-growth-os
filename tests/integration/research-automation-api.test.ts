@@ -1911,6 +1911,7 @@ test('read-only API projects the saved keyword 2 suggestion without running capt
   fs.mkdirSync(path.join(captureRoot, runId), { recursive: true });
   fs.writeFileSync(path.join(captureRoot, runId, 'scope.json'), JSON.stringify({
     contractVersion: 'autorun-scope-record-v1', runId, keyword1: 'wireless earbuds',
+    category: { category: { id: 'c2140822537', label: 'Thực phẩm chức năng' } },
     keyword2: { chosen: { term: 'tai nghe', titles: 4, brands: 3 }, titleCount: 8 },
   }));
   const db = new BetterSqlite3(fixture.databasePath);
@@ -1925,7 +1926,7 @@ test('read-only API projects the saved keyword 2 suggestion without running capt
   await withApi(fixture, false, async base => {
     const run = await getRun(base, runId);
     assert.deepEqual(run.autoRun.keyword2Suggestion, {
-      keyword1: 'wireless earbuds', term: 'tai nghe', titles: 4, titleCount: 8, brands: 3,
+      categoryId: 'c2140822537', keyword1: 'wireless earbuds', term: 'tai nghe', titles: 4, titleCount: 8, brands: 3,
     });
     assert.equal(run.autoRun.phase, 'STOPPED');
   }, undefined, undefined, undefined, undefined, { captureRoot });

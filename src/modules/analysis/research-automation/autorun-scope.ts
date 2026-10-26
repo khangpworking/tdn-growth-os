@@ -1,3 +1,4 @@
+import type { MetricV3CaptureSpec } from '../../../../contracts/analysis/metric-v3-capture-spec.generated.js';
 // Search scope of the Market auto-runner's second capture (v3plug P2).
 //
 // The first capture searches keyword 1 in every category. From its stored raw
@@ -355,6 +356,7 @@ export type AutorunKeyword2Decision = 'ACCEPTED' | 'EDITED' | 'REMOVED';
 /** Written after the first capture; the owner's answer, the second capture and the report read it back. */
 export interface AutorunScopeRecord {
   readonly contractVersion: typeof AUTORUN_SCOPE_RECORD_VERSION;
+  readonly metricV3Preset?: MetricV3CaptureSpec;
   readonly runId: string;
   readonly keyword1: string;
   readonly category: AutorunCategoryDecision;

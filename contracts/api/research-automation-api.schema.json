@@ -129,7 +129,8 @@
       "properties": {
         "contractVersion": { "const": "research-automation-autorun-keyword-v1" },
         "requestKey": { "$ref": "#/$defs/requestKey" },
-        "keyword2": { "oneOf": [{ "$ref": "#/$defs/term" }, { "type": "null" }] }
+        "keyword2": { "oneOf": [{ "$ref": "#/$defs/term" }, { "type": "null" }] },
+        "metricV3Preset": { "type": "object", "description": "Owner-confirmed complete preset, validated by the canonical capture spec service." }
       }
     },
     "autoRun": {
@@ -148,6 +149,7 @@
           "type": "object", "additionalProperties": false,
           "required": ["keyword1", "term", "titles", "titleCount", "brands"],
           "properties": {
+            "categoryId": { "type": ["string", "null"] },
             "keyword1": { "$ref": "#/$defs/text120" },
             "term": { "$ref": "#/$defs/term" },
             "titles": { "type": "integer", "minimum": 0, "maximum": 1000 },

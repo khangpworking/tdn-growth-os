@@ -139,6 +139,12 @@ export interface ResearchAutomationAutoRunKeywordRequest {
   contractVersion: 'research-automation-autorun-keyword-v1';
   requestKey: RequestKey;
   keyword2: Term | null;
+  /**
+   * Owner-confirmed complete preset, validated by the canonical capture spec service.
+   */
+  metricV3Preset?: {
+    [k: string]: unknown;
+  };
 }
 export interface ResearchAutomationRun {
   contractVersion: 'research-automation-run-v1' | 'research-automation-run-v2';
@@ -325,6 +331,7 @@ export interface ResearchAutomationAutoRun {
    * research-automation-run-v2 only. Present while the auto-run waits for the owner's answer on keyword 2: the suggested term and its evidence in the first capture's top-revenue titles.
    */
   keyword2Suggestion?: {
+    categoryId?: string | null;
     keyword1: Text120;
     term: Term;
     titles: number;

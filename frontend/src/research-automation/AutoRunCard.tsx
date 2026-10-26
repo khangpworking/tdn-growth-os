@@ -1,7 +1,9 @@
+import MetricV3PresetForm from './MetricV3PresetForm';
+import type { MetricV3CaptureSpec } from '../../../contracts/analysis/metric-v3-capture-spec.generated';
 import { useEffect, useRef, useState } from 'react';
 import { ResearchAutomationError, retryAutoRun } from './api';
 import type { ResearchAutomationAutoRun, ResearchAutomationRun } from './api';
-import { AUTORUN_RETRY_LABEL, autoRunKeyword2Text, autoRunLinksText, autoRunText } from './autorun-text';
+import { AUTORUN_RETRY_LABEL, autoRunLinksText, autoRunText } from './autorun-text';
 
 export interface AutoRunCardProps {
   readonly workspaceId: string;
@@ -28,8 +30,6 @@ export default function AutoRunCard({ workspaceId, run, ownerToken, writesAvaila
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
   const suggestion = run.autoRun?.keyword2Suggestion;
-  const [keyword2, setKeyword2] = useState(suggestion?.term ?? '');
-  useEffect(() => { setKeyword2(suggestion?.term ?? ''); }, [suggestion?.term]);
   const requestKey = useRef<{ readonly revision: number; readonly key: string } | null>(null);
   // A retry does not change the run revision: once the stop is cleared, a later stop needs a fresh key,
   // otherwise the server would answer the next "Thử lại" as an exact repeat of the accepted one.
@@ -38,17 +38,17 @@ export default function AutoRunCard({ workspaceId, run, ownerToken, writesAvaila
   if (!autoRun) return null;
   const showLinks = autoRun.linksFound !== undefined && autoRun.linksFound < 5 && AFTER_PICK.has(autoRun.phase);
   const canWrite = writesAvailable && ownerToken !== null;
-  // Accept or Edit sends the term in the field; Remove sends null. Both use the owner retry route.
-  const send = async (answer?: string | null) => {
+  // Confirmation sends the complete owner-reviewed preset through the existing keyword answer route.
+  const send = async (preset?: MetricV3CaptureSpec) => {
     if (!canWrite || !ownerToken || pending) return;
-    if (answer === undefined ? !autoRun.canRetry : !suggestion) return;
+    if (preset === undefined ? !autoRun.canRetry : !suggestion) return;
     if (requestKey.current?.revision !== run.revision) requestKey.current = { revision: run.revision, key: crypto.randomUUID() };
     const key = requestKey.current.key;
     setPending(true); setError('');
     try {
-      await retryAutoRun(workspaceId, run.runId, answer === undefined
+      await retryAutoRun(workspaceId, run.runId, preset === undefined
         ? { contractVersion: 'research-automation-autorun-retry-v1', requestKey: key }
-        : { contractVersion: 'research-automation-autorun-keyword-v1', requestKey: key, keyword2: answer }, ownerToken);
+        : { contractVersion: 'research-automation-autorun-keyword-v1', requestKey: key, keyword2: preset.preset.keywords[1]!, metricV3Preset: { ...preset } }, ownerToken);
       requestKey.current = null;
       onRetried();
     } catch (failure) {
@@ -60,13 +60,8 @@ export default function AutoRunCard({ workspaceId, run, ownerToken, writesAvaila
     <h3 id="ra-autorun-title">Phần tự động</h3>
     <p role="status">{autoRunText(autoRun, run.reports)}</p>
     {showLinks && <p className="ra-muted">{autoRunLinksText(autoRun.linksFound ?? 0)}</p>}
-    {suggestion && <div className="ra-actions">
-      <p>{autoRunKeyword2Text(suggestion)}</p>
-      <label>Từ khóa 2 <input value={keyword2} maxLength={80} disabled={!canWrite || pending} onChange={event => setKeyword2(event.target.value)} /></label>
-      <button type="button" className="button" disabled={!canWrite || pending || !keyword2.trim()} onClick={() => void send(keyword2.trim())}>{pending ? 'Đang gửi yêu cầu…' : 'Dùng từ khóa 2'}</button>
-      <button type="button" className="button" disabled={!canWrite || pending} onClick={() => void send(null)}>Bỏ từ khóa 2</button>
-      {!canWrite && <p className="ra-muted">Mở khóa OWNER để duyệt từ khóa 2.</p>}
-    </div>}
+    {suggestion && <MetricV3PresetForm key={`${run.runId}:${suggestion.term}`} suggestion={suggestion} endDate={run.requestedPeriod.endDate}
+      disabled={!canWrite} pending={pending} onConfirm={preset => void send(preset)} />}
     {autoRun.canRetry && <div className="ra-actions">
       <button type="button" className="button" disabled={!canWrite || pending} onClick={() => void send()}>{pending ? 'Đang gửi yêu cầu…' : AUTORUN_RETRY_LABEL}</button>
       {!canWrite && <p className="ra-muted">Mở khóa OWNER để thử lại.</p>}
