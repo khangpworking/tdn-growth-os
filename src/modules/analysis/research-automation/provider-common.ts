@@ -122,21 +122,27 @@ const CAPTURE_RESPONSE_HEADERS = ['server', 'date', 'via', 'cf-ray', 'x-request-
   'content-type', 'content-length', 'retry-after'] as const;
 const CAPTURE_HEADER_MAX_CHARS = 200;
 
+/** Keep full allow-listed values until the adapter checks its secret, before truncation can hide an echo. */
 export function safeResponseHeaders(headers: Headers): Readonly<Record<string, string>> {
   const out: Record<string, string> = {};
   for (const name of CAPTURE_RESPONSE_HEADERS) {
     const raw = headers.get(name);
     if (raw === null) continue;
-    const value = raw.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, CAPTURE_HEADER_MAX_CHARS);
-    if (value) out[name] = value;
+    out[name] = raw;
   }
   return out;
 }
 
-/** Allow-listed capture headers without any value that echoes a provider secret; undefined when nothing is kept. */
+/** Sanitize and bound allow-listed headers after rejecting full values that echo a provider secret. */
 export function safeCaptureHeaders(headers: Readonly<Record<string, string>>, secret?: string | null): Readonly<Record<string, string>> | undefined {
-  const kept = Object.entries(headers).filter(([, value]) => !secret || !bytesContainSecret(Buffer.from(value, 'utf8'), secret));
-  return kept.length ? Object.fromEntries(kept) : undefined;
+  const kept: Record<string, string> = {};
+  for (const name of CAPTURE_RESPONSE_HEADERS) {
+    const raw = headers[name];
+    if (raw === undefined || (secret && bytesContainSecret(Buffer.from(raw, 'utf8'), secret))) continue;
+    const value = raw.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, CAPTURE_HEADER_MAX_CHARS);
+    if (value && (!secret || !bytesContainSecret(Buffer.from(value, 'utf8'), secret))) kept[name] = value;
+  }
+  return Object.keys(kept).length ? kept : undefined;
 }
 
 export async function boundedRequest(transport: ProviderTransport, request: {

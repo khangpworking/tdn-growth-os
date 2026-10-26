@@ -66,9 +66,7 @@ test('run view labels PROVIDER_UNAVAILABLE and keeps the observed HTTP status in
     assert.ok(section, selector);
     assert.ok(section.textContent!.includes(label), 'the new code gets its owner label');
     assert.match(section.querySelector('details')!.textContent!, /HTTP 554/);
-    const visible = section.cloneNode(true) as HTMLElement;
-    visible.querySelectorAll('details').forEach(details => details.remove());
-    assert.doesNotMatch(visible.textContent!, /PROVIDER_UNAVAILABLE|kalodata/i);
+    assert.doesNotMatch(section.textContent!, /PROVIDER_UNAVAILABLE|kalodata/i);
   }
 });
 

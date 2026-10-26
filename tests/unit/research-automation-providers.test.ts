@@ -12,6 +12,9 @@ import {
   type ResearchAutomationProvider,
 } from '../../src/modules/analysis/research-automation/providers.js';
 import { bindResearchAutomationProvider } from '../../src/modules/analysis/research-automation/source-binding.js';
+import { fetchTrends } from '../../src/modules/analysis/research-automation/search-trends.js';
+import { createGoogleAdsSource } from '../../src/modules/analysis/research-automation/google-ads-lane.js';
+import { createVideoWatchModel } from '../../src/modules/analysis/research-automation/video-watch-gemini.js';
 
 const PERIOD = { startDate: '2026-01-01', endDate: '2026-01-31' } as const;
 
@@ -407,10 +410,16 @@ test('Kalodata captures keep only lower-case bounded response headers and drop s
       'content-type': 'application/json', 'content-length': '0', 'retry-after': '10',
     });
   });
-  for (const echo of [key, key.replaceAll('-', '%2D')]) await t.test(`secret echo ${echo === key ? 'literal' : 'URL-encoded'}`, async () => {
+  for (const [name, echo] of [
+    ['literal', key], ['URL-encoded', key.replaceAll('-', '%2D')],
+    ['JSON-encoded', JSON.stringify(key).replace('s', '\\u0073')],
+    ['across length bound', 'x'.repeat(195) + key],
+    ['after length bound', 'x'.repeat(210) + key],
+    ['encoded across length bound', 'x'.repeat(195) + key.replaceAll('-', '%2D')],
+  ]) await t.test(`secret echo ${name}`, async () => {
     const provider = createResearchAutomationProviderRegistry({ kalodataSecretKey: key, serpApiKey: null, apifyTokenConfigured: false },
       transport(async () => new Response(JSON.stringify({ success: true, data: [] }), {
-        headers: { server: `edge ${echo}`, 'x-request-id': `request ${key}`, 'cf-ray': 'safe-ray' },
+        headers: { server: echo!, 'x-request-id': `request ${key}`, 'cf-ray': 'safe-ray' },
       }))).get('KALODATA');
     const result = await provider.quickSearch(quickInput());
     assert.ok(result.captures.length > 0);
@@ -431,6 +440,35 @@ test('shared web captures also retain safe response headers and drop private hea
   const result = await provider.collect(collectInput());
   assert.equal(result.captures.length, 1);
   assert.deepEqual(result.captures[0]!.responseHeaders, { server: 'synthetic-web-edge', 'cf-ray': 'synthetic-web-ray', 'content-type': 'application/json' });
+});
+
+test('each credentialed adapter drops echoed response headers and retains safe diagnostics on HTTP errors', async t => {
+  for (const name of ['KALODATA', 'SERPAPI', 'GOOGLE_ADS', 'TRENDS', 'CLIPROXY']) await t.test(name, async () => {
+    const key = `synthetic-${name.toLowerCase()}-key`;
+    const fake = transport(async () => new Response(null, { status: 400, headers: {
+      server: 'x'.repeat(195) + key, 'x-request-id': key.replaceAll('-', '%2D'), 'cf-ray': 'safe-diagnostic-ray',
+      'x-cache': 'a'.repeat(250), 'set-cookie': 'private-cookie', 'x-unknown': 'private-header',
+    } }));
+    let captures: readonly ProviderRawCapture[];
+    if (name === 'KALODATA' || name === 'SERPAPI') {
+      const provider = createResearchAutomationProviderRegistry({ kalodataSecretKey: key, serpApiKey: key, apifyTokenConfigured: false }, fake).get(name);
+      captures = (name === 'KALODATA' ? await provider.quickSearch(quickInput()) : await provider.collect(collectInput())).captures;
+    } else if (name === 'GOOGLE_ADS') {
+      const result = await createGoogleAdsSource(key, fake).collect({ brands: [{ label: 'Example', key: 'example' }],
+        webUrls: ['https://example.com/product'], periodStartDate: PERIOD.startDate, periodEndDate: PERIOD.endDate });
+      captures = result.brands.flatMap(brand => brand.capture ? [brand.capture] : []);
+    } else if (name === 'TRENDS') {
+      captures = (await fetchTrends(key, fake, { dataType: 'TIMESERIES', keywords: ['thermos'] }, {})).captures;
+    } else {
+      captures = (await createVideoWatchModel({ cliproxy: { baseUrl: 'http://127.0.0.1:8317', apiKey: key }, modelId: 'gemini-synthetic', transport: fake })
+        .watch({ bytes: Buffer.from('synthetic-video'), mimeType: 'video/mp4', videoId: '1234567890' }, { productKeyword: 'thermos', durationSeconds: 10 })).captures;
+    }
+    assert.ok(captures.length > 0, 'the adapter must reach the HTTP capture boundary');
+    for (const capture of captures) {
+      assert.equal(capture.outcome, 'HTTP_ERROR');
+      assert.deepEqual(capture.responseHeaders, { 'cf-ray': 'safe-diagnostic-ray', 'x-cache': 'a'.repeat(200) });
+    }
+  });
 });
 
 test('Kalodata auth and rate rejections stop every remaining paid detail call', async t => {

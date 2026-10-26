@@ -31,7 +31,7 @@ const validateRun = ajv.getSchema(`${apiSchema.$id}#/$defs/run`)!;
 
 type Rank = 'OK' | 'EMPTY' | 'CREDIT_EXHAUSTED' | 'OTHER_REJECTION';
 
-async function fixture(t: TestContext, options: { balance?: number | 'MISSING'; rank?: Rank; rankStatus?: number; confirm?: boolean; collectBalance?: number; autoRun?: boolean } = {}) {
+async function fixture(t: TestContext, options: { balance?: number | 'MISSING'; rank?: Rank; rankStatus?: number; afterBalanceStatus?: number; collectStatus?: number; confirm?: boolean; collectBalance?: number; autoRun?: boolean } = {}) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-credit-message-'));
   const db = openDatabase({ databasePath: path.join(root, 'db.sqlite'), now }).db;
   const artifacts = new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
@@ -40,6 +40,7 @@ async function fixture(t: TestContext, options: { balance?: number | 'MISSING'; 
   const paid = { rank: 0, detail: 0 };
   const calls: string[] = [];
   let captureCalls = 0;
+  let balanceCalls = 0;
   const transport: ProviderTransport = {
     now: () => now().getTime(),
     sleep: async () => {},
@@ -48,6 +49,7 @@ async function fixture(t: TestContext, options: { balance?: number | 'MISSING'; 
       calls.push(url.pathname.split('/').slice(-2).join('/'));
       let payload: unknown;
       if (url.pathname.endsWith('/credit/balance')) {
+        if (++balanceCalls > 1 && options.afterBalanceStatus) return new Response(null, { status: options.afterBalanceStatus });
         const balance = collecting ? options.collectBalance ?? 100 : options.balance ?? 100;
         payload = balance === 'MISSING' ? { success: true, data: {} } : { success: true, data: { totalRemain: balance } };
       } else if (url.pathname.endsWith('/product/rank')) {
@@ -59,6 +61,7 @@ async function fixture(t: TestContext, options: { balance?: number | 'MISSING'; 
           : { success: true, data: [{ product_id: '101', product_name: 'Synthetic thermos', unit_price: 120000 }] };
       } else if (url.pathname.endsWith('/product/detail')) {
         paid.detail += 1;
+        if (collecting && options.collectStatus) return new Response(null, { status: options.collectStatus });
         const body = JSON.parse(String(init?.body)) as { product_id: string; date_range: string };
         payload = { success: true, data: { product_id: body.product_id, product_region: 'vn', currency: 'VND', date_range: body.date_range,
           product_name: 'Synthetic thermos', revenue: 1000, sales_volumn: 7, unit_price: 120000 } };
@@ -167,6 +170,25 @@ test('auth, rate-limit and other client HTTP errors keep PROVIDER_FAILED without
     assert.deepEqual([quick.state, quick.code], ['FAILED', 'PROVIDER_FAILED']);
     assert.deepEqual(state.calls, ['credit/balance', 'product/rank', 'credit/balance']);
   });
+});
+
+test('a failed diagnostic balance query does not replace the search outcome or its client error', async t => {
+  for (const rankStatus of [undefined, 401, 403, 429, 400, 404]) await t.test(`rank ${rankStatus ?? 'OK'}, balance HTTP 503`, async st => {
+    const state = await fixture(st, { ...(rankStatus !== undefined ? { rankStatus } : {}), afterBalanceStatus: 503 });
+    const run = await state.run();
+    const quick = run.steps.find(step => step.stepId === 'QUICK_SEARCH')!;
+    assert.deepEqual([quick.state, quick.code], rankStatus ? ['FAILED', 'PROVIDER_FAILED'] : ['SUCCEEDED', null]);
+    assert.equal(run.blockers.some(row => row.code === 'PROVIDER_UNAVAILABLE'), false);
+    assert.equal(state.calls.filter(path => path === 'product/rank').length, 1);
+  });
+});
+
+test('COLLECTION HTTP 500 keeps its server stop cause without retrying a paid window', async t => {
+  const state = await fixture(t, { confirm: true, collectStatus: 500 });
+  const collection = (await state.run()).steps.find(step => step.stepId === 'COLLECTION')!;
+  assert.deepEqual([collection.state, collection.code], ['FAILED', 'PROVIDER_UNAVAILABLE']);
+  assert.match(collection.message!, /HTTP 500/);
+  assert.equal(state.paid.detail, 3, 'one quick-search detail and one call for each of the two collection windows');
 });
 
 test('autorun stops with the failed QUICK_SEARCH code and refuses a paid quick-search retry', async t => {

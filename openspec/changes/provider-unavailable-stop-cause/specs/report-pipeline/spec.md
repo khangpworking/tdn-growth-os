@@ -34,12 +34,12 @@ Hệ thống SHALL chạy luồng tự động (thu, chuẩn bị, chọn link, 
 ## ADDED Requirements
 
 ### Requirement: R-P16 Lỗi máy chủ nguồn có mã riêng và giữ đầu mối HTTP
-Lần gọi nguồn trả HTTP từ 500 trở lên SHALL ghi mã bước `PROVIDER_UNAVAILABLE` và câu báo có mã HTTP thật, trừ khi lỗi đã được nhận là lỗi xác thực, hạn mức hay hết điểm. Câu báo SHALL nói bước đã dừng, khả năng chỉ xảy ra một lần, và cách tạo lượt mới; câu này SHALL NOT nêu tên nhà cung cấp. Hệ thống SHALL NOT tự gọi lại lần trả phí nào.
+Khi bước thất bại vì lượt gọi dữ liệu của một cửa sổ truy vấn nhận HTTP từ 500 trở lên, hệ thống SHALL ghi mã bước `PROVIDER_UNAVAILABLE` và câu báo có mã HTTP thật, trừ khi lỗi đã được nhận là lỗi xác thực, hạn mức hay hết điểm. Lỗi của truy vấn số dư dùng để đo chi phí SHALL NOT thay kết quả tìm dữ liệu thành lỗi máy chủ nguồn hoặc thay mã lỗi 4xx của lượt gọi dữ liệu. Câu báo SHALL nói bước đã dừng, khả năng chỉ xảy ra một lần, và cách tạo lượt mới; câu này SHALL NOT nêu tên nhà cung cấp. Thay đổi này SHALL NOT thêm lần thử lại tự động hoặc đường thử lại trả phí; lỗi tìm nhanh SHALL có `canRetry=false`.
 
-Bản ghi nguồn SHALL giữ một danh sách header phản hồi cho phép để phân biệt nguồn với CDN hay máy chắn giữa: `server`, `date`, `via`, `cf-ray`, `x-request-id`, `x-amzn-requestid`, `x-cache`, `content-type`, `content-length`, `retry-after`. Mỗi giá trị SHALL được cắt ngắn, bỏ ký tự điều khiển, và bị bỏ nếu chứa khóa bí mật. Trường này SHALL là tùy chọn để bản ghi cũ vẫn đọc được; không lưu header ngoài danh sách, cookie hay thông tin cá nhân.
+Bản ghi nguồn SHALL giữ một danh sách header phản hồi cho phép để phân biệt nguồn với CDN hay máy chắn giữa: `server`, `date`, `via`, `cf-ray`, `x-request-id`, `x-amzn-requestid`, `x-cache`, `content-type`, `content-length`, `retry-after`. Tên header SHALL viết thường. Giá trị đầy đủ SHALL được kiểm tra khóa bí mật trước khi cắt ngắn; giá trị chứa khóa SHALL bị bỏ. Giá trị được giữ SHALL bỏ ký tự điều khiển và dài tối đa 200 ký tự. Trường này SHALL là tùy chọn để bản ghi cũ vẫn đọc được; không lưu header ngoài danh sách, cookie hay thông tin cá nhân. Giá trị header SHALL NOT đi vào HTML/PDF cho người đọc, API cho người không có quyền chủ sở hữu, hoặc nhật ký.
 
-- Mã: RA `provider-common.ts` (`safeResponseHeaders`, `boundedRequest`, `CaptureLog.record`); RA `provider-kalodata.ts` (`call`, `captureHeaders`); RA `providers.ts` (`ProviderRawCapture.responseHeaders`); RA `source-binding.ts` (`providerUnavailableLimitation`); RA `model.ts` (`PROVIDER_UNAVAILABLE`, `providerUnavailableMessage`); RA `service.ts` (mã bước, `stepMessage`, `#autorunQuickSearchStopCode`); giao diện `frontend/src/research-automation/run-status.ts`, `autorun-text.ts`.
-- Mã kiểm: chưa có mã kiểm (phiên kiểm thử riêng).
+- Mã: RA `provider-common.ts` (`safeResponseHeaders`, `safeCaptureHeaders`, `boundedRequest`, `CaptureLog.record`); các adapter `provider-kalodata.ts`, `provider-serpapi.ts`, `search-trends.ts`, `google-ads-lane.ts`, `video-watch-gemini.ts`, `comtrade-lane.ts`, `official-statistics-lane.ts`, `pdf-discovery-lane.ts`, `world-bank-lane.ts`; RA `providers.ts` (`ProviderRawCapture.responseHeaders`); RA `source-binding.ts` (`providerUnavailableLimitation`); RA `model.ts` (`PROVIDER_UNAVAILABLE`, `providerUnavailableMessage`); RA `service.ts` (mã bước, `stepMessage`, `#autorunQuickSearchStopCode`); giao diện `frontend/src/research-automation/run-status.ts`, `autorun-text.ts`, `RunView.tsx`.
+- Kiểm thử: `tests/unit/research-automation-providers.test.ts`, `tests/integration/research-automation-credit-message.test.ts`, `tests/integration/research-automation-kalodata-replay.test.ts`, `frontend/tests/research-automation.test.ts`, `frontend/tests/research-autorun-card.test.ts`.
 - Vì sao: chủ báo lỗi 26/10/2026; lần chạy `b4c0540b` nhận HTTP 554 thân rỗng mà không có đầu mối nào ngoài mã lỗi chung, và vẫn bị trừ 0,1 điểm.
 
 #### Scenario: HTTP 554 thân rỗng
@@ -52,7 +52,11 @@ Bản ghi nguồn SHALL giữ một danh sách header phản hồi cho phép đ�
 
 #### Scenario: Header chứa khóa
 - **WHEN** một header cho phép có giá trị chứa khóa bí mật
-- **THEN** giá trị đó không được lưu trong bản ghi nguồn
+- **THEN** giá trị đó không được lưu trong bản ghi nguồn, kể cả khi khóa nằm qua hoặc sau giới hạn 200 ký tự
+
+#### Scenario: Truy vấn số dư lỗi sau khi tìm dữ liệu
+- **WHEN** lượt tìm dữ liệu thành công hoặc trả 401, 403, 429 hay lỗi 4xx khác, còn truy vấn số dư sau đó trả HTTP 503
+- **THEN** kết quả tìm dữ liệu hoặc mã lỗi cũ được giữ nguyên, không thêm `PROVIDER_UNAVAILABLE`
 
 #### Scenario: Bản ghi cũ
 - **WHEN** đọc bản ghi nguồn không có `responseHeaders`

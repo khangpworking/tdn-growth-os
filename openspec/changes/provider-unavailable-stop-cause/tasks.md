@@ -12,13 +12,14 @@
 
 ## 2. Kiểm thử (phiên khác người viết mã)
 
-- [ ] 2.1 T1 HTTP 554 thân rỗng: bước tìm sản phẩm có mã `PROVIDER_UNAVAILABLE`, câu bước có «554», khác `NO_PRINCIPAL_PRODUCTS`
-- [ ] 2.2 T2 luồng tự động dừng ở pha thu với `PROVIDER_UNAVAILABLE`, chưa gọi nguồn trả phí lần nữa
-- [ ] 2.3 T3 HTTP 500 lúc thu: bước thu có mã `PROVIDER_UNAVAILABLE`
-- [ ] 2.4 T4 header cho phép được lưu; header lạ và giá trị chứa khóa bị bỏ
-- [ ] 2.5 T5 bản ghi cũ không có `responseHeaders` vẫn đọc được
-- [ ] 2.6 Đối chứng âm: HTTP 401, 403, 429 và hết điểm giữ nguyên mã cũ
+- [x] 2.1 T1 HTTP 554 thân rỗng: bước tìm sản phẩm có mã `PROVIDER_UNAVAILABLE`, câu bước có «554», khác `NO_PRINCIPAL_PRODUCTS`
+- [x] 2.2 T2 luồng tự động dừng ở pha thu với `PROVIDER_UNAVAILABLE`, chưa gọi nguồn trả phí lần nữa
+- [x] 2.3 T3 HTTP 500 lúc thu: bước thu có mã `PROVIDER_UNAVAILABLE`
+- [x] 2.4 T4 header cho phép được lưu; header lạ và giá trị chứa khóa bị bỏ
+- [x] 2.5 T5 bản ghi cũ không có `responseHeaders` vẫn đọc được
+- [x] 2.6 Đối chứng âm: HTTP 401, 403, 429 và hết điểm giữ nguyên mã cũ
 - [ ] 2.7 CI Linux xanh tại SHA cuối
+- [x] 2.8 Rà soát: kiểm tra khóa trước khi cắt header ở cả năm adapter có khóa; lỗi số dư không ghi đè kết quả; đối chứng âm thất bại đúng chỗ; cập nhật golden theo đúng thay đổi định danh
 
 ## 3. Sau khi gộp
 

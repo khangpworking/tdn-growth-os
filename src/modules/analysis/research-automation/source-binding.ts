@@ -88,11 +88,14 @@ function creditLimitation(result: { readonly provider: string; readonly coverage
 /** Marks a step whose provider answered with a server error (HTTP 500 and above), unless credit already explains the stop. */
 function providerUnavailableLimitation(result: {
   readonly provider: string;
-  readonly coverage: readonly { readonly queryWindows: readonly { readonly status: string }[] }[];
-  readonly captures: readonly { readonly outcome: string; readonly httpStatus: number | null }[];
+  readonly coverage: readonly { readonly queryWindows: readonly { readonly status: string; readonly captureIds: readonly string[] }[] }[];
+  readonly captures: readonly { readonly captureId: string; readonly outcome: string; readonly httpStatus: number | null }[];
 }): SourceLimitation[] {
   if (result.coverage.some(item => item.queryWindows.some(window => window.status === 'NOT_RUN_CREDIT_EXHAUSTED'))) return [];
-  const failed = result.captures.find(capture => capture.outcome === 'HTTP_ERROR' && capture.httpStatus !== null && capture.httpStatus >= 500);
+  const failedIds = new Set(result.coverage.flatMap(item => item.queryWindows.filter(window => window.status === 'FAILED').flatMap(window => window.captureIds)));
+  const failures = result.captures.filter(capture => failedIds.has(capture.captureId) && capture.outcome === 'HTTP_ERROR');
+  if (failures.some(capture => capture.httpStatus !== null && [401, 403, 429].includes(capture.httpStatus))) return [];
+  const failed = failures.find(capture => capture.httpStatus !== null && capture.httpStatus >= 500);
   return failed ? [{ code: PROVIDER_UNAVAILABLE, provider: result.provider.toLowerCase(), message: providerUnavailableMessage(failed.httpStatus!) }] : [];
 }
 
