@@ -1,5 +1,7 @@
 import type { ResearchAutomationSourceConfirmRequestV3 } from '../../../../contracts/api/research-automation-source-api-v3.generated.js';
 import type { CaptureRelevanceRecord } from './capture-relevance.js';
+import type { MetricV3CaptureSpec } from '../../../../contracts/analysis/metric-v3-capture-spec.generated.js';
+import { validateMetricV3CaptureSpec } from './metric-v3-capture-spec.js';
 // Pure derivations for the Market auto-runner (P6-209 follow-up, PR1).
 //
 // Every value the operator used to type by hand is derived here from run data
@@ -159,10 +161,14 @@ export interface MetricCaptureSpec {
  * Keywords are the first two terms in the given order, deduplicated after
  * NFC, trim and lowercase; the first spelling is kept.
  */
-export function buildCaptureSpec(terms: string | readonly string[], period: DatePeriod, category: string | null = null): MetricCaptureSpec {
+export function buildCaptureSpec(preset: MetricV3CaptureSpec): MetricV3CaptureSpec;
+export function buildCaptureSpec(terms: string | readonly string[], period: DatePeriod, category?: string | null): MetricCaptureSpec;
+export function buildCaptureSpec(terms: string | readonly string[] | MetricV3CaptureSpec, period?: DatePeriod, category: string | null = null): MetricCaptureSpec | MetricV3CaptureSpec {
+  if (typeof terms === 'object' && !Array.isArray(terms)) return validateMetricV3CaptureSpec(terms);
+  const legacyTerms = terms as string | readonly string[];
   const keywords: string[] = [];
   const seen = new Set<string>();
-  for (const term of typeof terms === 'string' ? [terms] : terms) {
+  for (const term of typeof legacyTerms === 'string' ? [legacyTerms] : legacyTerms) {
     const normalized = typeof term === 'string' ? term.normalize('NFC').trim() : '';
     const key = normalized.toLowerCase();
     if (!normalized || seen.has(key)) continue;

@@ -339,3 +339,51 @@ product variant price range `a₫ - b₫` gives `minPrice` its low end. Captures
 made before v11 keep those cells empty.
 
 Adapter manifest SHA-256: `66e0ef819c80d6fe1e736c53d5e0ccb8b079b156002300ba2948575436b24745`.
+
+## M3 step 2 — explicit colleague preset
+
+The checkout-only v3 capture takes a complete JSON preset and two explicit
+windows. The example is [zinc-colleague-preset.json](../metric/zinc-colleague-preset.json);
+control identities, source fields, and historical differences are recorded in
+[the live map](../metric/v3-capture-map.md).
+
+With Node 24.15.0 and the existing OpenCLI browser bridge available:
+
+```sh
+node --import tsx scripts/capture-metric-preset.ts \
+  docs/metric/zinc-colleague-preset.json \
+  /absolute/outside-git/new-capture-directory \
+  /absolute/operator-database.sqlite \
+  /absolute/path/to/opencli
+```
+
+The third argument is the existing operator database used only for the
+read-only `research_automation_autorun` busy check. The command waits while a
+CAPTURE phase is RUNNING, creates its own browser session/tab, and closes that
+tab on success, failure, or interruption. Python 3 is needed for this read-only
+check. Existing output directories, repository output, and the production
+state/share roots are refused. Run from the checkout; installing an adapter is
+not part of this command.
+
+`buildCaptureSpec(explicitPreset)` validates the canonical v3 schema without
+adding a second keyword, inferring a category, or shifting dates. The adapter
+clears the complete category tree before selecting the explicit children,
+verifies page controls before submitting, then verifies the actual request
+scope on every required response. An unknown parent/child returns
+`CAPTURE_CATEGORY_NOT_SELECTABLE`; unavailable controls, applied-state drift,
+request drift, missing responses, login, and restrictions have distinct stop
+codes. No lookup is automatically retried and no default date range is silently
+substituted.
+
+Each `30d/` and `12m/` directory contains sanitized `raw-responses.json` and a
+schema-validated `manifest.json` with actual applied state, requested period,
+source pointers, displayed KPIs, and raw-file hash/size. The root manifest is
+written only after both windows pass and binds both window manifests. A stopped
+run keeps its completed window and diagnostics; it has no successful root
+manifest. `spec.json`, `session.json`, and any `stopped.json` are local receipts.
+The source's first 20 rows retain the requested top 15 products and top 10
+shops/brands without pagination or export.
+
+These v3 capture artifacts are the input for the later report-layout package.
+They are not the older two-platform normalized snapshot contract. Report
+rendering and automatic selection of the new mode are step 3 integration work.
