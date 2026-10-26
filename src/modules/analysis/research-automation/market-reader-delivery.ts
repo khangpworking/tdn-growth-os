@@ -159,7 +159,7 @@ function rangeSentence(head: string, rows: readonly { label: string; num: Num }[
 }
 
 /** At most three sentences from displayed cells; omit the reading when no useful statement is available. */
-export function tableInterpretation(block: string): string {
+function deriveTableInterpretation(block: string): string {
   const table = block.match(/<table\b[\s\S]*?<\/table>/iu)?.[0];
   if (!table) return '';
   // A table that carries its own reading (e.g. Phần 11) says how it was built; no generic sentence is derived for it.
@@ -226,6 +226,21 @@ export function tableInterpretation(block: string): string {
   const missing = rows.filter(row => number(row[measure] ?? '') === undefined && (EMPTY.test(row[measure] ?? '') || (priceTable && row[measure] === 'Chưa có giá đọc được'))).length;
   if (missing) sentences[sentences.length - 1] = `${sentences[sentences.length - 1]!.replace(/\.$/u, '')}; ${missing} dòng chưa có dữ liệu ở cột này.`;
   return sentences.join(' ');
+}
+
+/**
+ * Number trace of a table reading: the caller records each number of the printed reading against the stored values
+ * it repeats and returns the text to print (market-number-trace.ts). Without it the text is unchanged.
+ */
+export interface MarketTableReadingTrace {
+  /** `text` is the reading as it will be printed under the table. */
+  reading(block: string, text: string): string;
+}
+
+/** At most three sentences from displayed cells; omit the reading when no useful statement is available. */
+export function tableInterpretation(block: string, trace?: MarketTableReadingTrace): string {
+  const reading = deriveTableInterpretation(block);
+  return reading && trace ? trace.reading(block, reading) : reading;
 }
 
 type SearchPoint = { readonly period: string; readonly index: number | null };
@@ -356,7 +371,7 @@ function exhibits(section: string): Exhibit[] {
 }
 
 /** Adds a standalone note and any useful cell/point-based reading right under the exhibit. */
-export function annotateExhibits(section: string, searchPoints?: readonly SearchPoint[], chartTrace?: MarketChartReadingTrace): string {
+export function annotateExhibits(section: string, searchPoints?: readonly SearchPoint[], chartTrace?: MarketChartReadingTrace, tableTrace?: MarketTableReadingTrace): string {
   let out = '', from = 0;
   for (const exhibit of exhibits(section)) {
     const block = section.slice(exhibit.start, exhibit.end);
@@ -365,7 +380,7 @@ export function annotateExhibits(section: string, searchPoints?: readonly Search
     const caption = text(block.match(/<div class="exh">[\s\S]*?<\/div>|<caption\b[^>]*>[\s\S]*?<\/caption>|<figcaption\b[^>]*>[\s\S]*?<\/figcaption>/u)?.[0] ?? '');
     const context = (!SAMPLE_CAPTION.test(caption) && CONTEXT.test(caption)) || /data-chart-id="M0[56]\./u.test(block);
     const note = hasNote ? '' : `<p class="lim"><b>Chú thích:</b> ${esc(context ? CONTEXT_NOTE : SAMPLE_NOTE)}</p>`;
-    const interp = exhibit.kind === 'table' ? tableInterpretation(block)
+    const interp = exhibit.kind === 'table' ? tableInterpretation(block, tableTrace)
       : figureInterpretation(block, /^<figure\b[^>]*\sdata-search-interest="1"|<span class="exn"[^>]*>Hình 5\.2<\/span>/u.test(block) ? searchPoints : undefined, chartTrace);
     const marks = /data-market-prices=/u.test(block) ? [...new Set(block.match(/<sup class="cite"[\s\S]*?<\/sup>/gu) ?? [])].join('') : '';
     out += section.slice(from, exhibit.end) + after + note + (interp ? `<p class="interp"><b>Diễn giải:</b> ${esc(interp)}${marks}</p>` : '');
@@ -402,7 +417,7 @@ function hasReadablePrice(html: string): boolean {
 }
 
 /** Reader copy of a market14 page (before platform icons and label sanitising). Sections are never nested. */
-export function deliverMarketReader(html: string, searchPoints?: readonly SearchPoint[], captureCopy = false, publicReviewSource = false, chartTrace?: MarketChartReadingTrace): string {
+export function deliverMarketReader(html: string, searchPoints?: readonly SearchPoint[], captureCopy = false, publicReviewSource = false, chartTrace?: MarketChartReadingTrace, tableTrace?: MarketTableReadingTrace): string {
   const open = html.indexOf('<div id="sections">');
   if (open < 0) return html;
   // Quoted excerpts carry their own <footer> inside a section: the page footer is the first one after the last section.
@@ -413,7 +428,7 @@ export function deliverMarketReader(html: string, searchPoints?: readonly Search
   body = body.replace(PHRASES[0]![0], PHRASES[0]![1]);
   body = body.replace(/<a\b[^>]*href="#bounded-method-evidence"[^>]*>([\s\S]*?)<\/a>/gu, '$1');
   body = body.replace(/<section class="sheet" id="(M\d\d)">([\s\S]*?)<\/section>/gu, (_all, id: string, inner: string) => {
-    const annotated = DATA_SECTIONS.test(id) ? annotateExhibits(inner, searchPoints, chartTrace) : inner;
+    const annotated = DATA_SECTIONS.test(id) ? annotateExhibits(inner, searchPoints, chartTrace, tableTrace) : inner;
     // Proposal tables only count as data when they cite in-sample figures.
     let proposalFigures = false;
     const evidence = id === 'M12' ? annotated.replace(/<div class="table-wrap market14-proposals(?: has-figures)?">[\s\S]*?<\/table><\/div>/gu, block => {
