@@ -48,6 +48,7 @@ export const MARKET_TRACE_ALLOWED: Readonly<Record<string, string>> = {
   'index-scale': 'fixed 0–100 scale of the search-interest index',
   'short-period': 'template rule: a period shorter than 30 days is incomplete (the 30-day search sample)',
   'draft-completion': 'template constant of the draft opening: a draft never counts a complete analytical section',
+  'fixed-display-note': 'fixed template note on a query window: the printed timezone is the application display convention, not a stored measure',
 };
 
 /**
@@ -63,6 +64,7 @@ export const MARKET_TRACE_ALLOWED_TEXT: Readonly<Record<string, keyof typeof MAR
   'mẫu tìm kiếm 30 ngày': 'short-period',
   'Kỳ chưa đủ 30 ngày': 'short-period',
   'Mục phân tích hoàn chỉnh: 0': 'draft-completion',
+  'Khoảng ngày đã truy vấn, gồm hai đầu mốc; +07:00 là quy ước hiển thị Việt Nam của ứng dụng. Chưa xác minh ranh giới ngày hoặc độ phủ của nguồn.': 'fixed-display-note',
 };
 
 const ALLOWED_TEXTS = Object.keys(MARKET_TRACE_ALLOWED_TEXT).sort((a, b) => b.length - a.length);
@@ -230,6 +232,11 @@ export const MARKET_TRACE_FORMULAS: Readonly<Record<MarketTraceFormulaId, Formul
   'reader-money': inputs => typeof inputs[0]?.value === 'string' ? formatReaderNumber(inputs[0].value, 'money') : null,
   'reader-count': inputs => typeof inputs[0]?.value === 'string' ? formatReaderNumber(inputs[0].value, 'count') : null,
   'reader-decimal': inputs => typeof inputs[0]?.value === 'string' ? formatReaderNumber(inputs[0].value, 'decimal') : null,
+  // A stored money value printed with its stored unit («0 VND»): the reader format of the value, a space, the unit.
+  'reader-money-unit': inputs => {
+    const value = inputs[0]?.value, unit = inputs[1]?.value, text = typeof value === 'string' ? formatReaderNumber(value, 'money') : null;
+    return text !== null && typeof unit === 'string' && unit.trim() !== '' ? `${text} ${unit}` : null;
+  },
   quarter: inputs => one(range(inputs), ({ start, end }) => String(marketMainQuarter(start, end).quarter)),
   year: inputs => one(range(inputs), ({ start, end }) => String(marketMainQuarter(start, end).year)),
   'vi-number': inputs => one(num(inputs[0]?.value), value => value.toLocaleString('vi-VN', { maximumFractionDigits: 3 })),

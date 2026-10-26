@@ -3855,6 +3855,8 @@ export class ResearchAutomationService {
     }
     const run = await this.getRun(fresh.workspaceId, fresh.runId);
     const collection = await this.#stepDocument(fresh.runId, 'COLLECTION');
+    const collectionSha = this.#stepResultSha(fresh.runId, 'COLLECTION');
+    const quickSearchSha = this.#stepResultSha(fresh.runId, 'QUICK_SEARCH');
     const captures = await this.#captureRecords(fresh.runId);
     const outputArtifacts: Array<{ marketPresentation: StoredArtifact | null; cover: StoredArtifact | null; trace: StoredArtifact | null; kind: 'MARKET' | 'INSIGHT'; claims: StoredArtifact; privateCorpus: StoredArtifact | null; m01: StoredArtifact | null; i14: StoredArtifact | null; metricProof: StoredArtifact | null; semantic: StoredArtifact; html: StoredArtifact; pdf: StoredArtifact | null; pdfCode: 'PDF_RENDERER_NOT_CONFIGURED' | 'PDF_RENDER_FAILED' | null }> = [];
     try {
@@ -4050,6 +4052,8 @@ export class ResearchAutomationService {
           ...(start.sourceEvidenceVersion ? { sourceEvidence: collection?.sourceEvidence ?? buildSourceEvidence({ draft: null, draftDigest: null, unavailableReason: 'SALES_NAMES_UNAVAILABLE', webResults: [], captures: [] }) } : {}),
           ...(boundedMethods ? { boundedMethods } : {}),
           ...(kind === 'MARKET' && quoteMethods ? { quoteMethods } : {}),
+          ...(kind === 'MARKET' && (collectionSha || quickSearchSha) ? { productCardSources: {
+            ...(collectionSha ? { collection: collectionSha } : {}), ...(quickSearchSha ? { quickSearch: quickSearchSha } : {}) } } : {}),
           collection: kind === 'INSIGHT' ? reviewCollection : descriptiveMethodFailure && marketCollection ? { ...marketCollection, comparables: [] } : marketCollection,
           ...(kind === 'MARKET' && descriptiveMethods ? { descriptiveMethods } : {}),
           ...(kind === 'MARKET' && descriptiveMethodFailure ? { descriptiveMethodFailure } : {}),
@@ -4981,9 +4985,13 @@ export class ResearchAutomationService {
     return refs.filter(ref => windows.some(window => !complete.has(`${ref}|${window.startDate}~${window.endDate}`))).length;
   }
 
-  async #stepDocument(runId: string, stepId: StepId): Promise<StepResultDocument | null> {
+  #stepResultSha(runId: string, stepId: StepId): string | undefined {
     const row = this.#db.prepare('SELECT result_sha256 resultSha FROM analysis_research_automation_steps WHERE run_id=? AND step_id=?').get(runId, stepId) as { resultSha: string | null } | undefined;
-    return row?.resultSha ? this.#readStepDocument(row.resultSha, runId, stepId) : null;
+    return row?.resultSha ?? undefined;
+  }
+  async #stepDocument(runId: string, stepId: StepId): Promise<StepResultDocument | null> {
+    const resultSha = this.#stepResultSha(runId, stepId);
+    return resultSha ? this.#readStepDocument(resultSha, runId, stepId) : null;
   }
   #output(runId: string, kind: 'MARKET' | 'INSIGHT'): OutputRow | undefined {
     return this.#db.prepare(`SELECT report_kind reportKind,version_sha256 versionSha,html_sha256 htmlSha,pdf_sha256 pdfSha,pdf_unavailable_code pdfUnavailableCode FROM analysis_research_automation_outputs WHERE run_id=? AND report_kind=?`).get(runId, kind) as OutputRow | undefined;
