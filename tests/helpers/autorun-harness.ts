@@ -136,7 +136,7 @@ function sequence(): () => string {
 export async function fixture(t: TestContext, autoRun: 'on' | 'off' | 'absent' = 'on', behaviour?: (runId: string) => Behaviour,
   runCapture?: (capture: FakeCapture) => RunCapture,
   reviews?: { cap?: number; factory?: ResearchAutomationServiceOptions['shopeeCollectorFactory'] },
-  lanes: Pick<ResearchAutomationServiceOptions, 'searchAdsSource' | 'metaAutoSource' | 'sourceEvidence' | 'renderer'> = {}) {
+  lanes: Pick<ResearchAutomationServiceOptions, 'searchAdsSource' | 'metaAutoSource' | 'sourceEvidence' | 'renderer' | 'v3Report'> = {}) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-autorun-'));
   const databasePath = path.join(root, 'test.sqlite');
   const artifactRoot = path.join(root, 'artifacts');

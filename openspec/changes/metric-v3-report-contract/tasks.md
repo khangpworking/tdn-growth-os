@@ -1,0 +1,4 @@
+- [x] Read and hash-check both retained capture windows.
+- [x] Render the v3 layout with AI opening and mandatory number trace.
+- [x] Retain HTML and export PDF with the existing Chromium renderer.
+- [x] Verify A1–A4 and record evidence in the PR and handoff.
