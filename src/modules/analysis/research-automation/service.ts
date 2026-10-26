@@ -1,3 +1,4 @@
+import * as v1Report from './metric-v3-report-v1.js';
 import { metricV3Category } from '../../../shared/metric-v3-preset.js';
 import { prepareV3MarketRevision } from './reader-publish.js';
 import { loadV3Archive, renderV3Report, buildV3Body, checkV3NumberTrace, v3Hash, type V3TextModel } from './metric-v3-report.js';
@@ -5875,7 +5876,7 @@ export class ResearchAutomationService {
         catch { pdfCode = 'PDF_RENDER_FAILED'; }
       }
       const semantic = await this.#artifacts.put(Buffer.from(canonicalJson({ contractVersion: 'research-automation-report-v1',
-        rendererVersion: 'metric-v3-report-v1', runId, workspaceId: run.workspaceId, kind: 'MARKET', startSha: run.startSha,
+        rendererVersion: 'metric-v3-report-v2', runId, workspaceId: run.workspaceId, kind: 'MARKET', startSha: run.startSha,
         spec, files: Object.fromEntries(Object.entries(files).map(([path, file]) => [path, file.sha256])),
         modelIdentity: this.#v3Report.model.identity ?? 'configured-text-model', opening: built.opening, numberTrace: built.trace, numberTraceGate: built.gate, htmlSha: htmlArtifact.sha256 })));
       // Retain the verified capture as a real source package for the Market Reader binding.
@@ -5921,11 +5922,12 @@ export class ResearchAutomationService {
     if (!output || pdf && !output.pdfSha) throw new ResearchAutomationNotFoundError(pdf ? 'pdf_not_available' : 'report_not_available', 'Report is not available.');
     const semantic = await this.#readJson<Record<string, any>>(output.versionSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
     const start = await this.#v3EffectiveStart(run);
-    if (semantic.contractVersion !== 'research-automation-report-v1' || semantic.rendererVersion !== 'metric-v3-report-v1' || semantic.runId !== run.runId || semantic.workspaceId !== run.workspaceId || semantic.kind !== 'MARKET' || semantic.startSha !== run.startSha ||
+    if (semantic.contractVersion !== 'research-automation-report-v1' || !['metric-v3-report-v1', 'metric-v3-report-v2'].includes(semantic.rendererVersion) || semantic.runId !== run.runId || semantic.workspaceId !== run.workspaceId || semantic.kind !== 'MARKET' || semantic.startSha !== run.startSha ||
         canonicalJson(semantic.spec) !== canonicalJson(start.metricV3Preset) || semantic.htmlSha !== output.htmlSha) throw new ResearchAutomationIntegrityError('Stored v3 report identity differs.');
     const archive = await loadV3Archive(path => this.#readArtifact(semantic.files[path], MAX_JSON_ARTIFACT_BYTES, 'application/json'), semantic.spec);
-    const built = buildV3Body(archive, semantic.opening);
-    const gate = checkV3NumberTrace(built, archive);
+    const renderer = semantic.rendererVersion === 'metric-v3-report-v1' ? v1Report : { buildV3Body, checkV3NumberTrace };
+    const built = renderer.buildV3Body(archive, semantic.opening);
+    const gate = renderer.checkV3NumberTrace(built, archive);
     const html = await this.#readArtifact(output.htmlSha, MAX_HTML_BYTES, 'text/html; charset=utf-8');
     if (!gate.ok || !html.equals(Buffer.from(built.html)) || v3Hash(html) !== semantic.htmlSha || canonicalJson(built.trace) !== canonicalJson(semantic.numberTrace)) throw new ResearchAutomationIntegrityError('Stored v3 report differs from retained evidence.');
     const bytes = pdf ? await this.#readArtifact(output.pdfSha!, MAX_PDF_BYTES, 'application/pdf') : html;

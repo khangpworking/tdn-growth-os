@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { JSDOM } from 'jsdom';
 import { chromium } from 'playwright-core';
 import { checkV3NumberTrace, loadV3Archive, renderV3Report, v3Hash, v3Resolver, type V3Archive, type V3TextModel } from '../../src/modules/analysis/research-automation/metric-v3-report.js';
+import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { checkMarketNumberTrace } from '../../src/modules/analysis/research-automation/market-number-trace.js';
 import { createChromiumPdfRenderer } from '../../src/modules/analysis/research-automation/pdf.js';
 import { planScope } from '../../src/modules/analysis/research-automation/autorun-scope.js';
@@ -45,6 +46,7 @@ async function capture(shopCase: 'known' | 'missing' | 'unknown' | 'conflicting'
     row.responses.push(publishedBasic);
     const raw = bytes(row.responses);
     const m = adapter.buildV3WindowManifest(f.spec, window, row.observation, row.responses, '2026-10-26T07:00:00.000Z');
+    m.captureId = `eeeeeeee-0000-4000-8000-${String(i + 1).padStart(12, '0')}`;
     files[`${window.id}/raw-responses.json`] = raw;
     files[`${window.id}/manifest.json`] = bytes(m);
     refs.push({ window: window.id, path: `${window.id}/manifest.json`, sha256: v3Hash(bytes(m)) });
@@ -263,7 +265,7 @@ test('V3L platform palette survives themes and print keeps panels and product me
 });
 
 // A4: durable production service boundary, then fresh read handle; no test-only production seam.
-for (const presetOrigin of ['start', 'confirmation'] as const) test(`A4 ${presetOrigin} preset PREPARE stores a report and stops interrupted AI on restart`, async t => {
+for (const [presetOrigin, rendererVersion] of [['start', 'v2'], ['confirmation', 'v2'], ['start', 'v1']] as const) test(`A4 ${presetOrigin} preset ${rendererVersion} stored report reads/downloads and stops interrupted AI on restart`, async t => {
   const bundle = await capture();
   const lane: { model?: V3TextModel } = { model: { ...model } };
   const f = await fixture(t, 'on', undefined, fake => async (_config, request) => {
@@ -297,6 +299,35 @@ for (const presetOrigin of ['start', 'confirmation'] as const) test(`A4 ${preset
   const run = await f.service.getRun(workspaceId, runId);
   assert.equal(run.status, 'DRAFT_READY', JSON.stringify(autorun(f.db, runId), (_key, value) => typeof value === 'bigint' ? String(value) : value));
   assert.equal(autorun(f.db, runId)!.phase, 'DONE');
+  const saved = f.db.prepare('SELECT version_sha256 versionSha FROM analysis_research_automation_outputs WHERE run_id=?').get(runId) as { versionSha: string };
+  const semantic = JSON.parse((await f.artifacts.read(saved.versionSha)).toString());
+  assert.equal(semantic.rendererVersion, 'metric-v3-report-v2', 'new runs name the new layout');
+  assert.equal((f.db.prepare('SELECT builder_version version FROM analysis_reader_report_revisions WHERE run_id=?').get(runId) as { version: string }).version, 'metric-v3-report-v2');
+  // Load historical bytes captured using the unmodified origin/main renderer,
+  // retaining this run's real capture lineage and identity. No legacy model call.
+  async function retain(data: Buffer, mediaType: string) {
+    const artifact = await f.artifacts.put(data);
+    f.db.prepare(`INSERT INTO artifact_manifests(sha256,byte_size,media_type,relative_path,acquired_at,contract_version,retention_status,created_at)
+      VALUES (?,?,?,?,'2026-02-01T00:00:00.000Z','1.0.0','active','2026-02-01T00:00:00.000Z') ON CONFLICT DO NOTHING`)
+      .run(artifact.sha256, artifact.byteSize, mediaType, artifact.relativePath);
+    return artifact.sha256;
+  }
+  if (rendererVersion === 'v1') {
+    const historical = JSON.parse(await readFile(new URL('../fixtures/metric-v3/report-v1.json', import.meta.url), 'utf8'));
+    const htmlSha = await retain(Buffer.from(historical.html), 'text/html; charset=utf-8');
+    Object.assign(semantic, { rendererVersion: 'metric-v3-report-v1', htmlSha, opening: historical.opening, numberTrace: historical.trace, numberTraceGate: historical.gate });
+    const versionSha = await retain(Buffer.from(canonicalJson(semantic)), 'application/json');
+    const metricsSha = await retain(bytes(historical.trace), 'application/json');
+    const row = f.db.prepare('SELECT revision_id revisionId,input_sha256 inputSha FROM analysis_reader_report_revisions WHERE run_id=?').get(runId) as { revisionId: string; inputSha: string };
+    const input = JSON.parse((await f.artifacts.read(row.inputSha)).toString());
+    Object.assign(input, { semanticSha256: versionSha, htmlSha256: htmlSha });
+    const inputSha = await retain(bytes(input), 'application/json');
+    // Historical-state fixture installation only; production keeps immutable ledgers.
+    f.db.exec('DROP TRIGGER analysis_research_automation_outputs_no_update; DROP TRIGGER analysis_reader_report_revisions_no_update');
+    f.db.prepare('UPDATE analysis_research_automation_outputs SET version_sha256=?,html_sha256=? WHERE run_id=?').run(versionSha, htmlSha, runId);
+    f.db.prepare("UPDATE analysis_reader_report_revisions SET builder_version='metric-v3-report-v1',request_sha256=?,draft_pair_id=?,input_sha256=?,html_sha256=?,metrics_sha256=? WHERE run_id=?")
+      .run(versionSha, versionSha, inputSha, htmlSha, metricsSha, runId);
+  }
   const fresh = f.make();
   const revisions = (await fresh.listReaderReports(workspaceId, runId)).revisions;
   assert.equal(revisions.length, 1, 'completed v3 must be available in Reader');
@@ -316,6 +347,10 @@ for (const presetOrigin of ['start', 'confirmation'] as const) test(`A4 ${preset
     const page = await fetch(`${root}/${revisions[0]!.revisionId}/html`);
     assert.equal(page.status, 200);
     assert.deepEqual(Buffer.from(await page.arrayBuffer()), report.bytes);
+    // The draft download replays retained evidence, unlike the Reader's retained HTML route.
+    const draft = await fetch(`${base}/api/workspaces/${workspaceId}/research-automation/runs/${runId}/reports/market`);
+    assert.equal(draft.status, 200);
+    assert.deepEqual(Buffer.from(await draft.arrayBuffer()), report.bytes);
     if (process.env.TDN_RESEARCH_PDF_CHROMIUM) {
       const download = await fetch(`${root}/${revisions[0]!.revisionId}/pdf`);
       assert.equal(download.status, 200);
@@ -325,7 +360,24 @@ for (const presetOrigin of ['start', 'confirmation'] as const) test(`A4 ${preset
     } else t.diagnostic('PDF route requires TDN_RESEARCH_PDF_CHROMIUM; HTML delivery still checked');
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); await api.close(); }
 
+  if (rendererVersion === 'v1') {
+    const historical = JSON.parse(await readFile(new URL('../fixtures/metric-v3/report-v1.json', import.meta.url), 'utf8'));
+    assert.equal(report.bytes.toString(), historical.html, 'v1 is byte-identical to origin/main');
+    return;
+  }
   assert.match(report.bytes.toString(), /id="p9"/);
+  if (presetOrigin === 'start') {
+    // Rebind valid artifact hashes so corruption reaches the evidence replay guard.
+    // A mere file-byte change would only exercise the artifact store's hash check.
+    f.db.exec('DROP TRIGGER analysis_research_automation_outputs_no_update');
+    const changedHtmlSha = await retain(Buffer.from(report.bytes.toString().replace('Synthetic item 1', 'Tampered item 1')), 'text/html; charset=utf-8');
+    const tamperedSha = await retain(Buffer.from(canonicalJson({ ...semantic, htmlSha: changedHtmlSha })), 'application/json');
+    f.db.prepare('UPDATE analysis_research_automation_outputs SET version_sha256=?,html_sha256=? WHERE run_id=?').run(tamperedSha, changedHtmlSha, runId);
+    await assert.rejects(f.make().readReport(workspaceId, runId, 'MARKET'), /Stored v3 report differs from retained evidence/);
+    const unknownSha = await retain(Buffer.from(canonicalJson({ ...semantic, rendererVersion: 'metric-v3-report-v99' })), 'application/json');
+    f.db.prepare('UPDATE analysis_research_automation_outputs SET version_sha256=?,html_sha256=? WHERE run_id=?').run(unknownSha, semantic.htmlSha, runId);
+    await assert.rejects(f.make().readReport(workspaceId, runId, 'MARKET'), /Stored v3 report identity differs/);
+  }
   await assert.rejects(f.service.readReport(workspaceId, runId, 'MARKET', true), /not available/);
   const steps = f.db.prepare("SELECT state FROM analysis_research_automation_steps WHERE run_id=? AND step_id='COLLECTION'").get(runId) as { state: string };
   assert.equal(steps.state, 'SKIPPED');
