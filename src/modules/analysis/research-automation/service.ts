@@ -3585,7 +3585,7 @@ export class ResearchAutomationService {
       const preparing = this.#db.prepare(`SELECT run_id runId FROM research_automation_autorun WHERE phase='PREPARE' AND phase_state='RUNNING'`).all() as { runId: string }[];
       for (const { runId } of preparing) {
         const run = this.#current(runId)!;
-        if ((await this.#readStartSnapshot(run.startSha, run.workspaceId)).metricV3Preset) await this.#autorunStopRunning(runId, 'PREPARE', 'V3_REPORT_INTERRUPTED');
+        if ((await this.#v3EffectiveStart(run)).metricV3Preset) await this.#autorunStopRunning(runId, 'PREPARE', 'V3_REPORT_INTERRUPTED');
       }
     }
     // Settle cancelled reporting before collection checkpoint recovery can requeue it.
@@ -3676,7 +3676,7 @@ export class ResearchAutomationService {
       const source = this.#source;
       // Register the operation before reading artifacts so worker shutdown can
       // interrupt both preset routing and legacy provider claims.
-      const start = await this.#readStartSnapshot(row.startSha, row.workspaceId);
+      const start = await this.#v3EffectiveStart(row);
       if (controller.signal.aborted) return false;
       if (stepId === 'QUICK_SEARCH' && start.metricV3Preset) {
         await withDatabaseMutationMutex(this.#db, async () => {
@@ -5679,7 +5679,7 @@ export class ResearchAutomationService {
     let principal = 0;
     let start: StartSnapshot | undefined;
     if (before.status === 'AWAITING_SCOPE') {
-      start = await this.#readStartSnapshot(before.startSha, before.workspaceId);
+      start = await this.#v3EffectiveStart(before);
       principal = (await this.#principalCards(before.workspaceId, runId)).length;
     }
     const { claimed, progressed } = await this.#autorunClaim(runId, 'CAPTURE', run => {
@@ -5694,19 +5694,16 @@ export class ResearchAutomationService {
     });
     if (!claimed) return progressed;
     let scope: AutorunScopeRecord | null;
-    let confirmedPreset: ReturnType<typeof validateMetricV3CaptureSpec> | undefined;
     try {
       scope = await this.#autorunScope(runId);
-      if (scope?.metricV3Preset) confirmedPreset = validateMetricV3CaptureSpec(scope.metricV3Preset);
     }
     catch { await this.#autorunStopRunning(runId, 'CAPTURE', 'CAPTURE_IO_FAILED'); return true; }
     // Keep the planned second capture on retry, including when its scope file settled before the
     // database phase write-back failed. Only an unanswered suggestion still belongs to capture 1.
     // The wait-point confirmation authorizes both keywords and windows. Use that
     // effective scope for runner admission while preserving the saved start snapshot.
-    const captureStart = confirmedPreset ? { ...start!, keyword: confirmedPreset.preset.keywords[0]!, metricV3Preset: confirmedPreset } : start!;
-    const capturePeriod = confirmedPreset ? confirmedPreset.windows[1]!.period : { startDate: start!.requestedPeriod.startDate, endDate: start!.requestedPeriod.endDate };
-    this.#launchCapture(runId, captureStart, capturePeriod,
+    const capturePeriod = start!.metricV3Preset?.windows[1]!.period ?? { startDate: start!.requestedPeriod.startDate, endDate: start!.requestedPeriod.endDate };
+    this.#launchCapture(runId, start!, capturePeriod,
       scope?.capture2 && scope.capture2.outcome !== 'AWAITING_KEYWORD2' ? scope : null);
     return progressed;
   }
