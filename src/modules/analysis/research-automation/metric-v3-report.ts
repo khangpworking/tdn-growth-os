@@ -30,7 +30,7 @@ const same = (a: unknown, b: unknown) => canonicalJson(a) === canonicalJson(b);
 const pointer = (root: Json, path: string): Json => path.split('/').slice(1).reduce((v, key) => v?.[key.replaceAll('~1', '/').replaceAll('~0', '~')], root);
 const esc = (s: unknown) => String(s).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
 const platforms: Record<string, string> = { '1': 'Shopee', '2': 'Lazada', '3': 'Tiki', '8': 'TikTok Shop' };
-const colour = (p: unknown) => p === 'brand' ? 'acc' : p === 1 ? 'shopee' : p === 8 ? 'tiktok' : 'unk';
+const colour = (p: unknown) => p === 'brand' ? 'acc' : p === 1 ? 'shopee' : p === 8 ? 'tiktok' : p === 2 ? 'lazada' : p === 3 ? 'tiki' : 'unk';
 export type V3TextModel = { readonly identity?: string; generateText(request: { systemText: string; userText: string; signal?: AbortSignal }): Promise<string> };
 export type V3Archive = { spec: MetricV3CaptureSpec; manifest: Json; windows: { manifest: Json; raw: Json; rawSha: string }[] };
 
@@ -67,7 +67,7 @@ export async function loadV3Archive(read: (path: string) => Promise<Buffer>, unt
 }
 
 // Structural numbers only: never quantitative findings. Kept separately for replay.
-const V3_STRUCTURE = { version: 'v3', previousVersion: 'v2', parts: '0 1 2 3 4 5 6 7', counts: '2 3 4 5 10 15', windows: '30 ngày 12 tháng',
+const V3_STRUCTURE = { version: 'v3', previousVersion: 'v2', parts: '1 2 3 4 5 6 7 8 9', counts: '2 3 4 5 10 15', windows: '30 ngày 12 tháng',
   bands: '0 10000 50000 100000 200000 500000 1000000 2000000 5000000', filter: '2%', scale: '0', bandLabels: 'dưới 10 nghìn 10–50 nghìn 50–100 nghìn 100–200 nghìn 200–500 nghìn 500 nghìn–1 triệu 1–2 triệu 2–5 triệu' };
 const structureSha = v3Hash(canonicalJson(V3_STRUCTURE));
 export function v3Resolver(archive: V3Archive) {
@@ -82,7 +82,7 @@ export function v3Resolver(archive: V3Archive) {
   };
 }
 
-/** Port of the reference layout: eight sections, TOC, nine figures, HTML bars and SVG lines. */
+/** Port of the reference layout: eight numbered parts and appendix, TOC, nine figures, HTML bars and SVG lines. */
 export function buildV3Body(archive: V3Archive, opening?: { points: string[]; proposals: string[] }) {
   const trace = new MarketNumberTraceCollector();
   const facts: Record<string, { text: string; inputs: MarketTraceInput[]; formula: MarketTraceFormulaId }> = {};
@@ -141,15 +141,17 @@ export function buildV3Body(archive: V3Archive, opening?: { points: string[]; pr
   const two = (render: (w: number) => string) => `<div class="two">${[0, 1].map(w => `<div class="panel"><h4>${period(w)} · ${dates(w)}</h4>${render(w)}</div>`).join('')}</div>`;
   const legend = '<div class="legend"><span class="pl"><span class="sw sw-tiktok"></span>TikTok Shop</span><span class="pl"><span class="sw sw-shopee"></span>Shopee</span></div>';
   const fig = (title: string, sub: string, inner: string, take = '', lg = legend) => `<figure class="fig"><figcaption><h3>${title}</h3><p>${sub}</p></figcaption>${lg}${inner}${take ? `<p class="take">${take}</p>` : ''}</figure>`;
-  const sections: string[] = [];
-  const titles = ['Kết luận', 'Thị trường lớn cỡ nào, đang lên hay xuống', 'Shop Mall hay shop thường', 'Tiền nằm ở dải giá nào', 'Ai đang thắng', 'Sản phẩm bán chạy nhất', 'Dữ liệu này không trả lời được gì', 'Chú thích dữ liệu'];
-  const section = (n: number, body: string) => sections.push(`<section id="phan-${n}" class="sec"><header class="sec-h"><span class="sec-no">${fixed(`Phần ${n}`)}</span><h2>${titles[n]}</h2></header>${body}</section>`);
+  const sections = new Map<number, string>();
+  const titles = ['Kết luận và đề xuất hướng kinh doanh', 'Thị trường lớn cỡ nào, đang lên hay xuống', 'Shop Mall hay shop thường', 'Tiền nằm ở dải giá nào', 'Ai đang thắng', 'Sản phẩm bán chạy nhất', 'Dữ liệu này không trả lời được gì', 'Chú thích dữ liệu', 'Tổng quan tóm tắt'];
+  // Keep evidence/fact construction order stable for saved AI placeholders.
+  const partNumbers = [8, 2, 3, 4, 5, 6, 7, 9, 1];
+  const section = (n: number, body: string) => sections.set(n, `<section id="p${partNumbers[n]}" class="sec${n === 8 ? ' sum' : ''}"><header class="sec-h"><span class="sec-no">${n === 7 ? 'Phụ lục' : fixed(`Phần ${partNumbers[n]}`)}</span><h2>${titles[n]}</h2></header>${body}</section>`);
   const bars = (entries: { label: string; values: { p: unknown; inputs: MarketTraceInput[]; suffix?: string }[] }[], wide = false) => {
     const max = Math.max(...entries.flatMap(r => r.values.map(v => val(v.inputs))), 1);
     return `<div class="hb${wide ? ' wide' : ''}">${entries.map(r => `<div class="hb-r"><div class="hb-l">${r.label}</div><div class="hb-t">${r.values.map(v => `<div class="hb-b"><i class="bg-${colour(v.p)}" style="width:${val(v.inputs) / max * 58}%"></i><span>${money(v.inputs)}${v.suffix ?? ''}</span></div>`).join('')}</div></div>`).join('')}</div>`;
   };
-  let p1 = [0, 1].map(w => `<p class="kp-h">${period(w)} · ${dates(w)}</p><div class="kpis">${[['Doanh số', 'REVENUE_TOTAL_CUSTOM'], ['Lượt bán', 'ORDER_TOTAL_CUSTOM'], ['Sản phẩm có lượt bán', 'PRODUCT_TOTAL'], ['Shop có lượt bán', 'SHOP_TOTAL']].map(([label, key]) => `<div class="kpi"><span class="k-l">${label}</span><span class="k-v">${key!.startsWith('REVENUE') ? money(total(w, key)) : count(total(w, key))}</span><span>${change(total(w, key), total(w, `PREVIOUS_${key}`))}</span><span class="ref">${comparison(w, label)}</span></div>`).join('')}</div>`).join('');
-  p1 += fig('TikTok Shop giữ phần lớn doanh số hai sàn', 'Doanh số mỗi sàn và tỷ lệ trên tổng hai sàn. Lazada, Tiki không vẽ.', two(w => {
+  const kpis = [0, 1].map(w => `<p class="kp-h">${period(w)} · ${dates(w)}</p><div class="kpis">${[['Doanh số', 'REVENUE_TOTAL_CUSTOM'], ['Lượt bán', 'ORDER_TOTAL_CUSTOM'], ['Sản phẩm có lượt bán', 'PRODUCT_TOTAL'], ['Shop có lượt bán', 'SHOP_TOTAL']].map(([label, key]) => `<div class="kpi"><span class="k-l">${label}</span><span class="k-v">${key!.startsWith('REVENUE') ? money(total(w, key)) : count(total(w, key))}</span><span>${change(total(w, key), total(w, `PREVIOUS_${key}`))}</span><span class="ref">${comparison(w, label)}</span></div>`).join('')}</div>`).join('');
+  let p1 = fig('TikTok Shop giữ phần lớn doanh số hai sàn', 'Doanh số mỗi sàn và tỷ lệ trên tổng hai sàn. Lazada, Tiki không vẽ.', two(w => {
     const both = [...total(w, undefined, 8), ...total(w, undefined, 1)];
     return `<div class="stk2">${[8, 1].map(p => `<i class="bg-${colour(p)}" style="flex:${val(total(w, undefined, p))}">${share(total(w, undefined, p), both)}</i>`).join('')}</div><p class="cap">${[8, 1].map(p => `${platforms[p]} ${money(total(w, undefined, p))}`).join(' · ')} · cộng hai sàn ${money(both)}</p>`;
   }));
@@ -217,6 +219,7 @@ export function buildV3Body(archive: V3Archive, opening?: { points: string[]; pr
       const prev = r[`previous_${key}`];
       const suffix = ` · ${share([input], total(w))}${prev === null || prev === undefined ? '' : ` · ${change([input], [ref(w, `${path}/previous_${key}`)])}`}`;
       let label = rawText(w, `${path}/${endpoint === 'groups' ? 'brand' : endpoint === 'shops' ? 'shop_name' : 'product_name'}`);
+      if (endpoint === 'products') label = `<span class="pt">${label}</span>`;
       // Only an explicit identity join to shops in this same window supplies a missing platform.
       // Names, URL shapes and identifier prefixes are never platform evidence.
       let platform = r.platform_id;
@@ -234,6 +237,7 @@ export function buildV3Body(archive: V3Archive, opening?: { points: string[]; pr
   section(6, '<ol class="foot-notes"><li><b>Vì sao doanh số thay đổi.</b> Dữ liệu không nói lý do.</li><li><b>Giá khách thật sự trả.</b> Báo cáo không dùng giá bình quân (doanh số ÷ lượt bán). Số này gộp nhiều quy cách và phân loại, nên không có ý nghĩa.</li><li><b>Sản phẩm lạc chủ đề.</b> Tìm mở rộng kéo theo vài sản phẩm không phải viên kẽm, ví dụ viên sắt, viên sủi vitamin tổng hợp. Chưa lọc tay.</li><li><b>Lãi gộp, phí sàn, phí quảng cáo.</b> Không có trong dữ liệu.</li><li><b>Lời hứa công dụng.</b> Dữ liệu không nói lời hứa trên tên sản phẩm có đúng hồ sơ công bố hay không.</li></ol>');
   section(7, `<ol class="foot-notes"><li>Nguồn: số liệu bán hàng ước tính trên sàn, do một công cụ theo dõi sàn thu thập. Cài đặt tìm kiếm ghi ở đầu trang.</li><li>Khác bản trước: tìm hai từ khóa, bật tìm mở rộng, chọn ngành Sức khỏe. Hai bản không cùng mẫu, không so trực tiếp.</li><li>Lazada và Tiki không vẽ trên biểu đồ. ${[0, 1].map(w => `${period(w)}: ${[2, 3].map(p => `${platforms[p]} ${total(w, undefined, p).length ? money(total(w, undefined, p)) : 'chưa có dữ liệu'}`).join(', ')}`).join('; ')}. Các chỉ số đầu trang gồm cả bốn sàn.</li><li>Số theo tuần, tháng, shop Mall/thường đọc từ phản hồi lưu sẵn. Biểu đồ tuần chỉ giữ tuần đủ ngày; biểu đồ tháng giữ cả tháng chưa đủ. Phản hồi xu hướng không có bộ lọc quà tặng và sản phẩm đã xóa; không coi tổng xu hướng bằng tổng chỉ số đầu trang.</li><li>▲▼: so với kỳ liền trước cùng độ dài. ${comparison(0)}; ${comparison(1)}.</li><li>% thương hiệu và % shop: doanh số ÷ doanh số cả bốn sàn cùng kỳ.</li><li>Lọc số đánh giá trên ${fixed('2%')} lượt bán: sản phẩm mới, ít đánh giá có thể bị bỏ dù bán thật.</li><li>Bỏ giá bình quân (doanh số ÷ lượt bán) và biểu đồ giá theo tháng của bản trước, theo góp ý của đồng nghiệp.</li></ol>`);
   let p0 = '';
+  let summary = '';
   if (opening) {
     const catalogue = buildV3Body(archive).facts;
     const interpolate = (text: string) => {
@@ -245,13 +249,21 @@ export function buildV3Body(archive: V3Archive, opening?: { points: string[]; pr
         return emit(fact.inputs, fact.formula, fact.text);
       }).join('');
     };
-    p0 = `<ol class="finds">${opening.points.map(p => { const stop = p.indexOf('. '); return stop < 0 ? `<li>${interpolate(p)}</li>` : `<li><b>${interpolate(p.slice(0, stop + 1))}</b><span class="det">${interpolate(p.slice(stop + 2))}</span></li>`; }).join('')}</ol><h3 class="sub">${fixed('3 đề xuất chính')}</h3><div class="cards3">${opening.proposals.map(p => `<article class="pcard"><span class="pc-k">Đề xuất, chờ chủ duyệt</span><p>${interpolate(p)}</p></article>`).join('')}</div>`;
+    p0 = `<ol class="finds">${opening.points.map(p => { const stop = p.indexOf('. '); return stop < 0 ? `<li><b>${interpolate(p)}</b></li>` : `<li><b>${interpolate(p.slice(0, stop + 1))}</b><span class="det">${interpolate(p.slice(stop + 2))}</span></li>`; }).join('')}</ol><h3 class="sub">Đề xuất hướng kinh doanh</h3><div class="cards3">${opening.proposals.map(p => `<article class="pcard"><span class="pc-k">Đề xuất, chờ chủ duyệt</span><p>${interpolate(p)}</p></article>`).join('')}</div>`;
+    const headline = (point: string) => {
+      const stop = point.indexOf('. ');
+      return interpolate(stop < 0 ? point : point.slice(0, stop + 1));
+    };
+    // Each repeated headline is emitted again so occurrence accounting stays exact.
+    summary = `<h3 class="sub">Điểm chính</h3><ul class="sum-pts">${opening.points.slice(0, 4).map(p => `<li>${headline(p)}</li>`).join('')}</ul><p class="sum-cav">${headline(opening.points[4]!)}</p>`;
   }
   section(0, p0);
-  const hints = ['Năm ý chính và ba đề xuất, đọc trước', 'Doanh số, tỷ lệ hai sàn, theo tuần và theo tháng', 'Tỷ lệ shop Mall và shop thường', 'Doanh số theo dải giá, từng sàn', 'Thương hiệu và shop đầu', 'Sản phẩm đầu, kỳ ngắn và kỳ dài', 'Những câu dữ liệu chưa trả lời được', 'Nguồn, cách tính, khác gì bản trước'];
-  const toc = `<nav class="mucluc" id="muc-luc" aria-label="Mục lục"><h2>Mục lục</h2><ol>${titles.map((t, i) => `<li><a href="#phan-${i}"><b>${fixed(`Phần ${i}`)}</b>${t}</a><span>${hints[i]}</span></li>`).join('')}</ol></nav>`;
-  const header = `<header class="top"><p class="eyebrow">Báo cáo thị trường · bản ${fixed('v3')}</p><h1>${esc(archive.spec.preset.keywords[1]!.replace(/^./u, c => c.toUpperCase()))} trên Shopee và TikTok Shop</h1><p class="subt">${period(0)} (${dates(0)}) và ${period(1)} (${dates(1)}). Mọi số là ước tính trên sàn.</p><ul class="filters"><li><b>Từ khóa:</b> ${esc(archive.spec.preset.keywords.join(', '))}, bật tìm mở rộng</li><li><b>Ngành:</b> ${esc(archive.spec.preset.category.children.map(c => c.label).join(', '))}</li><li><b>Đã lọc:</b> sản phẩm ảo, quà tặng, sản phẩm đã xóa; số đánh giá trên ${fixed('2%')} lượt bán</li><li><b>Gồm:</b> shop Mall và shop thường</li></ul><p class="srcline">Biểu đồ: mỗi sàn một màu. Sàn chưa xác định giữ màu xám.<button type="button" class="btn no-print" id="printBtn">In hoặc lưu PDF</button></p>${toc}</header>`;
-  const html = `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Báo cáo thị trường</title><style>${V3_STYLE}</style></head><body><div class="wrap">${header}${sections.at(-1)}${sections.slice(0, -1).join('')}<p class="foot">Báo cáo thị trường · bản ${fixed('v3')} · số liệu ước tính, nhận định AI và đề xuất chưa được chủ duyệt.</p></div><script>document.getElementById("printBtn").addEventListener("click",function(){window.print()})</script></body></html>`;
+  section(8, `<p class="lead-in">Đọc trang này trước: thị trường lớn cỡ nào, đang lên hay xuống, sàn nào và ai đang dẫn. Kết luận và đề xuất hướng kinh doanh nằm ở <a href="#p8">${fixed('Phần 8')}</a>, cuối báo cáo.</p>${kpis}${summary}`);
+  const hints = ['Kết luận đầy đủ và ba đề xuất', 'Tỷ lệ hai sàn, theo tuần và theo tháng', 'Tỷ lệ shop Mall và shop thường', 'Doanh số theo dải giá, từng sàn', 'Thương hiệu và shop đầu', 'Sản phẩm đầu, kỳ ngắn và kỳ dài', 'Những câu dữ liệu chưa trả lời được', 'Nguồn, cách tính, khác gì bản trước', 'Số chính hai kỳ và các điểm chính, đọc trước'];
+  const order = [8, 1, 2, 3, 4, 5, 6, 0, 7];
+  const toc = `<nav class="mucluc" id="muc-luc" aria-label="Mục lục"><h2>Mục lục</h2><ol>${order.map(i => `<li><a href="#p${partNumbers[i]}"><b>${i === 7 ? 'Phụ lục' : fixed(`Phần ${partNumbers[i]}`)}</b>${titles[i]}</a><span>${hints[i]}</span></li>`).join('')}</ol></nav>`;
+  const header = `<header class="top"><p class="eyebrow">Báo cáo thị trường · bản ${fixed('v3')}</p><h1>${esc(archive.spec.preset.keywords[1]!.replace(/^./u, c => c.toUpperCase()))} trên Shopee và TikTok Shop</h1><p class="subt">${period(0)} (${dates(0)}) và ${period(1)} (${dates(1)}). Mọi số là ước tính trên sàn.</p><ul class="filters"><li><b>Từ khóa:</b> ${esc(archive.spec.preset.keywords.join(', '))}, bật tìm mở rộng</li><li><b>Ngành:</b> ${esc(archive.spec.preset.category.children.map(c => c.label).join(', '))}</li><li><b>Đã lọc:</b> sản phẩm ảo, quà tặng, sản phẩm đã xóa; số đánh giá trên ${fixed('2%')} lượt bán</li><li><b>Gồm:</b> shop Mall và shop thường</li></ul><p class="srcline">Biểu đồ: mỗi sàn một màu, theo màu sàn của công cụ đo. Sàn chưa xác định giữ màu xám.<button type="button" class="btn no-print" id="printBtn">In hoặc lưu PDF</button></p>${toc}</header>`;
+  const html = `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Báo cáo thị trường</title><style>${V3_STYLE}</style></head><body><div class="wrap">${header}${order.map(i => sections.get(i)).join('')}<p class="foot">Báo cáo thị trường · bản ${fixed('v3')} · số liệu ước tính, nhận định AI và đề xuất chưa được chủ duyệt.</p></div><script>document.getElementById("printBtn").addEventListener("click",function(){window.print()})</script></body></html>`;
   return { html, trace: trace.snapshot(), facts };
 }
 
