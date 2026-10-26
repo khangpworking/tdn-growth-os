@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import { canonicalJson } from '../../foundation/canonical-json.js';
 import type { AutomationM01EvidenceInventory } from '../../../../contracts/analysis/automation-m01-evidence-inventory.generated.js';
 import type { AutomationI14EvidenceAdmission, UnassignedClaim } from '../../../../contracts/analysis/automation-i14-evidence-admission.generated.js';
 import type { AutomationSourceClaims, Claim } from '../../../../contracts/analysis/automation-source-claims.generated.js';
@@ -33,9 +35,11 @@ function tracedStoredValue(value: string, blockId: string, source: { readonly sh
   const kind = readerValueKind(options), text = formatReaderValue(value, options);
   if (text === null) return 'Giá trị được giữ trong bản lưu nguồn';
   // A zero money value prints with its unit («0 VND»); the entry records both stored fields so the printed text replays.
-  if (text === '0' && unitText !== '' && unitText === options.unit)
-    return traceMarketNumber(`${text} ${unitText}`, `${blockId}.evidence.value`, 'raw',
+  if (text === '0' && unitText !== '' && unitText === options.unit) {
+    traceMarketNumber(`${text} ${unitText}`, `${blockId}.evidence.value`, 'raw',
       [storedRow(source, 'observation/value', value), storedRow(source, 'unit', unitText)], 'stored value and unit, reader money format', 'reader-money-unit');
+    return text;
+  }
   return traceMarketNumber(text, `${blockId}.evidence.value`, 'raw',
     [storedRow(source, 'observation/value', value)], `stored value, reader ${kind} format`, `reader-${kind}`);
 }
@@ -267,10 +271,12 @@ export function m01InventorySection(inventory: AutomationM01EvidenceInventory, c
   }).join('');
   // The caption counts the inventory items; each one points at its own claim id in the stored claims artifact.
   const claimOrdinal = new Map(claims.claims.map((claim, index) => [claim.claimId, index]));
+  // Source-claims artifacts retain canonical JSON with a trailing newline; claimsSha256 hashes only the inner list.
+  const claimsArtifactSha256 = createHash('sha256').update(`${canonicalJson(claims)}\n`).digest('hex');
   const itemCount = activeReaderPlainText ? formatReaderCount(inventory.items.length) ?? 'chưa rõ' : String(inventory.items.length);
   const tracedItemCount = rows
     ? traceMarketNumber(itemCount, 'M01.items', 'computed', inventory.items.map(item =>
-      storedInput('stored-source', inventory.sourceClaims.claimsSha256, `/claims/${claimOrdinal.get(item.claimId)!}/claimId`, item.claimId)), 'count(inventory items)', 'count')
+      storedInput('stored-source', claimsArtifactSha256, `/claims/${claimOrdinal.get(item.claimId)!}/claimId`, item.claimId)), 'count(inventory items)', 'count')
     : itemCount;
   return intro + (rows ? `<div class="table-wrap" role="region" aria-label="Danh sách bằng chứng chưa xếp hạng" tabindex="0"><table class="evidence-table"><caption>${tracedItemCount} mục bằng chứng, không phải số khách hàng hoặc tổng thị trường</caption><thead><tr><th scope="col">Bằng chứng</th><th scope="col">Giá trị và trạng thái</th><th scope="col">Kỳ đo và phạm vi</th><th scope="col">Truy nguồn</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="warning">Chưa có bằng chứng đầu nguồn đủ điều kiện cho M01. Không thể viết kết luận từ khoảng trống này.</p>') + methodLimits(inventory.limitations);
 }

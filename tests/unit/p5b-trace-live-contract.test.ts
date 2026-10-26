@@ -38,7 +38,7 @@ const M01_VALUE = '99846086';
 const M12_VALUE = '631404562';
 const sha = (value: unknown): string => createHash('sha256').update(canonicalJson(value)).digest('hex');
 
-function claimsFor(scope: ScopeSnapshot): AutomationSourceClaims {
+function claimsFor(scope: ScopeSnapshot, value = M01_VALUE): AutomationSourceClaims {
   const claimScope = { scopeSha256: sha(scope), universe: null, geography: 'VN', frame: null, inclusionRule: null, exclusionRule: null,
     variantRule: null, description: 'Synthetic frozen run scope' };
   const body = {
@@ -47,12 +47,12 @@ function claimsFor(scope: ScopeSnapshot): AutomationSourceClaims {
     source: { package: PACKAGE, logicalPath: 'synthetic/market.csv', sha256: 'e'.repeat(64), locator: '/observations/55', recordLocator: null,
       statement: null, attribution: null, spans: [] },
     observation: {
-      basis: 'SOURCE_OBSERVED' as const, state: 'observed_value',
+      basis: 'SOURCE_OBSERVED' as const, state: value === '0' ? 'observed_zero' : 'observed_value',
       measure: { literal: 'Doanh thu', definition: 'Source-stated revenue for one listed row', entityLabel: TITLE },
-      value: M01_VALUE, unit: 'VND', precision: 'exact' as const,
+      value, unit: 'VND', precision: 'exact' as const,
       period: { start: WINDOW.start, end: WINDOW.end, timezone: 'Asia/Ho_Chi_Minh', basis: 'SOURCE_STATED_PERIOD' },
       periodText: '25/11/2025 - 24/12/2025', scope: claimScope,
-      coverage: { unit: 'SOURCE_OBSERVATIONS' as const, observedCount: 1, zeroCount: 0, missingCount: 0, unknownCount: 0, nonExactCount: 0,
+      coverage: { unit: 'SOURCE_OBSERVATIONS' as const, observedCount: value === '0' ? 0 : 1, zeroCount: value === '0' ? 1 : 0, missingCount: 0, unknownCount: 0, nonExactCount: 0,
         description: 'One observed row' },
       limitations: ['SOURCE_STATED_MEASURE_IS_NOT_DEMAND_OR_MARKET_SIZE'],
     },
@@ -102,10 +102,10 @@ function marketInventory(): AutomationMarketMethodSnapshot {
   } as unknown as AutomationMarketMethodSnapshot;
 }
 
-async function p5bInput(): Promise<AutomationReportInput> {
+async function p5bInput(value = M01_VALUE): Promise<AutomationReportInput> {
   const base = await fullMarket14Input();
   const scope = base.scope;
-  const claims = claimsFor(scope);
+  const claims = claimsFor(scope, value);
   const { artifact: m01Inventory } = buildAutomationM01EvidenceInventory({
     run: { runId: scope.runId, workspaceId: scope.workspaceId }, scope, claimsSha256: claims.claimsSha256, sourceClaims: claims });
   const evidence = { run: { runId: scope.runId, workspaceId: scope.workspaceId }, scope, claimsSha256: claims.claimsSha256,
@@ -145,7 +145,7 @@ function build(input: AutomationReportInput) {
   assert.ok(semantic.marketNumberTrace?.entries.length, 'the report must retain its trace map');
   assert.ok(semantic.marketNumberTraceGate, 'the report must retain its machine-readable gate result');
   const context: MarketCheckContext = { kind: 'DRAFT_PLAIN', numberTrace: { trace: semantic.marketNumberTrace, resolve } };
-  return { html: report.html.toString(), trace: semantic.marketNumberTrace, gate: semantic.marketNumberTraceGate, context };
+  return { input, html: report.html.toString(), trace: semantic.marketNumberTrace, gate: semantic.marketNumberTraceGate, context };
 }
 
 let fixture: Promise<ReturnType<typeof build>> | undefined;
@@ -183,13 +183,25 @@ function mutate(html: string, block: string, from: string, to: string): string {
 }
 
 test('A1 a live-run-shaped report traces every number in its covered blocks', async () => {
-  const { gate, trace } = await p5bReport();
+  const { gate, trace, input } = await p5bReport();
   assertCoveredAllTraced(gate);
   // The rows the live gate blocked (evidence annotations, periods, titles) are the ones now traced.
   const blockIds = new Set(trace.entries.map(entry => entry.blockId));
   for (const id of ['M01.evidence.value', 'M01.evidence.period', 'M01.evidence.title', 'M01.items', 'M01',
     'M03.inventory.title', 'M12.evidence.value', 'M12']) assert.ok(blockIds.has(id), `${id} must carry a trace entry`);
   assert.deepEqual(gate.covered.map(row => row.block).sort(), ['M01', 'M02', 'M03', 'M04', 'M07', 'M12', 'page']);
+  // The count must resolve in the retained artifact, whose digest covers the full canonical document and newline.
+  const storedClaims = input.sourceClaims!;
+  const storedClaimsSha = createHash('sha256').update(`${canonicalJson(storedClaims)}\n`).digest('hex');
+  const count = trace.entries.find(entry => entry.blockId === 'M01.items');
+  assert.ok(count);
+  assert.deepEqual(count.inputs, storedClaims.claims.map((claim, index) => ({
+    store: 'stored-source', identity: storedClaimsSha, pointer: `/claims/${index}/claimId`, value: claim.claimId,
+  })));
+  const zero = build(await p5bInput('0'));
+  assertCoveredAllTraced(zero.gate);
+  assert.match(zero.html, /0 VND(?:<|\.)/u);
+  assert.doesNotMatch(zero.html, /0 VND VND/u);
 });
 
 test('A3a a changed evidence value blocks with one untraced number in its block', async () => {
