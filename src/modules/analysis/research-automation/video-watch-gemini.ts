@@ -5,7 +5,7 @@
 // or an error message. Captures never hold the video bytes (only their sha256 and size).
 import { createHash } from 'node:crypto';
 import { assertCliproxyConfiguration, type CliproxyConfiguration } from '../../../platform/ai/cliproxy-configuration.js';
-import { bytesContainSecret, CaptureLog, defaultProviderTransport, isRecord, parseJson, type ProviderTransport } from './provider-common.js';
+import { bytesContainSecret, CaptureLog, defaultProviderTransport, isRecord, parseJson, safeCaptureHeaders, safeResponseHeaders, type ProviderTransport } from './provider-common.js';
 import type { CaptureOutcome, ProviderRawCapture } from './providers.js';
 import { SUBTITLE_MAX_CAPTION_CHARS } from './video-watch-subtitles.js';
 
@@ -110,7 +110,8 @@ export interface VideoWatchModel {
 
 const sha = (value: Uint8Array | string): string => createHash('sha256').update(value).digest('hex');
 
-type Outcome = { kind: 'RECEIVED'; status: number; bytes: Buffer } | { kind: 'OVERSIZE'; status: number } | { kind: 'TIMEOUT' } | { kind: 'TRANSPORT' } | { kind: 'ABORTED' };
+type Outcome = { kind: 'RECEIVED'; status: number; bytes: Buffer; headers: Readonly<Record<string, string>> }
+  | { kind: 'OVERSIZE'; status: number; headers: Readonly<Record<string, string>> } | { kind: 'TIMEOUT' } | { kind: 'TRANSPORT' } | { kind: 'ABORTED' };
 
 /** One bounded loopback POST (the shared provider request only allows fixed public hosts). Redirects are refused. */
 async function loopbackPost(transport: ProviderTransport, url: URL, headers: Record<string, string>, body: string, timeoutMs: number, maxBytes: number,
@@ -122,9 +123,10 @@ async function loopbackPost(transport: ProviderTransport, url: URL, headers: Rec
   const classify = (): Outcome => signal?.aborted ? { kind: 'ABORTED' } : timeout.aborted ? { kind: 'TIMEOUT' } : { kind: 'TRANSPORT' };
   let response: Response;
   try { response = await transport.fetch(url, { method: 'POST', headers, body, redirect: 'error', signal: combined }); } catch { return classify(); }
+  const responseHeaders = safeResponseHeaders(response.headers);
   const declared = Number(response.headers.get('content-length'));
-  if (Number.isFinite(declared) && declared > maxBytes) { await response.body?.cancel().catch(() => {}); return { kind: 'OVERSIZE', status: response.status }; }
-  if (!response.body) return { kind: 'RECEIVED', status: response.status, bytes: Buffer.alloc(0) };
+  if (Number.isFinite(declared) && declared > maxBytes) { await response.body?.cancel().catch(() => {}); return { kind: 'OVERSIZE', status: response.status, headers: responseHeaders }; }
+  if (!response.body) return { kind: 'RECEIVED', status: response.status, bytes: Buffer.alloc(0), headers: responseHeaders };
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
   let size = 0;
@@ -133,11 +135,11 @@ async function loopbackPost(transport: ProviderTransport, url: URL, headers: Rec
       const part = await reader.read();
       if (part.done) break;
       size += part.value.byteLength;
-      if (size > maxBytes) return { kind: 'OVERSIZE', status: response.status };
+      if (size > maxBytes) return { kind: 'OVERSIZE', status: response.status, headers: responseHeaders };
       chunks.push(part.value);
     }
   } catch { return classify(); } finally { await reader.cancel().catch(() => {}); }
-  return { kind: 'RECEIVED', status: response.status, bytes: Buffer.concat(chunks) };
+  return { kind: 'RECEIVED', status: response.status, bytes: Buffer.concat(chunks), headers: responseHeaders };
 }
 
 /** `modelId` must be a plain Gemini id; the CLIProxy key is never echoed in anything this returns or throws. `timeoutMs` (default and
@@ -164,8 +166,9 @@ export function createVideoWatchModel(options: { readonly cliproxy: CliproxyConf
       const requestedAt = log.timestamp();
       requests++; paidRequests++;
       const outcome = await loopbackPost(transport, url, headers, body, timeoutMs, VIDEO_WATCH_ANSWER_BYTES, signal);
+      const responseHeaders = outcome.kind === 'RECEIVED' || outcome.kind === 'OVERSIZE' ? safeCaptureHeaders(outcome.headers, key) : undefined;
       const record = (result: CaptureOutcome, status: number | null, bytes: Buffer | null) => log.record({ operation: 'videowatch.generate', billing: 'PAID_CREDITS',
-        method: 'POST', endpoint: path, requestParameters, requestBodyBytes: null, queryWindow: null, pageNumber: null, productRef: null }, requestedAt, result, status, bytes, null);
+        method: 'POST', endpoint: path, requestParameters, requestBodyBytes: null, queryWindow: null, pageNumber: null, productRef: null }, requestedAt, result, status, bytes, null, responseHeaders);
       const retry = async (): Promise<boolean> => {
         if (attempt > 0) return false;
         try { await transport.sleep(RETRY_DELAY_MS, signal); return true; } catch { return false; }

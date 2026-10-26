@@ -5,7 +5,7 @@
 // most two workbook downloads, at least 2 seconds apart, no retries. The category group is picked by the existing text model
 // from a fixed list and then checked by a second question; an invalid answer is retried once and then rejected. Only row
 // labels confirmed in a published workbook are read, by exact match.
-import { boundedRequest, CaptureLog, defaultProviderTransport, isRecord, type ProviderTransport } from './provider-common.js';
+import { boundedRequest, CaptureLog, defaultProviderTransport, isRecord, safeCaptureHeaders, type ProviderTransport } from './provider-common.js';
 import type { ProviderCallOptions, ProviderRawCapture } from './providers.js';
 import { E12_ATTRIBUTION } from '../source-appendix-projection.js';
 import { containsForbiddenProviderName, containsTechnicalId } from '../citation-registry.js';
@@ -261,11 +261,12 @@ export function createOfficialStatsSource(options: { readonly model?: OfficialSt
         if (outcome.kind === 'ABORTED') { log.record(context, requestedAt, 'ABORTED_AMBIGUOUS', null, null, null); return 'CANCELLED'; }
         if (outcome.kind === 'TIMEOUT') { log.record(context, requestedAt, 'TIMEOUT_AMBIGUOUS', null, null, null); return null; }
         if (outcome.kind === 'TRANSPORT') { log.record(context, requestedAt, 'TRANSPORT_AMBIGUOUS', null, null, null); return null; }
-        if (outcome.kind === 'OVERSIZE') { log.record(context, requestedAt, 'OVERSIZE', outcome.status, null, null); return null; }
+        const responseHeaders = outcome.kind === 'RECEIVED' || outcome.kind === 'OVERSIZE' ? safeCaptureHeaders(outcome.headers) : undefined;
+        if (outcome.kind === 'OVERSIZE') { log.record(context, requestedAt, 'OVERSIZE', outcome.status, null, null, responseHeaders); return null; }
         if (outcome.kind !== 'RECEIVED') return null;
-        if (outcome.status !== 200) { log.record(context, requestedAt, 'HTTP_ERROR', outcome.status, null, null); return null; }
-        if (!check(outcome.bytes)) { log.record(context, requestedAt, 'INVALID_PAYLOAD', 200, null, null); return null; }
-        return log.record(context, requestedAt, 'OK', 200, outcome.bytes, null);
+        if (outcome.status !== 200) { log.record(context, requestedAt, 'HTTP_ERROR', outcome.status, null, null, responseHeaders); return null; }
+        if (!check(outcome.bytes)) { log.record(context, requestedAt, 'INVALID_PAYLOAD', 200, null, null, responseHeaders); return null; }
+        return log.record(context, requestedAt, 'OK', 200, outcome.bytes, null, responseHeaders);
       };
       const isZip = (bytes: Buffer): boolean => bytes.byteLength > 4 && bytes.readUInt32LE(0) === 0x04034b50;
 

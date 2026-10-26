@@ -2,7 +2,7 @@
 //
 // Country-level background for Vietnam, fetched once per run from the two pinned URLs per indicator that the manual
 // intake inspector already accepts (so at most 4 GET requests), and shown beside the sample numbers, never combined with them.
-import { boundedRequest, CaptureLog, defaultProviderTransport, ProviderInputError, type ProviderTransport } from './provider-common.js';
+import { boundedRequest, CaptureLog, defaultProviderTransport, ProviderInputError, safeCaptureHeaders, type ProviderTransport } from './provider-common.js';
 import type { ProviderCallOptions, ProviderRawCapture } from './providers.js';
 import type { StepWorldBank, StepWorldBankIndicator, StepWorldBankPoint, StepWorldBankRow } from './model.js';
 import { inspectWorldBankSource, MAX_WORLD_BANK_FILE_BYTES, WORLD_BANK_INDICATORS, WORLD_BANK_PROFILE, worldBankUrls, WorldBankSourceRejection } from './world-bank-intake.js';
@@ -66,7 +66,7 @@ export function createWorldBankSource(transport: ProviderTransport = defaultProv
         const parsed = new URL(url);
         const capture = log.record({ operation, billing: 'FREE_ACCOUNT_QUERY', method: 'GET', endpoint: `${parsed.origin}${parsed.pathname}`,
           requestParameters: { format: 'json' }, requestBodyBytes: null, queryWindow: null, pageNumber: null, productRef: null },
-          requestedAt, 'OK', 200, outcome.bytes, null);
+          requestedAt, 'OK', 200, outcome.bytes, null, safeCaptureHeaders(outcome.headers));
         return { capture, bytes: outcome.bytes };
       };
       const out: WorldBankAttempt[] = [];

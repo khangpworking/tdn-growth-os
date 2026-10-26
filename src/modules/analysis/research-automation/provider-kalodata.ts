@@ -3,7 +3,7 @@
 import {
   CaptureLog, ProviderInputError, RateLimiter, boundedRequest, boundedText, bytesContainSecret, emptyUsage,
   finiteNonNegative, formatProviderProductRef, httpsUrl, isAmbiguous, isRecord, parseJson, parseProviderProductRef,
-  recentWindowBefore, runStatusFromCoverage, safeProviderCode, splitPeriodIntoWindows, unavailableCoverage,
+  recentWindowBefore, runStatusFromCoverage, safeCaptureHeaders, safeProviderCode, splitPeriodIntoWindows, unavailableCoverage,
   validateCountry, validateKeyword, validatePeriod, windowRelation,
   type CaptureContext, type ProviderTransport,
 } from './provider-common.js';
@@ -150,7 +150,7 @@ export function createKalodataProvider(secretKey: string | null, transport: Prov
       const outcome = result.kind === 'TIMEOUT' ? 'TIMEOUT_AMBIGUOUS' : result.kind === 'ABORTED' ? 'ABORTED_AMBIGUOUS' : 'TRANSPORT_AMBIGUOUS';
       return { capture: log.record(context, requestedAt, outcome, null, null, null), data: null, rejection: null };
     }
-    const responseHeaders = captureHeaders(result.headers, key);
+    const responseHeaders = safeCaptureHeaders(result.headers, key);
     if (result.kind === 'OVERSIZE') {
       return { capture: log.record(context, requestedAt, 'OVERSIZE', result.status, null, null, responseHeaders), data: null, rejection: null };
     }
@@ -449,12 +449,6 @@ export function createKalodataProvider(secretKey: string | null, transport: Prov
       return { status: 'COMPLETED', balanceBefore: before?.value ?? null, creditExhausted: creditStop, products, usage, captures: log.captures };
     },
   };
-}
-
-/** Captured headers already allow-listed and bounded; drop any value echoing the secret key. */
-function captureHeaders(headers: Readonly<Record<string, string>>, key: string): Readonly<Record<string, string>> | undefined {
-  const kept = Object.entries(headers).filter(([, value]) => !bytesContainSecret(Buffer.from(value, 'utf8'), key));
-  return kept.length ? Object.fromEntries(kept) : undefined;
 }
 
 /** Ranked video rows: a list is required; a row without a numeric video id or a plain creator handle is left out; revenue and views are

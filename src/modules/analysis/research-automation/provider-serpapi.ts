@@ -7,7 +7,7 @@
 import {
   CaptureLog, ProviderInputError, RateLimiter, boundedRequest, boundedText,
   bytesContainSecret, emptyUsage, httpsUrl, isAmbiguous, isRecord, parseJson,
-  safeProviderCode, validateCountry, validateKeyword, validatePeriod,
+  safeCaptureHeaders, safeProviderCode, validateCountry, validateKeyword, validatePeriod,
   type CaptureContext, type ProviderTransport,
 } from './provider-common.js';
 import {
@@ -155,9 +155,10 @@ export function createSerpApiProvider(apiKey: string | null, transport: Provider
     });
     let capture: ProviderRawCapture;
     let payload: SearchPayload | null = null;
+    const responseHeaders = response.kind === 'RECEIVED' || response.kind === 'OVERSIZE' ? safeCaptureHeaders(response.headers, apiKey) : undefined;
     if (response.kind === 'RECEIVED') {
       if (bytesContainSecret(response.bytes, apiKey)) {
-        capture = log.record(context, requestedAt, 'CREDENTIAL_ECHO_REFUSED', response.status, null, null);
+        capture = log.record(context, requestedAt, 'CREDENTIAL_ECHO_REFUSED', response.status, null, null, responseHeaders);
       } else {
         const value = parseJson(response.bytes);
         const parsed = response.status >= 200 && response.status <= 299
@@ -166,17 +167,17 @@ export function createSerpApiProvider(apiKey: string | null, transport: Provider
           ? safeProviderCode(value.error_code ?? (isRecord(value.search_metadata) ? value.search_metadata.id : undefined))
           : null;
         if (response.status < 200 || response.status > 299) {
-          capture = log.record(context, requestedAt, 'HTTP_ERROR', response.status, response.bytes, providerCode);
+          capture = log.record(context, requestedAt, 'HTTP_ERROR', response.status, response.bytes, providerCode, responseHeaders);
         } else if (!parsed || (parsed.invalidRows > 0 && parsed.results.length === 0 && isRecord(value)
           && Array.isArray(value.organic_results) && value.organic_results.length > 0)) {
-          capture = log.record(context, requestedAt, 'INVALID_PAYLOAD', response.status, response.bytes, providerCode);
+          capture = log.record(context, requestedAt, 'INVALID_PAYLOAD', response.status, response.bytes, providerCode, responseHeaders);
         } else {
-          capture = log.record(context, requestedAt, 'OK', response.status, response.bytes, providerCode);
+          capture = log.record(context, requestedAt, 'OK', response.status, response.bytes, providerCode, responseHeaders);
           payload = parseResults(value, capture.completedAt, capture.captureId, expanded?.query.parameters.q) ?? null;
         }
       }
     } else if (response.kind === 'OVERSIZE') {
-      capture = log.record(context, requestedAt, 'OVERSIZE', response.status, null, null);
+      capture = log.record(context, requestedAt, 'OVERSIZE', response.status, null, null, responseHeaders);
     } else {
       const outcome = response.kind === 'TIMEOUT' ? 'TIMEOUT_AMBIGUOUS'
         : response.kind === 'ABORTED' ? 'ABORTED_AMBIGUOUS' : 'TRANSPORT_AMBIGUOUS';

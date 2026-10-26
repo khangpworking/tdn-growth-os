@@ -133,6 +133,12 @@ export function safeResponseHeaders(headers: Headers): Readonly<Record<string, s
   return out;
 }
 
+/** Allow-listed capture headers without any value that echoes a provider secret; undefined when nothing is kept. */
+export function safeCaptureHeaders(headers: Readonly<Record<string, string>>, secret?: string | null): Readonly<Record<string, string>> | undefined {
+  const kept = Object.entries(headers).filter(([, value]) => !secret || !bytesContainSecret(Buffer.from(value, 'utf8'), secret));
+  return kept.length ? Object.fromEntries(kept) : undefined;
+}
+
 export async function boundedRequest(transport: ProviderTransport, request: {
   url: URL; method: 'GET' | 'POST'; headers: Record<string, string>; body: string | null;
   timeoutMs: number; maxBytes: number; signal: AbortSignal | undefined;
