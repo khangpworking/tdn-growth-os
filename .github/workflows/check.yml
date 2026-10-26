@@ -23,6 +23,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       mode: ${{ steps.scope.outputs.mode }}
+      backend-shards: ${{ steps.shards.outputs.matrix }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
@@ -30,6 +31,19 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
           filter: blob:none
+
+      - name: Set up Node.js for shard coverage
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.15.0
+
+      - name: Verify every backend test runs exactly once
+        id: shards
+        shell: bash
+        run: |
+          shard_count=8
+          printf '%s\0' tests/unit/*.test.ts tests/integration/*.test.ts | node scripts/ci/split-backend-tests.mjs verify "$shard_count"
+          echo "matrix=$(node -e 'console.log(JSON.stringify(Array.from({length: Number(process.argv[1])}, (_, i) => i + 1)))' "$shard_count")" >> "$GITHUB_OUTPUT"
 
       - name: Select validation scope
         id: scope
@@ -179,7 +193,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: ${{ fromJSON(needs.scope.outputs.backend-shards) }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
@@ -212,11 +226,13 @@ jobs:
         run: |
           python3 -m pip install --only-binary=:all: --require-hashes -r scripts/requirements-pageindex.txt
 
-      - name: Run backend tests (shard ${{ matrix.shard }}/4)
+      - name: Run backend tests (shard ${{ matrix.shard }}/${{ strategy.job-total }})
         shell: bash
         run: |
           export LC_ALL=C
-          node --import tsx --test --test-shard=${{ matrix.shard }}/4 tests/unit/*.test.ts tests/integration/*.test.ts
+          node scripts/ci/split-backend-tests.mjs list ${{ matrix.shard }} ${{ strategy.job-total }} > "$RUNNER_TEMP/backend-tests.z"
+          mapfile -d '' -t tests < "$RUNNER_TEMP/backend-tests.z"
+          node --import tsx --test "${tests[@]}"
 
   frontend:
     needs: [scope, prep]
