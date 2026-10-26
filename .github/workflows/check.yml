@@ -41,7 +41,7 @@ jobs:
         id: shards
         shell: bash
         run: |
-          shard_count=6
+          shard_count=8
           printf '%s\0' tests/unit/*.test.ts tests/integration/*.test.ts | node scripts/ci/split-backend-tests.mjs verify "$shard_count"
           echo "matrix=$(node -e 'console.log(JSON.stringify(Array.from({length: Number(process.argv[1])}, (_, i) => i + 1)))' "$shard_count")" >> "$GITHUB_OUTPUT"
 
