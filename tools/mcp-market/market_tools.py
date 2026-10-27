@@ -497,7 +497,8 @@ def start_market(product: str, keyword1: str, period_days: int = 365) -> dict:
         "requestedPeriod": {"startDate": start.isoformat(), "endDate": end.isoformat()},
         "reports": ["MARKET"],
     }
-    response = _request("POST", f"/owner-api/workspaces/{_workspace()}/research-automation/runs", body)
+    # Starting includes a bounded calendar preflight before the run is frozen.
+    response = _request("POST", f"/owner-api/workspaces/{_workspace()}/research-automation/runs", body, timeout=120)
     return _write_result("start_market", request_key, response)
 
 

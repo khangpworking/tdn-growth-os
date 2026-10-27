@@ -281,3 +281,44 @@ test('date selection ignores hidden calendar arrows and commits both exact input
     await assert.rejects(adapter.selectV3Dates(page, { startDate: '2026-09-21', endDate: '2026-10-20' }), { message: 'CAPTURE_ORIGIN_CHANGED' });
   } finally { w.close(); }
 });
+
+
+test('availability follows enabled calendar dates across months without submitting or selecting dates', async () => {
+  const dom = new JSDOM('<body><div id="QuerySearchBuilder"><div class="ant-picker"><input value="01-01-2026"></div><div class="ant-picker"><input value="15-01-2026"></div><button id="submit">Analytics</button></div></body>',
+    { url: 'https://metric.vn/analytics', runScripts: 'outside-only' });
+  const w = dom.window, document = w.document;
+  Object.defineProperty(w.HTMLElement.prototype, 'getBoundingClientRect', { value: function (this: HTMLElement) {
+    return { width: this.style.visibility === 'hidden' ? 0 : 100, height: 30 };
+  } });
+  Object.defineProperty(document.body, 'innerText', { get: () => document.body.textContent || '' });
+  let shown = '2026-01', latest = '2026-01-24', submissions = 0, selections = 0;
+  document.querySelector<HTMLElement>('#submit')!.onclick = () => { submissions++; };
+  function render() {
+    document.querySelector('.ant-picker-dropdown')?.remove();
+    const panel = document.createElement('div'); panel.className = 'ant-picker-dropdown';
+    const days = new Date(Date.parse(shown + '-01') + 32 * 86400000); days.setUTCDate(0);
+    panel.innerHTML = '<button class="ant-picker-header-prev-btn" style="visibility:hidden"></button><button class="ant-picker-header-prev-btn" data-move="-1"></button><button class="ant-picker-header-next-btn" data-move="1"></button>' +
+      Array.from({ length: days.getUTCDate() }, (_, i) => {
+        const date = shown + '-' + String(i + 1).padStart(2, '0');
+        return `<div class="ant-picker-cell ${date > latest ? 'ant-picker-cell-disabled' : ''}" title="${date}"><span class="ant-picker-cell-inner">${i + 1}</span></div>`;
+      }).join('');
+    for (const b of panel.querySelectorAll<HTMLElement>('[data-move]')) b.onclick = () => {
+      const date = new Date(shown + '-01'); date.setUTCMonth(date.getUTCMonth() + Number(b.dataset.move)); shown = date.toISOString().slice(0, 7); render();
+    };
+    for (const cell of panel.querySelectorAll<HTMLElement>('.ant-picker-cell-inner')) cell.onclick = () => { selections++; };
+    document.body.append(panel);
+  }
+  document.querySelectorAll<HTMLInputElement>('input')[1]!.onclick = () => render();
+  const page = { evaluate: async (fn: Function, arg: unknown) => w.eval(`(${fn.toString()})(${JSON.stringify(arg)})`),
+    click: async (selector: string) => { document.querySelector<HTMLElement>(selector)!.click(); }, wait: async () => {} };
+  try {
+    assert.equal(await adapter.discoverV3AvailableEndDate(page, '2026-01-30'), '2026-01-24');
+    latest = '2026-01-27';
+    assert.equal(await adapter.discoverV3AvailableEndDate(page, '2026-01-30'), '2026-01-27');
+    assert.equal(await adapter.discoverV3AvailableEndDate(page, '2026-01-20'), '2026-01-20');
+    shown = '2026-02'; latest = '2026-01-24';
+    assert.equal(await adapter.discoverV3AvailableEndDate(page, '2026-02-15'), '2026-01-24');
+    assert.equal(submissions, 0); assert.equal(selections, 0);
+    assert.deepEqual([...document.querySelectorAll('input')].map(i => i.value), ['01-01-2026', '15-01-2026']);
+  } finally { w.close(); }
+});

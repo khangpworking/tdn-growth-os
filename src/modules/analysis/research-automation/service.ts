@@ -490,6 +490,8 @@ export interface ResearchAutomationServiceOptions {
 export interface ResearchAutomationAutoRunOptions {
   readonly enabled: boolean;
   readonly testReviewCap?: number;
+  /** Production calendar preflight, before a new run's scope is frozen. */
+  readonly resolveAvailableEndDate?: (config: MetricCaptureRunnerConfig, endDate: string) => Promise<string>;
   readonly runner: MetricCaptureRunnerConfig;
   /** Test seam; defaults to the real capture runner. */
   readonly runCapture?: (config: MetricCaptureRunnerConfig, request: MetricCaptureRequest) => Promise<MetricCaptureRunResult>;
@@ -1320,18 +1322,39 @@ export class ResearchAutomationService {
     if (this.#kalodataReplay) assertKalodataReplayScope(this.#kalodataReplay, input.keyword, input.requestedPeriod);
     await this.#readWorkspace(workspaceId);
     const requestSha = digest({ kind: 'START', workspaceId, input });
+    const existing = this.#request(input.requestKey);
+    if (existing) return this.#retryOrConflict(existing, requestSha, workspaceId, 'START');
+    // Browser work must never hold the database mutation mutex.
+    const createdAt = this.#now().toISOString();
+    let period = input.requestedPeriod;
+    let metricV3Preset = input.metricV3Preset === undefined ? undefined : validateMetricV3CaptureSpec(input.metricV3Preset);
+    let metricDateAlignment: StartSnapshot['metricDateAlignment'];
+    if (this.#autoRun?.resolveAvailableEndDate && !this.#kalodataReplay) {
+      // Never request today/future; availability is discovered, never inferred from a fixed lag.
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(this.#now());
+      const shift = (date: string, days: number) => new Date(Date.parse(date) + days * 86400000).toISOString().slice(0, 10);
+      const yesterday = shift(today, -1);
+      const cap = period.endDate < yesterday ? period.endDate : yesterday;
+      const endDate = await this.#autoRun.resolveAvailableEndDate(this.#autoRun.runner, cap);
+      if (!validDate(endDate) || endDate > cap) throw new ResearchAutomationValidationError('Metric availability returned an invalid date.');
+      const offset = (Date.parse(endDate) - Date.parse(period.endDate)) / 86400000;
+      metricDateAlignment = { policy: 'metric-latest-selectable-v1', originalPeriod: { ...period }, checkedAt: createdAt, endDate };
+      period = { startDate: shift(period.startDate, offset), endDate };
+      if (metricV3Preset) metricV3Preset = validateMetricV3CaptureSpec({ ...metricV3Preset, windows: metricV3Preset.windows.map(window => ({ ...window,
+        period: { startDate: shift(window.period.startDate, offset), endDate: shift(window.period.endDate, offset) } })) });
+    }
     return withDatabaseMutationMutex(this.#db, async () => {
       const prior = this.#request(input.requestKey);
       if (prior) return this.#retryOrConflict(prior, requestSha, workspaceId, 'START');
-      const createdAt = this.#now().toISOString();
       const runId = this.#validUuid();
       const start: StartSnapshot = {
         contractVersion: 'research-automation-start-snapshot-v1', workspaceId, country: 'VN', mode: input.mode,
         keyword: input.keyword, description: input.description ?? null, interview: input.interview ?? null,
-        requestedPeriod: { startDate: input.requestedPeriod.startDate, endDate: input.requestedPeriod.endDate, dayCount: inclusiveDays(input.requestedPeriod) },
+        requestedPeriod: { ...period, dayCount: inclusiveDays(period) },
+        ...(metricDateAlignment ? { metricDateAlignment } : {}),
         reports: [...input.reports],
         ...(input.contractVersion === 'research-automation-start-v2' ? { waitForKeyword2: input.waitForKeyword2 ?? false } : {}),
-        ...(input.metricV3Preset !== undefined ? { metricV3Preset: validateMetricV3CaptureSpec(input.metricV3Preset) } : {}),
+        ...(metricV3Preset !== undefined ? { metricV3Preset: validateMetricV3CaptureSpec(metricV3Preset) } : {}),
         ...(this.#privateShopeeSource ? { privateShopeeSource: this.#privateShopeeSource } : {}),
         ...(this.#reviewPolicy ? { reviewCollectionPolicy: this.#reviewPolicy } : {}),
         defaultPeerRule: { ...DEFAULT_MARKET_PEER_RULE },
@@ -1344,7 +1367,7 @@ export class ResearchAutomationService {
           run_id, workspace_id, revision, status, mode, keyword, period_start, period_end, reports,
           start_request_sha256, actor_id, created_at, updated_at
         ) VALUES (?, ?, 1, 'QUICK_SEARCH_QUEUED', ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-          .run(runId, workspaceId, input.mode, input.keyword, input.requestedPeriod.startDate, input.requestedPeriod.endDate,
+          .run(runId, workspaceId, input.mode, input.keyword, period.startDate, period.endDate,
             input.reports.join(','), stored.sha256, this.#actorId, createdAt, createdAt);
         for (const stepId of STEP_IDS) this.#db.prepare(`INSERT INTO analysis_research_automation_steps(run_id,step_id,state) VALUES (?,?,'${stepId === 'QUICK_SEARCH' ? 'QUEUED' : 'PENDING'}')`).run(runId, stepId);
         this.#db.prepare(`INSERT INTO analysis_research_automation_requests(request_key,run_id,request_kind,request_sha256,accepted_at) VALUES (?,?,?,?,?)`)
@@ -6376,6 +6399,16 @@ function assertStartSnapshot(value: unknown, workspaceId: string): asserts value
       value.reports.some((item) => item !== 'MARKET' && item !== 'INSIGHT') || new Set(value.reports).size !== value.reports.length ||
       (value.reports.length === 2 && (value.reports[0] !== 'MARKET' || value.reports[1] !== 'INSIGHT')) ||
       (value.waitForKeyword2 !== undefined && typeof value.waitForKeyword2 !== 'boolean')) throw new ResearchAutomationIntegrityError('Stored start snapshot has inconsistent identity.');
+  if (value.metricDateAlignment !== undefined) {
+    const alignment = value.metricDateAlignment;
+    if (!isRecord(alignment) || alignment.policy !== 'metric-latest-selectable-v1' ||
+        !isRecord(alignment.originalPeriod) || typeof alignment.originalPeriod.startDate !== 'string' || typeof alignment.originalPeriod.endDate !== 'string' ||
+        !validDate(alignment.originalPeriod.startDate) || !validDate(alignment.originalPeriod.endDate) ||
+        typeof alignment.checkedAt !== 'string' || !Number.isFinite(Date.parse(alignment.checkedAt)) ||
+        alignment.endDate !== value.requestedPeriod.endDate || alignment.endDate > alignment.originalPeriod.endDate ||
+        inclusiveDays(alignment.originalPeriod as unknown as { startDate: string; endDate: string }) !== value.requestedPeriod.dayCount)
+      throw new ResearchAutomationIntegrityError('Stored Metric date alignment is invalid.');
+  }
   if (value.metricV3Preset !== undefined) {
     try { validateMetricV3CaptureSpec(value.metricV3Preset); }
     catch { throw new ResearchAutomationIntegrityError('Stored capture preset is invalid.'); }

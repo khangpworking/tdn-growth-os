@@ -347,7 +347,7 @@ function formAction(action) {
     return { ok: true };
   }
   if (action.kind === 'picker') return click([...root.querySelectorAll('.ant-picker input')][action.index]);
-  if (action.kind === 'date') {
+  if (action.kind === 'date' || action.kind === 'availableDate') {
     const visible = e => {
       const r = e?.getBoundingClientRect(), s = e && getComputedStyle(e);
       return r?.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none';
@@ -363,6 +363,13 @@ function formAction(action) {
     const panel = panels.length === 1 ? panels[0] : null;
     if (!panel) return fail();
     const cell = [...panel.querySelectorAll(`.ant-picker-cell[title="${action.date}"]`)].find(visible);
+    if (action.kind === 'availableDate' && (cell || action.searchingBack)) {
+      const enabled = [...panel.querySelectorAll('.ant-picker-cell:not(.ant-picker-cell-disabled)[title]')]
+        .filter(visible).map(e => e.getAttribute('title')).filter(date => date <= action.date).sort();
+      if (enabled.length) return { ok: true, availableDate: enabled.at(-1) };
+      const arrow = [...panel.querySelectorAll('.ant-picker-header-prev-btn')].filter(visible)[0];
+      return { ...click(arrow), done: false, searchingBack: true };
+    }
     if (cell?.classList.contains('ant-picker-cell-disabled')) {
       const enabled = [...panel.querySelectorAll('.ant-picker-cell:not(.ant-picker-cell-disabled)[title]')]
         .filter(visible).map(e => e.getAttribute('title')).sort();
@@ -637,12 +644,34 @@ export function buildV3WindowManifest(spec, window, observation, rawResponses, c
 
 async function performFormAction(page, action) {
   const result = await page.evaluate(formAction, { ...action,
-    browserClick: ['picker', 'date'].includes(action.kind) && typeof page.click === 'function' });
+    browserClick: ['picker', 'date', 'availableDate'].includes(action.kind) && typeof page.click === 'function' });
   if (result.stop) stop(result.stop, { action: action.kind,
     ...(result.date ? { date: result.date, lastSelectableDate: result.lastSelectableDate } : {}) });
   if (result.selector) await page.click(result.selector);
   await page.wait(120);
   return result;
+}
+
+/** Resolve the latest enabled end date at or before the requested cap; no search submission. */
+export async function discoverV3AvailableEndDate(page, endDate) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(endDate)) stop('CAPTURE_PRESET_INVALID');
+  for (let i = 0; i < 60; i++) {
+    const state = await page.evaluate(readV3Page, { categoryId: '' });
+    if (!state.stop) break;
+    if (state.stop !== 'CAPTURE_UI_CHANGED' || i === 59) stop(state.stop);
+    await page.wait(500);
+  }
+  await performFormAction(page, { kind: 'closePopups' });
+  await performFormAction(page, { kind: 'picker', index: 1 });
+  try {
+    let searchingBack = false;
+    for (let i = 0; i < 25; i++) {
+      const result = await performFormAction(page, { kind: 'availableDate', date: endDate, searchingBack });
+      searchingBack ||= result.searchingBack === true;
+      if (result.availableDate) return result.availableDate;
+    }
+    stop('CAPTURE_PERIOD_NOT_SELECTABLE');
+  } finally { await performFormAction(page, { kind: 'closePopups' }); }
 }
 
 /** Choose the exact dates through visible calendar controls, before submitting any search. */

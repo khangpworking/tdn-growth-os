@@ -33,6 +33,13 @@ export const MAX_PDF_BYTES = 64 * 1024 * 1024;
 
 /** Exact start snapshot persisted before the run exists; its digest is the request identity. */
 export interface StartSnapshot {
+  /** Original owner request retained alongside the effective, frozen run dates. Historical starts omit it. */
+  readonly metricDateAlignment?: {
+    readonly policy: 'metric-latest-selectable-v1';
+    readonly originalPeriod: { readonly startDate: string; readonly endDate: string };
+    readonly checkedAt: string;
+    readonly endDate: string;
+  };
   readonly metricV3Preset?: import('./metric-v3-capture-spec.js').MetricV3CaptureSpec;
   readonly reviewCollectionPolicy?: import('../../../../contracts/analysis/automation-review-collection-policy.generated.js').AutomationReviewCollectionPolicy;
   /** Explicit injected source configuration, frozen only for new private starts. No salt. */
