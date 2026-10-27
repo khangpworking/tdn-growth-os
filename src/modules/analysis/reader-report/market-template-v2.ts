@@ -343,9 +343,12 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   const adsNum = (v: number | null): string => v === null || v === 0 ? 'không có' : String(v);
   const adsDay = (v: string | null): string => v === null ? 'không có' : v.split('-').reverse().join('/');
   const adsNotice = (brand: typeof searchAdsOk[number]): string => `<p><span data-quote>${label(brand.label)}</span>: ${label(searchAdsBrandNotice(brand, searchAds!.profile))}</p>`;
+  // Tables are numbered among tables only: S17 follows the Meta table when that table prints and the shop table otherwise.
+  // A search-ads-v1 document keeps the label its stored report was pinned with, so old reports replay byte-identically.
+  const searchAdsNo = searchAds?.profile === 'search-ads-v1' ? '7.3' : `7.${metaAdTable ? 3 : 2}`;
   const searchAdsTable = !searchAds ? '' : searchAdsOk.length === 0
     ? `<p>${label(searchAdsNotice(searchAds))}</p>` + searchAds.brands.map(adsNotice).join('')
-    : tbl('7.3', SEARCH_ADS_TABLE_TITLE, '', ['Thương hiệu', 'Trang web', 'Số mẫu quảng cáo', 'Chữ / Hình / Video', 'Hiện lần đầu – lần cuối', 'Số ngày hiện của mẫu dài ngày'],
+    : tbl(searchAdsNo, SEARCH_ADS_TABLE_TITLE, '', ['Thương hiệu', 'Trang web', 'Số mẫu quảng cáo', 'Chữ / Hình / Video', 'Hiện lần đầu – lần cuối', 'Số ngày hiện của mẫu dài ngày'],
       searchAdsOk.map(brand => {
         const no = registry.cite({ sourceKind: 'CAPTURE', identity: brand.responseSha256!, locator: null,
           label: SEARCH_ADS_SOURCE_LABEL, retrievedAt: brand.retrievedAt, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' });

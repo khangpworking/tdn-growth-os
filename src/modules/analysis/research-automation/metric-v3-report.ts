@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
-import type { MetricV3CaptureSpec } from '../../../../contracts/analysis/metric-v3-capture-spec.generated.js';
+import type { MetricV3CaptureSpec } from './metric-v3-capture-spec.js';
 import specSchema from '../../../../contracts/analysis/metric-v3-capture-spec.schema.json' with { type: 'json' };
 import windowSchema from '../../../../contracts/analysis/metric-v3-window-capture.schema.json' with { type: 'json' };
 import { validateMetricV3CaptureSpec } from './metric-v3-capture-spec.js';
@@ -25,6 +25,8 @@ const validateOpening = ajv.compile({ type: 'object', additionalProperties: fals
 // This local JSON accessor deliberately preserves null, and rejects missing fields.
 type Json = any;
 export const v3Hash = (bytes: Uint8Array | string): string => createHash('sha256').update(bytes).digest('hex');
+/** The second term when the owner supplied one; otherwise the single term. */
+export function reportTitleKeyword(keywords: readonly string[]): string { return keywords[1] ?? keywords[0]!; }
 const fail = (code: string): never => { throw new Error(code); };
 const same = (a: unknown, b: unknown) => canonicalJson(a) === canonicalJson(b);
 const pointer = (root: Json, path: string): Json => path.split('/').slice(1).reduce((v, key) => v?.[key.replaceAll('~1', '/').replaceAll('~0', '~')], root);
@@ -262,7 +264,7 @@ export function buildV3Body(archive: V3Archive, opening?: { points: string[]; pr
   const hints = ['Kết luận đầy đủ và ba đề xuất', 'Tỷ lệ hai sàn, theo tuần và theo tháng', 'Tỷ lệ shop Mall và shop thường', 'Doanh số theo dải giá, từng sàn', 'Thương hiệu và shop đầu', 'Sản phẩm đầu, kỳ ngắn và kỳ dài', 'Những câu dữ liệu chưa trả lời được', 'Nguồn, cách tính, khác gì bản trước', 'Số chính hai kỳ và các điểm chính, đọc trước'];
   const order = [8, 1, 2, 3, 4, 5, 6, 0, 7];
   const toc = `<nav class="mucluc" id="muc-luc" aria-label="Mục lục"><h2>Mục lục</h2><ol>${order.map(i => `<li><a href="#p${partNumbers[i]}"><b>${i === 7 ? 'Phụ lục' : fixed(`Phần ${partNumbers[i]}`)}</b>${titles[i]}</a><span>${hints[i]}</span></li>`).join('')}</ol></nav>`;
-  const header = `<header class="top"><p class="eyebrow">Báo cáo thị trường · bản ${fixed('v3')}</p><h1>${esc(archive.spec.preset.keywords[1]!.replace(/^./u, c => c.toUpperCase()))} trên Shopee và TikTok Shop</h1><p class="subt">${period(0)} (${dates(0)}) và ${period(1)} (${dates(1)}). Mọi số là ước tính trên sàn.</p><ul class="filters"><li><b>Từ khóa:</b> ${esc(archive.spec.preset.keywords.join(', '))}, bật tìm mở rộng</li><li><b>Ngành:</b> ${esc(archive.spec.preset.category.children.map(c => c.label).join(', '))}</li><li><b>Đã lọc:</b> sản phẩm ảo, quà tặng, sản phẩm đã xóa; số đánh giá trên ${fixed('2%')} lượt bán</li><li><b>Gồm:</b> shop Mall và shop thường</li></ul><p class="srcline">Biểu đồ: mỗi sàn một màu, theo màu sàn của công cụ đo. Sàn chưa xác định giữ màu xám.<button type="button" class="btn no-print" id="printBtn">In hoặc lưu PDF</button></p>${toc}</header>`;
+  const header = `<header class="top"><p class="eyebrow">Báo cáo thị trường · bản ${fixed('v3')}</p><h1>${esc(reportTitleKeyword(archive.spec.preset.keywords).replace(/^./u, c => c.toUpperCase()))} trên Shopee và TikTok Shop</h1><p class="subt">${period(0)} (${dates(0)}) và ${period(1)} (${dates(1)}). Mọi số là ước tính trên sàn.</p><ul class="filters"><li><b>Từ khóa:</b> ${esc(archive.spec.preset.keywords.join(', '))}, bật tìm mở rộng</li><li><b>Ngành:</b> ${esc(archive.spec.preset.category.children.map(c => c.label).join(', '))}</li><li><b>Đã lọc:</b> sản phẩm ảo, quà tặng, sản phẩm đã xóa; số đánh giá trên ${fixed('2%')} lượt bán</li><li><b>Gồm:</b> shop Mall và shop thường</li></ul><p class="srcline">Biểu đồ: mỗi sàn một màu, theo màu sàn của công cụ đo. Sàn chưa xác định giữ màu xám.<button type="button" class="btn no-print" id="printBtn">In hoặc lưu PDF</button></p>${toc}</header>`;
   const html = `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Báo cáo thị trường</title><style>${V3_STYLE}</style></head><body><div class="wrap">${header}${order.map(i => sections.get(i)).join('')}<p class="foot">Báo cáo thị trường · bản ${fixed('v3')} · số liệu ước tính, nhận định AI và đề xuất chưa được chủ duyệt.</p></div><script>document.getElementById("printBtn").addEventListener("click",function(){window.print()})</script></body></html>`;
   return { html, trace: trace.snapshot(), facts };
 }

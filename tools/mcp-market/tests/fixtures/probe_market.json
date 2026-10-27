@@ -1,0 +1,23 @@
+{
+  "run_status": {
+    "status": "DRAFT_READY",
+    "autoRunPhase": "DONE",
+    "revision": 4,
+    "revisionNumber": 1,
+    "reportRevisions": [
+      "33333333-3333-4333-8333-333333333333"
+    ],
+    "owner_message": "Phần tự động đã xong: bản nháp, bìa và biểu đồ. Bản đọc để xem và duyệt nằm ở mục \"Bản đọc\" phía trên."
+  },
+  "html": {
+    "revisionId": "33333333-3333-4333-8333-333333333333",
+    "bytes": 45,
+    "returnedText": true,
+    "startsWith": "<!doctype html>"
+  },
+  "numbers": {
+    "revisionId": "33333333-3333-4333-8333-333333333333",
+    "revisionNumber": 1,
+    "builderVersion": "metric-v3-report-v2"
+  }
+}

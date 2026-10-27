@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import apiSchema from '../../contracts/api/research-automation-api.schema.json' with { type: 'json' };
+import legacyCapture from '../fixtures/metric-v3/live-map-contract.json' with { type: 'json' };
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -9,6 +10,82 @@ import { fixture, startRun, workspaceId, autorun, drain } from '../helpers/autor
 import { metricV3Defaults } from '../../src/shared/metric-v3-preset.js';
 import { planScope } from '../../src/modules/analysis/research-automation/autorun-scope.js';
 import { runMetricCapture } from '../../src/modules/analysis/research-automation/metric-capture-runner.js';
+import { validateMetricV3CaptureSpec } from '../../src/modules/analysis/research-automation/metric-v3-capture-spec.js';
+
+test('K2 v2 presets accept one or two keywords, reject invalid cardinality and preserve retained v1 bytes', () => {
+  const one = metricV3Defaults('synthetic jar', '', '2026-01-30');
+  assert.equal(one.contractVersion, 'metric-v3-capture-spec-v2');
+  assert.deepEqual(one.preset.keywords, ['synthetic jar']);
+  assert.deepEqual(validateMetricV3CaptureSpec(one), one);
+  const two = metricV3Defaults('synthetic jar', 'alternate jar', '2026-01-30');
+  assert.deepEqual(validateMetricV3CaptureSpec(two).preset.keywords, ['synthetic jar', 'alternate jar']);
+  for (const keywords of [[], ['a', 'b', 'c'], ['synthetic jar', 'synthetic jar'], ['synthetic jar', 'SYNTHETIC JAR']]) {
+    assert.throws(() => validateMetricV3CaptureSpec({ ...one, preset: { ...one.preset, keywords } }), /CAPTURE_PRESET_INVALID/, JSON.stringify(keywords));
+  }
+  const retainedBytes = JSON.stringify(legacyCapture.spec, null, 2) + '\n';
+  const retained = validateMetricV3CaptureSpec(JSON.parse(retainedBytes));
+  assert.equal(retained.contractVersion, 'metric-v3-capture-spec-v1');
+  assert.deepEqual(retained.preset.keywords, ['synthetic term one', 'synthetic term two']);
+  assert.equal(JSON.stringify(retained, null, 2) + '\n', retainedBytes);
+  for (const keywords of [['synthetic jar'], [], ['a', 'b', 'c']]) {
+    assert.throws(() => validateMetricV3CaptureSpec({ ...retained, preset: { ...retained.preset, keywords } }), /CAPTURE_PRESET_INVALID/);
+  }
+});
+
+test('K2 start contracts reject v1 extras and out-of-period presets before creating a run', async t => {
+  const f = await fixture(t);
+  const preset = metricV3Defaults('synthetic jar', '', '2026-01-30');
+  const start = { contractVersion: 'research-automation-start-v1', requestKey: randomUUID(), mode: 'CATEGORY', keyword: 'synthetic jar',
+    requestedPeriod: { startDate: '2025-01-31', endDate: '2026-01-30' }, reports: ['MARKET'] };
+  const ajv = new Ajv2020({ strict: false }); ajv.addSchema(apiSchema);
+  const accepts = ajv.compile({ $ref: `${apiSchema.$id}#/$defs/startRequest` });
+  for (const extra of [{ waitForKeyword2: true }, { waitForKeyword2: false }, { metricV3Preset: preset }]) {
+    assert.equal(accepts({ ...start, ...extra }), false);
+    await assert.rejects(f.service.start(workspaceId, { ...start, ...extra }), /requires contract v2/);
+    assert.equal(accepts({ ...start, ...extra, contractVersion: 'research-automation-start-v2' }), true);
+  }
+  for (const waitForKeyword2 of ['true', 0, null]) {
+    const invalid = { ...start, contractVersion: 'research-automation-start-v2', waitForKeyword2 };
+    assert.equal(accepts(invalid), false);
+    await assert.rejects(f.service.start(workspaceId, invalid), /requires contract v2/);
+  }
+  for (const requestedPeriod of [
+    { startDate: '2025-02-01', endDate: '2026-01-30' },
+    { startDate: '2025-01-31', endDate: '2026-01-29' },
+  ]) await assert.rejects(f.service.start(workspaceId, { ...start, contractVersion: 'research-automation-start-v2', metricV3Preset: preset, requestedPeriod }),
+    { message: 'Invalid explicit capture preset or run scope.' });
+  assert.equal((f.db.prepare('SELECT count(*) n FROM analysis_research_automation_runs').get() as { n: bigint }).n, 0n);
+  assert.equal(f.capture.calls.length, 0);
+});
+
+test('K2 one-keyword creation preset skips waiting and reaches the capture runner unchanged', async t => {
+  const calls: Parameters<typeof runMetricCapture>[1][] = [];
+  const f = await fixture(t, 'on', undefined, () => async (_config, request) => {
+    calls.push(request);
+    return { ok: true, captureDir: join(f.capture.captureRoot, request.runId, 'v3'), period: request.requestedPeriod!, executorCalls: 0 };
+  });
+  const preset = metricV3Defaults('synthetic jar', '', '2026-01-30');
+  const start = { contractVersion: 'research-automation-start-v2', requestKey: randomUUID(), mode: 'CATEGORY', keyword: 'synthetic jar',
+    requestedPeriod: { startDate: '2025-01-31', endDate: '2026-01-30' }, reports: ['MARKET'], metricV3Preset: preset, waitForKeyword2: true };
+  const runId = (await f.service.start(workspaceId, start)).run.runId;
+  const restarted = f.make();
+  await drain(restarted);
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0]!.metricV3Preset, preset);
+  assert.equal(calls[0]!.second, undefined);
+  assert.equal(autorun(f.db, runId)?.stopCode, 'V3_REPORT_AI_NOT_CONFIGURED', 'the preset reaches PREPARE even when waiting was requested');
+  const result = await runMetricCapture({ enabledEnv: '1', captureRoot: f.capture.captureRoot }, calls[0]!, {
+    sourceEnv: {}, createProcessRunner: () => async (_executable, argv) => ({
+      child: { kill: () => true }, completion: Promise.resolve({ exitCode: 0, stderr: '', stdout: JSON.stringify(
+        argv[2] === 'tab' ? { page: 'ABC123' } : argv[5]?.includes('ready:') ? { ready: true } : { stop: 'CAPTURE_LOGIN_REQUIRED' },
+      ) }),
+    }),
+  });
+  assert.equal(result.ok, false);
+  assert.equal(!result.ok && result.code, 'CAPTURE_LOGIN_REQUIRED', 'one keyword passes the real runner and adapter validation before the synthetic login stop');
+  assert.equal(result.executorCalls, 1);
+  assert.deepEqual(JSON.parse(await readFile(join(f.capture.captureRoot, runId, 'spec.json'), 'utf8')), preset, 'the runner persists the exact one-keyword spec');
+});
 
 test('V3S1 owner preset survives restart, reaches capture unchanged once, rejects invalid rows and preserves the preparation boundary', async t => {
   const calls: any[] = [];

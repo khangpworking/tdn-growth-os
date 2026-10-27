@@ -1,5 +1,6 @@
 // Local editor model for the steps before Start. Only `startBody` crosses the API boundary, and it
 // returns the generated request type.
+import type { MetricV3PresetSpec } from '../../../src/shared/metric-v3-preset';
 import type { ResearchAutomationInterview, ResearchAutomationStartBody } from './api';
 import type { PeriodDraft } from './period';
 
@@ -63,8 +64,14 @@ export function reportKinds(choice: ReportChoice): ResearchAutomationStartBody['
   return choice === 'MARKET' ? ['MARKET'] : choice === 'INSIGHT' ? ['INSIGHT'] : ['MARKET', 'INSIGHT'];
 }
 
+/** Start-v2 extras. Without any option the body stays on start-v1, as older callers expect. */
+export interface StartOptions {
+  readonly waitForKeyword2?: boolean;
+  readonly metricV3Preset?: MetricV3PresetSpec;
+}
+
 /** Request body without the idempotency key. Unknown and empty answers are omitted, never invented. */
-export function startBody(draft: ResearchDraft, requestKey: string): ResearchAutomationStartBody {
+export function startBody(draft: ResearchDraft, requestKey: string, options: StartOptions = {}): ResearchAutomationStartBody {
   const interview: Partial<Record<InterviewIntent, string>> = {};
   if (draft.mode === 'CATEGORY') {
     for (const { intent } of interviewQuestions) {
@@ -72,8 +79,10 @@ export function startBody(draft: ResearchDraft, requestKey: string): ResearchAut
       if (!answer.unknown && answer.text.trim()) interview[intent] = answer.text.trim();
     }
   }
+  // A confirmed preset already fixes both keywords and windows, so the wait flag would be ignored.
+  const versioned = options.metricV3Preset !== undefined || options.waitForKeyword2 !== undefined;
   return {
-    contractVersion: 'research-automation-start-v1',
+    contractVersion: versioned ? 'research-automation-start-v2' : 'research-automation-start-v1',
     requestKey,
     mode: draft.mode,
     keyword: draft.keyword.trim(),
@@ -81,5 +90,7 @@ export function startBody(draft: ResearchDraft, requestKey: string): ResearchAut
     requestedPeriod: { startDate: draft.period.startDate, endDate: draft.period.endDate },
     reports: reportKinds(draft.reports),
     ...(draft.mode === 'CATEGORY' ? { interview } : {}),
+    ...(options.metricV3Preset !== undefined ? { metricV3Preset: { ...options.metricV3Preset } } : {}),
+    ...(versioned && options.metricV3Preset === undefined ? { waitForKeyword2: options.waitForKeyword2 === true } : {}),
   };
 }

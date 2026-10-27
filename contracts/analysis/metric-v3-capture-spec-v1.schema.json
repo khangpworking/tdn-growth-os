@@ -1,0 +1,236 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "preset",
+    "windows"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": "metric-v3-capture-spec-v1"
+    },
+    "preset": {
+      "$ref": "#/$defs/preset"
+    },
+    "windows": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "$ref": "#/$defs/window"
+      }
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/metric-v3-capture-spec-v1.schema.json",
+  "title": "MetricV3CaptureSpecV1",
+  "description": "Retained two-keyword preset. New captures use metric-v3-capture-spec-v2.",
+  "$defs": {
+    "preset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "keywords",
+        "smartQuery",
+        "category",
+        "usefulFilters",
+        "advancedFilter",
+        "shopTypes",
+        "platforms",
+        "aiNormalisation",
+        "customizeCategory",
+        "exclusions"
+      ],
+      "properties": {
+        "keywords": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "smartQuery": {
+          "const": true
+        },
+        "category": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "label",
+            "children"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^c[0-9]+$"
+            },
+            "label": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "children": {
+              "type": "array",
+              "minItems": 4,
+              "maxItems": 4,
+              "uniqueItems": true,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "id",
+                  "label"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^c[0-9]+$"
+                  },
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  }
+                }
+              }
+            }
+          }
+        },
+        "usefulFilters": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "fake",
+            "gifts",
+            "deleted"
+          ],
+          "properties": {
+            "fake": {
+              "const": true
+            },
+            "gifts": {
+              "const": true
+            },
+            "deleted": {
+              "const": true
+            }
+          }
+        },
+        "advancedFilter": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "firstField",
+            "operator",
+            "firstRate",
+            "secondField",
+            "secondRate"
+          ],
+          "properties": {
+            "firstField": {
+              "const": "rating_count"
+            },
+            "operator": {
+              "const": ">"
+            },
+            "firstRate": {
+              "const": 1
+            },
+            "secondField": {
+              "const": "order_count"
+            },
+            "secondRate": {
+              "const": 0.02
+            }
+          }
+        },
+        "shopTypes": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "mall",
+              "regular"
+            ]
+          }
+        },
+        "platforms": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "shopee",
+              "lazada",
+              "tiki",
+              "tiktok"
+            ]
+          }
+        },
+        "aiNormalisation": {
+          "const": false
+        },
+        "customizeCategory": {
+          "const": false
+        },
+        "exclusions": {
+          "type": "array",
+          "maxItems": 0,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "period",
+        "intervalDays"
+      ],
+      "properties": {
+        "id": {
+          "enum": [
+            "30d",
+            "12m"
+          ]
+        },
+        "period": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "startDate",
+            "endDate"
+          ],
+          "properties": {
+            "startDate": {
+              "type": "string",
+              "format": "date"
+            },
+            "endDate": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        },
+        "intervalDays": {
+          "enum": [
+            7,
+            30
+          ]
+        }
+      }
+    }
+  }
+}

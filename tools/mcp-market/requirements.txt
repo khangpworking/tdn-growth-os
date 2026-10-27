@@ -1,0 +1,4 @@
+# Versions taken from the reviewed prototype environment (pip show mcp).
+mcp==1.30.0
+# json schema validation used by the offline tests.
+jsonschema==4.26.0

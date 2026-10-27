@@ -12,7 +12,10 @@ const ajv = new Ajv2020({ strict: true });
 require('ajv-formats')(ajv);
 const schema = (name) =>
   JSON.parse(readFileSync(new URL(`../../../../contracts/analysis/${name}.schema.json`, import.meta.url), 'utf8'));
-const validateSpec = ajv.compile(schema('metric-v3-capture-spec'));
+const validatePresetV2 = ajv.compile(schema('metric-v3-capture-spec'));
+const validatePresetV1 = ajv.compile(schema('metric-v3-capture-spec-v1'));
+const validateSpec = (spec) =>
+  (spec?.contractVersion === 'metric-v3-capture-spec-v1' ? validatePresetV1 : validatePresetV2)(spec);
 const validateManifest = ajv.compile(schema('metric-v3-window-capture'));
 
 const stop = (code, details) => {

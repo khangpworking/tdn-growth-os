@@ -422,6 +422,84 @@ test('a valid 202 receipt with a run projection navigates while the editor is mo
   }
 });
 
+test('K2 create page sends start-v2 with the wait choice or the confirmed one-keyword preset', async t => {
+  for (const kind of ['default', 'wait', 'preset', 'preset edited keyword', 'preset outside period', 'preset report changed'] as const) await t.test(kind, async st => {
+    const dom = setupDom(), originalFetch = globalThis.fetch;
+    const calls: { url: string; body: any }[] = [];
+    globalThis.fetch = (async (url, init) => {
+      calls.push({ url: String(url), body: JSON.parse(String(init?.body)) });
+      return kind === 'preset outside period'
+        ? new Response(JSON.stringify({ error: { code: 'validation_error', message: 'Invalid explicit capture preset or run scope.' } }), { status: 400 })
+        : new Response(successfulReceipt(), { status: 202 });
+    }) as typeof fetch;
+    const { createRoot } = await import('react-dom/client');
+    const { default: Editor } = await tsImport('../src/research-automation/ResearchEditor.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/research-automation/ResearchEditor');
+    const root = createRoot(dom.container);
+    st.after(async () => { await act(async () => root.unmount()); globalThis.fetch = originalFetch; dom.cleanup(); });
+    await act(async () => root.render(createElement(Editor, { mode: 'real', workspaceId, ownerToken: token, writesAvailable: true, navigate: () => {}, notify: () => {} })));
+    const click = async (text: string) => {
+      const button = [...dom.container.querySelectorAll('button')].find(item => item.textContent === text);
+      assert.ok(button, text); await act(async () => button.click());
+    };
+    await act(async () => setInputValue(dom.container.querySelector<HTMLInputElement>('#ra-keyword')!, 'synthetic jar'));
+    await click('Tiếp tục'); await click('Tiếp tục');
+    await act(async () => {
+      setInputValue(dom.container.querySelector<HTMLInputElement>('#ra-start')!, kind === 'preset outside period' ? '2026-01-01' : '2025-01-31');
+    });
+    await act(async () => setInputValue(dom.container.querySelector<HTMLInputElement>('#ra-end')!, '2026-01-30'));
+    const section = [...dom.container.querySelectorAll('details')].find(node => node.querySelector('summary')?.textContent === 'Phạm vi thu thập (tùy chọn)');
+    assert.ok(section); assert.equal(section.open, false, 'preset is collapsed by default');
+    const combinedKeyword = section.querySelector<HTMLInputElement>('input[aria-label="Từ khóa 1"]');
+    assert.ok(!combinedKeyword || combinedKeyword.matches(':disabled'), 'the v3 preset cannot be edited with the default combined reports');
+    const waitLabel = [...dom.container.querySelectorAll('label')].find(label => label.textContent?.includes('Chờ tôi chọn từ khóa 2'));
+    assert.ok(waitLabel);
+    const wait = waitLabel.querySelector<HTMLInputElement>('input[type=checkbox]')!;
+    assert.equal(wait.checked, false);
+    if (kind === 'wait') await act(async () => wait.click());
+    if (kind.startsWith('preset')) {
+      await click('Chỉ Thị trường');
+      await act(async () => section.querySelector('summary')!.click());
+      assert.equal(section.open, true);
+      assert.equal(section.querySelector<HTMLInputElement>('input[aria-label="Từ khóa 1"]')!.value, 'synthetic jar');
+      assert.equal(section.querySelector<HTMLInputElement>('input[aria-label="Từ khóa 2"]')!.value, '');
+      if (kind === 'preset edited keyword') await act(async () => setInputValue(section.querySelector<HTMLInputElement>('input[aria-label="Từ khóa 1"]')!, 'edited synthetic jar'));
+      const category = section.querySelector<HTMLSelectElement>('select[aria-label="Danh mục"]')!;
+      assert.deepEqual([...category.options].map(option => option.textContent), ['Chọn danh mục', 'Sức Khoẻ']);
+      await act(async () => { category.value = 'c2035652732'; category.dispatchEvent(new window.Event('change', { bubbles: true })); });
+      assert.equal(section.querySelectorAll('input[type=checkbox]:checked').length, 4);
+      await click('Dùng phạm vi này');
+      assert.equal(wait.disabled, true);
+      if (kind === 'preset report changed') {
+        await click('Chỉ Insight');
+        assert.equal(wait.disabled, false, 'changing the report choice clears the incompatible preset');
+      }
+    }
+    assert.equal(calls.length, 0, 'editing or confirming a preset does not start a run');
+    await click('Bắt đầu tìm nhanh');
+    assert.equal(calls.length, 1);
+    const { url, body } = calls[0]!;
+    assert.equal(url, `/owner-api/workspaces/${workspaceId}/research-automation/runs`);
+    assert.equal(body.contractVersion, 'research-automation-start-v2');
+    if (kind.startsWith('preset') && kind !== 'preset report changed') {
+      assert.deepEqual(body.reports, ['MARKET']);
+      assert.equal(Object.hasOwn(body, 'waitForKeyword2'), false);
+      assert.equal(body.metricV3Preset.contractVersion, 'metric-v3-capture-spec-v2');
+      const expectedKeyword = kind === 'preset edited keyword' ? 'edited synthetic jar' : 'synthetic jar';
+      assert.equal(body.keyword, expectedKeyword, 'the run uses the keyword explicitly confirmed in the shared preset form');
+      assert.deepEqual(body.metricV3Preset.preset.keywords, [expectedKeyword]);
+      assert.deepEqual(body.metricV3Preset.windows, [
+        { id: '30d', period: { startDate: '2026-01-01', endDate: '2026-01-30' }, intervalDays: 7 },
+        { id: '12m', period: { startDate: '2025-01-31', endDate: '2026-01-30' }, intervalDays: 30 },
+      ]);
+      if (kind === 'preset outside period') assert.match(dom.container.querySelector('.ra-start [role=alert]')!.textContent!, /cửa sổ.*phải nằm trong kỳ nghiên cứu/);
+    } else {
+      if (kind === 'preset report changed') assert.deepEqual(body.reports, ['INSIGHT']);
+      assert.equal(body.waitForKeyword2, kind === 'wait');
+      assert.equal(Object.hasOwn(body, 'metricV3Preset'), false);
+    }
+  });
+});
+
 test('a late successful start response cannot navigate after the editor is unmounted', async () => {
   const dom = setupDom();
   const originalFetch = globalThis.fetch;

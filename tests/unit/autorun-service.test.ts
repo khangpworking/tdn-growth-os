@@ -1,11 +1,105 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { join } from 'node:path';
 import { autorunRequestKey } from '../../src/modules/analysis/research-automation/autorun-derive.js';
 import { SYNTHETIC_CARD_ID } from '../helpers/research-synthetic-sources.js';
-import { autorun, drain, dump, fixture, keyword, requestCount, rewindStartKey, startRun, untilIdle, workspaceId } from '../helpers/autorun-harness.js';
+import { autorun, drain, driveUntil, dump, fixture, keyword, requestCount, rewindStartKey, startRun, untilIdle, withRawResponses, workspaceId } from '../helpers/autorun-harness.js';
+import type { AutorunScopeRecord } from '../../src/modules/analysis/research-automation/autorun-scope.js';
+import { scopeLinesVi } from '../../src/modules/analysis/research-automation/autorun-scope.js';
 
 // Synthetic fixtures only: no real keyword, product, shop or customer data; no process is spawned.
+
+async function keywordWaitFixture(t: test.TestContext, category: string | null = null) {
+  const requestBody = JSON.stringify({ include_query: { queries: [keyword] } });
+  const raw = [
+    { urlPath: '/v2/market/analytics/search-basic/', requestBody, body: { data: { search_basic: { aggregations: category ? [
+      { aggregation: 'REVENUE__BY__CATEGORIES_CUSTOM', entities: [{ key: 'c1000000001', platforms: [{ platform_id: 1, value: 900 }, { platform_id: 8, value: 100 }] }] },
+    ] : [] } } } },
+    { urlPath: '/v2/market/analytics/products/', requestBody, body: { data: { products: ['Alpha', 'Beta', 'Gamma'].map((brand, i) => ({
+      product_base_id: `1__${101 + i}__${201 + i}`, product_name: `Alternate jar ${brand}`, brand, revenue_custom: 100 - i,
+      bee_categories: category ? [{ id: 'c1000000001', name: category, level: 0 }] : [],
+    })) } } },
+  ];
+  return fixture(t, 'on', undefined, capture => async (config, request) => {
+    const result = await capture.run(config, request);
+    if (result.ok) {
+      const rawBytes = Buffer.from(JSON.stringify(raw));
+      const manifestPath = join(result.captureDir, 'manifest.json');
+      await writeFile(manifestPath, withRawResponses(await readFile(manifestPath), rawBytes));
+      await writeFile(join(result.captureDir, 'raw-responses.json'), rawBytes);
+    }
+    return result;
+  }, undefined, { sourceEvidence: { modelIdentity: 'synthetic:model', promptVersion: 'synthetic-v1',
+    transport: { draftLists: async () => ({ keywords: ['alternate jar'], exclusions: [] }) } } });
+}
+
+const keywordStart = (extras: Record<string, unknown> = {}) => ({
+  contractVersion: 'research-automation-start-v2', requestKey: randomUUID(), mode: 'CATEGORY', keyword,
+  requestedPeriod: { startDate: '2026-01-01', endDate: '2026-01-30' }, reports: ['MARKET'], ...extras,
+});
+async function firstCapture(f: Awaited<ReturnType<typeof keywordWaitFixture>>, service = f.service) {
+  await driveUntil(service, () => f.capture.calls.length === 1);
+  await service.settleAutoRunCaptures();
+}
+async function keywordScope(f: Awaited<ReturnType<typeof keywordWaitFixture>>, runId: string): Promise<AutorunScopeRecord> {
+  return JSON.parse(await readFile(join(f.capture.captureRoot, runId, 'scope.json'), 'utf8'));
+}
+
+test('K2 no wait by default: omitted and false match a null answer with keyword 1 only', async t => {
+  for (const category of [null, 'Synthetic category']) await t.test(category ?? 'All categories', async st => {
+    const reference = await keywordWaitFixture(st, category);
+    const referenceId = (await reference.service.start(workspaceId, keywordStart({ contractVersion: 'research-automation-start-v1' }))).run.runId;
+    await firstCapture(reference);
+    assert.equal(autorun(reference.db, referenceId)?.stopCode, 'KEYWORD2_AWAITING');
+    await reference.service.retryAutoRunCapture(workspaceId, referenceId, {
+      contractVersion: 'research-automation-autorun-keyword-v1', requestKey: randomUUID(), keyword2: null,
+    });
+    const expected = category ? { keywords: [keyword], category, outcome: 'PENDING' } : null;
+    assert.deepEqual((await keywordScope(reference, referenceId)).capture2, expected);
+    for (const extras of [{}, { waitForKeyword2: false }]) await st.test(JSON.stringify(extras), async sst => {
+      const f = await keywordWaitFixture(sst, category);
+      const runId = (await f.service.start(workspaceId, keywordStart(extras))).run.runId;
+      await firstCapture(f);
+      const row = autorun(f.db, runId)!;
+      assert.deepEqual([row.phase, row.state, row.stopCode], [category ? 'CAPTURE' : 'PREPARE', 'QUEUED', null]);
+      const scope = await keywordScope(f, runId);
+      assert.equal(scope.keyword2.skipped, 'KEYWORD2_NOT_REQUESTED');
+      assert.equal(scopeLinesVi(scope)[0], `Từ khóa: chỉ dùng "${keyword}". Từ khóa 2 không được yêu cầu ở bước bắt đầu nên tự động bỏ qua.`);
+      assert.deepEqual(scope.capture2, expected);
+      assert.equal((await f.service.getRun(workspaceId, runId)).autoRun?.keyword2Suggestion, undefined);
+      if (category) {
+        await f.service.processNext(); await f.service.settleAutoRunCaptures();
+        assert.deepEqual(f.capture.calls[1]?.second, { keywords: [keyword], category });
+        assert.equal(f.capture.calls.length, 2, 'the category change requires exactly the same extra capture as a null answer');
+        assert.equal(autorun(f.db, runId)?.phase, 'PREPARE');
+      } else assert.equal(f.capture.calls.length, 1, 'All + keyword 1 reuses the first capture');
+    });
+  });
+});
+
+test('K2 opt-in and legacy starts retain the wait and AI prefill across restart', async t => {
+  for (const kind of ['opt-in', 'start-v1', 'retained snapshot'] as const) await t.test(kind, async st => {
+    const f = await keywordWaitFixture(st);
+    const receipt = await f.service.start(workspaceId, keywordStart(kind === 'opt-in'
+      ? { waitForKeyword2: true } : { contractVersion: 'research-automation-start-v1' }));
+    const runId = receipt.run.runId;
+    const row = f.db.prepare('SELECT start_request_sha256 sha FROM analysis_research_automation_runs WHERE run_id=?').get(runId) as { sha: string };
+    const retained = await f.artifacts.read(row.sha);
+    const snapshot = JSON.parse(retained.toString());
+    if (kind !== 'opt-in') assert.equal(Object.hasOwn(snapshot, 'waitForKeyword2'), false);
+    const service = kind === 'retained snapshot' ? f.make() : f.service;
+    if (kind === 'retained snapshot') await service.recoverOnStart();
+    await firstCapture(f, service);
+    const run = await service.getRun(workspaceId, runId);
+    assert.deepEqual([run.autoRun?.phase, run.autoRun?.stopCode], ['STOPPED', 'KEYWORD2_AWAITING']);
+    assert.deepEqual(run.autoRun?.keyword2Suggestion, { keyword1: keyword, term: 'alternate jar', titles: 3, titleCount: 3, brands: 3, categoryId: null });
+    assert.equal((await keywordScope(f, runId)).keyword2.skipped, undefined);
+    assert.equal(f.capture.calls.length, 1);
+    assert.deepEqual(await f.artifacts.read(row.sha), retained, 'reading an old start never rewrites its bytes');
+  });
+});
 
 test('flag off: no auto-run row, no capture, and the projection and database match a service without the option', async t => {
   const off = await fixture(t, 'off');
@@ -43,6 +137,26 @@ test('happy path: capture, prepare, pick and confirm with SKIP review, then PRES
   assert.ok(row.pickId && /^[0-9a-f]{64}$/.test(row.pickId));
   const manifest = f.db.prepare('SELECT media_type mediaType FROM artifact_manifests WHERE sha256=?').get(row.pickId) as { mediaType: string } | undefined;
   assert.equal(manifest?.mediaType, 'application/json', 'pick record is a registered content-addressed artifact');
+});
+
+test('a retained v3 pick without demotedRows or aiExcludedRows still loads at CONFIRM after restart', async t => {
+  const f = await fixture(t);
+  const runId = await startRun(f.service);
+  await driveUntil(f.service, () => autorun(f.db, runId)?.phase === 'CONFIRM');
+  const row = autorun(f.db, runId)!;
+  assert.ok(row.pickId);
+  const pick = JSON.parse((await f.artifacts.read(row.pickId)).toString());
+  assert.equal(pick.contractVersion, 'autorun-pick-record-v3');
+  assert.equal(Object.hasOwn(pick, 'demotedRows'), false);
+  assert.equal(Object.hasOwn(pick, 'aiExcludedRows'), false);
+  assert.deepEqual(pick.urls, ['https://shopee.vn/product/201/101', 'https://shopee.vn/product/202/102', 'https://shopee.vn/product/203/103']);
+  const restarted = f.make();
+  await restarted.recoverOnStart();
+  await drain(restarted);
+  assert.deepEqual([autorun(f.db, runId)!.phase, autorun(f.db, runId)!.stopCode], ['DONE', null]);
+  assert.equal(restarted.confirms.length, 1);
+  assert.deepEqual((await restarted.getRun(workspaceId, runId)).definition?.exactShopeeUrls, pick.urls);
+  assert.equal(f.capture.calls.length, 1, 'loading the retained pick must not repeat capture');
 });
 
 test('Q2 rows 1 and 3: Insight-only confirms picked Shopee URLs and brands, finishes without PRESENT or ad reads', async t => {
