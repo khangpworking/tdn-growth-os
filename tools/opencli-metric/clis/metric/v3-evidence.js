@@ -259,7 +259,7 @@ export async function writeV3EvidencePackage(page, { windowDir, manifest, rawByt
     rawResponses: await write('raw-responses.json', Buffer.from(rawBytes)),
     fullPage: null,
     sourcePdf: null,
-    captureTechnique: 'scroll-screenshots',
+    ...(images && typeof page.screenshot === 'function' ? { captureTechnique: 'scroll-screenshots' } : {}),
     sections: [],
     missingSections: [],
     maskedCount: 0,
