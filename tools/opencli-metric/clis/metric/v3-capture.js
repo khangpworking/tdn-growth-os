@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { sanitizeNetworkResponses } from './capture.js';
+import { writeV3EvidencePackage } from './v3-evidence.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js');
@@ -616,7 +617,7 @@ export function buildV3WindowManifest(spec, window, observation, rawResponses, c
   return manifest;
 }
 
-export async function captureV3Preset(page, spec, outputDir, progress = () => {}) {
+export async function captureV3Preset(page, spec, outputDir, progress = () => {}, options = {}) {
   if (!validateSpec(spec)) stop('CAPTURE_PRESET_INVALID');
   for (let i = 0; i < 30; i++) {
     if ((await page.evaluate(() => ({ ready: document.readyState !== 'loading' }))).ready) break;
@@ -774,6 +775,8 @@ export async function captureV3Preset(page, spec, outputDir, progress = () => {}
     const manifestBytes = bytes(manifest);
     await writeFile(join(dir, 'manifest.json'), manifestBytes, { flag: 'wx', mode: 0o600 });
     manifests.push({ window: window.id, path: `${window.id}/manifest.json`, sha256: digest(manifestBytes) });
+    // Flag-gated number evidence: screenshots while this window's results are on screen.
+    if (options.evidence) await writeV3EvidencePackage(page, { windowDir: dir, manifest, rawBytes: Buffer.from(bytes(raw)) }).catch(evidenceFailure);
     progress(`Captured ${window.id}: ${state.displayedKPIs}`);
   }
   const manifest = { contractVersion: 'metric-v3-capture-v1', specDigest: digest(bytes(spec)), windows: manifests };
@@ -893,7 +896,7 @@ export function readV3RequestContext({ categoryId }) {
   return { taxonomy: null };
 }
 
-export async function captureV3PageRequests(page, spec, outputDir, fallbackReason) {
+export async function captureV3PageRequests(page, spec, outputDir, fallbackReason, options = {}) {
   if (!validateSpec(spec)) stop('CAPTURE_PRESET_INVALID');
   const observed = await page.evaluate(readV3RequestContext, { categoryId: spec.preset.category.id });
   if (observed.stop) stop(observed.stop);
@@ -922,6 +925,8 @@ export async function captureV3PageRequests(page, spec, outputDir, fallbackReaso
     const manifestBytes = bytes(manifest);
     await writeFile(join(dir, 'manifest.json'), manifestBytes, { flag: 'wx', mode: 0o600 });
     manifests.push({ window: window.id, path: `${window.id}/manifest.json`, sha256: digest(manifestBytes) });
+    // Request capture shows no result sections: settings and raw copy only, no screenshots.
+    if (options.evidence) await writeV3EvidencePackage(page, { windowDir: dir, manifest, rawBytes: Buffer.from(bytes(sanitized)), images: false }).catch(evidenceFailure);
   }
   const manifest = { contractVersion: 'metric-v3-capture-v1', specDigest: digest(bytes(spec)), windows: manifests };
   await writeFile(join(outputDir, 'manifest.json'), bytes(manifest), { flag: 'wx', mode: 0o600 });
@@ -929,8 +934,8 @@ export async function captureV3PageRequests(page, spec, outputDir, fallbackReaso
 }
 
 /** Runner policy: OpenCLI UI first, then one complete request capture after UI breakage. */
-export async function captureV3WithFallback(page, spec, outputDir) {
-  try { return await captureV3Preset(page, spec, outputDir); }
+export async function captureV3WithFallback(page, spec, outputDir, options = {}) {
+  try { return await captureV3Preset(page, spec, outputDir, undefined, options); }
   catch (uiError) {
     const uiCode = errorCode(uiError);
     if (!fallbackCodes.has(uiCode)) throw uiError;
@@ -941,11 +946,16 @@ export async function captureV3WithFallback(page, spec, outputDir) {
       catch (error) { if (error.code !== 'ENOENT') throw error; }
     }
     await writeFile(join(diagnostics, 'stopped.json'), bytes({ code: uiCode }), { flag: 'wx', mode: 0o600 });
-    try { return await captureV3PageRequests(page, spec, outputDir, uiCode); }
+    try { return await captureV3PageRequests(page, spec, outputDir, uiCode, options); }
     catch (requestError) {
       const pageRequestCode = errorCode(requestError);
       stop(pageRequestCode === 'CAPTURE_LOGIN_REQUIRED' ? pageRequestCode : 'CAPTURE_FALLBACK_FAILED',
         { uiCode, pageRequestCode });
     }
   }
+}
+
+// Cancellation/deadline still stop capture; storage errors become FAILED at package retention.
+function evidenceFailure(error) {
+  if (error?.name === 'AbortError' || error?.message === 'TIMEOUT') throw error;
 }

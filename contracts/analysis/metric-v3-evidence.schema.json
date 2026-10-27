@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/metric-v3-evidence.schema.json",
+  "title": "Metric v3 window evidence package manifest (owner F286/F287)",
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "sectionKey": {
+      "enum": ["search-settings", "kpi", "platform-share", "trend-chart", "shop-types", "price-bands", "top-brands", "top-shops", "top-products"]
+    },
+    "code": { "type": "string", "pattern": "^[A-Z][A-Z_]{2,63}$" },
+    "file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "byteSize"],
+      "properties": {
+        "path": { "type": "string", "pattern": "^(raw-responses\\.json|full-page\\.png|sections/[a-z-]+\\.png)$" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "byteSize": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "label": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label"],
+      "properties": { "id": { "type": "string", "pattern": "^c[0-9]+$" }, "label": { "type": "string", "minLength": 1, "maxLength": 120 } }
+    }
+  },
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "captureId", "capturedAt", "windowId", "period", "keywords", "category", "platforms", "smartQuery",
+        "captureMethod", "adapterVersion", "rawResponses", "fullPage", "sections", "missingSections", "maskedCount", "status"],
+      "properties": {
+        "contractVersion": { "const": "metric-v3-evidence-v1" },
+        "captureId": { "type": "string", "format": "uuid" },
+        "capturedAt": { "type": "string", "format": "date-time" },
+        "windowId": { "enum": ["30d", "12m"] },
+        "period": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["startDate", "endDate"],
+          "properties": { "startDate": { "type": "string", "format": "date" }, "endDate": { "type": "string", "format": "date" } }
+        },
+        "keywords": { "type": "array", "minItems": 1, "maxItems": 2, "items": { "type": "string", "minLength": 1, "maxLength": 120 } },
+        "category": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "label", "children"],
+          "properties": {
+            "id": { "type": "string", "pattern": "^c[0-9]+$" },
+            "label": { "type": "string", "minLength": 1, "maxLength": 120 },
+            "children": { "type": "array", "maxItems": 20, "items": { "$ref": "#/$defs/label" } }
+          }
+        },
+        "platforms": { "type": "array", "maxItems": 4, "items": { "enum": ["shopee", "lazada", "tiki", "tiktok"] } },
+        "smartQuery": { "type": ["boolean", "null"] },
+        "captureMethod": { "enum": ["ui", "page-request"] },
+        "adapterVersion": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["contract", "sourceSha256"],
+          "properties": { "contract": { "type": "string", "minLength": 1, "maxLength": 80 }, "sourceSha256": { "$ref": "#/$defs/sha256" } }
+        },
+        "rawResponses": { "$ref": "#/$defs/file" },
+        "fullPage": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["path", "sha256", "byteSize", "width", "height"],
+              "properties": {
+                "path": { "const": "full-page.png" },
+                "sha256": { "$ref": "#/$defs/sha256" },
+                "byteSize": { "type": "integer", "minimum": 1 },
+                "width": { "type": "integer", "minimum": 1 },
+                "height": { "type": "integer", "minimum": 1 }
+              }
+            }
+          ]
+        },
+        "sections": {
+          "type": "array",
+          "maxItems": 9,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["sectionKey", "sectionName", "path", "sha256", "byteSize"],
+            "properties": {
+              "sectionKey": { "$ref": "#/$defs/sectionKey" },
+              "sectionName": { "type": "string", "minLength": 1, "maxLength": 120 },
+              "path": { "type": "string", "pattern": "^sections/[a-z-]+\\.png$" },
+              "sha256": { "$ref": "#/$defs/sha256" },
+              "byteSize": { "type": "integer", "minimum": 1 }
+            }
+          }
+        },
+        "missingSections": {
+          "type": "array",
+          "maxItems": 9,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["sectionKey", "reason"],
+            "properties": { "sectionKey": { "$ref": "#/$defs/sectionKey" }, "reason": { "$ref": "#/$defs/code" } }
+          }
+        },
+        "maskedCount": { "type": "integer", "minimum": 0 },
+        "status": { "enum": ["COMPLETE", "PARTIAL", "NO_IMAGES"] },
+        "code": { "$ref": "#/$defs/code" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "captureId", "capturedAt", "windowId", "status", "code"],
+      "properties": {
+        "contractVersion": { "const": "metric-v3-evidence-v1" },
+        "captureId": { "type": "string", "format": "uuid" },
+        "capturedAt": { "type": "string", "format": "date-time" },
+        "windowId": { "enum": ["30d", "12m"] },
+        "status": { "const": "FAILED" },
+        "code": { "$ref": "#/$defs/code" }
+      }
+    }
+  ]
+}

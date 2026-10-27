@@ -101,6 +101,8 @@ export interface OperatorAppConfiguration {
   readonly researchJev?: TypesafeJevConfiguration;
   /** Opt-in generic Market cover illustration through `cliproxy` (gpt-image-2 only); absent keeps the procedural fallback. */
   readonly researchMarketCoverAi?: true;
+  /** Private source screenshots and number evidence; enabled only by TDN_METRIC_EVIDENCE_ENABLED=1. */
+  readonly metricEvidenceEnabled?: boolean;
   /** Market auto-runner; present only when TDN_METRIC_OPENCLI_ENABLED is exactly "1". */
   readonly researchMetricAutoRun?: { readonly captureRoot: string; readonly adapterManifestPath?: string; readonly adapterManifestSha256?: string };
   /** Search-interest lane of the Market flow; present only when TDN_RESEARCH_SEARCH_TRENDS_ENABLED is exactly "1". */
@@ -224,6 +226,7 @@ export function operatorAppConfigurationFromEnvironment(
   const researchTikTokFreeComments = tiktokCommentsFreeEnabled(environment)
     ? { privacy: readTikTokCommentPrivacyFile(environment.TDN_RESEARCH_TIKTOK_COMMENTS_PRIVACY_FILE) } : undefined;
   const configuration: OperatorAppConfiguration = {
+    ...(environment.TDN_METRIC_EVIDENCE_ENABLED === '1' ? { metricEvidenceEnabled: true } : {}),
     databasePath: environment.TDN_WORKSPACE_DB ?? '', artifactRoot: environment.TDN_ARTIFACT_ROOT ?? '',
     frontendDist: defaults.frontendDist, version: defaults.version,
     host: (environment.TDN_OPERATOR_APP_HOST ?? '127.0.0.1') as '127.0.0.1' | '::1',
@@ -337,6 +340,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
       ...(configuration.researchJev ? { researchJev: configuration.researchJev } : {}),
       ...(configuration.researchMarketCoverAi ? { marketCover: { cliproxy: configuration.cliproxy!,
         ...(dependencies.creativeAiTransport ? { transport: dependencies.creativeAiTransport } : {}) } } : {}),
+      ...(configuration.metricEvidenceEnabled ? { metricEvidenceEnabled: true, metricEvidenceR2: configuration.r2 } : {}),
       ...(configuration.researchMetricAutoRun ? { metricAutoRun: configuration.researchMetricAutoRun } : {}),
       ...(configuration.researchSearchTrends ? { searchTrends: true as const } : {}),
       ...(configuration.researchSearchTrendsGeo ? { searchTrendsGeo: true as const } : {}),

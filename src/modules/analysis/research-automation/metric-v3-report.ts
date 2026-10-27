@@ -72,6 +72,8 @@ export async function loadV3Archive(read: (path: string) => Promise<Buffer>, unt
 const V3_STRUCTURE = { version: 'v3', previousVersion: 'v2', parts: '1 2 3 4 5 6 7 8 9', counts: '2 3 4 5 10 15', windows: '30 ngày 12 tháng',
   bands: '0 10000 50000 100000 200000 500000 1000000 2000000 5000000', filter: '2%', scale: '0', bandLabels: 'dưới 10 nghìn 10–50 nghìn 50–100 nghìn 100–200 nghìn 200–500 nghìn 500 nghìn–1 triệu 1–2 triệu 2–5 triệu' };
 const structureSha = v3Hash(canonicalJson(V3_STRUCTURE));
+/** Identity of the structural template numbers: template text, not captured data (the number-evidence index exempts them). */
+export const V3_TEMPLATE_IDENTITY = structureSha;
 export function v3Resolver(archive: V3Archive) {
   const docs = new Map<string, Json>([[structureSha, V3_STRUCTURE]]);
   for (const w of archive.windows) { docs.set(w.rawSha, w.raw); docs.set(v3Hash(canonicalJson(w.manifest)), w.manifest); }
