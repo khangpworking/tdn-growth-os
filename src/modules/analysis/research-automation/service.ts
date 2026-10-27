@@ -1,3 +1,4 @@
+import { assertNumberEvidence, buildNumberEvidenceIndex, retainEvidencePackages, explainEvidence, type EvidenceStore, type NumberEvidenceIndex } from './metric-number-evidence.js';
 import * as v1Report from './metric-v3-report-v1.js';
 import { metricV3Category } from '../../../shared/metric-v3-preset.js';
 import { prepareV3MarketRevision } from './reader-publish.js';
@@ -395,6 +396,7 @@ export type ResearchAutomationReportRenderer = (
 ) => Promise<ResearchAutomationRenderedReport> | ResearchAutomationRenderedReport;
 
 export interface ResearchAutomationServiceOptions {
+  readonly metricEvidence?: { readonly store?: EvidenceStore };
   readonly v3Report?: { readonly model?: V3TextModel; readonly pdf?: AutomationPdfRenderer };
   readonly captureRelevance?: CaptureRelevanceAi;
   /** Explicit P9 collector injection. No automatic activation or model permission. */
@@ -628,6 +630,7 @@ export class ResearchAutomationService {
   readonly #pdfDiscoverySource: PdfDiscoverySource | undefined;
   readonly #pdfCaptureMaxPages: number;
   readonly #renderer: ResearchAutomationReportRenderer | undefined;
+  readonly #metricEvidence: ResearchAutomationServiceOptions['metricEvidence'];
   readonly #v3Report: ResearchAutomationServiceOptions['v3Report'];
   readonly #kalodataReplay: KalodataReplaySource | undefined;
   readonly #now: () => Date;
@@ -689,6 +692,7 @@ export class ResearchAutomationService {
     this.#pdfCaptureMaxPages = pdfDiscoveryMaxPages(options.pdfCaptureMaxPages === undefined ? process.env : { [PDF_DISCOVERY_MAX_PAGES_ENV]: String(options.pdfCaptureMaxPages) });
     this.#renderer = options.renderer;
     this.#v3Report = options.v3Report;
+    this.#metricEvidence = options.metricEvidence;
     this.#kalodataReplay = options.kalodataReplay;
     this.#pageIndex = options.pageIndex;
     this.#sourceEvidence = options.sourceEvidence;
@@ -5928,6 +5932,17 @@ export class ResearchAutomationService {
         return bytes;
       }, spec);
       const built = await renderV3Report(archive, this.#v3Report.model, controller.signal);
+      const evidenceArtifacts: { file: StoredArtifact; mediaType: string }[] = [];
+      let evidenceIndexSha: string | undefined;
+      if (this.#metricEvidence) {
+        const packages = await retainEvidencePackages({ dir, workspaceId: run.workspaceId, runId, archive,
+          ...(this.#metricEvidence.store ? { store: this.#metricEvidence.store } : {}),
+          retain: async (bytes, mediaType) => { const file = await this.#artifacts.put(bytes); evidenceArtifacts.push({ file, mediaType }); return file.sha256; } });
+        const index = buildNumberEvidenceIndex(archive, built.trace, packages);
+        const file = await this.#artifacts.put(Buffer.from(canonicalJson(index)));
+        evidenceArtifacts.push({ file, mediaType: 'application/json' });
+        evidenceIndexSha = file.sha256;
+      }
       const html = Buffer.from(built.html);
       if (html.length > MAX_HTML_BYTES) throw new Error('V3_REPORT_TOO_LARGE');
       const htmlArtifact = await this.#artifacts.put(html);
@@ -5944,6 +5959,7 @@ export class ResearchAutomationService {
       const semantic = await this.#artifacts.put(Buffer.from(canonicalJson({ contractVersion: 'research-automation-report-v1',
         rendererVersion: 'metric-v3-report-v2', runId, workspaceId: run.workspaceId, kind: 'MARKET', startSha: run.startSha,
         spec, files: Object.fromEntries(Object.entries(files).map(([path, file]) => [path, file.sha256])),
+        ...(evidenceIndexSha ? { evidenceIndexSha } : {}),
         modelIdentity: this.#v3Report.model.identity ?? 'configured-text-model', opening: built.opening, numberTrace: built.trace, numberTraceGate: built.gate, htmlSha: htmlArtifact.sha256 })));
       // Retain the verified capture as a real source package for the Market Reader binding.
       const sourceFiles = await Promise.all(Object.entries(files).map(async ([path, file]) => ({
@@ -5965,6 +5981,7 @@ export class ResearchAutomationService {
         const current = this.#current(runId)!;
         if (current.status !== 'AWAITING_SCOPE' || toNumber(current.revision) !== toNumber(run.revision)) throw new ResearchAutomationConflictError('revision_conflict', 'Run changed during report generation.');
         for (const file of Object.values(files)) this.#registerManifest(file, 'application/json', at);
+        for (const { file, mediaType } of evidenceArtifacts) this.#registerManifest(file, mediaType, at);
         this.#registerManifest(semantic, 'application/json', at);
         this.#registerManifest(htmlArtifact, 'text/html; charset=utf-8', at);
         if (pdf) this.#registerManifest(pdf, 'application/pdf', at);
@@ -5981,6 +5998,24 @@ export class ResearchAutomationService {
       await this.#autorunStopRunning(runId, 'PREPARE', code);
     } finally { if (this.#active.get(runId) === controller) this.#active.delete(runId); }
     return true;
+  }
+
+  /** Workspace and exact revision are checked before any private object key is signed. */
+  async readNumberEvidence(workspaceId: string, reportRevisionId: string, numberRef?: string): Promise<unknown> {
+    if (!this.#metricEvidence) throw new ResearchAutomationNotFoundError('evidence_disabled', 'Number evidence is disabled.');
+    const row = this.#db.prepare(`SELECT run_id runId, request_sha256 semanticSha, html_sha256 htmlSha FROM analysis_reader_report_revisions
+      WHERE revision_id=? AND workspace_id=? AND builder_version IN ('metric-v3-report-v1','metric-v3-report-v2')`).get(reportRevisionId, workspaceId) as { runId: string; semanticSha: string; htmlSha: string } | undefined;
+    if (!row) throw new ResearchAutomationNotFoundError('report_not_available', 'Report is not available in this workspace.');
+    await this.getRun(workspaceId, row.runId);
+    const semantic = await this.#readJson<Record<string, any>>(row.semanticSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+    if (semantic.contractVersion !== 'research-automation-report-v1' || !['metric-v3-report-v1', 'metric-v3-report-v2'].includes(semantic.rendererVersion) || semantic.htmlSha !== row.htmlSha || semantic.workspaceId !== workspaceId || semantic.runId !== row.runId) throw new ResearchAutomationIntegrityError('Evidence report binding differs.');
+    if (!semantic.evidenceIndexSha) throw new ResearchAutomationNotFoundError('evidence_not_available', 'This stored report has no number evidence index.');
+    const index = await this.#readJson<NumberEvidenceIndex>(semantic.evidenceIndexSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+    const archive = await loadV3Archive(path => this.#readArtifact(semantic.files[path], MAX_JSON_ARTIFACT_BYTES, 'application/json'), semantic.spec);
+    assertNumberEvidence(index, semantic.numberTrace, archive);
+    if (numberRef === undefined) return { reportRevisionId, numbers: index.numbers };
+    if (!index.numbers.some(n => n.numberRef === numberRef)) throw new ResearchAutomationNotFoundError('number_ref_unknown', 'Unknown number reference.');
+    return { reportRevisionId, ...explainEvidence(index, numberRef, workspaceId, row.runId, this.#metricEvidence.store) };
   }
 
   async #readV3Report(run: RunRow, pdf: boolean): Promise<ResearchAutomationReadReport> {

@@ -23,6 +23,11 @@ run a real capture.
 - `confirm_preset(run_id, keyword2, category_ids=None)` — answer the keyword-2 wait with the capture preset; only at
   `KEYWORD2_AWAITING`.
 - `get_report(run_id, format)` — latest Market Reader revision as `html`, `pdf` or `numbers`.
+- `list_number_refs(report_id)` — list number refs for an exact Market Reader `revisionId`.
+- `explain_number(report_id, number_ref)` — section, capture date/settings, evidence status and section/full-page
+  private image links (24 h). Both evidence tools require `TDN_APP_TOKEN` and `TDN_WORKSPACE_ID`; they make only
+  an authenticated GET, regardless of the write flag. Requires app flag `TDN_METRIC_EVIDENCE_ENABLED=1`.
+  Template labels are identified as template text; unavailable images have an explicit code.
 - `cancel_run(run_id, expected_revision=None)` — cancel with a revision guard.
 
 The preset is the retained `metric-v3-capture-spec-v1`: exactly two keywords and all four verified Sức Khoẻ

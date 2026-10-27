@@ -1,3 +1,4 @@
+import { createR2MetricEvidenceStore } from '../platform/artifacts/r2-metric-evidence.js';
 import { openPublicReviewOwnerSession, ShopeePublicReviewCollector } from '../platform/collectors/shopee-public-reviews.js';
 import publicSourceSchema from '../../contracts/api/research-automation-source-api-v3.schema.json' with { type: 'json' };
 import publicCollectionSchema from '../../contracts/foundation/shopee-public-collection.schema.json' with { type: 'json' };
@@ -157,6 +158,9 @@ export interface ResearchAutomationApiConfiguration {
   };
   /** Opt-in generic Market cover illustration for the OWNER writer only; absent keeps the procedural fallback. */
   readonly marketCover?: { readonly cliproxy: CliproxyConfiguration; readonly transport?: typeof fetch };
+  /** Opt-in private number evidence, independent of HTML/trace rendering. */
+  readonly metricEvidenceEnabled?: boolean;
+  readonly metricEvidenceR2?: NodeJS.ProcessEnv | undefined;
   /** Market auto-runner for the OWNER writer only; present only when its flag is exactly "1". */
   readonly metricAutoRun?: { readonly captureRoot: string; readonly adapterManifestPath?: string; readonly adapterManifestSha256?: string };
   /** Search-interest lane for the OWNER writer only; present only when its flag is exactly "1" and the existing search key is set. */
@@ -410,8 +414,14 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
   // outcome before closing SQLite; aborting never authorizes a paid retry.
   const modelRequests = new Map<AbortController, Promise<unknown>>();
   const artifacts = new ContentAddressedArtifactStore(path.resolve(configuration.artifactRoot));
+  let evidenceR2: ReturnType<typeof createR2MetricEvidenceStore> | undefined;
+  // Configuration/upload failures stay explicit LOCAL_ONLY; evidence never disables report creation.
+  if (configuration.metricEvidenceEnabled && configuration.metricEvidenceR2) {
+    try { evidenceR2 = createR2MetricEvidenceStore(configuration.metricEvidenceR2); } catch { /* recorded by package retention */ }
+  }
   const create = (db: BetterSqlite3.Database, extra: Partial<ConstructorParameters<typeof ResearchAutomationService>[0]> = {}) => new ResearchAutomationService({
-    db, artifactStore: artifacts, sourceEvidence, ...(configuration.pageIndex ? { pageIndex: configuration.pageIndex } : {}), workspaceReader: new FlowDiscoveryWorkspaceReader(new DiscoveryWorkspaceService({ db, artifactStore: artifacts })), ...extra,
+    db, artifactStore: artifacts, sourceEvidence,
+    ...(configuration.metricEvidenceEnabled ? { metricEvidence: { ...(evidenceR2 ? { store: evidenceR2.store } : {}) } } : {}), ...(configuration.pageIndex ? { pageIndex: configuration.pageIndex } : {}), workspaceReader: new FlowDiscoveryWorkspaceReader(new DiscoveryWorkspaceService({ db, artifactStore: artifacts })), ...extra,
   });
   let readService: ResearchAutomationService;
   let writeService: ResearchAutomationService | undefined;
@@ -424,7 +434,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     readService = create(reader, {
       ...(kalodataReplay ? { kalodataReplay } : {}),
       ...(configuration.metricAutoRun ? { autoRun: { enabled: true, runner: {
-        enabledEnv: '1', captureRoot: path.resolve(configuration.metricAutoRun.captureRoot),
+        ...(configuration.metricEvidenceEnabled ? { evidence: true } : {}), enabledEnv: '1', captureRoot: path.resolve(configuration.metricAutoRun.captureRoot),
         adapterManifestPath: configuration.metricAutoRun.adapterManifestPath,
         adapterManifestSha256: configuration.metricAutoRun.adapterManifestSha256,
       } } } : {}),
@@ -498,7 +508,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
             && configuration.providers.autorunTestReviewCap === (configuration.providers.shopeePublicReviews ?? configuration.providers.apifyReviews)?.maxReviewsPerProduct
             ? { testReviewCap: configuration.providers.autorunTestReviewCap } : {}),
           onWake: () => worker?.wake(), runner: {
-          enabledEnv: '1', captureRoot: path.resolve(configuration.metricAutoRun.captureRoot),
+          ...(configuration.metricEvidenceEnabled ? { evidence: true } : {}), enabledEnv: '1', captureRoot: path.resolve(configuration.metricAutoRun.captureRoot),
           adapterManifestPath: configuration.metricAutoRun.adapterManifestPath, adapterManifestSha256: configuration.metricAutoRun.adapterManifestSha256 } } } : {}),
         v3Report: { ...(comtradeModel ? { model: comtradeModel } : {}), ...(pdf ? { pdf } : {}) },
         decisionSynthesisAi,
@@ -531,7 +541,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       worker = new ResearchAutomationWorker({ service: writeService, db: writer });
       ready = worker.start().catch(() => { startupFailed = true; });
     }
-  } catch (error) { void pdf?.close(); writer?.close(); reader.close(); throw error; }
+  } catch (error) { evidenceR2?.close(); void pdf?.close(); writer?.close(); reader.close(); throw error; }
   let closePromise: Promise<void> | undefined;
   return {
     handler: (request, response) => { void route(request, response).catch((error: unknown) => { logIntegrityFailure(error); if (!response.headersSent) fail(response, 500, 'integrity_error', 'Stored research evidence failed verification'); else response.destroy(); }); },
@@ -545,7 +555,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         try { await ready; await worker?.close(); } catch (error) { failures.push(error); }
         try { await pdf?.close(); } catch (error) { failures.push(error); }
         try { writer?.close(); } catch (error) { failures.push(error); }
-        try { reader.close(); } catch (error) { failures.push(error); }
+        try { evidenceR2?.close(); reader.close(); } catch (error) { failures.push(error); }
         if (failures.length) throw failures[0];
       })();
       return closePromise;
@@ -561,6 +571,18 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     if (!raw.startsWith('/') || raw.startsWith('//') || raw.includes('#') || raw.includes('%')) return fail(response, 400, 'bad_request', 'Malformed request route');
     const url = new URL(raw, origin);
     if (url.search) return fail(response, 400, 'bad_request', 'Query parameters are not supported');
+    const evidenceRead = configuration.metricEvidenceEnabled && /^\/owner-api\/workspaces\/([0-9a-f-]{36})\/research-automation\/reports\/([0-9a-f-]{36})\/numbers(?:\/(n[0-9]+))?$/.exec(url.pathname);
+    if (evidenceRead) {
+      response.setHeader('Allow', 'GET');
+      if (request.method !== 'GET') return fail(response, 405, 'method_not_allowed', 'Only GET is supported');
+      if (!configuration.owner || suppliedOrigin !== origin.origin) return fail(response, 403, 'forbidden', 'OWNER evidence reads require the configured exact origin');
+      if (!ownerAuthorized(request, configuration.owner.token)) return fail(response, 401, 'unauthorized', 'Authentication required');
+      try { return sendApiJson(response, 200, await readService.readNumberEvidence(evidenceRead[1]!, evidenceRead[2]!, evidenceRead[3])); }
+      catch (error) {
+        if (error instanceof ResearchAutomationNotFoundError) return fail(response, 404, error.code, error.message);
+        return fail(response, 500, 'evidence_read_failed', 'Number evidence could not be read');
+      }
+    }
     const statusMatch = /^\/api\/workspaces\/([0-9a-f-]{36})\/research-automation\/source-status$/.exec(url.pathname);
     if (statusMatch) return sourceStatus(request, response, statusMatch[1]!);
     const recheckMatch = /^\/owner-api\/workspaces\/([0-9a-f-]{36})\/research-automation\/source-status\/pageindex\/recheck$/.exec(url.pathname);

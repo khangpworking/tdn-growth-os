@@ -10,6 +10,8 @@ export async function captureMetricV3(spec: MetricV3CaptureSpec, outputDir: stri
   readonly env: Readonly<Record<string, string>>;
   readonly createProcessRunner: (signal?: AbortSignal) => MetricOpenCliProcessRunner;
   readonly signal?: AbortSignal;
+  /** TDN_METRIC_EVIDENCE_ENABLED: screenshot evidence of each window; absent keeps the capture exactly as before. */
+  readonly evidence?: boolean;
 }): Promise<void> {
   const session = `m3-${randomUUID()}`;
   const deadline = Date.now() + 1_620_000;
@@ -18,7 +20,7 @@ export async function captureMetricV3(spec: MetricV3CaptureSpec, outputDir: stri
     signal?.throwIfAborted();
     if (Date.now() >= deadline) throw new Error('TIMEOUT');
   };
-  const command = async (args: string[], cleanup = false): Promise<any> => {
+  const command = async (args: string[], cleanup = false, json = true): Promise<any> => {
     if (!cleanup) check();
     const run = options.createProcessRunner(cleanup ? undefined : signal);
     const execution = await run(executable, ['browser', session, ...args], { shell: false, detached: true, env: options.env });
@@ -39,7 +41,7 @@ export async function captureMetricV3(spec: MetricV3CaptureSpec, outputDir: stri
           throw new Error('CAPTURE_SELECTOR_TIMEOUT');
         throw new Error('CAPTURE_FAILED');
       }
-      return JSON.parse(result.stdout);
+      return json ? JSON.parse(result.stdout) : undefined;
     } finally { if (timer) clearTimeout(timer); }
   };
   let tab: string | undefined;
@@ -57,8 +59,12 @@ export async function captureMetricV3(spec: MetricV3CaptureSpec, outputDir: stri
         return command(['eval', '--tab', tab!, `(${fn.toString()})(${arg === undefined ? '' : JSON.stringify(arg)})`]);
       },
       wait: async (ms: number) => { check(); await delay(ms, undefined, signal ? { signal } : {}); },
+      // Screenshot of our own tab only; the bridge writes the PNG to the given path.
+      ...(options.evidence ? { screenshot: async ({ path, fullPage }: { path: string; fullPage?: boolean }) => {
+        await command(['screenshot', '--tab', tab!, ...(fullPage ? ['--full-page'] : []), path], false, false);
+      } } : {}),
     };
-    await captureV3WithFallback(page, spec, outputDir);
+    await captureV3WithFallback(page, spec, outputDir, { evidence: options.evidence === true });
   } catch (error) {
     const code = signal?.aborted ? 'CAPTURE_INTERRUPTED' : error instanceof Error ? error.message : 'CAPTURE_FAILED';
     const errors = (error as { details?: object })?.details;

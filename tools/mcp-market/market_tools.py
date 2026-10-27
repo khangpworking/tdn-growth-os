@@ -186,6 +186,48 @@ def _request(method: str, path: str, body: dict | None = None, timeout: int = 20
         connection.close()
 
 
+def _evidence_get(report_id: str, number_ref: str | None = None) -> dict:
+    report_id = _check_uuid(report_id, "report_id")
+    workspace_id = _workspace()
+    if number_ref is not None and (not isinstance(number_ref, str) or not re.fullmatch(r"n[0-9]{1,9}", number_ref)):
+        raise ValueError("number_ref must be n followed by its trace index")
+    # Private evidence uses OWNER authentication. Do not mint a test-session token on a read.
+    token = os.environ.get("TDN_APP_TOKEN")
+    if not isinstance(token, str) or not re.fullmatch(r"[\x21-\x7e]+", token):
+        raise ValueError("TDN_APP_TOKEN is required for private evidence reads")
+    path = f"/owner-api/workspaces/{workspace_id}/research-automation/reports/{report_id}/numbers"
+    if number_ref is not None:
+        path += "/" + number_ref
+    connection = http.client.HTTPConnection(HOST, PORT, timeout=20)
+    try:
+        connection.request("GET", path, headers={"Origin": ORIGIN, "Host": f"{HOST}:{PORT}",
+                                                "Accept": "application/json", "Authorization": "Bearer " + token})
+        response = connection.getresponse()
+        body = json.loads(response.read().decode("utf-8"))
+        if response.status >= 400:
+            raise _AppHTTPError(response.status, body)
+        return body
+    finally:
+        connection.close()
+
+
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False})
+def list_number_refs(report_id: str) -> dict:
+    """List trace number refs of an exact Market Reader revision. Read-only; needs TDN_APP_TOKEN."""
+    return _evidence_get(report_id)
+
+
+@mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False})
+def explain_number(report_id: str, number_ref: str) -> dict:
+    """Explain a stored number: source section, capture date/settings and private image links (24h).
+
+    report_id is the exact Reader revisionId; obtain number_ref from list_number_refs.
+    Original source images are returned only here; they are never embedded in report HTML/PDF.
+    Read-only, regardless of MCP_PROTO_ALLOW_WRITES; needs TDN_APP_TOKEN and TDN_WORKSPACE_ID.
+    """
+    return _evidence_get(report_id, number_ref)
+
+
 def _request_bytes(method: str, path: str, timeout: int = 120) -> dict:
     """Raw GET for HTML/PDF; no token is read or sent."""
     connection = http.client.HTTPConnection(HOST, PORT, timeout=timeout)
