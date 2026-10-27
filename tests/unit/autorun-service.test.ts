@@ -139,6 +139,26 @@ test('happy path: capture, prepare, pick and confirm with SKIP review, then PRES
   assert.equal(manifest?.mediaType, 'application/json', 'pick record is a registered content-addressed artifact');
 });
 
+test('a retained v3 pick without demotedRows or aiExcludedRows still loads at CONFIRM after restart', async t => {
+  const f = await fixture(t);
+  const runId = await startRun(f.service);
+  await driveUntil(f.service, () => autorun(f.db, runId)?.phase === 'CONFIRM');
+  const row = autorun(f.db, runId)!;
+  assert.ok(row.pickId);
+  const pick = JSON.parse((await f.artifacts.read(row.pickId)).toString());
+  assert.equal(pick.contractVersion, 'autorun-pick-record-v3');
+  assert.equal(Object.hasOwn(pick, 'demotedRows'), false);
+  assert.equal(Object.hasOwn(pick, 'aiExcludedRows'), false);
+  assert.deepEqual(pick.urls, ['https://shopee.vn/product/201/101', 'https://shopee.vn/product/202/102', 'https://shopee.vn/product/203/103']);
+  const restarted = f.make();
+  await restarted.recoverOnStart();
+  await drain(restarted);
+  assert.deepEqual([autorun(f.db, runId)!.phase, autorun(f.db, runId)!.stopCode], ['DONE', null]);
+  assert.equal(restarted.confirms.length, 1);
+  assert.deepEqual((await restarted.getRun(workspaceId, runId)).definition?.exactShopeeUrls, pick.urls);
+  assert.equal(f.capture.calls.length, 1, 'loading the retained pick must not repeat capture');
+});
+
 test('Q2 rows 1 and 3: Insight-only confirms picked Shopee URLs and brands, finishes without PRESENT or ad reads', async t => {
   for (const reports of [['INSIGHT'], ['MARKET'], ['MARKET', 'INSIGHT']] as ('MARKET' | 'INSIGHT')[][]) await t.test(reports.join('+'), async st => {
     const adBrands: string[][] = [], metaBrands: string[][] = [];
