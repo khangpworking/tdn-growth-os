@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "tdn-market": {
+      "command": "python3",
+      "args": ["tools/mcp-market/market_tools.py"],
+      "env": {}
+    }
+  }
+}
