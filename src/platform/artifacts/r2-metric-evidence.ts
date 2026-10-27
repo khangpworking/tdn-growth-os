@@ -3,13 +3,13 @@ import { S3Client } from '@aws-sdk/client-s3';
 import { copyVerifiedObject, createR2Client, R2ArchiveError } from './r2-media-archive.js';
 
 export const METRIC_EVIDENCE_MAX_BYTES = 32 * 1024 * 1024;
-export const METRIC_EVIDENCE_TYPES = ['image/png', 'application/json'] as const;
+export const METRIC_EVIDENCE_TYPES = ['image/png', 'application/json', 'application/pdf'] as const;
 export type MetricEvidenceType = (typeof METRIC_EVIDENCE_TYPES)[number];
 /** Presigned links last one day by default and never longer than seven days. */
 export const METRIC_EVIDENCE_LINK_SECONDS = 86_400;
 export const METRIC_EVIDENCE_LINK_MAX_SECONDS = 604_800;
 const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
-const KEY = new RegExp(`^metric-evidence/${UUID}/${UUID}/${UUID}/(?:manifest\\.json|raw-responses\\.json|full-page\\.png|sections/[a-z-]+\\.png)$`);
+const KEY = new RegExp(`^metric-evidence/${UUID}/${UUID}/${UUID}/(?:manifest\\.json|raw-responses\\.json|source-page\\.pdf|full-page\\.png|sections/[a-z-]+\\.png)$`);
 
 /** `metric-evidence/<workspaceId>/<runId>/<captureId>/<file>`; anything else is refused. */
 export function metricEvidenceKey(workspaceId: string, runId: string, captureId: string, file: string): string {

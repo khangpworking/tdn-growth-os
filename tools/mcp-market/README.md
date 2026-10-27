@@ -25,7 +25,11 @@ run a real capture.
 - `get_report(run_id, format)` — latest Market Reader revision as `html`, `pdf` or `numbers`.
 - `list_number_refs(report_id)` — list number refs for an exact Market Reader `revisionId`.
 - `explain_number(report_id, number_ref)` — section, capture date/settings, evidence status and section/full-page
-  private image links (24 h). Both evidence tools require `TDN_APP_TOKEN` and `TDN_WORKSPACE_ID`; they make only
+  private image links plus `urls.sourcePdf` when the original-page screenshot PDF was archived (24 h).
+  `sourcePdf` metadata records its hash, size and page count. This is a screenshot of the original source,
+  separate from the generated Market report returned by `get_report(..., "pdf")`. Capture once per window;
+  later evidence reads use R2 and never revisit Metric. Existing reports without a source PDF keep their original links.
+  Both evidence tools require `TDN_APP_TOKEN` and `TDN_WORKSPACE_ID`; they make only
   an authenticated GET, regardless of the write flag. Requires app flag `TDN_METRIC_EVIDENCE_ENABLED=1`.
   Template labels are identified as template text; unavailable images have an explicit code.
 - `cancel_run(run_id, expected_revision=None)` — cancel with a revision guard.

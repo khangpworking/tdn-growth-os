@@ -241,3 +241,43 @@ test('page requests use changed preset terms and dates for every mapped endpoint
     }
   }
 });
+
+test('date selection ignores hidden calendar arrows and commits both exact input dates without submitting', async () => {
+  const dom = new JSDOM('<body><div id="QuerySearchBuilder"><div class="ant-picker"><input></div><div class="ant-picker"><input></div></div></body>',
+    { url: 'https://metric.vn/analytics', runScripts: 'outside-only' });
+  const w = dom.window, document = w.document;
+  Object.defineProperty(w.HTMLElement.prototype, 'getBoundingClientRect', { value: function (this: HTMLElement) {
+    return { width: this.style.visibility === 'hidden' ? 0 : 100, height: 30 };
+  } });
+  const inputs = [...document.querySelectorAll('input')];
+  let index = 0, month = 10, disableEnd = false;
+  function render() {
+    document.querySelector('.ant-picker-dropdown')?.remove();
+    const panel = document.createElement('div'); panel.className = 'ant-picker-dropdown';
+    panel.innerHTML = `<button class="ant-picker-header-prev-btn" style="visibility:hidden"></button>
+      <button class="ant-picker-header-prev-btn" data-move="-1"></button>
+      <button class="ant-picker-header-next-btn" data-move="1"></button><table><tbody><tr>
+      ${[1, 20, 21, 28].map(day => `<td class="ant-picker-cell ant-picker-cell-in-view" title="2026-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}"><span class="ant-picker-cell-inner">${day}</span></td>`).join('')}
+      </tr></tbody></table>`;
+    for (const button of panel.querySelectorAll<HTMLElement>('[data-move]')) button.onclick = () => { month += Number(button.dataset.move); render(); };
+    for (const cell of panel.querySelectorAll<HTMLElement>('.ant-picker-cell-inner')) cell.onclick = () => {
+      inputs[index]!.value = cell.parentElement!.getAttribute('title')!.split('-').reverse().join('-'); panel.remove();
+    };
+    if (disableEnd) panel.querySelector('[title="2026-10-20"]')?.classList.add('ant-picker-cell-disabled');
+    document.body.append(panel);
+  }
+  for (const [i, input] of inputs.entries()) input.onclick = () => { index = i; month = 10; render(); };
+  const page = {
+    evaluate: async (fn: Function, arg: unknown) => w.eval(`(${fn.toString()})(${JSON.stringify(arg)})`),
+    click: async (selector: string) => { (document.querySelector(selector) as HTMLElement).click(); },
+    wait: async () => {},
+  };
+  try {
+    await adapter.selectV3Dates(page, { startDate: '2026-09-21', endDate: '2026-10-20' });
+    assert.deepEqual(inputs.map(i => i.value), ['21-09-2026', '20-10-2026']);
+    disableEnd = true;
+    await assert.rejects(adapter.selectV3Dates(page, { startDate: '2026-09-21', endDate: '2026-10-20' }), { message: 'CAPTURE_PERIOD_NOT_SELECTABLE' });
+    dom.reconfigure({ url: 'https://untrusted.invalid/' });
+    await assert.rejects(adapter.selectV3Dates(page, { startDate: '2026-09-21', endDate: '2026-10-20' }), { message: 'CAPTURE_ORIGIN_CHANGED' });
+  } finally { w.close(); }
+});

@@ -225,11 +225,18 @@ export function readV3Page({ categoryId }) {
 
 // Only search/filter actions in the owned page. No export, account, or private API mutation.
 function formAction(action) {
+  if (location.protocol !== 'https:' || !['metric.vn', 'www.metric.vn'].includes(location.hostname))
+    return { stop: 'CAPTURE_ORIGIN_CHANGED' };
   const root = document.querySelector('#QuerySearchBuilder');
   const txt = (e) => (e?.innerText || e?.textContent || '').replace(/\s+/g, ' ').trim();
   const fail = () => ({ stop: 'CAPTURE_CONTROL_NOT_SELECTABLE' });
   const click = (e) => {
     if (!e || e.disabled || e.getAttribute('aria-disabled') === 'true') return fail();
+    if (action.browserClick) {
+      for (const previous of document.querySelectorAll('[data-tdn-v3-click]')) previous.removeAttribute('data-tdn-v3-click');
+      e.setAttribute('data-tdn-v3-click', 'target');
+      return { ok: true, selector: '[data-tdn-v3-click="target"]' };
+    }
     e.click();
     return { ok: true };
   };
@@ -339,8 +346,12 @@ function formAction(action) {
     }
     return { ok: true };
   }
-  if (action.kind === 'picker') return gesture([...root.querySelectorAll('.ant-picker')][action.index]);
+  if (action.kind === 'picker') return click([...root.querySelectorAll('.ant-picker input')][action.index]);
   if (action.kind === 'date') {
+    const visible = e => {
+      const r = e?.getBoundingClientRect(), s = e && getComputedStyle(e);
+      return r?.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none';
+    };
     const panels = [...document.querySelectorAll('.ant-picker-dropdown:not(.ant-picker-dropdown-hidden)')].filter(
       (e) =>
         e.getBoundingClientRect().height &&
@@ -351,15 +362,22 @@ function formAction(action) {
     // Its DOM still has dimensions, but it no longer accepts pointer events.
     const panel = panels.length === 1 ? panels[0] : null;
     if (!panel) return fail();
-    const cell = panel.querySelector(`td[title="${action.date}"]`);
+    const cell = [...panel.querySelectorAll(`.ant-picker-cell[title="${action.date}"]`)].find(visible);
+    if (cell?.classList.contains('ant-picker-cell-disabled')) {
+      const enabled = [...panel.querySelectorAll('.ant-picker-cell:not(.ant-picker-cell-disabled)[title]')]
+        .filter(visible).map(e => e.getAttribute('title')).sort();
+      return { stop: 'CAPTURE_PERIOD_NOT_SELECTABLE', date: action.date, lastSelectableDate: enabled.at(-1) };
+    }
     if (cell && !cell.classList.contains('ant-picker-cell-disabled'))
       return { ...click(cell.querySelector('.ant-picker-cell-inner')), done: true };
-    const current = panel.querySelector('td.ant-picker-cell-in-view[title]')?.getAttribute('title');
-    if (!current) return fail();
+    const dates = [...panel.querySelectorAll('.ant-picker-cell[title]')].filter(visible).map(e => e.getAttribute('title')).sort();
+    if (!dates.length) return fail();
+    const direction = action.date < dates[0] ? 'prev' : action.date > dates.at(-1) ? 'next' : null;
+    if (!direction) return fail();
+    const arrows = [...panel.querySelectorAll(`.ant-picker-header-${direction}-btn`)].filter(visible);
     return {
-      ...click(
-        panel.querySelector(action.date < current ? '.ant-picker-header-prev-btn' : '.ant-picker-header-next-btn'),
-      ),
+      ...click(direction === 'next' ? arrows.at(-1) : arrows[0]),
+      currentMonth: dates[0].slice(0, 7),
       done: false,
     };
   }
@@ -617,6 +635,31 @@ export function buildV3WindowManifest(spec, window, observation, rawResponses, c
   return manifest;
 }
 
+async function performFormAction(page, action) {
+  const result = await page.evaluate(formAction, { ...action,
+    browserClick: ['picker', 'date'].includes(action.kind) && typeof page.click === 'function' });
+  if (result.stop) stop(result.stop, { action: action.kind,
+    ...(result.date ? { date: result.date, lastSelectableDate: result.lastSelectableDate } : {}) });
+  if (result.selector) await page.click(result.selector);
+  await page.wait(120);
+  return result;
+}
+
+/** Choose the exact dates through visible calendar controls, before submitting any search. */
+export async function selectV3Dates(page, period) {
+  for (const [index, date] of [period.startDate, period.endDate].entries()) {
+    await performFormAction(page, { kind: 'closePopups' });
+    await performFormAction(page, { kind: 'picker', index });
+    let done = false, currentMonth;
+    for (let turn = 0; turn < 25; turn++) {
+      const result = await performFormAction(page, { kind: 'date', date });
+      currentMonth = result.currentMonth;
+      if (result.done) { done = true; break; }
+    }
+    if (!done) stop('CAPTURE_PERIOD_NOT_SELECTABLE', { date, currentMonth });
+  }
+}
+
 export async function captureV3Preset(page, spec, outputDir, progress = () => {}, options = {}) {
   if (!validateSpec(spec)) stop('CAPTURE_PRESET_INVALID');
   for (let i = 0; i < 30; i++) {
@@ -638,10 +681,7 @@ export async function captureV3Preset(page, spec, outputDir, progress = () => {}
   };
   const act = async (action) => {
     await read();
-    const result = await page.evaluate(formAction, action);
-    if (result.stop) stop(result.stop, { action: action.kind });
-    await page.wait(120);
-    return result;
+    return performFormAction(page, action);
   };
   const until = async (predicate, code, limit = 120) => {
     let state;
@@ -733,17 +773,7 @@ export async function captureV3Preset(page, spec, outputDir, progress = () => {}
     const days = window.id === '30d' ? 30 : 365;
     await act({ kind: 'option', name: '^(Time period|Thời gian)', labels: [`${days} days`, `Trong ${days} ngày`] });
     await act({ kind: 'closePopups' });
-    for (const [index, date] of [window.period.startDate, window.period.endDate].entries()) {
-      await act({ kind: 'picker', index });
-      let done = false;
-      for (let turn = 0; turn < 25; turn++) {
-        if ((await act({ kind: 'date', date })).done) {
-          done = true;
-          break;
-        }
-      }
-      if (!done) stop('CAPTURE_PERIOD_NOT_SELECTABLE');
-    }
+    await selectV3Dates(page, window.period);
     await act({ kind: 'closePopups' });
     state = await until((s) => s.submitReady, 'CAPTURE_CONTROL_NOT_SELECTABLE');
     assertV3Applied(spec, window, state);
