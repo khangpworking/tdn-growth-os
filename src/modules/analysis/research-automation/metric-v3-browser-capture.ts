@@ -6,15 +6,40 @@ import type { MetricV3CaptureSpec } from './metric-v3-capture-spec.js';
 import type { MetricOpenCliProcessRunner } from './metric-opencli-executor.js';
 
 /** Checkout adapter, shared by autorun and the guarded operator command. Owns only its new tab. */
-export async function captureMetricV3(spec: MetricV3CaptureSpec, outputDir: string, executable: string, options: {
+export async function captureMetricV3(spec: MetricV3CaptureSpec, outputDir: string, executable: string, options: BrowserOptions): Promise<void> {
+  await withMetricV3Page(executable, options, async (page) => {
+    const moduleUrl = new URL('../../../../tools/opencli-metric/clis/metric/v3-capture.js', import.meta.url);
+    const { captureV3WithFallback } = await import(moduleUrl.href);
+    await captureV3WithFallback(page, spec, outputDir, { evidence: options.evidence === true });
+  }, outputDir);
+}
+
+/** Calendar-only preflight: never presses Analytics or changes an existing run. */
+export async function readMetricAvailableEndDate(endDate: string, executable: string, options: BrowserOptions): Promise<string> {
+  return withMetricV3Page(executable, options, async (page) => {
+    const moduleUrl = new URL('../../../../tools/opencli-metric/clis/metric/v3-capture.js', import.meta.url);
+    const { discoverV3AvailableEndDate } = await import(moduleUrl.href);
+    return discoverV3AvailableEndDate(page, endDate);
+  });
+}
+
+type BrowserOptions = {
   readonly env: Readonly<Record<string, string>>;
   readonly createProcessRunner: (signal?: AbortSignal) => MetricOpenCliProcessRunner;
   readonly signal?: AbortSignal;
   /** TDN_METRIC_EVIDENCE_ENABLED: screenshot evidence of each window; absent keeps the capture exactly as before. */
   readonly evidence?: boolean;
-}): Promise<void> {
+};
+interface MetricBrowserPage {
+  evaluate(fn: (...args: never[]) => unknown, arg?: unknown): Promise<any>;
+  wait(ms: number): Promise<void>;
+  click(selector: string): Promise<void>;
+  screenshot?: (options: { path: string; fullPage?: boolean }) => Promise<void>;
+}
+async function withMetricV3Page<T>(executable: string, options: BrowserOptions,
+  operation: (page: MetricBrowserPage) => Promise<T>, outputDir?: string): Promise<T> {
   const session = `m3-${randomUUID()}`;
-  const deadline = Date.now() + 1_620_000;
+  const deadline = Date.now() + (outputDir ? 1_620_000 : 60_000);
   const signal = options.signal;
   const check = () => {
     signal?.throwIfAborted();
@@ -32,7 +57,7 @@ export async function captureMetricV3(spec: MetricV3CaptureSpec, outputDir: stri
           try { execution.child.killGroup?.('SIGKILL'); } catch { /* best effort */ }
           try { execution.child.kill('SIGKILL'); } catch { /* best effort */ }
           reject(new Error('CAPTURE_BRIDGE_TIMEOUT'));
-        }, cleanup ? 60_000 : Math.min(60_000, Math.max(1, deadline - Date.now()))); }),
+        }, cleanup ? (outputDir ? 60_000 : 10_000) : Math.min(60_000, Math.max(1, deadline - Date.now()))); }),
       ]);
       if (result.exitCode !== 0) {
         if (/bridge.*(?:timeout|timed out)|(?:timeout|timed out).*bridge|BROWSER_(?:COMMAND_)?TIMEOUT/i.test(result.stderr))
@@ -50,9 +75,7 @@ export async function captureMetricV3(spec: MetricV3CaptureSpec, outputDir: stri
     const opened = await command(['tab', 'new', 'https://metric.vn/analytics']);
     if (typeof opened.page !== 'string' || !/^[A-Fa-f0-9]+$/.test(opened.page)) throw new Error('CAPTURE_TAB_UNAVAILABLE');
     tab = opened.page;
-    await writeFile(join(outputDir, 'session.json'), `${JSON.stringify({ session, tab })}\n`, { flag: 'wx', mode: 0o600 });
-    const moduleUrl = new URL('../../../../tools/opencli-metric/clis/metric/v3-capture.js', import.meta.url);
-    const { captureV3WithFallback } = await import(moduleUrl.href);
+    if (outputDir) await writeFile(join(outputDir, 'session.json'), `${JSON.stringify({ session, tab })}\n`, { flag: 'wx', mode: 0o600 });
     const page = {
       evaluate: async (fn: (...args: never[]) => unknown, arg?: unknown) => {
         check();
@@ -65,12 +88,12 @@ export async function captureMetricV3(spec: MetricV3CaptureSpec, outputDir: stri
         await command(['screenshot', '--tab', tab!, ...(fullPage ? ['--full-page'] : []), path], false, false);
       } } : {}),
     };
-    await captureV3WithFallback(page, spec, outputDir, { evidence: options.evidence === true });
+    return await operation(page);
   } catch (error) {
     const code = signal?.aborted ? 'CAPTURE_INTERRUPTED' : error instanceof Error ? error.message : 'CAPTURE_FAILED';
     const errors = (error as { details?: object })?.details;
     stopped = { code, ...(errors ? { errors } : {}) };
-    await writeFile(join(outputDir, 'stopped.json'), `${JSON.stringify(stopped)}\n`, { flag: 'wx', mode: 0o600 });
+    if (outputDir) await writeFile(join(outputDir, 'stopped.json'), `${JSON.stringify(stopped)}\n`, { flag: 'wx', mode: 0o600 });
     throw error;
   } finally {
     if (tab) {
@@ -78,7 +101,7 @@ export async function captureMetricV3(spec: MetricV3CaptureSpec, outputDir: stri
       catch (error) {
         if (!stopped) throw error;
         const cleanupCode = error instanceof Error ? error.message : 'CAPTURE_FAILED';
-        await writeFile(join(outputDir, 'stopped.json'), `${JSON.stringify({ ...stopped, cleanupCode })}\n`, { mode: 0o600 });
+        if (outputDir) await writeFile(join(outputDir, 'stopped.json'), `${JSON.stringify({ ...stopped, cleanupCode })}\n`, { mode: 0o600 });
       }
     }
   }

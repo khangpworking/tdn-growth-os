@@ -136,7 +136,8 @@ function sequence(): () => string {
 export async function fixture(t: TestContext, autoRun: 'on' | 'off' | 'absent' = 'on', behaviour?: (runId: string) => Behaviour,
   runCapture?: (capture: FakeCapture) => RunCapture,
   reviews?: { cap?: number; factory?: ResearchAutomationServiceOptions['shopeeCollectorFactory'] },
-  lanes: Pick<ResearchAutomationServiceOptions, 'searchAdsSource' | 'metaAutoSource' | 'sourceEvidence' | 'renderer' | 'v3Report'> = {}) {
+  lanes: Pick<ResearchAutomationServiceOptions, 'searchAdsSource' | 'metaAutoSource' | 'sourceEvidence' | 'renderer' | 'v3Report'> = {},
+  resolveAvailableEndDate?: NonNullable<ResearchAutomationServiceOptions['autoRun']>['resolveAvailableEndDate']) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-autorun-'));
   const databasePath = path.join(root, 'test.sqlite');
   const artifactRoot = path.join(root, 'artifacts');
@@ -152,6 +153,7 @@ export async function fixture(t: TestContext, autoRun: 'on' | 'off' | 'absent' =
     ...lanes,
     ...(reviews?.factory ? { shopeeCollectorFactory: reviews.factory } : {}),
     ...(autoRun === 'absent' ? {} : { autoRun: { enabled: autoRun === 'on', runner: { enabledEnv: '1', captureRoot: capture.captureRoot }, runCapture: run,
+      ...(resolveAvailableEndDate ? { resolveAvailableEndDate } : {}),
       ...(reviews?.cap !== undefined ? { testReviewCap: reviews.cap } : {}) } }),
   } as ResearchAutomationServiceOptions);
   const service = make();

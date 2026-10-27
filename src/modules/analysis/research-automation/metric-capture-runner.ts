@@ -8,7 +8,7 @@
 // hard-coded. Explicit presets use the checkout v3 adapter under the same lock.
 import type { MetricV3CaptureSpec } from './metric-v3-capture-spec.js';
 import { METRIC_V3_STOP_CODES, type MetricV3StopCode } from './metric-v3-capture-spec.js';
-import { captureMetricV3 } from './metric-v3-browser-capture.js';
+import { captureMetricV3, readMetricAvailableEndDate } from './metric-v3-browser-capture.js';
 import { chmod, mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { buildCaptureSpec, decidePeriodRetry, planCapturePeriod, type DatePeriod } from './autorun-derive.js';
@@ -234,4 +234,14 @@ async function runPresetCapture(config: MetricCaptureRunnerConfig, request: Metr
         ? 'DECISION NEEDED: The owner must log in before capture can continue.' : `capture stopped: ${code}${errors?.uiCode && errors.pageRequestCode ? ` (ui: ${errors.uiCode}; page-request: ${errors.pageRequestCode})` : ''}`, 1);
     }
   }, interrupted);
+}
+
+/** A browser-owned calendar preflight serialized with captures. No Analytics submission. */
+export async function resolveMetricAvailableEndDate(config: MetricCaptureRunnerConfig, endDate: string): Promise<string> {
+  if (config.enabledEnv !== '1') throw new Error('EXECUTOR_NOT_CONFIGURED');
+  const signal = AbortSignal.timeout(90_000);
+  return withOpenCliBrowserLock(signal, () => readMetricAvailableEndDate(endDate, config.opencliExecutable ?? 'opencli', {
+    env: metricCaptureEnv(process.env), signal,
+    createProcessRunner: signal => createMetricOpenCliProcessRunner(signal ? { signal } : {}),
+  }), () => { throw new Error('CAPTURE_INTERRUPTED'); });
 }

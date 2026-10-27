@@ -1,3 +1,4 @@
+import { resolveMetricAvailableEndDate } from '../modules/analysis/research-automation/metric-capture-runner.js';
 import { createR2MetricEvidenceStore } from '../platform/artifacts/r2-metric-evidence.js';
 import { openPublicReviewOwnerSession, ShopeePublicReviewCollector } from '../platform/collectors/shopee-public-reviews.js';
 import publicSourceSchema from '../../contracts/api/research-automation-source-api-v3.schema.json' with { type: 'json' };
@@ -507,6 +508,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
           ...((configuration.providers?.apifyReviews || configuration.providers?.shopeePublicReviews) && configuration.providers.autorunTestReviewCap !== undefined
             && configuration.providers.autorunTestReviewCap === (configuration.providers.shopeePublicReviews ?? configuration.providers.apifyReviews)?.maxReviewsPerProduct
             ? { testReviewCap: configuration.providers.autorunTestReviewCap } : {}),
+          resolveAvailableEndDate: resolveMetricAvailableEndDate,
           onWake: () => worker?.wake(), runner: {
           ...(configuration.metricEvidenceEnabled ? { evidence: true } : {}), enabledEnv: '1', captureRoot: path.resolve(configuration.metricAutoRun.captureRoot),
           adapterManifestPath: configuration.metricAutoRun.adapterManifestPath, adapterManifestSha256: configuration.metricAutoRun.adapterManifestSha256 } } } : {}),

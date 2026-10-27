@@ -175,3 +175,43 @@ test('V3S1 owner preset survives restart, reaches capture unchanged once, reject
   await assert.rejects(restarted.retryAutoRunCapture(workspaceId, runId, { ...answer, requestKey: randomUUID() }));
   assert.equal(calls.length, 1);
 });
+
+
+test('new runs freeze source-available dates before capture and exact retries never re-resolve them', async t => {
+  for (const explicitPreset of [true, false]) {
+    let available = '2026-01-24', probes = 0;
+    const f = await fixture(t, 'on', undefined, undefined, undefined, {}, async () => { probes++; return available; });
+    const input = { contractVersion: 'research-automation-start-v2', requestKey: randomUUID(), mode: 'CATEGORY', keyword: 'synthetic jar',
+      requestedPeriod: { startDate: '2025-01-31', endDate: '2026-01-30' }, reports: ['MARKET'],
+      ...(explicitPreset ? { metricV3Preset: metricV3Defaults('synthetic jar', '', '2026-01-30') } : {}) };
+    const receipt = await f.service.start(workspaceId, input);
+    assert.deepEqual(receipt.run.requestedPeriod, { startDate: '2025-01-25', endDate: '2026-01-24', dayCount: 365 });
+    const row = f.db.prepare('SELECT start_request_sha256 sha FROM analysis_research_automation_runs WHERE run_id=?').get(receipt.run.runId) as { sha: string };
+    const saved = JSON.parse((await f.artifacts.read(row.sha)).toString('utf8'));
+    if (explicitPreset) assert.deepEqual(saved.metricV3Preset.windows.map((w: any) => w.period), [
+      { startDate: '2025-12-26', endDate: '2026-01-24' }, { startDate: '2025-01-25', endDate: '2026-01-24' }]);
+    assert.deepEqual(saved.metricDateAlignment.originalPeriod, input.requestedPeriod);
+    available = '2026-01-25';
+    const retry = await f.service.start(workspaceId, input);
+    assert.equal(retry.exactRetry, true);
+    assert.deepEqual(retry.run.requestedPeriod, receipt.run.requestedPeriod);
+    assert.equal(probes, 1);
+    await drain(f.service);
+    assert.deepEqual(f.capture.calls[0]!.requestedPeriod, { startDate: '2025-01-25', endDate: '2026-01-24' });
+    assert.deepEqual(f.capture.calls[0]!.metricV3Preset, saved.metricV3Preset);
+    assert.deepEqual((await f.make().getRun(workspaceId, receipt.run.runId)).requestedPeriod, receipt.run.requestedPeriod);
+  }
+});
+
+test('unavailable or invalid source dates cannot create a run or begin capture', async t => {
+  for (const result of ['2026-02-01', 'invalid', null]) {
+    const f = await fixture(t, 'on', undefined, undefined, undefined, {}, async () => {
+      if (result === null) throw new Error('CAPTURE_LOGIN_REQUIRED');
+      return result;
+    });
+    await assert.rejects(f.service.start(workspaceId, { contractVersion: 'research-automation-start-v2', requestKey: randomUUID(),
+      mode: 'CATEGORY', keyword: 'synthetic jar', requestedPeriod: { startDate: '2025-01-31', endDate: '2026-01-30' }, reports: ['MARKET'] }));
+    assert.equal((f.db.prepare('SELECT count(*) n FROM analysis_research_automation_runs').get() as { n: bigint }).n, 0n);
+    assert.equal(f.capture.calls.length, 0);
+  }
+});
