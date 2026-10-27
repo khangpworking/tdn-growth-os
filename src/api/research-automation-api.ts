@@ -1,4 +1,4 @@
-import { ShopeePublicReviewCollector, ShopeePublicReviewSessionClient } from '../platform/collectors/shopee-public-reviews.js';
+import { openPublicReviewOwnerSession, ShopeePublicReviewCollector } from '../platform/collectors/shopee-public-reviews.js';
 import publicSourceSchema from '../../contracts/api/research-automation-source-api-v3.schema.json' with { type: 'json' };
 import publicCollectionSchema from '../../contracts/foundation/shopee-public-collection.schema.json' with { type: 'json' };
 import publicRowsSchema from '../../contracts/foundation/shopee-public-rows.schema.json' with { type: 'json' };
@@ -507,8 +507,10 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
           const collector = new ShopeePublicReviewCollector({ token: config.token, baseUrl: config.baseUrl, maxReviewsPerProduct: config.maxReviewsPerProduct, confirmedSourceSetSha256: acquisition.confirmedSourceSetSha256, sampleMode: acquisition.sampleMode,
             journalRoot: path.join(path.dirname(path.resolve(configuration.databasePath)), 'research-automation-shopee-public-journal') });
           return { collector, requestsIssued: collector.requestsIssued };
-        }, session: () => { const config = configuration.providers!.shopeePublicReviews!;
-          return new ShopeePublicReviewSessionClient({ token: config.token, baseUrl: config.baseUrl }); } } } : {}),
+        }, session: context => { const config = configuration.providers!.shopeePublicReviews!;
+          // Owner repair controls keep their own journal and never enter run usage evidence.
+          return openPublicReviewOwnerSession({ token: config.token, baseUrl: config.baseUrl, requestKey: context.requestKey, kind: context.kind,
+            journalRoot: path.join(path.dirname(path.resolve(configuration.databasePath)), 'research-automation-shopee-session-journal') }); } } } : {}),
         ...(configuration.providers?.apifyReviews ? { shopeeCollectorFactory: () => {
           let requests = 0;
           const config = configuration.providers!.apifyReviews!;

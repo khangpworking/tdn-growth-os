@@ -5005,8 +5005,9 @@ export class ResearchAutomationService {
 
   /**
    * Owner repair of a lost Shopee collector login (SHP-BRIEF C1/C2). Only the
-   * owner web action reaches the collector; the receipt is replayed from the
-   * request ledger, so an exact retry never opens or checks the session twice.
+   * owner web action reaches the collector. The request key is reserved durably
+   * before that call, so a crash or a failed receipt write can never dispatch the
+   * same command twice; an exact retry replays the stored row instead.
    */
   async openShopeeReviewLogin(workspaceId: string, runId: string, value: unknown): Promise<ResearchAutomationShopeeSessionReceipt> {
     return this.#shopeeSessionAction(workspaceId, runId, value, 'LOGIN');
@@ -5021,20 +5022,25 @@ export class ResearchAutomationService {
     return withDatabaseMutationMutex(this.#db, async () => {
       const prior = this.#hasShopeeSessionTable()
         ? this.#db.prepare(`SELECT run_id runId,request_sha256 sha,state,checked_at checkedAt FROM research_automation_shopee_sessions WHERE request_key=?`)
-            .get(input.requestKey) as { runId: string; sha: string; state: PublicReviewSessionState; checkedAt: string | null } | undefined
+            .get(input.requestKey) as { runId: string; sha: string; state: ResearchAutomationShopeeSessionReceipt['state']; checkedAt: string | null } | undefined
         : undefined;
       if (prior) {
         if (prior.runId !== runId || prior.sha !== requestSha) throw new ResearchAutomationConflictError('request_key_conflict', 'This request key is bound to another request.');
+        // A reserved key may have crashed or lost its receipt write. It is never dispatched again;
+        // the owner checks the real session with a new confirm request instead.
         return shopeeSessionReceipt(prior.state, prior.checkedAt, true);
       }
-      const session = this.#publicShopee.configuration?.session?.();
+      const session = this.#publicShopee.configuration?.session?.({ kind, requestKey: input.requestKey });
       if (!session) throw new ResearchAutomationConflictError('invalid_state', 'Shopee review session repair is not configured.');
       await this.#assertShopeeSessionRepair(workspaceId, runId);
+      if (!this.#hasShopeeSessionTable()) throw new ResearchAutomationConflictError('invalid_state', 'Shopee review session repair is not available.');
+      this.#db.prepare(`INSERT INTO research_automation_shopee_sessions(request_key,run_id,request_kind,request_sha256,state,checked_at,reserved_at,accepted_at) VALUES (?,?,?,?,'DISPATCHING',NULL,?,NULL)`)
+        .run(input.requestKey, runId, kind, requestSha, this.#now().toISOString());
       const result = kind === 'LOGIN' ? await session.login() : await this.#confirmShopeeSession(session);
       const at = this.#now().toISOString();
-      if (!this.#hasShopeeSessionTable()) throw new ResearchAutomationConflictError('invalid_state', 'Shopee review session repair is not available.');
-      this.#db.prepare(`INSERT INTO research_automation_shopee_sessions(request_key,run_id,request_kind,request_sha256,state,checked_at,accepted_at) VALUES (?,?,?,?,?,?,?)`)
-        .run(input.requestKey, runId, kind, requestSha, result.state, result.checkedAt, at);
+      const accepted = this.#db.prepare(`UPDATE research_automation_shopee_sessions SET state=?,checked_at=?,accepted_at=? WHERE request_key=? AND state='DISPATCHING'`)
+        .run(result.state, result.checkedAt, at, input.requestKey);
+      if (accepted.changes !== 1) throw new Error('Shopee session reservation was not found');
       return shopeeSessionReceipt(result.state, result.checkedAt, false);
     });
   }
@@ -6880,7 +6886,7 @@ function validateShopeeSession(value: unknown, kind: 'LOGIN' | 'CONFIRM'): Resea
     throw new ResearchAutomationValidationError('Shopee session request is invalid.');
   return { contractVersion, requestKey: object.requestKey };
 }
-function shopeeSessionReceipt(state: PublicReviewSessionState, checkedAt: string | null, exactRetry: boolean): ResearchAutomationShopeeSessionReceipt {
+function shopeeSessionReceipt(state: ResearchAutomationShopeeSessionReceipt['state'], checkedAt: string | null, exactRetry: boolean): ResearchAutomationShopeeSessionReceipt {
   return { contractVersion: 'research-automation-shopee-session-v1', state, checkedAt, exactRetry };
 }
 function validateReports(value: unknown): ResearchAutomationStartRequest['reports'] { if (!Array.isArray(value) || (value.length !== 1 && value.length !== 2) || value.some((item) => item !== 'MARKET' && item !== 'INSIGHT') || new Set(value).size !== value.length || (value.length === 2 && (value[0] !== 'MARKET' || value[1] !== 'INSIGHT'))) throw new ResearchAutomationValidationError('Choose MARKET, INSIGHT, or both in that order.'); return value as ResearchAutomationStartRequest['reports']; }

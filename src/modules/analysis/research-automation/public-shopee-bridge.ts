@@ -22,7 +22,7 @@ export interface PublicShopeeConfiguration {
   maxReviewsPerProduct: number;
   factory: PublicShopeeCollectorFactory;
   /** Owner repair only; absent keeps the login/confirm actions unavailable. */
-  session?: () => ShopeePublicReviewSessionClient;
+  session?: (context: { kind: 'LOGIN' | 'CONFIRM'; requestKey: string }) => ShopeePublicReviewSessionClient;
 }
 export type PublicReviewSource = import('../../../../contracts/foundation/shopee-public-collection.generated.js').PublicReviewSource;
 

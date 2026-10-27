@@ -101,6 +101,7 @@ export default function RunView({ workspaceId, runId, ownerToken, writesAvailabl
 const SHOPEE_REPAIR_CODES: readonly string[] = ['SHOPEE_LOGIN_REQUIRED', 'SHOPEE_VERIFICATION_REQUIRED', 'SHOPEE_COLLECTOR_DOWN'];
 
 const shopeeSessionStateLabels: Readonly<Record<ResearchAutomationShopeeSessionReceipt['state'], string>> = {
+  DISPATCHING: 'Lệnh đang chờ kết quả từ bộ thu. Kiểm tra lại phiên bằng nút «Tôi đã đăng nhập xong».',
   READY: 'Phiên đăng nhập Shopee đã sẵn sàng.',
   AWAITING_USER_LOGIN: 'Đã mở trang đăng nhập Shopee. Đăng nhập xong thì bấm «Tôi đã đăng nhập xong».',
   LOGIN_REQUIRED: 'Bộ thu vẫn chưa đăng nhập Shopee. Bấm «Đăng nhập Shopee» rồi làm theo trang mở ra.',

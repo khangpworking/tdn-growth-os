@@ -190,6 +190,93 @@ export function checkPublicReviewSession(options: PublicReviewSessionOptions, si
   return new ShopeePublicReviewSessionClient(options).check(signal);
 }
 
+export interface PublicReviewOwnerSessionOptions {
+  token: string; baseUrl?: string; journalRoot: string; requestKey: string; kind: 'LOGIN' | 'CONFIRM';
+  fetch?: typeof fetch; now?: () => Date;
+}
+interface PublicReviewOwnerJournal {
+  contractVersion: 'shopee-public-owner-journal-v1';
+  requestKey: string; requestKind: 'LOGIN' | 'CONFIRM';
+  startedAt: string; requestCount: number; requestCountUncertain: boolean;
+}
+const OWNER_JOURNAL_MAX_BYTES = 64 * 1024;
+const requestKeyPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+function ownerJournal(value: unknown, requestKey: string, kind: 'LOGIN' | 'CONFIRM'): PublicReviewOwnerJournal | null {
+  const v = optionalObject(value);
+  if (!v || v.contractVersion !== 'shopee-public-owner-journal-v1' || v.requestKey !== requestKey || v.requestKind !== kind ||
+      !integer(v.requestCount) || typeof v.requestCountUncertain !== 'boolean' || !utc(v.startedAt)) return null;
+  return { contractVersion: 'shopee-public-owner-journal-v1', requestKey, requestKind: kind, startedAt: v.startedAt,
+    requestCount: v.requestCount, requestCountUncertain: v.requestCountUncertain };
+}
+async function readOwnerJournal(file: string, requestKey: string, kind: 'LOGIN' | 'CONFIRM'): Promise<PublicReviewOwnerJournal | null> {
+  let stat; try { stat = await fs.lstat(file); } catch (e) { if ((e as NodeJS.ErrnoException).code === 'ENOENT') return null; return fail(); }
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.size > OWNER_JOURNAL_MAX_BYTES || (stat.mode & 0o077) !== 0) return fail();
+  const raw = await fs.readFile(file); let value: unknown; try { value = JSON.parse(raw.toString('utf8')); } catch { return fail(); }
+  const journal = ownerJournal(value, requestKey, kind);
+  if (!journal || !bytes(journal).equals(raw)) return fail();
+  return journal;
+}
+async function writeOwnerJournal(file: string, journal: PublicReviewOwnerJournal): Promise<void> {
+  const tmp = file + '.' + randomUUID() + '.tmp'; const handle = await fs.open(tmp, 'wx', 0o600);
+  try { await handle.writeFile(bytes(journal)); await handle.sync(); } finally { await handle.close(); }
+  await fs.rename(tmp, file); const parent = await fs.open(path.dirname(file), 'r'); try { await parent.sync(); } finally { await parent.close(); }
+}
+
+/**
+ * Owner-only repair session. Every call increments its own durable count before
+ * dispatch and clears the uncertainty only after a response is read, so a crash
+ * leaves both facts on disk. This journal is control evidence; it never enters
+ * collection pages, run usage or a product's source data.
+ */
+export function openPublicReviewOwnerSession(options: PublicReviewOwnerSessionOptions): ShopeePublicReviewSessionClient {
+  if (!requestKeyPattern.test(options.requestKey) || !options.journalRoot) fail();
+  const fetchImpl = options.fetch ?? fetch, clock = options.now ?? (() => new Date());
+  const base = (options.baseUrl ?? 'http://127.0.0.1:8877').replace(/\/$/, '');
+  const root = path.resolve(options.journalRoot), file = path.join(root, hash(Buffer.from(`shopee-session:${options.kind}:${options.requestKey}`)) + '.json');
+  let journal: PublicReviewOwnerJournal | null = null, secured: Promise<void> | undefined;
+  const load = async (): Promise<PublicReviewOwnerJournal> => {
+    await (secured ??= secureDirectory(root));
+    return journal ??= await readOwnerJournal(file, options.requestKey, options.kind) ?? {
+      contractVersion: 'shopee-public-owner-journal-v1', requestKey: options.requestKey, requestKind: options.kind,
+      startedAt: clock().toISOString(), requestCount: 0, requestCountUncertain: false };
+  };
+  const dispatch: PublicReviewSessionDispatch = async (method, path, timeoutMs, signal) => {
+    const allowed = method === 'GET' ? path === '/session' : ['/session/check', '/session/login', '/session/background'].includes(path);
+    if (!allowed || !integer(timeoutMs, 1) || signal?.aborted) return null;
+    const j = await load();
+    const controller = new AbortController(); let timedOut = false;
+    const timer = setTimeout(() => { timedOut = true; controller.abort(); }, timeoutMs);
+    const abort = () => controller.abort(); signal?.addEventListener('abort', abort, { once: true });
+    const priorCount = j.requestCount, priorUncertainty = j.requestCountUncertain;
+    let dispatched = false;
+    try {
+      j.requestCount++; j.requestCountUncertain = true; await writeOwnerJournal(file, j);
+      if (signal?.aborted || controller.signal.aborted) return null;
+      dispatched = true;
+      const response = await fetchImpl(base + path, { method, headers: { Authorization: `Bearer ${options.token}`, Accept: 'application/json' },
+        redirect: 'error', cache: 'no-store', signal: controller.signal });
+      if (controller.signal.aborted) { await response.body?.cancel(); return null; }
+      if (Number(response.headers.get('content-length') ?? '0') > SESSION_MAX_BYTES) { await response.body?.cancel(); return null; }
+      j.requestCountUncertain = false; await writeOwnerJournal(file, j);
+      if (!response.body) return { status: response.status, value: null };
+      const text = await readBoundedText(response, SESSION_MAX_BYTES, controller.signal, () => timedOut ? 'SHOPEE_REVIEW_TIMEOUT' : 'OWNER_ABORTED');
+      if (controller.signal.aborted || text.includes(options.token) || text.includes(encodeURIComponent(options.token))) return null;
+      if (!text) return { status: response.status, value: null };
+      let value: unknown; try { value = JSON.parse(text); } catch { return null; }
+      const encoded = canonicalJson(value);
+      if (encoded.includes(options.token) || encoded.includes(encodeURIComponent(options.token))) return null;
+      return { status: response.status, value };
+    } catch {
+      if (!dispatched) {
+        j.requestCount = priorCount; j.requestCountUncertain = priorUncertainty;
+        try { await writeOwnerJournal(file, j); } catch { /* The on-disk reservation stays conservative. */ }
+      }
+      return null;
+    } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
+  };
+  return new ShopeePublicReviewSessionClient({ token: options.token, baseUrl: base, fetch: fetchImpl, now: clock, dispatch });
+}
+
 /** No source text is rewritten. This conversion never consults the host timezone. */
 export function publicReviewLocalTime(value: string): string | null {
   if (!/^\d{4}-\d\d-\d\d \d\d:\d\d$/.test(value)) return null;

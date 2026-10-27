@@ -156,12 +156,18 @@ export interface ResearchAutomationShopeeSessionRequest {
   requestKey: RequestKey;
 }
 /**
- * Result of checking or opening the Shopee review collector session; never carries the collector token.
+ * Result of checking or opening the Shopee review collector session; never carries the collector token. DISPATCHING means the command was durably reserved but its outcome is not recorded yet; the owner re-checks the session instead of repeating the command.
  */
 export interface ResearchAutomationShopeeSessionReceipt {
   contractVersion: 'research-automation-shopee-session-v1';
   state:
-    'READY' | 'AWAITING_USER_LOGIN' | 'LOGIN_REQUIRED' | 'VERIFICATION_REQUIRED' | 'COLLECTOR_BUSY' | 'COLLECTOR_DOWN';
+    | 'DISPATCHING'
+    | 'READY'
+    | 'AWAITING_USER_LOGIN'
+    | 'LOGIN_REQUIRED'
+    | 'VERIFICATION_REQUIRED'
+    | 'COLLECTOR_BUSY'
+    | 'COLLECTOR_DOWN';
   checkedAt: Timestamp | null;
   exactRetry: boolean;
 }
