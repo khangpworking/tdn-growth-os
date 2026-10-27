@@ -45,7 +45,16 @@ function evidenceNumbers(archive: V3Archive, trace: MarketNumberTrace): Evidence
       const aggregation = match ? window.raw[index]?.body?.data?.search_basic?.aggregations?.[Number(match[1])]?.aggregation : '';
       if (/SHOP_TYPE/u.test(aggregation)) sectionKey = 'shop-types';
       else if (/PRICE_RANGE/u.test(aggregation)) sectionKey = 'price-bands';
-      else if (input.pointer.includes('/platforms/')) sectionKey = 'platform-share';
+      else if (/^(?:PREVIOUS_)?REVENUE_TOTAL_CUSTOM$/u.test(aggregation)) {
+        // Complete overview totals (including prior-period comparisons) belong to the KPI cards.
+        // Only revenue split by platform belongs to the sales-by-platform chart; counts also use
+        // platform arrays in the source, so the storage shape alone cannot identify that chart.
+        const platformsPath = input.pointer.slice(0, input.pointer.indexOf('/entity/platforms/')) + '/entity/platforms';
+        const contributing = entry.inputs.flatMap(other => 'store' in other && other.identity === input.identity && other.pointer.startsWith(`${platformsPath}/`) ? [other] : []);
+        const platformCount = window.raw[index]?.body?.data?.search_basic?.aggregations?.[Number(match![1])]?.entity?.platforms?.length;
+        const revenueShare = entry.formulaId === 'share-percent' && contributing.some(other => other.role === 'part');
+        if (revenueShare || new Set(contributing.map(other => other.pointer)).size < platformCount) sectionKey = 'platform-share';
+      }
     }
     if (!sectionKey) throw new Error('V3_NUMBER_EVIDENCE_MISSING');
     return { captureId: window.manifest.captureId, sectionKey, jsonPath: input.pointer, source: 'raw-responses' as const };
