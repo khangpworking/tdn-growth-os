@@ -9,12 +9,67 @@ import http from 'node:http';
 import { openResearchAutomationApi } from '../../src/api/research-automation-api.js';
 import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
 import { createChromiumPdfRenderer } from '../../src/modules/analysis/research-automation/pdf.js';
-import { renderV3Report, v3Hash } from '../../src/modules/analysis/research-automation/metric-v3-report.js';
-import { assertNumberEvidence, buildNumberEvidenceIndex, retainEvidencePackages, type NumberEvidenceIndex } from '../../src/modules/analysis/research-automation/metric-number-evidence.js';
+import { renderV3Report, v3Hash, type V3Archive } from '../../src/modules/analysis/research-automation/metric-v3-report.js';
+import { assertNumberEvidence, buildNumberEvidenceIndex, retainEvidencePackages, type EvidenceNumber, type NumberEvidenceIndex } from '../../src/modules/analysis/research-automation/metric-number-evidence.js';
+import type { MarketNumberTrace, MarketTraceFormulaId, MarketTraceInput, MarketTraceRole } from '../../src/modules/analysis/research-automation/market-trace-map.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../src/modules/flow/index.js';
 import { fixture, workspaceId, drain, autorun } from '../helpers/autorun-harness.js';
 import { adapter, evidenceAdapter, capturedAt, fakeRunId, fakeEvidencePage, fakeR2, jsonBytes, model, syntheticCapture, writeCapture } from '../helpers/evr2-evidence-fixture.js';
+
+// Select report numbers by their source metric/formula, never by the section the
+// evidence mapper chose. Identical fixture values (35) cannot identify a metric.
+function expectedSectionBindings(archive: V3Archive, trace: MarketNumberTrace) {
+  const signature = (inputs: readonly MarketTraceInput[]) => canonicalJson(inputs.map(input => {
+    assert.ok('store' in input);
+    return [input.identity, input.pointer, input.role ?? null];
+  }).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))));
+  const cases: { label: string; metric: string; comparison: boolean; traceIndex: number; captureId: string; windowId: string;
+    sectionKey: 'kpi' | 'platform-share'; sectionName: string; period: unknown }[] = [];
+  for (const window of archive.windows) {
+    const sourcePath = window.manifest.sourceMap['search-basic'].split('#')[1] + '/search_basic/aggregations';
+    const aggregations = sourcePath.split('/').slice(1).reduce((v: any, key) => v[key], window.raw);
+    const inputs = (metric: string, platforms?: readonly number[], role?: MarketTraceRole): MarketTraceInput[] => {
+      const i = aggregations.findIndex((a: any) => a.aggregation === metric);
+      assert.notEqual(i, -1, `synthetic fixture lacks ${metric}`);
+      return aggregations[i].entity.platforms.flatMap((p: any, j: number) => !platforms || platforms.includes(p.platform_id)
+        ? [{ store: 'stored-source', identity: window.rawSha, pointer: `${sourcePath}/${i}/entity/platforms/${j}/value`, ...(role ? { role } : {}) }] : []);
+    };
+    const add = (metric: string, kind: string, formula: MarketTraceFormulaId, expectedInputs: MarketTraceInput[], sectionKey: 'kpi' | 'platform-share') => {
+      const label = `${window.manifest.window.id} ${metric} ${kind}`;
+      const matching = trace.entries.flatMap((entry, i) => entry.formulaId === formula && signature(entry.inputs) === signature(expectedInputs) ? [i] : []);
+      assert.equal(matching.length, 1, `${label} must identify exactly one source-backed report number`);
+      cases.push({ label, metric, comparison: kind === 'comparison', traceIndex: matching[0]!, captureId: window.manifest.captureId,
+        windowId: window.manifest.window.id, period: window.manifest.window.period, sectionKey,
+        sectionName: sectionKey === 'kpi' ? 'Chỉ số chính' : 'Doanh số theo sàn' });
+    };
+    // Owner contract: overview revenue/orders/products/shops and all current /
+    // previous-period contributors belong to the KPI block, even in platform arrays.
+    for (const [metric, formula] of [['SHOP_TOTAL', 'sum-number'], ['PRODUCT_TOTAL', 'sum-number'],
+      ['ORDER_TOTAL_CUSTOM', 'sum-number'], ['REVENUE_TOTAL_CUSTOM', 'sum-money']] as const) {
+      add(metric, 'overview total', formula, inputs(metric), 'kpi');
+      add(metric, 'comparison', 'change-percent', [...inputs(metric, undefined, 'current'), ...inputs(`PREVIOUS_${metric}`, undefined, 'previous')], 'kpi');
+    }
+    // The report's genuine sales chart uses Shopee / TikTok revenue amounts,
+    // their combined subtotal and their shares; these belong to the sales section.
+    for (const platform of [1, 8]) {
+      add('REVENUE_TOTAL_CUSTOM', `platform ${platform} sales`, 'sum-money', inputs('REVENUE_TOTAL_CUSTOM', [platform]), 'platform-share');
+      add('REVENUE_TOTAL_CUSTOM', `platform ${platform} share`, 'share-percent', [
+        ...inputs('REVENUE_TOTAL_CUSTOM', [platform], 'part'), ...inputs('REVENUE_TOTAL_CUSTOM', [1, 8], 'total'),
+      ], 'platform-share');
+    }
+    add('REVENUE_TOTAL_CUSTOM', 'two-platform sales subtotal', 'sum-money', inputs('REVENUE_TOTAL_CUSTOM', [1, 8]), 'platform-share');
+  }
+  assert.equal(cases.length, 26, 'both windows must exercise every overview family/comparison and every sales-chart number');
+  return cases;
+}
+function assertSectionBinding(number: EvidenceNumber, sectionKey: string, label: string) {
+  assert.ok(number.refs.length, `${label} needs source refs`);
+  for (const ref of number.refs) {
+    assert.equal(ref.source, 'raw-responses', `${label} must retain its raw source`);
+    assert.equal(ref.sectionKey, sectionKey, `${label} must use ${sectionKey} evidence`);
+  }
+}
 
 async function temporary(t: TestContext) {
   const dir = await mkdtemp(join(tmpdir(), 'evr2-tests-'));
@@ -186,9 +241,22 @@ test('A3 every number in the synthetic zinc v3 report has an exact capture/secti
       } else assert.equal(ref.sectionKey, 'search-settings');
     }
   }
+  const bindings = expectedSectionBindings(f.archive, built.trace);
+  await t.test('A3 overview KPI totals/comparisons and genuine platform sales have their expected section bindings', () => {
+    for (const binding of bindings) assertSectionBinding(index.numbers[binding.traceIndex]!, binding.sectionKey, binding.label);
+    assert.ok(index.numbers.some(n => n.refs.some(r => r.sectionKey === 'kpi')), 'overview numbers must have KPI refs');
+  });
   await t.test('A3 negative control: removing one evidence ref blocks P5 with its explicit code', () => {
     const changed = structuredClone(index);
     changed.numbers.find(n => n.refs[0]!.source === 'raw-responses')!.refs.pop();
+    assert.throws(() => assertNumberEvidence(changed, built.trace, f.archive), { message: 'V3_NUMBER_EVIDENCE_MISSING' });
+  });
+  await t.test('A3 negative control: substituting the sales-chart section for a shop count fails its binding and P5', () => {
+    const count = bindings.find(b => b.metric === 'SHOP_TOTAL' && !b.comparison)!;
+    const changed = structuredClone(index);
+    const number = changed.numbers[count.traceIndex]!;
+    for (const ref of number.refs) ref.sectionKey = 'platform-share';
+    assert.throws(() => assertSectionBinding(number, 'kpi', count.label), { name: 'AssertionError', message: /SHOP_TOTAL overview total must use kpi evidence/ });
     assert.throws(() => assertNumberEvidence(changed, built.trace, f.archive), { message: 'V3_NUMBER_EVIDENCE_MISSING' });
   });
 });
@@ -260,6 +328,25 @@ test('A5 app resolves the stored number to settings and two private 24h links be
     assert.equal(url.searchParams.get('X-Amz-Expires'), '86400'); assert.match(url.searchParams.get('X-Amz-Signature')!, /^[0-9a-f]{64}$/);
     assert.ok(Date.parse(link.expiresAt) >= before + 86400000 && Date.parse(link.expiresAt) <= Date.now() + 86400000);
   }
+  await t.test('A5 overview KPI families/comparisons and platform sales return the correct named section and image', async () => {
+    for (const binding of expectedSectionBindings(f.bundle.archive, f.semantic.numberTrace)) {
+      const numberRef = `n${binding.traceIndex}`;
+      const reply = await f.service.readNumberEvidence(workspaceId, f.revision.revisionId, numberRef) as any;
+      assert.equal(reply.numberRef, numberRef, binding.label);
+      assert.equal(reply.sectionName, binding.sectionName, binding.label);
+      assert.equal(reply.capturedAt, capturedAt, binding.label);
+      assert.equal(reply.settings.windowId, binding.windowId, binding.label);
+      assert.deepEqual(reply.settings.period, binding.period, binding.label);
+      assert.equal(reply.evidenceStatus, 'UPLOADED', binding.label);
+      assert.equal(reply.code, null, binding.label);
+      assert.equal(new URL(reply.urls.section.url).pathname,
+        `/tdn-media/metric-evidence/${workspaceId}/${f.runId}/${binding.captureId}/sections/${binding.sectionKey}.png`, binding.label);
+      assert.equal(new URL(reply.urls.fullPage.url).pathname,
+        `/tdn-media/metric-evidence/${workspaceId}/${f.runId}/${binding.captureId}/full-page.png`, binding.label);
+      assert.equal(new URL(reply.urls.section.url).searchParams.get('X-Amz-Expires'), '86400', binding.label);
+      assert.equal(new URL(reply.urls.fullPage.url).searchParams.get('X-Amz-Expires'), '86400', binding.label);
+    }
+  });
   // Fixed GET signing vector independently computed with Python hashlib/hmac and
   // urllib RFC3986 encoding, using only the fake credentials in the shared fixture.
   const key = `metric-evidence/${workspaceId}/${fakeRunId}/eeeeeeee-0000-4000-8000-000000000001/sections/top-products.png`;
