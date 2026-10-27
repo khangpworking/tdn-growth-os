@@ -1,0 +1,181 @@
+{
+  "contractVersion": "research-automation-run-v3",
+  "runId": "22222222-2222-4222-8222-222222222222",
+  "workspaceId": "11111111-1111-4111-8111-111111111111",
+  "revision": 3,
+  "status": "AWAITING_SCOPE",
+  "country": "VN",
+  "mode": "PRODUCT",
+  "keyword": "sản phẩm mẫu",
+  "description": "Sản phẩm mẫu dùng cho bộ kiểm thử ngoại tuyến",
+  "interview": null,
+  "requestedPeriod": {
+    "dayCount": 365,
+    "endDate": "2026-01-15",
+    "startDate": "2025-01-16"
+  },
+  "reports": [
+    "MARKET"
+  ],
+  "definition": null,
+  "productCards": [
+    {
+      "description": "Mô tả tổng hợp của sản phẩm mẫu thứ nhất; không phải nội dung của khách hàng.",
+      "descriptionState": "PRESENT",
+      "imageUrl": "https://example.invalid/sample-1.jpg",
+      "observedWindow": {
+        "endDate": "2026-01-15",
+        "label": "QUICK_SEARCH_RECENT_WINDOW",
+        "startDate": "2025-12-17"
+      },
+      "productId": "sample:1",
+      "provider": "sample-provider",
+      "retrievedAt": "2026-01-16T00:00:00.000Z",
+      "role": "PRINCIPAL",
+      "sourceProductId": "1",
+      "sourceUrl": "https://example.invalid/product/1",
+      "title": "Sản phẩm mẫu thứ nhất"
+    },
+    {
+      "description": "Mô tả tổng hợp của sản phẩm mẫu thứ hai; không phải nội dung của khách hàng.",
+      "descriptionState": "PRESENT",
+      "imageUrl": "https://example.invalid/sample-2.jpg",
+      "observedWindow": {
+        "endDate": "2026-01-15",
+        "label": "QUICK_SEARCH_RECENT_WINDOW",
+        "startDate": "2025-12-17"
+      },
+      "productId": "sample:2",
+      "provider": "sample-provider",
+      "retrievedAt": "2026-01-16T00:00:00.000Z",
+      "role": "PRINCIPAL",
+      "sourceProductId": "2",
+      "sourceUrl": "https://example.invalid/product/2",
+      "title": "Sản phẩm mẫu thứ hai"
+    },
+    {
+      "description": "Mô tả tổng hợp của sản phẩm mẫu thứ ba; không phải nội dung của khách hàng.",
+      "descriptionState": "PRESENT",
+      "imageUrl": "https://example.invalid/sample-3.jpg",
+      "observedWindow": {
+        "endDate": "2026-01-15",
+        "label": "QUICK_SEARCH_RECENT_WINDOW",
+        "startDate": "2025-12-17"
+      },
+      "productId": "sample:3",
+      "provider": "sample-provider",
+      "retrievedAt": "2026-01-16T00:00:00.000Z",
+      "role": "PRINCIPAL",
+      "sourceProductId": "3",
+      "sourceUrl": "https://example.invalid/product/3",
+      "title": "Sản phẩm mẫu thứ ba"
+    },
+    {
+      "description": "Mô tả tổng hợp của sản phẩm mẫu thứ tư; không phải nội dung của khách hàng.",
+      "descriptionState": "PRESENT",
+      "imageUrl": "https://example.invalid/sample-4.jpg",
+      "observedWindow": {
+        "endDate": "2026-01-15",
+        "label": "QUICK_SEARCH_RECENT_WINDOW",
+        "startDate": "2025-12-17"
+      },
+      "productId": "sample:4",
+      "provider": "sample-provider",
+      "retrievedAt": "2026-01-16T00:00:00.000Z",
+      "role": "PRINCIPAL",
+      "sourceProductId": "4",
+      "sourceUrl": "https://example.invalid/product/4",
+      "title": "Sản phẩm mẫu thứ tư"
+    }
+  ],
+  "coverage": {
+    "requestedPeriod": {
+      "dayCount": 365,
+      "endDate": "2026-01-15",
+      "startDate": "2025-01-16"
+    },
+    "sources": [
+      {
+        "dataset": "quick_search_product_cards",
+        "note": "RECENT_WINDOW_SNAPSHOT_NOT_REQUESTED_PERIOD_EVIDENCE",
+        "observedEndDate": "2026-01-15",
+        "observedStartDate": "2025-12-17",
+        "provider": "sample-provider",
+        "state": "COLLECTED",
+        "truncated": true
+      }
+    ]
+  },
+  "usage": {
+    "entries": [
+      {
+        "stepId": "QUICK_SEARCH",
+        "provider": "sample-provider",
+        "operation": "provider.run",
+        "requestCount": 2,
+        "cost": {
+          "state": "UNKNOWN"
+        }
+      }
+    ],
+    "requestCount": 2,
+    "knownCosts": [],
+    "hasUnknownCost": true
+  },
+  "steps": [
+    {
+      "stepId": "QUICK_SEARCH",
+      "state": "SUCCEEDED",
+      "code": null,
+      "message": null,
+      "startedAt": "2026-01-16T00:00:00.000Z",
+      "finishedAt": "2026-01-16T00:00:01.000Z"
+    },
+    {
+      "stepId": "COLLECTION",
+      "state": "PENDING",
+      "code": null,
+      "message": null,
+      "startedAt": null,
+      "finishedAt": null
+    },
+    {
+      "stepId": "REPORTS",
+      "state": "PENDING",
+      "code": null,
+      "message": null,
+      "startedAt": null,
+      "finishedAt": null
+    }
+  ],
+  "blockers": [
+    {
+      "code": "RECENT_WINDOW_SNAPSHOT_NOT_REQUESTED_PERIOD_EVIDENCE",
+      "scope": "SOURCE",
+      "provider": "sample-provider",
+      "message": "Source limitation: RECENT_WINDOW_SNAPSHOT_NOT_REQUESTED_PERIOD_EVIDENCE"
+    },
+    {
+      "code": "METRIC_MANUAL_EXPORT_REQUIRED",
+      "scope": "SOURCE",
+      "provider": "metric",
+      "message": "METRIC source was not executed for this run."
+    }
+  ],
+  "autoRun": {
+    "phase": "STOPPED",
+    "state": "QUEUED",
+    "stopCode": "KEYWORD2_AWAITING",
+    "canRetry": false,
+    "keyword2Suggestion": {
+      "categoryId": "c2035652732",
+      "keyword1": "sản phẩm mẫu",
+      "term": "mẫu bổ sung",
+      "titles": 7,
+      "titleCount": 40,
+      "brands": 5
+    }
+  },
+  "createdAt": "2026-01-16T00:00:00.000Z",
+  "updatedAt": "2026-01-16T00:00:01.000Z"
+}
