@@ -30,10 +30,11 @@ def evidence_reply():
             "adapterVersion": {"contract": "synthetic-adapter-v1", "sourceSha256": "a" * 64},
         },
         "evidenceStatus": "UPLOADED", "code": None,
+        "sourcePdf": {"sha256": "c" * 64, "byteSize": 12345, "pageCount": 8, "kind": "screenshot-pdf"},
         "urls": {
             name: {"url": f"https://fake-r2.invalid/{file}?X-Amz-Expires=86400&X-Amz-Signature={'b' * 64}",
                    "expiresAt": "2026-10-27T07:00:00.000Z"}
-            for name, file in (("section", "sections/top-products.png"), ("fullPage", "full-page.png"))
+            for name, file in (("section", "sections/top-products.png"), ("fullPage", "full-page.png"), ("sourcePdf", "source-page.pdf"))
         },
     }
 

@@ -73,15 +73,18 @@ export function fakeEvidencePage(missingProducts = false) {
   for (const [i, element] of regions.entries()) {
     element.getBoundingClientRect = () => ({ x: 0, y: i * 10, left: 0, top: i * 10, right: 100, bottom: i * 10 + 10, width: 100, height: 10, toJSON() {} });
   }
+  Object.defineProperty(dom.window, 'innerWidth', { value: 100 });
+  Object.defineProperty(dom.window, 'innerHeight', { value: 200 });
+  dom.window.scrollTo = () => {};
   Object.defineProperty(dom.window.document.documentElement, 'scrollWidth', { value: 100 });
-  Object.defineProperty(dom.window.document.documentElement, 'scrollHeight', { value: 200 });
+  Object.defineProperty(dom.window.document.documentElement, 'scrollHeight', { value: 200, configurable: true });
   const png = syntheticPng(100, 200, { extraChunks: [pngChunk('tEXt', Buffer.from('Source\0Metric'))] });
   return {
     dom, png,
     page: {
       evaluate: async (fn: Function, arg?: unknown) => dom.window.eval(`(${fn.toString()})(${arg === undefined ? '' : JSON.stringify(arg)})`),
-      screenshot: async ({ path, fullPage }: { path: string; fullPage: boolean }) => {
-        assert.equal(fullPage, true);
+      screenshot: async ({ path, fullPage }: { path: string; fullPage?: boolean }) => {
+        assert.equal(fullPage, false);
         assert.equal((dom.window.document.querySelector('.account-menu') as HTMLElement).style.visibility, 'hidden');
         assert.notEqual((dom.window.document.querySelector('#source-logo') as HTMLElement).style.visibility, 'hidden');
         await writeFile(path, png);

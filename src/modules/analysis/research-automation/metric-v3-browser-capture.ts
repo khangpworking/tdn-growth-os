@@ -59,6 +59,7 @@ export async function captureMetricV3(spec: MetricV3CaptureSpec, outputDir: stri
         return command(['eval', '--tab', tab!, `(${fn.toString()})(${arg === undefined ? '' : JSON.stringify(arg)})`]);
       },
       wait: async (ms: number) => { check(); await delay(ms, undefined, signal ? { signal } : {}); },
+      click: async (selector: string) => { await command(['click', '--tab', tab!, selector]); },
       // Screenshot of our own tab only; the bridge writes the PNG to the given path.
       ...(options.evidence ? { screenshot: async ({ path, fullPage }: { path: string; fullPage?: boolean }) => {
         await command(['screenshot', '--tab', tab!, ...(fullPage ? ['--full-page'] : []), path], false, false);

@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import http from 'node:http';
 import { openResearchAutomationApi } from '../../src/api/research-automation-api.js';
 import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
@@ -184,14 +184,15 @@ test('A2 fake-page capture packages preserve settings, PNGs and raw bytes throug
     assert.equal(m.captureMethod, 'ui'); assert.equal(m.adapterVersion.contract, 'metric-v3-window-capture-v2');
     assert.equal(m.adapterVersion.sourceSha256, v3Hash(await readFile(new URL('../../tools/opencli-metric/clis/metric/v3-capture.js', import.meta.url))));
     assert.equal(m.maskedCount, 1); assert.deepEqual(m.missingSections, []);
+    assert.equal(m.sourcePdf.kind, 'screenshot-pdf'); assert.equal(m.sourcePdf.pageCount, 2);
     assert.deepEqual(m.sections.map((s: any) => s.sectionKey).sort(), ['kpi', 'platform-share', 'price-bands', 'search-settings', 'shop-types', 'top-brands', 'top-products', 'top-shops', 'trend-chart']);
-    const expectedFiles = ['manifest.json', 'raw-responses.json', 'full-page.png', ...m.sections.map((s: any) => s.path)];
+    const expectedFiles = ['manifest.json', 'raw-responses.json', 'full-page.png', 'source-page.pdf', ...m.sections.map((s: any) => s.path)];
     assert.deepEqual(Object.keys(pkg.files).sort(), expectedFiles.sort());
     for (const file of expectedFiles) {
       const stored = f.remote.objects.get(`/tdn-media/metric-evidence/${workspaceId}/${fakeRunId}/${pkg.captureId}/${file}`)!;
       assert.ok(stored, `missing fake R2 member ${file}`);
       assert.deepEqual(stored.bytes, f.local.get(pkg.files[file]!));
-      assert.equal(stored.type, file.endsWith('.png') ? 'image/png' : 'application/json');
+      assert.equal(stored.type, file.endsWith('.png') ? 'image/png' : file.endsWith('.pdf') ? 'application/pdf' : 'application/json');
     }
     assert.deepEqual(f.local.get(pkg.files['raw-responses.json']!), f.files[`${m.windowId}/raw-responses.json`]);
     assert.deepEqual(f.local.get(pkg.files['full-page.png']!), f.page.png);
@@ -199,7 +200,25 @@ test('A2 fake-page capture packages preserve settings, PNGs and raw bytes throug
     assert.equal(crop.readUInt32BE(16), 100); assert.equal(crop.readUInt32BE(20), 10);
     assert.equal((f.page.dom.window.document.querySelector('.account-menu') as HTMLElement).style.visibility, '');
   }
-  assert.equal(f.remote.objects.size, 24);
+  assert.equal(f.remote.objects.size, 26);
+  await t.test('old image-only manifests remain readable; changed PDF bytes cannot be uploaded', async sub => {
+    const old = await packageFixture(sub);
+    for (const window of old.archive.windows) {
+      const path = join(old.dir, window.manifest.window.id, 'evidence/manifest.json');
+      const manifest = JSON.parse(await readFile(path, 'utf8'));
+      delete manifest.sourcePdf; delete manifest.captureTechnique;
+      await writeFile(path, jsonBytes(manifest));
+    }
+    for (const pkg of await old.retainPackages()) {
+      assert.equal(pkg.status, 'UPLOADED'); assert.equal(pkg.files['source-page.pdf'], undefined);
+    }
+    const changed = await packageFixture(sub);
+    await writeFile(join(changed.dir, '30d/evidence/source-page.pdf'), '%PDF-corrupted');
+    const packages = await changed.retainPackages();
+    assert.equal(packages[0]!.status, 'FAILED'); assert.equal(packages[0]!.code, 'EVIDENCE_PACKAGE_INVALID_OR_MISSING');
+    assert.equal(packages[1]!.status, 'UPLOADED');
+    assert.ok([...changed.remote.objects.keys()].every(key => !key.includes(packages[0]!.captureId)), 'reject changed PDF before uploading any member');
+  });
   await t.test('A2 negative controls: upload/read-back corruption and missing sections stay explicit', async sub => {
     f.remote.state.fail = true;
     for (const pkg of await f.retainPackages()) { assert.equal(pkg.status, 'LOCAL_ONLY'); assert.equal(pkg.code, 'EVIDENCE_UPLOAD_FAILED'); }
@@ -221,6 +240,48 @@ test('A2 fake-page capture packages preserve settings, PNGs and raw bytes throug
     for (const pkg of index.packages) { assert.equal(pkg.status, 'LOCAL_ONLY'); assert.equal(pkg.code, 'EVIDENCE_UPLOAD_FAILED'); }
     assert.match((await report.service.readReport(workspaceId, report.runId, 'MARKET')).bytes.toString(), /Synthetic zinc/);
   });
+});
+
+test('scroll capture retains lower source pixels in images and a readable PDF; stalled scrolling is explicit', async t => {
+  const dir = await temporary(t), bundle = await syntheticCapture();
+  const browser = fakeEvidencePage(); t.after(browser.close);
+  const w = browser.dom.window;
+  let top = 0, stalled = false;
+  Object.defineProperty(w.document.documentElement, 'scrollHeight', { value: 600, configurable: true });
+  Object.defineProperty(w, 'scrollY', { get: () => top });
+  w.scrollTo = ((options: ScrollToOptions) => { if (!stalled) top = Math.max(0, Math.min(options.top ?? 0, 400)); }) as typeof w.scrollTo;
+  const source = Buffer.alloc(100 * 600 * 3);
+  for (let y = 0; y < 600; y++) for (let x = 0; x < 100; x++) {
+    const i = (y * 100 + x) * 3;
+    source[i] = y < 200 ? 255 : 0; source[i + 1] = y >= 200 && y < 400 ? 255 : 0; source[i + 2] = y >= 400 ? 255 : 0;
+  }
+  const page = { evaluate: browser.page.evaluate, screenshot: async ({ path }: { path: string }) => {
+    const pixels = source.subarray(top * 100 * 3, (top + 200) * 100 * 3);
+    await writeFile(path, evidenceAdapter.encodeV3Png({ width: 100, height: 200, colour: 2, channels: 3, pixels }));
+  } };
+  const manifest = bundle.archive.windows[0]!.manifest;
+  const rawBytes = bundle.files['30d/raw-responses.json'];
+  const m = await evidenceAdapter.writeV3EvidencePackage(page, { windowDir: dir, manifest, rawBytes });
+  assert.equal(m.status, 'COMPLETE'); assert.equal(m.captureTechnique, 'scroll-screenshots');
+  const image = evidenceAdapter.decodeV3Png(await readFile(join(dir, 'evidence/full-page.png')));
+  assert.equal(image.height, 600); assert.deepEqual(image.pixels, source, 'footer pixels must not repeat the first viewport');
+  assert.equal(top, 0, 'restore the original scroll position');
+  assert.equal(m.sourcePdf.pageCount, 5);
+  await t.test('an independent PDF reader renders the final blue source page', {
+    skip: Boolean(spawnSync('pdftoppm', ['-v']).error),
+  }, async () => {
+    const file = join(dir, 'evidence/source-page.pdf');
+    const info = execFileSync('pdfinfo', [file], { encoding: 'utf8' });
+    assert.match(info, /Pages:\s+5/);
+    execFileSync('pdftoppm', ['-f', '5', '-singlefile', '-r', '72', '-png', file, join(dir, 'last')]);
+    const last = evidenceAdapter.decodeV3Png(await readFile(join(dir, 'last.png')));
+    const at = (10 * last.width + 10) * last.channels;
+    assert.deepEqual([...last.pixels.subarray(at, at + 3)], [0, 0, 255]);
+  });
+  stalled = true;
+  const failure = await evidenceAdapter.writeV3EvidencePackage(page, { windowDir: join(dir, 'stalled'), manifest, rawBytes });
+  assert.equal(failure.status, 'NO_IMAGES'); assert.equal(failure.code, 'EVIDENCE_SCROLL_STALLED');
+  assert.equal(failure.sourcePdf, null); assert.equal(failure.fullPage, null);
 });
 
 test('A3 every number in the synthetic zinc v3 report has an exact capture/section/source reference', async t => {
@@ -308,7 +369,7 @@ test('A4 old stored builders v1 and v2 still read and download frozen HTML/trace
   });
 });
 
-test('A5 app resolves the stored number to settings and two private 24h links before MCP forwarding', async t => {
+test('A5 app resolves the stored number to settings and private image/PDF links before MCP forwarding', async t => {
   const f = await published(t, true);
   const index = JSON.parse((await f.artifacts.read(f.semantic.evidenceIndexSha)).toString()) as NumberEvidenceIndex;
   const number = index.numbers.find(n => n.refs.length === 1 && n.refs[0]!.sectionKey === 'top-products' && n.refs[0]!.source === 'raw-responses')!;
@@ -316,11 +377,13 @@ test('A5 app resolves the stored number to settings and two private 24h links be
   const result = await f.service.readNumberEvidence(workspaceId, f.revision.revisionId, number.numberRef) as any;
   assert.equal(result.numberRef, number.numberRef); assert.equal(result.sectionName, 'Sản phẩm bán chạy nhất'); assert.equal(result.capturedAt, capturedAt);
   assert.equal(result.evidenceStatus, 'UPLOADED'); assert.equal(result.code, null);
+  assert.deepEqual(result.sourcePdf, { sha256: index.packages[0]!.manifest.sourcePdf.sha256,
+    byteSize: index.packages[0]!.manifest.sourcePdf.byteSize, pageCount: 2, kind: 'screenshot-pdf' });
   assert.deepEqual(result.settings, { keywords: ['synthetic zinc', 'synthetic zinc capsule'], category: f.bundle.spec.preset.category,
     platforms: ['shopee', 'lazada', 'tiki', 'tiktok'], period: f.bundle.spec.windows[0].period, smartQuery: true, windowId: '30d', captureMethod: 'ui', adapterVersion: evidenceAdapter.V3_ADAPTER_VERSION });
-  assert.deepEqual(Object.keys(result.urls).sort(), ['fullPage', 'section']);
+  assert.deepEqual(Object.keys(result.urls).sort(), ['fullPage', 'section', 'sourcePdf']);
   const captureId = number.refs[0]!.captureId;
-  for (const [name, file] of [['section', 'sections/top-products.png'], ['fullPage', 'full-page.png']]) {
+  for (const [name, file] of [['section', 'sections/top-products.png'], ['fullPage', 'full-page.png'], ['sourcePdf', 'source-page.pdf']]) {
     const link = result.urls[name!];
     const url = new URL(link.url);
     assert.equal(url.protocol, 'https:'); assert.equal(url.hostname, `${'a'.repeat(32)}.r2.cloudflarestorage.com`);

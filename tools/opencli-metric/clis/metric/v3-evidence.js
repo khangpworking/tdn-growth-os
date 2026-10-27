@@ -1,11 +1,12 @@
 // Number evidence of one v3 window capture (owner F286/F287): screenshots of our own tab only.
 // Never clicks, exports, downloads or changes settings; it only reads layout and takes screenshots.
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { crc32, deflateSync, inflateSync } from 'node:zlib';
+import { screenPdf } from './v3-screen-pdf.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js');
@@ -83,6 +84,74 @@ export function restoreV3EvidenceAccount() {
     element.removeAttribute('data-tdn-evidence-prev-visibility');
   }
   return { ok: true };
+}
+
+/** Read/scroll only our owned page. Overlap excludes sticky top bars without hiding table columns. */
+function scrollEvidencePage({ top, left = 0 }) {
+  if (location.protocol !== 'https:' || !['metric.vn', 'www.metric.vn'].includes(location.hostname))
+    return { stop: 'CAPTURE_ORIGIN_CHANGED' };
+  if (Number.isFinite(top)) window.scrollTo({ top, left, behavior: 'instant' });
+  let overlap = 130;
+  for (const e of document.querySelectorAll('body *')) {
+    if (!['fixed', 'sticky'].includes(getComputedStyle(e).position)) continue;
+    const r = e.getBoundingClientRect();
+    if (r.top >= 0 && r.top < 130 && r.height < window.innerHeight / 2 && r.width > window.innerWidth / 2)
+      overlap = Math.max(overlap, Math.ceil(r.bottom));
+  }
+  return { top: window.scrollY, left: window.scrollX, width: window.innerWidth, height: window.innerHeight, overlap,
+    pageHeight: Math.max(document.documentElement.scrollHeight, document.body.scrollHeight),
+    pageWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) };
+}
+
+/** Explicit viewport capture avoids the bridge's repeated-viewport full-page stitching bug. */
+export async function captureV3EvidencePage(page, dir) {
+  const original = await page.evaluate(scrollEvidencePage, {});
+  const shot = join(dir, '.viewport.png');
+  let full, located, source, covered = 0, geometry;
+  try {
+    for (let turn = 0; turn < 60; turn++) {
+      const view = await page.evaluate(scrollEvidencePage, { top: Math.max(0, covered - (geometry?.overlap ?? 130)) });
+      if (view?.stop) throw pngError(view.stop);
+      await page.wait?.(250);
+      const current = await page.evaluate(scrollEvidencePage, {});
+      if (current?.stop) throw pngError(current.stop);
+      if (!Number.isFinite(current.height) || current.height <= current.overlap || current.pageWidth > current.width)
+        throw pngError('EVIDENCE_VIEWPORT_UNSUPPORTED');
+      if (geometry && ['width', 'height', 'pageHeight', 'pageWidth'].some(key => geometry[key] !== current[key]))
+        throw pngError('EVIDENCE_LAYOUT_CHANGED');
+      geometry = current;
+      if (!located) {
+        located = await page.evaluate(locateV3EvidenceSections, {
+          sections: Object.entries(V3_EVIDENCE_SECTIONS).map(([key, s]) => ({ key, title: s.title, selector: s.selector })),
+        });
+        if (located?.stop) throw pngError(located.stop);
+      }
+      await page.screenshot({ path: shot, fullPage: false });
+      source = await readFile(shot);
+      const image = decodeV3Png(source), scale = image.width / current.width;
+      if (Math.abs(image.height / scale - current.height) > 2) throw pngError('EVIDENCE_VIEWPORT_MISMATCH');
+      if (!full) {
+        const height = Math.ceil(current.pageHeight * scale);
+        if (image.width * height > MAX_PIXELS) throw pngError('EVIDENCE_PNG_UNSUPPORTED');
+        full = { ...image, height, pixels: Buffer.alloc(image.width * height * image.channels) };
+      }
+      if (image.width !== full.width || image.channels !== full.channels || current.top > covered ||
+          (turn > 0 && current.top + current.height <= covered)) throw pngError('EVIDENCE_SCROLL_STALLED');
+      const start = Math.round(covered * scale), viewportTop = Math.round(current.top * scale);
+      const end = Math.min(full.height, viewportTop + image.height), stride = image.width * image.channels;
+      image.pixels.copy(full.pixels, start * stride, (start - viewportTop) * stride, (end - viewportTop) * stride);
+      covered = end / scale;
+      if (end === full.height) {
+        // Keep exact original bytes for a page that fits in one viewport.
+        return { full: turn === 0 && image.height === full.height ? source : encodeV3Png(full), image: full, located,
+          scale, viewportCount: turn + 1 };
+      }
+    }
+    throw pngError('EVIDENCE_PAGE_LIMIT');
+  } finally {
+    await page.evaluate(scrollEvidencePage, { top: original?.top ?? 0, left: original?.left ?? 0 }).catch(() => {});
+    await rm(shot, { force: true });
+  }
 }
 
 // --- PNG crop: 8-bit RGB/RGBA, non-interlaced (what the browser screenshot writes); no image dependency ---
@@ -163,7 +232,7 @@ export function cropV3Png(image, rect, scale) {
 
 /**
  * Writes `<windowDir>/evidence/`: manifest.json, raw-responses.json (copy of the captured bytes),
- * full-page.png and sections/<key>.png. Evidence never fails the capture: any failure is recorded
+ * full-page.png, source-page.pdf and sections/<key>.png. Evidence never fails the capture: any failure is recorded
  * in the manifest as an explicit code. Only an abort or the capture deadline is rethrown.
  * `images: false` (request capture) records the settings and the raw copy without screenshots.
  */
@@ -189,6 +258,8 @@ export async function writeV3EvidencePackage(page, { windowDir, manifest, rawByt
     adapterVersion: V3_ADAPTER_VERSION,
     rawResponses: await write('raw-responses.json', Buffer.from(rawBytes)),
     fullPage: null,
+    sourcePdf: null,
+    captureTechnique: 'scroll-screenshots',
     sections: [],
     missingSections: [],
     maskedCount: 0,
@@ -200,22 +271,18 @@ export async function writeV3EvidencePackage(page, { windowDir, manifest, rawByt
     evidence.missingSections = keys.map((sectionKey) => ({ sectionKey, reason: evidence.code }));
   } else {
     try {
-      let located, masked = false;
+      let captured, masked = false;
       try {
         masked = true;
         evidence.maskedCount = Number((await page.evaluate(maskV3EvidenceAccount))?.maskedCount) || 0;
-        located = await page.evaluate(locateV3EvidenceSections, {
-          sections: keys.map((key) => ({ key, title: V3_EVIDENCE_SECTIONS[key].title, selector: V3_EVIDENCE_SECTIONS[key].selector })),
-        });
-        if (located?.stop) throw pngError(located.stop);
-        await page.screenshot({ path: join(dir, 'full-page.png'), fullPage: true });
+        captured = await captureV3EvidencePage(page, dir);
       } finally {
         if (masked) await page.evaluate(restoreV3EvidenceAccount).catch(() => {});
       }
-      const full = await readFile(join(dir, 'full-page.png'));
-      const image = decodeV3Png(full);
-      evidence.fullPage = { path: 'full-page.png', sha256: digest(full), byteSize: full.length, width: image.width, height: image.height };
-      const scale = image.width / (Number(located?.page?.width) || image.width);
+      const { full, image, located, scale } = captured;
+      evidence.fullPage = { ...await write('full-page.png', full), width: image.width, height: image.height };
+      const pdf = screenPdf(image);
+      evidence.sourcePdf = { ...await write('source-page.pdf', pdf.bytes), pageCount: pdf.pageCount, kind: 'screenshot-pdf' };
       for (const sectionKey of keys) {
         const rect = located?.sections?.[sectionKey];
         if (!rect || rect.reason || ![rect.x, rect.y, rect.width, rect.height].every(Number.isFinite)) {

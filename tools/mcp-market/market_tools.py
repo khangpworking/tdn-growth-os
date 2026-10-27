@@ -219,10 +219,13 @@ def list_number_refs(report_id: str) -> dict:
 
 @mcp.tool(annotations={"readOnlyHint": True, "destructiveHint": False})
 def explain_number(report_id: str, number_ref: str) -> dict:
-    """Explain a stored number: source section, capture date/settings and private image links (24h).
+    """Explain a stored number: source section, capture date/settings and private image/PDF links (24h).
 
     report_id is the exact Reader revisionId; obtain number_ref from list_number_refs.
-    Original source images are returned only here; they are never embedded in report HTML/PDF.
+    urls.sourcePdf, when available, is the archived screenshot PDF of the original source page.
+    It is separate from get_report(format="pdf"), which returns our generated Market report.
+    Images and the source PDF are read from saved R2 evidence; this tool never calls Metric.
+    Original source images are never embedded in the generated report HTML/PDF.
     Read-only, regardless of MCP_PROTO_ALLOW_WRITES; needs TDN_APP_TOKEN and TDN_WORKSPACE_ID.
     """
     return _evidence_get(report_id, number_ref)

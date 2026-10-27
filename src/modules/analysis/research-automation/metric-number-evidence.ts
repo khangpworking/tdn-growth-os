@@ -98,16 +98,16 @@ export async function retainEvidencePackages(options: {
       const manifestBytes = await readFile(join(dir, 'manifest.json'));
       const m = JSON.parse(manifestBytes.toString('utf8'));
       if (!validate(m) || m.captureId !== captureId || m.capturedAt !== window.manifest.capturedAt || m.windowId !== window.manifest.window.id) throw new Error('EVIDENCE_MANIFEST_INVALID');
-      const files: { path: string; bytes: Buffer; type: 'application/json' | 'image/png' }[] = [{ path: 'manifest.json', bytes: manifestBytes, type: 'application/json' }];
+      const files: { path: string; bytes: Buffer; type: 'application/json' | 'image/png' | 'application/pdf' }[] = [{ path: 'manifest.json', bytes: manifestBytes, type: 'application/json' }];
       if (m.status !== 'FAILED') {
         if (canonicalJson(m.period) !== canonicalJson(window.manifest.window.period) || canonicalJson(m.keywords) !== canonicalJson(window.manifest.appliedState.keywords) ||
             canonicalJson(m.category) !== canonicalJson(window.manifest.appliedState.category) || canonicalJson(m.platforms) !== canonicalJson(window.manifest.appliedState.platforms) || m.captureMethod !== (window.manifest.captureMethod ?? 'ui') || m.smartQuery !== (window.manifest.appliedState.smartQuery ?? null) || m.rawResponses.sha256 !== window.rawSha) throw new Error('EVIDENCE_MANIFEST_INVALID');
-        if (m.rawResponses.path !== 'raw-responses.json' || new Set(m.sections.map((v: any) => v.sectionKey)).size !== m.sections.length ||
+        if (m.rawResponses.path !== 'raw-responses.json' || (m.sourcePdf && (m.sourcePdf.path !== 'source-page.pdf' || m.captureMethod !== 'ui' || !m.fullPage)) || new Set(m.sections.map((v: any) => v.sectionKey)).size !== m.sections.length ||
             m.sections.some((v: any) => v.path !== `sections/${v.sectionKey}.png`)) throw new Error('EVIDENCE_MANIFEST_INVALID');
-        for (const file of [m.rawResponses, m.fullPage, ...m.sections].filter(Boolean)) {
+        for (const file of [m.rawResponses, m.fullPage, m.sourcePdf, ...m.sections].filter(Boolean)) {
           const bytes = await readFile(join(dir, file.path));
           if (bytes.length !== file.byteSize || v3Hash(bytes) !== file.sha256) throw new Error('EVIDENCE_HASH_MISMATCH');
-          files.push({ path: file.path, bytes, type: file.path.endsWith('.png') ? 'image/png' : 'application/json' });
+          files.push({ path: file.path, bytes, type: file.path.endsWith('.png') ? 'image/png' : file.path.endsWith('.pdf') ? 'application/pdf' : 'application/json' });
         }
       }
       pkg.manifest = m;
@@ -134,11 +134,13 @@ export function explainEvidence(index: NumberEvidenceIndex, numberRef: string, w
   if (!pkg) throw new Error('V3_NUMBER_EVIDENCE_MISSING');
   const m = pkg.manifest;
   const section = m?.sections?.find((s: any) => s.sectionKey === ref.sectionKey);
-  const urls = ref.source !== 'template' && pkg.status === 'UPLOADED' && section && m.fullPage && store ? {
-    section: store.presignGet(metricEvidenceKey(workspaceId, runId, ref.captureId, section.path)),
+  const urls = ref.source !== 'template' && pkg.status === 'UPLOADED' && (section || m?.sourcePdf) && m.fullPage && store ? {
+    ...(section ? { section: store.presignGet(metricEvidenceKey(workspaceId, runId, ref.captureId, section.path)) } : {}),
     fullPage: store.presignGet(metricEvidenceKey(workspaceId, runId, ref.captureId, m.fullPage.path)),
+    ...(m.sourcePdf && pkg.files[m.sourcePdf.path] ? { sourcePdf: store.presignGet(metricEvidenceKey(workspaceId, runId, ref.captureId, m.sourcePdf.path)) } : {}),
   } : null;
   return { numberRef, token: number.token, refs: number.refs, source: ref.source, sectionName: ref.source === 'template' ? 'Report template' : section?.sectionName ?? ref.sectionKey,
     capturedAt: pkg.capturedAt, settings: { ...pkg.settings, adapterVersion: m?.adapterVersion ?? null },
+    sourcePdf: m?.sourcePdf && pkg.files[m.sourcePdf.path] ? { sha256: m.sourcePdf.sha256, byteSize: m.sourcePdf.byteSize, pageCount: m.sourcePdf.pageCount, kind: m.sourcePdf.kind } : null,
     evidenceStatus: pkg.status, code: ref.source === 'template' ? 'EVIDENCE_TEMPLATE_NUMBER' : urls ? pkg.code : pkg.code ?? 'EVIDENCE_IMAGES_UNAVAILABLE', urls };
 }
