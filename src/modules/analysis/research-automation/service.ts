@@ -4442,7 +4442,7 @@ export class ResearchAutomationService {
     }
     try {
       const source = await this.#publicShopee.read(collection.exactShopee, { runId: row.runId, start: await this.#readStartSnapshot(row.startSha, row.workspaceId), scope: await this.#readScopeSnapshot(row.scopeSha!, row.workspaceId, row.runId), scopeConfirmedAt: row.scopeConfirmedAt! }, stage);
-      const corpus = buildPublicReviewCorpus(source), outcome = publicReviewOutcome(source, stage, corpus), raw = Buffer.from(canonicalJson(corpus));
+      const corpus = buildPublicReviewCorpus(source), outcome = publicReviewOutcome(source, stage, corpus, collection.exactShopeeOutcome?.outcome), raw = Buffer.from(canonicalJson(corpus));
       if (canonicalJson(outcome) !== canonicalJson(collection.exactShopeeOutcome)) throw new Error('Public outcome differs');
       const tooLarge = raw.length > MAX_JSON_ARTIFACT_BYTES;
       const corpusSha256 = tooLarge ? null : createHash('sha256').update(raw).digest('hex');
@@ -6250,7 +6250,7 @@ export class ResearchAutomationService {
         if (!sources || canonicalJson(value.publicReviewAcquisition) !== canonicalJson(publicStage(sources, 'FINAL'))) throw new ResearchAutomationIntegrityError('Public collection marker differs.');
         try {
           const verified = await this.#publicShopee.read(value.exactShopee, { runId, start: await this.#readStartSnapshot(row.startSha, row.workspaceId), scope, scopeConfirmedAt: row.scopeConfirmedAt }, value.publicReviewAcquisition);
-          if (canonicalJson(value.exactShopeeOutcome) !== canonicalJson(publicReviewOutcome(verified, value.publicReviewAcquisition))) throw new Error('Outcome differs');
+          if (canonicalJson(value.exactShopeeOutcome) !== canonicalJson(publicReviewOutcome(verified, value.publicReviewAcquisition, undefined, value.exactShopeeOutcome?.outcome))) throw new Error('Outcome differs');
         } catch { throw new ResearchAutomationIntegrityError('Public collection replay differs.'); }
       } else {
       const verified = await this.#shopee.read(value.exactShopee, { runId, start: await this.#readStartSnapshot(row.startSha, row.workspaceId),

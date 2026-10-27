@@ -85,9 +85,14 @@ export function buildPublicReviewCorpus(source: VerifiedPublicShopeeCollection):
 export function verifyPublicReviewCorpus(value: unknown, source: VerifiedPublicShopeeCollection): ResearchReviewCorpusV2 {
   const rebuilt = buildPublicReviewCorpus(source); if (!validCorpus(value) || canonicalJson(value) !== canonicalJson(rebuilt)) throw new Error('Public review corpus replay differs'); return rebuilt;
 }
-export function publicReviewOutcome(source: VerifiedPublicShopeeCollection, stage: PublicReviewStage, corpus = buildPublicReviewCorpus(source)): ExactShopeeOutcomeRecord {
+export function publicReviewOutcome(source: VerifiedPublicShopeeCollection, stage: PublicReviewStage, corpus = buildPublicReviewCorpus(source), storedOutcome?: ExactShopeeOutcomeRecord['outcome']): ExactShopeeOutcomeRecord {
   const counts = markReviewShortfalls(source.packet.selected.map(p => ({ listingUrl: p.productUrl, reviews: corpus.records.filter(r => r.disposition === 'RETAINED_RAW' && r.identity.listingKey === `shopee:${p.shopId}:${p.itemId}`).length })), stage.maxReviewsPerProduct);
-  return { outcome: classifyPublicExactShopee({ receipts: source.packet.listings, counts, maxReviewsPerProduct: stage.maxReviewsPerProduct }), listings: counts,
+  const classified = classifyPublicExactShopee({ receipts: source.packet.listings, counts, maxReviewsPerProduct: stage.maxReviewsPerProduct });
+  // Old retained runs classified these same verified human/health stops as
+  // PROVIDER_BLOCKED. Preserve that saved meaning on replay; callers still
+  // compare every field against the rebuilt record. New collections omit it.
+  const outcome = storedOutcome === 'PROVIDER_BLOCKED' && SHOPEE_REPAIRABLE_OUTCOMES.includes(classified) ? storedOutcome : classified;
+  return { outcome, listings: counts,
     providerMessage: null, attemptedAt: source.packet.attemptedAt, reused: source.packet.reused,
     ...(stage.sampleMode === 'TRIAL' ? { testReviewCap: stage.maxReviewsPerProduct } : {}) };
 }
