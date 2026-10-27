@@ -346,7 +346,8 @@ function formAction(action) {
     }
     return { ok: true };
   }
-  if (action.kind === 'picker') return click([...root.querySelectorAll('.ant-picker input')][action.index]);
+  // Ant's readonly date picker opens on mousedown; a click alone can leave it closed.
+  if (action.kind === 'picker') return gesture([...root.querySelectorAll('.ant-picker input')][action.index]);
   if (action.kind === 'date' || action.kind === 'availableDate') {
     const visible = e => {
       const r = e?.getBoundingClientRect(), s = e && getComputedStyle(e);

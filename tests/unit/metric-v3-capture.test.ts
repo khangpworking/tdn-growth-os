@@ -308,7 +308,8 @@ test('availability follows enabled calendar dates across months without submitti
     for (const cell of panel.querySelectorAll<HTMLElement>('.ant-picker-cell-inner')) cell.onclick = () => { selections++; };
     document.body.append(panel);
   }
-  document.querySelectorAll<HTMLInputElement>('input')[1]!.onclick = () => render();
+  // The source picker opens on mousedown; click-only automation leaves it closed.
+  document.querySelectorAll<HTMLInputElement>('input')[1]!.onmousedown = () => render();
   const page = { evaluate: async (fn: Function, arg: unknown) => w.eval(`(${fn.toString()})(${JSON.stringify(arg)})`),
     click: async (selector: string) => { document.querySelector<HTMLElement>(selector)!.click(); }, wait: async () => {} };
   try {
