@@ -1,4 +1,4 @@
-import { ShopeePublicReviewCollector } from '../platform/collectors/shopee-public-reviews.js';
+import { openPublicReviewOwnerSession, ShopeePublicReviewCollector } from '../platform/collectors/shopee-public-reviews.js';
 import publicSourceSchema from '../../contracts/api/research-automation-source-api-v3.schema.json' with { type: 'json' };
 import publicCollectionSchema from '../../contracts/foundation/shopee-public-collection.schema.json' with { type: 'json' };
 import publicRowsSchema from '../../contracts/foundation/shopee-public-rows.schema.json' with { type: 'json' };
@@ -260,6 +260,8 @@ const validates = {
   confirm: ajv.compile({ oneOf: [{ $ref: `${schema.$id}#/$defs/confirmRequest` }, { $ref: sourceSchema.$id }, { $ref: 'research-automation-source-api-v3.schema.json' }] }),
   cancel: ajv.compile({ $ref: `${schema.$id}#/$defs/cancelRequest` }),
   autoRunRetry: ajv.compile({ oneOf: [{ $ref: `${schema.$id}#/$defs/autoRunRetryRequest` }, { $ref: `${schema.$id}#/$defs/autoRunKeywordRequest` }] }),
+  shopeeSessionRequest: ajv.compile({ $ref: `${schema.$id}#/$defs/shopeeSessionRequest` }),
+  shopeeSessionReceipt: ajv.compile({ $ref: `${schema.$id}#/$defs/shopeeSessionReceipt` }),
   revision: (value: unknown) => personaReportRequestValid(value) || historicalRevisionValid(value),
   revisionCancel: ajv.compile({ $ref: `${revisionSchema.$id}#/$defs/cancelRequest` }),
   revisionReceipt: ajv.compile({ $ref: `${revisionSchema.$id}#/$defs/receipt` }),
@@ -505,7 +507,10 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
           const collector = new ShopeePublicReviewCollector({ token: config.token, baseUrl: config.baseUrl, maxReviewsPerProduct: config.maxReviewsPerProduct, confirmedSourceSetSha256: acquisition.confirmedSourceSetSha256, sampleMode: acquisition.sampleMode,
             journalRoot: path.join(path.dirname(path.resolve(configuration.databasePath)), 'research-automation-shopee-public-journal') });
           return { collector, requestsIssued: collector.requestsIssued };
-        } } } : {}),
+        }, session: context => { const config = configuration.providers!.shopeePublicReviews!;
+          // Owner repair controls keep their own journal and never enter run usage evidence.
+          return openPublicReviewOwnerSession({ token: config.token, baseUrl: config.baseUrl, requestKey: context.requestKey, kind: context.kind,
+            journalRoot: path.join(path.dirname(path.resolve(configuration.databasePath)), 'research-automation-shopee-session-journal') }); } } } : {}),
         ...(configuration.providers?.apifyReviews ? { shopeeCollectorFactory: () => {
           let requests = 0;
           const config = configuration.providers!.apifyReviews!;
@@ -612,7 +617,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     const p9History = action === 'sources/tiktok-comments' || action === 'sources/video-reading';
     const p9Write = action === 'sources/tiktok-comments/selections' || action === 'sources/tiktok-comments/collect' || action === 'sources/video-reading';
     const allowed = mutation
-      ? !runId || action === 'source-pdfs' || action === 'confirm-scope' || action === 'cancel' || (action === 'auto-run/retry' && Boolean(configuration.metricAutoRun)) || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/metric-capture' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || metaWrite || worldBankWrite || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || insightDefaultModelWrite || crosscheckWrite || personaWrite || Boolean(revisionCancel) || insightReaderBuild || readerDecisionV2 || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions' || tiktokPropose || tiktokReaderBuild || shopeePropose || shopeeReaderBuild
+      ? !runId || action === 'source-pdfs' || action === 'confirm-scope' || action === 'cancel' || (action === 'auto-run/retry' && Boolean(configuration.metricAutoRun)) || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/metric-capture' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || metaWrite || worldBankWrite || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || insightDefaultModelWrite || crosscheckWrite || personaWrite || Boolean(revisionCancel) || insightReaderBuild || readerDecisionV2 || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions' || tiktokPropose || tiktokReaderBuild || shopeePropose || shopeeReaderBuild || ((action === 'shopee-session/login' || action === 'shopee-session/confirm') && Boolean(configuration.providers?.shopeePublicReviews))
       : readerListV2 || !action || action === 'pageindex' || action === 'reader-reports' || Boolean(readerHtml) || Boolean(readerPdf) || action === 'report-versions' || action === 'report-attempts' || action === 'sources/metric' || action === 'sources/metric-capture' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'sources/meta-page' || Boolean(metaRead) || action === 'sources/world-bank' || Boolean(worldBankRead) || action === 'metric-rule-adoptions' || Boolean(metricRuleRead) || Boolean(membershipReview) || Boolean(membershipRead) || Boolean(insightRead) || Boolean(personaList) || Boolean(personaRead) || Boolean(crosscheckRead) || Boolean(crosscheckAvailability) || Boolean(report) || Boolean(revisionRead) || Boolean(tiktokContextRead) || Boolean(tiktokRead) || tiktokHistory || tiktokConsumptionRead || shopeeSamples || shopeeContextRead || Boolean(shopeeRead) || shopeeHistory || shopeeConsumptionRead;
     if (!allowed && !(runId && (mutation ? p9Write : p9History || p9Read))) return fail(response, 404, 'not_found', 'Route not found');
     const method = mutation ? 'POST' : 'GET';
@@ -1134,7 +1139,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         : tiktokReaderBuild ? validates.tiktokReaderBuild
         : shopeeReaderBuild ? validates.shopeeReaderBuild
         : action === 'reader-reports' ? validates.readerBuild : action === 'reader-reports/decisions' ? validates.readerDecision
-        : action === 'report-revisions' ? validates.revision : revisionCancel ? validates.revisionCancel : action === 'auto-run/retry' ? validates.autoRunRetry : validates.cancel;
+        : action === 'report-revisions' ? validates.revision : revisionCancel ? validates.revisionCancel : action === 'auto-run/retry' ? validates.autoRunRetry : action === 'shopee-session/login' || action === 'shopee-session/confirm' ? validates.shopeeSessionRequest : validates.cancel;
       if (!validate(body)) return fail(response, 400, 'bad_request', 'Research request failed validation');
       if (personaWrite) {
         if (closing) return fail(response, 503, 'service_unavailable', 'Research executor is stopping');
@@ -1271,6 +1276,15 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         if (!validates.revisionReceipt(receipt)) throw new Error('Report revision receipt failed validation');
         worker!.wake();
         return sendApiJson(response, revisionCancel || receipt.exactRetry ? 200 : 202, receipt);
+      }
+      if (action === 'shopee-session/login' || action === 'shopee-session/confirm') {
+        // Owner repair only: the collector token never leaves the server and no
+        // session is opened or checked without this explicit web action.
+        const receipt = action === 'shopee-session/login'
+          ? await writeService!.openShopeeReviewLogin(workspaceId!, runId!, body)
+          : await writeService!.confirmShopeeReviewSession(workspaceId!, runId!, body);
+        if (!validates.shopeeSessionReceipt(receipt)) throw new Error('Shopee session receipt failed validation');
+        return sendApiJson(response, receipt.exactRetry ? 200 : 201, receipt);
       }
       if (action === 'auto-run/retry') {
         // Owner "Thử lại" only: re-queues one stopped capture; nothing retries a capture automatically.

@@ -49,7 +49,7 @@ export async function withCollectorCrash<T>(point: string | undefined, operation
     let j: any; if (String(to).endsWith('.json')) { try { j = JSON.parse(await fs.readFile(from, 'utf8')); } catch {} }
     if (j && (point === 'before-intent' && j.intentAt && !j.job || point === 'after-202-before-fsync' && j.job && !j.terminal)) die();
     await rename(from,to);
-    if (j && (point === 'after-intent-before-dispatch' && j.intentAt && j.requestCount === 2 || point === 'after-durable-id-before-poll' && j.job && j.requestCount === 3 || point === 'after-terminal-snapshot' && j.terminal)) die();
+    if (j && (point === 'after-intent-before-dispatch' && j.intentAt && !j.job && !j.requestCountUncertain || point === 'after-durable-id-before-poll' && j.job && !j.terminal || point === 'after-terminal-snapshot' && j.terminal)) die();
   }) as typeof fs.rename;
   const wrapped: typeof fetch = async (input, init) => {
     const response = await fetcher(input,init);
@@ -62,18 +62,22 @@ export async function withCollectorCrash<T>(point: string | undefined, operation
 export async function observeBudgets(operation: string, remaining: number) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'synthetic-budget-')), clock = new FakeClock(20), abort = new AbortController();
   const full = successfulScript([20,20]);
-  const script = [full[0]!,full[1]!,full[2]!,full[5]!,full[6]!,full[7]!,full[8]!,full[9]!,full[10]!,full[13]!,full[14]!,full[15]!];
+  const script = [full[0]!,full[1]!,full[2]!,full[5]!,full[6]!,full[7]!,full[8]!,full[9]!,full[12]!,full[13]!,full[14]!];
   script[5]!.inspect = () => { clock.milliseconds=Date.parse('2026-02-01T00:00:00.000Z')+4800000-remaining; };
   if(operation==='cancel') {
-    script[9]!.body=job(1,'running'); script[9]!.inspect=()=>abort.abort();
-    script.splice(10,2,{method:'POST',path:`/jobs/${IDS[1]}/cancel`,status:202,body:job(1,'running')});
+    script[8]!.body=job(1,'running'); script[8]!.inspect=()=>abort.abort();
+    script.splice(9,2,{method:'POST',path:`/jobs/${IDS[1]}/cancel`,status:202,body:job(1,'running')});
+  }
+  if(operation==='session') {
+    script[0]!.body={state:'ready',authenticated:null};
+    script.splice(1,0,{method:'POST',path:'/session/check',body:{state:'ready'}});
   }
   let latest = 0, observed = 0;
   const set = globalThis.setTimeout;
   globalThis.setTimeout = ((handler: any, ms: number, ...args: any[]) => { latest = ms; return set(handler,ms,...args); }) as typeof setTimeout;
   const transport = new FakeTransport(script);
-  const target = operation === 'health' ? '/health' : operation === 'list' ? '/jobs?limit=100' : operation === 'submit' ? '/jobs' : `/jobs/${IDS[1]}${operation === 'result' ? '/result' : operation === 'cancel' ? '/cancel' : ''}`;
-  const fetcher: typeof fetch = async (input,init) => { if (transport.posts().length >= (operation === 'submit' ? 1 : 2) || operation === 'health' || operation === 'list') if (String(input) === ORIGIN+target) observed = latest; return transport.fetch(input,init); };
+  const target = operation === 'session' ? '/session/check' : operation === 'list' ? '/jobs?limit=100' : operation === 'submit' ? '/jobs' : `/jobs/${IDS[1]}${operation === 'result' ? '/result' : operation === 'cancel' ? '/cancel' : ''}`;
+  const fetcher: typeof fetch = async (input,init) => { if (transport.posts().length >= (operation === 'submit' ? 1 : 2) || operation === 'session' || operation === 'list') if (String(input) === ORIGIN+target) observed = latest; return transport.fetch(input,init); };
   try { await new ShopeePublicReviewCollector({ token:TOKEN, baseUrl:ORIGIN,journalRoot:root,confirmedSourceSetSha256:'a'.repeat(64),maxReviewsPerProduct:20,fetch:fetcher,clock:clock.now,sleep:clock.sleep }).collect(PRODUCTS.slice(0,2).map(p=>({...p,platform:'shopee' as const})),'b'.repeat(64),'synthetic-budget',abort.signal);
     assert.ok(observed, 'target request timer observed'); return { request:observed, body:observed, sleep:Math.max(0,...clock.sleeps.filter(ms=>ms<=remaining)) };
   } finally { globalThis.setTimeout = set; await fs.rm(root,{recursive:true,force:true}); }

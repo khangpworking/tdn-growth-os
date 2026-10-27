@@ -11,7 +11,10 @@ export function publicReviewReportLines(source: PublicReviewSource): string[] {
     ...(source.acquisition.sampleMode === 'TRIAL' ? [`Đây là mẫu thử nhỏ, tối đa ${c} đánh giá mỗi sản phẩm, được thu cho báo cáo thử nghiệm. Mẫu này không đại diện cho toàn bộ đánh giá.`] : []),
     ...source.products.map(r => r.records > 0 ? r.readableComments > 0 ? `Đã giữ ${r.records} bản ghi đánh giá, trong đó có ${r.readableComments} bình luận đọc được.` : `Đã giữ ${r.records} bản ghi đánh giá. Chưa có bình luận tự do để đọc.` : 'Chưa thu được đánh giá trong lượt này; không suy ra sản phẩm không có đánh giá.'),
     ...(source.outcome.listings.some(r => r.reviews < c) ? [`Số bản ghi giữ được ít hơn giới hạn ${c} đánh giá của lượt đọc.`] : ['Đã đạt giới hạn của lượt đọc; điều này không có nghĩa đã đọc hết đánh giá.']),
-    ...(source.humanBlocked ? ['Lượt đọc cần người vận hành xử lý đăng nhập hoặc xác minh. Phần dữ liệu đã đọc được giữ lại; lượt này đã dừng.'] : []),
+    ...(source.outcome.outcome === 'SHOPEE_LOGIN_REQUIRED' ? ['Lượt đọc không lấy được đánh giá vì bộ thu đánh giá Shopee mất đăng nhập Shopee. Phần dữ liệu đã đọc được giữ lại; lượt này đã dừng.']
+      : source.outcome.outcome === 'SHOPEE_VERIFICATION_REQUIRED' ? ['Lượt đọc không lấy được đánh giá vì Shopee yêu cầu xác minh phiên đăng nhập của bộ thu đánh giá Shopee. Phần dữ liệu đã đọc được giữ lại; lượt này đã dừng.']
+        : source.outcome.outcome === 'SHOPEE_COLLECTOR_DOWN' ? ['Lượt đọc không lấy được đánh giá vì bộ thu đánh giá Shopee không phản hồi. Phần dữ liệu đã đọc được giữ lại; lượt này đã dừng.']
+          : source.humanBlocked ? ['Lượt đọc cần người vận hành xử lý đăng nhập hoặc xác minh. Phần dữ liệu đã đọc được giữ lại; lượt này đã dừng.'] : []),
     ...(source.corpusInlineUnavailableReason ? ['Bộ bản ghi được lưu riêng do giới hạn kích thước; phần này chỉ trình bày số bản ghi và giới hạn của nguồn.'] : []),
     ...(source.corpusUnavailableReason === 'PUBLIC_REVIEW_CORPUS_TOO_LARGE' ? ['Bộ bản ghi vượt giới hạn kích thước của hồ sơ tổng hợp. Bản thu nguồn đã được giữ; phần này chỉ trình bày số bản ghi và giới hạn của nguồn.'] : []),
     'Không cộng gộp giữa các nền tảng hoặc suy rộng thành doanh số toàn quốc.'];

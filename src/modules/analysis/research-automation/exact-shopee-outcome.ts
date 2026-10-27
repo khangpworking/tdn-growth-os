@@ -1,7 +1,8 @@
 import type { SourceLimitation } from './model.js';
 
 /** Owner-facing outcome of one exact-Shopee review collection (#123). Pure: no I/O, no clock. */
-export type ExactShopeeOutcome = 'PROVIDER_BLOCKED' | 'PROVIDER_TIMEOUT_NO_REVIEWS' | 'PARTIAL_LISTINGS' | 'OK';
+export type ExactShopeeOutcome = 'SHOPEE_LOGIN_REQUIRED' | 'SHOPEE_VERIFICATION_REQUIRED' | 'SHOPEE_COLLECTOR_DOWN'
+  | 'PROVIDER_BLOCKED' | 'PROVIDER_TIMEOUT_NO_REVIEWS' | 'PARTIAL_LISTINGS' | 'OK';
 export const TARGET_REVIEWS = 300 as const;
 export const SHORTFALL_REASON = 'RETURNED_COUNT_BELOW_REQUESTED' as const;
 
@@ -23,7 +24,10 @@ export interface ExactShopeeOutcomeRecord {
   readonly reused: boolean;
 }
 
-export const EXACT_SHOPEE_OUTCOMES: readonly ExactShopeeOutcome[] = ['PROVIDER_BLOCKED', 'PROVIDER_TIMEOUT_NO_REVIEWS', 'PARTIAL_LISTINGS', 'OK'];
+export const EXACT_SHOPEE_OUTCOMES: readonly ExactShopeeOutcome[] = ['SHOPEE_LOGIN_REQUIRED', 'SHOPEE_VERIFICATION_REQUIRED', 'SHOPEE_COLLECTOR_DOWN',
+  'PROVIDER_BLOCKED', 'PROVIDER_TIMEOUT_NO_REVIEWS', 'PARTIAL_LISTINGS', 'OK'];
+/** Outcomes that name a repairable Shopee source condition; only these offer owner repair on the run page. */
+export const SHOPEE_REPAIRABLE_OUTCOMES: readonly ExactShopeeOutcome[] = ['SHOPEE_LOGIN_REQUIRED', 'SHOPEE_VERIFICATION_REQUIRED', 'SHOPEE_COLLECTOR_DOWN'];
 export const MAX_PROVIDER_MESSAGE_LENGTH = 300;
 
 interface SelectedListing { readonly shopId: string; readonly itemId: string; readonly productUrl: string }
@@ -84,14 +88,33 @@ export function classifyExactShopee(input: { readonly actorStatus: string; reado
 }
 
 const OUTCOME_CODES: Readonly<Record<Exclude<ExactShopeeOutcome, 'OK'>, string>> = {
+  SHOPEE_LOGIN_REQUIRED: 'SHOPEE_LOGIN_REQUIRED',
+  SHOPEE_VERIFICATION_REQUIRED: 'SHOPEE_VERIFICATION_REQUIRED',
+  SHOPEE_COLLECTOR_DOWN: 'SHOPEE_COLLECTOR_DOWN',
   PROVIDER_BLOCKED: 'EXACT_SHOPEE_REVIEWS_BLOCKED',
   PROVIDER_TIMEOUT_NO_REVIEWS: 'EXACT_SHOPEE_REVIEWS_TIMEOUT',
   PARTIAL_LISTINGS: 'EXACT_SHOPEE_REVIEWS_PARTIAL',
 };
 
+/** Plain-Vietnamese source error for the three named Shopee repair outcomes; null for every other outcome. */
+export function publicExactShopeeOutcomeMessage(outcome: ExactShopeeOutcome): string | null {
+  if (outcome === 'SHOPEE_LOGIN_REQUIRED') return 'Nguồn đánh giá Shopee: bộ thu mất đăng nhập Shopee nên chưa lấy được đánh giá. Vào trang lần chạy, bấm «Đăng nhập Shopee», rồi «Thu lại đánh giá».';
+  if (outcome === 'SHOPEE_VERIFICATION_REQUIRED') return 'Nguồn đánh giá Shopee: Shopee yêu cầu xác minh phiên đăng nhập nên chưa lấy được đánh giá. Vào trang lần chạy, bấm «Đăng nhập Shopee», rồi «Thu lại đánh giá».';
+  if (outcome === 'SHOPEE_COLLECTOR_DOWN') return 'Nguồn đánh giá Shopee: bộ thu đánh giá Shopee không phản hồi nên chưa lấy được đánh giá. Hệ thống không tự chạy lại; kiểm tra bộ thu rồi mở lại trang lần chạy.';
+  return null;
+}
+
+/** The run-page limitation for a public-review collection; the named source error is never generic. */
+export function publicExactShopeeOutcomeLimitation(outcome: ExactShopeeOutcome): SourceLimitation | null {
+  const message = publicExactShopeeOutcomeMessage(outcome);
+  return message === null ? null : { provider: 'shopee-public-review', code: OUTCOME_CODES[outcome as Exclude<ExactShopeeOutcome, 'OK'>], message };
+}
+
 /** The extra run-page limitation for a non-OK outcome; null when every listing has reviews. */
 export function exactShopeeOutcomeLimitation(outcome: ExactShopeeOutcome, counts: readonly ExactShopeeListingCount[], targetReviews?: number): SourceLimitation | null {
   if (outcome === 'OK') return null;
+  const named = publicExactShopeeOutcomeLimitation(outcome);
+  if (named) return named;
   if (targetReviews !== undefined && targetReviews <= 20) return { provider: 'apify-shopee', code: OUTCOME_CODES[outcome],
     message: `Chưa thu đủ giới hạn thử ${targetReviews} đánh giá cho mọi sản phẩm. Đây là mẫu thử nhỏ, không đại diện cho toàn bộ đánh giá; không tự thu lại.` };
   const withReviews = counts.filter(row => row.reviews > 0).length;
@@ -103,10 +126,20 @@ export function exactShopeeOutcomeLimitation(outcome: ExactShopeeOutcome, counts
       : ' Không tự chạy lượt tính phí khác.'}` };
 }
 
-/** Public source classification trusts only verified receipts and scoped admitted counts. */
+/**
+ * Public source classification trusts only verified receipts and scoped admitted counts.
+ * Login and verification win over every other receipt, so a partly collected listing set
+ * still names the repairable Shopee condition. A stopped collector is named separately;
+ * only unrelated provider failures keep the generic PROVIDER_BLOCKED outcome.
+ */
 export function classifyPublicExactShopee(input: { receipts: readonly import('../../../platform/collectors/shopee-public-reviews.js').PublicReviewReceipt[]; counts: readonly ExactShopeeListingCount[]; maxReviewsPerProduct: number }): ExactShopeeOutcome {
-  const hard = (code: string | null) => code !== null && (['HUMAN_LOGIN_REQUIRED','HUMAN_VERIFICATION_REQUIRED','HEALTH_NOT_READY','SHOPEE_REVIEW_INVALID_RESPONSE','SHOPEE_REVIEW_LIMIT','CREDENTIAL_ECHO_REFUSED'].includes(code) || /^SHOPEE_REVIEW_HTTP_(?:[34]\d\d)$/.test(code));
-  if (input.receipts.some(r => hard(r.stopCode) || ['needs_login','needs_verification'].includes(r.state))) return 'PROVIDER_BLOCKED';
+  const codes = input.receipts.flatMap(r => r.stopCode === null ? [] : [r.stopCode]);
+  const states = new Set(input.receipts.map(r => r.state));
+  if (codes.includes('HUMAN_LOGIN_REQUIRED') || states.has('needs_login')) return 'SHOPEE_LOGIN_REQUIRED';
+  if (codes.includes('HUMAN_VERIFICATION_REQUIRED') || states.has('needs_verification')) return 'SHOPEE_VERIFICATION_REQUIRED';
+  if (codes.includes('HEALTH_NOT_READY')) return 'SHOPEE_COLLECTOR_DOWN';
+  const hard = (code: string | null) => code !== null && (['SHOPEE_REVIEW_INVALID_RESPONSE','SHOPEE_REVIEW_LIMIT','CREDENTIAL_ECHO_REFUSED'].includes(code) || /^SHOPEE_REVIEW_HTTP_(?:[34]\d\d)$/.test(code));
+  if (input.receipts.some(r => hard(r.stopCode))) return 'PROVIDER_BLOCKED';
   const total = input.counts.reduce((n, r) => n + r.reviews, 0);
   if (!total) return input.receipts.some(r => r.timedOut) ? 'PROVIDER_TIMEOUT_NO_REVIEWS' : 'PROVIDER_BLOCKED';
   return input.receipts.length === input.counts.length && input.receipts.every((r, i) => r.state === 'succeeded' && r.stopCode === null && r.complete && ['record_limit','expected_count_reached','last_page'].includes(r.stopReason) && input.counts[i]!.reviews >= input.maxReviewsPerProduct) ? 'OK' : 'PARTIAL_LISTINGS';

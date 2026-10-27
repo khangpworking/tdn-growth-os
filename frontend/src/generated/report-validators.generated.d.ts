@@ -53,6 +53,7 @@ export declare const readerReportDecisionReceipt: PrecompiledValidator;
 export declare const researchAutomationRun: PrecompiledValidator;
 export declare const researchAutomationRunList: PrecompiledValidator;
 export declare const researchAutomationReceipt: PrecompiledValidator;
+export declare const researchAutomationShopeeSessionReceipt: PrecompiledValidator;
 export declare const researchAutomationSourceStatus: PrecompiledValidator;
 export declare const researchAutomationRunPdfs: PrecompiledValidator;
 export declare const researchAutomationAttachPdf: PrecompiledValidator;

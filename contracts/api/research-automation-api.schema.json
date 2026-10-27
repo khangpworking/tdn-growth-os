@@ -8,6 +8,8 @@
     { "$ref": "#/$defs/cancelRequest" },
     { "$ref": "#/$defs/autoRunRetryRequest" },
     { "$ref": "#/$defs/autoRunKeywordRequest" },
+    { "$ref": "#/$defs/shopeeSessionRequest" },
+    { "$ref": "#/$defs/shopeeSessionReceipt" },
     { "$ref": "#/$defs/run" },
     { "$ref": "#/$defs/runList" },
     { "$ref": "#/$defs/receipt" },
@@ -137,6 +139,28 @@
       },
       "if": { "properties": { "contractVersion": { "const": "research-automation-autorun-keyword-v1" } } },
       "then": { "properties": { "metricV3Preset": false } }
+    },
+    "shopeeSessionRequest": {
+      "title": "ResearchAutomationShopeeSessionRequest",
+      "description": "Owner repair of the Shopee review collector session: open the visible Shopee login, or confirm it and reopen the background browser.",
+      "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "requestKey"],
+      "properties": {
+        "contractVersion": { "enum": ["research-automation-shopee-session-login-v1", "research-automation-shopee-session-confirm-v1"] },
+        "requestKey": { "$ref": "#/$defs/requestKey" }
+      }
+    },
+    "shopeeSessionReceipt": {
+      "title": "ResearchAutomationShopeeSessionReceipt",
+      "description": "Result of checking or opening the Shopee review collector session; never carries the collector token. DISPATCHING means the command was durably reserved but its outcome is not recorded yet; the owner re-checks the session instead of repeating the command.",
+      "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "state", "checkedAt", "exactRetry"],
+      "properties": {
+        "contractVersion": { "const": "research-automation-shopee-session-v1" },
+        "state": { "enum": ["DISPATCHING", "READY", "AWAITING_USER_LOGIN", "LOGIN_REQUIRED", "VERIFICATION_REQUIRED", "COLLECTOR_BUSY", "COLLECTOR_DOWN"] },
+        "checkedAt": { "anyOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
+        "exactRetry": { "type": "boolean" }
+      }
     },
     "autoRun": {
       "title": "ResearchAutomationAutoRun",

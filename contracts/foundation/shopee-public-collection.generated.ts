@@ -282,7 +282,14 @@ export interface PublicReviewSource {
     requestSha256: string;
   } | null;
   outcome: {
-    outcome: 'OK' | 'PARTIAL_LISTINGS' | 'PROVIDER_BLOCKED' | 'PROVIDER_TIMEOUT_NO_REVIEWS';
+    outcome:
+      | 'OK'
+      | 'PARTIAL_LISTINGS'
+      | 'PROVIDER_BLOCKED'
+      | 'PROVIDER_TIMEOUT_NO_REVIEWS'
+      | 'SHOPEE_LOGIN_REQUIRED'
+      | 'SHOPEE_VERIFICATION_REQUIRED'
+      | 'SHOPEE_COLLECTOR_DOWN';
     /**
      * @minItems 1
      * @maxItems 5

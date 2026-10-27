@@ -7,8 +7,9 @@ import os from 'node:os';
 import path from 'node:path';
 import type { TestContext } from 'node:test';
 import { openDatabase } from '../../src/platform/db/index.js';
-import { AT, IDS, PRODUCTS, READY, job, result, row } from '../fixtures/shopee-public-results.js';
+import { AT, IDS, PRODUCTS, job, result, row } from '../fixtures/shopee-public-results.js';
 
+export const SESSION_READY = { state: 'ready', authenticated: true, checked_at: AT };
 export const ORIGIN = 'http://127.0.0.1:8877';
 export interface Invocation { method: string; url: string; init: RequestInit; at: number }
 export interface Exchange { method: 'GET' | 'POST'; path: string; status?: number; body?: unknown; response?: () => Response | Promise<Response>; inspect?: (call: Invocation) => void; error?: Error }
@@ -55,7 +56,7 @@ export function successfulScript(counts: readonly number[] = [20], cap = 20): Ex
   return counts.flatMap((count, p) => {
     const terminal = job(p, 'succeeded', { result_available: true, collected: count }, cap);
     return [
-      { method: 'GET', path: '/health', body: READY }, { method: 'GET', path: '/jobs?limit=100', body: [] },
+      ...(p === 0 ? [{ method: 'GET' as const, path: '/session', body: SESSION_READY }] : []), { method: 'GET', path: '/jobs?limit=100', body: [] },
       { method: 'POST', path: '/jobs', status: 202, body: job(p, 'queued', {}, cap), inspect(call) {
         assert.deepEqual(JSON.parse(String(call.init.body)), { url: PRODUCTS[p]!.productUrl, max_comments: cap });
       } },

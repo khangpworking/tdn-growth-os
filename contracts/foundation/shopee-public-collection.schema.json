@@ -744,7 +744,10 @@
                 "OK",
                 "PARTIAL_LISTINGS",
                 "PROVIDER_BLOCKED",
-                "PROVIDER_TIMEOUT_NO_REVIEWS"
+                "PROVIDER_TIMEOUT_NO_REVIEWS",
+                "SHOPEE_LOGIN_REQUIRED",
+                "SHOPEE_VERIFICATION_REQUIRED",
+                "SHOPEE_COLLECTOR_DOWN"
               ]
             },
             "listings": {
