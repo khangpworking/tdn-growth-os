@@ -260,7 +260,7 @@ test('date selection ignores hidden calendar arrows and commits both exact input
       ${[1, 20, 21, 28].map(day => `<td class="ant-picker-cell ant-picker-cell-in-view" title="2026-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}"><span class="ant-picker-cell-inner">${day}</span></td>`).join('')}
       </tr></tbody></table>`;
     for (const button of panel.querySelectorAll<HTMLElement>('[data-move]')) button.onclick = () => { month += Number(button.dataset.move); render(); };
-    for (const cell of panel.querySelectorAll<HTMLElement>('.ant-picker-cell-inner')) cell.onclick = () => {
+    for (const cell of panel.querySelectorAll<HTMLElement>('.ant-picker-cell-inner')) cell.onmousedown = () => {
       inputs[index]!.value = cell.parentElement!.getAttribute('title')!.split('-').reverse().join('-'); panel.remove();
     };
     if (disableEnd) panel.querySelector('[title="2026-10-20"]')?.classList.add('ant-picker-cell-disabled');
@@ -302,7 +302,7 @@ test('availability follows enabled calendar dates across months without submitti
         const date = shown + '-' + String(i + 1).padStart(2, '0');
         return `<div class="ant-picker-cell ${date > latest ? 'ant-picker-cell-disabled' : ''}" title="${date}"><span class="ant-picker-cell-inner">${i + 1}</span></div>`;
       }).join('');
-    for (const b of panel.querySelectorAll<HTMLElement>('[data-move]')) b.onclick = () => {
+    for (const b of panel.querySelectorAll<HTMLElement>('[data-move]')) b.onmousedown = () => {
       const date = new Date(shown + '-01'); date.setUTCMonth(date.getUTCMonth() + Number(b.dataset.move)); shown = date.toISOString().slice(0, 7); render();
     };
     for (const cell of panel.querySelectorAll<HTMLElement>('.ant-picker-cell-inner')) cell.onclick = () => { selections++; };
@@ -310,8 +310,10 @@ test('availability follows enabled calendar dates across months without submitti
   }
   // The source picker opens on mousedown; click-only automation leaves it closed.
   document.querySelectorAll<HTMLInputElement>('input')[1]!.onmousedown = () => render();
+  const body = document.body; body.remove();
   const page = { evaluate: async (fn: Function, arg: unknown) => w.eval(`(${fn.toString()})(${JSON.stringify(arg)})`),
-    click: async (selector: string) => { document.querySelector<HTMLElement>(selector)!.click(); }, wait: async () => {} };
+    click: async (selector: string) => { document.querySelector<HTMLElement>(selector)!.click(); },
+    wait: async () => { if (!document.body) document.documentElement.append(body); } };
   try {
     assert.equal(await adapter.discoverV3AvailableEndDate(page, '2026-01-30'), '2026-01-24');
     latest = '2026-01-27';
