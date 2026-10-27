@@ -61,6 +61,7 @@ export function readV3Page({ categoryId }) {
   const txt = (e) => (e?.innerText || e?.textContent || '').replace(/\s+/g, ' ').trim();
   if (location.protocol !== 'https:' || !['metric.vn', 'www.metric.vn'].includes(location.hostname))
     return { stop: 'CAPTURE_ORIGIN_CHANGED' };
+  if (!document.body) return { stop: 'CAPTURE_UI_CHANGED' };
   if (
     document.querySelector('input[type=password]') ||
     /\/login|\/sign-in/.test(location.pathname) ||
@@ -232,16 +233,11 @@ function formAction(action) {
   const fail = () => ({ stop: 'CAPTURE_CONTROL_NOT_SELECTABLE' });
   const click = (e) => {
     if (!e || e.disabled || e.getAttribute('aria-disabled') === 'true') return fail();
-    if (action.browserClick) {
-      for (const previous of document.querySelectorAll('[data-tdn-v3-click]')) previous.removeAttribute('data-tdn-v3-click');
-      e.setAttribute('data-tdn-v3-click', 'target');
-      return { ok: true, selector: '[data-tdn-v3-click="target"]' };
-    }
     e.click();
     return { ok: true };
   };
   const gesture = (e) => {
-    if (!e) return fail();
+    if (!e || e.disabled || e.getAttribute('aria-disabled') === 'true') return fail();
     for (const t of ['mousedown', 'mouseup', 'click'])
       e.dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true }));
     return { ok: true };
@@ -346,7 +342,8 @@ function formAction(action) {
     }
     return { ok: true };
   }
-  if (action.kind === 'picker') return click([...root.querySelectorAll('.ant-picker input')][action.index]);
+  // Ant's readonly date picker opens on mousedown; a click alone can leave it closed.
+  if (action.kind === 'picker') return gesture([...root.querySelectorAll('.ant-picker input')][action.index]);
   if (action.kind === 'date' || action.kind === 'availableDate') {
     const visible = e => {
       const r = e?.getBoundingClientRect(), s = e && getComputedStyle(e);
@@ -368,7 +365,7 @@ function formAction(action) {
         .filter(visible).map(e => e.getAttribute('title')).filter(date => date <= action.date).sort();
       if (enabled.length) return { ok: true, availableDate: enabled.at(-1) };
       const arrow = [...panel.querySelectorAll('.ant-picker-header-prev-btn')].filter(visible)[0];
-      return { ...click(arrow), done: false, searchingBack: true };
+      return { ...gesture(arrow), done: false, searchingBack: true };
     }
     if (cell?.classList.contains('ant-picker-cell-disabled')) {
       const enabled = [...panel.querySelectorAll('.ant-picker-cell:not(.ant-picker-cell-disabled)[title]')]
@@ -376,14 +373,14 @@ function formAction(action) {
       return { stop: 'CAPTURE_PERIOD_NOT_SELECTABLE', date: action.date, lastSelectableDate: enabled.at(-1) };
     }
     if (cell && !cell.classList.contains('ant-picker-cell-disabled'))
-      return { ...click(cell.querySelector('.ant-picker-cell-inner')), done: true };
+      return { ...gesture(cell.querySelector('.ant-picker-cell-inner')), done: true };
     const dates = [...panel.querySelectorAll('.ant-picker-cell[title]')].filter(visible).map(e => e.getAttribute('title')).sort();
     if (!dates.length) return fail();
     const direction = action.date < dates[0] ? 'prev' : action.date > dates.at(-1) ? 'next' : null;
     if (!direction) return fail();
     const arrows = [...panel.querySelectorAll(`.ant-picker-header-${direction}-btn`)].filter(visible);
     return {
-      ...click(direction === 'next' ? arrows.at(-1) : arrows[0]),
+      ...gesture(direction === 'next' ? arrows.at(-1) : arrows[0]),
       currentMonth: dates[0].slice(0, 7),
       done: false,
     };
@@ -643,11 +640,9 @@ export function buildV3WindowManifest(spec, window, observation, rawResponses, c
 }
 
 async function performFormAction(page, action) {
-  const result = await page.evaluate(formAction, { ...action,
-    browserClick: ['picker', 'date', 'availableDate'].includes(action.kind) && typeof page.click === 'function' });
+  const result = await page.evaluate(formAction, action);
   if (result.stop) stop(result.stop, { action: action.kind,
     ...(result.date ? { date: result.date, lastSelectableDate: result.lastSelectableDate } : {}) });
-  if (result.selector) await page.click(result.selector);
   await page.wait(120);
   return result;
 }

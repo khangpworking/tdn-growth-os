@@ -8,7 +8,7 @@ With `TDN_METRIC_EVIDENCE_ENABLED=1`, each successful UI window capture reads th
 
 The window evidence manifest adds optional `sourcePdf` metadata (`source-page.pdf`, SHA-256, size, page count, `kind=screenshot-pdf`) and `captureTechnique=scroll-screenshots`. Local retention checks the PDF digest before any upload. The existing private R2 package includes `source-page.pdf` with `application/pdf`. `explain_number` returns `urls.sourcePdf` with the existing 24-hour expiry and PDF metadata. When a section crop is unavailable, an archived whole-page PDF can still be returned with the partial-evidence code. Template numbers do not gain source links.
 
-Calendar selection now clicks the actual picker inputs and visible navigation controls through the browser click bridge. A disabled requested date stops with CAPTURE_PERIOD_NOT_SELECTABLE and the calendar’s last enabled date, rather than cycling through months. Capture never changes frozen dates. New production autoruns first resolve availability as described below. The existing full applied-state and response-scope checks remain authoritative before publication.
+Calendar selection opens picker inputs, navigates months and selects visible date cells with a mousedown/up/click gesture. The source controls require the full gesture; click alone can leave the picker closed, the month unchanged or the selected input uncommitted. A disabled requested date stops with CAPTURE_PERIOD_NOT_SELECTABLE and the calendar’s last enabled date, rather than cycling through months. Capture never changes frozen dates. New production autoruns first resolve availability as described below. The existing full applied-state and response-scope checks remain authoritative before publication.
 
 ## Compatibility and limits
 
