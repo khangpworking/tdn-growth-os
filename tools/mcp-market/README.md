@@ -81,8 +81,10 @@ See the [Codex MCP documentation](https://developers.openai.com/codex/mcp/) for 
 
 `tools/probe_market.py` reads one stored run and proves that the three write tools send nothing:
 
+Replace the quoted placeholders with the workspace and stored-run UUIDs:
+
 ```sh
-TDN_WORKSPACE_ID=<workspace-uuid> python3 tools/mcp-market/tools/probe_market.py --run-id <run-uuid>
+TDN_WORKSPACE_ID='<workspace-uuid>' python3 tools/mcp-market/tools/probe_market.py --run-id '<run-uuid>'
 ```
 
 `TDN_RUN_ID` may replace `--run-id`. Reports are saved under `tools/mcp-market/out/` (gitignored). The probe
