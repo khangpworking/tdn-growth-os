@@ -18,7 +18,8 @@ run a real capture.
 ## Tools
 
 - `start_market(product, keyword1, period_days=365)` — start-v2, `PRODUCT`, `MARKET` only, period ends
-  yesterday in Vietnam time, rejects periods shorter than 365 days.
+  yesterday in Vietnam time, rejects periods shorter than 365 days. Includes a single-keyword v2 capture
+  preset with 30-day and 365-day windows; the backend aligns them to Metric’s latest available date before freezing.
 - `run_status(run_id)` — status, steps, auto-run phase, keyword-2 suggestion, Reader revisions, owner-facing message.
 - `confirm_preset(run_id, keyword2, category_ids=None)` — answer the keyword-2 wait with the capture preset; only at
   `KEYWORD2_AWAITING`.
@@ -34,10 +35,12 @@ run a real capture.
   Template labels are identified as template text; unavailable images have an explicit code.
 - `cancel_run(run_id, expected_revision=None)` — cancel with a revision guard.
 
-The preset is the retained `metric-v3-capture-spec-v1`: exactly two keywords and all four verified Sức Khoẻ
-children. Omit `category_ids` or supply all four; partial subsets are rejected before any HTTP call. The shared
-form default in `src/shared/metric-v3-preset.ts` is now the v2 contract (one or two keywords); moving this MCP to
-v2 is a separate change, so it keeps emitting v1.
+New starts use `metric-v3-capture-spec-v2` so the backend selects v3 UI capture with its automatic
+page-request fallback for supported UI failures. The fallback retains raw evidence but has no screenshots
+or original-page PDF. It preserves authentication, category and data guards.
+`confirm_preset` retains the two-keyword `metric-v3-capture-spec-v1` contract for existing keyword-2 waits.
+Both presets use all four verified Sức Khoẻ children. Omit `category_ids` or supply all four; partial subsets
+are rejected before any HTTP call.
 
 ## Install
 
