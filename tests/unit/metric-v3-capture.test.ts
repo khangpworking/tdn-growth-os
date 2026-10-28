@@ -170,7 +170,7 @@ test('explicit preset contract rows preserve applied state and reject page or re
       },
       'CAPTURE_TREND_INTERVAL_MISMATCH',
     ],
-    ['missing response', (r) => r.responses.pop(), 'CAPTURE_RESPONSE_MISSING'],
+    ['missing UI response', (r) => r.responses.pop(), 'CAPTURE_UI_CHANGED'],
     [
       'latest headline loses metrics',
       (r) => {

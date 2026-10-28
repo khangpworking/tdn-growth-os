@@ -530,11 +530,12 @@ export function buildV3WindowManifest(spec, window, observation, rawResponses, c
   if (!observation.comparisonDefault) stop('CAPTURE_COMPARISON_MISMATCH');
   const platformIds = { shopee: 1, lazada: 2, tiki: 3, tiktok: 8 };
   const sourceMap = {};
+  const missingEndpoints = [];
   for (const endpoint of endpoints) {
     const rows = rawResponses
       .map((r, i) => ({ r, i }))
       .filter(({ r }) => r.urlPath === `/v2/market/analytics/${endpoint}/`);
-    if (rows.length === 0) stop('CAPTURE_RESPONSE_MISSING');
+    if (rows.length === 0) { missingEndpoints.push(endpoint); continue; }
     for (const found of rows) {
       if (found.r.status !== 200 || found.r.body?.status !== 'success') stop('CAPTURE_RESPONSE_MISSING');
       const q = found.r.requestBody,
@@ -594,21 +595,25 @@ export function buildV3WindowManifest(spec, window, observation, rawResponses, c
       sourceMap[endpoint] = `raw-responses.json#/${found.i}/body/data`;
     }
   }
-  const basic = rawResponses.findLast((r) => r.urlPath.endsWith('/search-basic/')).body.data.search_basic;
-  const required = ['REVENUE_TOTAL_CUSTOM', 'ORDER_TOTAL_CUSTOM', 'PRODUCT_TOTAL', 'SHOP_TOTAL'];
-  if (
-    !required.flatMap((k) => [k, `PREVIOUS_${k}`]).every((k) => basic?.aggregations?.some((a) => a.aggregation === k))
-  )
-    stop('CAPTURE_RESPONSE_MISSING');
-  if (
-    ![
-      'REVENUE__BY__PRICE_RANGE_CUSTOM',
-      'ORDER_COUNT__BY__PRICE_RANGE_CUSTOM',
-      'REVENUE__BY__SHOP_TYPE_CUSTOM',
-      'ORDER_COUNT__BY__SHOP_TYPE_CUSTOM',
-    ].every((k) => basic.aggregations.some((a) => a.aggregation === k && Array.isArray(a.entities)))
-  )
-    stop('CAPTURE_RESPONSE_MISSING');
+  // Validate every observed response before allowing missing UI traffic to fall back.
+  if (!missingEndpoints.includes('search-basic')) {
+    const basic = rawResponses.findLast((r) => r.urlPath.endsWith('/search-basic/')).body.data?.search_basic;
+    const required = ['REVENUE_TOTAL_CUSTOM', 'ORDER_TOTAL_CUSTOM', 'PRODUCT_TOTAL', 'SHOP_TOTAL'];
+    if (
+      !required.flatMap((k) => [k, `PREVIOUS_${k}`]).every((k) => basic?.aggregations?.some((a) => a.aggregation === k))
+    )
+      stop('CAPTURE_RESPONSE_MISSING');
+    if (
+      ![
+        'REVENUE__BY__PRICE_RANGE_CUSTOM',
+        'ORDER_COUNT__BY__PRICE_RANGE_CUSTOM',
+        'REVENUE__BY__SHOP_TYPE_CUSTOM',
+        'ORDER_COUNT__BY__SHOP_TYPE_CUSTOM',
+      ].every((k) => basic.aggregations.some((a) => a.aggregation === k && Array.isArray(a.entities)))
+    )
+      stop('CAPTURE_RESPONSE_MISSING');
+  }
+  if (missingEndpoints.length) stop(captureMethod === 'ui' ? 'CAPTURE_UI_CHANGED' : 'CAPTURE_RESPONSE_MISSING', { missingEndpoints });
   const manifest = {
     contractVersion: 'metric-v3-window-capture-v2',
     captureId: randomUUID(),

@@ -82,7 +82,9 @@ differences remain disclosed. The live unknown-category run stopped with
 
 The preset runner tries the OpenCLI UI adapter first. Explicit UI/control,
 selector, period-control, keyword-application or bridge timeout failures permit
-one fallback; login, unknown category, invalid scope/preset and provider-data
+one fallback. An endpoint still absent after the UI response wait also permits
+fallback, after all observed responses pass scope and data validation; a received
+error or malformed payload still stops. Login, unknown category, invalid scope/preset and provider-data
 errors stop. Fallback retains partial UI output under `ui-failed/` and captures
 both windows afresh, so no published window mixes methods.
 

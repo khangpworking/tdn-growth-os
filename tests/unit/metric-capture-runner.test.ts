@@ -258,7 +258,7 @@ test('process runner: over-cap output kills the group; spawn errors keep their c
 // happy-path coverage above owns the absent-preset row; no live process is launched.
 test('CAPTURE preset fallback contract rows publish one method per window or preserve stop errors', async (t) => {
   const fixture = JSON.parse(await readFile(new URL('../fixtures/metric-v3/live-map-contract.json', import.meta.url), 'utf8'));
-  for (const outcome of ['ready', 'ui-broken', 'bridge-timeout', 'bridge-first-eval-timeout', 'late-ui-break', 'unknown-category', 'logged-out', 'invalid-preset', 'provider-error', 'both-fail', 'both-fail-close-timeout'] as const) await t.test(outcome, async () => {
+  for (const outcome of ['ready', 'ui-broken', 'bridge-timeout', 'bridge-first-eval-timeout', 'late-ui-break', 'missing-trend', 'missing-trend-provider-error', 'unknown-category', 'logged-out', 'invalid-preset', 'provider-error', 'both-fail', 'both-fail-close-timeout'] as const) await t.test(outcome, async () => {
     const spec = structuredClone(fixture.spec);
     if (outcome === 'unknown-category') spec.preset.category.id = 'c9999999999';
     if (outcome === 'invalid-preset') spec.preset.platforms = [];
@@ -320,6 +320,11 @@ test('CAPTURE preset fallback contract rows publish one method per window or pre
           else if (js.includes('.filter((r)')) response = fixture.windows[windowIndex].responses.map((r: any) => r.urlPath);
           else if (js.includes('=> window.__tdnV3Capture.responses')) {
             response = structuredClone(fixture.windows[windowIndex].responses);
+            if (outcome.startsWith('missing-trend') && windowIndex === 1) {
+              response = (response as any[]).filter((r: any) => !r.urlPath.endsWith('/insight/'));
+              // A present provider failure must still stop even when another endpoint is absent.
+              if (outcome === 'missing-trend-provider-error') (response as any[]).find((r: any) => r.urlPath.endsWith('/shops/')).body.status = 'error';
+            }
             if (outcome === 'provider-error') (response as any[])[0].body.status = 'error';
           }
           else response = { ok: true };
@@ -339,7 +344,7 @@ test('CAPTURE preset fallback contract rows publish one method per window or pre
     assert.equal(opened, true); assert.equal(closed, true, 'owned tab must close even on control failure');
     assert.equal(result.executorCalls, 1);
     const dir = join(root, req.runId, 'run1');
-    if (['ready', 'ui-broken', 'bridge-timeout', 'bridge-first-eval-timeout', 'late-ui-break'].includes(outcome)) {
+    if (['ready', 'ui-broken', 'bridge-timeout', 'bridge-first-eval-timeout', 'late-ui-break', 'missing-trend'].includes(outcome)) {
       assert.ok(result.ok, JSON.stringify(result));
       const manifest = JSON.parse(await readFile(join(dir, 'manifest.json'), 'utf8'));
       assert.deepEqual(manifest.windows.map((w: any) => w.window), ['30d', '12m']);
@@ -348,7 +353,7 @@ test('CAPTURE preset fallback contract rows publish one method per window or pre
         assert.deepEqual(window.appliedState, fixture.spec.preset);
         assert.equal(window.captureGate, 'PASSED');
         assert.equal(window.captureMethod, outcome === 'ready' ? 'ui' : 'page-request');
-        assert.equal(window.fallbackReason, outcome === 'ready' ? undefined : outcome.startsWith('bridge-') ? 'CAPTURE_BRIDGE_TIMEOUT' : 'CAPTURE_CONTROL_NOT_SELECTABLE');
+        assert.equal(window.fallbackReason, outcome === 'ready' ? undefined : outcome.startsWith('bridge-') ? 'CAPTURE_BRIDGE_TIMEOUT' : outcome === 'missing-trend' ? 'CAPTURE_UI_CHANGED' : 'CAPTURE_CONTROL_NOT_SELECTABLE');
         assert.equal(window.window.id, id);
       }
       assert.equal(pageRequests, outcome === 'ready' ? 0 : 10);
