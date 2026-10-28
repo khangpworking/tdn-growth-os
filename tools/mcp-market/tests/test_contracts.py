@@ -48,14 +48,14 @@ class MarketContracts(OfflineMarketCase):
         """Row 2: UTC/Vietnam date boundary, year/leap day, and inclusive days."""
         self.enable_fake_writes()
         cases = [
-            ("2026-10-25T17:00:00+00:00", None, "2025-10-26", "2026-10-25"),
-            ("2026-10-25T16:59:59+00:00", 365, "2025-10-25", "2026-10-24"),
-            ("2026-10-25T17:00:00+00:00", 365, "2025-10-26", "2026-10-25"),
-            ("2026-12-31T17:01:00+00:00", 400, "2025-11-27", "2026-12-31"),
-            ("2024-03-01T02:00:00+00:00", 365, "2023-03-02", "2024-02-29"),
+            ("2026-10-25T17:00:00+00:00", None, "2025-10-26", "2026-10-25", "2026-09-26", "2025-10-26"),
+            ("2026-10-25T16:59:59+00:00", 365, "2025-10-25", "2026-10-24", "2026-09-25", "2025-10-25"),
+            ("2026-10-25T17:00:00+00:00", 365, "2025-10-26", "2026-10-25", "2026-09-26", "2025-10-26"),
+            ("2026-12-31T17:01:00+00:00", 400, "2025-11-27", "2026-12-31", "2026-12-02", "2026-01-01"),
+            ("2024-03-01T02:00:00+00:00", 365, "2023-03-02", "2024-02-29", "2024-01-31", "2023-03-02"),
         ]
         keys = []
-        for instant, days, start, end in cases:
+        for instant, days, start, end, short_start, annual_start in cases:
             with self.subTest(instant=instant, days=days):
                 frozen = datetime.fromisoformat(instant)
 
@@ -79,6 +79,14 @@ class MarketContracts(OfflineMarketCase):
                             "keyword": "sản phẩm mẫu", "description": "Sản phẩm mẫu",
                             "requestedPeriod": {"startDate": start, "endDate": end}, "reports": ["MARKET"],
                         }
+                        preset = copy.deepcopy(self.confirm["metricV3Preset"])
+                        preset["contractVersion"] = "metric-v3-capture-spec-v2"
+                        preset["preset"]["keywords"] = ["sản phẩm mẫu"]
+                        preset["windows"] = [
+                            {"id": "30d", "period": {"startDate": short_start, "endDate": end}, "intervalDays": 7},
+                            {"id": "12m", "period": {"startDate": annual_start, "endDate": end}, "intervalDays": 30},
+                        ]
+                        expected["metricV3Preset"] = preset
                         self.assertEqual(body, expected)
                         self.assert_repo_body(body, "startRequest")
                         self.assertEqual(result["http"], 202)

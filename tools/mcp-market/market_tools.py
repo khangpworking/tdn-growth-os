@@ -403,15 +403,15 @@ def resolve_category_ids(category_ids: list[str] | None) -> list[str]:
     return list(CHILD_IDS)
 
 
-def metric_v3_defaults(keyword1: str, keyword2: str, end_date: str, category_ids: list[str] | None = None) -> dict:
-    """Same category, filters and windows as src/shared/metric-v3-preset.ts, on the retained v1 contract."""
+def metric_v3_defaults(keyword1: str, keyword2: str | None, end_date: str, category_ids: list[str] | None = None) -> dict:
+    """Use v2 for single-keyword starts; retain v1 for keyword-2 confirmations."""
     end = date.fromisoformat(end_date)
     start = lambda days: (end - timedelta(days=days - 1)).isoformat()
     children = [dict(child) for child in V3_CATEGORY["children"] if child["id"] in resolve_category_ids(category_ids)]
     return {
-        "contractVersion": "metric-v3-capture-spec-v1",
+        "contractVersion": "metric-v3-capture-spec-v2" if keyword2 is None else "metric-v3-capture-spec-v1",
         "preset": {
-            "keywords": [keyword1, keyword2],
+            "keywords": [keyword1] if keyword2 is None else [keyword1, keyword2],
             "smartQuery": True,
             "category": {"id": V3_CATEGORY["id"], "label": V3_CATEGORY["label"], "children": children},
             "usefulFilters": {"fake": True, "gifts": True, "deleted": True},
@@ -496,6 +496,7 @@ def start_market(product: str, keyword1: str, period_days: int = 365) -> dict:
         "description": product,
         "requestedPeriod": {"startDate": start.isoformat(), "endDate": end.isoformat()},
         "reports": ["MARKET"],
+        "metricV3Preset": metric_v3_defaults(keyword1, None, end.isoformat()),
     }
     # Starting includes a bounded calendar preflight before the run is frozen.
     response = _request("POST", f"/owner-api/workspaces/{_workspace()}/research-automation/runs", body, timeout=120)
