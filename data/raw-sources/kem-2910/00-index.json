@@ -73,8 +73,8 @@
    "recordCount": 6,
    "resultNote": null,
    "cost": null,
-   "byteSize": 808222,
-   "fileSha256": "52952fb1c8943211d1ab6969f08a3802941115dedc04fc8bd3878f901df3a1e4",
+   "byteSize": 808234,
+   "fileSha256": "e09fc27fc8fbafcf78fc03c4327871b20ddf6c6fb76a3b10c968271cafdeed8d",
    "check": "OK"
   },
   {
@@ -256,8 +256,8 @@
     "balanceBefore": 32.5,
     "spent": 2.0
    },
-   "byteSize": 1022199,
-   "fileSha256": "4ae095c3f1bfb9aad9f174e77e36a1230f32f0a429da49827c755ab04ab430b8",
+   "byteSize": 1022472,
+   "fileSha256": "d282d4f1c48fe8eb3f6194c95cf0bd2e1fb3b9f75897659e2ca9ee0a89bc68b0",
    "check": "OK"
   },
   {

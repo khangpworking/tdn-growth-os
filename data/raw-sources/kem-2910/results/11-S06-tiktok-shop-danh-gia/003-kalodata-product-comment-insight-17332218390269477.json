@@ -18,7 +18,8 @@
   "limits": [
    "Điểm AI của nguồn chỉ để đối chiếu, không làm bằng chứng",
    "Số đánh giá là số bản ghi, không phải số người",
-   "1 điểm mỗi sản phẩm khi nguồn có bản gom mới"
+   "1 điểm mỗi sản phẩm khi nguồn có bản gom mới",
+   "Nguồn tự gom ý: 2 mã trong id_list của một ý khen (sản phẩm 1733221839026947706) không có trong 431 đánh giá nguồn trả về. Bản gốc của nguồn cũng vậy (kiểm 29/10 trên dữ liệu chưa ẩn danh); không phải lỗi ẩn danh"
   ],
   "resultSha256": "3d2c1e1da021050e4623b22ef4dd493a2e70d679e54e1eee340d631a9186883d"
  },

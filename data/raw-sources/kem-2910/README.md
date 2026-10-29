@@ -81,9 +81,9 @@ Nguồn không có tệp (dừng, chưa có công cụ, cần tài khoản): S03
 - Tệp 03 (Shopee), 11 (TikTok Shop), 17 (TikTok bình luận) có lời khách thật.
 - Mã người dùng, tên người dùng, `review_user`, ảnh đại diện, ảnh người dùng gửi và link đánh giá: thay bằng `anon-<12 ký tự>` hoặc ghi `<removed>`.
 - Mã bản ghi đánh giá/bình luận (`reviewId`, `review_id`, `cid`) và tham chiếu `key_review_id`: thay bằng `anon-<12 ký tự>`, giữ liên kết giữa bản ghi và tham chiếu trong bộ này.
-- Tệp 11: các mã đánh giá gốc trong `id_list` được thay bằng `<removed>`, giữ độ dài danh sách. `key_review_id` vẫn nối tới `review_id` đã ẩn danh.
+- Tệp 11: các mã đánh giá gốc trong `id_list` dùng cùng nhóm mã `anon-<12 ký tự>` với `review_id` và `key_review_id`, giữ độ dài và thứ tự danh sách.
 - Mã `anon-` dùng HMAC-SHA256 với khoá ngẫu nhiên đã huỷ. Cùng một mã định danh gốc trong cùng nhóm có cùng mã thay thế; không ghép danh tính giữa nền tảng.
-- Số điện thoại, email, @nhắc tên trong lời viết: thay bằng `[số điện thoại]`, `[email]`, `@[ẩn]`.
+- Tên cá nhân, số điện thoại, email, @nhắc tên trong lời viết: thay bằng `[tên riêng]`, `[số điện thoại]`, `[email]`, `@[ẩn]`.
 - Tệp 01: bỏ 36 phần thân yêu cầu theo dõi trình duyệt, thay bằng `[REDACTED_BROWSER_TELEMETRY]`; các phần này chứa cookie, mã người dùng ẩn danh, mã phiên và mã khách truy cập trong chuỗi JSON.
 - Giữ nguyên: nội dung lời khách, số sao, ngày, mã sản phẩm, tên shop, thương hiệu, người bán, tác giả video công khai.
 - Mỗi tệp ghi rõ phần đã ẩn danh trong `declare.anonymisation`.
