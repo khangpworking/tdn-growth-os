@@ -8,6 +8,7 @@ Từ khoá: «viên uống kẽm». Chủ đề: thực phẩm chức năng viê
 - 10 tệp lấy từ một lượt chạy thật ngày 26/10/2026. 8 tệp bổ sung ngày 29/10/2026, gồm thu mới, truy vấn cục bộ và ca không thu.
 - Đã ẩn danh: mọi người viết đánh giá và người bình luận được thay bằng mã `anon-…`. Xem mục 4.
 - Kiểm định dạng từ gốc repo: `python3 data/raw-sources/kem-2910/tools/validate.py data/raw-sources/kem-2910`. Kết quả mong đợi: `failed 0`.
+- Khuôn cơ sở dữ liệu cho từng nguồn (bảng, cột, SQL SQLite): [`KHUON-CSDL.md`](KHUON-CSDL.md). Thử: `python3 tools/test_schema.py KHUON-CSDL.md .`
 
 ## 1. Cấu trúc một tệp
 
@@ -57,7 +58,7 @@ Các trường theo khuôn «Mỗi tệp gốc phải mang» của quy chuẩn d
 | 02-S02 | Sản phẩm TikTok Shop | Lượt 26/10 | Xếp hạng + chi tiết 12 tháng. `video.rank` bị từ chối (mã 501) |
 | 03-S05 | Đánh giá Shopee | Lượt 26/10 | 1.152 đánh giá, 5 sản phẩm |
 | 04-S14 | Lời nói trong video TikTok | Lượt 26/10 | 3 video. Lời người bán, không phải lời khách |
-| 05-S15 | Thư viện quảng cáo Meta | Lượt 26/10 | **Rỗng**: 0 quảng cáo |
+| 05-S15 | Thư viện quảng cáo Meta | Lượt 26/10 | **Bị chặn**: 0 quảng cáo thu được; thương hiệu thứ 2 chưa đọc |
 | 06-S16 | Quảng cáo nổi bật TikTok | Lượt 26/10 | **Bị chặn**: trang đòi đăng nhập |
 | 07-S19 | Tìm kiếm Google | Lượt 26/10 | 8 câu tìm |
 | 08-S20 | Google Trends | Lượt 26/10 | Theo thời gian 12 tháng + theo tỉnh |
@@ -70,7 +71,7 @@ Các trường theo khuôn «Mỗi tệp gốc phải mang» của quy chuẩn d
 | 15-S25 | Báo cáo PDF | Thu mới 29/10 | 2 PDF, chỉ liên quan xa. Tệp PDF không đưa vào kho |
 | 16-S28 | Hồ sơ người Việt tổng hợp | Truy vấn cục bộ | Mốc toàn dân 1 triệu hồ sơ + 300 mẫu. NVIDIA Nemotron-Personas-Vietnam, CC BY 4.0 |
 | 17-S07 | Bình luận TikTok | Thu mới 29/10 | 262 bình luận, 5 video |
-| 18-S17 | Quảng cáo Google | **Không thu** | Hết lượt SerpApi trong tháng |
+| 18-S17 | Quảng cáo Google | **Không thu** | Giới hạn lượt SerpApi trong tháng |
 
 Nguồn không có tệp (dừng, chưa có công cụ, cần tài khoản): S03, S08, S09, S10, S11, S12, S18, S27. Lý do: `00-index.json`, mục `notCollected`.
 
@@ -79,6 +80,7 @@ Nguồn không có tệp (dừng, chưa có công cụ, cần tài khoản): S03
 - Tệp 03 (Shopee), 11 (TikTok Shop), 17 (TikTok bình luận) có lời khách thật.
 - Mã người dùng, tên người dùng, `review_user`, ảnh đại diện, ảnh người dùng gửi và link đánh giá: thay bằng `anon-<12 ký tự>` hoặc ghi `<removed>`.
 - Mã bản ghi đánh giá/bình luận (`reviewId`, `review_id`, `cid`) và tham chiếu `key_review_id`: thay bằng `anon-<12 ký tự>`, giữ liên kết giữa bản ghi và tham chiếu trong bộ này.
+- Tệp 11: các mã đánh giá gốc trong `id_list` được thay bằng `<removed>`, giữ độ dài danh sách. `key_review_id` vẫn nối tới `review_id` đã ẩn danh.
 - Mã `anon-` dùng HMAC-SHA256 với khoá ngẫu nhiên đã huỷ. Cùng một mã định danh gốc trong cùng nhóm có cùng mã thay thế; không ghép danh tính giữa nền tảng.
 - Số điện thoại, email, @nhắc tên trong lời viết: thay bằng `[số điện thoại]`, `[email]`, `@[ẩn]`.
 - Tệp 01: bỏ 36 phần thân yêu cầu theo dõi trình duyệt, thay bằng `[REDACTED_BROWSER_TELEMETRY]`; các phần này chứa cookie, mã người dùng ẩn danh, mã phiên và mã khách truy cập trong chuỗi JSON.
