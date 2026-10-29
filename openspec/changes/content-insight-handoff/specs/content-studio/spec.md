@@ -31,19 +31,19 @@ Mỗi câu SHALL thuộc đúng một bản báo cáo Insight. Dòng bằng ch�
 - **THEN** app vẫn lưu câu đó
 
 ### Requirement: R-C02 Chỉ báo cáo Insight đã duyệt
-Chỉ bản báo cáo Insight có quyết định duyệt (APPROVED) SHALL hiện trong dropdown của Content Studio. Chỉ bản đó SHALL gửi được bằng «Gửi sang Content». Bản chưa duyệt hoặc bị từ chối SHALL NOT hiện và SHALL NOT gửi được. Khi một bản đã duyệt sau đó bị từ chối, bản đó SHALL biến khỏi dropdown và nút gửi.
+Chỉ bản báo cáo Insight có quyết định duyệt (APPROVED) SHALL hiện trong dropdown của Content Studio. Chỉ bản đó SHALL gửi được bằng «Gửi sang Content». Bản chưa duyệt hoặc bị từ chối SHALL NOT hiện và SHALL NOT gửi được. Luật này SHALL đúng cả khi gọi thẳng API. Quyết định duyệt của một bản giữ nguyên như hôm nay: mỗi bản có một quyết định, không đổi được. Change này SHALL NOT thêm cách bỏ duyệt.
 
 - Loại kiểm: Người đọc
 - Mã kiểm: Chưa có mã kiểm
-- Vì sao: Ngày 29/10/2026 chủ chọn chỉ báo cáo đã duyệt (Q8) và viết: «if the report is not approve by human, then we not show it up or able to pass to content production stage» (Q25, F292).
+- Vì sao: Ngày 29/10/2026 chủ chọn chỉ báo cáo đã duyệt (Q8) và viết: «if the report is not approve by human, then we not show it up or able to pass to content production stage» (Q25, F292). Cùng ngày chủ chọn «Drop it for now»: không thêm cách bỏ duyệt một bản đã duyệt (F293).
 
 #### Scenario: Bản chưa duyệt
 - **WHEN** một bản báo cáo Insight chưa có quyết định duyệt
 - **THEN** dropdown không hiện bản đó và trang báo cáo không có nút «Gửi sang Content» cho bản đó
 
-#### Scenario: Bản bị từ chối sau khi duyệt
-- **WHEN** chủ từ chối một bản đã duyệt trước đó
-- **THEN** bản đó biến khỏi dropdown và nút gửi
+#### Scenario: Bản bị từ chối
+- **WHEN** một bản báo cáo Insight có quyết định từ chối
+- **THEN** dropdown không hiện bản đó, và lời gọi API gửi câu của bản đó bị từ chối
 
 ### Requirement: R-C03 Kéo câu insight ở bước Insight
 Ở bước Insight của chiến dịch, Content Studio SHALL có một dropdown các bản báo cáo theo R-C02, mới nhất ở trên. Nhãn mỗi bản SHALL là «<từ khóa> · <ngày đầu>–<ngày cuối của dữ liệu> · bản <số bản>», ví dụ «canxi · 21/10–22/10/26 · bản 2». Mã lần chạy SHALL chỉ hiện khi rê chuột. Khi người dùng chọn một bản, app SHALL hiện thẻ câu insight với bước mua, câu insight và mức tin. Người dùng SHALL chọn đúng một câu cho một chiến dịch. Thẻ mức Không SHALL bị ẩn. Câu mức Yếu hoặc mang cờ Giả thuyết SHALL giữ nhãn đó trong Content Studio.
@@ -61,15 +61,19 @@ Chỉ bản báo cáo Insight có quyết định duyệt (APPROVED) SHALL hiệ
 - **THEN** bước Insight của chiến dịch hiện nhãn Giả thuyết bên cạnh câu đó
 
 ### Requirement: R-C04 Đẩy câu insight từ trang báo cáo
-Trang danh sách báo cáo của lần chạy SHALL có nút «Gửi sang Content» cho bản báo cáo Insight theo R-C02. Người dùng SHALL chọn một câu, rồi chọn một chiến dịch có sẵn hoặc «Tạo chiến dịch mới». «Tạo chiến dịch mới» SHALL hỏi thương hiệu và tên chiến dịch. Đẩy và kéo SHALL cho cùng kết quả: một Insight nháp mà người dùng chốt trong Content Studio.
+Trang danh sách báo cáo của lần chạy SHALL có nút «Gửi sang Content» cho bản báo cáo Insight theo R-C02. Người dùng SHALL chọn một câu, rồi chọn một chiến dịch có sẵn hoặc «Tạo chiến dịch mới». «Tạo chiến dịch mới» SHALL mở biểu mẫu tạo chiến dịch thường (thương hiệu, tên, mục tiêu, sản phẩm), với câu insight đã gắn sẵn. Luật tạo chiến dịch SHALL NOT đổi. Đẩy và kéo SHALL cho cùng kết quả: một Insight nháp mà người dùng chốt trong Content Studio.
 
 - Loại kiểm: Người đọc
 - Mã kiểm: Chưa có mã kiểm
-- Vì sao: Ngày 29/10/2026 chủ chọn có cả đẩy và kéo (Q3), nút ở trang báo cáo (Q9), và đẩy có ngay trong bản 1 (Q20) (F292).
+- Vì sao: Ngày 29/10/2026 chủ chọn có cả đẩy và kéo (Q3), nút ở trang báo cáo (Q9), và đẩy có ngay trong bản 1 (Q20) (F292). Cùng ngày chủ chọn «Full form»: chiến dịch mới dùng biểu mẫu đầy đủ như hôm nay (F293).
 
 #### Scenario: Đẩy sang chiến dịch mới
 - **WHEN** người dùng bấm «Gửi sang Content», chọn một câu và chọn «Tạo chiến dịch mới»
-- **THEN** app hỏi thương hiệu và tên, tạo chiến dịch, và chiến dịch có Insight nháp từ câu đó
+- **THEN** app mở biểu mẫu tạo chiến dịch đầy đủ; sau khi lưu, chiến dịch có Insight nháp từ câu đó
+
+#### Scenario: Bỏ dở biểu mẫu
+- **WHEN** người dùng đóng biểu mẫu mà không lưu
+- **THEN** app không tạo chiến dịch và không lưu Insight nào
 
 ### Requirement: R-C05 Cách điền ba ô và khung «Từ báo cáo»
 Khi Content Studio nhận một câu insight, app SHALL điền ba ô:

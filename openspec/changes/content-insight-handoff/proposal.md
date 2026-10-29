@@ -82,5 +82,5 @@ Ba câu phạm vi (config.yaml):
 
 Chủ chưa quyết. Không ai quyết thay chủ.
 
-- Q25b: một chiến dịch thật đã lấy câu, rồi báo cáo bị từ chối. Mặc định nếu chưa ai quyết: chiến dịch giữ bản sao và hiện «Báo cáo gốc đã bị từ chối». Chốt trước khi có bộ viết câu insight.
+- Q25b: một chiến dịch thật đã lấy câu, rồi báo cáo bị từ chối. Hôm nay việc này không xảy ra: một bản đã duyệt không bỏ duyệt được, và chủ chọn chưa thêm cách bỏ duyệt (F293). Chốt nếu sau này có cách bỏ duyệt.
 - Q17: «có số chứng minh» chặt đến đâu. Chốt cùng bộ viết câu insight (xem R-I39).
