@@ -141,7 +141,11 @@ export class ContentInsightService {
       await this.readInsight(input.campaignId, targetVersion);
       return () => result;
     }
-    if (!newCampaign) this.#assertWritable(input.campaignId, input.expectedVersion);
+    if (!newCampaign) {
+      if (input.insight.source.kind === 'INSIGHT_REPORT' && this.isLocked(input.campaignId))
+        throw new ContentInsightConflictError('Insight đã chốt, hãy tạo chiến dịch mới', 'state_conflict');
+      this.#assertWritable(input.campaignId, input.expectedVersion);
+    }
     if (input.insight.source.kind === 'INSIGHT_REPORT') {
       const source = input.insight.source;
       const authoritative = await this.#statement(source.revisionId, source.statementId);
@@ -388,8 +392,10 @@ export class ContentInsightService {
   async #clearance(workspaceId: string | undefined): Promise<ContentInsightB10Clearance | undefined> {
     if (workspaceId === undefined) return undefined;
     if (!this.#b10) throw new ContentInsightGateError('B10 status is not available', INSIGHT_GATE_UNAVAILABLE);
-    const status = await this.#b10.readStatusByProductWorkspace(workspaceId);
-    if (!status.decisionExists || !status.readyForB11 || status.effectiveDecision !== 'APPROVE') throw new ContentInsightGateError('Research product is not B10-approved', INSIGHT_GATE_NOT_APPROVED);
+    let status;
+    try { status = await this.#b10.readStatusByProductWorkspace(workspaceId); }
+    catch { throw new ContentInsightGateError('B10 status is not available', INSIGHT_GATE_UNAVAILABLE); }
+    if (status.productWorkspaceId !== workspaceId || !status.decisionExists || !status.readyForB11 || status.effectiveDecision !== 'APPROVE') throw new ContentInsightGateError('Research product is not B10-approved', INSIGHT_GATE_NOT_APPROVED);
     return { productWorkspaceId: status.productWorkspaceId, lockedStpId: status.lockedStpId, effectiveDecisionId: status.effectiveDecisionId, effectiveDecisionNumber: status.effectiveDecisionNumber, effectiveDecision: 'APPROVE' };
   }
 

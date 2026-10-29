@@ -97,6 +97,7 @@ async function settleReads(queue: ReturnType<typeof deferredFetchQueue>, detail:
     await flushAct();
     let settled = false;
     await act(async () => {
+      if (queue.has('/api/content/insight-reports')) { queue.resolve('/api/content/insight-reports', { contractVersion: '1.0.0', reports: [] }); settled = true; }
       if (queue.has(campaignUrl)) { queue.resolve(campaignUrl, campaignDetail()); settled = true; }
       if (queue.has(insightUrl)) { queue.resolve(insightUrl, detail); settled = true; }
       await Promise.resolve();
