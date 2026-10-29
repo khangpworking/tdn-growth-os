@@ -8,26 +8,26 @@ Cách chia việc: Opus 5.5 medium viết mã. Sol 6.1 xhigh viết kiểm thử
 
 ## 2. Chỗ lưu câu insight (Box 2)
 
-- [ ] 2.1 Hợp đồng JSON Schema đóng cho câu insight 9 trường; sinh type (R-C01)
-- [ ] 2.2 Migration số kế tiếp: bảng câu insight, nối với bản báo cáo loại INSIGHT (R-C01)
-- [ ] 2.3 Từ chối câu thiếu trường bắt buộc hoặc chứa nguyên văn bình luận (R-C01)
-- [ ] 2.4 Giao diện truy vấn cho Box 4: danh sách bản đã duyệt có câu insight, câu của một bản, bản duyệt mới hơn của cùng báo cáo (R-C02, R-C08)
+- [x] 2.1 Hợp đồng JSON Schema đóng cho câu insight 9 trường; sinh type (R-C01)
+- [x] 2.2 Migration số kế tiếp: bảng câu insight, nối với bản báo cáo loại INSIGHT (R-C01)
+- [x] 2.3 Từ chối câu thiếu trường bắt buộc hoặc chứa nguyên văn bình luận (R-C01)
+- [x] 2.4 Giao diện truy vấn cho Box 4: danh sách bản đã duyệt có câu insight, câu của một bản, bản duyệt mới hơn của cùng báo cáo (R-C02, R-C08)
 
 ## 3. Insight chiến dịch (Box 4)
 
-- [ ] 3.1 Nguồn mới cho Insight: mã bản báo cáo, mã câu, bản sao 9 trường; mở rộng CHECK nếu có (R-C05)
-- [ ] 3.2 Điền ba ô: Khách hàng, Nỗi đau từ Xung đột, Insight từ Câu insight (R-C05)
-- [ ] 3.3 Nháp thì thay sau khi xác nhận; đã chốt thì từ chối; D26 không đổi (R-C06)
-- [ ] 3.4 Sửa ô thì giữ bản gốc và đánh dấu «Đã sửa so với báo cáo» (R-C07)
-- [ ] 3.5 Các trường thêm đi vào lớp khóa của prompt Big Idea và Angle (R-C05)
+- [x] 3.1 Nguồn mới cho Insight: mã bản báo cáo, mã câu, bản sao 9 trường; mở rộng CHECK nếu có (R-C05)
+- [x] 3.2 Điền ba ô: Khách hàng, Nỗi đau từ Xung đột, Insight từ Câu insight (R-C05)
+- [x] 3.3 Nháp thì thay sau khi xác nhận; đã chốt thì từ chối; D26 không đổi (R-C06)
+- [x] 3.4 Sửa ô thì giữ bản gốc và đánh dấu «Đã sửa so với báo cáo» (R-C07)
+- [x] 3.5 Các trường thêm đi vào lớp khóa của prompt Big Idea và Angle (R-C05)
 
 ## 4. Giao diện và API
 
-- [ ] 4.1 Kéo: dropdown ở bước Insight, nhãn báo cáo, thẻ câu, ẩn mức Không, giữ nhãn Yếu và Giả thuyết (R-C03)
-- [ ] 4.2 Đẩy: nút «Gửi sang Content» ở trang danh sách báo cáo của lần chạy; chọn câu; chọn chiến dịch hoặc «Tạo chiến dịch mới» (R-C04)
-- [ ] 4.3 Khung chỉ đọc «Từ báo cáo» (R-C05)
-- [ ] 4.4 Thông báo «Có bản Insight mới», cập nhật bằng tay (R-C08)
-- [ ] 4.5 Trạng thái trống «Chưa có báo cáo nào có câu insight» (R-C09)
+- [x] 4.1 Kéo: dropdown ở bước Insight, nhãn báo cáo, thẻ câu, ẩn mức Không, giữ nhãn Yếu và Giả thuyết (R-C03)
+- [x] 4.2 Đẩy: nút «Gửi sang Content» ở trang danh sách báo cáo của lần chạy; chọn câu; chọn chiến dịch hoặc «Tạo chiến dịch mới» (R-C04)
+- [x] 4.3 Khung chỉ đọc «Từ báo cáo» (R-C05)
+- [x] 4.4 Thông báo «Có bản Insight mới», cập nhật bằng tay (R-C08)
+- [x] 4.5 Trạng thái trống «Chưa có báo cáo nào có câu insight» (R-C09)
 
 ## 5. Kiểm thử và hợp nhất
 
