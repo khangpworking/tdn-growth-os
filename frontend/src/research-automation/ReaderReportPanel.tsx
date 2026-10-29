@@ -1,3 +1,5 @@
+import SendInsightToContent from '../SendInsightToContent';
+import { EMPTY_REPORTS, loadInsightReports } from '../insight-report-data-source';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { loadPersonas, type ResearchPersonaView } from './persona-api';
 import ConfirmDialog from '../ConfirmDialog';
@@ -28,6 +30,9 @@ export default function ReaderReportPanel({ run, ownerToken, writesAvailable, re
 }
 
 function ReaderReportPanelForRun({ run, ownerToken, writesAvailable, refreshToken }: Props) {
+  const [handoffReports, setHandoffReports] = useState<string[] | null>(null);
+  const [handoffError, setHandoffError] = useState('');
+  const [sendingRevision, setSendingRevision] = useState('');
   const [revisions, setRevisions] = useState<readonly ResearchAutomationReaderRevisionV2[] | null>(null);
   const [kind, setKind] = useState<'MARKET' | 'INSIGHT'>(run.reports.includes('MARKET') ? 'MARKET' : 'INSIGHT');
   const [sourceVersions, setSourceVersions] = useState<ResearchAutomationReportVersionList | null>(null);
@@ -52,6 +57,13 @@ function ReaderReportPanelForRun({ run, ownerToken, writesAvailable, refreshToke
   const mounted = useRef(false);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const reload = useCallback(() => setTick(value => value + 1), []);
+
+  useEffect(() => {
+    let active = true;
+    loadInsightReports().then(value => { if (active) { setHandoffReports(value.reports.map(report => report.revisionId)); setHandoffError(''); } })
+      .catch(() => { if (active) setHandoffError('Chưa tải được trạng thái gửi sang Content.'); });
+    return () => { active = false; };
+  }, [tick, refreshToken]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -174,6 +186,7 @@ function ReaderReportPanelForRun({ run, ownerToken, writesAvailable, refreshToke
           <div className="ra-actions">
             <a className="button primary" href={readerReportUrl(run.workspaceId, run.runId, latest.revisionId)} target="_blank" rel="noopener noreferrer">Mở bản đọc<span className="ra-sr"> lần {latest.revisionNumber} (mở tab mới)</span></a>
             <a className="button" href={readerReportPdfUrl(run.workspaceId, run.runId, latest.revisionId)} rel="noopener noreferrer">Tải PDF<span className="ra-sr"> lần {latest.revisionNumber}</span></a>
+            {latest.reportKind === 'INSIGHT' && latest.state === 'APPROVED' && handoffReports?.includes(latest.revisionId) && <button type="button" className="button" disabled={!canWrite || pending} onClick={() => setSendingRevision(latest.revisionId)}>Gửi sang Content</button>}
             {latest.state === 'PENDING_OWNER_REVIEW' && <>
               <button type="button" className="button primary" disabled={!canWrite || pending} onClick={() => setDialog({ decision: 'APPROVED', revision: latest })}>Duyệt</button>
               <button type="button" className="button" disabled={!canWrite || pending} onClick={() => setDialog({ decision: 'REJECTED', revision: latest })}>Từ chối</button>
@@ -186,7 +199,7 @@ function ReaderReportPanelForRun({ run, ownerToken, writesAvailable, refreshToke
           {history.slice(0, -1).reverse().map(revision => <li key={revision.revisionId}>
             <a href={readerReportUrl(run.workspaceId, run.runId, revision.revisionId)} target="_blank" rel="noopener noreferrer">Bản đọc lần {revision.revisionNumber}</a>
             {' '}<a href={readerReportPdfUrl(run.workspaceId, run.runId, revision.revisionId)} rel="noopener noreferrer">Tải PDF</a>
-            {' · '}{STATE_LABEL[revision.state]}{revision.decision?.reason ? ` · Lý do: ${revision.decision.reason}` : ''}</li>)}
+            {revision.reportKind === 'INSIGHT' && revision.state === 'APPROVED' && handoffReports?.includes(revision.revisionId) && <button type="button" className="button" disabled={!canWrite || pending} onClick={() => setSendingRevision(revision.revisionId)}>Gửi sang Content</button>}{' · '}{STATE_LABEL[revision.state]}{revision.decision?.reason ? ` · Lý do: ${revision.decision.reason}` : ''}</li>)}
         </ul></details>}
       </>}
     {kind === 'MARKET' && run.status === 'DRAFT_READY' && latest?.state !== 'APPROVED' && <details className="ra-reader-intake">
@@ -232,6 +245,9 @@ function ReaderReportPanelForRun({ run, ownerToken, writesAvailable, refreshToke
       {sourceError && <p role="alert" className="ra-message error">{sourceError}</p>}
       <button type="button" className="button" disabled={!canWrite || pending || !selectedPair || !insightSource || (insightBuildKind === 'PERSONA' && !personaProposal)} onClick={() => void buildInsight()}>{pending ? 'Đang xử lý…' : 'Dựng bản đọc insight'}</button>
     </div>}
+    {handoffError && <p role="alert">{handoffError}</p>}
+    {handoffReports?.length === 0 && !handoffError && <div><button type="button" className="button" disabled>Gửi sang Content</button><p>{EMPTY_REPORTS}</p></div>}
+    {sendingRevision && <SendInsightToContent key={sendingRevision} revisionId={sendingRevision} ownerToken={ownerToken} writesAvailable={writesAvailable} onClose={() => setSendingRevision('')} />}
     {dialog && <ConfirmDialog titleId="ra-reader-decision-title" descriptionId="ra-reader-decision-description"
       title={dialog.decision === 'APPROVED' ? `Duyệt bản đọc ${dialog.revision.reportKind === 'INSIGHT' ? 'insight' : 'thị trường'} lần ${dialog.revision.revisionNumber}?` : `Từ chối bản đọc ${dialog.revision.reportKind === 'INSIGHT' ? 'insight' : 'thị trường'} lần ${dialog.revision.revisionNumber}?`}
       confirmLabel={dialog.decision === 'APPROVED' ? 'Duyệt' : 'Từ chối'} pending={pending} onCancel={() => setDialog(null)} onConfirm={() => void submit()}>

@@ -1,3 +1,4 @@
+import { insightReportStatement, insightReportMetadata } from './generated/report-validators.generated.js';
 import type {
   ContentInsightContent,
   ContentInsightDetailResponse,
@@ -16,6 +17,7 @@ export interface InsightDraft {
   readonly insight: string;
   /** Set while the draft still carries the text applied from a locked STP; cleared as soon as the owner types over it. */
   readonly lockedStpId: string;
+  readonly reportSource?: Extract<ContentInsightContent['source'], { kind: 'INSIGHT_REPORT' }>;
 }
 
 export const emptyInsightDraft = (): InsightDraft => ({ customer: '', painPoint: '', insight: '', lockedStpId: '' });
@@ -23,7 +25,7 @@ export const emptyInsightDraft = (): InsightDraft => ({ customer: '', painPoint:
 export function draftFromInsight(detail: InsightDetail): InsightDraft {
   const latest = detail.latest?.insight;
   if (!latest) return emptyInsightDraft();
-  return { customer: latest.customer, painPoint: latest.painPoint, insight: latest.insight, lockedStpId: latest.source.kind === 'STP' ? latest.source.lockedStpId : '' };
+  return { customer: latest.customer, painPoint: latest.painPoint, insight: latest.insight, lockedStpId: latest.source.kind === 'STP' ? latest.source.lockedStpId : '', ...(latest.source.kind === 'INSIGHT_REPORT' ? { reportSource: latest.source } : {}) };
 }
 
 const chars = (value: string): number => [...value.trim()].length;
@@ -43,7 +45,7 @@ export function insightRequestFromDraft(draft: InsightDraft): ContentInsightCont
     customer: draft.customer.trim(),
     painPoint: draft.painPoint.trim(),
     insight: draft.insight.trim(),
-    source: draft.lockedStpId ? { kind: 'STP', lockedStpId: draft.lockedStpId } : { kind: 'TYPED' },
+    source: draft.reportSource ?? (draft.lockedStpId ? { kind: 'STP', lockedStpId: draft.lockedStpId } : { kind: 'TYPED' }),
   };
 }
 
@@ -54,7 +56,8 @@ export function sameInsightContent(left: InsightDraft, right: InsightDraft): boo
 /** Applies the STP suggestion without touching the pain point, which STP does not describe. */
 export function applyStpSuggestion(draft: InsightDraft, suggestion: ContentInsightStpSuggestion): InsightDraft {
   // Q-I4: only the customer comes from the STP; positioning is shown for reference, never copied into the insight.
-  return { ...draft, customer: suggestion.customer, lockedStpId: suggestion.lockedStpId };
+  const { reportSource: _reportSource, ...rest } = draft;
+  return { ...rest, customer: suggestion.customer, lockedStpId: suggestion.lockedStpId };
 }
 
 /** Editing the customer away from the applied STP text makes the insight owner-typed again; pain point and insight are always typed. */
@@ -77,6 +80,7 @@ export function insightStage(detail: InsightDetail): InsightStage {
 function source(value: unknown): boolean {
   if (!record(value)) return false;
   if (value.kind === 'TYPED') return exactKeys(value, ['kind']);
+  if (value.kind === 'INSIGHT_REPORT') return exactKeys(value, ['kind', 'revisionId', 'statementId', 'snapshot']) && uuid(value.revisionId) && uuid(value.statementId) && insightReportStatement(value.snapshot) && record(value.snapshot) && value.snapshot.revisionId === value.revisionId && value.snapshot.statementId === value.statementId;
   return value.kind === 'STP' && exactKeys(value, ['kind', 'lockedStpId']) && uuid(value.lockedStpId);
 }
 
@@ -102,12 +106,12 @@ function b10(value: unknown): boolean {
 export async function loadInsight(campaignId: string, fetcher: typeof fetch = fetch): Promise<InsightDetail | null> {
   const value = await readJson(`/api/content/campaigns/${encodeURIComponent(campaignId)}/insight`, fetcher);
   if (value === null) return null;
-  const optional = (['latest', 'lock', 'stpSuggestion'] as const).filter((key) => record(value) && key in value);
+  const optional = (['latest', 'lock', 'stpSuggestion', 'newerApprovedRevision', 'reportQueryUnavailable'] as const).filter((key) => record(value) && key in value);
   if (!record(value) || !exactKeys(value, ['campaignDeleted', 'campaignId', 'campaignVersion', 'contractVersion', 'gate', 'history', ...optional]) || value.contractVersion !== '1.0.0'
     || value.campaignId !== campaignId || !positiveVersion(value.campaignVersion) || typeof value.campaignDeleted !== 'boolean' || !gate(value.gate)) invalid();
   const history = value.history;
   if (!Array.isArray(history) || !history.every((entry, index) => record(entry) && exactKeys(entry, ['createdAt', 'sourceKind', 'version']) && entry.version === index + 1
-    && (entry.sourceKind === 'TYPED' || entry.sourceKind === 'STP') && dateTime(entry.createdAt))) invalid();
+    && (entry.sourceKind === 'TYPED' || entry.sourceKind === 'STP' || entry.sourceKind === 'INSIGHT_REPORT') && dateTime(entry.createdAt))) invalid();
   const latest = value.latest;
   if (latest === undefined ? history.length !== 0 : !record(latest) || !exactKeys(latest, ['createdAt', 'insight', 'version']) || latest.version !== history.length || !content(latest.insight) || !dateTime(latest.createdAt)) invalid();
   const lock = value.lock;
@@ -116,10 +120,12 @@ export async function loadInsight(campaignId: string, fetcher: typeof fetch = fe
   const suggestion = value.stpSuggestion;
   if (suggestion !== undefined && (!record(suggestion) || !exactKeys(suggestion, ['customer', 'insight', 'lockedStpId']) || !uuid(suggestion.lockedStpId)
     || !trimmed(suggestion.customer, 500) || !trimmed(suggestion.insight, 2000))) invalid();
+  if (value.newerApprovedRevision !== undefined && !insightReportMetadata(value.newerApprovedRevision)) invalid();
+  if (value.reportQueryUnavailable !== undefined && typeof value.reportQueryUnavailable !== 'boolean') invalid();
   return value as unknown as InsightDetail;
 }
 
-async function ownerJson(url: string, token: string, body: unknown, fetcher: typeof fetch, conflictMessage: string): Promise<unknown> {
+export async function ownerJson(url: string, token: string, body: unknown, fetcher: typeof fetch, conflictMessage: string): Promise<unknown> {
   let response: Response;
   try {
     response = await fetcher(url, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body) });
@@ -133,7 +139,7 @@ async function ownerJson(url: string, token: string, body: unknown, fetcher: typ
       try {
         const payload: unknown = await response.json();
         // The B10 gate explains itself in Vietnamese; every other conflict uses the screen's own wording.
-        if (record(payload) && record(payload.error) && typeof payload.error.message === 'string' && /B10/.test(payload.error.message)) serverMessage = payload.error.message;
+        if (record(payload) && record(payload.error) && typeof payload.error.message === 'string' && /B10|Insight đã chốt/.test(payload.error.message)) serverMessage = payload.error.message;
       } catch { /* fall back to the generic conflict wording */ }
     }
     throw new OwnerWriteError(kind, kind === 'conflict' ? serverMessage ?? conflictMessage
