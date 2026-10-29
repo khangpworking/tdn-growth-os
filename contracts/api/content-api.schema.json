@@ -476,7 +476,7 @@
             "required": ["version", "sourceKind", "createdAt"],
             "properties": {
               "version": { "type": "integer", "minimum": 1 },
-              "sourceKind": { "enum": ["TYPED", "STP"] },
+              "sourceKind": { "enum": ["TYPED", "STP", "INSIGHT_REPORT"] },
               "createdAt": { "$ref": "#/$defs/dateTime" }
             }
           }
@@ -506,6 +506,8 @@
             "reason": { "type": "string" }
           }
         },
+        "newerApprovedRevision": { "$ref": "content-insight-reports-api.schema.json#/$defs/report" },
+        "reportQueryUnavailable": { "type": "boolean" },
         "stpSuggestion": {
           "title": "ContentInsightStpSuggestion",
           "type": "object",

@@ -456,6 +456,7 @@ export class ContentIdeaService {
     const campaignFacts = {
       name: campaign.campaign.name, objective: campaign.campaign.objective, products,
       customer: insight.customer, pain_point: insight.painPoint, insight: insight.insight,
+      ...(insight.source.kind === 'INSIGHT_REPORT' ? { insight_report: insight.source } : {}),
     };
     let lockedInput: Record<string, unknown>;
     if (input.kind === 'BIG_IDEA') {

@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/api/content-insight-reports-api.schema.json",
+  "title": "ContentInsightReportsApi",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/list"
+    },
+    {
+      "$ref": "#/$defs/statements"
+    }
+  ],
+  "$defs": {
+    "report": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revisionId",
+        "runId",
+        "reportKind",
+        "revisionNumber",
+        "createdAt",
+        "keyword",
+        "period"
+      ],
+      "properties": {
+        "revisionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "reportKind": {
+          "const": "INSIGHT"
+        },
+        "revisionNumber": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "keyword": {
+          "type": "string",
+          "pattern": "\\S"
+        },
+        "period": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "startDate",
+                "endDate"
+              ],
+              "properties": {
+                "startDate": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "endDate": {
+                  "type": "string",
+                  "format": "date"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "title": "ContentInsightReport"
+    },
+    "list": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "reports"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "1.0.0"
+        },
+        "reports": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/report"
+          }
+        }
+      },
+      "title": "ContentInsightReportsResponse"
+    },
+    "statements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "report",
+        "statements"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "1.0.0"
+        },
+        "report": {
+          "$ref": "#/$defs/report"
+        },
+        "statements": {
+          "type": "array",
+          "items": {
+            "$ref": "../analysis/insight-report-statement.schema.json"
+          }
+        }
+      },
+      "title": "ContentInsightReportStatementsResponse"
+    }
+  }
+}

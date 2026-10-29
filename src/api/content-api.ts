@@ -1,3 +1,6 @@
+import { AnalysisInsightReportStatementQuery } from '../modules/analysis/insight-report-statements.js';
+import { validateContentInsightFromReportRequest, validateContentCampaignFromReportRequest } from '../modules/flow/insight-report-validation.js';
+import type { ContentInsightReportsResponse, ContentInsightReportStatementsResponse } from '../../contracts/api/content-insight-reports-api.generated.js';
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import path from 'node:path';
@@ -161,6 +164,8 @@ export interface ContentApiApplication {
 }
 
 interface ReadHandlers {
+  insightReports(): Promise<ContentInsightReportsResponse>;
+  reportStatements(revisionId: string): Promise<ContentInsightReportStatementsResponse | undefined>;
   list(): Promise<ContentBrandListResponse>;
   detail(brandId: string): Promise<ContentBrandDetailResponse | undefined>;
   catalogList(brandId: string): Promise<ContentCatalogListResponse | undefined>;
@@ -227,7 +232,8 @@ export function openContentReadApi(configuration: ContentReadApiConfiguration): 
     const prompts = new ContentPromptService({ db, artifactStore, library, ...(configuration.now ? { now: configuration.now } : {}) });
     const campaigns = new ContentCampaignService({ db, artifactStore, catalog, ...(configuration.now ? { now: configuration.now } : {}) });
     const research = openResearchReaders(db, artifactStore);
-    const insights = new ContentInsightService({ db, artifactStore, campaigns, lockedStpReader: research.stpReader, b10Reader: research.b10Reader });
+    const reportStatements = new AnalysisInsightReportStatementQuery(db, artifactStore);
+    const insights = new ContentInsightService({ db, artifactStore, campaigns, reportStatements, lockedStpReader: research.stpReader, b10Reader: research.b10Reader });
     // The read API only lists ideas and packages; its attempt service has a disabled gateway and can never record an attempt.
     const attempts = createContentAiAttemptService({
       db, gateway: disabledCreativeGateway(), artifactRoot: path.resolve(configuration.artifactRoot),
@@ -419,6 +425,8 @@ export function openContentReadApi(configuration: ContentReadApiConfiguration): 
           lifecycle: { sequence: state.sequence, ...(state.deleted ? { deleted: state.deleted } : {}) },
         };
       },
+      async insightReports() { return { contractVersion: '1.0.0', reports: await reportStatements.listApprovedReports() }; },
+      async reportStatements(revisionId) { const result = await reportStatements.readApprovedStatements(revisionId); return result ? { contractVersion: '1.0.0', ...result } : undefined; },
       async insightDetail(campaignId) {
         if (!campaigns.campaignExists(campaignId)) return undefined;
         const campaign = await campaigns.readCampaign(campaignId);
@@ -429,6 +437,11 @@ export function openContentReadApi(configuration: ContentReadApiConfiguration): 
           if (latest.version !== history.length + 1) throw new Error('Insight history is not sequential');
           history.push({ version: latest.version, sourceKind: latest.insight.source.kind, createdAt: latest.createdAt });
         }
+        let reportStatus: Pick<ContentInsightDetailResponse, 'newerApprovedRevision' | 'reportQueryUnavailable'> = {};
+        if (latest?.insight.source.kind === 'INSIGHT_REPORT') {
+          try { const newer = await reportStatements.findNewerApprovedRevision(latest.insight.source.revisionId); if (newer) reportStatus = { newerApprovedRevision: newer }; }
+          catch { reportStatus = { reportQueryUnavailable: true }; }
+        }
         const lock = await insights.readLock(campaignId);
         const workspaceId = campaign.campaign.researchProductWorkspaceId;
         const gate = await insights.gate(workspaceId);
@@ -436,6 +449,7 @@ export function openContentReadApi(configuration: ContentReadApiConfiguration): 
         const suggestion = b9?.state === 'LOCKED' ? stpSuggestion(b9.locked) : undefined;
         return {
           contractVersion: '1.0.0', campaignId, campaignVersion: campaign.version, campaignDeleted: campaigns.lifecycleState(campaignId).deleted !== undefined,
+          ...reportStatus,
           ...(latest ? { latest: { version: latest.version, insight: latest.insight, createdAt: latest.createdAt } } : {}),
           history,
           ...(lock ? { lock: { insightVersion: lock.insightVersion, campaignVersion: lock.campaignVersion, lockedAt: lock.lockedAt, ...(lock.b10 ? { b10: lock.b10 } : {}) } } : {}),
@@ -503,6 +517,15 @@ async function routeRead(request: IncomingMessage, response: ServerResponse, han
     if (request.method !== 'GET') { response.setHeader('Allow', 'GET'); return sendReadError(response, 405, 'method_not_allowed', 'Only GET is supported'); }
     const parts = pathParts(request.url);
     if (parts === null) return sendReadError(response, 400, 'bad_request', 'Malformed request URL');
+    if (parts[0] === 'api' && parts[1] === 'content' && parts[2] === 'insight-reports') {
+      if (parts.length === 3) return sendApiJson(response, 200, await handlers.insightReports());
+      if (parts.length === 5 && parts[4] === 'statements') {
+        if (!UUID.test(parts[3]!)) return sendReadError(response, 400, 'bad_request', 'Revision ID must be a UUID');
+        const result = await handlers.reportStatements(parts[3]!);
+        return result ? sendApiJson(response, 200, result) : sendReadError(response, 404, 'not_found', 'Approved Insight revision not found');
+      }
+      return sendReadError(response, 404, 'not_found', 'Route not found');
+    }
     if (parts[0] === 'api' && parts[1] === 'content' && parts[2] === 'campaigns' && parts.length === 5 && parts[4] === 'insight') {
       if (!UUID.test(parts[3]!)) return sendReadError(response, 400, 'bad_request', 'Campaign ID must be a UUID');
       const result = await handlers.insightDetail(parts[3]!);
@@ -620,9 +643,13 @@ type OwnerRoute =
   | { readonly kind: 'campaign-revision'; readonly campaignId: string }
   | { readonly kind: 'campaign-lifecycle'; readonly campaignId: string }
   | { readonly kind: 'insight-revision'; readonly campaignId: string }
+  | { readonly kind: 'campaign-from-report' }
+  | { readonly kind: 'insight-from-report'; readonly campaignId: string }
   | { readonly kind: 'insight-lock'; readonly campaignId: string };
 
 interface OwnerWriters {
+  insightFromReport(campaignId: string, input: Record<string, unknown>): Promise<OwnerContentInsightRevisionReceipt>;
+  campaignFromReport(input: Record<string, unknown>): Promise<OwnerContentCampaignReceipt & { insight: OwnerContentInsightRevisionReceipt }>;
   brand(serviceRequest: Record<string, unknown>, revision: boolean): Promise<OwnerContentBrandReceipt>;
   media(brandId: string, kind: ContentMediaKind, declaredType: string, bytes: Buffer): Promise<OwnerContentMediaReceipt>;
   item(serviceRequest: Record<string, unknown>, brandId: string, itemId: string | undefined): Promise<OwnerContentCatalogItemReceipt>;
@@ -655,8 +682,9 @@ export function openContentOwnerApi(configuration: ContentOwnerApiConfiguration)
     // Research workspaces are only read here, so their chain uses a plain store outside the request-scoped ownership.
     const research = openResearchReaders(db, new ContentAddressedArtifactStore(path.resolve(configuration.artifactRoot)));
     const campaigns = new ContentCampaignService({ db, artifactStore: artifacts, catalog, workspaceReader: research.productReader, ...clock });
+    const reportStatements = new AnalysisInsightReportStatementQuery(db, artifacts);
     const insights = new ContentInsightService({
-      db, artifactStore: artifacts, campaigns, lockedStpReader: research.stpReader, b10Reader: research.b10Reader,
+      db, artifactStore: artifacts, campaigns, reportStatements, lockedStpReader: research.stpReader, b10Reader: research.b10Reader,
       ...(configuration.now ? { now: configuration.now } : {}),
     });
     const brandExists = db.prepare('SELECT 1 FROM flow_content_brands WHERE brand_id = ?');
@@ -836,6 +864,30 @@ export function openContentOwnerApi(configuration: ContentOwnerApiConfiguration)
           ...(result.restorableUntil ? { restorableUntil: result.restorableUntil } : {}), exactRetry: result.deduplicated,
         };
       }),
+      insightFromReport: (campaignId, input) => withDatabaseMutationMutex(db, () => artifacts.withOwnership(async () => {
+        if (!campaigns.campaignExists(campaignId)) throw new UnknownCampaignError();
+        await verifyCampaignHistory(campaignId);
+        const result = await insights.receiveReport(campaignId, input);
+        await verifyInsightHistory(campaignId);
+        await artifacts.publishOwned();
+        return { contractVersion: '1.0.0', campaignId, version: result.version, createdAt: result.createdAt, exactRetry: result.deduplicated };
+      })),
+      campaignFromReport: (input) => withDatabaseMutationMutex(db, () => artifacts.withOwnership(async () => {
+        const brandId = input.brandId as string;
+        if (!brandExists.get(brandId)) throw new UnknownBrandError();
+        await verifyBrandHistory(brandId);
+        for (const ref of (input.campaign as ContentCampaignContent).items) if (catalog.itemBrand(ref.itemId) === brandId) await verifyItemHistory(ref.itemId);
+        const { revisionId, statementId, ...request } = input;
+        await campaigns.restoreExactArtifact(request);
+        const result = await insights.createCampaignFromReport(input);
+        await verifyCampaignHistory(result.campaign.campaignId);
+        await verifyInsightHistory(result.campaign.campaignId);
+        await artifacts.publishOwned();
+        const verified = await campaigns.readCampaign(result.campaign.campaignId, 1);
+        return { contractVersion: '1.0.0', campaignId: verified.campaignId, campaignKey: verified.campaignKey, brandId: verified.brandId,
+          version: 1, name: verified.campaign.name, createdAt: verified.createdAt, exactRetry: result.campaign.deduplicated && result.insight.deduplicated,
+          insight: { contractVersion: '1.0.0', campaignId: verified.campaignId, version: result.insight.version, createdAt: result.insight.createdAt, exactRetry: result.insight.deduplicated } };
+      })),
       insightRevision: (serviceRequest) => withDatabaseMutationMutex(db, () => artifacts.withOwnership(async () => {
         const campaignId = serviceRequest.campaignId as string;
         if (!campaigns.campaignExists(campaignId)) throw new UnknownCampaignError();
@@ -878,6 +930,11 @@ export function openContentOwnerApi(configuration: ContentOwnerApiConfiguration)
 function ownerRoute(parts: string[] | null): OwnerRoute | 'invalid-id' | null {
   if (parts !== null && parts[0] === 'owner-api' && parts[1] === 'content' && parts[2] === 'campaigns') {
     if (parts.length === 3) return { kind: 'campaign-create' };
+    if (parts.length === 4 && parts[3] === 'from-insight-report') return { kind: 'campaign-from-report' };
+    if (parts.length === 6 && parts[4] === 'insight' && parts[5] === 'from-report') {
+      if (!UUID.test(parts[3]!)) return 'invalid-id';
+      return { kind: 'insight-from-report', campaignId: parts[3]! };
+    }
     if (parts.length === 6 && parts[4] === 'insight' && (parts[5] === 'revisions' || parts[5] === 'lock')) {
       if (!UUID.test(parts[3]!)) return 'invalid-id';
       return parts[5] === 'revisions' ? { kind: 'insight-revision', campaignId: parts[3]! } : { kind: 'insight-lock', campaignId: parts[3]! };
@@ -937,12 +994,18 @@ async function routeOwner(request: IncomingMessage, response: ServerResponse, co
     if (contentType !== 'application/json') return sendOwnerError(response, 400, 'bad_request', 'Content-Type must be application/json');
     const catalogRoute = route.kind === 'item-create' || route.kind === 'item-revision';
     const promptRoute = route.kind === 'prompt-create' || route.kind === 'prompt-revision' || route.kind === 'prompt-lifecycle';
-    const campaignRoute = route.kind === 'campaign-create' || route.kind === 'campaign-revision' || route.kind === 'campaign-lifecycle' || route.kind === 'insight-revision' || route.kind === 'insight-lock';
+    const campaignRoute = route.kind === 'campaign-create' || route.kind === 'campaign-from-report' || route.kind === 'insight-from-report' || route.kind === 'campaign-revision' || route.kind === 'campaign-lifecycle' || route.kind === 'insight-revision' || route.kind === 'insight-lock';
     const raw = (await readOwnerBytes(request, campaignRoute ? CAMPAIGN_BODY_BYTES : promptRoute ? PROMPT_BODY_BYTES : catalogRoute ? CATALOG_BODY_BYTES : BRAND_BODY_BYTES)).toString('utf8');
     let body: unknown;
     try { body = JSON.parse(raw); } catch { return sendOwnerError(response, 400, 'bad_request', 'Request body must be valid JSON'); }
     if (!body || typeof body !== 'object' || Array.isArray(body)) return sendOwnerError(response, 400, 'bad_request', 'Invalid request');
     const fields = body as Record<string, unknown>;
+    if (route.kind === 'insight-from-report' || route.kind === 'campaign-from-report') {
+      if (route.kind === 'insight-from-report') validateContentInsightFromReportRequest(fields);
+      else validateContentCampaignFromReportRequest(fields);
+      const receipt = route.kind === 'insight-from-report' ? await writers.insightFromReport(route.campaignId, fields) : await writers.campaignFromReport(fields);
+      return sendApiJson(response, receipt.exactRetry ? 200 : 201, receipt);
+    }
     const optional = route.kind === 'brand-revision' ? 'logoMediaSha256' : route.kind === 'prompt-create' ? 'duplicatedFrom' : undefined;
     const keys = Object.keys(fields).filter((key) => key !== optional).sort().join(',');
     const expectedKeys = {
@@ -992,6 +1055,7 @@ async function routeOwner(request: IncomingMessage, response: ServerResponse, co
       : await writers.prompt(serviceRequest, route.kind === 'prompt-revision' ? route.promptId : undefined);
     return sendApiJson(response, receipt.exactRetry ? 200 : 201, receipt);
   } catch (error) {
+    if (error instanceof FlowValidationError) return sendOwnerError(response, 400, 'bad_request', 'Invalid request');
     if (error instanceof PayloadTooLargeError) return sendOwnerError(response, 400, 'bad_request', 'Request body is too large', {}, route.kind === 'media' ? 'too_large' : undefined);
     if (error instanceof EmptyBodyError) return sendOwnerError(response, 400, 'bad_request', 'Request body is required');
     if (error instanceof ContentImageError) return sendOwnerError(response, 400, 'bad_request', 'Image was rejected', {}, error.code);

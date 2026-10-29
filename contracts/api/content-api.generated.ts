@@ -24,7 +24,7 @@ export type ContentCatalogItemType = 'PHYSICAL' | 'SERVICE';
 export type ContentPromptType = 'BIG_IDEA' | 'ANGLE' | 'CAPTION' | 'POSTER';
 export type ContentPromptModel =
   'gpt-5.6-sol' | 'gpt-5.6-luna' | 'gemini-3.5-flash-low' | 'gpt-image-2' | 'gemini-3.1-flash-image';
-export type ContentInsightSource = ContentInsightTypedSource | ContentInsightStpSource;
+export type ContentInsightSource = ContentInsightTypedSource | ContentInsightStpSource | ContentInsightReportSource;
 export type ContentIdeaKind = 'BIG_IDEA' | 'ANGLE';
 /**
  * @maxItems 6
@@ -594,6 +594,8 @@ export interface ContentInsightDetailResponse {
   history: ContentInsightHistoryItem[];
   lock?: ContentInsightLockView;
   gate: ContentInsightGate;
+  newerApprovedRevision?: ContentInsightReport;
+  reportQueryUnavailable?: boolean;
   stpSuggestion?: ContentInsightStpSuggestion;
 }
 export interface ContentInsightRecord {
@@ -614,9 +616,50 @@ export interface ContentInsightStpSource {
   kind: 'STP';
   lockedStpId: string;
 }
+export interface ContentInsightReportSource {
+  kind: 'INSIGHT_REPORT';
+  revisionId: string;
+  statementId: string;
+  snapshot: InsightReportStatement;
+}
+export interface InsightReportStatement {
+  contractVersion: '1.0.0';
+  statementId: string;
+  revisionId: string;
+  purchaseStage: 'AWARENESS' | 'INTEREST' | 'DESIRE' | 'PURCHASE' | 'POST_PURCHASE';
+  customer: string;
+  hiddenTruth: string;
+  motivation: string;
+  conflict: string;
+  insight: string;
+  threeC?: null | {
+    customer: string;
+    brand: string;
+    category: string;
+  };
+  /**
+   * @minItems 1
+   */
+  evidence: [
+    {
+      platform: 'shopee' | 'tiktok';
+      count: number;
+      denominator?: number;
+    },
+    ...{
+      platform: 'shopee' | 'tiktok';
+      count: number;
+      denominator?: number;
+    }[],
+  ];
+  confidence: {
+    level: 'CERTAIN' | 'FAIR' | 'WEAK' | 'NONE';
+    hypothesis: boolean;
+  };
+}
 export interface ContentInsightHistoryItem {
   version: number;
-  sourceKind: 'TYPED' | 'STP';
+  sourceKind: 'TYPED' | 'STP' | 'INSIGHT_REPORT';
   createdAt: DateTime;
 }
 export interface ContentInsightLockView {
@@ -638,6 +681,18 @@ export interface ContentInsightGate {
   productWorkspaceId?: Uuid;
   effectiveDecision?: 'APPROVE' | 'HOLD' | 'REJECT';
   reason?: string;
+}
+export interface ContentInsightReport {
+  revisionId: string;
+  runId: string;
+  reportKind: 'INSIGHT';
+  revisionNumber: number;
+  createdAt: string;
+  keyword: string;
+  period: null | {
+    startDate: string;
+    endDate: string;
+  };
 }
 export interface ContentInsightStpSuggestion {
   lockedStpId: Uuid;

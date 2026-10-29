@@ -1,3 +1,7 @@
+import type { InsightReportStatementQuery } from '../analysis/insight-report-statements.js';
+import type { ContentInsightFromReportRequest } from '../../../contracts/flow/content-insight-from-report-request.generated.js';
+import type { ContentCampaignFromReportRequest } from '../../../contracts/flow/content-campaign-from-report-request.generated.js';
+import { validateContentInsightFromReportRequest, validateContentCampaignFromReportRequest } from './insight-report-validation.js';
 import fs from 'node:fs/promises';
 import type Database from 'better-sqlite3';
 import type { ContentInsightArtifact, ContentInsightContent } from '../../../contracts/flow/content-insight-artifact.generated.js';
@@ -67,14 +71,14 @@ export interface ContentInsightLockExecution {
 
 export interface ContentInsightHistoryRow {
   readonly version: number;
-  readonly sourceKind: 'TYPED' | 'STP';
+  readonly sourceKind: 'TYPED' | 'STP' | 'INSIGHT_REPORT';
   readonly createdAt: string;
 }
 
 interface InsightRow {
   readonly campaignId: string;
   readonly version: number;
-  readonly sourceKind: 'TYPED' | 'STP';
+  readonly sourceKind: 'TYPED' | 'STP' | 'INSIGHT_REPORT';
   readonly lockedStpId: string | null;
   readonly requestSha256: string;
   readonly artifactSha256: string;
@@ -99,6 +103,7 @@ export class ContentInsightService {
   readonly #lockedStps: LockedStpReader | undefined;
   readonly #b10: ContentInsightB10Reader | undefined;
   readonly #now: () => Date;
+  readonly #reports: InsightReportStatementQuery | undefined;
 
   constructor(options: {
     readonly db: Database.Database;
@@ -107,27 +112,46 @@ export class ContentInsightService {
     readonly lockedStpReader?: LockedStpReader;
     readonly b10Reader?: ContentInsightB10Reader;
     readonly now?: () => Date;
+    readonly reportStatements?: InsightReportStatementQuery;
   }) {
     this.#db = options.db;
     this.#artifacts = options.artifactStore;
     this.#campaigns = options.campaigns;
     this.#lockedStps = options.lockedStpReader;
     this.#b10 = options.b10Reader;
+    this.#reports = options.reportStatements;
     this.#now = options.now ?? (() => new Date());
   }
 
   async reviseInsight(untrustedInput: unknown): Promise<ContentInsightExecution> {
+    const prepared = await this.#prepareRevision(untrustedInput);
+    const result = prepared();
+    if (result.deduplicated) await this.readInsight(result.campaignId, result.version);
+    return result;
+  }
+
+  async #prepareRevision(untrustedInput: unknown, handoff = false, newCampaign = false): Promise<() => ContentInsightExecution> {
     const input = canonicalSnapshot(validateContentInsightRevisionRequest(untrustedInput));
     const requestSha256 = canonicalDigest(input);
-    if (!this.#campaigns.campaignExists(input.campaignId)) throw new FlowValidationError(`Campaign not found: ${input.campaignId}`);
+    if (!newCampaign && !this.#campaigns.campaignExists(input.campaignId)) throw new FlowValidationError(`Campaign not found: ${input.campaignId}`);
     const targetVersion = input.expectedVersion + 1;
     const existingTarget = this.#insight(input.campaignId, targetVersion);
     if (existingTarget) {
       const result = revisionRetry(requestSha256, existingTarget);
       await this.readInsight(input.campaignId, targetVersion);
-      return result;
+      return () => result;
     }
-    this.#assertWritable(input.campaignId, input.expectedVersion);
+    if (!newCampaign) this.#assertWritable(input.campaignId, input.expectedVersion);
+    if (input.insight.source.kind === 'INSIGHT_REPORT') {
+      const source = input.insight.source;
+      const authoritative = await this.#statement(source.revisionId, source.statementId);
+      if (canonicalDigest(authoritative) !== canonicalDigest(source.snapshot)) throw new ContentInsightReferenceError('Report snapshot differs from the retained statement');
+      if (!handoff) {
+        const latest = this.#latestInsight(input.campaignId);
+        if (!latest || canonicalDigest((await this.readInsight(input.campaignId)).insight.source) !== canonicalDigest(source))
+          throw new ContentInsightConflictError('Use the confirmed report handoff operation', 'state_conflict');
+      }
+    }
     if (input.insight.source.kind === 'STP') await this.#assertStpSource(input.campaignId, input.insight.source.lockedStpId);
 
     const createdAt = this.#now().toISOString();
@@ -146,9 +170,52 @@ export class ContentInsightService {
       `).run(input.campaignId, targetVersion, input.insight.source.kind, lockedStpId, requestSha256, stored.sha256, createdAt).changes;
       return { campaignId: input.campaignId, version: targetVersion, createdAt, deduplicated: false, databaseMutations };
     });
-    const result = execute();
-    if (result.deduplicated) await this.readInsight(result.campaignId, result.version);
-    return result;
+    return execute;
+  }
+
+  async #statement(revisionId: string, statementId: string) {
+    const statement = await this.#reports?.readApprovedStatement(revisionId, statementId);
+    if (!statement || statement.confidence.level === 'NONE') throw new ContentInsightReferenceError('Approved selectable Insight statement not found');
+    return statement;
+  }
+
+  async #reportRequest(campaignId: string, input: ContentInsightFromReportRequest) {
+    const snapshot = await this.#statement(input.revisionId, input.statementId);
+    return { contractVersion: '1.0.0', campaignId, expectedVersion: input.expectedVersion,
+      insight: { customer: snapshot.customer, painPoint: snapshot.conflict, insight: snapshot.insight,
+        source: { kind: 'INSIGHT_REPORT', revisionId: snapshot.revisionId, statementId: snapshot.statementId, snapshot } } };
+  }
+
+  async receiveReport(campaignId: string, value: unknown): Promise<ContentInsightExecution> {
+    assertId(campaignId);
+    const input = validateContentInsightFromReportRequest(value);
+    const request = await this.#reportRequest(campaignId, input);
+    // Exact retries still replay, including after a subsequent lock. Different selections conflict.
+    await this.restoreExactArtifact(request);
+    const target = this.#insight(campaignId, input.expectedVersion + 1);
+    if (!target) {
+      if (this.isLocked(campaignId)) throw new ContentInsightConflictError('Insight đã chốt, hãy tạo chiến dịch mới', 'state_conflict');
+      if (this.latestVersion(campaignId) > 0 && !input.confirmReplacement)
+        throw new ContentInsightConflictError('Confirm Insight replacement', 'state_conflict');
+    }
+    const commit = await this.#prepareRevision(request, true);
+    return commit();
+  }
+
+  async createCampaignFromReport(value: unknown) {
+    const input: ContentCampaignFromReportRequest = validateContentCampaignFromReportRequest(value);
+    const { revisionId, statementId, ...campaignRequest } = input;
+    // Eligibility is resolved before preparation; approval and statements are immutable in v1.
+    await this.#statement(revisionId, statementId);
+    const campaign = await this.#campaigns.prepareCampaignCreate(campaignRequest);
+    const request = await this.#reportRequest(campaign.campaignId, { contractVersion: '1.0.0', revisionId, statementId, expectedVersion: 0, confirmReplacement: false });
+    await this.restoreExactArtifact(request);
+    const insight = await this.#prepareRevision(request, true, !this.#campaigns.campaignExists(campaign.campaignId));
+    return this.#db.transaction(() => {
+      const committed = campaign.commit();
+      if (committed.campaignId !== campaign.campaignId) throw new ContentInsightConflictError('Campaign create identity changed', 'state_conflict');
+      return { campaign: committed, insight: insight() };
+    })();
   }
 
   async lockInsight(untrustedInput: unknown): Promise<ContentInsightLockExecution> {
@@ -236,7 +303,7 @@ export class ContentInsightService {
   }
 
   history(campaignId: string): ContentInsightHistoryRow[] {
-    return (this.#db.prepare('SELECT version, source_kind sourceKind, created_at createdAt FROM flow_content_insight_revisions WHERE campaign_id = ? ORDER BY version').all(campaignId) as { version: bigint | number; sourceKind: 'TYPED' | 'STP'; createdAt: string }[])
+    return (this.#db.prepare('SELECT version, source_kind sourceKind, created_at createdAt FROM flow_content_insight_revisions WHERE campaign_id = ? ORDER BY version').all(campaignId) as { version: bigint | number; sourceKind: 'TYPED' | 'STP' | 'INSIGHT_REPORT'; createdAt: string }[])
       .map((row) => ({ ...row, version: Number(row.version) }));
   }
 

@@ -240,3 +240,5 @@ export {
   type PageIndexVerifierDropReason,
   type VerifyPageIndexQuotesInput,
 } from './pageindex-questions.js';
+
+export { AnalysisInsightReportStatementQuery, InsightReportStatementService, InsightReportStatementError, validateInsightReportStatement, type InsightReportStatementQuery } from './insight-report-statements.js';
