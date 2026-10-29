@@ -161,3 +161,33 @@ test('CIH-Q25 locked Insight disables the picker and stale submit shows the exac
   const { sendReport } = await import('../src/insight-report-data-source');
   await assert.rejects(sendReport(campaignId, { contractVersion: '1.0.0', expectedVersion: 1, revisionId, statementId: s.statementId, confirmReplacement: true }, 'synthetic-token', async () => json({ error: { code: 'conflict', message: 'Insight đã chốt, hãy tạo chiến dịch mới' } }, 409)), /Insight đã chốt, hãy tạo chiến dịch mới/);
 });
+
+test('CIH-Q24 push asks again after replacement is cancelled and posts only after confirmation', async t => {
+  const posts: { url: string; body: unknown }[] = [];
+  const h = await harness(t, async (url, init) => {
+    const path = String(url);
+    if (init?.method === 'POST') {
+      posts.push({ url: path, body: JSON.parse(String(init.body)) });
+      return json({ contractVersion: '1.0.0', campaignId, version: 2, createdAt: at, exactRetry: false }, 201);
+    }
+    if (path.endsWith('/statements')) return json({ contractVersion: '1.0.0', report: report(), statements: [s] });
+    if (path === '/api/content/insight-reports') return json({ contractVersion: '1.0.0', reports: [report()] });
+    if (path.endsWith('/insight')) return json(detail(insight()));
+    return json({ contractVersion: '1.0.0', campaigns: [{ campaignId, campaignKey: 'cih-test', brandId: id(1), version: 1, name: 'Synthetic campaign', items: [{ itemId: id(2), itemVersion: 1, name: 'Synthetic service', tierNames: [] }], updatedAt: at }] });
+  });
+  const { default: Send } = await tsImport('../src/SendInsightToContent.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/SendInsightToContent');
+  await h.render(createElement(Send, { revisionId, ownerToken: 'synthetic-token', writesAvailable: true, onClose: () => undefined }));
+  await choose(h.container);
+  await change(h.container.querySelector('select')!, campaignId);
+  await click(button(h.container, 'Gửi sang chiến dịch'));
+  assert.match(h.container.textContent!, /Thay Insight nháp\?/);
+  await click(button(h.container, 'Hủy'));
+  assert.doesNotMatch(h.container.textContent!, /Thay Insight nháp\?/);
+  assert.deepEqual(posts, []);
+  await click(button(h.container, 'Gửi sang chiến dịch'));
+  assert.deepEqual(posts, []);
+  assert.match(h.container.textContent!, /Thay Insight nháp\?/);
+  await click(button(h.container, 'Thay Insight'));
+  assert.deepEqual(posts, [{ url: `/owner-api/content/campaigns/${campaignId}/insight/from-report`, body: { contractVersion: '1.0.0', expectedVersion: 1, revisionId, statementId: s.statementId, confirmReplacement: true } }]);
+  assert.equal(window.location.hash, `#/content/${campaignId}/insight`);
+});

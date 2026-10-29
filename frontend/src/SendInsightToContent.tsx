@@ -34,8 +34,8 @@ export default function SendInsightToContent({ revisionId, ownerToken, writesAva
         if (detail.lock) throw new Error('Insight đã chốt, hãy tạo chiến dịch mới');
         expectedVersion = detail.latest?.version ?? 0;
         setVersion(expectedVersion);
-        if (expectedVersion > 0 && !confirmReplacement) { setConfirmation(expectedVersion); return; }
       }
+      if (expectedVersion > 0 && !confirmReplacement) { setConfirmation(expectedVersion); return; }
       await sendReport(campaignId, { contractVersion: '1.0.0', expectedVersion, revisionId: statement.revisionId, statementId: statement.statementId, confirmReplacement }, ownerToken);
       if (mounted.current) window.location.hash = routeToHash.campaignInsight(campaignId);
     } catch (failure) { setError(failure instanceof Error ? failure.message : 'Không gửi được câu insight.'); if (failure instanceof OwnerWriteError && failure.kind === 'conflict') setConfirmation(null); }
