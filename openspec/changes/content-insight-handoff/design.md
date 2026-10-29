@@ -13,7 +13,6 @@ Kiểm trên main ngày 29/10/2026:
 2. **Đọc chéo Box.** Box 4 đọc câu insight qua một giao diện truy vấn mà Box 2 khai báo (ARCHITECTURE, luật 4). Box 4 không đọc thẳng bảng của Box 2.
 3. **Ghi Insight chiến dịch.** Chỉ dịch vụ Box 4 ghi (ARCHITECTURE, luật 3). Nguồn có giá trị mới, ví dụ `INSIGHT_REPORT`. Insight lưu mã bản báo cáo, mã câu và bản sao đóng băng của 9 trường. Migration mới lấy số kế tiếp. Nếu cột nguồn có CHECK thì migration mở rộng CHECK.
 4. **Trạng thái duyệt.** Đọc quyết định mới nhất của bản báo cáo. Không thêm bảng duyệt mới.
-5. **«Có bản Insight mới».** So `revision_number` trong cùng `run_id` và cùng loại INSIGHT. Chỉ đếm bản đã duyệt.
 6. **Đầu vào AI.** Các trường thêm đi vào lớp khóa của prompt Big Idea và Angle. Phần chủ viết không đổi (prompt hai lớp).
 7. **Dữ liệu giả.** Câu insight giả chỉ có trong kiểm thử. Không ghi câu giả vào DB thật.
 

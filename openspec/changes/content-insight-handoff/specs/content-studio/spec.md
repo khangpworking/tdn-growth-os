@@ -117,21 +117,6 @@ Câu insight mà chiến dịch nhận SHALL là bản sao đóng băng. Bản s
 - **WHEN** người dùng sửa ô Insight sau khi nhận câu
 - **THEN** ô hiện «Đã sửa so với báo cáo» và bản gốc vẫn xem được
 
-### Requirement: R-C08 «Có bản Insight mới»
-Chiến dịch SHALL hiện «Có bản Insight mới» khi cùng báo cáo có một bản đã duyệt mới hơn bản chiến dịch đã dùng. Cùng báo cáo nghĩa là cùng lần chạy và cùng loại Insight, với số bản lớn hơn. Cập nhật SHALL chỉ xảy ra khi người dùng bấm. Báo cáo khác có cùng từ khóa SHALL NOT tính là bản mới.
-
-- Loại kiểm: Người đọc
-- Mã kiểm: Chưa có mã kiểm
-- Vì sao: Ngày 29/10/2026 chủ chọn chỉ báo bản mới của cùng báo cáo (Q22) và cập nhật bằng tay (Q4) (F292).
-
-#### Scenario: Bản mới của cùng báo cáo
-- **WHEN** chiến dịch dùng câu từ bản 2 và chủ duyệt bản 3 của cùng báo cáo
-- **THEN** chiến dịch hiện «Có bản Insight mới» và ba ô không đổi
-
-#### Scenario: Báo cáo khác cùng từ khóa
-- **WHEN** một lần chạy khác với cùng từ khóa có bản được duyệt
-- **THEN** chiến dịch không hiện «Có bản Insight mới»
-
 ### Requirement: R-C09 Trạng thái trống trên bản thật
 Khi chưa có bản báo cáo nào theo R-C02 có câu insight, dropdown và nút «Gửi sang Content» SHALL vẫn hiện, kèm dòng «Chưa có báo cáo nào có câu insight».
 

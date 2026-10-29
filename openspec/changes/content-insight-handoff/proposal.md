@@ -14,9 +14,10 @@ Quyết định của chủ ngày 29/10/2026 (F292). Chỉ phần trong «» là
 - Q2, Q12, Q13, Q18: kéo — dropdown tên báo cáo ở bước Insight; chọn báo cáo thì hiện thẻ câu; chọn một câu thì app tự điền.
 - Q3, Q9, Q20: đẩy — nút «Gửi sang Content» ở trang báo cáo; có ngay trong bản 1.
 - Q11: Khách hàng ← Khách hàng; Nỗi đau ← Xung đột; Insight ← Câu insight. Các trường còn lại ở khung chỉ đọc và đi vào AI viết Big Idea, Angle.
-- Q4, Q5, Q22: bản sao đóng băng, sửa được, có dấu «Đã sửa so với báo cáo»; «Có bản Insight mới» chỉ khi cùng báo cáo có bản duyệt mới hơn.
+- Q4, Q5, Q22: bản sao đóng băng, sửa được, có dấu «Đã sửa so với báo cáo».
 - Q14, Q16, Q23, Q24: D26 giữ nguyên; Insight đã chốt thì không thay; bản thật hiện trạng thái trống.
 - Q15: bản 1 chỉ làm phía Content Studio.
+- F294 (29/10/2026): chủ chọn «Drop the notice». Báo cáo đã duyệt không có bản mới hơn (R-P10), nên thông báo «Có bản Insight mới» không bao giờ hiện. Bỏ khỏi bản 1; dữ liệu mới là lần chạy mới, người dùng tự chọn trong dropdown.
 
 Luồng:
 
@@ -39,7 +40,7 @@ flowchart LR
 - Thêm R-C05: cách điền ba ô, khung «Từ báo cáo», nguồn Insight mới, đầu vào cho AI.
 - Thêm R-C06: Insight nháp thì thay sau khi xác nhận; đã chốt thì từ chối; D26 giữ nguyên.
 - Thêm R-C07: bản sao đóng băng, sửa được, giữ bản gốc.
-- Thêm R-C08: «Có bản Insight mới» chỉ khi cùng báo cáo có bản duyệt mới hơn.
+- R-C08 («Có bản Insight mới») đã bỏ ngày 29/10/2026 (F294). Mã R-C08 không dùng lại.
 - Thêm R-C09: bản thật hiện trạng thái trống khi chưa có câu insight.
 
 ## Capabilities

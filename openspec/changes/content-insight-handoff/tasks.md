@@ -1,6 +1,6 @@
 ## 1. Tài liệu
 
-- [x] 1.1 Viết change này: proposal với sơ đồ, design, spec R-C01 đến R-C09, tasks.md (chủ chốt thiết kế ngày 29/10/2026, F292)
+- [x] 1.1 Viết change này: proposal với sơ đồ, design, spec R-C01 đến R-C07 và R-C09, tasks.md (chủ chốt thiết kế ngày 29/10/2026, F292)
 - [x] 1.2 `openspec validate content-insight-handoff` qua
 - [ ] 1.3 Chủ duyệt PR này và change này
 
@@ -11,7 +11,7 @@ Cách chia việc: Opus 5.5 medium viết mã. Sol 6.1 xhigh viết kiểm thử
 - [x] 2.1 Hợp đồng JSON Schema đóng cho câu insight 9 trường; sinh type (R-C01)
 - [x] 2.2 Migration số kế tiếp: bảng câu insight, nối với bản báo cáo loại INSIGHT (R-C01)
 - [x] 2.3 Từ chối câu thiếu trường bắt buộc hoặc chứa nguyên văn bình luận (R-C01)
-- [x] 2.4 Giao diện truy vấn cho Box 4: danh sách bản đã duyệt có câu insight, câu của một bản, bản duyệt mới hơn của cùng báo cáo (R-C02, R-C08)
+- [x] 2.4 Giao diện truy vấn cho Box 4: danh sách bản đã duyệt có câu insight, câu của một bản, bản duyệt mới hơn của cùng báo cáo (R-C02)
 
 ## 3. Insight chiến dịch (Box 4)
 
@@ -26,7 +26,7 @@ Cách chia việc: Opus 5.5 medium viết mã. Sol 6.1 xhigh viết kiểm thử
 - [x] 4.1 Kéo: dropdown ở bước Insight, nhãn báo cáo, thẻ câu, ẩn mức Không, giữ nhãn Yếu và Giả thuyết (R-C03)
 - [x] 4.2 Đẩy: nút «Gửi sang Content» ở trang danh sách báo cáo của lần chạy; chọn câu; chọn chiến dịch hoặc «Tạo chiến dịch mới» (R-C04)
 - [x] 4.3 Khung chỉ đọc «Từ báo cáo» (R-C05)
-- [x] 4.4 Thông báo «Có bản Insight mới», cập nhật bằng tay (R-C08)
+- [x] 4.4 Bỏ theo F294 (29/10/2026): không làm thông báo «Có bản Insight mới»
 - [x] 4.5 Trạng thái trống «Chưa có báo cáo nào có câu insight» (R-C09)
 
 ## 5. Kiểm thử và hợp nhất
@@ -39,5 +39,5 @@ Cách chia việc: Opus 5.5 medium viết mã. Sol 6.1 xhigh viết kiểm thử
 
 ## 6. Kết thúc
 
-- [ ] 6.1 Viết mã kiểm thật (file, hàm) vào dòng «Mã kiểm» của R-C01 đến R-C09
+- [ ] 6.1 Viết mã kiểm thật (file, hàm) vào dòng «Mã kiểm» của R-C01 đến R-C07 và R-C09
 - [ ] 6.2 `/opsx:archive` change content-insight-handoff
