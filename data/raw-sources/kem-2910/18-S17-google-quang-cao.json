@@ -1,0 +1,43 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-v1",
+  "keyword": "viên uống kẽm",
+  "productTopic": "thực phẩm chức năng viên kẽm",
+  "country": "VN",
+  "timezone": "Asia/Ho_Chi_Minh",
+  "sourceCode": "S17",
+  "sourceName": "Thư viện quảng cáo trên công cụ tìm kiếm (Google Ads Transparency)",
+  "provider": "SerpApi engine=google_ads_transparency_center",
+  "reportName": "quảng cáo trên công cụ tìm kiếm",
+  "grade": "B",
+  "usedBy": [
+   "MARKET (bảng 7.x)"
+  ],
+  "evidenceFamily": "advertising",
+  "origin": {
+   "method": "NOT_COLLECTED",
+   "collectedOn": "2026-10-29",
+   "reason": "Gói SerpApi miễn phí chỉ còn ít lượt trong tháng; lượt chạy 26/10 có 0 lần gọi (NO_BRANDS); nguồn này cho 0 quảng cáo trên 5/5 lần thử trước (tìm theo tên miền, không theo sản phẩm). Thu khi SerpApi có lượt mới (đầu tháng 11)."
+  },
+  "period": {
+   "startDate": null,
+   "endDate": null,
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "—"
+  },
+  "recordShape": "Không có bản ghi. Dùng làm ca 'nguồn không thu' cho test.",
+  "limits": [
+   "Tối đa 3 thương hiệu, 6 lượt mỗi báo cáo"
+  ],
+  "cost": {
+   "unit": "lượt SerpApi",
+   "spent": 0
+  },
+  "recordCount": 0,
+  "recordsSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "anonymisation": {
+   "method": "none needed: no customer identity in this source"
+  }
+ },
+ "records": []
+}

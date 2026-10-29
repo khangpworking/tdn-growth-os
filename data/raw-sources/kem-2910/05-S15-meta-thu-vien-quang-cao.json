@@ -1,0 +1,330 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-v1",
+  "keyword": "viên uống kẽm",
+  "productTopic": "thực phẩm chức năng viên kẽm",
+  "country": "VN",
+  "timezone": "Asia/Ho_Chi_Minh",
+  "sourceCode": "S15",
+  "sourceName": "Thư viện quảng cáo Meta (máy tự đọc, không đăng nhập)",
+  "provider": "Meta Ad Library qua OpenCLI",
+  "reportName": "quảng cáo trên Meta/Facebook",
+  "grade": "B",
+  "usedBy": [
+   "MARKET (bảng 7.2)"
+  ],
+  "evidenceFamily": "advertising",
+  "origin": {
+   "method": "EXPORTED_FROM_APP_RUN",
+   "runId": "f0f4799a-f9b3-4204-91b2-682ab79d0fce",
+   "runCreatedAt": "2026-10-26T01:55:11Z",
+   "runReports": [
+    "MARKET"
+   ],
+   "runRequestedPeriod": {
+    "startDate": "2025-10-26",
+    "endDate": "2026-10-25"
+   },
+   "runOutcome": "COLLECTION PARTIAL, REPORTS FAILED (raw captures complete for this source unless noted)"
+  },
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-26",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Quảng cáo đang/đã chạy, mọi trạng thái"
+  },
+  "recordShape": "collection.json = thương hiệu, số quảng cáo, trạng thái đọc; reads/* = URL, dấu trang, chữ đọc được.",
+  "resultNote": "KẾT QUẢ RỖNG: thương hiệu 1 (Dhc) STOPPED, 0 quảng cáo; thương hiệu 2 (Acnacare) NOT_READ. Dùng làm ca rỗng cho test.",
+  "limits": [
+   "Tối đa 5 lần mở, 2 thương hiệu",
+   "Không có chi tiêu, tiếp cận, tuổi, giới"
+  ],
+  "usage": [
+   {
+    "operation": "provider.run",
+    "requestCount": 1,
+    "costState": "KNOWN",
+    "costUnit": "CREDITS",
+    "costAmount": "0"
+   }
+  ],
+  "recordCount": 1,
+  "recordsSha256": "5d97fec068fe395f6711a022f864f9b4d8f1e2a08586186a6de4d5d9cf3622ea",
+  "anonymisation": {
+   "method": "none needed: no customer identity in this source"
+  }
+ },
+ "records": [
+  {
+   "packageId": "04b3b2e4-15f2-4ef1-8443-54997e5a0b7f",
+   "packageKey": "automation-meta-auto:f0f4799a-f9b3-4204-91b2-682ab79d0fce-d6ac32fa079f4b77",
+   "sourceLabel": "Thư viện quảng cáo Meta, máy tự đọc khi không đăng nhập",
+   "finalizedAt": "2026-10-26T02:04:52.676Z",
+   "files": [
+    {
+     "logicalPath": "collection.json",
+     "artifactSha256": "d6ac32fa079f4b778907f35d879e5b2e4557b9b6ff0e045e3902110970145ea3",
+     "mediaType": "application/json",
+     "content": {
+      "brands": [
+       {
+        "ads": [],
+        "key": "dhc",
+        "label": "Dhc",
+        "pageId": null,
+        "pageRead": null,
+        "refusedIds": 0,
+        "resultCount": null,
+        "resultCountSpan": null,
+        "searchRead": 0,
+        "status": "STOPPED"
+       },
+       {
+        "ads": [],
+        "key": "acnacare",
+        "label": "Acnacare",
+        "pageId": null,
+        "pageRead": null,
+        "refusedIds": 0,
+        "resultCount": null,
+        "resultCountSpan": null,
+        "searchRead": null,
+        "status": "NOT_READ"
+       }
+      ],
+      "evidence": null,
+      "opens": 1,
+      "profile": "meta-ad-library-visible-text-v1",
+      "reads": [
+       {
+        "brandIndex": 0,
+        "finalUrl": "https://www.facebook.com/ads/library/?active_status=all&ad_type=all&country=VN&is_targeted_country=false&media_type=all&q=Dhc&search_type=keyword_unordered&sort_data[mode]=total_impressions&sort_data[direction]=desc",
+        "kind": "SEARCH",
+        "outcome": "STOPPED",
+        "readAt": "2026-10-26T02:03:29.311Z",
+        "requestedUrl": "https://www.facebook.com/ads/library/?active_status=all&ad_type=all&country=VN&q=Dhc&search_type=keyword_unordered&media_type=all",
+        "retained": true,
+        "stop": "BLOCKED",
+        "textBytes": 0,
+        "textSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+       }
+      ],
+      "reasonVi": "Thư viện quảng cáo Meta tạm chặn lượt đọc nên máy dừng đọc ngay.",
+      "status": "STOPPED",
+      "stop": "BLOCKED"
+     }
+    },
+    {
+     "logicalPath": "profile.json",
+     "artifactSha256": "df217d0bf290f38e5e6e37bfbefb29ea6ebfc11970f18862e245b34ef6a92184",
+     "mediaType": "application/json",
+     "content": {
+      "candidateAnchorPattern": "<a\\b[^>]*\\bhref\\s*=\\s*[\"']([^\"']+)[\"'][^>]*>([^]*?)</a\\s*>",
+      "candidateObjectPattern": "\\{[^{}]*\"page_id\"\\s*:[^{}]*\\}",
+      "dateFormats": [
+       {
+        "order": "DMY_EN",
+        "pattern": "(\\d{1,2}) ([a-z]+) (\\d{4})"
+       },
+       {
+        "order": "MDY_EN",
+        "pattern": "([a-z]+) (\\d{1,2}), (\\d{4})"
+       },
+       {
+        "order": "DMY_VI",
+        "pattern": "(\\d{1,2}) (?:thg|tháng) (\\d{1,2}), (\\d{4})"
+       }
+      ],
+      "idLabels": [
+       "Library ID",
+       "ID thư viện"
+      ],
+      "monthsEn": {
+       "apr": 4,
+       "april": 4,
+       "aug": 8,
+       "august": 8,
+       "dec": 12,
+       "december": 12,
+       "feb": 2,
+       "february": 2,
+       "jan": 1,
+       "january": 1,
+       "jul": 7,
+       "july": 7,
+       "jun": 6,
+       "june": 6,
+       "mar": 3,
+       "march": 3,
+       "may": 5,
+       "nov": 11,
+       "november": 11,
+       "oct": 10,
+       "october": 10,
+       "sep": 9,
+       "sept": 9,
+       "september": 9
+      },
+      "profile": "meta-ad-library-visible-text-v1",
+      "resultCountWords": [
+       "results",
+       "result",
+       "kết quả"
+      ],
+      "startLabels": [
+       "Started running on",
+       "Bắt đầu chạy vào",
+       "Bắt đầu chạy từ"
+      ],
+      "statusWords": [
+       {
+        "status": "INACTIVE",
+        "text": "Không hoạt động"
+       },
+       {
+        "status": "ACTIVE",
+        "text": "Đang hoạt động"
+       },
+       {
+        "status": "INACTIVE",
+        "text": "Inactive"
+       },
+       {
+        "status": "ACTIVE",
+        "text": "Active"
+       }
+      ],
+      "stopMarkers": [
+       {
+        "id": "login-form-id",
+        "pattern": "<form\\b[^>]*\\bid\\s*=\\s*[\"']login_form[\"']",
+        "stop": "LOGIN_REQUIRED",
+        "where": "html"
+       },
+       {
+        "id": "login-form-name",
+        "pattern": "<form\\b[^>]*\\bname\\s*=\\s*[\"']login[\"']",
+        "stop": "LOGIN_REQUIRED",
+        "where": "html"
+       },
+       {
+        "id": "login-wall",
+        "pattern": "log in to continue|you must log in|đăng nhập để tiếp tục",
+        "stop": "LOGIN_REQUIRED",
+        "where": "text"
+       },
+       {
+        "id": "checkpoint-form",
+        "pattern": "<form\\b[^>]*\\baction\\s*=\\s*[\"'][^\"']*/checkpoint/",
+        "stop": "CAPTCHA",
+        "where": "html"
+       },
+       {
+        "id": "checkpoint-text",
+        "pattern": "security checkpoint|kiểm tra bảo mật",
+        "stop": "CAPTCHA",
+        "where": "text"
+       },
+       {
+        "id": "captcha-form",
+        "pattern": "<(?:form|iframe)\\b[^>]*\\b(?:id|name)\\s*=\\s*[\"'](?:captcha|captcha_form|captcha-challenge)[\"']",
+        "stop": "CAPTCHA",
+        "where": "html"
+       },
+       {
+        "id": "captcha",
+        "pattern": "please solve this captcha|complete the captcha|confirm you['’]re human|xác nhận bạn là con người|hoàn thành mã xác minh",
+        "stop": "CAPTCHA",
+        "where": "text"
+       },
+       {
+        "id": "blocked-en",
+        "pattern": "temporarily blocked",
+        "stop": "BLOCKED",
+        "where": "text"
+       },
+       {
+        "id": "too-many-en",
+        "pattern": "too many requests",
+        "stop": "BLOCKED",
+        "where": "text"
+       },
+       {
+        "id": "rate-limit-en",
+        "pattern": "rate limit exceeded",
+        "stop": "BLOCKED",
+        "where": "text"
+       },
+       {
+        "id": "blocked-vi",
+        "pattern": "tạm thời bị chặn",
+        "stop": "BLOCKED",
+        "where": "text"
+       },
+       {
+        "id": "too-many-vi",
+        "pattern": "quá nhiều yêu cầu",
+        "stop": "BLOCKED",
+        "where": "text"
+       }
+      ],
+      "viewerIdPatterns": [
+       "\"USER_ID\"\\s*:\\s*\"?(\\d+)",
+       "\"actorID\"\\s*:\\s*\"?(\\d+)"
+      ]
+     }
+    },
+    {
+     "logicalPath": "reads/01-search/fingerprint.json",
+     "artifactSha256": "22ce335761886fc73ea148fe569d5b2a3339514662b8ebc8c20fa74fc3523a75",
+     "mediaType": "application/json",
+     "content": {
+      "candidatePageIds": 0,
+      "htmlBytes": 2597722,
+      "labels": {
+       "id-0": 0,
+       "id-1": 0,
+       "result-count": 0,
+       "start-0": 0,
+       "start-1": 0,
+       "start-2": 0,
+       "status-0": 0,
+       "status-1": 0,
+       "status-2": 0,
+       "status-3": 0
+      },
+      "markers": {
+       "blocked-en": 0,
+       "blocked-vi": 0,
+       "captcha": 0,
+       "captcha-form": 0,
+       "checkpoint-form": 0,
+       "checkpoint-text": 0,
+       "login-form-id": 0,
+       "login-form-name": 0,
+       "login-wall": 0,
+       "rate-limit-en": 0,
+       "too-many-en": 0,
+       "too-many-vi": 0
+      },
+      "profile": "meta-ad-library-visible-text-v1",
+      "textBytes": 0,
+      "textTruncated": false
+     }
+    },
+    {
+     "logicalPath": "reads/01-search/text.md",
+     "artifactSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+     "mediaType": "text/markdown",
+     "content": ""
+    },
+    {
+     "logicalPath": "reads/01-search/url.txt",
+     "artifactSha256": "307adc4d2bbfbf739222cb4f31ac722b471f7860a3f9affe4da743e1bf8519a7",
+     "mediaType": "text/plain",
+     "content": "https://www.facebook.com/ads/library/?active_status=all&ad_type=all&country=VN&is_targeted_country=false&media_type=all&q=Dhc&search_type=keyword_unordered&sort_data[mode]=total_impressions&sort_data[direction]=desc"
+    }
+   ]
+  }
+ ]
+}
