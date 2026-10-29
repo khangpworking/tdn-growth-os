@@ -1,0 +1,32 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "15 · S25 · Báo cáo ngành, tài liệu PDF",
+  "describe": "pdf.download pdf.download",
+  "parentFile": "15-S25-bao-cao-nganh-pdf.json",
+  "parentLocation": "records[2]",
+  "sourceCode": "S25",
+  "sourceName": "Báo cáo ngành, tài liệu PDF",
+  "provider": "Tìm bằng SerpApi (lượt 26/10) + tải trực tiếp",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Tài liệu có trên mạng lúc thu; năm phát hành ghi trong tài liệu"
+  },
+  "limits": [
+   "Tối đa 2 tệp, mỗi tệp tối đa 60 trang khi đọc",
+   "Tài liệu tìm tự động cho từ khoá bất kỳ thường Yếu hoặc không liên quan; cần lọc",
+   "Tệp PDF không có trong kho; chỉ giữ url + sha256"
+  ],
+  "resultSha256": "72bba1eba6ee3fe98f44c2342f987765ee075e24ab22321a1651d982aa66df25"
+ },
+ "result": {
+  "operation": "pdf.download",
+  "url": "https://qppl.dienbien.gov.vn/qlvb/vbpq.nsf/3d0f058120469ad34725726600365420/E8020D675458354E4725881A0001D4B3/$file/B%C3%81O%20C%C3%81O%20%C4%90%C3%81NH%20GI%C3%81%205%20N%C4%82M%20THI%20H%C3%80NH%20NGH%E1%BB%8A%20%C4%90%E1%BB%8ANH%2009%20-%2031.3.2022.pdf",
+  "httpStatus": null,
+  "requestedAt": "2026-10-29T12:59:22Z",
+  "error": "URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1081)>"
+ }
+}

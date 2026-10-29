@@ -1,0 +1,1142 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "01 · S01 · Số bán ước tính trên sàn (Shopee + TikTok Shop)",
+  "describe": "Metric API POST /v2/market/analytics/search-basic/ (thứ tự 196)",
+  "parentFile": "01-S01-metric-so-ban-shopee-tiktok.json",
+  "parentLocation": "records[4].content[196]",
+  "sourceCode": "S01",
+  "sourceName": "Số bán ước tính trên sàn (Shopee + TikTok Shop)",
+  "provider": "Metric (web, OpenCLI)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": "2026-09-21",
+   "endDate": "2026-10-20",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "30 ngày Metric tự chọn (kỳ đủ dữ liệu gần nhất trước ngày chạy)"
+  },
+  "limits": [
+   "Số bán là ước tính của nguồn",
+   "Bảng kết quả không có cột gian hàng ổn định (xem PR #310)",
+   "Không bấm Xuất/Tải"
+  ],
+  "resultSha256": "6c791e5891f2a190d28a73e90bd40265672a3a21f381692cc17caee2da743435"
+ },
+ "result": {
+  "urlPath": "/v2/market/analytics/search-basic/",
+  "responseOrder": 196,
+  "status": 200,
+  "body": {
+   "status": "success",
+   "data": {
+    "search_basic": {
+     "aggregations": [
+      {
+       "aggregation": "SHOP_TOTAL",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 218
+         },
+         {
+          "platform_id": 8,
+          "value": 113
+         }
+        ]
+       },
+       "entities": null
+      },
+      {
+       "aggregation": "PREVIOUS_SHOP_TOTAL",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 200
+         },
+         {
+          "platform_id": 8,
+          "value": 111
+         }
+        ]
+       },
+       "entities": null
+      },
+      {
+       "aggregation": "PRODUCT_TOTAL",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 319
+         },
+         {
+          "platform_id": 8,
+          "value": 194
+         }
+        ]
+       },
+       "entities": null
+      },
+      {
+       "aggregation": "PREVIOUS_PRODUCT_TOTAL",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 299
+         },
+         {
+          "platform_id": 8,
+          "value": 197
+         }
+        ]
+       },
+       "entities": null
+      },
+      {
+       "aggregation": "ORDER_TOTAL_CUSTOM",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 19588
+         },
+         {
+          "platform_id": 8,
+          "value": 43270
+         }
+        ]
+       },
+       "entities": null
+      },
+      {
+       "aggregation": "PREVIOUS_ORDER_TOTAL_CUSTOM",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 22246
+         },
+         {
+          "platform_id": 8,
+          "value": 45333
+         }
+        ]
+       },
+       "entities": null
+      },
+      {
+       "aggregation": "REVENUE_TOTAL_CUSTOM",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 4917934036
+         },
+         {
+          "platform_id": 8,
+          "value": 10534639082
+         }
+        ]
+       },
+       "entities": null
+      },
+      {
+       "aggregation": "PREVIOUS_REVENUE_TOTAL_CUSTOM",
+       "entity": {
+        "platforms": [
+         {
+          "platform_id": 1,
+          "value": 5321987402
+         },
+         {
+          "platform_id": 8,
+          "value": 11118996504
+         }
+        ]
+       },
+       "entities": null
+      },
+      {
+       "aggregation": "REVENUE__BY__PRICE_RANGE_CUSTOM",
+       "entity": null,
+       "entities": [
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 1038950996
+          },
+          {
+           "platform_id": 8,
+           "value": 1081080277
+          }
+         ],
+         "from": 200000,
+         "to": 350000,
+         "key": null,
+         "value": null
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 948701736
+          },
+          {
+           "platform_id": 8,
+           "value": 512866069
+          }
+         ],
+         "from": 100000,
+         "to": 150000,
+         "key": null,
+         "value": null
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 843895188
+          },
+          {
+           "platform_id": 8,
+           "value": 1079823337
+          }
+         ],
+         "from": 500000,
+         "to": 750000,
+         "key": null,
+         "value": null
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 633006060
+          },
+          {
+           "platform_id": 8,
+           "value": 1603108707
+          }
+         ],
+         "from": 350000,
+         "to": 500000,
+         "key": null,
+         "value": null
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 610976127
+          },
+          {
+           "platform_id": 8,
+           "value": 5253202690
+          }
+         ],
+         "from": 150000,
+         "to": 200000,
+         "key": null,
+         "value": null
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 584224900
+          },
+          {
+           "platform_id": 8,
+           "value": 286008673
+          }
+         ],
+         "from": 750000,
+         "to": 1000000,
+         "key": null,
+         "value": null
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 180117689
+          },
+          {
+           "platform_id": 8,
+           "value": 46946354
+          }
+         ],
+         "from": 75000,
+         "to": 100000,
+         "key": null,
+         "value": null
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 38723900
+          },
+          {
+           "platform_id": 8,
+           "value": 608875865
+          }
+         ],
+         "from": 1000000,
+         "to": 1500000,
+         "key": null,
+         "value": null
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 29817360
+          },
+          {
+           "platform_id": 8,
+           "value": 21925520
+          }
+         ],
+         "from": 50000,
+         "to": 75000,
+         "key": null,
+         "value": null
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 7630080
+          }
+         ],
+         "from": 30000,
+         "to": 50000,
+         "key": null,
+         "value": null
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 1890000
+          },
+          {
+           "platform_id": 8,
+           "value": 40801590
+          }
+         ],
+         "from": 1500000,
+         "to": 2000000,
+         "key": null,
+         "value": null
+        }
+       ]
+      },
+      {
+       "aggregation": "ORDER_COUNT__BY__PRICE_RANGE_CUSTOM",
+       "entity": null,
+       "entities": [
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 5209
+          },
+          {
+           "platform_id": 8,
+           "value": 4026
+          }
+         ],
+         "from": 100000,
+         "to": 150000,
+         "key": null,
+         "value": null
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 3976
+          },
+          {
+           "platform_id": 8,
+           "value": 27723
+          }
+         ],
+         "from": 150000,
+         "to": 200000,
+         "key": null,
+         "value": null
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 3749
+          },
+          {
+           "platform_id": 8,
+           "value": 3908
+          }
+         ],
+         "from": 200000,
+         "to": 350000,
+         "key": null,
+         "value": null
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 2239
+          },
+          {
+           "platform_id": 8,
+           "value": 556
+          }
+         ],
+         "from": 75000,
+         "to": 100000,
+         "key": null,
+         "value": null
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 1705
+          },
+          {
+           "platform_id": 8,
+           "value": 4130
+          }
+         ],
+         "from": 350000,
+         "to": 500000,
+         "key": null,
+         "value": null
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 1397
+          },
+          {
+           "platform_id": 8,
+           "value": 1726
+          }
+         ],
+         "from": 500000,
+         "to": 750000,
+         "key": null,
+         "value": null
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 759
+          },
+          {
+           "platform_id": 8,
+           "value": 343
+          }
+         ],
+         "from": 750000,
+         "to": 1000000,
+         "key": null,
+         "value": null
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 411
+          },
+          {
+           "platform_id": 8,
+           "value": 303
+          }
+         ],
+         "from": 50000,
+         "to": 75000,
+         "key": null,
+         "value": null
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 109
+          }
+         ],
+         "from": 30000,
+         "to": 50000,
+         "key": null,
+         "value": null
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 33
+          },
+          {
+           "platform_id": 8,
+           "value": 528
+          }
+         ],
+         "from": 1000000,
+         "to": 1500000,
+         "key": null,
+         "value": null
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 1
+          },
+          {
+           "platform_id": 8,
+           "value": 27
+          }
+         ],
+         "from": 1500000,
+         "to": 2000000,
+         "key": null,
+         "value": null
+        }
+       ]
+      },
+      {
+       "aggregation": "REVENUE__BY__LOCATION_CUSTOM",
+       "entity": null,
+       "entities": [
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 3377908448
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "Hà Nội",
+         "value": 3377908448
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 1301797431
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "Tp. Hồ Chí Minh",
+         "value": 1301797431
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 125355000
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "Gia Lai",
+         "value": 125355000
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 74085000
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "Vĩnh Long",
+         "value": 74085000
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 25500870
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "Tây Ninh",
+         "value": 25500870
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 5813000
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "Hải Phòng",
+         "value": 5813000
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 1335000
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "Phú Thọ",
+         "value": 1335000
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 1021998
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "An Giang",
+         "value": 1021998
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 975000
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "Bắc Ninh",
+         "value": 975000
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 961000
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "Đà Nẵng",
+         "value": 961000
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 798789
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "Lâm Đồng",
+         "value": 798789
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 750000
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "Nghệ An",
+         "value": 750000
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 536000
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "Đồng Nai",
+         "value": 536000
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 486500
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "Ninh Bình",
+         "value": 486500
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 375000
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "Hưng Yên",
+         "value": 375000
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 235000
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "Cần Thơ",
+         "value": 235000
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 0
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "Bình Dương",
+         "value": 0
+        }
+       ]
+      },
+      {
+       "aggregation": "ORDER_COUNT__BY__LOCATION_CUSTOM",
+       "entity": null,
+       "entities": [
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 11060
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "Hà Nội",
+         "value": 11060
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 7443
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "Tp. Hồ Chí Minh",
+         "value": 7443
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 417
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "Vĩnh Long",
+         "value": 417
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 349
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "Tây Ninh",
+         "value": 349
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 285
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "Gia Lai",
+         "value": 285
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 10
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "Hải Phòng",
+         "value": 10
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 5
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "Lâm Đồng",
+         "value": 5
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 5
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "Phú Thọ",
+         "value": 5
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 3
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "Ninh Bình",
+         "value": 3
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 2
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "Bắc Ninh",
+         "value": 2
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 2
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "An Giang",
+         "value": 2
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 2
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "Hưng Yên",
+         "value": 2
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 2
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "Đà Nẵng",
+         "value": 2
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 1
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "Nghệ An",
+         "value": 1
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 1
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "Đồng Nai",
+         "value": 1
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 1
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "Cần Thơ",
+         "value": 1
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 0
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "Bình Dương",
+         "value": 0
+        }
+       ]
+      },
+      {
+       "aggregation": "REVENUE__BY__SHOP_TYPE_CUSTOM",
+       "entity": null,
+       "entities": [
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 846475885
+          },
+          {
+           "platform_id": 8,
+           "value": 7024971151
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "0",
+         "value": 7871447036
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 4071458151
+          },
+          {
+           "platform_id": 8,
+           "value": 3509667931
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "1",
+         "value": 7581126082
+        }
+       ]
+      },
+      {
+       "aggregation": "ORDER_COUNT__BY__SHOP_TYPE_CUSTOM",
+       "entity": null,
+       "entities": [
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 4028
+          },
+          {
+           "platform_id": 8,
+           "value": 29520
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "0",
+         "value": 33548
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 15560
+          },
+          {
+           "platform_id": 8,
+           "value": 13750
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "1",
+         "value": 29310
+        }
+       ]
+      },
+      {
+       "aggregation": "REVENUE__BY__CATEGORIES_CUSTOM",
+       "entity": null,
+       "entities": [
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 4856900036
+          },
+          {
+           "platform_id": 8,
+           "value": 10518806473
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "c2035652732",
+         "value": 15375706509
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 59794000
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "c1478997685",
+         "value": 59794000
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 8,
+           "value": 15832609
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "c950887968",
+         "value": 15832609
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 1240000
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "c1144728673",
+         "value": 1240000
+        }
+       ]
+      },
+      {
+       "aggregation": "ORDER_COUNT__BY__CATEGORIES_CUSTOM",
+       "entity": null,
+       "entities": [
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 19491
+          },
+          {
+           "platform_id": 8,
+           "value": 43179
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "c2035652732",
+         "value": 62670
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 8,
+           "value": 91
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "c950887968",
+         "value": 91
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 89
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "c1478997685",
+         "value": 89
+        },
+        {
+         "platforms": [
+          {
+           "platform_id": 1,
+           "value": 8
+          }
+         ],
+         "from": null,
+         "to": null,
+         "key": "c1144728673",
+         "value": 8
+        }
+       ]
+      }
+     ],
+     "meta": {
+      "total": 513
+     }
+    }
+   },
+   "code": "SUCCESS"
+  },
+  "method": "POST",
+  "timestamp": 1792979730539,
+  "requestBody": "{\"include_query\":{\"platforms\":[1,8],\"queries\":[\"viên uống kẽm\"],\"bee_categories\":[\"c1144728673\",\"c1189843250\",\"c1513215936\",\"c1890857051\",\"c950887968\",\"c1919231407\",\"c997967148\",\"c1478997685\",\"c1182326609\",\"c349363110\",\"c1776859460\",\"c2146627932\",\"c2035652732\",\"c984920598\",\"c952389459\",\"c1149754732\",\"c937408522\",\"c1000062491\",\"c41293969\",\"c890463890\",\"c109830509\",\"c1049283522\",\"c1278655688\",\"c796145721\",\"c945324293\",\"c1704246187\",\"c806141846\",\"c230833630\",\"c1000000000\"],\"is_remove_bad_product\":true,\"official_types\":[1,0],\"is_smart_queries\":true,\"brands\":[],\"composite_compare_lst\":[[{\"first_field\":\"rating_count\",\"second_field\":\"order_count\",\"first_rate\":1,\"second_rate\":0.02,\"compare_condition\":\">\"}]]},\"exclude_query\":{\"is_smart_queries\":false,\"queries\":[]},\"use_ai_normalized\":false,\"notIncludeDeletedProduct\":true,\"limit\":20,\"page\":0,\"is_filter_gift\":true,\"sort_by\":\"revenue_custom__desc\",\"start_date\":\"20260921\",\"end_date\":\"20261020\"}"
+ }
+}

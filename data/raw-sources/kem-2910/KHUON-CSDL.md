@@ -7,7 +7,7 @@ Bản 1 · 29/10/2026 · đi kèm bộ dữ liệu `kem-raw-v1`.
 - File này nói: khi thu một nguồn, mỗi bản ghi gốc được lưu vào bảng nào, cột nào, kiểu gì, đơn vị gì.
 - Mỗi bảng có cột «Lấy từ bản gốc»: đường dẫn tới trường trong tệp `kem-raw-v1`.
 - Lời khách của 3 nguồn (đánh giá Shopee, đánh giá TikTok Shop, bình luận TikTok) dùng **một bảng chung `review`**.
-- Mỗi người viết có hai cột: `reviewer_key` (mã ẩn danh, luôn có) và `reviewer_name` (tên thật, chỉ trong cơ sở dữ liệu riêng).
+- Mỗi người viết có hai cột: `reviewer_key` (mã ẩn danh, `NULL` nếu nguồn không cung cấp danh tính) và `reviewer_name` (tên thật khi có, chỉ trong cơ sở dữ liệu riêng).
 - Mỗi dòng dữ liệu trỏ về đúng một lần gọi nguồn trong bảng `raw_capture`. Nhờ vậy mọi con số đều có nguồn gốc.
 - Câu lệnh SQL (SQLite) ở Phần 5. Câu lệnh chạy được trên SQLite 3.35 trở lên.
 
@@ -122,8 +122,8 @@ Ví dụ của chủ: **tên người viết → `reviewer_name`**, **số sao �
 | external_id | TEXT | Có | Mã gốc của nguồn | `reviewId` | `review.review_id` | `cid` |
 | product_key | TEXT | Không | Sản phẩm được đánh giá | `shopee:` + `itemId` | `tiktok_shop:` + `product_id` | `NULL` |
 | video_url | TEXT | Không | Video có bình luận | — | — | `videoWebUrl` |
-| reviewer_key | TEXT | Có | Mã ẩn danh ổn định của người viết (HMAC-SHA256, khoá bí mật của hệ thống) | từ tên thật khi có; nếu không có thì `NULL` | từ `review_user.name` | từ `uid` |
-| reviewer_name | TEXT | Không | **Tên thật. Chỉ lưu trong cơ sở dữ liệu riêng.** Không xuất ra kho công khai, không in vào báo cáo | **Chưa có**: bộ thu hiện bỏ trường này | `review_user.name` (nguồn đã che một phần, ví dụ `A** Y**`) | `uniqueId` |
+| reviewer_key | TEXT | Không | Mã ẩn danh ổn định của người viết (HMAC-SHA256, khoá bí mật của hệ thống) | từ tên thật khi có; nếu không có thì `NULL` | `review_user` (đã là chuỗi mã ẩn danh trong bộ công khai) | từ `uid` |
+| reviewer_name | TEXT | Không | **Tên thật. Chỉ lưu trong cơ sở dữ liệu riêng.** Không xuất ra kho công khai, không in vào báo cáo | **Chưa có**: bộ thu hiện bỏ trường này | **Không có trong bộ công khai**: `review_user` đã là mã ẩn danh | **Không có trong bộ công khai**: `uniqueId` đã là mã ẩn danh |
 | reviewer_name_state | TEXT | Có | `real`, `masked_by_source`, `not_provided` | `not_provided` | `masked_by_source` | `real` |
 | rating_star | INTEGER | Không | Số sao 1–5. `NULL` với bình luận | `ratingStar` | `review.rating` (chuỗi → số) | `NULL` |
 | text | TEXT | Không | Lời viết, giữ nguyên | `comment` | `review.comment` (hoặc `review.display_text`) | `text` |

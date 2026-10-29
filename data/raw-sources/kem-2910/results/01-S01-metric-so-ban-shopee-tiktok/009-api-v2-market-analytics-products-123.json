@@ -1,0 +1,1627 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "01 · S01 · Số bán ước tính trên sàn (Shopee + TikTok Shop)",
+  "describe": "Metric API POST /v2/market/analytics/products/ (thứ tự 123)",
+  "parentFile": "01-S01-metric-so-ban-shopee-tiktok.json",
+  "parentLocation": "records[4].content[123]",
+  "sourceCode": "S01",
+  "sourceName": "Số bán ước tính trên sàn (Shopee + TikTok Shop)",
+  "provider": "Metric (web, OpenCLI)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": "2026-09-21",
+   "endDate": "2026-10-20",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "30 ngày Metric tự chọn (kỳ đủ dữ liệu gần nhất trước ngày chạy)"
+  },
+  "limits": [
+   "Số bán là ước tính của nguồn",
+   "Bảng kết quả không có cột gian hàng ổn định (xem PR #310)",
+   "Không bấm Xuất/Tải"
+  ],
+  "resultSha256": "31c3be5e45c156064927f2020ed8cbc688d855e9800dd9a9441b8cc9cfda053c"
+ },
+ "result": {
+  "urlPath": "/v2/market/analytics/products/",
+  "responseOrder": 123,
+  "status": 200,
+  "body": {
+   "status": "success",
+   "data": {
+    "products": [
+     {
+      "product_base_id": "1__42568221380__308461157",
+      "platform_id": null,
+      "product_name": " Apple iPhone 17 Pro Max 256GB Chính hãng ZP A ",
+      "url_thumbnail": "https://cf.shopee.vn/file/vn-11134207-820l4-megm9h2a4f7k62",
+      "official_type": 1,
+      "categories": [
+       {
+        "id": "1__100013",
+        "level": 0,
+        "name": "Điện Thoại & Phụ Kiện",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100073",
+        "level": 1,
+        "name": "Điện thoại",
+        "parent_id": "1__100013"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c1704246187",
+        "level": 0,
+        "name": "Điện Thoại & Máy Tính Bảng",
+        "parent_id": ""
+       },
+       {
+        "id": "c2079129999",
+        "level": 1,
+        "name": "Điện Thoại - Máy Tính Bảng",
+        "parent_id": "c1704246187"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100013",
+        "level": 0,
+        "name": "Điện Thoại & Phụ Kiện",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100073",
+        "level": 1,
+        "name": "Điện thoại",
+        "parent_id": "1__100013"
+       }
+      ],
+      "shop_base_id": "1__308461157",
+      "shop_username": null,
+      "price": 34690000,
+      "order_count": 23979,
+      "rating_avg": 4.961710453033447,
+      "rating_count": 5590,
+      "revenue": 896391610000,
+      "platform_created_at": "2[REDACTED_PHONE]:21:49",
+      "price_updated_at": "2[REDACTED_PHONE]:46:16",
+      "order_custom": 2628,
+      "order_growth": null,
+      "previous_order_custom": 2887,
+      "revenue_custom": 91308120000,
+      "revenue_growth": null,
+      "previous_revenue_custom": 101512230000,
+      "bee_brand": "Apple",
+      "final_brand": "Apple",
+      "price_min": 34690000,
+      "price_max": 60000000,
+      "shop_name": "Viettel Store- AAR",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shopee.vn/apple-iphone-17-pro-max-256gb-chinh-hang-zp-a-i.3[REDACTED_PHONE]",
+      "shop_url": "https://shopee.vn/shop/308461157"
+     },
+     {
+      "product_base_id": "1__27041370670__88201679",
+      "platform_id": null,
+      "product_name": " Điện thoại Apple iPhone 17 Pro Max 256GB ",
+      "url_thumbnail": "https://cf.shopee.vn/file/vn-11134207-820l4-mehipkbxm1vq70",
+      "official_type": 1,
+      "categories": [
+       {
+        "id": "1__100013",
+        "level": 0,
+        "name": "Điện Thoại & Phụ Kiện",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100073",
+        "level": 1,
+        "name": "Điện thoại",
+        "parent_id": "1__100013"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c1704246187",
+        "level": 0,
+        "name": "Điện Thoại & Máy Tính Bảng",
+        "parent_id": ""
+       },
+       {
+        "id": "c2079129999",
+        "level": 1,
+        "name": "Điện Thoại - Máy Tính Bảng",
+        "parent_id": "c1704246187"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100013",
+        "level": 0,
+        "name": "Điện Thoại & Phụ Kiện",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100073",
+        "level": 1,
+        "name": "Điện thoại",
+        "parent_id": "1__100013"
+       }
+      ],
+      "shop_base_id": "1__88201679",
+      "shop_username": null,
+      "price": 34990000,
+      "order_count": 29147,
+      "rating_avg": 4.9430108070373535,
+      "rating_count": 6706,
+      "revenue": 1095466471000,
+      "platform_created_at": "2[REDACTED_PHONE]:04:53",
+      "price_updated_at": "2[REDACTED_PHONE]:32:26",
+      "order_custom": 1867,
+      "order_growth": null,
+      "previous_order_custom": 3119,
+      "revenue_custom": 65853130000,
+      "revenue_growth": null,
+      "previous_revenue_custom": 110848610000,
+      "bee_brand": "Apple",
+      "final_brand": "Apple",
+      "price_min": 34990000,
+      "price_max": 39999000,
+      "shop_name": "Apple Flagship Store",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shopee.vn/dien-thoai-apple-iphone-17-pro-max-256gb-i.882[REDACTED_PHONE]",
+      "shop_url": "https://shopee.vn/shop/88201679"
+     },
+     {
+      "product_base_id": "1__25541392931__140523966",
+      "platform_id": null,
+      "product_name": "  VHL  COMBO Dầu gội Thái Dương 7 Plus Gold  Chai 500ml Hoa Phong Lan  và Dầu xả Thái Dương 7Plus Gold 500- CB1 ",
+      "url_thumbnail": "https://cf.shopee.vn/file/vn-11134207-81ztc-mpyzsn5ynugw6e",
+      "official_type": 1,
+      "categories": [
+       {
+        "id": "1__100630",
+        "level": 0,
+        "name": "Sắc Đẹp",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100659",
+        "level": 1,
+        "name": "Chăm sóc tóc",
+        "parent_id": "1__100630"
+       },
+       {
+        "id": "1__100869",
+        "level": 2,
+        "name": "Dầu gội",
+        "parent_id": "1__100659"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c950887968",
+        "level": 0,
+        "name": "Làm Đẹp",
+        "parent_id": ""
+       },
+       {
+        "id": "c936646986",
+        "level": 1,
+        "name": "Chăm sóc tóc",
+        "parent_id": "c950887968"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100630",
+        "level": 0,
+        "name": "Sắc Đẹp",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100659",
+        "level": 1,
+        "name": "Chăm sóc tóc",
+        "parent_id": "1__100630"
+       },
+       {
+        "id": "1__100869",
+        "level": 2,
+        "name": "Dầu gội",
+        "parent_id": "1__100659"
+       }
+      ],
+      "shop_base_id": "1__140523966",
+      "shop_username": null,
+      "price": 544000,
+      "order_count": 230800,
+      "rating_avg": 4.9420366287231445,
+      "rating_count": 29751,
+      "revenue": 118718126000,
+      "platform_created_at": "2[REDACTED_PHONE]:04:29",
+      "price_updated_at": "2[REDACTED_PHONE]:32:09",
+      "order_custom": 48136,
+      "order_growth": null,
+      "previous_order_custom": 16214,
+      "revenue_custom": 26185984000,
+      "revenue_growth": null,
+      "previous_revenue_custom": 8820416000,
+      "bee_brand": "Sao Thái Dương",
+      "final_brand": "Sao Thái Dương",
+      "price_min": 250000,
+      "price_max": 544000,
+      "shop_name": "Sao Thái Dương Official Store",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shopee.vn/vhl-combo-dau-goi-thai-duong-7-plus-gold-chai-500ml-hoa-phong-lan-va-dau-xa-thai-duong-7plus-gold-50-i.14[REDACTED_PHONE]",
+      "shop_url": "https://shopee.vn/shop/140523966"
+     },
+     {
+      "product_base_id": "1__42168225876__308461157",
+      "platform_id": null,
+      "product_name": " Apple iPhone 17 Pro Max 512GB Chính hãng ZP A ",
+      "url_thumbnail": "https://cf.shopee.vn/file/vn-11134207-820l4-megm9h2acumd01",
+      "official_type": 1,
+      "categories": [
+       {
+        "id": "1__100013",
+        "level": 0,
+        "name": "Điện Thoại & Phụ Kiện",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100073",
+        "level": 1,
+        "name": "Điện thoại",
+        "parent_id": "1__100013"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c1704246187",
+        "level": 0,
+        "name": "Điện Thoại & Máy Tính Bảng",
+        "parent_id": ""
+       },
+       {
+        "id": "c2079129999",
+        "level": 1,
+        "name": "Điện Thoại - Máy Tính Bảng",
+        "parent_id": "c1704246187"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100013",
+        "level": 0,
+        "name": "Điện Thoại & Phụ Kiện",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100073",
+        "level": 1,
+        "name": "Điện thoại",
+        "parent_id": "1__100013"
+       }
+      ],
+      "shop_base_id": "1__308461157",
+      "shop_username": null,
+      "price": 41890000,
+      "order_count": 5175,
+      "rating_avg": 4.965488433837891,
+      "rating_count": 1193,
+      "revenue": 231371480000,
+      "platform_created_at": "2[REDACTED_PHONE]:25:21",
+      "price_updated_at": "2[REDACTED_PHONE]:46:16",
+      "order_custom": 486,
+      "order_growth": null,
+      "previous_order_custom": 269,
+      "revenue_custom": 20323540000,
+      "revenue_growth": null,
+      "previous_revenue_custom": 11164310000,
+      "bee_brand": "Apple",
+      "final_brand": "Apple",
+      "price_min": 41390000,
+      "price_max": 60000000,
+      "shop_name": "Viettel Store- AAR",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shopee.vn/apple-iphone-17-pro-max-512gb-chinh-hang-zp-a-i.3[REDACTED_PHONE]",
+      "shop_url": "https://shopee.vn/shop/308461157"
+     },
+     {
+      "product_base_id": "1__46456098642__1524999479",
+      "platform_id": null,
+      "product_name": " Điện thoại thông minh Xiaomi POCO X8 PRO| Pin cực lớn 6500mAh typ  sạc nhanh 100W| Màn hình AMOLED 1.5K 120Hz ",
+      "url_thumbnail": "https://cf.shopee.vn/file/vn-11134207-81ztc-mtqbp3oy2kuia1",
+      "official_type": 1,
+      "categories": [
+       {
+        "id": "1__100013",
+        "level": 0,
+        "name": "Điện Thoại & Phụ Kiện",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100073",
+        "level": 1,
+        "name": "Điện thoại",
+        "parent_id": "1__100013"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c1704246187",
+        "level": 0,
+        "name": "Điện Thoại & Máy Tính Bảng",
+        "parent_id": ""
+       },
+       {
+        "id": "c2079129999",
+        "level": 1,
+        "name": "Điện Thoại - Máy Tính Bảng",
+        "parent_id": "c1704246187"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100013",
+        "level": 0,
+        "name": "Điện Thoại & Phụ Kiện",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100075",
+        "level": 1,
+        "name": "Phụ kiện",
+        "parent_id": "1__100013"
+       },
+       {
+        "id": "1__100287",
+        "level": 2,
+        "name": "Sạc dự phòng & Pin",
+        "parent_id": "1__100075"
+       }
+      ],
+      "shop_base_id": "1__1524999479",
+      "shop_username": null,
+      "price": 11990000,
+      "order_count": 12782,
+      "rating_avg": 4.91985559463501,
+      "rating_count": 4155,
+      "revenue": 131760440250,
+      "platform_created_at": "2[REDACTED_PHONE]:10:48",
+      "price_updated_at": "2[REDACTED_PHONE]:46:16",
+      "order_custom": 1366,
+      "order_growth": null,
+      "previous_order_custom": 1707,
+      "revenue_custom": 16616545000,
+      "revenue_growth": null,
+      "previous_revenue_custom": 17894885250,
+      "bee_brand": "Poco",
+      "final_brand": "Poco",
+      "price_min": 9190000,
+      "price_max": 18000000,
+      "shop_name": "Xiaomi Official Store",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shopee.vn/[REDACTED_TOKEN]",
+      "shop_url": "https://shopee.vn/shop/1524999479"
+     },
+     {
+      "product_base_id": "1__24246902031__88201679",
+      "platform_id": null,
+      "product_name": " Điện thoại Apple iPhone 17 Pro Max 512GB ",
+      "url_thumbnail": "https://cf.shopee.vn/file/vn-11134207-820l4-mehipkbxm1vq70",
+      "official_type": 1,
+      "categories": [
+       {
+        "id": "1__100013",
+        "level": 0,
+        "name": "Điện Thoại & Phụ Kiện",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100073",
+        "level": 1,
+        "name": "Điện thoại",
+        "parent_id": "1__100013"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c1704246187",
+        "level": 0,
+        "name": "Điện Thoại & Máy Tính Bảng",
+        "parent_id": ""
+       },
+       {
+        "id": "c2079129999",
+        "level": 1,
+        "name": "Điện Thoại - Máy Tính Bảng",
+        "parent_id": "c1704246187"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100013",
+        "level": 0,
+        "name": "Điện Thoại & Phụ Kiện",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100073",
+        "level": 1,
+        "name": "Điện thoại",
+        "parent_id": "1__100013"
+       }
+      ],
+      "shop_base_id": "1__88201679",
+      "shop_username": null,
+      "price": 41790000,
+      "order_count": 6233,
+      "rating_avg": 4.951063632965088,
+      "rating_count": 1410,
+      "revenue": 275143855000,
+      "platform_created_at": "2[REDACTED_PHONE]:09:24",
+      "price_updated_at": "2[REDACTED_PHONE]:46:16",
+      "order_custom": 321,
+      "order_growth": null,
+      "previous_order_custom": 759,
+      "revenue_custom": 13428890000,
+      "revenue_growth": null,
+      "previous_revenue_custom": 31794510000,
+      "bee_brand": "Apple",
+      "final_brand": "Apple",
+      "price_min": 41790000,
+      "price_max": 46499000,
+      "shop_name": "Apple Flagship Store",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shopee.vn/dien-thoai-apple-iphone-17-pro-max-512gb-i.882[REDACTED_PHONE]",
+      "shop_url": "https://shopee.vn/shop/88201679"
+     },
+     {
+      "product_base_id": "1__26841370473__88201679",
+      "platform_id": null,
+      "product_name": " Điện thoại Apple iPhone 17 256GB ",
+      "url_thumbnail": "https://cf.shopee.vn/file/vn-11134207-820l4-meh3u1jyqkg3bb",
+      "official_type": 1,
+      "categories": [
+       {
+        "id": "1__100013",
+        "level": 0,
+        "name": "Điện Thoại & Phụ Kiện",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100073",
+        "level": 1,
+        "name": "Điện thoại",
+        "parent_id": "1__100013"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c1704246187",
+        "level": 0,
+        "name": "Điện Thoại & Máy Tính Bảng",
+        "parent_id": ""
+       },
+       {
+        "id": "c2079129999",
+        "level": 1,
+        "name": "Điện Thoại - Máy Tính Bảng",
+        "parent_id": "c1704246187"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100013",
+        "level": 0,
+        "name": "Điện Thoại & Phụ Kiện",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100073",
+        "level": 1,
+        "name": "Điện thoại",
+        "parent_id": "1__100013"
+       }
+      ],
+      "shop_base_id": "1__88201679",
+      "shop_username": null,
+      "price": 26790000,
+      "order_count": 9831,
+      "rating_avg": 4.937302589416504,
+      "rating_count": 2217,
+      "revenue": 248896098000,
+      "platform_created_at": "2[REDACTED_PHONE]:51:22",
+      "price_updated_at": "2[REDACTED_PHONE]:46:16",
+      "order_custom": 448,
+      "order_growth": null,
+      "previous_order_custom": 1392,
+      "revenue_custom": 12520020000,
+      "revenue_growth": null,
+      "previous_revenue_custom": 36366080000,
+      "bee_brand": "Apple",
+      "final_brand": "Apple",
+      "price_min": 24840000,
+      "price_max": 28990000,
+      "shop_name": "Apple Flagship Store",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shopee.vn/dien-thoai-apple-iphone-17-256gb-i.882[REDACTED_PHONE]",
+      "shop_url": "https://shopee.vn/shop/88201679"
+     },
+     {
+      "product_base_id": "1__54915229694__449168894",
+      "platform_id": null,
+      "product_name": "  QUÀ TẶNG GIẤY LAU  Khăn lau 1 và 2 mếng lau vệ sinh màn hình điện thoại  VIP5  ",
+      "url_thumbnail": "https://cf.shopee.vn/file/vn-11134207-81ztc-mpfzou766u4if4",
+      "official_type": 0,
+      "categories": [
+       {
+        "id": "1__100013",
+        "level": 0,
+        "name": "Điện Thoại & Phụ Kiện",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100075",
+        "level": 1,
+        "name": "Phụ kiện",
+        "parent_id": "1__100013"
+       },
+       {
+        "id": "1__100289",
+        "level": 2,
+        "name": "Miếng dán màn hình",
+        "parent_id": "1__100075"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c1704246187",
+        "level": 0,
+        "name": "Điện Thoại & Máy Tính Bảng",
+        "parent_id": ""
+       },
+       {
+        "id": "c1158314976",
+        "level": 1,
+        "name": "Phụ Kiện Điện Thoại và Máy Tính Bảng",
+        "parent_id": "c1704246187"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100013",
+        "level": 0,
+        "name": "Điện Thoại & Phụ Kiện",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100075",
+        "level": 1,
+        "name": "Phụ kiện",
+        "parent_id": "1__100013"
+       },
+       {
+        "id": "1__100289",
+        "level": 2,
+        "name": "Miếng dán màn hình",
+        "parent_id": "1__100075"
+       }
+      ],
+      "shop_base_id": "1__449168894",
+      "shop_username": null,
+      "price": 198000,
+      "order_count": 144575,
+      "rating_avg": 4.823918342590332,
+      "rating_count": 17100,
+      "revenue": 28336278380,
+      "platform_created_at": "2[REDACTED_PHONE]:31:22",
+      "price_updated_at": "2[REDACTED_PHONE]:46:16",
+      "order_custom": 58360,
+      "order_growth": null,
+      "previous_order_custom": 50175,
+      "revenue_custom": 11555280000,
+      "revenue_growth": null,
+      "previous_revenue_custom": 9645078380,
+      "bee_brand": "",
+      "final_brand": "",
+      "price_min": 168300,
+      "price_max": 198000,
+      "shop_name": "SHOP PHỤ KIỆN SKY",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shopee.vn/qua-tang-giay-lau-khan-lau-1-va-2-meng-lau-ve-sinh-man-hinh-dien-thoai-vip5-i.449168894.54915229694",
+      "shop_url": "https://shopee.vn/shop/449168894"
+     },
+     {
+      "product_base_id": "1__42618391133__88201679",
+      "platform_id": null,
+      "product_name": " Điện thoại Apple iPhone 17 Pro 256GB ",
+      "url_thumbnail": "https://cf.shopee.vn/file/vn-11134207-820l4-mei4dliqvojlcc",
+      "official_type": 1,
+      "categories": [
+       {
+        "id": "1__100013",
+        "level": 0,
+        "name": "Điện Thoại & Phụ Kiện",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100073",
+        "level": 1,
+        "name": "Điện thoại",
+        "parent_id": "1__100013"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c1704246187",
+        "level": 0,
+        "name": "Điện Thoại & Máy Tính Bảng",
+        "parent_id": ""
+       },
+       {
+        "id": "c2079129999",
+        "level": 1,
+        "name": "Điện Thoại - Máy Tính Bảng",
+        "parent_id": "c1704246187"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100013",
+        "level": 0,
+        "name": "Điện Thoại & Phụ Kiện",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100073",
+        "level": 1,
+        "name": "Điện thoại",
+        "parent_id": "1__100013"
+       }
+      ],
+      "shop_base_id": "1__88201679",
+      "shop_username": null,
+      "price": 32990000,
+      "order_count": 8702,
+      "rating_avg": 4.952464580535889,
+      "rating_count": 1704,
+      "revenue": 302938583200,
+      "platform_created_at": "2[REDACTED_PHONE]:12:57",
+      "price_updated_at": "2[REDACTED_PHONE]:41:58",
+      "order_custom": 345,
+      "order_growth": null,
+      "previous_order_custom": 814,
+      "revenue_custom": 11381550000,
+      "revenue_growth": null,
+      "previous_revenue_custom": 26940660000,
+      "bee_brand": "Apple",
+      "final_brand": "Apple",
+      "price_min": 32990000,
+      "price_max": 36999000,
+      "shop_name": "Apple Flagship Store",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shopee.vn/dien-thoai-apple-iphone-17-pro-256gb-i.882[REDACTED_PHONE]",
+      "shop_url": "https://shopee.vn/shop/88201679"
+     },
+     {
+      "product_base_id": "1__43018019667__1032969483",
+      "platform_id": null,
+      "product_name": " Tineco Floor One S7 STRETCH STEAM Máy hút bụi lau sàn hơi nước nóng HyperSteam 160°C - Lực hút 22000Pa - Giặt sấy 85°C ",
+      "url_thumbnail": "https://cf.shopee.vn/file/vn-11134207-81ztc-muei7kogc0zn70",
+      "official_type": 1,
+      "categories": [
+       {
+        "id": "1__100010",
+        "level": 0,
+        "name": "Thiết Bị Điện Gia Dụng",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100038",
+        "level": 1,
+        "name": "Thiết bị điện gia dụng nhỏ",
+        "parent_id": "1__100010"
+       },
+       {
+        "id": "1__100177",
+        "level": 2,
+        "name": "Máy hút bụi & Thiết bị làm sạch sàn",
+        "parent_id": "1__100038"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c945324293",
+        "level": 0,
+        "name": "Điện Gia Dụng",
+        "parent_id": ""
+       },
+       {
+        "id": "c437653355",
+        "level": 1,
+        "name": "Thiết bị điện gia dụng nhỏ",
+        "parent_id": "c945324293"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100010",
+        "level": 0,
+        "name": "Thiết Bị Điện Gia Dụng",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100038",
+        "level": 1,
+        "name": "Thiết bị điện gia dụng nhỏ",
+        "parent_id": "1__100010"
+       },
+       {
+        "id": "1__100177",
+        "level": 2,
+        "name": "Máy hút bụi & Thiết bị làm sạch sàn",
+        "parent_id": "1__100038"
+       }
+      ],
+      "shop_base_id": "1__1032969483",
+      "shop_username": null,
+      "price": 9990000,
+      "order_count": 2842,
+      "rating_avg": 4.867276668548584,
+      "rating_count": 437,
+      "revenue": 33021648820,
+      "platform_created_at": "2[REDACTED_PHONE]:03:24",
+      "price_updated_at": "2[REDACTED_PHONE]:46:19",
+      "order_custom": 1048,
+      "order_growth": null,
+      "previous_order_custom": 148,
+      "revenue_custom": 10235586000,
+      "revenue_growth": null,
+      "previous_revenue_custom": 1656568120,
+      "bee_brand": "Tineco",
+      "final_brand": "Tineco",
+      "price_min": 9300000,
+      "price_max": 13090000,
+      "shop_name": "TINECO Flagship Store",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shopee.vn/[REDACTED_TOKEN]",
+      "shop_url": "https://shopee.vn/shop/1032969483"
+     },
+     {
+      "product_base_id": "1__29620523788__975865932",
+      "platform_id": null,
+      "product_name": " Thùng 12 hộp Sữa tươi Vinamilk Green Farm cao đạm không lactose - hộp 250ml ",
+      "url_thumbnail": "https://cf.shopee.vn/file/vn-11134207-81ztc-mr8pl5ef2ux11b",
+      "official_type": 1,
+      "categories": [
+       {
+        "id": "1__100629",
+        "level": 0,
+        "name": "Thực phẩm và đồ uống",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100652",
+        "level": 1,
+        "name": "Sữa - trứng",
+        "parent_id": "1__100629"
+       },
+       {
+        "id": "1__100838",
+        "level": 2,
+        "name": "Sữa",
+        "parent_id": "1__100652"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c1144728673",
+        "level": 0,
+        "name": "Bách Hoá - Thực Phẩm",
+        "parent_id": ""
+       },
+       {
+        "id": "c1325589749",
+        "level": 1,
+        "name": "Sữa - trứng",
+        "parent_id": "c1144728673"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100629",
+        "level": 0,
+        "name": "Thực phẩm và đồ uống",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100652",
+        "level": 1,
+        "name": "Sữa - trứng",
+        "parent_id": "1__100629"
+       },
+       {
+        "id": "1__100838",
+        "level": 2,
+        "name": "Sữa",
+        "parent_id": "1__100652"
+       }
+      ],
+      "shop_base_id": "1__975865932",
+      "shop_username": null,
+      "price": 313632,
+      "order_count": 380515,
+      "rating_avg": 4.955819129943848,
+      "rating_count": 46402,
+      "revenue": 117488706032,
+      "platform_created_at": "2[REDACTED_PHONE]:21:48",
+      "price_updated_at": "2[REDACTED_PHONE]:46:16",
+      "order_custom": 32274,
+      "order_growth": null,
+      "previous_order_custom": 47634,
+      "revenue_custom": 10122159168,
+      "revenue_growth": null,
+      "previous_revenue_custom": 15080742914,
+      "bee_brand": "Vinamilk",
+      "final_brand": "Vinamilk",
+      "price_min": 231020,
+      "price_max": 376358,
+      "shop_name": "vinamilk_official",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shopee.vn/thung-12-hop-sua-tuoi-vinamilk-green-farm-cao-dam-khong-lactose-hop-250ml-i.975865932.29620523788",
+      "shop_url": "https://shopee.vn/shop/975865932"
+     },
+     {
+      "product_base_id": "1__26617618076__1362679168",
+      "platform_id": null,
+      "product_name": " Son Kem Lì 3CE Blur Water Tint Mịn Môi Mờ Ảo Không Lem Lâu Trôi Che Phủ Rãnh Môi Bền Màu Nhẹ Môi ",
+      "url_thumbnail": "https://cf.shopee.vn/file/sg-11134201-825a8-mui1su8vvlzb17",
+      "official_type": 1,
+      "categories": [
+       {
+        "id": "1__100630",
+        "level": 0,
+        "name": "Sắc Đẹp",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100662",
+        "level": 1,
+        "name": "Trang điểm",
+        "parent_id": "1__100630"
+       },
+       {
+        "id": "1__100883",
+        "level": 2,
+        "name": "Trang điểm môi",
+        "parent_id": "1__100662"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c950887968",
+        "level": 0,
+        "name": "Làm Đẹp",
+        "parent_id": ""
+       },
+       {
+        "id": "c1926323782",
+        "level": 1,
+        "name": "Trang điểm",
+        "parent_id": "c950887968"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100630",
+        "level": 0,
+        "name": "Sắc Đẹp",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100662",
+        "level": 1,
+        "name": "Trang điểm",
+        "parent_id": "1__100630"
+       },
+       {
+        "id": "1__100883",
+        "level": 2,
+        "name": "Trang điểm môi",
+        "parent_id": "1__100662"
+       }
+      ],
+      "shop_base_id": "1__1362679168",
+      "shop_username": null,
+      "price": 355000,
+      "order_count": 615052,
+      "rating_avg": 4.895717144012451,
+      "rating_count": 106877,
+      "revenue": 195162235100,
+      "platform_created_at": "2[REDACTED_PHONE]:34:59",
+      "price_updated_at": "2[REDACTED_PHONE]:46:16",
+      "order_custom": 25493,
+      "order_growth": null,
+      "previous_order_custom": 19157,
+      "revenue_custom": 8997422400,
+      "revenue_growth": null,
+      "previous_revenue_custom": 5738276300,
+      "bee_brand": "3Ce",
+      "final_brand": "3Ce",
+      "price_min": 235600,
+      "price_max": 398000,
+      "shop_name": "3CE Official Store",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shopee.vn/[REDACTED_TOKEN]",
+      "shop_url": "https://shopee.vn/shop/1362679168"
+     },
+     {
+      "product_base_id": "1__1[REDACTED_PHONE]__421677475",
+      "platform_id": null,
+      "product_name": "  CÓ SIZE MỚI  Nước Tẩy Trang làm sạch sâu dịu nhẹ cho mọi loại da - Garnier Micellar Cleansing Water 400ml & 700ml ",
+      "url_thumbnail": "https://cf.shopee.vn/file/sg-11134201-8257v-muhg98gzfh8o04",
+      "official_type": 1,
+      "categories": [
+       {
+        "id": "1__100630",
+        "level": 0,
+        "name": "Sắc Đẹp",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100662",
+        "level": 1,
+        "name": "Trang điểm",
+        "parent_id": "1__100630"
+       },
+       {
+        "id": "1__100884",
+        "level": 2,
+        "name": "Tẩy trang",
+        "parent_id": "1__100662"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c950887968",
+        "level": 0,
+        "name": "Làm Đẹp",
+        "parent_id": ""
+       },
+       {
+        "id": "c1926323782",
+        "level": 1,
+        "name": "Trang điểm",
+        "parent_id": "c950887968"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100630",
+        "level": 0,
+        "name": "Sắc Đẹp",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100662",
+        "level": 1,
+        "name": "Trang điểm",
+        "parent_id": "1__100630"
+       },
+       {
+        "id": "1__100884",
+        "level": 2,
+        "name": "Tẩy trang",
+        "parent_id": "1__100662"
+       }
+      ],
+      "shop_base_id": "1__421677475",
+      "shop_username": null,
+      "price": 169000,
+      "order_count": 1923418,
+      "rating_avg": 4.922320365905762,
+      "rating_count": 440073,
+      "revenue": 302347501119,
+      "platform_created_at": "2[REDACTED_PHONE]:48:43",
+      "price_updated_at": "2[REDACTED_PHONE]:54:00",
+      "order_custom": 55944,
+      "order_growth": null,
+      "previous_order_custom": 52754,
+      "revenue_custom": 8979641546,
+      "revenue_growth": null,
+      "previous_revenue_custom": 7682053273,
+      "bee_brand": "Garnier",
+      "final_brand": "Garnier",
+      "price_min": 10000,
+      "price_max": 175000,
+      "shop_name": "Garnier Official Store",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shopee.vn/co-size-moi-nuoc-tay-trang-lam-sach-sau-diu-nhe-cho-moi-loai-da-garnier-micellar-cleansing-water-400-i.421677475.1[REDACTED_PHONE]",
+      "shop_url": "https://shopee.vn/shop/421677475"
+     },
+     {
+      "product_base_id": "1__591989399__37251933",
+      "platform_id": null,
+      "product_name": "  AMINO MICELLAR MỚI  Nước tẩy trang làm sạch sâu loại bỏ bụi bẩn & trang điểm 3-in-1 L'Oreal Paris Micellar Water 400ml ",
+      "url_thumbnail": "https://cf.shopee.vn/file/sg-11134201-825at-muhz5urropvs10",
+      "official_type": 1,
+      "categories": [
+       {
+        "id": "1__100630",
+        "level": 0,
+        "name": "Sắc Đẹp",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100662",
+        "level": 1,
+        "name": "Trang điểm",
+        "parent_id": "1__100630"
+       },
+       {
+        "id": "1__100884",
+        "level": 2,
+        "name": "Tẩy trang",
+        "parent_id": "1__100662"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c950887968",
+        "level": 0,
+        "name": "Làm Đẹp",
+        "parent_id": ""
+       },
+       {
+        "id": "c1926323782",
+        "level": 1,
+        "name": "Trang điểm",
+        "parent_id": "c950887968"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100630",
+        "level": 0,
+        "name": "Sắc Đẹp",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100662",
+        "level": 1,
+        "name": "Trang điểm",
+        "parent_id": "1__100630"
+       },
+       {
+        "id": "1__100884",
+        "level": 2,
+        "name": "Tẩy trang",
+        "parent_id": "1__100662"
+       }
+      ],
+      "shop_base_id": "1__37251933",
+      "shop_username": null,
+      "price": 185000,
+      "order_count": 3366833,
+      "rating_avg": 4.934350490570068,
+      "rating_count": 860974,
+      "revenue": 560682811388,
+      "platform_created_at": "2[REDACTED_PHONE]:45:04",
+      "price_updated_at": "2[REDACTED_PHONE]:35:08",
+      "order_custom": 50508,
+      "order_growth": null,
+      "previous_order_custom": 48512,
+      "revenue_custom": 8959455424,
+      "revenue_growth": null,
+      "previous_revenue_custom": 7526122552,
+      "bee_brand": "L'Oreal Paris",
+      "final_brand": "L'Oréal Paris",
+      "price_min": 99000,
+      "price_max": 219000,
+      "shop_name": "L'Oreal Paris Official Store",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shopee.vn/amino-micellar-moi-nuoc-tay-trang-lam-sach-sau-loai-bo-bui-ban-trang-diem-3-in-1-loreal-paris-micell-i.37251933.591989399",
+      "shop_url": "https://shopee.vn/shop/37251933"
+     },
+     {
+      "product_base_id": "1__48107221543__645499489",
+      "platform_id": null,
+      "product_name": " Samsung Galaxy A17 LTE 8GB 128GB Chính Hãng ",
+      "url_thumbnail": "https://cf.shopee.vn/file/vn-11134207-81ztc-mlt4m4l8qej343",
+      "official_type": 1,
+      "categories": [
+       {
+        "id": "1__100013",
+        "level": 0,
+        "name": "Điện Thoại & Phụ Kiện",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100073",
+        "level": 1,
+        "name": "Điện thoại",
+        "parent_id": "1__100013"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c1704246187",
+        "level": 0,
+        "name": "Điện Thoại & Máy Tính Bảng",
+        "parent_id": ""
+       },
+       {
+        "id": "c2079129999",
+        "level": 1,
+        "name": "Điện Thoại - Máy Tính Bảng",
+        "parent_id": "c1704246187"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100013",
+        "level": 0,
+        "name": "Điện Thoại & Phụ Kiện",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100073",
+        "level": 1,
+        "name": "Điện thoại",
+        "parent_id": "1__100013"
+       }
+      ],
+      "shop_base_id": "1__645499489",
+      "shop_username": null,
+      "price": 5599000,
+      "order_count": 4409,
+      "rating_avg": 4.93295431137085,
+      "rating_count": 880,
+      "revenue": 23684303000,
+      "platform_created_at": "2[REDACTED_PHONE]:57:59",
+      "price_updated_at": "2[REDACTED_PHONE]:46:16",
+      "order_custom": 1557,
+      "order_growth": null,
+      "previous_order_custom": 1333,
+      "revenue_custom": 8842094000,
+      "revenue_growth": null,
+      "previous_revenue_custom": 7090755000,
+      "bee_brand": "Samsung",
+      "final_brand": "Samsung",
+      "price_min": 4279000,
+      "price_max": 5990000,
+      "shop_name": "SamCenter Official Store",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shopee.vn/samsung-galaxy-a17-lte-8gb-128gb-chinh-hang-i.645499489.48107221543",
+      "shop_url": "https://shopee.vn/shop/645499489"
+     },
+     {
+      "product_base_id": "1__24922427465__175753395",
+      "platform_id": null,
+      "product_name": "  MUA 2 GIẢM 42%  Combo 2 Nước tẩy trang bí đao Cocoon tẩy sạch makeup & giảm dầu 500ml ",
+      "url_thumbnail": "https://cf.shopee.vn/file/vn-11134207-81ztc-mtqh3z2jgnwg1e",
+      "official_type": 1,
+      "categories": [
+       {
+        "id": "1__100630",
+        "level": 0,
+        "name": "Sắc Đẹp",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100662",
+        "level": 1,
+        "name": "Trang điểm",
+        "parent_id": "1__100630"
+       },
+       {
+        "id": "1__100884",
+        "level": 2,
+        "name": "Tẩy trang",
+        "parent_id": "1__100662"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c950887968",
+        "level": 0,
+        "name": "Làm Đẹp",
+        "parent_id": ""
+       },
+       {
+        "id": "c1926323782",
+        "level": 1,
+        "name": "Trang điểm",
+        "parent_id": "c950887968"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100630",
+        "level": 0,
+        "name": "Sắc Đẹp",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100662",
+        "level": 1,
+        "name": "Trang điểm",
+        "parent_id": "1__100630"
+       },
+       {
+        "id": "1__100884",
+        "level": 2,
+        "name": "Tẩy trang",
+        "parent_id": "1__100662"
+       }
+      ],
+      "shop_base_id": "1__175753395",
+      "shop_username": null,
+      "price": 349000,
+      "order_count": 310666,
+      "rating_avg": 4.9486823081970215,
+      "rating_count": 55367,
+      "revenue": 161523180240,
+      "platform_created_at": "2[REDACTED_PHONE]:31:08",
+      "price_updated_at": "2[REDACTED_PHONE]:32:09",
+      "order_custom": 17557,
+      "order_growth": null,
+      "previous_order_custom": 38523,
+      "revenue_custom": 8732741000,
+      "revenue_growth": null,
+      "previous_revenue_custom": 15590217240,
+      "bee_brand": "Cocoon",
+      "final_brand": "Cocoon",
+      "price_min": 275520,
+      "price_max": 598000,
+      "shop_name": "Cocoon Vietnam Chính Hãng",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shopee.vn/mua-2-giam-42-combo-2-nuoc-tay-trang-bi-dao-cocoon-tay-sach-makeup-giam-dau-500ml-i.175753395.24922427465",
+      "shop_url": "https://shopee.vn/shop/175753395"
+     },
+     {
+      "product_base_id": "1__26093752406__175753395",
+      "platform_id": null,
+      "product_name": "  VHL x Cocoon  COMBO 02 Nước Tẩy Trang Sen Hậu Giang Cocoon 500ml ",
+      "url_thumbnail": "https://cf.shopee.vn/file/vn-11134207-820l4-mhpwa6qto7b489",
+      "official_type": 1,
+      "categories": [
+       {
+        "id": "1__100630",
+        "level": 0,
+        "name": "Sắc Đẹp",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100662",
+        "level": 1,
+        "name": "Trang điểm",
+        "parent_id": "1__100630"
+       },
+       {
+        "id": "1__100884",
+        "level": 2,
+        "name": "Tẩy trang",
+        "parent_id": "1__100662"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c950887968",
+        "level": 0,
+        "name": "Làm Đẹp",
+        "parent_id": ""
+       },
+       {
+        "id": "c1926323782",
+        "level": 1,
+        "name": "Trang điểm",
+        "parent_id": "c950887968"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100630",
+        "level": 0,
+        "name": "Sắc Đẹp",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100662",
+        "level": 1,
+        "name": "Trang điểm",
+        "parent_id": "1__100630"
+       },
+       {
+        "id": "1__100884",
+        "level": 2,
+        "name": "Tẩy trang",
+        "parent_id": "1__100662"
+       }
+      ],
+      "shop_base_id": "1__175753395",
+      "shop_username": null,
+      "price": 618000,
+      "order_count": 96112,
+      "rating_avg": 4.95367956161499,
+      "rating_count": 12651,
+      "revenue": 59397216000,
+      "platform_created_at": "2[REDACTED_PHONE]:14:18",
+      "price_updated_at": "2[REDACTED_PHONE]:22:52",
+      "order_custom": 13819,
+      "order_growth": null,
+      "previous_order_custom": 4182,
+      "revenue_custom": 8540142000,
+      "revenue_growth": null,
+      "previous_revenue_custom": 2584476000,
+      "bee_brand": "Cocoon",
+      "final_brand": "Cocoon",
+      "price_min": 618000,
+      "price_max": 618000,
+      "shop_name": "Cocoon Vietnam Chính Hãng",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shopee.vn/vhl-x-cocoon-combo-02-nuoc-tay-trang-sen-hau-giang-cocoon-500ml-i.175753395.26093752406",
+      "shop_url": "https://shopee.vn/shop/175753395"
+     },
+     {
+      "product_base_id": "1__43721837523__1524779718",
+      "platform_id": null,
+      "product_name": "  NHẬN HCM  Xe Máy Điện VinFast Feliz 2025 - Góp 0% ",
+      "url_thumbnail": "https://cf.shopee.vn/file/vn-11134207-81ztc-mtqjtsn694aq87",
+      "official_type": 1,
+      "categories": [
+       {
+        "id": "1__102187",
+        "level": 0,
+        "name": "Phụ tùng & Phụ kiện xe cơ giới",
+        "parent_id": ""
+       },
+       {
+        "id": "1__102607",
+        "level": 1,
+        "name": "Xe máy",
+        "parent_id": "1__102187"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c1000000000",
+        "level": 0,
+        "name": "Chưa phân loại",
+        "parent_id": null
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100632",
+        "level": 0,
+        "name": "Mẹ & Bé",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100684",
+        "level": 1,
+        "name": "Đồ chơi",
+        "parent_id": "1__100632"
+       },
+       {
+        "id": "1__101011",
+        "level": 2,
+        "name": "Đồ chơi vận động & Ngoài trời",
+        "parent_id": "1__100684"
+       }
+      ],
+      "shop_base_id": "1__1524779718",
+      "shop_username": null,
+      "price": 23000000,
+      "order_count": 1236,
+      "rating_avg": 4.8430495262146,
+      "rating_count": 446,
+      "revenue": 32175236400,
+      "platform_created_at": "2[REDACTED_PHONE]:52:02",
+      "price_updated_at": "2[REDACTED_PHONE]:46:16",
+      "order_custom": 368,
+      "order_growth": null,
+      "previous_order_custom": 205,
+      "revenue_custom": 8444680000,
+      "revenue_growth": null,
+      "previous_revenue_custom": 5001726000,
+      "bee_brand": "Vinfast",
+      "final_brand": "Vinfast",
+      "price_min": 22540000,
+      "price_max": 30756000,
+      "shop_name": "VinFast SaiGon South",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shopee.vn/[REDACTED_TOKEN]",
+      "shop_url": "https://shopee.vn/shop/1524779718"
+     },
+     {
+      "product_base_id": "1__45958795896__147275917",
+      "platform_id": null,
+      "product_name": "  QUÀ TẶNG - COMBO 3 GÓI SAMPLE DÙNG THỬ  Make P:rem Skin Guardians Trio Kit_Oil 2ml + Foam 2ml + No Sebum Suncream 1ml ",
+      "url_thumbnail": "https://cf.shopee.vn/file/vn-11134207-81ztc-mo984mxgvhts38",
+      "official_type": 1,
+      "categories": [
+       {
+        "id": "1__100630",
+        "level": 0,
+        "name": "Sắc Đẹp",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100665",
+        "level": 1,
+        "name": "Bộ sản phẩm làm đẹp",
+        "parent_id": "1__100630"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c950887968",
+        "level": 0,
+        "name": "Làm Đẹp",
+        "parent_id": ""
+       },
+       {
+        "id": "c355857336",
+        "level": 1,
+        "name": "Bộ sản phẩm làm đẹp",
+        "parent_id": "c950887968"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100630",
+        "level": 0,
+        "name": "Sắc Đẹp",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100664",
+        "level": 1,
+        "name": "Chăm sóc da mặt",
+        "parent_id": "1__100630"
+       },
+       {
+        "id": "1__100901",
+        "level": 2,
+        "name": "Kem chống nắng cho mặt",
+        "parent_id": "1__100664"
+       }
+      ],
+      "shop_base_id": "1__147275917",
+      "shop_username": null,
+      "price": 1000000,
+      "order_count": 23632,
+      "rating_avg": 4.935880661010742,
+      "rating_count": 2277,
+      "revenue": 22891034500,
+      "platform_created_at": "2[REDACTED_PHONE]:58:20",
+      "price_updated_at": "2[REDACTED_PHONE]:35:02",
+      "order_custom": 8476,
+      "order_growth": null,
+      "previous_order_custom": 5425,
+      "revenue_custom": 8314145000,
+      "revenue_growth": null,
+      "previous_revenue_custom": 4951338000,
+      "bee_brand": "Make P:Rem",
+      "final_brand": "Make P:Rem",
+      "price_min": 817000,
+      "price_max": 1000000,
+      "shop_name": "Make P:rem Vietnam",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shopee.vn/qua-tang-combo-3-goi-sample-dung-thu-make-prem-skin-guardians-trio-kitoil-2ml-foam-2ml-no-sebum-sunc-i.147275917.45958795896",
+      "shop_url": "https://shopee.vn/shop/147275917"
+     },
+     {
+      "product_base_id": "1__28032850215__88201679",
+      "platform_id": null,
+      "product_name": " Apple iPad A16 11 inch 2025 Wifi 128GB ",
+      "url_thumbnail": "https://cf.shopee.vn/file/sg-11134301-7renh-m8e9wy9li62ecb",
+      "official_type": 1,
+      "categories": [
+       {
+        "id": "1__100013",
+        "level": 0,
+        "name": "Điện Thoại & Phụ Kiện",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100072",
+        "level": 1,
+        "name": "Máy tính bảng",
+        "parent_id": "1__100013"
+       }
+      ],
+      "bee_categories": [
+       {
+        "id": "c1704246187",
+        "level": 0,
+        "name": "Điện Thoại & Máy Tính Bảng",
+        "parent_id": ""
+       },
+       {
+        "id": "c2079129999",
+        "level": 1,
+        "name": "Điện Thoại - Máy Tính Bảng",
+        "parent_id": "c1704246187"
+       }
+      ],
+      "final_categories": [
+       {
+        "id": "1__100013",
+        "level": 0,
+        "name": "Điện Thoại & Phụ Kiện",
+        "parent_id": ""
+       },
+       {
+        "id": "1__100075",
+        "level": 1,
+        "name": "Phụ kiện",
+        "parent_id": "1__100013"
+       },
+       {
+        "id": "1__100290",
+        "level": 2,
+        "name": "Vỏ bao, Ốp lưng & Miếng dán",
+        "parent_id": "1__100075"
+       }
+      ],
+      "shop_base_id": "1__88201679",
+      "shop_username": null,
+      "price": 12690000,
+      "order_count": 22566,
+      "rating_avg": 4.942745685577393,
+      "rating_count": 4873,
+      "revenue": 233075960000,
+      "platform_created_at": "2[REDACTED_PHONE]:54:21",
+      "price_updated_at": "2[REDACTED_PHONE]:41:58",
+      "order_custom": 627,
+      "order_growth": null,
+      "previous_order_custom": 1677,
+      "revenue_custom": 7956630000,
+      "revenue_growth": null,
+      "previous_revenue_custom": 21281130000,
+      "bee_brand": "Apple",
+      "final_brand": "Apple",
+      "price_min": 9090000,
+      "price_max": 12790000,
+      "shop_name": "Apple Flagship Store",
+      "is_deleted": false,
+      "bee_location": null,
+      "url_product": "https://shopee.vn/apple-ipad-a16-11-inch-2025-wifi-128gb-i.882[REDACTED_PHONE]",
+      "shop_url": "https://shopee.vn/shop/88201679"
+     }
+    ]
+   },
+   "code": "SUCCESS"
+  },
+  "method": "POST",
+  "timestamp": 1792979723106,
+  "requestBody": "{\"include_query\":{\"platforms\":[1],\"queries\":[],\"categories\":[\"1__100635\",\"1__100631\",\"1__100015\",\"1__100634\",\"1__100012\",\"1__100532\",\"1__100644\",\"1__100641\",\"1__100632\",\"1__100636\",\"1__100009\",\"1__100643\",\"1__100630\",\"1__100639\",\"1__100001\",\"1__100535\",\"1__100010\",\"1__100637\",\"1__100011\",\"1__100017\",\"1__100633\",\"1__100629\",\"1__100533\",\"1__100016\",\"1__100642\",\"1__100638\",\"1__100640\",\"1__100013\",\"1__100534\",\"1__102053\",\"1__102187\",\"1__1999888999\"],\"is_remove_bad_product\":true,\"official_types\":[1,0],\"is_smart_queries\":false,\"brands\":[],\"composite_compare_lst\":[[{\"first_field\":\"rating_count\",\"second_field\":\"order_count\",\"first_rate\":1,\"second_rate\":0.03,\"compare_condition\":\">\"}]]},\"exclude_query\":{\"is_smart_queries\":false,\"queries\":[]},\"use_ai_normalized\":false,\"notIncludeDeletedProduct\":true,\"limit\":20,\"page\":0,\"is_filter_gift\":true,\"sort_by\":\"revenue_custom__desc\",\"start_date\":\"20260921\",\"end_date\":\"20261020\",\"fields\":null}"
+ }
+}

@@ -1,0 +1,99 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «viên uống kẽm g» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[9]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "91eaebfe085a0c46493c666f2b2915ef310f6780e14281ea7ec2ea1b6e799fe0"
+ },
+ "result": {
+  "prefix": "viên uống kẽm g",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:57:48Z",
+  "suggestions": [
+   "viên uống kẽm gluconat",
+   "viên uống kẽm giá bao nhiêu",
+   "viên uống kẽm giảm mụn",
+   "viên uống kẽm gsv",
+   "viên uống kẽm giá rẻ",
+   "viên uống kẽm zinc gluconate",
+   "viên uống kẽm là gì",
+   "viên uống kẽm cho nam giới",
+   "uống viên kẽm có gây suy thận không",
+   "uống viên kẽm có giảm mụn không"
+  ],
+  "raw": [
+   "viên uống kẽm g",
+   [
+    "viên uống kẽm gluconat",
+    "viên uống kẽm giá bao nhiêu",
+    "viên uống kẽm giảm mụn",
+    "viên uống kẽm gsv",
+    "viên uống kẽm giá rẻ",
+    "viên uống kẽm zinc gluconate",
+    "viên uống kẽm là gì",
+    "viên uống kẽm cho nam giới",
+    "uống viên kẽm có gây suy thận không",
+    "uống viên kẽm có giảm mụn không"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ]
+    ]
+   }
+  ]
+ }
+}

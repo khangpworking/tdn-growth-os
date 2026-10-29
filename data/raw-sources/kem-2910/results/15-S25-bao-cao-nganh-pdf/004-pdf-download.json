@@ -1,0 +1,36 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "15 · S25 · Báo cáo ngành, tài liệu PDF",
+  "describe": "pdf.download pdf.download",
+  "parentFile": "15-S25-bao-cao-nganh-pdf.json",
+  "parentLocation": "records[3]",
+  "sourceCode": "S25",
+  "sourceName": "Báo cáo ngành, tài liệu PDF",
+  "provider": "Tìm bằng SerpApi (lượt 26/10) + tải trực tiếp",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Tài liệu có trên mạng lúc thu; năm phát hành ghi trong tài liệu"
+  },
+  "limits": [
+   "Tối đa 2 tệp, mỗi tệp tối đa 60 trang khi đọc",
+   "Tài liệu tìm tự động cho từ khoá bất kỳ thường Yếu hoặc không liên quan; cần lọc",
+   "Tệp PDF không có trong kho; chỉ giữ url + sha256"
+  ],
+  "resultSha256": "8345a3273fea3961b26eb0bcd557701db8b91c7e41f615adba068d78333d788d"
+ },
+ "result": {
+  "operation": "pdf.download",
+  "url": "https://trungtamwto.vn/file/23903/bao-cao-xnk-vn-2024-1534_compressed.pdf",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:59:22Z",
+  "isPdf": true,
+  "byteSize": 12996335,
+  "sha256": "b1855c94e6effb9d1e9278c1a73392ef09433cc3c1073e3224db4d260ade1d4f",
+  "excludedFile": "files/pdf-2-bao-cao-xnk-vn-2024-1534_compressed.pdf",
+  "excludedReason": "Tài liệu của bên thứ ba: không đưa vào kho công khai; tải lại theo url và kiểm sha256"
+ }
+}

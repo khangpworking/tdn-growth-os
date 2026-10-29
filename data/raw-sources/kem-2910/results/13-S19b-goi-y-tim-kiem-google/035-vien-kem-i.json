@@ -1,0 +1,60 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «viên kẽm i» (3 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[34]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "c1406e2268c2afd25506b4ffc2f28c63398cb6bab7a98e5eb324a7cd781f70bb"
+ },
+ "result": {
+  "prefix": "viên kẽm i",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:07Z",
+  "suggestions": [
+   "viên kẽm bio island zinc",
+   "viên kẽm bio island",
+   "viên nhai kẽm bio island"
+  ],
+  "raw": [
+   "viên kẽm i",
+   [
+    "viên kẽm bio island zinc",
+    "viên kẽm bio island",
+    "viên nhai kẽm bio island"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ]
+    ]
+   }
+  ]
+ }
+}

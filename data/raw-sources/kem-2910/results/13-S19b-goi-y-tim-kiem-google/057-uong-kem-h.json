@@ -1,0 +1,96 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «uống kẽm h» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[56]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "155b7dcd90b1c189103d15db4c9968000a7b5a064d75f852d0f189b9f48d6429"
+ },
+ "result": {
+  "prefix": "uống kẽm h",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:23Z",
+  "suggestions": [
+   "uống kẽm hàng ngày được không",
+   "uống kẽm hay sắt trước",
+   "uống kẽm hàng ngày có tác dụng gì",
+   "uống kẽm hàng ngày có tốt không",
+   "uống kẽm hỗ trợ gì",
+   "uống kẽm hàm lượng bao nhiêu",
+   "uống kẽm hết hạn có sao không",
+   "uống kẽm hay canxi trước",
+   "uống kẽm hàng ngày",
+   "uống kẽm hết mụn"
+  ],
+  "raw": [
+   "uống kẽm h",
+   [
+    "uống kẽm hàng ngày được không",
+    "uống kẽm hay sắt trước",
+    "uống kẽm hàng ngày có tác dụng gì",
+    "uống kẽm hàng ngày có tốt không",
+    "uống kẽm hỗ trợ gì",
+    "uống kẽm hàm lượng bao nhiêu",
+    "uống kẽm hết hạn có sao không",
+    "uống kẽm hay canxi trước",
+    "uống kẽm hàng ngày",
+    "uống kẽm hết mụn"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ]
+    ]
+   }
+  ]
+ }
+}

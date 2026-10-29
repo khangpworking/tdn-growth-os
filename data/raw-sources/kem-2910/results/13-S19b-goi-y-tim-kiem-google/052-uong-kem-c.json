@@ -1,0 +1,92 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «uống kẽm c» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[51]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "8729a0d284c1b5fa40166f49c5bd8a7a70f94fce22ec19caf2d58b8f1464c6e3"
+ },
+ "result": {
+  "prefix": "uống kẽm c",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:19Z",
+  "suggestions": [
+   "uống kẽm có tác dụng gì cho nam",
+   "uống kẽm có tác dụng gì cho nữ",
+   "uống kẽm có tốt ko",
+   "uống kẽm có mập không",
+   "uống kẽm có tốt cho thận không",
+   "uống kẽm có tác dụng và tác hại gì",
+   "uống kẽm có hại không",
+   "uống kẽm có tác dụng phụ không",
+   "uống kẽm có mất ngủ không",
+   "uống kẽm có tác dụng gì"
+  ],
+  "raw": [
+   "uống kẽm c",
+   [
+    "uống kẽm có tác dụng gì cho nam",
+    "uống kẽm có tác dụng gì cho nữ",
+    "uống kẽm có tốt ko",
+    "uống kẽm có mập không",
+    "uống kẽm có tốt cho thận không",
+    "uống kẽm có tác dụng và tác hại gì",
+    "uống kẽm có hại không",
+    "uống kẽm có tác dụng phụ không",
+    "uống kẽm có mất ngủ không",
+    "uống kẽm có tác dụng gì"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ]
+    ]
+   }
+  ]
+ }
+}

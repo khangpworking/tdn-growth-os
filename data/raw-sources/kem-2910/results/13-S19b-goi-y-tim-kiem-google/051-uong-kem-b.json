@@ -1,0 +1,92 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «uống kẽm b» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[50]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "50157ec79980b21cd54e5708544034bf257925ca8fd03ced5f43d72b57dae881"
+ },
+ "result": {
+  "prefix": "uống kẽm b",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:19Z",
+  "suggestions": [
+   "uống kẽm buổi tối được ko",
+   "uống kẽm bị buồn nôn",
+   "uống kẽm bao lâu thì nghỉ",
+   "uống kẽm buổi chiều",
+   "uống kẽm bị mắc ói",
+   "uống kẽm buổi tối có sao k",
+   "uống kẽm bị đau lưng",
+   "uống kẽm bao lâu thì uống sữa",
+   "uống kẽm bổ sung gì cho cơ thể",
+   "uống kẽm bị tiêu chảy"
+  ],
+  "raw": [
+   "uống kẽm b",
+   [
+    "uống kẽm buổi tối được ko",
+    "uống kẽm bị buồn nôn",
+    "uống kẽm bao lâu thì nghỉ",
+    "uống kẽm buổi chiều",
+    "uống kẽm bị mắc ói",
+    "uống kẽm buổi tối có sao k",
+    "uống kẽm bị đau lưng",
+    "uống kẽm bao lâu thì uống sữa",
+    "uống kẽm bổ sung gì cho cơ thể",
+    "uống kẽm bị tiêu chảy"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ]
+    ]
+   }
+  ]
+ }
+}

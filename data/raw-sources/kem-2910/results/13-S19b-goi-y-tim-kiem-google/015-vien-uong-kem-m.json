@@ -1,0 +1,100 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «viên uống kẽm m» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[14]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "d5fcb4536fb336c5155a8f59d6821b4eb071b62354ef5d6244be9851f0891896"
+ },
+ "result": {
+  "prefix": "viên uống kẽm m",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:57:52Z",
+  "suggestions": [
+   "viên uống kẽm magie",
+   "viên uống kẽm mỹ",
+   "viên uống kẽm mua ở đâu",
+   "viên uống kẽm mọc tóc",
+   "viên uống kẽm mega",
+   "viên uống kẽm magie canxi",
+   "uống viên kẽm mỗi ngày có tốt không",
+   "uống viên kẽm mỗi ngày có sao không",
+   "uống viên kẽm mỗi ngày có tác dụng gì",
+   "uống viên kẽm mỗi ngày"
+  ],
+  "raw": [
+   "viên uống kẽm m",
+   [
+    "viên uống kẽm magie",
+    "viên uống kẽm mỹ",
+    "viên uống kẽm mua ở đâu",
+    "viên uống kẽm mọc tóc",
+    "viên uống kẽm mega",
+    "viên uống kẽm magie canxi",
+    "uống viên kẽm mỗi ngày có tốt không",
+    "uống viên kẽm mỗi ngày có sao không",
+    "uống viên kẽm mỗi ngày có tác dụng gì",
+    "uống viên kẽm mỗi ngày"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ]
+    ]
+   }
+  ]
+ }
+}

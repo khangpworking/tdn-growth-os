@@ -1,0 +1,114 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "16 · S28 · Hồ sơ người Việt do AI viết (dữ liệu tổng hợp, 1 triệu hồ sơ)",
+  "describe": "schema schema",
+  "parentFile": "16-S28-nemotron-ho-so-nguoi-viet.json",
+  "parentLocation": "records[2]",
+  "sourceCode": "S28",
+  "sourceName": "Hồ sơ người Việt do AI viết (dữ liệu tổng hợp, 1 triệu hồ sơ)",
+  "provider": "NVIDIA Nemotron-Personas-Vietnam (CC BY 4.0), bản tải về máy chủ 17/10",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": null,
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Dữ liệu tổng hợp, không có kỳ"
+  },
+  "limits": [
+   "Dò theo từ khoá sản phẩm không dùng được (canxi 0 người)",
+   "Vùng chia gần đều, không dùng cho tỉnh",
+   "Chỉ dùng nội bộ, không in vào báo cáo"
+  ],
+  "resultSha256": "dc0287ec6306cd5e509c182391d274dd2db46408663405a670a96619d8bb97c0"
+ },
+ "result": {
+  "kind": "schema",
+  "columns": [
+   {
+    "name": "uuid",
+    "type": "VARCHAR"
+   },
+   {
+    "name": "professional_persona",
+    "type": "VARCHAR"
+   },
+   {
+    "name": "sports_persona",
+    "type": "VARCHAR"
+   },
+   {
+    "name": "arts_persona",
+    "type": "VARCHAR"
+   },
+   {
+    "name": "travel_persona",
+    "type": "VARCHAR"
+   },
+   {
+    "name": "culinary_persona",
+    "type": "VARCHAR"
+   },
+   {
+    "name": "persona",
+    "type": "VARCHAR"
+   },
+   {
+    "name": "cultural_background",
+    "type": "VARCHAR"
+   },
+   {
+    "name": "skills_and_expertise",
+    "type": "VARCHAR"
+   },
+   {
+    "name": "skills_and_expertise_list",
+    "type": "VARCHAR"
+   },
+   {
+    "name": "hobbies_and_interests",
+    "type": "VARCHAR"
+   },
+   {
+    "name": "hobbies_and_interests_list",
+    "type": "VARCHAR"
+   },
+   {
+    "name": "career_goals_and_ambitions",
+    "type": "VARCHAR"
+   },
+   {
+    "name": "sex",
+    "type": "VARCHAR"
+   },
+   {
+    "name": "age",
+    "type": "BIGINT"
+   },
+   {
+    "name": "marital_status",
+    "type": "VARCHAR"
+   },
+   {
+    "name": "education_level",
+    "type": "VARCHAR"
+   },
+   {
+    "name": "occupation",
+    "type": "VARCHAR"
+   },
+   {
+    "name": "zone",
+    "type": "VARCHAR"
+   },
+   {
+    "name": "region",
+    "type": "VARCHAR"
+   },
+   {
+    "name": "country",
+    "type": "VARCHAR"
+   }
+  ]
+ }
+}

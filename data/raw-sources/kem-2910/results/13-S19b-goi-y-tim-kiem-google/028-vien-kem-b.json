@@ -1,0 +1,92 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «viên kẽm b» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[27]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "59d554d57c137a8d15e84089c01b69d9e79ad0863b6fbc92168ad0a5848f56db"
+ },
+ "result": {
+  "prefix": "viên kẽm b",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:02Z",
+  "suggestions": [
+   "viên kẽm bổ sung gì",
+   "viên kẽm bao nhiêu tiền",
+   "viên kẽm bisglycinate traphaco",
+   "viên kẽm bổ sung cho nữ",
+   "viên kẽm biotrade",
+   "viên kẽm boss man có tác dụng gì",
+   "viên kẽm blackmores",
+   "viên kẽm boss man có tốt không",
+   "viên kẽm biotin",
+   "viên kẽm b+ có tác dụng gì"
+  ],
+  "raw": [
+   "viên kẽm b",
+   [
+    "viên kẽm bổ sung gì",
+    "viên kẽm bao nhiêu tiền",
+    "viên kẽm bisglycinate traphaco",
+    "viên kẽm bổ sung cho nữ",
+    "viên kẽm biotrade",
+    "viên kẽm boss man có tác dụng gì",
+    "viên kẽm blackmores",
+    "viên kẽm boss man có tốt không",
+    "viên kẽm biotin",
+    "viên kẽm b+ có tác dụng gì"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ]
+    ]
+   }
+  ]
+ }
+}

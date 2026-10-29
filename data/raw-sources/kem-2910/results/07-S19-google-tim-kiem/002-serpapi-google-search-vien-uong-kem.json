@@ -1,0 +1,533 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "07 · S19 (gồm S13, S26) · Tìm kiếm Google thường + mở rộng (site:shopee.vn, site:tiktok.com)",
+  "describe": "Kết quả Google cho câu «viên uống kẽm»",
+  "parentFile": "07-S19-google-tim-kiem.json",
+  "parentLocation": "records[1]",
+  "sourceCode": "S19 (gồm S13, S26)",
+  "sourceName": "Tìm kiếm Google thường + mở rộng (site:shopee.vn, site:tiktok.com)",
+  "provider": "SerpApi engine=google",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-26",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Kết quả Google lúc thu"
+  },
+  "limits": [
+   "App chỉ đọc organic_results; các khối khác giữ trong bản gốc",
+   "ai_overview có thể chỉ là page_token (xem file 14)"
+  ],
+  "resultSha256": "092161ba2122e6c89d1d7b2d3a86760cc6f72bb8b455fa8802f8fd40ffe0497a"
+ },
+ "result": {
+  "captureId": "serpapi-expanded-1-serpapi-0001",
+  "operation": "serpapi.google.search",
+  "endpoint": "https://serpapi.com/search.json",
+  "method": "GET",
+  "requestParameters": {
+   "engine": "google",
+   "gl": "vn",
+   "hl": "vi",
+   "num": 10,
+   "q": "viên uống kẽm",
+   "tbs": "cdr:1,cd_min:10/26/2025,cd_max:10/25/2026"
+  },
+  "queryWindow": {
+   "endDate": "2026-10-25",
+   "startDate": "2025-10-26"
+  },
+  "productRef": null,
+  "requestedAt": "2026-10-26T02:02:22.069Z",
+  "completedAt": "2026-10-26T02:02:22.991Z",
+  "httpStatus": 200,
+  "outcome": "OK",
+  "providerCode": "6adeb4ae412f4322f417583e",
+  "billing": "PAID_SEARCH_UNLESS_CACHED",
+  "responseSha256": "9c9746a428ceeb5c39f28e06701eea19d6e30954c912fe64d6085dc5f8a1cc8e",
+  "response": {
+   "search_metadata": {
+    "id": "6adeb4ae412f4322f417583e",
+    "status": "Success",
+    "json_endpoint": "https://serpapi.com/searches/rfv4imZxQSBnPdKnX2ydZeU0_CrlbBCDV9hJUUKGv3c/6adeb4ae412f4322f417583e.json",
+    "markdown_endpoint": "https://serpapi.com/searches/rfv4imZxQSBnPdKnX2ydZeU0_CrlbBCDV9hJUUKGv3c/6adeb4ae412f4322f417583e.md",
+    "pixel_position_endpoint": "https://serpapi.com/searches/rfv4imZxQSBnPdKnX2ydZeU0_CrlbBCDV9hJUUKGv3c/6adeb4ae412f4322f417583e.json_with_pixel_position",
+    "created_at": "2026-10-26 02:02:22 UTC",
+    "processed_at": "2026-10-26 02:02:22 UTC",
+    "google_url": "https://www.google.com/search?q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm&oq=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm&hl=vi&gl=vn&tbs=cdr:1,cd_min:10/26/2025,cd_max:10/25/2026&sourceid=chrome&ie=UTF-8",
+    "raw_html_file": "https://serpapi.com/searches/rfv4imZxQSBnPdKnX2ydZeU0_CrlbBCDV9hJUUKGv3c/6adeb4ae412f4322f417583e.html",
+    "total_time_taken": 0.43
+   },
+   "search_parameters": {
+    "engine": "google",
+    "q": "viên uống kẽm",
+    "google_domain": "google.com",
+    "hl": "vi",
+    "gl": "vn",
+    "device": "desktop",
+    "tbs": "cdr:1,cd_min:10/26/2025,cd_max:10/25/2026"
+   },
+   "search_information": {
+    "query_displayed": "viên uống kẽm",
+    "total_results": 394000,
+    "time_taken_displayed": 0.29,
+    "organic_results_state": "Results for exact spelling"
+   },
+   "short_videos": [
+    {
+     "position": 1,
+     "title": "Vitamin C và Kẽm DHC - sản phẩm bán chạy tại các nhà thuốc ... của DHC Vietnam trên Facebook. Phát trên Facebook. 0:32",
+     "source": "Facebook",
+     "profile_name": "DHC Vietnam",
+     "extensions": [
+      "DHC Vietnam"
+     ],
+     "source_logo": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAXVBMVEVHcEwHZv8HaP8IZ_8IZ_8IZv8IaP8IZ_8HZv8Haf8IZ_8IaP8IZ_8AXv8AV_8AYv-SqP_P1__m6__e5f9wlP____-tvP9jiv82c_8IZ_8Iaf-fsf________8AW_-wrobhAAAAH3RSTlMAM4bC6v1h7v8Z3UL_______7_________wRiFwenBhp_Z0gAAAOhJREFUeAFtk0UWwzAMBWWHFHOZe_9bBn9Nr7Mdg5AiQjZt17WNFFTTDxwZ-kKNigvUmJw2XGF0dByx1jlnPTPDjiYqDofj8XQ4L9bsL6vozpedq13_3eJk4G-XXPIac8zBHUs5EIl48Q4Tws3ziiAZ5f7j3Vq7O5b0iOGE1Z0cRxpqS3mwSbbU4VHndukW8GwHiQ_BzUO2KceIw7MIqJBHyIZk_WwKSv6KcD_frlsqt_P5joBELJ-3iNZD8YDC_82zz1pWS5U1u5bmmY1JLdMQmVoaOIxmIdVYDXWUxVAD8Xp_FvnN1mEG0f0e5ixC4ikAAAAASUVORK5CYII.png",
+     "duration": "0:32",
+     "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTM_uhzRxSb0hE95mC0Pp7rXuT1sBgNyajnn4s4dHWuoFpLWObkY1-ltUk&s=10",
+     "link": "https://www.facebook.com/dhcvietnamofficial/posts/vitamin-c-v%C3%A0-k%E1%BA%BDm-dhc-s%E1%BA%A3n-ph%E1%BA%A9m-b%C3%A1n-ch%E1%BA%A1y-t%E1%BA%A1i-c%C3%A1c-nh%C3%A0-thu%E1%BB%91c-l%E1%BB%9Bn-nh%C6%B0-long-ch%C3%A2u-pharm/1413983924104754/"
+    },
+    {
+     "position": 2,
+     "title": "DHC VITAMIN C VÀ KẼM - BỘ ĐÔI VI CHẤT TỪ THƯƠNG ... của DHC Vietnam trên Facebook. Phát trên Facebook. 1:14",
+     "source": "Facebook",
+     "profile_name": "DHC Vietnam",
+     "extensions": [
+      "DHC Vietnam"
+     ],
+     "source_logo": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAXVBMVEVHcEwHZv8HaP8IZ_8IZ_8IZv8IaP8IZ_8HZv8Haf8IZ_8IaP8IZ_8AXv8AV_8AYv-SqP_P1__m6__e5f9wlP____-tvP9jiv82c_8IZ_8Iaf-fsf________8AW_-wrobhAAAAH3RSTlMAM4bC6v1h7v8Z3UL_______7_________wRiFwenBhp_Z0gAAAOhJREFUeAFtk0UWwzAMBWWHFHOZe_9bBn9Nr7Mdg5AiQjZt17WNFFTTDxwZ-kKNigvUmJw2XGF0dByx1jlnPTPDjiYqDofj8XQ4L9bsL6vozpedq13_3eJk4G-XXPIac8zBHUs5EIl48Q4Tws3ziiAZ5f7j3Vq7O5b0iOGE1Z0cRxpqS3mwSbbU4VHndukW8GwHiQ_BzUO2KceIw7MIqJBHyIZk_WwKSv6KcD_frlsqt_P5joBELJ-3iNZD8YDC_82zz1pWS5U1u5bmmY1JLdMQmVoaOIxmIdVYDXWUxVAD8Xp_FvnN1mEG0f0e5ixC4ikAAAAASUVORK5CYII.png",
+     "duration": "1:14",
+     "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQUWEULy2DqEwlrxNxe-msJ4NwXZYlrPXu4d8WBjInwAZXiYoibKtvcirk&s=10",
+     "link": "https://www.facebook.com/dhcvietnamofficial/posts/dhc-vitamin-c-v%C3%A0-k%E1%BA%BDm-b%E1%BB%99-%C4%91%C3%B4i-vi-ch%E1%BA%A5t-t%E1%BB%AB-th%C6%B0%C6%A1ng-hi%E1%BB%87u-nh%E1%BA%ADt-b%E1%BA%A3ntpbvsk-dhc-vitamin-c/1528219019347910/"
+    },
+    {
+     "position": 3,
+     "title": "Bao nhiêu tuổi thì được uống kẽm? Uống ngày mấy viên là vừa ... của bacluongdinhduongthan trên TikTok. Phát trên TikTok. 1:53",
+     "source": "TikTok",
+     "profile_name": "bacluongdinhduongthan",
+     "extensions": [
+      "bacluongdinhduongthan"
+     ],
+     "source_logo": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAw1BMVEUAAAAAAAAFT1IAQUNBub6u5eexxcpyQ0wIAABaxsv5____9_nGj5oyAAD____84eeEYmvm4uN4f4A5P0MAFBXx-vu019khAAD60tr37vDlmqpXAAsALzAKc3gpo6hjpqr_6O3idYqcbHTSrLP6iJ9rABOc5Ofi-vvJYnXLbn8_AAI9HyWWIDhRz9TH9PffY3oDAAC99vjhSGe7KEenACiF4-f_1961PVaB09bFkZswjJGwuLr__f7xqbYYHh_9tsTiL1Yh8R0_AAAAAXRSTlP-GuMHfQAAANJJREFUeAG90kUCg1AMBNDiPtTd3d2V-5-quMOS2b6vSXI5IjnZIElSyUgzLMcnoSBKspKMUPMpiEKxVE5EVKr5WgTLBkr1BtBsBbHd6fZKOvYHw1F9PAkgSU9njXlNx8Vyxa2XfmxvtoC0M1GH_d6P3QPU8fFkY_Ar7Q0ag3ONIOKQvOB60i0WqSnUG6FnI6rzMJbvkB76zo5-wk0JIf8EGq9ndzN7f9bRrlQBcTYTcT22iAh-X9Ib7_dPm8Q1u5Zvfpq7c4uIQ56otVrLjEYzJX-4mxcG80U-CwAAAABJRU5ErkJggg.png",
+     "duration": "1:53",
+     "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQEsAI2m5EuqPTB8VPVGtLoI8yso7FJ8_ofKpw2rMK81Ou0qBUv2gzx4yw&s=10",
+     "link": "https://www.tiktok.com/@bacluongdinhduongthan/video/7644545695881366791"
+    },
+    {
+     "position": 4,
+     "title": "💊 DHC ZINC – VIÊN UỐNG BỔ SUNG KẼM NHẬT BẢN 🇯🇵 👉 ... của Duy Nguyễn trên Facebook. Phát trên Facebook. 1:37",
+     "source": "Facebook",
+     "profile_name": "Duy Nguyễn",
+     "extensions": [
+      "Duy Nguyễn"
+     ],
+     "source_logo": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAXVBMVEVHcEwHZv8HaP8IZ_8IZ_8IZv8IaP8IZ_8HZv8Haf8IZ_8IaP8IZ_8AXv8AV_8AYv-SqP_P1__m6__e5f9wlP____-tvP9jiv82c_8IZ_8Iaf-fsf________8AW_-wrobhAAAAH3RSTlMAM4bC6v1h7v8Z3UL_______7_________wRiFwenBhp_Z0gAAAOhJREFUeAFtk0UWwzAMBWWHFHOZe_9bBn9Nr7Mdg5AiQjZt17WNFFTTDxwZ-kKNigvUmJw2XGF0dByx1jlnPTPDjiYqDofj8XQ4L9bsL6vozpedq13_3eJk4G-XXPIac8zBHUs5EIl48Q4Tws3ziiAZ5f7j3Vq7O5b0iOGE1Z0cRxpqS3mwSbbU4VHndukW8GwHiQ_BzUO2KceIw7MIqJBHyIZk_WwKSv6KcD_frlsqt_P5joBELJ-3iNZD8YDC_82zz1pWS5U1u5bmmY1JLdMQmVoaOIxmIdVYDXWUxVAD8Xp_FvnN1mEG0f0e5ixC4ikAAAAASUVORK5CYII.png",
+     "duration": "1:37",
+     "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQlccct33A6sto5zzNeo9sK7GdN4BHB5CiBGNmSritxtHnAxsB7D88Ix5E&s=10",
+     "link": "https://www.facebook.com/huy.mnguye.1/posts/-dhc-zinc-vi%C3%AAn-u%E1%BB%91ng-b%E1%BB%95-sung-k%E1%BA%BDm-nh%E1%BA%ADt-b%E1%BA%A3n-mua-%E1%BB%9F-%C4%91%C3%A2y-ai-%C4%83n-u%E1%BB%91ng-ch%C6%B0a-%C4%91%E1%BB%A7-ch%E1%BA%A5t-ch%E1%BA%BF-%C4%91/1624019912562784/"
+    },
+    {
+     "position": 5,
+     "title": "Kẽm DSD Plus – bổ sung kẽm tiện lợi, đồng hành cùng nam ... của Minh Hải Sport trên Facebook. Phát trên Facebook. 0:52",
+     "source": "Facebook",
+     "profile_name": "Minh Hải Sport",
+     "extensions": [
+      "Minh Hải Sport"
+     ],
+     "source_logo": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAXVBMVEVHcEwHZv8HaP8IZ_8IZ_8IZv8IaP8IZ_8HZv8Haf8IZ_8IaP8IZ_8AXv8AV_8AYv-SqP_P1__m6__e5f9wlP____-tvP9jiv82c_8IZ_8Iaf-fsf________8AW_-wrobhAAAAH3RSTlMAM4bC6v1h7v8Z3UL_______7_________wRiFwenBhp_Z0gAAAOhJREFUeAFtk0UWwzAMBWWHFHOZe_9bBn9Nr7Mdg5AiQjZt17WNFFTTDxwZ-kKNigvUmJw2XGF0dByx1jlnPTPDjiYqDofj8XQ4L9bsL6vozpedq13_3eJk4G-XXPIac8zBHUs5EIl48Q4Tws3ziiAZ5f7j3Vq7O5b0iOGE1Z0cRxpqS3mwSbbU4VHndukW8GwHiQ_BzUO2KceIw7MIqJBHyIZk_WwKSv6KcD_frlsqt_P5joBELJ-3iNZD8YDC_82zz1pWS5U1u5bmmY1JLdMQmVoaOIxmIdVYDXWUxVAD8Xp_FvnN1mEG0f0e5ixC4ikAAAAASUVORK5CYII.png",
+     "duration": "0:52",
+     "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQcdZp0IbjtOO1ZwYo0IUnZB_wKSaAamVaDfX3oY7M_XoC9Hymj4O3bIuI&s=10",
+     "link": "https://www.facebook.com/minhhaisport/posts/k%E1%BA%BDm-dsd-plus-b%E1%BB%95-sung-k%E1%BA%BDm-ti%E1%BB%87n-l%E1%BB%A3i-%C4%91%E1%BB%93ng-h%C3%A0nh-c%C3%B9ng-nam-gi%E1%BB%9Bi-trong-l%E1%BB%91i-s%E1%BB%91ng-n%C4%83ng-%C4%91%E1%BB%99/1047681124693719/"
+    },
+    {
+     "position": 6,
+     "title": "🔵 Review nghiêm túc : Viên uống Kẽm + Vitamin C DHC ĐĂNG ... của Hoàng Hải Đăng trên Facebook. Phát trên Facebook. 1:19",
+     "source": "Facebook",
+     "profile_name": "Hoàng Hải Đăng",
+     "extensions": [
+      "Hoàng Hải Đăng"
+     ],
+     "source_logo": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAXVBMVEVHcEwHZv8HaP8IZ_8IZ_8IZv8IaP8IZ_8HZv8Haf8IZ_8IaP8IZ_8AXv8AV_8AYv-SqP_P1__m6__e5f9wlP____-tvP9jiv82c_8IZ_8Iaf-fsf________8AW_-wrobhAAAAH3RSTlMAM4bC6v1h7v8Z3UL_______7_________wRiFwenBhp_Z0gAAAOhJREFUeAFtk0UWwzAMBWWHFHOZe_9bBn9Nr7Mdg5AiQjZt17WNFFTTDxwZ-kKNigvUmJw2XGF0dByx1jlnPTPDjiYqDofj8XQ4L9bsL6vozpedq13_3eJk4G-XXPIac8zBHUs5EIl48Q4Tws3ziiAZ5f7j3Vq7O5b0iOGE1Z0cRxpqS3mwSbbU4VHndukW8GwHiQ_BzUO2KceIw7MIqJBHyIZk_WwKSv6KcD_frlsqt_P5joBELJ-3iNZD8YDC_82zz1pWS5U1u5bmmY1JLdMQmVoaOIxmIdVYDXWUxVAD8Xp_FvnN1mEG0f0e5ixC4ikAAAAASUVORK5CYII.png",
+     "duration": "1:19",
+     "clip": "https://encrypted-vtbn0.gstatic.com/video?q=tbn:ANd9GcSWAhgmlPlpaUhqUv6I5zFlUp8U7UdxuzrUbg",
+     "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSawWErGV9QFeLZOpMaEK9wuL7dmf3jBb9eLs2enyO48aL3AlXC8SNMiZU&s=10",
+     "link": "https://www.facebook.com/DANGBEOO.official/posts/-review-nghi%C3%AAm-t%C3%BAc-vi%C3%AAn-u%E1%BB%91ng-k%E1%BA%BDm-vitamin-c-dhc-%C4%91%C4%83ng-b%C3%A9o-progymzinc-quangcao-h%E1%BB%A3pt/28732066739729676/"
+    },
+    {
+     "position": 7,
+     "title": "Thiếu Hay Thừa Kẽm Đều Nguy Hiểm Như Nhau",
+     "source": "YouTube",
+     "profile_name": "Cao Minh Trường Official",
+     "extensions": [
+      "Cao Minh Trường Official"
+     ],
+     "source_logo": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8_9hAAAAhUlEQVR4AWNwL_ChCFPHgP8MxqxA7ArEKVBcCcUNIAznI-RdQXrABgAZpv8ZjP6Tg0F6QQbsosCAXSADHmGVVPIC0jKEDHgAMuAbmgRE445D___feYzXIJBeBigH04BVW_9DAcgwqEGYaik2gGIvUByIlEbjDooTEiwps5GRlNmolpkowgBVP9wMSzSKGAAAAABJRU5ErkJggg.png",
+     "duration": "1:13",
+     "clip": "https://encrypted-vtbn0.gstatic.com/video?q=tbn:ANd9GcSHfIr4PpprCg4zbvFZYZpjHR9Wc1v6N_MExw",
+     "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ-9U7bE2V5Yd5bwD2u-6ObyaDc6px9ImEWtNB9AREU9k16SEorNUdm-BQ&s=10",
+     "link": "https://www.youtube.com/shorts/BO3BEBoty8k"
+    },
+    {
+     "position": 8,
+     "title": "￼Viên uống DHC Kẽm Zinc (20 Ngày & 60 Ngày) của Hằng Mommy trên Facebook. Phát trên Facebook. 1:03",
+     "source": "Facebook",
+     "profile_name": "Hằng Mommy",
+     "extensions": [
+      "Hằng Mommy"
+     ],
+     "source_logo": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAXVBMVEVHcEwHZv8HaP8IZ_8IZ_8IZv8IaP8IZ_8HZv8Haf8IZ_8IaP8IZ_8AXv8AV_8AYv-SqP_P1__m6__e5f9wlP____-tvP9jiv82c_8IZ_8Iaf-fsf________8AW_-wrobhAAAAH3RSTlMAM4bC6v1h7v8Z3UL_______7_________wRiFwenBhp_Z0gAAAOhJREFUeAFtk0UWwzAMBWWHFHOZe_9bBn9Nr7Mdg5AiQjZt17WNFFTTDxwZ-kKNigvUmJw2XGF0dByx1jlnPTPDjiYqDofj8XQ4L9bsL6vozpedq13_3eJk4G-XXPIac8zBHUs5EIl48Q4Tws3ziiAZ5f7j3Vq7O5b0iOGE1Z0cRxpqS3mwSbbU4VHndukW8GwHiQ_BzUO2KceIw7MIqJBHyIZk_WwKSv6KcD_frlsqt_P5joBELJ-3iNZD8YDC_82zz1pWS5U1u5bmmY1JLdMQmVoaOIxmIdVYDXWUxVAD8Xp_FvnN1mEG0f0e5ixC4ikAAAAASUVORK5CYII.png",
+     "duration": "1:03",
+     "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTPXdZqKyYJn2cqAwSZ7vrzFfB63oUe8wQrGAleA9crQUZQ_IKpBC3QO38&s=10",
+     "link": "https://www.facebook.com/thuhangmommy/posts/vi%C3%AAn-u%E1%BB%91ng-dhc-k%E1%BA%BDm-zinc-20-ng%C3%A0y-60-ng%C3%A0y-th%E1%BB%B1c-ph%E1%BA%A9m-b%E1%BA%A3o-v%E1%BB%87-s%E1%BB%A9c-kho%E1%BA%BB-dhc-zinc/1003163359383507/"
+    },
+    {
+     "position": 9,
+     "title": "Viên uống kẽm mỹ #meihaomuasamonline ... của MeiHao - Mua Sắm Online trên Facebook. Phát trên Facebook. 0:11",
+     "source": "Facebook",
+     "profile_name": "MeiHao - Mua Sắm Online",
+     "extensions": [
+      "MeiHao - Mua Sắm Online"
+     ],
+     "source_logo": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAXVBMVEVHcEwHZv8HaP8IZ_8IZ_8IZv8IaP8IZ_8HZv8Haf8IZ_8IaP8IZ_8AXv8AV_8AYv-SqP_P1__m6__e5f9wlP____-tvP9jiv82c_8IZ_8Iaf-fsf________8AW_-wrobhAAAAH3RSTlMAM4bC6v1h7v8Z3UL_______7_________wRiFwenBhp_Z0gAAAOhJREFUeAFtk0UWwzAMBWWHFHOZe_9bBn9Nr7Mdg5AiQjZt17WNFFTTDxwZ-kKNigvUmJw2XGF0dByx1jlnPTPDjiYqDofj8XQ4L9bsL6vozpedq13_3eJk4G-XXPIac8zBHUs5EIl48Q4Tws3ziiAZ5f7j3Vq7O5b0iOGE1Z0cRxpqS3mwSbbU4VHndukW8GwHiQ_BzUO2KceIw7MIqJBHyIZk_WwKSv6KcD_frlsqt_P5joBELJ-3iNZD8YDC_82zz1pWS5U1u5bmmY1JLdMQmVoaOIxmIdVYDXWUxVAD8Xp_FvnN1mEG0f0e5ixC4ikAAAAASUVORK5CYII.png",
+     "duration": "0:11",
+     "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQw2otJFBzzsXUzpjqs9lmjVSBKcWl4SH-Ku2audMmGxWeQad53Htd27MA&s=10",
+     "link": "https://www.facebook.com/meihaoshop.vn/posts/vi%C3%AAn-u%E1%BB%91ng-k%E1%BA%BDm-m%E1%BB%B9-meihaomuasamonline-nguoivietnamtaidailoan-zinc/1502764468536838/"
+    },
+    {
+     "position": 10,
+     "title": "TINH CHẤT HÀU KINGSPEED THÁI MINH lọ 30 viên của Hằng Mommy trên Facebook. Phát trên Facebook. 0:54",
+     "source": "Facebook",
+     "profile_name": "Hằng Mommy",
+     "extensions": [
+      "Hằng Mommy"
+     ],
+     "source_logo": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAXVBMVEVHcEwHZv8HaP8IZ_8IZ_8IZv8IaP8IZ_8HZv8Haf8IZ_8IaP8IZ_8AXv8AV_8AYv-SqP_P1__m6__e5f9wlP____-tvP9jiv82c_8IZ_8Iaf-fsf________8AW_-wrobhAAAAH3RSTlMAM4bC6v1h7v8Z3UL_______7_________wRiFwenBhp_Z0gAAAOhJREFUeAFtk0UWwzAMBWWHFHOZe_9bBn9Nr7Mdg5AiQjZt17WNFFTTDxwZ-kKNigvUmJw2XGF0dByx1jlnPTPDjiYqDofj8XQ4L9bsL6vozpedq13_3eJk4G-XXPIac8zBHUs5EIl48Q4Tws3ziiAZ5f7j3Vq7O5b0iOGE1Z0cRxpqS3mwSbbU4VHndukW8GwHiQ_BzUO2KceIw7MIqJBHyIZk_WwKSv6KcD_frlsqt_P5joBELJ-3iNZD8YDC_82zz1pWS5U1u5bmmY1JLdMQmVoaOIxmIdVYDXWUxVAD8Xp_FvnN1mEG0f0e5ixC4ikAAAAASUVORK5CYII.png",
+     "duration": "0:54",
+     "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTNgORKluSVIQ8raCOc2SubvlXqrCMKfLkcVfgJJRFB6Z9wJ4piioRnb-I&s",
+     "link": "https://www.facebook.com/thuhangmommy/posts/tinh-ch%E1%BA%A5t-h%C3%A0u-kingspeed-th%C3%A1i-minh-l%E1%BB%8D-30-vi%C3%AAn-h%E1%BB%97-tr%E1%BB%A3-b%E1%BB%95-sung-k%E1%BA%BDmt%C4%83ng-c%C6%B0%E1%BB%9Dng-th%E1%BB%83-l%E1%BB%B1/1041222815577561/"
+    }
+   ],
+   "organic_results": [
+    {
+     "position": 1,
+     "title": "Viên uống bổ sung kẽm: Uống lúc nào tốt và những lưu ý y ...",
+     "link": "https://medlatec.vn/tin-tuc/vien-uong-bo-sung-kem-uong-luc-nao-tot-nhat-va-nhung-luu-y-y-khoa",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESmAEB6zswFUsCMhh7KhsI_lNBlAvg-sewKmCZ7Tlu_Gtfw1VElYTQ0vCVOCcmY1abOGbeEkfDk_j9Dls5LRN4k0ehmT7nO2bMBlYA-hPrJGUgr7SRqeZcRtkbPFybFsalz8JGqtdCmsech7b6TXJqhyfEx-JVdw0sHOpNasdoOImzx6haI9n2KRSxkjfAq7IuGr90GhgaHryZDQ&ved=2ahUKEwjD097Dy9aXAxWhEFkFHfkQKq0QFnoECA0QAQ&uoh=1",
+     "displayed_link": "https://medlatec.vn › tin-tuc › vien-uong-bo-sung-kem-...",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABkAAAAcCAMAAACj-uTiAAAAgVBMVEVHcEz44oP44oP44oP54oP44oP44oPVzoz44oP54oP54oP44oP444P44oP54oMOZrP44oP44oP65Yn555P-8Kr865sAX7P77YxRirLzpm7266nb3q8vd7PAzbXk14z_97gLarOctanpST3xmGL2tnqywKmGpbLlLS3tcVP6wofKypLBJWpPAAAAEXRSTlMAvEytCuwSAhpvn43YOykHV6JgGV0AAAFaSURBVCiRhVLp0oMgDERBxKMHEhDvq9rj_R_w47BOO_3x7YxDJssmawhC_yOmjDEa_-RZmKRBEKRJyL7vX3HEPSJ8_dDRzOcLz2X0qIRd2sOGeK9IUkcIIaQQnkuJ65Hwvu-5kA5ClJZKbK9z3k96HPXUANQg-3V99Tw_O4npPLVKaUutNng5EQlsD9nZDAzmGLfe1AsIYpFjYFJKdcOmxklIw0QMnaxfAXWjjWjQaqvBOOT8hEInkQDdqNS0tQ3Ujgl3pgbfQ-v6YHw1oxkspdoVpCxcNe_A3IS6M62Mdym8A-_aULC2Y6u3zhczrlFihyblAE3TNeZnpXTjcdPhvLzdqur2hKc9KsPY6ThROd_v8zw_74_HPD_6faIoznhRLctiPquoloJnZH_SlJef4OnxqCR7b4FF_lY4hDh_53H4vVX0lGQ4wFlyougHhDJKfjfxwCWOLy74A6KmJpTtON_xAAAAAElFTkSuQmCC.png",
+     "date": "16 thg 7, 2026",
+     "snippet": "Viên uống bổ sung kẽm mang lại nhiều lợi ích cho hệ miễn dịch, tiêu hóa và làn da, nhưng cần theo chỉ định của bác sĩ. Để bảo vệ sức khỏe toàn diện, tránh các ...",
+     "snippet_highlighted_words": [
+      "Viên uống bổ sung kẽm mang lại nhiều lợi ích cho hệ miễn dịch, tiêu hóa và làn da"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Viên uống bổ sung kẽm mang lại nhiều lợi ích cho hệ miễn dịch, tiêu hóa và làn da, nhưng cần theo chỉ định của bác sĩ. Để bảo vệ sức khỏe toàn diện, tránh các ...",
+       "source_info_link": "https://medlatec.vn/tin-tuc/vien-uong-bo-sung-kem-uong-luc-nao-tot-nhat-va-nhung-luu-y-y-khoa",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABkAAAAcCAMAAACj-uTiAAAAgVBMVEVHcEz44oP44oP44oP54oP44oP44oPVzoz44oP54oP54oP44oP444P44oP54oMOZrP44oP44oP65Yn555P-8Kr865sAX7P77YxRirLzpm7266nb3q8vd7PAzbXk14z_97gLarOctanpST3xmGL2tnqywKmGpbLlLS3tcVP6wofKypLBJWpPAAAAEXRSTlMAvEytCuwSAhpvn43YOykHV6JgGV0AAAFaSURBVCiRhVLp0oMgDERBxKMHEhDvq9rj_R_w47BOO_3x7YxDJssmawhC_yOmjDEa_-RZmKRBEKRJyL7vX3HEPSJ8_dDRzOcLz2X0qIRd2sOGeK9IUkcIIaQQnkuJ65Hwvu-5kA5ClJZKbK9z3k96HPXUANQg-3V99Tw_O4npPLVKaUutNng5EQlsD9nZDAzmGLfe1AsIYpFjYFJKdcOmxklIw0QMnaxfAXWjjWjQaqvBOOT8hEInkQDdqNS0tQ3Ujgl3pgbfQ-v6YHw1oxkspdoVpCxcNe_A3IS6M62Mdym8A-_aULC2Y6u3zhczrlFihyblAE3TNeZnpXTjcdPhvLzdqur2hKc9KsPY6ThROd_v8zw_74_HPD_6faIoznhRLctiPquoloJnZH_SlJef4OnxqCR7b4FF_lY4hDh_53H4vVX0lGQ4wFlyougHhDJKfjfxwCWOLy74A6KmJpTtON_xAAAAAElFTkSuQmCC.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CtwBL2dvdG8_dXJsPUNBRVNtQUVCNnpzd0ZmQXNFcWFlTXp2NGxsQWJiU3Y0Y1ozQnR2NmxUbHRHeUllZmtNT0EwUEdxaWYteTdKcnR2ZG1uN2ZvUHYxbWt0LS1iQTg2SV9laE43bUh4Q2locklGdDl2Rm1ZeXhuc0wxRGNQSHhkeE1nSHVZWUhFMVlLSWRMV3hDN0hYd2pYLTJmLU5hYXU1TmJLLUlSV1VjS1MtVnQ1VEZlSGs1Rm43UDhWdElPTzVkb1hGZk1KR0Z5NzNiMGFmUm1ENHd3N3VoTUc3dxIEGgIIABqwBRIAGgAiACoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkCMBQhCEAAYACAAKhkKBXZpw6puFSdXgkAaC3Zpw6pudeG7kW5nKjAKBnXhu5FuZxW-lJVAGgd0aHXhu5FjGgR1b25nGgV1w7RuZxoLdmnDqm514buRbmcqEgoFa-G6vW0V5LuSQBoEemluYzLcAS9nb3RvP3VybD1DQUVTbUFFQjZ6c3dGZkFzRXFhZU16djRsbEFiYlN2NGNaM0J0djZsVGx0R3lJZWZrTU9BMFBHcWlmLXk3SnJ0dmRtbjdmb1B2MW1rdC0tYkE4NklfZWhON21IeENpaHJJRnQ5dkZtWXl4bnNMMURjUEh4ZHhNZ0h1WVlIRTFZS0lkTFd4QzdIWHdqWC0yZi1OYWF1NU5iSy1JUldVY0tTLVZ0NVRGZUhrNUZuN1A4VnRJT081ZG9YRmZNSkdGeTczYjBhZlJtRDR3dzd1aE1HN3c6XTxiPlZpw6puIHXhu5FuZzwvYj4gYuG7lSBzdW5nIDxiPmvhur1tPC9iPjogVeG7kW5nIGzDumMgbsOgbyB04buRdCB2w6Agbmjhu69uZyBsxrB1IMO9IHkga2hvYULiATxiPlZpw6puIHXhu5FuZyBi4buVIHN1bmcga-G6vW0gbWFuZyBs4bqhaSBuaGnhu4F1IGzhu6NpIMOtY2ggY2hvIGjhu4cgbWnhu4VuIGThu4tjaCwgdGnDqnUgaMOzYSB2w6AgbMOgbiBkYTwvYj4sIG5oxrBuZyBj4bqnbiB0aGVvIGNo4buJIMSR4buLbmggY-G7p2EgYsOhYyBzxKkuIMSQ4buDIGLhuqNvIHbhu4cgc-G7qWMga2jhu49lIHRvw6BuIGRp4buHbiwgdHLDoW5oIGPDoWMmbmJzcDsuLi4iAhABSABYAGgA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CtwBL2dvdG8_dXJsPUNBRVNtQUVCNnpzd0ZmQXNFcWFlTXp2NGxsQWJiU3Y0Y1ozQnR2NmxUbHRHeUllZmtNT0EwUEdxaWYteTdKcnR2ZG1uN2ZvUHYxbWt0LS1iQTg2SV9laE43bUh4Q2locklGdDl2Rm1ZeXhuc0wxRGNQSHhkeE1nSHVZWUhFMVlLSWRMV3hDN0hYd2pYLTJmLU5hYXU1TmJLLUlSV1VjS1MtVnQ1VEZlSGs1Rm43UDhWdElPTzVkb1hGZk1KR0Z5NzNiMGFmUm1ENHd3N3VoTUc3dxIEGgIIABqwBRIAGgAiACoAMgYIARICdm46AEIECAEQQkoAWgByAHoAgkCMBQhCEAAYACAAKhkKBXZpw6puFSdXgkAaC3Zpw6pudeG7kW5nKjAKBnXhu5FuZxW-lJVAGgd0aHXhu5FjGgR1b25nGgV1w7RuZxoLdmnDqm514buRbmcqEgoFa-G6vW0V5LuSQBoEemluYzLcAS9nb3RvP3VybD1DQUVTbUFFQjZ6c3dGZkFzRXFhZU16djRsbEFiYlN2NGNaM0J0djZsVGx0R3lJZWZrTU9BMFBHcWlmLXk3SnJ0dmRtbjdmb1B2MW1rdC0tYkE4NklfZWhON21IeENpaHJJRnQ5dkZtWXl4bnNMMURjUEh4ZHhNZ0h1WVlIRTFZS0lkTFd4QzdIWHdqWC0yZi1OYWF1NU5iSy1JUldVY0tTLVZ0NVRGZUhrNUZuN1A4VnRJT081ZG9YRmZNSkdGeTczYjBhZlJtRDR3dzd1aE1HN3c6XTxiPlZpw6puIHXhu5FuZzwvYj4gYuG7lSBzdW5nIDxiPmvhur1tPC9iPjogVeG7kW5nIGzDumMgbsOgbyB04buRdCB2w6Agbmjhu69uZyBsxrB1IMO9IHkga2hvYULiATxiPlZpw6puIHXhu5FuZyBi4buVIHN1bmcga-G6vW0gbWFuZyBs4bqhaSBuaGnhu4F1IGzhu6NpIMOtY2ggY2hvIGjhu4cgbWnhu4VuIGThu4tjaCwgdGnDqnUgaMOzYSB2w6AgbMOgbiBkYTwvYj4sIG5oxrBuZyBj4bqnbiB0aGVvIGNo4buJIMSR4buLbmggY-G7p2EgYsOhYyBzxKkuIMSQ4buDIGLhuqNvIHbhu4cgc-G7qWMga2jhu49lIHRvw6BuIGRp4buHbiwgdHLDoW5oIGPDoWMmbmJzcDsuLi4iAhABSABYAGgA",
+     "source": "Bệnh viện Đa khoa MEDLATEC"
+    },
+    {
+     "position": 2,
+     "title": "Uống kẽm bao lâu thì dừng? Liệu trình bổ sung kẽm an toàn",
+     "link": "https://www.pharmacity.vn/uong-kem-bao-lau-thi-dung.htm",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAEScgHrOzAVMIRz8dv23JzaZnJFhqJchDHcY-eHT9284ZV8e4z4AxerjlDmj-APjcScPIafxy8gVhoyKqjgFfI5xeQc0Zo1KlAW2uonwKw6FmKIy-E0OHqZKzIvIHIjCeuQ3xRvPdqIWp8rOR4VcjR6UmnL3Q&ved=2ahUKEwjD097Dy9aXAxWhEFkFHfkQKq0QFnoECBIQAQ&uoh=1",
+     "displayed_link": "https://www.pharmacity.vn › Góc sức khỏe › Sống khỏe",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAV1BMVEVHcEwbUaMbUaMbUaMVTqMGSKETS6U0X6lNb7ABQ6COoMplgblBZ616kcGruNfS2em7x9zo7PQlWaJXdrSisNNRlXJIjHc0b5EAMpk7eodEhIFeqVxYoGdOi3NaAAAAA3RSTlMAS9qP_WnaAAAAz0lEQVR4AcSQVYJFIQhADcRGb5f7X-fg9Kvvd2xphJBKP0VJlumXSKFeC5Xg7SVvFsLvBW6EBg0YC-YL5zz8CU2IIWXygXKnpBrhT0ilVhpCCqUQVTvk8ccSEacUx6zj6KZpynaG4L4tx2XdRoNo-uDpzX6sgUODFrCt53W1rZ3r2vhc2lRmKnmeEwi9XWzaDpYcx4VtuWraS-Hpu-XpD7Zux7IdDZbGllQpEhmOCcATEQH56NmB54C-WHjdvt6Hjw3m-MQEeJMm3kSNNzsAAEmvEfmavwblAAAAAElFTkSuQmCC.png",
+     "date": "16 thg 5, 2026",
+     "snippet": "Có nên tự ý uống kẽm kéo dài mà không có chỉ định từ bác sĩ? Không nên. Việc tự ý sử dụng viên uống kẽm liều cao trong thời gian dài (trên 3 tháng) có thể ...",
+     "snippet_highlighted_words": [
+      "Không nên"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Có nên tự ý uống kẽm kéo dài mà không có chỉ định từ bác sĩ? Không nên. Việc tự ý sử dụng viên uống kẽm liều cao trong thời gian dài (trên 3 tháng) có thể ...",
+       "source_info_link": "https://www.pharmacity.vn/uong-kem-bao-lau-thi-dung.htm",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAV1BMVEVHcEwbUaMbUaMbUaMVTqMGSKETS6U0X6lNb7ABQ6COoMplgblBZ616kcGruNfS2em7x9zo7PQlWaJXdrSisNNRlXJIjHc0b5EAMpk7eodEhIFeqVxYoGdOi3NaAAAAA3RSTlMAS9qP_WnaAAAAz0lEQVR4AcSQVYJFIQhADcRGb5f7X-fg9Kvvd2xphJBKP0VJlumXSKFeC5Xg7SVvFsLvBW6EBg0YC-YL5zz8CU2IIWXygXKnpBrhT0ilVhpCCqUQVTvk8ccSEacUx6zj6KZpynaG4L4tx2XdRoNo-uDpzX6sgUODFrCt53W1rZ3r2vhc2lRmKnmeEwi9XWzaDpYcx4VtuWraS-Hpu-XpD7Zux7IdDZbGllQpEhmOCcATEQH56NmB54C-WHjdvt6Hjw3m-MQEeJMm3kSNNzsAAEmvEfmavwblAAAAAElFTkSuQmCC.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CqgBL2dvdG8_dXJsPUNBRVNjZ0hyT3pBVm9yTHM3WENHWjBHcGFQbmNWV3VOMUNPRDBKN2M3X3NzSjdMMEppV2FNbzI4NGkydnVvZk85QkFyTVh4Q21ESW5fTDRDbFcya05PYzdtZVBFYjB3OV9xWTlJT0lJYUU1NzBxODAzRXVZWmM3cThkTFMtMGpSZGZJdU5TOGwtaVVNX3dqdDFZaC02TVFFZ1Rxd3JnEgQaAggAGu8EEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQMsECEIQABgAIAAqGQoFdmnDqm4Vq_Y5PxoLdmnDqm514buRbmcqMAoGdeG7kW5nFaDyW0AaB3RodeG7kWMaBHVvbmcaBXXDtG5nGgt2acOqbnXhu5FuZyoSCgVr4bq9bRWXzKBAGgR6aW5jMqgBL2dvdG8_dXJsPUNBRVNjZ0hyT3pBVm9yTHM3WENHWjBHcGFQbmNWV3VOMUNPRDBKN2M3X3NzSjdMMEppV2FNbzI4NGkydnVvZk85QkFyTVh4Q21ESW5fTDRDbFcya05PYzdtZVBFYjB3OV9xWTlJT0lJYUU1NzBxODAzRXVZWmM3cThkTFMtMGpSZGZJdU5TOGwtaVVNX3dqdDFZaC02TVFFZ1Rxd3JnOlc8Yj5V4buRbmcga-G6vW08L2I-IGJhbyBsw6J1IHRow6wgZOG7q25nPyBMaeG7h3UgdHLDrG5oIGLhu5Ugc3VuZyA8Yj5r4bq9bTwvYj4gYW4gdG_DoG5C2wFDw7MgbsOqbiB04buxIMO9IHXhu5FuZyBr4bq9bSBrw6lvIGTDoGkgbcOgIGtow7RuZyBjw7MgY2jhu4kgxJHhu4tuaCB04burIGLDoWMgc8SpPyA8Yj5LaMO0bmcgbsOqbjwvYj4uIFZp4buHYyB04buxIMO9IHPhu60gZOG7pW5nIHZpw6puIHXhu5FuZyBr4bq9bSBsaeG7gXUgY2FvIHRyb25nIHRo4budaSBnaWFuIGTDoGkgKHRyw6puIDMgdGjDoW5nKSBjw7MgdGjhu4MmbmJzcDsuLi4iAhABSABYAGgA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CqgBL2dvdG8_dXJsPUNBRVNjZ0hyT3pBVm9yTHM3WENHWjBHcGFQbmNWV3VOMUNPRDBKN2M3X3NzSjdMMEppV2FNbzI4NGkydnVvZk85QkFyTVh4Q21ESW5fTDRDbFcya05PYzdtZVBFYjB3OV9xWTlJT0lJYUU1NzBxODAzRXVZWmM3cThkTFMtMGpSZGZJdU5TOGwtaVVNX3dqdDFZaC02TVFFZ1Rxd3JnEgQaAggAGu8EEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQMsECEIQABgAIAAqGQoFdmnDqm4Vq_Y5PxoLdmnDqm514buRbmcqMAoGdeG7kW5nFaDyW0AaB3RodeG7kWMaBHVvbmcaBXXDtG5nGgt2acOqbnXhu5FuZyoSCgVr4bq9bRWXzKBAGgR6aW5jMqgBL2dvdG8_dXJsPUNBRVNjZ0hyT3pBVm9yTHM3WENHWjBHcGFQbmNWV3VOMUNPRDBKN2M3X3NzSjdMMEppV2FNbzI4NGkydnVvZk85QkFyTVh4Q21ESW5fTDRDbFcya05PYzdtZVBFYjB3OV9xWTlJT0lJYUU1NzBxODAzRXVZWmM3cThkTFMtMGpSZGZJdU5TOGwtaVVNX3dqdDFZaC02TVFFZ1Rxd3JnOlc8Yj5V4buRbmcga-G6vW08L2I-IGJhbyBsw6J1IHRow6wgZOG7q25nPyBMaeG7h3UgdHLDrG5oIGLhu5Ugc3VuZyA8Yj5r4bq9bTwvYj4gYW4gdG_DoG5C2wFDw7MgbsOqbiB04buxIMO9IHXhu5FuZyBr4bq9bSBrw6lvIGTDoGkgbcOgIGtow7RuZyBjw7MgY2jhu4kgxJHhu4tuaCB04burIGLDoWMgc8SpPyA8Yj5LaMO0bmcgbsOqbjwvYj4uIFZp4buHYyB04buxIMO9IHPhu60gZOG7pW5nIHZpw6puIHXhu5FuZyBr4bq9bSBsaeG7gXUgY2FvIHRyb25nIHRo4budaSBnaWFuIGTDoGkgKHRyw6puIDMgdGjDoW5nKSBjw7MgdGjhu4MmbmJzcDsuLi4iAhABSABYAGgA",
+     "source": "Nhà thuốc Pharmacity"
+    },
+    {
+     "position": 3,
+     "title": "Có nên uống kẽm mỗi ngày? Liều lượng, đối tượng và ...",
+     "link": "https://www.matsaigon.com/a-z/co-nen-uong-kem-moi-ngay/",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAEScgHrOzAVhfg_cEhOmfeV_O2bx4b_J3gLEev3_dc8rppJ29OWWi5NeHonv_z5Wyg7Mirk2Vet4wbAbKdL3PM3JFnqAiF59SPQGowhaabMQWY6SUF0C9dX8bXKmwf-EzvydDDlNXNjoQ4HO3feHhTQJCeUsQ&ved=2ahUKEwjD097Dy9aXAxWhEFkFHfkQKq0QFnoECBAQAQ&uoh=1",
+     "displayed_link": "https://www.matsaigon.com › A-Z về mắt",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAP1BMVEUAAAALgkEBFkALg0ELgEAIgD8Lg0JHcEwKgUELg0IAfDQAeCrr8u2Yv6Xd6uE2kFiqyrTC2cn9_v1foXaDtJNX3fXCAAAACnRSTlMBP___FB34ACXs2z1jwQAAAMtJREFUKJGtkosOgyAMRTFsorcPVPz_bx1QZWzJHll2EoK5J7RSda4SLn5s-Cm4niw7ehl-leFt2dcyGE_ScJMx9HI4QjfeM4Dgyzpxc1NelFWZ10RPEn5liaKqklQjeonEOxFLLroopc2sSRIFsEipR3mL2_0kds0xsfUCE_aVThlrjEMSI694SHtqsuwQgclUa3isu_Vcch7VJPLFjPLGJIyzTJbEjW1jXuotUE-OZWwnhDa9srmrMT0M_gjff7JPP9j_5bc950aTN4SlEEXgLKzrAAAAAElFTkSuQmCC.png",
+     "date": "1 thg 2, 2026",
+     "snippet": "Liều lượng kẽm khuyến nghị dao động từ 2mg/ngày cho trẻ nhỏ đến 11-25mg/ngày cho người trưởng thành, không vượt quá 40mg/ngày để tránh tác dụng phụ. Bổ sung kẽm ...",
+     "snippet_highlighted_words": [
+      "kẽm",
+      "kẽm"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Liều lượng kẽm khuyến nghị dao động từ 2mg/ngày cho trẻ nhỏ đến 11-25mg/ngày cho người trưởng thành, không vượt quá 40mg/ngày để tránh tác dụng phụ. Bổ sung kẽm ...",
+       "source_info_link": "https://www.matsaigon.com/a-z/co-nen-uong-kem-moi-ngay/",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAP1BMVEUAAAALgkEBFkALg0ELgEAIgD8Lg0JHcEwKgUELg0IAfDQAeCrr8u2Yv6Xd6uE2kFiqyrTC2cn9_v1foXaDtJNX3fXCAAAACnRSTlMBP___FB34ACXs2z1jwQAAAMtJREFUKJGtkosOgyAMRTFsorcPVPz_bx1QZWzJHll2EoK5J7RSda4SLn5s-Cm4niw7ehl-leFt2dcyGE_ScJMx9HI4QjfeM4Dgyzpxc1NelFWZ10RPEn5liaKqklQjeonEOxFLLroopc2sSRIFsEipR3mL2_0kds0xsfUCE_aVThlrjEMSI694SHtqsuwQgclUa3isu_Vcch7VJPLFjPLGJIyzTJbEjW1jXuotUE-OZWwnhDa9srmrMT0M_gjff7JPP9j_5bc950aTN4SlEEXgLKzrAAAAAElFTkSuQmCC.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CqgBL2dvdG8_dXJsPUNBRVNjZ0hyT3pBVnhtV2ZGa2pERzdVRnl6bXE5LWpfdWE3dFR4RFc4MWg3WVRjWWtCcWctMkllSDlQSmdGNy1IRXJ4dWZiY3RpbmtSTTZVeTRROC1tX2JocDVyb1lTZ21nVUJhZ051M1A4Q3ZUTlV0MmpFeVV4cUJiNlp6Um5FazVFTlg2blhISjZ1VXd5eVN3bU5ZdFF1cWhKeFBBEgQaAggAGv8EEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQNsECEIQABgAIAAqGQoFdmnDqm4VSMhrPxoLdmnDqm514buRbmcqMAoGdeG7kW5nFeApjUAaB3RodeG7kWMaBHVvbmcaBXXDtG5nGgt2acOqbnXhu5FuZyoSCgVr4bq9bRWWhalAGgR6aW5jMqgBL2dvdG8_dXJsPUNBRVNjZ0hyT3pBVnhtV2ZGa2pERzdVRnl6bXE5LWpfdWE3dFR4RFc4MWg3WVRjWWtCcWctMkllSDlQSmdGNy1IRXJ4dWZiY3RpbmtSTTZVeTRROC1tX2JocDVyb1lTZ21nVUJhZ051M1A4Q3ZUTlV0MmpFeVV4cUJiNlp6Um5FazVFTlg2blhISjZ1VXd5eVN3bU5ZdFF1cWhKeFBBOlhDw7MgbsOqbiA8Yj514buRbmcga-G6vW08L2I-IG3hu5dpIG5nw6B5PyBMaeG7gXUgbMaw4bujbmcsIMSR4buRaSB0xrDhu6NuZyB2w6AgY8OhY2ggLi4uQuoBTGnhu4F1IGzGsOG7o25nIDxiPmvhur1tPC9iPiBraHV54bq_biBuZ2jhu4sgZGFvIMSR4buZbmcgdOG7qyAybWcvbmfDoHkgY2hvIHRy4bq7IG5o4buPIMSR4bq_biAxMS0yNW1nL25nw6B5IGNobyBuZ8aw4budaSB0csaw4bufbmcgdGjDoG5oLCBraMO0bmcgdsaw4bujdCBxdcOhIDQwbWcvbmfDoHkgxJHhu4MgdHLDoW5oIHTDoWMgZOG7pW5nIHBo4bulLiBC4buVIHN1bmcgPGI-a-G6vW08L2I-Jm5ic3A7Li4uIgIQAUgAWABoAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CqgBL2dvdG8_dXJsPUNBRVNjZ0hyT3pBVnhtV2ZGa2pERzdVRnl6bXE5LWpfdWE3dFR4RFc4MWg3WVRjWWtCcWctMkllSDlQSmdGNy1IRXJ4dWZiY3RpbmtSTTZVeTRROC1tX2JocDVyb1lTZ21nVUJhZ051M1A4Q3ZUTlV0MmpFeVV4cUJiNlp6Um5FazVFTlg2blhISjZ1VXd5eVN3bU5ZdFF1cWhKeFBBEgQaAggAGv8EEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQNsECEIQABgAIAAqGQoFdmnDqm4VSMhrPxoLdmnDqm514buRbmcqMAoGdeG7kW5nFeApjUAaB3RodeG7kWMaBHVvbmcaBXXDtG5nGgt2acOqbnXhu5FuZyoSCgVr4bq9bRWWhalAGgR6aW5jMqgBL2dvdG8_dXJsPUNBRVNjZ0hyT3pBVnhtV2ZGa2pERzdVRnl6bXE5LWpfdWE3dFR4RFc4MWg3WVRjWWtCcWctMkllSDlQSmdGNy1IRXJ4dWZiY3RpbmtSTTZVeTRROC1tX2JocDVyb1lTZ21nVUJhZ051M1A4Q3ZUTlV0MmpFeVV4cUJiNlp6Um5FazVFTlg2blhISjZ1VXd5eVN3bU5ZdFF1cWhKeFBBOlhDw7MgbsOqbiA8Yj514buRbmcga-G6vW08L2I-IG3hu5dpIG5nw6B5PyBMaeG7gXUgbMaw4bujbmcsIMSR4buRaSB0xrDhu6NuZyB2w6AgY8OhY2ggLi4uQuoBTGnhu4F1IGzGsOG7o25nIDxiPmvhur1tPC9iPiBraHV54bq_biBuZ2jhu4sgZGFvIMSR4buZbmcgdOG7qyAybWcvbmfDoHkgY2hvIHRy4bq7IG5o4buPIMSR4bq_biAxMS0yNW1nL25nw6B5IGNobyBuZ8aw4budaSB0csaw4bufbmcgdGjDoG5oLCBraMO0bmcgdsaw4bujdCBxdcOhIDQwbWcvbmfDoHkgxJHhu4MgdHLDoW5oIHTDoWMgZOG7pW5nIHBo4bulLiBC4buVIHN1bmcgPGI-a-G6vW08L2I-Jm5ic3A7Li4uIgIQAUgAWABoAA",
+     "source": "Bệnh Viện Mắt Sài Gòn"
+    },
+    {
+     "position": 4,
+     "title": "Bổ sung kẽm cho người lớn đúng cách như thế nào?",
+     "link": "https://tiemchunglongchau.com.vn/kien-thuc-tiem-chung/bo-sung-kem-cho-nguoi-lon-dung-cach-nhu-the-nao",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESoAEB6zswFZhl7euYWKEPzpjOsq-DDC4dU6Xv3ugp8rMPD_H-zVGIVctyecj5Xyjt5BN4xVM3ih8USe6wvlhUvwxhsb577L7YuRhiJRLpKgMcRHblAA48uk9_9REDj6kQq7poSJu1rwQcP55knovxFD4LkDz51wQfU1syXXC3suu2z99xYq-68pDAGa5wouPLoGnq2umQJxdjrmX-NyalAt45&ved=2ahUKEwjD097Dy9aXAxWhEFkFHfkQKq0QFnoECBgQAQ&uoh=1",
+     "displayed_link": "https://tiemchunglongchau.com.vn › kien-thuc-tiem-chung",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAbFBMVEVHcEwt0tIt0tIt0tIt0tIt0tIs0dEt0tIt0tIr1NUm1Nga1tY10M2GsZycqY1wva_7agf3bRTndy8u2tPzcSLBlGoVasYNJMAKRMRHvnJQt0hStj8OLsASkMwcstAMGL89xZAAydkvzbRXysAvtxv4AAAACXRSTlMATZLK7P8SpOvY6A92AAABMklEQVR4AY2TVQLDIBBE44LE3dve_47dgUqs8vLJCzssi7HCtGzHdR3bMo0TPN9d4Xv7dcvdYW1_D9wDjrdad0_xTtbPDex_SnCSL2RgnXRbgAtJRGxdZHP-OEnSNMn4qx8kuIpcwZOCSEv-qkT9dYGoaqKJtSBZ2_X0kWHqiHlTD8NQj1EKIRFt33Vd34aIaUOY5oGYp7IAGe87sJBgGw42GGslXFId4aqE_oqGq4xhRQJxe0RYtKAOq4RcVagrqSPcOoAIBEqEkxbGUpfgegOKgBI2Cc8IWQFeESDYOGauItSNSFSFCBF0F3BMk4QBVExqIW47onUVNJ7vPj8jMBBqYX1ZPEtAzNbDu75uJoFg25laDwxtzNl2tH-MnPPv0P4aexjOyUh7P57ev4_35_O_A5mhJCkLzE9_AAAAAElFTkSuQmCC.png",
+     "date": "22 thg 4, 2026",
+     "snippet": "Mệt mỏi, giảm tập trung: Kẽm tham gia vào quá trình tổng hợp và điều hòa các chất dẫn truyền thần kinh trong não bộ. · Ăn uống kém ngon, chán ăn: Kẽm hiện diện ...",
+     "snippet_highlighted_words": [
+      "Kẽm",
+      "uống",
+      "Kẽm"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Mệt mỏi, giảm tập trung: Kẽm tham gia vào quá trình tổng hợp và điều hòa các chất dẫn truyền thần kinh trong não bộ. · Ăn uống kém ngon, chán ăn: Kẽm hiện diện ...",
+       "source_info_link": "https://tiemchunglongchau.com.vn/kien-thuc-tiem-chung/bo-sung-kem-cho-nguoi-lon-dung-cach-nhu-the-nao",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAbFBMVEVHcEwt0tIt0tIt0tIt0tIt0tIs0dEt0tIt0tIr1NUm1Nga1tY10M2GsZycqY1wva_7agf3bRTndy8u2tPzcSLBlGoVasYNJMAKRMRHvnJQt0hStj8OLsASkMwcstAMGL89xZAAydkvzbRXysAvtxv4AAAACXRSTlMATZLK7P8SpOvY6A92AAABMklEQVR4AY2TVQLDIBBE44LE3dve_47dgUqs8vLJCzssi7HCtGzHdR3bMo0TPN9d4Xv7dcvdYW1_D9wDjrdad0_xTtbPDex_SnCSL2RgnXRbgAtJRGxdZHP-OEnSNMn4qx8kuIpcwZOCSEv-qkT9dYGoaqKJtSBZ2_X0kWHqiHlTD8NQj1EKIRFt33Vd34aIaUOY5oGYp7IAGe87sJBgGw42GGslXFId4aqE_oqGq4xhRQJxe0RYtKAOq4RcVagrqSPcOoAIBEqEkxbGUpfgegOKgBI2Cc8IWQFeESDYOGauItSNSFSFCBF0F3BMk4QBVExqIW47onUVNJ7vPj8jMBBqYX1ZPEtAzNbDu75uJoFg25laDwxtzNl2tH-MnPPv0P4aexjOyUh7P57ev4_35_O_A5mhJCkLzE9_AAAAAElFTkSuQmCC.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CuYBL2dvdG8_dXJsPUNBRVNvQUVCNnpzd0ZjX0wxa0dLSnNHbThLcnNrNElOMmpPeGNCaUJJTVhnRExmX25GRzRLd25fRWZBTFZCS3JkRlVzOVdJeWpLWVQwc3JvaWZYTU1FMDRzN0phNG5vNTBnS0xEd2tfZjRZWl9zRlltaFp3VVhjX0J3R05FZkxkWVRFWlNiVWJRdGUwVXJaM3BPVmFuSjR2TWdIX3JqVjFONFVGZm55UDFjNEFURndMSEI4eHVNVzU2MmphLTlaajJlem1ieVFKU2hfLXhDaDl5UGtTVlVRdHhyQmUSBBoCCAAatAUSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAkAUIQhAAGAAgACoZCgV2acOqbhUBBSE_Ggt2acOqbnXhu5FuZyowCgZ14buRbmcVq6-LPxoHdGh14buRYxoEdW9uZxoFdcO0bmcaC3Zpw6pudeG7kW5nKhIKBWvhur1tFUxpgkAaBHppbmMy5gEvZ290bz91cmw9Q0FFU29BRUI2enN3RmNfTDFrR0tKc0dtOEtyc2s0SU4yak94Y0JpQklNWGdETGZfbkZHNEt3bl9FZkFMVkJLcmRGVXM5V0l5aktZVDBzcm9pZlhNTUUwNHM3SmE0bm81MGdLTER3a19mNFlaX3NGWW1oWndVWGNfQndHTkVmTGRZVEVaU2JVYlF0ZTBVclozcE9WYW5KNHZNZ0hfcmpWMU40VUZmbnlQMWM0QVRGd0xIQjh4dU1XNTYyamEtOVpqMmV6bWJ5UUpTaF8teENoOXlQa1NWVVF0eHJCZTpHQuG7lSBzdW5nIDxiPmvhur1tPC9iPiBjaG8gbmfGsOG7nWkgbOG7m24gxJHDum5nIGPDoWNoIG5oxrAgdGjhur8gbsOgbz9C8gFN4buHdCBt4buPaSwgZ2nhuqNtIHThuq1wIHRydW5nOiA8Yj5L4bq9bTwvYj4gdGhhbSBnaWEgdsOgbyBxdcOhIHRyw6xuaCB04buVbmcgaOG7o3AgdsOgIMSRaeG7gXUgaMOyYSBjw6FjIGNo4bqldCBk4bqrbiB0cnV54buBbiB0aOG6p24ga2luaCB0cm9uZyBuw6NvIGLhu5kuICZtaWRkb3Q7IMSCbiA8Yj514buRbmc8L2I-IGvDqW0gbmdvbiwgY2jDoW4gxINuOiA8Yj5L4bq9bTwvYj4gaGnhu4duIGRp4buHbiZuYnNwOy4uLiICEAFIAFgAaAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CuYBL2dvdG8_dXJsPUNBRVNvQUVCNnpzd0ZjX0wxa0dLSnNHbThLcnNrNElOMmpPeGNCaUJJTVhnRExmX25GRzRLd25fRWZBTFZCS3JkRlVzOVdJeWpLWVQwc3JvaWZYTU1FMDRzN0phNG5vNTBnS0xEd2tfZjRZWl9zRlltaFp3VVhjX0J3R05FZkxkWVRFWlNiVWJRdGUwVXJaM3BPVmFuSjR2TWdIX3JqVjFONFVGZm55UDFjNEFURndMSEI4eHVNVzU2MmphLTlaajJlem1ieVFKU2hfLXhDaDl5UGtTVlVRdHhyQmUSBBoCCAAatAUSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAkAUIQhAAGAAgACoZCgV2acOqbhUBBSE_Ggt2acOqbnXhu5FuZyowCgZ14buRbmcVq6-LPxoHdGh14buRYxoEdW9uZxoFdcO0bmcaC3Zpw6pudeG7kW5nKhIKBWvhur1tFUxpgkAaBHppbmMy5gEvZ290bz91cmw9Q0FFU29BRUI2enN3RmNfTDFrR0tKc0dtOEtyc2s0SU4yak94Y0JpQklNWGdETGZfbkZHNEt3bl9FZkFMVkJLcmRGVXM5V0l5aktZVDBzcm9pZlhNTUUwNHM3SmE0bm81MGdLTER3a19mNFlaX3NGWW1oWndVWGNfQndHTkVmTGRZVEVaU2JVYlF0ZTBVclozcE9WYW5KNHZNZ0hfcmpWMU40VUZmbnlQMWM0QVRGd0xIQjh4dU1XNTYyamEtOVpqMmV6bWJ5UUpTaF8teENoOXlQa1NWVVF0eHJCZTpHQuG7lSBzdW5nIDxiPmvhur1tPC9iPiBjaG8gbmfGsOG7nWkgbOG7m24gxJHDum5nIGPDoWNoIG5oxrAgdGjhur8gbsOgbz9C8gFN4buHdCBt4buPaSwgZ2nhuqNtIHThuq1wIHRydW5nOiA8Yj5L4bq9bTwvYj4gdGhhbSBnaWEgdsOgbyBxdcOhIHRyw6xuaCB04buVbmcgaOG7o3AgdsOgIMSRaeG7gXUgaMOyYSBjw6FjIGNo4bqldCBk4bqrbiB0cnV54buBbiB0aOG6p24ga2luaCB0cm9uZyBuw6NvIGLhu5kuICZtaWRkb3Q7IMSCbiA8Yj514buRbmc8L2I-IGvDqW0gbmdvbiwgY2jDoW4gxINuOiA8Yj5L4bq9bTwvYj4gaGnhu4duIGRp4buHbiZuYnNwOy4uLiICEAFIAFgAaAA",
+     "source": "Tiêm chủng Long Châu"
+    },
+    {
+     "position": 5,
+     "title": "8 sản phẩm bổ sung kẽm cho nam giới",
+     "link": "https://nhathuoclongchau.com.vn/bai-viet/cac-loai-thuoc-bo-sung-kem-cho-nam-gioi-co-tac-dung-gi-48637.html",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESpQEB6zswFWlw0aKs0ZQksgHll2Lglw7sO4XQb7gR4fl-CkxJhVL1ObmZ1tH6Qun86TidEhGqWx4t82JDcfTTAomwBgNme73mpPgOzKaC6SAyAl0QHaXx4u-E0FPw71xy9RRwErKfdFtOebLsAs0TkJntrW4uit-7xeayENFwf_DYQfdPDmcfwhBFqAWBdkNEdQK6Z-SSyCa9Z0X8HzGpRnWKX2sQu7g&ved=2ahUKEwjD097Dy9aXAxWhEFkFHfkQKq0QFnoECBMQAQ&uoh=1",
+     "displayed_link": "https://nhathuoclongchau.com.vn › Góc sức khỏe",
+     "favicon": "https://serpapi.com/searches/6adeb4ae412f4322f417583e/images/fbpqvdsLc_CRcTH6gxfMwYJyNJMAZI5bJWYfv0B0ZOg.png",
+     "date": "22 thg 9, 2026",
+     "snippet": "Viên uống Calcium Magnesium Zinc là thực phẩm bảo vệ sức khỏe giúp bổ sung đồng thời canxi, magie và kẽm – ba khoáng chất quan trọng đối với cơ thể. Trong đó, ...",
+     "snippet_highlighted_words": [
+      "Viên uống Calcium Magnesium Zinc"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Viên uống Calcium Magnesium Zinc là thực phẩm bảo vệ sức khỏe giúp bổ sung đồng thời canxi, magie và kẽm – ba khoáng chất quan trọng đối với cơ thể. Trong đó, ...",
+       "source_info_link": "https://nhathuoclongchau.com.vn/bai-viet/cac-loai-thuoc-bo-sung-kem-cho-nam-gioi-co-tac-dung-gi-48637.html",
+       "icon": "https://serpapi.com/searches/6adeb4ae412f4322f417583e/images/fbpqvdsLc_CRcTH6gxfMwaG9BG-L_iUiaUF7U1AnaxltZJVTDu4nAhmNRw5ISzvM.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=Cu0BL2dvdG8_dXJsPUNBRVNwUUVCNnpzd0ZUZ0QxZ0I3TGlqdXhrU3g2bkdrS3pOaUg5V2hQRElOVWZiMGRiXzNUTnVpYk81VW5WY0Z3aTQ4cDNMcTRJTkhEVlhydUw3V28zVm1hbTVjTWxiSm4zUENqMWQ2Zmk4UmVsdmxmMk5NcmdjdWk2RWpnMncxQkNNWTJNb0h5YU1OQ2NhWC1MRlctWjFZQUdTUWU4SDZXUUFIRFRfLUpiUFRrR1dqanRidFNhMndNOGNtWFNrMmZERkcwbXVOYUgzdVVxNmNzaWtYR1hYdTVRbmtYU2tyc1pZEgQaAggAGp0FEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQPkECEIQABgAIAAqGQoFdmnDqm4V5jqKPxoLdmnDqm514buRbmcqMAoGdeG7kW5nFXu7qD8aB3RodeG7kWMaBHVvbmcaBXXDtG5nGgt2acOqbnXhu5FuZyoSCgVr4bq9bRVWvYBAGgR6aW5jMu0BL2dvdG8_dXJsPUNBRVNwUUVCNnpzd0ZUZ0QxZ0I3TGlqdXhrU3g2bkdrS3pOaUg5V2hQRElOVWZiMGRiXzNUTnVpYk81VW5WY0Z3aTQ4cDNMcTRJTkhEVlhydUw3V28zVm1hbTVjTWxiSm4zUENqMWQ2Zmk4UmVsdmxmMk5NcmdjdWk2RWpnMncxQkNNWTJNb0h5YU1OQ2NhWC1MRlctWjFZQUdTUWU4SDZXUUFIRFRfLUpiUFRrR1dqanRidFNhMndNOGNtWFNrMmZERkcwbXVOYUgzdVVxNmNzaWtYR1hYdTVRbmtYU2tyc1pZOkE4IHPhuqNuIHBo4bqpbSBi4buVIHN1bmcgPGI-a-G6vW08L2I-IGNobyBuYW0gZ2nhu5tpIC0gTG9uZyBDaMOidULaATxiPlZpw6puIHXhu5FuZyBDYWxjaXVtIE1hZ25lc2l1bSBaaW5jPC9iPiBsw6AgdGjhu7FjIHBo4bqpbSBi4bqjbyB24buHIHPhu6ljIGto4buPZSBnacO6cCBi4buVIHN1bmcgxJHhu5NuZyB0aOG7nWkgY2FueGksIG1hZ2llIHbDoCBr4bq9bSDigJMgYmEga2hvw6FuZyBjaOG6pXQgcXVhbiB0cuG7jW5nIMSR4buRaSB24bubaSBjxqEgdGjhu4MuIFRyb25nIMSRw7MsJm5ic3A7Li4uIgIQAUgAWABoAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=Cu0BL2dvdG8_dXJsPUNBRVNwUUVCNnpzd0ZUZ0QxZ0I3TGlqdXhrU3g2bkdrS3pOaUg5V2hQRElOVWZiMGRiXzNUTnVpYk81VW5WY0Z3aTQ4cDNMcTRJTkhEVlhydUw3V28zVm1hbTVjTWxiSm4zUENqMWQ2Zmk4UmVsdmxmMk5NcmdjdWk2RWpnMncxQkNNWTJNb0h5YU1OQ2NhWC1MRlctWjFZQUdTUWU4SDZXUUFIRFRfLUpiUFRrR1dqanRidFNhMndNOGNtWFNrMmZERkcwbXVOYUgzdVVxNmNzaWtYR1hYdTVRbmtYU2tyc1pZEgQaAggAGp0FEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQPkECEIQABgAIAAqGQoFdmnDqm4V5jqKPxoLdmnDqm514buRbmcqMAoGdeG7kW5nFXu7qD8aB3RodeG7kWMaBHVvbmcaBXXDtG5nGgt2acOqbnXhu5FuZyoSCgVr4bq9bRVWvYBAGgR6aW5jMu0BL2dvdG8_dXJsPUNBRVNwUUVCNnpzd0ZUZ0QxZ0I3TGlqdXhrU3g2bkdrS3pOaUg5V2hQRElOVWZiMGRiXzNUTnVpYk81VW5WY0Z3aTQ4cDNMcTRJTkhEVlhydUw3V28zVm1hbTVjTWxiSm4zUENqMWQ2Zmk4UmVsdmxmMk5NcmdjdWk2RWpnMncxQkNNWTJNb0h5YU1OQ2NhWC1MRlctWjFZQUdTUWU4SDZXUUFIRFRfLUpiUFRrR1dqanRidFNhMndNOGNtWFNrMmZERkcwbXVOYUgzdVVxNmNzaWtYR1hYdTVRbmtYU2tyc1pZOkE4IHPhuqNuIHBo4bqpbSBi4buVIHN1bmcgPGI-a-G6vW08L2I-IGNobyBuYW0gZ2nhu5tpIC0gTG9uZyBDaMOidULaATxiPlZpw6puIHXhu5FuZyBDYWxjaXVtIE1hZ25lc2l1bSBaaW5jPC9iPiBsw6AgdGjhu7FjIHBo4bqpbSBi4bqjbyB24buHIHPhu6ljIGto4buPZSBnacO6cCBi4buVIHN1bmcgxJHhu5NuZyB0aOG7nWkgY2FueGksIG1hZ2llIHbDoCBr4bq9bSDigJMgYmEga2hvw6FuZyBjaOG6pXQgcXVhbiB0cuG7jW5nIMSR4buRaSB24bubaSBjxqEgdGjhu4MuIFRyb25nIMSRw7MsJm5ic3A7Li4uIgIQAUgAWABoAA",
+     "source": "Nhà thuốc Long Châu"
+    },
+    {
+     "position": 6,
+     "title": "6 viên uống bổ sung kẽm cho phụ nữ, nam giới, trẻ em ...",
+     "link": "https://trungtamthuoc.com/bai-viet/6-vien-uong-bo-sung-kem-cho-phu-nu-nam-gioi-tre-em",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESkAEB6zswFQ7DLlDaX1ZafuDsJdtgYFtC9l4S31aRVQthea2RUTgTlSTE1mTp74Uze7aKjngqKeS0Gc8qc02QxP9enUeoGKAZhw0_CDaS-QQxB4U9dNCdCxA2DgufunKtSrn9LMHqWVT4dZToXnsHLSiNfJAoJVZO2_l81g6cdGgm3L0FiSlvZGPcvfcZil3ZEPc&ved=2ahUKEwjD097Dy9aXAxWhEFkFHfkQKq0QFnoECBEQAQ&uoh=1",
+     "displayed_link": "https://trungtamthuoc.com › Dùng Thuốc Nên Biết",
+     "favicon": "https://serpapi.com/searches/6adeb4ae412f4322f417583e/images/fbpqvdsLc_CRcTH6gxfMwdE8Qe_r1Yw-bVPzk9UXZnQ.png",
+     "date": "12 thg 3, 2026",
+     "snippet": "Blackmores Bio Zinc là viên uống bổ sung kẽm cho nam giới lựa chọn nhằm hỗ trợ sức khỏe tổng thể và chức năng sinh lý. Sản phẩm cung cấp kẽm cùng một số vi chất ...",
+     "snippet_highlighted_words": [
+      "Blackmores Bio Zinc"
+     ],
+     "about_this_result": {
+      "source": {
+       "description": "Blackmores Bio Zinc là viên uống bổ sung kẽm cho nam giới lựa chọn nhằm hỗ trợ sức khỏe tổng thể và chức năng sinh lý. Sản phẩm cung cấp kẽm cùng một số vi chất ...",
+       "source_info_link": "https://trungtamthuoc.com/bai-viet/6-vien-uong-bo-sung-kem-cho-phu-nu-nam-gioi-tre-em",
+       "icon": "https://serpapi.com/searches/6adeb4ae412f4322f417583e/images/fbpqvdsLc_CRcTH6gxfMwdf-Th3GryNwYvJ1vCk0DiuPFAdWuC8WQu_hINRbtgaC.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CtEBL2dvdG8_dXJsPUNBRVNrQUVCNnpzd0ZiSG85OG5yZnU0ZllnX1JoQWY5YkxBUDJiZlJnM0xKWUh2Q3B3S2FUYkNmNGdVQmZaOXdCSXNLTlpzTkJQbWFyWXU1UUp5LW5yUm9YTGZkUVlzMHl0Tzk4VHNvclk2NHNOYlVyelhiek8zb2JNdmlRZmhJYXRuWHVLaVFINjNOQU5Rb0Y5WmRWT096Nlp5eXI3MWtrYk9VX1dmWFJ5aVlmUExET0RlMHFEb2N4UGp5SHpqamFMQ1ZfRzASBBoCCAAapAUSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAgAUIQhAAGAAgACoZCgV2acOqbhVSylJAGgt2acOqbnXhu5FuZyowCgZ14buRbmcVXnk-QBoHdGh14buRYxoEdW9uZxoFdcO0bmcaC3Zpw6pudeG7kW5nKhIKBWvhur1tFSF_XkAaBHppbmMy0QEvZ290bz91cmw9Q0FFU2tBRUI2enN3RmJIbzk4bnJmdTRmWWdfUmhBZjliTEFQMmJmUmczTEpZSHZDcHdLYVRiQ2Y0Z1VCZlo5d0JJc0tOWnNOQlBtYXJZdTVRSnktbnJSb1hMZmRRWXMweXRPOThUc29yWTY0c05iVXJ6WGJ6TzNvYk12aVFmaElhdG5YdUtpUUg2M05BTlFvRjlaZFZPT3o2Wnl5cjcxa2tiT1VfV2ZYUnlpWWZQTERPRGUwcURvY3hQanlIempqYUxDVl9HMDpeNiA8Yj52acOqbiB14buRbmc8L2I-IGLhu5Ugc3VuZyA8Yj5r4bq9bTwvYj4gY2hvIHBo4bulIG7hu68sIG5hbSBnaeG7m2ksIHRy4bq7IGVtIMSRxrDhu6NjIC4uLkLgATxiPkJsYWNrbW9yZXMgQmlvIFppbmM8L2I-IGzDoCB2acOqbiB14buRbmcgYuG7lSBzdW5nIGvhur1tIGNobyBuYW0gZ2nhu5tpIGzhu7FhIGNo4buNbiBuaOG6sW0gaOG7lyB0cuG7oyBz4bupYyBraOG7j2UgdOG7lW5nIHRo4buDIHbDoCBjaOG7qWMgbsSDbmcgc2luaCBsw70uIFPhuqNuIHBo4bqpbSBjdW5nIGPhuqVwIGvhur1tIGPDuW5nIG3hu5l0IHPhu5EgdmkgY2jhuqV0Jm5ic3A7Li4uIgIQAUgAWABoAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CtEBL2dvdG8_dXJsPUNBRVNrQUVCNnpzd0ZiSG85OG5yZnU0ZllnX1JoQWY5YkxBUDJiZlJnM0xKWUh2Q3B3S2FUYkNmNGdVQmZaOXdCSXNLTlpzTkJQbWFyWXU1UUp5LW5yUm9YTGZkUVlzMHl0Tzk4VHNvclk2NHNOYlVyelhiek8zb2JNdmlRZmhJYXRuWHVLaVFINjNOQU5Rb0Y5WmRWT096Nlp5eXI3MWtrYk9VX1dmWFJ5aVlmUExET0RlMHFEb2N4UGp5SHpqamFMQ1ZfRzASBBoCCAAapAUSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAgAUIQhAAGAAgACoZCgV2acOqbhVSylJAGgt2acOqbnXhu5FuZyowCgZ14buRbmcVXnk-QBoHdGh14buRYxoEdW9uZxoFdcO0bmcaC3Zpw6pudeG7kW5nKhIKBWvhur1tFSF_XkAaBHppbmMy0QEvZ290bz91cmw9Q0FFU2tBRUI2enN3RmJIbzk4bnJmdTRmWWdfUmhBZjliTEFQMmJmUmczTEpZSHZDcHdLYVRiQ2Y0Z1VCZlo5d0JJc0tOWnNOQlBtYXJZdTVRSnktbnJSb1hMZmRRWXMweXRPOThUc29yWTY0c05iVXJ6WGJ6TzNvYk12aVFmaElhdG5YdUtpUUg2M05BTlFvRjlaZFZPT3o2Wnl5cjcxa2tiT1VfV2ZYUnlpWWZQTERPRGUwcURvY3hQanlIempqYUxDVl9HMDpeNiA8Yj52acOqbiB14buRbmc8L2I-IGLhu5Ugc3VuZyA8Yj5r4bq9bTwvYj4gY2hvIHBo4bulIG7hu68sIG5hbSBnaeG7m2ksIHRy4bq7IGVtIMSRxrDhu6NjIC4uLkLgATxiPkJsYWNrbW9yZXMgQmlvIFppbmM8L2I-IGzDoCB2acOqbiB14buRbmcgYuG7lSBzdW5nIGvhur1tIGNobyBuYW0gZ2nhu5tpIGzhu7FhIGNo4buNbiBuaOG6sW0gaOG7lyB0cuG7oyBz4bupYyBraOG7j2UgdOG7lW5nIHRo4buDIHbDoCBjaOG7qWMgbsSDbmcgc2luaCBsw70uIFPhuqNuIHBo4bqpbSBjdW5nIGPhuqVwIGvhur1tIGPDuW5nIG3hu5l0IHPhu5EgdmkgY2jhuqV0Jm5ic3A7Li4uIgIQAUgAWABoAA",
+     "source": "Trung Tâm Thuốc Central Pharmacy"
+    },
+    {
+     "position": 7,
+     "title": "Viên uống bổ sung kẽm DHC Nhật Bản 60 ngày",
+     "link": "https://chiaki.vn/vien-uong-bo-sung-kem-dhc-nhat-ban-60-ngay",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESdwHrOzAVMxHIx4MaxmHc4hDr7sURoUm681C7rXbvGoG8mphGCETACEwi4bq7qSb7XlkpMvvCGRvSwHm05pGJtiu30EpOEcPczgiPJKrPBzJ_D167nO8ijDeQWJHxkmhExbhG9gd3C1-z9KU3X9DCyYBwaj84Dtac&ved=2ahUKEwjD097Dy9aXAxWhEFkFHfkQKq0QFnoECBQQAQ&uoh=1",
+     "displayed_link": "https://chiaki.vn › Thực phẩm chức năng",
+     "favicon": "https://serpapi.com/searches/6adeb4ae412f4322f417583e/images/fbpqvdsLc_CRcTH6gxfMwb0P8zwE6uX05n46XHog-Eg.png",
+     "date": "11 thg 10, 2026",
+     "snippet": "Viên uống bổ sung kẽm DHC Nhật Bản 60 ngày là sản phẩm đặc biệt được thiết kế để cung cấp lượng kẽm cần thiết cho cơ thể, nhằm hỗ trợ cải thiện sức khỏe tổng ...",
+     "snippet_highlighted_words": [
+      "Viên uống bổ sung kẽm DHC Nhật Bản 60 ngày"
+     ],
+     "rich_snippet": {
+      "top": {
+       "detected_extensions": {
+        "rating": 5.0,
+        "reviews": 26,
+        "price": 190000,
+        "currency": "₫",
+        "trả_lại_hàng_trong_ngày": 15
+       },
+       "extensions": [
+        "5,0(26)",
+        "190.000 ₫",
+        "Còn hàng",
+        "Giao hàng miễn phí",
+        "Trả lại hàng trong 15 ngày"
+       ]
+      }
+     },
+     "about_this_result": {
+      "source": {
+       "description": "Viên uống bổ sung kẽm DHC Nhật Bản 60 ngày là sản phẩm đặc biệt được thiết kế để cung cấp lượng kẽm cần thiết cho cơ thể, nhằm hỗ trợ cải thiện sức khỏe tổng ...",
+       "source_info_link": "https://chiaki.vn/vien-uong-bo-sung-kem-dhc-nhat-ban-60-ngay",
+       "icon": "https://serpapi.com/searches/6adeb4ae412f4322f417583e/images/fbpqvdsLc_CRcTH6gxfMwaXrUZRXCaq8V_-NfwYz6NG7H3IohjRyGdvIYJ4cJB9N.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=Cq4BL2dvdG8_dXJsPUNBRVNkd0hyT3pBVmR5Mzh0akF3ZlpLYlRXRmtiblZ5bkZfa21jeWNxbS1ld0NUcVN2QjBfN3YzWWtraWFBR3RwVS0yRDFGTEwyejgtUFNaSHBsd010R0pQcDZscWR4Y2ZOWkd4Vl95OC1ndTJjNXJEX1l3ZXVtMWRuTmtObC1EUlFNczNwRW5IeXdZc2VwTlFKUWt5bWNuZ2x3QVNrWWpXR1VnEgQaAggAGv8EEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQNsECEIQABgAIAAqGQoFdmnDqm4V8CJ_QBoLdmnDqm514buRbmcqMAoGdeG7kW5nFdU2gEAaB3RodeG7kWMaBHVvbmcaBXXDtG5nGgt2acOqbnXhu5FuZyoSCgVr4bq9bRXDFH9AGgR6aW5jMq4BL2dvdG8_dXJsPUNBRVNkd0hyT3pBVmR5Mzh0akF3ZlpLYlRXRmtiblZ5bkZfa21jeWNxbS1ld0NUcVN2QjBfN3YzWWtraWFBR3RwVS0yRDFGTEwyejgtUFNaSHBsd010R0pQcDZscWR4Y2ZOWkd4Vl95OC1ndTJjNXJEX1l3ZXVtMWRuTmtObC1EUlFNczNwRW5IeXdZc2VwTlFKUWt5bWNuZ2x3QVNrWWpXR1VnOlA8Yj5WacOqbiB14buRbmc8L2I-IGLhu5Ugc3VuZyA8Yj5r4bq9bTwvYj4gREhDIE5o4bqtdCBC4bqjbiA2MCBuZ8OgeSAtIENoaWFraS52bkLsATxiPlZpw6puIHXhu5FuZyBi4buVIHN1bmcga-G6vW0gREhDIE5o4bqtdCBC4bqjbiA2MCBuZ8OgeTwvYj4gbMOgIHPhuqNuIHBo4bqpbSDEkeG6t2MgYmnhu4d0IMSRxrDhu6NjIHRoaeG6v3Qga-G6vyDEkeG7gyBjdW5nIGPhuqVwIGzGsOG7o25nIGvhur1tIGPhuqduIHRoaeG6v3QgY2hvIGPGoSB0aOG7gywgbmjhurFtIGjhu5cgdHLhu6MgY-G6o2kgdGhp4buHbiBz4bupYyBraOG7j2UgdOG7lW5nJm5ic3A7Li4uIgIQAUgAWABoAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=Cq4BL2dvdG8_dXJsPUNBRVNkd0hyT3pBVmR5Mzh0akF3ZlpLYlRXRmtiblZ5bkZfa21jeWNxbS1ld0NUcVN2QjBfN3YzWWtraWFBR3RwVS0yRDFGTEwyejgtUFNaSHBsd010R0pQcDZscWR4Y2ZOWkd4Vl95OC1ndTJjNXJEX1l3ZXVtMWRuTmtObC1EUlFNczNwRW5IeXdZc2VwTlFKUWt5bWNuZ2x3QVNrWWpXR1VnEgQaAggAGv8EEgAaACIAKgAyBggBEgJ2bjoAQgQIARBCSgBaAHIAegCCQNsECEIQABgAIAAqGQoFdmnDqm4V8CJ_QBoLdmnDqm514buRbmcqMAoGdeG7kW5nFdU2gEAaB3RodeG7kWMaBHVvbmcaBXXDtG5nGgt2acOqbnXhu5FuZyoSCgVr4bq9bRXDFH9AGgR6aW5jMq4BL2dvdG8_dXJsPUNBRVNkd0hyT3pBVmR5Mzh0akF3ZlpLYlRXRmtiblZ5bkZfa21jeWNxbS1ld0NUcVN2QjBfN3YzWWtraWFBR3RwVS0yRDFGTEwyejgtUFNaSHBsd010R0pQcDZscWR4Y2ZOWkd4Vl95OC1ndTJjNXJEX1l3ZXVtMWRuTmtObC1EUlFNczNwRW5IeXdZc2VwTlFKUWt5bWNuZ2x3QVNrWWpXR1VnOlA8Yj5WacOqbiB14buRbmc8L2I-IGLhu5Ugc3VuZyA8Yj5r4bq9bTwvYj4gREhDIE5o4bqtdCBC4bqjbiA2MCBuZ8OgeSAtIENoaWFraS52bkLsATxiPlZpw6puIHXhu5FuZyBi4buVIHN1bmcga-G6vW0gREhDIE5o4bqtdCBC4bqjbiA2MCBuZ8OgeTwvYj4gbMOgIHPhuqNuIHBo4bqpbSDEkeG6t2MgYmnhu4d0IMSRxrDhu6NjIHRoaeG6v3Qga-G6vyDEkeG7gyBjdW5nIGPhuqVwIGzGsOG7o25nIGvhur1tIGPhuqduIHRoaeG6v3QgY2hvIGPGoSB0aOG7gywgbmjhurFtIGjhu5cgdHLhu6MgY-G6o2kgdGhp4buHbiBz4bupYyBraOG7j2UgdOG7lW5nJm5ic3A7Li4uIgIQAUgAWABoAA",
+     "source": "Chiaki.vn"
+    },
+    {
+     "position": 8,
+     "title": "Viên Uống DHC Zinc Bổ Sung Kẽm 30 ngày",
+     "link": "https://cocolux.com/vien-uong-kem-dhc-30-ngay-i.4511413609941",
+     "redirect_link": "https://www.google.com/url?sa=t&source=web&rct=j&opi=89978449&url=CAESeAHrOzAVA9zkiBNrkVKmIpwpKV7xGf16HfhsWitEDiQG7ghfQ7xGhYvm089XMkM3nUQKCb1HH77CQUNaIfYv5M32nsUI7w0TeQeUjZS0f1b-C7jEUhmMaVaFZmBn0Qkw9wpXMRcIKAzugudMMbAvRi7yy-BZTz3nCA&ved=2ahUKEwjD097Dy9aXAxWhEFkFHfkQKq0QFnoECA4QAQ&uoh=1",
+     "displayed_link": "https://cocolux.com › vien-uong-kem-dhc-30-ngay-i.45...",
+     "favicon": "https://serpapi.com/searches/6adeb4ae412f4322f417583e/images/fbpqvdsLc_CRcTH6gxfMwTtE5eJrGOJbn31l307ZPLo.png",
+     "date": "3 thg 11, 2025",
+     "snippet": "Viên Uống Kẽm DHC có thành phần chính chứa 3 loại khoáng chất cần thiết cho cơ thể gồm kẽm, crom và selen, giúp bổ sung kẽm cho cơ thể, duy trì cơ thể khỏe ...",
+     "snippet_highlighted_words": [
+      "Viên Uống Kẽm DHC"
+     ],
+     "rich_snippet": {
+      "top": {
+       "detected_extensions": {
+        "rating": 5.0,
+        "reviews": 5
+       },
+       "extensions": [
+        "5,0(5)",
+        "Còn hàng",
+        "Giao hàng miễn phí"
+       ]
+      }
+     },
+     "about_this_result": {
+      "source": {
+       "description": "Viên Uống Kẽm DHC có thành phần chính chứa 3 loại khoáng chất cần thiết cho cơ thể gồm kẽm, crom và selen, giúp bổ sung kẽm cho cơ thể, duy trì cơ thể khỏe ...",
+       "source_info_link": "https://cocolux.com/vien-uong-kem-dhc-30-ngay-i.4511413609941",
+       "icon": "https://serpapi.com/searches/6adeb4ae412f4322f417583e/images/fbpqvdsLc_CRcTH6gxfMwTEbYt1C8B07oB8amstb32d-V57nX6HNx4ZBTo2ohwS5.png"
+      },
+      "languages": [
+       "vi"
+      ],
+      "regions": [
+       "VN"
+      ]
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CrABL2dvdG8_dXJsPUNBRVNlQUhyT3pBVjVKNllIY2F2UUh0VlhwMUl1MW9yQnliXzV1ZkJ1RmFaODRGeDFucmR0QmtLcmx1Zk9JRThhRk56ckRuNlNhRG1GaExzcjBLTEUyUVJfWm1rYnEyZFZnTVBOLUNRd2E3X25YY3Jvd0UtVFlTQ2tWOTNLMUN0M0ZKa1l1dVNuYjhJMnUtUkc2bks1NVI4cnlEYkVNdFlmZkxYTVESBBoCCAAa4QQSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAvQQIQhAAGAAgACoZCgV2acOqbhW2GZlAGgt2acOqbnXhu5FuZyowCgZ14buRbmcVrs-XQBoHdGh14buRYxoEdW9uZxoFdcO0bmcaC3Zpw6pudeG7kW5nKhIKBWvhur1tFeUdlEAaBHppbmMysAEvZ290bz91cmw9Q0FFU2VBSHJPekFWNUo2WUhjYXZRSHRWWHAxSXUxb3JCeWJfNXVmQnVGYVo4NEZ4MW5yZHRCa0tybHVmT0lFOGFGTnpyRG42U2FEbUZoTHNyMEtMRTJRUl9abWticTJkVmdNUE4tQ1F3YTdfblhjcm93RS1UWVNDa1Y5M0sxQ3QzRkprWXV1U25iOEkydS1SRzZuSzU1UjhyeURiRU10WWZmTFhNUTpGPGI-VmnDqm4gVeG7kW5nPC9iPiBESEMgWmluYyBC4buVIFN1bmcgPGI-S-G6vW08L2I-IDMwIG5nw6B5IC0gQ29jb2x1eELWATxiPlZpw6puIFXhu5FuZyBL4bq9bSBESEM8L2I-IGPDsyB0aMOgbmggcGjhuqduIGNow61uaCBjaOG7qWEgMyBsb-G6oWkga2hvw6FuZyBjaOG6pXQgY-G6p24gdGhp4bq_dCBjaG8gY8ahIHRo4buDIGfhu5NtIGvhur1tLCBjcm9tIHbDoCBzZWxlbiwgZ2nDunAgYuG7lSBzdW5nIGvhur1tIGNobyBjxqEgdGjhu4MsIGR1eSB0csOsIGPGoSB0aOG7gyBraOG7j2UmbmJzcDsuLi4iAhABSABYAGgA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CrABL2dvdG8_dXJsPUNBRVNlQUhyT3pBVjVKNllIY2F2UUh0VlhwMUl1MW9yQnliXzV1ZkJ1RmFaODRGeDFucmR0QmtLcmx1Zk9JRThhRk56ckRuNlNhRG1GaExzcjBLTEUyUVJfWm1rYnEyZFZnTVBOLUNRd2E3X25YY3Jvd0UtVFlTQ2tWOTNLMUN0M0ZKa1l1dVNuYjhJMnUtUkc2bks1NVI4cnlEYkVNdFlmZkxYTVESBBoCCAAa4QQSABoAIgAqADIGCAESAnZuOgBCBAgBEEJKAFoAcgB6AIJAvQQIQhAAGAAgACoZCgV2acOqbhW2GZlAGgt2acOqbnXhu5FuZyowCgZ14buRbmcVrs-XQBoHdGh14buRYxoEdW9uZxoFdcO0bmcaC3Zpw6pudeG7kW5nKhIKBWvhur1tFeUdlEAaBHppbmMysAEvZ290bz91cmw9Q0FFU2VBSHJPekFWNUo2WUhjYXZRSHRWWHAxSXUxb3JCeWJfNXVmQnVGYVo4NEZ4MW5yZHRCa0tybHVmT0lFOGFGTnpyRG42U2FEbUZoTHNyMEtMRTJRUl9abWticTJkVmdNUE4tQ1F3YTdfblhjcm93RS1UWVNDa1Y5M0sxQ3QzRkprWXV1U25iOEkydS1SRzZuSzU1UjhyeURiRU10WWZmTFhNUTpGPGI-VmnDqm4gVeG7kW5nPC9iPiBESEMgWmluYyBC4buVIFN1bmcgPGI-S-G6vW08L2I-IDMwIG5nw6B5IC0gQ29jb2x1eELWATxiPlZpw6puIFXhu5FuZyBL4bq9bSBESEM8L2I-IGPDsyB0aMOgbmggcGjhuqduIGNow61uaCBjaOG7qWEgMyBsb-G6oWkga2hvw6FuZyBjaOG6pXQgY-G6p24gdGhp4bq_dCBjaG8gY8ahIHRo4buDIGfhu5NtIGvhur1tLCBjcm9tIHbDoCBzZWxlbiwgZ2nDunAgYuG7lSBzdW5nIGvhur1tIGNobyBjxqEgdGjhu4MsIGR1eSB0csOsIGPGoSB0aOG7gyBraOG7j2UmbmJzcDsuLi4iAhABSABYAGgA",
+     "source": "Cocolux"
+    },
+    {
+     "position": 9,
+     "title": "Vitamin C và Kẽm DHC - sản phẩm bán chạy tại các nhà thuốc ...",
+     "link": "https://www.facebook.com/dhcvietnamofficial/posts/vitamin-c-v%C3%A0-k%E1%BA%BDm-dhc-s%E1%BA%A3n-ph%E1%BA%A9m-b%C3%A1n-ch%E1%BA%A1y-t%E1%BA%A1i-c%C3%A1c-nh%C3%A0-thu%E1%BB%91c-l%E1%BB%9Bn-nh%C6%B0-long-ch%C3%A2u-pharm/1413983924104754/",
+     "displayed_link": ">40 lượt thể hiện cảm xúc · 6 tháng trước",
+     "thumbnail": "https://serpapi.com/searches/6adeb4ae412f4322f417583e/images/fbpqvdsLc_CRcTH6gxfMwaDKRiNecoIJqOoWk5CTA0o.jpeg",
+     "favicon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAXVBMVEVHcEwHZv8HaP8IZ_8IZ_8IZv8IaP8IZ_8HZv8Haf8IZ_8IaP8IZ_8AXv8AV_8AYv-SqP_P1__m6__e5f9wlP____-tvP9jiv82c_8IZ_8Iaf-fsf________8AW_-wrobhAAAAH3RSTlMAM4bC6v1h7v8Z3UL_______7_________wRiFwenBhp_Z0gAAAOhJREFUeAFtk0UWwzAMBWWHFHOZe_9bBn9Nr7Mdg5AiQjZt17WNFFTTDxwZ-kKNigvUmJw2XGF0dByx1jlnPTPDjiYqDofj8XQ4L9bsL6vozpedq13_3eJk4G-XXPIac8zBHUs5EIl48Q4Tws3ziiAZ5f7j3Vq7O5b0iOGE1Z0cRxpqS3mwSbbU4VHndukW8GwHiQ_BzUO2KceIw7MIqJBHyIZk_WwKSv6KcD_frlsqt_P5joBELJ-3iNZD8YDC_82zz1pWS5U1u5bmmY1JLdMQmVoaOIxmIdVYDXWUxVAD8Xp_FvnN1mEG0f0e5ixC4ikAAAAASUVORK5CYII.png",
+     "snippet": "Vitamin C và Kẽm DHC - sản phẩm bán chạy tại các nhà thuốc lớn như Long Châu, Pharmacity - được nhiều anh em tin tưởng lựa chọn! #dhcvietnam...",
+     "duration": "0:32",
+     "about_this_result": {
+      "source": {
+       "description": "Vitamin C và Kẽm DHC - sản phẩm bán chạy tại các nhà thuốc lớn như Long Châu, Pharmacity - được nhiều anh em tin tưởng lựa chọn! #dhcvietnam...",
+       "icon": "https://serpapi.com/images/i/iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y-mAAAAXVBMVEVHcEwHZv8HaP8IZ_8IZ_8IZv8IaP8IZ_8HZv8Haf8IZ_8IaP8IZ_8AXv8AV_8AYv-SqP_P1__m6__e5f9wlP____-tvP9jiv82c_8IZ_8Iaf-fsf________8AW_-wrobhAAAAH3RSTlMAM4bC6v1h7v8Z3UL_______7_________wRiFwenBhp_Z0gAAAOhJREFUeAFtk0UWwzAMBWWHFHOZe_9bBn9Nr7Mdg5AiQjZt17WNFFTTDxwZ-kKNigvUmJw2XGF0dByx1jlnPTPDjiYqDofj8XQ4L9bsL6vozpedq13_3eJk4G-XXPIac8zBHUs5EIl48Q4Tws3ziiAZ5f7j3Vq7O5b0iOGE1Z0cRxpqS3mwSbbU4VHndukW8GwHiQ_BzUO2KceIw7MIqJBHyIZk_WwKSv6KcD_frlsqt_P5joBELJ-3iNZD8YDC_82zz1pWS5U1u5bmmY1JLdMQmVoaOIxmIdVYDXWUxVAD8Xp_FvnN1mEG0f0e5ixC4ikAAAAASUVORK5CYII.png"
+      }
+     },
+     "about_page_link": "https://www.google.com/search/about-this-result?origin=www.google.com&req=CpkDL2dvdG8_dXJsPUNBRVNwZ0lCNnpzd0ZVWUp3aGxBR1BkUXR3THV1MEZrNHE1bndFVzczc2IxOWU2eVBRQmZNR3ZBM09sUVZsX0RCQzJGVHNEYVZ0WHYyYVZVR3ZvQVNTb2ZKXzFlOE9fbTQ1OFI5R19KbzExd0Y4SzVsOWJZNUFKVlVweF9GWV9zalN6T3gzREFGUS1YNk05dVNIbVhueGFXQlU2MDJJVGg0NWw4QnVKY25PNEhheG1lMGc3Vmh6RTVkcXhlSF9yb01BTHdHZ29jY3NBVHBvT2tXMHVqSVZNQVN1bHk3YTU4ZEdPS295dE1oa1BSU1c1ckZEZm83TGVWR3VrVjZiQllIOFhkQTZyZzFUZFVUYkxRX3Fndy0wdTNQVy1YYnd1SzNEU05YaktfcW5XNTFwQ0dXUU5ZcU1ibktUaDFTeFg1RVJUMGhHUkdXakQzd1A4VHdTbnpFWFc4N2tia2F2NlVULVFPQ2ZWZTdtRmtacU1BU3hrdEFydzNHckdwTGFBQ0VwM0ktNFJ3QUxjZC1KaxIWChAKBAgwSAIKBAhISAIKAgg_GgIIABoWEgAaACIAKgAyADoAQgBKAFoAcgB6ACICEAFIAFgAaAA",
+     "about_page_serpapi_link": "https://serpapi.com/search.json?engine=google_about_this_result&google_domain=google.com&req_token=CpkDL2dvdG8_dXJsPUNBRVNwZ0lCNnpzd0ZVWUp3aGxBR1BkUXR3THV1MEZrNHE1bndFVzczc2IxOWU2eVBRQmZNR3ZBM09sUVZsX0RCQzJGVHNEYVZ0WHYyYVZVR3ZvQVNTb2ZKXzFlOE9fbTQ1OFI5R19KbzExd0Y4SzVsOWJZNUFKVlVweF9GWV9zalN6T3gzREFGUS1YNk05dVNIbVhueGFXQlU2MDJJVGg0NWw4QnVKY25PNEhheG1lMGc3Vmh6RTVkcXhlSF9yb01BTHdHZ29jY3NBVHBvT2tXMHVqSVZNQVN1bHk3YTU4ZEdPS295dE1oa1BSU1c1ckZEZm83TGVWR3VrVjZiQllIOFhkQTZyZzFUZFVUYkxRX3Fndy0wdTNQVy1YYnd1SzNEU05YaktfcW5XNTFwQ0dXUU5ZcU1ibktUaDFTeFg1RVJUMGhHUkdXakQzd1A4VHdTbnpFWFc4N2tia2F2NlVULVFPQ2ZWZTdtRmtacU1BU3hrdEFydzNHckdwTGFBQ0VwM0ktNFJ3QUxjZC1KaxIWChAKBAgwSAIKBAhISAIKAgg_GgIIABoWEgAaACIAKgAyADoAQgBKAFoAcgB6ACICEAFIAFgAaAA",
+     "source": "Facebook · DHC Vietnam"
+    }
+   ],
+   "pagination": {
+    "current": 1,
+    "next": "https://www.google.com/search?q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&tbs=cdr:1,cd_min:10/26/2025,cd_max:10/25/2026&sxsrf=APpeQnu5E_ACqQ05ePVC8RAzI9xZn64n_A:1792980142246&ei=rrTeasPEDqGh5NoP-aGo6Qo&start=10&sa=N&sstk=AS6-VmJLOdDjehzBTMR5NDYlhchz0D9tmtzh-tggIJrpVMvXJicOlT11rhnA0T_rKXiyGyWWxkXQ2fD8VVYLG4-EI9vRNUZFU5Mdgw&ved=2ahUKEwjD097Dy9aXAxWhEFkFHfkQKq0Q8NMDegQIQBAW",
+    "other_pages": {
+     "2": "https://www.google.com/search?q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&tbs=cdr:1,cd_min:10/26/2025,cd_max:10/25/2026&sxsrf=APpeQnu5E_ACqQ05ePVC8RAzI9xZn64n_A:1792980142246&ei=rrTeasPEDqGh5NoP-aGo6Qo&start=10&sa=N&sstk=AS6-VmJLOdDjehzBTMR5NDYlhchz0D9tmtzh-tggIJrpVMvXJicOlT11rhnA0T_rKXiyGyWWxkXQ2fD8VVYLG4-EI9vRNUZFU5Mdgw&ved=2ahUKEwjD097Dy9aXAxWhEFkFHfkQKq0Q8tMDegQIQBAE",
+     "3": "https://www.google.com/search?q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&tbs=cdr:1,cd_min:10/26/2025,cd_max:10/25/2026&sxsrf=APpeQnu5E_ACqQ05ePVC8RAzI9xZn64n_A:1792980142246&ei=rrTeasPEDqGh5NoP-aGo6Qo&start=20&sa=N&sstk=AS6-VmJLOdDjehzBTMR5NDYlhchz0D9tmtzh-tggIJrpVMvXJicOlT11rhnA0T_rKXiyGyWWxkXQ2fD8VVYLG4-EI9vRNUZFU5Mdgw&ved=2ahUKEwjD097Dy9aXAxWhEFkFHfkQKq0Q8tMDegQIQBAG",
+     "4": "https://www.google.com/search?q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&tbs=cdr:1,cd_min:10/26/2025,cd_max:10/25/2026&sxsrf=APpeQnu5E_ACqQ05ePVC8RAzI9xZn64n_A:1792980142246&ei=rrTeasPEDqGh5NoP-aGo6Qo&start=30&sa=N&sstk=AS6-VmJLOdDjehzBTMR5NDYlhchz0D9tmtzh-tggIJrpVMvXJicOlT11rhnA0T_rKXiyGyWWxkXQ2fD8VVYLG4-EI9vRNUZFU5Mdgw&ved=2ahUKEwjD097Dy9aXAxWhEFkFHfkQKq0Q8tMDegQIQBAI",
+     "5": "https://www.google.com/search?q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&tbs=cdr:1,cd_min:10/26/2025,cd_max:10/25/2026&sxsrf=APpeQnu5E_ACqQ05ePVC8RAzI9xZn64n_A:1792980142246&ei=rrTeasPEDqGh5NoP-aGo6Qo&start=40&sa=N&sstk=AS6-VmJLOdDjehzBTMR5NDYlhchz0D9tmtzh-tggIJrpVMvXJicOlT11rhnA0T_rKXiyGyWWxkXQ2fD8VVYLG4-EI9vRNUZFU5Mdgw&ved=2ahUKEwjD097Dy9aXAxWhEFkFHfkQKq0Q8tMDegQIQBAK",
+     "6": "https://www.google.com/search?q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&tbs=cdr:1,cd_min:10/26/2025,cd_max:10/25/2026&sxsrf=APpeQnu5E_ACqQ05ePVC8RAzI9xZn64n_A:1792980142246&ei=rrTeasPEDqGh5NoP-aGo6Qo&start=50&sa=N&sstk=AS6-VmJLOdDjehzBTMR5NDYlhchz0D9tmtzh-tggIJrpVMvXJicOlT11rhnA0T_rKXiyGyWWxkXQ2fD8VVYLG4-EI9vRNUZFU5Mdgw&ved=2ahUKEwjD097Dy9aXAxWhEFkFHfkQKq0Q8tMDegQIQBAM",
+     "7": "https://www.google.com/search?q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&tbs=cdr:1,cd_min:10/26/2025,cd_max:10/25/2026&sxsrf=APpeQnu5E_ACqQ05ePVC8RAzI9xZn64n_A:1792980142246&ei=rrTeasPEDqGh5NoP-aGo6Qo&start=60&sa=N&sstk=AS6-VmJLOdDjehzBTMR5NDYlhchz0D9tmtzh-tggIJrpVMvXJicOlT11rhnA0T_rKXiyGyWWxkXQ2fD8VVYLG4-EI9vRNUZFU5Mdgw&ved=2ahUKEwjD097Dy9aXAxWhEFkFHfkQKq0Q8tMDegQIQBAO",
+     "8": "https://www.google.com/search?q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&tbs=cdr:1,cd_min:10/26/2025,cd_max:10/25/2026&sxsrf=APpeQnu5E_ACqQ05ePVC8RAzI9xZn64n_A:1792980142246&ei=rrTeasPEDqGh5NoP-aGo6Qo&start=70&sa=N&sstk=AS6-VmJLOdDjehzBTMR5NDYlhchz0D9tmtzh-tggIJrpVMvXJicOlT11rhnA0T_rKXiyGyWWxkXQ2fD8VVYLG4-EI9vRNUZFU5Mdgw&ved=2ahUKEwjD097Dy9aXAxWhEFkFHfkQKq0Q8tMDegQIQBAQ",
+     "9": "https://www.google.com/search?q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&tbs=cdr:1,cd_min:10/26/2025,cd_max:10/25/2026&sxsrf=APpeQnu5E_ACqQ05ePVC8RAzI9xZn64n_A:1792980142246&ei=rrTeasPEDqGh5NoP-aGo6Qo&start=80&sa=N&sstk=AS6-VmJLOdDjehzBTMR5NDYlhchz0D9tmtzh-tggIJrpVMvXJicOlT11rhnA0T_rKXiyGyWWxkXQ2fD8VVYLG4-EI9vRNUZFU5Mdgw&ved=2ahUKEwjD097Dy9aXAxWhEFkFHfkQKq0Q8tMDegQIQBAS",
+     "10": "https://www.google.com/search?q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm&sca_esv=2b323d92f2ecfa88&hl=vi&gl=vn&tbs=cdr:1,cd_min:10/26/2025,cd_max:10/25/2026&sxsrf=APpeQnu5E_ACqQ05ePVC8RAzI9xZn64n_A:1792980142246&ei=rrTeasPEDqGh5NoP-aGo6Qo&start=90&sa=N&sstk=AS6-VmJLOdDjehzBTMR5NDYlhchz0D9tmtzh-tggIJrpVMvXJicOlT11rhnA0T_rKXiyGyWWxkXQ2fD8VVYLG4-EI9vRNUZFU5Mdgw&ved=2ahUKEwjD097Dy9aXAxWhEFkFHfkQKq0Q8tMDegQIQBAU"
+    }
+   },
+   "serpapi_pagination": {
+    "current": 1,
+    "next_link": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm&start=10&tbs=cdr%3A1%2Ccd_min%3A10%2F26%2F2025%2Ccd_max%3A10%2F25%2F2026",
+    "next": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm&start=10&tbs=cdr%3A1%2Ccd_min%3A10%2F26%2F2025%2Ccd_max%3A10%2F25%2F2026",
+    "other_pages": {
+     "2": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm&start=10&tbs=cdr%3A1%2Ccd_min%3A10%2F26%2F2025%2Ccd_max%3A10%2F25%2F2026",
+     "3": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm&start=20&tbs=cdr%3A1%2Ccd_min%3A10%2F26%2F2025%2Ccd_max%3A10%2F25%2F2026",
+     "4": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm&start=30&tbs=cdr%3A1%2Ccd_min%3A10%2F26%2F2025%2Ccd_max%3A10%2F25%2F2026",
+     "5": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm&start=40&tbs=cdr%3A1%2Ccd_min%3A10%2F26%2F2025%2Ccd_max%3A10%2F25%2F2026",
+     "6": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm&start=50&tbs=cdr%3A1%2Ccd_min%3A10%2F26%2F2025%2Ccd_max%3A10%2F25%2F2026",
+     "7": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm&start=60&tbs=cdr%3A1%2Ccd_min%3A10%2F26%2F2025%2Ccd_max%3A10%2F25%2F2026",
+     "8": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm&start=70&tbs=cdr%3A1%2Ccd_min%3A10%2F26%2F2025%2Ccd_max%3A10%2F25%2F2026",
+     "9": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm&start=80&tbs=cdr%3A1%2Ccd_min%3A10%2F26%2F2025%2Ccd_max%3A10%2F25%2F2026",
+     "10": "https://serpapi.com/search.json?device=desktop&engine=google&gl=vn&google_domain=google.com&hl=vi&q=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm&start=90&tbs=cdr%3A1%2Ccd_min%3A10%2F26%2F2025%2Ccd_max%3A10%2F25%2F2026"
+    }
+   }
+  },
+  "step": "COLLECTION",
+  "captureArtifactSha256": "2347d54f95f4f240a3d0fccd845bd242111c1601f883368da50d8f1147bf992a"
+ }
+}

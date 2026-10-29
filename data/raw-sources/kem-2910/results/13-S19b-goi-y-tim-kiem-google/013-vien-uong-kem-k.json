@@ -1,0 +1,101 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «viên uống kẽm k» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[12]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "358c5ca46f1640fc667429b1ed0341de21a0d1f1e2208a52bdd9c739e511f8c0"
+ },
+ "result": {
+  "prefix": "viên uống kẽm k",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:57:50Z",
+  "suggestions": [
+   "viên uống kẽm kiềm dầu",
+   "uống viên kẽm khi nào",
+   "uống viên kẽm khi nào tốt nhất",
+   "viên kẽm uống khi nào trong ngày",
+   "viên uống canxi magie kẽm kirkland",
+   "viên uống kẽm có tốt không",
+   "viên uống kẽm dhc uống khi nào",
+   "nên uống viên kẽm không",
+   "uống viên kẽm tốt không",
+   "uống viên kẽm trước khi ngủ được không"
+  ],
+  "raw": [
+   "viên uống kẽm k",
+   [
+    "viên uống kẽm kiềm dầu",
+    "uống viên kẽm khi nào",
+    "uống viên kẽm khi nào tốt nhất",
+    "viên kẽm uống khi nào trong ngày",
+    "viên uống canxi magie kẽm kirkland",
+    "viên uống kẽm có tốt không",
+    "viên uống kẽm dhc uống khi nào",
+    "nên uống viên kẽm không",
+    "uống viên kẽm tốt không",
+    "uống viên kẽm trước khi ngủ được không"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ]
+    ]
+   }
+  ]
+ }
+}

@@ -1,0 +1,221 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "03 · S05 · Đánh giá Shopee",
+  "describe": "Danh sách 5 sản phẩm Shopee đã thu + trạng thái từng sản phẩm",
+  "parentFile": "03-S05-shopee-danh-gia.json",
+  "parentLocation": "records[kind=collection]",
+  "sourceCode": "S05",
+  "sourceName": "Đánh giá Shopee",
+  "provider": "Dịch vụ review công khai Shopee (gói S, shopee-public-review)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-26",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Mọi đánh giá có trên trang tới lúc thu, tối đa 300 mỗi sản phẩm; ngày đánh giá không bị giới hạn theo kỳ"
+  },
+  "limits": [
+   "owner_url_identity_not_provider_verification",
+   "listing_level_reviews_not_selected_variant",
+   "review_dates_not_constrained_by_listing_selection",
+   "Lệch 5 sao",
+   "Không in nguyên văn lời khách vào báo cáo",
+   "Đánh giá theo listing, không theo biến thể"
+  ],
+  "resultSha256": "b08ee42ac0c2efbba37cb245894551cd230b250be7e45f99eb596b46ac4ff8a3"
+ },
+ "result": {
+  "attemptedAt": "2026-10-26T02:21:13.507Z",
+  "collectionId": "3e408f6b-1ea5-41db-9062-67af7569891c",
+  "collectorWarnings": [],
+  "confirmedSourceSetSha256": "161771987181fdd3ddf3ef9621d0c3c1ffaa063b8f4befae6ad2d0f5ee060b9b",
+  "contractVersion": "4.0.0",
+  "createdAt": "2026-10-26T02:21:13.507Z",
+  "listings": [
+   {
+    "attemptedAt": "2026-10-26T02:08:59.556Z",
+    "cancelIntent": false,
+    "complete": true,
+    "createdAt": "2026-10-26T02:05:02.567Z",
+    "inputSha256": "eccb630fe13813307d8e16ad86865f608f81d6808e7d4467d52bc0fa65a511f9",
+    "itemId": "2308735412",
+    "jobId": "ff838c3b-10fe-47c5-85ff-3b99ed5a5f02",
+    "observedAt": "2026-10-26T02:08:59.556Z",
+    "productUrl": "https://shopee.vn/product/44806875/2308735412",
+    "requestCount": 131,
+    "requestCountUncertain": false,
+    "resultAvailable": true,
+    "resultByteSize": 186402,
+    "resultSha256": "9fbd2df1c6f4f6e3b87767b3ed9f3e383d53ed03556b525ddce80c74f6e8831c",
+    "shopId": "44806875",
+    "state": "succeeded",
+    "stopCode": null,
+    "stopReason": "record_limit",
+    "timedOut": false
+   },
+   {
+    "attemptedAt": "2026-10-26T02:13:08.610Z",
+    "cancelIntent": false,
+    "complete": true,
+    "createdAt": "2026-10-26T02:08:59.582Z",
+    "inputSha256": "3c58da98eba19ed1c8edece3ad0e0d2b51729f4168bf4a5469165417272acca8",
+    "itemId": "16542213807",
+    "jobId": "6c59a4e0-47d3-4502-b1ab-61f0fa438f3a",
+    "observedAt": "2026-10-26T02:13:08.610Z",
+    "productUrl": "https://shopee.vn/product/729761153/16542213807",
+    "requestCount": 139,
+    "requestCountUncertain": false,
+    "resultAvailable": true,
+    "resultByteSize": 183338,
+    "resultSha256": "14c1caba4d4300e2054af914b01e718722cc346cafab32725c83260d02a0dfc8",
+    "shopId": "729761153",
+    "state": "succeeded",
+    "stopCode": null,
+    "stopReason": "record_limit",
+    "timedOut": false
+   },
+   {
+    "attemptedAt": "2026-10-26T02:17:29.618Z",
+    "cancelIntent": false,
+    "complete": true,
+    "createdAt": "2026-10-26T02:13:08.636Z",
+    "inputSha256": "4e26a77367c28a6fe3e1b458bddf5cedbbbe7bc185bb8aa81556daf885be0ce8",
+    "itemId": "28106261717",
+    "jobId": "efadc425-635a-4824-976f-2042509364f5",
+    "observedAt": "2026-10-26T02:17:29.618Z",
+    "productUrl": "https://shopee.vn/product/1111889194/28106261717",
+    "requestCount": 143,
+    "requestCountUncertain": false,
+    "resultAvailable": true,
+    "resultByteSize": 174530,
+    "resultSha256": "a714f834cea56969c[số điện thoại]b7a8d01b2647027cc6e62c83b633aed0c3b46",
+    "shopId": "1111889194",
+    "state": "succeeded",
+    "stopCode": null,
+    "stopReason": "record_limit",
+    "timedOut": false
+   },
+   {
+    "attemptedAt": "2026-10-26T02:19:54.899Z",
+    "cancelIntent": false,
+    "complete": true,
+    "createdAt": "2026-10-26T02:17:29.644Z",
+    "inputSha256": "60735c80a83dc97fbc9b59a5b46160749c171fb50306196241ca170d60bab493",
+    "itemId": "16433976455",
+    "jobId": "9859f3aa-7f40-483a-badb-0d56f7d7f188",
+    "observedAt": "2026-10-26T02:19:54.899Z",
+    "productUrl": "https://shopee.vn/product/319371830/16433976455",
+    "requestCount": 82,
+    "requestCountUncertain": false,
+    "resultAvailable": true,
+    "resultByteSize": 90570,
+    "resultSha256": "2fe7d28ddba729de61dced7728054786792f6329f422f4a561022a8a9b3d9005",
+    "shopId": "319371830",
+    "state": "succeeded",
+    "stopCode": null,
+    "stopReason": "expected_count_reached",
+    "timedOut": false
+   },
+   {
+    "attemptedAt": "2026-10-26T02:21:13.507Z",
+    "cancelIntent": false,
+    "complete": true,
+    "createdAt": "2026-10-26T02:19:54.921Z",
+    "inputSha256": "e5238287b08b2b88f6c8bb48badfe63a01bb0c021f5f67feb5fe6f6e5166b7e3",
+    "itemId": "988067990",
+    "jobId": "0c6d9672-1c13-4363-8d39-4131103971c8",
+    "observedAt": "2026-10-26T02:21:13.507Z",
+    "productUrl": "https://shopee.vn/product/52449373/988067990",
+    "requestCount": 47,
+    "requestCountUncertain": false,
+    "resultAvailable": true,
+    "resultByteSize": 43623,
+    "resultSha256": "e56fb3d43456742e287bf3229d6a9620a926b9f139f22c2102c1c008e3499fc5",
+    "shopId": "52449373",
+    "state": "succeeded",
+    "stopCode": null,
+    "stopReason": "expected_count_reached",
+    "timedOut": false
+   }
+  ],
+  "mappingRevision": "shopee-public-review-row-v1",
+  "maxReviewsPerProduct": 300,
+  "mode": "live",
+  "pages": [
+   {
+    "byteSize": 179079,
+    "offset": 0,
+    "sha256": "b794d7e0341382ca044f833bddc0a43e134dd69a96c2978773a470a48b451088"
+   },
+   {
+    "byteSize": 175423,
+    "offset": 300,
+    "sha256": "ff53d416d1ac1b36a487f92de5c3c5a2086bd26b55e04703957ac6c897599315"
+   },
+   {
+    "byteSize": 166368,
+    "offset": 600,
+    "sha256": "5ccd35edecb5432e67851e93ba2a0196c76aa41a84af1224b9d85b117babd627"
+   },
+   {
+    "byteSize": 85400,
+    "offset": 900,
+    "sha256": "41043a348e1fe1b861949c51c10d6921164e28c4de17ae6e8f667042c1b41696"
+   },
+   {
+    "byteSize": 40772,
+    "offset": 1068,
+    "sha256": "329b666345fdff73d1d9f6a2493f4df2f2d216e2453fa0837b7dbc2e630b7c02"
+   }
+  ],
+  "providerId": "shopee-public-review",
+  "requestSha256": "b71b2dfb0881b5dea41eac940329fc2c921cc89117d6ed20977a14ef8648f85e",
+  "reused": false,
+  "runKey": "auto-f0f4799a-f9b3-4204-91b2-682ab79d0fce",
+  "selected": [
+   {
+    "itemId": "2308735412",
+    "platform": "shopee",
+    "productUrl": "https://shopee.vn/product/44806875/2308735412",
+    "shopId": "44806875",
+    "submittedUrl": "https://shopee.vn/product/44806875/2308735412"
+   },
+   {
+    "itemId": "16542213807",
+    "platform": "shopee",
+    "productUrl": "https://shopee.vn/product/729761153/16542213807",
+    "shopId": "729761153",
+    "submittedUrl": "https://shopee.vn/product/729761153/16542213807"
+   },
+   {
+    "itemId": "28106261717",
+    "platform": "shopee",
+    "productUrl": "https://shopee.vn/product/1111889194/28106261717",
+    "shopId": "1111889194",
+    "submittedUrl": "https://shopee.vn/product/1111889194/28106261717"
+   },
+   {
+    "itemId": "16433976455",
+    "platform": "shopee",
+    "productUrl": "https://shopee.vn/product/319371830/16433976455",
+    "shopId": "319371830",
+    "submittedUrl": "https://shopee.vn/product/319371830/16433976455"
+   },
+   {
+    "itemId": "988067990",
+    "platform": "shopee",
+    "productUrl": "https://shopee.vn/product/52449373/988067990",
+    "shopId": "52449373",
+    "submittedUrl": "https://shopee.vn/product/52449373/988067990"
+   }
+  ],
+  "selectionBasis": "OWNER_EXACT_URL",
+  "selectionWarnings": [
+   "owner_url_identity_not_provider_verification",
+   "listing_level_reviews_not_selected_variant",
+   "review_dates_not_constrained_by_listing_selection"
+  ],
+  "usageTotalUsd": 0
+ }
+}

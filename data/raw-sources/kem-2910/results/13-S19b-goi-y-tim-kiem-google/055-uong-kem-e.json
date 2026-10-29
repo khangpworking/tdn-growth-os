@@ -1,0 +1,84 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «uống kẽm e» (7 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[54]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "e88fca59eb3a1a9be408a5e71268a7996aad5662b13716f08e8343bb1726c4ef"
+ },
+ "result": {
+  "prefix": "uống kẽm e",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:22Z",
+  "suggestions": [
+   "uống kẽm và vitamin e cùng lúc được không",
+   "kẽm uống trẻ em",
+   "uống kẽm cùng vitamin e có được không",
+   "uống kẽm với vitamin e",
+   "uống kẽm và vitamin e trị mụn",
+   "uống kẽm và vitamin e có tác dụng gì",
+   "uống kẽm cho trẻ em"
+  ],
+  "raw": [
+   "uống kẽm e",
+   [
+    "uống kẽm và vitamin e cùng lúc được không",
+    "kẽm uống trẻ em",
+    "uống kẽm cùng vitamin e có được không",
+    "uống kẽm với vitamin e",
+    "uống kẽm và vitamin e trị mụn",
+    "uống kẽm và vitamin e có tác dụng gì",
+    "uống kẽm cho trẻ em"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ]
+    ]
+   }
+  ]
+ }
+}

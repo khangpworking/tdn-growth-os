@@ -1,0 +1,43 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "01 · S01 · Số bán ước tính trên sàn (Shopee + TikTok Shop)",
+  "describe": "Metric API GET /market/keywords/search (thứ tự 175)",
+  "parentFile": "01-S01-metric-so-ban-shopee-tiktok.json",
+  "parentLocation": "records[4].content[175]",
+  "sourceCode": "S01",
+  "sourceName": "Số bán ước tính trên sàn (Shopee + TikTok Shop)",
+  "provider": "Metric (web, OpenCLI)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": "2026-09-21",
+   "endDate": "2026-10-20",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "30 ngày Metric tự chọn (kỳ đủ dữ liệu gần nhất trước ngày chạy)"
+  },
+  "limits": [
+   "Số bán là ước tính của nguồn",
+   "Bảng kết quả không có cột gian hàng ổn định (xem PR #310)",
+   "Không bấm Xuất/Tải"
+  ],
+  "resultSha256": "401921124f6b57b507206f192182a499e5ceb5f32239048ae4c211ac3dbaa1ac"
+ },
+ "result": {
+  "urlPath": "/market/keywords/search",
+  "responseOrder": 175,
+  "status": 200,
+  "body": {
+   "status": "success",
+   "keyword": [
+    "viên uống kẽm dhc",
+    "viên uống kẽm và vitamin c",
+    "viên uống kẽm cho nam",
+    "viên uống kẽm dhc 60 ngày",
+    "viên uống kẽm dsd"
+   ]
+  },
+  "method": "GET",
+  "timestamp": 1792979726317,
+  "requestBody": ""
+ }
+}

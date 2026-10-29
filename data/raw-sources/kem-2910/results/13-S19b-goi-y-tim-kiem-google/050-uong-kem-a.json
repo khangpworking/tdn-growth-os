@@ -1,0 +1,92 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «uống kẽm a» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[49]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "9004eb1c3bfdb1732bac96cef192219a19eb850c14c65bd853e46f913c1e4f7b"
+ },
+ "result": {
+  "prefix": "uống kẽm a",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:18Z",
+  "suggestions": [
+   "uống kẽm ada khi nào",
+   "uống kẽm ada có tăng cân không",
+   "uống kẽm amagain khi nào",
+   "uống kẽm ada nhiều có tốt không",
+   "uống kẽm ada có hại thận không",
+   "uống kẽm ada có tác dụng gì",
+   "uống kẽm amagain có tác dụng gì",
+   "uống kẽm amagain có tốt không",
+   "uống kẽm ada bao lâu thì có tác dụng",
+   "uống kẽm ada có hại không"
+  ],
+  "raw": [
+   "uống kẽm a",
+   [
+    "uống kẽm ada khi nào",
+    "uống kẽm ada có tăng cân không",
+    "uống kẽm amagain khi nào",
+    "uống kẽm ada nhiều có tốt không",
+    "uống kẽm ada có hại thận không",
+    "uống kẽm ada có tác dụng gì",
+    "uống kẽm amagain có tác dụng gì",
+    "uống kẽm amagain có tốt không",
+    "uống kẽm ada bao lâu thì có tác dụng",
+    "uống kẽm ada có hại không"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ]
+    ]
+   }
+  ]
+ }
+}

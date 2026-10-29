@@ -1,0 +1,70 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "01 · S01 · Số bán ước tính trên sàn (Shopee + TikTok Shop)",
+  "describe": "Metric API GET /market/search_body/history (thứ tự 91)",
+  "parentFile": "01-S01-metric-so-ban-shopee-tiktok.json",
+  "parentLocation": "records[4].content[91]",
+  "sourceCode": "S01",
+  "sourceName": "Số bán ước tính trên sàn (Shopee + TikTok Shop)",
+  "provider": "Metric (web, OpenCLI)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": "2026-09-21",
+   "endDate": "2026-10-20",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "30 ngày Metric tự chọn (kỳ đủ dữ liệu gần nhất trước ngày chạy)"
+  },
+  "limits": [
+   "Số bán là ước tính của nguồn",
+   "Bảng kết quả không có cột gian hàng ổn định (xem PR #310)",
+   "Không bấm Xuất/Tải"
+  ],
+  "resultSha256": "91e2815fc18662499955306911c023e2377744f665dc29c76b9617c85e0a5e37"
+ },
+ "result": {
+  "urlPath": "/market/search_body/history",
+  "responseOrder": 91,
+  "status": 200,
+  "body": {
+   "status": "success",
+   "data": [
+    [
+     "canxi"
+    ],
+    [
+     "viên kẽm",
+     "viên uống kẽm"
+    ],
+    [
+     "viên ngủ ngon"
+    ],
+    [
+     "ngủ ngon",
+     "viên ngủ ngon"
+    ],
+    [
+     "viên uống kẽm"
+    ],
+    [
+     "quạt điện"
+    ],
+    [
+     "thạch dừa"
+    ],
+    [
+     "giày thể thao"
+    ],
+    [
+     "son môi"
+    ],
+    [
+     "bình giữ nhiệt"
+    ]
+   ]
+  },
+  "method": "GET",
+  "timestamp": 1792979722179,
+  "requestBody": ""
+ }
+}

@@ -1,0 +1,331 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "02 · S02 · Sản phẩm và số bán TikTok Shop",
+  "describe": "kalodata.product.detail 1730172085314816729",
+  "parentFile": "02-S02-kalodata-san-pham-tiktok-shop.json",
+  "parentLocation": "records[57]",
+  "sourceCode": "S02",
+  "sourceName": "Sản phẩm và số bán TikTok Shop",
+  "provider": "Kalodata Open API",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": "2025-10-26",
+   "endDate": "2026-10-25",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "product.rank: 30 ngày 26/09–25/10/2026; product.detail: từng cửa sổ 30 ngày nối nhau trong 12 tháng (xem queryWindow mỗi bản ghi)"
+  },
+  "limits": [
+   "video.rank bị từ chối (mã 501: thiếu region/language trong yêu cầu) — 0 video",
+   "Không có tuổi, giới",
+   "Cửa sổ ngày tối đa 30 ngày"
+  ],
+  "resultSha256": "b065ecceb7b677098e1f16b1c4b67d6c2f799c4b3e7cfaa0ba13b39fceec1cef"
+ },
+ "result": {
+  "captureId": "kalodata-0051",
+  "operation": "kalodata.product.detail",
+  "endpoint": "https://www.kalodata.com/openapi/v1/tiktok/product/detail",
+  "method": "POST",
+  "requestParameters": {
+   "currency": "VND",
+   "date_range": "2026-08-22~2026-09-20",
+   "language": "vi-VN",
+   "need_extra": false,
+   "need_image": 1,
+   "product_id": "1730172085314816729",
+   "region": "VN"
+  },
+  "queryWindow": {
+   "endDate": "2026-09-20",
+   "startDate": "2026-08-22"
+  },
+  "productRef": "kalodata:1730172085314816729",
+  "requestedAt": "2026-10-26T02:02:12.953Z",
+  "completedAt": "2026-10-26T02:02:13.363Z",
+  "httpStatus": 200,
+  "outcome": "OK",
+  "providerCode": null,
+  "billing": "PAID_CREDITS",
+  "responseSha256": "a16b136f5f2b84f9eb31a23ab383a834f511e3724928ebb27f520be7b8dbf6a1",
+  "response": {
+   "success": true,
+   "data": {
+    "product_id": "1730172085314816729",
+    "product_region": "vn",
+    "product_name": "TPBVSK Viên uống ACNACARE Mega We Care (30 viên) - Kẽm, Crôm, D.Salina, Vitamin C, Vitamin E",
+    "product_shop_id": "7495693021623978713",
+    "pri_cate_id": "700645",
+    "sec_cate_id": "700646",
+    "ter_cate_id": "700650",
+    "max_price": 150888.73,
+    "min_price": 150888.73,
+    "revenue": 428184878.42,
+    "video_revenue": 402202044.12,
+    "live_revenue": 25982834.3,
+    "sales_volumn": 3301,
+    "creator_number": 162,
+    "video_number": 894,
+    "live_number": 299,
+    "delivery_type": "local",
+    "shopping_mall_revenue": 0.0,
+    "commission_rate": 10.0,
+    "unit_price": 129713.69,
+    "product_review_count": 1237,
+    "launch_date": "2024-04-26",
+    "master_image_url": "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/356569a0973c4cdaa8f6522b623f4370~tplv-aphluv4xwc-resize-webp:800:800.jpeg",
+    "revenue_trend": null,
+    "product_description": [
+     {
+      "type": "text",
+      "text": "Thực phẩm bảo vệ sức khỏe ACNACARE",
+      "sub": [
+       {
+        "t": "Thực phẩm bảo vệ sức khỏe ACNACARE"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "THÀNH PHẦN;",
+      "sub": [
+       {
+        "t": "THÀNH PHẦN;"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Mỗi viên nang mềm chứa: (APC Complex: Dịch chứa trong vỏ nang, bao gồm tất cả các thành phần chính và phụ liệu).",
+      "sub": [
+       {
+        "t": "Mỗi viên nang mềm chứa: (APC Complex: Dịch chứa trong vỏ nang, bao gồm tất cả các thành phần chính và phụ liệu)."
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "APC Complex .................................................. 600 mg;",
+      "sub": [
+       {
+        "t": "APC Complex .................................................. 600 mg;"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Bao gồm:",
+      "sub": [
+       {
+        "t": "Bao gồm:"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Phức hợp Zinc-Methionin.......................................75 mg",
+      "sub": [
+       {
+        "t": "Phức hợp Zinc-Methionin.......................................75 mg"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Cung cấp Kẽm.................................................... 15 mg",
+      "sub": [
+       {
+        "t": "Cung cấp Kẽm.................................................... 15 mg"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Vitamin C...................................................................60 mg",
+      "sub": [
+       {
+        "t": "Vitamin C...................................................................60 mg"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Chiết xuất D. Salina...................................................20 mg",
+      "sub": [
+       {
+        "t": "Chiết xuất D. Salina...................................................20 mg"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Cung cấp Betacaroten và carotenoid khác.............6 mg",
+      "sub": [
+       {
+        "t": "Cung cấp Betacaroten và carotenoid khác.............6 mg"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "D-alpha-tocopheryl acetat 1300 IU/g..................11,54 mg",
+      "sub": [
+       {
+        "t": "D-alpha-tocopheryl acetat 1300 IU/g..................11,54 mg"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Cung cấp Vitamin E tự nhiên................................15 IU",
+      "sub": [
+       {
+        "t": "Cung cấp Vitamin E tự nhiên................................15 IU"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Crôm picolinat......................................................1,04 mg.",
+      "sub": [
+       {
+        "t": "Crôm picolinat......................................................1,04 mg."
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Cung cấp Crôm..................................................130 μg",
+      "sub": [
+       {
+        "t": "Cung cấp Crôm..................................................130 μg"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Phụ liệu: Dầu đậu nành, dầu thực vật no, sáp ong trắng, aerosil 200, lecithin, gelatin,",
+      "sub": [
+       {
+        "t": "Phụ liệu: Dầu đậu nành, dầu thực vật no, sáp ong trắng, aerosil 200, lecithin, gelatin,"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "glycerin, nước tinh khiết, titan dioxyd, màu xanh brilliant, màu đỏ FD&C số 40.",
+      "sub": [
+       {
+        "t": "glycerin, nước tinh khiết, titan dioxyd, màu xanh brilliant, màu đỏ FD&C số 40."
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "CÔNG DỤNG:",
+      "sub": [
+       {
+        "t": "CÔNG DỤNG:"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Bổ sung các chất chống oxy hóa, hỗ trợ giảm nguy cơ tiết bã nhờn, mụn trên da. Hỗ trợ làm đẹp da.",
+      "sub": [
+       {
+        "t": "Bổ sung các chất chống oxy hóa, hỗ trợ giảm nguy cơ tiết bã nhờn, mụn trên da. Hỗ trợ làm đẹp da."
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "ĐỐI TƯỢNG SỬ DỤNG:",
+      "sub": [
+       {
+        "t": "ĐỐI TƯỢNG SỬ DỤNG:"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Trẻ em từ 12 tuổi và người lớn. Người có nguy cơ tiết bã nhờn, mụn trên da.",
+      "sub": [
+       {
+        "t": "Trẻ em từ 12 tuổi và người lớn. Người có nguy cơ tiết bã nhờn, mụn trên da."
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "CÁCH DÙNG:",
+      "sub": [
+       {
+        "t": "CÁCH DÙNG:"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "- Thiếu niên (12 - 13 tuổi): 1 viên/ngày trong bữa ăn.",
+      "sub": [
+       {
+        "t": "- Thiếu niên (12 - 13 tuổi): 1 viên/ngày trong bữa ăn."
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "- Vị thành niên (14 - 18 tuổi) và người lớn: 1 viên/lần, sử dụng 2 lần/ngày trong bữa ăn.",
+      "sub": [
+       {
+        "t": "- Vị thành niên (14 - 18 tuổi) và người lớn: 1 viên/lần, sử dụng 2 lần/ngày trong bữa ăn."
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "BẢO QUẢN: Nơi khô mát, tránh ánh nắng trực tiếp. Để xa tầm tay trẻ em.",
+      "sub": [
+       {
+        "t": "BẢO QUẢN: Nơi khô mát, tránh ánh nắng trực tiếp. Để xa tầm tay trẻ em."
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "LƯU Ý:",
+      "sub": [
+       {
+        "t": "LƯU Ý:"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "- Thực phẩm này không phải là thuốc, không có tác dụng thay thế thuốc chữa bệnh",
+      "sub": [
+       {
+        "t": "- Thực phẩm này không phải là thuốc, không có tác dụng thay thế thuốc chữa bệnh"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "- Không sử dụng cho người quá mẫn cảm với bất kỳ thành phần nào của sản phẩm",
+      "sub": [
+       {
+        "t": "- Không sử dụng cho người quá mẫn cảm với bất kỳ thành phần nào của sản phẩm"
+       }
+      ]
+     }
+    ]
+   },
+   "message": null,
+   "cached": null,
+   "code": null
+  },
+  "step": "COLLECTION",
+  "captureArtifactSha256": "449e2c56301edd2d78b7d629619a7d3342903528c08ca9e686044daf96961461"
+ }
+}

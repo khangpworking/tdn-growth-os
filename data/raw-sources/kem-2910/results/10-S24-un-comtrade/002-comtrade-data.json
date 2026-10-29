@@ -1,0 +1,55 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "10 · S24 · Thương mại quốc tế (HS 210690)",
+  "describe": "comtrade.data comtrade.data",
+  "parentFile": "10-S24-un-comtrade.json",
+  "parentLocation": "records[1]",
+  "sourceCode": "S24",
+  "sourceName": "Thương mại quốc tế (HS 210690)",
+  "provider": "UN Comtrade public preview API",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": "2025-01-01",
+   "endDate": "2025-12-31",
+   "timezone": "UTC",
+   "basis": "period=2025, năm"
+  },
+  "limits": [
+   "HS 210690 rộng hơn viên kẽm (mọi chế phẩm thực phẩm)",
+   "Preview API giới hạn 500 dòng"
+  ],
+  "resultSha256": "388ab2a05c64a2bd01de140b372bf8de03afc60bb877658344bad7bdae7702dd"
+ },
+ "result": {
+  "captureId": "comtrade-0002",
+  "operation": "comtrade.data",
+  "endpoint": "https://comtradeapi.un.org/public/v1/preview/C/A/HS",
+  "method": "GET",
+  "requestParameters": {
+   "cmdCode": "210690",
+   "flowCode": "M",
+   "includeDesc": "true",
+   "partnerCode": "0",
+   "period": "2025",
+   "reporterCode": "704"
+  },
+  "queryWindow": null,
+  "productRef": null,
+  "requestedAt": "2026-10-26T02:02:50.568Z",
+  "completedAt": "2026-10-26T02:02:52.069Z",
+  "httpStatus": 200,
+  "outcome": "OK",
+  "providerCode": null,
+  "billing": "FREE_ACCOUNT_QUERY",
+  "responseSha256": "d621c47cf1d6c742b1b1a7c897cc473519dd08c3851cea6d2103a872e7b4554e",
+  "response": {
+   "elapsedTime": "0.19 secs",
+   "count": 0,
+   "data": [],
+   "error": ""
+  },
+  "step": "COLLECTION",
+  "captureArtifactSha256": "92fd9ff87b856e0758545f9eda4c7cdc9059fd6e106e128072c596f7820cd4ac"
+ }
+}

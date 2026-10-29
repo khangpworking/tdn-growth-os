@@ -1,0 +1,319 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "08 · S20 + S20b · Mức quan tâm tìm kiếm Google Trends (theo thời gian + theo tỉnh)",
+  "describe": "Google Trends GEO_MAP_0 cho «viên uống kẽm»",
+  "parentFile": "08-S20-google-trends.json",
+  "parentLocation": "records[1]",
+  "sourceCode": "S20 + S20b",
+  "sourceName": "Mức quan tâm tìm kiếm Google Trends (theo thời gian + theo tỉnh)",
+  "provider": "SerpApi engine=google_trends",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": "2025-10-26",
+   "endDate": "2026-10-25",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "12 tháng, geo=VN"
+  },
+  "limits": [
+   "Mức quan tâm, không phải số người",
+   "Từ khoá dài cho dữ liệu thưa"
+  ],
+  "resultSha256": "3c8e06f7e7c5ce020e1e58b3489028942d941d25809f50397b88bf3c375a4694"
+ },
+ "result": {
+  "captureId": "serpapi-0001",
+  "operation": "serpapi.google.trends",
+  "endpoint": "https://serpapi.com/search.json",
+  "method": "GET",
+  "requestParameters": {
+   "data_type": "GEO_MAP_0",
+   "date": "2025-10-26 2026-10-25",
+   "engine": "google_trends",
+   "geo": "VN",
+   "hl": "vi",
+   "q": "viên uống kẽm"
+  },
+  "queryWindow": null,
+  "productRef": null,
+  "requestedAt": "2026-10-26T02:02:17.663Z",
+  "completedAt": "2026-10-26T02:02:22.067Z",
+  "httpStatus": 200,
+  "outcome": "OK",
+  "providerCode": "6adeb4a977e19d9eb5e8f056",
+  "billing": "PAID_SEARCH_UNLESS_CACHED",
+  "responseSha256": "be9da9c3d02f8cf10ee27fce9a79a591e7e5a34d5152a67e017840068c9ceafd",
+  "response": {
+   "search_metadata": {
+    "id": "6adeb4a977e19d9eb5e8f056",
+    "status": "Success",
+    "json_endpoint": "https://serpapi.com/searches/qbFq7yGNU8yNr-YCkeOPqvjLmjZ6e0j4HZ5qhg4dEfQ/6adeb4a977e19d9eb5e8f056.json",
+    "markdown_endpoint": "https://serpapi.com/searches/qbFq7yGNU8yNr-YCkeOPqvjLmjZ6e0j4HZ5qhg4dEfQ/6adeb4a977e19d9eb5e8f056.md",
+    "created_at": "2026-10-26 02:02:17 UTC",
+    "processed_at": "2026-10-26 02:02:17 UTC",
+    "google_trends_url": "https://trends.google.com/trends/embed/explore/GEO_MAP?hl=vi&tz=420&req=%7B%22comparisonItem%22%3A%5B%7B%22keyword%22%3A%22vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm%22%2C%22geo%22%3A%22VN%22%2C%22time%22%3A%222025-10-26+2026-10-25%22%7D%5D%2C%22category%22%3A0%2C%22property%22%3A%22%22%7D",
+    "raw_html_file": "https://serpapi.com/searches/qbFq7yGNU8yNr-YCkeOPqvjLmjZ6e0j4HZ5qhg4dEfQ/6adeb4a977e19d9eb5e8f056.html",
+    "prettify_html_file": "https://serpapi.com/searches/qbFq7yGNU8yNr-YCkeOPqvjLmjZ6e0j4HZ5qhg4dEfQ/6adeb4a977e19d9eb5e8f056.prettify",
+    "total_time_taken": 4.07
+   },
+   "search_parameters": {
+    "engine": "google_trends",
+    "q": "viên uống kẽm",
+    "hl": "vi",
+    "geo": "VN",
+    "date": "2025-10-26 2026-10-25",
+    "tz": "420",
+    "data_type": "GEO_MAP_0"
+   },
+   "interest_by_region": [
+    {
+     "geo": "VN-09",
+     "location": "Lạng Sơn",
+     "max_value_index": 0,
+     "value": "100",
+     "extracted_value": 100
+    },
+    {
+     "geo": "VN-13",
+     "location": "Quảng Ninh",
+     "max_value_index": 0,
+     "value": "92",
+     "extracted_value": 92
+    },
+    {
+     "geo": "VN-63",
+     "location": "Hà Nam",
+     "max_value_index": 0,
+     "value": "88",
+     "extracted_value": 88
+    },
+    {
+     "geo": "VN-23",
+     "location": "Hà Tĩnh",
+     "max_value_index": 0,
+     "value": "82",
+     "extracted_value": 82
+    },
+    {
+     "geo": "VN-66",
+     "location": "Hưng Yên",
+     "max_value_index": 0,
+     "value": "72",
+     "extracted_value": 72
+    },
+    {
+     "geo": "VN-56",
+     "location": "Bắc Ninh",
+     "max_value_index": 0,
+     "value": "72",
+     "extracted_value": 72
+    },
+    {
+     "geo": "VN-31",
+     "location": "Bình Định",
+     "max_value_index": 0,
+     "value": "64",
+     "extracted_value": 64
+    },
+    {
+     "geo": "VN-34",
+     "location": "Khánh Hòa",
+     "max_value_index": 0,
+     "value": "63",
+     "extracted_value": 63
+    },
+    {
+     "geo": "VN-43",
+     "location": "Bà Rịa - Vũng Tàu",
+     "max_value_index": 0,
+     "value": "61",
+     "extracted_value": 61
+    },
+    {
+     "geo": "VN-HN",
+     "location": "Hà Nội",
+     "max_value_index": 0,
+     "value": "61",
+     "extracted_value": 61
+    },
+    {
+     "geo": "VN-69",
+     "location": "Thái Nguyên",
+     "max_value_index": 0,
+     "value": "58",
+     "extracted_value": 58
+    },
+    {
+     "geo": "VN-30",
+     "location": "Gia Lai",
+     "max_value_index": 0,
+     "value": "55",
+     "extracted_value": 55
+    },
+    {
+     "geo": "VN-SG",
+     "location": "Hồ Chí Minh",
+     "max_value_index": 0,
+     "value": "55",
+     "extracted_value": 55
+    },
+    {
+     "geo": "VN-70",
+     "location": "Vĩnh Phúc",
+     "max_value_index": 0,
+     "value": "54",
+     "extracted_value": 54
+    },
+    {
+     "geo": "VN-26",
+     "location": "Thừa Thiên Huế",
+     "max_value_index": 0,
+     "value": "53",
+     "extracted_value": 53
+    },
+    {
+     "geo": "VN-44",
+     "location": "An Giang",
+     "max_value_index": 0,
+     "value": "52",
+     "extracted_value": 52
+    },
+    {
+     "geo": "VN-39",
+     "location": "Đồng Nai",
+     "max_value_index": 0,
+     "value": "51",
+     "extracted_value": 51
+    },
+    {
+     "geo": "VN-HP",
+     "location": "Hải Phòng",
+     "max_value_index": 0,
+     "value": "51",
+     "extracted_value": 51
+    },
+    {
+     "geo": "VN-61",
+     "location": "Hải Dương",
+     "max_value_index": 0,
+     "value": "50",
+     "extracted_value": 50
+    },
+    {
+     "geo": "VN-CT",
+     "location": "Cần Thơ",
+     "max_value_index": 0,
+     "value": "50",
+     "extracted_value": 50
+    },
+    {
+     "geo": "VN-58",
+     "location": "Bình Phước",
+     "max_value_index": 0,
+     "value": "50",
+     "extracted_value": 50
+    },
+    {
+     "geo": "VN-41",
+     "location": "Long An",
+     "max_value_index": 0,
+     "value": "50",
+     "extracted_value": 50
+    },
+    {
+     "geo": "VN-54",
+     "location": "Bắc Giang",
+     "max_value_index": 0,
+     "value": "48",
+     "extracted_value": 48
+    },
+    {
+     "geo": "VN-21",
+     "location": "Thanh Hoá",
+     "max_value_index": 0,
+     "value": "47",
+     "extracted_value": 47
+    },
+    {
+     "geo": "VN-20",
+     "location": "Thái Bình",
+     "max_value_index": 0,
+     "value": "45",
+     "extracted_value": 45
+    },
+    {
+     "geo": "VN-50",
+     "location": "Bến Tre",
+     "max_value_index": 0,
+     "value": "45",
+     "extracted_value": 45
+    },
+    {
+     "geo": "VN-46",
+     "location": "Tiền Giang",
+     "max_value_index": 0,
+     "value": "45",
+     "extracted_value": 45
+    },
+    {
+     "geo": "VN-57",
+     "location": "Bình Dương",
+     "max_value_index": 0,
+     "value": "42",
+     "extracted_value": 42
+    },
+    {
+     "geo": "VN-DN",
+     "location": "Đà Nẵng",
+     "max_value_index": 0,
+     "value": "40",
+     "extracted_value": 40
+    },
+    {
+     "geo": "VN-35",
+     "location": "Lâm Đồng",
+     "max_value_index": 0,
+     "value": "40",
+     "extracted_value": 40
+    },
+    {
+     "geo": "VN-33",
+     "location": "Đắk Lắk",
+     "max_value_index": 0,
+     "value": "36",
+     "extracted_value": 36
+    },
+    {
+     "geo": "VN-22",
+     "location": "Nghệ An",
+     "max_value_index": 0,
+     "value": "26",
+     "extracted_value": 26
+    },
+    {
+     "geo": "VN-67",
+     "location": "Nam Định",
+     "max_value_index": 0,
+     "value": "2",
+     "extracted_value": 2
+    },
+    {
+     "geo": "VN-68",
+     "location": "Phú Thọ",
+     "max_value_index": 0,
+     "value": "2",
+     "extracted_value": 2
+    },
+    {
+     "geo": "VN-37",
+     "location": "Tây Ninh",
+     "max_value_index": 0,
+     "value": "2",
+     "extracted_value": 2
+    }
+   ]
+  },
+  "step": "COLLECTION",
+  "captureArtifactSha256": "d05ba6e0cf5223c1ce56f99a9dce4ef0b410db64178c4be8bc390a383a697fd7"
+ }
+}

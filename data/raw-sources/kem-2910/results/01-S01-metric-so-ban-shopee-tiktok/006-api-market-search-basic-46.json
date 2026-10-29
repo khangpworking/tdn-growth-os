@@ -1,0 +1,61 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "01 · S01 · Số bán ước tính trên sàn (Shopee + TikTok Shop)",
+  "describe": "Metric API GET /market/search_basic (thứ tự 46)",
+  "parentFile": "01-S01-metric-so-ban-shopee-tiktok.json",
+  "parentLocation": "records[4].content[46]",
+  "sourceCode": "S01",
+  "sourceName": "Số bán ước tính trên sàn (Shopee + TikTok Shop)",
+  "provider": "Metric (web, OpenCLI)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": "2026-09-21",
+   "endDate": "2026-10-20",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "30 ngày Metric tự chọn (kỳ đủ dữ liệu gần nhất trước ngày chạy)"
+  },
+  "limits": [
+   "Số bán là ước tính của nguồn",
+   "Bảng kết quả không có cột gian hàng ổn định (xem PR #310)",
+   "Không bấm Xuất/Tải"
+  ],
+  "resultSha256": "7c8785ce2fc4dc9aff6f5408c3f204fa12cd3396f39c12e88eb8bff5110fa30e"
+ },
+ "result": {
+  "urlPath": "/market/search_basic",
+  "responseOrder": 46,
+  "status": 200,
+  "body": {
+   "status": "success",
+   "data": {
+    "status": "success",
+    "platforms": [
+     {
+      "platform_id": 1,
+      "start_date": "20220101",
+      "current_date": "20261020"
+     },
+     {
+      "platform_id": 2,
+      "start_date": "20220101",
+      "current_date": "20261023"
+     },
+     {
+      "platform_id": 3,
+      "start_date": "20220101",
+      "current_date": "20261020"
+     },
+     {
+      "platform_id": 8,
+      "start_date": "20220915",
+      "current_date": "20261023"
+     }
+    ]
+   }
+  },
+  "method": "GET",
+  "timestamp": 1792979721757,
+  "requestBody": ""
+ }
+}

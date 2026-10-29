@@ -1,0 +1,92 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «uống kẽm l» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[59]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "7395715b095a9d5569a074753ceef1cf144eed216c93fa7921fa1f008890e7fa"
+ },
+ "result": {
+  "prefix": "uống kẽm l",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:25Z",
+  "suggestions": [
+   "uống kẽm lúc nào tốt",
+   "uống kẽm lúc bụng đói",
+   "uống kẽm lúc 6h tối được không",
+   "uống kẽm là gì",
+   "uống kẽm loại nào",
+   "uống kẽm lâu dài được không",
+   "uống kẽm lúc đói hay no",
+   "uống kẽm lúc tối có sao không",
+   "uống kẽm lúc 7h tối được không",
+   "uống kẽm lúc nào"
+  ],
+  "raw": [
+   "uống kẽm l",
+   [
+    "uống kẽm lúc nào tốt",
+    "uống kẽm lúc bụng đói",
+    "uống kẽm lúc 6h tối được không",
+    "uống kẽm là gì",
+    "uống kẽm loại nào",
+    "uống kẽm lâu dài được không",
+    "uống kẽm lúc đói hay no",
+    "uống kẽm lúc tối có sao không",
+    "uống kẽm lúc 7h tối được không",
+    "uống kẽm lúc nào"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ]
+    ]
+   }
+  ]
+ }
+}

@@ -1,0 +1,92 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «uống kẽm t» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[67]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "86c48b9b6b912efeca54a32da4d7c029c4476a57ff7962dfe4a42480c935bf83"
+ },
+ "result": {
+  "prefix": "uống kẽm t",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:31Z",
+  "suggestions": [
+   "uống kẽm trước hay sau bữa ăn",
+   "uống kẽm trị mụn như thế nào",
+   "uống kẽm tăng sức đề kháng",
+   "uống kẽm tăng testosterone",
+   "uống kẽm trước bữa ăn được không",
+   "uống kẽm trong lúc ăn được không",
+   "uống kẽm tối có tốt không",
+   "uống kẽm tốt cho cái gì",
+   "uống kẽm thế nào cho đúng",
+   "uống kẽm trước ăn được không"
+  ],
+  "raw": [
+   "uống kẽm t",
+   [
+    "uống kẽm trước hay sau bữa ăn",
+    "uống kẽm trị mụn như thế nào",
+    "uống kẽm tăng sức đề kháng",
+    "uống kẽm tăng testosterone",
+    "uống kẽm trước bữa ăn được không",
+    "uống kẽm trong lúc ăn được không",
+    "uống kẽm tối có tốt không",
+    "uống kẽm tốt cho cái gì",
+    "uống kẽm thế nào cho đúng",
+    "uống kẽm trước ăn được không"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ]
+    ]
+   }
+  ]
+ }
+}

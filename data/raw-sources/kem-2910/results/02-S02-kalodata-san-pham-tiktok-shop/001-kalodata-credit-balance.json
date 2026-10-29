@@ -1,0 +1,53 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "02 · S02 · Sản phẩm và số bán TikTok Shop",
+  "describe": "kalodata.credit.balance kalodata.credit.balance",
+  "parentFile": "02-S02-kalodata-san-pham-tiktok-shop.json",
+  "parentLocation": "records[0]",
+  "sourceCode": "S02",
+  "sourceName": "Sản phẩm và số bán TikTok Shop",
+  "provider": "Kalodata Open API",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": "2025-10-26",
+   "endDate": "2026-10-25",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "product.rank: 30 ngày 26/09–25/10/2026; product.detail: từng cửa sổ 30 ngày nối nhau trong 12 tháng (xem queryWindow mỗi bản ghi)"
+  },
+  "limits": [
+   "video.rank bị từ chối (mã 501: thiếu region/language trong yêu cầu) — 0 video",
+   "Không có tuổi, giới",
+   "Cửa sổ ngày tối đa 30 ngày"
+  ],
+  "resultSha256": "2ad8eb8dd2d5c2c2ff55aec03a1da2f23d04b1cfda636b279bca54ff835f590b"
+ },
+ "result": {
+  "captureId": "kalodata-0001",
+  "operation": "kalodata.credit.balance",
+  "endpoint": "https://www.kalodata.com/openapi/v1/credit/balance",
+  "method": "GET",
+  "requestParameters": {},
+  "queryWindow": null,
+  "productRef": null,
+  "requestedAt": "2026-10-26T01:55:11.580Z",
+  "completedAt": "2026-10-26T01:55:11.841Z",
+  "httpStatus": 200,
+  "outcome": "OK",
+  "providerCode": null,
+  "billing": "FREE_ACCOUNT_QUERY",
+  "responseSha256": "668cdd1a6b0cd493a831049ed1babb6a933a4dc61fa066fecacab2ddce682191",
+  "response": {
+   "success": true,
+   "data": {
+    "totalRemain": 67.1,
+    "mainRemain": 67.1
+   },
+   "message": null,
+   "cached": null,
+   "code": null
+  },
+  "step": "QUICK_SEARCH",
+  "captureArtifactSha256": "7051dd4f44710a031fcbfd8f20396512f16736cf26b6f32297a3f39e16ca4132"
+ }
+}

@@ -9,6 +9,7 @@ Từ khoá: «viên uống kẽm». Chủ đề: thực phẩm chức năng viê
 - Đã ẩn danh: mọi người viết đánh giá và người bình luận được thay bằng mã `anon-…`. Xem mục 4.
 - Kiểm định dạng từ gốc repo: `python3 data/raw-sources/kem-2910/tools/validate.py data/raw-sources/kem-2910`. Kết quả mong đợi: `failed 0`.
 - Khuôn cơ sở dữ liệu cho từng nguồn (bảng, cột, SQL SQLite): [`KHUON-CSDL.md`](KHUON-CSDL.md). Thử: `python3 tools/test_schema.py KHUON-CSDL.md .`
+- Từng kết quả gốc trong tệp riêng (một lần tìm, một bản AI Overview, một lần gọi API, đánh giá của một sản phẩm…): [`results/`](results/README.md).
 
 ## 1. Cấu trúc một tệp
 

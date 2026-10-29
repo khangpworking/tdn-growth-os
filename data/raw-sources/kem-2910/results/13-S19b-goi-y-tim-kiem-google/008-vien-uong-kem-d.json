@@ -1,0 +1,102 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «viên uống kẽm đ» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[7]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "fd2e80b86b6ad348d0dd0141387e1a09d146b5d5348b497ad3e9b83e727e7f8f"
+ },
+ "result": {
+  "prefix": "viên uống kẽm đ",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:57:46Z",
+  "suggestions": [
+   "viên uống kẽm đồng",
+   "viên uống kẽm đức",
+   "uống viên kẽm đúng cách",
+   "uống viên kẽm để làm gì",
+   "viên uống kẽm và đồng",
+   "viên kẽm uống tối được không",
+   "uống viên kẽm thời điểm nào là tốt nhất",
+   "viên uống kẽm mua ở đâu",
+   "uống viên kẽm bị đau bụng",
+   "viên kẽm uống thời điểm nào"
+  ],
+  "raw": [
+   "viên uống kẽm đ",
+   [
+    "viên uống kẽm đồng",
+    "viên uống kẽm đức",
+    "uống viên kẽm đúng cách",
+    "uống viên kẽm để làm gì",
+    "viên uống kẽm và đồng",
+    "viên kẽm uống tối được không",
+    "uống viên kẽm thời điểm nào là tốt nhất",
+    "viên uống kẽm mua ở đâu",
+    "uống viên kẽm bị đau bụng",
+    "viên kẽm uống thời điểm nào"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ]
+    ]
+   }
+  ]
+ }
+}

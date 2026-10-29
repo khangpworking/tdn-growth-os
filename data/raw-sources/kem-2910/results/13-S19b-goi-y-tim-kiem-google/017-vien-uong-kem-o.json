@@ -1,0 +1,78 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «viên uống kẽm o» (6 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[16]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "98dc1cad3c89067d824d4019d6d4a8f530e7da448ffd67e650853cc3e98c8c1d"
+ },
+ "result": {
+  "prefix": "viên uống kẽm o",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:57:53Z",
+  "suggestions": [
+   "viên uống kẽm oyster plus zinc",
+   "viên uống kẽm orihiro",
+   "viên uống kẽm ở nhật",
+   "viên uống kẽm mua ở đâu",
+   "uống viên kẽm cùng omega 3 được không",
+   "kẽm oxyd viên uống"
+  ],
+  "raw": [
+   "viên uống kẽm o",
+   [
+    "viên uống kẽm oyster plus zinc",
+    "viên uống kẽm orihiro",
+    "viên uống kẽm ở nhật",
+    "viên uống kẽm mua ở đâu",
+    "uống viên kẽm cùng omega 3 được không",
+    "kẽm oxyd viên uống"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ]
+    ]
+   }
+  ]
+ }
+}

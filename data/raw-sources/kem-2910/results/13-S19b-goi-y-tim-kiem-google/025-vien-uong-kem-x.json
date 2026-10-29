@@ -1,0 +1,48 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «viên uống kẽm x» (1 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[24]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "f1c840404af25c64d5659195844fef802e42f6c032b730b4d9224940ffeb52bc"
+ },
+ "result": {
+  "prefix": "viên uống kẽm x",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:57:59Z",
+  "suggestions": [
+   "uống viên kẽm thường xuyên có tốt không"
+  ],
+  "raw": [
+   "viên uống kẽm x",
+   [
+    "uống viên kẽm thường xuyên có tốt không"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      22,
+      30
+     ]
+    ]
+   }
+  ]
+ }
+}

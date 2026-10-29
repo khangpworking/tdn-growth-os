@@ -1,0 +1,54 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "16 · S28 · Hồ sơ người Việt do AI viết (dữ liệu tổng hợp, 1 triệu hồ sơ)",
+  "describe": "baseline_region baseline_region",
+  "parentFile": "16-S28-nemotron-ho-so-nguoi-viet.json",
+  "parentLocation": "records[1]",
+  "sourceCode": "S28",
+  "sourceName": "Hồ sơ người Việt do AI viết (dữ liệu tổng hợp, 1 triệu hồ sơ)",
+  "provider": "NVIDIA Nemotron-Personas-Vietnam (CC BY 4.0), bản tải về máy chủ 17/10",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": null,
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Dữ liệu tổng hợp, không có kỳ"
+  },
+  "limits": [
+   "Dò theo từ khoá sản phẩm không dùng được (canxi 0 người)",
+   "Vùng chia gần đều, không dùng cho tỉnh",
+   "Chỉ dùng nội bộ, không in vào báo cáo"
+  ],
+  "resultSha256": "18cab6a44dc9fb5e80d520a399b40421884b6d1da4568ebf0bd6cb4ce6a31e0c"
+ },
+ "result": {
+  "kind": "baseline_region",
+  "rows": [
+   {
+    "region": "Đồng bằng sông Hồng",
+    "n": 244920
+   },
+   {
+    "region": "Đông Nam Bộ",
+    "n": 207799
+   },
+   {
+    "region": "Bắc Trung Bộ và Duyên hải miền Trung",
+    "n": 176229
+   },
+   {
+    "region": "Đồng bằng sông Cửu Long",
+    "n": 154958
+   },
+   {
+    "region": "Trung du và miền núi phía Bắc",
+    "n": 124326
+   },
+   {
+    "region": "Tây Nguyên",
+    "n": 91768
+   }
+  ]
+ }
+}

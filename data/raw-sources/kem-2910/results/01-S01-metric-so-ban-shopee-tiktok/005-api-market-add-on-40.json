@@ -1,0 +1,38 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "01 · S01 · Số bán ước tính trên sàn (Shopee + TikTok Shop)",
+  "describe": "Metric API GET /market/add_on (thứ tự 40)",
+  "parentFile": "01-S01-metric-so-ban-shopee-tiktok.json",
+  "parentLocation": "records[4].content[40]",
+  "sourceCode": "S01",
+  "sourceName": "Số bán ước tính trên sàn (Shopee + TikTok Shop)",
+  "provider": "Metric (web, OpenCLI)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": "2026-09-21",
+   "endDate": "2026-10-20",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "30 ngày Metric tự chọn (kỳ đủ dữ liệu gần nhất trước ngày chạy)"
+  },
+  "limits": [
+   "Số bán là ước tính của nguồn",
+   "Bảng kết quả không có cột gian hàng ổn định (xem PR #310)",
+   "Không bấm Xuất/Tải"
+  ],
+  "resultSha256": "299602e447c9f1892815bdb9cffc817f00002d27205c9f0a2efcfa697974e653"
+ },
+ "result": {
+  "urlPath": "/market/add_on",
+  "responseOrder": 40,
+  "status": 200,
+  "body": {
+   "status": "success",
+   "has_add_on": false,
+   "data": null
+  },
+  "method": "GET",
+  "timestamp": 1792979721607,
+  "requestBody": ""
+ }
+}

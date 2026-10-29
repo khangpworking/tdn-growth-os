@@ -1,0 +1,41 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "11 · S06 · Đánh giá TikTok Shop (bản gom bình luận của Kalodata)",
+  "describe": "kalodata.credit.balance kalodata.credit.balance",
+  "parentFile": "11-S06-tiktok-shop-danh-gia.json",
+  "parentLocation": "records[0]",
+  "sourceCode": "S06",
+  "sourceName": "Đánh giá TikTok Shop (bản gom bình luận của Kalodata)",
+  "provider": "Kalodata Open API /tiktok/product/comment/insight",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Bản gom mới nhất của nguồn tại lúc thu; cột ngày đánh giá chưa đọc được định dạng"
+  },
+  "limits": [
+   "Điểm AI của nguồn chỉ để đối chiếu, không làm bằng chứng",
+   "Số đánh giá là số bản ghi, không phải số người",
+   "1 điểm mỗi sản phẩm khi nguồn có bản gom mới"
+  ],
+  "resultSha256": "c12812d5d3d98559c6b088072d2dc1beeaa2cdcc55733a351656da43bc8eaeb7"
+ },
+ "result": {
+  "operation": "kalodata.credit.balance",
+  "phase": "before",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:59:30Z",
+  "response": {
+   "success": true,
+   "data": {
+    "totalRemain": 32.5,
+    "mainRemain": 32.5
+   },
+   "message": null,
+   "cached": null,
+   "code": null
+  }
+ }
+}

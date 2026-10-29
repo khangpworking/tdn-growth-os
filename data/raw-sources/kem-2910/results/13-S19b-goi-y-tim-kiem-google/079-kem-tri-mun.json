@@ -1,0 +1,99 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «kẽm trị mụn» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[78]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "2bd8fd0f9eb56aa1287b26afc9b43e5502ad2a26b2149bf1055081dbd56a8c66"
+ },
+ "result": {
+  "prefix": "kẽm trị mụn",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:39Z",
+  "suggestions": [
+   "kem trị mụn nội tiết",
+   "kẽm trị mụn zinc",
+   "kẽm trị mụn acnacare",
+   "kẽm trị mụn được không",
+   "kẽm trị mụn viêm",
+   "viên kẽm trị mụn nào tốt",
+   "serum kẽm trị mụn",
+   "uống kẽm trị mụn trong bao lâu",
+   "uống kẽm trị mụn như thế nào",
+   "kẽm trong trị mụn"
+  ],
+  "raw": [
+   "kẽm trị mụn",
+   [
+    "kem trị mụn nội tiết",
+    "kẽm trị mụn zinc",
+    "kẽm trị mụn acnacare",
+    "kẽm trị mụn được không",
+    "kẽm trị mụn viêm",
+    "viên kẽm trị mụn nào tốt",
+    "serum kẽm trị mụn",
+    "uống kẽm trị mụn trong bao lâu",
+    "uống kẽm trị mụn như thế nào",
+    "kẽm trong trị mụn"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ]
+    ]
+   }
+  ]
+ }
+}

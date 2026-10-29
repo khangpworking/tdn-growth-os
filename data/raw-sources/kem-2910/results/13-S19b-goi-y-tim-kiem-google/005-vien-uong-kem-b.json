@@ -1,0 +1,101 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «viên uống kẽm b» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[4]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "9207c4fd7c2216b84517a9889c3b09ae071431f8d205fc7fe0d5121c31caf4f3"
+ },
+ "result": {
+  "prefix": "viên uống kẽm b",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:57:44Z",
+  "suggestions": [
+   "viên uống kẽm biotin",
+   "viên uống kẽm blackmore",
+   "viên uống kẽm boss man",
+   "viên uống kẽm bổ sung",
+   "viên uống kẽm biotrade",
+   "viên uống kẽm bisglycinate",
+   "viên uống kẽm b+",
+   "viên kẽm uống buổi tối được không",
+   "viên kẽm uống buổi chiều được không",
+   "uống viên kẽm bị buồn nôn"
+  ],
+  "raw": [
+   "viên uống kẽm b",
+   [
+    "viên uống kẽm biotin",
+    "viên uống kẽm blackmore",
+    "viên uống kẽm boss man",
+    "viên uống kẽm bổ sung",
+    "viên uống kẽm biotrade",
+    "viên uống kẽm bisglycinate",
+    "viên uống kẽm b+",
+    "viên kẽm uống buổi tối được không",
+    "viên kẽm uống buổi chiều được không",
+    "uống viên kẽm bị buồn nôn"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ]
+    ]
+   }
+  ]
+ }
+}

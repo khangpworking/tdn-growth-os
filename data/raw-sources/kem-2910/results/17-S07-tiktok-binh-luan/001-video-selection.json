@@ -1,0 +1,36 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "17 · S07 · Bình luận dưới video TikTok",
+  "describe": "5 video TikTok được chọn để thu bình luận",
+  "parentFile": "17-S07-tiktok-binh-luan.json",
+  "parentLocation": "records[0]",
+  "sourceCode": "S07",
+  "sourceName": "Bình luận dưới video TikTok",
+  "provider": "Apify clockworks/tiktok-comments-scraper",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Bình luận có dưới video lúc thu (createTimeISO mỗi bình luận)"
+  },
+  "limits": [
+   "Tối đa 100 bình luận mỗi video, không lấy trả lời",
+   "Lời bình luận không phải lúc nào cũng là người mua",
+   "Không in nguyên văn"
+  ],
+  "resultSha256": "9fa69bb0466afc612293355e436ae01f2e08308e17e473990741c58b457918f0"
+ },
+ "result": {
+  "operation": "video.selection",
+  "origin": "SAVED_26_10_RUN site:tiktok.com",
+  "videos": [
+   "https://www.tiktok.com/@anon-22c39536f0ba/video/7644545695881366791",
+   "https://www.tiktok.com/@imochi.vn/video/7636394988934302996",
+   "https://www.tiktok.com/@anon-22c39536f0ba/video/7472367489947602194",
+   "https://www.tiktok.com/@imochi.vn/video/7690943902592912660",
+   "https://www.tiktok.com/@imochi.vn/video/7500214221850955015"
+  ]
+ }
+}

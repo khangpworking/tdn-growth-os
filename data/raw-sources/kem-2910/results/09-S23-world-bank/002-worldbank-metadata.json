@@ -1,0 +1,70 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "09 · S23 · Ngân hàng Thế giới",
+  "describe": "worldbank.metadata worldbank.metadata",
+  "parentFile": "09-S23-world-bank.json",
+  "parentLocation": "records[1]",
+  "sourceCode": "S23",
+  "sourceName": "Ngân hàng Thế giới",
+  "provider": "World Bank API v2 (source=2)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": "1960-01-01",
+   "endDate": "2025-12-31",
+   "timezone": "UTC",
+   "basis": "Chuỗi năm đầy đủ của chỉ số"
+  },
+  "limits": [
+   "Không chia theo sản phẩm"
+  ],
+  "resultSha256": "fbe55b250a9b320b1baaf05837f1762a8f526dba20778827fbd288554a83aae2"
+ },
+ "result": {
+  "captureId": "world-bank-0002",
+  "operation": "worldbank.metadata",
+  "endpoint": "https://api.worldbank.org/v2/indicator/NE.CON.PRVT.PC.KD",
+  "method": "GET",
+  "requestParameters": {
+   "format": "json"
+  },
+  "queryWindow": null,
+  "productRef": null,
+  "requestedAt": "2026-10-26T02:02:25.447Z",
+  "completedAt": "2026-10-26T02:02:25.856Z",
+  "httpStatus": 200,
+  "outcome": "OK",
+  "providerCode": null,
+  "billing": "FREE_ACCOUNT_QUERY",
+  "responseSha256": "00ef39978f8ec566d71fdf86e094e4388e7c6ff177c6c7fa25f10414ceb154f7",
+  "response": [
+   {
+    "page": 1,
+    "pages": 1,
+    "per_page": "50",
+    "total": 1
+   },
+   [
+    {
+     "id": "NE.CON.PRVT.PC.KD",
+     "name": "Households and NPISHs Final consumption expenditure per capita (constant 2015 US$)",
+     "unit": "",
+     "source": {
+      "id": "2",
+      "value": "World Development Indicators"
+     },
+     "sourceNote": "This field includes expenditure on goods and services by the Household and NPISH sector for the direct satisfaction of human needs or wants, whether individual or collective. The core indicator has been divided by the general population to achieve a per capita estimate.This indicator is expressed in constant prices, meaning the series has been adjusted to account for price changes over time. The reference year for this adjustment is 2015. This indicator is expressed in United States dollars.",
+     "sourceOrganization": "Country official statistics, National Statistical Offices (NSOs);\nNational Accounts data files, Central Banks;\nStaff estimates, World Bank (WB)",
+     "topics": [
+      {
+       "id": "3",
+       "value": "Economy & Growth"
+      }
+     ]
+    }
+   ]
+  ],
+  "step": "COLLECTION",
+  "captureArtifactSha256": "95b075e7df6d9d3ef47bd0a1bf67edf4391d10ab042cecb46fa5c4f284dfa2ed"
+ }
+}

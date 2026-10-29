@@ -1,0 +1,92 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «viên kẽm c» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[28]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "5fb874f79a2e47f90139d592d1105ebbfcf526b0180c0509bc2ffea4a54ba46a"
+ },
+ "result": {
+  "prefix": "viên kẽm c",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:02Z",
+  "suggestions": [
+   "viên kẽm của dhc",
+   "viên kẽm của pháp",
+   "viên kẽm chính hãng",
+   "viên kẽm có tác dụng phụ không",
+   "viên kẽm của long châu",
+   "viên kẽm của sao thái dương",
+   "viên kẽm có tác dụng gì cho cơ thể",
+   "viên kẽm có nên uống buổi tối không",
+   "viên kẽm cho nam giới",
+   "viên kẽm của doppelherz"
+  ],
+  "raw": [
+   "viên kẽm c",
+   [
+    "viên kẽm của dhc",
+    "viên kẽm của pháp",
+    "viên kẽm chính hãng",
+    "viên kẽm có tác dụng phụ không",
+    "viên kẽm của long châu",
+    "viên kẽm của sao thái dương",
+    "viên kẽm có tác dụng gì cho cơ thể",
+    "viên kẽm có nên uống buổi tối không",
+    "viên kẽm cho nam giới",
+    "viên kẽm của doppelherz"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ]
+    ]
+   }
+  ]
+ }
+}

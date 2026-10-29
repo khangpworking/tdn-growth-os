@@ -1,0 +1,254 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "06 · S16 · Quảng cáo nổi bật TikTok (Creative Center)",
+  "describe": "Quảng cáo nổi bật trên TikTok, máy tự đọc khi không đăng nhập automation-tiktok-top-ads",
+  "parentFile": "06-S16-tiktok-quang-cao-noi-bat.json",
+  "parentLocation": "records[0]",
+  "sourceCode": "S16",
+  "sourceName": "Quảng cáo nổi bật TikTok (Creative Center)",
+  "provider": "TikTok Creative Center qua OpenCLI",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": "2026-09-26",
+   "endDate": "2026-10-25",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "period=30 của Creative Center"
+  },
+  "limits": [
+   "Không đăng nhập",
+   "Không lấy chỉ số hiệu quả (CTR, chi phí…)"
+  ],
+  "resultSha256": "f7ca146425ce22eb1faa895ee3f99acecc3e613d34e3a89ffb841eaa5bf53cbc"
+ },
+ "result": {
+  "packageId": "fae50d9b-beb2-49ca-88bc-2a01ef5003ce",
+  "packageKey": "automation-tiktok-top-ads:f0f4799a-f9b3-4204-91b2-682ab79d0fce-ab758667a066ab4b",
+  "sourceLabel": "Quảng cáo nổi bật trên TikTok, máy tự đọc khi không đăng nhập",
+  "finalizedAt": "2026-10-26T02:04:52.752Z",
+  "files": [
+   {
+    "logicalPath": "collection.json",
+    "artifactSha256": "ab758667a066ab4bbd411c72a9e801bad526af5944da4eda21c86f6a2bc78652",
+    "mediaType": "application/json",
+    "content": {
+     "cards": [],
+     "droppedCards": 0,
+     "evidence": null,
+     "keyword": "viên uống kẽm",
+     "opens": 1,
+     "profile": "tiktok-top-ads-visible-text-v1",
+     "reads": [
+      {
+       "finalUrl": "https://ads.tiktok.com/business/creativecenter/inspiration/topads/pc/vi?period=30&region=VN&keyword=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm",
+       "outcome": "STOPPED",
+       "readAt": "2026-10-26T02:03:34.409Z",
+       "requestedUrl": "https://ads.tiktok.com/business/creativecenter/inspiration/topads/pc/vi?period=30&region=VN&keyword=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm",
+       "retained": true,
+       "stop": "LOGIN_REQUIRED",
+       "textBytes": 1780,
+       "textSha256": "512568ef1ba4345b29bae525448752ce02ffabe34fbae9b8a8762536f33f4762"
+      }
+     ],
+     "reasonVi": "Trang quảng cáo nổi bật của TikTok yêu cầu đăng nhập nên máy dừng đọc ngay.",
+     "refusedCards": 0,
+     "status": "STOPPED",
+     "stop": "LOGIN_REQUIRED"
+    }
+   },
+   {
+    "logicalPath": "profile.json",
+    "artifactSha256": "7bbe99f533ceed9e42a950484fabaf06f804b4dd18805ca3a0fddb22a145d50c",
+    "mediaType": "application/json",
+    "content": {
+     "profile": {
+      "accountLabels": [
+       "Brand",
+       "Advertiser",
+       "Account",
+       "Thương hiệu",
+       "Nhà quảng cáo",
+       "Tài khoản"
+      ],
+      "captionLabels": [
+       "Ad caption",
+       "Ad title",
+       "Caption",
+       "Nội dung quảng cáo",
+       "Tiêu đề quảng cáo",
+       "Chú thích"
+      ],
+      "forbiddenLabels": [
+       "CTR",
+       "Budget",
+       "Ngân sách",
+       "Conversion",
+       "CVR",
+       "Chuyển đổi",
+       "Effectiveness",
+       "Hiệu quả",
+       "Cost",
+       "Chi phí",
+       "CPA",
+       "CPM",
+       "CPC",
+       "ROAS",
+       "Spend",
+       "Chi tiêu"
+      ],
+      "forbiddenValuePattern": "[%％٪]|(?<!\\p{L})(?:ctr|cvr|cpa|cpm|cpc|roas|budget|conversions?|effectiveness|cost|spend|google|gemini)(?!\\p{L})|ngân sách|chuyển đổi|hiệu quả|chi phí|chi tiêu",
+      "industryLabels": [
+       "Industry",
+       "Ngành hàng",
+       "Ngành"
+      ],
+      "labelLinePattern": "^[ \\t]*(?:[-*+][ \\t]+)?(?:\\*\\*)?([^\\n:*]{1,40}?)(?:\\*\\*)?[ \\t]*[:：](?:\\*\\*)?[ \\t]*([^\\n]*?)[ \\t]*$",
+      "likeLabels": [
+       "Likes",
+       "Like",
+       "Lượt thích"
+      ],
+      "likeValuePattern": "^\\d{1,4}(?:[.,]\\d{1,3})*(?:\\s?(?:K|M|B|N|Tr|nghìn|triệu))?$",
+      "nonLiteralPattern": "\\*|__|(?<![\\p{L}\\p{N}])_[^_\\n]+_(?![\\p{L}\\p{N}])|~~|\\x60|!?\\[[^\\]]*\\](?:\\(|\\[)|<[^>]*>|&(?:#\\w+|\\w+);",
+      "objectiveLabels": [
+       "Objective",
+       "Mục tiêu quảng cáo",
+       "Mục tiêu"
+      ],
+      "profile": "tiktok-top-ads-visible-text-v1",
+      "stopMarkers": [
+       {
+        "id": "login-form",
+        "pattern": "<form\\b[^>]*\\b(?:id|name|class)\\s*=\\s*[\"'][^\"']*login",
+        "stop": "LOGIN_REQUIRED",
+        "where": "html"
+       },
+       {
+        "id": "login-wall-en",
+        "pattern": "(?:log in|please log in|you (?:need to|must) log in)(?: to tiktok)? to (?:continue|access|view)|(?:^|\n)[ \\t]*please log in[ \\t]*(?=\r?\n|$)",
+        "stop": "LOGIN_REQUIRED",
+        "where": "text"
+       },
+       {
+        "id": "login-wall-vi",
+        "pattern": "(?:đăng nhập|vui lòng đăng nhập|bạn cần đăng nhập)(?: vào tiktok)? để (?:tiếp tục|truy cập|xem)|(?:^|\n)[ \\t]*vui lòng đăng nhập[ \\t]*(?=\r?\n|$)",
+        "stop": "LOGIN_REQUIRED",
+        "where": "text"
+       },
+       {
+        "id": "captcha-box",
+        "pattern": "<(?:div|iframe|form)\\b[^>]*\\b(?:id|class)\\s*=\\s*[\"'][^\"']*(?:captcha_verify|captcha-verify|secsdk-captcha|verify-bar)",
+        "stop": "CAPTCHA",
+        "where": "html"
+       },
+       {
+        "id": "verify-en",
+        "pattern": "verify to continue|drag the slider|drag the puzzle|complete the puzzle|select 2 objects|confirm you['’]re human",
+        "stop": "CAPTCHA",
+        "where": "text"
+       },
+       {
+        "id": "verify-vi",
+        "pattern": "xác minh để tiếp tục|kéo thanh trượt|kéo mảnh ghép|hoàn thành câu đố|xác nhận bạn là con người",
+        "stop": "CAPTCHA",
+        "where": "text"
+       },
+       {
+        "id": "blocked-en",
+        "pattern": "temporarily blocked|access denied|too many requests|rate limit exceeded|visiting too frequently|not available in your region",
+        "stop": "BLOCKED",
+        "where": "text"
+       },
+       {
+        "id": "blocked-vi",
+        "pattern": "tạm thời bị chặn|bị từ chối truy cập|quá nhiều yêu cầu|truy cập quá thường xuyên|không khả dụng ở khu vực",
+        "stop": "BLOCKED",
+        "where": "text"
+       }
+      ],
+      "viewerIdPatterns": [
+       "\"viewer_id\"\\s*:\\s*\"?(\\d+)",
+       "\"(?:viewer|viewerInfo|currentUser|current_user)\"\\s*:\\s*\\{[^{}]*?\"(?:uid|user_id|core_user_id|id)\"\\s*:\\s*\"?(\\d+)"
+      ],
+      "viewerStatePatterns": [
+       "\"(?:isLogin|isLoggedIn|is_login|is_logged_in)\"\\s*:\\s*true\\b"
+      ]
+     },
+     "url": {
+      "fixedParams": [
+       [
+        "period",
+        "30"
+       ],
+       [
+        "region",
+        "VN"
+       ]
+      ],
+      "host": "ads.tiktok.com",
+      "keywordParam": "keyword",
+      "loginPathWords": [
+       "login",
+       "signin",
+       "sign-in",
+       "passport"
+      ],
+      "path": "/business/creativecenter/inspiration/topads/pc/vi",
+      "pathPrefix": "/business/creativecenter/inspiration/topads/",
+      "stopHostSuffix": "tiktok.com",
+      "verifyPathWords": [
+       "verify",
+       "captcha",
+       "challenge",
+       "security-check"
+      ]
+     }
+    }
+   },
+   {
+    "logicalPath": "reads/01-list/fingerprint.json",
+    "artifactSha256": "1c9f42880a86e15b68d947d7bc93e817e1ababd855df07413c503d77585e09e3",
+    "mediaType": "application/json",
+    "content": {
+     "htmlBytes": 318959,
+     "labels": {
+      "account": 0,
+      "caption": 0,
+      "forbidden": 0,
+      "industry": 0,
+      "likes": 0,
+      "objective": 0,
+      "orphan": 0,
+      "overflow": 0,
+      "unknown": 1
+     },
+     "markers": {
+      "blocked-en": 0,
+      "blocked-vi": 0,
+      "captcha-box": 0,
+      "login-form": 0,
+      "login-wall-en": 0,
+      "login-wall-vi": 1,
+      "verify-en": 0,
+      "verify-vi": 0
+     },
+     "profile": "tiktok-top-ads-visible-text-v1",
+     "textBytes": 1780,
+     "textTruncated": false
+    }
+   },
+   {
+    "logicalPath": "reads/01-list/text.md",
+    "artifactSha256": "512568ef1ba4345b29bae525448752ce02ffabe34fbae9b8a8762536f33f4762",
+    "mediaType": "text/markdown",
+    "content": "Hiện bạn đã có thể sử dụng sớm công cụ này. Hãy trở thành người đầu tiên sáng tạo với Dreamina Seedance 2.0 trong Symphony✨\n\n# Khám phá các Quảng cáo tiêu biểu trên TikTok\n\n## Xem quảng cáo đấu giá đạt hiệu quả cao trên TikTok. Tìm nguồn cảm hứng sáng tạo từ các trường hợp thành công.\n\nTìm\n\n[Thông tin QC tiêu biểu](/business/creativecenter/inspiration/topads/pc/vi)\n\n[Tiêu điểm quảng cáo hàng đầu](/business/creativecenter/tiktok-topads-spotlight/pc/vi)\n\nViệt Nam\n\nMục tiêu\n\n30 ngày qua\n\nN.ngữ Q.cáo\n\nDạng Q.cáo\n\nLượt thích\n\n0 /\n\nTìm\n\nSắp xếp theo:\n\nDành cho bạn\n\nPhạm vi tiếp cận\n\nCTR\n\nKhác\n\nDoanh số sản phẩmSữa bột trẻ em\n\n1Lượt thích\n\nTop 93%CTR\n\nThấpNgân sách\n\n[\n\nXem phân tích\n\n](/business/creativecenter/topads/7683090955247714305)\n\nDoanh số sản phẩmQuần áo nữ\n\n4Lượt thích\n\nTop 87%CTR\n\nThấpNgân sách\n\n[\n\nXem phân tích\n\n](/business/creativecenter/topads/7688504756868382728)\n\nLượt xem videoThực phẩm và nông sản tươi\n\n8Lượt thích\n\nTop 95%CTR\n\nThấpNgân sách\n\n[\n\nXem phân tích\n\n](/business/creativecenter/topads/7686182949713199111)\n\nLượt chuyển đổiTrang phục trẻ em\n\n69Lượt thích\n\nTop 57%CTR\n\nVừaNgân sách\n\n[\n\nXem phân tích\n\n](/business/creativecenter/topads/7685254166788866069)\n\nXem thêm\n\nĐăng nhập để truy cập vào tất cả các Quảng cáo tiêu biểu cùng nhiều quảng cáo khác nữa.\n\nĐăng nhập hoặc đăng ký\n\n\\*Các quảng cáo hiển thị ở đây nằm trong số quảng cáo được nhà quảng cáo uỷ quyền và có thể không phản ánh tất cả quảng cáo đấu giá có hiệu suất cao nhất."
+   },
+   {
+    "logicalPath": "reads/01-list/url.txt",
+    "artifactSha256": "fcdcc112972841e9310f22cac50fc276663f77b8e21eeb3eb651c4a8724752ce",
+    "mediaType": "text/plain",
+    "content": "https://ads.tiktok.com/business/creativecenter/inspiration/topads/pc/vi?period=30&region=VN&keyword=vi%C3%AAn+u%E1%BB%91ng+k%E1%BA%BDm"
+   }
+  ]
+ }
+}

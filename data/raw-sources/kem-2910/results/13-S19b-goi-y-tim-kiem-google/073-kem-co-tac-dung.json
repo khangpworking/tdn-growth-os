@@ -1,0 +1,92 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «kẽm có tác dụng» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[72]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "c392d4dc68bf8a450041b52cceafcac6d8c2a09ccba29113eee244f64587032a"
+ },
+ "result": {
+  "prefix": "kẽm có tác dụng",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:35Z",
+  "suggestions": [
+   "kẽm có tác dụng gì với cơ thể",
+   "kẽm có tác dụng gì với da",
+   "kẽm có tác dụng gì với tinh trùng",
+   "kẽm có tác dụng gì trong tập gym",
+   "kẽm có tác dụng gì cho bé",
+   "kẽm có tác dụng gì với đàn ông",
+   "kẽm có tác dụng gì với cơ thể nam giới",
+   "kẽm có tác dụng tăng chiều cao không",
+   "kẽm có tác dụng gì đối với cơ thể con người",
+   "kẽm có tác dụng với nước không"
+  ],
+  "raw": [
+   "kẽm có tác dụng",
+   [
+    "kẽm có tác dụng gì với cơ thể",
+    "kẽm có tác dụng gì với da",
+    "kẽm có tác dụng gì với tinh trùng",
+    "kẽm có tác dụng gì trong tập gym",
+    "kẽm có tác dụng gì cho bé",
+    "kẽm có tác dụng gì với đàn ông",
+    "kẽm có tác dụng gì với cơ thể nam giới",
+    "kẽm có tác dụng tăng chiều cao không",
+    "kẽm có tác dụng gì đối với cơ thể con người",
+    "kẽm có tác dụng với nước không"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ]
+    ]
+   }
+  ]
+ }
+}

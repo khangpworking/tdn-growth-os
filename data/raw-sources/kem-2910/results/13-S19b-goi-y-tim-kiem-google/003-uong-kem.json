@@ -1,0 +1,92 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «uống kẽm» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[2]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "21e554d603ef5724154543f43b4cf9aaa70cb7afcaa04aa18b4fe75e785ca754"
+ },
+ "result": {
+  "prefix": "uống kẽm",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:57:43Z",
+  "suggestions": [
+   "uống kẽm có tác dụng gì cho nam",
+   "uống kẽm có tác dụng gì cho nữ",
+   "uống kẽm lúc nào tốt",
+   "uống kẽm buổi tối được ko",
+   "uống kẽm bị buồn nôn",
+   "uống kẽm nhiều có sao không",
+   "uống kẽm có tốt ko",
+   "uống kẽm mỗi ngày có sao không",
+   "uống kẽm trước hay sau bữa ăn",
+   "uống kẽm buổi tối có sao k"
+  ],
+  "raw": [
+   "uống kẽm",
+   [
+    "uống kẽm có tác dụng gì cho nam",
+    "uống kẽm có tác dụng gì cho nữ",
+    "uống kẽm lúc nào tốt",
+    "uống kẽm buổi tối được ko",
+    "uống kẽm bị buồn nôn",
+    "uống kẽm nhiều có sao không",
+    "uống kẽm có tốt ko",
+    "uống kẽm mỗi ngày có sao không",
+    "uống kẽm trước hay sau bữa ăn",
+    "uống kẽm buổi tối có sao k"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ]
+    ]
+   }
+  ]
+ }
+}

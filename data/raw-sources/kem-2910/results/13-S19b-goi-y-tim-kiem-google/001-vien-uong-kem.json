@@ -1,0 +1,92 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «viên uống kẽm» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[0]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "58d5be8891411fe26457f0ddafe11a53851b69eb0e259f2ece1511ae7f41d026"
+ },
+ "result": {
+  "prefix": "viên uống kẽm",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:57:41Z",
+  "suggestions": [
+   "viên uống kẽm",
+   "viên uống kẽm magie",
+   "viên uống kẽm pharmacity",
+   "viên uống kẽm của nhật",
+   "viên uống kẽm gluconat",
+   "viên uống kẽm và biotin",
+   "viên uống kẽm của mỹ",
+   "viên uống kẽm kiềm dầu",
+   "viên uống kẽm dhc có tác dụng gì",
+   "viên uống kẽm (zinc)"
+  ],
+  "raw": [
+   "viên uống kẽm",
+   [
+    "viên uống kẽm",
+    "viên uống kẽm magie",
+    "viên uống kẽm pharmacity",
+    "viên uống kẽm của nhật",
+    "viên uống kẽm gluconat",
+    "viên uống kẽm và biotin",
+    "viên uống kẽm của mỹ",
+    "viên uống kẽm kiềm dầu",
+    "viên uống kẽm dhc có tác dụng gì",
+    "viên uống kẽm (zinc)"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ]
+    ]
+   }
+  ]
+ }
+}

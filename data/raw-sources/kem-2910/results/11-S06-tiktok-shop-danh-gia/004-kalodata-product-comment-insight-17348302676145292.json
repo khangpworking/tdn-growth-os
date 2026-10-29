@@ -1,0 +1,41 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "11 · S06 · Đánh giá TikTok Shop (bản gom bình luận của Kalodata)",
+  "describe": "kalodata.product.comment.insight 1734830267614529209",
+  "parentFile": "11-S06-tiktok-shop-danh-gia.json",
+  "parentLocation": "records[3]",
+  "sourceCode": "S06",
+  "sourceName": "Đánh giá TikTok Shop (bản gom bình luận của Kalodata)",
+  "provider": "Kalodata Open API /tiktok/product/comment/insight",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Bản gom mới nhất của nguồn tại lúc thu; cột ngày đánh giá chưa đọc được định dạng"
+  },
+  "limits": [
+   "Điểm AI của nguồn chỉ để đối chiếu, không làm bằng chứng",
+   "Số đánh giá là số bản ghi, không phải số người",
+   "1 điểm mỗi sản phẩm khi nguồn có bản gom mới"
+  ],
+  "resultSha256": "87ada759fb4595103f3b6086f585b1cbed90df04028001e7283e5bb3f28e653d"
+ },
+ "result": {
+  "operation": "kalodata.product.comment.insight",
+  "productId": "1734830267614529209",
+  "productName": "ZN ZINC LIPOSOMAL - Viên uống bổ sung kẽm, dễ hấp thu, hỗ trợ tăng cường đề kháng, cải thiện da tóc móng và hỗ trợ sức khỏe tổng thể, nhập khẩu chính hãng (90 viên)",
+  "requestBody": {
+   "product_id": "1734830267614529209",
+   "country_code": "VN"
+  },
+  "httpStatus": 554,
+  "requestedAt": "2026-10-29T12:59:33Z",
+  "completedAt": "2026-10-29T12:59:48Z",
+  "responseSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "response": {
+   "_undecodedText": ""
+  }
+ }
+}

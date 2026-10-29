@@ -1,0 +1,92 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «viên kẽm a» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[26]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "78a4e4d203ee9dbec4bdb08f76ea409bc417dca8b25f6e261eef8a2c64dc1da6"
+ },
+ "result": {
+  "prefix": "viên kẽm a",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:01Z",
+  "suggestions": [
+   "viên kẽm amagain bán ở đâu",
+   "viên kẽm amagain có tốt không",
+   "viên kẽm amagain shopee",
+   "viên kẽm an khang",
+   "viên kẽm amagain bán ở đâu thành phố hồ chí minh hồ chí minh",
+   "viên kẽm anagain",
+   "viên kẽm amagain có phải của traphaco không",
+   "viên kẽm amagain có tốt cho sinh lý nam không",
+   "viên kẽm ada có tác dụng gì",
+   "viên kẽm amagain giá bao nhiêu"
+  ],
+  "raw": [
+   "viên kẽm a",
+   [
+    "viên kẽm amagain bán ở đâu",
+    "viên kẽm amagain có tốt không",
+    "viên kẽm amagain shopee",
+    "viên kẽm an khang",
+    "viên kẽm amagain bán ở đâu thành phố hồ chí minh hồ chí minh",
+    "viên kẽm anagain",
+    "viên kẽm amagain có phải của traphaco không",
+    "viên kẽm amagain có tốt cho sinh lý nam không",
+    "viên kẽm ada có tác dụng gì",
+    "viên kẽm amagain giá bao nhiêu"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ]
+    ]
+   }
+  ]
+ }
+}

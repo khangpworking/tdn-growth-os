@@ -1,0 +1,92 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «uống kẽm đ» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[53]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "2b56e68bad3380c26ef4e294564bdd6df8a119377f6cb1400cd32b00e0ede9eb"
+ },
+ "result": {
+  "prefix": "uống kẽm đ",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:21Z",
+  "suggestions": [
+   "uống kẽm đỡ rụng tóc",
+   "uống kẽm đúng cách cho bé",
+   "uống kẽm đẹp da",
+   "uống kẽm được gì",
+   "uống kẽm đau dạ dày",
+   "uống kẽm đi tiểu nhiều",
+   "uống kẽm đau bụng",
+   "uống kẽm đi tiểu màu vàng",
+   "uống kẽm để làm gì",
+   "uống kẽm đúng cách"
+  ],
+  "raw": [
+   "uống kẽm đ",
+   [
+    "uống kẽm đỡ rụng tóc",
+    "uống kẽm đúng cách cho bé",
+    "uống kẽm đẹp da",
+    "uống kẽm được gì",
+    "uống kẽm đau dạ dày",
+    "uống kẽm đi tiểu nhiều",
+    "uống kẽm đau bụng",
+    "uống kẽm đi tiểu màu vàng",
+    "uống kẽm để làm gì",
+    "uống kẽm đúng cách"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ]
+    ]
+   }
+  ]
+ }
+}

@@ -1,0 +1,95 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «viên kẽm e» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[31]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "ef24ebeac99f211538d7582623e0d714f004d0e591771daca21856728b540c71"
+ },
+ "result": {
+  "prefix": "viên kẽm e",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:04Z",
+  "suggestions": [
+   "viên kẽm energy có tốt không",
+   "viên kẽm enter",
+   "viên kẽm energy",
+   "viên kẽm energy có tác dụng gì",
+   "viên kẽm energee sao thái dương",
+   "viên kẽm energee có tác dụng gì",
+   "viên kẽm energee",
+   "viên kẽm ecopex",
+   "viên kẽm trẻ em",
+   "viên kẽm zinc elite"
+  ],
+  "raw": [
+   "viên kẽm e",
+   [
+    "viên kẽm energy có tốt không",
+    "viên kẽm enter",
+    "viên kẽm energy",
+    "viên kẽm energy có tác dụng gì",
+    "viên kẽm energee sao thái dương",
+    "viên kẽm energee có tác dụng gì",
+    "viên kẽm energee",
+    "viên kẽm ecopex",
+    "viên kẽm trẻ em",
+    "viên kẽm zinc elite"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ]
+    ]
+   }
+  ]
+ }
+}

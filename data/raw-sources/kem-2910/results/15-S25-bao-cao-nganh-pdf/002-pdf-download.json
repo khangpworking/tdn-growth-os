@@ -1,0 +1,36 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "15 · S25 · Báo cáo ngành, tài liệu PDF",
+  "describe": "pdf.download pdf.download",
+  "parentFile": "15-S25-bao-cao-nganh-pdf.json",
+  "parentLocation": "records[1]",
+  "sourceCode": "S25",
+  "sourceName": "Báo cáo ngành, tài liệu PDF",
+  "provider": "Tìm bằng SerpApi (lượt 26/10) + tải trực tiếp",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Tài liệu có trên mạng lúc thu; năm phát hành ghi trong tài liệu"
+  },
+  "limits": [
+   "Tối đa 2 tệp, mỗi tệp tối đa 60 trang khi đọc",
+   "Tài liệu tìm tự động cho từ khoá bất kỳ thường Yếu hoặc không liên quan; cần lọc",
+   "Tệp PDF không có trong kho; chỉ giữ url + sha256"
+  ],
+  "resultSha256": "f9a0052d455f06e87276a19d4f141ea340c9136607e0b9a80513191559eb20b6"
+ },
+ "result": {
+  "operation": "pdf.download",
+  "url": "https://thongke.cesti.gov.vn/images/BCPTXHCN/OVERVIEW/201801301022297533Tongquan%20_Ky%2008%20-%20cong%20nghe%20nano%20trong%20thao%20duoc%20-27.10.2017%20Final.pdf",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:59:21Z",
+  "isPdf": true,
+  "byteSize": 3541552,
+  "sha256": "866dec876d17b8fafeded990d7725076c5193d9e4fa105ab6f23ebb56b5756a8",
+  "excludedFile": "files/pdf-1-201801301022297533Tongquan__Ky_08_-_cong_nghe_nano_trong_thao_duoc_-27.10.2017_F",
+  "excludedReason": "Tài liệu của bên thứ ba: không đưa vào kho công khai; tải lại theo url và kiểm sha256"
+ }
+}

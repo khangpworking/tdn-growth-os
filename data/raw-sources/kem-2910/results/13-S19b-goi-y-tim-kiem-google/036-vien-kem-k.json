@@ -1,0 +1,101 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «viên kẽm k» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[35]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "a790018ac186435296794bf2f3bb366b773735217bddbdd4bb161c5772a74367"
+ },
+ "result": {
+  "prefix": "viên kẽm k",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:07Z",
+  "suggestions": [
+   "viên kẽm kingspeed",
+   "viên kẽm kiềm dầu",
+   "viên kẽm kirkland",
+   "viên kẹo kẽm",
+   "viên kẹo kẽm của nhật",
+   "uống viên kẽm khi nào",
+   "uống viên kẽm khi nào tốt nhất",
+   "viên kẽm nhập khẩu",
+   "viên kẽm an khang",
+   "viên kẽm dhc uống khi nào"
+  ],
+  "raw": [
+   "viên kẽm k",
+   [
+    "viên kẽm kingspeed",
+    "viên kẽm kiềm dầu",
+    "viên kẽm kirkland",
+    "viên kẹo kẽm",
+    "viên kẹo kẽm của nhật",
+    "uống viên kẽm khi nào",
+    "uống viên kẽm khi nào tốt nhất",
+    "viên kẽm nhập khẩu",
+    "viên kẽm an khang",
+    "viên kẽm dhc uống khi nào"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ]
+    ]
+   }
+  ]
+ }
+}

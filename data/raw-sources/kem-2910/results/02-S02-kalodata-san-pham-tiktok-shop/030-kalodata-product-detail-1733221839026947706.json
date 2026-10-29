@@ -1,0 +1,349 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "02 · S02 · Sản phẩm và số bán TikTok Shop",
+  "describe": "kalodata.product.detail 1733221839026947706",
+  "parentFile": "02-S02-kalodata-san-pham-tiktok-shop.json",
+  "parentLocation": "records[29]",
+  "sourceCode": "S02",
+  "sourceName": "Sản phẩm và số bán TikTok Shop",
+  "provider": "Kalodata Open API",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": "2025-10-26",
+   "endDate": "2026-10-25",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "product.rank: 30 ngày 26/09–25/10/2026; product.detail: từng cửa sổ 30 ngày nối nhau trong 12 tháng (xem queryWindow mỗi bản ghi)"
+  },
+  "limits": [
+   "video.rank bị từ chối (mã 501: thiếu region/language trong yêu cầu) — 0 video",
+   "Không có tuổi, giới",
+   "Cửa sổ ngày tối đa 30 ngày"
+  ],
+  "resultSha256": "6b22da815d8305bf17953aec71bf51ab01a41e0a92e162c8a65c62b27282de86"
+ },
+ "result": {
+  "captureId": "kalodata-0023",
+  "operation": "kalodata.product.detail",
+  "endpoint": "https://www.kalodata.com/openapi/v1/tiktok/product/detail",
+  "method": "POST",
+  "requestParameters": {
+   "currency": "VND",
+   "date_range": "2026-06-23~2026-07-22",
+   "language": "vi-VN",
+   "need_extra": false,
+   "need_image": 1,
+   "product_id": "1733221839026947706",
+   "region": "VN"
+  },
+  "queryWindow": {
+   "endDate": "2026-07-22",
+   "startDate": "2026-06-23"
+  },
+  "productRef": "kalodata:1733221839026947706",
+  "requestedAt": "2026-10-26T02:01:57.593Z",
+  "completedAt": "2026-10-26T02:01:58.003Z",
+  "httpStatus": 200,
+  "outcome": "OK",
+  "providerCode": null,
+  "billing": "PAID_CREDITS",
+  "responseSha256": "0215e9fb6dceccc0ff19177f49a77066c9cecab621162667a8d0603c8c1944c1",
+  "response": {
+   "success": true,
+   "data": {
+    "product_id": "1733221839026947706",
+    "product_region": "vn",
+    "product_name": "Viên uống bổ sung Kẽm KingSPEED - Nguyên liệu nhập khẩu Đức - Hỗ trợ tăng cường sức khỏe - Lọ 30 viên",
+    "product_shop_id": "7494902957174983290",
+    "pri_cate_id": "700645",
+    "sec_cate_id": "700646",
+    "ter_cate_id": "700650",
+    "max_price": 766988.28,
+    "min_price": 48963.61,
+    "revenue": 892787082.34,
+    "video_revenue": 835621603.51,
+    "live_revenue": 57165478.83,
+    "sales_volumn": 3983,
+    "creator_number": 152,
+    "video_number": 597,
+    "live_number": 561,
+    "delivery_type": "local",
+    "shopping_mall_revenue": 0.0,
+    "commission_rate": 10.0,
+    "unit_price": 224149.41,
+    "product_review_count": 582,
+    "launch_date": "2025-11-17",
+    "master_image_url": "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/63e3b2b7f5584402a6e740913c6ee5a0~tplv-aphluv4xwc-resize-webp:800:800.jpeg",
+    "revenue_trend": null,
+    "product_description": [
+     {
+      "type": "text",
+      "text": "Viên uống bổ sung Kẽm KingSPEED - Nguyên liệu nhập khẩu Đức - Hỗ trợ tăng cường sức khỏe - Lọ 30 viên",
+      "sub": [
+       {
+        "t": "Viên uống bổ sung Kẽm KingSPEED - ",
+        "b": true,
+        "align": 1,
+        "h": 3
+       },
+       {
+        "t": "Nguyên liệu nhập khẩu Đức - Hỗ trợ tăng cường sức khỏe - Lọ 30 viên",
+        "align": 1,
+        "h": 3
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Thực phẩm bảo vệ sức khỏe King SPEED.",
+      "sub": [
+       {
+        "t": "Thực phẩm bảo vệ sức khỏe King SPEED."
+       }
+      ]
+     },
+     {
+      "type": "image",
+      "image": {
+       "height": 900,
+       "width": 900,
+       "uri": "tos-alisg-i-aphluv4xwc-sg/a4e51f0bc7f546a9821ad5094de271e2",
+       "url_list": [
+        "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/a4e51f0bc7f546a9821ad5094de271e2~tplv-aphluv4xwc-origin-jpeg.jpeg?dr=15568&t=555f072d&ps=933b5bde&shp=a3510d86&shcp=6ce186a1&idc=my3&from=2739998086",
+        "https://p19-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/a4e51f0bc7f546a9821ad5094de271e2~tplv-aphluv4xwc-origin-jpeg.jpeg?dr=15568&t=555f072d&ps=933b5bde&shp=a3510d86&shcp=6ce186a1&idc=my3&from=2739998086"
+       ],
+       "remove_gap": "false"
+      }
+     },
+     {
+      "type": "text",
+      "text": "Thành phần",
+      "sub": [
+       {
+        "t": "Thành phần",
+        "b": true,
+        "align": 1,
+        "h": 3
+       }
+      ]
+     },
+     {
+      "type": "ul",
+      "content": [
+       "Bột đông khô từ thịt hàu nguyên chất: 120 mg (từ 720 mg thịt hàu - Crassostrea gigas).",
+       "Kẽm gluconat: 35 mg (tương đương Kẽm 5 mg).",
+       "Phụ liệu: Vỏ nang gelatin, tinh bột, lactose, talc, magnesium stearate, dioxyd silic vô định hình."
+      ],
+      "li_sub": [
+       [
+        {
+         "t": "Bột đông khô từ thịt hàu nguyên chất: 120 mg (từ 720 mg thịt hàu - Crassostrea gigas)."
+        }
+       ],
+       [
+        {
+         "t": "Kẽm gluconat: 35 mg (tương đương Kẽm 5 mg)."
+        }
+       ],
+       [
+        {
+         "t": "Phụ liệu: Vỏ nang gelatin, tinh bột, lactose, talc, magnesium stearate, dioxyd silic vô định hình."
+        }
+       ]
+      ]
+     },
+     {
+      "type": "image",
+      "image": {
+       "height": 900,
+       "width": 900,
+       "uri": "tos-alisg-i-aphluv4xwc-sg/3a53c10ef190460e91d04e5ea3879aab",
+       "url_list": [
+        "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/3a53c10ef190460e91d04e5ea3879aab~tplv-aphluv4xwc-origin-jpeg.jpeg?dr=15568&t=555f072d&ps=933b5bde&shp=a3510d86&shcp=6ce186a1&idc=my3&from=2739998086",
+        "https://p19-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/3a53c10ef190460e91d04e5ea3879aab~tplv-aphluv4xwc-origin-jpeg.jpeg?dr=15568&t=555f072d&ps=933b5bde&shp=a3510d86&shcp=6ce186a1&idc=my3&from=2739998086"
+       ],
+       "remove_gap": "false"
+      }
+     },
+     {
+      "type": "text",
+      "text": "Công dụng",
+      "sub": [
+       {
+        "t": "Công dụng",
+        "b": true,
+        "align": 1,
+        "h": 3
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Hỗ trợ bổ sung Kẽm, tăng cường sức khỏe.",
+      "sub": [
+       {
+        "t": "Hỗ trợ bổ sung Kẽm, tăng cường sức khỏe."
+       }
+      ]
+     },
+     {
+      "type": "image",
+      "image": {
+       "height": 900,
+       "width": 900,
+       "uri": "tos-alisg-i-aphluv4xwc-sg/1a2da95f97de4da1a01bcdbaf235c3e0",
+       "url_list": [
+        "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/1a2da95f97de4da1a01bcdbaf235c3e0~tplv-aphluv4xwc-origin-jpeg.jpeg?dr=15568&t=555f072d&ps=933b5bde&shp=a3510d86&shcp=6ce186a1&idc=my3&from=2739998086",
+        "https://p19-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/1a2da95f97de4da1a01bcdbaf235c3e0~tplv-aphluv4xwc-origin-jpeg.jpeg?dr=15568&t=555f072d&ps=933b5bde&shp=a3510d86&shcp=6ce186a1&idc=my3&from=2739998086"
+       ],
+       "remove_gap": "false"
+      }
+     },
+     {
+      "type": "text",
+      "text": "Hướng dẫn sử dụng",
+      "sub": [
+       {
+        "t": "Hướng dẫn sử dụng",
+        "b": true,
+        "align": 1,
+        "h": 3
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Nam giới trưởng thành: uống 2 viên/lần/ngày.",
+      "sub": [
+       {
+        "t": "Nam giới trưởng thành: uống 2 viên/lần/ngày."
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Đối tượng sử dụng",
+      "sub": [
+       {
+        "t": "Đối tượng sử dụng",
+        "b": true,
+        "align": 1,
+        "h": 3
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Nam giới trưởng thành cần bổ sung Kẽm, tăng cường sức khỏe.",
+      "sub": [
+       {
+        "t": "Nam giới trưởng thành cần bổ sung Kẽm, tăng cường sức khỏe."
+       }
+      ]
+     },
+     {
+      "type": "image",
+      "image": {
+       "height": 900,
+       "width": 900,
+       "uri": "tos-alisg-i-aphluv4xwc-sg/b149f1055daa469594751b2a1b4b014b",
+       "url_list": [
+        "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/b149f1055daa469594751b2a1b4b014b~tplv-aphluv4xwc-origin-jpeg.jpeg?dr=15568&t=555f072d&ps=933b5bde&shp=a3510d86&shcp=6ce186a1&idc=my3&from=2739998086",
+        "https://p19-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/b149f1055daa469594751b2a1b4b014b~tplv-aphluv4xwc-origin-jpeg.jpeg?dr=15568&t=555f072d&ps=933b5bde&shp=a3510d86&shcp=6ce186a1&idc=my3&from=2739998086"
+       ],
+       "remove_gap": "false"
+      }
+     },
+     {
+      "type": "text",
+      "text": "Khối lượng viên: 600 mg + 7,5%",
+      "sub": [
+       {
+        "t": "Khối lượng viên: 600 mg "
+       },
+       {
+        "t": "+",
+        "u": true
+       },
+       {
+        "t": " 7,5%"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Bảo quản: Nơi khô ráo, thoáng mát, tránh ánh nắng trực tiếp chiếu vào sản phẩm.",
+      "sub": [
+       {
+        "t": "Bảo quản: Nơi khô ráo, thoáng mát, tránh ánh nắng trực tiếp chiếu vào sản phẩm."
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Để xa tầm tay trẻ em.",
+      "sub": [
+       {
+        "t": "Để xa tầm tay trẻ em."
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Số ĐKSP: 6350/2024/ĐKSP",
+      "sub": [
+       {
+        "t": "Số ĐKSP: 6350/2024/ĐKSP"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Hạn dùng: 36 tháng kể từ ngày sản xuất, ngày sản xuất và hạn sử dụng in trên bao bì sản phẩm.",
+      "sub": [
+       {
+        "t": "Hạn dùng: 36 tháng kể từ ngày sản xuất, ngày sản xuất và hạn sử dụng in trên bao bì sản phẩm."
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Chú ý:﻿﻿ Người đang dùng thuốc cần tham khảo ý kiến của chuyên gia y tế trước khi sử dụng.",
+      "sub": [
+       {
+        "t": "Chú ý:",
+        "b": true
+       },
+       {
+        "t": "﻿﻿ Người đang dùng thuốc cần tham khảo ý kiến của chuyên gia y tế trước khi sử dụng."
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Không dùng cho người có tác dụng không mong muốn, kiêng kỵ, hoặc mẫn cảm với bất kỳ thành phần nào của sản phẩm.﻿﻿",
+      "sub": [
+       {
+        "t": "Không dùng cho người có tác dụng không mong muốn, kiêng kỵ, hoặc mẫn cảm với bất kỳ thành phần nào của sản phẩm.﻿﻿"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Thực phẩm này không phải là thuốc và không có tác dụng thay thế thuốc chữa bệnh.",
+      "sub": [
+       {
+        "t": "Thực phẩm này không phải là thuốc và không có tác dụng thay thế thuốc chữa bệnh."
+       }
+      ]
+     }
+    ]
+   },
+   "message": null,
+   "cached": null,
+   "code": null
+  },
+  "step": "COLLECTION",
+  "captureArtifactSha256": "3f24674a9d4964cebf66ecc0b63f320c5110fed4555df1b144fb2884dbdf0e18"
+ }
+}

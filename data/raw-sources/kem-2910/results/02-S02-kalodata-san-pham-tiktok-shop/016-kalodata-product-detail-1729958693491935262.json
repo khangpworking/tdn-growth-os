@@ -1,0 +1,368 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "02 · S02 · Sản phẩm và số bán TikTok Shop",
+  "describe": "kalodata.product.detail 1729958693491935262",
+  "parentFile": "02-S02-kalodata-san-pham-tiktok-shop.json",
+  "parentLocation": "records[15]",
+  "sourceCode": "S02",
+  "sourceName": "Sản phẩm và số bán TikTok Shop",
+  "provider": "Kalodata Open API",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": "2025-10-26",
+   "endDate": "2026-10-25",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "product.rank: 30 ngày 26/09–25/10/2026; product.detail: từng cửa sổ 30 ngày nối nhau trong 12 tháng (xem queryWindow mỗi bản ghi)"
+  },
+  "limits": [
+   "video.rank bị từ chối (mã 501: thiếu region/language trong yêu cầu) — 0 video",
+   "Không có tuổi, giới",
+   "Cửa sổ ngày tối đa 30 ngày"
+  ],
+  "resultSha256": "e1504fd9298dcc3b4d47ad5d29d274d4915dd0d30982a7af854867e040a7c368"
+ },
+ "result": {
+  "captureId": "kalodata-0009",
+  "operation": "kalodata.product.detail",
+  "endpoint": "https://www.kalodata.com/openapi/v1/tiktok/product/detail",
+  "method": "POST",
+  "requestParameters": {
+   "currency": "VND",
+   "date_range": "2026-05-24~2026-06-22",
+   "language": "vi-VN",
+   "need_extra": false,
+   "need_image": 1,
+   "product_id": "1729958693491935262",
+   "region": "VN"
+  },
+  "queryWindow": {
+   "endDate": "2026-06-22",
+   "startDate": "2026-05-24"
+  },
+  "productRef": "kalodata:1729958693491935262",
+  "requestedAt": "2026-10-26T02:01:47.558Z",
+  "completedAt": "2026-10-26T02:01:49.088Z",
+  "httpStatus": 200,
+  "outcome": "OK",
+  "providerCode": null,
+  "billing": "PAID_CREDITS",
+  "responseSha256": "478f0ea356c414e8c270459255980e3137be23e9def7bf4b5742652faaf28d30",
+  "response": {
+   "success": true,
+   "data": {
+    "product_id": "1729958693491935262",
+    "product_region": "vn",
+    "product_name": "DSDPHARMA Kẽm DSD 30 Ngày 60 Ngày Bổ Sung Kẽm 150mg Viên Uống DSD Bổ Sung Kẽm Biozinc Hộp 2 Lọ X 30 Viên, Hộp 1 Lọ 30 Viên | Hãy Chọn Phân Loại Tặng Bọt Vệ Sinh Nam",
+    "product_shop_id": "7495537412362307614",
+    "pri_cate_id": "700645",
+    "sec_cate_id": "700646",
+    "ter_cate_id": "700650",
+    "max_price": 424323.46,
+    "min_price": 193479.73,
+    "revenue": 3999284296.62,
+    "video_revenue": 3685915250.88,
+    "live_revenue": 313052447.58,
+    "sales_volumn": 27728,
+    "creator_number": 865,
+    "video_number": 5507,
+    "live_number": 3920,
+    "delivery_type": "local",
+    "shopping_mall_revenue": 316598.16,
+    "commission_rate": 10.0,
+    "unit_price": 144232.7,
+    "product_review_count": 57142,
+    "launch_date": "2024-01-16",
+    "master_image_url": "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/798a3f7dda0047f0981e2798c1f88951~tplv-aphluv4xwc-resize-webp:800:800.jpeg",
+    "revenue_trend": null,
+    "product_description": [
+     {
+      "type": "image",
+      "image": {
+       "height": 2083,
+       "width": 2084,
+       "uri": "tos-alisg-i-aphluv4xwc-sg/239e40b3beea4476948d048f6112a45b",
+       "url_list": [
+        "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/239e40b3beea4476948d048f6112a45b~tplv-aphluv4xwc-origin-jpeg.jpeg?dr=15568&t=555f072d&ps=933b5bde&shp=a3510d86&shcp=6ce186a1&idc=my&from=2739998086",
+        "https://p19-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/239e40b3beea4476948d048f6112a45b~tplv-aphluv4xwc-origin-jpeg.jpeg?dr=15568&t=555f072d&ps=933b5bde&shp=a3510d86&shcp=6ce186a1&idc=my&from=2739998086"
+       ],
+       "remove_gap": "false"
+      }
+     },
+     {
+      "type": "image",
+      "image": {
+       "height": 2083,
+       "width": 2084,
+       "uri": "tos-alisg-i-aphluv4xwc-sg/56be60a4fb114ef7811ca7a99b9ea475",
+       "url_list": [
+        "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/56be60a4fb114ef7811ca7a99b9ea475~tplv-aphluv4xwc-origin-jpeg.jpeg?dr=15568&t=555f072d&ps=933b5bde&shp=a3510d86&shcp=6ce186a1&idc=my&from=2739998086",
+        "https://p19-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/56be60a4fb114ef7811ca7a99b9ea475~tplv-aphluv4xwc-origin-jpeg.jpeg?dr=15568&t=555f072d&ps=933b5bde&shp=a3510d86&shcp=6ce186a1&idc=my&from=2739998086"
+       ],
+       "remove_gap": "false"
+      }
+     },
+     {
+      "type": "image",
+      "image": {
+       "height": 2083,
+       "width": 2084,
+       "uri": "tos-alisg-i-aphluv4xwc-sg/e6f44e07b5a6484ebf1b97fc940bac6d",
+       "url_list": [
+        "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/e6f44e07b5a6484ebf1b97fc940bac6d~tplv-aphluv4xwc-origin-jpeg.jpeg?dr=15568&t=555f072d&ps=933b5bde&shp=a3510d86&shcp=6ce186a1&idc=my&from=2739998086",
+        "https://p19-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/e6f44e07b5a6484ebf1b97fc940bac6d~tplv-aphluv4xwc-origin-jpeg.jpeg?dr=15568&t=555f072d&ps=933b5bde&shp=a3510d86&shcp=6ce186a1&idc=my&from=2739998086"
+       ],
+       "remove_gap": "false"
+      }
+     },
+     {
+      "type": "text",
+      "text": "Giới thiệu :",
+      "sub": [
+       {
+        "t": "Giới thiệu :"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "-Kẽm DSD là một loại khoáng thiết yếu không thể thiếu cho các hoạt động của cơ thể và đóng góp vào trò quan trọng trong việc điều tiết cân bằng thể lực cho chúng ta.",
+      "sub": [
+       {
+        "t": "-Kẽm DSD là một loại khoáng thiết yếu không thể thiếu cho các hoạt động của cơ thể và đóng góp vào trò quan trọng trong việc điều tiết cân bằng thể lực cho chúng ta."
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "-Viên uống KẼM DSD là một sản phẩm thực phẩm chức năng giúp bổ sung khoáng kẽm cho cơ thể. Ngoài ra, sản phẩm còn bổ sung thêm một số thành phần vitamin thiết yếu .",
+      "sub": [
+       {
+        "t": "-Viên uống KẼM DSD là một sản phẩm thực phẩm chức năng giúp bổ sung khoáng kẽm cho cơ thể. Ngoài ra, sản phẩm còn bổ sung thêm một số thành phần vitamin thiết yếu ."
+       }
+      ]
+     },
+     {
+      "type": "image",
+      "image": {
+       "height": 2083,
+       "width": 2084,
+       "uri": "tos-alisg-i-aphluv4xwc-sg/0945f554103544a0b4f8e4abdd7b100a",
+       "url_list": [
+        "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/0945f554103544a0b4f8e4abdd7b100a~tplv-aphluv4xwc-origin-jpeg.jpeg?dr=15568&t=555f072d&ps=933b5bde&shp=a3510d86&shcp=6ce186a1&idc=my&from=2739998086",
+        "https://p19-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/0945f554103544a0b4f8e4abdd7b100a~tplv-aphluv4xwc-origin-jpeg.jpeg?dr=15568&t=555f072d&ps=933b5bde&shp=a3510d86&shcp=6ce186a1&idc=my&from=2739998086"
+       ],
+       "remove_gap": "false"
+      }
+     },
+     {
+      "type": "image",
+      "image": {
+       "height": 2083,
+       "width": 2084,
+       "uri": "tos-alisg-i-aphluv4xwc-sg/562698604aa9477b9c1ea2fc4127c5dd",
+       "url_list": [
+        "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/562698604aa9477b9c1ea2fc4127c5dd~tplv-aphluv4xwc-origin-jpeg.jpeg?dr=15568&t=555f072d&ps=933b5bde&shp=a3510d86&shcp=6ce186a1&idc=my&from=2739998086",
+        "https://p19-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/562698604aa9477b9c1ea2fc4127c5dd~tplv-aphluv4xwc-origin-jpeg.jpeg?dr=15568&t=555f072d&ps=933b5bde&shp=a3510d86&shcp=6ce186a1&idc=my&from=2739998086"
+       ],
+       "remove_gap": "false"
+      }
+     },
+     {
+      "type": "image",
+      "image": {
+       "height": 2084,
+       "width": 2084,
+       "uri": "tos-alisg-i-aphluv4xwc-sg/8b789f3c717547218d6678a5efab4a00",
+       "url_list": [
+        "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/8b789f3c717547218d6678a5efab4a00~tplv-aphluv4xwc-origin-jpeg.jpeg?dr=15568&t=555f072d&ps=933b5bde&shp=a3510d86&shcp=6ce186a1&idc=my&from=2739998086",
+        "https://p19-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/8b789f3c717547218d6678a5efab4a00~tplv-aphluv4xwc-origin-jpeg.jpeg?dr=15568&t=555f072d&ps=933b5bde&shp=a3510d86&shcp=6ce186a1&idc=my&from=2739998086"
+       ],
+       "remove_gap": "false"
+      }
+     },
+     {
+      "type": "text",
+      "text": "*Công dụng của viên uống Kẽm DSD:",
+      "sub": [
+       {
+        "t": "*Công dụng của viên uống Kẽm DSD:"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "- Viên kẽm DSD là thực phẩm chức năng đáp ứng đầy đủ các tiêu chí chất lượng với công dụng chính là bổ sung hàm lượng kẽm cần thiết cho cơ thể. Hàm lượng kẽm này sẽ hỗ trợ tham gia vào quá trình điều chỉnh tình trạng sức khỏe trở thành nhân tố không thể thiếu cho các hoạt động sống của cơ thể.",
+      "sub": [
+       {
+        "t": "- Viên kẽm DSD là thực phẩm chức năng đáp ứng đầy đủ các tiêu chí chất lượng với công dụng chính là bổ sung hàm lượng kẽm cần thiết cho cơ thể. Hàm lượng kẽm này sẽ hỗ trợ tham gia vào quá trình điều chỉnh tình trạng sức khỏe trở thành nhân tố không thể thiếu cho các hoạt động sống của cơ thể."
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "-Việc thiếu kẽm dẫn đến suy nhược cơ thể và chứng mất vị giác . Hỗ trợ móng , tóc , da tái tạo được một cách trơn tru nhờ có kẽm.",
+      "sub": [
+       {
+        "t": "-Việc thiếu kẽm dẫn đến suy nhược cơ thể và chứng mất vị giác . Hỗ trợ móng , tóc , da tái tạo được một cách trơn tru nhờ có kẽm."
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "-Nếu bạn là người dễ mất cân bằng trong ăn uống hoặc đang gặp những tình trạng trên thì nên bổ sung kẽm mỗi ngày.",
+      "sub": [
+       {
+        "t": "-Nếu bạn là người dễ mất cân bằng trong ăn uống hoặc đang gặp những tình trạng trên thì nên bổ sung kẽm mỗi ngày."
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "*Đối tượng sử dụng:",
+      "sub": [
+       {
+        "t": "*Đối tượng sử dụng:"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "-Muốn duy trì sức khỏe, tóc,móng và da tốt hơn.",
+      "sub": [
+       {
+        "t": "-Muốn duy trì sức khỏe, tóc,móng và da tốt hơn."
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "-Người làm việc nặng nhọc, dễ bị suy giảm thể lực.",
+      "sub": [
+       {
+        "t": "-Người làm việc nặng nhọc, dễ bị suy giảm thể lực."
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "-Chế độ ăn uống mất cân bằng dinh dưỡng.",
+      "sub": [
+       {
+        "t": "-Chế độ ăn uống mất cân bằng dinh dưỡng."
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "*Hướng dẫn sử dụng:",
+      "sub": [
+       {
+        "t": "*Hướng dẫn sử dụng:"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "-Cách dùng : Người lớn 1 viên / ngày uống 1 lần sáng hoặc chiều (uống với nước ấm)",
+      "sub": [
+       {
+        "t": "-Cách dùng : Người lớn 1 viên / ngày uống 1 lần sáng hoặc chiều (uống với nước ấm)"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "-Nên dùng sau ăn 30 phút là tốt .",
+      "sub": [
+       {
+        "t": "-Nên dùng sau ăn 30 phút là tốt ."
+       }
+      ]
+     },
+     {
+      "type": "image",
+      "image": {
+       "height": 2560,
+       "width": 2560,
+       "uri": "tos-maliva-i-o3syd03w52-us/09c0c6d22cfb452ab810bdf0c76c7b3b",
+       "url_list": [
+        "https://p16-oec-va.ibyteimg.com/tos-maliva-i-o3syd03w52-us/09c0c6d22cfb452ab810bdf0c76c7b3b~tplv-o3syd03w52-origin-jpeg.jpeg?dr=15568&t=555f072d&ps=933b5bde&shp=a3510d86&shcp=6ce186a1&idc=my&from=2739998086",
+        "https://p21-oec-va.ibyteimg.com/tos-maliva-i-o3syd03w52-us/09c0c6d22cfb452ab810bdf0c76c7b3b~tplv-o3syd03w52-origin-jpeg.jpeg?dr=15568&t=555f072d&ps=933b5bde&shp=a3510d86&shcp=6ce186a1&idc=my&from=2739998086"
+       ],
+       "remove_gap": "false"
+      }
+     },
+     {
+      "type": "text",
+      "text": "***Lưu ý :",
+      "sub": [
+       {
+        "t": "***Lưu ý :"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "-Thực phẩm này không phải là thuốc , không có tác dụng thay thế thuốc chữa bệnh.",
+      "sub": [
+       {
+        "t": "-Thực phẩm này không phải là thuốc , không có tác dụng thay thế thuốc chữa bệnh."
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "-Không sử dụng cho người mẫn cảm với các thành phần của sản phẩm.",
+      "sub": [
+       {
+        "t": "-Không sử dụng cho người mẫn cảm với các thành phần của sản phẩm."
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "-Tham khảo ý kiến bác sĩ/ dược sĩ trước khi dùng nếu bạn đang dùng thuốc khác.",
+      "sub": [
+       {
+        "t": "-Tham khảo ý kiến bác sĩ/ dược sĩ trước khi dùng nếu bạn đang dùng thuốc khác."
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "-Bảo quản nơi khô ráo thoáng mát tránh ánh sáng trực tiếp.",
+      "sub": [
+       {
+        "t": "-Bảo quản nơi khô ráo thoáng mát tránh ánh sáng trực tiếp."
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "-Khuyến khích dùng liên tục 3 tháng để đạt hiệu quả cao.",
+      "sub": [
+       {
+        "t": "-Khuyến khích dùng liên tục 3 tháng để đạt hiệu quả cao."
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "#kemgluconat #kemdsd #kemzinc #vienuongkem #dsdpharma",
+      "sub": [
+       {
+        "t": "#kemgluconat #kemdsd #kemzinc #vienuongkem #dsdpharma"
+       }
+      ]
+     }
+    ]
+   },
+   "message": null,
+   "cached": null,
+   "code": null
+  },
+  "step": "COLLECTION",
+  "captureArtifactSha256": "cf51a3689009224d0df2b4815369ef97aef14bce710dd0fafaedb5c4e4476d52"
+ }
+}

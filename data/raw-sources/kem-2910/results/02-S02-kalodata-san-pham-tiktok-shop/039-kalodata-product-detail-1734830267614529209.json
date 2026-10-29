@@ -1,0 +1,391 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "02 · S02 · Sản phẩm và số bán TikTok Shop",
+  "describe": "kalodata.product.detail 1734830267614529209",
+  "parentFile": "02-S02-kalodata-san-pham-tiktok-shop.json",
+  "parentLocation": "records[38]",
+  "sourceCode": "S02",
+  "sourceName": "Sản phẩm và số bán TikTok Shop",
+  "provider": "Kalodata Open API",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": "2025-10-26",
+   "endDate": "2026-10-25",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "product.rank: 30 ngày 26/09–25/10/2026; product.detail: từng cửa sổ 30 ngày nối nhau trong 12 tháng (xem queryWindow mỗi bản ghi)"
+  },
+  "limits": [
+   "video.rank bị từ chối (mã 501: thiếu region/language trong yêu cầu) — 0 video",
+   "Không có tuổi, giới",
+   "Cửa sổ ngày tối đa 30 ngày"
+  ],
+  "resultSha256": "41dadb6b1532da7036624f398e5b573d59e56f10d74444ba3cc2dac107a79b84"
+ },
+ "result": {
+  "captureId": "kalodata-0032",
+  "operation": "kalodata.product.detail",
+  "endpoint": "https://www.kalodata.com/openapi/v1/tiktok/product/detail",
+  "method": "POST",
+  "requestParameters": {
+   "currency": "VND",
+   "date_range": "2026-02-23~2026-03-24",
+   "language": "vi-VN",
+   "need_extra": false,
+   "need_image": 1,
+   "product_id": "1734830267614529209",
+   "region": "VN"
+  },
+  "queryWindow": {
+   "endDate": "2026-03-24",
+   "startDate": "2026-02-23"
+  },
+  "productRef": "kalodata:1734830267614529209",
+  "requestedAt": "2026-10-26T02:02:01.475Z",
+  "completedAt": "2026-10-26T02:02:01.894Z",
+  "httpStatus": 200,
+  "outcome": "OK",
+  "providerCode": null,
+  "billing": "PAID_CREDITS",
+  "responseSha256": "85e8fc0c8cd1cc74628717c87539accbd8202dffd9fbe1ffa7069278edc1fecd",
+  "response": {
+   "success": true,
+   "data": {
+    "product_id": "1734830267614529209",
+    "product_region": "vn",
+    "product_name": "ZN ZINC LIPOSOMAL - Viên uống bổ sung kẽm, dễ hấp thu, hỗ trợ tăng cường đề kháng, cải thiện da tóc móng và hỗ trợ sức khỏe tổng thể, nhập khẩu chính hãng (90 viên)",
+    "product_shop_id": "7494762002802838201",
+    "pri_cate_id": "700645",
+    "sec_cate_id": "700646",
+    "ter_cate_id": "700650",
+    "max_price": 16956452.8,
+    "min_price": 610436.7,
+    "revenue": 0.0,
+    "video_revenue": 0.0,
+    "live_revenue": 0.0,
+    "sales_volumn": 0,
+    "creator_number": 0,
+    "video_number": 0,
+    "live_number": 0,
+    "delivery_type": "local",
+    "shopping_mall_revenue": 0.0,
+    "commission_rate": 3.0,
+    "unit_price": 0.0,
+    "product_review_count": 164,
+    "launch_date": "2026-04-01",
+    "master_image_url": "https://p16-oec-sg.ibyteimg.com/tos-alisg-i-aphluv4xwc-sg/61b8562be5f449af97cbd1ae34061006~tplv-aphluv4xwc-resize-webp:800:800.jpeg",
+    "revenue_trend": null,
+    "product_description": [
+     {
+      "type": "text",
+      "text": "Tên sản phẩm: Biocyte Viên uống bổ sung Kẽm - Zn Zinc Liposomal, hộp 90 viên",
+      "sub": [
+       {
+        "t": "Tên sản phẩm: Biocyte Viên uống bổ sung Kẽm - Zn Zinc Liposomal, hộp 90 viên",
+        "b": true
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Xuất xứ: Pháp",
+      "sub": [
+       {
+        "t": "Xuất xứ:",
+        "b": true
+       },
+       {
+        "t": " Pháp"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Trong 1 viên nang cứng chứa:",
+      "sub": [
+       {
+        "t": "Trong 1 viên nang cứng chứa:",
+        "b": true
+       }
+      ]
+     },
+     {
+      "type": "ul",
+      "content": [
+       "Phức hợp kẽm vi bao 83mg [Chất nhũ hóa: monoglycerides và diglycerides của acid béo, kẽm oxit) (chứa 15mg Kẽm);",
+       "Phụ liệu: Vỏ nang nguồn gốc thực vật (chất bao: hydroxypropyl methyl cellulose); Maltodextrin; Chất chống đông vón: muối magie của axit béo.",
+       "Thuần chay, không gluten, không chất bảo quản, hương vị nhân tạo"
+      ],
+      "li_sub": [
+       [
+        {
+         "t": "Phức hợp kẽm vi bao 83mg [Chất nhũ hóa: monoglycerides và diglycerides của acid béo, kẽm oxit) (chứa 15mg Kẽm);"
+        }
+       ],
+       [
+        {
+         "t": "Phụ liệu: Vỏ nang nguồn gốc thực vật (chất bao: hydroxypropyl methyl cellulose); Maltodextrin; Chất chống đông vón: muối magie của axit béo."
+        }
+       ],
+       [
+        {
+         "t": "Thuần chay, không gluten, không chất bảo quản, hương vị nhân tạo"
+        }
+       ]
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Tên sản phẩm: CKC Health Viên uống PINO - Bổ sung kẽm, hộp 60 viên",
+      "sub": [
+       {
+        "t": "Tên sản phẩm: CKC Health Viên uống PINO - Bổ sung kẽm, hộp 60 viên",
+        "b": true
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Xuất xứ: Anh",
+      "sub": [
+       {
+        "t": "Xuất xứ:",
+        "b": true
+       },
+       {
+        "t": " Anh"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Trong 1 viên nén chứa:",
+      "sub": [
+       {
+        "t": "Trong 1 viên nén chứa:",
+        "b": true
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Vitamin C (acid ascorbic): 79,2 mg",
+      "sub": [
+       {
+        "t": "Vitamin C (acid ascorbic): 79,2 mg"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Kẽm (Kẽm citrate): 15,75 mg",
+      "sub": [
+       {
+        "t": "Kẽm (Kẽm citrate): 15,75 mg"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Đồng (Đồng gluconate): 1 mg",
+      "sub": [
+       {
+        "t": "Đồng (Đồng gluconate): 1 mg"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Công dụng chung:",
+      "sub": [
+       {
+        "t": "Công dụng chung:",
+        "b": true
+       }
+      ]
+     },
+     {
+      "type": "ul",
+      "content": [
+       "Hỗ trợ miễn dịch: Tăng cường hệ miễn dịch, giúp cơ thể tăng đề kháng, chống lại các tác nhân gây bệnh.",
+       "Chống oxy hóa: Bảo vệ tế bào khỏi tổn thương do stress oxy hóa, duy trì sức khỏe tế bào và làm chậm quá trình lão hóa.",
+       "Tham gia tái tạo tế bào, tổng hợp protein (sức khỏe da, móng, tóc): Cải thiện tình trạng mụn, da khô, tóc gãy rụng và móng giòn, nuôi dưỡng từ bên trong.",
+       "Phù hợp cho người ăn chay/thuần chay và người có cơ địa nhạy cảm, ít gây tác dụng phụ."
+      ],
+      "li_sub": [
+       [
+        {
+         "t": "Hỗ trợ miễn dịch: Tăng cường hệ miễn dịch, giúp cơ thể tăng đề kháng, chống lại các tác nhân gây bệnh."
+        }
+       ],
+       [
+        {
+         "t": "Chống oxy hóa: Bảo vệ tế bào khỏi tổn thương do stress oxy hóa, duy trì sức khỏe tế bào và làm chậm quá trình lão hóa."
+        }
+       ],
+       [
+        {
+         "t": "Tham gia tái tạo tế bào, tổng hợp protein (sức khỏe da, móng, tóc): Cải thiện tình trạng mụn, da khô, tóc gãy rụng và móng giòn, nuôi dưỡng từ bên trong."
+        }
+       ],
+       [
+        {
+         "t": "Phù hợp cho người ăn chay/thuần chay và người có cơ địa nhạy cảm, ít gây tác dụng phụ."
+        }
+       ]
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Cách dùng & Liều dùng",
+      "sub": [
+       {
+        "t": "Cách dùng & Liều dùng",
+        "b": true
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Liều dùng: Uống 1 viên mỗi ngày",
+      "sub": [
+       {
+        "t": "Liều dùng: ",
+        "b": true
+       },
+       {
+        "t": "Uống 1 viên mỗi ngày"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Bảo quản sản phẩm nơi khô ráo, thoáng mát.",
+      "sub": [
+       {
+        "t": "Bảo quản sản phẩm nơi khô ráo, thoáng mát."
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Lưu ý: Sản phẩm này không phải thuốc và không thay thế thuốc chữa bệnh.",
+      "sub": [
+       {
+        "t": "Lưu ý: Sản phẩm này không phải thuốc và không thay thế thuốc chữa bệnh.",
+        "em": true
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "—----------------------------------------------------",
+      "sub": [
+       {
+        "t": "—----------------------------------------------------"
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "LƯU Ý KHI NHẬN HÀNG & CHÍNH SÁCH ĐỔI HÀNG",
+      "sub": [
+       {
+        "t": "LƯU Ý KHI NHẬN HÀNG & CHÍNH SÁCH ĐỔI HÀNG",
+        "b": true,
+        "u": true
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Khi nhân viên giao hàng, quý khách xin vui lòng kiểm tra và chỉ nhận hàng khi hộp hàng vẫn còn nguyên vẹn, không có dấu hiệu tráo đổi hàng hóa. Chúng tôi cam kết hỗ trợ đổi sản phẩm mới 1-1 khi đơn hàng xảy ra các sự cố như:",
+      "sub": [
+       {
+        "t": "Khi nhân viên giao hàng, quý khách xin vui lòng kiểm tra và chỉ nhận hàng khi hộp hàng vẫn còn nguyên vẹn, không có dấu hiệu tráo đổi hàng hóa. Chúng tôi cam kết hỗ trợ đổi sản phẩm mới 1-1 khi đơn hàng xảy ra các sự cố như:"
+       }
+      ]
+     },
+     {
+      "type": "ul",
+      "content": [
+       "Sản phẩm không giống mô tả",
+       "Sản phẩm giao không đúng chủng loại, mẫu mã trong đơn đặt hàng",
+       "Sản phẩm giao thiếu hàng hóa, phụ kiện, quà tặng",
+       "Sản phẩm móp méo, vỡ, bẹp,.. trong quá trình vận chuyển"
+      ],
+      "li_sub": [
+       [
+        {
+         "t": "Sản phẩm không giống mô tả"
+        }
+       ],
+       [
+        {
+         "t": "Sản phẩm giao không đúng chủng loại, mẫu mã trong đơn đặt hàng"
+        }
+       ],
+       [
+        {
+         "t": "Sản phẩm giao thiếu hàng hóa, phụ kiện, quà tặng"
+        }
+       ],
+       [
+        {
+         "t": "Sản phẩm móp méo, vỡ, bẹp,.. trong quá trình vận chuyển"
+        }
+       ]
+      ]
+     },
+     {
+      "type": "text",
+      "text": "--> Chính sách hỗ trợ trên được áp dụng với đơn hàng có QUAY VIDEO lại quá trình mở hộp hàng. Quý khách vui lòng gửi video mở hàng cho Shop để được hỗ trợ tốt nhất khi đơn hàng gặp sự cố. ",
+      "sub": [
+       {
+        "t": "-->",
+        "b": true
+       },
+       {
+        "t": " Chính sách hỗ trợ trên được áp dụng với đơn hàng có "
+       },
+       {
+        "t": "QUAY VIDEO",
+        "b": true
+       },
+       {
+        "t": " lại quá trình mở hộp hàng. Quý khách vui lòng gửi video mở hàng cho Shop để được hỗ trợ tốt nhất khi đơn hàng gặp sự cố. "
+       }
+      ]
+     },
+     {
+      "type": "text",
+      "text": "Cảm ơn quý khách đã tin tưởng, đồng hành cùng Tiến sĩ An và WHC - Viện Sức Khỏe Thông Thái! ",
+      "sub": [
+       {
+        "t": "Cảm ơn quý khách đã tin tưởng, đồng hành cùng Tiến sĩ An và WHC - Viện Sức Khỏe Thông Thái! "
+       }
+      ]
+     },
+     {
+      "type": "image",
+      "image": {
+       "height": 1080,
+       "width": 1080,
+       "uri": "tos-maliva-i-o3syd03w52-us/50a2d9bbcb484dde91f231cb154a06e4",
+       "url_list": [
+        "https://p16-oec-va.ibyteimg.com/tos-maliva-i-o3syd03w52-us/50a2d9bbcb484dde91f231cb154a06e4~tplv-o3syd03w52-origin-jpeg.jpeg?dr=15568&t=555f072d&ps=933b5bde&shp=a3510d86&shcp=6ce186a1&idc=my2&from=2739998086",
+        "https://p19-oec-va.ibyteimg.com/tos-maliva-i-o3syd03w52-us/50a2d9bbcb484dde91f231cb154a06e4~tplv-o3syd03w52-origin-jpeg.jpeg?dr=15568&t=555f072d&ps=933b5bde&shp=a3510d86&shcp=6ce186a1&idc=my2&from=2739998086"
+       ],
+       "remove_gap": "false"
+      }
+     }
+    ]
+   },
+   "message": null,
+   "cached": null,
+   "code": null
+  },
+  "step": "COLLECTION",
+  "captureArtifactSha256": "2350d6d6f443975ec41b4abfd86be6252632892cb84762cedf375560addf87df"
+ }
+}

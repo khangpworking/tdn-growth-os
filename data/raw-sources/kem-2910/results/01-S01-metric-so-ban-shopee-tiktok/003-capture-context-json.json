@@ -1,0 +1,79 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "01 · S01 · Số bán ước tính trên sàn (Shopee + TikTok Shop)",
+  "describe": "Metric: capture/context.json",
+  "parentFile": "01-S01-metric-so-ban-shopee-tiktok.json",
+  "parentLocation": "records[2].content",
+  "sourceCode": "S01",
+  "sourceName": "Số bán ước tính trên sàn (Shopee + TikTok Shop)",
+  "provider": "Metric (web, OpenCLI)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": "2026-09-21",
+   "endDate": "2026-10-20",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "30 ngày Metric tự chọn (kỳ đủ dữ liệu gần nhất trước ngày chạy)"
+  },
+  "limits": [
+   "Số bán là ước tính của nguồn",
+   "Bảng kết quả không có cột gian hàng ổn định (xem PR #310)",
+   "Không bấm Xuất/Tải"
+  ],
+  "resultSha256": "1865d04631b20fd26e16e62b2c4ff11c61514a6f4aa007a9b27ca2bf8c5bce7b"
+ },
+ "result": {
+  "capture": {
+   "captureId": "metric-1792979721488",
+   "keyword": "viên uống kẽm",
+   "measurementPeriod": {
+    "endDate": "2026-10-20",
+    "startDate": "2026-09-21"
+   },
+   "platforms": [
+    "shopee",
+    "tiktok"
+   ],
+   "specDigest": "05cc40fe9598d051d420ee0a31f0bae98f3f441d44fa357c67b4bae89e82f693",
+   "truncation": {
+    "cap": 200,
+    "pagesRead": 10,
+    "rowsRead": 200,
+    "totalShown": null,
+    "truncated": false
+   }
+  },
+  "contractVersion": "automation-metric-capture-context-v3",
+  "manifestSha256": "794910fd9dfe2085dc812b159718632f14874f2d29c09969fb0f86b7eaa461ee",
+  "provenance": "results-page capture",
+  "rawResponses": [
+   {
+    "byteSize": 1187894,
+    "captureNumber": 1,
+    "manifestByteSize": 1187894,
+    "manifestSha256": "cca455ed78602301f951fd33ded46783deb29729d4e427beba0439710a64390f",
+    "sha256": "cca455ed78602301f951fd33ded46783deb29729d4e427beba0439710a64390f",
+    "stripped": false
+   }
+  ],
+  "request": {
+   "contractVersion": "automation-metric-capture-prepare-v1",
+   "expectedRevision": 3,
+   "requestKey": "dfbe32b5-d7df-4b31-8a7d-04ce0b1ef648",
+   "sourceContext": "Tự động thu thập số liệu bán hàng Shopee và TikTok Shop cho từ khóa \"viên uống kẽm\", từ ngày 2026-09-21 đến ngày 2026-10-20."
+  },
+  "searchScope": {
+   "lines": [
+    "Phạm vi: tất cả danh mục — chưa chọn được trên trang tìm kiếm danh mục chiếm từ 80% doanh thu."
+   ]
+  },
+  "snapshotSha256": "0a227e78986c233174d3441444365bd62d1ba1464766fc625049cd79460fd30d",
+  "truncation": {
+   "cap": 200,
+   "pagesRead": 10,
+   "rowsRead": 200,
+   "totalShown": null,
+   "truncated": false
+  }
+ }
+}

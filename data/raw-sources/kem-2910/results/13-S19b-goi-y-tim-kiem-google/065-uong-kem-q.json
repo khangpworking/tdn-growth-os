@@ -1,0 +1,99 @@
+{
+ "declare": {
+  "formatVersion": "kem-raw-result-v1",
+  "folderTitle": "13 · S19b · Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "describe": "Gợi ý Google cho tiền tố «uống kẽm q» (10 gợi ý)",
+  "parentFile": "13-S19b-goi-y-tim-kiem-google.json",
+  "parentLocation": "records[64]",
+  "sourceCode": "S19b",
+  "sourceName": "Gợi ý tìm kiếm Google (autocomplete theo tiền tố)",
+  "provider": "Google Suggest (suggestqueries.google.com, miễn phí)",
+  "keyword": "viên uống kẽm",
+  "period": {
+   "startDate": null,
+   "endDate": "2026-10-29",
+   "timezone": "Asia/Ho_Chi_Minh",
+   "basis": "Gợi ý của Google lúc thu"
+  },
+  "limits": [
+   "Ý định tìm, không phải lời khách",
+   "Không có lượng tìm",
+   "Cần AI hoặc người phân loại cụm"
+  ],
+  "resultSha256": "babcddce0ed5ebb573799151e6d5c13b59c2467db9265f170d8320518366afff"
+ },
+ "result": {
+  "prefix": "uống kẽm q",
+  "httpStatus": 200,
+  "requestedAt": "2026-10-29T12:58:29Z",
+  "suggestions": [
+   "uống kẽm quá nhiều",
+   "uống kẽm quá liều",
+   "uống kẽm quá liều có sao không",
+   "trẻ uống kẽm quá liều có sao không",
+   "uống nhiều kẽm quá có sao không",
+   "uống kẽm nhiều quá có tốt không",
+   "uống kẽm hiệu quả",
+   "trẻ uống kẽm quá liều",
+   "uống nhiều kẽm quá thì sao",
+   "uống kẽm ăn quýt được không"
+  ],
+  "raw": [
+   "uống kẽm q",
+   [
+    "uống kẽm quá nhiều",
+    "uống kẽm quá liều",
+    "uống kẽm quá liều có sao không",
+    "trẻ uống kẽm quá liều có sao không",
+    "uống nhiều kẽm quá có sao không",
+    "uống kẽm nhiều quá có tốt không",
+    "uống kẽm hiệu quả",
+    "trẻ uống kẽm quá liều",
+    "uống nhiều kẽm quá thì sao",
+    "uống kẽm ăn quýt được không"
+   ],
+   [],
+   {
+    "google:suggestsubtypes": [
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      512
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ],
+     [
+      22,
+      30
+     ]
+    ]
+   }
+  ]
+ }
+}
