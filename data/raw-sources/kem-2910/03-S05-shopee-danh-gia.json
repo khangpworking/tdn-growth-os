@@ -62,7 +62,7 @@
    }
   ],
   "recordCount": 6,
-  "recordsSha256": "c0bd8d0c8f68e5d8e8ab5d49d3572a9df83db5e36a87306846c8d1b8d3f8485d",
+  "recordsSha256": "6a2b01ac151c59f03e632a20d414e3e88946ceccd5d6d1bd4e8ead177e0e1913",
   "anonymisation": {
    "method": "HMAC-SHA256 pseudonyms with a random key that was discarded; stable inside this build, not reversible",
    "pseudonymised": [
@@ -74,7 +74,7 @@
     "[số điện thoại]": 7,
     "@[ẩn]": 0,
     "[ip]": 0,
-    "[tên riêng]": 1
+    "[tên riêng]": 7
    },
    "commenterProfileUrlsReplaced": 0,
    "kept": "Nội dung lời khách, số sao, ngày, mã sản phẩm, mã shop (doanh nghiệp)"
@@ -14364,7 +14364,7 @@
     {
      "admissionReasons": [],
      "attributes": [],
-     "comment": "HÔM NAY 18/11 LUCKY [tên riêng] có lịch tại Mộc Bài\n\nbook lịch dặm filer kịp đón tết nào ce oi, tiêm tại TMV Lucky rất nhẹ nhàng hạn chế xưng bầm ạ🩷✅\n\nZẢM ZÁ filer chỉ còn 1790k/ 1cc thôi ạ 😋❤️‍🔥\n\n⛔CN SÀI GÒN: Quận 7-HCM\n⛔CN TRẢNG BÀNG: Nguyễn Văn Rốp-Trảng Bàng-Tây Ninh\n⛔CN GÒ DẦU: chợ gò dầu-TÂY NINH\n⛔️CN BAVET: đối diện casino WIN WIN\n\n📞[số điện thoại]",
+     "comment": "HÔM NAY 18/11 LUCKY [tên riêng] có lịch tại Mộc Bài\n\nbook lịch dặm filer kịp đón tết nào ce oi, tiêm tại TMV Lucky rất nhẹ nhàng hạn chế xưng bầm ạ🩷✅\n\nZẢM ZÁ filer chỉ còn 1790k/ 1cc thôi ạ 😋❤️‍🔥\n\n⛔CN SÀI GÒN: Quận 7-HCM\n⛔CN TRẢNG BÀNG: [tên riêng]-Trảng Bàng-Tây Ninh\n⛔CN GÒ DẦU: chợ gò dầu-TÂY NINH\n⛔️CN BAVET: đối diện casino WIN WIN\n\n📞[số điện thoại]",
      "contentType": "COMMENT",
      "createdAt": "2024-11-18T08:46:00+07:00",
      "itemId": "28106261717",
@@ -17383,7 +17383,7 @@
     {
      "admissionReasons": [],
      "attributes": [],
-     "comment": "Dùng hãng này nhiều lắm rồi á.\nMọi lần mua của bác sĩ Cung còn giờ mua thẳng trên shop của hãng luôn. Ship nhanh, hàng dùng tốt ạ!!\nCải thiện sức khoẻ rõ ràng luôn",
+     "comment": "Dùng hãng này nhiều lắm rồi á.\nMọi lần mua của bác sĩ [tên riêng] còn giờ mua thẳng trên shop của hãng luôn. Ship nhanh, hàng dùng tốt ạ!!\nCải thiện sức khoẻ rõ ràng luôn",
      "contentType": "COMMENT",
      "createdAt": "2023-04-01T22:02:00+07:00",
      "itemId": "16433976455",
@@ -17525,7 +17525,7 @@
     {
      "admissionReasons": [],
      "attributes": [],
-     "comment": "Săn được 657 3 hộp đợt 12/12 rồi ! Ko biết giá đã hời lắm chưa ! Uống cho đủ 3 tháng luôn ạ ! Ngày 1 viên ! Mình mua sắt canxi uống mà tóc vẫn rụng. Xem trên bs Phúc thấy bác bảo là thiếu kẽm tóc cũng rụng. Nên là mình mua thêm kẽm",
+     "comment": "Săn được 657 3 hộp đợt 12/12 rồi ! Ko biết giá đã hời lắm chưa ! Uống cho đủ 3 tháng luôn ạ ! Ngày 1 viên ! Mình mua sắt canxi uống mà tóc vẫn rụng. Xem trên bs [tên riêng] thấy bác bảo là thiếu kẽm tóc cũng rụng. Nên là mình mua thêm kẽm",
      "contentType": "COMMENT",
      "createdAt": "2025-12-14T18:58:00+07:00",
      "itemId": "16433976455",
@@ -18795,7 +18795,7 @@
       "Công dụng: vtm bổ sung dưỡng chất",
       "Đối tượng sử dụng: mọi người"
      ],
-     "comment": "Uh các bà có tay chăm trẻ mà\nHôm trc bà Thủy lên bế tí chả ngoan hơn à\nSau hôm ấy có bị hắt xì hay bị lạnh gì k? Trvia",
+     "comment": "Uh các bà có tay chăm trẻ mà\nHôm trc bà [tên riêng] lên bế tí chả ngoan hơn à\nSau hôm ấy có bị hắt xì hay bị lạnh gì k? Trvia",
      "contentType": "COMMENT",
      "createdAt": "2025-05-21T16:40:00+07:00",
      "itemId": "16433976455",
@@ -19208,7 +19208,7 @@
     {
      "admissionReasons": [],
      "attributes": [],
-     "comment": "Không phải là là một trong những người có thể làm được gì cho nó lành bác Tô Hiệu",
+     "comment": "Không phải là là một trong những người có thể làm được gì cho nó lành bác [tên riêng]",
      "contentType": "COMMENT",
      "createdAt": "2025-11-20T11:03:00+07:00",
      "itemId": "16433976455",
@@ -21384,7 +21384,7 @@
     {
      "admissionReasons": [],
      "attributes": [],
-     "comment": "🔥 REVIEW QUÁN BÁNH MÌ NGON, ĐA DẠNG - GIÁ CHỈ TỪ 15K 🔥\n\n📍 Team Bắc Ninh mà chưa thử BÁNH MÌ THÈM thì đúng là thiếu sót lớn đó nha! 🥖✨\n\nHôm nay, tụi mình ghé qua quán và phải công nhận: Bánh mì ở đây NGON THẬT SỰ! 😍\n\n✅ Vỏ bánh giòn rụm, nhân kết hợp hoàn hảo: Pate nhà làm béo ngậy, thịt bắp bò đậm đà, gà xé bơ tỏi thơm lừng, xá xíu mềm ngọt… thêm chút sốt đặc biệt của quán nữa thì đúng bài! 🤤\n\n✅ Menu đa dạng – Giá cực hợp lý: Chỉ từ 15K là có ngay ổ bánh chất lượng. Mà ngon nhất phải kể đến bánh mì full topping, kết hợp mọi hương vị một cách hoàn hảo!\n\n✅ Bữa sáng chuẩn bài với combo bánh mì + sữa đậu nành: Vừa ngon, vừa chắc bụng mà giá vẫn mềm xèo.\n\n📌 BÁNH MÌ THÈM – Quán bánh mì siêu hot tại Bắc Ninh\n🏠 Địa chỉ: 22 Nguyễn Hữu Nghiêm (gần tiểu học tiền an)\n⏰ Giờ mở cửa: 6h - 13h | 15h30 - 18h30\n📞 : [số điện thoại] (SHIP TẬN NƠI)\n\n💬 Ai ăn rồi review thêm cảm nhận đi nào! Còn ai chưa thử thì ghé ngay kẻo tiếc nhé! 💥\n\n#anbn #asbn #review #bánh_mỳ",
+     "comment": "🔥 REVIEW QUÁN BÁNH MÌ NGON, ĐA DẠNG - GIÁ CHỈ TỪ 15K 🔥\n\n📍 Team Bắc Ninh mà chưa thử BÁNH MÌ THÈM thì đúng là thiếu sót lớn đó nha! 🥖✨\n\nHôm nay, tụi mình ghé qua quán và phải công nhận: Bánh mì ở đây NGON THẬT SỰ! 😍\n\n✅ Vỏ bánh giòn rụm, nhân kết hợp hoàn hảo: Pate nhà làm béo ngậy, thịt bắp bò đậm đà, gà xé bơ tỏi thơm lừng, xá xíu mềm ngọt… thêm chút sốt đặc biệt của quán nữa thì đúng bài! 🤤\n\n✅ Menu đa dạng – Giá cực hợp lý: Chỉ từ 15K là có ngay ổ bánh chất lượng. Mà ngon nhất phải kể đến bánh mì full topping, kết hợp mọi hương vị một cách hoàn hảo!\n\n✅ Bữa sáng chuẩn bài với combo bánh mì + sữa đậu nành: Vừa ngon, vừa chắc bụng mà giá vẫn mềm xèo.\n\n📌 BÁNH MÌ THÈM – Quán bánh mì siêu hot tại Bắc Ninh\n🏠 Địa chỉ: 22 [tên riêng] (gần tiểu học tiền an)\n⏰ Giờ mở cửa: 6h - 13h | 15h30 - 18h30\n📞 : [số điện thoại] (SHIP TẬN NƠI)\n\n💬 Ai ăn rồi review thêm cảm nhận đi nào! Còn ai chưa thử thì ghé ngay kẻo tiếc nhé! 💥\n\n#anbn #asbn #review #bánh_mỳ",
      "contentType": "COMMENT",
      "createdAt": "2025-03-03T11:20:00+07:00",
      "itemId": "988067990",

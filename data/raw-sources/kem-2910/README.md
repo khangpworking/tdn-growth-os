@@ -20,7 +20,7 @@ Từ khoá: «viên uống kẽm». Chủ đề: thực phẩm chức năng viê
 }
 ```
 
-Bản ghi giữ nguyên JSON của nhà cung cấp. Chỉ có hai thay đổi: giải mã base64 và ẩn danh (mục 4).
+Bản ghi giữ nguyên JSON của nhà cung cấp. Chỉ có hai thay đổi: giải mã base64 và ẩn danh (mục 4). Ngoại lệ có sẵn từ app: tệp 01 có chuỗi `[REDACTED_PHONE]` (mục 4).
 
 ## 2. Các trường khai báo (`declare`)
 
@@ -85,6 +85,7 @@ Nguồn không có tệp (dừng, chưa có công cụ, cần tài khoản): S03
 - Mã `anon-` dùng HMAC-SHA256 với khoá ngẫu nhiên đã huỷ. Cùng một mã định danh gốc trong cùng nhóm có cùng mã thay thế; không ghép danh tính giữa nền tảng.
 - Tên cá nhân, số điện thoại, email, @nhắc tên trong lời viết: thay bằng `[tên riêng]`, `[số điện thoại]`, `[email]`, `@[ẩn]`.
 - Tệp 01: bỏ 36 phần thân yêu cầu theo dõi trình duyệt, thay bằng `[REDACTED_BROWSER_TELEMETRY]`; các phần này chứa cookie, mã người dùng ẩn danh, mã phiên và mã khách truy cập trong chuỗi JSON.
+- Tệp 01: có 721 chỗ `[REDACTED_PHONE]`. App TDN tự thay khi lưu bản thu, trước bộ dữ liệu này: mọi dãy số trông giống số điện thoại đều bị thay, kể cả trong mã số doanh nghiệp, đường dẫn (URL) và mốc thời gian. Bản lưu trong app cũng vậy, nên không khôi phục được các giá trị đó.
 - Giữ nguyên: nội dung lời khách, số sao, ngày, mã sản phẩm, tên shop, thương hiệu, người bán, tác giả video công khai.
 - Mỗi tệp ghi rõ phần đã ẩn danh trong `declare.anonymisation`.
 
